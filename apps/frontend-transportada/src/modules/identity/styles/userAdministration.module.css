@@ -56,6 +56,12 @@
   font-size: 1.1rem;
 }
 
+.panelActions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 .panelHead {
   display: flex;
   flex-wrap: wrap;

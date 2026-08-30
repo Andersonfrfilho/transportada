@@ -5,8 +5,10 @@ import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 
 import { fleetDrivers } from '../../database/fleet.schema.js'
+import { auditLogs } from '../../database/fiscal-operation.schema.js'
 import { jobExecutions, jobSchedules } from '../../database/job-schedule.schema.js'
 import type { JobOutcome, ScheduledJob } from '../../shared/job-catalog.constant.js'
+import type { RevealedCompanyUser } from '../application/reveal-company-users.use-case.js'
 import type { LocalIdentityRecord } from '../domain/user-reconciliation.policy.js'
 import {
   externalIdentities,
@@ -64,6 +66,10 @@ const MEMBERSHIP_COLUMNS = {
   userId: userCompanyMemberships.userId,
   username: identityUserProfiles.username,
 } as const
+
+const CONTACT_REVEAL_ACTION = 'company-user.contact.revealed'
+const CONTACT_REVEAL_ENTITY = 'company-user'
+const CONTACT_REVEAL_PERMISSION = 'users.reveal'
 
 /** Canal de um perfil que não existe: não há contato, e o formato precisa de um valor. */
 const DEFAULT_CONTACT_CHANNEL = 'email' as const
@@ -265,6 +271,60 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
    * O perfil ausente vira campo vazio, nunca linha escondida: a tela mostra que a pessoa existe e
    * que falta cadastro, e é assim que alguém a conserta. Esconder é o defeito, não a proteção.
    */
+  public async findForReveal(input: {
+    readonly companyId: string
+    readonly userIds: readonly string[]
+  }): Promise<readonly RevealedCompanyUser[]> {
+    if (input.userIds.length === 0) return []
+
+    return this.database
+      .select({
+        email: identityUserProfiles.email,
+        name: identityUserProfiles.name,
+        phone: identityUserProfiles.phone,
+        taxId: identityUserProfiles.taxId,
+        userId: identityUserProfiles.userId,
+      })
+      .from(identityUserProfiles)
+      .innerJoin(
+        userCompanyMemberships,
+        eq(userCompanyMemberships.userId, identityUserProfiles.userId),
+      )
+      .where(
+        and(
+          eq(userCompanyMemberships.companyId, input.companyId),
+          inArray(identityUserProfiles.userId, [...input.userIds]),
+        ),
+      )
+  }
+
+  /**
+   * Uma linha por pessoa revelada. `security.md` §10 pede ator, alvo e horário — o IP fica de fora
+   * porque a tabela não o tem, e inventar coluna aqui é decisão maior que este botão.
+   */
+  public async recordContactReveal(input: {
+    readonly actorUserId: string
+    readonly companyId: string
+    readonly correlationId: string
+    readonly targetUserIds: readonly string[]
+  }): Promise<void> {
+    if (input.targetUserIds.length === 0) return
+
+    await this.database.insert(auditLogs).values(
+      input.targetUserIds.map((targetUserId) => ({
+        action: CONTACT_REVEAL_ACTION,
+        actorUserId: input.actorUserId,
+        companyId: input.companyId,
+        correlationId: input.correlationId,
+        entityId: targetUserId,
+        entityType: CONTACT_REVEAL_ENTITY,
+        permission: CONTACT_REVEAL_PERMISSION,
+        targetId: targetUserId,
+        targetType: CONTACT_REVEAL_ENTITY,
+      })),
+    )
+  }
+
   public async listPage(input: ListCompanyUsersInput): Promise<CompanyUserPage> {
     const cursor = decodeCursor(input.cursor)
     const rows = await this.database

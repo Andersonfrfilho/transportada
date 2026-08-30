@@ -133,6 +133,34 @@
       "linked": "Linked to the existing fleet record.",
       "noDriverRecord": "Invitation sent, but no fleet record matches this tax id — create the record so the person shows up in the fleet.",
       "dismiss": "Dismiss the notice"
+    },
+    "sync": {
+      "title": "Keycloak reconciliation",
+      "intro": "Who exists here, who exists in the login provider, and who exists on one side only. Divergence never shows in the list above — it shows here.",
+      "show": "Compare with Keycloak",
+      "hide": "Close comparison",
+      "refresh": "Refresh",
+      "allLinked": "Every account exists on both sides.",
+      "divergentCount": "{{count}} account(s) exist on one side only.",
+      "truncated": "Keycloak holds more accounts than this page fetched — divergence may exist outside it.",
+      "column": {
+        "person": "Person",
+        "here": "Here",
+        "realm": "In Keycloak",
+        "status": "Status",
+        "matchedBy": "Matched by"
+      },
+      "status": {
+        "linked": "In sync",
+        "missing-in-realm": "Here only",
+        "missing-locally": "Keycloak only"
+      },
+      "match": {
+        "subject": "Link",
+        "email": "Email",
+        "tax-id": "Document",
+        "none": "—"
+      }
     }
   }
 }

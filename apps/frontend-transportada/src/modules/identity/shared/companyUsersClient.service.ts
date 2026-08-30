@@ -4,6 +4,7 @@ import type {
   ChangeCompanyUserStatusInput,
   CompanyUser,
   CompanyUserPage,
+  CompanyUsersReconciliation,
   InviteCompanyUserInput,
   InvitedCompanyUser,
   ReplaceCompanyUserRolesInput,
@@ -15,6 +16,7 @@ import {
   isString,
   toCompanyUser,
   toCompanyUserPage,
+  toCompanyUsersReconciliation,
   toInvitedCompanyUser,
   toResendInvitationResult,
 } from './companyUsersResponse.validation'
@@ -30,6 +32,7 @@ export type CompanyUsersClient = Readonly<{
   changeStatus: (input: ChangeCompanyUserStatusInput) => Promise<CompanyUser>
   inviteUser: (input: InviteCompanyUserInput) => Promise<InvitedCompanyUser>
   listUsers: (input: Readonly<{ cursor: null | string; limit: number }>) => Promise<CompanyUserPage>
+  reconcileUsers: () => Promise<CompanyUsersReconciliation>
   removeUser: (input: Readonly<{ userId: string }>) => Promise<void>
   replaceRoles: (input: ReplaceCompanyUserRolesInput) => Promise<CompanyUser>
   resendInvitation: (input: Readonly<{ userId: string }>) => Promise<ResendInvitationResult>
@@ -155,6 +158,14 @@ export function createCompanyUsersClient(dependencies: ClientDependencies): Comp
         path: `${COMPANY_USERS_PATH}?${search.toString()}`,
       })
       return toCompanyUserPage(payload)
+    },
+    async reconcileUsers() {
+      const { payload } = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${COMPANY_USERS_PATH}/reconciliation`,
+      })
+      return toCompanyUsersReconciliation(payload)
     },
     async removeUser(input) {
       await authorizedRequest({

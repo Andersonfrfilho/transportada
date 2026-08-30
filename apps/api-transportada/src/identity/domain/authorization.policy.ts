@@ -6,6 +6,12 @@ import type { CompanyRole } from '../../database/database.schema'
 export const TRANSPORTADA_PERMISSIONS = Object.freeze([
   'companies.manage',
   'users.manage',
+  /**
+   * Ver o contato e o documento sem máscara é permissão própria, separada de administrar usuários:
+   * quem convida, suspende e troca papéis não precisa ler o CPF de todo mundo para fazer isso. Toda
+   * revelação grava trilha de auditoria (`security.md` §10) — é acesso a dado pessoal, com nome.
+   */
+  'users.reveal',
   'invoices.import',
   'invoices.read',
   'batches.create',
@@ -65,6 +71,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
   // finance nem enxerga a lista de CT-e
   'company-admin': Object.freeze([
     'users.manage',
+    'users.reveal',
     'invoices.import',
     'invoices.read',
     'cte.manage',

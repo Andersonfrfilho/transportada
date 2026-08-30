@@ -133,6 +133,34 @@
       "linked": "Vinculado à ficha de frota existente.",
       "noDriverRecord": "Convite enviado, mas nenhuma ficha de frota com este CPF foi encontrada — cadastre a ficha para a pessoa aparecer na frota.",
       "dismiss": "Dispensar o aviso"
+    },
+    "sync": {
+      "title": "Sincronização com o Keycloak",
+      "intro": "Quem existe aqui, quem existe no provedor de login, e quem está só de um lado. Divergência não aparece na listagem acima — é aqui que ela se vê.",
+      "show": "Comparar com o Keycloak",
+      "hide": "Fechar comparação",
+      "refresh": "Atualizar",
+      "allLinked": "Todos os acessos existem nos dois lados.",
+      "divergentCount": "{{count}} acesso(s) existem em um lado só.",
+      "truncated": "O Keycloak tem mais contas do que esta página trouxe — pode haver divergência fora dela.",
+      "column": {
+        "person": "Pessoa",
+        "here": "Aqui",
+        "realm": "No Keycloak",
+        "status": "Situação",
+        "matchedBy": "Casado por"
+      },
+      "status": {
+        "linked": "Sincronizado",
+        "missing-in-realm": "Só aqui",
+        "missing-locally": "Só no Keycloak"
+      },
+      "match": {
+        "subject": "Vínculo",
+        "email": "E-mail",
+        "tax-id": "Documento",
+        "none": "—"
+      }
     }
   }
 }

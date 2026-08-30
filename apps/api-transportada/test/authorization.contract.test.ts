@@ -26,6 +26,7 @@ describe('authorization contract', () => {
     expect(TRANSPORTADA_PERMISSIONS).toEqual([
       'companies.manage',
       'users.manage',
+      'users.reveal',
       'invoices.import',
       'invoices.read',
       'batches.create',
@@ -69,6 +70,7 @@ describe('authorization contract', () => {
     expect(COMPANY_ROLE_PERMISSIONS).toEqual({
       'company-admin': [
         'users.manage',
+        'users.reveal',
         'invoices.import',
         'invoices.read',
         'cte.manage',

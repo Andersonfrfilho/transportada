@@ -3,8 +3,12 @@ import { COMPANY_USER_ERROR } from './companyUsers.constant'
 import type {
   CompanyUser,
   CompanyUserPage,
+  CompanyUsersReconciliation,
   FleetLink,
   InvitedCompanyUser,
+  ReconciliationEntry,
+  ReconciliationMatch,
+  ReconciliationStatus,
   ResendInvitationResult,
 } from './companyUsers.types'
 
@@ -88,6 +92,68 @@ export function toCompanyUserPage(value: unknown): CompanyUserPage {
   return {
     nextCursor: isString(nextCursor) ? nextCursor : null,
     users: value.data.map(toCompanyUser),
+  }
+}
+
+const RECONCILIATION_STATUSES = ['linked', 'missing-in-realm', 'missing-locally'] as const
+const RECONCILIATION_MATCHES = ['email', 'none', 'subject', 'tax-id'] as const
+
+/**
+ * Status desconhecido não derruba a tela: a linha continua visível como `missing-locally`, que é o
+ * pior caso e o que pede ação. Sumir com a pessoa é o defeito que esta tela existe para consertar.
+ */
+function toReconciliationStatus(value: unknown): ReconciliationStatus {
+  return RECONCILIATION_STATUSES.find((status) => status === value) ?? 'missing-locally'
+}
+
+function toReconciliationMatch(value: unknown): ReconciliationMatch {
+  return RECONCILIATION_MATCHES.find((match) => match === value) ?? 'none'
+}
+
+function toReconciliationEntry(value: unknown): ReconciliationEntry {
+  if (!isRecord(value)) invalid()
+  const local = isRecord(value.local) ? value.local : undefined
+  const realm = isRecord(value.realm) ? value.realm : undefined
+
+  return {
+    matchedBy: toReconciliationMatch(value.matchedBy),
+    status: toReconciliationStatus(value.status),
+    ...(local === undefined
+      ? {}
+      : {
+          local: {
+            email: readText(local.email),
+            membershipId: readText(local.membershipId),
+            name: readText(local.name),
+            taxId: readText(local.taxId),
+            userId: readText(local.userId),
+          },
+        }),
+    ...(realm === undefined
+      ? {}
+      : {
+          realm: {
+            email: readText(realm.email),
+            enabled: realm.enabled === true,
+            subject: readText(realm.subject),
+            username: readText(realm.username),
+          },
+        }),
+  }
+}
+
+function readText(value: unknown): string {
+  return isString(value) ? value : ''
+}
+
+export function toCompanyUsersReconciliation(value: unknown): CompanyUsersReconciliation {
+  if (!isRecord(value) || !isRecord(value.data)) invalid()
+  const data = value.data
+  if (!Array.isArray(data.items)) invalid()
+
+  return {
+    hasMoreRealmUsers: data.hasMoreRealmUsers === true,
+    items: data.items.map(toReconciliationEntry),
   }
 }
 

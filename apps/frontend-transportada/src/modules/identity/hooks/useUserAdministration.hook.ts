@@ -5,6 +5,7 @@ import { useAuthMeQuery } from '../queries/useAuthMe.query'
 import type { CompanyUser, FleetLink } from '../shared/companyUsers.types'
 import type { CompanyUsersClient } from './useCompanyUsers.hook'
 import { useCompanyUsers } from './useCompanyUsers.hook'
+import { useCompanyUsersReconciliation } from './useCompanyUsersReconciliation.hook'
 import { useCompanyUserEditForm, useCompanyUserInviteForm } from './useCompanyUserForm.hook'
 
 export function readErrorCode(error: unknown): string | undefined {
@@ -22,6 +23,8 @@ export function useUserAdministration(input: Readonly<{ client?: CompanyUsersCli
   })
 
   const [isInviteOpen, setInviteOpen] = useState(false)
+  /** A comparação com o realm é clique, não carregamento de tela: ela lê o Keycloak inteiro. */
+  const [isReconciliationOpen, setReconciliationOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<CompanyUser | null>(null)
   const [removeTarget, setRemoveTarget] = useState<CompanyUser | null>(null)
   const [resentUserId, setResentUserId] = useState<null | string>(null)
@@ -30,6 +33,12 @@ export function useUserAdministration(input: Readonly<{ client?: CompanyUsersCli
    * na página até quem convidou dispensá-lo.
    */
   const [fleetLinkNotice, setFleetLinkNotice] = useState<FleetLink | null>(null)
+
+  const reconciliation = useCompanyUsersReconciliation({
+    enabled: isReconciliationOpen,
+    permissions: authQuery.data?.data.permissions ?? [],
+    ...(companyId === undefined ? {} : { companyId }),
+  })
 
   const inviteForm = useCompanyUserInviteForm()
   const editForm = useCompanyUserEditForm(editTarget)
@@ -111,8 +120,14 @@ export function useUserAdministration(input: Readonly<{ client?: CompanyUsersCli
     fleetLinkNotice,
     inviteForm,
     isInviteOpen,
+    isReconciliationOpen,
     openEdit: setEditTarget,
     openInvite: () => setInviteOpen(true),
+    reconciliation,
+    refreshReconciliation: () => {
+      void reconciliation.refetch()
+    },
+    toggleReconciliation: () => setReconciliationOpen((open) => !open),
     openRemove: setRemoveTarget,
     removeTarget,
     resendInvitation,

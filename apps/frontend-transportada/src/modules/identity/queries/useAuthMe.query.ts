@@ -24,6 +24,7 @@ const COMPANY_ROLES = [
 ] as const
 const COMPANY_PERMISSIONS = [
   'users.manage',
+  'users.reveal',
   'invoices.import',
   'invoices.read',
   'batches.create',

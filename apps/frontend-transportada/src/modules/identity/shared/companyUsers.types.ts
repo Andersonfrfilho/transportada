@@ -38,6 +38,32 @@ export type CompanyUserPage = Readonly<{
   users: readonly CompanyUser[]
 }>
 
+/**
+ * O que a tela de sincronização mostra: cada pessoa e de que lado ela existe. `linked` está nos
+ * dois; `missing-in-realm` tem vínculo aqui e não consegue entrar; `missing-locally` é conta no
+ * Keycloak que ninguém desta empresa reivindica.
+ */
+export type ReconciliationStatus = 'linked' | 'missing-in-realm' | 'missing-locally'
+export type ReconciliationMatch = 'email' | 'none' | 'subject' | 'tax-id'
+
+export type ReconciliationEntry = Readonly<{
+  local?: Readonly<{
+    email: string
+    membershipId: string
+    name: string
+    taxId: string
+    userId: string
+  }>
+  matchedBy: ReconciliationMatch
+  realm?: Readonly<{ email: string; enabled: boolean; subject: string; username: string }>
+  status: ReconciliationStatus
+}>
+
+export type CompanyUsersReconciliation = Readonly<{
+  hasMoreRealmUsers: boolean
+  items: readonly ReconciliationEntry[]
+}>
+
 export type InviteCompanyUserInput = Readonly<{
   channel: ContactChannel
   contact: string

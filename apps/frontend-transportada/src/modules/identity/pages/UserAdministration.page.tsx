@@ -9,6 +9,7 @@ import { CompanyUserEditDialog } from '../components/CompanyUserEditDialog.compo
 import { CompanyUserInviteDialog } from '../components/CompanyUserInviteDialog.component'
 import { CompanyUserRemoveDialog } from '../components/CompanyUserRemoveDialog.component'
 import { CompanyUserTable } from '../components/CompanyUserTable.component'
+import { CompanyUserReconciliationPanel } from '../components/CompanyUserReconciliationPanel.component'
 import { readErrorCode, useUserAdministration } from '../hooks/useUserAdministration.hook'
 import styles from '../styles/userAdministration.module.css'
 
@@ -46,6 +47,16 @@ export function UserAdministrationPage() {
         <h1>{t('users.title')}</h1>
         <p className={styles.intro}>{t('users.intro')}</p>
       </header>
+
+      <CompanyUserReconciliationPanel
+        entries={screen.reconciliation.data?.items ?? []}
+        {...withErrorCode(readErrorCode(screen.reconciliation.error))}
+        hasMoreRealmUsers={screen.reconciliation.data?.hasMoreRealmUsers ?? false}
+        isLoading={screen.reconciliation.isLoading}
+        isOpen={screen.isReconciliationOpen}
+        onRefresh={screen.refreshReconciliation}
+        onToggle={screen.toggleReconciliation}
+      />
 
       <section className={styles.panel}>
         <div className={styles.panelHead}>
@@ -190,4 +201,8 @@ export function UserAdministrationPage() {
       />
     </main>
   )
+}
+
+function withErrorCode(errorCode: string | undefined): Readonly<{ errorCode?: string }> {
+  return errorCode === undefined ? {} : { errorCode }
 }

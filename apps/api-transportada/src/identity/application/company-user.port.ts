@@ -5,6 +5,7 @@ import type { CompanyRole, MembershipStatus } from '../../database/identity.sche
 import type { ContactChannel } from '../../database/identity-user-profile.schema.js'
 import type { JobOutcome, ScheduledJob } from '../../shared/job-catalog.constant.js'
 import type { LocalIdentityRecord } from '../domain/user-reconciliation.policy.js'
+import type { RevealedCompanyUser } from './reveal-company-users.use-case.js'
 
 export type PendingInvitationSummary =
   | {
@@ -99,6 +100,21 @@ export type CompanyUserRepositoryPort = {
   readonly listForReconciliation: (input: {
     readonly companyId: string
   }) => Promise<readonly LocalIdentityRecord[]>
+  /**
+   * O valor cru de quem a tela pediu para revelar, filtrado por `company_id` **e** pelos ids: o
+   * recorte é do banco, não do laço em memória, e é ele que impede alcançar a empresa vizinha.
+   */
+  readonly findForReveal: (input: {
+    readonly companyId: string
+    readonly userIds: readonly string[]
+  }) => Promise<readonly RevealedCompanyUser[]>
+  /** Uma linha de auditoria por pessoa revelada: o registro é "quem olhou o documento de quem". */
+  readonly recordContactReveal: (input: {
+    readonly actorUserId: string
+    readonly companyId: string
+    readonly correlationId: string
+    readonly targetUserIds: readonly string[]
+  }) => Promise<void>
   /** A execução manual entra na mesma trilha da agendada, com quem pediu e o que ela contou. */
   readonly recordManualJobRun: (input: {
     readonly companyId: string
