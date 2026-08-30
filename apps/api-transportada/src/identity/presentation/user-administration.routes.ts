@@ -38,12 +38,14 @@ import type {
 } from '../application/update-company-user-profile.use-case.js'
 import type { BackfillIdentityDocumentsUseCase } from '../application/backfill-identity-documents.use-case.js'
 import type { ReconcileCompanyUsersUseCase } from '../application/reconcile-company-users.use-case.js'
+import type { RevealCompanyUsersUseCase } from '../application/reveal-company-users.use-case.js'
 import type { CompanyUserView } from '../domain/company-user.policy.js'
 import {
   parseChangeCompanyUserStatusRequest,
   parseCompanyUserListQuery,
   parseInviteCompanyUserRequest,
   parseReplaceCompanyUserRolesRequest,
+  parseRevealCompanyUsersRequest,
   parseUpdateCompanyUserProfileRequest,
   parseUuidPathIdentifier,
 } from './user-administration.schema.js'
@@ -54,11 +56,17 @@ import {
  */
 const RECONCILIATION_PATH = `${API_COMPANY_USERS_PATH}/reconciliation`
 const DOCUMENT_BACKFILL_PATH = `${API_COMPANY_USERS_PATH}/document-backfill`
+const REVEAL_PATH = `${API_COMPANY_USERS_PATH}/reveal`
 const USER_PATH = `${API_COMPANY_USERS_PATH}/:id`
 const USER_INVITATION_PATH = `${USER_PATH}/invitation`
 const USER_STATUS_PATH = `${USER_PATH}/status`
 const USER_ROLES_PATH = `${USER_PATH}/roles`
 const USERS_MANAGE_POLICY = { permission: 'users.manage', scope: 'company' } as const
+/**
+ * Ler contato e documento sem máscara é permissão própria: quem convida, suspende e troca papéis
+ * não precisa do CPF de todo mundo para fazer isso, e toda revelação deixa trilha (`security.md` §10).
+ */
+const USERS_REVEAL_POLICY = { permission: 'users.reveal', scope: 'company' } as const
 
 type Dependencies = {
   readonly changeStatus: ChangeCompanyUserStatusUseCase
@@ -66,6 +74,7 @@ type Dependencies = {
   readonly list: ListCompanyUsersUseCase
   readonly backfillDocuments: BackfillIdentityDocumentsUseCase
   readonly reconcile: ReconcileCompanyUsersUseCase
+  readonly reveal: RevealCompanyUsersUseCase
   readonly removeMembership: RemoveCompanyUserMembershipUseCase
   readonly replaceRoles: ReplaceCompanyUserRolesUseCase
   readonly resendCode: ResendCompanyUserCodeUseCase
@@ -124,6 +133,30 @@ export function createUserAdministrationRoutes(
       }),
       pathname: DOCUMENT_BACKFILL_PATH,
       policy: USERS_MANAGE_POLICY,
+    }),
+    /**
+     * `POST` porque a leitura grava auditoria e porque os ids não vão na URL — `security.md` proíbe
+     * dado pessoal em query string, e a lista de quem foi revelado é o que a trilha precisa guardar.
+     */
+    defineRoute<{ readonly correlationId: string; readonly userIds: readonly string[] }>({
+      async handle({ context, input }) {
+        const users = await dependencies.reveal.execute({
+          context: context.scope,
+          correlationId: input.correlationId,
+          userIds: input.userIds,
+        })
+        return jsonResponse({ body: { data: users }, status: 200 })
+      },
+      method: 'POST',
+      async parse({ request }) {
+        const body = await parseRevealCompanyUsersRequest(request)
+        return {
+          correlationId: readCorrelationId(request) ?? crypto.randomUUID(),
+          userIds: body.userIds,
+        }
+      },
+      pathname: REVEAL_PATH,
+      policy: USERS_REVEAL_POLICY,
     }),
     defineRoute<Omit<InviteCompanyUserInput, 'context'>>({
       async handle({ context, input }) {

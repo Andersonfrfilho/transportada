@@ -25,6 +25,7 @@ type RouteDependencies = {
   readonly list: { execute(input: ExecuteCall): Promise<typeof COMPANY_USER_PAGE> }
   readonly backfillDocuments: { execute(input: ExecuteCall): Promise<typeof BACKFILL_RESULT> }
   readonly reconcile: { execute(input: ExecuteCall): Promise<typeof RECONCILIATION_RESULT> }
+  readonly reveal: { execute(input: ExecuteCall): Promise<typeof REVEALED_USERS> }
   readonly removeMembership: { execute(input: ExecuteCall): Promise<void> }
   readonly replaceRoles: { execute(input: ExecuteCall): Promise<typeof COMPANY_USER> }
   readonly resendCode: { execute(input: ExecuteCall): Promise<typeof INVITATION_DELIVERY> }
@@ -88,6 +89,17 @@ export const COMPANY_USER_PAGE = { items: [COMPANY_USER], nextCursor: null }
 /** A reconciliação responde os dois lados; o que a rota precisa provar é o recorte e a permissão. */
 export const BACKFILL_RESULT = { skipped: 1, written: 2 }
 
+/** O valor cru: é o que a rota devolve a quem tem `users.reveal`, e o que a auditoria registra. */
+export const REVEALED_USERS = [
+  {
+    email: 'pessoa@empresa.test',
+    name: COMPANY_USER.name,
+    phone: '11999998888',
+    taxId: '12345678909',
+    userId: COMPANY_USER.id,
+  },
+]
+
 export const RECONCILIATION_RESULT = {
   hasMoreRealmUsers: false,
   items: [
@@ -129,6 +141,15 @@ export const COMPANY_CONTEXT: CompanyContext = {
   permissions: new Set(['users.manage']),
 }
 
+/**
+ * Quem administra usuários **e** pode ler contato sem máscara. São permissões separadas de
+ * propósito: convidar, suspender e trocar papéis não exige o CPF de ninguém.
+ */
+export const WITH_USERS_REVEAL_PERMISSIONS: CompanyContext['permissions'] = new Set([
+  'users.manage',
+  'users.reveal',
+])
+
 /** Perfil que administra a empresa em tudo, menos usuários — a fronteira que o contrato cobra. */
 export const WITHOUT_USERS_MANAGE_PERMISSIONS: CompanyContext['permissions'] = new Set([
   'settings.manage',
@@ -143,6 +164,7 @@ export async function createUserAdministrationHttpFixture(
   readonly listCalls: ExecuteCall[]
   readonly backfillCalls: ExecuteCall[]
   readonly reconcileCalls: ExecuteCall[]
+  readonly revealCalls: ExecuteCall[]
   readonly removeMembershipCalls: ExecuteCall[]
   readonly replaceRolesCalls: ExecuteCall[]
   readonly resendCodeCalls: ExecuteCall[]
@@ -153,6 +175,7 @@ export async function createUserAdministrationHttpFixture(
   const listCalls: ExecuteCall[] = []
   const backfillCalls: ExecuteCall[] = []
   const reconcileCalls: ExecuteCall[] = []
+  const revealCalls: ExecuteCall[] = []
   const removeMembershipCalls: ExecuteCall[] = []
   const replaceRolesCalls: ExecuteCall[] = []
   const resendCodeCalls: ExecuteCall[] = []
@@ -181,6 +204,12 @@ export async function createUserAdministrationHttpFixture(
       async execute(input) {
         backfillCalls.push(structuredClone(input))
         return BACKFILL_RESULT
+      },
+    },
+    reveal: {
+      async execute(input) {
+        revealCalls.push(structuredClone(input))
+        return REVEALED_USERS
       },
     },
     reconcile: {
@@ -244,6 +273,7 @@ export async function createUserAdministrationHttpFixture(
     backfillCalls,
     reconcileCalls,
     removeMembershipCalls,
+    revealCalls,
     replaceRolesCalls,
     resendCodeCalls,
     updateProfileCalls,

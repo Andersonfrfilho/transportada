@@ -63,6 +63,17 @@ export const changeCompanyUserStatusSchema = z
   .strict()
 export type ChangeCompanyUserStatusBody = z.infer<typeof changeCompanyUserStatusSchema>
 
+/**
+ * O teto existe para o "revelar todos" não virar exportação da base inteira num clique: a tela
+ * revela a página que está na frente do operador, e cada revelação grava trilha de auditoria.
+ */
+const REVEAL_BATCH_LIMIT = 100
+
+export const revealCompanyUsersSchema = z
+  .object({ userIds: z.array(z.uuid()).min(1).max(REVEAL_BATCH_LIMIT) })
+  .strict()
+export type RevealCompanyUsersBody = z.infer<typeof revealCompanyUsersSchema>
+
 /** Login do Keycloak: minúsculo, sem espaço e sem acento — o que o realm aceita sem normalizar. */
 const USERNAME_PATTERN = /^[a-z0-9][a-z0-9._-]{2,59}$/u
 
@@ -89,6 +100,12 @@ export async function parseInviteCompanyUserRequest(
   request: Request,
 ): Promise<InviteCompanyUserBody> {
   return parseBody(inviteCompanyUserSchema, request)
+}
+
+export async function parseRevealCompanyUsersRequest(
+  request: Request,
+): Promise<RevealCompanyUsersBody> {
+  return parseBody(revealCompanyUsersSchema, request)
 }
 
 export async function parseChangeCompanyUserStatusRequest(

@@ -10,6 +10,7 @@ import type {
   ReconciliationMatch,
   ReconciliationStatus,
   ResendInvitationResult,
+  RevealedCompanyUser,
 } from './companyUsers.types'
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
@@ -156,6 +157,21 @@ export function toCompanyUsersReconciliation(value: unknown): CompanyUsersReconc
     hasMoreRealmUsers: data.hasMoreRealmUsers === true,
     items: data.items.map(toReconciliationEntry),
   }
+}
+
+export function toRevealedCompanyUsers(value: unknown): readonly RevealedCompanyUser[] {
+  if (!isRecord(value) || !Array.isArray(value.data)) invalid()
+
+  return value.data.map((entry) => {
+    if (!isRecord(entry)) invalid()
+    return {
+      email: readText(entry.email),
+      name: readText(entry.name),
+      phone: readText(entry.phone),
+      taxId: readText(entry.taxId),
+      userId: readText(entry.userId),
+    }
+  })
 }
 
 export function toResendInvitationResult(value: unknown): ResendInvitationResult {

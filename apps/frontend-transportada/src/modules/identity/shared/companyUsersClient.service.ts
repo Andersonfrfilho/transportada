@@ -9,6 +9,7 @@ import type {
   InvitedCompanyUser,
   ReplaceCompanyUserRolesInput,
   ResendInvitationResult,
+  RevealedCompanyUser,
   UpdateCompanyUserProfileInput,
 } from './companyUsers.types'
 import {
@@ -19,6 +20,7 @@ import {
   toCompanyUsersReconciliation,
   toInvitedCompanyUser,
   toResendInvitationResult,
+  toRevealedCompanyUsers,
 } from './companyUsersResponse.validation'
 
 type ClientDependencies = Readonly<{
@@ -33,6 +35,9 @@ export type CompanyUsersClient = Readonly<{
   inviteUser: (input: InviteCompanyUserInput) => Promise<InvitedCompanyUser>
   listUsers: (input: Readonly<{ cursor: null | string; limit: number }>) => Promise<CompanyUserPage>
   reconcileUsers: () => Promise<CompanyUsersReconciliation>
+  revealUsers: (
+    input: Readonly<{ userIds: readonly string[] }>,
+  ) => Promise<readonly RevealedCompanyUser[]>
   removeUser: (input: Readonly<{ userId: string }>) => Promise<void>
   replaceRoles: (input: ReplaceCompanyUserRolesInput) => Promise<CompanyUser>
   resendInvitation: (input: Readonly<{ userId: string }>) => Promise<ResendInvitationResult>
@@ -166,6 +171,15 @@ export function createCompanyUsersClient(dependencies: ClientDependencies): Comp
         path: `${COMPANY_USERS_PATH}/reconciliation`,
       })
       return toCompanyUsersReconciliation(payload)
+    },
+    async revealUsers(input) {
+      const { payload } = await authorizedRequest({
+        body: JSON.stringify({ userIds: input.userIds }),
+        dependencies,
+        method: 'POST',
+        path: `${COMPANY_USERS_PATH}/reveal`,
+      })
+      return toRevealedCompanyUsers(payload)
     },
     async removeUser(input) {
       await authorizedRequest({

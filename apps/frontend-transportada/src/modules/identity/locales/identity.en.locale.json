@@ -163,6 +163,14 @@
       },
       "noProfile": "Incomplete profile"
     },
-    "noProfile": "Incomplete profile"
+    "noProfile": "Incomplete profile",
+    "reveal": {
+      "showAll": "Reveal all",
+      "hideAll": "Hide",
+      "showOne": "Reveal the contact of {{name}}",
+      "copy": "Copy",
+      "copied": "Copied",
+      "failed": "Could not reveal. Try again."
+    }
   }
 }

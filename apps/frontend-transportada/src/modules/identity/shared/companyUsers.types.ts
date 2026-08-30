@@ -65,6 +65,15 @@ export type CompanyUsersReconciliation = Readonly<{
   items: readonly ReconciliationEntry[]
 }>
 
+/** O valor cru de quem a tela pediu para revelar. Só chega a quem tem `users.reveal`. */
+export type RevealedCompanyUser = Readonly<{
+  email: string
+  name: string
+  phone: string
+  taxId: string
+  userId: string
+}>
+
 export type InviteCompanyUserInput = Readonly<{
   channel: ContactChannel
   contact: string

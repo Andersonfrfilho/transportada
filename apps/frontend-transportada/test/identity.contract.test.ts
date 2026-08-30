@@ -1,6 +1,7 @@
 import './identity/bootstrap-client.contract.js'
 import './identity/company-user-contact-fields.contract.js'
 import './identity/company-user-invite.contract.js'
+import './identity/company-user-reveal.contract.js'
 import './identity/company-users.contract.js'
 import './identity/first-access-page.contract.js'
 import './identity/fiscal-environment-badge.contract.js'

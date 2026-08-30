@@ -304,6 +304,7 @@ import { createBootstrapRoutes } from './identity/presentation/bootstrap.routes'
 import { createUserActivationRoutes } from './identity/presentation/user-activation.routes'
 import { createBackfillIdentityDocumentsUseCase } from './identity/application/backfill-identity-documents.use-case'
 import { createReconcileCompanyUsersUseCase } from './identity/application/reconcile-company-users.use-case'
+import { createRevealCompanyUsersUseCase } from './identity/application/reveal-company-users.use-case'
 import { createUserAdministrationRoutes } from './identity/presentation/user-administration.routes'
 import { createRouter, type RegisteredAnonymousRoute } from './http/router.service'
 import { createGetNfeDistributionStatusUseCase } from './nfe-imports/application/get-nfe-distribution-status.use-case'
@@ -1173,6 +1174,9 @@ function createApplicationRoutes({
     gateway: identityAccessGateway,
     repository: companyUserRepository,
   })
+  const revealCompanyUsers = createRevealCompanyUsersUseCase({
+    repository: companyUserRepository,
+  })
   const reconcileCompanyUsers = createReconcileCompanyUsersUseCase({
     gateway: identityAccessGateway,
     repository: companyUserRepository,
@@ -1792,6 +1796,7 @@ function createApplicationRoutes({
       list: listCompanyUsers,
       backfillDocuments: backfillIdentityDocuments,
       reconcile: reconcileCompanyUsers,
+      reveal: revealCompanyUsers,
       removeMembership: removeCompanyUserMembership,
       replaceRoles: replaceCompanyUserRoles,
       resendCode: resendCompanyUserCode,

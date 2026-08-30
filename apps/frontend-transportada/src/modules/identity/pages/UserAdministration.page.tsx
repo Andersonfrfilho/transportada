@@ -132,6 +132,7 @@ export function UserAdministrationPage() {
               onEdit={screen.openEdit}
               onRemove={screen.openRemove}
               onResend={(user) => void screen.resendInvitation(user)}
+              reveal={screen.reveal}
               users={viewModel.users}
             />
             <div className={styles.pagination}>

@@ -1,6 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 export const COMPANY_USERS_PATH = '/company-users'
 export const USERS_MANAGE_PERMISSION = 'users.manage'
+/** Separada de propósito: administrar usuários não exige ler o documento de todo mundo. */
+export const USERS_REVEAL_PERMISSION = 'users.reveal'
 export const COMPANY_USERS_PAGE_SIZE = 50
 
 export const COMPANY_USER_ERROR = {

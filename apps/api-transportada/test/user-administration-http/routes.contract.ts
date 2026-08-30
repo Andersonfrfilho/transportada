@@ -15,6 +15,7 @@ import {
   jsonRequest,
   BACKFILL_RESULT,
   RECONCILIATION_RESULT,
+  REVEALED_USERS,
   REPLACE_ROLES_BODY,
   responseApiError,
   responseData,
@@ -22,6 +23,7 @@ import {
   TARGET_USER_ID,
   UPDATE_PROFILE_BODY,
   UPDATED_CONTACT,
+  WITH_USERS_REVEAL_PERMISSIONS,
 } from '../fixtures/user-administration-http.fixture'
 
 const USER_PATH = `${COMPANY_USERS_PATH}/${TARGET_USER_ID}`
@@ -425,5 +427,68 @@ describe('rotas de administração de usuários — backfill manual do documento
 
     expect(response.status).not.toBe(400)
     expect(response.status).not.toBe(404)
+  })
+})
+
+describe('rotas de administração de usuários — revelar contato e documento', () => {
+  test('devolve o valor cru a quem tem a permissão de revelar', async () => {
+    const fixture = await createUserAdministrationHttpFixture({
+      permissions: WITH_USERS_REVEAL_PERMISSIONS,
+    })
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { userIds: [TARGET_USER_ID] },
+        method: 'POST',
+        path: `${COMPANY_USERS_PATH}/reveal`,
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ data: REVEALED_USERS })
+    expect(fixture.revealCalls[0]).toMatchObject({ userIds: [TARGET_USER_ID] })
+    expect(fixture.revealCalls[0]?.['context']).toMatchObject({
+      companyId: COMPANY_CONTEXT.companyId,
+    })
+  })
+
+  /** Sem correlação, a linha de auditoria não se liga ao chamado que a pediu. */
+  test('a revelação leva correlação para a trilha', async () => {
+    const fixture = await createUserAdministrationHttpFixture({
+      permissions: WITH_USERS_REVEAL_PERMISSIONS,
+    })
+
+    await fixture.handle(
+      jsonRequest({
+        body: { userIds: [TARGET_USER_ID] },
+        method: 'POST',
+        path: `${COMPANY_USERS_PATH}/reveal`,
+      }),
+    )
+
+    expect(fixture.revealCalls[0]?.['correlationId']).toEqual(expect.any(String))
+  })
+
+  /** Lista vazia é pedido sem alvo; sem o piso, ela viraria uma linha de auditoria sobre ninguém. */
+  test('recusa lista vazia e lista acima do teto', async () => {
+    const fixture = await createUserAdministrationHttpFixture({
+      permissions: WITH_USERS_REVEAL_PERMISSIONS,
+    })
+    const tooMany = Array.from({ length: 101 }, () => TARGET_USER_ID)
+
+    const empty = await fixture.handle(
+      jsonRequest({ body: { userIds: [] }, method: 'POST', path: `${COMPANY_USERS_PATH}/reveal` }),
+    )
+    const excessive = await fixture.handle(
+      jsonRequest({
+        body: { userIds: tooMany },
+        method: 'POST',
+        path: `${COMPANY_USERS_PATH}/reveal`,
+      }),
+    )
+
+    expect(empty.status).toBe(400)
+    expect(excessive.status).toBe(400)
+    expect(fixture.revealCalls).toHaveLength(0)
   })
 })

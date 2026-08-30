@@ -142,3 +142,24 @@ describe('segurança das rotas de administração de usuários — recusas de do
     expect((await responseApiError(response)).code).toBe('SELF_MEMBERSHIP_REMOVAL')
   })
 })
+
+describe('segurança das rotas de administração de usuários — revelar é permissão própria', () => {
+  /**
+   * Quem convida, suspende e troca papéis não precisa do CPF de todo mundo para isso. Se
+   * `users.manage` alcançasse a revelação, a permissão nova não separaria nada.
+   */
+  test('recusa a revelação a quem tem users.manage e não tem users.reveal', async () => {
+    const fixture = await createUserAdministrationHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { userIds: [TARGET_USER_ID] },
+        method: 'POST',
+        path: `${COMPANY_USERS_PATH}/reveal`,
+      }),
+    )
+
+    expect(response.status).toBe(403)
+    expect(fixture.revealCalls).toHaveLength(0)
+  })
+})

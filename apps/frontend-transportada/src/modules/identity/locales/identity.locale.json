@@ -163,6 +163,14 @@
       },
       "noProfile": "Cadastro incompleto"
     },
-    "noProfile": "Cadastro incompleto"
+    "noProfile": "Cadastro incompleto",
+    "reveal": {
+      "showAll": "Revelar todos",
+      "hideAll": "Esconder",
+      "showOne": "Revelar o contato de {{name}}",
+      "copy": "Copiar",
+      "copied": "Copiado",
+      "failed": "Não foi possível revelar. Tente de novo."
+    }
   }
 }

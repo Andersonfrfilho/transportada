@@ -5,6 +5,7 @@ import { useAuthMeQuery } from '../queries/useAuthMe.query'
 import type { CompanyUser, FleetLink } from '../shared/companyUsers.types'
 import type { CompanyUsersClient } from './useCompanyUsers.hook'
 import { useCompanyUsers } from './useCompanyUsers.hook'
+import { useCompanyUserReveal } from './useCompanyUserReveal.hook'
 import { useCompanyUsersReconciliation } from './useCompanyUsersReconciliation.hook'
 import { useCompanyUserEditForm, useCompanyUserInviteForm } from './useCompanyUserForm.hook'
 
@@ -39,6 +40,8 @@ export function useUserAdministration(input: Readonly<{ client?: CompanyUsersCli
     permissions: authQuery.data?.data.permissions ?? [],
     ...(companyId === undefined ? {} : { companyId }),
   })
+
+  const reveal = useCompanyUserReveal({ permissions: authQuery.data?.data.permissions ?? [] })
 
   const inviteForm = useCompanyUserInviteForm()
   const editForm = useCompanyUserEditForm(editTarget)
@@ -124,6 +127,7 @@ export function useUserAdministration(input: Readonly<{ client?: CompanyUsersCli
     openEdit: setEditTarget,
     openInvite: () => setInviteOpen(true),
     reconciliation,
+    reveal,
     refreshReconciliation: () => {
       void reconciliation.refetch()
     },
