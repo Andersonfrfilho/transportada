@@ -52,7 +52,11 @@ const authentication: AuthenticationPort = {
 const tenantContext = new TenantContextService({
   repository: {
     async findActiveByUserAndCompany() {
-      return { membershipId: '00000000-0000-4000-8000-000000000004', roles: [] }
+      return {
+        grantedPermissions: [],
+        membershipId: '00000000-0000-4000-8000-000000000004',
+        roles: [],
+      }
     },
   },
 })

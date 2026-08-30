@@ -12,6 +12,13 @@ export const TRANSPORTADA_PERMISSIONS = Object.freeze([
    * revelação grava trilha de auditoria (`security.md` §10) — é acesso a dado pessoal, com nome.
    */
   'users.reveal',
+  /**
+   * Criar grupo, mexer no que ele concede e atribuí-lo a alguém. Separada de `users.manage` porque
+   * administrar pessoas não é o mesmo que redesenhar o que elas alcançam — e porque esta permissão
+   * concede permissão: quem a tem pode se auto-promover, e é a trilha de auditoria que responde por
+   * isso (decisão registrada, `security.md` §10).
+   */
+  'groups.manage',
   'invoices.import',
   'invoices.read',
   'batches.create',
@@ -72,6 +79,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
   'company-admin': Object.freeze([
     'users.manage',
     'users.reveal',
+    'groups.manage',
     'invoices.import',
     'invoices.read',
     'cte.manage',
@@ -200,14 +208,38 @@ export type PlatformAuthorizationPolicy = {
 
 export type RouteAuthorizationPolicy = CompanyAuthorizationPolicy | PlatformAuthorizationPolicy
 
+export type CompanyPermissionSources = {
+  /** Concedidas por grupo da empresa ou direto à pessoa. Nome fora do catálogo é ignorado. */
+  readonly granted?: readonly string[]
+  readonly roles: readonly CompanyRole[]
+}
+
+/**
+ * O efetivo de alguém é a **união** de três origens: os papéis do catálogo, os grupos que a empresa
+ * criou, e a permissão concedida direto à pessoa. Nenhuma tira o que a outra deu — somar é o que
+ * torna o grupo uma camada a mais em vez de um segundo modelo de autorização.
+ *
+ * Nome que não está no catálogo é ignorado, não recusado: a coluna de permissão não tem CHECK, e uma
+ * linha antiga com nome de permissão removida derrubaria o login de quem a tivesse. Ignorar mantém a
+ * pessoa entrando com o que ainda existe.
+ *
+ * `companies.manage` nunca entra, venha de onde vier: ela é de plataforma, e conceder por grupo
+ * seria o caminho mais silencioso para alguém alcançar o que a instalação dedicada não tem.
+ */
 export function resolveCompanyPermissions(
-  roles: readonly CompanyRole[],
+  input: CompanyPermissionSources | readonly CompanyRole[],
 ): ReadonlySet<CompanyPermission> {
+  const sources: CompanyPermissionSources = Array.isArray(input)
+    ? { roles: input as readonly CompanyRole[] }
+    : (input as CompanyPermissionSources)
   const granted = new Set<CompanyPermission>()
-  for (const role of roles) {
+  for (const role of sources.roles) {
     for (const permission of COMPANY_ROLE_PERMISSIONS[role]) {
       granted.add(permission)
     }
+  }
+  for (const permission of sources.granted ?? []) {
+    if (isCompanyPermission(permission)) granted.add(permission)
   }
 
   const ordered = TRANSPORTADA_PERMISSIONS.filter(
@@ -215,6 +247,10 @@ export function resolveCompanyPermissions(
       permission !== 'companies.manage' && granted.has(permission),
   )
   return createReadonlySet(ordered)
+}
+
+export function isCompanyPermission(value: string): value is CompanyPermission {
+  return value !== 'companies.manage' && TRANSPORTADA_PERMISSIONS.some((entry) => entry === value)
 }
 
 function createReadonlySet<TValue>(values: readonly TValue[]): ReadonlySet<TValue> {

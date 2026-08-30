@@ -27,6 +27,7 @@ describe('authorization contract', () => {
       'companies.manage',
       'users.manage',
       'users.reveal',
+      'groups.manage',
       'invoices.import',
       'invoices.read',
       'batches.create',
@@ -71,6 +72,7 @@ describe('authorization contract', () => {
       'company-admin': [
         'users.manage',
         'users.reveal',
+        'groups.manage',
         'invoices.import',
         'invoices.read',
         'cte.manage',
@@ -543,3 +545,63 @@ function captureError(run: () => void): unknown {
 
   throw new Error('Expected operation to fail')
 }
+
+/**
+ * O efetivo de alguém passou a ser a união de três origens: papel do catálogo, grupo que a empresa
+ * criou, e permissão concedida direto à pessoa. Somar é o que torna o grupo uma camada a mais em vez
+ * de um segundo modelo de autorização convivendo com o primeiro.
+ */
+describe('permissão efetiva — a soma das três origens', () => {
+  test('o grupo acrescenta ao que o papel já dava', () => {
+    const permissions = resolveCompanyPermissions({
+      granted: ['billing.read'],
+      roles: ['viewer'],
+    })
+
+    expect(permissions.has('billing.read')).toBe(true)
+    expect(permissions.has('invoices.read')).toBe(true)
+  })
+
+  test('nenhuma origem tira o que a outra deu', () => {
+    const withoutGrants = resolveCompanyPermissions({ granted: [], roles: ['fiscal'] })
+    const withGrants = resolveCompanyPermissions({ granted: ['billing.read'], roles: ['fiscal'] })
+
+    for (const permission of withoutGrants) {
+      expect(withGrants.has(permission)).toBe(true)
+    }
+  })
+
+  /**
+   * A coluna de permissão não tem CHECK: uma linha antiga com nome removido do catálogo derrubaria o
+   * login de quem a tivesse. Ignorar mantém a pessoa entrando com o que ainda existe.
+   */
+  test('nome fora do catálogo é ignorado, não derruba o acesso', () => {
+    const permissions = resolveCompanyPermissions({
+      granted: ['permissao.que.nao.existe', 'billing.read'],
+      roles: ['viewer'],
+    })
+
+    expect(permissions.has('billing.read')).toBe(true)
+    expect([...permissions]).not.toContain('permissao.que.nao.existe')
+  })
+
+  /** Conceder plataforma por grupo seria o caminho mais silencioso para furar a instalação dedicada. */
+  test('companies.manage não entra por concessão', () => {
+    const permissions = resolveCompanyPermissions({
+      granted: ['companies.manage'],
+      roles: ['company-admin'],
+    })
+
+    expect([...permissions]).not.toContain('companies.manage')
+  })
+
+  test('a lista de papéis sozinha continua valendo, sem envelope', () => {
+    expect([...resolveCompanyPermissions(['viewer'])]).toEqual([
+      ...resolveCompanyPermissions({ roles: ['viewer'] }),
+    ])
+  })
+
+  test('sem papel e sem concessão, ninguém alcança nada', () => {
+    expect([...resolveCompanyPermissions({ granted: [], roles: [] })]).toEqual([])
+  })
+})

@@ -45,6 +45,26 @@ function createClientFake(params: { readonly createUserError?: Error } = {}) {
       record('findUserByEmail', params)
       return { id: SUBJECT, username: 'pessoa' }
     },
+    async addUserToGroup(params) {
+      record('addUserToGroup', params)
+    },
+    async createGroup(params) {
+      record('createGroup', params)
+      return { id: 'group-1' }
+    },
+    async deleteGroup(params) {
+      record('deleteGroup', params)
+    },
+    async listGroups(params) {
+      record('listGroups', params ?? {})
+      return { groups: [], hasMore: false }
+    },
+    async removeUserFromGroup(params) {
+      record('removeUserFromGroup', params)
+    },
+    async updateGroup(params) {
+      record('updateGroup', params)
+    },
     async listUsers(params) {
       record('listUsers', params ?? {})
       return { hasMore: false, users: [{ id: SUBJECT, username: 'pessoa' }] }

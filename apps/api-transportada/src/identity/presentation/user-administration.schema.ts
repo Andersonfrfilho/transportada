@@ -12,6 +12,7 @@ import {
   type Paging,
 } from '../../http/request-parsing.service.js'
 import { COMPANY_USER_API_STATUSES } from '../application/change-company-user-status.use-case.js'
+import { isCompanyPermission } from '../domain/authorization.policy.js'
 
 const COMPANY_USER_LIST_QUERY_KEYS = new Set(['cursor', 'limit'])
 
@@ -83,6 +84,38 @@ export const revealCompanyUsersSchema = z
   .strict()
 export type RevealCompanyUsersBody = z.infer<typeof revealCompanyUsersSchema>
 
+/**
+ * O nome da permissão é validado contra o catálogo — a coluna não tem CHECK, e é aqui que o nome
+ * inventado para. Papel continua no `enum` do catálogo fechado.
+ */
+const companyPermissionSchema = z.string().refine(isCompanyPermission, {
+  message: 'Unknown permission.',
+})
+
+export const saveCompanyGroupSchema = z
+  .object({
+    description: z.string().trim().max(240).default(''),
+    name: z.string().trim().min(1).max(80),
+    permissions: z.array(companyPermissionSchema).max(120),
+    /** Grupo sem papel é legítimo: ele pode conceder só permissões avulsas. */
+    roles: z.array(z.enum(COMPANY_ROLES)).max(COMPANY_ROLES.length),
+  })
+  .strict()
+export type SaveCompanyGroupBody = z.infer<typeof saveCompanyGroupSchema>
+
+export const assignCompanyGroupsSchema = z
+  .object({
+    groupIds: z.array(z.uuid()).min(1).max(REVEAL_BATCH_LIMIT),
+    userIds: z.array(z.uuid()).min(1).max(REVEAL_BATCH_LIMIT),
+  })
+  .strict()
+export type AssignCompanyGroupsBody = z.infer<typeof assignCompanyGroupsSchema>
+
+export const grantDirectPermissionsSchema = z
+  .object({ permissions: z.array(companyPermissionSchema).min(1).max(120) })
+  .strict()
+export type GrantDirectPermissionsBody = z.infer<typeof grantDirectPermissionsSchema>
+
 /** Login do Keycloak: minúsculo, sem espaço e sem acento — o que o realm aceita sem normalizar. */
 const USERNAME_PATTERN = /^[a-z0-9][a-z0-9._-]{2,59}$/u
 
@@ -115,6 +148,24 @@ export async function parseAssignCompanyUserRolesRequest(
   request: Request,
 ): Promise<AssignCompanyUserRolesBody> {
   return parseBody(assignCompanyUserRolesSchema, request)
+}
+
+export async function parseSaveCompanyGroupRequest(
+  request: Request,
+): Promise<SaveCompanyGroupBody> {
+  return parseBody(saveCompanyGroupSchema, request)
+}
+
+export async function parseAssignCompanyGroupsRequest(
+  request: Request,
+): Promise<AssignCompanyGroupsBody> {
+  return parseBody(assignCompanyGroupsSchema, request)
+}
+
+export async function parseGrantDirectPermissionsRequest(
+  request: Request,
+): Promise<GrantDirectPermissionsBody> {
+  return parseBody(grantDirectPermissionsSchema, request)
 }
 
 export async function parseRevealCompanyUsersRequest(

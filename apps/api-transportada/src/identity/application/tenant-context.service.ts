@@ -61,7 +61,10 @@ export class TenantContextService {
       companyId,
       kind: 'company' as const,
       membershipId: membership.membershipId,
-      permissions: resolveCompanyPermissions(membership.roles),
+      permissions: resolveCompanyPermissions({
+        granted: membership.grantedPermissions,
+        roles: membership.roles,
+      }),
       roles: Object.freeze([...membership.roles]),
       userId: identity.userId,
     })

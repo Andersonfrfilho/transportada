@@ -23,7 +23,7 @@
     "@adatechnology/drizzle-provider": "0.1.1",
     "@adatechnology/email-provider": "0.1.0-rc.2",
     "@adatechnology/fiscal-provider": "0.3.0-rc.7",
-    "@adatechnology/keycloak-admin": "1.0.0-rc.1",
+    "@adatechnology/keycloak-admin": "1.0.0-rc.2",
     "@adatechnology/logger": "0.1.0-rc.0",
     "@adatechnology/meta-whatsapp-provider": "0.1.0",
     "@adatechnology/notification-contracts": "0.1.0-rc.2",

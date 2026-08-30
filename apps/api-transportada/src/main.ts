@@ -298,6 +298,7 @@ import { DrizzleInvitationRepository } from './identity/infrastructure/drizzle-i
 import { createKeycloakAccessTokenVerifier } from './identity/infrastructure/keycloak-jwt.gateway'
 import {
   createIdentityAccessGateway,
+  createIdentityGroupGateway,
   createKeycloakAdminGateway,
 } from './identity/infrastructure/keycloak-admin.gateway'
 import { createBootstrapRoutes } from './identity/presentation/bootstrap.routes'
@@ -306,6 +307,11 @@ import { createBackfillIdentityDocumentsUseCase } from './identity/application/b
 import { createReconcileCompanyUsersUseCase } from './identity/application/reconcile-company-users.use-case'
 import { createListRolePermissionsUseCase } from './identity/application/list-role-permissions.use-case'
 import { createAssignCompanyUserRolesUseCase } from './identity/application/assign-company-user-roles.use-case'
+import { createManageCompanyGroupsUseCase } from './identity/application/manage-company-groups.use-case'
+import { createManageDirectPermissionsUseCase } from './identity/application/manage-direct-permissions.use-case'
+import { DrizzleCompanyGroupRepository } from './identity/infrastructure/drizzle-company-group.repository'
+import { createDrizzleGroupAudit } from './identity/infrastructure/drizzle-group-audit.gateway'
+import { createCompanyGroupRoutes } from './identity/presentation/company-group.routes'
 import { createRevealCompanyUsersUseCase } from './identity/application/reveal-company-users.use-case'
 import { createUserAdministrationRoutes } from './identity/presentation/user-administration.routes'
 import { createRouter, type RegisteredAnonymousRoute } from './http/router.service'
@@ -1176,6 +1182,13 @@ function createApplicationRoutes({
     gateway: identityAccessGateway,
     repository: companyUserRepository,
   })
+  const companyGroupRepository = new DrizzleCompanyGroupRepository(database)
+  const groupAudit = createDrizzleGroupAudit(database)
+  const identityGroupGateway = createIdentityGroupGateway({
+    clientId: keycloak.admin.clientId,
+    clientSecret: keycloak.admin.clientSecret,
+    issuer: keycloak.issuer,
+  })
   const assignCompanyUserRoles = createAssignCompanyUserRolesUseCase({
     repository: companyUserRepository,
   })
@@ -1794,6 +1807,17 @@ function createApplicationRoutes({
     ...createViewPreferencesRoutes({
       getPreferences: createGetViewPreferencesUseCase({ repository: viewPreferencesRepository }),
       savePreferences: createSaveViewPreferencesUseCase({ repository: viewPreferencesRepository }),
+    }),
+    ...createCompanyGroupRoutes({
+      groups: createManageCompanyGroupsUseCase({
+        audit: groupAudit,
+        realm: identityGroupGateway,
+        repository: companyGroupRepository,
+      }),
+      permissions: createManageDirectPermissionsUseCase({
+        audit: groupAudit,
+        repository: companyGroupRepository,
+      }),
     }),
     ...createUserAdministrationRoutes({
       changeStatus: changeCompanyUserStatus,

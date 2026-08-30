@@ -123,6 +123,18 @@ export type ListIdentityUsersResult = {
   readonly users: readonly ListedIdentityUser[]
 }
 
+/**
+ * O grupo do realm. O `groupId` aqui é **do Keycloak**, nunca o nosso: são espaços de identificador
+ * diferentes, e trocá-los monta chamada que o provedor aceita contra um grupo que não é o nosso.
+ */
+export type IdentityGroupGatewayPort = {
+  addMember(input: { readonly groupId: string; readonly subject: string }): Promise<void>
+  createGroup(input: { readonly name: string }): Promise<{ readonly groupId: string }>
+  deleteGroup(input: { readonly groupId: string }): Promise<void>
+  removeMember(input: { readonly groupId: string; readonly subject: string }): Promise<void>
+  renameGroup(input: { readonly groupId: string; readonly name: string }): Promise<void>
+}
+
 export type IdentityAccessGatewayPort = {
   createUser(input: CreateIdentityUserInput): Promise<CreateIdentityUserResult>
   deleteUser(input: { readonly userId: string }): Promise<void>
@@ -246,4 +258,28 @@ function parseKeycloakIssuer(issuer: string): { baseUrl: string; realm: string }
   }
 
   return { baseUrl: url.origin, realm }
+}
+
+/**
+ * A ponte entre o grupo daqui e o grupo do realm. Ela não decide nada: quem decide o que fazer com a
+ * falha é o caso de uso, que trata provedor fora do ar como "sincronização pendente" em vez de
+ * recusar a operação inteira.
+ */
+export function createIdentityGroupGateway(
+  config: KeycloakAdminGatewayConfig,
+  dependencies: KeycloakAdminGatewayDependencies = defaultDependencies,
+): IdentityGroupGatewayPort {
+  const client = dependencies.createClient(toKeycloakAdminConfig(config))
+
+  return {
+    addMember: ({ groupId, subject }) => client.addUserToGroup({ groupId, userId: subject }),
+    async createGroup({ name }) {
+      const created = await client.createGroup({ name })
+      return { groupId: created.id }
+    },
+    deleteGroup: ({ groupId }) => client.deleteGroup({ groupId }),
+    removeMember: ({ groupId, subject }) =>
+      client.removeUserFromGroup({ groupId, userId: subject }),
+    renameGroup: ({ groupId, name }) => client.updateGroup({ group: { name }, groupId }),
+  }
 }

@@ -19,6 +19,7 @@ describe('tenant context contract', () => {
       async findActiveByUserAndCompany(input) {
         lookups.push(input)
         return {
+          grantedPermissions: [],
           membershipId: MEMBERSHIP_ID,
           roles: ['fiscal', 'viewer'],
         }
@@ -162,7 +163,7 @@ describe('tenant context contract', () => {
       const service = createService({
         async findActiveByUserAndCompany(input) {
           lookups.push(input)
-          return { membershipId: MEMBERSHIP_ID, roles: ['automation'] }
+          return { grantedPermissions: [], membershipId: MEMBERSHIP_ID, roles: ['automation'] }
         },
       })
 
@@ -196,7 +197,7 @@ describe('tenant context contract', () => {
       const service = createService({
         async findActiveByUserAndCompany() {
           calls += 1
-          return { membershipId: MEMBERSHIP_ID, roles: ['automation'] }
+          return { grantedPermissions: [], membershipId: MEMBERSHIP_ID, roles: ['automation'] }
         },
       })
 
@@ -216,7 +217,7 @@ describe('tenant context contract', () => {
       const service = createService({
         async findActiveByUserAndCompany(input) {
           lookups.push(input)
-          return { membershipId: MEMBERSHIP_ID, roles: ['viewer'] }
+          return { grantedPermissions: [], membershipId: MEMBERSHIP_ID, roles: ['viewer'] }
         },
       })
 
@@ -231,6 +232,7 @@ function createService(
   repository: MembershipRepositoryPort = {
     async findActiveByUserAndCompany() {
       return {
+        grantedPermissions: [],
         membershipId: MEMBERSHIP_ID,
         roles: ['viewer'],
       }

@@ -271,6 +271,7 @@ function createFixture({
   membership = {
     async findActiveByUserAndCompany() {
       return {
+        grantedPermissions: [],
         membershipId: '00000000-0000-4000-8000-000000000004',
         roles: ['fiscal', 'viewer'] as const,
       }

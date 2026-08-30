@@ -17,7 +17,7 @@
         "@adatechnology/email-provider": "0.1.0-rc.2",
         "@adatechnology/fiscal-provider": "0.3.0-rc.7",
         "@adatechnology/identity-reconciliation": "0.1.0-rc.0",
-        "@adatechnology/keycloak-admin": "1.0.0-rc.1",
+        "@adatechnology/keycloak-admin": "1.0.0-rc.2",
         "@adatechnology/keycloak-jwt": "0.1.1",
         "@adatechnology/logger": "0.1.0-rc.0",
         "@adatechnology/meta-whatsapp-contracts": "0.1.0",
@@ -171,7 +171,7 @@
         "@adatechnology/drizzle-provider": "0.1.1",
         "@adatechnology/email-provider": "0.1.0-rc.2",
         "@adatechnology/fiscal-provider": "0.3.0-rc.7",
-        "@adatechnology/keycloak-admin": "1.0.0-rc.1",
+        "@adatechnology/keycloak-admin": "1.0.0-rc.2",
         "@adatechnology/logger": "0.1.0-rc.0",
         "@adatechnology/meta-whatsapp-provider": "0.1.0",
         "@adatechnology/notification-contracts": "0.1.0-rc.2",
@@ -209,7 +209,7 @@
 
     "@adatechnology/identity-reconciliation": ["@adatechnology/identity-reconciliation@0.1.0-rc.0", "", {}, "sha512-y1aarijcFB2Nns+x8Mc0Ervxvv2F+YXLLhna6Hl+pxFEMIeJzLbASLJ3JAhd4o4PEeWGGk3Ihr0U3amzqvT7Iw=="],
 
-    "@adatechnology/keycloak-admin": ["@adatechnology/keycloak-admin@1.0.0-rc.1", "", { "peerDependencies": { "zod": "^3.24.1 || ^4.0.0" } }, "sha512-91PSrFUytNWudlU+oGd2h6NceTSrzk0HuOpJID+gHhGxZKeI94pP/jh/yKnLQlnihju5zaM8RC46B8UYBEkfpQ=="],
+    "@adatechnology/keycloak-admin": ["@adatechnology/keycloak-admin@1.0.0-rc.2", "", { "peerDependencies": { "zod": "^3.24.1 || ^4.0.0" } }, "sha512-qzkrqDQPdDCkTbtKvVEtkQGY9cUc2lBlOErfqmRv3Xgt7Fe1OqCHyKRDZ8J1ah2LtieQMhlS694notJFC54hTQ=="],
 
     "@adatechnology/keycloak-jwt": ["@adatechnology/keycloak-jwt@0.1.1", "", { "dependencies": { "jose": "6.2.3" } }, "sha512-KJFapj3c5RQKGx74zJN83KxKYqBTMOnVs8J1OBw1EeQ94fl3XEOi1JceFoqf9CZGnuxPDGd2MjdwtziPO5xXtg=="],
 
