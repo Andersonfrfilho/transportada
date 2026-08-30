@@ -300,3 +300,11 @@ export const databaseSchema = {
   userInvitations,
   viewPreferences,
 }
+
+export {
+  companyGroupPermissions,
+  companyGroupRoles,
+  companyGroups,
+  membershipGroups,
+  membershipPermissions,
+} from './company-group.schema.js'
