@@ -12,6 +12,7 @@ import type {
   AssignedCompanyUserRoles,
   ResendInvitationResult,
   RevealedCompanyUser,
+  RolePermissionMatrix,
 } from './companyUsers.types'
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
@@ -157,6 +158,20 @@ export function toCompanyUsersReconciliation(value: unknown): CompanyUsersReconc
   return {
     hasMoreRealmUsers: data.hasMoreRealmUsers === true,
     items: data.items.map(toReconciliationEntry),
+  }
+}
+
+export function toRolePermissionMatrix(value: unknown): RolePermissionMatrix {
+  if (!isRecord(value) || !isRecord(value.data)) invalid()
+  const data = value.data
+  if (!Array.isArray(data.permissions) || !Array.isArray(data.roles)) invalid()
+
+  return {
+    permissions: data.permissions.map(readText),
+    roles: data.roles.map((entry) => {
+      if (!isRecord(entry) || !Array.isArray(entry.permissions)) invalid()
+      return { permissions: entry.permissions.map(readText), role: readText(entry.role) }
+    }),
   }
 }
 

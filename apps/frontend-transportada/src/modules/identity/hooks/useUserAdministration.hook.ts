@@ -7,6 +7,7 @@ import type { CompanyUsersClient } from './useCompanyUsers.hook'
 import { useCompanyUsers } from './useCompanyUsers.hook'
 import { useCompanyUserReveal } from './useCompanyUserReveal.hook'
 import { useCompanyUserSelection } from './useCompanyUserSelection.hook'
+import { useRolePermissionMatrix } from './useRolePermissionMatrix.hook'
 import { useCompanyUsersReconciliation } from './useCompanyUsersReconciliation.hook'
 import { useCompanyUserEditForm, useCompanyUserInviteForm } from './useCompanyUserForm.hook'
 
@@ -27,6 +28,7 @@ export function useUserAdministration(input: Readonly<{ client?: CompanyUsersCli
   const [isInviteOpen, setInviteOpen] = useState(false)
   /** A comparação com o realm é clique, não carregamento de tela: ela lê o Keycloak inteiro. */
   const [isReconciliationOpen, setReconciliationOpen] = useState(false)
+  const [isMatrixOpen, setMatrixOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<CompanyUser | null>(null)
   const [removeTarget, setRemoveTarget] = useState<CompanyUser | null>(null)
   const [resentUserId, setResentUserId] = useState<null | string>(null)
@@ -40,6 +42,11 @@ export function useUserAdministration(input: Readonly<{ client?: CompanyUsersCli
     enabled: isReconciliationOpen,
     permissions: authQuery.data?.data.permissions ?? [],
     ...(companyId === undefined ? {} : { companyId }),
+  })
+
+  const rolePermissions = useRolePermissionMatrix({
+    enabled: isMatrixOpen,
+    permissions: authQuery.data?.data.permissions ?? [],
   })
 
   const selection = useCompanyUserSelection(users.viewModel.users)
@@ -126,10 +133,13 @@ export function useUserAdministration(input: Readonly<{ client?: CompanyUsersCli
     fleetLinkNotice,
     inviteForm,
     isInviteOpen,
+    isMatrixOpen,
     isReconciliationOpen,
     openEdit: setEditTarget,
     openInvite: () => setInviteOpen(true),
     reconciliation,
+    rolePermissions,
+    toggleMatrix: () => setMatrixOpen((open) => !open),
     reveal,
     selection,
     async assignRoles(roles: readonly string[]) {

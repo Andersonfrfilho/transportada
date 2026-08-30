@@ -12,6 +12,7 @@ import type {
   ReplaceCompanyUserRolesInput,
   ResendInvitationResult,
   RevealedCompanyUser,
+  RolePermissionMatrix,
   UpdateCompanyUserProfileInput,
 } from './companyUsers.types'
 import {
@@ -24,6 +25,7 @@ import {
   toAssignedCompanyUserRoles,
   toResendInvitationResult,
   toRevealedCompanyUsers,
+  toRolePermissionMatrix,
 } from './companyUsersResponse.validation'
 
 type ClientDependencies = Readonly<{
@@ -39,6 +41,7 @@ export type CompanyUsersClient = Readonly<{
   listUsers: (input: Readonly<{ cursor: null | string; limit: number }>) => Promise<CompanyUserPage>
   assignRoles: (input: AssignCompanyUserRolesInput) => Promise<AssignedCompanyUserRoles>
   reconcileUsers: () => Promise<CompanyUsersReconciliation>
+  readRolePermissions: () => Promise<RolePermissionMatrix>
   revealUsers: (
     input: Readonly<{ userIds: readonly string[] }>,
   ) => Promise<readonly RevealedCompanyUser[]>
@@ -184,6 +187,14 @@ export function createCompanyUsersClient(dependencies: ClientDependencies): Comp
         path: `${COMPANY_USERS_PATH}/roles`,
       })
       return toAssignedCompanyUserRoles(payload)
+    },
+    async readRolePermissions() {
+      const { payload } = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${COMPANY_USERS_PATH}/role-permissions`,
+      })
+      return toRolePermissionMatrix(payload)
     },
     async revealUsers(input) {
       const { payload } = await authorizedRequest({

@@ -187,6 +187,185 @@
       "rolesSummary": "{{count}} papel(is)",
       "apply": "Aplicar a {{count}} usuário(s)",
       "addsOnly": "Os papéis são acrescentados. Quem já tem continua como está, e nada é removido."
+    },
+    "permission": {
+      "users.manage": {
+        "label": "Administrar usuários",
+        "where": "Tela Usuários: convidar, editar, suspender, remover e trocar papéis."
+      },
+      "users.reveal": {
+        "label": "Ver contato sem máscara",
+        "where": "Na lista de usuários, revelar e-mail, telefone e CPF. Cada revelação grava auditoria."
+      },
+      "invoices.import": {
+        "label": "Importar notas",
+        "where": "Tela Notas, aba Importações: subir XML e disparar a busca remota."
+      },
+      "invoices.read": {
+        "label": "Ver notas",
+        "where": "Tela Notas: a listagem, os filtros e o detalhe da NF-e."
+      },
+      "batches.create": {
+        "label": "Montar lote de CT-e",
+        "where": "Tela Lotes: juntar notas num lote para emissão."
+      },
+      "batches.approve": {
+        "label": "Aprovar lote",
+        "where": "Tela Lotes: liberar o lote para transmissão."
+      },
+      "cte.manage": {
+        "label": "Administrar CT-e",
+        "where": "Tela CT-e: preparar e corrigir documentos antes da transmissão."
+      },
+      "cte.submit": {
+        "label": "Transmitir CT-e",
+        "where": "Tela CT-e: enviar o lote à SEFAZ."
+      },
+      "cte.issue": {
+        "label": "Emitir CT-e",
+        "where": "Autorizar a emissão do documento fiscal."
+      },
+      "cte.cancel": {
+        "label": "Cancelar CT-e",
+        "where": "Cancelar documento já autorizado, dentro do prazo legal."
+      },
+      "cte.read": {
+        "label": "Ver CT-e",
+        "where": "Tela CT-e: a listagem e o DACTE."
+      },
+      "freight.simulate": {
+        "label": "Simular frete",
+        "where": "Tela Frete: calcular valor sem gravar nada."
+      },
+      "billing.create": {
+        "label": "Faturar",
+        "where": "Tela Faturamento: criar fatura a partir dos CT-e do período."
+      },
+      "billing.cancel": {
+        "label": "Cancelar fatura",
+        "where": "Cancelar fatura emitida, devolvendo os CT-e para faturamento."
+      },
+      "billing.read": {
+        "label": "Ver faturamento",
+        "where": "Tela Faturamento: faturas, itens e relatório."
+      },
+      "fleet.read": {
+        "label": "Ver frota",
+        "where": "Telas de Veículos e Motoristas, e as regiões de frete."
+      },
+      "fleet.manage": {
+        "label": "Administrar frota",
+        "where": "Cadastrar e editar veículo, motorista, agregado e documentos."
+      },
+      "trip.read": {
+        "label": "Ver viagens",
+        "where": "Tela Viagens: roteiro, paradas e notas vinculadas."
+      },
+      "trip.manage": {
+        "label": "Montar viagem",
+        "where": "Criar viagem, vincular nota, ordenar parada, separar e carregar."
+      },
+      "trip.report": {
+        "label": "Reportar entrega",
+        "where": "Do campo: marcar entrega, devolução e posição da parada."
+      },
+      "trip.financials": {
+        "label": "Ver dinheiro da viagem",
+        "where": "Custo, margem e o valor pago ao motorista."
+      },
+      "mdfe.read": {
+        "label": "Ver MDF-e",
+        "where": "Tela Manifestos: a listagem e o DAMDFE."
+      },
+      "mdfe.manage": {
+        "label": "Administrar MDF-e",
+        "where": "Montar e corrigir o manifesto antes da emissão."
+      },
+      "mdfe.issue": {
+        "label": "Emitir MDF-e",
+        "where": "Autorizar a emissão do manifesto."
+      },
+      "mdfe.close": {
+        "label": "Encerrar MDF-e",
+        "where": "Fechar o manifesto ao fim do percurso."
+      },
+      "mdfe.cancel": {
+        "label": "Cancelar MDF-e",
+        "where": "Cancelar manifesto autorizado."
+      },
+      "mdfe.auto-issue": {
+        "label": "Emissão automática de MDF-e",
+        "where": "Só do serviço: o gatilho automático, sem tela. Nenhuma pessoa recebe."
+      },
+      "nfse.read": {
+        "label": "Ver NFS-e",
+        "where": "Tela Nota de serviço: a listagem e o documento."
+      },
+      "nfse.manage": {
+        "label": "Administrar NFS-e",
+        "where": "Perfis de emissão e credencial da prefeitura."
+      },
+      "nfse.issue": {
+        "label": "Emitir NFS-e",
+        "where": "Enviar a nota de serviço à prefeitura."
+      },
+      "nfse.cancel": {
+        "label": "Cancelar NFS-e",
+        "where": "Cancelar nota de serviço autorizada."
+      },
+      "settings.manage": {
+        "label": "Configurar a empresa",
+        "where": "Dados da empresa, certificados, combustível, tabela de frete e busca automática."
+      },
+      "addresses.read": {
+        "label": "Consultar CEP",
+        "where": "O preenchimento de endereço nos formulários de motorista, empresa e manifesto."
+      },
+      "view-preferences.manage": {
+        "label": "Salvar preferências de tela",
+        "where": "Colunas, ordem e filtros que cada pessoa guarda para si."
+      },
+      "operations.read": {
+        "label": "Ver o painel de operação",
+        "where": "Tela Operações: o resumo do dia e as pendências."
+      },
+      "audit.read": {
+        "label": "Ver a trilha de auditoria",
+        "where": "Quem fez o quê, quando — inclusive quem revelou documento de quem."
+      },
+      "deliveries.track": {
+        "label": "Acompanhar entrega (portal)",
+        "where": "Portal do contratante: seguir a carga das notas da conta dele."
+      },
+      "charges.decide": {
+        "label": "Decidir repasse (portal)",
+        "where": "Portal do contratante: aceitar ou recusar cobrança adicional."
+      }
+    },
+    "matrix": {
+      "title": "O que cada papel enxerga",
+      "intro": "A matriz de papéis e permissões desta instalação. É leitura: quem muda o que um papel alcança é o código, com revisão — a tela existe para a decisão de conceder um papel parar de ser às cegas.",
+      "show": "Ver a matriz",
+      "hide": "Fechar a matriz",
+      "columnPermission": "Permissão",
+      "granted": "Concedida",
+      "denied": "Não concedida",
+      "group": {
+        "identity": "Identidade",
+        "invoices": "Notas fiscais",
+        "batches": "Lotes",
+        "cte": "CT-e",
+        "freight": "Frete",
+        "billing": "Faturamento",
+        "fleet": "Frota",
+        "trip": "Viagens",
+        "mdfe": "MDF-e",
+        "nfse": "Nota de serviço",
+        "settings": "Configurações",
+        "operations": "Operação e auditoria",
+        "portal": "Portal do contratante",
+        "other": "Outras"
+      }
     }
   }
 }

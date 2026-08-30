@@ -56,6 +56,28 @@
   font-size: 1.1rem;
 }
 
+.matrixTable th[scope='col'] {
+  text-align: center;
+}
+
+.matrixTable td:first-child,
+.matrixTable th[scope='col']:first-child {
+  text-align: start;
+}
+
+.matrixGroup {
+  padding-block: var(--space-3);
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  text-align: start;
+  text-transform: uppercase;
+}
+
+.matrixCell {
+  text-align: center;
+}
+
 .selectCell {
   width: var(--control-height);
 }

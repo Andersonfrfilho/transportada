@@ -65,6 +65,12 @@ export type CompanyUsersReconciliation = Readonly<{
   items: readonly ReconciliationEntry[]
 }>
 
+/** O que cada papel alcança, servido da mesma constante que o `authorize` da API consulta. */
+export type RolePermissionMatrix = Readonly<{
+  permissions: readonly string[]
+  roles: readonly Readonly<{ permissions: readonly string[]; role: string }>[]
+}>
+
 export type AssignCompanyUserRolesInput = Readonly<{
   roles: readonly string[]
   userIds: readonly string[]
