@@ -3,6 +3,7 @@ import { COMPANY_USER_ERROR } from './companyUsers.constant'
 import type {
   CompanyUser,
   CompanyUserPage,
+  CompanyUserFleetLink,
   CompanyUsersReconciliation,
   FleetLink,
   InvitedCompanyUser,
@@ -56,9 +57,11 @@ function readContact(value: unknown): CompanyUser['contact'] {
 export function toCompanyUser(value: unknown): CompanyUser {
   if (!isRecord(value)) invalid()
   const invitation = readInvitation(value.invitation)
+  const fleet = readFleetLink(value.fleet)
 
   return {
     contact: readContact(value.contact),
+    ...(fleet === undefined ? {} : { fleet }),
     id: readString(value, 'id'),
     ...(invitation === undefined ? {} : { invitation }),
     email: readString(value, 'email'),
@@ -69,6 +72,24 @@ export function toCompanyUser(value: unknown): CompanyUser {
     status: readString(value, 'status'),
     taxId: readString(value, 'taxId'),
     username: readString(value, 'username'),
+  }
+}
+
+/**
+ * Vínculo ausente é ausência de link, não linha quebrada: a tela só mostra o caminho quando ele
+ * leva a algum lugar. Veículo sem placa é descartado — um link com rótulo vazio não é clicável.
+ */
+function readFleetLink(value: unknown): CompanyUserFleetLink | undefined {
+  if (!isRecord(value) || !isString(value.driverId) || value.driverId === '') return undefined
+  const vehicles = Array.isArray(value.vehicles) ? value.vehicles : []
+
+  return {
+    driverId: value.driverId,
+    vehicles: vehicles.flatMap((vehicle) =>
+      isRecord(vehicle) && isString(vehicle.id) && isString(vehicle.plate) && vehicle.plate !== ''
+        ? [{ id: vehicle.id, plate: vehicle.plate }]
+        : [],
+    ),
   }
 }
 

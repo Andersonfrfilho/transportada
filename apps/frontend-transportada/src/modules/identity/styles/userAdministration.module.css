@@ -183,6 +183,13 @@
   font-size: 0.75rem;
 }
 
+.fleetLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-block-end: var(--space-1);
+}
+
 .roleList {
   display: inline-flex;
   flex-wrap: wrap;

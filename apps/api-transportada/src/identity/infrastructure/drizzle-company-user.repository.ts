@@ -4,10 +4,15 @@
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, desc, eq, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm'
 
-import { fleetDrivers } from '../../database/fleet.schema.js'
+import {
+  fleetDriverVehicleAssignments,
+  fleetDrivers,
+  fleetVehicles,
+} from '../../database/fleet.schema.js'
 import { auditLogs } from '../../database/fiscal-operation.schema.js'
 import { jobExecutions, jobSchedules } from '../../database/job-schedule.schema.js'
 import type { JobOutcome, ScheduledJob } from '../../shared/job-catalog.constant.js'
+import type { CompanyUserFleetLink } from '../domain/company-user.policy.js'
 import type { RevealedCompanyUser } from '../application/reveal-company-users.use-case.js'
 import { SYSTEM_DISTRIBUTION_ACTOR_USER_ID } from '../domain/system-distribution-actor.constant.js'
 import type { LocalIdentityRecord } from '../domain/user-reconciliation.policy.js'
@@ -369,12 +374,16 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
 
     const pageRows = rows.slice(0, input.limit)
     const userIds = pageRows.map((row) => row.userId)
-    const [roles, pendingInvitations] = await Promise.all([
+    const [roles, pendingInvitations, fleetLinks] = await Promise.all([
       this.fetchRoles({ companyId: input.companyId, userIds }),
       this.fetchPendingInvitations({ companyId: input.companyId, userIds }),
+      this.fetchFleetLinks({
+        companyId: input.companyId,
+        membershipIds: pageRows.map((row) => row.membershipId),
+      }),
     ])
 
-    const items = pageRows.map((row) => toRecord(row, roles, pendingInvitations))
+    const items = pageRows.map((row) => toRecord(row, roles, pendingInvitations, fleetLinks))
     const last = pageRows.at(-1)
     return {
       items,
@@ -509,6 +518,55 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
     }
   }
 
+  /**
+   * O motorista referencia o **vínculo**, não a pessoa (`fleet_drivers.membership_id`), e o veículo
+   * referencia o motorista. A leitura vem junto da página, como papéis e convites: uma consulta por
+   * linha renderizada seria N+1 numa tela que já é a mais pesada do módulo.
+   *
+   * Só a atribuição **aberta** conta (`released_at is null`): veículo devolvido não é vínculo atual,
+   * e mostrá-lo mandaria o operador para a ficha de um carro que a pessoa não dirige mais.
+   */
+  private async fetchFleetLinks(input: {
+    readonly companyId: string
+    readonly membershipIds: readonly string[]
+  }): Promise<ReadonlyMap<string, CompanyUserFleetLink>> {
+    if (input.membershipIds.length === 0) return new Map()
+
+    const rows = await this.database
+      .select({
+        driverId: fleetDrivers.id,
+        membershipId: fleetDrivers.membershipId,
+        plate: fleetVehicles.plate,
+        vehicleId: fleetVehicles.id,
+      })
+      .from(fleetDrivers)
+      .leftJoin(
+        fleetDriverVehicleAssignments,
+        and(
+          eq(fleetDriverVehicleAssignments.driverId, fleetDrivers.id),
+          isNull(fleetDriverVehicleAssignments.releasedAt),
+        ),
+      )
+      .leftJoin(fleetVehicles, eq(fleetVehicles.id, fleetDriverVehicleAssignments.vehicleId))
+      .where(
+        and(
+          eq(fleetDrivers.companyId, input.companyId),
+          inArray(fleetDrivers.membershipId, [...input.membershipIds]),
+        ),
+      )
+
+    const links = new Map<string, { driverId: string; vehicles: { id: string; plate: string }[] }>()
+    for (const row of rows) {
+      if (row.membershipId === null) continue
+      const link = links.get(row.membershipId) ?? { driverId: row.driverId, vehicles: [] }
+      if (row.vehicleId !== null && row.plate !== null) {
+        link.vehicles.push({ id: row.vehicleId, plate: row.plate })
+      }
+      links.set(row.membershipId, link)
+    }
+    return links
+  }
+
   private async fetchPendingInvitations(input: {
     readonly companyId: string
     readonly userIds: readonly string[]
@@ -574,13 +632,16 @@ function toRecord(
   row: MembershipRow,
   rolesByUser: ReadonlyMap<string, readonly CompanyRole[]>,
   pendingInvitationsByUser: ReadonlyMap<string, Date>,
+  fleetLinksByMembership: ReadonlyMap<string, CompanyUserFleetLink> = new Map(),
 ): CompanyUserRecord {
+  const fleet = fleetLinksByMembership.get(row.membershipId)
   const expiresAt = pendingInvitationsByUser.get(row.userId)
   /** Sem perfil, o `leftJoin` traz nulo em cada coluna dele — vazio é a resposta honesta. */
   return {
     contactAddress: row.contactAddress ?? '',
     contactChannel: row.contactChannel ?? DEFAULT_CONTACT_CHANNEL,
     email: row.email ?? '',
+    ...(fleet === undefined ? {} : { fleet }),
     membershipId: row.membershipId,
     membershipStatus: row.membershipStatus,
     name: row.name ?? '',

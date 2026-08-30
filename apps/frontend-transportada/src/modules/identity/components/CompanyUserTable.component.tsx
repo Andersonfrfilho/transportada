@@ -5,6 +5,11 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
 
+import {
+  createBrowserWorkspaceNavigator,
+  navigateToFleetDriver,
+  navigateToFleetVehicle,
+} from '../shared/fleetNavigation.service'
 import type { CompanyUserRevealState } from '../hooks/useCompanyUserReveal.hook'
 import type { CompanyUserSelectionState } from '../hooks/useCompanyUserSelection.hook'
 import type { CompanyUser } from '../shared/companyUsers.types'
@@ -113,6 +118,7 @@ export function CompanyUserTable({
                 </span>
               </td>
               <td>
+                <FleetLinkCell user={user} />
                 <span className={styles.roleList}>
                   {user.roles.map((role) => (
                     <span className={styles.badge} key={role}>
@@ -235,4 +241,44 @@ function revealedContactOf(
   user: CompanyUser,
 ): string {
   return user.contact.channel === 'email' ? revealed.email : revealed.phone
+}
+
+/**
+ * A tela mostrava que alguém é Motorista e era um beco: nenhum caminho para a ficha dele, nem para o
+ * carro que ele dirige. Quem administra usuário e precisa conferir a frota da pessoa copiava o nome
+ * e ia procurar na outra tela.
+ *
+ * Sem ficha não há link: caminho que não leva a lugar nenhum é pior que caminho ausente.
+ */
+function FleetLinkCell({ user }: Readonly<{ user: CompanyUser }>) {
+  const { t } = useTranslation('identity')
+  const navigator = createBrowserWorkspaceNavigator()
+
+  if (user.fleet === undefined) return null
+
+  return (
+    <span className={styles.fleetLinks}>
+      <Button
+        onClick={() => navigateToFleetDriver({ driverId: user.fleet?.driverId ?? '', navigator })}
+        size="sm"
+        type="button"
+        variant="ghost"
+      >
+        <Icon name="link" />
+        {t('users.fleet.driver')}
+      </Button>
+      {user.fleet.vehicles.map((vehicle) => (
+        <Button
+          key={vehicle.id}
+          onClick={() => navigateToFleetVehicle({ navigator, vehicleId: vehicle.id })}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          <Icon name="link" />
+          {vehicle.plate}
+        </Button>
+      ))}
+    </span>
+  )
 }

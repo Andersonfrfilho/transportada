@@ -366,6 +366,9 @@
         "portal": "Portal do contratante",
         "other": "Outras"
       }
+    },
+    "fleet": {
+      "driver": "Ficha do motorista"
     }
   }
 }

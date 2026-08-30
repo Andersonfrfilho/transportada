@@ -3,6 +3,7 @@
  */
 import type { CompanyRole, MembershipStatus } from '../../database/identity.schema.js'
 import type { ContactChannel } from '../../database/identity-user-profile.schema.js'
+import type { CompanyUserFleetLink } from '../domain/company-user.policy.js'
 import type { JobOutcome, ScheduledJob } from '../../shared/job-catalog.constant.js'
 import type { LocalIdentityRecord } from '../domain/user-reconciliation.policy.js'
 import type { RevealedCompanyUser } from './reveal-company-users.use-case.js'
@@ -15,6 +16,7 @@ export type PendingInvitationSummary =
 
 export type CompanyUserRecord = {
   readonly contactAddress: string
+  readonly fleet?: CompanyUserFleetLink
   readonly contactChannel: ContactChannel
   readonly email: string
   /** O id do vínculo, não o da pessoa: é ele que o motorista da frota referencia. */

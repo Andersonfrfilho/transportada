@@ -7,6 +7,16 @@ import type { ContactChannel } from '../../database/identity-user-profile.schema
 export const COMPANY_USER_STATUSES = ['invited', 'active', 'suspended'] as const
 export type CompanyUserStatus = (typeof COMPANY_USER_STATUSES)[number]
 
+/**
+ * O que a pessoa é fora da tela de usuários: a ficha de motorista que o vínculo dela referencia e
+ * os veículos atribuídos a essa ficha. Ausente quando não há ficha — vínculo que não existe não
+ * vira link para lugar nenhum.
+ */
+export type CompanyUserFleetLink = {
+  readonly driverId: string
+  readonly vehicles: readonly { readonly id: string; readonly plate: string }[]
+}
+
 export type CompanyUserView = {
   readonly contact: { readonly channel: ContactChannel; readonly masked: string }
   /**
@@ -15,6 +25,7 @@ export type CompanyUserView = {
    * que não existe inventaria um dado que ninguém cadastrou.
    */
   readonly email: string
+  readonly fleet?: CompanyUserFleetLink
   readonly id: string
   readonly invitation?: { readonly expiresAt: string; readonly status: 'pending' }
   /**
@@ -33,6 +44,7 @@ export type CompanyUserView = {
 
 type CompanyUserViewSource = {
   readonly contactAddress: string
+  readonly fleet?: CompanyUserFleetLink
   readonly contactChannel: ContactChannel
   readonly email: string
   readonly membershipId: string
@@ -118,6 +130,7 @@ export function toCompanyUserView(source: CompanyUserViewSource): CompanyUserVie
       masked: maskContactAddress({ channel: source.contactChannel, value: source.contactAddress }),
     },
     email: maskEmailOrEmpty(source.email),
+    ...(source.fleet === undefined ? {} : { fleet: source.fleet }),
     id: source.userId,
     membershipId: source.membershipId,
     name: source.name,

@@ -41,6 +41,7 @@ import {
   toVehicleFormState,
 } from '../shared/fleetForm.service'
 import type { FleetViewStatus } from '../shared/fleetViewModel.service'
+import { parseFleetDriverParameter, parseFleetVehicleParameter } from '../shared/fleetRoute.service'
 import styles from '../styles/fleet.module.css'
 
 type FleetEditor =
@@ -133,7 +134,7 @@ export function FleetWorkspacePage() {
   const companyId = authQuery.data?.data.company.id
   const [driverFilters, setDriverFilters] = useState<FleetDriverFilters>({})
   const [editor, setEditor] = useState<FleetEditor>(null)
-  const [activeTab, setActiveTab] = useState<FleetTabId>('vehicles')
+  const [activeTab, setActiveTab] = useState<FleetTabId>(resolveInitialTab())
   const canManageSettings = permissions.includes(SETTINGS_MANAGE_PERMISSION)
   const settingsScope = resolveSettingsDataScope('fleet', activeTab)
   const fuelPrices = useFuelPrices({
@@ -377,4 +378,16 @@ export function FleetWorkspacePage() {
       </section>
     </main>
   )
+}
+
+/**
+ * A tela de usuários manda para cá quando a pessoa tem ficha de motorista ou veículo atribuído. O
+ * link decide a aba: cair na aba de veículos com um `driverId` na URL seria mandar o operador para
+ * o lugar errado e fazê-lo procurar.
+ */
+function resolveInitialTab(): FleetTabId {
+  const search = window.location.search
+  if (parseFleetDriverParameter(search) !== null) return 'drivers'
+  if (parseFleetVehicleParameter(search) !== null) return 'vehicles'
+  return 'vehicles'
 }

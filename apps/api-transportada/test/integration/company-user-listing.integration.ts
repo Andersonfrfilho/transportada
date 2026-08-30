@@ -13,8 +13,13 @@ import { describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
+import { eq } from 'drizzle-orm'
+
 import {
   companies,
+  fleetDriverVehicleAssignments,
+  fleetDrivers,
+  fleetVehicles,
   identityUserProfiles,
   identityUsers,
   userCompanyMemberships,
@@ -90,6 +95,118 @@ describe('listagem de usuários — o vínculo sem perfil', () => {
     })
   })
 })
+
+describe('listagem de usuários — o vínculo com a frota', () => {
+  /**
+   * O motorista referencia o **vínculo**, não a pessoa. Sem este link a tela de usuários é um beco:
+   * o operador vê que alguém é Motorista e não tem caminho para a ficha dele.
+   */
+  testWithPostgres('publica a ficha de motorista e o veículo atribuído', async () => {
+    await withDisposableDatabase(async ({ db }) => {
+      const companyId = await seedCompany(db)
+      const userId = await seedMember(db, { companyId, profile: true })
+      const [membership] = await db
+        .select({ id: userCompanyMemberships.id })
+        .from(userCompanyMemberships)
+        .where(eq(userCompanyMemberships.userId, userId))
+      const driverId = await seedDriver(db, { companyId, membershipId: membership?.id ?? null })
+      const vehicleId = await seedVehicle(db, { companyId, driverId, released: false })
+
+      const page = await new DrizzleCompanyUserRepository(db).listPage({
+        companyId,
+        cursor: null,
+        limit: 50,
+      })
+      const item = page.items.find((entry) => entry.userId === userId)
+
+      expect(item?.fleet?.driverId).toBe(driverId)
+      expect(item?.fleet?.vehicles.map((vehicle) => vehicle.id)).toEqual([vehicleId])
+    })
+  })
+
+  /** Veículo devolvido não é vínculo atual: o link mandaria para a ficha de um carro que ela não dirige. */
+  testWithPostgres('não publica veículo já devolvido', async () => {
+    await withDisposableDatabase(async ({ db }) => {
+      const companyId = await seedCompany(db)
+      const userId = await seedMember(db, { companyId, profile: true })
+      const [membership] = await db
+        .select({ id: userCompanyMemberships.id })
+        .from(userCompanyMemberships)
+        .where(eq(userCompanyMemberships.userId, userId))
+      const driverId = await seedDriver(db, { companyId, membershipId: membership?.id ?? null })
+      await seedVehicle(db, { companyId, driverId, released: true })
+
+      const page = await new DrizzleCompanyUserRepository(db).listPage({
+        companyId,
+        cursor: null,
+        limit: 50,
+      })
+      const item = page.items.find((entry) => entry.userId === userId)
+
+      expect(item?.fleet?.driverId).toBe(driverId)
+      expect(item?.fleet?.vehicles).toEqual([])
+    })
+  })
+
+  test('usuário sem ficha de motorista não ganha vínculo inventado', async () => {
+    await withDisposableDatabase(async ({ db }) => {
+      const companyId = await seedCompany(db)
+      const userId = await seedMember(db, { companyId, profile: true })
+
+      const page = await new DrizzleCompanyUserRepository(db).listPage({
+        companyId,
+        cursor: null,
+        limit: 50,
+      })
+
+      expect(page.items.find((entry) => entry.userId === userId)?.fleet).toBeUndefined()
+    })
+  })
+})
+
+async function seedDriver(
+  db: TestDatabase['db'],
+  input: { readonly companyId: string; readonly membershipId: string | null },
+): Promise<string> {
+  const driverId = crypto.randomUUID()
+  await db.insert(fleetDrivers).values({
+    companyId: input.companyId,
+    id: driverId,
+    membershipId: input.membershipId,
+    name: 'Motorista Vinculado',
+    taxId: '12345678909',
+  })
+  return driverId
+}
+
+async function seedVehicle(
+  db: TestDatabase['db'],
+  input: {
+    readonly companyId: string
+    readonly driverId: string
+    readonly released: boolean
+  },
+): Promise<string> {
+  const vehicleId = crypto.randomUUID()
+  await db.insert(fleetVehicles).values({
+    companyId: input.companyId,
+    id: vehicleId,
+    plate: 'ABC1D23',
+    role: 'traction',
+    state: 'SP',
+    vehicleType: 'truck',
+  })
+  /** O CHECK do período exige devolução depois da atribuição: o dublê precisa de um passado. */
+  const assignedAt = new Date('2026-08-01T12:00:00.000Z')
+  await db.insert(fleetDriverVehicleAssignments).values({
+    assignedAt,
+    companyId: input.companyId,
+    driverId: input.driverId,
+    releasedAt: input.released ? new Date('2026-08-10T12:00:00.000Z') : null,
+    vehicleId,
+  })
+  return vehicleId
+}
 
 async function seedCompany(db: TestDatabase['db']): Promise<string> {
   const companyId = crypto.randomUUID()

@@ -18,6 +18,12 @@ export type ContactChannel = (typeof CONTACT_CHANNELS)[number]
  * `id` é a pessoa e `membershipId` é o vínculo dela com a empresa — é o vínculo que o motorista da
  * frota referencia, e por isso os dois são publicados lado a lado.
  */
+/** A ficha de motorista que o vínculo referencia, e os veículos atribuídos a ela. */
+export type CompanyUserFleetLink = Readonly<{
+  driverId: string
+  vehicles: readonly Readonly<{ id: string; plate: string }>[]
+}>
+
 export type CompanyUser = Readonly<{
   contact: Readonly<{ channel: string; masked: string }>
   /** Mascarados na API, como o contato: servem para reconhecer a pessoa, não para reeditar. */
@@ -30,6 +36,7 @@ export type CompanyUser = Readonly<{
   status: string
   taxId: string
   username: string
+  fleet?: CompanyUserFleetLink
   invitation?: Readonly<{ expiresAt: string; status: string }>
 }>
 
