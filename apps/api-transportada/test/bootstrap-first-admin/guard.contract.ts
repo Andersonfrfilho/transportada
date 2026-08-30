@@ -230,8 +230,74 @@ describe('bootstrap first admin execution', () => {
     })
     expect(calls.gateway).toEqual([{ companyId: COMPANY_ID, ...VALID_ADMINISTRATOR }])
     expect(calls.persistence).toEqual([
-      { companyId: COMPANY_ID, issuer: ISSUER, subject: CREATED_SUBJECT },
+      {
+        companyId: COMPANY_ID,
+        issuer: ISSUER,
+        profile: {
+          contactAddress: VALID_ADMINISTRATOR.email,
+          contactChannel: 'email',
+          email: VALID_ADMINISTRATOR.email,
+          name: 'Ada Lovelace',
+          username: VALID_ADMINISTRATOR.username,
+        },
+        subject: CREATED_SUBJECT,
+      },
     ])
+  })
+
+  /**
+   * O primeiro administrador nascia sem linha em `identity_user_profiles`: usuário, identidade
+   * externa, vínculo e papel, e mais nada. Toda instalação nova estreava com o dono **invisível** na
+   * administração de usuários — a listagem lê o perfil, e sem ele a pessoa aparecia como "Cadastro
+   * incompleto" ou não aparecia. Quem provisiona já digitou nome, sobrenome e e-mail no arranque;
+   * jogá-los fora e pedir de novo depois era a única razão de a tela não ter o que mostrar.
+   */
+  describe('o perfil nasce junto com o administrador', () => {
+    test('o nome do perfil junta o que foi digitado no arranque', async () => {
+      const { calls, useCase } = createUseCase()
+
+      await useCase.execute({
+        administrator: { ...VALID_ADMINISTRATOR, firstName: '  Ada  ', lastName: ' Lovelace ' },
+        correlationId: CORRELATION_ID,
+      })
+
+      const [persisted] = calls.persistence as readonly { profile: { name: string } }[]
+      expect(persisted?.profile.name).toBe('Ada Lovelace')
+    })
+
+    /** Sobrenome é opcional no arranque, e nome não pode nascer com espaço pendurado: há CHECK. */
+    test('sem sobrenome o nome não vira nome com espaço sobrando', async () => {
+      const { calls, useCase } = createUseCase()
+
+      await useCase.execute({
+        administrator: { ...VALID_ADMINISTRATOR, lastName: '' },
+        correlationId: CORRELATION_ID,
+      })
+
+      const [persisted] = calls.persistence as readonly { profile: { name: string } }[]
+      expect(persisted?.profile.name).toBe('Ada')
+    })
+
+    /**
+     * Sem nome nenhum o CHECK de nome em branco recusaria a transação inteira, e o arranque —
+     * único caminho de provisionamento da instalação — falharia por um campo de exibição. O login
+     * é o que sempre existe, então é ele que serve de nome até alguém editar.
+     */
+    test('sem nome algum, o login serve de nome em vez de derrubar o arranque', async () => {
+      const { calls, useCase } = createUseCase()
+
+      await useCase.execute({
+        administrator: { ...VALID_ADMINISTRATOR, firstName: '  ', lastName: '' },
+        correlationId: CORRELATION_ID,
+      })
+
+      const [persisted] = calls.persistence as readonly { profile: { name: string } }[]
+      expect(persisted?.profile.name).toBe(VALID_ADMINISTRATOR.username)
+    })
+
+    test('o perfil e o vínculo nascem na mesma transação, sob a mesma trava', () => {
+      expect(repositorySource).toContain('identityUserProfiles')
+    })
   })
 
   test('refuses with the same 404 when the lock reveals an administrator already born', async () => {

@@ -5,11 +5,13 @@ import { createHash, timingSafeEqual } from 'node:crypto'
 
 import { BootstrapUnavailableError } from '../domain/bootstrap.error.js'
 import type {
+  BootstrapAdministratorInput,
   BootstrapAvailability,
   BootstrapFirstAdminInput,
   BootstrapFirstAdminResult,
   BootstrapIdentityGatewayPort,
   BootstrapRepositoryPort,
+  CreateFirstAdminProfile,
 } from './bootstrap-first-admin.port.js'
 
 type CreateBootstrapFirstAdminUseCaseParams = {
@@ -63,6 +65,7 @@ export function createBootstrapFirstAdminUseCase({
       const persisted = await repository.createFirstAdmin({
         companyId,
         issuer,
+        profile: buildProfile(administrator),
         subject: created.subject,
       })
       if (persisted === undefined) {
@@ -71,6 +74,23 @@ export function createBootstrapFirstAdminUseCase({
 
       return { companyId, subject: created.subject, userId: persisted.userId }
     },
+  }
+}
+
+/**
+ * O perfil sai do que o arranque já perguntou. Nome em branco derrubaria a transação inteira — a
+ * tabela tem CHECK de nome não vazio —, e um arranque que falha por um campo de exibição deixaria a
+ * instalação sem administrador nenhum. O login é o que sempre existe, então ele é o último recurso.
+ */
+function buildProfile(administrator: BootstrapAdministratorInput): CreateFirstAdminProfile {
+  const name = `${administrator.firstName.trim()} ${administrator.lastName.trim()}`.trim()
+
+  return {
+    contactAddress: administrator.email,
+    contactChannel: 'email',
+    email: administrator.email,
+    name: name === '' ? administrator.username : name,
+    username: administrator.username,
   }
 }
 
