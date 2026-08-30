@@ -44,7 +44,7 @@ export type CompanyUserPage = Readonly<{
  * Keycloak que ninguém desta empresa reivindica.
  */
 export type ReconciliationStatus = 'linked' | 'missing-in-realm' | 'missing-locally'
-export type ReconciliationMatch = 'email' | 'none' | 'subject' | 'tax-id'
+export type ReconciliationMatch = 'email' | 'none' | 'subject' | 'document'
 
 export type ReconciliationEntry = Readonly<{
   local?: Readonly<{

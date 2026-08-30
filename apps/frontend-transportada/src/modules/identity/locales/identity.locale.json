@@ -158,8 +158,8 @@
       "match": {
         "subject": "Vínculo",
         "email": "E-mail",
-        "tax-id": "Documento",
-        "none": "—"
+        "none": "—",
+        "document": "Documento"
       },
       "noProfile": "Cadastro incompleto"
     },

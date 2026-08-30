@@ -1,5 +1,11 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
+ *
+ * Os degraus do casamento e o que nunca casa são do pacote
+ * `@adatechnology/identity-reconciliation`, e os testes deles moram lá. O que se prova aqui é **a
+ * extração**: traduzir o vocabulário do TransportAdA para o contrato de vínculo. É a metade que o
+ * pacote não pode saber, e a que erra na prática — um mapeamento que olhasse só a coluna `email`
+ * entregaria conjunto vazio para quase toda conta desta instalação.
  */
 import { describe, expect, test } from 'bun:test'
 
@@ -35,123 +41,92 @@ function realmOf(overrides: Partial<RealmIdentityRecord> = {}): RealmIdentityRec
   }
 }
 
-describe('reconciliação — os três degraus de confiança', () => {
-  test('o vínculo gravado vence, e não depende de e-mail nenhum', () => {
-    const local = localOf({ email: 'outro@transportada.test', subject: 'subject-1' })
+describe('extração — de onde saem os e-mails da pessoa', () => {
+  /**
+   * O convite grava o endereço em `contact_address`, e `email` fica vazio na maioria das contas.
+   * Sem incluir o contato, o degrau do e-mail não acha praticamente ninguém nesta instalação.
+   */
+  test('o contato entra no conjunto quando o canal é e-mail', () => {
+    const local = localOf({ contactAddress: 'ana@transportada.test', email: '', taxId: '' })
     const [entry] = reconcileIdentities({ local: [local], realm: [realmOf()] })
 
-    expect(entry?.status).toBe(RECONCILIATION_STATUS.LINKED)
-    expect(entry?.matchedBy).toBe(RECONCILIATION_MATCH.SUBJECT)
-  })
-
-  test('sem vínculo, o e-mail casa ignorando caixa e espaço', () => {
-    const local = localOf({ email: '  Ana@Transportada.TEST ' })
-    const [entry] = reconcileIdentities({ local: [local], realm: [realmOf()] })
-
-    expect(entry?.status).toBe(RECONCILIATION_STATUS.LINKED)
     expect(entry?.matchedBy).toBe(RECONCILIATION_MATCH.EMAIL)
   })
 
-  /**
-   * A pessoa tem um documento só e pode ter vários e-mails: o documento decide, e o e-mail é o
-   * desempate de quem ainda não tem documento cadastrado.
-   */
-  test('quando os dois discordam, o documento vence o e-mail', () => {
-    const local = localOf({ email: 'ana@transportada.test', taxId: '12345678909' })
-    const realm = [
-      realmOf({ email: 'ana@transportada.test', subject: 'subject-email', taxId: '' }),
-      realmOf({ email: 'ana.pessoal@outro.test', subject: 'subject-doc', taxId: '123.456.789-09' }),
-    ]
-    const [entry] = reconcileIdentities({ local: [local], realm })
+  test('a coluna e o contato convivem: qualquer um dos dois casa', () => {
+    const local = localOf({
+      contactAddress: 'pessoal@outro.test',
+      email: 'ana@transportada.test',
+      taxId: '',
+    })
+    const [byColumn] = reconcileIdentities({ local: [local], realm: [realmOf()] })
+    const [byContact] = reconcileIdentities({
+      local: [local],
+      realm: [realmOf({ email: 'pessoal@outro.test' })],
+    })
 
-    expect(entry?.matchedBy).toBe(RECONCILIATION_MATCH.TAX_ID)
-    expect(entry?.realm?.subject).toBe('subject-doc')
+    expect(byColumn?.matchedBy).toBe(RECONCILIATION_MATCH.EMAIL)
+    expect(byContact?.matchedBy).toBe(RECONCILIATION_MATCH.EMAIL)
   })
 
-  test('o documento casa sem máscara, quando o realm o tiver', () => {
-    const local = localOf({ email: 'nao-bate@transportada.test', taxId: '123.456.789-09' })
-    const realm = realmOf({ email: 'outro@transportada.test', taxId: '12345678909' })
-    const [entry] = reconcileIdentities({ local: [local], realm: [realm] })
+  /** Telefone num conjunto de e-mails casaria por engano com outro telefone no campo errado. */
+  test('contato de WhatsApp não vira e-mail', () => {
+    const local = localOf({
+      contactAddress: '11999998888',
+      contactChannel: 'whatsapp',
+      email: '',
+      taxId: '',
+    })
+    const [entry] = reconcileIdentities({
+      local: [local],
+      realm: [realmOf({ email: '11999998888' })],
+    })
 
-    expect(entry?.matchedBy).toBe(RECONCILIATION_MATCH.TAX_ID)
+    expect(entry?.status).toBe(RECONCILIATION_STATUS.MISSING_IN_REALM)
   })
 })
 
-describe('reconciliação — quem falta de cada lado', () => {
-  test('membership sem conta no realm é quem não consegue entrar', () => {
+describe('extração — o documento e o vínculo', () => {
+  test('o CPF do perfil é o documento do contrato, e vence o e-mail', () => {
+    const realm = [
+      realmOf({ email: 'ana@transportada.test', subject: 'por-email', taxId: '' }),
+      realmOf({ email: 'outro@x.test', subject: 'por-documento', taxId: '123.456.789-09' }),
+    ]
+    const [entry] = reconcileIdentities({ local: [localOf()], realm })
+
+    expect(entry?.matchedBy).toBe(RECONCILIATION_MATCH.DOCUMENT)
+    expect(entry?.realm?.subject).toBe('por-documento')
+  })
+
+  test('o subject gravado é o degrau mais forte', () => {
+    const local = localOf({ email: 'nao-bate@x.test', subject: 'subject-1', taxId: '' })
+    const [entry] = reconcileIdentities({ local: [local], realm: [realmOf()] })
+
+    expect(entry?.matchedBy).toBe(RECONCILIATION_MATCH.SUBJECT)
+  })
+})
+
+describe('a volta — a ficha inteira, não só a chave', () => {
+  /**
+   * O contrato devolve `id` e `subject`; a tela precisa de nome, vínculo e situação. A volta é por
+   * chave, e não por posição: as contas órfãs do provedor entram no fim da lista.
+   */
+  test('devolve os registros do produto, dos dois lados', () => {
+    const orfa = realmOf({ email: 'ninguem@x.test', subject: 'subject-orfa', username: 'ninguem' })
+    const entries = reconcileIdentities({ local: [localOf()], realm: [realmOf(), orfa] })
+
+    expect(entries[0]?.local?.membershipId).toBe('membership-1')
+    expect(entries[0]?.local?.name).toBe('Ana Fiscal')
+    expect(entries[0]?.realm?.username).toBe('ana')
+    expect(entries[1]?.status).toBe(RECONCILIATION_STATUS.MISSING_LOCALLY)
+    expect(entries[1]?.realm?.username).toBe('ninguem')
+    expect(entries[1]?.local).toBeUndefined()
+  })
+
+  test('vínculo sem conta no realm continua chegando com a ficha', () => {
     const [entry] = reconcileIdentities({ local: [localOf()], realm: [] })
 
     expect(entry?.status).toBe(RECONCILIATION_STATUS.MISSING_IN_REALM)
-    expect(entry?.matchedBy).toBe(RECONCILIATION_MATCH.NONE)
-    expect(entry?.realm).toBeUndefined()
-  })
-
-  /** O caso que originou a tela: conta no Keycloak que ninguém aqui reivindica. */
-  test('conta no realm sem membership aparece, em vez de sumir', () => {
-    const entries = reconcileIdentities({ local: [], realm: [realmOf()] })
-
-    expect(entries).toHaveLength(1)
-    expect(entries[0]?.status).toBe(RECONCILIATION_STATUS.MISSING_LOCALLY)
-    expect(entries[0]?.local).toBeUndefined()
-  })
-
-  test('os dois lados vazios não inventam linha', () => {
-    expect(reconcileIdentities({ local: [], realm: [] })).toEqual([])
-  })
-})
-
-describe('reconciliação — o que não pode casar', () => {
-  /**
-   * Duas pessoas sem CPF cadastrado não são a mesma pessoa. Casar vazio com vazio esconderia uma
-   * delas da tela para sempre, que é o defeito exato que esta tela existe para consertar.
-   */
-  test('chave em branco não casa com chave em branco', () => {
-    const local = localOf({ email: '', taxId: '' })
-    const realm = realmOf({ email: '', taxId: '' })
-    const entries = reconcileIdentities({ local: [local], realm: [realm] })
-
-    expect(entries.map((entry) => entry.status)).toEqual([
-      RECONCILIATION_STATUS.MISSING_IN_REALM,
-      RECONCILIATION_STATUS.MISSING_LOCALLY,
-    ])
-  })
-
-  test('uma conta do realm serve a uma pessoa só', () => {
-    const first = localOf({ subject: 'subject-1', userId: 'user-1' })
-    const second = localOf({ membershipId: 'membership-2', userId: 'user-2' })
-    const entries = reconcileIdentities({ local: [first, second], realm: [realmOf()] })
-
-    expect(entries[0]?.status).toBe(RECONCILIATION_STATUS.LINKED)
-    // O segundo tem o mesmo e-mail, mas a conta já foi reivindicada pelo vínculo gravado.
-    expect(entries[1]?.status).toBe(RECONCILIATION_STATUS.MISSING_IN_REALM)
-  })
-
-  test('o realm com a mesma chave duas vezes não duplica o casamento', () => {
-    const realm = [realmOf(), realmOf({ subject: 'subject-2', username: 'ana.2' })]
-    const entries = reconcileIdentities({ local: [localOf()], realm })
-
-    expect(entries[0]?.status).toBe(RECONCILIATION_STATUS.LINKED)
-    expect(entries[1]?.status).toBe(RECONCILIATION_STATUS.MISSING_LOCALLY)
-    expect(entries[1]?.realm?.subject).toBe('subject-2')
-  })
-})
-
-describe('reconciliação — o e-mail mora no contato', () => {
-  /**
-   * O convite grava o endereço em `contact_address`, e `email` fica vazio na maioria das contas.
-   * Casar só pela coluna `email` fazia o degrau do e-mail não achar praticamente ninguém.
-   */
-  test('casa pelo contato quando o canal é e-mail e a coluna está vazia', () => {
-    const local = localOf({ contactAddress: 'ana@transportada.test', email: '' })
-    const [entry] = reconcileIdentities({ local: [local], realm: [realmOf()] })
-
-    expect(entry?.matchedBy).toBe(RECONCILIATION_MATCH.EMAIL)
-  })
-
-  test('contato de telefone não vira chave de e-mail', () => {
-    const local = localOf({ contactAddress: '11999998888', contactChannel: 'whatsapp', email: '' })
-    const [entry] = reconcileIdentities({ local: [local], realm: [realmOf()] })
-
-    expect(entry?.status).toBe(RECONCILIATION_STATUS.MISSING_IN_REALM)
+    expect(entry?.local?.name).toBe('Ana Fiscal')
   })
 })

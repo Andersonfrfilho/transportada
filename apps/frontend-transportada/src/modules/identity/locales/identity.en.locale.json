@@ -158,8 +158,8 @@
       "match": {
         "subject": "Link",
         "email": "Email",
-        "tax-id": "Document",
-        "none": "—"
+        "none": "—",
+        "document": "Document"
       },
       "noProfile": "Incomplete profile"
     },

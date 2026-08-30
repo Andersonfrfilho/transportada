@@ -96,7 +96,7 @@ export function toCompanyUserPage(value: unknown): CompanyUserPage {
 }
 
 const RECONCILIATION_STATUSES = ['linked', 'missing-in-realm', 'missing-locally'] as const
-const RECONCILIATION_MATCHES = ['email', 'none', 'subject', 'tax-id'] as const
+const RECONCILIATION_MATCHES = ['email', 'none', 'subject', 'document'] as const
 
 /**
  * Status desconhecido não derruba a tela: a linha continua visível como `missing-locally`, que é o
