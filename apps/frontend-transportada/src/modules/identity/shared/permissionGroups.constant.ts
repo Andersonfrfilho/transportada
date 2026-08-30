@@ -10,7 +10,7 @@
  * tela existe para fazer.
  */
 export const PERMISSION_GROUPS = [
-  { key: 'identity', permissions: ['users.manage', 'users.reveal'] },
+  { key: 'identity', permissions: ['users.manage', 'users.reveal', 'groups.manage'] },
   { key: 'invoices', permissions: ['invoices.import', 'invoices.read'] },
   { key: 'batches', permissions: ['batches.create', 'batches.approve'] },
   { key: 'cte', permissions: ['cte.manage', 'cte.submit', 'cte.issue', 'cte.cancel', 'cte.read'] },

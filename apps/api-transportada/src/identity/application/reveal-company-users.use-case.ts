@@ -19,6 +19,12 @@ export type RevealCompanyUsersInput = {
  * deixa rastro: `security.md` §10 trata exportação e leitura de dado pessoal como ação auditável.
  */
 export type RevealedCompanyUser = {
+  /**
+   * O endereço do convite, que é **onde o contato mora**: a coluna `email` fica vazia na maioria das
+   * contas. Revelar só `email` devolvia branco, e a tela mostrava um traço no lugar do valor cru —
+   * a permissão gastava uma linha de auditoria para não revelar nada.
+   */
+  readonly contact: string
   readonly email: string
   readonly name: string
   readonly phone: string

@@ -340,6 +340,10 @@
       "charges.decide": {
         "label": "Decidir repasse (portal)",
         "where": "Portal do contratante: aceitar ou recusar cobrança adicional."
+      },
+      "groups.manage": {
+        "label": "Administer groups",
+        "where": "Create groups, choose what they grant, and assign them to people. Whoever holds it can grant any other permission — every grant is audited."
       }
     },
     "matrix": {

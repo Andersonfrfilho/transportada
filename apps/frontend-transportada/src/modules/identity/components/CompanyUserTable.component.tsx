@@ -44,7 +44,6 @@ export function CompanyUserTable({
   users,
 }: CompanyUserTableProps) {
   const { t } = useTranslation('identity')
-  const hasRevealed = reveal.revealed.size > 0
 
   function statusClassName(status: string): string {
     const modifier = STATUS_CLASS[status]
@@ -65,24 +64,7 @@ export function CompanyUserTable({
               />
             </th>
             <th scope="col">{t('users.columnName')}</th>
-            <th scope="col">
-              {t('users.columnContact')}
-              {/* Revelar todos age sobre a página que está na frente do operador, não sobre a base. */}
-              {reveal.canReveal ? (
-                <Button
-                  disabled={reveal.isPending}
-                  onClick={() =>
-                    hasRevealed ? reveal.hide() : void reveal.reveal(users.map((user) => user.id))
-                  }
-                  size="sm"
-                  type="button"
-                  variant="ghost"
-                >
-                  <Icon name={hasRevealed ? 'eyeOff' : 'eye'} />
-                  {hasRevealed ? t('users.reveal.hideAll') : t('users.reveal.showAll')}
-                </Button>
-              ) : null}
-            </th>
+            <th scope="col">{t('users.columnContact')}</th>
             <th scope="col">{t('users.columnRoles')}</th>
             <th scope="col">{t('users.columnStatus')}</th>
             <th className={styles.actionsCell} scope="col">
@@ -235,11 +217,16 @@ function RevealedContactCell({ reveal, user }: RevealedContactCellProps) {
   )
 }
 
-/** O contato revelado é o do canal que a pessoa escolheu — mostrar o outro campo confundiria. */
+/**
+ * O contato é o endereço do convite, e é ele que a célula mascarava. A coluna `email` do perfil fica
+ * vazia na maioria das contas: mostrá-la revelava um traço, e a permissão gastava uma linha de
+ * auditoria para não revelar nada. Ela só entra como reserva, para quem tiver as duas.
+ */
 function revealedContactOf(
-  revealed: Readonly<{ email: string; phone: string }>,
+  revealed: Readonly<{ contact: string; email: string; phone: string }>,
   user: CompanyUser,
 ): string {
+  if (revealed.contact !== '') return revealed.contact
   return user.contact.channel === 'email' ? revealed.email : revealed.phone
 }
 

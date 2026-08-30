@@ -209,6 +209,7 @@ export function toRevealedCompanyUsers(value: unknown): readonly RevealedCompany
   return value.data.map((entry) => {
     if (!isRecord(entry)) invalid()
     return {
+      contact: readText(entry.contact),
       email: readText(entry.email),
       name: readText(entry.name),
       phone: readText(entry.phone),

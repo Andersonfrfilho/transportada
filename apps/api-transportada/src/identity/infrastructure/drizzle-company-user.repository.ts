@@ -299,6 +299,7 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
 
     return this.database
       .select({
+        contact: identityUserProfiles.contactAddress,
         email: identityUserProfiles.email,
         name: identityUserProfiles.name,
         phone: identityUserProfiles.phone,

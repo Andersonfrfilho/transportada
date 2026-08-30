@@ -9,6 +9,7 @@ import { CompanyUserEditDialog } from '../components/CompanyUserEditDialog.compo
 import { CompanyUserInviteDialog } from '../components/CompanyUserInviteDialog.component'
 import { CompanyUserRemoveDialog } from '../components/CompanyUserRemoveDialog.component'
 import { CompanyUserTable } from '../components/CompanyUserTable.component'
+import { CompanyUserRevealAllButton } from '../components/CompanyUserRevealAllButton.component'
 import { CompanyUserBulkRoleBar } from '../components/CompanyUserBulkRoleBar.component'
 import { RolePermissionMatrixPanel } from '../components/RolePermissionMatrixPanel.component'
 import { CompanyUserReconciliationPanel } from '../components/CompanyUserReconciliationPanel.component'
@@ -73,15 +74,18 @@ export function UserAdministrationPage() {
       <section className={styles.panel}>
         <div className={styles.panelHead}>
           <h2>{t('users.listTitle')}</h2>
-          <Button
-            disabled={!viewModel.canManageUsers}
-            onClick={screen.openInvite}
-            type="button"
-            variant="default"
-          >
-            <Icon name="add" />
-            {t('users.invite')}
-          </Button>
+          <div className={styles.panelActions}>
+            <CompanyUserRevealAllButton reveal={screen.reveal} users={viewModel.users} />
+            <Button
+              disabled={!viewModel.canManageUsers}
+              onClick={screen.openInvite}
+              type="button"
+              variant="default"
+            >
+              <Icon name="add" />
+              {t('users.invite')}
+            </Button>
+          </div>
         </div>
 
         {screen.fleetLinkNotice === null ? null : (

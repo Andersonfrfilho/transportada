@@ -102,6 +102,7 @@ export const ASSIGNED_ROLES_RESULT = { affectedUserIds: [COMPANY_USER.id] }
 /** O valor cru: é o que a rota devolve a quem tem `users.reveal`, e o que a auditoria registra. */
 export const REVEALED_USERS = [
   {
+    contact: 'pessoa@empresa.test',
     email: 'pessoa@empresa.test',
     name: COMPANY_USER.name,
     phone: '11999998888',

@@ -88,6 +88,7 @@ export type AssignedCompanyUserRoles = Readonly<{ affectedUserIds: readonly stri
 
 /** O valor cru de quem a tela pediu para revelar. Só chega a quem tem `users.reveal`. */
 export type RevealedCompanyUser = Readonly<{
+  contact: string
   email: string
   name: string
   phone: string
