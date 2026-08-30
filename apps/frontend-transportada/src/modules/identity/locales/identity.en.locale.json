@@ -425,7 +425,8 @@
       "grantLabel": "Permissions to grant",
       "revoke": "Revoke permission",
       "preferGroups": "Prefer a group: it explains why the person reaches that, and a loose permission does not.",
-      "open": "Permissions and links"
+      "open": "Permissions and links",
+      "emails": "Emails"
     }
   },
   "login": {

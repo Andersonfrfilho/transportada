@@ -16,6 +16,8 @@ export type PendingInvitationSummary =
 
 export type CompanyUserRecord = {
   readonly contactAddress: string
+  /** Todos os endereços por onde ela se identifica, crus. A view mascara. */
+  readonly emails?: readonly string[]
   readonly fleet?: CompanyUserFleetLink
   readonly contactChannel: ContactChannel
   readonly email: string

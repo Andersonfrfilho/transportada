@@ -66,6 +66,7 @@ export function toCompanyUser(value: unknown): CompanyUser {
     id: readString(value, 'id'),
     ...(invitation === undefined ? {} : { invitation }),
     email: readString(value, 'email'),
+    emails: Array.isArray(value.emails) ? value.emails.map(readText) : [],
     membershipId: readString(value, 'membershipId'),
     name: readString(value, 'name'),
     phone: readString(value, 'phone'),

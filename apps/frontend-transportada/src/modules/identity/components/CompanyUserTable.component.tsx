@@ -102,13 +102,26 @@ export function CompanyUserTable({
                 </span>
               </td>
               <td>
-                <FleetLinkCell user={user} />
+                {/* Vínculo e papéis na mesma linha: empilhados, o ícone tomava a coluna inteira. */}
                 <span className={styles.roleList}>
-                  {user.roles.map((role) => (
+                  <FleetLinkCell user={user} />
+                  {user.roles.slice(0, 1).map((role) => (
                     <span className={styles.badge} key={role}>
                       {t(`users.role.${role}`, { defaultValue: role })}
                     </span>
                   ))}
+                  {/* Papel além do primeiro vira contagem: a coluna não cresce com quem tem cinco. */}
+                  {user.roles.length > 1 ? (
+                    <span
+                      className={styles.badge}
+                      title={user.roles
+                        .map((role) => t(`users.role.${role}`, { defaultValue: role }))
+                        .join(', ')}
+                    >
+                      <Icon name="add" />
+                      {user.roles.length - 1}
+                    </span>
+                  ) : null}
                 </span>
               </td>
               <td>
@@ -210,6 +223,13 @@ function RevealedContactCell({ reveal, user }: RevealedContactCellProps) {
   return (
     <span className={styles.revealCell}>
       <span className={styles.primaryCell}>{shown || '—'}</span>
+      {/* Mais de um endereço: a célula mostra um, e sem a contagem ela mente por omissão. */}
+      {user.emails.length > 1 ? (
+        <span className={styles.badge} title={user.emails.join(', ')}>
+          <Icon name="add" />
+          {user.emails.length - 1}
+        </span>
+      ) : null}
       {!reveal.canReveal ? null : revealed === undefined ? (
         <Button
           aria-label={t('users.reveal.showOne', { name: user.name })}

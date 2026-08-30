@@ -28,6 +28,8 @@ export type CompanyUser = Readonly<{
   contact: Readonly<{ channel: string; masked: string }>
   /** Mascarados na API, como o contato: servem para reconhecer a pessoa, não para reeditar. */
   email: string
+  /** Todos os endereços da pessoa, mascarados. Um só na célula esconderia os outros. */
+  emails: readonly string[]
   id: string
   membershipId: string
   name: string

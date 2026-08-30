@@ -425,7 +425,8 @@
       "grantLabel": "Permissões a conceder",
       "revoke": "Revogar permissão",
       "preferGroups": "Prefira o grupo: ele explica por que a pessoa alcança aquilo, e a permissão avulsa não.",
-      "open": "Permissões e vínculos"
+      "open": "Permissões e vínculos",
+      "emails": "E-mails"
     }
   },
   "login": {

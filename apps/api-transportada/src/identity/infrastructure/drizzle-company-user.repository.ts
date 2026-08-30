@@ -10,6 +10,7 @@ import {
   fleetVehicles,
 } from '../../database/fleet.schema.js'
 import { auditLogs } from '../../database/fiscal-operation.schema.js'
+import { loginIdentifiers } from '../../database/login-identifier.schema.js'
 import { jobExecutions, jobSchedules } from '../../database/job-schedule.schema.js'
 import type { JobOutcome, ScheduledJob } from '../../shared/job-catalog.constant.js'
 import type { CompanyUserFleetLink } from '../domain/company-user.policy.js'
@@ -391,16 +392,19 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
 
     const pageRows = rows.slice(0, input.limit)
     const userIds = pageRows.map((row) => row.userId)
-    const [roles, pendingInvitations, fleetLinks] = await Promise.all([
+    const [roles, pendingInvitations, fleetLinks, emails] = await Promise.all([
       this.fetchRoles({ companyId: input.companyId, userIds }),
       this.fetchPendingInvitations({ companyId: input.companyId, userIds }),
       this.fetchFleetLinks({
         companyId: input.companyId,
         membershipIds: pageRows.map((row) => row.membershipId),
       }),
+      this.fetchEmails({ userIds }),
     ])
 
-    const items = pageRows.map((row) => toRecord(row, roles, pendingInvitations, fleetLinks))
+    const items = pageRows.map((row) =>
+      toRecord(row, roles, pendingInvitations, fleetLinks, emails),
+    )
     const last = pageRows.at(-1)
     return {
       items,
@@ -543,6 +547,34 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
    * Só a atribuição **aberta** conta (`released_at is null`): veículo devolvido não é vínculo atual,
    * e mostrá-lo mandaria o operador para a ficha de um carro que a pessoa não dirige mais.
    */
+  /**
+   * Os e-mails por onde a pessoa se identifica. A listagem mostra um contato só, e sem a contagem
+   * ela mente por omissão: quem tem três endereços parece ter um, e quem procura por um dos outros
+   * conclui que a pessoa não está cadastrada.
+   */
+  private async fetchEmails(input: {
+    readonly userIds: readonly string[]
+  }): Promise<ReadonlyMap<string, readonly string[]>> {
+    if (input.userIds.length === 0) return new Map()
+
+    const rows = await this.database
+      .select({ userId: loginIdentifiers.userId, value: loginIdentifiers.value })
+      .from(loginIdentifiers)
+      .where(
+        and(
+          eq(loginIdentifiers.kind, 'email'),
+          inArray(loginIdentifiers.userId, [...input.userIds]),
+        ),
+      )
+      .orderBy(loginIdentifiers.value)
+
+    const emails = new Map<string, string[]>()
+    for (const row of rows) {
+      emails.set(row.userId, [...(emails.get(row.userId) ?? []), row.value])
+    }
+    return emails
+  }
+
   private async fetchFleetLinks(input: {
     readonly companyId: string
     readonly membershipIds: readonly string[]
@@ -650,6 +682,7 @@ function toRecord(
   rolesByUser: ReadonlyMap<string, readonly CompanyRole[]>,
   pendingInvitationsByUser: ReadonlyMap<string, Date>,
   fleetLinksByMembership: ReadonlyMap<string, CompanyUserFleetLink> = new Map(),
+  emailsByUser: ReadonlyMap<string, readonly string[]> = new Map(),
 ): CompanyUserRecord {
   const fleet = fleetLinksByMembership.get(row.membershipId)
   const expiresAt = pendingInvitationsByUser.get(row.userId)
@@ -658,6 +691,7 @@ function toRecord(
     contactAddress: row.contactAddress ?? '',
     contactChannel: row.contactChannel ?? DEFAULT_CONTACT_CHANNEL,
     email: row.email ?? '',
+    emails: emailsByUser.get(row.userId) ?? [],
     ...(fleet === undefined ? {} : { fleet }),
     membershipId: row.membershipId,
     membershipStatus: row.membershipStatus,

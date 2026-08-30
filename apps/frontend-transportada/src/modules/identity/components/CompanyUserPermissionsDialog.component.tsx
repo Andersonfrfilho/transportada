@@ -88,6 +88,53 @@ export function CompanyUserPermissionsDialog({
           </Button>
         </header>
 
+        {/*
+          O detalhe é onde a ficha aparece inteira: a listagem mostra um contato e um papel, com a
+          contagem do resto. Quem abre aqui quer ver tudo, não a amostra.
+        */}
+        <dl className={styles.detailGrid}>
+          <div>
+            <dt>{t('users.columnName')}</dt>
+            <dd>{user.name === '' ? t('users.noProfile') : user.name}</dd>
+          </div>
+          <div>
+            <dt>{t('users.inviteDialog.phone')}</dt>
+            <dd>{user.phone || '—'}</dd>
+          </div>
+          <div>
+            <dt>{t('users.permissions.emails')}</dt>
+            <dd>
+              <span className={styles.pillList}>
+                {user.emails.length === 0 ? (
+                  <span>{user.contact.masked || '—'}</span>
+                ) : (
+                  user.emails.map((email) => (
+                    <span className={styles.badge} key={email}>
+                      {email}
+                    </span>
+                  ))
+                )}
+              </span>
+            </dd>
+          </div>
+          <div>
+            <dt>{t('users.columnRoles')}</dt>
+            <dd>
+              <span className={styles.pillList}>
+                {user.roles.length === 0 ? (
+                  <span>—</span>
+                ) : (
+                  user.roles.map((role) => (
+                    <span className={styles.badge} key={role}>
+                      {t(`users.role.${role}`, { defaultValue: role })}
+                    </span>
+                  ))
+                )}
+              </span>
+            </dd>
+          </div>
+        </dl>
+
         {user.fleet === undefined ? null : (
           <div className={styles.pillList}>
             <Button

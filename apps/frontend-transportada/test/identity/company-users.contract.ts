@@ -24,6 +24,7 @@ const USER_ID = '018f6a45-2d9d-7e60-bb42-5b1a4c4d3e93'
 
 const COMPANY_USER_PAYLOAD = {
   contact: { channel: 'email', masked: 'a***@example.test' },
+  emails: ['a***@example.test'],
   email: 'a***@example.test',
   id: USER_ID,
   membershipId: '018f6a45-2d9d-7e60-bb42-5b1a4c4d3e94',

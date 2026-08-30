@@ -74,6 +74,7 @@ export const CHANGE_STATUS_BODY = { status: 'suspended' } as const
 export const TARGET_MEMBERSHIP_ID = '5b1a4a1e-1a0c-4f4a-9d1a-2f0c7d3b5e11'
 
 export const COMPANY_USER = {
+  emails: ['t***@e***.com.br'],
   contact: { channel: 'email', masked: 'c***@e***.test' },
   email: 'c***@e***.test',
   id: TARGET_USER_ID,

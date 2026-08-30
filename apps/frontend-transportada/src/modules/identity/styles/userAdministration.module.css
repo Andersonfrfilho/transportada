@@ -105,6 +105,25 @@
   gap: var(--space-3);
 }
 
+.detailGrid {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  margin-block: var(--space-3);
+}
+
+.detailGrid dt {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.detailGrid dd {
+  margin: 0;
+  margin-block-start: var(--space-1);
+}
+
 .pillList {
   display: flex;
   flex-wrap: wrap;

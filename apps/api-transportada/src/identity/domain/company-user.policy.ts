@@ -25,6 +25,11 @@ export type CompanyUserView = {
    * que não existe inventaria um dado que ninguém cadastrou.
    */
   readonly email: string
+  /**
+   * Os endereços por onde a pessoa se identifica, mascarados. A listagem mostra um contato só, e a
+   * lista completa é o que impede a tela de mentir por omissão a quem tem mais de um.
+   */
+  readonly emails: readonly string[]
   readonly fleet?: CompanyUserFleetLink
   readonly id: string
   readonly invitation?: { readonly expiresAt: string; readonly status: 'pending' }
@@ -44,6 +49,7 @@ export type CompanyUserView = {
 
 type CompanyUserViewSource = {
   readonly contactAddress: string
+  readonly emails?: readonly string[]
   readonly fleet?: CompanyUserFleetLink
   readonly contactChannel: ContactChannel
   readonly email: string
@@ -130,6 +136,7 @@ export function toCompanyUserView(source: CompanyUserViewSource): CompanyUserVie
       masked: maskContactAddress({ channel: source.contactChannel, value: source.contactAddress }),
     },
     email: maskEmailOrEmpty(source.email),
+    emails: (source.emails ?? []).map(maskEmailOrEmpty),
     ...(source.fleet === undefined ? {} : { fleet: source.fleet }),
     id: source.userId,
     membershipId: source.membershipId,
