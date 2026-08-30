@@ -161,7 +161,10 @@
         "none": "—",
         "document": "Documento"
       },
-      "noProfile": "Cadastro incompleto"
+      "noProfile": "Cadastro incompleto",
+      "createInRealm": "Criar no Keycloak",
+      "createLocally": "Trazer para cá",
+      "createAll": "Criar os {{count}} que faltam"
     },
     "noProfile": "Cadastro incompleto",
     "reveal": {

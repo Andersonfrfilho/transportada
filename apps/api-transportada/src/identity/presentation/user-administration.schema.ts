@@ -111,6 +111,18 @@ export const assignCompanyGroupsSchema = z
   .strict()
 export type AssignCompanyGroupsBody = z.infer<typeof assignCompanyGroupsSchema>
 
+/** Alvo explícito nas duas direções: varredura cega importaria o realm inteiro para dentro da empresa. */
+export const synchronizeIdentitiesSchema = z
+  .object({
+    subjects: z.array(z.string().trim().min(1)).max(REVEAL_BATCH_LIMIT).default([]),
+    userIds: z.array(z.uuid()).max(REVEAL_BATCH_LIMIT).default([]),
+  })
+  .strict()
+  .refine((body) => body.subjects.length + body.userIds.length > 0, {
+    message: 'Nothing to synchronize.',
+  })
+export type SynchronizeIdentitiesBody = z.infer<typeof synchronizeIdentitiesSchema>
+
 export const grantDirectPermissionsSchema = z
   .object({ permissions: z.array(companyPermissionSchema).min(1).max(120) })
   .strict()
@@ -166,6 +178,12 @@ export async function parseGrantDirectPermissionsRequest(
   request: Request,
 ): Promise<GrantDirectPermissionsBody> {
   return parseBody(grantDirectPermissionsSchema, request)
+}
+
+export async function parseSynchronizeIdentitiesRequest(
+  request: Request,
+): Promise<SynchronizeIdentitiesBody> {
+  return parseBody(synchronizeIdentitiesSchema, request)
 }
 
 export async function parseRevealCompanyUsersRequest(

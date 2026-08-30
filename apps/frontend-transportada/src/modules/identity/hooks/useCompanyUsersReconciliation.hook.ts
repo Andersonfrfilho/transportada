@@ -1,7 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { USERS_MANAGE_PERMISSION } from '../shared/companyUsers.constant'
+
+/** A listagem relê junto: quem foi importado do realm passa a aparecer entre os acessos. */
+const COMPANY_USERS_ADMINISTRATION_QUERY_KEY = 'company-users-administration'
 import type { CompanyUsersClient } from './useCompanyUsers.hook'
 import { getCompanyUsersClient } from './useCompanyUsers.hook'
 
@@ -23,11 +26,32 @@ export function useCompanyUsersReconciliation(
   const client = input.client ?? getCompanyUsersClient()
   const canManageUsers = input.permissions.includes(USERS_MANAGE_PERMISSION)
 
-  return useQuery({
+  const queryClient = useQueryClient()
+
+  const query = useQuery({
     enabled: input.enabled && canManageUsers && input.companyId !== undefined,
     queryFn: () => client.reconcileUsers(),
     queryKey: [COMPANY_USERS_RECONCILIATION_QUERY_KEY, input.companyId],
     /** O realm não muda a cada foco: recarregar é clique, não respiração da tela. */
     staleTime: 60_000,
   })
+
+  /**
+   * Criar quem falta relê os dois lados **e** a listagem: a pessoa importada do realm passa a
+   * aparecer entre os acessos da empresa, e deixar a listagem velha faria parecer que nada aconteceu.
+   */
+  const synchronizeMutation = useMutation({
+    mutationFn: (targets: Readonly<{ subjects: readonly string[]; userIds: readonly string[] }>) =>
+      client.synchronizeIdentities(targets),
+    /**
+     * Sem `await`: esperar o cache aqui prenderia `isPending` e o botão ficaria desabilitado depois
+     * de a operação ter terminado. A releitura acontece; a tela não fica presa a ela.
+     */
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [COMPANY_USERS_RECONCILIATION_QUERY_KEY] })
+      void queryClient.invalidateQueries({ queryKey: [COMPANY_USERS_ADMINISTRATION_QUERY_KEY] })
+    },
+  })
+
+  return Object.assign(query, { synchronizeMutation })
 }

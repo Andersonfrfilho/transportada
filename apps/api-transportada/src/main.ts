@@ -312,6 +312,7 @@ import { createManageDirectPermissionsUseCase } from './identity/application/man
 import { DrizzleCompanyGroupRepository } from './identity/infrastructure/drizzle-company-group.repository'
 import { createDrizzleGroupAudit } from './identity/infrastructure/drizzle-group-audit.gateway'
 import { createCompanyGroupRoutes } from './identity/presentation/company-group.routes'
+import { createSynchronizeIdentitiesUseCase } from './identity/application/synchronize-identities.use-case'
 import { createRevealCompanyUsersUseCase } from './identity/application/reveal-company-users.use-case'
 import { createUserAdministrationRoutes } from './identity/presentation/user-administration.routes'
 import { createRouter, type RegisteredAnonymousRoute } from './http/router.service'
@@ -1828,6 +1829,12 @@ function createApplicationRoutes({
       assignRoles: assignCompanyUserRoles,
       rolePermissions: createListRolePermissionsUseCase(),
       reveal: revealCompanyUsers,
+      synchronize: createSynchronizeIdentitiesUseCase({
+        audit: groupAudit,
+        gateway: identityAccessGateway,
+        issuer: keycloak.issuer,
+        repository: companyUserRepository,
+      }),
       removeMembership: removeCompanyUserMembership,
       replaceRoles: replaceCompanyUserRoles,
       resendCode: resendCompanyUserCode,

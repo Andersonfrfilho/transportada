@@ -112,6 +112,12 @@ export type CompanyUserRepositoryPort = {
     readonly roles: readonly CompanyRole[]
     readonly userIds: readonly string[]
   }) => Promise<{ readonly affectedUserIds: readonly string[] }>
+  /** Liga o vínculo daqui ao `subject` recém-criado no provedor. */
+  readonly linkIdentitySubject: (input: {
+    readonly issuer: string
+    readonly subject: string
+    readonly userId: string
+  }) => Promise<void>
   readonly findForReveal: (input: {
     readonly companyId: string
     readonly userIds: readonly string[]

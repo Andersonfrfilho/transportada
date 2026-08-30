@@ -42,6 +42,7 @@ import type { AssignCompanyUserRolesInput } from '../application/assign-company-
 import type { ReconcileCompanyUsersUseCase } from '../application/reconcile-company-users.use-case.js'
 import type { AssignCompanyUserRolesUseCase } from '../application/assign-company-user-roles.use-case.js'
 import type { RevealCompanyUsersUseCase } from '../application/reveal-company-users.use-case.js'
+import type { SynchronizeIdentitiesUseCase } from '../application/synchronize-identities.use-case.js'
 import type { CompanyUserView } from '../domain/company-user.policy.js'
 import {
   parseChangeCompanyUserStatusRequest,
@@ -50,6 +51,7 @@ import {
   parseReplaceCompanyUserRolesRequest,
   parseAssignCompanyUserRolesRequest,
   parseRevealCompanyUsersRequest,
+  parseSynchronizeIdentitiesRequest,
   parseUpdateCompanyUserProfileRequest,
   parseUuidPathIdentifier,
 } from './user-administration.schema.js'
@@ -61,6 +63,7 @@ import {
 const RECONCILIATION_PATH = `${API_COMPANY_USERS_PATH}/reconciliation`
 const DOCUMENT_BACKFILL_PATH = `${API_COMPANY_USERS_PATH}/document-backfill`
 const REVEAL_PATH = `${API_COMPANY_USERS_PATH}/reveal`
+const RECONCILIATION_SYNC_PATH = `${API_COMPANY_USERS_PATH}/reconciliation/sync`
 const BULK_ROLES_PATH = `${API_COMPANY_USERS_PATH}/roles`
 const ROLE_PERMISSIONS_PATH = `${API_COMPANY_USERS_PATH}/role-permissions`
 const USER_PATH = `${API_COMPANY_USERS_PATH}/:id`
@@ -83,6 +86,7 @@ type Dependencies = {
   readonly assignRoles: AssignCompanyUserRolesUseCase
   readonly rolePermissions: ListRolePermissionsUseCase
   readonly reveal: RevealCompanyUsersUseCase
+  readonly synchronize: SynchronizeIdentitiesUseCase
   readonly removeMembership: RemoveCompanyUserMembershipUseCase
   readonly replaceRoles: ReplaceCompanyUserRolesUseCase
   readonly resendCode: ResendCompanyUserCodeUseCase
@@ -117,6 +121,32 @@ export function createUserAdministrationRoutes(
       method: 'GET',
       parse: ({ request }) => ({ limit: parseReconciliationLimit(new URL(request.url)) }),
       pathname: RECONCILIATION_PATH,
+      policy: USERS_MANAGE_POLICY,
+    }),
+    /**
+     * Criar quem falta, nos dois sentidos, com alvo explícito. O caminho literal vem antes de
+     * `/:id` e é irmão da leitura da reconciliação, de propósito: quem enxerga a divergência é quem
+     * a conserta.
+     */
+    defineRoute<{
+      readonly correlationId: string
+      readonly subjects: readonly string[]
+      readonly userIds: readonly string[]
+    }>({
+      async handle({ context, input }) {
+        const result = await dependencies.synchronize.execute({ context: context.scope, ...input })
+        return jsonResponse({ body: { data: result }, status: 200 })
+      },
+      method: 'POST',
+      async parse({ request }) {
+        const body = await parseSynchronizeIdentitiesRequest(request)
+        return {
+          correlationId: readCorrelationId(request) ?? crypto.randomUUID(),
+          subjects: body.subjects,
+          userIds: body.userIds,
+        }
+      },
+      pathname: RECONCILIATION_SYNC_PATH,
       policy: USERS_MANAGE_POLICY,
     }),
     /**

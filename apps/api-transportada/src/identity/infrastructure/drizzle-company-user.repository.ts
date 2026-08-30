@@ -291,6 +291,22 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
    * O perfil ausente vira campo vazio, nunca linha escondida: a tela mostra que a pessoa existe e
    * que falta cadastro, e é assim que alguém a conserta. Esconder é o defeito, não a proteção.
    */
+  public async linkIdentitySubject(input: {
+    readonly issuer: string
+    readonly subject: string
+    readonly userId: string
+  }): Promise<void> {
+    await this.database
+      .insert(externalIdentities)
+      .values({
+        id: crypto.randomUUID(),
+        issuer: input.issuer,
+        subject: input.subject,
+        userId: input.userId,
+      })
+      .onConflictDoNothing()
+  }
+
   public async findForReveal(input: {
     readonly companyId: string
     readonly userIds: readonly string[]

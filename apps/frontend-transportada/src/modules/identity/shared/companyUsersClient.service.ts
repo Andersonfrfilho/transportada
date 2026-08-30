@@ -61,6 +61,9 @@ export type CompanyUsersClient = Readonly<{
   ) => Promise<void>
   saveGroup: (input: SaveCompanyGroupInput) => Promise<CompanyGroup>
   reconcileUsers: () => Promise<CompanyUsersReconciliation>
+  synchronizeIdentities: (
+    input: Readonly<{ subjects: readonly string[]; userIds: readonly string[] }>,
+  ) => Promise<void>
   readRolePermissions: () => Promise<RolePermissionMatrix>
   revealUsers: (
     input: Readonly<{ userIds: readonly string[] }>,
@@ -273,6 +276,14 @@ export function createCompanyUsersClient(dependencies: ClientDependencies): Comp
         path: `${COMPANY_USERS_PATH}/roles`,
       })
       return toAssignedCompanyUserRoles(payload)
+    },
+    async synchronizeIdentities(input) {
+      await authorizedRequest({
+        body: JSON.stringify({ subjects: input.subjects, userIds: input.userIds }),
+        dependencies,
+        method: 'POST',
+        path: `${COMPANY_USERS_PATH}/reconciliation/sync`,
+      })
     },
     async readRolePermissions() {
       const { payload } = await authorizedRequest({

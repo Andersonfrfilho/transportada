@@ -14,7 +14,11 @@ type CompanyUserReconciliationPanelProps = Readonly<{
   isLoading: boolean
   isOpen: boolean
   onRefresh: () => void
+  onSynchronize: (
+    targets: Readonly<{ subjects: readonly string[]; userIds: readonly string[] }>,
+  ) => void
   onToggle: () => void
+  isSynchronizing?: boolean
   errorCode?: string
 }>
 
@@ -34,7 +38,9 @@ export function CompanyUserReconciliationPanel({
   hasMoreRealmUsers,
   isLoading,
   isOpen,
+  isSynchronizing = false,
   onRefresh,
+  onSynchronize,
   onToggle,
 }: CompanyUserReconciliationPanelProps) {
   const { t } = useTranslation('identity')
@@ -102,6 +108,29 @@ export function CompanyUserReconciliationPanel({
                       </span>
                     </td>
                     <td>{t(`users.sync.match.${entry.matchedBy}`)}</td>
+                    <td>
+                      {/* O botão só existe onde há o que criar: linha sincronizada não oferece ação. */}
+                      {entry.status === 'linked' ? null : (
+                        <Button
+                          disabled={isSynchronizing}
+                          onClick={() =>
+                            onSynchronize(
+                              entry.status === 'missing-in-realm'
+                                ? { subjects: [], userIds: [entry.local?.userId ?? ''] }
+                                : { subjects: [entry.realm?.subject ?? ''], userIds: [] },
+                            )
+                          }
+                          size="sm"
+                          type="button"
+                          variant="ghost"
+                        >
+                          <Icon name="refresh" />
+                          {entry.status === 'missing-in-realm'
+                            ? t('users.sync.createInRealm')
+                            : t('users.sync.createLocally')}
+                        </Button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -109,6 +138,29 @@ export function CompanyUserReconciliationPanel({
           </div>
 
           {/* O recorte é do realm: dizer que ele acabou quando não acabou esconde divergência. */}
+          {/* Criar todos age sobre a divergência que está na tela, nunca sobre o realm inteiro. */}
+          {divergent === 0 ? null : (
+            <div className={styles.bulkActions}>
+              <Button
+                disabled={isSynchronizing}
+                onClick={() =>
+                  onSynchronize({
+                    subjects: entries
+                      .filter((entry) => entry.status === 'missing-locally')
+                      .map((entry) => entry.realm?.subject ?? ''),
+                    userIds: entries
+                      .filter((entry) => entry.status === 'missing-in-realm')
+                      .map((entry) => entry.local?.userId ?? ''),
+                  })
+                }
+                type="button"
+              >
+                <Icon name="refresh" />
+                {t('users.sync.createAll', { count: divergent })}
+              </Button>
+            </div>
+          )}
+
           {hasMoreRealmUsers ? (
             <p className={styles.feedback} role="status">
               {t('users.sync.truncated')}

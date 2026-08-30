@@ -28,6 +28,7 @@ type RouteDependencies = {
   readonly assignRoles: { execute(input: ExecuteCall): Promise<typeof ASSIGNED_ROLES_RESULT> }
   readonly rolePermissions: { execute(): typeof ROLE_PERMISSIONS_MATRIX }
   readonly reveal: { execute(input: ExecuteCall): Promise<typeof REVEALED_USERS> }
+  readonly synchronize: { execute(input: ExecuteCall): Promise<typeof SYNC_RESULT> }
   readonly removeMembership: { execute(input: ExecuteCall): Promise<void> }
   readonly replaceRoles: { execute(input: ExecuteCall): Promise<typeof COMPANY_USER> }
   readonly resendCode: { execute(input: ExecuteCall): Promise<typeof INVITATION_DELIVERY> }
@@ -90,6 +91,13 @@ export const COMPANY_USER_PAGE = { items: [COMPANY_USER], nextCursor: null }
 
 /** A reconciliação responde os dois lados; o que a rota precisa provar é o recorte e a permissão. */
 export const BACKFILL_RESULT = { skipped: 1, written: 2 }
+
+/** Conta de serviço recusada aparece no resultado: silenciar faria o operador achar que sincronizou. */
+export const SYNC_RESULT = {
+  createdInRealm: [COMPANY_USER.id],
+  createdLocally: [],
+  skipped: [{ reason: 'service-account', subject: 'subject-robo' }],
+}
 
 export const ROLE_PERMISSIONS_MATRIX = {
   permissions: ['users.manage', 'users.reveal'],
@@ -177,6 +185,7 @@ export async function createUserAdministrationHttpFixture(
   readonly reconcileCalls: ExecuteCall[]
   readonly assignRolesCalls: ExecuteCall[]
   readonly revealCalls: ExecuteCall[]
+  readonly synchronizeCalls: ExecuteCall[]
   readonly removeMembershipCalls: ExecuteCall[]
   readonly replaceRolesCalls: ExecuteCall[]
   readonly resendCodeCalls: ExecuteCall[]
@@ -189,6 +198,7 @@ export async function createUserAdministrationHttpFixture(
   const reconcileCalls: ExecuteCall[] = []
   const revealCalls: ExecuteCall[] = []
   const assignRolesCalls: ExecuteCall[] = []
+  const synchronizeCalls: ExecuteCall[] = []
   const removeMembershipCalls: ExecuteCall[] = []
   const replaceRolesCalls: ExecuteCall[] = []
   const resendCodeCalls: ExecuteCall[] = []
@@ -224,6 +234,12 @@ export async function createUserAdministrationHttpFixture(
       async execute(input) {
         assignRolesCalls.push(structuredClone(input))
         return ASSIGNED_ROLES_RESULT
+      },
+    },
+    synchronize: {
+      async execute(input) {
+        synchronizeCalls.push(structuredClone(input))
+        return SYNC_RESULT
       },
     },
     reveal: {
@@ -295,6 +311,7 @@ export async function createUserAdministrationHttpFixture(
     removeMembershipCalls,
     assignRolesCalls,
     revealCalls,
+    synchronizeCalls,
     replaceRolesCalls,
     resendCodeCalls,
     updateProfileCalls,

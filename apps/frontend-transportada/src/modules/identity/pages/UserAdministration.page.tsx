@@ -83,7 +83,9 @@ export function UserAdministrationPage() {
         hasMoreRealmUsers={screen.reconciliation.data?.hasMoreRealmUsers ?? false}
         isLoading={screen.reconciliation.isLoading}
         isOpen={screen.isReconciliationOpen}
+        isSynchronizing={screen.reconciliation.synchronizeMutation.isPending}
         onRefresh={screen.refreshReconciliation}
+        onSynchronize={(targets) => screen.reconciliation.synchronizeMutation.mutate(targets)}
         onToggle={screen.toggleReconciliation}
       />
 

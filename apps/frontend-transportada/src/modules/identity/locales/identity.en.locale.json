@@ -161,7 +161,10 @@
         "none": "—",
         "document": "Document"
       },
-      "noProfile": "Incomplete profile"
+      "noProfile": "Incomplete profile",
+      "createInRealm": "Create in Keycloak",
+      "createLocally": "Bring it here",
+      "createAll": "Create the {{count}} missing"
     },
     "noProfile": "Incomplete profile",
     "reveal": {
