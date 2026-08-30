@@ -18,6 +18,7 @@ import styles from '../styles/userAdministration.module.css'
 type CompanyUserTableProps = Readonly<{
   onChangeStatus: (input: Readonly<{ status: 'active' | 'suspended'; userId: string }>) => void
   onEdit: (user: CompanyUser) => void
+  onOpenPermissions: (user: CompanyUser) => void
   onRemove: (user: CompanyUser) => void
   onResend: (user: CompanyUser) => void
   users: readonly CompanyUser[]
@@ -37,6 +38,7 @@ export function CompanyUserTable({
   currentUserId,
   onChangeStatus,
   onEdit,
+  onOpenPermissions,
   onRemove,
   onResend,
   reveal,
@@ -120,8 +122,25 @@ export function CompanyUserTable({
                     <Icon name="edit" />
                     {t('users.edit')}
                   </Button>
+                  {/* Detalhe da pessoa: permissões avulsas e o caminho por extenso para a frota. */}
+                  <Button
+                    aria-label={t('users.permissions.open')}
+                    onClick={() => onOpenPermissions(user)}
+                    size="sm"
+                    title={t('users.permissions.open')}
+                    type="button"
+                    variant="ghost"
+                  >
+                    <Icon name="shield" />
+                  </Button>
                   {user.invitation === undefined ? null : (
-                    <Button size="sm" type="button" variant="ghost" onClick={() => onResend(user)}>
+                    <Button
+                      size="sm"
+                      title={t('users.resendHint')}
+                      type="button"
+                      variant="ghost"
+                      onClick={() => onResend(user)}
+                    >
                       <Icon name="send" />
                       {t('users.resend')}
                     </Button>
@@ -243,27 +262,34 @@ function FleetLinkCell({ user }: Readonly<{ user: CompanyUser }>) {
 
   if (user.fleet === undefined) return null
 
+  /**
+   * Na linha o vínculo é **ação rápida**: só o ícone, com o rótulo no `title` e no `aria-label`. O
+   * botão nomeado por veículo empilhava texto na célula e competia com o papel da pessoa, que é o
+   * que se lê ali. O caminho por extenso vive no detalhe do usuário.
+   */
   return (
     <span className={styles.fleetLinks}>
       <Button
+        aria-label={t('users.fleet.driver')}
         onClick={() => navigateToFleetDriver({ driverId: user.fleet?.driverId ?? '', navigator })}
         size="sm"
+        title={t('users.fleet.driver')}
         type="button"
         variant="ghost"
       >
         <Icon name="link" />
-        {t('users.fleet.driver')}
       </Button>
       {user.fleet.vehicles.map((vehicle) => (
         <Button
+          aria-label={t('users.fleet.vehicle', { plate: vehicle.plate })}
           key={vehicle.id}
           onClick={() => navigateToFleetVehicle({ navigator, vehicleId: vehicle.id })}
           size="sm"
+          title={t('users.fleet.vehicle', { plate: vehicle.plate })}
           type="button"
           variant="ghost"
         >
-          <Icon name="link" />
-          {vehicle.plate}
+          <Icon name="truck" />
         </Button>
       ))}
     </span>

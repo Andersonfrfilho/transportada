@@ -1,9 +1,16 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { COMPANY_USER_ERROR, COMPANY_USERS_PATH } from './companyUsers.constant'
+import {
+  COMPANY_GROUPS_PATH,
+  COMPANY_USER_ERROR,
+  COMPANY_USERS_PATH,
+} from './companyUsers.constant'
 import type {
   AssignCompanyUserRolesInput,
+  AssignCompanyGroupsInput,
   AssignedCompanyUserRoles,
   ChangeCompanyUserStatusInput,
+  CompanyGroup,
+  SaveCompanyGroupInput,
   CompanyUser,
   CompanyUserPage,
   CompanyUsersReconciliation,
@@ -23,6 +30,8 @@ import {
   toCompanyUsersReconciliation,
   toInvitedCompanyUser,
   toAssignedCompanyUserRoles,
+  toCompanyGroupResponse,
+  toCompanyGroups,
   toResendInvitationResult,
   toRevealedCompanyUsers,
   toRolePermissionMatrix,
@@ -39,7 +48,18 @@ export type CompanyUsersClient = Readonly<{
   changeStatus: (input: ChangeCompanyUserStatusInput) => Promise<CompanyUser>
   inviteUser: (input: InviteCompanyUserInput) => Promise<InvitedCompanyUser>
   listUsers: (input: Readonly<{ cursor: null | string; limit: number }>) => Promise<CompanyUserPage>
+  assignGroups: (input: AssignCompanyGroupsInput) => Promise<void>
   assignRoles: (input: AssignCompanyUserRolesInput) => Promise<AssignedCompanyUserRoles>
+  grantPermissions: (
+    input: Readonly<{ permissions: readonly string[]; userId: string }>,
+  ) => Promise<void>
+  listGroups: () => Promise<readonly CompanyGroup[]>
+  listUserPermissions: (input: Readonly<{ userId: string }>) => Promise<readonly string[]>
+  removeGroup: (input: Readonly<{ groupId: string }>) => Promise<void>
+  revokePermissions: (
+    input: Readonly<{ permissions: readonly string[]; userId: string }>,
+  ) => Promise<void>
+  saveGroup: (input: SaveCompanyGroupInput) => Promise<CompanyGroup>
   reconcileUsers: () => Promise<CompanyUsersReconciliation>
   readRolePermissions: () => Promise<RolePermissionMatrix>
   revealUsers: (
@@ -178,6 +198,72 @@ export function createCompanyUsersClient(dependencies: ClientDependencies): Comp
         path: `${COMPANY_USERS_PATH}/reconciliation`,
       })
       return toCompanyUsersReconciliation(payload)
+    },
+    async assignGroups(input) {
+      await authorizedRequest({
+        body: JSON.stringify({ groupIds: input.groupIds, userIds: input.userIds }),
+        dependencies,
+        method: 'POST',
+        path: `${COMPANY_GROUPS_PATH}/assignments`,
+      })
+    },
+    async grantPermissions(input) {
+      await authorizedRequest({
+        body: JSON.stringify({ permissions: input.permissions }),
+        dependencies,
+        method: 'POST',
+        path: `${COMPANY_USERS_PATH}/${input.userId}/permissions`,
+      })
+    },
+    async listGroups() {
+      const { payload } = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: COMPANY_GROUPS_PATH,
+      })
+      return toCompanyGroups(payload)
+    },
+    async listUserPermissions(input) {
+      const { payload } = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${COMPANY_USERS_PATH}/${input.userId}/permissions`,
+      })
+      return isRecord(payload) && isRecord(payload.data) && Array.isArray(payload.data.permissions)
+        ? payload.data.permissions.filter(isString)
+        : []
+    },
+    async removeGroup(input) {
+      await authorizedRequest({
+        dependencies,
+        method: 'DELETE',
+        path: `${COMPANY_GROUPS_PATH}/${input.groupId}`,
+      })
+    },
+    async revokePermissions(input) {
+      await authorizedRequest({
+        body: JSON.stringify({ permissions: input.permissions }),
+        dependencies,
+        method: 'DELETE',
+        path: `${COMPANY_USERS_PATH}/${input.userId}/permissions`,
+      })
+    },
+    async saveGroup(input) {
+      const { payload } = await authorizedRequest({
+        body: JSON.stringify({
+          description: input.description,
+          name: input.name,
+          permissions: input.permissions,
+          roles: input.roles,
+        }),
+        dependencies,
+        method: input.groupId === undefined ? 'POST' : 'PUT',
+        path:
+          input.groupId === undefined
+            ? COMPANY_GROUPS_PATH
+            : `${COMPANY_GROUPS_PATH}/${input.groupId}`,
+      })
+      return toCompanyGroupResponse(payload)
     },
     async assignRoles(input) {
       const { payload } = await authorizedRequest({

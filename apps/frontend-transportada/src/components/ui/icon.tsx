@@ -49,6 +49,7 @@ export type IconName =
   | 'sort'
   | 'spinner'
   | 'trash'
+  | 'truck'
   | 'upload'
   | 'workspace-billing'
   | 'workspace-company-settings'
@@ -128,6 +129,12 @@ const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   shield: ['M12 3l7 3v6c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6l7-3z'],
   sort: ['M8 9l4-4 4 4', 'M8 15l4 4 4-4'],
   spinner: ['M12 3a9 9 0 1 0 9 9'],
+  truck: [
+    'M3 17V7a1 1 0 0 1 1-1h9v11H3z',
+    'M13 10h4l3 3v4h-7z',
+    'M7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
+    'M17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
+  ],
   trash: ['M5 7h14', 'M10 7V4h4v3', 'M7 7l1 13h8l1-13'],
   upload: ['M12 20V9', 'M7 13l5-5 5 5', 'M5 4h14'],
   'workspace-billing': [

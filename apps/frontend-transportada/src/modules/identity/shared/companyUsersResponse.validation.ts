@@ -11,6 +11,7 @@ import type {
   ReconciliationMatch,
   ReconciliationStatus,
   AssignedCompanyUserRoles,
+  CompanyGroup,
   ResendInvitationResult,
   RevealedCompanyUser,
   RolePermissionMatrix,
@@ -193,6 +194,29 @@ export function toRolePermissionMatrix(value: unknown): RolePermissionMatrix {
       if (!isRecord(entry) || !Array.isArray(entry.permissions)) invalid()
       return { permissions: entry.permissions.map(readText), role: readText(entry.role) }
     }),
+  }
+}
+
+export function toCompanyGroups(value: unknown): readonly CompanyGroup[] {
+  if (!isRecord(value) || !Array.isArray(value.data)) invalid()
+  return value.data.map(toCompanyGroup)
+}
+
+export function toCompanyGroupResponse(value: unknown): CompanyGroup {
+  if (!isRecord(value)) invalid()
+  return toCompanyGroup(value.data)
+}
+
+function toCompanyGroup(value: unknown): CompanyGroup {
+  if (!isRecord(value)) invalid()
+  return {
+    description: readText(value.description),
+    id: readText(value.id),
+    keycloakGroupId: isString(value.keycloakGroupId) ? value.keycloakGroupId : null,
+    memberCount: typeof value.memberCount === 'number' ? value.memberCount : 0,
+    name: readText(value.name),
+    permissions: Array.isArray(value.permissions) ? value.permissions.map(readText) : [],
+    roles: Array.isArray(value.roles) ? value.roles.map(readText) : [],
   }
 }
 

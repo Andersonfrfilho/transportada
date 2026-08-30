@@ -6,11 +6,13 @@ import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { MultiSelect } from '@/components/ui/multi-select'
 
-import type { CompanyUser } from '../shared/companyUsers.types'
+import type { CompanyGroup, CompanyUser } from '../shared/companyUsers.types'
 import styles from '../styles/userAdministration.module.css'
 
 type CompanyUserBulkRoleBarProps = Readonly<{
+  groups: readonly CompanyGroup[]
   onApply: (roles: readonly string[]) => void
+  onApplyGroups: (groupIds: readonly string[]) => void
   onClearSelection: () => void
   onUnselect: (userId: string) => void
   roleChoices: readonly string[]
@@ -26,8 +28,10 @@ type CompanyUserBulkRoleBarProps = Readonly<{
  * de errar da tela, e a pill é o que deixa o erro visível **antes** do clique, não depois.
  */
 export function CompanyUserBulkRoleBar({
+  groups,
   isPending = false,
   onApply,
+  onApplyGroups,
   onClearSelection,
   onUnselect,
   roleChoices,
@@ -35,6 +39,7 @@ export function CompanyUserBulkRoleBar({
 }: CompanyUserBulkRoleBarProps) {
   const { t } = useTranslation('identity')
   const [roles, setRoles] = useState<readonly string[]>([])
+  const [groupIds, setGroupIds] = useState<readonly string[]>([])
 
   if (selectedUsers.length === 0) return null
 
@@ -42,6 +47,12 @@ export function CompanyUserBulkRoleBar({
     if (roles.length === 0) return
     onApply(roles)
     setRoles([])
+  }
+
+  function handleApplyGroups(): void {
+    if (groupIds.length === 0) return
+    onApplyGroups(groupIds)
+    setGroupIds([])
   }
 
   return (
@@ -93,6 +104,33 @@ export function CompanyUserBulkRoleBar({
           {t('users.bulk.apply', { count: selectedUsers.length })}
         </Button>
       </div>
+
+      {/* O grupo é a via normal de conceder acesso; o papel avulso é o atalho de quem já sabe qual. */}
+      {groups.length === 0 ? null : (
+        <div className={styles.bulkActions}>
+          <MultiSelect
+            ariaLabel={t('users.bulk.groupsLabel')}
+            clearAllLabel={t('users.bulk.clearGroups')}
+            compact
+            emptyLabel={t('users.bulk.noGroup')}
+            onChange={setGroupIds}
+            options={groups.map((group) => ({ label: group.name, value: group.id }))}
+            placeholder={t('users.bulk.groupsPlaceholder')}
+            removeLabel={t('users.bulk.removeGroup')}
+            searchPlaceholder={t('users.bulk.searchGroup')}
+            summaryLabel={(count) => t('users.bulk.groupsSummary', { count })}
+            values={groupIds}
+          />
+          <Button
+            disabled={groupIds.length === 0 || isPending}
+            onClick={handleApplyGroups}
+            type="button"
+          >
+            <Icon name="check" />
+            {t('users.bulk.applyGroups', { count: selectedUsers.length })}
+          </Button>
+        </div>
+      )}
 
       {/* Acrescentar, não trocar: dizer isso antes do clique evita a surpresa que não tem desfazer. */}
       <p className={styles.hint}>{t('users.bulk.addsOnly')}</p>

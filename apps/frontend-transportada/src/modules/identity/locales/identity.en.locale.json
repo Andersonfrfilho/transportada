@@ -186,7 +186,15 @@
       "noRole": "No role found",
       "rolesSummary": "{{count}} role(s)",
       "apply": "Apply to {{count}} user(s)",
-      "addsOnly": "Roles are added. Whoever already has one keeps it, and nothing is removed."
+      "addsOnly": "Roles are added. Whoever already has one keeps it, and nothing is removed.",
+      "groupsLabel": "Groups to apply",
+      "groupsPlaceholder": "Pick the groups",
+      "searchGroup": "Search group",
+      "removeGroup": "Remove group",
+      "clearGroups": "Clear groups",
+      "noGroup": "No group found",
+      "groupsSummary": "{{count}} group(s)",
+      "applyGroups": "Apply groups to {{count}} user(s)"
     },
     "permission": {
       "users.manage": {
@@ -372,7 +380,49 @@
       }
     },
     "fleet": {
-      "driver": "Driver record"
+      "driver": "Driver record",
+      "vehicle": "Vehicle {{plate}}"
+    },
+    "resendHint": "Resend the activation code",
+    "groups": {
+      "title": "Access groups",
+      "intro": "A group is the role the company designs: catalog roles plus loose permissions, assigned to many people at once. It adds to what a person already has — it never removes.",
+      "show": "Show groups",
+      "hide": "Close groups",
+      "new": "New group",
+      "name": "Group name",
+      "description": "Description",
+      "roles": "Group roles",
+      "rolesPlaceholder": "Pick the roles",
+      "rolesOptional": "Roles are optional: a group may grant only loose permissions.",
+      "permissions": "Group permissions",
+      "permissionsPlaceholder": "Pick the permissions",
+      "searchPermission": "Search permission",
+      "removePermission": "Remove permission",
+      "clearPermissions": "Clear permissions",
+      "noPermission": "No permission found",
+      "permissionsSummary": "{{count}} permission(s)",
+      "save": "Save group",
+      "cancel": "Cancel",
+      "edit": "Edit",
+      "remove": "Delete group",
+      "empty": "No group created yet.",
+      "columnName": "Group",
+      "columnGrants": "Grants",
+      "columnMembers": "People",
+      "columnSync": "Keycloak",
+      "synced": "In sync",
+      "syncPending": "Pending"
+    },
+    "permissions": {
+      "intro": "Permissions granted directly to this person, outside any group.",
+      "none": "No loose permission. Everything she reaches comes from roles and groups.",
+      "count": "{{count}} loose permission(s).",
+      "grant": "Grant",
+      "grantLabel": "Permissions to grant",
+      "revoke": "Revoke permission",
+      "preferGroups": "Prefer a group: it explains why the person reaches that, and a loose permission does not.",
+      "open": "Permissions and links"
     }
   }
 }

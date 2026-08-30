@@ -6,7 +6,9 @@ import type { CompanyUser, FleetLink } from '../shared/companyUsers.types'
 import type { CompanyUsersClient } from './useCompanyUsers.hook'
 import { useCompanyUsers } from './useCompanyUsers.hook'
 import { useCompanyUserReveal } from './useCompanyUserReveal.hook'
+import { useCompanyGroups } from './useCompanyGroups.hook'
 import { useCompanyUserSelection } from './useCompanyUserSelection.hook'
+import { useUserPermissions } from './useUserPermissions.hook'
 import { useRolePermissionMatrix } from './useRolePermissionMatrix.hook'
 import { useCompanyUsersReconciliation } from './useCompanyUsersReconciliation.hook'
 import { useCompanyUserEditForm, useCompanyUserInviteForm } from './useCompanyUserForm.hook'
@@ -29,6 +31,7 @@ export function useUserAdministration(input: Readonly<{ client?: CompanyUsersCli
   /** A comparação com o realm é clique, não carregamento de tela: ela lê o Keycloak inteiro. */
   const [isReconciliationOpen, setReconciliationOpen] = useState(false)
   const [isMatrixOpen, setMatrixOpen] = useState(false)
+  const [isGroupsOpen, setGroupsOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<CompanyUser | null>(null)
   const [removeTarget, setRemoveTarget] = useState<CompanyUser | null>(null)
   const [resentUserId, setResentUserId] = useState<null | string>(null)
@@ -48,6 +51,12 @@ export function useUserAdministration(input: Readonly<{ client?: CompanyUsersCli
     enabled: isMatrixOpen,
     permissions: authQuery.data?.data.permissions ?? [],
   })
+
+  const groups = useCompanyGroups({
+    permissions: authQuery.data?.data.permissions ?? [],
+    ...(companyId === undefined ? {} : { companyId }),
+  })
+  const userPermissions = useUserPermissions()
 
   const selection = useCompanyUserSelection(users.viewModel.users)
 
@@ -133,13 +142,22 @@ export function useUserAdministration(input: Readonly<{ client?: CompanyUsersCli
     fleetLinkNotice,
     inviteForm,
     isInviteOpen,
+    groups,
+    isGroupsOpen,
     isMatrixOpen,
     isReconciliationOpen,
     openEdit: setEditTarget,
     openInvite: () => setInviteOpen(true),
     reconciliation,
     rolePermissions,
+    toggleGroups: () => setGroupsOpen((open) => !open),
     toggleMatrix: () => setMatrixOpen((open) => !open),
+    userPermissions,
+    async assignGroups(groupIds: readonly string[]) {
+      await groups.assignMutation.mutateAsync({ groupIds, userIds: selection.selectedIds })
+      selection.clear()
+      await users.invalidate()
+    },
     reveal,
     selection,
     async assignRoles(roles: readonly string[]) {

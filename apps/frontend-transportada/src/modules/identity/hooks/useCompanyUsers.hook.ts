@@ -154,6 +154,7 @@ export function useCompanyUsers(
     inviteUserMutation,
     removeUserMutation,
     assignRolesMutation,
+    invalidate: invalidateUsers,
     replaceRolesMutation,
     resendInvitationMutation,
     updateProfileMutation,

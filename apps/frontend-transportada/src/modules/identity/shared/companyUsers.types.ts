@@ -78,6 +78,30 @@ export type RolePermissionMatrix = Readonly<{
   roles: readonly Readonly<{ permissions: readonly string[]; role: string }>[]
 }>
 
+export type CompanyGroup = Readonly<{
+  description: string
+  id: string
+  /** Nulo enquanto o grupo não existe no realm: a tela mostra pendente em vez de fingir que bate. */
+  keycloakGroupId: string | null
+  memberCount: number
+  name: string
+  permissions: readonly string[]
+  roles: readonly string[]
+}>
+
+export type SaveCompanyGroupInput = Readonly<{
+  description: string
+  groupId?: string
+  name: string
+  permissions: readonly string[]
+  roles: readonly string[]
+}>
+
+export type AssignCompanyGroupsInput = Readonly<{
+  groupIds: readonly string[]
+  userIds: readonly string[]
+}>
+
 export type AssignCompanyUserRolesInput = Readonly<{
   roles: readonly string[]
   userIds: readonly string[]

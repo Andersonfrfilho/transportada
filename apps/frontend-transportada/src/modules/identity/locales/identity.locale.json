@@ -186,7 +186,15 @@
       "noRole": "Nenhum papel encontrado",
       "rolesSummary": "{{count}} papel(is)",
       "apply": "Aplicar a {{count}} usuário(s)",
-      "addsOnly": "Os papéis são acrescentados. Quem já tem continua como está, e nada é removido."
+      "addsOnly": "Os papéis são acrescentados. Quem já tem continua como está, e nada é removido.",
+      "groupsLabel": "Grupos a aplicar",
+      "groupsPlaceholder": "Escolha os grupos",
+      "searchGroup": "Buscar grupo",
+      "removeGroup": "Tirar grupo",
+      "clearGroups": "Limpar grupos",
+      "noGroup": "Nenhum grupo encontrado",
+      "groupsSummary": "{{count}} grupo(s)",
+      "applyGroups": "Aplicar grupos a {{count}} usuário(s)"
     },
     "permission": {
       "users.manage": {
@@ -372,7 +380,49 @@
       }
     },
     "fleet": {
-      "driver": "Ficha do motorista"
+      "driver": "Ficha do motorista",
+      "vehicle": "Veículo {{plate}}"
+    },
+    "resendHint": "Reenviar o código de ativação",
+    "groups": {
+      "title": "Grupos de acesso",
+      "intro": "O grupo é o papel que a empresa desenha: papéis do catálogo mais permissões avulsas, atribuído a várias pessoas de uma vez. Ele soma ao que a pessoa já tem — nunca tira.",
+      "show": "Ver os grupos",
+      "hide": "Fechar os grupos",
+      "new": "Novo grupo",
+      "name": "Nome do grupo",
+      "description": "Descrição",
+      "roles": "Papéis do grupo",
+      "rolesPlaceholder": "Escolha os papéis",
+      "rolesOptional": "Papel é opcional: um grupo pode conceder só permissões avulsas.",
+      "permissions": "Permissões do grupo",
+      "permissionsPlaceholder": "Escolha as permissões",
+      "searchPermission": "Buscar permissão",
+      "removePermission": "Tirar permissão",
+      "clearPermissions": "Limpar permissões",
+      "noPermission": "Nenhuma permissão encontrada",
+      "permissionsSummary": "{{count}} permissão(ões)",
+      "save": "Salvar grupo",
+      "cancel": "Cancelar",
+      "edit": "Editar",
+      "remove": "Excluir grupo",
+      "empty": "Nenhum grupo criado ainda.",
+      "columnName": "Grupo",
+      "columnGrants": "Concede",
+      "columnMembers": "Pessoas",
+      "columnSync": "Keycloak",
+      "synced": "Sincronizado",
+      "syncPending": "Pendente"
+    },
+    "permissions": {
+      "intro": "Permissões concedidas direto a esta pessoa, fora dos grupos.",
+      "none": "Nenhuma permissão avulsa. Tudo o que ela alcança vem dos papéis e dos grupos.",
+      "count": "{{count}} permissão(ões) avulsa(s).",
+      "grant": "Conceder",
+      "grantLabel": "Permissões a conceder",
+      "revoke": "Revogar permissão",
+      "preferGroups": "Prefira o grupo: ele explica por que a pessoa alcança aquilo, e a permissão avulsa não.",
+      "open": "Permissões e vínculos"
     }
   }
 }

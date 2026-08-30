@@ -9,6 +9,8 @@ import { CompanyUserEditDialog } from '../components/CompanyUserEditDialog.compo
 import { CompanyUserInviteDialog } from '../components/CompanyUserInviteDialog.component'
 import { CompanyUserRemoveDialog } from '../components/CompanyUserRemoveDialog.component'
 import { CompanyUserTable } from '../components/CompanyUserTable.component'
+import { CompanyGroupPanel } from '../components/CompanyGroupPanel.component'
+import { CompanyUserPermissionsDialog } from '../components/CompanyUserPermissionsDialog.component'
 import { CompanyUserRevealAllButton } from '../components/CompanyUserRevealAllButton.component'
 import { CompanyUserBulkRoleBar } from '../components/CompanyUserBulkRoleBar.component'
 import { RolePermissionMatrixPanel } from '../components/RolePermissionMatrixPanel.component'
@@ -59,6 +61,20 @@ export function UserAdministrationPage() {
           ? {}
           : { matrix: screen.rolePermissions.data })}
         onToggle={screen.toggleMatrix}
+      />
+
+      <CompanyGroupPanel
+        {...withErrorCode(
+          readErrorCode(screen.groups.saveMutation.error ?? screen.groups.removeMutation.error),
+        )}
+        groups={screen.groups.query.data ?? []}
+        isLoading={screen.groups.query.isLoading}
+        isOpen={screen.isGroupsOpen}
+        isPending={screen.groups.saveMutation.isPending || screen.groups.removeMutation.isPending}
+        onRemove={(groupId) => screen.groups.removeMutation.mutate(groupId)}
+        onSave={(group) => screen.groups.saveMutation.mutate(group)}
+        onToggle={screen.toggleGroups}
+        permissions={screen.rolePermissions.data?.permissions ?? []}
       />
 
       <CompanyUserReconciliationPanel
@@ -143,7 +159,9 @@ export function UserAdministrationPage() {
               </p>
             )}
             <CompanyUserBulkRoleBar
+              groups={screen.groups.query.data ?? []}
               isPending={users.assignRolesMutation.isPending}
+              onApplyGroups={(groupIds) => void screen.assignGroups(groupIds)}
               onApply={(roles) => void screen.assignRoles(roles)}
               onClearSelection={screen.selection.clear}
               onUnselect={(userId) => screen.selection.toggle(userId, false)}
@@ -155,6 +173,7 @@ export function UserAdministrationPage() {
               onChangeStatus={(input) => users.changeStatusMutation.mutate(input)}
               onEdit={screen.openEdit}
               onRemove={screen.openRemove}
+              onOpenPermissions={screen.userPermissions.open}
               onResend={(user) => void screen.resendInvitation(user)}
               reveal={screen.reveal}
               selection={screen.selection}
@@ -224,6 +243,19 @@ export function UserAdministrationPage() {
         onClose={screen.closeRemove}
         onConfirm={() => void screen.confirmRemove()}
         user={screen.removeTarget}
+      />
+      <CompanyUserPermissionsDialog
+        catalog={screen.rolePermissions.data?.permissions ?? []}
+        granted={screen.userPermissions.query.data ?? []}
+        isLoading={screen.userPermissions.query.isLoading}
+        isPending={
+          screen.userPermissions.grantMutation.isPending ||
+          screen.userPermissions.revokeMutation.isPending
+        }
+        onClose={screen.userPermissions.close}
+        onGrant={(permissions) => screen.userPermissions.grantMutation.mutate(permissions)}
+        onRevoke={(permission) => screen.userPermissions.revokeMutation.mutate(permission)}
+        user={screen.userPermissions.target}
       />
     </main>
   )
