@@ -35,6 +35,7 @@ import { FreightWorkspacePage } from '@/modules/freight/pages/FreightWorkspace.p
 import { FirstAccessPage } from '@/modules/identity/pages/FirstAccess.page'
 import { LoginIdentifierPage } from '@/modules/identity/pages/LoginIdentifier.page'
 import { PasswordResetPage } from '@/modules/identity/pages/PasswordReset.page'
+import { AccessProfilesPage } from './modules/identity/pages/AccessProfiles.page'
 import { UserAdministrationPage } from '@/modules/identity/pages/UserAdministration.page'
 import { useAuthMeQuery, type FiscalEnvironment } from '@/modules/identity/queries/useAuthMe.query'
 import {
@@ -98,12 +99,13 @@ type WorkspaceNavigationItem = Readonly<{
     | 'notification'
     | 'operations'
     | 'trip'
+    | 'access-profiles'
     | 'users'
   label: string
 }>
 
 type NavigationGroup = Readonly<{
-  key: 'administration' | 'fiscal' | 'operations' | 'registries'
+  key: 'administration' | 'fiscal' | 'identity' | 'operations' | 'registries'
   label: string
   items: readonly WorkspaceNavigationItem[]
 }>
@@ -118,7 +120,8 @@ const WORKSPACE_NAVIGATION_ITEMS: readonly WorkspaceNavigationItem[] = [
   { href: '/nfse-invoices', key: 'nfse-invoice', label: 'NFS-e' },
   { href: '/operations', key: 'operations', label: 'Operações' },
   { href: '/company-settings', key: 'company-settings', label: 'Empresa' },
-  { href: '/usuarios', key: 'users', label: 'Usuários' },
+  { href: '/usuarios', key: 'users', label: 'Acessos' },
+  { href: '/papeis', key: 'access-profiles', label: 'Papéis e grupos' },
   { href: '/cte-profiles', key: 'cte-profiles', label: 'Perfis CT-e' },
   { href: '/fleet', key: 'fleet', label: 'Frota' },
   { href: '/clientes', key: 'delivery-clients', label: 'Clientes' },
@@ -161,12 +164,22 @@ const NAVIGATION_GROUPS: readonly NavigationGroup[] = [
       ['fleet', 'delivery-clients', 'cte-profiles'].includes(key),
     ),
   },
+  /**
+   * Identidade é categoria própria, e não um item dentro de "Administração": são duas telas com o
+   * mesmo assunto e a mesma permissão, e empilhá-las numa só fazia o que se usa todo dia — a
+   * listagem — ficar embaixo do que se consulta uma vez por mês.
+   */
+  {
+    key: 'identity',
+    label: 'Usuários',
+    items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) =>
+      ['users', 'access-profiles'].includes(key),
+    ),
+  },
   {
     key: 'administration',
     label: 'Administração',
-    items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) =>
-      ['company-settings', 'users'].includes(key),
-    ),
+    items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) => key === 'company-settings'),
   },
 ]
 
@@ -199,6 +212,7 @@ function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
   if (window.location.pathname === '/operations') return 'operations'
   if (window.location.pathname === '/freight') return 'freight'
   if (window.location.pathname === '/usuarios') return 'users'
+  if (window.location.pathname === '/papeis') return 'access-profiles'
 
   const storedWorkspace = sessionStorage.getItem(WORKSPACE_STORAGE_KEY)
   if (
@@ -217,7 +231,8 @@ function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
     storedWorkspace === 'operations' ||
     storedWorkspace === 'freight' ||
     storedWorkspace === 'trip' ||
-    storedWorkspace === 'users'
+    storedWorkspace === 'users' ||
+    storedWorkspace === 'access-profiles'
   ) {
     return storedWorkspace
   }
@@ -275,6 +290,8 @@ function resolvePage(
       return <FreightWorkspacePage />
     case 'users':
       return <UserAdministrationPage />
+    case 'access-profiles':
+      return <AccessProfilesPage />
     default:
       return <NfeWorkspacePage />
   }
@@ -300,7 +317,8 @@ function ApplicationShell(): ReactNode {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [pageTransitionPending, setPageTransitionPending] = useState(false)
   const [openGroups, setOpenGroups] = useState<Readonly<Record<NavigationGroup['key'], boolean>>>({
-    administration: currentWorkspace === 'company-settings' || currentWorkspace === 'users',
+    administration: currentWorkspace === 'company-settings',
+    identity: currentWorkspace === 'users' || currentWorkspace === 'access-profiles',
     fiscal: [
       'nfe',
       'freight',
@@ -325,7 +343,13 @@ function ApplicationShell(): ReactNode {
     function closeWithEscape(event: KeyboardEvent): void {
       if (event.key === 'Escape') {
         setSidebarOpen(false)
-        setOpenGroups({ administration: true, fiscal: true, operations: true, registries: true })
+        setOpenGroups({
+          administration: true,
+          fiscal: true,
+          identity: true,
+          operations: true,
+          registries: true,
+        })
       }
     }
     window.addEventListener('keydown', closeWithEscape)
@@ -397,6 +421,7 @@ function ApplicationShell(): ReactNode {
               setOpenGroups({
                 administration: true,
                 fiscal: true,
+                identity: true,
                 operations: true,
                 registries: true,
               })

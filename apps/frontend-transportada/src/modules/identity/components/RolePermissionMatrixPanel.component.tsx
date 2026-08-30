@@ -11,8 +11,12 @@ import styles from '../styles/userAdministration.module.css'
 
 type RolePermissionMatrixPanelProps = Readonly<{
   isLoading: boolean
-  isOpen: boolean
-  onToggle: () => void
+  /**
+   * Painel em tela dedicada não se esconde: sem `onToggle` ele nasce aberto e não desenha o botão.
+   * O que era estado da página virou ausência de prop — a tela declara o que ela é.
+   */
+  isOpen?: boolean
+  onToggle?: () => void
   errorCode?: string
   matrix?: RolePermissionMatrix
 }>
@@ -25,7 +29,7 @@ type RolePermissionMatrixPanelProps = Readonly<{
 export function RolePermissionMatrixPanel({
   errorCode,
   isLoading,
-  isOpen,
+  isOpen = true,
   matrix,
   onToggle,
 }: RolePermissionMatrixPanelProps) {
@@ -37,10 +41,13 @@ export function RolePermissionMatrixPanel({
     <section className={styles.panel}>
       <div className={styles.panelHead}>
         <h2>{t('users.matrix.title')}</h2>
-        <Button onClick={onToggle} type="button" variant="default">
-          <Icon name={isOpen ? 'close' : 'search'} />
-          {isOpen ? t('users.matrix.hide') : t('users.matrix.show')}
-        </Button>
+        {/* Em tela dedicada não há o que esconder: o painel é a tela. */}
+        {onToggle === undefined ? null : (
+          <Button onClick={onToggle} type="button" variant="default">
+            <Icon name={isOpen ? 'close' : 'search'} />
+            {isOpen ? t('users.matrix.hide') : t('users.matrix.show')}
+          </Button>
+        )}
       </div>
 
       <p className={styles.intro}>{t('users.matrix.intro')}</p>

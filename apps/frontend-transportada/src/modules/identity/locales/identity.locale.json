@@ -439,5 +439,25 @@
     "hint": "Qualquer um dos seus contatos cadastrados serve.",
     "submit": "Continuar",
     "submitting": "Levando você ao login…"
+  },
+  "profiles": {
+    "kicker": "Administração de acessos",
+    "title": "Papéis e grupos",
+    "intro": "O que cada papel do catálogo alcança, os grupos que a empresa desenha, e a quem eles pertencem. A comparação com o provedor de login continua na tela de acessos, junto da listagem que ela conserta.",
+    "assign": {
+      "title": "Atribuir grupo a pessoas",
+      "intro": "Escolha o grupo e as pessoas. A atribuição soma ao que cada uma já tem — nunca tira —, e quem já está no grupo é ignorado.",
+      "groupLabel": "Grupo",
+      "groupPlaceholder": "Escolha o grupo",
+      "usersLabel": "Pessoas",
+      "usersPlaceholder": "Escolha as pessoas",
+      "usersSummary": "{{count}} pessoa(s)",
+      "searchUser": "Buscar pessoa",
+      "removeUser": "Remover pessoa",
+      "clearUsers": "Limpar seleção",
+      "noUsers": "Nenhuma pessoa cadastrada",
+      "submit": "Atribuir",
+      "truncated": "A lista mostra as primeiras 100 pessoas. Para as demais, use a seleção da tela de acessos."
+    }
   }
 }

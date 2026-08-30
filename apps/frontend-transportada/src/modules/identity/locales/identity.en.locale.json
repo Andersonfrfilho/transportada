@@ -439,5 +439,25 @@
     "hint": "Any of your registered contacts works.",
     "submit": "Continue",
     "submitting": "Taking you to the login…"
+  },
+  "profiles": {
+    "kicker": "Access administration",
+    "title": "Roles and groups",
+    "intro": "What each catalogue role reaches, the groups the company designs, and who belongs to them. Provider reconciliation stays on the access screen, next to the listing it repairs.",
+    "assign": {
+      "title": "Assign a group to people",
+      "intro": "Pick the group and the people. Assignment adds to what each already has — it never removes — and whoever is already in the group is ignored.",
+      "groupLabel": "Group",
+      "groupPlaceholder": "Pick the group",
+      "usersLabel": "People",
+      "usersPlaceholder": "Pick the people",
+      "usersSummary": "{{count}} person(s)",
+      "searchUser": "Search person",
+      "removeUser": "Remove person",
+      "clearUsers": "Clear selection",
+      "noUsers": "No people registered",
+      "submit": "Assign",
+      "truncated": "The list shows the first 100 people. For the rest, use the selection on the access screen."
+    }
   }
 }

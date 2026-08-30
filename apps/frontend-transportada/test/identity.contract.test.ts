@@ -1,3 +1,4 @@
+import './identity/access-profiles-screen.contract.js'
 import './identity/bootstrap-client.contract.js'
 import './identity/company-user-contact-fields.contract.js'
 import './identity/company-user-invite.contract.js'

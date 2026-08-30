@@ -15,11 +15,11 @@ import styles from '../styles/userAdministration.module.css'
 type CompanyGroupPanelProps = Readonly<{
   groups: readonly CompanyGroup[]
   isLoading: boolean
-  isOpen: boolean
+  isOpen?: boolean
   isPending: boolean
   onRemove: (groupId: string) => void
   onSave: (group: SaveCompanyGroupInput) => void
-  onToggle: () => void
+  onToggle?: () => void
   permissions: readonly string[]
   errorCode?: string
 }>
@@ -43,7 +43,7 @@ export function CompanyGroupPanel({
   errorCode,
   groups,
   isLoading,
-  isOpen,
+  isOpen = true,
   isPending,
   onRemove,
   onSave,
@@ -87,10 +87,13 @@ export function CompanyGroupPanel({
               {t('users.groups.new')}
             </Button>
           ) : null}
-          <Button onClick={onToggle} type="button" variant="ghost">
-            <Icon name={isOpen ? 'close' : 'search'} />
-            {isOpen ? t('users.groups.hide') : t('users.groups.show')}
-          </Button>
+          {/* Em tela dedicada não há o que esconder: o painel é a tela. */}
+          {onToggle === undefined ? null : (
+            <Button onClick={onToggle} type="button" variant="ghost">
+              <Icon name={isOpen ? 'close' : 'search'} />
+              {isOpen ? t('users.groups.hide') : t('users.groups.show')}
+            </Button>
+          )}
         </div>
       </div>
 

@@ -9,11 +9,9 @@ import { CompanyUserEditDialog } from '../components/CompanyUserEditDialog.compo
 import { CompanyUserInviteDialog } from '../components/CompanyUserInviteDialog.component'
 import { CompanyUserRemoveDialog } from '../components/CompanyUserRemoveDialog.component'
 import { CompanyUserTable } from '../components/CompanyUserTable.component'
-import { CompanyGroupPanel } from '../components/CompanyGroupPanel.component'
 import { CompanyUserPermissionsDialog } from '../components/CompanyUserPermissionsDialog.component'
 import { CompanyUserRevealAllButton } from '../components/CompanyUserRevealAllButton.component'
 import { CompanyUserBulkRoleBar } from '../components/CompanyUserBulkRoleBar.component'
-import { RolePermissionMatrixPanel } from '../components/RolePermissionMatrixPanel.component'
 import { CompanyUserReconciliationPanel } from '../components/CompanyUserReconciliationPanel.component'
 import { readErrorCode, useUserAdministration } from '../hooks/useUserAdministration.hook'
 import styles from '../styles/userAdministration.module.css'
@@ -52,30 +50,6 @@ export function UserAdministrationPage() {
         <h1>{t('users.title')}</h1>
         <p className={styles.intro}>{t('users.intro')}</p>
       </header>
-
-      <RolePermissionMatrixPanel
-        {...withErrorCode(readErrorCode(screen.rolePermissions.error))}
-        isLoading={screen.rolePermissions.isLoading}
-        isOpen={screen.isMatrixOpen}
-        {...(screen.rolePermissions.data === undefined
-          ? {}
-          : { matrix: screen.rolePermissions.data })}
-        onToggle={screen.toggleMatrix}
-      />
-
-      <CompanyGroupPanel
-        {...withErrorCode(
-          readErrorCode(screen.groups.saveMutation.error ?? screen.groups.removeMutation.error),
-        )}
-        groups={screen.groups.query.data ?? []}
-        isLoading={screen.groups.query.isLoading}
-        isOpen={screen.isGroupsOpen}
-        isPending={screen.groups.saveMutation.isPending || screen.groups.removeMutation.isPending}
-        onRemove={(groupId) => screen.groups.removeMutation.mutate(groupId)}
-        onSave={(group) => screen.groups.saveMutation.mutate(group)}
-        onToggle={screen.toggleGroups}
-        permissions={screen.rolePermissions.data?.permissions ?? []}
-      />
 
       <CompanyUserReconciliationPanel
         entries={screen.reconciliation.data?.items ?? []}
