@@ -106,6 +106,7 @@ import {
 import { viewPreferences } from './view-preferences.schema.js'
 import { companyDistributionSettings } from './company-distribution-settings.schema.js'
 import { companyLogos } from './company-logo.schema.js'
+import { identityUserPictures } from './identity-user-picture.schema.js'
 import {
   cteEmissionProfileComponents,
   cteEmissionProfileMatchers,
@@ -179,6 +180,7 @@ export * from './whatsapp-channel.schema.js'
 export * from './route-suggestion.schema.js'
 export * from './landing.schema.js'
 export * from './aggregate-application.schema.js'
+export * from './identity-user-picture.schema.js'
 
 export const databaseSchema = {
   aggregateAccounts,
@@ -192,6 +194,7 @@ export const databaseSchema = {
   companyFiscalProfiles,
   companyFuelPrices,
   companyLogos,
+  identityUserPictures,
   digitalCertificates,
   energyTariffReferences,
   externalIdentities,

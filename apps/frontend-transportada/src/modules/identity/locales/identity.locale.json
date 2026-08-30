@@ -430,6 +430,12 @@
       "preferGroups": "Prefira o grupo: ele explica por que a pessoa alcança aquilo, e a permissão avulsa não.",
       "open": "Permissões e vínculos",
       "emails": "E-mails"
+    },
+    "picture": {
+      "add": "Adicionar foto",
+      "replace": "Trocar foto",
+      "remove": "Remover foto",
+      "alt": "Foto de {{name}}"
     }
   },
   "login": {

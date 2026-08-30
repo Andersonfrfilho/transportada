@@ -9,6 +9,9 @@ import { MultiSelect } from '@/components/ui/multi-select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
+import { CompanyUserPictureField } from './CompanyUserPictureField.component'
+import { useCompanyUserPicture } from '../hooks/useCompanyUserPicture.hook'
+
 import {
   navigateToFleetDriver,
   navigateToFleetVehicle,
@@ -50,6 +53,7 @@ export function CompanyUserPermissionsDialog({
   const { t } = useTranslation('identity')
   const { dialogRef, handleKeyDown } = useModalDialog({ isOpen: user !== null, onClose })
   const [chosen, setChosen] = useState<readonly string[]>([])
+  const picture = useCompanyUserPicture({ userId: user?.id })
   const navigator = createBrowserWorkspaceNavigator()
 
   if (user === null) return null
@@ -92,6 +96,15 @@ export function CompanyUserPermissionsDialog({
           O detalhe é onde a ficha aparece inteira: a listagem mostra um contato e um papel, com a
           contagem do resto. Quem abre aqui quer ver tudo, não a amostra.
         */}
+        <CompanyUserPictureField
+          isLoading={picture.query.isLoading}
+          isPending={picture.replaceMutation.isPending || picture.removeMutation.isPending}
+          name={user.name === '' ? user.contact.masked : user.name}
+          onRemove={() => picture.removeMutation.mutate()}
+          onSelect={(file) => picture.replaceMutation.mutate(file)}
+          pictureUrl={picture.objectUrl}
+        />
+
         <dl className={styles.detailGrid}>
           <div>
             <dt>{t('users.columnName')}</dt>

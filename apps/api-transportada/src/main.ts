@@ -315,6 +315,9 @@ import { createManageDirectPermissionsUseCase } from './identity/application/man
 import { DrizzleCompanyGroupRepository } from './identity/infrastructure/drizzle-company-group.repository'
 import { createDrizzleGroupAudit } from './identity/infrastructure/drizzle-group-audit.gateway'
 import { createCompanyGroupRoutes } from './identity/presentation/company-group.routes'
+import { createUserPictureUseCase } from './identity/application/user-picture.use-case.js'
+import { createUserPictureRoutes } from './identity/presentation/user-picture.routes.js'
+import { DrizzleUserPictureRepository } from './identity/infrastructure/drizzle-user-picture.repository.js'
 import { createFillProfilesFromRealmUseCase } from './identity/application/fill-profiles-from-realm.use-case.js'
 import { createSynchronizeIdentitiesUseCase } from './identity/application/synchronize-identities.use-case'
 import { createRevealCompanyUsersUseCase } from './identity/application/reveal-company-users.use-case'
@@ -552,6 +555,7 @@ export function bootstrap(): Bun.Server<undefined> {
           ]),
     ],
     routes: createApplicationRoutes({
+      apiPublicUrl: config.apiPublicUrl,
       automaticManifestNotifier,
       database: database.db,
       envelopeKeyRing: config.cryptography.envelopeKeyRing,
@@ -810,6 +814,8 @@ function createAnonymousRoutes({
 }
 
 type CreateApplicationRoutesParams = {
+  /** Endereço público desta instalação. Ausente, a foto é gravada e o atributo do realm não. */
+  readonly apiPublicUrl: string | undefined
   /** Ausente é instalação sem notificação: a emissão automática recusa igual, e só não avisa. */
   readonly automaticManifestNotifier: AutomaticManifestNotifierPort | undefined
   readonly database: CompanySettingsDatabase
@@ -825,6 +831,7 @@ type CreateApplicationRoutesParams = {
 }
 
 function createApplicationRoutes({
+  apiPublicUrl,
   automaticManifestNotifier,
   database,
   envelopeKeyRing,
@@ -1832,6 +1839,13 @@ function createApplicationRoutes({
       permissions: createManageDirectPermissionsUseCase({
         audit: groupAudit,
         repository: companyGroupRepository,
+      }),
+    }),
+    ...createUserPictureRoutes({
+      userPicture: createUserPictureUseCase({
+        identityGateway: identityAccessGateway,
+        ...(apiPublicUrl === undefined ? {} : { publicBaseUrl: apiPublicUrl }),
+        repository: new DrizzleUserPictureRepository(database),
       }),
     }),
     ...createUserAdministrationRoutes({

@@ -430,6 +430,12 @@
       "preferGroups": "Prefer a group: it explains why the person reaches that, and a loose permission does not.",
       "open": "Permissions and links",
       "emails": "Emails"
+    },
+    "picture": {
+      "add": "Add photo",
+      "replace": "Replace photo",
+      "remove": "Remove photo",
+      "alt": "{{name}} photo"
     }
   },
   "login": {

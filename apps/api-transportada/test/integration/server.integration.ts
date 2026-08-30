@@ -62,6 +62,7 @@ const tenantContext = new TenantContextService({
 })
 const server = startApiServer({
   config: {
+    apiPublicUrl: undefined,
     appEnv: 'test',
     bootstrapToken: undefined,
     companyId: undefined,

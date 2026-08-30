@@ -41,6 +41,8 @@ export type ApiEnvironment = {
       }
     | undefined
   /** Endereço público do postback de NFS-e; ausente mantém a rota anônima de callback fora do ar. */
+  /** Endereço público desta instalação. Ausente, a foto de perfil não vira atributo no realm. */
+  readonly apiPublicUrl: string | undefined
   readonly nfseCallbackBaseUrl: string | undefined
   /** Segredo do recibo de entrega; ausente, a rota de webhook do módulo não é publicada. */
   readonly notificationWebhookSecret: string | undefined

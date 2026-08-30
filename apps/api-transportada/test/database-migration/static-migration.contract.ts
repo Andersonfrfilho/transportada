@@ -184,6 +184,7 @@ describe('Drizzle migrations', () => {
       '20260829224254_identity_document_backfill_job',
       '20260830160916_company_groups',
       '20260830193604_login_identifiers',
+      '20260830233139_identity_user_picture',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')

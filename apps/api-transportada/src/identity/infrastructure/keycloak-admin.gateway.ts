@@ -147,6 +147,11 @@ export type IdentityAccessGatewayPort = {
     readonly userId: string
   }): Promise<void>
   setTemporaryPassword(input: { readonly password: string; readonly userId: string }): Promise<void>
+  /** A URL da foto vai para o atributo `picture`, o nome que o OIDC reserva. */
+  setProfilePicture(input: {
+    readonly pictureUrl: string | undefined
+    readonly userId: string
+  }): Promise<void>
   updateAttributes(input: {
     readonly attributes: IdentityUserAttributes
     readonly userId: string
@@ -179,6 +184,9 @@ export function createIdentityAccessGateway(
         }),
       )
       return { subject: created.id }
+    },
+    async setProfilePicture({ pictureUrl, userId }): Promise<void> {
+      await client.setProfilePicture({ pictureUrl, userId })
     },
     async deleteUser({ userId }): Promise<void> {
       await client.deleteUser({ userId })

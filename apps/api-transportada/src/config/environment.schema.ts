@@ -109,6 +109,18 @@ const environmentSchema = z.object({
       message: 'NFSE_CALLBACK_BASE_URL must be an HTTPS URL or an HTTP localhost URL',
     })
     .optional(),
+  // Endereço público desta instalação, usado para publicar no provedor de identidade a URL da foto
+  // de perfil. Não é adivinhável a partir do request: atrás de proxy o `Host` é o do proxy, e o
+  // realm guardaria um endereço interno que ninguém alcança. Vazio significa foto gravada aqui e
+  // atributo não escrito — a tela continua mostrando o avatar.
+  API_PUBLIC_URL: z
+    .string()
+    .trim()
+    .transform((value) => (value === '' ? undefined : value))
+    .refine((value) => value === undefined || isTrustedLookupUrl(value), {
+      message: 'API_PUBLIC_URL must be an HTTPS URL or an HTTP localhost URL',
+    })
+    .optional(),
   // Terceiro degrau da busca de CEP: só é consultado quando o banco da instalação não soube o
   // endereço inteiro. Vazio desliga aquele provedor — os dois vazios deixam a escada terminar em
   // casa, e o operador digita. Nenhum dos dois pede token: BrasilAPI e ViaCEP são públicos.
@@ -219,6 +231,7 @@ export function parseEnvironment(environment: Record<string, string | undefined>
       parsed.QUEUE_PREFIX === undefined || parsed.RABBITMQ_URL === undefined
         ? undefined
         : { queuePrefix: parsed.QUEUE_PREFIX, url: parsed.RABBITMQ_URL },
+    apiPublicUrl: parsed.API_PUBLIC_URL,
     nfseCallbackBaseUrl: parsed.NFSE_CALLBACK_BASE_URL,
     notificationWebhookSecret: parsed.NOTIFICATION_WEBHOOK_SECRET,
     turnstileSecretKey: parsed.TURNSTILE_SECRET_KEY,

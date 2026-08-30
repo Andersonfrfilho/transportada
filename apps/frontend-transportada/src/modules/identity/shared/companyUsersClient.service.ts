@@ -61,6 +61,14 @@ export type CompanyUsersClient = Readonly<{
   ) => Promise<void>
   saveGroup: (input: SaveCompanyGroupInput) => Promise<CompanyGroup>
   reconcileUsers: () => Promise<CompanyUsersReconciliation>
+  /**
+   * A foto é binária dos dois lados: sobe como `multipart` e desce como bytes. Ela não passa pelo
+   * `authorizedRequest`, que fala JSON — e um `JSON.parse` sobre um PNG só produziria erro de
+   * resposta inválida no lugar de uma imagem.
+   */
+  readPicture: (input: Readonly<{ userId: string }>) => Promise<Blob | null>
+  removePicture: (input: Readonly<{ userId: string }>) => Promise<void>
+  replacePicture: (input: Readonly<{ file: Blob; userId: string }>) => Promise<void>
   /** O conserto do quarto estado: copia nome e contato da conta que já existe no provedor. */
   fillProfilesFromRealm: (input: Readonly<{ userIds: readonly string[] }>) => Promise<void>
   synchronizeIdentities: (
@@ -130,6 +138,39 @@ async function authorizedRequest(
   }
   if (!response.ok) throw requestError(readErrorCode(payload))
   return { payload, rawBody }
+}
+
+/**
+ * O `content-type` do multipart é montado pelo próprio `fetch`, com a fronteira dentro: declará-lo
+ * à mão produz um corpo que o servidor não consegue separar, e o erro sai como "requisição
+ * inválida" sem dizer por quê.
+ */
+async function pictureRequest(
+  input: Readonly<{
+    body?: FormData
+    dependencies: ClientDependencies
+    method: RequestMethod
+    userId: string
+  }>,
+): Promise<Response> {
+  const accessToken = await input.dependencies.getAccessToken()
+  const requestInit: RequestInit = {
+    cache: 'no-store',
+    headers: { authorization: `Bearer ${accessToken}` },
+    method: input.method,
+  }
+  if (input.body !== undefined) requestInit.body = input.body
+
+  try {
+    return await input.dependencies.fetch(
+      new Request(
+        `${input.dependencies.apiUrl}${COMPANY_USERS_PATH}/${input.userId}/picture`,
+        requestInit,
+      ),
+    )
+  } catch {
+    throw requestError(COMPANY_USER_ERROR.REQUEST_FAILED)
+  }
 }
 
 function readEnvelopeData(payload: unknown): unknown {
@@ -278,6 +319,38 @@ export function createCompanyUsersClient(dependencies: ClientDependencies): Comp
         path: `${COMPANY_USERS_PATH}/roles`,
       })
       return toAssignedCompanyUserRoles(payload)
+    },
+    async readPicture(input) {
+      const response = await pictureRequest({
+        dependencies,
+        method: 'GET',
+        userId: input.userId,
+      })
+      /** Sem foto é ausência, não falha: a tela desenha as iniciais e segue. */
+      if (response.status === 404) return null
+      if (!response.ok) throw requestError(COMPANY_USER_ERROR.REQUEST_FAILED)
+      return response.blob()
+    },
+    async removePicture(input) {
+      const response = await pictureRequest({
+        dependencies,
+        method: 'DELETE',
+        userId: input.userId,
+      })
+      if (!response.ok && response.status !== 404) {
+        throw requestError(COMPANY_USER_ERROR.REQUEST_FAILED)
+      }
+    },
+    async replacePicture(input) {
+      const body = new FormData()
+      body.set('file', input.file, 'foto')
+      const response = await pictureRequest({
+        body,
+        dependencies,
+        method: 'PUT',
+        userId: input.userId,
+      })
+      if (!response.ok) throw requestError(COMPANY_USER_ERROR.REQUEST_FAILED)
     },
     async fillProfilesFromRealm(input) {
       await authorizedRequest({
