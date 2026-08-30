@@ -94,6 +94,8 @@ export const API_NFE_IMPORTS_DISTRIBUTION_PATH = '/nfe-imports/distribution'
 export const API_NFE_DOCUMENTS_PATH = '/nfe-documents'
 export const API_VIEW_PREFERENCES_PATH = '/view-preferences'
 export const API_COMPANY_USERS_PATH = '/company-users'
+/** Primeira etapa do login: resolve o identificador digitado no login que o provedor conhece. */
+export const API_LOGIN_HINTS_PATH = '/login-hints'
 export const API_USER_ACTIVATION_PATH = '/user-activation'
 export const API_PASSWORD_RESETS_PATH = '/password-resets'
 export const API_PASSWORD_RESET_CONFIRM_PATH = '/password-resets/confirm'

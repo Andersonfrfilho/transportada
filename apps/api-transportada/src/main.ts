@@ -292,6 +292,9 @@ import { createPasswordResetCodeSecretService } from './identity/application/pas
 import { createRequestPasswordResetUseCase } from './identity/application/request-password-reset.use-case'
 import { DrizzlePasswordResetDeliveryOutboxRepository } from './identity/infrastructure/drizzle-password-reset-delivery-outbox.repository'
 import { DrizzlePasswordResetRepository } from './identity/infrastructure/drizzle-password-reset.repository'
+import { createLoginHintRoutes } from './identity/presentation/login-hint.routes'
+import { createResolveLoginHintUseCase } from './identity/application/resolve-login-hint.use-case'
+import { createDrizzleLoginIdentifierRepository } from './identity/infrastructure/drizzle-login-identifier.repository'
 import { createPasswordResetRoutes } from './identity/presentation/password-reset.routes'
 import { DrizzleInvitationDeliveryOutboxRepository } from './identity/infrastructure/drizzle-invitation-delivery-outbox.repository'
 import { DrizzleInvitationRepository } from './identity/infrastructure/drizzle-invitation.repository'
@@ -627,6 +630,15 @@ function createAnonymousRoutes({
   userModule,
 }: CreateAnonymousRoutesParams): readonly RegisteredAnonymousRoute[] {
   // O callback de NFS-e não depende da empresa de ambiente: quem diz a empresa é o token opaco.
+  /**
+   * Primeira etapa do login. Ela existe sempre: sem ela a pessoa só entra pelo login canônico, e o
+   * documento e o telefone — que o provedor não sabe procurar — deixariam de ser caminho.
+   */
+  const loginHintRoutes = createLoginHintRoutes({
+    resolveLoginHint: createResolveLoginHintUseCase({
+      repository: createDrizzleLoginIdentifierRepository(database),
+    }),
+  })
   const nfseCallbackRoutes = createNfseCallbackRoutes({
     callbackBaseUrl: config.nfseCallbackBaseUrl,
     logger,
@@ -739,6 +751,7 @@ function createAnonymousRoutes({
   }
 
   return [
+    ...loginHintRoutes,
     ...nfseCallbackRoutes,
     ...whatsappWebhookRoutes,
     ...publicExtraChargeBatchRoutes,

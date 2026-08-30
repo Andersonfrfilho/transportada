@@ -33,6 +33,7 @@ import {
 import { FleetWorkspacePage } from '@/modules/fleet/pages/FleetWorkspace.page'
 import { FreightWorkspacePage } from '@/modules/freight/pages/FreightWorkspace.page'
 import { FirstAccessPage } from '@/modules/identity/pages/FirstAccess.page'
+import { LoginIdentifierPage } from '@/modules/identity/pages/LoginIdentifier.page'
 import { PasswordResetPage } from '@/modules/identity/pages/PasswordReset.page'
 import { UserAdministrationPage } from '@/modules/identity/pages/UserAdministration.page'
 import { useAuthMeQuery, type FiscalEnvironment } from '@/modules/identity/queries/useAuthMe.query'
@@ -597,7 +598,20 @@ async function bootstrapApplication(): Promise<void> {
     return
   }
 
-  await initializeKeycloakAuth()
+  /**
+   * Com a etapa de identificação ligada, `initialize` volta sem sessão em vez de redirecionar: a
+   * tela pergunta o identificador, resolve o login e só então leva ao provedor. Desligada, ela
+   * redireciona antes de renderizar, exatamente como sempre fez.
+   */
+  const isAuthenticated = await initializeKeycloakAuth()
+  if (!isAuthenticated) {
+    createRoot(applicationRootElement).render(
+      <StrictMode>
+        <LoginIdentifierPage />
+      </StrictMode>,
+    )
+    return
+  }
 
   createRoot(applicationRootElement).render(
     <StrictMode>

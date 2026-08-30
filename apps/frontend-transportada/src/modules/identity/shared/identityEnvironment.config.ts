@@ -51,3 +51,15 @@ export function getIdentityEnvironment(): IdentityEnvironment {
     },
   }
 }
+
+/**
+ * A etapa que pergunta o identificador antes de mandar ao provedor. **Desligada por padrão**: a
+ * ausência da variável mantém o caminho de entrada exatamente como sempre foi.
+ *
+ * Ela é lida sozinha, e não pelo `getIdentityEnvironment`, de propósito: uma bandeira que exige a
+ * configuração inteira para ser lida derruba o boot em qualquer contexto onde a URL da API não
+ * esteja definida — e a bandeira precisa poder ser consultada justamente no caminho de entrada.
+ */
+export function isIdentifierFirstLoginEnabled(): boolean {
+  return import.meta.env.VITE_IDENTIFIER_FIRST_LOGIN === 'true'
+}

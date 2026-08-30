@@ -21,6 +21,9 @@ ARG VITE_LANDING_APP_URL
 ARG VITE_KEYCLOAK_CLIENT_ID
 ARG VITE_KEYCLOAK_REALM
 ARG VITE_KEYCLOAK_URL
+# A etapa de identificacao antes do login. Ausente vale `false`: o caminho de entrada continua o de
+# sempre. Como todo `VITE_*`, ela e inlinada no build — ligar ou desligar exige rebuild.
+ARG VITE_IDENTIFIER_FIRST_LOGIN
 RUN bun run --cwd apps/frontend-transportada build
 
 FROM oven/bun:1.3.14-alpine AS runtime

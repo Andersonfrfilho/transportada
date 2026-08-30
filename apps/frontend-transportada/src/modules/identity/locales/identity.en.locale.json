@@ -427,5 +427,13 @@
       "preferGroups": "Prefer a group: it explains why the person reaches that, and a loose permission does not.",
       "open": "Permissions and links"
     }
+  },
+  "login": {
+    "title": "Sign in",
+    "intro": "Type how you are known in the system. The password is asked on the next screen, at the access provider.",
+    "label": "Email, tax id or phone",
+    "hint": "Any of your registered contacts works.",
+    "submit": "Continue",
+    "submitting": "Taking you to the login…"
   }
 }

@@ -427,5 +427,13 @@
       "preferGroups": "Prefira o grupo: ele explica por que a pessoa alcança aquilo, e a permissão avulsa não.",
       "open": "Permissões e vínculos"
     }
+  },
+  "login": {
+    "title": "Entrar",
+    "intro": "Digite como você é conhecido no sistema. A senha é pedida na tela seguinte, do provedor de acesso.",
+    "label": "E-mail, CPF, CNPJ ou telefone",
+    "hint": "Qualquer um dos seus contatos cadastrados serve.",
+    "submit": "Continuar",
+    "submitting": "Levando você ao login…"
   }
 }

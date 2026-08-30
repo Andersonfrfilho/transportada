@@ -308,3 +308,6 @@ export {
   membershipGroups,
   membershipPermissions,
 } from './company-group.schema.js'
+
+export { loginIdentifiers, LOGIN_IDENTIFIER_KINDS } from './login-identifier.schema.js'
+export type { LoginIdentifierKind } from './login-identifier.schema.js'

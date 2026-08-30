@@ -1,7 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import Keycloak from 'keycloak-js'
 
-import { getIdentityEnvironment } from './identityEnvironment.config'
+import { getIdentityEnvironment, isIdentifierFirstLoginEnabled } from './identityEnvironment.config'
 import { isSmokeAuthBypassEnabled } from './smokeAuthBypass.service'
 
 const TOKEN_MINIMUM_VALIDITY_SECONDS = 30
@@ -20,7 +20,10 @@ export const IDENTITY_SESSION_EXPIRED = 'IDENTITY_SESSION_EXPIRED'
 export type KeycloakAuthProvider = {
   getAccessToken(): Promise<string>
   getProfile(): IdentityProfile
-  initialize(): Promise<void>
+  /** `false` quando a etapa de identificação está ligada e ninguém entrou ainda. */
+  initialize(): Promise<boolean>
+  /** Só com a etapa ligada: leva ao provedor já com o login resolvido. */
+  loginWith(loginHint: string): Promise<void>
   logout(): Promise<void>
   onSessionExpired(listener: () => void): () => void
   restartAuthentication(): Promise<void>
@@ -95,7 +98,11 @@ function createSmokeAuthProvider(): KeycloakAuthProvider {
         subtitle: undefined,
       }
     },
-    initialize(): Promise<void> {
+    /** O smoke entra sempre: o bypass existe justamente para não depender do provedor. */
+    initialize(): Promise<boolean> {
+      return Promise.resolve(true)
+    },
+    loginWith(): Promise<void> {
       return Promise.resolve()
     },
     logout(): Promise<void> {
@@ -209,22 +216,36 @@ export function createKeycloakAuthProvider(
     getProfile(): IdentityProfile {
       return deriveIdentityProfile(decodeTokenClaims(keycloak.token))
     },
-    async initialize(): Promise<void> {
+    async loginWith(loginHint: string): Promise<void> {
       persistPostAuthenticationPath()
+      await keycloak.login({ loginHint, redirectUri })
+    },
+    async initialize(): Promise<boolean> {
+      persistPostAuthenticationPath()
+      const identifierFirst = isIdentifierFirstLoginEnabled()
 
       try {
+        /**
+         * `check-sso` só olha se já existe sessão e volta; `login-required` redireciona sozinho,
+         * antes de a aplicação renderizar qualquer coisa. Com a etapa ligada é preciso voltar sem
+         * sessão para a tela de identificação poder existir.
+         */
         const isAuthenticated = await keycloak.init({
           checkLoginIframe: false,
-          onLoad: 'login-required',
+          onLoad: identifierFirst ? 'check-sso' : 'login-required',
           pkceMethod: 'S256',
           redirectUri,
         })
+
+        /** Sem sessão e com a etapa ligada: quem decide o próximo passo é a tela, não o provedor. */
+        if (!isAuthenticated && identifierFirst) return false
 
         if (!isAuthenticated) {
           await restartAuthentication(keycloak, redirectUri)
         }
 
         restoreApplicationPathAfterAuthentication()
+        return true
       } catch (error: unknown) {
         if (error instanceof Error && error.message.includes('3rd party check iframe')) {
           await restartAuthentication(keycloak, redirectUri)
@@ -267,6 +288,6 @@ export function getKeycloakAuthProvider(): KeycloakAuthProvider {
   return authProvider
 }
 
-export async function initializeKeycloakAuth(): Promise<void> {
-  await getKeycloakAuthProvider().initialize()
+export async function initializeKeycloakAuth(): Promise<boolean> {
+  return getKeycloakAuthProvider().initialize()
 }
