@@ -32,18 +32,23 @@ import type {
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
+/**
+ * As colunas do perfil chegam anuláveis porque a listagem o alcança por `leftJoin`: vínculo sem
+ * perfil é estado que existe na base, e declará-las não-nulas aqui era o que fazia o `innerJoin`
+ * parecer seguro enquanto escondia gente da tela.
+ */
 type MembershipRow = {
-  readonly contactAddress: string
-  readonly contactChannel: CompanyUserRecord['contactChannel']
-  readonly email: string
+  readonly contactAddress: string | null
+  readonly contactChannel: CompanyUserRecord['contactChannel'] | null
+  readonly email: string | null
   readonly membershipCreatedAt: Date
   readonly membershipId: string
   readonly membershipStatus: MembershipStatus
-  readonly name: string
-  readonly phone: string
-  readonly taxId: string
+  readonly name: string | null
+  readonly phone: string | null
+  readonly taxId: string | null
   readonly userId: string
-  readonly username: string
+  readonly username: string | null
 }
 
 const MEMBERSHIP_COLUMNS = {
@@ -59,6 +64,9 @@ const MEMBERSHIP_COLUMNS = {
   userId: userCompanyMemberships.userId,
   username: identityUserProfiles.username,
 } as const
+
+/** Canal de um perfil que não existe: não há contato, e o formato precisa de um valor. */
+const DEFAULT_CONTACT_CHANNEL = 'email' as const
 
 const TAX_ID_CONSTRAINT = 'identity_user_profiles_tax_id_unique'
 
@@ -249,12 +257,20 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
       .where(eq(jobSchedules.job, input.job))
   }
 
+  /**
+   * `leftJoin`, e não `innerJoin`: quem tem vínculo com a empresa mas ainda não tem linha de perfil
+   * — conta criada antes de o perfil passar a ser gravado — sumia da listagem inteira. Ela entra e
+   * sai do sistema, aparece no token, administra usuários, e não se via na tela que a administra.
+   *
+   * O perfil ausente vira campo vazio, nunca linha escondida: a tela mostra que a pessoa existe e
+   * que falta cadastro, e é assim que alguém a conserta. Esconder é o defeito, não a proteção.
+   */
   public async listPage(input: ListCompanyUsersInput): Promise<CompanyUserPage> {
     const cursor = decodeCursor(input.cursor)
     const rows = await this.database
       .select(MEMBERSHIP_COLUMNS)
       .from(userCompanyMemberships)
-      .innerJoin(
+      .leftJoin(
         identityUserProfiles,
         eq(identityUserProfiles.userId, userCompanyMemberships.userId),
       )
@@ -445,19 +461,20 @@ function toRecord(
   pendingInvitationsByUser: ReadonlyMap<string, Date>,
 ): CompanyUserRecord {
   const expiresAt = pendingInvitationsByUser.get(row.userId)
+  /** Sem perfil, o `leftJoin` traz nulo em cada coluna dele — vazio é a resposta honesta. */
   return {
-    contactAddress: row.contactAddress,
-    contactChannel: row.contactChannel,
-    email: row.email,
+    contactAddress: row.contactAddress ?? '',
+    contactChannel: row.contactChannel ?? DEFAULT_CONTACT_CHANNEL,
+    email: row.email ?? '',
     membershipId: row.membershipId,
     membershipStatus: row.membershipStatus,
-    name: row.name,
+    name: row.name ?? '',
     pendingInvitation: expiresAt === undefined ? undefined : { expiresAt },
-    phone: row.phone,
+    phone: row.phone ?? '',
     roles: rolesByUser.get(row.userId) ?? [],
-    taxId: row.taxId,
+    taxId: row.taxId ?? '',
     userId: row.userId,
-    username: row.username,
+    username: row.username ?? '',
   }
 }
 
