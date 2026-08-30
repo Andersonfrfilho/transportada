@@ -56,11 +56,16 @@ export function CompanyUserTable({
           {users.map((user) => (
             <tr key={user.id}>
               <td>
-                <span className={styles.primaryCell}>{user.name}</span>
-                <span className={styles.secondaryCell}>{user.username}</span>
+                {/* Vínculo sem perfil: a linha diz o que falta, em vez de parecer defeito de tela. */}
+                <span className={styles.primaryCell}>
+                  {user.name === '' ? t('users.noProfile') : user.name}
+                </span>
+                <span className={styles.secondaryCell}>
+                  {user.username === '' ? user.id : user.username}
+                </span>
               </td>
               <td>
-                <span className={styles.primaryCell}>{user.contact.masked}</span>
+                <span className={styles.primaryCell}>{user.contact.masked || '—'}</span>
                 <span className={styles.secondaryCell}>
                   {t(`users.channel.${user.contact.channel}`, {
                     defaultValue: user.contact.channel,

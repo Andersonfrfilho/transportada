@@ -93,6 +93,7 @@ export const RECONCILIATION_RESULT = {
   items: [
     {
       local: {
+        contact: 't***@e***.com.br',
         email: 't***@e***.com.br',
         membershipId: COMPANY_USER.membershipId,
         name: COMPANY_USER.name,

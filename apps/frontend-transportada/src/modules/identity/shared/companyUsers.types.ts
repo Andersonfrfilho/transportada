@@ -48,6 +48,7 @@ export type ReconciliationMatch = 'email' | 'none' | 'subject' | 'tax-id'
 
 export type ReconciliationEntry = Readonly<{
   local?: Readonly<{
+    contact: string
     email: string
     membershipId: string
     name: string

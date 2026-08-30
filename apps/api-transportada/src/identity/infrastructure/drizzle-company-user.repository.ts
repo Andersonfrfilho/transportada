@@ -2,13 +2,14 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm'
 
 import { fleetDrivers } from '../../database/fleet.schema.js'
 import { auditLogs } from '../../database/fiscal-operation.schema.js'
 import { jobExecutions, jobSchedules } from '../../database/job-schedule.schema.js'
 import type { JobOutcome, ScheduledJob } from '../../shared/job-catalog.constant.js'
 import type { RevealedCompanyUser } from '../application/reveal-company-users.use-case.js'
+import { SYSTEM_DISTRIBUTION_ACTOR_USER_ID } from '../domain/system-distribution-actor.constant.js'
 import type { LocalIdentityRecord } from '../domain/user-reconciliation.policy.js'
 import {
   externalIdentities,
@@ -66,6 +67,16 @@ const MEMBERSHIP_COLUMNS = {
   userId: userCompanyMemberships.userId,
   username: identityUserProfiles.username,
 } as const
+
+/**
+ * O ator sintético da distribuição de NF-e é identidade de sistema, não pessoa: ele tem membership
+ * para manter as colunas de ator NOT NULL, e a constante que o declara manda excluí-lo de toda
+ * listagem de gente. O `leftJoin` o trouxe para a tela — antes o `innerJoin` o escondia por acidente,
+ * porque ele também não tem perfil.
+ */
+function isRealPerson() {
+  return ne(userCompanyMemberships.userId, SYSTEM_DISTRIBUTION_ACTOR_USER_ID)
+}
 
 const CONTACT_REVEAL_ACTION = 'company-user.contact.revealed'
 const CONTACT_REVEAL_ENTITY = 'company-user'
@@ -204,6 +215,8 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
   }): Promise<readonly LocalIdentityRecord[]> {
     const rows = await this.database
       .select({
+        contactAddress: identityUserProfiles.contactAddress,
+        contactChannel: identityUserProfiles.contactChannel,
         email: identityUserProfiles.email,
         membershipId: userCompanyMemberships.id,
         name: identityUserProfiles.name,
@@ -217,9 +230,11 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
         eq(identityUserProfiles.userId, userCompanyMemberships.userId),
       )
       .leftJoin(externalIdentities, eq(externalIdentities.userId, userCompanyMemberships.userId))
-      .where(eq(userCompanyMemberships.companyId, input.companyId))
+      .where(and(eq(userCompanyMemberships.companyId, input.companyId), isRealPerson()))
 
     return rows.map((row) => ({
+      contactAddress: row.contactAddress ?? '',
+      contactChannel: row.contactChannel ?? DEFAULT_CONTACT_CHANNEL,
       email: row.email ?? '',
       membershipId: row.membershipId,
       name: row.name ?? '',
@@ -337,6 +352,7 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
       .where(
         and(
           eq(userCompanyMemberships.companyId, input.companyId),
+          isRealPerson(),
           cursor === null
             ? undefined
             : or(

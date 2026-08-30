@@ -160,7 +160,9 @@
         "email": "E-mail",
         "tax-id": "Documento",
         "none": "—"
-      }
-    }
+      },
+      "noProfile": "Cadastro incompleto"
+    },
+    "noProfile": "Cadastro incompleto"
   }
 }

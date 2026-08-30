@@ -88,12 +88,9 @@ export function CompanyUserReconciliationPanel({
               <tbody>
                 {entries.map((entry) => (
                   <tr key={entry.local?.userId ?? entry.realm?.subject}>
-                    <td>
-                      {entry.local?.name === '' || entry.local === undefined
-                        ? (entry.realm?.username ?? '—')
-                        : entry.local.name}
-                    </td>
-                    <td>{entry.local === undefined ? '—' : entry.local.email || '—'}</td>
+                    <td>{personLabelOf(entry, t('users.sync.noProfile'))}</td>
+                    {/* O contato é onde o convite grava o e-mail; a coluna `email` fica vazia. */}
+                    <td>{entry.local === undefined ? '—' : entry.local.contact || '—'}</td>
                     <td>
                       {entry.realm === undefined ? '—' : entry.realm.email || entry.realm.username}
                     </td>
@@ -121,4 +118,16 @@ export function CompanyUserReconciliationPanel({
       )}
     </section>
   )
+}
+
+/**
+ * Nome vazio é vínculo sem perfil, e a tela precisa dizer isso: uma linha de traços parece defeito
+ * de renderização, e quem a vê não descobre que falta cadastro.
+ */
+function personLabelOf(entry: ReconciliationEntry, noProfileLabel: string): string {
+  const name = entry.local?.name ?? ''
+  if (name !== '') return name
+  const username = entry.realm?.username ?? ''
+  if (username !== '') return username
+  return entry.local === undefined ? '—' : noProfileLabel
 }

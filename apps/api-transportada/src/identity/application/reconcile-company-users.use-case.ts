@@ -26,6 +26,8 @@ export type ReconcileCompanyUsersInput = {
  */
 export type ReconciliationEntryView = {
   readonly local?: {
+    /** O que o convite gravou: é onde o e-mail mora na maioria das contas. */
+    readonly contact: string
     readonly email: string
     readonly membershipId: string
     readonly name: string
@@ -74,6 +76,7 @@ export function createReconcileCompanyUsersUseCase({
             ? {}
             : {
                 local: {
+                  contact: maskIdentityContact(entry.local),
                   email: maskIdentityEmail(entry.local.email),
                   membershipId: entry.local.membershipId,
                   name: entry.local.name,
@@ -95,4 +98,16 @@ export function createReconcileCompanyUsersUseCase({
       }
     },
   }
+}
+
+/**
+ * A coluna "Aqui" precisa mostrar o que existe do nosso lado, e o que existe é o contato — a coluna
+ * `email` fica vazia na maioria das contas. Mascarar telefone como e-mail produziria `1***@`, então
+ * cada canal usa a máscara dele.
+ */
+function maskIdentityContact(
+  record: Readonly<{ contactAddress: string; contactChannel: string; email: string }>,
+): string {
+  if (record.contactChannel === 'email') return maskIdentityEmail(record.contactAddress)
+  return maskIdentityTaxId(record.contactAddress)
 }

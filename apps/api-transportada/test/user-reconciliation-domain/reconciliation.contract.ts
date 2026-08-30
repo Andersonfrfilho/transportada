@@ -13,6 +13,8 @@ import {
 
 function localOf(overrides: Partial<LocalIdentityRecord> = {}): LocalIdentityRecord {
   return {
+    contactAddress: '',
+    contactChannel: 'email',
     email: 'ana@transportada.test',
     membershipId: 'membership-1',
     name: 'Ana Fiscal',
@@ -131,5 +133,25 @@ describe('reconciliação — o que não pode casar', () => {
     expect(entries[0]?.status).toBe(RECONCILIATION_STATUS.LINKED)
     expect(entries[1]?.status).toBe(RECONCILIATION_STATUS.MISSING_LOCALLY)
     expect(entries[1]?.realm?.subject).toBe('subject-2')
+  })
+})
+
+describe('reconciliação — o e-mail mora no contato', () => {
+  /**
+   * O convite grava o endereço em `contact_address`, e `email` fica vazio na maioria das contas.
+   * Casar só pela coluna `email` fazia o degrau do e-mail não achar praticamente ninguém.
+   */
+  test('casa pelo contato quando o canal é e-mail e a coluna está vazia', () => {
+    const local = localOf({ contactAddress: 'ana@transportada.test', email: '' })
+    const [entry] = reconcileIdentities({ local: [local], realm: [realmOf()] })
+
+    expect(entry?.matchedBy).toBe(RECONCILIATION_MATCH.EMAIL)
+  })
+
+  test('contato de telefone não vira chave de e-mail', () => {
+    const local = localOf({ contactAddress: '11999998888', contactChannel: 'whatsapp', email: '' })
+    const [entry] = reconcileIdentities({ local: [local], realm: [realmOf()] })
+
+    expect(entry?.status).toBe(RECONCILIATION_STATUS.MISSING_IN_REALM)
   })
 })

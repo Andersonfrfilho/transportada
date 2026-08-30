@@ -43,6 +43,12 @@ export const RECONCILIATION_MATCH = {
 export type ReconciliationMatch = (typeof RECONCILIATION_MATCH)[keyof typeof RECONCILIATION_MATCH]
 
 export type LocalIdentityRecord = {
+  /**
+   * O canal do convite e o endereço dele. O convite grava o e-mail aqui, **não** em `email` — que
+   * fica vazio na maioria das contas —, então casar só por `email` não acha praticamente ninguém.
+   */
+  readonly contactAddress: string
+  readonly contactChannel: string
   readonly email: string
   readonly membershipId: string
   readonly name: string
@@ -69,6 +75,16 @@ export type ReconciliationEntry = {
 export type ReconcileIdentitiesInput = {
   readonly local: readonly LocalIdentityRecord[]
   readonly realm: readonly RealmIdentityRecord[]
+}
+
+/**
+ * O endereço de e-mail que a pessoa tem do nosso lado: o campo `email` quando existe, senão o
+ * contato — que é onde o convite por e-mail o grava. Sem isto o degrau do e-mail casa quase nada.
+ */
+function localEmailOf(record: LocalIdentityRecord): string {
+  const email = normalizeEmail(record.email)
+  if (email !== '') return email
+  return record.contactChannel === 'email' ? normalizeEmail(record.contactAddress) : ''
 }
 
 /** Caixa e espaço não são identidade: `Ana@X.test` e `ana@x.test` são a mesma caixa postal. */
@@ -161,7 +177,7 @@ function matchLocal({
       key: normalizeTaxIdKey(record.taxId),
       matchedBy: RECONCILIATION_MATCH.TAX_ID,
     },
-    { index: byEmail, key: normalizeEmail(record.email), matchedBy: RECONCILIATION_MATCH.EMAIL },
+    { index: byEmail, key: localEmailOf(record), matchedBy: RECONCILIATION_MATCH.EMAIL },
   ] as const
 
   for (const attempt of attempts) {

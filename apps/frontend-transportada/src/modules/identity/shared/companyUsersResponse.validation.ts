@@ -122,6 +122,7 @@ function toReconciliationEntry(value: unknown): ReconciliationEntry {
       ? {}
       : {
           local: {
+            contact: readText(local.contact),
             email: readText(local.email),
             membershipId: readText(local.membershipId),
             name: readText(local.name),
