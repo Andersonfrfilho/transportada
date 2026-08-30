@@ -6,6 +6,7 @@ import type { CompanyUser, FleetLink } from '../shared/companyUsers.types'
 import type { CompanyUsersClient } from './useCompanyUsers.hook'
 import { useCompanyUsers } from './useCompanyUsers.hook'
 import { useCompanyUserReveal } from './useCompanyUserReveal.hook'
+import { useCompanyUserSelection } from './useCompanyUserSelection.hook'
 import { useCompanyUsersReconciliation } from './useCompanyUsersReconciliation.hook'
 import { useCompanyUserEditForm, useCompanyUserInviteForm } from './useCompanyUserForm.hook'
 
@@ -40,6 +41,8 @@ export function useUserAdministration(input: Readonly<{ client?: CompanyUsersCli
     permissions: authQuery.data?.data.permissions ?? [],
     ...(companyId === undefined ? {} : { companyId }),
   })
+
+  const selection = useCompanyUserSelection(users.viewModel.users)
 
   const reveal = useCompanyUserReveal({ permissions: authQuery.data?.data.permissions ?? [] })
 
@@ -128,6 +131,11 @@ export function useUserAdministration(input: Readonly<{ client?: CompanyUsersCli
     openInvite: () => setInviteOpen(true),
     reconciliation,
     reveal,
+    selection,
+    async assignRoles(roles: readonly string[]) {
+      await users.assignRolesMutation.mutateAsync({ roles, userIds: selection.selectedIds })
+      selection.clear()
+    },
     refreshReconciliation: () => {
       void reconciliation.refetch()
     },

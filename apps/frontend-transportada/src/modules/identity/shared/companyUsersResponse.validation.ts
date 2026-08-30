@@ -9,6 +9,7 @@ import type {
   ReconciliationEntry,
   ReconciliationMatch,
   ReconciliationStatus,
+  AssignedCompanyUserRoles,
   ResendInvitationResult,
   RevealedCompanyUser,
 } from './companyUsers.types'
@@ -157,6 +158,13 @@ export function toCompanyUsersReconciliation(value: unknown): CompanyUsersReconc
     hasMoreRealmUsers: data.hasMoreRealmUsers === true,
     items: data.items.map(toReconciliationEntry),
   }
+}
+
+export function toAssignedCompanyUserRoles(value: unknown): AssignedCompanyUserRoles {
+  if (!isRecord(value) || !isRecord(value.data) || !Array.isArray(value.data.affectedUserIds)) {
+    invalid()
+  }
+  return { affectedUserIds: value.data.affectedUserIds.map(readText) }
 }
 
 export function toRevealedCompanyUsers(value: unknown): readonly RevealedCompanyUser[] {

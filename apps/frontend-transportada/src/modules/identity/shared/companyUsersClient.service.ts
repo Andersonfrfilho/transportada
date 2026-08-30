@@ -1,6 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { COMPANY_USER_ERROR, COMPANY_USERS_PATH } from './companyUsers.constant'
 import type {
+  AssignCompanyUserRolesInput,
+  AssignedCompanyUserRoles,
   ChangeCompanyUserStatusInput,
   CompanyUser,
   CompanyUserPage,
@@ -19,6 +21,7 @@ import {
   toCompanyUserPage,
   toCompanyUsersReconciliation,
   toInvitedCompanyUser,
+  toAssignedCompanyUserRoles,
   toResendInvitationResult,
   toRevealedCompanyUsers,
 } from './companyUsersResponse.validation'
@@ -34,6 +37,7 @@ export type CompanyUsersClient = Readonly<{
   changeStatus: (input: ChangeCompanyUserStatusInput) => Promise<CompanyUser>
   inviteUser: (input: InviteCompanyUserInput) => Promise<InvitedCompanyUser>
   listUsers: (input: Readonly<{ cursor: null | string; limit: number }>) => Promise<CompanyUserPage>
+  assignRoles: (input: AssignCompanyUserRolesInput) => Promise<AssignedCompanyUserRoles>
   reconcileUsers: () => Promise<CompanyUsersReconciliation>
   revealUsers: (
     input: Readonly<{ userIds: readonly string[] }>,
@@ -171,6 +175,15 @@ export function createCompanyUsersClient(dependencies: ClientDependencies): Comp
         path: `${COMPANY_USERS_PATH}/reconciliation`,
       })
       return toCompanyUsersReconciliation(payload)
+    },
+    async assignRoles(input) {
+      const { payload } = await authorizedRequest({
+        body: JSON.stringify({ roles: input.roles, userIds: input.userIds }),
+        dependencies,
+        method: 'POST',
+        path: `${COMPANY_USERS_PATH}/roles`,
+      })
+      return toAssignedCompanyUserRoles(payload)
     },
     async revealUsers(input) {
       const { payload } = await authorizedRequest({

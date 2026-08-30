@@ -25,6 +25,8 @@ type RouteDependencies = {
   readonly list: { execute(input: ExecuteCall): Promise<typeof COMPANY_USER_PAGE> }
   readonly backfillDocuments: { execute(input: ExecuteCall): Promise<typeof BACKFILL_RESULT> }
   readonly reconcile: { execute(input: ExecuteCall): Promise<typeof RECONCILIATION_RESULT> }
+  readonly assignRoles: { execute(input: ExecuteCall): Promise<typeof ASSIGNED_ROLES_RESULT> }
+  readonly rolePermissions: { execute(): typeof ROLE_PERMISSIONS_MATRIX }
   readonly reveal: { execute(input: ExecuteCall): Promise<typeof REVEALED_USERS> }
   readonly removeMembership: { execute(input: ExecuteCall): Promise<void> }
   readonly replaceRoles: { execute(input: ExecuteCall): Promise<typeof COMPANY_USER> }
@@ -88,6 +90,14 @@ export const COMPANY_USER_PAGE = { items: [COMPANY_USER], nextCursor: null }
 
 /** A reconciliação responde os dois lados; o que a rota precisa provar é o recorte e a permissão. */
 export const BACKFILL_RESULT = { skipped: 1, written: 2 }
+
+export const ROLE_PERMISSIONS_MATRIX = {
+  permissions: ['users.manage', 'users.reveal'],
+  roles: [{ permissions: ['users.manage'], role: 'company-admin' }],
+}
+
+/** Quem o lote alcançou: id fora da empresa não entra, e não vira erro. */
+export const ASSIGNED_ROLES_RESULT = { affectedUserIds: [COMPANY_USER.id] }
 
 /** O valor cru: é o que a rota devolve a quem tem `users.reveal`, e o que a auditoria registra. */
 export const REVEALED_USERS = [
@@ -164,6 +174,7 @@ export async function createUserAdministrationHttpFixture(
   readonly listCalls: ExecuteCall[]
   readonly backfillCalls: ExecuteCall[]
   readonly reconcileCalls: ExecuteCall[]
+  readonly assignRolesCalls: ExecuteCall[]
   readonly revealCalls: ExecuteCall[]
   readonly removeMembershipCalls: ExecuteCall[]
   readonly replaceRolesCalls: ExecuteCall[]
@@ -176,6 +187,7 @@ export async function createUserAdministrationHttpFixture(
   const backfillCalls: ExecuteCall[] = []
   const reconcileCalls: ExecuteCall[] = []
   const revealCalls: ExecuteCall[] = []
+  const assignRolesCalls: ExecuteCall[] = []
   const removeMembershipCalls: ExecuteCall[] = []
   const replaceRolesCalls: ExecuteCall[] = []
   const resendCodeCalls: ExecuteCall[] = []
@@ -204,6 +216,13 @@ export async function createUserAdministrationHttpFixture(
       async execute(input) {
         backfillCalls.push(structuredClone(input))
         return BACKFILL_RESULT
+      },
+    },
+    rolePermissions: { execute: () => ROLE_PERMISSIONS_MATRIX },
+    assignRoles: {
+      async execute(input) {
+        assignRolesCalls.push(structuredClone(input))
+        return ASSIGNED_ROLES_RESULT
       },
     },
     reveal: {
@@ -273,6 +292,7 @@ export async function createUserAdministrationHttpFixture(
     backfillCalls,
     reconcileCalls,
     removeMembershipCalls,
+    assignRolesCalls,
     revealCalls,
     replaceRolesCalls,
     resendCodeCalls,

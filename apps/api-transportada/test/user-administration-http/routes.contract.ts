@@ -13,9 +13,11 @@ import {
   INVITE_BODY,
   INVITE_CONTACT,
   jsonRequest,
+  ASSIGNED_ROLES_RESULT,
   BACKFILL_RESULT,
   RECONCILIATION_RESULT,
   REVEALED_USERS,
+  ROLE_PERMISSIONS_MATRIX,
   REPLACE_ROLES_BODY,
   responseApiError,
   responseData,
@@ -490,5 +492,81 @@ describe('rotas de administração de usuários — revelar contato e documento'
     expect(empty.status).toBe(400)
     expect(excessive.status).toBe(400)
     expect(fixture.revealCalls).toHaveLength(0)
+  })
+})
+
+describe('rotas de administração de usuários — papéis em lote', () => {
+  test('aplica os papéis escolhidos aos usuários escolhidos', async () => {
+    const fixture = await createUserAdministrationHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { roles: ['fiscal'], userIds: [TARGET_USER_ID] },
+        method: 'POST',
+        path: `${COMPANY_USERS_PATH}/roles`,
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ data: ASSIGNED_ROLES_RESULT })
+    expect(fixture.assignRolesCalls[0]).toMatchObject({
+      roles: ['fiscal'],
+      userIds: [TARGET_USER_ID],
+    })
+  })
+
+  /**
+   * O caminho é irmão de `/company-users/:id/roles`, que **substitui**. Confundir os dois apagaria
+   * o papel de administrador de quem o tinha, em silêncio — daí `POST` aqui e `PUT` lá.
+   */
+  test('o lote não é lido como identificador de usuário', async () => {
+    const fixture = await createUserAdministrationHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { roles: ['fiscal'], userIds: [TARGET_USER_ID] },
+        method: 'POST',
+        path: `${COMPANY_USERS_PATH}/roles`,
+      }),
+    )
+
+    expect(response.status).not.toBe(400)
+    expect(response.status).not.toBe(404)
+  })
+
+  test('recusa lote sem papel e lote sem usuário', async () => {
+    const fixture = await createUserAdministrationHttpFixture()
+
+    const withoutRoles = await fixture.handle(
+      jsonRequest({
+        body: { roles: [], userIds: [TARGET_USER_ID] },
+        method: 'POST',
+        path: `${COMPANY_USERS_PATH}/roles`,
+      }),
+    )
+    const withoutUsers = await fixture.handle(
+      jsonRequest({
+        body: { roles: ['fiscal'], userIds: [] },
+        method: 'POST',
+        path: `${COMPANY_USERS_PATH}/roles`,
+      }),
+    )
+
+    expect(withoutRoles.status).toBe(400)
+    expect(withoutUsers.status).toBe(400)
+    expect(fixture.assignRolesCalls).toHaveLength(0)
+  })
+})
+
+describe('rotas de administração de usuários — a matriz de papel e permissão', () => {
+  test('publica o que cada papel alcança, e o catálogo inteiro', async () => {
+    const fixture = await createUserAdministrationHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({ method: 'GET', path: `${COMPANY_USERS_PATH}/role-permissions` }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ data: ROLE_PERMISSIONS_MATRIX })
   })
 })

@@ -56,6 +56,48 @@
   font-size: 1.1rem;
 }
 
+.selectCell {
+  width: var(--control-height);
+}
+
+.bulkBar {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  margin-block-end: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+}
+
+.bulkHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.bulkActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.pillList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding-inline-start: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  font-size: var(--field-font-size-compact);
+}
+
 .revealCell {
   display: inline-flex;
   align-items: center;

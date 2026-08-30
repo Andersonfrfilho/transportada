@@ -104,6 +104,12 @@ export type CompanyUserRepositoryPort = {
    * O valor cru de quem a tela pediu para revelar, filtrado por `company_id` **e** pelos ids: o
    * recorte é do banco, não do laço em memória, e é ele que impede alcançar a empresa vizinha.
    */
+  /** Acrescenta papéis a um lote; quem já tem o papel é ignorado pela PK, não por laço. */
+  readonly addRoles: (input: {
+    readonly companyId: string
+    readonly roles: readonly CompanyRole[]
+    readonly userIds: readonly string[]
+  }) => Promise<{ readonly affectedUserIds: readonly string[] }>
   readonly findForReveal: (input: {
     readonly companyId: string
     readonly userIds: readonly string[]

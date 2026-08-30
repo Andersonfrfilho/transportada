@@ -65,6 +65,14 @@ export type CompanyUsersReconciliation = Readonly<{
   items: readonly ReconciliationEntry[]
 }>
 
+export type AssignCompanyUserRolesInput = Readonly<{
+  roles: readonly string[]
+  userIds: readonly string[]
+}>
+
+/** Quem o lote alcançou. Id fora da empresa não entra, e não vira erro. */
+export type AssignedCompanyUserRoles = Readonly<{ affectedUserIds: readonly string[] }>
+
 /** O valor cru de quem a tela pediu para revelar. Só chega a quem tem `users.reveal`. */
 export type RevealedCompanyUser = Readonly<{
   email: string

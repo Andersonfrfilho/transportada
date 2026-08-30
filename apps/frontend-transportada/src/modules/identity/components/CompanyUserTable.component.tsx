@@ -2,9 +2,11 @@
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
 
 import type { CompanyUserRevealState } from '../hooks/useCompanyUserReveal.hook'
+import type { CompanyUserSelectionState } from '../hooks/useCompanyUserSelection.hook'
 import type { CompanyUser } from '../shared/companyUsers.types'
 import styles from '../styles/userAdministration.module.css'
 
@@ -17,6 +19,7 @@ type CompanyUserTableProps = Readonly<{
   /** Ausente enquanto `/auth/me` não respondeu; a linha do próprio acesso só some depois disso. */
   currentUserId: string | undefined
   reveal: CompanyUserRevealState
+  selection: CompanyUserSelectionState
 }>
 
 const STATUS_CLASS: Readonly<Record<string, string | undefined>> = {
@@ -32,6 +35,7 @@ export function CompanyUserTable({
   onRemove,
   onResend,
   reveal,
+  selection,
   users,
 }: CompanyUserTableProps) {
   const { t } = useTranslation('identity')
@@ -47,6 +51,14 @@ export function CompanyUserTable({
       <table className={styles.userTable}>
         <thead>
           <tr>
+            <th className={styles.selectCell} scope="col">
+              <Checkbox
+                ariaLabel={t('users.bulk.selectAll')}
+                checked={selection.areAllSelected}
+                indeterminate={selection.isPartiallySelected}
+                onChange={selection.toggleAll}
+              />
+            </th>
             <th scope="col">{t('users.columnName')}</th>
             <th scope="col">
               {t('users.columnContact')}
@@ -76,6 +88,13 @@ export function CompanyUserTable({
         <tbody>
           {users.map((user) => (
             <tr key={user.id}>
+              <td className={styles.selectCell}>
+                <Checkbox
+                  ariaLabel={t('users.bulk.select', { name: user.name })}
+                  checked={selection.isSelected(user.id)}
+                  onChange={(checked) => selection.toggle(user.id, checked)}
+                />
+              </td>
               <td>
                 {/* Vínculo sem perfil: a linha diz o que falta, em vez de parecer defeito de tela. */}
                 <span className={styles.primaryCell}>

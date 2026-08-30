@@ -399,6 +399,45 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
       )
   }
 
+  /**
+   * Acrescenta, não troca: `on conflict do nothing` sobre a PK `(membership_id, role)` faz o "quem
+   * já tem, ignora" ser garantia do banco, não laço em memória — repetir o mesmo lote converge, e
+   * duas pessoas aplicando ao mesmo tempo não derrubam uma à outra.
+   *
+   * Usuário que não pertence à empresa some do lote em vez de virar erro: o `where` do `select` é o
+   * recorte, e responder diferente diria ao chamador que aquele id existe em outro lugar.
+   */
+  public async addRoles(input: {
+    readonly companyId: string
+    readonly roles: readonly CompanyRole[]
+    readonly userIds: readonly string[]
+  }): Promise<{ readonly affectedUserIds: readonly string[] }> {
+    if (input.roles.length === 0 || input.userIds.length === 0) return { affectedUserIds: [] }
+
+    const memberships = await this.database
+      .select({ id: userCompanyMemberships.id, userId: userCompanyMemberships.userId })
+      .from(userCompanyMemberships)
+      .where(
+        and(
+          eq(userCompanyMemberships.companyId, input.companyId),
+          inArray(userCompanyMemberships.userId, [...input.userIds]),
+          isRealPerson(),
+        ),
+      )
+    if (memberships.length === 0) return { affectedUserIds: [] }
+
+    await this.database
+      .insert(membershipRoles)
+      .values(
+        memberships.flatMap((membership) =>
+          input.roles.map((role) => ({ membershipId: membership.id, role })),
+        ),
+      )
+      .onConflictDoNothing()
+
+    return { affectedUserIds: memberships.map((membership) => membership.userId) }
+  }
+
   public async replaceRoles(input: {
     readonly companyId: string
     readonly roles: readonly CompanyRole[]

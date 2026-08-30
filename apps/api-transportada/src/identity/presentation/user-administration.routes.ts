@@ -37,7 +37,10 @@ import type {
   UpdateCompanyUserProfileUseCase,
 } from '../application/update-company-user-profile.use-case.js'
 import type { BackfillIdentityDocumentsUseCase } from '../application/backfill-identity-documents.use-case.js'
+import type { ListRolePermissionsUseCase } from '../application/list-role-permissions.use-case.js'
+import type { AssignCompanyUserRolesInput } from '../application/assign-company-user-roles.use-case.js'
 import type { ReconcileCompanyUsersUseCase } from '../application/reconcile-company-users.use-case.js'
+import type { AssignCompanyUserRolesUseCase } from '../application/assign-company-user-roles.use-case.js'
 import type { RevealCompanyUsersUseCase } from '../application/reveal-company-users.use-case.js'
 import type { CompanyUserView } from '../domain/company-user.policy.js'
 import {
@@ -45,6 +48,7 @@ import {
   parseCompanyUserListQuery,
   parseInviteCompanyUserRequest,
   parseReplaceCompanyUserRolesRequest,
+  parseAssignCompanyUserRolesRequest,
   parseRevealCompanyUsersRequest,
   parseUpdateCompanyUserProfileRequest,
   parseUuidPathIdentifier,
@@ -57,6 +61,8 @@ import {
 const RECONCILIATION_PATH = `${API_COMPANY_USERS_PATH}/reconciliation`
 const DOCUMENT_BACKFILL_PATH = `${API_COMPANY_USERS_PATH}/document-backfill`
 const REVEAL_PATH = `${API_COMPANY_USERS_PATH}/reveal`
+const BULK_ROLES_PATH = `${API_COMPANY_USERS_PATH}/roles`
+const ROLE_PERMISSIONS_PATH = `${API_COMPANY_USERS_PATH}/role-permissions`
 const USER_PATH = `${API_COMPANY_USERS_PATH}/:id`
 const USER_INVITATION_PATH = `${USER_PATH}/invitation`
 const USER_STATUS_PATH = `${USER_PATH}/status`
@@ -74,6 +80,8 @@ type Dependencies = {
   readonly list: ListCompanyUsersUseCase
   readonly backfillDocuments: BackfillIdentityDocumentsUseCase
   readonly reconcile: ReconcileCompanyUsersUseCase
+  readonly assignRoles: AssignCompanyUserRolesUseCase
+  readonly rolePermissions: ListRolePermissionsUseCase
   readonly reveal: RevealCompanyUsersUseCase
   readonly removeMembership: RemoveCompanyUserMembershipUseCase
   readonly replaceRoles: ReplaceCompanyUserRolesUseCase
@@ -157,6 +165,37 @@ export function createUserAdministrationRoutes(
       },
       pathname: REVEAL_PATH,
       policy: USERS_REVEAL_POLICY,
+    }),
+    /**
+     * `POST` e não `PUT`: aplicar papéis a um lote **acrescenta**, e `PUT` prometeria substituição —
+     * que é o que a rota de um usuário só (`/:id/roles`) faz, de propósito. Papel que a pessoa já
+     * tem é ignorado pelo banco, então repetir o lote converge.
+     */
+    defineRoute<Omit<AssignCompanyUserRolesInput, 'context'>>({
+      async handle({ context, input }) {
+        const result = await dependencies.assignRoles.execute({ context: context.scope, ...input })
+        return jsonResponse({ body: { data: result }, status: 200 })
+      },
+      method: 'POST',
+      async parse({ request }) {
+        const body = await parseAssignCompanyUserRolesRequest(request)
+        return { roles: body.roles, userIds: body.userIds }
+      },
+      pathname: BULK_ROLES_PATH,
+      policy: USERS_MANAGE_POLICY,
+    }),
+    /**
+     * A matriz de papel × permissão já existia em código e era invisível: ninguém respondia "o que
+     * este papel enxerga?" sem abrir o repositório. Servir da constante, em vez de copiá-la para o
+     * frontend, é o que impede as duas de divergirem na primeira permissão nova.
+     */
+    defineRoute<Record<string, never>>({
+      handle: async () =>
+        jsonResponse({ body: { data: dependencies.rolePermissions.execute() }, status: 200 }),
+      method: 'GET',
+      parse: () => ({}),
+      pathname: ROLE_PERMISSIONS_PATH,
+      policy: USERS_MANAGE_POLICY,
     }),
     defineRoute<Omit<InviteCompanyUserInput, 'context'>>({
       async handle({ context, input }) {

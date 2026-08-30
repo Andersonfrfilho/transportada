@@ -69,6 +69,15 @@ export type ChangeCompanyUserStatusBody = z.infer<typeof changeCompanyUserStatus
  */
 const REVEAL_BATCH_LIMIT = 100
 
+/** O mesmo teto do revelar: lote é a página na frente do operador, não a base inteira. */
+export const assignCompanyUserRolesSchema = z
+  .object({
+    roles: buildCompanyRolesSchema(),
+    userIds: z.array(z.uuid()).min(1).max(REVEAL_BATCH_LIMIT),
+  })
+  .strict()
+export type AssignCompanyUserRolesBody = z.infer<typeof assignCompanyUserRolesSchema>
+
 export const revealCompanyUsersSchema = z
   .object({ userIds: z.array(z.uuid()).min(1).max(REVEAL_BATCH_LIMIT) })
   .strict()
@@ -100,6 +109,12 @@ export async function parseInviteCompanyUserRequest(
   request: Request,
 ): Promise<InviteCompanyUserBody> {
   return parseBody(inviteCompanyUserSchema, request)
+}
+
+export async function parseAssignCompanyUserRolesRequest(
+  request: Request,
+): Promise<AssignCompanyUserRolesBody> {
+  return parseBody(assignCompanyUserRolesSchema, request)
 }
 
 export async function parseRevealCompanyUsersRequest(

@@ -171,6 +171,22 @@
       "copy": "Copiar",
       "copied": "Copiado",
       "failed": "Não foi possível revelar. Tente de novo."
+    },
+    "bulk": {
+      "selected": "{{count}} selecionado(s)",
+      "clearSelection": "Limpar seleção",
+      "select": "Selecionar {{name}}",
+      "selectAll": "Selecionar todos da página",
+      "unselect": "Tirar {{name}} da seleção",
+      "rolesLabel": "Papéis a aplicar",
+      "rolesPlaceholder": "Escolha os papéis",
+      "searchRole": "Buscar papel",
+      "removeRole": "Tirar papel",
+      "clearRoles": "Limpar papéis",
+      "noRole": "Nenhum papel encontrado",
+      "rolesSummary": "{{count}} papel(is)",
+      "apply": "Aplicar a {{count}} usuário(s)",
+      "addsOnly": "Os papéis são acrescentados. Quem já tem continua como está, e nada é removido."
     }
   }
 }

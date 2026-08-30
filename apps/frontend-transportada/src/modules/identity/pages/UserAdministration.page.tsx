@@ -9,6 +9,7 @@ import { CompanyUserEditDialog } from '../components/CompanyUserEditDialog.compo
 import { CompanyUserInviteDialog } from '../components/CompanyUserInviteDialog.component'
 import { CompanyUserRemoveDialog } from '../components/CompanyUserRemoveDialog.component'
 import { CompanyUserTable } from '../components/CompanyUserTable.component'
+import { CompanyUserBulkRoleBar } from '../components/CompanyUserBulkRoleBar.component'
 import { CompanyUserReconciliationPanel } from '../components/CompanyUserReconciliationPanel.component'
 import { readErrorCode, useUserAdministration } from '../hooks/useUserAdministration.hook'
 import styles from '../styles/userAdministration.module.css'
@@ -126,6 +127,14 @@ export function UserAdministrationPage() {
                 {t('users.resendSucceeded')}
               </p>
             )}
+            <CompanyUserBulkRoleBar
+              isPending={users.assignRolesMutation.isPending}
+              onApply={(roles) => void screen.assignRoles(roles)}
+              onClearSelection={screen.selection.clear}
+              onUnselect={(userId) => screen.selection.toggle(userId, false)}
+              roleChoices={screen.inviteForm.roleChoices}
+              selectedUsers={viewModel.users.filter((user) => screen.selection.isSelected(user.id))}
+            />
             <CompanyUserTable
               currentUserId={screen.currentUserId}
               onChangeStatus={(input) => users.changeStatusMutation.mutate(input)}
@@ -133,6 +142,7 @@ export function UserAdministrationPage() {
               onRemove={screen.openRemove}
               onResend={(user) => void screen.resendInvitation(user)}
               reveal={screen.reveal}
+              selection={screen.selection}
               users={viewModel.users}
             />
             <div className={styles.pagination}>

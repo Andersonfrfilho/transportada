@@ -171,6 +171,22 @@
       "copy": "Copy",
       "copied": "Copied",
       "failed": "Could not reveal. Try again."
+    },
+    "bulk": {
+      "selected": "{{count}} selected",
+      "clearSelection": "Clear selection",
+      "select": "Select {{name}}",
+      "selectAll": "Select every row on this page",
+      "unselect": "Remove {{name}} from the selection",
+      "rolesLabel": "Roles to apply",
+      "rolesPlaceholder": "Pick the roles",
+      "searchRole": "Search role",
+      "removeRole": "Remove role",
+      "clearRoles": "Clear roles",
+      "noRole": "No role found",
+      "rolesSummary": "{{count}} role(s)",
+      "apply": "Apply to {{count}} user(s)",
+      "addsOnly": "Roles are added. Whoever already has one keeps it, and nothing is removed."
     }
   }
 }
