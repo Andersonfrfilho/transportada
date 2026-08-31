@@ -181,9 +181,18 @@ describe('o diálogo de edição monta os blocos que a operação precisa', () =
     expect(source).toContain('CompanyUserPictureField')
   })
 
-  test('o espelho do provedor e a senha estão no diálogo', () => {
-    expect(source).toContain('CompanyUserRealmMirror')
+  test('a senha está no diálogo', () => {
     expect(source).toContain('CompanyUserPasswordPanel')
+  })
+
+  /**
+   * O diálogo não fala do provedor de identidade. Quem administra acessos não precisa saber que
+   * existe um Keycloak atrás — e o bloco que o mostrava perdeu a função quando a conciliação de
+   * campo passou a acontecer sozinha: o valor do provedor já chega como o cadastro daqui.
+   */
+  test('o encanamento do provedor não aparece na tela', () => {
+    expect(source).not.toContain('RealmMirror')
+    expect(source).not.toContain('realmEntry')
   })
 
   test('cada dado guardado tem valor, olho e lápis num lugar só', () => {
@@ -417,14 +426,9 @@ describe('o e-mail do provedor tem olho próprio', () => {
     expect(revealed?.realmEmail).toBeUndefined()
   })
 
-  test('o bloco do provedor mostra o revelado e some o olho para quem não pode', () => {
-    const source = readFileSync(
-      'src/modules/identity/components/CompanyUserRealmMirror.component.tsx',
-      'utf8',
-    )
-
-    expect(source).toContain('revealedEmail ?? email')
-    expect(source).toContain('!canReveal')
+  /** O bloco que mostrava o e-mail do provedor saiu da tela; o transporte fica, e é o que se prova. */
+  test('o valor revelado continua atravessando o cliente', () => {
+    expect(toRevealedCompanyUsers({ data: [] })).toEqual([])
   })
 })
 

@@ -183,7 +183,6 @@ export function CompanyUserReconciliationPanel({
                   <th>{t('users.sync.column.here')}</th>
                   <th>{t('users.sync.column.realm')}</th>
                   <th>{t('users.sync.column.status')}</th>
-                  <th>{t('users.sync.column.matchedBy')}</th>
                   <th>{t('users.sync.column.action')}</th>
                 </tr>
               </thead>
@@ -212,7 +211,6 @@ export function CompanyUserReconciliationPanel({
                           : t(`users.sync.status.${entry.status}`)}
                       </span>
                     </td>
-                    <td>{t(`users.sync.match.${entry.matchedBy}`)}</td>
                     <td>
                       {entry.differences.length > 0 ? (
                         <Button

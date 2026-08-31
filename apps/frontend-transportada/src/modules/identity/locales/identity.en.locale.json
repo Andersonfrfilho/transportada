@@ -121,22 +121,6 @@
         "phone": "Phone",
         "taxId": "Tax ID"
       },
-      "realm": {
-        "title": "In the login provider",
-        "intro": "What Keycloak knows about this person, and which attribute matched the two accounts.",
-        "absent": "This person has no matching account in the login provider.",
-        "username": "Provider username",
-        "email": "Provider email",
-        "noEmail": "The provider account has no email.",
-        "matchedBy": "Matched by",
-        "state": "Account state",
-        "enabled": "Enabled",
-        "disabled": "Disabled",
-        "subject": "Provider identifier",
-        "fillHint": "The local profile is empty. The provider has this account name and email — copying them is done by the server, because the address is masked on this screen.",
-        "reveal": "Reveal the provider email",
-        "diverged": "The provider and the local record disagree on: {{fields}}. The provider one is what authenticates."
-      },
       "password": {
         "title": "Password",
         "intro": "Setting the password here serves people with no working email. Otherwise the reset link is the path where the final password never passes through your hands.",
@@ -170,10 +154,10 @@
       "COMPANY_USER_NOT_FOUND": "This user no longer belongs to the company. Refresh the list.",
       "COMPANY_USER_CONTACT_TAKEN": "An account with this contact already exists.",
       "USERNAME_ALREADY_TAKEN": "This login is already taken.",
-      "IDENTITY_SUBJECT_NOT_FOUND": "The account has no identity in the login provider. Invite the person again.",
+      "IDENTITY_SUBJECT_NOT_FOUND": "This record has no access to sign in. Invite the person again.",
       "SELF_MEMBERSHIP_REMOVAL": "Nobody removes their own account. Ask another administrator.",
       "COMPANY_USER_TAX_ID_TAKEN": "An account with this tax id already exists.",
-      "USERNAME_CHANGE_REFUSED": "The login provider does not allow changing this account username. The rest of the profile was saved; the username is unchanged.",
+      "USERNAME_CHANGE_REFUSED": "This account username cannot be changed. The rest of the profile was saved.",
       "INVALID_REQUEST": "A field is not in the accepted format. Check username, email, phone and tax ID.",
       "INTERNAL_ERROR": "The API failed to process the request. If it repeats, it is a defect on our side.",
       "USER_PICTURE_TOO_LARGE": "The image is over 256 KB. Reduce it and upload again.",
@@ -185,46 +169,39 @@
       "dismiss": "Dismiss the notice"
     },
     "sync": {
-      "title": "Keycloak reconciliation",
-      "intro": "Who exists here, who exists in the login provider, and who exists on one side only. Divergence never shows in the list above — it shows here.",
-      "show": "Compare with Keycloak",
-      "hide": "Close comparison",
+      "title": "Records and access",
+      "intro": "Who has a record here, who can sign in, and who has only one of the two halves.",
+      "show": "Check records and access",
+      "hide": "Close check",
       "refresh": "Refresh",
-      "allLinked": "Every account exists on both sides.",
-      "truncated": "Keycloak holds more accounts than this page fetched — divergence may exist outside it.",
+      "allLinked": "Every record has access, and every access has a record.",
+      "truncated": "There are more accesses than this page brought — there may be pending items outside it.",
       "column": {
         "person": "Person",
-        "here": "Here",
-        "realm": "In Keycloak",
+        "here": "Record",
+        "realm": "Access",
         "status": "Status",
-        "matchedBy": "Matched by",
         "action": "Fix"
       },
       "status": {
-        "linked": "In sync",
-        "missing-in-realm": "Here only",
-        "missing-locally": "Keycloak only",
-        "profile-missing": "Profile missing",
-        "out-of-sync": "Diverged: {{fields}}"
-      },
-      "match": {
-        "subject": "Link",
-        "email": "Email",
-        "none": "—",
-        "document": "Document"
+        "linked": "Complete",
+        "missing-in-realm": "No access",
+        "missing-locally": "No record",
+        "profile-missing": "Incomplete record",
+        "out-of-sync": "Outdated: {{fields}}"
       },
       "noProfile": "Incomplete profile",
-      "createInRealm": "Create in Keycloak",
-      "createLocally": "Bring it here",
-      "fillProfile": "Fill from provider",
+      "createInRealm": "Create the access",
+      "createLocally": "Create the record",
+      "fillProfile": "Complete the record",
       "missingCount_one": "1 access exists on one side only.",
       "missingCount_other": "{{count}} accesses exist on one side only.",
       "profileMissingCount_one": "1 access exists on both sides with no local profile.",
       "profileMissingCount_other": "{{count}} accesses exist on both sides with no local profile.",
-      "createAll_one": "Create the missing one",
-      "createAll_other": "Create the {{count}} missing",
-      "fillAllProfiles_one": "Fill 1 profile from the provider",
-      "fillAllProfiles_other": "Fill {{count}} profiles from the provider",
+      "createAll_one": "Complete what is missing",
+      "createAll_other": "Complete the {{count}} missing",
+      "fillAllProfiles_one": "Complete 1 record",
+      "fillAllProfiles_other": "Complete {{count}} records",
       "outcome": {
         "filled_one": "1 profile filled.",
         "filled_other": "{{count}} profiles filled.",
@@ -232,13 +209,13 @@
         "created_other": "{{count}} accesses created.",
         "skipped_one": "1 skipped — {{reasons}}.",
         "skipped_other": "{{count}} skipped — {{reasons}}.",
-        "adopted_one": "1 record updated from the provider.",
-        "adopted_other": "{{count}} records updated from the provider."
+        "adopted_one": "1 record updated.",
+        "adopted_other": "{{count}} records updated."
       },
       "skipReason": {
         "profile-exists": "the profile already existed",
-        "not-found": "no matching provider account",
-        "realm-contact-missing": "the provider account has no email",
+        "not-found": "there is no matching access",
+        "realm-contact-missing": "the access has no email",
         "already-linked": "already linked",
         "service-account": "it is a service account, not a person",
         "already-equal": "was already equal"
@@ -250,9 +227,9 @@
         "taxId": "document",
         "username": "username"
       },
-      "adopt": "Pull from provider",
-      "adoptAll_one": "Pull 1 record from the provider",
-      "adoptAll_other": "Pull {{count}} records from the provider"
+      "adopt": "Update the record",
+      "adoptAll_one": "Update 1 record",
+      "adoptAll_other": "Update {{count}} records"
     },
     "noProfile": "Incomplete profile",
     "reveal": {
@@ -502,7 +479,7 @@
       "columnName": "Group",
       "columnGrants": "Grants",
       "columnMembers": "People",
-      "columnSync": "Keycloak",
+      "columnSync": "Access",
       "synced": "In sync",
       "syncPending": "Pending"
     },

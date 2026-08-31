@@ -214,14 +214,10 @@ export function UserAdministrationPage() {
           readErrorCode(users.replaceRolesMutation.error)
         }
         form={screen.editForm}
-        isFillingProfile={screen.reconciliation.fillProfilesMutation.isPending}
         isPending={users.updateProfileMutation.isPending || users.replaceRolesMutation.isPending}
         onClose={screen.closeEdit}
-        onAdoptRealmFields={(userId) => screen.reconciliation.adoptMutation.mutate([userId])}
-        onFillFromRealm={(userId) => screen.reconciliation.fillProfilesMutation.mutate([userId])}
         onSubmit={() => void screen.submitEdit()}
         password={screen.password}
-        realmEntry={screen.editRealmEntry}
         reveal={screen.reveal}
         user={screen.editTarget}
       />

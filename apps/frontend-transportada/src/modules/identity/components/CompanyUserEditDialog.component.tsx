@@ -13,7 +13,7 @@ import type { CompanyUserPasswordState } from '../hooks/useCompanyUserPassword.h
 import { readPictureErrorCode, useCompanyUserPicture } from '../hooks/useCompanyUserPicture.hook'
 import type { CompanyUserRevealState } from '../hooks/useCompanyUserReveal.hook'
 import { CONTACT_CHANNELS } from '../shared/companyUsers.constant'
-import type { CompanyUser, ReconciliationEntry } from '../shared/companyUsers.types'
+import type { CompanyUser } from '../shared/companyUsers.types'
 import styles from '../styles/userAdministration.module.css'
 
 import {
@@ -24,7 +24,6 @@ import {
 } from './CompanyUserField.component'
 import { CompanyUserPasswordPanel } from './CompanyUserPasswordPanel.component'
 import { CompanyUserPictureField } from './CompanyUserPictureField.component'
-import { CompanyUserRealmMirror } from './CompanyUserRealmMirror.component'
 import { CompanyUserStoredField } from './CompanyUserStoredField.component'
 
 /** Os campos guardados que a API entrega mascarados, e que o olho revela um a um. */
@@ -35,28 +34,20 @@ type CompanyUserEditDialogProps = Readonly<{
   form: CompanyUserEditForm
   isPending: boolean
   onClose: () => void
-  onAdoptRealmFields: (userId: string) => void
-  onFillFromRealm: (userId: string) => void
   onSubmit: () => void
   password: CompanyUserPasswordState
   reveal: CompanyUserRevealState
   user: CompanyUser | null
   errorCode: string | undefined
-  isFillingProfile?: boolean
-  realmEntry?: ReconciliationEntry | undefined
 }>
 
 export function CompanyUserEditDialog({
   errorCode,
   form,
-  isFillingProfile = false,
   isPending,
-  onAdoptRealmFields,
   onClose,
-  onFillFromRealm,
   onSubmit,
   password,
-  realmEntry,
   reveal,
   user,
 }: CompanyUserEditDialogProps) {
@@ -285,17 +276,6 @@ export function CompanyUserEditDialog({
             />
           ))}
         </div>
-
-        <CompanyUserRealmMirror
-          canReveal={reveal.canReveal}
-          disabled={isFillingProfile}
-          entry={realmEntry}
-          isRevealing={reveal.isPending}
-          onAdoptRealmFields={() => onAdoptRealmFields(user.id)}
-          onFillFromRealm={() => onFillFromRealm(user.id)}
-          onReveal={() => void reveal.reveal([user.id], { includeRealm: true })}
-          revealedEmail={revealed?.realmEmail}
-        />
 
         <CompanyUserRoleField
           disabled={isPending}
