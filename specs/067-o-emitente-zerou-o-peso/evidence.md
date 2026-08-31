@@ -88,8 +88,11 @@ estima, o gate bloqueia sem peso e passa com estimativa.
 limpo, e a migration registrada em `test/database-migration/static-migration.contract.ts` (a lista
 é explícita; sem isso o contrato reprova).
 
-⚠️ **`make migration-test` não rodou**: o Docker não estava de pé nesta máquina. É a única evidência
-desta fase que ficou pendente, e ela precisa rodar antes do merge.
+`make migration-test` **exit=0** a partir deste worktree — `runDatabaseMigrations` aplica a
+migration nova contra Postgres descartável e as asserções de constraint passam: 90 pass, 0 fail.
+
+⚠️ A primeira execução deste alvo rodou por engano na árvore principal, que não tem esta migration,
+e o verde dela não valia nada. Vale a segunda.
 
 ⚠️ **Deriva encontrada, não causada por esta spec:** as migrations `20260831180000` e
 `20260831190000` foram escritas à mão e os `snapshot.json` delas nunca foram atualizados — não
@@ -131,5 +134,4 @@ ADR-0052 escrita, `CLAUDE.md` atualizado com as duas metades da regra.
 
 ## Pendências
 
-- `make migration-test` com Docker de pé (T102).
-- Marca de peso estimado por nota, quando alguma tela passar a mostrar peso.
+- Marca de peso estimado por nota, quando alguma tela passar a mostrar peso (ADR-0052).
