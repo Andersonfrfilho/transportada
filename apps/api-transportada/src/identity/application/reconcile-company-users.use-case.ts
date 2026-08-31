@@ -3,11 +3,13 @@
  */
 import { maskIdentityEmail, maskIdentityTaxId } from '../domain/company-user.policy.js'
 import {
+  diffRealmOwnedFields,
   reconcileIdentities,
   RECONCILIATION_STATUS,
   RECONCILIATION_VIEW_STATUS,
   type ReconciliationEntry,
   type ReconciliationMatch,
+  type RealmOwnedField,
   type ReconciliationViewStatus,
 } from '../domain/user-reconciliation.policy.js'
 import type { IdentityAccessGatewayPort } from '../infrastructure/keycloak-admin.gateway.js'
@@ -31,6 +33,11 @@ export type ReconcileCompanyUsersInput = {
 export { RECONCILIATION_VIEW_STATUS, type ReconciliationViewStatus }
 
 export type ReconciliationEntryView = {
+  /**
+   * Os campos que o provedor manda e que estão diferentes aqui. Lista vazia é igualdade; ela só é
+   * calculada para conta casada com `subject` gravado — nas demais não há par que se possa comparar.
+   */
+  readonly differences: readonly RealmOwnedField[]
   readonly local?: {
     /** O que o convite gravou: é onde o e-mail mora na maioria das contas. */
     readonly contact: string
@@ -76,6 +83,7 @@ export function createReconcileCompanyUsersUseCase({
       return {
         hasMoreRealmUsers: realm.hasMore,
         items: entries.map((entry) => ({
+          differences: resolveDifferences(entry),
           matchedBy: entry.matchedBy,
           status: resolveViewStatus(entry),
           ...(entry.local === undefined
@@ -123,6 +131,18 @@ function resolveViewStatus(entry: ReconciliationEntry): ReconciliationViewStatus
   return entry.local.hasProfile
     ? RECONCILIATION_STATUS.LINKED
     : RECONCILIATION_VIEW_STATUS.PROFILE_MISSING
+}
+
+/**
+ * Só conta casada **com `subject` gravado** tem par que se possa comparar campo a campo. Casamento
+ * por e-mail ou documento é palpite do algoritmo: apontar divergência ali seria acusar diferença
+ * entre duas contas que ninguém confirmou serem a mesma pessoa.
+ */
+function resolveDifferences(entry: ReconciliationEntry): readonly RealmOwnedField[] {
+  if (entry.local === undefined || entry.realm === undefined) return []
+  if (entry.local.subject === undefined) return []
+
+  return diffRealmOwnedFields({ local: entry.local, realm: entry.realm })
 }
 
 /**

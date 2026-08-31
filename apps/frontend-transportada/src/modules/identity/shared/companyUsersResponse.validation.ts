@@ -9,6 +9,8 @@ import type {
   IdentitySyncOutcome,
   InvitedCompanyUser,
   ProfileFillOutcome,
+  RealmAdoptionOutcome,
+  RealmOwnedField,
   ReconciliationEntry,
   ReconciliationMatch,
   ReconciliationStatus,
@@ -149,6 +151,10 @@ function toReconciliationEntry(value: unknown): ReconciliationEntry {
   const realm = isRecord(value.realm) ? value.realm : undefined
 
   return {
+    /** Ausente é lista vazia: resposta de API antiga não pode virar erro de formato. */
+    differences: Array.isArray(value.differences)
+      ? value.differences.map(readText).map(toRealmOwnedField)
+      : [],
     matchedBy: toReconciliationMatch(value.matchedBy),
     status: toReconciliationStatus(value.status),
     ...(local === undefined
@@ -195,6 +201,29 @@ export function toCompanyUsersReconciliation(value: unknown): CompanyUsersReconc
  * O resultado do conserto. Corpo ausente não é falha: a rota antiga respondia sem ele, e um erro
  * de formato aqui esconderia um preenchimento que de fato aconteceu.
  */
+export function toRealmAdoptionOutcome(value: unknown): RealmAdoptionOutcome {
+  const data = isRecord(value) && isRecord(value.data) ? value.data : {}
+  return {
+    adopted: Array.isArray(data.adopted) ? data.adopted.map(toAdoptedEntry) : [],
+    skipped: Array.isArray(data.skipped) ? data.skipped.map(toSkippedProfile) : [],
+  }
+}
+
+function toAdoptedEntry(
+  value: unknown,
+): Readonly<{ fields: readonly RealmOwnedField[]; userId: string }> {
+  if (!isRecord(value)) invalid()
+  return {
+    fields: Array.isArray(value.fields) ? value.fields.map(readText).map(toRealmOwnedField) : [],
+    userId: readText(value.userId),
+  }
+}
+
+/** Campo que a API ainda não fala vira `email`: perder a linha esconderia uma adoção que ocorreu. */
+function toRealmOwnedField(value: string): RealmOwnedField {
+  return value === 'taxId' || value === 'username' ? value : 'email'
+}
+
 export function toProfileFillOutcome(value: unknown): ProfileFillOutcome {
   const data = isRecord(value) && isRecord(value.data) ? value.data : {}
   return {

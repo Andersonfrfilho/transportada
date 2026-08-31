@@ -203,7 +203,8 @@
         "linked": "Sincronizado",
         "missing-in-realm": "Só aqui",
         "missing-locally": "Só no Keycloak",
-        "profile-missing": "Sem ficha"
+        "profile-missing": "Sem ficha",
+        "out-of-sync": "Divergente: {{fields}}"
       },
       "match": {
         "subject": "Vínculo",
@@ -229,15 +230,28 @@
         "created_one": "1 acesso criado.",
         "created_other": "{{count}} acessos criados.",
         "skipped_one": "1 pulado — {{reasons}}.",
-        "skipped_other": "{{count}} pulados — {{reasons}}."
+        "skipped_other": "{{count}} pulados — {{reasons}}.",
+        "adopted_one": "1 cadastro atualizado pelo provedor.",
+        "adopted_other": "{{count}} cadastros atualizados pelo provedor."
       },
       "skipReason": {
         "profile-exists": "a ficha já existia",
         "not-found": "sem conta correspondente no provedor",
         "realm-contact-missing": "a conta do provedor está sem e-mail",
         "already-linked": "já estava vinculado",
-        "service-account": "é conta de serviço, não de pessoa"
-      }
+        "service-account": "é conta de serviço, não de pessoa",
+        "already-equal": "já estava igual"
+      },
+      "outOfSyncCount_one": "1 acesso existe nos dois lados com dado diferente.",
+      "outOfSyncCount_other": "{{count}} acessos existem nos dois lados com dado diferente.",
+      "field": {
+        "email": "e-mail",
+        "taxId": "documento",
+        "username": "login"
+      },
+      "adopt": "Trazer do provedor",
+      "adoptAll_one": "Trazer 1 cadastro do provedor",
+      "adoptAll_other": "Trazer {{count}} cadastros do provedor"
     },
     "noProfile": "Cadastro incompleto",
     "reveal": {

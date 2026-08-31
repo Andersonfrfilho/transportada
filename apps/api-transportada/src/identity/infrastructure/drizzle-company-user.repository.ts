@@ -231,6 +231,7 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
         subject: externalIdentities.subject,
         taxId: identityUserProfiles.taxId,
         userId: userCompanyMemberships.userId,
+        username: identityUserProfiles.username,
       })
       .from(userCompanyMemberships)
       .leftJoin(
@@ -251,6 +252,8 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
       name: row.name ?? '',
       taxId: row.taxId ?? '',
       userId: row.userId,
+      /** O login daqui. Sem ele a comparação não enxerga o campo que o provedor mais altera. */
+      username: row.username ?? '',
       ...(row.subject === null ? {} : { subject: row.subject }),
     }))
   }

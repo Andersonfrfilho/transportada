@@ -51,6 +51,7 @@ export type LocalIdentityRecord = {
   readonly subject?: string
   readonly taxId: string
   readonly userId: string
+  readonly username: string
 }
 
 export type RealmIdentityRecord = {
@@ -127,4 +128,42 @@ export function reconcileIdentities({
       ...(realmRecord === undefined ? {} : { realm: realmRecord }),
     }
   })
+}
+
+/** Os campos que o provedor manda: quem os altera lá é a fonte, e aqui é espelho. */
+export const REALM_OWNED_FIELD = {
+  EMAIL: 'email',
+  TAX_ID: 'taxId',
+  USERNAME: 'username',
+} as const
+export type RealmOwnedField = (typeof REALM_OWNED_FIELD)[keyof typeof REALM_OWNED_FIELD]
+
+/**
+ * O que está diferente entre os dois lados de uma conta **já casada**.
+ *
+ * O estado de casamento responde "é a mesma pessoa?", e para esta conta a resposta é sim nos dois
+ * lados — por isso ela aparecia como "Sincronizado" mesmo depois de alguém editar o e-mail no
+ * Keycloak. Existência e igualdade são perguntas diferentes, e a tela só fazia a primeira.
+ *
+ * Campo vazio no provedor **não** conta como diferença: conta criada pelo botão de sincronizar
+ * nasce sem e-mail, e chamar isso de divergência ofereceria um conserto que apagaria o que temos.
+ */
+export function diffRealmOwnedFields(input: {
+  readonly local: LocalIdentityRecord
+  readonly realm: RealmIdentityRecord
+}): readonly RealmOwnedField[] {
+  const differences: RealmOwnedField[] = []
+
+  if (input.realm.username !== '' && input.realm.username !== input.local.username) {
+    differences.push(REALM_OWNED_FIELD.USERNAME)
+  }
+  /** O e-mail do provedor casa com **qualquer** endereço nosso: ter dois não é divergir. */
+  if (input.realm.email !== '' && !localEmailsOf(input.local).includes(input.realm.email)) {
+    differences.push(REALM_OWNED_FIELD.EMAIL)
+  }
+  if (input.realm.taxId !== '' && input.realm.taxId !== input.local.taxId) {
+    differences.push(REALM_OWNED_FIELD.TAX_ID)
+  }
+
+  return differences
 }

@@ -64,7 +64,16 @@ export type ReconciliationStatus =
   | 'profile-missing'
 export type ReconciliationMatch = 'email' | 'none' | 'subject' | 'document'
 
+/** Os campos que o provedor manda. Divergir neles é o que a comparação passou a enxergar. */
+export type RealmOwnedField = 'email' | 'taxId' | 'username'
+
 export type ReconciliationEntry = Readonly<{
+  /**
+   * O que está diferente entre os dois lados de uma conta já casada. Vazio é igualdade — e antes
+   * disso a tela dizia "Sincronizado" para quem tinha o e-mail trocado no Keycloak, porque o estado
+   * responde se a pessoa existe nos dois lados, não se os campos batem.
+   */
+  differences: readonly RealmOwnedField[]
   local?: Readonly<{
     contact: string
     email: string
@@ -176,6 +185,11 @@ export type UpdateCompanyUserProfileInput = Readonly<{
  */
 export type ProfileFillOutcome = Readonly<{
   filled: readonly string[]
+  skipped: readonly Readonly<{ reason: string; userId: string }>[]
+}>
+
+export type RealmAdoptionOutcome = Readonly<{
+  adopted: readonly Readonly<{ fields: readonly RealmOwnedField[]; userId: string }>[]
   skipped: readonly Readonly<{ reason: string; userId: string }>[]
 }>
 

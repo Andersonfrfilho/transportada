@@ -42,6 +42,7 @@ import type { AssignCompanyUserRolesInput } from '../application/assign-company-
 import type { ReconcileCompanyUsersUseCase } from '../application/reconcile-company-users.use-case.js'
 import type { AssignCompanyUserRolesUseCase } from '../application/assign-company-user-roles.use-case.js'
 import type { RevealCompanyUsersUseCase } from '../application/reveal-company-users.use-case.js'
+import type { AdoptRealmFieldsUseCase } from '../application/adopt-realm-fields.use-case.js'
 import type { FillProfilesFromRealmUseCase } from '../application/fill-profiles-from-realm.use-case.js'
 import type { SynchronizeIdentitiesUseCase } from '../application/synchronize-identities.use-case.js'
 import type { SetCompanyUserPasswordUseCase } from '../application/set-company-user-password.use-case.js'
@@ -54,6 +55,7 @@ import {
   parseAssignCompanyUserRolesRequest,
   parseRevealCompanyUsersRequest,
   parseSynchronizeIdentitiesRequest,
+  parseAdoptRealmFieldsRequest,
   parseFillProfilesFromRealmRequest,
   parseSetCompanyUserPasswordRequest,
   parseUpdateCompanyUserProfileRequest,
@@ -70,6 +72,8 @@ const REVEAL_PATH = `${API_COMPANY_USERS_PATH}/reveal`
 const RECONCILIATION_SYNC_PATH = `${API_COMPANY_USERS_PATH}/reconciliation/sync`
 /** Irmão do `sync`, e não `/:id/profile`: o alvo é o lote que a tela acabou de mostrar divergente. */
 const RECONCILIATION_PROFILES_PATH = `${API_COMPANY_USERS_PATH}/reconciliation/profiles`
+/** Irmão dos outros dois: o alvo é o lote que a tela mostrou divergente campo a campo. */
+const RECONCILIATION_ADOPT_PATH = `${API_COMPANY_USERS_PATH}/reconciliation/adopt`
 const BULK_ROLES_PATH = `${API_COMPANY_USERS_PATH}/roles`
 const ROLE_PERMISSIONS_PATH = `${API_COMPANY_USERS_PATH}/role-permissions`
 const USER_PATH = `${API_COMPANY_USERS_PATH}/:id`
@@ -96,6 +100,7 @@ type Dependencies = {
   readonly assignRoles: AssignCompanyUserRolesUseCase
   readonly rolePermissions: ListRolePermissionsUseCase
   readonly reveal: RevealCompanyUsersUseCase
+  readonly adoptRealmFields: AdoptRealmFieldsUseCase
   readonly fillProfiles: FillProfilesFromRealmUseCase
   readonly synchronize: SynchronizeIdentitiesUseCase
   readonly removeMembership: RemoveCompanyUserMembershipUseCase
@@ -180,6 +185,29 @@ export function createUserAdministrationRoutes(
         }
       },
       pathname: RECONCILIATION_PROFILES_PATH,
+      policy: USERS_MANAGE_POLICY,
+    }),
+    /**
+     * O caminho de volta do provedor para cá. O painel escreve lá a cada edição, e quem editava no
+     * console do Keycloak deixava os dois lados discordando sem nada na tela dizendo isso.
+     */
+    defineRoute<{ readonly correlationId: string; readonly userIds: readonly string[] }>({
+      async handle({ context, input }) {
+        const result = await dependencies.adoptRealmFields.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({ body: { data: result }, status: 200 })
+      },
+      method: 'POST',
+      async parse({ request }) {
+        const body = await parseAdoptRealmFieldsRequest(request)
+        return {
+          correlationId: readCorrelationId(request) ?? crypto.randomUUID(),
+          userIds: body.userIds,
+        }
+      },
+      pathname: RECONCILIATION_ADOPT_PATH,
       policy: USERS_MANAGE_POLICY,
     }),
     /**

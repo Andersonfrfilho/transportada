@@ -27,6 +27,7 @@ function localOf(overrides: Partial<LocalIdentityRecord> = {}): LocalIdentityRec
     name: 'Ana Fiscal',
     taxId: '12345678909',
     userId: 'user-1',
+    username: 'ana.fiscal',
     ...overrides,
   }
 }

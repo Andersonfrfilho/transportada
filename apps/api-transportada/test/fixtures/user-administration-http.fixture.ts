@@ -29,6 +29,7 @@ type RouteDependencies = {
   readonly rolePermissions: { execute(): typeof ROLE_PERMISSIONS_MATRIX }
   readonly reveal: { execute(input: ExecuteCall): Promise<typeof REVEALED_USERS> }
   readonly synchronize: { execute(input: ExecuteCall): Promise<typeof SYNC_RESULT> }
+  readonly adoptRealmFields: { execute(input: ExecuteCall): Promise<typeof ADOPT_RESULT> }
   readonly fillProfiles: { execute(input: ExecuteCall): Promise<typeof PROFILE_FILL_RESULT> }
   readonly removeMembership: { execute(input: ExecuteCall): Promise<void> }
   readonly replaceRoles: { execute(input: ExecuteCall): Promise<typeof COMPANY_USER> }
@@ -107,6 +108,11 @@ export const PROFILE_FILL_RESULT = {
   skipped: [{ reason: 'profile-exists', userId: 'user-com-perfil' }],
 }
 
+export const ADOPT_RESULT = {
+  adopted: [{ fields: ['email'], userId: COMPANY_USER.id }],
+  skipped: [{ reason: 'already-equal', userId: 'user-igual' }],
+}
+
 export const ROLE_PERMISSIONS_MATRIX = {
   permissions: ['users.manage', 'users.reveal'],
   roles: [{ permissions: ['users.manage'], role: 'company-admin' }],
@@ -139,6 +145,7 @@ export const RECONCILIATION_RESULT = {
         taxId: '***09',
         userId: COMPANY_USER.id,
       },
+      differences: [],
       matchedBy: 'subject',
       status: 'linked',
     },
@@ -194,6 +201,7 @@ export async function createUserAdministrationHttpFixture(
   readonly assignRolesCalls: ExecuteCall[]
   readonly revealCalls: ExecuteCall[]
   readonly synchronizeCalls: ExecuteCall[]
+  readonly adoptCalls: ExecuteCall[]
   readonly fillProfilesCalls: ExecuteCall[]
   readonly removeMembershipCalls: ExecuteCall[]
   readonly replaceRolesCalls: ExecuteCall[]
@@ -209,6 +217,7 @@ export async function createUserAdministrationHttpFixture(
   const revealCalls: ExecuteCall[] = []
   const assignRolesCalls: ExecuteCall[] = []
   const synchronizeCalls: ExecuteCall[] = []
+  const adoptCalls: ExecuteCall[] = []
   const fillProfilesCalls: ExecuteCall[] = []
   const removeMembershipCalls: ExecuteCall[] = []
   const replaceRolesCalls: ExecuteCall[] = []
@@ -252,6 +261,13 @@ export async function createUserAdministrationHttpFixture(
       async execute(input) {
         synchronizeCalls.push(structuredClone(input))
         return SYNC_RESULT
+      },
+    },
+    adoptRealmFields: {
+      async execute(input) {
+        adoptCalls.push(structuredClone(input))
+        if (params.refusal) return refuse()
+        return ADOPT_RESULT
       },
     },
     fillProfiles: {
@@ -335,6 +351,7 @@ export async function createUserAdministrationHttpFixture(
     removeMembershipCalls,
     assignRolesCalls,
     revealCalls,
+    adoptCalls,
     fillProfilesCalls,
     synchronizeCalls,
     replaceRolesCalls,

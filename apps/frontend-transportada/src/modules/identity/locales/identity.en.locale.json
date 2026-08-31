@@ -203,7 +203,8 @@
         "linked": "In sync",
         "missing-in-realm": "Here only",
         "missing-locally": "Keycloak only",
-        "profile-missing": "Profile missing"
+        "profile-missing": "Profile missing",
+        "out-of-sync": "Diverged: {{fields}}"
       },
       "match": {
         "subject": "Link",
@@ -229,15 +230,28 @@
         "created_one": "1 access created.",
         "created_other": "{{count}} accesses created.",
         "skipped_one": "1 skipped — {{reasons}}.",
-        "skipped_other": "{{count}} skipped — {{reasons}}."
+        "skipped_other": "{{count}} skipped — {{reasons}}.",
+        "adopted_one": "1 record updated from the provider.",
+        "adopted_other": "{{count}} records updated from the provider."
       },
       "skipReason": {
         "profile-exists": "the profile already existed",
         "not-found": "no matching provider account",
         "realm-contact-missing": "the provider account has no email",
         "already-linked": "already linked",
-        "service-account": "it is a service account, not a person"
-      }
+        "service-account": "it is a service account, not a person",
+        "already-equal": "was already equal"
+      },
+      "outOfSyncCount_one": "1 access exists on both sides with different data.",
+      "outOfSyncCount_other": "{{count}} accesses exist on both sides with different data.",
+      "field": {
+        "email": "email",
+        "taxId": "document",
+        "username": "username"
+      },
+      "adopt": "Pull from provider",
+      "adoptAll_one": "Pull 1 record from the provider",
+      "adoptAll_other": "Pull {{count}} records from the provider"
     },
     "noProfile": "Incomplete profile",
     "reveal": {

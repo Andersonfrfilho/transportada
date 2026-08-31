@@ -221,6 +221,13 @@ export async function parseSynchronizeIdentitiesRequest(
   return parseBody(synchronizeIdentitiesSchema, request)
 }
 
+export async function parseAdoptRealmFieldsRequest(
+  request: Request,
+): Promise<FillProfilesFromRealmBody> {
+  /** Mesmo corpo do preenchimento: um lote de alvos explícitos, e nada mais. */
+  return parseBody(fillProfilesFromRealmSchema, request)
+}
+
 export async function parseFillProfilesFromRealmRequest(
   request: Request,
 ): Promise<FillProfilesFromRealmBody> {

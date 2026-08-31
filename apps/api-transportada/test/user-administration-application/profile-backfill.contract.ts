@@ -35,6 +35,7 @@ function localOf(overrides: Partial<LocalIdentityRecord> = {}): LocalIdentityRec
     subject: SUBJECT,
     taxId: '',
     userId: USER_ID,
+    username: 'ana.fiscal',
     ...overrides,
   }
 }
@@ -92,6 +93,7 @@ describe('o quarto estado: existe dos dois lados, sem perfil', () => {
       contactChannel: 'email',
       email: '',
       hasProfile: false,
+      username: 'ana.fiscal',
       membershipId: 'membership-1',
       name: '',
       taxId: '',

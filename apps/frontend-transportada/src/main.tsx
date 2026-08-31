@@ -38,6 +38,7 @@ import { PasswordResetPage } from '@/modules/identity/pages/PasswordReset.page'
 import { AccessProfilesPage } from './modules/identity/pages/AccessProfiles.page'
 import { UserAdministrationPage } from '@/modules/identity/pages/UserAdministration.page'
 import { useAuthMeQuery, type FiscalEnvironment } from '@/modules/identity/queries/useAuthMe.query'
+import { useCompanyUserPicture } from '@/modules/identity/hooks/useCompanyUserPicture.hook'
 import {
   getKeycloakAuthProvider,
   initializeKeycloakAuth,
@@ -395,6 +396,16 @@ function ApplicationShell(): ReactNode {
     setOpenGroups((current) => ({ ...current, [key]: !current[key] }))
   }
   const userProfile = getKeycloakAuthProvider().getProfile()
+  /**
+   * A foto do cabeçalho vinha do claim `picture` do token, e nunca aparecia por duas razões
+   * independentes: o claim aponta para a rota autenticada da foto, e `<img src>` não manda o
+   * `Authorization`; e o claim só entra num token novo, então a foto enviada agora só surgiria no
+   * próximo login. Buscar os bytes pela API é o mesmo caminho que os diálogos já usam, e ele
+   * atualiza assim que o envio termina.
+   */
+  const headerPicture = useCompanyUserPicture({
+    userId: authMeQuery.data?.data.identity.userId,
+  })
   const fiscalEnvironment = authMeQuery.data?.data.company.fiscalEnvironment ?? null
 
   return (
@@ -532,8 +543,8 @@ function ApplicationShell(): ReactNode {
                   }
                 />
                 <span className="application-user-avatar" aria-hidden="true">
-                  {userProfile.pictureUrl !== undefined ? (
-                    <img className="application-user-photo" src={userProfile.pictureUrl} alt="" />
+                  {headerPicture.objectUrl !== null ? (
+                    <img className="application-user-photo" src={headerPicture.objectUrl} alt="" />
                   ) : (
                     userProfile.initials
                   )}

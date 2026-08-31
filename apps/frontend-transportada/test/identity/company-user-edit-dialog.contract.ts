@@ -7,7 +7,9 @@ import { COMPANY_USER_PASSWORD_MIN_LENGTH } from '../../src/modules/identity/sha
 import { createCompanyUsersClient } from '../../src/modules/identity/shared/companyUsersClient.service'
 import {
   toIdentitySyncOutcome,
+  toCompanyUsersReconciliation,
   toProfileFillOutcome,
+  toRealmAdoptionOutcome,
   toRevealedCompanyUsers,
 } from '../../src/modules/identity/shared/companyUsersResponse.validation'
 import type { ReconciliationEntry } from '../../src/modules/identity/shared/companyUsers.types'
@@ -20,6 +22,7 @@ const USER_ID = '018f6a45-2d9d-7e60-bb42-5b1a4c4d3e93'
 
 function entryOf(status: ReconciliationEntry['status'], suffix: string): ReconciliationEntry {
   return {
+    differences: [],
     local: {
       contact: 'a***@e***.test',
       email: '',
@@ -422,5 +425,85 @@ describe('o e-mail do provedor tem olho próprio', () => {
 
     expect(source).toContain('revealedEmail ?? email')
     expect(source).toContain('!canReveal')
+  })
+})
+
+/**
+ * O painel escreve no provedor a cada edição, e o provedor nunca escrevia aqui: quem alterasse o
+ * login ou o e-mail no console do Keycloak deixava os dois lados discordando — e a comparação ainda
+ * dizia "Sincronizado", porque o estado responde se a pessoa existe nos dois lados, não se os
+ * campos batem.
+ */
+describe('a divergência de campo chega à tela', () => {
+  test('as diferenças atravessam a validação da resposta', () => {
+    const result = toCompanyUsersReconciliation({
+      data: {
+        hasMoreRealmUsers: false,
+        items: [
+          {
+            differences: ['username', 'email'],
+            local: { contact: 'a***@e***.test', userId: 'user-1' },
+            matchedBy: 'subject',
+            realm: { email: 'a***@e***.test', enabled: true, subject: 'sub-1', username: 'ana' },
+            status: 'linked',
+          },
+        ],
+      },
+    })
+
+    expect(result.items[0]?.differences).toEqual(['username', 'email'])
+  })
+
+  /** Resposta de API antiga não pode virar erro de formato: sem o campo, não há divergência. */
+  test('resposta sem o campo devolve lista vazia', () => {
+    const result = toCompanyUsersReconciliation({
+      data: {
+        hasMoreRealmUsers: false,
+        items: [{ matchedBy: 'subject', status: 'linked' }],
+      },
+    })
+
+    expect(result.items[0]?.differences).toEqual([])
+  })
+
+  test('o resultado de trazer do provedor diz o que mudou e o que pulou', () => {
+    const outcome = toRealmAdoptionOutcome({
+      data: {
+        adopted: [{ fields: ['email'], userId: 'user-1' }],
+        skipped: [{ reason: 'already-equal', userId: 'user-2' }],
+      },
+    })
+
+    expect(outcome.adopted[0]).toEqual({ fields: ['email'], userId: 'user-1' })
+    expect(outcome.skipped[0]?.reason).toBe('already-equal')
+  })
+
+  test('o painel oferece o conserto na linha divergente', () => {
+    const source = readFileSync(
+      'src/modules/identity/components/CompanyUserReconciliationPanel.component.tsx',
+      'utf8',
+    )
+
+    expect(source).toContain('entry.differences.length > 0')
+    expect(source).toContain('onAdoptRealmFields')
+    expect(source).toContain('users.sync.status.out-of-sync')
+  })
+})
+
+/**
+ * A foto do cabeçalho vinha do claim `picture` do token e nunca aparecia: o claim aponta para a rota
+ * autenticada da foto, e `<img src>` não manda o `Authorization` — e um claim só entra em token
+ * novo, então a foto enviada agora só surgiria no próximo login.
+ */
+describe('a foto do cabeçalho vem da API, não do token', () => {
+  const source = readFileSync('src/main.tsx', 'utf8')
+
+  test('o cabeçalho busca a foto pela mesma via dos diálogos', () => {
+    expect(source).toContain('useCompanyUserPicture')
+    expect(source).toContain('headerPicture.objectUrl')
+  })
+
+  test('o claim do token deixa de ser a fonte da imagem', () => {
+    expect(source).not.toContain('src={userProfile.pictureUrl}')
   })
 })

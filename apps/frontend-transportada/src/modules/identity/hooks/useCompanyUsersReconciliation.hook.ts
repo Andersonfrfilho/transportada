@@ -65,5 +65,14 @@ export function useCompanyUsersReconciliation(
     },
   })
 
-  return Object.assign(query, { fillProfilesMutation, synchronizeMutation })
+  /** Trazer do provedor relê os dois lados: a linha divergente precisa sumir da comparação. */
+  const adoptMutation = useMutation({
+    mutationFn: (userIds: readonly string[]) => client.adoptRealmFields({ userIds }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [COMPANY_USERS_RECONCILIATION_QUERY_KEY] })
+      void queryClient.invalidateQueries({ queryKey: [COMPANY_USERS_ADMINISTRATION_QUERY_KEY] })
+    },
+  })
+
+  return Object.assign(query, { adoptMutation, fillProfilesMutation, synchronizeMutation })
 }

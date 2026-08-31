@@ -17,6 +17,7 @@ import type {
   IdentitySyncOutcome,
   InviteCompanyUserInput,
   ProfileFillOutcome,
+  RealmAdoptionOutcome,
   SetCompanyUserPasswordInput,
   InvitedCompanyUser,
   ReplaceCompanyUserRolesInput,
@@ -34,6 +35,7 @@ import {
   toIdentitySyncOutcome,
   toInvitedCompanyUser,
   toProfileFillOutcome,
+  toRealmAdoptionOutcome,
   toAssignedCompanyUserRoles,
   toCompanyGroupResponse,
   toCompanyGroups,
@@ -74,6 +76,10 @@ export type CompanyUsersClient = Readonly<{
   readPicture: (input: Readonly<{ userId: string }>) => Promise<Blob | null>
   removePicture: (input: Readonly<{ userId: string }>) => Promise<void>
   replacePicture: (input: Readonly<{ file: Blob; userId: string }>) => Promise<void>
+  /** O caminho de volta: traz para cá login, e-mail e documento como o provedor os guarda. */
+  adoptRealmFields: (
+    input: Readonly<{ userIds: readonly string[] }>,
+  ) => Promise<RealmAdoptionOutcome>
   /** O conserto do quarto estado: copia nome e contato da conta que já existe no provedor. */
   fillProfilesFromRealm: (
     input: Readonly<{ userIds: readonly string[] }>,
@@ -373,6 +379,15 @@ export function createCompanyUsersClient(dependencies: ClientDependencies): Comp
         userId: input.userId,
       })
       if (!response.ok) throw requestError(await readPictureErrorCode(response))
+    },
+    async adoptRealmFields(input) {
+      const { payload } = await authorizedRequest({
+        body: JSON.stringify({ userIds: input.userIds }),
+        dependencies,
+        method: 'POST',
+        path: `${COMPANY_USERS_PATH}/reconciliation/adopt`,
+      })
+      return toRealmAdoptionOutcome(payload)
     },
     async fillProfilesFromRealm(input) {
       const { payload } = await authorizedRequest({

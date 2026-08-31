@@ -54,7 +54,10 @@ export function UserAdministrationPage() {
       <CompanyUserReconciliationPanel
         entries={screen.reconciliation.data?.items ?? []}
         {...withErrorCode(readErrorCode(screen.reconciliation.error))}
+        adoptOutcome={screen.reconciliation.adoptMutation.data}
         fillOutcome={screen.reconciliation.fillProfilesMutation.data}
+        isAdopting={screen.reconciliation.adoptMutation.isPending}
+        onAdoptRealmFields={(userIds) => screen.reconciliation.adoptMutation.mutate(userIds)}
         syncOutcome={screen.reconciliation.synchronizeMutation.data}
         hasMoreRealmUsers={screen.reconciliation.data?.hasMoreRealmUsers ?? false}
         isLoading={screen.reconciliation.isLoading}
