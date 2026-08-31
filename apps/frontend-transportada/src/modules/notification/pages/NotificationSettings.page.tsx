@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 
 import {
+  NOTIFICATION_PREVIEW_PAYLOAD,
   NOTIFICATION_WORKSPACE_HREF,
   buildNotificationSettingsOptions,
 } from '../shared/notificationCatalog.constant'
@@ -34,6 +35,7 @@ export function NotificationSettingsPage(): ReactNode {
       <NotificationSettingsWorkspace
         categories={categories}
         channels={channels}
+        previewPayload={NOTIFICATION_PREVIEW_PAYLOAD}
         renderHeader={renderHeader}
       />
     </main>

@@ -7,6 +7,23 @@ const PACKAGE_STYLESHEET_PATH = 'node_modules/@adatechnology/notification-ui/dis
 const HEX_COLOR_PATTERN = /#[0-9a-f]{3,8}\b/i
 const PIXEL_PATTERN = /\b\d+(?:\.\d+)?px\b/
 
+/**
+ * O preview desenha o **aparelho de quem recebe** — tela de bloqueio do iPhone, bolha azul do SMS,
+ * conversa verde do WhatsApp, ícone do Gmail. Essas cores são do aparelho retratado, e por isso são
+ * as únicas literais permitidas: amarrá-las ao nosso tema faria o preview mentir sobre como a
+ * mensagem chega, que é exatamente o que ele existe para mostrar.
+ *
+ * A exceção é por prefixo, e não por valor: cor literal fora de `--adn-preview-*` continua reprovando.
+ */
+const DEVICE_PREVIEW_PREFIX = '--adn-preview-'
+
+function withoutDevicePreview(theme: string): string {
+  return theme
+    .split('\n')
+    .filter((line) => !line.includes(DEVICE_PREVIEW_PREFIX))
+    .join('\n')
+}
+
 function readApplicationFile(filePath: string): Promise<string> {
   return Bun.file(new URL(filePath, APPLICATION_ROOT)).text()
 }
@@ -42,14 +59,27 @@ describe('tema do módulo de notificações', () => {
   // O valor de cada uma vem do nosso token, nunca de literal: é isto que faz o módulo de terceiro
   // acompanhar uma mudança de cor ou de escala sem ninguém lembrar dele.
   test('não declara cor nem medida literal', async () => {
-    const theme = await readApplicationFile(THEME_STYLESHEET_PATH)
+    const theme = withoutDevicePreview(await readApplicationFile(THEME_STYLESHEET_PATH))
 
     expect(HEX_COLOR_PATTERN.test(theme)).toBe(false)
     expect(PIXEL_PATTERN.test(theme)).toBe(false)
   })
 
-  test('todo valor de `--adn-` referencia um token nosso', async () => {
+  /** A exceção não pode virar porta dos fundos: fora do preview, literal continua reprovando. */
+  test('a exceção alcança só o aparelho retratado', async () => {
     const theme = await readApplicationFile(THEME_STYLESHEET_PATH)
+    const literals = [...theme.matchAll(/(--adn-[a-z0-9-]+):\s*(#[0-9a-f]{3,8})\b/gi)]
+
+    expect(literals.length).toBeGreaterThan(0)
+    for (const [, variable] of literals) {
+      expect(
+        `${variable} é do preview: ${(variable ?? '').startsWith(DEVICE_PREVIEW_PREFIX)}`,
+      ).toBe(`${variable} é do preview: true`)
+    }
+  })
+
+  test('todo valor de `--adn-` referencia um token nosso', async () => {
+    const theme = withoutDevicePreview(await readApplicationFile(THEME_STYLESHEET_PATH))
     const declarations = [...theme.matchAll(/(--adn-[a-z0-9-]+):\s*([^;]+);/g)]
 
     expect(declarations.length).toBeGreaterThan(0)

@@ -50,8 +50,17 @@ export function buildNotificationTemplateSeeds({
 }
 
 /**
- * O upsert é idempotente por `(key, channel, locale)`: rodar a cada subida devolve o texto do
- * catálogo, e é assim que um deploy velho de template não sobrevive à atualização do código.
+ * O catálogo é o **texto de partida**, não a fonte da verdade.
+ *
+ * Antes, todo deploy publicava a versão do código por cima: o texto ajustado no painel voltava ao
+ * original na subida seguinte, sem aviso, e quem tivesse corrigido uma frase a perderia. Com o
+ * painel de edição, isso deixa de ser proteção e vira perda de trabalho.
+ *
+ * Agora o seed só preenche o que **não existe** para aquele `(key, channel, locale)`. Template novo
+ * no catálogo continua nascendo sozinho na primeira subida; template que alguém já editou fica.
+ *
+ * ⚠️ Consequência que vale saber: texto errado publicado pelo painel **não se conserta mais por
+ * deploy**. O conserto é no painel — que é o preço de o painel existir.
  */
 export async function seedNotificationTemplates({
   companyId,
@@ -61,9 +70,22 @@ export async function seedNotificationTemplates({
   readonly module: NotificationModule
 }): Promise<number> {
   const seeds = buildNotificationTemplateSeeds({ companyId })
-  await Promise.all(seeds.map((seed) => module.useCases.upsertTemplate.execute(seed)))
+  const existing = await module.useCases.listTemplates.execute({ companyId })
+  const known = new Set(existing.map((template) => templateIdentityOf(template)))
 
-  return seeds.length
+  const missing = seeds.filter((seed) => !known.has(templateIdentityOf(seed)))
+  await Promise.all(missing.map((seed) => module.useCases.upsertTemplate.execute(seed)))
+
+  return missing.length
+}
+
+/** A chave natural do template: é por ela que o seed sabe se já existe texto para aquele aviso. */
+function templateIdentityOf(template: {
+  readonly channel: string
+  readonly key: string
+  readonly locale: string
+}): string {
+  return `${template.key}:${template.channel}:${template.locale}`
 }
 
 /**

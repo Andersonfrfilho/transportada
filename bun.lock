@@ -130,8 +130,8 @@
         "@adatechnology/document-intake": "0.1.0-rc.2",
         "@adatechnology/identity-reconciliation": "0.1.0-rc.1",
         "@adatechnology/image-cutout": "0.1.0-rc.2",
-        "@adatechnology/notification-client": "0.1.0-rc.2",
-        "@adatechnology/notification-ui": "0.1.0-rc.3",
+        "@adatechnology/notification-client": "0.1.0-rc.3",
+        "@adatechnology/notification-ui": "0.1.0-rc.9",
         "@dnd-kit/core": "^6.3.1",
         "@dnd-kit/sortable": "^10.0.0",
         "@dnd-kit/utilities": "^3.2.2",
@@ -230,13 +230,13 @@
 
     "@adatechnology/module-http": ["@adatechnology/module-http@0.1.0-rc.3", "", { "dependencies": { "zod": "^3.24.1" } }, "sha512-w1ZcbbVwGFpYbFDfyhegbpNvrxqWMTasg7QRUtpd40fRVWIz1fy3rss3RVWHEa72piHxkqs8T+L1MbaSpWQpsA=="],
 
-    "@adatechnology/notification-client": ["@adatechnology/notification-client@0.1.0-rc.2", "", { "dependencies": { "@adatechnology/notification-contracts": "0.1.0-rc.2" } }, "sha512-n9gRi15NkeXBwsZQ4/TNP7GT9TiMluyesxG3iVrnk4uW7iNFjZiQZdauK1VBxHAkFP0fLDyYBSN8xVSR4+nG3A=="],
+    "@adatechnology/notification-client": ["@adatechnology/notification-client@0.1.0-rc.3", "", { "dependencies": { "@adatechnology/notification-contracts": "0.1.0-rc.3" } }, "sha512-hCwvu+1SK5XIeBvASO6SgrfPeamP/t3RMEp5bCsumcAZ4L3lOetjDQRI6UHalzFA7UW6r+NtiYKzWsFPjrDfMw=="],
 
     "@adatechnology/notification-contracts": ["@adatechnology/notification-contracts@0.1.0-rc.2", "", { "dependencies": { "zod": "^3.24.1" } }, "sha512-MKQp3GitUggBWdCNrINZl1ui3trwwc1SqrWy00TX6Rdji3QXOG/S4sZ5iylgHWRPQq3sv3C+O4ICpsZztpNXlw=="],
 
     "@adatechnology/notification-module": ["@adatechnology/notification-module@0.1.0-rc.3", "", { "dependencies": { "@adatechnology/module-http": "0.1.0-rc.1", "@adatechnology/notification-contracts": "0.1.0-rc.2", "zod": "^3.24.1" }, "peerDependencies": { "drizzle-orm": ">=0.36.0 <2" } }, "sha512-J1RWGC1Hh6KZFUed4QCYl6/H0XrTAaZR96yjbU3xl+ebhJJ5cK2j0rXShdFWtHn9epq4GFyF1ky0xchQs1Qx/Q=="],
 
-    "@adatechnology/notification-ui": ["@adatechnology/notification-ui@0.1.0-rc.3", "", { "dependencies": { "@adatechnology/notification-client": "0.1.0-rc.2", "@adatechnology/notification-contracts": "0.1.0-rc.2", "clsx": "^2.1.1", "lucide-react": "^1.21.0" }, "peerDependencies": { "@tanstack/react-query": "^5", "react": "^18 || ^19", "react-dom": "^18 || ^19" } }, "sha512-6Bph6gwhjfIyEoezZIAoI67uDCA/qzNds1/bvpEgmMjZhx7AJlwxGlxf7wVC2aZj9Ax6q07COcrGDTXRcGIMHw=="],
+    "@adatechnology/notification-ui": ["@adatechnology/notification-ui@0.1.0-rc.9", "", { "dependencies": { "@adatechnology/notification-client": "0.1.0-rc.6", "@adatechnology/notification-contracts": "0.1.0-rc.6", "clsx": "^2.1.1", "lucide-react": "^1.21.0" }, "peerDependencies": { "@tanstack/react-query": "^5", "react": "^18 || ^19", "react-dom": "^18 || ^19" } }, "sha512-C8/Ex7HFsvBj1b0iIJ1Z6dOkMUNiXinuxOrMY6rKcFL/1QnQ8LUqEi5/OJGHYYrsluZO3/RnhqMiQlwNm1ybKA=="],
 
     "@adatechnology/object-storage-provider": ["@adatechnology/object-storage-provider@0.2.0-rc.0", "", { "dependencies": { "@aws-sdk/client-s3": "3.1091.0", "@aws-sdk/s3-request-presigner": "3.1091.0" } }, "sha512-3CDCm21SHOhL3V6BmPA/wIlELU1UQyYEJfzLL+QsBnwkfi57CwVGHg9fwSsJK+/jwYMGaregdve0RAIzqaGsTQ=="],
 
@@ -1698,11 +1698,17 @@
 
     "@adatechnology/module-http/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
+    "@adatechnology/notification-client/@adatechnology/notification-contracts": ["@adatechnology/notification-contracts@0.1.0-rc.3", "", { "dependencies": { "zod": "^3.24.1" } }, "sha512-ign38pbiRTMMpx0uKUoNOOv1x90oR+6l2PKMbj7+7b69xb46wpRR2pQBhFOuFqg83RgUee331laZ0P4n1yJjTA=="],
+
     "@adatechnology/notification-contracts/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
     "@adatechnology/notification-module/@adatechnology/module-http": ["@adatechnology/module-http@0.1.0-rc.1", "", { "dependencies": { "zod": "^3.24.1" } }, "sha512-ThCyhqC1fa/vSmfArvLs6Y0rogHLmuiMvQ+lzgIScuYiLJsVueW9RG6ZP0v8hMh+wEB6maLyVypIMl6rwzVPbw=="],
 
     "@adatechnology/notification-module/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
+
+    "@adatechnology/notification-ui/@adatechnology/notification-client": ["@adatechnology/notification-client@0.1.0-rc.6", "", { "dependencies": { "@adatechnology/notification-contracts": "0.1.0-rc.6" } }, "sha512-3YfrmmbAA5Y1JE8/zu+4kt9MaRNawBZjBBTkql3e/leIKQ3CX8Msh7ZqBZ8Cag3Tvb1w4qKGYCYFUK/iYJplqg=="],
+
+    "@adatechnology/notification-ui/@adatechnology/notification-contracts": ["@adatechnology/notification-contracts@0.1.0-rc.6", "", { "dependencies": { "zod": "^3.24.1" } }, "sha512-3f29To2AxJz09v2Jyddq3/6+Db29srqSZKd3Z/Wz3YtqEcntscBp4SnwB2fIK8AsemBZzkKbltnBFUVMB2HvpQ=="],
 
     "@adatechnology/user-contracts/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
@@ -1765,6 +1771,10 @@
     "yargs/find-up": ["find-up@4.1.0", "", { "dependencies": { "locate-path": "^5.0.0", "path-exists": "^4.0.0" } }, "sha512-PpOwAdQ/YlXQ2vj8a3h8IipDuYRi3wceVQQGYWxNINccq40Anw7BlsEXCMbt1Zt+OLA6Fq9suIpIWD0OsnISlw=="],
 
     "@adatechnology/fiscal-provider/fast-xml-parser/strnum": ["strnum@1.1.2", "", {}, "sha512-vrN+B7DBIoTTZjnPNewwhx6cBA/H+IS7rfW68n7XxC1y7uoiGQBxaKzqucGUgavX15dJgiGztLJ8vxuEzwqBdA=="],
+
+    "@adatechnology/notification-client/@adatechnology/notification-contracts/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
+
+    "@adatechnology/notification-ui/@adatechnology/notification-contracts/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
     "@apideck/better-ajv-errors/ajv/json-schema-traverse": ["json-schema-traverse@1.0.0", "", {}, "sha512-NM8/P9n3XjXhIZn1lLhkFaACTOURQXjWhV4BA/RnOv8xvgqtqpAX9IO4mRQxSx1Rlo4tqzeqb0sOlruaOy3dug=="],
 
