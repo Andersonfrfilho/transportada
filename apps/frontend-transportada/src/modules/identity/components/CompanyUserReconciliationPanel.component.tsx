@@ -242,7 +242,8 @@ function ReconciliationOutcome({
   ]
 
   return (
-    <p className={styles.feedback} role="status">
+    /* O resultado do conserto é trabalho feito, não falha — e `feedback` sozinha é vermelha. */
+    <p className={`${styles.feedback ?? ''} ${styles.noticeReady ?? ''}`} role="status">
       {fillOutcome === undefined
         ? null
         : `${t('users.sync.outcome.filled', { count: fillOutcome.filled.length })} `}

@@ -188,3 +188,45 @@ describe('o diálogo de edição monta os blocos que a operação precisa', () =
     expect(source).not.toContain('inputMode="numeric"')
   })
 })
+
+/**
+ * `.feedback` é vermelha por definição (`--color-alert`). Usá-la crua para anunciar sucesso fazia
+ * "Senha definida." sair na cor de erro, e quem leu foi procurar um defeito que não existia.
+ *
+ * A varredura é dos dois avisos de **sucesso**, não de todo `role="status"` do módulo: a ressalva
+ * de que o Keycloak tem mais contas do que a página trouxe continua vermelha de propósito — ela
+ * avisa que pode haver divergência fora da vista, e verde ali diria o contrário.
+ */
+describe('sucesso não sai na cor do erro', () => {
+  test('a senha definida e o link enviado saem no verde', () => {
+    const source = readFileSync(
+      'src/modules/identity/components/CompanyUserPasswordPanel.component.tsx',
+      'utf8',
+    )
+    const successBlock = source.slice(source.indexOf("password.status === 'idle'"))
+
+    expect(successBlock).toContain('styles.noticeReady')
+    expect(successBlock).toContain("password.status === 'saved'")
+  })
+
+  test('o resultado do conserto sai no verde', () => {
+    const source = readFileSync(
+      'src/modules/identity/components/CompanyUserReconciliationPanel.component.tsx',
+      'utf8',
+    )
+    const outcomeBlock = source.slice(source.indexOf('function ReconciliationOutcome'))
+
+    expect(outcomeBlock).toContain('styles.noticeReady')
+  })
+
+  test('o aviso de erro da senha continua vermelho, sem o modificador', () => {
+    const source = readFileSync(
+      'src/modules/identity/components/CompanyUserPasswordPanel.component.tsx',
+      'utf8',
+    )
+    const alertBlock = source.slice(0, source.indexOf('role="alert"')).slice(-220)
+
+    expect(alertBlock).toContain('styles.feedback')
+    expect(alertBlock).not.toContain('styles.noticeReady')
+  })
+})

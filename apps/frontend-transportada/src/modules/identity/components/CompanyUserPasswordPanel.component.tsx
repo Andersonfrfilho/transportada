@@ -102,7 +102,9 @@ export function CompanyUserPasswordPanel({
           {t(`users.errors.${password.errorCode}`, { defaultValue: t('users.errors.default') })}
         </p>
       ) : password.status === 'idle' ? null : (
-        <p className={styles.feedback} role="status">
+        /* Sucesso não pode sair na cor do erro: `feedback` sozinha é vermelha, e "Senha definida."
+         * em vermelho manda o operador procurar um defeito que não existe. */
+        <p className={`${styles.feedback ?? ''} ${styles.noticeReady ?? ''}`} role="status">
           {password.status === 'saved'
             ? t('users.editDialog.password.saved')
             : t('users.editDialog.password.resetSent')}
