@@ -209,11 +209,16 @@ export function createUserAdministrationRoutes(
      * `POST` porque a leitura grava auditoria e porque os ids não vão na URL — `security.md` proíbe
      * dado pessoal em query string, e a lista de quem foi revelado é o que a trilha precisa guardar.
      */
-    defineRoute<{ readonly correlationId: string; readonly userIds: readonly string[] }>({
+    defineRoute<{
+      readonly correlationId: string
+      readonly includeRealm: boolean
+      readonly userIds: readonly string[]
+    }>({
       async handle({ context, input }) {
         const users = await dependencies.reveal.execute({
           context: context.scope,
           correlationId: input.correlationId,
+          includeRealm: input.includeRealm,
           userIds: input.userIds,
         })
         return jsonResponse({ body: { data: users }, status: 200 })
@@ -223,6 +228,7 @@ export function createUserAdministrationRoutes(
         const body = await parseRevealCompanyUsersRequest(request)
         return {
           correlationId: readCorrelationId(request) ?? crypto.randomUUID(),
+          includeRealm: body.includeRealm ?? false,
           userIds: body.userIds,
         }
       },

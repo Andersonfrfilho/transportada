@@ -15,7 +15,10 @@ export type CompanyUserRevealState = {
   hide: () => void
   /** Esconder uma pessoa só. "Esconder tudo" era a única saída, e apagava o que ainda se lia. */
   hideOne: (userId: string) => void
-  reveal: (userIds: readonly string[]) => Promise<void>
+  reveal: (
+    userIds: readonly string[],
+    options?: Readonly<{ includeRealm: boolean }>,
+  ) => Promise<void>
 }
 
 /**
@@ -32,15 +35,28 @@ export function useCompanyUserReveal(
   const [errorCode, setErrorCode] = useState<string | undefined>(undefined)
   const [isPending, setPending] = useState(false)
 
-  async function reveal(userIds: readonly string[]): Promise<void> {
-    /** Pedir de novo o que já está na tela gastaria uma linha de auditoria sobre nada. */
-    const pending = userIds.filter((userId) => !revealed.has(userId))
+  async function reveal(
+    userIds: readonly string[],
+    options?: Readonly<{ includeRealm: boolean }>,
+  ): Promise<void> {
+    /**
+     * Pedir de novo o que já está na tela gastaria uma linha de auditoria sobre nada — salvo quando
+     * se pede o realm e o que está guardado veio sem ele: aí falta metade do que se quer ver.
+     */
+    const pending = userIds.filter((userId) => {
+      const current = revealed.get(userId)
+      if (current === undefined) return true
+      return options?.includeRealm === true && current.realmEmail === undefined
+    })
     if (!canReveal || pending.length === 0) return
 
     setPending(true)
     setErrorCode(undefined)
     try {
-      const users = await client.revealUsers({ userIds: pending })
+      const users = await client.revealUsers({
+        userIds: pending,
+        ...(options?.includeRealm === true ? { includeRealm: true } : {}),
+      })
       setRevealed((current) => {
         const next = new Map(current)
         for (const user of users) next.set(user.userId, user)

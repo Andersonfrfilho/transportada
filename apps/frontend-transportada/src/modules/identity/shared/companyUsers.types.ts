@@ -129,6 +129,8 @@ export type RevealedCompanyUser = Readonly<{
   phone: string
   taxId: string
   userId: string
+  /** Só vem quando pedido, e vazio quando a conta existe no provedor sem e-mail. */
+  realmEmail?: string
 }>
 
 export type InviteCompanyUserInput = Readonly<{

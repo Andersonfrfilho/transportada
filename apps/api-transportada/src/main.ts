@@ -1216,6 +1216,7 @@ function createApplicationRoutes({
     repository: companyUserRepository,
   })
   const revealCompanyUsers = createRevealCompanyUsersUseCase({
+    gateway: identityAccessGateway,
     repository: companyUserRepository,
   })
   const reconcileCompanyUsers = createReconcileCompanyUsersUseCase({

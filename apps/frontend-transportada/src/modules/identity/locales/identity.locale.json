@@ -133,7 +133,8 @@
         "enabled": "Habilitada",
         "disabled": "Desabilitada",
         "subject": "Identificador no provedor",
-        "fillHint": "A ficha daqui está vazia. O provedor tem nome e e-mail desta conta — trazê-los é uma cópia feita pelo servidor, porque o endereço aparece mascarado nesta tela."
+        "fillHint": "A ficha daqui está vazia. O provedor tem nome e e-mail desta conta — trazê-los é uma cópia feita pelo servidor, porque o endereço aparece mascarado nesta tela.",
+        "reveal": "Revelar o e-mail do provedor"
       },
       "password": {
         "title": "Senha",

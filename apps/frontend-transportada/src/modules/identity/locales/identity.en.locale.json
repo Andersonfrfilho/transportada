@@ -133,7 +133,8 @@
         "enabled": "Enabled",
         "disabled": "Disabled",
         "subject": "Provider identifier",
-        "fillHint": "The local profile is empty. The provider has this account name and email — copying them is done by the server, because the address is masked on this screen."
+        "fillHint": "The local profile is empty. The provider has this account name and email — copying them is done by the server, because the address is masked on this screen.",
+        "reveal": "Reveal the provider email"
       },
       "password": {
         "title": "Password",

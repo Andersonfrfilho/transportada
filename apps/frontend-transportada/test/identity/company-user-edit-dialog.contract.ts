@@ -8,6 +8,7 @@ import { createCompanyUsersClient } from '../../src/modules/identity/shared/comp
 import {
   toIdentitySyncOutcome,
   toProfileFillOutcome,
+  toRevealedCompanyUsers,
 } from '../../src/modules/identity/shared/companyUsersResponse.validation'
 import type { ReconciliationEntry } from '../../src/modules/identity/shared/companyUsers.types'
 import { summarizeReconciliation } from '@adatechnology/identity-reconciliation'
@@ -342,5 +343,84 @@ describe('a listagem liga o papel à ficha da frota', () => {
 
   test('dá para esconder uma linha sem esconder todas', () => {
     expect(source).toContain('reveal.hideOne(user.id)')
+  })
+})
+
+/**
+ * O e-mail do provedor chega mascarado da API, e revelá-lo custa uma leitura do realm. O olho pede
+ * essa leitura explicitamente — a listagem, que revela uma página inteira, não pede.
+ */
+describe('o e-mail do provedor tem olho próprio', () => {
+  test('o pedido do modal marca `includeRealm`', async () => {
+    const bodies: string[] = []
+    const client = createCompanyUsersClient({
+      apiUrl: API_URL,
+      fetch: async (input) => {
+        bodies.push(await (input as Request).text())
+        return new Response(JSON.stringify({ data: [] }), { status: 200 })
+      },
+      getAccessToken: () => Promise.resolve('token'),
+      newIdempotencyKey: () => 'key',
+    })
+
+    await client.revealUsers({ includeRealm: true, userIds: [USER_ID] })
+
+    expect(JSON.parse(bodies[0] ?? '{}')).toEqual({ includeRealm: true, userIds: [USER_ID] })
+  })
+
+  test('sem pedir, a chave não vai no corpo', async () => {
+    const bodies: string[] = []
+    const client = createCompanyUsersClient({
+      apiUrl: API_URL,
+      fetch: async (input) => {
+        bodies.push(await (input as Request).text())
+        return new Response(JSON.stringify({ data: [] }), { status: 200 })
+      },
+      getAccessToken: () => Promise.resolve('token'),
+      newIdempotencyKey: () => 'key',
+    })
+
+    await client.revealUsers({ userIds: [USER_ID] })
+
+    expect(JSON.parse(bodies[0] ?? '{}')).toEqual({ userIds: [USER_ID] })
+  })
+
+  test('o valor revelado atravessa a validação da resposta', () => {
+    const [revealed] = toRevealedCompanyUsers({
+      data: [
+        {
+          contact: 'a@b.test',
+          email: '',
+          name: 'Ana',
+          phone: '',
+          realmEmail: 'ana@provedor.test',
+          taxId: '',
+          userId: USER_ID,
+        },
+      ],
+    })
+
+    expect(revealed?.realmEmail).toBe('ana@provedor.test')
+  })
+
+  /** Ausente e vazio dizem coisas diferentes: não foi pedido, e a conta lá não tem e-mail. */
+  test('sem o campo na resposta, ele continua ausente', () => {
+    const [revealed] = toRevealedCompanyUsers({
+      data: [
+        { contact: 'a@b.test', email: '', name: 'Ana', phone: '', taxId: '', userId: USER_ID },
+      ],
+    })
+
+    expect(revealed?.realmEmail).toBeUndefined()
+  })
+
+  test('o bloco do provedor mostra o revelado e some o olho para quem não pode', () => {
+    const source = readFileSync(
+      'src/modules/identity/components/CompanyUserRealmMirror.component.tsx',
+      'utf8',
+    )
+
+    expect(source).toContain('revealedEmail ?? email')
+    expect(source).toContain('!canReveal')
   })
 })

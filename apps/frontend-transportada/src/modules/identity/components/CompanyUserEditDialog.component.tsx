@@ -285,9 +285,13 @@ export function CompanyUserEditDialog({
         </div>
 
         <CompanyUserRealmMirror
+          canReveal={reveal.canReveal}
           disabled={isFillingProfile}
           entry={realmEntry}
+          isRevealing={reveal.isPending}
           onFillFromRealm={() => onFillFromRealm(user.id)}
+          onReveal={() => void reveal.reveal([user.id], { includeRealm: true })}
+          revealedEmail={revealed?.realmEmail}
         />
 
         <CompanyUserRoleField

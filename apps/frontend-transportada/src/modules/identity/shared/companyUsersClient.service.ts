@@ -85,7 +85,7 @@ export type CompanyUsersClient = Readonly<{
   setPassword: (input: SetCompanyUserPasswordInput) => Promise<void>
   readRolePermissions: () => Promise<RolePermissionMatrix>
   revealUsers: (
-    input: Readonly<{ userIds: readonly string[] }>,
+    input: Readonly<{ includeRealm?: boolean; userIds: readonly string[] }>,
   ) => Promise<readonly RevealedCompanyUser[]>
   removeUser: (input: Readonly<{ userId: string }>) => Promise<void>
   replaceRoles: (input: ReplaceCompanyUserRolesInput) => Promise<CompanyUser>
@@ -410,7 +410,10 @@ export function createCompanyUsersClient(dependencies: ClientDependencies): Comp
     },
     async revealUsers(input) {
       const { payload } = await authorizedRequest({
-        body: JSON.stringify({ userIds: input.userIds }),
+        body: JSON.stringify({
+          userIds: input.userIds,
+          ...(input.includeRealm === true ? { includeRealm: true } : {}),
+        }),
         dependencies,
         method: 'POST',
         path: `${COMPANY_USERS_PATH}/reveal`,

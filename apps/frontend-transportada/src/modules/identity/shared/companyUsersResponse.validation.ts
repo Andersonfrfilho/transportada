@@ -278,6 +278,8 @@ export function toRevealedCompanyUsers(value: unknown): readonly RevealedCompany
       phone: readText(entry.phone),
       taxId: readText(entry.taxId),
       userId: readText(entry.userId),
+      /** Ausente e vazio dizem coisas diferentes: não foi pedido, e a conta lá não tem e-mail. */
+      ...(isString(entry.realmEmail) ? { realmEmail: entry.realmEmail } : {}),
     }
   })
 }

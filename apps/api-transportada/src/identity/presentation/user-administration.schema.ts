@@ -84,7 +84,11 @@ export const assignCompanyUserRolesSchema = z
 export type AssignCompanyUserRolesBody = z.infer<typeof assignCompanyUserRolesSchema>
 
 export const revealCompanyUsersSchema = z
-  .object({ userIds: z.array(z.uuid()).min(1).max(REVEAL_BATCH_LIMIT) })
+  .object({
+    /** Ausente é `false`: quem não pede o realm não paga a leitura dele. */
+    includeRealm: z.boolean().optional(),
+    userIds: z.array(z.uuid()).min(1).max(REVEAL_BATCH_LIMIT),
+  })
   .strict()
 export type RevealCompanyUsersBody = z.infer<typeof revealCompanyUsersSchema>
 
