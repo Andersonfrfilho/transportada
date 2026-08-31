@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
+import { ApplicationFooter } from '@/modules/foundation/components/ApplicationFooter.component'
 
 import { getKeycloakAuthProvider } from '../shared/KeycloakAuthProvider.provider'
 import { resolveLoginHint } from '../shared/loginHintClient.service'
@@ -75,6 +76,12 @@ export function LoginIdentifierPage() {
           {isSubmitting ? t('login.submitting') : t('login.submit')}
         </Button>
       </form>
+
+      {/*
+        O mesmo rodapé do resto do produto: quem assina o software é o mesmo antes e depois do
+        login, e uma tela pública sem autoria é a única do app que não diz de quem ela é.
+      */}
+      <ApplicationFooter />
     </main>
   )
 }
