@@ -45,7 +45,16 @@ export function LoginIdentifierPage() {
           void submit()
         }}
       >
-        <h1>{t('login.title')}</h1>
+        {/*
+          A marca antes do título: quem chega aqui vindo de um link precisa reconhecer onde está
+          antes de digitar o próprio documento. O ícone é o mesmo do app instalado.
+        */}
+        <div className={styles.brand}>
+          <img alt="" aria-hidden="true" className={styles.brandMark} src="/icons/icon.svg" />
+          <strong className={styles.brandName}>TransportAdA</strong>
+        </div>
+
+        <h1 className={styles.title}>{t('login.title')}</h1>
         <p className={styles.intro}>{t('login.intro')}</p>
 
         <label className={styles.field}>

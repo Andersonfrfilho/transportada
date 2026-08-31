@@ -1,28 +1,83 @@
+/*
+ * Tela de identificação. Ela é a única do produto que aparece antes do menu, e no celular ela é a
+ * primeira coisa que o app instalado abre — por isso nasce mobile-first, com `min-width` para
+ * acrescentar, nunca `max-width` para remover.
+ */
 .shell {
   display: grid;
   place-items: center;
   min-block-size: 100dvh;
-  padding: var(--space-6);
+  /* No celular a folga lateral é margem de respiro, não moldura: o cartão ocupa a largura. */
+  padding: var(--space-4);
+}
+
+@media (min-width: 40rem) {
+  .shell {
+    padding: var(--space-6);
+  }
 }
 
 .card {
   display: grid;
   gap: var(--space-4);
   inline-size: min(100%, 26rem);
-  padding: var(--space-6);
+  padding: var(--space-5);
   border: 1px solid color-mix(in srgb, var(--color-slate) 35%, transparent);
 }
 
+@media (min-width: 40rem) {
+  .card {
+    padding: var(--space-6);
+  }
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.brandMark {
+  block-size: 2.5rem;
+  inline-size: 2.5rem;
+}
+
+.brandName {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+/*
+ * O `h1` global é título de tela cheia — `clamp(3.5rem, 15vw, 9rem)`, desenhado para o topo de um
+ * workspace. Dentro de um cartão de 26rem ele vira um letreiro que engole a página e empurra o
+ * campo para fora da dobra no celular. Aqui o título é rótulo, e quem chama atenção é o campo.
+ */
+.title {
+  max-width: none;
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
 .intro {
+  margin: 0;
   color: var(--color-slate);
+  font-size: var(--field-font-size);
 }
 
 .field {
   display: grid;
   gap: var(--space-2);
+  /* Sem isto o `size` intrínseco do input vence a trilha do grid e ele vaza a borda do cartão. */
+  min-inline-size: 0;
 }
 
 .field input {
+  inline-size: 100%;
+  min-inline-size: 0;
   block-size: var(--field-height);
   padding: var(--field-padding);
   font-size: var(--field-font-size);
