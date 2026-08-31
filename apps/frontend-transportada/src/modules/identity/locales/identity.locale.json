@@ -168,7 +168,10 @@
       "USERNAME_ALREADY_TAKEN": "Este login já está em uso.",
       "IDENTITY_SUBJECT_NOT_FOUND": "O acesso não tem identidade no provedor de login. Convide a pessoa de novo.",
       "SELF_MEMBERSHIP_REMOVAL": "Ninguém remove o próprio acesso. Peça a outro administrador.",
-      "COMPANY_USER_TAX_ID_TAKEN": "Já existe um acesso com este CPF."
+      "COMPANY_USER_TAX_ID_TAKEN": "Já existe um acesso com este CPF.",
+      "USERNAME_CHANGE_REFUSED": "O provedor de login não permite trocar o login desta conta. O restante da ficha foi salvo; o login continua o de antes.",
+      "INVALID_REQUEST": "Algum campo está fora do formato aceito. Confira login, e-mail, telefone e CPF.",
+      "INTERNAL_ERROR": "A API falhou ao processar o pedido. Se repetir, é defeito nosso — não adianta tentar de novo."
     },
     "fleetLink": {
       "linked": "Vinculado à ficha de frota existente.",

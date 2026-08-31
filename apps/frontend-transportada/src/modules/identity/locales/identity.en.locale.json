@@ -168,7 +168,10 @@
       "USERNAME_ALREADY_TAKEN": "This login is already taken.",
       "IDENTITY_SUBJECT_NOT_FOUND": "The account has no identity in the login provider. Invite the person again.",
       "SELF_MEMBERSHIP_REMOVAL": "Nobody removes their own account. Ask another administrator.",
-      "COMPANY_USER_TAX_ID_TAKEN": "An account with this tax id already exists."
+      "COMPANY_USER_TAX_ID_TAKEN": "An account with this tax id already exists.",
+      "USERNAME_CHANGE_REFUSED": "The login provider does not allow changing this account username. The rest of the profile was saved; the username is unchanged.",
+      "INVALID_REQUEST": "A field is not in the accepted format. Check username, email, phone and tax ID.",
+      "INTERNAL_ERROR": "The API failed to process the request. If it repeats, it is a defect on our side."
     },
     "fleetLink": {
       "linked": "Linked to the existing fleet record.",

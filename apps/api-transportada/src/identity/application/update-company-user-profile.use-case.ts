@@ -65,14 +65,30 @@ export function createUpdateCompanyUserProfileUseCase({
       })
 
       const subject = await resolveIdentitySubject({ repository, userId })
-      await identityGateway.updateUser({
-        user: {
-          ...(email === undefined ? {} : { email, emailVerified: false }),
-          ...(name === undefined ? {} : toIdentityName(name)),
-          ...(username === undefined ? {} : { username }),
-        },
-        userId: subject,
-      })
+      try {
+        await identityGateway.updateUser({
+          user: {
+            ...(email === undefined ? {} : { email, emailVerified: false }),
+            ...(name === undefined ? {} : toIdentityName(name)),
+            ...(username === undefined ? {} : { username }),
+          },
+          userId: subject,
+        })
+      } catch (error) {
+        /**
+         * Gravar antes é seguro enquanto repetir o PATCH converge. Para o login não converge: a
+         * recusa mais comum é o realm com `editUsernameAllowed` desligado, que é decisão de
+         * configuração — tentar de novo dá a mesma negativa para sempre, e o banco fica com um login
+         * que o provedor não conhece. Quem tentar entrar com ele não entra, e a tela não avisa.
+         *
+         * Por isso o login volta ao que era antes de o erro subir. Os demais campos ficam gravados:
+         * eles convergem na próxima tentativa, e desfazê-los perderia correção que já valia.
+         */
+        if (username !== undefined) {
+          await repository.updateProfile({ userId, username: existing.username })
+        }
+        throw error
+      }
 
       /**
        * O atributo vai numa chamada própria e depois do perfil: o Admin API substitui o conjunto

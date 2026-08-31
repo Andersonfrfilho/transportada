@@ -135,3 +135,58 @@ describe('edição de perfil — o documento chega ao banco e ao realm', () => {
     })
   })
 })
+
+/**
+ * O login recusado pelo provedor não pode ficar gravado só deste lado. A recusa mais comum é o realm
+ * com `editUsernameAllowed` desligado — padrão do Keycloak —, e ali repetir o pedido nunca converge:
+ * o banco ficaria para sempre com um login que o provedor não conhece, e quem tentasse entrar com
+ * ele não entraria, sem nada na tela dizendo por quê.
+ */
+describe('edição de perfil — o login recusado pelo provedor volta atrás', () => {
+  function createRefusingFakes(): ReturnType<typeof createFakes> {
+    const fakes = createFakes()
+    return {
+      ...fakes,
+      gateway: {
+        ...fakes.gateway,
+        updateUser() {
+          return Promise.reject(new Error('PROVEDOR_RECUSOU'))
+        },
+      },
+    }
+  }
+
+  test('o erro do provedor sobe, e não é engolido', async () => {
+    const fakes = createRefusingFakes()
+
+    await expect(
+      createUseCase(fakes).execute({
+        context: { companyId: COMPANY_ID },
+        userId: USER_ID,
+        username: 'maria.silva',
+      }),
+    ).rejects.toThrow('PROVEDOR_RECUSOU')
+  })
+
+  test('o login volta ao valor anterior no banco', async () => {
+    const fakes = createRefusingFakes()
+
+    await createUseCase(fakes)
+      .execute({ context: { companyId: COMPANY_ID }, userId: USER_ID, username: 'maria.silva' })
+      .catch(() => undefined)
+
+    expect(fakes.profileUpdates[0]).toMatchObject({ username: 'maria.silva' })
+    expect(fakes.profileUpdates[1]).toMatchObject({ username: EXISTING.username })
+  })
+
+  /** Desfazer o resto perderia correção que já valia: só o login não converge ao repetir. */
+  test('sem login no pedido, nada é desfeito', async () => {
+    const fakes = createRefusingFakes()
+
+    await createUseCase(fakes)
+      .execute({ context: { companyId: COMPANY_ID }, name: 'Maria Silva', userId: USER_ID })
+      .catch(() => undefined)
+
+    expect(fakes.profileUpdates).toHaveLength(1)
+  })
+})

@@ -9,7 +9,11 @@ import {
   type KeycloakAdminConfig,
 } from '@adatechnology/keycloak-admin'
 
-import { DuplicateContactError } from '../domain/company-user.error.js'
+import {
+  DuplicateContactError,
+  DuplicateUsernameError,
+  UsernameChangeRefusedError,
+} from '../domain/company-user.error.js'
 import { IDENTITY_USER_ATTRIBUTE } from '../domain/identity-attribute.constant.js'
 
 import type {
@@ -221,7 +225,10 @@ export function createIdentityAccessGateway(
       await client.updateAttributes({ attributes, userId })
     },
     async updateUser({ user, userId }): Promise<void> {
-      await client.updateUser({ user, userId })
+      await guardProfileUpdate(
+        () => client.updateUser({ user, userId }),
+        user.username !== undefined,
+      )
     },
   }
 }
@@ -239,6 +246,42 @@ async function guardContact<TResult>(operation: () => Promise<TResult>): Promise
     throw error
   }
 }
+
+/**
+ * A única operação do gateway que não traduzia recusa nenhuma — e por isso toda negativa do provedor
+ * chegava à tela como "não foi possível concluir a operação", sem dizer em que campo mexer.
+ *
+ * A troca de login é o caso que dói: `editUsernameAllowed` é **desligado por padrão** no Keycloak, e
+ * ali a recusa é de configuração do realm, não do dado digitado — repetir o pedido nunca converge.
+ * Ela é reconhecida pela combinação "mandamos login **e** o provedor devolveu 400", e não pelo texto
+ * da mensagem, que muda com a versão e com o idioma do servidor.
+ */
+async function guardProfileUpdate<TResult>(
+  operation: () => Promise<TResult>,
+  hasUsername: boolean,
+): Promise<TResult> {
+  try {
+    return await operation()
+  } catch (error) {
+    if (!isKeycloakAdminError(error)) throw error
+
+    /** O mesmo código cobre os dois campos únicos do realm; quem separa é o que foi enviado. */
+    if (error.code === KEYCLOAK_ADMIN_ERROR_CODE.USER_ALREADY_EXISTS) {
+      throw hasUsername ? new DuplicateUsernameError() : new DuplicateContactError()
+    }
+    if (
+      hasUsername &&
+      error.code === KEYCLOAK_ADMIN_ERROR_CODE.REQUEST_FAILED &&
+      error.status === HTTP_BAD_REQUEST
+    ) {
+      throw new UsernameChangeRefusedError()
+    }
+    throw error
+  }
+}
+
+/** O provedor recusa a troca de login com 400, não com 409: não é colisão, é regra do realm. */
+const HTTP_BAD_REQUEST = 400
 
 /** O Admin API sobrescreve o campo enviado: mandar `undefined` apagaria o que já está lá. */
 function omitUndefined<TValue extends Record<string, unknown>>(value: TValue): Partial<TValue> {
