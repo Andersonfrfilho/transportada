@@ -154,6 +154,19 @@ async function authorizedRequest(
  * à mão produz um corpo que o servidor não consegue separar, e o erro sai como "requisição
  * inválida" sem dizer por quê.
  */
+/**
+ * A resposta de erro da rota de foto é JSON, mesmo quando a de sucesso é binária. Achatar tudo em
+ * "requisição falhou" jogava fora a única informação acionável que existia: arquivo grande demais e
+ * formato não suportado se consertam de maneiras diferentes, e a tela não tinha como dizer qual era.
+ */
+async function readPictureErrorCode(response: Response): Promise<string> {
+  try {
+    return readErrorCode(JSON.parse(await response.text()) as unknown)
+  } catch {
+    return COMPANY_USER_ERROR.REQUEST_FAILED
+  }
+}
+
 async function pictureRequest(
   input: Readonly<{
     body?: FormData
@@ -337,7 +350,7 @@ export function createCompanyUsersClient(dependencies: ClientDependencies): Comp
       })
       /** Sem foto é ausência, não falha: a tela desenha as iniciais e segue. */
       if (response.status === 404) return null
-      if (!response.ok) throw requestError(COMPANY_USER_ERROR.REQUEST_FAILED)
+      if (!response.ok) throw requestError(await readPictureErrorCode(response))
       return response.blob()
     },
     async removePicture(input) {
@@ -347,7 +360,7 @@ export function createCompanyUsersClient(dependencies: ClientDependencies): Comp
         userId: input.userId,
       })
       if (!response.ok && response.status !== 404) {
-        throw requestError(COMPANY_USER_ERROR.REQUEST_FAILED)
+        throw requestError(await readPictureErrorCode(response))
       }
     },
     async replacePicture(input) {
@@ -359,7 +372,7 @@ export function createCompanyUsersClient(dependencies: ClientDependencies): Comp
         method: 'PUT',
         userId: input.userId,
       })
-      if (!response.ok) throw requestError(COMPANY_USER_ERROR.REQUEST_FAILED)
+      if (!response.ok) throw requestError(await readPictureErrorCode(response))
     },
     async fillProfilesFromRealm(input) {
       const { payload } = await authorizedRequest({

@@ -17,6 +17,7 @@ import {
 import styles from '../styles/userAdministration.module.css'
 
 type CompanyUserPictureFieldProps = Readonly<{
+  errorCode?: string | undefined
   isLoading: boolean
   isPending: boolean
   name: string
@@ -39,6 +40,7 @@ const ACCEPTED_TYPES = 'image/png,image/jpeg,image/webp'
  * tela busca os bytes e desenha uma URL de objeto, porque `<img src>` não manda o token.
  */
 export function CompanyUserPictureField({
+  errorCode,
   isLoading,
   isPending,
   name,
@@ -76,6 +78,13 @@ export function CompanyUserPictureField({
         </span>
       ) : (
         <img alt={t('users.picture.alt', { name })} className={styles.picture} src={pictureUrl} />
+      )}
+
+      {errorCode === undefined ? null : (
+        /* O envio falhava calado: o arquivo sumia da revisão e a foto antiga continuava ali. */
+        <p className={styles.feedback} role="alert">
+          {t(`users.errors.${errorCode}`, { defaultValue: t('users.errors.default') })}
+        </p>
       )}
 
       <div className={styles.pictureActions}>

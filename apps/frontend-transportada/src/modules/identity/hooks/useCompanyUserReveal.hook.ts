@@ -13,6 +13,8 @@ export type CompanyUserRevealState = {
   readonly revealed: ReadonlyMap<string, RevealedCompanyUser>
   copy: (value: string) => Promise<boolean>
   hide: () => void
+  /** Esconder uma pessoa só. "Esconder tudo" era a única saída, e apagava o que ainda se lia. */
+  hideOne: (userId: string) => void
   reveal: (userIds: readonly string[]) => Promise<void>
 }
 
@@ -67,6 +69,12 @@ export function useCompanyUserReveal(
       setRevealed(new Map())
       setErrorCode(undefined)
     },
+    hideOne: (userId) =>
+      setRevealed((current) => {
+        const next = new Map(current)
+        next.delete(userId)
+        return next
+      }),
     isPending,
     revealed,
     reveal,

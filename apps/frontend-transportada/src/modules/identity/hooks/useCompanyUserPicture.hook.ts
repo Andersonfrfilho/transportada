@@ -60,3 +60,14 @@ export function useCompanyUserPicture(
 
   return { objectUrl, query, removeMutation, replaceMutation }
 }
+
+/**
+ * A falha do envio e a da remoção vão para o mesmo lugar da tela — só uma delas está em curso por
+ * vez, e o campo tem um espaço só para dizer o que houve.
+ */
+export function readPictureErrorCode(
+  picture: ReturnType<typeof useCompanyUserPicture>,
+): string | undefined {
+  const failure = picture.replaceMutation.error ?? picture.removeMutation.error
+  return failure instanceof Error ? failure.message : undefined
+}

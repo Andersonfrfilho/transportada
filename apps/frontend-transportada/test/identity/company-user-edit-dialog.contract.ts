@@ -251,3 +251,96 @@ describe('sucesso não sai na cor do erro', () => {
     expect(alertBlock).not.toContain('styles.noticeReady')
   })
 })
+
+/**
+ * A rota de foto responde erro em JSON mesmo quando o sucesso é binário, e o cliente achatava tudo
+ * em "requisição falhou". Arquivo grande demais se comprime; formato não aceito se converte — e a
+ * tela não tinha como dizer qual dos dois era, porque o código nunca chegava nela.
+ */
+describe('a falha ao enviar a foto chega à tela', () => {
+  async function uploadAgainst(response: Response): Promise<string> {
+    const client = createCompanyUsersClient({
+      apiUrl: API_URL,
+      fetch: () => Promise.resolve(response),
+      getAccessToken: () => Promise.resolve('token'),
+      newIdempotencyKey: () => 'key',
+    })
+
+    const failure = await client
+      .replacePicture({ file: new Blob([new Uint8Array([1])]), userId: USER_ID })
+      .catch((error: unknown) => error)
+
+    return failure instanceof Error ? failure.message : 'sem erro'
+  }
+
+  test('o código do formato não aceito atravessa o cliente', async () => {
+    const body = JSON.stringify({ error: { code: 'USER_PICTURE_UNSUPPORTED_FORMAT' } })
+
+    expect(await uploadAgainst(new Response(body, { status: 400 }))).toBe(
+      'USER_PICTURE_UNSUPPORTED_FORMAT',
+    )
+  })
+
+  test('o código do arquivo grande demais também', async () => {
+    const body = JSON.stringify({ error: { code: 'USER_PICTURE_TOO_LARGE' } })
+
+    expect(await uploadAgainst(new Response(body, { status: 400 }))).toBe('USER_PICTURE_TOO_LARGE')
+  })
+
+  /** Corpo que não é JSON continua sendo falha de requisição: inventar código seria pior. */
+  test('resposta sem corpo utilizável continua genérica', async () => {
+    expect(await uploadAgainst(new Response('<html>', { status: 502 }))).toBe(
+      'COMPANY_USERS_REQUEST_FAILED',
+    )
+  })
+
+  test('o campo de foto renderiza o erro que recebe', () => {
+    const source = readFileSync(
+      'src/modules/identity/components/CompanyUserPictureField.component.tsx',
+      'utf8',
+    )
+
+    expect(source).toContain('users.errors.${errorCode}')
+    expect(source).toContain('role="alert"')
+  })
+})
+
+/**
+ * O papel é o caminho para a ficha da frota, e o caminho tem de estar na palavra certa: linkar
+ * "Administrador" para a ficha de motorista penduraria a ação no rótulo errado.
+ */
+describe('a listagem liga o papel à ficha da frota', () => {
+  const source = readFileSync(
+    'src/modules/identity/components/CompanyUserTable.component.tsx',
+    'utf8',
+  )
+
+  test('o papel da frota é o que vira link', () => {
+    expect(source).toContain('FLEET_ROLES')
+    expect(source).toContain("['driver', 'aggregate']")
+  })
+
+  test('sem ficha na frota o papel continua etiqueta', () => {
+    expect(source).toContain('user.fleet === undefined || fleetRole === undefined')
+  })
+
+  test('o documento tem coluna própria, com olho', () => {
+    expect(source).toContain('RevealedTaxIdCell')
+    expect(source).toContain('users.columnTaxId')
+  })
+
+  /** Seis células e cinco títulos foi o que aconteceu ao acrescentar a coluna sem o cabeçalho. */
+  test('cada célula da linha tem um título de coluna', () => {
+    const head = source.slice(source.indexOf('<thead>'), source.indexOf('</thead>'))
+    const body = source.slice(source.indexOf('<tbody>'), source.indexOf('</tbody>'))
+    /** `<th[\s>]` e não `<th`: sem a borda, o próprio `<thead>` era contado como coluna. */
+    const headerCount = (head.match(/<th[\s>]/gu) ?? []).length
+    const cellCount = (body.match(/<td[\s>]/gu) ?? []).length
+
+    expect(cellCount).toBe(headerCount)
+  })
+
+  test('dá para esconder uma linha sem esconder todas', () => {
+    expect(source).toContain('reveal.hideOne(user.id)')
+  })
+})

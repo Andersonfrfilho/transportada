@@ -10,7 +10,7 @@ import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import type { CompanyUserEditForm } from '../hooks/useCompanyUserForm.hook'
 import type { CompanyUserPasswordState } from '../hooks/useCompanyUserPassword.hook'
-import { useCompanyUserPicture } from '../hooks/useCompanyUserPicture.hook'
+import { readPictureErrorCode, useCompanyUserPicture } from '../hooks/useCompanyUserPicture.hook'
 import type { CompanyUserRevealState } from '../hooks/useCompanyUserReveal.hook'
 import { CONTACT_CHANNELS } from '../shared/companyUsers.constant'
 import type { CompanyUser, ReconciliationEntry } from '../shared/companyUsers.types'
@@ -222,6 +222,7 @@ export function CompanyUserEditDialog({
         </header>
 
         <CompanyUserPictureField
+          errorCode={readPictureErrorCode(picture)}
           isLoading={picture.query.isLoading}
           isPending={picture.replaceMutation.isPending || picture.removeMutation.isPending}
           name={user.name === '' ? user.contact.masked : user.name}

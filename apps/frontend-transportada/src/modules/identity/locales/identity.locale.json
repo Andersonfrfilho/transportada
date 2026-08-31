@@ -173,7 +173,9 @@
       "COMPANY_USER_TAX_ID_TAKEN": "Já existe um acesso com este CPF.",
       "USERNAME_CHANGE_REFUSED": "O provedor de login não permite trocar o login desta conta. O restante da ficha foi salvo; o login continua o de antes.",
       "INVALID_REQUEST": "Algum campo está fora do formato aceito. Confira login, e-mail, telefone e CPF.",
-      "INTERNAL_ERROR": "A API falhou ao processar o pedido. Se repetir, é defeito nosso — não adianta tentar de novo."
+      "INTERNAL_ERROR": "A API falhou ao processar o pedido. Se repetir, é defeito nosso — não adianta tentar de novo.",
+      "USER_PICTURE_TOO_LARGE": "A imagem passa de 256 KB. Reduza o tamanho e envie de novo.",
+      "USER_PICTURE_UNSUPPORTED_FORMAT": "Formato não aceito. A foto precisa ser PNG, JPEG ou WebP — o servidor confere o arquivo, não a extensão do nome."
     },
     "fleetLink": {
       "linked": "Vinculado à ficha de frota existente.",
@@ -243,7 +245,8 @@
       "showOne": "Revelar o contato de {{name}}",
       "copy": "Copiar",
       "copied": "Copiado",
-      "failed": "Não foi possível revelar. Tente de novo."
+      "failed": "Não foi possível revelar. Tente de novo.",
+      "hideOne": "Esconder os dados de {{name}}"
     },
     "bulk": {
       "selected": "{{count}} selecionado(s)",
@@ -516,7 +519,8 @@
       "cutoutAlt": "Recorte da foto de {{name}}",
       "running": "Recortando…",
       "chosenAlt": "Imagem escolhida para {{name}}"
-    }
+    },
+    "columnTaxId": "Documento"
   },
   "login": {
     "title": "Entrar",

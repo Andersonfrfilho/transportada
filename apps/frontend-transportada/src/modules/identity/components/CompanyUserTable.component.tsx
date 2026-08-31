@@ -67,6 +67,7 @@ export function CompanyUserTable({
             </th>
             <th scope="col">{t('users.columnName')}</th>
             <th scope="col">{t('users.columnContact')}</th>
+            <th scope="col">{t('users.columnTaxId')}</th>
             <th scope="col">{t('users.columnRoles')}</th>
             <th scope="col">{t('users.columnStatus')}</th>
             <th className={styles.actionsCell} scope="col">
@@ -102,14 +103,13 @@ export function CompanyUserTable({
                 </span>
               </td>
               <td>
-                {/* Vínculo e papéis na mesma linha: empilhados, o ícone tomava a coluna inteira. */}
+                <RevealedTaxIdCell reveal={reveal} user={user} />
+              </td>
+              <td>
+                {/* O papel do vínculo é o próprio caminho para a ficha — ver `FleetRoleBadge`. */}
                 <span className={styles.roleList}>
-                  <FleetLinkCell user={user} />
-                  {user.roles.slice(0, 1).map((role) => (
-                    <span className={styles.badge} key={role}>
-                      {t(`users.role.${role}`, { defaultValue: role })}
-                    </span>
-                  ))}
+                  <FleetRoleBadge user={user} />
+                  <FleetVehicleLinks user={user} />
                   {/* Papel além do primeiro vira contagem: a coluna não cresce com quem tem cinco. */}
                   {user.roles.length > 1 ? (
                     <span
@@ -242,6 +242,61 @@ function RevealedContactCell({ reveal, user }: RevealedContactCellProps) {
           <Icon name="eye" />
         </Button>
       ) : (
+        <>
+          <Button
+            aria-label={t('users.reveal.copy')}
+            onClick={() => void reveal.copy(shown)}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Icon name="copy" />
+          </Button>
+          {/* Esconder de volta era só "esconder tudo", que apagava o que ainda se estava lendo. */}
+          <Button
+            aria-label={t('users.reveal.hideOne', { name: user.name })}
+            onClick={() => reveal.hideOne(user.id)}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Icon name="eyeOff" />
+          </Button>
+        </>
+      )}
+    </span>
+  )
+}
+
+/**
+ * O documento tinha coluna em lugar nenhum. Ele é o que casa a pessoa com a ficha da frota e com a
+ * conta do provedor, e quem administra usuários precisava abrir a edição de cada linha para ver.
+ *
+ * Vazio é vazio, não segredo: sem CPF cadastrado não há o que revelar, e oferecer o olho ali gastaria
+ * uma linha de auditoria para mostrar um traço.
+ */
+function RevealedTaxIdCell({ reveal, user }: RevealedContactCellProps) {
+  const { t } = useTranslation('identity')
+  const revealed = reveal.revealed.get(user.id)
+  const shown = revealed === undefined ? user.taxId : revealed.taxId
+
+  if (user.taxId === '') return <span className={styles.primaryCell}>—</span>
+
+  return (
+    <span className={styles.revealCell}>
+      <span className={styles.primaryCell}>{shown || '—'}</span>
+      {!reveal.canReveal ? null : revealed === undefined ? (
+        <Button
+          aria-label={t('users.reveal.showOne', { name: user.name })}
+          disabled={reveal.isPending}
+          onClick={() => void reveal.reveal([user.id])}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          <Icon name="eye" />
+        </Button>
+      ) : (
         <Button
           aria-label={t('users.reveal.copy')}
           onClick={() => void reveal.copy(shown)}
@@ -270,35 +325,52 @@ function revealedContactOf(
 }
 
 /**
- * A tela mostrava que alguém é Motorista e era um beco: nenhum caminho para a ficha dele, nem para o
- * carro que ele dirige. Quem administra usuário e precisa conferir a frota da pessoa copiava o nome
- * e ia procurar na outra tela.
+ * O papel **é** o caminho. A tela mostrava "Motorista" e, ao lado, um ícone de corrente solto: dois
+ * elementos para uma ideia só, e o ícone não dizia para onde levava sem passar o mouse.
  *
- * Sem ficha não há link: caminho que não leva a lugar nenhum é pior que caminho ausente.
+ * Agora a palavra que já está ali leva à ficha. Quem não tem ficha na frota continua com a etiqueta
+ * comum — caminho que não leva a lugar nenhum é pior que caminho ausente.
+ *
+ * O papel mostrado é o **da frota** quando existe vínculo, e não o primeiro da lista: linkar
+ * "Administrador" para a ficha de motorista seria pendurar o caminho na palavra errada.
  */
-function FleetLinkCell({ user }: Readonly<{ user: CompanyUser }>) {
+function FleetRoleBadge({ user }: Readonly<{ user: CompanyUser }>) {
+  const { t } = useTranslation('identity')
+  const navigator = createBrowserWorkspaceNavigator()
+  const fleetRole = user.roles.find((role) => FLEET_ROLES.includes(role))
+  const shown = fleetRole ?? user.roles[0]
+
+  if (shown === undefined) return null
+
+  const label = t(`users.role.${shown}`, { defaultValue: shown })
+  if (user.fleet === undefined || fleetRole === undefined) {
+    return <span className={styles.badge}>{label}</span>
+  }
+
+  return (
+    <Button
+      className={styles.roleLink}
+      onClick={() => navigateToFleetDriver({ driverId: user.fleet?.driverId ?? '', navigator })}
+      size="sm"
+      title={t('users.fleet.driver')}
+      type="button"
+      variant="ghost"
+    >
+      <Icon name="link" />
+      {label}
+    </Button>
+  )
+}
+
+/** O veículo continua como ícone: são vários, e cada um é uma placa, não um papel. */
+function FleetVehicleLinks({ user }: Readonly<{ user: CompanyUser }>) {
   const { t } = useTranslation('identity')
   const navigator = createBrowserWorkspaceNavigator()
 
   if (user.fleet === undefined) return null
 
-  /**
-   * Na linha o vínculo é **ação rápida**: só o ícone, com o rótulo no `title` e no `aria-label`. O
-   * botão nomeado por veículo empilhava texto na célula e competia com o papel da pessoa, que é o
-   * que se lê ali. O caminho por extenso vive no detalhe do usuário.
-   */
   return (
-    <span className={styles.fleetLinks}>
-      <Button
-        aria-label={t('users.fleet.driver')}
-        onClick={() => navigateToFleetDriver({ driverId: user.fleet?.driverId ?? '', navigator })}
-        size="sm"
-        title={t('users.fleet.driver')}
-        type="button"
-        variant="ghost"
-      >
-        <Icon name="link" />
-      </Button>
+    <>
       {user.fleet.vehicles.map((vehicle) => (
         <Button
           aria-label={t('users.fleet.vehicle', { plate: vehicle.plate })}
@@ -312,6 +384,9 @@ function FleetLinkCell({ user }: Readonly<{ user: CompanyUser }>) {
           <Icon name="truck" />
         </Button>
       ))}
-    </span>
+    </>
   )
 }
+
+/** Os papéis que têm ficha na frota. Fora deles, o vínculo existe e a palavra não é o caminho. */
+const FLEET_ROLES: readonly string[] = ['driver', 'aggregate']

@@ -10,7 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import { CompanyUserPictureField } from './CompanyUserPictureField.component'
-import { useCompanyUserPicture } from '../hooks/useCompanyUserPicture.hook'
+import { readPictureErrorCode, useCompanyUserPicture } from '../hooks/useCompanyUserPicture.hook'
 
 import {
   navigateToFleetDriver,
@@ -97,6 +97,7 @@ export function CompanyUserPermissionsDialog({
           contagem do resto. Quem abre aqui quer ver tudo, não a amostra.
         */}
         <CompanyUserPictureField
+          errorCode={readPictureErrorCode(picture)}
           isLoading={picture.query.isLoading}
           isPending={picture.replaceMutation.isPending || picture.removeMutation.isPending}
           name={user.name === '' ? user.contact.masked : user.name}

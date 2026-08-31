@@ -587,3 +587,22 @@
 .storedFieldValue {
   font-family: var(--font-utility);
 }
+
+/*
+ * O olho ao lado de um campo tem a altura do campo. O tamanho compacto do botão vem de
+ * `--control-height-compact`, e ao lado de um input de `--field-height` ele fica um degrau mais
+ * baixo — a mesma fileira com duas alturas, que é o que a regra de altura de controle existe para
+ * impedir. Nas linhas sem input o compacto continua certo, e por isso a regra é escopada por `:has`.
+ */
+.secretRow:has(input) button {
+  height: var(--control-height);
+}
+
+/*
+ * O papel que leva à ficha da frota. Ele é botão, mas se lê como a etiqueta ao lado: mudar a forma
+ * faria a coluna ter dois vocabulários visuais para a mesma informação.
+ */
+.roleLink {
+  padding-inline: var(--space-2);
+  font-size: 0.75rem;
+}

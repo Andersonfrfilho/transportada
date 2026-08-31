@@ -173,7 +173,9 @@
       "COMPANY_USER_TAX_ID_TAKEN": "An account with this tax id already exists.",
       "USERNAME_CHANGE_REFUSED": "The login provider does not allow changing this account username. The rest of the profile was saved; the username is unchanged.",
       "INVALID_REQUEST": "A field is not in the accepted format. Check username, email, phone and tax ID.",
-      "INTERNAL_ERROR": "The API failed to process the request. If it repeats, it is a defect on our side."
+      "INTERNAL_ERROR": "The API failed to process the request. If it repeats, it is a defect on our side.",
+      "USER_PICTURE_TOO_LARGE": "The image is over 256 KB. Reduce it and upload again.",
+      "USER_PICTURE_UNSUPPORTED_FORMAT": "Unsupported format. The picture must be PNG, JPEG or WebP — the server checks the file itself, not the name."
     },
     "fleetLink": {
       "linked": "Linked to the existing fleet record.",
@@ -243,7 +245,8 @@
       "showOne": "Reveal the contact of {{name}}",
       "copy": "Copy",
       "copied": "Copied",
-      "failed": "Could not reveal. Try again."
+      "failed": "Could not reveal. Try again.",
+      "hideOne": "Hide {{name}} data"
     },
     "bulk": {
       "selected": "{{count}} selected",
@@ -516,7 +519,8 @@
       "cutoutAlt": "{{name}} photo cutout",
       "running": "Cutting out…",
       "chosenAlt": "Image chosen for {{name}}"
-    }
+    },
+    "columnTaxId": "Document"
   },
   "login": {
     "title": "Sign in",
