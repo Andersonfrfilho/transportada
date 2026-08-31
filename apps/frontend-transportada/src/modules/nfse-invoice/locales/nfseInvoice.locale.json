@@ -295,7 +295,6 @@
       "CTE_BATCH_DOCUMENT_MISSING_MUNICIPALITY": "Sem município na nota.",
       "CTE_BATCH_DOCUMENT_MISSING_PARTY": "Falta remetente ou destinatário.",
       "CTE_BATCH_DOCUMENT_MISSING_TOTAL": "Sem valor total na nota.",
-      "CTE_BATCH_DOCUMENT_MISSING_WEIGHT": "Sem peso informado.",
       "CTE_BATCH_DOCUMENT_NOT_AUTHORIZED": "A nota não está autorizada.",
       "CTE_BATCH_DOCUMENT_NOT_FOUND": "Nota não encontrada.",
       "CTE_BATCH_DOCUMENT_SUMMARY_ONLY": "Só o resumo da nota foi importado.",

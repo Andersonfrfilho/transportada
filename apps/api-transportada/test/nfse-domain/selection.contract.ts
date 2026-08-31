@@ -92,7 +92,6 @@ function buildDocument(
 ): NfseSelectionDocument {
   return {
     accessKey: `3526${overrides.documentId.padStart(40, '0')}`,
-    grossWeight: '120.0000',
     issuedAt: ISSUED_AT,
     number: '1',
     recipientAddress: RECIPIENT_ADDRESS,

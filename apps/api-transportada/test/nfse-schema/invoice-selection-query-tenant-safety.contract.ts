@@ -1,6 +1,8 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { readFileSync } from 'node:fs'
+
 import { and } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import { describe, expect, test } from 'bun:test'
@@ -9,7 +11,6 @@ import {
   buildNfseSelectionDocumentFilters,
   buildNfseSelectionPartyAddressJoin,
   buildNfseSelectionPartyFilters,
-  buildNfseSelectionWeightFilters,
   type NfseInvoiceSelectionQuery,
 } from '../../src/nfse-invoices/infrastructure/nfse-invoice-selection.query.js'
 
@@ -49,11 +50,19 @@ describe('nfse invoice selection query tenant safety', () => {
     expect(join.sql).toContain('"nfe_addresses"."participant_id" = "nfe_participants"."id"')
   })
 
-  test('prende a soma de peso bruto à empresa do contexto', () => {
-    const query = dialect.sqlToQuery(and(...buildNfseSelectionWeightFilters(QUERY))!)
+  /**
+   * A seleção de NFS-e não lê peso: o RPS não declara massa. Se `nfe_volumes` reaparecer nesta
+   * query, o gate de peso voltou junto — e com ele o bloqueio que travava emissão real.
+   */
+  test('a seleção de NFS-e não consulta a tabela de volumes', () => {
+    const source = readFileSync(
+      new URL(
+        '../../src/nfse-invoices/infrastructure/nfse-invoice-selection.query.ts',
+        import.meta.url,
+      ),
+      'utf8',
+    )
 
-    expect(query.sql).toContain('"nfe_volumes"."company_id" = $')
-    expect(query.sql).toContain('"nfe_volumes"."document_id" in (')
-    expect(query.params[0]).toBe(COMPANY_ID)
+    expect(source).not.toContain('nfeVolumes')
   })
 })

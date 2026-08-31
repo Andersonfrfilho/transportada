@@ -2,14 +2,9 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { type SQL, and, eq, inArray, sum } from 'drizzle-orm'
+import { type SQL, and, eq, inArray } from 'drizzle-orm'
 
-import {
-  nfeAddresses,
-  nfeDocuments,
-  nfeParticipants,
-  nfeVolumes,
-} from '../../database/nfe.schema.js'
+import { nfeAddresses, nfeDocuments, nfeParticipants } from '../../database/nfe.schema.js'
 import type { NfseSelectionDocument } from '../domain/nfse-selection.policy.js'
 import type { NfsePartyAddress } from '../domain/nfse-taker-address.policy.js'
 
@@ -85,26 +80,13 @@ export function buildNfseSelectionPartyAddressJoin(): SQL {
   return condition
 }
 
-export function buildNfseSelectionWeightFilters(input: NfseInvoiceSelectionQuery): SQL[] {
-  return [
-    eq(nfeVolumes.companyId, input.companyId),
-    inArray(nfeVolumes.documentId, [...input.documentIds]),
-  ]
-}
-
-/**
- * Espelha `cte-batch-selection.query.ts#findSelectionDocuments`, mas acrescenta a razão social e o
- * endereço das partes: a nota de serviço grava `taker_legal_name` no momento da emissão, e a
- * prefeitura recusa a nota inteira sem o endereço completo do tomador. Nada disso existe em
- * `cte_batch_items` — só em `nfe_participants` e `nfe_addresses`.
- */
 export async function findNfseSelectionDocuments(
   queryable: NfseInvoiceSelectionQueryable,
   query: NfseInvoiceSelectionQuery,
 ): Promise<readonly NfseSelectionDocument[]> {
   if (query.documentIds.length === 0) return []
 
-  const [records, parties, weights] = await Promise.all([
+  const [records, parties] = await Promise.all([
     queryable
       .select({
         accessKey: nfeDocuments.accessKey,
@@ -118,7 +100,6 @@ export async function findNfseSelectionDocuments(
       .from(nfeDocuments)
       .where(and(...buildNfseSelectionDocumentFilters(query))),
     loadParties(queryable, query),
-    loadGrossWeights(queryable, query),
   ])
 
   return records.map((record) => {
@@ -127,7 +108,6 @@ export async function findNfseSelectionDocuments(
     return {
       accessKey: record.accessKey,
       documentId: record.id,
-      grossWeight: weights.get(record.id) ?? null,
       issuedAt: record.issuedAt.toISOString(),
       number: record.number,
       recipientAddress: recipient.address,
@@ -146,24 +126,6 @@ export async function findNfseSelectionDocuments(
       variant: COMPLETE_VARIANT,
     }
   })
-}
-
-async function loadGrossWeights(
-  queryable: NfseInvoiceSelectionQueryable,
-  query: NfseInvoiceSelectionQuery,
-): Promise<Map<string, string>> {
-  const rows = await queryable
-    .select({
-      documentId: nfeVolumes.documentId,
-      grossWeight: sum(nfeVolumes.grossWeight),
-    })
-    .from(nfeVolumes)
-    .where(and(...buildNfseSelectionWeightFilters(query)))
-    .groupBy(nfeVolumes.documentId)
-
-  return new Map(
-    rows.flatMap((row) => (row.grossWeight === null ? [] : [[row.documentId, row.grossWeight]])),
-  )
 }
 
 async function loadParties(

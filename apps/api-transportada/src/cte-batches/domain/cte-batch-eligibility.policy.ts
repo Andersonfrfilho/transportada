@@ -20,8 +20,11 @@ export const CTE_BATCH_BLOCK_REASON = {
 export type CteBatchBlockReason =
   (typeof CTE_BATCH_BLOCK_REASON)[keyof typeof CTE_BATCH_BLOCK_REASON]
 
-export type EligibilityDocument = {
-  readonly grossWeight: string | null
+/**
+ * O que os dois documentos de saída conferem em comum. O peso fica de fora de propósito: ele é
+ * exigência do CT-e, que o declara em `infQ`, e não da NFS-e, cujo RPS não tem campo de massa.
+ */
+export type SharedEligibilityDocument = {
   readonly recipientCity: string | null
   readonly recipientState: string | null
   readonly recipientTaxId: string | null
@@ -31,6 +34,10 @@ export type EligibilityDocument = {
   readonly status: string
   readonly totalAmount: string | null
   readonly variant: string
+}
+
+export type EligibilityDocument = SharedEligibilityDocument & {
+  readonly grossWeight: string | null
 }
 
 export type FreightRuleWindow = {
@@ -44,6 +51,17 @@ export type ChargeableParties = {
   readonly senderTaxId: string
   readonly totalAmount: string
 }
+
+export type SharedEligibilityBlockReason =
+  | typeof CTE_BATCH_BLOCK_REASON.missingMunicipality
+  | typeof CTE_BATCH_BLOCK_REASON.missingParty
+  | typeof CTE_BATCH_BLOCK_REASON.missingTotal
+  | typeof CTE_BATCH_BLOCK_REASON.notAuthorized
+  | typeof CTE_BATCH_BLOCK_REASON.summaryOnly
+
+export type SharedEligibility =
+  | { readonly chargeable: ChargeableParties; readonly reason?: undefined }
+  | { readonly chargeable?: undefined; readonly reason: SharedEligibilityBlockReason }
 
 export type DocumentEligibility =
   | { readonly chargeable: ChargeableParties; readonly reason?: undefined }
@@ -87,8 +105,11 @@ export function resolveDocumentBlock({
   return { chargeable: eligibility.chargeable }
 }
 
-/** RF09: a CT-e needs an authorized full NF-e with both parties, municipality and cargo weight. */
-export function checkDocumentEligibility(document: EligibilityDocument): DocumentEligibility {
+/**
+ * O que CT-e e NFS-e exigem igual: nota autorizada, completa, com valor e com os dois participantes
+ * nomeados e municipiados. O peso não está aqui — ver `checkDocumentEligibility`.
+ */
+export function checkSharedEligibility(document: SharedEligibilityDocument): SharedEligibility {
   if (document.status !== 'authorized') return { reason: CTE_BATCH_BLOCK_REASON.notAuthorized }
   if (document.variant !== 'complete') return { reason: CTE_BATCH_BLOCK_REASON.summaryOnly }
 
@@ -110,11 +131,23 @@ export function checkDocumentEligibility(document: EligibilityDocument): Documen
   ) {
     return { reason: CTE_BATCH_BLOCK_REASON.missingMunicipality }
   }
+
+  return { chargeable: { recipientTaxId, senderTaxId, totalAmount } }
+}
+
+/**
+ * RF09: além do que a NFS-e também exige, a CT-e precisa de peso bruto — ele vira o `infQ` do XML
+ * assinado, e é por isso que o gate não vale para o RPS, que não declara massa nenhuma.
+ */
+export function checkDocumentEligibility(document: EligibilityDocument): DocumentEligibility {
+  const shared = checkSharedEligibility(document)
+  if (shared.reason !== undefined) return { reason: shared.reason }
+
   if (document.grossWeight === null || !isPositiveAmount(document.grossWeight)) {
     return { reason: CTE_BATCH_BLOCK_REASON.missingWeight }
   }
 
-  return { chargeable: { recipientTaxId, senderTaxId, totalAmount } }
+  return { chargeable: shared.chargeable }
 }
 
 export function isFreightRuleInForce({

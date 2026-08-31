@@ -2,9 +2,9 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import {
-  type CteBatchBlockReason,
-  type EligibilityDocument,
-  checkDocumentEligibility,
+  type SharedEligibilityBlockReason,
+  type SharedEligibilityDocument,
+  checkSharedEligibility,
 } from '../../cte-batches/domain/cte-batch-eligibility.policy.js'
 import type { NfseTaker } from '../../database/nfse.schema.js'
 import type { NfseProjectionCandidate, NfseProjectionProfile } from './nfse-projection.service.js'
@@ -20,14 +20,16 @@ export const NFSE_SELECTION_BLOCK_REASON = {
 } as const
 
 /**
- * A elegibilidade é a mesma do CT-e — o serviço prestado é o mesmo transporte —, então as razões
- * dela entram no vocabulário sem tradução: duas palavras para o mesmo bloqueio confundem quem lê.
+ * A elegibilidade compartilhada é a mesma do CT-e — o serviço prestado é o mesmo transporte —,
+ * então as razões dela entram no vocabulário sem tradução: duas palavras para o mesmo bloqueio
+ * confundem quem lê. O peso é a exceção, e por isso não é `CteBatchBlockReason` inteiro: o RPS não
+ * declara massa, e barrar a nota por um campo que nunca sai no documento travava emissão real.
  */
 export type NfseSelectionBlockReason =
   | (typeof NFSE_SELECTION_BLOCK_REASON)[keyof typeof NFSE_SELECTION_BLOCK_REASON]
-  | CteBatchBlockReason
+  | SharedEligibilityBlockReason
 
-export type NfseSelectionDocument = EligibilityDocument & {
+export type NfseSelectionDocument = SharedEligibilityDocument & {
   readonly accessKey: string
   readonly documentId: string
   readonly issuedAt: string
@@ -104,7 +106,7 @@ export function selectNfseCandidates({
       continue
     }
 
-    const eligibility = checkDocumentEligibility(document)
+    const eligibility = checkSharedEligibility(document)
     if (eligibility.reason !== undefined) {
       blocked.push({
         documentId,
