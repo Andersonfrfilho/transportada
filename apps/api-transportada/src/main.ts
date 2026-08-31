@@ -321,6 +321,7 @@ import { DrizzleUserPictureRepository } from './identity/infrastructure/drizzle-
 import { createFillProfilesFromRealmUseCase } from './identity/application/fill-profiles-from-realm.use-case.js'
 import { createSynchronizeIdentitiesUseCase } from './identity/application/synchronize-identities.use-case'
 import { createRevealCompanyUsersUseCase } from './identity/application/reveal-company-users.use-case'
+import { createSetCompanyUserPasswordUseCase } from './identity/application/set-company-user-password.use-case'
 import { createUserAdministrationRoutes } from './identity/presentation/user-administration.routes'
 import { createRouter, type RegisteredAnonymousRoute } from './http/router.service'
 import { createGetNfeDistributionStatusUseCase } from './nfe-imports/application/get-nfe-distribution-status.use-case'
@@ -1872,6 +1873,11 @@ function createApplicationRoutes({
       removeMembership: removeCompanyUserMembership,
       replaceRoles: replaceCompanyUserRoles,
       resendCode: resendCompanyUserCode,
+      setPassword: createSetCompanyUserPasswordUseCase({
+        audit: groupAudit,
+        gateway: identityAccessGateway,
+        repository: companyUserRepository,
+      }),
       updateProfile: updateCompanyUserProfile,
     }),
   ]

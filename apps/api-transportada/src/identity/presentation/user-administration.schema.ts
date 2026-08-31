@@ -13,6 +13,10 @@ import {
 } from '../../http/request-parsing.service.js'
 import { COMPANY_USER_API_STATUSES } from '../application/change-company-user-status.use-case.js'
 import { isCompanyPermission } from '../domain/authorization.policy.js'
+import {
+  COMPANY_USER_PASSWORD_MAX_LENGTH,
+  COMPANY_USER_PASSWORD_MIN_LENGTH,
+} from '../domain/company-user-password.constant.js'
 
 const COMPANY_USER_LIST_QUERY_KEYS = new Set(['cursor', 'limit'])
 
@@ -159,6 +163,24 @@ export type UpdateCompanyUserProfileBody = z.infer<typeof updateCompanyUserProfi
 export const replaceCompanyUserRolesSchema = z.object({ roles: buildCompanyRolesSchema() }).strict()
 export type ReplaceCompanyUserRolesBody = z.infer<typeof replaceCompanyUserRolesSchema>
 
+/**
+ * `temporary` é escolha de quem administra, e não padrão escondido: senha definitiva serve para
+ * quem não tem canal de e-mail funcionando, e temporária obriga a troca no primeiro login. Sem o
+ * campo, a rota teria de adivinhar qual dos dois casos está na frente do operador.
+ *
+ * O teto existe porque o Keycloak recusa o corpo acima dele, e recusar aqui diz qual campo errou.
+ */
+export const setCompanyUserPasswordSchema = z
+  .object({
+    password: z
+      .string()
+      .min(COMPANY_USER_PASSWORD_MIN_LENGTH)
+      .max(COMPANY_USER_PASSWORD_MAX_LENGTH),
+    temporary: z.boolean(),
+  })
+  .strict()
+export type SetCompanyUserPasswordBody = z.infer<typeof setCompanyUserPasswordSchema>
+
 export async function parseInviteCompanyUserRequest(
   request: Request,
 ): Promise<InviteCompanyUserBody> {
@@ -230,3 +252,9 @@ export function parseCompanyUserListQuery(url: URL): Paging {
 }
 
 export { parseUuidPathIdentifier } from '../../http/request-parsing.service.js'
+
+export async function parseSetCompanyUserPasswordRequest(
+  request: Request,
+): Promise<SetCompanyUserPasswordBody> {
+  return parseBody(setCompanyUserPasswordSchema, request)
+}

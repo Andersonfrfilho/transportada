@@ -44,6 +44,7 @@ import type { AssignCompanyUserRolesUseCase } from '../application/assign-compan
 import type { RevealCompanyUsersUseCase } from '../application/reveal-company-users.use-case.js'
 import type { FillProfilesFromRealmUseCase } from '../application/fill-profiles-from-realm.use-case.js'
 import type { SynchronizeIdentitiesUseCase } from '../application/synchronize-identities.use-case.js'
+import type { SetCompanyUserPasswordUseCase } from '../application/set-company-user-password.use-case.js'
 import type { CompanyUserView } from '../domain/company-user.policy.js'
 import {
   parseChangeCompanyUserStatusRequest,
@@ -54,6 +55,7 @@ import {
   parseRevealCompanyUsersRequest,
   parseSynchronizeIdentitiesRequest,
   parseFillProfilesFromRealmRequest,
+  parseSetCompanyUserPasswordRequest,
   parseUpdateCompanyUserProfileRequest,
   parseUuidPathIdentifier,
 } from './user-administration.schema.js'
@@ -74,6 +76,10 @@ const USER_PATH = `${API_COMPANY_USERS_PATH}/:id`
 const USER_INVITATION_PATH = `${USER_PATH}/invitation`
 const USER_STATUS_PATH = `${USER_PATH}/status`
 const USER_ROLES_PATH = `${USER_PATH}/roles`
+/** Recurso próprio, e não campo do `PATCH` do perfil: senha não é dado de ficha, e o corpo do
+ * perfil viaja com nome e contato — misturá-los poria a senha no mesmo lugar que se repete ao
+ * corrigir um telefone. */
+const USER_PASSWORD_PATH = `${USER_PATH}/password`
 const USERS_MANAGE_POLICY = { permission: 'users.manage', scope: 'company' } as const
 /**
  * Ler contato e documento sem máscara é permissão própria: quem convida, suspende e troca papéis
@@ -95,6 +101,7 @@ type Dependencies = {
   readonly removeMembership: RemoveCompanyUserMembershipUseCase
   readonly replaceRoles: ReplaceCompanyUserRolesUseCase
   readonly resendCode: ResendCompanyUserCodeUseCase
+  readonly setPassword: SetCompanyUserPasswordUseCase
   readonly updateProfile: UpdateCompanyUserProfileUseCase
 }
 
@@ -344,6 +351,35 @@ export function createUserAdministrationRoutes(
         }
       },
       pathname: USER_PATH,
+      pathParameterFormat: 'raw',
+      policy: USERS_MANAGE_POLICY,
+    }),
+    /**
+     * `PUT` porque definir a senha é substituição idempotente: repetir o mesmo corpo converge no
+     * mesmo estado, e não existe "senha anterior" para acumular. Responde 204 — devolver qualquer
+     * eco do corpo poria a senha numa resposta que atravessa log de proxy.
+     */
+    defineRoute<{
+      readonly correlationId: string
+      readonly password: string
+      readonly temporary: boolean
+      readonly userId: string
+    }>({
+      async handle({ context, input }) {
+        await dependencies.setPassword.execute({ context: context.scope, ...input })
+        return new Response(null, { status: 204 })
+      },
+      method: 'PUT',
+      async parse({ pathParameters, request }) {
+        const body = await parseSetCompanyUserPasswordRequest(request)
+        return {
+          correlationId: readCorrelationId(request) ?? crypto.randomUUID(),
+          password: body.password,
+          temporary: body.temporary,
+          userId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+        }
+      },
+      pathname: USER_PASSWORD_PATH,
       pathParameterFormat: 'raw',
       policy: USERS_MANAGE_POLICY,
     }),

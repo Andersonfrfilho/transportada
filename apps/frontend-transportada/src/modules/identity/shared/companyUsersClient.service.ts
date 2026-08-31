@@ -14,7 +14,10 @@ import type {
   CompanyUser,
   CompanyUserPage,
   CompanyUsersReconciliation,
+  IdentitySyncOutcome,
   InviteCompanyUserInput,
+  ProfileFillOutcome,
+  SetCompanyUserPasswordInput,
   InvitedCompanyUser,
   ReplaceCompanyUserRolesInput,
   ResendInvitationResult,
@@ -28,7 +31,9 @@ import {
   toCompanyUser,
   toCompanyUserPage,
   toCompanyUsersReconciliation,
+  toIdentitySyncOutcome,
   toInvitedCompanyUser,
+  toProfileFillOutcome,
   toAssignedCompanyUserRoles,
   toCompanyGroupResponse,
   toCompanyGroups,
@@ -70,10 +75,14 @@ export type CompanyUsersClient = Readonly<{
   removePicture: (input: Readonly<{ userId: string }>) => Promise<void>
   replacePicture: (input: Readonly<{ file: Blob; userId: string }>) => Promise<void>
   /** O conserto do quarto estado: copia nome e contato da conta que já existe no provedor. */
-  fillProfilesFromRealm: (input: Readonly<{ userIds: readonly string[] }>) => Promise<void>
+  fillProfilesFromRealm: (
+    input: Readonly<{ userIds: readonly string[] }>,
+  ) => Promise<ProfileFillOutcome>
   synchronizeIdentities: (
     input: Readonly<{ subjects: readonly string[]; userIds: readonly string[] }>,
-  ) => Promise<void>
+  ) => Promise<IdentitySyncOutcome>
+  /** A senha vai por rota própria e não volta em eco nenhum: 204 é a resposta inteira. */
+  setPassword: (input: SetCompanyUserPasswordInput) => Promise<void>
   readRolePermissions: () => Promise<RolePermissionMatrix>
   revealUsers: (
     input: Readonly<{ userIds: readonly string[] }>,
@@ -353,20 +362,30 @@ export function createCompanyUsersClient(dependencies: ClientDependencies): Comp
       if (!response.ok) throw requestError(COMPANY_USER_ERROR.REQUEST_FAILED)
     },
     async fillProfilesFromRealm(input) {
-      await authorizedRequest({
+      const { payload } = await authorizedRequest({
         body: JSON.stringify({ userIds: input.userIds }),
         dependencies,
         method: 'POST',
         path: `${COMPANY_USERS_PATH}/reconciliation/profiles`,
       })
+      return toProfileFillOutcome(payload)
+    },
+    async setPassword(input) {
+      await authorizedRequest({
+        body: JSON.stringify({ password: input.password, temporary: input.temporary }),
+        dependencies,
+        method: 'PUT',
+        path: `${COMPANY_USERS_PATH}/${input.userId}/password`,
+      })
     },
     async synchronizeIdentities(input) {
-      await authorizedRequest({
+      const { payload } = await authorizedRequest({
         body: JSON.stringify({ subjects: input.subjects, userIds: input.userIds }),
         dependencies,
         method: 'POST',
         path: `${COMPANY_USERS_PATH}/reconciliation/sync`,
       })
+      return toIdentitySyncOutcome(payload)
     },
     async readRolePermissions() {
       const { payload } = await authorizedRequest({

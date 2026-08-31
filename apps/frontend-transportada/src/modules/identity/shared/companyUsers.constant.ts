@@ -47,3 +47,10 @@ export const COMPANY_USER_API_ERROR = {
   SUBJECT_NOT_FOUND: 'IDENTITY_SUBJECT_NOT_FOUND',
   USERNAME_TAKEN: 'USERNAME_ALREADY_TAKEN',
 } as const
+
+/**
+ * Cópia por valor do piso da API (`identity/domain/company-user-password.constant.ts`): o bundle
+ * não carrega código do servidor, e `test/identity/company-user-password.contract.ts` é o que
+ * garante que os dois lados dizem o mesmo número. Mudou lá? mude aqui.
+ */
+export const COMPANY_USER_PASSWORD_MIN_LENGTH = 12

@@ -107,7 +107,48 @@
       "rolesHint": "The role list is replaced entirely by whatever is checked here.",
       "cancel": "Cancel",
       "confirm": "Save",
-      "saving": "Saving…"
+      "saving": "Saving…",
+      "phone": "Phone",
+      "phoneHint": "Fill in only to replace the stored phone.",
+      "taxId": "Tax ID",
+      "taxIdHint": "Fill in only to replace the stored tax ID.",
+      "revealAll": "Reveal all",
+      "hideAll": "Hide all",
+      "revealField": "Reveal this field",
+      "stored": {
+        "contact": "Stored contact",
+        "email": "Stored email",
+        "phone": "Stored phone",
+        "taxId": "Stored tax ID"
+      },
+      "realm": {
+        "title": "In the login provider",
+        "intro": "What Keycloak knows about this person, and which attribute matched the two accounts.",
+        "absent": "This person has no matching account in the login provider.",
+        "username": "Provider username",
+        "email": "Provider email",
+        "noEmail": "The provider account has no email.",
+        "matchedBy": "Matched by",
+        "state": "Account state",
+        "enabled": "Enabled",
+        "disabled": "Disabled",
+        "subject": "Provider identifier",
+        "fillHint": "The local profile is empty. The provider has this account name and email — copying them is done by the server, because the address is masked on this screen."
+      },
+      "password": {
+        "title": "Password",
+        "intro": "Setting the password here serves people with no working email. Otherwise the reset link is the path where the final password never passes through your hands.",
+        "label": "New password",
+        "minimum": "At least {{count}} characters.",
+        "show": "Show the password",
+        "hide": "Hide the password",
+        "temporary": "Require a change on first sign-in",
+        "temporaryHint": "When checked, the person signs in with this password and must choose another right away.",
+        "save": "Set password",
+        "saved": "Password set.",
+        "sendReset": "Send reset link",
+        "resetSent": "Request sent. If the login exists and is active, the link arrives through the registered channel."
+      }
     },
     "removeDialog": {
       "title": "Remove the account",
@@ -141,14 +182,14 @@
       "hide": "Close comparison",
       "refresh": "Refresh",
       "allLinked": "Every account exists on both sides.",
-      "divergentCount": "{{count}} account(s) exist on one side only.",
       "truncated": "Keycloak holds more accounts than this page fetched — divergence may exist outside it.",
       "column": {
         "person": "Person",
         "here": "Here",
         "realm": "In Keycloak",
         "status": "Status",
-        "matchedBy": "Matched by"
+        "matchedBy": "Matched by",
+        "action": "Fix"
       },
       "status": {
         "linked": "In sync",
@@ -165,9 +206,30 @@
       "noProfile": "Incomplete profile",
       "createInRealm": "Create in Keycloak",
       "createLocally": "Bring it here",
-      "createAll": "Create the {{count}} missing",
       "fillProfile": "Fill from provider",
-      "fillAllProfiles": "Fill {{count}} profile(s) from the provider"
+      "missingCount_one": "1 access exists on one side only.",
+      "missingCount_other": "{{count}} accesses exist on one side only.",
+      "profileMissingCount_one": "1 access exists on both sides with no local profile.",
+      "profileMissingCount_other": "{{count}} accesses exist on both sides with no local profile.",
+      "createAll_one": "Create the missing one",
+      "createAll_other": "Create the {{count}} missing",
+      "fillAllProfiles_one": "Fill 1 profile from the provider",
+      "fillAllProfiles_other": "Fill {{count}} profiles from the provider",
+      "outcome": {
+        "filled_one": "1 profile filled.",
+        "filled_other": "{{count}} profiles filled.",
+        "created_one": "1 access created.",
+        "created_other": "{{count}} accesses created.",
+        "skipped_one": "1 skipped — {{reasons}}.",
+        "skipped_other": "{{count}} skipped — {{reasons}}."
+      },
+      "skipReason": {
+        "profile-exists": "the profile already existed",
+        "not-found": "no matching provider account",
+        "realm-contact-missing": "the provider account has no email",
+        "already-linked": "already linked",
+        "service-account": "it is a service account, not a person"
+      }
     },
     "noProfile": "Incomplete profile",
     "reveal": {

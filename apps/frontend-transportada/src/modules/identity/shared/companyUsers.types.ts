@@ -168,6 +168,31 @@ export type UpdateCompanyUserProfileInput = Readonly<{
   username?: string
 }>
 
+/**
+ * O que o conserto alcançou, e o que ele pulou. A API devolve os dois desde sempre; descartar o
+ * corpo fazia o operador clicar e ver a tela igual, sem nada dizendo que o pulo foi deliberado.
+ */
+export type ProfileFillOutcome = Readonly<{
+  filled: readonly string[]
+  skipped: readonly Readonly<{ reason: string; userId: string }>[]
+}>
+
+export type IdentitySyncOutcome = Readonly<{
+  createdInRealm: readonly string[]
+  createdLocally: readonly string[]
+  skipped: readonly Readonly<{ reason: string; subject: string }>[]
+}>
+
+/**
+ * `temporary` é escolha explícita de quem administra: definitiva serve a quem está sem canal de
+ * e-mail, temporária obriga a troca no primeiro login.
+ */
+export type SetCompanyUserPasswordInput = Readonly<{
+  password: string
+  temporary: boolean
+  userId: string
+}>
+
 export type ResendInvitationResult = Readonly<{
   expiresAt: string
   userId: string

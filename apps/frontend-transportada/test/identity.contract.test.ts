@@ -1,6 +1,7 @@
 import './identity/access-profiles-screen.contract.js'
 import './identity/bootstrap-client.contract.js'
 import './identity/company-user-contact-fields.contract.js'
+import './identity/company-user-edit-dialog.contract.js'
 import './identity/company-user-invite.contract.js'
 import './identity/company-user-reveal.contract.js'
 import './identity/company-user-selection.contract.js'

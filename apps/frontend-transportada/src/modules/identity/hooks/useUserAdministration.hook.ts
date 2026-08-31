@@ -12,6 +12,7 @@ import { useUserPermissions } from './useUserPermissions.hook'
 import { useRolePermissionMatrix } from './useRolePermissionMatrix.hook'
 import { useCompanyUsersReconciliation } from './useCompanyUsersReconciliation.hook'
 import { useCompanyUserEditForm, useCompanyUserInviteForm } from './useCompanyUserForm.hook'
+import { useCompanyUserPassword } from './useCompanyUserPassword.hook'
 
 export function readErrorCode(error: unknown): string | undefined {
   return error instanceof Error ? error.message : undefined
@@ -41,8 +42,13 @@ export function useUserAdministration(input: Readonly<{ client?: CompanyUsersCli
    */
   const [fleetLinkNotice, setFleetLinkNotice] = useState<FleetLink | null>(null)
 
+  /**
+   * A comparação também alimenta o diálogo de edição: é dela que sai o espelho do Keycloak. Deixá-la
+   * presa ao painel faria a edição abrir sem saber que existe conta do outro lado — que é
+   * exatamente a informação que falta quando a ficha daqui está vazia.
+   */
   const reconciliation = useCompanyUsersReconciliation({
-    enabled: isReconciliationOpen,
+    enabled: isReconciliationOpen || editTarget !== null,
     permissions: authQuery.data?.data.permissions ?? [],
     ...(companyId === undefined ? {} : { companyId }),
   })
@@ -64,6 +70,12 @@ export function useUserAdministration(input: Readonly<{ client?: CompanyUsersCli
 
   const inviteForm = useCompanyUserInviteForm()
   const editForm = useCompanyUserEditForm(editTarget)
+  const password = useCompanyUserPassword()
+
+  /** O espelho é da pessoa aberta, casado pelo vínculo — nunca pelo e-mail, que pode ser palpite. */
+  const editRealmEntry = reconciliation.data?.items.find(
+    (entry) => entry.local?.userId === editTarget?.id,
+  )
 
   function dismissFleetLinkNotice(): void {
     setFleetLinkNotice(null)
@@ -89,8 +101,10 @@ export function useUserAdministration(input: Readonly<{ client?: CompanyUsersCli
     setInviteOpen(false)
   }
 
+  /** A senha nunca sobrevive ao diálogo: fechar apaga o que foi digitado e o que foi respondido. */
   function closeEdit(): void {
     setEditTarget(null)
+    password.clear()
     users.updateProfileMutation.reset()
     users.replaceRolesMutation.reset()
   }
@@ -138,7 +152,9 @@ export function useUserAdministration(input: Readonly<{ client?: CompanyUsersCli
     currentUserId,
     dismissFleetLinkNotice,
     editForm,
+    editRealmEntry,
     editTarget,
+    password,
     fleetLinkNotice,
     inviteForm,
     isInviteOpen,

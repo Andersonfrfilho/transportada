@@ -1,11 +1,19 @@
-/* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton } from '@/components/ui/skeleton'
 
-import type { ReconciliationEntry, ReconciliationStatus } from '../shared/companyUsers.types'
+import {
+  summarizeReconciliation,
+  toSynchronizeTargets,
+} from '../shared/reconciliationSummary.service'
+import type {
+  IdentitySyncOutcome,
+  ProfileFillOutcome,
+  ReconciliationEntry,
+  ReconciliationStatus,
+} from '../shared/companyUsers.types'
 import styles from '../styles/userAdministration.module.css'
 
 type CompanyUserReconciliationPanelProps = Readonly<{
@@ -19,8 +27,10 @@ type CompanyUserReconciliationPanelProps = Readonly<{
     targets: Readonly<{ subjects: readonly string[]; userIds: readonly string[] }>,
   ) => void
   onToggle: () => void
+  fillOutcome?: ProfileFillOutcome | undefined
   isFillingProfiles?: boolean
   isSynchronizing?: boolean
+  syncOutcome?: IdentitySyncOutcome | undefined
   errorCode?: string
 }>
 
@@ -38,6 +48,7 @@ const STATUS_CLASS: Readonly<Record<ReconciliationStatus, keyof typeof styles>> 
 export function CompanyUserReconciliationPanel({
   entries,
   errorCode,
+  fillOutcome,
   hasMoreRealmUsers,
   isFillingProfiles = false,
   isLoading,
@@ -47,10 +58,10 @@ export function CompanyUserReconciliationPanel({
   onRefresh,
   onSynchronize,
   onToggle,
+  syncOutcome,
 }: CompanyUserReconciliationPanelProps) {
   const { t } = useTranslation('identity')
-  const divergent = entries.filter((entry) => entry.status !== 'linked').length
-  const withoutProfile = entries.filter((entry) => entry.status === 'profile-missing')
+  const { divergent, missingSomewhere, withoutProfile } = summarizeReconciliation(entries)
 
   return (
     <section className={styles.panel}>
@@ -83,8 +94,52 @@ export function CompanyUserReconciliationPanel({
           <p className={styles.intro}>
             {divergent === 0
               ? t('users.sync.allLinked')
-              : t('users.sync.divergentCount', { count: divergent })}
+              : [
+                  missingSomewhere.length === 0
+                    ? ''
+                    : t('users.sync.missingCount', { count: missingSomewhere.length }),
+                  withoutProfile.length === 0
+                    ? ''
+                    : t('users.sync.profileMissingCount', { count: withoutProfile.length }),
+                ]
+                  .filter((sentence) => sentence !== '')
+                  .join(' ')}
           </p>
+
+          {/**
+           * Os dois botões ficam **acima** da tabela, ao lado da contagem que explica cada um. No
+           * rodapé eles caíam depois de uma tabela rolável: quem lia "1 acesso em um lado só" no topo
+           * precisava rolar até o fim para achar o que fazer a respeito.
+           */}
+          {missingSomewhere.length === 0 && withoutProfile.length === 0 ? null : (
+            <div className={styles.panelActions}>
+              {withoutProfile.length === 0 ? null : (
+                <Button
+                  disabled={isFillingProfiles}
+                  onClick={() =>
+                    onFillProfiles(withoutProfile.map((entry) => entry.local?.userId ?? ''))
+                  }
+                  type="button"
+                  variant="ghost"
+                >
+                  <Icon name="download" />
+                  {t('users.sync.fillAllProfiles', { count: withoutProfile.length })}
+                </Button>
+              )}
+              {missingSomewhere.length === 0 ? null : (
+                <Button
+                  disabled={isSynchronizing}
+                  onClick={() => onSynchronize(toSynchronizeTargets(missingSomewhere))}
+                  type="button"
+                >
+                  <Icon name="refresh" />
+                  {t('users.sync.createAll', { count: missingSomewhere.length })}
+                </Button>
+              )}
+            </div>
+          )}
+
+          <ReconciliationOutcome fillOutcome={fillOutcome} syncOutcome={syncOutcome} />
 
           <div className={styles.tableScroll}>
             <table>
@@ -95,13 +150,13 @@ export function CompanyUserReconciliationPanel({
                   <th>{t('users.sync.column.realm')}</th>
                   <th>{t('users.sync.column.status')}</th>
                   <th>{t('users.sync.column.matchedBy')}</th>
+                  <th>{t('users.sync.column.action')}</th>
                 </tr>
               </thead>
               <tbody>
                 {entries.map((entry) => (
                   <tr key={entry.local?.userId ?? entry.realm?.subject}>
                     <td>{personLabelOf(entry, t('users.sync.noProfile'))}</td>
-                    {/* O contato é onde o convite grava o e-mail; a coluna `email` fica vazia. */}
                     <td>{entry.local === undefined ? '—' : entry.local.contact || '—'}</td>
                     <td>
                       {entry.realm === undefined ? '—' : entry.realm.email || entry.realm.username}
@@ -115,11 +170,6 @@ export function CompanyUserReconciliationPanel({
                     </td>
                     <td>{t(`users.sync.match.${entry.matchedBy}`)}</td>
                     <td>
-                      {/*
-                        O botão só existe onde há o que fazer, e o que fazer não é o mesmo em toda
-                        divergência: faltar conta se conserta criando, e faltar ficha se conserta
-                        copiando o que o provedor já tem.
-                      */}
                       {entry.status === 'linked' ? null : entry.status === 'profile-missing' ? (
                         <Button
                           disabled={isFillingProfiles}
@@ -158,46 +208,6 @@ export function CompanyUserReconciliationPanel({
             </table>
           </div>
 
-          {/* O recorte é do realm: dizer que ele acabou quando não acabou esconde divergência. */}
-          {/* Criar todos age sobre a divergência que está na tela, nunca sobre o realm inteiro. */}
-          {withoutProfile.length === 0 ? null : (
-            <div className={styles.bulkActions}>
-              <Button
-                disabled={isFillingProfiles}
-                onClick={() =>
-                  onFillProfiles(withoutProfile.map((entry) => entry.local?.userId ?? ''))
-                }
-                type="button"
-                variant="ghost"
-              >
-                <Icon name="download" />
-                {t('users.sync.fillAllProfiles', { count: withoutProfile.length })}
-              </Button>
-            </div>
-          )}
-
-          {divergent === 0 ? null : (
-            <div className={styles.bulkActions}>
-              <Button
-                disabled={isSynchronizing}
-                onClick={() =>
-                  onSynchronize({
-                    subjects: entries
-                      .filter((entry) => entry.status === 'missing-locally')
-                      .map((entry) => entry.realm?.subject ?? ''),
-                    userIds: entries
-                      .filter((entry) => entry.status === 'missing-in-realm')
-                      .map((entry) => entry.local?.userId ?? ''),
-                  })
-                }
-                type="button"
-              >
-                <Icon name="refresh" />
-                {t('users.sync.createAll', { count: divergent })}
-              </Button>
-            </div>
-          )}
-
           {hasMoreRealmUsers ? (
             <p className={styles.feedback} role="status">
               {t('users.sync.truncated')}
@@ -206,6 +216,46 @@ export function CompanyUserReconciliationPanel({
         </>
       )}
     </section>
+  )
+}
+
+/**
+ * O que o último clique fez. A API sempre devolveu `{filled, skipped}` e `{created…, skipped}`, e o
+ * cliente jogava fora: preencher uma ficha e pular outra produzia exatamente a mesma tela de antes
+ * do clique, e quem clicou concluía que o botão não funcionava.
+ */
+function ReconciliationOutcome({
+  fillOutcome,
+  syncOutcome,
+}: Readonly<{
+  fillOutcome: ProfileFillOutcome | undefined
+  syncOutcome: IdentitySyncOutcome | undefined
+}>) {
+  const { t } = useTranslation('identity')
+  if (fillOutcome === undefined && syncOutcome === undefined) return null
+
+  const created =
+    (syncOutcome?.createdInRealm.length ?? 0) + (syncOutcome?.createdLocally.length ?? 0)
+  const skipped = [
+    ...(fillOutcome?.skipped ?? []).map((entry) => entry.reason),
+    ...(syncOutcome?.skipped ?? []).map((entry) => entry.reason),
+  ]
+
+  return (
+    <p className={styles.feedback} role="status">
+      {fillOutcome === undefined
+        ? null
+        : `${t('users.sync.outcome.filled', { count: fillOutcome.filled.length })} `}
+      {syncOutcome === undefined ? null : `${t('users.sync.outcome.created', { count: created })} `}
+      {skipped.length === 0
+        ? null
+        : t('users.sync.outcome.skipped', {
+            count: skipped.length,
+            reasons: [...new Set(skipped)]
+              .map((reason) => t(`users.sync.skipReason.${reason}`, { defaultValue: reason }))
+              .join(', '),
+          })}
+    </p>
   )
 }
 

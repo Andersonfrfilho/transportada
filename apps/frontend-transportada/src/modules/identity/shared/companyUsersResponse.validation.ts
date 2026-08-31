@@ -6,7 +6,9 @@ import type {
   CompanyUserFleetLink,
   CompanyUsersReconciliation,
   FleetLink,
+  IdentitySyncOutcome,
   InvitedCompanyUser,
+  ProfileFillOutcome,
   ReconciliationEntry,
   ReconciliationMatch,
   ReconciliationStatus,
@@ -187,6 +189,37 @@ export function toCompanyUsersReconciliation(value: unknown): CompanyUsersReconc
     hasMoreRealmUsers: data.hasMoreRealmUsers === true,
     items: data.items.map(toReconciliationEntry),
   }
+}
+
+/**
+ * O resultado do conserto. Corpo ausente não é falha: a rota antiga respondia sem ele, e um erro
+ * de formato aqui esconderia um preenchimento que de fato aconteceu.
+ */
+export function toProfileFillOutcome(value: unknown): ProfileFillOutcome {
+  const data = isRecord(value) && isRecord(value.data) ? value.data : {}
+  return {
+    filled: Array.isArray(data.filled) ? data.filled.map(readText) : [],
+    skipped: Array.isArray(data.skipped) ? data.skipped.map(toSkippedProfile) : [],
+  }
+}
+
+export function toIdentitySyncOutcome(value: unknown): IdentitySyncOutcome {
+  const data = isRecord(value) && isRecord(value.data) ? value.data : {}
+  return {
+    createdInRealm: Array.isArray(data.createdInRealm) ? data.createdInRealm.map(readText) : [],
+    createdLocally: Array.isArray(data.createdLocally) ? data.createdLocally.map(readText) : [],
+    skipped: Array.isArray(data.skipped) ? data.skipped.map(toSkippedSubject) : [],
+  }
+}
+
+function toSkippedProfile(value: unknown): Readonly<{ reason: string; userId: string }> {
+  if (!isRecord(value)) invalid()
+  return { reason: readText(value.reason), userId: readText(value.userId) }
+}
+
+function toSkippedSubject(value: unknown): Readonly<{ reason: string; subject: string }> {
+  if (!isRecord(value)) invalid()
+  return { reason: readText(value.reason), subject: readText(value.subject) }
 }
 
 export function toRolePermissionMatrix(value: unknown): RolePermissionMatrix {

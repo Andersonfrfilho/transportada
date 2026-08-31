@@ -5,6 +5,24 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 ## Abertos
 
+### 2026-08-31 — administrador define senha definitiva de outro usuário, sem limitador
+
+`PUT /company-users/:id/password` (`users.manage`, escopo `company`) grava a senha do usuário no
+Keycloak. O vínculo com a empresa do token é conferido antes de a rota tocar no provedor, o piso é
+de 12 caracteres, a senha não passa pelo banco desta aplicação e a resposta é 204 sem eco do corpo.
+A trilha (`company-user.password.set`) guarda ator, alvo e correlação, nunca o valor.
+
+O que fica em aberto, e é decisão registrada e não esquecimento:
+
+- **Sem rate limit**, como toda esta API — não existe limitador aqui. Uma conta com `users.manage`
+  comprometida pode reescrever senha de todo mundo da empresa dela sem atrito nenhum.
+- **A senha definitiva passa pela mão do administrador.** O caminho preferido continua sendo o link
+  de redefinição, oferecido lado a lado no mesmo painel, e a opção temporária existe para forçar a
+  troca no primeiro acesso. A senha definitiva ficou porque instalação com e-mail quebrado é caso
+  real desta base, e sem ela a única saída era o provedor.
+- **Não há notificação ao dono da conta** quando um terceiro troca a senha dela. Quem só olha a
+  trilha descobre depois; quem não olha, não descobre.
+
 ### 2026-08-27 — o portal do contratante não tem limite de requisição, como o resto da API
 
 **Onde:** `api-transportada`, módulo `contractor-portal` (`GET /client/me/deliveries`).

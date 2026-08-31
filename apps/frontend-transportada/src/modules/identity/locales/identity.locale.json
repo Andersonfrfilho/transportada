@@ -107,7 +107,48 @@
       "rolesHint": "A lista de papéis é substituída por inteiro pelo que estiver marcado aqui.",
       "cancel": "Cancelar",
       "confirm": "Salvar",
-      "saving": "Salvando…"
+      "saving": "Salvando…",
+      "phone": "Telefone",
+      "phoneHint": "Preencha só para substituir o telefone guardado.",
+      "taxId": "CPF",
+      "taxIdHint": "Preencha só para substituir o CPF guardado.",
+      "revealAll": "Revelar tudo",
+      "hideAll": "Ocultar tudo",
+      "revealField": "Revelar este campo",
+      "stored": {
+        "contact": "Contato guardado",
+        "email": "E-mail guardado",
+        "phone": "Telefone guardado",
+        "taxId": "CPF guardado"
+      },
+      "realm": {
+        "title": "No provedor de login",
+        "intro": "O que o Keycloak sabe desta pessoa, e por qual atributo as duas contas foram casadas.",
+        "absent": "Esta pessoa não tem conta correspondente no provedor de login.",
+        "username": "Login no provedor",
+        "email": "E-mail no provedor",
+        "noEmail": "A conta do provedor está sem e-mail.",
+        "matchedBy": "Casado por",
+        "state": "Situação da conta",
+        "enabled": "Habilitada",
+        "disabled": "Desabilitada",
+        "subject": "Identificador no provedor",
+        "fillHint": "A ficha daqui está vazia. O provedor tem nome e e-mail desta conta — trazê-los é uma cópia feita pelo servidor, porque o endereço aparece mascarado nesta tela."
+      },
+      "password": {
+        "title": "Senha",
+        "intro": "Definir a senha aqui serve a quem está sem e-mail funcionando. Nos demais casos, o link de redefinição é o caminho em que a senha final não passa pela sua mão.",
+        "label": "Nova senha",
+        "minimum": "Mínimo de {{count}} caracteres.",
+        "show": "Mostrar a senha",
+        "hide": "Ocultar a senha",
+        "temporary": "Exigir troca no primeiro acesso",
+        "temporaryHint": "Marcado, a pessoa entra com esta senha e é obrigada a escolher outra na hora.",
+        "save": "Definir senha",
+        "saved": "Senha definida.",
+        "sendReset": "Enviar link de redefinição",
+        "resetSent": "Pedido enviado. Se o login existir e estiver ativo, o link chega pelo canal cadastrado."
+      }
     },
     "removeDialog": {
       "title": "Remover o acesso",
@@ -141,14 +182,14 @@
       "hide": "Fechar comparação",
       "refresh": "Atualizar",
       "allLinked": "Todos os acessos existem nos dois lados.",
-      "divergentCount": "{{count}} acesso(s) existem em um lado só.",
       "truncated": "O Keycloak tem mais contas do que esta página trouxe — pode haver divergência fora dela.",
       "column": {
         "person": "Pessoa",
         "here": "Aqui",
         "realm": "No Keycloak",
         "status": "Situação",
-        "matchedBy": "Casado por"
+        "matchedBy": "Casado por",
+        "action": "Conserto"
       },
       "status": {
         "linked": "Sincronizado",
@@ -165,9 +206,30 @@
       "noProfile": "Cadastro incompleto",
       "createInRealm": "Criar no Keycloak",
       "createLocally": "Trazer para cá",
-      "createAll": "Criar os {{count}} que faltam",
       "fillProfile": "Preencher pelo provedor",
-      "fillAllProfiles": "Preencher {{count}} ficha(s) pelo provedor"
+      "missingCount_one": "1 acesso existe em um lado só.",
+      "missingCount_other": "{{count}} acessos existem em um lado só.",
+      "profileMissingCount_one": "1 acesso existe nos dois lados sem ficha aqui.",
+      "profileMissingCount_other": "{{count}} acessos existem nos dois lados sem ficha aqui.",
+      "createAll_one": "Criar o que falta",
+      "createAll_other": "Criar os {{count}} que faltam",
+      "fillAllProfiles_one": "Preencher 1 ficha pelo provedor",
+      "fillAllProfiles_other": "Preencher {{count}} fichas pelo provedor",
+      "outcome": {
+        "filled_one": "1 ficha preenchida.",
+        "filled_other": "{{count}} fichas preenchidas.",
+        "created_one": "1 acesso criado.",
+        "created_other": "{{count}} acessos criados.",
+        "skipped_one": "1 pulado — {{reasons}}.",
+        "skipped_other": "{{count}} pulados — {{reasons}}."
+      },
+      "skipReason": {
+        "profile-exists": "a ficha já existia",
+        "not-found": "sem conta correspondente no provedor",
+        "realm-contact-missing": "a conta do provedor está sem e-mail",
+        "already-linked": "já estava vinculado",
+        "service-account": "é conta de serviço, não de pessoa"
+      }
     },
     "noProfile": "Cadastro incompleto",
     "reveal": {

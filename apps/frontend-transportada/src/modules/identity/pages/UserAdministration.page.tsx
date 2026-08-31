@@ -54,6 +54,8 @@ export function UserAdministrationPage() {
       <CompanyUserReconciliationPanel
         entries={screen.reconciliation.data?.items ?? []}
         {...withErrorCode(readErrorCode(screen.reconciliation.error))}
+        fillOutcome={screen.reconciliation.fillProfilesMutation.data}
+        syncOutcome={screen.reconciliation.synchronizeMutation.data}
         hasMoreRealmUsers={screen.reconciliation.data?.hasMoreRealmUsers ?? false}
         isLoading={screen.reconciliation.isLoading}
         isFillingProfiles={screen.reconciliation.fillProfilesMutation.isPending}
@@ -209,9 +211,14 @@ export function UserAdministrationPage() {
           readErrorCode(users.replaceRolesMutation.error)
         }
         form={screen.editForm}
+        isFillingProfile={screen.reconciliation.fillProfilesMutation.isPending}
         isPending={users.updateProfileMutation.isPending || users.replaceRolesMutation.isPending}
         onClose={screen.closeEdit}
+        onFillFromRealm={(userId) => screen.reconciliation.fillProfilesMutation.mutate([userId])}
         onSubmit={() => void screen.submitEdit()}
+        password={screen.password}
+        realmEntry={screen.editRealmEntry}
+        reveal={screen.reveal}
         user={screen.editTarget}
       />
 

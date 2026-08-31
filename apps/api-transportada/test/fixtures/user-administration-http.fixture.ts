@@ -33,6 +33,7 @@ type RouteDependencies = {
   readonly removeMembership: { execute(input: ExecuteCall): Promise<void> }
   readonly replaceRoles: { execute(input: ExecuteCall): Promise<typeof COMPANY_USER> }
   readonly resendCode: { execute(input: ExecuteCall): Promise<typeof INVITATION_DELIVERY> }
+  readonly setPassword: { execute(input: ExecuteCall): Promise<void> }
   readonly updateProfile: { execute(input: ExecuteCall): Promise<typeof COMPANY_USER> }
 }
 
@@ -197,6 +198,7 @@ export async function createUserAdministrationHttpFixture(
   readonly removeMembershipCalls: ExecuteCall[]
   readonly replaceRolesCalls: ExecuteCall[]
   readonly resendCodeCalls: ExecuteCall[]
+  readonly setPasswordCalls: ExecuteCall[]
   readonly updateProfileCalls: ExecuteCall[]
 }> {
   const changeStatusCalls: ExecuteCall[] = []
@@ -211,6 +213,7 @@ export async function createUserAdministrationHttpFixture(
   const removeMembershipCalls: ExecuteCall[] = []
   const replaceRolesCalls: ExecuteCall[] = []
   const resendCodeCalls: ExecuteCall[] = []
+  const setPasswordCalls: ExecuteCall[] = []
   const updateProfileCalls: ExecuteCall[] = []
 
   const refuse = async (): Promise<never> => {
@@ -295,6 +298,12 @@ export async function createUserAdministrationHttpFixture(
         return INVITATION_DELIVERY
       },
     },
+    setPassword: {
+      async execute(input) {
+        setPasswordCalls.push(structuredClone(input))
+        if (params.refusal) refuse()
+      },
+    },
     updateProfile: {
       async execute(input) {
         updateProfileCalls.push(structuredClone(input))
@@ -330,6 +339,7 @@ export async function createUserAdministrationHttpFixture(
     synchronizeCalls,
     replaceRolesCalls,
     resendCodeCalls,
+    setPasswordCalls,
     updateProfileCalls,
   }
 }

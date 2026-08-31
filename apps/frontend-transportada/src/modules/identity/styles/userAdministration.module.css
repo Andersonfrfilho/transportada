@@ -521,3 +521,34 @@
   align-items: center;
   gap: var(--space-3);
 }
+
+/*
+ * O bloco do provedor e o da senha: painéis dentro do diálogo, separados do formulário pela mesma
+ * borda dos painéis da página — sem ela, o espelho do Keycloak parecia mais um punhado de campos
+ * editáveis da ficha daqui.
+ */
+.mirrorPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+  background: color-mix(in srgb, var(--color-graphite) 82%, transparent);
+}
+
+.mirrorPanel h3 {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+/* O valor e o olho na mesma linha: o botão abaixo do texto lia como ação de outro campo. */
+.secretRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.secretRow input {
+  flex: 1;
+  min-width: 0;
+}

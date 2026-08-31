@@ -89,6 +89,31 @@ depósito da senha (admin SDK): `resetPasswordAllowed` segue `false`, e o link "
 do tema de login aponta para `/recuperar-senha`, tela nossa. ⚠️ As duas rotas **não têm rate limit**
 — não existe limitador nesta API; achado registrado em `docs/SECURITY.md`.
 
+**O administrador define senha por rota própria, e o link continua existindo ao lado.**
+`PUT /company-users/:id/password` (`users.manage`, escopo `company`) grava a senha no Keycloak pelo
+admin SDK e responde **204** — nenhum eco do corpo, porque resposta com senha atravessa log de
+proxy. `temporary` é campo obrigatório do corpo, não padrão escondido: senha definitiva serve a quem
+está sem canal de e-mail funcionando (que é justamente quem não recebe o link), e a temporária
+obriga a troca no primeiro acesso. O piso é `COMPANY_USER_PASSWORD_MIN_LENGTH` = 12, **mais alto**
+que o do fluxo de recuperação, porque ali quem digita é o dono da conta e aqui é um terceiro — senha
+curta escolhida por terceiro circula por recado ou papel antes de chegar a quem vai usá-la. Ela é
+**cópia por valor** no frontend (`identity/shared/companyUsers.constant.ts`), guardada por
+`test/identity/company-user-edit-dialog.contract.ts`. A senha nunca toca o banco daqui: o Keycloak é
+o depósito, e a trilha guarda quem trocou a senha de quem, nunca o valor. ⚠️ A rota **não tem rate
+limit** — não existe limitador nesta API, e o achado é o mesmo já registrado em `docs/SECURITY.md`.
+
+**A comparação com o Keycloak tem duas divergências, e elas não somam num botão só.**
+`summarizeReconciliation` (frontend, `identity/shared/reconciliationSummary.service.ts`) separa
+`missingSomewhere` (existe de um lado só — o que `POST /reconciliation/sync` conserta) de
+`withoutProfile` (existe dos dois lados sem ficha aqui — o que `POST /reconciliation/profiles`
+conserta). Contar as duas juntas e alimentar com o total o botão de criar produzia o defeito que
+não se explicava: com a única divergência sendo ficha vazia, a tela anunciava "criar 1 que falta" e
+o clique mandava dois conjuntos vazios; a API respondia certo — nada a criar — e a tela ficava
+idêntica. ⚠️ As duas rotas **sempre** devolveram `{filled|created…, skipped}` com a razão de cada
+pulo, e o cliente do frontend descartava o corpo: preencher uma ficha e pular outra produzia a mesma
+tela de antes do clique. Hoje o painel imprime o resultado, e razão nova na API precisa de rótulo em
+`users.sync.skipReason` — sem ele o operador lê a chave crua.
+
 **A pessoa e o vínculo dela são chaves diferentes:** `CompanyUserView.id` é o usuário e
 `membershipId` é o `user_company_memberships.id` — e é o **vínculo** que o motorista da frota
 referencia. As sete rotas de `/company-users` publicam os dois lado a lado (todas sob `users.manage`,
