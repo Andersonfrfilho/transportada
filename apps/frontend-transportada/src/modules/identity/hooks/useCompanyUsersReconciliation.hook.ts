@@ -87,22 +87,61 @@ export function useCompanyUsersReconciliation(
    * já foi tentado a tela pediria de novo para sempre quando o provedor recusasse a escrita.
    */
   const attempted = useRef<ReadonlySet<string>>(new Set())
-  const divergedKey = (query.data?.items ?? [])
+  const items = query.data?.items ?? []
+  const keyOf = (status: (typeof items)[number]['status']): string =>
+    items
+      .filter((entry) => entry.status === status)
+      .map((entry) => entry.local?.userId ?? '')
+      .filter((userId) => userId !== '')
+      .join(',')
+
+  const divergedKey = items
     .filter((entry) => entry.differences.length > 0)
     .map((entry) => entry.local?.userId ?? '')
     .filter((userId) => userId !== '')
     .join(',')
+  /** Ficha vazia de quem já entra no sistema: copiar o que falta não inventa pessoa nenhuma. */
+  const incompleteKey = keyOf('profile-missing')
+  /** Tem cadastro aqui e não consegue entrar: o acesso é dela, e criá-lo não traz gente de fora. */
+  const withoutAccessKey = keyOf('missing-in-realm')
 
-  useEffect(() => {
-    const pending = divergedKey
+  function claim(key: string): readonly string[] {
+    const pending = key
       .split(',')
       .filter((userId) => userId !== '' && !attempted.current.has(userId))
-    if (pending.length === 0 || adoptMutation.isPending) return
+    if (pending.length > 0) attempted.current = new Set([...attempted.current, ...pending])
+    return pending
+  }
 
-    attempted.current = new Set([...attempted.current, ...pending])
-    adoptMutation.mutate(pending)
-    /** Só a chave dos divergentes governa: a mutação muda de identidade a cada render. */
+  /**
+   * Três pendências, e só duas se consertam sozinhas.
+   *
+   * Campo desatualizado e ficha vazia são conserto sobre pessoa que **já é nossa**: o dado vem da
+   * conta que ela usa para entrar, e nada é inventado. Cadastro sem acesso também: a pessoa existe
+   * aqui e não consegue entrar, e o acesso que se cria é o dela.
+   *
+   * ⚠️ **Acesso sem cadastro fica de fora, e continua sendo botão.** O provedor pode ser
+   * compartilhado com outros produtos, e importar em bloco cego traria para dentro da empresa cada
+   * conta que existe lá. Quem nasce dessa importação nasce sem papel nenhum, mas nasce — e decidir
+   * que uma conta desconhecida passa a ser pessoa desta empresa é decisão de gente.
+   */
+  useEffect(() => {
+    if (adoptMutation.isPending) return
+    const pending = claim(divergedKey)
+    if (pending.length > 0) adoptMutation.mutate(pending)
   }, [divergedKey, adoptMutation])
+
+  useEffect(() => {
+    if (fillProfilesMutation.isPending) return
+    const pending = claim(incompleteKey)
+    if (pending.length > 0) fillProfilesMutation.mutate(pending)
+  }, [incompleteKey, fillProfilesMutation])
+
+  useEffect(() => {
+    if (synchronizeMutation.isPending) return
+    const pending = claim(withoutAccessKey)
+    if (pending.length > 0) synchronizeMutation.mutate({ subjects: [], userIds: pending })
+  }, [withoutAccessKey, synchronizeMutation])
 
   return Object.assign(query, { adoptMutation, fillProfilesMutation, synchronizeMutation })
 }

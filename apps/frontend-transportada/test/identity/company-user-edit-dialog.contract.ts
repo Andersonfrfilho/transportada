@@ -534,8 +534,21 @@ describe('a conciliação de campo não espera clique', () => {
     expect(source).toContain('attempted.current')
   })
 
-  test('criar e preencher continuam sem disparo automático', () => {
-    expect(source).not.toContain('synchronizeMutation.mutate(')
-    expect(source).not.toContain('fillProfilesMutation.mutate(')
+  /**
+   * Ficha vazia e cadastro sem acesso também se consertam sozinhos: o dado vem da conta que a pessoa
+   * já usa para entrar, e o acesso que se cria é de quem já existe aqui. Nada é inventado.
+   */
+  test('ficha vazia e cadastro sem acesso também se consertam sozinhos', () => {
+    expect(source).toContain('fillProfilesMutation.mutate(pending)')
+    expect(source).toContain('synchronizeMutation.mutate({ subjects: [], userIds: pending })')
+  })
+
+  /**
+   * ⚠️ Acesso sem cadastro continua sendo botão. O provedor pode ser compartilhado com outros
+   * produtos: importar em bloco cego traria para dentro da empresa cada conta que existe lá.
+   */
+  test('acesso sem cadastro nunca é importado sozinho', () => {
+    expect(source).not.toContain("keyOf('missing-locally')")
+    expect(source).toContain('subjects: []')
   })
 })
