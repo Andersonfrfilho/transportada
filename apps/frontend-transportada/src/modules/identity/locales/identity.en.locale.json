@@ -134,7 +134,8 @@
         "disabled": "Disabled",
         "subject": "Provider identifier",
         "fillHint": "The local profile is empty. The provider has this account name and email — copying them is done by the server, because the address is masked on this screen.",
-        "reveal": "Reveal the provider email"
+        "reveal": "Reveal the provider email",
+        "diverged": "The provider and the local record disagree on: {{fields}}. The provider one is what authenticates."
       },
       "password": {
         "title": "Password",

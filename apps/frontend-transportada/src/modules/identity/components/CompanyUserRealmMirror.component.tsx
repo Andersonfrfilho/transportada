@@ -7,6 +7,7 @@ import type { ReconciliationEntry } from '../shared/companyUsers.types'
 import styles from '../styles/userAdministration.module.css'
 
 type CompanyUserRealmMirrorProps = Readonly<{
+  onAdoptRealmFields: () => void
   onFillFromRealm: () => void
   canReveal?: boolean
   disabled?: boolean
@@ -39,6 +40,7 @@ export function CompanyUserRealmMirror({
   disabled = false,
   entry,
   isRevealing = false,
+  onAdoptRealmFields,
   onFillFromRealm,
   onReveal,
   revealedEmail,
@@ -106,6 +108,24 @@ export function CompanyUserRealmMirror({
           </dd>
         </div>
       </dl>
+      {/**
+       * A divergência é dita **aqui**, e não só no painel de comparação: quem abre a edição vê os
+       * dois endereços um abaixo do outro e não tem como saber qual deles autentica. Mostrar os
+       * valores lado a lado sem dizer que discordam é deixar a conclusão por conta de quem lê.
+       */}
+      {entry.differences.length === 0 ? null : (
+        <>
+          <p className={styles.feedback} role="status">
+            {t('users.editDialog.realm.diverged', {
+              fields: entry.differences.map((field) => t(`users.sync.field.${field}`)).join(', '),
+            })}
+          </p>
+          <Button disabled={disabled} onClick={onAdoptRealmFields} size="sm" type="button">
+            <Icon name="download" />
+            {t('users.sync.adopt')}
+          </Button>
+        </>
+      )}
       {entry.status !== 'profile-missing' ? null : (
         <>
           <p className={styles.fieldHint}>{t('users.editDialog.realm.fillHint')}</p>

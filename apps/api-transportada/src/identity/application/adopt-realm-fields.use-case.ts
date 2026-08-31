@@ -100,16 +100,16 @@ export function createAdoptRealmFieldsUseCase({
           ...(fields.includes(REALM_OWNED_FIELD.USERNAME) ? { username: account.username } : {}),
           ...(fields.includes(REALM_OWNED_FIELD.TAX_ID) ? { taxId: account.taxId } : {}),
           /**
-           * O e-mail entra em `email` e, quando o canal do contato é e-mail, também no contato: é o
-           * contato que a listagem mostra e que a tela de login usa para achar o login da pessoa.
-           * Deixá-lo velho manteria de pé exatamente a divergência que este botão veio consertar.
+           * O e-mail do provedor entra em `email` e **não** toca no contato do convite. Os dois são
+           * endereços da mesma pessoa, e o contrato de vínculo é explícito: e-mail é conjunto, não
+           * campo — a mesma pessoa costuma ter mais de um, e os dois lados raramente guardam o
+           * mesmo. Sobrescrever o contato colapsaria dois endereços em um e perderia para sempre o
+           * endereço por onde o convite foi.
+           *
+           * Com os dois guardados, a divergência se resolve sozinha: `diffRealmOwnedFields` casa o
+           * e-mail do provedor com **qualquer** endereço nosso.
            */
-          ...(fields.includes(REALM_OWNED_FIELD.EMAIL)
-            ? {
-                email: account.email,
-                ...(record.contactChannel === 'email' ? { contactAddress: account.email } : {}),
-              }
-            : {}),
+          ...(fields.includes(REALM_OWNED_FIELD.EMAIL) ? { email: account.email } : {}),
         })
         adopted.push({ fields, userId })
       }

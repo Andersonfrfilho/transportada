@@ -100,21 +100,25 @@ describe('trazer do provedor os campos que ele manda', () => {
     })
   })
 
-  /** O contato é o que a listagem mostra e o que a tela de login usa para achar o login da pessoa. */
-  test('com canal de e-mail, o contato acompanha o endereço novo', async () => {
+  /**
+   * E-mail é conjunto, não campo — está no contrato de vínculo, e é o caso real: o endereço por onde
+   * o convite foi e o que autentica no provedor são os dois da mesma pessoa. Sobrescrever o contato
+   * colapsaria os dois em um e perderia o do convite para sempre.
+   */
+  test('o contato do convite não é sobrescrito pelo endereço do provedor', async () => {
     const fakes = createFakes()
 
     await createUseCase(fakes).execute(INPUT)
 
-    expect(fakes.updates[0]).toMatchObject({ contactAddress: 'novo@empresa.test' })
+    expect(fakes.updates[0]).not.toHaveProperty('contactAddress')
+    expect(fakes.updates[0]).toMatchObject({ email: 'novo@empresa.test' })
   })
 
-  test('com canal de telefone, o contato não é tocado', async () => {
-    const fakes = createFakes({ local: { contactChannel: 'phone', contactAddress: '11999998888' } })
+  /** Com os dois guardados, a divergência some sozinha na leitura seguinte. */
+  test('depois de adotar, o e-mail do provedor deixa de divergir', async () => {
+    const adopted = { ...LOCAL, email: REALM.email, username: REALM.username }
 
-    await createUseCase(fakes).execute(INPUT)
-
-    expect(fakes.updates[0]).not.toHaveProperty('contactAddress')
+    expect(diffRealmOwnedFields({ local: adopted, realm: REALM })).toEqual([])
   })
 
   /** O nome é editado aqui, e a conta criada pela sincronização nasce com o login no lugar dele. */

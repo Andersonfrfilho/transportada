@@ -35,6 +35,7 @@ type CompanyUserEditDialogProps = Readonly<{
   form: CompanyUserEditForm
   isPending: boolean
   onClose: () => void
+  onAdoptRealmFields: (userId: string) => void
   onFillFromRealm: (userId: string) => void
   onSubmit: () => void
   password: CompanyUserPasswordState
@@ -50,6 +51,7 @@ export function CompanyUserEditDialog({
   form,
   isFillingProfile = false,
   isPending,
+  onAdoptRealmFields,
   onClose,
   onFillFromRealm,
   onSubmit,
@@ -289,6 +291,7 @@ export function CompanyUserEditDialog({
           disabled={isFillingProfile}
           entry={realmEntry}
           isRevealing={reveal.isPending}
+          onAdoptRealmFields={() => onAdoptRealmFields(user.id)}
           onFillFromRealm={() => onFillFromRealm(user.id)}
           onReveal={() => void reveal.reveal([user.id], { includeRealm: true })}
           revealedEmail={revealed?.realmEmail}
