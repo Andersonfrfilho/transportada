@@ -1,4 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, test } from 'bun:test'
 
 import { createCompanyUsersClient } from '../../src/modules/identity/shared/companyUsersClient.service'
@@ -81,5 +83,35 @@ describe('foto de perfil no cliente', () => {
       .catch((error: unknown) => error)
 
     expect(failure).toBeInstanceOf(Error)
+  })
+})
+
+/**
+ * A miniatura do arquivo escolhido é o "antes" do par que o painel de revisão promete. Ela ficava
+ * amarrada ao `previewUrl` do recorte: quem escolhia uma imagem e não pedia remoção de fundo — ou
+ * estava num navegador em que ela não roda — via "confira antes de salvar" sem nada para conferir.
+ */
+describe('a imagem escolhida aparece antes de ser enviada', () => {
+  const source = readFileSync(
+    'src/modules/identity/components/CompanyUserPictureField.component.tsx',
+    'utf8',
+  )
+
+  test('o original é desenhado a partir do arquivo escolhido, não do recorte', () => {
+    expect(source).toContain('src={chosenUrl}')
+  })
+
+  test('a miniatura do original não depende de o recorte ter rodado', () => {
+    const comparison = source.slice(source.indexOf('styles.pictureComparison'))
+    const originalAt = comparison.indexOf('src={chosenUrl}')
+    const cutoutGuardAt = comparison.indexOf('cutout.previewUrl === null')
+
+    expect(originalAt).toBeGreaterThan(-1)
+    expect(originalAt).toBeLessThan(cutoutGuardAt)
+  })
+
+  /** URL de objeto sem revogação prende um blob na aba por toda a sessão, a cada arquivo tentado. */
+  test('a URL do arquivo escolhido é revogada', () => {
+    expect(source).toContain('URL.revokeObjectURL(created)')
   })
 })

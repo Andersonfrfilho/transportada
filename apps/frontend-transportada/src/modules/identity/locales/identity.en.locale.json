@@ -509,7 +509,8 @@
         "transparent": "No background"
       },
       "cutoutAlt": "{{name}} photo cutout",
-      "running": "Cutting out…"
+      "running": "Cutting out…",
+      "chosenAlt": "Image chosen for {{name}}"
     }
   },
   "login": {

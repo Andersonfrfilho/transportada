@@ -509,7 +509,8 @@
         "transparent": "Sem fundo"
       },
       "cutoutAlt": "Recorte da foto de {{name}}",
-      "running": "Recortando…"
+      "running": "Recortando…",
+      "chosenAlt": "Imagem escolhida para {{name}}"
     }
   },
   "login": {

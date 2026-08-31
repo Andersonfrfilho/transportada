@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useBackgroundRemoval } from '@adatechnology/image-cutout'
@@ -57,6 +57,7 @@ export function CompanyUserPictureField({
     PICTURE_BACKGROUND_CHOICE.WHITE,
   )
   const cutout = useBackgroundRemoval({ config: BACKGROUND_REMOVAL_CONFIG, file: chosenFile })
+  const chosenUrl = useObjectUrl(chosenFile)
 
   function submit(file: File): void {
     onSelect(file)
@@ -132,18 +133,30 @@ export function CompanyUserPictureField({
           </div>
 
           {/* O recorte só se aprova vendo: sem o resultado ao lado, o botão é fé. */}
-          {cutout.previewUrl === null ? null : (
-            <div className={styles.pictureComparison}>
+          {/**
+           * O original aparece **sempre**, e não só quando o recorte roda. Antes, quem escolhia um
+           * arquivo e não pedia remoção de fundo — ou estava num navegador onde ela não roda — via
+           * um painel de revisão sem imagem alguma: "confira o resultado" sem nada para conferir.
+           */}
+          <div className={styles.pictureComparison}>
+            {chosenUrl === null ? null : (
+              <img
+                alt={t('users.picture.chosenAlt', { name })}
+                className={styles.picture}
+                src={chosenUrl}
+              />
+            )}
+            {cutout.previewUrl === null ? null : (
               <img
                 alt={t('users.picture.cutoutAlt', { name })}
                 className={styles.picture}
                 src={cutout.previewUrl}
               />
-              {cutout.running ? (
-                <span className={styles.hint}>{t('users.picture.running')}</span>
-              ) : null}
-            </div>
-          )}
+            )}
+            {cutout.running ? (
+              <span className={styles.hint}>{t('users.picture.running')}</span>
+            ) : null}
+          </div>
 
           {cutout.error === null ? null : (
             <p className={styles.feedback} role="alert">
@@ -181,6 +194,27 @@ export function CompanyUserPictureField({
       )}
     </div>
   )
+}
+
+/**
+ * Mesma disciplina da foto que desce do servidor: toda URL de objeto criada é revogada. Sem isso,
+ * cada arquivo experimentado antes de enviar deixaria um blob preso na aba pelo resto da sessão.
+ */
+function useObjectUrl(file: File | null): string | null {
+  const [url, setUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (file === null) {
+      setUrl(null)
+      return
+    }
+
+    const created = URL.createObjectURL(file)
+    setUrl(created)
+    return () => URL.revokeObjectURL(created)
+  }, [file])
+
+  return url
 }
 
 function initialsOf(name: string): string {
