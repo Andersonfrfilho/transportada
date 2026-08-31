@@ -4,6 +4,7 @@
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { type SQL, and, desc, eq, inArray, isNull, lt, ne, or, sum } from 'drizzle-orm'
 
+import { companyCargoSettings } from '../../database/company-cargo-settings.schema.js'
 import { cteBatchItemDocuments, cteBatches } from '../../database/cte-batch.schema.js'
 import { nfseServiceInvoiceDocuments, nfseServiceInvoices } from '../../database/nfse.schema.js'
 import {
@@ -13,6 +14,7 @@ import {
   nfeVolumes,
 } from '../../database/nfe.schema.js'
 import { resolveDocumentBlock } from '../../cte-batches/domain/cte-batch-eligibility.policy.js'
+import { resolveCargoWeight } from '../domain/cargo-weight.policy.js'
 import { findTripLinks } from '../../cte-batches/infrastructure/cte-batch-selection.query.js'
 import type { TripDocumentLink } from '../../cte-batches/application/cte-batch-preview.port.js'
 import { storedObjects } from '../../database/storage.schema.js'
@@ -71,9 +73,16 @@ type NfseInvoiceLink = {
   readonly number: string | null
 }
 
+type DocumentVolumeTotals = {
+  readonly grossWeight: string | null
+  readonly quantity: string | null
+}
+
 type DocumentBlockContext = {
   readonly batchIdByDocumentId: ReadonlyMap<string, string>
-  readonly grossWeightByDocumentId: ReadonlyMap<string, string>
+  /** Nulo é estimativa desligada nesta empresa; resolvido uma vez por página, nunca por linha. */
+  readonly defaultVolumeWeight: string | null
+  readonly volumeTotalsByDocumentId: ReadonlyMap<string, DocumentVolumeTotals>
   readonly nfseInvoiceByDocumentId: ReadonlyMap<string, NfseInvoiceLink>
   /** Spec 065 D4b: sinal de "esta nota já saiu numa viagem". Nenhum bloqueio o lê. */
   readonly tripByDocumentId: ReadonlyMap<string, TripDocumentLink>
@@ -81,7 +90,8 @@ type DocumentBlockContext = {
 
 const EMPTY_BLOCK_CONTEXT: DocumentBlockContext = {
   batchIdByDocumentId: new Map(),
-  grossWeightByDocumentId: new Map(),
+  defaultVolumeWeight: null,
+  volumeTotalsByDocumentId: new Map(),
   nfseInvoiceByDocumentId: new Map(),
   tripByDocumentId: new Map(),
 }
@@ -277,53 +287,66 @@ export class DrizzleNfeDocumentRepository implements NfeDocumentRepositoryPort {
 
   private async loadBlockContext(scope: DocumentScope): Promise<DocumentBlockContext> {
     if (scope.documentIds.length === 0) return EMPTY_BLOCK_CONTEXT
-    const [weightRows, linkRows, nfseLinkRows, tripLinkRows] = await Promise.all([
-      this.database
-        .select({ documentId: nfeVolumes.documentId, grossWeight: sum(nfeVolumes.grossWeight) })
-        .from(nfeVolumes)
-        .where(and(...buildDocumentGrossWeightFilters(scope)))
-        .groupBy(nfeVolumes.documentId),
-      this.database
-        .selectDistinctOn([cteBatchItemDocuments.nfeDocumentId], {
-          batchId: cteBatchItemDocuments.batchId,
-          documentId: cteBatchItemDocuments.nfeDocumentId,
-        })
-        .from(cteBatchItemDocuments)
-        .innerJoin(
-          cteBatches,
-          and(
-            eq(cteBatches.companyId, cteBatchItemDocuments.companyId),
-            eq(cteBatches.id, cteBatchItemDocuments.batchId),
-          ),
-        )
-        .where(and(...buildDocumentBatchLinkFilters(scope)))
-        .orderBy(cteBatchItemDocuments.nfeDocumentId),
-      this.database
-        .selectDistinctOn([nfseServiceInvoiceDocuments.nfeDocumentId], {
-          documentId: nfseServiceInvoiceDocuments.nfeDocumentId,
-          invoiceId: nfseServiceInvoiceDocuments.invoiceId,
-          providerNumber: nfseServiceInvoices.providerNumber,
-        })
-        .from(nfseServiceInvoiceDocuments)
-        .innerJoin(
-          nfseServiceInvoices,
-          and(
-            eq(nfseServiceInvoices.companyId, nfseServiceInvoiceDocuments.companyId),
-            eq(nfseServiceInvoices.id, nfseServiceInvoiceDocuments.invoiceId),
-          ),
-        )
-        .where(and(...buildDocumentNfseLinkFilters(scope)))
-        .orderBy(nfseServiceInvoiceDocuments.nfeDocumentId),
-      // A mesma consulta que a composição do lote usa: um sinal só, num lugar só (spec 065 D4b).
-      findTripLinks(this.database, scope),
-    ])
+    const [volumeRows, defaultWeightRows, linkRows, nfseLinkRows, tripLinkRows] = await Promise.all(
+      [
+        this.database
+          .select({
+            documentId: nfeVolumes.documentId,
+            grossWeight: sum(nfeVolumes.grossWeight),
+            quantity: sum(nfeVolumes.quantity),
+          })
+          .from(nfeVolumes)
+          .where(and(...buildDocumentGrossWeightFilters(scope)))
+          .groupBy(nfeVolumes.documentId),
+        this.database
+          .select({ defaultVolumeWeight: companyCargoSettings.defaultVolumeWeight })
+          .from(companyCargoSettings)
+          .where(eq(companyCargoSettings.companyId, scope.companyId))
+          .limit(1),
+        this.database
+          .selectDistinctOn([cteBatchItemDocuments.nfeDocumentId], {
+            batchId: cteBatchItemDocuments.batchId,
+            documentId: cteBatchItemDocuments.nfeDocumentId,
+          })
+          .from(cteBatchItemDocuments)
+          .innerJoin(
+            cteBatches,
+            and(
+              eq(cteBatches.companyId, cteBatchItemDocuments.companyId),
+              eq(cteBatches.id, cteBatchItemDocuments.batchId),
+            ),
+          )
+          .where(and(...buildDocumentBatchLinkFilters(scope)))
+          .orderBy(cteBatchItemDocuments.nfeDocumentId),
+        this.database
+          .selectDistinctOn([nfseServiceInvoiceDocuments.nfeDocumentId], {
+            documentId: nfseServiceInvoiceDocuments.nfeDocumentId,
+            invoiceId: nfseServiceInvoiceDocuments.invoiceId,
+            providerNumber: nfseServiceInvoices.providerNumber,
+          })
+          .from(nfseServiceInvoiceDocuments)
+          .innerJoin(
+            nfseServiceInvoices,
+            and(
+              eq(nfseServiceInvoices.companyId, nfseServiceInvoiceDocuments.companyId),
+              eq(nfseServiceInvoices.id, nfseServiceInvoiceDocuments.invoiceId),
+            ),
+          )
+          .where(and(...buildDocumentNfseLinkFilters(scope)))
+          .orderBy(nfseServiceInvoiceDocuments.nfeDocumentId),
+        // A mesma consulta que a composição do lote usa: um sinal só, num lugar só (spec 065 D4b).
+        findTripLinks(this.database, scope),
+      ],
+    )
 
     return {
       batchIdByDocumentId: new Map(linkRows.map((row) => [row.documentId, row.batchId])),
-      grossWeightByDocumentId: new Map(
-        weightRows.flatMap((row) =>
-          row.grossWeight === null ? [] : [[row.documentId, row.grossWeight]],
-        ),
+      defaultVolumeWeight: defaultWeightRows[0]?.defaultVolumeWeight ?? null,
+      volumeTotalsByDocumentId: new Map(
+        volumeRows.map((row) => [
+          row.documentId,
+          { grossWeight: row.grossWeight, quantity: row.quantity },
+        ]),
       ),
       nfseInvoiceByDocumentId: new Map(
         nfseLinkRows.map((row) => [
@@ -402,9 +425,15 @@ function mapSummary(
   const emitter = participants?.emitter ?? EMPTY_PARTICIPANT
   const recipient = participants?.recipient ?? EMPTY_PARTICIPANT
   const nfseInvoice = blockContext.nfseInvoiceByDocumentId.get(document.id) ?? null
+  const volumeTotals = blockContext.volumeTotalsByDocumentId.get(document.id)
+  const cargoWeight = resolveCargoWeight({
+    defaultWeightPerVolume: blockContext.defaultVolumeWeight,
+    volumeGrossWeight: volumeTotals?.grossWeight ?? null,
+    volumeQuantity: volumeTotals?.quantity ?? null,
+  })
   const decision = resolveDocumentBlock({
     document: {
-      grossWeight: blockContext.grossWeightByDocumentId.get(document.id) ?? null,
+      grossWeight: cargoWeight?.grossWeight ?? null,
       recipientCity: recipient.city,
       recipientState: recipient.state,
       recipientTaxId: recipient.taxId,

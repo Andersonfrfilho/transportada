@@ -259,6 +259,25 @@ Remota e a tela de configurações não contarem histórias diferentes. A parida
 aba Remota da tela de Notas**, junto do efeito, e não mais em configurações de empresa — ver
 "Configuração perto do efeito" abaixo.
 
+**O peso da carga tem duas fontes, e só o CT-e o exige** (ADR-0052, spec 067). O emitente omite
+`pesoB` **por nota**, não por política — a Zaragoza mandou 883658 com 108,670 kg e 883663 com 0,000
+no mesmo caminhão, mesmo lacre, mesmo minuto. Duas consequências:
+
+- `checkSharedEligibility` é o que CT-e e NFS-e conferem em comum (autorizada, completa, valor,
+  participantes, municípios). O **peso ficou só em `checkDocumentEligibility`**, e
+  `NfseSelectionBlockReason` deixou de admitir `CTE_BATCH_DOCUMENT_MISSING_WEIGHT` **por tipo** — o
+  RPS da Nota RP não tem campo de massa, e barrar por um campo que nunca sai no documento travava
+  emissão real. A seleção de NFS-e também parou de consultar `nfe_volumes`; o contrato
+  `test/nfse-schema/invoice-selection-query-tenant-safety.contract.ts` falha se a tabela reaparecer ali.
+- O peso efetivo é `XML → qVol × company_cargo_settings.default_volume_weight → ausência`, resolvido
+  em `nfe-documents/domain/cargo-weight.policy.ts` e lido pela listagem de notas, pela seleção de
+  lote e pelo payload de CT-e. Nulo é **estimativa desligada** e é o padrão; zero é recusado pelo
+  CHECK (zero declararia que a carga não pesa nada). A estimativa entra **por volume**, para a soma
+  de `composeCargoQuantities` continuar coerente com o `qVol`, e nota com **algum** volume pesado
+  não é tocada. ⚠️ Não confundir com `company_route_optimization_settings.fallback_weight_kilograms`,
+  que é peso **por parada** para o solver. ⚠️ **Nenhuma tela mostra peso hoje**, então não há marca
+  de "estimado" por nota — quem expuser peso em qualquer superfície leva a origem junto.
+
 **Cliente da fatura:** é o **tomador do frete**, quem paga — nunca um papel de participante da nota.
 Quem é o tomador está configurado em `cte_emission_profiles.taker` (`0` remetente, `3` destinatário)
 e a emissão grava o valor resolvido em `cte_issuance_payloads.taker_tax_id`/`taker_legal_name`; o

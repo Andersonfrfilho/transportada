@@ -34,22 +34,22 @@ esperar por uma decisão fiscal que não a afeta.
 > preservado, então payload com peso e volume zerado na origem é peso estimado, sempre. Gravar de
 > novo o que já dá para deduzir custava migration no payload congelado por nada.
 
-- [ ] T101 [P] Contrato do gate: bloqueia sem XML e sem padrão, passa com padrão, XML vence
+- [x] T101 [P] Contrato do gate: bloqueia sem XML e sem padrão, passa com padrão, XML vence
       padrão, `qVol` zero segue bloqueado — `test/cte-batch/weight-gate.contract.ts` —
       evidência: teste vermelho
-- [ ] T102 Migration de uma coluna: `companies.default_volume_weight numeric` (nula = estimativa
+- [x] T102 Migration de uma coluna: `companies.default_volume_weight numeric` (nula = estimativa
       desligada, CHECK > 0) + `rollback.sql` — evidência: `make migration-test`
-- [ ] T103 Resolução pura do peso efetivo: XML → `qVol` × padrão → ausência —
+- [x] T103 Resolução pura do peso efetivo: XML → `qVol` × padrão → ausência —
       `nfe-documents/domain/` — evidência: unitário das combinações
-- [ ] T104 Elegibilidade e payload leem o peso efetivo, com o padrão resolvido **uma vez por
+- [x] T104 Elegibilidade e payload leem o peso efetivo, com o padrão resolvido **uma vez por
       empresa** antes do `map` — `drizzle-nfe-document.repository.ts:282`,
       `cte-batch-selection.query.ts`, `cte-issuance-payload.query.ts:412` — evidência: T101 verde
-- [ ] T105 Campo do peso padrão no painel de configuração já existente + marca de peso estimado
+- [x] T105 Campo do peso padrão no painel de configuração já existente + marca de peso estimado
       na prévia do lote (uma superfície, a que antecede a emissão) —
       `frontend-transportada/` — evidência: contrato + `locale-accents.contract.ts`
-- [ ] T106 ADR curta `docs/adr/0052-o-peso-que-o-emitente-nao-declarou.md` registrando a decisão e
+- [x] T106 ADR curta `docs/adr/0052-o-peso-que-o-emitente-nao-declarou.md` registrando a decisão e
       o risco fiscal, e `CLAUDE.md` atualizado — evidência: diff revisado
-- [ ] T107 `make check` e `evidence.md` — evidência: gate verde
+- [x] T107 `make check` e `evidence.md` — evidência: gate verde
 
 **Decidido junto, para não virar task:** o peso estimado **não** entra no frete por faixa de peso
 (a transportadora não cobra por número que ela mesma estimou), e instalação nova nasce **sem**

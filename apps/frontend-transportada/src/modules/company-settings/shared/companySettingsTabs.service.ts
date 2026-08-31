@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 
 export const SETTINGS_PANELS = [
+  'cargoWeight',
   'settingsForm',
   'logo',
   'landing',
@@ -25,6 +26,7 @@ export const SETTINGS_PANEL_MODULES = [
 export type SettingsPanelModule = (typeof SETTINGS_PANEL_MODULES)[number]
 
 export type SettingsDataSource =
+  | 'cargoSettings'
   | 'companySettings'
   | 'distributionCursor'
   | 'freightRegions'
@@ -52,6 +54,7 @@ export type SettingsPanelPlacement = Readonly<{
  * módulos ao mesmo tempo.
  */
 export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPanelPlacement>> = {
+  cargoWeight: { module: 'nfe-workspace', source: 'cargoSettings', tab: 'imports' },
   certificates: { module: 'company-settings', source: 'companySettings', tab: 'certificates' },
   distributionCursor: { module: 'nfe-workspace', source: 'distributionCursor', tab: 'imports' },
   freightRegions: { module: 'fleet', source: 'freightRegions', tab: 'regions' },
@@ -102,6 +105,7 @@ export function resolveSettingsDataScope(
     settingsPanelsOf(module, tab).map((panel) => SETTINGS_PANEL_PLACEMENT[panel].source),
   )
   return {
+    cargoSettings: sources.has('cargoSettings'),
     companySettings: module === 'company-settings' || sources.has('companySettings'),
     distributionCursor: sources.has('distributionCursor'),
     freightRegions: sources.has('freightRegions'),

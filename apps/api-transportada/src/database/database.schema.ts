@@ -104,6 +104,7 @@ import {
   nfseServiceInvoices,
 } from './nfse.schema.js'
 import { viewPreferences } from './view-preferences.schema.js'
+import { companyCargoSettings } from './company-cargo-settings.schema.js'
 import { companyDistributionSettings } from './company-distribution-settings.schema.js'
 import { companyLogos } from './company-logo.schema.js'
 import { identityUserPictures } from './identity-user-picture.schema.js'
@@ -165,6 +166,7 @@ export * from './cte-issuance.schema.js'
 export * from './billing.schema.js'
 export * from './billing-description-template.schema.js'
 export * from './view-preferences.schema.js'
+export * from './company-cargo-settings.schema.js'
 export * from './company-distribution-settings.schema.js'
 export * from './company-logo.schema.js'
 export * from './cte-emission-profile.schema.js'
@@ -189,6 +191,7 @@ export const databaseSchema = {
   aggregateDocuments,
   auditLogs,
   companies,
+  companyCargoSettings,
   companyDistributionSettings,
   companyEnergySettings,
   companyFiscalProfiles,

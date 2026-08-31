@@ -23,6 +23,13 @@ import { createAggregateAccountUseCase } from './fleet/application/aggregate-acc
 import { createDisableScheduledDistributionUseCase } from './companies/application/disable-scheduled-distribution.use-case.js'
 import { createEnableScheduledDistributionUseCase } from './companies/application/enable-scheduled-distribution.use-case.js'
 import { createGetScheduledDistributionStatusUseCase } from './companies/application/get-scheduled-distribution-status.use-case.js'
+import {
+  createClearDefaultVolumeWeightUseCase,
+  createGetCargoSettingsUseCase,
+  createSetDefaultVolumeWeightUseCase,
+} from './companies/application/cargo-settings.use-case.js'
+import { DrizzleCargoSettingsRepository } from './companies/infrastructure/drizzle-cargo-settings.repository.js'
+import { createCargoSettingsRoutes } from './companies/presentation/cargo-settings.routes.js'
 import { createAdjustFuelPriceUseCase } from './companies/application/adjust-fuel-price.use-case.js'
 import { createClearFuelPriceUseCase } from './companies/application/clear-fuel-price.use-case.js'
 import { createListFuelPricesUseCase } from './companies/application/list-fuel-prices.use-case.js'
@@ -914,6 +921,7 @@ function createApplicationRoutes({
   const settingsRepository = new DrizzleCompanySettingsRepository(database)
   const scheduledDistributionRepository = new DrizzleScheduledDistributionRepository(database)
   const distributionCursorRepository = new DrizzleDistributionCursorRepository(database)
+  const cargoSettingsRepository = new DrizzleCargoSettingsRepository(database)
   const fuelPriceRepository = new DrizzleFuelPriceRepository(database)
   const companyEnergyRepository = new DrizzleCompanyEnergyRepository(database)
   const companyLogoRepository = new DrizzleCompanyLogoRepository(database)
@@ -1282,6 +1290,11 @@ function createApplicationRoutes({
         unitOfWork: scheduledDistributionRepository,
       }),
       getStatus: getScheduledDistribution,
+    }),
+    ...createCargoSettingsRoutes({
+      clear: createClearDefaultVolumeWeightUseCase({ cargoSettings: cargoSettingsRepository }),
+      get: createGetCargoSettingsUseCase({ cargoSettings: cargoSettingsRepository }),
+      set: createSetDefaultVolumeWeightUseCase({ cargoSettings: cargoSettingsRepository }),
     }),
     ...createFuelPriceRoutes({
       adjust: createAdjustFuelPriceUseCase({ fuelPrices: fuelPriceRepository }),

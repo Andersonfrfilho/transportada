@@ -4,6 +4,7 @@
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { type SQL, and, desc, eq, inArray, isNull, like, ne, or, sql, sum } from 'drizzle-orm'
 
+import { companyCargoSettings } from '../../database/company-cargo-settings.schema.js'
 import { cteBatchItemDocuments, cteBatches } from '../../database/cte-batch.schema.js'
 import {
   nfeAddresses,
@@ -13,6 +14,7 @@ import {
 } from '../../database/nfe.schema.js'
 import { nfseServiceInvoiceDocuments } from '../../database/nfse.schema.js'
 import { freightCalculations } from '../../database/freight.schema.js'
+import { resolveCargoWeight } from '../../nfe-documents/domain/cargo-weight.policy.js'
 import { tripDocuments, trips } from '../../database/trip.schema.js'
 import type {
   CteBatchNameQuery,
@@ -182,7 +184,7 @@ export async function findSelectionDocuments(
   { companyId, documentIds }: CteBatchPreviewQuery,
 ): Promise<readonly CteBatchPreviewDocument[]> {
   if (documentIds.length === 0) return []
-  const [records, parties, weights] = await Promise.all([
+  const [records, parties, volumeTotals, defaultWeightPerVolume] = await Promise.all([
     queryable
       .select({
         accessKey: nfeDocuments.accessKey,
@@ -199,16 +201,23 @@ export async function findSelectionDocuments(
         and(eq(nfeDocuments.companyId, companyId), inArray(nfeDocuments.id, [...documentIds])),
       ),
     loadParties(queryable, companyId, documentIds),
-    loadGrossWeights(queryable, companyId, documentIds),
+    loadVolumeTotals(queryable, companyId, documentIds),
+    loadDefaultVolumeWeight(queryable, companyId),
   ])
 
   return records.map((record) => {
     const { recipient, sender } = parties.get(record.id) ?? EMPTY_PARTIES
+    const totals = volumeTotals.get(record.id)
+    const cargoWeight = resolveCargoWeight({
+      defaultWeightPerVolume,
+      volumeGrossWeight: totals?.grossWeight ?? null,
+      volumeQuantity: totals?.quantity ?? null,
+    })
 
     return {
       accessKey: record.accessKey,
       companyId: record.companyId,
-      grossWeight: weights.get(record.id) ?? null,
+      grossWeight: cargoWeight?.grossWeight ?? null,
       id: record.id,
       issuedAt: record.issuedAt.toISOString(),
       number: record.number,
@@ -226,15 +235,21 @@ export async function findSelectionDocuments(
   })
 }
 
-async function loadGrossWeights(
+type VolumeTotals = {
+  readonly grossWeight: string | null
+  readonly quantity: string | null
+}
+
+async function loadVolumeTotals(
   queryable: SelectionQueryable,
   companyId: string,
   documentIds: readonly string[],
-): Promise<Map<string, string>> {
+): Promise<Map<string, VolumeTotals>> {
   const rows = await queryable
     .select({
       documentId: nfeVolumes.documentId,
       grossWeight: sum(nfeVolumes.grossWeight),
+      quantity: sum(nfeVolumes.quantity),
     })
     .from(nfeVolumes)
     .where(
@@ -243,8 +258,22 @@ async function loadGrossWeights(
     .groupBy(nfeVolumes.documentId)
 
   return new Map(
-    rows.flatMap((row) => (row.grossWeight === null ? [] : [[row.documentId, row.grossWeight]])),
+    rows.map((row) => [row.documentId, { grossWeight: row.grossWeight, quantity: row.quantity }]),
   )
+}
+
+/** Uma consulta por seleção, não por nota: o padrão é da empresa, e a empresa é uma só aqui. */
+async function loadDefaultVolumeWeight(
+  queryable: SelectionQueryable,
+  companyId: string,
+): Promise<string | null> {
+  const [row] = await queryable
+    .select({ defaultVolumeWeight: companyCargoSettings.defaultVolumeWeight })
+    .from(companyCargoSettings)
+    .where(eq(companyCargoSettings.companyId, companyId))
+    .limit(1)
+
+  return row?.defaultVolumeWeight ?? null
 }
 
 async function loadParties(

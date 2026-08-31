@@ -16,6 +16,7 @@ import {
   isDistributionCursorResponse,
   type DistributionCursor,
 } from './distributionCursor.validation'
+import { isCargoSettingsResponse, type CargoSettings } from './cargoSettings.validation'
 import { isEnergySettingsResponse, type EnergySettings } from './energySettings.validation'
 import type { FuelProduct } from '../../shared/fuel.constant'
 import {
@@ -56,6 +57,7 @@ const COMPANY_SCHEDULED_DISTRIBUTION_PATH = '/company-settings/scheduled-distrib
 const COMPANY_DISTRIBUTION_CURSOR_PATH = '/company-settings/distribution-cursor'
 const COMPANY_FUEL_PRICES_PATH = '/company-settings/fuel-prices'
 const COMPANY_ENERGY_PATH = '/company-settings/energy'
+const COMPANY_CARGO_PATH = '/company-settings/cargo'
 const DATA_URL_CHUNK = 8_192
 
 type ClientDependencies = Readonly<{
@@ -93,11 +95,13 @@ export type CompanySettingsClient = Readonly<{
   chooseEnergyDistributor: (
     input: Readonly<{ adjustmentFactor: string; distributorCode: string }>,
   ) => Promise<EnergySettings>
+  clearDefaultVolumeWeight: () => Promise<void>
   clearEnergyDistributor: () => Promise<void>
   clearFuelPrice: (product: FuelProduct) => Promise<void>
   disableScheduledDistribution: () => Promise<ScheduledDistributionStatus>
   enableScheduledDistribution: () => Promise<ScheduledDistributionStatus>
   getDistributionCursor: () => Promise<DistributionCursor>
+  getCargoSettings: () => Promise<CargoSettings>
   getEnergySettings: () => Promise<EnergySettings>
   getFuelPrices: () => Promise<readonly FuelPriceEntry[]>
   getLogo: () => Promise<CompanyLogoImage | null>
@@ -111,6 +115,7 @@ export type CompanySettingsClient = Readonly<{
   retireCertificate: (purpose: CertificatePurpose) => Promise<void>
   replaceCertificate: (input: FormData) => Promise<SafeCertificate>
   replaceLogo: (file: File) => Promise<CompanyLogoMetadata>
+  setDefaultVolumeWeight: (defaultVolumeWeight: string) => Promise<CargoSettings>
   updateSettings: (input: CompanySettingsUpdate) => Promise<CompanySettingsResponse>
 }>
 
@@ -500,6 +505,50 @@ async function clearFuelPrice(
   if (!response.ok) throw requestError(readErrorCode(await response.text()))
 }
 
+async function readCargoSettings(dependencies: ClientDependencies): Promise<CargoSettings> {
+  const response = await getRequest({ dependencies, path: COMPANY_CARGO_PATH })
+  if (!isCargoSettingsResponse(response)) throw requestError('COMPANY_SETTINGS_RESPONSE_INVALID')
+  return response.data
+}
+
+async function saveCargoWeight(
+  input: Readonly<{ defaultVolumeWeight: string; dependencies: ClientDependencies }>,
+): Promise<CargoSettings> {
+  const accessToken = await input.dependencies.getAccessToken()
+  const response = await requestJson({
+    fetch: input.dependencies.fetch,
+    request: new Request(`${input.dependencies.apiBaseUrl}${COMPANY_CARGO_PATH}`, {
+      body: JSON.stringify({ defaultVolumeWeight: input.defaultVolumeWeight }),
+      cache: 'no-store',
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        'content-type': 'application/json',
+      },
+      method: 'PUT',
+    }),
+  })
+  if (!isCargoSettingsResponse(response)) throw requestError('COMPANY_SETTINGS_RESPONSE_INVALID')
+  return response.data
+}
+
+/** 204 sem corpo, como a limpeza de preço: pedir JSON viraria sucesso em erro de formato. */
+async function clearCargoWeight(dependencies: ClientDependencies): Promise<void> {
+  const accessToken = await dependencies.getAccessToken()
+  let response: Response
+  try {
+    response = await dependencies.fetch(
+      new Request(`${dependencies.apiBaseUrl}${COMPANY_CARGO_PATH}`, {
+        cache: 'no-store',
+        headers: { authorization: `Bearer ${accessToken}` },
+        method: 'DELETE',
+      }),
+    )
+  } catch {
+    throw requestError('COMPANY_SETTINGS_NETWORK_ERROR')
+  }
+  if (!response.ok) throw requestError(readErrorCode(await response.text()))
+}
+
 async function readEnergySettings(dependencies: ClientDependencies): Promise<EnergySettings> {
   const response = await getRequest({ dependencies, path: COMPANY_ENERGY_PATH })
   if (!isEnergySettingsResponse(response)) throw requestError('COMPANY_SETTINGS_RESPONSE_INVALID')
@@ -562,12 +611,14 @@ export const createCompanySettingsClient: CompanySettingsClientFactory = (depend
       dependencies,
       distributorCode: input.distributorCode,
     }),
+  clearDefaultVolumeWeight: () => clearCargoWeight(dependencies),
   clearEnergyDistributor: () => clearEnergyDistributor(dependencies),
   clearFuelPrice: (product) => clearFuelPrice({ dependencies, product }),
   disableScheduledDistribution: () =>
     requestScheduledDistribution({ dependencies, method: 'DELETE' }),
   enableScheduledDistribution: () => requestScheduledDistribution({ dependencies, method: 'PUT' }),
   getDistributionCursor: () => requestDistributionCursor({ dependencies, method: 'GET' }),
+  getCargoSettings: () => readCargoSettings(dependencies),
   getEnergySettings: () => readEnergySettings(dependencies),
   getFuelPrices: () => readFuelPrices(dependencies),
   getLogo: () => readLogo(dependencies),
@@ -579,5 +630,7 @@ export const createCompanySettingsClient: CompanySettingsClientFactory = (depend
   retireCertificate: (purpose) => retireCertificate({ dependencies, purpose }),
   replaceCertificate: (body) => replaceCertificate({ body, dependencies }),
   replaceLogo: (file) => replaceLogo({ dependencies, file }),
+  setDefaultVolumeWeight: (defaultVolumeWeight) =>
+    saveCargoWeight({ defaultVolumeWeight, dependencies }),
   updateSettings: (settings) => updateSettings({ dependencies, settings }),
 })

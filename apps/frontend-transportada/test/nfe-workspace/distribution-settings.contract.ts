@@ -43,6 +43,7 @@ describe('nfe workspace distribution settings contract', () => {
     })
     expect(settingsTabsOf('nfe-workspace')).toEqual(['imports'])
     expect(settingsPanelsOf('nfe-workspace', 'imports')).toEqual([
+      'cargoWeight',
       'scheduledDistribution',
       'distributionCursor',
     ])
@@ -57,6 +58,17 @@ describe('nfe workspace distribution settings contract', () => {
     expect(documents.scheduledDistribution).toBe(false)
     expect(documents.distributionCursor).toBe(false)
     expect(imports.companySettings).toBe(false)
+    /**
+     * Spec 067: o peso padrão mora aqui porque o efeito dele aparece na tabela de Notas — é ela
+     * que imprime "Sem peso da carga" na linha que ele destrava.
+     */
+    expect(SETTINGS_PANEL_PLACEMENT.cargoWeight).toEqual({
+      module: 'nfe-workspace',
+      source: 'cargoSettings',
+      tab: 'imports',
+    })
+    expect(imports.cargoSettings).toBe(true)
+    expect(documents.cargoSettings).toBe(false)
   })
 
   test('os painéis e os hooks moram na tela de notas', async () => {
