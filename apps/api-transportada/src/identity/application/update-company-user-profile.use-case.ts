@@ -10,11 +10,14 @@ import {
   type CompanyUserView,
 } from '../domain/company-user.policy.js'
 import type { CompanyUserRepositoryPort } from './company-user.port.js'
+import type { UserPictureRepositoryPort } from './user-picture.port.js'
 import { resolveIdentitySubject } from './company-user-identity.service.js'
 import type { IdentityProfileGatewayPort } from './identity-profile.port.js'
 
 type UpdateCompanyUserProfileDependencies = {
   readonly identityGateway: IdentityProfileGatewayPort
+  /** A foto entra no conjunto de atributos; sem ela na mão, gravar o CPF a apagaria do provedor. */
+  readonly pictures: Pick<UserPictureRepositoryPort, 'find'>
   readonly repository: Pick<
     CompanyUserRepositoryPort,
     'findByUserId' | 'findIdentitySubject' | 'updateProfile'
@@ -46,6 +49,7 @@ export type UpdateCompanyUserProfileUseCase = {
  */
 export function createUpdateCompanyUserProfileUseCase({
   identityGateway,
+  pictures,
   repository,
 }: UpdateCompanyUserProfileDependencies): UpdateCompanyUserProfileUseCase {
   return {
@@ -91,17 +95,32 @@ export function createUpdateCompanyUserProfileUseCase({
       }
 
       /**
-       * O atributo vai numa chamada própria e depois do perfil: o Admin API substitui o conjunto
-       * inteiro, então o `company_id` viaja junto — sem ele o login entraria sem empresa.
+       * O atributo vai numa chamada própria e depois do perfil. O Admin API **substitui o conjunto
+       * inteiro**, e é por isso que este bloco monta a ficha completa em vez de só o que mudou:
+       * mandar `company_id` + `tax_id` apagava a foto do provedor a cada edição de CPF — invisível
+       * enquanto ninguém lia o atributo, destrutivo assim que a imagem passou a morar nele.
+       *
+       * A foto é lida daqui, que é onde ela mora; o provedor é espelho, não fonte.
        */
-      if (taxId !== undefined)
-        await identityGateway.updateAttributes({
-          attributes: {
-            [IDENTITY_USER_ATTRIBUTE.COMPANY_ID]: context.companyId,
-            ...(taxId === '' ? {} : { [IDENTITY_USER_ATTRIBUTE.TAX_ID]: taxId }),
-          },
-          userId: subject,
-        })
+      const merged = {
+        phone: phone ?? existing.phone,
+        taxId: taxId ?? existing.taxId,
+      }
+      const picture = await pictures.find({ companyId: context.companyId, userId })
+
+      await identityGateway.updateAttributes({
+        attributes: {
+          [IDENTITY_USER_ATTRIBUTE.COMPANY_ID]: context.companyId,
+          ...(merged.taxId === '' ? {} : { [IDENTITY_USER_ATTRIBUTE.TAX_ID]: merged.taxId }),
+          ...(merged.phone === '' ? {} : { [IDENTITY_USER_ATTRIBUTE.PHONE]: merged.phone }),
+          ...(picture === null
+            ? {}
+            : {
+                [IDENTITY_USER_ATTRIBUTE.PICTURE]: `data:${picture.mimeType};base64,${picture.bytes.toString('base64')}`,
+              }),
+        },
+        userId: subject,
+      })
 
       return toCompanyUserView({
         ...existing,

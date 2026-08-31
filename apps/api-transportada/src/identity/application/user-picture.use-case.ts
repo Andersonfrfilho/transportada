@@ -86,9 +86,14 @@ export function createUserPictureUseCase(dependencies: Dependencies): UserPictur
         userId,
       })
 
+      /**
+       * O provedor guarda a **imagem**, não um endereço para ela. A URL anterior apontava para a
+       * nossa rota autenticada, e nenhum consumidor do lado de lá conseguia buscá-la: `<img src>`
+       * não manda `Authorization`. Como `data:` URI, quem lê o atributo tem a foto na mão.
+       */
       await publishToRealm({
         context,
-        pictureUrl: `${dependencies.publicBaseUrl ?? ''}/company-users/${userId}/picture`,
+        pictureUrl: `data:${mimeType};base64,${content.toString('base64')}`,
         userId,
       })
 

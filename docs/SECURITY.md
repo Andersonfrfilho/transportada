@@ -5,6 +5,30 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 ## Abertos
 
+### 2026-08-31 — telefone e foto passam a viver no realm, ao lado do documento
+
+O provedor passa a guardar a identificação completa da pessoa: além do `tax_id` que já estava em
+claro, entram `phone` e `picture`. A foto vai como `data:` URI — o conteúdo, não um endereço: a URL
+anterior apontava para a nossa rota autenticada, e nenhum consumidor do lado de lá conseguia buscá-la
+(`<img src>` não manda `Authorization`), então o atributo existia sem servir para nada.
+
+O que muda em exposição, e é decisão consciente:
+
+- **Telefone em claro no realm.** Havia um contrato dizendo que o contato do convite não vazava para
+  os atributos; ele foi reescrito. Quando o canal do convite é telefone, contato e telefone são o
+  mesmo valor por construção — não há como guardar um e não o outro.
+- **A imagem inteira no atributo**, até o teto de 256 KiB que a rota já impunha. Quem tem acesso de
+  administração do realm passa a ver a foto sem passar pela nossa API, e portanto sem a trilha de
+  auditoria que a nossa rota grava.
+- **Nenhum dos três tem mapper de claim**, e isso é o que impede o pior: só `company_id` entra no
+  token. Mapear `picture` poria centenas de kilobytes dentro de cada token emitido.
+- **A senha continua fora**, e isso não se negocia — há contrato cobrando.
+
+Um defeito que veio junto e foi corrigido: `updateAttributes` do Admin API **substitui o conjunto
+inteiro**, e a edição de perfil mandava só `company_id` + `tax_id`. Gravar o CPF apagava a foto do
+provedor. Era invisível enquanto ninguém lia o atributo; com a imagem morando lá, seria perda de
+dado. Toda edição passa a escrever a ficha completa.
+
 ### 2026-08-31 — administrador define senha definitiva de outro usuário, sem limitador
 
 `PUT /company-users/:id/password` (`users.manage`, escopo `company`) grava a senha do usuário no

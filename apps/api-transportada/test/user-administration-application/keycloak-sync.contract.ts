@@ -51,7 +51,13 @@ describe('sincronização com o Keycloak — convite', () => {
     })
   })
 
-  test('não deixa a senha nem o contato vazarem nos atributos', async () => {
+  /**
+   * ⚠️ A decisão mudou em 31/08/2026: o telefone **passa** a viver no realm, ao lado do documento,
+   * porque o provedor é onde a identificação da pessoa tem de estar completa. Quando o canal do
+   * convite é telefone, contato e telefone são o mesmo valor por construção — não há como guardar um
+   * e não o outro. O que continua fora, e não se negocia, é a senha.
+   */
+  test('a senha nunca entra nos atributos', async () => {
     const gateway = createIdentityGatewayFake()
 
     await createInviteCompanyUserUseCase({
@@ -70,7 +76,32 @@ describe('sincronização com o Keycloak — convite', () => {
     })
 
     const attributes = gateway.createUserCalls[0]?.attributes ?? {}
-    expect(Object.values(attributes)).not.toContain('11999998888')
+    const values = Object.values(attributes).join(' ')
+
+    expect(values).not.toContain('password')
+    expect(gateway.createUserCalls[0]).not.toHaveProperty('credentials')
+  })
+
+  test('o telefone do convite vai para o provedor, por decisão de 31/08/2026', async () => {
+    const gateway = createIdentityGatewayFake()
+
+    await createInviteCompanyUserUseCase({
+      ...createInvitationDeliveryFakes(),
+      identityGateway: gateway,
+      invitations: createInvitationRepositoryFake(),
+      issuer: 'https://keycloak.test/realms/transportada',
+      now: () => new Date('2026-08-06T12:00:00.000Z'),
+      repository: createCompanyUserRepositoryFake(),
+    }).execute({
+      channel: 'whatsapp',
+      contact: '11999998888',
+      context: { companyId: COMPANY_ID },
+      name: 'João',
+      roles: ['viewer'],
+    })
+
+    const attributes = gateway.createUserCalls[0]?.attributes ?? {}
+    expect(Object.values(attributes)).toContain('11999998888')
   })
 
   /**

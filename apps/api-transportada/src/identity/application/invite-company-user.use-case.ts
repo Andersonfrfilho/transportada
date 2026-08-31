@@ -96,6 +96,8 @@ export function createInviteCompanyUserUseCase({
         attributes: {
           [IDENTITY_USER_ATTRIBUTE.COMPANY_ID]: context.companyId,
           ...(profileTaxId === '' ? {} : { [IDENTITY_USER_ATTRIBUTE.TAX_ID]: profileTaxId }),
+          /** O telefone acompanha o documento: os dois servem para achar a pessoa do lado de lá. */
+          ...(profilePhone === '' ? {} : { [IDENTITY_USER_ATTRIBUTE.PHONE]: profilePhone }),
         },
         email: channel === 'email' ? contact : `${userId}@users.invalid`,
         enabled: false,

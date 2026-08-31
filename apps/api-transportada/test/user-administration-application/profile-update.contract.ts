@@ -41,6 +41,13 @@ function createFakes() {
       },
       async updateUser() {},
     },
+    pictures: {
+      find: (): Promise<{
+        bytes: Buffer
+        mimeType: 'image/jpeg' | 'image/png' | 'image/webp'
+        sha256: string
+      } | null> => Promise.resolve(null),
+    },
     profileUpdates,
     repository: {
       async findByUserId() {
@@ -59,6 +66,7 @@ function createFakes() {
 function createUseCase(fakes: ReturnType<typeof createFakes>) {
   return createUpdateCompanyUserProfileUseCase({
     identityGateway: fakes.gateway,
+    pictures: fakes.pictures,
     repository: fakes.repository,
   } as unknown as Parameters<typeof createUpdateCompanyUserProfileUseCase>[0])
 }
@@ -108,7 +116,14 @@ describe('edição de perfil — o documento chega ao banco e ao realm', () => {
     })
   })
 
-  test('edição que não toca no documento não mexe nos atributos', async () => {
+  /**
+   * O Admin API **substitui o conjunto inteiro** de atributos. Mandar só o que mudou apagava o
+   * resto: gravar o CPF derrubava a foto do provedor, e gravar o nome derrubava o CPF. Enquanto
+   * ninguém lia o atributo isso era invisível; com a imagem morando lá, é perda de dado.
+   *
+   * Por isso toda edição escreve a ficha completa, mesmo a que não toca em atributo nenhum.
+   */
+  test('a escrita de atributo leva a ficha inteira, não só o que mudou', async () => {
     const fakes = createFakes()
 
     await createUseCase(fakes).execute({
@@ -117,7 +132,51 @@ describe('edição de perfil — o documento chega ao banco e ao realm', () => {
       userId: USER_ID,
     })
 
-    expect(fakes.attributeUpdates).toHaveLength(0)
+    expect(fakes.attributeUpdates[0]).toMatchObject({
+      attributes: { company_id: COMPANY_ID },
+      userId: SUBJECT,
+    })
+  })
+
+  /** A foto vive aqui e o provedor é espelho: ela é relida a cada escrita para não se perder. */
+  test('a foto guardada aqui sobrevive a uma edição de documento', async () => {
+    const fakes = createFakes()
+    const withPicture: ReturnType<typeof createFakes> = {
+      ...fakes,
+      pictures: {
+        find: () =>
+          Promise.resolve({
+            bytes: Buffer.from([1, 2, 3]),
+            mimeType: 'image/png',
+            sha256: 'a'.repeat(64),
+          }),
+      },
+    }
+
+    await createUseCase(withPicture).execute({
+      context: { companyId: COMPANY_ID },
+      taxId: '12345678909',
+      userId: USER_ID,
+    })
+
+    expect(withPicture.attributeUpdates[0]).toMatchObject({
+      attributes: { picture: 'data:image/png;base64,AQID' },
+    })
+  })
+
+  /** O telefone acompanha o documento: os dois servem para achar a pessoa do lado de lá. */
+  test('o telefone guardado aqui vai para o provedor', async () => {
+    const fakes = createFakes()
+
+    await createUseCase(fakes).execute({
+      context: { companyId: COMPANY_ID },
+      phone: '11999998888',
+      userId: USER_ID,
+    })
+
+    expect(fakes.attributeUpdates[0]).toMatchObject({
+      attributes: { phone: '11999998888' },
+    })
   })
 
   /** Apagar o CPF é uma decisão do operador: o atributo sai, e a empresa fica. */

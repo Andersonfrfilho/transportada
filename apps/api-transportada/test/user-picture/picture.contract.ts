@@ -115,14 +115,22 @@ function createUseCase(params: UseCaseParams = {}) {
 }
 
 describe('gravar a foto', () => {
-  test('grava a imagem e publica a URL no provedor', async () => {
+  /**
+   * O provedor guarda a **imagem**, não um endereço para ela. A URL anterior apontava para a nossa
+   * rota autenticada: nenhum consumidor do lado de lá conseguia buscá-la, porque `<img src>` não
+   * manda `Authorization` — o atributo existia e não servia para nada.
+   */
+  test('grava a imagem e publica o conteúdo dela no provedor', async () => {
     const { realm, saved, useCase } = createUseCase({ publicBaseUrl: 'https://api.test' })
 
     await useCase.replace({ bytes: PNG, context: CONTEXT, userId: USER_ID })
 
     expect(saved).toEqual([{ userId: USER_ID }])
     expect(realm).toEqual([
-      { pictureUrl: `https://api.test/company-users/${USER_ID}/picture`, userId: SUBJECT },
+      {
+        pictureUrl: `data:image/png;base64,${Buffer.from(PNG).toString('base64')}`,
+        userId: SUBJECT,
+      },
     ])
   })
 

@@ -1244,6 +1244,7 @@ function createApplicationRoutes({
   })
   const updateCompanyUserProfile = createUpdateCompanyUserProfileUseCase({
     identityGateway: identityAccessGateway,
+    pictures: new DrizzleUserPictureRepository(database),
     repository: companyUserRepository,
   })
   const attachmentReviewRepository =
