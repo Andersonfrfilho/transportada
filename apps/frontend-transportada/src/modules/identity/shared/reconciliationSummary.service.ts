@@ -1,4 +1,15 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+/**
+ * ⚠️ Cópia temporária. Esta regra foi extraída para
+ * `@adatechnology/identity-reconciliation` (`summarizeReconciliation` e `partitionByExistence`,
+ * genéricas sobre a entrada), porque ela vale para todo produto com login federado — a API já
+ * consome o casamento daquele pacote, e só o resumo estava aqui.
+ *
+ * Ela continua duplicada porque o frontend ainda não depende do pacote e a versão com o resumo não
+ * foi publicada. Quando for: acrescentar a dependência, importar de lá, apagar este arquivo e
+ * apontar o contrato para o pacote. O mesmo vale para o `RECONCILIATION_VIEW_STATUS` da API, hoje
+ * declarado em `reconcile-company-users.use-case.ts`.
+ */
 import type { ReconciliationEntry } from './companyUsers.types'
 
 export type ReconciliationSummary = Readonly<{
