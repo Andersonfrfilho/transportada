@@ -5,6 +5,7 @@ const APPLICATION_ROOT = new URL('../..', import.meta.url)
 const REPOSITORY_ROOT = new URL('../../../..', import.meta.url)
 const FOOTER_COMPONENT = 'ApplicationFooter'
 const ADA_WEBSITE_URL = 'https://adatechnology.com.br'
+const ADA_MARK_SOURCE = '/icons/ada-technology.png'
 const THEME_MESSAGES = ['messages_pt_BR.properties', 'messages_en.properties'] as const
 /** As três raízes de render: o shell autenticado e as duas telas que abrem sem sessão. */
 const ROOTED_SCREENS = [
@@ -68,6 +69,42 @@ describe('application footer contract', () => {
     expect(footer).toContain('rel="noreferrer"')
     // A URL é constante nomeada: literal no meio do JSX é o que faz um dos dois rodapés envelhecer
     expect(footer).toContain(`COPYRIGHT_HOLDER_URL = '${ADA_WEBSITE_URL}'`)
+  })
+
+  /**
+   * O tema de login já assina com a marca desenhada, e o app não assinava: o mesmo rodapé dizia a
+   * mesma frase com peso visual diferente antes e depois de entrar. O arquivo é cópia por valor do
+   * `ada-technology.png` do tema — o bundle não lê `deploy/`.
+   */
+  test('signs with the ada mark next to the copyright', async () => {
+    const footer = await readApplicationFile(
+      'src/modules/foundation/components/ApplicationFooter.component.tsx',
+    )
+
+    expect(footer).toContain(ADA_MARK_SOURCE)
+    expect(footer).toContain('<img')
+    expect(footer).toContain('alt=""')
+    expect(footer).toContain('aria-hidden="true"')
+  })
+
+  test('ships the mark as a static asset the page can actually fetch', async () => {
+    const asset = Bun.file(new URL(`public${ADA_MARK_SOURCE}`, APPLICATION_ROOT))
+    const themeAsset = Bun.file(
+      new URL('deploy/keycloak/theme/login/resources/img/ada-technology.png', REPOSITORY_ROOT),
+    )
+
+    expect(await asset.exists()).toBe(true)
+    expect(await asset.arrayBuffer()).toEqual(await themeAsset.arrayBuffer())
+  })
+
+  /** Marca sem tamanho fixo estica com a fonte do rodapé e empurra a linha inteira. */
+  test('sizes the mark from a token instead of a magic pixel', async () => {
+    const stylesheet = await readApplicationFile('src/styles/index.css')
+    const start = stylesheet.indexOf('.application-footer img {')
+    const rule = stylesheet.slice(start, stylesheet.indexOf('}', start))
+
+    expect(start).toBeGreaterThan(-1)
+    expect(rule).toContain('var(--icon-size-md)')
   })
 
   test('gives the footer link an affordance beyond the inherited colour', async () => {

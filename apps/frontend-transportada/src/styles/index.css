@@ -345,6 +345,19 @@ a {
   color: color-mix(in srgb, var(--color-slate) 88%, white 12%);
   font-size: 0.75rem;
   text-align: center;
+  /* A marca e a frase são uma linha só, e quebram juntas quando a tela não as comporta. */
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
+/* Sem medida própria a marca cresce com a caixa e empurra a linha inteira para baixo. */
+.application-footer img {
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
+  object-fit: contain;
 }
 
 /* `a { color: inherit }` deixaria o único link do rodapé indistinguível do texto ao lado dele. */
