@@ -9,6 +9,8 @@ export default typescriptEslint.config(
       'dist/**',
       'eslint.config.mjs',
       'node_modules/**',
+      /** Runtime de terceiro servido como asset: é binário e bundle minificado, não código nosso. */
+      'public/background-removal/**',
       'playwright-report/**',
       'test-results/**',
     ],

@@ -435,7 +435,19 @@
       "add": "Add photo",
       "replace": "Replace photo",
       "remove": "Remove photo",
-      "alt": "{{name}} photo"
+      "alt": "{{name}} photo",
+      "review": "Check before saving. The cutout is a suggestion — the model sometimes eats a detail.",
+      "useOriginal": "Use the photo as is",
+      "useCutout": "Use the cutout",
+      "cancel": "Discard",
+      "cutoutFailed": "Could not remove the background. The original photo still works.",
+      "background": {
+        "white": "White background",
+        "company": "Company background",
+        "transparent": "No background"
+      },
+      "cutoutAlt": "{{name}} photo cutout",
+      "running": "Cutting out…"
     }
   },
   "login": {

@@ -28,3 +28,8 @@ specs/*/samples/
 .omo/
 deploy/osrm/data/
 !deploy/osrm/data/.gitkeep
+
+# Modelo e runtime do recorte de fundo: 16 MB de artefato de terceiro, postos por
+# `bun run assets:background-removal` (roda sozinho antes de `build` e de `dev`).
+# Binário grande no Git é peso que entra e nunca sai — todo clone pagaria por sempre.
+apps/frontend-transportada/public/background-removal/

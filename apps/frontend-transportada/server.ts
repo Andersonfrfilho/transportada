@@ -6,6 +6,14 @@ const INDEX_PATH = 'index.html'
 const HEALTH_PATH = '/health/live'
 const DEFAULT_PORT = 8080
 const IMMUTABLE_ASSET_PREFIX = '/assets/'
+/**
+ * Modelo e runtime do recorte de fundo: 16 MB de artefato de terceiro com nome fixo. `no-cache`
+ * faria o navegador revalidar 16 MB a cada uso; `immutable` prenderia uma versão para sempre, já
+ * que o nome não muda quando a gente atualiza o arquivo. Trinta dias fica no meio: baixa uma vez e
+ * uma troca chega sozinha dentro de um mês.
+ */
+const BACKGROUND_REMOVAL_PREFIX = '/background-removal/'
+const BACKGROUND_REMOVAL_CACHE_CONTROL = 'public, max-age=2592000'
 const IMMUTABLE_CACHE_CONTROL = 'public, max-age=31536000, immutable'
 const REVALIDATE_CACHE_CONTROL = 'no-cache'
 const CONTENT_SECURITY_POLICY_PATH = 'content-security-policy.txt'
@@ -66,9 +74,9 @@ function resolveAsset(pathname: string): Bun.BunFile {
 }
 
 function cacheControlFor(pathname: string): string {
-  return pathname.startsWith(IMMUTABLE_ASSET_PREFIX)
-    ? IMMUTABLE_CACHE_CONTROL
-    : REVALIDATE_CACHE_CONTROL
+  if (pathname.startsWith(IMMUTABLE_ASSET_PREFIX)) return IMMUTABLE_CACHE_CONTROL
+  if (pathname.startsWith(BACKGROUND_REMOVAL_PREFIX)) return BACKGROUND_REMOVAL_CACHE_CONTROL
+  return REVALIDATE_CACHE_CONTROL
 }
 
 function respond(response: Response, cacheControl: string): Response {

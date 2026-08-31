@@ -9,6 +9,13 @@
 const SELF = "'self'"
 const NONE = "'none'"
 const UNSAFE_INLINE = "'unsafe-inline'"
+/**
+ * O recorte de fundo compila WebAssembly no navegador, e `script-src` governa isso. Sem a palavra,
+ * o runtime é **bloqueado na compilação** — não no carregamento —, e o erro sai como "falha ao
+ * iniciar o modelo", longe da diretiva que o causou. Ela não permite script de terceiro: o `.wasm`
+ * continua tendo de vir de `'self'`.
+ */
+const WASM_UNSAFE_EVAL = "'wasm-unsafe-eval'"
 
 /** Nome do arquivo emitido no `dist`. O `server.ts` não importa daqui: ele é copiado sozinho. */
 export const CONTENT_SECURITY_POLICY_FILE_NAME = 'content-security-policy.txt'
@@ -68,7 +75,11 @@ export function buildContentSecurityPolicy({
   ].join(' ')
   // O preâmbulo do react-refresh é script inline, e só existe no servidor de dev. Em preview e em
   // produção o bundle é arquivo, então `script-src 'self'` basta e é o que fica no `dist`.
-  const scriptSource = allowsInlineScript ? `${SELF} ${UNSAFE_INLINE}` : SELF
+  const scriptSource = [
+    SELF,
+    WASM_UNSAFE_EVAL,
+    ...(allowsInlineScript ? [UNSAFE_INLINE] : []),
+  ].join(' ')
 
   return [
     `default-src ${SELF}`,
@@ -80,7 +91,12 @@ export function buildContentSecurityPolicy({
     // O `iframe` do mapa do endereço era o único do bundle, e saiu pela ADR-0037; o Keycloak roda
     // com `checkLoginIframe: false`, então não há um segundo.
     `frame-src ${NONE}`,
-    `img-src ${SELF}`,
+    /**
+     * `blob:` é a foto de perfil. Ela desce por rota autenticada — `<img src>` não manda o token —,
+     * então a tela busca os bytes e desenha uma URL de objeto. Sem esta palavra a imagem é
+     * bloqueada **depois** de baixada, e a ficha mostra o ícone de imagem quebrada sem dizer por quê.
+     */
+    `img-src ${SELF} blob:`,
     `manifest-src ${SELF}`,
     `object-src ${NONE}`,
     `script-src ${scriptSource}`,

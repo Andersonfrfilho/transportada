@@ -100,9 +100,15 @@ describe('content security policy', () => {
     expect(SERVED_POLICY).toContain("object-src 'none'")
   })
 
+  /**
+   * `wasm-unsafe-eval` não é `unsafe-eval`: ela libera **só** a compilação de WebAssembly, que o
+   * recorte de fundo faz no navegador, e o `.wasm` continua tendo de vir de `'self'`. Sem ela o
+   * runtime é bloqueado na compilação, e o erro aparece como "falha ao iniciar o modelo".
+   */
   test('never relaxes script execution in what is served', () => {
-    expect(directiveOf(SERVED_POLICY, 'script-src')).toBe("script-src 'self'")
-    expect(SERVED_POLICY).not.toContain('unsafe-eval')
+    expect(directiveOf(SERVED_POLICY, 'script-src')).toBe("script-src 'self' 'wasm-unsafe-eval'")
+    /** O `wasm-` é o que separa compilar WebAssembly de executar string arbitrária como código. */
+    expect(SERVED_POLICY).not.toContain("'unsafe-eval'")
     expect(SERVED_POLICY).toContain("default-src 'self'")
   })
 
@@ -119,7 +125,7 @@ describe('content security policy', () => {
         }),
         'script-src',
       ),
-    ).toBe("script-src 'self' 'unsafe-inline'")
+    ).toBe("script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline'")
   })
 
   test('survives the quality job, which builds without any environment file', () => {

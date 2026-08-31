@@ -93,6 +93,13 @@ export default defineConfig({
         ],
       },
       workbox: {
+        /**
+         * O modelo e o runtime do recorte de fundo ficam **fora** do precache: são 16 MB que o
+         * service worker baixaria na primeira visita de toda pessoa — inclusive a que nunca vai
+         * recortar foto nenhuma, e inclusive no celular do motorista, no 3G do pátio. Eles são
+         * buscados no clique, e o cabeçalho de cache do servidor é quem os guarda depois disso.
+         */
+        globIgnores: ['**/background-removal/**'],
         navigateFallback: '/index.html',
         runtimeCaching: [
           {

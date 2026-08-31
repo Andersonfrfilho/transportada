@@ -435,7 +435,19 @@
       "add": "Adicionar foto",
       "replace": "Trocar foto",
       "remove": "Remover foto",
-      "alt": "Foto de {{name}}"
+      "alt": "Foto de {{name}}",
+      "review": "Confira antes de salvar. O recorte é sugestão — o modelo às vezes come um detalhe.",
+      "useOriginal": "Usar a foto como está",
+      "useCutout": "Usar o recorte",
+      "cancel": "Descartar",
+      "cutoutFailed": "Não foi possível recortar o fundo. A foto original continua valendo.",
+      "background": {
+        "white": "Fundo branco",
+        "company": "Fundo da empresa",
+        "transparent": "Sem fundo"
+      },
+      "cutoutAlt": "Recorte da foto de {{name}}",
+      "running": "Recortando…"
     }
   },
   "login": {
