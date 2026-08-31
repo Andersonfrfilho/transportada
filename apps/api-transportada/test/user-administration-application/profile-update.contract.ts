@@ -45,6 +45,7 @@ function createFakes() {
       find: (): Promise<{
         bytes: Buffer
         mimeType: 'image/jpeg' | 'image/png' | 'image/webp'
+        publicToken: string | null
         sha256: string
       } | null> => Promise.resolve(null),
     },
@@ -67,6 +68,7 @@ function createUseCase(fakes: ReturnType<typeof createFakes>) {
   return createUpdateCompanyUserProfileUseCase({
     identityGateway: fakes.gateway,
     pictures: fakes.pictures,
+    publicBaseUrl: 'https://api.test',
     repository: fakes.repository,
   } as unknown as Parameters<typeof createUpdateCompanyUserProfileUseCase>[0])
 }
@@ -148,6 +150,7 @@ describe('edição de perfil — o documento chega ao banco e ao realm', () => {
           Promise.resolve({
             bytes: Buffer.from([1, 2, 3]),
             mimeType: 'image/png',
+            publicToken: 'z'.repeat(43),
             sha256: 'a'.repeat(64),
           }),
       },
@@ -160,7 +163,7 @@ describe('edição de perfil — o documento chega ao banco e ao realm', () => {
     })
 
     expect(withPicture.attributeUpdates[0]).toMatchObject({
-      attributes: { picture: 'data:image/png;base64,AQID' },
+      attributes: { picture: `https://api.test/public/company-users/${'z'.repeat(43)}/picture` },
     })
   })
 

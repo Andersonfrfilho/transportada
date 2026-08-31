@@ -318,6 +318,8 @@ import { createCompanyGroupRoutes } from './identity/presentation/company-group.
 import { createUserPictureUseCase } from './identity/application/user-picture.use-case.js'
 import { createUserPictureRoutes } from './identity/presentation/user-picture.routes.js'
 import { DrizzleUserPictureRepository } from './identity/infrastructure/drizzle-user-picture.repository.js'
+import { createPublicUserPictureRoutes } from './identity/presentation/public-user-picture.routes.js'
+import { createPublicUserPictureUseCase } from './identity/application/user-picture.use-case.js'
 import { createFillProfilesFromRealmUseCase } from './identity/application/fill-profiles-from-realm.use-case.js'
 import { createSynchronizeIdentitiesUseCase } from './identity/application/synchronize-identities.use-case'
 import { createRevealCompanyUsersUseCase } from './identity/application/reveal-company-users.use-case'
@@ -750,6 +752,15 @@ function createAnonymousRoutes({
       ...nfseCallbackRoutes,
       ...whatsappWebhookRoutes,
       ...publicExtraChargeBatchRoutes,
+      /**
+       * O endereço público da foto de perfil. Ele existe sempre: o token é a credencial, e uma foto
+       * só ganha endereço quando alguém a envia — não há superfície ociosa a esconder.
+       */
+      ...createPublicUserPictureRoutes({
+        userPicture: createPublicUserPictureUseCase({
+          repository: new DrizzleUserPictureRepository(database),
+        }),
+      }),
       ...landingPublicRoutes,
       ...publicCnpjInfoRoutes,
       ...aggregateApplicationPublicRoutes,
@@ -1246,6 +1257,7 @@ function createApplicationRoutes({
     identityGateway: identityAccessGateway,
     pictures: new DrizzleUserPictureRepository(database),
     repository: companyUserRepository,
+    ...(apiPublicUrl === undefined ? {} : { publicBaseUrl: apiPublicUrl }),
   })
   const attachmentReviewRepository =
     createDrizzleAggregateApplicationAttachmentReviewRepository(database)

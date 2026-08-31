@@ -5,6 +5,29 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 ## Abertos
 
+### 2026-08-31 — a foto de perfil ganha endereço público, sem login e sem trilha
+
+O atributo `picture` do realm passa a guardar `\${API}/public/company-users/{token}/picture`, uma
+rota **anônima**. É o que permite a um consumidor do provedor exibir a foto: a rota autenticada não
+servia a ninguém do lado de lá, porque `<img src>` não manda `Authorization`.
+
+O que isso expõe, e é decisão consciente:
+
+- **Quem tiver o link vê o rosto da pessoa sem se identificar.** O token é a credencial inteira: 32
+  bytes de aleatório em base64url, imprevisível por varredura, mas um link que vaze num print, num
+  e-mail ou no log de um proxy vale enquanto a foto não mudar.
+- **A leitura não deixa trilha.** A rota autenticada registra quem pediu; esta não tem quem registrar.
+- **A revogação é a troca da foto.** O token gira a cada gravação, e o endereço anterior passa a
+  responder 404. Não há outra forma de revogar um endereço sem login.
+- Isto **contraria o `security.md` §7** desta base, que reserva URL pública para asset comprovadamente
+  não sensível (logo, ícone). Rosto não é ícone, e a exceção é deliberada.
+- `cache-control: no-store` mesmo sendo público: com o token girando, cache intermediário serviria a
+  imagem antiga de um endereço que já deixou de valer.
+
+A alternativa avaliada e descartada foi guardar a imagem inteira no atributo (`data:` URI): ela não
+amplia exposição, mas põe centenas de kilobytes por pessoa na tabela de atributos do Keycloak — e
+não resolve o caso de quem precisa **exibir** a foto fora do nosso sistema.
+
 ### 2026-08-31 — telefone e foto passam a viver no realm, ao lado do documento
 
 O provedor passa a guardar a identificação completa da pessoa: além do `tax_id` que já estava em
@@ -17,9 +40,8 @@ O que muda em exposição, e é decisão consciente:
 - **Telefone em claro no realm.** Havia um contrato dizendo que o contato do convite não vazava para
   os atributos; ele foi reescrito. Quando o canal do convite é telefone, contato e telefone são o
   mesmo valor por construção — não há como guardar um e não o outro.
-- **A imagem inteira no atributo**, até o teto de 256 KiB que a rota já impunha. Quem tem acesso de
-  administração do realm passa a ver a foto sem passar pela nossa API, e portanto sem a trilha de
-  auditoria que a nossa rota grava.
+- **A foto passou a ser endereço público**, não conteúdo no atributo — ver a entrada seguinte, do
+  mesmo dia, que substitui esta decisão poucas horas depois.
 - **Nenhum dos três tem mapper de claim**, e isso é o que impede o pior: só `company_id` entra no
   token. Mapear `picture` poria centenas de kilobytes dentro de cada token emitido.
 - **A senha continua fora**, e isso não se negocia — há contrato cobrando.

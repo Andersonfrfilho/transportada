@@ -18,6 +18,8 @@ type UpdateCompanyUserProfileDependencies = {
   readonly identityGateway: IdentityProfileGatewayPort
   /** A foto entra no conjunto de atributos; sem ela na mão, gravar o CPF a apagaria do provedor. */
   readonly pictures: Pick<UserPictureRepositoryPort, 'find'>
+  /** O endereço desta instalação. Sem ele o atributo da foto não é escrito: URL inventada não abre. */
+  readonly publicBaseUrl?: string
   readonly repository: Pick<
     CompanyUserRepositoryPort,
     'findByUserId' | 'findIdentitySubject' | 'updateProfile'
@@ -50,6 +52,7 @@ export type UpdateCompanyUserProfileUseCase = {
 export function createUpdateCompanyUserProfileUseCase({
   identityGateway,
   pictures,
+  publicBaseUrl,
   repository,
 }: UpdateCompanyUserProfileDependencies): UpdateCompanyUserProfileUseCase {
   return {
@@ -113,10 +116,10 @@ export function createUpdateCompanyUserProfileUseCase({
           [IDENTITY_USER_ATTRIBUTE.COMPANY_ID]: context.companyId,
           ...(merged.taxId === '' ? {} : { [IDENTITY_USER_ATTRIBUTE.TAX_ID]: merged.taxId }),
           ...(merged.phone === '' ? {} : { [IDENTITY_USER_ATTRIBUTE.PHONE]: merged.phone }),
-          ...(picture === null
+          ...(picture?.publicToken == null || publicBaseUrl === undefined
             ? {}
             : {
-                [IDENTITY_USER_ATTRIBUTE.PICTURE]: `data:${picture.mimeType};base64,${picture.bytes.toString('base64')}`,
+                [IDENTITY_USER_ATTRIBUTE.PICTURE]: `${publicBaseUrl}/public/company-users/${picture.publicToken}/picture`,
               }),
         },
         userId: subject,

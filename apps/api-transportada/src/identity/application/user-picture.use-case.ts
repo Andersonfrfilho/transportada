@@ -27,6 +27,7 @@ type Target = { readonly context: { readonly companyId: string }; readonly userI
 
 export type UserPictureUseCase = {
   readonly find: (input: Target) => Promise<UserPicture>
+  readonly findPublic: (input: { readonly publicToken: string }) => Promise<UserPicture>
   readonly remove: (input: Target) => Promise<void>
   readonly replace: (input: Target & { readonly bytes: Uint8Array }) => Promise<UserPictureMetadata>
 }
@@ -63,6 +64,13 @@ export function createUserPictureUseCase(dependencies: Dependencies): UserPictur
       return picture
     },
 
+    /** Sem empresa e sem token de acesso: quem tem o endereço tem a foto, e é só isso que ele abre. */
+    findPublic: async ({ publicToken }) => {
+      const picture = await dependencies.repository.findByPublicToken({ publicToken })
+      if (picture === null) throw new UserPictureNotFoundError()
+      return picture
+    },
+
     remove: async ({ context, userId }) => {
       const removed = await dependencies.repository.remove({
         companyId: context.companyId,
@@ -91,13 +99,42 @@ export function createUserPictureUseCase(dependencies: Dependencies): UserPictur
        * nossa rota autenticada, e nenhum consumidor do lado de lá conseguia buscá-la: `<img src>`
        * não manda `Authorization`. Como `data:` URI, quem lê o atributo tem a foto na mão.
        */
+      /**
+       * O provedor guarda o **endereço público** da foto, e não o conteúdo nem a rota autenticada.
+       * A rota autenticada não servia a consumidor nenhum do lado de lá (`<img src>` não manda
+       * `Authorization`), e o conteúdo inteiro no atributo pesa centenas de kilobytes por pessoa.
+       *
+       * O token gira a cada gravação: o endereço da foto anterior deixa de abrir, que é a única
+       * revogação que um link sem login admite.
+       */
       await publishToRealm({
         context,
-        pictureUrl: `data:${mimeType};base64,${content.toString('base64')}`,
+        ...(saved.publicToken === null
+          ? {}
+          : {
+              pictureUrl: `${dependencies.publicBaseUrl ?? ''}/public/company-users/${saved.publicToken}/picture`,
+            }),
         userId,
       })
 
       return saved
+    },
+  }
+}
+
+/**
+ * A metade pública do caso de uso: só a leitura por token. Ela não precisa do provedor de identidade
+ * nem do endereço público da instalação — e montar o caso de uso inteiro para servir uma imagem
+ * anônima obrigaria as rotas anônimas a conhecer a credencial de administração do realm.
+ */
+export function createPublicUserPictureUseCase(dependencies: {
+  readonly repository: Pick<UserPictureRepositoryPort, 'findByPublicToken'>
+}): Pick<UserPictureUseCase, 'findPublic'> {
+  return {
+    findPublic: async ({ publicToken }) => {
+      const picture = await dependencies.repository.findByPublicToken({ publicToken })
+      if (picture === null) throw new UserPictureNotFoundError()
+      return picture
     },
   }
 }

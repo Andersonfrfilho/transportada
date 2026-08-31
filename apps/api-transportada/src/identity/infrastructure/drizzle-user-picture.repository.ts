@@ -35,6 +35,7 @@ export class DrizzleUserPictureRepository implements UserPictureRepositoryPort {
       .select({
         contentBase64: identityUserPictures.contentBase64,
         mimeType: identityUserPictures.mimeType,
+        publicToken: identityUserPictures.publicToken,
         sha256: identityUserPictures.sha256,
       })
       .from(identityUserPictures)
@@ -49,6 +50,34 @@ export class DrizzleUserPictureRepository implements UserPictureRepositoryPort {
     return {
       bytes: Buffer.from(row.contentBase64, 'base64'),
       mimeType: row.mimeType,
+      publicToken: row.publicToken,
+      sha256: row.sha256,
+    }
+  }
+
+  /**
+   * Sem `companyId` de propósito: o token é a credencial. Ele é imprevisível e gira a cada troca de
+   * foto, e é o que substitui o recorte que toda outra leitura desta tabela carrega.
+   */
+  public async findByPublicToken(input: {
+    readonly publicToken: string
+  }): Promise<UserPicture | null> {
+    const [row] = await this.database
+      .select({
+        contentBase64: identityUserPictures.contentBase64,
+        mimeType: identityUserPictures.mimeType,
+        publicToken: identityUserPictures.publicToken,
+        sha256: identityUserPictures.sha256,
+      })
+      .from(identityUserPictures)
+      .where(eq(identityUserPictures.publicToken, input.publicToken))
+      .limit(1)
+    if (row === undefined) return null
+
+    return {
+      bytes: Buffer.from(row.contentBase64, 'base64'),
+      mimeType: row.mimeType,
+      publicToken: row.publicToken,
       sha256: row.sha256,
     }
   }
@@ -91,12 +120,18 @@ export class DrizzleUserPictureRepository implements UserPictureRepositoryPort {
     if (!(await this.belongsToCompany(input))) throw new UserPictureNotFoundError()
 
     const updatedAt = new Date()
+    /**
+     * Token novo a cada gravação, e é isso que revoga o endereço anterior: um link sem login não
+     * tem outra forma de deixar de valer. Quem tinha o link da foto antiga passa a receber 404.
+     */
+    const publicToken = createPublicPictureToken()
     const [row] = await this.database
       .insert(identityUserPictures)
       .values({
         byteSize: input.byteSize,
         contentBase64: input.contentBase64,
         mimeType: input.mimeType,
+        publicToken,
         sha256: input.sha256,
         updatedAt,
         userId: input.userId,
@@ -106,6 +141,7 @@ export class DrizzleUserPictureRepository implements UserPictureRepositoryPort {
           byteSize: input.byteSize,
           contentBase64: input.contentBase64,
           mimeType: input.mimeType,
+          publicToken,
           sha256: input.sha256,
           updatedAt,
         },
@@ -114,6 +150,7 @@ export class DrizzleUserPictureRepository implements UserPictureRepositoryPort {
       .returning({
         byteSize: identityUserPictures.byteSize,
         mimeType: identityUserPictures.mimeType,
+        publicToken: identityUserPictures.publicToken,
         sha256: identityUserPictures.sha256,
         updatedAt: identityUserPictures.updatedAt,
       })
@@ -146,4 +183,9 @@ export class DrizzleUserPictureRepository implements UserPictureRepositoryPort {
       eq(userCompanyMemberships.companyId, input.companyId),
     )
   }
+}
+
+/** 32 bytes de aleatório, base64url: o endereço público é a credencial, então ele é imprevisível. */
+function createPublicPictureToken(): string {
+  return Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url')
 }

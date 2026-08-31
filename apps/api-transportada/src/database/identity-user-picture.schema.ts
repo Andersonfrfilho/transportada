@@ -28,6 +28,14 @@ export const identityUserPictures = pgTable(
     contentBase64: text('content_base64').notNull(),
     byteSize: integer('byte_size').notNull(),
     sha256: text().notNull(),
+    /**
+     * O endereço público da foto, e a credencial dele ao mesmo tempo. Opaco e girado a cada troca de
+     * imagem: o link antigo deixa de abrir assim que a pessoa muda a foto, que é a única revogação
+     * que um endereço sem login admite.
+     *
+     * Nulo em ficha anterior a esta coluna — o link nasce na primeira gravação depois dela.
+     */
+    publicToken: text('public_token').unique(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -38,5 +46,10 @@ export const identityUserPictures = pgTable(
       sql`${table.byteSize} between 1 and ${sql.raw(String(USER_PICTURE_MAX_BYTES))}`,
     ),
     check('identity_user_pictures_sha256_check', sql`${table.sha256} ~ '^[0-9a-f]{64}$'`),
+    /** Base64url de 32 bytes: 43 caracteres. Curto demais é adivinhável por varredura. */
+    check(
+      'identity_user_pictures_public_token_check',
+      sql`${table.publicToken} is null or ${table.publicToken} ~ '^[A-Za-z0-9_-]{43}$'`,
+    ),
   ],
 )

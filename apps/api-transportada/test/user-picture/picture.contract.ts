@@ -24,6 +24,9 @@ const USER_ID = '00000000-0000-4000-8000-0000000000b2'
 const SUBJECT = '00000000-0000-4000-8000-0000000000b3'
 const CONTEXT = { companyId: COMPANY_ID } as const
 
+/** Base64url de 32 bytes, como o repositório gera. */
+const PUBLIC_TOKEN = 'z'.repeat(43)
+
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0])
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0])
 /** `RIFF` + tamanho + `WEBP`: é o que o recorte de fundo devolve, então precisa entrar. */
@@ -68,6 +71,7 @@ type UseCaseParams = Readonly<{
   picture?: {
     readonly bytes: Buffer
     readonly mimeType: 'image/png'
+    readonly publicToken: string | null
     readonly sha256: string
   } | null
   publicBaseUrl?: string
@@ -90,7 +94,22 @@ function createUseCase(params: UseCaseParams = {}) {
     repository: {
       async find() {
         return params.picture === undefined
-          ? { bytes: Buffer.from([1]), mimeType: 'image/png' as const, sha256: 'a'.repeat(64) }
+          ? {
+              bytes: Buffer.from([1]),
+              mimeType: 'image/png' as const,
+              publicToken: PUBLIC_TOKEN,
+              sha256: 'a'.repeat(64),
+            }
+          : params.picture
+      },
+      async findByPublicToken() {
+        return params.picture === undefined
+          ? {
+              bytes: Buffer.from([1]),
+              mimeType: 'image/png' as const,
+              publicToken: PUBLIC_TOKEN,
+              sha256: 'a'.repeat(64),
+            }
           : params.picture
       },
       async findIdentitySubject() {
@@ -104,6 +123,7 @@ function createUseCase(params: UseCaseParams = {}) {
         return {
           byteSize: 10,
           mimeType: 'image/png' as const,
+          publicToken: PUBLIC_TOKEN,
           sha256: 'b'.repeat(64),
           updatedAt: new Date(),
         }
@@ -116,11 +136,11 @@ function createUseCase(params: UseCaseParams = {}) {
 
 describe('gravar a foto', () => {
   /**
-   * O provedor guarda a **imagem**, não um endereço para ela. A URL anterior apontava para a nossa
-   * rota autenticada: nenhum consumidor do lado de lá conseguia buscá-la, porque `<img src>` não
-   * manda `Authorization` — o atributo existia e não servia para nada.
+   * O provedor guarda o **endereço público** da foto. A URL anterior apontava para a rota
+   * autenticada, e nenhum consumidor do lado de lá conseguia buscá-la: `<img src>` não manda
+   * `Authorization`. O token gira a cada gravação, e é o que revoga o endereço anterior.
    */
-  test('grava a imagem e publica o conteúdo dela no provedor', async () => {
+  test('grava a imagem e publica o endereço público dela no provedor', async () => {
     const { realm, saved, useCase } = createUseCase({ publicBaseUrl: 'https://api.test' })
 
     await useCase.replace({ bytes: PNG, context: CONTEXT, userId: USER_ID })
@@ -128,7 +148,7 @@ describe('gravar a foto', () => {
     expect(saved).toEqual([{ userId: USER_ID }])
     expect(realm).toEqual([
       {
-        pictureUrl: `data:image/png;base64,${Buffer.from(PNG).toString('base64')}`,
+        pictureUrl: `https://api.test/public/company-users/${PUBLIC_TOKEN}/picture`,
         userId: SUBJECT,
       },
     ])
