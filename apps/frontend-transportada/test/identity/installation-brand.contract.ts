@@ -12,7 +12,7 @@ function clientOf(respond: (url: string) => Response) {
     fetch: ((input: URL | RequestInfo) =>
       Promise.resolve(
         respond(input instanceof Request ? input.url : String(input)),
-      )) as typeof globalThis.fetch,
+      )) as unknown as typeof globalThis.fetch,
   }
 }
 
@@ -47,7 +47,7 @@ describe('a marca da instalação na tela de entrar', () => {
   test('API fora do ar não impede a tela de existir', async () => {
     const brand = await readInstallationBrand({
       apiUrl: API_URL,
-      fetch: (() => Promise.reject(new Error('rede'))) as typeof globalThis.fetch,
+      fetch: (() => Promise.reject(new Error('rede'))) as unknown as typeof globalThis.fetch,
     })
 
     expect(brand.name).toBeNull()
