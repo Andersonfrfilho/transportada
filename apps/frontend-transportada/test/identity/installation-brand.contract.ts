@@ -54,6 +54,52 @@ describe('a marca da instalação na tela de entrar', () => {
     expect(brand.logoUrl).toBe(`${API_URL}/public/landing-logo`)
   })
 
+  /**
+   * `brandName` é campo do **site institucional**, opcional e quase sempre vazio numa instalação
+   * que nunca montou landing. O nome da transportadora já vem no mesmo corpo, em `units[]`, do
+   * cadastro de empresa — cair no nome do produto tendo o da empresa em mãos foi o defeito medido
+   * em staging, com "TAPETE MAGICO TRANSPORTADORA" na resposta e "TransportAdA" na tela.
+   */
+  test('sem marca de landing, o nome vem da empresa cadastrada', async () => {
+    const brand = await readInstallationBrand(
+      clientOf(() =>
+        Response.json({
+          data: {
+            brandName: null,
+            units: [{ tradeName: 'TAPETE MAGICO TRANSPORTADORA' }],
+          },
+        }),
+      ),
+    )
+
+    expect(brand.name).toBe('TAPETE MAGICO TRANSPORTADORA')
+  })
+
+  /** A marca da landing é escolha explícita de quem a configurou: ela vence o cadastro. */
+  test('a marca da landing vence o nome da empresa', async () => {
+    const brand = await readInstallationBrand(
+      clientOf(() =>
+        Response.json({
+          data: {
+            brandName: 'Tapete Mágico',
+            units: [{ tradeName: 'TAPETE MAGICO TRANSPORTADORA' }],
+          },
+        }),
+      ),
+    )
+
+    expect(brand.name).toBe('Tapete Mágico')
+  })
+
+  /** Grupo com mais de um CNPJ: a primeira unidade é a própria, e é dela que a tela fala. */
+  test('unidade sem nome não vira nome vazio', async () => {
+    const brand = await readInstallationBrand(
+      clientOf(() => Response.json({ data: { brandName: null, units: [{ tradeName: '  ' }] } })),
+    )
+
+    expect(brand.name).toBeNull()
+  })
+
   test('resposta sem o formato esperado não vira nome inventado', async () => {
     const brand = await readInstallationBrand(clientOf(() => Response.json({ data: 'nada disso' })))
 

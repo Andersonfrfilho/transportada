@@ -26,6 +26,25 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
+function readText(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed === '' ? null : trimmed
+}
+
+/**
+ * `brandName` é campo do site institucional: opcional, e vazio em toda instalação que nunca montou
+ * landing. O nome da transportadora chega no mesmo corpo, em `units[]`, vindo do cadastro de
+ * empresa — e é a primeira unidade que é a própria, quando o grupo tem mais de um CNPJ. Ler só o
+ * primeiro campo mostrava a marca do produto tendo a da empresa em mãos.
+ */
+function readOwnTradeName(data: Record<string, unknown> | undefined): string | null {
+  const units: unknown = data?.units
+  if (!Array.isArray(units)) return null
+  const own: unknown = units[0]
+  return isRecord(own) ? readText(own.tradeName) : null
+}
+
 /**
  * Falha e ausência dão no mesmo: a tela cai na marca do produto. Instalação recém-provisionada não
  * tem logotipo, e a rede cai — nenhum dos dois é motivo para segurar quem quer entrar.
@@ -42,9 +61,8 @@ export async function readInstallationBrand({
 
     const payload: unknown = await response.json()
     const data = isRecord(payload) && isRecord(payload.data) ? payload.data : undefined
-    const brandName = typeof data?.brandName === 'string' ? data.brandName.trim() : ''
 
-    return { logoUrl, name: brandName === '' ? null : brandName }
+    return { logoUrl, name: readText(data?.brandName) ?? readOwnTradeName(data) }
   } catch {
     return { logoUrl, name: null }
   }
