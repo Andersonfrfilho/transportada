@@ -20,6 +20,19 @@ const EMPTY_LIST_PATTERNS: readonly RegExp[] = [
   /\/aggregate-applications(?:\?.*)?$/,
 ]
 
+/**
+ * Requisição **abortada** não é chamada que falhou: é a que o navegador descartou porque a página
+ * mudou embaixo dela. O cabeçalho busca a foto assim que a sessão resolve, e o login navega logo
+ * depois — a corrida é normal e não tem consequência nenhuma em produção.
+ *
+ * O que esta asserção existe para pegar continua pego: rota sem mock escapa para a API real, que não
+ * sobe no smoke, e isso vira `ERR_FAILED`/`ERR_CONNECTION_REFUSED`. O `abort` deliberado do smoke do
+ * motorista usa `internetdisconnected`, que também não passa por aqui.
+ */
+function isDiscardedByNavigation(errorText: string | undefined): boolean {
+  return errorText === 'net::ERR_ABORTED'
+}
+
 async function fulfillJson(route: Route, body: unknown, status = 200): Promise<void> {
   await route.fulfill({
     body: JSON.stringify(body),
@@ -137,8 +150,10 @@ export async function mockFleetWorkspaceApi(
    */
   const documents = (input.documents ?? []).map((document) => ({ ...(document as object) }))
   input.page.on('requestfailed', (request) => {
+    const errorText = request.failure()?.errorText
+    if (isDiscardedByNavigation(errorText)) return
     if (new URL(request.url()).origin === 'http://localhost:53001') {
-      failures.push(`${request.url()} ${request.failure()?.errorText}`)
+      failures.push(`${request.url()} ${errorText}`)
     }
   })
 

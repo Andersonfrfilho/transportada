@@ -19,6 +19,13 @@ function read(name: string): string {
   return readFileSync(`${TEST_ROOT}${name}`, 'utf8')
 }
 
+/** Só o corpo do guarda, sem a documentação que explica o que ele deixa passar. */
+function guardBodyOf(source: string): string {
+  const start = source.indexOf('function isDiscardedByNavigation')
+  if (start === -1) return ''
+  return source.slice(start, source.indexOf('}', start) + 1)
+}
+
 /**
  * Irmão do contrato de cobertura do sino, e pela mesma razão: requisição que o **shell** faz em toda
  * página não tem dono nenhum entre os helpers de workspace, e sem mock ela escapa para a API real —
@@ -66,5 +73,40 @@ describe('todo helper de smoke mocka o que o shell pede sozinho', () => {
     )
 
     expect(client).toContain(`${PICTURE_ROUTE_SUFFIX}`)
+  })
+})
+
+/**
+ * Mockar não basta: o cabeçalho dispara a busca da foto assim que a sessão resolve, e o login navega
+ * logo depois — a requisição em voo morre com a página e o Playwright a reporta como
+ * `net::ERR_ABORTED`. Contar isso como falha de API transformava uma corrida sem consequência em
+ * gate vermelho coletivo.
+ */
+describe('requisição abortada não conta como falha de API', () => {
+  const listeners = smokeHelpers().filter((name) => read(name).includes("on('requestfailed'"))
+
+  test('há listeners a cobrir', () => {
+    expect(listeners.length).toBeGreaterThan(0)
+  })
+
+  test('todo listener ignora o aborto por navegação', () => {
+    const unguarded = listeners.filter((name) => !read(name).includes('isDiscardedByNavigation'))
+
+    expect(unguarded).toEqual([])
+  })
+
+  /**
+   * O filtro é do aborto e de mais nada: rota sem mock ainda tem de reprovar, alto. A conferência é
+   * do **corpo** da função — o comentário dela cita os outros códigos justamente para explicar o que
+   * continua passando, e varrer o arquivo inteiro reprovaria por causa da explicação.
+   */
+  test('o filtro não alcança falha de transporte', () => {
+    for (const name of listeners) {
+      const body = guardBodyOf(read(name))
+
+      expect(body).toContain("errorText === 'net::ERR_ABORTED'")
+      expect(body).not.toContain('ERR_CONNECTION_REFUSED')
+      expect(body).not.toContain('ERR_FAILED')
+    }
   })
 })
