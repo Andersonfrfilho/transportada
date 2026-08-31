@@ -69,6 +69,13 @@ export function buildContentSecurityPolicy({
   const configured = [toOrigin(apiBaseUrl), toOrigin(keycloakUrl)].filter(
     (origin): origin is string => origin !== undefined,
   )
+  /**
+   * Só a API, e não tudo o que está em `connect-src`: o provedor de identidade não serve imagem
+   * nossa, e ampliar a diretiva com origem que ninguém usa é permissão dada de graça.
+   */
+  const imageOrigin = [toOrigin(apiBaseUrl)].filter(
+    (origin): origin is string => origin !== undefined,
+  )
   const connectSource = [
     SELF,
     ...[...new Set([...configured, ...EXTERNAL_CONNECT_ORIGIN])].sort(),
@@ -96,7 +103,12 @@ export function buildContentSecurityPolicy({
      * então a tela busca os bytes e desenha uma URL de objeto. Sem esta palavra a imagem é
      * bloqueada **depois** de baixada, e a ficha mostra o ícone de imagem quebrada sem dizer por quê.
      */
-    `img-src ${SELF} blob:`,
+    /**
+     * A API entra aqui porque a tela de entrar mostra o logotipo da transportadora, servido pela
+     * rota pública que o site institucional já usa — imagem de origem cruzada, e `connect-src` não
+     * governa `<img>`.
+     */
+    `img-src ${[SELF, 'blob:', ...imageOrigin].join(' ')}`,
     `manifest-src ${SELF}`,
     `object-src ${NONE}`,
     `script-src ${scriptSource}`,
