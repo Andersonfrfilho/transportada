@@ -12,6 +12,8 @@ import type {
   CompanyGroup,
   SaveCompanyGroupInput,
   CompanyUser,
+  AddCompanyUserIdentifierInput,
+  CompanyUserIdentifier,
   CompanyUserPage,
   CompanyUsersReconciliation,
   IdentitySyncOutcome,
@@ -30,6 +32,7 @@ import {
   isRecord,
   isString,
   toCompanyUser,
+  toCompanyUserIdentifiers,
   toCompanyUserPage,
   toCompanyUsersReconciliation,
   toIdentitySyncOutcome,
@@ -76,6 +79,13 @@ export type CompanyUsersClient = Readonly<{
   readPicture: (input: Readonly<{ userId: string }>) => Promise<Blob | null>
   removePicture: (input: Readonly<{ userId: string }>) => Promise<void>
   replacePicture: (input: Readonly<{ file: Blob; userId: string }>) => Promise<void>
+  addIdentifier: (input: AddCompanyUserIdentifierInput) => Promise<readonly CompanyUserIdentifier[]>
+  listIdentifiers: (
+    input: Readonly<{ userId: string }>,
+  ) => Promise<readonly CompanyUserIdentifier[]>
+  removeIdentifier: (
+    input: Readonly<{ identifierId: string; userId: string }>,
+  ) => Promise<readonly CompanyUserIdentifier[]>
   /** O caminho de volta: traz para cá login, e-mail e documento como o provedor os guarda. */
   adoptRealmFields: (
     input: Readonly<{ userIds: readonly string[] }>,
@@ -379,6 +389,35 @@ export function createCompanyUsersClient(dependencies: ClientDependencies): Comp
         userId: input.userId,
       })
       if (!response.ok) throw requestError(await readPictureErrorCode(response))
+    },
+    async addIdentifier(input) {
+      const { payload } = await authorizedRequest({
+        body: JSON.stringify({
+          isWhatsapp: input.isWhatsapp,
+          kind: input.kind,
+          value: input.value,
+        }),
+        dependencies,
+        method: 'POST',
+        path: `${COMPANY_USERS_PATH}/${input.userId}/identifiers`,
+      })
+      return toCompanyUserIdentifiers(payload)
+    },
+    async listIdentifiers(input) {
+      const { payload } = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${COMPANY_USERS_PATH}/${input.userId}/identifiers`,
+      })
+      return toCompanyUserIdentifiers(payload)
+    },
+    async removeIdentifier(input) {
+      const { payload } = await authorizedRequest({
+        dependencies,
+        method: 'DELETE',
+        path: `${COMPANY_USERS_PATH}/${input.userId}/identifiers/${input.identifierId}`,
+      })
+      return toCompanyUserIdentifiers(payload)
     },
     async adoptRealmFields(input) {
       const { payload } = await authorizedRequest({

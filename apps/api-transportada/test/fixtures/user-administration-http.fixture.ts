@@ -30,6 +30,11 @@ type RouteDependencies = {
   readonly reveal: { execute(input: ExecuteCall): Promise<typeof REVEALED_USERS> }
   readonly synchronize: { execute(input: ExecuteCall): Promise<typeof SYNC_RESULT> }
   readonly adoptRealmFields: { execute(input: ExecuteCall): Promise<typeof ADOPT_RESULT> }
+  readonly identifiers: {
+    add(input: ExecuteCall): Promise<typeof IDENTIFIERS>
+    list(input: ExecuteCall): Promise<typeof IDENTIFIERS>
+    remove(input: ExecuteCall): Promise<typeof IDENTIFIERS>
+  }
   readonly fillProfiles: { execute(input: ExecuteCall): Promise<typeof PROFILE_FILL_RESULT> }
   readonly removeMembership: { execute(input: ExecuteCall): Promise<void> }
   readonly replaceRoles: { execute(input: ExecuteCall): Promise<typeof COMPANY_USER> }
@@ -107,6 +112,16 @@ export const PROFILE_FILL_RESULT = {
   filled: [COMPANY_USER.id],
   skipped: [{ reason: 'profile-exists', userId: 'user-com-perfil' }],
 }
+
+export const IDENTIFIERS = [
+  {
+    id: '00000000-0000-4000-8000-000000000931',
+    isWhatsapp: true,
+    kind: 'phone',
+    source: 'manual',
+    value: '11999998888',
+  },
+]
 
 export const ADOPT_RESULT = {
   adopted: [{ fields: ['email'], userId: COMPANY_USER.id }],
@@ -202,6 +217,7 @@ export async function createUserAdministrationHttpFixture(
   readonly revealCalls: ExecuteCall[]
   readonly synchronizeCalls: ExecuteCall[]
   readonly adoptCalls: ExecuteCall[]
+  readonly identifierCalls: ExecuteCall[]
   readonly fillProfilesCalls: ExecuteCall[]
   readonly removeMembershipCalls: ExecuteCall[]
   readonly replaceRolesCalls: ExecuteCall[]
@@ -218,6 +234,7 @@ export async function createUserAdministrationHttpFixture(
   const assignRolesCalls: ExecuteCall[] = []
   const synchronizeCalls: ExecuteCall[] = []
   const adoptCalls: ExecuteCall[] = []
+  const identifierCalls: ExecuteCall[] = []
   const fillProfilesCalls: ExecuteCall[] = []
   const removeMembershipCalls: ExecuteCall[] = []
   const replaceRolesCalls: ExecuteCall[] = []
@@ -261,6 +278,22 @@ export async function createUserAdministrationHttpFixture(
       async execute(input) {
         synchronizeCalls.push(structuredClone(input))
         return SYNC_RESULT
+      },
+    },
+    identifiers: {
+      async add(input) {
+        identifierCalls.push(structuredClone(input))
+        if (params.refusal) return refuse()
+        return IDENTIFIERS
+      },
+      async list(input) {
+        identifierCalls.push(structuredClone(input))
+        return IDENTIFIERS
+      },
+      async remove(input) {
+        identifierCalls.push(structuredClone(input))
+        if (params.refusal) return refuse()
+        return IDENTIFIERS
       },
     },
     adoptRealmFields: {
@@ -352,6 +385,7 @@ export async function createUserAdministrationHttpFixture(
     assignRolesCalls,
     revealCalls,
     adoptCalls,
+    identifierCalls,
     fillProfilesCalls,
     synchronizeCalls,
     replaceRolesCalls,

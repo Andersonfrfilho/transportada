@@ -6,6 +6,7 @@ import { describe, expect, test } from 'bun:test'
 import { COMPANY_USER_PASSWORD_MIN_LENGTH } from '../../src/modules/identity/shared/companyUsers.constant'
 import { createCompanyUsersClient } from '../../src/modules/identity/shared/companyUsersClient.service'
 import {
+  toCompanyUserIdentifiers,
   toIdentitySyncOutcome,
   toCompanyUsersReconciliation,
   toProfileFillOutcome,
@@ -564,5 +565,81 @@ describe('a conciliação de campo não espera clique', () => {
   test('acesso sem cadastro nunca é importado sozinho', () => {
     expect(source).not.toContain("keyOf('missing-locally')")
     expect(source).toContain('subjects: []')
+  })
+})
+
+/**
+ * Uma pessoa tem mais de um e-mail e mais de um telefone, e o mesmo conjunto serve para entrar e
+ * para falar com ela. Duas listas separadas obrigariam quem cadastra a digitar o mesmo número duas
+ * vezes e a mantê-lo igual nos dois lugares para sempre.
+ */
+describe('e-mails e telefones se acrescentam no diálogo', () => {
+  const source = readFileSync(
+    'src/modules/identity/components/CompanyUserIdentifierFields.component.tsx',
+    'utf8',
+  )
+
+  test('o diálogo monta o bloco', () => {
+    const dialog = readFileSync(
+      'src/modules/identity/components/CompanyUserEditDialog.component.tsx',
+      'utf8',
+    )
+
+    expect(dialog).toContain('CompanyUserIdentifierFields')
+  })
+
+  test('telefone entra com a marca de WhatsApp', () => {
+    expect(source).toContain("onAdd({ isWhatsapp, kind: 'phone'")
+  })
+
+  /** A marca só existe em telefone: num e-mail ela seria recusada pelo CHECK do banco. */
+  test('e-mail nunca leva a marca', () => {
+    expect(source).toContain("onAdd({ isWhatsapp: false, kind: 'email'")
+  })
+
+  /**
+   * O que veio da ficha volta sozinho na próxima gravação dela: oferecer a remoção seria promessa
+   * que a tela não cumpre.
+   */
+  test('o que vem do cadastro não oferece remoção', () => {
+    expect(source).toContain("entry.source === 'profile'")
+  })
+
+  test('o telefone só é aceito com 10 ou 11 dígitos', () => {
+    expect(source).toContain('[10, 11].includes(stripPhone(value).length)')
+  })
+})
+
+describe('o conjunto que a API devolve chega inteiro', () => {
+  test('a lista atravessa a validação com marca e origem', () => {
+    const identifiers = toCompanyUserIdentifiers({
+      data: [
+        {
+          id: 'id-1',
+          isWhatsapp: true,
+          kind: 'phone',
+          source: 'manual',
+          value: '11999998888',
+        },
+      ],
+    })
+
+    expect(identifiers[0]).toEqual({
+      id: 'id-1',
+      isWhatsapp: true,
+      kind: 'phone',
+      source: 'manual',
+      value: '11999998888',
+    })
+  })
+
+  /** Origem desconhecida vira derivada: não oferecer remoção erra para o lado seguro. */
+  test('origem que a API não fala não vira removível', () => {
+    const identifiers = toCompanyUserIdentifiers({
+      data: [{ id: 'id-1', kind: 'email', source: 'futuro', value: 'a@b.test' }],
+    })
+
+    expect(identifiers[0]?.source).toBe('profile')
+    expect(identifiers[0]?.isWhatsapp).toBe(false)
   })
 })

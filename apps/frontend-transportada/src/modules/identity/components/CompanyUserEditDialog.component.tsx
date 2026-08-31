@@ -10,6 +10,7 @@ import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import type { CompanyUserEditForm } from '../hooks/useCompanyUserForm.hook'
 import type { CompanyUserPasswordState } from '../hooks/useCompanyUserPassword.hook'
+import { useCompanyUserIdentifiers } from '../hooks/useCompanyUserIdentifiers.hook'
 import { readPictureErrorCode, useCompanyUserPicture } from '../hooks/useCompanyUserPicture.hook'
 import type { CompanyUserRevealState } from '../hooks/useCompanyUserReveal.hook'
 import { CONTACT_CHANNELS } from '../shared/companyUsers.constant'
@@ -22,6 +23,7 @@ import {
   CompanyUserSelectField,
   CompanyUserTextField,
 } from './CompanyUserField.component'
+import { CompanyUserIdentifierFields } from './CompanyUserIdentifierFields.component'
 import { CompanyUserPasswordPanel } from './CompanyUserPasswordPanel.component'
 import { CompanyUserPictureField } from './CompanyUserPictureField.component'
 import { CompanyUserStoredField } from './CompanyUserStoredField.component'
@@ -62,6 +64,7 @@ export function CompanyUserEditDialog({
   /** Qual dado está aberto para troca. Fechar limpa o que foi digitado: desistir é desistir. */
   const [editingFields, setEditingFields] = useState<readonly SecretField[]>([])
   const picture = useCompanyUserPicture({ userId: user?.id })
+  const identifiers = useCompanyUserIdentifiers({ userId: user?.id })
 
   if (user === null) return null
 
@@ -276,6 +279,14 @@ export function CompanyUserEditDialog({
             />
           ))}
         </div>
+
+        <CompanyUserIdentifierFields
+          identifiers={identifiers.query.data ?? []}
+          isLoading={identifiers.query.isLoading}
+          isPending={identifiers.addMutation.isPending || identifiers.removeMutation.isPending}
+          onAdd={(entry) => identifiers.addMutation.mutate(entry)}
+          onRemove={(identifierId) => identifiers.removeMutation.mutate(identifierId)}
+        />
 
         <CompanyUserRoleField
           disabled={isPending}

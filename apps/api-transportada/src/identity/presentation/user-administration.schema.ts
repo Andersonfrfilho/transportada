@@ -264,6 +264,37 @@ export function parseCompanyUserListQuery(url: URL): Paging {
 
 export { parseUuidPathIdentifier } from '../../http/request-parsing.service.js'
 
+/**
+ * O documento fica de fora: ele vem da ficha e não é acrescentável à mão — deixar a rota aceitá-lo
+ * criaria um segundo caminho para o CPF, que já tem campo próprio e unicidade por empresa.
+ */
+export const addCompanyUserIdentifierSchema = z
+  .object({
+    isWhatsapp: z.boolean().optional(),
+    kind: z.enum(['email', 'phone']),
+    value: z.string().min(1),
+  })
+  .strict()
+  .transform((body) => ({
+    ...body,
+    /** Guardado normalizado: o CHECK da tabela exige, e a busca do login é por igualdade. */
+    value: body.kind === 'phone' ? body.value.replace(/\D/gu, '') : body.value.trim().toLowerCase(),
+  }))
+  .refine((body) => body.value.length > 0, { message: 'Value must not be blank.' })
+  .refine((body) => body.kind !== 'phone' || [10, 11].includes(body.value.length), {
+    message: 'Phone must have 10 or 11 digits.',
+  })
+  .refine((body) => body.kind !== 'email' || /^[^@\s]+@[^@\s]+\.[^@\s]+$/u.test(body.value), {
+    message: 'Email must be valid.',
+  })
+export type AddCompanyUserIdentifierBody = z.infer<typeof addCompanyUserIdentifierSchema>
+
+export async function parseAddCompanyUserIdentifierRequest(
+  request: Request,
+): Promise<AddCompanyUserIdentifierBody> {
+  return parseBody(addCompanyUserIdentifierSchema, request)
+}
+
 export async function parseSetCompanyUserPasswordRequest(
   request: Request,
 ): Promise<SetCompanyUserPasswordBody> {

@@ -82,6 +82,22 @@ export type ListCompanyUsersInput = {
 }
 
 export type CompanyUserRepositoryPort = {
+  readonly addIdentifier: (input: {
+    readonly companyId: string
+    readonly isWhatsapp: boolean
+    readonly kind: 'email' | 'phone'
+    readonly userId: string
+    readonly value: string
+  }) => Promise<void>
+  readonly listIdentifiers: (input: {
+    readonly companyId: string
+    readonly userId: string
+  }) => Promise<readonly CompanyUserIdentifier[]>
+  readonly removeIdentifier: (input: {
+    readonly companyId: string
+    readonly identifierId: string
+    readonly userId: string
+  }) => Promise<boolean>
   readonly createInvitedUser: (input: CreateInvitedUserInput) => Promise<CreateInvitedUserResult>
   readonly findByUserId: (input: {
     readonly companyId: string
@@ -169,4 +185,17 @@ export type CompanyUserRepositoryPort = {
   }) => Promise<void>
   /** Lança `DuplicateUsernameError` quando o login já pertence a outra pessoa do realm. */
   readonly updateProfile: (input: UpdateCompanyUserProfileInput) => Promise<void>
+}
+
+/**
+ * Por onde a pessoa se identifica e por onde se fala com ela. `source` diz quem escreveu a linha:
+ * `profile` é projeção da ficha e volta sozinha na próxima gravação dela; `manual` é acréscimo de
+ * quem administra, e só ele se apaga pela tela.
+ */
+export type CompanyUserIdentifier = {
+  readonly id: string
+  readonly isWhatsapp: boolean
+  readonly kind: 'document' | 'email' | 'phone'
+  readonly source: 'manual' | 'profile'
+  readonly value: string
 }

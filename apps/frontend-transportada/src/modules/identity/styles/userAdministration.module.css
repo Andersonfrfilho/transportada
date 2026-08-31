@@ -613,3 +613,11 @@
   padding-inline: var(--space-2);
   font-size: 0.75rem;
 }
+
+/* O campo, a marca e o botão de acrescentar na mesma fileira; em telas estreitas eles quebram. */
+.identifierAdd {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-end;
+  flex-wrap: wrap;
+}

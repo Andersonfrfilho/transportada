@@ -14,6 +14,7 @@ import { loginIdentifiers } from '../../database/login-identifier.schema.js'
 import { projectLoginIdentifiers } from '../domain/login-identifier-projection.policy.js'
 import { jobExecutions, jobSchedules } from '../../database/job-schedule.schema.js'
 import type { JobOutcome, ScheduledJob } from '../../shared/job-catalog.constant.js'
+import type { CompanyUserIdentifier } from '../application/company-user.port.js'
 import type { CompanyUserFleetLink } from '../domain/company-user.policy.js'
 import type { RevealedCompanyUser } from '../application/reveal-company-users.use-case.js'
 import { SYSTEM_DISTRIBUTION_ACTOR_USER_ID } from '../domain/system-distribution-actor.constant.js'
@@ -29,7 +30,11 @@ import {
 import type { ContactChannel } from '../../database/identity-user-profile.schema.js'
 import type { CompanyRole, MembershipStatus } from '../../database/identity.schema.js'
 import { violatedUniqueConstraint } from '../../database/postgres-error.support.js'
-import { DuplicateTaxIdError, DuplicateUsernameError } from '../domain/company-user.error.js'
+import {
+  CompanyUserNotFoundError,
+  DuplicateTaxIdError,
+  DuplicateUsernameError,
+} from '../domain/company-user.error.js'
 import { buildCompanyAdministratorFilters } from './drizzle-invitation.repository.js'
 import type {
   CompanyUserPage,
@@ -131,12 +136,31 @@ async function rebuildLoginIdentifiers(
 
   const projected = projectLoginIdentifiers(profile)
 
-  await executor.delete(loginIdentifiers).where(eq(loginIdentifiers.userId, userId))
+  /**
+   * Só o que a projeção escreveu. O identificador acrescentado à mão sobrevive à gravação do
+   * perfil — sem este recorte, o segundo e-mail de uma pessoa sumiria na próxima edição da ficha.
+   */
+  await executor
+    .delete(loginIdentifiers)
+    .where(and(eq(loginIdentifiers.userId, userId), eq(loginIdentifiers.source, 'profile')))
   if (projected.length === 0) return
 
+  /**
+   * `onConflictDoNothing`: o mesmo valor pode já estar lá como acréscimo manual, e o unique é por
+   * `(usuário, tipo, valor)`. Nesse caso a linha manual fica, e é o que se quer — ela é a mais
+   * específica das duas.
+   */
   await executor
     .insert(loginIdentifiers)
-    .values(projected.map((entry) => ({ kind: entry.kind, userId, value: entry.value })))
+    .values(
+      projected.map((entry) => ({
+        kind: entry.kind,
+        source: 'profile' as const,
+        userId,
+        value: entry.value,
+      })),
+    )
+    .onConflictDoNothing()
 }
 
 export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
@@ -618,6 +642,98 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
       if (constraint === TAX_ID_CONSTRAINT) throw new DuplicateTaxIdError()
       throw error
     }
+  }
+
+  /**
+   * Por onde a pessoa se identifica e por onde se fala com ela: o mesmo conjunto serve às duas
+   * coisas, e é isso que a tela edita. O documento entra na lista porque a pessoa pode digitá-lo
+   * para entrar, mas ele não é acrescentável à mão — vem da ficha.
+   */
+  /** O recorte é do banco: sem o vínculo com a empresa do token, o id bastaria para alcançar. */
+  private async belongsToCompany(input: {
+    readonly companyId: string
+    readonly userId: string
+  }): Promise<boolean> {
+    const [membership] = await this.database
+      .select({ id: userCompanyMemberships.id })
+      .from(userCompanyMemberships)
+      .where(
+        and(
+          eq(userCompanyMemberships.companyId, input.companyId),
+          eq(userCompanyMemberships.userId, input.userId),
+        ),
+      )
+      .limit(1)
+
+    return membership !== undefined
+  }
+
+  public async listIdentifiers(input: {
+    readonly companyId: string
+    readonly userId: string
+  }): Promise<readonly CompanyUserIdentifier[]> {
+    if (!(await this.belongsToCompany(input))) return []
+
+    const rows = await this.database
+      .select({
+        id: loginIdentifiers.id,
+        isWhatsapp: loginIdentifiers.isWhatsapp,
+        kind: loginIdentifiers.kind,
+        source: loginIdentifiers.source,
+        value: loginIdentifiers.value,
+      })
+      .from(loginIdentifiers)
+      .where(eq(loginIdentifiers.userId, input.userId))
+      .orderBy(loginIdentifiers.kind, loginIdentifiers.value)
+
+    return rows
+  }
+
+  /** Repetir o mesmo valor converge: o unique é por `(usuário, tipo, valor)`, e repetir não é erro. */
+  public async addIdentifier(input: {
+    readonly companyId: string
+    readonly isWhatsapp: boolean
+    readonly kind: 'email' | 'phone'
+    readonly userId: string
+    readonly value: string
+  }): Promise<void> {
+    if (!(await this.belongsToCompany(input))) throw new CompanyUserNotFoundError()
+
+    await this.database
+      .insert(loginIdentifiers)
+      .values({
+        isWhatsapp: input.isWhatsapp,
+        kind: input.kind,
+        source: 'manual',
+        userId: input.userId,
+        value: input.value,
+      })
+      .onConflictDoNothing()
+  }
+
+  /**
+   * Só o acréscimo manual se apaga aqui. O derivado da ficha volta na próxima gravação dela, então
+   * removê-lo seria promessa que a tela não cumpre — quem quer tirá-lo edita o campo do cadastro.
+   */
+  public async removeIdentifier(input: {
+    readonly companyId: string
+    readonly identifierId: string
+    readonly userId: string
+  }): Promise<boolean> {
+    if (!(await this.belongsToCompany(input))) return false
+
+    const removed = await this.database
+      .delete(loginIdentifiers)
+      .where(
+        and(
+          eq(loginIdentifiers.id, input.identifierId),
+          eq(loginIdentifiers.userId, input.userId),
+          eq(loginIdentifiers.source, 'manual'),
+        ),
+      )
+      .returning({ id: loginIdentifiers.id })
+
+    return removed.length > 0
   }
 
   /**

@@ -324,6 +324,7 @@ import { createFillProfilesFromRealmUseCase } from './identity/application/fill-
 import { createSynchronizeIdentitiesUseCase } from './identity/application/synchronize-identities.use-case'
 import { createRevealCompanyUsersUseCase } from './identity/application/reveal-company-users.use-case'
 import { createAdoptRealmFieldsUseCase } from './identity/application/adopt-realm-fields.use-case'
+import { createManageCompanyUserIdentifiersUseCase } from './identity/application/manage-company-user-identifiers.use-case'
 import { createSetCompanyUserPasswordUseCase } from './identity/application/set-company-user-password.use-case'
 import { createUserAdministrationRoutes } from './identity/presentation/user-administration.routes'
 import { createRouter, type RegisteredAnonymousRoute } from './http/router.service'
@@ -1876,6 +1877,9 @@ function createApplicationRoutes({
       adoptRealmFields: createAdoptRealmFieldsUseCase({
         audit: groupAudit,
         gateway: identityAccessGateway,
+        repository: companyUserRepository,
+      }),
+      identifiers: createManageCompanyUserIdentifiersUseCase({
         repository: companyUserRepository,
       }),
       fillProfiles: createFillProfilesFromRealmUseCase({

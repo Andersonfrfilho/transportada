@@ -43,6 +43,7 @@ import type { ReconcileCompanyUsersUseCase } from '../application/reconcile-comp
 import type { AssignCompanyUserRolesUseCase } from '../application/assign-company-user-roles.use-case.js'
 import type { RevealCompanyUsersUseCase } from '../application/reveal-company-users.use-case.js'
 import type { AdoptRealmFieldsUseCase } from '../application/adopt-realm-fields.use-case.js'
+import type { ManageCompanyUserIdentifiersUseCase } from '../application/manage-company-user-identifiers.use-case.js'
 import type { FillProfilesFromRealmUseCase } from '../application/fill-profiles-from-realm.use-case.js'
 import type { SynchronizeIdentitiesUseCase } from '../application/synchronize-identities.use-case.js'
 import type { SetCompanyUserPasswordUseCase } from '../application/set-company-user-password.use-case.js'
@@ -55,6 +56,7 @@ import {
   parseAssignCompanyUserRolesRequest,
   parseRevealCompanyUsersRequest,
   parseSynchronizeIdentitiesRequest,
+  parseAddCompanyUserIdentifierRequest,
   parseAdoptRealmFieldsRequest,
   parseFillProfilesFromRealmRequest,
   parseSetCompanyUserPasswordRequest,
@@ -84,6 +86,9 @@ const USER_ROLES_PATH = `${USER_PATH}/roles`
  * perfil viaja com nome e contato — misturá-los poria a senha no mesmo lugar que se repete ao
  * corrigir um telefone. */
 const USER_PASSWORD_PATH = `${USER_PATH}/password`
+/** O conjunto por onde a pessoa se identifica e por onde se fala com ela. */
+const USER_IDENTIFIERS_PATH = `${USER_PATH}/identifiers`
+const USER_IDENTIFIER_PATH = `${USER_IDENTIFIERS_PATH}/:identifierId`
 const USERS_MANAGE_POLICY = { permission: 'users.manage', scope: 'company' } as const
 /**
  * Ler contato e documento sem máscara é permissão própria: quem convida, suspende e troca papéis
@@ -101,6 +106,7 @@ type Dependencies = {
   readonly rolePermissions: ListRolePermissionsUseCase
   readonly reveal: RevealCompanyUsersUseCase
   readonly adoptRealmFields: AdoptRealmFieldsUseCase
+  readonly identifiers: ManageCompanyUserIdentifiersUseCase
   readonly fillProfiles: FillProfilesFromRealmUseCase
   readonly synchronize: SynchronizeIdentitiesUseCase
   readonly removeMembership: RemoveCompanyUserMembershipUseCase
@@ -414,6 +420,70 @@ export function createUserAdministrationRoutes(
         }
       },
       pathname: USER_PASSWORD_PATH,
+      pathParameterFormat: 'raw',
+      policy: USERS_MANAGE_POLICY,
+    }),
+    defineRoute<{ readonly userId: string }>({
+      async handle({ context, input }) {
+        const identifiers = await dependencies.identifiers.list({
+          context: context.scope,
+          userId: input.userId,
+        })
+        return jsonResponse({ body: { data: identifiers }, status: 200 })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({
+        userId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: USER_IDENTIFIERS_PATH,
+      pathParameterFormat: 'raw',
+      policy: USERS_MANAGE_POLICY,
+    }),
+    defineRoute<{
+      readonly isWhatsapp: boolean
+      readonly kind: 'email' | 'phone'
+      readonly userId: string
+      readonly value: string
+    }>({
+      async handle({ context, input }) {
+        const identifiers = await dependencies.identifiers.add({
+          context: context.scope,
+          isWhatsapp: input.isWhatsapp,
+          kind: input.kind,
+          userId: input.userId,
+          value: input.value,
+        })
+        return jsonResponse({ body: { data: identifiers }, status: 201 })
+      },
+      method: 'POST',
+      async parse({ pathParameters, request }) {
+        const body = await parseAddCompanyUserIdentifierRequest(request)
+        return {
+          isWhatsapp: body.isWhatsapp ?? false,
+          kind: body.kind,
+          userId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+          value: body.value,
+        }
+      },
+      pathname: USER_IDENTIFIERS_PATH,
+      pathParameterFormat: 'raw',
+      policy: USERS_MANAGE_POLICY,
+    }),
+    defineRoute<{ readonly identifierId: string; readonly userId: string }>({
+      async handle({ context, input }) {
+        const identifiers = await dependencies.identifiers.remove({
+          context: context.scope,
+          identifierId: input.identifierId,
+          userId: input.userId,
+        })
+        return jsonResponse({ body: { data: identifiers }, status: 200 })
+      },
+      method: 'DELETE',
+      parse: ({ pathParameters }) => ({
+        identifierId: parseUuidPathIdentifier(pathParameters.identifierId ?? ''),
+        userId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: USER_IDENTIFIER_PATH,
       pathParameterFormat: 'raw',
       policy: USERS_MANAGE_POLICY,
     }),

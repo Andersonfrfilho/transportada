@@ -2,6 +2,7 @@
 import { COMPANY_USER_ERROR } from './companyUsers.constant'
 import type {
   CompanyUser,
+  CompanyUserIdentifier,
   CompanyUserPage,
   CompanyUserFleetLink,
   CompanyUsersReconciliation,
@@ -201,6 +202,26 @@ export function toCompanyUsersReconciliation(value: unknown): CompanyUsersReconc
  * O resultado do conserto. Corpo ausente não é falha: a rota antiga respondia sem ele, e um erro
  * de formato aqui esconderia um preenchimento que de fato aconteceu.
  */
+export function toCompanyUserIdentifiers(value: unknown): readonly CompanyUserIdentifier[] {
+  if (!isRecord(value) || !Array.isArray(value.data)) invalid()
+
+  return value.data.map((entry) => {
+    if (!isRecord(entry)) invalid()
+    return {
+      id: readText(entry.id),
+      isWhatsapp: entry.isWhatsapp === true,
+      kind: toIdentifierKind(readText(entry.kind)),
+      /** Origem desconhecida é tratada como derivada: não oferecer remoção erra para o lado seguro. */
+      source: entry.source === 'manual' ? 'manual' : 'profile',
+      value: readText(entry.value),
+    }
+  })
+}
+
+function toIdentifierKind(value: string): CompanyUserIdentifier['kind'] {
+  return value === 'email' || value === 'phone' ? value : 'document'
+}
+
 export function toRealmAdoptionOutcome(value: unknown): RealmAdoptionOutcome {
   const data = isRecord(value) && isRecord(value.data) ? value.data : {}
   return {

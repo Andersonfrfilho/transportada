@@ -3,6 +3,7 @@
  */
 import { sql } from 'drizzle-orm'
 import {
+  boolean,
   check,
   foreignKey,
   index,
@@ -18,6 +19,10 @@ import { identityUsers } from './identity.schema.js'
 /** Por onde a pessoa pode se identificar. Documento e telefone o Keycloak não sabe procurar. */
 export const LOGIN_IDENTIFIER_KINDS = ['email', 'document', 'phone'] as const
 export type LoginIdentifierKind = (typeof LOGIN_IDENTIFIER_KINDS)[number]
+
+/** Projeção da ficha, ou acréscimo de quem administra. A reconstrução só apaga o primeiro. */
+export const LOGIN_IDENTIFIER_SOURCES = ['profile', 'manual'] as const
+export type LoginIdentifierSource = (typeof LOGIN_IDENTIFIER_SOURCES)[number]
 
 /**
  * O provedor encontra alguém por `username` ou pelo campo `email` — um só, único no realm. Nem
@@ -38,6 +43,13 @@ export const loginIdentifiers = pgTable(
     kind: text().$type<LoginIdentifierKind>().notNull(),
     /** Guardado já normalizado: a busca é por igualdade, e máscara e caixa não são identidade. */
     value: text().notNull(),
+    /**
+     * De onde a linha veio. `profile` é projeção da ficha e é reescrita a cada gravação dela;
+     * `manual` é o que alguém acrescentou na tela, e a reconstrução não encosta.
+     */
+    source: text().$type<LoginIdentifierSource>().notNull().default('profile'),
+    /** O telefone que recebe mensagem por WhatsApp. Registro hoje; escolha de canal quando houver. */
+    isWhatsapp: boolean('is_whatsapp').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -56,6 +68,12 @@ export const loginIdentifiers = pgTable(
     check(
       'login_identifiers_value_normalized_check',
       sql`${table.value} = lower(btrim(${table.value}))`,
+    ),
+    check('login_identifiers_source_check', sql`${table.source} in ('profile', 'manual')`),
+    /** Só telefone recebe WhatsApp: a marca num e-mail ou num documento não quer dizer nada. */
+    check(
+      'login_identifiers_whatsapp_kind_check',
+      sql`${table.isWhatsapp} = false or ${table.kind} = 'phone'`,
     ),
   ],
 )

@@ -136,7 +136,23 @@
         "resetSent": "Pedido enviado. Se o login existir e estiver ativo, o link chega pelo canal cadastrado."
       },
       "edit": "Alterar",
-      "cancelEdit": "Manter"
+      "cancelEdit": "Manter",
+      "identifiers": {
+        "title": "E-mails e telefones",
+        "intro": "Por qualquer um deles a pessoa entra no sistema, e por qualquer um deles se fala com ela.",
+        "emails": "E-mails",
+        "phones": "Telefones",
+        "noEmail": "Nenhum e-mail além do cadastro.",
+        "noPhone": "Nenhum telefone além do cadastro.",
+        "addEmail": "Acrescentar e-mail",
+        "addPhone": "Acrescentar telefone",
+        "add": "Acrescentar",
+        "remove": "Remover",
+        "whatsapp": "Recebe WhatsApp",
+        "whatsappTag": "WhatsApp",
+        "whatsappHint": "A marca de WhatsApp fica registrada para quando as notificações escolherem por onde sair — hoje ela ainda não muda o envio.",
+        "fromProfile": "vem do cadastro acima"
+      }
     },
     "removeDialog": {
       "title": "Remover o acesso",

@@ -136,7 +136,23 @@
         "resetSent": "Request sent. If the login exists and is active, the link arrives through the registered channel."
       },
       "edit": "Change",
-      "cancelEdit": "Keep"
+      "cancelEdit": "Keep",
+      "identifiers": {
+        "title": "Emails and phones",
+        "intro": "Any of them lets the person sign in, and any of them reaches them.",
+        "emails": "Emails",
+        "phones": "Phones",
+        "noEmail": "No email beyond the record.",
+        "noPhone": "No phone beyond the record.",
+        "addEmail": "Add email",
+        "addPhone": "Add phone",
+        "add": "Add",
+        "remove": "Remove",
+        "whatsapp": "Receives WhatsApp",
+        "whatsappTag": "WhatsApp",
+        "whatsappHint": "The WhatsApp mark is recorded for when notifications choose a channel — it does not change delivery yet.",
+        "fromProfile": "comes from the record above"
+      }
     },
     "removeDialog": {
       "title": "Remove the account",

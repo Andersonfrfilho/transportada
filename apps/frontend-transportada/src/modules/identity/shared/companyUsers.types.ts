@@ -42,6 +42,26 @@ export type CompanyUser = Readonly<{
   invitation?: Readonly<{ expiresAt: string; status: string }>
 }>
 
+/**
+ * Por onde a pessoa entra e por onde se fala com ela — o mesmo conjunto serve às duas coisas.
+ * `source` diz quem escreveu: `profile` vem da ficha e volta sozinho na próxima gravação dela;
+ * `manual` é acréscimo de quem administra, e só ele se apaga pela tela.
+ */
+export type CompanyUserIdentifier = Readonly<{
+  id: string
+  isWhatsapp: boolean
+  kind: 'document' | 'email' | 'phone'
+  source: 'manual' | 'profile'
+  value: string
+}>
+
+export type AddCompanyUserIdentifierInput = Readonly<{
+  isWhatsapp: boolean
+  kind: 'email' | 'phone'
+  userId: string
+  value: string
+}>
+
 export type CompanyUserPage = Readonly<{
   nextCursor: null | string
   users: readonly CompanyUser[]
