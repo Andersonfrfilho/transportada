@@ -11,21 +11,21 @@ esperar por uma decisão fiscal que não a afeta.
 
 > Sem dúvida aberta. Pode começar.
 
-- [ ] T001 [P] Contrato de elegibilidade de NFS-e sem peso, com fixture da 883663/2
+- [x] T001 [P] Contrato de elegibilidade de NFS-e sem peso, com fixture da 883663/2
       (`pesoB` 0.000, `qVol` 20) — `apps/api-transportada/test/nfse/eligibility-without-weight.contract.ts` + `test/fixtures/` — evidência: teste vermelho pelo motivo certo
-- [ ] T002 Extrair `checkSharedEligibility` (autorizada, completa, valor, participantes,
+- [x] T002 Extrair `checkSharedEligibility` (autorizada, completa, valor, participantes,
       municípios) mantendo o peso só no CT-e —
       `cte-batches/domain/cte-batch-eligibility.policy.ts` — evidência: `bun run typecheck`
-- [ ] T003 `nfse-selection.policy.ts:107` passa a chamar o gate compartilhado e
+- [x] T003 `nfse-selection.policy.ts:107` passa a chamar o gate compartilhado e
       `NfseSelectionBlockReason` deixa de admitir o motivo de peso —
       `nfse-invoices/domain/nfse-selection.policy.ts` — evidência: T001 verde
-- [ ] T004 A query de seleção de NFS-e para de carregar peso, que ela nunca usou —
+- [x] T004 A query de seleção de NFS-e para de carregar peso, que ela nunca usou —
       `nfse-invoices/infrastructure/nfse-invoice-selection.query.ts:158` — evidência: uma consulta
       a menos por página, contratos verdes
-- [ ] T005 [P] O rótulo de peso sai da tela de NFS-e e **continua** na de CT-e —
+- [x] T005 [P] O rótulo de peso sai da tela de NFS-e e **continua** na de CT-e —
       `frontend-transportada/src/modules/nfse-invoice/locales/` — evidência: chave viva no
       `nfeWorkspace.locale.json`, morta no de NFS-e
-- [ ] T006 `make check` e `evidence.md` da fase A — evidência: gate verde + a 883663/2 emitindo
+- [x] T006 `make check` e `evidence.md` da fase A — evidência: gate verde + a 883663/2 emitindo
 
 ## Fase B — O peso padrão da empresa estima o que o emitente não declarou
 
