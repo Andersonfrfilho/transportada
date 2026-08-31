@@ -11,6 +11,7 @@ import {
 } from '../../database/fleet.schema.js'
 import { auditLogs } from '../../database/fiscal-operation.schema.js'
 import { loginIdentifiers } from '../../database/login-identifier.schema.js'
+import { projectLoginIdentifiers } from '../domain/login-identifier-projection.policy.js'
 import { jobExecutions, jobSchedules } from '../../database/job-schedule.schema.js'
 import type { JobOutcome, ScheduledJob } from '../../shared/job-catalog.constant.js'
 import type { CompanyUserFleetLink } from '../domain/company-user.policy.js'
@@ -99,6 +100,45 @@ const FLEET_LINKED_ROLES: readonly CompanyRole[] = ['driver', 'aggregate']
 
 const USERNAME_CONSTRAINT = 'identity_user_profiles_username_key'
 
+type TransactionalDatabase = Database | Parameters<Parameters<Database['transaction']>[0]>[0]
+
+/**
+ * Reconstrói por onde a pessoa se identifica, a partir da ficha que acabou de ser escrita.
+ *
+ * Fica no repositório, ao lado de **toda** escrita de perfil, e não em cada caso de uso: a tabela
+ * anterior a esta regra foi criada, lida pela tela de login e pela listagem, e nunca escrita —
+ * porque manter a projeção era responsabilidade de quem lembrasse. Aqui não há o que lembrar.
+ *
+ * Apagar e reinserir, em vez de reconciliar linha a linha: o conjunto é minúsculo (no máximo quatro
+ * entradas), e o `delete` é o que retira o endereço que a pessoa deixou de ter.
+ */
+async function rebuildLoginIdentifiers(
+  executor: TransactionalDatabase,
+  userId: string,
+): Promise<void> {
+  const [profile] = await executor
+    .select({
+      contactAddress: identityUserProfiles.contactAddress,
+      contactChannel: identityUserProfiles.contactChannel,
+      email: identityUserProfiles.email,
+      phone: identityUserProfiles.phone,
+      taxId: identityUserProfiles.taxId,
+    })
+    .from(identityUserProfiles)
+    .where(eq(identityUserProfiles.userId, userId))
+    .limit(1)
+  if (profile === undefined) return
+
+  const projected = projectLoginIdentifiers(profile)
+
+  await executor.delete(loginIdentifiers).where(eq(loginIdentifiers.userId, userId))
+  if (projected.length === 0) return
+
+  await executor
+    .insert(loginIdentifiers)
+    .values(projected.map((entry) => ({ kind: entry.kind, userId, value: entry.value })))
+}
+
 export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
   public constructor(private readonly database: Database) {}
 
@@ -139,6 +179,7 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
         username: input.username,
       })
 
+      await rebuildLoginIdentifiers(transaction, input.userId)
       linkedFleetDriverId = await linkFleetDriver(transaction, { ...input, membershipId })
     })
     return { linkedFleetDriverId, membershipId }
@@ -543,6 +584,7 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
         .onConflictDoNothing({ target: identityUserProfiles.userId })
         .returning({ userId: identityUserProfiles.userId })
 
+      if (inserted.length > 0) await rebuildLoginIdentifiers(this.database, input.userId)
       return { created: inserted.length > 0 }
     } catch (error) {
       const constraint = violatedUniqueConstraint(error)
@@ -569,6 +611,7 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
         .update(identityUserProfiles)
         .set({ ...changes, updatedAt: new Date() })
         .where(eq(identityUserProfiles.userId, input.userId))
+      await rebuildLoginIdentifiers(this.database, input.userId)
     } catch (error) {
       const constraint = violatedUniqueConstraint(error)
       if (constraint === USERNAME_CONSTRAINT) throw new DuplicateUsernameError()
