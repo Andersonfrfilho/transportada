@@ -232,6 +232,20 @@ describe('o diálogo de edição monta os blocos que a operação precisa', () =
  * avisa que pode haver divergência fora da vista, e verde ali diria o contrário.
  */
 describe('sucesso não sai na cor do erro', () => {
+  /**
+   * A classe presente não basta: `.feedback` é declarada depois de `.noticeReady` e tem a mesma
+   * especificidade, então o vermelho dela vencia e todo aviso de sucesso saía na cor do erro. Quem
+   * decide é o seletor composto, e é ele que este contrato cobra.
+   */
+  test('o verde vence o vermelho sem depender da ordem das regras', () => {
+    const stylesheet = readFileSync(
+      'src/modules/identity/styles/userAdministration.module.css',
+      'utf8',
+    )
+
+    expect(stylesheet).toContain('.feedback.noticeReady')
+  })
+
   test('a senha definida e o link enviado saem no verde', () => {
     const source = readFileSync(
       'src/modules/identity/components/CompanyUserPasswordPanel.component.tsx',

@@ -267,6 +267,13 @@
 }
 
 /* Vínculo feito é confirmação, não alarme: mesma forma do aviso, cor de pronto. */
+/*
+ * Seletor composto, e não `.noticeReady` sozinho: `.feedback` é declarada **depois** neste arquivo e
+ * tem a mesma especificidade, então o vermelho dela vencia — todo aviso de sucesso saía na cor do
+ * erro, e a conferência por classe presente não pegava isso. Com `.feedback.noticeReady` a vitória
+ * deixa de depender da ordem das regras.
+ */
+.feedback.noticeReady,
 .noticeReady {
   border-left-color: var(--color-ready);
   color: var(--color-ready);
