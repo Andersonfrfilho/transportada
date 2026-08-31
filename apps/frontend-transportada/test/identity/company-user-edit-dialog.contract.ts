@@ -507,3 +507,31 @@ describe('a foto do cabeçalho vem da API, não do token', () => {
     expect(source).not.toContain('src={userProfile.pictureUrl}')
   })
 })
+
+/**
+ * Divergência de campo se concilia sozinha: o provedor é a fonte de login, e-mail e documento, e um
+ * cadastro que discorda dele em silêncio é o defeito que a tela veio mostrar — não uma escolha a ser
+ * confirmada toda vez. Criar conta e preencher ficha vazia continuam sendo botão, porque ali o
+ * conserto **inventa** registro.
+ */
+describe('a conciliação de campo não espera clique', () => {
+  const source = readFileSync(
+    'src/modules/identity/hooks/useCompanyUsersReconciliation.hook.ts',
+    'utf8',
+  )
+
+  test('a divergência dispara a adoção sozinha', () => {
+    expect(source).toContain('adoptMutation.mutate(pending)')
+    expect(source).toContain('entry.differences.length > 0')
+  })
+
+  /** Adotar invalida a consulta; sem memória do tentado, a recusa do provedor viraria laço. */
+  test('o que já foi tentado não é pedido de novo', () => {
+    expect(source).toContain('attempted.current')
+  })
+
+  test('criar e preencher continuam sem disparo automático', () => {
+    expect(source).not.toContain('synchronizeMutation.mutate(')
+    expect(source).not.toContain('fillProfilesMutation.mutate(')
+  })
+})

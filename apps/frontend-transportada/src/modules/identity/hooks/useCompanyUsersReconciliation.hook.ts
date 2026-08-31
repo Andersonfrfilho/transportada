@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { useEffect, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { USERS_MANAGE_PERMISSION } from '../shared/companyUsers.constant'
@@ -73,6 +74,35 @@ export function useCompanyUsersReconciliation(
       void queryClient.invalidateQueries({ queryKey: [COMPANY_USERS_ADMINISTRATION_QUERY_KEY] })
     },
   })
+
+  /**
+   * Divergência de campo se concilia **sozinha**, sem ninguém apertar botão: o provedor é a fonte
+   * de login, e-mail e documento, e um cadastro que discorda dele em silêncio é o defeito que esta
+   * tela veio mostrar — não uma escolha a ser confirmada toda vez.
+   *
+   * O que continua sendo botão é o que **cria** conta e o que preenche ficha vazia: ali o conserto
+   * inventa registro, e inventar registro por conta própria é outra coisa.
+   *
+   * `attempted` impede o laço: adotar invalida a consulta, a consulta volta, e sem a memória do que
+   * já foi tentado a tela pediria de novo para sempre quando o provedor recusasse a escrita.
+   */
+  const attempted = useRef<ReadonlySet<string>>(new Set())
+  const divergedKey = (query.data?.items ?? [])
+    .filter((entry) => entry.differences.length > 0)
+    .map((entry) => entry.local?.userId ?? '')
+    .filter((userId) => userId !== '')
+    .join(',')
+
+  useEffect(() => {
+    const pending = divergedKey
+      .split(',')
+      .filter((userId) => userId !== '' && !attempted.current.has(userId))
+    if (pending.length === 0 || adoptMutation.isPending) return
+
+    attempted.current = new Set([...attempted.current, ...pending])
+    adoptMutation.mutate(pending)
+    /** Só a chave dos divergentes governa: a mutação muda de identidade a cada render. */
+  }, [divergedKey, adoptMutation])
 
   return Object.assign(query, { adoptMutation, fillProfilesMutation, synchronizeMutation })
 }
