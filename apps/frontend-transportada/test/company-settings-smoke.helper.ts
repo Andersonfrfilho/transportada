@@ -49,6 +49,24 @@ type MockState = {
   mutationCount: number
 }
 
+/**
+ * O cabeçalho busca a foto da pessoa em toda página — o claim `picture` do token aponta para esta
+ * mesma rota autenticada, e `<img src>` não manda o `Authorization`. Sem este mock a requisição
+ * escapa para a API real, que não sobe no smoke, e o `requestfailed` entra em `failures()`.
+ *
+ * 404 é a resposta certa para quem não tem foto: o cliente a trata como ausência, e a tela desenha
+ * as iniciais.
+ */
+async function registerUserPictureMock(page: Page): Promise<void> {
+  await page.route('**/company-users/*/picture', async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ headers: CORS_HEADERS, status: 204 })
+      return
+    }
+    await route.fulfill({ headers: CORS_HEADERS, status: 404 })
+  })
+}
+
 async function registerIdentityMock(page: Page): Promise<void> {
   await page.route('**/auth/me', async (route) => {
     if (route.request().method() === 'OPTIONS') {
@@ -153,6 +171,7 @@ export async function mockCompanySettingsApi(
   })
   await Promise.all([
     registerIdentityMock(page),
+    registerUserPictureMock(page),
     registerSettingsMock({ page, state }),
     registerCertificateMock({
       certificateStatus: input.certificateStatus,

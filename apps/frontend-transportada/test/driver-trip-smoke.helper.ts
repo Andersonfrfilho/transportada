@@ -17,6 +17,24 @@ export const DRIVER_ACCESS_KEY = '35260712345678000195550010009001231000000017'
 /** O par do campo, e só ele: é o que faz a tela de entrada ser a viagem em vez da de NF-e. */
 export const FIELD_PERMISSIONS = ['trip.read', 'trip.report'] as const
 
+/**
+ * O cabeçalho busca a foto da pessoa em toda página — o claim `picture` do token aponta para esta
+ * mesma rota autenticada, e `<img src>` não manda o `Authorization`. Sem este mock a requisição
+ * escapa para a API real, que não sobe no smoke, e o `requestfailed` entra em `failures()`.
+ *
+ * 404 é a resposta certa para quem não tem foto: o cliente a trata como ausência, e a tela desenha
+ * as iniciais.
+ */
+async function registerUserPictureMock(page: Page): Promise<void> {
+  await page.route('**/company-users/*/picture', async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ headers: CORS_HEADERS, status: 204 })
+      return
+    }
+    await route.fulfill({ headers: CORS_HEADERS, status: 404 })
+  })
+}
+
 async function fulfillJson(route: Route, body: unknown, status = 200): Promise<void> {
   await route.fulfill({
     body: JSON.stringify(body),
@@ -98,6 +116,7 @@ export async function mockDriverTripApi(
       storageKey: SMOKE_AUTH_ME_STORAGE_KEY,
     },
   )
+  await registerUserPictureMock(input.page)
   await input.page.route('**/auth/me', async (route) => {
     if (route.request().method() === 'OPTIONS') {
       await route.fulfill({ headers: CORS_HEADERS, status: 204 })
