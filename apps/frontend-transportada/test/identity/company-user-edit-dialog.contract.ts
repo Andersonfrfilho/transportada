@@ -10,10 +10,9 @@ import {
   toProfileFillOutcome,
 } from '../../src/modules/identity/shared/companyUsersResponse.validation'
 import type { ReconciliationEntry } from '../../src/modules/identity/shared/companyUsers.types'
-import {
-  summarizeReconciliation,
-  toSynchronizeTargets,
-} from '../../src/modules/identity/shared/reconciliationSummary.service'
+import { summarizeReconciliation } from '@adatechnology/identity-reconciliation'
+
+import { toSynchronizeTargets } from '../../src/modules/identity/shared/reconciliationTargets.service'
 
 const API_URL = 'https://transportada.test'
 const USER_ID = '018f6a45-2d9d-7e60-bb42-5b1a4c4d3e93'
@@ -38,6 +37,10 @@ function entryOf(status: ReconciliationEntry['status'], suffix: string): Reconci
  * O defeito que este contrato tranca: com a única divergência sendo ficha vazia, a tela anunciava
  * "criar 1 que falta" e o clique mandava dois conjuntos vazios para a API. O botão parecia quebrado
  * porque a contagem dele vinha de uma lista da qual ele não tira nenhum alvo.
+ *
+ * A regra pura mora em `@adatechnology/identity-reconciliation` e tem os testes dela lá; o que se
+ * prova aqui é a **fiação desta app** — que a tela consome o resumo do pacote e que a extração do
+ * identificador daqui casa com o que a nossa rota espera.
  */
 describe('a comparação separa quem falta de quem está sem ficha', () => {
   test('ficha vazia não conta como acesso a criar', () => {

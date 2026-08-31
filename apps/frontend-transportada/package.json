@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@adatechnology/document-intake": "0.1.0-rc.2",
+    "@adatechnology/identity-reconciliation": "0.1.0-rc.1",
     "@adatechnology/image-cutout": "0.1.0-rc.2",
     "@adatechnology/notification-client": "0.1.0-rc.2",
     "@adatechnology/notification-ui": "0.1.0-rc.3",

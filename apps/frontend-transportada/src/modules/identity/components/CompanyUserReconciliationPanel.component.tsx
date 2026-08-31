@@ -4,10 +4,9 @@ import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton } from '@/components/ui/skeleton'
 
-import {
-  summarizeReconciliation,
-  toSynchronizeTargets,
-} from '../shared/reconciliationSummary.service'
+import { summarizeReconciliation } from '@adatechnology/identity-reconciliation'
+
+import { toSynchronizeTargets } from '../shared/reconciliationTargets.service'
 import type {
   IdentitySyncOutcome,
   ProfileFillOutcome,

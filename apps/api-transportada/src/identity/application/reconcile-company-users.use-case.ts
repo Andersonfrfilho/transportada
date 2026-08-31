@@ -5,8 +5,10 @@ import { maskIdentityEmail, maskIdentityTaxId } from '../domain/company-user.pol
 import {
   reconcileIdentities,
   RECONCILIATION_STATUS,
+  RECONCILIATION_VIEW_STATUS,
   type ReconciliationEntry,
   type ReconciliationMatch,
+  type ReconciliationViewStatus,
 } from '../domain/user-reconciliation.policy.js'
 import type { IdentityAccessGatewayPort } from '../infrastructure/keycloak-admin.gateway.js'
 import type { CompanyUserRepositoryPort } from './company-user.port.js'
@@ -25,21 +27,8 @@ export type ReconcileCompanyUsersInput = {
  * O valor cru é o que a regra casa; o que sai daqui é mascarado, como na listagem — a tela serve
  * para reconhecer a pessoa e decidir, não para exportar a ficha dela.
  */
-/**
- * Os três primeiros vêm do pacote de vínculo e falam de **existência**. O quarto fala de
- * **completude**, e por isso nasce aqui: `identity_user_profiles` é tabela deste produto, e um
- * produto que federe login sem ter perfil próprio não teria o que reconciliar nesse eixo.
- *
- * Sem ele a tela dizia "Sincronizado" para uma conta que a listagem mostrava como "Cadastro
- * incompleto" — as duas verdades, e nenhuma das duas dizendo o que fazer.
- */
-export const RECONCILIATION_VIEW_STATUS = {
-  ...RECONCILIATION_STATUS,
-  PROFILE_MISSING: 'profile-missing',
-} as const
-
-export type ReconciliationViewStatus =
-  (typeof RECONCILIATION_VIEW_STATUS)[keyof typeof RECONCILIATION_VIEW_STATUS]
+/** O quarto estado vem do pacote pela mesma costura dos três de existência (ver o domínio). */
+export { RECONCILIATION_VIEW_STATUS, type ReconciliationViewStatus }
 
 export type ReconciliationEntryView = {
   readonly local?: {

@@ -4,15 +4,23 @@
 import {
   RECONCILIATION_MATCH,
   RECONCILIATION_STATUS,
+  RECONCILIATION_VIEW_STATUS,
   reconcileIdentities as reconcileContractIdentities,
   type LocalIdentityRecord as LocalContractRecord,
   type RealmIdentityRecord as RealmContractRecord,
   type ReconciliationMatch,
   type ReconciliationStatus,
+  type ReconciliationViewStatus,
 } from '@adatechnology/identity-reconciliation'
 
-export { RECONCILIATION_MATCH, RECONCILIATION_STATUS }
-export type { ReconciliationMatch, ReconciliationStatus }
+/**
+ * Dois conjuntos, e a diferença importa: `RECONCILIATION_STATUS` responde se as duas contas são a
+ * mesma pessoa, e `RECONCILIATION_VIEW_STATUS` acrescenta o estado de leitura — casado e sem ficha
+ * neste produto. O segundo nasceu aqui e foi para o pacote quando ficou claro que o caso é de todo
+ * produto que federa login e tem tabela de perfil própria.
+ */
+export { RECONCILIATION_MATCH, RECONCILIATION_STATUS, RECONCILIATION_VIEW_STATUS }
+export type { ReconciliationMatch, ReconciliationStatus, ReconciliationViewStatus }
 
 /**
  * A regra de casar as duas bases vive em `@adatechnology/identity-reconciliation`: ela é pura e vale
