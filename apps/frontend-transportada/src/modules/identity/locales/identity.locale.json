@@ -114,12 +114,12 @@
       "taxIdHint": "Preencha só para substituir o CPF guardado.",
       "revealAll": "Revelar tudo",
       "hideAll": "Ocultar tudo",
-      "revealField": "Revelar este campo",
+      "revealField": "Revelar {{field}}",
       "stored": {
-        "contact": "Contato guardado",
-        "email": "E-mail guardado",
-        "phone": "Telefone guardado",
-        "taxId": "CPF guardado"
+        "contact": "Contato do convite",
+        "email": "E-mail de acesso",
+        "phone": "Telefone",
+        "taxId": "CPF"
       },
       "realm": {
         "title": "No provedor de login",
@@ -148,7 +148,9 @@
         "saved": "Senha definida.",
         "sendReset": "Enviar link de redefinição",
         "resetSent": "Pedido enviado. Se o login existir e estiver ativo, o link chega pelo canal cadastrado."
-      }
+      },
+      "edit": "Alterar",
+      "cancelEdit": "Manter"
     },
     "removeDialog": {
       "title": "Remover o acesso",

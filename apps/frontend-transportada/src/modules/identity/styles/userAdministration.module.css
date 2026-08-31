@@ -552,3 +552,38 @@
   flex: 1;
   min-width: 0;
 }
+
+/*
+ * Um dado por linha: valor guardado, olho e lápis juntos, e o campo de troca abrindo abaixo. Eram
+ * dois blocos — campos vazios em cima, valores mascarados embaixo — sem nada ligando os dois.
+ */
+.storedFieldList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.storedField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+}
+
+.storedFieldHead {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.storedFieldLabel {
+  color: var(--color-slate);
+  font-size: 0.75rem;
+}
+
+.storedFieldValue {
+  font-family: var(--font-utility);
+}

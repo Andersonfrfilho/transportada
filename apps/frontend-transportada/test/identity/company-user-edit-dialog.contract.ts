@@ -182,6 +182,24 @@ describe('o diálogo de edição monta os blocos que a operação precisa', () =
     expect(source).toContain('CompanyUserPasswordPanel')
   })
 
+  test('cada dado guardado tem valor, olho e lápis num lugar só', () => {
+    expect(source).toContain('CompanyUserStoredField')
+    expect(source).toContain('onStopEditing')
+    expect(source).toContain('editor={editorOf(field)}')
+  })
+
+  /** Trocar o canal torna o contato obrigatório; fechado, o envio seria recusado sem campo à vista. */
+  test('trocar o canal abre o contato sozinho', () => {
+    expect(source).toContain('form.isContactRequired')
+    const row = source.slice(source.indexOf('isEditing='), source.indexOf('isRevealing='))
+    expect(row).toContain('isContactRequired')
+  })
+
+  /** Desistir da troca precisa limpar o digitado: senão o valor entra no PATCH mesmo assim. */
+  test('fechar a edição limpa o que foi digitado', () => {
+    expect(source).toContain('CLEAR_FIELD[field]()')
+  })
+
   test('telefone e CPF entram formatados, pelo campo com máscara', () => {
     expect(source).toContain('format={formatPhone}')
     expect(source).toContain('format={formatTaxId}')

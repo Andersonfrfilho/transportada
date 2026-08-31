@@ -49,6 +49,7 @@ type KeycloakRealm = {
   readonly roles: {
     readonly realm: readonly { readonly name: string }[]
   }
+  readonly editUsernameAllowed?: boolean
   readonly resetPasswordAllowed: boolean
   readonly sslRequired: string
   readonly users: readonly KeycloakUser[]
@@ -432,5 +433,29 @@ describe('Keycloak login theme contract', () => {
 
     expect(compose).toContain(`./${THEME_ROOT}:/opt/keycloak/themes/${THEME_NAME}:ro`)
     expect(dockerfile).toContain(`COPY ${THEME_ROOT} /opt/keycloak/themes/${THEME_NAME}`)
+  })
+})
+
+/**
+ * O login é editável no painel, e quem decide isso é o realm — não a nossa permissão.
+ * `editUsernameAllowed` é **desligado por padrão** no Keycloak, e com ele desligado o Admin API
+ * recusa a troca com 400: o operador só descobria ao salvar, e o banco já tinha gravado o login novo.
+ *
+ * Declarar no arquivo não basta: `--import-realm` ignora realm que já existe, então o passo de
+ * reconciliação do deploy é o único caminho até um ambiente que já subiu — o mesmo caminho do
+ * `loginTheme`, e pela mesma razão.
+ */
+describe('a troca de login é permitida pelo realm', () => {
+  test('os dois realms declaram `editUsernameAllowed`', async () => {
+    for (const realm of await readEveryRealm()) {
+      expect(realm.editUsernameAllowed).toBe(true)
+    }
+  })
+
+  test('a reconciliação alcança o realm que já existe', async () => {
+    const script = await readProjectFile('.github/scripts/keycloak-reconcile.sh')
+
+    expect(script).toContain('editUsernameAllowed')
+    expect(script).toContain('"editUsernameAllowed": true')
   })
 })

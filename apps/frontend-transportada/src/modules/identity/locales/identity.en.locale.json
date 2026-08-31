@@ -114,12 +114,12 @@
       "taxIdHint": "Fill in only to replace the stored tax ID.",
       "revealAll": "Reveal all",
       "hideAll": "Hide all",
-      "revealField": "Reveal this field",
+      "revealField": "Reveal {{field}}",
       "stored": {
-        "contact": "Stored contact",
-        "email": "Stored email",
-        "phone": "Stored phone",
-        "taxId": "Stored tax ID"
+        "contact": "Invitation contact",
+        "email": "Sign-in email",
+        "phone": "Phone",
+        "taxId": "Tax ID"
       },
       "realm": {
         "title": "In the login provider",
@@ -148,7 +148,9 @@
         "saved": "Password set.",
         "sendReset": "Send reset link",
         "resetSent": "Request sent. If the login exists and is active, the link arrives through the registered channel."
-      }
+      },
+      "edit": "Change",
+      "cancelEdit": "Keep"
     },
     "removeDialog": {
       "title": "Remove the account",

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
@@ -25,6 +25,7 @@ import {
 import { CompanyUserPasswordPanel } from './CompanyUserPasswordPanel.component'
 import { CompanyUserPictureField } from './CompanyUserPictureField.component'
 import { CompanyUserRealmMirror } from './CompanyUserRealmMirror.component'
+import { CompanyUserStoredField } from './CompanyUserStoredField.component'
 
 /** Os campos guardados que a API entrega mascarados, e que o olho revela um a um. */
 const SECRET_FIELDS = ['contact', 'email', 'phone', 'taxId'] as const
@@ -65,6 +66,8 @@ export function CompanyUserEditDialog({
    * porque alguém quis conferir o telefone deixaria o CPF aberto na tela sem ninguém ter pedido.
    */
   const [visibleFields, setVisibleFields] = useState<readonly SecretField[]>([])
+  /** Qual dado está aberto para troca. Fechar limpa o que foi digitado: desistir é desistir. */
+  const [editingFields, setEditingFields] = useState<readonly SecretField[]>([])
   const picture = useCompanyUserPicture({ userId: user?.id })
 
   if (user === null) return null
@@ -87,6 +90,22 @@ export function CompanyUserEditDialog({
     setVisibleFields([])
   }
 
+  function startEditing(field: SecretField): void {
+    setEditingFields((current) => (current.includes(field) ? current : [...current, field]))
+  }
+
+  const CLEAR_FIELD: Readonly<Record<SecretField, () => void>> = {
+    contact: () => form.setContact(''),
+    email: () => form.setEmail(''),
+    phone: () => form.setPhone(''),
+    taxId: () => form.setTaxId(''),
+  }
+
+  function stopEditing(field: SecretField): void {
+    setEditingFields((current) => current.filter((entry) => entry !== field))
+    CLEAR_FIELD[field]()
+  }
+
   function storedValueOf(field: SecretField): string {
     const masked =
       field === 'contact'
@@ -98,6 +117,61 @@ export function CompanyUserEditDialog({
             : user?.taxId
     if (!visibleFields.includes(field) || revealed === undefined) return masked ?? ''
     return revealed[field]
+  }
+
+  function editorOf(field: SecretField): ReactNode {
+    if (field === 'contact') {
+      return (
+        <CompanyUserTextField
+          disabled={isPending}
+          hint={
+            form.isContactRequired
+              ? t('users.editDialog.contactRequired')
+              : t('users.editDialog.contactHint')
+          }
+          isWide
+          label={t('users.editDialog.contact')}
+          onChange={form.setContact}
+          value={form.contact}
+        />
+      )
+    }
+    if (field === 'email') {
+      return (
+        <CompanyUserTextField
+          disabled={isPending}
+          hint={t('users.editDialog.emailHint')}
+          isWide
+          label={t('users.editDialog.email')}
+          onChange={form.setEmail}
+          value={form.email}
+        />
+      )
+    }
+    if (field === 'phone') {
+      return (
+        <CompanyUserMaskedField
+          disabled={isPending}
+          format={formatPhone}
+          hint={t('users.editDialog.phoneHint')}
+          inputMode="tel"
+          label={t('users.editDialog.phone')}
+          maxLength={PHONE_MASK_LENGTH}
+          onChange={form.setPhone}
+          value={form.phone}
+        />
+      )
+    }
+    return (
+      <CompanyUserMaskedField
+        disabled={isPending}
+        format={formatTaxId}
+        hint={t('users.editDialog.taxIdHint')}
+        label={t('users.editDialog.taxId')}
+        onChange={form.setTaxId}
+        value={form.taxId}
+      />
+    )
   }
 
   return createPortal(
@@ -182,52 +256,32 @@ export function CompanyUserEditDialog({
             options={CONTACT_CHANNELS}
             value={form.channel}
           />
-          <CompanyUserTextField
-            disabled={isPending}
-            hint={
-              form.isContactRequired
-                ? t('users.editDialog.contactRequired')
-                : t('users.editDialog.contactHint')
-            }
-            label={t('users.editDialog.contact')}
-            onChange={form.setContact}
-            value={form.contact}
-          />
-          <CompanyUserTextField
-            disabled={isPending}
-            hint={t('users.editDialog.emailHint')}
-            isWide
-            label={t('users.editDialog.email')}
-            onChange={form.setEmail}
-            value={form.email}
-          />
-          <CompanyUserMaskedField
-            disabled={isPending}
-            format={formatPhone}
-            hint={t('users.editDialog.phoneHint')}
-            inputMode="tel"
-            label={t('users.editDialog.phone')}
-            maxLength={PHONE_MASK_LENGTH}
-            onChange={form.setPhone}
-            value={form.phone}
-          />
-          <CompanyUserMaskedField
-            disabled={isPending}
-            format={formatTaxId}
-            hint={t('users.editDialog.taxIdHint')}
-            label={t('users.editDialog.taxId')}
-            onChange={form.setTaxId}
-            value={form.taxId}
-          />
         </div>
 
-        <StoredValues
-          canReveal={reveal.canReveal}
-          isRevealing={reveal.isPending}
-          onShow={(field) => void showField(field)}
-          valueOf={storedValueOf}
-          visibleFields={visibleFields}
-        />
+        {/**
+         * Um lugar por dado: o valor guardado, o olho e o lápis na mesma linha, e o campo de troca
+         * abrindo abaixo dele. Trocar o canal abre o contato sozinho — sem contato correspondente o
+         * envio é recusado, e o campo estaria fechado justo quando ele passa a ser obrigatório.
+         */}
+        <div className={styles.storedFieldList}>
+          {SECRET_FIELDS.map((field) => (
+            <CompanyUserStoredField
+              canReveal={reveal.canReveal}
+              editor={editorOf(field)}
+              isEditing={
+                editingFields.includes(field) || (field === 'contact' && form.isContactRequired)
+              }
+              isRevealing={reveal.isPending}
+              isVisible={visibleFields.includes(field)}
+              key={field}
+              label={t(`users.editDialog.stored.${field}`)}
+              onEdit={() => startEditing(field)}
+              onReveal={() => void showField(field)}
+              onStopEditing={() => stopEditing(field)}
+              value={storedValueOf(field)}
+            />
+          ))}
+        </div>
 
         <CompanyUserRealmMirror
           disabled={isFillingProfile}
@@ -270,54 +324,5 @@ export function CompanyUserEditDialog({
       </div>
     </div>,
     document.body,
-  )
-}
-
-/**
- * O que já está guardado, ao lado dos campos que o substituem. Os campos de edição abrem vazios de
- * propósito (escrever o mascarado de volta gravaria `***` por cima do dado bom), e sem esta lista o
- * operador não tinha como saber o que existe antes de decidir se troca.
- */
-function StoredValues({
-  canReveal,
-  isRevealing,
-  onShow,
-  valueOf,
-  visibleFields,
-}: Readonly<{
-  canReveal: boolean
-  isRevealing: boolean
-  onShow: (field: SecretField) => void
-  valueOf: (field: SecretField) => string
-  visibleFields: readonly SecretField[]
-}>) {
-  const { t } = useTranslation('identity')
-
-  return (
-    <dl className={styles.detailGrid}>
-      {SECRET_FIELDS.map((field) => (
-        <div key={field}>
-          <dt>{t(`users.editDialog.stored.${field}`)}</dt>
-          <dd>
-            <span className={styles.secretRow}>
-              <span>{valueOf(field) || '—'}</span>
-              {!canReveal || visibleFields.includes(field) || valueOf(field) === '' ? null : (
-                <Button
-                  aria-label={t('users.editDialog.revealField')}
-                  disabled={isRevealing}
-                  onClick={() => onShow(field)}
-                  size="sm"
-                  title={t('users.editDialog.revealField')}
-                  type="button"
-                  variant="ghost"
-                >
-                  <Icon name="eye" />
-                </Button>
-              )}
-            </span>
-          </dd>
-        </div>
-      ))}
-    </dl>
   )
 }
