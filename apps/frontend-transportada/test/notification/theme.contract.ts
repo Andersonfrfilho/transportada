@@ -34,6 +34,21 @@ describe('contrato do tema das telas do pacote de notificação', () => {
   })
 
   /**
+   * ⚠️ Sem `senderName` o pacote assina a prévia com a **primeira letra do título** — a fatura vinha
+   * como "F", e quem escreve o texto via um remetente que não existe. E a variável do remetente só
+   * chega ao bundle se o `Dockerfile` a declarar: `VITE_*` é inlinada no build.
+   */
+  test('a prévia assina com a marca da instalação, e o remetente vem da configuração', async () => {
+    const page = await readPage('NotificationSettings')
+    const dockerfile = await readSource('../../Dockerfile')
+
+    expect(page).toContain('senderName={senderName}')
+    expect(page).toContain('useInstallationBrand')
+    expect(page).toContain("'preview.senderAddress'")
+    expect(dockerfile).toContain('ARG VITE_EMAIL_FROM')
+  })
+
+  /**
    * O pacote publica o modo escuro sob um ancestral `.dark`, e o aplica em `.dark .adn-*` — duas
    * classes de especificidade, acima de qualquer tradução nossa. A aplicação tem tema escuro único,
    * então a classe é estática no documento; tirá-la devolve as telas do pacote ao modo claro.

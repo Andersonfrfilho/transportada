@@ -12,6 +12,9 @@ import type {
  */
 export const NOTIFICATION_SETTINGS_CHANNEL_IDS = ['inbox', 'email'] as const
 
+/** O que assina a prévia enquanto a instalação não tem marca cadastrada — igual ao rodapé do e-mail. */
+export const NOTIFICATION_PRODUCT_NAME = 'TransportAdA'
+
 /** Rota do workspace de notificações; a navegação manual de `main.tsx` casa por prefixo. */
 export const NOTIFICATION_WORKSPACE_HREF = '/notificacoes'
 

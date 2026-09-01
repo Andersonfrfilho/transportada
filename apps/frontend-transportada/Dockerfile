@@ -18,6 +18,9 @@ ARG VITE_API_URL
 ARG VITE_APP_ENV
 ARG VITE_APP_URL
 ARG VITE_LANDING_APP_URL
+# Só a prévia de notificação a lê, para mostrar o mesmo remetente que o worker usa. Não é segredo:
+# é o endereço impresso em todo e-mail que sai daqui.
+ARG VITE_EMAIL_FROM
 ARG VITE_KEYCLOAK_CLIENT_ID
 ARG VITE_KEYCLOAK_REALM
 ARG VITE_KEYCLOAK_URL
