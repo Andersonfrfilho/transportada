@@ -72,6 +72,11 @@ const CATALOG = [
     job: 'identity.document.backfill',
     minimumIntervalSeconds: 86_400,
   },
+  {
+    failureOutcomes: [],
+    job: 'geocoding.backfill',
+    minimumIntervalSeconds: 300,
+  },
 ] as const
 
 describe('worker job catalog', () => {

@@ -278,3 +278,50 @@ os do OSRM, que pulam sem `ROUTING_MATRIX_URL`) e o número verde não provaria 
 | `bun run --cwd apps/api-transportada test`    | 3829 pass / 23 skip / 0 fail |
 | `make migration-test`                         | 90 pass / 0 fail             |
 | `make worker-integration`                     | 62 pass / 4 skip / 0 fail    |
+
+## Fase B — A população adiantada
+
+### T013 ✅ a T016 ✅ 2026-09-01
+
+**A decisão central da fase, e ela não estava no plano:** a rotina **declina o centroide de
+município**. No caminho da sugestão o palpite é bem-vindo — a parada precisa de alguma coordenada
+agora, e ela entra marcada. Aqui não há pressa, e gravar `city` deixaria o endereço em base, onde a
+cascata **nunca mais o reconsulta**: um dia de provedor fora do ar viraria uma cidade inteira
+degradada para sempre, em silêncio. Não resolver custa nada.
+
+Isso é expresso por **composição**, não por bandeira: a rotina passa um `CentroidPort` que sempre
+devolve `null`. E é por isso que `failureOutcomes` é vazio — não há meia passada a lamentar.
+
+⚠️ **Um defeito real corrigido no caminho:** `geocodeAddresses` processava chave repetida duas vezes
+(o `filter` sobre `missing` era calculado antes do laço). A RF1 exige uma chamada, não N — a
+deduplicação passou para dentro da use case, porque são **dois** chamadores e o segundo a esquecer
+pagaria a conta calado.
+
+`geocoding.backfill` entrou no catálogo das **quatro** apps mais os quatro contratos de paridade,
+mais a migration `20260901214952_geocoding_backfill_job` (os dois CHECKs e a linha do relógio, com
+`rollback.sql`), mais a lista de `SEED_MIGRATIONS` do contrato do catálogo.
+
+A fila pendente é montada em SQL (`drizzle-pending-address.repository.ts`) — concessão consciente,
+com o alcance dito por escrito: o pior caso de divergir de `buildStopAddressKey` é **adiantar uma
+chave que ninguém consulta** (trabalho perdido, nunca dado errado), e o filtro é conservador de
+propósito.
+
+**T016** trava a forma da chave, que hoje tem três consumidores — quem monta, quem lê e quem remonta
+em SQL. Mudá-la faria toda chave em base virar `miss` de uma vez: a base inteira regeocodificada em
+silêncio, com fatura, enquanto tudo parece funcionar.
+
+**Verificação:**
+
+```
+worker             863 pass / 0 fail
+API               3826 pass / 0 fail
+cron                94 pass / 0 fail
+frontend          2233 pass / 0 fail
+make migration-test  90 pass / 0 fail
+job_schedules      geocoding.backfill | 300  (aplicado no Postgres local)
+```
+
+⚠️ `make worker-integration` acusa **1 falha**: `worker SIGTERM integration > drains an in-flight
+synthetic effect`. Ela é **pré-existente** — reproduzida com este trabalho no `git stash`, sem a
+rotina registrada, e falha igual. Não é regressão desta spec, e fica registrada aqui para não ser
+descoberta de novo como se fosse.

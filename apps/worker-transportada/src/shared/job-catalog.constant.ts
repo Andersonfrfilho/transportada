@@ -141,6 +141,20 @@ export const JOB_CATALOG = [
      */
     minimumIntervalSeconds: 86_400,
   },
+  {
+    /**
+     * Vazio, e é consequência do desenho: a rotina **declina o centroide de município** (spec 069),
+     * então provedor fora do ar não vira dado ruim gravado — vira endereço que volta na próxima
+     * janela. Não há falha própria a nomear porque não há meia passada a lamentar.
+     */
+    failureOutcomes: [],
+    job: 'geocoding.backfill',
+    /**
+     * A batida. O trabalho é adiantamento — o que ela não alcançar a sugestão resolve sozinha —,
+     * então correr fino não é pressa: é encurtar a fila antes de alguém precisar dela.
+     */
+    minimumIntervalSeconds: JOB_TICK_INTERVAL_SECONDS,
+  },
 ] as const
 
 export type JobCatalogEntry = (typeof JOB_CATALOG)[number]

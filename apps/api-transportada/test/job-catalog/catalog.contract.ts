@@ -80,6 +80,11 @@ const CATALOG = [
     job: 'identity.document.backfill',
     minimumIntervalSeconds: 86_400,
   },
+  {
+    failureOutcomes: [],
+    job: 'geocoding.backfill',
+    minimumIntervalSeconds: 300,
+  },
 ] as const
 
 /**
@@ -91,6 +96,7 @@ const SEED_MIGRATIONS = [
   '20260823175600_job_schedule_registry',
   '20260826101924_tough_killraven',
   '20260829224254_identity_document_backfill_job',
+  '20260901214952_geocoding_backfill_job',
 ] as const
 
 describe('job catalog', () => {

@@ -56,13 +56,13 @@ não precisa da chave para ser escrita e testada — só o deploy dela a espera.
 
 ## Fase B — A população adiantada
 
-- [ ] T013 Contrato da rotina: só chave ausente, endereço repetido é uma chamada, reexecução não
+- [x] T013 ✅ Contrato da rotina: só chave ausente, endereço repetido é uma chamada, reexecução não
       refaz nada — `worker/test/geocoding-backfill/routine.contract.ts` — **dependência:** T009
-- [ ] T014 `geocoding.backfill` em `worker/src/geocoding-backfill/`, registrada no
+- [x] T014 ✅ `geocoding.backfill` em `worker/src/geocoding-backfill/`, registrada no
       `JobRoutineRegistry` e agendada em `job_schedules` — **dependência:** T013 — **aceite:** CA2
-- [ ] T015 [P] Lotes pequenos com intervalo e `AbortSignal` (RNF4) — a BrasilAPI é serviço público —
+- [x] T015 [P] ✅ Lotes pequenos com intervalo e `AbortSignal` (RNF4) — a BrasilAPI é serviço público —
       **dependência:** T014
-- [ ] T016 [P] Contrato que trava a forma de `buildStopAddressKey` — mudá-la invalidaria a base
+- [x] T016 [P] ✅ Contrato que trava a forma de `buildStopAddressKey` — mudá-la invalidaria a base
       inteira de uma vez, e precisa ser decisão, não `replace` — **dependência:** T014
 
 ## Fase C — A marca, e o degrau que custa

@@ -75,22 +75,30 @@ export async function geocodeAddresses(
   requests: readonly GeocodeAddressRequest[],
 ): Promise<GeocodeAddressesResult> {
   const byAddressKey = new Map<string, GeocodedAddressRecord>()
-  const pending: GeocodeAddressRequest[] = []
+  const pending = new Map<string, GeocodeAddressRequest>()
 
   for (const request of requests) {
     const cached = dependencies.cache?.get(request.addressKey)
-    if (cached === undefined) pending.push(request)
-    else byAddressKey.set(request.addressKey, cached)
+    if (cached !== undefined) {
+      byAddressKey.set(request.addressKey, cached)
+      continue
+    }
+    /**
+     * RF1: o mesmo endereço em cem notas é **uma** chamada, não cem. A deduplicação vive aqui e não
+     * em cada chamador porque são dois — a sugestão e a rotina de população —, e o segundo a esquecer
+     * pagaria a conta calado.
+     */
+    pending.set(request.addressKey, request)
   }
 
-  const stored = await readStored(dependencies, pending)
+  const stored = await readStored(dependencies, [...pending.values()])
   for (const record of stored) {
     byAddressKey.set(record.addressKey, record)
     dependencies.cache?.set(record)
   }
 
-  const missing = pending.filter((request) => !byAddressKey.has(request.addressKey))
-  const fromBase = requests.length - missing.length
+  const missing = [...pending.values()].filter((request) => !byAddressKey.has(request.addressKey))
+  const fromBase = pending.size - missing.length
   let resolvedByPostalCode = 0
   let resolvedByCity = 0
   let unresolved = 0

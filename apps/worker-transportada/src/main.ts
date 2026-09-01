@@ -67,6 +67,8 @@ import { buildNotificationRabbitMqTopology } from './messaging/notification-rabb
 import { buildRouteOptimizationTopology } from './messaging/route-optimization-topology.js'
 import { startRouteOptimizationConsumer } from './runtime/route-optimization-consumer.service.js'
 import { createDrizzleRouteOptimizationRepository } from './routing/infrastructure/drizzle-route-optimization.repository.js'
+import { createGeocodingBackfillRoutine } from './geocoding-backfill/application/geocoding-backfill.routine.js'
+import { createDrizzlePendingAddressSource } from './geocoding-backfill/infrastructure/drizzle-pending-address.repository.js'
 import { createBrasilApiPostalCodeGateway } from './routing/infrastructure/brasil-api-postal-code.gateway.js'
 import { createDrizzleGeocodedAddressRepository } from './routing/infrastructure/drizzle-geocoded-address.repository.js'
 import { createMunicipalityCentroidGateway } from './routing/infrastructure/municipality-centroid.gateway.js'
@@ -946,6 +948,24 @@ export async function startWorkerRuntime(
            * ADR-0045 §3.3: sempre registrada. Ela não depende de configuração nenhuma — e uma
            * retenção que só corre quando a instalação declarou alguma coisa é retenção opcional.
            */
+          /**
+           * Spec 069: sempre registrada. Ela não depende de configuração — sem
+           * `POSTAL_CODE_BRASIL_API_URL` o degrau 1 não resolve, o ciclo fecha em zero resolvido, e
+           * nada de ruim é gravado: a rotina declina o centroide de município de propósito.
+           */
+          ['geocoding.backfill']: createGeocodingBackfillRoutine({
+            addresses: createDrizzlePendingAddressSource(
+              database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            ),
+            geocoding: createBrasilApiPostalCodeGateway({
+              baseUrl: config.postalCodeBrasilApiUrl ?? '',
+            }),
+            logger,
+            repository: createDrizzleGeocodedAddressRepository(
+              database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            ),
+            wait: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+          }),
           [TRIP_LOCATION_PURGE_JOB]: createTripLocationPurgeRoutine({
             logger,
             now: () => new Date(),
