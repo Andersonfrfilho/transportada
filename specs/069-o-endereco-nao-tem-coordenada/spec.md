@@ -100,11 +100,23 @@ sugestão sai com as paradas que dá — nunca `failed`, e nunca com coordenada 
    em `shouldReplaceStored`; aqui é regressão a não quebrar).
 8. **RF8** — Contagem de endereços geocodificados por período, consultável.
 9. **RF9 — O CEP geral não se disfarça de quarteirão.** Cidade pequena tem **um CEP para o município
-   inteiro**. O centroide dele é um palpite de vários quilômetros, e gravá-lo como `postal_code`
-   passaria no portão de coordenada fina (`precision !== 'city'`) e o poria **dentro** da rota — o
-   modo de falha exato que a ADR-0044 §1 existe para impedir, e o mesmo do extract pequeno demais:
-   número plausível, sem aviso. Centroide de CEP só vale `postal_code` quando o CEP identifica
-   logradouro ou quarteirão; CEP geral de município grava `precision: 'city'` e sai da otimização.
+   inteiro**. O centroide dele é um palpite de quilômetros, e gravá-lo como `postal_code` passaria no
+   portão de coordenada fina (`precision !== 'city'`) e o poria **dentro** da rota — o modo de falha
+   exato que a ADR-0044 §1 existe para impedir, e o mesmo do extract pequeno demais: número
+   plausível, sem aviso.
+
+   **O discriminador não é palpite sobre os dígitos do CEP; é o `street` da resposta**, e isso foi
+   medido em 2026-09-01 contra a BrasilAPI:
+
+   | CEP         | cidade         | `street`                     | precisão      |
+   | ----------- | -------------- | ---------------------------- | ------------- |
+   | `14660-000` | Sales Oliveira | `null`                       | `city`        |
+   | `14015-000` | Ribeirão Preto | `Rua Visconde do Rio Branco` | `postal_code` |
+   | `14801-000` | Araraquara     | `Avenida Presidente Vargas`  | `postal_code` |
+
+   CEP geral não tem logradouro por definição, e CEP de logradouro sempre tem — então `street`
+   ausente é o sinal autoritativo, vindo do próprio corpo. Casar pelo sufixo `-000` seria heurística
+   sobre um padrão que a numeração dos Correios não garante.
 
 ## Requisitos não funcionais
 
@@ -193,8 +205,17 @@ esperando a variável — o gateway só é construído quando ela existe (RF5).
 
 Os degraus 4 e 5 da cascata não tinham fonte de dado em lugar nenhum do repositório.
 
-- **CEP** — a BrasilAPI, que a API já consulta em `postal-code.gateway.ts`, devolve coordenada no
-  `/cep/v2`. Reusar o destino que já existe é mais barato que abrir outro.
+- **CEP** — a BrasilAPI, no `/cep/v2`. ⚠️ **Nós já chamamos exatamente esse endpoint e jogamos a
+  coordenada fora:** `postal-code.gateway.ts` lê os campos de endereço e ignora o
+  `location.coordinates` que vem no mesmo corpo. Medido em 2026-09-01 — a resposta traz
+  `{"type":"Point","coordinates":{"longitude":"-46.6553299","latitude":"-23.5617698"}}`. O degrau do
+  CEP não abre destino externo novo nem paga chamada nova: ele passa a ler um campo que a resposta
+  já entrega.
+
+  `location` é **opcional**: o `/cep/v2` responde por vários serviços a montante e nem todos
+  devolvem coordenada. Ausência é degrau que não resolve, e a cascata desce ao município — nunca
+  coordenada inventada.
+
 - **Município — tabela semeada dos 5.570 códigos do IBGE.** Dado público, sem PII e sem tenant: a
   mesma natureza de `fuel_price_references`, que já é a exceção declarada no contrato de tenant
   safety. Previsível, offline, e sem acrescentar dependência de rede num degrau que só roda **quando

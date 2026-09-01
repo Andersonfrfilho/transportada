@@ -33,11 +33,12 @@ chave que talvez não exista, por um ganho de precisão sobre uma base que hoje 
       `src/database/routing.schema.ts` já declara, com `on conflict (address_key)` —
       **dependência:** T001 — **verificação:** contrato do repositório
 - [ ] T003 Contrato do gateway de centroide **antes** do gateway: CEP com coordenada, CEP sem
-      coordenada, provedor fora do ar, CEP malformado, e **CEP geral de município virando `city`**
+      coordenada, provedor fora do ar, CEP malformado, e **CEP geral de município virando `city` pelo `street` ausente**
       (RF9 — sem este caso a Fase A põe palpite de quilômetros dentro da rota) — `worker/test/routing/centroid.contract.ts` —
       **dependência:** T001 — **aceite:** teste vermelho pelo motivo certo
-- [ ] T004 `centroid.gateway.ts`, degrau do CEP pela BrasilAPI `/cep/v2` — o destino externo que a
-      API **já** consulta em `postal-code.gateway.ts`, e por isso não abre origem nova —
+- [ ] T004 `centroid.gateway.ts`, degrau do CEP pela BrasilAPI `/cep/v2` — o **mesmo endpoint** que
+      `postal-code.gateway.ts` já chama e cujo `location.coordinates` já vem no corpo e é descartado;
+      `location` é opcional e a ausência desce a cascata —
       **dependência:** T003 — **verificação:** T003 verde — **aceite:** grava `source: 'postal_code'`,
       `precision: 'postal_code'`, `external_place_id` vazio (o CHECK só o exige para `google`)
 - [ ] T005a Migration da tabela de centroide de município (código IBGE, lat, lon) — **sem
