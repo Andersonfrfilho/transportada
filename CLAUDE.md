@@ -849,9 +849,11 @@ varre por glob todo `src/modules/*/locales/*.locale.json` que não seja `.en.` e
 de uma blocklist de formas que não existem sem acento (`nao`, `possivel`, `numero`, `pagina`, …).
 Módulo novo entra na varredura sozinho; palavra nova que escapar se acrescenta à blocklist.
 
-Fora de produção o ícone da aba troca para `public/icons/icon-work-in-progress.svg` — o 🚧 vem à
-frente da marca, dentro do próprio desenho, porque na aba o ícone é o que aparece antes do título; o
-título fica só com o nome, para não haver dois avisos lado a lado. A tela abre com uma faixa de
+Fora de produção o ícone da aba troca para `public/icons/icon-work-in-progress.svg` — a marca fica
+**do tamanho normal**, e o 🚧 entra como plaquinha sobreposta no canto inferior esquerdo, dentro do
+próprio desenho, porque na aba o ícone é o que aparece antes do título; encolher a marca para abrir
+espaço ao aviso tornava o ícone irreconhecível justamente onde ele é menor. O título fica só com o
+nome, para não haver dois avisos lado a lado. A tela abre com uma faixa de
 ambiente. Quem decide é
 `VITE_APP_ENV` (`local` · `staging` · `production`), resolvido em
 `shared/deploymentEnvironment.service.ts`: ausente ou desconhecido cai em `production` — variável
