@@ -1,25 +1,27 @@
-/* Copyright (c) 2026 Ada Technology. MIT License. */
+import {
+  readCrlv,
+  type CrlvRemark as DocumentRemark,
+  type PdfPageText,
+} from '@adatechnology/document-intake'
 
 import { DEFAULT_FUEL_PRODUCT, type FuelProduct } from '@/modules/shared/fuel.constant'
 
 import {
-  BRAZIL_STATE,
   VEHICLE_COLOR,
   type FleetVehicleFormState,
   type MdfeBodyType,
   type VehicleColor,
 } from '../../fleet/shared/fleet.types'
-import {
-  isValidCnpj,
-  isValidCpf,
-  isValidPlate,
-  isValidRenavam,
-  normalizeLabel,
-  readValueBelowLabel,
-  type PdfPageText,
-} from '@adatechnology/document-intake'
 
 /**
+ * Spec 071: a leitura do CRLV **saiu daqui** e virou `readCrlv`, no `@adatechnology/document-intake`
+ * — a landing passou a lê-lo também, e nenhuma app importa código-fonte de outra (ADR-0054). O que
+ * ficou é o que só o painel sabe: traduzir o que o documento imprime para o catálogo da frota.
+ *
+ * A linha entre os dois é quem quebra quando: o Detran mudar o layout quebra o pacote; `MdfeBodyType`,
+ * `FuelProduct` ou `VehicleColor` mudarem quebram este arquivo. A landing não ganha cópia de nada
+ * disto porque a ficha dela não tem carroceria, combustível nem cor.
+ *
  * Spec 048: o CRLV preenche o que ele diz, e **só** o que ele diz. Cada campo que fica em branco
  * fica com o motivo à vista: campo vazio sem explicação vira digitação de novo, e valor inventado
  * vira frete errado.
@@ -30,6 +32,7 @@ export type CrlvRemarkReason =
   | 'notInCatalog'
   | 'notInformed'
   | 'notPrinted'
+  | 'notReadable'
 
 export type CrlvRemark = Readonly<{
   field: string
@@ -40,23 +43,6 @@ export type CrlvReading = Readonly<{
   remarks: readonly CrlvRemark[]
   values: Partial<FleetVehicleFormState>
 }>
-
-const LABEL = {
-  axleCount: 'EIXOS',
-  bodyType: 'CARROCERIA',
-  color: 'COR PREDOMINANTE',
-  fuelType: 'COMBUSTIVEL',
-  modelYear: 'ANO MODELO',
-  municipalityState: 'MUNICIPIO / UF',
-  ownerName: 'NOME',
-  ownerTaxId: 'CPF / CNPJ',
-  plate: 'PLACA',
-  renavam: 'CODIGO RENAVAM',
-  vehicleModel: 'MARCA / MODELO / VERSAO',
-} as const
-
-/** O Detran imprime `*` onde não informou. Asterisco é campo vazio, nunca `0`. */
-const NOT_INFORMED_MARK = '*'
 
 const BODY_TYPE_BY_PRINTED: Readonly<Record<string, MdfeBodyType>> = {
   'CARGA ABERTA': '01',
@@ -90,112 +76,16 @@ const FUEL_BY_PRINTED: Readonly<
 }
 
 const DIESEL_PRINTED = 'DIESEL'
-const MODEL_YEAR_LENGTH = 4
-
-function readLabel(page: PdfPageText, label: string): string | undefined {
-  const value = readValueBelowLabel(page.fragments, label)
-  if (value === undefined) return undefined
-
-  const trimmed = value.trim()
-
-  return trimmed.length === 0 || trimmed === NOT_INFORMED_MARK ? undefined : trimmed
-}
-
-/** `MARCA / MODELO / VERSÃO` parte no **primeiro** `/`: a versão faz parte do modelo, a marca não. */
-function splitBrandAndModel(printed: string): Readonly<{ brand: string; model: string }> {
-  const separator = printed.indexOf('/')
-  if (separator < 0) return { brand: printed.trim(), model: '' }
-
-  return {
-    brand: printed.slice(0, separator).trim(),
-    model: printed.slice(separator + 1).trim(),
-  }
-}
-
-function toVehicleColor(printed: string): VehicleColor | undefined {
-  const normalized = normalizeLabel(printed).toLowerCase().replace(/\s+/gu, '_')
-
-  return VEHICLE_COLOR.find((color) => color === normalized)
-}
-
-function toBodyType(printed: string): MdfeBodyType | undefined {
-  return BODY_TYPE_BY_PRINTED[normalizeLabel(printed)]
-}
-
-/** `SÃO PAULO / SP` — a UF é o que vem depois da última barra, e é fechada em 27. */
-function toState(printed: string): string | undefined {
-  const candidate = normalizeLabel(printed.split('/').at(-1) ?? '')
-
-  return BRAZIL_STATE.find((state) => state === candidate)
-}
 
 type Collector = Readonly<{
   remark: (field: string, reason: CrlvRemarkReason) => void
   values: { -readonly [Field in keyof FleetVehicleFormState]?: FleetVehicleFormState[Field] }
 }>
 
-function collectIdentity(page: PdfPageText, collector: Collector): void {
-  const plate = readLabel(page, LABEL.plate)
-  if (plate !== undefined) {
-    const normalized = plate.toUpperCase().replace(/[^A-Z0-9]/gu, '')
-    if (isValidPlate(normalized)) collector.values.plate = normalized
-    else collector.remark('plate', 'checkDigitFailed')
-  }
+function toVehicleColor(printed: string): VehicleColor | undefined {
+  const normalized = printed.toLowerCase().replace(/\s+/gu, '_')
 
-  const renavam = readLabel(page, LABEL.renavam)
-  if (renavam !== undefined) {
-    const digits = renavam.replace(/\D/gu, '')
-    if (isValidRenavam(digits)) collector.values.renavam = digits
-    else collector.remark('renavam', 'checkDigitFailed')
-  }
-
-  const municipality = readLabel(page, LABEL.municipalityState)
-  if (municipality !== undefined) {
-    const state = toState(municipality)
-    if (state === undefined) collector.remark('state', 'notInCatalog')
-    else collector.values.state = state
-  }
-}
-
-function collectModel(page: PdfPageText, collector: Collector): void {
-  const printedModel = readLabel(page, LABEL.vehicleModel)
-  if (printedModel !== undefined) {
-    const { brand, model } = splitBrandAndModel(printedModel)
-    if (brand.length > 0) collector.values.brand = brand
-    if (model.length > 0) collector.values.model = model
-  }
-
-  const modelYear = readLabel(page, LABEL.modelYear)?.replace(/\D/gu, '')
-  if (modelYear !== undefined && modelYear.length === MODEL_YEAR_LENGTH) {
-    collector.values.modelYear = modelYear
-  }
-
-  const color = readLabel(page, LABEL.color)
-  if (color !== undefined) {
-    const known = toVehicleColor(color)
-    if (known === undefined) collector.remark('color', 'notInCatalog')
-    else collector.values.color = known
-  }
-}
-
-function collectOperation(page: PdfPageText, collector: Collector): void {
-  const axleCount = readLabel(page, LABEL.axleCount)?.replace(/\D/gu, '')
-  if (axleCount === undefined || axleCount.length === 0)
-    collector.remark('axleCount', 'notInformed')
-  else collector.values.axleCount = axleCount
-
-  const bodyType = readLabel(page, LABEL.bodyType)
-  if (bodyType !== undefined) {
-    const known = toBodyType(bodyType)
-    if (known === undefined) collector.remark('bodyType', 'notInCatalog')
-    else collector.values.bodyType = known
-  }
-
-  const fuel = readLabel(page, LABEL.fuelType)
-  if (fuel !== undefined) collectFuel(fuel, collector)
-
-  // O CRLV imprime peso bruto total (tara + carga) e não imprime a tara. Capacidade é a subtração.
-  collector.remark('capacityKilograms', 'notPrinted')
+  return VEHICLE_COLOR.find((color) => color === normalized)
 }
 
 /**
@@ -203,15 +93,14 @@ function collectOperation(page: PdfPageText, collector: Collector): void {
  * padrão da frota é o certo (S10 é o obrigatório desde 2012), mas em silêncio seria escolher o
  * preço do litro pelo operador: o motivo vai junto.
  */
-function collectFuel(printed: string, collector: Collector): void {
-  const normalized = normalizeLabel(printed)
-  if (normalized.startsWith(DIESEL_PRINTED)) {
+function applyFuel(printed: string, collector: Collector): void {
+  if (printed.startsWith(DIESEL_PRINTED)) {
     collector.values.fuelType = DEFAULT_FUEL_PRODUCT
     collector.remark('fuelType', 'ambiguousDiesel')
     return
   }
 
-  const known = FUEL_BY_PRINTED[normalized]
+  const known = FUEL_BY_PRINTED[printed]
   if (known === undefined) {
     collector.remark('fuelType', 'notInCatalog')
     return
@@ -221,29 +110,42 @@ function collectFuel(printed: string, collector: Collector): void {
   if (known.secondary !== undefined) collector.values.secondaryFuelType = known.secondary
 }
 
-function collectOwner(page: PdfPageText, collector: Collector): void {
-  const name = readLabel(page, LABEL.ownerName)
-  if (name !== undefined) collector.values.ownerName = name
-
-  const taxId = readLabel(page, LABEL.ownerTaxId)
-  if (taxId === undefined) return
-
-  const cleaned = taxId.replace(/[^0-9A-Za-z]/gu, '').toUpperCase()
-  if (isValidCpf(cleaned) || isValidCnpj(cleaned)) collector.values.ownerTaxId = cleaned
-  else collector.remark('ownerTaxId', 'checkDigitFailed')
-}
-
+/** O pacote já avisou o que o documento não entregou; aqui só se traduz o que ele entregou. */
 export function readCrlvVehicle(page: PdfPageText): CrlvReading {
-  const remarks: CrlvRemark[] = []
+  const reading = readCrlv(page)
+  const remarks: CrlvRemark[] = reading.remarks.map((remark: DocumentRemark) => ({ ...remark }))
   const collector: Collector = {
     remark: (field, reason) => remarks.push({ field, reason }),
     values: {},
   }
 
-  collectIdentity(page, collector)
-  collectModel(page, collector)
-  collectOperation(page, collector)
-  collectOwner(page, collector)
+  const { values } = reading
+  if (values.plate !== undefined) collector.values.plate = values.plate
+  if (values.renavam !== undefined) collector.values.renavam = values.renavam
+  if (values.state !== undefined) collector.values.state = values.state
+  if (values.brand !== undefined) collector.values.brand = values.brand
+  if (values.model !== undefined) collector.values.model = values.model
+  if (values.modelYear !== undefined) collector.values.modelYear = values.modelYear
+  if (values.axleCount !== undefined) collector.values.axleCount = values.axleCount
+  if (values.ownerName !== undefined) collector.values.ownerName = values.ownerName
+  if (values.ownerTaxId !== undefined) collector.values.ownerTaxId = values.ownerTaxId
+
+  if (values.color !== undefined) {
+    const known = toVehicleColor(values.color)
+    if (known === undefined) collector.remark('color', 'notInCatalog')
+    else collector.values.color = known
+  }
+
+  if (values.bodyType !== undefined) {
+    const known = BODY_TYPE_BY_PRINTED[values.bodyType]
+    if (known === undefined) collector.remark('bodyType', 'notInCatalog')
+    else collector.values.bodyType = known
+  }
+
+  if (values.fuel !== undefined) applyFuel(values.fuel, collector)
+
+  /** A capacidade não está no CRLV; dizer isso é o que impede o operador de procurá-la ali. */
+  collector.remark('capacityKilograms', 'notPrinted')
 
   return { remarks, values: collector.values }
 }
