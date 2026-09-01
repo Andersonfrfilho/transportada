@@ -35,7 +35,7 @@ não precisa da chave para ser escrita e testada — só o deploy dela a espera.
 - [x] T005 ✅ `brasil-api-postal-code.gateway.ts` lendo `location.coordinates` do `/cep/v2` — o **mesmo
       endpoint** que `postal-code.gateway.ts` já chama e cujo campo é hoje descartado —
       **dependência:** T004 — **aceite:** grava `source: 'postal_code'`, `external_place_id` vazio
-- [ ] T006 [P] Migration da tabela de centroide de município, **sem `company_id`**, acrescentada ao
+- [x] T006 [P] ✅ Migration da tabela de centroide de município, **sem `company_id`**, acrescentada ao
       contrato de tenant safety como **segunda exceção declarada** — **dependência:** T002 —
       **verificação:** `make migration-test` — **aceite:** exceção dita por escrito
 - [ ] T007 Seed dos 5.570 centroides pelos **use cases**, nunca `INSERT` bruto — **dependência:**

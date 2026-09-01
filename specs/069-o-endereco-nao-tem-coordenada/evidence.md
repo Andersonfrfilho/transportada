@@ -110,3 +110,35 @@ binário para dentro de dado comparado e exibido.
 ⚠️ Nota de execução: rodar `bun test <arquivo>` da raiz faz os dois contratos de paridade falharem
 com `ENOENT` — eles leem o arquivo da API por caminho relativo e exigem o cwd da app. Use
 `bun run --cwd apps/worker-transportada test`.
+
+### T006 ✅ 2026-09-01 — A tabela do último degrau
+
+`municipality_centroids` (código IBGE como PK, UF, coordenada, carimbos), migration
+`20260901211242_municipality_centroids` com `rollback.sql` ao lado.
+
+⚠️ **Correção do que a spec dizia:** ela chamava esta de "segunda exceção declarada" de tenant. São
+**três** que já existiam — `geocoded_addresses`, `fuel_price_references` e `energy_tariff_references`
+—, então esta é a quarta. O contrato novo assera a ausência de `company_id` no mesmo formato das
+vizinhas, para não passar por esquecimento.
+
+Três tropeços que valem ficar escritos:
+
+1. **`db:generate` respondia `no_changes`** com a tabela declarada e registrada em `databaseSchema`.
+   Faltava a linha `export * from './municipality-centroid.schema.js'` — é ela que o drizzle-kit
+   enumera; o objeto `databaseSchema` é o schema de runtime, não a fonte do gerador.
+2. **O CHECK de regex precisa de `sql.raw`.** `sql\`${col} ~ ${PADRÃO}\`` parametriza, e
+   `checkSqlByName` devolve `$1` em vez do padrão. A convenção do repositório é
+   `sql\`${col} ~ ${sql.raw(\`'${PADRÃO}'\`)}\``.
+3. **`rollback.sql` que só faz `DROP TABLE` reprova.** Ele também apaga a própria linha de
+   `drizzle.__drizzle_migrations`, com `GET DIAGNOSTICS` conferindo que removeu exatamente uma —
+   senão o diário fica com uma migration a mais que as tabelas, e é isso que a integração pega.
+
+A lista explícita de migrations em `static-migration.contract.ts` recebeu a nova entrada.
+
+**Verificação:**
+
+```
+bun run --cwd apps/api-transportada db:check   → Everything's fine
+bun run --cwd apps/api-transportada test       → 3823 pass / 23 skip / 0 fail
+make migration-test                            → 90 pass / 0 fail (migration + rollback + reaplicação)
+```
