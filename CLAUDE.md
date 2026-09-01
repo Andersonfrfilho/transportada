@@ -376,6 +376,20 @@ acima de `buildNfseDescription`, em `nfse-invoices/domain/nfse-description.servi
 campo "Período do serviço" abre vazio a cada emissão (`useNfseEmissionDialog.hook.ts`) e entra na
 chave da prévia; em branco ele é **omitido** do corpo, porque ausente e `''` dizem a mesma coisa à API.
 
+**O anexo da candidatura não é lido na requisição** (ADR-0053, spec 069). `POST
+/public/aggregate-application-attachments` é anônima: quem passa pelo Turnstile escolheria quanto CPU
+a API gasta, num runtime de um event loop só — e um PDF com geometria patológica travaria a emissão
+de CT-e junto. A requisição grava o objeto e insere rascunho **e** evento de
+`aggregate_attachment_outbox` na mesma transação, e responde `201` com `draftId` e nada mais.
+
+⚠️ Não é o `processing_outbox`: lá `actor_user_id` é `not null`, e quem anexa é anônimo — inventar um
+UUID de sistema para caber na tabela alheia seria mentir na trilha. O payload carrega **referência**
+(bucket, chave), nunca os bytes: PDF numa fila é PII em repouso sem prazo de descarte.
+
+Quem lê é o worker, e **a landing continua lendo no navegador**: as duas leituras existem por motivos
+diferentes — a do navegador preenche o formulário na hora, a do servidor é o que o operador confere.
+Aceitar a leitura do cliente anônimo como prova deixaria um atacante escolher o que o operador vê.
+
 **O documento do agregado é lido por camada de texto quando ele tem uma.** `POST` de anexo passa
 por `aggregate-document-text.gateway.ts`, o único lugar que sabe escolher: **PDF** sai por
 `shared/pdf-text-layer.service.ts` (exato, sem rede, sem serviço) e **imagem** sai pelo OCR
@@ -403,7 +417,7 @@ O startup **não** roda migrations; rollback é manual, ao lado da migration.
 
 RabbitMQ via `@adatechnology/rabbitmq-provider` — **sem BullMQ/Redis**. Topologias em
 `src/messaging/`, cada trilho com main/retry/dead: `nfe-import.v1`, `nfe-distribution.v1`,
-`cte-issuance.v1` (+ `synthetic.v1`, proibido em production). Padrão de nome:
+`cte-issuance.v1`, `aggregate-attachment.v1` (+ `synthetic.v1`, proibido em production). Padrão de nome:
 `${QUEUE_PREFIX}.<rota>.v1.{main,retry,dead}.{exchange,queue}`.
 
 Envelopes Zod versionados (`*-envelope.schema.ts`), backoff por política, idempotência via tabela
@@ -472,10 +486,28 @@ assina com o certificado de **CT-e** (`NFE_DISTRIBUTION_CERTIFICATE_PURPOSE` em
 mesma linha de `digital_certificates`, senão a empresa é aprovada pelo certificado de MDF-e e falha ao
 assinar.
 
-⚠️ O schema Drizzle das tabelas consumidas é **duplicado por cópia** no worker — treze arquivos em
+**O anexo do agregado é lido em `worker_thread`, e só ele.** O trilho `aggregate-attachment.v1`
+(relay próprio sobre `aggregate_attachment_outbox`) baixa o objeto do bucket e roda o pdf.js numa
+thread — dentro do event loop do worker ele pararia CT-e, MDF-e e NFS-e junto, o que seria trocar de
+vítima, não consertar (ADR-0053). Três coisas medidas que não se deduzem do código:
+
+- `prefetch` é **1** neste consumidor, não o do resto do worker: cada mensagem sobe uma thread com
+  pdf.js dentro, e uma rajada de anexos vinda de gente anônima viraria dezenas de parses
+  concorrentes.
+- `new Worker(url)` é **caminho de arquivo de verdade** — o runtime não reescreve `.js` para `.ts`
+  como faz com `import`. A extensão sai do próprio `import.meta.url`, e `pdf-extraction.worker.ts` é
+  entrypoint do `bun build`; `test/build-entrypoints.contract.test.ts` cobre `*.worker.ts` pelo mesmo
+  motivo que cobre `*.main.ts`.
+- O pdf.js **escreve avisos no console**, e do worker eles caíam no stdout do processo — que é log. O
+  canal é silenciado dentro da thread antes do parse.
+
+Leitura que não reconhece nada grava `null` e fecha: é resultado, não falha. Objeto apagado entre o
+`201` e a leitura fecha sem escrever. Só falha de parse e de banco recicla.
+
+⚠️ O schema Drizzle das tabelas consumidas é **duplicado por cópia** no worker — quatorze arquivos em
 `src/database/` (`processing`, `cte-issuance-execution`, `mdfe-issuance-execution`,
 `nfse-issuance-execution`, `nfe`, `identity`, `invitation-delivery`, `password-reset-delivery`,
-`billing`, `company-distribution-settings`, `job-execution`, `energy-tariff`, `fuel-reference`), e
+`billing`, `company-distribution-settings`, `job-execution`, `energy-tariff`, `fuel-reference`, `aggregate-attachment`), e
 outras oito no cron. Mudou tabela na API? confira as cópias — migrations só rodam na API.
 
 ## cron-transportada

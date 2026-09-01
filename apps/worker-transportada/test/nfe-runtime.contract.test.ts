@@ -141,6 +141,11 @@ describe('NF-e worker runtime contract', () => {
             calls.push('passwordResetDelivery.cancel')
           },
         }),
+        startAggregateAttachmentConsumer: async () => ({
+          cancel: async () => {
+            calls.push('aggregateAttachment.cancel')
+          },
+        }),
         startJobRunConsumer: async () => ({
           cancel: async () => {
             calls.push('jobRun.cancel')
@@ -185,6 +190,7 @@ describe('NF-e worker runtime contract', () => {
       'nfseIssuance.cancel',
       'invitationDelivery.cancel',
       'passwordResetDelivery.cancel',
+      'aggregateAttachment.cancel',
       'jobRun.cancel',
       'storage.close',
       'provider.close:transportada.runtime.contract.synthetic.v1.main.queue',
@@ -256,6 +262,7 @@ describe('NF-e worker runtime contract', () => {
         startNotificationConsumer: async () => undefined,
         startInvitationDeliveryConsumer: async () => undefined,
         startPasswordResetDeliveryConsumer: async () => undefined,
+        startAggregateAttachmentConsumer: async () => undefined,
         startJobRunConsumer: async () => undefined,
         startFoundationSyntheticConsumer: async () => undefined,
         startHealthServer() {

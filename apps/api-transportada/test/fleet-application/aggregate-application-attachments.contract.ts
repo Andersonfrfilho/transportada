@@ -11,6 +11,7 @@ import { FakeAggregateApplicationRepository } from '../fixtures/aggregate-applic
 const COMPANY_ID = crypto.randomUUID()
 const PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34])
 const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0])
+const CORRELATION_ID = 'correlation-069'
 
 type StoredCall = Readonly<{ contentType: string; key: string }>
 
@@ -44,6 +45,7 @@ describe('anexo de candidatura — envio anônimo', () => {
     const result = await useCase.uploadDraft({
       bytes: PDF_BYTES,
       companyId: COMPANY_ID,
+      correlationId: CORRELATION_ID,
       type: 'ccmei',
     })
 
@@ -69,6 +71,7 @@ describe('anexo de candidatura — envio anônimo', () => {
     const result = await useCase.uploadDraft({
       bytes: PDF_BYTES,
       companyId: COMPANY_ID,
+      correlationId: CORRELATION_ID,
       type: 'cnh',
     })
 
@@ -81,7 +84,12 @@ describe('anexo de candidatura — envio anônimo', () => {
   test('a assinatura do arquivo manda sobre o tipo declarado', async () => {
     const { stored, useCase } = buildUseCase()
 
-    await useCase.uploadDraft({ bytes: PNG_BYTES, companyId: COMPANY_ID, type: 'ccmei' })
+    await useCase.uploadDraft({
+      bytes: PNG_BYTES,
+      companyId: COMPANY_ID,
+      correlationId: CORRELATION_ID,
+      type: 'ccmei',
+    })
 
     expect(stored[0]?.contentType).toBe('image/png')
   })
@@ -93,6 +101,7 @@ describe('anexo de candidatura — envio anônimo', () => {
       useCase.uploadDraft({
         bytes: new Uint8Array([1, 2, 3, 4]),
         companyId: COMPANY_ID,
+        correlationId: CORRELATION_ID,
         type: 'ccmei',
       }),
     ).rejects.toBeInstanceOf(AggregateDocumentInvalidUploadError)
@@ -118,9 +127,41 @@ describe('anexo de candidatura — envio anônimo', () => {
     })
 
     await expect(
-      useCase.uploadDraft({ bytes: PDF_BYTES, companyId: COMPANY_ID, type: 'ccmei' }),
+      useCase.uploadDraft({
+        bytes: PDF_BYTES,
+        companyId: COMPANY_ID,
+        correlationId: CORRELATION_ID,
+        type: 'ccmei',
+      }),
     ).rejects.toThrow()
     expect(drafts).toEqual([])
+  })
+
+  test('o rascunho leva o correlation-id da requisição para o pedido de leitura', async () => {
+    const { drafts, useCase } = buildUseCase()
+
+    await useCase.uploadDraft({
+      bytes: PDF_BYTES,
+      companyId: COMPANY_ID,
+      correlationId: CORRELATION_ID,
+      type: 'ccmei',
+    })
+
+    expect(drafts[0]?.correlationId).toBe(CORRELATION_ID)
+  })
+
+  /** Nenhum campo lido volta para quem enviou: a resposta é identificador e tipo, e só (ADR-0053). */
+  test('a resposta não carrega nada extraído do documento', async () => {
+    const { useCase } = buildUseCase()
+
+    const result = await useCase.uploadDraft({
+      bytes: PDF_BYTES,
+      companyId: COMPANY_ID,
+      correlationId: CORRELATION_ID,
+      type: 'ccmei',
+    })
+
+    expect(Object.keys(result).sort()).toEqual(['draftId', 'type'])
   })
 })
 

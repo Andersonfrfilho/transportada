@@ -97,6 +97,15 @@ import { DrizzlePasswordResetDeliveryRepository } from './identity/infrastructur
 import { createPasswordResetCodeSecretGateway } from './identity/infrastructure/password-reset-code-secret.gateway.js'
 import type { PasswordResetDeliveryDependencies } from './identity/application/deliver-password-reset-code.service.js'
 import { startPasswordResetDeliveryConsumer } from './runtime/password-reset-delivery-consumer.service.js'
+import { buildAggregateAttachmentRabbitMqTopology } from './messaging/aggregate-attachment-rabbitmq-topology.js'
+import { AggregateAttachmentOutboxPublisherService } from './aggregate-attachment/application/aggregate-attachment-outbox-publisher.service.js'
+import { AggregateAttachmentOutboxRelayService } from './aggregate-attachment/application/aggregate-attachment-outbox-relay.service.js'
+import { DrizzleAggregateAttachmentOutboxRepository } from './aggregate-attachment/infrastructure/drizzle-aggregate-attachment-outbox.repository.js'
+import { createDrizzleAggregateAttachmentWriteBackRepository } from './aggregate-attachment/infrastructure/drizzle-aggregate-attachment-write-back.repository.js'
+import { createStorageAttachmentReaderGateway } from './aggregate-attachment/infrastructure/storage-attachment-reader.gateway.js'
+import { createThreadedAttachmentExtractionGateway } from './aggregate-attachment/infrastructure/threaded-extraction.gateway.js'
+import { startAggregateAttachmentConsumer } from './runtime/aggregate-attachment-consumer.service.js'
+import type { ExtractAttachmentFieldsDependencies } from './aggregate-attachment/application/extract-attachment-fields.use-case.js'
 import { buildNfseIssuanceRabbitMqTopology } from './messaging/nfse-rabbitmq-topology.js'
 import type { NfseProcessingEnvelopeV1 } from './messaging/nfse-processing-envelope.schema.js'
 import { createNfseCredentialSecretService } from './nfse-issuance/application/nfse-credential-secret.service.js'
@@ -335,6 +344,12 @@ type WorkerRuntimeDependencies = {
       scheduleRetry(input: NfseIssuanceMessageKey & { readonly nextAttemptAt: Date }): Promise<void>
     }
   }) => Promise<RuntimeConsumer | undefined>
+  readonly startAggregateAttachmentConsumer?: (input: {
+    readonly config: ReturnType<typeof parseWorkerEnvironment>
+    readonly dependencies: ExtractAttachmentFieldsDependencies
+    readonly logger: WorkerLogger
+    readonly provider: RabbitMqProvider
+  }) => Promise<RuntimeConsumer | undefined>
   readonly startInvitationDeliveryConsumer?: (input: {
     readonly config: ReturnType<typeof parseWorkerEnvironment>
     readonly dependencies: InvitationDeliveryDependencies
@@ -396,6 +411,8 @@ export async function startWorkerRuntime(
   const cteIssuanceStarter = dependencies.startCteIssuanceConsumer ?? startCteIssuanceConsumer
   const mdfeIssuanceStarter = dependencies.startMdfeIssuanceConsumer ?? startMdfeIssuanceConsumer
   const nfseIssuanceStarter = dependencies.startNfseIssuanceConsumer ?? startNfseIssuanceConsumer
+  const aggregateAttachmentStarter =
+    dependencies.startAggregateAttachmentConsumer ?? startAggregateAttachmentConsumer
   const invitationDeliveryStarter =
     dependencies.startInvitationDeliveryConsumer ?? startInvitationDeliveryConsumer
   const passwordResetDeliveryStarter =
@@ -460,6 +477,9 @@ export async function startWorkerRuntime(
   const nfseIssuanceTopology = buildNfseIssuanceRabbitMqTopology({
     queuePrefix: config.queuePrefix,
   })
+  const aggregateAttachmentTopology = buildAggregateAttachmentRabbitMqTopology({
+    queuePrefix: config.queuePrefix,
+  })
   const invitationDeliveryTopology = buildInvitationDeliveryRabbitMqTopology({
     queuePrefix: config.queuePrefix,
   })
@@ -491,6 +511,9 @@ export async function startWorkerRuntime(
   let nfseIssuanceConsumer: RuntimeConsumer | undefined
   let nfseIssuancePublisher: RabbitMqProvider | undefined
   let nfseRelayLoop: OutboxRelayLoop | undefined
+  let aggregateAttachmentConsumer: RuntimeConsumer | undefined
+  let aggregateAttachmentPublisher: RabbitMqProvider | undefined
+  let aggregateAttachmentRelayLoop: OutboxRelayLoop | undefined
   let invitationDeliveryConsumer: RuntimeConsumer | undefined
   let invitationDeliveryPublisher: RabbitMqProvider | undefined
   let invitationDeliveryRelayLoop: OutboxRelayLoop | undefined
@@ -529,6 +552,10 @@ export async function startWorkerRuntime(
     nfseIssuancePublisher = await rabbitProviderFactory({
       connection: config.rabbitMqUrl,
       topology: nfseIssuanceTopology,
+    })
+    aggregateAttachmentPublisher = await rabbitProviderFactory({
+      connection: config.rabbitMqUrl,
+      topology: aggregateAttachmentTopology,
     })
     invitationDeliveryPublisher = await rabbitProviderFactory({
       connection: config.rabbitMqUrl,
@@ -831,6 +858,18 @@ export async function startWorkerRuntime(
             ? undefined
             : { languageCode: config.whatsapp.codeTemplateLanguage, name: template },
       })
+    aggregateAttachmentConsumer = await aggregateAttachmentStarter({
+      config,
+      dependencies: {
+        extraction: createThreadedAttachmentExtractionGateway(),
+        reader: createStorageAttachmentReaderGateway({ storage: storageGateway }),
+        writeBack: createDrizzleAggregateAttachmentWriteBackRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
+      },
+      logger,
+      provider: aggregateAttachmentPublisher,
+    })
     invitationDeliveryConsumer = await invitationDeliveryStarter({
       config,
       dependencies: {
@@ -1159,6 +1198,29 @@ export async function startWorkerRuntime(
       }),
     })
     nfseRelayLoop.start()
+    aggregateAttachmentRelayLoop = new OutboxRelayLoop({
+      claimOwner: `${config.queuePrefix}.aggregate-attachment.relay.${crypto.randomUUID()}`,
+      failureMessage: 'aggregate_attachment_outbox_relay_failed',
+      intervalMs: 1_000,
+      leaseMs: 30_000,
+      limit: 25,
+      logger,
+      relay: new AggregateAttachmentOutboxRelayService({
+        clock: { now: () => new Date() },
+        publisher: new AggregateAttachmentOutboxPublisherService(aggregateAttachmentPublisher),
+        repository: new DrizzleAggregateAttachmentOutboxRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
+        retryPolicy: {
+          classify(error: unknown): never {
+            throw error instanceof Error
+              ? error
+              : new Error('aggregate attachment outbox relay publish failed')
+          },
+        },
+      }),
+    })
+    aggregateAttachmentRelayLoop.start()
     invitationDeliveryRelayLoop = new OutboxRelayLoop({
       claimOwner: `${config.queuePrefix}.invitation-delivery.relay.${crypto.randomUUID()}`,
       failureMessage: 'invitation_delivery_outbox_relay_failed',
@@ -1216,6 +1278,7 @@ export async function startWorkerRuntime(
         cteRelayLoop,
         mdfeRelayLoop,
         nfseRelayLoop,
+        aggregateAttachmentRelayLoop,
         invitationDeliveryRelayLoop,
         passwordResetDeliveryRelayLoop,
         storageGateway,
@@ -1238,6 +1301,7 @@ export async function startWorkerRuntime(
         nfseIssuanceConsumer,
         invitationDeliveryConsumer,
         passwordResetDeliveryConsumer,
+        aggregateAttachmentConsumer,
         jobRunConsumer,
         notificationConsumer,
         routeOptimizationConsumer,
@@ -1286,6 +1350,7 @@ export async function startWorkerRuntime(
     await cteRelayLoop?.close().catch(() => undefined)
     await mdfeRelayLoop?.close().catch(() => undefined)
     await nfseRelayLoop?.close().catch(() => undefined)
+    await aggregateAttachmentRelayLoop?.close().catch(() => undefined)
     await healthServer?.stop().catch(() => undefined)
     await storageGateway.close().catch(() => undefined)
     await distributionPublisher?.close().catch(() => undefined)

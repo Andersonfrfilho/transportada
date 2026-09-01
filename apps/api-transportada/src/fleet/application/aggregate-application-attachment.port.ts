@@ -5,9 +5,9 @@ import type { AggregateApplicationAttachmentType } from '../../database/aggregat
 
 export type CreateAggregateApplicationAttachmentDraftInput = Readonly<{
   bucket: string
-  /** O que a leitura do servidor achou; `null` quando não houve leitura ou nada foi reconhecido. */
-  extractedFields: Readonly<Record<string, unknown>> | null
   companyId: string
+  /** Viaja para o evento de leitura: é por ele que o rastro do upload alcança o worker. */
+  correlationId: string
   draftId: string
   mimeType: string
   objectKey: string

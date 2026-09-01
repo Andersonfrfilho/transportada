@@ -171,6 +171,7 @@
       "name": "@transportada/worker",
       "version": "0.2.0",
       "dependencies": {
+        "@adatechnology/document-intake": "0.1.0-rc.3",
         "@adatechnology/drizzle-provider": "0.1.1",
         "@adatechnology/email-provider": "0.1.0-rc.2",
         "@adatechnology/fiscal-provider": "0.3.0-rc.7",
@@ -186,6 +187,7 @@
         "drizzle-orm": "1.0.0-rc.4",
         "fflate": "^0.8.3",
         "nodemailer": "^7.0.9",
+        "pdfjs-dist": "^6.2.108",
         "zod": "4.4.3",
       },
       "devDependencies": {

@@ -14,14 +14,6 @@ import type { AggregateDocumentStoragePort } from './aggregate-document.port.js'
 
 type Dependencies = {
   readonly bucket: string
-  /**
-   * Ausente, o anexo é guardado sem leitura e o operador revisa abrindo o arquivo — mesma regra de
-   * capacidade por ausência do OCR do documento do agregado.
-   */
-  readonly extractFields?: (input: {
-    readonly bytes: Uint8Array
-    readonly type: AggregateApplicationAttachmentType
-  }) => Promise<Readonly<Record<string, unknown>> | null>
   readonly repository: AggregateApplicationAttachmentRepositoryPort
   readonly storage: AggregateDocumentStoragePort
 }
@@ -30,6 +22,7 @@ export type AggregateApplicationAttachmentUseCase = Readonly<{
   uploadDraft: (input: {
     readonly bytes: Uint8Array
     readonly companyId: string
+    readonly correlationId: string
     readonly type: AggregateApplicationAttachmentType
   }) => Promise<AggregateApplicationAttachmentDraft>
 }>
@@ -51,7 +44,7 @@ export function createAggregateApplicationAttachmentUseCase(
   dependencies: Dependencies,
 ): AggregateApplicationAttachmentUseCase {
   return {
-    async uploadDraft({ bytes, companyId, type }) {
+    async uploadDraft({ bytes, companyId, correlationId, type }) {
       // O tipo declarado vem do cliente; só a assinatura do arquivo decide o que é gravado.
       const mimeType = assertAggregateDocumentBytes(bytes)
       const draftId = randomUUID()
@@ -69,17 +62,15 @@ export function createAggregateApplicationAttachmentUseCase(
         sha256,
       })
 
-      // A leitura roda **depois** do armazenamento e não pode derrubá-lo: o arquivo salvo com
-      // extração vazia continua revisável à mão; o inverso perde o anexo.
-      const extractedFields =
-        dependencies.extractFields === undefined
-          ? null
-          : await dependencies.extractFields({ bytes, type }).catch(() => null)
-
+      /**
+       * **Ninguém lê PDF aqui** (ADR-0053). A rota é anônima: quem passa pelo Turnstile escolheria
+       * quanto CPU a API gasta, num runtime de um event loop só. O repositório grava o rascunho e o
+       * pedido de leitura na mesma transação, e quem lê é o `worker-transportada`.
+       */
       return dependencies.repository.createDraft({
         bucket: dependencies.bucket,
-        extractedFields,
         companyId,
+        correlationId,
         draftId,
         mimeType,
         objectKey: key,

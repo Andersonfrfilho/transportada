@@ -18,7 +18,16 @@ async function listMainModules(directory: URL, prefix: string): Promise<readonly
       )
       continue
     }
-    if (entry.name === 'main.ts' || entry.name.endsWith('.main.ts')) {
+    /**
+     * `*.worker.ts` entra pela mesma razão que `*.main.ts`: `new Worker(url)` é caminho de arquivo
+     * de verdade, e uma thread cujo módulo não foi empacotado morre no contêiner — em produção, com
+     * o anexo já gravado esperando leitura.
+     */
+    if (
+      entry.name === 'main.ts' ||
+      entry.name.endsWith('.main.ts') ||
+      entry.name.endsWith('.worker.ts')
+    ) {
       found.push(`${prefix}${entry.name}`)
     }
   }
@@ -32,7 +41,7 @@ describe('worker build entrypoints contract', () => {
    * o backfill vira algo que só roda na máquina de quem escreveu. Foi assim que a coluna nova ficou
    * sem preencher em staging — o comando estava no package.json, o arquivo não estava na imagem.
    */
-  test('bundles every executable entrypoint that ships in the image', async () => {
+  test('bundles every executable entrypoint and worker thread that ships in the image', async () => {
     const packageManifest = (await Bun.file(
       new URL('../package.json', import.meta.url),
     ).json()) as {

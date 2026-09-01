@@ -25,6 +25,8 @@ import {
   useCompanyDocumentIntake,
   type CompanyDocumentIntake,
 } from '../hooks/useCompanyDocumentIntake.hook'
+import { useAttachmentUploads, type AttachmentEntry } from '../hooks/useAttachmentUploads.hook'
+import { createAttachmentClient } from '../shared/attachmentClient.service'
 import { isLookupableCnpj, useCompanyLookup } from '../hooks/useCompanyLookup.hook'
 import { formatPostalCode } from '../shared/postalCode.service'
 import styles from './PreRegistrationForm.module.css'
@@ -150,6 +152,9 @@ export function PreRegistrationForm({ settings }: PreRegistrationFormProps): Rea
   const showUnitSelect = settings.units.length > 1
   const isCompany = isLookupableCnpj(fields.taxId)
   const [ccmeiDivergences, setCcmeiDivergences] = useState<readonly CcmeiDivergence[]>([])
+  const attachments = useAttachmentUploads(
+    useMemo(() => createAttachmentClient({ apiBaseUrl: getLandingApiBaseUrl() }), []),
+  )
   const documentIntake = useCompanyDocumentIntake((reading) => {
     setFields((current) => {
       // A conferência olha o que a pessoa já tinha — por isso é calculada **antes** do merge, que
@@ -179,9 +184,14 @@ export function PreRegistrationForm({ settings }: PreRegistrationFormProps): Rea
     }))
   }
 
+  /** A empresa do anexo e a da candidatura são a mesma — e o anexo é enviado antes do submit. */
+  function resolveCompanyId(): string {
+    return showUnitSelect ? fields.companyId : (settings.units[0]?.companyId ?? '')
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault()
-    const companyId = showUnitSelect ? fields.companyId : (settings.units[0]?.companyId ?? '')
+    const companyId = resolveCompanyId()
     if (companyId === '') {
       setState('error')
       return
@@ -196,6 +206,7 @@ export function PreRegistrationForm({ settings }: PreRegistrationFormProps): Rea
       name: fields.name,
       phone: stripPhone(fields.phone),
       taxId: normalizeTaxId(fields.taxId),
+      ...(attachments.draftIds.length === 0 ? {} : { attachmentDraftIds: attachments.draftIds }),
       ...(turnstileSiteKey === undefined ? {} : { turnstileToken }),
     })
 
@@ -316,11 +327,41 @@ export function PreRegistrationForm({ settings }: PreRegistrationFormProps): Rea
                 accept="application/pdf"
                 onChange={(event) => {
                   const file = event.target.files?.[0]
-                  if (file !== undefined) void documentIntake.read(file)
+                  if (file === undefined) return
+
+                  /**
+                   * Duas coisas em paralelo, de propósito: a leitura no aparelho preenche o
+                   * formulário agora, e o envio guarda o comprovante para o operador. Encadear uma na
+                   * outra faria o preenchimento esperar a rede sem ganho nenhum (ADR-0053).
+                   */
+                  void documentIntake.read(file)
+                  void attachments.upload({
+                    companyId: resolveCompanyId(),
+                    file,
+                    ...(turnstileSiteKey === undefined ? {} : { turnstileToken }),
+                    type: 'ccmei',
+                  })
                 }}
               />
             </label>
             <p className={styles.hint}>{describeDocumentIntake(documentIntake)}</p>
+            {attachments.entries.length > 0 ? (
+              <ul className={styles.attachmentList}>
+                {attachments.entries.map((entry) => (
+                  <li className={styles.attachmentItem} key={entry.id}>
+                    <span>{entry.fileName}</span>
+                    <span>{describeAttachmentEntry(entry)}</span>
+                    <button
+                      className={styles.attachmentRemove}
+                      onClick={() => attachments.remove(entry.id)}
+                      type="button"
+                    >
+                      Remover
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
             {ccmeiDivergences.length > 0 ? (
               <p className={styles.hint}>
                 {`O documento diz outra coisa em: ${ccmeiDivergences.map(describeDivergenceField).join(', ')}. Mantivemos o que você preencheu — quem confere é a nossa equipe.`}
@@ -693,7 +734,24 @@ function describeDocumentIntake(intake: CompanyDocumentIntake): string {
   }
   if (intake.status === 'ready') return 'Lemos o CCMEI e preenchemos os campos que estavam vazios.'
 
-  return 'O arquivo é lido no seu aparelho e nada dele é enviado antes de você concluir o cadastro.'
+  return 'O arquivo é lido aqui no seu aparelho para preencher os campos, e anexado ao seu cadastro.'
+}
+
+const ATTACHMENT_FAILURE_LABEL: Readonly<Record<string, string>> = {
+  rejected: 'não aceito — tente outro arquivo',
+  too_large: 'maior que o limite de 1,5 MB',
+  unreachable: 'não conseguimos enviar agora',
+}
+
+/**
+ * O motivo fica **na linha do arquivo**, não num aviso genérico no rodapé: com dois anexos, "algo
+ * deu errado" não diz qual deles refazer.
+ */
+function describeAttachmentEntry(entry: AttachmentEntry): string {
+  if (entry.status === 'uploading') return 'enviando…'
+  if (entry.status === 'uploaded') return 'anexado'
+
+  return ATTACHMENT_FAILURE_LABEL[entry.reason ?? ''] ?? 'não conseguimos enviar'
 }
 
 const DIVERGENCE_LABEL: Readonly<Record<string, string>> = {

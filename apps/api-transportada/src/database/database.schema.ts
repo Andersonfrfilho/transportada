@@ -119,6 +119,7 @@ import { identityUserProfiles } from './identity-user-profile.schema.js'
 import { landingSettings } from './landing.schema.js'
 import {
   aggregateApplicationAttachments,
+  aggregateAttachmentOutbox,
   aggregateApplications,
 } from './aggregate-application.schema.js'
 import { geocodedAddresses } from './geocoding.schema.js'
@@ -189,6 +190,7 @@ export * from './identity-user-picture.schema.js'
 export const databaseSchema = {
   aggregateAccounts,
   aggregateApplicationAttachments,
+  aggregateAttachmentOutbox,
   aggregateApplications,
   aggregateDocuments,
   auditLogs,
