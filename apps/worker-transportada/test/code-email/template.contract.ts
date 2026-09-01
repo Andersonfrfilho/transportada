@@ -19,9 +19,11 @@ const BRAND = {
   accentColor: '#1a2b3c',
   apiBaseUrl: 'https://api.exemplo.com.br',
   appBaseUrl: 'https://painel.exemplo.com.br/',
+  contacts: [],
   contactEmail: 'contato@exemplo.com.br',
   contactPhone: '(16) 3333-4444',
   logoUrl: 'https://api.exemplo.com.br/public/landing-logo',
+  socialLinks: [],
   name: 'Transportes Exemplo',
 } as const
 
@@ -29,6 +31,8 @@ const LEGAL = {
   city: 'RIBEIRAO PRETO',
   complement: 'SALA 2',
   district: 'INDEPENDENCIA',
+  email: 'contato@tapetemagico.com.br',
+  phone: '1691225783',
   legalName: 'TAPETE MAGICO TRANSPORTADORA LTDA',
   number: '2296',
   postalCode: '14076400',
@@ -41,9 +45,11 @@ const EMPTY_BRAND = {
   accentColor: undefined,
   apiBaseUrl: 'https://api.exemplo.com.br',
   appBaseUrl: undefined,
+  contacts: [],
   contactEmail: undefined,
   contactPhone: undefined,
   logoUrl: undefined,
+  socialLinks: [],
   name: undefined,
 } as const
 
@@ -219,6 +225,83 @@ describe('o template do e-mail de código', () => {
 
     expect(html).toContain('MOGIANA, 2296 · INDEPENDENCIA')
     expect(html).not.toContain('·  ·')
+  })
+
+  /**
+   * Spec 068 — a lista cadastrada manda: cada telefone com `tel:`, o marcado como WhatsApp com o
+   * link do aplicativo **ao lado** (quem quer ligar continua com um toque), e-mail com `mailto:` e as
+   * redes numa linha.
+   */
+  test('os contatos cadastrados saem com link, e o WhatsApp ao lado do telefone', () => {
+    const { html } = renderCodeEmail({
+      brand: {
+        ...BRAND,
+        contacts: [
+          { isWhatsapp: false, kind: 'phone', label: 'Comercial', value: '1633334444' },
+          { isWhatsapp: true, kind: 'phone', label: 'Vendas', value: '5516999991234' },
+          { isWhatsapp: false, kind: 'email', label: '', value: 'contato@exemplo.com.br' },
+        ],
+        socialLinks: [{ network: 'instagram', url: 'https://instagram.com/exemplo' }],
+      },
+      content: CONTENT,
+      legal: LEGAL,
+      year: 2026,
+    })
+
+    expect(html).toContain('href="tel:+1633334444"')
+    expect(html).toContain('(16) 3333-4444')
+    expect(html).toContain('href="https://wa.me/5516999991234"')
+    expect(html).toContain('href="mailto:contato@exemplo.com.br"')
+    expect(html).toContain('href="https://instagram.com/exemplo"')
+    expect(html).toContain('Instagram')
+    expect(html).toContain('Comercial:')
+  })
+
+  /** Telefone sem marca não ganha link de WhatsApp — a marca é a única fonte disso. */
+  test('telefone sem a marca não vira WhatsApp', () => {
+    const { html } = renderCodeEmail({
+      brand: {
+        ...BRAND,
+        contacts: [{ isWhatsapp: false, kind: 'phone', label: '', value: '1633334444' }],
+      },
+      content: CONTENT,
+      year: 2026,
+    })
+
+    expect(html).not.toContain('wa.me')
+  })
+
+  /** O endereço leva ao mapa, e a URL é derivada do cadastro — endereço corrigido, link correto. */
+  test('o endereço do rodapé leva ao mapa', () => {
+    const { html } = renderCodeEmail({ brand: BRAND, content: CONTENT, legal: LEGAL, year: 2026 })
+
+    expect(html).toContain('https://www.google.com/maps/search/?api=1&query=MOGIANA')
+    expect(html).toContain('RIBEIRAO%20PRETO')
+  })
+
+  /**
+   * O contato do cadastro do site é **reserva**, não soma: com os dois somados sem regra, quem
+   * cadastrou o mesmo número nos dois lugares o veria duas vezes no mesmo rodapé.
+   */
+  test('a lista cadastrada substitui o contato do site, sem repetir', () => {
+    const { html } = renderCodeEmail({
+      brand: {
+        ...BRAND,
+        contacts: [{ isWhatsapp: false, kind: 'phone', label: '', value: '1633334444' }],
+      },
+      content: CONTENT,
+      year: 2026,
+    })
+
+    expect(html).toContain('(16) 3333-4444')
+    expect((html.match(/href="tel:/gu) ?? []).length).toBe(1)
+  })
+
+  /** Lista vazia não imprime seção vazia: o rodapé cai no contato do site, e nada mais aparece. */
+  test('sem contato cadastrado o rodapé não desenha seção de redes', () => {
+    const { html } = renderCodeEmail({ brand: BRAND, content: CONTENT, year: 2026 })
+
+    expect(html).not.toContain('margin-top:10px')
   })
 
   test('sem cadastro nenhum o e-mail sai com a marca do produto, sem imagem quebrada', () => {

@@ -46,6 +46,8 @@ export const companyFiscalProfiles = pgTable('company_fiscal_profiles', {
   city: text().notNull(),
   state: text().notNull(),
   postalCode: text('postal_code').notNull(),
+  phone: text().notNull(),
+  email: text().notNull(),
 })
 
 export const userInvitations = pgTable('user_invitations', {

@@ -125,3 +125,13 @@
     grid-template-columns: 1.2fr 1fr 1fr;
   }
 }
+
+/* Spec 068 — as redes numa linha, separadas: a lista é curta e não merece uma linha cada. */
+.socialList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3, 0.75rem);
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}

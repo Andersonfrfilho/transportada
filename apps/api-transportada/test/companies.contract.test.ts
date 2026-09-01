@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import './companies/company-contacts.contract.js'
 import './companies/company-energy-policy.contract.js'
 import './companies/company-energy.contract.js'
 import './companies/disable-scheduled-distribution.contract.js'

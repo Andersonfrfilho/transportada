@@ -11,9 +11,11 @@ const EMPTY_BRAND = {
   accentColor: undefined,
   apiBaseUrl: 'https://api.exemplo.com.br',
   appBaseUrl: undefined,
+  contacts: [],
   contactEmail: undefined,
   contactPhone: undefined,
   logoUrl: undefined,
+  socialLinks: [],
   name: undefined,
 } as const
 
@@ -86,6 +88,7 @@ describe('a moldura do e-mail', () => {
         ...EMPTY_BRAND,
         appBaseUrl: 'https://painel.exemplo.com.br',
         logoUrl: 'https://api.exemplo.com.br/public/landing-logo',
+        socialLinks: [],
         name: 'Transportes Exemplo',
       },
       content: { code: '123456', headline: SUBJECT, intro: 'oi', note: '' },

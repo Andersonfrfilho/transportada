@@ -124,7 +124,18 @@ export async function createLandingHttpFixture({
   const companyGroupRepository = new CompanyGroupRepositoryFixture()
   const landingSettingsRepository = new LandingSettingsRepositoryFixture()
   const companyLogoRepository = new CompanyLogoRepositoryFixture()
+  /* Cadastro de contatos vazio: a landing serve a lista vazia, que é o estado de toda instalação nova. */
+  const companyContactsRepository = {
+    load: async () => ({ contacts: [], socialLinks: [] }),
+    replace: async (input: {
+      readonly settings: {
+        readonly contacts: readonly unknown[]
+        readonly socialLinks: readonly unknown[]
+      }
+    }) => input.settings,
+  }
   const landingSettings = createLandingSettingsUseCase({
+    companyContactsRepository: companyContactsRepository as never,
     companyGroupRepository,
     landingCompanyId: COMPANY_ID,
     landingSettingsRepository,

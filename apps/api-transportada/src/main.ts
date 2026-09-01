@@ -28,6 +28,9 @@ import {
   createGetCargoSettingsUseCase,
   createSetDefaultVolumeWeightUseCase,
 } from './companies/application/cargo-settings.use-case.js'
+import { createCompanyContactsUseCase } from './companies/application/company-contacts.use-case.js'
+import { DrizzleCompanyContactsRepository } from './companies/infrastructure/drizzle-company-contacts.repository.js'
+import { createCompanyContactsRoutes } from './companies/presentation/company-contacts.routes.js'
 import { DrizzleCargoSettingsRepository } from './companies/infrastructure/drizzle-cargo-settings.repository.js'
 import { createCargoSettingsRoutes } from './companies/presentation/cargo-settings.routes.js'
 import { createAdjustFuelPriceUseCase } from './companies/application/adjust-fuel-price.use-case.js'
@@ -709,6 +712,7 @@ function createAnonymousRoutes({
       landingCompanyId: config.companyId,
     }),
     landingSettings: createLandingSettingsUseCase({
+      companyContactsRepository: new DrizzleCompanyContactsRepository(database),
       companyGroupRepository: createDrizzleCompanyGroupRepository(database),
       landingCompanyId: config.companyId,
       landingSettingsRepository: createDrizzleLandingSettingsRepository(database),
@@ -932,7 +936,10 @@ function createApplicationRoutes({
   const fuelPriceRepository = new DrizzleFuelPriceRepository(database)
   const companyEnergyRepository = new DrizzleCompanyEnergyRepository(database)
   const companyLogoRepository = new DrizzleCompanyLogoRepository(database)
+  const companyContactsRepository = new DrizzleCompanyContactsRepository(database)
+  const companyContacts = createCompanyContactsUseCase({ contacts: companyContactsRepository })
   const landingSettings = createLandingSettingsUseCase({
+    companyContactsRepository,
     companyGroupRepository: createDrizzleCompanyGroupRepository(database),
     landingCompanyId: undefined,
     landingSettingsRepository: createDrizzleLandingSettingsRepository(database),
@@ -1303,6 +1310,7 @@ function createApplicationRoutes({
       get: createGetCargoSettingsUseCase({ cargoSettings: cargoSettingsRepository }),
       set: createSetDefaultVolumeWeightUseCase({ cargoSettings: cargoSettingsRepository }),
     }),
+    ...createCompanyContactsRoutes({ companyContacts }),
     ...createFuelPriceRoutes({
       adjust: createAdjustFuelPriceUseCase({ fuelPrices: fuelPriceRepository }),
       clear: createClearFuelPriceUseCase({ fuelPrices: fuelPriceRepository }),

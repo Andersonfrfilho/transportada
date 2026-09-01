@@ -49,6 +49,11 @@ const COPYRIGHT_HOLDER_URL = 'https://adatechnology.com.br'
  */
 const PRODUCT_MARK_PATH = '/icons/icon-192.png'
 const ADA_MARK_PATH = '/icons/ada-technology.png'
+/** Busca por endereço no Google Maps: o link é **derivado**, nunca guardado — endereço muda, URL velha mente. */
+const MAPS_SEARCH_URL = 'https://www.google.com/maps/search/?api=1&query='
+/** `wa.me` é o encurtador oficial da Meta; o número vai só com dígitos, como o cadastro guarda. */
+const WHATSAPP_URL = 'https://wa.me/'
+
 /** Rota anônima da API, com o token opaco no lugar do identificador do usuário. */
 const USER_PICTURE_PATH_PREFIX = '/public/company-users/'
 const USER_PICTURE_PATH_SUFFIX = '/picture'
@@ -68,10 +73,13 @@ export type CodeEmailBrand = {
   readonly apiBaseUrl: string | undefined
   /** Origem do painel — é dela que saem as marcas do produto e da Ada no rodapé. */
   readonly appBaseUrl: string | undefined
+  /** Spec 068: a lista de contatos cadastrada, na ordem que o operador definiu. */
+  readonly contacts: readonly CodeEmailContact[]
   readonly contactEmail: string | undefined
   readonly contactPhone: string | undefined
   readonly logoUrl: string | undefined
   readonly name: string | undefined
+  readonly socialLinks: readonly CodeEmailSocialLink[]
 }
 
 /**
@@ -80,6 +88,9 @@ export type CodeEmailBrand = {
  */
 export type CodeEmailLegalIdentification = {
   readonly city: string
+  /** Contato fiscal: entra no rodapé só quando a lista de contatos não tem daquele tipo. */
+  readonly email: string
+  readonly phone: string
   readonly complement: string
   readonly district: string
   readonly legalName: string
@@ -88,6 +99,23 @@ export type CodeEmailLegalIdentification = {
   readonly state: string
   readonly street: string
   readonly taxId: string
+}
+
+/**
+ * Um contato de atendimento da empresa (spec 068). Telefone marcado como WhatsApp ganha o link do
+ * aplicativo **ao lado** do `tel:`, nunca no lugar dele: nem todo telefone com WhatsApp é celular de
+ * quem prefere mensagem, e quem quer ligar continua com um toque só.
+ */
+export type CodeEmailContact = {
+  readonly isWhatsapp: boolean
+  readonly kind: 'phone' | 'email'
+  readonly label: string
+  readonly value: string
+}
+
+export type CodeEmailSocialLink = {
+  readonly network: string
+  readonly url: string
 }
 
 /** Quem recebe o código. Sem foto cadastrada, a inicial do nome ocupa o lugar do retrato. */
@@ -328,6 +356,10 @@ function renderBody(input: {
  * Quem manda o e-mail é a transportadora, e é o contato dela que resolve dúvida de quem recebe. No
  * e-mail do sistema entram também a razão social, o CNPJ e o endereço — quem recebe uma mensagem sem
  * nome no cabeçalho tem o direito de saber que pessoa jurídica a mandou, e de onde.
+ *
+ * Os contatos vêm da lista cadastrada (spec 068). O par `contactEmail`/`contactPhone` do cadastro do
+ * site entra **como reserva**, e só quando a lista não tem nada daquele tipo: com os dois somados
+ * sem regra, quem cadastrou o mesmo número nos dois lugares o veria duas vezes.
  */
 function renderCompanyFooter(input: {
   readonly brand: CodeEmailBrand
@@ -340,22 +372,122 @@ function renderCompanyFooter(input: {
       ? []
       : [escapeHtml(input.legal.legalName)]),
     ...(input.legal === undefined ? [] : [`CNPJ ${escapeHtml(formatTaxId(input.legal.taxId))}`]),
-    ...(input.legal === undefined
-      ? []
-      : toAddressLines(input.legal).map((line) => escapeHtml(line))),
-    ...(input.brand.contactEmail === undefined
-      ? []
-      : [
-          `<a href="mailto:${escapeHtml(input.brand.contactEmail)}" style="color:${EMAIL_PALETTE.muted}">${escapeHtml(input.brand.contactEmail)}</a>`,
-        ]),
-    ...(input.brand.contactPhone === undefined ? [] : [escapeHtml(input.brand.contactPhone)]),
+    ...(input.legal === undefined ? [] : [renderAddress(input.legal)]),
+    ...renderContactLines(input.brand, input.legal),
   ]
+  const social = renderSocialLinks(input.brand.socialLinks)
 
   return [
-    `<tr><td style="padding:16px 24px;border-top:1px solid ${EMAIL_PALETTE.border};color:${EMAIL_PALETTE.muted};font-family:${EMAIL_FONTS.body};font-size:12px;line-height:1.6">`,
+    `<tr><td style="padding:16px 24px;border-top:1px solid ${EMAIL_PALETTE.border};color:${EMAIL_PALETTE.muted};font-family:${EMAIL_FONTS.body};font-size:12px;line-height:1.7">`,
     lines.join('<br>'),
+    social,
     '</td></tr>',
   ].join('')
+}
+
+/**
+ * O endereço leva ao mapa. A URL é **derivada** do que está no cadastro, nunca guardada: endereço
+ * corrigido com link salvo é link que aponta para o lugar errado sem ninguém perceber.
+ */
+function renderAddress(legal: CodeEmailLegalIdentification): string {
+  const lines = toAddressLines(legal)
+  const query = encodeURIComponent(
+    [legal.street, legal.number, legal.district, legal.city, legal.state, legal.postalCode]
+      .filter((part) => part !== '')
+      .join(', '),
+  )
+
+  return `<a href="${MAPS_SEARCH_URL}${query}" style="color:${EMAIL_PALETTE.muted}">${lines
+    .map((line) => escapeHtml(line))
+    .join('<br>')}</a>`
+}
+
+function renderContactLines(
+  brand: CodeEmailBrand,
+  legal: CodeEmailLegalIdentification | undefined,
+): readonly string[] {
+  const phones = brand.contacts.filter((contact) => contact.kind === 'phone')
+  const emails = brand.contacts.filter((contact) => contact.kind === 'email')
+  const fallbackPhone = brand.contactPhone ?? legal?.phone
+  const fallbackEmail = brand.contactEmail ?? legal?.email
+
+  return [
+    ...(phones.length > 0
+      ? phones.map((contact) => renderPhone(contact))
+      : fallbackPhone === undefined || fallbackPhone === ''
+        ? []
+        : [renderPhone({ isWhatsapp: false, kind: 'phone', label: '', value: fallbackPhone })]),
+    ...(emails.length > 0
+      ? emails.map((contact) => renderEmail(contact))
+      : fallbackEmail === undefined || fallbackEmail === ''
+        ? []
+        : [renderEmail({ isWhatsapp: false, kind: 'email', label: '', value: fallbackEmail })]),
+  ]
+}
+
+/** O rótulo primeiro, o número clicável, e o WhatsApp ao lado — não no lugar do `tel:`. */
+function renderPhone(contact: CodeEmailContact): string {
+  const digits = contact.value.replaceAll(/\D/gu, '')
+  const label = contact.label === '' ? '' : `${escapeHtml(contact.label)}: `
+  const whatsapp =
+    contact.isWhatsapp && digits !== ''
+      ? ` <a href="${WHATSAPP_URL}${digits}" style="color:${EMAIL_PALETTE.accent}">WhatsApp</a>`
+      : ''
+
+  return `${label}<a href="tel:+${digits}" style="color:${EMAIL_PALETTE.muted}">${escapeHtml(
+    formatPhone(contact.value),
+  )}</a>${whatsapp}`
+}
+
+function renderEmail(contact: CodeEmailContact): string {
+  const label = contact.label === '' ? '' : `${escapeHtml(contact.label)}: `
+  return `${label}<a href="mailto:${escapeHtml(contact.value)}" style="color:${EMAIL_PALETTE.muted}">${escapeHtml(contact.value)}</a>`
+}
+
+/** Redes numa linha só, separadas por ponto — a lista é curta e não merece uma linha cada. */
+function renderSocialLinks(links: readonly CodeEmailSocialLink[]): string {
+  if (links.length === 0) return ''
+
+  const rendered = links
+    .map(
+      (link) =>
+        `<a href="${escapeHtml(link.url)}" style="color:${EMAIL_PALETTE.accent}">${escapeHtml(
+          toSocialLabel(link.network),
+        )}</a>`,
+    )
+    .join(' · ')
+
+  return `<div style="margin-top:10px">${rendered}</div>`
+}
+
+const SOCIAL_LABELS: Readonly<Record<string, string>> = {
+  facebook: 'Facebook',
+  instagram: 'Instagram',
+  linkedin: 'LinkedIn',
+  tiktok: 'TikTok',
+  website: 'Site',
+  x: 'X',
+  youtube: 'YouTube',
+}
+
+/** Rede desconhecida sai com o nome que veio: catálogo novo no cadastro não some do rodapé. */
+function toSocialLabel(network: string): string {
+  return SOCIAL_LABELS[network] ?? network
+}
+
+/**
+ * Máscara brasileira por comprimento: dez ou onze dígitos com DDD, e treze com o DDI colado. Número
+ * fora dessas medidas sai como veio — melhor cru do que mascarado errado.
+ */
+function formatPhone(value: string): string {
+  const digits = value.replaceAll(/\D/gu, '')
+  const local = digits.length === 12 || digits.length === 13 ? digits.slice(2) : digits
+  if (local.length !== 10 && local.length !== 11) return value
+
+  const area = local.slice(0, 2)
+  const prefix = local.slice(2, local.length - 4)
+  const suffix = local.slice(-4)
+  return `(${area}) ${prefix}-${suffix}`
 }
 
 /**

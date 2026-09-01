@@ -5,6 +5,7 @@ export const SETTINGS_PANELS = [
   'settingsForm',
   'logo',
   'landing',
+  'companyContacts',
   'certificates',
   'scheduledDistribution',
   'distributionCursor',
@@ -27,6 +28,7 @@ export type SettingsPanelModule = (typeof SETTINGS_PANEL_MODULES)[number]
 
 export type SettingsDataSource =
   | 'cargoSettings'
+  | 'companyContacts'
   | 'companySettings'
   | 'distributionCursor'
   | 'freightRegions'
@@ -59,6 +61,12 @@ export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPa
   distributionCursor: { module: 'nfe-workspace', source: 'distributionCursor', tab: 'imports' },
   freightRegions: { module: 'fleet', source: 'freightRegions', tab: 'regions' },
   fuelPrices: { module: 'fleet', source: 'fuelPrices', tab: 'fuel' },
+  /**
+   * Spec 068 — os contatos e as redes moram na aba Site: é o mesmo cadastro público que a landing
+   * publica, e é onde o operador já está quando pensa em "o que aparece para quem me procura". O
+   * rodapé do e-mail do sistema lê a mesma lista.
+   */
+  companyContacts: { module: 'company-settings', source: 'companyContacts', tab: 'site' },
   landing: { module: 'company-settings', source: 'landing', tab: 'site' },
   logo: { module: 'company-settings', source: 'companySettings', tab: 'company' },
   nfseCredential: { module: 'nfse-invoice', source: 'nfse', tab: 'settings' },
@@ -106,6 +114,7 @@ export function resolveSettingsDataScope(
   )
   return {
     cargoSettings: sources.has('cargoSettings'),
+    companyContacts: sources.has('companyContacts'),
     companySettings: module === 'company-settings' || sources.has('companySettings'),
     distributionCursor: sources.has('distributionCursor'),
     freightRegions: sources.has('freightRegions'),

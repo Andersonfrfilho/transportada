@@ -41,7 +41,10 @@ describe(`GET ${LANDING_PUBLIC_PATH} HTTP contract`, () => {
         brandName: null,
         contactEmail: null,
         contactPhone: null,
+        /* Spec 068: a lista sai vazia enquanto ninguém cadastrou — ausência, nunca campo faltando. */
+        contacts: [],
         sections: {},
+        socialLinks: [],
         units: [
           {
             city: 'São Paulo',

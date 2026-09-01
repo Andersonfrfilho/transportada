@@ -142,6 +142,13 @@ function serializePublic(settings: PublicLandingSettings): object {
   return {
     accentColor: settings.accentColor ?? null,
     brandName: settings.brandName ?? null,
+    contacts: settings.contacts.map((contact) => ({
+      isWhatsapp: contact.isWhatsapp,
+      kind: contact.kind,
+      label: contact.label,
+      value: contact.value,
+    })),
+    socialLinks: settings.socialLinks.map((link) => ({ network: link.network, url: link.url })),
     contactEmail: settings.contactEmail ?? null,
     contactPhone: settings.contactPhone ?? null,
     sections: settings.sections,

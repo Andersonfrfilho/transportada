@@ -25,7 +25,11 @@ const TURNSTILE_ORIGIN = 'https://challenges.cloudflare.com'
 export const EXTERNAL_CONNECT_ORIGIN = [TURNSTILE_ORIGIN] as const
 
 /** Nenhum link de rodapé aponta para fora hoje. Mesma razão do array acima: vazio, não esquecido. */
-export const NON_FETCH_ORIGIN = [] as const
+/**
+ * Spec 068: o rodapé **abre** a conversa no WhatsApp do visitante — é `<a href>`, não `fetch`. Pôr o
+ * endereço em `connect-src` daria permissão de rede que a página não usa.
+ */
+export const NON_FETCH_ORIGIN = ['https://wa.me'] as const
 
 /** O script do Turnstile precisa rodar e o widget dele precisa abrir o próprio iframe de desafio. */
 export const TURNSTILE_SCRIPT_ORIGIN = TURNSTILE_ORIGIN

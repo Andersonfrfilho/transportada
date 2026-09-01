@@ -28,6 +28,7 @@ export const API_COMPANY_SETTINGS_SCHEDULED_DISTRIBUTION_PATH =
   '/company-settings/scheduled-distribution'
 export const API_COMPANY_SETTINGS_DISTRIBUTION_CURSOR_PATH = '/company-settings/distribution-cursor'
 export const API_COMPANY_SETTINGS_CARGO_PATH = '/company-settings/cargo'
+export const API_COMPANY_SETTINGS_CONTACTS_PATH = '/company-settings/contacts'
 export const API_COMPANY_SETTINGS_FUEL_PRICES_PATH = '/company-settings/fuel-prices'
 export const API_COMPANY_SETTINGS_ENERGY_PATH = '/company-settings/energy'
 export const API_DIGITAL_CERTIFICATES_PATH = '/digital-certificates'

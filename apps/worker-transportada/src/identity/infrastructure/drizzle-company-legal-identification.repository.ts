@@ -31,6 +31,8 @@ export class DrizzleCompanyLegalIdentificationRepository implements CompanyLegal
         city: companyFiscalProfiles.city,
         complement: companyFiscalProfiles.complement,
         district: companyFiscalProfiles.district,
+        email: companyFiscalProfiles.email,
+        phone: companyFiscalProfiles.phone,
         legalName: companyFiscalProfiles.legalName,
         number: companyFiscalProfiles.number,
         postalCode: companyFiscalProfiles.postalCode,

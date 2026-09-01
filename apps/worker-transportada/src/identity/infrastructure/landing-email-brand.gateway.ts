@@ -2,7 +2,11 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { EmailBrandPort } from '../application/email-brand.port.js'
-import type { CodeEmailBrand } from '../domain/code-email-template.service.js'
+import type {
+  CodeEmailBrand,
+  CodeEmailContact,
+  CodeEmailSocialLink,
+} from '../domain/code-email-template.service.js'
 
 /**
  * As mesmas rotas públicas que o site institucional e a tela de entrar consomem
@@ -31,6 +35,8 @@ export function createLandingEmailBrandGateway(dependencies: Dependencies): Emai
   const fallback: CodeEmailBrand = {
     accentColor: undefined,
     apiBaseUrl: dependencies.apiBaseUrl,
+    contacts: [],
+    socialLinks: [],
     appBaseUrl: dependencies.appBaseUrl,
     contactEmail: undefined,
     contactPhone: undefined,
@@ -75,6 +81,8 @@ async function readBrand(input: {
     return {
       accentColor: readText(data?.accentColor),
       apiBaseUrl: baseUrl,
+      contacts: readContacts(data?.contacts),
+      socialLinks: readSocialLinks(data?.socialLinks),
       appBaseUrl: input.fallback.appBaseUrl,
       contactEmail: readText(data?.contactEmail),
       contactPhone: readText(data?.contactPhone),
@@ -96,6 +104,44 @@ function readOwnTradeName(data: Record<string, unknown> | undefined): string | u
   if (!Array.isArray(units)) return undefined
   const own: unknown = units[0]
   return isRecord(own) ? readText(own.tradeName) : undefined
+}
+
+/**
+ * A lista vem de rota pública, que é entrada não confiável: item sem forma de contato é descartado,
+ * não interpretado. Uma linha ruim no cadastro não pode derrubar o e-mail inteiro.
+ */
+function readContacts(value: unknown): readonly CodeEmailContact[] {
+  if (!Array.isArray(value)) return []
+
+  return value.flatMap((item) => {
+    if (!isRecord(item)) return []
+    const kind = item.kind
+    const contactValue = readText(item.value)
+    if ((kind !== 'phone' && kind !== 'email') || contactValue === undefined) return []
+
+    return [
+      {
+        isWhatsapp: kind === 'phone' && item.isWhatsapp === true,
+        kind,
+        label: readText(item.label) ?? '',
+        value: contactValue,
+      },
+    ]
+  })
+}
+
+function readSocialLinks(value: unknown): readonly CodeEmailSocialLink[] {
+  if (!Array.isArray(value)) return []
+
+  return value.flatMap((item) => {
+    if (!isRecord(item)) return []
+    const network = readText(item.network)
+    const url = readText(item.url)
+    /* `https` e nada mais, como o CHECK do banco — link de `http` em e-mail é aviso do cliente. */
+    if (network === undefined || url === undefined || !url.startsWith('https://')) return []
+
+    return [{ network, url }]
+  })
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

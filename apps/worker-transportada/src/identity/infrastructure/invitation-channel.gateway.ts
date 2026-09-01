@@ -97,6 +97,8 @@ export function createInvitationChannelGateway(drivers: {
       const brand = (await drivers.brand?.read()) ?? {
         accentColor: undefined,
         apiBaseUrl: undefined,
+        contacts: [],
+        socialLinks: [],
         appBaseUrl: undefined,
         contactEmail: undefined,
         contactPhone: undefined,

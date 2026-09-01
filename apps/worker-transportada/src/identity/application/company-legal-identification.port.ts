@@ -12,6 +12,9 @@
  */
 export type CompanyLegalIdentification = {
   readonly city: string
+  /** Contato fiscal da empresa: é o que o rodapé usa quando o cadastro do site não tem os dele. */
+  readonly email: string
+  readonly phone: string
   readonly complement: string
   readonly district: string
   readonly legalName: string

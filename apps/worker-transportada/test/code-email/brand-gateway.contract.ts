@@ -39,6 +39,8 @@ describe('a leitura da marca para o e-mail', () => {
 
     expect(await gateway.read()).toEqual({
       accentColor: '#1a2b3c',
+      contacts: [],
+      socialLinks: [],
       apiBaseUrl: 'https://api.exemplo.com.br',
       appBaseUrl: 'https://painel.exemplo.com.br',
       contactEmail: 'contato@exemplo.com.br',
@@ -82,6 +84,8 @@ describe('a leitura da marca para o e-mail', () => {
     const rejected = jsonFetch(SETTINGS, { ok: false })
     const expected = {
       accentColor: undefined,
+      contacts: [],
+      socialLinks: [],
       apiBaseUrl: 'https://api.exemplo.com.br',
       appBaseUrl: 'https://painel.exemplo.com.br',
       contactEmail: undefined,
