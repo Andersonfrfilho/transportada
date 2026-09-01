@@ -189,3 +189,32 @@ vazio para sempre. Slot que ninguém preenche é estrutura morta que o próximo 
 O que sobra no worker: **CEP → município**. O degrau pago é a marca, na API.
 
 **Verificação:** worker **829 pass / 0 fail**; API **3829 pass / 0 fail**; typecheck verde nas duas.
+
+### T009 ✅ 2026-09-01 — O fio
+
+A geocodificação entra **entre reservar a sugestão e pedir a matriz**, em
+`route-optimization-ports.factory.ts`. Trilho próprio adiaria a coordenada para depois do pedido, e a
+primeira sugestão de uma viagem nova sairia sem paradas — o defeito da spec 069 com outro nome.
+
+O seam é **puro**, e é isso que o torna testável sem banco
+(`application/resolve-stop-coordinates.use-case.ts`):
+
+- `buildGeocodeRequests` monta a requisição **da própria chave de parada** — a cascata do worker
+  precisa só de CEP e município, e os dois estão nela. Um `join` com `nfe_addresses` para buscar
+  logradouro seria trabalho para um provedor que não roda nesta app.
+- `applyResolvedCoordinates` aplica em memória em vez de reler o contexto inteiro. Parada só
+  **entra** na otimização; nenhuma sai.
+
+`parseStopAddressKey` é o **segundo** consumidor do formato da chave dentro do worker (o primeiro é
+`pool-address-key.ts`, que a monta) — o que torna a T016 mais valiosa, não menos.
+
+`main.ts` liga os três adaptadores. `POSTAL_CODE_BRASIL_API_URL` entrou no schema de env do worker
+como **opcional**: vazio, o CEP não resolve e todo endereço novo cai no centroide de município; a
+sugestão continua saindo, só pobre. Ela reusa o nome que a API já declara — é o mesmo provedor.
+
+⚠️ `geocoding` é opcional na fábrica para não quebrar quem monta portas sem ela, mas **ausente é
+sugestão sem paradas**: sem coordenada tudo fica `excludedFromOptimization` e o solver corre sobre
+nada. Era o estado do produto até esta task.
+
+**Verificação:** `bun run --cwd apps/worker-transportada test` → **837 pass / 0 fail** (era 829);
+typecheck verde.

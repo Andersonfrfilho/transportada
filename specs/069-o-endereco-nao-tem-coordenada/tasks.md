@@ -42,7 +42,7 @@ não precisa da chave para ser escrita e testada — só o deploy dela a espera.
       T006 — **aceite:** reexecutar não duplica linha
 - [x] T008 ✅ `municipality-centroid.gateway.ts` lendo a tabela — **dependência:** T007, T005 —
       **aceite:** grava `city`, e a parada sai marcada, fora da otimização
-- [ ] T009 O fio: a fábrica de portas monta a cascata e o handler a chama entre reservar a sugestão e
+- [x] T009 ✅ O fio: a fábrica de portas monta a cascata e o handler a chama entre reservar a sugestão e
       pedir a matriz; `readStops` recebe o mapa resolvido — **dependência:** T003, T005, T008 —
       **verificação:** `bun run --cwd apps/worker-transportada test` — **aceite:** endereço novo vira
       linha durante a sugestão (RF2)

@@ -108,6 +108,12 @@ const workerEnvironmentSchema = z
      * `failed`. Melhor a mensagem esperar na fila até o serviço existir.
      */
     ROUTING_MATRIX_URL: optionalUrl(),
+    /**
+     * Spec 069: o degrau 1 da cascata de geocodificação. Vazio, o CEP não resolve e todo endereço
+     * novo cai no centroide de município — que sai marcado e fora da otimização. A sugestão continua
+     * saindo; ela só fica pobre, e diz isso na tela.
+     */
+    POSTAL_CODE_BRASIL_API_URL: optionalUrl(),
     LOG_SINK_URL: optionalUrl(),
     SENTRY_DSN: optionalUrl(),
     SMTP_URL: optionalUrl(),
@@ -213,6 +219,7 @@ export function parseWorkerEnvironment(
     queuePrefix: result.data.QUEUE_PREFIX,
     rabbitMqUrl: result.data.RABBITMQ_URL,
     routingMatrixUrl: result.data.ROUTING_MATRIX_URL,
+    postalCodeBrasilApiUrl: result.data.POSTAL_CODE_BRASIL_API_URL,
     logSinkUrl: result.data.LOG_SINK_URL,
     sentryDsn: result.data.SENTRY_DSN,
     sentryEnvironment: result.data.SENTRY_ENVIRONMENT ?? result.data.APP_ENV,

@@ -67,6 +67,9 @@ import { buildNotificationRabbitMqTopology } from './messaging/notification-rabb
 import { buildRouteOptimizationTopology } from './messaging/route-optimization-topology.js'
 import { startRouteOptimizationConsumer } from './runtime/route-optimization-consumer.service.js'
 import { createDrizzleRouteOptimizationRepository } from './routing/infrastructure/drizzle-route-optimization.repository.js'
+import { createBrasilApiPostalCodeGateway } from './routing/infrastructure/brasil-api-postal-code.gateway.js'
+import { createDrizzleGeocodedAddressRepository } from './routing/infrastructure/drizzle-geocoded-address.repository.js'
+import { createMunicipalityCentroidGateway } from './routing/infrastructure/municipality-centroid.gateway.js'
 import { createOsrmRoutingMatrixGateway } from './routing/infrastructure/osrm-routing-matrix.gateway.js'
 import { createRouteOptimizationPorts } from './routing/infrastructure/route-optimization-ports.factory.js'
 import { createRabbitMqNotificationQueue } from './messaging/rabbitmq-notification-queue.adapter.js'
@@ -1092,6 +1095,21 @@ export async function startWorkerRuntime(
         logger,
         maxAttempts: routeOptimizationTopology.retry?.maxRetries ?? 1,
         ports: createRouteOptimizationPorts({
+          /**
+           * Spec 069: sem isto toda parada fica `excludedFromOptimization` e o solver corre sobre
+           * nada — a sugestão responde, vazia, sem erro nenhum a traduzir na tela.
+           */
+          geocoding: {
+            centroids: createMunicipalityCentroidGateway(
+              database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            ),
+            geocoding: createBrasilApiPostalCodeGateway({
+              baseUrl: config.postalCodeBrasilApiUrl ?? '',
+            }),
+            repository: createDrizzleGeocodedAddressRepository(
+              database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            ),
+          },
           matrix: createOsrmRoutingMatrixGateway({ baseUrl: config.routingMatrixUrl }),
           repository: createDrizzleRouteOptimizationRepository(
             database.db as ReturnType<typeof createDrizzleProvider>['db'],

@@ -62,6 +62,7 @@ describe('worker environment contract', () => {
       prefetch: 1,
       queuePrefix: 'transportada_local',
       routingMatrixUrl: undefined,
+      postalCodeBrasilApiUrl: undefined,
       rabbitMqUrl: validEnvironment.RABBITMQ_URL,
       sentryDsn: undefined,
       sentryEnvironment: 'local',

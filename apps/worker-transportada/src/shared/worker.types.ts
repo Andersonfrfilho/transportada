@@ -98,6 +98,8 @@ export type WorkerEnvironment = {
   readonly rabbitMqUrl: string
   /** Ausente sem OSRM: o consumidor de roteiro não sobe (ADR-0044 §2). */
   readonly routingMatrixUrl: string | undefined
+  /** Spec 069: o degrau 1 da cascata. Vazio, todo endereço novo cai no centroide de município. */
+  readonly postalCodeBrasilApiUrl: string | undefined
   /** Destino HTTP do log estruturado; ausente mantém só o stdout. */
   readonly logSinkUrl: string | undefined
   readonly sentryDsn: string | undefined
