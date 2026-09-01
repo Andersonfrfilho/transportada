@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 
 import { NOTIFICATION_SETTINGS_HREF } from '../shared/notificationCatalog.constant'
+import { NOTIFICATION_THEME_CLASS } from '../shared/notificationTheme.constant'
 import styles from '../styles/notification.module.css'
 
 export function NotificationWorkspacePage(): ReactNode {
@@ -32,7 +33,11 @@ export function NotificationWorkspacePage(): ReactNode {
 
   return (
     <main className={styles.notificationShell} aria-label={t('title')}>
-      <NotificationsWorkspace renderEmpty={() => <p>{t('empty')}</p>} renderHeader={renderHeader} />
+      <NotificationsWorkspace
+        className={NOTIFICATION_THEME_CLASS}
+        renderEmpty={() => <p>{t('empty')}</p>}
+        renderHeader={renderHeader}
+      />
     </main>
   )
 }

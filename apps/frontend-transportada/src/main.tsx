@@ -53,6 +53,7 @@ import { NotificationSettingsPage } from '@/modules/notification/pages/Notificat
 import { NotificationWorkspacePage } from '@/modules/notification/pages/NotificationWorkspace.page'
 import { NOTIFICATION_SETTINGS_HREF } from '@/modules/notification/shared/notificationCatalog.constant'
 import { getNotificationClient } from '@/modules/notification/shared/notificationClient.service'
+import { NOTIFICATION_THEME_CLASS } from '@/modules/notification/shared/notificationTheme.constant'
 import notificationStyles from '@/modules/notification/styles/notification.module.css'
 import { OperationsDashboardPage } from '@/modules/operations/pages/OperationsDashboard.page'
 import { TripDetailPage } from '@/modules/trip/pages/TripDetail.page'
@@ -300,7 +301,6 @@ function resolvePage(
 
 /** O tipo gerado para CSS Module devolve `string | undefined`; o pacote pede classe obrigatória. */
 const NOTIFICATION_BELL_CLASS = notificationStyles.notificationBell ?? ''
-const NOTIFICATION_THEME_CLASS = notificationStyles.notificationTheme ?? ''
 
 /** O selo avisa se a emissão vale de verdade — o rótulo vem do ambiente da empresa, nunca de literal. */
 const FISCAL_ENVIRONMENT_LABELS: Readonly<Record<FiscalEnvironment, string>> = {

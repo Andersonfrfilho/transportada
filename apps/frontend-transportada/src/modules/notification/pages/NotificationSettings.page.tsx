@@ -16,6 +16,7 @@ import {
   NOTIFICATION_WORKSPACE_HREF,
   buildNotificationSettingsOptions,
 } from '../shared/notificationCatalog.constant'
+import { NOTIFICATION_THEME_CLASS } from '../shared/notificationTheme.constant'
 import styles from '../styles/notification.module.css'
 
 export function NotificationSettingsPage(): ReactNode {
@@ -49,6 +50,7 @@ export function NotificationSettingsPage(): ReactNode {
   return (
     <main className={styles.notificationShell} aria-label={t('settings.title')}>
       <NotificationSettingsWorkspace
+        className={NOTIFICATION_THEME_CLASS}
         categories={categories}
         channels={channels}
         previewPayload={NOTIFICATION_PREVIEW_PAYLOAD}
