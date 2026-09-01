@@ -330,7 +330,7 @@ descoberta de novo como se fosse.
 
 ### T017 ✅ a T019 ✅ 2026-09-01 — O gateway que a spec 058 nunca escreveu
 
-`GEOCODING_API_KEY` entrou como **opcional** no schema da API. Vazia, o gateway não é construído e a
+`GOOGLE_MAPS_API_KEY` entrou como **opcional** no schema da API. Vazia, o gateway não é construído e a
 marca responde que a precisão fina não está disponível — a app sobe, e o produto segue roteirizando
 com precisão de CEP.
 
@@ -452,7 +452,7 @@ falha igual. Não é regressão desta spec.
 ## O que fica pendente, e não é código
 
 1. **A chave do Google não existe.** Alguém precisa criar o projeto com faturamento, gerar a chave
-   restrita à Geocoding API e pô-la em `GEOCODING_API_KEY` no worker… **na API**, corrigindo: quem
+   restrita à Geocoding API e pô-la em `GOOGLE_MAPS_API_KEY` no worker… **na API**, corrigindo: quem
    constrói o gateway pago é a API, porque a marca é síncrona. Enquanto isso, a marca responde
    `provider_not_configured` e oferece o pino manual — nada quebra.
 2. **`POSTAL_CODE_BRASIL_API_URL` precisa existir no worker em staging.** Sem ela o degrau 1 não

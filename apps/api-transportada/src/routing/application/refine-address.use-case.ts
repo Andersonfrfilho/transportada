@@ -9,7 +9,7 @@ import type { AddressComponentsSource, RefineAddressResult } from './refine-addr
 
 export type RefineAddressDependencies = Readonly<{
   components: AddressComponentsSource
-  /** Ausente quando `GEOCODING_API_KEY` não foi configurada: a marca responde, não quebra. */
+  /** Ausente quando `GOOGLE_MAPS_API_KEY` não foi configurada: a marca responde, não quebra. */
   geocoding: GeocodingPort | undefined
   repository: GeocodedAddressRepository
   trail: RefineAddressTrail

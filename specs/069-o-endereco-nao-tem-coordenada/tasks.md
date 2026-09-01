@@ -69,7 +69,7 @@ não precisa da chave para ser escrita e testada — só o deploy dela a espera.
 
 > Implementável e testável inteira **sem a chave** (fake de transporte). Só o deploy a espera.
 
-- [x] T017 [P] ✅ `GEOCODING_API_KEY` opcional no schema de env da API, com o gateway construído só
+- [x] T017 [P] ✅ `GOOGLE_MAPS_API_KEY` opcional no schema de env da API, com o gateway construído só
       quando existe — **dependência:** T009 — **aceite:** RF7, a app sobe sem a chave
 - [x] T018 ✅ Contrato do gateway pago **por fake de transporte, não por porta falsa** (CA5): os quatro
       `location_type`, `ZERO_RESULTS`, 429, `place_id` sempre persistido — **dependência:** T017 —
@@ -91,7 +91,7 @@ não precisa da chave para ser escrita e testada — só o deploy dela a espera.
       _"não melhorou — ajuste o ponto à mão"_, que oferece o degrau 3 — **dependência:** T020
 - [x] T025 [P] ✅ Atualizar o achado de endereço saindo para terceiro em `docs/SECURITY.md` — não
       repetir: o existente é o termo do Photon, e agora há dois fluxos novos — **dependência:** T019
-- [x] T026 [P] ✅ `.env.example`: o comentário de `GEOCODING_API_KEY` descreve hoje um comportamento que
+- [x] T026 [P] ✅ `.env.example`: o comentário de `GOOGLE_MAPS_API_KEY` descreve hoje um comportamento que
       nenhum código implementa — **dependência:** T019
 
 ## Fase D — Fecho

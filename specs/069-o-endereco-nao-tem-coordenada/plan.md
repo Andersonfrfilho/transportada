@@ -67,7 +67,7 @@ faz por necessidade (treze schemas Drizzle copiados no worker) e que o compilado
 | `api/src/routing/infrastructure/google-geocoding.gateway.ts`                 | **novo** — degrau 2                          |
 | `api/src/routing/presentation/*.routes.ts`                                   | rota da marca                                |
 | `api/src/routing/domain/geocoding-precision.policy.ts`                       | fica só `isFinerPrecision`                   |
-| `api/src/config/`                                                            | `GEOCODING_API_KEY` opcional                 |
+| `api/src/config/`                                                            | `GOOGLE_MAPS_API_KEY` opcional               |
 | `frontend/src/modules/trip/`                                                 | ação "endereço errado" no painel de sugestão |
 
 ## Contratos/API/eventos

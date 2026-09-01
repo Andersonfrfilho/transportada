@@ -107,7 +107,7 @@ describe('GET /auth/me PostgreSQL isolation', () => {
             sentryDsn: undefined,
             sentryEnvironment: 'test',
             turnstileSecretKey: undefined,
-            geocodingApiKey: undefined,
+            googleMapsApiKey: undefined,
             userAccessTokenSecret: undefined,
             aggregateDocumentOcrUrl: undefined,
             whatsapp: { apiVersion: 'v23.0', baseUrl: undefined },

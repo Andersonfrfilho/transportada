@@ -158,7 +158,7 @@ const environmentSchema = z.object({
    *
    * ⚠️ Nunca com prefixo `VITE_`: o Vite inlina o literal no bundle (`security.md` §4).
    */
-  GEOCODING_API_KEY: optionalText(),
+  GOOGLE_MAPS_API_KEY: optionalText(),
   // Assina o access token da conta do agregado (`@adatechnology/user-module`, 064/T1) — schema
   // isolado, sem relação com o JWT do Keycloak. Ausente, o módulo não é montado: a conta do
   // agregado ainda não existe como rota, em vez de subir com segredo vazio.
@@ -243,7 +243,7 @@ export function parseEnvironment(environment: Record<string, string | undefined>
     nfseCallbackBaseUrl: parsed.NFSE_CALLBACK_BASE_URL,
     notificationWebhookSecret: parsed.NOTIFICATION_WEBHOOK_SECRET,
     turnstileSecretKey: parsed.TURNSTILE_SECRET_KEY,
-    geocodingApiKey: parsed.GEOCODING_API_KEY,
+    googleMapsApiKey: parsed.GOOGLE_MAPS_API_KEY,
     userAccessTokenSecret: parsed.USER_ACCESS_TOKEN_SECRET,
     aggregateDocumentOcrUrl: parsed.AGGREGATE_DOCUMENT_OCR_URL,
     whatsapp: {

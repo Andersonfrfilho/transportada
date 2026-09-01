@@ -1347,13 +1347,13 @@ function createApplicationRoutes({
           refineAddress: createRefineAddressUseCase({
             components: createDrizzleAddressComponentsSource(database),
             /**
-             * Spec 069 RF7: sem `GEOCODING_API_KEY` o gateway **não é construído**, e a marca
+             * Spec 069 RF7: sem `GOOGLE_MAPS_API_KEY` o gateway **não é construído**, e a marca
              * responde `provider_not_configured` oferecendo o pino manual. A app sobe igual.
              */
             geocoding:
-              environment.geocodingApiKey === undefined
+              environment.googleMapsApiKey === undefined
                 ? undefined
-                : createGoogleGeocodingGateway({ apiKey: environment.geocodingApiKey }),
+                : createGoogleGeocodingGateway({ apiKey: environment.googleMapsApiKey }),
             repository: createDrizzleGeocodedAddressRepository(database),
             trail: geocodingRefinementRepository,
           }),
