@@ -14,7 +14,7 @@ não precisa da chave para ser escrita e testada — só o deploy dela a espera.
 
 > 🤖 `opus` 🧠
 
-- [ ] T001 🧠 Adendo na ADR-0044 §3 registrando a inversão da cascata: o CEP é primário, o provedor
+- [x] T001 🧠 ✅ Adendo na ADR-0044 §3 registrando a inversão da cascata: o CEP é primário, o provedor
       pago é escalada por marca, e a exceção de licença continua valendo sobre um número muito menor
       de linhas — `docs/adr/0044-*.md` — **aceite:** a próxima pessoa entende por que a ordem
       escrita na §3 não é a implementada
