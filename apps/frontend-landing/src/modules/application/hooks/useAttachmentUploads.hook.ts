@@ -8,7 +8,7 @@ import type {
 
 /**
  * Um arquivo, uma linha. O envio é evento — nada de `useEffect` —, e a falha de um anexo não derruba
- * os outros nem o formulário: o cadastro é o que importa, e o anexo é comprovante (spec 069).
+ * os outros nem o formulário: o cadastro é o que importa, e o anexo é comprovante (spec 070).
  */
 export type AttachmentEntryStatus = 'failed' | 'uploaded' | 'uploading'
 

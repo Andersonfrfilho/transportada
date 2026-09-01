@@ -376,7 +376,7 @@ acima de `buildNfseDescription`, em `nfse-invoices/domain/nfse-description.servi
 campo "Período do serviço" abre vazio a cada emissão (`useNfseEmissionDialog.hook.ts`) e entra na
 chave da prévia; em branco ele é **omitido** do corpo, porque ausente e `''` dizem a mesma coisa à API.
 
-**O anexo da candidatura não é lido na requisição** (ADR-0053, spec 069). `POST
+**O anexo da candidatura não é lido na requisição** (ADR-0053, spec 070). `POST
 /public/aggregate-application-attachments` é anônima: quem passa pelo Turnstile escolheria quanto CPU
 a API gasta, num runtime de um event loop só — e um PDF com geometria patológica travaria a emissão
 de CT-e junto. A requisição grava o objeto e insere rascunho **e** evento de

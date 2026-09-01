@@ -1,6 +1,6 @@
-# 069 — Evidências
+# 070 — Evidências
 
-Todas colhidas no worktree `spec-069`, branch `work/spec-069`, em 2026-09-01.
+Todas colhidas no worktree `spec-069` (worktree criado antes da renumeração), branch `work/spec-069`, em 2026-09-01.
 
 ## Gate completo
 
@@ -63,6 +63,51 @@ Depois do build, `dist/aggregate-attachment/infrastructure/pdf-extraction.worker
   de ler, que o submit amarra os rascunhos e que a leitura local continua preenchendo. Esta app não
   tem DOM no teste, e foi exatamente uma fiação ausente — compilando e verde — que deixou a rota
   pública sem chamador nenhum desde a spec 066.
+
+## Ponta a ponta, com infra de verdade
+
+`make up` (Postgres, RabbitMQ, MinIO), e o caminho partido em duas metades porque nenhuma app
+importa código-fonte de outra — o seam é a linha do outbox, afirmada dos dois lados.
+
+**Metade de escrita**, `api-transportada/test/integration/aggregate-attachment-outbox.integration.ts`,
+contra Postgres descartável com todas as migrations:
+
+```
+2 pass · 0 fail
+```
+
+Objeto, rascunho e evento na mesma transação; `extracted_fields` nasce **nulo** (ninguém leu na
+requisição); o `payload jsonb` volta do banco como referência — `{attachmentId, bucket, objectKey,
+type}`, sem bytes. E bucket fora do ar não deixa rascunho nem pedido de leitura: o worker consumiria
+para sempre um objeto que nunca foi gravado.
+
+**Metade de leitura**, `worker-transportada/test/integration/aggregate-attachment.integration.ts`,
+com Postgres, RabbitMQ e MinIO de verdade — nenhum dublê:
+
+```
+1 pass · 0 fail  [775ms]
+```
+
+Um CCMEI sintético (PDF real, camada de texto real) vai ao bucket; a linha do outbox entra; o relay
+publica no broker; o consumidor recebe, **baixa o objeto do MinIO**, roda o pdf.js na
+`worker_thread`, e o CNPJ impresso no PDF aparece em `extracted_fields`. A linha do outbox termina
+com `published_at` preenchido.
+
+### O verde foi conferido contra falso positivo
+
+Trocando o CNPJ esperado por outro valor, o teste **reprova**:
+
+```
+- Expected  - 1
++ Received  + 1
+(fail) o CCMEI enviado chega ao anexo como campo lido…
+ 0 pass · 1 fail
+```
+
+Isso é o que separa "o caminho funciona" de "o teste não olha nada": o valor afirmado é o que a
+thread leu do arquivo que atravessou bucket e broker, não uma constante que o próprio teste plantou.
+Se a leitura do MinIO falhasse, o ciclo fecharia como `object_missing`, `extracted_fields` ficaria
+nulo e a espera estouraria — o caminho inteiro é condição do verde.
 
 ## O que ficou de fora
 

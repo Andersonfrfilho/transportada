@@ -14,7 +14,7 @@ const PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46])
 function buildEnvelope(): AggregateAttachmentEnvelopeV1 {
   return {
     companyId: COMPANY_ID,
-    correlationId: 'correlation-069',
+    correlationId: 'correlation-070',
     eventId: crypto.randomUUID(),
     occurredAt: new Date(0).toISOString(),
     payload: {

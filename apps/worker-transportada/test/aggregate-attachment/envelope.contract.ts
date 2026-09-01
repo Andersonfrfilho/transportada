@@ -11,7 +11,7 @@ import { buildAggregateAttachmentRabbitMqTopology } from '../../src/messaging/ag
 
 const VALID = {
   companyId: crypto.randomUUID(),
-  correlationId: 'correlation-069',
+  correlationId: 'correlation-070',
   eventId: crypto.randomUUID(),
   occurredAt: new Date(0).toISOString(),
   payload: {

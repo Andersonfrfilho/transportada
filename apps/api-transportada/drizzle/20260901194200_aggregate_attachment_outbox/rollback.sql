@@ -1,6 +1,6 @@
 -- Copyright (c) 2026 Ada Technology. MIT License.
 -- Manual rollback only. Do not run from application startup.
--- Remove o outbox de leitura do anexo do agregado (spec 069, ADR-0053).
+-- Remove o outbox de leitura do anexo do agregado (spec 070, ADR-0053).
 --
 -- ⚠️ Pedido de leitura ainda não publicado **se perde com a tabela**. O anexo continua no bucket e na
 -- fila de revisão, mas sem `extracted_fields` — o operador abre o arquivo, como já abre o anexo cuja

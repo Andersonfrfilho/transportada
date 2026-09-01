@@ -4,7 +4,7 @@ import { normalizeTaxId } from '@/modules/shared/taxId.service'
 const PUBLIC_AGGREGATE_APPLICATIONS_PATH = '/public/aggregate-applications'
 
 export type SubmitAggregateApplicationInput = Readonly<{
-  /** Rascunhos que já chegaram ao bucket; o submit é que os amarra à candidatura (spec 069). */
+  /** Rascunhos que já chegaram ao bucket; o submit é que os amarra à candidatura (spec 070). */
   attachmentDraftIds?: readonly string[]
   companyId: string
   declaredData: Readonly<Record<string, unknown>>

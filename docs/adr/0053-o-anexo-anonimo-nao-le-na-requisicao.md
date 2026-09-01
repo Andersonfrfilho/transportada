@@ -2,7 +2,7 @@
 
 - Status: aceita
 - Data: 2026-09-01
-- Contexto: spec 069, sucessora da 066
+- Contexto: spec 070, sucessora da 066
 
 ## O problema
 

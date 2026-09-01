@@ -2,7 +2,7 @@
 
 /**
  * Envia o anexo antes do formulário: o rascunho existe sem candidatura até o submit amarrá-lo pelo
- * `draftId` (spec 069).
+ * `draftId` (spec 070).
  *
  * A resposta traz **só** o identificador do rascunho. Nada do que a API leu do documento volta para
  * cá — e nem haveria o que voltar: a leitura do servidor acontece depois, no worker (ADR-0053). Quem
