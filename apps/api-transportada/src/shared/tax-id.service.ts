@@ -40,8 +40,10 @@ export function parseTaxIdValue(value: string, pattern: RegExp): string | undefi
 }
 
 /**
- * Os oito primeiros dígitos do CNPJ identificam o grupo econômico — matriz e filiais compartilham
- * a raiz e divergem só na ordem (matriz `0001`) e no dígito verificador. Fronteira estreita: só
+ * As oito primeiras posições do CNPJ identificam o grupo econômico — matriz e filiais compartilham
+ * a raiz e divergem só na ordem (matriz `0001`) e no dígito verificador. Posições, não dígitos: a
+ * raiz alfanumeriza junto com o documento (IN RFB 2229/2024), e `CNPJ_ROOT_PATTERN` já aceita letra
+ * nas doze da base. Fronteira estreita: só
  * aceita CNPJ já normalizado de 14 posições, porque quem chama já validou o documento antes.
  */
 export function resolveCompanyGroupRoot(cnpj: string): string {
