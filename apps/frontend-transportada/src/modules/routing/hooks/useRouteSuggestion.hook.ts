@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
 
+import type { RefineAddressFeedback } from '../components/RouteSuggestionPanel.component'
 import type { RouteSuggestion } from '../shared/routeSuggestion.types'
 import {
   createRouteSuggestionClient,
@@ -19,6 +20,11 @@ export type RouteSuggestionController = Readonly<{
   errorCode: string | null
   isDeciding: boolean
   isRequesting: boolean
+  /**
+   * O degrau 2 da escada (spec 069). Ela **nunca lança**: o conferente já marcou, e um estouro no
+   * lugar de um aviso o faria concluir que a marca está quebrada — que é o que a RF5 impede.
+   */
+  refineAddress: (addressKey: string) => Promise<RefineAddressFeedback>
   reject: () => Promise<void>
   request: () => Promise<void>
   suggestion: RouteSuggestion | null
@@ -119,6 +125,16 @@ export function useRouteSuggestion(input: {
     errorCode,
     isDeciding,
     isRequesting,
+    refineAddress: async (addressKey) => {
+      try {
+        return (await resolveClient().refineAddress({ addressKey })).outcome
+      } catch (error) {
+        /** `429` é o teto por janela, e ele merece frase própria: tentar de novo agora não resolve. */
+        return toErrorCode(error) === 'GEOCODING_REFINEMENT_QUOTA_EXCEEDED'
+          ? 'quota_exceeded'
+          : 'failed'
+      }
+    },
     reject: () => decide('reject'),
     request,
     suggestion,

@@ -87,11 +87,11 @@ não precisa da chave para ser escrita e testada — só o deploy dela a espera.
       novos e paradas colidindo na mesma coordenada, faz **zero** chamadas ao provedor pago —
       **dependência:** T020 — **aceite:** sem ele, alguém acrescenta escalada automática seis meses
       adiante e ninguém vê
-- [ ] T024 Ação "endereço errado" no painel de sugestão, imprimindo a resposta da rota — inclusive o
+- [x] T024 ✅ Ação "endereço errado" no painel de sugestão, imprimindo a resposta da rota — inclusive o
       _"não melhorou — ajuste o ponto à mão"_, que oferece o degrau 3 — **dependência:** T020
-- [ ] T025 [P] Atualizar o achado de endereço saindo para terceiro em `docs/SECURITY.md` — não
+- [x] T025 [P] ✅ Atualizar o achado de endereço saindo para terceiro em `docs/SECURITY.md` — não
       repetir: o existente é o termo do Photon, e agora há dois fluxos novos — **dependência:** T019
-- [ ] T026 [P] `.env.example`: o comentário de `GEOCODING_API_KEY` descreve hoje um comportamento que
+- [x] T026 [P] ✅ `.env.example`: o comentário de `GEOCODING_API_KEY` descreve hoje um comportamento que
       nenhum código implementa — **dependência:** T019
 
 ## Fase D — Fecho

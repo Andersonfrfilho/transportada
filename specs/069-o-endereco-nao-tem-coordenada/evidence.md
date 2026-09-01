@@ -391,3 +391,33 @@ explicação. O que não pode existir é a dependência.
 
 **Verificação:** API **3845 pass / 0 fail**; worker **865 pass / 0 fail**; `make migration-test`
 **90 pass / 0 fail**.
+
+### T024 ✅ a T026 ✅ 2026-09-01 — A ação na tela e os dois documentos
+
+A ação **"Endereço errado"** entra por parada, no painel de sugestão, e imprime a resposta **sempre**
+(RF5) — inclusive as duas que não compraram nada, que dizem "ajuste o ponto à mão" e assim oferecem o
+degrau 3. Sem `onRefineAddress` a ação não aparece: quem não pode marcar não vê um botão que
+responderia `403`.
+
+O hook **nunca lança**: `429` vira `quota_exceeded` (frase própria — tentar de novo agora não
+resolve) e qualquer outra falha vira `failed`. Um estouro no lugar de um aviso faria o conferente
+concluir que a marca está quebrada, que é o que a RF5 impede.
+
+Rótulos nos **dois** idiomas — o contrato de paridade de locale reprovou o pt-BR sozinho, como devia.
+
+**`docs/SECURITY.md`** foi **atualizado, não repetido**: o parágrafo existente descrevia com precisão
+um mundo em que as chamadas partiam do navegador e a nossa infraestrutura não via o dado. A
+geocodificação inverte isso, e o adendo diz por dois trilhos — o CEP saindo do worker (oito dígitos, a
+mesma exposição de antes, agora com a nossa infraestrutura no caminho) e o endereço **por extenso**
+indo ao Google a partir da API, que é a maior exposição de endereço que o produto já teve.
+
+Dois achados **abertos** ficaram escritos para serem decididos e não redescobertos:
+
+- `geocoded_addresses` guarda `cityCode|postalCode|number` em claro e sem tenant. Não há nome nem
+  documento — e é isso que sustenta a tabela não ter `company_id` —, mas CEP e número **são** um
+  ponto de entrega identificável, e não criptografá-los nunca foi decidido em ADR, como foi na ficha
+  do motorista (ADR-0039).
+- a rota da marca não tem rate limit de infraestrutura; o teto é de aplicação, contado na trilha. É o
+  mesmo achado já registrado para as rotas de senha.
+
+**Verificação:** frontend **2233 pass / 0 fail**; typecheck verde nas quatro apps.

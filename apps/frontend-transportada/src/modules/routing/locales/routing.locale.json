@@ -102,5 +102,14 @@
       "ROUTE_SUGGESTION_VEHICLE_UNAVAILABLE": "Um ou mais veículos não podem ser roteirizados — só veículo de tração ativo entra.",
       "unknown": "Não foi possível distribuir as notas agora."
     }
+  },
+  "refine": {
+    "action": "Endereço errado",
+    "busy": "Consultando…",
+    "notImproved": "O provedor não fez melhor — ajuste o ponto à mão.",
+    "notConfigured": "Precisão fina não disponível nesta instalação — ajuste o ponto à mão.",
+    "refined": "Endereço corrigido para {{precision}}.",
+    "quotaExceeded": "Muitas correções nesta hora. Tente mais tarde ou ajuste o ponto à mão.",
+    "failed": "Não foi possível consultar agora — ajuste o ponto à mão."
   }
 }

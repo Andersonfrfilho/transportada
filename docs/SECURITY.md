@@ -312,6 +312,36 @@ digitado** — mais a lista do IBGE, que leva só a sigla do estado. O endereço
 `apps/frontend-transportada/test/fleet/address-map-removed.contract.ts` falha se algum dos símbolos
 ou dos dois destinos voltar ao bundle.
 
+**Atualizado (spec 069, 2026-09-01) — o endereço passou a sair também do servidor, e por dois
+trilhos novos.** Até aqui o parágrafo acima descrevia bem o risco: as chamadas partiam do navegador
+do operador, e a nossa infraestrutura não via o dado. A geocodificação inverte isso de propósito.
+
+- **Degrau 1, sempre**: o CEP vai à BrasilAPI (`/cep/v2`) **a partir do worker** — na rotina de
+  população adiantada e dentro da sugestão. São **oito dígitos**, a mesma exposição que a consulta de
+  CEP já tinha, agora com a nossa infraestrutura no caminho.
+- **Degrau 2, só por marca humana**: o endereço **por extenso** — logradouro, número, bairro, cidade,
+  UF e CEP — vai ao Google Geocoding, a partir da API. É a maior exposição de endereço que o produto
+  já teve para um terceiro, e ela é deliberada: a ADR-0044 §3 escolheu o provedor por cobertura em
+  cidade do interior e **assumiu por escrito** a exceção aos Termos do Google Maps Platform, que não
+  permitem o armazenamento permanente que fazemos.
+
+**O que limita o estrago:** o degrau 2 **não tem gatilho automático** — só um humano com
+`trip.manage` o dispara, há teto de 60 marcas por hora por empresa, e um contrato de teste
+(`worker/test/routing/paid-provider-never-called.contract.ts`) falha se a sugestão passar a chamá-lo
+sozinha. O endereço enviado é lido **escopado pela empresa do contexto**. Nada do endereço entra em
+log, em nenhum nível, e há contrato varrendo as linhas emitidas nos três cenários — inclusive no erro
+do provedor, que devolve o endereço na mensagem.
+
+⚠️ **Aberto:** `geocoded_addresses` guarda `cityCode|postalCode|number` em claro e sem tenant. Não há
+nome, documento nem razão social, e é isso que sustenta a tabela não ter `company_id` — mas o CEP e o
+número **são** um ponto de entrega identificável, e a decisão de não criptografá-los não foi tomada
+por escrito em ADR, como foi a da ficha do motorista (ADR-0039). Fica registrado para ser decidido,
+não redescoberto.
+
+⚠️ **Aberto:** a rota da marca **não tem rate limit de infraestrutura** — o teto é de aplicação,
+contado na própria trilha. É o mesmo achado já registrado para as rotas de senha: não existe
+limitador nesta API.
+
 **Executado (spec 046, T008):** a CSP existe e é servida em toda resposta. Ela é composta no
 **build** — `VITE_API_URL` e `VITE_KEYCLOAK_URL` são inlinadas no bundle e não existem no contêiner
 que serve o `dist` —, sai por `dist/content-security-policy.txt` e o `server.ts` **não sobe** sem o
