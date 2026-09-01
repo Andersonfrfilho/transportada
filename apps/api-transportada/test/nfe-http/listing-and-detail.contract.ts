@@ -168,6 +168,36 @@ describe('nfe http listing and detail contract', () => {
   })
 
   /**
+   * Spec 067: os dois motivos são independentes, e é a diferença entre eles que a tabela lê para
+   * decidir se a linha pode ser marcada. Serializar um a partir do outro devolveria a nota sem peso
+   * ao estado de "impossível de selecionar para nada", que é o defeito que esta rota conserta.
+   */
+  test('publica o bloqueio da NFS-e separado do bloqueio do CT-e', async () => {
+    const fixture = await createNfeHttpFixture({
+      documentList: {
+        items: [
+          {
+            ...DOCUMENT_SUMMARY,
+            cteBlockReason: 'CTE_BATCH_DOCUMENT_MISSING_WEIGHT',
+            id: '00000000-0000-4000-8000-000000000232',
+            nfseBlockReason: null,
+          },
+        ],
+        nextCursor: null,
+      },
+    })
+
+    const documents = (
+      await documentListBody(await fixture.handle(documentsListRequest({ query: '?limit=10' })))
+    ).data
+
+    expect(documents[0]).toMatchObject({
+      cteBlockReason: 'CTE_BATCH_DOCUMENT_MISSING_WEIGHT',
+      nfseBlockReason: null,
+    })
+  })
+
+  /**
    * Spec 065 D4b: **fatura-se o que saiu.** Quem monta o lote precisa ver a viagem da nota sem abrir
    * a tela de viagem — e é **sinal, não bloqueio**: a nota que rodou é justamente a que deve entrar.
    */

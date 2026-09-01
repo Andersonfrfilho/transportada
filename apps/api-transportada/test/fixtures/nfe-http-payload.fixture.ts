@@ -143,7 +143,7 @@ export function serializeDocumentSummary(document: NfeDocumentSummary): object {
   return {
     accessKey: document.accessKey,
     cteBlockReason: document.cteBlockReason,
-    nfseBlockReason: document.cteBlockReason,
+    nfseBlockReason: document.nfseBlockReason,
     emitterAddress: document.emitterAddress,
     emitterCity: document.emitterCity,
     emitterCityCode: document.emitterCityCode,
