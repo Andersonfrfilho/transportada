@@ -1,114 +1,122 @@
 # Tasks
 
-> 🤖 Modelo da fase: `sonnet`. T001 e T010 são 🧠 — validar com `opus`.
+> 🤖 Modelo da fase: `sonnet`. T001 e T020 são 🧠 — validar com `opus`.
 
-✅ **As duas dúvidas foram fechadas em 2026-09-01** — D1: Google, com a coordenada em base
-permanentemente (a exceção de licença da ADR-0044 §3 confirmada); D2: tabela semeada dos 5.570
-centroides. Nenhuma `[NEEDS CLARIFICATION]` aberta: pode começar.
+✅ **Sem `[NEEDS CLARIFICATION]` aberta.** D1: BrasilAPI como degrau primário e provedor pago como
+escalada por marca humana (2026-09-01) — **inverte a ADR-0044 §3 e pede adendo**. D2: tabela semeada
+dos 5.570 centroides.
 
-⚠️ A Fase B **não está bloqueada por decisão, e sim por uma chave que ainda não existe**. Ela se
-implementa e se testa inteira com fake de transporte; o que espera a chave é só a variável em staging.
+A ordem das fases é a da escada: o degrau de graça primeiro, porque ele sozinho tira a otimização do
+zero e é a rede que segura a operação se a chave do provedor pago faltar ou for suspensa. A Fase C
+não precisa da chave para ser escrita e testada — só o deploy dela a espera.
 
-A feature tem **duas metades que entregam em separado**, e a ordem não é a óbvia.
+## Fase 0 — O adendo, antes do código
 
-A metade barata vem primeiro **porque ela sozinha já tira a otimização do zero**: o centroide de CEP
-grava precisão `postal_code`, e `postal_code` **passa** no portão de coordenada fina
-(`precision !== 'city'`). Uma parada em centroide de CEP é uma parada boa o bastante para entrar na
-rota — erra o número, não o quarteirão. Fazer o Google primeiro amarraria a entrega inteira a uma
-chave que talvez não exista, por um ganho de precisão sobre uma base que hoje é vazia.
+> 🤖 `opus` 🧠
 
----
+- [ ] T001 🧠 Adendo na ADR-0044 §3 registrando a inversão da cascata: o CEP é primário, o provedor
+      pago é escalada por marca, e a exceção de licença continua valendo sobre um número muito menor
+      de linhas — `docs/adr/0044-*.md` — **aceite:** a próxima pessoa entende por que a ordem
+      escrita na §3 não é a implementada
 
-## Fase A — O fio, e a coordenada que não custa nada
+## Fase A — O fio e o degrau de graça
 
-> Destrava a otimização sem depender de chave paga. Bloqueada só por D2 (em T005).
+- [ ] T002 🧠 Mover `geocode-address.use-case.ts` e `geocoding.port.ts` da API para o worker, e
+      partir `geocoding-precision.policy.ts` por consumidor (`isFinerPrecision` fica na API;
+      `toGeocodingPrecision`/`isOptimizablePrecision` vão para o worker) — **dependência:** T001 —
+      **verificação:** `bun run typecheck` nas duas apps — **aceite:** nenhuma cópia por valor nova;
+      a correção manual da API segue compilando
+- [ ] T003 [P] `drizzle-geocoded-address.repository.ts` no worker sobre `geocodedAddresses`, que
+      `src/database/routing.schema.ts` já declara — **dependência:** T002
+- [ ] T004 Contrato do gateway de CEP **antes** do gateway: corpo real medido, `location` ausente,
+      429, e **CEP geral virando `city` pelo `street` ausente** (RF9 — sem este caso a Fase A põe
+      palpite de quilômetros dentro da rota) — `worker/test/routing/postal-code-geocoding.contract.ts`
+      — **dependência:** T002 — **aceite:** teste vermelho pelo motivo certo
+- [ ] T005 `brasil-api-postal-code.gateway.ts` lendo `location.coordinates` do `/cep/v2` — o **mesmo
+      endpoint** que `postal-code.gateway.ts` já chama e cujo campo é hoje descartado —
+      **dependência:** T004 — **aceite:** grava `source: 'postal_code'`, `external_place_id` vazio
+- [ ] T006 [P] Migration da tabela de centroide de município, **sem `company_id`**, acrescentada ao
+      contrato de tenant safety como **segunda exceção declarada** — **dependência:** T002 —
+      **verificação:** `make migration-test` — **aceite:** exceção dita por escrito
+- [ ] T007 Seed dos 5.570 centroides pelos **use cases**, nunca `INSERT` bruto — **dependência:**
+      T006 — **aceite:** reexecutar não duplica linha
+- [ ] T008 `municipality-centroid.gateway.ts` lendo a tabela — **dependência:** T007, T005 —
+      **aceite:** grava `city`, e a parada sai marcada, fora da otimização
+- [ ] T009 O fio: a fábrica de portas monta a cascata e o handler a chama entre reservar a sugestão e
+      pedir a matriz; `readStops` recebe o mapa resolvido — **dependência:** T003, T005, T008 —
+      **verificação:** `bun run --cwd apps/worker-transportada test` — **aceite:** endereço novo vira
+      linha durante a sugestão (RF2)
+- [ ] T010 [P] Log estruturado **separado por origem** e as causas dos que não resolveram —
+      **dependência:** T009 — **aceite:** P6
+- [ ] T011 Contrato de varredura de log: nenhum campo de endereço em linha nenhuma —
+      **dependência:** T010 — **aceite:** CA9
+- [ ] T012 Integração ponta a ponta com OSRM de fixture, provando parada **dentro** da otimização —
+      **dependência:** T009 — **verificação:** `make routing-fixture && OSRM_DATASET=fixture make routing-up && make worker-integration`
+      — **aceite:** CA10, hoje impossível
 
-- [ ] T001 🧠 Mover `geocode-address.use-case.ts` e `geocoding.port.ts` da API para
-      `worker/src/routing/application/`, e partir `geocoding-precision.policy.ts` por consumidor
-      (`isFinerPrecision` fica na API; `toGeocodingPrecision` e `isOptimizablePrecision` vão para
-      `worker/src/routing/domain/`) — **dependência:** nenhuma — **verificação:**
-      `bun run typecheck` nas duas apps — **aceite:** nenhuma cópia por valor nova; a correção manual
-      da API segue compilando e com contrato verde
-- [ ] T002 [P] `drizzle-geocoded-address.repository.ts` no worker sobre `geocodedAddresses` que
-      `src/database/routing.schema.ts` já declara, com `on conflict (address_key)` —
-      **dependência:** T001 — **verificação:** contrato do repositório
-- [ ] T003 Contrato do gateway de centroide **antes** do gateway: CEP com coordenada, CEP sem
-      coordenada, provedor fora do ar, CEP malformado, e **CEP geral de município virando `city` pelo `street` ausente**
-      (RF9 — sem este caso a Fase A põe palpite de quilômetros dentro da rota) — `worker/test/routing/centroid.contract.ts` —
-      **dependência:** T001 — **aceite:** teste vermelho pelo motivo certo
-- [ ] T004 `centroid.gateway.ts`, degrau do CEP pela BrasilAPI `/cep/v2` — o **mesmo endpoint** que
-      `postal-code.gateway.ts` já chama e cujo `location.coordinates` já vem no corpo e é descartado;
-      `location` é opcional e a ausência desce a cascata —
-      **dependência:** T003 — **verificação:** T003 verde — **aceite:** grava `source: 'postal_code'`,
-      `precision: 'postal_code'`, `external_place_id` vazio (o CHECK só o exige para `google`)
-- [ ] T005a Migration da tabela de centroide de município (código IBGE, lat, lon) — **sem
-      `company_id`**, e acrescentada ao contrato de tenant safety como **segunda exceção declarada**
-      ao lado de `fuel_price_references` — **dependência:** T001 — **verificação:**
-      `make migration-test` — **aceite:** exceção dita por escrito no contrato, não implícita
-- [ ] T005b Seed dos 5.570 centroides, pelos **use cases**, nunca por `INSERT` bruto —
-      **dependência:** T005a — **aceite:** reexecutar não duplica linha
-- [ ] T005c Degrau do município no `centroid.gateway.ts`, lendo a tabela — **dependência:** T005b,
-      T004 — **aceite:** grava `source: 'city'`, `precision: 'city'`, e a parada sai marcada, fora da
-      otimização
-- [ ] T006 O fio: `route-optimization-ports.factory.ts` monta a geocodificação e o handler a chama
-      entre reservar a sugestão e pedir a matriz; `readStops` passa a receber o mapa resolvido em vez
-      de só o `leftJoin` — **dependência:** T002, T004 — **verificação:**
-      `bun run --cwd apps/worker-transportada test` — **aceite:** endereço novo vira linha em
-      `geocoded_addresses` durante a sugestão
-- [ ] T007 [P] Log estruturado `route_optimization_geocoded` com `suggestionId` e contagem, e os três
-      contadores de causa — **dependência:** T006 — **aceite:** RNF1, nenhum campo de endereço
-- [ ] T008 Contrato de varredura de log: a suíte do gateway não emite nenhum campo de endereço em
-      linha nenhuma — `worker/test/routing/geocoding-log-privacy.contract.ts` —
-      **dependência:** T007 — **aceite:** CA5
-- [ ] T009 Integração ponta a ponta com OSRM de fixture e transporte falso, provando parada
-      **dentro** da otimização — `worker/test/integration/` — **dependência:** T006 —
-      **verificação:** `make routing-fixture && OSRM_DATASET=fixture make routing-up && make worker-integration`
-      — **aceite:** CA6, que hoje é impossível
+## Fase B — A população adiantada
 
-## Fase B — O provedor pago, e a precisão de telhado
+- [ ] T013 Contrato da rotina: só chave ausente, endereço repetido é uma chamada, reexecução não
+      refaz nada — `worker/test/geocoding-backfill/routine.contract.ts` — **dependência:** T009
+- [ ] T014 `geocoding.backfill` em `worker/src/geocoding-backfill/`, registrada no
+      `JobRoutineRegistry` e agendada em `job_schedules` — **dependência:** T013 — **aceite:** CA2
+- [ ] T015 [P] Lotes pequenos com intervalo e `AbortSignal` (RNF4) — a BrasilAPI é serviço público —
+      **dependência:** T014
+- [ ] T016 [P] Contrato que trava a forma de `buildStopAddressKey` — mudá-la invalidaria a base
+      inteira de uma vez, e precisa ser decisão, não `replace` — **dependência:** T014
 
-> Decidida. Entrega precisão `rooftop`/`street` sobre a base que a Fase A já fez andar. Implementável
-> sem a chave (fake de transporte); só o deploy em staging a espera.
+## Fase C — A marca, e o degrau que custa
 
-- [ ] T010 🧠 `GEOCODING_API_KEY` no schema de env do worker como **opcional**, com o gateway
-      construído só quando ela existe e aviso estruturado uma vez no boot quando não —
-      **dependência:** Fase A — **verificação:** `bun run typecheck` — **aceite:** RF5, a app sobe sem
-      a chave
-- [ ] T011 Contrato do gateway Google **por fake de transporte, não por porta falsa** (CA4): os
-      quatro `location_type`, `ZERO_RESULTS`, 429, timeout, e `place_id` sempre persistido —
-      `worker/test/routing/google-geocoding.contract.ts` — **dependência:** T010 — **aceite:** teste
-      vermelho; e nenhum teste desta fase passa com `GeocodingPort` substituída por objeto literal
-- [ ] T012 `google-geocoding.gateway.ts` — o arquivo que a T006 da spec 058 listou e nunca escreveu —
-      com concorrência limitada e `AbortSignal` (RNF4) — **dependência:** T011 —
-      **verificação:** T011 verde
-- [ ] T013 [P] Atualizar o achado de endereço saindo para terceiro em `docs/SECURITY.md` — não
-      repetir: o achado existente é o termo do Photon, e agora há um segundo fluxo com endereço
-      estruturado de NF-e sob a exceção de licença da ADR-0044 §3 — **dependência:** T012
-- [ ] T014 [P] `.env.example`: o comentário de `GEOCODING_API_KEY` passa a dizer o efeito real —
-      hoje ele descreve um comportamento que nenhum código implementa — **dependência:** T012
-- [ ] T015 Consulta de volume (RF8): novos por período e total em base, sobre
-      `geocoded_addresses.geocoded_at`, que já tem índice — **dependência:** T012 — **aceite:** P4
+> Implementável e testável inteira **sem a chave** (fake de transporte). Só o deploy a espera.
 
-## Fase C — Fecho
+- [ ] T017 [P] `GEOCODING_API_KEY` opcional no schema de env da API, com o gateway construído só
+      quando existe — **dependência:** T009 — **aceite:** RF7, a app sobe sem a chave
+- [ ] T018 Contrato do gateway pago **por fake de transporte, não por porta falsa** (CA5): os quatro
+      `location_type`, `ZERO_RESULTS`, 429, `place_id` sempre persistido — **dependência:** T017 —
+      **aceite:** nenhum teste passa com `GeocodingPort` substituída por objeto literal
+- [ ] T019 `google-geocoding.gateway.ts` na API — o arquivo que a T006 da spec 058 listou e nunca
+      escreveu — **dependência:** T018
+- [ ] T020 🧠 `refine-address.use-case.ts` e a rota `POST
+/route-suggestions/:id/stops/:stopId/refine-address` (`trip.manage`), com as **três** respostas
+      — substituiu, não melhorou, sem chave — e **nunca `204` mudo** — **dependência:** T019 —
+      **aceite:** CA7 e CA8; a linha em base fica intacta quando não melhorou
+- [ ] T021 [P] Trilha da marca (RF10), append-only — **dependência:** T020
+- [ ] T022 [P] Teto por janela (RF11) — sem tenant na tabela, a marca de uma empresa gasta por todas
+      — **dependência:** T020
+- [ ] T023 **CA6 — o contrato que guarda a decisão de custo:** uma sugestão inteira, com endereços
+      novos e paradas colidindo na mesma coordenada, faz **zero** chamadas ao provedor pago —
+      **dependência:** T020 — **aceite:** sem ele, alguém acrescenta escalada automática seis meses
+      adiante e ninguém vê
+- [ ] T024 Ação "endereço errado" no painel de sugestão, imprimindo a resposta da rota — inclusive o
+      _"não melhorou — ajuste o ponto à mão"_, que oferece o degrau 3 — **dependência:** T020
+- [ ] T025 [P] Atualizar o achado de endereço saindo para terceiro em `docs/SECURITY.md` — não
+      repetir: o existente é o termo do Photon, e agora há dois fluxos novos — **dependência:** T019
+- [ ] T026 [P] `.env.example`: o comentário de `GEOCODING_API_KEY` descreve hoje um comportamento que
+      nenhum código implementa — **dependência:** T019
 
-- [ ] T016 `make check` verde e `evidence.md` das duas fases — **dependência:** Fase A (e Fase B, se
-      D1 destravar) — **aceite:** CA7
+## Fase D — Fecho
+
+- [ ] T027 `make check` verde e `evidence.md` das quatro fases — **aceite:** CA11
 
 ---
 
 ## Rastreabilidade
 
-| requisito | tasks                                 |
-| --------- | ------------------------------------- |
-| RF1, RF2  | T011, T012                            |
-| RF3       | T003, T004, T005                      |
-| RF4       | T006                                  |
-| RF5       | T010                                  |
-| RF6       | já implementado; regressão em T006    |
-| RF7       | regressão em T001                     |
-| RF8       | T015                                  |
-| RNF1      | T007, T008                            |
-| RNF2      | T010                                  |
-| RNF3      | T001 (a decisão de mover, não copiar) |
-| RNF4      | T012                                  |
-| RNF5      | T002                                  |
+| requisito               | tasks                     |
+| ----------------------- | ------------------------- |
+| RF1 (população)         | T013, T014, T015          |
+| RF2 (sob demanda)       | T009                      |
+| RF3 (marca humana)      | T020, T023                |
+| RF4 (substituição)      | T020                      |
+| RF5 (não melhorou)      | T020, T024                |
+| RF6 (`place_id`)        | T018, T019                |
+| RF7 (sem chave)         | T017, T020                |
+| RF8 (cascata de queda)  | T005, T008                |
+| RF9 (CEP geral)         | T004, T005                |
+| RF10 (trilha)           | T021                      |
+| RF11 (permissão e teto) | T022                      |
+| RNF1                    | T010, T011                |
+| RNF2                    | T017                      |
+| RNF3                    | T002 (a decisão de mover) |
+| RNF4                    | T015                      |
+| RNF5                    | T003, T006                |

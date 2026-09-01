@@ -55,58 +55,98 @@ parada correspondente entra na otimização.
 
 ## Histórias priorizadas
 
-### P1 — A parada entra na otimização
+### P1 — A coordenada já está lá quando alguém pede o roteiro
 
-**Given** uma viagem com paradas cujos endereços nunca foram geocodificados
-**When** o conferente pede a sugestão de roteiro
-**Then** os endereços são resolvidos em coordenada fina, gravados em `geocoded_addresses` com
-`external_place_id`, e as paradas entram na otimização — e um segundo pedido para a mesma viagem
-**não chama o provedor nenhuma vez**.
+**Given** notas chegando com endereços de entrega ao longo do dia
+**When** a rotina de população roda
+**Then** todo endereço distinto que ainda não está em base é resolvido pelo CEP e gravado — e quando
+o conferente pede a sugestão, **nenhuma chamada de rede acontece no caminho dele**.
 
-### P2 — O endereço que não resolve é marcado, não inventado
+### P2 — O endereço que aparece pela primeira vez não trava a sugestão
 
-**Given** um endereço que o provedor não acha (rua nova, XML mal formatado)
+**Given** uma nota que chegou minutos antes, cujo endereço a rotina ainda não alcançou
 **When** a sugestão é pedida
-**Then** a cascata desce ao centroide do CEP e, faltando ele, ao do município — e a parada entra
-`excludedFromOptimization`, visível na tela como palpite, nunca dentro da rota.
+**Then** ele é resolvido ali mesmo e gravado — a população é adiantamento, nunca pré-requisito.
 
-### P3 — A queda do provedor não derruba a sugestão
+### P3 — O conferente corrige o que saiu muito errado
 
-**Given** o geocodificador fora do ar ou sem chave configurada
+**Given** uma parada cuja coordenada de CEP põe o cliente longe de onde ele está
+**When** o conferente marca a parada como errada
+**Then** aquele endereço é reconsultado no provedor fino, a coordenada melhor substitui a de CEP, e
+o roteiro seguinte já usa a nova — sem que ninguém precise mexer em configuração.
+
+### P4 — O endereço que não resolve é marcado, não inventado
+
+**Given** um endereço cujo CEP não devolve coordenada
 **When** a sugestão é pedida
-**Then** os endereços já em base seguem otimizando normalmente, os novos descem a cascata, e a
-sugestão sai com as paradas que dá — nunca `failed`, e nunca com coordenada estimada em linha reta.
+**Then** a cascata desce ao centroide do município, e a parada entra `excludedFromOptimization`,
+visível na tela como palpite — nunca dentro da rota.
 
-### P4 — O custo é observável antes de ser fatura
+### P5 — A queda do provedor não derruba a sugestão
+
+**Given** a BrasilAPI fora do ar
+**When** a sugestão é pedida
+**Then** os endereços já em base seguem otimizando normalmente, os novos descem ao município, e a
+sugestão sai com as paradas que dá.
+
+### P6 — O custo é observável antes de ser fatura
 
 **Given** a operação rodando por um mês
 **When** alguém pergunta quanto a geocodificação custou
-**Then** existe número: endereços novos geocodificados no período e total em base
-(ADR-0044 §3, mitigação 3).
+**Then** existe número, e ele é separado por origem: quantos endereços saíram de graça pelo CEP e
+quantos foram ao provedor pago (ADR-0044 §3, mitigação 3).
 
 ## Requisitos funcionais
 
-1. **RF1** — Um adaptador de `GeocodingPort` que resolve logradouro + número + CEP + município em
-   coordenada, mapeando a precisão declarada pelo provedor pela política que já existe
-   (`toGeocodingPrecision`).
-2. **RF2** — Toda geocodificação bem-sucedida pelo provedor grava `external_place_id` não vazio. O
-   CHECK `geocoded_addresses_place_id_check` já cobra isso no banco; o aceite cobra pelo adaptador.
-3. **RF3** — Um adaptador de `CentroidPort`, com os dois degraus (CEP e município).
-4. **RF4** — `geocodeAddresses` é chamada no caminho real da sugestão, antes de a matriz ser pedida,
-   e o que ela resolve fica disponível para `readStops`.
-5. **RF5** — Provedor sem chave configurada **não derruba nada**: a cascata desce, e a app sobe.
-6. **RF6** — Endereço já em `geocoded_addresses` nunca é reenviado ao provedor.
-7. **RF7** — A correção manual continua vencendo qualquer geocodificação posterior (já implementado
-   em `shouldReplaceStored`; aqui é regressão a não quebrar).
-8. **RF8** — Contagem de endereços geocodificados por período, consultável.
-9. **RF9 — O CEP geral não se disfarça de quarteirão.** Cidade pequena tem **um CEP para o município
-   inteiro**. O centroide dele é um palpite de quilômetros, e gravá-lo como `postal_code` passaria no
-   portão de coordenada fina (`precision !== 'city'`) e o poria **dentro** da rota — o modo de falha
-   exato que a ADR-0044 §1 existe para impedir, e o mesmo do extract pequeno demais: número
-   plausível, sem aviso.
+### A escada tem três degraus, e cada um só existe porque o anterior não bastou
 
-   **O discriminador não é palpite sobre os dígitos do CEP; é o `street` da resposta**, e isso foi
-   medido em 2026-09-01 contra a BrasilAPI:
+Esta é a mudança de desenho de 2026-09-01, e ela inverte a cascata da ADR-0044 §3:
+
+| degrau | quem resolve               | quando                                         | custo        |
+| ------ | -------------------------- | ---------------------------------------------- | ------------ |
+| 1      | **BrasilAPI `/cep/v2`**    | sempre, por rotina de população                | zero         |
+| 2      | **provedor fino (Google)** | só quando um humano marca a parada como errada | por endereço |
+| 3      | **pino manual**            | quando nem o degrau 2 acertou                  | zero         |
+
+A razão de o CEP ser o primeiro e não o segundo: ele resolve quase sempre — medido inclusive numa
+cidade de 11 mil habitantes —, a coordenada dele **já vem no corpo que a API hoje descarta**, e ele
+não tem custo nem exceção de licença. Deixar o provedor pago em primeiro faria a instalação pagar por
+precisão de telhado em cada endereço, inclusive nos milhares em que a rua já bastava.
+
+⚠️ **Consequência dita por extenso: o provedor pago passa a quase nunca ser chamado.** Isso é a
+escolha, não um efeito colateral — o produto roteiriza com precisão de CEP por padrão, e compra
+precisão fina só onde alguém olhou e disse que estava errado. Se a operação for concentrada (vários
+clientes na mesma rua ou no mesmo CEP), a marca vai ser usada com frequência, e é ela que vai dizer
+isso com número.
+
+### Os requisitos
+
+1. **RF1 — Rotina de população.** Varre os endereços de entrega das notas por chave ainda ausente de
+   `geocoded_addresses` e resolve pelo degrau 1, em lotes pequenos. Endereço já em base **não é
+   tocado**; endereço repetido entre notas é uma chamada, não N.
+2. **RF2 — Resolução sob demanda.** Endereço que a rotina ainda não alcançou é resolvido dentro da
+   sugestão e gravado. A população adianta trabalho; ela nunca é pré-requisito para sugerir.
+3. **RF3 — A escada sobe por marca humana, não por heurística.** O conferente marca a parada como
+   errada e **só então** o endereço vai ao provedor fino. Nenhum gatilho automático decide gastar.
+4. **RF4 — Coordenada melhor substitui a pior, e o pino manual vence tudo.** É o que
+   `shouldReplaceStored` já implementa (`rooftop` > `street` > `postal_code` > `city`, e `manual`
+   acima de todos) — o degrau 2 é a cascata usada na direção que ela já sabe ir.
+5. **RF5 — A marca que não melhorou precisa dizer isso.** Se o provedor fino devolver precisão igual
+   ou pior, `shouldReplaceStored` **recusa a escrita** — e sem aviso o conferente marca, nada muda na
+   tela, e ele conclui que a marca não funciona. A resposta é explícita: _"o provedor não fez
+   melhor — ajuste o ponto à mão"_, oferecendo o degrau 3.
+6. **RF6 — Toda geocodificação pelo provedor pago grava `external_place_id`** não vazio (ADR-0044 §3,
+   mitigação 1). O CHECK já cobra no banco; o aceite cobra no adaptador.
+7. **RF7 — Provedor pago sem chave configurada não derruba nada.** A marca responde que a precisão
+   fina não está disponível e oferece o pino manual. A app sobe sem a chave.
+8. **RF8 — Cascata de queda.** Degrau 1 sem resposta desce ao centroide de município; o que não
+   resolve em degrau nenhum não entra no mapa de saída, e a parada fica sem coordenada.
+9. **RF9 — O CEP geral não se disfarça de quarteirão.** Cidade pequena tem **um CEP para o município
+   inteiro**, e o centroide dele é palpite de quilômetros. Gravá-lo como `postal_code` o poria dentro
+   da rota — o modo de falha que a ADR-0044 §1 existe para impedir.
+
+   **O discriminador não é palpite sobre os dígitos do CEP; é o `street` da resposta**, medido em
+   2026-09-01:
 
    | CEP         | cidade         | `street`                     | precisão      |
    | ----------- | -------------- | ---------------------------- | ------------- |
@@ -114,75 +154,99 @@ sugestão sai com as paradas que dá — nunca `failed`, e nunca com coordenada 
    | `14015-000` | Ribeirão Preto | `Rua Visconde do Rio Branco` | `postal_code` |
    | `14801-000` | Araraquara     | `Avenida Presidente Vargas`  | `postal_code` |
 
-   CEP geral não tem logradouro por definição, e CEP de logradouro sempre tem — então `street`
-   ausente é o sinal autoritativo, vindo do próprio corpo. Casar pelo sufixo `-000` seria heurística
-   sobre um padrão que a numeração dos Correios não garante.
+   CEP geral não tem logradouro por definição; CEP de logradouro sempre tem. Casar pelo sufixo `-000`
+   classificaria a avenida de Araraquara como palpite de município.
+
+10. **RF10 — A marca é registrada, não só executada.** Quem marcou, qual endereço, o que o provedor
+    devolveu e se substituiu. Sem isso não há como responder se comprar precisão fina valeu a pena —
+    que é a medição que a ADR-0044 §5 pede para afinar o produto.
+11. **RF11 — Marcar exige permissão e tem teto.** A marca gasta dinheiro, e
+    `geocoded_addresses` **não tem tenant**: o endereço marcado por uma empresa é reconsultado para
+    todas. A permissão é a de quem monta viagem (`trip.manage`), e existe limite por janela.
 
 ## Requisitos não funcionais
 
 - **RNF1 — Nenhum endereço em log, em nenhum nível.** `security.md` §1 e o comentário que já está na
-  `GeocodingPort`. O identificador que rastreia é a `addressKey`. Isto vale para log de erro do
-  provedor: a resposta dele carrega o endereço de volta.
-- **RNF2 — A chave do provedor é segredo de ambiente**, validada por schema no boot, e nunca com
+  `GeocodingPort`. O identificador que rastreia é a `addressKey`. Vale para log de erro do provedor:
+  a resposta dele carrega o endereço de volta.
+- **RNF2 — A chave do provedor pago é segredo de ambiente**, validada por schema no boot, nunca com
   prefixo `VITE_`.
-- **RNF3 — Geocodificar é trabalho assíncrono.** Nada disto entra no caminho de request de vincular
-  nota: o separador que bipa uma etiqueta não espera por rede de terceiro.
-- **RNF4 — Rajada limitada.** Uma sugestão de 200 paradas com 200 endereços novos são 200 chamadas;
-  elas saem com concorrência limitada e com `AbortSignal`, não em `Promise.all` sobre a lista inteira.
+- **RNF3 — Nada disto entra no caminho de request de vincular nota.** O separador que bipa uma
+  etiqueta não espera por rede de terceiro.
+- **RNF4 — A rotina de população é gentil.** A BrasilAPI é serviço público e gratuito; lotes
+  pequenos, com intervalo, e `AbortSignal`. Rajada de milhares de requisições é bloqueio merecido.
 - **RNF5 — `geocoded_addresses` não tem `company_id`, e continua assim.** A coordenada de um endereço
-  não é de ninguém (decisão registrada no schema). O contrato de tenant safety que a lista como
-  exceção declarada não muda.
+  não é de ninguém. O contrato de tenant safety que a lista como exceção declarada não muda.
 
 ## Casos extremos e falhas
 
-| caso                                                  | comportamento                                                                                                                              |
-| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| chave ausente                                         | app sobe, cascata desce ao centroide, aviso estruturado uma vez no boot                                                                    |
-| provedor devolve 429 / 5xx                            | cascata desce para aquele endereço; sem retry dentro da sugestão                                                                           |
-| provedor devolve `ZERO_RESULTS`                       | é resposta legítima, não erro: cascata desce                                                                                               |
-| provedor devolve `location_type` novo                 | vira `city` pela política que já existe — o desconhecido é o palpite mais grosseiro                                                        |
-| CEP vazio ou malformado no XML                        | pula o degrau do CEP, vai ao município                                                                                                     |
-| **CEP geral de cidade pequena**                       | **classificado como `city`, não `postal_code`** — ver RF9                                                                                  |
-| município sem código IBGE                             | endereço não entra no mapa de saída; parada fica sem coordenada                                                                            |
-| duas sugestões concorrentes com o mesmo endereço novo | a segunda pode geocodificar de novo; a escrita é idempotente pela PK, e o gasto de uma chamada extra é aceitável contra o custo de um lock |
-| endereço já corrigido à mão                           | `manual` vence, provedor não é chamado                                                                                                     |
+| caso                                                  | comportamento                                                           |
+| ----------------------------------------------------- | ----------------------------------------------------------------------- |
+| endereço já em base                                   | rotina não toca, sugestão não consulta                                  |
+| mesmo endereço em cem notas                           | uma chamada, não cem                                                    |
+| CEP geral de cidade pequena                           | `city` pelo `street` ausente (RF9)                                      |
+| `location` ausente na resposta do CEP                 | degrau não resolve, desce ao município                                  |
+| BrasilAPI 429 ou fora do ar                           | rotina para o lote e retoma na próxima janela; sugestão desce a cascata |
+| **marca sem chave configurada**                       | responde que a precisão fina não está disponível, oferece o pino        |
+| **provedor fino devolve precisão igual ou pior**      | escrita recusada e **dito ao conferente** (RF5)                         |
+| **provedor fino não acha o endereço**                 | mesma resposta: nada melhorou, ajuste à mão                             |
+| endereço já com pino manual                           | `manual` vence; a marca não o desfaz                                    |
+| duas sugestões concorrentes com o mesmo endereço novo | escrita idempotente pela PK; uma chamada extra é aceitável              |
+| município sem código IBGE                             | não entra no mapa de saída; parada sem coordenada                       |
 
 ## Critérios de aceite
 
 - **CA1** — Com o provedor injetado por **fake de transporte** (não por porta falsa), um endereço
-  novo vira linha em `geocoded_addresses` com `source: 'google'`, precisão mapeada e
-  `external_place_id` preenchido.
-- **CA2** — Repetir a mesma sugestão faz **zero** chamadas ao transporte.
-- **CA3** — Transporte que lança faz a cascata descer e a sugestão sair; nenhuma exceção sobe ao
+  novo vira linha em `geocoded_addresses` com a origem e a precisão corretas; pelo provedor pago,
+  com `external_place_id` preenchido.
+- **CA2** — A rotina rodada duas vezes sobre a mesma base faz **zero** chamadas na segunda.
+- **CA3** — Repetir a mesma sugestão faz **zero** chamadas ao transporte.
+- **CA4** — Transporte que lança faz a cascata descer e a sugestão sair; nenhuma exceção sobe ao
   handler.
-- **CA4** — Nenhum teste de aceite desta spec passa com a `GeocodingPort` substituída por objeto
-  literal. A costura testada é a do adaptador para baixo.
-- **CA5** — Varredura de log da suíte: nenhum campo de endereço aparece em nenhuma linha emitida.
-- **CA6** — Uma sugestão real, ponta a ponta com OSRM de fixture, sai com paradas **dentro** da
+- **CA5** — Nenhum teste de aceite desta spec passa com a `GeocodingPort` substituída por objeto
+  literal. A costura testada é a do adaptador para baixo — foi assim que a T006 da 058 ficou verde
+  sem adaptador.
+- **CA6** — **A marca é a única coisa que chama o provedor pago.** Uma sugestão inteira, com
+  endereços novos e paradas colidindo na mesma coordenada, faz **zero** chamadas a ele.
+- **CA7** — Marca cujo provedor devolveu precisão igual ou pior responde dizendo que nada melhorou e
+  oferecendo o pino manual — e a linha em base fica **intacta** (RF5).
+- **CA8** — Marca sem chave configurada responde a mesma coisa, sem exceção e sem app derrubada.
+- **CA9** — Varredura de log da suíte: nenhum campo de endereço em nenhuma linha emitida.
+- **CA10** — Uma sugestão real, ponta a ponta com OSRM de fixture, sai com paradas **dentro** da
   otimização — que é o que hoje é impossível.
-- **CA7** — `make check` verde.
+- **CA11** — `make check` verde.
 
 ## Dúvidas
 
-### D1 — O provedor ✅ decidido em 2026-09-01
+### D1 — Os provedores e a ordem entre eles ✅ decidido em 2026-09-01
 
-**Google, com a coordenada guardada em base permanentemente.** Confirma a ADR-0044 §3, e confirma com
-ela a **exceção de licença assumida por escrito**: os Termos do Google Maps Platform permitem cache de
-lat/lng por 30 dias corridos, e o armazenamento indefinido que fazemos aqui está fora deles. A saída
-barata continua sendo o `place_id`, que é armazenável sem exceção nenhuma e por isso é `not null` no
-schema.
+**A BrasilAPI é o degrau primário; o provedor pago é escalada por marca humana.** Isto **inverte a
+cascata da ADR-0044 §3**, que punha o Google em primeiro e o CEP como queda — e a inversão pede
+adendo na ADR, porque a §3 justificou a escolha do Google como _o_ geocodificador, não como recurso.
 
-Recusada de novo, pelo mesmo motivo da ADR: hospedar geocodificador nosso (Nominatim sobre o mesmo
-extract OSM do OSRM). **Não compensa por dinheiro** — e a razão é que as duas camadas têm formatos de
-chamada opostos:
+O que mudou desde que a ADR foi escrita: mediu-se que a coordenada do CEP **já chega no corpo que a
+API descarta hoje**, e que ela resolve até em cidade de 11 mil habitantes. O degrau de graça deixou
+de ser teórico.
+
+O que **não** mudou e continua valendo integralmente:
+
+- a coordenada é guardada em base **permanentemente**, e é isso que faz endereço já visto nunca ser
+  reconsultado;
+- toda coordenada vinda do provedor pago grava `place_id`, e o CHECK do banco a cobra — a mitigação
+  da §3 sobrevive à inversão, e passa a cobrir um número **muito menor** de linhas;
+- a **exceção de licença** segue assumida por escrito, com exposição bem menor: quase nenhuma
+  coordenada em base virá do Google.
+
+Recusado de novo, pelo mesmo motivo da ADR: hospedar geocodificador nosso (Nominatim sobre o mesmo
+extract OSM do OSRM). **Não compensa por dinheiro** — as duas camadas têm formatos de chamada opostos:
 
 | camada            | quantas chamadas                       | forma do custo                                       |
 | ----------------- | -------------------------------------- | ---------------------------------------------------- |
 | matriz de estrada | milhares **por sugestão**              | recorrente e sem teto → hospedar ganha (ADR-0044 §2) |
 | geocodificação    | uma por endereço **novo**, para sempre | pagamento único que **decai** conforme a base satura |
 
-Servidor de pé 24/7 é custo fixo que nunca decai; a conta do Google cai para o punhado de endereços
-novos do mês. Hospedar geocodificador se justificaria por licença ou privacidade — nunca por economia.
+Servidor de pé 24/7 é custo fixo que nunca decai. E com a inversão o argumento fica mais forte
+ainda: o gasto com o provedor pago tende a quase zero, e nenhum servidor nosso compete com zero.
 
 #### O que exatamente vai para o banco
 
@@ -196,10 +260,12 @@ Precisão importa aqui, porque "guardar os endereços" e o que a tabela faz não
 de entrega existe e fica aqui", sem dizer de quem é. Duas empresas que entregam na mesma rua não
 geocodificam duas vezes.
 
-⚠️ **Pendência operacional, não de código:** a chave não existe. Alguém precisa criar o projeto no
-Google Cloud com faturamento, gerar a chave da Geocoding API **restrita a ela**, e pô-la em
-`GEOCODING_API_KEY` no worker. Enquanto isso não acontece, a Fase A entrega e a Fase B fica pronta
-esperando a variável — o gateway só é construído quando ela existe (RF5).
+⚠️ E é também por isso que a marca precisa de permissão e de teto (RF11): sem tenant, o endereço que
+uma empresa manda reconsultar é reconsultado para todas.
+
+⚠️ **Pendência operacional, não de código:** a chave do provedor pago não existe. Enquanto ela não
+existir, tudo funciona **menos** o degrau 2 — a marca responde que a precisão fina não está
+disponível e oferece o pino manual. Isso não bloqueia entrega nenhuma desta spec.
 
 ### D2 — De onde vem o centroide? ✅ decidido em 2026-09-01
 
