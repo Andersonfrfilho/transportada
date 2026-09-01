@@ -124,6 +124,15 @@
    */
   margin: 0 0 var(--space-2);
   font-family: var(--font-display);
+  /*
+   * Menor que o `h1` global (`clamp(3.5rem, 15vw, 9rem)`), que é calibrado para título de uma ou
+   * duas palavras. "Preferências de notificação" tem três e quebrava em três linhas de letra
+   * enorme, empurrando a tela inteira para baixo da dobra. O `max-width` do global também sai:
+   * 12ch quebraria o título mesmo nesta medida.
+   */
+  max-width: none;
+  font-size: clamp(1.75rem, 5vw, 2.75rem);
+  line-height: 1.05;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--color-fog);
