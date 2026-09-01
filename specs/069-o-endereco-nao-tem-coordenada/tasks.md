@@ -50,7 +50,7 @@ não precisa da chave para ser escrita e testada — só o deploy dela a espera.
       **dependência:** T009 — **aceite:** P6
 - [x] T011 ✅ Contrato de varredura de log: nenhum campo de endereço em linha nenhuma —
       **dependência:** T010 — **aceite:** CA9
-- [ ] T012 Integração ponta a ponta com OSRM de fixture, provando parada **dentro** da otimização —
+- [x] T012 ✅ Integração ponta a ponta com OSRM de fixture, provando parada **dentro** da otimização —
       **dependência:** T009 — **verificação:** `make routing-fixture && OSRM_DATASET=fixture make routing-up && make worker-integration`
       — **aceite:** CA10, hoje impossível
 

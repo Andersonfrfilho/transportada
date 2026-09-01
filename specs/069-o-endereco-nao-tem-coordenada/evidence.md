@@ -240,3 +240,41 @@ Os três testes asseram `lines.length > 0` antes de varrer — sem isso, um cami
 não loga passaria verde e a varredura não provaria nada.
 
 **Verificação:** `bun run --cwd apps/worker-transportada test` → **840 pass / 0 fail** (era 837).
+
+### T012 ✅ 2026-09-01 — CA10: a parada entra na rota
+
+`worker/test/geocoded-route-optimization.integration.test.ts`. **Só o depósito** entra em
+`geocoded_addresses`; os dois destinos ficam de fora de propósito — é isso que o teste exercita.
+
+O que ele prova, contra Postgres de verdade:
+
+- a sugestão chega a `ready` com `error_code` vazio;
+- a cascata **gravou** os dois endereços que faltavam — `postal_code` para o CEP que resolve, `city`
+  para o que cai no município;
+- **a parada resolvida está em `route_suggestion_stops`.** Antes desta spec essa lista era vazia para
+  qualquer endereço não semeado à mão, e a sugestão saía `ready` sem propor nada.
+
+Real: repositório, cascata, centroide lido do banco, efeito, solver e Postgres. **Stub: a matriz e o
+transporte do CEP** — a matriz pela mesma razão do teste do pool (o OSRM não sobe no CI) e o
+transporte porque bater na BrasilAPI dentro da suíte tornaria o teste refém de um serviço público.
+
+**Verificação:**
+
+```
+make worker-integration                                     → 62 pass / 4 skip / 0 fail
+bun test ./test/geocoded-route-optimization.integration.test.ts  → 1 pass, 7 expect() calls
+```
+
+⚠️ Rodei o arquivo isolado de propósito: no agregado ele poderia estar entre os `skip` (os quatro são
+os do OSRM, que pulam sem `ROUTING_MATRIX_URL`) e o número verde não provaria nada.
+
+---
+
+## Fase A completa
+
+| verificação                                   | resultado                    |
+| --------------------------------------------- | ---------------------------- |
+| `bun run --cwd apps/worker-transportada test` | 840 pass / 0 fail            |
+| `bun run --cwd apps/api-transportada test`    | 3829 pass / 23 skip / 0 fail |
+| `make migration-test`                         | 90 pass / 0 fail             |
+| `make worker-integration`                     | 62 pass / 4 skip / 0 fail    |
