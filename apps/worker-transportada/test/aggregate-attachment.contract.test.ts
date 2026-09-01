@@ -3,3 +3,4 @@
  */
 import './aggregate-attachment/envelope.contract.js'
 import './aggregate-attachment/extraction.contract.js'
+import './aggregate-attachment/document-extraction.contract.js'

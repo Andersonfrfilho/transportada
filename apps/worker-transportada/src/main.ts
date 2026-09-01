@@ -108,6 +108,9 @@ import { AggregateAttachmentOutboxRelayService } from './aggregate-attachment/ap
 import { DrizzleAggregateAttachmentOutboxRepository } from './aggregate-attachment/infrastructure/drizzle-aggregate-attachment-outbox.repository.js'
 import { createDrizzleAggregateAttachmentWriteBackRepository } from './aggregate-attachment/infrastructure/drizzle-aggregate-attachment-write-back.repository.js'
 import { createStorageAttachmentReaderGateway } from './aggregate-attachment/infrastructure/storage-attachment-reader.gateway.js'
+import { createTesseractOcrClient } from '@adatechnology/document-intake'
+
+import { createDocumentExtractionGateway } from './aggregate-attachment/infrastructure/document-extraction.gateway.js'
 import { createThreadedAttachmentExtractionGateway } from './aggregate-attachment/infrastructure/threaded-extraction.gateway.js'
 import { startAggregateAttachmentConsumer } from './runtime/aggregate-attachment-consumer.service.js'
 import type { ExtractAttachmentFieldsDependencies } from './aggregate-attachment/application/extract-attachment-fields.use-case.js'
@@ -866,7 +869,12 @@ export async function startWorkerRuntime(
     aggregateAttachmentConsumer = await aggregateAttachmentStarter({
       config,
       dependencies: {
-        extraction: createThreadedAttachmentExtractionGateway(),
+        extraction: createDocumentExtractionGateway({
+          ...(config.aggregateDocumentOcrUrl === undefined
+            ? {}
+            : { ocr: createTesseractOcrClient({ baseUrl: config.aggregateDocumentOcrUrl }) }),
+          textLayer: createThreadedAttachmentExtractionGateway(),
+        }),
         reader: createStorageAttachmentReaderGateway({ storage: storageGateway }),
         writeBack: createDrizzleAggregateAttachmentWriteBackRepository(
           database.db as ReturnType<typeof createDrizzleProvider>['db'],

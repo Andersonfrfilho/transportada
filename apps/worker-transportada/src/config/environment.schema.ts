@@ -71,6 +71,11 @@ const workerEnvironmentSchema = z
       .default('false')
       .transform((value) => value === 'true'),
     FOUNDATION_SYNTHETIC_EFFECT_DELAY_MS: z.coerce.number().int().min(0).max(30_000).default(0),
+    // Spec 071: o `tesseract-server` self-hosted que lê a CNH fotografada. Opcional, e a ausência é
+    // silenciosa de propósito — leitura é conveniência para o operador, nunca porta de entrada, e um
+    // serviço que não existe não pode reciclar a mensagem do anexo para sempre. Mesma variável e
+    // mesma regra de endereço confiável que a API usa, por valor.
+    AGGREGATE_DOCUMENT_OCR_URL: optionalTrustedUrl('AGGREGATE_DOCUMENT_OCR_URL'),
     LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
     // Endereço público desta instalação, de onde sai a `CallbackUrl` obrigatória do `/emitir`. É a
     // mesma variável que a API usa para registrar a rota do postback — configurar uma sem a outra é
@@ -187,6 +192,9 @@ export function parseWorkerEnvironment(
   return {
     apiBaseUrl: result.data.API_BASE_URL,
     appBaseUrl: result.data.APP_BASE_URL,
+    ...(result.data.AGGREGATE_DOCUMENT_OCR_URL === undefined
+      ? {}
+      : { aggregateDocumentOcrUrl: result.data.AGGREGATE_DOCUMENT_OCR_URL }),
     appEnv: result.data.APP_ENV,
     ...(technicalResponsible === undefined
       ? {}

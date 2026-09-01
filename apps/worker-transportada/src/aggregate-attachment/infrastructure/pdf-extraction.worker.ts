@@ -15,6 +15,7 @@ import * as pdfjsLegacy from 'pdfjs-dist/legacy/build/pdf.mjs'
 import {
   identifyDocumentKind,
   readCcmei,
+  readCrlv,
   readPdfTextLayer,
   type PdfGetDocument,
 } from '@adatechnology/document-intake'
@@ -48,17 +49,21 @@ export type PdfExtractionWorkerResult = Readonly<{
  * O tipo declarado vem do cliente anônimo — ele diz `ccmei` e manda outra coisa. Quem decide o mapa
  * é o **documento**, pelo título na faixa superior; ler com o mapa errado produziria campos
  * inventados, e campo inventado vira divergência falsa contra a ficha de quem se candidatou.
+ *
+ * ⚠️ Spec 071: por isso o tipo declarado **não** filtra mais nada aqui. Antes ele barrava tudo que
+ * não fosse `ccmei`, e com o campo da tela virando "documento da empresa" o mesmo CCMEI passaria a
+ * chegar sob outro nome e deixaria de ser lido. Quem manda continua sendo o documento.
  */
 export async function extractAttachmentFields(
   input: PdfExtractionWorkerData,
 ): Promise<PdfExtractionWorkerResult> {
-  if (input.type !== 'ccmei') return { fields: null }
-
   const page = await readPdfTextLayer({ data: input.bytes, getDocument })
-  if (identifyDocumentKind(page) !== 'ccmei') return { fields: null }
+  const kind = identifyDocumentKind(page)
 
-  const reading = readCcmei(page)
-  return { fields: Object.keys(reading.values).length === 0 ? null : { ...reading.values } }
+  const values =
+    kind === 'ccmei' ? readCcmei(page).values : kind === 'crlv' ? readCrlv(page).values : {}
+
+  return { fields: Object.keys(values).length === 0 ? null : { ...values } }
 }
 
 if (parentPort !== null) {

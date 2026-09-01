@@ -58,6 +58,12 @@ export type MdfeAutoIssueEnvironment = {
 }
 
 export type WorkerEnvironment = {
+  /**
+   * O `tesseract-server` que lê a CNH fotografada do anexo da candidatura (spec 071). Ausente
+   * desliga o OCR em silêncio: a leitura é conveniência para o operador, nunca porta de entrada, e
+   * serviço que não existe não pode reciclar a mensagem do anexo para sempre.
+   */
+  readonly aggregateDocumentOcrUrl?: string
   /** Endereço da própria API. Hoje o e-mail de código lê dele a marca pública da instalação. */
   readonly apiBaseUrl: string | undefined
   /** Origem do painel, de onde o rodapé do e-mail carrega o desenho da Ada. */

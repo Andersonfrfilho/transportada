@@ -72,7 +72,7 @@ describe('aggregate application attachments schema', () => {
     const checks = checkSqlByName(aggregateApplicationAttachments)
 
     expect(checks['aggregate_application_attachments_type_check']).toContain(
-      "in ('ccmei', 'cnh', 'crlv', 'other')",
+      "in ('address_proof', 'ccmei', 'cnh', 'company_document', 'crlv', 'other')",
     )
     expect(checks['aggregate_application_attachments_status_check']).toContain(
       "in ('pending', 'approved', 'rejected')",

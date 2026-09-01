@@ -135,3 +135,40 @@ describe('a lista de anexos mostra o estado por linha', () => {
     expect(list).toBeLessThan(companyBlock)
   })
 })
+
+describe('o OCR da CNH nunca alcança o formulário do candidato', () => {
+  const LANDING_SOURCES = new Bun.Glob('**/*.{ts,tsx}')
+
+  /**
+   * Spec 071: a CNH-e é imagem sem camada de texto útil, e lê-la exige OCR — que é servidor, que é
+   * assíncrono. Assíncrono não preenche formulário aberto, e prometer ao candidato o que não se
+   * entrega é pior que não prometer. O resultado vai para a revisão do operador, e só.
+   *
+   * Este contrato é por texto de fonte porque o defeito que ele impede é uma **importação nova**:
+   * alguém ligando `extractCnhFields` na landing "para adiantar", e o formulário passando a esperar
+   * uma leitura que nunca chega.
+   */
+  test('a landing não importa o extrator de CNH nem o cliente de OCR', async () => {
+    const offenders: string[] = []
+    for await (const path of LANDING_SOURCES.scan({
+      cwd: new URL('../../src', import.meta.url).pathname,
+    })) {
+      const source = await Bun.file(new URL(`../../src/${path}`, import.meta.url)).text()
+      if (/extractCnhFields|createTesseractOcrClient/u.test(source)) offenders.push(path)
+    }
+
+    expect(offenders).toEqual([])
+  })
+
+  test('o campo da CNH não declara leitura nenhuma', () => {
+    expect(DOCUMENT_FIELDS.find((document) => document.type === 'cnh')?.reads).toBe('none')
+  })
+
+  /** O texto da tela não pode prometer preenchimento a partir da CNH. */
+  test('a dica da CNH fala em conferência, não em preenchimento', () => {
+    const hint = DOCUMENT_FIELDS.find((document) => document.type === 'cnh')?.hint ?? ''
+
+    expect(hint).toContain('confere')
+    expect(hint).not.toContain('Preenchemos')
+  })
+})
