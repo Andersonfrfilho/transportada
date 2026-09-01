@@ -218,3 +218,25 @@ nada. Era o estado do produto até esta task.
 
 **Verificação:** `bun run --cwd apps/worker-transportada test` → **837 pass / 0 fail** (era 829);
 typecheck verde.
+
+### T010 ✅ e T011 ✅ 2026-09-01 — A métrica por origem, e o log que não conta endereço
+
+⚠️ **`geocodedCount` estava errado para o desenho novo.** Ele contava só `source === 'google'` — e
+com a inversão o worker nunca chama provedor pago, então o número seria **zero para sempre**: uma
+métrica reportando silêncio enquanto a base cresce. Virou `counts`, por origem:
+`fromBase` (não custou nada), `resolvedByPostalCode`, `resolvedByCity`, `unresolved`.
+
+É essa separação que responde a pergunta da ADR-0044 §3, mitigação 3 — quanto saiu de graça e quanto
+custou. Um número só não responde.
+
+`route_optimization_geocoded` sai na fábrica, com `suggestionId` e as contagens. Nada do endereço.
+
+**T011 não confia em disciplina:** ela varre tudo o que o caminho emitiu — mensagem e metadados —
+atrás de CEP, logradouro, bairro e cidade, nos **três** cenários: provedor respondendo, provedor
+recusando com o CEP na mensagem de erro, e transporte lançando com o endereço dentro da exceção. Os
+dois últimos são onde a tentação de registrar a causa é maior.
+
+Os três testes asseram `lines.length > 0` antes de varrer — sem isso, um caminho que simplesmente
+não loga passaria verde e a varredura não provaria nada.
+
+**Verificação:** `bun run --cwd apps/worker-transportada test` → **840 pass / 0 fail** (era 837).

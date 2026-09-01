@@ -46,9 +46,9 @@ não precisa da chave para ser escrita e testada — só o deploy dela a espera.
       pedir a matriz; `readStops` recebe o mapa resolvido — **dependência:** T003, T005, T008 —
       **verificação:** `bun run --cwd apps/worker-transportada test` — **aceite:** endereço novo vira
       linha durante a sugestão (RF2)
-- [ ] T010 [P] Log estruturado **separado por origem** e as causas dos que não resolveram —
+- [x] T010 [P] ✅ Log estruturado **separado por origem** e as causas dos que não resolveram —
       **dependência:** T009 — **aceite:** P6
-- [ ] T011 Contrato de varredura de log: nenhum campo de endereço em linha nenhuma —
+- [x] T011 ✅ Contrato de varredura de log: nenhum campo de endereço em linha nenhuma —
       **dependência:** T010 — **aceite:** CA9
 - [ ] T012 Integração ponta a ponta com OSRM de fixture, provando parada **dentro** da otimização —
       **dependência:** T009 — **verificação:** `make routing-fixture && OSRM_DATASET=fixture make routing-up && make worker-integration`

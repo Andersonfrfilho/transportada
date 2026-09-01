@@ -94,7 +94,7 @@ describe('geocode addresses (ADR-0044 §3)', () => {
 
     expect(result.byAddressKey.get(ADDRESS_KEY)?.precision).toBe('rooftop')
     expect(saved).toHaveLength(1)
-    expect(result.geocodedCount).toBe(1)
+    expect(result.counts).toMatchObject({ fromBase: 0, resolvedByPostalCode: 1 })
   })
 
   /** Endereço já visto nunca é geocodificado de novo — a mesma loja recebe cem vezes por ano. */
@@ -109,7 +109,8 @@ describe('geocode addresses (ADR-0044 §3)', () => {
     const result = await geocodeAddresses(dependencies, [REQUEST])
 
     expect(dependencies.geocodeCalls).toHaveLength(0)
-    expect(result.geocodedCount).toBe(0)
+    /** O que já estava guardado não custou nada, e é isso que a métrica precisa separar. */
+    expect(result.counts).toMatchObject({ fromBase: 1, resolvedByPostalCode: 0 })
     expect(result.byAddressKey.get(ADDRESS_KEY)).toEqual(ROOFTOP)
   })
 
@@ -159,8 +160,8 @@ describe('geocode addresses (ADR-0044 §3)', () => {
     const result = await geocodeAddresses(dependencies, [REQUEST])
 
     expect(result.byAddressKey.get(ADDRESS_KEY)?.precision).toBe('city')
-    // Centroide não é endereço geocodificado: ele não conta na métrica de custo
-    expect(result.geocodedCount).toBe(0)
+    // Centroide é palpite de município: ele conta em separado, nunca junto do que resolveu de fato
+    expect(result.counts).toMatchObject({ resolvedByCity: 1, resolvedByPostalCode: 0 })
   })
 
   test('leaves an address the whole cascade could not resolve out of the result', async () => {

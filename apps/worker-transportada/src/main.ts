@@ -1106,6 +1106,7 @@ export async function startWorkerRuntime(
             geocoding: createBrasilApiPostalCodeGateway({
               baseUrl: config.postalCodeBrasilApiUrl ?? '',
             }),
+            logger,
             repository: createDrizzleGeocodedAddressRepository(
               database.db as ReturnType<typeof createDrizzleProvider>['db'],
             ),

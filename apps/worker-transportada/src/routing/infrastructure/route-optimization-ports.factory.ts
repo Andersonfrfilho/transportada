@@ -14,6 +14,7 @@ import {
 import type { RouteOptimizationHandlerPorts } from '../application/route-optimization-handler.service.js'
 import type { RoutingMatrixPort } from '../application/routing-matrix.port.js'
 import type { RouteOptimizationRepository } from './drizzle-route-optimization.repository.js'
+import type { WorkerLogger } from '../../shared/worker.types.js'
 
 /**
  * Junta as três peças que já existem e são testadas em separado — repositório, matriz e solver — na
@@ -23,6 +24,7 @@ import type { RouteOptimizationRepository } from './drizzle-route-optimization.r
 export type RouteOptimizationGeocoding = Readonly<{
   centroids: CentroidPort
   geocoding: GeocodingPort
+  logger?: WorkerLogger
   repository: GeocodedAddressRepository
 }>
 
@@ -51,7 +53,14 @@ export function createRouteOptimizationPorts(input: {
       if (context === null) throw new Error('route optimization context is gone')
 
       return runRouteOptimization({
-        context: { ...context, stops: await resolveStops(input.geocoding, context.stops) },
+        context: {
+          ...context,
+          stops: await resolveStops({
+            geocoding: input.geocoding,
+            stops: context.stops,
+            suggestionId: job.suggestionId,
+          }),
+        },
         ports: { matrix: input.matrix, solve: solveRoute },
       })
     },
@@ -67,16 +76,18 @@ export function createRouteOptimizationPorts(input: {
  * O que a rotina de população adianta, esta chamada não repete: `geocodeAddresses` lê a base antes
  * de resolver, e endereço já visto não custa nada.
  */
-async function resolveStops(
-  geocoding: RouteOptimizationGeocoding | undefined,
-  stops: RouteOptimizationContext['stops'],
-): Promise<RouteOptimizationContext['stops']> {
+async function resolveStops(input: {
+  readonly geocoding: RouteOptimizationGeocoding | undefined
+  readonly stops: RouteOptimizationContext['stops']
+  readonly suggestionId: string
+}): Promise<RouteOptimizationContext['stops']> {
+  const { geocoding, stops } = input
   if (geocoding === undefined) return stops
 
   const requests = buildGeocodeRequests(stops)
   if (requests.length === 0) return stops
 
-  const { byAddressKey } = await geocodeAddresses(
+  const { byAddressKey, counts } = await geocodeAddresses(
     {
       centroids: geocoding.centroids,
       geocoding: geocoding.geocoding,
@@ -84,6 +95,19 @@ async function resolveStops(
     },
     requests,
   )
+
+  /**
+   * A métrica de volume da ADR-0044 §3, mitigação 3 — **por origem**, porque um número só não
+   * responde a pergunta que ela existe para responder: quanto saiu de graça e quanto custou.
+   *
+   * RNF1: nada do endereço entra aqui. O que identifica é a sugestão, e a `addressKey` quando
+   * precisar — nunca CEP, número ou logradouro.
+   */
+  geocoding.logger?.info('route_optimization_geocoded', {
+    requested: requests.length,
+    suggestionId: input.suggestionId,
+    ...counts,
+  })
 
   return applyResolvedCoordinates({ resolved: byAddressKey, stops })
 }

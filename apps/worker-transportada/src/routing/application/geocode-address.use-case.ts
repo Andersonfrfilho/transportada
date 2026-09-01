@@ -37,10 +37,24 @@ export type GeocodeAddressesDependencies = Readonly<{
   repository: GeocodedAddressRepository
 }>
 
+/**
+ * A métrica de volume da ADR-0044 §3, mitigação 3 — e ela é **por origem**, não um número só.
+ *
+ * ⚠️ Antes daqui o campo era `geocodedCount`, contando apenas `source === 'google'`. Com a inversão
+ * da cascata (adendo 2026-09-01) o worker nunca chama provedor pago, então esse número seria zero
+ * para sempre: uma métrica que reporta silêncio enquanto a base cresce.
+ *
+ * `fromBase` é o que **não custou nada** por já estar guardado; `unresolved` é o endereço que nenhum
+ * degrau resolveu, e que deixa a parada sem coordenada.
+ */
 export type GeocodeAddressesResult = Readonly<{
   byAddressKey: ReadonlyMap<string, GeocodedAddressRecord>
-  /** Quantos endereços novos esta chamada geocodificou — a métrica de volume da ADR-0044 §3. */
-  geocodedCount: number
+  counts: Readonly<{
+    fromBase: number
+    resolvedByCity: number
+    resolvedByPostalCode: number
+    unresolved: number
+  }>
 }>
 
 /**
@@ -76,20 +90,27 @@ export async function geocodeAddresses(
   }
 
   const missing = pending.filter((request) => !byAddressKey.has(request.addressKey))
-  let geocodedCount = 0
+  const fromBase = requests.length - missing.length
+  let resolvedByPostalCode = 0
+  let resolvedByCity = 0
+  let unresolved = 0
 
   for (const request of missing) {
     const resolved = await resolveThroughCascade(dependencies, request)
-    if (resolved === null) continue
+    if (resolved === null) {
+      unresolved += 1
+      continue
+    }
 
     const record: GeocodedAddressRecord = { ...resolved, addressKey: request.addressKey }
     await dependencies.repository.save(record)
     dependencies.cache?.set(record)
     byAddressKey.set(request.addressKey, record)
-    if (record.source === 'google') geocodedCount += 1
+    if (record.source === 'city') resolvedByCity += 1
+    else resolvedByPostalCode += 1
   }
 
-  return { byAddressKey, geocodedCount }
+  return { byAddressKey, counts: { fromBase, resolvedByCity, resolvedByPostalCode, unresolved } }
 }
 
 async function readStored(
