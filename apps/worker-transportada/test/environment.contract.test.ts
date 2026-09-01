@@ -35,6 +35,8 @@ describe('worker environment contract', () => {
 
   test('parses the autonomous Bun worker configuration', () => {
     expect(parseWorkerEnvironment(validEnvironment)).toEqual({
+      apiBaseUrl: undefined,
+      appBaseUrl: undefined,
       appEnv: 'local',
       databaseUrl: validEnvironment.DATABASE_URL,
       fiscalEnvironment: 'production',

@@ -27,6 +27,8 @@ export type InvitationDeliveryDependencies = {
       readonly code: string
       readonly companyId: string
       readonly channel: InvitationContactChannel
+      /** O texto em volta do código no e-mail; o WhatsApp continua mandando `body` em uma linha. */
+      readonly email?: { readonly intro: string; readonly note: string }
       readonly subject: string
     }) => Promise<void>
   }
@@ -55,6 +57,10 @@ export type InvitationDeliveryDependencies = {
 }
 
 const DELIVERY_SUBJECT = 'Seu código de ativação'
+const INVITATION_EMAIL_TEXT = {
+  intro: 'Use o código abaixo para ativar seu acesso e definir sua senha.',
+  note: 'O código é de uso único. Se não reconhece este convite, ignore este e-mail.',
+} as const
 
 /**
  * Falha de entrega **não** invalida o código: o convite segue válido e reenviável, porque quem
@@ -93,6 +99,7 @@ export async function handleInvitationDelivery(
       companyId: invitation.companyId,
       body: buildInvitationMessageBody(code),
       channel: invitation.contactChannel,
+      email: INVITATION_EMAIL_TEXT,
       subject: DELIVERY_SUBJECT,
     })
   } catch (error) {

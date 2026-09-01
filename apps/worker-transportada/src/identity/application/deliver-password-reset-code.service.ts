@@ -27,6 +27,8 @@ export type PasswordResetDeliveryDependencies = {
       readonly code: string
       readonly companyId: string
       readonly channel: PasswordResetContactChannel
+      /** O texto em volta do código no e-mail; o WhatsApp continua mandando `body` em uma linha. */
+      readonly email?: { readonly intro: string; readonly note: string }
       readonly subject: string
     }) => Promise<void>
   }
@@ -55,6 +57,10 @@ export type PasswordResetDeliveryDependencies = {
 }
 
 const DELIVERY_SUBJECT = 'Seu código de recuperação de senha'
+const PASSWORD_RESET_EMAIL_TEXT = {
+  intro: 'Use o código abaixo para definir uma nova senha de acesso.',
+  note: 'O código é de uso único e expira em 15 minutos. Se não foi você que pediu, ignore este e-mail.',
+} as const
 
 /**
  * Falha de entrega **não** invalida o código: o pedido segue válido e o transporte é que falhou. O
@@ -92,6 +98,7 @@ export async function handlePasswordResetDelivery(
       companyId: reset.companyId,
       body: buildPasswordResetMessageBody(code),
       channel: reset.contactChannel,
+      email: PASSWORD_RESET_EMAIL_TEXT,
       subject: DELIVERY_SUBJECT,
     })
   } catch (error) {

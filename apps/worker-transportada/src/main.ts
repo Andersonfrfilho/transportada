@@ -84,6 +84,7 @@ import { createWhatsAppCodeSender } from './whatsapp/infrastructure/whatsapp-cod
 import { createWhatsAppChannelSecretGateway } from './whatsapp/infrastructure/whatsapp-channel-secret.gateway.js'
 import { DrizzleWhatsAppChannelRepository } from './whatsapp/infrastructure/drizzle-whatsapp-channel.repository.js'
 import { createInvitationChannelGateway } from './identity/infrastructure/invitation-channel.gateway.js'
+import { createLandingEmailBrandGateway } from './identity/infrastructure/landing-email-brand.gateway.js'
 import { createInvitationCodeSecretGateway } from './identity/infrastructure/invitation-code-secret.gateway.js'
 import type { InvitationDeliveryDependencies } from './identity/application/deliver-invitation-code.service.js'
 import { startInvitationDeliveryConsumer } from './runtime/invitation-delivery-consumer.service.js'
@@ -803,6 +804,14 @@ export async function startWorkerRuntime(
      * credencial é por empresa e vem do banco a cada envio; o que muda entre convite e recuperação
      * é só qual template aprovado a Meta espera.
      */
+    /**
+     * Uma leitura de marca para os dois trilhos: a instalação é de uma transportadora só
+     * (ADR-0021), e o gateway guarda o resultado por cinco minutos.
+     */
+    const emailBrand = createLandingEmailBrandGateway({
+      apiBaseUrl: config.apiBaseUrl,
+      appBaseUrl: config.appBaseUrl,
+    })
     const buildWhatsAppCodeSender = (template: string | undefined) =>
       createWhatsAppCodeSender({
         apiVersion: config.whatsapp.apiVersion,
@@ -824,6 +833,7 @@ export async function startWorkerRuntime(
         // Sem SMTP configurado o canal não tem driver e a entrega falha alto: melhor a mensagem
         // parar no trilho de retry do que o convite ser dado como entregue sem ter saído daqui.
         channels: createInvitationChannelGateway({
+          brand: emailBrand,
           ...(config.emailDelivery === undefined
             ? {}
             : {
@@ -851,6 +861,7 @@ export async function startWorkerRuntime(
         // Mesmo arranjo do convite: sem SMTP configurado a entrega falha alto, e o código continua
         // válido para reenvio — quem falhou foi o transporte.
         channels: createInvitationChannelGateway({
+          brand: emailBrand,
           ...(config.emailDelivery === undefined
             ? {}
             : {

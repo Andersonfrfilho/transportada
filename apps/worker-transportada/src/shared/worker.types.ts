@@ -58,6 +58,10 @@ export type MdfeAutoIssueEnvironment = {
 }
 
 export type WorkerEnvironment = {
+  /** Endereço da própria API. Hoje o e-mail de código lê dele a marca pública da instalação. */
+  readonly apiBaseUrl: string | undefined
+  /** Origem do painel, de onde o rodapé do e-mail carrega o desenho da Ada. */
+  readonly appBaseUrl: string | undefined
   readonly appEnv: string
   readonly cteTechnicalResponsible?: CteTechnicalResponsibleEnvironment
   readonly databaseUrl: string

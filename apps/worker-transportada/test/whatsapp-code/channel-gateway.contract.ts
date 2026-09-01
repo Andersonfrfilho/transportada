@@ -67,7 +67,11 @@ describe('o canal de código por WhatsApp (spec 062 T005)', () => {
     )
   })
 
-  /** O e-mail não mudou: o campo novo é ignorado por ele, e o corpo inteiro continua a mensagem. */
+  /**
+   * O e-mail continua saindo ao lado do WhatsApp — e desde o template de marca, o corpo é o
+   * documento renderizado, com o `body` dentro dele: `expect` de igualdade aqui voltaria a exigir
+   * o `<p>` cru que o template substituiu.
+   */
   test('o canal de e-mail segue intacto ao lado do novo', async () => {
     const sent: { to: string; text: string }[] = []
     const gateway = createInvitationChannelGateway({
@@ -83,7 +87,9 @@ describe('o canal de código por WhatsApp (spec 062 T005)', () => {
 
     await gateway.send({ ...MESSAGE, channel: 'email' })
 
-    expect(sent).toEqual([{ text: MESSAGE.body, to: MESSAGE.address }])
+    expect(sent).toHaveLength(1)
+    expect(sent[0]?.to).toBe(MESSAGE.address)
+    expect(sent[0]?.text).toContain(MESSAGE.body)
   })
 
   test('canal sem driver nenhum continua sendo recusa, não envio por e-mail', async () => {

@@ -41,6 +41,9 @@ const workerEnvironmentSchema = z
   .object({
     ANEEL_BASE_URL: optionalUrl(),
     API_BASE_URL: optionalUrl(),
+    // Origem do painel: é dela que sai o desenho da Ada no rodapé do e-mail. Ausente, o rodapé
+    // continua assinando — só em texto, porque imagem quebrada assina pior.
+    APP_BASE_URL: optionalUrl(),
     KEYCLOAK_ADMIN_CLIENT_ID: optionalText(),
     KEYCLOAK_ADMIN_CLIENT_SECRET: optionalText(),
     KEYCLOAK_ISSUER: optionalUrl(),
@@ -176,6 +179,8 @@ export function parseWorkerEnvironment(
   const mdfeAutoIssue = toMdfeAutoIssue(result.data)
 
   return {
+    apiBaseUrl: result.data.API_BASE_URL,
+    appBaseUrl: result.data.APP_BASE_URL,
     appEnv: result.data.APP_ENV,
     ...(technicalResponsible === undefined
       ? {}
