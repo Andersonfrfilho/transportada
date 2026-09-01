@@ -22,12 +22,26 @@ import {
   type CcmeiDivergence,
 } from '../shared/ccmei.service'
 import {
+  listCrlvDivergences,
+  mergeCrlvIntoFields,
+  type CrlvDivergence,
+} from '../shared/crlv.service'
+import {
+  DOCUMENT_FIELDS,
+  PRE_REGISTRATION_BLOCKS,
+  shouldShowCompanyBlock,
+} from '../shared/preRegistration.service'
+import {
+  useVehicleDocumentIntake,
+  type VehicleDocumentIntake,
+} from '../hooks/useVehicleDocumentIntake.hook'
+import {
   useCompanyDocumentIntake,
   type CompanyDocumentIntake,
 } from '../hooks/useCompanyDocumentIntake.hook'
 import { useAttachmentUploads, type AttachmentEntry } from '../hooks/useAttachmentUploads.hook'
 import { createAttachmentClient } from '../shared/attachmentClient.service'
-import { isLookupableCnpj, useCompanyLookup } from '../hooks/useCompanyLookup.hook'
+import { useCompanyLookup } from '../hooks/useCompanyLookup.hook'
 import { formatPostalCode } from '../shared/postalCode.service'
 import styles from './PreRegistrationForm.module.css'
 import { TurnstileWidget } from './TurnstileWidget.component'
@@ -150,12 +164,27 @@ export function PreRegistrationForm({ settings }: PreRegistrationFormProps): Rea
   )
 
   const showUnitSelect = settings.units.length > 1
-  const isCompany = isLookupableCnpj(fields.taxId)
   const [ccmeiDivergences, setCcmeiDivergences] = useState<readonly CcmeiDivergence[]>([])
+  const [crlvDivergences, setCrlvDivergences] = useState<readonly CrlvDivergence[]>([])
+  /** O CNPJ que o documento trouxe abre o bloco Empresa mesmo sem o campo digitado ainda. */
+  const [readCompanyTaxId, setReadCompanyTaxId] = useState<string | undefined>(undefined)
+  const isCompany = shouldShowCompanyBlock({
+    readTaxId: readCompanyTaxId,
+    typedTaxId: fields.taxId,
+  })
   const attachments = useAttachmentUploads(
     useMemo(() => createAttachmentClient({ apiBaseUrl: getLandingApiBaseUrl() }), []),
   )
+  const vehicleIntake = useVehicleDocumentIntake((reading) => {
+    setFields((current) => {
+      // Calculada **antes** do merge, pelo mesmo motivo do CCMEI: depois dele todo campo vazio
+      // pareceria concordar com o documento.
+      setCrlvDivergences(listCrlvDivergences({ current, values: reading.values }))
+      return { ...current, ...mergeCrlvIntoFields({ current, values: reading.values }) }
+    })
+  })
   const documentIntake = useCompanyDocumentIntake((reading) => {
+    setReadCompanyTaxId(reading.values.cnpj)
     setFields((current) => {
       // A conferência olha o que a pessoa já tinha — por isso é calculada **antes** do merge, que
       // preenche os vazios. Depois dele, todo campo vazio pareceria concordar com o documento.
@@ -238,7 +267,73 @@ export function PreRegistrationForm({ settings }: PreRegistrationFormProps): Rea
       <h2 className={styles.title}>Pré-cadastro do agregado</h2>
       <form className={styles.form} onSubmit={(event) => void handleSubmit(event)}>
         <fieldset className={styles.fieldset}>
-          <legend className={styles.legend}>Dados pessoais</legend>
+          <legend className={styles.legend}>{PRE_REGISTRATION_BLOCKS[0]}</legend>
+          <p className={styles.hint}>
+            Comece por aqui: o que der para ler dos documentos já preenche a ficha abaixo. Todos são
+            opcionais.
+          </p>
+          {DOCUMENT_FIELDS.map((document) => (
+            <label className={styles.field} key={document.type}>
+              <span className={styles.label}>{`${document.label} (opcional)`}</span>
+              <input
+                className={styles.input}
+                type="file"
+                accept="application/pdf,image/jpeg,image/png"
+                onChange={(event) => {
+                  const file = event.target.files?.[0]
+                  if (file === undefined) return
+
+                  /**
+                   * Duas coisas em paralelo, de propósito: a leitura no aparelho preenche o
+                   * formulário agora, e o envio guarda o comprovante para o operador. Encadear uma
+                   * na outra faria o preenchimento esperar a rede sem ganho nenhum (ADR-0053).
+                   */
+                  if (document.reads === 'company') void documentIntake.read(file)
+                  if (document.reads === 'vehicle') void vehicleIntake.read(file)
+                  void attachments.upload({
+                    companyId: resolveCompanyId(),
+                    file,
+                    ...(turnstileSiteKey === undefined ? {} : { turnstileToken }),
+                    type: document.type,
+                  })
+                }}
+              />
+              <span className={styles.hint}>{document.hint}</span>
+            </label>
+          ))}
+          <p className={styles.hint}>{describeDocumentIntake(documentIntake)}</p>
+          <p className={styles.hint}>{describeVehicleIntake(vehicleIntake)}</p>
+          {attachments.entries.length > 0 ? (
+            <ul className={styles.attachmentList}>
+              {attachments.entries.map((entry) => (
+                <li className={styles.attachmentItem} key={entry.id}>
+                  <span>{entry.fileName}</span>
+                  <span>{describeAttachmentEntry(entry)}</span>
+                  <button
+                    className={styles.attachmentRemove}
+                    onClick={() => attachments.remove(entry.id)}
+                    type="button"
+                  >
+                    Remover
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {ccmeiDivergences.length > 0 ? (
+            <p className={styles.hint}>
+              {`O documento diz outra coisa em: ${ccmeiDivergences.map(describeDivergenceField).join(', ')}. Mantivemos o que você preencheu — quem confere é a nossa equipe.`}
+            </p>
+          ) : null}
+          {crlvDivergences.length > 0 ? (
+            <p className={styles.hint}>
+              {`O CRLV diz outra coisa em: ${crlvDivergences.map(describeCrlvDivergenceField).join(', ')}. Mantivemos o que você preencheu — veículo no nome de outra pessoa é normal, e quem confere é a nossa equipe.`}
+            </p>
+          ) : null}
+        </fieldset>
+
+        <fieldset className={styles.fieldset}>
+          <legend className={styles.legend}>{PRE_REGISTRATION_BLOCKS[1]}</legend>
           <label className={styles.field}>
             <span className={styles.label}>Nome completo</span>
             <input
@@ -311,7 +406,7 @@ export function PreRegistrationForm({ settings }: PreRegistrationFormProps): Rea
 
         {isCompany ? (
           <fieldset className={styles.fieldset}>
-            <legend className={styles.legend}>Empresa</legend>
+            <legend className={styles.legend}>{PRE_REGISTRATION_BLOCKS[2]}</legend>
             <p className={styles.hint}>
               {companyLookup.state === 'looking'
                 ? 'Consultando o CNPJ na Receita…'
@@ -319,54 +414,6 @@ export function PreRegistrationForm({ settings }: PreRegistrationFormProps): Rea
                   ? 'Não encontramos este CNPJ na Receita — pode preencher à mão.'
                   : 'Preenchemos com o que a Receita informa. Confira e corrija se precisar.'}
             </p>
-            <label className={styles.field}>
-              <span className={styles.label}>Anexar o CCMEI (opcional)</span>
-              <input
-                className={styles.input}
-                type="file"
-                accept="application/pdf"
-                onChange={(event) => {
-                  const file = event.target.files?.[0]
-                  if (file === undefined) return
-
-                  /**
-                   * Duas coisas em paralelo, de propósito: a leitura no aparelho preenche o
-                   * formulário agora, e o envio guarda o comprovante para o operador. Encadear uma na
-                   * outra faria o preenchimento esperar a rede sem ganho nenhum (ADR-0053).
-                   */
-                  void documentIntake.read(file)
-                  void attachments.upload({
-                    companyId: resolveCompanyId(),
-                    file,
-                    ...(turnstileSiteKey === undefined ? {} : { turnstileToken }),
-                    type: 'ccmei',
-                  })
-                }}
-              />
-            </label>
-            <p className={styles.hint}>{describeDocumentIntake(documentIntake)}</p>
-            {attachments.entries.length > 0 ? (
-              <ul className={styles.attachmentList}>
-                {attachments.entries.map((entry) => (
-                  <li className={styles.attachmentItem} key={entry.id}>
-                    <span>{entry.fileName}</span>
-                    <span>{describeAttachmentEntry(entry)}</span>
-                    <button
-                      className={styles.attachmentRemove}
-                      onClick={() => attachments.remove(entry.id)}
-                      type="button"
-                    >
-                      Remover
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-            {ccmeiDivergences.length > 0 ? (
-              <p className={styles.hint}>
-                {`O documento diz outra coisa em: ${ccmeiDivergences.map(describeDivergenceField).join(', ')}. Mantivemos o que você preencheu — quem confere é a nossa equipe.`}
-              </p>
-            ) : null}
             <label className={styles.field}>
               <span className={styles.label}>Razão social</span>
               <input
@@ -409,7 +456,7 @@ export function PreRegistrationForm({ settings }: PreRegistrationFormProps): Rea
         ) : null}
 
         <fieldset className={styles.fieldset}>
-          <legend className={styles.legend}>Endereço</legend>
+          <legend className={styles.legend}>{PRE_REGISTRATION_BLOCKS[3]}</legend>
           <p className={styles.hint}>
             Usado no cadastro da ficha — não é obrigatório para enviar a candidatura.
           </p>
@@ -488,7 +535,7 @@ export function PreRegistrationForm({ settings }: PreRegistrationFormProps): Rea
         </fieldset>
 
         <fieldset className={styles.fieldset}>
-          <legend className={styles.legend}>CNH e RNTRC</legend>
+          <legend className={styles.legend}>{PRE_REGISTRATION_BLOCKS[4]}</legend>
           <p className={styles.hint}>
             Sem isso a ficha aprovada não emite MDF-e — pode completar depois, mas acelera sua
             liberação.
@@ -541,7 +588,7 @@ export function PreRegistrationForm({ settings }: PreRegistrationFormProps): Rea
         </fieldset>
 
         <fieldset className={styles.fieldset}>
-          <legend className={styles.legend}>Recebimento</legend>
+          <legend className={styles.legend}>{PRE_REGISTRATION_BLOCKS[5]}</legend>
           <p className={styles.hint}>
             Chave Pix usada para o pagamento dos fretes — pode completar depois.
           </p>
@@ -576,7 +623,7 @@ export function PreRegistrationForm({ settings }: PreRegistrationFormProps): Rea
         </fieldset>
 
         <fieldset className={styles.fieldset}>
-          <legend className={styles.legend}>Veículo</legend>
+          <legend className={styles.legend}>{PRE_REGISTRATION_BLOCKS[6]}</legend>
           <p className={styles.hint}>
             Se você já roda com caminhão próprio, informe a placa — sem ela o operador cadastra o
             veículo depois.
@@ -747,6 +794,28 @@ const ATTACHMENT_FAILURE_LABEL: Readonly<Record<string, string>> = {
  * O motivo fica **na linha do arquivo**, não num aviso genérico no rodapé: com dois anexos, "algo
  * deu errado" não diz qual deles refazer.
  */
+/** O CRLV é o único documento cujo "não reconheci" o candidato precisa ver na hora. */
+function describeVehicleIntake(intake: VehicleDocumentIntake): string {
+  if (intake.status === 'idle') return ''
+  if (intake.status === 'reading') return 'Lendo o CRLV…'
+  if (intake.status === 'failed')
+    return 'Não conseguimos ler este arquivo. Ele foi anexado assim mesmo.'
+  if (intake.reading?.kind === 'crlv')
+    return 'Preenchemos o que o CRLV diz. Confira e corrija se precisar.'
+
+  return 'Este arquivo não parece um CRLV, então não preenchemos nada com ele. Ele foi anexado assim mesmo.'
+}
+
+const CRLV_DIVERGENCE_LABEL: Readonly<Record<string, string>> = {
+  name: 'nome',
+  taxId: 'CPF ou CNPJ',
+  vehiclePlate: 'placa',
+}
+
+function describeCrlvDivergenceField(divergence: CrlvDivergence): string {
+  return CRLV_DIVERGENCE_LABEL[divergence.field] ?? divergence.field
+}
+
 function describeAttachmentEntry(entry: AttachmentEntry): string {
   if (entry.status === 'uploading') return 'enviando…'
   if (entry.status === 'uploaded') return 'anexado'

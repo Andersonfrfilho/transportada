@@ -1,9 +1,14 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { describe, expect, test } from 'bun:test'
 
-import { readCompanyDocument } from '@/modules/application/shared/documentIntake.service'
+import {
+  readCompanyDocument,
+  readVehicleDocument,
+} from '@/modules/application/shared/documentIntake.service'
 
 import {
+  buildCcmeiPdf,
+  buildCrlvPdf,
   buildLabelledColumns,
   buildTextPdf,
   getLegacyDocument,
@@ -61,5 +66,45 @@ describe('leitura do documento anexado no navegador', () => {
 
     expect(result.kind).toBe('scanned')
     expect(result.values).toEqual({})
+  })
+})
+
+describe('quem manda é o documento, não o campo em que ele foi solto', () => {
+  /**
+   * Spec 071: um CRLV anexado no campo do documento da empresa não preenche a empresa, e um CCMEI
+   * no campo do CRLV não preenche o veículo. Ler com o mapa errado inventa campo, e campo inventado
+   * vira divergência falsa contra a ficha do operador.
+   */
+  test('o CRLV lido pelo leitor de empresa não preenche campo nenhum', async () => {
+    const reading = await readCompanyDocument({
+      data: buildCrlvPdf(),
+      getDocument: getLegacyDocument,
+    })
+
+    expect(reading.kind).toBe('crlv')
+    expect(reading.values).toEqual({})
+    expect(reading.remarks).toEqual([])
+  })
+
+  test('o leitor de veículo reconhece o CRLV e lê o que ele diz', async () => {
+    const reading = await readVehicleDocument({
+      data: buildCrlvPdf(),
+      getDocument: getLegacyDocument,
+    })
+
+    expect(reading.kind).toBe('crlv')
+    expect(reading.values.plate).toBe('GCQ8E47')
+    expect(reading.values.ownerName).toBe('MARIA DE SOUSA')
+    expect(reading.values.municipality).toBe('SAO PAULO')
+  })
+
+  test('o CCMEI lido pelo leitor de veículo não preenche campo nenhum', async () => {
+    const reading = await readVehicleDocument({
+      data: buildCcmeiPdf(),
+      getDocument: getLegacyDocument,
+    })
+
+    expect(reading.kind).toBe('ccmei')
+    expect(reading.values).toEqual({})
   })
 })

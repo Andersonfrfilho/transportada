@@ -100,3 +100,68 @@ export const CCMEI_TITLE_PLACEMENTS: readonly PdfTextPlacement[] = [
 export async function readSyntheticPage(bytes: Uint8Array): Promise<PdfPageText> {
   return readPdfTextLayer({ data: bytes, getDocument: getLegacyDocument })
 }
+
+/** O CCMEI de referência: título em duas linhas e os rótulos que a amostra real imprime. */
+export function buildCcmeiPdf(overrides: Readonly<Record<string, string>> = {}): Uint8Array {
+  const printed: Readonly<Record<string, string>> = {
+    Bairro: 'CENTRO',
+    CEP: '01001-000',
+    CNPJ: '30.213.061/0001-06',
+    'Data de Início de Atividades': '11/04/2019',
+    Logradouro: 'PRACA DA SE',
+    Município: 'SAO PAULO',
+    'Nome Empresarial': 'MARIA DE SOUSA 11144477735',
+    'Nome Fantasia': 'SOUSA TRANSPORTES',
+    Número: '100',
+    'Situação Cadastral Vigente': 'ATIVA',
+    UF: 'SP',
+    ...overrides,
+  }
+
+  const columns = Object.entries(printed).map(([label, value], index) => ({
+    label,
+    value,
+    x: 60 + (index % 3) * 170,
+    y: 700 - Math.floor(index / 3) * 40,
+  }))
+
+  return buildTextPdf([...CCMEI_TITLE_PLACEMENTS, ...buildLabelledColumns(columns)])
+}
+
+const CRLV_TITLE_PLACEMENT: PdfTextPlacement = {
+  size: 12,
+  text: 'CERTIFICADO DE REGISTRO E LICENCIAMENTO DE VEÍCULO',
+  x: 90,
+  y: 800,
+}
+
+/** O CRLV de referência da spec 048, com o rodapé da CDT que contém a palavra "CNH". */
+export function buildCrlvPdf(overrides: Readonly<Record<string, string>> = {}): Uint8Array {
+  const printed: Readonly<Record<string, string>> = {
+    'ANO MODELO': '2021',
+    CARROCERIA: 'FURGAO',
+    'CODIGO RENAVAM': '00123456789',
+    COMBUSTIVEL: 'ALCOOL/GASOLINA',
+    'COR PREDOMINANTE': 'BRANCA',
+    'CPF / CNPJ': '111.444.777-35',
+    EIXOS: '2',
+    'MARCA / MODELO / VERSAO': 'FIAT/FIORINO ENDURANCE 1.4',
+    'MUNICIPIO / UF': 'SAO PAULO / SP',
+    NOME: 'MARIA DE SOUSA',
+    PLACA: 'GCQ8E47',
+    ...overrides,
+  }
+
+  const columns = Object.entries(printed).map(([label, value], index) => ({
+    label,
+    value,
+    x: 60 + (index % 3) * 170,
+    y: 700 - Math.floor(index / 3) * 40,
+  }))
+
+  return buildTextPdf([
+    CRLV_TITLE_PLACEMENT,
+    ...buildLabelledColumns(columns),
+    { text: 'você tem acesso ao CRLV, à CNH e ainda ganha desconto de 40%', x: 60, y: 90 },
+  ])
+}

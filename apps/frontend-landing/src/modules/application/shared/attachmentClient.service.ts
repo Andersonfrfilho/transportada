@@ -17,7 +17,19 @@ const PUBLIC_ATTACHMENT_ATTACHMENTS_PATH = '/public/aggregate-application-attach
  */
 export const ATTACHMENT_MAX_BYTES = 1_572_864
 
-export const ATTACHMENT_TYPES = ['ccmei', 'cnh', 'crlv', 'other'] as const
+/**
+ * ⚠️ Cópia por valor de `AGGREGATE_APPLICATION_ATTACHMENT_TYPES` da api — o bundle não carrega código
+ * dela, e é o CHECK do banco que manda. Tipo daqui que a api não conheça volta `400`, e o anexo se
+ * perde em silêncio: `test/application/attachment-types.contract.ts` guarda a lista.
+ */
+export const ATTACHMENT_TYPES = [
+  'address_proof',
+  'ccmei',
+  'cnh',
+  'company_document',
+  'crlv',
+  'other',
+] as const
 export type AttachmentType = (typeof ATTACHMENT_TYPES)[number]
 
 export type UploadAttachmentInput = Readonly<{

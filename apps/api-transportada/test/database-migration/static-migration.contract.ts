@@ -194,6 +194,7 @@ describe('Drizzle migrations', () => {
       '20260901211242_municipality_centroids',
       '20260901214952_geocoding_backfill_job',
       '20260901220135_geocoding_refinement_trail',
+      '20260901230000_aggregate_attachment_document_types',
       '20260902003000_geocoding_backfill_hourly',
     ])
 

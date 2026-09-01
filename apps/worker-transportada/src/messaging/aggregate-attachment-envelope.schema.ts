@@ -7,7 +7,20 @@ export const AGGREGATE_ATTACHMENT_EVENT_TYPE = {
   EXTRACTION_REQUESTED: 'transportada.aggregate.attachment.extraction.requested',
 } as const
 
-export const AGGREGATE_ATTACHMENT_TYPES = ['ccmei', 'cnh', 'crlv', 'other'] as const
+/**
+ * ⚠️ Cópia por valor de `AGGREGATE_APPLICATION_ATTACHMENT_TYPES` da api — o worker não importa
+ * código-fonte de outra app, e o CHECK do banco mora lá. Tipo novo de um lado é tipo novo do outro:
+ * sem isso o envelope recusa uma mensagem que a API acabou de gravar, e o anexo nunca é lido.
+ * `test/aggregate-attachment/envelope.contract.ts` guarda a lista.
+ */
+export const AGGREGATE_ATTACHMENT_TYPES = [
+  'address_proof',
+  'ccmei',
+  'cnh',
+  'company_document',
+  'crlv',
+  'other',
+] as const
 export type AggregateAttachmentType = (typeof AGGREGATE_ATTACHMENT_TYPES)[number]
 
 /**

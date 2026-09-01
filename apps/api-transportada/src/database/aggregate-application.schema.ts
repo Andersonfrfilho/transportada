@@ -97,7 +97,24 @@ export const aggregateApplications = pgTable(
 export type AggregateApplicationRow = typeof aggregateApplications.$inferSelect
 export type NewAggregateApplicationRow = typeof aggregateApplications.$inferInsert
 
-export const AGGREGATE_APPLICATION_ATTACHMENT_TYPES = ['ccmei', 'cnh', 'crlv', 'other'] as const
+/**
+ * Spec 071: `address_proof` e `company_document` entram, e `ccmei` **fica**. O campo da tela passou a
+ * ser um só — "documento da empresa", que aceita CCMEI, contrato social ou cartão CNPJ —, mas as
+ * linhas já gravadas como `ccmei` continuam existindo, e reescrevê-las apagaria o que o operador viu
+ * quando aprovou. Tipo novo nunca substitui tipo gravado; ele se soma.
+ *
+ * `address_proof` é anexo de conferência puro: **qualquer tipo e qualquer data**, sem extração. Conta
+ * de luz, água, telefone, internet e contrato de aluguel não têm layout que se ancore — um parser
+ * genérico para eles seria palpite com aparência de leitura.
+ */
+export const AGGREGATE_APPLICATION_ATTACHMENT_TYPES = [
+  'address_proof',
+  'ccmei',
+  'cnh',
+  'company_document',
+  'crlv',
+  'other',
+] as const
 export type AggregateApplicationAttachmentType =
   (typeof AGGREGATE_APPLICATION_ATTACHMENT_TYPES)[number]
 
@@ -163,7 +180,7 @@ export const aggregateApplicationAttachments = pgTable(
     unique('aggregate_application_attachments_company_id_id_unique').on(table.companyId, table.id),
     check(
       'aggregate_application_attachments_type_check',
-      sql`${table.type} in ('ccmei', 'cnh', 'crlv', 'other')`,
+      sql`${table.type} in ('address_proof', 'ccmei', 'cnh', 'company_document', 'crlv', 'other')`,
     ),
     check(
       'aggregate_application_attachments_status_check',
