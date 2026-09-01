@@ -27,3 +27,43 @@ O que o adendo fecha:
 - onde cada degrau roda, e por que a marca na API não contraria a §7.
 
 **Verificação:** `bunx prettier --check docs/adr/0044-o-roteiro-se-sugere-sozinho.md` → verde.
+
+## Fase A — O fio e o degrau de graça
+
+### T002 ✅ 2026-09-01 — A cascata mudou de app
+
+⚠️ **A task corrigiu o próprio plano.** Ele mandava partir `geocoding-precision.policy.ts` por
+consumidor; ao executar, duas medições no código mostraram que isso estava errado:
+
+- `geocodeAddresses` **não chama** `shouldReplaceStored` — a cascata só grava o que está ausente da
+  base, nunca substitui. Só o teste as via juntas.
+- Com o degrau 2 na API, quem precisa de `toGeocodingPrecision` é o gateway pago, que mora lá.
+
+Partir como estava escrito deixaria o ranking `rooftop > street > postal_code > city` **duplicado nas
+duas apps** — a cópia por valor que diverge em silêncio. `plan.md` foi corrigido antes da execução.
+
+O que ficou:
+
+| peça                            | destino                                                        |
+| ------------------------------- | -------------------------------------------------------------- |
+| `geocodeAddresses` (cascata)    | worker — `src/routing/application/geocode-address.use-case.ts` |
+| `shouldReplaceStored`           | API — migrou para `domain/geocoding-precision.policy.ts`       |
+| `geocoding-precision.policy.ts` | API, inteira                                                   |
+| tipos da porta                  | ambas (declaração, não regra)                                  |
+
+`routing.schema.ts` do worker ganhou `source`, `external_place_id` e os três carimbos — ele deixou de
+só ler a tabela e passou a escrevê-la. Os dois vocabulários de precisão/origem entraram como **tipo**,
+não como catálogo em tempo de execução: quem valida são os CHECKs que a API migra.
+
+Testes separados junto: a cascata foi para `worker/test/routing/geocode-address.contract.ts`, a
+precedência para `api/test/routing-domain/stored-precedence.contract.ts`, e os três entrypoints
+foram religados.
+
+**Verificação:**
+
+```
+bun run --cwd apps/worker-transportada typecheck   → verde
+bun run --cwd apps/api-transportada typecheck      → verde
+bun run --cwd apps/worker-transportada test        → 821 pass / 0 fail (72 arquivos)
+bun run --cwd apps/api-transportada test           → 3818 pass / 23 skip / 0 fail (151 arquivos)
+```

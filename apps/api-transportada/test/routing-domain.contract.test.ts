@@ -3,3 +3,4 @@
  */
 import './routing-domain/geocoding-precision.contract.js'
 import './routing-domain/service-time.contract.js'
+import './routing-domain/stored-precedence.contract.js'

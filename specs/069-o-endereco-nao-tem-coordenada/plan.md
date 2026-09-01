@@ -24,24 +24,31 @@ geocodificação mora:
 | 2 — provedor pago, por marca   | **API**    | é ação humana síncrona: alguém clicou e está esperando resposta |
 | 3 — pino manual                | **API**    | já existe (`geocoded-address-correction.use-case.ts`)           |
 
-As duas apps precisam de **coisas diferentes**, então não há regra duplicada:
+As duas apps precisam de **coisas diferentes**, e ao executar a T002 ficou claro que a divisão certa
+não é a que este plano descrevia primeiro. ⚠️ **Correção de 2026-09-01:** o plano mandava partir
+`geocoding-precision.policy.ts` por consumidor. Isso estava errado por dois motivos, os dois medidos
+no código:
 
-- o **worker** leva a cascata (`geocodeAddresses`), a `GeocodingPort`, o gateway de CEP, o de
-  centroide e `toGeocodingPrecision`;
-- a **API** leva só uma use case nova e estreita — _reconsultar este endereço no provedor fino e
-  substituir se for mais fino_ —, que é vizinha da correção manual que já mora lá, e usa
-  `isFinerPrecision`, que também já está lá.
+- `geocodeAddresses` **não chama** `shouldReplaceStored` — a cascata só escreve o que está ausente da
+  base, nunca substitui. As duas funções são independentes, e só o teste as via juntas.
+- Com o degrau 2 na API (a marca), quem precisa de `toGeocodingPrecision` é o **gateway do Google**,
+  que mora lá. Partir por consumidor mandaria essa função para o worker, que não a usa.
 
-`geocode-address.use-case.ts` e `geocoding.port.ts` **se movem** para o worker: hoje não têm chamador
-em app nenhuma, e a API não passa a precisar deles. `geocoding-precision.policy.ts` se **parte por
-consumidor** — `isFinerPrecision` fica na API (reconciliação), `toGeocodingPrecision` e
-`isOptimizablePrecision` vão para o worker (leitura de provedor). Partir por consumidor evita a
-paridade que duplicar o arquivo criaria.
+Partir como estava escrito deixaria a **ordenação de precisão duplicada nas duas apps** — o ranking
+`rooftop > street > postal_code > city` em dois arquivos, que é a cópia por valor que diverge em
+silêncio e faz a mesma coordenada ser aceita de um lado e recusada do outro.
 
-⚠️ **A marca chamar o provedor de dentro do request não contraria o RNF3.** Aquele requisito proíbe
-rede de terceiro no caminho de **vincular nota** — o separador que bipa etiqueta não pode esperar. A
-marca é o oposto: é uma pessoa pedindo explicitamente que se conserte um endereço, e ela precisa da
-resposta para saber se deu certo (RF5). Uma chamada, iniciada por humano, com humano esperando.
+A divisão correta:
+
+| peça                                        | onde                              | por quê                                                                  |
+| ------------------------------------------- | --------------------------------- | ------------------------------------------------------------------------ |
+| `geocodeAddresses` (a cascata)              | **worker**                        | resolve o que falta; não ranqueia nada                                   |
+| `GeocodingPort` e os tipos de registro      | **ambas**                         | são declarações de tipo, não regra — e apps não se importam              |
+| `geocoding-precision.policy.ts` **inteira** | **API**                           | `toGeocodingPrecision` é do gateway pago e `isFinerPrecision` é da marca |
+| `shouldReplaceStored`                       | **API**, migrando para a política | é decisão sobre precisão, e é exatamente o que a marca precisa           |
+
+Assim **nenhuma regra fica em dois lugares**. O que se repete são tipos, que é o que este monorepo já
+faz por necessidade (treze schemas Drizzle copiados no worker) e que o compilador pega quando diverge.
 
 ### Arquivos
 

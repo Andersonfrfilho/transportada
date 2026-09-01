@@ -1,8 +1,6 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { GeocodingPrecision } from '../../database/geocoding.schema.js'
-import { isFinerPrecision } from '../domain/geocoding-precision.policy.js'
 import type {
   GeocodeAddressRequest,
   GeocodedAddressRecord,
@@ -112,21 +110,4 @@ async function resolveThroughCascade(
   if (byPostalCode !== null) return byPostalCode
 
   return dependencies.centroids.byCityCode(request.cityCode)
-}
-
-/**
- * ADR-0044 §3: a correção manual sempre vence, e nenhuma geocodificação posterior a desfaz. Fora
- * dela, só uma precisão mais fina substitui a que já está em base — regeocodificar um telhado para
- * um centroide seria piorar o cadastro com uma escrita.
- */
-export function shouldReplaceStored(input: {
-  readonly candidatePrecision: GeocodingPrecision
-  readonly candidateSource: GeocodedAddressRecord['source']
-  readonly storedPrecision: GeocodingPrecision
-  readonly storedSource: GeocodedAddressRecord['source']
-}): boolean {
-  if (input.storedSource === 'manual') return false
-  if (input.candidateSource === 'manual') return true
-
-  return isFinerPrecision(input.candidatePrecision, input.storedPrecision)
 }

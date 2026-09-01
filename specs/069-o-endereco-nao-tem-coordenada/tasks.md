@@ -21,7 +21,7 @@ não precisa da chave para ser escrita e testada — só o deploy dela a espera.
 
 ## Fase A — O fio e o degrau de graça
 
-- [ ] T002 🧠 Mover `geocode-address.use-case.ts` e `geocoding.port.ts` da API para o worker, e
+- [x] T002 🧠 ✅ Mover `geocode-address.use-case.ts` e `geocoding.port.ts` da API para o worker, e
       partir `geocoding-precision.policy.ts` por consumidor (`isFinerPrecision` fica na API;
       `toGeocodingPrecision`/`isOptimizablePrecision` vão para o worker) — **dependência:** T001 —
       **verificação:** `bun run typecheck` nas duas apps — **aceite:** nenhuma cópia por valor nova;
