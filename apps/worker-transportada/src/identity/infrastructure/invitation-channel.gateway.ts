@@ -3,6 +3,7 @@
  */
 import type { EmailDriverPort } from '@adatechnology/notification-contracts'
 
+import { buildEmailHtml } from '../domain/email-layout.policy.js'
 import type { InvitationContactChannel } from '../application/deliver-invitation-code.service.js'
 import type { WhatsAppCodeSender } from '../../whatsapp/infrastructure/whatsapp-code-sender.gateway.js'
 
@@ -65,8 +66,14 @@ export function createInvitationChannelGateway(drivers: {
         throw new InvitationChannelUnavailableError(input.channel)
       }
 
+      /**
+       * O corpo entrava cru em `<p>`: sem moldura, sem marca, e sem escapar — com o texto do
+       * template editável no painel, um `<` digitado quebrava o documento e uma tag colada de outro
+       * lugar viajava para a caixa de todo mundo. `text` continua sendo o corpo original: é o que o
+       * cliente sem HTML mostra.
+       */
       const result = await drivers.email.send({
-        html: `<p>${input.body}</p>`,
+        html: buildEmailHtml({ body: input.body, subject: input.subject }),
         subject: input.subject,
         text: input.body,
         to: input.address,

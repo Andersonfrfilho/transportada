@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 
+import { validateEmailHtml } from '../shared/emailHtml.validation'
+
 import {
   NOTIFICATION_PREVIEW_PAYLOAD,
   NOTIFICATION_WORKSPACE_HREF,
@@ -36,6 +38,7 @@ export function NotificationSettingsPage(): ReactNode {
         categories={categories}
         channels={channels}
         previewPayload={NOTIFICATION_PREVIEW_PAYLOAD}
+        validateEmailHtml={validateEmailHtml}
         renderHeader={renderHeader}
       />
     </main>
