@@ -325,3 +325,31 @@ job_schedules      geocoding.backfill | 300  (aplicado no Postgres local)
 synthetic effect`. Ela é **pré-existente** — reproduzida com este trabalho no `git stash`, sem a
 rotina registrada, e falha igual. Não é regressão desta spec, e fica registrada aqui para não ser
 descoberta de novo como se fosse.
+
+## Fase C — A marca e o degrau que custa
+
+### T017 ✅ a T019 ✅ 2026-09-01 — O gateway que a spec 058 nunca escreveu
+
+`GEOCODING_API_KEY` entrou como **opcional** no schema da API. Vazia, o gateway não é construído e a
+marca responde que a precisão fina não está disponível — a app sobe, e o produto segue roteirizando
+com precisão de CEP.
+
+`google-geocoding.gateway.ts` é o arquivo que a **T006 da spec 058 listou e marcou concluída sem
+escrever**. O contrato dele usa **fake de transporte, nunca a porta** (CA5): é injetando
+`GeocodingPort` que aquela task ficou verde sobre uma camada ausente.
+
+Onze casos: os quatro `location_type`, `location_type` desconhecido virando `city`, `ZERO_RESULTS`,
+`OVER_QUERY_LIMIT`, transporte lançando, `place_id` sempre persistido, resultado **sem** `place_id`
+recusado, e a consulta levando endereço e chave.
+
+⚠️ Sem `place_id` o gateway devolve `null` em vez de tentar gravar: o CHECK
+`geocoded_addresses_place_id_check` recusaria a linha `google`, e a mitigação da ADR-0044 §3 só vale
+se nunca falhar em silêncio.
+
+Duas correções nos **meus testes**, não no código:
+
+- passar `undefined` a um parâmetro com valor padrão **usa o padrão** — o caso "sem `place_id`"
+  precisava ser construído, não pedido por `undefined`;
+- `URLSearchParams` codifica espaço como `+`, não `%20`.
+
+**Verificação:** `bun run --cwd apps/api-transportada test` → **3837 pass / 0 fail** (era 3826).

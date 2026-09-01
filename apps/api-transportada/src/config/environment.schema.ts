@@ -151,6 +151,14 @@ const environmentSchema = z.object({
   // sem verificar (dev local, onde não dá pra resolver o desafio contra a API real do Cloudflare) —
   // em produção configurar é o que fecha a porta pra submissão automatizada em massa.
   TURNSTILE_SECRET_KEY: optionalText(),
+  /**
+   * Spec 069, degrau 2 da escada: a precisão fina, comprada **só quando um humano marca** a parada
+   * como errada. Vazia, a marca responde que a precisão fina não está disponível e oferece o pino
+   * manual — nada quebra, e o produto segue roteirizando com precisão de CEP.
+   *
+   * ⚠️ Nunca com prefixo `VITE_`: o Vite inlina o literal no bundle (`security.md` §4).
+   */
+  GEOCODING_API_KEY: optionalText(),
   // Assina o access token da conta do agregado (`@adatechnology/user-module`, 064/T1) — schema
   // isolado, sem relação com o JWT do Keycloak. Ausente, o módulo não é montado: a conta do
   // agregado ainda não existe como rota, em vez de subir com segredo vazio.
@@ -235,6 +243,7 @@ export function parseEnvironment(environment: Record<string, string | undefined>
     nfseCallbackBaseUrl: parsed.NFSE_CALLBACK_BASE_URL,
     notificationWebhookSecret: parsed.NOTIFICATION_WEBHOOK_SECRET,
     turnstileSecretKey: parsed.TURNSTILE_SECRET_KEY,
+    geocodingApiKey: parsed.GEOCODING_API_KEY,
     userAccessTokenSecret: parsed.USER_ACCESS_TOKEN_SECRET,
     aggregateDocumentOcrUrl: parsed.AGGREGATE_DOCUMENT_OCR_URL,
     whatsapp: {

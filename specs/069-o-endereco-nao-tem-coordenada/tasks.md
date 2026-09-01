@@ -69,12 +69,12 @@ não precisa da chave para ser escrita e testada — só o deploy dela a espera.
 
 > Implementável e testável inteira **sem a chave** (fake de transporte). Só o deploy a espera.
 
-- [ ] T017 [P] `GEOCODING_API_KEY` opcional no schema de env da API, com o gateway construído só
+- [x] T017 [P] ✅ `GEOCODING_API_KEY` opcional no schema de env da API, com o gateway construído só
       quando existe — **dependência:** T009 — **aceite:** RF7, a app sobe sem a chave
-- [ ] T018 Contrato do gateway pago **por fake de transporte, não por porta falsa** (CA5): os quatro
+- [x] T018 ✅ Contrato do gateway pago **por fake de transporte, não por porta falsa** (CA5): os quatro
       `location_type`, `ZERO_RESULTS`, 429, `place_id` sempre persistido — **dependência:** T017 —
       **aceite:** nenhum teste passa com `GeocodingPort` substituída por objeto literal
-- [ ] T019 `google-geocoding.gateway.ts` na API — o arquivo que a T006 da spec 058 listou e nunca
+- [x] T019 ✅ `google-geocoding.gateway.ts` na API — o arquivo que a T006 da spec 058 listou e nunca
       escreveu — **dependência:** T018
 - [ ] T020 🧠 `refine-address.use-case.ts` e a rota `POST
 /route-suggestions/:id/stops/:stopId/refine-address` (`trip.manage`), com as **três** respostas
