@@ -9,8 +9,21 @@ import { bigint, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-co
 
 export const identityUserProfiles = pgTable('identity_user_profiles', {
   userId: uuid('user_id').primaryKey(),
+  /** Quem recebe o código. Vai no cabeçalho do e-mail, ao lado da foto quando ela existe. */
+  name: text().notNull(),
   contactAddress: text('contact_address').notNull(),
   contactChannel: text('contact_channel').notNull(),
+})
+
+/**
+ * Só o endereço público da foto: o `public_token` é o link **e** a credencial dele, girado a cada
+ * troca de imagem. Os bytes ficam na API — o e-mail carrega URL, não anexo.
+ *
+ * ⚠️ Cópia da tabela que a API versiona; migration só roda lá.
+ */
+export const identityUserPictures = pgTable('identity_user_pictures', {
+  userId: uuid('user_id').primaryKey(),
+  publicToken: text('public_token'),
 })
 
 /** Só a coluna do canal: a empresa decide por onde o código sai, o perfil só diz para onde. */

@@ -38,6 +38,7 @@ describe('o canal de e-mail do código de acesso', () => {
       brand: {
         read: async () => ({
           accentColor: '#1a2b3c',
+          apiBaseUrl: 'https://api.exemplo.com.br',
           appBaseUrl: 'https://painel.exemplo.com.br',
           contactEmail: 'contato@exemplo.com.br',
           contactPhone: '(16) 3333-4444',

@@ -6,6 +6,7 @@ import { and, eq, gt, isNull } from 'drizzle-orm'
 
 import {
   companyFiscalProfiles,
+  identityUserPictures,
   identityUserProfiles,
 } from '../../database/invitation-delivery.schema.js'
 import { passwordResetRequests } from '../../database/password-reset-delivery.schema.js'
@@ -38,6 +39,8 @@ export class DrizzlePasswordResetDeliveryRepository {
       .select({
         companyId: passwordResetRequests.companyId,
         contactAddress: identityUserProfiles.contactAddress,
+        recipientName: identityUserProfiles.name,
+        recipientPictureToken: identityUserPictures.publicToken,
         contactChannel: companyFiscalProfiles.activationChannel,
         id: passwordResetRequests.id,
         sealedCode: passwordResetRequests.sealedCode,
@@ -48,6 +51,7 @@ export class DrizzlePasswordResetDeliveryRepository {
         identityUserProfiles,
         eq(identityUserProfiles.userId, passwordResetRequests.userId),
       )
+      .leftJoin(identityUserPictures, eq(identityUserPictures.userId, passwordResetRequests.userId))
       .leftJoin(
         companyFiscalProfiles,
         eq(companyFiscalProfiles.companyId, passwordResetRequests.companyId),
@@ -73,6 +77,10 @@ export class DrizzlePasswordResetDeliveryRepository {
       contactAddress: row.contactAddress,
       contactChannel: contactChannel as PasswordResetContactChannel,
       id: row.id,
+      recipientName: row.recipientName,
+      ...(row.recipientPictureToken === null
+        ? {}
+        : { recipientPictureToken: row.recipientPictureToken }),
       sealedCode: row.sealedCode,
       userId: row.userId,
     }

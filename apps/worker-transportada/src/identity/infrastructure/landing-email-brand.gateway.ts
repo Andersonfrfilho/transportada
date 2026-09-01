@@ -30,6 +30,7 @@ export function createLandingEmailBrandGateway(dependencies: Dependencies): Emai
   const now = dependencies.now ?? (() => Date.now())
   const fallback: CodeEmailBrand = {
     accentColor: undefined,
+    apiBaseUrl: dependencies.apiBaseUrl,
     appBaseUrl: dependencies.appBaseUrl,
     contactEmail: undefined,
     contactPhone: undefined,
@@ -73,6 +74,7 @@ async function readBrand(input: {
 
     return {
       accentColor: readText(data?.accentColor),
+      apiBaseUrl: baseUrl,
       appBaseUrl: input.fallback.appBaseUrl,
       contactEmail: readText(data?.contactEmail),
       contactPhone: readText(data?.contactPhone),

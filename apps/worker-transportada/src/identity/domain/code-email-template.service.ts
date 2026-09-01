@@ -26,16 +26,32 @@ const EMAIL_PALETTE = {
   text: '#f0f2ee',
 } as const
 
+/**
+ * ⚠️ Sem `font-family` **em cada elemento** o cliente de e-mail cai no padrão dele, que é serifado —
+ * era o que fazia o e-mail parecer de outro produto. Herança por tabela não é confiável no Outlook,
+ * então a pilha é repetida em toda declaração, e ela é longa porque a fonte do painel não existe em
+ * Windows: `Avenir Next` no Mac, `Segoe UI` no Windows, `Roboto` no Android, e Arial no resto.
+ */
+const EMAIL_FONTS = {
+  body: "'Avenir Next',Avenir,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif",
+  /** O código é para ser lido caractere por caractere e digitado: monoespaçado, como no painel. */
+  mono: "'SFMono-Regular',SFMono,Consolas,'Liberation Mono',Menlo,monospace",
+} as const
+
 const EMAIL_MAX_WIDTH = 600
 const PRODUCT_NAME = 'TransportAdA'
 const COPYRIGHT_HOLDER = 'Ada Technology'
 const COPYRIGHT_HOLDER_URL = 'https://adatechnology.com.br'
 /**
- * Cópia por valor do caminho que o painel publica (`ApplicationFooter.component.tsx`) — o worker não
- * lê o `public/` do frontend, e o e-mail precisa de URL absoluta. Sem `appBaseUrl` o desenho não
- * entra, e a assinatura segue em texto.
+ * Cópias por valor dos caminhos que o painel publica — o worker não lê o `public/` do frontend, e o
+ * e-mail precisa de URL absoluta. Sem `appBaseUrl` nenhum dos dois entra, e a assinatura segue em
+ * texto: imagem quebrada assina pior.
  */
+const PRODUCT_MARK_PATH = '/icons/icon-192.png'
 const ADA_MARK_PATH = '/icons/ada-technology.png'
+/** Rota anônima da API, com o token opaco no lugar do identificador do usuário. */
+const USER_PICTURE_PATH_PREFIX = '/public/company-users/'
+const USER_PICTURE_PATH_SUFFIX = '/picture'
 const AUTOMATED_NOTE = 'Mensagem automática — não responda este e-mail.'
 
 /** Hex de 6 dígitos, `#rrggbb`, como o CHECK de `landing_settings` exige. */
@@ -48,12 +64,20 @@ const HEX_COLOR_PATTERN = /^#[0-9a-f]{6}$/iu
  */
 export type CodeEmailBrand = {
   readonly accentColor: string | undefined
-  /** Origem do painel — é dela que sai o desenho da Ada no rodapé. */
+  /** Endereço da API: é dele que sai a foto de perfil, servida por rota anônima com token opaco. */
+  readonly apiBaseUrl: string | undefined
+  /** Origem do painel — é dela que saem as marcas do produto e da Ada no rodapé. */
   readonly appBaseUrl: string | undefined
   readonly contactEmail: string | undefined
   readonly contactPhone: string | undefined
   readonly logoUrl: string | undefined
   readonly name: string | undefined
+}
+
+/** Quem recebe o código. Sem foto cadastrada, a inicial do nome ocupa o lugar do retrato. */
+export type CodeEmailRecipient = {
+  readonly name: string
+  readonly pictureToken: string | undefined
 }
 
 export type CodeEmailContent = {
@@ -89,7 +113,7 @@ function toParagraphs(body: string): string {
     .filter((block) => block !== '')
     .map(
       (block) =>
-        `<p style="margin:0 0 16px;color:${EMAIL_PALETTE.text};font-size:15px;line-height:1.6">${escapeHtml(
+        `<p style="margin:0 0 16px;color:${EMAIL_PALETTE.text};font-family:${EMAIL_FONTS.body};font-size:15px;line-height:1.6">${escapeHtml(
           block,
         ).replaceAll('\n', '<br>')}</p>`,
     )
@@ -98,16 +122,17 @@ function toParagraphs(body: string): string {
 
 /**
  * ⚠️ **Imagem em e-mail chega bloqueada por padrão**, e é por isso que nenhuma delas carrega
- * informação: o logotipo da transportadora vem ao lado do nome dela em texto, e o desenho da Ada ao
- * lado da assinatura em texto. Com as imagens bloqueadas o e-mail perde enfeite, nunca conteúdo —
- * era essa a razão de a moldura anterior não ter `<img>` nenhuma.
+ * informação: o logotipo da transportadora vem acima do nome dela em texto, o retrato vem ao lado do
+ * nome de quem recebe, e as marcas do rodapé ao lado da assinatura escrita. Com as imagens
+ * bloqueadas o e-mail perde enfeite, nunca conteúdo.
  */
 export function renderCodeEmail(input: {
   readonly brand: CodeEmailBrand
   readonly content: CodeEmailContent
+  readonly recipient?: CodeEmailRecipient
   readonly year: number
 }): CodeEmailDocument {
-  const { brand, content, year } = input
+  const { brand, content, recipient, year } = input
   const accent = resolveAccentColor(brand.accentColor)
   const brandName = brand.name ?? PRODUCT_NAME
 
@@ -120,11 +145,12 @@ export function renderCodeEmail(input: {
       '<meta name="x-apple-disable-message-reformatting">',
       `<title>${escapeHtml(content.headline)}</title>`,
       '</head>',
-      `<body style="margin:0;padding:24px 0;background:${EMAIL_PALETTE.background}">`,
+      `<body style="margin:0;padding:24px 0;background:${EMAIL_PALETTE.background};font-family:${EMAIL_FONTS.body}">`,
       `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${EMAIL_PALETTE.background}">`,
       '<tr><td align="center">',
       `<table role="presentation" width="${EMAIL_MAX_WIDTH}" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:${EMAIL_MAX_WIDTH}px;background:${EMAIL_PALETTE.surface};border:1px solid ${EMAIL_PALETTE.border}">`,
       renderHeader({ accent, brandName, logoUrl: brand.logoUrl }),
+      renderIdentity({ accent, apiBaseUrl: brand.apiBaseUrl, recipient }),
       renderBody({ accent, content }),
       renderCompanyFooter({ brand, brandName }),
       renderProductFooter({ appBaseUrl: brand.appBaseUrl, year }),
@@ -132,6 +158,7 @@ export function renderCodeEmail(input: {
     ].join(''),
     text: [
       brandName,
+      ...(recipient === undefined ? [] : ['', recipient.name]),
       '',
       content.headline,
       content.intro,
@@ -151,7 +178,11 @@ function resolveAccentColor(value: string | undefined): string {
   return value !== undefined && HEX_COLOR_PATTERN.test(value) ? value : EMAIL_PALETTE.accent
 }
 
-/** O nome da transportadora é texto; o logotipo, quando existe, entra ao lado dele. */
+function trimTrailingSlash(value: string): string {
+  return value.endsWith('/') ? value.slice(0, -1) : value
+}
+
+/** O topo é da empresa que contratou o sistema: o logotipo dela, e o nome dela em texto embaixo. */
 function renderHeader(input: {
   readonly accent: string
   readonly brandName: string
@@ -160,14 +191,52 @@ function renderHeader(input: {
   const logo =
     input.logoUrl === undefined
       ? ''
-      : `<img src="${escapeHtml(input.logoUrl)}" alt="" height="32" style="display:block;margin:0 auto 8px;max-height:32px;border:0">`
+      : `<img src="${escapeHtml(input.logoUrl)}" alt="" height="48" style="display:block;margin:0 auto 12px;max-height:48px;border:0">`
 
   return [
-    `<tr><td align="center" style="padding:24px 24px 8px;border-bottom:1px solid ${input.accent}">`,
+    `<tr><td align="center" style="padding:24px 24px 14px;border-bottom:1px solid ${input.accent}">`,
     logo,
-    `<span style="color:${input.accent};font-size:13px;letter-spacing:.08em;text-transform:uppercase">${escapeHtml(input.brandName)}</span>`,
+    `<span style="color:${input.accent};font-family:${EMAIL_FONTS.body};font-size:13px;font-weight:600;letter-spacing:.12em;text-transform:uppercase">${escapeHtml(input.brandName)}</span>`,
     '</td></tr>',
   ].join('')
+}
+
+/**
+ * A identidade de quem recebe: retrato quando a ficha tem um, e a inicial do nome quando não. Isto
+ * existe porque o e-mail é endereçado a uma pessoa — quem recebe um código precisa reconhecer, antes
+ * de digitar qualquer coisa, que a mensagem é para a conta dele.
+ */
+function renderIdentity(input: {
+  readonly accent: string
+  readonly apiBaseUrl: string | undefined
+  readonly recipient: CodeEmailRecipient | undefined
+}): string {
+  const { accent, apiBaseUrl, recipient } = input
+  if (recipient === undefined) return ''
+
+  const pictureUrl =
+    recipient.pictureToken === undefined || apiBaseUrl === undefined
+      ? undefined
+      : `${trimTrailingSlash(apiBaseUrl)}${USER_PICTURE_PATH_PREFIX}${recipient.pictureToken}${USER_PICTURE_PATH_SUFFIX}`
+  const portrait =
+    pictureUrl === undefined
+      ? `<span style="display:inline-block;width:36px;height:36px;background:${accent};border-radius:18px;color:${EMAIL_PALETTE.background};font-family:${EMAIL_FONTS.body};font-size:16px;font-weight:700;line-height:36px;text-align:center">${escapeHtml(toInitial(recipient.name))}</span>`
+      : `<img src="${escapeHtml(pictureUrl)}" alt="" width="36" height="36" style="display:block;width:36px;height:36px;border-radius:18px;border:0;object-fit:cover">`
+
+  return [
+    `<tr><td style="padding:16px 24px 0">`,
+    '<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>',
+    `<td style="padding-right:12px" valign="middle">${portrait}</td>`,
+    `<td valign="middle"><span style="color:${EMAIL_PALETTE.text};font-family:${EMAIL_FONTS.body};font-size:15px;font-weight:600">${escapeHtml(recipient.name)}</span></td>`,
+    '</tr></table>',
+    '</td></tr>',
+  ].join('')
+}
+
+/** Primeira letra do nome, em caixa alta — o retrato que existe para toda ficha, sem arquivo. */
+function toInitial(name: string): string {
+  const trimmed = name.trim()
+  return trimmed === '' ? '?' : (trimmed[0] ?? '?').toLocaleUpperCase('pt-BR')
 }
 
 function renderBody(input: {
@@ -178,15 +247,15 @@ function renderBody(input: {
   const note =
     content.note === ''
       ? ''
-      : `<p style="margin:0 0 8px;color:${EMAIL_PALETTE.text};font-size:14px;line-height:1.6">${escapeHtml(content.note)}</p>`
+      : `<p style="margin:0 0 8px;color:${EMAIL_PALETTE.text};font-family:${EMAIL_FONTS.body};font-size:14px;line-height:1.6">${escapeHtml(content.note)}</p>`
 
   return [
-    '<tr><td style="padding:24px 24px 8px">',
-    `<h1 style="margin:0 0 16px;color:${EMAIL_PALETTE.text};font-size:20px;line-height:1.3">${escapeHtml(content.headline)}</h1>`,
+    '<tr><td style="padding:20px 24px 8px">',
+    `<h1 style="margin:0 0 16px;color:${EMAIL_PALETTE.text};font-family:${EMAIL_FONTS.body};font-size:20px;font-weight:600;line-height:1.3">${escapeHtml(content.headline)}</h1>`,
     toParagraphs(content.intro),
-    `<p style="margin:0 0 16px;padding:16px;background:${EMAIL_PALETTE.background};border-left:4px solid ${accent};color:${EMAIL_PALETTE.text};font-size:26px;letter-spacing:3px;font-weight:bold;text-align:center">${escapeHtml(content.code)}</p>`,
+    `<p style="margin:0 0 16px;padding:16px;background:${EMAIL_PALETTE.background};border-left:4px solid ${accent};color:${EMAIL_PALETTE.text};font-family:${EMAIL_FONTS.mono};font-size:24px;font-weight:700;letter-spacing:2px;text-align:center">${escapeHtml(content.code)}</p>`,
     note,
-    `<p style="margin:0 0 16px;color:${EMAIL_PALETTE.muted};font-size:12px">${escapeHtml(AUTOMATED_NOTE)}</p>`,
+    `<p style="margin:0 0 16px;color:${EMAIL_PALETTE.muted};font-family:${EMAIL_FONTS.body};font-size:12px;line-height:1.5">${escapeHtml(AUTOMATED_NOTE)}</p>`,
     '</td></tr>',
   ].join('')
 }
@@ -207,34 +276,39 @@ function renderCompanyFooter(input: {
   ]
 
   return [
-    `<tr><td style="padding:16px 24px;border-top:1px solid ${EMAIL_PALETTE.border};color:${EMAIL_PALETTE.muted};font-size:12px;line-height:1.6">`,
+    `<tr><td style="padding:16px 24px;border-top:1px solid ${EMAIL_PALETTE.border};color:${EMAIL_PALETTE.muted};font-family:${EMAIL_FONTS.body};font-size:12px;line-height:1.6">`,
     lines.join('<br>'),
     '</td></tr>',
   ].join('')
 }
 
 /**
- * A assinatura do produto é a mesma do rodapé do painel: desenho da Ada, o ano e o link para o site.
- * Aqui ela é obrigatória — o e-mail é o único lugar onde quem recebe não tem a aplicação aberta para
- * saber de quem é o sistema.
+ * O rodapé é do produto: a marca do TransportAdA embaixo, e a assinatura da Ada Technology com link
+ * para o site. É o único lugar onde quem recebe não tem a aplicação aberta para saber de quem é o
+ * sistema — e por isso o nome dos dois vai escrito, não só desenhado.
  */
 function renderProductFooter(input: {
   readonly appBaseUrl: string | undefined
   readonly year: number
 }): string {
-  const mark =
-    input.appBaseUrl === undefined
+  const baseUrl = input.appBaseUrl === undefined ? undefined : trimTrailingSlash(input.appBaseUrl)
+  const productMark =
+    baseUrl === undefined
       ? ''
-      : `<img src="${escapeHtml(`${trimTrailingSlash(input.appBaseUrl)}${ADA_MARK_PATH}`)}" alt="" height="14" style="vertical-align:middle;margin-right:8px;border:0">`
+      : `<img src="${escapeHtml(`${baseUrl}${PRODUCT_MARK_PATH}`)}" alt="" height="28" style="display:block;margin:0 auto 8px;max-height:28px;border:0">`
+  const adaMark =
+    baseUrl === undefined
+      ? ''
+      : `<img src="${escapeHtml(`${baseUrl}${ADA_MARK_PATH}`)}" alt="" height="12" style="vertical-align:middle;margin-right:6px;border:0">`
 
   return [
-    `<tr><td align="center" style="padding:12px 24px 20px;border-top:1px solid ${EMAIL_PALETTE.border};color:${EMAIL_PALETTE.muted};font-size:12px">`,
-    mark,
-    `<span style="vertical-align:middle">© ${input.year} <a href="${COPYRIGHT_HOLDER_URL}" style="color:${EMAIL_PALETTE.muted}">${COPYRIGHT_HOLDER}</a> — ${PRODUCT_NAME}</span>`,
+    `<tr><td align="center" style="padding:16px 24px 22px;border-top:1px solid ${EMAIL_PALETTE.border}">`,
+    productMark,
+    `<span style="display:block;margin-bottom:6px;color:${EMAIL_PALETTE.text};font-family:${EMAIL_FONTS.body};font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase">${PRODUCT_NAME}</span>`,
+    `<span style="color:${EMAIL_PALETTE.muted};font-family:${EMAIL_FONTS.body};font-size:11px">`,
+    adaMark,
+    `<span style="vertical-align:middle;font-family:${EMAIL_FONTS.body}">© ${input.year} <a href="${COPYRIGHT_HOLDER_URL}" style="color:${EMAIL_PALETTE.muted}">${COPYRIGHT_HOLDER}</a></span>`,
+    '</span>',
     '</td></tr>',
   ].join('')
-}
-
-function trimTrailingSlash(value: string): string {
-  return value.endsWith('/') ? value.slice(0, -1) : value
 }

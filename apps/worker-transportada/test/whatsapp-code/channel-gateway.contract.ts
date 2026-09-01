@@ -133,6 +133,7 @@ describe('o canal de código por WhatsApp (spec 062 T005)', () => {
             contactAddress: '5516999991234',
             contactChannel: 'whatsapp' as const,
             id: '00000000-0000-4000-8000-0000000000bb',
+            recipientName: 'Operador de Exemplo',
             sealedCode: { ciphertext: 'x' },
             userId: '00000000-0000-4000-8000-0000000000aa',
           }),

@@ -48,6 +48,11 @@ export function createInvitationChannelGateway(drivers: {
        * Ausente, o template usa o `body` como parágrafo — nenhum trilho fica sem mensagem.
        */
       readonly email?: { readonly intro: string; readonly note: string }
+      /**
+       * Quem recebe. O e-mail é endereçado a uma pessoa, e a identidade dele mostra a foto de perfil
+       * quando ela existe — o WhatsApp ignora, porque lá a conversa já é com a pessoa.
+       */
+      readonly recipient?: { readonly name: string; readonly pictureToken: string | undefined }
       readonly subject: string
     }): Promise<void> {
       /**
@@ -85,6 +90,7 @@ export function createInvitationChannelGateway(drivers: {
        */
       const brand = (await drivers.brand?.read()) ?? {
         accentColor: undefined,
+        apiBaseUrl: undefined,
         appBaseUrl: undefined,
         contactEmail: undefined,
         contactPhone: undefined,
@@ -93,6 +99,7 @@ export function createInvitationChannelGateway(drivers: {
       }
       const document = renderCodeEmail({
         brand,
+        ...(input.recipient === undefined ? {} : { recipient: input.recipient }),
         content: {
           code: input.code,
           headline: input.subject,

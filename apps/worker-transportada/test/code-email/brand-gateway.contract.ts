@@ -39,6 +39,7 @@ describe('a leitura da marca para o e-mail', () => {
 
     expect(await gateway.read()).toEqual({
       accentColor: '#1a2b3c',
+      apiBaseUrl: 'https://api.exemplo.com.br',
       appBaseUrl: 'https://painel.exemplo.com.br',
       contactEmail: 'contato@exemplo.com.br',
       contactPhone: '(16) 3333-4444',
@@ -81,6 +82,7 @@ describe('a leitura da marca para o e-mail', () => {
     const rejected = jsonFetch(SETTINGS, { ok: false })
     const expected = {
       accentColor: undefined,
+      apiBaseUrl: 'https://api.exemplo.com.br',
       appBaseUrl: 'https://painel.exemplo.com.br',
       contactEmail: undefined,
       contactPhone: undefined,
@@ -106,7 +108,8 @@ describe('a leitura da marca para o e-mail', () => {
 
     expect(await offline.read()).toEqual(expected)
     expect(await errored.read()).toEqual(expected)
-    expect(await unconfigured.read()).toEqual(expected)
+    /* Sem endereço de API não há foto de perfil a montar: o campo cai junto com a marca. */
+    expect(await unconfigured.read()).toEqual({ ...expected, apiBaseUrl: undefined })
     expect(rejected.calls).toHaveLength(1)
   })
 })

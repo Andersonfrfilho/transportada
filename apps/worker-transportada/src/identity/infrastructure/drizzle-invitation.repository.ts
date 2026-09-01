@@ -6,6 +6,7 @@ import { and, eq } from 'drizzle-orm'
 
 import {
   companyFiscalProfiles,
+  identityUserPictures,
   identityUserProfiles,
   userInvitations,
 } from '../../database/invitation-delivery.schema.js'
@@ -35,6 +36,8 @@ export class DrizzleInvitationDeliveryRepository {
       .select({
         companyId: userInvitations.companyId,
         contactAddress: identityUserProfiles.contactAddress,
+        recipientName: identityUserProfiles.name,
+        recipientPictureToken: identityUserPictures.publicToken,
         // O canal é da empresa; sem configuração fiscal ainda não há escolha e vale o padrão.
         contactChannel: companyFiscalProfiles.activationChannel,
         id: userInvitations.id,
@@ -43,6 +46,7 @@ export class DrizzleInvitationDeliveryRepository {
       })
       .from(userInvitations)
       .innerJoin(identityUserProfiles, eq(identityUserProfiles.userId, userInvitations.userId))
+      .leftJoin(identityUserPictures, eq(identityUserPictures.userId, userInvitations.userId))
       .leftJoin(
         companyFiscalProfiles,
         eq(companyFiscalProfiles.companyId, userInvitations.companyId),
@@ -67,6 +71,10 @@ export class DrizzleInvitationDeliveryRepository {
       contactAddress: row.contactAddress,
       contactChannel: contactChannel as InvitationContactChannel,
       id: row.id,
+      recipientName: row.recipientName,
+      ...(row.recipientPictureToken === null
+        ? {}
+        : { recipientPictureToken: row.recipientPictureToken }),
       sealedCode: row.sealedCode,
       userId: row.userId,
     }

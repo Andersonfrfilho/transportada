@@ -9,6 +9,7 @@ const SUBJECT = 'Seu acesso ao TransportAdA'
 
 const EMPTY_BRAND = {
   accentColor: undefined,
+  apiBaseUrl: 'https://api.exemplo.com.br',
   appBaseUrl: undefined,
   contactEmail: undefined,
   contactPhone: undefined,
