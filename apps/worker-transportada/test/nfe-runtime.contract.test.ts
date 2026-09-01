@@ -201,6 +201,13 @@ describe('NF-e worker runtime contract', () => {
       'provider.close:transportada.runtime.contract.nfse-issuance.v1.main.queue',
       'provider.close:transportada.runtime.contract.invitation-delivery.v1.main.queue',
       'provider.close:transportada.runtime.contract.password-reset-delivery.v1.main.queue',
+      /**
+       * ⚠️ Esta linha **faltava**, e a ausência dela é que deixou o defeito passar: o publisher do
+       * anexo do agregado nasceu fora do grupo de fechamento, a conexão ficava aberta, o processo
+       * não saía no SIGTERM — e todo deploy da staging morreu no gate de integração. A lista aqui é
+       * a única que enumera o que fecha; trilho novo entra nela junto com o `cancel` dele.
+       */
+      'provider.close:transportada.runtime.contract.aggregate-attachment.v1.main.queue',
       'provider.close:transportada.runtime.contract.job-run.v1.main.queue',
       'provider.close:transportada.runtime.contract.notification.v1.main.queue',
       'database.close',

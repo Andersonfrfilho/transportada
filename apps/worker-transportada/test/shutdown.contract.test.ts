@@ -4,6 +4,8 @@
 import { describe, expect, it } from 'bun:test'
 import { WorkerShutdown } from '../src/runtime/worker-shutdown.service.js'
 
+import './shutdown/broker-connections-close.contract.js'
+
 describe('worker shutdown contract', () => {
   it('cancels consumption before closing infrastructure and is idempotent', async () => {
     const calls: string[] = []

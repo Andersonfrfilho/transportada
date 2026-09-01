@@ -1356,6 +1356,16 @@ export async function startWorkerRuntime(
         nfseIssuancePublisher,
         invitationDeliveryPublisher,
         passwordResetDeliveryPublisher,
+        /**
+         * ⚠️ Ela ficou **de fora** quando o trilho de anexo nasceu, e o efeito é o que o comentário
+         * do roteirizador acima já descrevia: conexão de RabbitMQ aberta **mantém o processo vivo
+         * depois do SIGTERM**. O dreno nunca termina, o orquestrador mata à força, e o teste de
+         * desligamento estoura os 40s — que foi o que travou todo deploy da staging.
+         *
+         * Publisher novo entra aqui **e** no `catch` de boot abaixo. Esquecer um dos dois não quebra
+         * nada visível até alguém pedir para o processo sair.
+         */
+        aggregateAttachmentPublisher,
         jobRunProvider,
         notificationProvider,
       ]),
@@ -1399,6 +1409,9 @@ export async function startWorkerRuntime(
     await nfseIssuancePublisher?.close().catch(() => undefined)
     await invitationDeliveryPublisher?.close().catch(() => undefined)
     await passwordResetDeliveryPublisher?.close().catch(() => undefined)
+    await aggregateAttachmentPublisher?.close().catch(() => undefined)
+    await routeOptimizationProvider?.close().catch(() => undefined)
+    await notificationProvider?.close().catch(() => undefined)
     await jobRunProvider?.close().catch(() => undefined)
     await provider?.close().catch(() => undefined)
     await database.close().catch(() => undefined)
