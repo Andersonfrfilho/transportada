@@ -152,18 +152,42 @@ sugestão sai com as paradas que dá — nunca `failed`, e nunca com coordenada 
 
 ## Dúvidas
 
-### D1 — A chave do Google existe?
+### D1 — O provedor ✅ decidido em 2026-09-01
 
-A ADR-0044 §3 decidiu o provedor por cobertura em cidade do interior, e decidiu **consciente** de que
-o armazenamento permanente contraria os Termos do Google Maps Platform, com `place_id` guardado como
-saída. Isso está fechado e não se reabre aqui.
+**Google, com a coordenada guardada em base permanentemente.** Confirma a ADR-0044 §3, e confirma com
+ela a **exceção de licença assumida por escrito**: os Termos do Google Maps Platform permitem cache de
+lat/lng por 30 dias corridos, e o armazenamento indefinido que fazemos aqui está fora deles. A saída
+barata continua sendo o `place_id`, que é armazenável sem exceção nenhuma e por isso é `not null` no
+schema.
 
-O que não existe é a chave: `GEOCODING_API_KEY` está no `.env.example` e **nenhum código a lê**, e não
-há projeto de faturamento conhecido. O custo é por endereço **novo**, não por sugestão.
+Recusada de novo, pelo mesmo motivo da ADR: hospedar geocodificador nosso (Nominatim sobre o mesmo
+extract OSM do OSRM). **Não compensa por dinheiro** — e a razão é que as duas camadas têm formatos de
+chamada opostos:
 
-`[NEEDS CLARIFICATION: existe conta Google Cloud com faturamento para a Geocoding API, e quem a
-administra? Sem chave a feature entrega a cascata de centroide — que é palpite de município e não
-otimiza nada —, ou seja, entrega o encanamento sem o resultado.]`
+| camada            | quantas chamadas                       | forma do custo                                       |
+| ----------------- | -------------------------------------- | ---------------------------------------------------- |
+| matriz de estrada | milhares **por sugestão**              | recorrente e sem teto → hospedar ganha (ADR-0044 §2) |
+| geocodificação    | uma por endereço **novo**, para sempre | pagamento único que **decai** conforme a base satura |
+
+Servidor de pé 24/7 é custo fixo que nunca decai; a conta do Google cai para o punhado de endereços
+novos do mês. Hospedar geocodificador se justificaria por licença ou privacidade — nunca por economia.
+
+#### O que exatamente vai para o banco
+
+Precisão importa aqui, porque "guardar os endereços" e o que a tabela faz não são a mesma coisa:
+
+- **vai** — `address_key` (`cityCode|postalCode|number`, a normalização que a 056 já usa), a
+  coordenada, a precisão, a origem e o `place_id`;
+- **não vai** — nome do destinatário, CNPJ/CPF, razão social, nem o texto do logradouro.
+
+É por isso que `geocoded_addresses` **não tem `company_id`** e isso é defensável: ela diz "este ponto
+de entrega existe e fica aqui", sem dizer de quem é. Duas empresas que entregam na mesma rua não
+geocodificam duas vezes.
+
+⚠️ **Pendência operacional, não de código:** a chave não existe. Alguém precisa criar o projeto no
+Google Cloud com faturamento, gerar a chave da Geocoding API **restrita a ela**, e pô-la em
+`GEOCODING_API_KEY` no worker. Enquanto isso não acontece, a Fase A entrega e a Fase B fica pronta
+esperando a variável — o gateway só é construído quando ela existe (RF5).
 
 ### D2 — De onde vem o centroide? ✅ decidido em 2026-09-01
 

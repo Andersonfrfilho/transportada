@@ -2,8 +2,12 @@
 
 > 🤖 Modelo da fase: `sonnet`. T001 e T010 são 🧠 — validar com `opus`.
 
-⛔ **Nada começa com as duas `[NEEDS CLARIFICATION]` da spec abertas** (D1: a chave do Google existe?
-D2: de onde vem o centroide de município?). D2 foi **fechada em 2026-09-01** (tabela semeada); resta D1, que bloqueia a Fase B inteira.
+✅ **As duas dúvidas foram fechadas em 2026-09-01** — D1: Google, com a coordenada em base
+permanentemente (a exceção de licença da ADR-0044 §3 confirmada); D2: tabela semeada dos 5.570
+centroides. Nenhuma `[NEEDS CLARIFICATION]` aberta: pode começar.
+
+⚠️ A Fase B **não está bloqueada por decisão, e sim por uma chave que ainda não existe**. Ela se
+implementa e se testa inteira com fake de transporte; o que espera a chave é só a variável em staging.
 
 A feature tem **duas metades que entregam em separado**, e a ordem não é a óbvia.
 
@@ -62,7 +66,8 @@ chave que talvez não exista, por um ganho de precisão sobre uma base que hoje 
 
 ## Fase B — O provedor pago, e a precisão de telhado
 
-> ⛔ Bloqueada por **D1**. Entrega precisão `rooftop`/`street` sobre a base que a Fase A já fez andar.
+> Decidida. Entrega precisão `rooftop`/`street` sobre a base que a Fase A já fez andar. Implementável
+> sem a chave (fake de transporte); só o deploy em staging a espera.
 
 - [ ] T010 🧠 `GEOCODING_API_KEY` no schema de env do worker como **opcional**, com o gateway
       construído só quando ela existe e aviso estruturado uma vez no boot quando não —
