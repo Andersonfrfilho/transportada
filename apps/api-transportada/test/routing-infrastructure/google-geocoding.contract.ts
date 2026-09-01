@@ -61,7 +61,7 @@ describe('Google geocoding gateway (spec 069, degrau 2)', () => {
     ['RANGE_INTERPOLATED', 'street'],
     ['GEOMETRIC_CENTER', 'postal_code'],
     ['APPROXIMATE', 'city'],
-  ])('maps %s to %s', async (locationType, precision) => {
+  ] as const)('maps %s to %s', async (locationType, precision) => {
     const gateway = createGoogleGeocodingGateway({
       apiKey: 'key',
       fetchImplementation: respondWith(okResult(locationType)),

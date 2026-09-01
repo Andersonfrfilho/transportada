@@ -76,14 +76,14 @@ não precisa da chave para ser escrita e testada — só o deploy dela a espera.
       **aceite:** nenhum teste passa com `GeocodingPort` substituída por objeto literal
 - [x] T019 ✅ `google-geocoding.gateway.ts` na API — o arquivo que a T006 da spec 058 listou e nunca
       escreveu — **dependência:** T018
-- [ ] T020 🧠 `refine-address.use-case.ts` e a rota `POST
+- [x] T020 🧠 ✅ `refine-address.use-case.ts` e a rota `POST
 /route-suggestions/:id/stops/:stopId/refine-address` (`trip.manage`), com as **três** respostas
       — substituiu, não melhorou, sem chave — e **nunca `204` mudo** — **dependência:** T019 —
       **aceite:** CA7 e CA8; a linha em base fica intacta quando não melhorou
-- [ ] T021 [P] Trilha da marca (RF10), append-only — **dependência:** T020
-- [ ] T022 [P] Teto por janela (RF11) — sem tenant na tabela, a marca de uma empresa gasta por todas
+- [x] T021 [P] ✅ Trilha da marca (RF10), append-only — **dependência:** T020
+- [x] T022 [P] ✅ Teto por janela (RF11) — sem tenant na tabela, a marca de uma empresa gasta por todas
       — **dependência:** T020
-- [ ] T023 **CA6 — o contrato que guarda a decisão de custo:** uma sugestão inteira, com endereços
+- [x] T023 ✅ **CA6 — o contrato que guarda a decisão de custo:** uma sugestão inteira, com endereços
       novos e paradas colidindo na mesma coordenada, faz **zero** chamadas ao provedor pago —
       **dependência:** T020 — **aceite:** sem ele, alguém acrescenta escalada automática seis meses
       adiante e ninguém vê

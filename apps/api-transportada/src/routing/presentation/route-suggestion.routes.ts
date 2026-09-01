@@ -41,9 +41,37 @@ const ROUTE_SUGGESTION_REJECT_PATH = `${ROUTE_SUGGESTION_PATH}/reject`
  * ela não tem.
  */
 const GEOCODED_ADDRESS_PATH = '/geocoded-addresses/:addressKey'
+/**
+ * ⚠️ **Desvio do plano, com motivo.** Ele previa
+ * `POST /route-suggestions/:id/stops/:stopId/refine-address`. A marca é sobre o **endereço**, não
+ * sobre a parada de uma sugestão: a coordenada é compartilhada, e o pino manual (degrau 3) já mora
+ * em `/geocoded-addresses/:addressKey`. Pendurar o degrau 2 noutra árvore separaria dois degraus da
+ * mesma escada e obrigaria a carregar uma sugestão que a operação não usa.
+ */
+const GEOCODED_ADDRESS_REFINE_PATH = `${GEOCODED_ADDRESS_PATH}/refine`
+
+type RefineAddressUseCase = Readonly<{
+  refine: (input: {
+    readonly actorUserId: string
+    readonly addressKey: string
+    readonly companyId: string
+  }) => Promise<{
+    readonly latitude?: string
+    readonly longitude?: string
+    readonly outcome: 'refined' | 'not_improved' | 'provider_not_configured'
+    readonly precision?: string
+  }>
+}>
+
+type RefinementQuota = Readonly<{
+  countInWindow: (input: { readonly companyId: string }) => Promise<number>
+  limit: number
+}>
 
 type Dependencies = Readonly<{
   geocodedAddressCorrection: GeocodedAddressCorrectionUseCase
+  refineAddress: RefineAddressUseCase
+  refinementQuota: RefinementQuota
   routeSuggestions: RouteSuggestionUseCase
 }>
 
@@ -153,6 +181,50 @@ export function createRouteSuggestionRoutes(dependencies: Dependencies) {
        * A chave não é UUID: ela é `cityCode|postalCode|number`, e o formato padrão do roteador
        * recusaria o caminho com 404 antes de qualquer validação nossa. `raw` já a decodifica.
        */
+      pathParameterFormat: 'raw',
+      policy: TRIP_MANAGE_POLICY,
+    }),
+    defineRoute<{ readonly addressKey: string }>({
+      /**
+       * O degrau 2 da escada (adendo 2026-09-01 da ADR-0044). **Nunca `204` mudo:** o conferente
+       * marcou porque quer saber, e sem resposta ele conclui que a marca não funciona e para de
+       * usá-la. As três saídas são `refined`, `not_improved` e `provider_not_configured` — as duas
+       * últimas oferecem o degrau 3, o pino manual.
+       */
+      async handle({ context, input }): Promise<Response> {
+        /**
+         * RF11: a marca gasta, e `geocoded_addresses` não tem tenant — o endereço que uma empresa
+         * manda reconsultar é reconsultado para todas. Sem teto, um laço de tela chama o provedor
+         * pago em série.
+         */
+        const used = await dependencies.refinementQuota.countInWindow({
+          companyId: context.scope.companyId,
+        })
+        if (used >= dependencies.refinementQuota.limit) {
+          return jsonResponse({
+            body: {
+              error: {
+                code: 'GEOCODING_REFINEMENT_QUOTA_EXCEEDED',
+                message: 'Too many address refinements in this window',
+              },
+            },
+            status: 429,
+          })
+        }
+
+        const result = await dependencies.refineAddress.refine({
+          actorUserId: context.scope.userId,
+          addressKey: input.addressKey,
+          companyId: context.scope.companyId,
+        })
+
+        return jsonResponse({ body: { data: result }, status: 200 })
+      },
+      method: 'POST',
+      parse: ({ pathParameters }) => ({
+        addressKey: parseAddressKey(pathParameters.addressKey ?? ''),
+      }),
+      pathname: GEOCODED_ADDRESS_REFINE_PATH,
       pathParameterFormat: 'raw',
       policy: TRIP_MANAGE_POLICY,
     }),

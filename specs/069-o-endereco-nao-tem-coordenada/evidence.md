@@ -353,3 +353,41 @@ Duas correções nos **meus testes**, não no código:
 - `URLSearchParams` codifica espaço como `+`, não `%20`.
 
 **Verificação:** `bun run --cwd apps/api-transportada test` → **3837 pass / 0 fail** (era 3826).
+
+### T020 ✅ a T023 ✅ 2026-09-01 — A marca, a trilha, o teto e a trava
+
+**A rota é `POST /geocoded-addresses/:addressKey/refine`** — ⚠️ **desvio do plano, com motivo.** Ele
+previa `POST /route-suggestions/:id/stops/:stopId/refine-address`. A marca é sobre o **endereço**, não
+sobre a parada de uma sugestão: a coordenada é compartilhada, e o pino manual (degrau 3) já mora em
+`/geocoded-addresses/:addressKey`. Pendurar o degrau 2 noutra árvore separaria dois degraus da mesma
+escada e obrigaria a carregar uma sugestão que a operação não usa.
+
+**As três respostas, e nenhuma é silêncio** (RF5): `refined`, `not_improved`,
+`provider_not_configured`. Quando o provedor volta igual ou pior, `shouldReplaceStored` recusa a
+escrita e a linha em base fica **intacta** — e o conferente ouve que nada melhorou, em vez de marcar,
+ver a tela idêntica e concluir que a marca está quebrada.
+
+O pino manual continua vencendo: `manual` em base nem chega a custar uma chamada.
+
+**O endereço por extenso vem da nota, escopado pela empresa do contexto.** A coordenada não tem
+tenant, mas o endereço tem — ler a nota de outra empresa para montar a consulta ao provedor seria
+vazamento com outro nome. Endereço que nenhuma nota desta empresa carrega responde `not_improved`
+sem consultar nada.
+
+**A trilha é também o teto.** `geocoding_refinement_requests` (append-only, com `company_id` — o
+gasto é de alguém, mesmo que a coordenada não seja) registra quem marcou, o que voltou e se
+substituiu, e é ela que conta a janela: 60 marcas por hora por empresa, `429` com código estável
+acima disso. Uma tabela, uma verdade sobre quantas marcas houve.
+
+**T023 é o contrato que guarda a decisão de custo**, e ele tem duas metades:
+
+1. uma sugestão inteira com **três paradas colidindo no mesmo CEP** — o caso em que a escalada
+   automática seria mais tentadora — faz **zero** chamadas ao provedor pago;
+2. varredura de **import** nos dois arquivos do caminho automático.
+
+⚠️ A varredura foi estreitada para `import`, não para a palavra: a cascata cita `google` num
+comentário que explica por que a métrica antiga estava errada, e proibir a palavra proibiria a
+explicação. O que não pode existir é a dependência.
+
+**Verificação:** API **3845 pass / 0 fail**; worker **865 pass / 0 fail**; `make migration-test`
+**90 pass / 0 fail**.

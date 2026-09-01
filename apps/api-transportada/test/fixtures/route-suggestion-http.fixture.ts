@@ -74,6 +74,7 @@ export async function createRouteSuggestionHttpFixture(params: FixtureParams = {
   readonly createCalls: Call[]
   readonly handle: (request: Request) => Promise<Response>
   readonly readCalls: Call[]
+  readonly refineCalls: Call[]
   readonly rejectCalls: Call[]
 }> {
   const acceptCalls: Call[] = []
@@ -82,7 +83,15 @@ export async function createRouteSuggestionHttpFixture(params: FixtureParams = {
   const readCalls: Call[] = []
   const rejectCalls: Call[] = []
 
+  const refineCalls: Call[] = []
   const routes = await loadRoutes({
+    refineAddress: {
+      async refine(input) {
+        refineCalls.push(structuredClone(input))
+        return { outcome: 'refined' }
+      },
+    },
+    refinementQuota: { countInWindow: async () => 0, limit: 60 },
     geocodedAddressCorrection: {
       async correct(input) {
         correctCalls.push(structuredClone(input))
@@ -128,6 +137,7 @@ export async function createRouteSuggestionHttpFixture(params: FixtureParams = {
     createCalls,
     handle: (request) => handleRequest(request, { timeout() {} }),
     readCalls,
+    refineCalls,
     rejectCalls,
   }
 }
@@ -143,12 +153,14 @@ export async function createMultiVehicleHttpFixture(params: FixtureParams = {}):
   readonly createCalls: Call[]
   readonly handle: (request: Request) => Promise<Response>
   readonly readCalls: Call[]
+  readonly refineCalls: Call[]
   readonly rejectCalls: Call[]
 }> {
   const acceptCalls: Call[] = []
   const createCalls: Call[] = []
   const readCalls: Call[] = []
   const rejectCalls: Call[] = []
+  const refineCalls: Call[] = []
 
   const { createMultiVehicleSuggestionRoutes } = await import(
     '../../src/routing/presentation/multi-vehicle-suggestion.routes.js'
@@ -197,6 +209,7 @@ export async function createMultiVehicleHttpFixture(params: FixtureParams = {}):
     createCalls,
     handle: (request) => handleRequest(request, { timeout() {} }),
     readCalls,
+    refineCalls,
     rejectCalls,
   }
 }
@@ -228,6 +241,11 @@ async function loadRoutes(input: Parameters<RouteFactory>[0]): Promise<readonly 
 
 type RouteFactory = (dependencies: {
   readonly geocodedAddressCorrection: { correct(input: Call): Promise<CorrectedGeocodedAddress> }
+  readonly refineAddress: { refine(input: Call): Promise<{ readonly outcome: string }> }
+  readonly refinementQuota: {
+    countInWindow(input: Call): Promise<number>
+    limit: number
+  }
   readonly routeSuggestions: {
     accept(input: Call): Promise<RouteSuggestion>
     create(input: Call): Promise<RouteSuggestion>

@@ -216,6 +216,13 @@ import { createDrizzleMultiVehicleSuggestionRepository } from './routing/infrast
 import { createTripComposer } from './routing/infrastructure/trip-composer.adapter'
 import { listTripStops } from './trips/application/list-trip-stops.use-case'
 import { createRouteSuggestionUseCase } from './routing/application/route-suggestion.use-case'
+import { createRefineAddressUseCase } from './routing/application/refine-address.use-case.js'
+import { createDrizzleAddressComponentsSource } from './routing/infrastructure/drizzle-address-components.repository.js'
+import {
+  GEOCODING_REFINEMENT_WINDOW_LIMIT,
+  createDrizzleGeocodingRefinementRepository,
+} from './routing/infrastructure/drizzle-geocoding-refinement.repository.js'
+import { createGoogleGeocodingGateway } from './routing/infrastructure/google-geocoding.gateway.js'
 import { createGeocodedAddressCorrectionUseCase } from './routing/application/geocoded-address-correction.use-case'
 import { createDrizzleRouteSuggestionRepository } from './routing/infrastructure/drizzle-route-suggestion.repository'
 import { createDrizzleGeocodedAddressRepository } from './routing/infrastructure/drizzle-geocoded-address.repository'
@@ -1209,6 +1216,7 @@ function createApplicationRoutes({
     repository: certificateRepository,
     secretService: createDigitalCertificateSecretService({ envelopeProvider }),
   })
+  const geocodingRefinementRepository = createDrizzleGeocodingRefinementRepository(database)
   const companyUserRepository = new DrizzleCompanyUserRepository(database)
   const invitationRepository = new DrizzleInvitationRepository(database)
   const invitationDeliveryOutbox = new DrizzleInvitationDeliveryOutboxRepository(database)
@@ -1336,6 +1344,23 @@ function createApplicationRoutes({
           geocodedAddressCorrection: createGeocodedAddressCorrectionUseCase({
             repository: createDrizzleGeocodedAddressRepository(database),
           }),
+          refineAddress: createRefineAddressUseCase({
+            components: createDrizzleAddressComponentsSource(database),
+            /**
+             * Spec 069 RF7: sem `GEOCODING_API_KEY` o gateway **não é construído**, e a marca
+             * responde `provider_not_configured` oferecendo o pino manual. A app sobe igual.
+             */
+            geocoding:
+              environment.geocodingApiKey === undefined
+                ? undefined
+                : createGoogleGeocodingGateway({ apiKey: environment.geocodingApiKey }),
+            repository: createDrizzleGeocodedAddressRepository(database),
+            trail: geocodingRefinementRepository,
+          }),
+          refinementQuota: {
+            countInWindow: (quotaInput) => geocodingRefinementRepository.countInWindow(quotaInput),
+            limit: GEOCODING_REFINEMENT_WINDOW_LIMIT,
+          },
           routeSuggestions: createRouteSuggestionUseCase({
             queue: routeOptimizationQueue,
             repository: createDrizzleRouteSuggestionRepository(database),
