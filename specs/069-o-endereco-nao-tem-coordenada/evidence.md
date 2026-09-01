@@ -459,3 +459,21 @@ falha igual. Não é regressão desta spec.
    resolve e todo endereço novo cai no centroide de município: a sugestão sai, mas pobre.
 3. Os **dois achados abertos** de `docs/SECURITY.md`: a chave de endereço em claro sem tenant (nunca
    decidida em ADR) e a ausência de rate limit de infraestrutura na rota da marca.
+
+## Passe de qualidade (2026-09-01)
+
+**Varredura de slop no diff inteiro** (89 arquivos): nenhum `TODO`, `FIXME`, `test.skip`,
+`test.only`, `@ts-ignore`, `eslint-disable`, `as any` ou `: any` introduzido. O único `describe.skip`
+é `databaseUrl ? describe : describe.skip`, o padrão que a integração do pool já usava.
+
+**Achado do passe, e corrigido:** a regra `precision !== 'city'` tinha **duas** definições dentro do
+worker — a minha, em `resolve-stop-coordinates.use-case.ts`, e uma inline em `readStops`. Uma app com
+a mesma regra em dois lugares é a divergência silenciosa que esta spec passou o tempo todo evitando;
+`readStops` passou a chamar `isOptimizablePrecision`. (A definição da API é outra app, e ali o
+duplicado é inevitável e assertado pelo CHECK do banco.)
+
+⚠️ **O passe de revisão por agente não foi executado**: esta sessão está configurada para não usar
+agentes sem pedido explícito. O que consta acima é varredura por texto mais os gates automáticos —
+não substitui uma revisão humana ou por `code-review`.
+
+**`make check` reexecutado depois da correção: exit 0**, sete suítes, zero falhas.

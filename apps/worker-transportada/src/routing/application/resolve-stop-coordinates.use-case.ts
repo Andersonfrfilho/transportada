@@ -10,8 +10,8 @@ import type { RouteOptimizationStop } from './route-optimization.effect.js'
  * ADR-0044 §5: `city` é palpite de ~8 km, e não entra na otimização — vai marcada, no fim, esperando
  * o humano. A regra mora aqui e em `readStops`, que a aplica sobre o que já está em base.
  */
-export function isOptimizablePrecision(precision: string): boolean {
-  return precision !== 'city'
+export function isOptimizablePrecision(precision: string | null): boolean {
+  return precision !== null && precision !== 'city'
 }
 
 /**

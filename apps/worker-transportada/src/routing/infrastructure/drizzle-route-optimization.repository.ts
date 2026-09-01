@@ -30,6 +30,7 @@ import type {
   RouteOptimizationOutcome,
   RouteOptimizationStop,
 } from '../application/route-optimization.effect.js'
+import { isOptimizablePrecision } from '../application/resolve-stop-coordinates.use-case.js'
 import type {
   RouteOptimizationHandlerPorts,
   RouteOptimizationJob,
@@ -349,7 +350,7 @@ async function readStops(input: {
 
   return rows.map((row) => {
     const hasFineCoordinate =
-      row.latitude !== null && row.longitude !== null && row.precision !== 'city'
+      row.latitude !== null && row.longitude !== null && isOptimizablePrecision(row.precision)
 
     return {
       addressKey: row.addressKey,
