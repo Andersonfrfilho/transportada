@@ -125,3 +125,21 @@
   align-items: center;
   justify-content: center;
 }
+
+/* O botão e o aviso na mesma linha do cabeçalho do editor; em tela estreita, quebram. */
+.notificationTestAction {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.notificationTestOk {
+  color: var(--color-ready);
+  font-size: 0.75rem;
+}
+
+.notificationTestFailed {
+  color: var(--color-alert);
+  font-size: 0.75rem;
+}

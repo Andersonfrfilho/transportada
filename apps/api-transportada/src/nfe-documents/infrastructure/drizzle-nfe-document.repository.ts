@@ -15,6 +15,7 @@ import {
 } from '../../database/nfe.schema.js'
 import { resolveDocumentBlock } from '../../cte-batches/domain/cte-batch-eligibility.policy.js'
 import { resolveCargoWeight } from '../domain/cargo-weight.policy.js'
+import { resolveNfseDocumentBlock } from '../domain/nfse-document-block.policy.js'
 import { findTripLinks } from '../../cte-batches/infrastructure/cte-batch-selection.query.js'
 import type { TripDocumentLink } from '../../cte-batches/application/cte-batch-preview.port.js'
 import { storedObjects } from '../../database/storage.schema.js'
@@ -431,27 +432,30 @@ function mapSummary(
     volumeGrossWeight: volumeTotals?.grossWeight ?? null,
     volumeQuantity: volumeTotals?.quantity ?? null,
   })
-  const decision = resolveDocumentBlock({
-    document: {
-      grossWeight: cargoWeight?.grossWeight ?? null,
-      recipientCity: recipient.city,
-      recipientState: recipient.state,
-      recipientTaxId: recipient.taxId,
-      senderCity: emitter.city,
-      senderState: emitter.state,
-      senderTaxId: emitter.taxId,
-      status: document.status,
-      totalAmount: document.totalValue,
-      variant: 'complete',
-    },
+  const eligibilityDocument = {
+    grossWeight: cargoWeight?.grossWeight ?? null,
+    recipientCity: recipient.city,
+    recipientState: recipient.state,
+    recipientTaxId: recipient.taxId,
+    senderCity: emitter.city,
+    senderState: emitter.state,
+    senderTaxId: emitter.taxId,
+    status: document.status,
+    totalAmount: document.totalValue,
+    variant: 'complete',
+  }
+  const links = {
     linkedBatchId: blockContext.batchIdByDocumentId.get(document.id) ?? null,
     linkedNfseInvoiceId: nfseInvoice?.id ?? null,
-  })
+  }
+  const decision = resolveDocumentBlock({ document: eligibilityDocument, ...links })
+  const nfseBlockReason = resolveNfseDocumentBlock({ document: eligibilityDocument, ...links })
   const trip = blockContext.tripByDocumentId.get(document.id) ?? null
 
   return {
     accessKey: document.accessKey,
     cteBlockReason: decision.blocked?.reason ?? null,
+    nfseBlockReason,
     emitterAddress: emitter.address,
     emitterCity: emitter.city,
     emitterCityCode: emitter.cityCode,

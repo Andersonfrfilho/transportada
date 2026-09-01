@@ -32,6 +32,7 @@ function buildDocument(overrides: Partial<NfeDocumentListItem> = {}): NfeDocumen
   return {
     accessKey: '35190700000000000191550010000000011000000010',
     cteBlockReason: null,
+    nfseBlockReason: null,
     tripId: null,
     tripStatus: null,
     emitterAddress: 'Rua das Cargas, 100',

@@ -22,6 +22,7 @@ const XML_EXTENSION = '.xml'
 type NfeDocumentSummary = {
   readonly accessKey: string
   readonly cteBlockReason: string | null
+  readonly nfseBlockReason: string | null
   readonly emitterAddress: string | null
   readonly emitterCity: string | null
   readonly emitterCityCode: string | null
@@ -225,6 +226,7 @@ function serializeDocument(document: NfeDocumentSummary): object {
   return {
     accessKey: document.accessKey,
     cteBlockReason: document.cteBlockReason,
+    nfseBlockReason: document.nfseBlockReason,
     emitterAddress: document.emitterAddress,
     emitterCity: document.emitterCity,
     emitterCityCode: document.emitterCityCode,

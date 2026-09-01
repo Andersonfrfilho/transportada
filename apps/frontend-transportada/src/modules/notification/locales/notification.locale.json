@@ -17,5 +17,11 @@
     "nfse": "NFS-e",
     "subtitle": "Escolha por onde receber cada assunto. A caixa de entrada guarda tudo de qualquer forma.",
     "title": "Preferências de notificação"
+  },
+  "test": {
+    "send": "Enviar teste para mim",
+    "sending": "Enviando…",
+    "sent": "Enviado. Confira sua caixa.",
+    "failed": "Não saiu. Confira se o envio de e-mail está configurado."
   }
 }

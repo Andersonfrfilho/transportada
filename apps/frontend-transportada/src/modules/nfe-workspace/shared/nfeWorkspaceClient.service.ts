@@ -72,6 +72,7 @@ export type NfeDistributionStatus = Readonly<{
 export type NfeDocumentListItem = Readonly<{
   accessKey: string
   cteBlockReason: null | string
+  nfseBlockReason: null | string
   emitterAddress: null | string
   emitterCity: null | string
   emitterCityCode: null | string
@@ -298,6 +299,7 @@ function isNfeDocumentListItem(value: unknown): value is NfeDocumentListItem {
     isRecord(value) &&
     isString(value.accessKey) &&
     isNullableString(value.cteBlockReason) &&
+    isNullableString(value.nfseBlockReason) &&
     isNullableString(value.emitterAddress) &&
     isNullableString(value.emitterCity) &&
     isNullableString(value.emitterCityCode) &&

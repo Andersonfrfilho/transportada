@@ -57,6 +57,13 @@ export function buildContentSecurityPolicy({
     SELF,
     ...[...new Set([...configured, ...EXTERNAL_CONNECT_ORIGIN])].sort(),
   ].join(' ')
+  /**
+   * A marca da transportadora é uma imagem servida pela **nossa API** (`/public/landing-logo`), e
+   * não um arquivo do bundle: ela é configurada por empresa, não compilada. Sem a origem da API
+   * aqui, o navegador bloqueia o logo e o site cai no nome genérico do produto — com a API
+   * respondendo 200, que é o que torna o defeito difícil de enxergar.
+   */
+  const imageSource = [SELF, ...configured].join(' ')
   // O preâmbulo do react-refresh é script inline, e só existe no servidor de dev. Em preview e em
   // produção o bundle é arquivo, então `script-src 'self'` basta e é o que fica no `dist`.
   const scriptSource = allowsInlineScript ? `${SELF} ${UNSAFE_INLINE}` : SELF
@@ -69,7 +76,7 @@ export function buildContentSecurityPolicy({
     `form-action ${SELF}`,
     `frame-ancestors ${NONE}`,
     `frame-src ${TURNSTILE_FRAME_ORIGIN}`,
-    `img-src ${SELF}`,
+    `img-src ${imageSource}`,
     `manifest-src ${SELF}`,
     `object-src ${NONE}`,
     `script-src ${scriptSource} ${TURNSTILE_SCRIPT_ORIGIN}`,

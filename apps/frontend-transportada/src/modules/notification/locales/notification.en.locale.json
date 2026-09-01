@@ -17,5 +17,11 @@
     "nfse": "NFS-e",
     "subtitle": "Choose where each subject reaches you. The inbox keeps everything either way.",
     "title": "Notification preferences"
+  },
+  "test": {
+    "send": "Send a test to me",
+    "sending": "Sending…",
+    "sent": "Sent. Check your inbox.",
+    "failed": "It did not go out. Check the email configuration."
   }
 }

@@ -54,6 +54,26 @@ async function collectSourceOrigins(
   return [...origins].sort()
 }
 
+describe('logo servido pela API', () => {
+  /**
+   * A landing desenha a marca da transportadora com `<img src="{API}/public/landing-logo">`. Sem a
+   * origem da API em `img-src`, o navegador bloqueia a imagem e o site cai no nome genérico do
+   * produto — foi o que aconteceu em produção em 01/09/2026, com a API respondendo 200.
+   */
+  test('img-src admite a origem da API, não só a própria', () => {
+    const directive = directiveOf(SERVED_POLICY, 'img-src')
+
+    expect(directive).toContain(API_BASE_URL)
+    expect(directive).toContain("'self'")
+  })
+
+  test('sem API configurada, img-src fica só com a própria origem', () => {
+    const policy = buildContentSecurityPolicy({ allowsInlineScript: false, apiBaseUrl: undefined })
+
+    expect(directiveOf(policy, 'img-src')).toBe("img-src 'self'")
+  })
+})
+
 describe('content security policy', () => {
   test('carries every external origin the bundle names, or declares it as never fetched', async () => {
     const connectSource = directiveOf(SERVED_POLICY, 'connect-src')

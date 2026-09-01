@@ -332,6 +332,8 @@ import { createSynchronizeIdentitiesUseCase } from './identity/application/synch
 import { createRevealCompanyUsersUseCase } from './identity/application/reveal-company-users.use-case'
 import { createAdoptRealmFieldsUseCase } from './identity/application/adopt-realm-fields.use-case'
 import { createManageCompanyUserIdentifiersUseCase } from './identity/application/manage-company-user-identifiers.use-case'
+import { createSendTemplateTestUseCase } from './notification/application/send-template-test.use-case'
+import { createNotificationTemplateTestRoutes } from './notification/presentation/notification-template-test.routes'
 import { createSetCompanyUserPasswordUseCase } from './identity/application/set-company-user-password.use-case'
 import { createUserAdministrationRoutes } from './identity/presentation/user-administration.routes'
 import { createRouter, type RegisteredAnonymousRoute } from './http/router.service'
@@ -369,6 +371,7 @@ import { createErrorTracker } from './observability/sentry.service'
 import { NOTIFICATION_DEFAULT_LOCALE } from './notification/notification.constant.js'
 import { createAutomaticManifestNotifier } from './mdfe-manifests/infrastructure/automatic-manifest-notifier.gateway.js'
 import type { AutomaticManifestNotifierPort } from './mdfe-manifests/application/issue-trip-manifest-automatically.use-case.js'
+import type { NotificationModule } from '@adatechnology/notification-module'
 import { createApiNotificationModule } from './notification/infrastructure/notification-module.factory.js'
 import { NOTIFICATION_ROUTES_BASE_PATH } from './notification/notification.constant.js'
 import { buildNotificationRabbitMqTopology } from './notification/infrastructure/notification-rabbitmq-topology.js'
@@ -570,6 +573,7 @@ export function bootstrap(): Bun.Server<undefined> {
       apiPublicUrl: config.apiPublicUrl,
       automaticManifestNotifier,
       database: database.db,
+      notifications,
       envelopeKeyRing: config.cryptography.envelopeKeyRing,
       environment: process.env,
       idempotencyHmacKey: config.cryptography.idempotencyHmacKey,
@@ -840,6 +844,8 @@ type CreateApplicationRoutesParams = {
   /** Ausente é instalação sem notificação: a emissão automática recusa igual, e só não avisa. */
   readonly automaticManifestNotifier: AutomaticManifestNotifierPort | undefined
   readonly database: CompanySettingsDatabase
+  /** O módulo de notificação, para o envio de teste do editor de template sair pelo caminho real. */
+  readonly notifications: NotificationModule
   readonly envelopeKeyRing: import('@adatechnology/secret-envelope').SecretKeyRing
   readonly environment: Record<string, string | undefined>
   readonly idempotencyHmacKey: Uint8Array
@@ -855,6 +861,7 @@ function createApplicationRoutes({
   apiPublicUrl,
   automaticManifestNotifier,
   database,
+  notifications,
   envelopeKeyRing,
   environment,
   idempotencyHmacKey,
@@ -1869,6 +1876,12 @@ function createApplicationRoutes({
       permissions: createManageDirectPermissionsUseCase({
         audit: groupAudit,
         repository: companyGroupRepository,
+      }),
+    }),
+    ...createNotificationTemplateTestRoutes({
+      sendTemplateTest: createSendTemplateTestUseCase({
+        module: notifications,
+        newDedupeKey: () => `template-test-${crypto.randomUUID()}`,
       }),
     }),
     ...createUserPictureRoutes({

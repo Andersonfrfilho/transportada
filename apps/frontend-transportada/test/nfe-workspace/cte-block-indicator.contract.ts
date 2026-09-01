@@ -33,6 +33,7 @@ function buildDocument(overrides: Partial<NfeDocumentListItem> = {}): NfeDocumen
   return {
     accessKey: '35190730290856000160550010000000011000000010',
     cteBlockReason: null,
+    nfseBlockReason: null,
     emitterAddress: 'Rua das Cargas, 100',
     emitterCity: 'Campinas',
     emitterCityCode: '3509502',
@@ -62,7 +63,25 @@ function buildDocument(overrides: Partial<NfeDocumentListItem> = {}): NfeDocumen
 
 const FREE = buildDocument({ id: 'free-1' })
 const OTHER_FREE = buildDocument({ id: 'free-2', number: '12' })
-const BLOCKED = buildDocument({ cteBlockReason: ALREADY_LINKED, id: 'blocked-1', number: '13' })
+/** Vínculo já existente barra as duas saídas: é o único caso em que a linha some da seleção. */
+const BLOCKED = buildDocument({
+  cteBlockReason: ALREADY_LINKED,
+  id: 'blocked-1',
+  nfseBlockReason: ALREADY_LINKED,
+  number: '13',
+})
+
+/**
+ * Spec 067: peso zerado pelo emitente recusa o CT-e e **não** recusa a NFS-e. A linha continua
+ * marcável — foi este caso que ficou impossível de selecionar em produção, com a API já aceitando
+ * emitir o serviço.
+ */
+const WEIGHTLESS = buildDocument({
+  cteBlockReason: 'CTE_BATCH_DOCUMENT_MISSING_WEIGHT',
+  id: 'weightless-1',
+  nfseBlockReason: null,
+  number: '14',
+})
 
 describe('nfe document cte block indicator contract', () => {
   test('carries the block reason from the listing payload into the document item', async () => {
@@ -117,6 +136,18 @@ describe('nfe document cte block indicator contract', () => {
     expect(isDocumentBlocked(FREE)).toBe(false)
     expect(isDocumentBlocked(BLOCKED)).toBe(true)
     expect(countBlockedDocuments([FREE, BLOCKED, OTHER_FREE])).toBe(1)
+  })
+
+  test('a nota sem peso segue marcável, porque a NFS-e a aceita', () => {
+    expect(isDocumentBlocked(WEIGHTLESS)).toBe(false)
+    expect(countBlockedDocuments([FREE, WEIGHTLESS, BLOCKED])).toBe(1)
+
+    const selected = toggleDocumentSelection({
+      documentId: WEIGHTLESS.id,
+      documents: [FREE, WEIGHTLESS, BLOCKED],
+      selectedIds: new Set<string>(),
+    })
+    expect([...selected]).toEqual([WEIGHTLESS.id])
   })
 
   test('refuses to select a blocked row and keeps toggling the free ones', () => {
@@ -190,6 +221,7 @@ describe('o sinal de viagem na listagem de notas (spec 065 D4b)', () => {
   test('o vínculo com viagem não desbloqueia a nota que já está num lote', () => {
     const blockedOnTrip = buildDocument({
       cteBlockReason: ALREADY_LINKED,
+      nfseBlockReason: ALREADY_LINKED,
       id: 'blocked-on-trip',
       tripId: '00000000-0000-4000-8000-000000000a11',
       tripStatus: 'in_transit',

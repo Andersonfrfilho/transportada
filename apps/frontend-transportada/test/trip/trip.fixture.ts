@@ -177,6 +177,7 @@ export const NFE_ACCESS_KEY = '352608A1B2C3D4E5F655555555555555555555555555'
 export const NFE_DOCUMENT_LISTING_ROW = {
   accessKey: NFE_ACCESS_KEY,
   cteBlockReason: null,
+  nfseBlockReason: null,
   emitterAddress: 'Rua das Cargas, 100',
   emitterCity: 'Ribeirao Preto',
   emitterCityCode: '3543402',
