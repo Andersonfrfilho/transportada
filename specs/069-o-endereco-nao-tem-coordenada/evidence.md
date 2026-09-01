@@ -477,3 +477,23 @@ agentes sem pedido explícito. O que consta acima é varredura por texto mais os
 não substitui uma revisão humana ou por `code-review`.
 
 **`make check` reexecutado depois da correção: exit 0**, sete suítes, zero falhas.
+
+### Revisão de código (2026-09-01) — dois defeitos reais, corrigidos
+
+O passe de `code-review` sobre o diff achou **dois defeitos**, os dois na tela e os dois meus:
+
+1. **A mensagem de sucesso imprimia a precisão errada.** O hook descartava o `precision` que a API
+   devolve e o painel interpolava `stop.geocodingPrecision` — a precisão **anterior**. No caso mais
+   comum de marcar (parada que nunca teve coordenada) ela é `null`, e a tela mostrava a chave crua
+   `precision.null`; quando não era nula, dizia "corrigido para CEP" justamente quando o endereço
+   tinha acabado de virar telhado. A precisão passa a vir **da resposta**.
+2. **Marca bem-sucedida não atualizava a linha.** Nada refazia a consulta da sugestão, então a parada
+   seguia com a precisão antiga e com a etiqueta "fora da otimização" **ao lado** do aviso "Endereço
+   corrigido" — dois textos se contradizendo. É o mesmo desfecho que o `not_improved` foi escrito
+   para evitar, um nível acima. A releitura acontece só no `refined` e **não pode derrubar a
+   resposta**: falhar ali ainda deixa o conferente sabendo o que o provedor respondeu.
+
+⚠️ Os dois passaram por typecheck, por 2233 testes de frontend e pelo `make check` — nenhum gate
+automático os pegaria, porque os dois produzem **texto errado na tela**, não exceção.
+
+**Verificação depois da correção:** `make check` → **exit 0**, sete suítes, zero falhas.

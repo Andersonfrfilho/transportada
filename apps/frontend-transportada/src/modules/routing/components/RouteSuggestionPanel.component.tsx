@@ -22,7 +22,7 @@ type RouteSuggestionPanelProps = Readonly<{
    * O degrau 2 da escada (spec 069). Ausente, a ação não aparece — quem não pode marcar não vê um
    * botão que responderia 403.
    */
-  onRefineAddress?: (addressKey: string) => Promise<RefineAddressFeedback>
+  onRefineAddress?: (addressKey: string) => Promise<RefineAddressResult>
   onReject: () => void
   suggestion: RouteSuggestion
 }>
@@ -34,6 +34,19 @@ export type RefineAddressFeedback =
   | 'provider_not_configured'
   | 'quota_exceeded'
   | 'failed'
+
+/**
+ * A precisão vem **da resposta**, nunca da parada em tela.
+ *
+ * ⚠️ Ler `stop.geocodingPrecision` aqui era o defeito: no caso mais comum de marcar — parada que
+ * nunca teve coordenada — ela é `null`, e a mensagem saía com a chave crua `precision.null`. Quando
+ * não era nula, ela era a precisão **anterior**, então "corrigido para CEP" aparecia justamente
+ * quando o endereço tinha acabado de virar telhado.
+ */
+export type RefineAddressResult = Readonly<{
+  outcome: RefineAddressFeedback
+  precision?: string
+}>
 
 /**
  * ADR-0044 §5: a sugestão é **proposta**, e ela nunca escreve sozinha. Este painel é onde o
@@ -137,11 +150,11 @@ function StopRow({
   onRefineAddress,
   stop,
 }: Readonly<{
-  onRefineAddress?: (addressKey: string) => Promise<RefineAddressFeedback>
+  onRefineAddress?: (addressKey: string) => Promise<RefineAddressResult>
   stop: RouteSuggestionStop
 }>): JSX.Element {
   const { t } = useTranslation('routing')
-  const [feedback, setFeedback] = useState<RefineAddressFeedback | null>(null)
+  const [feedback, setFeedback] = useState<RefineAddressResult | null>(null)
   const [isRefining, setIsRefining] = useState(false)
 
   async function handleRefine(): Promise<void> {
@@ -193,9 +206,12 @@ function StopRow({
        * degrau 3, o pino manual.
        */}
       {feedback === null ? null : (
-        <span className={styles.stopFlag} data-refine-feedback={feedback} role="status">
-          {t(REFINE_FEEDBACK_KEY[feedback], {
-            precision: t(`precision.${stop.geocodingPrecision}`),
+        <span className={styles.stopFlag} data-refine-feedback={feedback.outcome} role="status">
+          {t(REFINE_FEEDBACK_KEY[feedback.outcome], {
+            precision:
+              feedback.precision === undefined
+                ? ''
+                : t(`precision.${feedback.precision}`, { defaultValue: feedback.precision }),
           })}
         </span>
       )}
