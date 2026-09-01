@@ -34,6 +34,7 @@ const DOCUMENT_PAGE = {
     {
       accessKey: '35190730290856000160550010000000011000000010',
       cteBlockReason: null,
+      nfseBlockReason: null,
       emitterAddress: 'Rua das Cargas, 100',
       emitterCity: 'Sao Paulo',
       emitterCityCode: '3550308',
@@ -72,6 +73,7 @@ function buildDocumentPage(
       ...template,
       accessKey: `${template.accessKey.slice(0, -3)}${String(index).padStart(3, '0')}`,
       cteBlockReason: index < input.blockedDocumentCount ? MISSING_WEIGHT_REASON : null,
+      nfseBlockReason: index < input.blockedDocumentCount ? MISSING_WEIGHT_REASON : null,
       id: `${template.id.slice(0, -3)}${String(index).padStart(3, '0')}`,
       number: String(index + 1),
     })),

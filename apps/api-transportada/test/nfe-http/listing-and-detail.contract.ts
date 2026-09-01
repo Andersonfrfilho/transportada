@@ -152,6 +152,7 @@ describe('nfe http listing and detail contract', () => {
           {
             ...DOCUMENT_SUMMARY,
             cteBlockReason: 'CTE_BATCH_DOCUMENT_ALREADY_LINKED',
+            nfseBlockReason: 'CTE_BATCH_DOCUMENT_ALREADY_LINKED',
             id: '00000000-0000-4000-8000-000000000231',
           },
         ],
@@ -192,6 +193,7 @@ describe('nfe http listing and detail contract', () => {
     expect(documents[0]).toMatchObject({ tripId: null, tripStatus: null })
     expect(documents[1]).toMatchObject({
       cteBlockReason: null,
+      nfseBlockReason: null,
       tripId: '00000000-0000-4000-8000-000000000a11',
       tripStatus: 'in_transit',
     })

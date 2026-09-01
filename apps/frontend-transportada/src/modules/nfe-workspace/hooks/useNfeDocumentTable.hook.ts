@@ -575,9 +575,14 @@ function cteIssuedValue(document: NfeDocumentListItem): string {
   return isCteIssued(document) ? CTE_ISSUED_DONE : CTE_ISSUED_PENDING
 }
 
-/** The API already resolved the block, so the table never re-derives the fiscal rule. */
+/**
+ * A API já resolveu os dois bloqueios, e a tabela nunca rederiva regra fiscal. A linha só é
+ * impossível de marcar quando **nenhuma** das duas saídas a aceita: a nota sem peso é recusada pelo
+ * CT-e e aceita pela NFS-e (spec 067), e enquanto este booleano olhava só o CT-e ela ficava
+ * impossível de selecionar para qualquer coisa — inclusive para a NFS-e que a API já emitia.
+ */
 export function isDocumentBlocked(document: NfeDocumentListItem): boolean {
-  return document.cteBlockReason !== null
+  return document.cteBlockReason !== null && document.nfseBlockReason !== null
 }
 
 export function countBlockedDocuments(documents: readonly NfeDocumentListItem[]): number {

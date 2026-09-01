@@ -55,6 +55,7 @@ export type ReprocessImportCall = {
 export type NfeDocumentSummary = {
   readonly accessKey: string
   readonly cteBlockReason: string | null
+  readonly nfseBlockReason: string | null
   readonly emitterAddress: string | null
   readonly emitterCity: string | null
   readonly emitterCityCode: string | null

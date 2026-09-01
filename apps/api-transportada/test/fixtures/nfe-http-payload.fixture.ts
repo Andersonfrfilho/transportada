@@ -75,6 +75,7 @@ export const REPROCESS_RESPONSE: NfeImportSummary = {
 export const DOCUMENT_SUMMARY: NfeDocumentSummary = {
   accessKey: DOCUMENT_ACCESS_KEY,
   cteBlockReason: null,
+  nfseBlockReason: null,
   tripId: null,
   tripStatus: null,
   emitterAddress: 'Rua das Cargas, 100 - Centro',
@@ -142,6 +143,7 @@ export function serializeDocumentSummary(document: NfeDocumentSummary): object {
   return {
     accessKey: document.accessKey,
     cteBlockReason: document.cteBlockReason,
+    nfseBlockReason: document.cteBlockReason,
     emitterAddress: document.emitterAddress,
     emitterCity: document.emitterCity,
     emitterCityCode: document.emitterCityCode,

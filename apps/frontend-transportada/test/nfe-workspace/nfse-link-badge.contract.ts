@@ -61,6 +61,7 @@ describe('nfe document nfse link payload contract', () => {
       {
         ...DOCUMENT_LIST_PAGE.items[0],
         cteBlockReason: NFSE_LINK_BLOCK_REASON,
+        nfseBlockReason: NFSE_LINK_BLOCK_REASON,
         nfseInvoiceId: 'invoice-1',
         nfseInvoiceNumber: '451',
       },
@@ -75,6 +76,7 @@ describe('nfe document nfse link payload contract', () => {
       {
         ...DOCUMENT_LIST_PAGE.items[0],
         cteBlockReason: NFSE_LINK_BLOCK_REASON,
+        nfseBlockReason: NFSE_LINK_BLOCK_REASON,
         nfseInvoiceId: 'invoice-1',
         nfseInvoiceNumber: null,
       },
