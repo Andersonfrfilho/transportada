@@ -26,13 +26,13 @@ não precisa da chave para ser escrita e testada — só o deploy dela a espera.
       `toGeocodingPrecision`/`isOptimizablePrecision` vão para o worker) — **dependência:** T001 —
       **verificação:** `bun run typecheck` nas duas apps — **aceite:** nenhuma cópia por valor nova;
       a correção manual da API segue compilando
-- [ ] T003 [P] `drizzle-geocoded-address.repository.ts` no worker sobre `geocodedAddresses`, que
+- [x] T003 [P] ✅ `drizzle-geocoded-address.repository.ts` no worker sobre `geocodedAddresses`, que
       `src/database/routing.schema.ts` já declara — **dependência:** T002
-- [ ] T004 Contrato do gateway de CEP **antes** do gateway: corpo real medido, `location` ausente,
+- [x] T004 ✅ Contrato do gateway de CEP **antes** do gateway: corpo real medido, `location` ausente,
       429, e **CEP geral virando `city` pelo `street` ausente** (RF9 — sem este caso a Fase A põe
       palpite de quilômetros dentro da rota) — `worker/test/routing/postal-code-geocoding.contract.ts`
       — **dependência:** T002 — **aceite:** teste vermelho pelo motivo certo
-- [ ] T005 `brasil-api-postal-code.gateway.ts` lendo `location.coordinates` do `/cep/v2` — o **mesmo
+- [x] T005 ✅ `brasil-api-postal-code.gateway.ts` lendo `location.coordinates` do `/cep/v2` — o **mesmo
       endpoint** que `postal-code.gateway.ts` já chama e cujo campo é hoje descartado —
       **dependência:** T004 — **aceite:** grava `source: 'postal_code'`, `external_place_id` vazio
 - [ ] T006 [P] Migration da tabela de centroide de município, **sem `company_id`**, acrescentada ao

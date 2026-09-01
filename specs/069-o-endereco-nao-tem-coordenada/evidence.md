@@ -67,3 +67,46 @@ bun run --cwd apps/api-transportada typecheck      → verde
 bun run --cwd apps/worker-transportada test        → 821 pass / 0 fail (72 arquivos)
 bun run --cwd apps/api-transportada test           → 3818 pass / 23 skip / 0 fail (151 arquivos)
 ```
+
+### T003 ✅ 2026-09-01 — O repositório do worker, e por que ele não é o da API
+
+`worker/src/routing/infrastructure/drizzle-geocoded-address.repository.ts`.
+
+⚠️ **`onConflictDoNothing`, e não o upsert da API** — a diferença é o que cada lado quer dizer. A
+cascata só grava o que estava **ausente**: ela lê o que existe, separa o que falta e resolve só isso.
+Conflito aqui é sempre corrida entre duas sugestões pedindo o mesmo endereço novo, e nessa corrida
+quem escreveu primeiro está tão certo quanto quem chegou depois.
+
+Sobrescrever seria pior que inútil: se uma das duas caiu ao centroide de município porque o CEP falhou
+só para ela, a escrita tardia **rebaixaria** a coordenada boa — e o endereço ficaria em `city` para
+sempre, porque a cascata nunca mais reconsulta o que já está em base. Degradação que gruda.
+
+Melhorar coordenada existente é o degrau 2, na API. Aqui não há decisão de precisão a tomar, e é por
+isso que a ordenação não precisa existir deste lado.
+
+**Verificação:** `bun run --cwd apps/worker-transportada typecheck` → verde.
+
+### T004 ✅ e T005 ✅ 2026-09-01 — O degrau de graça
+
+Contrato escrito **antes** do gateway, vermelho pelo motivo certo
+(`Cannot find module '.../brasil-api-postal-code.gateway.js'`).
+
+`worker/test/routing/postal-code-geocoding.contract.ts`, oito casos, com **corpos medidos** contra a
+BrasilAPI em 2026-09-01 — fixture inventado provaria o que nós achamos, não o que o provedor faz:
+
+- lê a coordenada que a resposta já carrega → `postal_code`;
+- **CEP geral de cidade pequena vira `city`** (RF9) — Sales Oliveira, `street: null`;
+- **`-000` não é o discriminador**: Araraquara `14801-000` com logradouro segue `postal_code`;
+- `location` ausente → `null` (o `/cep/v2` responde por vários serviços a montante);
+- 404, 429 e transporte que lança → `null`, sem exceção subindo;
+- pede o CEP canônico, só dígitos.
+
+O gateway nunca lança: degrau que não resolve devolve `null` e quem chama desce a cascata. A
+coordenada é guardada como **texto** — a coluna é `numeric`, e passar por `Number` traria erro
+binário para dentro de dado comparado e exibido.
+
+**Verificação:** `bun run --cwd apps/worker-transportada test` → **829 pass / 0 fail** (era 821).
+
+⚠️ Nota de execução: rodar `bun test <arquivo>` da raiz faz os dois contratos de paridade falharem
+com `ENOENT` — eles leem o arquivo da API por caminho relativo e exigem o cwd da app. Use
+`bun run --cwd apps/worker-transportada test`.
