@@ -38,7 +38,7 @@ não precisa da chave para ser escrita e testada — só o deploy dela a espera.
 - [x] T006 [P] ✅ Migration da tabela de centroide de município, **sem `company_id`**, acrescentada ao
       contrato de tenant safety como **segunda exceção declarada** — **dependência:** T002 —
       **verificação:** `make migration-test` — **aceite:** exceção dita por escrito
-- [ ] T007 Seed dos 5.570 centroides pelos **use cases**, nunca `INSERT` bruto — **dependência:**
+- [x] T007 ✅ Seed dos 5.570 centroides pelos **use cases**, nunca `INSERT` bruto — **dependência:**
       T006 — **aceite:** reexecutar não duplica linha
 - [ ] T008 `municipality-centroid.gateway.ts` lendo a tabela — **dependência:** T007, T005 —
       **aceite:** grava `city`, e a parada sai marcada, fora da otimização

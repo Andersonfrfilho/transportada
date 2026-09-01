@@ -142,3 +142,35 @@ bun run --cwd apps/api-transportada db:check   → Everything's fine
 bun run --cwd apps/api-transportada test       → 3823 pass / 23 skip / 0 fail
 make migration-test                            → 90 pass / 0 fail (migration + rollback + reaplicação)
 ```
+
+### T007 ✅ 2026-09-01 — Os 5.570 centroides
+
+`scripts/municipality-centroid-build.py` roda **uma vez** sobre a malha do IBGE (27 requisições, uma
+por UF, com pausa) e emite `src/database/seeds/municipality-centroids.json` (635 KB, versionado). O
+centroide é o da **área** — laço de sapato, com os furos subtraídos e ilha/enclave somados por área —,
+não o centro da caixa envolvente, que num município em forma de foice cai fora dele.
+
+O seed passa pelo **use case**, nunca por `INSERT` bruto: `createSaveMunicipalityCentroidsUseCase`
+valida cada linha na fronteira (código de sete dígitos, UF de duas letras, coordenada dentro da
+Terra) e grava em lotes de 500 — 5.570 linhas num `insert` só estouram o limite de parâmetros do
+Postgres. **Nada é gravado se alguma linha do lote for inválida**: meia base é pior que base nenhuma.
+
+⚠️ **A T007 pegou um defeito na T004.** O fixture do contrato do gateway trazia `ibge.city` de Sales
+Oliveira como `3545803` — que não é o código dela, e sim o de outra cidade a 230 km. Eu o **inventei**
+dentro de um fixture cujo comentário afirma ser medido. O campo não é lido pelo gateway, então nenhum
+teste ficaria vermelho; ele só apareceu porque o seed comparou o código com a malha. Os três corpos
+foram remedidos e corrigidos, e o aviso ficou escrito no arquivo: campo inventado dentro de fixture
+"medido" é a mentira que sobrevive à suíte inteira.
+
+Conferência do dado: Ribeirão Preto `3543402` → `-21.2138406, -47.8218619` (certo); Sales Oliveira
+`3544905` → `-20.8331134, -47.8540347`, a ~7 km do CEP que a BrasilAPI devolve — que é exatamente o
+palpite de município que a ADR-0044 §5 descreve, e a razão de esta precisão sair da otimização.
+
+**Verificação:**
+
+```
+bun run --cwd apps/api-transportada test                        → 3829 pass / 0 fail
+bun run --cwd apps/api-transportada db:seed:municipality-centroids  → seeded: 5570
+(reexecutado)                                                   → seeded: 5570
+select count(*), count(distinct city_code) …                    → 5570 | 5570
+```

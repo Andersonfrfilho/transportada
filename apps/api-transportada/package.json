@@ -16,6 +16,7 @@
     "db:provision": "bun src/database/environment-provisioning.service.ts",
     "db:seed:fleet": "bun src/database/local-fleet-seed.service.ts",
     "db:seed:local": "bun src/database/local-identity-seed.service.ts",
+    "db:seed:municipality-centroids": "bun src/routing/application/municipality-centroid-seed.service.ts",
     "db:seed:notification-templates": "bun src/notification/application/notification-template-seed.service.ts",
     "db:test": "bun test ./test/database-migration.contract.test.ts ./test/notification-migration.contract.test.ts ./test/meta-whatsapp-migration.contract.test.ts ./test/user-migration.contract.test.ts ./test/notification-delivery-behaviour.contract.test.ts ./test/notification-queue.contract.test.ts ./test/notification-recipient.contract.test.ts ./test/integration/local-identity-seed.integration.ts",
     "dev": "bun --watch ./src/main.ts",

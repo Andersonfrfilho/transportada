@@ -25,6 +25,12 @@ function requestFor(postalCode: string, number = '1000'): GeocodeAddressRequest 
  * Corpos **medidos** contra a BrasilAPI em 2026-09-01 (adendo da ADR-0044). Não são invenção: a
  * forma do `location` e a ausência de `street` no CEP geral são o que a spec 069 afirma, e um
  * fixture inventado provaria o que nós achamos em vez do que o provedor faz.
+ *
+ * ⚠️ E isso não é retórica: a primeira versão deste arquivo trazia `ibge.city` de Sales Oliveira
+ * como `3545803`, que **não é** o código dela — é o de outra cidade, a 230 km. O campo não é lido
+ * pelo gateway, então nenhum teste ficaria vermelho; ele só foi pego porque o seed de centroides da
+ * T007 comparou o código com a malha do IBGE. Campo inventado dentro de fixture "medido" é a mentira
+ * que sobrevive à suíte inteira.
  */
 const AVENIDA_PAULISTA = {
   cep: '01310100',
@@ -38,13 +44,14 @@ const AVENIDA_PAULISTA = {
   service: 'open-cep',
   state: 'SP',
   street: 'Avenida Paulista',
+  timezoneName: 'America/Sao_Paulo',
 }
 
 /** Sales Oliveira, onze mil habitantes: um CEP para o município inteiro, e `street` nulo. */
 const CEP_GERAL_DE_CIDADE_PEQUENA = {
   cep: '14660000',
   city: 'Sales Oliveira',
-  ibge: { city: '3545803', state: '35' },
+  ibge: { city: '3544905', state: '35' },
   location: {
     coordinates: { latitude: '-20.77194', longitude: '-47.83806' },
     type: 'Point',
@@ -53,6 +60,7 @@ const CEP_GERAL_DE_CIDADE_PEQUENA = {
   service: 'open-cep',
   state: 'SP',
   street: null,
+  timezoneName: 'America/Sao_Paulo',
 }
 
 function respondWith(body: unknown, status = 200): typeof fetch {
@@ -108,6 +116,7 @@ describe('BrasilAPI postal code geocoding (spec 069, degrau 1)', () => {
         ...AVENIDA_PAULISTA,
         cep: '14801000',
         city: 'Araraquara',
+        ibge: { city: '3503208', state: '35' },
         street: 'Avenida Presidente Vargas',
       }),
     })
