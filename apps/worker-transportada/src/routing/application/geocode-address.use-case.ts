@@ -18,10 +18,16 @@ export type GeocodingHotCache = Readonly<{
   set: (record: GeocodedAddressRecord) => void
 }>
 
-/** Centroide por CEP e por município — os degraus 3 e 4 da cascata, quando o provedor não resolve. */
+/**
+ * O centroide de município — o **último** degrau, quando nem o CEP resolve.
+ *
+ * ⚠️ Ele já teve um vizinho, `byPostalCode`, e a inversão da cascata (adendo 2026-09-01 da ADR-0044)
+ * o tornou redundante: o degrau do CEP virou o **primário**, servido pela BrasilAPI através de
+ * `GeocodingPort`, e um segundo slot de centroide por CEP ficaria vazio para sempre. Slot que
+ * ninguém preenche é estrutura morta que o próximo leitor tenta entender.
+ */
 export type CentroidPort = Readonly<{
   byCityCode: (cityCode: string) => Promise<Omit<GeocodedAddressRecord, 'addressKey'> | null>
-  byPostalCode: (postalCode: string) => Promise<Omit<GeocodedAddressRecord, 'addressKey'> | null>
 }>
 
 export type GeocodeAddressesDependencies = Readonly<{
@@ -100,14 +106,15 @@ async function resolveThroughCascade(
   request: GeocodeAddressRequest,
 ): Promise<Omit<GeocodedAddressRecord, 'addressKey'> | null> {
   /**
-   * Queda do geocodificador não derruba a sugestão: os endereços já em cache seguem, e os novos
-   * descem a cascata até o município — que entra marcado e fora da otimização (ADR-0044 §5).
+   * Dois degraus, e não os quatro da ADR-0044 §3 original: o provedor pago saiu daqui e virou
+   * escalada por marca humana, na API (adendo 2026-09-01). O que sobra no worker é o CEP — de graça,
+   * primário — e o município como queda.
+   *
+   * Queda do provedor de CEP não derruba a sugestão: os endereços já em base seguem, e os novos
+   * descem ao município — que entra marcado e fora da otimização (ADR-0044 §5).
    */
   const geocoded = await dependencies.geocoding.geocode(request).catch(() => null)
   if (geocoded !== null) return geocoded
-
-  const byPostalCode = await dependencies.centroids.byPostalCode(request.postalCode)
-  if (byPostalCode !== null) return byPostalCode
 
   return dependencies.centroids.byCityCode(request.cityCode)
 }

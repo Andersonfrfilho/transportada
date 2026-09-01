@@ -42,7 +42,6 @@ function buildDependencies(
   return {
     centroids: {
       byCityCode: () => Promise.resolve(null),
-      byPostalCode: () => Promise.resolve(null),
     },
     geocodeCalls,
     geocoding: {
@@ -153,7 +152,6 @@ describe('geocode addresses (ADR-0044 §3)', () => {
             precision: 'city',
             source: 'city',
           }),
-        byPostalCode: () => Promise.resolve(null),
       },
       geocoding: { geocode: () => Promise.reject(new Error('provider down')) },
     })

@@ -7,6 +7,7 @@
  */
 import {
   bigint,
+  char,
   boolean,
   jsonb,
   numeric,
@@ -39,6 +40,17 @@ export const geocodedAddresses = pgTable('geocoded_addresses', {
   geocodedAt: timestamp('geocoded_at', { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+/**
+ * Cópia por valor das colunas que o último degrau da cascata lê. A API declara e migra; o worker só
+ * consulta — e por isso não precisa dos carimbos.
+ */
+export const municipalityCentroids = pgTable('municipality_centroids', {
+  cityCode: char('city_code', { length: 7 }).primaryKey(),
+  state: char({ length: 2 }).notNull(),
+  latitude: numeric({ precision: 10, scale: 7 }).notNull(),
+  longitude: numeric({ precision: 10, scale: 7 }).notNull(),
 })
 
 export const routeSuggestions = pgTable('route_suggestions', {

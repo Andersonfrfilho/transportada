@@ -174,3 +174,18 @@ bun run --cwd apps/api-transportada db:seed:municipality-centroids  → seeded: 
 (reexecutado)                                                   → seeded: 5570
 select count(*), count(distinct city_code) …                    → 5570 | 5570
 ```
+
+### T008 ✅ 2026-09-01 — O último degrau, e a cascata que encurtou
+
+`worker/src/routing/infrastructure/municipality-centroid.gateway.ts` lê a tabela semeada e devolve
+`city`/`city` — palpite de ~8 km que põe o endereço no mapa e **sai da otimização** (ADR-0044 §5).
+Ele não fala com ninguém: este degrau só roda quando o CEP já falhou.
+
+⚠️ **A cascata do worker passou de quatro degraus para dois**, e `CentroidPort.byPostalCode` foi
+removida. Com a inversão, o CEP virou o degrau **primário** (servido pela BrasilAPI através de
+`GeocodingPort`) e o provedor pago saiu da app — então um segundo slot de centroide por CEP ficaria
+vazio para sempre. Slot que ninguém preenche é estrutura morta que o próximo leitor tenta entender.
+
+O que sobra no worker: **CEP → município**. O degrau pago é a marca, na API.
+
+**Verificação:** worker **829 pass / 0 fail**; API **3829 pass / 0 fail**; typecheck verde nas duas.
