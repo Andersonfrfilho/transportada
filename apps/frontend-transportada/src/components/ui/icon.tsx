@@ -11,6 +11,7 @@ export type IconName =
   | 'arrow-down'
   | 'arrow-up'
   | 'calendar'
+  | 'camera'
   | 'check'
   | 'chevron-down'
   | 'chevron-left'
@@ -24,9 +25,11 @@ export type IconName =
   | 'edit'
   | 'export'
   | 'eye'
+  | 'eyeOff'
   | 'eye-off'
   | 'filter'
   | 'filter-clear'
+  | 'grip'
   | 'image'
   | 'invoice'
   | 'link'
@@ -46,11 +49,16 @@ export type IconName =
   | 'sort'
   | 'spinner'
   | 'trash'
+  | 'truck'
   | 'upload'
   | 'workspace-billing'
   | 'workspace-company-settings'
   | 'workspace-cte-batch'
   | 'workspace-cte-profiles'
+  | 'workspace-delivery-clients'
+  | 'workspace-driver-trip'
+  | 'workspace-extra-charges'
+  | 'workspace-trip-financials'
   | 'workspace-fleet'
   | 'workspace-freight'
   | 'workspace-mdfe-manifest'
@@ -59,6 +67,7 @@ export type IconName =
   | 'workspace-notification'
   | 'workspace-operations'
   | 'workspace-trip'
+  | 'workspace-access-profiles'
   | 'workspace-users'
 
 export type IconSize = 'md' | 'sm'
@@ -76,6 +85,7 @@ const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   'arrow-down': ['M12 4v14', 'M6 12l6 6 6-6'],
   'arrow-up': ['M12 20V6', 'M6 12l6-6 6 6'],
   calendar: ['M8 3v4', 'M16 3v4', 'M4 7h16v14H4z', 'M4 11h16'],
+  camera: ['M4 8h4l2-3h4l2 3h4v11H4z', 'M12 16a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z'],
   check: ['M5 13l4 4L19 7'],
   'chevron-down': ['M6 9l6 6 6-6'],
   'chevron-left': ['M15 18l-6-6 6-6'],
@@ -89,6 +99,7 @@ const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   edit: ['M4 20h4L20 8l-4-4L4 16z', 'M14 6l4 4'],
   export: ['M12 15V4', 'M8 8l4-4 4 4', 'M5 20h14'],
   eye: ['M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6z', 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z'],
+  eyeOff: ['M2 12s3.6-6 10-6c1.6 0 3 .4 4.2 1M22 12s-3.6 6-10 6c-1.6 0-3-.4-4.2-1', 'M3 3l18 18'],
   'eye-off': [
     'M3 3l18 18',
     'M10.6 5.2A9.6 9.6 0 0 1 12 5c6.4 0 10 6 10 6a17 17 0 0 1-3.2 3.8',
@@ -96,6 +107,7 @@ const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   ],
   filter: ['M4 5h16l-6 7v6l-4 2v-8L4 5z'],
   'filter-clear': ['M4 5h16l-6 7v6l-4 2v-8L4 5z', 'M15 15l5 5', 'M20 15l-5 5'],
+  grip: ['M9 6h.01', 'M9 12h.01', 'M9 18h.01', 'M15 6h.01', 'M15 12h.01', 'M15 18h.01'],
   image: ['M4 5h16v14H4z', 'M4 16l4.5-4.5 3 3L15 11l5 5', 'M9.4 9.4a1 1 0 1 1-2 0 1 1 0 0 1 2 0z'],
   invoice: ['M6 3h12v18l-3-2-3 2-3-2-3 2z', 'M9 8h6', 'M9 12h6'],
   link: [
@@ -118,6 +130,12 @@ const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   shield: ['M12 3l7 3v6c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6l7-3z'],
   sort: ['M8 9l4-4 4 4', 'M8 15l4 4 4-4'],
   spinner: ['M12 3a9 9 0 1 0 9 9'],
+  truck: [
+    'M3 17V7a1 1 0 0 1 1-1h9v11H3z',
+    'M13 10h4l3 3v4h-7z',
+    'M7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
+    'M17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
+  ],
   trash: ['M5 7h14', 'M10 7V4h4v3', 'M7 7l1 13h8l1-13'],
   upload: ['M12 20V9', 'M7 13l5-5 5 5', 'M5 4h14'],
   'workspace-billing': [
@@ -131,6 +149,24 @@ const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   ],
   'workspace-cte-batch': ['M7 4h10v3h3v13H4V7h3z', 'M9 4h6', 'M8 11h8', 'M8 15h5'],
   'workspace-cte-profiles': ['M5 4h9l5 5v11H5z', 'M14 4v5h5', 'M8 13h8', 'M8 17h5', 'M9 9h2'],
+  /** Spec 060: a porta do cliente com hora marcada — prédio e relógio, que é o que o cadastro guarda. */
+  'workspace-delivery-clients': [
+    'M5 20V6l7-3 7 3v14',
+    'M5 20h14',
+    'M9 20v-5h6v5',
+    'M12 8.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z',
+    'M12 10v1.5l1 .7',
+  ],
+  /** Spec 060: a taxa que o cliente cobrou e volta como repasse — recibo e seta de volta. */
+  'workspace-extra-charges': [
+    'M6 3h9l3 3v15H6z',
+    'M15 3v3h3',
+    'M9 11h6',
+    'M9 15h4',
+    'M9 18.5l-1.5-1.5L9 15.5',
+  ],
+  /** Spec 061: a conta da viagem — colunas de barra, que é como a margem se lê. */
+  'workspace-trip-financials': ['M4 20h16', 'M7 20V11', 'M12 20V5', 'M17 20v-6'],
   'workspace-fleet': [
     'M4 8h9v7H4z',
     'M13 10h4l3 3v2h-7z',
@@ -159,9 +195,24 @@ const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
     'M12 9v8',
     'M14 11h-3a1.5 1.5 0 0 0 0 3h2a1.5 1.5 0 0 1 0 3h-3',
   ],
+  /** O volante: a tela de quem está com as mãos nele, e não a de quem monta a viagem. */
+  'workspace-driver-trip': [
+    'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z',
+    'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+    'M12 3v6',
+    'M4.5 16.5 9.9 13.5',
+    'M19.5 16.5 14.1 13.5',
+  ],
   'workspace-notification': ['M18 16V11a6 6 0 1 0-12 0v5l-2 3h16z', 'M10 22h4'],
   'workspace-operations': ['M4 18V6', 'M4 18h16', 'M8 15v-3', 'M12 15V8', 'M16 15v-6'],
   'workspace-trip': ['M4 17l4-10h8l4 10', 'M4 17h16v3H4z', 'M8 20v-3', 'M16 20v-3', 'M9 12h6'],
+  /** Crachá: o papel que a pessoa veste, ao lado do desenho de gente que marca os acessos. */
+  'workspace-access-profiles': [
+    'M6 4h12v16H6z',
+    'M9 8h6',
+    'M12 12.5a1.75 1.75 0 1 0 0-3.5 1.75 1.75 0 0 0 0 3.5z',
+    'M9 17c0-1.5 1.3-2.5 3-2.5s3 1 3 2.5',
+  ],
   'workspace-users': [
     'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z',
     'M3 20v-1.5C3 15.9 5.7 14 9 14s6 1.9 6 4.5V20',

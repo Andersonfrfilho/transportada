@@ -6,6 +6,8 @@ COPY package.json bun.lock ./
 COPY apps/api-transportada/package.json apps/api-transportada/package.json
 COPY apps/cron-transportada/package.json apps/cron-transportada/package.json
 COPY apps/frontend-transportada/package.json apps/frontend-transportada/package.json
+COPY apps/frontend-client/package.json apps/frontend-client/package.json
+COPY apps/frontend-landing/package.json apps/frontend-landing/package.json
 COPY apps/worker-transportada/package.json apps/worker-transportada/package.json
 
 FROM manifests AS build
@@ -15,9 +17,13 @@ COPY apps/frontend-transportada apps/frontend-transportada
 ARG VITE_API_URL
 ARG VITE_APP_ENV
 ARG VITE_APP_URL
+ARG VITE_LANDING_APP_URL
 ARG VITE_KEYCLOAK_CLIENT_ID
 ARG VITE_KEYCLOAK_REALM
 ARG VITE_KEYCLOAK_URL
+# A etapa de identificacao antes do login. Ausente vale `false`: o caminho de entrada continua o de
+# sempre. Como todo `VITE_*`, ela e inlinada no build — ligar ou desligar exige rebuild.
+ARG VITE_IDENTIFIER_FIRST_LOGIN
 RUN bun run --cwd apps/frontend-transportada build
 
 FROM oven/bun:1.3.14-alpine AS runtime

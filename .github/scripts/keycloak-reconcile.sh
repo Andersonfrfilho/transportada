@@ -52,6 +52,25 @@ else
     --data "$(jq --null-input --arg theme "$LOGIN_THEME" '{loginTheme: $theme}')"
 fi
 
+# `--import-realm` ignora realm que já subiu, então a opção só alcança ambiente existente por aqui.
+# Ela precisa estar ligada porque a edição de login do painel a exige: com ela desligada — o padrão
+# do Keycloak — o Admin API recusa a troca com 400, e o operador só descobre ao salvar.
+current_edit_username="$(curl --silent --show-error --fail --max-time 30 \
+  --header "Authorization: Bearer $token" \
+  "$base_url/admin/realms/$REALM" \
+  | jq -r '.editUsernameAllowed // false')"
+
+if [ "$current_edit_username" = "true" ]; then
+  echo "realm $REALM: editUsernameAllowed já está ligado"
+else
+  echo "realm $REALM: editUsernameAllowed '$current_edit_username' → 'true'"
+  curl --silent --show-error --fail --max-time 30 \
+    --request PUT "$base_url/admin/realms/$REALM" \
+    --header "Authorization: Bearer $token" \
+    --header 'content-type: application/json' \
+    --data '{"editUsernameAllowed": true}'
+fi
+
 # A conferência é na página que o cliente abre, não no que o realm diz: o tema precisa estar na
 # imagem, e o único jeito de saber é ver o CSS que a tela referencia.
 #

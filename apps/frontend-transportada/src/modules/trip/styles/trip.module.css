@@ -1,5 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 .tripShell {
+  /* O separador opera esta tela com o dedo: o controle compacto sobe ao alvo de toque no celular. */
+  --control-height-compact: var(--touch-target);
+
   width: var(--layout-width);
   margin: 0 auto;
   padding: var(--space-5) 0 var(--space-16);
@@ -9,7 +12,7 @@
   display: grid;
   gap: var(--space-2);
   margin-bottom: var(--space-5);
-  padding: var(--space-6);
+  padding: var(--space-4);
   border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
   background: linear-gradient(
     145deg,
@@ -260,18 +263,19 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--space-4);
+  padding: 0;
   background: color-mix(in srgb, var(--color-asphalt) 78%, transparent);
 }
 
 .mdfeGateDialog {
   display: grid;
   gap: var(--space-4);
-  width: min(38rem, 100%);
-  max-height: 92vh;
+  width: 100%;
+  height: 100%;
+  max-height: 100vh;
   padding: var(--space-5);
   overflow-y: auto;
-  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  border: none;
   color: var(--color-fog);
   background: var(--color-graphite);
   box-shadow: 0 1.5rem 3rem color-mix(in srgb, var(--color-asphalt) 55%, transparent);
@@ -332,4 +336,274 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--space-2);
+}
+
+.scanQueue {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* A chave tem 44 caracteres e nenhum espaço: sem a quebra forçada ela empurra a coluna de
+   situação para fora da tela do celular. */
+.scanQueueKey {
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size-compact);
+  word-break: break-all;
+}
+
+/* Do tablet em diante sobra largura: o cabeçalho respira, o botão volta ao compacto do design
+   system e o portão de CT-e vira caixa sobre a tela em vez de tomá-la inteira. */
+@media (min-width: 40rem) {
+  .tripShell {
+    --control-height-compact: var(--field-height-compact);
+  }
+
+  .header {
+    padding: var(--space-6);
+  }
+
+  .mdfeGateOverlay {
+    padding: var(--space-4);
+  }
+
+  .mdfeGateDialog {
+    width: min(38rem, 100%);
+    height: auto;
+    max-height: 92vh;
+    border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  }
+}
+
+/* T015: a viagem lista por parada — cartão por parada, nota aninhada dentro. */
+.stopList {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stopCard {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 24%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 45%, transparent);
+}
+
+.stopCardHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+/* Alvo de toque do arraste: é o gesto mais repetido do separador com viagem grande, e o dedo
+   erra fácil num alvo menor que 44px (web.md §10). */
+.stopDragHandle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-height-compact);
+  height: var(--control-height-compact);
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  color: var(--color-fog);
+  cursor: grab;
+  touch-action: none;
+  background: transparent;
+}
+
+.stopDragHandle:active {
+  cursor: grabbing;
+}
+
+.stopSequence {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.6rem;
+  aspect-ratio: 1;
+  padding: 0 var(--space-1);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.78rem;
+}
+
+.stopLabel {
+  font-weight: 600;
+}
+
+.stopCounter {
+  margin-left: auto;
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  font-family: var(--font-utility);
+  font-size: 0.78rem;
+}
+
+.stopDocumentList {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stopDocumentRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-2);
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 14%, transparent);
+}
+
+.stopDocumentLabel {
+  font-family: var(--font-utility);
+  font-size: 0.85rem;
+}
+
+.separationStatusBadge {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+/* T015 RF-9: barra de progresso por fase — um segmento por `separationStatus`, largura pela
+   proporção de notas naquele estado. */
+.progressWrapper {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.progressTrack {
+  display: flex;
+  overflow: hidden;
+  height: 0.6rem;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 30%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 60%, transparent);
+}
+
+.progressTrack > span {
+  display: block;
+  height: 100%;
+}
+
+.progressSegmentPending {
+  background: color-mix(in srgb, var(--color-slate) 45%, transparent);
+}
+
+.progressSegmentSeparated {
+  background: color-mix(in srgb, var(--color-copper) 55%, transparent);
+}
+
+.progressSegmentLoaded {
+  background: color-mix(in srgb, var(--color-copper) 90%, transparent);
+}
+
+.progressSegmentDelivered {
+  background: color-mix(in srgb, var(--color-ready) 85%, transparent);
+}
+
+.progressSegmentReturned {
+  background: color-mix(in srgb, var(--color-alert) 75%, transparent);
+}
+
+.progressLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  font-size: 0.75rem;
+  list-style: none;
+}
+
+.progressLegendItem {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+}
+
+.progressLegendItem > span {
+  display: inline-block;
+  width: 0.6rem;
+  aspect-ratio: 1;
+}
+
+.selectionBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  background: color-mix(in srgb, var(--color-graphite) 92%, transparent);
+}
+
+@media (min-width: 40rem) {
+  .stopCardHead {
+    flex-wrap: nowrap;
+  }
+}
+
+/* Spec 059: a prontidão fica acima das ações — quem rola até "emitir" já sabe se dá para emitir. */
+.readinessPanel {
+  border: 1px solid var(--color-slate);
+  border-radius: var(--space-2);
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+}
+
+.readinessHeader {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: space-between;
+}
+
+.readinessCount {
+  margin: 0;
+}
+
+.readinessState {
+  color: var(--color-slate);
+  margin: 0;
+}
+
+.readinessList {
+  display: grid;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.readinessItem {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: space-between;
+}
+
+.readinessReason {
+  color: var(--color-copper);
+}
+
+.readinessActions {
+  display: grid;
+  gap: var(--space-1);
+  justify-items: start;
+}
+
+.readinessHint {
+  color: var(--color-slate);
+  margin: 0;
 }

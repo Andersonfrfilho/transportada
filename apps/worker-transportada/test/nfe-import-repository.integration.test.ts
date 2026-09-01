@@ -6,6 +6,7 @@ import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import type { ImportedNfeXml } from '@adatechnology/fiscal-provider'
 import { and, eq, sql } from 'drizzle-orm'
 
+import { contractors, deliveryClients } from '../src/database/delivery-client.schema.js'
 import {
   companyFiscalProfiles,
   nfeDocuments,
@@ -23,17 +24,21 @@ const COMPANY_CNPJ = '12345678000190'
 const ACCESS_KEY = '35190730290856000160550010000000011000000010'
 const SOURCE_KEY = 'staging/authorized.xml'
 const SOURCE_SHA256 = 'a'.repeat(64)
+const SECOND_ACCESS_KEY = '35190730290856000160550010000000021000000010'
 
-function authorizedImportedXml(): ImportedNfeXml {
+function authorizedImportedXml(
+  overrides: { accessKey?: string; number?: string; recipientName?: string } = {},
+): ImportedNfeXml {
+  const accessKey = overrides.accessKey ?? ACCESS_KEY
   return {
-    chaveNfe: ACCESS_KEY,
+    chaveNfe: accessKey,
     document: {
-      accessKey: ACCESS_KEY,
+      accessKey,
       additionalInformation: 'Contrato sintético',
       issuedAt: '2026-07-22T22:00:00.000Z',
       issuer: { name: 'Emitente', taxId: '30290856000160' },
       model: '55',
-      number: '1',
+      number: overrides.number ?? '1',
       operationNature: 'Prestacao',
       operationType: '0',
       products: [],
@@ -43,7 +48,7 @@ function authorizedImportedXml(): ImportedNfeXml {
         reason: 'Autorizado',
         statusCode: '100',
       },
-      recipient: { name: 'Destinatario', taxId: COMPANY_CNPJ },
+      recipient: { name: overrides.recipientName ?? 'Destinatario', taxId: COMPANY_CNPJ },
       relatedCnpjs: [COMPANY_CNPJ],
       series: '1',
       status: 'authorized',
@@ -139,6 +144,8 @@ describeDatabase('DrizzleNfeImportConsumerRepository (integration)', () => {
   })
 
   afterAll(async () => {
+    await db.delete(deliveryClients).where(eq(deliveryClients.companyId, companyId))
+    await db.delete(contractors).where(eq(contractors.companyId, companyId))
     await db.delete(nfeParticipants).where(eq(nfeParticipants.companyId, companyId))
     await db.delete(nfeDocuments).where(eq(nfeDocuments.companyId, companyId))
     await db.delete(nfeImportItems).where(eq(nfeImportItems.companyId, companyId))
@@ -250,6 +257,101 @@ describeDatabase('DrizzleNfeImportConsumerRepository (integration)', () => {
     const [item] = await db.select().from(nfeImportItems).where(eq(nfeImportItems.id, itemId))
     expect(item?.status).toBe('imported')
     expect(item?.accessKey).toBe(ACCESS_KEY)
+  })
+
+  /**
+   * Spec 060 T006 / ADR-0048 §1: a mesma importação que gravou a nota **cria o cadastro**, sozinha.
+   * O destinatário vira cliente de entrega e o emitente vira contratante — com identidade e nada
+   * além dela.
+   */
+  it('creates the delivery client and the contractor out of the imported note', async () => {
+    const [client] = await db
+      .select()
+      .from(deliveryClients)
+      .where(and(eq(deliveryClients.companyId, companyId), eq(deliveryClients.taxId, COMPANY_CNPJ)))
+    const [contractor] = await db
+      .select()
+      .from(contractors)
+      .where(and(eq(contractors.companyId, companyId), eq(contractors.taxId, '30290856000160')))
+
+    expect(client?.displayName).toBe('Destinatario')
+    expect(contractor?.displayName).toBe('Emitente')
+  })
+
+  /**
+   * A segunda nota do mesmo CNPJ **não** duplica cadastro e **não** toca em regra: atualiza o nome
+   * visto e nada mais. É a idempotência por `(company_id, tax_id)`, e é o que faz a base ficar
+   * completa ao fim de um mês sem ninguém digitar.
+   */
+  it('is idempotent, updates only the seen name, and never touches the rules', async () => {
+    /**
+     * A regra é escrita por SQL cru de propósito: o **worker não conhece estas colunas**. A cópia
+     * dele tem só identidade, e é isso que garante que a criação automática não tem como tocá-las.
+     */
+    await db.execute(
+      sql`update delivery_clients set delivery_fee_amount = '45.0000', requires_scheduling = true
+          where company_id = ${companyId} and tax_id = ${COMPANY_CNPJ}`,
+    )
+
+    const secondItemId = crypto.randomUUID()
+    const secondObjectId = crypto.randomUUID()
+    await db.insert(storedObjects).values({
+      bucket: 'transportada-private',
+      companyId,
+      id: secondObjectId,
+      mimeType: 'application/xml',
+      objectKey: `${SOURCE_KEY}.2`,
+      provider: 'minio',
+      purpose: 'import_source',
+      sha256: SOURCE_SHA256,
+      sizeBytes: 128n,
+      status: 'staging',
+    })
+    await db.insert(nfeImportItems).values({
+      companyId,
+      id: secondItemId,
+      importId,
+      ordinal: 2n,
+      sourceEntry: 'authorized-2.xml',
+      sourceName: 'authorized-2.xml',
+      sourceObjectId: secondObjectId,
+      sourceSha256: SOURCE_SHA256,
+      status: 'pending',
+    })
+
+    await repository.completeItem({
+      accessKey: SECOND_ACCESS_KEY,
+      finalObject: {
+        bucket: 'transportada-private',
+        key: `tenants/${companyId}/nfe-documents/${SECOND_ACCESS_KEY}/original.xml`,
+        objectId: crypto.randomUUID(),
+        sha256: SOURCE_SHA256,
+        sizeBytes: 128,
+      },
+      itemId: secondItemId,
+      normalizedXml: authorizedImportedXml({
+        accessKey: SECOND_ACCESS_KEY,
+        number: '2',
+        recipientName: 'Destinatario Renomeado',
+      }),
+      status: 'imported',
+      variant: 'complete',
+    })
+
+    const rows = (await db.execute(
+      sql`select display_name, requires_scheduling, delivery_fee_amount from delivery_clients
+          where company_id = ${companyId} and tax_id = ${COMPANY_CNPJ}`,
+    )) as unknown as ReadonlyArray<{
+      readonly delivery_fee_amount: string
+      readonly display_name: string
+      readonly requires_scheduling: boolean
+    }>
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.display_name).toBe('Destinatario Renomeado')
+    // O que gente preencheu continua de pé: a criação automática nunca sobrescreve regra.
+    expect(rows[0]?.requires_scheduling).toBe(true)
+    expect(rows[0]?.delivery_fee_amount).toBe('45.0000')
   })
 
   it('finalizeImport persists the counters and the partial status', async () => {

@@ -3,14 +3,20 @@
  */
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import { defineRoute } from '../../http/router.service.js'
+import { invalidRequest } from '../../http/request-parsing.service.js'
 import { API_NFE_DOCUMENTS_PATH, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
 import { CHAVE_PATTERN } from '../../shared/tax-id.service.js'
-import {
-  parseDocumentList,
-  parseUuidPathIdentifier,
-} from '../../nfe-imports/presentation/nfe-imports.schema.js'
+import { parseUuidPathIdentifier } from '../../nfe-imports/presentation/nfe-imports.schema.js'
+import type { TripLocationByAccessKey } from '../../trips/application/find-trip-location-by-access-key.use-case.js'
+import { parseDocumentList } from './nfe-documents.schema.js'
 
 const INVOICES_READ_POLICY = { permission: 'invoices.read', scope: 'company' } as const
+/**
+ * ADR-0043 §3, spec 056 RF-6/P3: o separador bipa a etiqueta e o painel responde onde a nota está.
+ * Rota do módulo `nfe-documents` porque a entrada é a chave de acesso, não o id da viagem — quem
+ * bipa não sabe em que viagem a nota está, é isso que ele está perguntando.
+ */
+const TRIP_LOCATION_BY_ACCESS_KEY_PATH = `${API_NFE_DOCUMENTS_PATH}/by-access-key/:accessKey/trip-location`
 const XML_EXTENSION = '.xml'
 
 type NfeDocumentSummary = {
@@ -36,12 +42,16 @@ type NfeDocumentSummary = {
   readonly series: string
   readonly status: 'authorized' | 'cancelled' | 'denied' | 'unsigned'
   readonly totalAmount: string
+  /** Spec 065 D4b — os dois campos existem no tipo da aplicação e precisam existir aqui também. */
+  readonly tripId: string | null
+  readonly tripStatus: string | null
   readonly variant: 'complete' | 'summary' | 'event'
 }
 
 type NfeDocumentDetail = NfeDocumentSummary
 
 type ListDocumentsInput = {
+  readonly accessKey: string | null
   readonly cursor: string | null
   readonly limit: number
 }
@@ -80,6 +90,7 @@ type Dependencies = {
   }
   readonly listDocuments: {
     execute(input: {
+      readonly accessKey: string | null
       readonly context: CompanyContext
       readonly cursor: string | null
       readonly limit: number
@@ -87,6 +98,12 @@ type Dependencies = {
       readonly items: readonly NfeDocumentSummary[]
       readonly nextCursor: string | null
     }>
+  }
+  readonly locateTripByAccessKey: {
+    execute(input: {
+      readonly accessKey: string
+      readonly context: CompanyContext
+    }): Promise<TripLocationByAccessKey | null>
   }
 }
 
@@ -166,7 +183,42 @@ export function createNfeDocumentRoutes(
       pathname: `${API_NFE_DOCUMENTS_PATH}/:id/eligibility`,
       policy: INVOICES_READ_POLICY,
     }),
+    defineRoute<{ readonly accessKey: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const location = await dependencies.locateTripByAccessKey.execute({
+          context: context.scope,
+          ...input,
+        })
+        // `null` é resposta válida: a nota existe e ainda não foi vinculada a nenhuma viagem —
+        // é exatamente o estado antes de alguém bipar a etiqueta, não um 404.
+        return jsonResponse({
+          body: { data: location === null ? null : serializeTripLocation(location) },
+          status: 200,
+        })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({
+        accessKey: parseAccessKeyPathParameter(pathParameters.accessKey ?? ''),
+      }),
+      pathname: TRIP_LOCATION_BY_ACCESS_KEY_PATH,
+      policy: INVOICES_READ_POLICY,
+    }),
   ]
+}
+
+function parseAccessKeyPathParameter(value: string): string {
+  if (!CHAVE_PATTERN.test(value)) throw invalidRequest()
+  return value
+}
+
+function serializeTripLocation(location: TripLocationByAccessKey): object {
+  return {
+    documentId: location.documentId,
+    separationStatus: location.separationStatus,
+    stop: location.stop === null ? null : { ...location.stop },
+    tripId: location.tripId,
+    tripStatus: location.tripStatus,
+  }
 }
 
 function serializeDocument(document: NfeDocumentSummary): object {
@@ -193,6 +245,8 @@ function serializeDocument(document: NfeDocumentSummary): object {
     series: document.series,
     status: document.status,
     totalAmount: document.totalAmount,
+    tripId: document.tripId,
+    tripStatus: document.tripStatus,
     variant: document.variant,
   }
 }

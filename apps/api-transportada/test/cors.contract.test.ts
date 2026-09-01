@@ -37,7 +37,9 @@ describe('trusted frontend origin configuration', () => {
   test.each(['https://spa.example.test', 'https://spa.example.test:5443', FRONTEND_ORIGIN])(
     'accepts one canonical HTTPS origin or HTTP localhost: %s',
     (frontendOrigin) => {
-      expect(parseEnvironment(environmentWith(frontendOrigin)).frontendOrigin).toBe(frontendOrigin)
+      expect(parseEnvironment(environmentWith(frontendOrigin)).frontendOrigins).toEqual([
+        frontendOrigin,
+      ])
     },
   )
 
@@ -58,6 +60,17 @@ describe('trusted frontend origin configuration', () => {
   ])('rejects an absent, unsafe or non-canonical origin: %s', (frontendOrigin) => {
     expect(() => parseEnvironment(environmentWith(frontendOrigin))).toThrow()
   })
+
+  test('accepts a comma-separated list — painel and landing are different origins', () => {
+    const landingOrigin = 'https://fernandes-transportadora.com.br'
+    const environment = environmentWith(`${FRONTEND_ORIGIN},${landingOrigin}`)
+    expect(parseEnvironment(environment).frontendOrigins).toEqual([FRONTEND_ORIGIN, landingOrigin])
+  })
+
+  test('rejects the list when any single origin in it is untrusted', () => {
+    const environment = environmentWith(`${FRONTEND_ORIGIN},http://spa.example.test`)
+    expect(() => parseEnvironment(environment)).toThrow()
+  })
 })
 
 describe('API CORS contract', () => {
@@ -77,7 +90,7 @@ describe('API CORS contract', () => {
       'access-control-request-method',
       'origin',
     ])
-    expect(response.headers.has('access-control-allow-credentials')).toBe(false)
+    expect(response.headers.has('access-control-allow-credentials')).toBe(true)
     expect(fixture.authenticationCalls()).toBe(0)
     expect(fixture.membershipCalls()).toBe(0)
   })
@@ -351,7 +364,7 @@ describe('API CORS contract', () => {
     for (const response of [health, authMe]) {
       expect(response.status).toBe(200)
       expect(response.headers.get('access-control-allow-origin')).toBe(FRONTEND_ORIGIN)
-      expect(response.headers.has('access-control-allow-credentials')).toBe(false)
+      expect(response.headers.has('access-control-allow-credentials')).toBe(true)
       expect(varyValues(response)).toEqual(['origin'])
     }
   })
@@ -403,7 +416,7 @@ describe('API CORS contract', () => {
 
       expect(response.status).toBe(status)
       expect(response.headers.get('access-control-allow-origin')).toBe(FRONTEND_ORIGIN)
-      expect(response.headers.has('access-control-allow-credentials')).toBe(false)
+      expect(response.headers.has('access-control-allow-credentials')).toBe(true)
       expect(varyValues(response)).toEqual(['origin'])
     },
   )
@@ -443,14 +456,64 @@ describe('API CORS contract', () => {
     expect(serializedLogs).not.toContain(FRONTEND_ORIGIN)
     expect(serializedLogs).not.toContain('sensitive.header.value')
   })
+
+  describe('with a second trusted origin (painel and landing)', () => {
+    const LANDING_ORIGIN = 'https://fernandes-transportadora.com.br'
+
+    test('reflects whichever of the two origins actually asked, on preflight and on the real request', async () => {
+      const fixture = createFixture({ frontendOrigins: [FRONTEND_ORIGIN, LANDING_ORIGIN] })
+
+      const panelPreflight = await fixture.handle(
+        preflightRequest({ origin: FRONTEND_ORIGIN }),
+        fixture.server,
+      )
+      const landingPreflight = await fixture.handle(
+        preflightRequest({ origin: LANDING_ORIGIN }),
+        fixture.server,
+      )
+      const panelRequest = await fixture.handle(
+        new Request('http://localhost/auth/me', {
+          headers: { authorization: 'Bearer header.payload.signature', origin: FRONTEND_ORIGIN },
+        }),
+        fixture.server,
+      )
+      const landingRequest = await fixture.handle(
+        new Request('http://localhost/auth/me', {
+          headers: { authorization: 'Bearer header.payload.signature', origin: LANDING_ORIGIN },
+        }),
+        fixture.server,
+      )
+
+      expect(panelPreflight.status).toBe(204)
+      expect(panelPreflight.headers.get('access-control-allow-origin')).toBe(FRONTEND_ORIGIN)
+      expect(landingPreflight.status).toBe(204)
+      expect(landingPreflight.headers.get('access-control-allow-origin')).toBe(LANDING_ORIGIN)
+      expect(panelRequest.headers.get('access-control-allow-origin')).toBe(FRONTEND_ORIGIN)
+      expect(landingRequest.headers.get('access-control-allow-origin')).toBe(LANDING_ORIGIN)
+    })
+
+    test('still rejects an origin outside both trusted ones', async () => {
+      const fixture = createFixture({ frontendOrigins: [FRONTEND_ORIGIN, LANDING_ORIGIN] })
+      const response = await fixture.handle(
+        preflightRequest({ origin: OTHER_ORIGIN }),
+        fixture.server,
+      )
+      expect(response.status).toBe(403)
+    })
+  })
 })
 
 type CreateFixtureParams = {
   readonly authentication?: AuthenticationPort
+  readonly frontendOrigins?: readonly [string, ...string[]]
   readonly membership?: MembershipRepositoryPort
 }
 
-function createFixture({ authentication, membership }: CreateFixtureParams = {}) {
+function createFixture({
+  authentication,
+  frontendOrigins = [FRONTEND_ORIGIN],
+  membership,
+}: CreateFixtureParams = {}) {
   let authenticationCallCount = 0
   let membershipCallCount = 0
   const logs: Array<Record<string, unknown>> = []
@@ -465,6 +528,7 @@ function createFixture({ authentication, membership }: CreateFixtureParams = {})
         externalIdentityId: '00000000-0000-4000-8000-000000000002',
         issuer: 'https://identity.example.test/realms/transportada',
         platformAdmin: false,
+        serviceAccount: false,
         subject: 'cors-user',
         userId: '00000000-0000-4000-8000-000000000003',
       }
@@ -477,6 +541,7 @@ function createFixture({ authentication, membership }: CreateFixtureParams = {})
         return membership.findActiveByUserAndCompany(input)
       }
       return {
+        grantedPermissions: [],
         membershipId: '00000000-0000-4000-8000-000000000004',
         roles: ['viewer'],
       }
@@ -505,7 +570,7 @@ function createFixture({ authentication, membership }: CreateFixtureParams = {})
   const tenantContext = new TenantContextService({ repository: membershipFixture })
   const handle = createRequestHandler({
     createCorrelationId: () => CORRELATION_ID,
-    frontendOrigin: FRONTEND_ORIGIN,
+    frontendOrigins,
     logger,
     requestTimeoutSeconds: 10,
     router: createHttpRouterFixture({

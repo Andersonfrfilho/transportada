@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   CREATE_TRIP_BODY,
+  DELIVERY_ADDRESS_OVERRIDE,
   DOCUMENT_ID,
   FLEET_MANAGE,
   FLEET_READ,
@@ -14,6 +15,7 @@ import {
   TRIP_DETAIL,
   TRIP_DOCUMENT,
   TRIP_ID,
+  TRIP_MANAGE,
   TRIP_PAGE,
 } from './trip.fixture'
 
@@ -28,7 +30,7 @@ describe('trip client contract', () => {
     expect(
       await client.listTrips({
         cursor: SYNTHETIC_CURSOR,
-        filters: { statusEq: 'open', vehicleIdEq: TRIP.vehicleId },
+        filters: { statusEq: 'draft', vehicleIdEq: TRIP.vehicleId },
         limit: 25,
       }),
     ).toEqual(TRIP_PAGE)
@@ -71,7 +73,7 @@ describe('trip client contract', () => {
     }
 
     expect(listRequest.url).toBe(
-      `${TRIPS_PATH}?cursor=${encodeURIComponent(SYNTHETIC_CURSOR)}&limit=25&statusEq=open&vehicleIdEq=${TRIP.vehicleId}`,
+      `${TRIPS_PATH}?cursor=${encodeURIComponent(SYNTHETIC_CURSOR)}&limit=25&statusEq=draft&vehicleIdEq=${TRIP.vehicleId}`,
     )
     expect(listRequest.method).toBe('GET')
     expect(listRequest.headers.get('authorization')).toBe(`Bearer ${SYNTHETIC_ACCESS_TOKEN}`)
@@ -100,6 +102,97 @@ describe('trip client contract', () => {
 
     expect(closeRequest.url).toBe(`${TRIPS_PATH}/${TRIP_ID}/close`)
     expect(closeRequest.method).toBe('POST')
+  })
+
+  test('overrides a delivery address and lists its history', async () => {
+    const requests: Request[] = []
+    const client = await createRecordingClient(requests)
+
+    expect(
+      await client.overrideDeliveryAddress({
+        documentId: DOCUMENT_ID,
+        newAddress: DELIVERY_ADDRESS_OVERRIDE.newAddress,
+        newLabel: DELIVERY_ADDRESS_OVERRIDE.newLabel,
+        reason: DELIVERY_ADDRESS_OVERRIDE.reason,
+        requestedBy: DELIVERY_ADDRESS_OVERRIDE.requestedBy,
+        tripId: TRIP_ID,
+      }),
+    ).toEqual(DELIVERY_ADDRESS_OVERRIDE)
+    expect(
+      await client.listDeliveryAddressHistory({ documentId: DOCUMENT_ID, tripId: TRIP_ID }),
+    ).toEqual([DELIVERY_ADDRESS_OVERRIDE])
+
+    const [overrideRequest, historyRequest] = requests
+    if (overrideRequest === undefined || historyRequest === undefined) {
+      throw new Error('TRIP_CONTRACT_REQUEST_MISSING')
+    }
+
+    expect(overrideRequest.url).toBe(
+      `${TRIPS_PATH}/${TRIP_ID}/documents/${DOCUMENT_ID}/delivery-address`,
+    )
+    expect(overrideRequest.method).toBe('POST')
+    expect(await overrideRequest.json()).toEqual({
+      newAddress: DELIVERY_ADDRESS_OVERRIDE.newAddress,
+      newLabel: DELIVERY_ADDRESS_OVERRIDE.newLabel,
+      reason: DELIVERY_ADDRESS_OVERRIDE.reason,
+      requestedBy: DELIVERY_ADDRESS_OVERRIDE.requestedBy,
+    })
+
+    expect(historyRequest.url).toBe(
+      `${TRIPS_PATH}/${TRIP_ID}/documents/${DOCUMENT_ID}/delivery-address-history`,
+    )
+    expect(historyRequest.method).toBe('GET')
+  })
+
+  test('transitions a document, runs a batch, plans the route, dispatches and cancels the trip', async () => {
+    const requests: Request[] = []
+    const client = await createRecordingClient(requests)
+
+    expect(
+      await client.transitionTripDocument({
+        action: 'separate',
+        documentId: DOCUMENT_ID,
+        tripId: TRIP_ID,
+      }),
+    ).toEqual({ document: TRIP_DOCUMENT, tripStatus: 'separating' })
+    expect(
+      await client.batchStatus({
+        action: 'load',
+        documentIds: [DOCUMENT_ID],
+        tripId: TRIP_ID,
+      }),
+    ).toEqual({ items: [{ documentId: DOCUMENT_ID, outcome: 'applied' }], tripStatus: 'loading' })
+    expect(await client.planTripRoute({ tripId: TRIP_ID })).toEqual({ tripStatus: 'route_planned' })
+    expect(await client.dispatchTrip({ tripId: TRIP_ID })).toEqual({ tripStatus: 'dispatched' })
+    expect(await client.cancelTrip({ tripId: TRIP_ID })).toEqual({ tripStatus: 'cancelled' })
+
+    const [separateRequest, batchRequest, planRouteRequest, dispatchRequest, cancelRequest] =
+      requests
+    if (
+      separateRequest === undefined ||
+      batchRequest === undefined ||
+      planRouteRequest === undefined ||
+      dispatchRequest === undefined ||
+      cancelRequest === undefined
+    ) {
+      throw new Error('TRIP_CONTRACT_REQUEST_MISSING')
+    }
+
+    expect(separateRequest.url).toBe(`${TRIPS_PATH}/${TRIP_ID}/documents/${DOCUMENT_ID}/separate`)
+    expect(await separateRequest.json()).toEqual({ note: null, returnReason: null })
+
+    expect(batchRequest.url).toBe(`${TRIPS_PATH}/${TRIP_ID}/documents/batch-status`)
+    expect(await batchRequest.json()).toEqual({
+      action: 'load',
+      documentIds: [DOCUMENT_ID],
+      note: null,
+      returnReason: null,
+    })
+
+    expect(planRouteRequest.url).toBe(`${TRIPS_PATH}/${TRIP_ID}/plan-route`)
+    expect(dispatchRequest.url).toBe(`${TRIPS_PATH}/${TRIP_ID}/dispatch`)
+    expect(await dispatchRequest.json()).toEqual({ force: false, forceReason: null })
+    expect(cancelRequest.url).toBe(`${TRIPS_PATH}/${TRIP_ID}/cancel`)
   })
 
   test('surfaces the api error code instead of a generic failure', async () => {
@@ -160,7 +253,7 @@ describe('trip client contract', () => {
 })
 
 describe('trip controller contract', () => {
-  test('exposes trip mutations only to fleet.manage and reads only to fleet.read', async () => {
+  test('exposes trip mutations only to trip.manage and reads only to fleet.read', async () => {
     const { createTripController } = await loadFutureModule<TripControllerModule>(
       '../../src/modules/trip/hooks/useTripWorkspace.hook',
     )
@@ -173,7 +266,11 @@ describe('trip controller contract', () => {
       await blindController.getTrip({ tripId: TRIP_ID }).catch((caught: unknown) => caught),
     ).toEqual(expect.objectContaining({ message: 'TRIP_FORBIDDEN' }))
 
-    const readOnlyController = createTripController({ client, permissions: [FLEET_READ] })
+    // `fleet.manage` administra veículo e motorista, e deixou de abrir a escrita de viagem
+    const readOnlyController = createTripController({
+      client,
+      permissions: [FLEET_READ, FLEET_MANAGE],
+    })
     expect(readOnlyController.canReadTrips).toBe(true)
     expect(readOnlyController.canManageTrips).toBe(false)
     expect(await readOnlyController.getTrip({ tripId: TRIP_ID })).toEqual(TRIP_DETAIL)
@@ -185,7 +282,7 @@ describe('trip controller contract', () => {
     ).toEqual(expect.objectContaining({ message: 'TRIP_FORBIDDEN' }))
     expect(client.mutationCount).toBe(0)
 
-    const controller = createTripController({ client, permissions: [FLEET_READ, FLEET_MANAGE] })
+    const controller = createTripController({ client, permissions: [FLEET_READ, TRIP_MANAGE] })
     expect(controller.canManageTrips).toBe(true)
     await controller.createTrip(CREATE_TRIP_BODY)
     await controller.closeTrip({ tripId: TRIP_ID })
@@ -242,6 +339,38 @@ function resolveSyntheticResponse(request: Request): Promise<Response> {
   if (request.url === `${TRIPS_PATH}/${TRIP_ID}`) {
     return Promise.resolve(Response.json({ data: TRIP_DETAIL }))
   }
+  if (request.url === `${TRIPS_PATH}/${TRIP_ID}/documents/${DOCUMENT_ID}/delivery-address`) {
+    return Promise.resolve(Response.json({ data: DELIVERY_ADDRESS_OVERRIDE }, { status: 201 }))
+  }
+  if (
+    request.url === `${TRIPS_PATH}/${TRIP_ID}/documents/${DOCUMENT_ID}/delivery-address-history`
+  ) {
+    return Promise.resolve(Response.json({ data: [DELIVERY_ADDRESS_OVERRIDE] }))
+  }
+  if (request.url === `${TRIPS_PATH}/${TRIP_ID}/documents/${DOCUMENT_ID}/separate`) {
+    return Promise.resolve(
+      Response.json({ data: { document: TRIP_DOCUMENT, tripStatus: 'separating' } }),
+    )
+  }
+  if (request.url === `${TRIPS_PATH}/${TRIP_ID}/documents/batch-status`) {
+    return Promise.resolve(
+      Response.json({
+        data: {
+          items: [{ documentId: DOCUMENT_ID, outcome: 'applied' }],
+          tripStatus: 'loading',
+        },
+      }),
+    )
+  }
+  if (request.url === `${TRIPS_PATH}/${TRIP_ID}/plan-route`) {
+    return Promise.resolve(Response.json({ data: { tripStatus: 'route_planned' } }))
+  }
+  if (request.url === `${TRIPS_PATH}/${TRIP_ID}/dispatch`) {
+    return Promise.resolve(Response.json({ data: { tripStatus: 'dispatched' } }))
+  }
+  if (request.url === `${TRIPS_PATH}/${TRIP_ID}/cancel`) {
+    return Promise.resolve(Response.json({ data: { tripStatus: 'cancelled' } }))
+  }
 
   throw new Error(`Unexpected request in contract: ${request.url}`)
 }
@@ -257,17 +386,29 @@ function createMutationRecordingClient(): TripClient & { readonly mutationCount:
     return Promise.resolve(TRIP_DOCUMENT)
   }
 
+  const recordStatusMutation = (): Promise<unknown> => {
+    mutationCount += 1
+    return Promise.resolve({ tripStatus: TRIP.status })
+  }
+
   return {
+    batchStatus: recordStatusMutation,
+    cancelTrip: recordStatusMutation,
     closeTrip: recordDetailMutation,
     createTrip: recordDetailMutation,
     deliverTripDocument: recordDocumentMutation,
+    dispatchTrip: recordStatusMutation,
     getTrip: () => Promise.resolve(TRIP_DETAIL),
     linkTripDocument: recordDocumentMutation,
+    listDeliveryAddressHistory: () => Promise.resolve([DELIVERY_ADDRESS_OVERRIDE]),
     listTrips: () => Promise.resolve(TRIP_PAGE),
     get mutationCount(): number {
       return mutationCount
     },
+    overrideDeliveryAddress: recordDetailMutation,
+    planTripRoute: recordStatusMutation,
     releaseTripDocument: recordDocumentMutation,
+    transitionTripDocument: recordDocumentMutation,
   }
 }
 
@@ -284,14 +425,48 @@ type LinkDocumentInput = Readonly<{
   tripId: string
 }>
 
+type OverrideDeliveryAddressInput = Readonly<{
+  documentId: string
+  newAddress: { cityCode: null | string; number: null | string; postalCode: null | string }
+  newLabel: string
+  reason: string
+  requestedBy: string
+  tripId: string
+}>
+
+type BatchStatusInput = Readonly<{
+  action: 'deliver' | 'load' | 'return' | 'separate'
+  documentIds: readonly string[]
+  note?: null | string
+  returnReason?: null | string
+  tripId: string
+}>
+
+type TransitionInput = Readonly<{
+  action: 'load' | 'return' | 'separate'
+  documentId: string
+  note?: null | string
+  returnReason?: null | string
+  tripId: string
+}>
+
+type DispatchInput = Readonly<{ force?: boolean; forceReason?: null | string; tripId: string }>
+
 type TripClient = {
+  batchStatus(input: BatchStatusInput): Promise<unknown>
+  cancelTrip(input: TripIdInput): Promise<unknown>
   closeTrip(input: TripIdInput): Promise<unknown>
   createTrip(input: typeof CREATE_TRIP_BODY): Promise<unknown>
   deliverTripDocument(input: DocumentActionInput): Promise<unknown>
+  dispatchTrip(input: DispatchInput): Promise<unknown>
   getTrip(input: TripIdInput): Promise<unknown>
   linkTripDocument(input: LinkDocumentInput): Promise<unknown>
+  listDeliveryAddressHistory(input: DocumentActionInput): Promise<unknown>
   listTrips(input: ListInput): Promise<unknown>
+  overrideDeliveryAddress(input: OverrideDeliveryAddressInput): Promise<unknown>
+  planTripRoute(input: TripIdInput): Promise<unknown>
   releaseTripDocument(input: DocumentActionInput): Promise<unknown>
+  transitionTripDocument(input: TransitionInput): Promise<unknown>
 }
 
 type TripClientModule = {

@@ -5,3 +5,6 @@ PROJECT.MD
 .history
 .omc
 .omo
+# Gerado pelo drizzle-kit a cada migration — formatar produz churn e um diff de milhares de linhas
+apps/*/drizzle/*/snapshot.json
+apps/*/drizzle*/meta

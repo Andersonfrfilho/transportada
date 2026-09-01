@@ -1,27 +1,44 @@
-/* Copyright (c) 2026 Ada Technology. MIT License. */
+import { useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
+import { formatPhone, PHONE_MASK_LENGTH } from '@/modules/shared/phone.service'
+import { formatTaxId } from '@/modules/shared/taxId.service'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import type { CompanyUserEditForm } from '../hooks/useCompanyUserForm.hook'
+import type { CompanyUserPasswordState } from '../hooks/useCompanyUserPassword.hook'
+import { useCompanyUserIdentifiers } from '../hooks/useCompanyUserIdentifiers.hook'
+import { readPictureErrorCode, useCompanyUserPicture } from '../hooks/useCompanyUserPicture.hook'
+import type { CompanyUserRevealState } from '../hooks/useCompanyUserReveal.hook'
 import { CONTACT_CHANNELS } from '../shared/companyUsers.constant'
 import type { CompanyUser } from '../shared/companyUsers.types'
 import styles from '../styles/userAdministration.module.css'
 
 import {
+  CompanyUserMaskedField,
   CompanyUserRoleField,
   CompanyUserSelectField,
   CompanyUserTextField,
 } from './CompanyUserField.component'
+import { CompanyUserIdentifierFields } from './CompanyUserIdentifierFields.component'
+import { CompanyUserPasswordPanel } from './CompanyUserPasswordPanel.component'
+import { CompanyUserPictureField } from './CompanyUserPictureField.component'
+import { CompanyUserStoredField } from './CompanyUserStoredField.component'
+
+/** Os campos guardados que a API entrega mascarados, e que o olho revela um a um. */
+const SECRET_FIELDS = ['contact', 'email', 'phone', 'taxId'] as const
+type SecretField = (typeof SECRET_FIELDS)[number]
 
 type CompanyUserEditDialogProps = Readonly<{
   form: CompanyUserEditForm
   isPending: boolean
   onClose: () => void
   onSubmit: () => void
+  password: CompanyUserPasswordState
+  reveal: CompanyUserRevealState
   user: CompanyUser | null
   errorCode: string | undefined
 }>
@@ -32,12 +49,126 @@ export function CompanyUserEditDialog({
   isPending,
   onClose,
   onSubmit,
+  password,
+  reveal,
   user,
 }: CompanyUserEditDialogProps) {
   const { t } = useTranslation('identity')
   const { dialogRef, handleKeyDown } = useModalDialog({ isOpen: user !== null, onClose })
+  /**
+   * O que está à mostra é por campo e morre com o diálogo. A revelação em si é uma chamada só — a
+   * API devolve a ficha inteira e grava uma linha de auditoria —, mas mostrar tudo de uma vez só
+   * porque alguém quis conferir o telefone deixaria o CPF aberto na tela sem ninguém ter pedido.
+   */
+  const [visibleFields, setVisibleFields] = useState<readonly SecretField[]>([])
+  /** Qual dado está aberto para troca. Fechar limpa o que foi digitado: desistir é desistir. */
+  const [editingFields, setEditingFields] = useState<readonly SecretField[]>([])
+  const picture = useCompanyUserPicture({ userId: user?.id })
+  const identifiers = useCompanyUserIdentifiers({ userId: user?.id })
 
   if (user === null) return null
+
+  const revealed = reveal.revealed.get(user.id)
+
+  async function showField(field: SecretField): Promise<void> {
+    if (user === null) return
+    await reveal.reveal([user.id])
+    setVisibleFields((current) => (current.includes(field) ? current : [...current, field]))
+  }
+
+  async function showEveryField(): Promise<void> {
+    if (user === null) return
+    await reveal.reveal([user.id])
+    setVisibleFields(SECRET_FIELDS)
+  }
+
+  function hideEveryField(): void {
+    setVisibleFields([])
+  }
+
+  function startEditing(field: SecretField): void {
+    setEditingFields((current) => (current.includes(field) ? current : [...current, field]))
+  }
+
+  const CLEAR_FIELD: Readonly<Record<SecretField, () => void>> = {
+    contact: () => form.setContact(''),
+    email: () => form.setEmail(''),
+    phone: () => form.setPhone(''),
+    taxId: () => form.setTaxId(''),
+  }
+
+  function stopEditing(field: SecretField): void {
+    setEditingFields((current) => current.filter((entry) => entry !== field))
+    CLEAR_FIELD[field]()
+  }
+
+  function storedValueOf(field: SecretField): string {
+    const masked =
+      field === 'contact'
+        ? user?.contact.masked
+        : field === 'email'
+          ? user?.email
+          : field === 'phone'
+            ? user?.phone
+            : user?.taxId
+    if (!visibleFields.includes(field) || revealed === undefined) return masked ?? ''
+    return revealed[field]
+  }
+
+  function editorOf(field: SecretField): ReactNode {
+    if (field === 'contact') {
+      return (
+        <CompanyUserTextField
+          disabled={isPending}
+          hint={
+            form.isContactRequired
+              ? t('users.editDialog.contactRequired')
+              : t('users.editDialog.contactHint')
+          }
+          isWide
+          label={t('users.editDialog.contact')}
+          onChange={form.setContact}
+          value={form.contact}
+        />
+      )
+    }
+    if (field === 'email') {
+      return (
+        <CompanyUserTextField
+          disabled={isPending}
+          hint={t('users.editDialog.emailHint')}
+          isWide
+          label={t('users.editDialog.email')}
+          onChange={form.setEmail}
+          value={form.email}
+        />
+      )
+    }
+    if (field === 'phone') {
+      return (
+        <CompanyUserMaskedField
+          disabled={isPending}
+          format={formatPhone}
+          hint={t('users.editDialog.phoneHint')}
+          inputMode="tel"
+          label={t('users.editDialog.phone')}
+          maxLength={PHONE_MASK_LENGTH}
+          onChange={form.setPhone}
+          value={form.phone}
+        />
+      )
+    }
+    return (
+      <CompanyUserMaskedField
+        disabled={isPending}
+        format={formatTaxId}
+        hint={t('users.editDialog.taxIdHint')}
+        label={t('users.editDialog.taxId')}
+        onChange={form.setTaxId}
+        value={form.taxId}
+      />
+    )
+  }
 
   return createPortal(
     <div className={styles.overlay} onKeyDown={handleKeyDown} role="presentation">
@@ -52,18 +183,49 @@ export function CompanyUserEditDialog({
         <header className={styles.dialogHeader}>
           <div>
             <h2 id="company-user-edit-title">{t('users.editDialog.title')}</h2>
-            <p className={styles.hint}>{user.contact.masked}</p>
+            <p className={styles.hint}>
+              {user.name === '' ? t('users.noProfile') : user.name} · {user.contact.masked}
+            </p>
           </div>
-          <Button
-            aria-label={t('users.editDialog.close')}
-            onClick={onClose}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            <Icon name="close" />
-          </Button>
+          <div className={styles.panelActions}>
+            {!reveal.canReveal ? null : visibleFields.length === SECRET_FIELDS.length ? (
+              <Button onClick={hideEveryField} size="sm" type="button" variant="ghost">
+                <Icon name="eyeOff" />
+                {t('users.editDialog.hideAll')}
+              </Button>
+            ) : (
+              <Button
+                disabled={reveal.isPending}
+                onClick={() => void showEveryField()}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                <Icon name="eye" />
+                {t('users.editDialog.revealAll')}
+              </Button>
+            )}
+            <Button
+              aria-label={t('users.editDialog.close')}
+              onClick={onClose}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              <Icon name="close" />
+            </Button>
+          </div>
         </header>
+
+        <CompanyUserPictureField
+          errorCode={readPictureErrorCode(picture)}
+          isLoading={picture.query.isLoading}
+          isPending={picture.replaceMutation.isPending || picture.removeMutation.isPending}
+          name={user.name === '' ? user.contact.masked : user.name}
+          onRemove={() => picture.removeMutation.mutate()}
+          onSelect={(file) => picture.replaceMutation.mutate(file)}
+          pictureUrl={picture.objectUrl}
+        />
 
         <div className={styles.fieldGrid}>
           <CompanyUserTextField
@@ -91,26 +253,40 @@ export function CompanyUserEditDialog({
             options={CONTACT_CHANNELS}
             value={form.channel}
           />
-          <CompanyUserTextField
-            disabled={isPending}
-            hint={
-              form.isContactRequired
-                ? t('users.editDialog.contactRequired')
-                : t('users.editDialog.contactHint')
-            }
-            label={t('users.editDialog.contact')}
-            onChange={form.setContact}
-            value={form.contact}
-          />
-          <CompanyUserTextField
-            disabled={isPending}
-            hint={t('users.editDialog.emailHint')}
-            isWide
-            label={t('users.editDialog.email')}
-            onChange={form.setEmail}
-            value={form.email}
-          />
         </div>
+
+        {/**
+         * Um lugar por dado: o valor guardado, o olho e o lápis na mesma linha, e o campo de troca
+         * abrindo abaixo dele. Trocar o canal abre o contato sozinho — sem contato correspondente o
+         * envio é recusado, e o campo estaria fechado justo quando ele passa a ser obrigatório.
+         */}
+        <div className={styles.storedFieldList}>
+          {SECRET_FIELDS.map((field) => (
+            <CompanyUserStoredField
+              canReveal={reveal.canReveal}
+              editor={editorOf(field)}
+              isEditing={
+                editingFields.includes(field) || (field === 'contact' && form.isContactRequired)
+              }
+              isRevealing={reveal.isPending}
+              isVisible={visibleFields.includes(field)}
+              key={field}
+              label={t(`users.editDialog.stored.${field}`)}
+              onEdit={() => startEditing(field)}
+              onReveal={() => void showField(field)}
+              onStopEditing={() => stopEditing(field)}
+              value={storedValueOf(field)}
+            />
+          ))}
+        </div>
+
+        <CompanyUserIdentifierFields
+          identifiers={identifiers.query.data ?? []}
+          isLoading={identifiers.query.isLoading}
+          isPending={identifiers.addMutation.isPending || identifiers.removeMutation.isPending}
+          onAdd={(entry) => identifiers.addMutation.mutate(entry)}
+          onRemove={(identifierId) => identifiers.removeMutation.mutate(identifierId)}
+        />
 
         <CompanyUserRoleField
           disabled={isPending}
@@ -119,6 +295,13 @@ export function CompanyUserEditDialog({
           onToggle={form.toggleRole}
           roles={form.roleChoices}
           selected={form.roles}
+        />
+
+        <CompanyUserPasswordPanel
+          disabled={isPending}
+          password={password}
+          userId={user.id}
+          username={user.username}
         />
 
         {errorCode === undefined ? null : (

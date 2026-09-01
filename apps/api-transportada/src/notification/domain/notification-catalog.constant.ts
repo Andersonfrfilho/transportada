@@ -12,6 +12,7 @@ export const NOTIFICATION_CATEGORY = {
   BILLING: 'billing',
   CTE_BATCH: 'cte-batch',
   IDENTITY: 'identity',
+  MDFE: 'mdfe',
   NFSE: 'nfse',
 } as const
 export type NotificationCategory =
@@ -31,6 +32,7 @@ export type NotificationProductChannel = (typeof NOTIFICATION_PRODUCT_CHANNELS)[
 export const NOTIFICATION_TEMPLATE_KEY = {
   BILLING_INVOICE_DUE: 'billing.invoice-due',
   CTE_BATCH_ISSUANCE_FAILED: 'cte-batch.issuance-failed',
+  MDFE_MANIFEST_ISSUANCE_FAILED: 'mdfe.manifest-issuance-failed',
   NFSE_INVOICE_REJECTED: 'nfse.invoice-rejected',
 } as const
 export type NotificationTemplateKey =
@@ -51,7 +53,7 @@ export type NotificationCatalogEntry = {
 }
 
 /**
- * Os três disparos que já têm dono no produto. Texto curto e sem PII: a caixa de entrada e o
+ * Os disparos que já têm dono no produto. Texto curto e sem PII: a caixa de entrada e o
  * e-mail dizem o que aconteceu e onde olhar, e o detalhe fica na tela.
  */
 export const NOTIFICATION_CATALOG: readonly NotificationCatalogEntry[] = [
@@ -67,6 +69,26 @@ export const NOTIFICATION_CATALOG: readonly NotificationCatalogEntry[] = [
       },
       inbox: {
         body: 'O lote {{batchName}} terminou com {{failedCount}} CT-e sem autorização.',
+      },
+    },
+  },
+  /**
+   * Spec 065 D2b: o automático **recusou**, e ninguém estava na frente da tela para ver. Sem este
+   * aviso a recusa só existe em log, e a viagem circula sem manifesto até alguém abrir a tela por
+   * outro motivo — que é a diferença entre um atraso e uma multa em barreira.
+   */
+  {
+    category: NOTIFICATION_CATEGORY.MDFE,
+    channels: NOTIFICATION_PRODUCT_CHANNELS,
+    placeholders: ['plate', 'reason'],
+    templateKey: NOTIFICATION_TEMPLATE_KEY.MDFE_MANIFEST_ISSUANCE_FAILED,
+    templates: {
+      email: {
+        body: 'O MDF-e da viagem do veículo {{plate}} não foi emitido automaticamente.\nMotivo: {{reason}}\nAbra a viagem no TransportAdA para emitir à mão.',
+        subject: 'MDF-e da viagem {{plate}} não foi emitido',
+      },
+      inbox: {
+        body: 'O MDF-e da viagem do veículo {{plate}} não foi emitido: {{reason}}',
       },
     },
   },

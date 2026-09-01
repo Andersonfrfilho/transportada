@@ -64,6 +64,7 @@ services:
       KC_HTTP_MANAGEMENT_HEALTH_ENABLED: 'true'
       KC_HTTP_MANAGEMENT_PORT: '9000'
       KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET}
+      KEYCLOAK_WORKER_CLIENT_SECRET: ${KEYCLOAK_WORKER_CLIENT_SECRET}
       KEYCLOAK_LOCAL_USER_PASSWORD: ${KEYCLOAK_LOCAL_USER_PASSWORD}
     ports:
       - '127.0.0.1:${KEYCLOAK_PORT}:8080'
@@ -81,6 +82,36 @@ services:
     volumes:
       - ./realm:/opt/keycloak/data/import:ro
       - ./deploy/keycloak/theme:/opt/keycloak/themes/transportada:ro
+
+  # ADR-0044 §2: a matriz de estrada é hospedada por nós. O `/table` devolve N×N em milissegundos, e
+  # é isso que permite ao solver ler a matriz milhares de vezes por sugestão sem pagar por elemento.
+  # O `.osrm` vem do extract OSM da área de operação — ver docs/runbooks/osrm-extract.md.
+  osrm:
+    image: ghcr.io/project-osrm/osrm-backend:v6.0.0
+    # Opt-in: o serviço precisa de um extract OSM de centenas de MB que não cabe no repositório nem
+    # num `make up` de máquina nova. `make routing-up` o sobe depois do runbook; sem ele, a sugestão
+    # de roteiro falha com ROUTING_MATRIX_UNAVAILABLE, que é o comportamento correto (ADR-0044 §1).
+    profiles: ['routing']
+    command: osrm-routed --algorithm mld --max-table-size ${OSRM_MAX_TABLE_SIZE:-2000} /data/${OSRM_DATASET:-area}.osrm
+    ports:
+      - '127.0.0.1:${OSRM_PORT:-53005}:5000'
+    healthcheck:
+      # ⚠️ `wget`, e não `/dev/tcp`: o `/bin/sh` desta imagem é o BusyBox, que não implementa a
+      # redireção de socket do bash — o healthcheck anterior falhava com "nonexistent directory" em
+      # **todo** dataset, e `make routing-up` (que usa `--wait`) nunca ficava pronto. Ninguém tinha
+      # rodado o serviço até o E2E da spec 058 pedir por ele.
+      #
+      # A sonda é `/route` de um ponto para ele mesmo: se responde, o processo subiu e leu o dataset.
+      # A URL vai **entre aspas** e em `127.0.0.1`: o `;` do par de coordenadas é separador de comando
+      # no shell (sem aspas a sonda vira dois comandos, e o segundo, `0,0`, não existe), e `localhost`
+      # resolve para IPv6 dentro do contêiner, onde o OSRM não escuta.
+      test: ['CMD-SHELL', 'wget -q -O /dev/null "http://127.0.0.1:5000/route/v1/driving/0,0;0,0"']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+    volumes:
+      - ./deploy/osrm/data:/data:ro
 
 volumes:
   postgres_data:

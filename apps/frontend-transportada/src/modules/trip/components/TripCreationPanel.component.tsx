@@ -2,9 +2,10 @@
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
+import { MultiSelect } from '@/components/ui/multi-select'
 import { Select } from '@/components/ui/select'
+import { useVehicleSelectOptions } from '@/modules/fleet/hooks/useVehicleSelectOptions.hook'
 import type { FleetDriverDetail, FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
 
 import type { TripCreationController } from '../hooks/useTripCreation.hook'
@@ -34,6 +35,7 @@ export function TripCreationPanel({
   const tractionVehicles = vehicles.filter(
     (vehicle) => vehicle.status === 'active' && vehicle.role === 'traction',
   )
+  const vehicleOptions = useVehicleSelectOptions(tractionVehicles)
 
   if (isReadOnly) {
     return (
@@ -60,31 +62,34 @@ export function TripCreationPanel({
           <Select
             ariaLabel={t('creation.vehicle')}
             clearable
-            options={tractionVehicles.map((vehicle) => ({
-              label: `${vehicle.plate} · ${vehicle.state}`,
-              value: vehicle.id,
-            }))}
+            options={vehicleOptions}
             placeholder={t('creation.vehiclePlaceholder')}
+            searchPlaceholder={t('creation.vehicleSearch')}
             value={creation.draft.vehicleId}
             onChange={creation.setVehicleId}
           />
         </label>
-      </div>
 
-      <fieldset className={styles.driverChecklist}>
-        <legend className={styles.hint}>{t('creation.drivers')}</legend>
-        {activeDrivers.map((driver) => (
-          <Checkbox
-            checked={creation.draft.driverIds.includes(driver.id)}
-            key={driver.id}
-            label={driver.name}
-            onChange={() => creation.toggleDriver(driver.id)}
-          />
-        ))}
-        {activeDrivers.length === 0 ? (
-          <p className={styles.hint}>{t('creation.driversEmpty')}</p>
-        ) : null}
-      </fieldset>
+        <label>
+          {t('creation.drivers')}
+          {activeDrivers.length === 0 ? (
+            <p className={styles.hint}>{t('creation.driversEmpty')}</p>
+          ) : (
+            <MultiSelect
+              ariaLabel={t('creation.drivers')}
+              clearAllLabel={t('creation.driversClearAll')}
+              emptyLabel={t('creation.driversNoMatch')}
+              onChange={creation.setDriverIds}
+              options={activeDrivers.map((driver) => ({ label: driver.name, value: driver.id }))}
+              placeholder={t('creation.driversPlaceholder')}
+              removeLabel={t('creation.driversRemove')}
+              searchPlaceholder={t('creation.driversSearch')}
+              summaryLabel={(count) => t('creation.driversSummary', { count })}
+              values={creation.draft.driverIds}
+            />
+          )}
+        </label>
+      </div>
 
       {issues.map((issue) => (
         <p className={styles.alert} key={issue}>

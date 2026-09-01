@@ -44,6 +44,7 @@ SERVICE_IDS = {
     "api": "6b1a144c-b02c-4ef6-b70e-728c0932cd61",
     "frontend": "2455acc6-045d-452a-9fc4-f6cddc2cf652",
     "keycloak": "ad34c958-05ef-4cca-a0a5-9937d36028f6",
+    "landing": "44d3d4b8-5ad4-4c26-a452-6740985bde35",
 }
 
 # Servico interno (`worker`, `cron`, `rabbitmq`, bancos) nao recebe dominio: fala so por
@@ -53,11 +54,17 @@ DOMAINS = {
         ("api", f"api.{ZONE}"),
         ("frontend", f"app.{ZONE}"),
         ("keycloak", f"auth.{ZONE}"),
+        # A landing de production e o apex (`fernandes-transportadora.com.br`), e ele so entra aqui
+        # depois de dois passos: o primeiro deploy de production (dominio em servico sem instancia
+        # responde `ServiceInstance not found`) e a zona na Cloudflare (CNAME na raiz e proibido
+        # pelo RFC 1034; sem flattening o apex nao aponta para o Railway).
     ),
     "staging": (
         ("api", f"api.staging.{ZONE}"),
         ("frontend", f"app.staging.{ZONE}"),
         ("keycloak", f"auth.staging.{ZONE}"),
+        # A landing e o dominio, sem rotulo de servico: em staging isso e o proprio `staging.<zona>`.
+        ("landing", f"staging.{ZONE}"),
     ),
 }
 

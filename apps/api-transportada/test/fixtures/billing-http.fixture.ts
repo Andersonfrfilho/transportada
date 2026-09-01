@@ -316,7 +316,7 @@ export async function createBillingHttpFixture(params: CreateFixtureParams = {})
   })
   const handleRequest = createRequestHandler({
     createCorrelationId: () => 'billing-http-correlation',
-    frontendOrigin: FRONTEND_ORIGIN,
+    frontendOrigins: [FRONTEND_ORIGIN],
     logger: { error() {}, info() {}, warn() {} },
     requestTimeoutSeconds: 10,
     router,
@@ -555,6 +555,7 @@ function authenticatedContext(
       externalIdentityId: crypto.randomUUID(),
       issuer: 'http://localhost:58080/realms/transportada-local',
       platformAdmin: false,
+      serviceAccount: false,
       subject: 'billing-http-contract',
       userId: COMPANY_CONTEXT.userId,
     } satisfies AuthenticatedIdentity,

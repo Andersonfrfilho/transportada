@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "delivery_charges_suggested_unique" ON "delivery_charges" ("company_id","trip_document_id","charge_type") WHERE "status" = 'suggested';

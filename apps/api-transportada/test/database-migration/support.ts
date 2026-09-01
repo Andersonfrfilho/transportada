@@ -136,9 +136,62 @@ export const NFSE_TABLES = [
   'nfse_issuance_outbox',
 ] as const
 
-export const TRIP_TABLES = ['trips', 'trip_drivers', 'trip_documents'] as const
+export const TRIP_TABLES = [
+  'trips',
+  'trip_drivers',
+  'trip_documents',
+  'trip_stops',
+  'trip_document_events',
+  'trip_dispatch_snapshots',
+  /** Spec 057: a execução de campo — o que aconteceu na rua, e a chave que impede o reenvio duplicar. */
+  'trip_stop_events',
+  'trip_stop_occurrences',
+  'trip_field_reports',
+  'trip_delivery_proofs',
+] as const
 
 export const INVITATION_TABLES = ['user_invitations', 'user_invitation_roles'] as const
+
+/**
+ * Spec 060: o cliente que tem hora e tem preço. Sem estar nesta lista a tabela **não é conferida** —
+ * `readBusinessTables` filtra pelo esperado, e o rollback passaria mesmo deixando tabela para trás.
+ */
+export const DELIVERY_CLIENT_TABLES = [
+  'delivery_clients',
+  'contractors',
+  'delivery_client_windows',
+  'delivery_client_exceptions',
+  'municipal_holidays',
+  'trip_stop_schedules',
+  'delivery_client_charge_rules',
+  'delivery_charges',
+  'delivery_charge_events',
+  'extra_charge_batches',
+] as const
+
+/** Spec 061: o resultado congelado da viagem, o custo avulso e o regime federal da empresa. */
+export const TRIP_FINANCIAL_TABLES = [
+  'trip_financial_results',
+  'trip_financial_parcels',
+  'trip_cost_entries',
+  'company_tax_settings',
+] as const
+
+/** Spec 058 P2: a frota, o pool de notas e a ligação parada↔nota da sugestão multi-veículo. */
+export const MULTI_VEHICLE_SUGGESTION_TABLES = [
+  'route_suggestion_vehicles',
+  'route_suggestion_documents',
+  'route_suggestion_stop_documents',
+] as const
+
+/** Spec 062: a credencial do WhatsApp, por empresa e com o token selado. */
+export const WHATSAPP_CHANNEL_TABLES = ['whatsapp_channels'] as const
+
+/** Spec 063: o vínculo do contratante com o documento e o rastro de posição da viagem. */
+export const CONTRACTOR_PORTAL_TABLES = [
+  'contractor_portal_bindings',
+  'trip_location_pings',
+] as const
 
 /** Trilho de entrega do código (feature 026 fase D) — migration própria, posterior à identidade. */
 export const INVITATION_DELIVERY_TABLES = ['invitation_delivery_outbox'] as const
@@ -199,6 +252,11 @@ export async function readBusinessTables(database: SQL): Promise<readonly string
     ...MDFE_TABLES,
     ...NFSE_TABLES,
     ...TRIP_TABLES,
+    ...DELIVERY_CLIENT_TABLES,
+    ...TRIP_FINANCIAL_TABLES,
+    ...CONTRACTOR_PORTAL_TABLES,
+    ...MULTI_VEHICLE_SUGGESTION_TABLES,
+    ...WHATSAPP_CHANNEL_TABLES,
   ]
   const tables = await database<Array<{ readonly table_name: string }>>`
     select table_name

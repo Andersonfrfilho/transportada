@@ -8,6 +8,7 @@ import {
   TRIP,
   TRIP_DOCUMENT_DETAIL,
   VEHICLE_ID,
+  type TripStatusContract,
 } from './trip.fixture'
 
 describe('trip table contract', () => {
@@ -55,11 +56,11 @@ describe('trip table contract', () => {
     )
 
     expect(countActiveTripFilters({})).toBe(0)
-    expect(countActiveTripFilters({ statusEq: 'open', vehicleIdEq: '' })).toBe(1)
+    expect(countActiveTripFilters({ statusEq: 'draft', vehicleIdEq: '' })).toBe(1)
     expect(
       countActiveTripFilters({
         createdFrom: '2026-07-01',
-        statusEq: 'open',
+        statusEq: 'draft',
         vehicleIdEq: VEHICLE_ID,
       }),
     ).toBe(3)
@@ -80,7 +81,7 @@ describe('trip filter pills contract', () => {
       createdFrom: '2026-07-01',
       createdUntil: '2026-07-31',
       driverIdEq: 'driver-1',
-      statusEq: 'open' as const,
+      statusEq: 'draft' as const,
       vehicleIdEq: VEHICLE_ID,
     }
     const pills = describeTripFilterPills({ filters, formatDay })
@@ -337,14 +338,14 @@ type TripFilters = Readonly<{
   createdFrom?: string
   createdUntil?: string
   driverIdEq?: string
-  statusEq?: 'closed' | 'open'
+  statusEq?: TripStatusContract
   vehicleIdEq?: string
 }>
 type TripRow = Readonly<{
   companyId: string
   createdAt: string
   id: string
-  status: 'closed' | 'open'
+  status: TripStatusContract
   updatedAt: string
   vehicleId: string
 }>

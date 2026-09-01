@@ -40,7 +40,7 @@ function createHarness(response: Response): Harness {
 
   return {
     handle: createRequestHandler({
-      frontendOrigin: 'http://localhost:53000',
+      frontendOrigins: ['http://localhost:53000'],
       logger: silentLogger(),
       requestTimeoutSeconds: REQUEST_TIMEOUT_SECONDS,
       router,

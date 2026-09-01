@@ -1,0 +1,1 @@
+ALTER TABLE "delivery_charges" DROP CONSTRAINT "delivery_charges_amount_check", ADD CONSTRAINT "delivery_charges_amount_check" CHECK ("amount" > 0 or "status" = 'suggested');

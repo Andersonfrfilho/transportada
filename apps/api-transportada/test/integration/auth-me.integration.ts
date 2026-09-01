@@ -80,13 +80,14 @@ describe('GET /auth/me PostgreSQL isolation', () => {
         })
         server = startApiServer({
           config: {
+            apiPublicUrl: undefined,
             appEnv: 'test',
             bootstrapToken: undefined,
             companyId: undefined,
             cryptography: CRYPTOGRAPHIC_CONFIGURATION,
             databaseUrl: disposableUrl.toString(),
             emailDelivery: undefined,
-            frontendOrigin: 'http://localhost:53000',
+            frontendOrigins: ['http://localhost:53000'],
             keycloak: {
               admin: {
                 clientId: 'transportada-admin-cli',
@@ -105,6 +106,10 @@ describe('GET /auth/me PostgreSQL isolation', () => {
             logSinkUrl: undefined,
             sentryDsn: undefined,
             sentryEnvironment: 'test',
+            turnstileSecretKey: undefined,
+            userAccessTokenSecret: undefined,
+            aggregateDocumentOcrUrl: undefined,
+            whatsapp: { apiVersion: 'v23.0', baseUrl: undefined },
             vehicleCatalog: null,
           },
           logger,
@@ -233,6 +238,7 @@ function createAuthentication({
         externalIdentityId: crypto.randomUUID(),
         issuer: 'https://identity.example.test/realms/transportada',
         platformAdmin: false,
+        serviceAccount: false,
         subject: `subject-${identity.userId}`,
       })
     },

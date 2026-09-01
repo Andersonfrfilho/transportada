@@ -2,8 +2,9 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { type SQL, and, eq, inArray, isNull, like, ne, sum } from 'drizzle-orm'
+import { type SQL, and, desc, eq, inArray, isNull, like, ne, or, sql, sum } from 'drizzle-orm'
 
+import { companyCargoSettings } from '../../database/company-cargo-settings.schema.js'
 import { cteBatchItemDocuments, cteBatches } from '../../database/cte-batch.schema.js'
 import {
   nfeAddresses,
@@ -12,12 +13,16 @@ import {
   nfeVolumes,
 } from '../../database/nfe.schema.js'
 import { nfseServiceInvoiceDocuments } from '../../database/nfse.schema.js'
+import { freightCalculations } from '../../database/freight.schema.js'
+import { resolveCargoWeight } from '../../nfe-documents/domain/cargo-weight.policy.js'
+import { tripDocuments, trips } from '../../database/trip.schema.js'
 import type {
   CteBatchNameQuery,
   CteBatchPreviewDocument,
   CteBatchPreviewLink,
   CteBatchPreviewNfseLink,
   CteBatchPreviewQuery,
+  TripDocumentLink,
 } from '../application/cte-batch-preview.port.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -94,6 +99,56 @@ export async function findActiveBatchLinks(
 }
 
 /**
+ * Spec 065 D4b: **fatura-se o que saiu.** Quem monta o lote precisa saber em que viagem a nota
+ * rodou sem abrir a tela de viagem para conferir uma por uma — e isso vale para a nota de CT-e e
+ * para a urbana, sem distinção.
+ *
+ * É **sinal, não bloqueio**: nota vinculada a viagem *deve* entrar no lote, porque é justamente a
+ * carga que rodou. Nenhum bloqueio lê este vínculo, e há contrato provando isso.
+ *
+ * A nota é alcançada pelos dois caminhos que `trip_documents` permite — o vínculo direto e o
+ * cálculo de frete. Quando ela rodou em mais de uma viagem (devolvida e reenviada), vence a mais
+ * recente: é a que responde "onde ela está agora".
+ */
+export async function findTripLinks(
+  queryable: SelectionQueryable,
+  { companyId, documentIds }: CteBatchPreviewQuery,
+): Promise<readonly TripDocumentLink[]> {
+  if (documentIds.length === 0) return []
+
+  const documentId = sql<string>`coalesce(${tripDocuments.nfeDocumentId}, ${freightCalculations.nfeDocumentId})`
+
+  return queryable
+    .selectDistinctOn([documentId], {
+      documentId: documentId.as('trip_link_document_id'),
+      tripId: tripDocuments.tripId,
+      tripStatus: trips.status,
+    })
+    .from(tripDocuments)
+    .leftJoin(
+      freightCalculations,
+      and(
+        eq(freightCalculations.companyId, tripDocuments.companyId),
+        eq(freightCalculations.id, tripDocuments.freightCalculationId),
+      ),
+    )
+    .innerJoin(
+      trips,
+      and(eq(trips.companyId, tripDocuments.companyId), eq(trips.id, tripDocuments.tripId)),
+    )
+    .where(
+      and(
+        eq(tripDocuments.companyId, companyId),
+        or(
+          inArray(tripDocuments.nfeDocumentId, [...documentIds]),
+          inArray(freightCalculations.nfeDocumentId, [...documentIds]),
+        ),
+      ),
+    )
+    .orderBy(documentId, desc(tripDocuments.createdAt))
+}
+
+/**
  * O vínculo com a nota de serviço é liberado marcando `cancelled_at` na mesma transação que cancela
  * a nota — é esse recorte que o índice parcial único guarda, e o mesmo que a listagem de notas lê.
  */
@@ -129,7 +184,7 @@ export async function findSelectionDocuments(
   { companyId, documentIds }: CteBatchPreviewQuery,
 ): Promise<readonly CteBatchPreviewDocument[]> {
   if (documentIds.length === 0) return []
-  const [records, parties, weights] = await Promise.all([
+  const [records, parties, volumeTotals, defaultWeightPerVolume] = await Promise.all([
     queryable
       .select({
         accessKey: nfeDocuments.accessKey,
@@ -146,16 +201,23 @@ export async function findSelectionDocuments(
         and(eq(nfeDocuments.companyId, companyId), inArray(nfeDocuments.id, [...documentIds])),
       ),
     loadParties(queryable, companyId, documentIds),
-    loadGrossWeights(queryable, companyId, documentIds),
+    loadVolumeTotals(queryable, companyId, documentIds),
+    loadDefaultVolumeWeight(queryable, companyId),
   ])
 
   return records.map((record) => {
     const { recipient, sender } = parties.get(record.id) ?? EMPTY_PARTIES
+    const totals = volumeTotals.get(record.id)
+    const cargoWeight = resolveCargoWeight({
+      defaultWeightPerVolume,
+      volumeGrossWeight: totals?.grossWeight ?? null,
+      volumeQuantity: totals?.quantity ?? null,
+    })
 
     return {
       accessKey: record.accessKey,
       companyId: record.companyId,
-      grossWeight: weights.get(record.id) ?? null,
+      grossWeight: cargoWeight?.grossWeight ?? null,
       id: record.id,
       issuedAt: record.issuedAt.toISOString(),
       number: record.number,
@@ -173,15 +235,21 @@ export async function findSelectionDocuments(
   })
 }
 
-async function loadGrossWeights(
+type VolumeTotals = {
+  readonly grossWeight: string | null
+  readonly quantity: string | null
+}
+
+async function loadVolumeTotals(
   queryable: SelectionQueryable,
   companyId: string,
   documentIds: readonly string[],
-): Promise<Map<string, string>> {
+): Promise<Map<string, VolumeTotals>> {
   const rows = await queryable
     .select({
       documentId: nfeVolumes.documentId,
       grossWeight: sum(nfeVolumes.grossWeight),
+      quantity: sum(nfeVolumes.quantity),
     })
     .from(nfeVolumes)
     .where(
@@ -190,8 +258,22 @@ async function loadGrossWeights(
     .groupBy(nfeVolumes.documentId)
 
   return new Map(
-    rows.flatMap((row) => (row.grossWeight === null ? [] : [[row.documentId, row.grossWeight]])),
+    rows.map((row) => [row.documentId, { grossWeight: row.grossWeight, quantity: row.quantity }]),
   )
+}
+
+/** Uma consulta por seleção, não por nota: o padrão é da empresa, e a empresa é uma só aqui. */
+async function loadDefaultVolumeWeight(
+  queryable: SelectionQueryable,
+  companyId: string,
+): Promise<string | null> {
+  const [row] = await queryable
+    .select({ defaultVolumeWeight: companyCargoSettings.defaultVolumeWeight })
+    .from(companyCargoSettings)
+    .where(eq(companyCargoSettings.companyId, companyId))
+    .limit(1)
+
+  return row?.defaultVolumeWeight ?? null
 }
 
 async function loadParties(

@@ -19,6 +19,7 @@ import {
   storedObjects,
 } from '../../database/nfe.schema.js'
 import { NFE_PARTICIPANT_ROLE } from '../domain/nfe-participant-role.constant.js'
+import { ensureDeliveryRegistry, type DeliveryRegistryLogger } from './delivery-registry.writer.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -353,6 +354,7 @@ export async function writeDocumentChildren(input: {
   readonly companyId: string
   readonly document: NfeXmlDocument
   readonly documentId: string
+  readonly logger?: DeliveryRegistryLogger
   readonly tx: Transaction
 }): Promise<void> {
   const parties = buildParties(input.document)
@@ -393,6 +395,22 @@ export async function writeDocumentChildren(input: {
     if (addresses.length > 0) {
       await input.tx.insert(nfeAddresses).values(addresses)
     }
+
+    /**
+     * ADR-0048 §1: o destinatário vira cliente de entrega e o emitente vira contratante, sozinhos e
+     * sem regra. A escrita corre em savepoint próprio e **não pode derrubar a importação** — o
+     * cadastro é conveniência, a nota é o produto.
+     */
+    await ensureDeliveryRegistry({
+      companyId: input.companyId,
+      ...(input.logger === undefined ? {} : { logger: input.logger }),
+      parties: parties.map((entry) => ({
+        name: entry.party.name ?? null,
+        role: entry.role,
+        taxId: entry.party.taxId ?? null,
+      })),
+      tx: input.tx,
+    })
   }
 
   if (input.document.products.length > 0) {

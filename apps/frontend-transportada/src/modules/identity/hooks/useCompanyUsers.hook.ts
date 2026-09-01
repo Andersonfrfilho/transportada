@@ -16,8 +16,11 @@ import {
   USERS_MANAGE_PERMISSION,
 } from '../shared/companyUsers.constant'
 import type {
+  AssignCompanyUserRolesInput,
+  AssignedCompanyUserRoles,
   ChangeCompanyUserStatusInput,
   CompanyUser,
+  InvitedCompanyUser,
   InviteCompanyUserInput,
   ReplaceCompanyUserRolesInput,
   ResendInvitationResult,
@@ -36,9 +39,10 @@ const COMPANY_USERS_ADMINISTRATION_QUERY_KEY = 'company-users-administration'
 export type CompanyUsersClient = Client
 
 export type CompanyUsersController = Readonly<{
+  assignRoles: (input: AssignCompanyUserRolesInput) => Promise<AssignedCompanyUserRoles>
   canManageUsers: boolean
   changeStatus: (input: ChangeCompanyUserStatusInput) => Promise<CompanyUser>
-  inviteUser: (input: InviteCompanyUserInput) => Promise<CompanyUser>
+  inviteUser: (input: InviteCompanyUserInput) => Promise<InvitedCompanyUser>
   removeUser: (input: Readonly<{ userId: string }>) => Promise<void>
   replaceRoles: (input: ReplaceCompanyUserRolesInput) => Promise<CompanyUser>
   resendInvitation: (input: Readonly<{ userId: string }>) => Promise<ResendInvitationResult>
@@ -63,6 +67,7 @@ export function createCompanyUsersController(input: ControllerInput): CompanyUse
     changeStatus: (request) => (canManageUsers ? input.client.changeStatus(request) : forbidden()),
     inviteUser: (request) => (canManageUsers ? input.client.inviteUser(request) : forbidden()),
     removeUser: (request) => (canManageUsers ? input.client.removeUser(request) : forbidden()),
+    assignRoles: (request) => (canManageUsers ? input.client.assignRoles(request) : forbidden()),
     replaceRoles: (request) => (canManageUsers ? input.client.replaceRoles(request) : forbidden()),
     resendInvitation: (request) =>
       canManageUsers ? input.client.resendInvitation(request) : forbidden(),
@@ -114,6 +119,11 @@ export function useCompanyUsers(
     mutationFn: controller.updateProfile,
     onSuccess: invalidateUsers,
   })
+  /** Acrescentar papéis a um lote é rota própria: `replaceRoles` **substitui**, e apagaria o resto. */
+  const assignRolesMutation = useMutation({
+    mutationFn: controller.assignRoles,
+    onSuccess: invalidateUsers,
+  })
   const replaceRolesMutation = useMutation({
     mutationFn: controller.replaceRoles,
     onSuccess: invalidateUsers,
@@ -143,6 +153,8 @@ export function useCompanyUsers(
     goToPreviousPage: () => setPage((current) => previousCursorPage(current)),
     inviteUserMutation,
     removeUserMutation,
+    assignRolesMutation,
+    invalidate: invalidateUsers,
     replaceRolesMutation,
     resendInvitationMutation,
     updateProfileMutation,

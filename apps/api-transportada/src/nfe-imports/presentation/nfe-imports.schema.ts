@@ -268,13 +268,6 @@ export function parseImportList(url: URL): {
   }
 }
 
-export function parseDocumentList(url: URL): {
-  readonly cursor: string | null
-  readonly limit: number
-} {
-  return parseCursorPage(url)
-}
-
 export function parseUuidPathIdentifier(value: string): string {
   if (!UUID.safeParse(value).success) throw invalidRequest()
   return value
@@ -303,12 +296,20 @@ function hasAcceptedFileSignature(file: File): boolean {
   return name.endsWith('.xml') || name.endsWith('.zip')
 }
 
-function parseCursorPage(url: URL): {
+/**
+ * `extraKeys` é allowlist, não tolerância: a rota que ganha filtro declara a chave dela aqui, e
+ * qualquer outra continua sendo `400` — parâmetro ignorado em silêncio é filtro que não filtrou.
+ */
+export function parseCursorPage(
+  url: URL,
+  options: { readonly extraKeys?: readonly string[] } = {},
+): {
   readonly cursor: string | null
   readonly limit: number
 } {
+  const allowed = new Set(['cursor', 'limit', ...(options.extraKeys ?? [])])
   const entries = [...url.searchParams.entries()]
-  if (entries.some(([key]) => key !== 'cursor' && key !== 'limit')) throw invalidRequest()
+  if (entries.some(([key]) => !allowed.has(key))) throw invalidRequest()
   if (new Set(entries.map(([key]) => key)).size !== entries.length) throw invalidRequest()
   const cursor = url.searchParams.get('cursor')
   const limit = url.searchParams.get('limit')

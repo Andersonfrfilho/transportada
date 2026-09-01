@@ -56,6 +56,7 @@ const EFFECT_PRODUCERS: Readonly<Record<string, readonly string[]>> = {
     'src/modules/nfse-invoice/hooks/useNfseInvoiceBulkCancel.hook.ts',
     'src/modules/nfse-invoice/hooks/useNfseInvoiceBulkDiscard.hook.ts',
     'src/modules/nfse-invoice/hooks/useNfseInvoiceRowActions.hook.ts',
+    'src/modules/trip/hooks/useTripWorkspace.hook.ts',
   ],
 }
 

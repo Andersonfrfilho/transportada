@@ -1,0 +1,1 @@
+ALTER TABLE "delivery_charges" ADD CONSTRAINT "delivery_charges_suggested_document_check" CHECK ("status" <> 'suggested' or "trip_document_id" is not null);

@@ -1,0 +1,62 @@
+{
+  "title": "Charges and reimbursement",
+  "subtitle": "What the client charged to receive the load, checked here and billed to the contractor who hired the freight.",
+  "batch": {
+    "amount": "Amount",
+    "calendar": {
+      "chooseYear": "Choose the year",
+      "clear": "Clear",
+      "nextMonth": "Next month",
+      "open": "Open the calendar",
+      "placeholder": "mm/dd/yyyy",
+      "previousMonth": "Previous month"
+    },
+    "client": "Client",
+    "close": "Close the period",
+    "contractor": "Contractor",
+    "contractorPlaceholder": "Pick the contractor",
+    "date": "Date",
+    "hint": "The batch belongs to the contractor and the period — never to the trip. One trip mixes contractors, and each gets their own batch.",
+    "linkHint": "The contractor's approval link is generated when the batch is closed and lives on the public page. Closing the period again issues a new link, and the old one stops working.",
+    "periodEnd": "Period end",
+    "periodStart": "Period start",
+    "reportTitle": "{{contractor}} · from {{periodStart}} to {{periodEnd}}",
+    "status": "Status",
+    "title": "Close the contractor period",
+    "total": "Batch total: BRL {{total}}",
+    "type": "Type"
+  },
+  "chargeStatus": {
+    "approved": "Approved",
+    "dismissed": "Dismissed",
+    "recorded": "Recorded",
+    "reimbursed": "Reimbursed",
+    "rejected": "Rejected",
+    "submitted": "Submitted",
+    "suggested": "Suggested"
+  },
+  "chargeType": {
+    "other": "Other",
+    "parking": "Parking",
+    "platform": "Platform",
+    "scheduling": "Scheduling",
+    "unloading": "Unloading"
+  },
+  "errors": {
+    "DELIVERY_CHARGE_AMOUNT_REQUIRED": "This suggestion came from the driver without an amount. Fill in the receipt amount before confirming.",
+    "EXTRA_CHARGE_BATCH_EMPTY": "There is no checked charge for this contractor in this period.",
+    "REQUEST_FAILED": "Could not complete. Try again."
+  },
+  "queue": {
+    "amount": "Amount",
+    "confirm": "Confirm {{count}} selected",
+    "dismiss": "Dismiss",
+    "dismissReason": "Dismissed during review",
+    "empty": "Nothing to review today.",
+    "hint": "The recurring rule and the driver's report propose; a person confirms. The amount is editable right here.",
+    "loading": "Loading suggestions…",
+    "missingAmount": "A selected suggestion has no amount. Fill it in before confirming.",
+    "select": "Select the charge",
+    "title": "Suggestions to review ({{count}})"
+  }
+}

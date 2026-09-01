@@ -6,6 +6,7 @@ import { sql } from 'drizzle-orm'
 
 import {
   LOCAL_IDENTITY_SEED_LOCK_ID,
+  LOCAL_SEED_ACTORS,
   LOCAL_KEYCLOAK_ISSUER,
   LOCAL_PROJECT_NAME,
 } from './local-identity-seed.constant'
@@ -39,7 +40,11 @@ export async function runLocalIdentitySeed({
   try {
     await provider.db.transaction(async (transaction) => {
       await transaction.execute(sql`select pg_advisory_xact_lock(${LOCAL_IDENTITY_SEED_LOCK_ID})`)
-      await new LocalIdentitySeedRepository(transaction).ensureExpectedState()
+      // Em sequência, e não em paralelo: os dois atores dividem a mesma empresa, e duas inserções
+      // concorrentes dela na mesma transação seriam a corrida que o `ensureCompany` não vê.
+      for (const actor of LOCAL_SEED_ACTORS) {
+        await new LocalIdentitySeedRepository({ actor, transaction }).ensureExpectedState()
+      }
     })
   } finally {
     await provider.close()

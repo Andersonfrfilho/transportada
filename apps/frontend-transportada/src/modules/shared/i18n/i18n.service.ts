@@ -12,6 +12,14 @@ import cteIssuanceLocale from '@/modules/cte-issuance/locales/cteIssuance.locale
 import cteIssuanceEnglishLocale from '@/modules/cte-issuance/locales/cteIssuance.en.locale.json'
 import cteProfilesLocale from '@/modules/cte-profiles/locales/cteProfiles.locale.json'
 import cteProfilesEnglishLocale from '@/modules/cte-profiles/locales/cteProfiles.en.locale.json'
+import deliveryClientsLocale from '@/modules/delivery-clients/locales/deliveryClients.locale.json'
+import deliveryClientsEnglishLocale from '@/modules/delivery-clients/locales/deliveryClients.en.locale.json'
+import documentIntakeLocale from '@/modules/document-intake/locales/documentIntake.locale.json'
+import documentIntakeEnglishLocale from '@/modules/document-intake/locales/documentIntake.en.locale.json'
+import driverTripLocale from '@/modules/driver-trip/locales/driverTrip.locale.json'
+import driverTripEnglishLocale from '@/modules/driver-trip/locales/driverTrip.en.locale.json'
+import extraChargesLocale from '@/modules/extra-charges/locales/extraCharges.locale.json'
+import extraChargesEnglishLocale from '@/modules/extra-charges/locales/extraCharges.en.locale.json'
 import fleetLocale from '@/modules/fleet/locales/fleet.locale.json'
 import fleetEnglishLocale from '@/modules/fleet/locales/fleet.en.locale.json'
 import foundationLocale from '@/modules/foundation/locales/foundation.locale.json'
@@ -28,6 +36,10 @@ import notificationLocale from '@/modules/notification/locales/notification.loca
 import notificationEnglishLocale from '@/modules/notification/locales/notification.en.locale.json'
 import operationsWorkspaceLocale from '@/modules/operations/locales/operationsWorkspace.locale.json'
 import operationsWorkspaceEnglishLocale from '@/modules/operations/locales/operationsWorkspace.en.locale.json'
+import routingLocale from '@/modules/routing/locales/routing.locale.json'
+import routingEnglishLocale from '@/modules/routing/locales/routing.en.locale.json'
+import tripFinancialsLocale from '@/modules/trip-financials/locales/tripFinancials.locale.json'
+import tripFinancialsEnglishLocale from '@/modules/trip-financials/locales/tripFinancials.en.locale.json'
 import tripLocale from '@/modules/trip/locales/trip.locale.json'
 import tripEnglishLocale from '@/modules/trip/locales/trip.en.locale.json'
 
@@ -42,6 +54,10 @@ void i18n.use(initReactI18next).init({
       cteBatch: cteBatchEnglishLocale,
       cteIssuance: cteIssuanceEnglishLocale,
       cteProfiles: cteProfilesEnglishLocale,
+      deliveryClients: deliveryClientsEnglishLocale,
+      documentIntake: documentIntakeEnglishLocale,
+      driverTrip: driverTripEnglishLocale,
+      extraCharges: extraChargesEnglishLocale,
       fleet: fleetEnglishLocale,
       identity: identityEnglishLocale,
       mdfeManifest: mdfeManifestEnglishLocale,
@@ -49,8 +65,10 @@ void i18n.use(initReactI18next).init({
       nfseInvoice: nfseInvoiceEnglishLocale,
       notification: notificationEnglishLocale,
       operationsWorkspace: operationsWorkspaceEnglishLocale,
+      routing: routingEnglishLocale,
       translation: foundationEnglishLocale,
       trip: tripEnglishLocale,
+      tripFinancials: tripFinancialsEnglishLocale,
     },
     'pt-BR': {
       billingWorkspace: billingWorkspaceLocale,
@@ -58,6 +76,10 @@ void i18n.use(initReactI18next).init({
       cteBatch: cteBatchLocale,
       cteIssuance: cteIssuanceLocale,
       cteProfiles: cteProfilesLocale,
+      deliveryClients: deliveryClientsLocale,
+      documentIntake: documentIntakeLocale,
+      driverTrip: driverTripLocale,
+      extraCharges: extraChargesLocale,
       fleet: fleetLocale,
       identity: identityLocale,
       mdfeManifest: mdfeManifestLocale,
@@ -65,8 +87,10 @@ void i18n.use(initReactI18next).init({
       nfseInvoice: nfseInvoiceLocale,
       notification: notificationLocale,
       operationsWorkspace: operationsWorkspaceLocale,
+      routing: routingLocale,
       translation: foundationLocale,
       trip: tripLocale,
+      tripFinancials: tripFinancialsLocale,
     },
   },
 })

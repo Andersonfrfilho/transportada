@@ -1,0 +1,63 @@
+{
+  "title": "Delivery clients",
+  "subtitle": "Every recipient becomes a record on its own when the invoice is imported. Here you fill in the rules for the ones with a delivery window or a fee — the minority.",
+  "filters": {
+    "name": "Name",
+    "namePlaceholder": "Search by client name",
+    "scheduling": "Scheduling",
+    "schedulingAll": "All",
+    "schedulingNone": "No scheduling",
+    "schedulingOnly": "Only those that require it",
+    "status": "Status",
+    "statusAll": "All"
+  },
+  "form": {
+    "deliveryFeeAmount": "Expected fee (BRL)",
+    "deliveryFeeAmountHint": "What the client usually charges, used to forecast the trip cost. The real amount goes on the charge, when it happens.",
+    "deliveryFeeAmountPlaceholder": "45.0000",
+    "loading": "Loading the client record…",
+    "notes": "Notes",
+    "requiresScheduling": "Requires an appointment",
+    "requiresSchedulingHint": "A trip with a stop for this client is not dispatched while the appointment is pending or refused.",
+    "save": "Save",
+    "saving": "Saving…",
+    "serviceTime": "Service time (minutes)",
+    "status": "Status",
+    "statusActive": "Active",
+    "statusInactive": "Inactive",
+    "taxId": "Document {{taxId}}",
+    "unnamed": "No name on the invoice"
+  },
+  "table": {
+    "actions": "Actions",
+    "fee": "Expected fee",
+    "loading": "Loading clients…",
+    "more": "Load more",
+    "name": "Client",
+    "open": "Open",
+    "scheduling": "Scheduling",
+    "schedulingYes": "Required",
+    "taxId": "Document"
+  },
+  "windows": {
+    "add": "Add a window",
+    "closed": "Closed on this day",
+    "closesAt": "Closes",
+    "hint": "Several windows per day: the lunch break is the gap between two of them. The whole week is saved at once.",
+    "invalid": "There is a window that closes before it opens.",
+    "opensAt": "Opens",
+    "remove": "Remove window",
+    "save": "Save the week",
+    "saving": "Saving…",
+    "title": "Delivery window",
+    "weekday": {
+      "0": "Sunday",
+      "1": "Monday",
+      "2": "Tuesday",
+      "3": "Wednesday",
+      "4": "Thursday",
+      "5": "Friday",
+      "6": "Saturday"
+    }
+  }
+}

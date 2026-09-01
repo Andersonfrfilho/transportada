@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import type { QueuePort } from '@adatechnology/notification-contracts'
+import type { QueuePort, WhatsAppDriverPort } from '@adatechnology/notification-contracts'
 import { createSmtpEmailProvider } from '@adatechnology/email-provider'
 import {
   createNotificationModule,
@@ -24,6 +24,12 @@ type CreateApiNotificationModuleParams = {
   readonly db: Database
   /** Ausente, o módulo cai na fila em memória dele — que ninguém consome e que morre no restart. */
   readonly queue?: QueuePort
+  /**
+   * Ausente quando a instalação não tem canal de WhatsApp cadastrado. A ausência é o que faz o canal
+   * **não ser oferecido** no fan-out: com o driver registrado, uma preferência por WhatsApp mandaria
+   * a notificação para um canal que não existe e ela morreria ali, em vez de sair por e-mail.
+   */
+  readonly whatsappDriver?: WhatsAppDriverPort
 }
 
 /**
@@ -38,6 +44,7 @@ export function createApiNotificationModule({
   config,
   db,
   queue,
+  whatsappDriver,
 }: CreateApiNotificationModuleParams): NotificationModule {
   const emailDriver =
     config.emailDelivery === undefined
@@ -54,11 +61,14 @@ export function createApiNotificationModule({
       suppressionHmacKey: config.cryptography.notificationSuppressionHmacKey,
     },
     db: db as never,
-    features: { email: emailDriver !== undefined },
+    features: { email: emailDriver !== undefined, whatsapp: whatsappDriver !== undefined },
     providers: {
       // Sem `cache` o módulo **pula** a checagem de nonce do webhook em silêncio, e o replay passa.
       cache: createInMemoryNotificationCache(),
-      ...(emailDriver === undefined ? {} : { channels: { email: emailDriver } }),
+      channels: {
+        ...(emailDriver === undefined ? {} : { email: emailDriver }),
+        ...(whatsappDriver === undefined ? {} : { whatsapp: whatsappDriver }),
+      },
       ...(queue === undefined ? {} : { queue }),
       recipientResolver: createIdentityRecipientResolver({ db }),
     },

@@ -211,6 +211,19 @@ export const mdfeManifests = pgTable(
       table.status,
       table.createdAt,
     ),
+    /**
+     * ADR-0046 §5: **um manifesto vivo por viagem**. Duas autorizações de CT-e chegando no mesmo
+     * instante disparariam duas emissões, e duplicar MDF-e é incidente fiscal, não bug de tela —
+     * quem perde a corrida é o `if` no consumer, então quem decide é o banco.
+     *
+     * Cancelado, rejeitado e descartado ficam de fora do unique de propósito: depois deles a viagem
+     * **precisa** poder manifestar de novo, e é justamente o caso em que alguém está com pressa.
+     */
+    uniqueIndex('mdfe_manifests_company_trip_live_unique')
+      .on(table.companyId, table.tripId)
+      .where(
+        sql`${table.tripId} is not null and ${table.status} not in ('cancelled', 'rejected', 'discarded')`,
+      ),
     // Origem parcial de CEP: o manifesto responde a UF de carregamento e de descarga, nunca o logradouro
     index('mdfe_manifests_company_loading_postal_code_idx')
       .on(table.companyId, table.loadingPostalCode)

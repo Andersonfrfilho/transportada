@@ -26,6 +26,8 @@ describe('authorization contract', () => {
     expect(TRANSPORTADA_PERMISSIONS).toEqual([
       'companies.manage',
       'users.manage',
+      'users.reveal',
+      'groups.manage',
       'invoices.import',
       'invoices.read',
       'batches.create',
@@ -56,11 +58,21 @@ describe('authorization contract', () => {
       'nfse.cancel',
       'nfse.read',
       'trip.read',
+      'trip.manage',
       'trip.report',
+      'trip.financials',
+      // ADR-0047 §4: a permissão do serviço, com escopo de uma rota só
+      'mdfe.auto-issue',
+      // ADR-0050: a permissão do contratante — acompanhar a entrega das notas dos documentos dele
+      'deliveries.track',
+      // ADR-0050 §6: decidir repasse é dinheiro, e não sai de carona com acompanhar entrega
+      'charges.decide',
     ])
     expect(COMPANY_ROLE_PERMISSIONS).toEqual({
       'company-admin': [
         'users.manage',
+        'users.reveal',
+        'groups.manage',
         'invoices.import',
         'invoices.read',
         'cte.manage',
@@ -82,9 +94,12 @@ describe('authorization contract', () => {
         'nfse.issue',
         'nfse.cancel',
         'nfse.read',
+        'trip.manage',
+        'trip.financials',
       ],
       finance: [
         'cte.read',
+        'trip.financials',
         'billing.create',
         'billing.cancel',
         'billing.read',
@@ -134,6 +149,7 @@ describe('authorization contract', () => {
         'mdfe.manage',
         'nfse.manage',
         'nfse.read',
+        'trip.manage',
       ],
       viewer: [
         'invoices.read',
@@ -146,6 +162,9 @@ describe('authorization contract', () => {
       ],
       driver: ['trip.read', 'trip.report'],
       aggregate: ['trip.read', 'trip.report'],
+      separator: ['invoices.read', 'fleet.read', 'trip.read', 'trip.manage'],
+      contractor: ['deliveries.track', 'charges.decide'],
+      automation: ['mdfe.auto-issue'],
     })
   })
 
@@ -165,17 +184,67 @@ describe('authorization contract', () => {
         'operations.read',
         'view-preferences.manage',
         'addresses.read',
+        'trip.manage',
       ] as const) {
         expect(permissions.has(denied)).toBe(false)
       }
     }
   })
 
-  test('keeps trip permissions exclusive to the field roles', () => {
-    for (const role of ['company-admin', 'finance', 'fiscal', 'operator', 'viewer'] as const) {
+  /**
+   * Spec 061 D4: **dinheiro tem permissão própria.** O valor pago ao motorista é dado sensível para
+   * o próprio motorista, que tem `trip.read` — e o separador monta a carga sem precisar da margem.
+   */
+  /**
+   * ADR-0049 §6: a lista encolheu — `operator` **perdeu** `trip.financials`. Quem monta a viagem
+   * decide se vale montá-la pela avaliação prevista (065 D7), que não mostra o que se paga ao
+   * agregado; e o valor pago ao motorista é dado sensível para quem trabalha ao lado dele.
+   */
+  test('keeps the trip financials away from every role but the owner and finance', () => {
+    for (const role of [
+      'driver',
+      'aggregate',
+      'separator',
+      'viewer',
+      'fiscal',
+      'operator',
+    ] as const) {
+      expect(resolveCompanyPermissions([role]).has('trip.financials')).toBe(false)
+    }
+    for (const role of ['company-admin', 'finance'] as const) {
+      expect(resolveCompanyPermissions([role]).has('trip.financials')).toBe(true)
+    }
+  })
+
+  // `trip.report` é do campo — o que o motorista reporta da própria viagem, e ninguém do escritório
+  // reporta entrega por ele. `trip.manage` é o escritório: montar a viagem, vincular nota, marcar
+  // entrega, encerrar. Ela nasceu para tirar `fleet.manage` dessas cinco rotas, que também apaga
+  // veículo e motorista.
+  test('keeps the delivery report exclusive to the field roles', () => {
+    for (const role of [
+      'company-admin',
+      'finance',
+      'fiscal',
+      'operator',
+      'viewer',
+      'separator',
+    ] as const) {
       const permissions = resolveCompanyPermissions([role])
-      expect(permissions.has('trip.read')).toBe(false)
       expect(permissions.has('trip.report')).toBe(false)
+    }
+
+    for (const role of ['company-admin', 'finance', 'fiscal', 'operator', 'viewer'] as const) {
+      expect(resolveCompanyPermissions([role]).has('trip.read')).toBe(false)
+    }
+  })
+
+  test('grants the trip write permission to the roles that already created trips', () => {
+    for (const role of ['company-admin', 'operator', 'separator'] as const) {
+      expect(resolveCompanyPermissions([role]).has('trip.manage')).toBe(true)
+    }
+
+    for (const role of ['finance', 'fiscal', 'viewer', 'driver', 'aggregate'] as const) {
+      expect(resolveCompanyPermissions([role]).has('trip.manage')).toBe(false)
     }
   })
 
@@ -232,8 +301,21 @@ describe('authorization contract', () => {
   // papel de menos ali some com botão na tela e devolve 403 sem que nada esteja quebrado
   test('grants the local seed user every company permission', () => {
     const permissions = resolveCompanyPermissions([...LOCAL_IDENTITY_ROLES])
+    /**
+     * `mdfe.auto-issue` fica de fora de propósito (ADR-0047 §4): ela é do **serviço**, e nenhum papel
+     * de gente a concede. Um humano que a tivesse dispararia emissão fiscal pela rota de máquina.
+     */
     const companyPermissions = TRANSPORTADA_PERMISSIONS.filter(
-      (permission) => permission !== 'companies.manage',
+      /**
+       * ADR-0050: `deliveries.track` sai junto — ela é do contratante, e o recorte dela não é o
+       * papel e sim o vínculo com o documento. Somá-la a um papel da transportadora daria a alguém
+       * de dentro uma leitura que já existe mais ampla em `invoices.read`.
+       */
+      (permission) =>
+        permission !== 'companies.manage' &&
+        permission !== 'mdfe.auto-issue' &&
+        permission !== 'deliveries.track' &&
+        permission !== 'charges.decide',
     )
 
     expect([...permissions]).toEqual(companyPermissions)
@@ -439,6 +521,7 @@ function authenticatedIdentity(
     externalIdentityId: '00000000-0000-4000-8000-000000000004',
     issuer: 'https://identity.example.test/realms/transportada',
     platformAdmin: false,
+    serviceAccount: false,
     subject: 'keycloak-user',
     userId: USER_ID,
     ...overrides,
@@ -462,3 +545,63 @@ function captureError(run: () => void): unknown {
 
   throw new Error('Expected operation to fail')
 }
+
+/**
+ * O efetivo de alguém passou a ser a união de três origens: papel do catálogo, grupo que a empresa
+ * criou, e permissão concedida direto à pessoa. Somar é o que torna o grupo uma camada a mais em vez
+ * de um segundo modelo de autorização convivendo com o primeiro.
+ */
+describe('permissão efetiva — a soma das três origens', () => {
+  test('o grupo acrescenta ao que o papel já dava', () => {
+    const permissions = resolveCompanyPermissions({
+      granted: ['billing.read'],
+      roles: ['viewer'],
+    })
+
+    expect(permissions.has('billing.read')).toBe(true)
+    expect(permissions.has('invoices.read')).toBe(true)
+  })
+
+  test('nenhuma origem tira o que a outra deu', () => {
+    const withoutGrants = resolveCompanyPermissions({ granted: [], roles: ['fiscal'] })
+    const withGrants = resolveCompanyPermissions({ granted: ['billing.read'], roles: ['fiscal'] })
+
+    for (const permission of withoutGrants) {
+      expect(withGrants.has(permission)).toBe(true)
+    }
+  })
+
+  /**
+   * A coluna de permissão não tem CHECK: uma linha antiga com nome removido do catálogo derrubaria o
+   * login de quem a tivesse. Ignorar mantém a pessoa entrando com o que ainda existe.
+   */
+  test('nome fora do catálogo é ignorado, não derruba o acesso', () => {
+    const permissions = resolveCompanyPermissions({
+      granted: ['permissao.que.nao.existe', 'billing.read'],
+      roles: ['viewer'],
+    })
+
+    expect(permissions.has('billing.read')).toBe(true)
+    expect([...permissions]).not.toContain('permissao.que.nao.existe')
+  })
+
+  /** Conceder plataforma por grupo seria o caminho mais silencioso para furar a instalação dedicada. */
+  test('companies.manage não entra por concessão', () => {
+    const permissions = resolveCompanyPermissions({
+      granted: ['companies.manage'],
+      roles: ['company-admin'],
+    })
+
+    expect([...permissions]).not.toContain('companies.manage')
+  })
+
+  test('a lista de papéis sozinha continua valendo, sem envelope', () => {
+    expect([...resolveCompanyPermissions(['viewer'])]).toEqual([
+      ...resolveCompanyPermissions({ roles: ['viewer'] }),
+    ])
+  })
+
+  test('sem papel e sem concessão, ninguém alcança nada', () => {
+    expect([...resolveCompanyPermissions({ granted: [], roles: [] })]).toEqual([])
+  })
+})

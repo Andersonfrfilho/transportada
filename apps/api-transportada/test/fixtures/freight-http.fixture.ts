@@ -85,6 +85,7 @@ type UpdateRuleCall = {
   readonly correlationId: string
   readonly expectedCurrentVersion: string
   readonly filters: {
+    readonly destinationCityCodes: readonly string[]
     readonly destinationStates: readonly string[]
     readonly senderTaxIds: readonly string[]
   }
@@ -234,7 +235,7 @@ export async function createFreightHttpFixture(params: CreateFixtureParams = {})
   })
   const handleRequest = createRequestHandler({
     createCorrelationId: () => 'freight-http-correlation',
-    frontendOrigin: FRONTEND_ORIGIN,
+    frontendOrigins: [FRONTEND_ORIGIN],
     logger: { error() {}, info() {}, warn() {} },
     requestTimeoutSeconds: 10,
     router,
@@ -325,6 +326,7 @@ function authenticatedContext(
       externalIdentityId: crypto.randomUUID(),
       issuer: 'http://localhost:58080/realms/transportada-local',
       platformAdmin: false,
+      serviceAccount: false,
       subject: 'freight-http-contract',
       userId: COMPANY_CONTEXT.userId,
     } satisfies AuthenticatedIdentity,

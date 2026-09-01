@@ -48,6 +48,35 @@ emitente da nota.
 - CteBatch: itens, aprovação, cálculo e emissão.
 - CteDocument: eventos e tentativas de transmissão.
 - BillingInvoice: itens, totais e eventos.
+- Trip: paradas ordenadas, condutores e documentos vinculados, com estado próprio (ADR-0043).
+- TripStop: uma parada por endereço de entrega distinto; agrupa as notas daquele endereço.
+- DeliveryClient: **o destinatário com identidade própria** (spec 060). Chave `(company_id, tax_id)`,
+  nasce sozinho na importação da NF-e com identidade e **sem regra** — janela, taxa esperada e
+  agendamento obrigatório são preenchidos à mão só por quem os tem (ADR-0048). Guarda o que afeta a
+  entrega, não o relacionamento comercial: isto **não é CRM**.
+- Contractor: **o embarcador que contratou o frete** — o emitente da nota, pelo mesmo caminho
+  automático. Guarda o período de fechamento e para quem o relatório de repasse vai.
+- DeliveryClientWindow e DeliveryClientException: a hora em que o cliente recebe. A janela é lista
+  (o almoço fechado é um buraco entre dois intervalos), e a exceção é a data que foge da semana.
+- MunicipalHoliday: `(company_id, city_ibge_code, holiday_on)`. O feriado é **da cidade**, não do
+  cliente — e a exceção do cliente vence o feriado, para o CD que trabalha no feriado não sumir do
+  roteiro justamente no dia em que é o único aberto.
+- TripStopSchedule: o agendamento da parada — um por parada, e ele **bloqueia o despacho** enquanto
+  estiver pendente ou recusado. O protocolo viaja até o motorista: um agendamento que o sistema
+  conhece e ele não é um agendamento que não existe.
+- DeliveryCharge: a taxa que o cliente cobrou de verdade, com estado próprio
+  (`suggested → recorded → submitted → approved | rejected → reimbursed`). `contractor_id` anulável:
+  taxa de nota cujo emitente ainda não tem cadastro existe e aparece como "sem contratante".
+- DeliveryClientChargeRule: a taxa que se repete, como **regra** — ela propõe, quem lança é gente.
+- ExtraChargeBatch: o lote de repasse, **do contratante e do período** (nunca da viagem), com o token
+  opaco da página pública de aprovação (ADR-0048 §7).
+- TripFinancialResult: **a conta da viagem, congelada quando ela fecha** (ADR-0049). Receita de CT-e
+  autorizado, imposto que desce dela e custo por parcela — cada parcela com `source`
+  (`measured` · `estimated` · `missing` · `period`), porque parcela ausente que vira zero produz
+  margem que engana com confiança. Recalcular gera versão nova, com motivo; a anterior fica.
+- TripCostEntry: pedágio e gasto avulso lançados na viagem.
+- CompanyTaxSettings: o regime federal e as alíquotas de PIS/COFINS. Sem ele a margem sai marcada
+  como "sem os federais" — assumir um regime erraria em silêncio, com cara de número certo.
 - ProcessingJob e AuditLog: rastreabilidade transversal.
 
 ```mermaid
@@ -67,6 +96,15 @@ erDiagram
   COMPANY ||--o{ BILLING_INVOICE : owns
   BILLING_INVOICE ||--o{ BILLING_INVOICE_ITEM : contains
   CTE_DOCUMENT ||--o{ BILLING_INVOICE_ITEM : billed
+  COMPANY ||--o{ TRIP : owns
+  TRIP ||--o{ TRIP_DRIVER : carries
+  TRIP ||--o{ TRIP_STOP : sequences
+  TRIP ||--o{ TRIP_DOCUMENT : links
+  TRIP_STOP ||--o{ TRIP_DOCUMENT : groups
+  NFE_DOCUMENT ||--o| TRIP_DOCUMENT : travels_as
+  TRIP_DOCUMENT ||--o{ TRIP_DOCUMENT_EVENT : records
+  TRIP_DOCUMENT ||--o{ DELIVERY_ADDRESS_OVERRIDE : redirected_by
+  TRIP ||--o{ MDFE_MANIFEST : manifests
   COMPANY ||--o{ STORED_FILE : owns
   COMPANY ||--o{ AUDIT_LOG : scopes
 ```
@@ -80,6 +118,9 @@ erDiagram
 - versões de regra não se sobrepõem para o mesmo escopo/prioridade.
 - FK compostas ou validação equivalente impedem relação entre tenants.
 - `numeric(19,4)` para valores; percentual `numeric(9,6)`.
+- `trip_stop(trip_id, sequence)` unique.
+- índice unique parcial garante que uma NF-e viva esteja em no máximo uma viagem.
+- ordem das paradas imutável a partir de `dispatched` (ADR-0043 §2).
 
 ## Estados
 
@@ -91,6 +132,12 @@ erDiagram
 | CT-e        | DRAFT, PENDING, QUEUED, PROCESSING, AUTHORIZED, REJECTED, DENIED, CANCEL_PENDING, CANCELLED, FAILED                       |
 | Invoice     | DRAFT, OPEN, ISSUED, PARTIALLY_PAID, PAID, OVERDUE, CANCELLED                                                             |
 | Job         | PENDING, PROCESSING, SUCCEEDED, RETRY_SCHEDULED, FAILED, DEAD_LETTER, CANCELLED                                           |
+| Trip        | DRAFT, ROUTE_PLANNED, SEPARATING, LOADING, DISPATCHED, IN_TRANSIT, COMPLETED, CANCELLED                                   |
+| Trip doc    | PENDING, SEPARATED, LOADED, DELIVERED, RETURNED                                                                           |
+
+O estado da viagem é **derivado** do das notas, exceto em quatro transições manuais
+(`route_planned`, `dispatched`, `cancelled`, e a criação em `draft`) — ADR-0043 §1. `DISPATCHED` é
+irreversível e sela o vínculo de documentos (§2).
 
 Transições inválidas retornam `409 STATE_TRANSITION_NOT_ALLOWED` e são
 auditadas.

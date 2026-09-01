@@ -1,0 +1,63 @@
+{
+  "title": "Clientes de entrega",
+  "subtitle": "Todo destinatário vira cadastro sozinho quando a nota é importada. Aqui você preenche a regra de quem tem hora marcada ou cobra para receber — que é a minoria.",
+  "filters": {
+    "name": "Nome",
+    "namePlaceholder": "Buscar pelo nome do cliente",
+    "scheduling": "Agendamento",
+    "schedulingAll": "Todos",
+    "schedulingNone": "Sem agendamento",
+    "schedulingOnly": "Só quem exige",
+    "status": "Situação",
+    "statusAll": "Todas"
+  },
+  "form": {
+    "deliveryFeeAmount": "Taxa esperada (R$)",
+    "deliveryFeeAmountHint": "É o valor que costuma ser cobrado, usado para prever o custo da viagem. O valor real vai no lançamento, quando a taxa acontece.",
+    "deliveryFeeAmountPlaceholder": "45.0000",
+    "loading": "Carregando a ficha do cliente…",
+    "notes": "Observações",
+    "requiresScheduling": "Exige agendamento prévio",
+    "requiresSchedulingHint": "A viagem com uma parada deste cliente não é despachada enquanto o agendamento estiver pendente ou recusado.",
+    "save": "Salvar",
+    "saving": "Salvando…",
+    "serviceTime": "Tempo de atendimento (minutos)",
+    "status": "Situação",
+    "statusActive": "Ativo",
+    "statusInactive": "Inativo",
+    "taxId": "Documento {{taxId}}",
+    "unnamed": "Sem nome na nota"
+  },
+  "table": {
+    "actions": "Ações",
+    "fee": "Taxa esperada",
+    "loading": "Carregando os clientes…",
+    "more": "Ver mais",
+    "name": "Cliente",
+    "open": "Abrir",
+    "scheduling": "Agendamento",
+    "schedulingYes": "Exige",
+    "taxId": "Documento"
+  },
+  "windows": {
+    "add": "Acrescentar horário",
+    "closed": "Não recebe neste dia",
+    "closesAt": "Fecha",
+    "hint": "Vários horários por dia: o almoço fechado é o buraco entre dois intervalos. A semana inteira é salva de uma vez.",
+    "invalid": "Há um horário que fecha antes de abrir.",
+    "opensAt": "Abre",
+    "remove": "Remover horário",
+    "save": "Salvar a semana",
+    "saving": "Salvando…",
+    "title": "Janela de recebimento",
+    "weekday": {
+      "0": "Domingo",
+      "1": "Segunda",
+      "2": "Terça",
+      "3": "Quarta",
+      "4": "Quinta",
+      "5": "Sexta",
+      "6": "Sábado"
+    }
+  }
+}

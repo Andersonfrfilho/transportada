@@ -2,11 +2,14 @@ SHELL := /bin/sh
 .DEFAULT_GOAL := help
 
 ENV_FILE ?= $(if $(wildcard .env),.env,.env.example)
+APP_ENV_BRANCH := staging
 PROJECT_NAME := $(shell sed -n 's/^PROJECT_NAME=//p' $(ENV_FILE) 2>/dev/null)
 APP_ENV := $(shell sed -n 's/^APP_ENV=//p' $(ENV_FILE) 2>/dev/null)
 COMPOSE_PROJECT_NAME := $(PROJECT_NAME)-$(APP_ENV)
 BUN_VERSION := 1.3.14
 FRONTEND_PORT := $(or $(shell sed -n 's/^FRONTEND_PORT=//p' $(ENV_FILE) 2>/dev/null),53000)
+FRONTEND_LANDING_PORT := $(or $(shell sed -n 's/^FRONTEND_LANDING_PORT=//p' $(ENV_FILE) 2>/dev/null),53003)
+FRONTEND_CLIENT_PORT := $(or $(shell sed -n 's/^FRONTEND_CLIENT_PORT=//p' $(ENV_FILE) 2>/dev/null),53100)
 FRONTEND_ORIGIN := $(shell sed -n 's/^FRONTEND_ORIGIN=//p' $(ENV_FILE) 2>/dev/null)
 API_PORT := $(or $(shell sed -n 's/^APP_PORT=//p' $(ENV_FILE) 2>/dev/null),53001)
 WORKER_PORT := $(or $(shell sed -n 's/^WORKER_PORT=//p' $(ENV_FILE) 2>/dev/null),53002)
@@ -103,6 +106,22 @@ up: config ## 🚀 Sobe PostgreSQL, RabbitMQ, MinIO, Mailpit e Keycloak
 		ENV_FILE="$(ENV_FILE)" $(MAKE) --no-print-directory storage-bootstrap; \
 	fi
 
+routing-fixture: ## 🗺️  Processa a grade sintética em deploy/osrm/data (para o E2E, não para a rua)
+	@cp deploy/osrm/fixtures/ribeirao-grid.osm deploy/osrm/data/fixture.osm
+	@for stage in "osrm-extract -p /opt/car.lua /data/fixture.osm" \
+		"osrm-partition /data/fixture.osrm" \
+		"osrm-customize /data/fixture.osrm"; do \
+		docker run --rm -v "$$PWD/deploy/osrm/data:/data" \
+			ghcr.io/project-osrm/osrm-backend:v6.0.0 $$stage >/dev/null || exit 1; \
+	done
+	@echo "OSRM fixture pronto — suba com OSRM_DATASET=fixture make routing-up"
+
+routing-up: config ## 🗺️  Sobe o OSRM (exige o extract — ver docs/runbooks/osrm-extract.md)
+	@$(COMPOSE) --profile routing up -d --wait osrm
+
+routing-down: config ## 🗺️  Encerra o OSRM sem derrubar o resto da infra
+	@$(COMPOSE) --profile routing stop osrm
+
 down: config ## 🛑 Encerra a infraestrutura local
 	@$(COMPOSE) down
 
@@ -112,17 +131,35 @@ ps: config ## 📋 Exibe os serviços locais
 dev: identity-bootstrap up ## 💻 Inicia somente frontend, API e worker Bun
 	@set -a; . "./$(ENV_FILE)"; set +a; \
 		export FRONTEND_PORT="$(FRONTEND_PORT)"; \
+		export FRONTEND_LANDING_PORT="$(FRONTEND_LANDING_PORT)"; \
+		export FRONTEND_CLIENT_PORT="$(FRONTEND_CLIENT_PORT)"; \
 		export QUEUE_PREFIX="$(PROJECT_NAME)_$(APP_ENV)"; \
 		bun run --cwd apps/api-transportada dev & api_process_id=$$!; \
 		bun run --cwd apps/worker-transportada dev & worker_process_id=$$!; \
 		bun run --cwd apps/frontend-transportada dev & frontend_process_id=$$!; \
+		bun run --cwd apps/frontend-landing dev & frontend_landing_process_id=$$!; \
+		bun run --cwd apps/frontend-client dev & frontend_client_process_id=$$!; \
 		cleanup() { \
 			trap - INT TERM EXIT; \
-			kill $$api_process_id $$worker_process_id $$frontend_process_id 2>/dev/null || true; \
+			kill $$api_process_id $$worker_process_id $$frontend_process_id $$frontend_landing_process_id $$frontend_client_process_id 2>/dev/null || true; \
 		}; \
 		trap 'cleanup; exit 130' INT TERM; \
 		trap cleanup EXIT; \
 		wait
+
+worktree: ## 🌱 Cria um worktree isolado para outra sessão trabalhar sem cruzar com esta
+	@test -n "$(NAME)" || { echo "uso: make worktree NAME=<nome-da-tarefa>"; exit 2; }
+	@root="$$(git rev-parse --show-toplevel)"; \
+		target="$$(dirname "$$root")/$$(basename "$$root")-wt/$(NAME)"; \
+		test ! -e "$$target" || { echo "já existe: $$target"; exit 2; }; \
+		git fetch --quiet origin; \
+		git worktree add "$$target" -b "work/$(NAME)" origin/$(APP_ENV_BRANCH) >/dev/null; \
+		for file in .env .env.test; do \
+			test -f "$$root/$$file" && ln -sf "$$root/$$file" "$$target/$$file"; \
+		done; \
+		(cd "$$target" && bun install --frozen-lockfile >/dev/null); \
+		echo "worktree pronto em $$target (branch work/$(NAME))"; \
+		echo "publicar de lá: git fetch && git rebase origin/$(APP_ENV_BRANCH) && git push origin HEAD:$(APP_ENV_BRANCH)"
 
 check: config ## ✅ Executa todos os gates locais
 	@bun run check
@@ -147,6 +184,10 @@ smoke: config ## 🩺 Valida a stack local já iniciada
 	}; \
 	check_url "http://localhost:$(FRONTEND_PORT)/"; \
 	check_url "http://localhost:$(FRONTEND_PORT)/manifest.webmanifest"; \
+	check_url "http://localhost:$(FRONTEND_LANDING_PORT)/"; \
+	check_url "http://localhost:$(FRONTEND_LANDING_PORT)/manifest.webmanifest"; \
+	check_url "http://localhost:$(FRONTEND_CLIENT_PORT)/"; \
+	check_url "http://localhost:$(FRONTEND_CLIENT_PORT)/manifest.webmanifest"; \
 	check_url "http://localhost:$(API_PORT)/health/live"; \
 	check_url "http://localhost:$(API_PORT)/health/ready"; \
 	check_url "http://localhost:$(WORKER_PORT)/health/live"; \
@@ -155,11 +196,19 @@ smoke: config ## 🩺 Valida a stack local já iniciada
 	check_url "http://localhost:58025/livez"; \
 	check_url "http://localhost:$(KEYCLOAK_MANAGEMENT_PORT)/health/ready"; \
 	check_url "http://localhost:$(KEYCLOAK_PORT)/realms/$(KEYCLOAK_REALM)/.well-known/openid-configuration"
+# ⚠️ A faixa 53110+ é **exclusiva** do preview que o Playwright sobe, e não pode
+# encostar nas portas das apps: o smoke roda com a stack do `make dev` no ar, então porta de app
+# ocupada faz o preview morrer com "already used". Foi o que aconteceu quando o `frontend-client`
+# nasceu na 53100, que era a do preview do painel.
 	@set -a; . "./$(ENV_FILE)"; set +a; \
-		PLAYWRIGHT_FRONTEND_PORT="$${PLAYWRIGHT_FRONTEND_PORT:-53100}" \
+		PLAYWRIGHT_FRONTEND_PORT="$${PLAYWRIGHT_FRONTEND_PORT:-53110}" \
 		PLAYWRIGHT_REUSE_EXISTING_FRONTEND_SERVER=false \
 		PLAYWRIGHT_REUSE_EXISTING_API_SERVER=true \
 		bun run --cwd apps/frontend-transportada smoke
+	@set -a; . "./$(ENV_FILE)"; set +a; \
+		PLAYWRIGHT_LANDING_PORT="$${PLAYWRIGHT_LANDING_PORT:-53111}" \
+		PLAYWRIGHT_REUSE_EXISTING_LANDING_SERVER=false \
+		bun run --cwd apps/frontend-landing smoke
 
 e2e-up: e2e-bootstrap ## 🧪 Sobe somente PostgreSQL, RabbitMQ e MinIO do ambiente dedicado de E2E
 	@ENV_FILE=$(E2E_ENV_FILE) SERVICES="postgres rabbitmq minio" $(MAKE) up
@@ -178,6 +227,8 @@ test-ps: e2e-ps ## 🧪 Alias compatível para exibir os serviços do ambiente d
 
 worker-integration: bootstrap ## 🧪 Roda a integração comum do worker usando o ambiente local
 	@SERVICES="postgres rabbitmq minio" $(MAKE) up
+	@# O OSRM é opt-in: sem `make routing-fixture` + `routing-up`, os testes dele **pulam** em vez de
+	@# falhar — a integração comum não pode exigir um dataset de centenas de MB (ver spec 058).
 	@set -a; . "./$(ENV_FILE)"; set +a; \
 		worker_database="$$(bun apps/worker-transportada/scripts/provision-integration-database.ts)"; \
 		worker_database_url="$${DATABASE_URL%/*}/$$worker_database"; \

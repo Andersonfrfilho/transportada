@@ -13,7 +13,11 @@ const CONTROL_GLYPH_PATHS: readonly string[] = ['src/components/ui/checkbox.tsx'
  * Desenho cujo `d` chega como **dado** em tempo de execução — malha de município, e o que vier depois.
  * Não pode morar em `ICON_PATHS`: não há geometria para declarar antes de a resposta chegar.
  */
-const DATA_GEOMETRY_PATHS: readonly string[] = ['src/components/ui/vector-map.tsx']
+const DATA_GEOMETRY_PATHS: readonly string[] = [
+  'src/components/ui/vector-map.tsx',
+  // Code 128: as barras saem do cálculo da chave da NF-e, e mudam a cada nota (spec 065 D1b).
+  'src/components/ui/barcode.tsx',
+]
 
 function readApplicationFile(filePath: string): Promise<string> {
   return Bun.file(new URL(filePath, APPLICATION_ROOT)).text()

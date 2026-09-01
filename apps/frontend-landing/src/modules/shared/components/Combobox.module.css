@@ -1,0 +1,48 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+.container {
+  min-width: 0;
+  position: relative;
+}
+
+.input {
+  background: var(--color-graphite);
+  border: 1px solid var(--color-slate);
+  border-radius: var(--space-2);
+  color: var(--color-fog);
+  font-size: var(--field-font-size);
+  height: var(--field-height);
+  padding: var(--field-padding);
+  min-width: 0;
+  width: 100%;
+}
+
+.list {
+  background: var(--color-graphite);
+  border: 1px solid var(--color-slate);
+  border-radius: var(--space-2);
+  left: 0;
+  list-style: none;
+  margin: var(--space-1) 0 0;
+  max-height: 12rem;
+  overflow-y: auto;
+  padding: var(--space-1);
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 10;
+}
+
+.option {
+  border-radius: var(--space-1);
+  cursor: pointer;
+  padding: var(--space-2) var(--space-3);
+}
+
+.option[data-highlighted='true'] {
+  background: color-mix(in srgb, var(--color-accent) 25%, transparent);
+}
+
+.empty {
+  color: var(--color-slate);
+  padding: var(--space-2) var(--space-3);
+}

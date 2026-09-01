@@ -9,7 +9,7 @@ import {
   freightCalculations,
   nfeDocuments,
 } from '../../database/database.schema.js'
-import { tripDocuments, tripDrivers, trips } from '../../database/trip.schema.js'
+import { tripDocuments, tripDrivers, tripStops, trips } from '../../database/trip.schema.js'
 import {
   violatedForeignKeyConstraint,
   violatedUniqueConstraint,
@@ -19,19 +19,41 @@ import type {
   CreateTripRecord,
   TripDetail,
   TripDocument,
+  TripDocumentDetail,
   TripFilters,
   TripPage,
   TripRepositoryPort,
 } from '../application/trip.port.js'
-import { TripDocumentAlreadyLinkedError, TripDocumentNotFoundError } from '../domain/trip.error.js'
+import {
+  TripDocumentAlreadyLinkedError,
+  TripDocumentNotFoundError,
+  TripNotFoundError,
+  TripStateTransitionNotAllowedError,
+} from '../domain/trip.error.js'
 import type { TripDriverCandidate, TripVehicleCandidate } from '../domain/trip.policy.js'
-import { mapTrip, mapTripDocument, mapTripDocumentDetail, mapTripDriver } from './trip.mapper.js'
+import { checkTripAcceptsLinkage } from '../domain/trip-state.policy.js'
+import {
+  reconcileStopOnLink,
+  reconcileStopOnUnlink,
+} from '../application/reconcile-trip-stops.use-case.js'
+import { createTripStopReconciliationPort } from './drizzle-trip-stop-reconciliation.support.js'
+import {
+  resolveNfeDestinationAddress,
+  resolveNfeDocumentId,
+} from './nfe-destination-address.support.js'
+import {
+  mapTrip,
+  mapTripDocument,
+  mapTripDocumentDetail,
+  mapTripDriver,
+  mapTripStop,
+} from './trip.mapper.js'
 import {
   buildTripDocumentListFilters,
   buildTripListFilters,
   cteAuthorizedExpression,
 } from './trip.query.js'
-import type { TripDatabase, TripQueryable } from './trip-queryable.type.js'
+import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
 
 const LIVE_DOCUMENT_CONSTRAINTS = new Set([
   'trip_documents_live_nfe_document_unique',
@@ -54,7 +76,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
     return this.database.transaction(async (transaction) => {
       const [closed] = await transaction
         .update(trips)
-        .set({ status: 'closed', updatedAt: sql`now()` })
+        .set({ status: 'completed', updatedAt: sql`now()` })
         .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
         .returning({ id: trips.id })
       if (closed === undefined) return null
@@ -145,23 +167,50 @@ export class DrizzleTripRepository implements TripRepositoryPort {
     readonly nfeDocumentId: string | null
     readonly tripId: string
   }): Promise<TripDocument> {
-    // LIMITAÇÃO CONHECIDA: o insert não tem `WHERE` onde pendurar a condição de viagem aberta como
-    // `deliverDocument`/`releaseDocument` têm, então segue a janela entre o `assertTripOpen` do caso
-    // de uso e esta escrita — fechá-la exigiria transação com lock da viagem em outra tabela.
-    const record = await runGuarded(async () => {
-      const [created] = await this.database
-        .insert(tripDocuments)
-        .values({
-          companyId: input.companyId,
-          freightCalculationId: input.freightCalculationId,
-          nfeDocumentId: input.nfeDocumentId,
-          tripId: input.tripId,
-        })
+    // T013 fechou a janela que ficava entre o `assertTripOpen` do caso de uso e este insert: um
+    // `SELECT ... FOR UPDATE` trava a linha da viagem por toda a transação, então um despacho
+    // concorrente ou espera este lock (e o vínculo acontece antes) ou o insert espera o despacho
+    // (e falha contra o estado já sealed) — nunca os dois escrevem sobre a mesma corrida.
+    return this.database.transaction(async (transaction) => {
+      const [tripRow] = await transaction
+        .select({ status: trips.status })
+        .from(trips)
+        .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+        .for('update')
+        .limit(1)
+      if (tripRow === undefined) throw new TripNotFoundError()
+      const blockReason = checkTripAcceptsLinkage(tripRow.status)
+      if (blockReason !== null) throw new TripStateTransitionNotAllowedError(blockReason)
+
+      const record = await runGuarded(async () => {
+        const [created] = await transaction
+          .insert(tripDocuments)
+          .values({
+            companyId: input.companyId,
+            freightCalculationId: input.freightCalculationId,
+            nfeDocumentId: input.nfeDocumentId,
+            tripId: input.tripId,
+          })
+          .returning()
+        return created
+      })
+      if (record === undefined) throw new Error('TRIP_DOCUMENT_LINK_FAILED')
+
+      const stopId = await reconcileLinkedDocumentStop(transaction, {
+        companyId: input.companyId,
+        freightCalculationId: record.freightCalculationId,
+        nfeDocumentId: record.nfeDocumentId,
+        tripId: input.tripId,
+      })
+      if (stopId === null) return mapTripDocument(record)
+
+      const [withStop] = await transaction
+        .update(tripDocuments)
+        .set({ stopId })
+        .where(and(eq(tripDocuments.companyId, input.companyId), eq(tripDocuments.id, record.id)))
         .returning()
-      return created
+      return mapTripDocument(withStop ?? record)
     })
-    if (record === undefined) throw new Error('TRIP_DOCUMENT_LINK_FAILED')
-    return mapTripDocument(record)
   }
 
   public async listDrivers(input: {
@@ -220,20 +269,93 @@ export class DrizzleTripRepository implements TripRepositoryPort {
     readonly documentId: string
     readonly tripId: string
   }): Promise<TripDocument | null> {
-    const [released] = await this.database
-      .update(tripDocuments)
-      .set({ releasedAt: sql`now()`, updatedAt: sql`now()` })
-      .where(
-        and(
-          ...buildTripDocumentFilters(input),
-          isNull(tripDocuments.deliveredAt),
-          isNull(tripDocuments.releasedAt),
-          tripStillOpen(input),
-        ),
-      )
-      .returning()
-    return released === undefined ? null : mapTripDocument(released)
+    return this.database.transaction(async (transaction) => {
+      // A parada de origem precisa ser lida **antes** do `UPDATE` abaixo: `RETURNING` reflete o
+      // estado novo da linha (`stop_id` já nulo), não o antigo — a T010 aprendeu isso do jeito
+      // caro com `releaseUnloadedDocuments`.
+      const previousStopId = await readDocumentStopIdBeforeRelease(transaction, {
+        companyId: input.companyId,
+        documentId: input.documentId,
+      })
+
+      const [released] = await transaction
+        .update(tripDocuments)
+        .set({ releasedAt: sql`now()`, stopId: null, updatedAt: sql`now()` })
+        .where(
+          and(
+            ...buildTripDocumentFilters(input),
+            isNull(tripDocuments.deliveredAt),
+            isNull(tripDocuments.releasedAt),
+            tripStillOpen(input),
+          ),
+        )
+        .returning()
+      if (released === undefined) return null
+
+      // A nota já perdeu a referência à parada no `UPDATE` acima — só depois disso
+      // `reconcileStopOnUnlink` pode contar corretamente se a parada esvaziou (T007).
+      if (previousStopId !== null) {
+        await reconcileStopOnUnlink({
+          companyId: input.companyId,
+          repository: createTripStopReconciliationPort(transaction),
+          stopId: previousStopId,
+        })
+      }
+
+      return mapTripDocument(released)
+    })
   }
+}
+
+/**
+ * ADR-0043 §3: vincular cria a parada se faltar, reaproveitando a que já agrupa o mesmo endereço
+ * normalizado. `null` quando a NF-e não resolve a nenhum destinatário cadastrado, ou quando o CEP
+ * não normaliza (T007) — a nota fica `SEM ENDEREÇO`, sem quebrar o vínculo em si.
+ */
+async function reconcileLinkedDocumentStop(
+  transaction: TripTransaction,
+  input: {
+    readonly companyId: string
+    readonly freightCalculationId: string | null
+    readonly nfeDocumentId: string | null
+    readonly tripId: string
+  },
+): Promise<string | null> {
+  const nfeDocumentId = await resolveNfeDocumentId(transaction, input)
+  if (nfeDocumentId === null) return null
+
+  const destination = await resolveNfeDestinationAddress(transaction, {
+    companyId: input.companyId,
+    nfeDocumentId,
+  })
+  if (destination === null) return null
+
+  const stop = await reconcileStopOnLink({
+    addressComponents: destination.components,
+    companyId: input.companyId,
+    label: destination.label,
+    repository: createTripStopReconciliationPort(transaction),
+    tripId: input.tripId,
+  })
+  return stop?.id ?? null
+}
+
+/**
+ * O `RETURNING` do `UPDATE` que libera a nota já reflete `stop_id = null` — a T010 aprendeu isso do
+ * jeito caro. A parada de origem precisa ser lida numa consulta separada, antes de reconciliar.
+ */
+async function readDocumentStopIdBeforeRelease(
+  transaction: TripTransaction,
+  input: { readonly companyId: string; readonly documentId: string },
+): Promise<string | null> {
+  const [row] = await transaction
+    .select({ stopId: tripDocuments.stopId })
+    .from(tripDocuments)
+    .where(
+      and(eq(tripDocuments.companyId, input.companyId), eq(tripDocuments.id, input.documentId)),
+    )
+    .limit(1)
+  return row?.stopId ?? null
 }
 
 /**
@@ -241,12 +363,18 @@ export class DrizzleTripRepository implements TripRepositoryPort {
  * concorrente pode fechar a viagem no intervalo, e a condição faz o update simplesmente não achar
  * linha em vez de gravar sobre viagem fechada.
  */
+/**
+ * ADR-0043 §2, T013: mesma porta de não-retorno de `checkTripAcceptsLinkage`
+ * (`trip-state.policy.ts`) — `dispatched` em diante sela vínculo e desvínculo, não só os dois
+ * terminais. A lista fica literal aqui porque SQL não importa `TRIP_STATUSES`; qualquer estado
+ * novo que a T006 crie precisa deste `NOT IN` revisto junto.
+ */
 function tripStillOpen(input: { readonly companyId: string; readonly tripId: string }) {
   return sql`exists (
     select 1 from ${trips}
     where ${trips.companyId} = ${input.companyId}
       and ${trips.id} = ${input.tripId}
-      and ${trips.status} = 'open'
+      and ${trips.status} not in ('dispatched', 'in_transit', 'completed', 'cancelled')
   )`
 }
 
@@ -302,11 +430,32 @@ async function readTripDetail(
     )
     .where(and(...buildTripDocumentListFilters(input)))
     .orderBy(asc(tripDocuments.createdAt), asc(tripDocuments.id))
+  const documents = documentRecords.map(mapTripDocumentDetail)
+
+  // T014: uma única leitura de paradas, independente de quantas existirem — o agrupamento com as
+  // notas já buscadas acima acontece em memória, não numa query por parada (§15 do code-standart.md).
+  const stopRecords = await queryable
+    .select()
+    .from(tripStops)
+    .where(and(eq(tripStops.companyId, input.companyId), eq(tripStops.tripId, input.tripId)))
+    .orderBy(asc(tripStops.sequence))
+
+  const documentsByStopId = new Map<string, TripDocumentDetail[]>()
+  for (const document of documents) {
+    if (document.stopId === null) continue
+    const bucket = documentsByStopId.get(document.stopId)
+    if (bucket === undefined) documentsByStopId.set(document.stopId, [document])
+    else bucket.push(document)
+  }
 
   return {
     ...mapTrip(record),
-    documents: documentRecords.map(mapTripDocumentDetail),
+    documents,
     drivers: driverRecords.map(mapTripDriver),
+    stops: stopRecords.map((stopRecord) => ({
+      ...mapTripStop(stopRecord),
+      documents: documentsByStopId.get(stopRecord.id) ?? [],
+    })),
   }
 }
 

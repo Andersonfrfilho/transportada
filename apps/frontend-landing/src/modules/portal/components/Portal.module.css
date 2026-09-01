@@ -1,0 +1,132 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+.section {
+  margin: 0 auto;
+  max-width: 32rem;
+  padding: var(--space-12) var(--layout-gutter);
+}
+
+.title {
+  font-size: 1.5rem;
+  margin: 0 0 var(--space-6);
+}
+
+.form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.field {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.label {
+  color: var(--color-slate);
+  font-size: var(--field-font-size-compact);
+}
+
+.input,
+.select {
+  background: var(--color-graphite);
+  border: 1px solid var(--color-slate);
+  border-radius: var(--space-2);
+  color: var(--color-fog);
+  font-size: var(--field-font-size);
+  height: var(--field-height);
+  padding: var(--field-padding);
+}
+
+.submitButton {
+  background: var(--color-accent);
+  border: none;
+  border-radius: var(--space-2);
+  color: var(--color-asphalt);
+  cursor: pointer;
+  font-size: var(--field-font-size);
+  height: var(--control-height);
+  min-width: var(--touch-target);
+  padding: 0 var(--space-6);
+}
+
+.submitButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.linkButton {
+  background: none;
+  border: none;
+  color: var(--color-accent);
+  cursor: pointer;
+  font-size: var(--field-font-size-compact);
+  padding: 0;
+  text-align: left;
+  text-decoration: underline;
+}
+
+.feedback {
+  border-radius: var(--space-2);
+  padding: var(--space-4);
+}
+
+.feedbackSuccess {
+  background: var(--color-ready);
+  color: var(--color-asphalt);
+}
+
+.feedbackError {
+  background: var(--color-alert);
+  color: var(--color-asphalt);
+}
+
+.statusBadge {
+  border-radius: var(--space-2);
+  display: inline-block;
+  font-family: var(--font-utility);
+  font-size: 0.75rem;
+  padding: var(--space-1) var(--space-3);
+  text-transform: uppercase;
+}
+
+.statusBadge[data-status='pending'] {
+  background: color-mix(in srgb, var(--color-copper) 25%, transparent);
+  color: var(--color-copper);
+}
+
+.statusBadge[data-status='approved'] {
+  background: color-mix(in srgb, var(--color-ready) 25%, transparent);
+  color: var(--color-ready);
+}
+
+.statusBadge[data-status='rejected'] {
+  background: color-mix(in srgb, var(--color-alert) 25%, transparent);
+  color: var(--color-alert);
+}
+
+.card {
+  border: 1px solid var(--color-slate);
+  border-radius: var(--space-2);
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.documentRow {
+  align-items: center;
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  display: flex;
+  gap: var(--space-4);
+  justify-content: space-between;
+  padding-top: var(--space-3);
+}
+
+.logoutButton {
+  background: none;
+  border: 1px solid var(--color-slate);
+  border-radius: var(--space-2);
+  color: var(--color-fog);
+  cursor: pointer;
+  font-size: var(--field-font-size-compact);
+  height: var(--control-height);
+  padding: 0 var(--space-4);
+}

@@ -133,3 +133,33 @@ export class MdfeManifestNotFoundError extends ApiError {
     })
   }
 }
+
+const TRIP_MANIFEST_BLOCK_MESSAGES: Readonly<Record<string, string>> = {
+  TRIP_MANIFEST_ALREADY_LIVE: 'The trip already has a live MDF-e manifest.',
+  TRIP_MANIFEST_DISCHARGE_CITIES_OVER_LIMIT:
+    'A MDF-e carries at most 50 discharge municipalities. Split the trip in two.',
+  TRIP_MANIFEST_READINESS_INCOMPLETE: 'Some invoices of this trip have no authorized CT-e yet.',
+  TRIP_MANIFEST_TRIP_NOT_DISPATCHED: 'Dispatch the trip before issuing its MDF-e manifest.',
+}
+
+/**
+ * ADR-0046: a recusa carrega **o que falta, por nota**. Um `409` mudo mandaria o operador abrir a
+ * outra tela — que é exatamente o trabalho que a spec 059 veio tirar dele. E o `block` é código
+ * estável, porque é ele que a tela traduz para a frase que diz o próximo passo.
+ */
+export class MdfeManifestTripNotReadyError extends ApiError {
+  public constructor(input: {
+    readonly block: string
+    readonly pending: readonly { readonly reason: string; readonly tripDocumentId: string }[]
+  }) {
+    super({
+      code: input.block,
+      details: input.pending.map((document) => ({
+        field: document.tripDocumentId,
+        message: document.reason,
+      })),
+      message: TRIP_MANIFEST_BLOCK_MESSAGES[input.block] ?? 'The trip cannot be manifested yet.',
+      status: 409,
+    })
+  }
+}

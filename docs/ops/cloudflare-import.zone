@@ -1,0 +1,58 @@
+; Zona fernandes-transportadora.com.br para importar na Cloudflare.
+;
+; Replica EXATA da zona da KingHost em 26/08/2026, mais os dois registros da landing de staging.
+; O apex continua no site institucional aqui de proposito: no instante em que os nameservers
+; mudam, a zona nova precisa se comportar igual a antiga. Trocar o apex para a landing e um passo
+; separado e deliberado, DEPOIS da troca de nameserver — ver docs/ops/dns.md.
+;
+; SOA e NS nao entram: a Cloudflare cria os dela e recusa os de fora.
+; Todos os registros ficam DNS only (nuvem cinza) — proxy ligado atravessa a validacao ACME do
+; Railway e o certificado nao sai.
+
+$ORIGIN fernandes-transportadora.com.br.
+$TTL 3600
+
+; --- site institucional e servicos da KingHost ---
+@                              A      177.12.168.246
+@                              AAAA   2804:10:8036::168:246
+www                            A      177.12.168.246
+ftp                            A      177.12.168.246
+
+; Bancos de sistemas anteriores. Nao aparecem em varredura automatica: so respondem a quem sabe o
+; nome. Copiados por seguranca — remover exige antes descobrir quem ainda conecta neles.
+firebird                       A      177.12.170.20
+pgsql                          A      177.12.172.169
+mssql                          CNAME  mssql10-farm22.kinghost.net.
+mysql                          CNAME  mysql30-farm36.kinghost.net.
+
+; --- e-mail (permanece na KingHost) ---
+@                              MX     5 mx-vip-01.kinghost.net.
+@                              MX     5 mx-vip-02.kinghost.net.
+@                              TXT    "v=spf1 include:_spf.kinghost.net -all"
+mail                           CNAME  smtp-vip.kinghost.net.
+smtp                           CNAME  smtp-vip.kinghost.net.
+imap                           CNAME  imap-vip.kinghost.net.
+pop                            CNAME  imap-vip.kinghost.net.
+webmail                        CNAME  webmail-vip.kinghost.net.
+autoconfig                     CNAME  autoconfig.kinghost.net.
+autodiscover                   CNAME  autoconfig.kinghost.net.
+
+; --- produto: production ---
+api                            CNAME  mrg272l0.up.railway.app.
+app                            CNAME  8pcruu4z.up.railway.app.
+auth                           CNAME  y5xkh5at.up.railway.app.
+
+; --- produto: staging (`staging` sozinho e a landing: ela e o dominio, sem rotulo de servico) ---
+api.staging                    CNAME  sacpzi6e.up.railway.app.
+app.staging                    CNAME  8sipokkb.up.railway.app.
+auth.staging                   CNAME  1q9dl5tb.up.railway.app.
+staging                        CNAME  z7ue7ike.up.railway.app.
+
+; --- posse dos dominios no Railway ---
+_railway-verify.api            TXT    "railway-verify=2aa1660c227106e860bdb2d197d0622e034fdd81264f67c5f2587c3ab0a17adf"
+_railway-verify.app            TXT    "railway-verify=d4d982c805b1795df9f26e7dc33353b76cdca6cd0270bf40522260ded6b4a62d"
+_railway-verify.auth           TXT    "railway-verify=59e6a552b8d5a1031017dcbf406cac5b862c1615a773e38f21dfc4326ae05cfd"
+_railway-verify.api.staging    TXT    "railway-verify=7ddf6a71b4b31287cece616ada4eb130b841f63345ce9ef3dbdf9c5e51d54a7e"
+_railway-verify.app.staging    TXT    "railway-verify=906e1212967814d2db0df76c7cf61dd1947b1429ea6e82f30b1fc11264223d95"
+_railway-verify.auth.staging   TXT    "railway-verify=8cbc55468cf484b53ee1e60833ddddcd4c3c96c8a937056eb3baadd0eecc786f"
+_railway-verify.staging        TXT    "railway-verify=b2a7da44363793d87655c63ce54243a772ad212a385b6384c6462b4cf849962f"

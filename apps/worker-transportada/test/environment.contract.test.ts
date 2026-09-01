@@ -41,6 +41,14 @@ describe('worker environment contract', () => {
       foundationSyntheticConsumerEnabled: false,
       foundationSyntheticEffectDelayMs: 0,
       fuelPricePull: undefined,
+      /** Spec 062 T005: sem segredo e sem template — o padrão é a versão da Graph API e mais nada. */
+      whatsapp: {
+        apiVersion: 'v23.0',
+        baseUrl: undefined,
+        codeTemplateLanguage: 'pt_BR',
+        invitationTemplate: undefined,
+        passwordResetTemplate: undefined,
+      },
       logLevel: 'info',
       logSinkUrl: undefined,
       nfseProvider: {
@@ -51,6 +59,7 @@ describe('worker environment contract', () => {
       port: 53_002,
       prefetch: 1,
       queuePrefix: 'transportada_local',
+      routingMatrixUrl: undefined,
       rabbitMqUrl: validEnvironment.RABBITMQ_URL,
       sentryDsn: undefined,
       sentryEnvironment: 'local',

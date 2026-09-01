@@ -1,8 +1,16 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { filterSearchableOptions } from './searchableSelect.service'
+import { normalizeSearchText } from './searchableSelect.service'
 
-/** `swatch` é um valor de `background`: a opção pinta uma cor que o rótulo só descreve. */
-export type SelectOption = Readonly<{ label: string; swatch?: string; value: string }>
+/**
+ * `swatch` é um valor de `background`: a opção pinta uma cor que o rótulo só descreve.
+ * `description` é a segunda linha, como no multi-select: o que distingue duas placas parecidas.
+ */
+export type SelectOption = Readonly<{
+  label: string
+  description?: string
+  swatch?: string
+  value: string
+}>
 
 /** Abaixo disto a lista se lê de uma olhada e o campo de busca só rouba espaço. */
 export const SELECT_SEARCH_THRESHOLD = 8
@@ -30,8 +38,14 @@ export function resolveSelectSearchKey(key: string): SelectSearchKeyAction {
   return SELECT_SEARCH_KEY_ACTION[key] ?? 'type'
 }
 
+/** A busca lê as duas linhas: quem procura pelo modelo não sabe a placa — é por isso que procura. */
 export function filterSelectOptions(
   params: Readonly<{ options: readonly SelectOption[]; query: string }>,
 ): readonly SelectOption[] {
-  return filterSearchableOptions({ options: params.options, query: params.query })
+  const query = params.query.trim()
+  if (query === '') return params.options
+  const normalizedQuery = normalizeSearchText(query)
+  return params.options.filter((option) =>
+    normalizeSearchText(`${option.label} ${option.description ?? ''}`).includes(normalizedQuery),
+  )
 }

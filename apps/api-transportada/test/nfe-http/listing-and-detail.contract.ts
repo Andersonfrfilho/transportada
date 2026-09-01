@@ -96,6 +96,7 @@ describe('nfe http listing and detail contract', () => {
       data: serializeDocumentSummary(DOCUMENT_DETAIL),
     })
     expect(fixture.documentListCalls[0]).toEqual({
+      accessKey: null,
       context: COMPANY_CONTEXT,
       cursor: '2026-07-22T14:00:00.000Z::00000000-0000-4000-8000-000000000230',
       limit: 10,
@@ -163,6 +164,37 @@ describe('nfe http listing and detail contract', () => {
 
     expect(documents[0]).toMatchObject({ cteBlockReason: null })
     expect(documents[1]).toMatchObject({ cteBlockReason: 'CTE_BATCH_DOCUMENT_ALREADY_LINKED' })
+  })
+
+  /**
+   * Spec 065 D4b: **fatura-se o que saiu.** Quem monta o lote precisa ver a viagem da nota sem abrir
+   * a tela de viagem — e é **sinal, não bloqueio**: a nota que rodou é justamente a que deve entrar.
+   */
+  test('announces the trip the note travelled on, without blocking it', async () => {
+    const fixture = await createNfeHttpFixture({
+      documentList: {
+        items: [
+          DOCUMENT_SUMMARY,
+          {
+            ...DOCUMENT_SUMMARY,
+            id: '00000000-0000-4000-8000-000000000232',
+            tripId: '00000000-0000-4000-8000-000000000a11',
+            tripStatus: 'in_transit',
+          },
+        ],
+        nextCursor: null,
+      },
+    })
+
+    const response = await fixture.handle(documentsListRequest({ query: '?limit=10' }))
+    const documents = (await documentListBody(response)).data
+
+    expect(documents[0]).toMatchObject({ tripId: null, tripStatus: null })
+    expect(documents[1]).toMatchObject({
+      cteBlockReason: null,
+      tripId: '00000000-0000-4000-8000-000000000a11',
+      tripStatus: 'in_transit',
+    })
   })
 
   test('returns distribution pull status with cooldown state and no leaked identifiers', async () => {

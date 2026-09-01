@@ -5,6 +5,7 @@ import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { createLogger } from '@adatechnology/logger'
 import { createRabbitMqProvider } from '@adatechnology/rabbitmq-provider'
 import { createSecretEnvelopeProvider } from '@adatechnology/secret-envelope'
+import type { UserModule } from '@adatechnology/user-module'
 
 import { parseEnvironment } from './config/environment.schema'
 import { shouldPrettyPrintLogs } from './logging/log-format.policy'
@@ -15,9 +16,20 @@ import { createListDigitalCertificatesUseCase } from './companies/application/li
 import { createReplaceDigitalCertificateUseCase } from './companies/application/replace-digital-certificate.use-case'
 import { createDigitalCertificateSecretService } from './companies/application/digital-certificate-secret.service'
 import { createCompanyLogoUseCase } from './companies/application/company-logo.use-case.js'
+import { createLandingLogoUseCase } from './landing/application/landing-logo.use-case.js'
+import { createLandingSettingsUseCase } from './landing/application/landing-settings.use-case.js'
+import { createAggregateApplicationsUseCase } from './fleet/application/aggregate-applications.use-case.js'
+import { createAggregateAccountUseCase } from './fleet/application/aggregate-account.use-case.js'
 import { createDisableScheduledDistributionUseCase } from './companies/application/disable-scheduled-distribution.use-case.js'
 import { createEnableScheduledDistributionUseCase } from './companies/application/enable-scheduled-distribution.use-case.js'
 import { createGetScheduledDistributionStatusUseCase } from './companies/application/get-scheduled-distribution-status.use-case.js'
+import {
+  createClearDefaultVolumeWeightUseCase,
+  createGetCargoSettingsUseCase,
+  createSetDefaultVolumeWeightUseCase,
+} from './companies/application/cargo-settings.use-case.js'
+import { DrizzleCargoSettingsRepository } from './companies/infrastructure/drizzle-cargo-settings.repository.js'
+import { createCargoSettingsRoutes } from './companies/presentation/cargo-settings.routes.js'
 import { createAdjustFuelPriceUseCase } from './companies/application/adjust-fuel-price.use-case.js'
 import { createClearFuelPriceUseCase } from './companies/application/clear-fuel-price.use-case.js'
 import { createListFuelPricesUseCase } from './companies/application/list-fuel-prices.use-case.js'
@@ -37,12 +49,30 @@ import { DrizzleScheduledDistributionRepository } from './companies/infrastructu
 import { DrizzleScheduledDistributionStatusRepository } from './companies/infrastructure/drizzle-scheduled-distribution-status.repository.js'
 import { createScheduledDistributionRoutes } from './companies/presentation/scheduled-distribution.routes.js'
 import { DrizzleCompanyLogoRepository } from './companies/infrastructure/drizzle-company-logo.repository.js'
+import { createDrizzleCompanyGroupRepository } from './landing/infrastructure/drizzle-company-group.repository.js'
+import { createDrizzleLandingSettingsRepository } from './landing/infrastructure/drizzle-landing-settings.repository.js'
+import { createDrizzleAggregateApplicationRepository } from './fleet/infrastructure/drizzle-aggregate-application.repository.js'
+import { createDrizzleAggregateAccountRepository } from './fleet/infrastructure/drizzle-aggregate-account.repository.js'
 import { DrizzleCompanySettingsRepository } from './companies/infrastructure/drizzle-company-settings.repository'
 import { DrizzleDigitalCertificateRepository } from './companies/infrastructure/drizzle-digital-certificate.repository'
 import { createFiscalCertificateValidationGateway } from './companies/infrastructure/fiscal-certificate-validation.gateway'
 import { createFiscalCompanyProfileLookupGateway } from './companies/infrastructure/fiscal-company-profile-lookup.gateway'
+import { createPublicCnpjInfoRoutes } from './companies/presentation/public-cnpj-info.routes'
 import type { CompanySettingsDatabase } from './companies/infrastructure/drizzle-company-settings.types'
 import { createCompanyLogoRoutes } from './companies/presentation/company-logo.routes.js'
+import {
+  createLandingPublicRoutes,
+  createLandingSettingsRoutes,
+} from './landing/presentation/landing.routes.js'
+import {
+  createAggregateApplicationPublicRoutes,
+  createAggregateApplicationRoutes,
+} from './fleet/presentation/aggregate-application.routes.js'
+import { createAggregateAccountPublicRoutes } from './fleet/presentation/aggregate-account.routes.js'
+import { createAggregateApplicationAttachmentPublicRoutes } from './fleet/presentation/aggregate-application-attachment.routes.js'
+import { createAggregateApplicationAttachmentUseCase } from './fleet/application/aggregate-application-attachment.use-case.js'
+import { createDrizzleAggregateApplicationAttachmentRepository } from './fleet/infrastructure/drizzle-aggregate-application-attachment.repository.js'
+import { extractAttachmentFields } from './fleet/infrastructure/aggregate-attachment-extraction.gateway.js'
 import { createCompanySettingsRoutes } from './companies/presentation/company-settings.routes'
 import { createDigitalCertificateRoutes } from './companies/presentation/digital-certificates.routes'
 import { createRetireDigitalCertificateUseCase } from './companies/application/retire-digital-certificate.use-case'
@@ -65,6 +95,12 @@ import { createNfseProviderCredentialsUseCase } from './nfse-profiles/applicatio
 import { DrizzleNfseProfileRepository } from './nfse-profiles/infrastructure/drizzle-nfse-profile.repository.js'
 import { createNfseEmissionProfileRoutes } from './nfse-profiles/presentation/nfse-emission-profiles.routes.js'
 import { createNfseProviderCredentialRoutes } from './nfse-profiles/presentation/nfse-provider-credentials.routes.js'
+import { createWhatsAppChannelRoutes } from './whatsapp/presentation/whatsapp-channel.routes'
+import { createMetaWhatsAppSendingChannel } from './whatsapp/infrastructure/meta-whatsapp-sending.gateway.js'
+import { createWhatsAppNotificationDriver } from './whatsapp/application/whatsapp-notification-driver.service.js'
+import { createWhatsAppChannelUseCase } from './whatsapp/application/whatsapp-channel.use-case'
+import { createWhatsAppChannelSecretService } from './whatsapp/application/whatsapp-channel-secret.service'
+import { DrizzleWhatsAppChannelRepository } from './whatsapp/infrastructure/drizzle-whatsapp-channel.repository'
 import { createExportNfseDocumentsUseCase } from './nfse-invoices/application/export-nfse-documents.use-case.js'
 import { createNfseInvoiceCancellationUseCase } from './nfse-invoices/application/nfse-invoice-cancellation.use-case.js'
 import { createNfseInvoiceDiscardUseCase } from './nfse-invoices/application/nfse-invoice-discard.use-case.js'
@@ -78,6 +114,9 @@ import { createNfseFiscalDocumentArchiveGateway } from './nfse-invoices/infrastr
 import { createNfseInvoiceRoutes } from './nfse-invoices/presentation/nfse-invoices.routes.js'
 import { createNotifyNfseCallbackUseCase } from './nfse-callbacks/application/notify-nfse-callback.use-case.js'
 import { DrizzleNfseCallbackRepository } from './nfse-callbacks/infrastructure/drizzle-nfse-callback.repository.js'
+import { createWhatsAppWebhookRoutes } from './whatsapp/presentation/whatsapp-webhook.routes.js'
+import { createMetaWhatsAppModuleResolver } from './whatsapp/application/meta-whatsapp-module.resolver.js'
+import { createDrizzleWebhookNonceStore } from './whatsapp/infrastructure/drizzle-webhook-nonce.store.js'
 import { createNfseCallbackRoutes } from './nfse-callbacks/presentation/nfse-callbacks.routes.js'
 import { createBillingUseCase } from './billing/application/billing.use-case'
 import { createInvoiceDocumentUseCase } from './billing/application/invoice-document.use-case'
@@ -90,6 +129,11 @@ import { toBillingInvoiceListFilters } from './billing/presentation/billing.sche
 import { createCteIssuanceUseCase } from './cte-issuance/application/cte-issuance.use-case'
 import { createExportCteDocumentsUseCase } from './cte-issuance/application/export-cte-documents.use-case.js'
 import { createRenderDacteUseCase } from './cte-issuance/application/render-dacte.use-case.js'
+import { createReadMdfeDocumentUseCase } from './mdfe-manifests/application/read-mdfe-document.use-case.js'
+import { createDamdfePdfGateway } from './mdfe-manifests/infrastructure/damdfe-pdf.gateway.js'
+import { createMdfeDocumentDownloadGateway } from './mdfe-manifests/infrastructure/mdfe-document-download.gateway.js'
+import { createMdfeDocumentSource } from './mdfe-manifests/infrastructure/mdfe-document.query.js'
+import { createMdfeXmlReaderGateway } from './mdfe-manifests/infrastructure/mdfe-xml-reader.gateway.js'
 import { createCteArchiveGateway } from './cte-issuance/infrastructure/cte-archive.gateway.js'
 import { createDactePdfGateway } from './cte-issuance/infrastructure/dacte-pdf.gateway.js'
 import { createDacteLogoGateway } from './cte-issuance/infrastructure/dacte-logo.gateway.js'
@@ -126,8 +170,58 @@ import { DrizzleMdfeManifestRepository } from './mdfe-manifests/infrastructure/d
 import { createMdfeIssuanceRoutes } from './mdfe-manifests/presentation/mdfe-issuance.routes'
 import { createMdfeManifestRoutes } from './mdfe-manifests/presentation/mdfe-manifests.routes'
 import { createTripUseCase } from './trips/application/trip.use-case'
+import { createTripLifecycleUseCase } from './trips/application/trip-lifecycle.use-case'
+import { listReturnedWithActiveCte } from './trips/application/list-returned-with-active-cte.use-case'
 import { DrizzleTripRepository } from './trips/infrastructure/drizzle-trip.repository'
+import { DrizzleTripDocumentRepository } from './trips/infrastructure/drizzle-trip-document.repository'
+import { DrizzleTripDocumentBatchRepository } from './trips/infrastructure/drizzle-trip-document-batch.repository'
+import { DrizzleTripRouteRepository } from './trips/infrastructure/drizzle-trip-route.repository'
+import { DrizzleTripStopLookupRepository } from './trips/infrastructure/drizzle-trip-stop-lookup.repository'
+import { readTripFiscalReadiness } from './trips/application/read-trip-fiscal-readiness.use-case'
+import { readTripValuation } from './trips/application/read-trip-valuation.use-case'
+import { setTripMdfeRequirement } from './trips/application/set-trip-mdfe-requirement.use-case'
+import { DrizzleTripValuationQuery } from './trips/infrastructure/trip-valuation.query'
+import { DrizzleTripFinancialResultRepository } from './trips/infrastructure/drizzle-trip-financial-result.repository.js'
+import { DrizzleFinancialSummaryQuery } from './trips/infrastructure/financial-summary.query.js'
+import { buildFinancialSummary } from './trips/domain/financial-summary.policy.js'
+import { createFinancialSummaryRoutes } from './trips/presentation/financial-summary.routes.js'
+import { DrizzleTripCostRepository } from './trips/infrastructure/drizzle-trip-cost.repository.js'
+import { freezeTripFinancialResult } from './trips/application/freeze-trip-financial-result.use-case.js'
+import { DrizzleApplicableFreightRuleQuery } from './freight/infrastructure/drizzle-freight.repository'
+import { createTripCteBatch } from './trips/application/create-trip-cte-batch.use-case'
+import { issueTripManifestAutomatically } from './mdfe-manifests/application/issue-trip-manifest-automatically.use-case'
+import { DrizzleAutomaticManifestRepository } from './mdfe-manifests/infrastructure/drizzle-automatic-manifest.repository'
+import { DrizzleTripFiscalReadinessQuery } from './trips/infrastructure/trip-fiscal-readiness.query'
+import { DrizzleDeliveryAddressOverrideRepository } from './trips/infrastructure/drizzle-delivery-address-override.repository'
 import { createTripRoutes } from './trips/presentation/trip.routes'
+import { createMeTripRoutes } from './trips/presentation/me-trip.routes'
+import { findCurrentDriverTrip } from './trips/application/find-current-driver-trip.use-case'
+import { reportStopArrival } from './trips/application/report-stop-arrival.use-case'
+import {
+  reportDocumentDelivery,
+  reportDocumentReturn,
+} from './trips/application/report-document-delivery.use-case'
+import { reportStopOccurrence } from './trips/application/report-stop-occurrence.use-case'
+import { attachDeliveryProof } from './trips/application/attach-delivery-proof.use-case'
+import { createDeliveryProofStorage } from './trips/infrastructure/delivery-proof-storage.gateway'
+import { DrizzleDeliveryProofRepository } from './trips/infrastructure/drizzle-delivery-proof.repository'
+import { DrizzleCurrentDriverTripRepository } from './trips/infrastructure/drizzle-current-driver-trip.repository'
+import { DrizzleDriverFieldReportUnitOfWork } from './trips/infrastructure/drizzle-driver-field-report.repository'
+import { createRouteSuggestionRoutes } from './routing/presentation/route-suggestion.routes'
+import { createMultiVehicleSuggestionRoutes } from './routing/presentation/multi-vehicle-suggestion.routes'
+import { createMultiVehicleSuggestionUseCase } from './routing/application/multi-vehicle-suggestion.use-case'
+import { createDrizzleMultiVehicleSuggestionRepository } from './routing/infrastructure/drizzle-multi-vehicle-suggestion.repository'
+import { createTripComposer } from './routing/infrastructure/trip-composer.adapter'
+import { listTripStops } from './trips/application/list-trip-stops.use-case'
+import { createRouteSuggestionUseCase } from './routing/application/route-suggestion.use-case'
+import { createGeocodedAddressCorrectionUseCase } from './routing/application/geocoded-address-correction.use-case'
+import { createDrizzleRouteSuggestionRepository } from './routing/infrastructure/drizzle-route-suggestion.repository'
+import { createDrizzleGeocodedAddressRepository } from './routing/infrastructure/drizzle-geocoded-address.repository'
+import { createDrizzleTripRouteGate } from './routing/infrastructure/drizzle-trip-route-gate.adapter'
+import { createTripStopOrderWriter } from './routing/infrastructure/trip-stop-order.adapter'
+import { createLazyRabbitMqRouteOptimizationQueue } from './routing/infrastructure/rabbitmq-route-optimization.queue'
+import type { RouteOptimizationQueue } from './routing/application/route-suggestion.use-case'
+import { buildRouteOptimizationTopology } from './routing/infrastructure/route-optimization-topology'
 import { createFreightSimulationUseCase } from './freight-calculations/application/freight-simulation.use-case'
 import {
   DrizzleFreightCalculationListRepository,
@@ -143,6 +237,43 @@ import { createFleetDriverRegionsUseCase } from './freight-regions/application/f
 import { DrizzleFleetDriverRegionRepository } from './freight-regions/infrastructure/drizzle-fleet-driver-region.repository'
 import { DrizzleFreightRegionRepository } from './freight-regions/infrastructure/drizzle-freight-region.repository'
 import { createFleetDriverRegionRoutes } from './freight-regions/presentation/fleet-driver-region.routes'
+import {
+  createContractorsUseCase,
+  createMunicipalHolidaysUseCase,
+} from './delivery-clients/application/contractors.use-case.js'
+import {
+  DrizzleContractorRepository,
+  DrizzleMunicipalHolidayRepository,
+} from './delivery-clients/infrastructure/drizzle-contractor.repository.js'
+import { createContractorRoutes } from './delivery-clients/presentation/contractor.routes.js'
+import { createContractorPortalBindingRoutes } from './contractor-portal/presentation/contractor-portal-binding.routes.js'
+import { createContractorDeliveryRoutes } from './contractor-portal/presentation/contractor-delivery.routes.js'
+import { createReadContractorDeliveryLocationUseCase } from './contractor-portal/application/read-contractor-delivery-location.use-case.js'
+import { createMeLocationRoutes } from './trips/presentation/me-location.routes.js'
+import { createRecordTripLocationUseCase } from './trips/application/record-trip-location.use-case.js'
+import { DrizzleTripLocationRepository } from './trips/infrastructure/drizzle-trip-location.repository.js'
+import { createScheduleContractorDeliveryUseCase } from './contractor-portal/application/schedule-contractor-delivery.use-case.js'
+import { createContractorExtraChargesUseCase } from './contractor-portal/application/contractor-extra-charges.use-case.js'
+import { createContractorExtraChargeRoutes } from './contractor-portal/presentation/contractor-extra-charge.routes.js'
+import { createReadContractorDeliveriesUseCase } from './contractor-portal/application/read-contractor-deliveries.use-case.js'
+import { DrizzleContractorPortalRepository } from './contractor-portal/infrastructure/drizzle-contractor-portal.repository.js'
+import { DrizzleContractorPortalBindingRepository } from './contractor-portal/infrastructure/drizzle-contractor-portal-binding.repository.js'
+import { createDeliveryClientsUseCase } from './delivery-clients/application/delivery-clients.use-case.js'
+import { createDeliveryChargesUseCase } from './delivery-clients/application/delivery-charges.use-case.js'
+import { createExtraChargeBatchesUseCase } from './delivery-clients/application/extra-charge-batches.use-case.js'
+import { DrizzleExtraChargeBatchRepository } from './delivery-clients/infrastructure/drizzle-extra-charge-batch.repository.js'
+import { createExtraChargeBatchRoutes } from './delivery-clients/presentation/extra-charge-batch.routes.js'
+import { createPublicExtraChargeBatchRoutes } from './delivery-clients/presentation/public-extra-charge-batch.routes.js'
+import { createSuggestDeliveryCharges } from './delivery-clients/application/suggest-delivery-charges.use-case.js'
+import {
+  DrizzleDeliveryChargeRepository,
+  DrizzleDeliveryChargeRuleRepository,
+} from './delivery-clients/infrastructure/drizzle-delivery-charge.repository.js'
+import { createDeliveryChargeRoutes } from './delivery-clients/presentation/delivery-charge.routes.js'
+import { createTripStopSchedulesUseCase } from './delivery-clients/application/trip-stop-schedule.use-case.js'
+import { DrizzleTripStopScheduleRepository } from './delivery-clients/infrastructure/drizzle-trip-stop-schedule.repository.js'
+import { DrizzleDeliveryClientRepository } from './delivery-clients/infrastructure/drizzle-delivery-client.repository.js'
+import { createDeliveryClientRoutes } from './delivery-clients/presentation/delivery-client.routes.js'
 import { createFreightRegionRoutes } from './freight-regions/presentation/freight-region.routes'
 import { DrizzleMigrationStatusRepository } from './database/drizzle-migration-status.repository'
 import { HealthService } from './health/health.service'
@@ -168,16 +299,40 @@ import { createPasswordResetCodeSecretService } from './identity/application/pas
 import { createRequestPasswordResetUseCase } from './identity/application/request-password-reset.use-case'
 import { DrizzlePasswordResetDeliveryOutboxRepository } from './identity/infrastructure/drizzle-password-reset-delivery-outbox.repository'
 import { DrizzlePasswordResetRepository } from './identity/infrastructure/drizzle-password-reset.repository'
+import { createLoginHintRoutes } from './identity/presentation/login-hint.routes'
+import { createResolveLoginHintUseCase } from './identity/application/resolve-login-hint.use-case'
+import { createDrizzleLoginIdentifierRepository } from './identity/infrastructure/drizzle-login-identifier.repository'
 import { createPasswordResetRoutes } from './identity/presentation/password-reset.routes'
 import { DrizzleInvitationDeliveryOutboxRepository } from './identity/infrastructure/drizzle-invitation-delivery-outbox.repository'
 import { DrizzleInvitationRepository } from './identity/infrastructure/drizzle-invitation.repository'
 import { createKeycloakAccessTokenVerifier } from './identity/infrastructure/keycloak-jwt.gateway'
 import {
   createIdentityAccessGateway,
+  createIdentityGroupGateway,
   createKeycloakAdminGateway,
 } from './identity/infrastructure/keycloak-admin.gateway'
 import { createBootstrapRoutes } from './identity/presentation/bootstrap.routes'
 import { createUserActivationRoutes } from './identity/presentation/user-activation.routes'
+import { createBackfillIdentityDocumentsUseCase } from './identity/application/backfill-identity-documents.use-case'
+import { createReconcileCompanyUsersUseCase } from './identity/application/reconcile-company-users.use-case'
+import { createListRolePermissionsUseCase } from './identity/application/list-role-permissions.use-case'
+import { createAssignCompanyUserRolesUseCase } from './identity/application/assign-company-user-roles.use-case'
+import { createManageCompanyGroupsUseCase } from './identity/application/manage-company-groups.use-case'
+import { createManageDirectPermissionsUseCase } from './identity/application/manage-direct-permissions.use-case'
+import { DrizzleCompanyGroupRepository } from './identity/infrastructure/drizzle-company-group.repository'
+import { createDrizzleGroupAudit } from './identity/infrastructure/drizzle-group-audit.gateway'
+import { createCompanyGroupRoutes } from './identity/presentation/company-group.routes'
+import { createUserPictureUseCase } from './identity/application/user-picture.use-case.js'
+import { createUserPictureRoutes } from './identity/presentation/user-picture.routes.js'
+import { DrizzleUserPictureRepository } from './identity/infrastructure/drizzle-user-picture.repository.js'
+import { createPublicUserPictureRoutes } from './identity/presentation/public-user-picture.routes.js'
+import { createPublicUserPictureUseCase } from './identity/application/user-picture.use-case.js'
+import { createFillProfilesFromRealmUseCase } from './identity/application/fill-profiles-from-realm.use-case.js'
+import { createSynchronizeIdentitiesUseCase } from './identity/application/synchronize-identities.use-case'
+import { createRevealCompanyUsersUseCase } from './identity/application/reveal-company-users.use-case'
+import { createAdoptRealmFieldsUseCase } from './identity/application/adopt-realm-fields.use-case'
+import { createManageCompanyUserIdentifiersUseCase } from './identity/application/manage-company-user-identifiers.use-case'
+import { createSetCompanyUserPasswordUseCase } from './identity/application/set-company-user-password.use-case'
 import { createUserAdministrationRoutes } from './identity/presentation/user-administration.routes'
 import { createRouter, type RegisteredAnonymousRoute } from './http/router.service'
 import { createGetNfeDistributionStatusUseCase } from './nfe-imports/application/get-nfe-distribution-status.use-case'
@@ -211,11 +366,35 @@ import {
 } from './storage/infrastructure/nfe-storage-gateway'
 import { DrizzleStoredObjectRepository } from './storage/infrastructure/drizzle-stored-object.repository'
 import { createErrorTracker } from './observability/sentry.service'
+import { NOTIFICATION_DEFAULT_LOCALE } from './notification/notification.constant.js'
+import { createAutomaticManifestNotifier } from './mdfe-manifests/infrastructure/automatic-manifest-notifier.gateway.js'
+import type { AutomaticManifestNotifierPort } from './mdfe-manifests/application/issue-trip-manifest-automatically.use-case.js'
 import { createApiNotificationModule } from './notification/infrastructure/notification-module.factory.js'
+import { NOTIFICATION_ROUTES_BASE_PATH } from './notification/notification.constant.js'
 import { buildNotificationRabbitMqTopology } from './notification/infrastructure/notification-rabbitmq-topology.js'
 import { createLazyRabbitMqNotificationQueue } from './notification/infrastructure/rabbitmq-notification-queue.adapter.js'
 import { createNotificationAuthResolver } from './notification/presentation/notification-auth.resolver.js'
 import { createNotificationHttpRouter } from './notification/presentation/notification-http.router.js'
+import { createApiUserModule } from './user/infrastructure/user-module.factory.js'
+import {
+  createUserHttpRouter,
+  USER_ROUTES_BASE_PATH,
+} from './user/presentation/user-http.router.js'
+import {
+  AGGREGATE_PORTAL_ROUTES_BASE_PATH,
+  createAggregatePortalHttpRouter,
+} from './user/presentation/aggregate-portal.router.js'
+import { createAggregatePortalUseCase } from './fleet/application/aggregate-portal.use-case.js'
+import { createDrizzleAggregatePortalRepository } from './fleet/infrastructure/drizzle-aggregate-portal.repository.js'
+import { createAggregateDocumentUseCase } from './fleet/application/aggregate-document.use-case.js'
+import { createAggregateDocumentReviewUseCase } from './fleet/application/aggregate-document-review.use-case.js'
+import { createDrizzleAggregateDocumentRepository } from './fleet/infrastructure/drizzle-aggregate-document.repository.js'
+import { createAggregateDocumentTextGateway } from './fleet/infrastructure/aggregate-document-text.gateway.js'
+import { createHttpAggregateDocumentOcrGateway } from './fleet/infrastructure/http-aggregate-document-ocr.gateway.js'
+import { createAggregateDocumentReviewRoutes } from './fleet/presentation/aggregate-document-review.routes.js'
+import { createAggregateApplicationAttachmentReviewRoutes } from './fleet/presentation/aggregate-application-attachment-review.routes.js'
+import { createAggregateApplicationAttachmentReviewUseCase } from './fleet/application/aggregate-application-attachment-review.use-case.js'
+import { createDrizzleAggregateApplicationAttachmentReviewRepository } from './fleet/infrastructure/drizzle-aggregate-application-attachment-review.repository.js'
 
 const API_PROJECT_NAME = 'transportada-api'
 const API_VERSION = '0.1.0'
@@ -253,34 +432,143 @@ export function bootstrap(): Bun.Server<undefined> {
             }),
           logger,
         })
+  /**
+   * Sem broker não há quem resolva: pedir sugestão responderia `202` para uma fila que ninguém
+   * consome, e a proposta ficaria `queued` para sempre. A rota não sobe, e é honesto — melhor
+   * `404` no caminho que não existe do que uma promessa que nunca se cumpre (ADR-0044 §7).
+   */
+  const routeOptimizationQueue =
+    messaging === undefined
+      ? undefined
+      : createLazyRabbitMqRouteOptimizationQueue({
+          connect: () =>
+            createRabbitMqProvider({
+              connection: messaging.url,
+              topology: buildRouteOptimizationTopology({ queuePrefix: messaging.queuePrefix }),
+            }),
+        })
+  if (routeOptimizationQueue === undefined) {
+    logger.warn('routing.queue.not_configured')
+  }
+
   if (notificationQueue === undefined) {
     // Sem broker o módulo usa a fila em memória dele: nada consome, e a entrega some no restart.
     logger.warn('notification.queue.not_configured')
   }
+  /**
+   * Spec 062 T004 — **um caminho de envio, não dois**: quem manda WhatsApp é o módulo de notificação,
+   * como já é com e-mail. O driver é registrado sempre, e é ele que descobre a cada envio se a
+   * instalação tem canal — a credencial mora no banco, por empresa, e ler isso no boot deixaria
+   * token rotacionado e canal desligado esperando um restart.
+   *
+   * Registrar sempre não força ninguém a receber por WhatsApp: o fan-out cruza os canais disponíveis
+   * com a **preferência** do destinatário, e quem não pediu WhatsApp continua recebendo por e-mail.
+   */
+  const whatsappChannelRepository = new DrizzleWhatsAppChannelRepository(database.db)
+  const whatsappDriver = createWhatsAppNotificationDriver({
+    buildChannel: (channel) =>
+      createMetaWhatsAppSendingChannel({
+        accessToken: channel.accessToken,
+        apiVersion: config.whatsapp.apiVersion,
+        baseUrl: config.whatsapp.baseUrl,
+        phoneNumberId: channel.phoneNumberId,
+      }),
+    logger,
+    repository: whatsappChannelRepository,
+    secretService: createWhatsAppChannelSecretService({
+      envelopeProvider: createSecretEnvelopeProvider(config.cryptography.envelopeKeyRing),
+    }),
+  })
   const notifications = createApiNotificationModule({
     config,
     db: database.db,
     ...(notificationQueue === undefined ? {} : { queue: notificationQueue }),
+    whatsappDriver,
+  })
+  const automaticManifestNotifier = createAutomaticManifestNotifier({
+    database: database.db,
+    logger,
+    send: (params) =>
+      notifications.useCases.sendNotification.execute({
+        ...params,
+        locale: NOTIFICATION_DEFAULT_LOCALE,
+      }),
   })
   const tenantContext = new TenantContextService({
     repository: new DrizzleMembershipRepository(database.db),
   })
+  // Ausente qualquer um dos dois, a conta do agregado não é montada: `tenancy.mode: 'single'` exige
+  // a empresa raiz, e sem segredo não há com o que assinar o access token do módulo (064/T1).
+  const userModule =
+    config.userAccessTokenSecret === undefined || config.companyId === undefined
+      ? undefined
+      : createApiUserModule({
+          accessTokenSecret: config.userAccessTokenSecret,
+          companyId: config.companyId,
+          db: database.db,
+        })
   const router = createRouter({
-    anonymousRoutes: createAnonymousRoutes({ config, database: database.db, logger }),
+    anonymousRoutes: createAnonymousRoutes({ config, database: database.db, logger, userModule }),
     authentication,
     authorization: new AuthorizationService(),
     companyFiscalEnvironment: new DrizzleCompanyFiscalEnvironmentRepository(database.db),
     healthService,
-    // Sem segredo configurado a rota de recibo não é publicada: sem com o que verificar assinatura,
-    // aceitar o corpo seria aceitar qualquer um dizendo que a mensagem chegou.
-    moduleRouter: createNotificationHttpRouter({
-      authResolver: createNotificationAuthResolver({ authentication, tenantContext }),
-      module: notifications,
-      ...(config.notificationWebhookSecret === undefined
-        ? {}
-        : { webhookSecret: config.notificationWebhookSecret }),
-    }),
+    moduleRouters: [
+      // Sem segredo configurado a rota de recibo não é publicada: sem com o que verificar
+      // assinatura, aceitar o corpo seria aceitar qualquer um dizendo que a mensagem chegou.
+      {
+        basePath: NOTIFICATION_ROUTES_BASE_PATH,
+        router: createNotificationHttpRouter({
+          authResolver: createNotificationAuthResolver({ authentication, tenantContext }),
+          module: notifications,
+          ...(config.notificationWebhookSecret === undefined
+            ? {}
+            : { webhookSecret: config.notificationWebhookSecret }),
+        }),
+      },
+      ...(userModule === undefined || config.companyId === undefined
+        ? []
+        : [
+            {
+              basePath: USER_ROUTES_BASE_PATH,
+              router: createUserHttpRouter({ companyId: config.companyId, module: userModule }),
+            },
+            {
+              basePath: AGGREGATE_PORTAL_ROUTES_BASE_PATH,
+              router: createAggregatePortalHttpRouter({
+                accountRepository: createDrizzleAggregatePortalRepository(database.db),
+                aggregateDocuments: createAggregateDocumentUseCase({
+                  bucket: resolveStorageBucket(process.env),
+                  // O leitor existe sempre: PDF é lido pela camada de texto, sem serviço nenhum.
+                  // Só a leitura de imagem depende do OCR estar configurado.
+                  ocr: createAggregateDocumentTextGateway(
+                    config.aggregateDocumentOcrUrl === undefined
+                      ? {}
+                      : {
+                          ocr: createHttpAggregateDocumentOcrGateway({
+                            baseUrl: config.aggregateDocumentOcrUrl,
+                          }),
+                        },
+                  ),
+                  repository: createDrizzleAggregateDocumentRepository(database.db),
+                  storage: createNfeStorageGatewayFromEnvironment({
+                    environment: process.env,
+                    finalBucket: resolveStorageBucket(process.env),
+                    stagingBucket: resolveStorageBucket(process.env),
+                  }),
+                }),
+                aggregatePortal: createAggregatePortalUseCase({
+                  repository: createDrizzleAggregatePortalRepository(database.db),
+                }),
+                companyId: config.companyId,
+                module: userModule,
+              }),
+            },
+          ]),
+    ],
     routes: createApplicationRoutes({
+      apiPublicUrl: config.apiPublicUrl,
+      automaticManifestNotifier,
       database: database.db,
       envelopeKeyRing: config.cryptography.envelopeKeyRing,
       environment: process.env,
@@ -288,6 +576,7 @@ export function bootstrap(): Bun.Server<undefined> {
       keycloak: config.keycloak,
       logger,
       postalCodeProviders: config.postalCodeProviders,
+      routeOptimizationQueue,
       vehicleCatalog: config.vehicleCatalog,
     }),
     tenantContext,
@@ -338,15 +627,35 @@ type CreateAnonymousRoutesParams = {
   readonly config: ApiEnvironment
   readonly database: CompanySettingsDatabase
   readonly logger: ApiLogger
+  /** Ausente, a rota de cadastro de conta de agregado não é publicada — mesma regra do módulo. */
+  readonly userModule: UserModule | undefined
 }
 
 /** Sem `companyId` de ambiente a rota de arranque fica morta (ADR-0022) — nenhuma rota anônima existe. */
+/**
+ * ADR-0048 §7: o token é a credencial da página pública. 32 bytes de aleatoriedade criptográfica em
+ * base64url — enumerar isso não é um caminho de ataque.
+ */
+function createExtraChargeBatchToken(): string {
+  return Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url')
+}
+
 function createAnonymousRoutes({
   config,
   database,
   logger,
+  userModule,
 }: CreateAnonymousRoutesParams): readonly RegisteredAnonymousRoute[] {
   // O callback de NFS-e não depende da empresa de ambiente: quem diz a empresa é o token opaco.
+  /**
+   * Primeira etapa do login. Ela existe sempre: sem ela a pessoa só entra pelo login canônico, e o
+   * documento e o telefone — que o provedor não sabe procurar — deixariam de ser caminho.
+   */
+  const loginHintRoutes = createLoginHintRoutes({
+    resolveLoginHint: createResolveLoginHintUseCase({
+      repository: createDrizzleLoginIdentifierRepository(database),
+    }),
+  })
   const nfseCallbackRoutes = createNfseCallbackRoutes({
     callbackBaseUrl: config.nfseCallbackBaseUrl,
     logger,
@@ -354,10 +663,129 @@ function createAnonymousRoutes({
       repository: new DrizzleNfseCallbackRepository(database),
     }),
   })
-  if (config.companyId === undefined) return nfseCallbackRoutes
+  /**
+   * Spec 062 T006 — o webhook da Meta. Um endereço só para a instalação: a empresa é descoberta pelo
+   * `phone_number_id` do corpo **já assinado**, e sem os dois segredos do app a rota não é
+   * registrada.
+   */
+  const whatsappWebhookRoutes = createWhatsAppWebhookRoutes({
+    appSecret: config.whatsapp.webhook?.appSecret,
+    logger,
+    resolver: createMetaWhatsAppModuleResolver({
+      apiVersion: config.whatsapp.apiVersion,
+      appSecret: config.whatsapp.webhook?.appSecret ?? '',
+      baseUrl: config.whatsapp.baseUrl,
+      database,
+      nonceStore: createDrizzleWebhookNonceStore(database),
+      repository: new DrizzleWhatsAppChannelRepository(database),
+      secretService: createWhatsAppChannelSecretService({
+        envelopeProvider: createSecretEnvelopeProvider(config.cryptography.envelopeKeyRing),
+      }),
+      verifyToken: config.whatsapp.webhook?.verifyToken ?? '',
+    }),
+    verifyToken: config.whatsapp.webhook?.verifyToken,
+  })
+  /**
+   * ADR-0048 §7: a página de repasse do contratante. Ela existe sempre — o token é a credencial, e
+   * um lote só nasce quando alguém fecha um período, então não há superfície ociosa a esconder.
+   */
+  const publicExtraChargeBatches = createExtraChargeBatchesUseCase({
+    batches: new DrizzleExtraChargeBatchRepository(database),
+    charges: new DrizzleDeliveryChargeRepository(database),
+    createToken: createExtraChargeBatchToken,
+  })
+  const publicExtraChargeBatchRoutes = createPublicExtraChargeBatchRoutes({
+    decideByToken: { execute: (input) => publicExtraChargeBatches.decideByToken(input) },
+    readReportByToken: { execute: (input) => publicExtraChargeBatches.readReportByToken(input) },
+  })
+  // Sem raiz para servir, o produto entrega o padrão do app — não é caso de erro.
+  const landingPublicRoutes = createLandingPublicRoutes({
+    landingLogo: createLandingLogoUseCase({
+      companyLogoRepository: new DrizzleCompanyLogoRepository(database),
+      landingCompanyId: config.companyId,
+    }),
+    landingSettings: createLandingSettingsUseCase({
+      companyGroupRepository: createDrizzleCompanyGroupRepository(database),
+      landingCompanyId: config.companyId,
+      landingSettingsRepository: createDrizzleLandingSettingsRepository(database),
+    }),
+  })
+  // A consulta de CNPJ já existia atrás de `settings.manage`, para o painel. A landing precisa dela
+  // anônima: é o CNPJ que o próprio interessado digita, e o que volta é o que está no cartão CNPJ.
+  const publicCnpjInfoGateway = createFiscalCompanyProfileLookupGateway()
+  const publicCnpjInfoRoutes = createPublicCnpjInfoRoutes({
+    lookupProfileByCnpj: { execute: ({ cnpj }) => publicCnpjInfoGateway.lookupByCnpj({ cnpj }) },
+  })
+  const aggregateApplicationPublicRoutes = createAggregateApplicationPublicRoutes({
+    aggregateApplications: createAggregateApplicationsUseCase({
+      companyGroupRepository: createDrizzleCompanyGroupRepository(database),
+      landingCompanyId: config.companyId,
+      repository: createDrizzleAggregateApplicationRepository(database),
+    }),
+    ...(config.turnstileSecretKey === undefined
+      ? {}
+      : { turnstileSecretKey: config.turnstileSecretKey }),
+  })
+  const aggregateApplicationAttachmentPublicRoutes =
+    createAggregateApplicationAttachmentPublicRoutes({
+      attachments: createAggregateApplicationAttachmentUseCase({
+        bucket: resolveStorageBucket(process.env),
+        extractFields: extractAttachmentFields,
+        repository: createDrizzleAggregateApplicationAttachmentRepository(database),
+        storage: createNfeStorageGatewayFromEnvironment({
+          environment: process.env,
+          finalBucket: resolveStorageBucket(process.env),
+          stagingBucket: resolveStorageBucket(process.env),
+        }),
+      }),
+      ...(config.turnstileSecretKey === undefined
+        ? {}
+        : { turnstileSecretKey: config.turnstileSecretKey }),
+    })
+  // Sem módulo de conta montado (064/T1), o cadastro do agregado não é publicado — mesma regra
+  // de capacidade por ausência que o próprio `userModule` já segue.
+  const aggregateAccountPublicRoutes =
+    userModule === undefined || config.companyId === undefined
+      ? []
+      : createAggregateAccountPublicRoutes({
+          aggregateAccounts: createAggregateAccountUseCase({
+            companyGroupRepository: createDrizzleCompanyGroupRepository(database),
+            landingCompanyId: config.companyId,
+            repository: createDrizzleAggregateAccountRepository(database),
+            userModule,
+          }),
+        })
+  if (config.companyId === undefined) {
+    return [
+      ...nfseCallbackRoutes,
+      ...whatsappWebhookRoutes,
+      ...publicExtraChargeBatchRoutes,
+      /**
+       * O endereço público da foto de perfil. Ele existe sempre: o token é a credencial, e uma foto
+       * só ganha endereço quando alguém a envia — não há superfície ociosa a esconder.
+       */
+      ...createPublicUserPictureRoutes({
+        userPicture: createPublicUserPictureUseCase({
+          repository: new DrizzleUserPictureRepository(database),
+        }),
+      }),
+      ...landingPublicRoutes,
+      ...publicCnpjInfoRoutes,
+      ...aggregateApplicationPublicRoutes,
+      ...aggregateApplicationAttachmentPublicRoutes,
+    ]
+  }
 
   return [
+    ...loginHintRoutes,
     ...nfseCallbackRoutes,
+    ...whatsappWebhookRoutes,
+    ...publicExtraChargeBatchRoutes,
+    ...landingPublicRoutes,
+    ...publicCnpjInfoRoutes,
+    ...aggregateApplicationPublicRoutes,
+    ...aggregateApplicationAttachmentPublicRoutes,
+    ...aggregateAccountPublicRoutes,
     ...createBootstrapRoutes({
       bootstrapFirstAdmin: createBootstrapFirstAdminUseCase({
         companyId: config.companyId,
@@ -407,6 +835,10 @@ function createAnonymousRoutes({
 }
 
 type CreateApplicationRoutesParams = {
+  /** Endereço público desta instalação. Ausente, a foto é gravada e o atributo do realm não. */
+  readonly apiPublicUrl: string | undefined
+  /** Ausente é instalação sem notificação: a emissão automática recusa igual, e só não avisa. */
+  readonly automaticManifestNotifier: AutomaticManifestNotifierPort | undefined
   readonly database: CompanySettingsDatabase
   readonly envelopeKeyRing: import('@adatechnology/secret-envelope').SecretKeyRing
   readonly environment: Record<string, string | undefined>
@@ -414,10 +846,14 @@ type CreateApplicationRoutesParams = {
   readonly keycloak: ApiEnvironment['keycloak']
   readonly logger: ApiLogger
   readonly postalCodeProviders: ApiEnvironment['postalCodeProviders']
+  /** Ausente sem broker: sem quem resolva, a rota de sugestão não sobe (ADR-0044 §7). */
+  readonly routeOptimizationQueue: RouteOptimizationQueue | undefined
   readonly vehicleCatalog: ApiEnvironment['vehicleCatalog']
 }
 
 function createApplicationRoutes({
+  apiPublicUrl,
+  automaticManifestNotifier,
   database,
   envelopeKeyRing,
   environment,
@@ -425,16 +861,80 @@ function createApplicationRoutes({
   keycloak,
   logger,
   postalCodeProviders,
+  routeOptimizationQueue,
   vehicleCatalog,
 }: CreateApplicationRoutesParams): readonly ReturnType<
   typeof createCompanySettingsRoutes
 >[number][] {
+  const contractorRegistry = createContractorsUseCase({
+    repository: new DrizzleContractorRepository(database),
+  })
+  const contractorPortalBindings = new DrizzleContractorPortalBindingRepository(database)
+  const tripLocationRepository = new DrizzleTripLocationRepository(database)
+  const recordTripLocation = createRecordTripLocationUseCase({ repository: tripLocationRepository })
+  const contractorPortalRepository = new DrizzleContractorPortalRepository(database)
+  const readContractorDeliveries = createReadContractorDeliveriesUseCase({
+    repository: contractorPortalRepository,
+  })
+  const municipalHolidays = createMunicipalHolidaysUseCase({
+    repository: new DrizzleMunicipalHolidayRepository(database),
+  })
+  const deliveryChargeRepository = new DrizzleDeliveryChargeRepository(database)
+  const deliveryChargeRuleRepository = new DrizzleDeliveryChargeRuleRepository(database)
+  const deliveryCharges = createDeliveryChargesUseCase({ repository: deliveryChargeRepository })
+  const suggestDeliveryCharges = createSuggestDeliveryCharges({
+    charges: deliveryChargeRepository,
+    logger,
+    rules: deliveryChargeRuleRepository,
+  })
+  const extraChargeBatches = createExtraChargeBatchesUseCase({
+    batches: new DrizzleExtraChargeBatchRepository(database),
+    charges: deliveryChargeRepository,
+    createToken: createExtraChargeBatchToken,
+  })
+  const tripStopSchedules = createTripStopSchedulesUseCase({
+    repository: new DrizzleTripStopScheduleRepository(database),
+  })
+  /**
+   * O agendamento do portal escreve pela mesma máquina da 060 — a `tripStopSchedules` acima, não uma
+   * cópia. É a ADR-0050 §6: nenhuma regra de agendamento mora no portal.
+   */
+  const readContractorDeliveryLocation = createReadContractorDeliveryLocationUseCase({
+    locations: tripLocationRepository,
+    repository: contractorPortalRepository,
+  })
+  const scheduleContractorDelivery = createScheduleContractorDeliveryUseCase({
+    repository: contractorPortalRepository,
+    schedules: { save: (input) => tripStopSchedules.save(input) },
+  })
+  /** O ciclo do lançamento é o da 060 — o portal acrescenta o recorte, não uma segunda máquina. */
+  const contractorExtraCharges = createContractorExtraChargesUseCase({
+    batches: {
+      decide: (input) => extraChargeBatches.decide(input),
+      readReport: (input) => extraChargeBatches.readReport(input),
+    },
+    repository: contractorPortalRepository,
+  })
+  const deliveryClients = createDeliveryClientsUseCase({
+    repository: new DrizzleDeliveryClientRepository(database),
+  })
   const settingsRepository = new DrizzleCompanySettingsRepository(database)
   const scheduledDistributionRepository = new DrizzleScheduledDistributionRepository(database)
   const distributionCursorRepository = new DrizzleDistributionCursorRepository(database)
+  const cargoSettingsRepository = new DrizzleCargoSettingsRepository(database)
   const fuelPriceRepository = new DrizzleFuelPriceRepository(database)
   const companyEnergyRepository = new DrizzleCompanyEnergyRepository(database)
   const companyLogoRepository = new DrizzleCompanyLogoRepository(database)
+  const landingSettings = createLandingSettingsUseCase({
+    companyGroupRepository: createDrizzleCompanyGroupRepository(database),
+    landingCompanyId: undefined,
+    landingSettingsRepository: createDrizzleLandingSettingsRepository(database),
+  })
+  const aggregateApplications = createAggregateApplicationsUseCase({
+    companyGroupRepository: createDrizzleCompanyGroupRepository(database),
+    landingCompanyId: undefined,
+    repository: createDrizzleAggregateApplicationRepository(database),
+  })
   const certificateRepository = new DrizzleDigitalCertificateRepository(database)
   const companyProfileLookupGateway = createFiscalCompanyProfileLookupGateway()
   const freightRepository = new DrizzleFreightRepository(database)
@@ -456,6 +956,34 @@ function createApplicationRoutes({
   const mdfeManifestRepository = new DrizzleMdfeManifestRepository(database)
   const mdfeIssuanceRepository = new DrizzleMdfeIssuanceRepository(database)
   const tripRepository = new DrizzleTripRepository(database)
+  const tripDocumentRepository = new DrizzleTripDocumentRepository(database)
+  const tripDocumentBatchRepository = new DrizzleTripDocumentBatchRepository(database)
+  const tripRouteRepository = new DrizzleTripRouteRepository(database)
+  const tripStopLookupRepository = new DrizzleTripStopLookupRepository(database)
+  const deliveryAddressOverrideRepository = new DrizzleDeliveryAddressOverrideRepository(database)
+  const currentDriverTripRepository = new DrizzleCurrentDriverTripRepository(database)
+  const tripFiscalReadinessQuery = new DrizzleTripFiscalReadinessQuery(database)
+  const tripValuationQuery = new DrizzleTripValuationQuery(database)
+  const tripFinancialResultRepository = new DrizzleTripFinancialResultRepository(database)
+  const financialSummaryQuery = new DrizzleFinancialSummaryQuery(database)
+  const tripCostRepository = new DrizzleTripCostRepository(database)
+  const applicableFreightRuleQuery = new DrizzleApplicableFreightRuleQuery(database)
+  const automaticManifestRepository = new DrizzleAutomaticManifestRepository({
+    database,
+    readiness: tripFiscalReadinessQuery,
+  })
+  const driverFieldReports = new DrizzleDriverFieldReportUnitOfWork(database)
+  const deliveryProofRepository = new DrizzleDeliveryProofRepository(database)
+  const tripLifecycle = createTripLifecycleUseCase({
+    batchRepository: tripDocumentBatchRepository,
+    deliveryAddressOverrideRepository,
+    documentRepository: tripDocumentRepository,
+    locationRepository: tripStopLookupRepository,
+    routeRepository: tripRouteRepository,
+    stopRepository: tripStopLookupRepository,
+    suggestCharges: suggestDeliveryCharges,
+    trackingRepository: tripLocationRepository,
+  })
   const cteBatchRepository = new DrizzleCteBatchRepository(database)
   const cteEmissionProfileRepository = new DrizzleCteEmissionProfileRepository(database)
   const nfseProfileRepository = new DrizzleNfseProfileRepository(database)
@@ -545,9 +1073,13 @@ function createApplicationRoutes({
     now: () => new Date(),
     repository: mdfeIssuanceRepository,
   })
-  const trips = createTripUseCase({ repository: tripRepository })
+  const trips = createTripUseCase({ locations: tripLocationRepository, repository: tripRepository })
   const createTripMdfeManifest = createTripMdfeManifestUseCase({
     manifests: mdfeManifests,
+    readiness: {
+      countDischargeCities: (input) => tripFiscalReadinessQuery.countDischargeCities(input),
+      read: (input) => readTripFiscalReadiness({ ...input, repository: tripFiscalReadinessQuery }),
+    },
     trips,
   })
   const cteEmissionProfileCatalog = new DrizzleCteEmissionProfileCatalogRepository(
@@ -566,6 +1098,11 @@ function createApplicationRoutes({
   const nfseEmissionProfiles = createNfseEmissionProfilesUseCase({
     fingerprintService,
     unitOfWork: nfseProfileRepository,
+  })
+  const whatsappChannel = createWhatsAppChannelUseCase({
+    newChannelId: () => crypto.randomUUID(),
+    repository: new DrizzleWhatsAppChannelRepository(database),
+    secrets: createWhatsAppChannelSecretService({ envelopeProvider }),
   })
   const nfseProviderCredentials = createNfseProviderCredentialsUseCase({
     secretService: createNfseCredentialSecretService({ envelopeProvider }),
@@ -637,6 +1174,12 @@ function createApplicationRoutes({
     logos: dacteLogoGateway,
     selection: createCteExportSelection(database),
   })
+  const readMdfeDocument = createReadMdfeDocumentUseCase({
+    downloads: createMdfeDocumentDownloadGateway({ storage: storageGateway }),
+    renderer: createDamdfePdfGateway(),
+    source: createMdfeDocumentSource(database),
+    xmlReader: createMdfeXmlReaderGateway({ storage: storageGateway }),
+  })
   const renderDacte = createRenderDacteUseCase({
     logos: dacteLogoGateway,
     renderer: dactePdfGateway,
@@ -679,6 +1222,28 @@ function createApplicationRoutes({
     repository: fleetDriverRepository,
   })
   const listCompanyUsers = createListCompanyUsersUseCase({ repository: companyUserRepository })
+  const backfillIdentityDocuments = createBackfillIdentityDocumentsUseCase({
+    gateway: identityAccessGateway,
+    repository: companyUserRepository,
+  })
+  const companyGroupRepository = new DrizzleCompanyGroupRepository(database)
+  const groupAudit = createDrizzleGroupAudit(database)
+  const identityGroupGateway = createIdentityGroupGateway({
+    clientId: keycloak.admin.clientId,
+    clientSecret: keycloak.admin.clientSecret,
+    issuer: keycloak.issuer,
+  })
+  const assignCompanyUserRoles = createAssignCompanyUserRolesUseCase({
+    repository: companyUserRepository,
+  })
+  const revealCompanyUsers = createRevealCompanyUsersUseCase({
+    gateway: identityAccessGateway,
+    repository: companyUserRepository,
+  })
+  const reconcileCompanyUsers = createReconcileCompanyUsersUseCase({
+    gateway: identityAccessGateway,
+    repository: companyUserRepository,
+  })
   const resendCompanyUserCode = createResendCompanyUserCodeUseCase({
     envelopeProvider: invitationCodeSecret,
     invitations: invitationRepository,
@@ -699,8 +1264,13 @@ function createApplicationRoutes({
   })
   const updateCompanyUserProfile = createUpdateCompanyUserProfileUseCase({
     identityGateway: identityAccessGateway,
+    pictures: new DrizzleUserPictureRepository(database),
     repository: companyUserRepository,
+    ...(apiPublicUrl === undefined ? {} : { publicBaseUrl: apiPublicUrl }),
   })
+  const attachmentReviewRepository =
+    createDrizzleAggregateApplicationAttachmentReviewRepository(database)
+
   return [
     ...createCompanySettingsRoutes({
       getSettings: createGetCompanySettingsUseCase({ repository: settingsRepository }),
@@ -720,6 +1290,11 @@ function createApplicationRoutes({
         unitOfWork: scheduledDistributionRepository,
       }),
       getStatus: getScheduledDistribution,
+    }),
+    ...createCargoSettingsRoutes({
+      clear: createClearDefaultVolumeWeightUseCase({ cargoSettings: cargoSettingsRepository }),
+      get: createGetCargoSettingsUseCase({ cargoSettings: cargoSettingsRepository }),
+      set: createSetDefaultVolumeWeightUseCase({ cargoSettings: cargoSettingsRepository }),
     }),
     ...createFuelPriceRoutes({
       adjust: createAdjustFuelPriceUseCase({ fuelPrices: fuelPriceRepository }),
@@ -741,6 +1316,61 @@ function createApplicationRoutes({
     }),
     ...createCompanyLogoRoutes({
       companyLogo: createCompanyLogoUseCase({ repository: companyLogoRepository }),
+    }),
+    ...(routeOptimizationQueue === undefined
+      ? []
+      : createRouteSuggestionRoutes({
+          geocodedAddressCorrection: createGeocodedAddressCorrectionUseCase({
+            repository: createDrizzleGeocodedAddressRepository(database),
+          }),
+          routeSuggestions: createRouteSuggestionUseCase({
+            queue: routeOptimizationQueue,
+            repository: createDrizzleRouteSuggestionRepository(database),
+            stopOrder: createTripStopOrderWriter(tripRouteRepository),
+            trips: createDrizzleTripRouteGate(database),
+          }),
+        })),
+    /**
+     * Spec 058 P2: a multi-veículo mora fora da árvore `/trips/:id` — ela existe **antes** de as
+     * viagens existirem. Ela só é registrada com a fila de pé, pela mesma razão da sugestão de
+     * viagem: sem broker, pedir sugestão é pedir algo que ninguém vai processar.
+     */
+    ...(routeOptimizationQueue === undefined
+      ? []
+      : createMultiVehicleSuggestionRoutes({
+          multiVehicleSuggestions: createMultiVehicleSuggestionUseCase({
+            multiVehicle: createDrizzleMultiVehicleSuggestionRepository(database),
+            queue: routeOptimizationQueue,
+            suggestions: createDrizzleRouteSuggestionRepository(database),
+            trips: createTripComposer({
+              create: (input) => trips.create(input),
+              link: (input) => trips.linkDocument(input),
+              /**
+               * A leitura vai direto ao caso de uso de listar parada, e não ao ciclo de vida com um
+               * contexto meia-boca: aqui só o `companyId` importa, e é o que `listTripStops` recebe.
+               */
+              listStops: async (input) =>
+                (await listTripStops({ ...input, repository: tripStopLookupRepository })).stops,
+              planRoute: (input) => tripLifecycle.planRoute.execute(input),
+              reorder: (input) => tripLifecycle.reorderStops.execute(input),
+            }),
+          }),
+        })),
+    ...createLandingSettingsRoutes({ landingSettings }),
+    ...createAggregateApplicationRoutes({ aggregateApplications }),
+    ...createAggregateApplicationAttachmentReviewRoutes({
+      attachmentReview: createAggregateApplicationAttachmentReviewUseCase({
+        repository: attachmentReviewRepository,
+      }),
+      createSignedDownload: (input) => storageGateway.createSignedDownload(input),
+      findDownloadLocation: (input) => attachmentReviewRepository.findDownloadLocation(input),
+    }),
+    ...createAggregateDocumentReviewRoutes({
+      aggregateDocumentReview: createAggregateDocumentReviewUseCase({
+        bucket: storageBucket,
+        repository: createDrizzleAggregateDocumentRepository(database),
+        storage: storageGateway,
+      }),
     }),
     ...createDigitalCertificateRoutes({
       listCertificates: createListDigitalCertificatesUseCase({ repository: certificateRepository }),
@@ -778,6 +1408,93 @@ function createApplicationRoutes({
       listCoverage: { execute: (input) => fleetDriverRegions.list(input) },
       replaceCoverage: { execute: (input) => fleetDriverRegions.replace(input) },
     }),
+    ...createFinancialSummaryRoutes({
+      readSummary: {
+        execute: async (input) => {
+          const filters = {
+            companyId: input.context.companyId,
+            from: input.from,
+            groupBy: input.groupBy,
+            to: input.to,
+          }
+
+          return buildFinancialSummary({
+            payrollAmount: await financialSummaryQuery.readPayroll(filters),
+            rows: await financialSummaryQuery.listGroups(filters),
+          })
+        },
+      },
+    }),
+    ...createExtraChargeBatchRoutes({
+      closeBatch: { execute: (input) => extraChargeBatches.close(input) },
+      decideBatch: { execute: (input) => extraChargeBatches.decide(input) },
+      readReport: { execute: (input) => extraChargeBatches.readReport(input) },
+    }),
+    ...createDeliveryChargeRoutes({
+      confirmCharges: { execute: (input) => deliveryCharges.confirm(input) },
+      deactivateRule: {
+        execute: async (input) => {
+          await deliveryChargeRuleRepository.deactivate({
+            actorUserId: input.context.userId,
+            companyId: input.context.companyId,
+            ruleId: input.ruleId,
+          })
+        },
+      },
+      dismissCharge: { execute: (input) => deliveryCharges.dismiss(input) },
+      listCharges: { execute: (input) => deliveryCharges.list(input) },
+      listRules: {
+        execute: (input) =>
+          deliveryChargeRuleRepository.listByClient({
+            companyId: input.context.companyId,
+            deliveryClientId: input.deliveryClientId,
+          }),
+      },
+      recordCharge: { execute: (input) => deliveryCharges.record(input) },
+      upsertRule: {
+        execute: (input) =>
+          deliveryChargeRuleRepository.upsert({
+            actorUserId: input.context.userId,
+            chargeType: input.chargeType,
+            companyId: input.context.companyId,
+            deliveryClientId: input.deliveryClientId,
+            expectedAmount: input.expectedAmount,
+          }),
+      },
+    }),
+    ...createContractorRoutes({
+      createContractor: { execute: (input) => contractorRegistry.create(input) },
+      getByTaxId: { execute: (input) => contractorRegistry.getByTaxId(input) },
+      getContractor: { execute: (input) => contractorRegistry.get(input) },
+      listContractors: { execute: (input) => contractorRegistry.list(input) },
+      listHolidays: { execute: (input) => municipalHolidays.list(input) },
+      removeHoliday: { execute: (input) => municipalHolidays.remove(input) },
+      saveHoliday: { execute: (input) => municipalHolidays.save(input) },
+      updateContractor: { execute: (input) => contractorRegistry.update(input) },
+    }),
+    ...createContractorDeliveryRoutes({
+      listDeliveries: { execute: (input) => readContractorDeliveries(input) },
+      readDeliveryLocation: { execute: (input) => readContractorDeliveryLocation(input) },
+      scheduleDelivery: { execute: (input) => scheduleContractorDelivery(input) },
+    }),
+    ...createContractorExtraChargeRoutes({
+      decideBatch: { execute: (input) => contractorExtraCharges.decide(input) },
+      listBatches: { execute: (input) => contractorExtraCharges.list(input) },
+    }),
+    ...createContractorPortalBindingRoutes({
+      bindPortalUser: { execute: (input) => contractorPortalBindings.bind(input) },
+      listPortalUsers: { execute: (input) => contractorPortalBindings.list(input) },
+      unbindPortalUser: { execute: (input) => contractorPortalBindings.unbind(input) },
+    }),
+    ...createDeliveryClientRoutes({
+      createClient: { execute: (input) => deliveryClients.create(input) },
+      getByTaxId: { execute: (input) => deliveryClients.getByTaxId(input) },
+      getClient: { execute: (input) => deliveryClients.get(input) },
+      listClients: { execute: (input) => deliveryClients.list(input) },
+      replaceExceptions: { execute: (input) => deliveryClients.replaceExceptions(input) },
+      replaceWindows: { execute: (input) => deliveryClients.replaceWindows(input) },
+      updateClient: { execute: (input) => deliveryClients.update(input) },
+    }),
     ...createFreightRegionRoutes({
       createRegion: { execute: (input) => freightRegions.create(input) },
       deleteRegion: { execute: (input) => freightRegions.delete(input) },
@@ -799,15 +1516,173 @@ function createApplicationRoutes({
         issue: (input) => mdfeIssuance.issue(input),
       },
     }),
+    ...createMeLocationRoutes({
+      recordLocation: (input) => recordTripLocation(input),
+      resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
+      setConsent: (input) => tripLocationRepository.setConsent(input),
+    }),
+    ...createMeTripRoutes({
+      attachProof: (input) =>
+        attachDeliveryProof({
+          ...input,
+          newObjectId: () => crypto.randomUUID(),
+          repository: deliveryProofRepository,
+          storage: createDeliveryProofStorage({
+            bucket: storageBucket,
+            storage: storageGateway,
+          }),
+        }),
+      findCurrentTrip: (input) =>
+        findCurrentDriverTrip({ ...input, repository: currentDriverTripRepository }),
+      readManifestXml: (input) => readMdfeDocument.readXmlDownload(input),
+      renderManifestDamdfe: (input) => readMdfeDocument.renderDamdfe(input),
+      reportArrival: (input) =>
+        reportStopArrival({ ...input, now: new Date(), unitOfWork: driverFieldReports }),
+      reportDelivery: (input) =>
+        reportDocumentDelivery({ ...input, now: new Date(), unitOfWork: driverFieldReports }),
+      reportOccurrence: (input) =>
+        reportStopOccurrence({
+          ...input,
+          attachmentObjectId: null,
+          suggestCharges: suggestDeliveryCharges,
+          unitOfWork: driverFieldReports,
+        }),
+      reportReturn: (input) =>
+        reportDocumentReturn({ ...input, now: new Date(), unitOfWork: driverFieldReports }),
+      resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
+    }),
     ...createTripRoutes({
+      batchStatus: { execute: (input) => tripLifecycle.batchStatus.execute(input) },
+      cancelTrip: { execute: (input) => tripLifecycle.cancel.execute(input) },
       closeTrip: { execute: (input) => trips.close(input) },
       createTrip: { execute: (input) => trips.create(input) },
       createTripMdfeManifest: { execute: (input) => createTripMdfeManifest.execute(input) },
       deliverTripDocument: { execute: (input) => trips.deliverDocument(input) },
+      dispatchTrip: { execute: (input) => tripLifecycle.dispatch.execute(input) },
+      createTripCteBatch: {
+        execute: async (input) => {
+          const batch = await createTripCteBatch({
+            companyId: input.companyId,
+            correlationId: input.correlationId,
+            createBatch: async (batchInput) => {
+              const created = await cteBatches.create({
+                context: { companyId: batchInput.companyId, userId: batchInput.userId },
+                correlationId: batchInput.correlationId,
+                documentIds: batchInput.documentIds,
+                idempotencyKey: batchInput.idempotencyKey,
+                name: batchInput.name,
+              })
+              return { id: String(created.id) }
+            },
+            idempotencyKey: input.idempotencyKey,
+            readReadiness: (readinessInput) =>
+              readTripFiscalReadiness({
+                ...readinessInput,
+                repository: tripFiscalReadinessQuery,
+              }),
+            tripId: input.tripId,
+            userId: input.userId,
+          })
+          return batch
+        },
+      },
       getTrip: { execute: (input) => trips.get(input) },
+      listSchedules: { execute: (input) => tripStopSchedules.list(input) },
+      readFinancialResult: {
+        execute: (input) =>
+          tripFinancialResultRepository.findCurrent({
+            companyId: input.context.companyId,
+            tripId: input.tripId,
+          }),
+      },
+      recalculateFinancialResult: {
+        execute: async (input) =>
+          freezeTripFinancialResult({
+            actorUserId: input.context.userId,
+            assumptions: {},
+            companyId: input.context.companyId,
+            reason: input.reason,
+            repository: tripFinancialResultRepository,
+            tripId: input.tripId,
+            valuation: await readTripValuation({
+              companyId: input.context.companyId,
+              repository: {
+                findApplicableRule: (query) => applicableFreightRuleQuery.findApplicableRule(query),
+                readContext: (query) => tripValuationQuery.readContext(query),
+              },
+              tripId: input.tripId,
+            }),
+          }),
+      },
+      recordTripCost: {
+        execute: (input) =>
+          tripCostRepository.record({
+            actorUserId: input.context.userId,
+            amount: input.amount,
+            companyId: input.context.companyId,
+            description: input.description,
+            kind: input.kind,
+            tripId: input.tripId,
+          }),
+      },
+      saveSchedule: { execute: (input) => tripStopSchedules.save(input) },
+      issueManifestAutomatically: {
+        execute: (input) =>
+          issueTripManifestAutomatically({
+            context: { companyId: input.companyId, userId: input.userId },
+            correlationId: input.correlationId,
+            createManifest: createTripMdfeManifest,
+            ...(automaticManifestNotifier === undefined
+              ? {}
+              : { notifier: automaticManifestNotifier }),
+            repository: automaticManifestRepository,
+            tripId: input.tripId,
+          }),
+      },
+      readFiscalReadiness: {
+        execute: (input) =>
+          readTripFiscalReadiness({ ...input, repository: tripFiscalReadinessQuery }),
+      },
+      readValuation: {
+        execute: (input) =>
+          readTripValuation({
+            ...input,
+            repository: {
+              findApplicableRule: (query) => applicableFreightRuleQuery.findApplicableRule(query),
+              readContext: (query) => tripValuationQuery.readContext(query),
+            },
+          }),
+      },
+      setMdfeRequirement: {
+        execute: (input) =>
+          setTripMdfeRequirement({
+            ...input,
+            readinessRepository: tripFiscalReadinessQuery,
+            repository: tripFiscalReadinessQuery,
+          }),
+      },
       linkTripDocument: { execute: (input) => trips.linkDocument(input) },
+      listStops: { execute: (input) => tripLifecycle.listStops.execute(input) },
       listTrips: { execute: (input) => trips.list(input) },
+      loadTripDocument: { execute: (input) => tripLifecycle.load.execute(input) },
+      planTripRoute: { execute: (input) => tripLifecycle.planRoute.execute(input) },
+      listDeliveryAddressHistory: {
+        execute: (input) => tripLifecycle.listDeliveryAddressHistory.execute(input),
+      },
+      overrideDeliveryAddress: {
+        execute: (input) => tripLifecycle.overrideDeliveryAddress.execute(input),
+      },
+      listReturnedWithActiveCte: {
+        execute: (input) =>
+          listReturnedWithActiveCte({
+            companyId: input.context.companyId,
+            repository: tripDocumentRepository,
+          }),
+      },
       releaseTripDocument: { execute: (input) => trips.releaseDocument(input) },
+      reorderStops: { execute: (input) => tripLifecycle.reorderStops.execute(input) },
+      returnTripDocument: { execute: (input) => tripLifecycle.return.execute(input) },
+      separateTripDocument: { execute: (input) => tripLifecycle.separate.execute(input) },
     }),
     ...createCteEmissionProfileRoutes({
       activateProfile: { execute: (input) => cteEmissionProfiles.activate(input) },
@@ -911,6 +1786,11 @@ function createApplicationRoutes({
       listProfiles: { execute: (input) => nfseEmissionProfiles.list(input) },
       updateProfile: { execute: (input) => nfseEmissionProfiles.update(input) },
     }),
+    ...createWhatsAppChannelRoutes({
+      readChannel: { execute: (input) => whatsappChannel.read(input) },
+      removeChannel: { execute: (input) => whatsappChannel.remove(input) },
+      saveChannel: { execute: (input) => whatsappChannel.save(input) },
+    }),
     ...createNfseProviderCredentialRoutes({
       readCredential: { execute: (input) => nfseProviderCredentials.read(input) },
       saveCredential: { execute: (input) => nfseProviderCredentials.save(input) },
@@ -974,18 +1854,67 @@ function createApplicationRoutes({
       getDocument: { execute: (input) => nfeDocumentRepository.get(input) },
       getEligibility: { execute: (input) => nfeDocumentRepository.getEligibility(input) },
       listDocuments: { execute: (input) => nfeDocumentRepository.list(input) },
+      locateTripByAccessKey: { execute: (input) => tripLifecycle.locateByAccessKey.execute(input) },
     }),
     ...createViewPreferencesRoutes({
       getPreferences: createGetViewPreferencesUseCase({ repository: viewPreferencesRepository }),
       savePreferences: createSaveViewPreferencesUseCase({ repository: viewPreferencesRepository }),
     }),
+    ...createCompanyGroupRoutes({
+      groups: createManageCompanyGroupsUseCase({
+        audit: groupAudit,
+        realm: identityGroupGateway,
+        repository: companyGroupRepository,
+      }),
+      permissions: createManageDirectPermissionsUseCase({
+        audit: groupAudit,
+        repository: companyGroupRepository,
+      }),
+    }),
+    ...createUserPictureRoutes({
+      userPicture: createUserPictureUseCase({
+        identityGateway: identityAccessGateway,
+        ...(apiPublicUrl === undefined ? {} : { publicBaseUrl: apiPublicUrl }),
+        repository: new DrizzleUserPictureRepository(database),
+      }),
+    }),
     ...createUserAdministrationRoutes({
       changeStatus: changeCompanyUserStatus,
       invite: inviteCompanyUser,
       list: listCompanyUsers,
+      backfillDocuments: backfillIdentityDocuments,
+      reconcile: reconcileCompanyUsers,
+      assignRoles: assignCompanyUserRoles,
+      rolePermissions: createListRolePermissionsUseCase(),
+      reveal: revealCompanyUsers,
+      adoptRealmFields: createAdoptRealmFieldsUseCase({
+        audit: groupAudit,
+        gateway: identityAccessGateway,
+        repository: companyUserRepository,
+      }),
+      identifiers: createManageCompanyUserIdentifiersUseCase({
+        repository: companyUserRepository,
+      }),
+      fillProfiles: createFillProfilesFromRealmUseCase({
+        audit: groupAudit,
+        gateway: identityAccessGateway,
+        issuer: keycloak.issuer,
+        repository: companyUserRepository,
+      }),
+      synchronize: createSynchronizeIdentitiesUseCase({
+        audit: groupAudit,
+        gateway: identityAccessGateway,
+        issuer: keycloak.issuer,
+        repository: companyUserRepository,
+      }),
       removeMembership: removeCompanyUserMembership,
       replaceRoles: replaceCompanyUserRoles,
       resendCode: resendCompanyUserCode,
+      setPassword: createSetCompanyUserPasswordUseCase({
+        audit: groupAudit,
+        gateway: identityAccessGateway,
+        repository: companyUserRepository,
+      }),
       updateProfile: updateCompanyUserProfile,
     }),
   ]

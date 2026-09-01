@@ -1,0 +1,128 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+.section {
+  margin: 0 auto;
+  max-width: 32rem;
+  padding: var(--space-8) var(--layout-gutter) var(--space-12);
+}
+
+.title {
+  font-size: 1.35rem;
+  margin: 0 0 var(--space-6);
+}
+
+.form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.field {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.label {
+  color: var(--color-slate);
+  font-size: var(--field-font-size-compact);
+}
+
+.input,
+.select {
+  background: var(--color-graphite);
+  border: 1px solid var(--color-slate);
+  border-radius: var(--space-2);
+  color: var(--color-fog);
+  font-size: var(--field-font-size);
+  height: var(--field-height);
+  padding: var(--field-padding);
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+}
+
+.submitButton {
+  background: var(--color-accent);
+  border: none;
+  border-radius: var(--space-2);
+  color: var(--color-asphalt);
+  cursor: pointer;
+  font-size: var(--field-font-size);
+  font-weight: 600;
+  height: var(--control-height);
+  min-width: var(--touch-target);
+  padding: 0 var(--space-6);
+  width: 100%;
+}
+
+.submitButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.feedback {
+  border-radius: var(--space-2);
+  padding: var(--space-4);
+}
+
+.feedbackSuccess {
+  background: var(--color-ready);
+  color: var(--color-asphalt);
+}
+
+.feedbackError {
+  background: var(--color-alert);
+  color: var(--color-asphalt);
+}
+
+.fieldset {
+  border: 1px solid var(--color-slate);
+  border-radius: var(--space-2);
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  min-width: 0;
+  padding: var(--space-4) var(--space-3);
+}
+
+.legend {
+  color: var(--color-fog);
+  font-size: var(--field-font-size);
+  font-weight: 600;
+  padding: 0 var(--space-2);
+}
+
+.hint {
+  color: var(--color-slate);
+  font-size: var(--field-font-size-compact);
+  margin: 0;
+}
+
+.fieldRow {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: 1fr;
+}
+
+/* Par de rótulo largo + rótulo curto cabe lado a lado mesmo em 320px. */
+.fieldRowTight {
+  grid-template-columns: 2fr 1fr;
+}
+
+@media (min-width: 30rem) {
+  .fieldRow,
+  .fieldRowTight {
+    grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  }
+
+  .fieldset {
+    padding: var(--space-4);
+  }
+
+  .submitButton {
+    width: auto;
+  }
+
+  .title {
+    font-size: 1.5rem;
+  }
+}

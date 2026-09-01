@@ -202,7 +202,7 @@
   margin-bottom: 0.75rem;
 }
 
-@media (min-width: 48rem) {
+@media (min-width: 40rem) {
   .hero {
     grid-template-columns: minmax(0, 2fr) minmax(15rem, 1fr);
     align-items: end;

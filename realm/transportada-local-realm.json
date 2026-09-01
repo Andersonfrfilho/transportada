@@ -8,6 +8,7 @@
   "loginWithEmailAllowed": false,
   "duplicateEmailsAllowed": false,
   "resetPasswordAllowed": false,
+  "editUsernameAllowed": true,
   "loginTheme": "transportada",
   "roles": {
     "realm": [
@@ -31,6 +32,9 @@
       },
       {
         "name": "driver"
+      },
+      {
+        "name": "transportada-service"
       }
     ]
   },
@@ -107,6 +111,22 @@
       "serviceAccountsEnabled": true,
       "redirectUris": [],
       "webOrigins": []
+    },
+    {
+      "clientId": "transportada-worker",
+      "name": "TransportAdA local worker service account",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "bearerOnly": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${KEYCLOAK_WORKER_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "redirectUris": [],
+      "webOrigins": []
     }
   ],
   "users": [
@@ -117,6 +137,13 @@
       "clientRoles": {
         "realm-management": ["manage-users"]
       }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000009",
+      "username": "service-account-transportada-worker",
+      "enabled": true,
+      "serviceAccountClientId": "transportada-worker",
+      "realmRoles": ["transportada-service"]
     },
     {
       "id": "00000000-0000-4000-8000-000000000002",

@@ -5,8 +5,10 @@ import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, asc, eq, inArray } from 'drizzle-orm'
 
 import { cteBatchItemDocuments, cteBatchItems } from '../../database/cte-batch.schema.js'
+import { companyCargoSettings } from '../../database/company-cargo-settings.schema.js'
 import { companyFiscalProfiles } from '../../database/company-fiscal-profile.schema.js'
 import { cteEmissionProfiles } from '../../database/cte-emission-profile.schema.js'
+import { resolveCargoWeight } from '../../nfe-documents/domain/cargo-weight.policy.js'
 import {
   nfeAddresses,
   nfeDocuments,
@@ -277,10 +279,11 @@ async function loadInvoices(
   if (documents.length === 0) return []
 
   const documentIds = documents.map((document) => document.id)
-  const [parties, products, volumes] = await Promise.all([
+  const [parties, products, volumes, defaultWeightPerVolume] = await Promise.all([
     loadParties(queryable, query.companyId, documentIds),
     loadProducts(queryable, query.companyId, documentIds),
     loadVolumes(queryable, query.companyId, documentIds),
+    loadDefaultVolumeWeight(queryable, query.companyId),
   ])
 
   return documents.flatMap((document) => {
@@ -294,7 +297,7 @@ async function loadInvoices(
         recipient: documentParties.recipient,
         sender: documentParties.sender,
         totalAmount: document.totalAmount,
-        volumes: volumes.get(document.id) ?? [],
+        volumes: applyEstimatedWeight(volumes.get(document.id) ?? [], defaultWeightPerVolume),
       },
     ]
   })
@@ -399,6 +402,54 @@ async function loadProducts(
   }
 
   return products
+}
+
+/**
+ * Spec 067: quando o emitente não declarou massa, a estimativa entra **por volume**, e não como um
+ * total colado na nota — assim a soma que `composeCargoQuantities` faz continua sendo a soma dos
+ * volumes, e o `infQ` sai coerente com o `qVol` que o XML declarou.
+ *
+ * Volume que já tem peso nunca é tocado: nota parcialmente pesada mantém o que o emitente disse.
+ */
+function applyEstimatedWeight(
+  volumes: readonly CtePayloadVolume[],
+  defaultWeightPerVolume: string | null,
+): readonly CtePayloadVolume[] {
+  if (defaultWeightPerVolume === null) return volumes
+
+  const declared = volumes.some(
+    (volume) =>
+      resolveCargoWeight({
+        defaultWeightPerVolume: null,
+        volumeGrossWeight: volume.grossWeight,
+        volumeQuantity: volume.quantity,
+      }) !== null,
+  )
+  if (declared) return volumes
+
+  return volumes.map((volume) => {
+    const estimated = resolveCargoWeight({
+      defaultWeightPerVolume,
+      volumeGrossWeight: volume.grossWeight,
+      volumeQuantity: volume.quantity,
+    })
+
+    return estimated === null ? volume : { ...volume, grossWeight: estimated.grossWeight }
+  })
+}
+
+/** Uma consulta por lote: o padrão é da empresa, e o lote é de uma empresa só. */
+async function loadDefaultVolumeWeight(
+  queryable: PayloadQueryable,
+  companyId: string,
+): Promise<string | null> {
+  const [row] = await queryable
+    .select({ defaultVolumeWeight: companyCargoSettings.defaultVolumeWeight })
+    .from(companyCargoSettings)
+    .where(eq(companyCargoSettings.companyId, companyId))
+    .limit(1)
+
+  return row?.defaultVolumeWeight ?? null
 }
 
 async function loadVolumes(

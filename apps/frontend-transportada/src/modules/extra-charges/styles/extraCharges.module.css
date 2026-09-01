@@ -1,0 +1,97 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
+.shell {
+  display: grid;
+  gap: var(--space-6);
+  padding-block: var(--space-6);
+  width: var(--layout-width);
+}
+
+.header,
+.panelHeader {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.hint {
+  color: var(--color-slate);
+  margin: 0;
+}
+
+.error {
+  color: var(--color-alert);
+  margin: 0;
+}
+
+.panel {
+  border: 1px solid var(--color-slate);
+  border-radius: var(--space-2);
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.queue {
+  display: grid;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* A conferência é feita de pé, no balcão: a linha quebra e o alvo de toque é o de sempre. */
+.queueRow {
+  align-items: end;
+  border-bottom: 1px solid var(--color-graphite);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding-bottom: var(--space-2);
+}
+
+.queueRow > * {
+  min-height: 2.75rem;
+}
+
+.queueMeta {
+  color: var(--color-slate);
+}
+
+.amountField,
+.field {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.batchForm {
+  display: grid;
+  gap: var(--space-3);
+}
+
+@media (min-width: 64rem) {
+  .batchForm {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.report {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.table th,
+.table td {
+  border-bottom: 1px solid var(--color-graphite);
+  padding: var(--space-2);
+  text-align: left;
+}
+
+.total {
+  font-weight: 700;
+  margin: 0;
+}

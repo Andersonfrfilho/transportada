@@ -67,12 +67,34 @@ const CATALOG = [
     job: 'notification.schedules.run',
     minimumIntervalSeconds: 300,
   },
+  {
+    /** Spec 057: a rotina só toca o próprio banco — o que pode dar errado é o imprevisto, e o
+     * invólucro já tem nome para ele. */
+    failureOutcomes: [],
+    job: 'trip.location.purge',
+    minimumIntervalSeconds: 86_400,
+  },
+  {
+    /** O provedor é o único de fora que ela toca, e é a única coisa que pode faltar. */
+    failureOutcomes: ['identity_provider_unreachable'],
+    job: 'identity.document.backfill',
+    minimumIntervalSeconds: 86_400,
+  },
 ] as const
 
-const MIGRATION = '20260823175600_job_schedule_registry'
+/**
+ * O relógio não nasce inteiro numa migration só: cada rotina nova semeia a linha dela na sua. Ler só
+ * a primeira faria o teste dizer que a rotina nova "não foi semeada" quando ela foi — e faria a
+ * ausência de verdade passar despercebida na rotina seguinte.
+ */
+const SEED_MIGRATIONS = [
+  '20260823175600_job_schedule_registry',
+  '20260826101924_tough_killraven',
+  '20260829224254_identity_document_backfill_job',
+] as const
 
 describe('job catalog', () => {
-  test('names the four routines, in the order the clock seeds them', () => {
+  test('names every routine, in the order the clock seeds them', () => {
     expect(JOB_CATALOG).toEqual(CATALOG)
     expect(SCHEDULED_JOBS).toEqual(CATALOG.map((entry) => entry.job))
   })
@@ -195,13 +217,17 @@ describe('job catalog', () => {
 })
 
 async function readSeededIntervals(): Promise<Record<string, number>> {
-  const sql = await Bun.file(join(migrationsDirectory.pathname, MIGRATION, 'migration.sql')).text()
   const seeded: Record<string, number> = {}
-  const pattern = /\('([a-z.]+)',\s*(\d+),/g
-  for (const match of sql.matchAll(pattern)) {
-    const [, job, intervalSeconds] = match
-    if (job === undefined || intervalSeconds === undefined) continue
-    seeded[job] = Number(intervalSeconds)
+  for (const migration of SEED_MIGRATIONS) {
+    const sql = await Bun.file(
+      join(migrationsDirectory.pathname, migration, 'migration.sql'),
+    ).text()
+    const pattern = /\('([a-z.]+)',\s*(\d+),/g
+    for (const match of sql.matchAll(pattern)) {
+      const [, job, intervalSeconds] = match
+      if (job === undefined || intervalSeconds === undefined) continue
+      seeded[job] = Number(intervalSeconds)
+    }
   }
   return seeded
 }

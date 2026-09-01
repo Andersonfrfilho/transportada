@@ -4,6 +4,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+  aggregateApplications,
   companyEnergySettings,
   companyFuelPrices,
   energyTariffReferences,
@@ -38,6 +39,14 @@ describe('fleet tenant safety', () => {
       foreignColumns: ['id'],
       foreignTable: 'companies',
       name: 'fleet_driver_vehicle_assignments_company_id_companies_id_fk',
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
+    })
+    expect(foreignKeys(aggregateApplications)).toContainEqual({
+      columns: ['company_id'],
+      foreignColumns: ['id'],
+      foreignTable: 'companies',
+      name: 'aggregate_applications_company_id_companies_id_fk',
       onDelete: 'restrict',
       onUpdate: 'cascade',
     })

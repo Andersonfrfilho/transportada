@@ -14,9 +14,12 @@ const EXPECTED_ROLES = [
   'operator',
   'viewer',
   'driver',
+  /** ADR-0047 §2: o papel do service account. É por ele que a API reconhece o serviço. */
+  'transportada-service',
 ]
 const ADMIN_CLIENT_ID = 'transportada-admin'
 const ADMIN_CLIENT_SECRET_PLACEHOLDER = '${KEYCLOAK_ADMIN_CLIENT_SECRET}'
+const WORKER_CLIENT_SECRET_PLACEHOLDER = '${KEYCLOAK_WORKER_CLIENT_SECRET}'
 const REALM_MANAGEMENT_CLIENT = 'realm-management'
 const MANAGE_REALM_ROLE = 'manage-realm'
 const MANAGE_USERS_ROLE = 'manage-users'
@@ -46,6 +49,7 @@ type KeycloakRealm = {
   readonly roles: {
     readonly realm: readonly { readonly name: string }[]
   }
+  readonly editUsernameAllowed?: boolean
   readonly resetPasswordAllowed: boolean
   readonly sslRequired: string
   readonly users: readonly KeycloakUser[]
@@ -192,6 +196,8 @@ describe('local Keycloak realm contract', () => {
       '127.0.0.1:${MAILPIT_UI_PORT:-58025}:8025',
       '127.0.0.1:${KEYCLOAK_PORT}:8080',
       '127.0.0.1:${KEYCLOAK_MANAGEMENT_PORT}:9000',
+      // ADR-0044 §2: a matriz de estrada é nossa, e ela responde só para a máquina local
+      '127.0.0.1:${OSRM_PORT:-53005}:5000',
     ])
   })
 
@@ -344,7 +350,7 @@ describe('Keycloak Admin API service account contract', () => {
     for (const realm of await readEveryRealm()) {
       const secrets = collectSecretValues(realm)
 
-      expect(secrets).toEqual([ADMIN_CLIENT_SECRET_PLACEHOLDER])
+      expect(secrets).toEqual([ADMIN_CLIENT_SECRET_PLACEHOLDER, WORKER_CLIENT_SECRET_PLACEHOLDER])
       for (const secret of secrets) {
         expect(secret).toMatch(ENVIRONMENT_PLACEHOLDER)
       }
@@ -427,5 +433,29 @@ describe('Keycloak login theme contract', () => {
 
     expect(compose).toContain(`./${THEME_ROOT}:/opt/keycloak/themes/${THEME_NAME}:ro`)
     expect(dockerfile).toContain(`COPY ${THEME_ROOT} /opt/keycloak/themes/${THEME_NAME}`)
+  })
+})
+
+/**
+ * O login é editável no painel, e quem decide isso é o realm — não a nossa permissão.
+ * `editUsernameAllowed` é **desligado por padrão** no Keycloak, e com ele desligado o Admin API
+ * recusa a troca com 400: o operador só descobria ao salvar, e o banco já tinha gravado o login novo.
+ *
+ * Declarar no arquivo não basta: `--import-realm` ignora realm que já existe, então o passo de
+ * reconciliação do deploy é o único caminho até um ambiente que já subiu — o mesmo caminho do
+ * `loginTheme`, e pela mesma razão.
+ */
+describe('a troca de login é permitida pelo realm', () => {
+  test('os dois realms declaram `editUsernameAllowed`', async () => {
+    for (const realm of await readEveryRealm()) {
+      expect(realm.editUsernameAllowed).toBe(true)
+    }
+  })
+
+  test('a reconciliação alcança o realm que já existe', async () => {
+    const script = await readProjectFile('.github/scripts/keycloak-reconcile.sh')
+
+    expect(script).toContain('editUsernameAllowed')
+    expect(script).toContain('"editUsernameAllowed": true')
   })
 })

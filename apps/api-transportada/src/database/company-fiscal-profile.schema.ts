@@ -4,6 +4,7 @@
 import { sql } from 'drizzle-orm'
 import {
   bigint,
+  boolean,
   check,
   index,
   integer,
@@ -88,6 +89,13 @@ export const companyFiscalProfiles = pgTable(
     mdfePaymentBankCode: text('mdfe_payment_bank_code').notNull().default(''),
     mdfePaymentBankBranch: text('mdfe_payment_bank_branch').notNull().default(''),
     mdfePaymentPixKey: text('mdfe_payment_pix_key').notNull().default(''),
+    /**
+     * ADR-0046 §3: **nasce desligado**, e é o único jeito honesto de nascer. Emissão fiscal
+     * automática é ação irreversível contra órgão público — cancelar MDF-e tem janela e regra
+     * própria —, e ligar isso por padrão para todo cliente é decidir pelo cliente algo que custa
+     * dinheiro dele quando erra. Quem liga, liga sabendo, e a trilha grava quem ligou.
+     */
+    automaticMdfeOnCompletion: boolean('automatic_mdfe_on_completion').notNull().default(false),
     billingBankName: text('billing_bank_name').notNull().default(''),
     billingBankCode: text('billing_bank_code').notNull().default(''),
     billingBankBranch: text('billing_bank_branch').notNull().default(''),

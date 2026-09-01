@@ -135,6 +135,8 @@ export type FleetDriverBodyContract = Readonly<{
   name: string
   nationality: string
   phone: string
+  pixKey: string
+  pixKeyType: '' | 'cnpj' | 'cpf' | 'email' | 'phone' | 'random'
   rntrc: string
   taxId: string
 }>
@@ -275,6 +277,8 @@ export const DRIVER_BODY = {
   name: 'Jose da Silva',
   nationality: 'Brasileira',
   phone: '11988887777',
+  pixKey: '',
+  pixKeyType: '',
   rntrc: '',
   taxId: '12345678901',
 } as const satisfies FleetDriverBodyContract
@@ -303,6 +307,8 @@ export const DRIVER_CREATE_BODY = {
   name: 'Jose da Silva',
   nationality: 'Brasileira',
   phone: '11988887777',
+  pixKey: '',
+  pixKeyType: '',
   profile: 'driver',
   rntrc: '',
   taxId: '12345678901',
@@ -515,6 +521,8 @@ export const DRIVER_DRAFT_BODY = {
   name: '',
   nationality: 'Brasileiro',
   phone: '',
+  pixKey: '',
+  pixKeyType: '',
   rntrc: '',
   taxId: '',
 } as const satisfies Omit<FleetDriverBodyContract, 'membershipId'>

@@ -9,6 +9,7 @@ import styles from '../styles/fleet.module.css'
 
 type FleetFieldProps = Readonly<{
   error?: string | undefined
+  fromDocument?: boolean
   hint?: string
   inputRef?: ((element: HTMLInputElement | null) => void) | undefined
   inputMode?: 'numeric' | 'text'
@@ -46,6 +47,7 @@ type FleetMeasureFieldProps = Readonly<{
 
 type FleetSelectFieldProps<TValue extends string> = Readonly<{
   clearable?: boolean
+  fromDocument?: boolean
   label: string
   onChange: (value: TValue) => void
   optionLabelKey: string
@@ -61,6 +63,7 @@ type FleetSelectFieldProps<TValue extends string> = Readonly<{
  */
 export function FleetField({
   error,
+  fromDocument = false,
   hint,
   inputMode = 'text',
   inputRef,
@@ -78,6 +81,7 @@ export function FleetField({
       <span>
         {label}
         {optional ? <em className={styles.optionalMark}>{t('optionalMark')}</em> : null}
+        <DocumentOriginMark isVisible={fromDocument} />
       </span>
       <input
         aria-invalid={error === undefined ? undefined : true}
@@ -98,6 +102,18 @@ export function FleetField({
       {hint === undefined ? null : <small className={styles.fieldHint}>{hint}</small>}
     </label>
   )
+}
+
+/**
+ * Spec 048: o que veio do documento chega marcado, e a marca some assim que o operador edita o
+ * campo — a partir daí o dado é dele. É rótulo de texto, não cor: cor sozinha não é diferença que
+ * todo mundo enxerga.
+ */
+function DocumentOriginMark({ isVisible }: Readonly<{ isVisible: boolean }>) {
+  const { t } = useTranslation('documentIntake')
+  if (!isVisible) return null
+
+  return <em className={styles.documentMark}>{t('fromDocument')}</em>
 }
 
 /** O rótulo é o que distingue um campo do outro nesta tela; o id sai dele, sem acento nem espaço. */
@@ -205,6 +221,7 @@ export function FleetMeasureField({
 
 export function FleetSelectField<TValue extends string>({
   clearable = false,
+  fromDocument = false,
   label,
   onChange,
   optionLabelKey,
@@ -216,7 +233,10 @@ export function FleetSelectField<TValue extends string>({
   const { t } = useTranslation('fleet')
   return (
     <label>
-      <span>{label}</span>
+      <span>
+        {label}
+        <DocumentOriginMark isVisible={fromDocument} />
+      </span>
       <Select
         ariaLabel={label}
         clearable={clearable}

@@ -23,6 +23,7 @@ import { VehicleColorField } from './VehicleColorField.component'
 
 type VehicleModelFieldsProps = Readonly<{
   catalog: VehicleCatalogController
+  documentFields: ReadonlySet<string>
   onChange: (values: Partial<FleetVehicleFormState>) => void
   state: FleetVehicleFormState
   vehicles: readonly FleetVehicleDetail[]
@@ -33,6 +34,7 @@ const VEHICLE_CATALOG_MODELS_QUERY_KEY = 'fleet-vehicle-catalog-models'
 
 export function VehicleModelFields({
   catalog,
+  documentFields,
   onChange,
   state,
   vehicles,
@@ -126,6 +128,7 @@ export function VehicleModelFields({
         />
         <FleetField
           inputMode="numeric"
+          fromDocument={documentFields.has('modelYear')}
           label={t('modelYear')}
           maxLength={4}
           value={state.modelYear}
@@ -133,6 +136,7 @@ export function VehicleModelFields({
         />
         <FleetField
           inputMode="numeric"
+          fromDocument={documentFields.has('axleCount')}
           label={t('axleCount')}
           maxLength={2}
           value={state.axleCount}

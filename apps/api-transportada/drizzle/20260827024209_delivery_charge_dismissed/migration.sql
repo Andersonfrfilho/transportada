@@ -1,0 +1,1 @@
+ALTER TABLE "delivery_charges" DROP CONSTRAINT "delivery_charges_status_check", ADD CONSTRAINT "delivery_charges_status_check" CHECK ("status" in ('suggested', 'dismissed', 'recorded', 'submitted', 'approved', 'rejected', 'reimbursed'));

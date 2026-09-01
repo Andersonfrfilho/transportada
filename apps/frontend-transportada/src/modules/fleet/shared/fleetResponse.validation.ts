@@ -219,6 +219,8 @@ function isDriver(value: unknown): value is FleetDriverDetail {
     isNullableString(value.membershipId) &&
     isString(value.name) &&
     isString(value.phone) &&
+    isString(value.pixKey) &&
+    (value.pixKeyType === '' || isOneOf(value.pixKeyType, FLEET_ENUMS.pixKeyType)) &&
     isString(value.rntrc) &&
     isOneOf(value.status, FLEET_ENUMS.driverStatus) &&
     isString(value.taxId) &&

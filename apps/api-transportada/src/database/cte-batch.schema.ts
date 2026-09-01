@@ -136,6 +136,12 @@ export const cteBatchItems = pgTable(
       table.batchId,
       table.createdAt,
     ),
+    /**
+     * Spec 059 RF-2: o caminho da **nota** até o CT-e. O unique existente lidera por `batch_id`,
+     * então a busca por nota sozinha varre — e a prontidão de uma viagem de 200 notas seria 200
+     * varreduras.
+     */
+    index('cte_batch_items_company_nfe_document_idx').on(table.companyId, table.nfeDocumentId),
     index('cte_batch_items_company_created_at_id_idx').on(
       table.companyId,
       table.createdAt.desc(),

@@ -15,6 +15,8 @@ import { NfeDistributionControl } from '../components/NfeDistributionControl.com
 import { NfeScheduledDistribution } from '../components/NfeScheduledDistribution.component'
 import { ScheduledDistributionPanel } from '../components/ScheduledDistributionPanel.component'
 import { useDistributionCursor } from '../hooks/useDistributionCursor.hook'
+import { CargoWeightPanel } from '../components/CargoWeightPanel.component'
+import { useCargoSettings } from '../hooks/useCargoSettings.hook'
 import { useScheduledDistribution } from '../hooks/useScheduledDistribution.hook'
 import { NfeDocumentTable } from '../components/NfeDocumentTable.component'
 import { NfeImportQueue } from '../components/NfeImportQueue.component'
@@ -221,6 +223,10 @@ export function NfeWorkspacePage() {
     ...(companyId === undefined ? {} : { companyId }),
     enabled: canManageSettings && settingsScope.distributionCursor,
   })
+  const cargoSettings = useCargoSettings({
+    ...(companyId === undefined ? {} : { companyId }),
+    enabled: canManageSettings && settingsScope.cargoSettings,
+  })
 
   function fileKey(file: File): string {
     return `${file.name}:${file.size}:${file.lastModified}`
@@ -426,6 +432,14 @@ export function NfeWorkspacePage() {
                       <>
                         {canManageSettings ? (
                           <div className={settingsStyles.settingsDeck}>
+                            <CargoWeightPanel
+                              defaultVolumeWeight={
+                                cargoSettings.query.data?.defaultVolumeWeight ?? null
+                              }
+                              disabled={cargoSettings.saveMutation.isPending}
+                              loading={cargoSettings.query.isLoading}
+                              onSave={(weight) => cargoSettings.saveMutation.mutate(weight)}
+                            />
                             <ScheduledDistributionPanel
                               disabled={scheduledDistribution.toggleMutation.isPending}
                               loading={scheduledDistribution.query.isLoading}

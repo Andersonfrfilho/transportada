@@ -1,0 +1,269 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+.section {
+  margin: 0 auto;
+  max-width: var(--layout-max-width);
+  padding: var(--space-12) var(--layout-gutter);
+}
+
+.eyebrow {
+  color: var(--color-accent);
+  font-family: var(--font-utility);
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin: 0 0 var(--space-3);
+}
+
+.sectionTitle {
+  font-size: 1.75rem;
+  line-height: 1.25;
+  margin: 0 0 var(--space-6);
+  max-width: 40rem;
+}
+
+/* Herói */
+.hero {
+  background:
+    radial-gradient(
+      60rem 30rem at 85% -10%,
+      color-mix(in srgb, var(--color-accent) 14%, transparent),
+      transparent
+    ),
+    var(--color-asphalt);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+}
+
+.heroInner {
+  max-width: var(--layout-max-width);
+  margin: 0 auto;
+  padding: var(--space-16) var(--layout-gutter);
+  max-width: 40rem;
+}
+
+.heroTitle {
+  font-family: var(--font-display);
+  font-size: clamp(2.25rem, 5vw, 3.5rem);
+  line-height: 1.05;
+  margin: 0 0 var(--space-5);
+}
+
+.heroSubtitle {
+  color: var(--color-slate);
+  font-size: 1.1rem;
+  margin: 0 0 var(--space-8);
+  max-width: 34rem;
+}
+
+.heroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.primaryButton,
+.secondaryButton {
+  display: inline-flex;
+  align-items: center;
+  height: var(--control-height);
+  padding: 0 var(--space-6);
+  border-radius: var(--space-2);
+  font-size: var(--field-font-size);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.primaryButton {
+  background: var(--color-accent);
+  color: var(--color-asphalt);
+}
+
+.secondaryButton {
+  border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
+  color: var(--color-fog);
+}
+
+/* Sobre */
+.aboutGrid {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.aboutBody {
+  color: var(--color-slate);
+  font-size: 1rem;
+  line-height: 1.6;
+  max-width: 36rem;
+  margin: 0;
+}
+
+@media (min-width: 56rem) {
+  .aboutGrid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+/* Serviços */
+.serviceGrid {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+}
+
+.serviceCard {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border-radius: var(--space-2);
+  background: var(--color-graphite);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 16%, transparent);
+}
+
+.serviceIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--space-2);
+  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+  color: var(--color-accent);
+}
+
+.serviceLabel {
+  color: var(--color-fog);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* Requisitos / listas simples */
+.list {
+  display: grid;
+  gap: var(--space-4);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.listItem {
+  background: var(--color-graphite);
+  border-radius: var(--space-2);
+  padding: var(--space-4);
+}
+
+/* App */
+.appSection {
+  background: var(--color-graphite);
+}
+
+.appGrid {
+  display: grid;
+  gap: var(--space-8);
+  align-items: center;
+}
+
+.featureList {
+  display: grid;
+  gap: var(--space-3);
+  list-style: none;
+  margin: var(--space-5) 0 0;
+  padding: 0;
+}
+
+.featureItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-fog);
+  font-size: 0.92rem;
+}
+
+.featureItem svg {
+  color: var(--color-accent);
+  flex-shrink: 0;
+}
+
+.appDeviceFrame {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  height: 18rem;
+  border-radius: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 25%, transparent);
+  background: var(--color-asphalt);
+  color: var(--color-accent);
+}
+
+@media (min-width: 56rem) {
+  .appGrid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 20rem);
+  }
+
+  .appDeviceFrame {
+    display: flex;
+  }
+}
+
+/* Onde estamos */
+.unitCard {
+  background: var(--color-graphite);
+  border-radius: var(--space-2);
+  padding: var(--space-4);
+}
+
+.unitName {
+  color: var(--color-accent);
+  font-weight: bold;
+  margin: 0 0 var(--space-2);
+}
+
+.unitAddress {
+  color: var(--color-slate);
+  margin: 0;
+}
+
+/* Contato */
+.contactGrid {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+}
+
+.contactCard {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--space-2);
+  background: var(--color-graphite);
+  color: var(--color-fog);
+  text-decoration: none;
+  font-size: 0.92rem;
+}
+
+.contactCard svg {
+  color: var(--color-accent);
+  flex-shrink: 0;
+}
+
+/* Chamada final */
+.cta {
+  background: var(--color-graphite);
+  border-radius: var(--space-3);
+  text-align: center;
+}
+
+.ctaButton {
+  background: var(--color-accent);
+  border: none;
+  border-radius: var(--space-2);
+  color: var(--color-asphalt);
+  cursor: pointer;
+  font-size: var(--field-font-size);
+  height: var(--control-height);
+  margin-top: var(--space-4);
+  min-width: var(--touch-target);
+  padding: 0 var(--space-6);
+}

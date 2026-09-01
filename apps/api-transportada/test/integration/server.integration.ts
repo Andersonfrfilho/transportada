@@ -43,6 +43,7 @@ const authentication: AuthenticationPort = {
       externalIdentityId: '00000000-0000-4000-8000-000000000002',
       issuer: 'http://localhost:58080/realms/transportada-local',
       platformAdmin: false,
+      serviceAccount: false,
       subject: 'integration-user',
       userId: '00000000-0000-4000-8000-000000000003',
     }
@@ -51,19 +52,24 @@ const authentication: AuthenticationPort = {
 const tenantContext = new TenantContextService({
   repository: {
     async findActiveByUserAndCompany() {
-      return { membershipId: '00000000-0000-4000-8000-000000000004', roles: [] }
+      return {
+        grantedPermissions: [],
+        membershipId: '00000000-0000-4000-8000-000000000004',
+        roles: [],
+      }
     },
   },
 })
 const server = startApiServer({
   config: {
+    apiPublicUrl: undefined,
     appEnv: 'test',
     bootstrapToken: undefined,
     companyId: undefined,
     cryptography: CRYPTOGRAPHIC_CONFIGURATION,
     databaseUrl,
     emailDelivery: undefined,
-    frontendOrigin: 'http://localhost:53000',
+    frontendOrigins: ['http://localhost:53000'],
     keycloak: {
       admin: {
         clientId: 'transportada-admin-cli',
@@ -82,6 +88,10 @@ const server = startApiServer({
     logSinkUrl: undefined,
     sentryDsn: undefined,
     sentryEnvironment: 'test',
+    turnstileSecretKey: undefined,
+    userAccessTokenSecret: undefined,
+    aggregateDocumentOcrUrl: undefined,
+    whatsapp: { apiVersion: 'v23.0', baseUrl: undefined },
     vehicleCatalog: null,
   },
   logger,
@@ -182,25 +192,43 @@ describe('API server integration', () => {
       throw new Error('Expected subprocess stdout pipe')
     }
 
-    await waitForReady(stdout)
+    await waitForReady({ stderr: child.stderr, stdout })
     child.kill('SIGTERM')
 
     expect(await child.exited).toBe(0)
   })
 })
 
-async function waitForReady(stdout: ReadableStream<Uint8Array>): Promise<void> {
-  const reader = stdout.getReader()
+/**
+ * ⚠️ A falha lê **o `stderr` também**. Sem ele, o subprocesso que morre no boot produz
+ * `API subprocess exited before readiness:` seguido de nada — a mensagem diz que algo quebrou e
+ * esconde o quê, e quem investiga precisa recriar o processo à mão para descobrir. O motivo real
+ * (variável ausente, banco recusando conexão) sempre saiu por `stderr`.
+ */
+async function waitForReady(streams: {
+  readonly stderr: ReadableStream<Uint8Array> | number | undefined
+  readonly stdout: ReadableStream<Uint8Array>
+}): Promise<void> {
+  const reader = streams.stdout.getReader()
   const decoder = new TextDecoder()
   let output = ''
 
   while (!output.includes('API_TEST_READY:')) {
     const result = await reader.read()
     if (result.done) {
-      throw new Error(`API subprocess exited before readiness: ${output}`)
+      const failure = await readAll(streams.stderr)
+      throw new Error(
+        `API subprocess exited before readiness.\nstdout: ${output}\nstderr: ${failure}`,
+      )
     }
     output += decoder.decode(result.value, { stream: true })
   }
 
   reader.releaseLock()
+}
+
+async function readAll(stream: ReadableStream<Uint8Array> | number | undefined): Promise<string> {
+  if (stream === undefined || typeof stream === 'number') return '(sem stderr capturado)'
+
+  return new Response(stream).text()
 }

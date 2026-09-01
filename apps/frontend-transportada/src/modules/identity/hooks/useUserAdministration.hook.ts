@@ -2,10 +2,17 @@
 import { useState } from 'react'
 
 import { useAuthMeQuery } from '../queries/useAuthMe.query'
-import type { CompanyUser } from '../shared/companyUsers.types'
+import type { CompanyUser, FleetLink } from '../shared/companyUsers.types'
 import type { CompanyUsersClient } from './useCompanyUsers.hook'
 import { useCompanyUsers } from './useCompanyUsers.hook'
+import { useCompanyUserReveal } from './useCompanyUserReveal.hook'
+import { useCompanyGroups } from './useCompanyGroups.hook'
+import { useCompanyUserSelection } from './useCompanyUserSelection.hook'
+import { useUserPermissions } from './useUserPermissions.hook'
+import { useRolePermissionMatrix } from './useRolePermissionMatrix.hook'
+import { useCompanyUsersReconciliation } from './useCompanyUsersReconciliation.hook'
 import { useCompanyUserEditForm, useCompanyUserInviteForm } from './useCompanyUserForm.hook'
+import { useCompanyUserPassword } from './useCompanyUserPassword.hook'
 
 export function readErrorCode(error: unknown): string | undefined {
   return error instanceof Error ? error.message : undefined
@@ -22,26 +29,82 @@ export function useUserAdministration(input: Readonly<{ client?: CompanyUsersCli
   })
 
   const [isInviteOpen, setInviteOpen] = useState(false)
+  /** A comparação com o realm é clique, não carregamento de tela: ela lê o Keycloak inteiro. */
+  const [isReconciliationOpen, setReconciliationOpen] = useState(false)
+  const [isMatrixOpen, setMatrixOpen] = useState(false)
+  const [isGroupsOpen, setGroupsOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<CompanyUser | null>(null)
   const [removeTarget, setRemoveTarget] = useState<CompanyUser | null>(null)
   const [resentUserId, setResentUserId] = useState<null | string>(null)
+  /**
+   * O diálogo fecha no sucesso, então o aviso do vínculo com a frota não cabe dentro dele: vive
+   * na página até quem convidou dispensá-lo.
+   */
+  const [fleetLinkNotice, setFleetLinkNotice] = useState<FleetLink | null>(null)
+
+  /**
+   * A comparação também alimenta o diálogo de edição: é dela que sai o espelho do Keycloak. Deixá-la
+   * presa ao painel faria a edição abrir sem saber que existe conta do outro lado — que é
+   * exatamente a informação que falta quando a ficha daqui está vazia.
+   */
+  const reconciliation = useCompanyUsersReconciliation({
+    enabled: isReconciliationOpen || editTarget !== null,
+    permissions: authQuery.data?.data.permissions ?? [],
+    ...(companyId === undefined ? {} : { companyId }),
+  })
+
+  const rolePermissions = useRolePermissionMatrix({
+    enabled: isMatrixOpen,
+    permissions: authQuery.data?.data.permissions ?? [],
+  })
+
+  const groups = useCompanyGroups({
+    permissions: authQuery.data?.data.permissions ?? [],
+    ...(companyId === undefined ? {} : { companyId }),
+  })
+  const userPermissions = useUserPermissions()
+
+  const selection = useCompanyUserSelection(users.viewModel.users)
+
+  const reveal = useCompanyUserReveal({ permissions: authQuery.data?.data.permissions ?? [] })
 
   const inviteForm = useCompanyUserInviteForm()
   const editForm = useCompanyUserEditForm(editTarget)
+  const password = useCompanyUserPassword()
+
+  /** O espelho é da pessoa aberta, casado pelo vínculo — nunca pelo e-mail, que pode ser palpite. */
+  const editRealmEntry = reconciliation.data?.items.find(
+    (entry) => entry.local?.userId === editTarget?.id,
+  )
+
+  function dismissFleetLinkNotice(): void {
+    setFleetLinkNotice(null)
+  }
 
   function closeInvite(): void {
     setInviteOpen(false)
     users.inviteUserMutation.reset()
   }
 
+  /**
+   * O botão não gateia mais a tela: ele sempre clica, e é aqui que a falta vira erro ancorado no
+   * campo. Botão apagado sem explicação foi o que impediu de convidar usuário em homologação.
+   */
   async function submitInvite(): Promise<void> {
-    await users.inviteUserMutation.mutateAsync(inviteForm.toInput())
+    if (inviteForm.issues.length > 0) {
+      inviteForm.markSubmitAttempt()
+      return
+    }
+    const invited = await users.inviteUserMutation.mutateAsync(inviteForm.toInput())
+    setFleetLinkNotice(invited.fleetLink === 'not-applicable' ? null : invited.fleetLink)
     inviteForm.reset()
     setInviteOpen(false)
   }
 
+  /** A senha nunca sobrevive ao diálogo: fechar apaga o que foi digitado e o que foi respondido. */
   function closeEdit(): void {
     setEditTarget(null)
+    password.clear()
     users.updateProfileMutation.reset()
     users.replaceRolesMutation.reset()
   }
@@ -87,12 +150,40 @@ export function useUserAdministration(input: Readonly<{ client?: CompanyUsersCli
     closeRemove,
     confirmRemove,
     currentUserId,
+    dismissFleetLinkNotice,
     editForm,
+    editRealmEntry,
     editTarget,
+    password,
+    fleetLinkNotice,
     inviteForm,
     isInviteOpen,
+    groups,
+    isGroupsOpen,
+    isMatrixOpen,
+    isReconciliationOpen,
     openEdit: setEditTarget,
     openInvite: () => setInviteOpen(true),
+    reconciliation,
+    rolePermissions,
+    toggleGroups: () => setGroupsOpen((open) => !open),
+    toggleMatrix: () => setMatrixOpen((open) => !open),
+    userPermissions,
+    async assignGroups(groupIds: readonly string[]) {
+      await groups.assignMutation.mutateAsync({ groupIds, userIds: selection.selectedIds })
+      selection.clear()
+      await users.invalidate()
+    },
+    reveal,
+    selection,
+    async assignRoles(roles: readonly string[]) {
+      await users.assignRolesMutation.mutateAsync({ roles, userIds: selection.selectedIds })
+      selection.clear()
+    },
+    refreshReconciliation: () => {
+      void reconciliation.refetch()
+    },
+    toggleReconciliation: () => setReconciliationOpen((open) => !open),
     openRemove: setRemoveTarget,
     removeTarget,
     resendInvitation,

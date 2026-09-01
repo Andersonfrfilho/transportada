@@ -5,8 +5,10 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   mdfeManifests,
+  tripDocumentEvents,
   tripDocuments,
   tripDrivers,
+  tripStops,
   trips,
 } from '../../src/database/database.schema.js'
 import { foreignKeys } from '../fiscal-schema/support.js'
@@ -15,6 +17,8 @@ const TRIP_TABLES = [
   { name: 'trips', table: trips },
   { name: 'trip_drivers', table: tripDrivers },
   { name: 'trip_documents', table: tripDocuments },
+  { name: 'trip_stops', table: tripStops },
+  { name: 'trip_document_events', table: tripDocumentEvents },
 ] as const
 
 describe('trip tenant safety', () => {
@@ -71,6 +75,7 @@ describe('trip tenant safety', () => {
     for (const { name, table } of [
       { name: 'trip_drivers', table: tripDrivers },
       { name: 'trip_documents', table: tripDocuments },
+      { name: 'trip_stops', table: tripStops },
     ]) {
       expect(foreignKeys(table)).toContainEqual({
         columns: ['company_id', 'trip_id'],
@@ -81,6 +86,31 @@ describe('trip tenant safety', () => {
         onUpdate: 'cascade',
       })
     }
+  })
+
+  test('deletes the document trail with the document, never with the trip directly', () => {
+    expect(foreignKeys(tripDocumentEvents)).toContainEqual({
+      columns: ['company_id', 'trip_document_id'],
+      foreignColumns: ['company_id', 'id'],
+      foreignTable: 'trip_documents',
+      name: 'trip_document_events_company_document_fk',
+      onDelete: 'cascade',
+      onUpdate: 'cascade',
+    })
+  })
+
+  test('holds the document to the stop by restrict — a composite FK cannot SET NULL company_id', () => {
+    // Corrigido pela T010: numa FK composta, ON DELETE SET NULL zeraria company_id junto com
+    // stop_id, e company_id é NOT NULL. Quem solta a nota da parada zera stop_id explicitamente
+    // antes de apagar a parada (drizzle-trip-route.repository.ts).
+    expect(foreignKeys(tripDocuments)).toContainEqual({
+      columns: ['company_id', 'stop_id'],
+      foreignColumns: ['company_id', 'id'],
+      foreignTable: 'trip_stops',
+      name: 'trip_documents_company_stop_fk',
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
+    })
   })
 
   // ADR-0023: o manifesto referencia a viagem pela tenant, e nunca é apagado quando a viagem some

@@ -4,7 +4,9 @@
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { migrate } from 'drizzle-orm/bun-sql/migrator'
 
+import { runMetaWhatsAppSchemaMigrations } from './meta-whatsapp-migration.service.js'
 import { runNotificationSchemaMigrations } from './notification-migration.service.js'
+import { runUserSchemaMigrations } from './user-migration.service.js'
 
 const DEFAULT_MIGRATIONS_DIRECTORY = new URL('../../drizzle/', import.meta.url).pathname
 const MIGRATIONS_SCHEMA = 'drizzle'
@@ -41,10 +43,11 @@ export async function runDatabaseMigrations({
 }
 
 /**
- * Todo schema que o arranque vai encontrar, na ordem em que precisa existir. As migrations do
- * schema de notificações viajam dentro do pacote e têm tabela de controle própria, então rodam
- * depois — mas rodam sempre junto: migrar só `drizzle/` deixa o seed de templates escrevendo numa
- * tabela inexistente, e o pre-deploy morre com o banco já migrado.
+ * Todo schema que o arranque vai encontrar, na ordem em que precisa existir. As migrations dos
+ * schemas de notificação e de conta do agregado (`user`) viajam dentro dos respectivos pacotes e têm
+ * tabela de controle própria, então rodam depois — mas rodam sempre junto: migrar só `drizzle/`
+ * deixa o seed de templates escrevendo numa tabela inexistente, e o pre-deploy morre com o banco já
+ * migrado.
  */
 export async function runAllDatabaseMigrations({
   connectionString,
@@ -54,6 +57,8 @@ export async function runAllDatabaseMigrations({
     migrationsFolder === undefined ? { connectionString } : { connectionString, migrationsFolder },
   )
   await runNotificationSchemaMigrations({ connectionString })
+  await runUserSchemaMigrations({ connectionString })
+  await runMetaWhatsAppSchemaMigrations({ connectionString })
 }
 
 if (import.meta.main) {

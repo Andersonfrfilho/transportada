@@ -271,6 +271,7 @@ function createFixture({
   membership = {
     async findActiveByUserAndCompany() {
       return {
+        grantedPermissions: [],
         membershipId: '00000000-0000-4000-8000-000000000004',
         roles: ['fiscal', 'viewer'] as const,
       }
@@ -301,7 +302,7 @@ function createFixture({
   const tenantContext = new TenantContextService({ repository: membership })
   const handle = createRequestHandler({
     createCorrelationId: () => CORRELATION_ID,
-    frontendOrigin: 'http://localhost:53000',
+    frontendOrigins: ['http://localhost:53000'],
     logger,
     requestTimeoutSeconds: 10,
     router: createHttpRouterFixture({
@@ -322,6 +323,7 @@ function identity(): AuthenticatedIdentity {
     externalIdentityId: '00000000-0000-4000-8000-000000000005',
     issuer: 'https://identity.example.test/realms/transportada',
     platformAdmin: true,
+    serviceAccount: false,
     subject: 'keycloak-user',
     userId: USER_ID,
   })

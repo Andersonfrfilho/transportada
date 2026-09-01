@@ -3,6 +3,10 @@
  */
 import type { CompanyRole, MembershipStatus } from '../../database/identity.schema.js'
 import type { ContactChannel } from '../../database/identity-user-profile.schema.js'
+import type { CompanyUserFleetLink } from '../domain/company-user.policy.js'
+import type { JobOutcome, ScheduledJob } from '../../shared/job-catalog.constant.js'
+import type { LocalIdentityRecord } from '../domain/user-reconciliation.policy.js'
+import type { RevealedCompanyUser } from './reveal-company-users.use-case.js'
 
 export type PendingInvitationSummary =
   | {
@@ -12,13 +16,19 @@ export type PendingInvitationSummary =
 
 export type CompanyUserRecord = {
   readonly contactAddress: string
+  /** Todos os endereços por onde ela se identifica, crus. A view mascara. */
+  readonly emails?: readonly string[]
+  readonly fleet?: CompanyUserFleetLink
   readonly contactChannel: ContactChannel
+  readonly email: string
   /** O id do vínculo, não o da pessoa: é ele que o motorista da frota referencia. */
   readonly membershipId: string
   readonly membershipStatus: MembershipStatus
   readonly name: string
   readonly pendingInvitation: PendingInvitationSummary
+  readonly phone: string
   readonly roles: readonly CompanyRole[]
+  readonly taxId: string
   readonly userId: string
   readonly username: string
 }
@@ -32,8 +42,11 @@ export type CreateInvitedUserInput = {
   readonly companyId: string
   readonly contactAddress: string
   readonly contactChannel: ContactChannel
+  readonly email: string
   readonly issuer: string
   readonly name: string
+  readonly phone: string
+  readonly taxId: string
   /** Papéis do convite: o vínculo nasce com eles, senão o convidado autentica sem permissão. */
   readonly roles: readonly CompanyRole[]
   readonly subject: string
@@ -44,12 +57,21 @@ export type CreateInvitedUserInput = {
 export type UpdateCompanyUserProfileInput = {
   readonly contactAddress?: string
   readonly contactChannel?: ContactChannel
+  readonly email?: string
   readonly name?: string
+  readonly phone?: string
+  readonly taxId?: string
   readonly userId: string
   readonly username?: string
 }
 
 export type CreateInvitedUserResult = {
+  /**
+   * Se o CPF casou com uma ficha de frota que ainda não tinha vínculo. A tela precisa saber:
+   * convidar alguém como Motorista sem ficha correspondente não é erro, mas é meia-verdade —
+   * a pessoa entra no sistema e não aparece na frota até alguém cadastrar a ficha.
+   */
+  readonly linkedFleetDriverId: string | null
   readonly membershipId: string
 }
 
@@ -60,6 +82,22 @@ export type ListCompanyUsersInput = {
 }
 
 export type CompanyUserRepositoryPort = {
+  readonly addIdentifier: (input: {
+    readonly companyId: string
+    readonly isWhatsapp: boolean
+    readonly kind: 'email' | 'phone'
+    readonly userId: string
+    readonly value: string
+  }) => Promise<void>
+  readonly listIdentifiers: (input: {
+    readonly companyId: string
+    readonly userId: string
+  }) => Promise<readonly CompanyUserIdentifier[]>
+  readonly removeIdentifier: (input: {
+    readonly companyId: string
+    readonly identifierId: string
+    readonly userId: string
+  }) => Promise<boolean>
   readonly createInvitedUser: (input: CreateInvitedUserInput) => Promise<CreateInvitedUserResult>
   readonly findByUserId: (input: {
     readonly companyId: string
@@ -74,6 +112,63 @@ export type CompanyUserRepositoryPort = {
     readonly companyId: string
   }) => Promise<readonly string[]>
   readonly listPage: (input: ListCompanyUsersInput) => Promise<CompanyUserPage>
+  /**
+   * A reconciliação casa por e-mail e documento, e a view da listagem os entrega mascarados
+   * (`t***@e***.com.br`) — casar por máscara casaria todo mundo com todo mundo. Esta leitura devolve
+   * o valor cru, e é a única do módulo que o faz: a máscara volta na resposta, depois da regra.
+   */
+  readonly listForReconciliation: (input: {
+    readonly companyId: string
+  }) => Promise<readonly LocalIdentityRecord[]>
+  /**
+   * O valor cru de quem a tela pediu para revelar, filtrado por `company_id` **e** pelos ids: o
+   * recorte é do banco, não do laço em memória, e é ele que impede alcançar a empresa vizinha.
+   */
+  /** Acrescenta papéis a um lote; quem já tem o papel é ignorado pela PK, não por laço. */
+  readonly addRoles: (input: {
+    readonly companyId: string
+    readonly roles: readonly CompanyRole[]
+    readonly userIds: readonly string[]
+  }) => Promise<{ readonly affectedUserIds: readonly string[] }>
+  /**
+   * Preenche a ficha de quem existe dos dois lados e não tem perfil. Nunca sobrescreve: perfil já
+   * gravado é trabalho humano, e a decisão de não tocar nele é do banco, não da leitura anterior.
+   */
+  readonly createProfileForExistingUser: (input: {
+    readonly contactAddress: string
+    readonly contactChannel: ContactChannel
+    readonly email: string
+    readonly name: string
+    readonly taxId: string
+    readonly userId: string
+    readonly username: string
+  }) => Promise<{ readonly created: boolean }>
+  /** Liga o vínculo daqui ao `subject` recém-criado no provedor. */
+  readonly linkIdentitySubject: (input: {
+    readonly issuer: string
+    readonly subject: string
+    readonly userId: string
+  }) => Promise<void>
+  readonly findForReveal: (input: {
+    readonly companyId: string
+    readonly userIds: readonly string[]
+  }) => Promise<readonly RevealedCompanyUser[]>
+  /** Uma linha de auditoria por pessoa revelada: o registro é "quem olhou o documento de quem". */
+  readonly recordContactReveal: (input: {
+    readonly actorUserId: string
+    readonly companyId: string
+    readonly correlationId: string
+    readonly targetUserIds: readonly string[]
+  }) => Promise<void>
+  /** A execução manual entra na mesma trilha da agendada, com quem pediu e o que ela contou. */
+  readonly recordManualJobRun: (input: {
+    readonly companyId: string
+    readonly correlationId: string
+    readonly counters: Readonly<Record<string, number>>
+    readonly job: ScheduledJob
+    readonly outcome: JobOutcome
+    readonly requestedBy: string
+  }) => Promise<void>
   readonly removeMembership: (input: {
     readonly companyId: string
     readonly userId: string
@@ -90,4 +185,17 @@ export type CompanyUserRepositoryPort = {
   }) => Promise<void>
   /** Lança `DuplicateUsernameError` quando o login já pertence a outra pessoa do realm. */
   readonly updateProfile: (input: UpdateCompanyUserProfileInput) => Promise<void>
+}
+
+/**
+ * Por onde a pessoa se identifica e por onde se fala com ela. `source` diz quem escreveu a linha:
+ * `profile` é projeção da ficha e volta sozinha na próxima gravação dela; `manual` é acréscimo de
+ * quem administra, e só ele se apaga pela tela.
+ */
+export type CompanyUserIdentifier = {
+  readonly id: string
+  readonly isWhatsapp: boolean
+  readonly kind: 'document' | 'email' | 'phone'
+  readonly source: 'manual' | 'profile'
+  readonly value: string
 }

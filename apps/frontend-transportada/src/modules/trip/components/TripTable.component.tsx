@@ -12,7 +12,7 @@ import styles from '../styles/trip.module.css'
 type TripTableProps = Readonly<{ table: TripTableController }>
 
 function statusClassName(status: TripStatus): string {
-  return status === 'closed'
+  return status === 'completed' || status === 'cancelled'
     ? `${styles.statusBadge} ${styles.statusReady}`
     : `${styles.statusBadge}`
 }

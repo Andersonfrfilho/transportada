@@ -102,6 +102,7 @@ describe('authentication contract', () => {
       externalIdentityId: EXTERNAL_IDENTITY_ID,
       issuer: ISSUER,
       platformAdmin: false,
+      serviceAccount: false,
       subject: SUBJECT,
       userId: USER_ID,
     })
@@ -130,15 +131,19 @@ describe('authentication contract', () => {
 
     await expect(exact.authenticate(`Bearer ${TOKEN}`)).resolves.toMatchObject({
       platformAdmin: true,
+      serviceAccount: false,
     })
     await expect(lookalike.authenticate(`Bearer ${TOKEN}`)).resolves.toMatchObject({
       platformAdmin: false,
+      serviceAccount: false,
     })
     await expect(clientRoleOnly.authenticate(`Bearer ${TOKEN}`)).resolves.toMatchObject({
       platformAdmin: false,
+      serviceAccount: false,
     })
     await expect(malformed.authenticate(`Bearer ${TOKEN}`)).resolves.toMatchObject({
       platformAdmin: false,
+      serviceAccount: false,
     })
   })
 
@@ -379,6 +384,39 @@ describe('authentication contract', () => {
     await gateway.checkReadiness()
 
     expect(receivedSignal).toBeInstanceOf(AbortSignal)
+  })
+
+  /**
+   * ADR-0047 §2 e §3: o serviço entra pela mesma porta de realm do `platform-admin`, e é o **único**
+   * que entra sem `company_id` — a empresa dele chega no pedido. Para todo o resto a claim continua
+   * sendo o que prende a pessoa a um tenant, e sem ela é 401.
+   */
+  test('recognizes a service account, and only it may arrive without a company claim', async () => {
+    const service = createService({
+      verifier: verifiedTokenVerifier(undefined, ['transportada-service']),
+    })
+
+    const identity = await service.authenticate(`Bearer ${TOKEN}`)
+
+    expect(identity).toMatchObject({
+      companyIdClaim: null,
+      platformAdmin: false,
+      serviceAccount: true,
+    })
+
+    const human = createService({ verifier: verifiedTokenVerifier(undefined, ['company-admin']) })
+    const error = await captureError(() => human.authenticate(`Bearer ${TOKEN}`))
+    expect(error).toMatchObject({ code: 'UNAUTHENTICATED', status: 401 })
+  })
+
+  test('accepts only the exact service realm role', async () => {
+    const lookalike = createService({
+      verifier: verifiedTokenVerifier(COMPANY_ID, ['transportada-services']),
+    })
+
+    const identity = await lookalike.authenticate(`Bearer ${TOKEN}`)
+
+    expect(identity.serviceAccount).toBe(false)
   })
 })
 

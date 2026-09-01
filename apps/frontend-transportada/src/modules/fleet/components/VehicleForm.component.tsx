@@ -4,10 +4,12 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
+import { DocumentIntakeDropZone } from '@/modules/document-intake/components/DocumentIntakeDropZone.component'
 import { useRevealedPanel } from '@/modules/shared/useRevealedPanel.hook'
 
 import type { VehicleCatalogController } from '../hooks/useVehicleCatalog.hook'
 import { useVehicleForm } from '../hooks/useVehicleForm.hook'
+import { useVehiclePlateMatch } from '../hooks/useVehiclePlateMatch.hook'
 import type {
   FleetDriverBody,
   FleetDriverCreateBody,
@@ -34,6 +36,8 @@ type VehicleFormProps = Readonly<{
   catalog: VehicleCatalogController
   drivers: readonly FleetDriverDetail[]
   onCancel: () => void
+  /** Spec 048 P2: a ficha que já existe se abre, em vez de o cadastro novo morrer na unicidade. */
+  onEditVehicle: (vehicle: FleetVehicleDetail) => void
   onCreate: (body: FleetVehicleBody) => Promise<FleetVehicleDetail>
   onCreateDriver: (body: FleetDriverCreateBody) => Promise<FleetDriverDetail>
   onUpdateDriver: (input: FleetDriverBody & FleetDriverVersionInput) => Promise<FleetDriverDetail>
@@ -48,6 +52,7 @@ export function VehicleForm({
   onCancel,
   onCreate,
   onCreateDriver,
+  onEditVehicle,
   onUpdateDriver,
   onUpdate,
   vehicle,
@@ -55,6 +60,7 @@ export function VehicleForm({
 }: VehicleFormProps) {
   const { t } = useTranslation('fleet')
   const { panelRef } = useRevealedPanel<HTMLFormElement>()
+  const plateMatch = useVehiclePlateMatch()
   const form = useVehicleForm({
     onCreate,
     onSaved: onCancel,
@@ -71,14 +77,46 @@ export function VehicleForm({
   return (
     <form className={styles.panel} onSubmit={handleSubmit} ref={panelRef}>
       <h2>{vehicle === undefined ? t('newVehicle') : t('editVehicle')}</h2>
-      <VehicleIdentityFields state={form.state} onChange={form.patch} />
+      <DocumentIntakeDropZone
+        onApply={(result) => {
+          form.applyDocument(result.values)
+          if (vehicle === undefined) plateMatch.find(result.values.plate ?? '')
+        }}
+      />
+      {plateMatch.match === null ? null : (
+        <FleetFeedback isError={false}>
+          {t('documentPlateTaken', { plate: plateMatch.match.plate })}
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => {
+              const existing = plateMatch.match
+              plateMatch.dismiss()
+              if (existing !== null) onEditVehicle(existing)
+            }}
+          >
+            <Icon name="edit" />
+            {t('documentPlateTakenAction')}
+          </Button>
+        </FleetFeedback>
+      )}
+      <VehicleIdentityFields
+        documentFields={form.documentFields}
+        state={form.state}
+        onChange={form.patch}
+      />
       <VehicleModelFields
         catalog={catalog}
+        documentFields={form.documentFields}
         state={form.state}
         vehicles={vehicles}
         onChange={form.patch}
       />
-      <VehicleOperationFields state={form.state} onChange={form.patch} />
+      <VehicleOperationFields
+        documentFields={form.documentFields}
+        state={form.state}
+        onChange={form.patch}
+      />
       <VehicleOwnerFields
         drivers={drivers}
         state={form.state}
@@ -88,6 +126,7 @@ export function VehicleForm({
       />
       <VehicleCostFields
         costsUpdatedAt={vehicle?.costsUpdatedAt ?? null}
+        documentFields={form.documentFields}
         fuelPrice={resolveFormFuelPrice({ selectedFuelType: form.state.fuelType, vehicle })}
         secondaryFuelPrice={resolveSecondaryFormFuelPrice({
           selectedFuelType: form.state.secondaryFuelType,

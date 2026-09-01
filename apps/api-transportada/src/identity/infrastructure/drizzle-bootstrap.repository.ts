@@ -7,6 +7,7 @@ import { and, eq, sql } from 'drizzle-orm'
 import {
   companies,
   externalIdentities,
+  identityUserProfiles,
   identityUsers,
   membershipRoles,
   userCompanyMemberships,
@@ -48,6 +49,7 @@ export class DrizzleBootstrapRepository implements BootstrapRepositoryPort {
   public async createFirstAdmin({
     companyId,
     issuer,
+    profile,
     subject,
   }: CreateFirstAdminInput): Promise<BootstrapPersistedAdmin | undefined> {
     return this.database.transaction(async (transaction) => {
@@ -72,6 +74,13 @@ export class DrizzleBootstrapRepository implements BootstrapRepositoryPort {
       await transaction
         .insert(membershipRoles)
         .values({ membershipId, role: ENVIRONMENT_PROVISIONING_ADMIN_ROLE })
+
+      /**
+       * Na mesma transação que o vínculo, e não num passo seguinte: perfil escrito depois pode
+       * falhar sozinho, e o resultado seria o administrador existindo sem aparecer — exatamente o
+       * estado que esta linha existe para impedir.
+       */
+      await transaction.insert(identityUserProfiles).values({ ...profile, userId })
 
       return { membershipId, userId }
     })

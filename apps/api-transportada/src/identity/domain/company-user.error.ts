@@ -49,6 +49,22 @@ export class DuplicateContactError extends ApiError {
 }
 
 /**
+ * O CPF identifica a pessoa no realm inteiro: a mesma pessoa em duas empresas é uma identidade só.
+ * Como no login já usado, a mensagem não diz de quem é o documento — isso enumeraria gente de
+ * outras empresas para quem só administra a sua.
+ */
+export class DuplicateTaxIdError extends ApiError {
+  public constructor() {
+    super({
+      code: 'COMPANY_USER_TAX_ID_TAKEN',
+      message: 'Tax id is already taken.',
+      status: 409,
+    })
+    this.name = 'DuplicateTaxIdError'
+  }
+}
+
+/**
  * Vínculo na aplicação sem identidade externa correspondente é estado inconsistente: falha alto,
  * porque continuar significaria mudar o banco sem que o provedor de identidade acompanhe.
  */
@@ -71,5 +87,24 @@ export class SelfMembershipRemovalError extends ApiError {
       status: 409,
     })
     this.name = 'SelfMembershipRemovalError'
+  }
+}
+
+/**
+ * O provedor recusou a troca do login. O caso comum é o realm com `editUsernameAllowed` desligado,
+ * que é o **padrão do Keycloak**: ali o login é imutável depois de criado, e nenhuma permissão desta
+ * aplicação muda isso — é configuração do realm.
+ *
+ * A mensagem não repete o texto do provedor: ele varia por versão e por idioma do servidor, e o que
+ * o formulário precisa é saber em que campo ancorar a recusa.
+ */
+export class UsernameChangeRefusedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'USERNAME_CHANGE_REFUSED',
+      message: 'The identity provider refused the username change.',
+      status: 409,
+    })
+    this.name = 'UsernameChangeRefusedError'
   }
 }

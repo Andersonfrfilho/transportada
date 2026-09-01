@@ -74,10 +74,19 @@
 }
 
 .value,
-.placeholder {
+.placeholder,
+.triggerDescription {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* O detalhe da opção escolhida, ao lado do rótulo: o gatilho tem uma linha só. */
+.triggerDescription {
+  flex: 0 1 auto;
+  color: color-mix(in srgb, var(--color-slate) 90%, transparent);
+  font-size: 0.75rem;
 }
 
 .placeholder {
@@ -171,6 +180,21 @@
   font-size: 0.85rem;
   white-space: nowrap;
   cursor: pointer;
+}
+
+.optionText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.description {
+  overflow: hidden;
+  color: color-mix(in srgb, var(--color-slate) 90%, transparent);
+  font-size: 0.75rem;
+  font-weight: 400;
+  text-overflow: ellipsis;
 }
 
 .optionActive {

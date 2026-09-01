@@ -35,11 +35,26 @@ export type NfseFiscalEnvironment = 'homologation' | 'production'
  * Configuração do trilho de coleta do preço de referência, resolvida só quando o ambiente declara
  * alguma agência. São **duas** na mesma rotina: a ANP publica o litro e a ANEEL, o megawatt-hora.
  */
+/** Credencial de administração do realm, usada só pelo backfill do documento. */
+export type IdentityDocumentBackfillEnvironment = {
+  readonly clientId: string
+  readonly clientSecret: string
+  readonly issuer: string
+}
+
 export type FuelPricePullEnvironment = {
   readonly aneelBaseUrl: string
   readonly aneelTimeoutMilliseconds: number
   readonly anpBaseUrl: string
   readonly anpTimeoutMilliseconds: number
+}
+
+/** ADR-0047: o crachá do worker. O segredo nunca sai daqui para log ou métrica. */
+export type MdfeAutoIssueEnvironment = {
+  readonly apiBaseUrl: string
+  readonly clientId: string
+  readonly clientSecret: string
+  readonly tokenUrl: string
 }
 
 export type WorkerEnvironment = {
@@ -55,14 +70,30 @@ export type WorkerEnvironment = {
    */
   readonly fiscalEnvironment: NfseFiscalEnvironment
   readonly fuelPricePull: FuelPricePullEnvironment | undefined
+  readonly identityDocumentBackfill?: IdentityDocumentBackfillEnvironment
   readonly nfseProvider: NfseProviderEnvironment
   readonly foundationSyntheticConsumerEnabled: boolean
   readonly foundationSyntheticEffectDelayMs: number
+  readonly mdfeAutoIssue?: MdfeAutoIssueEnvironment
   readonly logLevel: LogLevel
+  /**
+   * Spec 062 T005 — a Graph API da Meta, sem segredo: o token é por empresa e vive selado no banco.
+   * Os dois nomes de template são opcionais, e ausentes o envio cai em texto livre — que só vale
+   * dentro da janela de 24 h.
+   */
+  readonly whatsapp: {
+    readonly apiVersion: string
+    readonly baseUrl: string | undefined
+    readonly codeTemplateLanguage: string
+    readonly invitationTemplate: string | undefined
+    readonly passwordResetTemplate: string | undefined
+  }
   readonly port: number
   readonly prefetch: number
   readonly queuePrefix: string
   readonly rabbitMqUrl: string
+  /** Ausente sem OSRM: o consumidor de roteiro não sobe (ADR-0044 §2). */
+  readonly routingMatrixUrl: string | undefined
   /** Destino HTTP do log estruturado; ausente mantém só o stdout. */
   readonly logSinkUrl: string | undefined
   readonly sentryDsn: string | undefined

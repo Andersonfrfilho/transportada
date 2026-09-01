@@ -5,7 +5,9 @@ import { z } from 'zod'
 
 import type {
   CteTechnicalResponsibleEnvironment,
+  MdfeAutoIssueEnvironment,
   FuelPricePullEnvironment,
+  IdentityDocumentBackfillEnvironment,
   WorkerEnvironment,
 } from '../shared/worker.types.js'
 
@@ -18,6 +20,17 @@ const TECHNICAL_RESPONSIBLE_KEYS = [
 
 const EMAIL_DELIVERY_KEYS = ['EMAIL_FROM', 'SMTP_URL'] as const
 
+/**
+ * ADR-0047: o crachá do worker para chamar a API. As quatro juntas ou nenhuma — com o endereço sem
+ * o segredo, o gatilho subiria e falharia em 401 a cada CT-e autorizado, barulho sem efeito.
+ */
+const MDFE_AUTO_ISSUE_KEYS = [
+  'API_BASE_URL',
+  'KEYCLOAK_TOKEN_URL',
+  'WORKER_CLIENT_ID',
+  'WORKER_CLIENT_SECRET',
+] as const
+
 const DEFAULT_PROVIDER_TIMEOUT_MILLISECONDS = 15_000
 const MAX_PROVIDER_TIMEOUT_MILLISECONDS = 60_000
 
@@ -27,6 +40,13 @@ const RABBITMQ_PROTOCOLS = ['amqp:', 'amqps:'] as const
 const workerEnvironmentSchema = z
   .object({
     ANEEL_BASE_URL: optionalUrl(),
+    API_BASE_URL: optionalUrl(),
+    KEYCLOAK_ADMIN_CLIENT_ID: optionalText(),
+    KEYCLOAK_ADMIN_CLIENT_SECRET: optionalText(),
+    KEYCLOAK_ISSUER: optionalUrl(),
+    KEYCLOAK_TOKEN_URL: optionalUrl(),
+    WORKER_CLIENT_ID: optionalText(),
+    WORKER_CLIENT_SECRET: optionalText(),
     ANEEL_TIMEOUT_MS: providerTimeout(),
     ANP_BASE_URL: optionalUrl(),
     ANP_TIMEOUT_MS: providerTimeout(),
@@ -57,6 +77,21 @@ const workerEnvironmentSchema = z
     // Um endereço só: a Nota RP publica um servidor, e é o de produção (ADR-0035).
     NFSE_PROVIDER_BASE_URL: optionalUrl(),
     NFSE_PROVIDER_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(15_000),
+    // Spec 062 T005 — o convite e a recuperação de senha por WhatsApp. Sem segredo aqui: o token é
+    // por empresa e vive selado no banco, gravado pela API. A versão da Graph API tem padrão porque
+    // a Meta a exige no caminho e ela envelhece; a base existe para apontar para um mock local.
+    WHATSAPP_API_VERSION: z
+      .string()
+      .trim()
+      .regex(/^v[0-9]{1,3}\.[0-9]{1,3}$/u, { message: 'WHATSAPP_API_VERSION must look like v23.0' })
+      .default('v23.0'),
+    WHATSAPP_BASE_URL: optionalUrl(),
+    // ⚠️ Nome do template aprovado na Meta, com o código como único parâmetro do corpo. Ausente, o
+    // envio cai em texto livre — que a Meta **só aceita dentro da janela de 24 h**, e quem recebe um
+    // convite nunca escreveu para o número antes. Ver o buraco declarado na evidência da T005.
+    WHATSAPP_CODE_TEMPLATE_LANGUAGE: z.string().trim().min(2).max(10).default('pt_BR'),
+    WHATSAPP_INVITATION_TEMPLATE: optionalText(),
+    WHATSAPP_PASSWORD_RESET_TEMPLATE: optionalText(),
     QUEUE_PREFIX: z
       .string()
       .trim()
@@ -64,6 +99,12 @@ const workerEnvironmentSchema = z
       .max(128)
       .regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/),
     RABBITMQ_URL: protocolUrl(RABBITMQ_PROTOCOLS),
+    /**
+     * Matriz de estrada do roteirizador (ADR-0044 §2). Ausente, o consumidor não sobe: sem ela não
+     * há como resolver, e um consumidor que consome e falha esvaziaria a fila marcando tudo como
+     * `failed`. Melhor a mensagem esperar na fila até o serviço existir.
+     */
+    ROUTING_MATRIX_URL: optionalUrl(),
     LOG_SINK_URL: optionalUrl(),
     SENTRY_DSN: optionalUrl(),
     SMTP_URL: optionalUrl(),
@@ -94,6 +135,17 @@ const workerEnvironmentSchema = z
       })
     }
 
+    const declaredAutoIssueKeys = MDFE_AUTO_ISSUE_KEYS.filter(
+      (key) => environment[key] !== undefined,
+    ).length
+    if (declaredAutoIssueKeys > 0 && declaredAutoIssueKeys < MDFE_AUTO_ISSUE_KEYS.length) {
+      context.addIssue({
+        code: 'custom',
+        message: 'The automatic MDF-e trigger requires every credential or none',
+        path: [...MDFE_AUTO_ISSUE_KEYS],
+      })
+    }
+
     if (environment.APP_ENV === 'production' && environment.FOUNDATION_SYNTHETIC_CONSUMER_ENABLED) {
       context.addIssue({
         code: 'custom',
@@ -120,6 +172,8 @@ export function parseWorkerEnvironment(
   }
 
   const technicalResponsible = toTechnicalResponsible(result.data)
+  const identityDocumentBackfill = toIdentityDocumentBackfill(result.data)
+  const mdfeAutoIssue = toMdfeAutoIssue(result.data)
 
   return {
     appEnv: result.data.APP_ENV,
@@ -129,21 +183,31 @@ export function parseWorkerEnvironment(
     databaseUrl: result.data.DATABASE_URL,
     fiscalEnvironment: result.data.FISCAL_ENVIRONMENT,
     fuelPricePull: toFuelPricePull(result.data),
+    ...(identityDocumentBackfill === undefined ? {} : { identityDocumentBackfill }),
     ...(result.data.EMAIL_FROM === undefined || result.data.SMTP_URL === undefined
       ? {}
       : { emailDelivery: { from: result.data.EMAIL_FROM, smtpUrl: result.data.SMTP_URL } }),
     foundationSyntheticConsumerEnabled: result.data.FOUNDATION_SYNTHETIC_CONSUMER_ENABLED,
     foundationSyntheticEffectDelayMs: result.data.FOUNDATION_SYNTHETIC_EFFECT_DELAY_MS,
     logLevel: result.data.LOG_LEVEL,
+    ...(mdfeAutoIssue === undefined ? {} : { mdfeAutoIssue }),
     nfseProvider: {
       baseUrl: result.data.NFSE_PROVIDER_BASE_URL,
       callbackBaseUrl: result.data.NFSE_CALLBACK_BASE_URL,
       timeoutMilliseconds: result.data.NFSE_PROVIDER_TIMEOUT_MS,
     },
+    whatsapp: {
+      apiVersion: result.data.WHATSAPP_API_VERSION,
+      baseUrl: result.data.WHATSAPP_BASE_URL,
+      codeTemplateLanguage: result.data.WHATSAPP_CODE_TEMPLATE_LANGUAGE,
+      invitationTemplate: result.data.WHATSAPP_INVITATION_TEMPLATE,
+      passwordResetTemplate: result.data.WHATSAPP_PASSWORD_RESET_TEMPLATE,
+    },
     port: result.data.WORKER_PORT,
     prefetch: result.data.WORKER_PREFETCH,
     queuePrefix: result.data.QUEUE_PREFIX,
     rabbitMqUrl: result.data.RABBITMQ_URL,
+    routingMatrixUrl: result.data.ROUTING_MATRIX_URL,
     logSinkUrl: result.data.LOG_SINK_URL,
     sentryDsn: result.data.SENTRY_DSN,
     sentryEnvironment: result.data.SENTRY_ENVIRONMENT ?? result.data.APP_ENV,
@@ -174,6 +238,55 @@ function toFuelPricePull(
     anpBaseUrl: data.ANP_BASE_URL,
     anpTimeoutMilliseconds: data.ANP_TIMEOUT_MS,
   }
+}
+
+/**
+ * As três juntas ou nenhuma. Ausentes, a rotina de backfill não é registrada e a janela dela pousa
+ * em `job_run_routine_missing` — que é a verdade: não há provedor para escrever atributo nenhum.
+ * Um grupo pela metade derruba o boot, como o da agência: credencial de admin incompleta é engano
+ * de configuração, não escolha de não usar.
+ */
+function toIdentityDocumentBackfill(
+  data: Readonly<{
+    KEYCLOAK_ADMIN_CLIENT_ID?: string | undefined
+    KEYCLOAK_ADMIN_CLIENT_SECRET?: string | undefined
+    KEYCLOAK_ISSUER?: string | undefined
+  }>,
+): IdentityDocumentBackfillEnvironment | undefined {
+  const values = [
+    data.KEYCLOAK_ADMIN_CLIENT_ID,
+    data.KEYCLOAK_ADMIN_CLIENT_SECRET,
+    data.KEYCLOAK_ISSUER,
+  ]
+  if (values.every((value) => value === undefined)) return undefined
+  if (values.some((value) => value === undefined)) throw new WorkerConfigurationError()
+
+  return {
+    clientId: data.KEYCLOAK_ADMIN_CLIENT_ID as string,
+    clientSecret: data.KEYCLOAK_ADMIN_CLIENT_SECRET as string,
+    issuer: data.KEYCLOAK_ISSUER as string,
+  }
+}
+
+/** Ausente é gatilho desligado: a instalação sem crachá continua emitindo MDF-e à mão. */
+function toMdfeAutoIssue(
+  data: Readonly<{
+    [TKey in (typeof MDFE_AUTO_ISSUE_KEYS)[number]]?: string | undefined
+  }>,
+): MdfeAutoIssueEnvironment | undefined {
+  const apiBaseUrl = data.API_BASE_URL
+  const tokenUrl = data.KEYCLOAK_TOKEN_URL
+  const clientId = data.WORKER_CLIENT_ID
+  const clientSecret = data.WORKER_CLIENT_SECRET
+  if (
+    apiBaseUrl === undefined ||
+    tokenUrl === undefined ||
+    clientId === undefined ||
+    clientSecret === undefined
+  ) {
+    return undefined
+  }
+  return { apiBaseUrl, clientId, clientSecret, tokenUrl }
 }
 
 function providerTimeout() {

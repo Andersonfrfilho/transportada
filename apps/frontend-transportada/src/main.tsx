@@ -22,12 +22,23 @@ import { applyEnvironmentBadge } from '@/modules/shared/environmentBadge.service
 import { ApplicationFooter } from '@/modules/foundation/components/ApplicationFooter.component'
 import { EnvironmentBanner } from '@/modules/foundation/components/EnvironmentBanner.component'
 import '@/modules/shared/i18n/i18n.service'
+import { DeliveryClientWorkspacePage } from '@/modules/delivery-clients/pages/DeliveryClientWorkspace.page'
+import { ExtraChargeWorkspacePage } from '@/modules/extra-charges/pages/ExtraChargeWorkspace.page'
+import { FinancialResultsWorkspacePage } from '@/modules/trip-financials/pages/FinancialResultsWorkspace.page'
+import { DriverTripWorkspacePage } from '@/modules/driver-trip/pages/DriverTripWorkspace.page'
+import {
+  DRIVER_TRIP_PATH,
+  isFieldOnlyUser,
+} from '@/modules/driver-trip/shared/driverWorkspace.service'
 import { FleetWorkspacePage } from '@/modules/fleet/pages/FleetWorkspace.page'
 import { FreightWorkspacePage } from '@/modules/freight/pages/FreightWorkspace.page'
 import { FirstAccessPage } from '@/modules/identity/pages/FirstAccess.page'
+import { LoginIdentifierPage } from '@/modules/identity/pages/LoginIdentifier.page'
 import { PasswordResetPage } from '@/modules/identity/pages/PasswordReset.page'
+import { AccessProfilesPage } from './modules/identity/pages/AccessProfiles.page'
 import { UserAdministrationPage } from '@/modules/identity/pages/UserAdministration.page'
 import { useAuthMeQuery, type FiscalEnvironment } from '@/modules/identity/queries/useAuthMe.query'
+import { useCompanyUserPicture } from '@/modules/identity/hooks/useCompanyUserPicture.hook'
 import {
   getKeycloakAuthProvider,
   initializeKeycloakAuth,
@@ -77,6 +88,10 @@ type WorkspaceNavigationItem = Readonly<{
     | 'company-settings'
     | 'cte-batch'
     | 'cte-profiles'
+    | 'delivery-clients'
+    | 'driver-trip'
+    | 'extra-charges'
+    | 'trip-financials'
     | 'fleet'
     | 'freight'
     | 'mdfe-manifest'
@@ -85,12 +100,13 @@ type WorkspaceNavigationItem = Readonly<{
     | 'notification'
     | 'operations'
     | 'trip'
+    | 'access-profiles'
     | 'users'
   label: string
 }>
 
 type NavigationGroup = Readonly<{
-  key: 'administration' | 'fiscal' | 'operations' | 'registries'
+  key: 'administration' | 'fiscal' | 'identity' | 'operations' | 'registries'
   label: string
   items: readonly WorkspaceNavigationItem[]
 }>
@@ -105,9 +121,15 @@ const WORKSPACE_NAVIGATION_ITEMS: readonly WorkspaceNavigationItem[] = [
   { href: '/nfse-invoices', key: 'nfse-invoice', label: 'NFS-e' },
   { href: '/operations', key: 'operations', label: 'Operações' },
   { href: '/company-settings', key: 'company-settings', label: 'Empresa' },
-  { href: '/usuarios', key: 'users', label: 'Usuários' },
+  { href: '/usuarios', key: 'users', label: 'Acessos' },
+  { href: '/papeis', key: 'access-profiles', label: 'Papéis e grupos' },
   { href: '/cte-profiles', key: 'cte-profiles', label: 'Perfis CT-e' },
   { href: '/fleet', key: 'fleet', label: 'Frota' },
+  { href: '/clientes', key: 'delivery-clients', label: 'Clientes' },
+  { href: '/repasses', key: 'extra-charges', label: 'Repasses' },
+  { href: '/resultados', key: 'trip-financials', label: 'Resultados' },
+  // Fora dos grupos: quem é do campo não navega por menu — ele abre o produto e já está na viagem.
+  { href: DRIVER_TRIP_PATH, key: 'driver-trip', label: 'Minha viagem' },
   // Fora dos grupos do menu de propósito: a porta de entrada é o sino do cabeçalho, e a entrada
   // existe aqui só para o título da tela sair certo quando a rota abre.
   { href: '/notificacoes', key: 'notification', label: 'Notificações' },
@@ -118,9 +140,17 @@ const NAVIGATION_GROUPS: readonly NavigationGroup[] = [
     key: 'fiscal',
     label: 'Fiscal',
     items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) =>
-      ['nfe', 'freight', 'cte-batch', 'trip', 'mdfe-manifest', 'billing', 'nfse-invoice'].includes(
-        key,
-      ),
+      [
+        'nfe',
+        'freight',
+        'cte-batch',
+        'trip',
+        'mdfe-manifest',
+        'billing',
+        'extra-charges',
+        'trip-financials',
+        'nfse-invoice',
+      ].includes(key),
     ),
   },
   {
@@ -131,14 +161,26 @@ const NAVIGATION_GROUPS: readonly NavigationGroup[] = [
   {
     key: 'registries',
     label: 'Cadastros',
-    items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) => ['fleet', 'cte-profiles'].includes(key)),
+    items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) =>
+      ['fleet', 'delivery-clients', 'cte-profiles'].includes(key),
+    ),
+  },
+  /**
+   * Identidade é categoria própria, e não um item dentro de "Administração": são duas telas com o
+   * mesmo assunto e a mesma permissão, e empilhá-las numa só fazia o que se usa todo dia — a
+   * listagem — ficar embaixo do que se consulta uma vez por mês.
+   */
+  {
+    key: 'identity',
+    label: 'Usuários',
+    items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) =>
+      ['users', 'access-profiles'].includes(key),
+    ),
   },
   {
     key: 'administration',
     label: 'Administração',
-    items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) =>
-      ['company-settings', 'users'].includes(key),
-    ),
+    items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) => key === 'company-settings'),
   },
 ]
 
@@ -160,6 +202,10 @@ function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
   if (parseTripRoute(window.location.pathname) !== null) return 'trip'
   if (window.location.pathname === '/trips') return 'trip'
   if (window.location.pathname === '/cte-profiles') return 'cte-profiles'
+  if (window.location.pathname === DRIVER_TRIP_PATH) return 'driver-trip'
+  if (window.location.pathname === '/clientes') return 'delivery-clients'
+  if (window.location.pathname === '/repasses') return 'extra-charges'
+  if (window.location.pathname === '/resultados') return 'trip-financials'
   if (window.location.pathname === '/fleet') return 'fleet'
   if (window.location.pathname === '/mdfe-manifests') return 'mdfe-manifest'
   if (window.location.pathname === '/nfse-invoices') return 'nfse-invoice'
@@ -167,6 +213,7 @@ function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
   if (window.location.pathname === '/operations') return 'operations'
   if (window.location.pathname === '/freight') return 'freight'
   if (window.location.pathname === '/usuarios') return 'users'
+  if (window.location.pathname === '/papeis') return 'access-profiles'
 
   const storedWorkspace = sessionStorage.getItem(WORKSPACE_STORAGE_KEY)
   if (
@@ -174,6 +221,10 @@ function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
     storedWorkspace === 'company-settings' ||
     storedWorkspace === 'cte-batch' ||
     storedWorkspace === 'cte-profiles' ||
+    storedWorkspace === 'delivery-clients' ||
+    storedWorkspace === 'driver-trip' ||
+    storedWorkspace === 'extra-charges' ||
+    storedWorkspace === 'trip-financials' ||
     storedWorkspace === 'fleet' ||
     storedWorkspace === 'mdfe-manifest' ||
     storedWorkspace === 'nfse-invoice' ||
@@ -181,7 +232,8 @@ function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
     storedWorkspace === 'operations' ||
     storedWorkspace === 'freight' ||
     storedWorkspace === 'trip' ||
-    storedWorkspace === 'users'
+    storedWorkspace === 'users' ||
+    storedWorkspace === 'access-profiles'
   ) {
     return storedWorkspace
   }
@@ -207,6 +259,14 @@ function resolvePage(
       return <CteBatchWorkspacePage />
     case 'cte-profiles':
       return <CteProfilesPage />
+    case 'delivery-clients':
+      return <DeliveryClientWorkspacePage />
+    case 'driver-trip':
+      return <DriverTripWorkspacePage />
+    case 'extra-charges':
+      return <ExtraChargeWorkspacePage />
+    case 'trip-financials':
+      return <FinancialResultsWorkspacePage />
     case 'fleet':
       return <FleetWorkspacePage />
     case 'mdfe-manifest':
@@ -231,6 +291,8 @@ function resolvePage(
       return <FreightWorkspacePage />
     case 'users':
       return <UserAdministrationPage />
+    case 'access-profiles':
+      return <AccessProfilesPage />
     default:
       return <NfeWorkspacePage />
   }
@@ -256,7 +318,8 @@ function ApplicationShell(): ReactNode {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [pageTransitionPending, setPageTransitionPending] = useState(false)
   const [openGroups, setOpenGroups] = useState<Readonly<Record<NavigationGroup['key'], boolean>>>({
-    administration: currentWorkspace === 'company-settings' || currentWorkspace === 'users',
+    administration: currentWorkspace === 'company-settings',
+    identity: currentWorkspace === 'users' || currentWorkspace === 'access-profiles',
     fiscal: [
       'nfe',
       'freight',
@@ -281,12 +344,33 @@ function ApplicationShell(): ReactNode {
     function closeWithEscape(event: KeyboardEvent): void {
       if (event.key === 'Escape') {
         setSidebarOpen(false)
-        setOpenGroups({ administration: true, fiscal: true, operations: true, registries: true })
+        setOpenGroups({
+          administration: true,
+          fiscal: true,
+          identity: true,
+          operations: true,
+          registries: true,
+        })
       }
     }
     window.addEventListener('keydown', closeWithEscape)
     return () => window.removeEventListener('keydown', closeWithEscape)
   }, [])
+
+  /**
+   * Spec 057, RF-6: quem só tem o par do campo não pode cair na tela de NF-e. A troca acontece
+   * depois de `auth/me` responder — antes disso não há permissão para consultar — e **só** quando a
+   * pessoa não escolheu tela nenhuma: navegar para outro lugar continua sendo decisão dela.
+   */
+  const permissions = authMeQuery.data?.data.permissions
+  useEffect(() => {
+    if (permissions === undefined || !isFieldOnlyUser(permissions)) return
+    if (window.location.pathname !== '/') return
+
+    window.history.replaceState({}, '', DRIVER_TRIP_PATH)
+    setCurrentWorkspace('driver-trip')
+    setCurrentPath(DRIVER_TRIP_PATH)
+  }, [permissions])
 
   useEffect(() => {
     function syncLocation(): void {
@@ -312,6 +396,16 @@ function ApplicationShell(): ReactNode {
     setOpenGroups((current) => ({ ...current, [key]: !current[key] }))
   }
   const userProfile = getKeycloakAuthProvider().getProfile()
+  /**
+   * A foto do cabeçalho vinha do claim `picture` do token, e nunca aparecia por duas razões
+   * independentes: o claim aponta para a rota autenticada da foto, e `<img src>` não manda o
+   * `Authorization`; e o claim só entra num token novo, então a foto enviada agora só surgiria no
+   * próximo login. Buscar os bytes pela API é o mesmo caminho que os diálogos já usam, e ele
+   * atualiza assim que o envio termina.
+   */
+  const headerPicture = useCompanyUserPicture({
+    userId: authMeQuery.data?.data.identity.userId,
+  })
   const fiscalEnvironment = authMeQuery.data?.data.company.fiscalEnvironment ?? null
 
   return (
@@ -338,6 +432,7 @@ function ApplicationShell(): ReactNode {
               setOpenGroups({
                 administration: true,
                 fiscal: true,
+                identity: true,
                 operations: true,
                 registries: true,
               })
@@ -448,8 +543,8 @@ function ApplicationShell(): ReactNode {
                   }
                 />
                 <span className="application-user-avatar" aria-hidden="true">
-                  {userProfile.pictureUrl !== undefined ? (
-                    <img className="application-user-photo" src={userProfile.pictureUrl} alt="" />
+                  {headerPicture.objectUrl !== null ? (
+                    <img className="application-user-photo" src={headerPicture.objectUrl} alt="" />
                   ) : (
                     userProfile.initials
                   )}
@@ -539,7 +634,20 @@ async function bootstrapApplication(): Promise<void> {
     return
   }
 
-  await initializeKeycloakAuth()
+  /**
+   * Com a etapa de identificação ligada, `initialize` volta sem sessão em vez de redirecionar: a
+   * tela pergunta o identificador, resolve o login e só então leva ao provedor. Desligada, ela
+   * redireciona antes de renderizar, exatamente como sempre fez.
+   */
+  const isAuthenticated = await initializeKeycloakAuth()
+  if (!isAuthenticated) {
+    createRoot(applicationRootElement).render(
+      <StrictMode>
+        <LoginIdentifierPage />
+      </StrictMode>,
+    )
+    return
+  }
 
   createRoot(applicationRootElement).render(
     <StrictMode>

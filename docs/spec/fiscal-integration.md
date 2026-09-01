@@ -74,6 +74,27 @@ Diferenças em relação aos outros dois trilhos:
 - DACTE não foi confirmado no inventário como export público: manter requisito
   bloqueado até validar suporte ou escolher gerador separado.
 
+## Quando o MDF-e de uma viagem pode nascer (spec 059, ADR-0046)
+
+A viagem **não fala com a SEFAZ** — quem fala é a trilha de emissão. O que ela passa a saber é
+_quando pedir_, e a regra é uma só, em `checkTripAcceptsManifest`:
+
+- a viagem está em `dispatched` — vale para o botão manual também, porque é depois do despacho que o
+  conjunto de notas para de mudar (ADR-0043 §2). Antes disso o manifesto declararia um conjunto que
+  alguém ainda pode alterar;
+- **toda** nota vinculada tem CT-e autorizado. A prontidão é lida do estado real de
+  `cte_fiscal_documents` a cada consulta, nunca de uma flag — flag dessincroniza no cancelamento de um
+  CT-e, e manifesto sobre flag velha é declaração falsa;
+- no máximo 50 municípios de descarregamento, recusados **com a lista** antes de tocar a fila;
+- a empresa tem certificado válido — conferido antes de enfileirar, não depois de a SEFAZ recusar.
+
+Emissão automática ao ficar pronta é opção da empresa e **nasce desligada**: é ação irreversível
+contra órgão público, e ligá-la por padrão decide pelo cliente algo que custa dinheiro dele.
+
+**Não implementado:** encerramento automático do manifesto quando a viagem vai a `completed`.
+Manifesto não encerrado é pendência na SEFAZ e trava o próximo — dívida conhecida, registrada aqui e
+no `evidence.md` da 059.
+
 ## Riscos a esclarecer
 
 - cobertura real de UFs e contingência CT-e;

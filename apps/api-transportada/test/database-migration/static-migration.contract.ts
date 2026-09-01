@@ -10,7 +10,6 @@ import {
   IDENTITY_TABLES,
   INVITATION_TABLES,
   NFSE_TABLES,
-  TRIP_TABLES,
   listMigrationDirectories,
   migrationsDirectory,
 } from './support.js'
@@ -146,6 +145,50 @@ describe('Drizzle migrations', () => {
       '20260823235210_fleet_driver_identity_document',
       '20260824004030_fleet_driver_linked_address',
       '20260824153250_public_rattler',
+      '20260824184702_separator_role',
+      '20260824200157_trip_status_machine',
+      '20260824202501_trip_stops',
+      '20260824204404_trip_document_events',
+      '20260824204913_trip_dispatch_snapshots',
+      '20260824233118_trip_documents_stop_fk_restrict',
+      '20260825014901_delivery_address_overrides',
+      '20260825121044_landing_settings',
+      '20260825122857_aggregate_applications',
+      '20260825172715_polite_carlie_cooper',
+      '20260825173416_ancient_ben_parker',
+      '20260825215905_quick_flatman',
+      '20260826013922_identity_user_profile_contact_and_tax_id',
+      '20260826015435_powerful_dakota_north',
+      '20260826095930_overconfident_iron_monger',
+      '20260826101924_tough_killraven',
+      '20260826110441_cold_mattie_franklin',
+      '20260826112225_smooth_chameleon',
+      '20260826161437_nervous_aqueduct',
+      '20260826192739_striped_satana',
+      '20260826224111_mushy_invaders',
+      '20260826232046_solid_jack_power',
+      '20260827023131_delivery_client_registry',
+      '20260827023727_delivery_charges_and_scheduling',
+      '20260827024209_delivery_charge_dismissed',
+      '20260827103032_delivery_charge_suggestion_unique',
+      '20260827104939_delivery_charge_suggestion_needs_document',
+      '20260827113725_delivery_charge_suggested_amount',
+      '20260827124518_trip_financial_result',
+      '20260827153311_contractor_portal',
+      '20260827184657_route_suggestion_multi_vehicle',
+      '20260827200542_aggregate_application_attachments',
+      '20260827202356_aggregate_application_attachment_purpose',
+      '20260828002117_route_optimization_timezone',
+      '20260828033159_whatsapp_channel',
+      '20260829030742_whatsapp_webhook_nonce',
+      '20260829224254_identity_document_backfill_job',
+      '20260830160916_company_groups',
+      '20260830193604_login_identifiers',
+      '20260830233139_identity_user_picture',
+      '20260831170000_login_identifier_backfill',
+      '20260831180000_user_picture_public_token',
+      '20260831190000_identifier_source_whatsapp',
+      '20260831213731_company_cargo_settings',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -346,7 +389,9 @@ describe('Drizzle migrations', () => {
     const migrationHash = createHash('sha256').update(migrationSql).digest('hex')
 
     expect(migrationSql).not.toMatch(DESTRUCTIVE_MIGRATION_PATTERN)
-    for (const table of TRIP_TABLES) {
+    // A expansão original criou só estas três — trip_stops chega numa migration própria depois
+    // (ADR-0043), então este teste fica preso aos três nomes, não ao TRIP_TABLES que cresce.
+    for (const table of ['trips', 'trip_drivers', 'trip_documents']) {
       expect(migrationSql).toContain(`CREATE TABLE "${table}"`)
     }
     // ADR-0023: expansão primeiro — trip_id nasce nullable, a contração (T003) vem depois do backfill.

@@ -1,0 +1,140 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: color-mix(in srgb, var(--color-asphalt) 92%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 20%, transparent);
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: var(--layout-width);
+  margin: 0 auto;
+  height: 4rem;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: inherit;
+  min-width: 0;
+  text-decoration: none;
+}
+
+.brandMark {
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: var(--space-1);
+  flex-shrink: 0;
+}
+
+.brandName {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav {
+  display: none;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.navLink {
+  color: var(--color-fog);
+  text-decoration: none;
+  font-size: 0.92rem;
+}
+
+.navLink:hover {
+  color: var(--color-accent);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.ctaButton {
+  display: inline-flex;
+  align-items: center;
+  height: var(--touch-target);
+  padding: 0 var(--space-3);
+  font-size: 0.8rem;
+  border-radius: var(--space-2);
+  background: var(--color-accent);
+  color: var(--color-asphalt);
+  font-size: var(--field-font-size-compact);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.menuButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-target);
+  height: var(--touch-target);
+  border: none;
+  background: transparent;
+  color: var(--color-fog);
+  cursor: pointer;
+}
+
+.mobileMenu {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--layout-gutter) var(--space-6);
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 20%, transparent);
+}
+
+.mobileMenu .navLink {
+  font-size: 1rem;
+}
+
+@media (min-width: 48rem) {
+  .bar {
+    height: 4.5rem;
+    gap: var(--space-4);
+  }
+
+  .brandMark {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+
+  .brandName {
+    font-size: 1.15rem;
+  }
+
+  .ctaButton {
+    height: var(--control-height-compact);
+    padding: 0 var(--space-5);
+    font-size: var(--field-font-size-compact);
+  }
+}
+
+@media (min-width: 60rem) {
+  .nav {
+    display: flex;
+  }
+
+  .menuButton {
+    display: none;
+  }
+
+  .mobileMenu {
+    display: none;
+  }
+}

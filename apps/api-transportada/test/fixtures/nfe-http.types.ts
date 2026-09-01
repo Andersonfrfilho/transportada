@@ -3,6 +3,7 @@
  */
 import type { ScheduledDistributionStatus } from '../../src/companies/application/get-scheduled-distribution-status.use-case'
 import type { CompanyContext } from '../../src/identity/domain/tenant-context'
+import type { TripLocationByAccessKey } from '../../src/trips/application/find-trip-location-by-access-key.use-case'
 import type {
   JobRunSnapshot,
   NfeDistributionStatus,
@@ -74,12 +75,16 @@ export type NfeDocumentSummary = {
   readonly series: string
   readonly status: 'authorized' | 'cancelled' | 'denied'
   readonly totalAmount: string
+  /** Spec 065 D4b — o mesmo par que o tipo da aplicação e o das rotas declaram. */
+  readonly tripId: string | null
+  readonly tripStatus: string | null
   readonly variant: 'complete' | 'summary' | 'event'
 }
 
 export type NfeDocumentDetail = NfeDocumentSummary
 
 export type ListDocumentsCall = {
+  readonly accessKey: string | null
   readonly context: CompanyContext
   readonly cursor: string | null
   readonly limit: number
@@ -136,6 +141,9 @@ export type NfeHttpRouteDependencies = {
       readonly items: readonly NfeDocumentSummary[]
       readonly nextCursor: string | null
     }>
+  }
+  readonly locateTripByAccessKey: {
+    execute(input: { readonly accessKey: string }): Promise<TripLocationByAccessKey | null>
   }
   readonly listImports: {
     execute(input: ListImportsCall): Promise<{

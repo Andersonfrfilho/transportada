@@ -16,13 +16,87 @@
   "tabs": {
     "vehicles": "Vehicles",
     "drivers": "Drivers",
+    "applications": "Applications",
     "fuel": "Fuel",
-    "regions": "Regions"
+    "regions": "Regions",
+    "documents": "Attachments"
+  },
+  "applications": {
+    "loading": "Loading applications",
+    "empty": "No pending applications",
+    "columns": {
+      "name": "Name",
+      "taxId": "Document",
+      "contact": "Contact",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "status": {
+      "pending": "Pending",
+      "approved": "Approved",
+      "rejected": "Rejected"
+    },
+    "duplicateBadge": "Already registered",
+    "resubmittedBadge": "Resent",
+    "approveButton": "Approve",
+    "linkButton": "Link",
+    "rejectButton": "Reject",
+    "viewDriverButton": "View record",
+    "rejectionReasonLabel": "Rejection reason",
+    "confirmRejectButton": "Confirm rejection",
+    "cancelButton": "Cancel",
+    "declaredData": {
+      "toggleShow": "Show declared data",
+      "toggleHide": "Hide declared data",
+      "empty": "Application has no declared license, address, or vehicle.",
+      "driverTitle": "Driver",
+      "vehicleTitle": "Vehicle",
+      "noVehicle": "No vehicle declared — the operator registers it later.",
+      "fields": {
+        "licenseNumber": "License",
+        "licenseCategory": "Category",
+        "rntrc": "RNTRC",
+        "anttCategory": "Regime",
+        "address": "Address",
+        "plate": "Plate",
+        "brand": "Brand",
+        "model": "Model",
+        "modelYear": "Year",
+        "vehicleType": "Type"
+      }
+    },
+    "attachments": {
+      "approveButton": "Approve attachment",
+      "confirmRejectButton": "Confirm rejection",
+      "declaredLabel": "declared",
+      "empty": "This application came with no attachments.",
+      "loading": "Loading attachments…",
+      "matches": "What we read in the document matches what was declared.",
+      "notRead": "We could not read this document — check it by opening the file.",
+      "openButton": "Open file",
+      "readLabel": "in the document",
+      "reasonLabel": "Rejection reason",
+      "rejectButton": "Reject attachment",
+      "status": {
+        "approved": "· approved",
+        "pending": "· awaiting review",
+        "rejected": "· rejected"
+      },
+      "toggle": "Submitted attachments",
+      "types": {
+        "ccmei": "CCMEI",
+        "cnh": "CNH",
+        "crlv": "CRLV",
+        "other": "Other document"
+      }
+    }
   },
   "vehiclesTitle": "Vehicles",
   "driversTitle": "Drivers",
   "newVehicle": "New vehicle",
   "editVehicle": "Edit vehicle",
+  "documentPlateTaken": "Plate {{plate}} is already registered in this fleet.",
+  "documentPlateTakenAction": "Open the existing record",
   "newDriver": "New driver",
   "editDriver": "Edit driver",
   "edit": "Edit",
@@ -289,6 +363,16 @@
   "driverAnttCategory": "ANTT category",
   "driverAnttCategoryUnset": "No category",
   "driverAnttHint": "The driver ANTT registration and category. When the vehicle is theirs, this is what goes in the MDF-e owner group.",
+  "driverPixKeyType": "Pix key type",
+  "driverPixKeyTypeUnset": "No key",
+  "driverPixKey": "Pix key",
+  "pixKeyTypeOption": {
+    "cpf": "CPF",
+    "cnpj": "CNPJ",
+    "email": "E-mail",
+    "phone": "Phone",
+    "random": "Random key"
+  },
   "driverLicenseCategory": "License category",
   "driverLicenseCategoryUnset": "No category",
   "licenseCategoryOption": {
@@ -624,5 +708,49 @@
   "ownerIncompleteHint": "The driver record has no {{fields}} — the MDF-e owner group requires these fields. Complete the record right here, without leaving the vehicle form.",
   "ownerIncompleteFixButton": "Complete driver record",
   "ownerIncompleteUnknownDriver": "The owner document matches no registered driver — pick the driver in the list above to complete the record.",
-  "ownerIncompleteFeedback": "The owner driver record is incomplete: complete it before saving the vehicle."
+  "ownerIncompleteFeedback": "The owner driver record is incomplete: complete it before saving the vehicle.",
+  "documents": {
+    "loading": "Loading attachments",
+    "empty": "No attachment awaiting review",
+    "columns": {
+      "type": "Document",
+      "taxId": "Aggregate document",
+      "status": "Status",
+      "check": "Cross-check",
+      "actions": "Actions"
+    },
+    "type": {
+      "cnh": "Driver license",
+      "crlv": "Vehicle registration"
+    },
+    "status": {
+      "pending": "Pending",
+      "approved": "Approved",
+      "rejected": "Rejected"
+    },
+    "check": {
+      "unverified": "Could not be checked",
+      "matches": "Matches the application",
+      "divergent_one": "{{count}} field differs",
+      "divergent_other": "{{count}} fields differ"
+    },
+    "divergence": {
+      "document": "on the document",
+      "declared": "on the application"
+    },
+    "fields": {
+      "name": "Name",
+      "licenseNumber": "License number",
+      "licenseCategory": "Category",
+      "plate": "Plate",
+      "renavam": "RENAVAM"
+    },
+    "openButton": "Open",
+    "approveButton": "Approve",
+    "rejectButton": "Reject",
+    "rejectDialogTitle": "Reject attachment",
+    "rejectReasonLabel": "Rejection reason (the aggregate will read it)",
+    "confirmRejectButton": "Confirm rejection",
+    "cancelButton": "Cancel"
+  }
 }

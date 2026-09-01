@@ -114,7 +114,6 @@ export function selectionDocument(
   return {
     accessKey: '35260812345678000199550010000001231000000123',
     documentId: DOCUMENT_ID,
-    grossWeight: '1200.0000',
     issuedAt: '2026-08-01T10:00:00.000Z',
     number: '000000123',
     recipientAddress: RECIPIENT_ADDRESS,

@@ -2,8 +2,23 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, desc, eq, inArray, lt, or } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm'
 
+import {
+  fleetDriverVehicleAssignments,
+  fleetDrivers,
+  fleetVehicles,
+} from '../../database/fleet.schema.js'
+import { auditLogs } from '../../database/fiscal-operation.schema.js'
+import { loginIdentifiers } from '../../database/login-identifier.schema.js'
+import { projectLoginIdentifiers } from '../domain/login-identifier-projection.policy.js'
+import { jobExecutions, jobSchedules } from '../../database/job-schedule.schema.js'
+import type { JobOutcome, ScheduledJob } from '../../shared/job-catalog.constant.js'
+import type { CompanyUserIdentifier } from '../application/company-user.port.js'
+import type { CompanyUserFleetLink } from '../domain/company-user.policy.js'
+import type { RevealedCompanyUser } from '../application/reveal-company-users.use-case.js'
+import { SYSTEM_DISTRIBUTION_ACTOR_USER_ID } from '../domain/system-distribution-actor.constant.js'
+import type { LocalIdentityRecord } from '../domain/user-reconciliation.policy.js'
 import {
   externalIdentities,
   identityUserProfiles,
@@ -12,9 +27,14 @@ import {
   userCompanyMemberships,
   userInvitations,
 } from '../../database/database.schema.js'
+import type { ContactChannel } from '../../database/identity-user-profile.schema.js'
 import type { CompanyRole, MembershipStatus } from '../../database/identity.schema.js'
 import { violatedUniqueConstraint } from '../../database/postgres-error.support.js'
-import { DuplicateUsernameError } from '../domain/company-user.error.js'
+import {
+  CompanyUserNotFoundError,
+  DuplicateTaxIdError,
+  DuplicateUsernameError,
+} from '../domain/company-user.error.js'
 import { buildCompanyAdministratorFilters } from './drizzle-invitation.repository.js'
 import type {
   CompanyUserPage,
@@ -28,35 +48,127 @@ import type {
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
+/**
+ * As colunas do perfil chegam anuláveis porque a listagem o alcança por `leftJoin`: vínculo sem
+ * perfil é estado que existe na base, e declará-las não-nulas aqui era o que fazia o `innerJoin`
+ * parecer seguro enquanto escondia gente da tela.
+ */
 type MembershipRow = {
-  readonly contactAddress: string
-  readonly contactChannel: CompanyUserRecord['contactChannel']
+  readonly contactAddress: string | null
+  readonly contactChannel: CompanyUserRecord['contactChannel'] | null
+  readonly email: string | null
   readonly membershipCreatedAt: Date
   readonly membershipId: string
   readonly membershipStatus: MembershipStatus
-  readonly name: string
+  readonly name: string | null
+  readonly phone: string | null
+  readonly taxId: string | null
   readonly userId: string
-  readonly username: string
+  readonly username: string | null
 }
 
 const MEMBERSHIP_COLUMNS = {
   contactAddress: identityUserProfiles.contactAddress,
   contactChannel: identityUserProfiles.contactChannel,
+  email: identityUserProfiles.email,
   membershipCreatedAt: userCompanyMemberships.createdAt,
   membershipId: userCompanyMemberships.id,
   membershipStatus: userCompanyMemberships.status,
   name: identityUserProfiles.name,
+  phone: identityUserProfiles.phone,
+  taxId: identityUserProfiles.taxId,
   userId: userCompanyMemberships.userId,
   username: identityUserProfiles.username,
 } as const
 
+/**
+ * O ator sintético da distribuição de NF-e é identidade de sistema, não pessoa: ele tem membership
+ * para manter as colunas de ator NOT NULL, e a constante que o declara manda excluí-lo de toda
+ * listagem de gente. O `leftJoin` o trouxe para a tela — antes o `innerJoin` o escondia por acidente,
+ * porque ele também não tem perfil.
+ */
+function isRealPerson() {
+  return ne(userCompanyMemberships.userId, SYSTEM_DISTRIBUTION_ACTOR_USER_ID)
+}
+
+const CONTACT_REVEAL_ACTION = 'company-user.contact.revealed'
+const CONTACT_REVEAL_ENTITY = 'company-user'
+const CONTACT_REVEAL_PERMISSION = 'users.reveal'
+
+/** Canal de um perfil que não existe: não há contato, e o formato precisa de um valor. */
+const DEFAULT_CONTACT_CHANNEL = 'email' as const
+
+const TAX_ID_CONSTRAINT = 'identity_user_profiles_tax_id_unique'
+
+/** Papéis cuja pessoa tem ficha em `fleet_drivers` — é por eles que o vínculo é procurado. */
+const FLEET_LINKED_ROLES: readonly CompanyRole[] = ['driver', 'aggregate']
+
 const USERNAME_CONSTRAINT = 'identity_user_profiles_username_key'
+
+type TransactionalDatabase = Database | Parameters<Parameters<Database['transaction']>[0]>[0]
+
+/**
+ * Reconstrói por onde a pessoa se identifica, a partir da ficha que acabou de ser escrita.
+ *
+ * Fica no repositório, ao lado de **toda** escrita de perfil, e não em cada caso de uso: a tabela
+ * anterior a esta regra foi criada, lida pela tela de login e pela listagem, e nunca escrita —
+ * porque manter a projeção era responsabilidade de quem lembrasse. Aqui não há o que lembrar.
+ *
+ * Apagar e reinserir, em vez de reconciliar linha a linha: o conjunto é minúsculo (no máximo quatro
+ * entradas), e o `delete` é o que retira o endereço que a pessoa deixou de ter.
+ */
+async function rebuildLoginIdentifiers(
+  executor: TransactionalDatabase,
+  userId: string,
+): Promise<void> {
+  const [profile] = await executor
+    .select({
+      contactAddress: identityUserProfiles.contactAddress,
+      contactChannel: identityUserProfiles.contactChannel,
+      email: identityUserProfiles.email,
+      phone: identityUserProfiles.phone,
+      taxId: identityUserProfiles.taxId,
+    })
+    .from(identityUserProfiles)
+    .where(eq(identityUserProfiles.userId, userId))
+    .limit(1)
+  if (profile === undefined) return
+
+  const projected = projectLoginIdentifiers(profile)
+
+  /**
+   * Só o que a projeção escreveu. O identificador acrescentado à mão sobrevive à gravação do
+   * perfil — sem este recorte, o segundo e-mail de uma pessoa sumiria na próxima edição da ficha.
+   */
+  await executor
+    .delete(loginIdentifiers)
+    .where(and(eq(loginIdentifiers.userId, userId), eq(loginIdentifiers.source, 'profile')))
+  if (projected.length === 0) return
+
+  /**
+   * `onConflictDoNothing`: o mesmo valor pode já estar lá como acréscimo manual, e o unique é por
+   * `(usuário, tipo, valor)`. Nesse caso a linha manual fica, e é o que se quer — ela é a mais
+   * específica das duas.
+   */
+  await executor
+    .insert(loginIdentifiers)
+    .values(
+      projected.map((entry) => ({
+        kind: entry.kind,
+        source: 'profile' as const,
+        userId,
+        value: entry.value,
+      })),
+    )
+    .onConflictDoNothing()
+}
 
 export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
   public constructor(private readonly database: Database) {}
 
   public async createInvitedUser(input: CreateInvitedUserInput): Promise<CreateInvitedUserResult> {
     const membershipId = crypto.randomUUID()
+    let linkedFleetDriverId: string | null = null
     await this.database.transaction(async (transaction) => {
       await transaction.insert(identityUsers).values({ id: input.userId, status: 'active' })
       await transaction.insert(externalIdentities).values({
@@ -83,12 +195,18 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
       await transaction.insert(identityUserProfiles).values({
         contactAddress: input.contactAddress,
         contactChannel: input.contactChannel,
+        email: input.email,
         name: input.name,
+        phone: input.phone,
+        taxId: input.taxId,
         userId: input.userId,
         username: input.username,
       })
+
+      await rebuildLoginIdentifiers(transaction, input.userId)
+      linkedFleetDriverId = await linkFleetDriver(transaction, { ...input, membershipId })
     })
-    return { membershipId }
+    return { linkedFleetDriverId, membershipId }
   }
 
   public async findByUserId(input: {
@@ -159,18 +277,178 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
     return rows.map((row) => row.userId)
   }
 
+  /**
+   * O `leftJoin` no perfil não é preferência de estilo: com `innerJoin`, membership cujo perfil
+   * ainda não existe — conta criada antes de o perfil passar a ser gravado — desaparece da leitura,
+   * e some justamente da tela feita para encontrá-la.
+   */
+  public async listForReconciliation(input: {
+    readonly companyId: string
+  }): Promise<readonly LocalIdentityRecord[]> {
+    const rows = await this.database
+      .select({
+        contactAddress: identityUserProfiles.contactAddress,
+        contactChannel: identityUserProfiles.contactChannel,
+        email: identityUserProfiles.email,
+        membershipId: userCompanyMemberships.id,
+        name: identityUserProfiles.name,
+        profileUserId: identityUserProfiles.userId,
+        subject: externalIdentities.subject,
+        taxId: identityUserProfiles.taxId,
+        userId: userCompanyMemberships.userId,
+        username: identityUserProfiles.username,
+      })
+      .from(userCompanyMemberships)
+      .leftJoin(
+        identityUserProfiles,
+        eq(identityUserProfiles.userId, userCompanyMemberships.userId),
+      )
+      .leftJoin(externalIdentities, eq(externalIdentities.userId, userCompanyMemberships.userId))
+      .where(and(eq(userCompanyMemberships.companyId, input.companyId), isRealPerson()))
+
+    return rows.map((row) => ({
+      contactAddress: row.contactAddress ?? '',
+      contactChannel: row.contactChannel ?? DEFAULT_CONTACT_CHANNEL,
+      email: row.email ?? '',
+      /** A chave do perfil, não o nome: a coluna tem CHECK de não vazio, então nome em branco não
+       * distingue perfil ausente de perfil pobre — a ausência da linha distingue. */
+      hasProfile: row.profileUserId !== null,
+      membershipId: row.membershipId,
+      name: row.name ?? '',
+      taxId: row.taxId ?? '',
+      userId: row.userId,
+      /** O login daqui. Sem ele a comparação não enxerga o campo que o provedor mais altera. */
+      username: row.username ?? '',
+      ...(row.subject === null ? {} : { subject: row.subject }),
+    }))
+  }
+
+  /**
+   * Mesmo padrão do disparo manual da importação: a linha do histórico e o adiamento da janela vão
+   * juntos. Gravar o clique sem reagendar deixaria a janela seguinte vencer minutos depois e repetir
+   * o que o operador acabou de pedir.
+   */
+  public async recordManualJobRun(input: {
+    readonly companyId: string
+    readonly correlationId: string
+    readonly counters: Readonly<Record<string, number>>
+    readonly job: ScheduledJob
+    readonly outcome: JobOutcome
+    readonly requestedBy: string
+  }): Promise<void> {
+    const startedAt = new Date()
+    await this.database.insert(jobExecutions).values({
+      companyId: input.companyId,
+      correlationId: input.correlationId,
+      counters: input.counters,
+      finishedAt: startedAt,
+      job: input.job,
+      origin: 'manual',
+      outcome: input.outcome,
+      requestedBy: input.requestedBy,
+      startedAt,
+    })
+    await this.database
+      .update(jobSchedules)
+      .set({
+        nextRunAt: sql`now() + make_interval(secs => ${jobSchedules.intervalSeconds})`,
+        updatedAt: startedAt,
+      })
+      .where(eq(jobSchedules.job, input.job))
+  }
+
+  /**
+   * `leftJoin`, e não `innerJoin`: quem tem vínculo com a empresa mas ainda não tem linha de perfil
+   * — conta criada antes de o perfil passar a ser gravado — sumia da listagem inteira. Ela entra e
+   * sai do sistema, aparece no token, administra usuários, e não se via na tela que a administra.
+   *
+   * O perfil ausente vira campo vazio, nunca linha escondida: a tela mostra que a pessoa existe e
+   * que falta cadastro, e é assim que alguém a conserta. Esconder é o defeito, não a proteção.
+   */
+  public async linkIdentitySubject(input: {
+    readonly issuer: string
+    readonly subject: string
+    readonly userId: string
+  }): Promise<void> {
+    await this.database
+      .insert(externalIdentities)
+      .values({
+        id: crypto.randomUUID(),
+        issuer: input.issuer,
+        subject: input.subject,
+        userId: input.userId,
+      })
+      .onConflictDoNothing()
+  }
+
+  public async findForReveal(input: {
+    readonly companyId: string
+    readonly userIds: readonly string[]
+  }): Promise<readonly RevealedCompanyUser[]> {
+    if (input.userIds.length === 0) return []
+
+    return this.database
+      .select({
+        contact: identityUserProfiles.contactAddress,
+        email: identityUserProfiles.email,
+        name: identityUserProfiles.name,
+        phone: identityUserProfiles.phone,
+        taxId: identityUserProfiles.taxId,
+        userId: identityUserProfiles.userId,
+      })
+      .from(identityUserProfiles)
+      .innerJoin(
+        userCompanyMemberships,
+        eq(userCompanyMemberships.userId, identityUserProfiles.userId),
+      )
+      .where(
+        and(
+          eq(userCompanyMemberships.companyId, input.companyId),
+          inArray(identityUserProfiles.userId, [...input.userIds]),
+        ),
+      )
+  }
+
+  /**
+   * Uma linha por pessoa revelada. `security.md` §10 pede ator, alvo e horário — o IP fica de fora
+   * porque a tabela não o tem, e inventar coluna aqui é decisão maior que este botão.
+   */
+  public async recordContactReveal(input: {
+    readonly actorUserId: string
+    readonly companyId: string
+    readonly correlationId: string
+    readonly targetUserIds: readonly string[]
+  }): Promise<void> {
+    if (input.targetUserIds.length === 0) return
+
+    await this.database.insert(auditLogs).values(
+      input.targetUserIds.map((targetUserId) => ({
+        action: CONTACT_REVEAL_ACTION,
+        actorUserId: input.actorUserId,
+        companyId: input.companyId,
+        correlationId: input.correlationId,
+        entityId: targetUserId,
+        entityType: CONTACT_REVEAL_ENTITY,
+        permission: CONTACT_REVEAL_PERMISSION,
+        targetId: targetUserId,
+        targetType: CONTACT_REVEAL_ENTITY,
+      })),
+    )
+  }
+
   public async listPage(input: ListCompanyUsersInput): Promise<CompanyUserPage> {
     const cursor = decodeCursor(input.cursor)
     const rows = await this.database
       .select(MEMBERSHIP_COLUMNS)
       .from(userCompanyMemberships)
-      .innerJoin(
+      .leftJoin(
         identityUserProfiles,
         eq(identityUserProfiles.userId, userCompanyMemberships.userId),
       )
       .where(
         and(
           eq(userCompanyMemberships.companyId, input.companyId),
+          isRealPerson(),
           cursor === null
             ? undefined
             : or(
@@ -187,12 +465,19 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
 
     const pageRows = rows.slice(0, input.limit)
     const userIds = pageRows.map((row) => row.userId)
-    const [roles, pendingInvitations] = await Promise.all([
+    const [roles, pendingInvitations, fleetLinks, emails] = await Promise.all([
       this.fetchRoles({ companyId: input.companyId, userIds }),
       this.fetchPendingInvitations({ companyId: input.companyId, userIds }),
+      this.fetchFleetLinks({
+        companyId: input.companyId,
+        membershipIds: pageRows.map((row) => row.membershipId),
+      }),
+      this.fetchEmails({ userIds }),
     ])
 
-    const items = pageRows.map((row) => toRecord(row, roles, pendingInvitations))
+    const items = pageRows.map((row) =>
+      toRecord(row, roles, pendingInvitations, fleetLinks, emails),
+    )
     const last = pageRows.at(-1)
     return {
       items,
@@ -215,6 +500,45 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
           eq(userCompanyMemberships.userId, input.userId),
         ),
       )
+  }
+
+  /**
+   * Acrescenta, não troca: `on conflict do nothing` sobre a PK `(membership_id, role)` faz o "quem
+   * já tem, ignora" ser garantia do banco, não laço em memória — repetir o mesmo lote converge, e
+   * duas pessoas aplicando ao mesmo tempo não derrubam uma à outra.
+   *
+   * Usuário que não pertence à empresa some do lote em vez de virar erro: o `where` do `select` é o
+   * recorte, e responder diferente diria ao chamador que aquele id existe em outro lugar.
+   */
+  public async addRoles(input: {
+    readonly companyId: string
+    readonly roles: readonly CompanyRole[]
+    readonly userIds: readonly string[]
+  }): Promise<{ readonly affectedUserIds: readonly string[] }> {
+    if (input.roles.length === 0 || input.userIds.length === 0) return { affectedUserIds: [] }
+
+    const memberships = await this.database
+      .select({ id: userCompanyMemberships.id, userId: userCompanyMemberships.userId })
+      .from(userCompanyMemberships)
+      .where(
+        and(
+          eq(userCompanyMemberships.companyId, input.companyId),
+          inArray(userCompanyMemberships.userId, [...input.userIds]),
+          isRealPerson(),
+        ),
+      )
+    if (memberships.length === 0) return { affectedUserIds: [] }
+
+    await this.database
+      .insert(membershipRoles)
+      .values(
+        memberships.flatMap((membership) =>
+          input.roles.map((role) => ({ membershipId: membership.id, role })),
+        ),
+      )
+      .onConflictDoNothing()
+
+    return { affectedUserIds: memberships.map((membership) => membership.userId) }
   }
 
   public async replaceRoles(input: {
@@ -263,11 +587,45 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
   }
 
   /** O `username` é único no realm inteiro: a colisão vem do índice, não de uma leitura prévia. */
+  /**
+   * O conserto do quarto estado. `onConflictDoNothing` e não `upsert`: perfil que já existe é
+   * trabalho humano, e sobrescrevê-lo apagaria o nome que alguém editou à mão. A corrida com a
+   * edição manual é resolvida pelo banco, não pela leitura que veio antes.
+   */
+  public async createProfileForExistingUser(input: {
+    readonly contactAddress: string
+    readonly contactChannel: ContactChannel
+    readonly email: string
+    readonly name: string
+    readonly taxId: string
+    readonly userId: string
+    readonly username: string
+  }): Promise<{ readonly created: boolean }> {
+    try {
+      const inserted = await this.database
+        .insert(identityUserProfiles)
+        .values(input)
+        .onConflictDoNothing({ target: identityUserProfiles.userId })
+        .returning({ userId: identityUserProfiles.userId })
+
+      if (inserted.length > 0) await rebuildLoginIdentifiers(this.database, input.userId)
+      return { created: inserted.length > 0 }
+    } catch (error) {
+      const constraint = violatedUniqueConstraint(error)
+      if (constraint === USERNAME_CONSTRAINT) throw new DuplicateUsernameError()
+      if (constraint === TAX_ID_CONSTRAINT) throw new DuplicateTaxIdError()
+      throw error
+    }
+  }
+
   public async updateProfile(input: UpdateCompanyUserProfileInput): Promise<void> {
     const changes = {
       ...(input.contactAddress === undefined ? {} : { contactAddress: input.contactAddress }),
       ...(input.contactChannel === undefined ? {} : { contactChannel: input.contactChannel }),
+      ...(input.email === undefined ? {} : { email: input.email }),
       ...(input.name === undefined ? {} : { name: input.name }),
+      ...(input.phone === undefined ? {} : { phone: input.phone }),
+      ...(input.taxId === undefined ? {} : { taxId: input.taxId }),
       ...(input.username === undefined ? {} : { username: input.username }),
     }
     if (Object.keys(changes).length === 0) return
@@ -277,11 +635,182 @@ export class DrizzleCompanyUserRepository implements CompanyUserRepositoryPort {
         .update(identityUserProfiles)
         .set({ ...changes, updatedAt: new Date() })
         .where(eq(identityUserProfiles.userId, input.userId))
+      await rebuildLoginIdentifiers(this.database, input.userId)
     } catch (error) {
-      if (violatedUniqueConstraint(error) === USERNAME_CONSTRAINT)
-        throw new DuplicateUsernameError()
+      const constraint = violatedUniqueConstraint(error)
+      if (constraint === USERNAME_CONSTRAINT) throw new DuplicateUsernameError()
+      if (constraint === TAX_ID_CONSTRAINT) throw new DuplicateTaxIdError()
       throw error
     }
+  }
+
+  /**
+   * Por onde a pessoa se identifica e por onde se fala com ela: o mesmo conjunto serve às duas
+   * coisas, e é isso que a tela edita. O documento entra na lista porque a pessoa pode digitá-lo
+   * para entrar, mas ele não é acrescentável à mão — vem da ficha.
+   */
+  /** O recorte é do banco: sem o vínculo com a empresa do token, o id bastaria para alcançar. */
+  private async belongsToCompany(input: {
+    readonly companyId: string
+    readonly userId: string
+  }): Promise<boolean> {
+    const [membership] = await this.database
+      .select({ id: userCompanyMemberships.id })
+      .from(userCompanyMemberships)
+      .where(
+        and(
+          eq(userCompanyMemberships.companyId, input.companyId),
+          eq(userCompanyMemberships.userId, input.userId),
+        ),
+      )
+      .limit(1)
+
+    return membership !== undefined
+  }
+
+  public async listIdentifiers(input: {
+    readonly companyId: string
+    readonly userId: string
+  }): Promise<readonly CompanyUserIdentifier[]> {
+    if (!(await this.belongsToCompany(input))) return []
+
+    const rows = await this.database
+      .select({
+        id: loginIdentifiers.id,
+        isWhatsapp: loginIdentifiers.isWhatsapp,
+        kind: loginIdentifiers.kind,
+        source: loginIdentifiers.source,
+        value: loginIdentifiers.value,
+      })
+      .from(loginIdentifiers)
+      .where(eq(loginIdentifiers.userId, input.userId))
+      .orderBy(loginIdentifiers.kind, loginIdentifiers.value)
+
+    return rows
+  }
+
+  /** Repetir o mesmo valor converge: o unique é por `(usuário, tipo, valor)`, e repetir não é erro. */
+  public async addIdentifier(input: {
+    readonly companyId: string
+    readonly isWhatsapp: boolean
+    readonly kind: 'email' | 'phone'
+    readonly userId: string
+    readonly value: string
+  }): Promise<void> {
+    if (!(await this.belongsToCompany(input))) throw new CompanyUserNotFoundError()
+
+    await this.database
+      .insert(loginIdentifiers)
+      .values({
+        isWhatsapp: input.isWhatsapp,
+        kind: input.kind,
+        source: 'manual',
+        userId: input.userId,
+        value: input.value,
+      })
+      .onConflictDoNothing()
+  }
+
+  /**
+   * Só o acréscimo manual se apaga aqui. O derivado da ficha volta na próxima gravação dela, então
+   * removê-lo seria promessa que a tela não cumpre — quem quer tirá-lo edita o campo do cadastro.
+   */
+  public async removeIdentifier(input: {
+    readonly companyId: string
+    readonly identifierId: string
+    readonly userId: string
+  }): Promise<boolean> {
+    if (!(await this.belongsToCompany(input))) return false
+
+    const removed = await this.database
+      .delete(loginIdentifiers)
+      .where(
+        and(
+          eq(loginIdentifiers.id, input.identifierId),
+          eq(loginIdentifiers.userId, input.userId),
+          eq(loginIdentifiers.source, 'manual'),
+        ),
+      )
+      .returning({ id: loginIdentifiers.id })
+
+    return removed.length > 0
+  }
+
+  /**
+   * O motorista referencia o **vínculo**, não a pessoa (`fleet_drivers.membership_id`), e o veículo
+   * referencia o motorista. A leitura vem junto da página, como papéis e convites: uma consulta por
+   * linha renderizada seria N+1 numa tela que já é a mais pesada do módulo.
+   *
+   * Só a atribuição **aberta** conta (`released_at is null`): veículo devolvido não é vínculo atual,
+   * e mostrá-lo mandaria o operador para a ficha de um carro que a pessoa não dirige mais.
+   */
+  /**
+   * Os e-mails por onde a pessoa se identifica. A listagem mostra um contato só, e sem a contagem
+   * ela mente por omissão: quem tem três endereços parece ter um, e quem procura por um dos outros
+   * conclui que a pessoa não está cadastrada.
+   */
+  private async fetchEmails(input: {
+    readonly userIds: readonly string[]
+  }): Promise<ReadonlyMap<string, readonly string[]>> {
+    if (input.userIds.length === 0) return new Map()
+
+    const rows = await this.database
+      .select({ userId: loginIdentifiers.userId, value: loginIdentifiers.value })
+      .from(loginIdentifiers)
+      .where(
+        and(
+          eq(loginIdentifiers.kind, 'email'),
+          inArray(loginIdentifiers.userId, [...input.userIds]),
+        ),
+      )
+      .orderBy(loginIdentifiers.value)
+
+    const emails = new Map<string, string[]>()
+    for (const row of rows) {
+      emails.set(row.userId, [...(emails.get(row.userId) ?? []), row.value])
+    }
+    return emails
+  }
+
+  private async fetchFleetLinks(input: {
+    readonly companyId: string
+    readonly membershipIds: readonly string[]
+  }): Promise<ReadonlyMap<string, CompanyUserFleetLink>> {
+    if (input.membershipIds.length === 0) return new Map()
+
+    const rows = await this.database
+      .select({
+        driverId: fleetDrivers.id,
+        membershipId: fleetDrivers.membershipId,
+        plate: fleetVehicles.plate,
+        vehicleId: fleetVehicles.id,
+      })
+      .from(fleetDrivers)
+      .leftJoin(
+        fleetDriverVehicleAssignments,
+        and(
+          eq(fleetDriverVehicleAssignments.driverId, fleetDrivers.id),
+          isNull(fleetDriverVehicleAssignments.releasedAt),
+        ),
+      )
+      .leftJoin(fleetVehicles, eq(fleetVehicles.id, fleetDriverVehicleAssignments.vehicleId))
+      .where(
+        and(
+          eq(fleetDrivers.companyId, input.companyId),
+          inArray(fleetDrivers.membershipId, [...input.membershipIds]),
+        ),
+      )
+
+    const links = new Map<string, { driverId: string; vehicles: { id: string; plate: string }[] }>()
+    for (const row of rows) {
+      if (row.membershipId === null) continue
+      const link = links.get(row.membershipId) ?? { driverId: row.driverId, vehicles: [] }
+      if (row.vehicleId !== null && row.plate !== null) {
+        link.vehicles.push({ id: row.vehicleId, plate: row.plate })
+      }
+      links.set(row.membershipId, link)
+    }
+    return links
   }
 
   private async fetchPendingInvitations(input: {
@@ -349,17 +878,64 @@ function toRecord(
   row: MembershipRow,
   rolesByUser: ReadonlyMap<string, readonly CompanyRole[]>,
   pendingInvitationsByUser: ReadonlyMap<string, Date>,
+  fleetLinksByMembership: ReadonlyMap<string, CompanyUserFleetLink> = new Map(),
+  emailsByUser: ReadonlyMap<string, readonly string[]> = new Map(),
 ): CompanyUserRecord {
+  const fleet = fleetLinksByMembership.get(row.membershipId)
   const expiresAt = pendingInvitationsByUser.get(row.userId)
+  /** Sem perfil, o `leftJoin` traz nulo em cada coluna dele — vazio é a resposta honesta. */
   return {
-    contactAddress: row.contactAddress,
-    contactChannel: row.contactChannel,
+    contactAddress: row.contactAddress ?? '',
+    contactChannel: row.contactChannel ?? DEFAULT_CONTACT_CHANNEL,
+    email: row.email ?? '',
+    emails: emailsByUser.get(row.userId) ?? [],
+    ...(fleet === undefined ? {} : { fleet }),
     membershipId: row.membershipId,
     membershipStatus: row.membershipStatus,
-    name: row.name,
+    name: row.name ?? '',
     pendingInvitation: expiresAt === undefined ? undefined : { expiresAt },
+    phone: row.phone ?? '',
     roles: rolesByUser.get(row.userId) ?? [],
+    taxId: row.taxId ?? '',
     userId: row.userId,
-    username: row.username,
+    username: row.username ?? '',
   }
+}
+
+/**
+ * O motorista e o agregado já existiam antes do convite: `fleet_drivers` guarda a ficha, com CPF
+ * único por empresa, e a criação da ficha é que costuma disparar o convite (ver
+ * `fleet-drivers.use-case.ts`). Convidar pela tela de usuários é a porta contrária, e sem isto ela
+ * produziria uma segunda pessoa para o mesmo CPF — usuário com papel Motorista que a frota não
+ * conhece.
+ *
+ * Só preenche ficha órfã (`membership_id is null`): ficha já vinculada pertence a outro usuário, e
+ * roubá-la deixaria o primeiro sem frota calada. Não achar ficha não é erro — quem convida pode
+ * estar cadastrando a pessoa antes da ficha; o chamador recebe `null` e avisa na tela.
+ */
+async function linkFleetDriver(
+  transaction: Parameters<Parameters<Database['transaction']>[0]>[0],
+  input: {
+    readonly companyId: string
+    readonly membershipId: string
+    readonly roles: readonly CompanyRole[]
+    readonly taxId: string
+  },
+): Promise<string | null> {
+  if (input.taxId === '') return null
+  if (!input.roles.some((role) => FLEET_LINKED_ROLES.includes(role))) return null
+
+  const [linked] = await transaction
+    .update(fleetDrivers)
+    .set({ membershipId: input.membershipId, updatedAt: new Date() })
+    .where(
+      and(
+        eq(fleetDrivers.companyId, input.companyId),
+        eq(fleetDrivers.taxId, input.taxId),
+        isNull(fleetDrivers.membershipId),
+      ),
+    )
+    .returning({ id: fleetDrivers.id })
+
+  return linked?.id ?? null
 }

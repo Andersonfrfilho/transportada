@@ -56,6 +56,101 @@
   font-size: 1.1rem;
 }
 
+.matrixTable th[scope='col'] {
+  text-align: center;
+}
+
+.matrixTable td:first-child,
+.matrixTable th[scope='col']:first-child {
+  text-align: start;
+}
+
+.matrixGroup {
+  padding-block: var(--space-3);
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  text-align: start;
+  text-transform: uppercase;
+}
+
+.matrixCell {
+  text-align: center;
+}
+
+.selectCell {
+  width: var(--control-height);
+}
+
+.bulkBar {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  margin-block-end: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+}
+
+.bulkHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.bulkActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.detailGrid {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  margin-block: var(--space-3);
+}
+
+.detailGrid dt {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.detailGrid dd {
+  margin: 0;
+  margin-block-start: var(--space-1);
+}
+
+.pillList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding-inline-start: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  font-size: var(--field-font-size-compact);
+}
+
+.revealCell {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.panelActions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 .panelHead {
   display: flex;
   flex-wrap: wrap;
@@ -105,6 +200,13 @@
   display: block;
   color: color-mix(in srgb, var(--color-slate) 80%, transparent);
   font-size: 0.75rem;
+}
+
+.fleetLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-block-end: var(--space-1);
 }
 
 .roleList {
@@ -164,6 +266,27 @@
   font-size: 0.8rem;
 }
 
+/* Vínculo feito é confirmação, não alarme: mesma forma do aviso, cor de pronto. */
+/*
+ * Seletor composto, e não `.noticeReady` sozinho: `.feedback` é declarada **depois** neste arquivo e
+ * tem a mesma especificidade, então o vermelho dela vencia — todo aviso de sucesso saía na cor do
+ * erro, e a conferência por classe presente não pegava isso. Com `.feedback.noticeReady` a vitória
+ * deixa de depender da ordem das regras.
+ */
+.feedback.noticeReady,
+.noticeReady {
+  border-left-color: var(--color-ready);
+  color: var(--color-ready);
+  background: color-mix(in srgb, var(--color-ready) 8%, var(--color-asphalt) 92%);
+}
+
+.notice {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
 .feedback {
   margin: 0;
   padding: var(--space-3);
@@ -190,7 +313,7 @@
   display: grid;
   gap: var(--space-3);
   align-items: center;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 2fr) minmax(0, 2fr) minmax(0, 1fr) minmax(0, 2fr);
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .overlay {
@@ -200,18 +323,19 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--space-4);
+  padding: 0;
   background: color-mix(in srgb, var(--color-asphalt) 78%, transparent);
 }
 
 .dialog {
   display: grid;
   gap: var(--space-5);
-  width: min(46rem, 100%);
-  max-height: 92vh;
+  width: 100%;
+  height: 100%;
+  max-height: 100vh;
   padding: var(--space-5);
   overflow-y: auto;
-  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  border: none;
   color: var(--color-fog);
   background: var(--color-graphite);
   box-shadow: 0 1.5rem 3rem color-mix(in srgb, var(--color-asphalt) 55%, transparent);
@@ -237,10 +361,12 @@
   justify-content: flex-end;
 }
 
+/* Alinhar pelo topo, não pelo fim: o campo com dica é mais alto, e `end` empurrava o rótulo
+   do vizinho para baixo do input dele — os dois da mesma linha saíam desencontrados. */
 .fieldGrid {
   display: grid;
   gap: var(--space-3);
-  align-items: end;
+  align-items: start;
   min-width: 0;
   grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
 }
@@ -289,6 +415,17 @@
   font-size: 0.75rem;
 }
 
+/* Ancorada no campo, não num aviso solto no rodapé: quem errou precisa ver onde errou. */
+.fieldError {
+  display: block;
+  color: var(--color-alert);
+  font-size: 0.75rem;
+}
+
+.field input[aria-invalid='true'] {
+  border-color: var(--color-alert);
+}
+
 .roleGroup {
   display: grid;
   gap: var(--space-2);
@@ -318,19 +455,169 @@
   grid-column: 1 / -1;
 }
 
-@media (width <= 40rem) {
+@media (min-width: 40rem) {
   .overlay {
-    padding: 0;
+    padding: var(--space-4);
   }
 
   .dialog {
-    width: 100%;
-    height: 100%;
-    max-height: 100vh;
-    border: none;
+    width: min(46rem, 100%);
+    height: auto;
+    max-height: 92vh;
+    border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
   }
 
   .skeletonRow {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 2fr) minmax(0, 2fr) minmax(0, 2fr) minmax(0, 1fr) minmax(
+        0,
+        2fr
+      );
   }
+}
+
+/* A ficha abre com o rosto: avatar à esquerda, ações à direita, na mesma linha. */
+.pictureField {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  margin-block-end: var(--space-4);
+}
+
+.picture,
+.pictureFallback {
+  block-size: 4rem;
+  inline-size: 4rem;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.pictureFallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--color-graphite) 82%, transparent);
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: var(--field-font-size);
+  font-weight: 600;
+}
+
+.pictureActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* O input nativo de arquivo não se estiliza: o botão é quem aparece, e ele o aciona. */
+.hiddenInput {
+  display: none;
+}
+
+/* O recorte é sugestão: ele aparece abaixo do avatar, com o que aprovar e o que descartar. */
+.pictureReview {
+  display: flex;
+  flex-basis: 100%;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* O antes e o depois lado a lado: aprovar sem ver o resultado não é aprovar. */
+.pictureComparison {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/*
+ * O bloco do provedor e o da senha: painéis dentro do diálogo, separados do formulário pela mesma
+ * borda dos painéis da página — sem ela, o espelho do Keycloak parecia mais um punhado de campos
+ * editáveis da ficha daqui.
+ */
+.mirrorPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+  background: color-mix(in srgb, var(--color-graphite) 82%, transparent);
+}
+
+.mirrorPanel h3 {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+/* O valor e o olho na mesma linha: o botão abaixo do texto lia como ação de outro campo. */
+.secretRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.secretRow input {
+  flex: 1;
+  min-width: 0;
+}
+
+/*
+ * Um dado por linha: valor guardado, olho e lápis juntos, e o campo de troca abrindo abaixo. Eram
+ * dois blocos — campos vazios em cima, valores mascarados embaixo — sem nada ligando os dois.
+ */
+.storedFieldList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.storedField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+}
+
+.storedFieldHead {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.storedFieldLabel {
+  color: var(--color-slate);
+  font-size: 0.75rem;
+}
+
+.storedFieldValue {
+  font-family: var(--font-utility);
+}
+
+/*
+ * O olho ao lado de um campo tem a altura do campo. O tamanho compacto do botão vem de
+ * `--control-height-compact`, e ao lado de um input de `--field-height` ele fica um degrau mais
+ * baixo — a mesma fileira com duas alturas, que é o que a regra de altura de controle existe para
+ * impedir. Nas linhas sem input o compacto continua certo, e por isso a regra é escopada por `:has`.
+ */
+.secretRow:has(input) button {
+  height: var(--control-height);
+}
+
+/*
+ * O papel que leva à ficha da frota. Ele é botão, mas se lê como a etiqueta ao lado: mudar a forma
+ * faria a coluna ter dois vocabulários visuais para a mesma informação.
+ */
+.roleLink {
+  padding-inline: var(--space-2);
+  font-size: 0.75rem;
+}
+
+/* O campo, a marca e o botão de acrescentar na mesma fileira; em telas estreitas eles quebram. */
+.identifierAdd {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-end;
+  flex-wrap: wrap;
 }

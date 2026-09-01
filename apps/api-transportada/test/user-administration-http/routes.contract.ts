@@ -13,6 +13,12 @@ import {
   INVITE_BODY,
   INVITE_CONTACT,
   jsonRequest,
+  ASSIGNED_ROLES_RESULT,
+  BACKFILL_RESULT,
+  PROFILE_FILL_RESULT,
+  RECONCILIATION_RESULT,
+  REVEALED_USERS,
+  ROLE_PERMISSIONS_MATRIX,
   REPLACE_ROLES_BODY,
   responseApiError,
   responseData,
@@ -20,6 +26,7 @@ import {
   TARGET_USER_ID,
   UPDATE_PROFILE_BODY,
   UPDATED_CONTACT,
+  WITH_USERS_REVEAL_PERMISSIONS,
 } from '../fixtures/user-administration-http.fixture'
 
 const USER_PATH = `${COMPANY_USERS_PATH}/${TARGET_USER_ID}`
@@ -46,11 +53,14 @@ describe('rotas de administração de usuários — listagem', () => {
     const view = toCompanyUserView({
       contactAddress: 'pessoa@empresa.test',
       contactChannel: 'email',
+      email: 'pessoa@empresa.test',
       membershipId: TARGET_MEMBERSHIP_ID,
       membershipStatus: 'active',
       name: 'Pessoa Convidada',
       pendingInvitation: undefined,
+      phone: '',
       roles: ['fiscal'],
+      taxId: '',
       userId: TARGET_USER_ID,
       username: TARGET_USER_ID,
     })
@@ -336,5 +346,299 @@ describe('rotas de administração de usuários — remoção de vínculo', () =
 
     expect(response.status).toBe(400)
     expect(fixture.removeMembershipCalls).toEqual([])
+  })
+})
+
+describe('rotas de administração de usuários — reconciliação com o Keycloak', () => {
+  test('devolve os dois lados no escopo da empresa do token', async () => {
+    const fixture = await createUserAdministrationHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({ method: 'GET', path: `${COMPANY_USERS_PATH}/reconciliation` }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ data: RECONCILIATION_RESULT })
+    expect(fixture.reconcileCalls).toHaveLength(1)
+    expect(fixture.reconcileCalls[0]?.['context']).toMatchObject({
+      companyId: COMPANY_CONTEXT.companyId,
+    })
+  })
+
+  /**
+   * `reconciliation` não é um identificador de usuário. Sem o caminho literal declarado antes do
+   * parametrizado, a rota cairia em `/company-users/:id` e responderia 400 por UUID inválido.
+   */
+  test('o caminho literal não é lido como identificador de usuário', async () => {
+    const fixture = await createUserAdministrationHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({ method: 'GET', path: `${COMPANY_USERS_PATH}/reconciliation` }),
+    )
+
+    expect(response.status).not.toBe(400)
+    expect(response.status).not.toBe(404)
+  })
+
+  test('o recorte do realm tem teto, e valor inválido cai no padrão', async () => {
+    const fixture = await createUserAdministrationHttpFixture()
+
+    await fixture.handle(
+      jsonRequest({ method: 'GET', path: `${COMPANY_USERS_PATH}/reconciliation?limit=5000` }),
+    )
+    await fixture.handle(
+      jsonRequest({ method: 'GET', path: `${COMPANY_USERS_PATH}/reconciliation?limit=abacaxi` }),
+    )
+
+    expect(fixture.reconcileCalls[0]?.['limit']).toBe(200)
+    expect(fixture.reconcileCalls[1]?.['limit']).toBe(100)
+  })
+})
+
+describe('rotas de administração de usuários — backfill manual do documento', () => {
+  test('roda no escopo da empresa do token e devolve o que contou', async () => {
+    const fixture = await createUserAdministrationHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({ method: 'POST', path: `${COMPANY_USERS_PATH}/document-backfill` }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ data: BACKFILL_RESULT })
+    expect(fixture.backfillCalls[0]?.['context']).toMatchObject({
+      companyId: COMPANY_CONTEXT.companyId,
+    })
+  })
+
+  /** Sem correlação, a linha do histórico não se liga ao chamado que a pediu. */
+  test('leva a correlação do pedido, e inventa uma quando não vem', async () => {
+    const fixture = await createUserAdministrationHttpFixture()
+
+    await fixture.handle(
+      jsonRequest({ method: 'POST', path: `${COMPANY_USERS_PATH}/document-backfill` }),
+    )
+
+    expect(fixture.backfillCalls[0]?.['correlationId']).toEqual(expect.any(String))
+  })
+
+  test('o caminho literal não é lido como identificador de usuário', async () => {
+    const fixture = await createUserAdministrationHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({ method: 'POST', path: `${COMPANY_USERS_PATH}/document-backfill` }),
+    )
+
+    expect(response.status).not.toBe(400)
+    expect(response.status).not.toBe(404)
+  })
+})
+
+describe('rotas de administração de usuários — revelar contato e documento', () => {
+  test('devolve o valor cru a quem tem a permissão de revelar', async () => {
+    const fixture = await createUserAdministrationHttpFixture({
+      permissions: WITH_USERS_REVEAL_PERMISSIONS,
+    })
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { userIds: [TARGET_USER_ID] },
+        method: 'POST',
+        path: `${COMPANY_USERS_PATH}/reveal`,
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ data: REVEALED_USERS })
+    expect(fixture.revealCalls[0]).toMatchObject({ userIds: [TARGET_USER_ID] })
+    expect(fixture.revealCalls[0]?.['context']).toMatchObject({
+      companyId: COMPANY_CONTEXT.companyId,
+    })
+  })
+
+  /** Sem correlação, a linha de auditoria não se liga ao chamado que a pediu. */
+  test('a revelação leva correlação para a trilha', async () => {
+    const fixture = await createUserAdministrationHttpFixture({
+      permissions: WITH_USERS_REVEAL_PERMISSIONS,
+    })
+
+    await fixture.handle(
+      jsonRequest({
+        body: { userIds: [TARGET_USER_ID] },
+        method: 'POST',
+        path: `${COMPANY_USERS_PATH}/reveal`,
+      }),
+    )
+
+    expect(fixture.revealCalls[0]?.['correlationId']).toEqual(expect.any(String))
+  })
+
+  /** Lista vazia é pedido sem alvo; sem o piso, ela viraria uma linha de auditoria sobre ninguém. */
+  test('recusa lista vazia e lista acima do teto', async () => {
+    const fixture = await createUserAdministrationHttpFixture({
+      permissions: WITH_USERS_REVEAL_PERMISSIONS,
+    })
+    const tooMany = Array.from({ length: 101 }, () => TARGET_USER_ID)
+
+    const empty = await fixture.handle(
+      jsonRequest({ body: { userIds: [] }, method: 'POST', path: `${COMPANY_USERS_PATH}/reveal` }),
+    )
+    const excessive = await fixture.handle(
+      jsonRequest({
+        body: { userIds: tooMany },
+        method: 'POST',
+        path: `${COMPANY_USERS_PATH}/reveal`,
+      }),
+    )
+
+    expect(empty.status).toBe(400)
+    expect(excessive.status).toBe(400)
+    expect(fixture.revealCalls).toHaveLength(0)
+  })
+})
+
+describe('rotas de administração de usuários — papéis em lote', () => {
+  test('aplica os papéis escolhidos aos usuários escolhidos', async () => {
+    const fixture = await createUserAdministrationHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { roles: ['fiscal'], userIds: [TARGET_USER_ID] },
+        method: 'POST',
+        path: `${COMPANY_USERS_PATH}/roles`,
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ data: ASSIGNED_ROLES_RESULT })
+    expect(fixture.assignRolesCalls[0]).toMatchObject({
+      roles: ['fiscal'],
+      userIds: [TARGET_USER_ID],
+    })
+  })
+
+  /**
+   * O caminho é irmão de `/company-users/:id/roles`, que **substitui**. Confundir os dois apagaria
+   * o papel de administrador de quem o tinha, em silêncio — daí `POST` aqui e `PUT` lá.
+   */
+  test('o lote não é lido como identificador de usuário', async () => {
+    const fixture = await createUserAdministrationHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { roles: ['fiscal'], userIds: [TARGET_USER_ID] },
+        method: 'POST',
+        path: `${COMPANY_USERS_PATH}/roles`,
+      }),
+    )
+
+    expect(response.status).not.toBe(400)
+    expect(response.status).not.toBe(404)
+  })
+
+  test('recusa lote sem papel e lote sem usuário', async () => {
+    const fixture = await createUserAdministrationHttpFixture()
+
+    const withoutRoles = await fixture.handle(
+      jsonRequest({
+        body: { roles: [], userIds: [TARGET_USER_ID] },
+        method: 'POST',
+        path: `${COMPANY_USERS_PATH}/roles`,
+      }),
+    )
+    const withoutUsers = await fixture.handle(
+      jsonRequest({
+        body: { roles: ['fiscal'], userIds: [] },
+        method: 'POST',
+        path: `${COMPANY_USERS_PATH}/roles`,
+      }),
+    )
+
+    expect(withoutRoles.status).toBe(400)
+    expect(withoutUsers.status).toBe(400)
+    expect(fixture.assignRolesCalls).toHaveLength(0)
+  })
+})
+
+describe('rotas de administração de usuários — a matriz de papel e permissão', () => {
+  test('publica o que cada papel alcança, e o catálogo inteiro', async () => {
+    const fixture = await createUserAdministrationHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({ method: 'GET', path: `${COMPANY_USERS_PATH}/role-permissions` }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ data: ROLE_PERMISSIONS_MATRIX })
+  })
+})
+
+/**
+ * O quarto estado da reconciliação: a conta existe dos dois lados e a ficha daqui está vazia. O
+ * conserto é rota irmã do `sync`, com a mesma permissão — quem enxerga a divergência é quem a
+ * conserta.
+ */
+describe('rotas de administração de usuários — preencher perfil pelo provedor', () => {
+  test('preenche o lote pedido e devolve o que foi recusado', async () => {
+    const fixture = await createUserAdministrationHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { userIds: [TARGET_USER_ID] },
+        method: 'POST',
+        path: `${COMPANY_USERS_PATH}/reconciliation/profiles`,
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ data: PROFILE_FILL_RESULT })
+    expect(fixture.fillProfilesCalls[0]).toMatchObject({ userIds: [TARGET_USER_ID] })
+    expect(fixture.fillProfilesCalls[0]?.['context']).toMatchObject({
+      companyId: COMPANY_CONTEXT.companyId,
+    })
+  })
+
+  /** Escrita sobre pessoa sem correlação é linha de trilha que não se liga ao chamado que a pediu. */
+  test('leva correlação para a trilha', async () => {
+    const fixture = await createUserAdministrationHttpFixture()
+
+    await fixture.handle(
+      jsonRequest({
+        body: { userIds: [TARGET_USER_ID] },
+        method: 'POST',
+        path: `${COMPANY_USERS_PATH}/reconciliation/profiles`,
+      }),
+    )
+
+    expect(fixture.fillProfilesCalls[0]?.['correlationId']).toEqual(expect.any(String))
+  })
+
+  test('recusa lote vazio: pedido sem alvo é trilha sobre ninguém', async () => {
+    const fixture = await createUserAdministrationHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { userIds: [] },
+        method: 'POST',
+        path: `${COMPANY_USERS_PATH}/reconciliation/profiles`,
+      }),
+    )
+
+    expect(response.status).toBe(400)
+    expect(fixture.fillProfilesCalls).toEqual([])
+  })
+
+  /** `reconciliation` é caminho literal: lido como identificador, viraria uma rota de usuário. */
+  test('o caminho literal não é confundido com um identificador', async () => {
+    const fixture = await createUserAdministrationHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { userIds: [TARGET_USER_ID] },
+        method: 'POST',
+        path: `${COMPANY_USERS_PATH}/reconciliation/profiles`,
+      }),
+    )
+
+    expect(response.status).toBe(200)
   })
 })

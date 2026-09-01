@@ -26,7 +26,9 @@ const COMPANY_ID = '00000000-0000-4000-8000-000000000001'
 
 type Call = { readonly name: string; readonly params: Record<string, unknown> }
 
-function createClientFake(params: { readonly createUserError?: Error } = {}) {
+function createClientFake(
+  params: { readonly createUserError?: Error; readonly updateUserError?: Error } = {},
+) {
   const calls: Call[] = []
   const record = (name: string, params: unknown): void => {
     calls.push({ name, params: params as Record<string, unknown> })
@@ -45,6 +47,33 @@ function createClientFake(params: { readonly createUserError?: Error } = {}) {
       record('findUserByEmail', params)
       return { id: SUBJECT, username: 'pessoa' }
     },
+    async addUserToGroup(params) {
+      record('addUserToGroup', params)
+    },
+    async createGroup(params) {
+      record('createGroup', params)
+      return { id: 'group-1' }
+    },
+    async deleteGroup(params) {
+      record('deleteGroup', params)
+    },
+    async setProfilePicture(params) {
+      record('setProfilePicture', params)
+    },
+    async listGroups(params) {
+      record('listGroups', params ?? {})
+      return { groups: [], hasMore: false }
+    },
+    async removeUserFromGroup(params) {
+      record('removeUserFromGroup', params)
+    },
+    async updateGroup(params) {
+      record('updateGroup', params)
+    },
+    async listUsers(params) {
+      record('listUsers', params ?? {})
+      return { hasMore: false, users: [{ id: SUBJECT, username: 'pessoa' }] }
+    },
     async setEnabled(params) {
       record('setEnabled', params)
     },
@@ -57,8 +86,9 @@ function createClientFake(params: { readonly createUserError?: Error } = {}) {
     async updateAttributes(params) {
       record('updateAttributes', params)
     },
-    async updateUser(params) {
-      record('updateUser', params)
+    async updateUser(input) {
+      record('updateUser', input)
+      if (params.updateUserError !== undefined) throw params.updateUserError
     },
   }
 
@@ -189,5 +219,70 @@ describe('gateway do Admin API — contato já usado', () => {
       .catch((error: unknown) => error)
 
     expect(caught).toBe(failure)
+  })
+})
+
+/**
+ * A edição de perfil era a única operação do gateway sem tradução nenhuma: toda recusa do provedor
+ * subia crua, virava 500 no filtro global e chegava à tela como "não foi possível concluir a
+ * operação" — sem dizer em que campo mexer, e sem distinguir "tente de novo" de "isto nunca vai
+ * funcionar neste realm".
+ */
+describe('gateway do Admin API — recusa na edição de perfil', () => {
+  function refusalOf(
+    code: (typeof KEYCLOAK_ADMIN_ERROR_CODE)[keyof typeof KEYCLOAK_ADMIN_ERROR_CODE],
+    status: number,
+  ) {
+    return new KeycloakAdminError({ code, message: 'recusado', status })
+  }
+
+  /** `editUsernameAllowed` desligado — padrão do Keycloak — recusa com 400, não com conflito. */
+  test('400 ao mandar login vira recusa de troca de login, com código estável', async () => {
+    const { gateway } = createClientFake({
+      updateUserError: refusalOf(KEYCLOAK_ADMIN_ERROR_CODE.REQUEST_FAILED, 400),
+    })
+
+    const failure = await gateway
+      .updateUser({ user: { username: 'joao.silva' }, userId: SUBJECT })
+      .catch((error: unknown) => error)
+
+    expect(failure).toBeInstanceOf(ApiError)
+    expect((failure as ApiError).code).toBe('USERNAME_CHANGE_REFUSED')
+  })
+
+  test('login já em uso vira colisão de login, e não recusa de configuração', async () => {
+    const { gateway } = createClientFake({
+      updateUserError: refusalOf(KEYCLOAK_ADMIN_ERROR_CODE.USER_ALREADY_EXISTS, 409),
+    })
+
+    const failure = await gateway
+      .updateUser({ user: { username: 'joao.silva' }, userId: SUBJECT })
+      .catch((error: unknown) => error)
+
+    expect((failure as ApiError).code).toBe('USERNAME_ALREADY_TAKEN')
+  })
+
+  test('sem login no pedido, a colisão é de contato', async () => {
+    const { gateway } = createClientFake({
+      updateUserError: refusalOf(KEYCLOAK_ADMIN_ERROR_CODE.USER_ALREADY_EXISTS, 409),
+    })
+
+    const failure = await gateway
+      .updateUser({ user: { email: 'joao@empresa.test' }, userId: SUBJECT })
+      .catch((error: unknown) => error)
+
+    expect((failure as ApiError).code).toBe('COMPANY_USER_CONTACT_TAKEN')
+  })
+
+  /** 400 sem login é outra coisa: traduzir tudo esconderia defeito nosso atrás de mensagem bonita. */
+  test('400 sem login continua subindo cru', async () => {
+    const original = refusalOf(KEYCLOAK_ADMIN_ERROR_CODE.REQUEST_FAILED, 400)
+    const { gateway } = createClientFake({ updateUserError: original })
+
+    const failure = await gateway
+      .updateUser({ user: { email: 'joao@empresa.test' }, userId: SUBJECT })
+      .catch((error: unknown) => error)
+
+    expect(failure).toBe(original)
   })
 })

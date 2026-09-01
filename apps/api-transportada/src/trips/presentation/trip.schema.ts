@@ -9,6 +9,7 @@ import {
   optionalFilter,
   parseBody,
   parseOption,
+  parseOptionalBody,
   parseUuidFilter,
   readListQuery,
   readPaging,
@@ -16,10 +17,22 @@ import {
 import { TRIP_STATUSES } from '../../database/trip.schema.js'
 import type { TripFilters } from '../application/trip.port.js'
 import {
+  batchTransitionTripDocumentsSchema,
   createTripSchema,
+  dispatchTripSchema,
   linkTripDocumentSchema,
+  overrideDeliveryAddressSchema,
+  reorderTripStopsSchema,
+  setTripMdfeRequirementSchema,
+  transitionTripDocumentSchema,
+  type BatchTransitionTripDocumentsBody,
   type CreateTripBody,
+  type DispatchTripBody,
   type LinkTripDocumentBody,
+  type OverrideDeliveryAddressBody,
+  type ReorderTripStopsBody,
+  type SetTripMdfeRequirementBody,
+  type TransitionTripDocumentBody,
 } from './trip-request.schema.js'
 
 const TRIP_QUERY_KEYS = new Set([
@@ -48,6 +61,45 @@ export async function parseLinkTripDocumentRequest(
   request: Request,
 ): Promise<LinkTripDocumentBody> {
   return parseBody(linkTripDocumentSchema, request)
+}
+
+/**
+ * Corpo opcional: `separate`/`load`/`deliver` quase sempre chegam sem nota nenhuma — o toque do
+ * separador não digita motivo. `return` também usa esta função; o use case (T008/T009) é quem
+ * exige `returnReason` quando a ação é `return`, não a fronteira HTTP.
+ */
+export async function parseTransitionTripDocumentRequest(
+  request: Request,
+): Promise<TransitionTripDocumentBody> {
+  return parseOptionalBody(transitionTripDocumentSchema, request)
+}
+
+export async function parseBatchTransitionTripDocumentsRequest(
+  request: Request,
+): Promise<BatchTransitionTripDocumentsBody> {
+  return parseBody(batchTransitionTripDocumentsSchema, request)
+}
+
+export async function parseDispatchTripRequest(request: Request): Promise<DispatchTripBody> {
+  return parseOptionalBody(dispatchTripSchema, request)
+}
+
+export async function parseReorderTripStopsRequest(
+  request: Request,
+): Promise<ReorderTripStopsBody> {
+  return parseBody(reorderTripStopsSchema, request)
+}
+
+export async function parseOverrideDeliveryAddressRequest(
+  request: Request,
+): Promise<OverrideDeliveryAddressBody> {
+  return parseBody(overrideDeliveryAddressSchema, request)
+}
+
+export async function parseSetTripMdfeRequirementRequest(
+  request: Request,
+): Promise<SetTripMdfeRequirementBody> {
+  return parseBody(setTripMdfeRequirementSchema, request)
 }
 
 export function parseTripList(url: URL): TripListing {

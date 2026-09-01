@@ -10,6 +10,12 @@ import { CompanyLogoUpload } from '../components/CompanyLogoUpload.component'
 import { CompanySettingsHeader } from '../components/CompanySettingsHeader.component'
 import { CompanySettingsForm } from '../components/CompanySettingsForm.component'
 import { CompanySettingsSkeleton } from '../components/CompanySettingsSkeleton.component'
+import { LandingSettingsPanel } from '../components/LandingSettingsPanel.component'
+import { useLandingSettingsPanel } from '../hooks/useLandingSettingsPanel.hook'
+import type {
+  LandingSettingsResponse,
+  LandingSettingsUpdate,
+} from '../shared/landingPanelClient.service'
 import {
   CERTIFICATE_PURPOSE_LABEL_KEYS,
   EMPTY_BILLING_DEFAULTS,
@@ -71,6 +77,13 @@ type LogoSection = Readonly<{
   pending: boolean
 }>
 
+type LandingSection = Readonly<{
+  data: LandingSettingsResponse | undefined
+  disabled: boolean
+  onSave: (input: LandingSettingsUpdate) => void
+  saveState: 'error' | 'idle' | 'success'
+}>
+
 type SettingsBodyProps = Readonly<{
   activeTab: CompanySettingsTabId
   onTabChange: (tab: CompanySettingsTabId) => void
@@ -78,6 +91,7 @@ type SettingsBodyProps = Readonly<{
   certificates: ActiveCertificatesByPurpose
   certificatePending: boolean
   initialValue: CompanySettingsUpdate | undefined
+  landing: LandingSection
   logo: LogoSection
   onCertificateSubmit: (body: FormData) => Promise<SafeCertificate>
   onCertificateDelete: (purpose: CertificatePurpose) => Promise<void>
@@ -194,6 +208,16 @@ function CompanyTabPanel(props: SettingsBodyProps) {
  */
 function renderTabPanel(tab: CompanySettingsTabId, props: SettingsBodyProps) {
   if (tab === 'company') return <CompanyTabPanel {...props} />
+  if (tab === 'site') {
+    return (
+      <LandingSettingsPanel
+        data={props.landing.data}
+        disabled={props.landing.disabled}
+        onSave={props.landing.onSave}
+        saveState={props.landing.saveState}
+      />
+    )
+  }
   return (
     <CertificateUploadForm
       certificates={props.certificates}
@@ -261,6 +285,10 @@ export function CompanySettingsPage() {
     query,
     settingsMutation,
   } = useCompanySettings({ ...(companyId === undefined ? {} : { companyId }), permissions })
+  const landingPanel = useLandingSettingsPanel({
+    ...(companyId === undefined ? {} : { companyId }),
+    enabled: canManageSettings && activeTab === 'site',
+  })
   const status =
     authQuery.isError || query.isError || certificatesQuery.isError
       ? 'error'
@@ -285,6 +313,16 @@ export function CompanySettingsPage() {
         certificates={viewModel.activeCertificates}
         certificatePending={certificateMutation.isPending}
         initialValue={toUpdate(canManageSettings ? query.data : undefined)}
+        landing={{
+          data: landingPanel.query.data,
+          disabled: landingPanel.mutation.isPending,
+          onSave: (input) => landingPanel.mutation.mutate(input),
+          saveState: landingPanel.mutation.isError
+            ? 'error'
+            : landingPanel.mutation.isSuccess
+              ? 'success'
+              : 'idle',
+        }}
         logo={{
           image: logoQuery.data ?? null,
           onRemove: () => logoRemoveMutation.mutateAsync(),

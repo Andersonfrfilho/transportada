@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright (c) 2026 Ada Technology. MIT License.
+
+  Spec 058 — mapa sintético para o E2E do OSRM. Uma grade de três por três em Ribeirão Preto: seis
+  ruas residenciais, todas conectadas, cobrindo cerca de 2 km de lado.
+
+  Ele existe porque o extract real do Sudeste tem centenas de MB e não cabe no repositório nem numa
+  máquina nova — e sem *algum* dataset o roteirizador nunca era exercitado contra o serviço de
+  verdade, só contra dublê. Uma grade não prova qualidade de rota; prova o que o dublê nunca prova:
+  que o `/table` responde no formato que o gateway lê, que a distância é **de rua** e não de linha
+  reta, e que ponto fora da área vira par inalcançável em vez de número inventado.
+-->
+<osm version="0.6" generator="transportada-fixture">
+  <bounds minlat="-21.1950000" minlon="-47.8350000" maxlat="-21.1650000" maxlon="-47.8050000"/>
+  <node id="1" lat="-21.1900000" lon="-47.8300000" version="1"/>
+  <node id="2" lat="-21.1900000" lon="-47.8200000" version="1"/>
+  <node id="3" lat="-21.1900000" lon="-47.8100000" version="1"/>
+  <node id="4" lat="-21.1800000" lon="-47.8300000" version="1"/>
+  <node id="5" lat="-21.1800000" lon="-47.8200000" version="1"/>
+  <node id="6" lat="-21.1800000" lon="-47.8100000" version="1"/>
+  <node id="7" lat="-21.1700000" lon="-47.8300000" version="1"/>
+  <node id="8" lat="-21.1700000" lon="-47.8200000" version="1"/>
+  <node id="9" lat="-21.1700000" lon="-47.8100000" version="1"/>
+  <way id="100" version="1">
+    <nd ref="1"/>
+    <nd ref="2"/>
+    <nd ref="3"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="Rua Leste-Oeste 1"/>
+    <tag k="maxspeed" v="40"/>
+  </way>
+  <way id="101" version="1">
+    <nd ref="4"/>
+    <nd ref="5"/>
+    <nd ref="6"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="Rua Leste-Oeste 2"/>
+    <tag k="maxspeed" v="40"/>
+  </way>
+  <way id="102" version="1">
+    <nd ref="7"/>
+    <nd ref="8"/>
+    <nd ref="9"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="Rua Leste-Oeste 3"/>
+    <tag k="maxspeed" v="40"/>
+  </way>
+  <way id="103" version="1">
+    <nd ref="1"/>
+    <nd ref="4"/>
+    <nd ref="7"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="Avenida Norte-Sul 1"/>
+    <tag k="maxspeed" v="40"/>
+  </way>
+  <way id="104" version="1">
+    <nd ref="2"/>
+    <nd ref="5"/>
+    <nd ref="8"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="Avenida Norte-Sul 2"/>
+    <tag k="maxspeed" v="40"/>
+  </way>
+  <way id="105" version="1">
+    <nd ref="3"/>
+    <nd ref="6"/>
+    <nd ref="9"/>
+    <tag k="highway" v="residential"/>
+    <tag k="name" v="Avenida Norte-Sul 3"/>
+    <tag k="maxspeed" v="40"/>
+  </way>
+</osm>

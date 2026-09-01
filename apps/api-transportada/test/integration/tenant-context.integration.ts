@@ -87,18 +87,21 @@ describe('tenant context isolation', () => {
         await expect(
           repository.findActiveByUserAndCompany({ companyId: companyA, userId: userA }),
         ).resolves.toEqual({
+          grantedPermissions: [],
           membershipId: membershipA,
           roles: ['fiscal', 'viewer'],
         })
         await expect(
           repository.findActiveByUserAndCompany({ companyId: companyB, userId: userA }),
         ).resolves.toEqual({
+          grantedPermissions: [],
           membershipId: membershipAInB,
           roles: ['finance'],
         })
         await expect(
           repository.findActiveByUserAndCompany({ companyId: companyB, userId: userB }),
         ).resolves.toEqual({
+          grantedPermissions: [],
           membershipId: membershipB,
           roles: ['company-admin'],
         })
@@ -108,6 +111,7 @@ describe('tenant context isolation', () => {
         await expect(
           repository.findActiveByUserAndCompany({ companyId: companyA, userId: userC }),
         ).resolves.toEqual({
+          grantedPermissions: [],
           membershipId: membershipWithoutRoles,
           roles: [],
         })

@@ -4,6 +4,9 @@ import { useTranslation } from 'react-i18next'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
 
+import { TripFinancialPanel } from '@/modules/trip-financials/components/TripFinancialPanel.component'
+import { useTripFinancials } from '@/modules/trip-financials/hooks/useTripFinancials.hook'
+
 import { TripDetail, TripDetailSkeleton } from '../components/TripDetail.component'
 import { useTripDocumentLinkForm } from '../hooks/useTripDocumentLinkForm.hook'
 import { useTripWorkspace } from '../hooks/useTripWorkspace.hook'
@@ -22,7 +25,17 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
     permissions,
     tripId,
   })
-  const linkForm = useTripDocumentLinkForm()
+  const linkForm = useTripDocumentLinkForm({
+    findNfeDocumentByAccessKey: workspace.controller.findNfeDocumentByAccessKey,
+    linkScannedDocument: ({ documentId }) =>
+      workspace.linkDocumentMutation.mutateAsync({
+        freightCalculationId: null,
+        nfeDocumentId: documentId,
+        tripId,
+      }),
+  })
+
+  const financials = useTripFinancials({ permissions, tripId })
 
   function handleBackToTrips(): void {
     navigateToTrips(createBrowserWorkspaceNavigator())
@@ -47,6 +60,17 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
       {authQuery.isSuccess ? (
         <div className={styles.deck}>
           <TripDetail linkForm={linkForm} onClose={handleBackToTrips} workspace={workspace} />
+          {/*
+            Spec 061 D4: o painel da conta só existe para quem tem `trip.financials`. Quem monta a
+            viagem decide pela avaliação prevista, que não mostra o que se paga ao agregado.
+          */}
+          {financials.canReadFinancials ? (
+            <TripFinancialPanel
+              isLoading={financials.isLoading}
+              onRecalculate={financials.recalculate}
+              result={financials.result}
+            />
+          ) : null}
         </div>
       ) : null}
     </main>

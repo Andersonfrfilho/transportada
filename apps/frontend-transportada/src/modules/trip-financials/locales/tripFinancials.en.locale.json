@@ -1,0 +1,77 @@
+{
+  "gap": {
+    "FEATURE_ABSENT": "module not in use yet",
+    "NO_DRIVER_RATE": "aggregate route without a rate",
+    "NO_FEDERAL_REGIME": "federal regime not declared",
+    "NO_FREIGHT_RULE": "invoice without an authorized CT-e",
+    "NO_FUEL_BASELINE": "vehicle consumption or fuel price missing",
+    "NO_PLANNED_DISTANCE": "route not planned yet",
+    "NOT_RECORDED": "nobody recorded it",
+    "SALARIED_CREW_MEMBER": "a salaried driver is on this trip — cost of the period"
+  },
+  "panel": {
+    "amount": "Amount",
+    "cost": "Cost",
+    "frozenAt": "Frozen on {{date}} · version {{version}}",
+    "loading": "Loading the trip account…",
+    "net": "Result",
+    "notFrozen": "The account is frozen when the trip closes. While it is open, what exists is the forecast.",
+    "operationalNote": "Operational margin: it deducts freight taxes, not payroll or accounting results.",
+    "parcel": "Parcel",
+    "partialRevenue": "Revenue from {{measured}} of {{expected}} invoices — this is not final.",
+    "reason": "Reason for recalculating",
+    "reasonPlaceholder": "CT-e cancelled, late charge…",
+    "recalculate": "Recalculate",
+    "recalculating": "Recalculating…",
+    "revenue": "Revenue",
+    "source": "Source",
+    "tax": "Tax",
+    "title": "This trip's account",
+    "unknownParcels_one": "{{count}} parcel without data: the total is approximate.",
+    "unknownParcels_other": "{{count}} parcels without data: the total is approximate."
+  },
+  "parcel": {
+    "delivery_charges": "Delivery charges",
+    "driver": "Driver",
+    "fuel": "Fuel",
+    "icms": "ICMS",
+    "manual": "Ad hoc",
+    "other_per_kilometer": "Other per km",
+    "pis_cofins": "PIS/COFINS",
+    "toll": "Toll"
+  },
+  "source": {
+    "estimated": "estimated",
+    "measured": "measured",
+    "missing": "unknown",
+    "period": "cost of the period"
+  },
+  "workspace": {
+    "approximate": "There is an incomplete trip in the period: the total is approximate.",
+    "calendar": {
+      "chooseYear": "Choose the year",
+      "clear": "Clear",
+      "nextMonth": "Next month",
+      "open": "Open the calendar",
+      "placeholder": "mm/dd/yyyy",
+      "previousMonth": "Previous month"
+    },
+    "forbidden": "You do not have permission to see margins and driver payments.",
+    "from": "From",
+    "group": {
+      "driver": "Driver",
+      "label": "Group",
+      "period": "Period",
+      "vehicle": "Vehicle"
+    },
+    "groupBy": "Group by",
+    "loading": "Adding up the period…",
+    "noPayroll": "No salaried driver in the fleet: there is no payroll to deduct for this period.",
+    "payroll": "Payroll deducted from the total: BRL {{amount}}",
+    "pickPeriod": "Pick a period to see the totals.",
+    "subtitle": "The totals of the frozen results. One trip decides nothing; the month does.",
+    "title": "Results",
+    "trips": "Trips",
+    "to": "To"
+  }
+}

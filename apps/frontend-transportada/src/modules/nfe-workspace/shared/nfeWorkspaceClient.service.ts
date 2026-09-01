@@ -93,6 +93,12 @@ export type NfeDocumentListItem = Readonly<{
   series: string
   status: 'authorized' | 'cancelled' | 'denied'
   totalAmount: string
+  /**
+   * Spec 065 D4b: a viagem em que a nota saiu. **Sinal, não bloqueio** — fatura-se o que saiu, e
+   * quem monta o lote precisa ver isso sem abrir a tela de viagem nota por nota.
+   */
+  tripId: null | string
+  tripStatus: null | string
   variant: 'complete' | 'event' | 'summary'
 }>
 
@@ -308,6 +314,8 @@ function isNfeDocumentListItem(value: unknown): value is NfeDocumentListItem {
     isNullableString(value.recipientCityCode) &&
     isString(value.recipientName) &&
     isNullableString(value.recipientState) &&
+    isNullableString(value.tripId) &&
+    isNullableString(value.tripStatus) &&
     isNullableString(value.recipientTaxId) &&
     isString(value.series) &&
     isDocumentStatus(value.status) &&

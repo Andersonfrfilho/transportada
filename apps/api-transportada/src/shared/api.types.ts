@@ -22,7 +22,7 @@ export type ApiEnvironment = {
         readonly smtpUrl: string
       }
     | undefined
-  readonly frontendOrigin: string
+  readonly frontendOrigins: readonly [string, ...string[]]
   readonly keycloak: {
     readonly admin: {
       readonly clientId: string
@@ -41,10 +41,40 @@ export type ApiEnvironment = {
       }
     | undefined
   /** Endereço público do postback de NFS-e; ausente mantém a rota anônima de callback fora do ar. */
+  /** Endereço público desta instalação. Ausente, a foto de perfil não vira atributo no realm. */
+  readonly apiPublicUrl: string | undefined
   readonly nfseCallbackBaseUrl: string | undefined
   /** Segredo do recibo de entrega; ausente, a rota de webhook do módulo não é publicada. */
   readonly notificationWebhookSecret: string | undefined
   readonly port: number
+  /** Segredo do Cloudflare Turnstile; ausente, a candidatura pública de agregado não verifica captcha. */
+  readonly turnstileSecretKey: string | undefined
+  /** Assina o access token da conta do agregado; ausente, o módulo de conta não é montado. */
+  readonly userAccessTokenSecret: string | undefined
+  /** Ausente, upload de documento do agregado nunca extrai nem aprova sozinho — só revisão manual. */
+  readonly aggregateDocumentOcrUrl: string | undefined
+  /**
+   * Spec 062: a Graph API da Meta. Aqui **não há segredo** — o token é por empresa e vive selado no
+   * banco (T001). O que a variável carrega é endereço e versão: a `baseUrl` existe para apontar para
+   * um mock local em dev, e a versão porque a Meta a exige no caminho e ela envelhece.
+   *
+   * As duas são opcionais **de propósito**: instalação sem WhatsApp não pode deixar de subir por
+   * causa delas, e empresa sem canal cadastrado simplesmente não tem o canal (a notificação cai no
+   * e-mail). O que falha alto é canal cadastrado com envelope ilegível — e isso é T004, não boot.
+   */
+  readonly whatsapp: {
+    readonly apiVersion: string
+    readonly baseUrl: string | undefined
+    /**
+     * Os dois segredos do **aplicativo** da Meta, juntos ou nenhum: com um só, a rota do webhook ou
+     * não confere assinatura ou não responde ao desafio de verificação. Ausente o par, a rota não é
+     * registrada (spec 062 T006).
+     */
+    readonly webhook?: {
+      readonly appSecret: string
+      readonly verifyToken: string
+    }
+  }
   /**
    * Provedores públicos de CEP, consultados só quando o banco da instalação não soube o endereço
    * inteiro. Ausentes os dois, a escada para no nosso banco e o operador digita — nunca derruba boot.

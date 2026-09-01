@@ -141,7 +141,7 @@ export async function createFuelPriceHttpFixture({
   })
   const handle = createRequestHandler({
     createCorrelationId: () => GENERATED_CORRELATION_ID,
-    frontendOrigin: FRONTEND_ORIGIN,
+    frontendOrigins: [FRONTEND_ORIGIN],
     logger: {
       error() {},
       info(_message, metadata) {
@@ -244,6 +244,7 @@ function authenticatedContext(
       externalIdentityId: crypto.randomUUID(),
       issuer: 'http://localhost:58080/realms/transportada-local',
       platformAdmin: false,
+      serviceAccount: false,
       subject: 'fuel-price-http-contract',
       userId: COMPANY_CONTEXT.userId,
     } satisfies AuthenticatedIdentity,

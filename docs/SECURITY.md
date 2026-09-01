@@ -5,6 +5,230 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 ## Abertos
 
+### 2026-08-31 — a foto de perfil ganha endereço público, sem login e sem trilha
+
+O atributo `picture` do realm passa a guardar `\${API}/public/company-users/{token}/picture`, uma
+rota **anônima**. É o que permite a um consumidor do provedor exibir a foto: a rota autenticada não
+servia a ninguém do lado de lá, porque `<img src>` não manda `Authorization`.
+
+O que isso expõe, e é decisão consciente:
+
+- **Quem tiver o link vê o rosto da pessoa sem se identificar.** O token é a credencial inteira: 32
+  bytes de aleatório em base64url, imprevisível por varredura, mas um link que vaze num print, num
+  e-mail ou no log de um proxy vale enquanto a foto não mudar.
+- **A leitura não deixa trilha.** A rota autenticada registra quem pediu; esta não tem quem registrar.
+- **A revogação é a troca da foto.** O token gira a cada gravação, e o endereço anterior passa a
+  responder 404. Não há outra forma de revogar um endereço sem login.
+- Isto **contraria o `security.md` §7** desta base, que reserva URL pública para asset comprovadamente
+  não sensível (logo, ícone). Rosto não é ícone, e a exceção é deliberada.
+- `cache-control: no-store` mesmo sendo público: com o token girando, cache intermediário serviria a
+  imagem antiga de um endereço que já deixou de valer.
+
+A alternativa avaliada e descartada foi guardar a imagem inteira no atributo (`data:` URI): ela não
+amplia exposição, mas põe centenas de kilobytes por pessoa na tabela de atributos do Keycloak — e
+não resolve o caso de quem precisa **exibir** a foto fora do nosso sistema.
+
+### 2026-08-31 — telefone e foto passam a viver no realm, ao lado do documento
+
+O provedor passa a guardar a identificação completa da pessoa: além do `tax_id` que já estava em
+claro, entram `phone` e `picture`. A foto vai como `data:` URI — o conteúdo, não um endereço: a URL
+anterior apontava para a nossa rota autenticada, e nenhum consumidor do lado de lá conseguia buscá-la
+(`<img src>` não manda `Authorization`), então o atributo existia sem servir para nada.
+
+O que muda em exposição, e é decisão consciente:
+
+- **Telefone em claro no realm.** Havia um contrato dizendo que o contato do convite não vazava para
+  os atributos; ele foi reescrito. Quando o canal do convite é telefone, contato e telefone são o
+  mesmo valor por construção — não há como guardar um e não o outro.
+- **A foto passou a ser endereço público**, não conteúdo no atributo — ver a entrada seguinte, do
+  mesmo dia, que substitui esta decisão poucas horas depois.
+- **Nenhum dos três tem mapper de claim**, e isso é o que impede o pior: só `company_id` entra no
+  token. Mapear `picture` poria centenas de kilobytes dentro de cada token emitido.
+- **A senha continua fora**, e isso não se negocia — há contrato cobrando.
+
+Um defeito que veio junto e foi corrigido: `updateAttributes` do Admin API **substitui o conjunto
+inteiro**, e a edição de perfil mandava só `company_id` + `tax_id`. Gravar o CPF apagava a foto do
+provedor. Era invisível enquanto ninguém lia o atributo; com a imagem morando lá, seria perda de
+dado. Toda edição passa a escrever a ficha completa.
+
+### 2026-08-31 — administrador define senha definitiva de outro usuário, sem limitador
+
+`PUT /company-users/:id/password` (`users.manage`, escopo `company`) grava a senha do usuário no
+Keycloak. O vínculo com a empresa do token é conferido antes de a rota tocar no provedor, o piso é
+de 12 caracteres, a senha não passa pelo banco desta aplicação e a resposta é 204 sem eco do corpo.
+A trilha (`company-user.password.set`) guarda ator, alvo e correlação, nunca o valor.
+
+O que fica em aberto, e é decisão registrada e não esquecimento:
+
+- **Sem rate limit**, como toda esta API — não existe limitador aqui. Uma conta com `users.manage`
+  comprometida pode reescrever senha de todo mundo da empresa dela sem atrito nenhum.
+- **A senha definitiva passa pela mão do administrador.** O caminho preferido continua sendo o link
+  de redefinição, oferecido lado a lado no mesmo painel, e a opção temporária existe para forçar a
+  troca no primeiro acesso. A senha definitiva ficou porque instalação com e-mail quebrado é caso
+  real desta base, e sem ela a única saída era o provedor.
+- **Não há notificação ao dono da conta** quando um terceiro troca a senha dela. Quem só olha a
+  trilha descobre depois; quem não olha, não descobre.
+
+### 2026-08-27 — o portal do contratante não tem limite de requisição, como o resto da API
+
+**Onde:** `api-transportada`, módulo `contractor-portal` (`GET /client/me/deliveries`).
+
+**O que é:** a rota exige sessão autenticada e recorta pelo vínculo da conta — não há enumeração de
+documento a fazer, porque o documento nunca chega do cliente. O que fica em aberto é o mesmo buraco
+já registrado para as rotas de recuperação de senha: **não existe limitador nesta API**, e agora há
+uma conta legítima na mão de alguém de fora da transportadora.
+
+**Risco:** um contratante (ou credencial dele, vazada) pode varrer a rota sem teto. O que ele lê é o
+que já é dele — o custo é de disponibilidade, não de confidencialidade.
+
+**Mitigação em vigor:** o recorte é por vínculo, com `company_id` nas duas chaves estrangeiras; o
+payload é lista fechada, sem id interno; e o teto de leitura é cem linhas por chamada.
+
+**Desfecho pendente:** limitador por usuário autenticado, junto com o das rotas anônimas de senha —
+é uma decisão só, e é infraestrutura, não regra de domínio.
+
+### 2026-08-26 — CPF do usuário fica em texto puro em `identity_user_profiles`
+
+**Onde:** `api-transportada`, módulo `identity` (coluna `identity_user_profiles.tax_id`).
+
+**O que é:** o `security.md §5` pede campo sensível em repouso — CPF entre eles — cifrado com
+chave de aplicação. A coluna nova nasceu em texto puro, deliberadamente, porque o mesmo dado já
+está assim em `fleet_drivers.tax_id`, com `check` de formato e unique por empresa. Cifrar só de um
+lado teria dois custos concretos: a unicidade deixaria de ser verificável pelo banco (texto cifrado
+com IV aleatório não colide mesmo quando o CPF é igual), e o casamento entre o convite e a ficha de
+frota — que é a razão da coluna existir — passaria a exigir decifrar a tabela inteira a cada
+convite. Também criaria um terceiro padrão de armazenamento para o mesmo documento no mesmo banco.
+
+**Risco:** dump de banco ou backup vazado expõe CPF de todo usuário e de todo motorista. A
+exposição não aumentou com esta coluna — `fleet_drivers` já a tinha —, mas o alcance cresceu:
+agora pega também quem não é motorista.
+
+**Mitigação em vigor:** a API nunca devolve o CPF por extenso; a listagem e a resposta do convite
+saem mascaradas (`***09`), como o contato. Backup é cifrado antes de subir ao bucket, com a chave
+fora dele.
+
+**Desfecho pendente:** decidir de uma vez, para `fleet_drivers` e `identity_user_profiles` juntos,
+entre (a) cifra determinística com chave de aplicação, que preserva unicidade e igualdade, ou (b)
+aceitar o texto puro e registrar a exceção. Resolver só um dos dois lados não fecha nada.
+
+**Dono:** a definir.
+
+### 2026-08-25 — `POST /public/aggregate-applications` é anônima e sem limitador dedicado
+
+**Onde:** `api-transportada`, módulo `fleet` (spec 053, T007).
+
+**O que é:** a rota aceita candidatura de agregado sem autenticação, e a resposta é `202`
+invariável de propósito — documento novo, reenvio ou documento já motorista respondem igual,
+para não existir sonda de "este documento já existe". Isso fecha o oráculo de enumeração, mas não
+substitui um limitador: sem teto, a rota é um canal de escrita (uma linha por chamada) acionável
+por qualquer um. O mesmo item já registrado para recuperação de senha e para a landing pública
+continua em aberto — falta o limitador de borda, mais duro aqui por escrever no banco a cada
+chamada em vez de só ler.
+
+**O que já limita o estrago:** o `CHECK` de documento (T005) recusa entrada fora do formato de
+CPF/CNPJ antes de gravar, e o unique parcial por `(company_id, tax_id) where status = 'pending'`
+faz reenvio update em vez de inserir linha nova — flood do mesmo documento não cresce a tabela.
+
+**Origem:** spec 053, T007.
+
+### 2026-08-25 — `GET /public/landing-settings` é anônima e sem limitador dedicado
+
+**Onde:** `api-transportada`, módulo `landing` (spec 053, T004).
+
+**O que é:** a rota responde sem autenticação e sem chave de tenant no path — ela sempre lê a
+empresa provisionada da instalação (`PROVISION_COMPANY_ID`). Não há PII na resposta (marca,
+contatos institucionais já públicos, endereço das unidades) e o corpo é idêntico para qualquer
+chamador, então não é oráculo de nada. O que falta é o mesmo item já registrado abaixo para
+recuperação de senha: um limitador de borda — aqui o risco é menor (raspagem de conteúdo público),
+mas a rota soma à lista de anônimas sem teto.
+
+**Origem:** spec 053, T004.
+
+### 2026-08-26 — o worker passa a ter identidade de máquina, e ela alcança todas as empresas
+
+**Onde:** `api-transportada`, caminho de autenticação; `worker-transportada`, credencial de cliente.
+
+**O que é:** o worker vira um cliente do Keycloak com service account (ADR-0047), para acionar a
+emissão automática de MDF-e que a spec 065 decidiu. Ele é reconhecido por papel em
+`realm_access.roles`, pela mesma porta em que `platform-admin` já é.
+
+**O que muda em risco, e é o motivo desta entrada:** o `§2` acima manda derivar o tenant do contexto
+autenticado e nunca de campo livre do cliente. Um token de gente carrega `company_id` e fica **preso a
+uma empresa**; um service account **não pode** — o worker processa CT-e de todas elas. Então a empresa
+chega no pedido e continua sendo **validada contra a membership real do usuário do serviço**: a
+autorização é idêntica à de gente, o que muda é o transporte.
+
+O preço é concreto: **o token do serviço é cross-tenant**. Vazado, ele alcança toda empresa onde a
+membership sintética existir — enquanto um token de gente alcança uma.
+
+**As três guardas, e nenhuma é opcional:**
+
+1. **Escopo de uma rota.** O serviço não recebe `mdfe.manage`, que também descarta manifesto: recebe
+   uma permissão criada para isto, e o papel dele concede só ela.
+2. **Segredo rotacionável**, em variável validada no boot, e a troca vale a partir do próximo token —
+   rotacionar não pode exigir janela de emissão parada.
+3. **Trilha com a identidade do serviço**, nunca "o sistema": é a linha que responde por que aquele
+   manifesto saiu.
+
+**O que falta:** **tudo.** Nesta data existe só a decisão registrada — o caminho de autenticação, o
+papel, a permissão e a credencial do worker **não foram implementados**. Enquanto não forem, o MDF-e
+automático só sai se alguém chamar a rota na mão, e o painel de prontidão é quem avisa que dá.
+
+**Origem:** spec 065, ADR-0047.
+
+### 2026-08-26 — a posição passa a ser permitida à própria origem, e a coordenada tem prazo
+
+**Onde:** `frontend-transportada`, `server.ts` (mapa `SECURITY_HEADERS`); `api-transportada`,
+`trip_stop_events`.
+
+**O que é:** o cabeçalho passa a `camera=(self), geolocation=(self), microphone=()`. O motorista
+confirma a entrega no celular e a coordenada carimba **onde ele estava quando confirmou** — é o que
+separa "entreguei" de "entreguei lá" (ADR-0045 §3). Abrir capacidade de dispositivo é decisão que se
+audita, e por isso ela é registrada aqui em vez de ser uma linha mudada em silêncio.
+
+**O que continua fechado:** `microphone=()`, para todo mundo. E `(self)` não é `*`: nenhum `iframe` de
+terceiro herda a posição, e a CSP declara `frame-src 'none'` desde a ADR-0037.
+
+**O que a decisão proíbe, e é a parte que importa:** a captura é `getCurrentPosition` **uma vez por
+confirmação**, nunca `watchPosition`. A coordenada mora no evento de entrega e **não existe tabela de
+posição do motorista** — não há "onde ele está agora", só "onde estava quando confirmou". Recusar a
+permissão **não bloqueia a entrega**: ela é gravada com `location: null`, porque produto que exige
+coordenada é produto que o motorista contorna anotando no papel.
+
+**Retenção:** 90 dias. Depois disso o expurgo agendado apaga `latitude`, `longitude` e
+`accuracy_meters` **preservando o evento** — a viagem continua auditável, a localização da pessoa não
+fica. Dado de localização de pessoa identificada é dado pessoal na LGPD (art. 5º, I), e reter "por
+garantia" transforma comprovante em passivo.
+
+**O que falta:** nada em aberto. O contrato de cabeçalhos guarda os dois sentidos (falha se
+`geolocation` voltar a `()` e falha se `microphone` deixar de ser `()`), e o expurgo tem teste de
+integração com relógio injetado — retenção escrita e não implementada é retenção que não existe.
+
+**Origem:** spec 057, T001/T005/T012.
+
+### 2026-08-24 — a câmera passa a ser permitida à própria origem no `Permissions-Policy`
+
+**Onde:** `frontend-transportada`, `server.ts` (mapa `SECURITY_HEADERS`).
+
+**O que é:** o cabeçalho era `camera=(), geolocation=(), microphone=()`. `camera=()` nega a **própria**
+origem: `getUserMedia` falha antes de qualquer diálogo do navegador. Passa a `camera=(self)`, para o
+separador ler o QR da nota pela câmera do celular na tela de viagem (spec 055). Abrir capacidade de
+dispositivo é decisão que se audita, e por isso ela é registrada aqui em vez de ser uma linha mudada
+em silêncio.
+
+**O que continua fechado:** `geolocation=()` e `microphone=()` — a tela não pede posição nem áudio, e
+nada nesta mudança os toca. `(self)` não é `*`: nenhum `iframe` de terceiro herda a câmera, e a CSP
+já declara `frame-src 'none'` desde a ADR-0037, então não há moldura de terceiro dentro da nossa tela
+para herdar coisa alguma. O navegador continua pedindo consentimento ao usuário a cada origem — o
+cabeçalho remove o bloqueio, não a permissão.
+
+**O que falta:** nada em aberto. O contrato
+`frontend-transportada/test/shared/security-headers.contract.ts` guarda os dois sentidos: falha se
+`camera` voltar a `()` e falha se `geolocation` ou `microphone` deixarem de ser `()` — a carona de
+capacidade de dispositivo é o risco real de seis meses adiante, não a câmera que alguém pediu.
+
+**Origem:** spec 055, T003.
+
 ### 2026-08-21 — a rota de CEP chama provedor externo sem limitador de requisição
 
 **Onde:** `api-transportada`, `addresses/presentation/postal-code.routes.ts` e
@@ -207,6 +431,67 @@ oráculo de enumeração; e nenhuma das duas escreve `username`, endereço ou c�
 rotas — e o gate de tentativas por pedido, que hoje só existe pela expiração.
 
 **Origem:** spec 033, T006. A task pedia "registrar no limitador"; não havia onde.
+
+### 2026-08-25 — staging passa a conter os dados pessoais de produção
+
+**Onde:** `deploy/staging-refresh/`, serviço Railway com `cronSchedule` semanal.
+
+**O que é:** staging aponta para o ambiente de homologação da SEFAZ, e homologação não devolve nota
+real — a distribuição roda e traz nada, deixando staging sem massa para testar. A decisão foi
+espelhar a base de produção inteira em staging uma vez por semana, **sem anonimização**, porque o
+objetivo declarado é replicar o ambiente.
+
+A consequência é que staging passa a guardar os mesmos dados pessoais de terceiros que produção:
+CPF/CNPJ, nome, endereço e telefone de destinatário em `nfe_participants`/`nfe_addresses`. Sob a
+LGPD isso é tratamento com finalidade diferente da coleta, e o dado não é da transportadora: é dos
+clientes dos clientes dela.
+
+**O que ficou de fora, por decisão:** os XML assinados **não** são copiados — copiá-los exigiria uma
+credencial de leitura do bucket fiscal de produção morando dentro de staging, e isso é acesso
+permanente, não o retrato semanal que foi decidido. Também não atravessam: nenhum dado de emissão
+(CT-e, MDF-e, NFS-e, faturamento), a numeração fiscal, as credenciais de provedor de NFS-e, e o
+`secret_envelope` de `digital_certificates` — o certificado A1 que assina documento fiscal de
+verdade, que num restore cru iria junto e é risco maior que qualquer PII.
+
+**O que já limita o estrago:** a réplica roda **dentro do Railway**, como o ciclo de backup — o dump descriptografado e os XML não atravessam runner hospedado de terceiro, que era o desenho inicial e foi descartado por isso. O banco de produção nunca é acessado — a origem é o backup cifrado
+que o ciclo diário já produz, e o bucket é copiado com credencial de leitura. O Keycloak de
+produção **não** atravessa: staging mantém os próprios usuários e realm, então login de produção
+não passa a valer lá. A guarda do primeiro passo recusa qualquer alvo cujo host seja o de produção,
+antes de baixar qualquer coisa.
+
+**O que falta:** tratar staging com o mesmo controle de acesso de produção, que é o preço da
+decisão — quem entra em staging passa a ver PII real. Concretamente: revisar quem tem credencial do
+banco e do bucket de staging, e definir retenção (hoje o refresh sobrescreve, mas nada expira).
+Reavaliar a anonimização se algum dia staging for aberto a alguém de fora do time.
+
+**Origem:** pedido de operação, 2026-08-25. O risco foi levantado e a cópia idêntica foi decidida
+conscientemente.
+
+## CPF em claro no Keycloak, para casar a pessoa dos dois lados
+
+**Data:** 2026-08-29 · **Decidido conscientemente**
+
+A reconciliação entre os usuários da empresa e o realm precisa saber quando duas contas são a mesma
+pessoa. A pessoa tem **um documento e vários e-mails**, então o documento é a chave que funciona — e
+o realm não guardava documento nenhum: o produto só escrevia `company_id`.
+
+A partir de agora o CPF é gravado **em claro** no atributo `tax_id` do usuário do Keycloak, no
+convite, na edição de perfil e num backfill de quem já existe. Isso espalha PII para um segundo
+sistema: o CPF passa a existir no banco do Keycloak e nos backups dele, fora do alcance das nossas
+regras de retenção.
+
+**A alternativa que foi oferecida e recusada:** índice cego com HMAC, o mesmo padrão que a ADR-0039
+escolheu para a CNH do motorista. Ele casaria a pessoa igual — compara-se hash com hash — sem que o
+documento saísse da nossa base. O custo era uma chave nova para gerenciar e um valor ilegível no
+console do Keycloak. A escolha por valor em claro foi do dono do produto, com o risco declarado.
+
+**O que limita o estrago hoje:** o atributo não é lido por ninguém além da reconciliação, e ela
+mascara o documento na resposta (`***09`) — o valor cru é usado só para casar, dentro do servidor.
+O backfill não escreve documento vazio, e a escrita leva `company_id` junto porque o Admin API
+substitui o conjunto inteiro de atributos.
+
+**O que falta:** decidir a retenção do atributo no realm (hoje nada o expira), e reavaliar o índice
+cego se o Keycloak passar a ser acessado por mais gente do que hoje.
 
 ## Fechados
 

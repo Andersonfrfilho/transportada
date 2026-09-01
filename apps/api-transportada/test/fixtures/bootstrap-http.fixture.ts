@@ -114,7 +114,7 @@ export async function createBootstrapHttpFixture({
   })
   const handle = createRequestHandler({
     createCorrelationId: () => CORRELATION_ID,
-    frontendOrigin: FRONTEND_ORIGIN,
+    frontendOrigins: [FRONTEND_ORIGIN],
     logger: {
       error(message, metadata) {
         logs.push({ level: 'error', message, metadata: metadata ?? {} })
@@ -205,6 +205,7 @@ function anonymousIdentity(): AuthenticatedIdentity {
     externalIdentityId: '00000000-0000-4000-8000-0000000000c4',
     issuer: 'http://localhost:58080/realms/transportada-local',
     platformAdmin: false,
+    serviceAccount: false,
     subject: 'bootstrap-contract-should-never-authenticate',
     userId: CREATED_USER_ID,
   }

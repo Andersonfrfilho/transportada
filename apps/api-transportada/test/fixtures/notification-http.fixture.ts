@@ -195,6 +195,7 @@ function identity(companyId: string): AuthenticatedIdentity {
     externalIdentityId: '00000000-0000-4000-8000-000000000104',
     issuer: 'http://localhost:58080/realms/transportada-local',
     platformAdmin: false,
+    serviceAccount: false,
     subject: 'notification-contract-user',
     userId: NOTIFICATION_USER_ID,
   })

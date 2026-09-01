@@ -21,6 +21,65 @@
   --adn-surface: var(--color-graphite);
   --adn-text: var(--color-fog);
 
+  /*
+   * A `rc.9` do pacote estreou o editor de template com preview, e com ele uma família de variáveis
+   * nova. As `--adn-color-*` e as `--adn-*` curtas convivem: o pacote lê umas em bloco de tema e
+   * outras dentro das classes dele, e o contrato `notification-theme` cobra **todas** as que o CSS
+   * dele consome — variável não declarada vira cor do navegador no meio da nossa tela.
+   */
+  --adn-canvas: var(--color-asphalt);
+  --adn-color-accent: var(--color-copper);
+  --adn-color-accent-line: color-mix(in srgb, var(--color-copper) 45%, transparent);
+  --adn-color-accent-soft: color-mix(in srgb, var(--color-copper) 14%, transparent);
+  --adn-color-border: color-mix(in srgb, var(--color-slate) 22%, transparent);
+  --adn-color-canvas: var(--color-asphalt);
+  --adn-color-danger: var(--color-alert);
+  --adn-color-faint: color-mix(in srgb, var(--color-slate) 55%, transparent);
+  --adn-color-muted: var(--color-slate);
+  --adn-color-surface: var(--color-graphite);
+  --adn-color-text: var(--color-fog);
+  --adn-color-warning: var(--color-copper);
+  --adn-font-mono: var(--font-utility);
+  --adn-radius: var(--space-2);
+  --adn-radius-sm: var(--space-1);
+  --adn-shadow-card: 0 var(--space-1) var(--space-1)
+    color-mix(in srgb, var(--color-asphalt) 60%, transparent);
+  --adn-space-1: var(--space-1);
+  --adn-space-5: var(--space-5);
+  --adn-space-6: var(--space-6);
+  --adn-touch-target: var(--touch-target);
+  --adn-warning: var(--color-copper);
+
+  /*
+   * O preview desenha o aparelho de quem recebe — tela de bloqueio, bolha de SMS, conversa do
+   * WhatsApp. Estas cores são do **aparelho retratado**, não do nosso tema: pintar a bolha do
+   * WhatsApp com a nossa paleta faria o preview mentir sobre como a mensagem chega.
+   */
+  --adn-preview-bezel: #0b0b0d;
+  --adn-preview-chrome: #1c1c1f;
+  --adn-preview-chrome-dot: #3a3a3f;
+  --adn-preview-gesture: #55555c;
+  --adn-preview-lockscreen: #f2f2f7;
+  --adn-preview-lockscreen-bg: #14141a;
+  --adn-preview-mail-icon: #1a73e8;
+  --adn-preview-mail-text: #202124;
+  --adn-preview-push-app: #6b6b70;
+  --adn-preview-push-body: #3c3c43;
+  --adn-preview-push-card: #ffffff;
+  --adn-preview-push-title: #1c1c1e;
+  --adn-preview-scale: 1;
+  --adn-preview-sms-bubble: #0b93f6;
+  --adn-preview-sms-bubble-android: #e8eaed;
+  --adn-preview-sms-text: #ffffff;
+  --adn-preview-status: #f2f2f7;
+  --adn-preview-wa-header: #075e54;
+  --adn-preview-wa-send: #dcf8c6;
+  --adn-preview-wa-shadow: rgb(0 0 0 / 13%);
+  --adn-preview-wa-text: #111b21;
+  --adn-preview-wa-time: #667781;
+  --adn-preview-wa-wallpaper: #ece5dd;
+  --adn-preview-width: 20rem;
+
   font-family: var(--font-body);
 }
 

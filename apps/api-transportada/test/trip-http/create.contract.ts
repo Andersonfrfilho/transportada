@@ -25,7 +25,7 @@ describe('trip create http contract', () => {
     )
 
     expect(response.status).toBe(201)
-    expect(await responseData(response)).toMatchObject({ status: 'open', vehicleId: VEHICLE_ID })
+    expect(await responseData(response)).toMatchObject({ status: 'draft', vehicleId: VEHICLE_ID })
     expect(fixture.createTripCalls).toEqual([
       {
         context: COMPANY_CONTEXT,

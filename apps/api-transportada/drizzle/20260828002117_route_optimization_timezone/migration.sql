@@ -1,0 +1,1 @@
+ALTER TABLE "company_route_optimization_settings" ADD COLUMN "timezone" text DEFAULT 'America/Sao_Paulo' NOT NULL;

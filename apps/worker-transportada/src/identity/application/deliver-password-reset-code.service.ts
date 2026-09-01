@@ -19,6 +19,13 @@ export type PasswordResetDeliveryDependencies = {
     readonly send: (input: {
       readonly address: string
       readonly body: string
+      /**
+       * O código sozinho, para o canal que envia por **template aprovado** — a Meta só aceita
+       * mensagem livre dentro da janela de 24 h, e quem recebe um convite nunca escreveu antes.
+       * O e-mail ignora este campo: lá o corpo inteiro é a mensagem.
+       */
+      readonly code: string
+      readonly companyId: string
       readonly channel: PasswordResetContactChannel
       readonly subject: string
     }) => Promise<void>
@@ -81,6 +88,8 @@ export async function handlePasswordResetDelivery(
   try {
     await channels.send({
       address: reset.contactAddress,
+      code,
+      companyId: reset.companyId,
       body: buildPasswordResetMessageBody(code),
       channel: reset.contactChannel,
       subject: DELIVERY_SUBJECT,

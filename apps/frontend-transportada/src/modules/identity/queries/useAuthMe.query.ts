@@ -16,9 +16,16 @@ const COMPANY_ROLES = [
   'viewer',
   'driver',
   'aggregate',
+  'separator',
+  /** ADR-0050: quem paga o frete acompanha a carga; o recorte vem do vínculo, não do papel. */
+  'contractor',
+  /** ADR-0047 §1: o papel do ator sintético. Não se convida um robô, e nenhuma tela o oferece. */
+  'automation',
 ] as const
 const COMPANY_PERMISSIONS = [
   'users.manage',
+  'users.reveal',
+  'groups.manage',
   'invoices.import',
   'invoices.read',
   'batches.create',
@@ -49,7 +56,19 @@ const COMPANY_PERMISSIONS = [
   'nfse.cancel',
   'nfse.read',
   'trip.read',
+  'trip.manage',
   'trip.report',
+  /** Spec 061 D4: dinheiro tem permissão própria — margem e custo não são `trip.manage`. */
+  'trip.financials',
+  /**
+   * ADR-0047: permissão de **máquina**, e nenhuma tela a lê. Ela está aqui porque este é o
+   * vocabulário do que a API pode devolver — deixá-la de fora faria a lista mentir sobre isso.
+   */
+  'mdfe.auto-issue',
+  /** ADR-0050: o contratante acompanha a entrega das notas amarradas à conta dele. */
+  'deliveries.track',
+  /** ADR-0050 §6: decidir repasse é dinheiro, e não sai de carona com acompanhar entrega. */
+  'charges.decide',
 ] as const
 
 const FISCAL_ENVIRONMENTS = ['homologation', 'production'] as const

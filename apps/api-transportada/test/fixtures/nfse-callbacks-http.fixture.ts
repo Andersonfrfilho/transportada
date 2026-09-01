@@ -126,7 +126,7 @@ export async function createNfseCallbacksHttpFixture(params: CreateFixtureParams
 
   const handleRequest = createRequestHandler({
     createCorrelationId: () => CORRELATION_ID,
-    frontendOrigin: FRONTEND_ORIGIN,
+    frontendOrigins: [FRONTEND_ORIGIN],
     logger,
     requestTimeoutSeconds: 10,
     router,
@@ -205,6 +205,7 @@ function anonymousIdentity(): AuthenticatedIdentity {
     externalIdentityId: '00000000-0000-4000-8000-0000000000ca',
     issuer: 'http://localhost:58080/realms/transportada-local',
     platformAdmin: false,
+    serviceAccount: false,
     subject: 'nfse-callback-should-never-authenticate',
     userId: '00000000-0000-4000-8000-0000000000cb',
   }

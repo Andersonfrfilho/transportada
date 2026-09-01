@@ -37,6 +37,13 @@ import {
 import { passwordResetDeliveryOutbox, passwordResetRequests } from './password-reset.schema.js'
 import { jobExecutions, jobSchedules } from './job-schedule.schema.js'
 import { processedMessages, processingJobs, processingOutbox } from './processing.schema.js'
+import {
+  contractors,
+  deliveryClientExceptions,
+  deliveryClientWindows,
+  deliveryClients,
+  municipalHolidays,
+} from './delivery-client.schema.js'
 import { storedObjects } from './storage.schema.js'
 import {
   cteBatches,
@@ -60,7 +67,13 @@ import {
   billingInvoices,
 } from './billing.schema.js'
 import { billingDescriptionTemplates } from './billing-description-template.schema.js'
-import { fleetDriverVehicleAssignments, fleetDrivers, fleetVehicles } from './fleet.schema.js'
+import {
+  aggregateAccounts,
+  aggregateDocuments,
+  fleetDriverVehicleAssignments,
+  fleetDrivers,
+  fleetVehicles,
+} from './fleet.schema.js'
 import { fuelPriceReferences } from './fuel-reference.schema.js'
 import { companyFuelPrices } from './company-fuel-prices.schema.js'
 import { energyTariffReferences } from './energy-tariff.schema.js'
@@ -91,8 +104,10 @@ import {
   nfseServiceInvoices,
 } from './nfse.schema.js'
 import { viewPreferences } from './view-preferences.schema.js'
+import { companyCargoSettings } from './company-cargo-settings.schema.js'
 import { companyDistributionSettings } from './company-distribution-settings.schema.js'
 import { companyLogos } from './company-logo.schema.js'
+import { identityUserPictures } from './identity-user-picture.schema.js'
 import {
   cteEmissionProfileComponents,
   cteEmissionProfileMatchers,
@@ -100,7 +115,36 @@ import {
 } from './cte-emission-profile.schema.js'
 import { userInvitationRoles, userInvitations } from './user-invitation.schema.js'
 import { identityUserProfiles } from './identity-user-profile.schema.js'
-import { tripDocuments, tripDrivers, trips } from './trip.schema.js'
+import { landingSettings } from './landing.schema.js'
+import {
+  aggregateApplicationAttachments,
+  aggregateApplications,
+} from './aggregate-application.schema.js'
+import { geocodedAddresses } from './geocoding.schema.js'
+import {
+  companyRouteOptimizationSettings,
+  routeSuggestionDocuments,
+  routeSuggestionStopDocuments,
+  routeSuggestionStops,
+  routeSuggestionVehicles,
+  routeSuggestions,
+} from './route-suggestion.schema.js'
+import { contractorPortalBindings, tripLocationPings } from './client-portal.schema.js'
+import { whatsappChannels } from './whatsapp-channel.schema.js'
+import {
+  companyTaxSettings,
+  tripCostEntries,
+  tripFinancialParcels,
+  tripFinancialResults,
+} from './trip-financial.schema.js'
+import {
+  tripDispatchSnapshots,
+  tripDocumentEvents,
+  tripDocuments,
+  tripDrivers,
+  tripStops,
+  trips,
+} from './trip.schema.js'
 
 export * from './company-energy-settings.schema.js'
 export * from './company-fuel-prices.schema.js'
@@ -122,6 +166,7 @@ export * from './cte-issuance.schema.js'
 export * from './billing.schema.js'
 export * from './billing-description-template.schema.js'
 export * from './view-preferences.schema.js'
+export * from './company-cargo-settings.schema.js'
 export * from './company-distribution-settings.schema.js'
 export * from './company-logo.schema.js'
 export * from './cte-emission-profile.schema.js'
@@ -129,15 +174,30 @@ export * from './password-reset.schema.js'
 export * from './user-invitation.schema.js'
 export * from './identity-user-profile.schema.js'
 export * from './trip.schema.js'
+export * from './geocoding.schema.js'
+export * from './delivery-client.schema.js'
+export * from './trip-financial.schema.js'
+export * from './client-portal.schema.js'
+export * from './whatsapp-channel.schema.js'
+export * from './route-suggestion.schema.js'
+export * from './landing.schema.js'
+export * from './aggregate-application.schema.js'
+export * from './identity-user-picture.schema.js'
 
 export const databaseSchema = {
+  aggregateAccounts,
+  aggregateApplicationAttachments,
+  aggregateApplications,
+  aggregateDocuments,
   auditLogs,
   companies,
+  companyCargoSettings,
   companyDistributionSettings,
   companyEnergySettings,
   companyFiscalProfiles,
   companyFuelPrices,
   companyLogos,
+  identityUserPictures,
   digitalCertificates,
   energyTariffReferences,
   externalIdentities,
@@ -168,6 +228,7 @@ export const databaseSchema = {
   mdfeManifests,
   mdfeProcessedMessages,
   membershipRoles,
+  municipalHolidays,
   nfeAddresses,
   nfeDistributionCursors,
   nfeDocuments,
@@ -214,12 +275,45 @@ export const databaseSchema = {
   billingInvoiceEvents,
   billingInvoiceItems,
   billingInvoices,
+  companyRouteOptimizationSettings,
+  contractors,
+  deliveryClientExceptions,
+  deliveryClientWindows,
+  deliveryClients,
+  geocodedAddresses,
+  landingSettings,
+  routeSuggestionDocuments,
+  routeSuggestionStopDocuments,
+  routeSuggestionStops,
+  routeSuggestionVehicles,
+  routeSuggestions,
   storedObjects,
+  companyTaxSettings,
+  contractorPortalBindings,
+  tripCostEntries,
+  tripDispatchSnapshots,
+  tripLocationPings,
+  whatsappChannels,
+  tripFinancialParcels,
+  tripFinancialResults,
+  tripDocumentEvents,
   tripDocuments,
   tripDrivers,
+  tripStops,
   trips,
   userCompanyMemberships,
   userInvitationRoles,
   userInvitations,
   viewPreferences,
 }
+
+export {
+  companyGroupPermissions,
+  companyGroupRoles,
+  companyGroups,
+  membershipGroups,
+  membershipPermissions,
+} from './company-group.schema.js'
+
+export { loginIdentifiers, LOGIN_IDENTIFIER_KINDS } from './login-identifier.schema.js'
+export type { LoginIdentifierKind } from './login-identifier.schema.js'

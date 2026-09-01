@@ -12,6 +12,7 @@ import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnviro
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
 import { NfseEmissionAction } from '@/modules/nfse-invoice/components/NfseEmissionAction.component'
 import { buildNfseInvoiceDetailHref } from '@/modules/nfse-invoice/shared/nfseInvoiceRoute.service'
+import { buildTripRoute } from '@/modules/trip/shared/tripRoute.service'
 
 import {
   describeNfeDocumentFilterPills,
@@ -41,6 +42,10 @@ import {
 } from '../shared/viewPreferencesClient.service'
 import styles from '../styles/nfeWorkspace.module.css'
 import { AdvancedFilterBuilder } from './AdvancedFilterBuilder.component'
+import { MultiVehicleSuggestionAction } from '@/modules/routing/components/MultiVehicleSuggestionAction.component'
+import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
+import { navigateToTrip } from '@/modules/trip/shared/tripRoute.service'
+
 import { CopyButton } from './CopyButton.component'
 import { CteEmissionDialog } from './CteEmissionDialog.component'
 
@@ -316,6 +321,20 @@ export function NfeDocumentTable({
           >
             {blockReasonLabel(document.cteBlockReason)}
           </span>
+        )}
+        {/*
+          Spec 065 D4b: fatura-se o que saiu. O sinal vem **depois** do bloqueio de propósito — ele
+          não é bloqueio nenhum, e a nota que rodou é justamente a que deve entrar no lote.
+        */}
+        {document.tripId === null ? null : (
+          <a
+            aria-label={t('documents.tripLink')}
+            className={styles.nfseLink}
+            href={buildTripRoute(document.tripId)}
+            title={t('documents.tripLink')}
+          >
+            <Icon name="workspace-trip" />
+          </a>
         )}
       </td>
     )
@@ -720,6 +739,21 @@ export function NfeDocumentTable({
                 {t('documents.emitCte', { count: table.selectedCount })}
               </button>
             )}
+            {/*
+              Spec 058 P2: distribuir a seleção entre veículos. A ação nasce da seleção porque é
+              aqui que o operador já escolheu as notas — uma tela própria seria esta mesma tabela,
+              de novo, sem os filtros que ele acabou de usar.
+            */}
+            <MultiVehicleSuggestionAction
+              className={styles.labelActionActive}
+              {...(companyId === undefined ? {} : { companyId })}
+              documentIds={[...table.selectedIds]}
+              onAccepted={table.clearSelection}
+              onOpenTrip={(tripId) =>
+                navigateToTrip({ navigator: createBrowserWorkspaceNavigator(), tripId })
+              }
+              permissions={permissions}
+            />
             <NfseEmissionAction
               className={styles.labelActionActive}
               {...(companyId === undefined ? {} : { companyId })}

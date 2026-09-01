@@ -1,0 +1,106 @@
+{
+  "panel": {
+    "title": "Suggested route",
+    "distance": "Distance",
+    "duration": "Estimated time",
+    "cost": "Estimated cost",
+    "unknown": "—",
+    "accept": "Accept route",
+    "reject": "Discard"
+  },
+  "status": {
+    "queued": "Queued",
+    "running": "Solving…",
+    "ready": "Ready for review",
+    "accepted": "Accepted",
+    "rejected": "Discarded",
+    "failed": "Could not be solved",
+    "stale": "The trip changed — generate it again"
+  },
+  "failure": {
+    "ROUTING_MATRIX_UNAVAILABLE": "The routing service is down. Order the stops by hand for now — the system does not estimate distance in a straight line, because that produces a route the street will not honour.",
+    "unknown": "The route could not be solved."
+  },
+  "warning": {
+    "unreachable_one": "1 stop has no route to it. Check the address before accepting.",
+    "unreachable_other": "{{count}} stops have no route to them. Check the addresses before accepting.",
+    "weight_one": "1 stop exceeds the vehicle capacity by {{total}} kg.",
+    "weight_other": "{{count}} stops exceed the vehicle capacity by {{total}} kg in total.",
+    "deliveryWindow_one": "1 stop arrives outside its delivery window, {{total}} seconds late.",
+    "deliveryWindow_other": "{{count}} stops arrive outside their delivery windows, {{total}} seconds late in total.",
+    "dutyTime_one": "Duty time is exceeded by {{total}} seconds.",
+    "dutyTime_other": "Duty time is exceeded by {{total}} seconds.",
+    "coarseGeocoding_one": "1 stop only has the municipality centre — a guess several kilometres wide. It was left out of the optimization, at the end of the list. Correct the pin so it joins the route.",
+    "coarseGeocoding_other": "{{count}} stops only have the municipality centre — guesses several kilometres wide. They were left out of the optimization, at the end of the list. Correct the pins so they join the route.",
+    "estimatedWeight_one": "1 stop used the company average weight, because the invoice did not state one.",
+    "estimatedWeight_other": "{{count}} stops used the company average weight, because the invoices did not state one.",
+    "truncated_one": "The time budget ran out before the search converged. This is the best route found by then — a better one may exist.",
+    "truncated_other": "The time budget ran out before the search converged. This is the best route found by then — a better one may exist."
+  },
+  "precision": {
+    "rooftop": "exact address",
+    "street": "approximate number",
+    "postal_code": "postcode centre",
+    "city": "municipality centre"
+  },
+  "stop": {
+    "weightEstimated": "estimated weight",
+    "excluded": "outside the optimization"
+  },
+  "assumptions": {
+    "serviceTime": {
+      "default": "Stop time: {{seconds}}s, the company default — there are not enough measured deliveries yet.",
+      "measured": "Stop time: {{seconds}}s, the median of the last 3 months of deliveries."
+    }
+  },
+  "map": {
+    "label": "Map of the suggested route",
+    "loading": "Loading the map…",
+    "unavailable": {
+      "missing": "The map for this region has not been generated yet. The list below is the complete route — it does not depend on the map.",
+      "unsupported": "This browser cannot draw the map. The list below is the complete route — it does not depend on the map."
+    }
+  },
+  "invite": {
+    "text": "The system can propose the stop order. You review it and decide.",
+    "action": "Suggest route",
+    "requesting": "Requesting…"
+  },
+  "multiVehicle": {
+    "action": "Suggest trips",
+    "title": "Split invoices across vehicles",
+    "documents_one": "1 invoice selected",
+    "documents_other": "{{count}} invoices selected",
+    "vehicles": {
+      "label": "Available vehicles",
+      "placeholder": "Choose the vehicles",
+      "search": "Search by plate",
+      "empty": "No active traction vehicle registered.",
+      "clearAll": "Clear",
+      "remove": "Remove {{label}}",
+      "summary_one": "1 vehicle",
+      "summary_other": "{{count}} vehicles"
+    },
+    "request": "Split",
+    "requesting": "Splitting…",
+    "close": "Close",
+    "unassigned": "No vehicle — decide by hand",
+    "vehicleTitle": "Vehicle {{plate}}",
+    "stopCount_one": "1 stop",
+    "stopCount_other": "{{count}} stops",
+    "accept_one": "Accept and create 1 trip",
+    "accept_other": "Accept and create {{count}} trips",
+    "reject": "Discard",
+    "accepted_one": "1 trip created, in planning.",
+    "accepted_other": "{{count}} trips created, in planning.",
+    "acceptedTrip": "{{documents}} invoice(s), {{stops}} stop(s)",
+    "openTrip": "Open trip",
+    "empty": "The split left every invoice without a vehicle. Check the invoice addresses before trying again.",
+    "failure": {
+      "ROUTE_SUGGESTION_POOL_EMPTY": "Choose at least one invoice and one vehicle.",
+      "ROUTE_SUGGESTION_DOCUMENT_UNAVAILABLE": "One or more invoices are already on a trip. Remove them from the selection and try again.",
+      "ROUTE_SUGGESTION_VEHICLE_UNAVAILABLE": "One or more vehicles cannot be routed — only active traction vehicles qualify.",
+      "unknown": "Could not split the invoices right now."
+    }
+  }
+}

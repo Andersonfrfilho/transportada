@@ -30,9 +30,25 @@ export type BootstrapPersistedAdmin = {
   readonly userId: string
 }
 
+/**
+ * O que a administração de usuários lê para mostrar a pessoa. Nasce do que o arranque já perguntou —
+ * não há segunda tela pedindo nome e contato depois, e sem esta linha o administrador da instalação
+ * fica invisível na própria tela que ele usa para convidar os outros.
+ *
+ * A senha não entra aqui e nunca entrará: ela é do provedor de identidade, não do perfil.
+ */
+export type CreateFirstAdminProfile = {
+  readonly contactAddress: string
+  readonly contactChannel: 'email'
+  readonly email: string
+  readonly name: string
+  readonly username: string
+}
+
 export type CreateFirstAdminInput = {
   readonly companyId: string
   readonly issuer: string
+  readonly profile: CreateFirstAdminProfile
   readonly subject: string
 }
 

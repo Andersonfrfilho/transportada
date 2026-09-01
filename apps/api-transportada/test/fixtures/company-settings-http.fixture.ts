@@ -80,7 +80,7 @@ export async function createCompanySettingsHttpFixture({
   const router = createTestRouter({ context, events, routes })
   const handle = createRequestHandler({
     createCorrelationId: () => GENERATED_CORRELATION_ID,
-    frontendOrigin: FRONTEND_ORIGIN,
+    frontendOrigins: [FRONTEND_ORIGIN],
     logger: {
       error() {},
       info(_message, metadata) {
@@ -215,6 +215,7 @@ function identity(): AuthenticatedIdentity {
     externalIdentityId: crypto.randomUUID(),
     issuer: 'http://localhost:58080/realms/transportada-local',
     platformAdmin: false,
+    serviceAccount: false,
     subject: 'company-settings-http-contract',
     userId: COMPANY_CONTEXT.userId,
   }

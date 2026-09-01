@@ -1,0 +1,1 @@
+ALTER TABLE "trip_documents" DROP CONSTRAINT "trip_documents_company_stop_fk", ADD CONSTRAINT "trip_documents_company_stop_fk" FOREIGN KEY ("company_id","stop_id") REFERENCES "trip_stops"("company_id","id") ON DELETE RESTRICT ON UPDATE CASCADE;

@@ -1,0 +1,37 @@
+{
+  "ccmei": "Este é um CCMEI, documento de empresa — não descreve veículo. O formulário continua em branco.",
+  "chooseFile": "Escolher arquivo",
+  "dropHint": "Solte o PDF do CRLV-e aqui, ou escolha o arquivo. Ele é lido nesta máquina e não é enviado a lugar nenhum.",
+  "failed": "Não foi possível ler este arquivo. Confira se é um PDF e tente de novo.",
+  "field": {
+    "axleCount": "Eixos",
+    "bodyType": "Carroceria",
+    "brand": "Marca",
+    "capacityKilograms": "Capacidade",
+    "color": "Cor",
+    "fuelType": "Combustível",
+    "model": "Modelo",
+    "modelYear": "Ano do modelo",
+    "ownerName": "Nome do proprietário",
+    "ownerTaxId": "CPF/CNPJ do proprietário",
+    "plate": "Placa",
+    "renavam": "RENAVAM",
+    "secondaryFuelType": "Combustível secundário",
+    "state": "UF"
+  },
+  "filledTitle": "Preenchido pelo documento",
+  "fromDocument": "veio do documento",
+  "reading": "Lendo o documento…",
+  "reason": {
+    "ambiguousDiesel": "o documento diz apenas \"diesel\" e não distingue S10 de S500 — confira",
+    "checkDigitFailed": "o dígito verificador não fecha",
+    "notInCatalog": "o valor impresso não está no nosso catálogo",
+    "notInformed": "o Detran não informou",
+    "notPrinted": "o documento não imprime a tara, e capacidade é peso bruto menos tara"
+  },
+  "recognized": "Reconhecido: CRLV-e",
+  "remarksTitle": "Confira à mão",
+  "scanned": "Este PDF é imagem digitalizada, sem texto para ler. O cadastro à mão continua disponível.",
+  "title": "Preencher pelo documento",
+  "unknown": "Não reconhecemos este documento. O formulário continua em branco, como sempre foi."
+}

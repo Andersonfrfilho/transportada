@@ -23,10 +23,16 @@ describe('fleet workspace tabs contract', () => {
     expect(page).toContain('readonly TabsItem[]')
   })
 
+  /**
+   * A aba inicial deixou de ser literal quando a tela de usuários passou a ligar para cá: com um
+   * `driverId` na URL, abrir em Veículos mandaria o operador para o lugar errado e o faria procurar.
+   * O padrão continua Veículos — o que mudou é o link ter voz.
+   */
   test('opens on the vehicles tab and keeps the active tab in local state', async () => {
     const page = await readApplicationFile(PAGE_PATH)
 
-    expect(page).toContain("useState<FleetTabId>('vehicles')")
+    expect(page).toContain('useState<FleetTabId>(resolveInitialTab())')
+    expect(page).toContain("if (parseFleetDriverParameter(search) !== null) return 'drivers'")
     expect(page).toContain('activeTab')
 
     const vehiclesTab = page.indexOf("id: 'vehicles'")
@@ -57,6 +63,8 @@ describe('fleet workspace tabs contract', () => {
 
       expect(typeof tabs).toBe('object')
       expect(Object.keys(tabs as Record<string, unknown>).sort()).toEqual([
+        'applications',
+        'documents',
         'drivers',
         'fuel',
         'regions',

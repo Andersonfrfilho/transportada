@@ -14,6 +14,7 @@ import type { ContactChannel } from '../../database/identity-user-profile.schema
 import type { FuelProduct, FuelUnit } from '../../shared/fuel.constant.js'
 import type { IdentityDocumentIssuer } from '../../shared/identity-document-issuer.constant.js'
 import type { LicenseCategory } from '../../shared/license-category.constant.js'
+import type { PixKeyType } from '../../shared/pix-key-type.constant.js'
 import type { VehicleType } from '../../shared/vehicle-type.constant.js'
 import type {
   EffectiveFuelPrice,
@@ -156,6 +157,8 @@ export type FleetDriverInput = {
   readonly name: string
   readonly nationality: string
   readonly phone: string
+  readonly pixKey: string
+  readonly pixKeyType: PixKeyType | ''
   readonly rntrc: string
   readonly taxId: string
 }

@@ -271,7 +271,8 @@
       "totalAmount": "Valor"
     },
     "chooseYear": "Escolher o ano",
-    "openCalendar": "Abrir calendário"
+    "openCalendar": "Abrir calendário",
+    "tripLink": "Saiu nesta viagem"
   },
   "documentStatus": {
     "authorized": "Autorizada",
@@ -384,5 +385,13 @@
   "distributionCursorCancel": "Cancelar ajuste",
   "distributionCursorAdjusted": "Cursor ajustado. A próxima consulta acontece depois da janela de uma hora.",
   "distributionCursorError": "Não foi possível ajustar o cursor. Código: {{code}}.",
-  "distributionCursorLoadError": "Não foi possível carregar o cursor da distribuição."
+  "distributionCursorLoadError": "Não foi possível carregar o cursor da distribuição.",
+  "cargoWeightTitle": "Peso padrão por volume",
+  "cargoWeightHelp": "Quando o emitente não declara a massa da carga, a nota fica sem peso e não entra em lote de CT-e. Este valor estima o peso multiplicando-o pela quantidade de volumes da nota.",
+  "cargoWeightLabel": "Quilos por volume",
+  "cargoWeightDisabled": "Sem peso padrão: notas sem peso continuam bloqueadas para CT-e.",
+  "cargoWeightEnabled": "Estimando {{weight}} kg por volume. O peso declarado pelo emitente sempre vence a estimativa.",
+  "cargoWeightInvalid": "Informe um peso maior que zero, com até quatro casas decimais.",
+  "cargoWeightSave": "Salvar peso padrão",
+  "cargoWeightClear": "Desligar estimativa"
 }

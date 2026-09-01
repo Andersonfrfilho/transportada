@@ -75,6 +75,8 @@ export const REPROCESS_RESPONSE: NfeImportSummary = {
 export const DOCUMENT_SUMMARY: NfeDocumentSummary = {
   accessKey: DOCUMENT_ACCESS_KEY,
   cteBlockReason: null,
+  tripId: null,
+  tripStatus: null,
   emitterAddress: 'Rua das Cargas, 100 - Centro',
   emitterCity: 'Campinas',
   emitterCityCode: '3509502',
@@ -160,6 +162,8 @@ export function serializeDocumentSummary(document: NfeDocumentSummary): object {
     series: document.series,
     status: document.status,
     totalAmount: document.totalAmount,
+    tripId: document.tripId,
+    tripStatus: document.tripStatus,
     variant: document.variant,
   }
 }

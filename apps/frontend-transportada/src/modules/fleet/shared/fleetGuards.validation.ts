@@ -11,6 +11,7 @@ import {
   LICENSE_CATEGORIES,
   MDFE_BODY_TYPE,
   MDFE_OWNER_TAX_REGIME,
+  PIX_KEY_TYPES,
 } from './fleet.types'
 
 const UNSIGNED_INTEGER_PATTERN = /^(?:0|[1-9][0-9]*)$/
@@ -69,6 +70,7 @@ export const FLEET_ENUMS = {
   identityDocumentIssuer: IDENTITY_DOCUMENT_ISSUERS,
   licenseCategory: LICENSE_CATEGORIES,
   ownership: FLEET_VEHICLE_OWNERSHIP,
+  pixKeyType: PIX_KEY_TYPES,
   role: FLEET_VEHICLE_ROLE,
   taxRegime: MDFE_OWNER_TAX_REGIME,
   vehicleStatus: FLEET_VEHICLE_STATUS,

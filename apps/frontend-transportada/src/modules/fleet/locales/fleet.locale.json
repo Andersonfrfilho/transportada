@@ -16,13 +16,87 @@
   "tabs": {
     "vehicles": "Veículos",
     "drivers": "Motoristas",
+    "applications": "Candidaturas",
     "fuel": "Combustível",
-    "regions": "Regiões"
+    "regions": "Regiões",
+    "documents": "Anexos"
+  },
+  "applications": {
+    "loading": "Carregando candidaturas",
+    "empty": "Nenhuma candidatura pendente",
+    "columns": {
+      "name": "Nome",
+      "taxId": "Documento",
+      "contact": "Contato",
+      "status": "Status",
+      "actions": "Ações"
+    },
+    "status": {
+      "pending": "Pendente",
+      "approved": "Aprovada",
+      "rejected": "Recusada"
+    },
+    "duplicateBadge": "Já cadastrado",
+    "resubmittedBadge": "Reenviado",
+    "approveButton": "Aprovar",
+    "linkButton": "Vincular",
+    "rejectButton": "Recusar",
+    "viewDriverButton": "Ver ficha",
+    "rejectionReasonLabel": "Motivo da recusa",
+    "confirmRejectButton": "Confirmar recusa",
+    "cancelButton": "Cancelar",
+    "declaredData": {
+      "toggleShow": "Ver dados declarados",
+      "toggleHide": "Ocultar dados declarados",
+      "empty": "Candidatura sem CNH, endereço ou veículo declarados.",
+      "driverTitle": "Motorista",
+      "vehicleTitle": "Veículo",
+      "noVehicle": "Nenhum veículo declarado — o operador cadastra depois.",
+      "fields": {
+        "licenseNumber": "CNH",
+        "licenseCategory": "Categoria",
+        "rntrc": "RNTRC",
+        "anttCategory": "Regime",
+        "address": "Endereço",
+        "plate": "Placa",
+        "brand": "Marca",
+        "model": "Modelo",
+        "modelYear": "Ano",
+        "vehicleType": "Tipo"
+      }
+    },
+    "attachments": {
+      "approveButton": "Aprovar anexo",
+      "confirmRejectButton": "Confirmar recusa",
+      "declaredLabel": "declarado",
+      "empty": "Esta candidatura não trouxe anexos.",
+      "loading": "Carregando os anexos…",
+      "matches": "O que lemos no documento confere com o que foi declarado.",
+      "notRead": "Não foi possível ler este documento — confira abrindo o arquivo.",
+      "openButton": "Abrir arquivo",
+      "readLabel": "no documento",
+      "reasonLabel": "Motivo da recusa",
+      "rejectButton": "Reprovar anexo",
+      "status": {
+        "approved": "· aprovado",
+        "pending": "· aguardando revisão",
+        "rejected": "· reprovado"
+      },
+      "toggle": "Anexos enviados",
+      "types": {
+        "ccmei": "CCMEI",
+        "cnh": "CNH",
+        "crlv": "CRLV",
+        "other": "Outro documento"
+      }
+    }
   },
   "vehiclesTitle": "Veículos",
   "driversTitle": "Motoristas",
   "newVehicle": "Novo veículo",
   "editVehicle": "Editar veículo",
+  "documentPlateTaken": "A placa {{plate}} já está cadastrada nesta frota.",
+  "documentPlateTakenAction": "Abrir a ficha existente",
   "newDriver": "Novo motorista",
   "editDriver": "Editar motorista",
   "edit": "Editar",
@@ -290,6 +364,16 @@
   "driverAnttCategory": "Categoria ANTT",
   "driverAnttCategoryUnset": "Sem categoria",
   "driverAnttHint": "Registro e categoria da ANTT do motorista. Quando o veículo é dele, é o que vai no grupo de proprietário do MDF-e.",
+  "driverPixKeyType": "Tipo da chave Pix",
+  "driverPixKeyTypeUnset": "Sem chave",
+  "driverPixKey": "Chave Pix",
+  "pixKeyTypeOption": {
+    "cpf": "CPF",
+    "cnpj": "CNPJ",
+    "email": "E-mail",
+    "phone": "Telefone",
+    "random": "Chave aleatória"
+  },
   "driverLicenseCategory": "Categoria da CNH",
   "driverLicenseCategoryUnset": "Sem categoria",
   "licenseCategoryOption": {
@@ -625,5 +709,49 @@
   "ownerIncompleteHint": "A ficha do motorista não tem {{fields}} — o grupo de proprietário do MDF-e exige esses campos. Complete a ficha aqui mesmo, sem sair do cadastro do veículo.",
   "ownerIncompleteFixButton": "Completar ficha do motorista",
   "ownerIncompleteUnknownDriver": "O documento do proprietário não corresponde a nenhum motorista cadastrado — escolha o motorista na lista acima para completar a ficha.",
-  "ownerIncompleteFeedback": "A ficha do motorista proprietário está incompleta: complete-a antes de salvar o veículo."
+  "ownerIncompleteFeedback": "A ficha do motorista proprietário está incompleta: complete-a antes de salvar o veículo.",
+  "documents": {
+    "loading": "Carregando anexos",
+    "empty": "Nenhum anexo aguardando revisão",
+    "columns": {
+      "type": "Documento",
+      "taxId": "Documento do agregado",
+      "status": "Status",
+      "check": "Conferência",
+      "actions": "Ações"
+    },
+    "type": {
+      "cnh": "CNH",
+      "crlv": "CRLV"
+    },
+    "status": {
+      "pending": "Pendente",
+      "approved": "Aprovado",
+      "rejected": "Recusado"
+    },
+    "check": {
+      "unverified": "Não foi possível conferir",
+      "matches": "Confere com a ficha",
+      "divergent_one": "{{count}} campo diverge",
+      "divergent_other": "{{count}} campos divergem"
+    },
+    "divergence": {
+      "document": "no documento",
+      "declared": "na ficha"
+    },
+    "fields": {
+      "name": "Nome",
+      "licenseNumber": "Número da CNH",
+      "licenseCategory": "Categoria",
+      "plate": "Placa",
+      "renavam": "RENAVAM"
+    },
+    "openButton": "Abrir",
+    "approveButton": "Aprovar",
+    "rejectButton": "Recusar",
+    "rejectDialogTitle": "Recusar anexo",
+    "rejectReasonLabel": "Motivo da recusa (o agregado vai ler)",
+    "confirmRejectButton": "Confirmar recusa",
+    "cancelButton": "Cancelar"
+  }
 }

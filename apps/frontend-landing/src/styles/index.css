@@ -1,0 +1,72 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+:root {
+  /* Sem isto o Chrome pinta todo widget nativo em modo claro sobre o tema escuro. */
+  color-scheme: dark;
+  --color-alert: #ff5f57;
+  --color-asphalt: #10222c;
+  --color-copper: #d58a47;
+  --color-fog: #f0f2ee;
+  --color-graphite: #1c2b33;
+  --color-ready: #6aae8c;
+  --color-slate: #8fa3ad;
+  /* Padrão do app quando a raiz do CNPJ não configurou cor — a T009 sobrescreve em runtime. */
+  --color-accent: var(--color-copper);
+  --font-body: 'Avenir Next', Avenir, 'Segoe UI', sans-serif;
+  --font-display: Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
+  --font-utility: 'SFMono-Regular', Consolas, monospace;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-7: 1.75rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --layout-gutter: var(--space-4);
+  --layout-max-width: 78rem;
+  --layout-width: min(100% - var(--layout-gutter), var(--layout-max-width));
+  --field-height: 3rem;
+  --field-height-compact: 2.4rem;
+  --field-padding: var(--space-3);
+  --field-padding-compact: var(--space-2) var(--space-3);
+  --field-font-size: 1rem;
+  --field-font-size-compact: 0.82rem;
+  /* Botão e botão de ícone saem da medida do campo: numa fileira de controles tudo tem uma altura */
+  --control-height: var(--field-height);
+  --control-height-compact: var(--field-height-compact);
+  /* Alvo de toque de 44px do `web.md` §10: o compacto do design system fica um degrau abaixo */
+  --touch-target: 2.75rem;
+  --icon-size-sm: 0.9rem;
+  --icon-size-md: 1.1rem;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--color-asphalt);
+  color: var(--color-fog);
+  font-family: var(--font-body);
+  margin: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+img,
+video {
+  max-width: 100%;
+  height: auto;
+}
+
+@media (min-width: 48rem) {
+  :root {
+    --layout-gutter: var(--space-8);
+    --field-font-size: 0.9rem;
+  }
+}

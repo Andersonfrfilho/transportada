@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { PHONE_MASK_LENGTH, formatPhone, stripPhone } from '@/modules/shared/phone.service'
 import { toDisplayPersonName } from '@/modules/shared/personName.service'
+import { formatPixKey, pixKeyMaskLength } from '@/modules/shared/pixKey.service'
 import { formatCnpj, formatCpf, normalizeTaxId } from '@/modules/shared/taxId.service'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
@@ -29,6 +30,7 @@ import {
   FLEET_DRIVER_PROFILES,
   LICENSE_CATEGORIES,
   MDFE_OWNER_TAX_REGIME,
+  PIX_KEY_TYPES,
 } from '../shared/fleet.types'
 import { isFleetFeedbackError } from '../shared/fleetFeedback.service'
 import styles from '../styles/fleet.module.css'
@@ -90,6 +92,7 @@ export function DriverQuickCreateDialog({
   const addressLookup = useDriverAddressLookup({ patch: form.patch, state: form.state })
   const companyLookup = useCompanyLookup({ patch: form.patch })
   const ownedVehicleIds = toOwnedVehicleIds(vehicles.links)
+  const pixKeyMaxLength = pixKeyMaskLength(form.state.pixKeyType)
 
   /** O controlador guarda a chave; quem a traduz é a tela, que é onde o idioma está. */
   function fieldErrorText(feedback: string | undefined): string | undefined {
@@ -227,6 +230,25 @@ export function DriverQuickCreateDialog({
                 placeholder={t('driverAnttCategoryUnset')}
                 value={form.state.anttCategory}
                 onChange={(anttCategory) => form.patch({ anttCategory })}
+              />
+              <FleetSelectField<string>
+                clearable
+                label={t('driverPixKeyType')}
+                optionLabelKey="pixKeyTypeOption"
+                options={PIX_KEY_TYPES}
+                placeholder={t('driverPixKeyTypeUnset')}
+                value={form.state.pixKeyType}
+                onChange={(pixKeyType) =>
+                  form.patch({ pixKeyType, pixKey: formatPixKey(pixKeyType, form.state.pixKey) })
+                }
+              />
+              <FleetField
+                label={t('driverPixKey')}
+                {...(pixKeyMaxLength === undefined ? {} : { maxLength: pixKeyMaxLength })}
+                value={form.state.pixKey}
+                onChange={(pixKey) =>
+                  form.patch({ pixKey: formatPixKey(form.state.pixKeyType, pixKey) })
+                }
               />
               {driver === undefined ? (
                 <FleetSelectField

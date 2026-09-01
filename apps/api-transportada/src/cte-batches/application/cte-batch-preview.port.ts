@@ -30,6 +30,15 @@ export type CteBatchPreviewLink = {
   readonly documentId: string
 }
 
+/**
+ * Spec 065 D4b: em que viagem a nota saiu. É sinal para quem monta o lote, e nenhum bloqueio o lê.
+ */
+export type TripDocumentLink = {
+  readonly documentId: string
+  readonly tripId: string
+  readonly tripStatus: string
+}
+
 export type CteBatchPreviewNfseLink = {
   readonly documentId: string
   readonly invoiceId: string

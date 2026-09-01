@@ -22,6 +22,7 @@ apps/api-transportada/       Bun.serve + Drizzle + Zod (sem framework HTTP)
 apps/worker-transportada/    consumidor RabbitMQ + outbox relay
 apps/cron-transportada/      processo one-shot agendado (NF-e, NFS-e, notificações, preço da ANP)
 apps/frontend-transportada/  React 19 + Vite 7 (PWA)
+apps/frontend-client/        portal do contratante — app separada por segurança (ADR-0050)
 docs/spec/                   constitution, architecture, domain-model, fiscal-integration
 docs/adr/                    NNNN-titulo.md (0001..0010)
 specs/NNN-nome/              spec.md · plan.md · tasks.md · evidence.md
@@ -60,10 +61,11 @@ Módulo de domínio = até 4 camadas em `src/<modulo>/`:
 - `domain/` — regras puras, `*.error.ts`, `*.policy.ts`. Sem I/O.
 - `infrastructure/` — `drizzle-*.repository.ts`, `*.mapper.ts`, `*.gateway.ts`.
 
-Módulos: `addresses`, `billing`, `companies`, `cte-batches`, `cte-issuance`, `cte-profiles`, `fleet`,
-`freight`, `freight-calculations`, `freight-regions`, `freight-rules`, `identity`, `mdfe-manifests`,
-`nfe-documents`, `nfe-imports`, `nfse-callbacks`, `nfse-invoices`, `nfse-profiles`, `notification`,
-`operations`, `storage`, `trips`, `view-preferences`, `health`.
+Módulos: `addresses`, `billing`, `companies`, `contractor-portal`, `cte-batches`, `cte-issuance`,
+`cte-profiles`, `fleet`, `freight`, `freight-calculations`, `freight-regions`, `freight-rules`,
+`identity`, `mdfe-manifests`, `nfe-documents`, `nfe-imports`, `nfse-callbacks`, `nfse-invoices`,
+`nfse-profiles`, `notification`, `operations`, `routing`, `storage`, `trips`, `view-preferences`,
+`health`.
 Transversais: `config`, `database`, `http`, `logging`, `observability`, `server`, `shared`.
 
 Fluxo de request: `src/main.ts` (composition root) → `server/server.service.ts` (`Bun.serve`, limite
@@ -87,6 +89,31 @@ depósito da senha (admin SDK): `resetPasswordAllowed` segue `false`, e o link "
 do tema de login aponta para `/recuperar-senha`, tela nossa. ⚠️ As duas rotas **não têm rate limit**
 — não existe limitador nesta API; achado registrado em `docs/SECURITY.md`.
 
+**O administrador define senha por rota própria, e o link continua existindo ao lado.**
+`PUT /company-users/:id/password` (`users.manage`, escopo `company`) grava a senha no Keycloak pelo
+admin SDK e responde **204** — nenhum eco do corpo, porque resposta com senha atravessa log de
+proxy. `temporary` é campo obrigatório do corpo, não padrão escondido: senha definitiva serve a quem
+está sem canal de e-mail funcionando (que é justamente quem não recebe o link), e a temporária
+obriga a troca no primeiro acesso. O piso é `COMPANY_USER_PASSWORD_MIN_LENGTH` = 12, **mais alto**
+que o do fluxo de recuperação, porque ali quem digita é o dono da conta e aqui é um terceiro — senha
+curta escolhida por terceiro circula por recado ou papel antes de chegar a quem vai usá-la. Ela é
+**cópia por valor** no frontend (`identity/shared/companyUsers.constant.ts`), guardada por
+`test/identity/company-user-edit-dialog.contract.ts`. A senha nunca toca o banco daqui: o Keycloak é
+o depósito, e a trilha guarda quem trocou a senha de quem, nunca o valor. ⚠️ A rota **não tem rate
+limit** — não existe limitador nesta API, e o achado é o mesmo já registrado em `docs/SECURITY.md`.
+
+**A comparação com o Keycloak tem duas divergências, e elas não somam num botão só.**
+`summarizeReconciliation` (frontend, `identity/shared/reconciliationSummary.service.ts`) separa
+`missingSomewhere` (existe de um lado só — o que `POST /reconciliation/sync` conserta) de
+`withoutProfile` (existe dos dois lados sem ficha aqui — o que `POST /reconciliation/profiles`
+conserta). Contar as duas juntas e alimentar com o total o botão de criar produzia o defeito que
+não se explicava: com a única divergência sendo ficha vazia, a tela anunciava "criar 1 que falta" e
+o clique mandava dois conjuntos vazios; a API respondia certo — nada a criar — e a tela ficava
+idêntica. ⚠️ As duas rotas **sempre** devolveram `{filled|created…, skipped}` com a razão de cada
+pulo, e o cliente do frontend descartava o corpo: preencher uma ficha e pular outra produzia a mesma
+tela de antes do clique. Hoje o painel imprime o resultado, e razão nova na API precisa de rótulo em
+`users.sync.skipReason` — sem ele o operador lê a chave crua.
+
 **A pessoa e o vínculo dela são chaves diferentes:** `CompanyUserView.id` é o usuário e
 `membershipId` é o `user_company_memberships.id` — e é o **vínculo** que o motorista da frota
 referencia. As sete rotas de `/company-users` publicam os dois lado a lado (todas sob `users.manage`,
@@ -98,6 +125,61 @@ tornar o campo opcional obrigaria o frontend a tratá-lo como ausente para sempr
 (`limit=100`, cursor até dez páginas): vínculo suspenso não é oferecido, o que já está gravado
 continua escolhível, e sem `users.manage` o campo volta a ser digitável — quem cuida da frota sem
 administrar usuários ainda precisa cadastrar motorista.
+
+**O separador é papel próprio, e `trip.manage` nasceu para ele.** As rotas de escrita da viagem
+pediam `fleet.manage` — quem montava a viagem ganhava de carona o cadastro da frota inteira. Hoje
+elas pedem `trip.manage` (`TRIP_MANAGE_POLICY` em `trips/presentation/trip.routes.ts`), e o papel
+`separator` recebe **quatro** permissões e nada mais: `invoices.read` para achar a nota que bipou,
+`fleet.read` para escolher veículo e motorista, `trip.read` e `trip.manage` para montar a viagem. Ele
+não cadastra frota, não fatura, não emite documento fiscal e **não reporta entrega** — `trip.report`
+é do campo, não do galpão, e por isso o MDF-e da viagem que ele monta continua com quem responde por
+ele. `admin` e `operator` ganharam `trip.manage` na mesma migration
+(`20260824184702_separator_role`, que só acrescenta a sigla aos dois CHECKs de `membership_roles.role`
+e `user_invitation_roles.role`). ⚠️ `trip.read` está no catálogo mas **nenhuma rota a pede**: a
+leitura de viagem continua em `fleet.read` (`TRIP_READ_POLICY`), e quem migrar isso migra os três
+papéis que a carregam (`driver`, `aggregate`, `separator`). ⚠️ O contrato `test/separator-role.contract.test.ts` lista as rotas
+alcançáveis **por extenso**: rota nova de frota, faturamento ou CT-e reprova ali até alguém decidir,
+por escrito, se o separador a alcança.
+
+**A viagem tem fases, e a nota tem as suas (ADR-0043, spec 056).** `trips.status` são nove estados
+(`draft`, `route_planned`, `separating`, `loading`, `dispatched`, `in_transit`, `completed`,
+`cancelled`), e o estado da viagem é **derivado** do de suas notas — exceto em quatro transições
+manuais (criar em `draft`, `plan-route`, `dispatch`, `cancel`). `trip_documents.separation_status`
+(`pending`, `separated`, `loaded`, `delivered`, `returned`) muda por `POST
+/trips/:id/documents/:documentId/{separate,load,return}` ou em lote por `.../documents/batch-status`
+— nunca por `UPDATE` direto. ⚠️ **`return` é trabalho de rua, não de barracão, e isso inverte o
+portão:** `checkTripAcceptsDocumentWork` exige `isTripDispatched` para `return`/`deliver` e o
+proíbe para `separate`/`load` — devolver só existe **depois** da saída (antes disso a nota se
+desvincula, não se devolve), e `separate`/`load` ainda precisam de roteiro planejado (`draft` sai
+`TRIP_ROUTE_NOT_PLANNED`). Quem tratar os três como um `isEditable` só oferece "Devolver"
+exatamente quando ele dá `409` — foi o que aconteceu no T016, e `test/trip/state-gates.contract.ts`
+(frontend) existe para travar a tabela estado→portão contra esta política. `checkTripDocumentTransition`/`checkTripTransition`
+(`trips/domain/trip-state.policy.ts`) são a única fonte da máquina, e toda transição é idempotente
+por desenho (repetir converge em `unchanged`, não erro — a rede do armazém cai, o separador toca
+duas vezes). `dispatched` é a porta de não-retorno: `checkTripAcceptsLinkage` bloqueia vincular,
+desvincular e reordenar parada a partir dali (`409 STATE_TRANSITION_NOT_ALLOWED`), o roteiro
+congela em `trip_dispatch_snapshots` (append-only, mesmo padrão de `audit_logs`), e só `cancel`
+sai desse estado — incidente, não fluxo. `TripStop` é **derivada**, nunca criada à mão: vincular
+uma nota chama `reconcileStopOnLink` (`trips/application/reconcile-trip-stops.use-case.ts`), que
+agrupa pelo endereço normalizado do destinatário (`(postal_code, number, city_code)` de
+`nfe_addresses`, não pelo CNPJ — a mesma rede em cinco lojas é cinco paradas); desvincular chama
+`reconcileStopOnUnlink`, que apaga a parada só quando a última nota sai — e **precisa** rodar depois
+de a nota já ter perdido o `stop_id`, senão ela mesma se conta como razão para a parada continuar
+ocupada. ⚠️ Essa ligação **não existia** até a implementação chegar no teste E2E do ciclo inteiro —
+`linkDocument`/`releaseDocument` inseriam a nota sem nunca chamar o reconciliador, e toda viagem
+ficava presa em `hasRoute: false` para sempre. Se uma nota vinculada por uma rota real aparecer sem
+parada, é a wiring de `drizzle-trip.repository.ts` → `nfe-destination-address.support.ts` que
+quebrou, não a lógica pura de `reconcile-trip-stops.use-case.ts` (essa tem teste próprio e nunca foi
+o problema). Desvio de endereço (D9, `delivery_address_overrides`, também append-only) é ação em
+menu, nunca edição em linha, e guarda **duas** identidades por vínculo: `requestedBy` (texto livre —
+quem pediu o desvio quase nunca é usuário do sistema) e `actorUserId` (membership — quem executou).
+
+**A chave de acesso é filtro de listagem, não rota nova.** `GET /nfe-documents?accessKey=` resolve os
+44 caracteres que a câmera leu no identificador que o vínculo pede, dentro do `companyId` do contexto
+— chave de outra empresa é ausência, não 403, e é
+`test/nfe-schema/document-block-tenant-safety.contract.ts` que guarda isso. O padrão é o
+alfanumérico (`^[0-9]{6}[A-Z0-9]{12}[0-9]{26}$`), nunca `\d{44}`: emitente com letra no CNPJ é o
+caso normal desde 01/07/2026.
 
 **A ficha do motorista guarda dado de pessoa física, e hoje ninguém lê.** `birth_date`,
 `license_number`, `license_expires_at`, o endereço residencial e o trio do RG existem na tabela e no
@@ -176,6 +258,25 @@ Remota e a tela de configurações não contarem histórias diferentes. A parida
 (`test/companies/scheduled-distribution-parity.contract.ts`). No frontend a configuração mora **na
 aba Remota da tela de Notas**, junto do efeito, e não mais em configurações de empresa — ver
 "Configuração perto do efeito" abaixo.
+
+**O peso da carga tem duas fontes, e só o CT-e o exige** (ADR-0052, spec 067). O emitente omite
+`pesoB` **por nota**, não por política — a Zaragoza mandou 883658 com 108,670 kg e 883663 com 0,000
+no mesmo caminhão, mesmo lacre, mesmo minuto. Duas consequências:
+
+- `checkSharedEligibility` é o que CT-e e NFS-e conferem em comum (autorizada, completa, valor,
+  participantes, municípios). O **peso ficou só em `checkDocumentEligibility`**, e
+  `NfseSelectionBlockReason` deixou de admitir `CTE_BATCH_DOCUMENT_MISSING_WEIGHT` **por tipo** — o
+  RPS da Nota RP não tem campo de massa, e barrar por um campo que nunca sai no documento travava
+  emissão real. A seleção de NFS-e também parou de consultar `nfe_volumes`; o contrato
+  `test/nfse-schema/invoice-selection-query-tenant-safety.contract.ts` falha se a tabela reaparecer ali.
+- O peso efetivo é `XML → qVol × company_cargo_settings.default_volume_weight → ausência`, resolvido
+  em `nfe-documents/domain/cargo-weight.policy.ts` e lido pela listagem de notas, pela seleção de
+  lote e pelo payload de CT-e. Nulo é **estimativa desligada** e é o padrão; zero é recusado pelo
+  CHECK (zero declararia que a carga não pesa nada). A estimativa entra **por volume**, para a soma
+  de `composeCargoQuantities` continuar coerente com o `qVol`, e nota com **algum** volume pesado
+  não é tocada. ⚠️ Não confundir com `company_route_optimization_settings.fallback_weight_kilograms`,
+  que é peso **por parada** para o solver. ⚠️ **Nenhuma tela mostra peso hoje**, então não há marca
+  de "estimado" por nota — quem expuser peso em qualquer superfície leva a origem junto.
 
 **Cliente da fatura:** é o **tomador do frete**, quem paga — nunca um papel de participante da nota.
 Quem é o tomador está configurado em `cte_emission_profiles.taker` (`0` remetente, `3` destinatário)
@@ -274,6 +375,25 @@ a data-fonte, o recorte e o que fazer com a seleção que atravessa dois recorte
 acima de `buildNfseDescription`, em `nfse-invoices/domain/nfse-description.service.ts`. No frontend o
 campo "Período do serviço" abre vazio a cada emissão (`useNfseEmissionDialog.hook.ts`) e entra na
 chave da prévia; em branco ele é **omitido** do corpo, porque ausente e `''` dizem a mesma coisa à API.
+
+**O documento do agregado é lido por camada de texto quando ele tem uma.** `POST` de anexo passa
+por `aggregate-document-text.gateway.ts`, o único lugar que sabe escolher: **PDF** sai por
+`shared/pdf-text-layer.service.ts` (exato, sem rede, sem serviço) e **imagem** sai pelo OCR
+self-hosted (palpite, com rede). Antes o host desviava todo PDF antes de tentar ler, e cartão CNPJ,
+certificado RNTRC e CRLV-e digital passavam sem conferência nenhuma.
+
+⚠️ A leitura de PDF usa `unpdf` — dependência nova, contra o instinto da ADR-0033 (a planilha da ANP
+é lida por código nosso). O motivo está medido: estes documentos usam fonte `Type0` com `ToUnicode`,
+onde o código do caractere **não é** o caractere, e um leitor ingênuo devolve a página inteira sem a
+placa e sem o RENAVAM. XLSX é formato pequeno; PDF não é.
+
+⚠️ **CNH-e e CDT não têm camada de texto útil**: o PDF deles é o invólucro do Serpro com o documento
+como imagem embutida. A extração devolve ~400 caracteres de texto legal e nenhum campo — e isso é o
+resultado **correto**, não uma falha: os parsers ancoram em rótulo, ausência vira campo vazio, e
+campo vazio nunca vira divergência. Quem lê CNH continua sendo o OCR, com imagem.
+
+Texto vazio é ausência e não conta como extração (`aggregate-document.use-case.ts`): seguir adiante
+gravaria uma extração de campos todos nulos como se fosse leitura feita.
 
 **Banco:** schemas em `src/database/*.schema.ts`, agregados em `database.schema.ts`. Migrations SQL
 versionadas em `drizzle/`. `bun run db:generate --name x` · `db:check` · `db:migrate` · `db:seed:local`.
@@ -568,6 +688,12 @@ Todo container de tela usa `width: var(--layout-width)` — nenhum módulo decla
 o cabeçalho da aplicação e os painéis fecharem na mesma borda. Detalhes em `docs/frontend/layout.md`,
 contrato em `test/design-system/layout-width.contract.ts`.
 
+Toda largura de tela sai dos quatro pontos de quebra do `web.md` §10 — base (sem consulta), `40rem`,
+`64rem` e `80rem` —, sempre em `min-width`: `max-width` e `width <=` são **proibidos** em
+`src/**/*.css` e o contrato `test/design-system/responsive.contract.ts` falha com qualquer um dos
+dois, e com ponto de quebra fora dos quatro. Regra completa, com o alvo de toque de 44px e as três
+larguras de conferência, em `docs/frontend/responsive.md`.
+
 Todo campo (`input`, `textarea`, gatilho de select) tira altura, padding e corpo de texto dos tokens
 `--field-height`/`--field-padding`/`--field-font-size` (e suas variantes `*-compact`) — nenhum módulo
 inventa altura própria. Detalhes em `docs/frontend/fields.md`, contrato em
@@ -579,6 +705,14 @@ contrato `test/design-system/date-picker.contract.ts` falha se algum reaparecer.
 próprio de campo publica o dele ao lado do de texto (`FleetDateField`, `ProfileDateField`) em vez de
 aceitar um `type` que escolhe entre texto e data — era por esse `type` que o nativo entrava. Regra na
 seção "Data é calendário" de `docs/frontend/fields.md`.
+
+Toda leitura de etiqueta pela câmera usa `@/components/ui/barcode-scanner` — `BarcodeDetector`
+quando o navegador tem (Chromium no Android) e o decodificador do `@zxing/library` num worker
+empacotado pelo Vite quando não (Safari do iPhone, Firefox). O worker é referenciado por
+`new URL(…, import.meta.url)`, **nunca** por `blob:`: a CSP declara `worker-src 'self'` e o leitor
+não a afrouxa (ADR-0042). Câmera ausente ou permissão negada devolvem indisponibilidade, não
+exceção — o campo digitado continua sendo o caminho. Regra em `docs/frontend/barcode-scanner.md`,
+contrato em `test/design-system/barcode-scanner.contract.ts`.
 
 Todo checkbox usa `@/components/ui/checkbox` — `<input type="checkbox">` cru é **proibido** em
 `src/**/*.tsx` e o contrato `test/design-system/checkbox.contract.ts` falha se algum reaparecer.
@@ -664,6 +798,41 @@ impossível de selecionar até recarregar a página. Dois efeitos hoje: `nfeDocu
 `billingInvoiceItem`. Regra e como acrescentar um efeito em `docs/frontend/mutations.md`, contrato
 em `test/shared/mutation-invalidation.contract.ts`.
 
+**O separador bipa em sequência, e a recusa fica na linha da nota.** A leitura não preenche o campo
+digitável — cada chave lida vira uma linha em `TripScanQueue.component.tsx`, com esqueleto enquanto
+resolve e o motivo impresso ao lado quando a nota é recusada; uma nota que não existe nesta empresa
+não derruba as vizinhas nem interrompe o bipe seguinte. A fila é serviço puro
+(`trip/shared/tripScanQueue.service.ts`): `acceptScannedText` extrai a chave e **descarta a
+duplicata** (o separador passa a mesma etiqueta duas vezes o tempo todo), e `markScanEntry` **ignora
+veredito de chave que não está mais na fila** — as respostas chegam fora de ordem e "Limpar leituras"
+não pode ressuscitar linha nenhuma. O seam é puro porque o teste desta app não tem DOM: o
+comportamento se prova na função, e o contrato `test/trip/scan-link.contract.ts` cobra a fiação por
+texto de fonte. Vincular e desvincular disparam `MUTATION_EFFECT.nfeDocumentLink` além das chaves da
+viagem; marcar entregue **não** — ali muda o estado da nota dentro da viagem, não o vínculo dela com
+lote ou NFS-e.
+
+**A viagem lista por parada, e toda mutação de estado mora no mesmo hook.** `TripDetail` agrupa
+`trip.stops` (T014/T015), cada parada com arraste por `@dnd-kit` (`TripStopList.component.tsx` +
+`useTripStopOrder.hook.ts`, escolhido em vez de HTML5 `draggable` nativo por acessibilidade de
+teclado e pelo alvo de toque de 375px que `draggable` não cobre) — nota sem parada (CEP que não
+normaliza, ou a lacuna de reconciliação do backend antes de ser corrigida) cai num balde "Sem
+parada" via o mesmo componente de linha, nunca some da tela. **Nenhuma pasta `mutations/` existe no
+módulo** apesar de três tasks da spec 056 sugerirem esse caminho de arquivo — toda mutação de
+viagem (criar, fechar, vincular, liberar, reordenar parada, desviar endereço, separar/carregar/
+devolver nota, lote, despachar, cancelar, planejar rota) entra em `useTripWorkspace.hook.ts`, ao
+lado das demais; seguir o nome de arquivo sugerido teria fragmentado o mesmo padrão em dois
+lugares. O diálogo de despacho forçado (`TripStateActions.component.tsx`) calcula as notas
+pendentes **direto de `trip.documents`** (mesmo filtro `pending`/`separated` do backend) em vez de
+decodificar `error.details` depois de uma tentativa recusada — evita o round-trip e é o mesmo dado.
+
+**A câmera é permitida à própria origem, e só ela.** `server.ts` responde
+`Permissions-Policy: camera=(self), geolocation=(), microphone=()` — `camera=()` negava a **própria**
+origem e fazia `getUserMedia` falhar antes de qualquer diálogo do navegador. `(self)` não é `*`:
+nenhum terceiro herda a câmera, e a CSP já declara `frame-src 'none'` desde a ADR-0037. O contrato
+`test/shared/security-headers.contract.ts` guarda os dois sentidos — falha se `camera` voltar a `()`
+e falha se `geolocation` ou `microphone` deixarem de ser `()`, que é a carona de capacidade de
+dispositivo seis meses adiante. Achado datado em `docs/SECURITY.md`.
+
 **Marca e modelo do veículo têm saída da lista, e a frota realimenta a lista.** O catálogo FIPE não
 tem implemento, marca regional nem cavalo antigo: `VehicleCatalogField.component.tsx` acrescenta a
 opção **"Outro — digitar"** (`VEHICLE_CATALOG_OTHER_VALUE`, sentinela que nunca é gravada — escolhê-la
@@ -715,6 +884,76 @@ bundle nomeia mas nunca busca, hoje só o link do rodapé).
 
 Envs: `VITE_API_URL`, `VITE_APP_ENV`, `VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_REALM`,
 `VITE_KEYCLOAK_CLIENT_ID`.
+
+**A sugestão de roteiro tem duas portas, e a segunda não parte de viagem** (spec 058 P2). A de
+sempre é `POST /trips/:id/route-suggestions`: a viagem existe, as paradas existem, e o solver só
+reordena. A outra é **`POST /route-suggestions/multi-vehicle`**, fora da árvore `/trips/:id` de
+propósito — ela recebe um **pool de notas** e uma **frota**, e é o aceite que cria as viagens. Todas
+sob `trip.manage`; ler é `fleet.read`.
+
+O que muda por dentro: `route_suggestions.trip_id` é nulo, `route_suggestion_documents` guarda o
+pool, `route_suggestion_vehicles` guarda a frota **na ordem oferecida** (é ela que faz a mesma
+semente distribuir igual), `route_suggestion_stops.vehicle_id` diz quem serve cada parada e
+`route_suggestion_stop_documents` diz qual nota cai em qual parada proposta — sem essa última, o
+aceite reagruparia as notas por endereço de novo, e o segundo agrupamento poderia discordar do
+primeiro. Nota já em viagem e veículo que não traciona são recusados na criação (`409`), com o id no
+`details`.
+
+⚠️ **O aceite cria viagem, mas não escreve viagem**: ele chama os casos de uso da 056 — criar,
+vincular, ordenar, planejar —, um por veículo, e as viagens saem em `route_planned`. As viagens
+nascem **antes** de a sugestão virar `accepted`: falha no meio deixa a sugestão `ready` para repetir.
+A viagem nasce **sem motorista** — o solver decide o veículo, não quem dirige.
+
+⚠️ A chave de parada do pool (`worker-transportada/src/routing/domain/pool-address-key.ts`) é
+**cópia por valor** de `api-transportada/src/trips/domain/stop-address-key.ts`, com contrato que
+compara os dois arquivos linha a linha: se divergirem, a parada que o worker propõe e a parada que o
+aceite cria deixam de casar, e o roteiro aceito fica com duas paradas no mesmo portão.
+
+## frontend-client
+
+O **portal do contratante** — quem paga o frete acompanha a carga dele. App própria (ADR-0050 §1):
+build, bundle, domínio e `Dockerfile` separados, porta 53100. Servir o bundle do painel a um usuário
+externo seria depender de que toda condicional de permissão no cliente esteja certa, para sempre, em
+todo deploy; bundles separados transformam isso num erro **impossível** em vez de improvável.
+
+**O contratante é usuário, e o vínculo é o recorte.** Ele entra pelo mesmo Keycloak, com o mesmo
+convite, com o papel `contractor` e **duas** permissões: `deliveries.track` (acompanhar) e
+`charges.decide` (decidir repasse — dinheiro não sai de carona com acompanhar entrega). O que ele
+enxerga **não vem do papel**: vem de `contractor_portal_bindings`, que amarra a membership dele a
+linhas de `contractors` — e é `contractors` que carrega o documento, desde a 060. As duas FKs do
+vínculo levam `company_id` junto: a FK simples aceitaria amarrar conta de uma empresa ao contratante
+de outra. Administrar o vínculo é `users.manage` (`/contractors/:id/portal-users`), não
+`settings.manage`: uma decisão é para quem se cobra, a outra é quem enxerga a operação. ⚠️ Amarrar
+membership **sem** o papel `contractor` é `409` — sem isso quem tentou acreditaria ter concedido
+acesso, e ninguém descobriria até o cliente ligar.
+
+**Nenhuma rota do portal recebe id interno.** `/client/me/deliveries` não aceita nem query; a nota é
+nomeada pela **chave de acesso** (`.../:accessKey/schedule` e `.../:accessKey/location`), e o
+servidor descobre a parada e a viagem. `resolveContractorScope` é a única fonte do recorte e recebe
+vínculo, não filtro — e um contrato confere isso **por texto de fonte**, porque uma assinatura que
+aceitasse `taxId` compilaria e passaria em todo teste de caminho feliz. Conta sem vínculo é `403`,
+nunca lista vazia. Chave que não é dele, chave que não existe e nota sem viagem respondem **igual**.
+
+**O rastro ao vivo tem três guardas** (ADR-0050 §5): o motorista consente (`fleet_drivers.
+location_sharing_consent_at`, nulo por padrão, e retirá-lo apaga o rastro na mesma transação); o
+rastro morre com a viagem (`purgeByTrip` no fechamento e no cancelamento, fora da transição); e o
+cliente vê `latitude`/`longitude`/`recordedAt`, nunca quem dirige. Sem consentimento e fora de viagem
+respondem igual ao celular (`202`, contra `201` do gravado). ⚠️ **Nada expira o rastro de viagem que
+nunca fecha**, e não há limite de frequência de ping.
+
+**A app não fala com terceiro nenhum**: `connect-src` é a própria origem, a API e o Keycloak — o
+painel tem quatro destinos externos, aqui são zero, e um contrato varre `https://` no código. Câmera,
+posição e microfone são **todos negados** na `Permissions-Policy` (o painel abre a câmera para o
+separador). O provedor de autenticação é cópia do painel **menos** o bypass de fumaça, e o contrato
+falha por nome se ele voltar. O mapa é desenho nosso em SVG (projeção equirretangular corrigida pelo
+cosseno da latitude, janela de meio grau) — ⚠️ **sem a malha do IBGE que a ADR previa**: o payload
+mínimo não carrega cidade nem UF, e alargá-lo para desenhar contorno trocaria privacidade por
+enfeite.
+
+⚠️ Esta app **não tem design system nem Playwright**: CSS próprio curto com os tokens copiados por
+valor, campos nativos (inclusive `datetime-local`, que o painel proíbe), e nenhum teste de tela — o
+que se prova é serviço puro e texto de fonte. Crescer a app é decidir isso de novo, por escrito.
+Envs: `VITE_API_URL`, `VITE_CLIENT_APP_URL`, `VITE_KEYCLOAK_*`.
 
 ## Documento fiscal: o CNPJ tem letra
 
@@ -788,6 +1027,31 @@ Use cases e rotas são factories `create*`; classes de repositório são `Pascal
 - Proibido: deploy em production sem gates e aprovação humana, migration destrutiva automática,
   misturar tenants / ambientes fiscais / buckets.
 - `.env` e `.env.test` nunca são commitados nem têm conteúdo exposto.
+
+## Duas sessões, duas árvores
+
+**Sessão que vai escrever código nesta base cria o próprio worktree.** Duas sessões no mesmo
+checkout produzem uma família inteira de atrito que não tem nada a ver com o produto: formatação
+cruzada, `git add` amplo levando trabalho alheio pela metade, teste sumindo da lista do
+`package.json` quando alguém reescreve a linha a partir de cópia antiga, e commit de uma entrando no
+push da outra.
+
+```bash
+make worktree NAME=spec-066
+```
+
+Ele cria `../transportada-wt/<NAME>` na branch `work/<NAME>` a partir de `origin/staging`, liga
+`.env` e `.env.test` por **link simbólico** (cópia envelheceria) e instala as dependências. Verificado
+que dali rodam os 3611 contratos da API e os 54 de migration contra Postgres.
+
+Publicar de um worktree não passa por checkout de `staging` — ela está ocupada pela árvore principal:
+
+```bash
+git fetch && git rebase origin/staging && git push origin HEAD:staging
+```
+
+⚠️ `git worktree prune` de vez em quando: worktree apagado à mão deixa registro órfão, e três deles
+estavam pendurados aqui de sessões antigas.
 
 ## Explorando este repo sem estourar contexto
 

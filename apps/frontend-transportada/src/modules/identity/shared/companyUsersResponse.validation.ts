@@ -1,6 +1,26 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { COMPANY_USER_ERROR } from './companyUsers.constant'
-import type { CompanyUser, CompanyUserPage, ResendInvitationResult } from './companyUsers.types'
+import type {
+  CompanyUser,
+  CompanyUserIdentifier,
+  CompanyUserPage,
+  CompanyUserFleetLink,
+  CompanyUsersReconciliation,
+  FleetLink,
+  IdentitySyncOutcome,
+  InvitedCompanyUser,
+  ProfileFillOutcome,
+  RealmAdoptionOutcome,
+  RealmOwnedField,
+  ReconciliationEntry,
+  ReconciliationMatch,
+  ReconciliationStatus,
+  AssignedCompanyUserRoles,
+  CompanyGroup,
+  ResendInvitationResult,
+  RevealedCompanyUser,
+  RolePermissionMatrix,
+} from './companyUsers.types'
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -43,16 +63,55 @@ function readContact(value: unknown): CompanyUser['contact'] {
 export function toCompanyUser(value: unknown): CompanyUser {
   if (!isRecord(value)) invalid()
   const invitation = readInvitation(value.invitation)
+  const fleet = readFleetLink(value.fleet)
 
   return {
     contact: readContact(value.contact),
+    ...(fleet === undefined ? {} : { fleet }),
     id: readString(value, 'id'),
     ...(invitation === undefined ? {} : { invitation }),
+    email: readString(value, 'email'),
+    emails: Array.isArray(value.emails) ? value.emails.map(readText) : [],
     membershipId: readString(value, 'membershipId'),
     name: readString(value, 'name'),
+    phone: readString(value, 'phone'),
     roles: readStringArray(value, 'roles'),
     status: readString(value, 'status'),
+    taxId: readString(value, 'taxId'),
     username: readString(value, 'username'),
+  }
+}
+
+/**
+ * Vínculo ausente é ausência de link, não linha quebrada: a tela só mostra o caminho quando ele
+ * leva a algum lugar. Veículo sem placa é descartado — um link com rótulo vazio não é clicável.
+ */
+function readFleetLink(value: unknown): CompanyUserFleetLink | undefined {
+  if (!isRecord(value) || !isString(value.driverId) || value.driverId === '') return undefined
+  const vehicles = Array.isArray(value.vehicles) ? value.vehicles : []
+
+  return {
+    driverId: value.driverId,
+    vehicles: vehicles.flatMap((vehicle) =>
+      isRecord(vehicle) && isString(vehicle.id) && isString(vehicle.plate) && vehicle.plate !== ''
+        ? [{ id: vehicle.id, plate: vehicle.plate }]
+        : [],
+    ),
+  }
+}
+
+const FLEET_LINKS: readonly FleetLink[] = ['linked', 'no-driver-record', 'not-applicable']
+
+/**
+ * Valor desconhecido cai em `not-applicable` em vez de derrubar a tela: o convite já foi criado
+ * quando esta resposta chega, e recusá-la faria o operador achar que nada aconteceu.
+ */
+export function toInvitedCompanyUser(value: unknown): InvitedCompanyUser {
+  const user = toCompanyUser(value)
+  const fleetLink = isRecord(value) ? value.fleetLink : undefined
+  return {
+    ...user,
+    fleetLink: FLEET_LINKS.find((link) => link === fleetLink) ?? 'not-applicable',
   }
 }
 
@@ -65,6 +124,214 @@ export function toCompanyUserPage(value: unknown): CompanyUserPage {
     nextCursor: isString(nextCursor) ? nextCursor : null,
     users: value.data.map(toCompanyUser),
   }
+}
+
+const RECONCILIATION_STATUSES = [
+  'linked',
+  'missing-in-realm',
+  'missing-locally',
+  'profile-missing',
+] as const
+const RECONCILIATION_MATCHES = ['email', 'none', 'subject', 'document'] as const
+
+/**
+ * Status desconhecido não derruba a tela: a linha continua visível como `missing-locally`, que é o
+ * pior caso e o que pede ação. Sumir com a pessoa é o defeito que esta tela existe para consertar.
+ */
+function toReconciliationStatus(value: unknown): ReconciliationStatus {
+  return RECONCILIATION_STATUSES.find((status) => status === value) ?? 'missing-locally'
+}
+
+function toReconciliationMatch(value: unknown): ReconciliationMatch {
+  return RECONCILIATION_MATCHES.find((match) => match === value) ?? 'none'
+}
+
+function toReconciliationEntry(value: unknown): ReconciliationEntry {
+  if (!isRecord(value)) invalid()
+  const local = isRecord(value.local) ? value.local : undefined
+  const realm = isRecord(value.realm) ? value.realm : undefined
+
+  return {
+    /** Ausente é lista vazia: resposta de API antiga não pode virar erro de formato. */
+    differences: Array.isArray(value.differences)
+      ? value.differences.map(readText).map(toRealmOwnedField)
+      : [],
+    matchedBy: toReconciliationMatch(value.matchedBy),
+    status: toReconciliationStatus(value.status),
+    ...(local === undefined
+      ? {}
+      : {
+          local: {
+            contact: readText(local.contact),
+            email: readText(local.email),
+            membershipId: readText(local.membershipId),
+            name: readText(local.name),
+            taxId: readText(local.taxId),
+            userId: readText(local.userId),
+          },
+        }),
+    ...(realm === undefined
+      ? {}
+      : {
+          realm: {
+            email: readText(realm.email),
+            enabled: realm.enabled === true,
+            subject: readText(realm.subject),
+            username: readText(realm.username),
+          },
+        }),
+  }
+}
+
+function readText(value: unknown): string {
+  return isString(value) ? value : ''
+}
+
+export function toCompanyUsersReconciliation(value: unknown): CompanyUsersReconciliation {
+  if (!isRecord(value) || !isRecord(value.data)) invalid()
+  const data = value.data
+  if (!Array.isArray(data.items)) invalid()
+
+  return {
+    hasMoreRealmUsers: data.hasMoreRealmUsers === true,
+    items: data.items.map(toReconciliationEntry),
+  }
+}
+
+/**
+ * O resultado do conserto. Corpo ausente não é falha: a rota antiga respondia sem ele, e um erro
+ * de formato aqui esconderia um preenchimento que de fato aconteceu.
+ */
+export function toCompanyUserIdentifiers(value: unknown): readonly CompanyUserIdentifier[] {
+  if (!isRecord(value) || !Array.isArray(value.data)) invalid()
+
+  return value.data.map((entry) => {
+    if (!isRecord(entry)) invalid()
+    return {
+      id: readText(entry.id),
+      isWhatsapp: entry.isWhatsapp === true,
+      kind: toIdentifierKind(readText(entry.kind)),
+      /** Origem desconhecida é tratada como derivada: não oferecer remoção erra para o lado seguro. */
+      source: entry.source === 'manual' ? 'manual' : 'profile',
+      value: readText(entry.value),
+    }
+  })
+}
+
+function toIdentifierKind(value: string): CompanyUserIdentifier['kind'] {
+  return value === 'email' || value === 'phone' ? value : 'document'
+}
+
+export function toRealmAdoptionOutcome(value: unknown): RealmAdoptionOutcome {
+  const data = isRecord(value) && isRecord(value.data) ? value.data : {}
+  return {
+    adopted: Array.isArray(data.adopted) ? data.adopted.map(toAdoptedEntry) : [],
+    skipped: Array.isArray(data.skipped) ? data.skipped.map(toSkippedProfile) : [],
+  }
+}
+
+function toAdoptedEntry(
+  value: unknown,
+): Readonly<{ fields: readonly RealmOwnedField[]; userId: string }> {
+  if (!isRecord(value)) invalid()
+  return {
+    fields: Array.isArray(value.fields) ? value.fields.map(readText).map(toRealmOwnedField) : [],
+    userId: readText(value.userId),
+  }
+}
+
+/** Campo que a API ainda não fala vira `email`: perder a linha esconderia uma adoção que ocorreu. */
+function toRealmOwnedField(value: string): RealmOwnedField {
+  return value === 'taxId' || value === 'username' ? value : 'email'
+}
+
+export function toProfileFillOutcome(value: unknown): ProfileFillOutcome {
+  const data = isRecord(value) && isRecord(value.data) ? value.data : {}
+  return {
+    filled: Array.isArray(data.filled) ? data.filled.map(readText) : [],
+    skipped: Array.isArray(data.skipped) ? data.skipped.map(toSkippedProfile) : [],
+  }
+}
+
+export function toIdentitySyncOutcome(value: unknown): IdentitySyncOutcome {
+  const data = isRecord(value) && isRecord(value.data) ? value.data : {}
+  return {
+    createdInRealm: Array.isArray(data.createdInRealm) ? data.createdInRealm.map(readText) : [],
+    createdLocally: Array.isArray(data.createdLocally) ? data.createdLocally.map(readText) : [],
+    skipped: Array.isArray(data.skipped) ? data.skipped.map(toSkippedSubject) : [],
+  }
+}
+
+function toSkippedProfile(value: unknown): Readonly<{ reason: string; userId: string }> {
+  if (!isRecord(value)) invalid()
+  return { reason: readText(value.reason), userId: readText(value.userId) }
+}
+
+function toSkippedSubject(value: unknown): Readonly<{ reason: string; subject: string }> {
+  if (!isRecord(value)) invalid()
+  return { reason: readText(value.reason), subject: readText(value.subject) }
+}
+
+export function toRolePermissionMatrix(value: unknown): RolePermissionMatrix {
+  if (!isRecord(value) || !isRecord(value.data)) invalid()
+  const data = value.data
+  if (!Array.isArray(data.permissions) || !Array.isArray(data.roles)) invalid()
+
+  return {
+    permissions: data.permissions.map(readText),
+    roles: data.roles.map((entry) => {
+      if (!isRecord(entry) || !Array.isArray(entry.permissions)) invalid()
+      return { permissions: entry.permissions.map(readText), role: readText(entry.role) }
+    }),
+  }
+}
+
+export function toCompanyGroups(value: unknown): readonly CompanyGroup[] {
+  if (!isRecord(value) || !Array.isArray(value.data)) invalid()
+  return value.data.map(toCompanyGroup)
+}
+
+export function toCompanyGroupResponse(value: unknown): CompanyGroup {
+  if (!isRecord(value)) invalid()
+  return toCompanyGroup(value.data)
+}
+
+function toCompanyGroup(value: unknown): CompanyGroup {
+  if (!isRecord(value)) invalid()
+  return {
+    description: readText(value.description),
+    id: readText(value.id),
+    keycloakGroupId: isString(value.keycloakGroupId) ? value.keycloakGroupId : null,
+    memberCount: typeof value.memberCount === 'number' ? value.memberCount : 0,
+    name: readText(value.name),
+    permissions: Array.isArray(value.permissions) ? value.permissions.map(readText) : [],
+    roles: Array.isArray(value.roles) ? value.roles.map(readText) : [],
+  }
+}
+
+export function toAssignedCompanyUserRoles(value: unknown): AssignedCompanyUserRoles {
+  if (!isRecord(value) || !isRecord(value.data) || !Array.isArray(value.data.affectedUserIds)) {
+    invalid()
+  }
+  return { affectedUserIds: value.data.affectedUserIds.map(readText) }
+}
+
+export function toRevealedCompanyUsers(value: unknown): readonly RevealedCompanyUser[] {
+  if (!isRecord(value) || !Array.isArray(value.data)) invalid()
+
+  return value.data.map((entry) => {
+    if (!isRecord(entry)) invalid()
+    return {
+      contact: readText(entry.contact),
+      email: readText(entry.email),
+      name: readText(entry.name),
+      phone: readText(entry.phone),
+      taxId: readText(entry.taxId),
+      userId: readText(entry.userId),
+      /** Ausente e vazio dizem coisas diferentes: não foi pedido, e a conta lá não tem e-mail. */
+      ...(isString(entry.realmEmail) ? { realmEmail: entry.realmEmail } : {}),
+    }
+  })
 }
 
 export function toResendInvitationResult(value: unknown): ResendInvitationResult {

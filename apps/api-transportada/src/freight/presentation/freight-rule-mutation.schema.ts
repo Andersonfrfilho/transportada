@@ -13,9 +13,17 @@ const MONEY_DECIMAL = /^(?:0|[1-9][0-9]{0,14})(?:\.[0-9]{4})$/
 const PERCENTAGE_DECIMAL = /^(?:0|0\.[0-9]{6}|1|1\.000000)$/
 const RULE_VERSION = /^(?:0|[1-9][0-9]{0,18})$/
 const STATE_CODE = /^[A-Za-z]{2}$/
+/** Município do IBGE: sete dígitos. Nome de cidade tem três grafias; o código tem uma. */
+const IBGE_CITY_CODE = /^[0-9]{7}$/
+/** 5.570 municípios no país; o teto é generoso e ainda impede um corpo que trava a validação. */
+const MAX_CITY_SELECTORS = 500
 
 const filtersSchema = z
   .object({
+    destinationCityCodes: z
+      .array(z.string().trim().regex(IBGE_CITY_CODE))
+      .max(MAX_CITY_SELECTORS)
+      .optional(),
     destinationStates: z.array(z.string().trim().regex(STATE_CODE)).max(27).optional(),
     senderTaxIds: z.array(buildTaxIdSchema(CNPJ_PATTERN)).max(200).optional(),
   })
@@ -40,6 +48,7 @@ const changeFreightRuleStatusSchema = z
   .strict()
 
 export type FreightRuleMutationFilters = {
+  readonly destinationCityCodes: readonly string[]
   readonly destinationStates: readonly string[]
   readonly senderTaxIds: readonly string[]
 }
@@ -60,6 +69,7 @@ export async function parseUpdateFreightRuleRequest(request: Request): Promise<{
   return {
     ...payload,
     filters: {
+      destinationCityCodes: normalizeCodes(filters?.destinationCityCodes),
       destinationStates: normalizeCodes(filters?.destinationStates),
       senderTaxIds: normalizeCodes(filters?.senderTaxIds),
     },

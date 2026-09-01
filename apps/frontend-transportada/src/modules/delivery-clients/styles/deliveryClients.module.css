@@ -1,0 +1,118 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
+.shell {
+  display: grid;
+  gap: var(--space-6);
+  padding-block: var(--space-6);
+  width: var(--layout-width);
+}
+
+.header {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.hint {
+  color: var(--color-slate);
+  margin: 0;
+}
+
+.error {
+  color: var(--color-alert);
+  margin: 0;
+}
+
+/* O filtro quebra naturalmente no celular: a tela de cadastro é usada de pé, no barracão. */
+.filters {
+  display: grid;
+  gap: var(--space-3);
+}
+
+@media (min-width: 40rem) {
+  .filters {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.field {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.table th,
+.table td {
+  border-bottom: 1px solid var(--color-graphite);
+  padding: var(--space-2);
+  text-align: left;
+}
+
+.table tbody tr:nth-child(even) {
+  background: var(--color-graphite);
+}
+
+/* Documento é para conferir caractere a caractere, e monoespaçado é o que permite isso. */
+.document {
+  font-family: var(--font-utility);
+}
+
+.panel {
+  display: grid;
+  gap: var(--space-6);
+}
+
+@media (min-width: 64rem) {
+  .panel {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.panelHeader {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.form,
+.windowEditor {
+  border: 1px solid var(--color-slate);
+  border-radius: var(--space-2);
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.weekdayList {
+  display: grid;
+  gap: var(--space-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.weekday {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.weekdayHeader {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+  justify-content: space-between;
+}
+
+/* Alvo de toque de 44px: a janela é editada com o dedo, e o campo de hora é pequeno por natureza. */
+.windowRow {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.windowRow > * {
+  min-height: 2.75rem;
+}

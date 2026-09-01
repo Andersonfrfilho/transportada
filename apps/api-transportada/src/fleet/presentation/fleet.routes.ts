@@ -282,6 +282,8 @@ function serializeDriver(driver: FleetDriver): object {
     name: driver.name,
     nationality: driver.nationality,
     phone: driver.phone,
+    pixKey: driver.pixKey,
+    pixKeyType: driver.pixKeyType,
     rntrc: driver.rntrc,
     status: driver.status,
     taxId: driver.taxId,

@@ -9,6 +9,7 @@ import {
   foreignKey,
   index,
   integer,
+  jsonb,
   numeric,
   pgTable,
   text,
@@ -31,6 +32,11 @@ import {
   type IdentityDocumentIssuer,
 } from '../shared/identity-document-issuer.constant.js'
 import { LICENSE_CATEGORIES, type LicenseCategory } from '../shared/license-category.constant.js'
+import {
+  PIX_KEY_MAX_LENGTH,
+  PIX_KEY_TYPES,
+  type PixKeyType,
+} from '../shared/pix-key-type.constant.js'
 import { RNTRC_INPUT_PATTERN } from '../shared/rntrc.service.js'
 import {
   VEHICLE_TYPE_MAX_LENGTH,
@@ -38,6 +44,7 @@ import {
   type VehicleType,
 } from '../shared/vehicle-type.constant.js'
 import { companies, userCompanyMemberships } from './identity.schema.js'
+import { storedObjects } from './storage.schema.js'
 import { inList } from './schema-check.constant.js'
 
 export const FLEET_VEHICLE_ROLES = ['traction', 'trailer'] as const
@@ -93,6 +100,17 @@ export type MdfeOwnerTaxRegime = (typeof MDFE_OWNER_TAX_REGIMES)[number]
 
 export const FLEET_DRIVER_STATUSES = ['active', 'inactive'] as const
 export type FleetDriverStatus = (typeof FLEET_DRIVER_STATUSES)[number]
+
+/**
+ * ADR-0049 §3: **os dois modelos convivem na mesma frota.** O agregado é pago por rota, pela tabela
+ * de região cruzada com a classe do veículo; o motorista da casa tem valor fixo por quinzena, e esse
+ * custo é do **período**, não da viagem.
+ */
+export const DRIVER_PAYMENT_MODELS = ['route_table', 'fixed'] as const
+export type DriverPaymentModel = (typeof DRIVER_PAYMENT_MODELS)[number]
+
+export const DRIVER_PAYMENT_PERIODS = ['fortnightly', 'monthly'] as const
+export type DriverPaymentPeriod = (typeof DRIVER_PAYMENT_PERIODS)[number]
 
 /** xNome do condutor cabe em 60 caracteres no layout 3.00. */
 const DRIVER_NAME_MAX_LENGTH = 60
@@ -307,6 +325,25 @@ export const fleetDrivers = pgTable(
     taxId: text('tax_id').notNull(),
     linkedTaxId: text('linked_tax_id').notNull().default(''),
     linkedLegalName: text('linked_legal_name').notNull().default(''),
+    /**
+     * ADR-0049 §3: como este motorista é pago. `route_table` é o agregado — o valor sai da tabela de
+     * região. `fixed` é o da casa: salário por quinzena, que é custo do **período**, e por isso as
+     * três colunas seguintes só existem para ele.
+     */
+    /**
+     * ADR-0050 §5: o consentimento do motorista para o rastreamento ao vivo. **Desligado por
+     * padrão** — `null` é ausência de aceite, e enquanto ele for `null` o portal não mostra posição
+     * nenhuma, nem a última conhecida de ontem.
+     */
+    locationSharingConsentAt: timestamp('location_sharing_consent_at', { withTimezone: true }),
+    paymentModel: text('payment_model')
+      .$type<DriverPaymentModel>()
+      .notNull()
+      .default('route_table'),
+    fixedAmount: numeric('fixed_amount', { precision: 19, scale: 4 }),
+    paymentPeriod: text('payment_period').$type<DriverPaymentPeriod>(),
+    /** Dia do fechamento. Na quinzena, o segundo fechamento é este dia + 15 (ou o fim do mês). */
+    paymentClosingDay: bigint('payment_closing_day', { mode: 'number' }),
     licenseNumber: text('license_number').notNull().default(''),
     licenseCategory: text('license_category').$type<LicenseCategory | ''>().notNull().default(''),
     licenseExpiresAt: date('license_expires_at'),
@@ -329,6 +366,8 @@ export const fleetDrivers = pgTable(
     phone: text().notNull().default(''),
     rntrc: text().notNull().default(''),
     anttCategory: text('antt_category').$type<MdfeOwnerTaxRegime | ''>().notNull().default(''),
+    pixKeyType: text('pix_key_type').$type<PixKeyType | ''>().notNull().default(''),
+    pixKey: text('pix_key').notNull().default(''),
     postalCode: text('postal_code').notNull().default(''),
     street: text().notNull().default(''),
     number: text().notNull().default(''),
@@ -410,12 +449,37 @@ export const fleetDrivers = pgTable(
       sql`length(${table.anttCategory}) = 0 or ${table.anttCategory} in (${sql.raw(inList(MDFE_OWNER_TAX_REGIMES))})`,
     ),
     check(
+      'fleet_drivers_pix_key_type_check',
+      sql`length(${table.pixKeyType}) = 0 or ${table.pixKeyType} in (${sql.raw(inList(PIX_KEY_TYPES))})`,
+    ),
+    check(
+      'fleet_drivers_pix_key_check',
+      sql`length(${table.pixKey}) <= ${sql.raw(String(PIX_KEY_MAX_LENGTH))} and (length(${table.pixKey}) = 0) = (length(${table.pixKeyType}) = 0)`,
+    ),
+    check(
       'fleet_drivers_license_number_check',
       sql`length(${table.licenseNumber}) = 0 or ${table.licenseNumber} ~ '^[0-9]{11}$'`,
     ),
     check(
       'fleet_drivers_phone_check',
       sql`length(${table.phone}) = 0 or ${table.phone} ~ '^[0-9]{10,11}$'`,
+    ),
+    /**
+     * As duas metades andam juntas: `fixed` sem valor, sem período e sem dia de fechamento é um
+     * salário que ninguém consegue pagar; `route_table` com salário é contradição — ele é pago por
+     * rota. O banco recusa as duas.
+     */
+    check(
+      'fleet_drivers_payment_model_check',
+      sql`${table.paymentModel} in (${sql.raw(inList(DRIVER_PAYMENT_MODELS))})`,
+    ),
+    check(
+      'fleet_drivers_payment_shape_check',
+      sql`(${table.paymentModel} = 'fixed' and ${table.fixedAmount} is not null and ${table.fixedAmount} > 0 and ${table.paymentPeriod} is not null and ${table.paymentClosingDay} between 1 and 28) or (${table.paymentModel} = 'route_table' and ${table.fixedAmount} is null and ${table.paymentPeriod} is null and ${table.paymentClosingDay} is null)`,
+    ),
+    check(
+      'fleet_drivers_payment_period_check',
+      sql`${table.paymentPeriod} is null or ${table.paymentPeriod} in (${sql.raw(inList(DRIVER_PAYMENT_PERIODS))})`,
     ),
     check(
       'fleet_drivers_dates_check',
@@ -535,6 +599,106 @@ export const fleetDriverVehicleAssignments = pgTable(
     check(
       'fleet_driver_vehicle_assignments_period_check',
       sql`${table.releasedAt} is null or ${table.releasedAt} >= ${table.assignedAt}`,
+    ),
+  ],
+)
+
+/**
+ * Vincula a conta do agregado (schema `user`, de outro módulo) ao CPF, não à ficha — a conta pode
+ * nascer **antes** da aprovação (candidatura ainda pendente, sem `fleet_drivers` nenhuma ainda), e
+ * o portal resolve o status lendo `aggregate_applications`/`fleet_drivers` por este CPF em tempo de
+ * leitura (064/T2, T3). `userId` é referência, não FK — `user.users` vive num pg schema à parte,
+ * dono de outro pacote, e a fronteira entre os dois só se cruza aqui. Um CPF tem no máximo uma
+ * conta; uma conta, no máximo um CPF — as duas pontas são `unique`.
+ */
+export const aggregateAccounts = pgTable(
+  'aggregate_accounts',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    taxId: varchar('tax_id', { length: 14 }).notNull(),
+    userId: text('user_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'aggregate_accounts_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('aggregate_accounts_company_tax_id_unique').on(table.companyId, table.taxId),
+    unique('aggregate_accounts_user_id_unique').on(table.userId),
+  ],
+)
+
+export const AGGREGATE_DOCUMENT_TYPES = ['cnh', 'crlv'] as const
+export type AggregateDocumentType = (typeof AGGREGATE_DOCUMENT_TYPES)[number]
+
+export const AGGREGATE_DOCUMENT_STATUSES = ['pending', 'approved', 'rejected'] as const
+export type AggregateDocumentStatus = (typeof AGGREGATE_DOCUMENT_STATUSES)[number]
+
+/**
+ * Um documento por (CPF, tipo) — reenvio depois de recusado **atualiza** a mesma linha (novo
+ * `stored_object_id`, status volta a `pending`, motivo de recusa some), em vez de acumular
+ * histórico: só a versão mais recente importa pra revisão (mesmo espírito do reenvio de
+ * candidatura na 053). `tax_id`, não `driver_id`, pela mesma razão da conta (T2) — o agregado
+ * pode enviar documento antes da aprovação.
+ */
+export const aggregateDocuments = pgTable(
+  'aggregate_documents',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    taxId: varchar('tax_id', { length: 14 }).notNull(),
+    type: text().$type<AggregateDocumentType>().notNull(),
+    status: text().$type<AggregateDocumentStatus>().notNull().default('pending'),
+    rejectionReason: text('rejection_reason').notNull().default(''),
+    storedObjectId: uuid('stored_object_id').notNull(),
+    /**
+     * O que o OCR leu no upload. Sem gravar, a divergência entre documento e ficha só existia no
+     * instante do envio e se perdia — o operador abria a revisão minutos depois e não tinha com o
+     * que comparar. `null` quando não houve leitura (PDF, OCR desligado, ou texto ilegível).
+     */
+    extractedFields: jsonb('extracted_fields'),
+    reviewedBy: uuid('reviewed_by'),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'aggregate_documents_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.storedObjectId],
+      foreignColumns: [storedObjects.companyId, storedObjects.id],
+      name: 'aggregate_documents_company_stored_object_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('aggregate_documents_company_tax_id_type_unique').on(
+      table.companyId,
+      table.taxId,
+      table.type,
+    ),
+    check('aggregate_documents_type_check', sql`${table.type} in ('cnh', 'crlv')`),
+    check(
+      'aggregate_documents_status_check',
+      sql`${table.status} in ('pending', 'approved', 'rejected')`,
+    ),
+    check(
+      'aggregate_documents_review_check',
+      sql`(${table.reviewedBy} is null) = (${table.reviewedAt} is null)`,
+    ),
+    check(
+      'aggregate_documents_rejection_reason_check',
+      sql`(${table.status} = 'rejected') = (length(${table.rejectionReason}) > 0)`,
     ),
   ],
 )

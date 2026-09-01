@@ -139,6 +139,43 @@ describe('invalid field hint', () => {
   })
 })
 
+describe('cobertura do mapa de rótulos', () => {
+  const labelKeys: readonly string[] = [
+    ...readFileSync(
+      new URL('../../src/modules/fleet/shared/driverInvalidFields.service.ts', import.meta.url),
+      'utf8',
+    ).matchAll(/^ {2}'?[\w.]+'?: '(\w+)',$/gm),
+  ].flatMap((match) => (match[1] === undefined ? [] : [match[1]]))
+
+  /**
+   * `pixKeyType` é campo da ficha e tem rótulo nos dois idiomas, mas ficou fora do mapa: o aviso de
+   * recusa saía com o nome interno, que é exatamente o aviso genérico que este caminho conserta.
+   */
+  test('o par da chave Pix está completo', () => {
+    const error = new FleetRequestError('INVALID_REQUEST', [
+      { field: 'pixKey', message: 'i' },
+      { field: 'pixKeyType', message: 'i' },
+    ])
+
+    expect(toDriverInvalidFieldLabels(error)).toEqual(['driverPixKey', 'driverPixKeyType'])
+  })
+
+  /** Chave de rótulo que não existe no locale imprime a própria chave na tela do operador. */
+  test('todo rótulo do mapa existe nos dois idiomas', () => {
+    const locales = ['fleet.locale.json', 'fleet.en.locale.json'].map((file) => {
+      const parsed: unknown = JSON.parse(
+        readFileSync(new URL(`../../src/modules/fleet/locales/${file}`, import.meta.url), 'utf8'),
+      )
+      return parsed as Record<string, unknown>
+    })
+
+    expect(labelKeys.length).toBeGreaterThan(20)
+    for (const labelKey of labelKeys) {
+      for (const locale of locales) expect(typeof locale[labelKey]).toBe('string')
+    }
+  })
+})
+
 describe('linked company lookup', () => {
   const source = readFileSync(
     new URL('../../src/modules/fleet/hooks/useCompanyLookup.hook.ts', import.meta.url),

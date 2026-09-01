@@ -14,6 +14,8 @@ import type {
 } from '../infrastructure/cte-fiscal-gateway.js'
 import { createCteFiscalGateway } from '../infrastructure/cte-fiscal-gateway.js'
 
+import type { MdfeAutoIssueTrigger } from '../../mdfe-auto-issue/application/mdfe-auto-issue.port.js'
+
 import { isFiscalNumberRejection } from '../domain/cte-rejection.policy.js'
 import type {
   CteIssuanceDiagnostics,
@@ -139,6 +141,8 @@ export function createCteIssuanceWorkerEffect(input: {
   readonly createProvider?: (input: { readonly config: CteProviderConfig }) => CteFiscalProvider
   readonly diagnostics?: CteIssuanceDiagnostics
   readonly fiscalNumberProbe?: CteFiscalNumberProbe
+  /** Ausente é o gatilho desligado — instalação sem crachá emite MDF-e à mão (ADR-0047). */
+  readonly mdfeAutoIssue?: MdfeAutoIssueTrigger
   readonly logger: WorkerLogger
   readonly resolveCancellationInput?: (params: {
     readonly envelope: CteProcessingEnvelopeV1
@@ -304,6 +308,16 @@ export function createCteIssuanceWorkerEffect(input: {
       ...(outcome.accessKey === undefined ? {} : { accessKey: outcome.accessKey }),
       ...(fiscalDocument === undefined ? {} : { fiscalDocument }),
       ...(outcome.protocol === undefined ? {} : { protocol: outcome.protocol }),
+    })
+
+    /**
+     * Spec 065 D2b: a autorização é o evento que acende o manifesto, e **depois** da escrita —
+     * disparar antes deixaria a API ler uma prontidão que ainda não conhece este CT-e. Ele não
+     * lança: ver `createMdfeAutoIssueTrigger`.
+     */
+    await input.mdfeAutoIssue?.trigger({
+      batchItemId: envelope.payload.batchItemId,
+      companyId: envelope.companyId,
     })
 
     safeLogInfo({

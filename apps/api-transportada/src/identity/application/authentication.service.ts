@@ -49,8 +49,13 @@ export class AuthenticationService implements AuthenticationPort {
       throw error
     }
 
+    const serviceAccount = hasRealmRole(verifiedToken.claims, SERVICE_ACCOUNT_REALM_ROLE)
     const companyIdResult = companyIdClaimSchema.safeParse(verifiedToken.claims.company_id)
-    if (!companyIdResult.success) {
+    /**
+     * ADR-0047 §3: o token do serviço **não** carrega empresa, e exigir a claim dele o deixaria de
+     * fora. Para todo o resto ela continua obrigatória — é ela que prende a pessoa a um tenant.
+     */
+    if (!companyIdResult.success && !serviceAccount) {
       throw unauthenticated()
     }
 
@@ -63,24 +68,29 @@ export class AuthenticationService implements AuthenticationPort {
     }
 
     return Object.freeze({
-      companyIdClaim: companyIdResult.data,
+      companyIdClaim: companyIdResult.success ? companyIdResult.data : null,
       externalIdentityId: externalIdentity.externalIdentityId,
       issuer: verifiedToken.issuer,
-      platformAdmin: hasPlatformAdminRole(verifiedToken.claims),
+      platformAdmin: hasRealmRole(verifiedToken.claims, PLATFORM_ADMIN_REALM_ROLE),
+      serviceAccount,
       subject: verifiedToken.subject,
       userId: externalIdentity.userId,
     })
   }
 }
 
-function hasPlatformAdminRole(claims: Readonly<Record<string, unknown>>): boolean {
+const PLATFORM_ADMIN_REALM_ROLE = 'platform-admin'
+/** ADR-0047 §2: o serviço entra pela mesma porta do `platform-admin`, com papel próprio. */
+const SERVICE_ACCOUNT_REALM_ROLE = 'transportada-service'
+
+function hasRealmRole(claims: Readonly<Record<string, unknown>>, wanted: string): boolean {
   const realmAccess = claims.realm_access
   if (typeof realmAccess !== 'object' || realmAccess === null || Array.isArray(realmAccess)) {
     return false
   }
 
   const roles = (realmAccess as Readonly<Record<string, unknown>>).roles
-  return Array.isArray(roles) && roles.some((role) => role === 'platform-admin')
+  return Array.isArray(roles) && roles.some((role) => role === wanted)
 }
 
 function unauthenticated(): ApiError {

@@ -98,6 +98,8 @@ export type NfeDocumentListItemContract = Readonly<{
   series: string
   status: 'authorized' | 'cancelled' | 'denied'
   totalAmount: string
+  tripId: null | string
+  tripStatus: null | string
   variant: 'complete' | 'event' | 'summary'
 }>
 
@@ -228,6 +230,8 @@ export const DOCUMENT_LIST_PAGE = {
       series: '001',
       status: 'authorized',
       totalAmount: '1234.5600',
+      tripId: null,
+      tripStatus: null,
       variant: 'complete',
     },
   ],

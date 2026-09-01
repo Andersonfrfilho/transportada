@@ -58,7 +58,8 @@
       "operator": "Operação",
       "viewer": "Consulta",
       "driver": "Motorista",
-      "aggregate": "Agregado"
+      "aggregate": "Agregado",
+      "separator": "Separador"
     },
     "status": {
       "invited": "Convidado",
@@ -71,13 +72,23 @@
       "close": "Fechar o convite",
       "name": "Nome completo",
       "channel": "Canal do convite",
-      "contact": "Contato",
-      "contactHint": "E-mail, ou telefone com DDD quando o canal for SMS ou WhatsApp.",
       "roles": "Papéis",
       "rolesHint": "Ao menos um papel. O papel decide o que a pessoa enxerga no sistema.",
       "cancel": "Cancelar",
       "confirm": "Enviar convite",
-      "sending": "Enviando…"
+      "sending": "Enviando…",
+      "email": "E-mail",
+      "phone": "Telefone",
+      "taxId": "CPF",
+      "taxIdHint": "Opcional. Com papel de Motorista ou Agregado, é por ele que a ficha de frota é encontrada.",
+      "channelHint": "Por onde o código de ativação chega.",
+      "contactField": "É por aqui que o convite vai.",
+      "pending": "Falta preencher:",
+      "issue": {
+        "required": "{{field}} é obrigatório.",
+        "invalid": "{{field}} inválido.",
+        "incomplete": "{{field}} incompleto."
+      }
     },
     "editDialog": {
       "title": "Editar usuário",
@@ -96,7 +107,52 @@
       "rolesHint": "A lista de papéis é substituída por inteiro pelo que estiver marcado aqui.",
       "cancel": "Cancelar",
       "confirm": "Salvar",
-      "saving": "Salvando…"
+      "saving": "Salvando…",
+      "phone": "Telefone",
+      "phoneHint": "Preencha só para substituir o telefone guardado.",
+      "taxId": "CPF",
+      "taxIdHint": "Preencha só para substituir o CPF guardado.",
+      "revealAll": "Revelar tudo",
+      "hideAll": "Ocultar tudo",
+      "revealField": "Revelar {{field}}",
+      "stored": {
+        "contact": "Contato do convite",
+        "email": "E-mail de acesso",
+        "phone": "Telefone",
+        "taxId": "CPF"
+      },
+      "password": {
+        "title": "Senha",
+        "intro": "Definir a senha aqui serve a quem está sem e-mail funcionando. Nos demais casos, o link de redefinição é o caminho em que a senha final não passa pela sua mão.",
+        "label": "Nova senha",
+        "minimum": "Mínimo de {{count}} caracteres.",
+        "show": "Mostrar a senha",
+        "hide": "Ocultar a senha",
+        "temporary": "Exigir troca no primeiro acesso",
+        "temporaryHint": "Marcado, a pessoa entra com esta senha e é obrigada a escolher outra na hora.",
+        "save": "Definir senha",
+        "saved": "Senha definida.",
+        "sendReset": "Enviar link de redefinição",
+        "resetSent": "Pedido enviado. Se o login existir e estiver ativo, o link chega pelo canal cadastrado."
+      },
+      "edit": "Alterar",
+      "cancelEdit": "Manter",
+      "identifiers": {
+        "title": "E-mails e telefones",
+        "intro": "Por qualquer um deles a pessoa entra no sistema, e por qualquer um deles se fala com ela.",
+        "emails": "E-mails",
+        "phones": "Telefones",
+        "noEmail": "Nenhum e-mail além do cadastro.",
+        "noPhone": "Nenhum telefone além do cadastro.",
+        "addEmail": "Acrescentar e-mail",
+        "addPhone": "Acrescentar telefone",
+        "add": "Acrescentar",
+        "remove": "Remover",
+        "whatsapp": "Recebe WhatsApp",
+        "whatsappTag": "WhatsApp",
+        "whatsappHint": "A marca de WhatsApp fica registrada para quando as notificações escolherem por onde sair — hoje ela ainda não muda o envio.",
+        "fromProfile": "vem do cadastro acima"
+      }
     },
     "removeDialog": {
       "title": "Remover o acesso",
@@ -114,8 +170,393 @@
       "COMPANY_USER_NOT_FOUND": "Este usuário não pertence mais à empresa. Atualize a lista.",
       "COMPANY_USER_CONTACT_TAKEN": "Já existe um acesso com este contato.",
       "USERNAME_ALREADY_TAKEN": "Este login já está em uso.",
-      "IDENTITY_SUBJECT_NOT_FOUND": "O acesso não tem identidade no provedor de login. Convide a pessoa de novo.",
-      "SELF_MEMBERSHIP_REMOVAL": "Ninguém remove o próprio acesso. Peça a outro administrador."
+      "IDENTITY_SUBJECT_NOT_FOUND": "Este cadastro não tem acesso para entrar no sistema. Convide a pessoa de novo.",
+      "SELF_MEMBERSHIP_REMOVAL": "Ninguém remove o próprio acesso. Peça a outro administrador.",
+      "COMPANY_USER_TAX_ID_TAKEN": "Já existe um acesso com este CPF.",
+      "USERNAME_CHANGE_REFUSED": "O login desta conta não pode ser trocado. O restante da ficha foi salvo; o login continua o de antes.",
+      "INVALID_REQUEST": "Algum campo está fora do formato aceito. Confira login, e-mail, telefone e CPF.",
+      "INTERNAL_ERROR": "A API falhou ao processar o pedido. Se repetir, é defeito nosso — não adianta tentar de novo.",
+      "USER_PICTURE_TOO_LARGE": "A imagem passa de 256 KB. Reduza o tamanho e envie de novo.",
+      "USER_PICTURE_UNSUPPORTED_FORMAT": "Formato não aceito. A foto precisa ser PNG, JPEG ou WebP — o servidor confere o arquivo, não a extensão do nome."
+    },
+    "fleetLink": {
+      "linked": "Vinculado à ficha de frota existente.",
+      "noDriverRecord": "Convite enviado, mas nenhuma ficha de frota com este CPF foi encontrada — cadastre a ficha para a pessoa aparecer na frota.",
+      "dismiss": "Dispensar o aviso"
+    },
+    "sync": {
+      "title": "Cadastros e acessos",
+      "intro": "Quem tem cadastro aqui, quem tem acesso para entrar, e quem está só com uma das duas metades. Isso não aparece na listagem acima — é aqui que se vê.",
+      "show": "Conferir cadastros e acessos",
+      "hide": "Fechar conferência",
+      "refresh": "Atualizar",
+      "allLinked": "Todo cadastro tem acesso, e todo acesso tem cadastro.",
+      "truncated": "Há mais acessos do que esta página trouxe — pode haver pendência fora dela.",
+      "column": {
+        "person": "Pessoa",
+        "here": "Cadastro",
+        "realm": "Acesso",
+        "status": "Situação",
+        "action": "Conserto"
+      },
+      "status": {
+        "linked": "Completo",
+        "missing-in-realm": "Sem acesso",
+        "missing-locally": "Sem cadastro",
+        "profile-missing": "Cadastro incompleto",
+        "out-of-sync": "Desatualizado: {{fields}}"
+      },
+      "noProfile": "Cadastro incompleto",
+      "createInRealm": "Criar o acesso",
+      "createLocally": "Criar o cadastro",
+      "fillProfile": "Completar o cadastro",
+      "missingCount_one": "1 pessoa está só com uma das duas metades.",
+      "missingCount_other": "{{count}} pessoas estão só com uma das duas metades.",
+      "profileMissingCount_one": "1 pessoa entra no sistema e não tem cadastro completo.",
+      "profileMissingCount_other": "{{count}} pessoas entram no sistema e não têm cadastro completo.",
+      "createAll_one": "Completar o que falta",
+      "createAll_other": "Completar os {{count}} que faltam",
+      "fillAllProfiles_one": "Completar 1 cadastro",
+      "fillAllProfiles_other": "Completar {{count}} cadastros",
+      "outcome": {
+        "filled_one": "1 ficha preenchida.",
+        "filled_other": "{{count}} fichas preenchidas.",
+        "created_one": "1 acesso criado.",
+        "created_other": "{{count}} acessos criados.",
+        "skipped_one": "1 pulado — {{reasons}}.",
+        "skipped_other": "{{count}} pulados — {{reasons}}.",
+        "adopted_one": "1 cadastro atualizado.",
+        "adopted_other": "{{count}} cadastros atualizados."
+      },
+      "skipReason": {
+        "profile-exists": "a ficha já existia",
+        "not-found": "não há acesso correspondente",
+        "realm-contact-missing": "o acesso está sem e-mail",
+        "already-linked": "já estava vinculado",
+        "service-account": "é conta de serviço, não de pessoa",
+        "already-equal": "já estava igual"
+      },
+      "outOfSyncCount_one": "1 cadastro estava desatualizado e foi corrigido.",
+      "outOfSyncCount_other": "{{count}} cadastros estavam desatualizados e foram corrigidos.",
+      "field": {
+        "email": "e-mail",
+        "taxId": "documento",
+        "username": "login"
+      },
+      "adopt": "Atualizar o cadastro",
+      "adoptAll_one": "Atualizar 1 cadastro",
+      "adoptAll_other": "Atualizar {{count}} cadastros"
+    },
+    "noProfile": "Cadastro incompleto",
+    "reveal": {
+      "showAll": "Revelar todos",
+      "hideAll": "Esconder",
+      "showOne": "Revelar o contato de {{name}}",
+      "copy": "Copiar",
+      "copied": "Copiado",
+      "failed": "Não foi possível revelar. Tente de novo.",
+      "hideOne": "Esconder os dados de {{name}}"
+    },
+    "bulk": {
+      "selected": "{{count}} selecionado(s)",
+      "clearSelection": "Limpar seleção",
+      "select": "Selecionar {{name}}",
+      "selectAll": "Selecionar todos da página",
+      "unselect": "Tirar {{name}} da seleção",
+      "rolesLabel": "Papéis a aplicar",
+      "rolesPlaceholder": "Escolha os papéis",
+      "searchRole": "Buscar papel",
+      "removeRole": "Tirar papel",
+      "clearRoles": "Limpar papéis",
+      "noRole": "Nenhum papel encontrado",
+      "rolesSummary": "{{count}} papel(is)",
+      "apply": "Aplicar a {{count}} usuário(s)",
+      "addsOnly": "Os papéis são acrescentados. Quem já tem continua como está, e nada é removido.",
+      "groupsLabel": "Grupos a aplicar",
+      "groupsPlaceholder": "Escolha os grupos",
+      "searchGroup": "Buscar grupo",
+      "removeGroup": "Tirar grupo",
+      "clearGroups": "Limpar grupos",
+      "noGroup": "Nenhum grupo encontrado",
+      "groupsSummary": "{{count}} grupo(s)",
+      "applyGroups": "Aplicar grupos a {{count}} usuário(s)"
+    },
+    "permission": {
+      "users.manage": {
+        "label": "Administrar usuários",
+        "where": "Tela Usuários: convidar, editar, suspender, remover e trocar papéis."
+      },
+      "users.reveal": {
+        "label": "Ver contato sem máscara",
+        "where": "Na lista de usuários, revelar e-mail, telefone e CPF. Cada revelação grava auditoria."
+      },
+      "invoices.import": {
+        "label": "Importar notas",
+        "where": "Tela Notas, aba Importações: subir XML e disparar a busca remota."
+      },
+      "invoices.read": {
+        "label": "Ver notas",
+        "where": "Tela Notas: a listagem, os filtros e o detalhe da NF-e."
+      },
+      "batches.create": {
+        "label": "Montar lote de CT-e",
+        "where": "Tela Lotes: juntar notas num lote para emissão."
+      },
+      "batches.approve": {
+        "label": "Aprovar lote",
+        "where": "Tela Lotes: liberar o lote para transmissão."
+      },
+      "cte.manage": {
+        "label": "Administrar CT-e",
+        "where": "Tela CT-e: preparar e corrigir documentos antes da transmissão."
+      },
+      "cte.submit": {
+        "label": "Transmitir CT-e",
+        "where": "Tela CT-e: enviar o lote à SEFAZ."
+      },
+      "cte.issue": {
+        "label": "Emitir CT-e",
+        "where": "Autorizar a emissão do documento fiscal."
+      },
+      "cte.cancel": {
+        "label": "Cancelar CT-e",
+        "where": "Cancelar documento já autorizado, dentro do prazo legal."
+      },
+      "cte.read": {
+        "label": "Ver CT-e",
+        "where": "Tela CT-e: a listagem e o DACTE."
+      },
+      "freight.simulate": {
+        "label": "Simular frete",
+        "where": "Tela Frete: calcular valor sem gravar nada."
+      },
+      "billing.create": {
+        "label": "Faturar",
+        "where": "Tela Faturamento: criar fatura a partir dos CT-e do período."
+      },
+      "billing.cancel": {
+        "label": "Cancelar fatura",
+        "where": "Cancelar fatura emitida, devolvendo os CT-e para faturamento."
+      },
+      "billing.read": {
+        "label": "Ver faturamento",
+        "where": "Tela Faturamento: faturas, itens e relatório."
+      },
+      "fleet.read": {
+        "label": "Ver frota",
+        "where": "Telas de Veículos e Motoristas, e as regiões de frete."
+      },
+      "fleet.manage": {
+        "label": "Administrar frota",
+        "where": "Cadastrar e editar veículo, motorista, agregado e documentos."
+      },
+      "trip.read": {
+        "label": "Ver viagens",
+        "where": "Tela Viagens: roteiro, paradas e notas vinculadas."
+      },
+      "trip.manage": {
+        "label": "Montar viagem",
+        "where": "Criar viagem, vincular nota, ordenar parada, separar e carregar."
+      },
+      "trip.report": {
+        "label": "Reportar entrega",
+        "where": "Do campo: marcar entrega, devolução e posição da parada."
+      },
+      "trip.financials": {
+        "label": "Ver dinheiro da viagem",
+        "where": "Custo, margem e o valor pago ao motorista."
+      },
+      "mdfe.read": {
+        "label": "Ver MDF-e",
+        "where": "Tela Manifestos: a listagem e o DAMDFE."
+      },
+      "mdfe.manage": {
+        "label": "Administrar MDF-e",
+        "where": "Montar e corrigir o manifesto antes da emissão."
+      },
+      "mdfe.issue": {
+        "label": "Emitir MDF-e",
+        "where": "Autorizar a emissão do manifesto."
+      },
+      "mdfe.close": {
+        "label": "Encerrar MDF-e",
+        "where": "Fechar o manifesto ao fim do percurso."
+      },
+      "mdfe.cancel": {
+        "label": "Cancelar MDF-e",
+        "where": "Cancelar manifesto autorizado."
+      },
+      "mdfe.auto-issue": {
+        "label": "Emissão automática de MDF-e",
+        "where": "Só do serviço: o gatilho automático, sem tela. Nenhuma pessoa recebe."
+      },
+      "nfse.read": {
+        "label": "Ver NFS-e",
+        "where": "Tela Nota de serviço: a listagem e o documento."
+      },
+      "nfse.manage": {
+        "label": "Administrar NFS-e",
+        "where": "Perfis de emissão e credencial da prefeitura."
+      },
+      "nfse.issue": {
+        "label": "Emitir NFS-e",
+        "where": "Enviar a nota de serviço à prefeitura."
+      },
+      "nfse.cancel": {
+        "label": "Cancelar NFS-e",
+        "where": "Cancelar nota de serviço autorizada."
+      },
+      "settings.manage": {
+        "label": "Configurar a empresa",
+        "where": "Dados da empresa, certificados, combustível, tabela de frete e busca automática."
+      },
+      "addresses.read": {
+        "label": "Consultar CEP",
+        "where": "O preenchimento de endereço nos formulários de motorista, empresa e manifesto."
+      },
+      "view-preferences.manage": {
+        "label": "Salvar preferências de tela",
+        "where": "Colunas, ordem e filtros que cada pessoa guarda para si."
+      },
+      "operations.read": {
+        "label": "Ver o painel de operação",
+        "where": "Tela Operações: o resumo do dia e as pendências."
+      },
+      "audit.read": {
+        "label": "Ver a trilha de auditoria",
+        "where": "Quem fez o quê, quando — inclusive quem revelou documento de quem."
+      },
+      "deliveries.track": {
+        "label": "Acompanhar entrega (portal)",
+        "where": "Portal do contratante: seguir a carga das notas da conta dele."
+      },
+      "charges.decide": {
+        "label": "Decidir repasse (portal)",
+        "where": "Portal do contratante: aceitar ou recusar cobrança adicional."
+      },
+      "groups.manage": {
+        "label": "Administrar grupos",
+        "where": "Criar grupo, escolher o que ele concede e atribuí-lo a pessoas. Quem tem esta permissão pode conceder qualquer outra — toda concessão grava auditoria."
+      }
+    },
+    "matrix": {
+      "title": "O que cada papel enxerga",
+      "intro": "A matriz de papéis e permissões desta instalação. É leitura: quem muda o que um papel alcança é o código, com revisão — a tela existe para a decisão de conceder um papel parar de ser às cegas.",
+      "show": "Ver a matriz",
+      "hide": "Fechar a matriz",
+      "columnPermission": "Permissão",
+      "granted": "Concedida",
+      "denied": "Não concedida",
+      "group": {
+        "identity": "Identidade",
+        "invoices": "Notas fiscais",
+        "batches": "Lotes",
+        "cte": "CT-e",
+        "freight": "Frete",
+        "billing": "Faturamento",
+        "fleet": "Frota",
+        "trip": "Viagens",
+        "mdfe": "MDF-e",
+        "nfse": "Nota de serviço",
+        "settings": "Configurações",
+        "operations": "Operação e auditoria",
+        "portal": "Portal do contratante",
+        "other": "Outras"
+      }
+    },
+    "fleet": {
+      "driver": "Ficha do motorista",
+      "vehicle": "Veículo {{plate}}"
+    },
+    "resendHint": "Reenviar o código de ativação",
+    "groups": {
+      "title": "Grupos de acesso",
+      "intro": "O grupo é o papel que a empresa desenha: papéis do catálogo mais permissões avulsas, atribuído a várias pessoas de uma vez. Ele soma ao que a pessoa já tem — nunca tira.",
+      "show": "Ver os grupos",
+      "hide": "Fechar os grupos",
+      "new": "Novo grupo",
+      "name": "Nome do grupo",
+      "description": "Descrição",
+      "roles": "Papéis do grupo",
+      "rolesPlaceholder": "Escolha os papéis",
+      "rolesOptional": "Papel é opcional: um grupo pode conceder só permissões avulsas.",
+      "permissions": "Permissões do grupo",
+      "permissionsPlaceholder": "Escolha as permissões",
+      "searchPermission": "Buscar permissão",
+      "removePermission": "Tirar permissão",
+      "clearPermissions": "Limpar permissões",
+      "noPermission": "Nenhuma permissão encontrada",
+      "permissionsSummary": "{{count}} permissão(ões)",
+      "save": "Salvar grupo",
+      "cancel": "Cancelar",
+      "edit": "Editar",
+      "remove": "Excluir grupo",
+      "empty": "Nenhum grupo criado ainda.",
+      "columnName": "Grupo",
+      "columnGrants": "Concede",
+      "columnMembers": "Pessoas",
+      "columnSync": "Acesso",
+      "synced": "Sincronizado",
+      "syncPending": "Pendente"
+    },
+    "permissions": {
+      "intro": "Permissões concedidas direto a esta pessoa, fora dos grupos.",
+      "none": "Nenhuma permissão avulsa. Tudo o que ela alcança vem dos papéis e dos grupos.",
+      "count": "{{count}} permissão(ões) avulsa(s).",
+      "grant": "Conceder",
+      "grantLabel": "Permissões a conceder",
+      "revoke": "Revogar permissão",
+      "preferGroups": "Prefira o grupo: ele explica por que a pessoa alcança aquilo, e a permissão avulsa não.",
+      "open": "Permissões e vínculos",
+      "emails": "E-mails"
+    },
+    "picture": {
+      "add": "Adicionar foto",
+      "replace": "Trocar foto",
+      "remove": "Remover foto",
+      "alt": "Foto de {{name}}",
+      "review": "Confira antes de salvar. O recorte é sugestão — o modelo às vezes come um detalhe.",
+      "useOriginal": "Usar a foto como está",
+      "useCutout": "Usar o recorte",
+      "cancel": "Descartar",
+      "cutoutFailed": "Não foi possível recortar o fundo. A foto original continua valendo.",
+      "background": {
+        "white": "Fundo branco",
+        "company": "Fundo da empresa",
+        "transparent": "Sem fundo"
+      },
+      "cutoutAlt": "Recorte da foto de {{name}}",
+      "running": "Recortando…",
+      "chosenAlt": "Imagem escolhida para {{name}}"
+    },
+    "columnTaxId": "Documento"
+  },
+  "login": {
+    "title": "Entrar",
+    "intro": "Digite como você é conhecido no sistema. A senha é pedida na tela seguinte.",
+    "label": "E-mail, CPF, CNPJ ou telefone",
+    "hint": "Qualquer um dos seus contatos cadastrados serve.",
+    "submit": "Continuar",
+    "submitting": "Levando você ao login…"
+  },
+  "profiles": {
+    "kicker": "Administração de acessos",
+    "title": "Papéis e grupos",
+    "intro": "O que cada papel do catálogo alcança, os grupos que a empresa desenha, e a quem eles pertencem. A conferência de cadastros e acessos continua na tela de acessos, junto da listagem que ela conserta.",
+    "assign": {
+      "title": "Atribuir grupo a pessoas",
+      "intro": "Escolha o grupo e as pessoas. A atribuição soma ao que cada uma já tem — nunca tira —, e quem já está no grupo é ignorado.",
+      "groupLabel": "Grupo",
+      "groupPlaceholder": "Escolha o grupo",
+      "usersLabel": "Pessoas",
+      "usersPlaceholder": "Escolha as pessoas",
+      "usersSummary": "{{count}} pessoa(s)",
+      "searchUser": "Buscar pessoa",
+      "removeUser": "Remover pessoa",
+      "clearUsers": "Limpar seleção",
+      "noUsers": "Nenhuma pessoa cadastrada",
+      "submit": "Atribuir",
+      "truncated": "A lista mostra as primeiras 100 pessoas. Para as demais, use a seleção da tela de acessos."
     }
   }
 }

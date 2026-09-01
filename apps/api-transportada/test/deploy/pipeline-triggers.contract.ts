@@ -168,6 +168,23 @@ describe('contrato do grafo de deploy', () => {
   })
 
   /**
+   * `always()` existe aqui para um motivo bom — API inalterada deixa `deploy-api` em `skipped`, e
+   * sem ele o worker não publicaria por carona no skip. Só que `always()` também desliga a guarda
+   * do gate: gate vermelho pula `deploy-api`, e `skipped` não é `failure` nem `cancelled`, então a
+   * condição passava e worker e cron publicavam contra um gate reprovado. Aconteceu no run
+   * `33072726734`.
+   *
+   * `deploy-api` e `deploy-frontend` não precisam disto porque não usam `always()`: para eles o
+   * `needs: gate` já basta. Aqui a guarda tem de ser dita em voz alta.
+   */
+  test('worker e crons não publicam com o gate reprovado', async () => {
+    const workflow = await readWorkflow(DEPLOY_WORKFLOW_PATH)
+
+    expect(needsOf(workflow, 'deploy-services')).toContain('gate')
+    expect(workflow).toContain("needs.gate.result == 'success'")
+  })
+
+  /**
    * O frontend é bundle estático: não abre conexão com o banco e não lê tabela nenhuma. Pendurá-lo
    * na API devolveria 147s à espera sem comprar segurança alguma — era o passo mais lento da fila.
    */

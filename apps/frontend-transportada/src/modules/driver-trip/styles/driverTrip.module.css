@@ -1,0 +1,257 @@
+/* A tela é do motorista, não do analista: alvo grande, contraste alto e uma coluna só. */
+.shell {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0 auto;
+  max-width: 40rem;
+  padding: var(--space-4);
+}
+
+.header {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.vehicle {
+  color: var(--color-slate);
+  margin: 0;
+}
+
+.queueBanner {
+  background: color-mix(in srgb, var(--color-copper) 18%, transparent);
+  border-radius: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+}
+
+.rejectedBanner {
+  background: color-mix(in srgb, var(--color-alert) 18%, transparent);
+  border-radius: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+}
+
+.stopList {
+  display: grid;
+  gap: var(--space-4);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.stop {
+  background: var(--color-graphite);
+  border: 1px solid var(--color-slate);
+  border-radius: var(--space-2);
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+/* A parada de agora é a que ele está fazendo: sem isso ele varre a lista com o caminhão parado. */
+.stopCurrent {
+  border-color: var(--color-copper);
+  border-width: 2px;
+}
+
+.stopDone {
+  opacity: 0.65;
+}
+
+.stopHeader {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.stopLabel {
+  font-size: 1.125rem;
+  margin: 0;
+}
+
+.stopMeta {
+  color: var(--color-slate);
+  margin: 0;
+}
+
+.documentList {
+  display: grid;
+  gap: var(--space-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.document {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.documentSettled {
+  color: var(--color-slate);
+}
+
+/* Alvo de toque de 44px, que é o mínimo para quem usa uma mão e está de pé. */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.actions > * {
+  min-height: 2.75rem;
+}
+
+.occurrenceForm {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.proofField {
+  display: grid;
+  gap: var(--space-1);
+}
+
+/* Spec 060 D3: a hora marcada vem antes do endereço — é o que a portaria pede. */
+.stopSchedule {
+  color: var(--color-copper);
+  font-weight: 700;
+  margin: 0;
+}
+
+/* Spec 065 D9: o MDF-e sob demanda. Vem antes do romaneio porque é o documento que a barreira pede. */
+.manifest {
+  border: 1px solid var(--color-slate);
+  border-radius: var(--space-2);
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.manifestHeader {
+  display: grid;
+  gap: var(--space-1);
+}
+
+/* A chave é lida em voz alta para o fiscal: quebra em qualquer ponto e não estoura a tela estreita. */
+.manifestKey {
+  font-family: var(--font-utility);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.manifestProtocol {
+  color: var(--color-slate);
+  margin: 0;
+}
+
+.manifestActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.manifestActions > * {
+  min-height: 2.75rem;
+}
+
+/* Spec 065 D1: o romaneio. O aviso de não-fiscal é irmão do título — na tela e no papel. */
+.loadSheet {
+  border: 1px solid var(--color-slate);
+  border-radius: var(--space-2);
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
+}
+
+.loadSheetHeader {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.loadSheetDisclaimer {
+  color: var(--color-alert);
+  font-weight: 700;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+/*
+ * O veículo já está no cabeçalho da tela, e repeti-lo aqui é ruído. No papel ele é necessário: lá o
+ * cabeçalho não vai junto, e um romaneio sem placa não identifica a carga de ninguém.
+ */
+.loadSheetMeta {
+  color: var(--color-slate);
+  display: none;
+  margin: 0;
+}
+
+.loadSheetStops,
+.loadSheetNotes {
+  display: grid;
+  gap: var(--space-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.loadSheetStop {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.loadSheetNote {
+  border-top: 1px solid var(--color-slate);
+  display: grid;
+  gap: var(--space-1);
+  padding-top: var(--space-2);
+}
+
+.loadSheetNoteHead {
+  margin: 0;
+}
+
+.loadSheetTotals {
+  color: var(--color-slate);
+  margin: 0;
+}
+
+/* A chave é lida em voz alta e digitada: monoespaçada e quebrando, nunca cortada. */
+.loadSheetKey {
+  font-family: ui-monospace, monospace;
+  font-size: 0.8rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/*
+ * O romaneio é impresso, e impresso é onde ele volta a parecer documento fiscal. Então o papel leva
+ * só ele — sem menu, sem botões —, em preto no branco, e com o aviso mantido em destaque.
+ */
+@media print {
+  .shell > *:not(.loadSheet) {
+    display: none;
+  }
+
+  .loadSheet {
+    border: none;
+    color: #000;
+    padding: 0;
+  }
+
+  .printAction {
+    display: none;
+  }
+
+  .loadSheetDisclaimer {
+    color: #000;
+  }
+
+  .loadSheetMeta {
+    color: #000;
+    display: block;
+  }
+
+  .loadSheetNote {
+    break-inside: avoid;
+  }
+}

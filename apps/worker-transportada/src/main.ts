@@ -38,6 +38,9 @@ import { createAdatechnologyCteFiscalProvider } from './cte-issuance/infrastruct
 import { CteOutboxPublisherService } from './cte-issuance/application/cte-outbox-publisher.service.js'
 import { CteOutboxRelayService } from './cte-issuance/application/cte-outbox-relay.service.js'
 import { createCteIssuanceWorkerEffect } from './cte-issuance/application/cte-issuance-consumer.effect.js'
+import { createMdfeAutoIssueTrigger } from './mdfe-auto-issue/application/mdfe-auto-issue.service.js'
+import { createAutomaticManifestApiGateway } from './mdfe-auto-issue/infrastructure/automatic-manifest-api.gateway.js'
+import { createDrizzleTripByBatchItemRepository } from './mdfe-auto-issue/infrastructure/drizzle-trip-by-batch-item.repository.js'
 import { DrizzleCteFiscalNumberProbeRepository } from './cte-issuance/infrastructure/drizzle-cte-fiscal-number-probe.repository.js'
 import { DrizzleCteIssuanceDiagnosticsRepository } from './cte-issuance/infrastructure/drizzle-cte-issuance-diagnostics.repository.js'
 import { startCteIssuanceConsumer } from './runtime/cte-issuance-consumer.service.js'
@@ -61,6 +64,11 @@ import { MdfeOutboxRelayService } from './mdfe-issuance/application/mdfe-outbox-
 import { startMdfeIssuanceConsumer } from './runtime/mdfe-issuance-consumer.service.js'
 import { buildInvitationDeliveryRabbitMqTopology } from './messaging/invitation-delivery-rabbitmq-topology.js'
 import { buildNotificationRabbitMqTopology } from './messaging/notification-rabbitmq-topology.js'
+import { buildRouteOptimizationTopology } from './messaging/route-optimization-topology.js'
+import { startRouteOptimizationConsumer } from './runtime/route-optimization-consumer.service.js'
+import { createDrizzleRouteOptimizationRepository } from './routing/infrastructure/drizzle-route-optimization.repository.js'
+import { createOsrmRoutingMatrixGateway } from './routing/infrastructure/osrm-routing-matrix.gateway.js'
+import { createRouteOptimizationPorts } from './routing/infrastructure/route-optimization-ports.factory.js'
 import { createRabbitMqNotificationQueue } from './messaging/rabbitmq-notification-queue.adapter.js'
 import { createGuardedNotificationQueue } from './notification/infrastructure/guarded-notification-queue.adapter.js'
 import { createWorkerNotificationModule } from './notification/infrastructure/notification-module.factory.js'
@@ -72,6 +80,9 @@ import { InvitationDeliveryOutboxPublisherService } from './identity/application
 import { InvitationDeliveryOutboxRelayService } from './identity/application/invitation-delivery-outbox-relay.service.js'
 import { DrizzleInvitationDeliveryOutboxRepository } from './identity/infrastructure/drizzle-invitation-delivery-outbox.repository.js'
 import { DrizzleInvitationDeliveryRepository } from './identity/infrastructure/drizzle-invitation.repository.js'
+import { createWhatsAppCodeSender } from './whatsapp/infrastructure/whatsapp-code-sender.gateway.js'
+import { createWhatsAppChannelSecretGateway } from './whatsapp/infrastructure/whatsapp-channel-secret.gateway.js'
+import { DrizzleWhatsAppChannelRepository } from './whatsapp/infrastructure/drizzle-whatsapp-channel.repository.js'
 import { createInvitationChannelGateway } from './identity/infrastructure/invitation-channel.gateway.js'
 import { createInvitationCodeSecretGateway } from './identity/infrastructure/invitation-code-secret.gateway.js'
 import type { InvitationDeliveryDependencies } from './identity/application/deliver-invitation-code.service.js'
@@ -141,6 +152,13 @@ import { DISTRIBUTION_PULL_JOB } from './nfe-distribution-pull/domain/distributi
 import { createCryptoDistributionIdentifiers } from './nfe-distribution-pull/infrastructure/crypto-identifiers.js'
 import { createDrizzleDistributionCandidateSource } from './nfe-distribution-pull/infrastructure/drizzle-distribution-candidate.source.js'
 import { createDrizzleDistributionEnqueueGateway } from './nfe-distribution-pull/infrastructure/drizzle-distribution-enqueue.gateway.js'
+import { createIdentityDocumentBackfillRoutine } from './identity-document-backfill/application/identity-document-backfill.routine.js'
+import { IDENTITY_DOCUMENT_BACKFILL_JOB } from './identity-document-backfill/domain/identity-document-backfill.constant.js'
+import { createDrizzleLocalDocumentSource } from './identity-document-backfill/infrastructure/drizzle-local-document.repository.js'
+import { createKeycloakRealmGateway } from './identity-document-backfill/infrastructure/keycloak-realm.gateway.js'
+import { createTripLocationPurgeRoutine } from './trip-location-purge/application/trip-location-purge.routine.js'
+import { TRIP_LOCATION_PURGE_JOB } from './trip-location-purge/domain/trip-location-purge.constant.js'
+import { createDrizzleRedactTripLocations } from './trip-location-purge/infrastructure/drizzle-trip-location.repository.js'
 import { startNfeImportConsumer } from './runtime/nfe-import-consumer.service.js'
 import { createNfeImportConsumer } from './nfe-imports/application/nfe-import-consumer.service.js'
 import type {
@@ -452,6 +470,9 @@ export async function startWorkerRuntime(
   const notificationTopology = buildNotificationRabbitMqTopology({
     queuePrefix: config.queuePrefix,
   })
+  const routeOptimizationTopology = buildRouteOptimizationTopology({
+    queuePrefix: config.queuePrefix,
+  })
   let provider: RabbitMqProvider | undefined
   let distributionPublisher: RabbitMqProvider | undefined
   let healthServer: RuntimeHealthServer | undefined
@@ -478,6 +499,8 @@ export async function startWorkerRuntime(
   let jobRunConsumer: RuntimeConsumer | undefined
   let jobRunProvider: RabbitMqProvider | undefined
   let notificationConsumer: RuntimeConsumer | undefined
+  let routeOptimizationConsumer: RuntimeConsumer | undefined
+  let routeOptimizationProvider: RabbitMqProvider | undefined
   let notificationProvider: RabbitMqProvider | undefined
 
   try {
@@ -649,6 +672,17 @@ export async function startWorkerRuntime(
           database.db as ReturnType<typeof createDrizzleProvider>['db'],
         ),
         logger,
+        ...(config.mdfeAutoIssue === undefined
+          ? {}
+          : {
+              mdfeAutoIssue: createMdfeAutoIssueTrigger({
+                api: createAutomaticManifestApiGateway({ configuration: config.mdfeAutoIssue }),
+                logger,
+                trips: createDrizzleTripByBatchItemRepository(
+                  database.db as ReturnType<typeof createDrizzleProvider>['db'],
+                ),
+              }),
+            }),
         settledAttemptGuard: new DrizzleCteSettledAttemptRepository(
           database.db as ReturnType<typeof createDrizzleProvider>['db'],
         ),
@@ -764,21 +798,42 @@ export async function startWorkerRuntime(
         database.db as ReturnType<typeof createDrizzleProvider>['db'],
       ),
     })
+    /**
+     * Spec 062 T005 — o mesmo canal para os dois trilhos de código, com o template de cada um. A
+     * credencial é por empresa e vem do banco a cada envio; o que muda entre convite e recuperação
+     * é só qual template aprovado a Meta espera.
+     */
+    const buildWhatsAppCodeSender = (template: string | undefined) =>
+      createWhatsAppCodeSender({
+        apiVersion: config.whatsapp.apiVersion,
+        baseUrl: config.whatsapp.baseUrl,
+        channels: new DrizzleWhatsAppChannelRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
+        secrets: createWhatsAppChannelSecretGateway({
+          envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
+        }),
+        template:
+          template === undefined
+            ? undefined
+            : { languageCode: config.whatsapp.codeTemplateLanguage, name: template },
+      })
     invitationDeliveryConsumer = await invitationDeliveryStarter({
       config,
       dependencies: {
         // Sem SMTP configurado o canal não tem driver e a entrega falha alto: melhor a mensagem
         // parar no trilho de retry do que o convite ser dado como entregue sem ter saído daqui.
-        channels: createInvitationChannelGateway(
-          config.emailDelivery === undefined
+        channels: createInvitationChannelGateway({
+          ...(config.emailDelivery === undefined
             ? {}
             : {
                 email: createSmtpEmailProvider({
                   from: config.emailDelivery.from,
                   smtpUrl: config.emailDelivery.smtpUrl,
                 }),
-              },
-        ),
+              }),
+          whatsapp: buildWhatsAppCodeSender(config.whatsapp.invitationTemplate),
+        }),
         envelopeProvider: createInvitationCodeSecretGateway({
           envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
         }),
@@ -795,16 +850,17 @@ export async function startWorkerRuntime(
       dependencies: {
         // Mesmo arranjo do convite: sem SMTP configurado a entrega falha alto, e o código continua
         // válido para reenvio — quem falhou foi o transporte.
-        channels: createInvitationChannelGateway(
-          config.emailDelivery === undefined
+        channels: createInvitationChannelGateway({
+          ...(config.emailDelivery === undefined
             ? {}
             : {
                 email: createSmtpEmailProvider({
                   from: config.emailDelivery.from,
                   smtpUrl: config.emailDelivery.smtpUrl,
                 }),
-              },
-        ),
+              }),
+          whatsapp: buildWhatsAppCodeSender(config.whatsapp.passwordResetTemplate),
+        }),
         envelopeProvider: createPasswordResetCodeSecretGateway({
           envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
         }),
@@ -827,6 +883,32 @@ export async function startWorkerRuntime(
         logger,
         now: () => new Date(),
         routines: {
+          /**
+           * ADR-0045 §3.3: sempre registrada. Ela não depende de configuração nenhuma — e uma
+           * retenção que só corre quando a instalação declarou alguma coisa é retenção opcional.
+           */
+          [TRIP_LOCATION_PURGE_JOB]: createTripLocationPurgeRoutine({
+            logger,
+            now: () => new Date(),
+            redact: createDrizzleRedactTripLocations(
+              database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            ),
+          }),
+          /**
+           * Ausente quando a instalação não declara credencial de administração do realm: sem
+           * provedor não há atributo a escrever, e a janela pousa em `job_run_routine_missing`.
+           */
+          ...(config.identityDocumentBackfill === undefined
+            ? {}
+            : {
+                [IDENTITY_DOCUMENT_BACKFILL_JOB]: createIdentityDocumentBackfillRoutine({
+                  documents: createDrizzleLocalDocumentSource(
+                    database.db as ReturnType<typeof createDrizzleProvider>['db'],
+                  ),
+                  logger,
+                  realm: createKeycloakRealmGateway(config.identityDocumentBackfill),
+                }),
+              }),
           [DISTRIBUTION_PULL_JOB]: createNfeDistributionPullRoutine({
             gateway: createDrizzleDistributionEnqueueGateway({
               database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
@@ -937,6 +1019,31 @@ export async function startWorkerRuntime(
       module: notificationModule,
       queue: notificationQueue,
     })
+
+    /**
+     * ADR-0044 §2 e §7: sem OSRM o consumidor **não sobe**. Um consumidor que consome e falha
+     * esvaziaria a fila marcando toda sugestão como `failed`; melhor a mensagem esperar até o
+     * serviço existir — o `make routing-up` e o runbook do extract são o que a destravam.
+     */
+    if (config.routingMatrixUrl === undefined) {
+      logger.warn('route_optimization_consumer_disabled', { reason: 'ROUTING_MATRIX_URL missing' })
+    } else {
+      routeOptimizationProvider = await createRabbitMqProvider({
+        connection: config.rabbitMqUrl,
+        topology: routeOptimizationTopology,
+      })
+      routeOptimizationConsumer = await startRouteOptimizationConsumer({
+        logger,
+        maxAttempts: routeOptimizationTopology.retry?.maxRetries ?? 1,
+        ports: createRouteOptimizationPorts({
+          matrix: createOsrmRoutingMatrixGateway({ baseUrl: config.routingMatrixUrl }),
+          repository: createDrizzleRouteOptimizationRepository(
+            database.db as ReturnType<typeof createDrizzleProvider>['db'],
+          ),
+        }),
+        provider: routeOptimizationProvider,
+      })
+    }
     const relay = new OutboxRelayService({
       clock: { now: () => new Date() },
       publisher: new NfeOutboxPublisherService({
@@ -1083,6 +1190,11 @@ export async function startWorkerRuntime(
     passwordResetDeliveryRelayLoop.start()
     const shutdown = new WorkerShutdown({
       closeables: [
+        /**
+         * A conexão do roteirizador fecha com as demais. Deixá-la aberta mantém o processo vivo
+         * depois do SIGTERM — o dreno nunca termina, e o orquestrador acaba matando à força.
+         */
+        ...(routeOptimizationProvider === undefined ? [] : [routeOptimizationProvider]),
         relayLoop,
         cteRelayLoop,
         mdfeRelayLoop,
@@ -1111,6 +1223,7 @@ export async function startWorkerRuntime(
         passwordResetDeliveryConsumer,
         jobRunConsumer,
         notificationConsumer,
+        routeOptimizationConsumer,
       ].filter((consumer): consumer is RuntimeConsumer => consumer !== undefined),
       database,
       healthServer,
@@ -1146,6 +1259,7 @@ export async function startWorkerRuntime(
     await cteIssuanceConsumer?.cancel().catch(() => undefined)
     await mdfeIssuanceConsumer?.cancel().catch(() => undefined)
     await nfseIssuanceConsumer?.cancel().catch(() => undefined)
+    await routeOptimizationConsumer?.cancel().catch(() => undefined)
     await invitationDeliveryConsumer?.cancel().catch(() => undefined)
     await invitationDeliveryRelayLoop?.close().catch(() => undefined)
     await passwordResetDeliveryConsumer?.cancel().catch(() => undefined)

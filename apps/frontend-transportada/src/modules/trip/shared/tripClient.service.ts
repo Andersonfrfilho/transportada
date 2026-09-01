@@ -1,9 +1,28 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { TRIP_ERROR, TRIPS_PATH } from './trip.constant'
+import { NFE_DOCUMENTS_PATH, SCAN_LOOKUP_LIMIT, TRIP_ERROR, TRIPS_PATH } from './trip.constant'
 import type {
+  BatchStatusInput,
+  BatchStatusResult,
+  CancelTripResult,
   CreateTripBody,
+  DeliveryAddressHistoryInput,
+  DeliveryAddressOverride,
+  DispatchTripInput,
+  DispatchTripResult,
+  FindNfeDocumentByAccessKeyInput,
   LinkTripDocumentInput,
+  OverrideDeliveryAddressInput,
+  PlanTripRouteResult,
+  ReorderTripStopsInput,
+  ReorderTripStopsResult,
+  ScannedNfeDocument,
+  TransitionTripDocumentInput,
+  TransitionTripDocumentResult,
+  TripCteBatchResult,
   TripDetail,
+  SetTripMdfeRequirementInput,
+  TripFiscalReadiness,
+  TripMdfeRequirement,
   TripDocument,
   TripDocumentActionInput,
   TripListInput,
@@ -19,13 +38,31 @@ type ClientDependencies = Readonly<{
 }>
 
 export type TripClient = Readonly<{
+  batchStatus: (input: BatchStatusInput) => Promise<BatchStatusResult>
+  cancelTrip: (input: Readonly<{ tripId: string }>) => Promise<CancelTripResult>
   closeTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
   createTrip: (input: CreateTripBody) => Promise<TripDetail>
   deliverTripDocument: (input: TripDocumentActionInput) => Promise<TripDocument>
+  dispatchTrip: (input: DispatchTripInput) => Promise<DispatchTripResult>
+  findNfeDocumentByAccessKey: (
+    input: FindNfeDocumentByAccessKeyInput,
+  ) => Promise<null | ScannedNfeDocument>
+  createTripCteBatch: (input: Readonly<{ tripId: string }>) => Promise<TripCteBatchResult>
   getTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
+  readFiscalReadiness: (input: Readonly<{ tripId: string }>) => Promise<TripFiscalReadiness>
+  setTripMdfeRequirement: (input: SetTripMdfeRequirementInput) => Promise<TripMdfeRequirement>
   linkTripDocument: (input: LinkTripDocumentInput) => Promise<TripDocument>
+  listDeliveryAddressHistory: (
+    input: DeliveryAddressHistoryInput,
+  ) => Promise<readonly DeliveryAddressOverride[]>
   listTrips: (input: TripListInput) => Promise<TripPage>
+  overrideDeliveryAddress: (input: OverrideDeliveryAddressInput) => Promise<DeliveryAddressOverride>
+  planTripRoute: (input: Readonly<{ tripId: string }>) => Promise<PlanTripRouteResult>
   releaseTripDocument: (input: TripDocumentActionInput) => Promise<TripDocument>
+  reorderTripStops: (input: ReorderTripStopsInput) => Promise<ReorderTripStopsResult>
+  transitionTripDocument: (
+    input: TransitionTripDocumentInput,
+  ) => Promise<TransitionTripDocumentResult>
 }>
 
 function requestError(code: string): Error {
@@ -45,7 +82,9 @@ async function requestJson(
   let response: Response
   try {
     response = await input.fetch(input.request)
-  } catch {
+  } catch (cause) {
+    // Cancelamento não é falha de rede: o separador bipa rápido, e a leitura nova aborta a anterior.
+    if (input.request.signal.aborted) throw cause
     throw requestError(TRIP_ERROR.REQUEST_FAILED)
   }
   const rawBody = await response.text()
@@ -63,15 +102,19 @@ async function authorizedRequest(
   input: Readonly<{
     body?: string
     dependencies: ClientDependencies
-    method: 'DELETE' | 'GET' | 'POST'
+    idempotencyKey?: string
+    method: 'DELETE' | 'GET' | 'PATCH' | 'POST' | 'PUT'
     path: string
+    signal?: AbortSignal
   }>,
 ): Promise<unknown> {
   const accessToken = await input.dependencies.getAccessToken()
   const headers: Record<string, string> = { authorization: `Bearer ${accessToken}` }
   if (input.body !== undefined) headers['content-type'] = 'application/json'
+  if (input.idempotencyKey !== undefined) headers['idempotency-key'] = input.idempotencyKey
   const requestInit: RequestInit = { cache: 'no-store', headers, method: input.method }
   if (input.body !== undefined) requestInit.body = input.body
+  if (input.signal !== undefined) requestInit.signal = input.signal
 
   return requestJson({
     fetch: input.dependencies.fetch,
@@ -106,6 +149,28 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
   }
 
   return {
+    async batchStatus(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({
+          action: input.action,
+          documentIds: input.documentIds,
+          note: input.note ?? null,
+          returnReason: input.returnReason ?? null,
+        }),
+        dependencies,
+        method: 'POST',
+        path: `${TRIPS_PATH}/${input.tripId}/documents/batch-status`,
+      })
+      return adapters.batchStatusResultFromApi(readEnvelopeData(response))
+    },
+    async cancelTrip(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'POST',
+        path: `${TRIPS_PATH}/${input.tripId}/cancel`,
+      })
+      return adapters.cancelTripResultFromApi(readEnvelopeData(response))
+    },
     async closeTrip(input) {
       const response = await authorizedRequest({
         dependencies,
@@ -131,6 +196,33 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       })
       return adapters.tripDocumentFromApi(readEnvelopeData(response))
     },
+    async dispatchTrip(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({
+          force: input.force ?? false,
+          forceReason: input.forceReason ?? null,
+        }),
+        dependencies,
+        method: 'POST',
+        path: `${TRIPS_PATH}/${input.tripId}/dispatch`,
+      })
+      return adapters.dispatchTripResultFromApi(readEnvelopeData(response))
+    },
+    async findNfeDocumentByAccessKey(input) {
+      const search = buildSearch(
+        { cursor: null, limit: SCAN_LOOKUP_LIMIT },
+        {
+          accessKey: input.accessKey,
+        },
+      )
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${NFE_DOCUMENTS_PATH}?${search}`,
+        ...(input.signal === undefined ? {} : { signal: input.signal }),
+      })
+      return adapters.scannedNfeDocumentFromApi(response)
+    },
     async getTrip(input) {
       const response = await authorizedRequest({
         dependencies,
@@ -138,6 +230,40 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: `${TRIPS_PATH}/${input.tripId}`,
       })
       return adapters.tripDetailFromApi(readEnvelopeData(response))
+    },
+    /**
+     * Spec 065 D4bis: a chave de idempotência é do **clique**. Sem ela, dois toques com a rede lenta
+     * criariam dois lotes para a mesma viagem — e lote de CT-e duplicado é emissão duplicada.
+     */
+    async createTripCteBatch(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        idempotencyKey: crypto.randomUUID(),
+        method: 'POST',
+        path: `${TRIPS_PATH}/${input.tripId}/cte-batches`,
+      })
+      return adapters.tripCteBatchResultFromApi(readEnvelopeData(response))
+    },
+    /**
+     * Spec 065 D4c: `null` é um dos três estados, e por isso o corpo o carrega por extenso — omitir
+     * o campo faria o servidor recusar, que é o que se quer: ninguém adivinha exigência fiscal.
+     */
+    async setTripMdfeRequirement(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({ reason: input.reason, requiresMdfe: input.requiresMdfe }),
+        dependencies,
+        method: 'PUT',
+        path: `${TRIPS_PATH}/${input.tripId}/mdfe-requirement`,
+      })
+      return adapters.tripMdfeRequirementFromApi(readEnvelopeData(response))
+    },
+    async readFiscalReadiness(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${TRIPS_PATH}/${input.tripId}/fiscal-readiness`,
+      })
+      return adapters.tripFiscalReadinessFromApi(readEnvelopeData(response))
     },
     async linkTripDocument(input) {
       const response = await authorizedRequest({
@@ -166,6 +292,36 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       })
       return adapters.tripListFromApi(response)
     },
+    async listDeliveryAddressHistory(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${documentPath(input)}/delivery-address-history`,
+      })
+      return adapters.deliveryAddressHistoryFromApi(response)
+    },
+    async overrideDeliveryAddress(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({
+          newAddress: input.newAddress,
+          newLabel: input.newLabel,
+          reason: input.reason,
+          requestedBy: input.requestedBy,
+        }),
+        dependencies,
+        method: 'POST',
+        path: `${documentPath(input)}/delivery-address`,
+      })
+      return adapters.deliveryAddressOverrideFromApi(readEnvelopeData(response))
+    },
+    async planTripRoute(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'POST',
+        path: `${TRIPS_PATH}/${input.tripId}/plan-route`,
+      })
+      return adapters.planTripRouteResultFromApi(readEnvelopeData(response))
+    },
     async releaseTripDocument(input) {
       const response = await authorizedRequest({
         dependencies,
@@ -173,6 +329,27 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: documentPath(input),
       })
       return adapters.tripDocumentFromApi(readEnvelopeData(response))
+    },
+    async reorderTripStops(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({ stopIds: input.stopIds }),
+        dependencies,
+        method: 'PATCH',
+        path: `${TRIPS_PATH}/${input.tripId}/stops/order`,
+      })
+      return adapters.reorderTripStopsResultFromApi(readEnvelopeData(response))
+    },
+    async transitionTripDocument(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({
+          note: input.note ?? null,
+          returnReason: input.returnReason ?? null,
+        }),
+        dependencies,
+        method: 'POST',
+        path: `${documentPath(input)}/${input.action}`,
+      })
+      return adapters.transitionTripDocumentResultFromApi(readEnvelopeData(response))
     },
   }
 }

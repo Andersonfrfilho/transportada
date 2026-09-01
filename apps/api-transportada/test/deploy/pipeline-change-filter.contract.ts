@@ -60,7 +60,8 @@ describe('contrato do filtro de mudança do pipeline', () => {
     )
     const declared = [...(await targetPaths()).values()].flat()
 
-    expect(applications.filter(({ isApplication }) => isApplication)).toHaveLength(4)
+    // Seis desde a spec 063: o portal do contratante é app própria por decisão de segurança (ADR-0050 §1).
+    expect(applications.filter(({ isApplication }) => isApplication)).toHaveLength(6)
     for (const { isApplication, name } of applications) {
       if (isApplication) {
         expect(declared).toContain(`apps/${name}/`)
@@ -108,9 +109,12 @@ describe('contrato do filtro de mudança do pipeline', () => {
   test('baseline ausente ou inalcançável publica todos os alvos', async () => {
     const script = await read(FILTER_SCRIPT_PATH)
 
-    expect(script).toContain("emit_all 'baseline ausente")
+    // O baseline passou a ser por alvo (`refs/deploy/<env>/<alvo>`), então a dúvida também é por
+    // alvo: cada um publica sozinho, e só o caso "sem marco nenhum" ainda publica todos de uma vez.
+    expect(script).toContain("emit_all 'sem marco de deploy e sem baseline")
     expect(script).toContain('git cat-file -e')
-    expect(script).toContain("emit_all 'git diff falhou'")
+    expect(script).toContain('sem baseline utilizável — publica')
+    expect(script).toContain('git diff falhou contra $baseline — publica')
   })
 
   /** Erro de `git` engolido vira "nada mudou" — foi assim que o tema de login sumiu. */

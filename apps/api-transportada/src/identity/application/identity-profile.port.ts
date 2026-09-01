@@ -7,6 +7,14 @@
  * use-cases dependem deste contrato, nunca do cliente do Keycloak.
  */
 export type IdentityProfileGatewayPort = {
+  /**
+   * O atributo é substituído inteiro pelo Admin API, então quem chama manda o conjunto que quer
+   * ver gravado — mandar só o documento apagaria o `company_id` e o login entraria sem empresa.
+   */
+  updateAttributes(input: {
+    readonly attributes: Readonly<Record<string, string | readonly string[]>>
+    readonly userId: string
+  }): Promise<void>
   updateUser(input: {
     readonly user: Readonly<
       Partial<{

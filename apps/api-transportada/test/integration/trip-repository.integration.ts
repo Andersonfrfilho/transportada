@@ -98,7 +98,7 @@ describe('trip repository integration', () => {
         expect(created).toMatchObject({
           companyId,
           documents: [],
-          status: 'open',
+          status: 'draft',
           vehicleId,
         })
         expect(created.drivers).toEqual([
@@ -363,9 +363,9 @@ describe('trip repository integration', () => {
         expect(deliveredCancelledNfe?.deliveredAt).not.toBeNull()
 
         const closed = await repository.close({ companyId, tripId: created.id })
-        expect(closed?.status).toBe('closed')
-        // Viagem fechada: a escrita condicionada não acha linha nenhuma, e é o que fecha a corrida
-        // entre a checagem do caso de uso e o update.
+        expect(closed?.status).toBe('completed')
+        // Viagem completed: a escrita condicionada não acha linha nenhuma, e é o que fecha a
+        // corrida entre a checagem do caso de uso e o update.
         expect(
           await repository.deliverDocument({
             companyId,
@@ -376,11 +376,11 @@ describe('trip repository integration', () => {
         expect(await repository.close({ companyId: otherCompanyId, tripId: created.id })).toBeNull()
         expect(await repository.close({ companyId, tripId: crypto.randomUUID() })).toBeNull()
 
-        // `created` está closed; `secondTrip` segue open — cobre statusEq, vehicleIdEq, driverIdEq.
+        // `created` está completed; `secondTrip` segue draft — cobre statusEq, vehicleIdEq, driverIdEq.
         const openPage = await repository.list({
           companyId,
           cursor: null,
-          filters: { statusEq: 'open' },
+          filters: { statusEq: 'draft' },
           limit: 10,
         })
         expect(openPage.items.map((trip) => trip.id)).toEqual([secondTrip.id])

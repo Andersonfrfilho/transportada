@@ -1,0 +1,77 @@
+{
+  "gap": {
+    "FEATURE_ABSENT": "módulo ainda não usado",
+    "NO_DRIVER_RATE": "rota do agregado sem valor cadastrado",
+    "NO_FEDERAL_REGIME": "regime federal não declarado",
+    "NO_FREIGHT_RULE": "nota ainda sem CT-e autorizado",
+    "NO_FUEL_BASELINE": "consumo do veículo ou preço do combustível sem cadastro",
+    "NO_PLANNED_DISTANCE": "roteiro ainda não calculado",
+    "NOT_RECORDED": "ninguém lançou",
+    "SALARIED_CREW_MEMBER": "há motorista assalariado nesta viagem — custo do período"
+  },
+  "panel": {
+    "amount": "Valor",
+    "cost": "Custo",
+    "frozenAt": "Congelado em {{date}} · versão {{version}}",
+    "loading": "Carregando a conta da viagem…",
+    "net": "Resultado",
+    "notFrozen": "A conta é congelada quando a viagem fecha. Enquanto ela está aberta, o que existe é a avaliação prevista.",
+    "operationalNote": "Margem operacional: desconta o imposto sobre o frete, não folha nem resultado contábil.",
+    "parcel": "Parcela",
+    "partialRevenue": "Receita de {{measured}} de {{expected}} notas — o número não é final.",
+    "reason": "Motivo do recálculo",
+    "reasonPlaceholder": "CT-e cancelado, taxa lançada depois…",
+    "recalculate": "Recalcular",
+    "recalculating": "Recalculando…",
+    "revenue": "Receita",
+    "source": "Origem",
+    "tax": "Imposto",
+    "title": "A conta desta viagem",
+    "unknownParcels_one": "{{count}} parcela sem cadastro: o total é aproximado.",
+    "unknownParcels_other": "{{count}} parcelas sem cadastro: o total é aproximado."
+  },
+  "parcel": {
+    "delivery_charges": "Taxas de entrega",
+    "driver": "Motorista",
+    "fuel": "Combustível",
+    "icms": "ICMS",
+    "manual": "Avulso",
+    "other_per_kilometer": "Outros por km",
+    "pis_cofins": "PIS/COFINS",
+    "toll": "Pedágio"
+  },
+  "source": {
+    "estimated": "estimado",
+    "measured": "medido",
+    "missing": "desconhecido",
+    "period": "custo do período"
+  },
+  "workspace": {
+    "approximate": "Há viagem incompleta no período: o total é aproximado.",
+    "calendar": {
+      "chooseYear": "Escolher o ano",
+      "clear": "Limpar",
+      "nextMonth": "Próximo mês",
+      "open": "Abrir o calendário",
+      "placeholder": "dd/mm/aaaa",
+      "previousMonth": "Mês anterior"
+    },
+    "forbidden": "Você não tem permissão para ver margem e valores pagos a motorista.",
+    "from": "De",
+    "group": {
+      "driver": "Motorista",
+      "label": "Grupo",
+      "period": "Período",
+      "vehicle": "Veículo"
+    },
+    "groupBy": "Agrupar por",
+    "loading": "Somando o período…",
+    "noPayroll": "Sem motorista assalariado na frota: não há folha a descontar deste período.",
+    "payroll": "Folha do período descontada do total: R$ {{amount}}",
+    "pickPeriod": "Escolha o período para ver o acumulado.",
+    "subtitle": "O acumulado dos resultados congelados. Uma viagem isolada não decide nada; o que decide é o mês.",
+    "title": "Resultados",
+    "trips": "Viagens",
+    "to": "Até"
+  }
+}

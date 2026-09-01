@@ -24,12 +24,62 @@ export const TRIP_DOCUMENT_ID = '00000000-0000-4000-8000-000000000a17'
 export const MDFE_CTE_DOCUMENT_ID = '00000000-0000-4000-8000-000000000a18'
 export const MDFE_MANIFEST_ID = '00000000-0000-4000-8000-000000000a19'
 
+export function tripDocumentsPath(tripId: string = TRIP_ID): string {
+  return `${TRIPS_PATH}/${tripId}/documents`
+}
+
 export function tripDocumentPath(documentId: string = TRIP_DOCUMENT_ID): string {
-  return `${TRIPS_PATH}/${TRIP_ID}/documents/${documentId}`
+  return `${tripDocumentsPath()}/${documentId}`
 }
 
 export function tripDocumentDeliverPath(documentId: string = TRIP_DOCUMENT_ID): string {
   return `${tripDocumentPath(documentId)}/deliver`
+}
+
+export function tripDocumentSeparatePath(documentId: string = TRIP_DOCUMENT_ID): string {
+  return `${tripDocumentPath(documentId)}/separate`
+}
+
+export function tripDocumentLoadPath(documentId: string = TRIP_DOCUMENT_ID): string {
+  return `${tripDocumentPath(documentId)}/load`
+}
+
+export function tripDocumentReturnPath(documentId: string = TRIP_DOCUMENT_ID): string {
+  return `${tripDocumentPath(documentId)}/return`
+}
+
+export function tripDocumentDeliveryAddressPath(documentId: string = TRIP_DOCUMENT_ID): string {
+  return `${tripDocumentPath(documentId)}/delivery-address`
+}
+
+export function tripDocumentDeliveryAddressHistoryPath(
+  documentId: string = TRIP_DOCUMENT_ID,
+): string {
+  return `${tripDocumentDeliveryAddressPath(documentId)}-history`
+}
+
+export function tripDocumentsBatchStatusPath(tripId: string = TRIP_ID): string {
+  return `${TRIPS_PATH}/${tripId}/documents/batch-status`
+}
+
+export function tripPlanRoutePath(tripId: string = TRIP_ID): string {
+  return `${TRIPS_PATH}/${tripId}/plan-route`
+}
+
+export function tripDispatchPath(tripId: string = TRIP_ID): string {
+  return `${TRIPS_PATH}/${tripId}/dispatch`
+}
+
+export function tripCancelPath(tripId: string = TRIP_ID): string {
+  return `${TRIPS_PATH}/${tripId}/cancel`
+}
+
+export function tripStopsPath(tripId: string = TRIP_ID): string {
+  return `${TRIPS_PATH}/${tripId}/stops`
+}
+
+export function tripStopsOrderPath(tripId: string = TRIP_ID): string {
+  return `${tripStopsPath(tripId)}/order`
 }
 
 export function tripClosePath(tripId: string = TRIP_ID): string {
@@ -59,15 +109,19 @@ export const LINK_FREIGHT_CALCULATION_BODY = {
   nfeDocumentId: null,
 } as const
 
-export const CREATE_TRIP_MDFE_MANIFEST_BODY = {
-  documentIds: [MDFE_CTE_DOCUMENT_ID],
-} as const
+/**
+ * Spec 059 D4: o corpo não carrega mais `documentIds` — os CT-e vêm da prontidão da viagem, e
+ * aceitá-los do cliente deixaria alguém declarar à SEFAZ um conjunto diferente do que ela carrega.
+ */
+export const CREATE_TRIP_MDFE_MANIFEST_BODY = {} as const
 
 export const TRIP: Trip = {
   companyId: COMPANY_ID,
   createdAt: '2026-08-04T12:00:00.000Z',
   id: TRIP_ID,
-  status: 'open',
+  requiresMdfe: null,
+  requiresMdfeReason: null,
+  status: 'draft',
   updatedAt: '2026-08-04T12:00:00.000Z',
   vehicleId: VEHICLE_ID,
 }
@@ -77,8 +131,14 @@ export const TRIP_DOCUMENT: TripDocument = {
   deliveredAt: null,
   freightCalculationId: null,
   id: TRIP_DOCUMENT_ID,
+  loadedAt: null,
   nfeDocumentId: NFE_DOCUMENT_ID,
   releasedAt: null,
+  returnedAt: null,
+  returnReason: null,
+  separatedAt: null,
+  separationStatus: 'pending',
+  stopId: null,
   tripId: TRIP_ID,
   updatedAt: '2026-08-04T12:05:00.000Z',
 }
@@ -101,6 +161,7 @@ export const TRIP_DETAIL: TripDetail = {
       position: 2,
     },
   ],
+  stops: [],
 }
 
 export const TRIP_PAGE: TripPage = {

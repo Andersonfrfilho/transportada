@@ -57,8 +57,14 @@ export const createManifestSchema = z
 
 export type CreateManifestBody = z.infer<typeof createManifestSchema>
 
-/** Nasce de uma viagem: motoristas e veículo vêm da viagem, não do corpo da requisição (spec 027, T009). */
+/**
+ * Nasce de uma viagem: motoristas e veículo vêm da viagem (spec 027, T009), e **os CT-e vêm da
+ * prontidão** (spec 059 D4). O corpo pede só o que a viagem não sabe — seguro, tipo de carga
+ * ambíguo, produto predominante, vale-pedágio. Aceitar `documentIds` aqui deixaria o cliente
+ * declarar à SEFAZ um conjunto diferente do que a viagem carrega.
+ */
 export const createTripManifestSchema = createManifestSchema.omit({
+  documentIds: true,
   driverIds: true,
   vehicleId: true,
 })

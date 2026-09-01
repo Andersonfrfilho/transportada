@@ -1,8 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 
 export const SETTINGS_PANELS = [
+  'cargoWeight',
   'settingsForm',
   'logo',
+  'landing',
   'certificates',
   'scheduledDistribution',
   'distributionCursor',
@@ -24,10 +26,12 @@ export const SETTINGS_PANEL_MODULES = [
 export type SettingsPanelModule = (typeof SETTINGS_PANEL_MODULES)[number]
 
 export type SettingsDataSource =
+  | 'cargoSettings'
   | 'companySettings'
   | 'distributionCursor'
   | 'freightRegions'
   | 'fuelPrices'
+  | 'landing'
   | 'nfse'
   | 'scheduledDistribution'
 
@@ -50,10 +54,12 @@ export type SettingsPanelPlacement = Readonly<{
  * módulos ao mesmo tempo.
  */
 export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPanelPlacement>> = {
+  cargoWeight: { module: 'nfe-workspace', source: 'cargoSettings', tab: 'imports' },
   certificates: { module: 'company-settings', source: 'companySettings', tab: 'certificates' },
   distributionCursor: { module: 'nfe-workspace', source: 'distributionCursor', tab: 'imports' },
   freightRegions: { module: 'fleet', source: 'freightRegions', tab: 'regions' },
   fuelPrices: { module: 'fleet', source: 'fuelPrices', tab: 'fuel' },
+  landing: { module: 'company-settings', source: 'landing', tab: 'site' },
   logo: { module: 'company-settings', source: 'companySettings', tab: 'company' },
   nfseCredential: { module: 'nfse-invoice', source: 'nfse', tab: 'settings' },
   nfseProfiles: { module: 'nfse-invoice', source: 'nfse', tab: 'settings' },
@@ -99,16 +105,18 @@ export function resolveSettingsDataScope(
     settingsPanelsOf(module, tab).map((panel) => SETTINGS_PANEL_PLACEMENT[panel].source),
   )
   return {
+    cargoSettings: sources.has('cargoSettings'),
     companySettings: module === 'company-settings' || sources.has('companySettings'),
     distributionCursor: sources.has('distributionCursor'),
     freightRegions: sources.has('freightRegions'),
     fuelPrices: sources.has('fuelPrices'),
+    landing: sources.has('landing'),
     nfse: sources.has('nfse'),
     scheduledDistribution: sources.has('scheduledDistribution'),
   }
 }
 
-export const COMPANY_SETTINGS_TAB_IDS = ['company', 'certificates'] as const
+export const COMPANY_SETTINGS_TAB_IDS = ['company', 'site', 'certificates'] as const
 
 export type CompanySettingsTabId = (typeof COMPANY_SETTINGS_TAB_IDS)[number]
 

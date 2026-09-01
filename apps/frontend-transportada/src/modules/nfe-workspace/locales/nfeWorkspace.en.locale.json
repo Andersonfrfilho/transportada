@@ -114,7 +114,8 @@
       "cteIssued": "CT-e"
     },
     "chooseYear": "Choose the year",
-    "openCalendar": "Open calendar"
+    "openCalendar": "Open calendar",
+    "tripLink": "Travelled on this trip"
   },
   "documentStatus": {
     "authorized": "Authorized",
@@ -233,5 +234,13 @@
   "distributionCursorCancel": "Cancel adjustment",
   "distributionCursorAdjusted": "Cursor adjusted. The next query happens after the one-hour window.",
   "distributionCursorError": "Could not adjust the cursor. Code: {{code}}.",
-  "distributionCursorLoadError": "Could not load the distribution cursor."
+  "distributionCursorLoadError": "Could not load the distribution cursor.",
+  "cargoWeightTitle": "Default weight per volume",
+  "cargoWeightHelp": "When the issuer does not state the cargo weight, the invoice has no weight and cannot join a CT-e batch. This value estimates the weight by multiplying it by the invoice volume count.",
+  "cargoWeightLabel": "Kilograms per volume",
+  "cargoWeightDisabled": "No default weight: invoices without weight stay blocked for CT-e.",
+  "cargoWeightEnabled": "Estimating {{weight}} kg per volume. The weight stated by the issuer always wins.",
+  "cargoWeightInvalid": "Enter a weight above zero, with up to four decimal places.",
+  "cargoWeightSave": "Save default weight",
+  "cargoWeightClear": "Turn estimate off"
 }

@@ -40,6 +40,8 @@ describe('tenant fiscal schema', () => {
       'mdfe_payment_bank_code',
       'mdfe_payment_bank_branch',
       'mdfe_payment_pix_key',
+      // Spec 059: emissão automática de MDF-e ao ficar pronta — nasce desligada (ADR-0046 §3)
+      'automatic_mdfe_on_completion',
       'billing_bank_name',
       'billing_bank_code',
       'billing_bank_branch',
@@ -58,6 +60,7 @@ describe('tenant fiscal schema', () => {
     expect(requiredColumnNames(companyFiscalProfiles)).toEqual(columnNames(companyFiscalProfiles))
     expect(columnSqlTypes(companyFiscalProfiles)).toEqual({
       activation_channel: 'text',
+      automatic_mdfe_on_completion: 'boolean',
       company_id: 'uuid',
       legal_name: 'text',
       trade_name: 'text',

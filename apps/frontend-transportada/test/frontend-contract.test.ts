@@ -36,7 +36,7 @@ describe('frontend foundation contract', () => {
       'src/modules/foundation/locales/foundation.en.locale.json',
     )
 
-    expect(styles).toContain('@media (min-width: 48rem)')
+    expect(styles).not.toContain('48rem')
     expect(styles).toContain('@media (min-width: 40rem)')
     expect(styles).toContain('@media (min-width: 64rem)')
     expect(styles).toContain('@media (min-width: 80rem)')
@@ -158,7 +158,14 @@ describe('frontend foundation contract', () => {
 
     expect(packageManifest).toContain('"keycloak-js": "26.2.4"')
     expect(authProvider).toContain('checkLoginIframe: false')
-    expect(authProvider).toContain("onLoad: 'login-required'")
+    /**
+     * `login-required` continua sendo o padrão: sem a bandeira da etapa de identificação, o provedor
+     * redireciona antes de a aplicação renderizar, como sempre fez. `check-sso` só entra quando ela
+     * está ligada — e ele **não** é um caminho sem autenticação: é o que permite a tela perguntar o
+     * identificador antes do redirect, com o mesmo PKCE depois.
+     */
+    expect(authProvider).toContain("onLoad: identifierFirst ? 'check-sso' : 'login-required'")
+    expect(authProvider).toContain('isIdentifierFirstLoginEnabled()')
     expect(authProvider).toContain("pkceMethod: 'S256'")
     expect(authProvider).toContain('getIdentityEnvironment().appBaseUrl')
     expect(authProvider).toContain('${AUTHENTICATION_CALLBACK_PATH}')
@@ -298,6 +305,13 @@ describe('frontend foundation contract', () => {
     expect(environmentExample).toContain('VITE_KEYCLOAK_URL=')
     expect(environmentExample).toContain('VITE_KEYCLOAK_REALM=')
     expect(environmentExample).toContain('VITE_KEYCLOAK_CLIENT_ID=')
+    /**
+     * A bandeira precisa estar documentada **e** no `ARG` do Dockerfile: `VITE_*` é inlinado no
+     * build, então uma variável que o Dockerfile não declara nunca chega ao bundle — e não chegar
+     * não dá erro nenhum, só faz a etapa silenciosamente não existir.
+     */
+    expect(environmentExample).toContain('VITE_IDENTIFIER_FIRST_LOGIN=')
+    expect(await readApplicationFile('Dockerfile')).toContain('ARG VITE_IDENTIFIER_FIRST_LOGIN')
     expect(environmentConfiguration).toContain("url.protocol === 'http:'")
     expect(environmentConfiguration).toContain("url.protocol !== 'https:'")
     expect(environmentConfiguration).toContain("url.hostname === 'localhost'")

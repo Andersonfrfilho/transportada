@@ -1,6 +1,11 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 export const COMPANY_USERS_PATH = '/company-users'
+export const COMPANY_GROUPS_PATH = '/company-groups'
 export const USERS_MANAGE_PERMISSION = 'users.manage'
+/** Separada de propósito: administrar usuários não exige ler o documento de todo mundo. */
+export const USERS_REVEAL_PERMISSION = 'users.reveal'
+/** Guarda a tela de grupos e a concessão avulsa: redesenhar acesso não é administrar pessoas. */
+export const GROUPS_MANAGE_PERMISSION = 'groups.manage'
 export const COMPANY_USERS_PAGE_SIZE = 50
 
 export const COMPANY_USER_ERROR = {
@@ -18,6 +23,7 @@ export const COMPANY_ROLES = [
   'viewer',
   'driver',
   'aggregate',
+  'separator',
 ] as const
 
 export const COMPANY_USER_STATUSES = ['invited', 'active', 'suspended'] as const
@@ -27,14 +33,24 @@ export const COMPANY_USER_API_STATUSES = ['active', 'suspended'] as const
 
 export const CONTACT_CHANNELS = ['email', 'sms', 'whatsapp'] as const
 
+export const CPF_LENGTH = 11
+
 /** Mesmo padrão do `updateCompanyUserProfileSchema` da API — o 400 dela não diz qual campo caiu. */
 export const USERNAME_PATTERN = /^[a-z0-9][a-z0-9._-]{2,59}$/u
 
 /** Códigos que a API devolve com 404/409 e que a tela ancora no campo em vez de num aviso solto. */
 export const COMPANY_USER_API_ERROR = {
   CONTACT_TAKEN: 'COMPANY_USER_CONTACT_TAKEN',
+  TAX_ID_TAKEN: 'COMPANY_USER_TAX_ID_TAKEN',
   NOT_FOUND: 'COMPANY_USER_NOT_FOUND',
   SELF_REMOVAL: 'SELF_MEMBERSHIP_REMOVAL',
   SUBJECT_NOT_FOUND: 'IDENTITY_SUBJECT_NOT_FOUND',
   USERNAME_TAKEN: 'USERNAME_ALREADY_TAKEN',
 } as const
+
+/**
+ * Cópia por valor do piso da API (`identity/domain/company-user-password.constant.ts`): o bundle
+ * não carrega código do servidor, e `test/identity/company-user-password.contract.ts` é o que
+ * garante que os dois lados dizem o mesmo número. Mudou lá? mude aqui.
+ */
+export const COMPANY_USER_PASSWORD_MIN_LENGTH = 12

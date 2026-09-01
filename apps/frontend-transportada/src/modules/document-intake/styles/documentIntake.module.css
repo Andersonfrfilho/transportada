@@ -1,0 +1,51 @@
+.dropZone {
+  border: 1px dashed var(--color-slate);
+  border-radius: var(--space-2);
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+  padding: var(--space-4);
+}
+
+.dropZoneActive {
+  border-color: var(--color-copper);
+}
+
+.hint {
+  color: var(--color-slate);
+  margin: 0;
+}
+
+.status {
+  margin: 0;
+}
+
+.statusAlert {
+  color: var(--color-alert);
+}
+
+.statusReady {
+  color: var(--color-ready);
+}
+
+.summary {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.summaryTitle {
+  color: var(--color-slate);
+  margin: 0;
+}
+
+.remark {
+  color: var(--color-slate);
+}
+
+/* O seletor nativo fica à vista: arrastar não tem caminho de teclado, e esconder o input o tira do
+   foco. Aqui o campo é do sistema operacional de propósito — é ele que abre a janela de arquivo. */
+.fileField {
+  display: grid;
+  gap: var(--space-2);
+}

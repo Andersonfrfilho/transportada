@@ -172,7 +172,7 @@
 
 /* As seis classes são a fileira da tabela impressa: quanto mais couber lado a lado, mais a tela
    parece com o papel que o operador confere. */
-@media (min-width: 60rem) {
+@media (min-width: 64rem) {
   .rateGrid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -429,6 +429,13 @@
   color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
   font-size: 0.85rem;
   line-height: 1.5;
+}
+
+.documentMark {
+  margin-left: var(--space-1);
+  color: var(--color-ready);
+  font-size: 0.75rem;
+  font-style: normal;
 }
 
 .optionalMark {
@@ -774,7 +781,7 @@
   color: var(--color-ready);
 }
 
-@media (min-width: 48rem) {
+@media (min-width: 40rem) {
   .fuelPriceRow {
     grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
     align-items: start;
@@ -903,18 +910,19 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--space-4);
+  padding: 0;
   background: color-mix(in srgb, var(--color-asphalt) 78%, transparent);
 }
 
 .driverDialog {
   display: grid;
   gap: var(--space-5);
-  width: min(48rem, 100%);
-  max-height: 92vh;
+  width: 100%;
+  height: 100%;
+  max-height: 100vh;
   padding: var(--space-5);
   overflow-y: auto;
-  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  border: none;
   color: var(--color-fog);
   background: var(--color-graphite);
   box-shadow: 0 1.5rem 3rem color-mix(in srgb, var(--color-asphalt) 55%, transparent);
@@ -933,16 +941,16 @@
   font-size: 1.5rem;
 }
 
-@media (width <= 40rem) {
+@media (min-width: 40rem) {
   .driverDialogOverlay {
-    padding: 0;
+    padding: var(--space-4);
   }
 
   .driverDialog {
-    width: 100%;
-    height: 100%;
-    max-height: 100vh;
-    border: none;
+    width: min(48rem, 100%);
+    height: auto;
+    max-height: 92vh;
+    border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
   }
 }
 
@@ -1159,4 +1167,70 @@
   font: inherit;
   text-decoration: underline;
   cursor: pointer;
+}
+
+.applicationBadge {
+  margin-left: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  font-family: var(--font-utility);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+}
+
+.applicationBadge[data-variant='warning'] {
+  border-color: color-mix(in srgb, var(--color-copper) 65%, transparent);
+  color: var(--color-copper);
+}
+
+.applicationBadge[data-variant='info'] {
+  border-color: color-mix(in srgb, var(--color-slate) 65%, transparent);
+  color: var(--color-slate);
+}
+
+/* Um anexo por bloco, separados por linha: a divergência de cada um precisa ficar junto do dele. */
+.applicationAttachment {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+}
+
+.applicationAttachment:first-of-type {
+  border-top: none;
+}
+
+.applicationDeclaredDataCell {
+  padding-top: 0;
+  border-top: none;
+}
+
+.applicationDeclaredDataCell dl {
+  margin: var(--space-2) 0 0;
+}
+
+.applicationDeclaredDataCell dt {
+  font-family: var(--font-utility);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  color: var(--color-slate);
+  margin-top: var(--space-3);
+}
+
+.applicationDeclaredDataCell dd {
+  margin: 0;
+}
+
+.rejectDialog {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+}
+
+.rejectDialog textarea {
+  width: 100%;
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  font-size: var(--field-font-size);
 }

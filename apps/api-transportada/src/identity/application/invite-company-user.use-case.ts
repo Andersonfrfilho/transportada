@@ -8,6 +8,7 @@ import {
   toCompanyUserView,
   type CompanyUserView,
 } from '../domain/company-user.policy.js'
+import { IDENTITY_USER_ATTRIBUTE } from '../domain/identity-attribute.constant.js'
 import { planInvitationResend } from '../domain/invitation.policy.js'
 import type { CompanyUserRepositoryPort } from './company-user.port.js'
 import {
@@ -44,13 +45,27 @@ export type InviteCompanyUserInput = {
   readonly context: { readonly companyId: string; readonly userId?: string }
   readonly contact: string
   readonly correlationId?: string
+  readonly email?: string
   readonly name: string
+  readonly phone?: string
   readonly roles: readonly CompanyRole[]
+  readonly taxId?: string
+}
+
+export type InviteCompanyUserResult = CompanyUserView & {
+  /**
+   * Papel de frota marcado e nenhuma ficha com esse CPF: a pessoa entra no sistema e não aparece
+   * na frota. Não é erro — pode-se convidar antes de cadastrar a ficha —, mas a tela precisa
+   * dizer, senão o operador só descobre quando for montar uma viagem.
+   */
+  readonly fleetLink: 'linked' | 'not-applicable' | 'no-driver-record'
 }
 
 export type InviteCompanyUserUseCase = {
-  execute(input: InviteCompanyUserInput): Promise<CompanyUserView>
+  execute(input: InviteCompanyUserInput): Promise<InviteCompanyUserResult>
 }
+
+const FLEET_LINKED_ROLES: readonly CompanyRole[] = ['driver', 'aggregate']
 
 /**
  * Usuário nasce desabilitado e sem senha no Keycloak: só a ativação (código → senha) habilita.
@@ -66,24 +81,40 @@ export function createInviteCompanyUserUseCase({
   repository,
 }: InviteCompanyUserDependencies): InviteCompanyUserUseCase {
   return {
-    async execute({ channel, context, contact, correlationId, name, roles }) {
+    async execute({ channel, context, contact, correlationId, email, name, phone, roles, taxId }) {
       const userId = crypto.randomUUID()
-      /** `company_id` é o atributo que o token carrega: sem ele o login entra sem empresa. */
+      /** O contato é o canal do convite, não a identidade: quem escolheu SMS também tem e-mail. */
+      const profileEmail = email ?? (channel === 'email' ? contact : '')
+      const profilePhone = phone ?? (channel === 'email' ? '' : contact)
+      const profileTaxId = taxId ?? ''
+      /**
+       * `company_id` é o atributo que o token carrega: sem ele o login entra sem empresa. O
+       * documento vai junto porque é por ele que a reconciliação casa a pessoa dos dois lados —
+       * escrever só na edição deixaria todo convite novo fora do casamento.
+       */
       const { subject } = await identityGateway.createUser({
-        attributes: { company_id: context.companyId },
+        attributes: {
+          [IDENTITY_USER_ATTRIBUTE.COMPANY_ID]: context.companyId,
+          ...(profileTaxId === '' ? {} : { [IDENTITY_USER_ATTRIBUTE.TAX_ID]: profileTaxId }),
+          /** O telefone acompanha o documento: os dois servem para achar a pessoa do lado de lá. */
+          ...(profilePhone === '' ? {} : { [IDENTITY_USER_ATTRIBUTE.PHONE]: profilePhone }),
+        },
         email: channel === 'email' ? contact : `${userId}@users.invalid`,
         enabled: false,
         ...splitPersonName(name),
         username: userId,
       })
 
-      const { membershipId } = await repository.createInvitedUser({
+      const { linkedFleetDriverId, membershipId } = await repository.createInvitedUser({
         companyId: context.companyId,
         contactAddress: contact,
         contactChannel: channel,
+        email: profileEmail,
         issuer,
         name,
+        phone: profilePhone,
         roles,
+        taxId: profileTaxId,
         subject,
         userId,
         username: userId,
@@ -117,17 +148,34 @@ export function createInviteCompanyUserUseCase({
         payload: { invitationId: invitation.id, userId },
       })
 
-      return toCompanyUserView({
-        contactAddress: contact,
-        contactChannel: channel,
-        membershipId,
-        membershipStatus: 'active',
-        name,
-        pendingInvitation: { expiresAt: plan.expiresAt },
-        roles,
-        userId,
-        username: userId,
-      })
+      return {
+        ...toCompanyUserView({
+          contactAddress: contact,
+          contactChannel: channel,
+          email: profileEmail,
+          membershipId,
+          membershipStatus: 'active',
+          name,
+          pendingInvitation: { expiresAt: plan.expiresAt },
+          phone: profilePhone,
+          roles,
+          taxId: profileTaxId,
+          userId,
+          username: userId,
+        }),
+        fleetLink: resolveFleetLink({ linkedFleetDriverId, roles }),
+      }
     },
   }
+}
+
+function resolveFleetLink({
+  linkedFleetDriverId,
+  roles,
+}: {
+  readonly linkedFleetDriverId: string | null
+  readonly roles: readonly CompanyRole[]
+}): InviteCompanyUserResult['fleetLink'] {
+  if (!roles.some((role) => FLEET_LINKED_ROLES.includes(role))) return 'not-applicable'
+  return linkedFleetDriverId === null ? 'no-driver-record' : 'linked'
 }

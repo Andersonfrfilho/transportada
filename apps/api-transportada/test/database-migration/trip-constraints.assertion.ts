@@ -72,14 +72,44 @@ export async function assertTripConstraints(
     '23503',
     'trips_company_vehicle_fk',
   )
+  // 'open' era status válido antes do ADR-0042 (trip_status_machine); a lista atual não o inclui mais.
   await expectQueryToFail(
     database`
       insert into trips (company_id, vehicle_id, status)
-      values (${companyId}, ${vehicleId}, 'in_transit')
+      values (${companyId}, ${vehicleId}, 'open')
     `,
     '23514',
     'trips_status_check',
   )
+
+  // Spec 065 D4c: motivo so existe para a dispensa, e sobrescrita sem autor nao conta quem assinou.
+  await expectQueryToFail(
+    database`
+      update trips
+      set requires_mdfe = true, requires_mdfe_reason = 'sem sentido',
+          requires_mdfe_actor_user_id = ${userId}, requires_mdfe_set_at = now()
+      where id = ${tripId}
+    `,
+    '23514',
+    'trips_requires_mdfe_reason_check',
+  )
+  await expectQueryToFail(
+    database`update trips set requires_mdfe = true where id = ${tripId}`,
+    '23514',
+    'trips_requires_mdfe_trail_check',
+  )
+  await database`
+    update trips
+    set requires_mdfe = false, requires_mdfe_reason = 'frota propria',
+        requires_mdfe_actor_user_id = ${userId}, requires_mdfe_set_at = now()
+    where id = ${tripId}
+  `
+  await database`
+    update trips
+    set requires_mdfe = null, requires_mdfe_reason = null,
+        requires_mdfe_actor_user_id = null, requires_mdfe_set_at = null
+    where id = ${tripId}
+  `
 
   await database`
     insert into trip_drivers (company_id, trip_id, driver_id, driver_name, driver_tax_id, position)
@@ -204,4 +234,164 @@ export async function assertTripConstraints(
       (select count(*) from trip_documents where trip_id = ${otherTripId}) as documents
   `
   expect(orphans[0]).toEqual({ drivers: '0', documents: '0' })
+
+  await assertLiveManifestConstraint({ companyId, database, tripId, vehicleId })
+
+  await assertFieldExecutionConstraints({
+    companyId,
+    database,
+    tripDocumentId: liveTripDocumentId,
+    tripId,
+    userId,
+  })
+}
+
+/**
+ * ADR-0046 §5: **um manifesto vivo por viagem**. Duas autorizações de CT-e chegando no mesmo instante
+ * disparariam duas emissões, e duplicar MDF-e é incidente fiscal — quem perde a corrida é o `if` no
+ * consumer, então quem decide é o banco.
+ *
+ * Cancelado e rejeitado ficam de fora do unique de propósito: depois deles a viagem **precisa** poder
+ * manifestar de novo, e é justamente o caso em que alguém está com pressa.
+ */
+async function assertLiveManifestConstraint(input: {
+  readonly companyId: string
+  readonly database: SQL
+  readonly tripId: string
+  readonly vehicleId: string
+}): Promise<void> {
+  const { companyId, database, tripId, vehicleId } = input
+  const liveManifestId = crypto.randomUUID()
+
+  await database`
+    insert into mdfe_manifests
+      (id, company_id, vehicle_id, trip_id, status, fiscal_environment, origin_state, destination_state)
+    values
+      (${liveManifestId}, ${companyId}, ${vehicleId}, ${tripId}, 'issuing', 'homologation', 'SP', 'MG')
+  `
+
+  await expectQueryToFail(
+    database`
+      insert into mdfe_manifests
+        (company_id, vehicle_id, trip_id, status, fiscal_environment, origin_state, destination_state)
+      values
+        (${companyId}, ${vehicleId}, ${tripId}, 'draft', 'homologation', 'SP', 'MG')
+    `,
+    '23505',
+    'mdfe_manifests_company_trip_live_unique',
+  )
+
+  // Rejeitado sai da trava: a viagem precisa poder manifestar de novo depois de a SEFAZ recusar
+  await database`update mdfe_manifests set status = 'rejected' where id = ${liveManifestId}`
+  await database`
+    insert into mdfe_manifests
+      (company_id, vehicle_id, trip_id, status, fiscal_environment, origin_state, destination_state)
+    values
+      (${companyId}, ${vehicleId}, ${tripId}, 'draft', 'homologation', 'SP', 'MG')
+  `
+  await database`delete from mdfe_manifests where trip_id = ${tripId}`
+}
+
+/**
+ * Spec 057: os invariantes que o banco guarda porque o caso de uso pode esquecer. Coordenada meia —
+ * latitude sem longitude, ou precisão sem coordenada — é dado que mente, e mentir sobre onde a
+ * entrega aconteceu é pior do que não saber.
+ */
+async function assertFieldExecutionConstraints(input: {
+  readonly companyId: string
+  readonly database: SQL
+  readonly tripDocumentId: string
+  readonly tripId: string
+  readonly userId: string
+}): Promise<void> {
+  const { companyId, database, tripDocumentId, tripId, userId } = input
+  const stopId = crypto.randomUUID()
+
+  await database`
+    insert into trip_stops (id, company_id, trip_id, sequence, address_key, label)
+    values (${stopId}, ${companyId}, ${tripId}, 1, '3550308|01001000|100', 'Centro, 100')
+  `
+
+  // A recusa de GPS não bloqueia: a entrega entra sem coordenada nenhuma, e isso é o caso normal
+  await database`
+    insert into trip_stop_events (company_id, stop_id, trip_document_id, kind, actor_user_id)
+    values (${companyId}, ${stopId}, ${tripDocumentId}, 'delivered', ${userId})
+  `
+
+  // Precisão de 5 km é gravada com o número, nunca descartada: galpão de laje é o caso normal
+  await database`
+    insert into trip_stop_events (
+      company_id, stop_id, kind, latitude, longitude, accuracy_meters, captured_at, actor_user_id
+    )
+    values (
+      ${companyId}, ${stopId}, 'arrived', '-23.5505199', '-46.6333094', '5000.00', now(), ${userId}
+    )
+  `
+
+  await expectQueryToFail(
+    database`
+      insert into trip_stop_events (company_id, stop_id, kind, latitude, actor_user_id)
+      values (${companyId}, ${stopId}, 'arrived', '-23.5505199', ${userId})
+    `,
+    '23514',
+    'trip_stop_events_coordinates_check',
+  )
+
+  await expectQueryToFail(
+    database`
+      insert into trip_stop_events (company_id, stop_id, kind, accuracy_meters, actor_user_id)
+      values (${companyId}, ${stopId}, 'arrived', '12.00', ${userId})
+    `,
+    '23514',
+    'trip_stop_events_accuracy_check',
+  )
+
+  await expectQueryToFail(
+    database`
+      insert into trip_stop_events (company_id, stop_id, kind, actor_user_id)
+      values (${companyId}, ${stopId}, 'chegou', ${userId})
+    `,
+    '23514',
+    'trip_stop_events_kind_check',
+  )
+
+  // A ocorrência não precisa de nota: o problema aconteceu na parada, com ou sem entrega
+  await database`
+    insert into trip_stop_occurrences (company_id, stop_id, kind, description, actor_user_id)
+    values (${companyId}, ${stopId}, 'long_wait', 'Duas horas na fila da doca', ${userId})
+  `
+
+  await expectQueryToFail(
+    database`
+      insert into trip_stop_occurrences (company_id, stop_id, kind, actor_user_id)
+      values (${companyId}, ${stopId}, 'cobranca', ${userId})
+    `,
+    '23514',
+    'trip_stop_occurrences_kind_check',
+  )
+
+  // O reenvio da fila offline bate aqui, e é aqui que ele para de virar entrega duplicada
+  await database`
+    insert into trip_field_reports (company_id, idempotency_key, operation, actor_user_id)
+    values (${companyId}, 'chave-do-aparelho', 'deliver', ${userId})
+  `
+  await expectQueryToFail(
+    database`
+      insert into trip_field_reports (company_id, idempotency_key, operation, actor_user_id)
+      values (${companyId}, 'chave-do-aparelho', 'deliver', ${userId})
+    `,
+    '23505',
+    'trip_field_reports_company_key_unique',
+  )
+
+  // A parada apagada leva o que aconteceu nela; o que não pode é sobrar evento órfão
+  await database`delete from trip_stops where id = ${stopId}`
+  const orphanEvents = await database<
+    Array<{ readonly events: string; readonly occurrences: string }>
+  >`
+    select
+      (select count(*) from trip_stop_events where stop_id = ${stopId}) as events,
+      (select count(*) from trip_stop_occurrences where stop_id = ${stopId}) as occurrences
+  `
+  expect(orphanEvents[0]).toEqual({ events: '0', occurrences: '0' })
 }

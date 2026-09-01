@@ -98,7 +98,7 @@ function createHandler(input: {
 }) {
   return createRequestHandler({
     createCorrelationId: () => 'certificate-http-correlation',
-    frontendOrigin: FRONTEND_ORIGIN,
+    frontendOrigins: [FRONTEND_ORIGIN],
     logger: {
       error(message, metadata) {
         input.logs.push({ level: 'error', message, ...metadata })

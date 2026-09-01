@@ -2,11 +2,12 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { assertTripDocumentReference } from '../domain/trip.policy.js'
+import { checkTripAcceptsLinkage } from '../domain/trip-state.policy.js'
 import {
-  TripClosedError,
   TripDocumentAlreadyDeliveredError,
   TripDocumentNotFoundError,
   TripNotFoundError,
+  TripStateTransitionNotAllowedError,
 } from '../domain/trip.error.js'
 import { resolveTripCrewForCreation, resolveTripVehicleForCreation } from './trip-crew.service.js'
 import type {
@@ -71,6 +72,10 @@ export type TripUseCase = {
 }
 
 export function createTripUseCase(dependencies: {
+  /** O expurgo do rastro ao vivo no fechamento (ADR-0050 §5). */
+  readonly locations: {
+    purgeByTrip(input: { readonly companyId: string; readonly tripId: string }): Promise<void>
+  }
   readonly repository: TripRepositoryPort
 }): TripUseCase {
   const { repository } = dependencies
@@ -78,10 +83,18 @@ export function createTripUseCase(dependencies: {
   return {
     async close({ context, tripId }) {
       const trip = await findTripOrThrow({ companyId: context.companyId, repository, tripId })
-      if (trip.status === 'closed') return trip
+      if (trip.status === 'completed') return trip
 
       const closed = await repository.close({ companyId: context.companyId, tripId })
       if (closed === null) throw new TripNotFoundError()
+
+      /**
+       * ADR-0050 §5: **o rastro morre com a viagem.** Fora da transição de propósito, como o
+       * congelamento do resultado financeiro (ADR-0049): apagar dentro dela seguraria o fechamento
+       * por uma varredura de tabela que só o portal lê. O que sobrevive é o carimbo da entrega.
+       */
+      await dependencies.locations.purgeByTrip({ companyId: context.companyId, tripId })
+
       return closed
     },
 
@@ -151,13 +164,19 @@ async function findTripOrThrow(input: {
   return trip
 }
 
+/**
+ * ADR-0043 §2, T013: vincular e desvincular selam a partir de `dispatched`, não só em `completed`
+ * — a mesma porta de não-retorno de `separate`/`load` (T006), aplicada aqui via
+ * `checkTripAcceptsLinkage` para não duplicar a lista de estados terminais em dois lugares.
+ */
 async function assertTripOpen(input: {
   readonly companyId: string
   readonly repository: TripRepositoryPort
   readonly tripId: string
 }): Promise<void> {
   const trip = await findTripOrThrow(input)
-  if (trip.status === 'closed') throw new TripClosedError()
+  const reason = checkTripAcceptsLinkage(trip.status)
+  if (reason !== null) throw new TripStateTransitionNotAllowedError(reason)
 }
 
 async function findTripDocumentOrThrow(input: {

@@ -171,6 +171,13 @@ export async function createNfeHttpFixture(params: CreateFixtureParams = {}): Pr
         )
       },
     },
+    // spec 056 T012: fora do escopo dos testes deste fixture (que é de nfe-imports/documentos);
+    // stub `null` — "nota sem viagem" é resposta válida, não erro.
+    locateTripByAccessKey: {
+      async execute() {
+        return null
+      },
+    },
     listImports: {
       async execute(input) {
         importListCalls.push(structuredClone(input))
@@ -225,7 +232,7 @@ export async function createNfeHttpFixture(params: CreateFixtureParams = {}): Pr
   })
   const handleRequest = createRequestHandler({
     createCorrelationId: () => 'nfe-http-correlation',
-    frontendOrigin: FRONTEND_ORIGIN,
+    frontendOrigins: [FRONTEND_ORIGIN],
     logger: {
       error(message, metadata) {
         logs.push({ level: 'error', message, ...metadata })
@@ -335,6 +342,7 @@ function authenticatedIdentity(scope: CompanyContext): AuthenticatedIdentity {
     externalIdentityId: crypto.randomUUID(),
     issuer: 'http://localhost:58080/realms/transportada-local',
     platformAdmin: false,
+    serviceAccount: false,
     subject: 'nfe-http-contract-user',
     userId: scope.userId,
   }

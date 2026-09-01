@@ -10,15 +10,44 @@ export const API_BOOTSTRAP_FIRST_ADMIN_PATH = '/bootstrap/first-admin'
 export const API_COMPANY_SETTINGS_PATH = '/company-settings'
 export const API_COMPANY_SETTINGS_CNPJ_LOOKUP_PATH = '/company-settings/cnpj-info'
 export const API_COMPANY_SETTINGS_LOGO_PATH = '/company-settings/logo'
+export const API_COMPANY_SETTINGS_LANDING_PATH = '/company-settings/landing'
+export const API_PUBLIC_LANDING_SETTINGS_PATH = '/public/landing-settings'
+export const API_PUBLIC_LANDING_LOGO_PATH = '/public/landing-logo'
+export const API_PUBLIC_CNPJ_INFO_PATH = '/public/cnpj-info'
+export const API_PUBLIC_AGGREGATE_APPLICATIONS_PATH = '/public/aggregate-applications'
+export const API_PUBLIC_AGGREGATE_ACCOUNTS_PATH = '/public/aggregate-accounts'
+/** Anexo enviado antes do formulário: o rascunho existe sem candidatura até o submit amarrá-lo. */
+export const API_PUBLIC_AGGREGATE_APPLICATION_ATTACHMENTS_PATH =
+  '/public/aggregate-application-attachments'
+export const API_AGGREGATE_DOCUMENTS_PATH = '/aggregate-documents'
+export const API_AGGREGATE_APPLICATIONS_PATH = '/aggregate-applications'
+/** Anexos de uma candidatura: o operador revisa um por um antes de decidir sobre ela. */
+export const API_AGGREGATE_APPLICATION_ATTACHMENTS_PATH =
+  '/aggregate-applications/:applicationId/attachments'
 export const API_COMPANY_SETTINGS_SCHEDULED_DISTRIBUTION_PATH =
   '/company-settings/scheduled-distribution'
 export const API_COMPANY_SETTINGS_DISTRIBUTION_CURSOR_PATH = '/company-settings/distribution-cursor'
+export const API_COMPANY_SETTINGS_CARGO_PATH = '/company-settings/cargo'
 export const API_COMPANY_SETTINGS_FUEL_PRICES_PATH = '/company-settings/fuel-prices'
 export const API_COMPANY_SETTINGS_ENERGY_PATH = '/company-settings/energy'
 export const API_DIGITAL_CERTIFICATES_PATH = '/digital-certificates'
 export const API_FREIGHT_RULES_PATH = '/freight-rules'
 export const API_FREIGHT_CALCULATIONS_PATH = '/freight-calculations'
 export const API_FREIGHT_REGIONS_PATH = '/freight-regions'
+/** Spec 060: o cliente que tem hora e tem preço, e o embarcador que paga o repasse. */
+export const API_DELIVERY_CLIENTS_PATH = '/delivery-clients'
+export const API_CONTRACTORS_PATH = '/contractors'
+export const API_MUNICIPAL_HOLIDAYS_PATH = '/municipal-holidays'
+export const API_DELIVERY_CHARGES_PATH = '/delivery-charges'
+export const API_EXTRA_CHARGE_BATCHES_PATH = '/extra-charge-batches'
+/** Spec 061 D5: o acumulado dos resultados congelados, por período, veículo ou motorista. */
+export const API_FINANCIAL_RESULTS_PATH = '/financial-results'
+/**
+ * ADR-0048 §7: a segunda superfície anônima do produto, ao lado do postback da NFS-e. Ela serve
+ * **um** lote, identificado por token opaco — e é por isso que o caminho vive fora do roteador
+ * autenticado.
+ */
+export const API_PUBLIC_EXTRA_CHARGE_BATCHES_PATH = '/public/extra-charge-batches/:token'
 export const API_FLEET_VEHICLES_PATH = '/fleet/vehicles'
 export const API_FLEET_DRIVERS_PATH = '/fleet/drivers'
 export const API_FLEET_CAPABILITIES_PATH = '/fleet/capabilities'
@@ -29,6 +58,23 @@ export const API_POSTAL_CODES_PATH = '/postal-codes'
 export const API_MDFE_MANIFESTS_PATH = '/mdfe-manifests'
 export const API_MDFE_MANIFESTS_PREVIEW_PATH = '/mdfe-manifests/preview'
 export const API_TRIPS_PATH = '/trips'
+/**
+ * ADR-0045 §2: a árvore do campo não leva id de viagem. O servidor resolve qual é a do motorista, e
+ * quem não escolhe não enumera.
+ */
+export const API_ME_TRIPS_PATH = '/me/trips'
+export const API_ME_CURRENT_TRIP_PATH = '/me/trips/current'
+/** ADR-0050 §5: o consentimento é do motorista, e mora fora da viagem — ele vale para todas. */
+export const API_ME_LOCATION_CONSENT_PATH = '/me/location-consent'
+
+/**
+ * ADR-0050 §4: o portal do contratante fala por `/client/me/*`, e nenhuma dessas rotas recebe id de
+ * viagem, de nota ou de contratante — o servidor resolve pelos documentos amarrados à conta.
+ */
+/** Spec 062: a credencial do WhatsApp mora perto do efeito — a aba de configuração da empresa. */
+export const API_WHATSAPP_CHANNEL_PATH = '/company-settings/whatsapp-channel'
+export const API_CLIENT_DELIVERIES_PATH = '/client/me/deliveries'
+export const API_CLIENT_EXTRA_CHARGE_BATCHES_PATH = '/client/me/extra-charge-batches'
 export const API_CTE_BATCHES_PATH = '/cte-batches'
 export const API_CTE_BATCH_ITEMS_PATH = '/cte-batch-items'
 export const API_CTE_BATCH_ITEMS_SUMMARY_PATH = '/cte-batch-items/summary'
@@ -49,11 +95,19 @@ export const API_NFE_IMPORTS_DISTRIBUTION_PATH = '/nfe-imports/distribution'
 export const API_NFE_DOCUMENTS_PATH = '/nfe-documents'
 export const API_VIEW_PREFERENCES_PATH = '/view-preferences'
 export const API_COMPANY_USERS_PATH = '/company-users'
+/** Primeira etapa do login: resolve o identificador digitado no login que o provedor conhece. */
+export const API_LOGIN_HINTS_PATH = '/login-hints'
 export const API_USER_ACTIVATION_PATH = '/user-activation'
 export const API_PASSWORD_RESETS_PATH = '/password-resets'
 export const API_PASSWORD_RESET_CONFIRM_PATH = '/password-resets/confirm'
 /** Rota anônima: o segmento é segredo, e por isso o caminho fica fora da allowlist de log. */
 export const API_PUBLIC_NFSE_CALLBACKS_PATH = '/public/nfse-callbacks/:token'
+/**
+ * Rota anônima do webhook da Meta: um endereço só para a instalação inteira. A empresa é descoberta
+ * pelo `phone_number_id` do corpo **assinado**, nunca por um segmento de caminho — um id de empresa
+ * na URL seria enumerável e não provaria nada, já que a assinatura é o que autentica.
+ */
+export const API_PUBLIC_WHATSAPP_WEBHOOK_PATH = '/public/whatsapp/webhook'
 export const CORRELATION_ID_HEADER = 'x-correlation-id'
 export const JSON_CONTENT_TYPE = 'application/json; charset=utf-8'
 export const HTTP_GET_METHOD = 'GET'
@@ -119,5 +173,10 @@ export const HTTP_ERROR = {
     code: 'REQUEST_ABORTED',
     message: 'Request aborted',
     status: 499,
+  },
+  tooManyRequests: {
+    code: 'TOO_MANY_REQUESTS',
+    message: 'Too many requests',
+    status: 429,
   },
 } as const

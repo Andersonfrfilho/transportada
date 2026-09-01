@@ -225,6 +225,10 @@ export function Select({
           <span className={selected === undefined ? styles.placeholder : styles.value}>
             {selected?.label ?? placeholder}
           </span>
+          {/* O detalhe escolhido continua à vista: fechado o painel, o gatilho é a única prova. */}
+          {selected?.description === undefined ? null : (
+            <span className={styles.triggerDescription}>{selected.description}</span>
+          )}
         </span>
         <Icon
           className={joinClassNames(styles.chevron, isOpen && styles.chevronOpen)}
@@ -280,7 +284,12 @@ export function Select({
                       role="option"
                     >
                       {entry.swatch === undefined ? null : <Swatch swatch={entry.swatch} />}
-                      {entry.label}
+                      <span className={styles.optionText}>
+                        <span>{entry.label}</span>
+                        {entry.description === undefined ? null : (
+                          <span className={styles.description}>{entry.description}</span>
+                        )}
+                      </span>
                     </li>
                   ))}
                 </ul>

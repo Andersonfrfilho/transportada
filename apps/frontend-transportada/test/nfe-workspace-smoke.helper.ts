@@ -54,6 +54,9 @@ const DOCUMENT_PAGE = {
       series: '1',
       status: 'authorized',
       totalAmount: '1234.5600',
+      // Spec 065 D4b: a nota saiu numa viagem, e continua livre para entrar no lote.
+      tripId: '00000000-0000-4000-8000-000000000a11',
+      tripStatus: 'in_transit',
       variant: 'complete',
     },
   ],
@@ -190,8 +193,24 @@ type MockPermissions = readonly (
   | 'cte.manage'
   | 'invoices.import'
   | 'invoices.read'
+  /** Spec 058 P2: a distribuição multi-veículo lê a frota e escreve viagem. */
+  | 'fleet.read'
   | 'settings.manage'
+  | 'trip.manage'
 )[]
+
+/**
+ * Requisição **abortada** não é chamada que falhou: é a que o navegador descartou porque a página
+ * mudou embaixo dela. O cabeçalho busca a foto assim que a sessão resolve, e o login navega logo
+ * depois — a corrida é normal e não tem consequência nenhuma em produção.
+ *
+ * O que esta asserção existe para pegar continua pego: rota sem mock escapa para a API real, que não
+ * sobe no smoke, e isso vira `ERR_FAILED`/`ERR_CONNECTION_REFUSED`. O `abort` deliberado do smoke do
+ * motorista usa `internetdisconnected`, que também não passa por aqui.
+ */
+function isDiscardedByNavigation(errorText: string | undefined): boolean {
+  return errorText === 'net::ERR_ABORTED'
+}
 
 async function fulfillJson(route: Route, body: unknown, status = 200): Promise<void> {
   const origin = (await route.request().headerValue('origin')) ?? 'http://localhost:53000'
@@ -200,6 +219,24 @@ async function fulfillJson(route: Route, body: unknown, status = 200): Promise<v
     contentType: 'application/json',
     headers: { ...CORS_HEADERS, 'access-control-allow-origin': origin },
     status,
+  })
+}
+
+/**
+ * O cabeçalho busca a foto da pessoa em toda página — o claim `picture` do token aponta para esta
+ * mesma rota autenticada, e `<img src>` não manda o `Authorization`. Sem este mock a requisição
+ * escapa para a API real, que não sobe no smoke, e o `requestfailed` entra em `failures()`.
+ *
+ * 404 é a resposta certa para quem não tem foto: o cliente a trata como ausência, e a tela desenha
+ * as iniciais.
+ */
+async function registerUserPictureMock(page: Page): Promise<void> {
+  await page.route('**/company-users/*/picture', async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ headers: CORS_HEADERS, status: 204 })
+      return
+    }
+    await route.fulfill({ headers: CORS_HEADERS, status: 404 })
   })
 }
 
@@ -354,12 +391,15 @@ export async function mockNfeWorkspaceApi(
     xmlDownloads: 0,
   }
   input.page.on('requestfailed', (request) => {
+    const errorText = request.failure()?.errorText
+    if (isDiscardedByNavigation(errorText)) return
     if (new URL(request.url()).origin === 'http://localhost:53001') {
-      state.failures.push(`${request.url()} ${request.failure()?.errorText}`)
+      state.failures.push(`${request.url()} ${errorText}`)
     }
   })
   await Promise.all([
     registerIdentityMock({ page: input.page, permissions: input.permissions }),
+    registerUserPictureMock(input.page),
     registerNfeMocks({
       blockedDocumentCount: input.blockedDocumentCount ?? 0,
       documentCount: input.documentCount ?? 1,

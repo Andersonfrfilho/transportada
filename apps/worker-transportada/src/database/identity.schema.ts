@@ -19,6 +19,15 @@ export const identityUserProfiles = pgTable('identity_user_profiles', {
   name: text().notNull(),
   contactAddress: text('contact_address').notNull(),
   contactChannel: text('contact_channel').notNull(),
+  /** Lido pelo backfill do documento no realm — nunca escrito daqui. */
+  taxId: text('tax_id').notNull(),
+})
+
+/** O vínculo entre o usuário da base e o `sub` do provedor: é por ele que o backfill endereça. */
+export const externalIdentities = pgTable('external_identities', {
+  userId: uuid('user_id').notNull(),
+  issuer: text().notNull(),
+  subject: text().notNull(),
 })
 
 export const userCompanyMemberships = pgTable('user_company_memberships', {

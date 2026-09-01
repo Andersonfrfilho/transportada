@@ -6,6 +6,19 @@ import type { CompanyRole } from '../../database/database.schema'
 export const TRANSPORTADA_PERMISSIONS = Object.freeze([
   'companies.manage',
   'users.manage',
+  /**
+   * Ver o contato e o documento sem máscara é permissão própria, separada de administrar usuários:
+   * quem convida, suspende e troca papéis não precisa ler o CPF de todo mundo para fazer isso. Toda
+   * revelação grava trilha de auditoria (`security.md` §10) — é acesso a dado pessoal, com nome.
+   */
+  'users.reveal',
+  /**
+   * Criar grupo, mexer no que ele concede e atribuí-lo a alguém. Separada de `users.manage` porque
+   * administrar pessoas não é o mesmo que redesenhar o que elas alcançam — e porque esta permissão
+   * concede permissão: quem a tem pode se auto-promover, e é a trilha de auditoria que responde por
+   * isso (decisão registrada, `security.md` §10).
+   */
+  'groups.manage',
   'invoices.import',
   'invoices.read',
   'batches.create',
@@ -38,7 +51,22 @@ export const TRANSPORTADA_PERMISSIONS = Object.freeze([
   'nfse.cancel',
   'nfse.read',
   'trip.read',
+  'trip.manage',
   'trip.report',
+  /**
+   * Spec 061 D4: dinheiro tem permissão própria. Quem monta a viagem não precisa saber a margem, e
+   * o valor pago ao motorista é dado sensível para o próprio motorista — que tem `trip.read`.
+   */
+  'trip.financials',
+  /**
+   * ADR-0047 §4: escopo enumerado, e ele é de **uma rota**. O serviço não recebe `mdfe.manage` —
+   * que também descarta manifesto —, e sim a permissão criada para o gatilho automático.
+   */
+  'mdfe.auto-issue',
+  /** ADR-0050: o contratante acompanha a entrega das notas amarradas à conta dele. */
+  'deliveries.track',
+  /** ADR-0050 §6: decidir repasse é dinheiro, e não sai de carona com acompanhar entrega. */
+  'charges.decide',
 ] as const)
 
 export type TransportadaPermission = (typeof TRANSPORTADA_PERMISSIONS)[number]
@@ -50,6 +78,8 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
   // finance nem enxerga a lista de CT-e
   'company-admin': Object.freeze([
     'users.manage',
+    'users.reveal',
+    'groups.manage',
     'invoices.import',
     'invoices.read',
     'cte.manage',
@@ -71,9 +101,12 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'nfse.issue',
     'nfse.cancel',
     'nfse.read',
+    'trip.manage',
+    'trip.financials',
   ]),
   finance: Object.freeze([
     'cte.read',
+    'trip.financials',
     'billing.create',
     'billing.cancel',
     'billing.read',
@@ -123,6 +156,12 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'mdfe.manage',
     'nfse.manage',
     'nfse.read',
+    'trip.manage',
+    /**
+     * ADR-0049 §6: `trip.financials` **saiu daqui.** Quem monta a viagem decide se vale montá-la
+     * pela avaliação prevista (065 D7), que não mostra o que se paga ao agregado — e o valor pago ao
+     * motorista é dado sensível para o próprio motorista, que trabalha ao lado de quem monta.
+     */
   ]),
   viewer: Object.freeze([
     'invoices.read',
@@ -138,6 +177,23 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
   // O agregado dirige o veículo dele; o motorista, o dele ou o da empresa. Na tela isso muda
   // que campo o cadastro exige, não o que a conta pode ler — daí o mesmo par de permissões.
   aggregate: Object.freeze(['trip.read', 'trip.report']),
+  // O separador monta a viagem do celular: lê a nota que bipa, lê a frota para escolher veículo e
+  // motorista, e escreve a viagem. Ele não cadastra frota, não fatura e não emite documento fiscal
+  // — e não reporta entrega, que é do campo.
+  separator: Object.freeze(['invoices.read', 'fleet.read', 'trip.read', 'trip.manage']),
+  /**
+   * ADR-0050: o contratante lê **a entrega**, e só a das notas dos documentos dele — o recorte não
+   * vem do papel, vem do vínculo, e é o repositório que o aplica. Nada de frota, faturamento ou
+   * documento fiscal: quem paga o frete acompanha a carga, não administra a transportadora.
+   */
+  contractor: Object.freeze(['deliveries.track', 'charges.decide']),
+  /**
+   * ADR-0047 §4: **uma permissão, e só ela.** O token do serviço é cross-tenant — ele alcança toda
+   * empresa onde exista a membership sintética —, e é por isso que o escopo não pode ser generoso.
+   * Nada de leitura de nota, de frota ou de faturamento: o worker só precisa pedir o manifesto que
+   * a viagem já está pronta para ter.
+   */
+  automation: Object.freeze(['mdfe.auto-issue']),
 } satisfies Readonly<Record<CompanyRole, readonly CompanyPermission[]>>)
 
 export type CompanyAuthorizationPolicy = {
@@ -152,14 +208,38 @@ export type PlatformAuthorizationPolicy = {
 
 export type RouteAuthorizationPolicy = CompanyAuthorizationPolicy | PlatformAuthorizationPolicy
 
+export type CompanyPermissionSources = {
+  /** Concedidas por grupo da empresa ou direto à pessoa. Nome fora do catálogo é ignorado. */
+  readonly granted?: readonly string[]
+  readonly roles: readonly CompanyRole[]
+}
+
+/**
+ * O efetivo de alguém é a **união** de três origens: os papéis do catálogo, os grupos que a empresa
+ * criou, e a permissão concedida direto à pessoa. Nenhuma tira o que a outra deu — somar é o que
+ * torna o grupo uma camada a mais em vez de um segundo modelo de autorização.
+ *
+ * Nome que não está no catálogo é ignorado, não recusado: a coluna de permissão não tem CHECK, e uma
+ * linha antiga com nome de permissão removida derrubaria o login de quem a tivesse. Ignorar mantém a
+ * pessoa entrando com o que ainda existe.
+ *
+ * `companies.manage` nunca entra, venha de onde vier: ela é de plataforma, e conceder por grupo
+ * seria o caminho mais silencioso para alguém alcançar o que a instalação dedicada não tem.
+ */
 export function resolveCompanyPermissions(
-  roles: readonly CompanyRole[],
+  input: CompanyPermissionSources | readonly CompanyRole[],
 ): ReadonlySet<CompanyPermission> {
+  const sources: CompanyPermissionSources = Array.isArray(input)
+    ? { roles: input as readonly CompanyRole[] }
+    : (input as CompanyPermissionSources)
   const granted = new Set<CompanyPermission>()
-  for (const role of roles) {
+  for (const role of sources.roles) {
     for (const permission of COMPANY_ROLE_PERMISSIONS[role]) {
       granted.add(permission)
     }
+  }
+  for (const permission of sources.granted ?? []) {
+    if (isCompanyPermission(permission)) granted.add(permission)
   }
 
   const ordered = TRANSPORTADA_PERMISSIONS.filter(
@@ -167,6 +247,10 @@ export function resolveCompanyPermissions(
       permission !== 'companies.manage' && granted.has(permission),
   )
   return createReadonlySet(ordered)
+}
+
+export function isCompanyPermission(value: string): value is CompanyPermission {
+  return value !== 'companies.manage' && TRANSPORTADA_PERMISSIONS.some((entry) => entry === value)
 }
 
 function createReadonlySet<TValue>(values: readonly TValue[]): ReadonlySet<TValue> {

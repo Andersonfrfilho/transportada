@@ -62,7 +62,7 @@ describe('/digital-certificates security and CORS contract', () => {
       expect(response.headers.get('access-control-allow-origin')).toBe(FRONTEND_ORIGIN)
       expect(response.headers.get('access-control-allow-methods')).toBe('GET, POST, DELETE')
       expect(response.headers.get('access-control-allow-headers')).toBe(headers)
-      expect(response.headers.has('access-control-allow-credentials')).toBe(false)
+      expect(response.headers.has('access-control-allow-credentials')).toBe(true)
       expect(response.headers.get('cache-control')).toBe('no-store')
       expect(fixture.events).toEqual([])
     }
@@ -89,7 +89,7 @@ describe('/digital-certificates security and CORS contract', () => {
 
     for (const response of responses) {
       expect(response.headers.get('access-control-allow-origin')).toBe(FRONTEND_ORIGIN)
-      expect(response.headers.has('access-control-allow-credentials')).toBe(false)
+      expect(response.headers.has('access-control-allow-credentials')).toBe(true)
       expect(response.headers.get('cache-control')).toBe('no-store')
     }
   })

@@ -30,7 +30,10 @@ esac
 type FakeKeycloak = {
   readonly baseUrl: string
   readonly stop: () => Promise<void>
+  /** O que foi escrito de tema. Continua só de tema: os dois ajustes são independentes. */
   readonly writes: string[]
+  /** O que foi escrito de permissão de troca de login, na ordem em que chegou. */
+  readonly usernameWrites: boolean[]
   loginThemeInHtml: string | undefined
   storedLoginTheme: string | undefined
 }
@@ -43,12 +46,19 @@ type FakeKeycloak = {
 function startFakeKeycloak(input: {
   readonly loginThemeInHtml: string | undefined
   readonly storedLoginTheme: string | undefined
+  readonly storedEditUsernameAllowed?: boolean
 }): FakeKeycloak {
-  const state: { loginThemeInHtml: string | undefined; storedLoginTheme: string | undefined } = {
+  const state: {
+    loginThemeInHtml: string | undefined
+    storedLoginTheme: string | undefined
+    storedEditUsernameAllowed: boolean
+  } = {
     loginThemeInHtml: input.loginThemeInHtml,
+    storedEditUsernameAllowed: input.storedEditUsernameAllowed ?? true,
     storedLoginTheme: input.storedLoginTheme,
   }
   const writes: string[] = []
+  const usernameWrites: boolean[] = []
 
   const server = Bun.serve({
     port: 0,
@@ -60,12 +70,23 @@ function startFakeKeycloak(input: {
       }
       if (pathname === `/admin/realms/${REALM}`) {
         if (request.method === 'PUT') {
-          const body = (await request.json()) as { readonly loginTheme?: string }
-          writes.push(body.loginTheme ?? '')
-          state.storedLoginTheme = body.loginTheme
+          const body = (await request.json()) as {
+            readonly editUsernameAllowed?: boolean
+            readonly loginTheme?: string
+          }
+          /** Cada ajuste manda o campo dele: um PUT com o outro campo apagaria o que não foi tocado. */
+          if (body.loginTheme !== undefined) {
+            writes.push(body.loginTheme)
+            state.storedLoginTheme = body.loginTheme
+          }
+          if (body.editUsernameAllowed !== undefined) {
+            usernameWrites.push(body.editUsernameAllowed)
+            state.storedEditUsernameAllowed = body.editUsernameAllowed
+          }
           return new Response(null, { status: 204 })
         }
         return Response.json({
+          editUsernameAllowed: state.storedEditUsernameAllowed,
           realm: REALM,
           ...(state.storedLoginTheme === undefined ? {} : { loginTheme: state.storedLoginTheme }),
         })
@@ -102,6 +123,7 @@ function startFakeKeycloak(input: {
     stop: async () => {
       await server.stop(true)
     },
+    usernameWrites,
     get storedLoginTheme() {
       return state.storedLoginTheme
     },
@@ -112,10 +134,12 @@ function startFakeKeycloak(input: {
 type RunResult = {
   readonly exitCode: number
   readonly output: string
+  readonly usernameWrites: readonly boolean[]
   readonly writes: readonly string[]
 }
 
 async function runReconcile(input: {
+  readonly storedEditUsernameAllowed?: boolean
   readonly loginThemeInHtml: string | undefined
   readonly storedLoginTheme: string | undefined
 }): Promise<RunResult> {
@@ -145,10 +169,11 @@ async function runReconcile(input: {
     new Response(spawned.stderr).text(),
   ])
   const writes = [...keycloak.writes]
+  const usernameWrites = [...keycloak.usernameWrites]
   await keycloak.stop()
   await rm(home, { force: true, recursive: true })
 
-  return { exitCode, output: `${stdout}${stderr}`, writes }
+  return { exitCode, output: `${stdout}${stderr}`, usernameWrites, writes }
 }
 
 /**
@@ -214,5 +239,45 @@ describe('contrato de reconciliação do realm', () => {
     const reconcileStep = workflow.indexOf('keycloak-reconcile.sh')
 
     expect(reconcileStep).toBeGreaterThan(identityStep)
+  })
+})
+
+/**
+ * A troca de login no painel depende de `editUsernameAllowed`, e ele é **desligado por padrão** no
+ * Keycloak. Declarar no `realm.json` não alcança realm que já existe — o mesmo buraco do tema —, e
+ * sem este passo o operador só descobre ao salvar, com o erro vindo do Admin API.
+ */
+describe('contrato de reconciliação — troca de login', () => {
+  test('realm com a troca desligada é ligado, e o deploy segue', async () => {
+    const result = await runReconcile({
+      loginThemeInHtml: LOGIN_THEME,
+      storedEditUsernameAllowed: false,
+      storedLoginTheme: LOGIN_THEME,
+    })
+
+    expect(result.usernameWrites).toEqual([true])
+    expect(result.exitCode).toBe(0)
+  })
+
+  /** Escrever à toa em todo deploy é ruído no log de auditoria, aqui como no tema. */
+  test('realm já ligado não é escrito de novo', async () => {
+    const result = await runReconcile({
+      loginThemeInHtml: LOGIN_THEME,
+      storedEditUsernameAllowed: true,
+      storedLoginTheme: LOGIN_THEME,
+    })
+
+    expect(result.usernameWrites).toEqual([])
+  })
+
+  /** Os dois ajustes são independentes: ligar um não pode apagar o outro no mesmo PUT. */
+  test('ligar a troca de login não reescreve o tema', async () => {
+    const result = await runReconcile({
+      loginThemeInHtml: LOGIN_THEME,
+      storedEditUsernameAllowed: false,
+      storedLoginTheme: LOGIN_THEME,
+    })
+
+    expect(result.writes).toEqual([])
   })
 })

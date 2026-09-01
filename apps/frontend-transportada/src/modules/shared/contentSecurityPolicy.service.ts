@@ -9,6 +9,13 @@
 const SELF = "'self'"
 const NONE = "'none'"
 const UNSAFE_INLINE = "'unsafe-inline'"
+/**
+ * O recorte de fundo compila WebAssembly no navegador, e `script-src` governa isso. Sem a palavra,
+ * o runtime é **bloqueado na compilação** — não no carregamento —, e o erro sai como "falha ao
+ * iniciar o modelo", longe da diretiva que o causou. Ela não permite script de terceiro: o `.wasm`
+ * continua tendo de vir de `'self'`.
+ */
+const WASM_UNSAFE_EVAL = "'wasm-unsafe-eval'"
 
 /** Nome do arquivo emitido no `dist`. O `server.ts` não importa daqui: ele é copiado sozinho. */
 export const CONTENT_SECURITY_POLICY_FILE_NAME = 'content-security-policy.txt'
@@ -29,7 +36,14 @@ export const EXTERNAL_CONNECT_ORIGIN = [
  * do `connect-src` de propósito, e está declarada aqui para o contrato distinguir "destino esquecido
  * na diretiva" de "endereço que nunca foi destino".
  */
-export const NON_FETCH_ORIGIN = ['https://adatechnology.com.br'] as const
+export const NON_FETCH_ORIGIN = [
+  'https://adatechnology.com.br',
+  /**
+   * O botão "navegar" do motorista **abre** o mapa no app que ele já usa (ADR-0045 §8) — é
+   * `window.open`, não `fetch`. Pô-lo em `connect-src` daria permissão de rede que a tela não usa.
+   */
+  'https://maps.google.com',
+] as const
 
 type ContentSecurityPolicyParams = {
   readonly allowsInlineScript: boolean
@@ -55,13 +69,24 @@ export function buildContentSecurityPolicy({
   const configured = [toOrigin(apiBaseUrl), toOrigin(keycloakUrl)].filter(
     (origin): origin is string => origin !== undefined,
   )
+  /**
+   * Só a API, e não tudo o que está em `connect-src`: o provedor de identidade não serve imagem
+   * nossa, e ampliar a diretiva com origem que ninguém usa é permissão dada de graça.
+   */
+  const imageOrigin = [toOrigin(apiBaseUrl)].filter(
+    (origin): origin is string => origin !== undefined,
+  )
   const connectSource = [
     SELF,
     ...[...new Set([...configured, ...EXTERNAL_CONNECT_ORIGIN])].sort(),
   ].join(' ')
   // O preâmbulo do react-refresh é script inline, e só existe no servidor de dev. Em preview e em
   // produção o bundle é arquivo, então `script-src 'self'` basta e é o que fica no `dist`.
-  const scriptSource = allowsInlineScript ? `${SELF} ${UNSAFE_INLINE}` : SELF
+  const scriptSource = [
+    SELF,
+    WASM_UNSAFE_EVAL,
+    ...(allowsInlineScript ? [UNSAFE_INLINE] : []),
+  ].join(' ')
 
   return [
     `default-src ${SELF}`,
@@ -73,7 +98,17 @@ export function buildContentSecurityPolicy({
     // O `iframe` do mapa do endereço era o único do bundle, e saiu pela ADR-0037; o Keycloak roda
     // com `checkLoginIframe: false`, então não há um segundo.
     `frame-src ${NONE}`,
-    `img-src ${SELF}`,
+    /**
+     * `blob:` é a foto de perfil. Ela desce por rota autenticada — `<img src>` não manda o token —,
+     * então a tela busca os bytes e desenha uma URL de objeto. Sem esta palavra a imagem é
+     * bloqueada **depois** de baixada, e a ficha mostra o ícone de imagem quebrada sem dizer por quê.
+     */
+    /**
+     * A API entra aqui porque a tela de entrar mostra o logotipo da transportadora, servido pela
+     * rota pública que o site institucional já usa — imagem de origem cruzada, e `connect-src` não
+     * governa `<img>`.
+     */
+    `img-src ${[SELF, 'blob:', ...imageOrigin].join(' ')}`,
     `manifest-src ${SELF}`,
     `object-src ${NONE}`,
     `script-src ${scriptSource}`,

@@ -51,9 +51,22 @@ const environmentSchema = z.object({
         message: 'DATABASE_URL must use PostgreSQL',
       },
     ),
-  FRONTEND_ORIGIN: z.string().refine(isTrustedFrontendOrigin, {
-    message: 'FRONTEND_ORIGIN must be a canonical HTTPS origin or HTTP localhost origin',
-  }),
+  // Lista separada por vírgula: painel e landing são origens diferentes e as duas precisam de CORS.
+  // Cada uma valida sozinha — uma origem torta na lista não pode abrir a porta pras outras.
+  FRONTEND_ORIGIN: z
+    .string()
+    .transform((value) =>
+      value
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter((origin) => origin !== ''),
+    )
+    .refine((origins) => origins.length > 0, { message: 'FRONTEND_ORIGIN must not be blank' })
+    .refine((origins) => origins.every(isTrustedFrontendOrigin), {
+      message:
+        'FRONTEND_ORIGIN must be a comma-separated list of canonical HTTPS origins or HTTP localhost origins',
+    })
+    .transform((origins) => origins as [string, ...string[]]),
   KEYCLOAK_ADMIN_CLIENT_ID: z.string().trim().min(1),
   KEYCLOAK_ADMIN_CLIENT_SECRET: z.string().trim().min(1),
   KEYCLOAK_AUDIENCE: z.string().trim().min(1),
@@ -96,6 +109,18 @@ const environmentSchema = z.object({
       message: 'NFSE_CALLBACK_BASE_URL must be an HTTPS URL or an HTTP localhost URL',
     })
     .optional(),
+  // Endereço público desta instalação, usado para publicar no provedor de identidade a URL da foto
+  // de perfil. Não é adivinhável a partir do request: atrás de proxy o `Host` é o do proxy, e o
+  // realm guardaria um endereço interno que ninguém alcança. Vazio significa foto gravada aqui e
+  // atributo não escrito — a tela continua mostrando o avatar.
+  API_PUBLIC_URL: z
+    .string()
+    .trim()
+    .transform((value) => (value === '' ? undefined : value))
+    .refine((value) => value === undefined || isTrustedLookupUrl(value), {
+      message: 'API_PUBLIC_URL must be an HTTPS URL or an HTTP localhost URL',
+    })
+    .optional(),
   // Terceiro degrau da busca de CEP: só é consultado quando o banco da instalação não soube o
   // endereço inteiro. Vazio desliga aquele provedor — os dois vazios deixam a escada terminar em
   // casa, e o operador digita. Nenhum dos dois pede token: BrasilAPI e ViaCEP são públicos.
@@ -122,6 +147,51 @@ const environmentSchema = z.object({
   // é publicada pelo módulo: sem com o que verificar assinatura, aceitar corpo seria aceitar
   // qualquer um dizendo que a mensagem chegou.
   NOTIFICATION_WEBHOOK_SECRET: optionalText(),
+  // Segredo do Cloudflare Turnstile para a candidatura pública de agregado. Ausente, a rota aceita
+  // sem verificar (dev local, onde não dá pra resolver o desafio contra a API real do Cloudflare) —
+  // em produção configurar é o que fecha a porta pra submissão automatizada em massa.
+  TURNSTILE_SECRET_KEY: optionalText(),
+  // Assina o access token da conta do agregado (`@adatechnology/user-module`, 064/T1) — schema
+  // isolado, sem relação com o JWT do Keycloak. Ausente, o módulo não é montado: a conta do
+  // agregado ainda não existe como rota, em vez de subir com segredo vazio.
+  USER_ACCESS_TOKEN_SECRET: optionalText(),
+  // Serviço de OCR self-hosted (Tesseract, sem chave) que lê CNH/CRLV pra pré-preencher e conferir
+  // contra o declarado. Ausente, o upload nunca extrai nem aprova sozinho — só revisão manual.
+  AGGREGATE_DOCUMENT_OCR_URL: z
+    .string()
+    .trim()
+    .transform((value) => (value === '' ? undefined : value))
+    .refine((value) => value === undefined || isTrustedLookupUrl(value), {
+      message: 'AGGREGATE_DOCUMENT_OCR_URL must be an HTTPS URL or an HTTP localhost URL',
+    })
+    .optional(),
+  // Spec 062: a Graph API da Meta. Sem segredo aqui — o token é por empresa e vive selado no banco.
+  // A versão tem padrão porque a Meta a exige no caminho e ela envelhece; a base existe para apontar
+  // para um mock local em dev, e ausente significa a Graph API de verdade.
+  WHATSAPP_API_VERSION: z
+    .string()
+    .trim()
+    .regex(/^v[0-9]{1,3}\.[0-9]{1,3}$/u, { message: 'WHATSAPP_API_VERSION must look like v23.0' })
+    .default('v23.0'),
+  /**
+   * Spec 062 T006 — os dois segredos do **aplicativo** da Meta, e por isso variáveis de ambiente,
+   * não linhas por empresa: um app da Meta assina o webhook de **todos** os números que ele
+   * administra, e o verify token é da assinatura do webhook, que também é do app. O que é por
+   * empresa é o token de acesso do número, e esse continua selado no banco.
+   *
+   * Fail-closed por ausência: sem os dois, a rota do webhook **não é registrada** — publicar uma
+   * rota pública que aceita qualquer corpo é pior que não ter webhook.
+   */
+  WHATSAPP_APP_SECRET: optionalText(),
+  WHATSAPP_WEBHOOK_VERIFY_TOKEN: optionalText(),
+  WHATSAPP_BASE_URL: z
+    .string()
+    .trim()
+    .transform((value) => (value === '' ? undefined : value))
+    .refine((value) => value === undefined || isTrustedLookupUrl(value), {
+      message: 'WHATSAPP_BASE_URL must be an HTTPS URL or an HTTP localhost URL',
+    })
+    .optional(),
   // Par compartilhado com o worker: o prefixo nomeia a trilha do ambiente, e sem os dois o módulo
   // fica sem broker. Opcional para o ambiente de teste subir sem RabbitMQ.
   QUEUE_PREFIX: optionalText(),
@@ -146,7 +216,7 @@ export function parseEnvironment(environment: Record<string, string | undefined>
       parsed.EMAIL_FROM === undefined || parsed.SMTP_URL === undefined
         ? undefined
         : { from: parsed.EMAIL_FROM, smtpUrl: parsed.SMTP_URL },
-    frontendOrigin: parsed.FRONTEND_ORIGIN,
+    frontendOrigins: parsed.FRONTEND_ORIGIN,
     keycloak: {
       admin: {
         clientId: parsed.KEYCLOAK_ADMIN_CLIENT_ID,
@@ -161,8 +231,25 @@ export function parseEnvironment(environment: Record<string, string | undefined>
       parsed.QUEUE_PREFIX === undefined || parsed.RABBITMQ_URL === undefined
         ? undefined
         : { queuePrefix: parsed.QUEUE_PREFIX, url: parsed.RABBITMQ_URL },
+    apiPublicUrl: parsed.API_PUBLIC_URL,
     nfseCallbackBaseUrl: parsed.NFSE_CALLBACK_BASE_URL,
     notificationWebhookSecret: parsed.NOTIFICATION_WEBHOOK_SECRET,
+    turnstileSecretKey: parsed.TURNSTILE_SECRET_KEY,
+    userAccessTokenSecret: parsed.USER_ACCESS_TOKEN_SECRET,
+    aggregateDocumentOcrUrl: parsed.AGGREGATE_DOCUMENT_OCR_URL,
+    whatsapp: {
+      apiVersion: parsed.WHATSAPP_API_VERSION,
+      baseUrl: parsed.WHATSAPP_BASE_URL,
+      ...(parsed.WHATSAPP_APP_SECRET === undefined ||
+      parsed.WHATSAPP_WEBHOOK_VERIFY_TOKEN === undefined
+        ? {}
+        : {
+            webhook: {
+              appSecret: parsed.WHATSAPP_APP_SECRET,
+              verifyToken: parsed.WHATSAPP_WEBHOOK_VERIFY_TOKEN,
+            },
+          }),
+    },
     port: parsed.APP_PORT,
     postalCodeProviders: {
       brasilApiUrl: parsed.POSTAL_CODE_BRASIL_API_URL,

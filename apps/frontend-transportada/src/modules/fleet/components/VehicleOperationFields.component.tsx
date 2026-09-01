@@ -7,11 +7,16 @@ import styles from '../styles/fleet.module.css'
 import { FleetMeasureField, FleetSelectField } from './FleetField.component'
 
 type VehicleOperationFieldsProps = Readonly<{
+  documentFields: ReadonlySet<string>
   onChange: (values: Partial<FleetVehicleFormState>) => void
   state: FleetVehicleFormState
 }>
 
-export function VehicleOperationFields({ onChange, state }: VehicleOperationFieldsProps) {
+export function VehicleOperationFields({
+  documentFields,
+  onChange,
+  state,
+}: VehicleOperationFieldsProps) {
   const { t } = useTranslation('fleet')
 
   return (
@@ -19,6 +24,7 @@ export function VehicleOperationFields({ onChange, state }: VehicleOperationFiel
       <legend>{t('vehicleOperationLegend')}</legend>
       <div className={styles.fieldGrid}>
         <FleetSelectField
+          fromDocument={documentFields.has('bodyType')}
           label={t('bodyType')}
           optionLabelKey="bodyTypeOption"
           options={MDFE_BODY_TYPE}

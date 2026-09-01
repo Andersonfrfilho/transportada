@@ -33,6 +33,13 @@ describe('fleet driver schema', () => {
       'tax_id',
       'linked_tax_id',
       'linked_legal_name',
+      // ADR-0050 §5: o consentimento do motorista para o rastreamento ao vivo, desligado por padrão
+      'location_sharing_consent_at',
+      /** ADR-0049 §3: como este motorista é pago — o agregado por rota, o da casa por quinzena. */
+      'payment_model',
+      'fixed_amount',
+      'payment_period',
+      'payment_closing_day',
       'license_number',
       'license_category',
       'license_expires_at',
@@ -52,6 +59,8 @@ describe('fleet driver schema', () => {
       'phone',
       'rntrc',
       'antt_category',
+      'pix_key_type',
+      'pix_key',
       'postal_code',
       'street',
       'number',
@@ -83,7 +92,21 @@ describe('fleet driver schema', () => {
   // As duas datas são nulas quando ausentes: coluna `date` não tem a string vazia que
   // serve de ausência para os campos de texto opcionais.
   test('leaves the login link and the two dates nullable, and requires every other column', () => {
-    const nullable = ['membership_id', 'license_expires_at', 'first_license_at', 'birth_date']
+    /**
+     * ADR-0049 §3: as três colunas do salário são nulas para o agregado — e é o CHECK de forma que
+     * garante que elas andam juntas, não a obrigatoriedade da coluna.
+     */
+    const nullable = [
+      'membership_id',
+      'license_expires_at',
+      'first_license_at',
+      'birth_date',
+      'fixed_amount',
+      'payment_period',
+      'payment_closing_day',
+      // Nulo é ausência de aceite — e enquanto for nulo, o portal não mostra posição nenhuma
+      'location_sharing_consent_at',
+    ]
 
     expect(requiredColumnNames(fleetDrivers)).toEqual(
       columnNames(fleetDrivers).filter((column) => !nullable.includes(column)),
@@ -158,6 +181,18 @@ describe('fleet driver schema', () => {
     expect(checks.fleet_drivers_rntrc_check).toContain('= 0')
     expect(checks.fleet_drivers_antt_category_check).toContain("in ('0', '1', '2')")
     expect(checks.fleet_drivers_antt_category_check).toContain('= 0')
+  })
+
+  // Chave e tipo nascem e somem juntos: um sem o outro é ficha impossível de formatar
+  test('ties the Pix key to its type, both present or both absent', () => {
+    const checks = checkSqlByName(fleetDrivers)
+
+    expect(checks.fleet_drivers_pix_key_type_check).toContain(
+      "in ('cpf', 'cnpj', 'email', 'phone', 'random')",
+    )
+    expect(checks.fleet_drivers_pix_key_type_check).toContain('= 0')
+    expect(checks.fleet_drivers_pix_key_check).toContain('<= 140')
+    expect(checks.fleet_drivers_pix_key_check).toContain('pix_key_type')
   })
 
   // A categoria é lista fechada do CONTRAN: ficha antiga não tem nenhuma, e vazio continua valendo

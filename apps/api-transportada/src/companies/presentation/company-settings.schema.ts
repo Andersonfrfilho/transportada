@@ -15,6 +15,11 @@ import {
 } from '../../cte-issuance/domain/cte-retry.policy.js'
 import { HTTP_ERROR } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
+import {
+  assertJsonContentType,
+  parseJson,
+  readBoundedRequestBody,
+} from '../../shared/request-body.service.js'
 import { RNTRC_INPUT } from '../../shared/rntrc.service.js'
 import { buildOptionalTaxIdSchema, buildTaxIdSchema } from '../../shared/tax-id.schema.js'
 import { CNPJ_PATTERN, parseTaxIdValue, TAX_ID_PATTERN } from '../../shared/tax-id.service.js'
@@ -153,53 +158,6 @@ export function parseCompanySettingsLookupCnpjRequest(request: Request): string 
   return normalized
 }
 
-function assertJsonContentType(value: string | null): void {
-  if (value?.toLowerCase().split(';', 1)[0]?.trim() !== 'application/json') {
-    throw new ApiError(HTTP_ERROR.invalidRequest)
-  }
-}
-
-async function readBoundedRequestBody(request: Request): Promise<string> {
-  const reader = request.body?.getReader()
-  if (reader === undefined) throw new ApiError(HTTP_ERROR.invalidRequest)
-  const chunks: Uint8Array[] = []
-  let size = 0
-  while (true) {
-    const next = await reader.read()
-    if (next.done) break
-    size += next.value.byteLength
-    if (size > 1_048_576) {
-      await reader.cancel()
-      throw new ApiError(HTTP_ERROR.payloadTooLarge)
-    }
-    chunks.push(next.value)
-  }
-  return new TextDecoder().decode(concatenateChunks({ chunks, size }))
-}
-
-type ConcatenateChunksParams = {
-  readonly chunks: readonly Uint8Array[]
-  readonly size: number
-}
-
-function concatenateChunks({ chunks, size }: ConcatenateChunksParams): Uint8Array {
-  const result = new Uint8Array(size)
-  let offset = 0
-  for (const chunk of chunks) {
-    result.set(chunk, offset)
-    offset += chunk.byteLength
-  }
-  return result
-}
-
 function isDatabaseBigint(value: string): boolean {
   return DECIMAL_BIGINT.test(value) && BigInt(value) <= MAX_DATABASE_BIGINT
-}
-
-function parseJson(value: string): unknown {
-  try {
-    return JSON.parse(value)
-  } catch {
-    throw new ApiError(HTTP_ERROR.invalidRequest)
-  }
 }

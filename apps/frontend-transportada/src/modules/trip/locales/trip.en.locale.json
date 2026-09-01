@@ -26,8 +26,53 @@
     "removeFilter": "Remove the {{field}} filter"
   },
   "status": {
-    "open": "Open",
-    "closed": "Closed"
+    "draft": "Draft",
+    "route_planned": "Route planned",
+    "separating": "Separating",
+    "loading": "Loading",
+    "dispatched": "Dispatched",
+    "in_transit": "In transit",
+    "completed": "Completed",
+    "cancelled": "Cancelled"
+  },
+  "separationStatus": {
+    "pending": "Pending",
+    "separated": "Separated",
+    "loaded": "Loaded",
+    "delivered": "Delivered",
+    "returned": "Returned"
+  },
+  "stops": {
+    "empty": "No stop on this trip yet",
+    "unassigned": "No stop",
+    "documentCount": "{{count}} document",
+    "documentCount_other": "{{count}} documents",
+    "reorderHandle": "Drag to reorder stop {{label}}",
+    "selectAll": "Select every document at stop {{label}}",
+    "selectDocument": "Select document {{document}}",
+    "selectionCount": "{{count}} document selected",
+    "selectionCount_other": "{{count}} documents selected",
+    "selectionClear": "Clear selection",
+    "progressLabel": "Trip separation progress",
+    "arrivedAt": "Arrived at {{time}}",
+    "completedAt": "Completed at {{time}}"
+  },
+  "deliveryOverride": {
+    "menuAction": "Redirect delivery",
+    "title": "Redirect delivery",
+    "subtitle": "New address for document {{document}} — not an edit, a recorded action.",
+    "postalCode": "Postal code",
+    "number": "Number",
+    "cityCode": "City code (IBGE)",
+    "newLabel": "Readable address",
+    "requestedBy": "Who requested the detour",
+    "requestedByHint": "Free text — the customer who called, the salesperson, the recipient. Almost never a system user.",
+    "reason": "Reason",
+    "submit": "Record detour",
+    "historyTitle": "Detour history",
+    "historyEmpty": "No detour recorded for this document",
+    "historyEntry": "From \"{{from}}\" to \"{{to}}\"",
+    "historyRequestedBy": "Requested by {{name}}"
   },
   "columns": {
     "vehicleId": "Vehicle",
@@ -46,11 +91,31 @@
     "create": "Create trip",
     "resetCreation": "Clear draft",
     "deliver": "Mark delivered",
+    "separate": "Separate",
+    "load": "Load",
+    "return": "Return",
     "release": "Unlink",
     "linkDocument": "Link",
     "close": "Close trip",
     "backToList": "Back to trips",
     "issueMdfe": "Issue MDF-e"
+  },
+  "stateActions": {
+    "title": "Trip actions",
+    "batchSeparate": "Separate {{count}} document(s)",
+    "batchLoad": "Load {{count}} document(s)",
+    "batchReturn": "Return {{count}} document(s)",
+    "planRoute": "Plan route",
+    "dispatch": "Dispatch",
+    "cancel": "Cancel trip",
+    "returnTitle": "Return document",
+    "returnSubtitle": "Document {{document}} — the reason goes into the trip's audit trail.",
+    "returnReasonLabel": "Return reason",
+    "returnSubmit": "Confirm return",
+    "forceTitle": "Dispatch with pending documents",
+    "forceSubtitle": "These documents were never loaded. Dispatching anyway returns them to the pool.",
+    "forceReasonLabel": "Reason",
+    "forceSubmit": "Dispatch anyway"
   },
   "mdfeGate": {
     "title": "Pending CT-e",
@@ -68,8 +133,16 @@
     "title": "New trip",
     "vehicle": "Vehicle",
     "vehiclePlaceholder": "Select the vehicle",
+    "vehicleSearch": "Search by plate, brand or model",
     "drivers": "Drivers",
     "driversEmpty": "Register an active driver in the fleet before creating the trip.",
+    "driversPlaceholder": "Pick drivers",
+    "driversSearch": "Search by name",
+    "driversNoMatch": "No driver found",
+    "driversSummary": "{{count}} driver picked",
+    "driversSummary_other": "{{count}} drivers picked",
+    "driversRemove": "Remove this driver",
+    "driversClearAll": "Remove all",
     "readOnly": "Your current access does not allow you to create trips.",
     "pending": "Creating trip…"
   },
@@ -90,22 +163,42 @@
     "linkMode": "Reference type",
     "linkModeNfe": "Fiscal note (NF-e)",
     "linkModeFreight": "Freight calculation",
-    "linkValue": "Identifier",
-    "fiscalWarning": "Invalid fiscal document — check its status before proceeding"
+    "linkValue": "Identifier or key",
+    "linkValueHint": "Type the note identifier or the 44-character key printed under the barcode.",
+    "scan": "Scan with the camera",
+    "scanTitle": "Note reading",
+    "scanClose": "Close the reader",
+    "scanStarting": "Opening the camera…",
+    "scanReading": "Point the camera at the note code",
+    "scanDenied": "Camera permission denied — type the note key.",
+    "scanUnavailable": "Camera unavailable on this device — type the note key.",
+    "fiscalWarning": "Invalid fiscal document — check its status before proceeding",
+    "scanQueueTitle": "Notes read",
+    "scanQueueKeyColumn": "Access key",
+    "scanQueueStatusColumn": "Status",
+    "scanQueueResolving": "Looking the note up…",
+    "scanQueueLinking": "Linking to the trip…",
+    "scanQueueLinked": "Linked",
+    "scanQueueClear": "Clear reads"
   },
   "feedback": {
     "closed": "This trip is already closed.",
+    "stateTransitionNotAllowed": "This action is no longer allowed in the trip's current state.",
     "documentAlreadyDelivered": "This document was already marked as delivered.",
     "documentAlreadyLinked": "This document is already linked to a trip.",
     "documentNotFound": "Document not found on this trip.",
     "documentReferenceInvalid": "Provide a valid fiscal note or freight calculation.",
+    "documentReturnReasonRequired": "Provide the return reason.",
     "driverDuplicated": "This driver is already on the trip.",
     "driverNotAvailable": "Driver not available for the trip.",
     "driverNotFound": "Driver not found.",
     "readOnly": "Your current access does not allow this action.",
+    "hasUnloadedDocuments": "This trip has documents that were never loaded.",
     "notFound": "Trip not found.",
     "requestFailed": "Could not reach the API.",
     "responseInvalid": "The API responded in an unexpected format.",
+    "scannedDocumentNotFound": "No note with this access key in this company.",
+    "stopSetMismatch": "The stop list no longer matches the trip's current stops — reload the page.",
     "vehicleNotAvailable": "Vehicle not available for the trip.",
     "vehicleNotFound": "Vehicle not found."
   },
@@ -116,5 +209,41 @@
     "rejected": "Rejected",
     "snapshotted": "Snapshotted",
     "unsigned": "Unsigned"
+  },
+  "readiness": {
+    "title": "Fiscal readiness",
+    "count": "{{ready}} of {{total}} invoices ready",
+    "state": {
+      "incomplete": "Some invoice has no authorized CT-e. Issuing now would declare a document that does not exist.",
+      "ready": "Every invoice has an authorized CT-e. The trip can be manifested.",
+      "manifested": "A manifest was issued for this trip.",
+      "divergent": "A CT-e changed after the manifest. Check before moving on — cancelling an MDF-e is your call."
+    },
+    "reason": {
+      "no_cte": "no CT-e",
+      "cte_in_progress": "CT-e in progress",
+      "cte_rejected": "CT-e rejected",
+      "cte_cancelled": "CT-e cancelled"
+    },
+    "generateCteBatch_one": "Issue CT-e for this trip ({{count}} invoice)",
+    "generateCteBatch_other": "Issue CT-e for this trip ({{count}} invoices)",
+    "generateCteBatchHint": "This brings forward the batch the contractor would authorise. Billing still reaches these CT-e."
+  },
+  "requirement": {
+    "derived": {
+      "required": "This trip requires an MDF-e — it carries CT-e notes.",
+      "notRequired": "This trip requires no MDF-e: no CT-e note to declare."
+    },
+    "forced": {
+      "required": "MDF-e required by operator decision.",
+      "notRequired": "MDF-e waived by operator decision."
+    },
+    "dispense": "Waive MDF-e",
+    "require": "Require MDF-e",
+    "reset": "Back to automatic",
+    "hint": "Waiving a trip that carries CT-e notes requires a reason, and it stays on the trail.",
+    "dispenseTitle": "Waive the MDF-e for this trip",
+    "dispenseSubtitle": "This trip carries CT-e notes. Travelling without a manifest means fines and roadside seizure — the reason is recorded.",
+    "dispenseReasonLabel": "Reason for waiving"
   }
 }
