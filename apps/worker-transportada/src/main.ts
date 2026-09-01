@@ -84,6 +84,7 @@ import { createWhatsAppCodeSender } from './whatsapp/infrastructure/whatsapp-cod
 import { createWhatsAppChannelSecretGateway } from './whatsapp/infrastructure/whatsapp-channel-secret.gateway.js'
 import { DrizzleWhatsAppChannelRepository } from './whatsapp/infrastructure/drizzle-whatsapp-channel.repository.js'
 import { createInvitationChannelGateway } from './identity/infrastructure/invitation-channel.gateway.js'
+import { DrizzleCompanyLegalIdentificationRepository } from './identity/infrastructure/drizzle-company-legal-identification.repository.js'
 import { createLandingEmailBrandGateway } from './identity/infrastructure/landing-email-brand.gateway.js'
 import { createInvitationCodeSecretGateway } from './identity/infrastructure/invitation-code-secret.gateway.js'
 import type { InvitationDeliveryDependencies } from './identity/application/deliver-invitation-code.service.js'
@@ -808,6 +809,9 @@ export async function startWorkerRuntime(
      * Uma leitura de marca para os dois trilhos: a instalação é de uma transportadora só
      * (ADR-0021), e o gateway guarda o resultado por cinco minutos.
      */
+    const emailLegalIdentification = new DrizzleCompanyLegalIdentificationRepository(
+      database.db as ReturnType<typeof createDrizzleProvider>['db'],
+    )
     const emailBrand = createLandingEmailBrandGateway({
       apiBaseUrl: config.apiBaseUrl,
       appBaseUrl: config.appBaseUrl,
@@ -834,6 +838,7 @@ export async function startWorkerRuntime(
         // parar no trilho de retry do que o convite ser dado como entregue sem ter saído daqui.
         channels: createInvitationChannelGateway({
           brand: emailBrand,
+          legal: emailLegalIdentification,
           ...(config.emailDelivery === undefined
             ? {}
             : {
@@ -862,6 +867,7 @@ export async function startWorkerRuntime(
         // válido para reenvio — quem falhou foi o transporte.
         channels: createInvitationChannelGateway({
           brand: emailBrand,
+          legal: emailLegalIdentification,
           ...(config.emailDelivery === undefined
             ? {}
             : {

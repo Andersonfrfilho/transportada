@@ -26,10 +26,26 @@ export const identityUserPictures = pgTable('identity_user_pictures', {
   publicToken: text('public_token'),
 })
 
-/** Só a coluna do canal: a empresa decide por onde o código sai, o perfil só diz para onde. */
+/**
+ * O canal de ativação, e a identificação legal da empresa — CNPJ, razão social e endereço.
+ *
+ * A identificação existe aqui porque **e-mail do sistema tem de dizer de quem ele é**: sem uma
+ * pessoa no cabeçalho, o rodapé é o único lugar que responde quem mandou. Vem daqui, e não da rota
+ * pública da landing, porque lá o CNPJ não é servido — e publicá-lo numa rota anônima para uso
+ * interno seria abrir superfície sem precisar.
+ */
 export const companyFiscalProfiles = pgTable('company_fiscal_profiles', {
   companyId: uuid('company_id').primaryKey(),
   activationChannel: text('activation_channel').notNull(),
+  legalName: text('legal_name').notNull(),
+  cnpj: text().notNull(),
+  street: text().notNull(),
+  number: text().notNull(),
+  complement: text().notNull(),
+  district: text().notNull(),
+  city: text().notNull(),
+  state: text().notNull(),
+  postalCode: text('postal_code').notNull(),
 })
 
 export const userInvitations = pgTable('user_invitations', {

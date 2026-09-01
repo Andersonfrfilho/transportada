@@ -25,6 +25,18 @@ const BRAND = {
   name: 'Transportes Exemplo',
 } as const
 
+const LEGAL = {
+  city: 'RIBEIRAO PRETO',
+  complement: 'SALA 2',
+  district: 'INDEPENDENCIA',
+  legalName: 'TAPETE MAGICO TRANSPORTADORA LTDA',
+  number: '2296',
+  postalCode: '14076400',
+  state: 'SP',
+  street: 'MOGIANA',
+  taxId: '12345678000195',
+} as const
+
 const EMPTY_BRAND = {
   accentColor: undefined,
   apiBaseUrl: 'https://api.exemplo.com.br',
@@ -146,6 +158,67 @@ describe('o template do e-mail de código', () => {
       )
     }
     expect(html).toContain('Consolas')
+  })
+
+  /**
+   * E-mail do sistema não tem pessoa no cabeçalho: sem nome de quem recebe, é o rodapé que responde
+   * de quem a mensagem é — razão social, CNPJ e endereço.
+   */
+  test('o envio do sistema leva CNPJ e endereço no rodapé', () => {
+    const { html, text } = renderCodeEmail({
+      brand: BRAND,
+      content: CONTENT,
+      legal: LEGAL,
+      year: 2026,
+    })
+
+    expect(html).toContain('CNPJ 12.345.678/0001-95')
+    expect(html).toContain('MOGIANA, 2296')
+    expect(html).toContain('RIBEIRAO PRETO/SP')
+    expect(html).toContain('14076-400')
+    expect(text).toContain('CNPJ 12.345.678/0001-95')
+  })
+
+  /** Com pessoa no cabeçalho, o rodapé legal é ruído: quem manda já está dito lá em cima. */
+  test('o envio a uma pessoa não repete CNPJ e endereço', () => {
+    const { html } = renderCodeEmail({
+      brand: BRAND,
+      content: CONTENT,
+      legal: LEGAL,
+      recipient: { name: 'Ana Souza', pictureToken: undefined },
+      year: 2026,
+    })
+
+    expect(html).not.toContain('CNPJ')
+    expect(html).toContain('Ana Souza')
+  })
+
+  /**
+   * ⚠️ A máscara é por posição, nunca por dígito: a base do CNPJ tem letra desde a IN RFB 2229/2024,
+   * e formatador que filtra dígito imprime documento alfanumérico sob máscara errada.
+   */
+  test('o CNPJ alfanumérico sai sob a máscara certa', () => {
+    const { html } = renderCodeEmail({
+      brand: BRAND,
+      content: CONTENT,
+      legal: { ...LEGAL, taxId: '12ABC34501DE35' },
+      year: 2026,
+    })
+
+    expect(html).toContain('CNPJ 12.ABC.345/01DE-35')
+  })
+
+  /** Complemento vazio é o caso comum: endereço não imprime campo em branco nem separador solto. */
+  test('endereço sem complemento não deixa separador órfão', () => {
+    const { html } = renderCodeEmail({
+      brand: BRAND,
+      content: CONTENT,
+      legal: { ...LEGAL, complement: '' },
+      year: 2026,
+    })
+
+    expect(html).toContain('MOGIANA, 2296 · INDEPENDENCIA')
+    expect(html).not.toContain('·  ·')
   })
 
   test('sem cadastro nenhum o e-mail sai com a marca do produto, sem imagem quebrada', () => {

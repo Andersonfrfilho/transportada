@@ -74,6 +74,22 @@ export type CodeEmailBrand = {
   readonly name: string | undefined
 }
 
+/**
+ * Identificação legal da pessoa jurídica que manda o e-mail. Só entra quando **não** há destinatário
+ * pessoa: sem identidade no cabeçalho, é o rodapé que responde de quem a mensagem é.
+ */
+export type CodeEmailLegalIdentification = {
+  readonly city: string
+  readonly complement: string
+  readonly district: string
+  readonly legalName: string
+  readonly number: string
+  readonly postalCode: string
+  readonly state: string
+  readonly street: string
+  readonly taxId: string
+}
+
 /** Quem recebe o código. Sem foto cadastrada, a inicial do nome ocupa o lugar do retrato. */
 export type CodeEmailRecipient = {
   readonly name: string
@@ -129,10 +145,16 @@ function toParagraphs(body: string): string {
 export function renderCodeEmail(input: {
   readonly brand: CodeEmailBrand
   readonly content: CodeEmailContent
+  /**
+   * A identificação legal do remetente, para e-mail do sistema. Passá-la junto com `recipient` é
+   * contradição — o template ignora a legal quando há pessoa, e é o cabeçalho que identifica.
+   */
+  readonly legal?: CodeEmailLegalIdentification
   readonly recipient?: CodeEmailRecipient
   readonly year: number
 }): CodeEmailDocument {
   const { brand, content, recipient, year } = input
+  const legal = recipient === undefined ? input.legal : undefined
   const accent = resolveAccentColor(brand.accentColor)
   const brandName = brand.name ?? PRODUCT_NAME
 
@@ -152,7 +174,7 @@ export function renderCodeEmail(input: {
       renderHeader({ accent, brandName, logoUrl: brand.logoUrl }),
       renderIdentity({ accent, apiBaseUrl: brand.apiBaseUrl, recipient }),
       renderBody({ accent, content }),
-      renderCompanyFooter({ brand, brandName }),
+      renderCompanyFooter({ brand, brandName, legal }),
       renderProductFooter({ appBaseUrl: brand.appBaseUrl, year }),
       '</table></td></tr></table></body></html>',
     ].join(''),
@@ -169,6 +191,9 @@ export function renderCodeEmail(input: {
       '',
       ...(brand.contactEmail === undefined ? [] : [brand.contactEmail]),
       ...(brand.contactPhone === undefined ? [] : [brand.contactPhone]),
+      ...(legal === undefined
+        ? []
+        : [`CNPJ ${formatTaxId(legal.taxId)}`, ...toAddressLines(legal)]),
       `© ${year} ${COPYRIGHT_HOLDER} — ${PRODUCT_NAME} · ${COPYRIGHT_HOLDER_URL}`,
     ].join('\n'),
   }
@@ -176,6 +201,45 @@ export function renderCodeEmail(input: {
 
 function resolveAccentColor(value: string | undefined): string {
   return value !== undefined && HEX_COLOR_PATTERN.test(value) ? value : EMAIL_PALETTE.accent
+}
+
+/**
+ * A máscara do CNPJ é por **posição**, nunca por dígito: desde a IN RFB 2229/2024 a base tem letra,
+ * e um formatador que filtra dígito imprime documento alfanumérico sob máscara errada. Comprimento
+ * diferente de 14 sai como veio — melhor cru do que mascarado errado.
+ */
+function formatTaxId(value: string): string {
+  const canonical = value.replaceAll(/[^0-9A-Za-z]/gu, '').toUpperCase()
+  if (canonical.length !== 14) return value
+
+  return [
+    canonical.slice(0, 2),
+    '.',
+    canonical.slice(2, 5),
+    '.',
+    canonical.slice(5, 8),
+    '/',
+    canonical.slice(8, 12),
+    '-',
+    canonical.slice(12),
+  ].join('')
+}
+
+/** CEP com máscara, e o complemento só quando existe — endereço não imprime campo vazio. */
+function toAddressLines(legal: CodeEmailLegalIdentification): readonly string[] {
+  const street = [legal.street, legal.number].filter((part) => part !== '').join(', ')
+  const firstLine = [street, legal.complement, legal.district]
+    .filter((part) => part !== '')
+    .join(' · ')
+  const postalCode =
+    legal.postalCode.length === 8
+      ? `${legal.postalCode.slice(0, 5)}-${legal.postalCode.slice(5)}`
+      : legal.postalCode
+  const secondLine = [[legal.city, legal.state].filter((part) => part !== '').join('/'), postalCode]
+    .filter((part) => part !== '')
+    .join(' · ')
+
+  return [firstLine, secondLine].filter((line) => line !== '')
 }
 
 function trimTrailingSlash(value: string): string {
@@ -260,13 +324,25 @@ function renderBody(input: {
   ].join('')
 }
 
-/** Quem manda o e-mail é a transportadora, e é o contato dela que resolve dúvida de quem recebe. */
+/**
+ * Quem manda o e-mail é a transportadora, e é o contato dela que resolve dúvida de quem recebe. No
+ * e-mail do sistema entram também a razão social, o CNPJ e o endereço — quem recebe uma mensagem sem
+ * nome no cabeçalho tem o direito de saber que pessoa jurídica a mandou, e de onde.
+ */
 function renderCompanyFooter(input: {
   readonly brand: CodeEmailBrand
   readonly brandName: string
+  readonly legal: CodeEmailLegalIdentification | undefined
 }): string {
   const lines = [
     `<strong style="color:${EMAIL_PALETTE.text}">${escapeHtml(input.brandName)}</strong>`,
+    ...(input.legal === undefined || input.legal.legalName === input.brandName
+      ? []
+      : [escapeHtml(input.legal.legalName)]),
+    ...(input.legal === undefined ? [] : [`CNPJ ${escapeHtml(formatTaxId(input.legal.taxId))}`]),
+    ...(input.legal === undefined
+      ? []
+      : toAddressLines(input.legal).map((line) => escapeHtml(line))),
     ...(input.brand.contactEmail === undefined
       ? []
       : [

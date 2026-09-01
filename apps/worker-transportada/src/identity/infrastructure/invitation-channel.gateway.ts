@@ -3,6 +3,7 @@
  */
 import type { EmailDriverPort } from '@adatechnology/notification-contracts'
 
+import type { CompanyLegalIdentificationPort } from '../application/company-legal-identification.port.js'
 import type { EmailBrandPort } from '../application/email-brand.port.js'
 import type { InvitationContactChannel } from '../application/deliver-invitation-code.service.js'
 import { renderCodeEmail } from '../domain/code-email-template.service.js'
@@ -33,6 +34,11 @@ export class InvitationDeliveryFailedError extends Error {
  */
 export function createInvitationChannelGateway(drivers: {
   readonly brand?: EmailBrandPort
+  /**
+   * A identificação legal da empresa, lida **só** quando o e-mail não é endereçado a uma pessoa.
+   * Opcional por ausência: sem ela o rodapé fica com o contato, e o e-mail sai do mesmo jeito.
+   */
+  readonly legal?: CompanyLegalIdentificationPort
   readonly email?: EmailDriverPort
   readonly whatsapp?: WhatsAppCodeSender
 }) {
@@ -97,8 +103,18 @@ export function createInvitationChannelGateway(drivers: {
         logoUrl: undefined,
         name: undefined,
       }
+      /*
+       * Uma consulta a menos no caminho comum: convite e recuperação de senha são endereçados a uma
+       * pessoa, e ali a identidade já está no cabeçalho — a identificação legal nem é buscada.
+       */
+      const legal =
+        input.recipient === undefined
+          ? await drivers.legal?.find({ companyId: input.companyId })
+          : undefined
+
       const document = renderCodeEmail({
         brand,
+        ...(legal === undefined ? {} : { legal }),
         ...(input.recipient === undefined ? {} : { recipient: input.recipient }),
         content: {
           code: input.code,

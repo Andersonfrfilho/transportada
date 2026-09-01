@@ -64,6 +64,44 @@ describe('o canal de e-mail do código de acesso', () => {
     expect(sent?.text).toContain(MESSAGE.code)
   })
 
+  /**
+   * ⚠️ A fiação, que é o que quebra em silêncio: sem pessoa no cabeçalho o gateway tem de **buscar**
+   * a identificação legal, e com pessoa não pode buscar. Um `renderCodeEmail` correto com a consulta
+   * no lugar errado dá e-mail de sistema sem CNPJ, e consulta a mais em todo convite.
+   */
+  test('o envio do sistema busca a identificação legal; o de usuário não', async () => {
+    const lookups: string[] = []
+    const legal = {
+      find: async (input: { readonly companyId: string }) => {
+        lookups.push(input.companyId)
+        return {
+          city: 'RIBEIRAO PRETO',
+          complement: '',
+          district: 'INDEPENDENCIA',
+          legalName: 'TAPETE MAGICO TRANSPORTADORA LTDA',
+          number: '2296',
+          postalCode: '14076400',
+          state: 'SP',
+          street: 'MOGIANA',
+          taxId: '12345678000195',
+        }
+      },
+    }
+    const email = recordingEmailDriver()
+    const gateway = createInvitationChannelGateway({ email: email.driver, legal })
+
+    await gateway.send(MESSAGE)
+    expect(lookups).toEqual([MESSAGE.companyId])
+    expect(email.calls[0]?.html).toContain('CNPJ 12.345.678/0001-95')
+
+    await gateway.send({
+      ...MESSAGE,
+      recipient: { name: 'Ana Souza', pictureToken: undefined },
+    })
+    expect(lookups).toEqual([MESSAGE.companyId])
+    expect(email.calls[1]?.html).not.toContain('CNPJ')
+  })
+
   test('sem porta de marca o envio continua, com a marca do produto', async () => {
     const email = recordingEmailDriver()
     const gateway = createInvitationChannelGateway({ email: email.driver })
