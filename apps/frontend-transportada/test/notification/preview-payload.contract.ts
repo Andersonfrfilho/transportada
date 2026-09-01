@@ -54,3 +54,47 @@ describe('o preview tem exemplo para toda variável do catálogo', () => {
     }
   })
 })
+
+/**
+ * O botão de teste é do produto, não do pacote: o `notification-ui` sabe qual template está aberto e
+ * nada além disso — para quem mandar, por qual rota e o que fazer com o resultado é decisão daqui.
+ */
+describe('o envio de teste do editor', () => {
+  const button = readFileSync(
+    'src/modules/notification/components/SendTemplateTestButton.component.tsx',
+    'utf8',
+  )
+  const client = readFileSync(
+    'src/modules/notification/shared/templateTestClient.service.ts',
+    'utf8',
+  )
+  const page = readFileSync('src/modules/notification/pages/NotificationSettings.page.tsx', 'utf8')
+
+  test('o editor mostra o botão pelo slot do pacote', () => {
+    expect(page).toContain('renderEditorActions')
+    expect(page).toContain('SendTemplateTestButton')
+  })
+
+  /**
+   * ⚠️ A regra que não pode se perder: a chamada não leva destinatário. Um campo de destino faria a
+   * tela de template virar um jeito de mandar e-mail com a marca da empresa para qualquer endereço.
+   */
+  test('o pedido não carrega destinatário', () => {
+    expect(client).not.toContain('recipient')
+    expect(client).not.toContain('to:')
+    expect(client).toContain('/test`')
+  })
+
+  /** "Enviar" sozinho, numa tela de template, sugere disparar para a base inteira. */
+  test('o rótulo diz que o teste vai para quem clicou', () => {
+    const locale = JSON.parse(
+      readFileSync('src/modules/notification/locales/notification.locale.json', 'utf8'),
+    ) as { readonly test: { readonly send: string } }
+
+    expect(locale.test.send.toLowerCase()).toContain('mim')
+  })
+
+  test('o aviso de resultado some sozinho', () => {
+    expect(button).toContain('FEEDBACK_MS')
+  })
+})
