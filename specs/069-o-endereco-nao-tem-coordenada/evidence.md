@@ -421,3 +421,41 @@ Dois achados **abertos** ficaram escritos para serem decididos e não redescober
   mesmo achado já registrado para as rotas de senha.
 
 **Verificação:** frontend **2233 pass / 0 fail**; typecheck verde nas quatro apps.
+
+## Fase D — Fecho
+
+### T027 ✅ 2026-09-01 — `make check`
+
+```
+make check → exit 0
+```
+
+Sete suítes, **zero falhas** em todas: API 3845, worker 865, cron 94, frontend 2233, landing 17,
+client 73, mais os 18 de contrato de realm. Format, lint, typecheck e build incluídos.
+
+---
+
+## Verificação final da spec 069
+
+| gate                                       | resultado                                             |
+| ------------------------------------------ | ----------------------------------------------------- |
+| `make check`                               | **exit 0** — format, lint, typecheck, test e build    |
+| `make migration-test`                      | 90 pass / 0 fail (migration + rollback + reaplicação) |
+| `make worker-integration`                  | 62 pass / 4 skip / 1 fail ⚠️                          |
+| CA10 isolado (parada dentro da otimização) | 1 pass, 7 asserções                                   |
+| seed dos centroides, reexecutado           | 5570 / 5570 distintos                                 |
+
+⚠️ A falha da integração é `worker SIGTERM integration > drains an in-flight synthetic effect`, e ela
+é **pré-existente**: reproduzida com este trabalho inteiro no `git stash`, sem a rotina registrada, e
+falha igual. Não é regressão desta spec.
+
+## O que fica pendente, e não é código
+
+1. **A chave do Google não existe.** Alguém precisa criar o projeto com faturamento, gerar a chave
+   restrita à Geocoding API e pô-la em `GEOCODING_API_KEY` no worker… **na API**, corrigindo: quem
+   constrói o gateway pago é a API, porque a marca é síncrona. Enquanto isso, a marca responde
+   `provider_not_configured` e oferece o pino manual — nada quebra.
+2. **`POSTAL_CODE_BRASIL_API_URL` precisa existir no worker em staging.** Sem ela o degrau 1 não
+   resolve e todo endereço novo cai no centroide de município: a sugestão sai, mas pobre.
+3. Os **dois achados abertos** de `docs/SECURITY.md`: a chave de endereço em claro sem tenant (nunca
+   decidida em ADR) e a ausência de rate limit de infraestrutura na rota da marca.

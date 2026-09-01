@@ -96,7 +96,7 @@ não precisa da chave para ser escrita e testada — só o deploy dela a espera.
 
 ## Fase D — Fecho
 
-- [ ] T027 `make check` verde e `evidence.md` das quatro fases — **aceite:** CA11
+- [x] T027 ✅ `make check` verde e `evidence.md` das quatro fases — **aceite:** CA11
 
 ---
 
