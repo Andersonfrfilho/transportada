@@ -66,6 +66,69 @@ houver, e os dados que identificam a entrega: número da nota, cliente, endereç
 **When** a carga é somada
 **Then** o peso sai dos itens em vez do fator por volume, e a tela diz de onde ele veio.
 
+### P7 — A entrega abre, e cada produto aceita ocorrência
+
+**Given** uma entrega da viagem
+**When** o operador a expande
+**Then** vê **os produtos da nota** que serão entregues, e **cada um** oferece registrar ocorrência
+com o **tipo** dela — separação ou entrega.
+
+⚠️ Hoje a ocorrência é só do **motorista**, por parada (`/me/current-trip/stops/:id/occurrences`), e
+**não existe por produto**. Esta história cria caminho novo: quem separa e quem confere também
+precisam registrar, e "faltou item 3 da nota" é diferente de "cliente ausente".
+
+### P13 — O anexo da entrega se abre, e o ponto de cada estado fica registrado
+
+**Given** uma entrega com comprovante
+**When** o operador aciona "ver anexos"
+**Then** vê as fotos do comprovante e **onde** cada mudança de estado aconteceu — a coordenada do
+motorista no momento de separar, carregar e entregar.
+
+⚠️ **Isto depende do consentimento do motorista**, como P3. A coordenada por estado é rastro do
+trabalhador em outro formato: menos contínuo, igualmente identificável — e mais duradouro, porque
+fica no histórico da entrega em vez de morrer com a viagem (ADR-0050 §5: `purgeByTrip`).
+
+⚠️ **O ponto por estado não é gravado hoje.** `trip_documents` tem `delivered_at`, `loaded_at` e
+`returned_at`, e nenhuma coordenada. Guardar exige migration e decisão: o rastro da viagem se apaga
+no fechamento, e este **não se apagaria** — o que muda a promessa feita ao motorista.
+
+### P8 — A entrega se identifica pelo que se lê, não por UUID
+
+**Given** a listagem de entregas da viagem
+**Then** cada linha traz **número da nota**, contato do cliente e, abaixo, o **contratante** da
+entrega — nunca o identificador interno.
+
+### P9 — A prontidão fiscal fala em nota, não em identificador
+
+**Given** o painel de prontidão fiscal
+**Then** cada linha traz **número da nota, valor e data**, com **ícones de estado**: CT-e emitido e
+CT-e transmitido.
+
+### P10 — O endereço errado se corrige à mão, e a rota recalcula
+
+**Given** uma parada cujo ponto está errado
+**When** o operador aciona a correção
+**Then** pode **ajustar o ponto à mão** — não só pedir ao provedor — e **recalcular a rota** em
+seguida.
+
+⚠️ `POST /geocoded-addresses/:addressKey/refine` já existe e chama o Google. O que falta é a correção
+**manual** (a rota `CorrectGeocodedAddressInput` já está no port) e o recálculo sem sair da tela.
+
+### P11 — O roteiro sugerido se reordena antes de aceitar
+
+**Given** um roteiro sugerido
+**When** o operador discorda da ordem
+**Then** reordena as paradas **na proposta**, antes de aceitar.
+
+⚠️ Não confundir com o arraste que já existe: `TripStopList` reordena as paradas **da viagem**.
+Aqui é editar uma **proposta** — o que muda o que é aceito, e precisa decidir se a distância
+recalculada acompanha a edição ou se a proposta editada deixa de ter distância.
+
+### P12 — O que se usa primeiro fica em cima
+
+**Given** o detalhe da viagem
+**Then** **vincular nota** e **ações da viagem** aparecem no topo, antes das listas.
+
 ## Requisitos funcionais
 
 - **RF1** — O painel do veículo mostra ocupação com a **origem** do número (declarado × estimado).
@@ -74,6 +137,10 @@ houver, e os dados que identificam a entrega: número da nota, cliente, endereç
 - **RF4** — O progresso é derivado do estado das notas, nunca digitado.
 - **RF5** — Cada entrega concluída expõe comprovante, ocorrência e identificação da nota.
 - **RF6** — A previsão de término declara que é estimativa e de onde saiu.
+- **RF7** — Toda ocorrência registrada carrega **tipo** e o **produto ou parada** a que se refere.
+- **RF8** — Nenhuma listagem desta tela imprime identificador interno como identificação.
+- **RF9** — O mapa mora **dentro** do bloco de ocupação, não em seção separada.
+- **RF10** — O desenho do veículo mostra a **posição das cargas por cor**.
 
 ## Requisitos não funcionais
 
@@ -106,8 +173,13 @@ houver, e os dados que identificam a entrega: número da nota, cliente, endereç
 
 ### ✅ Resolvida — idade, telefone e e-mail do motorista
 
-**Decisão (2026-09-02): a tela exibe apenas o que já está em claro por decisão registrada — `name` e
-`tax_id`.** Idade, telefone, e-mail e endereço **ficam fora** desta spec.
+**Decisão (2026-09-02): a tela exibe `name`, `tax_id` e a foto de perfil.** Idade, telefone, e-mail e
+endereço **ficam fora** desta spec.
+
+A **foto entra** porque não está sob a ADR-0039 — ela cobre nascimento, telefone e endereço — e
+porque a rota `/company-users/:id/picture` já existe e já é consumida pelo cabeçalho. Sem foto, as
+**iniciais**, como o cabeçalho já faz. ⚠️ Foto de rosto é dado pessoal: ela aparece no painel
+interno, para quem já vê o nome, e **nunca** no portal do contratante.
 
 A **ADR-0039** decidiu criptografar `birth_date`, telefone e endereço, e o `CLAUDE.md` registra que
 a decisão foi barata **porque não há leitor**. Exibi-los criaria o leitor e obrigaria a executar a

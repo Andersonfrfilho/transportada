@@ -38,6 +38,31 @@ consentimento do motorista, e entram quando essas existirem. Ver a seção final
       exigiria reprocessar os XMLs para descobrir que a maioria não declara. O peso segue por volume,
       como a ADR-0052 decidiu.
 
+### P7 · P8 · P9 · P12 — a tela fala em nota, e a ocorrência ganha dono
+
+- [ ] **T017** [P] Trocar identificador por **número da nota** na listagem de entregas e na prontidão
+      fiscal, com valor e data. Contrato: **nenhuma listagem imprime UUID** (CA1). É a mesma família
+      do rótulo da parada, que imprimia rua sem número.
+- [ ] **T018** [P] Ícones de estado do CT-e na prontidão fiscal — emitido e transmitido. Contrato:
+      ícone vem do primitivo (`components/ui/icon`), `<svg>` cru reprova.
+- [ ] **T019** Expansível com **os produtos da nota** na entrega — `nfe_products` já persiste código,
+      descrição e quantidade.
+- [ ] **T020** 🧠 **Ocorrência por produto, com tipo.** Hoje a ocorrência é do **motorista**, por
+      parada (`/me/current-trip/stops/:id/occurrences`), e **não existe por produto**. Esta task cria
+      caminho novo: rota, migration e catálogo de tipos.
+
+      **Antes de codar, decidir por escrito:** quais são os tipos (separação × entrega, e quais
+      dentro de cada), quem pode registrar (o separador tem `trip.manage`, não `trip.report`), e o
+      que a ocorrência faz com o estado da nota — bloqueia, marca, ou só anota.
+
+      ⚠️ Tipo de ocorrência é catálogo: vai para `*.constant.ts` com CHECK no banco, e vira **cópia
+      por valor** no frontend, com contrato de paridade — como `FUEL_TYPES` e `VEHICLE_TYPES`.
+
+- [ ] **T021** [P] "Vincular nota" e "Ações da viagem" no topo do detalhe. Contrato de ordem por
+      texto de fonte — a ordem é o que a task entrega, e ela se prova lendo o JSX.
+- [ ] **T022** Contato do cliente e **contratante** na linha da entrega. ⚠️ Atrás da ADR do contato
+      (ver o fim deste arquivo): o telefone do destinatário vem de XML fiscal.
+
 ## Fase 2 — Progresso e mapa
 
 - [x] **T009** ✅ **Respondida em 2026-09-02: a coordenada chega, e a fase 2 está liberada.**
@@ -59,6 +84,24 @@ consentimento do motorista, e entram quando essas existirem. Ver a seção final
       nomeada fora do mapa**, nunca some (mesma regra da cidade sem polígono na aba Regiões).
 - [ ] **T013** `TripRouteMap.component.tsx` — SVG com atendidas e próximas, cor pelos tokens.
       Contrato: `<svg>` cru é proibido fora de `components/ui/` — usar o primitivo.
+
+### P10 · P11 · P13 — o ponto se corrige, a ordem se edita, o anexo se abre
+
+- [ ] **T023** Correção **manual** do ponto e recálculo sem sair da tela. O port já prevê
+      (`CorrectGeocodedAddressInput`); falta a tela e o recálculo. Contrato: corrigir grava com
+      `source` próprio — **correção humana sempre vence** a cascata (ADR-0044 §3, degrau 1).
+- [ ] **T024** 🧠 Reordenar as paradas **na proposta**, antes de aceitar. **Não** é o arraste de
+      `TripStopList`, que reordena a viagem. **Decidir antes:** a distância recalcula junto, ou a
+      proposta editada perde a distância? Publicar número velho ao lado de ordem nova seria mentira
+      barata de cometer.
+- [ ] **T025** Ver anexos da entrega — fotos do comprovante, pela rota assinada da T004.
+- [ ] **T026** ⛔ **Coordenada por estado (separar, carregar, entregar).** `trip_documents` tem os
+      horários e **nenhuma coordenada**: exige migration.
+
+      ⚠️ **Não começa sem decisão registrada.** O rastro da viagem se apaga no fechamento
+      (`purgeByTrip`, ADR-0050 §5); este **não se apagaria** — fica no histórico da entrega. É rastro
+      do trabalhador mais duradouro que o que ele consentiu, e muda a promessa feita a ele. Depende
+      da feature de consentimento **e** de decidir a retenção.
 
 ## Fase 3 — Fechamento
 
