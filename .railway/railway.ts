@@ -411,7 +411,20 @@ export default defineRailway((ctx) => {
       restartPolicyType: 'ON_FAILURE',
     },
     replicas: { sfo: 1 },
-    env: {},
+    domains: [
+      isProduction
+        ? 'cliente.fernandes-transportadora.com.br'
+        : 'cliente.staging.fernandes-transportadora.com.br',
+    ],
+    env: {
+      PORT: preserve(),
+      RAILWAY_DOCKERFILE_PATH: preserve(),
+      VITE_API_URL: preserve(),
+      VITE_CLIENT_APP_URL: preserve(),
+      VITE_KEYCLOAK_CLIENT_ID: preserve(),
+      VITE_KEYCLOAK_REALM: preserve(),
+      VITE_KEYCLOAK_URL: preserve(),
+    },
   })
 
   const shared = [
