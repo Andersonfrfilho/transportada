@@ -39,16 +39,31 @@ test('o CCMEI solto na tela preenche a empresa sem tocar no CNPJ digitado', asyn
   await page.goto('/cadastro')
 
   await page.getByLabel('CPF ou CNPJ').fill(CNPJ)
-  await expect(page.getByText('Empresa')).toBeVisible()
+  /**
+   * `getByText('Empresa')` casava também com "Documento da empresa", do bloco Documentos que a 071
+   * pôs no topo — a busca por string é substring e ignora caixa. O papel `group` é o `<fieldset>`
+   * com `<legend>`: ele nomeia o bloco, que é o que este teste quer ver, e não quebra quando um
+   * rótulo parecido nasce ao lado.
+   */
+  await expect(page.getByRole('group', { name: 'Empresa' })).toBeVisible()
 
-  await page.getByLabel('Anexar o CCMEI (opcional)').setInputFiles({
+  await page.getByLabel('Documento da empresa (opcional)').setInputFiles({
     buffer: buildCcmeiFile(),
     mimeType: 'application/pdf',
     name: 'ccmei.pdf',
   })
 
-  await expect(page.getByLabel('Razão social')).toHaveValue('FULANO DE TAL 12345678909')
-  await expect(page.getByLabel('Cidade')).toHaveValue('SAO PAULO')
+  /**
+   * A leitura do CCMEI cai em **dois blocos**: a razão social em Empresa e o município em Endereço.
+   * Cada asserção é escopada ao bloco dela porque "Cidade" também existe em outro — sem escopo o
+   * `getByLabel` acha as duas e o teste morre por ambiguidade em vez de medir o documento.
+   */
+  await expect(page.getByRole('group', { name: 'Empresa' }).getByLabel('Razão social')).toHaveValue(
+    'FULANO DE TAL 12345678909',
+  )
+  await expect(page.getByRole('group', { name: 'Endereço' }).getByLabel('Cidade')).toHaveValue(
+    'SAO PAULO',
+  )
   // O documento confere, não reescreve: o que a pessoa digitou continua lá.
   await expect(page.getByLabel('CPF ou CNPJ')).toHaveValue(CNPJ)
 })
