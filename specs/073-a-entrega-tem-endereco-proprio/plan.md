@@ -4,11 +4,17 @@
 
 Um **seam só**, copiado por valor onde a fronteira exigir, e sete chamadores.
 
-A resolução é uma junção SQL: hoje cada consulta faz
-`join nfe_participants on role = 'recipient'`; passa a fazer um `left join` do papel
-`delivery` e um do `recipient`, e escolhe o primeiro cujo endereço monta chave
-(`coalesce` sobre as colunas, na ordem `delivery → recipient`). Isso satisfaz a RF3 sem
-segunda ida ao banco e mantém a listagem numa consulta só.
+⚠️ **Corrigido na execução da Fase A.** O plano original mandava escolher em SQL, por `coalesce`
+entre dois `left join`. Não sobrevive ao contato com o código: o critério de "endereço utilizável"
+é `buildStopAddressKey` devolver não-nulo, e expressá-lo em SQL obrigaria a reescrever
+`normalizePostalCode` como expressão do Postgres — **duas definições livres para divergir**, num
+lugar onde a divergência é silenciosa.
+
+A forma que ficou: a consulta traz os **dois** papéis de destino (`destinationRolesFilter`) e a
+escolha acontece em memória, sobre as linhas que já vieram (`pickPhysicalDestinationByDocument`).
+Uma consulta só, RF3 satisfeita, e uma definição só de utilizável — em TypeScript, testável sem
+banco. `mdfe-candidate-document.query.ts` já fazia exatamente isso: traz todos os participantes e
+filtra no laço.
 
 O construtor da expressão mora em **um** arquivo por app:
 
