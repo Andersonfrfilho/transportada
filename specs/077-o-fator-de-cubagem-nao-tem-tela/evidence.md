@@ -82,3 +82,33 @@ linha não sumia do banco porque eu estava acionando um botão desabilitado de o
 operador chegaria à conclusão de que o recurso não funciona.
 
 Corrigido para **"Desligar cubagem estimada"**, com contrato afirmando que os dois rótulos diferem.
+
+---
+
+## Conserto de 2026-09-02 — o campo mentia sobre o que tinha salvo
+
+Achado ao trocar o fator de `0,05` para `0,035` em staging. A base guardou `0.035000`, e o campo
+mostrou **`0,04`** — inclusive depois de recarregar a página. A coluna é `numeric(12,6)`: o corte
+era do `Intl.NumberFormat` de duas casas dentro do painel, aplicado ao valor **já salvo**.
+
+O estrago não é cosmético. Quem digita `0,035`, lê `0,04` e conclui que o sistema recusou o valor —
+e a correção instintiva é digitar `0,04` de novo, que aí grava mesmo. A tela ensinava o operador a
+estragar o dado que ele tinha acabado de acertar.
+
+`shared/cargoVolumeField.service.ts` passou a ser o único lugar que converte, nos dois sentidos:
+
+- **A exibição nunca arredonda** — corta zero à direita do decimal guardado, e só. Formatar por
+  casas máximas é o que produz a mentira, em qualquer casa que se escolha. A garantia que fecha
+  isso é ida e volta: `parse(format(x)) === x`.
+- **O que a tela mostra, ela aceita.** Três casas nos dois lados; aceitar mais casas do que se sabe
+  mostrar devolveria o mesmo defeito uma casa adiante.
+- **Sem float binário.** A conversão passou a ser textual — `parseFloat` + `toFixed` era o caminho
+  antigo, e decimal por ponto flutuante é proibido no repositório desde o começo.
+
+Verificado em staging depois do deploy: o campo abre em `0,035`; `0,0355` é recusado com
+`aria-invalid`, botão bloqueado e o motivo escrito ("com até três casas decimais"); salvar `0,035`
+devolve `0,035` na tela e `0.035000` na base.
+
+⚠️ **A API continua aceitando seis casas** — o limite de três é da tela. Um fator de quarta casa
+gravado por fora aparece por inteiro e o campo o recusa até ser corrigido, que é o comportamento
+honesto para um valor que esta tela não sabe representar.
