@@ -20,13 +20,13 @@ consentimento do motorista, e entram quando essas existirem. Ver a seção final
       seis tons distinguíveis; a transição é `flex-grow 240ms ease` e `@media (prefers-reduced-motion:
 reduce)` já a desliga (`trip.module.css`). Nada a fazer.
 
-        ⚠️ O desenho é **representação proporcional, não plano de estiva** — a NF-e não traz dimensão
-        de volume, então não há como dizer onde cada caixa vai. Quem for mexer nele não deve fazê-lo
-        sugerir posição de peça: a diferença entre "esta fatia é da parada 3" e "esta caixa vai neste
-        canto" é a diferença entre ajudar e enganar.
+            ⚠️ O desenho é **representação proporcional, não plano de estiva** — a NF-e não traz dimensão
+            de volume, então não há como dizer onde cada caixa vai. Quem for mexer nele não deve fazê-lo
+            sugerir posição de peça: a diferença entre "esta fatia é da parada 3" e "esta caixa vai neste
+            canto" é a diferença entre ajudar e enganar.
 
-        É o **sexto** item desta spec que pedia para criar algo existente. A conferência de existência
-        antes de escrever arquivo novo deixou de ser recomendação e é o primeiro passo de toda task.
+            É o **sexto** item desta spec que pedia para criar algo existente. A conferência de existência
+            antes de escrever arquivo novo deixou de ser recomendação e é o primeiro passo de toda task.
 
 ### P5 — a prova da entrega
 
@@ -109,7 +109,9 @@ reduce)` já a desliga (`trip.module.css`). Nada a fazer.
       `TripStopList`, que reordena a viagem. **Decidir antes:** a distância recalcula junto, ou a
       proposta editada perde a distância? Publicar número velho ao lado de ordem nova seria mentira
       barata de cometer.
-- [ ] **T025** Ver anexos da entrega — fotos do comprovante, pela rota assinada da T004.
+- [x] **T025** ✅ **Fechada junto com a T006 em 2026-09-02: são a mesma tela.** "Ver anexos da
+      entrega" é abrir o comprovante, e duas telas para o mesmo canhoto seria divergência garantida.
+      O painel abre pela linha da nota, só quando há entrega ou devolução para comprovar.
 - [ ] **T026** ⛔ **Coordenada por estado (separar, carregar, entregar).** `trip_documents` tem os
       horários e **nenhuma coordenada**: exige migration.
 
