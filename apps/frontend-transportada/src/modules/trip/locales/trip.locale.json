@@ -152,7 +152,7 @@
   },
   "detail": {
     "title": "Detalhe da viagem",
-    "vehicle": "Veículo: {{vehicleId}}",
+    "vehicle": "Veículo: {{vehicle}}",
     "drivers": "Motoristas",
     "documentColumn": "Nota",
     "fiscalStatusColumn": "Situação fiscal",

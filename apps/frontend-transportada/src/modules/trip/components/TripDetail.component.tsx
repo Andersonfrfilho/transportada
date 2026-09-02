@@ -33,6 +33,10 @@ import { TripOccupancyPanel } from './TripOccupancy.component'
 import { TripProgressBar } from './TripProgressBar.component'
 import { TripReasonDialog } from './TripReasonDialog.component'
 import { TripScanQueue } from './TripScanQueue.component'
+import type { FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
+import { resolveVehicleColorSwatch } from '@/modules/fleet/shared/vehicleOption.service'
+
+import { describeTripVehicle } from '../shared/vehicleSummary.service'
 import { TripStateActions } from './TripStateActions.component'
 import { TripStopDocumentGroup, TripStopList } from './TripStopList.component'
 import { RouteSuggestionSection } from '@/modules/routing/components/RouteSuggestionSection.component'
@@ -43,8 +47,36 @@ import styles from '../styles/trip.module.css'
 type TripDetailProps = Readonly<{
   linkForm: TripDocumentLinkFormController
   onClose: () => void
+  /** A frota da empresa: é dela que sai a identificação do veículo, no lugar do UUID. */
+  vehicles: readonly FleetVehicleDetail[]
   workspace: TripWorkspaceController
 }>
+
+/**
+ * Veículo que saiu da frota (desativado, ou de outra empresa por defeito de escopo) ainda precisa
+ * nomear alguma coisa: cair no identificador é pior que hoje só se ninguém disser que é isso. O
+ * rótulo diz, e a viagem continua legível.
+ */
+function describeVehicle(
+  vehicles: readonly FleetVehicleDetail[],
+  vehicleId: string,
+  translateFleet: (key: string) => string,
+): string {
+  const vehicle = vehicles.find((entry) => entry.id === vehicleId)
+  if (vehicle === undefined) return vehicleId
+
+  return describeTripVehicle({
+    brand: vehicle.brand,
+    colorLabel:
+      resolveVehicleColorSwatch(vehicle.color) === undefined
+        ? ''
+        : translateFleet(`colorOption.${vehicle.color}`),
+    model: vehicle.model,
+    // `modelYear` é número na ficha e texto na linha: zero é ausência de cadastro, não ano zero.
+    modelYear: vehicle.modelYear > 0 ? String(vehicle.modelYear) : '',
+    plate: vehicle.plate,
+  })
+}
 
 function statusClassName(status: TripStatus): string {
   return status === 'completed' || status === 'cancelled'
@@ -102,8 +134,9 @@ export function TripDetailSkeleton() {
   )
 }
 
-export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
+export function TripDetail({ linkForm, onClose, vehicles, workspace }: TripDetailProps) {
   const { t } = useTranslation('trip')
+  const { t: tFleet } = useTranslation('fleet')
   const trip = workspace.trip
   const [isMdfeGateOpen, setIsMdfeGateOpen] = useState(false)
   const [overrideDocumentId, setOverrideDocumentId] = useState<string | null>(null)
@@ -271,7 +304,9 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
         </p>
       )}
 
-      <p className={styles.summaryLine}>{t('detail.vehicle', { vehicleId: trip.vehicleId })}</p>
+      <p className={styles.summaryLine}>
+        {t('detail.vehicle', { vehicle: describeVehicle(vehicles, trip.vehicleId, tFleet) })}
+      </p>
 
       <fieldset className={styles.driverChecklist}>
         <legend className={styles.hint}>{t('detail.drivers')}</legend>

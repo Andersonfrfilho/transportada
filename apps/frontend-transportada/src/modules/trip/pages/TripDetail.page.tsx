@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
+import { useFleet } from '@/modules/fleet/hooks/useFleet.hook'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
 
@@ -25,6 +26,12 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
     permissions,
     tripId,
   })
+  /**
+   * O detalhe imprimia o UUID do veículo. A frota já é carregada por esta app inteira, então a
+   * identificação vem daqui em vez de a api passar a devolvê-la — o `useFleet` sem filtro
+   * compartilha chave de consulta com a aba de veículos e não custa requisição nova.
+   */
+  const fleet = useFleet({ ...(companyId === undefined ? {} : { companyId }), permissions })
   const linkForm = useTripDocumentLinkForm({
     findNfeDocumentByAccessKey: workspace.controller.findNfeDocumentByAccessKey,
     linkScannedDocument: ({ documentId }) =>
@@ -59,7 +66,12 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
       ) : null}
       {authQuery.isSuccess ? (
         <div className={styles.deck}>
-          <TripDetail linkForm={linkForm} onClose={handleBackToTrips} workspace={workspace} />
+          <TripDetail
+            linkForm={linkForm}
+            onClose={handleBackToTrips}
+            vehicles={fleet.viewModel.vehicles ?? []}
+            workspace={workspace}
+          />
           {/*
             Spec 061 D4: o painel da conta só existe para quem tem `trip.financials`. Quem monta a
             viagem decide pela avaliação prevista, que não mostra o que se paga ao agregado.
