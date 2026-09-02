@@ -2,9 +2,15 @@
 
 import type { CcmeiValues } from '@adatechnology/document-intake'
 
-import { normalizeTaxId } from '@/modules/shared/taxId.service'
+import { formatTaxId, normalizeTaxId } from '@/modules/shared/taxId.service'
 
 import type { CompanyDeclaredFields } from './cnpjInfo.service'
+
+/**
+ * Spec 071: o CCMEI traz o CNPJ, e o CNPJ é o campo "CPF ou CNPJ" do bloco Dados pessoais — outro
+ * bloco, mesmo princípio. Ele entra só se o campo estiver vazio, como todo o resto.
+ */
+export type CcmeiDeclaredFields = CompanyDeclaredFields & Readonly<{ taxId: string }>
 
 /**
  * O que sobrou aqui depende de **ter formulário**: encaixar a leitura nos campos vazios e comparar
@@ -17,10 +23,10 @@ import type { CompanyDeclaredFields } from './cnpjInfo.service'
  * dela — divergir dele é assunto do operador, não deste merge.
  */
 export function mergeCcmeiIntoFields(input: {
-  readonly current: CompanyDeclaredFields
+  readonly current: CcmeiDeclaredFields
   readonly formatPostalCode: (value: string) => string
   readonly values: Partial<CcmeiValues>
-}): CompanyDeclaredFields {
+}): CcmeiDeclaredFields {
   const { current, values } = input
   const address = values.address
   const keepOrFill = (typed: string, fromDocument: string | undefined): string =>
@@ -41,6 +47,8 @@ export function mergeCcmeiIntoFields(input: {
         : current.postalCode,
     state: keepOrFill(current.state, address?.state),
     street: keepOrFill(current.street, address?.street),
+    taxId:
+      current.taxId === '' && values.cnpj !== undefined ? formatTaxId(values.cnpj) : current.taxId,
   }
 }
 

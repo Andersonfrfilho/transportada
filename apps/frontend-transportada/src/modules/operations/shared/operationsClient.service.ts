@@ -121,7 +121,18 @@ export type OperationsClient = Readonly<{
   listTimeline: (
     input: Readonly<{ cursor?: null | string; limit?: number } & OperationsTimelineFilters>,
   ) => Promise<OperationsPage<OperationsTimelineEvent>>
+  /**
+   * Spec 072. **Nunca lança**: quem apertou o botão precisa de um veredito, e um estouro no lugar de
+   * um aviso o faria concluir que o botão não funciona.
+   */
+  runJob: (input: Readonly<{ job: string }>) => Promise<RunJobOutcome>
 }>
+
+/**
+ * `already_running` é resposta de primeira classe, não erro: é o freio que a RNF1 exige, e o
+ * operador precisa lê-lo como "já está rodando", não como "deu ruim".
+ */
+export type RunJobOutcome = 'started' | 'already_running' | 'failed'
 
 function requestError(code: string): Error {
   return new Error(code)
@@ -170,6 +181,32 @@ async function authorizedGet(
 export function createOperationsClient(dependencies: ClientDependencies): OperationsClient {
   const adapters = createOperationsResponseAdapters()
   return {
+    async runJob(input) {
+      const accessToken = await dependencies.getAccessToken()
+      let response: Response
+      try {
+        response = await dependencies.fetch(
+          new Request(
+            `${dependencies.apiUrl}/operations/jobs/${encodeURIComponent(input.job)}/run`,
+            {
+              cache: 'no-store',
+              headers: { authorization: `Bearer ${accessToken}` },
+              method: 'POST',
+            },
+          ),
+        )
+      } catch {
+        return 'failed'
+      }
+
+      /**
+       * O `409` é lido pelo **status**, e não pelo corpo: `requestJson` colapsa toda falha num
+       * código só, e ali a recusa por execução aberta ficaria indistinguível de rede caída.
+       */
+      if (response.status === 409) return 'already_running'
+
+      return response.ok ? 'started' : 'failed'
+    },
     async getSummary(input) {
       return adapters.summaryFromApi(
         await authorizedGet({

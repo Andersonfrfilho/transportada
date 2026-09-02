@@ -189,6 +189,13 @@ describe('Drizzle migrations', () => {
       '20260831180000_user_picture_public_token',
       '20260831190000_identifier_source_whatsapp',
       '20260831213731_company_cargo_settings',
+      '20260901165052_company_contacts',
+      '20260901194200_aggregate_attachment_outbox',
+      '20260901211242_municipality_centroids',
+      '20260901214952_geocoding_backfill_job',
+      '20260901220135_geocoding_refinement_trail',
+      '20260901230000_aggregate_attachment_document_types',
+      '20260902003000_geocoding_backfill_hourly',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')

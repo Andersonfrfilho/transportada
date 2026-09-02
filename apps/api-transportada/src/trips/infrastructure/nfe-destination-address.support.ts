@@ -8,12 +8,16 @@ import {
   nfeAddresses,
   nfeParticipants,
 } from '../../database/database.schema.js'
+import { destinationRolesFilter } from '../../nfe-documents/infrastructure/physical-destination.join.js'
+import { chooseNfeDestinationRow } from '../domain/nfe-destination-choice.policy.js'
+import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
 import type { StopAddressComponents } from '../domain/stop-address-key.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
 export type NfeDestinationAddress = {
   readonly components: StopAddressComponents
   readonly label: string
+  readonly origin: PhysicalDestinationOrigin
 }
 
 /** O vínculo aceita nota crua ou frete já calculado sobre ela (ADR-0023 §2) — os dois resolvem à
@@ -43,19 +47,24 @@ export async function resolveNfeDocumentId(
 }
 
 /**
- * ADR-0043 §3 (D3): a parada agrupa pelo endereço do destinatário da NF-e. `null` quando a nota
- * não resolve a nenhum destinatário cadastrado — vira nota `SEM ENDEREÇO` (T010), não erro.
+ * ADR-0043 §3 (D3) com a spec 073: a parada agrupa pelo endereço **físico** da NF-e — o de
+ * `<entrega>` quando a nota traz um, o do destinatário caso contrário. `null` quando a nota não
+ * resolve a destino algum — vira nota `SEM ENDEREÇO` (T010), não erro.
+ *
+ * A consulta traz os **dois** papéis de destino e a escolha acontece sobre as linhas que já
+ * vieram: uma consulta só, e uma definição só de "endereço utilizável" (spec 073 RF3).
  */
 export async function resolveNfeDestinationAddress(
   queryable: TripQueryable,
   input: { readonly companyId: string; readonly nfeDocumentId: string },
 ): Promise<NfeDestinationAddress | null> {
-  const [recipient] = await queryable
+  const rows = await queryable
     .select({
       city: nfeAddresses.city,
       cityCode: nfeAddresses.cityCode,
       number: nfeAddresses.number,
       postalCode: nfeAddresses.postalCode,
+      role: nfeParticipants.role,
       state: nfeAddresses.state,
       street: nfeAddresses.street,
     })
@@ -71,18 +80,9 @@ export async function resolveNfeDestinationAddress(
       and(
         eq(nfeParticipants.companyId, input.companyId),
         eq(nfeParticipants.documentId, input.nfeDocumentId),
-        eq(nfeParticipants.role, 'recipient'),
+        destinationRolesFilter(nfeParticipants.role),
       ),
     )
-    .limit(1)
-  if (recipient === undefined) return null
 
-  return {
-    components: {
-      cityCode: recipient.cityCode,
-      number: recipient.number,
-      postalCode: recipient.postalCode,
-    },
-    label: [recipient.street, recipient.city, recipient.state].filter(Boolean).join(', '),
-  }
+  return chooseNfeDestinationRow(rows)
 }

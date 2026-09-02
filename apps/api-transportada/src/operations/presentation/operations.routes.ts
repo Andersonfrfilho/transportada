@@ -3,8 +3,10 @@
  */
 import { defineRoute } from '../../http/router.service.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
+import { SCHEDULED_JOBS } from '../../shared/job-catalog.constant.js'
 import {
   API_AUDIT_EVENTS_PATH,
+  API_OPERATIONS_JOB_RUN_PATH,
   API_OPERATIONS_JOBS_PATH,
   API_OPERATIONS_SUMMARY_PATH,
   API_OPERATIONS_TIMELINE_PATH,
@@ -14,6 +16,8 @@ import {
 import { ApiError } from '../../shared/api.error.js'
 
 const OPERATIONS_READ_POLICY = { permission: 'operations.read', scope: 'company' } as const
+/** Spec 072: disparar é **ação**, e ela gasta cota de terceiro — não sai de carona com ler. */
+const OPERATIONS_RUN_POLICY = { permission: 'operations.run', scope: 'company' } as const
 const AUDIT_READ_POLICY = { permission: 'audit.read', scope: 'company' } as const
 const MAX_PAGE_LIMIT = 100
 const SENSITIVE_KEY_PATTERN =
@@ -35,6 +39,16 @@ type PageInput = SummaryInput & {
 type Dependencies = {
   readonly audit: {
     readonly listEvents: (input: WithContext<PageInput>) => Promise<Record<string, unknown>>
+  }
+  readonly runJob: {
+    readonly run: (input: {
+      readonly context: CompanyContext
+      readonly correlationId: string
+      readonly job: never
+    }) => Promise<
+      | { readonly executionId: string; readonly outcome: 'started' }
+      | { readonly outcome: 'already_running' }
+    >
   }
   readonly operations: {
     readonly getSummary: (input: WithContext<SummaryInput>) => Promise<Record<string, unknown>>
@@ -99,7 +113,67 @@ export function createOperationsRoutes(
       pathname: API_AUDIT_EVENTS_PATH,
       policy: AUDIT_READ_POLICY,
     }),
+    defineRoute<{ readonly correlationId: string; readonly job: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const result = await dependencies.runJob.run({
+          context: context.scope,
+          correlationId: input.correlationId,
+          job: input.job as never,
+        })
+
+        /**
+         * `409` decidido pelo **índice**, não por leitura prévia: `startManual` devolve `null`
+         * quando o `on conflict do nothing` não inseriu. É o mesmo freio que a RNF1 exige — sem ele
+         * o botão vira um jeito de martelar a BrasilAPI por clique.
+         */
+        if (result.outcome === 'already_running') {
+          return jsonResponse({
+            body: {
+              error: {
+                code: 'JOB_ALREADY_RUNNING',
+                message: 'This routine already has an open execution',
+              },
+            },
+            status: 409,
+          })
+        }
+
+        /** `202`: aceita para processamento. Quem roda é o worker, e a tela acompanha pela lista. */
+        return jsonResponse({ body: { data: result }, status: 202 })
+      },
+      method: 'POST',
+      parse: ({ correlationId, pathParameters }) => ({
+        correlationId,
+        job: parseScheduledJob(pathParameters.job ?? ''),
+      }),
+      pathname: API_OPERATIONS_JOB_RUN_PATH,
+      /**
+       * O nome da rotina carrega `.` (`geocoding.backfill`), e o formato padrão de parâmetro do
+       * roteador recusaria o caminho com `404` **antes** de qualquer validação nossa — mesmo caso da
+       * chave de endereço em `/geocoded-addresses/:addressKey`.
+       */
+      pathParameterFormat: 'raw',
+      policy: OPERATIONS_RUN_POLICY,
+    }),
   ]
+}
+
+/**
+ * Rotina fora do catálogo é `400`, não `500`: o nome vem do caminho, e caminho é entrada de usuário.
+ * O `.` do nome (`geocoding.backfill`) não é separador para o roteador, mas a validação aqui evita
+ * procurar no banco por lixo.
+ */
+function parseScheduledJob(value: string): string {
+  const job = decodeURIComponent(value).trim()
+  if (!SCHEDULED_JOBS.some((candidate) => candidate === job)) {
+    throw new ApiError({
+      code: 'UNKNOWN_SCHEDULED_JOB',
+      message: 'Unknown scheduled job',
+      status: 400,
+    })
+  }
+
+  return job
 }
 
 function parseSummaryFilters(url: URL): Record<string, unknown> {

@@ -136,6 +136,25 @@ export const JOB_CATALOG = [
      */
     minimumIntervalSeconds: 86_400,
   },
+  {
+    /**
+     * Vazio, e é consequência do desenho: a rotina **declina o centroide de município** (spec 069),
+     * então provedor fora do ar não vira dado ruim gravado — vira endereço que volta na próxima
+     * janela. Não há falha própria a nomear porque não há meia passada a lamentar.
+     */
+    failureOutcomes: [],
+    job: 'geocoding.backfill',
+    /**
+     * Uma hora, e o piso aqui é **cortesia com serviço de terceiro**, não afinação nossa: a
+     * BrasilAPI é pública e gratuita, e o piso é a frase "isto nunca deve correr mais rápido que
+     * isso".
+     *
+     * ⚠️ Começou na batida de cinco minutos, e estava errado por uma ordem de grandeza — 6.000
+     * requisições por hora no pior caso. Não havia pressa que justificasse: a rotina é adiantamento,
+     * e o que ela não alcança a sugestão resolve na hora.
+     */
+    minimumIntervalSeconds: 3_600,
+  },
 ] as const
 
 export type JobCatalogEntry = (typeof JOB_CATALOG)[number]

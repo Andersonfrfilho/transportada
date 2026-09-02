@@ -48,7 +48,7 @@ export function createAggregateApplicationAttachmentPublicRoutes(
        * documento volta para quem enviou: a rota é anônima, e ecoar o conteúdo a transformaria numa
        * sonda — bastaria subir o documento de outra pessoa para ler o que ele diz.
        */
-      async handle({ input }): Promise<Response> {
+      async handle({ correlationId, input }): Promise<Response> {
         if (dependencies.turnstileSecretKey !== undefined) {
           const isHuman = await verifyTurnstileToken({
             secretKey: dependencies.turnstileSecretKey,
@@ -60,6 +60,7 @@ export function createAggregateApplicationAttachmentPublicRoutes(
         const draft = await dependencies.attachments.uploadDraft({
           bytes: input.bytes,
           companyId: input.companyId,
+          correlationId,
           type: input.type,
         })
 

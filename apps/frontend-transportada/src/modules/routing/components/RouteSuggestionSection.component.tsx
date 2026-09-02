@@ -40,6 +40,7 @@ export function RouteSuggestionSection({ controller }: RouteSuggestionSectionPro
         <RouteSuggestionPanel
           isDeciding={controller.isDeciding}
           onAccept={() => void controller.accept()}
+          onRefineAddress={controller.refineAddress}
           onReject={() => void controller.reject()}
           suggestion={controller.suggestion}
         />

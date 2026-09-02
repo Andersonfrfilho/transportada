@@ -174,6 +174,37 @@ o problema). Desvio de endereço (D9, `delivery_address_overrides`, também appe
 menu, nunca edição em linha, e guarda **duas** identidades por vínculo: `requestedBy` (texto livre —
 quem pediu o desvio quase nunca é usuário do sistema) e `actorUserId` (membership — quem executou).
 
+**A nota tem dois endereços de destino, e só um deles diz onde o caminhão para** (spec 073).
+`<enderDest>` é onde o cliente está cadastrado; `<entrega>` é onde a carga tem de ser deixada, e o
+emitente só o emite quando os dois divergem. O importador grava os dois desde a spec 013
+(`resolvePartyByRole` → papel `delivery`), mas até a 073 **nenhum leitor conhecia o papel**.
+
+A precedência é **desvio manual → `<entrega>` → `<enderDest>`**, e a decide
+`resolvePhysicalDestination` (`nfe-documents/domain/physical-destination.policy.ts`), com **cópia por
+valor** no worker (`routing/domain/physical-destination.policy.ts`) guardada por
+`test/routing/physical-destination-parity.contract.ts`. `<entrega>` incompleto **cai para o
+destinatário**: o critério de utilizável é o mesmo `buildStopAddressKey` da parada, nunca um segundo
+critério ao lado dele — e é por isso que a escolha acontece **em memória**, sobre linhas que a
+consulta já trouxe (`destinationRolesFilter`), e não por `coalesce` em SQL, que obrigaria a
+reescrever `normalizePostalCode` como expressão do Postgres.
+
+⚠️ **A linha divisória é ler ou não o endereço, nunca o nome do consumidor.** Quem decide _lugar_
+segue o seam: a parada da viagem, a parada proposta pelo solver, a base do desvio, o `cMunDescarga`
+do MDF-e e a população adiantada de geocodificação. Quem decide _quem_ continua no destinatário —
+lote de CT-e, tomador de NFS-e, faturamento, regra de frete, portal do contratante, a listagem de
+notas, e os **dois de `delivery-clients`**, que pareciam paradas e resolvem cadastro de cliente pelo
+CNPJ. Convertê-los faria a busca casar pelo documento de quem recebe no galpão e sumiria a nota da
+consulta que **impede o despacho** por agendamento pendente. Pela mesma razão o `recipientTaxId` da
+sugestão de roteiro **não** acompanhou o endereço. `test/nfe-documents/physical-destination-boundary.contract.ts`
+cobra isso por texto de fonte, e afirma que os dois de `delivery-clients` seguem sem ler
+`nfe_addresses`.
+
+⚠️ Medido em produção em 2026-09-01: **1628 notas, zero `<entrega>`** — e zero `pickup`. Não há
+sintoma hoje, e o caminho de escrita nunca rodou contra nota real; é
+`persists the delivery party and its own address` (worker, integração) que prova que a linha é
+escrita. A população adiantada adianta os **dois** papéis, de propósito: o superconjunto nunca erra
+por falta, e o excedente é grátis porque o degrau que resolve é o do CEP.
+
 **A chave de acesso é filtro de listagem, não rota nova.** `GET /nfe-documents?accessKey=` resolve os
 44 caracteres que a câmera leu no identificador que o vínculo pede, dentro do `companyId` do contexto
 — chave de outra empresa é ausência, não 403, e é
@@ -376,6 +407,60 @@ acima de `buildNfseDescription`, em `nfse-invoices/domain/nfse-description.servi
 campo "Período do serviço" abre vazio a cada emissão (`useNfseEmissionDialog.hook.ts`) e entra na
 chave da prévia; em branco ele é **omitido** do corpo, porque ausente e `''` dizem a mesma coisa à API.
 
+**O anexo da candidatura não é lido na requisição** (ADR-0053, spec 070). `POST
+/public/aggregate-application-attachments` é anônima: quem passa pelo Turnstile escolheria quanto CPU
+a API gasta, num runtime de um event loop só — e um PDF com geometria patológica travaria a emissão
+de CT-e junto. A requisição grava o objeto e insere rascunho **e** evento de
+`aggregate_attachment_outbox` na mesma transação, e responde `201` com `draftId` e nada mais.
+
+⚠️ Não é o `processing_outbox`: lá `actor_user_id` é `not null`, e quem anexa é anônimo — inventar um
+UUID de sistema para caber na tabela alheia seria mentir na trilha. O payload carrega **referência**
+(bucket, chave), nunca os bytes: PDF numa fila é PII em repouso sem prazo de descarte.
+
+Quem lê é o worker, e **a landing continua lendo no navegador**: as duas leituras existem por motivos
+diferentes — a do navegador preenche o formulário na hora, a do servidor é o que o operador confere.
+Aceitar a leitura do cliente anônimo como prova deixaria um atacante escolher o que o operador vê.
+
+**O pré-cadastro do agregado começa pelos documentos** (spec 071). A etapa de documentos é a
+**primeira** da landing, antes de "Dados pessoais": ter os dados antes de preencher é o ponto
+inteiro, e com o campo de arquivo no meio da página quem chegava só descobria que podia ter anexado
+depois de digitar tudo à mão. Quatro campos, todos opcionais — CRLV, documento da empresa, CNH e
+comprovante de endereço —, declarados em `application/shared/preRegistration.service.ts`, que também
+guarda a ordem dos blocos (`PRE_REGISTRATION_BLOCKS`) porque é ela que o contrato percorre.
+
+**Todo dado que o documento entrega preenche o campo dele, mesmo em outro bloco.** O CRLV traz nome e
+CPF do proprietário e o município/UF: eles não são dados do veículo, são "Nome completo", "CPF ou
+CNPJ" e a cidade do bloco Endereço. Parar no bloco Veículo jogaria fora metade da leitura por causa
+de onde o campo mora na tela. Três guardas que não afrouxam por isso: **só campo vazio**;
+**divergência avisa, não corrige** (agregado que roda com veículo de terceiro é caso normal, e ali o
+proprietário diverge de propósito); e **documento não identificado não preenche nada** — quem manda é
+o documento, não o campo em que ele foi solto.
+
+⚠️ **O bloco Empresa aparece pelo CNPJ lido ou digitado**, o que vier primeiro: com a etapa de
+documentos no topo não há CNPJ digitado ainda quando o CCMEI chega, e o campo do documento da empresa
+deixou de depender dele. O campo é **um só** e aceita CCMEI, contrato social ou cartão CNPJ — só o
+CCMEI preenche, e quem decide isso é `identifyDocumentKind`, não o campo. Cartão CNPJ não ganha
+parser porque leria o que `GET /public/cnpj-info` já devolve; contrato social não tem forma para
+ancorar. O comprovante de endereço é **anexo puro, qualquer tipo e qualquer data**: conta de luz,
+água, telefone e internet não têm layout, e um parser genérico para elas é palpite com aparência de
+leitura. ⚠️ Na landing o CEP **não** é consultado (a rota exige `addresses.read` — ADR-0040), então
+o bloco Endereço continua digitado do começo ao fim.
+
+**O parser do documento é biblioteca, e ela devolve o que o documento diz** (ADR-0054, spec 071).
+`readCrlv`, `extractCnhFields` e `createTesseractOcrClient` subiram para
+`@adatechnology/document-intake`, onde `readCcmei` e `identifyDocumentKind` já viviam: os três eram
+código de uma app que uma segunda passou a precisar, e nenhuma app importa código-fonte de outra.
+Não é cópia por valor como `FUEL_TYPES` — uma lista de cinco produtos se confere de olho, um parser
+de 249 linhas com tabelas de tradução e três dígitos verificadores **diverge calado**.
+
+⚠️ O pacote devolve o **impresso**, canonicalizado (`bodyType: 'FURGAO'`, nunca `'02'`); a tradução
+para `MdfeBodyType`, `FuelProduct` e `VehicleColor` ficou em
+`frontend-transportada/.../crlvVehicle.service.ts`, que virou mapeador de catálogo. A landing não
+ganha cópia dessas tabelas porque a ficha dela não tem carroceria, combustível nem cor. A linha
+decide quem quebra quando: o Detran mudar o layout quebra o pacote; o nosso catálogo mudar quebra o
+app. Os `remarks` se dividem pelo mesmo corte — `checkDigitFailed`, `notInformed` e `notReadable` são
+do documento; `notInCatalog` e `ambiguousDiesel` são do catálogo.
+
 **O documento do agregado é lido por camada de texto quando ele tem uma.** `POST` de anexo passa
 por `aggregate-document-text.gateway.ts`, o único lugar que sabe escolher: **PDF** sai por
 `shared/pdf-text-layer.service.ts` (exato, sem rede, sem serviço) e **imagem** sai pelo OCR
@@ -403,7 +488,7 @@ O startup **não** roda migrations; rollback é manual, ao lado da migration.
 
 RabbitMQ via `@adatechnology/rabbitmq-provider` — **sem BullMQ/Redis**. Topologias em
 `src/messaging/`, cada trilho com main/retry/dead: `nfe-import.v1`, `nfe-distribution.v1`,
-`cte-issuance.v1` (+ `synthetic.v1`, proibido em production). Padrão de nome:
+`cte-issuance.v1`, `aggregate-attachment.v1` (+ `synthetic.v1`, proibido em production). Padrão de nome:
 `${QUEUE_PREFIX}.<rota>.v1.{main,retry,dead}.{exchange,queue}`.
 
 Envelopes Zod versionados (`*-envelope.schema.ts`), backoff por política, idempotência via tabela
@@ -472,10 +557,52 @@ assina com o certificado de **CT-e** (`NFE_DISTRIBUTION_CERTIFICATE_PURPOSE` em
 mesma linha de `digital_certificates`, senão a empresa é aprovada pelo certificado de MDF-e e falha ao
 assinar.
 
-⚠️ O schema Drizzle das tabelas consumidas é **duplicado por cópia** no worker — treze arquivos em
+**O anexo do agregado é lido em `worker_thread`, e só ele.** O trilho `aggregate-attachment.v1`
+(relay próprio sobre `aggregate_attachment_outbox`) baixa o objeto do bucket e roda o pdf.js numa
+thread — dentro do event loop do worker ele pararia CT-e, MDF-e e NFS-e junto, o que seria trocar de
+vítima, não consertar (ADR-0053). Três coisas medidas que não se deduzem do código:
+
+- `prefetch` é **1** neste consumidor, não o do resto do worker: cada mensagem sobe uma thread com
+  pdf.js dentro, e uma rajada de anexos vinda de gente anônima viraria dezenas de parses
+  concorrentes.
+- `new Worker(url)` é **caminho de arquivo de verdade** — o runtime não reescreve `.js` para `.ts`
+  como faz com `import`. A extensão sai do próprio `import.meta.url`, e `pdf-extraction.worker.ts` é
+  entrypoint do `bun build`; `test/build-entrypoints.contract.test.ts` cobre `*.worker.ts` pelo mesmo
+  motivo que cobre `*.main.ts`.
+- O pdf.js **escreve avisos no console**, e do worker eles caíam no stdout do processo — que é log. O
+  canal é silenciado dentro da thread antes do parse.
+
+**Quem escolhe o mecanismo é a assinatura do arquivo; quem escolhe o mapa é o documento** (spec 071).
+`document-extraction.gateway.ts` é o único lugar que decide: PDF (`%PDF`) vai para a `worker_thread`
+com pdf.js, imagem (`PNG`/`JPEG`) vai para o `tesseract-server` — que é rede, e rede não é o motivo
+da thread. Dentro do PDF, o mapa sai do **título** do documento, nunca do tipo que o cliente anônimo
+declarou: o gate `type !== 'ccmei'` caiu, senão o mesmo CCMEI deixaria de ser lido só por chegar
+como `company_document`.
+
+⚠️ **A CNH-e cai no ramo do PDF e não reconhece nada** — ela é imagem embrulhada em PDF pelo invólucro
+do Serpro (medido: ~400 caracteres de texto legal e nenhum campo), e o `tesseract-server` não lê PDF.
+Isso é o resultado **correto**, não uma falha: quem chega pelo OCR é a CNH fotografada. No OCR o mapa
+é escolhido pelo **tipo declarado**, ao contrário do PDF — não há classificador de documento numa
+foto, e inventar um seria adivinhação. Fora da CNH, grava `null`.
+
+⚠️ O que o OCR lê **nunca volta ao formulário do candidato**: ele já enviou e foi embora, e
+preenchimento assíncrono seria prometer o que não se entrega. Vai para `extracted_fields`, que o
+operador confere na fila de revisão — `ATTACHMENT_FIELD_LABEL` cobre CNH e CRLV, e um contrato por
+texto de fonte impede `extractCnhFields` de voltar para a landing "para adiantar". Sem
+`AGGREGATE_DOCUMENT_OCR_URL` (nova no worker, mesma da API) o ramo de imagem grava ausência em vez de
+falhar: serviço que não existe não pode reciclar mensagem para sempre.
+
+Os tipos de anexo passaram a seis: `address_proof` e `company_document` entraram no CHECK, no Zod, na
+cópia do envelope do worker e nos rótulos do painel; **`ccmei` fica** — linha já gravada não se
+reescreve, senão o operador perde o rótulo sob o qual aprovou o anexo.
+
+Leitura que não reconhece nada grava `null` e fecha: é resultado, não falha. Objeto apagado entre o
+`201` e a leitura fecha sem escrever. Só falha de parse e de banco recicla.
+
+⚠️ O schema Drizzle das tabelas consumidas é **duplicado por cópia** no worker — quatorze arquivos em
 `src/database/` (`processing`, `cte-issuance-execution`, `mdfe-issuance-execution`,
 `nfse-issuance-execution`, `nfe`, `identity`, `invitation-delivery`, `password-reset-delivery`,
-`billing`, `company-distribution-settings`, `job-execution`, `energy-tariff`, `fuel-reference`), e
+`billing`, `company-distribution-settings`, `job-execution`, `energy-tariff`, `fuel-reference`, `aggregate-attachment`), e
 outras oito no cron. Mudou tabela na API? confira as cópias — migrations só rodam na API.
 
 ## cron-transportada
@@ -849,9 +976,11 @@ varre por glob todo `src/modules/*/locales/*.locale.json` que não seja `.en.` e
 de uma blocklist de formas que não existem sem acento (`nao`, `possivel`, `numero`, `pagina`, …).
 Módulo novo entra na varredura sozinho; palavra nova que escapar se acrescenta à blocklist.
 
-Fora de produção o ícone da aba troca para `public/icons/icon-work-in-progress.svg` — o 🚧 vem à
-frente da marca, dentro do próprio desenho, porque na aba o ícone é o que aparece antes do título; o
-título fica só com o nome, para não haver dois avisos lado a lado. A tela abre com uma faixa de
+Fora de produção o ícone da aba troca para `public/icons/icon-work-in-progress.svg` — a marca fica
+**do tamanho normal**, e o 🚧 entra como plaquinha sobreposta no canto inferior esquerdo, dentro do
+próprio desenho, porque na aba o ícone é o que aparece antes do título; encolher a marca para abrir
+espaço ao aviso tornava o ícone irreconhecível justamente onde ele é menor. O título fica só com o
+nome, para não haver dois avisos lado a lado. A tela abre com uma faixa de
 ambiente. Quem decide é
 `VITE_APP_ENV` (`local` · `staging` · `production`), resolvido em
 `shared/deploymentEnvironment.service.ts`: ausente ou desconhecido cai em `production` — variável
@@ -1027,6 +1156,24 @@ Use cases e rotas são factories `create*`; classes de repositório são `Pascal
 - Proibido: deploy em production sem gates e aprovação humana, migration destrutiva automática,
   misturar tenants / ambientes fiscais / buckets.
 - `.env` e `.env.test` nunca são commitados nem têm conteúdo exposto.
+
+## A configuração do Railway virou código de projeto
+
+**Config as Code (`deploy/*/railway.json`) está depreciado** — lido até **2026-12-01**, e **serviço
+novo não pode optar por ele**. O substituto é `.railway/railway.ts`, um arquivo para o projeto
+inteiro, aplicado por `railway config plan` / `railway config apply` (o SDK é a devDependency
+`railway`).
+
+⚠️ **O `railway config pull` não traz o que os `railway.json` declaram.** Ele lê o painel, e o painel
+nunca soube do arquivo. Medido: o import devolve `builder: RAILPACK` e `config: {}` para os treze
+serviços — sem healthcheck, sem o `preDeployCommand` da API (as migrations) e sem o `cronSchedule`
+do cron. Aplicar a importação crua desliga os dois **sem erro nenhum**. Está tudo transcrito à mão
+no arquivo hoje; quem mexer confere contra os `railway.json`, que continuam no repositório de
+propósito.
+
+A ordem de migração de cada serviço, e por que apagar o arquivo primeiro derruba o serviço, está em
+`docs/spec/railway.md` § "Migrar um serviço". Duas coisas que o arquivo **não** pode fazer: registrar
+domínio próprio (cria-se no painel) e carregar segredo (as variáveis viram `preserve()`).
 
 ## Duas sessões, duas árvores
 

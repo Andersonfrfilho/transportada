@@ -153,6 +153,7 @@ export function TripWorkspacePage() {
             isCreatePending={workspace.createMutation.isPending}
             isReadOnly={!workspace.controller.canManageTrips}
             onCreate={handleCreate}
+            tenant={tenant}
             vehicles={fleet.viewModel.vehicles ?? []}
           />
 

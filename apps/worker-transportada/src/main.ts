@@ -67,6 +67,11 @@ import { buildNotificationRabbitMqTopology } from './messaging/notification-rabb
 import { buildRouteOptimizationTopology } from './messaging/route-optimization-topology.js'
 import { startRouteOptimizationConsumer } from './runtime/route-optimization-consumer.service.js'
 import { createDrizzleRouteOptimizationRepository } from './routing/infrastructure/drizzle-route-optimization.repository.js'
+import { createGeocodingBackfillRoutine } from './geocoding-backfill/application/geocoding-backfill.routine.js'
+import { createDrizzlePendingAddressSource } from './geocoding-backfill/infrastructure/drizzle-pending-address.repository.js'
+import { createBrasilApiPostalCodeGateway } from './routing/infrastructure/brasil-api-postal-code.gateway.js'
+import { createDrizzleGeocodedAddressRepository } from './routing/infrastructure/drizzle-geocoded-address.repository.js'
+import { createMunicipalityCentroidGateway } from './routing/infrastructure/municipality-centroid.gateway.js'
 import { createOsrmRoutingMatrixGateway } from './routing/infrastructure/osrm-routing-matrix.gateway.js'
 import { createRouteOptimizationPorts } from './routing/infrastructure/route-optimization-ports.factory.js'
 import { createRabbitMqNotificationQueue } from './messaging/rabbitmq-notification-queue.adapter.js'
@@ -84,6 +89,8 @@ import { createWhatsAppCodeSender } from './whatsapp/infrastructure/whatsapp-cod
 import { createWhatsAppChannelSecretGateway } from './whatsapp/infrastructure/whatsapp-channel-secret.gateway.js'
 import { DrizzleWhatsAppChannelRepository } from './whatsapp/infrastructure/drizzle-whatsapp-channel.repository.js'
 import { createInvitationChannelGateway } from './identity/infrastructure/invitation-channel.gateway.js'
+import { DrizzleCompanyLegalIdentificationRepository } from './identity/infrastructure/drizzle-company-legal-identification.repository.js'
+import { createLandingEmailBrandGateway } from './identity/infrastructure/landing-email-brand.gateway.js'
 import { createInvitationCodeSecretGateway } from './identity/infrastructure/invitation-code-secret.gateway.js'
 import type { InvitationDeliveryDependencies } from './identity/application/deliver-invitation-code.service.js'
 import { startInvitationDeliveryConsumer } from './runtime/invitation-delivery-consumer.service.js'
@@ -95,6 +102,18 @@ import { DrizzlePasswordResetDeliveryRepository } from './identity/infrastructur
 import { createPasswordResetCodeSecretGateway } from './identity/infrastructure/password-reset-code-secret.gateway.js'
 import type { PasswordResetDeliveryDependencies } from './identity/application/deliver-password-reset-code.service.js'
 import { startPasswordResetDeliveryConsumer } from './runtime/password-reset-delivery-consumer.service.js'
+import { buildAggregateAttachmentRabbitMqTopology } from './messaging/aggregate-attachment-rabbitmq-topology.js'
+import { AggregateAttachmentOutboxPublisherService } from './aggregate-attachment/application/aggregate-attachment-outbox-publisher.service.js'
+import { AggregateAttachmentOutboxRelayService } from './aggregate-attachment/application/aggregate-attachment-outbox-relay.service.js'
+import { DrizzleAggregateAttachmentOutboxRepository } from './aggregate-attachment/infrastructure/drizzle-aggregate-attachment-outbox.repository.js'
+import { createDrizzleAggregateAttachmentWriteBackRepository } from './aggregate-attachment/infrastructure/drizzle-aggregate-attachment-write-back.repository.js'
+import { createStorageAttachmentReaderGateway } from './aggregate-attachment/infrastructure/storage-attachment-reader.gateway.js'
+import { createTesseractOcrClient } from '@adatechnology/document-intake'
+
+import { createDocumentExtractionGateway } from './aggregate-attachment/infrastructure/document-extraction.gateway.js'
+import { createThreadedAttachmentExtractionGateway } from './aggregate-attachment/infrastructure/threaded-extraction.gateway.js'
+import { startAggregateAttachmentConsumer } from './runtime/aggregate-attachment-consumer.service.js'
+import type { ExtractAttachmentFieldsDependencies } from './aggregate-attachment/application/extract-attachment-fields.use-case.js'
 import { buildNfseIssuanceRabbitMqTopology } from './messaging/nfse-rabbitmq-topology.js'
 import type { NfseProcessingEnvelopeV1 } from './messaging/nfse-processing-envelope.schema.js'
 import { createNfseCredentialSecretService } from './nfse-issuance/application/nfse-credential-secret.service.js'
@@ -333,6 +352,12 @@ type WorkerRuntimeDependencies = {
       scheduleRetry(input: NfseIssuanceMessageKey & { readonly nextAttemptAt: Date }): Promise<void>
     }
   }) => Promise<RuntimeConsumer | undefined>
+  readonly startAggregateAttachmentConsumer?: (input: {
+    readonly config: ReturnType<typeof parseWorkerEnvironment>
+    readonly dependencies: ExtractAttachmentFieldsDependencies
+    readonly logger: WorkerLogger
+    readonly provider: RabbitMqProvider
+  }) => Promise<RuntimeConsumer | undefined>
   readonly startInvitationDeliveryConsumer?: (input: {
     readonly config: ReturnType<typeof parseWorkerEnvironment>
     readonly dependencies: InvitationDeliveryDependencies
@@ -394,6 +419,8 @@ export async function startWorkerRuntime(
   const cteIssuanceStarter = dependencies.startCteIssuanceConsumer ?? startCteIssuanceConsumer
   const mdfeIssuanceStarter = dependencies.startMdfeIssuanceConsumer ?? startMdfeIssuanceConsumer
   const nfseIssuanceStarter = dependencies.startNfseIssuanceConsumer ?? startNfseIssuanceConsumer
+  const aggregateAttachmentStarter =
+    dependencies.startAggregateAttachmentConsumer ?? startAggregateAttachmentConsumer
   const invitationDeliveryStarter =
     dependencies.startInvitationDeliveryConsumer ?? startInvitationDeliveryConsumer
   const passwordResetDeliveryStarter =
@@ -458,6 +485,9 @@ export async function startWorkerRuntime(
   const nfseIssuanceTopology = buildNfseIssuanceRabbitMqTopology({
     queuePrefix: config.queuePrefix,
   })
+  const aggregateAttachmentTopology = buildAggregateAttachmentRabbitMqTopology({
+    queuePrefix: config.queuePrefix,
+  })
   const invitationDeliveryTopology = buildInvitationDeliveryRabbitMqTopology({
     queuePrefix: config.queuePrefix,
   })
@@ -489,6 +519,9 @@ export async function startWorkerRuntime(
   let nfseIssuanceConsumer: RuntimeConsumer | undefined
   let nfseIssuancePublisher: RabbitMqProvider | undefined
   let nfseRelayLoop: OutboxRelayLoop | undefined
+  let aggregateAttachmentConsumer: RuntimeConsumer | undefined
+  let aggregateAttachmentPublisher: RabbitMqProvider | undefined
+  let aggregateAttachmentRelayLoop: OutboxRelayLoop | undefined
   let invitationDeliveryConsumer: RuntimeConsumer | undefined
   let invitationDeliveryPublisher: RabbitMqProvider | undefined
   let invitationDeliveryRelayLoop: OutboxRelayLoop | undefined
@@ -527,6 +560,10 @@ export async function startWorkerRuntime(
     nfseIssuancePublisher = await rabbitProviderFactory({
       connection: config.rabbitMqUrl,
       topology: nfseIssuanceTopology,
+    })
+    aggregateAttachmentPublisher = await rabbitProviderFactory({
+      connection: config.rabbitMqUrl,
+      topology: aggregateAttachmentTopology,
     })
     invitationDeliveryPublisher = await rabbitProviderFactory({
       connection: config.rabbitMqUrl,
@@ -803,6 +840,17 @@ export async function startWorkerRuntime(
      * credencial é por empresa e vem do banco a cada envio; o que muda entre convite e recuperação
      * é só qual template aprovado a Meta espera.
      */
+    /**
+     * Uma leitura de marca para os dois trilhos: a instalação é de uma transportadora só
+     * (ADR-0021), e o gateway guarda o resultado por cinco minutos.
+     */
+    const emailLegalIdentification = new DrizzleCompanyLegalIdentificationRepository(
+      database.db as ReturnType<typeof createDrizzleProvider>['db'],
+    )
+    const emailBrand = createLandingEmailBrandGateway({
+      apiBaseUrl: config.apiBaseUrl,
+      appBaseUrl: config.appBaseUrl,
+    })
     const buildWhatsAppCodeSender = (template: string | undefined) =>
       createWhatsAppCodeSender({
         apiVersion: config.whatsapp.apiVersion,
@@ -818,12 +866,31 @@ export async function startWorkerRuntime(
             ? undefined
             : { languageCode: config.whatsapp.codeTemplateLanguage, name: template },
       })
+    aggregateAttachmentConsumer = await aggregateAttachmentStarter({
+      config,
+      dependencies: {
+        extraction: createDocumentExtractionGateway({
+          ...(config.aggregateDocumentOcrUrl === undefined
+            ? {}
+            : { ocr: createTesseractOcrClient({ baseUrl: config.aggregateDocumentOcrUrl }) }),
+          textLayer: createThreadedAttachmentExtractionGateway(),
+        }),
+        reader: createStorageAttachmentReaderGateway({ storage: storageGateway }),
+        writeBack: createDrizzleAggregateAttachmentWriteBackRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
+      },
+      logger,
+      provider: aggregateAttachmentPublisher,
+    })
     invitationDeliveryConsumer = await invitationDeliveryStarter({
       config,
       dependencies: {
         // Sem SMTP configurado o canal não tem driver e a entrega falha alto: melhor a mensagem
         // parar no trilho de retry do que o convite ser dado como entregue sem ter saído daqui.
         channels: createInvitationChannelGateway({
+          brand: emailBrand,
+          legal: emailLegalIdentification,
           ...(config.emailDelivery === undefined
             ? {}
             : {
@@ -851,6 +918,8 @@ export async function startWorkerRuntime(
         // Mesmo arranjo do convite: sem SMTP configurado a entrega falha alto, e o código continua
         // válido para reenvio — quem falhou foi o transporte.
         channels: createInvitationChannelGateway({
+          brand: emailBrand,
+          legal: emailLegalIdentification,
           ...(config.emailDelivery === undefined
             ? {}
             : {
@@ -887,6 +956,24 @@ export async function startWorkerRuntime(
            * ADR-0045 §3.3: sempre registrada. Ela não depende de configuração nenhuma — e uma
            * retenção que só corre quando a instalação declarou alguma coisa é retenção opcional.
            */
+          /**
+           * Spec 069: sempre registrada. Ela não depende de configuração — sem
+           * `POSTAL_CODE_BRASIL_API_URL` o degrau 1 não resolve, o ciclo fecha em zero resolvido, e
+           * nada de ruim é gravado: a rotina declina o centroide de município de propósito.
+           */
+          ['geocoding.backfill']: createGeocodingBackfillRoutine({
+            addresses: createDrizzlePendingAddressSource(
+              database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            ),
+            geocoding: createBrasilApiPostalCodeGateway({
+              baseUrl: config.postalCodeBrasilApiUrl ?? '',
+            }),
+            logger,
+            repository: createDrizzleGeocodedAddressRepository(
+              database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            ),
+            wait: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+          }),
           [TRIP_LOCATION_PURGE_JOB]: createTripLocationPurgeRoutine({
             logger,
             now: () => new Date(),
@@ -1036,6 +1123,22 @@ export async function startWorkerRuntime(
         logger,
         maxAttempts: routeOptimizationTopology.retry?.maxRetries ?? 1,
         ports: createRouteOptimizationPorts({
+          /**
+           * Spec 069: sem isto toda parada fica `excludedFromOptimization` e o solver corre sobre
+           * nada — a sugestão responde, vazia, sem erro nenhum a traduzir na tela.
+           */
+          geocoding: {
+            centroids: createMunicipalityCentroidGateway(
+              database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            ),
+            geocoding: createBrasilApiPostalCodeGateway({
+              baseUrl: config.postalCodeBrasilApiUrl ?? '',
+            }),
+            logger,
+            repository: createDrizzleGeocodedAddressRepository(
+              database.db as ReturnType<typeof createDrizzleProvider>['db'],
+            ),
+          },
           matrix: createOsrmRoutingMatrixGateway({ baseUrl: config.routingMatrixUrl }),
           repository: createDrizzleRouteOptimizationRepository(
             database.db as ReturnType<typeof createDrizzleProvider>['db'],
@@ -1142,6 +1245,29 @@ export async function startWorkerRuntime(
       }),
     })
     nfseRelayLoop.start()
+    aggregateAttachmentRelayLoop = new OutboxRelayLoop({
+      claimOwner: `${config.queuePrefix}.aggregate-attachment.relay.${crypto.randomUUID()}`,
+      failureMessage: 'aggregate_attachment_outbox_relay_failed',
+      intervalMs: 1_000,
+      leaseMs: 30_000,
+      limit: 25,
+      logger,
+      relay: new AggregateAttachmentOutboxRelayService({
+        clock: { now: () => new Date() },
+        publisher: new AggregateAttachmentOutboxPublisherService(aggregateAttachmentPublisher),
+        repository: new DrizzleAggregateAttachmentOutboxRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
+        retryPolicy: {
+          classify(error: unknown): never {
+            throw error instanceof Error
+              ? error
+              : new Error('aggregate attachment outbox relay publish failed')
+          },
+        },
+      }),
+    })
+    aggregateAttachmentRelayLoop.start()
     invitationDeliveryRelayLoop = new OutboxRelayLoop({
       claimOwner: `${config.queuePrefix}.invitation-delivery.relay.${crypto.randomUUID()}`,
       failureMessage: 'invitation_delivery_outbox_relay_failed',
@@ -1199,6 +1325,7 @@ export async function startWorkerRuntime(
         cteRelayLoop,
         mdfeRelayLoop,
         nfseRelayLoop,
+        aggregateAttachmentRelayLoop,
         invitationDeliveryRelayLoop,
         passwordResetDeliveryRelayLoop,
         storageGateway,
@@ -1221,6 +1348,7 @@ export async function startWorkerRuntime(
         nfseIssuanceConsumer,
         invitationDeliveryConsumer,
         passwordResetDeliveryConsumer,
+        aggregateAttachmentConsumer,
         jobRunConsumer,
         notificationConsumer,
         routeOptimizationConsumer,
@@ -1236,6 +1364,16 @@ export async function startWorkerRuntime(
         nfseIssuancePublisher,
         invitationDeliveryPublisher,
         passwordResetDeliveryPublisher,
+        /**
+         * ⚠️ Ela ficou **de fora** quando o trilho de anexo nasceu, e o efeito é o que o comentário
+         * do roteirizador acima já descrevia: conexão de RabbitMQ aberta **mantém o processo vivo
+         * depois do SIGTERM**. O dreno nunca termina, o orquestrador mata à força, e o teste de
+         * desligamento estoura os 40s — que foi o que travou todo deploy da staging.
+         *
+         * Publisher novo entra aqui **e** no `catch` de boot abaixo. Esquecer um dos dois não quebra
+         * nada visível até alguém pedir para o processo sair.
+         */
+        aggregateAttachmentPublisher,
         jobRunProvider,
         notificationProvider,
       ]),
@@ -1269,6 +1407,7 @@ export async function startWorkerRuntime(
     await cteRelayLoop?.close().catch(() => undefined)
     await mdfeRelayLoop?.close().catch(() => undefined)
     await nfseRelayLoop?.close().catch(() => undefined)
+    await aggregateAttachmentRelayLoop?.close().catch(() => undefined)
     await healthServer?.stop().catch(() => undefined)
     await storageGateway.close().catch(() => undefined)
     await distributionPublisher?.close().catch(() => undefined)
@@ -1278,6 +1417,9 @@ export async function startWorkerRuntime(
     await nfseIssuancePublisher?.close().catch(() => undefined)
     await invitationDeliveryPublisher?.close().catch(() => undefined)
     await passwordResetDeliveryPublisher?.close().catch(() => undefined)
+    await aggregateAttachmentPublisher?.close().catch(() => undefined)
+    await routeOptimizationProvider?.close().catch(() => undefined)
+    await notificationProvider?.close().catch(() => undefined)
     await jobRunProvider?.close().catch(() => undefined)
     await provider?.close().catch(() => undefined)
     await database.close().catch(() => undefined)

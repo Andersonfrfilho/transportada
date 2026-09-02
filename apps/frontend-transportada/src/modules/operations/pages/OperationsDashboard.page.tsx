@@ -1,8 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useState } from 'react'
+import { useState, type JSX } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/ui/button'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { SCHEDULED_JOBS } from '@/modules/shared/jobCatalog.constant'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
 import { useOperationsDashboard } from '../hooks/useOperationsDashboard.hook'
@@ -11,6 +13,7 @@ import type {
   OperationsJob,
   OperationsTimelineEvent,
 } from '../shared/operationsClient.service'
+import type { RunJobOutcome } from '../shared/operationsClient.service'
 import { createOperationsViewModel } from '../shared/operationsViewModel.service'
 import styles from '../styles/operationsWorkspace.module.css'
 
@@ -253,6 +256,22 @@ export function OperationsDashboardPage() {
               </ul>
             </section>
 
+            {workspace.controller.canRunJobs ? (
+              <section className={styles.panel}>
+                <h2>{t('run.title')}</h2>
+                <ul className={styles.list}>
+                  {SCHEDULED_JOBS.map((job) => (
+                    <RunJobRow
+                      job={job}
+                      key={job}
+                      onRun={workspace.controller.runJob}
+                      onStarted={() => void workspace.jobsQuery.refetch()}
+                    />
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+
             <section className={styles.panel}>
               <h2>{t('timeline.title')}</h2>
               <ol className={styles.timeline}>
@@ -291,5 +310,59 @@ export function OperationsDashboardPage() {
         </>
       )}
     </main>
+  )
+}
+
+/**
+ * Spec 072. A resposta é impressa **sempre** — inclusive `already_running`, que é o freio da RNF1 e
+ * não um erro: ler "já está rodando" é informação, e ler nada faria o operador apertar de novo.
+ */
+function RunJobRow({
+  job,
+  onRun,
+  onStarted,
+}: Readonly<{
+  job: string
+  onRun: (job: string) => Promise<RunJobOutcome>
+  onStarted: () => void
+}>): JSX.Element {
+  const { t } = useTranslation('operations')
+  const [outcome, setOutcome] = useState<RunJobOutcome | null>(null)
+  const [isRunning, setIsRunning] = useState(false)
+
+  async function handleRun(): Promise<void> {
+    if (isRunning) return
+    setIsRunning(true)
+    setOutcome(null)
+    try {
+      const result = await onRun(job)
+      setOutcome(result)
+      if (result === 'started') onStarted()
+    } finally {
+      setIsRunning(false)
+    }
+  }
+
+  return (
+    <li className={styles.listItem}>
+      <div>
+        <strong>{job}</strong>
+        {outcome === null ? null : (
+          <p data-run-outcome={outcome} role="status">
+            {t(`run.outcome.${outcome}`)}
+          </p>
+        )}
+      </div>
+      <Button
+        disabled={isRunning}
+        onClick={() => {
+          void handleRun()
+        }}
+        size="sm"
+        variant="secondary"
+      >
+        {isRunning ? t('run.running') : t('run.action')}
+      </Button>
+    </li>
   )
 }

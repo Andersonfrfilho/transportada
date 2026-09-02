@@ -10,7 +10,10 @@ import { CompanyLogoUpload } from '../components/CompanyLogoUpload.component'
 import { CompanySettingsHeader } from '../components/CompanySettingsHeader.component'
 import { CompanySettingsForm } from '../components/CompanySettingsForm.component'
 import { CompanySettingsSkeleton } from '../components/CompanySettingsSkeleton.component'
+import type { CompanyContactSettings } from '../shared/companyContactsClient.service'
+import { CompanyContactsPanel } from '../components/CompanyContactsPanel.component'
 import { LandingSettingsPanel } from '../components/LandingSettingsPanel.component'
+import { useCompanyContactsPanel } from '../hooks/useCompanyContactsPanel.hook'
 import { useLandingSettingsPanel } from '../hooks/useLandingSettingsPanel.hook'
 import type {
   LandingSettingsResponse,
@@ -84,12 +87,20 @@ type LandingSection = Readonly<{
   saveState: 'error' | 'idle' | 'success'
 }>
 
+type ContactsSection = Readonly<{
+  data: CompanyContactSettings | undefined
+  disabled: boolean
+  onSave: (settings: CompanyContactSettings) => void
+  saveState: 'error' | 'idle' | 'saved' | 'saving'
+}>
+
 type SettingsBodyProps = Readonly<{
   activeTab: CompanySettingsTabId
   onTabChange: (tab: CompanySettingsTabId) => void
   canManageSettings: boolean
   certificates: ActiveCertificatesByPurpose
   certificatePending: boolean
+  contacts: ContactsSection
   initialValue: CompanySettingsUpdate | undefined
   landing: LandingSection
   logo: LogoSection
@@ -210,12 +221,25 @@ function renderTabPanel(tab: CompanySettingsTabId, props: SettingsBodyProps) {
   if (tab === 'company') return <CompanyTabPanel {...props} />
   if (tab === 'site') {
     return (
-      <LandingSettingsPanel
-        data={props.landing.data}
-        disabled={props.landing.disabled}
-        onSave={props.landing.onSave}
-        saveState={props.landing.saveState}
-      />
+      <>
+        <LandingSettingsPanel
+          data={props.landing.data}
+          disabled={props.landing.disabled}
+          onSave={props.landing.onSave}
+          saveState={props.landing.saveState}
+        />
+        {/*
+         * `key` no dado carregado: o painel copia a lista para um rascunho local, e sem a remontagem
+         * ele abriria vazio sobre um cadastro existente — a mesma razão dos outros painéis desta aba.
+         */}
+        <CompanyContactsPanel
+          key={props.contacts.data === undefined ? 'contacts-loading' : 'contacts-loaded'}
+          data={props.contacts.data ?? { contacts: [], socialLinks: [] }}
+          disabled={props.contacts.disabled}
+          onSave={props.contacts.onSave}
+          saveState={props.contacts.saveState}
+        />
+      </>
     )
   }
   return (
@@ -289,6 +313,11 @@ export function CompanySettingsPage() {
     ...(companyId === undefined ? {} : { companyId }),
     enabled: canManageSettings && activeTab === 'site',
   })
+  const contactsPanel = useCompanyContactsPanel({
+    ...(companyId === undefined ? {} : { companyId }),
+    /* Mesma porta do painel vizinho: a aba Site é o endereço declarado dos dois no registro. */
+    enabled: canManageSettings && activeTab === 'site',
+  })
   const status =
     authQuery.isError || query.isError || certificatesQuery.isError
       ? 'error'
@@ -313,6 +342,18 @@ export function CompanySettingsPage() {
         certificates={viewModel.activeCertificates}
         certificatePending={certificateMutation.isPending}
         initialValue={toUpdate(canManageSettings ? query.data : undefined)}
+        contacts={{
+          data: contactsPanel.query.data,
+          disabled: !canManageSettings || contactsPanel.mutation.isPending,
+          onSave: (settings) => contactsPanel.mutation.mutate(settings),
+          saveState: contactsPanel.mutation.isError
+            ? 'error'
+            : contactsPanel.mutation.isPending
+              ? 'saving'
+              : contactsPanel.mutation.isSuccess
+                ? 'saved'
+                : 'idle',
+        }}
         landing={{
           data: landingPanel.query.data,
           disabled: landingPanel.mutation.isPending,

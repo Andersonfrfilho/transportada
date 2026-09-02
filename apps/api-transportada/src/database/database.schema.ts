@@ -105,6 +105,7 @@ import {
 } from './nfse.schema.js'
 import { viewPreferences } from './view-preferences.schema.js'
 import { companyCargoSettings } from './company-cargo-settings.schema.js'
+import { companyContacts, companySocialLinks } from './company-contact.schema.js'
 import { companyDistributionSettings } from './company-distribution-settings.schema.js'
 import { companyLogos } from './company-logo.schema.js'
 import { identityUserPictures } from './identity-user-picture.schema.js'
@@ -118,9 +119,12 @@ import { identityUserProfiles } from './identity-user-profile.schema.js'
 import { landingSettings } from './landing.schema.js'
 import {
   aggregateApplicationAttachments,
+  aggregateAttachmentOutbox,
   aggregateApplications,
 } from './aggregate-application.schema.js'
 import { geocodedAddresses } from './geocoding.schema.js'
+import { municipalityCentroids } from './municipality-centroid.schema.js'
+import { geocodingRefinementRequests } from './geocoding-refinement.schema.js'
 import {
   companyRouteOptimizationSettings,
   routeSuggestionDocuments,
@@ -167,6 +171,7 @@ export * from './billing.schema.js'
 export * from './billing-description-template.schema.js'
 export * from './view-preferences.schema.js'
 export * from './company-cargo-settings.schema.js'
+export * from './company-contact.schema.js'
 export * from './company-distribution-settings.schema.js'
 export * from './company-logo.schema.js'
 export * from './cte-emission-profile.schema.js'
@@ -175,6 +180,8 @@ export * from './user-invitation.schema.js'
 export * from './identity-user-profile.schema.js'
 export * from './trip.schema.js'
 export * from './geocoding.schema.js'
+export * from './municipality-centroid.schema.js'
+export * from './geocoding-refinement.schema.js'
 export * from './delivery-client.schema.js'
 export * from './trip-financial.schema.js'
 export * from './client-portal.schema.js'
@@ -187,16 +194,19 @@ export * from './identity-user-picture.schema.js'
 export const databaseSchema = {
   aggregateAccounts,
   aggregateApplicationAttachments,
+  aggregateAttachmentOutbox,
   aggregateApplications,
   aggregateDocuments,
   auditLogs,
   companies,
   companyCargoSettings,
+  companyContacts,
   companyDistributionSettings,
   companyEnergySettings,
   companyFiscalProfiles,
   companyFuelPrices,
   companyLogos,
+  companySocialLinks,
   identityUserPictures,
   digitalCertificates,
   energyTariffReferences,
@@ -281,6 +291,8 @@ export const databaseSchema = {
   deliveryClientWindows,
   deliveryClients,
   geocodedAddresses,
+  municipalityCentroids,
+  geocodingRefinementRequests,
   landingSettings,
   routeSuggestionDocuments,
   routeSuggestionStopDocuments,

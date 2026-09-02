@@ -3,8 +3,10 @@
  */
 import type { EmailDriverPort } from '@adatechnology/notification-contracts'
 
-import { buildEmailHtml } from '../domain/email-layout.policy.js'
+import type { CompanyLegalIdentificationPort } from '../application/company-legal-identification.port.js'
+import type { EmailBrandPort } from '../application/email-brand.port.js'
 import type { InvitationContactChannel } from '../application/deliver-invitation-code.service.js'
+import { renderCodeEmail } from '../domain/code-email-template.service.js'
 import type { WhatsAppCodeSender } from '../../whatsapp/infrastructure/whatsapp-code-sender.gateway.js'
 
 export class InvitationChannelUnavailableError extends Error {
@@ -26,7 +28,17 @@ export class InvitationDeliveryFailedError extends Error {
  * retry é o trilho — o serviço de entrega só precisa saber se deu certo, e nunca marca entregue
  * quando não deu.
  */
+/**
+ * `brand` é opcional por ausência, nunca por flag: sem ela o e-mail sai com a marca do produto, que
+ * é o mesmo caminho de instalação recém-provisionada — e é assim que o teste substitui a ida à API.
+ */
 export function createInvitationChannelGateway(drivers: {
+  readonly brand?: EmailBrandPort
+  /**
+   * A identificação legal da empresa, lida **só** quando o e-mail não é endereçado a uma pessoa.
+   * Opcional por ausência: sem ela o rodapé fica com o contato, e o e-mail sai do mesmo jeito.
+   */
+  readonly legal?: CompanyLegalIdentificationPort
   readonly email?: EmailDriverPort
   readonly whatsapp?: WhatsAppCodeSender
 }) {
@@ -37,6 +49,16 @@ export function createInvitationChannelGateway(drivers: {
       readonly channel: InvitationContactChannel
       readonly code: string
       readonly companyId: string
+      /**
+       * O que o e-mail diz em volta do código, separado do `body` que o WhatsApp manda em uma linha.
+       * Ausente, o template usa o `body` como parágrafo — nenhum trilho fica sem mensagem.
+       */
+      readonly email?: { readonly intro: string; readonly note: string }
+      /**
+       * Quem recebe. O e-mail é endereçado a uma pessoa, e a identidade dele mostra a foto de perfil
+       * quando ela existe — o WhatsApp ignora, porque lá a conversa já é com a pessoa.
+       */
+      readonly recipient?: { readonly name: string; readonly pictureToken: string | undefined }
       readonly subject: string
     }): Promise<void> {
       /**
@@ -67,15 +89,48 @@ export function createInvitationChannelGateway(drivers: {
       }
 
       /**
-       * O corpo entrava cru em `<p>`: sem moldura, sem marca, e sem escapar — com o texto do
-       * template editável no painel, um `<` digitado quebrava o documento e uma tag colada de outro
-       * lugar viajava para a caixa de todo mundo. `text` continua sendo o corpo original: é o que o
-       * cliente sem HTML mostra.
+       * O corpo do e-mail é template, não interpolação: antes o `body` inteiro entrava cru dentro de
+       * um `<p>`, e o que o operador digita no cadastro da marca chegaria ao HTML do mesmo jeito.
+       * Marca ausente ou API fora do ar caem na marca do produto — o código de acesso não espera
+       * cadastro nenhum para sair.
        */
+      const brand = (await drivers.brand?.read()) ?? {
+        accentColor: undefined,
+        apiBaseUrl: undefined,
+        contacts: [],
+        socialLinks: [],
+        appBaseUrl: undefined,
+        contactEmail: undefined,
+        contactPhone: undefined,
+        logoUrl: undefined,
+        name: undefined,
+      }
+      /*
+       * Uma consulta a menos no caminho comum: convite e recuperação de senha são endereçados a uma
+       * pessoa, e ali a identidade já está no cabeçalho — a identificação legal nem é buscada.
+       */
+      const legal =
+        input.recipient === undefined
+          ? await drivers.legal?.find({ companyId: input.companyId })
+          : undefined
+
+      const document = renderCodeEmail({
+        brand,
+        ...(legal === undefined ? {} : { legal }),
+        ...(input.recipient === undefined ? {} : { recipient: input.recipient }),
+        content: {
+          code: input.code,
+          headline: input.subject,
+          intro: input.email?.intro ?? input.body,
+          note: input.email?.note ?? '',
+        },
+        year: new Date().getFullYear(),
+      })
+
       const result = await drivers.email.send({
-        html: buildEmailHtml({ body: input.body, subject: input.subject }),
+        html: document.html,
         subject: input.subject,
-        text: input.body,
+        text: document.text,
         to: input.address,
       })
 

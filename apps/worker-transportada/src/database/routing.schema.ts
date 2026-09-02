@@ -7,6 +7,7 @@
  */
 import {
   bigint,
+  char,
   boolean,
   jsonb,
   numeric,
@@ -16,11 +17,40 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core'
 
+/**
+ * ⚠️ Os dois vocabulários são **cópia de tipo** do `geocoding.schema.ts` da API, não de catálogo: o
+ * worker precisa deles para tipar o que escreve, e não precisa da lista em tempo de execução. Quem
+ * valida de verdade são os CHECKs da tabela, que a API declara e migra.
+ */
+export type GeocodingPrecision = 'rooftop' | 'street' | 'postal_code' | 'city'
+export type GeocodingSource = 'manual' | 'google' | 'postal_code' | 'city'
+
+/**
+ * O worker deixou de só ler esta tabela e passou a escrevê-la (spec 069): a cascata resolve o
+ * endereço que falta e grava. Por isso a cópia ganhou `source`, `external_place_id` e os carimbos —
+ * antes bastavam as quatro colunas que `readStops` lia.
+ */
 export const geocodedAddresses = pgTable('geocoded_addresses', {
   addressKey: text('address_key').primaryKey(),
   latitude: numeric({ precision: 10, scale: 7 }).notNull(),
   longitude: numeric({ precision: 10, scale: 7 }).notNull(),
-  precision: text().notNull(),
+  externalPlaceId: text('external_place_id').notNull().default(''),
+  source: text().$type<GeocodingSource>().notNull(),
+  precision: text().$type<GeocodingPrecision>().notNull(),
+  geocodedAt: timestamp('geocoded_at', { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+/**
+ * Cópia por valor das colunas que o último degrau da cascata lê. A API declara e migra; o worker só
+ * consulta — e por isso não precisa dos carimbos.
+ */
+export const municipalityCentroids = pgTable('municipality_centroids', {
+  cityCode: char('city_code', { length: 7 }).primaryKey(),
+  state: char({ length: 2 }).notNull(),
+  latitude: numeric({ precision: 10, scale: 7 }).notNull(),
+  longitude: numeric({ precision: 10, scale: 7 }).notNull(),
 })
 
 export const routeSuggestions = pgTable('route_suggestions', {

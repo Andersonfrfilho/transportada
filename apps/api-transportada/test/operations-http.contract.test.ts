@@ -4,3 +4,4 @@
 import './operations-http/audit.contract.js'
 import './operations-http/query.contract.js'
 import './operations-http/security-and-cors.contract.js'
+import './operations-http/run-job.contract.js'

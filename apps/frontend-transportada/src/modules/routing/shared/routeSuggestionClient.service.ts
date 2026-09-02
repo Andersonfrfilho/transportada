@@ -58,6 +58,13 @@ export type RouteSuggestionClient = Readonly<{
   correctAddress: (
     input: Readonly<{ addressKey: string; latitude: string; longitude: string }>,
   ) => Promise<void>
+  /**
+   * O degrau 2 da escada (spec 069). A resposta **nunca é muda**: ela diz se substituiu, se nada
+   * melhorou, ou se a precisão fina não está configurada — e as duas últimas oferecem o pino manual.
+   */
+  refineAddress: (
+    input: Readonly<{ addressKey: string }>,
+  ) => Promise<Readonly<{ outcome: RefineAddressOutcome; precision?: string }>>
   create: (input: Readonly<{ tripId: string }>) => Promise<RouteSuggestion>
   read: (input: Readonly<{ suggestionId: string; tripId: string }>) => Promise<RouteSuggestion>
   reject: (
@@ -126,6 +133,16 @@ export function createRouteSuggestionClient(
           path: `${MULTI_VEHICLE_PATH}/${input.suggestionId}/reject`,
         }),
       )
+    },
+
+    async refineAddress(input) {
+      const body = await request({
+        dependencies,
+        method: 'POST',
+        path: `${GEOCODED_ADDRESSES_PATH}/${encodeURIComponent(input.addressKey)}/refine`,
+      })
+
+      return toRefineOutcome(body)
     },
 
     async correctAddress(input) {
@@ -268,4 +285,30 @@ function readErrorCode(payload: unknown): string {
   const code = (error as { readonly code?: unknown }).code
 
   return typeof code === 'string' ? code : ROUTING_ERROR.REQUEST_FAILED
+}
+
+export type RefineAddressOutcome = 'refined' | 'not_improved' | 'provider_not_configured'
+
+const REFINE_OUTCOMES: readonly RefineAddressOutcome[] = [
+  'refined',
+  'not_improved',
+  'provider_not_configured',
+]
+
+/**
+ * Resposta que a tela não reconhece vira `not_improved`, e não erro: o conferente já marcou, e um
+ * estouro no lugar de um aviso o faria concluir que a marca está quebrada — que é exatamente o que
+ * a RF5 existe para impedir.
+ */
+function toRefineOutcome(
+  body: unknown,
+): Readonly<{ outcome: RefineAddressOutcome; precision?: string }> {
+  const data = (body as { readonly data?: Readonly<{ outcome?: unknown; precision?: unknown }> })
+    ?.data
+  const outcome = REFINE_OUTCOMES.find((candidate) => candidate === data?.outcome)
+
+  return {
+    outcome: outcome ?? 'not_improved',
+    ...(typeof data?.precision === 'string' ? { precision: data.precision } : {}),
+  }
 }

@@ -36,5 +36,15 @@
   },
   "audit": {
     "title": "Audit"
+  },
+  "run": {
+    "title": "Run routine now",
+    "action": "Run now",
+    "running": "Starting…",
+    "outcome": {
+      "started": "Started — follow it in the executions list.",
+      "already_running": "This routine already has an execution in progress.",
+      "failed": "Could not start it right now."
+    }
   }
 }

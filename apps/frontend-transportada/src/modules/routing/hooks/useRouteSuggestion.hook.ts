@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
 
+import type { RefineAddressResult } from '../components/RouteSuggestionPanel.component'
 import type { RouteSuggestion } from '../shared/routeSuggestion.types'
 import {
   createRouteSuggestionClient,
@@ -19,6 +20,11 @@ export type RouteSuggestionController = Readonly<{
   errorCode: string | null
   isDeciding: boolean
   isRequesting: boolean
+  /**
+   * O degrau 2 da escada (spec 069). Ela **nunca lança**: o conferente já marcou, e um estouro no
+   * lugar de um aviso o faria concluir que a marca está quebrada — que é o que a RF5 impede.
+   */
+  refineAddress: (addressKey: string) => Promise<RefineAddressResult>
   reject: () => Promise<void>
   request: () => Promise<void>
   suggestion: RouteSuggestion | null
@@ -119,6 +125,36 @@ export function useRouteSuggestion(input: {
     errorCode,
     isDeciding,
     isRequesting,
+    refineAddress: async (addressKey) => {
+      try {
+        const client = resolveClient()
+        const result = await client.refineAddress({ addressKey })
+
+        /**
+         * ⚠️ A marca que deu certo **precisa aparecer na linha**. Sem recarregar, a parada continua
+         * com a precisão antiga e com a etiqueta "fora da otimização" ao lado do aviso "Endereço
+         * corrigido" — dois textos que se contradizem, e o conferente conclui que a marca não
+         * funcionou. É o mesmo desfecho que o `not_improved` foi escrito para evitar.
+         *
+         * A releitura não pode derrubar a resposta: ela é informação a mais, e falhar aqui ainda
+         * deixa o conferente sabendo o que o provedor respondeu.
+         */
+        if (result.outcome === 'refined' && suggestion !== null) {
+          try {
+            setSuggestion(await client.read({ suggestionId: suggestion.id, tripId: input.tripId }))
+          } catch {
+            /* a marca valeu; a tela só não pôde atualizar agora */
+          }
+        }
+
+        return result
+      } catch (error) {
+        /** `429` é o teto por janela, e ele merece frase própria: tentar de novo agora não resolve. */
+        return toErrorCode(error) === 'GEOCODING_REFINEMENT_QUOTA_EXCEEDED'
+          ? { outcome: 'quota_exceeded' }
+          : { outcome: 'failed' }
+      }
+    },
     reject: () => decide('reject'),
     request,
     suggestion,

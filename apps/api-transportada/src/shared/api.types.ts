@@ -49,6 +49,8 @@ export type ApiEnvironment = {
   readonly port: number
   /** Segredo do Cloudflare Turnstile; ausente, a candidatura pública de agregado não verifica captcha. */
   readonly turnstileSecretKey: string | undefined
+  /** Spec 069: o degrau 2 da escada. Vazia, a marca oferece o pino manual em vez de falhar. */
+  readonly googleMapsApiKey: string | undefined
   /** Assina o access token da conta do agregado; ausente, o módulo de conta não é montado. */
   readonly userAccessTokenSecret: string | undefined
   /** Ausente, upload de documento do agregado nunca extrai nem aprova sozinho — só revisão manual. */

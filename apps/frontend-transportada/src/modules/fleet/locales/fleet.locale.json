@@ -84,8 +84,10 @@
       },
       "toggle": "Anexos enviados",
       "types": {
+        "address_proof": "Comprovante de endereço",
         "ccmei": "CCMEI",
         "cnh": "CNH",
+        "company_document": "Documento da empresa",
         "crlv": "CRLV",
         "other": "Outro documento"
       }

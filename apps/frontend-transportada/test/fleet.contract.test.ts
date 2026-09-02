@@ -1,6 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import './fleet/address-map-removed.contract.js'
 import './fleet/aggregate-applications-tab.contract.js'
+import './fleet/attachment-type-labels.contract.js'
+import './fleet/attachment-cnh-review.contract.js'
 import './fleet/aggregate-documents-tab.contract.js'
 import './fleet/client-and-queries.contract.js'
 import './fleet/company-lookup.contract.js'

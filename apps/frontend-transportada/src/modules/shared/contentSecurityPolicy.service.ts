@@ -43,6 +43,11 @@ export const NON_FETCH_ORIGIN = [
    * `window.open`, não `fetch`. Pô-lo em `connect-src` daria permissão de rede que a tela não usa.
    */
   'https://maps.google.com',
+  /**
+   * Spec 068: exemplo dentro do campo de perfil de rede social, para o operador ver a forma do
+   * endereço. É texto de `placeholder` — o bundle nomeia a origem e nunca a busca.
+   */
+  'https://instagram.com',
 ] as const
 
 type ContentSecurityPolicyParams = {

@@ -99,6 +99,9 @@ const noopRuntimeDependencies = {
   startPasswordResetDeliveryConsumer: async () => ({
     cancel: async (): Promise<void> => undefined,
   }),
+  startAggregateAttachmentConsumer: async () => ({
+    cancel: async (): Promise<void> => undefined,
+  }),
   startJobRunConsumer: async () => ({ cancel: async (): Promise<void> => undefined }),
 }
 

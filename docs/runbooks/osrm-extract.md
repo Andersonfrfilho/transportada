@@ -95,9 +95,36 @@ Uma resposta com `"code":"Ok"` e duas matrizes 2×2 é o serviço pronto.
 
 ## Em staging e production
 
-O serviço no Railway usa a mesma imagem e o mesmo dataset, montado num volume. **Trocar o dataset é
-deploy**, não configuração em tempo real: o `.osrm` é lido na subida, e substituí-lo por baixo do
-processo em execução não recarrega nada.
+⚠️ **Este serviço não existia até 2026-09-01.** O runbook descrevia um volume no Railway que nunca
+foi provisionado: não havia `deploy/osrm/Dockerfile`, não havia `railway.json` e não havia serviço.
+O que segue é o mecanismo real.
+
+O dataset é **assado na imagem** (`deploy/osrm/Dockerfile`), não montado num volume. A razão é que o
+`.osrm` é lido na subida e substituí-lo por baixo do processo em execução não recarrega nada — então
+**trocar o dataset é deploy** de qualquer jeito, e um volume só acrescentaria o problema de como
+empurrar centenas de MB para dentro dele.
+
+O build recebe a área por variável, e ele **falha em voz alta sem ela**:
+
+```
+OSRM_PBF_URL=https://download.geofabrik.de/south-america/brazil/sudeste/sao-paulo-latest.osm.pbf
+```
+
+Um default silencioso assaria o mapa errado, e mapa errado não erra: ele responde com número
+plausível (ver "extract pequeno demais" acima).
+
+Duas armadilhas que só aparecem no deploy:
+
+- **A rede privada do Railway é IPv6.** O `CMD` passa `-i ::`; sem isso o OSRM sobe, responde no
+  contêiner e fica inalcançável por `osrm.railway.internal`. É o mesmo motivo do `127.0.0.1` no
+  healthcheck do `compose.yaml`.
+- **O build roda as três etapas do pipeline MLD**, e o `osrm-partition` é a que consome memória.
+  Área grande demais estoura o builder — que é mais um motivo para pegar a menor que cobre a
+  operação.
+
+O worker aponta para ele por `ROUTING_MATRIX_URL=http://osrm.railway.internal:${PORT}`. **Sem essa
+variável o consumidor de roteiro não sobe** (`route_optimization_consumer_disabled`) e a sugestão
+fica na fila em silêncio — sem erro e sem timeout, que é pior que falhar.
 
 Enquanto o dataset novo não sobe, o antigo continua respondendo — o que é o comportamento desejado.
 O modo de falha ruim é o serviço subir sem dataset nenhum: aí o healthcheck não passa, e a sugestão

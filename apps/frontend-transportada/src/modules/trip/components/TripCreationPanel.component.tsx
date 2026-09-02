@@ -9,6 +9,7 @@ import { useVehicleSelectOptions } from '@/modules/fleet/hooks/useVehicleSelectO
 import type { FleetDriverDetail, FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
 
 import type { TripCreationController } from '../hooks/useTripCreation.hook'
+import { useTripVehicleSuggestion } from '../hooks/useTripVehicleSuggestion.hook'
 import { validateTripForm } from '../shared/tripForm.service'
 import styles from '../styles/trip.module.css'
 
@@ -18,6 +19,8 @@ type TripCreationPanelProps = Readonly<{
   isCreatePending: boolean
   isReadOnly: boolean
   onCreate: () => void
+  /** Identidade da sessão num objeto só — a sugestão de veículo consulta a frota por empresa. */
+  tenant: Readonly<{ companyId?: string; permissions: readonly string[] }>
   vehicles: readonly FleetVehicleDetail[]
 }>
 
@@ -27,6 +30,7 @@ export function TripCreationPanel({
   isCreatePending,
   isReadOnly,
   onCreate,
+  tenant,
   vehicles,
 }: TripCreationPanelProps) {
   const { t } = useTranslation('trip')
@@ -36,6 +40,13 @@ export function TripCreationPanel({
     (vehicle) => vehicle.status === 'active' && vehicle.role === 'traction',
   )
   const vehicleOptions = useVehicleSelectOptions(tractionVehicles)
+
+  useTripVehicleSuggestion({
+    ...(tenant.companyId === undefined ? {} : { companyId: tenant.companyId }),
+    creation,
+    permissions: tenant.permissions,
+    selectableVehicleIds: tractionVehicles.map((vehicle) => vehicle.id),
+  })
 
   if (isReadOnly) {
     return (

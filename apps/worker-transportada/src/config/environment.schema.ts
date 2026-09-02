@@ -41,6 +41,9 @@ const workerEnvironmentSchema = z
   .object({
     ANEEL_BASE_URL: optionalUrl(),
     API_BASE_URL: optionalUrl(),
+    // Origem do painel: é dela que sai o desenho da Ada no rodapé do e-mail. Ausente, o rodapé
+    // continua assinando — só em texto, porque imagem quebrada assina pior.
+    APP_BASE_URL: optionalUrl(),
     KEYCLOAK_ADMIN_CLIENT_ID: optionalText(),
     KEYCLOAK_ADMIN_CLIENT_SECRET: optionalText(),
     KEYCLOAK_ISSUER: optionalUrl(),
@@ -68,6 +71,11 @@ const workerEnvironmentSchema = z
       .default('false')
       .transform((value) => value === 'true'),
     FOUNDATION_SYNTHETIC_EFFECT_DELAY_MS: z.coerce.number().int().min(0).max(30_000).default(0),
+    // Spec 071: o `tesseract-server` self-hosted que lê a CNH fotografada. Opcional, e a ausência é
+    // silenciosa de propósito — leitura é conveniência para o operador, nunca porta de entrada, e um
+    // serviço que não existe não pode reciclar a mensagem do anexo para sempre. Mesma variável e
+    // mesma regra de endereço confiável que a API usa, por valor.
+    AGGREGATE_DOCUMENT_OCR_URL: optionalTrustedUrl('AGGREGATE_DOCUMENT_OCR_URL'),
     LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
     // Endereço público desta instalação, de onde sai a `CallbackUrl` obrigatória do `/emitir`. É a
     // mesma variável que a API usa para registrar a rota do postback — configurar uma sem a outra é
@@ -105,6 +113,12 @@ const workerEnvironmentSchema = z
      * `failed`. Melhor a mensagem esperar na fila até o serviço existir.
      */
     ROUTING_MATRIX_URL: optionalUrl(),
+    /**
+     * Spec 069: o degrau 1 da cascata de geocodificação. Vazio, o CEP não resolve e todo endereço
+     * novo cai no centroide de município — que sai marcado e fora da otimização. A sugestão continua
+     * saindo; ela só fica pobre, e diz isso na tela.
+     */
+    POSTAL_CODE_BRASIL_API_URL: optionalUrl(),
     LOG_SINK_URL: optionalUrl(),
     SENTRY_DSN: optionalUrl(),
     SMTP_URL: optionalUrl(),
@@ -176,6 +190,11 @@ export function parseWorkerEnvironment(
   const mdfeAutoIssue = toMdfeAutoIssue(result.data)
 
   return {
+    apiBaseUrl: result.data.API_BASE_URL,
+    appBaseUrl: result.data.APP_BASE_URL,
+    ...(result.data.AGGREGATE_DOCUMENT_OCR_URL === undefined
+      ? {}
+      : { aggregateDocumentOcrUrl: result.data.AGGREGATE_DOCUMENT_OCR_URL }),
     appEnv: result.data.APP_ENV,
     ...(technicalResponsible === undefined
       ? {}
@@ -208,6 +227,7 @@ export function parseWorkerEnvironment(
     queuePrefix: result.data.QUEUE_PREFIX,
     rabbitMqUrl: result.data.RABBITMQ_URL,
     routingMatrixUrl: result.data.ROUTING_MATRIX_URL,
+    postalCodeBrasilApiUrl: result.data.POSTAL_CODE_BRASIL_API_URL,
     logSinkUrl: result.data.LOG_SINK_URL,
     sentryDsn: result.data.SENTRY_DSN,
     sentryEnvironment: result.data.SENTRY_ENVIRONMENT ?? result.data.APP_ENV,

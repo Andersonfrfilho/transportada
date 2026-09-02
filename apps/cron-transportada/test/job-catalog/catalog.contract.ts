@@ -73,6 +73,11 @@ const CATALOG = [
     job: 'identity.document.backfill',
     minimumIntervalSeconds: 86_400,
   },
+  {
+    failureOutcomes: [],
+    job: 'geocoding.backfill',
+    minimumIntervalSeconds: 3600,
+  },
 ] as const
 
 describe('cron job catalog', () => {

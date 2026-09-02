@@ -56,12 +56,19 @@
    * WhatsApp com a nossa paleta faria o preview mentir sobre como a mensagem chega.
    */
   --adn-preview-bezel: #0b0b0d;
-  --adn-preview-chrome: #1c1c1f;
-  --adn-preview-chrome-dot: #3a3a3f;
+  /*
+   * A barra do navegador e a do aplicativo de e-mail são claras porque a caixa de entrada retratada
+   * é clara — escuras, elas ficavam de tema escuro em volta de papel branco, e a etiqueta "Caixa de
+   * entrada" caía para 3,66:1.
+   */
+  --adn-preview-chrome: #f1f5f9;
+  --adn-preview-chrome-dot: #cbd5e1;
   --adn-preview-gesture: #55555c;
   --adn-preview-lockscreen: #f2f2f7;
   --adn-preview-lockscreen-bg: #14141a;
-  --adn-preview-mail-icon: #1a73e8;
+  /* Ícone do Gmail é cinza; o azul é do link, e o pacote lê os dois em lugares diferentes. */
+  --adn-preview-mail-icon: #5f6368;
+  --adn-preview-mail-link: #1a73e8;
   --adn-preview-mail-text: #202124;
   --adn-preview-push-app: #6b6b70;
   --adn-preview-push-body: #3c3c43;
@@ -71,7 +78,11 @@
   --adn-preview-sms-bubble: #0b93f6;
   --adn-preview-sms-bubble-android: #e8eaed;
   --adn-preview-sms-text: #ffffff;
-  --adn-preview-status: #f2f2f7;
+  /*
+   * A barra de status é tinta escura: a moldura clara é a que aparece na prévia de e-mail, e o
+   * aparelho de tela escura já força branco por conta própria. Claro aqui deixava a hora em 1,12:1.
+   */
+  --adn-preview-status: #1c1c1e;
   --adn-preview-wa-header: #075e54;
   --adn-preview-wa-send: #dcf8c6;
   --adn-preview-wa-shadow: rgb(0 0 0 / 13%);
@@ -107,8 +118,21 @@
 }
 
 .notificationTitle {
-  margin: 0;
+  /*
+   * O `h1` global reserva `--space-6` embaixo; zerar a margem inteira aproximava o subtítulo até a
+   * cedilha da última linha — `line-height: 0.84` não tem folga para descida de letra.
+   */
+  margin: 0 0 var(--space-2);
   font-family: var(--font-display);
+  /*
+   * Menor que o `h1` global (`clamp(3.5rem, 15vw, 9rem)`), que é calibrado para título de uma ou
+   * duas palavras. "Preferências de notificação" tem três e quebrava em três linhas de letra
+   * enorme, empurrando a tela inteira para baixo da dobra. O `max-width` do global também sai:
+   * 12ch quebraria o título mesmo nesta medida.
+   */
+  max-width: none;
+  font-size: clamp(1.75rem, 5vw, 2.75rem);
+  line-height: 1.05;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--color-fog);
@@ -142,4 +166,34 @@
 .notificationTestFailed {
   color: var(--color-alert);
   font-size: 0.75rem;
+}
+
+/*
+ * A moldura de prévia é a caixa de entrada de quem recebe, e o papel dela é branco. Os três tons de
+ * texto do pacote (`text`, `muted`, `accent`) são herdados do nosso tema escuro e vazavam para
+ * dentro do papel — o assunto do e-mail ficava em 1,13:1, que é justamente o que a prévia existe
+ * para mostrar. Aqui eles voltam a ser os do aparelho retratado, pelos mesmos tokens de preview.
+ *
+ * A prévia de push desenha em tela de bloqueio escura e tem cores próprias: fica de fora.
+ */
+.notificationTheme :global(.adn-preview-mail),
+.notificationTheme :global(.adn-preview-mailapp),
+.notificationTheme :global(.adn-preview-browser),
+.notificationTheme :global(.adn-preview-inbox),
+.notificationTheme :global(.adn-preview-wa),
+.notificationTheme :global(.adn-preview-sms) {
+  --adn-color-text: var(--adn-preview-mail-text);
+  --adn-color-muted: var(--adn-preview-mail-icon);
+  --adn-color-accent: var(--adn-preview-mail-link);
+
+  color: var(--adn-preview-mail-text);
+}
+
+/*
+ * O contador do sino fixa texto branco no pacote, porque a paleta dele tem vermelho escuro. O nosso
+ * alerta é vermelho claro, e branco sobre ele dá 2,99:1 — a tinta escura é o que torna o número
+ * legível sem trocar a cor do alerta em todo o resto do produto.
+ */
+.notificationTheme :global(.adn-bell__badge) {
+  color: var(--color-asphalt);
 }

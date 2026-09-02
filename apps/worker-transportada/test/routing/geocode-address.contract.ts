@@ -5,7 +5,6 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   geocodeAddresses,
-  shouldReplaceStored,
   type GeocodeAddressesDependencies,
   type GeocodingHotCache,
 } from '../../src/routing/application/geocode-address.use-case.js'
@@ -43,18 +42,20 @@ function buildDependencies(
   return {
     centroids: {
       byCityCode: () => Promise.resolve(null),
-      byPostalCode: () => Promise.resolve(null),
     },
     geocodeCalls,
     geocoding: {
       geocode: (request) => {
         geocodeCalls.push(request.addressKey)
         return Promise.resolve({
-          externalPlaceId: ROOFTOP.externalPlaceId,
-          latitude: ROOFTOP.latitude,
-          longitude: ROOFTOP.longitude,
-          precision: ROOFTOP.precision,
-          source: ROOFTOP.source,
+          cause: null,
+          coordinate: {
+            externalPlaceId: ROOFTOP.externalPlaceId,
+            latitude: ROOFTOP.latitude,
+            longitude: ROOFTOP.longitude,
+            precision: ROOFTOP.precision,
+            source: ROOFTOP.source,
+          },
         })
       },
     },
@@ -96,7 +97,7 @@ describe('geocode addresses (ADR-0044 §3)', () => {
 
     expect(result.byAddressKey.get(ADDRESS_KEY)?.precision).toBe('rooftop')
     expect(saved).toHaveLength(1)
-    expect(result.geocodedCount).toBe(1)
+    expect(result.counts).toMatchObject({ fromBase: 0, resolvedByPostalCode: 1 })
   })
 
   /** Endereço já visto nunca é geocodificado de novo — a mesma loja recebe cem vezes por ano. */
@@ -111,7 +112,8 @@ describe('geocode addresses (ADR-0044 §3)', () => {
     const result = await geocodeAddresses(dependencies, [REQUEST])
 
     expect(dependencies.geocodeCalls).toHaveLength(0)
-    expect(result.geocodedCount).toBe(0)
+    /** O que já estava guardado não custou nada, e é isso que a métrica precisa separar. */
+    expect(result.counts).toMatchObject({ fromBase: 1, resolvedByPostalCode: 0 })
     expect(result.byAddressKey.get(ADDRESS_KEY)).toEqual(ROOFTOP)
   })
 
@@ -154,7 +156,6 @@ describe('geocode addresses (ADR-0044 §3)', () => {
             precision: 'city',
             source: 'city',
           }),
-        byPostalCode: () => Promise.resolve(null),
       },
       geocoding: { geocode: () => Promise.reject(new Error('provider down')) },
     })
@@ -162,68 +163,19 @@ describe('geocode addresses (ADR-0044 §3)', () => {
     const result = await geocodeAddresses(dependencies, [REQUEST])
 
     expect(result.byAddressKey.get(ADDRESS_KEY)?.precision).toBe('city')
-    // Centroide não é endereço geocodificado: ele não conta na métrica de custo
-    expect(result.geocodedCount).toBe(0)
+    // Centroide é palpite de município: ele conta em separado, nunca junto do que resolveu de fato
+    expect(result.counts).toMatchObject({ resolvedByCity: 1, resolvedByPostalCode: 0 })
   })
 
   test('leaves an address the whole cascade could not resolve out of the result', async () => {
     const dependencies = buildDependencies({
-      geocoding: { geocode: () => Promise.resolve(null) },
+      geocoding: {
+        geocode: () => Promise.resolve({ cause: 'not_found' as const, coordinate: null }),
+      },
     })
 
     const result = await geocodeAddresses(dependencies, [REQUEST])
 
     expect(result.byAddressKey.has(ADDRESS_KEY)).toBe(false)
-  })
-})
-
-describe('stored coordinate precedence (ADR-0044 §3)', () => {
-  /**
-   * A correção manual é o trabalho que o produto pede ao humano em troca de não pedir de novo.
-   * Nenhuma geocodificação posterior a desfaz — ou o pino arrastado voltaria sozinho.
-   */
-  test('never lets a provider overwrite a coordinate a human corrected', () => {
-    expect(
-      shouldReplaceStored({
-        candidatePrecision: 'rooftop',
-        candidateSource: 'google',
-        storedPrecision: 'city',
-        storedSource: 'manual',
-      }),
-    ).toBe(false)
-  })
-
-  test('lets a human correction win over anything the provider stored', () => {
-    expect(
-      shouldReplaceStored({
-        candidatePrecision: 'city',
-        candidateSource: 'manual',
-        storedPrecision: 'rooftop',
-        storedSource: 'google',
-      }),
-    ).toBe(true)
-  })
-
-  /** Regeocodificar um telhado para um centroide seria piorar o cadastro com uma escrita. */
-  test('refuses to replace a finer coordinate with a coarser one', () => {
-    expect(
-      shouldReplaceStored({
-        candidatePrecision: 'city',
-        candidateSource: 'google',
-        storedPrecision: 'rooftop',
-        storedSource: 'google',
-      }),
-    ).toBe(false)
-  })
-
-  test('accepts a finer coordinate over a coarser one', () => {
-    expect(
-      shouldReplaceStored({
-        candidatePrecision: 'rooftop',
-        candidateSource: 'google',
-        storedPrecision: 'postal_code',
-        storedSource: 'postal_code',
-      }),
-    ).toBe(true)
   })
 })

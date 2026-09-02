@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { GeocodingPrecision } from '../../database/geocoding.schema.js'
+import type { GeocodingPrecision, GeocodingSource } from '../../database/geocoding.schema.js'
 
 /**
  * O `location_type` que a Geocoding API do Google devolve. É o motivo técnico da escolha do
@@ -60,4 +60,21 @@ export function isFinerPrecision(
   current: GeocodingPrecision,
 ): boolean {
   return PRECISION_RANK[candidate] > PRECISION_RANK[current]
+}
+
+/**
+ * ADR-0044 §3: a correção manual sempre vence, e nenhuma geocodificação posterior a desfaz. Fora
+ * dela, só uma precisão mais fina substitui a que já está em base — regeocodificar um telhado para
+ * um centroide seria piorar o cadastro com uma escrita.
+ */
+export function shouldReplaceStored(input: {
+  readonly candidatePrecision: GeocodingPrecision
+  readonly candidateSource: GeocodingSource
+  readonly storedPrecision: GeocodingPrecision
+  readonly storedSource: GeocodingSource
+}): boolean {
+  if (input.storedSource === 'manual') return false
+  if (input.candidateSource === 'manual') return true
+
+  return isFinerPrecision(input.candidatePrecision, input.storedPrecision)
 }

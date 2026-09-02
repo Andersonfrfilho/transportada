@@ -102,5 +102,14 @@
       "ROUTE_SUGGESTION_VEHICLE_UNAVAILABLE": "One or more vehicles cannot be routed — only active traction vehicles qualify.",
       "unknown": "Could not split the invoices right now."
     }
+  },
+  "refine": {
+    "action": "Wrong address",
+    "busy": "Checking…",
+    "notImproved": "The provider did not do better — set the pin by hand.",
+    "notConfigured": "Fine precision is not available in this installation — set the pin by hand.",
+    "refined": "Address corrected to {{precision}}.",
+    "quotaExceeded": "Too many corrections this hour. Try later or set the pin by hand.",
+    "failed": "Could not check right now — set the pin by hand."
   }
 }

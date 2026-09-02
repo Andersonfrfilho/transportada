@@ -3,7 +3,13 @@ import type { ReactNode } from 'react'
 
 import { BrandMark } from '@/modules/shared/components/BrandMark.component'
 import { Icon } from '@/modules/shared/components/Icon.component'
-import type { LandingSettings } from '@/modules/shared/landingSettings.service'
+import {
+  toContactHref,
+  toSocialLabel,
+  toWhatsappHref,
+  type LandingContact,
+  type LandingSettings,
+} from '@/modules/shared/landingSettings.service'
 import styles from './Footer.module.css'
 
 const NAV_LINKS = [
@@ -18,6 +24,56 @@ type FooterProps = Readonly<{
   onNavigateToApplication: () => void
   settings: LandingSettings
 }>
+
+/**
+ * A lista cadastrada (spec 068) manda; o par `contactPhone`/`contactEmail` do cadastro do site é
+ * **reserva**, e só entra quando ela não tem nada daquele tipo — somados sem regra, quem cadastrou o
+ * mesmo número nos dois lugares o veria duas vezes na mesma coluna.
+ */
+function renderContacts(settings: LandingSettings): ReactNode {
+  const fallback: readonly LandingContact[] = [
+    ...(settings.contactPhone === undefined
+      ? []
+      : [
+          {
+            isWhatsapp: false,
+            kind: 'phone' as const,
+            label: '',
+            value: settings.contactPhone,
+          },
+        ]),
+    ...(settings.contactEmail === undefined
+      ? []
+      : [
+          {
+            isWhatsapp: false,
+            kind: 'email' as const,
+            label: '',
+            value: settings.contactEmail,
+          },
+        ]),
+  ]
+  const contacts = settings.contacts.length > 0 ? settings.contacts : fallback
+
+  return contacts.map((contact) => (
+    <li key={`${contact.kind}-${contact.value}`} className={styles.contactItem}>
+      <Icon
+        aria-hidden="true"
+        height="18"
+        name={contact.kind === 'phone' ? 'phone' : 'mail'}
+        width="18"
+      />
+      <a href={toContactHref(contact)}>
+        {contact.label === '' ? contact.value : `${contact.label}: ${contact.value}`}
+      </a>
+      {contact.isWhatsapp ? (
+        <a href={toWhatsappHref(contact)} rel="noreferrer" target="_blank">
+          WhatsApp
+        </a>
+      ) : null}
+    </li>
+  ))
+}
 
 export function Footer({ brandName, onNavigateToApplication, settings }: FooterProps): ReactNode {
   const year = new Date().getUTCFullYear()
@@ -57,20 +113,18 @@ export function Footer({ brandName, onNavigateToApplication, settings }: FooterP
         </div>
         <div>
           <p className={styles.columnTitle}>Contato</p>
-          <ul className={styles.linkList}>
-            {settings.contactPhone === undefined ? null : (
-              <li className={styles.contactItem}>
-                <Icon aria-hidden="true" height="18" name="phone" width="18" />
-                {settings.contactPhone}
-              </li>
-            )}
-            {settings.contactEmail === undefined ? null : (
-              <li className={styles.contactItem}>
-                <Icon aria-hidden="true" height="18" name="mail" width="18" />
-                {settings.contactEmail}
-              </li>
-            )}
-          </ul>
+          <ul className={styles.linkList}>{renderContacts(settings)}</ul>
+          {settings.socialLinks.length === 0 ? null : (
+            <ul className={styles.socialList}>
+              {settings.socialLinks.map((link) => (
+                <li key={link.network}>
+                  <a href={link.url} rel="noreferrer" target="_blank">
+                    {toSocialLabel(link.network)}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
       <div className={styles.bottomBar}>

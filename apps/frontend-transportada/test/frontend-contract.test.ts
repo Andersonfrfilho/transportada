@@ -220,6 +220,7 @@ describe('frontend foundation contract', () => {
           'billing.read',
           'settings.manage',
           'operations.read',
+          'operations.run',
           'audit.read',
           'view-preferences.manage',
           'addresses.read',

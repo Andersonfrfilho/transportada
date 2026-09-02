@@ -58,6 +58,16 @@ export type MdfeAutoIssueEnvironment = {
 }
 
 export type WorkerEnvironment = {
+  /**
+   * O `tesseract-server` que lê a CNH fotografada do anexo da candidatura (spec 071). Ausente
+   * desliga o OCR em silêncio: a leitura é conveniência para o operador, nunca porta de entrada, e
+   * serviço que não existe não pode reciclar a mensagem do anexo para sempre.
+   */
+  readonly aggregateDocumentOcrUrl?: string
+  /** Endereço da própria API. Hoje o e-mail de código lê dele a marca pública da instalação. */
+  readonly apiBaseUrl: string | undefined
+  /** Origem do painel, de onde o rodapé do e-mail carrega o desenho da Ada. */
+  readonly appBaseUrl: string | undefined
   readonly appEnv: string
   readonly cteTechnicalResponsible?: CteTechnicalResponsibleEnvironment
   readonly databaseUrl: string
@@ -94,6 +104,8 @@ export type WorkerEnvironment = {
   readonly rabbitMqUrl: string
   /** Ausente sem OSRM: o consumidor de roteiro não sobe (ADR-0044 §2). */
   readonly routingMatrixUrl: string | undefined
+  /** Spec 069: o degrau 1 da cascata. Vazio, todo endereço novo cai no centroide de município. */
+  readonly postalCodeBrasilApiUrl: string | undefined
   /** Destino HTTP do log estruturado; ausente mantém só o stdout. */
   readonly logSinkUrl: string | undefined
   readonly sentryDsn: string | undefined

@@ -28,6 +28,9 @@ import {
   createGetCargoSettingsUseCase,
   createSetDefaultVolumeWeightUseCase,
 } from './companies/application/cargo-settings.use-case.js'
+import { createCompanyContactsUseCase } from './companies/application/company-contacts.use-case.js'
+import { DrizzleCompanyContactsRepository } from './companies/infrastructure/drizzle-company-contacts.repository.js'
+import { createCompanyContactsRoutes } from './companies/presentation/company-contacts.routes.js'
 import { DrizzleCargoSettingsRepository } from './companies/infrastructure/drizzle-cargo-settings.repository.js'
 import { createCargoSettingsRoutes } from './companies/presentation/cargo-settings.routes.js'
 import { createAdjustFuelPriceUseCase } from './companies/application/adjust-fuel-price.use-case.js'
@@ -72,7 +75,6 @@ import { createAggregateAccountPublicRoutes } from './fleet/presentation/aggrega
 import { createAggregateApplicationAttachmentPublicRoutes } from './fleet/presentation/aggregate-application-attachment.routes.js'
 import { createAggregateApplicationAttachmentUseCase } from './fleet/application/aggregate-application-attachment.use-case.js'
 import { createDrizzleAggregateApplicationAttachmentRepository } from './fleet/infrastructure/drizzle-aggregate-application-attachment.repository.js'
-import { extractAttachmentFields } from './fleet/infrastructure/aggregate-attachment-extraction.gateway.js'
 import { createCompanySettingsRoutes } from './companies/presentation/company-settings.routes'
 import { createDigitalCertificateRoutes } from './companies/presentation/digital-certificates.routes'
 import { createRetireDigitalCertificateUseCase } from './companies/application/retire-digital-certificate.use-case'
@@ -214,6 +216,18 @@ import { createDrizzleMultiVehicleSuggestionRepository } from './routing/infrast
 import { createTripComposer } from './routing/infrastructure/trip-composer.adapter'
 import { listTripStops } from './trips/application/list-trip-stops.use-case'
 import { createRouteSuggestionUseCase } from './routing/application/route-suggestion.use-case'
+import { createRefineAddressUseCase } from './routing/application/refine-address.use-case.js'
+import { createDrizzleAddressComponentsSource } from './routing/infrastructure/drizzle-address-components.repository.js'
+import {
+  GEOCODING_REFINEMENT_WINDOW_LIMIT,
+  createDrizzleGeocodingRefinementRepository,
+} from './routing/infrastructure/drizzle-geocoding-refinement.repository.js'
+import { createGoogleGeocodingGateway } from './routing/infrastructure/google-geocoding.gateway.js'
+import { createRunJobUseCase } from './operations/application/run-job.use-case.js'
+import type { JobRunPublisher } from './operations/application/run-job.port.js'
+import { createDrizzleManualExecutionRepository } from './operations/infrastructure/drizzle-manual-execution.repository.js'
+import { buildJobRunRabbitMqTopology } from './operations/infrastructure/job-run-rabbitmq-topology.js'
+import { createLazyRabbitMqJobRunPublisher } from './operations/infrastructure/rabbitmq-job-run.publisher.js'
 import { createGeocodedAddressCorrectionUseCase } from './routing/application/geocoded-address-correction.use-case'
 import { createDrizzleRouteSuggestionRepository } from './routing/infrastructure/drizzle-route-suggestion.repository'
 import { createDrizzleGeocodedAddressRepository } from './routing/infrastructure/drizzle-geocoded-address.repository'
@@ -576,6 +590,8 @@ export function bootstrap(): Bun.Server<undefined> {
       notifications,
       envelopeKeyRing: config.cryptography.envelopeKeyRing,
       environment: process.env,
+      googleMapsApiKey: config.googleMapsApiKey,
+      messaging: config.messaging,
       idempotencyHmacKey: config.cryptography.idempotencyHmacKey,
       keycloak: config.keycloak,
       logger,
@@ -709,6 +725,7 @@ function createAnonymousRoutes({
       landingCompanyId: config.companyId,
     }),
     landingSettings: createLandingSettingsUseCase({
+      companyContactsRepository: new DrizzleCompanyContactsRepository(database),
       companyGroupRepository: createDrizzleCompanyGroupRepository(database),
       landingCompanyId: config.companyId,
       landingSettingsRepository: createDrizzleLandingSettingsRepository(database),
@@ -734,7 +751,6 @@ function createAnonymousRoutes({
     createAggregateApplicationAttachmentPublicRoutes({
       attachments: createAggregateApplicationAttachmentUseCase({
         bucket: resolveStorageBucket(process.env),
-        extractFields: extractAttachmentFields,
         repository: createDrizzleAggregateApplicationAttachmentRepository(database),
         storage: createNfeStorageGatewayFromEnvironment({
           environment: process.env,
@@ -848,6 +864,15 @@ type CreateApplicationRoutesParams = {
   readonly notifications: NotificationModule
   readonly envelopeKeyRing: import('@adatechnology/secret-envelope').SecretKeyRing
   readonly environment: Record<string, string | undefined>
+  /**
+   * ⚠️ Vêm **tipadas**, e não pelo `environment` acima: ele é o registro **cru** do processo, com as
+   * chaves em CAIXA ALTA. Ler `environment.googleMapsApiKey` dali compila — o tipo é
+   * `Record<string, string | undefined>` e aceita qualquer nome — e devolve `undefined` para sempre.
+   * Foi exatamente isso que aconteceu na spec 069: o gateway pago nunca era construído, e a marca
+   * responderia "precisão fina não disponível" mesmo com a chave configurada.
+   */
+  readonly googleMapsApiKey: string | undefined
+  readonly messaging: ApiEnvironment['messaging']
   readonly idempotencyHmacKey: Uint8Array
   readonly keycloak: ApiEnvironment['keycloak']
   readonly logger: ApiLogger
@@ -861,6 +886,8 @@ function createApplicationRoutes({
   apiPublicUrl,
   automaticManifestNotifier,
   database,
+  googleMapsApiKey,
+  messaging,
   notifications,
   envelopeKeyRing,
   environment,
@@ -932,7 +959,10 @@ function createApplicationRoutes({
   const fuelPriceRepository = new DrizzleFuelPriceRepository(database)
   const companyEnergyRepository = new DrizzleCompanyEnergyRepository(database)
   const companyLogoRepository = new DrizzleCompanyLogoRepository(database)
+  const companyContactsRepository = new DrizzleCompanyContactsRepository(database)
+  const companyContacts = createCompanyContactsUseCase({ contacts: companyContactsRepository })
   const landingSettings = createLandingSettingsUseCase({
+    companyContactsRepository,
     companyGroupRepository: createDrizzleCompanyGroupRepository(database),
     landingCompanyId: undefined,
     landingSettingsRepository: createDrizzleLandingSettingsRepository(database),
@@ -1204,6 +1234,7 @@ function createApplicationRoutes({
     repository: certificateRepository,
     secretService: createDigitalCertificateSecretService({ envelopeProvider }),
   })
+  const geocodingRefinementRepository = createDrizzleGeocodingRefinementRepository(database)
   const companyUserRepository = new DrizzleCompanyUserRepository(database)
   const invitationRepository = new DrizzleInvitationRepository(database)
   const invitationDeliveryOutbox = new DrizzleInvitationDeliveryOutboxRepository(database)
@@ -1303,6 +1334,7 @@ function createApplicationRoutes({
       get: createGetCargoSettingsUseCase({ cargoSettings: cargoSettingsRepository }),
       set: createSetDefaultVolumeWeightUseCase({ cargoSettings: cargoSettingsRepository }),
     }),
+    ...createCompanyContactsRoutes({ companyContacts }),
     ...createFuelPriceRoutes({
       adjust: createAdjustFuelPriceUseCase({ fuelPrices: fuelPriceRepository }),
       clear: createClearFuelPriceUseCase({ fuelPrices: fuelPriceRepository }),
@@ -1330,6 +1362,23 @@ function createApplicationRoutes({
           geocodedAddressCorrection: createGeocodedAddressCorrectionUseCase({
             repository: createDrizzleGeocodedAddressRepository(database),
           }),
+          refineAddress: createRefineAddressUseCase({
+            components: createDrizzleAddressComponentsSource(database),
+            /**
+             * Spec 069 RF7: sem `GOOGLE_MAPS_API_KEY` o gateway **não é construído**, e a marca
+             * responde `provider_not_configured` oferecendo o pino manual. A app sobe igual.
+             */
+            geocoding:
+              googleMapsApiKey === undefined
+                ? undefined
+                : createGoogleGeocodingGateway({ apiKey: googleMapsApiKey }),
+            repository: createDrizzleGeocodedAddressRepository(database),
+            trail: geocodingRefinementRepository,
+          }),
+          refinementQuota: {
+            countInWindow: (quotaInput) => geocodingRefinementRepository.countInWindow(quotaInput),
+            limit: GEOCODING_REFINEMENT_WINDOW_LIMIT,
+          },
           routeSuggestions: createRouteSuggestionUseCase({
             queue: routeOptimizationQueue,
             repository: createDrizzleRouteSuggestionRepository(database),
@@ -1822,6 +1871,15 @@ function createApplicationRoutes({
     }),
     ...createOperationsRoutes({
       audit: { listEvents: (input) => operations.listAuditEvents(input) },
+      /**
+       * Spec 072: sem `messaging` a API não publica, e o botão precisa recusar em vez de fingir —
+       * então ele responde `409` como se houvesse execução aberta seria mentira. Aqui a ausência
+       * vira erro explícito no disparo, que é o único momento em que ela importa.
+       */
+      runJob: createRunJobUseCase({
+        executions: createDrizzleManualExecutionRepository(database),
+        publisher: buildJobRunPublisher(messaging),
+      }),
       operations: {
         getSummary: (input) => operations.getSummary(input),
         listJobs: (input) => operations.listJobs(input),
@@ -2008,4 +2066,27 @@ function resolveStorageBucket(environment: Record<string, string | undefined>): 
 
 if (import.meta.main) {
   bootstrap()
+}
+
+/**
+ * Spec 072: sem `messaging` a API não publica, e o botão precisa **recusar em vez de fingir** —
+ * responder como se tivesse enfileirado deixaria o operador esperando um ciclo que ninguém pediu.
+ * A ausência vira erro no disparo, que é o único momento em que ela importa.
+ */
+function buildJobRunPublisher(
+  messaging: { readonly queuePrefix: string; readonly url: string } | undefined,
+): JobRunPublisher {
+  if (messaging === undefined) {
+    return {
+      publish: () => Promise.reject(new Error('job run publisher is not configured')),
+    }
+  }
+
+  return createLazyRabbitMqJobRunPublisher({
+    connect: () =>
+      createRabbitMqProvider({
+        connection: messaging.url,
+        topology: buildJobRunRabbitMqTopology({ queuePrefix: messaging.queuePrefix }),
+      }),
+  })
 }

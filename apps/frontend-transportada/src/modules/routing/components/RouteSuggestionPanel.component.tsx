@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { JSX } from 'react'
+import { useState, type JSX } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -18,8 +18,34 @@ import { RouteSuggestionMap } from './RouteSuggestionMap.component'
 type RouteSuggestionPanelProps = Readonly<{
   isDeciding?: boolean
   onAccept: () => void
+  /**
+   * O degrau 2 da escada (spec 069). Ausente, a ação não aparece — quem não pode marcar não vê um
+   * botão que responderia 403.
+   */
+  onRefineAddress?: (addressKey: string) => Promise<RefineAddressResult>
   onReject: () => void
   suggestion: RouteSuggestion
+}>
+
+/** As três respostas da marca mais as duas falhas de transporte. Nenhuma delas é silêncio (RF5). */
+export type RefineAddressFeedback =
+  | 'refined'
+  | 'not_improved'
+  | 'provider_not_configured'
+  | 'quota_exceeded'
+  | 'failed'
+
+/**
+ * A precisão vem **da resposta**, nunca da parada em tela.
+ *
+ * ⚠️ Ler `stop.geocodingPrecision` aqui era o defeito: no caso mais comum de marcar — parada que
+ * nunca teve coordenada — ela é `null`, e a mensagem saía com a chave crua `precision.null`. Quando
+ * não era nula, ela era a precisão **anterior**, então "corrigido para CEP" aparecia justamente
+ * quando o endereço tinha acabado de virar telhado.
+ */
+export type RefineAddressResult = Readonly<{
+  outcome: RefineAddressFeedback
+  precision?: string
 }>
 
 /**
@@ -31,6 +57,7 @@ type RouteSuggestionPanelProps = Readonly<{
 export function RouteSuggestionPanel({
   isDeciding = false,
   onAccept,
+  onRefineAddress,
   onReject,
   suggestion,
 }: RouteSuggestionPanelProps): JSX.Element {
@@ -82,7 +109,11 @@ export function RouteSuggestionPanel({
 
       <ol className={styles.stops}>
         {stops.map((stop) => (
-          <StopRow key={`${stop.sequence}-${stop.addressKey}`} stop={stop} />
+          <StopRow
+            key={`${stop.sequence}-${stop.addressKey}`}
+            {...(onRefineAddress === undefined ? {} : { onRefineAddress })}
+            stop={stop}
+          />
         ))}
       </ol>
 
@@ -115,8 +146,27 @@ export function RouteSuggestionPanel({
   )
 }
 
-function StopRow({ stop }: Readonly<{ stop: RouteSuggestionStop }>): JSX.Element {
+function StopRow({
+  onRefineAddress,
+  stop,
+}: Readonly<{
+  onRefineAddress?: (addressKey: string) => Promise<RefineAddressResult>
+  stop: RouteSuggestionStop
+}>): JSX.Element {
   const { t } = useTranslation('routing')
+  const [feedback, setFeedback] = useState<RefineAddressResult | null>(null)
+  const [isRefining, setIsRefining] = useState(false)
+
+  async function handleRefine(): Promise<void> {
+    if (onRefineAddress === undefined || isRefining) return
+    setIsRefining(true)
+    setFeedback(null)
+    try {
+      setFeedback(await onRefineAddress(stop.addressKey))
+    } finally {
+      setIsRefining(false)
+    }
+  }
 
   return (
     <li className={styles.stop} data-excluded={stop.excludedFromOptimization}>
@@ -137,8 +187,44 @@ function StopRow({ stop }: Readonly<{ stop: RouteSuggestionStop }>): JSX.Element
       {stop.excludedFromOptimization ? (
         <span className={styles.stopFlag}>{t('stop.excluded')}</span>
       ) : null}
+      {onRefineAddress === undefined ? null : (
+        <Button
+          disabled={isRefining}
+          onClick={() => {
+            void handleRefine()
+          }}
+          size="sm"
+          variant="ghost"
+        >
+          <Icon name="alert" aria-hidden="true" />
+          {isRefining ? t('refine.busy') : t('refine.action')}
+        </Button>
+      )}
+      {/**
+       * RF5: a resposta é impressa **sempre**. Marcar e ver a tela idêntica faria o conferente
+       * concluir que a marca não funciona — e as respostas que não melhoraram nada oferecem o
+       * degrau 3, o pino manual.
+       */}
+      {feedback === null ? null : (
+        <span className={styles.stopFlag} data-refine-feedback={feedback.outcome} role="status">
+          {t(REFINE_FEEDBACK_KEY[feedback.outcome], {
+            precision:
+              feedback.precision === undefined
+                ? ''
+                : t(`precision.${feedback.precision}`, { defaultValue: feedback.precision }),
+          })}
+        </span>
+      )}
     </li>
   )
+}
+
+const REFINE_FEEDBACK_KEY: Readonly<Record<RefineAddressFeedback, string>> = {
+  failed: 'refine.failed',
+  not_improved: 'refine.notImproved',
+  provider_not_configured: 'refine.notConfigured',
+  quota_exceeded: 'refine.quotaExceeded',
+  refined: 'refine.refined',
 }
 
 type Translate = ReturnType<typeof useTranslation>['t']

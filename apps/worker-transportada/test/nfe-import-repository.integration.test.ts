@@ -11,6 +11,7 @@ import {
   companyFiscalProfiles,
   nfeDocuments,
   nfeImportItems,
+  nfeAddresses,
   nfeImports,
   nfeParticipants,
   storedObjects,
@@ -25,9 +26,37 @@ const ACCESS_KEY = '35190730290856000160550010000000011000000010'
 const SOURCE_KEY = 'staging/authorized.xml'
 const SOURCE_SHA256 = 'a'.repeat(64)
 const SECOND_ACCESS_KEY = '35190730290856000160550010000000021000000010'
+const DELIVERY_ACCESS_KEY = '35190730290856000160550010000000031000000010'
+
+/** Onde o cliente está cadastrado. */
+const RECIPIENT_ADDRESS = {
+  city: 'Santa Barbara d Oeste',
+  cityCode: '3549102',
+  district: 'Centro',
+  number: '400',
+  postalCode: '13872400',
+  state: 'SP',
+  street: 'Rua do Cadastro',
+} as const
+
+/** Onde a carga tem de ser deixada — outro município, outro CEP, outro número. */
+const DELIVERY_ADDRESS = {
+  city: 'Campinas',
+  cityCode: '3509502',
+  district: 'Distrito Industrial',
+  number: '4500',
+  postalCode: '13052000',
+  state: 'SP',
+  street: 'Rua da Doca',
+} as const
 
 function authorizedImportedXml(
-  overrides: { accessKey?: string; number?: string; recipientName?: string } = {},
+  overrides: {
+    accessKey?: string
+    number?: string
+    recipientName?: string
+    withAddresses?: boolean
+  } = {},
 ): ImportedNfeXml {
   const accessKey = overrides.accessKey ?? ACCESS_KEY
   return {
@@ -48,7 +77,14 @@ function authorizedImportedXml(
         reason: 'Autorizado',
         statusCode: '100',
       },
-      recipient: { name: overrides.recipientName ?? 'Destinatario', taxId: COMPANY_CNPJ },
+      recipient: {
+        name: overrides.recipientName ?? 'Destinatario',
+        taxId: COMPANY_CNPJ,
+        ...(overrides.withAddresses === true ? { address: { ...RECIPIENT_ADDRESS } } : {}),
+      },
+      ...(overrides.withAddresses === true
+        ? { delivery: { taxId: '11222333000181', address: { ...DELIVERY_ADDRESS } } }
+        : {}),
       relatedCnpjs: [COMPANY_CNPJ],
       series: '1',
       status: 'authorized',
@@ -146,6 +182,9 @@ describeDatabase('DrizzleNfeImportConsumerRepository (integration)', () => {
   afterAll(async () => {
     await db.delete(deliveryClients).where(eq(deliveryClients.companyId, companyId))
     await db.delete(contractors).where(eq(contractors.companyId, companyId))
+    // O endereço referencia o participante: apagá-lo primeiro, senão a FK derruba a limpeza
+    // inteira — e o perfil fiscal que sobra quebra os outros arquivos, que usam o mesmo CNPJ.
+    await db.delete(nfeAddresses).where(eq(nfeAddresses.companyId, companyId))
     await db.delete(nfeParticipants).where(eq(nfeParticipants.companyId, companyId))
     await db.delete(nfeDocuments).where(eq(nfeDocuments.companyId, companyId))
     await db.delete(nfeImportItems).where(eq(nfeImportItems.companyId, companyId))
@@ -352,6 +391,112 @@ describeDatabase('DrizzleNfeImportConsumerRepository (integration)', () => {
     // O que gente preencheu continua de pé: a criação automática nunca sobrescreve regra.
     expect(rows[0]?.requires_scheduling).toBe(true)
     expect(rows[0]?.delivery_fee_amount).toBe('45.0000')
+  })
+
+  /**
+   * Spec 073 T002: a NF-e tem **dois** endereços de destino, e `<entrega>` é onde a carga tem de ser
+   * deixada. O importador sempre soube mapear o papel `delivery` — mas medido em produção em
+   * 2026-09-01, nenhuma das 1628 notas trouxe `<entrega>`, então **este caminho de escrita nunca
+   * rodou contra nota real**. Os sete consumidores que decidem para onde o caminhão vai passam a
+   * depender desta linha existir; sem esta prova, ligá-los seria apontá-los para uma linha que
+   * talvez nunca fosse escrita — e o defeito seria idêntico ao de hoje: silencioso.
+   */
+  it('persists the delivery party and its own address, apart from the recipient', async () => {
+    const itemWithDelivery = crypto.randomUUID()
+    const objectWithDelivery = crypto.randomUUID()
+    await db.insert(storedObjects).values({
+      bucket: 'transportada-private',
+      companyId,
+      id: objectWithDelivery,
+      mimeType: 'application/xml',
+      objectKey: `${SOURCE_KEY}.3`,
+      provider: 'minio',
+      purpose: 'import_source',
+      sha256: SOURCE_SHA256,
+      sizeBytes: 128n,
+      status: 'staging',
+    })
+    await db.insert(nfeImportItems).values({
+      companyId,
+      id: itemWithDelivery,
+      importId,
+      ordinal: 3n,
+      sourceEntry: 'authorized-3.xml',
+      sourceName: 'authorized-3.xml',
+      sourceObjectId: objectWithDelivery,
+      sourceSha256: SOURCE_SHA256,
+      status: 'pending',
+    })
+
+    await repository.completeItem({
+      accessKey: DELIVERY_ACCESS_KEY,
+      finalObject: {
+        bucket: 'transportada-private',
+        key: `tenants/${companyId}/nfe-documents/${DELIVERY_ACCESS_KEY}/original.xml`,
+        objectId: crypto.randomUUID(),
+        sha256: SOURCE_SHA256,
+        sizeBytes: 128,
+      },
+      itemId: itemWithDelivery,
+      normalizedXml: authorizedImportedXml({
+        accessKey: DELIVERY_ACCESS_KEY,
+        number: '3',
+        withAddresses: true,
+      }),
+      status: 'imported',
+      variant: 'complete',
+    })
+
+    const [document] = await db
+      .select()
+      .from(nfeDocuments)
+      .where(
+        and(eq(nfeDocuments.companyId, companyId), eq(nfeDocuments.accessKey, DELIVERY_ACCESS_KEY)),
+      )
+    expect(document).toBeDefined()
+
+    const participants = await db
+      .select()
+      .from(nfeParticipants)
+      .where(eq(nfeParticipants.documentId, document!.id))
+
+    expect(participants.map((participant) => participant.role).sort()).toEqual([
+      'delivery',
+      'emitter',
+      'recipient',
+    ])
+
+    const byRole = new Map(participants.map((participant) => [participant.role, participant.id]))
+    const addresses = await db
+      .select()
+      .from(nfeAddresses)
+      .where(eq(nfeAddresses.companyId, companyId))
+    const addressOf = (role: string) =>
+      addresses.find((address) => address.participantId === byRole.get(role))
+
+    const delivery = addressOf('delivery')
+    const recipient = addressOf('recipient')
+
+    expect(delivery).toBeDefined()
+    expect(recipient).toBeDefined()
+
+    // O endereço da entrega é o dele, inteiro — não uma sombra do destinatário.
+    expect(delivery?.cityCode).toBe(DELIVERY_ADDRESS.cityCode)
+    expect(delivery?.postalCode).toBe(DELIVERY_ADDRESS.postalCode)
+    expect(delivery?.number).toBe(DELIVERY_ADDRESS.number)
+    expect(delivery?.street).toBe(DELIVERY_ADDRESS.street)
+    expect(delivery?.city).toBe(DELIVERY_ADDRESS.city)
+    expect(delivery?.district).toBe(DELIVERY_ADDRESS.district)
+    expect(delivery?.state).toBe(DELIVERY_ADDRESS.state)
+
+    // E é o do destinatário que fica para trás: os três campos da chave de parada divergem.
+    expect(recipient?.cityCode).toBe(RECIPIENT_ADDRESS.cityCode)
+    expect(delivery?.cityCode).not.toBe(recipient?.cityCode)
+    expect(delivery?.postalCode).not.toBe(recipient?.postalCode)
+    expect(delivery?.number).not.toBe(recipient?.number)
+
+    // Multiempresa: o endereço nasce carimbado, como toda linha do produto.
+    expect(delivery?.companyId).toBe(companyId)
   })
 
   it('finalizeImport persists the counters and the partial status', async () => {

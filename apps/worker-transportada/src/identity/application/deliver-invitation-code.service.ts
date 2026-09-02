@@ -10,6 +10,13 @@ export type InvitationDeliveryRecord = {
   readonly contactAddress: string
   readonly contactChannel: InvitationContactChannel
   readonly id: string
+  /** Nome de quem recebe, para o cabeçalho do e-mail. */
+  readonly recipientName: string
+  /**
+   * Endereço público da foto de perfil, quando existe — o link é opaco e girado a cada troca de
+   * imagem. Ausente é o caso comum: ficha sem retrato, e o cabeçalho fica só com a inicial.
+   */
+  readonly recipientPictureToken?: string
   readonly sealedCode: unknown
   readonly userId: string
 }
@@ -27,6 +34,10 @@ export type InvitationDeliveryDependencies = {
       readonly code: string
       readonly companyId: string
       readonly channel: InvitationContactChannel
+      /** O texto em volta do código no e-mail; o WhatsApp continua mandando `body` em uma linha. */
+      readonly email?: { readonly intro: string; readonly note: string }
+      /** Quem recebe: o e-mail se dirige a uma pessoa, e é ela que aparece na identidade. */
+      readonly recipient?: { readonly name: string; readonly pictureToken: string | undefined }
       readonly subject: string
     }) => Promise<void>
   }
@@ -55,6 +66,10 @@ export type InvitationDeliveryDependencies = {
 }
 
 const DELIVERY_SUBJECT = 'Seu código de ativação'
+const INVITATION_EMAIL_TEXT = {
+  intro: 'Use o código abaixo para ativar seu acesso e definir sua senha.',
+  note: 'O código é de uso único. Se não reconhece este convite, ignore este e-mail.',
+} as const
 
 /**
  * Falha de entrega **não** invalida o código: o convite segue válido e reenviável, porque quem
@@ -93,6 +108,11 @@ export async function handleInvitationDelivery(
       companyId: invitation.companyId,
       body: buildInvitationMessageBody(code),
       channel: invitation.contactChannel,
+      recipient: {
+        name: invitation.recipientName,
+        pictureToken: invitation.recipientPictureToken,
+      },
+      email: INVITATION_EMAIL_TEXT,
       subject: DELIVERY_SUBJECT,
     })
   } catch (error) {

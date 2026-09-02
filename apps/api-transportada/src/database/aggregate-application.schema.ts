@@ -3,8 +3,10 @@
  */
 import { sql } from 'drizzle-orm'
 import {
+  bigint,
   check,
   foreignKey,
+  index,
   jsonb,
   pgTable,
   text,
@@ -95,7 +97,24 @@ export const aggregateApplications = pgTable(
 export type AggregateApplicationRow = typeof aggregateApplications.$inferSelect
 export type NewAggregateApplicationRow = typeof aggregateApplications.$inferInsert
 
-export const AGGREGATE_APPLICATION_ATTACHMENT_TYPES = ['ccmei', 'cnh', 'crlv', 'other'] as const
+/**
+ * Spec 071: `address_proof` e `company_document` entram, e `ccmei` **fica**. O campo da tela passou a
+ * ser um só — "documento da empresa", que aceita CCMEI, contrato social ou cartão CNPJ —, mas as
+ * linhas já gravadas como `ccmei` continuam existindo, e reescrevê-las apagaria o que o operador viu
+ * quando aprovou. Tipo novo nunca substitui tipo gravado; ele se soma.
+ *
+ * `address_proof` é anexo de conferência puro: **qualquer tipo e qualquer data**, sem extração. Conta
+ * de luz, água, telefone, internet e contrato de aluguel não têm layout que se ancore — um parser
+ * genérico para eles seria palpite com aparência de leitura.
+ */
+export const AGGREGATE_APPLICATION_ATTACHMENT_TYPES = [
+  'address_proof',
+  'ccmei',
+  'cnh',
+  'company_document',
+  'crlv',
+  'other',
+] as const
 export type AggregateApplicationAttachmentType =
   (typeof AGGREGATE_APPLICATION_ATTACHMENT_TYPES)[number]
 
@@ -157,9 +176,11 @@ export const aggregateApplicationAttachments = pgTable(
       .onDelete('restrict')
       .onUpdate('cascade'),
     unique('aggregate_application_attachments_draft_id_unique').on(table.draftId),
+    /** Alvo da FK composta do outbox: sem ela o evento poderia apontar para anexo de outra empresa. */
+    unique('aggregate_application_attachments_company_id_id_unique').on(table.companyId, table.id),
     check(
       'aggregate_application_attachments_type_check',
-      sql`${table.type} in ('ccmei', 'cnh', 'crlv', 'other')`,
+      sql`${table.type} in ('address_proof', 'ccmei', 'cnh', 'company_document', 'crlv', 'other')`,
     ),
     check(
       'aggregate_application_attachments_status_check',
@@ -175,3 +196,74 @@ export const aggregateApplicationAttachments = pgTable(
     ),
   ],
 )
+
+export const AGGREGATE_ATTACHMENT_OUTBOX_EVENT_TYPES = ['attachment.extraction.requested'] as const
+export type AggregateAttachmentOutboxEventType =
+  (typeof AGGREGATE_ATTACHMENT_OUTBOX_EVENT_TYPES)[number]
+
+/**
+ * O pedido de leitura do anexo, gravado na **mesma transação** que o rascunho (ADR-0053).
+ *
+ * ⚠️ Não é o `processing_outbox`: lá `actor_user_id` é `not null`, e quem anexa é anônimo — inventar
+ * um UUID de sistema para caber na tabela alheia seria mentir na trilha. Por isso esta tabela não
+ * tem ator nenhum, e é a única coluna que a distingue das outras quatro do mesmo desenho.
+ *
+ * `payload` carrega **referência**, nunca bytes: `security.md` §6 manda o job apontar para o objeto,
+ * e o PDF de uma pessoa dentro de uma fila é PII em repouso sem prazo de descarte.
+ */
+export const aggregateAttachmentOutbox = pgTable(
+  'aggregate_attachment_outbox',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    eventId: uuid('event_id').notNull().defaultRandom(),
+    companyId: uuid('company_id').notNull(),
+    attachmentId: uuid('attachment_id').notNull(),
+    eventType: text('event_type').$type<AggregateAttachmentOutboxEventType>().notNull(),
+    eventVersion: bigint('event_version', { mode: 'bigint' }).notNull().default(1n),
+    correlationId: text('correlation_id').notNull(),
+    payload: jsonb().notNull(),
+    attempt: bigint({ mode: 'bigint' }).notNull().default(0n),
+    claimOwner: text('claim_owner'),
+    claimExpiresAt: timestamp('claim_expires_at', { withTimezone: true }),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+    publishedAt: timestamp('published_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'aggregate_attachment_outbox_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.attachmentId],
+      foreignColumns: [
+        aggregateApplicationAttachments.companyId,
+        aggregateApplicationAttachments.id,
+      ],
+      name: 'aggregate_attachment_outbox_company_attachment_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    unique('aggregate_attachment_outbox_company_id_id_unique').on(table.companyId, table.id),
+    unique('aggregate_attachment_outbox_company_id_event_id_unique').on(
+      table.companyId,
+      table.eventId,
+    ),
+    index('aggregate_attachment_outbox_company_published_next_attempt_created_idx').on(
+      table.companyId,
+      table.publishedAt,
+      table.nextAttemptAt,
+      table.createdAt,
+    ),
+    check(
+      'aggregate_attachment_outbox_event_type_check',
+      sql`${table.eventType} in ('attachment.extraction.requested')`,
+    ),
+  ],
+)
+
+export type AggregateAttachmentOutboxRow = typeof aggregateAttachmentOutbox.$inferSelect

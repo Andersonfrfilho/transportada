@@ -6,6 +6,8 @@
 - Fecha a decisão da spec 058
 - Depende da **ADR-0043** (paradas: sem `trip_stops` não há o que ordenar)
 - **Não revoga a ADR-0047** — a §6 abaixo explica por que o mapa com rua convive com ela
+- Emendada em 2026-09-01 pelo adendo no fim deste arquivo: **a cascata da §3 está invertida** — o
+  CEP é o degrau primário e o provedor pago virou escalada por marca humana
 
 ## Contexto
 
@@ -212,3 +214,86 @@ solver puro aceita isso sem reescrita.
 | Tile server externo (Mapbox/Google)   | Coordenada de cliente viajando em URL de terceiro contraria a razão da ADR-0047 (§6).                         |
 | Otimizar dentro da API                | Bloqueia o event loop; derruba o resto da API (§7).                                                           |
 | Volume como restrição frouxa          | Restrição calculada sobre dado ausente é pior que restrição nenhuma (§9).                                     |
+
+## Adendo 2026-09-01 — o CEP é o degrau primário, e o provedor pago é escalada
+
+A §3 escolheu o Google como **o** geocodificador, com o centroide de CEP e o de município como queda
+para quando ele falhasse. **A ordem está invertida na implementação** (spec 069), e este adendo
+registra por quê — quem ler só a §3 vai procurar no código um Google que quase nunca é chamado.
+
+### O que mudou desde 2026-08-26
+
+Duas medições de 2026-09-01, contra a BrasilAPI:
+
+- **A coordenada do CEP já chega hoje, e nós a jogamos fora.** `postal-code.gateway.ts` chama o
+  `/cep/v2` para preencher os campos de endereço e ignora o `location.coordinates` que vem no **mesmo
+  corpo** — `{"type":"Point","coordinates":{"longitude":"-46.6553299","latitude":"-23.5617698"}}`. O
+  degrau de graça não é destino externo novo nem chamada nova: é ler um campo que a resposta entrega.
+- **Ele resolve até em cidade pequena.** Sales Oliveira, onze mil habitantes, devolveu coordenada.
+
+Quando a §3 foi escrita, o degrau gratuito era teórico e a escolha real era "Google ou nada". Deixou
+de ser.
+
+### A escada, e ela não tem gatilho automático
+
+| degrau | quem                   | quando                                             | custo        |
+| ------ | ---------------------- | -------------------------------------------------- | ------------ |
+| 1      | BrasilAPI `/cep/v2`    | sempre, por rotina de população                    | zero         |
+| 2      | provedor pago (Google) | **só quando um humano marca a parada como errada** | por endereço |
+| 3      | pino manual            | quando nem o degrau 2 acertou                      | zero         |
+
+**Consequência dita por extenso: o provedor pago passa a quase nunca ser chamado.** Isso é a escolha,
+não um efeito colateral — o produto roteiriza com precisão de CEP por padrão e compra precisão fina
+só onde alguém olhou e disse que estava errado.
+
+Foi avaliada e recusada uma escalada **automática por colisão** (duas paradas distintas caindo na
+mesma coordenada). Ela é tentadora e mede a coisa certa, mas gasta sem ninguém decidir. A trava é
+teste: uma sugestão inteira faz **zero** chamadas ao provedor pago, e sem esse contrato alguém
+acrescenta a escalada automática seis meses adiante e a fatura aparece sem decisão.
+
+### O que a §3 dizia e continua valendo
+
+- a coordenada é guardada **permanentemente**, e é isso que faz endereço já visto nunca ser
+  reconsultado;
+- `external_place_id` é `not null` para o que vem do provedor pago, e o CHECK do banco o cobra — a
+  mitigação 1 sobrevive à inversão e passa a cobrir um número **muito menor** de linhas;
+- a **exceção de licença** segue assumida por escrito, com exposição bem menor;
+- a cascata de precisão (`rooftop` > `street` > `postal_code` > `city`) e "a correção manual sempre
+  vence" não mudam — o degrau 2 é essa mesma cascata usada na direção que ela já sabe ir;
+- parada em `city` continua fora da otimização automática (§5).
+
+Hospedar geocodificador nosso (Nominatim sobre o mesmo extract OSM do OSRM) foi **recusado de novo**,
+e o motivo merece ficar ao lado da §2 porque contradiz a intuição de quem a leu: as duas camadas têm
+formatos de chamada opostos. A matriz é lida **milhares de vezes por sugestão** — custo recorrente e
+sem teto, e por isso hospedar ganha. O geocodificador é chamado **uma vez por endereço novo, para
+sempre** — pagamento único que decai conforme a base satura. Servidor de pé 24/7 é custo fixo que
+nunca decai, e com a inversão o gasto com o provedor pago tende a quase zero: nenhum servidor nosso
+compete com zero. Hospedar geocodificador se justificaria por licença ou privacidade — nunca por
+economia.
+
+### O risco novo, que a §3 não tinha
+
+**A coordenada do CEP é do CEP, não do endereço: ela ignora o número.** Numa rua coberta por um CEP
+só, o número 50 e o número 2000 recebem a mesma coordenada, e o solver não consegue ordenar duas
+paradas a dois quilômetros uma da outra. É a família de defeito da §1 — número plausível, sem aviso.
+
+A mitigação é a marca do degrau 2, e ela é também o **instrumento de medida**: se for muito usada, o
+degrau 1 não basta para esta operação, e a conversa volta com número em vez de palpite (é o mesmo
+raciocínio da §5 sobre aceites e rejeições).
+
+E há um caso que precisa de guarda explícita: **cidade pequena tem um CEP para o município inteiro**,
+cujo centroide é palpite de quilômetros. Gravá-lo como `postal_code` o poria dentro da rota. O
+discriminador é o **`street` ausente** na resposta — CEP geral não tem logradouro por definição —, e
+não o sufixo `-000`, que classificaria a Avenida Presidente Vargas de Araraquara como palpite de
+município.
+
+### Onde cada degrau roda
+
+O degrau 1 é do **worker** (assíncrono, e `readStops` é onde a coordenada falta). O degrau 2 é da
+**API**: é ação humana síncrona, alguém clicou e está esperando saber se melhorou. Isso **não
+contraria a §7** — ali o que não pode bloquear o event loop é a otimização, que continua no worker;
+uma chamada de geocodificação iniciada por humano, com humano esperando, é outro caso.
+
+E a marca precisa responder **quando não melhorou**: se o provedor devolver precisão igual ou pior, a
+regra de substituição recusa a escrita, e sem aviso a pessoa marca, nada muda na tela e conclui que a
+marca não funciona. A resposta oferece o degrau 3.

@@ -37,7 +37,7 @@ export const PERMISSION_GROUPS = [
     key: 'settings',
     permissions: ['settings.manage', 'addresses.read', 'view-preferences.manage'],
   },
-  { key: 'operations', permissions: ['operations.read', 'audit.read'] },
+  { key: 'operations', permissions: ['operations.read', 'operations.run', 'audit.read'] },
   { key: 'portal', permissions: ['deliveries.track', 'charges.decide'] },
 ] as const
 

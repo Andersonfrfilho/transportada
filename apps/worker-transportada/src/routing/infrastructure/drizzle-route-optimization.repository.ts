@@ -23,6 +23,10 @@ import {
   deliveryClients,
   municipalHolidays,
 } from '../../database/delivery-client.schema.js'
+import {
+  resolvePhysicalDestination,
+  PHYSICAL_DESTINATION_ORIGINS,
+} from '../domain/physical-destination.policy.js'
 import { resolveDeliveryWindow } from '../domain/delivery-window.policy.js'
 import { buildStopAddressKey } from '../domain/pool-address-key.js'
 import type {
@@ -30,6 +34,7 @@ import type {
   RouteOptimizationOutcome,
   RouteOptimizationStop,
 } from '../application/route-optimization.effect.js'
+import { isOptimizablePrecision } from '../application/resolve-stop-coordinates.use-case.js'
 import type {
   RouteOptimizationHandlerPorts,
   RouteOptimizationJob,
@@ -349,7 +354,7 @@ async function readStops(input: {
 
   return rows.map((row) => {
     const hasFineCoordinate =
-      row.latitude !== null && row.longitude !== null && row.precision !== 'city'
+      row.latitude !== null && row.longitude !== null && isOptimizablePrecision(row.precision)
 
     return {
       addressKey: row.addressKey,
@@ -509,6 +514,7 @@ async function readPoolStops(input: {
       postalCode: nfeAddresses.postalCode,
       /** Spec 060: o cliente de entrega é resolvido pelo documento do destinatário. */
       recipientTaxId: nfeParticipants.taxId,
+      role: nfeParticipants.role,
     })
     .from(routeSuggestionDocuments)
     .innerJoin(
@@ -516,7 +522,7 @@ async function readPoolStops(input: {
       and(
         eq(nfeParticipants.companyId, routeSuggestionDocuments.companyId),
         eq(nfeParticipants.documentId, routeSuggestionDocuments.nfeDocumentId),
-        eq(nfeParticipants.role, 'recipient'),
+        inArray(nfeParticipants.role, [...PHYSICAL_DESTINATION_ORIGINS]),
       ),
     )
     .innerJoin(
@@ -538,11 +544,41 @@ async function readPoolStops(input: {
    * dígitos, prefixo "nº", "S/N"), e montá-la com `concat_ws` produziria uma segunda regra do que é
    * a mesma parada — que discordaria da primeira no dia em que alguém digitasse "Nº 45".
    */
+  /**
+   * Spec 073: a nota pode trazer **dois** destinos, e a parada é a de `<entrega>` quando ela vem.
+   * O CNPJ, esse, continua sendo o do **destinatário**: ele é a identidade do cliente de entrega
+   * (spec 060), e o documento de quem recebe a carga no galpão diria outra coisa.
+   */
+  const destinations = new Map<
+    string,
+    { readonly address: (typeof rows)[number]; readonly recipientTaxId: string | null }
+  >()
+  const byDocument = new Map<string, (typeof rows)[number][]>()
+  for (const row of rows) {
+    const current = byDocument.get(row.nfeDocumentId)
+    if (current === undefined) byDocument.set(row.nfeDocumentId, [row])
+    else current.push(row)
+  }
+  for (const [documentId, candidates] of byDocument) {
+    const chosen = resolvePhysicalDestination(
+      candidates.map((row) => ({
+        components: { cityCode: row.cityCode, number: row.number, postalCode: row.postalCode },
+        origin: row.role === 'delivery' ? ('delivery' as const) : ('recipient' as const),
+        row,
+      })),
+    )
+    if (chosen === null) continue
+    destinations.set(documentId, {
+      address: chosen.row,
+      recipientTaxId: candidates.find((row) => row.role === 'recipient')?.recipientTaxId ?? null,
+    })
+  }
+
   const grouped = new Map<
     string,
     { city: string | null; cityCode: string | null; documentIds: string[]; taxIds: Set<string> }
   >()
-  for (const row of rows) {
+  for (const { address: row, recipientTaxId } of destinations.values()) {
     const addressKey = buildStopAddressKey(row)
     /** Nota sem CEP não vira parada proposta; ela entra na viagem sem parada, como já entra hoje. */
     if (addressKey === null) continue
@@ -553,12 +589,14 @@ async function readPoolStops(input: {
         city: row.city,
         cityCode: row.cityCode,
         documentIds: [row.nfeDocumentId],
-        taxIds: new Set(row.recipientTaxId === null ? [] : [row.recipientTaxId]),
+        taxIds: new Set(recipientTaxId === null ? [] : [recipientTaxId]),
       })
       continue
     }
     existing.documentIds.push(row.nfeDocumentId)
-    if (row.recipientTaxId !== null) existing.taxIds.add(row.recipientTaxId)
+    // ⚠️ O documento vem do destinatário, resolvido acima — nunca da linha escolhida: com
+    // `<entrega>` vencendo, ela é a da entrega, e o CNPJ dela é o de quem recebe no galpão.
+    if (recipientTaxId !== null) existing.taxIds.add(recipientTaxId)
   }
   if (grouped.size === 0) return []
 
