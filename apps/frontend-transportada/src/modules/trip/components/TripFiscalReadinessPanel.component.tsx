@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 
 import type { TripDocumentDetail, TripFiscalReadiness } from '../shared/trip.types'
+import { readinessReasonIcon } from '../shared/readinessIcon.service'
 import { tripDocumentLabel } from '../shared/tripDocument.service'
 import styles from '../styles/trip.module.css'
 
@@ -142,6 +143,7 @@ export function TripFiscalReadinessPanel({
             <li className={styles.readinessItem} key={entry.tripDocumentId}>
               <span>{labelByDocumentId.get(entry.tripDocumentId) ?? entry.tripDocumentId}</span>
               <span className={styles.readinessReason}>
+                <Icon name={readinessReasonIcon(entry.reason)} />
                 {t(`readiness.reason.${entry.reason}`)}
                 {/* O cStat e a mensagem vão junto: é o que decide o próximo passo do operador */}
                 {entry.rejectionCode === null
