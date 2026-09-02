@@ -62,6 +62,9 @@ export type TripController = Readonly<{
   deliverTripDocument: (input: TripDocumentActionInput) => Promise<TransitionTripDocumentResult>
   readDeliveryProofs: (input: TripDocumentActionInput) => Promise<readonly DeliveryProof[]>
   readTripOccurrences: (input: TripDocumentActionInput) => Promise<readonly TripOccurrence[]>
+  correctGeocodedAddress: (
+    input: Readonly<{ addressKey: string; latitude: string; longitude: string }>,
+  ) => Promise<void>
   registerTripOccurrence: (
     input: TripDocumentActionInput & { readonly note: string; readonly type: string },
   ) => Promise<TripOccurrence>
@@ -117,6 +120,8 @@ export function createTripController(
       canReadTrips ? input.client.readDeliveryProofs(body) : forbidden(),
     readTripOccurrences: (body) =>
       canReadTrips ? input.client.readTripOccurrences(body) : forbidden(),
+    correctGeocodedAddress: (body) =>
+      canManageTrips ? input.client.correctGeocodedAddress(body) : forbidden(),
     registerTripOccurrence: (body) =>
       canManageTrips ? input.client.registerTripOccurrence(body) : forbidden(),
     readTripDocumentProducts: (body) =>
@@ -278,6 +283,17 @@ export function useTripWorkspace(
     },
   })
 
+  /**
+   * ⚠️ Corrigir o ponto muda o **endereço**, não a viagem — mas a viagem lê a coordenada dele para
+   * desenhar o mapa, então a chave da viagem é invalidada para o pino andar sem recarregar a página.
+   */
+  const correctAddressMutation = useMutation({
+    mutationFn: controller.correctGeocodedAddress,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: tripKey })
+    },
+  })
+
   const deliverDocumentMutation = useMutation({
     mutationFn: controller.deliverTripDocument,
     onSuccess: invalidate,
@@ -335,6 +351,7 @@ export function useTripWorkspace(
     controller,
     createCteBatchMutation,
     createMutation,
+    correctAddressMutation,
     deliverDocumentMutation,
     deliveryProofsQuery,
     documentProductsQuery,

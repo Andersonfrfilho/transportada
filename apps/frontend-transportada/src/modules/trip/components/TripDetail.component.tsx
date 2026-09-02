@@ -349,7 +349,12 @@ export function TripDetail({ linkForm, onClose, vehicles, workspace }: TripDetai
 
       <TripCargoLayoutPanel layout={trip.cargoLayout} occupancy={trip.occupancy} />
 
-      <TripRouteMap stops={trip.stops} />
+      <TripRouteMap
+        canCorrect={canManage}
+        isCorrecting={workspace.correctAddressMutation.isPending}
+        onCorrect={(correction) => workspace.correctAddressMutation.mutate(correction)}
+        stops={trip.stops}
+      />
 
       {selection.selectedIds.size > 0 ? (
         <div className={styles.selectionBar} role="status">

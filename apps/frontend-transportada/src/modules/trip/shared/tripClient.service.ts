@@ -50,6 +50,9 @@ export type TripClient = Readonly<{
   dispatchTrip: (input: DispatchTripInput) => Promise<DispatchTripResult>
   readDeliveryProofs: (input: TripDocumentActionInput) => Promise<readonly DeliveryProof[]>
   readTripOccurrences: (input: TripDocumentActionInput) => Promise<readonly TripOccurrence[]>
+  correctGeocodedAddress: (
+    input: Readonly<{ addressKey: string; latitude: string; longitude: string }>,
+  ) => Promise<void>
   registerTripOccurrence: (
     input: TripDocumentActionInput & { readonly note: string; readonly type: string },
   ) => Promise<TripOccurrence>
@@ -215,6 +218,18 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: `${documentPath(input)}/products`,
       })
       return adapters.documentProductsFromApi(readEnvelopeData(response))
+    },
+    async correctGeocodedAddress(input) {
+      await authorizedRequest({
+        body: JSON.stringify({ latitude: input.latitude, longitude: input.longitude }),
+        dependencies,
+        method: 'PATCH',
+        /**
+         * ⚠️ A chave **não é UUID** — é `cityCode|postalCode|number`. Sem `encodeURIComponent` o
+         * pipe e a barra quebram o caminho, e o servidor responde 404 para um endereço que existe.
+         */
+        path: `/geocoded-addresses/${encodeURIComponent(input.addressKey)}`,
+      })
     },
     async readTripOccurrences(input) {
       const response = await authorizedRequest({

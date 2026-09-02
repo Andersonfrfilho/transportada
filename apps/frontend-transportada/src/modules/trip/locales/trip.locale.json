@@ -314,6 +314,12 @@
   "routeMap": {
     "title": "Mapa do roteiro",
     "withoutLocation": "Sem localização no mapa: {{stops}}",
-    "stopLabel": "Parada {{sequence}}: {{label}}"
+    "stopLabel": "Parada {{sequence}}: {{label}}",
+    "correct": "Corrigir ponto no mapa",
+    "correctionScope": "A correção é do endereço, não desta viagem: ela vale para todas as viagens que passarem por este portão.",
+    "latitude": "Latitude",
+    "longitude": "Longitude",
+    "save": "Salvar ponto",
+    "cancel": "Cancelar"
   }
 }
