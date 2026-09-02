@@ -336,6 +336,15 @@ export function TripDetail({ linkForm, onClose, vehicles, workspace }: TripDetai
         ))}
       </fieldset>
 
+      {/*
+       * O botão fica **ao lado** do automático, não no lugar dele: quem está no galpão esperando a
+       * baixa não espera meio minuto, e quem só acompanha não deve apertar nada.
+       */}
+      <Button onClick={() => workspace.refetchTrip()} size="sm" type="button" variant="ghost">
+        <Icon name="refresh" />
+        {t('detail.refreshNow')}
+      </Button>
+
       <TripProgressBar
         documents={trip.documents}
         progress={resolveTripProgress({

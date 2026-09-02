@@ -4,6 +4,7 @@ import { useState } from 'react'
 
 import type { DeliveryProof } from '../shared/deliveryProof.service'
 import type { TripDocumentProduct, TripOccurrence } from '../shared/trip.types'
+import { resolveTripRefetchInterval } from '../shared/tripPolling.service'
 
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
@@ -15,7 +16,6 @@ import {
 import {
   CTE_SUBMIT_PERMISSION,
   MDFE_MANAGE_PERMISSION,
-  isTripOnTheRoad,
   TRIP_MANAGE_PERMISSION,
   TRIP_ON_THE_ROAD_REFETCH_MS,
   TRIP_QUERY_KEY,
@@ -195,8 +195,15 @@ export function useTripWorkspace(
      * Repetir a consulta numa viagem em rascunho seria bater no servidor por nada; um WebSocket
      * novo, um trilho inteiro por uma tela que atualiza a cada meio minuto.
      */
+    /**
+     * Spec 079: **duas condições, não uma.** A regra da 057 olhava só o estado da viagem, e uma
+     * viagem despachada com tudo entregue seguia batendo no servidor para sempre.
+     */
     refetchInterval: (query) =>
-      isTripOnTheRoad(query.state.data?.status) ? TRIP_ON_THE_ROAD_REFETCH_MS : false,
+      resolveTripRefetchInterval({
+        documents: query.state.data?.documents ?? [],
+        status: query.state.data?.status,
+      }),
   })
 
   /**
@@ -354,6 +361,7 @@ export function useTripWorkspace(
     correctAddressMutation,
     deliverDocumentMutation,
     deliveryProofsQuery,
+    refetchTrip: () => void tripQuery.refetch(),
     documentProductsQuery,
     occurrencesQuery,
     registerOccurrenceMutation,

@@ -182,7 +182,8 @@
     "scanQueueResolving": "Procurando a nota…",
     "scanQueueLinking": "Vinculando à viagem…",
     "scanQueueLinked": "Vinculada",
-    "scanQueueClear": "Limpar leituras"
+    "scanQueueClear": "Limpar leituras",
+    "refreshNow": "Atualizar agora"
   },
   "feedback": {
     "closed": "Esta viagem já está encerrada.",
