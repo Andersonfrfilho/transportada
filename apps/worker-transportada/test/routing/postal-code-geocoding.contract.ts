@@ -79,11 +79,14 @@ describe('BrasilAPI postal code geocoding (spec 069, degrau 1)', () => {
     })
 
     expect(await gateway.geocode(requestFor('01310100'))).toEqual({
-      externalPlaceId: '',
-      latitude: '-23.5617698',
-      longitude: '-46.6553299',
-      precision: 'postal_code',
-      source: 'postal_code',
+      cause: null,
+      coordinate: {
+        externalPlaceId: '',
+        latitude: '-23.5617698',
+        longitude: '-46.6553299',
+        precision: 'postal_code',
+        source: 'postal_code',
+      },
     })
   })
 
@@ -101,8 +104,8 @@ describe('BrasilAPI postal code geocoding (spec 069, degrau 1)', () => {
 
     const resolved = await gateway.geocode(requestFor('14660000', 'S/N'))
 
-    expect(resolved?.precision).toBe('city')
-    expect(resolved?.source).toBe('city')
+    expect(resolved.coordinate?.precision).toBe('city')
+    expect(resolved.coordinate?.source).toBe('city')
   })
 
   /**
@@ -121,7 +124,9 @@ describe('BrasilAPI postal code geocoding (spec 069, degrau 1)', () => {
       }),
     })
 
-    expect((await gateway.geocode(requestFor('14801000')))?.precision).toBe('postal_code')
+    expect((await gateway.geocode(requestFor('14801000'))).coordinate?.precision).toBe(
+      'postal_code',
+    )
   })
 
   /**
@@ -135,7 +140,11 @@ describe('BrasilAPI postal code geocoding (spec 069, degrau 1)', () => {
       fetchImplementation: respondWith({ ...AVENIDA_PAULISTA, location: undefined }),
     })
 
-    expect(await gateway.geocode(requestFor('01310100'))).toBeNull()
+    /** Coordenada ausente tem causa própria: o corpo veio, o provedor a montante é que não a trouxe. */
+    expect(await gateway.geocode(requestFor('01310100'))).toEqual({
+      cause: 'no_coordinate',
+      coordinate: null,
+    })
   })
 
   test('returns null when the provider does not know the postal code', async () => {
@@ -147,7 +156,10 @@ describe('BrasilAPI postal code geocoding (spec 069, degrau 1)', () => {
       ),
     })
 
-    expect(await gateway.geocode(requestFor('99999999'))).toBeNull()
+    expect(await gateway.geocode(requestFor('99999999'))).toEqual({
+      cause: 'not_found',
+      coordinate: null,
+    })
   })
 
   /** Serviço público e gratuito: 429 é recusa esperada, não defeito nosso — desce a cascata. */
@@ -157,7 +169,7 @@ describe('BrasilAPI postal code geocoding (spec 069, degrau 1)', () => {
       fetchImplementation: respondWith({ message: 'rate limited' }, 429),
     })
 
-    expect(await gateway.geocode(requestFor('01310100'))).toBeNull()
+    expect((await gateway.geocode(requestFor('01310100'))).cause).toBe('not_found')
   })
 
   test('never throws when the transport fails', async () => {
@@ -168,7 +180,26 @@ describe('BrasilAPI postal code geocoding (spec 069, degrau 1)', () => {
       }) as unknown as typeof fetch,
     })
 
-    expect(await gateway.geocode(requestFor('01310100'))).toBeNull()
+    /** Transporte que morre é causa **própria**: confundi-la com CEP inexistente esconderia egresso
+     * bloqueado, que é exatamente a dúvida que staging não conseguiu responder. */
+    expect(await gateway.geocode(requestFor('01310100'))).toEqual({
+      cause: 'transport_error',
+      coordinate: null,
+    })
+  })
+
+  test('never asks the provider when the base URL is empty', async () => {
+    const gateway = createBrasilApiPostalCodeGateway({
+      baseUrl: '',
+      fetchImplementation: (() => {
+        throw new Error('não deveria chamar')
+      }) as unknown as typeof fetch,
+    })
+
+    expect(await gateway.geocode(requestFor('01310100'))).toEqual({
+      cause: 'not_configured',
+      coordinate: null,
+    })
   })
 
   test('asks for the canonical postal code, digits only', async () => {

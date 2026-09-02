@@ -64,13 +64,16 @@ function buildRoutine(overrides: {
 
         return Promise.resolve(
           overrides.resolves === false
-            ? null
+            ? { cause: 'not_found' as const, coordinate: null }
             : {
-                externalPlaceId: '',
-                latitude: '-21.1800000',
-                longitude: '-47.8100000',
-                precision: 'postal_code' as const,
-                source: 'postal_code' as const,
+                cause: null,
+                coordinate: {
+                  externalPlaceId: '',
+                  latitude: '-21.1800000',
+                  longitude: '-47.8100000',
+                  precision: 'postal_code' as const,
+                  source: 'postal_code' as const,
+                },
               },
         )
       },

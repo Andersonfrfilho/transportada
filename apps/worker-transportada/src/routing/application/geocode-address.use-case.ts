@@ -3,6 +3,7 @@
  */
 import type {
   GeocodeAddressRequest,
+  GeocodeFailureCause,
   GeocodedAddressRecord,
   GeocodedAddressRepository,
   GeocodingPort,
@@ -34,6 +35,12 @@ export type GeocodeAddressesDependencies = Readonly<{
   cache?: GeocodingHotCache
   centroids: CentroidPort
   geocoding: GeocodingPort
+  /**
+   * Pausa **entre chamadas ao provedor**, e opcional de propósito: a rotina de população a usa por
+   * cortesia com um serviço público e gratuito; a sugestão **não**, porque ali há um conferente
+   * esperando e 200 endereços a 300ms virariam um minuto de tela parada.
+   */
+  waitBetweenCalls?: () => Promise<void>
   repository: GeocodedAddressRepository
 }>
 
@@ -50,6 +57,8 @@ export type GeocodeAddressesDependencies = Readonly<{
 export type GeocodeAddressesResult = Readonly<{
   byAddressKey: ReadonlyMap<string, GeocodedAddressRecord>
   counts: Readonly<{
+    /** Por que os `unresolved` não resolveram — sem dizer qual endereço (RNF1). */
+    byCause: Readonly<Partial<Record<GeocodeFailureCause, number>>>
     fromBase: number
     resolvedByCity: number
     resolvedByPostalCode: number
@@ -102,11 +111,18 @@ export async function geocodeAddresses(
   let resolvedByPostalCode = 0
   let resolvedByCity = 0
   let unresolved = 0
+  const byCause: Partial<Record<GeocodeFailureCause, number>> = {}
 
+  let calls = 0
   for (const request of missing) {
-    const resolved = await resolveThroughCascade(dependencies, request)
+    /** Antes da chamada, nunca depois: pausar no fim atrasaria o ciclo sem espaçar nada. */
+    if (calls > 0) await dependencies.waitBetweenCalls?.()
+    calls += 1
+
+    const { cause, resolved } = await resolveThroughCascade(dependencies, request)
     if (resolved === null) {
       unresolved += 1
+      if (cause !== null) byCause[cause] = (byCause[cause] ?? 0) + 1
       continue
     }
 
@@ -118,7 +134,10 @@ export async function geocodeAddresses(
     else resolvedByPostalCode += 1
   }
 
-  return { byAddressKey, counts: { fromBase, resolvedByCity, resolvedByPostalCode, unresolved } }
+  return {
+    byAddressKey,
+    counts: { byCause, fromBase, resolvedByCity, resolvedByPostalCode, unresolved },
+  }
 }
 
 async function readStored(
@@ -133,7 +152,10 @@ async function readStored(
 async function resolveThroughCascade(
   dependencies: GeocodeAddressesDependencies,
   request: GeocodeAddressRequest,
-): Promise<Omit<GeocodedAddressRecord, 'addressKey'> | null> {
+): Promise<{
+  readonly cause: GeocodeFailureCause | null
+  readonly resolved: Omit<GeocodedAddressRecord, 'addressKey'> | null
+}> {
   /**
    * Dois degraus, e não os quatro da ADR-0044 §3 original: o provedor pago saiu daqui e virou
    * escalada por marca humana, na API (adendo 2026-09-01). O que sobra no worker é o CEP — de graça,
@@ -142,8 +164,13 @@ async function resolveThroughCascade(
    * Queda do provedor de CEP não derruba a sugestão: os endereços já em base seguem, e os novos
    * descem ao município — que entra marcado e fora da otimização (ADR-0044 §5).
    */
-  const geocoded = await dependencies.geocoding.geocode(request).catch(() => null)
-  if (geocoded !== null) return geocoded
+  const geocoded = await dependencies.geocoding
+    .geocode(request)
+    .catch(() => ({ cause: 'transport_error' as const, coordinate: null }))
+  if (geocoded.coordinate !== null) return { cause: null, resolved: geocoded.coordinate }
 
-  return dependencies.centroids.byCityCode(request.cityCode)
+  const centroid = await dependencies.centroids.byCityCode(request.cityCode)
+
+  /** A causa reportada é a do **degrau 1**: é ela que diz por que o CEP não bastou. */
+  return { cause: centroid === null ? geocoded.cause : null, resolved: centroid }
 }

@@ -3,7 +3,8 @@
  */
 import type {
   GeocodeAddressRequest,
-  GeocodedCoordinate,
+  GeocodeFailureCause,
+  GeocodeResult,
   GeocodingPort,
 } from '../application/geocoding.port.js'
 
@@ -40,16 +41,19 @@ export function createBrasilApiPostalCodeGateway(
   const timeout = input.timeoutMilliseconds ?? DEFAULT_TIMEOUT_MILLISECONDS
 
   return {
-    async geocode(request: GeocodeAddressRequest): Promise<GeocodedCoordinate | null> {
+    async geocode(request: GeocodeAddressRequest): Promise<GeocodeResult> {
+      if (input.baseUrl.trim().length === 0) return failed('not_configured')
+
       const postalCode = canonicalPostalCode(request.postalCode)
-      if (postalCode === null) return null
+      if (postalCode === null) return failed('invalid_postal_code')
 
       const body = await readBody(`${input.baseUrl}/${postalCode}`, fetchImplementation, timeout)
-      if (body === null) return null
+      if (body.cause !== null) return failed(body.cause)
 
-      const latitude = asCoordinate(body.location?.coordinates?.latitude)
-      const longitude = asCoordinate(body.location?.coordinates?.longitude)
-      if (latitude === null || longitude === null) return null
+      const latitude = asCoordinate(body.payload.location?.coordinates?.latitude)
+      const longitude = asCoordinate(body.payload.location?.coordinates?.longitude)
+      /** O `/cep/v2` responde por vários serviços a montante, e nem todos devolvem coordenada. */
+      if (latitude === null || longitude === null) return failed('no_coordinate')
 
       /**
        * RF9. Cidade pequena tem **um CEP para o município inteiro**, e a coordenada dele é palpite de
@@ -60,36 +64,52 @@ export function createBrasilApiPostalCodeGateway(
        * Vargas de Araraquara, logradouro. CEP geral não tem logradouro por definição; CEP de
        * logradouro sempre tem.
        */
-      const isWholeMunicipality = asText(body.street).length === 0
+      const isWholeMunicipality = asText(body.payload.street).length === 0
 
       return {
-        /** Vazio: o `place_id` é do provedor pago, e o CHECK da tabela só o exige de linha `google`. */
-        externalPlaceId: '',
-        latitude,
-        longitude,
-        precision: isWholeMunicipality ? 'city' : 'postal_code',
-        source: isWholeMunicipality ? 'city' : 'postal_code',
+        cause: null,
+        coordinate: {
+          /** Vazio: o `place_id` é do pago, e o CHECK só o exige de linha `google`. */
+          externalPlaceId: '',
+          latitude,
+          longitude,
+          precision: isWholeMunicipality ? 'city' : 'postal_code',
+          source: isWholeMunicipality ? 'city' : 'postal_code',
+        },
       }
     },
   }
 }
 
+type BodyRead =
+  | Readonly<{ cause: null; payload: BrasilApiCepResponse }>
+  | Readonly<{ cause: GeocodeFailureCause; payload: null }>
+
 async function readBody(
   url: string,
   fetchImplementation: typeof fetch,
   timeoutMilliseconds: number,
-): Promise<BrasilApiCepResponse | null> {
+): Promise<BodyRead> {
   try {
     const response = await fetchImplementation(url, {
       signal: AbortSignal.timeout(timeoutMilliseconds),
     })
-    if (!response.ok) return null
+    /**
+     * `404` e `429` viram a mesma causa de propósito: para quem chama, os dois significam "este CEP
+     * não resolveu agora". Separá-los aqui exigiria o gateway opinar sobre política de retentativa,
+     * que é decisão de quem chama — e a contagem por causa já distingue isto de erro de transporte.
+     */
+    if (!response.ok) return { cause: 'not_found', payload: null }
 
-    return (await response.json()) as BrasilApiCepResponse
+    return { cause: null, payload: (await response.json()) as BrasilApiCepResponse }
   } catch {
-    /** RNF1: nada do endereço vai para log — nem aqui, onde a causa seria tentadora de registrar. */
-    return null
+    /** RNF1: **a causa vai, o endereço não**. É a distinção que faltava. */
+    return { cause: 'transport_error', payload: null }
   }
+}
+
+function failed(cause: GeocodeFailureCause): GeocodeResult {
+  return { cause, coordinate: null }
 }
 
 function canonicalPostalCode(postalCode: string): string | null {

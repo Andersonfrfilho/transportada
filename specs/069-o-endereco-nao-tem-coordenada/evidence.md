@@ -497,3 +497,45 @@ O passe de `code-review` sobre o diff achou **dois defeitos**, os dois na tela e
 automático os pegaria, porque os dois produzem **texto errado na tela**, não exceção.
 
 **Verificação depois da correção:** `make check` → **exit 0**, sete suítes, zero falhas.
+
+## Correção pós-deploy (2026-09-02) — a T010 estava incompleta, e a cadência estava errada
+
+⚠️ **Eu fechei a T010 com metade do que ela pedia.** Ela dizia "log separado por origem **e as causas
+dos que não resolveram**", e o plano detalhava: _"Falha do provedor vira contador de causa
+(`provider_error`, `zero_results`, `not_configured`), não linha por endereço"_. Entreguei a origem e
+não as causas — li o "a causa seria tentadora de registrar" do gateway como "não registrar nada",
+quando o certo era **não registrar o endereço** e registrar a causa.
+
+O preço apareceu em staging: seis ciclos dizendo `unresolved: 5` sem nada distinguir CEP inexistente
+de egresso bloqueado de defeito nosso — três hipóteses com respostas opostas, indistinguíveis daqui.
+
+`GeocodingPort.geocode` passou a devolver `{cause, coordinate}`, com cinco causas
+(`not_configured`, `invalid_postal_code`, `not_found`, `no_coordinate`, `transport_error`), e o ciclo
+loga `byCause`. `404` e `429` viram a mesma causa de propósito: separá-los exigiria o gateway opinar
+sobre retentativa, que é decisão de quem chama.
+
+### A cadência estava errada por uma ordem de grandeza
+
+|                 | antes                    | agora                                          |
+| --------------- | ------------------------ | ---------------------------------------------- |
+| intervalo       | 5 min (o piso da batida) | **1 hora**                                     |
+| lotes por ciclo | 10                       | **2**                                          |
+| pausa           | 1 s entre **lotes**      | **300 ms entre requisições** + 2 s entre lotes |
+| pico            | ~6.000 req/h             | **~100 req/h**                                 |
+
+⚠️ A pausa estava no lugar errado: entre lotes, então dentro de cada um saíam **50 requisições em
+rajada**. Rajada é o que faz serviço gratuito bloquear, mais que o total do dia. E não havia pressa
+que justificasse — a rotina é adiantamento, e a RF2 garante que o que ela não alcança a sugestão
+resolve na hora.
+
+`waitBetweenCalls` é **opcional** na cascata: a rotina a usa; a sugestão **não**, porque ali há um
+conferente esperando e 200 endereços a 300 ms virariam um minuto de tela parada.
+
+O piso do catálogo subiu de `JOB_TICK_INTERVAL_SECONDS` para `3_600` nas quatro apps — o piso é a
+frase "isto nunca deve correr mais rápido que isso", e num serviço público de terceiro ela é
+cortesia, não afinação. Migration `20260902003000_geocoding_backfill_hourly` corrige o relógio das
+bases existentes, e o contrato do catálogo passou a ler `UPDATE` além de `INSERT` — sem isso ele
+comparava o piso novo com o valor antigo.
+
+**Verificação:** `make check` exit 0; worker **868 pass**; API **3845 pass**; cron 94; frontend 2233;
+`make migration-test` 90 pass — todos 0 fail.

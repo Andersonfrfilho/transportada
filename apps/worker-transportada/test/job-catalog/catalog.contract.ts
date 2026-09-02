@@ -75,7 +75,7 @@ const CATALOG = [
   {
     failureOutcomes: [],
     job: 'geocoding.backfill',
-    minimumIntervalSeconds: 300,
+    minimumIntervalSeconds: 3600,
   },
 ] as const
 

@@ -83,7 +83,7 @@ const CATALOG = [
   {
     failureOutcomes: [],
     job: 'geocoding.backfill',
-    minimumIntervalSeconds: 300,
+    minimumIntervalSeconds: 3600,
   },
 ] as const
 
@@ -97,6 +97,7 @@ const SEED_MIGRATIONS = [
   '20260826101924_tough_killraven',
   '20260829224254_identity_document_backfill_job',
   '20260901214952_geocoding_backfill_job',
+  '20260902003000_geocoding_backfill_hourly',
 ] as const
 
 describe('job catalog', () => {
@@ -228,9 +229,24 @@ async function readSeededIntervals(): Promise<Record<string, number>> {
     const sql = await Bun.file(
       join(migrationsDirectory.pathname, migration, 'migration.sql'),
     ).text()
-    const pattern = /\('([a-z.]+)',\s*(\d+),/g
-    for (const match of sql.matchAll(pattern)) {
+    const inserted = /\('([a-z.]+)',\s*(\d+),/g
+    for (const match of sql.matchAll(inserted)) {
       const [, job, intervalSeconds] = match
+      if (job === undefined || intervalSeconds === undefined) continue
+      seeded[job] = Number(intervalSeconds)
+    }
+
+    /**
+     * O relógio também é **corrigido** por migration, não só semeado: a população de coordenadas
+     * nasceu na batida de cinco minutos e passou para uma hora quando ficou claro que 6.000
+     * requisições por hora contra um serviço público gratuito não tinham justificativa.
+     *
+     * Ler só o `INSERT` faria esta guarda comparar o piso novo com o valor **antigo** e reprovar uma
+     * base que na prática está certa — a migration de correção roda logo depois da de criação.
+     */
+    const updated = /SET\s+"interval_seconds"\s*=\s*(\d+)[\s\S]*?WHERE\s+"job"\s*=\s*'([a-z.]+)'/g
+    for (const match of sql.matchAll(updated)) {
+      const [, intervalSeconds, job] = match
       if (job === undefined || intervalSeconds === undefined) continue
       seeded[job] = Number(intervalSeconds)
     }

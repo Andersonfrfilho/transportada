@@ -15,9 +15,10 @@ import type {
 } from '../../routing/application/geocoding.port.js'
 import type { WorkerLogger } from '../../shared/worker.types.js'
 import {
+  GEOCODING_BACKFILL_BATCH_PAUSE_MILLISECONDS,
   GEOCODING_BACKFILL_BATCH_SIZE,
   GEOCODING_BACKFILL_MAX_BATCHES,
-  GEOCODING_BACKFILL_PAUSE_MILLISECONDS,
+  GEOCODING_BACKFILL_REQUEST_PAUSE_MILLISECONDS,
 } from '../domain/geocoding-backfill.constant.js'
 
 import type {
@@ -69,6 +70,7 @@ async function runCycle(input: {
   let examined = 0
   let resolved = 0
   let unresolved = 0
+  const byCause: Record<string, number> = {}
 
   while (batches < GEOCODING_BACKFILL_MAX_BATCHES && !context.isStopRequested()) {
     const page = await dependencies.addresses.list({
@@ -82,6 +84,7 @@ async function runCycle(input: {
         centroids: DECLINES_THE_MUNICIPALITY_FALLBACK,
         geocoding: dependencies.geocoding,
         repository: dependencies.repository,
+        waitBetweenCalls: () => dependencies.wait(GEOCODING_BACKFILL_REQUEST_PAUSE_MILLISECONDS),
       },
       page.map(toRequest),
     )
@@ -90,23 +93,35 @@ async function runCycle(input: {
     examined += page.length
     resolved += counts.resolvedByPostalCode
     unresolved += counts.unresolved
+    for (const [cause, total] of Object.entries(counts.byCause)) {
+      byCause[cause] = (byCause[cause] ?? 0) + total
+    }
     after = page.at(-1)?.addressKey
 
     /** Página menor que o lote é o fim da fila: pedir a próxima seria uma consulta para nada. */
     if (page.length < GEOCODING_BACKFILL_BATCH_SIZE) break
 
-    await dependencies.wait(GEOCODING_BACKFILL_PAUSE_MILLISECONDS)
+    await dependencies.wait(GEOCODING_BACKFILL_BATCH_PAUSE_MILLISECONDS)
   }
 
-  /** RNF1: contagens, nunca endereço. */
+  /**
+   * RNF1: contagens e **causas**, nunca endereço.
+   *
+   * ⚠️ Sem o `byCause` esta linha contava o fracasso sem nomeá-lo — staging passou seis ciclos
+   * dizendo `unresolved: 5` sem distinguir CEP inexistente de egresso bloqueado de defeito nosso.
+   */
   dependencies.logger.info('geocoding_backfill_cycle_finished', {
     batches,
+    byCause,
     examined,
     resolved,
     unresolved,
   })
 
-  return { counters: { batches, examined, resolved, unresolved }, outcome: 'succeeded' }
+  return {
+    counters: { batches, examined, resolved, unresolved, ...byCause },
+    outcome: 'succeeded',
+  }
 }
 
 function toRequest(address: PendingGeocodingAddress): GeocodeAddressRequest {

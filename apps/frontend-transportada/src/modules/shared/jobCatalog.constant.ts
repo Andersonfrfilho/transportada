@@ -144,10 +144,15 @@ export const JOB_CATALOG = [
     failureOutcomes: [],
     job: 'geocoding.backfill',
     /**
-     * A batida. O trabalho é adiantamento — o que ela não alcançar a sugestão resolve sozinha —,
-     * então correr fino não é pressa: é encurtar a fila antes de alguém precisar dela.
+     * Uma hora, e o piso aqui é **cortesia com serviço de terceiro**, não afinação nossa: a
+     * BrasilAPI é pública e gratuita, e o piso é a frase "isto nunca deve correr mais rápido que
+     * isso".
+     *
+     * ⚠️ Começou na batida de cinco minutos, e estava errado por uma ordem de grandeza — 6.000
+     * requisições por hora no pior caso. Não havia pressa que justificasse: a rotina é adiantamento,
+     * e o que ela não alcança a sugestão resolve na hora.
      */
-    minimumIntervalSeconds: JOB_TICK_INTERVAL_SECONDS,
+    minimumIntervalSeconds: 3_600,
   },
 ] as const
 

@@ -48,11 +48,14 @@ function buildDependencies(
       geocode: (request) => {
         geocodeCalls.push(request.addressKey)
         return Promise.resolve({
-          externalPlaceId: ROOFTOP.externalPlaceId,
-          latitude: ROOFTOP.latitude,
-          longitude: ROOFTOP.longitude,
-          precision: ROOFTOP.precision,
-          source: ROOFTOP.source,
+          cause: null,
+          coordinate: {
+            externalPlaceId: ROOFTOP.externalPlaceId,
+            latitude: ROOFTOP.latitude,
+            longitude: ROOFTOP.longitude,
+            precision: ROOFTOP.precision,
+            source: ROOFTOP.source,
+          },
         })
       },
     },
@@ -166,7 +169,9 @@ describe('geocode addresses (ADR-0044 §3)', () => {
 
   test('leaves an address the whole cascade could not resolve out of the result', async () => {
     const dependencies = buildDependencies({
-      geocoding: { geocode: () => Promise.resolve(null) },
+      geocoding: {
+        geocode: () => Promise.resolve({ cause: 'not_found' as const, coordinate: null }),
+      },
     })
 
     const result = await geocodeAddresses(dependencies, [REQUEST])

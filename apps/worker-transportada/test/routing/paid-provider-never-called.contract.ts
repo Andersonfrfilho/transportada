@@ -77,11 +77,14 @@ describe('a sugestão nunca chama o provedor pago (spec 069, CA6)', () => {
             providersAsked.push('postal_code')
 
             return Promise.resolve({
-              externalPlaceId: '',
-              latitude: '-21.18',
-              longitude: '-47.81',
-              precision: 'postal_code' as const,
-              source: 'postal_code' as const,
+              cause: null,
+              coordinate: {
+                externalPlaceId: '',
+                latitude: '-21.18',
+                longitude: '-47.81',
+                precision: 'postal_code' as const,
+                source: 'postal_code' as const,
+              },
             })
           },
         },
