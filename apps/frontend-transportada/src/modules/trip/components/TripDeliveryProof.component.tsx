@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type React from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { DeliveryProof, DeliveryProofView } from '../shared/deliveryProof.service'
@@ -8,6 +9,8 @@ import type { TripDocumentProduct } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
 
 type TripDeliveryProofProps = Readonly<{
+  /** Spec 079 T020: o que houve com a carga. Só anota — ver `TripOccurrences`. */
+  occurrences: React.ReactNode
   /** Spec 079 T019: o que vai dentro da nota, conferido de pé no galpão. */
   products: readonly TripDocumentProduct[]
   view: DeliveryProofView
@@ -23,7 +26,7 @@ type TripDeliveryProofProps = Readonly<{
  * Os quatro estados chegam inteiros aqui: "entregue sem comprovante" e "não entregue" têm textos
  * diferentes de propósito, porque são fatos diferentes (ver `deliveryProof.service.ts`).
  */
-export function TripDeliveryProof({ products, view }: TripDeliveryProofProps) {
+export function TripDeliveryProof({ occurrences, products, view }: TripDeliveryProofProps) {
   const { t } = useTranslation('trip')
 
   /**
@@ -36,6 +39,7 @@ export function TripDeliveryProof({ products, view }: TripDeliveryProofProps) {
       <>
         <p className={styles.hint}>{t('deliveryProof.notDelivered')}</p>
         <TripDocumentProducts products={products} />
+        {occurrences}
       </>
     )
   }
@@ -49,6 +53,7 @@ export function TripDeliveryProof({ products, view }: TripDeliveryProofProps) {
             : t('deliveryProof.returned', { reason: view.returnReason })}
         </p>
         <TripDocumentProducts products={products} />
+        {occurrences}
       </>
     )
   }
@@ -74,6 +79,7 @@ export function TripDeliveryProof({ products, view }: TripDeliveryProofProps) {
         <ProofImage alt={t('deliveryProof.photoAlt')} key={proof.id} proof={proof} />
       ))}
       <TripDocumentProducts products={products} />
+      {occurrences}
     </section>
   )
 }

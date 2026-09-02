@@ -10,9 +10,15 @@ import { and, asc, eq } from 'drizzle-orm'
 
 import { nfeProducts } from '../../database/nfe.schema.js'
 import { storedObjects } from '../../database/storage.schema.js'
-import { tripDeliveryProofs, tripDocuments, tripStopEvents } from '../../database/trip.schema.js'
+import {
+  tripDeliveryProofs,
+  tripDocumentOccurrences,
+  tripDocuments,
+  tripStopEvents,
+} from '../../database/trip.schema.js'
 import type { DeliveryProofRecord } from '../application/read-delivery-proof.use-case.js'
 import type { TripDocumentProduct } from '../application/read-trip-document-products.use-case.js'
+import type { TripOccurrence } from '../application/register-trip-occurrence.use-case.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
 export async function listDeliveryProofs(
@@ -118,4 +124,96 @@ export async function listDocumentProducts(
     .orderBy(asc(nfeProducts.ordinal))
 
   return rows.map((row) => ({ ...row, ordinal: Number(row.ordinal) }))
+}
+
+export async function listTripOccurrences(
+  queryable: TripQueryable,
+  input: {
+    readonly companyId: string
+    readonly documentId: string
+    readonly tripId: string
+  },
+): Promise<readonly TripOccurrence[]> {
+  const rows = await queryable
+    .select({
+      createdAt: tripDocumentOccurrences.createdAt,
+      id: tripDocumentOccurrences.id,
+      note: tripDocumentOccurrences.note,
+      productCode: tripDocumentOccurrences.productCode,
+      stage: tripDocumentOccurrences.stage,
+      type: tripDocumentOccurrences.type,
+    })
+    .from(tripDocumentOccurrences)
+    .innerJoin(
+      tripDocuments,
+      and(
+        eq(tripDocuments.companyId, tripDocumentOccurrences.companyId),
+        eq(tripDocuments.id, tripDocumentOccurrences.tripDocumentId),
+      ),
+    )
+    .where(
+      and(
+        eq(tripDocumentOccurrences.companyId, input.companyId),
+        eq(tripDocumentOccurrences.tripDocumentId, input.documentId),
+        eq(tripDocuments.tripId, input.tripId),
+      ),
+    )
+    .orderBy(asc(tripDocumentOccurrences.createdAt))
+
+  return rows.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() }))
+}
+
+/**
+ * A escrita confere a nota **pela própria consulta**: o `insert ... select` só produz linha quando
+ * a nota é desta viagem nesta empresa. Ler antes e escrever depois abriria janela entre as duas —
+ * e a nota pode ser desvinculada no meio.
+ */
+export async function saveTripOccurrence(
+  queryable: TripQueryable,
+  input: {
+    readonly actorUserId: string
+    readonly companyId: string
+    readonly documentId: string
+    readonly note: string
+    readonly productCode: string
+    readonly stage: TripOccurrence['stage']
+    readonly tripId: string
+    readonly type: TripOccurrence['type']
+  },
+): Promise<null | TripOccurrence> {
+  const [document] = await queryable
+    .select({ id: tripDocuments.id })
+    .from(tripDocuments)
+    .where(
+      and(
+        eq(tripDocuments.companyId, input.companyId),
+        eq(tripDocuments.id, input.documentId),
+        eq(tripDocuments.tripId, input.tripId),
+      ),
+    )
+    .limit(1)
+  if (document === undefined) return null
+
+  const [saved] = await queryable
+    .insert(tripDocumentOccurrences)
+    .values({
+      actorUserId: input.actorUserId,
+      companyId: input.companyId,
+      note: input.note,
+      productCode: input.productCode,
+      stage: input.stage,
+      tripDocumentId: input.documentId,
+      type: input.type,
+    })
+    .returning()
+  if (saved === undefined) return null
+
+  return {
+    createdAt: saved.createdAt.toISOString(),
+    id: saved.id,
+    note: saved.note,
+    productCode: saved.productCode,
+    stage: saved.stage,
+    type: saved.type,
+  }
 }

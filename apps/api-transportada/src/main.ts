@@ -144,9 +144,12 @@ import { createMdfeDocumentDownloadGateway } from './mdfe-manifests/infrastructu
 import { readDeliveryProofs } from './trips/application/read-delivery-proof.use-case.js'
 import { createDeliveryProofDownloadGateway } from './trips/infrastructure/delivery-proof-download.gateway.js'
 import { readTripDocumentProducts } from './trips/application/read-trip-document-products.use-case.js'
+import { registerTripOccurrence } from './trips/application/register-trip-occurrence.use-case.js'
 import {
   listDeliveryProofs,
   listDocumentProducts,
+  listTripOccurrences,
+  saveTripOccurrence,
 } from './trips/infrastructure/delivery-proof-read.support.js'
 import { createMdfeDocumentSource } from './mdfe-manifests/infrastructure/mdfe-document.query.js'
 import { createMdfeXmlReaderGateway } from './mdfe-manifests/infrastructure/mdfe-xml-reader.gateway.js'
@@ -1641,6 +1644,30 @@ function createApplicationRoutes({
       createTrip: { execute: (input) => trips.create(input) },
       createTripMdfeManifest: { execute: (input) => createTripMdfeManifest.execute(input) },
       deliverTripDocument: { execute: (input) => tripLifecycle.deliver.execute(input) },
+      listTripOccurrences: {
+        execute: (input) =>
+          listTripOccurrences(database, {
+            companyId: input.context.companyId,
+            documentId: input.documentId,
+            tripId: input.tripId,
+          }),
+      },
+      registerTripOccurrence: {
+        execute: (input) =>
+          registerTripOccurrence({
+            actorUserId: input.context.userId,
+            companyId: input.context.companyId,
+            documentId: input.documentId,
+            note: input.note,
+            productCode: input.productCode,
+            repository: {
+              listOccurrences: (query) => listTripOccurrences(database, query),
+              saveOccurrence: (query) => saveTripOccurrence(database, query),
+            },
+            tripId: input.tripId,
+            type: input.type as never,
+          }),
+      },
       readTripDocumentProducts: {
         execute: (input) =>
           readTripDocumentProducts({

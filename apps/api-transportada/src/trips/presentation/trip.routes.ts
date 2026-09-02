@@ -1,9 +1,15 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { HTTP_ERROR } from '../../shared/api.constant.js'
+import { ApiError } from '../../shared/api.error.js'
 import { defineRoute } from '../../http/router.service.js'
 import type { DeliveryProofView } from '../application/read-delivery-proof.use-case.js'
 import type { TripDocumentProduct } from '../application/read-trip-document-products.use-case.js'
+import type { TripOccurrence } from '../application/register-trip-occurrence.use-case.js'
+import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
+import { acceptsOccurrenceType } from '../domain/occurrence.policy.js'
+import { parseRegisterOccurrenceRequest } from './occurrence.schema.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import { API_TRIPS_PATH, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
 import type { CreateTripMdfeManifestInput } from '../../mdfe-manifests/application/create-trip-mdfe-manifest.use-case.js'
@@ -75,6 +81,20 @@ const TRIP_DOCUMENT_PATH = `${TRIP_DOCUMENTS_PATH}/:documentId`
 const TRIP_DOCUMENT_DELIVER_PATH = `${TRIP_DOCUMENT_PATH}/deliver`
 const TRIP_DOCUMENT_PROOF_PATH = `${TRIP_DOCUMENT_PATH}/proof`
 const TRIP_DOCUMENT_PRODUCTS_PATH = `${TRIP_DOCUMENT_PATH}/products`
+const TRIP_DOCUMENT_OCCURRENCES_PATH = `${TRIP_DOCUMENT_PATH}/occurrences`
+const TRIP_DOCUMENT_SEPARATION_OCCURRENCE_PATH = `${TRIP_DOCUMENT_OCCURRENCES_PATH}/separation`
+
+/** Spec 079 T020: a rua é `trip.report`, e o separador não a tem — é essa a linha que a rota guarda. */
+const TRIP_REPORT_POLICY = { permission: 'trip.report', scope: 'company' } as const
+
+type RegisterOccurrenceRouteInput = {
+  readonly context: CompanyContext
+  readonly documentId: string
+  readonly note: string
+  readonly productCode: string
+  readonly tripId: string
+  readonly type: string
+}
 
 type ReadDeliveryProofsRouteInput = {
   readonly context: CompanyContext
@@ -213,6 +233,12 @@ type Dependencies = {
   }
   readonly readDeliveryProofs: {
     execute(input: TenantInput<ReadDeliveryProofsRouteInput>): Promise<readonly DeliveryProofView[]>
+  }
+  readonly listTripOccurrences: {
+    execute(input: TenantInput<ReadDeliveryProofsRouteInput>): Promise<readonly TripOccurrence[]>
+  }
+  readonly registerTripOccurrence: {
+    execute(input: TenantInput<RegisterOccurrenceRouteInput>): Promise<TripOccurrence>
   }
   readonly readTripDocumentProducts: {
     execute(
@@ -687,6 +713,37 @@ export function createTripRoutes(
       pathname: TRIP_DOCUMENT_PRODUCTS_PATH,
       policy: TRIP_READ_POLICY,
     }),
+    /** Ler ocorrência é leitura da viagem: quem acompanha a operação precisa saber o que houve. */
+    defineRoute<Omit<ReadDeliveryProofsRouteInput, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        const occurrences = await dependencies.listTripOccurrences.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({ body: { data: occurrences }, status: 200 })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({
+        documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
+        tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: TRIP_DOCUMENT_OCCURRENCES_PATH,
+      policy: TRIP_READ_POLICY,
+    }),
+    /**
+     * ⚠️ **Uma rota por grupo** — nunca uma só decidindo a autorização pelo corpo. Com uma rota
+     * autorizada por `trip.manage`, quem separa mandaria `recusa_total` e registraria ocorrência de
+     * rua sem nunca ter estado nela. Assim o router decide a autorização estaticamente, como decide
+     * todas as outras, e o handler recusa o tipo do grupo errado.
+     *
+     * ⚠️ **A ocorrência de entrega não mora aqui, e a tentativa foi desfeita.** Ela é `trip.report`,
+     * que o motorista tem — e uma rota do escritório com essa permissão o deixaria alcançar
+     * **qualquer** viagem da empresa, não só a dele. É para isso que existe a árvore
+     * `/me/current-trip`, que resolve o motorista e escopa pela viagem ativa dele.
+     * `test/driver-trip/me-routes.contract.ts` foi quem pegou, afirmando que nenhuma rota do
+     * escritório é alcançável pelo papel `driver`. A rota de rua fica para uma task própria.
+     */
+    occurrenceRoute({ pathname: TRIP_DOCUMENT_SEPARATION_OCCURRENCE_PATH, stage: 'separation' }),
     defineRoute<Omit<BatchStatusInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
         const result = await dependencies.batchStatus.execute({ context: context.scope, ...input })
@@ -842,6 +899,38 @@ export function createTripRoutes(
       policy: TRIP_READ_POLICY,
     }),
   ]
+
+  function occurrenceRoute(config: {
+    readonly pathname: string
+    readonly stage: TripOccurrenceStage
+  }): ReturnType<typeof defineRoute<Omit<RegisterOccurrenceRouteInput, 'context'>>> {
+    return defineRoute<Omit<RegisterOccurrenceRouteInput, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        if (!acceptsOccurrenceType({ stage: config.stage, type: input.type })) {
+          throw new ApiError(HTTP_ERROR.invalidRequest)
+        }
+
+        const occurrence = await dependencies.registerTripOccurrence.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({ body: { data: occurrence }, status: 201 })
+      },
+      method: 'POST',
+      async parse({ pathParameters, request }) {
+        const body = await parseRegisterOccurrenceRequest(request)
+        return {
+          documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
+          note: body.note,
+          productCode: body.productCode,
+          tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+          type: body.type,
+        }
+      },
+      pathname: config.pathname,
+      policy: config.stage === 'separation' ? TRIP_MANAGE_POLICY : TRIP_REPORT_POLICY,
+    })
+  }
 
   /** As três ações da nota diferem só no caminho e na dependência — mesmo corpo, mesma resposta. */
   function tripDocumentActionRoute(config: {

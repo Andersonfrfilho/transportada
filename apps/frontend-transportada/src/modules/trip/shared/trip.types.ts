@@ -69,6 +69,16 @@ export type TripDocument = Readonly<{
   updatedAt: string
 }>
 
+/** Spec 079 T020: o que houve com um item da carga. Só anota — não muda o estado da nota. */
+export type TripOccurrence = Readonly<{
+  createdAt: string
+  id: string
+  note: string
+  productCode: string
+  stage: 'delivery' | 'separation'
+  type: string
+}>
+
 /** Spec 079 T019: o que vai dentro da nota. Sem NCM e CFOP — ver o caso de uso na API. */
 export type TripDocumentProduct = Readonly<{
   code: string

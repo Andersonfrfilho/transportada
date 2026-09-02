@@ -26,6 +26,7 @@ import type {
   TripDocument,
   TripDocumentActionInput,
   TripDocumentProduct,
+  TripOccurrence,
   TripListInput,
   TripPage,
 } from './trip.types'
@@ -48,6 +49,10 @@ export type TripClient = Readonly<{
   deliverTripDocument: (input: TripDocumentActionInput) => Promise<TransitionTripDocumentResult>
   dispatchTrip: (input: DispatchTripInput) => Promise<DispatchTripResult>
   readDeliveryProofs: (input: TripDocumentActionInput) => Promise<readonly DeliveryProof[]>
+  readTripOccurrences: (input: TripDocumentActionInput) => Promise<readonly TripOccurrence[]>
+  registerTripOccurrence: (
+    input: TripDocumentActionInput & { readonly note: string; readonly type: string },
+  ) => Promise<TripOccurrence>
   readTripDocumentProducts: (
     input: TripDocumentActionInput,
   ) => Promise<readonly TripDocumentProduct[]>
@@ -210,6 +215,23 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: `${documentPath(input)}/products`,
       })
       return adapters.documentProductsFromApi(readEnvelopeData(response))
+    },
+    async readTripOccurrences(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${documentPath(input)}/occurrences`,
+      })
+      return adapters.occurrencesFromApi(readEnvelopeData(response))
+    },
+    async registerTripOccurrence(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({ note: input.note, productCode: '', type: input.type }),
+        dependencies,
+        method: 'POST',
+        path: `${documentPath(input)}/occurrences/separation`,
+      })
+      return adapters.occurrenceFromApi(readEnvelopeData(response))
     },
     async readDeliveryProofs(input) {
       const response = await authorizedRequest({

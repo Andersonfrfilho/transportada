@@ -708,3 +708,11 @@
   padding: 0;
   font-size: var(--font-size-sm);
 }
+
+/* O formulário de ocorrência quebra naturalmente no celular do galpão (web.md §10). */
+.occurrenceForm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-block: var(--space-2);
+}

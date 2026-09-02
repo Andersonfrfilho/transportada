@@ -32,6 +32,7 @@ import { TripFiscalReadinessPanel } from './TripFiscalReadinessPanel.component'
 import { TripMdfePendingDialog } from './TripMdfePendingDialog.component'
 import { TripCargoLayoutPanel } from './TripCargoLayout.component'
 import { TripDeliveryProof } from './TripDeliveryProof.component'
+import { TripOccurrences } from './TripOccurrences.component'
 import { TripOccupancyPanel } from './TripOccupancy.component'
 import { resolveDeliveryProofView } from '../shared/deliveryProof.service'
 import type { TripDocumentDetail } from '../shared/trip.types'
@@ -585,6 +586,21 @@ function TripDeliveryProofLoader({
 
   return (
     <TripDeliveryProof
+      occurrences={
+        <TripOccurrences
+          canRegister={workspace.controller.canManageTrips}
+          isRegistering={workspace.registerOccurrenceMutation.isPending}
+          occurrences={workspace.occurrencesQuery.data ?? []}
+          onRegister={(occurrence) =>
+            workspace.registerOccurrenceMutation.mutate({
+              documentId,
+              note: occurrence.note,
+              tripId: document.tripId,
+              type: occurrence.type,
+            })
+          }
+        />
+      }
       products={workspace.documentProductsQuery.data ?? []}
       view={resolveDeliveryProofView({
         document,

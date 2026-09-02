@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import type { DeliveryProof } from '../shared/deliveryProof.service'
-import type { TripDocumentProduct } from '../shared/trip.types'
+import type { TripDocumentProduct, TripOccurrence } from '../shared/trip.types'
 
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
@@ -61,6 +61,10 @@ export type TripController = Readonly<{
   createTripCteBatch: (input: Readonly<{ tripId: string }>) => Promise<TripCteBatchResult>
   deliverTripDocument: (input: TripDocumentActionInput) => Promise<TransitionTripDocumentResult>
   readDeliveryProofs: (input: TripDocumentActionInput) => Promise<readonly DeliveryProof[]>
+  readTripOccurrences: (input: TripDocumentActionInput) => Promise<readonly TripOccurrence[]>
+  registerTripOccurrence: (
+    input: TripDocumentActionInput & { readonly note: string; readonly type: string },
+  ) => Promise<TripOccurrence>
   readTripDocumentProducts: (
     input: TripDocumentActionInput,
   ) => Promise<readonly TripDocumentProduct[]>
@@ -111,6 +115,10 @@ export function createTripController(
       canManageTrips ? input.client.deliverTripDocument(body) : forbidden(),
     readDeliveryProofs: (body) =>
       canReadTrips ? input.client.readDeliveryProofs(body) : forbidden(),
+    readTripOccurrences: (body) =>
+      canReadTrips ? input.client.readTripOccurrences(body) : forbidden(),
+    registerTripOccurrence: (body) =>
+      canManageTrips ? input.client.registerTripOccurrence(body) : forbidden(),
     readTripDocumentProducts: (body) =>
       canReadTrips ? input.client.readTripDocumentProducts(body) : forbidden(),
     dispatchTrip: (body) => (canManageTrips ? input.client.dispatchTrip(body) : forbidden()),
@@ -216,6 +224,16 @@ export function useTripWorkspace(
     queryKey: [...tripKey, 'document-products', openProofDocumentId] as const,
   })
 
+  const occurrencesQuery = useQuery({
+    enabled: openProofDocumentId !== null && input.tripId !== undefined && input.tripId !== '',
+    queryFn: () =>
+      controller.readTripOccurrences({
+        documentId: openProofDocumentId ?? '',
+        tripId: input.tripId ?? '',
+      }),
+    queryKey: [...tripKey, 'occurrences', openProofDocumentId] as const,
+  })
+
   const fiscalReadinessQuery = useQuery({
     enabled:
       controller.canReadTrips &&
@@ -247,6 +265,19 @@ export function useTripWorkspace(
     mutationFn: controller.linkTripDocument,
     onSuccess: invalidateDocumentLink,
   })
+  /**
+   * A ocorrência **só anota**: nada de invalidar a viagem inteira, porque o estado da nota não
+   * mudou. Invalidar a chave da viagem aqui daria a impressão de que ela muda alguma coisa.
+   */
+  const registerOccurrenceMutation = useMutation({
+    mutationFn: controller.registerTripOccurrence,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: [...tripKey, 'occurrences', openProofDocumentId],
+      })
+    },
+  })
+
   const deliverDocumentMutation = useMutation({
     mutationFn: controller.deliverTripDocument,
     onSuccess: invalidate,
@@ -307,6 +338,8 @@ export function useTripWorkspace(
     deliverDocumentMutation,
     deliveryProofsQuery,
     documentProductsQuery,
+    occurrencesQuery,
+    registerOccurrenceMutation,
     openProofDocumentId,
     setOpenProofDocumentId,
     fiscalReadiness: fiscalReadinessQuery.data,

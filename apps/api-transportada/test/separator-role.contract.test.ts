@@ -98,6 +98,16 @@ describe('separator role contract', () => {
       'GET /trips/:id',
       'GET /trips/:id/documents/:documentId/delivery-address-history',
       /**
+       * Spec 079 T020: o que houve com a carga, e o separador **lê e escreve** — decisão registrada
+       * aqui. Ele é quem encontra o item faltante ou avariado ao separar; a ocorrência de separação
+       * nasceu para ele.
+       *
+       * ⚠️ A ocorrência de **entrega** não está nesta lista, e não é esquecimento: ela é
+       * `trip.report`, do campo, e o separador não a tem. Aqui a linha entre barracão e rua é a
+       * mesma da ADR-0043 — o mesmo motivo pelo qual ele não reporta entrega.
+       */
+      'GET /trips/:id/documents/:documentId/occurrences',
+      /**
        * Spec 079 T019: os itens da nota, e o separador os alcança — decisão registrada aqui.
        *
        * Conferir o que vai dentro da caixa **é** o trabalho dele: é a lista que ele lê de pé no
@@ -145,6 +155,12 @@ describe('separator role contract', () => {
       'POST /trips/:id/documents/:documentId/deliver',
       'POST /trips/:id/documents/:documentId/delivery-address',
       'POST /trips/:id/documents/:documentId/load',
+      /**
+       * Spec 079 T020: registrar item faltante ou avariado **é** o trabalho de quem separa — ele é
+       * quem encontra. A ocorrência de entrega não está aqui e não é esquecimento: ela é
+       * `trip.report`, do campo, pela mesma linha da ADR-0043 que o impede de reportar entrega.
+       */
+      'POST /trips/:id/documents/:documentId/occurrences/separation',
       'POST /trips/:id/documents/:documentId/return',
       'POST /trips/:id/documents/:documentId/separate',
       'POST /trips/:id/documents/batch-status',

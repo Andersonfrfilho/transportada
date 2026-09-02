@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { DeliveryProof } from './deliveryProof.service'
-import type { TripDocumentProduct } from './trip.types'
+import type { TripDocumentProduct, TripOccurrence } from './trip.types'
 import {
   BATCH_STATUS_RESULT_KEYS,
   DELIVERY_ADDRESS_OVERRIDE_KEYS,
@@ -10,6 +10,7 @@ import {
   TRIP_DETAIL_OPTIONAL_KEYS,
   DELIVERY_PROOF_KEYS,
   TRIP_DOCUMENT_PRODUCT_KEYS,
+  TRIP_OCCURRENCE_KEYS,
   TRIP_CARGO_WEIGHT_KEYS,
   TRIP_OCCUPANCY_KEYS,
   TRIP_DOCUMENT_DETAIL_KEYS,
@@ -391,6 +392,14 @@ export function createTripResponseAdapters() {
       if (!Array.isArray(input) || !input.every(isDeliveryProof)) throw invalid()
       return input
     },
+    occurrencesFromApi(input: unknown): readonly TripOccurrence[] {
+      if (!Array.isArray(input) || !input.every(isOccurrence)) throw invalid()
+      return input
+    },
+    occurrenceFromApi(input: unknown): TripOccurrence {
+      if (!isOccurrence(input)) throw invalid()
+      return input
+    },
     documentProductsFromApi(input: unknown): readonly TripDocumentProduct[] {
       if (!Array.isArray(input) || !input.every(isDocumentProduct)) throw invalid()
       return input
@@ -453,5 +462,17 @@ function isDocumentProduct(value: unknown): value is TripDocumentProduct {
     isString(value.quantity) &&
     isString(value.totalValue) &&
     isString(value.unitValue)
+  )
+}
+
+function isOccurrence(value: unknown): value is TripOccurrence {
+  if (!hasExactKeys(value, TRIP_OCCURRENCE_KEYS)) return false
+  return (
+    isString(value.createdAt) &&
+    isString(value.id) &&
+    isString(value.note) &&
+    isString(value.productCode) &&
+    (value.stage === 'delivery' || value.stage === 'separation') &&
+    isString(value.type)
   )
 }

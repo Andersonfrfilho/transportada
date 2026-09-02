@@ -1,6 +1,8 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { TRIP_OCCURRENCE_STAGE, TRIP_OCCURRENCE_TYPES } from '../shared/trip-occurrence.constant.js'
+import type { TripOccurrenceStage, TripOccurrenceType } from '../shared/trip-occurrence.constant.js'
 import { sql } from 'drizzle-orm'
 import {
   bigint,
@@ -892,6 +894,61 @@ export const tripDeliveryProofs = pgTable(
     check(
       'trip_delivery_proofs_receiver_check',
       sql`${table.kind} = 'signature' or length(${table.receiverName}) = 0`,
+    ),
+  ],
+)
+
+/**
+ * Spec 079 T020: o que houve com um item da carga.
+ *
+ * ⚠️ **Append-only por desenho**, como `audit_logs` e `trip_dispatch_snapshots`: ocorrência é
+ * registro do que aconteceu, e o que aconteceu não se edita. Corrigir é registrar outra.
+ *
+ * ⚠️ **Ela só anota.** Não bloqueia transição e não muda `separation_status` — misturar o estado da
+ * nota com o que houve com ela deixaria o operador sem saída, porque não existe tela de resolução
+ * de ocorrência. Quando existir, é decisão nova, por escrito.
+ */
+export const tripDocumentOccurrences = pgTable(
+  'trip_document_occurrences',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    tripDocumentId: uuid('trip_document_id').notNull(),
+    /** O código do item em `nfe_products`. Vazio na ocorrência da nota inteira — recusa total não tem item. */
+    productCode: text('product_code').notNull().default(''),
+    stage: text().notNull().$type<TripOccurrenceStage>(),
+    type: text().notNull().$type<TripOccurrenceType>(),
+    note: text().notNull().default(''),
+    actorUserId: uuid('actor_user_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'trip_document_occurrences_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.tripDocumentId],
+      foreignColumns: [tripDocuments.companyId, tripDocuments.id],
+      name: 'trip_document_occurrences_company_document_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    check(
+      'trip_document_occurrences_stage_check',
+      sql`${table.stage} in (${raw(inList(Object.values(TRIP_OCCURRENCE_STAGE)))})`,
+    ),
+    check(
+      'trip_document_occurrences_type_check',
+      sql`${table.type} in (${raw(inList(TRIP_OCCURRENCE_TYPES.map((entry) => entry.type)))})`,
+    ),
+    index('trip_document_occurrences_company_document_idx').on(
+      table.companyId,
+      table.tripDocumentId,
+      table.createdAt,
     ),
   ],
 )

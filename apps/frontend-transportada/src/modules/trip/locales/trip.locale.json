@@ -290,5 +290,23 @@
   "destinationOrigin": {
     "delivery": "Entrega",
     "deliveryHint": "O endereço veio do campo de entrega da nota, não do cadastro do destinatário"
+  },
+  "occurrence": {
+    "title": "Ocorrências",
+    "register": "Registrar ocorrência",
+    "none": "Nenhuma ocorrência registrada.",
+    "noteLabel": "Observação",
+    "submit": "Registrar",
+    "cancel": "Cancelar",
+    "line": "{{type}} — {{moment}}",
+    "type": {
+      "item_faltante": "Item faltante",
+      "item_avariado": "Item avariado",
+      "divergencia_quantidade": "Divergência de quantidade",
+      "recusa_total": "Recusa total",
+      "recusa_parcial": "Recusa parcial",
+      "avaria_transporte": "Avaria no transporte",
+      "destinatario_ausente": "Destinatário ausente"
+    }
   }
 }

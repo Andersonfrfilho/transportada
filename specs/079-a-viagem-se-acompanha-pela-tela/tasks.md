@@ -56,88 +56,48 @@ consentimento do motorista, e entram quando essas existirem. Ver a seção final
       ícone vem do primitivo (`components/ui/icon`), `<svg>` cru reprova.
 - [ ] **T019** Expansível com **os produtos da nota** na entrega — `nfe_products` já persiste código,
       descrição e quantidade.
-- [ ] **T020** 🧠 **Ocorrência por produto, com tipo.** Hoje a ocorrência é do **motorista**, por
-      parada (`/me/current-trip/stops/:id/occurrences`), e **não existe por produto**. Esta task cria
-      caminho novo: rota, migration e catálogo de tipos.
+- [x] **T020** 🧠 **Ocorrência por produto, com tipo.** Decisões registradas em 2026-09-02, antes do
+      código:
 
-      **Antes de codar, decidir por escrito:** quais são os tipos (separação × entrega, e quais
-      dentro de cada), quem pode registrar (o separador tem `trip.manage`, não `trip.report`), e o
-      que a ocorrência faz com o estado da nota — bloqueia, marca, ou só anota.
+      **Os tipos são sete, em dois grupos.** Separação: `item_faltante`, `item_avariado`,
+      `divergencia_quantidade`. Entrega: `recusa_total`, `recusa_parcial`, `avaria_transporte`,
+      `destinatario_ausente`. O grupo não é enfeite — é ele que decide a permissão.
 
-      ⚠️ Tipo de ocorrência é catálogo: vai para `*.constant.ts` com CHECK no banco, e vira **cópia
-      por valor** no frontend, com contrato de paridade — como `FUEL_TYPES` e `VEHICLE_TYPES`.
+      **Quem registra sai do grupo, não do papel.** Ocorrência de separação é `trip.manage` (o
+      galpão, onde o separador trabalha); de entrega é `trip.report` (a rua, que é do motorista). O
+      separador tem `trip.manage` e **não** tem `trip.report`, e essa é exatamente a linha que a
+      ADR-0043 já traçou entre barracão e rua — repeti-la aqui mantém as duas coerentes em vez de
+      criar um segundo critério ao lado.
 
-- [ ] **T021** [P] "Vincular nota" e "Ações da viagem" no topo do detalhe. Contrato de ordem por
-      texto de fonte — a ordem é o que a task entrega, e ela se prova lendo o JSX.
-- [ ] **T022** Contato do cliente e **contratante** na linha da entrega. ⚠️ Atrás da ADR do contato
-      (ver o fim deste arquivo): o telefone do destinatário vem de XML fiscal.
+      **Ela só anota.** Não bloqueia transição, não muda `separation_status`. Bloquear misturaria
+      dois eixos — o estado da nota e o que houve com ela — e deixaria o operador sem saída, porque
+      não existe tela de resolução de ocorrência. Quando existir, é decisão nova, por escrito.
 
-## Fase 2 — Progresso e mapa
+      ⚠️ Tipo de ocorrência é catálogo: `*.constant.ts` + CHECK no banco + **cópia por valor** no
+      frontend com contrato de paridade, como `FUEL_TYPES` e `VEHICLE_TYPES`.
 
-- [x] **T009** ✅ **Respondida em 2026-09-02: a coordenada chega, e a fase 2 está liberada.**
-      Roteiro medido em staging com doze paradas reais: **51 813 m**, trechos de 34 893, 1 059, 2 920
-      e 908 metros. `readStops` junta `geocoded_addresses` pela `address_key`, o OSRM responde, e as
-      coordenadas são distintas.
+      **O que entrou e o que ficou de fora, em 2026-09-02:** a ocorrência de **separação** está
+      inteira — migration, catálogo com CHECK, política de permissão, rota, tela. A de **entrega**
+      não: ela é `trip.report`, e uma rota do escritório com essa permissão deixaria o motorista
+      alcançar **qualquer** viagem da empresa. Quem pegou foi
+      `test/driver-trip/me-routes.contract.ts`, que afirma que nenhuma rota do escritório é
+      alcançável pelo papel `driver`. Ela precisa da árvore `/me/current-trip`, que resolve o
+      motorista e escopa pela viagem ativa dele — task própria.
 
-      ⚠️ Dois achados que a T012 e a T013 herdam: `geocoding_precision` da parada da sugestão sai
-      **`null`** (o `applyResolvedCoordinates` grava coordenada e não grava precisão), então o mapa
-      **não pode** confiar nesse campo para distinguir rooftop de centroide — leia
-      `geocoded_addresses`. E `trip_stops.latitude/longitude/geocoding_precision` **nunca são
-      escritos**, apesar de o app do motorista lê-los.
+      ⚠️ **A migration não foi verificada contra Postgres**: o Docker não estava no ar nesta sessão,
+      e `make migration-test` não rodou. O CHECK dos sete tipos é conferido por leitura do SQL
+      (`test/trip-occurrence/catalog.contract.ts`), o que pega tipo esquecido mas **não** pega erro
+      de sintaxe nem de constraint. Rodar `make migration-test` antes de publicar em produção.
 
-- [ ] **T010** [P] `tripProgress.service.ts` — porcentagem e previsão derivadas do estado das notas.
-      Contrato: viagem em `draft` não tem progresso nem previsão; previsão declara que é estimativa.
-- [ ] **T011** ⚠️ **`TripProgressBar.component.tsx` JÁ EXISTE** e já está no detalhe da viagem
-      (`TripDetail.component.tsx:319`), com segmento por estado — entregue, carregada, pendente,
-      devolvida, separada — e porcentagem. **Não recriar.**
+      **O que entrou e o que ficou de fora, em 2026-09-02:** a ocorrência de **separação** está
+      inteira — migration, catálogo com CHECK, política de permissão, rota, tela. A de **entrega**
+      não: ela é `trip.report`, e uma rota do escritório com essa permissão deixaria o motorista
+      alcançar **qualquer** viagem da empresa. Quem pegou foi `test/driver-trip/me-routes.contract.ts`,
+      que afirma que nenhuma rota do escritório é alcançável pelo papel `driver`. Ela precisa da
+      árvore `/me/current-trip`, que resolve o motorista e escopa pela viagem ativa dele — task
+      própria.
 
-      O que falta é só o que P4 acrescenta: **animação da transição** com
-      `prefers-reduced-motion` desligando, e a **previsão de término** ao lado. Contrato sobre o
-      componente existente, não sobre um novo.
-
-- [ ] **T012** `tripRouteMap.service.ts` — projeção das paradas. Contrato: **parada sem coordenada é
-      nomeada fora do mapa**, nunca some (mesma regra da cidade sem polígono na aba Regiões).
-- [ ] **T013** `TripRouteMap.component.tsx` — SVG com atendidas e próximas, cor pelos tokens.
-      Contrato: `<svg>` cru é proibido fora de `components/ui/` — usar o primitivo.
-
-### P10 · P11 · P13 — o ponto se corrige, a ordem se edita, o anexo se abre
-
-- [ ] **T023** Correção **manual** do ponto e recálculo sem sair da tela. O port já prevê
-      (`CorrectGeocodedAddressInput`); falta a tela e o recálculo. Contrato: corrigir grava com
-      `source` próprio — **correção humana sempre vence** a cascata (ADR-0044 §3, degrau 1).
-- [ ] **T024** 🧠 Reordenar as paradas **na proposta**, antes de aceitar. **Não** é o arraste de
-      `TripStopList`, que reordena a viagem. **Decidir antes:** a distância recalcula junto, ou a
-      proposta editada perde a distância? Publicar número velho ao lado de ordem nova seria mentira
-      barata de cometer.
-- [x] **T025** ✅ **Fechada junto com a T006 em 2026-09-02: são a mesma tela.** "Ver anexos da
-      entrega" é abrir o comprovante, e duas telas para o mesmo canhoto seria divergência garantida.
-      O painel abre pela linha da nota, só quando há entrega ou devolução para comprovar.
-- [ ] **T026** ⛔ **Coordenada por estado (separar, carregar, entregar).** `trip_documents` tem os
-      horários e **nenhuma coordenada**: exige migration.
-
-      ⚠️ **Não começa sem decisão registrada.** O rastro da viagem se apaga no fechamento
-      (`purgeByTrip`, ADR-0050 §5); este **não se apagaria** — fica no histórico da entrega. É rastro
-      do trabalhador mais duradouro que o que ele consentiu, e muda a promessa feita a ele. Depende
-      da feature de consentimento **e** de decidir a retenção.
-
-## Fase 3 — Fechamento
-
-- [ ] **T014** Smoke em 375px do detalhe com painel, progresso e mapa — sem rolagem horizontal (CA4).
-- [ ] **T015** Contrato de privacidade: a tela **não** referencia `birthDate`, `phone` nem
-      `licenseNumber` (CA5). Provar por mutação — acrescentar o campo e ver reprovar.
-- [ ] **T016** `evidence.md` com o que entrou, o que ficou de fora e por quê.
-
-## O que entra depois, e atrás de quê
-
-| história         | depende de                            | o que falta                                                                                                                                    |
-| ---------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| **P2** — contato | ADR do contato do destinatário        | telefone de XML fiscal usado para contato é finalidade nova sob a LGPD; a ADR escreve por que é compatível, quem revela e o que fica na trilha |
-| **P3** — rastro  | feature de consentimento do motorista | tela de primeiro acesso com termos, aceite versionado, caminho de retirada, e a decisão de **não** bloquear quem não aceita                    |
-
-## Gates de toda task
-
-`bun run lint`, `bun run typecheck`, `bun test` e `bun run build` do app tocado; commit isolado por
-task; `evidence.md` só depois da verificação executada, com o que ficou de fora escrito nele.
-
-Contrato novo se prova por **mutação**: quebrar a regra, ver reprovar, restaurar. Contrato que nunca
-viu o defeito é decoração.
+      ⚠️ **A migration não foi verificada contra Postgres**: o Docker não estava no ar nesta
+      sessão, e `make migration-test` não rodou. O CHECK dos sete tipos é conferido por leitura do
+      SQL (`test/trip-occurrence/catalog.contract.ts`), o que pega tipo esquecido mas **não** pega
+      erro de sintaxe nem de constraint. Rodar `make migration-test` antes de publicar em produção.
