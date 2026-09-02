@@ -198,11 +198,22 @@ número que pareça medido.
   `components/ui/`. O desenho por tipo entra como ícone nomeado, herda `currentColor` e escala pelo
   token — é o que faz ele funcionar em lista, em seletor e em estado desabilitado sem três versões.
 
+- **D5 — O fator padrão é 0,05 m³ por volume.** Decidido em 2026-09-02, e é conhecimento da
+  operação: a NF-e não tem de onde derivá-lo. Uma caixa de ~37 cm de lado, coerente com
+  distribuição de alimento, e com a média de 20 volumes por nota dá **1 m³ por nota**.
+
+  ⚠️ **Medido no mesmo dia, e não fecha no total do dia.** Um dia normal em produção — 180 notas,
+  3.143 volumes — dá **157 m³** a esse fator, contra **38 m³** de toda a frota (seis veículos, de
+  3 a 12 m³). São 4,1× a capacidade.
+
+  Por nota o número é sólido; é o dia que não fecha. Ou a frota faz várias viagens por veículo, ou
+  parte dessas notas não anda nela (subcontratada, ou com CT-e sem carregamento próprio). Isso
+  **não bloqueia esta spec** — a ocupação é por **viagem**, contando só as notas vinculadas, e não
+  pelo movimento do dia. Mas fica escrito porque decide como ler a tela: se a viagem típica levar
+  poucas notas, a ocupação será baixa e o fator estará confirmado; se estourar 100% com três notas,
+  o fator está alto e é aqui que se ajusta.
+
 ## Dúvidas
 
-- **[NEEDS CLARIFICATION: qual o fator padrão em m³ por volume?]** A tabela do cliente dá a
-  capacidade do **veículo**, não o volume da **caixa**. Sem esse número a estimativa não tem de
-  onde sair, e ele é conhecimento da operação — não dá para derivar do que está no banco. Com a
-  média medida de **20 volumes por nota**, um fator de 0,05 m³/volume daria 1 m³ por nota; 0,15
-  daria 3 m³, que é o Fiorino inteiro. A ordem de grandeza muda tudo, e chutá-la produziria uma
-  ocupação plausível e errada.
+Nenhuma bloqueante. O fator padrão foi respondido: **0,05 m³ por volume** (ver D5, com a
+ressalva medida do total do dia).

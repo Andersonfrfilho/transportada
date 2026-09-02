@@ -140,9 +140,23 @@ isso por escrito, não só pela posição.
   Sem cubagem estimada não há fatia, e sem dimensão não há baú. Começar por aqui produziria uma
   tela bonita alimentada por zeros.
 
+- **D5 — O baú serve ANTES do despacho: é conferência de separação.**
+  Decidido em 2026-09-02. Ele vive na viagem enquanto ela está aberta — `draft`, `route_planned`,
+  `separating` —, e é ferramenta de quem carrega, não registro do que foi carregado.
+
+  Três consequências que decorrem disso, e que teriam sido outras na leitura oposta:
+  1. **Ele é vivo:** vincular ou desvincular nota redesenha o baú na hora. Um registro seria
+     congelado.
+  2. **Ele não entra em `trip_dispatch_snapshots`.** O que congela no despacho é o roteiro
+     (spec 056); o baú é derivado da carga e do veículo, e derivar de novo é barato.
+  3. **Depois de `dispatched` ele não muda mais**, porque a carga também não muda: a viagem
+     despachada não aceita vínculo novo (`checkTripAcceptsLinkage`). Ele continua visível — o
+     motorista na rua ainda consulta em que ordem descarregar — mas é consequência, não escrita.
+
+  ⚠️ Isso significa que **não haverá registro histórico do que foi carregado**. Se algum dia isso
+  for exigido (divergência de carga, sinistro), é feature própria, com decisão própria sobre o que
+  congelar e quando.
+
 ## Dúvidas
 
-- **[NEEDS CLARIFICATION: o operador precisa disto antes ou depois de despachar?]** Antes, é
-  ferramenta de conferência de separação — e aí ela vive na viagem em `separating`. Depois, é
-  registro do que foi carregado, e teria de congelar junto com o roteiro em
-  `trip_dispatch_snapshots`. As duas são defensáveis e levam a lugares diferentes na tela.
+Nenhuma bloqueante. Ver D5.

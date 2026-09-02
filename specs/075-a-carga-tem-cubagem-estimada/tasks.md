@@ -8,9 +8,10 @@ Uma task por vez. Contrato **antes** da implementação. Evidência em `evidence
 
 > 🤖 Modelo: `haiku`
 
-- [ ] **T001** — Fechar `[NEEDS CLARIFICATION]`: qual o fator padrão em m³ por volume. É
-      conhecimento da operação, não derivável do banco. **Bloqueia a Fase B**; a Fase A pode
-      andar, porque a política recebe o fator como parâmetro.
+- [x] **T001** — Fechado em 2026-09-02: **0,05 m³ por volume** (D5). ⚠️ Medido no mesmo dia: um
+      dia normal (180 notas, 3.143 volumes) dá 157 m³ contra 38 m³ de frota — 4,1×. Por nota o
+      número é sólido; o total do dia sugere várias viagens por veículo ou carga subcontratada.
+      Não bloqueia: a ocupação é por viagem, não por dia. Ver a ressalva na D5.
 
 ---
 
