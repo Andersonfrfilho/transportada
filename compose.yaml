@@ -80,7 +80,11 @@ services:
       retries: 20
       start_period: 20s
     volumes:
-      - ./realm:/opt/keycloak/data/import:ro
+      # ⚠️ Monta o **realm**, não o diretório: `--import-realm` lê tudo que houver em
+      # `data/import` como RealmRepresentation, e recusa campo desconhecido. Com o diretório
+      # inteiro montado, `spa-redirect-uris.json` — que não é realm — derrubava o Keycloak no
+      # boot com `Unrecognized field "_comment"`, e com ele todo o `make up` e todo o deploy.
+      - ./realm/transportada-local-realm.json:/opt/keycloak/data/import/transportada-local-realm.json:ro
       - ./deploy/keycloak/theme:/opt/keycloak/themes/transportada:ro
 
   # ADR-0044 §2: a matriz de estrada é hospedada por nós. O `/table` devolve N×N em milissegundos, e

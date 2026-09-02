@@ -384,3 +384,22 @@ describe('contrato de reconciliação — troca de login', () => {
     expect(result.writes).toEqual([])
   })
 })
+
+/**
+ * ⚠️ `--import-realm` lê **tudo** que houver em `data/import` como `RealmRepresentation`, e recusa
+ * campo desconhecido. Montar o diretório `realm/` inteiro fez o Keycloak morrer no boot com
+ * `Unrecognized field "_comment"` — vindo de `spa-redirect-uris.json`, que não é realm —, e com ele
+ * caíram `make up`, o gate e **quatro deploys seguidos**, incluindo um commit só de documentação.
+ *
+ * O sintoma não apontava a causa: o compose dizia apenas `keycloak-1 exited (1)`.
+ */
+describe('o diretório de import do Keycloak só recebe realm', () => {
+  test('monta o arquivo do realm, nunca a pasta que também guarda outra coisa', async () => {
+    const compose = await Bun.file(new URL('../../../../compose.yaml', import.meta.url)).text()
+
+    expect(compose).not.toInclude('./realm:/opt/keycloak/data/import')
+    expect(compose).toInclude(
+      './realm/transportada-local-realm.json:/opt/keycloak/data/import/transportada-local-realm.json',
+    )
+  })
+})

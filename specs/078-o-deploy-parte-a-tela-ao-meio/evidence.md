@@ -74,3 +74,32 @@ make check                EXIT=0
 e a tolerância no **intervalo entre dois deploys** — nenhum dos dois se vê numa tela. O que dá para
 conferir é que o `/health` responde `revision`, e que um commit que toca só a API dispara o deploy
 do frontend também. As duas coisas se veem no próximo deploy, não numa navegação.
+
+---
+
+## ⚠️ O pipeline estava quebrado por outra causa, e ela travava tudo
+
+A verificação em staging não podia acontecer: **quatro deploys seguidos falhavam em ~2min50**,
+incluindo um commit **só de documentação** e um de outra pessoa. O sintoma era mudo — o compose
+dizia apenas `container transportada-local-keycloak-1 exited (1)`.
+
+Reproduzi local, idêntico, e o log do contêiner deu a causa:
+
+```
+ERROR: Unrecognized field "_comment" (class org.keycloak.representations.idm.RealmRepresentation)
+```
+
+`compose.yaml` montava **o diretório `realm/` inteiro** em `data/import`, e `--import-realm` lê tudo
+que houver ali como `RealmRepresentation`. O `spa-redirect-uris.json` — que **não é realm** — ganhou
+um `_comment` no commit `f964c615`, e o Keycloak passou a morrer no boot.
+
+⚠️ **É a mesma classe de defeito da própria spec 078**, num JSON em vez de num corpo de API: um
+consumidor estrito recusando campo desconhecido, e a queda aparecendo longe da causa.
+
+Corrigido montando **o arquivo do realm**, não a pasta — assim `realm/` continua livre para guardar
+o que não é realm. Contrato em `keycloak-realm.contract.ts` guarda os dois sentidos.
+
+```
+SERVICES="postgres keycloak" make up   →  keycloak-1  Healthy
+make check                             →  EXIT=0
+```
