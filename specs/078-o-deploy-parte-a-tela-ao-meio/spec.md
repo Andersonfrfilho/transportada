@@ -30,9 +30,9 @@ mexe em documentação, e **não protege** contra rollback parcial nem contra o 
 app já subiu e a outra não.
 
 **Cliente tolerante.** O guard aceita chave desconhecida e valida só o que conhece. Conserta a
-consequência, e sobrevive a qualquer descompasso — inclusive ao rollback. ⚠️ Mas `hasExactKeys`
-**existe de propósito**: ele pega campo renomeado, campo que sumiu do contrato e resposta de rota
-errada. Afrouxá-lo troca uma classe de defeito por outra.
+consequência e sobrevive a qualquer descompasso. ⚠️ **Descartada na execução** — ver D1: a rejeição
+de chave a mais é defesa contra vazamento de token, identidade de tenant e XML fiscal, com catorze
+testes cobrando. Afrouxá-la troca indisponibilidade por vazamento.
 
 ⚠️ **A spec precisa decidir, não fazer as duas por precaução.** Fazer as duas dá a sensação de
 segurança e esconde qual delas está sustentando o sistema no dia em que uma falhar.
@@ -97,54 +97,42 @@ sendo diagnosticado.
 
 ## Decisões
 
-- **D1 — ✅ Decidido em 2026-09-02: tolerância, e não atomicidade.**
+- **D1 — ⚠️ Decidido, revertido, e decidido de novo: é ATOMICIDADE, não tolerância.**
 
-  O argumento decisivo apareceu ao separar **o que a guarda protege**. `hasExactKeys` reprova três
-  coisas, e elas não valem o mesmo:
+  **A primeira decisão foi tolerância, e estava errada.** O raciocínio era: `hasExactKeys` reprova
+  chave ausente (proteção alta), tipo errado (alta) e chave desconhecida a mais — e esta última,
+  argumentei, "não protege nada, porque por definição o cliente não a usa".
 
-  | caso                          | valor da proteção                                       |
-  | ----------------------------- | ------------------------------------------------------- |
-  | chave **ausente**             | alto — é contrato quebrado, e a tela usaria `undefined` |
-  | chave de **tipo errado**      | alto — mesma razão                                      |
-  | chave **desconhecida a mais** | ⚠️ **nenhum** — por definição o cliente não a usa       |
+  **Falso.** A implementação bateu em catorze testes existentes, e os nomes deles dizem o que a
+  rejeição de chave a mais realmente faz:
+  - `rejects tenant identity and extra fields in settings responses`
+  - `keeps the trip dto strict, free of tenant or xml fields`
+  - **`recusa um resumo de credencial que traga o token de volta`**
+  - `rejects an option carrying a field beyond the three the dialog needs`
 
-  A chave a mais é a **única** que causa a queda, e é a única que não protege nada: o cliente
-  ignoraria o campo de qualquer forma. Tolerá-la não afrouxa a guarda, **remove o que ela tinha de
-  inútil** — as duas proteções que pagam continuam de pé.
+  Não é guarda de contrato: é **defesa em profundidade contra vazamento**. Se a API algum dia
+  devolver token, identidade de tenant ou XML fiscal — por defeito, por refactor, por rota errada —
+  o cliente **recusa** em vez de guardar, renderizar ou mandar adiante. A `security.md` §8 pede
+  exatamente isso ("nenhum token ou dado confidencial em estado global acessível pelo console"), e a
+  guarda é a última linha antes disso.
 
-  A objeção plausível seria "chave a mais pode indicar resposta da rota errada". Não sobrevive: a
-  resposta de outra rota **também** teria chaves faltando, e isso continua reprovando.
+  Tolerar chave a mais desarma essa linha em **doze arquivos de uma vez**, para consertar um
+  descompasso de deploy. É trocar uma classe de indisponibilidade por uma classe de vazamento — e
+  as duas não têm o mesmo peso.
 
-  Atomicidade fica de fora porque conserta menos por mais: custa pipeline em todo commit de
-  documentação, e **não cobre rollback** — API antiga com frontend novo é o caso inverso, e ali
-  atomicidade não ajuda em nada.
+  **Fica atomicidade:** as apps de cliente e a API sobem juntas quando o commit toca qualquer uma
+  delas. Custa pipeline em commit de documentação, e é o preço de manter a guarda estrita.
 
-- **D2 — A tolerância sozinha não cobre o sentido inverso, e por isso vem com uma disciplina.**
-  Frontend novo com API antiga tem o campo **ausente**, não a mais — e ausente continua reprovando,
-  como deve. A saída não é afrouxar isso: é o cliente tratar **campo recém-acrescentado como
-  opcional** até a API que o serve estar garantidamente no ar.
+- **D2 — A atomicidade não cobre rollback, e isso fica escrito em vez de escondido.**
+  API antiga com frontend novo tem o campo **ausente**, e ausente reprova — corretamente. Nenhuma
+  das duas saídas resolve esse sentido; o que resolve é disciplina de escrita: **campo
+  recém-acrescentado nasce opcional no cliente** até a API que o serve estar garantidamente no ar.
+  Isso entra como contrato, não como recomendação.
 
-  Sem essa metade, a spec conserta um sentido e deixa o outro — e o outro é justamente o do
-  rollback, que é quando a operação está pior.
-
-- **D3 — ⚠️ `hasExactKeys` está copiado em doze arquivos de validação.**
-  Medido: doze cópias, uma por módulo. A mudança de semântica em doze lugares é o mesmo defeito
-  doze vezes se for feita à mão, então ela vem com a extração para um lugar só — que é o que a
-  regra de strings repetidas do `code-standart.md` §16 já pedia.
-
-- **D4 — A decisão anterior, em aberto, está preservada abaixo como registro do que se pesou.** As duas são defensáveis, resolvem coisas diferentes (causa contra consequência) e têm
-  custos opostos. Escolher no meio da implementação produziria as duas metades mal feitas.
-
-  O que já se sabe, medido, para alimentar a escolha:
-  - o descompasso aconteceu **uma vez em um dia** de trabalho normal, sem ninguém errar;
-  - o filtro de caminho está certo para o caso comum (commit de documentação não precisa
-    reconstruir seis apps);
-  - `hasExactKeys` já pagou por si: ele é o motivo de a regressão do smoke ter sido óbvia.
-
-- **D2 — O sintoma é mudo, e isso é metade do problema.** A tela disse "Não foi possível carregar
-  as viagens", a API respondeu `200`, e o log ficou limpo. Diagnosticar exigiu comparar o bundle
-  servido com o corpo da resposta. Qualquer que seja a saída escolhida, **a P3 entra junto** — sem
-  ela, o próximo descompasso custa a mesma investigação.
+- **D3 — ⚠️ `hasExactKeys` está copiado em doze arquivos, e a extração fica FORA desta spec.**
+  Medido. Com a semântica preservada, a extração é faxina — valiosa, e sem relação com o defeito
+  que originou a spec. Juntá-la aqui misturaria um refactor de doze arquivos com uma mudança de
+  pipeline, e é assim que uma reverte a outra. Spec própria.
 
 ## Dúvidas
 
