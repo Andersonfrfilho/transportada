@@ -53,6 +53,7 @@ import {
   buildTripListFilters,
   cteAuthorizedExpression,
 } from './trip.query.js'
+import { loadTripOccupancy } from './trip-occupancy.support.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
 
 const LIVE_DOCUMENT_CONSTRAINTS = new Set([
@@ -448,10 +449,19 @@ async function readTripDetail(
     else bucket.push(document)
   }
 
+  const occupancy = await loadTripOccupancy(queryable, {
+    companyId: input.companyId,
+    nfeDocumentIds: documents.flatMap((document) =>
+      document.nfeDocumentId === null ? [] : [document.nfeDocumentId],
+    ),
+    vehicleId: record.vehicleId,
+  })
+
   return {
     ...mapTrip(record),
     documents,
     drivers: driverRecords.map(mapTripDriver),
+    occupancy,
     stops: stopRecords.map((stopRecord) => ({
       ...mapTripStop(stopRecord),
       documents: documentsByStopId.get(stopRecord.id) ?? [],

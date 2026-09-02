@@ -76,10 +76,24 @@ export type TripStopDetail = Readonly<{
   sequence: number
 }>
 
+/**
+ * Spec 075: quanto do baú já foi ocupado. ⚠️ `source: 'estimated'` obriga a tela a imprimir a marca
+ * de estimativa junto do número — há contrato guardando isso.
+ */
+export type TripOccupancy = Readonly<{
+  capacityM3: string
+  capacitySource: 'measured' | 'declared' | 'reference'
+  documentsWithoutVolume: number
+  loadedM3: string
+  occupancyRatio: string
+  source: 'declared' | 'estimated'
+}>
+
 export type TripDetail = Trip &
   Readonly<{
     documents: readonly TripDocumentDetail[]
     drivers: readonly TripDriverLine[]
+    occupancy: TripOccupancy | null
     stops: readonly TripStopDetail[]
   }>
 

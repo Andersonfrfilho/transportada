@@ -152,6 +152,7 @@ export const TRIP_DOCUMENT_DETAIL: TripDocumentDetail = {
 export const TRIP_DETAIL: TripDetail = {
   ...TRIP,
   documents: [TRIP_DOCUMENT_DETAIL],
+  occupancy: null,
   drivers: [
     { driverId: DRIVER_ID, driverName: 'Motorista Um', driverTaxId: '11111111111', position: 1 },
     {

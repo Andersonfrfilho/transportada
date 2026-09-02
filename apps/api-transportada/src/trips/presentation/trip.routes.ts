@@ -842,6 +842,8 @@ function serializeTripDetail(trip: TripDetail): object {
     ...serializeTrip(trip),
     documents: trip.documents.map(serializeTripDocumentDetail),
     drivers: trip.drivers.map((driver) => ({ ...driver })),
+    /** Spec 075: `null` quando a capacidade não é conhecida — a tela não inventa 100%. */
+    occupancy: trip.occupancy === null ? null : { ...trip.occupancy },
     stops: trip.stops.map(serializeTripStopDetail),
   }
 }

@@ -54,11 +54,11 @@ Uma task por vez. Contrato **antes** da implementação. Evidência em `evidence
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T009** — Contrato: soma das notas ÷ capacidade; **uma nota estimada torna o total
+- [x] **T009** — Contrato: soma das notas ÷ capacidade; **uma nota estimada torna o total
       estimado**; denominador ausente não vira 100%; acima de 100% é exibido como está.
       (RF4 · CA5)
-- [ ] **T010** — Implementar no domínio de viagem e expor na consulta de detalhe.
-- [ ] **T011** — Contrato **de tela**: o número nunca aparece sem a marca de estimativa ao lado.
+- [x] **T010** — Implementar no domínio de viagem e expor na consulta de detalhe.
+- [x] **T011** — Contrato **de tela**: o número nunca aparece sem a marca de estimativa ao lado.
       Este defeito é de interface e não aparece em teste de domínio. (CA6)
 
 ---
@@ -67,9 +67,9 @@ Uma task por vez. Contrato **antes** da implementação. Evidência em `evidence
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T012** — Ícone por tipo em `components/ui/icon`, um por tipo do catálogo, seguindo
+- [x] **T012** — Ícone por tipo em `components/ui/icon`, um por tipo do catálogo, seguindo
       `docs/frontend/icons.md`. (RF5 · CA9)
-- [ ] **T013** — Usar na ficha da frota e no seletor de veículo, com `aria-hidden` ao lado do
+- [x] **T013** — Usar na ficha da frota e no seletor de veículo, com `aria-hidden` ao lado do
       rótulo.
 
 ---
@@ -78,5 +78,5 @@ Uma task por vez. Contrato **antes** da implementação. Evidência em `evidence
 
 > 🤖 Modelo: `haiku`
 
-- [ ] **T014** — `make check` e `make migration-test` verdes, evidência completa, `CLAUDE.md` com a
+- [x] **T014** — `make check` e `make migration-test` verdes, evidência completa, `CLAUDE.md` com a
       seção de cubagem estimada.

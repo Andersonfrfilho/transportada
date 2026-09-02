@@ -40,6 +40,7 @@ const openTrip = (overrides: Partial<TripDetail> = {}): TripDetail => ({
   companyId: COMPANY_ID,
   createdAt: '2026-08-01T10:00:00.000Z',
   documents: [],
+  occupancy: null,
   drivers: [],
   id: TRIP_ID,
   requiresMdfe: null,

@@ -50,6 +50,16 @@ export type IconName =
   | 'spinner'
   | 'trash'
   | 'truck'
+  | 'vehicle-motorcycle'
+  | 'vehicle-car'
+  | 'vehicle-utility'
+  | 'vehicle-van'
+  | 'vehicle-vuc'
+  | 'vehicle-three-quarter'
+  | 'vehicle-toco'
+  | 'vehicle-truck'
+  | 'vehicle-tractor-unit'
+  | 'vehicle-other'
   | 'upload'
   | 'workspace-billing'
   | 'workspace-company-settings'
@@ -135,6 +145,70 @@ const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
     'M13 10h4l3 3v4h-7z',
     'M7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
     'M17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
+  ],
+  'vehicle-motorcycle': [
+    'M6 19a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z',
+    'M18 19a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z',
+    'M6 16.5l4-5h5l3 5',
+    'M10 11.5l-1-3h3',
+  ],
+  'vehicle-car': [
+    'M3 16v-2.5l2.5-4h11l3 4V16',
+    'M7.5 9.5h8',
+    'M7 20a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2z',
+    'M17 20a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2z',
+  ],
+  'vehicle-utility': [
+    'M3 17V10l3-3h5v10',
+    'M11 9h5l3 3v5',
+    'M3 12h8',
+    'M7 20a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2z',
+    'M17 20a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2z',
+  ],
+  'vehicle-van': [
+    'M3 17V8l3-2h4v11',
+    'M10 6h6l4 4v7',
+    'M10 10h10',
+    'M7 20a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2z',
+    'M17 20a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2z',
+  ],
+  'vehicle-vuc': [
+    'M3 17v-6l2.5-3H8v9',
+    'M9 8h11v9H9z',
+    'M7 20a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2z',
+    'M17 20a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2z',
+  ],
+  'vehicle-three-quarter': [
+    'M3 17v-6l2.5-3H8v9',
+    'M9 6.5h11V17H9z',
+    'M7 20a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2z',
+    'M17 20a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2z',
+  ],
+  'vehicle-toco': [
+    'M2 17v-6l2.5-3H7v9',
+    'M8 6h13v11H8z',
+    'M7 20a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2z',
+    'M17 20a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2z',
+  ],
+  'vehicle-truck': [
+    'M2 17v-6l2.5-3H7v9',
+    'M8 6h13v11H8z',
+    'M7 20a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2z',
+    'M14 20a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2z',
+    'M20 20a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2z',
+  ],
+  'vehicle-tractor-unit': [
+    'M3 17v-7l3-3h5v10',
+    'M11 13h8',
+    'M11 10v7',
+    'M7 20a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2z',
+    'M17 20a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2z',
+  ],
+  'vehicle-other': [
+    'M4 7h16v10H4z',
+    'M4 11h16',
+    'M7 20a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2z',
+    'M17 20a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2z',
   ],
   trash: ['M5 7h14', 'M10 7V4h4v3', 'M7 7l1 13h8l1-13'],
   upload: ['M12 20V9', 'M7 13l5-5 5 5', 'M5 4h14'],

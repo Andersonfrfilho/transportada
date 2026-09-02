@@ -76,9 +76,27 @@ export type TripStopDetail = {
   readonly sequence: number
 }
 
+/**
+ * Spec 075: quanto do baú já foi ocupado. `null` quando a capacidade do veículo não é conhecida —
+ * nunca 100%, nunca zero: veículo sem capacidade com carga dentro é o caso em que um número
+ * inventado faria alguém parar de carregar, ou continuar.
+ *
+ * ⚠️ `source` é `estimated` se **qualquer** nota entrou estimada, e a tela é obrigada a imprimir a
+ * marca junto do número (contrato de tela, T011).
+ */
+export type TripOccupancyView = {
+  readonly capacityM3: string
+  readonly capacitySource: 'measured' | 'declared' | 'reference'
+  readonly documentsWithoutVolume: number
+  readonly loadedM3: string
+  readonly occupancyRatio: string
+  readonly source: 'declared' | 'estimated'
+}
+
 export type TripDetail = Trip & {
   readonly documents: readonly TripDocumentDetail[]
   readonly drivers: readonly TripDriverLine[]
+  readonly occupancy: TripOccupancyView | null
   readonly stops: readonly TripStopDetail[]
 }
 

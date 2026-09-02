@@ -104,7 +104,23 @@ export const TRIP_STOP_KEYS = [
   'sequence',
 ] as const
 
-export const TRIP_DETAIL_KEYS = [...TRIP_KEYS, 'documents', 'drivers', 'stops'] as const
+export const TRIP_DETAIL_KEYS = [
+  ...TRIP_KEYS,
+  'documents',
+  'drivers',
+  'occupancy',
+  'stops',
+] as const
+
+/** Spec 075: a ocupação do baú. `null` quando a capacidade do veículo não é conhecida. */
+export const TRIP_OCCUPANCY_KEYS = [
+  'capacityM3',
+  'capacitySource',
+  'documentsWithoutVolume',
+  'loadedM3',
+  'occupancyRatio',
+  'source',
+] as const
 
 export const STOP_ADDRESS_COMPONENTS_KEYS = ['cityCode', 'number', 'postalCode'] as const
 

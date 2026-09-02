@@ -75,6 +75,15 @@ export type TripDetailContract = TripContract &
       driverTaxId: string
       position: number
     }>[]
+    /** Spec 075: a ocupação do baú, `null` quando a capacidade não é conhecida. */
+    occupancy: Readonly<{
+      capacityM3: string
+      capacitySource: 'measured' | 'declared' | 'reference'
+      documentsWithoutVolume: number
+      loadedM3: string
+      occupancyRatio: string
+      source: 'declared' | 'estimated'
+    }> | null
     stops: readonly TripStopDetailContract[]
   }>
 
@@ -126,6 +135,7 @@ export const TRIP_DETAIL = {
   drivers: [
     { driverId: DRIVER_ID, driverName: 'Jose da Silva', driverTaxId: '12345678901', position: 1 },
   ],
+  occupancy: null,
   stops: [],
 } as const satisfies TripDetailContract
 

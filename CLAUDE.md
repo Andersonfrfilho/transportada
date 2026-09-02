@@ -290,6 +290,45 @@ Remota e a tela de configurações não contarem histórias diferentes. A parida
 aba Remota da tela de Notas**, junto do efeito, e não mais em configurações de empresa — ver
 "Configuração perto do efeito" abaixo.
 
+**A carga tem cubagem estimada, e o veículo tem capacidade em três degraus** (spec 075). A NF-e
+**não traz cubagem nenhuma**: o grupo `<vol>` tem `qVol`, `esp`, `marca`, `nVol`, `pesoL` e `pesoB`,
+e `nfe_volumes` guarda quantidade, espécie e pesos — nenhuma dimensão. Medido em produção em
+2026-09-02: 1808 volumes, 1804 com peso, **zero com medida**.
+
+`resolveCargoVolume` (`nfe-documents/domain/cargo-volume.policy.ts`) estima por
+`quantidade × fator da espécie`, com `company_cargo_volume_factors` chaveada por
+`(company_id, species)`. ⚠️ `species` está **vazio em 1808 de 1808** volumes: a linha de espécie
+vazia é o padrão e responde por todo o dado de hoje — a chave por espécie é para o emitente que
+preencher `esp`. Desligar a estimativa é **apagar a linha**, nunca gravar zero (o CHECK recusa), e
+a origem tem **um valor só** (`estimated`), porque não existe cubagem declarada na NF-e — ao
+contrário do peso, onde o `pesoB` vence a estimativa (ADR-0052).
+
+A capacidade sai de `resolveVehicleCapacity` (`fleet/domain/`), nesta ordem: **dimensões da ficha**
+(`cargo_length_m × cargo_width_m × cargo_height_m`) → **`capacity_m3` da ficha** → **referência do
+tipo**, com a origem viajando junto para a tela distinguir medida de palpite.
+
+⚠️ **A dimensão é o dado primitivo; o m³ é derivado.** O m³ publicado por aí erra contra as próprias
+medidas (a carreta da tabela pesquisada destoa 3,1%), e a dispersão dentro de um tipo chega a **2×**
+— um VUC existe de 13 e de 26 m³. Por isso a referência é piso, e a ficha vence sempre.
+
+⚠️ `vehicle_volume_references` é a **segunda tabela do produto sem `company_id`**, ao lado de
+`fuel_price_references`: é catálogo de mercado. A chave é `(vehicle_type, body_type)` porque
+**carreta é o implemento, não o cavalo** — e implemento tem `vehicle_type` **vazio**, o tipo é de
+quem traciona. `resolveVolumeReferenceKey` decide qual dos dois responde. O `tpCar` é `02`
+fechada/baú e `05` sider (`03` é granelera e `04` é porta container — errar isso faz os veículos de
+produção, todos `02`, não acharem referência nenhuma).
+
+A ocupação da viagem (`trips/domain/trip-occupancy.policy.ts`) soma as notas e divide pela
+capacidade. ⚠️ **Uma nota estimada torna o total estimado**, e a tela é obrigada a imprimir a marca
+junto do número — `test/trip/occupancy.contract.ts` (frontend) reprova o componente se o percentual
+aparecer sozinho, e proíbe segunda condição escondendo a marca. Denominador ausente é `null`,
+**nunca 100% nem zero**: veículo sem capacidade conhecida com carga dentro é o caso em que um número
+inventado faria alguém parar de carregar, ou continuar. Estouro acima de 100% sai como está.
+
+⚠️ **Nada disso alimenta documento fiscal.** Nem CT-e, nem MDF-e: a cubagem estimada existe para a
+tela de quem carrega o caminhão. E `VEHICLE_TYPE_ICONS` (frontend) é `Record<VehicleType, IconName>`
+— tipo novo no catálogo **não compila** sem desenho.
+
 **O peso da carga tem duas fontes, e só o CT-e o exige** (ADR-0052, spec 067). O emitente omite
 `pesoB` **por nota**, não por política — a Zaragoza mandou 883658 com 108,670 kg e 883663 com 0,000
 no mesmo caminhão, mesmo lacre, mesmo minuto. Duas consequências:

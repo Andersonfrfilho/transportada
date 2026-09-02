@@ -245,5 +245,14 @@
     "dispenseTitle": "Dispensar o MDF-e desta viagem",
     "dispenseSubtitle": "A viagem tem nota de CT-e. Circular sem manifesto é multa e retenção em barreira — o motivo fica registrado.",
     "dispenseReasonLabel": "Motivo da dispensa"
+  },
+  "occupancy": {
+    "title": "Ocupação do veículo",
+    "ratio": "{{percent}}% do baú",
+    "loaded": "{{loaded}} m³ de {{capacity}} m³",
+    "estimated": "Valor estimado: a nota fiscal não traz medida da carga, e o cálculo usa o fator de cubagem por volume configurado.",
+    "capacityReference": "A capacidade é referência do tipo de veículo, não medida deste baú. Preencha as dimensões na ficha para o número ficar exato.",
+    "withoutVolume": "{{count}} nota sem cubagem não entrou na conta.",
+    "withoutVolume_other": "{{count}} notas sem cubagem não entraram na conta."
   }
 }

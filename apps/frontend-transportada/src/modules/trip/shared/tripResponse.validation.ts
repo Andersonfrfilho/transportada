@@ -5,6 +5,7 @@ import {
   STOP_ADDRESS_COMPONENTS_KEYS,
   TRANSITION_RESULT_KEYS,
   TRIP_DETAIL_KEYS,
+  TRIP_OCCUPANCY_KEYS,
   TRIP_DOCUMENT_DETAIL_KEYS,
   TRIP_DOCUMENT_KEYS,
   TRIP_DRIVER_KEYS,
@@ -138,6 +139,7 @@ function isDetail(value: unknown): value is TripDetail {
     isTripFields(value) &&
     isEveryItem(value.documents, isDocumentDetail) &&
     isEveryItem(value.drivers, isDriverLine) &&
+    (value.occupancy === null || isOccupancy(value.occupancy)) &&
     isEveryItem(value.stops, isStopDetail)
   )
 }
@@ -363,4 +365,17 @@ export function createTripResponseAdapters() {
       return { items: input.data.map(tripFromApi), nextCursor }
     },
   }
+}
+
+/** Spec 075: ausência é `null`, e a tela lê isso como "não dá para dizer" — nunca como zero. */
+function isOccupancy(value: unknown): boolean {
+  if (!hasExactKeys(value, TRIP_OCCUPANCY_KEYS)) return false
+  return (
+    isString(value.capacityM3) &&
+    isString(value.capacitySource) &&
+    isUnsignedInteger(value.documentsWithoutVolume) &&
+    isString(value.loadedM3) &&
+    isString(value.occupancyRatio) &&
+    (value.source === 'declared' || value.source === 'estimated')
+  )
 }
