@@ -52,6 +52,44 @@ segundo termo: configurar só `STORAGE_*` é silenciosamente ignorado.
 
 ## Build e configuração como código
 
+> ⚠️ **Config as Code está depreciado, e serviço novo já não pode usá-lo.** A Railway lê
+> `railway.json`/`railway.toml` de serviço **existente** até **2026-12-01**, e recusa que um serviço
+> novo opte por ele. O substituto é **Infrastructure as Code**: `.railway/railway.ts`, um arquivo
+> para o projeto inteiro, aplicado por `railway config plan` / `railway config apply`.
+
+### Migrar um serviço para o `.railway/railway.ts`
+
+A ordem importa, e sair dela derruba serviço em silêncio:
+
+1. **Não apague o `railway.json` primeiro.** Enquanto o ponteiro de config do serviço apontar para
+   ele, apagá-lo faz a Railway cair nas configurações do painel — que **não têm** healthcheck,
+   `preDeployCommand` nem `cronSchedule`. Esses três só existem no arquivo.
+2. Limpe o **ponteiro de config** do serviço no painel. Até lá o `plan` recusa gerenciá-lo:
+   `"<serviço> is already managed by deploy/<x>/railway.json"`.
+3. `railway config plan` — leitura pura. **Qualquer `destroy` na saída significa arquivo
+   incompleto**; pare e complete antes de aplicar.
+4. `railway config apply`, e só então remova o `railway.json`.
+
+### O que o `railway config pull` não traz
+
+O import lê o **painel**, e o painel nunca soube do que estava no arquivo — a própria documentação
+diz que a configuração em código não atualiza o dashboard. Medido neste projeto: o import devolve
+`builder: RAILPACK` e `config: {}` para os treze serviços, sem healthcheck, sem `preDeployCommand` e
+sem o `cronSchedule` do cron.
+
+Aplicar a importação crua, portanto, **desliga as migrations da API e o agendador** sem erro
+nenhum. O que só vive no arquivo se transcreve à mão, valor a valor, antes do primeiro `plan`.
+
+### Duas coisas que o arquivo não pode fazer
+
+- **Domínio próprio não se registra por código** (`"Custom-domain registration is not supported"`).
+  Ele se cria no painel, e volta ao arquivo pelo `railway config pull`.
+- **Segredo não entra no repositório.** As variáveis importadas viram `preserve()`, que diz "mantenha
+  o valor que já está na Railway". `--include-variables` decripta e inlina — não use.
+
+`.gitignore` ignorava `.railway/` inteiro, de quando era estado local do CLI. A exceção hoje é por
+arquivo (`!.railway/railway.ts`), porque o git não desce em diretório ignorado.
+
 O Dockerfile de cada serviço é escolhido pela variável de build
 `RAILWAY_DOCKERFILE_PATH`, definida por serviço em cada ambiente:
 

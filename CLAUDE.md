@@ -1126,6 +1126,24 @@ Use cases e rotas são factories `create*`; classes de repositório são `Pascal
   misturar tenants / ambientes fiscais / buckets.
 - `.env` e `.env.test` nunca são commitados nem têm conteúdo exposto.
 
+## A configuração do Railway virou código de projeto
+
+**Config as Code (`deploy/*/railway.json`) está depreciado** — lido até **2026-12-01**, e **serviço
+novo não pode optar por ele**. O substituto é `.railway/railway.ts`, um arquivo para o projeto
+inteiro, aplicado por `railway config plan` / `railway config apply` (o SDK é a devDependency
+`railway`).
+
+⚠️ **O `railway config pull` não traz o que os `railway.json` declaram.** Ele lê o painel, e o painel
+nunca soube do arquivo. Medido: o import devolve `builder: RAILPACK` e `config: {}` para os treze
+serviços — sem healthcheck, sem o `preDeployCommand` da API (as migrations) e sem o `cronSchedule`
+do cron. Aplicar a importação crua desliga os dois **sem erro nenhum**. Está tudo transcrito à mão
+no arquivo hoje; quem mexer confere contra os `railway.json`, que continuam no repositório de
+propósito.
+
+A ordem de migração de cada serviço, e por que apagar o arquivo primeiro derruba o serviço, está em
+`docs/spec/railway.md` § "Migrar um serviço". Duas coisas que o arquivo **não** pode fazer: registrar
+domínio próprio (cria-se no painel) e carregar segredo (as variáveis viram `preserve()`).
+
 ## Duas sessões, duas árvores
 
 **Sessão que vai escrever código nesta base cria o próprio worktree.** Duas sessões no mesmo
