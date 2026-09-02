@@ -126,3 +126,120 @@ campos de endereço é ancorada nos campos de que a chave de parada é feita.
 bun test test/nfe-documents.contract.test.ts
   27 pass · 0 fail · 71 expect()
 ```
+
+---
+
+## Fase B — MDF-e (T007–T008, 2026-09-01)
+
+**T007** `test/mdfe-domain/discharge-city.contract.ts`, escrito primeiro e falhando. Cinco casos:
+descarga na cidade da entrega; sem entrega o manifesto não muda; `<entrega>` **nunca** toca a
+origem (a origem é o emitente, e de onde a carga sai é outra pergunta); entrega incompleta cai para
+o destinatário; papel que não é origem nem destino continua ignorado.
+
+**T008** O laço que montava as cidades vivia dentro de `loadCities`, dentro da consulta. Saiu para
+`src/mdfe-manifests/domain/manifest-cities.policy.ts` (`resolveManifestCities`), puro — este é o
+único consumidor da spec cujo erro sai no XML transmitido à SEFAZ, e valor fiscal precisa de teste
+que rode sem banco.
+
+A consulta passou a trazer `postal_code` e `number` junto: a escolha entre `<entrega>` e
+`<enderDest>` usa o mesmo critério de utilizável que a parada da viagem (RF2), e sem esses dois
+campos ele não pode ser aplicado. `DISCHARGE_ROLE` deixou de existir.
+
+⚠️ Não foi preciso mexer no `where` da consulta: ela **já** trazia todos os participantes e
+filtrava por papel no laço. A conversão não acrescenta junção, não acrescenta ida ao banco e não
+muda o plano — só passa a olhar uma linha que já vinha e era descartada.
+
+```
+bun test test/mdfe-domain test/mdfe-infrastructure test/mdfe-application
+  145 pass · 0 fail · 355 expect()
+```
+
+---
+
+## Fase C — O roteiro (T009–T013, 2026-09-01)
+
+**T009** `test/trip-domain/physical-destination-wiring.contract.ts`, escrito primeiro e falhando.
+Prova o que importa e do jeito que o repo já usa: a **escolha** em função pura
+(`chooseNfeDestinationRow`) e a **fiação** por texto de fonte — a consulta que alimenta a parada não
+pode voltar a prender `'recipient'`. Esse defeito compila, passa em todo teste de caminho feliz, e
+só aparece na nota que traz `<entrega>`, com o motorista já na porta errada.
+
+Casos: parada pelo endereço de entrega; sem entrega a parada é a de hoje; **duas notas do mesmo
+cliente, uma com e outra sem, vão para paradas diferentes** — são dois portões; o rótulo acompanha
+o endereço escolhido, não o outro; nota sem destino é `null`.
+
+**T010** `nfe-destination-address.support.ts` traz os dois papéis e chama a política.
+`NfeDestinationAddress` passou a carregar `origin` (RF4).
+
+**T011/T012** `drizzle-delivery-address-override.repository.ts`. A precedência da P4 já era
+**estrutural** — o último desvio retorna antes de a nota ser consultada —, e o contrato agora trava
+essa ordem comparando as posições no arquivo: inverter faria a nota sobrescrever o desvio. A base do
+desvio passou a ser o endereço físico: mostrar o cadastro do cliente como "endereço anterior" faria
+o operador desviar a partir de um lugar que nunca foi o destino.
+
+⚠️ A primeira versão do contrato de ordem passou a ancorar em `destinationRolesFilter(...)` com o
+argumento: `indexOf('destinationRolesFilter')` casava com a **linha do import**, no topo do arquivo,
+e teria dado verde com a ordem invertida. Foi o próprio teste que pegou.
+
+**T013** Worker: `src/routing/domain/physical-destination.policy.ts`, **cópia por valor** da da API,
+com `test/routing/physical-destination-parity.contract.ts` comparando os dois arquivos linha a linha
+(descontando o import da chave, que é `pool-address-key` aqui e `stop-address-key` lá — e esses dois
+já são cópia um do outro).
+
+⚠️ **O CNPJ não acompanhou o endereço, de propósito.** A mesma consulta trazia
+`recipientTaxId` junto, e ele é a identidade do **cliente de entrega** (spec 060). Trocá-lo pelo
+documento de `<entrega>` — que é quem recebe a carga no galpão — teria feito a sugestão casar a
+parada com outro cadastro. Endereço vem do destino escolhido; documento continua vindo do
+destinatário.
+
+```
+bun test (worker)  879 pass · 28 skip · 0 fail
+bun test test/trip-domain.contract.test.ts   42 pass · 0 fail
+bun test test/routing.contract.test.ts       78 pass · 0 fail
+```
+
+---
+
+## Fase D — Geocodificação e cliente de entrega (T014–T016, 2026-09-01)
+
+**T014/T015** `test/geocoding-backfill/destination-roles.contract.ts`, falhando antes. A rotina
+passou a selecionar `p."role" in ('recipient', 'delivery')`.
+
+**Por que os dois papéis e não só o escolhido:** escolher em SQL exigiria repetir ali a precedência
+de `<entrega>`. O superconjunto **nunca erra por falta** — qualquer endereço que possa virar parada
+está nele —, e o excedente é barato por construção, porque o degrau que resolve é o do CEP, grátis;
+o provedor pago só entra por marca humana. O segundo teste trava que o **papel** decide quais
+endereços entram, nunca **como** a chave é montada: mexer na montagem faria toda chave em base virar
+`miss` de uma vez.
+
+**T016 — a task inverteu de sinal.** `unscheduled-stop.query.ts` e
+`drizzle-delivery-charge.repository.ts` **não foram convertidos**, porque medido na execução
+**nenhum dos dois lê `nfe_addresses`**: eles juntam o participante só para chegar ao CNPJ e, por ele,
+ao cadastro do cliente de entrega (spec 060). Convertê-los faria a busca casar pelo documento de quem
+recebe a carga no galpão — cadastro que quase nunca existe — e a nota sumiria em silêncio da consulta
+que **impede o despacho** por agendamento pendente: uma trava de segurança desligada sem erro nenhum.
+
+Os dois foram para a lista de fronteira do CA7, com um contrato a mais afirmando que seguem sem ler
+endereço — porque o que separa um consumidor de _lugar_ de um de _identidade_ é ler ou não o
+endereço, não uma opinião sobre o nome dele. É a mesma razão pela qual o `recipientTaxId` do worker
+não acompanhou o endereço na T013.
+
+---
+
+## Fase E — Fecho (T017–T018)
+
+**T017 — a premissa da task não se aplicava.** Ela pedia `EXPLAIN` da listagem de notas, mas a
+listagem (`drizzle-nfe-document.repository.ts`) está na **lista de exclusão** e nunca foi tocada.
+Medi então a consulta que de fato foi alargada, contra produção (4884 endereços, `SELECT`, leitura):
+
+```
+antes   p."role" = 'recipient'                 12,54 ms · 50 linhas · 9882 buffers
+depois  p."role" in ('recipient','delivery')   11,66 ms · 50 linhas · 9879 buffers
+```
+
+Sem regressão: o predicado alarga, o plano não muda de forma. ⚠️ A medição é com **zero** linhas
+`delivery` em base — ela prova que o alargamento do predicado é grátis, não o custo de um dia em que
+metade das notas traga `<entrega>`.
+
+**T018** `CLAUDE.md` ganhou a seção de `<entrega>`, com a linha divisória (ler ou não o endereço), a
+precedência, a cópia por valor e os dois de `delivery-clients` nomeados como exclusão.

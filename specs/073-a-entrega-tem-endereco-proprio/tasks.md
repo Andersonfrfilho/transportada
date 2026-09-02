@@ -50,9 +50,9 @@ Uma task por vez. Teste de contrato **antes** da implementação. Task só fecha
 
 > 🤖 Modelo: `sonnet` (T007 é 🧠 — validar com `opus`)
 
-- [ ] **T007** — Contrato: `cMunDescarga` de nota com `<entrega>` divergente é o município do
+- [x] **T007** — Contrato: `cMunDescarga` de nota com `<entrega>` divergente é o município do
       `<entrega>`. (RF6 · CA5)
-- [ ] **T008** — 🧠 Trocar `DISCHARGE_ROLE` por o seam em `mdfe-candidate-document.query.ts`, com
+- [x] **T008** — 🧠 Trocar `DISCHARGE_ROLE` por o seam em `mdfe-candidate-document.query.ts`, com
       contrato negativo de isolamento. (RNF2 · CA8)
       **Por que 🧠:** é o único consumidor cujo erro atravessa a fronteira da SEFAZ.
 
@@ -62,14 +62,14 @@ Uma task por vez. Teste de contrato **antes** da implementação. Task só fecha
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T009** — Contrato: parada agrupada pelo endereço de entrega; nota sem `<entrega>` mantém
+- [x] **T009** — Contrato: parada agrupada pelo endereço de entrega; nota sem `<entrega>` mantém
       a parada de hoje; duas notas do mesmo cliente, uma com e outra sem, viram duas paradas.
       (P1 · CA1, CA2)
-- [ ] **T010** — Converter `nfe-destination-address.support.ts`, com contrato negativo de
+- [x] **T010** — Converter `nfe-destination-address.support.ts`, com contrato negativo de
       isolamento. (RNF2 · CA8)
-- [ ] **T011** — Contrato: `delivery_address_overrides` vence `<entrega>`. (P4 · CA4)
-- [ ] **T012** — Converter `drizzle-delivery-address-override.repository.ts`.
-- [ ] **T013** — Converter `drizzle-route-optimization.repository.ts` (worker) + a cópia por
+- [x] **T011** — Contrato: `delivery_address_overrides` vence `<entrega>`. (P4 · CA4)
+- [x] **T012** — Converter `drizzle-delivery-address-override.repository.ts`.
+- [x] **T013** — Converter `drizzle-route-optimization.repository.ts` (worker) + a cópia por
       valor do seam, com contrato que compara os dois arquivos linha a linha — o mesmo padrão de
       `pool-address-key.ts`.
 
@@ -79,11 +79,14 @@ Uma task por vez. Teste de contrato **antes** da implementação. Task só fecha
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T014** — Contrato: a chave enfileirada pela população adiantada é a do endereço
+- [x] **T014** — Contrato: a chave enfileirada pela população adiantada é a do endereço
       resolvido. (P3 · CA6)
-- [ ] **T015** — Converter `drizzle-pending-address.repository.ts` (spec 069).
-- [ ] **T016** — Converter `unscheduled-stop.query.ts` e `drizzle-delivery-charge.repository.ts`,
-      com contrato negativo de isolamento em cada. (RNF2 · CA8)
+- [x] **T015** — Converter `drizzle-pending-address.repository.ts` (spec 069).
+- [x] **T016** — ~~Converter~~ **não converter** `unscheduled-stop.query.ts` e
+      `drizzle-delivery-charge.repository.ts`: medido na execução, **nenhum dos dois lê
+      `nfe_addresses`** — eles resolvem o _cliente_ pelo CNPJ, não o _lugar_. Foram para a lista de
+      fronteira do CA7, com contrato afirmando que seguem sem ler endereço. Convertê-los desligaria
+      em silêncio a consulta que impede o despacho por agendamento pendente.
 
 ---
 
@@ -91,6 +94,8 @@ Uma task por vez. Teste de contrato **antes** da implementação. Task só fecha
 
 > 🤖 Modelo: `haiku`
 
-- [ ] **T017** — `EXPLAIN` da listagem de notas antes/depois, colado em `evidence.md`. (RNF3)
-- [ ] **T018** — `make check` verde, `make worker-integration` verde, evidência completa, e a
+- [x] **T017** — ~~`EXPLAIN` da listagem de notas~~: a listagem está na lista de exclusão e nunca
+      foi tocada. Medida em produção a consulta que de fato alargou: **12,54 ms → 11,66 ms**,
+      buffers 9882 → 9879, sem mudança de forma do plano.
+- [x] **T018** — `make check` verde, `make worker-integration` verde, evidência completa, e a
       seção de `<entrega>` acrescentada ao `CLAUDE.md`.

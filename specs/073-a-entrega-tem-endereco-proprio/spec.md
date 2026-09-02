@@ -24,7 +24,15 @@ papel `delivery`, e a linha entra em `nfe_participants` com o endereço dela em
 | `trips/infrastructure/drizzle-delivery-address-override.repository.ts`    | o endereço-base do desvio              |
 | `geocoding-backfill/infrastructure/drizzle-pending-address.repository.ts` | qual endereço se geocodifica adiantado |
 
-Na nota com `<entrega>`, todos os sete apontam para o lugar errado. O roteiro leva o
+⚠️ **Dois candidatos saíram da lista na execução da Fase D.**
+`unscheduled-stop.query.ts` e `drizzle-delivery-charge.repository.ts` pareciam decidir parada e não
+decidem: **nenhum dos dois lê `nfe_addresses`**. Eles juntam o participante só para chegar ao CNPJ e,
+por ele, ao cadastro do cliente de entrega (spec 060). Convertê-los faria a busca casar pelo
+documento de quem recebe a carga no galpão — cadastro que quase nunca existe —, e a nota sumiria em
+silêncio da consulta que **impede o despacho** por agendamento pendente. Os dois foram para a lista
+de fronteira do CA7, com contrato afirmando que continuam sem ler endereço.
+
+Na nota com `<entrega>`, os cinco restantes apontam para o lugar errado. O roteiro leva o
 motorista ao cadastro do cliente, a geocodificação paga a coordenada da rua errada, e o
 MDF-e declara à SEFAZ um município de descarga que não é o da descarga.
 

@@ -20,17 +20,16 @@ import {
   sumScaled,
 } from '../domain/mdfe-manifest-grouping.policy.js'
 import { buildCandidateDocumentFilters, buildLiveManifestFilters } from './mdfe-manifest.query.js'
+import {
+  resolveManifestCities,
+  type CityLocation,
+  type ManifestCities,
+} from '../domain/manifest-cities.policy.js'
 import type { MdfeQueryable } from './mdfe-queryable.type.js'
 
 type CandidateScope = {
   readonly companyId: string
   readonly fiscalDocumentIds: readonly string[]
-}
-
-type CityLocation = {
-  readonly cityCode: string | null
-  readonly cityName: string | null
-  readonly state: string | null
 }
 
 type DocumentTotals = {
@@ -40,8 +39,6 @@ type DocumentTotals = {
 
 const CANCELLED_STATUS = 'cancelled'
 const EMPTY_CITY: CityLocation = { cityCode: null, cityName: null, state: null }
-const ORIGIN_ROLE = 'emitter'
-const DISCHARGE_ROLE = 'recipient'
 
 export async function loadCandidateDocuments(
   queryable: MdfeQueryable,
@@ -213,12 +210,16 @@ async function loadCities(
   queryable: MdfeQueryable,
   companyId: string,
   documentIds: readonly string[],
-): Promise<Map<string, { readonly discharge: CityLocation; readonly origin: CityLocation }>> {
+): Promise<Map<string, ManifestCities>> {
   const rows = await queryable
     .select({
       city: nfeAddresses.city,
       cityCode: nfeAddresses.cityCode,
       documentId: nfeParticipants.documentId,
+      // CEP e número entram porque a escolha entre `<entrega>` e `<enderDest>` usa o mesmo
+      // critério de endereço utilizável que a parada da viagem (spec 073 RF2).
+      number: nfeAddresses.number,
+      postalCode: nfeAddresses.postalCode,
       role: nfeParticipants.role,
       state: nfeAddresses.state,
     })
@@ -237,18 +238,5 @@ async function loadCities(
       ),
     )
 
-  const cities = new Map<string, { discharge: CityLocation; origin: CityLocation }>()
-  for (const row of rows) {
-    if (row.role !== ORIGIN_ROLE && row.role !== DISCHARGE_ROLE) continue
-    const current = cities.get(row.documentId) ?? { discharge: EMPTY_CITY, origin: EMPTY_CITY }
-    const location: CityLocation = { cityCode: row.cityCode, cityName: row.city, state: row.state }
-    cities.set(
-      row.documentId,
-      row.role === ORIGIN_ROLE
-        ? { ...current, origin: location }
-        : { ...current, discharge: location },
-    )
-  }
-
-  return cities
+  return resolveManifestCities(rows)
 }

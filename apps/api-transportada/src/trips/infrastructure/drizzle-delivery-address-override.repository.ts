@@ -15,6 +15,8 @@ import {
   reconcileStopOnLink,
   reconcileStopOnUnlink,
 } from '../application/reconcile-trip-stops.use-case.js'
+import { destinationRolesFilter } from '../../nfe-documents/infrastructure/physical-destination.join.js'
+import { chooseNfeDestinationRow } from '../domain/nfe-destination-choice.policy.js'
 import type { StopAddressComponents } from '../domain/stop-address-key.js'
 import { TripDocumentNotFoundError } from '../domain/trip.error.js'
 import { createTripStopReconciliationPort } from './drizzle-trip-stop-reconciliation.support.js'
@@ -247,12 +249,13 @@ async function resolvePreviousAddress(
     return { address: { cityCode: null, number: null, postalCode: null }, label: '' }
   }
 
-  const [recipient] = await transaction
+  const rows = await transaction
     .select({
       city: nfeAddresses.city,
       cityCode: nfeAddresses.cityCode,
       number: nfeAddresses.number,
       postalCode: nfeAddresses.postalCode,
+      role: nfeParticipants.role,
       state: nfeAddresses.state,
       street: nfeAddresses.street,
     })
@@ -268,20 +271,19 @@ async function resolvePreviousAddress(
       and(
         eq(nfeParticipants.companyId, input.companyId),
         eq(nfeParticipants.documentId, input.nfeDocumentId),
-        eq(nfeParticipants.role, 'recipient'),
+        destinationRolesFilter(nfeParticipants.role),
       ),
     )
-    .limit(1)
-  if (recipient === undefined) {
+
+  /**
+   * Spec 073: a base do desvio é o endereço **físico** da nota — o de `<entrega>` quando ela traz
+   * um. Mostrar o cadastro do cliente como "endereço anterior" faria o operador desviar a partir
+   * de um lugar que nunca foi o destino.
+   */
+  const chosen = chooseNfeDestinationRow(rows)
+  if (chosen === null) {
     return { address: { cityCode: null, number: null, postalCode: null }, label: '' }
   }
 
-  return {
-    address: {
-      cityCode: recipient.cityCode,
-      number: recipient.number,
-      postalCode: recipient.postalCode,
-    },
-    label: [recipient.street, recipient.city, recipient.state].filter(Boolean).join(', '),
-  }
+  return { address: chosen.components, label: chosen.label }
 }

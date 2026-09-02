@@ -49,7 +49,7 @@ export function createDrizzlePendingAddressSource(
         from nfe_addresses a
         join nfe_participants p
           on p."id" = a."participant_id" and p."company_id" = a."company_id"
-        where p."role" = 'recipient'
+        where p."role" in ('recipient', 'delivery')
           and length(regexp_replace(a."postal_code", '\\D', '', 'g')) = 8
           and not exists (
             select 1 from geocoded_addresses g

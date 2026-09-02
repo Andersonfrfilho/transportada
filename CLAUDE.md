@@ -174,6 +174,37 @@ o problema). Desvio de endereço (D9, `delivery_address_overrides`, também appe
 menu, nunca edição em linha, e guarda **duas** identidades por vínculo: `requestedBy` (texto livre —
 quem pediu o desvio quase nunca é usuário do sistema) e `actorUserId` (membership — quem executou).
 
+**A nota tem dois endereços de destino, e só um deles diz onde o caminhão para** (spec 073).
+`<enderDest>` é onde o cliente está cadastrado; `<entrega>` é onde a carga tem de ser deixada, e o
+emitente só o emite quando os dois divergem. O importador grava os dois desde a spec 013
+(`resolvePartyByRole` → papel `delivery`), mas até a 073 **nenhum leitor conhecia o papel**.
+
+A precedência é **desvio manual → `<entrega>` → `<enderDest>`**, e a decide
+`resolvePhysicalDestination` (`nfe-documents/domain/physical-destination.policy.ts`), com **cópia por
+valor** no worker (`routing/domain/physical-destination.policy.ts`) guardada por
+`test/routing/physical-destination-parity.contract.ts`. `<entrega>` incompleto **cai para o
+destinatário**: o critério de utilizável é o mesmo `buildStopAddressKey` da parada, nunca um segundo
+critério ao lado dele — e é por isso que a escolha acontece **em memória**, sobre linhas que a
+consulta já trouxe (`destinationRolesFilter`), e não por `coalesce` em SQL, que obrigaria a
+reescrever `normalizePostalCode` como expressão do Postgres.
+
+⚠️ **A linha divisória é ler ou não o endereço, nunca o nome do consumidor.** Quem decide _lugar_
+segue o seam: a parada da viagem, a parada proposta pelo solver, a base do desvio, o `cMunDescarga`
+do MDF-e e a população adiantada de geocodificação. Quem decide _quem_ continua no destinatário —
+lote de CT-e, tomador de NFS-e, faturamento, regra de frete, portal do contratante, a listagem de
+notas, e os **dois de `delivery-clients`**, que pareciam paradas e resolvem cadastro de cliente pelo
+CNPJ. Convertê-los faria a busca casar pelo documento de quem recebe no galpão e sumiria a nota da
+consulta que **impede o despacho** por agendamento pendente. Pela mesma razão o `recipientTaxId` da
+sugestão de roteiro **não** acompanhou o endereço. `test/nfe-documents/physical-destination-boundary.contract.ts`
+cobra isso por texto de fonte, e afirma que os dois de `delivery-clients` seguem sem ler
+`nfe_addresses`.
+
+⚠️ Medido em produção em 2026-09-01: **1628 notas, zero `<entrega>`** — e zero `pickup`. Não há
+sintoma hoje, e o caminho de escrita nunca rodou contra nota real; é
+`persists the delivery party and its own address` (worker, integração) que prova que a linha é
+escrita. A população adiantada adianta os **dois** papéis, de propósito: o superconjunto nunca erra
+por falta, e o excedente é grátis porque o degrau que resolve é o do CEP.
+
 **A chave de acesso é filtro de listagem, não rota nova.** `GET /nfe-documents?accessKey=` resolve os
 44 caracteres que a câmera leu no identificador que o vínculo pede, dentro do `companyId` do contexto
 — chave de outra empresa é ausência, não 403, e é

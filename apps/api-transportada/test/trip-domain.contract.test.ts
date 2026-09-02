@@ -3,3 +3,4 @@
  */
 import './trip-domain/trip-policy.contract.js'
 import './trip-domain/trip-state.contract.js'
+import './trip-domain/physical-destination-wiring.contract'
