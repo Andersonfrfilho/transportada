@@ -16,7 +16,7 @@ COPY apps/frontend-client apps/frontend-client
 # VITE_* é inlinado no bundle: precisa existir no build, não no runtime. Nada secreto entra aqui.
 ARG VITE_API_URL
 ARG VITE_APP_ENV
-ARG VITE_APP_URL
+ARG VITE_CLIENT_APP_URL
 ARG VITE_KEYCLOAK_CLIENT_ID
 ARG VITE_KEYCLOAK_REALM
 ARG VITE_KEYCLOAK_URL
