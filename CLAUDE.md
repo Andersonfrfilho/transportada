@@ -390,6 +390,46 @@ Quem lê é o worker, e **a landing continua lendo no navegador**: as duas leitu
 diferentes — a do navegador preenche o formulário na hora, a do servidor é o que o operador confere.
 Aceitar a leitura do cliente anônimo como prova deixaria um atacante escolher o que o operador vê.
 
+**O pré-cadastro do agregado começa pelos documentos** (spec 071). A etapa de documentos é a
+**primeira** da landing, antes de "Dados pessoais": ter os dados antes de preencher é o ponto
+inteiro, e com o campo de arquivo no meio da página quem chegava só descobria que podia ter anexado
+depois de digitar tudo à mão. Quatro campos, todos opcionais — CRLV, documento da empresa, CNH e
+comprovante de endereço —, declarados em `application/shared/preRegistration.service.ts`, que também
+guarda a ordem dos blocos (`PRE_REGISTRATION_BLOCKS`) porque é ela que o contrato percorre.
+
+**Todo dado que o documento entrega preenche o campo dele, mesmo em outro bloco.** O CRLV traz nome e
+CPF do proprietário e o município/UF: eles não são dados do veículo, são "Nome completo", "CPF ou
+CNPJ" e a cidade do bloco Endereço. Parar no bloco Veículo jogaria fora metade da leitura por causa
+de onde o campo mora na tela. Três guardas que não afrouxam por isso: **só campo vazio**;
+**divergência avisa, não corrige** (agregado que roda com veículo de terceiro é caso normal, e ali o
+proprietário diverge de propósito); e **documento não identificado não preenche nada** — quem manda é
+o documento, não o campo em que ele foi solto.
+
+⚠️ **O bloco Empresa aparece pelo CNPJ lido ou digitado**, o que vier primeiro: com a etapa de
+documentos no topo não há CNPJ digitado ainda quando o CCMEI chega, e o campo do documento da empresa
+deixou de depender dele. O campo é **um só** e aceita CCMEI, contrato social ou cartão CNPJ — só o
+CCMEI preenche, e quem decide isso é `identifyDocumentKind`, não o campo. Cartão CNPJ não ganha
+parser porque leria o que `GET /public/cnpj-info` já devolve; contrato social não tem forma para
+ancorar. O comprovante de endereço é **anexo puro, qualquer tipo e qualquer data**: conta de luz,
+água, telefone e internet não têm layout, e um parser genérico para elas é palpite com aparência de
+leitura. ⚠️ Na landing o CEP **não** é consultado (a rota exige `addresses.read` — ADR-0040), então
+o bloco Endereço continua digitado do começo ao fim.
+
+**O parser do documento é biblioteca, e ela devolve o que o documento diz** (ADR-0054, spec 071).
+`readCrlv`, `extractCnhFields` e `createTesseractOcrClient` subiram para
+`@adatechnology/document-intake`, onde `readCcmei` e `identifyDocumentKind` já viviam: os três eram
+código de uma app que uma segunda passou a precisar, e nenhuma app importa código-fonte de outra.
+Não é cópia por valor como `FUEL_TYPES` — uma lista de cinco produtos se confere de olho, um parser
+de 249 linhas com tabelas de tradução e três dígitos verificadores **diverge calado**.
+
+⚠️ O pacote devolve o **impresso**, canonicalizado (`bodyType: 'FURGAO'`, nunca `'02'`); a tradução
+para `MdfeBodyType`, `FuelProduct` e `VehicleColor` ficou em
+`frontend-transportada/.../crlvVehicle.service.ts`, que virou mapeador de catálogo. A landing não
+ganha cópia dessas tabelas porque a ficha dela não tem carroceria, combustível nem cor. A linha
+decide quem quebra quando: o Detran mudar o layout quebra o pacote; o nosso catálogo mudar quebra o
+app. Os `remarks` se dividem pelo mesmo corte — `checkDigitFailed`, `notInformed` e `notReadable` são
+do documento; `notInCatalog` e `ambiguousDiesel` são do catálogo.
+
 **O documento do agregado é lido por camada de texto quando ele tem uma.** `POST` de anexo passa
 por `aggregate-document-text.gateway.ts`, o único lugar que sabe escolher: **PDF** sai por
 `shared/pdf-text-layer.service.ts` (exato, sem rede, sem serviço) e **imagem** sai pelo OCR
@@ -500,6 +540,30 @@ vítima, não consertar (ADR-0053). Três coisas medidas que não se deduzem do 
   motivo que cobre `*.main.ts`.
 - O pdf.js **escreve avisos no console**, e do worker eles caíam no stdout do processo — que é log. O
   canal é silenciado dentro da thread antes do parse.
+
+**Quem escolhe o mecanismo é a assinatura do arquivo; quem escolhe o mapa é o documento** (spec 071).
+`document-extraction.gateway.ts` é o único lugar que decide: PDF (`%PDF`) vai para a `worker_thread`
+com pdf.js, imagem (`PNG`/`JPEG`) vai para o `tesseract-server` — que é rede, e rede não é o motivo
+da thread. Dentro do PDF, o mapa sai do **título** do documento, nunca do tipo que o cliente anônimo
+declarou: o gate `type !== 'ccmei'` caiu, senão o mesmo CCMEI deixaria de ser lido só por chegar
+como `company_document`.
+
+⚠️ **A CNH-e cai no ramo do PDF e não reconhece nada** — ela é imagem embrulhada em PDF pelo invólucro
+do Serpro (medido: ~400 caracteres de texto legal e nenhum campo), e o `tesseract-server` não lê PDF.
+Isso é o resultado **correto**, não uma falha: quem chega pelo OCR é a CNH fotografada. No OCR o mapa
+é escolhido pelo **tipo declarado**, ao contrário do PDF — não há classificador de documento numa
+foto, e inventar um seria adivinhação. Fora da CNH, grava `null`.
+
+⚠️ O que o OCR lê **nunca volta ao formulário do candidato**: ele já enviou e foi embora, e
+preenchimento assíncrono seria prometer o que não se entrega. Vai para `extracted_fields`, que o
+operador confere na fila de revisão — `ATTACHMENT_FIELD_LABEL` cobre CNH e CRLV, e um contrato por
+texto de fonte impede `extractCnhFields` de voltar para a landing "para adiantar". Sem
+`AGGREGATE_DOCUMENT_OCR_URL` (nova no worker, mesma da API) o ramo de imagem grava ausência em vez de
+falhar: serviço que não existe não pode reciclar mensagem para sempre.
+
+Os tipos de anexo passaram a seis: `address_proof` e `company_document` entraram no CHECK, no Zod, na
+cópia do envelope do worker e nos rótulos do painel; **`ccmei` fica** — linha já gravada não se
+reescreve, senão o operador perde o rótulo sob o qual aprovou o anexo.
 
 Leitura que não reconhece nada grava `null` e fecha: é resultado, não falha. Objeto apagado entre o
 `201` e a leitura fecha sem escrever. Só falha de parse e de banco recicla.
