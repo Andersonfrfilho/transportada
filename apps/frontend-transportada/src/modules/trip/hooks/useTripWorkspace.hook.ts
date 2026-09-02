@@ -55,7 +55,7 @@ export type TripController = Readonly<{
   closeTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
   createTrip: (input: CreateTripBody) => Promise<TripDetail>
   createTripCteBatch: (input: Readonly<{ tripId: string }>) => Promise<TripCteBatchResult>
-  deliverTripDocument: (input: TripDocumentActionInput) => Promise<TripDocument>
+  deliverTripDocument: (input: TripDocumentActionInput) => Promise<TransitionTripDocumentResult>
   dispatchTrip: (input: DispatchTripInput) => Promise<DispatchTripResult>
   findNfeDocumentByAccessKey: (
     input: FindNfeDocumentByAccessKeyInput,

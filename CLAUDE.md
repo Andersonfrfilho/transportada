@@ -153,7 +153,13 @@ proíbe para `separate`/`load` — devolver só existe **depois** da saída (ant
 desvincula, não se devolve), e `separate`/`load` ainda precisam de roteiro planejado (`draft` sai
 `TRIP_ROUTE_NOT_PLANNED`). Quem tratar os três como um `isEditable` só oferece "Devolver"
 exatamente quando ele dá `409` — foi o que aconteceu no T016, e `test/trip/state-gates.contract.ts`
-(frontend) existe para travar a tabela estado→portão contra esta política. `checkTripDocumentTransition`/`checkTripTransition`
+(frontend) existe para travar a tabela estado→portão contra esta política. ⚠️ **`deliver` teve rota própria fora da máquina até 02/09/2026**, resíduo do fluxo da spec 027:
+ela gravava `delivered_at` e **não** tocava em `separation_status`, então a nota ficava `pending`
+com hora de entrega, a barra de progresso não saía de 0% e a viagem — derivada do estado das notas —
+nunca chegava a `completed`. Medido em staging com doze notas. Hoje ela usa o mesmo
+`tripDocumentActionRoute` das outras três, e por isso **herda o portão**: entregar exige viagem
+despachada. O corpo da resposta mudou de `{deliveredAt}` para `{document, tripStatus}` nos dois
+lados. `checkTripDocumentTransition`/`checkTripTransition`
 (`trips/domain/trip-state.policy.ts`) são a única fonte da máquina, e toda transição é idempotente
 por desenho (repetir converge em `unchanged`, não erro — a rede do armazém cai, o separador toca
 duas vezes). `dispatched` é a porta de não-retorno: `checkTripAcceptsLinkage` bloqueia vincular,

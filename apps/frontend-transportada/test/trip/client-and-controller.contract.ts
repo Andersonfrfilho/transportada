@@ -43,9 +43,13 @@ describe('trip client contract', () => {
         tripId: TRIP_ID,
       }),
     ).toEqual(TRIP_DOCUMENT)
-    expect(await client.deliverTripDocument({ documentId: DOCUMENT_ID, tripId: TRIP_ID })).toEqual(
-      TRIP_DOCUMENT,
-    )
+    // Entregar deixou de ter caminho próprio na API: ela passa pela mesma máquina de separar,
+    // carregar e devolver, e por isso devolve o estado da viagem junto com a nota. Sem isso a barra
+    // de progresso não se movia — a nota ficava `pending` com hora de entrega gravada.
+    expect(await client.deliverTripDocument({ documentId: DOCUMENT_ID, tripId: TRIP_ID })).toEqual({
+      document: TRIP_DOCUMENT,
+      tripStatus: 'separating',
+    })
     expect(await client.releaseTripDocument({ documentId: DOCUMENT_ID, tripId: TRIP_ID })).toEqual(
       TRIP_DOCUMENT,
     )
@@ -328,7 +332,9 @@ function resolveSyntheticResponse(request: Request): Promise<Response> {
     return Promise.resolve(Response.json({ data: TRIP_DOCUMENT }, { status: 201 }))
   }
   if (request.url === `${TRIPS_PATH}/${TRIP_ID}/documents/${DOCUMENT_ID}/deliver`) {
-    return Promise.resolve(Response.json({ data: TRIP_DOCUMENT }))
+    return Promise.resolve(
+      Response.json({ data: { document: TRIP_DOCUMENT, tripStatus: 'separating' } }),
+    )
   }
   if (
     request.url === `${TRIPS_PATH}/${TRIP_ID}/documents/${DOCUMENT_ID}` &&

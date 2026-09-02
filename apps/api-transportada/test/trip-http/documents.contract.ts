@@ -99,7 +99,15 @@ describe('trip documents http contract', () => {
     expect((await responseApiError(response)).code).toBe('TRIP_DOCUMENT_ALREADY_LINKED')
   })
 
-  test('delivers a linked document', async () => {
+  /**
+   * ⚠️ O corpo mudou de `{deliveredAt}` para `{document, tripStatus}`, e a mudança é o conserto.
+   * Entregar tinha rota própria, fora da máquina de estados: ela gravava a hora e **não** mexia em
+   * `separationStatus`, então a nota ficava `pending` com hora de entrega, a barra de progresso não
+   * saía do lugar e a viagem — cujo estado é derivado do das notas — nunca chegava a `completed`.
+   * Hoje ela passa pelo mesmo caminho de separar, carregar e devolver, e por isso devolve o estado
+   * da viagem junto: é ele que a tela precisa para se atualizar sem recarregar.
+   */
+  test('delivers a linked document through the state machine', async () => {
     const fixture = await createTripHttpFixture()
 
     const response = await fixture.handle(
@@ -107,9 +115,18 @@ describe('trip documents http contract', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(await responseData(response)).toMatchObject({ deliveredAt: expect.any(String) })
+    expect(await responseData(response)).toMatchObject({
+      document: expect.any(Object),
+      tripStatus: expect.any(String),
+    })
     expect(fixture.deliverTripDocumentCalls).toEqual([
-      { context: COMPANY_CONTEXT, documentId: TRIP_DOCUMENT_ID, tripId: TRIP_ID },
+      {
+        context: COMPANY_CONTEXT,
+        documentId: TRIP_DOCUMENT_ID,
+        note: null,
+        returnReason: null,
+        tripId: TRIP_ID,
+      },
     ])
   })
 

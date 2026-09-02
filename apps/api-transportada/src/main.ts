@@ -1633,7 +1633,7 @@ function createApplicationRoutes({
       closeTrip: { execute: (input) => trips.close(input) },
       createTrip: { execute: (input) => trips.create(input) },
       createTripMdfeManifest: { execute: (input) => createTripMdfeManifest.execute(input) },
-      deliverTripDocument: { execute: (input) => trips.deliverDocument(input) },
+      deliverTripDocument: { execute: (input) => tripLifecycle.deliver.execute(input) },
       dispatchTrip: { execute: (input) => tripLifecycle.dispatch.execute(input) },
       createTripCteBatch: {
         execute: async (input) => {

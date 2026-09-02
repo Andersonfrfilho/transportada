@@ -18,7 +18,6 @@ import { parseTripCostRequest, parseTripFinancialReason } from './trip-financial
 import type {
   CloseTripInput,
   CreateTripInput,
-  DeliverTripDocumentInput,
   GetTripInput,
   LinkTripDocumentInput,
   ListTripsInput,
@@ -202,8 +201,9 @@ type Dependencies = {
   readonly createTripMdfeManifest: {
     execute(input: TenantInput<CreateTripMdfeManifestInput>): Promise<MdfeManifestDetail>
   }
+  /** Mesma forma das outras três transições: entregar passou a usar a máquina de estados. */
   readonly deliverTripDocument: {
-    execute(input: TenantInput<DeliverTripDocumentInput>): Promise<TripDocument>
+    execute(input: TenantInput<TripDocumentActionInput>): Promise<TransitionTripDocumentResult>
   }
   readonly dispatchTrip: { execute(input: TenantInput<DispatchInput>): Promise<DispatchTripResult> }
   readonly getTrip: { execute(input: TenantInput<GetTripInput>): Promise<TripDetail> }
@@ -558,22 +558,6 @@ export function createTripRoutes(
       pathname: TRIP_DOCUMENTS_PATH,
       policy: TRIP_MANAGE_POLICY,
     }),
-    defineRoute<Omit<DeliverTripDocumentInput, 'context'>>({
-      async handle({ context, input }): Promise<Response> {
-        const document = await dependencies.deliverTripDocument.execute({
-          context: context.scope,
-          ...input,
-        })
-        return jsonResponse({ body: { data: serializeTripDocument(document) }, status: 200 })
-      },
-      method: 'POST',
-      parse: ({ pathParameters }) => ({
-        documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
-        tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
-      }),
-      pathname: TRIP_DOCUMENT_DELIVER_PATH,
-      policy: TRIP_MANAGE_POLICY,
-    }),
     defineRoute<Omit<ReleaseTripDocumentInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
         const document = await dependencies.releaseTripDocument.execute({
@@ -632,6 +616,21 @@ export function createTripRoutes(
     tripDocumentActionRoute({
       dependency: dependencies.returnTripDocument,
       pathname: TRIP_DOCUMENT_RETURN_PATH,
+    }),
+    /**
+     * ⚠️ `deliver` tinha rota própria, fora da máquina de estados — resíduo do fluxo antigo da
+     * spec 027, anterior à 056. Ela gravava `deliveredAt` e **não tocava em `separationStatus`**:
+     * a nota ficava com hora de entrega e status `pending` para sempre, a barra de progresso não
+     * saía do lugar, e a viagem — cujo estado é derivado do das notas — nunca alcançava
+     * `completed`. Medido em staging com doze notas: `Carregada 100%`, `Entregue 0%`, e o
+     * `POST /deliver` respondendo `200`.
+     *
+     * Ela passa a usar o mesmo caminho das outras três, então também herda os portões: entregar
+     * exige viagem despachada, e antes disso responde `409` em vez de carimbar carga que não saiu.
+     */
+    tripDocumentActionRoute({
+      dependency: dependencies.deliverTripDocument,
+      pathname: TRIP_DOCUMENT_DELIVER_PATH,
     }),
     defineRoute<Omit<BatchStatusInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {

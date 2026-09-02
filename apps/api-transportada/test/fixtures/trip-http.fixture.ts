@@ -35,7 +35,7 @@ type RouteDependencies = {
   readonly createTripMdfeManifest: {
     execute(input: ExecuteCall): Promise<typeof MDFE_MANIFEST_DETAIL>
   }
-  readonly deliverTripDocument: { execute(input: ExecuteCall): Promise<typeof TRIP_DOCUMENT> }
+  readonly deliverTripDocument: { execute(input: ExecuteCall): Promise<TransitionResult> }
   readonly dispatchTrip: { execute(input: ExecuteCall): Promise<TripStatusResult> }
   readonly getTrip: { execute(input: ExecuteCall): Promise<typeof TRIP_DETAIL> }
   readonly linkTripDocument: { execute(input: ExecuteCall): Promise<typeof TRIP_DOCUMENT> }
@@ -196,7 +196,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
       async execute(input) {
         deliverTripDocumentCalls.push(structuredClone(input))
         if (params.deliverTripDocumentError) throw params.deliverTripDocumentError
-        return { ...TRIP_DOCUMENT, deliveredAt: '2026-08-05T09:00:00.000Z' }
+        return transitionResult()
       },
     },
     dispatchTrip: {

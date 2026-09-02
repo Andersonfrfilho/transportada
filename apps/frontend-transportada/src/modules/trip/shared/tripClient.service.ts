@@ -42,7 +42,8 @@ export type TripClient = Readonly<{
   cancelTrip: (input: Readonly<{ tripId: string }>) => Promise<CancelTripResult>
   closeTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
   createTrip: (input: CreateTripBody) => Promise<TripDetail>
-  deliverTripDocument: (input: TripDocumentActionInput) => Promise<TripDocument>
+  /** Entregar passou pela máquina de estados na API, então devolve o estado da viagem junto. */
+  deliverTripDocument: (input: TripDocumentActionInput) => Promise<TransitionTripDocumentResult>
   dispatchTrip: (input: DispatchTripInput) => Promise<DispatchTripResult>
   findNfeDocumentByAccessKey: (
     input: FindNfeDocumentByAccessKeyInput,
@@ -194,7 +195,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         method: 'POST',
         path: `${documentPath(input)}/deliver`,
       })
-      return adapters.tripDocumentFromApi(readEnvelopeData(response))
+      return adapters.transitionTripDocumentResultFromApi(readEnvelopeData(response))
     },
     async dispatchTrip(input) {
       const response = await authorizedRequest({
