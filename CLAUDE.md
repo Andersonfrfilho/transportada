@@ -1151,12 +1151,6 @@ git fetch && git rebase origin/staging && git push origin HEAD:staging
 ⚠️ `git worktree prune` de vez em quando: worktree apagado à mão deixa registro órfão, e três deles
 estavam pendurados aqui de sessões antigas.
 
-⚠️ **`test/integration/sigterm.integration.ts` não passa em worktree** — nem num criado agora, no
-mesmo commit, com `bun install` limpo; no checkout principal ele passa. Ele é o único teste que sobe
-um processo Bun novo (`Bun.spawn(['bun', 'src/main.ts'])`), e a suspeita é o `.env` ser symlink aqui.
-Falha dele em worktree **não é regressão**: confirme no checkout principal antes de investigar. O
-resto de `make worker-integration` passa normalmente.
-
 ## Explorando este repo sem estourar contexto
 
 652 arquivos versionados, 509 `.ts`/`.tsx`, ~67k linhas. Ler tudo direto estoura a janela. Delegue a

@@ -185,27 +185,37 @@ make worker-integration
 
 Os 4 `skip` são os do OSRM, que é opt-in por desenho (spec 058).
 
-## O que não fechou, e por quê
+## Rebase sobre a `staging`, e o falso alarme que ele desfez
 
-**`test/integration/sigterm.integration.ts` falha em qualquer worktree**, e não tem relação com esta
-spec. A medição, em quatro passos:
+A branch foi rebaseada sobre `origin/staging` antes de subir. Um conflito, resolvido à mão: a lista
+explícita de migrations em `static-migration.contract.ts`, onde entrou também a
+`20260902003000_geocoding_backfill_hourly` que chegou pela `staging` — as duas ficam em ordem de
+timestamp, a desta spec primeiro.
 
-1. Revertendo **todo** o `apps/` para o commit base (`git checkout e837a473 -- apps/`), continua
-   falhando neste worktree.
-2. Revertendo só o `main.ts` — a única fiação de worker desta spec —, continua falhando.
-3. No checkout principal em `staging`, com a mesma carga de máquina, passa (`1 pass, 0 fail`).
-4. **Decisivo:** um worktree novo, criado no commit base (`e837a473`, antes de qualquer coisa desta
-   spec) e com `bun install` limpo, **também falha**.
+⚠️ **A falha de `sigterm.integration.ts` era real, e não era desta spec: ela já estava corrigida na
+`staging`.** O commit é `7fe18b47 fix(worker): a conexão do anexo mantinha o processo vivo no
+SIGTERM` — o trilho da 070 abria uma conexão de broker que segurava o processo, e o teste esperava o
+dreno para sempre. Ele entrou depois do `e837a473`, que é a base desta branch, e por isso não estava
+aqui.
 
-⚠️ A primeira suspeita — o estado de instalação do pacote não publicado — está **descartada**: o
-teste continua falhando depois da `rc.4` publicada, com o lockfile refeito e
-`--frozen-lockfile` verde. O que sobra é o worktree em si. A causa mais plausível é o `.env` ser
-**symlink** ali (é assim que `make worktree` o liga) e o teste subir um processo Bun novo
-(`Bun.spawn(['bun', 'src/main.ts'])`) que depende do carregamento automático desse arquivo — mas isso
-é hipótese, não medição, e fica registrado como tal.
+Duas hipóteses minhas sobre essa falha estavam **erradas**, e ficam registradas porque o modo de
+errar é instrutivo:
 
-Consequência prática: **este teste só se verifica no checkout principal**, e é lá que ele foi
-verificado. O resto da integração do worker passa no worktree (`63 pass`), incluindo o caminho ponta
-a ponta desta spec.
+1. "É o estado de instalação do pacote não publicado." Descartada quando a `rc.4` foi publicada, o
+   lockfile refeito e o teste continuou falhando.
+2. "Não passa em worktree nenhum." Eu tinha criado um worktree novo no commit base e visto falhar, e
+   comparado com o checkout principal, que passava — mas o checkout principal estava em `434acd00`,
+   onde o consumidor de anexo **nem existe** (`aggregate-attachment-consumer.service.ts` ausente).
+   A variável não era "worktree contra checkout": era "antes contra depois do trilho da 070". Comparar
+   dois ambientes que diferem em mais de uma coisa produz exatamente esse tipo de conclusão.
 
-Há também um `bun --watch ./src/main.ts` de outra sessão rodando nesta máquina durante as medições.
+Depois do rebase, com a correção da `staging` presente:
+
+```
+bun run format:check && bun run lint && bun run typecheck && bun run test
+ 3845 · 876 · 94 · 2241 · 17 · 107 pass   0 fail       # 7180 (o worker ganhou os 3 contratos do 7fe18b47)
+make worker-integration
+ 64 pass   4 skip   0 fail                              # inclusive o sigterm
+```
+
+Os 4 `skip` são os do OSRM, que é opt-in por desenho (spec 058). **Nada em aberto.**
