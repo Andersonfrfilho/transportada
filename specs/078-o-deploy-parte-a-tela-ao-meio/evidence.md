@@ -103,3 +103,30 @@ o que não é realm. Contrato em `keycloak-realm.contract.ts` guarda os dois sen
 SERVICES="postgres keycloak" make up   →  keycloak-1  Healthy
 make check                             →  EXIT=0
 ```
+
+## Verificação em staging (2026-09-02)
+
+**A atomicidade funcionou na primeira oportunidade real.** O commit do conserto do Keycloak tocou
+`compose.yaml` e um teste da API — e o deploy subiu **`deploy-api`, `deploy-frontend`,
+`deploy-client` e `deploy-landing`**, as quatro com sucesso. Antes desta spec, um commit assim teria
+publicado a API sozinha.
+
+**A revisão aparece nos dois endpoints:**
+
+```
+GET /health/live   → { revision, service: "api", status: "ok", timestamp }
+GET /health/ready  → revision presente
+```
+
+⚠️ **E o primeiro valor medido foi `unknown` — o que revelou uma metade que faltava.** O deploy é
+por **imagem**, então a Railway não popula variável de git: `RAILWAY_GIT_COMMIT_SHA` não existe no
+serviço. O campo estava no ar e não dizia nada.
+
+Foi a decisão de **nunca omitir o campo** que tornou isso legível: com `unknown` no corpo dava para
+ver que o campo existe e o valor não está configurado. Se ele sumisse quando não houvesse variável,
+o sintoma seria idêntico ao de uma versão antiga sem o campo — a ambiguidade que a task existia
+para eliminar, aparecendo na própria task.
+
+`railway-deploy.sh` passou a gravar `DEPLOYED_REVISION` a partir do `GITHUB_SHA`, com
+`--skip-deploys` (para não disparar um segundo deploy sobre o que está subindo) e sem derrubar o
+deploy se a gravação falhar — `unknown` é legível, deploy interrompido não é.

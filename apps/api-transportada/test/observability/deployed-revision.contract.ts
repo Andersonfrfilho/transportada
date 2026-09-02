@@ -50,3 +50,30 @@ describe('a revisão publicada é observável (spec 078 T007)', () => {
     expect(Object.keys(health).sort()).toEqual(['revision', 'service', 'status', 'timestamp'])
   })
 })
+
+/**
+ * ⚠️ O deploy é por **imagem**, então a Railway não popula variável de git sozinha — medido em
+ * staging: `RAILWAY_GIT_COMMIT_SHA` não existe no serviço, e a saúde respondia `unknown`. Quem sabe
+ * o SHA é o Action, e é ele que grava.
+ */
+describe('a revisão chega ao serviço pelo deploy (spec 078 T008)', () => {
+  test('o script de deploy grava a revisão que o Action conhece', async () => {
+    const script = await Bun.file(
+      new URL('../../../../.github/scripts/railway-deploy.sh', import.meta.url),
+    ).text()
+
+    expect(script).toInclude('DEPLOYED_REVISION=${GITHUB_SHA:0:7}')
+    /** Gravar variável não pode disparar um segundo deploy em cima do que está subindo. */
+    expect(script).toInclude('--skip-deploys')
+  })
+
+  /** E falhar ao gravar não derruba o deploy: `unknown` é legível, deploy interrompido não é. */
+  test('a gravação da revisão não derruba o deploy', async () => {
+    const script = await Bun.file(
+      new URL('../../../../.github/scripts/railway-deploy.sh', import.meta.url),
+    ).text()
+    const bloco = script.slice(script.indexOf('DEPLOYED_REVISION'))
+
+    expect(bloco.slice(0, bloco.indexOf('railway up'))).toInclude('||')
+  })
+})

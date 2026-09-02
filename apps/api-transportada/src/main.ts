@@ -447,9 +447,9 @@ export function bootstrap(): Bun.Server<undefined> {
      * Spec 078: a revisão publicada, para o descompasso entre API e bundle deixar de ser mudo.
      * Ausente vira `unknown` no próprio serviço — nunca campo que some do corpo.
      */
-    ...(process.env.RAILWAY_GIT_COMMIT_SHA === undefined
+    ...(process.env.DEPLOYED_REVISION === undefined
       ? {}
-      : { revision: process.env.RAILWAY_GIT_COMMIT_SHA.slice(0, 7) }),
+      : { revision: process.env.DEPLOYED_REVISION }),
   })
   const messaging = config.messaging
   const notificationQueue =
