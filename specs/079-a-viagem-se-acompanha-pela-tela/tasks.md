@@ -31,17 +31,20 @@ consentimento do motorista, e entram quando essas existirem. Ver a seção final
 
 ### P6 — o peso que vem dos itens
 
-- [ ] **T007** Conferir se o item da NF-e persiste peso (`nfe_items`). **Se não persistir, T008 não
-      existe** e a spec segue com volume — registrar no `evidence.md` em vez de criar migration.
-- [ ] **T008** Soma por item, só quando a nota inteira declara — liga em `cargoWeightOrigin`.
-      Contrato: dez itens com seis pesados cai em volume, e a origem diz isso.
+- [x] **T007** ✅ **Respondida em 2026-09-02: `nfe_products` não tem coluna de peso.** As treze
+      colunas são código, descrição, NCM, CFOP, quantidade, unidade e valores. A NF-e não obriga peso
+      por item, e o schema seguiu o que a nota traz.
+- [x] **T008** ⛔ **Cancelada pela T007.** Sem peso persistido não há o que somar, e criar a coluna
+      exigiria reprocessar os XMLs para descobrir que a maioria não declara. O peso segue por volume,
+      como a ADR-0052 decidiu.
 
 ## Fase 2 — Progresso e mapa
 
-- [ ] **T009** 🧠 **Conferir a junção `geocoded_addresses` × parada antes de desenhar qualquer mapa.**
-      Medido em 2026-09-02: nove endereços refinados e o roteiro seguinte manteve `1.6 km` com as
-      doze paradas marcadas "endereço errado". **Se a coordenada não chega ao consumidor, a spec para
-      aqui** e vira defeito da 073. Evidência: distância que muda depois de refinar.
+- [x] **T009** ⛔ **Respondida em 2026-09-02: a coordenada não chega, e a fase 2 para aqui.**
+      `trip_stops` guarda `latitude`, `longitude` e `geocoding_precision` próprios, e **nada os
+      preenche**: nas doze paradas estão nulos, enquanto `geocoded_addresses` tem a coordenada pela
+      mesma `address_key` — inclusive `rooftop` nas nove refinadas. A junção casa; o que falta é a
+      cópia. Defeito da spec 073, registrado em `specs/073-*/evidence.md`. **T010–T013 ficam atrás dele.**
 - [ ] **T010** [P] `tripProgress.service.ts` — porcentagem e previsão derivadas do estado das notas.
       Contrato: viagem em `draft` não tem progresso nem previsão; previsão declara que é estimativa.
 - [ ] **T011** `TripProgressBar.component.tsx` — barra animada com porcentagem.

@@ -278,3 +278,52 @@ deixar o item aberto com o motivo escrito.
 
 **Consequência honesta: a spec 073 está completa em 18 das 18 tasks planejadas, com a CA10 em
 aberto.** As outras nove (CA1–CA9) estão cobertas.
+
+---
+
+## Defeito encontrado depois, em staging (2026-09-02)
+
+**A coordenada nunca chega à parada, e é a parada que o roteiro lê.**
+
+`trip_stops` tem colunas próprias de `latitude`, `longitude` e `geocoding_precision`. Numa viagem
+real de staging, com doze paradas, **as três estão nulas em todas** — enquanto `geocoded_addresses`
+tem a coordenada para a mesma `address_key`, inclusive `rooftop` em nove delas.
+
+A junção casa: as chaves são idênticas dos dois lados (`3548906|13568863|145`). O que falta é a
+**cópia** — nada escreve o valor de `geocoded_addresses` na parada, nem quando ela nasce em
+`reconcileStopOnLink`, nem na hora de sugerir o roteiro.
+
+### Como apareceu
+
+Viagem `cbe73ab6-3c76-41ac-9007-4448cd7c3830`, montada pela interface com doze notas de destinatários
+distintos em São Carlos e Itirapina.
+
+| sintoma   | o que a tela mostrou                             |
+| --------- | ------------------------------------------------ |
+| distância | **1,6 km** para doze paradas numa cidade inteira |
+| precisão  | as **doze** marcadas "Endereço errado"           |
+| custo     | **R$ 0,00**, com o R$/km do veículo configurado  |
+
+Refinei nove endereços pelo Google — as chamadas responderam `outcome: "refined"` e gravaram com
+`precision: rooftop`. **O roteiro seguinte não mudou**: mesma distância, mesmas doze marcações.
+
+### Por que o refino parecia não funcionar
+
+Ele funciona. Grava no lugar certo — que **não é o lugar lido**. Quem olhasse só a tela concluiria
+que o Google não resolveu, e o dado no banco prova o contrário.
+
+### Estado medido em staging
+
+```
+geocoded_addresses:  211 postal_code · 196 city · 9 google/rooftop
+trip_stops (12):     latitude, longitude e geocoding_precision nulos em 12
+```
+
+### O que isto bloqueia
+
+A **spec 079** (a viagem se acompanha pela tela) tem a fase de mapa e progresso parada nisto: ela lê a
+mesma fonte, e desenharia pontos errados sem ninguém saber por quê. A T009 de lá existe exatamente
+para conferir isto antes de desenhar — e conferiu.
+
+⚠️ **Não é chave divergente, normalização nem tenant** — as três hipóteses foram descartadas com
+consulta. É cópia ausente.
