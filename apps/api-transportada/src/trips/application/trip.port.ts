@@ -58,6 +58,15 @@ export type Trip = {
 export type TripDocumentDetail = TripDocument & {
   readonly cteAuthorized: boolean
   readonly fiscalStatus: string
+  /**
+   * Spec 079 T017: como a nota se chama na tela. `null` quando o vínculo é só cálculo de frete, ou
+   * quando a nota sumiu da junção — a queda para o identificador continua existindo, mas deixou de
+   * ser o caminho normal.
+   */
+  readonly nfeIssuedAt: null | string
+  readonly nfeNumber: null | string
+  readonly nfeSeries: null | string
+  readonly nfeTotalValue: null | string
 }
 
 /**

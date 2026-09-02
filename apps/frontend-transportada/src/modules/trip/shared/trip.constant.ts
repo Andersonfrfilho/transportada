@@ -93,6 +93,18 @@ export const TRIP_DOCUMENT_DETAIL_KEYS = [
   'fiscalStatus',
 ] as const
 
+/**
+ * Spec 078 D2: campo novo nasce opcional, e sai desta lista quando a API que o serve estiver
+ * garantidamente no ar. Bundle novo com API antiga tem o campo ausente, e ausente reprovaria —
+ * corretamente, mas quebrando a tela inteira por um rótulo.
+ */
+export const TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS = [
+  'nfeIssuedAt',
+  'nfeNumber',
+  'nfeSeries',
+  'nfeTotalValue',
+] as const
+
 export const TRIP_STOP_KEYS = [
   'addressKey',
   'arrivedAt',

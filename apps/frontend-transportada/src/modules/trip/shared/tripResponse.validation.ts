@@ -11,6 +11,7 @@ import {
   TRIP_CARGO_WEIGHT_KEYS,
   TRIP_OCCUPANCY_KEYS,
   TRIP_DOCUMENT_DETAIL_KEYS,
+  TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS,
   TRIP_DOCUMENT_KEYS,
   TRIP_DRIVER_KEYS,
   TRIP_ERROR,
@@ -122,7 +123,14 @@ function isDocument(value: unknown): value is TripDocument {
 }
 
 function isDocumentDetail(value: unknown): value is TripDocumentDetail {
-  if (!hasExactKeys(value, TRIP_DOCUMENT_DETAIL_KEYS)) return false
+  if (
+    !hasKeys(value, {
+      allowed: [...TRIP_DOCUMENT_DETAIL_KEYS, ...TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS],
+      required: TRIP_DOCUMENT_DETAIL_KEYS,
+    })
+  ) {
+    return false
+  }
   return isDocumentFields(value) && isBoolean(value.cteAuthorized) && isString(value.fiscalStatus)
 }
 

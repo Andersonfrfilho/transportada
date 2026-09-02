@@ -148,6 +148,10 @@ export const TRIP_DOCUMENT_DETAIL: TripDocumentDetail = {
   ...TRIP_DOCUMENT,
   cteAuthorized: true,
   fiscalStatus: 'authorized',
+  nfeIssuedAt: '2026-08-01T09:00:00.000Z',
+  nfeNumber: '883658',
+  nfeSeries: '1',
+  nfeTotalValue: '1500.0000',
 }
 
 export const TRIP_DETAIL: TripDetail = {

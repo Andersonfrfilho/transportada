@@ -78,10 +78,22 @@ export function mapTripDocumentDetail(input: {
   readonly document: TripDocumentRecord
   readonly freightCalculationStatus: FreightCalculationStatus | null
   readonly nfeDocumentStatus: NfeDocumentStatus | null
+  readonly nfeIssuedAt?: Date | null
+  readonly nfeNumber?: null | string
+  readonly nfeSeries?: null | string
+  readonly nfeTotalValue?: null | string
 }): TripDocumentDetail {
   const fiscalStatus = input.nfeDocumentStatus ?? input.freightCalculationStatus
   if (fiscalStatus === null) throw new Error('TRIP_DOCUMENT_FISCAL_STATUS_MISSING')
-  return { ...mapTripDocument(input.document), cteAuthorized: input.cteAuthorized, fiscalStatus }
+  return {
+    ...mapTripDocument(input.document),
+    cteAuthorized: input.cteAuthorized,
+    fiscalStatus,
+    nfeIssuedAt: input.nfeIssuedAt?.toISOString() ?? null,
+    nfeNumber: input.nfeNumber ?? null,
+    nfeSeries: input.nfeSeries ?? null,
+    nfeTotalValue: input.nfeTotalValue ?? null,
+  }
 }
 
 export function mapTripDriver(record: TripDriverRecord): TripDriverLine {

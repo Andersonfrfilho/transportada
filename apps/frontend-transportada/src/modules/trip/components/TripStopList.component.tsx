@@ -222,6 +222,17 @@ function TripStopDocumentRow({
         onChange={() => selection.toggle(document.id)}
       />
       <span className={styles.stopDocumentLabel}>{tripDocumentLabel(document)}</span>
+      {/*
+       * Valor e data ao lado do número: é o que o operador confere para saber que é a nota certa
+       * sem abrir outra tela. Ausentes quando o vínculo é só cálculo de frete — e aí não se imprime
+       * traço nem zero, que seriam afirmações sobre uma nota que não existe.
+       */}
+      {document.nfeTotalValue === null || document.nfeTotalValue === undefined ? null : (
+        <span className={styles.stopDocumentMeta}>{formatAmount(document.nfeTotalValue)}</span>
+      )}
+      {document.nfeIssuedAt === null || document.nfeIssuedAt === undefined ? null : (
+        <span className={styles.stopDocumentMeta}>{formatDay(document.nfeIssuedAt)}</span>
+      )}
       <span className={styles.separationStatusBadge}>
         {t(`separationStatus.${document.separationStatus}`)}
       </span>
@@ -327,4 +338,19 @@ function TripStopDocumentRow({
       {actions.openProofDocumentId === document.id ? actions.renderProof(document.id) : null}
     </li>
   )
+}
+
+const amountFormatter = new Intl.NumberFormat('pt-BR', {
+  currency: 'BRL',
+  style: 'currency',
+})
+
+const dayFormatter = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' })
+
+function formatAmount(value: string): string {
+  return amountFormatter.format(Number.parseFloat(value))
+}
+
+function formatDay(value: string): string {
+  return dayFormatter.format(new Date(value))
 }

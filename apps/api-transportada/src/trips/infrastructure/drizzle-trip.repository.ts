@@ -431,6 +431,15 @@ async function readTripDetail(
       document: tripDocuments,
       freightCalculationStatus: freightCalculations.status,
       nfeDocumentStatus: nfeDocuments.status,
+      /**
+       * Spec 079 T017: o que identifica a nota na tela. Sai da junção que já existia — nenhuma
+       * consulta a mais, e a alternativa (uma leitura por nota) multiplicaria por vinte a tela mais
+       * pesada do módulo.
+       */
+      nfeIssuedAt: nfeDocuments.issuedAt,
+      nfeNumber: nfeDocuments.number,
+      nfeSeries: nfeDocuments.series,
+      nfeTotalValue: nfeDocuments.totalValue,
     })
     .from(tripDocuments)
     .leftJoin(

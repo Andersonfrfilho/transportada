@@ -693,3 +693,10 @@
   border-radius: var(--radius-sm, 0.25rem);
   margin-block: var(--space-2);
 }
+
+/* Valor e data acompanham o número sem competir com ele: é referência, não o nome da nota. */
+.stopDocumentMeta {
+  color: var(--color-slate);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}

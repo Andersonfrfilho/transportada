@@ -70,7 +70,15 @@ export type TripDocument = Readonly<{
 }>
 
 export type TripDocumentDetail = TripDocument &
-  Readonly<{ cteAuthorized: boolean; fiscalStatus: string }>
+  Readonly<{
+    cteAuthorized: boolean
+    fiscalStatus: string
+    /** Spec 079 T017: como a nota se chama na tela. `null` no vínculo que é só cálculo de frete. */
+    nfeIssuedAt?: null | string
+    nfeNumber?: null | string
+    nfeSeries?: null | string
+    nfeTotalValue?: null | string
+  }>
 
 /** ADR-0043 §3, T014: as mesmas notas de `TripDetail.documents`, aninhadas sob a parada que as
  * agrupa — nunca uma cópia divergente. Nota sem parada não aparece em nenhum `TripStopDetail`. */

@@ -906,6 +906,10 @@ function serializeTripDocumentDetail(document: TripDocumentDetail): object {
     ...serializeTripDocument(document),
     cteAuthorized: document.cteAuthorized,
     fiscalStatus: document.fiscalStatus,
+    nfeIssuedAt: document.nfeIssuedAt,
+    nfeNumber: document.nfeNumber,
+    nfeSeries: document.nfeSeries,
+    nfeTotalValue: document.nfeTotalValue,
   }
 }
 
