@@ -27,8 +27,8 @@ const PIN_RADIUS = 2.5
  * Spec 079 T013: o roteiro desenhado.
  *
  * O desenho é nosso, como o da aba Regiões — nada de terceiro renderiza dentro da nossa tela
- * (ADR-0037), e por isso o `<svg>` vem do primitivo `VectorMap`, que já existia para a malha do
- * IBGE e recebe geometria como **dado**.
+ * (ADR-0037), e por isso o desenho vetorial vem do primitivo `VectorMap`, que já existia para a
+ * malha do IBGE e recebe geometria como **dado**.
  *
  * ⚠️ **Parada sem coordenada é nomeada abaixo do mapa, nunca some.** O serviço já as separa; o que
  * a tela não pode é descartar a lista que ele devolve — que é onde a regra se perde entre o serviço
