@@ -24,6 +24,7 @@ import { AggregateAttachmentOutboxRelayService } from '../../src/aggregate-attac
 import { DrizzleAggregateAttachmentOutboxRepository } from '../../src/aggregate-attachment/infrastructure/drizzle-aggregate-attachment-outbox.repository.js'
 import { createDrizzleAggregateAttachmentWriteBackRepository } from '../../src/aggregate-attachment/infrastructure/drizzle-aggregate-attachment-write-back.repository.js'
 import { createStorageAttachmentReaderGateway } from '../../src/aggregate-attachment/infrastructure/storage-attachment-reader.gateway.js'
+import { createDocumentExtractionGateway } from '../../src/aggregate-attachment/infrastructure/document-extraction.gateway.js'
 import { createThreadedAttachmentExtractionGateway } from '../../src/aggregate-attachment/infrastructure/threaded-extraction.gateway.js'
 import {
   aggregateApplicationAttachments,
@@ -31,7 +32,7 @@ import {
 } from '../../src/database/aggregate-attachment.schema.js'
 import { buildAggregateAttachmentRabbitMqTopology } from '../../src/messaging/aggregate-attachment-rabbitmq-topology.js'
 import { startAggregateAttachmentConsumer } from '../../src/runtime/aggregate-attachment-consumer.service.js'
-import { buildSyntheticCcmei } from './ccmei-pdf.helper.js'
+import { buildSyntheticCcmei, buildSyntheticCrlv } from './ccmei-pdf.helper.js'
 
 const rabbitMqUrl = process.env.RABBITMQ_TEST_URL ?? process.env.RABBITMQ_URL
 const databaseUrl = process.env.DATABASE_URL
@@ -71,6 +72,7 @@ describeIntegration('anexo do agregado — do outbox ao campo gravado', () => {
   let provider: Awaited<ReturnType<typeof createRabbitMqProvider>>
   let consumer: RabbitMqConsumer | undefined
   let storage: Awaited<ReturnType<typeof buildStorage>>
+  let relay: AggregateAttachmentOutboxRelayService
 
   async function buildStorage() {
     const { createNfeStorageGatewayFromEnvironment } = await import(
@@ -127,6 +129,31 @@ describeIntegration('anexo do agregado — do outbox ao campo gravado', () => {
 
     provider = await createRabbitMqProvider({ connection: rabbitMqUrl as string, topology })
     storage = await buildStorage()
+
+    /** Um consumidor e um relay para os dois documentos: é o mesmo trilho, e é isso que se prova. */
+    consumer = await startAggregateAttachmentConsumer({
+      config: { prefetch: 1 } as never,
+      dependencies: {
+        extraction: createDocumentExtractionGateway({
+          textLayer: createThreadedAttachmentExtractionGateway(),
+        }),
+        reader: createStorageAttachmentReaderGateway({ storage }),
+        writeBack: createDrizzleAggregateAttachmentWriteBackRepository(database.db),
+      },
+      logger: silentLogger as never,
+      provider,
+    })
+
+    relay = new AggregateAttachmentOutboxRelayService({
+      clock: { now: () => new Date() },
+      publisher: new AggregateAttachmentOutboxPublisherService(provider),
+      repository: new DrizzleAggregateAttachmentOutboxRepository(database.db),
+      retryPolicy: {
+        classify(error: unknown): never {
+          throw error instanceof Error ? error : new Error('relay publish failed')
+        },
+      },
+    })
   })
 
   afterAll(async () => {
@@ -170,28 +197,6 @@ describeIntegration('anexo do agregado — do outbox ao campo gravado', () => {
         payload: { attachmentId, bucket, objectKey, type: 'ccmei' },
       })
 
-      consumer = await startAggregateAttachmentConsumer({
-        config: { prefetch: 1 } as never,
-        dependencies: {
-          extraction: createThreadedAttachmentExtractionGateway(),
-          reader: createStorageAttachmentReaderGateway({ storage }),
-          writeBack: createDrizzleAggregateAttachmentWriteBackRepository(database.db),
-        },
-        logger: silentLogger as never,
-        provider,
-      })
-
-      const relay = new AggregateAttachmentOutboxRelayService({
-        clock: { now: () => new Date() },
-        publisher: new AggregateAttachmentOutboxPublisherService(provider),
-        repository: new DrizzleAggregateAttachmentOutboxRepository(database.db),
-        retryPolicy: {
-          classify(error: unknown): never {
-            throw error instanceof Error ? error : new Error('relay publish failed')
-          },
-        },
-      })
-
       const relayed = await relay.relayDueEntries({
         claimOwner: 'integration',
         leaseMs: 30_000,
@@ -215,6 +220,70 @@ describeIntegration('anexo do agregado — do outbox ao campo gravado', () => {
         .from(aggregateAttachmentOutbox)
         .where(eq(aggregateAttachmentOutbox.companyId, companyId))
       expect(event?.publishedAt).not.toBeNull()
+    },
+    PIPELINE_TIMEOUT_MS,
+  )
+
+  /**
+   * Spec 071: o mesmo trilho, com o CRLV. O que este teste prova e nenhum contrato provaria é que a
+   * escolha por **assinatura** encontra o PDF depois da ida e da volta pelo bucket e pelo broker, e
+   * que `readCrlv` — que agora vem do pacote, não do painel — chega ao anexo como campo gravado.
+   *
+   * O proprietário e o município vão junto de propósito: são o que faz o CRLV atravessar bloco do
+   * formulário, e é neles que uma leitura pela metade passaria despercebida.
+   */
+  test(
+    'o CRLV enviado chega ao anexo com veículo, proprietário e município lidos',
+    async () => {
+      const companyId = crypto.randomUUID()
+      const bytes = buildSyntheticCrlv()
+      const objectKey = `tenants/${companyId}/aggregate-application-attachments/crlv/${crypto.randomUUID()}`
+
+      await storage.storeObject({
+        body: bytes,
+        bucket: bucket as string,
+        contentLength: bytes.byteLength,
+        contentType: 'application/pdf',
+        key: objectKey,
+        sha256: Bun.SHA256.hash(bytes, 'hex'),
+      })
+
+      const [attachment] = await database.db
+        .insert(aggregateApplicationAttachments)
+        .values({ companyId, type: 'crlv' })
+        .returning({ id: aggregateApplicationAttachments.id })
+      const attachmentId = attachment?.id as string
+
+      await database.db.insert(aggregateAttachmentOutbox).values({
+        attachmentId,
+        companyId,
+        correlationId: 'correlation-071-crlv',
+        eventType: 'attachment.extraction.requested',
+        payload: { attachmentId, bucket, objectKey, type: 'crlv' },
+      })
+
+      const relayed = await relay.relayDueEntries({
+        claimOwner: 'integration',
+        leaseMs: 30_000,
+        limit: 10,
+      })
+      expect(relayed.publishedCount).toBeGreaterThanOrEqual(1)
+
+      const extracted = await waitFor(async () => {
+        const [row] = await database.db
+          .select({ extractedFields: aggregateApplicationAttachments.extractedFields })
+          .from(aggregateApplicationAttachments)
+          .where(eq(aggregateApplicationAttachments.id, attachmentId))
+        return row?.extractedFields ?? undefined
+      })
+
+      expect(extracted).toMatchObject({
+        municipality: 'SAO PAULO',
+        ownerName: 'MARIA DE SOUSA',
+        ownerTaxId: '11144477735',
+        plate: 'GCQ8E47',
+        state: 'SP',
+      })
     },
     PIPELINE_TIMEOUT_MS,
   )

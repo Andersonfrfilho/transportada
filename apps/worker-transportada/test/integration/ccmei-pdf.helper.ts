@@ -114,3 +114,31 @@ export function buildSyntheticCcmei(cnpj: string): Uint8Array {
     ...buildLabelledColumns([{ label: 'CNPJ', value: cnpj, x: 60, y: 600 }]),
   ])
 }
+
+/**
+ * O CRLV sintético da spec 071. Mesma regra do CCMEI acima: o CRLV-e real imprime o CPF do
+ * proprietário, e a § Privacidade da 048 recusa PII versionada. O que este PDF prova é a costura —
+ * bytes → bucket → broker → thread → `extracted_fields` —, nunca o layout do Detran.
+ */
+export function buildSyntheticCrlv(): Uint8Array {
+  const printed: readonly Readonly<{ label: string; value: string }>[] = [
+    { label: 'PLACA', value: 'GCQ8E47' },
+    { label: 'CODIGO RENAVAM', value: '00123456789' },
+    { label: 'MARCA / MODELO / VERSAO', value: 'FIAT/FIORINO ENDURANCE 1.4' },
+    { label: 'MUNICIPIO / UF', value: 'SAO PAULO / SP' },
+    { label: 'NOME', value: 'MARIA DE SOUSA' },
+    { label: 'CPF / CNPJ', value: '111.444.777-35' },
+  ]
+
+  return buildTextPdf([
+    { size: 12, text: 'CERTIFICADO DE REGISTRO E LICENCIAMENTO DE VEÍCULO', x: 90, y: 800 },
+    ...buildLabelledColumns(
+      printed.map((column, index) => ({
+        label: column.label,
+        value: column.value,
+        x: 60 + (index % 3) * 170,
+        y: 700 - Math.floor(index / 3) * 40,
+      })),
+    ),
+  ])
+}
