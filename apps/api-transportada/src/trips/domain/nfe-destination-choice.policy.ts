@@ -1,6 +1,8 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { buildStopLabel } from './stop-label.policy.js'
+
 import {
   resolvePhysicalDestination,
   type PhysicalDestinationOrigin,
@@ -60,7 +62,12 @@ export function chooseNfeDestinationRow(
 
   return {
     components: chosen.components,
-    label: [chosen.row.street, chosen.row.city, chosen.row.state].filter(Boolean).join(', '),
+    label: buildStopLabel({
+      city: chosen.row.city,
+      number: chosen.row.number,
+      state: chosen.row.state,
+      street: chosen.row.street,
+    }),
     origin: chosen.origin,
   }
 }

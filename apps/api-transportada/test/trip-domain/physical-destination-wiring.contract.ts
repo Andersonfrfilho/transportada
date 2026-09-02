@@ -60,9 +60,17 @@ describe('trip stop destination (spec 073 P1/CA1, CA2)', () => {
     )
   })
 
-  /** O rótulo da parada acompanha o endereço escolhido — senão a tela nomeia o lugar errado. */
+  /**
+   * O rótulo da parada acompanha o endereço escolhido — senão a tela nomeia o lugar errado.
+   *
+   * ⚠️ **O número entra no rótulo** desde que a parada passou a imprimi-lo: a parada agrupa por
+   * `(CEP, número, município)`, então dois portões da mesma rua são duas paradas, e sem o número
+   * apareciam com texto idêntico. A grafia é a do cadastro, não a normalizada da chave.
+   */
   it('labels the stop with the chosen address, not the other one', () => {
-    expect(chooseNfeDestinationRow([CADASTRO, ENTREGA])?.label).toBe('Rua da Doca, Campinas, SP')
+    expect(chooseNfeDestinationRow([CADASTRO, ENTREGA])?.label).toBe(
+      'Rua da Doca, 4500, Campinas, SP',
+    )
   })
 
   it('returns null when the note resolves to no destination party', () => {
