@@ -349,34 +349,12 @@ export function TripDetail({ linkForm, onClose, vehicles, workspace }: TripDetai
         </div>
       ) : null}
 
-      <TripStopList
-        actions={documentActions}
-        canReorder={isEditable}
-        onReorder={handleReorderStops}
-        selection={selection}
-        stops={trip.stops}
-      />
-
-      {unassignedDocuments.length === 0 ? null : (
-        <div className={styles.stopCard}>
-          <div className={styles.stopCardHead}>
-            <span className={styles.stopLabel}>{t('stops.unassigned')}</span>
-            <span className={styles.stopCounter}>
-              {t('stops.documentCount', { count: unassignedDocuments.length })}
-            </span>
-          </div>
-          <TripStopDocumentGroup
-            actions={documentActions}
-            documents={unassignedDocuments}
-            selection={selection}
-          />
-        </div>
-      )}
-
-      {trip.documents.length === 0 ? (
-        <p className={styles.hint}>{t('detail.documentsEmpty')}</p>
-      ) : null}
-
+      {/*
+       * Spec 079 T021: **vincular e agir vêm antes da lista.** Numa viagem com doze paradas os dois
+       * ficavam abaixo de tudo, e quem abria a tela para despachar rolava a viagem inteira para
+       * achar o botão. O que se **lê** — progresso, ocupação, mapa de carga — continua acima: mover
+       * os botões para o topo de tudo trocaria um problema de ordem por outro.
+       */}
       <TripStateActions
         canManage={canManage}
         canReturn={canReturn}
@@ -443,6 +421,34 @@ export function TripDetail({ linkForm, onClose, vehicles, workspace }: TripDetai
                 <Icon name="camera" />
                 {t('detail.scan')}
               </Button>
+            ) : null}
+
+            <TripStopList
+              actions={documentActions}
+              canReorder={isEditable}
+              onReorder={handleReorderStops}
+              selection={selection}
+              stops={trip.stops}
+            />
+
+            {unassignedDocuments.length === 0 ? null : (
+              <div className={styles.stopCard}>
+                <div className={styles.stopCardHead}>
+                  <span className={styles.stopLabel}>{t('stops.unassigned')}</span>
+                  <span className={styles.stopCounter}>
+                    {t('stops.documentCount', { count: unassignedDocuments.length })}
+                  </span>
+                </div>
+                <TripStopDocumentGroup
+                  actions={documentActions}
+                  documents={unassignedDocuments}
+                  selection={selection}
+                />
+              </div>
+            )}
+
+            {trip.documents.length === 0 ? (
+              <p className={styles.hint}>{t('detail.documentsEmpty')}</p>
             ) : null}
           </div>
           <TripScanQueue entries={linkForm.scanEntries} onClear={linkForm.clearScanEntries} />
