@@ -281,64 +281,61 @@ aberto.** As outras nove (CA1–CA9) estão cobertas.
 
 ---
 
-## Defeito encontrado depois, em staging (2026-09-02)
+## ~~Defeito~~ — falso alarme, e o que ele ensinou (2026-09-02)
 
-**A coordenada nunca chega à parada, e é a parada que o roteiro lê.**
+**Não havia defeito.** Registrei um, investiguei fundo e o desmenti com medição. Fica escrito porque
+o modo de errar é reaproveitável.
 
-`trip_stops` tem colunas próprias de `latitude`, `longitude` e `geocoding_precision`. Numa viagem
-real de staging, com doze paradas, **as três estão nulas em todas** — enquanto `geocoded_addresses`
-tem a coordenada para a mesma `address_key`, inclusive `rooftop` em nove delas.
+### O que eu media
 
-A junção casa: as chaves são idênticas dos dois lados (`3548906|13568863|145`). O que falta é a
-**cópia** — nenhuma escrita em `trip_stops` toca essas três colunas, conferido por varredura em todo
-`src/`.
+Montei uma viagem de doze paradas em São Carlos pela interface e pedi o roteiro: **1 608 m**, com dez
+de onze trechos zerados. Refinei nove endereços pelo Google (`outcome: refined`, `precision:
+rooftop`), pedi de novo — e a tela mostrou **os mesmos 1 608 m**. Concluí que a coordenada não chegava
+ao consumidor.
 
-⚠️ **A causa da distância zerada ainda não está isolada.** Existe caminho de recuperação:
-`buildGeocodeRequests` (worker) pede geocodificação **justamente para as paradas sem coordenada
-fina**, e `applyResolvedCoordinates` aplica o resultado em memória. A parada nascer sem coordenada
-era para ser recuperável — e não está sendo. O defeito mora entre esse resgate e a matriz, e provar
-onde exige **instrumentar o worker**, não ler mais código.
+### O que estava errado na minha leitura
 
-### Como apareceu
+**A segunda sugestão nunca existiu.** Os carimbos provam: a última sugestão é de `17:55:11` e o último
+refino é de `17:56:56`. O painel me devolveu a sugestão **anterior**, e eu li o número dela como
+resultado novo. Comparei duas vezes o mesmo dado e chamei de "não mudou".
 
-Viagem `cbe73ab6-3c76-41ac-9007-4448cd7c3830`, montada pela interface com doze notas de destinatários
-distintos em São Carlos e Itirapina.
+Rodando uma sugestão de verdade depois disso: **51 813 m**, com trechos de 34 893, 1 059, 2 920 e 908
+metros. O roteiro funciona.
 
-| sintoma         | medido                                                      |
-| --------------- | ----------------------------------------------------------- |
-| distância total | **1 608 m** para doze paradas em São Carlos                 |
-| trechos         | **dez de onze com `0` metros**; só um trecho tem distância  |
-| precisão        | `geocoding_precision` **nula** nas doze paradas da sugestão |
-| custo           | **R$ 0,00**, com o R$/km do veículo configurado             |
+### As três coisas que conferi antes de desmentir, e que valem por si
 
-⚠️ **Correção do primeiro registro deste defeito:** eu havia escrito que "as doze foram marcadas
-Endereço errado". **Isso estava errado** — "Endereço errado" é o rótulo do **botão** de correção de
-pino (`routing.locale.json` → `refine.action`), e aparece em toda parada como afordância, não como
-diagnóstico. Li um botão como sintoma. Os números acima vêm do banco.
+- **OSRM responde**: matriz de doze pontos, 144 células, 18 zeros (a diagonal), primeira linha com
+  35 km. `ROUTING_MATRIX_URL` do worker aponta para `osrm.railway.internal` com o PBF do Sudeste.
+- **As coordenadas existem e são distintas**: dez pontos distintos entre as doze paradas, de
+  `-21.99` a `-22.25` de latitude.
+- **`readStops` já junta `geocoded_addresses`** pela `address_key`, e não lê `trip_stops.latitude`.
 
-Refinei nove endereços pelo Google — as chamadas responderam `outcome: "refined"` e gravaram com
-`precision: rooftop`. **O roteiro seguinte não mudou**: mesma distância, mesmas doze marcações.
+### Dois achados reais que sobraram
 
-### Por que o refino parecia não funcionar
+⚠️ **`trip_stops.latitude`, `longitude` e `geocoding_precision` nunca são escritos** — nenhuma escrita
+em todo o `src/` os toca. Não afetam o roteiro (que lê `geocoded_addresses`), mas o app do motorista
+lê `trip_stops`: `drizzle-current-driver-trip.repository.ts` seleciona `latitude`. **Colunas mortas
+que um consumidor já lê são pior que colunas ausentes** — quem for usá-las recebe `null` sem
+explicação.
 
-Ele funciona. Grava no lugar certo — que **não é o lugar lido**. Quem olhasse só a tela concluiria
-que o Google não resolveu, e o dado no banco prova o contrário.
+⚠️ **`geocoding_precision` da parada da sugestão sai `null`.** `applyResolvedCoordinates` grava
+`latitude` e `longitude` e **não grava a precisão**, então a tela não distingue rooftop de centroide
+de CEP depois do fato.
 
-### Estado medido em staging
+⚠️ **`ROUTING_MATRIX_URL` não existe no worker de produção**, e `osrm` só existe em staging. Sugestão
+de roteiro em produção falha com `ROUTING_MATRIX_UNAVAILABLE`.
 
-```
-geocoded_addresses:  211 postal_code · 196 city · 9 google/rooftop
-trip_stops (12):     latitude, longitude e geocoding_precision nulos em 12
-```
+### O erro de método
 
-### O que isto bloqueia
+Eu li **"Endereço errado"**, que é o rótulo do botão de corrigir pino, como se fosse marcação de
+defeito nas doze paradas. E aceitei que a tela tivesse recalculado sem conferir se um registro novo
+nasceu. **Dois sinais lidos como fato**, e uma investigação inteira construída em cima deles.
 
-A **spec 079** (a viagem se acompanha pela tela) tem a fase de mapa e progresso parada nisto: ela lê a
-mesma fonte, e desenharia pontos errados sem ninguém saber por quê. A T009 de lá existe exatamente
-para conferir isto antes de desenhar — e conferiu.
+O que teria evitado: conferir o `created_at` da sugestão na primeira vez que o número não mudou.
 
-⚠️ **Não é chave divergente, normalização nem tenant** — as três hipóteses foram descartadas com
-consulta. É cópia ausente.
+A **spec 079** herda dois avisos daqui, e nenhum é bloqueio: `geocoding_precision` da parada da
+sugestão sai `null`, então o mapa lê `geocoded_addresses`; e `trip_stops.latitude/longitude/
+geocoding_precision` nunca são escritos, apesar de o app do motorista os ler.
 
 ---
 

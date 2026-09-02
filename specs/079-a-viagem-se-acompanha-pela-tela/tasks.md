@@ -40,11 +40,17 @@ consentimento do motorista, e entram quando essas existirem. Ver a seção final
 
 ## Fase 2 — Progresso e mapa
 
-- [x] **T009** ⛔ **Respondida em 2026-09-02: a coordenada não chega, e a fase 2 para aqui.**
-      `trip_stops` guarda `latitude`, `longitude` e `geocoding_precision` próprios, e **nada os
-      preenche**: nas doze paradas estão nulos, enquanto `geocoded_addresses` tem a coordenada pela
-      mesma `address_key` — inclusive `rooftop` nas nove refinadas. A junção casa; o que falta é a
-      cópia. Defeito da spec 073, registrado em `specs/073-*/evidence.md`. **T010–T013 ficam atrás dele.**
+- [x] **T009** ✅ **Respondida em 2026-09-02: a coordenada chega, e a fase 2 está liberada.**
+      Roteiro medido em staging com doze paradas reais: **51 813 m**, trechos de 34 893, 1 059, 2 920
+      e 908 metros. `readStops` junta `geocoded_addresses` pela `address_key`, o OSRM responde, e as
+      coordenadas são distintas.
+
+      ⚠️ Dois achados que a T012 e a T013 herdam: `geocoding_precision` da parada da sugestão sai
+      **`null`** (o `applyResolvedCoordinates` grava coordenada e não grava precisão), então o mapa
+      **não pode** confiar nesse campo para distinguir rooftop de centroide — leia
+      `geocoded_addresses`. E `trip_stops.latitude/longitude/geocoding_precision` **nunca são
+      escritos**, apesar de o app do motorista lê-los.
+
 - [ ] **T010** [P] `tripProgress.service.ts` — porcentagem e previsão derivadas do estado das notas.
       Contrato: viagem em `draft` não tem progresso nem previsão; previsão declara que é estimativa.
 - [ ] **T011** `TripProgressBar.component.tsx` — barra animada com porcentagem.
