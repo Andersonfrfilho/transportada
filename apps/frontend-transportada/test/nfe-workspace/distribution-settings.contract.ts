@@ -43,6 +43,7 @@ describe('nfe workspace distribution settings contract', () => {
     })
     expect(settingsTabsOf('nfe-workspace')).toEqual(['imports'])
     expect(settingsPanelsOf('nfe-workspace', 'imports')).toEqual([
+      'cargoVolume',
       'cargoWeight',
       'scheduledDistribution',
       'distributionCursor',

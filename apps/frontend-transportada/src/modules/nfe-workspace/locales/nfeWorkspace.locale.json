@@ -393,5 +393,15 @@
   "cargoWeightEnabled": "Estimando {{weight}} kg por volume. O peso declarado pelo emitente sempre vence a estimativa.",
   "cargoWeightInvalid": "Informe um peso maior que zero, com até quatro casas decimais.",
   "cargoWeightSave": "Salvar peso padrão",
-  "cargoWeightClear": "Desligar estimativa"
+  "cargoWeightClear": "Desligar estimativa",
+  "cargoVolumeTitle": "Cubagem estimada da carga",
+  "cargoVolumeHint": "O volume que cada volume da nota ocupa, em metros cúbicos. A NF-e não traz medida da carga, então este número é o que estima a ocupação do veículo exibida na viagem.",
+  "cargoVolumeLabel": "m³ por volume",
+  "cargoVolumeInvalid": "Informe um número maior que zero. Para desligar a estimativa, use “Desligar estimativa”.",
+  "cargoVolumeDefaultSpecies": "Vale para toda nota. A espécie do volume ainda não é declarada por nenhum emitente.",
+  "cargoVolumeSpeciesCount": "{{count}} espécies com fator próprio.",
+  "cargoVolumeSpeciesCount_other": "{{count}} espécies com fator próprio.",
+  "cargoVolumeSave": "Salvar cubagem",
+  "cargoVolumeClear": "Desligar estimativa",
+  "cargoVolumeReadOnly": "Só quem administra configurações muda este número."
 }

@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 
 export const SETTINGS_PANELS = [
+  'cargoVolume',
   'cargoWeight',
   'settingsForm',
   'logo',
@@ -28,6 +29,7 @@ export type SettingsPanelModule = (typeof SETTINGS_PANEL_MODULES)[number]
 
 export type SettingsDataSource =
   | 'cargoSettings'
+  | 'cargoVolumeFactors'
   | 'companyContacts'
   | 'companySettings'
   | 'distributionCursor'
@@ -56,6 +58,12 @@ export type SettingsPanelPlacement = Readonly<{
  * módulos ao mesmo tempo.
  */
 export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPanelPlacement>> = {
+  /**
+   * Spec 077 — o fator de cubagem mora **ao lado do peso padrão**: os dois estimam a mesma coisa a
+   * partir do mesmo `qVol` da nota, e separá-los faria o operador procurar em dois lugares por duas
+   * metades da mesma configuração.
+   */
+  cargoVolume: { module: 'nfe-workspace', source: 'cargoVolumeFactors', tab: 'imports' },
   cargoWeight: { module: 'nfe-workspace', source: 'cargoSettings', tab: 'imports' },
   certificates: { module: 'company-settings', source: 'companySettings', tab: 'certificates' },
   distributionCursor: { module: 'nfe-workspace', source: 'distributionCursor', tab: 'imports' },
@@ -114,6 +122,7 @@ export function resolveSettingsDataScope(
   )
   return {
     cargoSettings: sources.has('cargoSettings'),
+    cargoVolumeFactors: sources.has('cargoVolumeFactors'),
     companyContacts: sources.has('companyContacts'),
     companySettings: module === 'company-settings' || sources.has('companySettings'),
     distributionCursor: sources.has('distributionCursor'),

@@ -17,6 +17,10 @@ import {
   type DistributionCursor,
 } from './distributionCursor.validation'
 import { isCargoSettingsResponse, type CargoSettings } from './cargoSettings.validation'
+import {
+  isCargoVolumeFactorsResponse,
+  type CargoVolumeFactor,
+} from './cargoVolumeFactor.validation'
 import { isEnergySettingsResponse, type EnergySettings } from './energySettings.validation'
 import type { FuelProduct } from '../../shared/fuel.constant'
 import {
@@ -58,6 +62,7 @@ const COMPANY_DISTRIBUTION_CURSOR_PATH = '/company-settings/distribution-cursor'
 const COMPANY_FUEL_PRICES_PATH = '/company-settings/fuel-prices'
 const COMPANY_ENERGY_PATH = '/company-settings/energy'
 const COMPANY_CARGO_PATH = '/company-settings/cargo'
+const COMPANY_CARGO_VOLUME_PATH = '/company-settings/cargo-volume-factors'
 const DATA_URL_CHUNK = 8_192
 
 type ClientDependencies = Readonly<{
@@ -101,7 +106,12 @@ export type CompanySettingsClient = Readonly<{
   disableScheduledDistribution: () => Promise<ScheduledDistributionStatus>
   enableScheduledDistribution: () => Promise<ScheduledDistributionStatus>
   getDistributionCursor: () => Promise<DistributionCursor>
+  clearCargoVolumeFactor: () => Promise<void>
   getCargoSettings: () => Promise<CargoSettings>
+  getCargoVolumeFactors: () => Promise<readonly CargoVolumeFactor[]>
+  saveCargoVolumeFactor: (
+    input: Readonly<{ species: string; volumePerUnitM3: string }>,
+  ) => Promise<readonly CargoVolumeFactor[]>
   getEnergySettings: () => Promise<EnergySettings>
   getFuelPrices: () => Promise<readonly FuelPriceEntry[]>
   getLogo: () => Promise<CompanyLogoImage | null>
@@ -532,6 +542,53 @@ async function saveCargoWeight(
 }
 
 /** 204 sem corpo, como a limpeza de preço: pedir JSON viraria sucesso em erro de formato. */
+async function getCargoVolumeFactors(
+  dependencies: ClientDependencies,
+): Promise<readonly CargoVolumeFactor[]> {
+  const response = await getRequest({ dependencies, path: COMPANY_CARGO_VOLUME_PATH })
+  if (!isCargoVolumeFactorsResponse(response))
+    throw requestError('COMPANY_SETTINGS_RESPONSE_INVALID')
+  return response.data
+}
+
+/**
+ * ⚠️ Salvar nunca recebe zero: desligar a estimativa é `clearCargoVolumeFactor`, e o CHECK do banco
+ * recusa zero de qualquer forma. As duas metades dizem a mesma coisa de propósito.
+ */
+async function saveCargoVolumeFactor(input: {
+  readonly dependencies: ClientDependencies
+  readonly input: Readonly<{ species: string; volumePerUnitM3: string }>
+}): Promise<readonly CargoVolumeFactor[]> {
+  const accessToken = await input.dependencies.getAccessToken()
+  const response = await input.dependencies.fetch(
+    new Request(`${input.dependencies.apiBaseUrl}${COMPANY_CARGO_VOLUME_PATH}`, {
+      body: JSON.stringify(input.input),
+      cache: 'no-store',
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        'content-type': 'application/json',
+      },
+      method: 'PUT',
+    }),
+  )
+  if (!response.ok) throw requestError('COMPANY_SETTINGS_REQUEST_FAILED')
+  const body: unknown = await response.json()
+  if (!isCargoVolumeFactorsResponse(body)) throw requestError('COMPANY_SETTINGS_RESPONSE_INVALID')
+  return body.data
+}
+
+async function clearCargoVolumeFactor(dependencies: ClientDependencies): Promise<void> {
+  const accessToken = await dependencies.getAccessToken()
+  const response = await dependencies.fetch(
+    new Request(`${dependencies.apiBaseUrl}${COMPANY_CARGO_VOLUME_PATH}`, {
+      cache: 'no-store',
+      headers: { authorization: `Bearer ${accessToken}` },
+      method: 'DELETE',
+    }),
+  )
+  if (!response.ok) throw requestError('COMPANY_SETTINGS_REQUEST_FAILED')
+}
+
 async function clearCargoWeight(dependencies: ClientDependencies): Promise<void> {
   const accessToken = await dependencies.getAccessToken()
   let response: Response
@@ -611,7 +668,10 @@ export const createCompanySettingsClient: CompanySettingsClientFactory = (depend
       dependencies,
       distributorCode: input.distributorCode,
     }),
+  clearCargoVolumeFactor: () => clearCargoVolumeFactor(dependencies),
   clearDefaultVolumeWeight: () => clearCargoWeight(dependencies),
+  getCargoVolumeFactors: () => getCargoVolumeFactors(dependencies),
+  saveCargoVolumeFactor: (input) => saveCargoVolumeFactor({ dependencies, input }),
   clearEnergyDistributor: () => clearEnergyDistributor(dependencies),
   clearFuelPrice: (product) => clearFuelPrice({ dependencies, product }),
   disableScheduledDistribution: () =>

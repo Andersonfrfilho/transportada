@@ -113,11 +113,23 @@ dia em que um emitente preencher `esp` ninguém saberá onde ajustar.
 
 ## Decisões
 
-- **D1 — Sem `settings.manage`, o painel fica somente-leitura em vez de desaparecer.**
-  Precedente na própria base: a busca automática de notas "continua visível com o cartão
-  somente-leitura, porque ali é informação de operação". Aqui é o mesmo caso — quem monta viagem
-  precisa saber **por que** a ocupação diz 28%, mesmo sem poder mudar o fator. Esconder o painel
-  esconderia a origem do número.
+- **D1 — ⚠️ Revista na implementação: o painel exige `settings.manage`, e não fica somente-leitura.**
+
+  A decisão original dizia o contrário, por analogia com a busca automática de notas, que "continua
+  visível com o cartão somente-leitura". A analogia não se sustenta: **aquele cartão lê de outra
+  rota** (`GET /nfe-imports/distribution`, com permissão de operação), enquanto o fator de cubagem
+  tem uma fonte só, `GET /company-settings/cargo-volume-factors`, sob `settings.manage`. Painel
+  somente-leitura ali não teria de onde ler — o servidor responderia 403, e a tela mostraria um
+  cartão vazio ou um erro.
+
+  As saídas seriam afrouxar a permissão da rota (dar a quem opera acesso a configuração) ou criar
+  uma segunda rota de leitura. As duas custam mais do que o problema pede, porque **a razão original
+  já está atendida em outro lugar**: a tela da viagem imprime _"Valor estimado: a nota fiscal não
+  traz medida da carga, e o cálculo usa o fator de cubagem por volume configurado"_. Quem monta
+  viagem já lê de onde vem o 28% — sem precisar do painel.
+
+  O que fica: o painel é de quem administra configuração, e a **origem** do número é dita na tela
+  onde ele aparece.
 
 - **D2 — ⚠️ O degrau `measured` continua inalcançável pela tela, e isso é dito por escrito.**
   A 075 pôs `cargo_length_m`/`width`/`height` em `fleet_vehicles`, mas **nenhum formulário os

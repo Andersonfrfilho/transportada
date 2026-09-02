@@ -17,6 +17,8 @@ import { ScheduledDistributionPanel } from '../components/ScheduledDistributionP
 import { useDistributionCursor } from '../hooks/useDistributionCursor.hook'
 import { CargoWeightPanel } from '../components/CargoWeightPanel.component'
 import { useCargoSettings } from '../hooks/useCargoSettings.hook'
+import { useCargoVolumeFactor } from '../hooks/useCargoVolumeFactor.hook'
+import { CargoVolumeFactorPanel } from '../components/CargoVolumeFactorPanel.component'
 import { useScheduledDistribution } from '../hooks/useScheduledDistribution.hook'
 import { NfeDocumentTable } from '../components/NfeDocumentTable.component'
 import { NfeImportQueue } from '../components/NfeImportQueue.component'
@@ -222,6 +224,10 @@ export function NfeWorkspacePage() {
   const distributionCursor = useDistributionCursor({
     ...(companyId === undefined ? {} : { companyId }),
     enabled: canManageSettings && settingsScope.distributionCursor,
+  })
+  const cargoVolume = useCargoVolumeFactor({
+    ...(companyId === undefined ? {} : { companyId }),
+    enabled: canManageSettings && settingsScope.cargoVolumeFactors,
   })
   const cargoSettings = useCargoSettings({
     ...(companyId === undefined ? {} : { companyId }),
@@ -439,6 +445,15 @@ export function NfeWorkspacePage() {
                               disabled={cargoSettings.saveMutation.isPending}
                               loading={cargoSettings.query.isLoading}
                               onSave={(weight) => cargoSettings.saveMutation.mutate(weight)}
+                            />
+                            <CargoVolumeFactorPanel
+                              canManage={canManageSettings}
+                              current={cargoVolume.current}
+                              factors={cargoVolume.factors}
+                              loading={cargoVolume.isLoading}
+                              onClear={() => cargoVolume.clear.mutate()}
+                              onSave={(volume) => cargoVolume.save.mutate(volume)}
+                              saving={cargoVolume.save.isPending}
                             />
                             <ScheduledDistributionPanel
                               disabled={scheduledDistribution.toggleMutation.isPending}

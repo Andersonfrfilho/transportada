@@ -9,11 +9,11 @@ Uma task por vez. Contrato **antes** da implementação, falhando primeiro. Evid
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T001** — Contrato de aba: o painel de cubagem existe em `SETTINGS_PANEL_PLACEMENT`, em
+- [x] **T001** — Contrato de aba: o painel de cubagem existe em `SETTINGS_PANEL_PLACEMENT`, em
       `nfe-workspace` / `imports`, **ao lado de `cargoWeight`**, e a consulta liga com
       `settingsScope`. Falha antes de existir. (RF1 · CA1)
-- [ ] **T002** — Declarar o painel no registro e no tipo `SettingsPanel`.
-- [ ] **T003** — Cliente HTTP do módulo para as três rotas
+- [x] **T002** — Declarar o painel no registro e no tipo `SettingsPanel`.
+- [x] **T003** — Cliente HTTP do módulo para as três rotas
       (`GET`/`PUT`/`DELETE /company-settings/cargo-volume-factors`), com validação de resposta no
       padrão de `*.validation.ts` — nada de `any`.
 
@@ -23,14 +23,14 @@ Uma task por vez. Contrato **antes** da implementação, falhando primeiro. Evid
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T004** — Contrato do painel: abre **preenchido** com o fator atual; zero é recusado com
+- [x] **T004** — Contrato do painel: abre **preenchido** com o fator atual; zero é recusado com
       mensagem no campo; desligar chama `DELETE`; sem `settings.manage` fica somente-leitura e
       **não some**. (P2, P3, D1 · CA2, CA3, CA4)
-- [ ] **T005** — Implementar o painel, com o campo pelos tokens e o texto de ajuda dizendo **o que
+- [x] **T005** — Implementar o painel, com o campo pelos tokens e o texto de ajuda dizendo **o que
       o número significa** (m³ por volume) e **o que ele afeta** (a ocupação na viagem). (RF4 · CA5)
-- [ ] **T006** — Formato brasileiro na entrada e na saída, para falar a mesma língua da viagem, que
+- [x] **T006** — Formato brasileiro na entrada e na saída, para falar a mesma língua da viagem, que
       já imprime `2,25 m³`. (RF2)
-- [ ] **T007** — A espécie aparece como **padrão** quando há uma linha só, e vira lista quando
+- [x] **T007** — A espécie aparece como **padrão** quando há uma linha só, e vira lista quando
       houver mais — sem obrigar o operador a entender hoje uma dimensão que ele não usa. (P4 · RF5)
 
 ---
@@ -39,7 +39,7 @@ Uma task por vez. Contrato **antes** da implementação, falhando primeiro. Evid
 
 > 🤖 Modelo: `haiku`
 
-- [ ] **T008** — `make check` verde, contrato de acentos verde, evidência completa.
+- [x] **T008** — `make check` verde, contrato de acentos verde, evidência completa.
 - [ ] **T009** — Verificar em staging: ligar a estimativa pela tela numa empresa sem fator, ver a
       ocupação aparecer na viagem, e desligar vendo-a sumir.
       ⚠️ O fator de staging foi gravado **direto no banco** na verificação da 075 — apagá-lo antes
