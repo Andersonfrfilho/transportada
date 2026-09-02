@@ -719,3 +719,10 @@
   gap: var(--space-2);
   margin-block: var(--space-2);
 }
+
+/* O mapa acompanha a largura do painel e não empurra a tela para o lado no celular (web.md §10). */
+.routeMap {
+  width: 100%;
+  height: auto;
+  color: var(--color-copper);
+}

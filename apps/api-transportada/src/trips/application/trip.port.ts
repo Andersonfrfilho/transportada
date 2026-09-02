@@ -78,6 +78,13 @@ export type TripDocumentDetail = TripDocument & {
  */
 export type TripStopDetail = {
   readonly addressKey: string
+  /**
+   * Spec 079 T012: onde a parada fica, para o mapa. Sai de `geocoded_addresses` pela `address_key`
+   * — **não** de `trip_stops.latitude/longitude`, que existem e nunca são escritos (achado da T009).
+   * `null` é endereço ainda não geocodificado, e a tela nomeia a parada fora do mapa.
+   */
+  readonly latitude: null | string
+  readonly longitude: null | string
   readonly arrivedAt: string | null
   readonly completedAt: string | null
   readonly deliveryWindowEnd: string | null

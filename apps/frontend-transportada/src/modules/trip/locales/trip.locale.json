@@ -310,5 +310,10 @@
       "avaria_transporte": "Avaria no transporte",
       "destinatario_ausente": "Destinatário ausente"
     }
+  },
+  "routeMap": {
+    "title": "Mapa do roteiro",
+    "withoutLocation": "Sem localização no mapa: {{stops}}",
+    "stopLabel": "Parada {{sequence}}: {{label}}"
   }
 }

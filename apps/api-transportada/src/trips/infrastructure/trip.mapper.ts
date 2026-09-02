@@ -51,7 +51,9 @@ export function mapTripDocument(record: TripDocumentRecord): TripDocument {
   }
 }
 
-export function mapTripStop(record: TripStopRecord): Omit<TripStopDetail, 'documents'> {
+export function mapTripStop(
+  record: TripStopRecord,
+): Omit<TripStopDetail, 'documents' | 'latitude' | 'longitude'> {
   return {
     addressKey: record.addressKey,
     arrivedAt: record.arrivedAt === null ? null : record.arrivedAt.toISOString(),

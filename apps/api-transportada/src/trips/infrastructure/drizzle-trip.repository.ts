@@ -10,6 +10,7 @@ import {
   freightCalculations,
   nfeDocuments,
 } from '../../database/database.schema.js'
+import { geocodedAddresses } from '../../database/geocoding.schema.js'
 import { tripDocuments, tripDrivers, tripStops, trips } from '../../database/trip.schema.js'
 import {
   violatedForeignKeyConstraint,
@@ -484,8 +485,22 @@ async function readTripDetail(
   // T014: uma única leitura de paradas, independente de quantas existirem — o agrupamento com as
   // notas já buscadas acima acontece em memória, não numa query por parada (§15 do code-standart.md).
   const stopRecords = await queryable
-    .select()
+    .select({
+      /**
+       * Spec 079 T012: a coordenada vem de `geocoded_addresses` pela `address_key`, **não** de
+       * `trip_stops.latitude/longitude` — essas colunas existem e nunca são escritas (achado da
+       * T009), e lê-las devolveria nulo em toda parada. `left join` porque endereço ainda não
+       * geocodificado é o caso normal, e a tela o nomeia fora do mapa.
+       *
+       * ⚠️ `geocoded_addresses` **não tem tenant** de propósito (ADR-0044): é cache de endereço
+       * público, e o recorte por empresa está na parada, que é o lado de cima da junção.
+       */
+      latitude: geocodedAddresses.latitude,
+      longitude: geocodedAddresses.longitude,
+      stop: tripStops,
+    })
     .from(tripStops)
+    .leftJoin(geocodedAddresses, eq(geocodedAddresses.addressKey, tripStops.addressKey))
     .where(and(eq(tripStops.companyId, input.companyId), eq(tripStops.tripId, input.tripId)))
     .orderBy(asc(tripStops.sequence))
 
@@ -509,10 +524,10 @@ async function readTripDetail(
     loadTripCargoWeight(queryable, { companyId: input.companyId, nfeDocumentIds }),
   ])
 
-  const stops = stopRecords.map((stopRecord) => ({
-    documents: documentsByStopId.get(stopRecord.id) ?? [],
-    label: stopRecord.label,
-    sequence: Number(stopRecord.sequence),
+  const stops = stopRecords.map((row) => ({
+    documents: documentsByStopId.get(row.stop.id) ?? [],
+    label: row.stop.label,
+    sequence: Number(row.stop.sequence),
   }))
 
   /**
@@ -544,9 +559,11 @@ async function readTripDetail(
     documents,
     drivers: driverRecords.map(mapTripDriver),
     occupancy: cargo.occupancy,
-    stops: stopRecords.map((stopRecord) => ({
-      ...mapTripStop(stopRecord),
-      documents: documentsByStopId.get(stopRecord.id) ?? [],
+    stops: stopRecords.map((row) => ({
+      ...mapTripStop(row.stop),
+      documents: documentsByStopId.get(row.stop.id) ?? [],
+      latitude: row.latitude,
+      longitude: row.longitude,
     })),
   }
 }

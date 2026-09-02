@@ -34,6 +34,7 @@ import { TripCargoLayoutPanel } from './TripCargoLayout.component'
 import { TripDeliveryProof } from './TripDeliveryProof.component'
 import { TripOccurrences } from './TripOccurrences.component'
 import { TripOccupancyPanel } from './TripOccupancy.component'
+import { TripRouteMap } from './TripRouteMap.component'
 import { resolveDeliveryProofView } from '../shared/deliveryProof.service'
 import { resolveTripProgress } from '../shared/tripProgress.service'
 import type { TripDocumentDetail } from '../shared/trip.types'
@@ -347,6 +348,8 @@ export function TripDetail({ linkForm, onClose, vehicles, workspace }: TripDetai
       <TripOccupancyPanel cargoWeight={trip.cargoWeight ?? null} occupancy={trip.occupancy} />
 
       <TripCargoLayoutPanel layout={trip.cargoLayout} occupancy={trip.occupancy} />
+
+      <TripRouteMap stops={trip.stops} />
 
       {selection.selectedIds.size > 0 ? (
         <div className={styles.selectionBar} role="status">

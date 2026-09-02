@@ -21,6 +21,7 @@ import {
   TRIP_KEYS,
   TRIP_STATUS_RESULT_KEYS,
   TRIP_STOP_KEYS,
+  TRIP_STOP_OPTIONAL_KEYS,
 } from './trip.constant'
 import {
   SCANNED_NFE_STATUS,
@@ -138,7 +139,14 @@ function isDocumentDetail(value: unknown): value is TripDocumentDetail {
 }
 
 function isStopDetail(value: unknown): value is TripStopDetail {
-  if (!hasExactKeys(value, TRIP_STOP_KEYS)) return false
+  if (
+    !hasKeys(value, {
+      allowed: [...TRIP_STOP_KEYS, ...TRIP_STOP_OPTIONAL_KEYS],
+      required: TRIP_STOP_KEYS,
+    })
+  ) {
+    return false
+  }
   return (
     isString(value.addressKey) &&
     isNullableString(value.arrivedAt) &&

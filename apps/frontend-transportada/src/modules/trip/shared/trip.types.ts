@@ -105,6 +105,9 @@ export type TripDocumentDetail = TripDocument &
  * agrupa — nunca uma cópia divergente. Nota sem parada não aparece em nenhum `TripStopDetail`. */
 export type TripStopDetail = Readonly<{
   addressKey: string
+  /** Spec 079 T012: de `geocoded_addresses`; `null` é endereço ainda não geocodificado. */
+  latitude?: null | string
+  longitude?: null | string
   arrivedAt: null | string
   completedAt: null | string
   deliveryWindowEnd: null | string
