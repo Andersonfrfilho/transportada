@@ -327,7 +327,9 @@ para conferir isto antes de desenhar — e conferiu.
 
 ⚠️ **Não é chave divergente, normalização nem tenant** — as três hipóteses foram descartadas com
 consulta. É cópia ausente.
+
 ---
+
 ## T019 — a origem deixou de ser calculada e descartada (CA10 fechada)
 
 **Data:** 2026-09-02.
