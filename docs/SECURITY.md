@@ -87,6 +87,51 @@ payload é lista fechada, sem id interno; e o teto de leitura é cem linhas por 
 **Desfecho pendente:** limitador por usuário autenticado, junto com o das rotas anônimas de senha —
 é uma decisão só, e é infraestrutura, não regra de domínio.
 
+### 2026-09-02 — a leitura do anexo grava CPF e CNH em texto puro, e sem prazo de descarte
+
+**Onde:** `api-transportada`/`worker-transportada`, coluna
+`aggregate_application_attachments.extracted_fields` (jsonb).
+
+**O que é:** a spec 071 ampliou o que o servidor lê do anexo da candidatura, e tudo que ele lê é
+gravado nessa coluna **inteiro, como veio**. Antes só o CCMEI era lido, e dele saíam razão social,
+CNPJ, endereço e o nome do empresário. Agora saem também:
+
+- do **CRLV**: `ownerTaxId` — o **CPF do proprietário do veículo** — e `ownerName`;
+- da **CNH**, por OCR: `licenseNumber` (o número de registro), `licenseCategory` e `name`.
+
+O `licenseNumber` é exatamente o campo que a ADR-0039 decidiu cifrar em `fleet_drivers`, e o
+argumento que tornava aquela mudança barata — "não há leitor" — não vale aqui: esta coluna existe
+para ser lida, é o que o operador confere na fila de revisão.
+
+⚠️ E ela **não tem prazo de descarte**. A tabela nasceu sem `expires_at` por decisão de 2026-08-27,
+registrada no próprio schema, porque o rascunho é o comprovante do que o candidato digitou. A
+consequência que aquela decisão já antecipava — "PII sem prazo de descarte torna a ADR-0039 mais
+urgente, não menos" — cresceu com a 071: agora é PII de quem **não foi aprovado** e talvez nunca
+seja, guardada sem data para sair.
+
+**Risco:** dump de banco ou backup vazado expõe CPF, número de CNH e nome de todo mundo que se
+candidatou — inclusive de terceiros que nunca se candidataram, porque o proprietário do veículo do
+CRLV frequentemente **não é** o candidato (é o caso normal do agregado que roda com veículo de
+outra pessoa, e a própria spec 071 o trata como esperado). Essas pessoas não têm relação com a
+transportadora e não consentiram com nada.
+
+Este é o **terceiro** lugar do mesmo banco com CPF em claro, ao lado de `fleet_drivers.tax_id` e
+`identity_user_profiles.tax_id` (achados de 2026-08-20 e 2026-08-26).
+
+**Mitigação em vigor:** a coluna só é lida por rota autenticada com `fleet.manage` e escopo de
+empresa; a leitura nunca volta para o formulário de quem se candidatou; o bucket é privado e o
+backup é cifrado antes de subir, com a chave fora dele. Nada disso protege contra dump do banco.
+
+**Desfecho pendente:** duas decisões, e elas são independentes.
+
+1. **Cifra:** entra junto com a decisão já pendente de `fleet_drivers` + `identity_user_profiles` —
+   resolver um lugar de três não fecha nada, e agora são três.
+2. **Retenção:** dar prazo ao rascunho não revisado, ou apagar `extracted_fields` quando a
+   candidatura é recusada. É a metade barata, não depende da cifra, e é a que reduz o volume
+   exposto — hoje ele só cresce.
+
+**Dono:** a definir.
+
 ### 2026-08-26 — CPF do usuário fica em texto puro em `identity_user_profiles`
 
 **Onde:** `api-transportada`, módulo `identity` (coluna `identity_user_profiles.tax_id`).
