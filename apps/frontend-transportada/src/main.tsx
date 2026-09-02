@@ -7,6 +7,7 @@ import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { registerSW } from 'virtual:pwa-register'
 
+import { COPY_FEEDBACK_MILLISECONDS } from '@/modules/shared/clipboard.constant'
 import { BillingInvoiceDetailPage } from '@/modules/billing/pages/BillingInvoiceDetail.page'
 import { BillingWorkspacePage } from '@/modules/billing/pages/BillingWorkspace.page'
 import { parseBillingInvoiceRoute } from '@/modules/billing/shared/billingInvoiceRoute.service'
@@ -403,6 +404,20 @@ function ApplicationShell(): ReactNode {
    * próximo login. Buscar os bytes pela API é o mesmo caminho que os diálogos já usam, e ele
    * atualiza assim que o envio termina.
    */
+  const [hasCopiedEmail, setHasCopiedEmail] = useState(false)
+
+  /** A área de transferência falha em contexto sem permissão: o ✓ só aparece se o valor foi mesmo. */
+  async function copyEmail(email: string | undefined): Promise<void> {
+    if (email === undefined) return
+    try {
+      await navigator.clipboard.writeText(email)
+      setHasCopiedEmail(true)
+      window.setTimeout(() => setHasCopiedEmail(false), COPY_FEEDBACK_MILLISECONDS)
+    } catch {
+      setHasCopiedEmail(false)
+    }
+  }
+
   const headerPicture = useCompanyUserPicture({
     userId: authMeQuery.data?.data.identity.userId,
   })
@@ -554,9 +569,26 @@ function ApplicationShell(): ReactNode {
                     {authMeQuery.isLoading ? 'Carregando' : userProfile.displayName}
                   </span>
                   {!authMeQuery.isLoading && userProfile.subtitle !== undefined ? (
-                    <span className="application-user-subtitle">{userProfile.subtitle}</span>
+                    <span className="application-user-subtitle">
+                      <span className="application-user-email">{userProfile.subtitle}</span>
+                    </span>
                   ) : null}
                 </span>
+                {/* Na fileira de controles, não sob o e-mail: ali ele crescia o cabeçalho em 18px
+                    justamente no celular, onde a tela é o recurso escasso. */}
+                {!authMeQuery.isLoading && userProfile.subtitle !== undefined ? (
+                  <Button
+                    aria-label="Copiar e-mail"
+                    className="application-user-copy-email"
+                    onClick={() => void copyEmail(userProfile.subtitle)}
+                    size="sm"
+                    title="Copiar e-mail"
+                    type="button"
+                    variant="ghost"
+                  >
+                    <Icon name={hasCopiedEmail ? 'check' : 'copy'} />
+                  </Button>
+                ) : null}
                 <Button
                   aria-label="Sair"
                   className="application-logout-button"

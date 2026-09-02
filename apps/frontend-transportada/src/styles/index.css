@@ -638,11 +638,28 @@ a {
 }
 
 .application-user-subtitle {
-  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
   color: var(--color-slate);
   font-size: 0.72rem;
+}
+
+/* O corte com reticências mora no texto, não no contêiner: num flex, o pai não trunca o filho. */
+.application-user-email {
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* O e-mail encolhe e o botão não: sem `flex-shrink`, o alvo de toque some antes do texto. */
+.application-user-copy-email {
+  flex-shrink: 0;
+  width: var(--control-height-compact);
+  min-width: var(--control-height-compact);
+  height: var(--control-height-compact);
+  padding: 0;
 }
 
 .application-logout-button {
