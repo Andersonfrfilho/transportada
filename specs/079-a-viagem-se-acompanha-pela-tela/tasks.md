@@ -193,3 +193,26 @@ task; `evidence.md` só depois da verificação executada, com o que ficou de fo
 
 Contrato novo se prova por **mutação**: quebrar a regra, ver reprovar, restaurar. Contrato que nunca
 viu o defeito é decoração.
+
+## Fora do `tasks.md`, e fechadas junto
+
+- [x] **Polling** ✅ **2026-09-02.** O `refetchInterval` existia desde a 057 P2 mas olhava só o
+      estado da viagem: uma viagem despachada com tudo entregue seguia batendo no servidor para
+      sempre, porque o estado só vira `completed` quando alguém fecha. Agora são **duas** condições
+      — estar na rua e haver nota que ainda pode mudar —, mais o botão "Atualizar agora" ao lado do
+      automático.
+
+- [x] **Cadeia órfã de `deliverDocument`** ✅ **2026-09-02: decidido NÃO remover, com guarda.**
+
+      `repository.deliverDocument` → `useCase.deliverDocument` ficou sem chamador quando a rota de
+      entregar passou para a máquina de estados. Ela é a escrita que gravava `delivered_at` sem
+      tocar em `separation_status` — o defeito que travou a barra de progresso.
+
+      ⚠️ `test/integration/trip-repository.integration.ts` a usa para **preparar** o estado "nota
+      entregue" e então provar que o `release` a recusa e que o tenant vizinho não escreve na nota
+      alheia. Trocá-la por um `UPDATE` cru contradiria a regra do produto (`separation_status` nunca
+      muda por UPDATE direto) e enfraqueceria cobertura de isolamento por causa de uma limpeza.
+
+      O que impede o defeito de voltar é `test/trip-delivery-proof/orphan-deliver.contract.ts`:
+      religar a rota à escrita antiga **reprova**. Remover a cadeia continua sendo limpeza legítima
+      — mas é task própria, e ela começa por dar outra preparação de estado àquele teste.
