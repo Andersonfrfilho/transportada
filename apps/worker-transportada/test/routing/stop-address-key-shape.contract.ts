@@ -3,6 +3,8 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import { readFile } from 'node:fs/promises'
+
 import { buildStopAddressKey } from '../../src/routing/domain/pool-address-key.js'
 import { parseStopAddressKey } from '../../src/routing/domain/stop-address-key.js'
 
@@ -23,6 +25,32 @@ import { parseStopAddressKey } from '../../src/routing/domain/stop-address-key.j
  * (`drizzle-pending-address.repository.ts`, na rotina de população).
  */
 describe('a forma da chave de parada é contrato (spec 069, T016)', () => {
+  /**
+   * ⚠️ `concat_ws` **pula argumento nulo**: com `city_code` nulo a chave montada em SQL sai com duas
+   * partes, enquanto `buildStopAddressKey` produz três — a normalização dela transforma nulo em
+   * vazio. A rotina de população adiantaria uma chave que ninguém consulta, calada.
+   *
+   * Medido no Postgres: `concat_ws('|', NULL, '14015000', '100')` → `14015000|100`.
+   */
+  test('the SQL that rebuilds the key coalesces a null city code', async () => {
+    const source = await readFile(
+      new URL(
+        '../../src/geocoding-backfill/infrastructure/drizzle-pending-address.repository.ts',
+        import.meta.url,
+      ),
+      'utf8',
+    )
+    /** Só as expressões que **montam** a chave; o `select` do valor cru não precisa coalescer. */
+    const keyExpressions = source
+      .split('\n')
+      .filter((line) => line.includes('concat_ws') && line.includes('city_code'))
+
+    expect(keyExpressions.length).toBeGreaterThan(0)
+    for (const line of keyExpressions) {
+      expect(line).toContain(`coalesce(a."city_code", '')`)
+    }
+  })
+
   test('is city code, postal code and number, joined by a pipe', () => {
     expect(
       buildStopAddressKey({ cityCode: '3543402', number: '100', postalCode: '14015000' }),

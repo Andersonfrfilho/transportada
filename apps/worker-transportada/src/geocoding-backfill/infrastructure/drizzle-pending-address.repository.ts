@@ -23,8 +23,17 @@ export type PendingAddressDatabase = ReturnType<typeof createDrizzleProvider>['d
  * chave que ninguém vai consultar** — trabalho perdido, nunca dado errado. Quem consulta é sempre a
  * chave normalizada de verdade, e o que não casar simplesmente cai na RF2 e resolve na hora.
  *
- * ⚠️ Por isso o filtro é conservador: só nota com CEP de oito dígitos e município preenchido. O
- * complicado da normalização é o **número**, e ele não entra em nenhuma decisão dos degraus 1 e 2.
+ * ⚠️ **`coalesce` no município não é enfeite, e a falta dele era defeito.** `concat_ws` **pula
+ * argumento nulo**: com `city_code` nulo a chave saía com duas partes (`14015000|100`), enquanto
+ * `buildStopAddressKey` produz três (`|14015000|100`) — porque a normalização dela transforma nulo em
+ * vazio. Medido no Postgres, não suposto.
+ *
+ * O filtro antigo escondia isso exigindo município preenchido, o que era **seguro e caro**: nenhuma
+ * nota sem `city_code` era adiantada, e `nfe_addresses.city_code` é nulo com frequência — a ponto de
+ * existir um backfill próprio só para ele (`nfe-address-city-code-backfill.main.ts`).
+ *
+ * Município vazio não atrapalha esta rotina: ela resolve pelo **CEP** e declina o centroide de
+ * município de propósito, então o campo que faltava não era usado para nada aqui.
  */
 export function createDrizzlePendingAddressSource(
   database: PendingAddressDatabase,
@@ -33,23 +42,22 @@ export function createDrizzlePendingAddressSource(
     async list(input) {
       const rows = (await database.execute(sql`
         select distinct
-          concat_ws('|', a."city_code", regexp_replace(a."postal_code", '\\D', '', 'g'),
+          concat_ws('|', coalesce(a."city_code", ''), regexp_replace(a."postal_code", '\\D', '', 'g'),
             upper(coalesce(nullif(trim(a."number"), ''), 'S/N'))) as address_key,
-          a."city_code" as city_code,
+          coalesce(a."city_code", '') as city_code,
           regexp_replace(a."postal_code", '\\D', '', 'g') as postal_code
         from nfe_addresses a
         join nfe_participants p
           on p."id" = a."participant_id" and p."company_id" = a."company_id"
         where p."role" = 'recipient'
           and length(regexp_replace(a."postal_code", '\\D', '', 'g')) = 8
-          and coalesce(a."city_code", '') <> ''
           and not exists (
             select 1 from geocoded_addresses g
-            where g."address_key" = concat_ws('|', a."city_code",
+            where g."address_key" = concat_ws('|', coalesce(a."city_code", ''),
               regexp_replace(a."postal_code", '\\D', '', 'g'),
               upper(coalesce(nullif(trim(a."number"), ''), 'S/N')))
           )
-          ${input.after === undefined ? sql`` : sql`and concat_ws('|', a."city_code", regexp_replace(a."postal_code", '\\D', '', 'g'), upper(coalesce(nullif(trim(a."number"), ''), 'S/N'))) > ${input.after}`}
+          ${input.after === undefined ? sql`` : sql`and concat_ws('|', coalesce(a."city_code", ''), regexp_replace(a."postal_code", '\\D', '', 'g'), upper(coalesce(nullif(trim(a."number"), ''), 'S/N'))) > ${input.after}`}
         order by address_key
         limit ${input.limit}
       `)) as unknown as {
