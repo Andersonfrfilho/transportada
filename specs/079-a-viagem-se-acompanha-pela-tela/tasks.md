@@ -174,10 +174,10 @@ number`): sem `encodeURIComponent` o pipe quebra o caminho e o servidor responde
 
 ## Fase 3 — Fechamento
 
-- [ ] **T014** Smoke em 375px do detalhe com painel, progresso e mapa — sem rolagem horizontal (CA4).
-- [ ] **T015** Contrato de privacidade: a tela **não** referencia `birthDate`, `phone` nem
+- [x] **T014** Smoke em 375px do detalhe com painel, progresso e mapa — sem rolagem horizontal (CA4).
+- [x] **T015** Contrato de privacidade: a tela **não** referencia `birthDate`, `phone` nem
       `licenseNumber` (CA5). Provar por mutação — acrescentar o campo e ver reprovar.
-- [ ] **T016** `evidence.md` com o que entrou, o que ficou de fora e por quê.
+- [x] **T016** ✅ **Escrita em 2026-09-02** — `evidence.md`, com as provas por mutação, o que ficou de fora, e o que **não foi verificado** (a migration da T020 contra Postgres).
 
 ## O que entra depois, e atrás de quê
 
