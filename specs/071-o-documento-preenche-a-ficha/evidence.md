@@ -154,21 +154,58 @@ bun run format:check && bun run lint && bun run typecheck && bun run test
 
 **7177 testes, zero falhas.** A linha de base desta branch, antes da spec, era 7127.
 
+## O pacote publicado
+
+`0.1.0-rc.4` foi publicada pela pipeline do GitHub — nada saiu daqui: o `NPM_TOKEN` só existe no
+ambiente `production` do repositório. O caminho foi `git push origin HEAD:main` →
+workflow **CI** (33575291723, verde) → **Publish packages** (33575499222, verde) via `workflow_run`.
+
+⚠️ A pipeline roda `pnpm changeset version` por conta própria, o que poderia bumpar para `rc.5` e
+deixar as quatro apps apontando para uma versão que não existe. Não aconteceu, e o motivo é o **pre
+mode**: ali o `version` não apaga o arquivo do changeset, ele o registra como consumido em
+`pre.json` — por isso os 193 `.md` continuam no repositório. Conferido antes de subir, rodando
+`changeset version` de novo localmente: nenhum diff. A pipeline registrou "No version changes to
+commit" e publicou exatamente a `rc.4`.
+
+```
+curl https://registry.npmjs.org/@adatechnology%2fdocument-intake/0.1.0-rc.4   # HTTP 200, sem credencial
+npm view @adatechnology/document-intake@0.1.0-rc.4 version                    # 0.1.0-rc.4
+```
+
+Depois disso, `bun install` no `transportada` trocou o `bun.lock` de `rc.3` para `rc.4` nas quatro
+apps, contra o pacote **de verdade** do registry (as cópias instaladas à mão foram apagadas antes):
+
+```
+bun install --frozen-lockfile                                    # 689 installs, no changes
+bun run format:check && bun run lint && bun run typecheck && bun run test
+ 3845 · 873 · 94 · 2241 · 17 · 107 pass   0 fail                 # 7177, os mesmos números
+make worker-integration
+ 63 pass   4 skip   1 fail                                        # ver abaixo
+```
+
+Os 4 `skip` são os do OSRM, que é opt-in por desenho (spec 058).
+
 ## O que não fechou, e por quê
 
-**`test/integration/sigterm.integration.ts` falha neste worktree** (`0 pass, 1 fail`, timeout de
-40s), e **não é desta spec**. O que foi medido:
+**`test/integration/sigterm.integration.ts` falha em qualquer worktree**, e não tem relação com esta
+spec. A medição, em quatro passos:
 
-1. Revertendo **todo** o `apps/` para o commit base (`git checkout e837a473 -- apps/`), o teste
-   continua falhando neste worktree.
-2. O mesmo teste, no checkout principal em `staging`, com a mesma carga de máquina, passa
-   (`1 pass, 0 fail`).
-3. Revertendo só o `main.ts` (a única fiação de worker desta spec), continua falhando.
+1. Revertendo **todo** o `apps/` para o commit base (`git checkout e837a473 -- apps/`), continua
+   falhando neste worktree.
+2. Revertendo só o `main.ts` — a única fiação de worker desta spec —, continua falhando.
+3. No checkout principal em `staging`, com a mesma carga de máquina, passa (`1 pass, 0 fail`).
+4. **Decisivo:** um worktree novo, criado no commit base (`e837a473`, antes de qualquer coisa desta
+   spec) e com `bun install` limpo, **também falha**.
 
-Ou seja: a causa está no ambiente do worktree, não no código. A suspeita mais forte é o estado de
-instalação do pacote não publicado (`package.json` em `rc.4`, `bun.lock` em `rc.3`) — o mesmo motivo
-que derruba `make worker-integration` no `bootstrap`. **Reverificar depois de publicar a `rc.4`**, com
-`make worker-integration` inteiro. O resto da integração do worker passa: `63 pass, 4 skip` na
-mesma execução, com os 4 `skip` sendo os do OSRM, que é opt-in.
+⚠️ A primeira suspeita — o estado de instalação do pacote não publicado — está **descartada**: o
+teste continua falhando depois da `rc.4` publicada, com o lockfile refeito e
+`--frozen-lockfile` verde. O que sobra é o worktree em si. A causa mais plausível é o `.env` ser
+**symlink** ali (é assim que `make worktree` o liga) e o teste subir um processo Bun novo
+(`Bun.spawn(['bun', 'src/main.ts'])`) que depende do carregamento automático desse arquivo — mas isso
+é hipótese, não medição, e fica registrado como tal.
+
+Consequência prática: **este teste só se verifica no checkout principal**, e é lá que ele foi
+verificado. O resto da integração do worker passa no worktree (`63 pass`), incluindo o caminho ponta
+a ponta desta spec.
 
 Há também um `bun --watch ./src/main.ts` de outra sessão rodando nesta máquina durante as medições.
