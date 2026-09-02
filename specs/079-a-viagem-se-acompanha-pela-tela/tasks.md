@@ -101,3 +101,95 @@ consentimento do motorista, e entram quando essas existirem. Ver a seção final
       sessão, e `make migration-test` não rodou. O CHECK dos sete tipos é conferido por leitura do
       SQL (`test/trip-occurrence/catalog.contract.ts`), o que pega tipo esquecido mas **não** pega
       erro de sintaxe nem de constraint. Rodar `make migration-test` antes de publicar em produção.
+
+- [x] **T021** ✅ **Fechada em 2026-09-02.** Os dois blocos vieram para antes de `TripStopList`;
+      o que se **lê** — progresso, ocupação, mapa de carga — continua acima. Contrato de ordem por
+      posição no JSX, provado por mutação.
+- [ ] **T022** Contato do cliente e **contratante** na linha da entrega. ⚠️ Atrás da ADR do contato
+      (ver o fim deste arquivo): o telefone do destinatário vem de XML fiscal.
+
+## Fase 2 — Progresso e mapa
+
+- [x] **T009** ✅ **Respondida em 2026-09-02: a coordenada chega, e a fase 2 está liberada.**
+      Roteiro medido em staging com doze paradas reais: **51 813 m**, trechos de 34 893, 1 059, 2 920
+      e 908 metros. `readStops` junta `geocoded_addresses` pela `address_key`, o OSRM responde, e as
+      coordenadas são distintas.
+
+      ⚠️ Dois achados que a T012 e a T013 herdam: `geocoding_precision` da parada da sugestão sai
+      **`null`** (o `applyResolvedCoordinates` grava coordenada e não grava precisão), então o mapa
+      **não pode** confiar nesse campo para distinguir rooftop de centroide — leia
+      `geocoded_addresses`. E `trip_stops.latitude/longitude/geocoding_precision` **nunca são
+      escritos**, apesar de o app do motorista lê-los.
+
+- [x] **T010** ✅ **Fechada em 2026-09-02.** `tripProgress.service.ts`: rascunho não tem progresso
+      nem previsão, e uma parada concluída não dá ritmo (com um ponto só não há intervalo para
+      medir). A previsão parte do mais recente entre a última conclusão e agora — partir só da
+      última daria término no passado para um caminhão parado, e o contrato pegou isso.
+- [x] **T011** ⚠️ **`TripProgressBar.component.tsx` JÁ EXISTE** e já está no detalhe da viagem
+      (`TripDetail.component.tsx:319`), com segmento por estado — entregue, carregada, pendente,
+      devolvida, separada — e porcentagem. **Não recriar.**
+
+      ✅ **Fechada em 2026-09-02**, e só com o que faltava: transição de largura com
+      `prefers-reduced-motion` desligando **este** seletor, e a previsão ao lado. Sem ritmo medido a
+      linha aparece dizendo que não há previsão, em vez de sumir — ausência de previsão é
+      informação, e esconder a linha faz o operador achar que a tela não carregou.
+
+- [x] **T012** ✅ **Fechada em 2026-09-02.** ⚠️ Não é cópia do `mapProjection.service.ts` do portal
+      do cliente: lá a janela é fixa porque há um ponto só; aqui ela enquadra o roteiro inteiro. Sem
+      extensão — uma parada, ou várias no mesmo portão — o ponto vai ao centro, senão a divisão pela
+      amplitude daria `NaN` em toda coordenada.
+- [x] **T013** ✅ **Fechada em 2026-09-02**, pelo primitivo `VectorMap` que já existia para a malha
+      do IBGE. A coordenada sai de `geocoded_addresses` pela `address_key` — `trip_stops.latitude`
+      existe e nunca é escrita (achado da T009), e lê-la devolveria nulo em toda parada.
+
+### P10 · P11 · P13 — o ponto se corrige, a ordem se edita, o anexo se abre
+
+- [x] **T023** ✅ **Fechada em 2026-09-02.** A rota `PATCH /geocoded-addresses/:addressKey` já
+      existia **inteira** e sem consumidor nenhum. ⚠️ A chave não é UUID (`cityCode|postalCode|
+  number`): sem `encodeURIComponent` o pipe quebra o caminho e o servidor responde 404 para um
+      endereço que existe. O texto diz que a correção vale para **todas** as viagens que passem por
+      aquele portão, não só a que está aberta.
+- [ ] **T024** 🧠 Reordenar as paradas **na proposta**, antes de aceitar. **Não** é o arraste de
+      `TripStopList`, que reordena a viagem.
+
+      **Decidido em 2026-09-02: a distância some, e a tela diz por quê.** Recalcular exigiria a
+      matriz do OSRM, que roda no **worker** — um GA dentro do `Bun.serve` derruba o event loop
+      (ADR-0044 §7), e é por isso que a sugestão já é assíncrona. Rota nova, fila nova e espera nova
+      por um número que o operador reconfere ao aceitar.
+
+      Publicar o número velho ao lado da ordem nova é a mentira que a task nomeia; **esconder sem
+      dizer** é a versão silenciosa dela — quem viu 51 km e depois não vê nada conclui que a tela
+      quebrou. A distância sai e o lugar dela é ocupado pela frase que explica.
+
+- [x] **T025** ✅ **Fechada junto com a T006 em 2026-09-02: são a mesma tela.** "Ver anexos da
+      entrega" é abrir o comprovante, e duas telas para o mesmo canhoto seria divergência garantida.
+      O painel abre pela linha da nota, só quando há entrega ou devolução para comprovar.
+- [ ] **T026** ⛔ **Coordenada por estado (separar, carregar, entregar).** `trip_documents` tem os
+      horários e **nenhuma coordenada**: exige migration.
+
+      ⚠️ **Não começa sem decisão registrada.** O rastro da viagem se apaga no fechamento
+      (`purgeByTrip`, ADR-0050 §5); este **não se apagaria** — fica no histórico da entrega. É rastro
+      do trabalhador mais duradouro que o que ele consentiu, e muda a promessa feita a ele. Depende
+      da feature de consentimento **e** de decidir a retenção.
+
+## Fase 3 — Fechamento
+
+- [ ] **T014** Smoke em 375px do detalhe com painel, progresso e mapa — sem rolagem horizontal (CA4).
+- [ ] **T015** Contrato de privacidade: a tela **não** referencia `birthDate`, `phone` nem
+      `licenseNumber` (CA5). Provar por mutação — acrescentar o campo e ver reprovar.
+- [ ] **T016** `evidence.md` com o que entrou, o que ficou de fora e por quê.
+
+## O que entra depois, e atrás de quê
+
+| história         | depende de                            | o que falta                                                                                                                                    |
+| ---------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| **P2** — contato | ADR do contato do destinatário        | telefone de XML fiscal usado para contato é finalidade nova sob a LGPD; a ADR escreve por que é compatível, quem revela e o que fica na trilha |
+| **P3** — rastro  | feature de consentimento do motorista | tela de primeiro acesso com termos, aceite versionado, caminho de retirada, e a decisão de **não** bloquear quem não aceita                    |
+
+## Gates de toda task
+
+`bun run lint`, `bun run typecheck`, `bun test` e `bun run build` do app tocado; commit isolado por
+task; `evidence.md` só depois da verificação executada, com o que ficou de fora escrito nele.
+
+Contrato novo se prova por **mutação**: quebrar a regra, ver reprovar, restaurar. Contrato que nunca
+viu o defeito é decoração.
