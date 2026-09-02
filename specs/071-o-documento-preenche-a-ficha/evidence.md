@@ -41,11 +41,11 @@ esperando ausência: `8 pass, 2 fail`, com `Received: "FURGAO"` e `Received: "SA
 `await`). Trocadas por strings que o erro não contém, mais o registro da CNH esperando o CPF:
 `6 pass, 3 fail` — as três falham, então elas mordem. Desfeito, `9 pass`.
 
-⚠️ **`rc.4` não foi publicada** — o pedido foi parar antes de publicar, e publicar no npm é
-publicar. Para as apps compilarem e os testes rodarem agora, a versão construída foi instalada
-localmente em `apps/*/node_modules`. Consequência medida: `make worker-integration` e qualquer alvo
-que passe por `bootstrap` falham em `bun install --frozen-lockfile` com
-`No version matching "0.1.0-rc.4" found` — é a dependência de release que a própria spec previu.
+⚠️ **Enquanto a `rc.4` não estava publicada**, a versão construída foi instalada à mão em
+`apps/*/node_modules` para o gate rodar, e todo alvo que passa por `bootstrap`
+(`bun install --frozen-lockfile`) falhava com `No version matching "0.1.0-rc.4" found` — a
+dependência de release que a própria spec previu. Isso foi **resolvido**: ver "O pacote publicado" e
+"O fecho" mais abaixo. O registro fica porque é a consequência medida de separar o release do código.
 
 ## Fase 1 — O CRLV preenche o que ele diz
 
@@ -219,3 +219,41 @@ make worker-integration
 ```
 
 Os 4 `skip` são os do OSRM, que é opt-in por desenho (spec 058). **Nada em aberto.**
+
+## O fecho — 02/09/2026
+
+A spec entrou em `staging` e o pacote entrou no npm. O estado final, conferido contra o registry e
+contra o repositório, não contra o log de quem publicou:
+
+|                                  |                                                              |
+| -------------------------------- | ------------------------------------------------------------ |
+| `transportada`                   | `origin/staging` = `03362af0`, árvore limpa                  |
+| `adatechnology-packages`         | `origin/main` = `a5ebdeb`, árvore limpa                      |
+| `@adatechnology/document-intake` | **`0.1.0`** estável, `latest` e `rc` corretos                |
+| Apps consumindo                  | api, worker, painel e landing em `0.1.0`, `bun.lock` refeito |
+| Gate da raiz                     | **7240 pass · 0 fail** (`3891 · 882 · 94 · 2248 · 18 · 107`) |
+
+### Três decisões tomadas depois do plano, todas pedidas por escrito
+
+1. **Publicar.** O `goal.md` mandava parar antes de publicar, e a sessão parou. O usuário então pediu
+   a publicação pela pipeline do GitHub — que é como este repositório publica: o `NPM_TOKEN` só
+   existe no ambiente `production`, e nada sai de máquina local.
+2. **Consertar as dist-tags.** A `rc` estava presa na **primeira versão da linha** em 26 pacotes
+   (`user-ui` quatorze versões atrás), e `conversations-ui` e `products-ui` tinham `latest` no
+   `0.0.0` de andaime publicado por acidente em 26/07/2026 — `npm install` entregava pacote vazio,
+   sem erro. Os dois consertos entraram como passos idempotentes do `publish.yml`, derivados do
+   workspace, nunca como retag manual.
+3. **Sair do pre mode.** Medido antes de executar: `changeset pre exit` é do repositório inteiro, e
+   lançaria 47 pacotes de uma vez, incluindo três `1.0.0` e o `fiscal-provider` em `0.3.0`. Levado ao
+   usuário com esse número na frente, e executado com a decisão dele. Resultado conferido pacote a
+   pacote: **51 públicos, 0 faltando**.
+
+### O que ficou registrado como erro meu
+
+- **Duas hipóteses erradas** sobre a falha do `sigterm.integration` (pacote não publicado; "worktree
+  não passa"), ambas por comparar ambientes que diferiam em mais de uma variável. A causa real era o
+  `7fe18b47` da `staging`.
+- **Um aviso errado no `CLAUDE.md`**, que mandaria a próxima sessão ignorar essa falha. Removido.
+- **Uma pipeline vermelha em release correto**: o passo de verificação de acesso tinha retry curto
+  (3 × 10s) e acusava propagação do registry como indisponibilidade. Corrigido para espera crescente
+  (~3min por pacote) e provado numa execução de verdade — run verde, 51 pacotes conferidos.

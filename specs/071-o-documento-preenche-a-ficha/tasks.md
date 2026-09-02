@@ -51,11 +51,13 @@ partilhado na `spec.md`.
 ✅ **As 17 tasks fechadas**, com evidência em `evidence.md` — o comando que rodou e o número que ele
 deu, mais a falsificação de todo teste central que passou de primeira.
 
-⚠️ **A `0.1.0-rc.4` do `@adatechnology/document-intake` não foi publicada.** O pedido foi parar antes
-de publicar. As quatro apps já apontam para ela e a versão construída está instalada localmente, o
-que faz o gate inteiro rodar; o que **não** roda até a publicação é qualquer alvo que passe por
-`bootstrap` (`bun install --frozen-lockfile`), incluindo `make worker-integration`. Ver a última
-seção do `evidence.md`.
+✅ **O pacote publicado e consumido.** `@adatechnology/document-intake` saiu como `0.1.0-rc.4` pela
+pipeline e depois como **`0.1.0` estável**, quando o repositório de pacotes saiu do pre mode; as
+quatro apps do `transportada` apontam para a `0.1.0`, com `bun.lock` refeito contra o registry.
+
+✅ **Fechada em 02/09/2026.** Gate da raiz verde, `make migration-test` e `make worker-integration`
+inteiros — inclusive o `sigterm.integration`, cuja falha era da 070 e já estava corrigida na
+`staging` (ver a última seção do `evidence.md`).
 
 ## Gates de toda task
 
