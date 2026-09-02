@@ -15,9 +15,18 @@ consentimento do motorista, e entram quando essas existirem. Ver a seção final
       origem**. Contrato antes: nota parcial cai em volume, zero é recusado, ausência é ausência.
 - [ ] **T002** Ocupação do veículo com a origem impressa — `TripVehiclePanel.component.tsx`.
       Contrato: nenhum número aparece sem a origem ao lado (CA2).
-- [ ] **T003** 🧠 Desenho SVG do veículo com ocupação. **Antes de codar, escrever no comentário do
-      componente o que a animação comunica além da barra.** Se não houver resposta, a animação não
-      entra. Contrato: `prefers-reduced-motion` desliga o movimento.
+- [x] **T003** ✅ **Respondida em 2026-09-02: já existe inteira, e a animação também.**
+      `TripCargoLayout.component.tsx` (spec 076) desenha o baú em escala, fatiado por parada, com
+      seis tons distinguíveis; a transição é `flex-grow 240ms ease` e `@media (prefers-reduced-motion:
+  reduce)` já a desliga (`trip.module.css`). Nada a fazer.
+
+      ⚠️ O desenho é **representação proporcional, não plano de estiva** — a NF-e não traz dimensão
+      de volume, então não há como dizer onde cada caixa vai. Quem for mexer nele não deve fazê-lo
+      sugerir posição de peça: a diferença entre "esta fatia é da parada 3" e "esta caixa vai neste
+      canto" é a diferença entre ajudar e enganar.
+
+      É o **sexto** item desta spec que pedia para criar algo existente. A conferência de existência
+      antes de escrever arquivo novo deixou de ser recomendação e é o primeiro passo de toda task.
 
 ### P5 — a prova da entrega
 
