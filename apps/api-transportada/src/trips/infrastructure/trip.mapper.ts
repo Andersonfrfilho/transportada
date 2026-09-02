@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { FreightCalculationStatus } from '../../database/freight.schema.js'
+import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
 import type { NfeDocumentStatus } from '../../database/nfe.schema.js'
 import type { tripDocuments, tripDrivers, tripStops, trips } from '../../database/trip.schema.js'
 import type {
@@ -34,6 +35,7 @@ export function mapTripDocument(record: TripDocumentRecord): TripDocument {
   return {
     createdAt: record.createdAt.toISOString(),
     deliveredAt: record.deliveredAt === null ? null : record.deliveredAt.toISOString(),
+    destinationOrigin: toDestinationOrigin(record.destinationOrigin),
     freightCalculationId: record.freightCalculationId,
     id: record.id,
     loadedAt: record.loadedAt === null ? null : record.loadedAt.toISOString(),
@@ -89,4 +91,12 @@ export function mapTripDriver(record: TripDriverRecord): TripDriverLine {
     driverTaxId: record.driverTaxId,
     position: Number(record.position),
   }
+}
+
+/**
+ * O banco guarda texto com CHECK; o domínio guarda o união fechada. Valor fora da lista vira
+ * ausência — a tela deixa de dizer a origem, em vez de imprimir uma palavra que ninguém traduz.
+ */
+function toDestinationOrigin(value: string | null): PhysicalDestinationOrigin | null {
+  return value === 'delivery' || value === 'recipient' ? value : null
 }

@@ -263,5 +263,9 @@
     "overflow": "Passa {{volume}} m³ da capacidade do veículo.",
     "withoutVolume": "Sem cubagem, e por isso fora do mapa: {{stops}}.",
     "estimated": "As fatias saem da cubagem estimada, não de medida da carga."
+  },
+  "destinationOrigin": {
+    "delivery": "Entrega",
+    "deliveryHint": "O endereço veio do campo de entrega da nota, não do cadastro do destinatário"
   }
 }

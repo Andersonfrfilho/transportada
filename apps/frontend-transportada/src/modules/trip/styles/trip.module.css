@@ -465,6 +465,16 @@
   font-size: 0.85rem;
 }
 
+/* Spec 073 CA10: a nota que vai para o `<entrega>`, e não para o cadastro do cliente. */
+.destinationOriginBadge {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
 .separationStatusBadge {
   padding: var(--space-1) var(--space-2);
   border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);

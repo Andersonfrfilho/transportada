@@ -276,7 +276,7 @@ tela mentir na primeira parada mista. O lugar é `trip_documents`, com migration
 que as tasks da Fase C não previram. Decidir modelo de dados no passe de revisão seria pior que
 deixar o item aberto com o motivo escrito.
 
-**Consequência honesta: a spec 073 está completa em 18 das 18 tasks planejadas, com a CA10 em
+**Consequência à época: a spec 073 ficou completa em 18 das 18 tasks planejadas, com a CA10 em
 aberto.** As outras nove (CA1–CA9) estão cobertas.
 
 ---
@@ -327,3 +327,38 @@ para conferir isto antes de desenhar — e conferiu.
 
 ⚠️ **Não é chave divergente, normalização nem tenant** — as três hipóteses foram descartadas com
 consulta. É cópia ausente.
+---
+## T019 — a origem deixou de ser calculada e descartada (CA10 fechada)
+
+**Data:** 2026-09-02.
+
+A origem do endereço físico agora é persistida em `trip_documents.destination_origin` — o vínculo,
+nunca a parada. Uma parada agrupa várias notas, e a mesma chave pode ser alcançada pela entrega de
+uma e pelo cadastro de outra: em `trip_stops` a tela mentiria na primeira parada mista, e o contrato
+trava isso por texto de fonte.
+
+**Contrato antes da implementação** (`test/trip-domain/physical-destination-wiring.contract.ts`):
+dos três casos novos, dois reprovaram contra o código de então —
+
+```
+(fail) writes the origin into the link instead of dropping it
+(fail) persists the origin even when the address yields no stop
+```
+
+⚠️ **A origem sobrevive à parada ausente.** O CEP que não normaliza deixa a nota `SEM ENDEREÇO`
+(T007) e a procedência continua conhecida. O corte antigo — `if (stopId === null) return` — a jogaria
+fora justamente na nota cuja origem mais precisa ser explicada; hoje o retorno curto exige que as
+**duas** metades estejam ausentes.
+
+⚠️ **`recipient` não vira crachá na tela.** Medido em produção nesta data: os três papéis de
+participante somam 1808 cada, e **`delivery` não aparece nenhuma vez**. Imprimir "Cadastro" em toda
+linha apagaria por ruído a única que explica um portão diferente — o crachá sai só no `<entrega>`.
+
+**Consequência que fica escrita:** a 073 é correção **latente**. Nenhuma nota de produção traz
+`<entrega>` hoje; o importador sabe gravá-lo (`NFE_PARTICIPANT_ROLE.DELIVERY`, alimentado por
+`document.delivery` do pacote fiscal), e é quando a primeira chegar que a diferença aparece.
+
+**Gates:** `make migration-test` 90 verdes (migration + rollback contra Postgres descartável),
+`make check` completo, API 3966 verdes, frontend 2302 verdes.
+
+**A spec 073 está completa em 19 das 19 tasks, com CA1–CA10 cobertas.**

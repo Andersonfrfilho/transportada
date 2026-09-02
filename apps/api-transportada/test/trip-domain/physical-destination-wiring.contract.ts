@@ -114,3 +114,45 @@ describe('manual override precedence (spec 073 P4/CA4)', () => {
     expect(source).toInclude('chooseNfeDestinationRow')
   })
 })
+
+describe('destination origin is persisted on the link (spec 073 P4/CA10, T019)', () => {
+  const repository = readFileSync(
+    new URL('../../src/trips/infrastructure/drizzle-trip.repository.ts', import.meta.url),
+    'utf8',
+  )
+
+  /**
+   * A origem era **calculada e descartada**: `chooseNfeDestinationRow` já a devolvia, e o vínculo
+   * chamava `reconcileStopOnLink` sem ela. Compila, passa em tudo, e a tela nunca sabe por que o
+   * motorista foi parar naquele portão.
+   */
+  it('writes the origin into the link instead of dropping it', () => {
+    expect(repository).toInclude('destinationOrigin')
+  })
+
+  /**
+   * A origem **não é da parada**: uma parada agrupa várias notas, e a mesma chave pode ser
+   * alcançada pela entrega de uma e pelo cadastro de outra. Guardá-la em `trip_stops` faria a tela
+   * mentir na primeira parada mista — o lugar é o vínculo.
+   */
+  it('never puts the origin on the stop, which would lie on a mixed stop', () => {
+    const stops = readFileSync(
+      new URL('../../src/database/trip.schema.ts', import.meta.url),
+      'utf8',
+    )
+    const stopTable = stops.slice(
+      stops.indexOf('export const tripStops'),
+      stops.indexOf('export const tripDocuments'),
+    )
+
+    expect(stopTable).not.toInclude('destination_origin')
+  })
+
+  /**
+   * ⚠️ O CEP que não normaliza deixa a nota **sem parada** — e a origem continua conhecida. Gravá-la
+   * só junto do `stop_id` perderia justamente a nota cuja procedência mais importa explicar.
+   */
+  it('persists the origin even when the address yields no stop', () => {
+    expect(repository).not.toInclude('if (stopId === null) return mapTripDocument(record)')
+  })
+})

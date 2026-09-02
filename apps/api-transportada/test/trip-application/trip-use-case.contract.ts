@@ -56,6 +56,7 @@ const openTrip = (overrides: Partial<TripDetail> = {}): TripDetail => ({
 const document = (overrides: Partial<TripDocument> = {}): TripDocument => ({
   createdAt: '2026-08-01T10:00:00.000Z',
   deliveredAt: null,
+  destinationOrigin: null,
   freightCalculationId: null,
   id: DOCUMENT_ID,
   loadedAt: null,

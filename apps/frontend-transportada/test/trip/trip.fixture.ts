@@ -37,6 +37,7 @@ export type TripContract = Readonly<{
 export type TripDocumentContract = Readonly<{
   createdAt: string
   deliveredAt: null | string
+  destinationOrigin: 'delivery' | 'recipient' | null
   freightCalculationId: null | string
   id: string
   loadedAt: null | string
@@ -121,6 +122,7 @@ export const SECOND_TRIP = {
 export const TRIP_DOCUMENT = {
   createdAt: '2026-07-28T12:05:00.000Z',
   deliveredAt: null,
+  destinationOrigin: null,
   freightCalculationId: null,
   id: DOCUMENT_ID,
   loadedAt: null,

@@ -854,6 +854,7 @@ function serializeTripDocument(document: TripDocument): object {
   return {
     createdAt: document.createdAt,
     deliveredAt: document.deliveredAt,
+    destinationOrigin: document.destinationOrigin,
     freightCalculationId: document.freightCalculationId,
     id: document.id,
     loadedAt: document.loadedAt,

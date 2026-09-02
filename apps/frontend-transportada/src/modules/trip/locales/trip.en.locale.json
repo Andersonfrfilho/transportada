@@ -245,5 +245,9 @@
     "dispenseTitle": "Waive the MDF-e for this trip",
     "dispenseSubtitle": "This trip carries CT-e notes. Travelling without a manifest means fines and roadside seizure — the reason is recorded.",
     "dispenseReasonLabel": "Reason for waiving"
+  },
+  "destinationOrigin": {
+    "delivery": "Delivery",
+    "deliveryHint": "The address came from the note’s delivery field, not from the recipient’s registration"
   }
 }

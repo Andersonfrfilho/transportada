@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
 import type { TripDocumentSeparationStatus, TripStatus } from '../../database/trip.schema.js'
 import type {
   TripDriverCandidate,
@@ -16,6 +17,8 @@ export type TripCompanyContext = {
 export type TripDocument = {
   readonly createdAt: string
   readonly deliveredAt: string | null
+  /** Spec 073 RF4: `delivery` quando o endereço veio do `<entrega>`, `recipient` do cadastro. */
+  readonly destinationOrigin: PhysicalDestinationOrigin | null
   readonly freightCalculationId: string | null
   readonly id: string
   readonly loadedAt: string | null

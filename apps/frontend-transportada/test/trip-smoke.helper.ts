@@ -34,6 +34,7 @@ function tripDocument(input: Readonly<{ cteAuthorized: boolean; id: string }>) {
     createdAt: '2026-07-28T12:05:00.000Z',
     cteAuthorized: input.cteAuthorized,
     deliveredAt: null,
+    destinationOrigin: null,
     fiscalStatus: input.cteAuthorized ? 'authorized' : 'unsigned',
     freightCalculationId: null,
     id: input.id,

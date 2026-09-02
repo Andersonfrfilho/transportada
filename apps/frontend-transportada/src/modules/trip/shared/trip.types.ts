@@ -42,9 +42,19 @@ export type Trip = Readonly<{
   vehicleId: string
 }>
 
+/**
+ * Spec 073 RF4/CA10: de onde saiu o endereço para o qual o motorista foi. `delivery` é o
+ * `<entrega>` da nota; `recipient`, o cadastro do destinatário. Nulo é vínculo anterior à spec,
+ * ou nota que não resolve a destino algum — a tela cala, em vez de afirmar a origem errada.
+ */
+export const TRIP_DESTINATION_ORIGINS = ['delivery', 'recipient'] as const
+
+export type TripDestinationOrigin = (typeof TRIP_DESTINATION_ORIGINS)[number]
+
 export type TripDocument = Readonly<{
   createdAt: string
   deliveredAt: null | string
+  destinationOrigin: null | TripDestinationOrigin
   freightCalculationId: null | string
   id: string
   loadedAt: null | string

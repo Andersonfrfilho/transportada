@@ -72,6 +72,7 @@ export const TRIP_DRIVER_KEYS = ['driverId', 'driverName', 'driverTaxId', 'posit
 export const TRIP_DOCUMENT_KEYS = [
   'createdAt',
   'deliveredAt',
+  'destinationOrigin',
   'freightCalculationId',
   'id',
   'loadedAt',

@@ -218,6 +218,16 @@ function TripStopDocumentRow({
       <span className={styles.separationStatusBadge}>
         {t(`separationStatus.${document.separationStatus}`)}
       </span>
+      {/*
+       * Spec 073 CA10: a marca aparece **só** no endereço de entrega. Em 345 de 345 notas reais o
+       * endereço é o do cadastro — imprimir "Cadastro" em todas seria ruído que apaga justamente a
+       * linha que explica por que o motorista foi a outro portão.
+       */}
+      {document.destinationOrigin === 'delivery' ? (
+        <span className={styles.destinationOriginBadge} title={t('destinationOrigin.deliveryHint')}>
+          {t('destinationOrigin.delivery')}
+        </span>
+      ) : null}
       {hasTripDocumentFiscalWarning(document) ? (
         <span className={styles.fiscalWarning}>{t('detail.fiscalWarning')}</span>
       ) : null}

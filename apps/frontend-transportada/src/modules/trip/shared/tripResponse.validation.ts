@@ -20,6 +20,7 @@ import {
   TRIP_BATCH_ITEM_OUTCOME,
   TRIP_DOCUMENT_READINESS_REASONS,
   TRIP_FISCAL_READINESS_STATES,
+  TRIP_DESTINATION_ORIGINS,
   TRIP_DOCUMENT_SEPARATION_STATUS,
   TRIP_STATUS,
 } from './trip.types'
@@ -95,6 +96,8 @@ function isDocumentFields(value: Record<string, unknown>): boolean {
   return (
     isString(value.createdAt) &&
     isNullableString(value.deliveredAt) &&
+    (value.destinationOrigin === null ||
+      isOneOf(value.destinationOrigin, TRIP_DESTINATION_ORIGINS)) &&
     isNullableString(value.freightCalculationId) &&
     isString(value.id) &&
     isNullableString(value.loadedAt) &&

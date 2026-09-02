@@ -317,6 +317,13 @@ export const tripDocuments = pgTable(
     nfeDocumentId: uuid('nfe_document_id'),
     freightCalculationId: uuid('freight_calculation_id'),
     stopId: uuid('stop_id'),
+    /**
+     * Spec 073 RF4/CA10: de onde saiu o endereço físico — `delivery` do `<entrega>`, `recipient` do
+     * `<enderDest>`. Mora no **vínculo**, nunca na parada: uma parada agrupa várias notas, e a mesma
+     * chave pode ser alcançada pela entrega de uma e pelo cadastro de outra — em `trip_stops` a tela
+     * mentiria na primeira parada mista. Nulo é vínculo anterior à migration, ou nota sem destino.
+     */
+    destinationOrigin: text('destination_origin'),
     separationStatus: text('separation_status')
       .$type<TripDocumentSeparationStatus>()
       .notNull()

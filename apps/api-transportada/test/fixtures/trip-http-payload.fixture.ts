@@ -129,6 +129,7 @@ export const TRIP: Trip = {
 export const TRIP_DOCUMENT: TripDocument = {
   createdAt: '2026-08-04T12:05:00.000Z',
   deliveredAt: null,
+  destinationOrigin: null,
   freightCalculationId: null,
   id: TRIP_DOCUMENT_ID,
   loadedAt: null,

@@ -56,6 +56,7 @@ import {
 import { loadTripOccupancy } from './trip-occupancy.support.js'
 import { resolveCargoLayout } from '../domain/cargo-layout.policy.js'
 import { formatScaledDecimal, parseScaledDecimal } from '../../shared/decimal.service.js'
+import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
 
 const LIVE_DOCUMENT_CONSTRAINTS = new Set([
@@ -199,17 +200,20 @@ export class DrizzleTripRepository implements TripRepositoryPort {
       })
       if (record === undefined) throw new Error('TRIP_DOCUMENT_LINK_FAILED')
 
-      const stopId = await reconcileLinkedDocumentStop(transaction, {
+      const { destinationOrigin, stopId } = await reconcileLinkedDocumentStop(transaction, {
         companyId: input.companyId,
         freightCalculationId: record.freightCalculationId,
         nfeDocumentId: record.nfeDocumentId,
         tripId: input.tripId,
       })
-      if (stopId === null) return mapTripDocument(record)
+      // ⚠️ A origem sobrevive à parada ausente: o CEP que não normaliza deixa a nota `SEM ENDEREÇO`
+      // (T007) e a procedência do endereço continua conhecida — é justamente a nota cuja origem
+      // mais precisa ser explicada na tela.
+      if (destinationOrigin === null && stopId === null) return mapTripDocument(record)
 
       const [withStop] = await transaction
         .update(tripDocuments)
-        .set({ stopId })
+        .set({ destinationOrigin, stopId })
         .where(and(eq(tripDocuments.companyId, input.companyId), eq(tripDocuments.id, record.id)))
         .returning()
       return mapTripDocument(withStop ?? record)
@@ -310,10 +314,21 @@ export class DrizzleTripRepository implements TripRepositoryPort {
   }
 }
 
+type LinkedDocumentDestination = {
+  readonly destinationOrigin: PhysicalDestinationOrigin | null
+  readonly stopId: string | null
+}
+
+/** Nota que não resolve a destino algum: nem parada, nem procedência a declarar. */
+const NO_DESTINATION: LinkedDocumentDestination = { destinationOrigin: null, stopId: null }
+
 /**
  * ADR-0043 §3: vincular cria a parada se faltar, reaproveitando a que já agrupa o mesmo endereço
- * normalizado. `null` quando a NF-e não resolve a nenhum destinatário cadastrado, ou quando o CEP
- * não normaliza (T007) — a nota fica `SEM ENDEREÇO`, sem quebrar o vínculo em si.
+ * normalizado. `stopId` nulo quando a NF-e não resolve a destino algum, ou quando o CEP não
+ * normaliza (T007) — a nota fica `SEM ENDEREÇO`, sem quebrar o vínculo em si.
+ *
+ * A origem (spec 073 CA10) é devolvida **junto e em separado**: no segundo caso ela é conhecida e o
+ * `stopId` não, e é essa nota que mais precisa da procedência impressa na tela.
  */
 async function reconcileLinkedDocumentStop(
   transaction: TripTransaction,
@@ -323,15 +338,15 @@ async function reconcileLinkedDocumentStop(
     readonly nfeDocumentId: string | null
     readonly tripId: string
   },
-): Promise<string | null> {
+): Promise<LinkedDocumentDestination> {
   const nfeDocumentId = await resolveNfeDocumentId(transaction, input)
-  if (nfeDocumentId === null) return null
+  if (nfeDocumentId === null) return NO_DESTINATION
 
   const destination = await resolveNfeDestinationAddress(transaction, {
     companyId: input.companyId,
     nfeDocumentId,
   })
-  if (destination === null) return null
+  if (destination === null) return NO_DESTINATION
 
   const stop = await reconcileStopOnLink({
     addressComponents: destination.components,
@@ -340,7 +355,7 @@ async function reconcileLinkedDocumentStop(
     repository: createTripStopReconciliationPort(transaction),
     tripId: input.tripId,
   })
-  return stop?.id ?? null
+  return { destinationOrigin: destination.origin, stopId: stop?.id ?? null }
 }
 
 /**
