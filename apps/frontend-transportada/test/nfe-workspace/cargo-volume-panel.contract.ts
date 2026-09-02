@@ -7,6 +7,10 @@ import {
   SETTINGS_PANEL_PLACEMENT,
   settingsPanelsOf,
 } from '../../src/modules/company-settings/shared/companySettingsTabs.service'
+import {
+  formatCargoVolumeField,
+  parseCargoVolumeField,
+} from '../../src/modules/nfe-workspace/shared/cargoVolumeField.service'
 
 const ROOT = new URL('../..', import.meta.url)
 const PANEL = 'src/modules/nfe-workspace/components/CargoVolumeFactorPanel.component.tsx'
@@ -108,5 +112,75 @@ describe('os rótulos da aba não se repetem (spec 077)', () => {
 
     expect(locale.cargoVolumeClear).not.toBe(locale.cargoWeightClear)
     expect(locale.cargoVolumeClear).toInclude('cubagem')
+  })
+})
+
+/**
+ * ⚠️ Defeito medido em staging (2026-09-02): a base guardava `0.035000`, e o campo mostrava
+ * `0,04` — inclusive depois de recarregar a página. O formatador do campo arredondava para duas
+ * casas o valor **já salvo**.
+ *
+ * O estrago não é cosmético: quem digita `0,035`, lê `0,04` e conclui que o sistema recusou o
+ * valor. A correção instintiva é digitar `0,04` de novo — e aí grava mesmo. A tela ensinava o
+ * operador a estragar o dado que ele tinha acabado de acertar.
+ */
+describe('o campo mostra o que foi salvo (spec 077, conserto de 2026-09-02)', () => {
+  test('não arredonda a terceira casa, que é onde o fator real mora', () => {
+    expect(formatCargoVolumeField('0.035000')).toBe('0,035')
+  })
+
+  /** Zero à direita é ruído: `0,050000` não diz mais que `0,05`. */
+  test('corta o zero à direita em vez de encher a casa decimal', () => {
+    expect(formatCargoVolumeField('0.050000')).toBe('0,05')
+    expect(formatCargoVolumeField('1.000000')).toBe('1')
+  })
+
+  /**
+   * A garantia que fecha o defeito para sempre: **o que aparece, salvo de volta, é o mesmo
+   * número**. Sem ela, um formatador novo pode reintroduzir o arredondamento em outra casa.
+   */
+  test('o que a tela mostra volta ao banco igual', () => {
+    for (const salvo of ['0.035000', '0.050000', '0.001000', '0.123000']) {
+      expect(parseCargoVolumeField(formatCargoVolumeField(salvo))).toBe(salvo)
+    }
+  })
+
+  /**
+   * Três casas é o limite do que a tela sabe mostrar, e por isso é o limite do que ela aceita —
+   * as duas metades têm de ser o mesmo número, senão a mentira volta uma casa adiante.
+   */
+  test('recusa a quarta casa em vez de aceitá-la e mentir sobre ela', () => {
+    expect(parseCargoVolumeField('0,0355')).toBeNull()
+    expect(parseCargoVolumeField('0,035')).toBe('0.035000')
+  })
+
+  test('recusa o que não é número, o zero e o negativo', () => {
+    for (const typed of ['', 'abc', '0', '0,000', '-0,035']) {
+      expect(parseCargoVolumeField(typed)).toBeNull()
+    }
+  })
+
+  /**
+   * `Number.parseFloat` + `toFixed` era o caminho antigo, e é binário: o repositório proíbe float
+   * para decimal, e um fator é decimal como qualquer outro.
+   */
+  /**
+   * O painel não formata por conta própria: era um `Intl.NumberFormat` de duas casas dentro dele
+   * que produziu o defeito, e um formatador local é justamente o que a conversão de ida e volta
+   * acima não alcança.
+   */
+  test('o painel delega a formatação ao serviço, em vez de formatar sozinho', () => {
+    const panel = read(PANEL)
+
+    expect(panel).not.toInclude('NumberFormat')
+    expect(panel).toInclude('formatCargoVolumeField')
+    expect(panel).toInclude('parseCargoVolumeField')
+  })
+
+  test('não passa por float binário', () => {
+    const source = read('src/modules/nfe-workspace/shared/cargoVolumeField.service.ts')
+
+    expect(source).not.toInclude('parseFloat')
+    expect(source).not.toInclude('toFixed')
   })
 })

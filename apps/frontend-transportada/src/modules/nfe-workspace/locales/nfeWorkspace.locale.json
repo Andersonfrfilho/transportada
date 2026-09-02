@@ -397,7 +397,7 @@
   "cargoVolumeTitle": "Cubagem estimada da carga",
   "cargoVolumeHint": "O volume que cada volume da nota ocupa, em metros cúbicos. A NF-e não traz medida da carga, então este número é o que estima a ocupação do veículo exibida na viagem.",
   "cargoVolumeLabel": "m³ por volume",
-  "cargoVolumeInvalid": "Informe um número maior que zero. Para desligar a estimativa, use “Desligar estimativa”.",
+  "cargoVolumeInvalid": "Informe um número maior que zero, com até três casas decimais (por exemplo, 0,035). Para desligar a estimativa, use “Desligar cubagem estimada”.",
   "cargoVolumeDefaultSpecies": "Vale para toda nota. A espécie do volume ainda não é declarada por nenhum emitente.",
   "cargoVolumeSpeciesCount": "{{count}} espécies com fator próprio.",
   "cargoVolumeSpeciesCount_other": "{{count}} espécies com fator próprio.",

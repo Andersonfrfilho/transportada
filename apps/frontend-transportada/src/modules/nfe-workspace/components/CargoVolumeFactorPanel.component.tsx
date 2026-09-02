@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
 import type { CargoVolumeFactor } from '@/modules/company-settings/shared/cargoVolumeFactor.validation'
+import { formatCargoVolumeField, parseCargoVolumeField } from '../shared/cargoVolumeField.service'
 import styles from '../styles/distributionSettings.module.css'
 
 type CargoVolumeFactorPanelProps = Readonly<{
@@ -17,22 +18,6 @@ type CargoVolumeFactorPanelProps = Readonly<{
   onSave: (volumePerUnitM3: string) => void
   saving: boolean
 }>
-
-const VOLUME_SCALE = 6
-
-/** Seis casas no banco; a tela fala em duas, como a viagem, que imprime `2,25 m³`. */
-const volumeFormatter = new Intl.NumberFormat('pt-BR', {
-  maximumFractionDigits: 2,
-  minimumFractionDigits: 2,
-})
-
-function toDecimalString(typed: string): string | null {
-  const normalized = typed.replace(',', '.').trim()
-  if (normalized.length === 0) return null
-  const parsed = Number.parseFloat(normalized)
-  if (!Number.isFinite(parsed) || parsed <= 0) return null
-  return parsed.toFixed(VOLUME_SCALE)
-}
 
 /**
  * Spec 077: o fator de cubagem por espécie, ao lado do peso padrão — os dois estimam a mesma coisa
@@ -59,9 +44,7 @@ export function CargoVolumeFactorPanel({
 
   useEffect(() => {
     /** Abre **preenchido**: campo em branco sobre dado que existe é a falha que o registro evita. */
-    setTyped(
-      current === null ? '' : volumeFormatter.format(Number.parseFloat(current.volumePerUnitM3)),
-    )
+    setTyped(current === null ? '' : formatCargoVolumeField(current.volumePerUnitM3))
   }, [current])
 
   if (loading) {
@@ -74,7 +57,7 @@ export function CargoVolumeFactorPanel({
     )
   }
 
-  const decimal = toDecimalString(typed)
+  const decimal = parseCargoVolumeField(typed)
   const invalid = typed.trim().length > 0 && decimal === null
 
   return (
