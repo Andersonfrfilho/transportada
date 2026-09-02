@@ -147,6 +147,12 @@ export function createOperationsRoutes(
         job: parseScheduledJob(pathParameters.job ?? ''),
       }),
       pathname: API_OPERATIONS_JOB_RUN_PATH,
+      /**
+       * O nome da rotina carrega `.` (`geocoding.backfill`), e o formato padrão de parâmetro do
+       * roteador recusaria o caminho com `404` **antes** de qualquer validação nossa — mesmo caso da
+       * chave de endereço em `/geocoded-addresses/:addressKey`.
+       */
+      pathParameterFormat: 'raw',
       policy: OPERATIONS_RUN_POLICY,
     }),
   ]

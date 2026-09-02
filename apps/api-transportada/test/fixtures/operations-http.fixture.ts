@@ -25,6 +25,7 @@ type CreateFixtureParams = {
   readonly auditError?: Error
   readonly authenticationError?: Error
   readonly jobError?: Error
+  readonly jobAlreadyRunning?: boolean
   readonly permissions?: CompanyContext['permissions']
   readonly summaryError?: Error
   readonly timelineError?: Error
@@ -198,6 +199,7 @@ export async function createOperationsHttpFixture(params: CreateFixtureParams = 
   readonly jobCalls: OperationsCall[]
   readonly options: () => Promise<readonly string[]>
   readonly reprocessCalls: OperationsCall[]
+  readonly runJobCalls: OperationsCall[]
   readonly summaryCalls: OperationsCall[]
   readonly timelineCalls: OperationsCall[]
 }> {
@@ -212,6 +214,8 @@ export async function createOperationsHttpFixture(params: CreateFixtureParams = 
     runJob: {
       async run(input) {
         runJobCalls.push(structuredClone(input))
+        if (params.jobAlreadyRunning === true) return { outcome: 'already_running' as const }
+
         return { executionId: 'execution-1', outcome: 'started' as const }
       },
     },
@@ -262,6 +266,7 @@ export async function createOperationsHttpFixture(params: CreateFixtureParams = 
     options: async () => routes.map((route) => `${route.method} ${route.pathname}`),
     reprocessCalls,
     summaryCalls,
+    runJobCalls,
     timelineCalls,
   }
 }
@@ -384,4 +389,11 @@ function authenticatedContext(
       permissions,
     },
   }
+}
+
+export function runJobRequest(job = 'geocoding.backfill'): Request {
+  return new Request(`${FRONTEND_ORIGIN}/operations/jobs/${encodeURIComponent(job)}/run`, {
+    headers: { origin: FRONTEND_ORIGIN, 'x-correlation-id': 'correlation-1' },
+    method: 'POST',
+  })
 }
