@@ -36,5 +36,15 @@
   },
   "audit": {
     "title": "Auditoria"
+  },
+  "run": {
+    "title": "Rodar rotina agora",
+    "action": "Rodar agora",
+    "running": "Disparando…",
+    "outcome": {
+      "started": "Disparada — acompanhe na lista de execuções.",
+      "already_running": "Já existe uma execução em andamento para esta rotina.",
+      "failed": "Não foi possível disparar agora."
+    }
   }
 }

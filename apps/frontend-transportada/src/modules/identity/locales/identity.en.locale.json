@@ -437,6 +437,10 @@
       "groups.manage": {
         "label": "Administer groups",
         "where": "Create groups, choose what they grant, and assign them to people. Whoever holds it can grant any other permission — every grant is audited."
+      },
+      "operations.run": {
+        "label": "Run routine now",
+        "where": "Operations"
       }
     },
     "matrix": {

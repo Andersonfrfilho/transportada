@@ -39,6 +39,14 @@ type OperationsHttpRouteDependencies = {
   readonly audit: {
     readonly listEvents: (input: OperationsCall) => Promise<typeof AUDIT_PAGE>
   }
+  readonly runJob: {
+    readonly run: (
+      input: OperationsCall,
+    ) => Promise<
+      | { readonly executionId: string; readonly outcome: 'started' }
+      | { readonly outcome: 'already_running' }
+    >
+  }
 }
 
 export const FRONTEND_ORIGIN = 'http://localhost:53000'
@@ -199,7 +207,14 @@ export async function createOperationsHttpFixture(params: CreateFixtureParams = 
   const reprocessCalls: OperationsCall[] = []
   const summaryCalls: OperationsCall[] = []
   const timelineCalls: OperationsCall[] = []
+  const runJobCalls: OperationsCall[] = []
   const routes = await loadRoutes({
+    runJob: {
+      async run(input) {
+        runJobCalls.push(structuredClone(input))
+        return { executionId: 'execution-1', outcome: 'started' as const }
+      },
+    },
     audit: {
       async listEvents(input) {
         auditCalls.push(structuredClone(input))

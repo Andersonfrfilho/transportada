@@ -13,9 +13,11 @@ import {
   type OperationsSummaryFilters,
   type OperationsTimelineFilters,
 } from '../shared/operationsClient.service'
+import type { RunJobOutcome } from '../shared/operationsClient.service'
 
 const OPERATIONS_READ = 'operations.read'
 const AUDIT_READ = 'audit.read'
+const OPERATIONS_RUN = 'operations.run'
 const SENSITIVE_KEY_PATTERN =
   /(?:xml|payload|content|storagekey|storage_key|certificate|password|privatekey|private_key|token|metadata)/i
 
@@ -29,7 +31,14 @@ export type OperationsClient = Client
 export type OperationsController = Readonly<{
   canReadAudit: boolean
   canReadOperations: boolean
+  /** Spec 072: disparar é ação, e ela gasta cota de terceiro — não sai de carona com ler. */
+  canRunJobs: boolean
   refresh: () => Promise<void>
+  /**
+   * **Nunca lança**: quem apertou precisa de veredito. `already_running` é resposta de primeira
+   * classe — o freio da RNF1 —, e sem permissão a chamada nem sai.
+   */
+  runJob: (job: string) => Promise<RunJobOutcome>
 }>
 
 function forbidden(): Promise<never> {
@@ -41,10 +50,13 @@ export function createOperationsController(
 ): OperationsController {
   const canReadOperations = input.permissions.includes(OPERATIONS_READ)
   const canReadAudit = input.permissions.includes(AUDIT_READ)
+  const canRunJobs = input.permissions.includes(OPERATIONS_RUN)
 
   return {
     canReadAudit,
     canReadOperations,
+    canRunJobs,
+    runJob: (job) => (canRunJobs ? input.client.runJob({ job }) : Promise.resolve('failed')),
     refresh: () =>
       canReadOperations
         ? Promise.all([

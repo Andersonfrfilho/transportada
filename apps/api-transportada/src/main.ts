@@ -223,6 +223,11 @@ import {
   createDrizzleGeocodingRefinementRepository,
 } from './routing/infrastructure/drizzle-geocoding-refinement.repository.js'
 import { createGoogleGeocodingGateway } from './routing/infrastructure/google-geocoding.gateway.js'
+import { createRunJobUseCase } from './operations/application/run-job.use-case.js'
+import type { JobRunPublisher } from './operations/application/run-job.port.js'
+import { createDrizzleManualExecutionRepository } from './operations/infrastructure/drizzle-manual-execution.repository.js'
+import { buildJobRunRabbitMqTopology } from './operations/infrastructure/job-run-rabbitmq-topology.js'
+import { createLazyRabbitMqJobRunPublisher } from './operations/infrastructure/rabbitmq-job-run.publisher.js'
 import { createGeocodedAddressCorrectionUseCase } from './routing/application/geocoded-address-correction.use-case'
 import { createDrizzleRouteSuggestionRepository } from './routing/infrastructure/drizzle-route-suggestion.repository'
 import { createDrizzleGeocodedAddressRepository } from './routing/infrastructure/drizzle-geocoded-address.repository'
@@ -585,6 +590,8 @@ export function bootstrap(): Bun.Server<undefined> {
       notifications,
       envelopeKeyRing: config.cryptography.envelopeKeyRing,
       environment: process.env,
+      googleMapsApiKey: config.googleMapsApiKey,
+      messaging: config.messaging,
       idempotencyHmacKey: config.cryptography.idempotencyHmacKey,
       keycloak: config.keycloak,
       logger,
@@ -857,6 +864,15 @@ type CreateApplicationRoutesParams = {
   readonly notifications: NotificationModule
   readonly envelopeKeyRing: import('@adatechnology/secret-envelope').SecretKeyRing
   readonly environment: Record<string, string | undefined>
+  /**
+   * ⚠️ Vêm **tipadas**, e não pelo `environment` acima: ele é o registro **cru** do processo, com as
+   * chaves em CAIXA ALTA. Ler `environment.googleMapsApiKey` dali compila — o tipo é
+   * `Record<string, string | undefined>` e aceita qualquer nome — e devolve `undefined` para sempre.
+   * Foi exatamente isso que aconteceu na spec 069: o gateway pago nunca era construído, e a marca
+   * responderia "precisão fina não disponível" mesmo com a chave configurada.
+   */
+  readonly googleMapsApiKey: string | undefined
+  readonly messaging: ApiEnvironment['messaging']
   readonly idempotencyHmacKey: Uint8Array
   readonly keycloak: ApiEnvironment['keycloak']
   readonly logger: ApiLogger
@@ -870,6 +886,8 @@ function createApplicationRoutes({
   apiPublicUrl,
   automaticManifestNotifier,
   database,
+  googleMapsApiKey,
+  messaging,
   notifications,
   envelopeKeyRing,
   environment,
@@ -1351,9 +1369,9 @@ function createApplicationRoutes({
              * responde `provider_not_configured` oferecendo o pino manual. A app sobe igual.
              */
             geocoding:
-              environment.googleMapsApiKey === undefined
+              googleMapsApiKey === undefined
                 ? undefined
-                : createGoogleGeocodingGateway({ apiKey: environment.googleMapsApiKey }),
+                : createGoogleGeocodingGateway({ apiKey: googleMapsApiKey }),
             repository: createDrizzleGeocodedAddressRepository(database),
             trail: geocodingRefinementRepository,
           }),
@@ -1853,6 +1871,15 @@ function createApplicationRoutes({
     }),
     ...createOperationsRoutes({
       audit: { listEvents: (input) => operations.listAuditEvents(input) },
+      /**
+       * Spec 072: sem `messaging` a API não publica, e o botão precisa recusar em vez de fingir —
+       * então ele responde `409` como se houvesse execução aberta seria mentira. Aqui a ausência
+       * vira erro explícito no disparo, que é o único momento em que ela importa.
+       */
+      runJob: createRunJobUseCase({
+        executions: createDrizzleManualExecutionRepository(database),
+        publisher: buildJobRunPublisher(messaging),
+      }),
       operations: {
         getSummary: (input) => operations.getSummary(input),
         listJobs: (input) => operations.listJobs(input),
@@ -2039,4 +2066,27 @@ function resolveStorageBucket(environment: Record<string, string | undefined>): 
 
 if (import.meta.main) {
   bootstrap()
+}
+
+/**
+ * Spec 072: sem `messaging` a API não publica, e o botão precisa **recusar em vez de fingir** —
+ * responder como se tivesse enfileirado deixaria o operador esperando um ciclo que ninguém pediu.
+ * A ausência vira erro no disparo, que é o único momento em que ela importa.
+ */
+function buildJobRunPublisher(
+  messaging: { readonly queuePrefix: string; readonly url: string } | undefined,
+): JobRunPublisher {
+  if (messaging === undefined) {
+    return {
+      publish: () => Promise.reject(new Error('job run publisher is not configured')),
+    }
+  }
+
+  return createLazyRabbitMqJobRunPublisher({
+    connect: () =>
+      createRabbitMqProvider({
+        connection: messaging.url,
+        topology: buildJobRunRabbitMqTopology({ queuePrefix: messaging.queuePrefix }),
+      }),
+  })
 }

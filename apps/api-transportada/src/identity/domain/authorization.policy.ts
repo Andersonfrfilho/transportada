@@ -34,6 +34,12 @@ export const TRANSPORTADA_PERMISSIONS = Object.freeze([
   'billing.read',
   'settings.manage',
   'operations.read',
+  /**
+   * Spec 072: disparar rotina é **ação**, não leitura — e ela gasta cota de terceiro
+   * (`geocoding.backfill` fala com a BrasilAPI, `fuel.price.pull` com a ANP). Só o `admin` a recebe:
+   * quem acompanha a operação continua com `operations.read`, que não aperta nada.
+   */
+  'operations.run',
   'audit.read',
   'view-preferences.manage',
   // Consultar CEP serve três formulários com permissões diferentes, e a política de rota admite
@@ -90,6 +96,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'billing.read',
     'settings.manage',
     'operations.read',
+    'operations.run',
     'audit.read',
     'view-preferences.manage',
     'addresses.read',

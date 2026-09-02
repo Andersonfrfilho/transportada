@@ -437,6 +437,10 @@
       "groups.manage": {
         "label": "Administrar grupos",
         "where": "Criar grupo, escolher o que ele concede e atribuí-lo a pessoas. Quem tem esta permissão pode conceder qualquer outra — toda concessão grava auditoria."
+      },
+      "operations.run": {
+        "label": "Rodar rotina agora",
+        "where": "Operações"
       }
     },
     "matrix": {

@@ -89,6 +89,8 @@ export const API_BILLING_INVOICE_PREVIEW_PATH = '/billing/invoices/preview'
 export const API_OPERATIONS_SUMMARY_PATH = '/operations/summary'
 export const API_OPERATIONS_TIMELINE_PATH = '/operations/timeline'
 export const API_OPERATIONS_JOBS_PATH = '/operations/jobs'
+/** Spec 072: o botão que o schema já previa — `origin: 'manual'` e o `409` do índice único. */
+export const API_OPERATIONS_JOB_RUN_PATH = '/operations/jobs/:job/run'
 export const API_AUDIT_EVENTS_PATH = '/audit/events'
 export const API_NFE_IMPORTS_PATH = '/nfe-imports'
 export const API_NFE_IMPORTS_XML_PATH = '/nfe-imports/xml'
