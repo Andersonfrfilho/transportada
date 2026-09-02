@@ -53,6 +53,35 @@ const silentLogger = {
   warn: (): void => undefined,
 }
 
+/**
+ * ⚠️ Uma sondagem só do relay é corrida, e ela quebrou o deploy da staging em 02/09/2026: a linha é
+ * inserida com o relógio do **Postgres** (`next_attempt_at default now()`) e reivindicada com o
+ * relógio do **processo** (`clock.now()`), e o filtro é `next_attempt_at <= now`. Bastam alguns
+ * microssegundos de diferença entre os dois para a primeira leitura não ver a linha recém-escrita —
+ * e o teste falha em 13ms, sem nada que explique.
+ *
+ * O que o teste quer dizer é "a entrada chega ao trilho", não "a primeira sondagem já a vê". Insistir
+ * até o prazo exprime isso sem afrouxar a asserção: se ela nunca for relayada, ainda falha.
+ */
+async function relayUntilPublished(
+  relayService: AggregateAttachmentOutboxRelayService,
+  timeoutMs = 10_000,
+): Promise<{ readonly claimedCount: number; readonly publishedCount: number }> {
+  const deadline = Date.now() + timeoutMs
+  let last = { claimedCount: 0, publishedCount: 0 }
+  while (Date.now() < deadline) {
+    last = await relayService.relayDueEntries({
+      claimOwner: 'integration',
+      leaseMs: 30_000,
+      limit: 10,
+    })
+    if (last.publishedCount > 0) return last
+    await Bun.sleep(50)
+  }
+
+  return last
+}
+
 async function waitFor<T>(operation: () => Promise<T | undefined>, timeoutMs = 30_000): Promise<T> {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
@@ -197,12 +226,7 @@ describeIntegration('anexo do agregado — do outbox ao campo gravado', () => {
         payload: { attachmentId, bucket, objectKey, type: 'ccmei' },
       })
 
-      const relayed = await relay.relayDueEntries({
-        claimOwner: 'integration',
-        leaseMs: 30_000,
-        limit: 10,
-      })
-      expect(relayed).toEqual({ claimedCount: 1, publishedCount: 1 })
+      expect(await relayUntilPublished(relay)).toEqual({ claimedCount: 1, publishedCount: 1 })
 
       const extracted = await waitFor(async () => {
         const [row] = await database.db
@@ -262,12 +286,7 @@ describeIntegration('anexo do agregado — do outbox ao campo gravado', () => {
         payload: { attachmentId, bucket, objectKey, type: 'crlv' },
       })
 
-      const relayed = await relay.relayDueEntries({
-        claimOwner: 'integration',
-        leaseMs: 30_000,
-        limit: 10,
-      })
-      expect(relayed.publishedCount).toBeGreaterThanOrEqual(1)
+      expect((await relayUntilPublished(relay)).publishedCount).toBeGreaterThanOrEqual(1)
 
       const extracted = await waitFor(async () => {
         const [row] = await database.db
