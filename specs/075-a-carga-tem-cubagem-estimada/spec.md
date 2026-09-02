@@ -93,8 +93,9 @@ número que pareça medido.
   como padrão.
 - **RF2** — `resolveCargoVolume` em `nfe-documents/domain/`, ao lado de `cargo-weight.policy.ts`,
   devolvendo valor **e origem**, e `null` para ausência — nunca zero.
-- **RF3** — Cubagem de referência **por tipo de veículo**, usada como piso de
-  `fleet_vehicles.capacity_m3`. O valor da ficha vence a referência.
+- **RF3** — A capacidade do veículo é resolvida em três degraus, nesta ordem:
+  **dimensões da ficha** (`comprimento × largura × altura`) → **`capacity_m3` da ficha** →
+  **referência do tipo**. A origem viaja com o valor, e a tela distingue medida de referência.
 - **RF4** — A ocupação da viagem é `soma da cubagem das notas ÷ capacidade do veículo`, e carrega a
   origem da pior parcela: se **qualquer** nota entrou estimada, o total é estimado.
 - **RF5** — Ilustração por tipo de veículo em `@/components/ui/icon` — biblioteca de ícones,
@@ -118,7 +119,7 @@ número que pareça medido.
   denominador ausente não vira 100%.
 - **Ocupação acima de 100%** — é exibida como está. Passar do limite é informação operacional, não
   erro a esconder — e com estimativa, é sinal de que o fator precisa de ajuste.
-- **Implemento (`vehicle_type` vazio)** — ver D2.
+- **Implemento (`vehicle_type` vazio)** — ver D2b.
 
 ## Critérios de aceite
 
@@ -141,28 +142,50 @@ número que pareça medido.
   concluir que o desenho está errado e "simplificar" para um fator único. Simplificar custaria a
   migration de volta no dia em que o primeiro emitente declarar espécie.
 
-- **D2 — A referência de cubagem não é indexada por `vehicle_type` sozinho.**
-  A tabela do cliente mistura três coisas:
+- **D2 — A dimensão é o dado primitivo; o m³ é derivado.**
+  Pesquisado em 2026-09-02 (frota publicada da Frilog, cruzada com a tabela de capacidade da
+  Bsoft), com a aritmética conferida:
 
-  | cliente       | m³  | o que é no nosso modelo            |
-  | ------------- | --- | ---------------------------------- |
-  | Fiorino       | 3,5 | **modelo**, não tipo — é `utility` |
-  | Sprinter      | 15  | **modelo** — é `van`               |
-  | VUC           | 26  | ✅ `vuc`                           |
-  | Toco          | 44  | ✅ `toco`                          |
-  | Truck         | 55  | ✅ `truck`                         |
-  | Carreta Baú   | 105 | **implemento**, `body_type` `03`   |
-  | Carreta Sider | 115 | **implemento**, `body_type` `04`   |
+  | tipo     | L×A×H (m)       | m³ calculado | m³ publicado | tabela do cliente | razão     |
+  | -------- | --------------- | ------------ | ------------ | ----------------- | --------- |
+  | Fiorino  | 1,70×1,30×1,40  | 3,09         | 3,09         | 3,5               | 1,13×     |
+  | Sprinter | 3,20×1,65×1,90  | 10,03        | 10,03        | 15                | **1,50×** |
+  | VUC      | 3,15×1,90×2,20  | 13,17        | 13,16        | 26                | **1,97×** |
+  | Toco     | 7,00×2,50×2,40  | 42,00        | 42,00        | 44                | 1,05×     |
+  | Truck    | 8,90×2,50×2,40  | 53,40        | 53,40        | 55                | 1,03×     |
+  | Carreta  | 14,27×2,46×2,70 | 94,78        | 97,76        | 105               | 1,11×     |
+
+  Três fatos saem daí, e juntos decidem o desenho:
+  1. **O m³ publicado erra contra as próprias dimensões** — a carreta destoa 3,1%. Copiar m³ de
+     tabela é copiar o erro de quem digitou.
+  2. **A dispersão por tipo chega a 2×.** Sprinter e VUC existem em versões muito diferentes
+     (entre-eixos longo, baú maior), e é por isso que a tabela do cliente destoa justamente neles.
+     Um número por tipo faria a ocupação de um VUC errar pela metade.
+  3. **O 3D precisa da dimensão de qualquer forma** (spec 076): não se desenha caixa dentro de um
+     número.
+
+  Então `fleet_vehicles` ganha `cargo_length_m`, `cargo_width_m` e `cargo_height_m`, e
+  `capacity_m3` passa a ser **derivado** delas quando existirem — a coluna continua, porque veículo
+  antigo tem o valor e não tem as medidas. A referência por tipo desce a **último recurso**, e a
+  tela diz que é referência, não medida.
+
+- **D2b — A referência por tipo não é indexada por `vehicle_type` sozinho.**
+  A tabela do cliente mistura três coisas, e cada uma cai num lugar diferente do nosso modelo:
+
+  | cliente                    | o que é aqui                                                        |
+  | -------------------------- | ------------------------------------------------------------------- |
+  | Fiorino, Sprinter          | **modelos**, não tipos — mapeiam para `utility` e `van`             |
+  | VUC, Toco, Truck           | ✅ batem com `vuc`, `toco`, `truck`                                 |
+  | Carreta Baú, Carreta Sider | **implemento**, distinguido por `body_type` (`03` baú / `04` sider) |
 
   ⚠️ Implemento tem `vehicle_type` **vazio** no nosso modelo: o tipo é de quem traciona
-  (`tractor_unit`). Então a chave da referência é **`(vehicle_type, body_type)`**, com `body_type`
-  opcional — e a carreta é a linha do implemento, não do cavalo. `three_quarter` existe no nosso
-  catálogo e **não** está na lista do cliente: ele entra sem referência, e sem referência a
-  ocupação simplesmente não aparece (ver Casos extremos).
+  (`tractor_unit`). A carreta de 105 m³ é a linha do **baú**, não a do cavalo — então a chave é
+  **`(vehicle_type, body_type)`**, com `body_type` opcional. `three_quarter` existe no nosso
+  catálogo e não está na lista do cliente: entra sem referência, e sem referência a ocupação
+  simplesmente não aparece.
 
-  ⚠️ E os números do cliente **não batem** com a frota real: ele diz Fiorino 3,5 e Sprinter 15;
-  produção tem Fiorinos com `capacity_m3` 3,00 e vans com 8, 9 e 12. Por isso a referência é
-  **piso, não verdade**: a ficha do veículo vence sempre.
+  Com a D2, isso perde urgência — a dimensão da ficha resolve o caso normal, e a referência é o
+  último degrau. Mas a chave precisa nascer certa: mudá-la depois é migration com dados.
 
 - **D3 — A origem tem dois estados, não três.**
   A 067 tem `xml` e `estimated` porque o `pesoB` existe. **Não há campo de cubagem na NF-e**, então
