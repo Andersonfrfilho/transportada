@@ -141,6 +141,9 @@ import { createRenderDacteUseCase } from './cte-issuance/application/render-dact
 import { createReadMdfeDocumentUseCase } from './mdfe-manifests/application/read-mdfe-document.use-case.js'
 import { createDamdfePdfGateway } from './mdfe-manifests/infrastructure/damdfe-pdf.gateway.js'
 import { createMdfeDocumentDownloadGateway } from './mdfe-manifests/infrastructure/mdfe-document-download.gateway.js'
+import { readDeliveryProofs } from './trips/application/read-delivery-proof.use-case.js'
+import { createDeliveryProofDownloadGateway } from './trips/infrastructure/delivery-proof-download.gateway.js'
+import { listDeliveryProofs } from './trips/infrastructure/delivery-proof-read.support.js'
 import { createMdfeDocumentSource } from './mdfe-manifests/infrastructure/mdfe-document.query.js'
 import { createMdfeXmlReaderGateway } from './mdfe-manifests/infrastructure/mdfe-xml-reader.gateway.js'
 import { createCteArchiveGateway } from './cte-issuance/infrastructure/cte-archive.gateway.js'
@@ -1634,6 +1637,18 @@ function createApplicationRoutes({
       createTrip: { execute: (input) => trips.create(input) },
       createTripMdfeManifest: { execute: (input) => createTripMdfeManifest.execute(input) },
       deliverTripDocument: { execute: (input) => tripLifecycle.deliver.execute(input) },
+      readDeliveryProofs: {
+        execute: (input) =>
+          readDeliveryProofs({
+            companyId: input.context.companyId,
+            documentId: input.documentId,
+            downloads: createDeliveryProofDownloadGateway({ storage: storageGateway }),
+            repository: {
+              listDeliveryProofs: (query) => listDeliveryProofs(database, query),
+            },
+            tripId: input.tripId,
+          }),
+      },
       dispatchTrip: { execute: (input) => tripLifecycle.dispatch.execute(input) },
       createTripCteBatch: {
         execute: async (input) => {

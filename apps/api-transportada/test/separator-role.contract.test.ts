@@ -97,6 +97,18 @@ describe('separator role contract', () => {
       'GET /trips',
       'GET /trips/:id',
       'GET /trips/:id/documents/:documentId/delivery-address-history',
+      /**
+       * Spec 079 T004: o comprovante de entrega, e o separador o alcança — decisão registrada aqui.
+       *
+       * Ele já lê o detalhe inteiro da viagem por `fleet.read`, incluindo que a nota foi entregue e
+       * quando; negar só o canhoto exigiria permissão nova para uma fatia do que ele já vê. E é ele
+       * quem atende o cliente que liga perguntando quem recebeu — mandá-lo pedir a outra pessoa
+       * para abrir a mesma tela não protege ninguém.
+       *
+       * ⚠️ O que o comprovante carrega de terceiro é o **nome** de quem recebeu, nunca documento
+       * (ADR-0045 §7). Se algum dia ele carregar mais que isso, esta decisão se reabre.
+       */
+      'GET /trips/:id/documents/:documentId/proof',
       // Spec 059: a prontidão fiscal é leitura da viagem, e o separador a lê como o resto dela
       'GET /trips/:id/fiscal-readiness',
       /**

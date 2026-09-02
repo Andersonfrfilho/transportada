@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { defineRoute } from '../../http/router.service.js'
+import type { DeliveryProofView } from '../application/read-delivery-proof.use-case.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import { API_TRIPS_PATH, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
 import type { CreateTripMdfeManifestInput } from '../../mdfe-manifests/application/create-trip-mdfe-manifest.use-case.js'
@@ -71,6 +72,13 @@ const TRIP_DETAIL_PATH = `${API_TRIPS_PATH}/:id`
 const TRIP_DOCUMENTS_PATH = `${API_TRIPS_PATH}/:id/documents`
 const TRIP_DOCUMENT_PATH = `${TRIP_DOCUMENTS_PATH}/:documentId`
 const TRIP_DOCUMENT_DELIVER_PATH = `${TRIP_DOCUMENT_PATH}/deliver`
+const TRIP_DOCUMENT_PROOF_PATH = `${TRIP_DOCUMENT_PATH}/proof`
+
+type ReadDeliveryProofsRouteInput = {
+  readonly context: CompanyContext
+  readonly documentId: string
+  readonly tripId: string
+}
 /**
  * ADR-0043 §1: `deliver` não ganha rota individual aqui — RF-6 da spec 056 só lista
  * separate/load/return para o escritório. Entregar é ação de rua (spec 057, `/me/trips/*`, papel
@@ -200,6 +208,9 @@ type Dependencies = {
   }
   readonly createTripMdfeManifest: {
     execute(input: TenantInput<CreateTripMdfeManifestInput>): Promise<MdfeManifestDetail>
+  }
+  readonly readDeliveryProofs: {
+    execute(input: TenantInput<ReadDeliveryProofsRouteInput>): Promise<readonly DeliveryProofView[]>
   }
   /** Mesma forma das outras três transições: entregar passou a usar a máquina de estados. */
   readonly deliverTripDocument: {
@@ -631,6 +642,26 @@ export function createTripRoutes(
     tripDocumentActionRoute({
       dependency: dependencies.deliverTripDocument,
       pathname: TRIP_DOCUMENT_DELIVER_PATH,
+    }),
+    /**
+     * Spec 079 T004. Ler é `fleet.read`, como o resto do detalhe da viagem: quem acompanha a
+     * operação precisa do canhoto, e exigir `trip.manage` esconderia o comprovante de quem só olha.
+     */
+    defineRoute<Omit<ReadDeliveryProofsRouteInput, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        const proofs = await dependencies.readDeliveryProofs.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({ body: { data: proofs }, status: 200 })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({
+        documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
+        tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: TRIP_DOCUMENT_PROOF_PATH,
+      policy: TRIP_READ_POLICY,
     }),
     defineRoute<Omit<BatchStatusInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
