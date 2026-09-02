@@ -274,7 +274,10 @@
     "returnedWithoutReason": "Nota devolvida.",
     "photoAlt": "Foto do comprovante de entrega",
     "signatureAlt": "Assinatura de quem recebeu a carga",
-    "open": "Abrir em tamanho real"
+    "open": "Abrir em tamanho real",
+    "products": "O que vai na nota",
+    "productLine": "{{quantity}} {{unit}} · {{description}}",
+    "withoutProducts": "Esta nota não tem itens registrados."
   },
   "cargoLayout": {
     "title": "Mapa de carga do baú",

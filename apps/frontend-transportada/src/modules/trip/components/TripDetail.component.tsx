@@ -585,6 +585,7 @@ function TripDeliveryProofLoader({
 
   return (
     <TripDeliveryProof
+      products={workspace.documentProductsQuery.data ?? []}
       view={resolveDeliveryProofView({
         document,
         proofs: workspace.deliveryProofsQuery.data ?? [],

@@ -3,6 +3,7 @@
  */
 import { defineRoute } from '../../http/router.service.js'
 import type { DeliveryProofView } from '../application/read-delivery-proof.use-case.js'
+import type { TripDocumentProduct } from '../application/read-trip-document-products.use-case.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import { API_TRIPS_PATH, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
 import type { CreateTripMdfeManifestInput } from '../../mdfe-manifests/application/create-trip-mdfe-manifest.use-case.js'
@@ -73,6 +74,7 @@ const TRIP_DOCUMENTS_PATH = `${API_TRIPS_PATH}/:id/documents`
 const TRIP_DOCUMENT_PATH = `${TRIP_DOCUMENTS_PATH}/:documentId`
 const TRIP_DOCUMENT_DELIVER_PATH = `${TRIP_DOCUMENT_PATH}/deliver`
 const TRIP_DOCUMENT_PROOF_PATH = `${TRIP_DOCUMENT_PATH}/proof`
+const TRIP_DOCUMENT_PRODUCTS_PATH = `${TRIP_DOCUMENT_PATH}/products`
 
 type ReadDeliveryProofsRouteInput = {
   readonly context: CompanyContext
@@ -211,6 +213,11 @@ type Dependencies = {
   }
   readonly readDeliveryProofs: {
     execute(input: TenantInput<ReadDeliveryProofsRouteInput>): Promise<readonly DeliveryProofView[]>
+  }
+  readonly readTripDocumentProducts: {
+    execute(
+      input: TenantInput<ReadDeliveryProofsRouteInput>,
+    ): Promise<readonly TripDocumentProduct[]>
   }
   /** Mesma forma das outras três transições: entregar passou a usar a máquina de estados. */
   readonly deliverTripDocument: {
@@ -661,6 +668,23 @@ export function createTripRoutes(
         tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
       }),
       pathname: TRIP_DOCUMENT_PROOF_PATH,
+      policy: TRIP_READ_POLICY,
+    }),
+    /** Spec 079 T019: o que vai dentro da nota, para quem confere a carga. Leitura, como o detalhe. */
+    defineRoute<Omit<ReadDeliveryProofsRouteInput, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        const products = await dependencies.readTripDocumentProducts.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({ body: { data: products }, status: 200 })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({
+        documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
+        tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: TRIP_DOCUMENT_PRODUCTS_PATH,
       policy: TRIP_READ_POLICY,
     }),
     defineRoute<Omit<BatchStatusInput, 'context'>>({

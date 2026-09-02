@@ -86,4 +86,25 @@ describe('comprovante da entrega na tela (spec 079 T006/T025)', () => {
 
     expect(trecho).not.toInclude('canManage')
   })
+
+  /**
+   * Spec 079 T019. ⚠️ A lista de itens aparece **em todos os estados**, inclusive antes da entrega:
+   * é justamente antes que alguém confere se a carga está completa. Amarrá-la à entrega esconderia
+   * a informação de quem mais precisa dela — e é o erro fácil de cometer, porque o painel nasceu
+   * sendo "o comprovante".
+   */
+  it('lista os itens da nota mesmo antes de ela ser entregue', () => {
+    const naoEntregue = source.slice(
+      source.indexOf("view.state === 'not-delivered'"),
+      source.indexOf("view.state === 'returned'"),
+    )
+
+    expect(naoEntregue).toInclude('<TripDocumentProducts')
+  })
+
+  /** Classificação fiscal é ruído para quem confere carga — e a API não a publica. */
+  it('não imprime NCM nem CFOP', () => {
+    expect(source).not.toInclude('ncm')
+    expect(source).not.toInclude('cfop')
+  })
 })

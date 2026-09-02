@@ -139,6 +139,16 @@ export const TRIP_DETAIL_OPTIONAL_KEYS = ['cargoLayout', 'cargoWeight', 'occupan
  * continuar.
  */
 /** Spec 079 T004: o que a rota do comprovante publica. Sem `bucket` e sem chave de objeto. */
+export const TRIP_DOCUMENT_PRODUCT_KEYS = [
+  'code',
+  'commercialUnit',
+  'description',
+  'ordinal',
+  'quantity',
+  'totalValue',
+  'unitValue',
+] as const
+
 export const DELIVERY_PROOF_KEYS = [
   'createdAt',
   'downloadUrl',

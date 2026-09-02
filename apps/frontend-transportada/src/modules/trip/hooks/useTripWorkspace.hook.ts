@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import type { DeliveryProof } from '../shared/deliveryProof.service'
+import type { TripDocumentProduct } from '../shared/trip.types'
 
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
@@ -60,6 +61,9 @@ export type TripController = Readonly<{
   createTripCteBatch: (input: Readonly<{ tripId: string }>) => Promise<TripCteBatchResult>
   deliverTripDocument: (input: TripDocumentActionInput) => Promise<TransitionTripDocumentResult>
   readDeliveryProofs: (input: TripDocumentActionInput) => Promise<readonly DeliveryProof[]>
+  readTripDocumentProducts: (
+    input: TripDocumentActionInput,
+  ) => Promise<readonly TripDocumentProduct[]>
   dispatchTrip: (input: DispatchTripInput) => Promise<DispatchTripResult>
   findNfeDocumentByAccessKey: (
     input: FindNfeDocumentByAccessKeyInput,
@@ -107,6 +111,8 @@ export function createTripController(
       canManageTrips ? input.client.deliverTripDocument(body) : forbidden(),
     readDeliveryProofs: (body) =>
       canReadTrips ? input.client.readDeliveryProofs(body) : forbidden(),
+    readTripDocumentProducts: (body) =>
+      canReadTrips ? input.client.readTripDocumentProducts(body) : forbidden(),
     dispatchTrip: (body) => (canManageTrips ? input.client.dispatchTrip(body) : forbidden()),
     findNfeDocumentByAccessKey: (query) =>
       canManageTrips ? input.client.findNfeDocumentByAccessKey(query) : forbidden(),
@@ -199,6 +205,17 @@ export function useTripWorkspace(
     queryKey: [...tripKey, 'delivery-proofs', openProofDocumentId] as const,
   })
 
+  /** Os itens seguem o mesmo painel do comprovante: uma abertura, duas consultas, nenhuma antes. */
+  const documentProductsQuery = useQuery({
+    enabled: openProofDocumentId !== null && input.tripId !== undefined && input.tripId !== '',
+    queryFn: () =>
+      controller.readTripDocumentProducts({
+        documentId: openProofDocumentId ?? '',
+        tripId: input.tripId ?? '',
+      }),
+    queryKey: [...tripKey, 'document-products', openProofDocumentId] as const,
+  })
+
   const fiscalReadinessQuery = useQuery({
     enabled:
       controller.canReadTrips &&
@@ -289,6 +306,7 @@ export function useTripWorkspace(
     createMutation,
     deliverDocumentMutation,
     deliveryProofsQuery,
+    documentProductsQuery,
     openProofDocumentId,
     setOpenProofDocumentId,
     fiscalReadiness: fiscalReadinessQuery.data,

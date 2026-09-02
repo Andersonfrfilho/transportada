@@ -8,9 +8,11 @@
  */
 import { and, asc, eq } from 'drizzle-orm'
 
+import { nfeProducts } from '../../database/nfe.schema.js'
 import { storedObjects } from '../../database/storage.schema.js'
 import { tripDeliveryProofs, tripDocuments, tripStopEvents } from '../../database/trip.schema.js'
 import type { DeliveryProofRecord } from '../application/read-delivery-proof.use-case.js'
+import type { TripDocumentProduct } from '../application/read-trip-document-products.use-case.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
 export async function listDeliveryProofs(
@@ -73,4 +75,47 @@ export async function listDeliveryProofs(
     objectKey: row.objectKey,
     receiverName: row.receiverName,
   }))
+}
+
+/**
+ * Os itens da nota vinculada à viagem. A junção com `trip_documents` **não é decoração**: sem ela,
+ * qualquer nota da empresa devolveria seus produtos por um identificador de vínculo de outra
+ * viagem — e o escopo de viagem é justamente o que a rota promete.
+ */
+export async function listDocumentProducts(
+  queryable: TripQueryable,
+  input: {
+    readonly companyId: string
+    readonly documentId: string
+    readonly tripId: string
+  },
+): Promise<readonly TripDocumentProduct[]> {
+  const rows = await queryable
+    .select({
+      code: nfeProducts.code,
+      commercialUnit: nfeProducts.commercialUnit,
+      description: nfeProducts.description,
+      ordinal: nfeProducts.ordinal,
+      quantity: nfeProducts.quantity,
+      totalValue: nfeProducts.totalValue,
+      unitValue: nfeProducts.unitValue,
+    })
+    .from(tripDocuments)
+    .innerJoin(
+      nfeProducts,
+      and(
+        eq(nfeProducts.companyId, tripDocuments.companyId),
+        eq(nfeProducts.documentId, tripDocuments.nfeDocumentId),
+      ),
+    )
+    .where(
+      and(
+        eq(tripDocuments.companyId, input.companyId),
+        eq(tripDocuments.id, input.documentId),
+        eq(tripDocuments.tripId, input.tripId),
+      ),
+    )
+    .orderBy(asc(nfeProducts.ordinal))
+
+  return rows.map((row) => ({ ...row, ordinal: Number(row.ordinal) }))
 }

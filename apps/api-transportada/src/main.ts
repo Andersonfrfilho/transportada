@@ -143,7 +143,11 @@ import { createDamdfePdfGateway } from './mdfe-manifests/infrastructure/damdfe-p
 import { createMdfeDocumentDownloadGateway } from './mdfe-manifests/infrastructure/mdfe-document-download.gateway.js'
 import { readDeliveryProofs } from './trips/application/read-delivery-proof.use-case.js'
 import { createDeliveryProofDownloadGateway } from './trips/infrastructure/delivery-proof-download.gateway.js'
-import { listDeliveryProofs } from './trips/infrastructure/delivery-proof-read.support.js'
+import { readTripDocumentProducts } from './trips/application/read-trip-document-products.use-case.js'
+import {
+  listDeliveryProofs,
+  listDocumentProducts,
+} from './trips/infrastructure/delivery-proof-read.support.js'
 import { createMdfeDocumentSource } from './mdfe-manifests/infrastructure/mdfe-document.query.js'
 import { createMdfeXmlReaderGateway } from './mdfe-manifests/infrastructure/mdfe-xml-reader.gateway.js'
 import { createCteArchiveGateway } from './cte-issuance/infrastructure/cte-archive.gateway.js'
@@ -1637,6 +1641,17 @@ function createApplicationRoutes({
       createTrip: { execute: (input) => trips.create(input) },
       createTripMdfeManifest: { execute: (input) => createTripMdfeManifest.execute(input) },
       deliverTripDocument: { execute: (input) => tripLifecycle.deliver.execute(input) },
+      readTripDocumentProducts: {
+        execute: (input) =>
+          readTripDocumentProducts({
+            companyId: input.context.companyId,
+            documentId: input.documentId,
+            repository: {
+              listDocumentProducts: (query) => listDocumentProducts(database, query),
+            },
+            tripId: input.tripId,
+          }),
+      },
       readDeliveryProofs: {
         execute: (input) =>
           readDeliveryProofs({

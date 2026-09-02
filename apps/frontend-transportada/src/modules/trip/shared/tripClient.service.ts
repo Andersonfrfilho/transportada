@@ -25,6 +25,7 @@ import type {
   TripMdfeRequirement,
   TripDocument,
   TripDocumentActionInput,
+  TripDocumentProduct,
   TripListInput,
   TripPage,
 } from './trip.types'
@@ -47,6 +48,9 @@ export type TripClient = Readonly<{
   deliverTripDocument: (input: TripDocumentActionInput) => Promise<TransitionTripDocumentResult>
   dispatchTrip: (input: DispatchTripInput) => Promise<DispatchTripResult>
   readDeliveryProofs: (input: TripDocumentActionInput) => Promise<readonly DeliveryProof[]>
+  readTripDocumentProducts: (
+    input: TripDocumentActionInput,
+  ) => Promise<readonly TripDocumentProduct[]>
   findNfeDocumentByAccessKey: (
     input: FindNfeDocumentByAccessKeyInput,
   ) => Promise<null | ScannedNfeDocument>
@@ -198,6 +202,14 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: `${documentPath(input)}/deliver`,
       })
       return adapters.transitionTripDocumentResultFromApi(readEnvelopeData(response))
+    },
+    async readTripDocumentProducts(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${documentPath(input)}/products`,
+      })
+      return adapters.documentProductsFromApi(readEnvelopeData(response))
     },
     async readDeliveryProofs(input) {
       const response = await authorizedRequest({

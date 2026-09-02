@@ -98,6 +98,17 @@ describe('separator role contract', () => {
       'GET /trips/:id',
       'GET /trips/:id/documents/:documentId/delivery-address-history',
       /**
+       * Spec 079 T019: os itens da nota, e o separador os alcança — decisão registrada aqui.
+       *
+       * Conferir o que vai dentro da caixa **é** o trabalho dele: é a lista que ele lê de pé no
+       * galpão para saber que a carga está completa antes de carregar. Esconder isso de quem separa
+       * seria esconder a informação de quem mais a usa.
+       *
+       * ⚠️ A rota publica código, descrição e quantidade — **nunca NCM e CFOP**, que são
+       * classificação fiscal. Se algum dia ela passar a publicá-los, esta decisão se reabre.
+       */
+      'GET /trips/:id/documents/:documentId/products',
+      /**
        * Spec 079 T004: o comprovante de entrega, e o separador o alcança — decisão registrada aqui.
        *
        * Ele já lê o detalhe inteiro da viagem por `fleet.read`, incluindo que a nota foi entregue e

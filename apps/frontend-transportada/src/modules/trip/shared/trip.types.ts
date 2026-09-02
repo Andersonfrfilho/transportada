@@ -69,6 +69,17 @@ export type TripDocument = Readonly<{
   updatedAt: string
 }>
 
+/** Spec 079 T019: o que vai dentro da nota. Sem NCM e CFOP — ver o caso de uso na API. */
+export type TripDocumentProduct = Readonly<{
+  code: string
+  commercialUnit: string
+  description: string
+  ordinal: number
+  quantity: string
+  totalValue: string
+  unitValue: string
+}>
+
 export type TripDocumentDetail = TripDocument &
   Readonly<{
     cteAuthorized: boolean

@@ -700,3 +700,11 @@
   font-size: var(--font-size-sm);
   white-space: nowrap;
 }
+
+/* Lista lida de pé: uma linha por item, sem marcador competindo com a quantidade. */
+.documentProductList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: var(--font-size-sm);
+}

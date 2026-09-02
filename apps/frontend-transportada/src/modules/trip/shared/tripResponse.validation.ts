@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { DeliveryProof } from './deliveryProof.service'
+import type { TripDocumentProduct } from './trip.types'
 import {
   BATCH_STATUS_RESULT_KEYS,
   DELIVERY_ADDRESS_OVERRIDE_KEYS,
@@ -8,6 +9,7 @@ import {
   TRIP_DETAIL_KEYS,
   TRIP_DETAIL_OPTIONAL_KEYS,
   DELIVERY_PROOF_KEYS,
+  TRIP_DOCUMENT_PRODUCT_KEYS,
   TRIP_CARGO_WEIGHT_KEYS,
   TRIP_OCCUPANCY_KEYS,
   TRIP_DOCUMENT_DETAIL_KEYS,
@@ -389,6 +391,10 @@ export function createTripResponseAdapters() {
       if (!Array.isArray(input) || !input.every(isDeliveryProof)) throw invalid()
       return input
     },
+    documentProductsFromApi(input: unknown): readonly TripDocumentProduct[] {
+      if (!Array.isArray(input) || !input.every(isDocumentProduct)) throw invalid()
+      return input
+    },
     transitionTripDocumentResultFromApi(input: unknown): TransitionTripDocumentResult {
       if (!isTransitionResult(input)) throw invalid()
       return input
@@ -434,5 +440,18 @@ function isDeliveryProof(value: unknown): value is DeliveryProof {
     isString(value.id) &&
     (value.kind === 'photo' || value.kind === 'signature') &&
     isString(value.receiverName)
+  )
+}
+
+function isDocumentProduct(value: unknown): value is TripDocumentProduct {
+  if (!hasExactKeys(value, TRIP_DOCUMENT_PRODUCT_KEYS)) return false
+  return (
+    isString(value.code) &&
+    isString(value.commercialUnit) &&
+    isString(value.description) &&
+    isUnsignedInteger(value.ordinal) &&
+    isString(value.quantity) &&
+    isString(value.totalValue) &&
+    isString(value.unitValue)
   )
 }

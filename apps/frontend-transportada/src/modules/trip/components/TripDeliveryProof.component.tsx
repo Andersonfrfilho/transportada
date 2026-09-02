@@ -4,9 +4,12 @@
 import { useTranslation } from 'react-i18next'
 
 import type { DeliveryProof, DeliveryProofView } from '../shared/deliveryProof.service'
+import type { TripDocumentProduct } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
 
 type TripDeliveryProofProps = Readonly<{
+  /** Spec 079 T019: o que vai dentro da nota, conferido de pé no galpão. */
+  products: readonly TripDocumentProduct[]
   view: DeliveryProofView
 }>
 
@@ -20,20 +23,33 @@ type TripDeliveryProofProps = Readonly<{
  * Os quatro estados chegam inteiros aqui: "entregue sem comprovante" e "não entregue" têm textos
  * diferentes de propósito, porque são fatos diferentes (ver `deliveryProof.service.ts`).
  */
-export function TripDeliveryProof({ view }: TripDeliveryProofProps) {
+export function TripDeliveryProof({ products, view }: TripDeliveryProofProps) {
   const { t } = useTranslation('trip')
 
+  /**
+   * ⚠️ A lista de itens aparece **em todos os estados**, inclusive antes de a nota ser entregue: é
+   * justamente antes que alguém confere se a carga está completa. Amarrá-la à entrega esconderia a
+   * informação de quem mais precisa dela.
+   */
   if (view.state === 'not-delivered') {
-    return <p className={styles.hint}>{t('deliveryProof.notDelivered')}</p>
+    return (
+      <>
+        <p className={styles.hint}>{t('deliveryProof.notDelivered')}</p>
+        <TripDocumentProducts products={products} />
+      </>
+    )
   }
 
   if (view.state === 'returned') {
     return (
-      <p className={styles.hint}>
-        {view.returnReason === null || view.returnReason === ''
-          ? t('deliveryProof.returnedWithoutReason')
-          : t('deliveryProof.returned', { reason: view.returnReason })}
-      </p>
+      <>
+        <p className={styles.hint}>
+          {view.returnReason === null || view.returnReason === ''
+            ? t('deliveryProof.returnedWithoutReason')
+            : t('deliveryProof.returned', { reason: view.returnReason })}
+        </p>
+        <TripDocumentProducts products={products} />
+      </>
     )
   }
 
@@ -57,6 +73,7 @@ export function TripDeliveryProof({ view }: TripDeliveryProofProps) {
       {view.photos.map((proof) => (
         <ProofImage alt={t('deliveryProof.photoAlt')} key={proof.id} proof={proof} />
       ))}
+      <TripDocumentProducts products={products} />
     </section>
   )
 }
@@ -73,5 +90,41 @@ function formatMoment(value: string): string {
 function ProofImage({ alt, proof }: Readonly<{ alt: string; proof: DeliveryProof }>) {
   return (
     <img alt={alt} className={styles.deliveryProofImage} loading="lazy" src={proof.downloadUrl} />
+  )
+}
+
+const quantityFormatter = new Intl.NumberFormat('pt-BR', {
+  maximumFractionDigits: 4,
+  minimumFractionDigits: 0,
+})
+
+/**
+ * A lista que se lê com a caixa na mão: quantidade, unidade e descrição. **Sem NCM e sem CFOP** —
+ * a API não os publica, e nem deveria: classificação fiscal é ruído para quem confere carga.
+ */
+function TripDocumentProducts({
+  products,
+}: Readonly<{ products: readonly TripDocumentProduct[] }>) {
+  const { t } = useTranslation('trip')
+
+  if (products.length === 0) {
+    return <p className={styles.hint}>{t('deliveryProof.withoutProducts')}</p>
+  }
+
+  return (
+    <>
+      <h4 className={styles.hint}>{t('deliveryProof.products')}</h4>
+      <ul className={styles.documentProductList}>
+        {products.map((product) => (
+          <li key={product.code + String(product.ordinal)}>
+            {t('deliveryProof.productLine', {
+              description: product.description,
+              quantity: quantityFormatter.format(Number.parseFloat(product.quantity)),
+              unit: product.commercialUnit,
+            })}
+          </li>
+        ))}
+      </ul>
+    </>
   )
 }
