@@ -137,11 +137,16 @@ log, com o motorista parado na porta errada.
 - **D1 — `<entrega>` vence `<enderDest>` quando presente e completo.** É a semântica da NF-e: o
   emitente só emite `<entrega>` quando ele difere, e a SEFAZ trata o `cMunDescarga` do MDF-e
   como o município da entrega efetiva. Não há escolha de operador aqui.
-- **D2 — Não há backfill de dado.** O papel `delivery` sempre esteve no importador
-  (`resolvePartyByRole`), então nota histórica com `<entrega>` já tem a linha em
-  `nfe_participants`. ⚠️ Isso é dedução do código, não medição: a T1 mede em staging e em
-  produção antes de qualquer implementação, e a decisão se revisa se a contagem for zero num
-  ambiente que tenha notas dessas.
+- **D2 — Não há backfill, porque não há dado — e o caminho de escrita ainda não foi provado.**
+  Medido em produção em 2026-09-01: 1628 notas, **zero** participantes `delivery` (e zero
+  `pickup`); só `recipient`, `emitter` e `carrier`, 1628 cada. O papel está no importador desde
+  `4e74a25e` (spec 013, 2026-07-28), antes de todas elas — então o zero é ausência de
+  `<entrega>` nas notas, não código faltando. Confirma a amostra de 345 notas reais (0/345).
+  ⚠️ Consequência: **o caminho de escrita nunca rodou contra nota real.** Provar que o
+  importador persiste o papel `delivery` é pré-requisito de converter qualquer leitor — sem
+  isso, sete consumidores passariam a ler uma linha que talvez nunca seja escrita. É a T002.
+  O parser, esse, já foi medido: `importarNfeXml` sobre uma nota real com `<entrega>` injetado
+  devolve o endereço completo, com município e CEP divergentes do destinatário.
 - **D3 — Viagem já despachada não recalcula parada.** `dispatched` é porta de não-retorno
   (spec 056): o roteiro congela em `trip_dispatch_snapshots` e o motorista já está na rua.
   Trocar o endereço de uma parada em trânsito é incidente, não correção. Viagem em `draft`,
