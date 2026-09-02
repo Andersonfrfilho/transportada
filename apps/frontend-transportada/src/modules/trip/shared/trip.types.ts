@@ -81,6 +81,8 @@ export type TripStopDetail = Readonly<{
  * de estimativa junto do número — há contrato guardando isso.
  */
 export type TripOccupancy = Readonly<{
+  /** As medidas de onde o m³ saiu; `null` no degrau em que alguém digitou o volume. */
+  capacityDimensions: Readonly<{ heightM: string; lengthM: string; widthM: string }> | null
   capacityM3: string
   capacitySource: 'measured' | 'declared' | 'reference'
   documentsWithoutVolume: number

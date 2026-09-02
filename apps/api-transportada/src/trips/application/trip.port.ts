@@ -86,6 +86,16 @@ export type TripStopDetail = {
  */
 export type TripOccupancyView = {
   readonly capacityM3: string
+  /**
+   * As medidas de onde o m³ saiu — da ficha quando `measured`, da referência quando `reference`.
+   * `null` no degrau `declared`, em que alguém digitou o volume e as medidas não existem.
+   * A tela as imprime para o número parar de ser um total sem procedência.
+   */
+  readonly capacityDimensions: {
+    readonly heightM: string
+    readonly lengthM: string
+    readonly widthM: string
+  } | null
   readonly capacitySource: 'measured' | 'declared' | 'reference'
   readonly documentsWithoutVolume: number
   readonly loadedM3: string

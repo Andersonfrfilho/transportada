@@ -114,6 +114,7 @@ export const TRIP_DETAIL_KEYS = [
 
 /** Spec 075: a ocupação do baú. `null` quando a capacidade do veículo não é conhecida. */
 export const TRIP_OCCUPANCY_KEYS = [
+  'capacityDimensions',
   'capacityM3',
   'capacitySource',
   'documentsWithoutVolume',

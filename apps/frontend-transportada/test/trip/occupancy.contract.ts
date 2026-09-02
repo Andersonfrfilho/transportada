@@ -57,6 +57,27 @@ describe('ocupação na tela (spec 075 T011)', () => {
     expect(trip.occupancy.capacityReference).toInclude('referência')
   })
 
+  /**
+   * ⚠️ Escala do banco é seis casas, e `2.250000 m³` faz o operador ler precisão como exatidão —
+   * num número que é **estimado**. Duas casas, vírgula decimal, formato do país.
+   */
+  it('imprime em formato brasileiro, com duas casas', () => {
+    expect(source).toInclude("Intl.NumberFormat('pt-BR'")
+    expect(source).toInclude('maximumFractionDigits: 2')
+    expect(source).not.toInclude('occupancy.capacityM3}')
+  })
+
+  /** As medidas dizem de onde o m³ saiu: um total sem procedência não se confere. */
+  it('mostra as medidas que produziram o volume', () => {
+    expect(source).toInclude('occupancy.capacityDimensions')
+    expect(trip.occupancy.dimensions).toInclude('{{length}} × {{width}} × {{height}}')
+  })
+
+  /** No degrau em que alguém digitou o volume não há medidas — e inventá-las seria fabricar origem. */
+  it('não desenha medidas quando elas não existem', () => {
+    expect(source).toInclude('dimensions === null ? null :')
+  })
+
   /** Nota sem cubagem é dita, nunca somada como zero (RF7). */
   it('diz quantas notas ficaram fora da conta', () => {
     expect(source).toInclude('occupancy.documentsWithoutVolume > 0')

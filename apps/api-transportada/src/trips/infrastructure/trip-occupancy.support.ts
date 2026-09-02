@@ -116,5 +116,32 @@ export async function loadTripOccupancy(
   const occupancy = resolveTripOccupancy({ capacityM3: capacity.capacityM3, documents })
   if (occupancy === null) return null
 
-  return { ...occupancy, capacityM3: capacity.capacityM3, capacitySource: capacity.source }
+  return {
+    ...occupancy,
+    capacityDimensions: resolveDimensions({ reference, vehicle }, capacity.source),
+    capacityM3: capacity.capacityM3,
+    capacitySource: capacity.source,
+  }
+}
+
+type Dimensions = {
+  readonly cargoHeightM: string
+  readonly cargoLengthM: string
+  readonly cargoWidthM: string
+}
+
+/**
+ * As medidas que produziram o m³ — da ficha quando ele foi medido, da referência quando foi
+ * herdado. No degrau `declared` não há medidas: alguém digitou o volume, e inventar dimensões que
+ * multiplicassem até ele seria fabricar procedência.
+ */
+function resolveDimensions(
+  input: { readonly reference: Dimensions | undefined; readonly vehicle: Dimensions },
+  source: 'measured' | 'declared' | 'reference',
+): { readonly heightM: string; readonly lengthM: string; readonly widthM: string } | null {
+  const from =
+    source === 'measured' ? input.vehicle : source === 'reference' ? input.reference : undefined
+  if (from === undefined) return null
+
+  return { heightM: from.cargoHeightM, lengthM: from.cargoLengthM, widthM: from.cargoWidthM }
 }
