@@ -532,13 +532,14 @@ a {
   backdrop-filter: blur(16px);
 }
 
-.application-header-copy {
+.ui-card-header.application-header-copy {
   display: grid;
   gap: var(--space-2);
 }
 
-.application-header-context {
+.ui-card-content.application-header-context {
   display: flex;
+  min-width: 0;
   flex-wrap: wrap;
   gap: var(--space-3);
   justify-content: flex-end;
@@ -549,12 +550,12 @@ a {
   text-transform: uppercase;
 }
 
-.application-header-context > span {
+.ui-card-content.application-header-context > span {
   display: none;
 }
 
 /* O ambiente fiscal é aviso de segurança: sumir no celular é onde ele mais faria falta. */
-.application-header-context > .application-fiscal-environment {
+.ui-card-content.application-header-context > .application-fiscal-environment {
   display: inline-block;
 }
 
@@ -574,6 +575,7 @@ a {
 .application-user-area {
   display: inline-flex;
   width: 100%;
+  min-width: 0;
   align-items: center;
   justify-content: flex-start;
   gap: var(--space-3);
@@ -1147,11 +1149,11 @@ h2 {
     align-items: center;
   }
 
-  .application-header-context {
+  .ui-card-content.application-header-context {
     font-size: 0.7rem;
   }
 
-  .application-header-context > span {
+  .ui-card-content.application-header-context > span {
     display: inline;
   }
 
