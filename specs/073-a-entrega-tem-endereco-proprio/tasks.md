@@ -22,7 +22,6 @@ Uma task por vez. Teste de contrato **antes** da implementação. Task só fecha
       escrita — e o defeito resultante seria idêntico ao de hoje: silencioso.
       **Fixture:** nota real do lote `ID1010506` com bloco `<entrega>` injetado; o parser já foi
       medido devolvendo o endereço completo, com município e CEP divergentes.
-      **Aceite:** D2 confirmada ou revisada por escrito antes de qualquer código.
 
 ---
 
