@@ -93,11 +93,27 @@ if [ "$(printf '%s' "$declared" | jq 'length')" -eq 0 ]; then
 fi
 
 for client_id in $(printf '%s' "$declared" | jq -r 'keys[]'); do
-  client="$(curl --silent --show-error --fail --max-time 30 \
+  # O status vem separado do corpo porque 403 aqui tem causa única e conserto único, e `--fail`
+  # devolveria só "curl: (56)" — mensagem que não diz a ninguém o que fazer. `manage-realm` cobre o
+  # realm e **não** cobre client: sem `view-clients` e `manage-clients` no service account, este
+  # passo para aqui.
+  lookup_status="$(curl --silent --show-error --max-time 30 --output /tmp/keycloak-client.json \
+    --write-out '%{http_code}' \
     --header "Authorization: Bearer $token" \
     --get "$base_url/admin/realms/$REALM/clients" \
-    --data-urlencode "clientId=$client_id" \
-    | jq '.[0] // empty')"
+    --data-urlencode "clientId=$client_id")"
+
+  if [ "$lookup_status" = 403 ]; then
+    echo "::error::o service account transportada-admin não pode ler clients do realm $REALM."
+    echo "::error::Conceda 'view-clients' e 'manage-clients' de realm-management a ele — hoje tem só manage-realm e manage-users."
+    exit 1
+  fi
+  if [ "$lookup_status" != 200 ]; then
+    echo "::error::a consulta do client $client_id respondeu $lookup_status"
+    exit 1
+  fi
+
+  client="$(jq '.[0] // empty' /tmp/keycloak-client.json)"
 
   if [ -z "$client" ]; then
     echo "::error::o client $client_id não existe no realm $REALM"
