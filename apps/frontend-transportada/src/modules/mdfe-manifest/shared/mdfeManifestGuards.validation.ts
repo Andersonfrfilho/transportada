@@ -1,3 +1,5 @@
+import { hasExactKeys } from '@/modules/shared/objectKeys.service'
+
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import {
   MDFE_ATTEMPT_KIND,
@@ -53,12 +55,8 @@ export function hasEveryKey(value: Record<string, unknown>, keys: readonly strin
   return keys.every((key) => key in value)
 }
 
-export function hasExactKeys(
-  value: unknown,
-  keys: readonly string[],
-): value is Record<string, unknown> {
-  return isRecord(value) && hasOnlyKeys(value, keys) && hasEveryKey(value, keys)
-}
+/** Spec 079: reexporta a guarda compartilhada — a regra mora num lugar so. */
+export { hasExactKeys }
 
 export function isOneOf<TOption extends string>(
   value: unknown,

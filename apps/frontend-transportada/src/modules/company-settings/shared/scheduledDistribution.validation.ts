@@ -1,3 +1,4 @@
+import { hasExactKeys } from '@/modules/shared/objectKeys.service'
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { isRecord } from './companySettingsResponse.validation'
 
@@ -31,17 +32,6 @@ export type ScheduledDistributionStatus = Readonly<{
 
 export type ScheduledDistributionResponse = Readonly<{ data: ScheduledDistributionStatus }>
 
-function hasExactKeys(
-  input: Readonly<{ keys: readonly string[]; value: Record<string, unknown> }>,
-): boolean {
-  const currentKeys = Object.keys(input.value).sort()
-  const expectedKeys = [...input.keys].sort()
-  return (
-    currentKeys.length === expectedKeys.length &&
-    currentKeys.every((key, index) => key === expectedKeys[index])
-  )
-}
-
 function isNullableIsoDate(value: unknown): boolean {
   if (value === null) return true
   if (typeof value !== 'string') return false
@@ -50,7 +40,7 @@ function isNullableIsoDate(value: unknown): boolean {
 }
 
 function isAutomationRun(value: unknown): value is ScheduledDistributionRun {
-  if (!isRecord(value) || !hasExactKeys({ keys: AUTOMATION_IMPORT_KEYS, value })) return false
+  if (!isRecord(value) || !hasExactKeys(value, AUTOMATION_IMPORT_KEYS)) return false
   return (
     isNullableIsoDate(value.finishedAt) &&
     typeof value.receivedCount === 'number' &&
@@ -65,7 +55,7 @@ function isAutomationRun(value: unknown): value is ScheduledDistributionRun {
 export function isScheduledDistributionStatus(
   value: unknown,
 ): value is ScheduledDistributionStatus {
-  if (!isRecord(value) || !hasExactKeys({ keys: STATUS_KEYS, value })) return false
+  if (!isRecord(value) || !hasExactKeys(value, STATUS_KEYS)) return false
   return (
     isNullableIsoDate(value.certificateExpiresAt) &&
     typeof value.eligible === 'boolean' &&
@@ -81,8 +71,6 @@ export function isScheduledDistributionResponse(
   value: unknown,
 ): value is ScheduledDistributionResponse {
   return (
-    isRecord(value) &&
-    hasExactKeys({ keys: ['data'], value }) &&
-    isScheduledDistributionStatus(value.data)
+    isRecord(value) && hasExactKeys(value, ['data']) && isScheduledDistributionStatus(value.data)
   )
 }

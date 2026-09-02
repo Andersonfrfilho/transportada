@@ -1,3 +1,4 @@
+import { hasExactKeys } from '@/modules/shared/objectKeys.service'
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import {
   CTE_RETRY_BACKOFF_STEPS_LIMIT,
@@ -80,22 +81,8 @@ function isDecimal(value: unknown): value is string {
   return typeof value === 'string' && DECIMAL.test(value) && BigInt(value) <= MAX_DATABASE_BIGINT
 }
 
-function hasExactKeys(
-  input: Readonly<{
-    keys: readonly string[]
-    value: Record<string, unknown>
-  }>,
-): boolean {
-  const currentKeys = Object.keys(input.value).sort()
-  const expectedKeys = [...input.keys].sort()
-  return (
-    currentKeys.length === input.keys.length &&
-    currentKeys.every((key, index) => key === expectedKeys[index])
-  )
-}
-
 export function isSafeCertificate(value: unknown): value is SafeCertificate {
-  if (!isRecord(value) || !hasExactKeys({ keys: CERTIFICATE_KEYS, value })) return false
+  if (!isRecord(value) || !hasExactKeys(value, CERTIFICATE_KEYS)) return false
   return (
     typeof value.id === 'string' &&
     UUID.test(value.id) &&
@@ -121,13 +108,13 @@ export function toSafeCertificate(value: SafeCertificate): SafeCertificate {
 export function isCompanyProfileLookup(value: unknown): value is CompanyProfileLookup {
   return (
     isRecord(value) &&
-    hasExactKeys({ keys: LOOKUP_PROFILE_KEYS, value }) &&
+    hasExactKeys(value, LOOKUP_PROFILE_KEYS) &&
     LOOKUP_PROFILE_KEYS.every((key) => typeof value[key] === 'string')
   )
 }
 
 function isCteSettings(value: unknown): boolean {
-  if (!isRecord(value) || !hasExactKeys({ keys: CTE_KEYS, value })) return false
+  if (!isRecord(value) || !hasExactKeys(value, CTE_KEYS)) return false
   return (
     (value.environment === 'homologation' || value.environment === 'production') &&
     isDecimal(value.nextNumber) &&
@@ -141,7 +128,7 @@ function isPositiveInteger(value: unknown): value is number {
 }
 
 function isCteRetryPolicy(value: unknown): boolean {
-  if (!isRecord(value) || !hasExactKeys({ keys: CTE_RETRY_KEYS, value })) return false
+  if (!isRecord(value) || !hasExactKeys(value, CTE_RETRY_KEYS)) return false
   const { backoffSeconds, maxAttempts } = value
   return (
     Array.isArray(backoffSeconds) &&
@@ -154,17 +141,17 @@ function isCteRetryPolicy(value: unknown): boolean {
 }
 
 function isActivation(value: unknown): boolean {
-  if (!isRecord(value) || !hasExactKeys({ keys: ACTIVATION_KEYS, value })) return false
+  if (!isRecord(value) || !hasExactKeys(value, ACTIVATION_KEYS)) return false
   return ACTIVATION_CHANNELS.some((channel) => channel === value.channel)
 }
 
 function isBillingDefaults(value: unknown): boolean {
-  if (!isRecord(value) || !hasExactKeys({ keys: BILLING_KEYS, value })) return false
+  if (!isRecord(value) || !hasExactKeys(value, BILLING_KEYS)) return false
   return BILLING_KEYS.every((key) => typeof value[key] === 'string')
 }
 
 function isMdfeDefaults(value: unknown): boolean {
-  if (!isRecord(value) || !hasExactKeys({ keys: MDFE_KEYS, value })) return false
+  if (!isRecord(value) || !hasExactKeys(value, MDFE_KEYS)) return false
   const responsibility = value.insuranceResponsibility
   return (
     MDFE_KEYS.every((key) => typeof value[key] === 'string') &&
@@ -173,7 +160,7 @@ function isMdfeDefaults(value: unknown): boolean {
 }
 
 function isFiscalProfile(value: unknown): boolean {
-  if (!isRecord(value) || !hasExactKeys({ keys: PROFILE_KEYS, value })) return false
+  if (!isRecord(value) || !hasExactKeys(value, PROFILE_KEYS)) return false
   const allTextFields = PROFILE_KEYS.filter((key) => key !== 'taxRegime')
   return (
     allTextFields.every((key) => typeof value[key] === 'string') &&
@@ -183,14 +170,10 @@ function isFiscalProfile(value: unknown): boolean {
 }
 
 export function isSettingsResponse(value: unknown): value is CompanySettingsResponse {
-  if (!isRecord(value) || !hasExactKeys({ keys: ['data'], value }) || !isRecord(value.data))
-    return false
+  if (!isRecord(value) || !hasExactKeys(value, ['data']) || !isRecord(value.data)) return false
   const { activation, billing, cte, cteRetry, mdfe, profile } = value.data
   return (
-    hasExactKeys({
-      keys: ['activation', 'billing', 'cte', 'cteRetry', 'mdfe', 'profile'],
-      value: value.data,
-    }) &&
+    hasExactKeys(value.data, ['activation', 'billing', 'cte', 'cteRetry', 'mdfe', 'profile']) &&
     (activation === null || isActivation(activation)) &&
     (billing === null || isBillingDefaults(billing)) &&
     (cte === null || isCteSettings(cte)) &&
@@ -201,15 +184,11 @@ export function isSettingsResponse(value: unknown): value is CompanySettingsResp
 }
 
 export function isCertificatesResponse(value: unknown): value is DigitalCertificatesResponse {
-  if (
-    !isRecord(value) ||
-    !hasExactKeys({ keys: ['data', 'page'], value }) ||
-    !Array.isArray(value.data)
-  )
+  if (!isRecord(value) || !hasExactKeys(value, ['data', 'page']) || !Array.isArray(value.data))
     return false
   return (
     isRecord(value.page) &&
-    hasExactKeys({ keys: ['nextCursor'], value: value.page }) &&
+    hasExactKeys(value.page, ['nextCursor']) &&
     (value.page.nextCursor === null ||
       (typeof value.page.nextCursor === 'string' &&
         /^[A-Za-z0-9_-]+$/.test(value.page.nextCursor))) &&
@@ -222,7 +201,7 @@ export function isCompanyProfileLookupResponse(
 ): value is CompanyProfileLookupResponse {
   return (
     isRecord(value) &&
-    hasExactKeys({ keys: ['data'], value }) &&
+    hasExactKeys(value, ['data']) &&
     (value.data === null || isCompanyProfileLookup(value.data))
   )
 }

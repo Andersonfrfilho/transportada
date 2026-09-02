@@ -1,3 +1,4 @@
+import { hasExactKeys } from '@/modules/shared/objectKeys.service'
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { isRecord } from './companySettingsResponse.validation'
 
@@ -32,17 +33,6 @@ export type DistributionCursor = Readonly<{
 
 export type DistributionCursorResponse = Readonly<{ data: DistributionCursor }>
 
-function hasExactKeys(
-  input: Readonly<{ keys: readonly string[]; value: Record<string, unknown> }>,
-): boolean {
-  const currentKeys = Object.keys(input.value).sort()
-  const expectedKeys = [...input.keys].sort()
-  return (
-    currentKeys.length === expectedKeys.length &&
-    currentKeys.every((key, index) => key === expectedKeys[index])
-  )
-}
-
 function isIsoDate(value: unknown): boolean {
   if (typeof value !== 'string') return false
   const timestamp = Date.parse(value)
@@ -56,12 +46,12 @@ function isNsu(value: unknown): value is string {
 }
 
 function isSkip(value: unknown): value is DistributionCursorSkip {
-  if (!isRecord(value) || !hasExactKeys({ keys: SKIP_KEYS, value })) return false
+  if (!isRecord(value) || !hasExactKeys(value, SKIP_KEYS)) return false
   return isIsoDate(value.at) && isNsu(value.fromNsu) && isNsu(value.toNsu)
 }
 
 export function isDistributionCursor(value: unknown): value is DistributionCursor {
-  if (!isRecord(value) || !hasExactKeys({ keys: CURSOR_KEYS, value })) return false
+  if (!isRecord(value) || !hasExactKeys(value, CURSOR_KEYS)) return false
   return (
     typeof value.consecutiveRateLimits === 'number' &&
     Number.isInteger(value.consecutiveRateLimits) &&
@@ -76,9 +66,7 @@ export function isDistributionCursor(value: unknown): value is DistributionCurso
 }
 
 export function isDistributionCursorResponse(value: unknown): value is DistributionCursorResponse {
-  return (
-    isRecord(value) && hasExactKeys({ keys: ['data'], value }) && isDistributionCursor(value.data)
-  )
+  return isRecord(value) && hasExactKeys(value, ['data']) && isDistributionCursor(value.data)
 }
 
 export function isDistributionCursorNsu(value: string): boolean {
