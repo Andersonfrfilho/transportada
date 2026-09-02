@@ -55,7 +55,9 @@
     "selectionClear": "Limpar seleção",
     "progressLabel": "Progresso da separação da viagem",
     "arrivedAt": "Chegou às {{time}}",
-    "completedAt": "Concluída às {{time}}"
+    "completedAt": "Concluída às {{time}}",
+    "estimatedCompletion": "Previsão de término: {{moment}} (estimativa pelo ritmo das paradas já concluídas)",
+    "withoutEstimate": "Sem previsão de término: ainda não há paradas concluídas suficientes para medir o ritmo."
   },
   "deliveryOverride": {
     "menuAction": "Desviar entrega",

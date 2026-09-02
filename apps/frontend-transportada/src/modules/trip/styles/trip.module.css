@@ -508,6 +508,8 @@
 .progressTrack > span {
   display: block;
   height: 100%;
+  /* A fatia cresce à vista: sem isso a barra salta de um valor a outro e ninguém vê o que mudou. */
+  transition: width 240ms ease;
 }
 
 .progressSegmentPending {
@@ -680,7 +682,8 @@
 
 /* RNF4: quem pediu para nao ter animacao nao tem. */
 @media (prefers-reduced-motion: reduce) {
-  .cargoSlice {
+  .cargoSlice,
+  .progressTrack > span {
     transition: none;
   }
 }

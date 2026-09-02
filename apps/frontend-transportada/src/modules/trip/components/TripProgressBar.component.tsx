@@ -2,6 +2,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { TRIP_DOCUMENT_SEPARATION_STATUS, type TripDocumentDetail } from '../shared/trip.types'
+import type { TripProgress } from '../shared/tripProgress.service'
 import { computeTripStopProgress } from '../shared/tripStopProgress.service'
 import styles from '../styles/trip.module.css'
 
@@ -13,11 +14,20 @@ const SEGMENT_CLASS_BY_STATUS: Readonly<Record<string, string>> = {
   separated: styles.progressSegmentSeparated ?? '',
 }
 
-type TripProgressBarProps = Readonly<{ documents: readonly TripDocumentDetail[] }>
+type TripProgressBarProps = Readonly<{
+  documents: readonly TripDocumentDetail[]
+  /** Spec 079 T011: `null` quando não há ritmo medido — e aí a tela **diz** que não há previsão. */
+  progress: null | TripProgress
+}>
+
+const momentFormatter = new Intl.DateTimeFormat('pt-BR', {
+  dateStyle: 'short',
+  timeStyle: 'short',
+})
 
 /** RF-9 (spec 056): a barra de progresso por fase — nenhum cálculo além de contar cada nota uma
  * vez em `separationStatus`, já feito por `computeTripStopProgress`. */
-export function TripProgressBar({ documents }: TripProgressBarProps) {
+export function TripProgressBar({ documents, progress: tripProgress }: TripProgressBarProps) {
   const { t } = useTranslation('trip')
   const progress = computeTripStopProgress(documents)
 
@@ -46,6 +56,15 @@ export function TripProgressBar({ documents }: TripProgressBarProps) {
           )
         })}
       </div>
+      {tripProgress === null ? null : (
+        <p className={styles.hint}>
+          {tripProgress.estimatedCompletionAt === null
+            ? t('stops.withoutEstimate')
+            : t('stops.estimatedCompletion', {
+                moment: momentFormatter.format(new Date(tripProgress.estimatedCompletionAt)),
+              })}
+        </p>
+      )}
       <ul className={styles.progressLegend}>
         {TRIP_DOCUMENT_SEPARATION_STATUS.map((status) => (
           <li className={styles.progressLegendItem} key={status}>

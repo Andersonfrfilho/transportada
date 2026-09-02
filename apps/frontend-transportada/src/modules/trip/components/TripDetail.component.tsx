@@ -35,6 +35,7 @@ import { TripDeliveryProof } from './TripDeliveryProof.component'
 import { TripOccurrences } from './TripOccurrences.component'
 import { TripOccupancyPanel } from './TripOccupancy.component'
 import { resolveDeliveryProofView } from '../shared/deliveryProof.service'
+import { resolveTripProgress } from '../shared/tripProgress.service'
 import type { TripDocumentDetail } from '../shared/trip.types'
 import { TripProgressBar } from './TripProgressBar.component'
 import { TripReasonDialog } from './TripReasonDialog.component'
@@ -334,7 +335,14 @@ export function TripDetail({ linkForm, onClose, vehicles, workspace }: TripDetai
         ))}
       </fieldset>
 
-      <TripProgressBar documents={trip.documents} />
+      <TripProgressBar
+        documents={trip.documents}
+        progress={resolveTripProgress({
+          now: new Date().toISOString(),
+          status: trip.status,
+          stops: trip.stops,
+        })}
+      />
 
       <TripOccupancyPanel cargoWeight={trip.cargoWeight ?? null} occupancy={trip.occupancy} />
 
