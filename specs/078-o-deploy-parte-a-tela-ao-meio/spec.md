@@ -97,8 +97,42 @@ sendo diagnosticado.
 
 ## Decisões
 
-- **D1 — ⚠️ A decisão entre atomicidade e tolerância está em aberto de propósito, e é a primeira
-  task.** As duas são defensáveis, resolvem coisas diferentes (causa contra consequência) e têm
+- **D1 — ✅ Decidido em 2026-09-02: tolerância, e não atomicidade.**
+
+  O argumento decisivo apareceu ao separar **o que a guarda protege**. `hasExactKeys` reprova três
+  coisas, e elas não valem o mesmo:
+
+  | caso                          | valor da proteção                                       |
+  | ----------------------------- | ------------------------------------------------------- |
+  | chave **ausente**             | alto — é contrato quebrado, e a tela usaria `undefined` |
+  | chave de **tipo errado**      | alto — mesma razão                                      |
+  | chave **desconhecida a mais** | ⚠️ **nenhum** — por definição o cliente não a usa       |
+
+  A chave a mais é a **única** que causa a queda, e é a única que não protege nada: o cliente
+  ignoraria o campo de qualquer forma. Tolerá-la não afrouxa a guarda, **remove o que ela tinha de
+  inútil** — as duas proteções que pagam continuam de pé.
+
+  A objeção plausível seria "chave a mais pode indicar resposta da rota errada". Não sobrevive: a
+  resposta de outra rota **também** teria chaves faltando, e isso continua reprovando.
+
+  Atomicidade fica de fora porque conserta menos por mais: custa pipeline em todo commit de
+  documentação, e **não cobre rollback** — API antiga com frontend novo é o caso inverso, e ali
+  atomicidade não ajuda em nada.
+
+- **D2 — A tolerância sozinha não cobre o sentido inverso, e por isso vem com uma disciplina.**
+  Frontend novo com API antiga tem o campo **ausente**, não a mais — e ausente continua reprovando,
+  como deve. A saída não é afrouxar isso: é o cliente tratar **campo recém-acrescentado como
+  opcional** até a API que o serve estar garantidamente no ar.
+
+  Sem essa metade, a spec conserta um sentido e deixa o outro — e o outro é justamente o do
+  rollback, que é quando a operação está pior.
+
+- **D3 — ⚠️ `hasExactKeys` está copiado em doze arquivos de validação.**
+  Medido: doze cópias, uma por módulo. A mudança de semântica em doze lugares é o mesmo defeito
+  doze vezes se for feita à mão, então ela vem com a extração para um lugar só — que é o que a
+  regra de strings repetidas do `code-standart.md` §16 já pedia.
+
+- **D4 — A decisão anterior, em aberto, está preservada abaixo como registro do que se pesou.** As duas são defensáveis, resolvem coisas diferentes (causa contra consequência) e têm
   custos opostos. Escolher no meio da implementação produziria as duas metades mal feitas.
 
   O que já se sabe, medido, para alimentar a escolha:
@@ -114,5 +148,4 @@ sendo diagnosticado.
 
 ## Dúvidas
 
-- **[NEEDS CLARIFICATION: atomicidade, tolerância, ou as duas?]** Ver D1. É a primeira task, e
-  bloqueia todas as outras.
+Nenhuma bloqueante. A escolha entre atomicidade e tolerância foi fechada na D1.
