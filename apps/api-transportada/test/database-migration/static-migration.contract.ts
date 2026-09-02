@@ -251,6 +251,40 @@ describe('Drizzle migrations', () => {
     expect(rollbackSql).not.toContain('CASCADE')
   })
 
+  /**
+   * ⚠️ Achado em 2026-09-02, com dois deploys de staging vermelhos: o `rollback.sql` da
+   * `20260902170000_trip_document_occurrences` derrubava a tabela e **deixava a linha no journal**.
+   *
+   * O CI vermelho é o menor estrago. Um rollback assim faz o próximo `db:migrate` **pular** a
+   * migration — ela consta como aplicada e a tabela não existe, sem nada avisando, até a primeira
+   * escrita quebrar. E o defeito é invisível a todo teste unitário: só a integração que desfaz
+   * tudo e confere o journal o alcança, e ela roda no gate, não na mesa de quem escreve.
+   *
+   * A chave pode ser o **nome do diretório** ou o **hash** da migration — as duas identificam a
+   * linha certa. O que não se aceita é apagar sem dizer qual: uma chave solta apagaria a linha de
+   * outra migration, que é pior que não apagar nenhuma. E `ROW_COUNT` é o que transforma a chave
+   * errada em exceção alta em vez de rollback silenciosamente parcial.
+   */
+  test('every rollback removes its own journal row, and checks that it removed exactly one', async () => {
+    const directories = await listMigrationDirectories()
+    const semChavePropria: string[] = []
+    const semContagem: string[] = []
+
+    for (const directory of directories) {
+      const rollbackPath = join(migrationsDirectory.pathname, directory, 'rollback.sql')
+      if (!(await Bun.file(rollbackPath).exists())) continue
+
+      const rollbackSql = await readMigrationFile(directory, 'rollback.sql')
+      const porNome = rollbackSql.includes(`'${directory}'`)
+      const porHash = /'[0-9a-f]{64}'/.test(rollbackSql)
+      if (!porNome && !porHash) semChavePropria.push(directory)
+      if (!rollbackSql.includes('ROW_COUNT')) semContagem.push(directory)
+    }
+
+    expect(semChavePropria).toEqual([])
+    expect(semContagem).toEqual([])
+  })
+
   test('versions the billing invoice observations as an additive migration with a guarded rollback', async () => {
     const directories = await listMigrationDirectories()
     const directory = directories.find((name) => name.endsWith('_billing_invoice_observations'))
