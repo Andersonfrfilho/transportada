@@ -290,19 +290,31 @@ real de staging, com doze paradas, **as três estão nulas em todas** — enquan
 tem a coordenada para a mesma `address_key`, inclusive `rooftop` em nove delas.
 
 A junção casa: as chaves são idênticas dos dois lados (`3548906|13568863|145`). O que falta é a
-**cópia** — nada escreve o valor de `geocoded_addresses` na parada, nem quando ela nasce em
-`reconcileStopOnLink`, nem na hora de sugerir o roteiro.
+**cópia** — nenhuma escrita em `trip_stops` toca essas três colunas, conferido por varredura em todo
+`src/`.
+
+⚠️ **A causa da distância zerada ainda não está isolada.** Existe caminho de recuperação:
+`buildGeocodeRequests` (worker) pede geocodificação **justamente para as paradas sem coordenada
+fina**, e `applyResolvedCoordinates` aplica o resultado em memória. A parada nascer sem coordenada
+era para ser recuperável — e não está sendo. O defeito mora entre esse resgate e a matriz, e provar
+onde exige **instrumentar o worker**, não ler mais código.
 
 ### Como apareceu
 
 Viagem `cbe73ab6-3c76-41ac-9007-4448cd7c3830`, montada pela interface com doze notas de destinatários
 distintos em São Carlos e Itirapina.
 
-| sintoma   | o que a tela mostrou                             |
-| --------- | ------------------------------------------------ |
-| distância | **1,6 km** para doze paradas numa cidade inteira |
-| precisão  | as **doze** marcadas "Endereço errado"           |
-| custo     | **R$ 0,00**, com o R$/km do veículo configurado  |
+| sintoma         | medido                                                      |
+| --------------- | ----------------------------------------------------------- |
+| distância total | **1 608 m** para doze paradas em São Carlos                 |
+| trechos         | **dez de onze com `0` metros**; só um trecho tem distância  |
+| precisão        | `geocoding_precision` **nula** nas doze paradas da sugestão |
+| custo           | **R$ 0,00**, com o R$/km do veículo configurado             |
+
+⚠️ **Correção do primeiro registro deste defeito:** eu havia escrito que "as doze foram marcadas
+Endereço errado". **Isso estava errado** — "Endereço errado" é o rótulo do **botão** de correção de
+pino (`routing.locale.json` → `refine.action`), e aparece em toda parada como afordância, não como
+diagnóstico. Li um botão como sintoma. Os números acima vêm do banco.
 
 Refinei nove endereços pelo Google — as chamadas responderam `outcome: "refined"` e gravaram com
 `precision: rooftop`. **O roteiro seguinte não mudou**: mesma distância, mesmas doze marcações.
