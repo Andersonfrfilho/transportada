@@ -373,3 +373,38 @@ linha apagaria por ruído a única que explica um portão diferente — o crach�
 `make check` completo, API 3966 verdes, frontend 2302 verdes.
 
 **A spec 073 está completa em 19 das 19 tasks, com CA1–CA10 cobertas.**
+
+### Verificado em staging (2026-09-02), com nota que traz `<entrega>`
+
+Nenhuma nota de staging tinha `<entrega>` — os três papéis somavam 646 cada, e `delivery` era zero.
+Semeei um participante de entrega em `RUA DA DOCA, CAMPINAS` numa nota cujo destinatário fica em
+outra cidade, vinculei **pela tela** e removi o dado de teste depois.
+
+O que a tela imprimiu na linha da nota:
+
+```
+113771f5-…  PENDENTE  ENTREGA   [Marcar entregue] [Desvincular] [Desviar entrega]
+1º a carregar — RUA DA DOCA, CAMPINAS, SP · 0,50 m³
+```
+
+E o que a base gravou:
+
+```
+destination_origin: delivery   parada: RUA DA DOCA, CAMPINAS, SP
+distribuição: {delivery: 1, null: 18}
+```
+
+As dezoito notas anteriores continuam `null` e **sem crachá** — a migration não inventa origem para
+vínculo que nasceu antes dela.
+
+⚠️ **A origem sobrevive à liberação da nota, e isso é o desenho.** Ao desvincular, `stop_id` volta a
+nulo e `destination_origin` **fica**: a linha é registro histórico de para onde aquele vínculo
+apontou, não estado corrente da parada. Conferido: `{destination_origin: 'delivery', stop_id: null,
+released_at: <preenchido>}`.
+
+⚠️ **A porta de não-retorno pegou primeiro.** A tentativa inicial foi numa viagem já `dispatched` e
+a tela respondeu "Esta ação não é mais permitida no estado atual da viagem" — `checkTripAcceptsLinkage`
+funcionando, e prova de que o caminho verificado é o real, não um atalho.
+
+E uma conferência que veio de brinde: **zero paradas vazias em toda a base** — `reconcileStopOnUnlink`
+apaga a parada quando a última nota sai.
