@@ -13,7 +13,7 @@
       "name": "@transportada/api",
       "version": "0.2.0",
       "dependencies": {
-        "@adatechnology/document-intake": "0.1.0-rc.4",
+        "@adatechnology/document-intake": "0.1.0",
         "@adatechnology/drizzle-provider": "0.1.1",
         "@adatechnology/email-provider": "0.1.0-rc.2",
         "@adatechnology/fiscal-provider": "0.3.0-rc.7",
@@ -101,7 +101,7 @@
       "name": "@transportada/frontend-landing",
       "version": "0.1.0",
       "dependencies": {
-        "@adatechnology/document-intake": "0.1.0-rc.4",
+        "@adatechnology/document-intake": "0.1.0",
         "@tanstack/react-query": "5.90.20",
         "pdfjs-dist": "^6.2.108",
         "react": "19.2.0",
@@ -128,7 +128,7 @@
       "name": "@transportada/frontend",
       "version": "0.2.0",
       "dependencies": {
-        "@adatechnology/document-intake": "0.1.0-rc.4",
+        "@adatechnology/document-intake": "0.1.0",
         "@adatechnology/identity-reconciliation": "0.1.0-rc.1",
         "@adatechnology/image-cutout": "0.1.0-rc.2",
         "@adatechnology/notification-client": "0.1.0-rc.3",
@@ -172,7 +172,7 @@
       "name": "@transportada/worker",
       "version": "0.2.0",
       "dependencies": {
-        "@adatechnology/document-intake": "0.1.0-rc.4",
+        "@adatechnology/document-intake": "0.1.0",
         "@adatechnology/drizzle-provider": "0.1.1",
         "@adatechnology/email-provider": "0.1.0-rc.2",
         "@adatechnology/fiscal-provider": "0.3.0-rc.7",
@@ -205,7 +205,7 @@
   "packages": {
     "@adatechnology/auth-keycloak": ["@adatechnology/auth-keycloak@1.0.0-rc.1", "", { "peerDependencies": { "@adatechnology/logger": "0.1.0-rc.1" } }, "sha512-to4fJmMptgs1naSGj8m8gu8rkiXfiy8IJF4X/xnSZSnyNNvtO2AdYrmIQlQRvFOrmv1+sZiUDB1rxIb+k5Hbnw=="],
 
-    "@adatechnology/document-intake": ["@adatechnology/document-intake@0.1.0-rc.4", "", {}, "sha512-kfUlcmXbMFTT38/2eB0StBmM9KfXdFH7LifqAnymMRVa79fCK7AuCf0T22/PyR3QOX6HoRCv0UNIGrflu4Pd2w=="],
+    "@adatechnology/document-intake": ["@adatechnology/document-intake@0.1.0", "", {}, "sha512-OPY9pvRJcsHQQKhDMe7bm4fUz0vZLz6X3MQa+nOEUSzFxRpWf+lPrlBlbyPYNxgvuEVqGk111aaFHSh83wUBbA=="],
 
     "@adatechnology/drizzle-provider": ["@adatechnology/drizzle-provider@0.1.1", "", { "dependencies": { "drizzle-orm": "1.0.0-rc.4" } }, "sha512-w268VNzUIlsZHGu66mFooHtud3F//040sJyRWqmhnQPfPYzfZ6+wdhAQAe1g2d3Kyiy1gZHVkUFP+v4hbz4/NA=="],
 

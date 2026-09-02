@@ -20,7 +20,7 @@
     "typecheck": "bunx tsc --noEmit"
   },
   "dependencies": {
-    "@adatechnology/document-intake": "0.1.0-rc.4",
+    "@adatechnology/document-intake": "0.1.0",
     "@adatechnology/drizzle-provider": "0.1.1",
     "@adatechnology/email-provider": "0.1.0-rc.2",
     "@adatechnology/fiscal-provider": "0.3.0-rc.7",
