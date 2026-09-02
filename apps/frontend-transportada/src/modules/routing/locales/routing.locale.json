@@ -6,7 +6,10 @@
     "cost": "Custo estimado",
     "unknown": "—",
     "accept": "Aceitar roteiro",
-    "reject": "Descartar"
+    "reject": "Descartar",
+    "reorderedEstimates": "A ordem foi alterada: a distância será recalculada quando a proposta for aceita.",
+    "moveUp": "Mover para cima",
+    "moveDown": "Mover para baixo"
   },
   "status": {
     "queued": "Na fila",

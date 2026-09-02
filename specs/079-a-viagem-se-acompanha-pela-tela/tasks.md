@@ -146,10 +146,10 @@ consentimento do motorista, e entram quando essas existirem. Ver a seção final
 
 - [x] **T023** ✅ **Fechada em 2026-09-02.** A rota `PATCH /geocoded-addresses/:addressKey` já
       existia **inteira** e sem consumidor nenhum. ⚠️ A chave não é UUID (`cityCode|postalCode|
-  number`): sem `encodeURIComponent` o pipe quebra o caminho e o servidor responde 404 para um
+number`): sem `encodeURIComponent` o pipe quebra o caminho e o servidor responde 404 para um
       endereço que existe. O texto diz que a correção vale para **todas** as viagens que passem por
       aquele portão, não só a que está aberta.
-- [ ] **T024** 🧠 Reordenar as paradas **na proposta**, antes de aceitar. **Não** é o arraste de
+- [x] **T024** ✅ Reordenar as paradas **na proposta**, antes de aceitar. **Não** é o arraste de
       `TripStopList`, que reordena a viagem.
 
       **Decidido em 2026-09-02: a distância some, e a tela diz por quê.** Recalcular exigiria a
