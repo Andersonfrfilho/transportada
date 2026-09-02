@@ -70,6 +70,7 @@
       "confirmRejectButton": "Confirmar recusa",
       "declaredLabel": "declarado",
       "empty": "Esta candidatura não trouxe anexos.",
+      "discarded": "A leitura foi descartada depois da revisão — o arquivo continua disponível.",
       "loading": "Carregando os anexos…",
       "matches": "O que lemos no documento confere com o que foi declarado.",
       "notRead": "Não foi possível ler este documento — confira abrindo o arquivo.",

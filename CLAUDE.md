@@ -460,6 +460,19 @@ Quem lê é o worker, e **a landing continua lendo no navegador**: as duas leitu
 diferentes — a do navegador preenche o formulário na hora, a do servidor é o que o operador confere.
 Aceitar a leitura do cliente anônimo como prova deixaria um atacante escolher o que o operador vê.
 
+**A decisão da revisão descarta a leitura.** `extracted_fields` guarda o que o servidor leu do
+anexo — o CPF do proprietário no CRLV, o número de registro e o nome na CNH —, em texto puro e numa
+tabela **sem prazo de descarte** (a 070 decidiu não ter `expires_at`, porque o rascunho é o
+comprovante). Aprovar ou reprovar zera a coluna no **mesmo `UPDATE`** da decisão: em duas escritas,
+uma falha no meio deixaria a PII para trás no caminho de erro. O arquivo continua no bucket, então
+nada se perde — sai a cópia, não o documento. ⚠️ Isso alcança só o anexo **revisado**: rascunho
+abandonado segue sem prazo, e fechá-lo é job agendado com spec própria (`docs/SECURITY.md`,
+02/09/2026).
+
+⚠️ Na tela são **três** estados, não dois: "não consegui ler" e "descartei depois de revisar" chegam
+os dois como `null`, e o painel os separa pelo `status` — dizer que falhou em ler um documento que
+foi lido manda o operador abrir o arquivo à toa.
+
 **O pré-cadastro do agregado começa pelos documentos** (spec 071). A etapa de documentos é a
 **primeira** da landing, antes de "Dados pessoais": ter os dados antes de preencher é o ponto
 inteiro, e com o campo de arquivo no meio da página quem chegava só descobria que podia ter anexado

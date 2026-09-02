@@ -123,10 +123,22 @@ export function createDrizzleAggregateApplicationAttachmentReviewRepository(
         })
     },
 
+    /**
+     * A decisão **descarta a leitura**. `extracted_fields` guarda o que o servidor leu do documento —
+     * o CPF do proprietário no CRLV, o número de registro e o nome na CNH —, em texto puro e numa
+     * tabela sem prazo de descarte. A coluna existe para a conferência do operador; tomada a
+     * decisão, ela é cópia redundante de dado pessoal, e o arquivo original continua no bucket para
+     * quem precisar reabrir (achado de 02/09/2026 no `docs/SECURITY.md`).
+     *
+     * Vai no **mesmo `UPDATE`**, não numa segunda escrita: em duas, uma falha no meio deixaria a PII
+     * para trás justamente no caminho de erro, que é o menos observado. A trilha do que foi decidido
+     * — `status`, `reviewed_by`, `reviewed_at`, `rejection_reason` — não é tocada.
+     */
     async review({ attachmentId, companyId, decision, rejectionReason, reviewedBy }) {
       const updated = await database
         .update(aggregateApplicationAttachments)
         .set({
+          extractedFields: null,
           rejectionReason,
           reviewedAt: new Date(),
           reviewedBy,

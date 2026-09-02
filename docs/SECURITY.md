@@ -122,13 +122,33 @@ Este é o **terceiro** lugar do mesmo banco com CPF em claro, ao lado de `fleet_
 empresa; a leitura nunca volta para o formulário de quem se candidatou; o bucket é privado e o
 backup é cifrado antes de subir, com a chave fora dele. Nada disso protege contra dump do banco.
 
+**Resolvido em parte, em 02/09/2026 — a retenção do anexo revisado.** A decisão da revisão passou a
+**descartar a leitura**: `extracted_fields` vai a `null` no **mesmo `UPDATE`** que grava
+`status`/`reviewed_by`/`reviewed_at` (`drizzle-aggregate-application-attachment-review.repository.ts`).
+Em duas escritas, uma falha no meio deixaria a PII para trás justamente no caminho de erro, que é o
+menos observado. Nada se perde: o arquivo original continua no bucket, e a rota de download continua
+servindo-o; o que sai é a **cópia** do que o documento dizia, depois que ela já cumpriu a função de
+sustentar a conferência.
+
+A tela ganhou um terceiro estado junto, porque "não consegui ler" e "descartei depois de revisar"
+chegam as duas como `null` — chamá-las pelo mesmo nome faria o painel dizer que falhou em ler um
+documento que leu, e mandaria o operador abrir o arquivo à toa.
+
+Prova em `test/integration/aggregate-application-attachment-link.integration.ts`, contra Postgres de
+verdade, nos dois desfechos da revisão.
+
 **Desfecho pendente:** duas decisões, e elas são independentes.
 
 1. **Cifra:** entra junto com a decisão já pendente de `fleet_drivers` + `identity_user_profiles` —
-   resolver um lugar de três não fecha nada, e agora são três.
-2. **Retenção:** dar prazo ao rascunho não revisado, ou apagar `extracted_fields` quando a
-   candidatura é recusada. É a metade barata, não depende da cifra, e é a que reduz o volume
-   exposto — hoje ele só cresce.
+   resolver um lugar de três não fecha nada, e são três. **Não mexida.**
+2. **Retenção do que nunca foi revisado:** o descarte acima só alcança o anexo que **passou pela
+   revisão**. O rascunho abandonado — quem anexou e não enviou a candidatura, ou candidatura que
+   ninguém abriu — continua sem prazo, e é o volume que só cresce. Fechar isso é dar prazo ao
+   rascunho, e prazo exige job agendado: é trabalho com spec própria, não uma linha a mais.
+
+⚠️ O mesmo padrão existe em `aggregate_documents.extracted_fields` (o documento do agregado já
+cadastrado, spec 046), que também guarda a saída de `extractCnhFields`. Não foi tocado aqui: aquele
+registro é da ficha aprovada e tem outro ciclo de vida, mas herda a mesma pergunta de cifra.
 
 **Dono:** a definir.
 
