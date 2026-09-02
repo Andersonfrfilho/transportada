@@ -153,6 +153,7 @@ export const TRIP_DOCUMENT_DETAIL: TripDocumentDetail = {
 export const TRIP_DETAIL: TripDetail = {
   ...TRIP,
   cargoLayout: null,
+  cargoWeight: null,
   documents: [TRIP_DOCUMENT_DETAIL],
   occupancy: null,
   drivers: [

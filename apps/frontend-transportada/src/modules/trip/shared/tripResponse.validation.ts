@@ -6,6 +6,7 @@ import {
   TRANSITION_RESULT_KEYS,
   TRIP_DETAIL_KEYS,
   TRIP_DETAIL_OPTIONAL_KEYS,
+  TRIP_CARGO_WEIGHT_KEYS,
   TRIP_OCCUPANCY_KEYS,
   TRIP_DOCUMENT_DETAIL_KEYS,
   TRIP_DOCUMENT_KEYS,
@@ -152,6 +153,9 @@ function isDetail(value: unknown): value is TripDetail {
     isEveryItem(value.documents, isDocumentDetail) &&
     isEveryItem(value.drivers, isDriverLine) &&
     /** Opcional não é "qualquer coisa": presente com forma errada continua reprovando (D2). */
+    (value.cargoWeight === undefined ||
+      value.cargoWeight === null ||
+      isCargoWeight(value.cargoWeight)) &&
     (value.occupancy === undefined || value.occupancy === null || isOccupancy(value.occupancy)) &&
     isEveryItem(value.stops, isStopDetail)
   )
@@ -381,6 +385,15 @@ export function createTripResponseAdapters() {
 }
 
 /** Spec 075: ausência é `null`, e a tela lê isso como "não dá para dizer" — nunca como zero. */
+function isCargoWeight(value: unknown): boolean {
+  if (!hasExactKeys(value, TRIP_CARGO_WEIGHT_KEYS)) return false
+  return (
+    isUnsignedInteger(value.documentsWithoutWeight) &&
+    isString(value.grossWeightKilograms) &&
+    (value.source === 'declared' || value.source === 'estimated')
+  )
+}
+
 function isOccupancy(value: unknown): boolean {
   if (!hasExactKeys(value, TRIP_OCCUPANCY_KEYS)) return false
   return (

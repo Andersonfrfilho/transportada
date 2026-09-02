@@ -88,6 +88,12 @@ export type TripDetailContract = TripContract &
       }>[]
       stopsWithoutVolume: readonly Readonly<{ documentCount: number; label: string }>[]
     }> | null
+    /** Spec 079: o peso da carga com a origem; `null` quando nenhuma nota tem peso. */
+    cargoWeight: Readonly<{
+      documentsWithoutWeight: number
+      grossWeightKilograms: string
+      source: 'declared' | 'estimated'
+    }> | null
     /** Spec 075: a ocupação do baú, `null` quando a capacidade não é conhecida. */
     occupancy: Readonly<{
       capacityM3: string
@@ -150,6 +156,7 @@ export const TRIP_DETAIL = {
     { driverId: DRIVER_ID, driverName: 'Jose da Silva', driverTaxId: '12345678901', position: 1 },
   ],
   cargoLayout: null,
+  cargoWeight: null,
   occupancy: null,
   stops: [],
 } as const satisfies TripDetailContract

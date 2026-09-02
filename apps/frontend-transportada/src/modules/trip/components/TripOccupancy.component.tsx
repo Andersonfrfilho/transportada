@@ -3,10 +3,11 @@
  */
 import { useTranslation } from 'react-i18next'
 
-import type { TripOccupancy } from '../shared/trip.types'
+import type { TripCargoWeight, TripOccupancy } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
 
 type TripOccupancyProps = {
+  cargoWeight: TripCargoWeight | null
   occupancy: TripOccupancy | null
 }
 
@@ -40,9 +41,9 @@ function formatVolume(value: string): string {
  *
  * Ausência é ausência: sem capacidade conhecida o painel não aparece, em vez de mostrar 0% ou 100%.
  */
-export function TripOccupancyPanel({ occupancy }: TripOccupancyProps) {
+export function TripOccupancyPanel({ cargoWeight, occupancy }: TripOccupancyProps) {
   const { t } = useTranslation('trip')
-  if (occupancy === null) return null
+  if (occupancy === null) return <TripCargoWeightPanel cargoWeight={cargoWeight} />
 
   const percent = Math.round(Number.parseFloat(occupancy.occupancyRatio) * PERCENT_SCALE)
   const isEstimated = occupancy.source === 'estimated'
@@ -81,6 +82,65 @@ export function TripOccupancyPanel({ occupancy }: TripOccupancyProps) {
           {t('occupancy.withoutVolume', { count: occupancy.documentsWithoutVolume })}
         </p>
       ) : null}
+      <TripCargoWeightLines cargoWeight={cargoWeight} />
+    </section>
+  )
+}
+
+const weightFormatter = new Intl.NumberFormat('pt-BR', {
+  maximumFractionDigits: 2,
+  minimumFractionDigits: 2,
+})
+
+/**
+ * ⚠️ **A marca de estimativa nunca sai do lado do número**, pela mesma razão da ocupação: o peso
+ * pode vir de `qVol × padrão da empresa` em vez do `pesoB` do emitente, e um número sem a marca lê
+ * como declarado. `test/trip/cargo-weight.contract.ts` reprova o componente se ela sumir, e reprova
+ * também se ela ganhar segunda condição.
+ *
+ * **Não há percentual.** A ficha do veículo não guarda capacidade em massa; um teto inventado para
+ * produzir porcentagem é o número que faria alguém parar de carregar, ou continuar.
+ */
+function TripCargoWeightLines({ cargoWeight }: { cargoWeight: TripCargoWeight | null }) {
+  const { t } = useTranslation('trip')
+  if (cargoWeight === null) return null
+
+  const isWeightEstimated = cargoWeight.source === 'estimated'
+
+  return (
+    <>
+      <p>
+        <strong>{t('cargoWeight.title')}</strong>{' '}
+        <span>
+          {t('cargoWeight.total', {
+            weight: weightFormatter.format(Number.parseFloat(cargoWeight.grossWeightKilograms)),
+          })}
+        </span>
+      </p>
+      {isWeightEstimated ? <p className={styles.hint}>{t('cargoWeight.estimated')}</p> : null}
+      {cargoWeight.documentsWithoutWeight > 0 ? (
+        <p className={styles.hint}>
+          {t('cargoWeight.withoutWeight', { count: cargoWeight.documentsWithoutWeight })}
+        </p>
+      ) : null}
+    </>
+  )
+}
+
+/**
+ * Veículo sem cubagem cadastrada é o caso comum, e o peso continua sendo o que se quer ler — por
+ * isso ele tem painel próprio quando a ocupação não desenha nada.
+ */
+function TripCargoWeightPanel({ cargoWeight }: { cargoWeight: TripCargoWeight | null }) {
+  const { t } = useTranslation('trip')
+  if (cargoWeight === null) return null
+
+  return (
+    <section aria-labelledby="trip-cargo-weight-title" className={styles.panel}>
+      <h3 className={styles.hint} id="trip-cargo-weight-title">
+        {t('cargoWeight.title')}
+      </h3>
+      <TripCargoWeightLines cargoWeight={cargoWeight} />
     </section>
   )
 }

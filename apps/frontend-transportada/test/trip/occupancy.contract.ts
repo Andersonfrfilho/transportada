@@ -40,9 +40,24 @@ describe('ocupação na tela (spec 075 T011)', () => {
     expect(trecho).not.toInclude('&&')
   })
 
-  /** Ausência de capacidade não desenha nada — nunca 0% nem 100%. */
-  it('não desenha painel sem capacidade conhecida', () => {
-    expect(source).toInclude('if (occupancy === null) return null')
+  /**
+   * Ausência de capacidade não imprime ocupação — nunca 0% nem 100%.
+   *
+   * ⚠️ A afirmação era `if (occupancy === null) return null`, a linha literal, e a spec 079
+   * a quebrou legitimamente: o **peso** da carga não depende de capacidade, e veículo sem cubagem
+   * cadastrada é o caso comum. Sem capacidade o componente passa a desenhar só o peso. O que esta
+   * regra sempre quis dizer continua de pé, e é o que se afirma agora: nenhuma razão de ocupação
+   * sai sem capacidade.
+   */
+  it('não imprime ocupação sem capacidade conhecida', () => {
+    const semCapacidade = source.slice(
+      source.indexOf('if (occupancy === null)'),
+      source.indexOf('const percent'),
+    )
+
+    expect(semCapacidade).not.toInclude('occupancy.ratio')
+    expect(semCapacidade).not.toInclude('occupancyRatio')
+    expect(source).toInclude('if (occupancy === null) return')
   })
 
   /** O rótulo diz por que o número é estimado, não só que é. */
@@ -86,8 +101,7 @@ describe('ocupação na tela (spec 075 T011)', () => {
 
   /** O painel tem de estar montado no detalhe, senão o contrato acima protege código morto. */
   it('está montado no detalhe da viagem', () => {
-    expect(readFileSync(DETAIL, 'utf8')).toInclude(
-      '<TripOccupancyPanel occupancy={trip.occupancy} />',
-    )
+    expect(readFileSync(DETAIL, 'utf8')).toInclude('<TripOccupancyPanel')
+    expect(readFileSync(DETAIL, 'utf8')).toInclude('occupancy={trip.occupancy}')
   })
 })

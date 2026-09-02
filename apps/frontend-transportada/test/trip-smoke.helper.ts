@@ -79,6 +79,7 @@ function tripDetail(mode: DocumentsMode): TripDetailContract {
      * legítimo: veículo sem capacidade conhecida não mostra ocupação.
      */
     cargoLayout: null,
+    cargoWeight: null,
     occupancy: null,
     // ADR-0043 §3: a viagem tem paradas. Vazia é estado legítimo — nota ainda não reconciliada.
     stops: [],

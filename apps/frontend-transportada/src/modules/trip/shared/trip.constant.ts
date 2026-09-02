@@ -119,7 +119,18 @@ export const TRIP_DETAIL_KEYS = [...TRIP_KEYS, 'documents', 'drivers', 'stops'] 
  * Passado o deploy que serve o campo, ele migra para `TRIP_DETAIL_KEYS` numa mudança própria — e é
  * essa mudança que torna o contrato exigível de novo.
  */
-export const TRIP_DETAIL_OPTIONAL_KEYS = ['cargoLayout', 'occupancy'] as const
+export const TRIP_DETAIL_OPTIONAL_KEYS = ['cargoLayout', 'cargoWeight', 'occupancy'] as const
+
+/**
+ * Spec 079: o peso da carga. **Sem razão de ocupação** — a ficha do veículo não guarda capacidade
+ * em massa, e um teto inventado para produzir porcentagem faria alguém parar de carregar, ou
+ * continuar.
+ */
+export const TRIP_CARGO_WEIGHT_KEYS = [
+  'documentsWithoutWeight',
+  'grossWeightKilograms',
+  'source',
+] as const
 
 /** Spec 075: a ocupação do baú. `null` quando a capacidade do veículo não é conhecida. */
 export const TRIP_OCCUPANCY_KEYS = [

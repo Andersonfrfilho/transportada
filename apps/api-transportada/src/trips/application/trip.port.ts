@@ -87,6 +87,17 @@ export type TripStopDetail = {
  * ⚠️ `source` é `estimated` se **qualquer** nota entrou estimada, e a tela é obrigada a imprimir a
  * marca junto do número (contrato de tela, T011).
  */
+/**
+ * Spec 079: o peso da carga da viagem. **Sem percentual** — a ficha do veículo não guarda
+ * capacidade em massa, e um teto inventado para produzir porcentagem é o defeito que a ocupação
+ * evita ao devolver `null` sem capacidade conhecida.
+ */
+export type TripCargoWeightView = {
+  readonly documentsWithoutWeight: number
+  readonly grossWeightKilograms: string
+  readonly source: 'declared' | 'estimated'
+}
+
 export type TripOccupancyView = {
   readonly capacityM3: string
   /**
@@ -131,6 +142,7 @@ export type TripDetail = Trip & {
   readonly cargoLayout: TripCargoLayoutView | null
   readonly documents: readonly TripDocumentDetail[]
   readonly drivers: readonly TripDriverLine[]
+  readonly cargoWeight: TripCargoWeightView | null
   readonly occupancy: TripOccupancyView | null
   readonly stops: readonly TripStopDetail[]
 }

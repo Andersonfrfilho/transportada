@@ -256,6 +256,13 @@
     "withoutVolume_other": "{{count}} notas sem cubagem não entraram na conta.",
     "dimensions": "Baú de {{length}} × {{width}} × {{height}} m = {{volume}} m³."
   },
+  "cargoWeight": {
+    "title": "Peso da carga",
+    "total": "{{weight}} kg",
+    "estimated": "Peso estimado: o emitente não declarou o peso de nenhum volume desta carga, e o cálculo usa o peso por volume configurado.",
+    "withoutWeight": "{{count}} nota sem peso não entrou na conta.",
+    "withoutWeight_other": "{{count}} notas sem peso não entraram na conta."
+  },
   "cargoLayout": {
     "title": "Mapa de carga do baú",
     "loadOrderHint": "A ordem de carregamento é o inverso da de entrega: a última parada da rota viaja no fundo, e a primeira fica na porta.",

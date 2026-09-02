@@ -318,7 +318,7 @@ export function TripDetail({ linkForm, onClose, vehicles, workspace }: TripDetai
 
       <TripProgressBar documents={trip.documents} />
 
-      <TripOccupancyPanel occupancy={trip.occupancy} />
+      <TripOccupancyPanel cargoWeight={trip.cargoWeight ?? null} occupancy={trip.occupancy} />
 
       <TripCargoLayoutPanel layout={trip.cargoLayout} occupancy={trip.occupancy} />
 

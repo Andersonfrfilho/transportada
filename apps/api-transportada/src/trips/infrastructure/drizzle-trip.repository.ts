@@ -53,6 +53,7 @@ import {
   buildTripListFilters,
   cteAuthorizedExpression,
 } from './trip.query.js'
+import { loadTripCargoWeight } from './trip-cargo-weight.support.js'
 import { loadTripOccupancy } from './trip-occupancy.support.js'
 import { resolveCargoLayout } from '../domain/cargo-layout.policy.js'
 import { formatScaledDecimal, parseScaledDecimal } from '../../shared/decimal.service.js'
@@ -466,13 +467,17 @@ async function readTripDetail(
     else bucket.push(document)
   }
 
-  const cargo = await loadTripOccupancy(queryable, {
-    companyId: input.companyId,
-    nfeDocumentIds: documents.flatMap((document) =>
-      document.nfeDocumentId === null ? [] : [document.nfeDocumentId],
-    ),
-    vehicleId: record.vehicleId,
-  })
+  const nfeDocumentIds = documents.flatMap((document) =>
+    document.nfeDocumentId === null ? [] : [document.nfeDocumentId],
+  )
+  const [cargo, cargoWeight] = await Promise.all([
+    loadTripOccupancy(queryable, {
+      companyId: input.companyId,
+      nfeDocumentIds,
+      vehicleId: record.vehicleId,
+    }),
+    loadTripCargoWeight(queryable, { companyId: input.companyId, nfeDocumentIds }),
+  ])
 
   const stops = stopRecords.map((stopRecord) => ({
     documents: documentsByStopId.get(stopRecord.id) ?? [],
@@ -505,6 +510,7 @@ async function readTripDetail(
   return {
     ...mapTrip(record),
     cargoLayout: layout,
+    cargoWeight,
     documents,
     drivers: driverRecords.map(mapTripDriver),
     occupancy: cargo.occupancy,

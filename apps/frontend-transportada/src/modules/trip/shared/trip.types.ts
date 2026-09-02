@@ -90,6 +90,16 @@ export type TripStopDetail = Readonly<{
  * Spec 075: quanto do baú já foi ocupado. ⚠️ `source: 'estimated'` obriga a tela a imprimir a marca
  * de estimativa junto do número — há contrato guardando isso.
  */
+/**
+ * Spec 079: o peso da carga da viagem, com a origem. Uma nota estimada torna o total estimado, e a
+ * tela é obrigada a imprimir a marca junto do número — há contrato guardando isso.
+ */
+export type TripCargoWeight = Readonly<{
+  documentsWithoutWeight: number
+  grossWeightKilograms: string
+  source: 'declared' | 'estimated'
+}>
+
 export type TripOccupancy = Readonly<{
   /** As medidas de onde o m³ saiu; `null` no degrau em que alguém digitou o volume. */
   capacityDimensions: Readonly<{ heightM: string; lengthM: string; widthM: string }> | null
@@ -123,6 +133,7 @@ export type TripDetail = Trip &
     documents: readonly TripDocumentDetail[]
     drivers: readonly TripDriverLine[]
     cargoLayout: TripCargoLayout | null
+    cargoWeight: TripCargoWeight | null
     occupancy: TripOccupancy | null
     stops: readonly TripStopDetail[]
   }>
