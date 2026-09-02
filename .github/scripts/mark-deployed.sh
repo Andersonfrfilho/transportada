@@ -4,7 +4,7 @@ set -euo pipefail
 # o deploy passou, ou não havia o que publicar (o diff não marcou o alvo, então o que está no ar já
 # é o conteúdo deste commit). Gate vermelho, deploy falho ou cancelado **não** avançam — é
 # justamente o que faz a mudança continuar no diff do push seguinte em vez de sumir em silêncio.
-readonly TARGETS='api frontend landing worker cron'
+readonly TARGETS='api frontend landing client worker cron'
 
 usage() {
   echo "uso: ENVIRONMENT=<env> <TARGET>_CHANGED=<bool> <TARGET>_RESULT=<result> $0" >&2
