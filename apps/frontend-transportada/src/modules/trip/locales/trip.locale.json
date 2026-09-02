@@ -98,7 +98,8 @@
     "linkDocument": "Vincular",
     "close": "Encerrar viagem",
     "backToList": "Voltar às viagens",
-    "issueMdfe": "Emitir MDF-e"
+    "issueMdfe": "Emitir MDF-e",
+    "viewProof": "Comprovante"
   },
   "stateActions": {
     "title": "Ações da viagem",
@@ -262,6 +263,18 @@
     "estimated": "Peso estimado: o emitente não declarou o peso de nenhum volume desta carga, e o cálculo usa o peso por volume configurado.",
     "withoutWeight": "{{count}} nota sem peso não entrou na conta.",
     "withoutWeight_other": "{{count}} notas sem peso não entraram na conta."
+  },
+  "deliveryProof": {
+    "title": "Comprovante da entrega",
+    "deliveredAt": "Entregue em {{moment}}",
+    "receiver": "Recebido por {{name}}",
+    "withoutProof": "Entrega registrada sem comprovante anexado.",
+    "notDelivered": "Esta nota ainda não foi entregue.",
+    "returned": "Nota devolvida: {{reason}}",
+    "returnedWithoutReason": "Nota devolvida.",
+    "photoAlt": "Foto do comprovante de entrega",
+    "signatureAlt": "Assinatura de quem recebeu a carga",
+    "open": "Abrir em tamanho real"
   },
   "cargoLayout": {
     "title": "Mapa de carga do baú",

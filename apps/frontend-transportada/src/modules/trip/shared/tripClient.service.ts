@@ -28,6 +28,7 @@ import type {
   TripListInput,
   TripPage,
 } from './trip.types'
+import type { DeliveryProof } from './deliveryProof.service'
 import { isRecord, isString } from './tripGuards.validation'
 import { createTripResponseAdapters } from './tripResponse.validation'
 
@@ -45,6 +46,7 @@ export type TripClient = Readonly<{
   /** Entregar passou pela máquina de estados na API, então devolve o estado da viagem junto. */
   deliverTripDocument: (input: TripDocumentActionInput) => Promise<TransitionTripDocumentResult>
   dispatchTrip: (input: DispatchTripInput) => Promise<DispatchTripResult>
+  readDeliveryProofs: (input: TripDocumentActionInput) => Promise<readonly DeliveryProof[]>
   findNfeDocumentByAccessKey: (
     input: FindNfeDocumentByAccessKeyInput,
   ) => Promise<null | ScannedNfeDocument>
@@ -196,6 +198,14 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: `${documentPath(input)}/deliver`,
       })
       return adapters.transitionTripDocumentResultFromApi(readEnvelopeData(response))
+    },
+    async readDeliveryProofs(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${documentPath(input)}/proof`,
+      })
+      return adapters.deliveryProofsFromApi(readEnvelopeData(response))
     },
     async dispatchTrip(input) {
       const response = await authorizedRequest({

@@ -126,6 +126,16 @@ export const TRIP_DETAIL_OPTIONAL_KEYS = ['cargoLayout', 'cargoWeight', 'occupan
  * em massa, e um teto inventado para produzir porcentagem faria alguém parar de carregar, ou
  * continuar.
  */
+/** Spec 079 T004: o que a rota do comprovante publica. Sem `bucket` e sem chave de objeto. */
+export const DELIVERY_PROOF_KEYS = [
+  'createdAt',
+  'downloadUrl',
+  'expiresAt',
+  'id',
+  'kind',
+  'receiverName',
+] as const
+
 export const TRIP_CARGO_WEIGHT_KEYS = [
   'documentsWithoutWeight',
   'grossWeightKilograms',

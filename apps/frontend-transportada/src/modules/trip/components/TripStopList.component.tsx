@@ -2,6 +2,7 @@
 import { closestCenter, DndContext, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -21,6 +22,8 @@ import styles from '../styles/trip.module.css'
  * Colapsar os três num `isEditable` só mostrava "Devolver" exatamente quando ele falharia.
  */
 export type TripStopDocumentActions = Readonly<{
+  /** Spec 079: entregar é o mesmo trabalho de rua que devolver, e desde 02/09 o backend o exige. */
+  canDeliver: boolean
   canManage: boolean
   canReturn: boolean
   canSeparateOrLoad: boolean
@@ -29,6 +32,10 @@ export type TripStopDocumentActions = Readonly<{
   isReleasePending: boolean
   isTransitionPending: boolean
   onDeliver: (documentId: string) => void
+  /** Spec 079 T006/T025: abre e fecha o comprovante da nota. */
+  onToggleProof: (documentId: string) => void
+  openProofDocumentId: null | string
+  renderProof: (documentId: string) => ReactNode
   onLoad: (documentId: string) => void
   onOverrideAddress: (documentId: string) => void
   onRelease: (documentId: string) => void
@@ -232,6 +239,21 @@ function TripStopDocumentRow({
         <span className={styles.fiscalWarning}>{t('detail.fiscalWarning')}</span>
       ) : null}
       <div className={styles.rowActions}>
+        {/*
+         * O comprovante é do escritório, e ler não é administrar: quem acompanha a operação abre o
+         * canhoto sem `trip.manage`. O botão só aparece quando há entrega ou devolução para
+         * comprovar — numa nota que ainda está no galpão não há o que mostrar.
+         */}
+        {document.deliveredAt === null && document.returnedAt === null ? null : (
+          <Button
+            onClick={() => actions.onToggleProof(document.id)}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            {t('actions.viewProof')}
+          </Button>
+        )}
         {actions.canManage &&
         actions.canSeparateOrLoad &&
         document.separationStatus === 'pending' ? (
@@ -267,7 +289,7 @@ function TripStopDocumentRow({
             {t('actions.return')}
           </Button>
         ) : null}
-        {actions.canManage && actions.isEditable && document.deliveredAt === null ? (
+        {actions.canManage && actions.canDeliver && document.deliveredAt === null ? (
           <Button
             disabled={actions.isDeliverPending}
             onClick={() => actions.onDeliver(document.id)}
@@ -302,6 +324,7 @@ function TripStopDocumentRow({
           </Button>
         ) : null}
       </div>
+      {actions.openProofDocumentId === document.id ? actions.renderProof(document.id) : null}
     </li>
   )
 }

@@ -684,3 +684,12 @@
     transition: none;
   }
 }
+
+/* O canhoto é foto de celular: cabe na largura e nunca empurra a tela para o lado (web.md §10). */
+.deliveryProofImage {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--color-slate);
+  border-radius: var(--radius-sm, 0.25rem);
+  margin-block: var(--space-2);
+}

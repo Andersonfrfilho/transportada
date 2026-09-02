@@ -33,3 +33,17 @@ export function canSeparateOrLoadDocuments(status: TripStatus): boolean {
 export function canReturnDocuments(status: TripStatus): boolean {
   return status === 'dispatched' || status === 'in_transit'
 }
+
+/**
+ * Entregar é o **mesmo** trabalho de rua que devolver: `checkTripAcceptsDocumentWork` põe os dois
+ * no ramo `isStreetWork`, que exige `isTripDispatched`.
+ *
+ * ⚠️ Até 02/09/2026 entregar tinha rota própria fora da máquina de estados — ela aceitava qualquer
+ * estado, e por isso o botão vivia atrás de `isTripEditable` sem ninguém notar. Com a rota passando
+ * pela política, `isTripEditable` passou a oferecer o botão exatamente onde o backend responde 409.
+ * Delegar a `canReturnDocuments` — em vez de repetir a condição — é o que impede os dois de
+ * divergirem em silêncio; `test/trip/state-gates.contract.ts` afirma a igualdade.
+ */
+export function canDeliverDocuments(status: TripStatus): boolean {
+  return canReturnDocuments(status)
+}

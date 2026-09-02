@@ -1,5 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
+
+import type { DeliveryProof } from '../shared/deliveryProof.service'
 
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
@@ -56,6 +59,7 @@ export type TripController = Readonly<{
   createTrip: (input: CreateTripBody) => Promise<TripDetail>
   createTripCteBatch: (input: Readonly<{ tripId: string }>) => Promise<TripCteBatchResult>
   deliverTripDocument: (input: TripDocumentActionInput) => Promise<TransitionTripDocumentResult>
+  readDeliveryProofs: (input: TripDocumentActionInput) => Promise<readonly DeliveryProof[]>
   dispatchTrip: (input: DispatchTripInput) => Promise<DispatchTripResult>
   findNfeDocumentByAccessKey: (
     input: FindNfeDocumentByAccessKeyInput,
@@ -101,6 +105,8 @@ export function createTripController(
       canSubmitCte ? input.client.createTripCteBatch(body) : forbidden(),
     deliverTripDocument: (body) =>
       canManageTrips ? input.client.deliverTripDocument(body) : forbidden(),
+    readDeliveryProofs: (body) =>
+      canReadTrips ? input.client.readDeliveryProofs(body) : forbidden(),
     dispatchTrip: (body) => (canManageTrips ? input.client.dispatchTrip(body) : forbidden()),
     findNfeDocumentByAccessKey: (query) =>
       canManageTrips ? input.client.findNfeDocumentByAccessKey(query) : forbidden(),
@@ -158,6 +164,9 @@ export function useTripWorkspace(
   /** Prefixo compartilhado: invalidar `['trips']` alcança o detalhe e a tabela paginada. */
   const listKey = [TRIP_QUERY_KEY] as const
 
+  /** Qual nota está com o comprovante aberto — `null` fecha a consulta e não busca nada. */
+  const [openProofDocumentId, setOpenProofDocumentId] = useState<null | string>(null)
+
   const tripQuery = useQuery({
     enabled: controller.canReadTrips && input.tripId !== undefined && input.tripId !== '',
     queryFn: () => controller.getTrip({ tripId: input.tripId ?? '' }),
@@ -175,6 +184,21 @@ export function useTripWorkspace(
    * Spec 059 D1: a prontidão é **consulta**, e ela acompanha o mesmo relógio da viagem na rua — o
    * CT-e que autoriza enquanto o operador olha a tela acende o painel sem ele apertar nada.
    */
+  /**
+   * O comprovante é buscado **só quando o painel abre**: a URL assinada expira em cinco minutos, e
+   * carregá-la para todas as notas da viagem produziria uma dezena de links já vencidos quando
+   * alguém finalmente clicasse num deles.
+   */
+  const deliveryProofsQuery = useQuery({
+    enabled: openProofDocumentId !== null && input.tripId !== undefined && input.tripId !== '',
+    queryFn: () =>
+      controller.readDeliveryProofs({
+        documentId: openProofDocumentId ?? '',
+        tripId: input.tripId ?? '',
+      }),
+    queryKey: [...tripKey, 'delivery-proofs', openProofDocumentId] as const,
+  })
+
   const fiscalReadinessQuery = useQuery({
     enabled:
       controller.canReadTrips &&
@@ -264,6 +288,9 @@ export function useTripWorkspace(
     createCteBatchMutation,
     createMutation,
     deliverDocumentMutation,
+    deliveryProofsQuery,
+    openProofDocumentId,
+    setOpenProofDocumentId,
     fiscalReadiness: fiscalReadinessQuery.data,
     setMdfeRequirementMutation,
     dispatchMutation,

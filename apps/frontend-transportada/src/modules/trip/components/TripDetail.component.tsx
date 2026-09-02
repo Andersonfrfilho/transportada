@@ -22,6 +22,7 @@ import {
 } from '../shared/tripNavigation.service'
 import { tripDocumentLabel } from '../shared/tripDocument.service'
 import {
+  canDeliverDocuments,
   canReturnDocuments,
   canSeparateOrLoadDocuments,
   isTripEditable,
@@ -30,7 +31,10 @@ import { DeliveryAddressOverrideDialog } from './DeliveryAddressOverrideDialog.c
 import { TripFiscalReadinessPanel } from './TripFiscalReadinessPanel.component'
 import { TripMdfePendingDialog } from './TripMdfePendingDialog.component'
 import { TripCargoLayoutPanel } from './TripCargoLayout.component'
+import { TripDeliveryProof } from './TripDeliveryProof.component'
 import { TripOccupancyPanel } from './TripOccupancy.component'
+import { resolveDeliveryProofView } from '../shared/deliveryProof.service'
+import type { TripDocumentDetail } from '../shared/trip.types'
 import { TripProgressBar } from './TripProgressBar.component'
 import { TripReasonDialog } from './TripReasonDialog.component'
 import { TripScanQueue } from './TripScanQueue.component'
@@ -182,6 +186,19 @@ export function TripDetail({ linkForm, onClose, vehicles, workspace }: TripDetai
     canManage,
     canReturn,
     canSeparateOrLoad,
+    canDeliver: canDeliverDocuments(trip.status),
+    onToggleProof: (documentId: string) =>
+      workspace.setOpenProofDocumentId(
+        workspace.openProofDocumentId === documentId ? null : documentId,
+      ),
+    openProofDocumentId: workspace.openProofDocumentId,
+    renderProof: (documentId: string) => (
+      <TripDeliveryProofLoader
+        documentId={documentId}
+        documents={trip.documents}
+        workspace={workspace}
+      />
+    ),
     isDeliverPending: workspace.deliverDocumentMutation.isPending,
     isEditable,
     isReleasePending: workspace.releaseDocumentMutation.isPending,
@@ -544,5 +561,34 @@ export function TripDetail({ linkForm, onClose, vehicles, workspace }: TripDetai
         title={t('stateActions.returnTitle')}
       />
     </section>
+  )
+}
+
+/**
+ * O carregador do comprovante. Ele existe para o painel **não** guardar a URL assinada em estado
+ * próprio: o que a consulta trouxe é o que a tela mostra, e reabrir o painel busca de novo — a URL
+ * expira em cinco minutos, e uma cópia guardada viraria imagem quebrada sem explicação.
+ */
+function TripDeliveryProofLoader({
+  documents,
+  documentId,
+  workspace,
+}: Readonly<{
+  documentId: string
+  documents: readonly TripDocumentDetail[]
+  workspace: TripWorkspaceController
+}>) {
+  const document = documents.find((candidate) => candidate.id === documentId)
+  if (document === undefined) return null
+
+  if (workspace.deliveryProofsQuery.isLoading) return <Skeleton variant="text" width="60%" />
+
+  return (
+    <TripDeliveryProof
+      view={resolveDeliveryProofView({
+        document,
+        proofs: workspace.deliveryProofsQuery.data ?? [],
+      })}
+    />
   )
 }

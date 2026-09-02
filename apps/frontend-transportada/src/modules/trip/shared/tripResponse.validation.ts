@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import type { DeliveryProof } from './deliveryProof.service'
 import {
   BATCH_STATUS_RESULT_KEYS,
   DELIVERY_ADDRESS_OVERRIDE_KEYS,
@@ -6,6 +7,7 @@ import {
   TRANSITION_RESULT_KEYS,
   TRIP_DETAIL_KEYS,
   TRIP_DETAIL_OPTIONAL_KEYS,
+  DELIVERY_PROOF_KEYS,
   TRIP_CARGO_WEIGHT_KEYS,
   TRIP_OCCUPANCY_KEYS,
   TRIP_DOCUMENT_DETAIL_KEYS,
@@ -370,6 +372,15 @@ export function createTripResponseAdapters() {
       if (!isRecord(input) || !isOneOf(input.tripStatus, TRIP_STATUS)) throw invalid()
       return { tripStatus: input.tripStatus }
     },
+    /**
+     * ⚠️ A URL vem assinada e **expira**. A validação confere que ela é string, não que ela ainda
+     * vale: quem guardar o valor e reusá-lo depois mostra imagem quebrada, e é por isso que o
+     * componente a consome direto da consulta.
+     */
+    deliveryProofsFromApi(input: unknown): readonly DeliveryProof[] {
+      if (!Array.isArray(input) || !input.every(isDeliveryProof)) throw invalid()
+      return input
+    },
     transitionTripDocumentResultFromApi(input: unknown): TransitionTripDocumentResult {
       if (!isTransitionResult(input)) throw invalid()
       return input
@@ -403,5 +414,17 @@ function isOccupancy(value: unknown): boolean {
     isString(value.loadedM3) &&
     isString(value.occupancyRatio) &&
     (value.source === 'declared' || value.source === 'estimated')
+  )
+}
+
+function isDeliveryProof(value: unknown): value is DeliveryProof {
+  if (!hasExactKeys(value, DELIVERY_PROOF_KEYS)) return false
+  return (
+    isString(value.createdAt) &&
+    isString(value.downloadUrl) &&
+    isString(value.expiresAt) &&
+    isString(value.id) &&
+    (value.kind === 'photo' || value.kind === 'signature') &&
+    isString(value.receiverName)
   )
 }
