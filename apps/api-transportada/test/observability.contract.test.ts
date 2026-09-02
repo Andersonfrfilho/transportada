@@ -4,3 +4,4 @@
 import './observability/environment.contract.js'
 import './observability/sentry.contract.js'
 import './observability/error-descriptor-message.contract.js'
+import './observability/deployed-revision.contract'

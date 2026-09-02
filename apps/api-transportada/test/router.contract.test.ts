@@ -114,6 +114,7 @@ describe('modular router contract', () => {
     })
     expect(health.status).toBe(200)
     expect(await health.json()).toEqual({
+      revision: 'unknown',
       service: 'api',
       status: 'ok',
       timestamp: ROUTER_NOW.toISOString(),

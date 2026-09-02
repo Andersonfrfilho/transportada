@@ -169,3 +169,70 @@ describe('contrato do filtro de mudança do pipeline', () => {
     expect(workflow).toContain('::error::quality-app terminou em')
   })
 })
+
+/**
+ * Spec 078: em 2026-09-02 staging ficou com API nova e frontend velho, e o detalhe da viagem parou
+ * de abrir — `200` na resposta, log limpo, e o diagnóstico exigiu comparar o bundle servido com o
+ * corpo. A cadeia: gate vermelho pulou o deploy do frontend, e o commit seguinte, verde, tocava só
+ * `test/` e `specs/` — o filtro pulou o frontend de novo.
+ *
+ * ⚠️ O conserto **não** pode ser afrouxar a guarda de chaves do cliente: catorze testes mostram que
+ * rejeitar campo desconhecido é defesa contra vazamento de token, identidade de tenant e XML fiscal
+ * (spec 078 D1). Com a guarda estrita, as duas pontas **têm de subir juntas**.
+ */
+describe('a API e as apps de cliente sobem juntas (spec 078)', () => {
+  /**
+   * O corpo que a API devolve é validado por chaves exatas no cliente. Campo novo servido por uma
+   * ponta e desconhecido pela outra **derruba a tela** — não degrada. Então mudar a API é mudar o
+   * contrato que o cliente valida, e os dois deploys andam no mesmo passo.
+   */
+  test('mudar a API arrasta as apps que validam o corpo dela', async () => {
+    const targets = await targetPaths()
+    const api = targets.get('api')
+
+    expect(api).toBeDefined()
+    for (const client of ['frontend', 'client'] as const) {
+      const paths = targets.get(client) ?? []
+      expect(paths).toContain('apps/api-transportada/')
+    }
+  })
+
+  /**
+   * ⚠️ E o inverso também: bundle novo pedindo campo que a API antiga não devolve tem o campo
+   * **ausente**, que a guarda reprova com razão. Atomicidade só serve se valer nos dois sentidos.
+   */
+  test('mudar uma app de cliente arrasta a API', async () => {
+    const targets = await targetPaths()
+    const api = targets.get('api') ?? []
+
+    expect(api).toContain('apps/frontend-transportada/')
+  })
+
+  /**
+   * A landing não valida corpo da API — ela é institucional. Arrastá-la seria pagar pipeline por
+   * um acoplamento que não existe.
+   */
+  test('a landing fica de fora, porque não valida corpo da API', async () => {
+    const targets = await targetPaths()
+
+    expect(targets.get('landing') ?? []).not.toContain('apps/api-transportada/')
+  })
+})
+
+/**
+ * ⚠️ Atomicidade não pode virar "sobe metade quando o gate cai" — que é como o descompasso de
+ * 2026-09-02 começou. O gate vermelho tem de barrar **as duas** pontas, e é `needs: gate` que faz
+ * isso: job pulado propaga `skipped` a quem depende dele.
+ */
+describe('o gate barra as duas pontas, não uma (spec 078 T004)', () => {
+  test('api e apps de cliente dependem do gate', async () => {
+    const workflow = await read(DEPLOY_WORKFLOW_PATH)
+
+    for (const job of ['deploy-api', 'deploy-frontend', 'deploy-client'] as const) {
+      const start = workflow.indexOf(`  ${job}:`)
+      expect(start).toBeGreaterThan(0)
+      const needs = workflow.slice(start, workflow.indexOf('\n', workflow.indexOf('needs:', start)))
+      expect(needs).toInclude('gate')
+    }
+  })
+})

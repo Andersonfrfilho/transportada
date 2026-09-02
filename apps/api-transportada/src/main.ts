@@ -443,6 +443,13 @@ export function bootstrap(): Bun.Server<undefined> {
     database,
     identityReadiness: identityGateway,
     migrationStatus: new DrizzleMigrationStatusRepository({ database: database.db }),
+    /**
+     * Spec 078: a revisão publicada, para o descompasso entre API e bundle deixar de ser mudo.
+     * Ausente vira `unknown` no próprio serviço — nunca campo que some do corpo.
+     */
+    ...(process.env.RAILWAY_GIT_COMMIT_SHA === undefined
+      ? {}
+      : { revision: process.env.RAILWAY_GIT_COMMIT_SHA.slice(0, 7) }),
   })
   const messaging = config.messaging
   const notificationQueue =

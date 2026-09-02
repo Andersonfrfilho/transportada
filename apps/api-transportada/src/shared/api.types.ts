@@ -126,6 +126,12 @@ export type HealthStatus = 'ok' | 'degraded'
 export type DependencyStatus = 'up' | 'down'
 
 type HealthResponseBase = {
+  /**
+   * Spec 078: a revisão que subiu. `unknown` quando a variável não foi declarada — **nunca
+   * ausente**: campo que some obrigaria quem consulta a distinguir "não sei" de "esta versão é
+   * antiga e não tinha o campo", que é a ambiguidade que ele existe para eliminar.
+   */
+  readonly revision: string
   readonly service: 'api'
   readonly timestamp: string
 }

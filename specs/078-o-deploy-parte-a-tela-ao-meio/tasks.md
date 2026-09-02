@@ -19,10 +19,10 @@ Uma task por vez. Contrato **antes** da implementação, falhando primeiro.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T002** — Contrato do workflow: commit que toca a API **ou** uma app de cliente dispara o
+- [x] **T002** — Contrato do workflow: commit que toca a API **ou** uma app de cliente dispara o
       deploy das duas. Falha contra a configuração de hoje. (RF3 · CA2)
-- [ ] **T003** — Ajustar o filtro de caminho em `.github/workflows/deploy.yml`.
-- [ ] **T004** — Contrato: gate vermelho continua **bloqueando os dois** — atomicidade não pode
+- [x] **T003** — Ajustar o filtro de caminho em `.github/workflows/deploy.yml`.
+- [x] **T004** — Contrato: gate vermelho continua **bloqueando os dois** — atomicidade não pode
       virar "sobe metade quando o gate cai".
 
 ---
@@ -31,9 +31,9 @@ Uma task por vez. Contrato **antes** da implementação, falhando primeiro.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T005** — Contrato: campo recém-acrescentado é **opcional** no cliente até a API que o serve
+- [x] **T005** — Contrato: campo recém-acrescentado é **opcional** no cliente até a API que o serve
       estar no ar (D2). Caso concreto: `occupancy`, da spec 075.
-- [ ] **T006** — Aplicar em `occupancy` e escrever a disciplina onde ela se lê.
+- [x] **T006** — Aplicar em `occupancy` e escrever a disciplina onde ela se lê.
 
 ---
 
@@ -41,9 +41,9 @@ Uma task por vez. Contrato **antes** da implementação, falhando primeiro.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T007** — Contrato: a versão de cada app é observável sem abrir o bundle e procurar string.
+- [x] **T007** — Contrato: a versão de cada app é observável sem abrir o bundle e procurar string.
       (P3/RF4 · CA4)
-- [ ] **T008** — Implementar nas três apps de cliente, ou registrar por que não (RNF2).
+- [x] **T008** — Implementar nas três apps de cliente, ou registrar por que não (RNF2).
 
 ---
 
@@ -51,7 +51,7 @@ Uma task por vez. Contrato **antes** da implementação, falhando primeiro.
 
 > 🤖 Modelo: `haiku`
 
-- [ ] **T009** — `make check` e smoke verdes, evidência completa.
+- [x] **T009** — `make check` e smoke verdes, evidência completa.
 
 ---
 

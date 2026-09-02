@@ -5,6 +5,7 @@ import {
   STOP_ADDRESS_COMPONENTS_KEYS,
   TRANSITION_RESULT_KEYS,
   TRIP_DETAIL_KEYS,
+  TRIP_DETAIL_OPTIONAL_KEYS,
   TRIP_OCCUPANCY_KEYS,
   TRIP_DOCUMENT_DETAIL_KEYS,
   TRIP_DOCUMENT_KEYS,
@@ -48,6 +49,7 @@ import type {
 } from './trip.types'
 import {
   hasExactKeys,
+  hasKeys,
   isBoolean,
   isEveryItem,
   isNullableString,
@@ -134,12 +136,20 @@ function isStopDetail(value: unknown): value is TripStopDetail {
 }
 
 function isDetail(value: unknown): value is TripDetail {
-  if (!hasExactKeys(value, TRIP_DETAIL_KEYS)) return false
+  if (
+    !hasKeys(value, {
+      allowed: [...TRIP_DETAIL_KEYS, ...TRIP_DETAIL_OPTIONAL_KEYS],
+      required: TRIP_DETAIL_KEYS,
+    })
+  ) {
+    return false
+  }
   return (
     isTripFields(value) &&
     isEveryItem(value.documents, isDocumentDetail) &&
     isEveryItem(value.drivers, isDriverLine) &&
-    (value.occupancy === null || isOccupancy(value.occupancy)) &&
+    /** Opcional não é "qualquer coisa": presente com forma errada continua reprovando (D2). */
+    (value.occupancy === undefined || value.occupancy === null || isOccupancy(value.occupancy)) &&
     isEveryItem(value.stops, isStopDetail)
   )
 }

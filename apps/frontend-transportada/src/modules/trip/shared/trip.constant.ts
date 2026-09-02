@@ -104,13 +104,21 @@ export const TRIP_STOP_KEYS = [
   'sequence',
 ] as const
 
-export const TRIP_DETAIL_KEYS = [
-  ...TRIP_KEYS,
-  'documents',
-  'drivers',
-  'occupancy',
-  'stops',
-] as const
+export const TRIP_DETAIL_KEYS = [...TRIP_KEYS, 'documents', 'drivers', 'stops'] as const
+
+/**
+ * Spec 078 D2: **campo novo nasce opcional**, e sai desta lista até a API que o serve estar
+ * garantidamente no ar.
+ *
+ * O deploy atômico cobre "API à frente do bundle"; ele **não** cobre o inverso — bundle novo com
+ * API antiga tem o campo ausente, e ausente reprova, corretamente. A guarda não pode ser afrouxada
+ * para resolver isso: a rigidez dela é defesa contra vazamento de token e de identidade de tenant
+ * (D1). Então a saída é de escrita, não de validação.
+ *
+ * Passado o deploy que serve o campo, ele migra para `TRIP_DETAIL_KEYS` numa mudança própria — e é
+ * essa mudança que torna o contrato exigível de novo.
+ */
+export const TRIP_DETAIL_OPTIONAL_KEYS = ['occupancy'] as const
 
 /** Spec 075: a ocupação do baú. `null` quando a capacidade do veículo não é conhecida. */
 export const TRIP_OCCUPANCY_KEYS = [
