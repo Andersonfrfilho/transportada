@@ -19,14 +19,14 @@ Uma task por vez. Contrato **antes** da implementação. Evidência em `evidence
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T002** — Contrato de `resolveCargoVolume`: `quantidade × fator` com origem `estimated`;
+- [x] **T002** — Contrato de `resolveCargoVolume`: `quantidade × fator` com origem `estimated`;
       sem `qVol` ⇒ `null`; fator ausente ⇒ `null`; **nunca zero**; espécie sem linha cai no padrão.
       Falha antes de existir. (RF2 · CA1, CA2, CA3)
-- [ ] **T003** — Implementar a política, espelhando `cargo-weight.policy.ts` (escala, `divideHalfUp`,
+- [x] **T003** — Implementar a política, espelhando `cargo-weight.policy.ts` (escala, `divideHalfUp`,
       `formatScaledDecimal`).
-- [ ] **T004** — Migration de `company_cargo_volume_factors` com CHECK recusando zero e negativo,
+- [x] **T004** — Migration de `company_cargo_volume_factors` com CHECK recusando zero e negativo,
       mais `rollback.sql` ao lado.
-- [ ] **T005** — Repositório e rotas de leitura/escrita do fator (`settings.manage`, escopo
+- [x] **T005** — Repositório e rotas de leitura/escrita do fator (`settings.manage`, escopo
       `company`), com contrato negativo de isolamento. (RNF1 · CA8)
 
 ---

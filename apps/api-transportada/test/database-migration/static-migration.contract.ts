@@ -196,6 +196,7 @@ describe('Drizzle migrations', () => {
       '20260901220135_geocoding_refinement_trail',
       '20260901230000_aggregate_attachment_document_types',
       '20260902003000_geocoding_backfill_hourly',
+      '20260902140000_cargo_volume_factors',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')

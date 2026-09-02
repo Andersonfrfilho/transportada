@@ -32,6 +32,13 @@ import { createCompanyContactsUseCase } from './companies/application/company-co
 import { DrizzleCompanyContactsRepository } from './companies/infrastructure/drizzle-company-contacts.repository.js'
 import { createCompanyContactsRoutes } from './companies/presentation/company-contacts.routes.js'
 import { DrizzleCargoSettingsRepository } from './companies/infrastructure/drizzle-cargo-settings.repository.js'
+import { DrizzleCargoVolumeFactorRepository } from './companies/infrastructure/drizzle-cargo-volume-factor.repository.js'
+import {
+  createListCargoVolumeFactorsUseCase,
+  createRemoveCargoVolumeFactorUseCase,
+  createSaveCargoVolumeFactorUseCase,
+} from './companies/application/cargo-volume-factor.use-case.js'
+import { createCargoVolumeFactorRoutes } from './companies/presentation/cargo-volume-factor.routes.js'
 import { createCargoSettingsRoutes } from './companies/presentation/cargo-settings.routes.js'
 import { createAdjustFuelPriceUseCase } from './companies/application/adjust-fuel-price.use-case.js'
 import { createClearFuelPriceUseCase } from './companies/application/clear-fuel-price.use-case.js'
@@ -956,6 +963,7 @@ function createApplicationRoutes({
   const scheduledDistributionRepository = new DrizzleScheduledDistributionRepository(database)
   const distributionCursorRepository = new DrizzleDistributionCursorRepository(database)
   const cargoSettingsRepository = new DrizzleCargoSettingsRepository(database)
+  const cargoVolumeFactorRepository = new DrizzleCargoVolumeFactorRepository(database)
   const fuelPriceRepository = new DrizzleFuelPriceRepository(database)
   const companyEnergyRepository = new DrizzleCompanyEnergyRepository(database)
   const companyLogoRepository = new DrizzleCompanyLogoRepository(database)
@@ -1333,6 +1341,11 @@ function createApplicationRoutes({
       clear: createClearDefaultVolumeWeightUseCase({ cargoSettings: cargoSettingsRepository }),
       get: createGetCargoSettingsUseCase({ cargoSettings: cargoSettingsRepository }),
       set: createSetDefaultVolumeWeightUseCase({ cargoSettings: cargoSettingsRepository }),
+    }),
+    ...createCargoVolumeFactorRoutes({
+      list: createListCargoVolumeFactorsUseCase({ factors: cargoVolumeFactorRepository }),
+      remove: createRemoveCargoVolumeFactorUseCase({ factors: cargoVolumeFactorRepository }),
+      save: createSaveCargoVolumeFactorUseCase({ factors: cargoVolumeFactorRepository }),
     }),
     ...createCompanyContactsRoutes({ companyContacts }),
     ...createFuelPriceRoutes({
