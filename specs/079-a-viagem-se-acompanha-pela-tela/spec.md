@@ -53,6 +53,10 @@ pessoal que não sirva ao acompanhamento.
 **Then** vê progresso em porcentagem, quais paradas foram atendidas, quais são as próximas na ordem
 do roteiro, e uma previsão de término.
 
+⚠️ **A barra de progresso já existe** (`TripProgressBar`, no detalhe da viagem), com segmento por
+estado e porcentagem. Desta história ela só recebe a **animação da transição** e a **previsão** ao
+lado — o resto é regressão esperando para acontecer.
+
 ### P5 — A entrega concluída carrega a prova
 
 **Given** uma nota marcada como entregue com comprovante

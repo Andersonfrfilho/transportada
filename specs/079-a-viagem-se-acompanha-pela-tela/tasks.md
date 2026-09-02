@@ -78,8 +78,14 @@ consentimento do motorista, e entram quando essas existirem. Ver a seção final
 
 - [ ] **T010** [P] `tripProgress.service.ts` — porcentagem e previsão derivadas do estado das notas.
       Contrato: viagem em `draft` não tem progresso nem previsão; previsão declara que é estimativa.
-- [ ] **T011** `TripProgressBar.component.tsx` — barra animada com porcentagem.
-      Contrato: `prefers-reduced-motion` desliga a animação.
+- [ ] **T011** ⚠️ **`TripProgressBar.component.tsx` JÁ EXISTE** e já está no detalhe da viagem
+      (`TripDetail.component.tsx:319`), com segmento por estado — entregue, carregada, pendente,
+      devolvida, separada — e porcentagem. **Não recriar.**
+
+      O que falta é só o que P4 acrescenta: **animação da transição** com
+      `prefers-reduced-motion` desligando, e a **previsão de término** ao lado. Contrato sobre o
+      componente existente, não sobre um novo.
+
 - [ ] **T012** `tripRouteMap.service.ts` — projeção das paradas. Contrato: **parada sem coordenada é
       nomeada fora do mapa**, nunca some (mesma regra da cidade sem polígono na aba Regiões).
 - [ ] **T013** `TripRouteMap.component.tsx` — SVG com atendidas e próximas, cor pelos tokens.
