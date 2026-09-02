@@ -1,6 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import Keycloak from 'keycloak-js'
 
+import { toDisplayPersonName } from '@/modules/shared/personName.service'
+
 import { getIdentityEnvironment, isIdentifierFirstLoginEnabled } from './identityEnvironment.config'
 import { isSmokeAuthBypassEnabled } from './smokeAuthBypass.service'
 
@@ -66,8 +68,15 @@ function decodeTokenClaims(token: string | undefined): Record<string, unknown> {
 export function deriveIdentityProfile(claims: Record<string, unknown>): IdentityProfile {
   const email = readClaimString(claims, 'email')
   const preferredUsername = readClaimString(claims, 'preferred_username')
+  const claimedName = readClaimString(claims, 'name')
+  /**
+   * Só o nome ganha a grafia de tela: o que sobra sem ele é login ou e-mail, e recapitalizar
+   * `anderson.filho@…` daria um endereço que não existe estampado no cabeçalho.
+   */
   const displayName =
-    readClaimString(claims, 'name') ?? preferredUsername ?? email ?? FALLBACK_PROFILE.displayName
+    claimedName !== undefined
+      ? toDisplayPersonName(claimedName)
+      : (preferredUsername ?? email ?? FALLBACK_PROFILE.displayName)
   const subtitle = email !== undefined && email !== displayName ? email : preferredUsername
 
   return {

@@ -3,6 +3,7 @@
  */
 import type { CompanyRole, MembershipStatus } from '../../database/identity.schema.js'
 import type { ContactChannel } from '../../database/identity-user-profile.schema.js'
+import { toDisplayPersonName } from '../../shared/person-name.service.js'
 
 export const COMPANY_USER_STATUSES = ['invited', 'active', 'suspended'] as const
 export type CompanyUserStatus = (typeof COMPANY_USER_STATUSES)[number]
@@ -140,7 +141,7 @@ export function toCompanyUserView(source: CompanyUserViewSource): CompanyUserVie
     ...(source.fleet === undefined ? {} : { fleet: source.fleet }),
     id: source.userId,
     membershipId: source.membershipId,
-    name: source.name,
+    name: toDisplayPersonName(source.name),
     phone: maskTrailingDigits(source.phone),
     roles: source.roles,
     status,
