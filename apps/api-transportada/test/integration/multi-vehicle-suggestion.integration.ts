@@ -31,6 +31,7 @@ import {
 import { tripDocuments, trips } from '../../src/database/trip.schema.js'
 import { createMultiVehicleSuggestionUseCase } from '../../src/routing/application/multi-vehicle-suggestion.use-case.js'
 import type { MultiVehicleScope } from '../../src/routing/application/multi-vehicle-suggestion.port.js'
+import { MultiVehicleSuggestionDocumentUnavailableError } from '../../src/routing/domain/routing.error.js'
 import { createDrizzleMultiVehicleSuggestionRepository } from '../../src/routing/infrastructure/drizzle-multi-vehicle-suggestion.repository.js'
 import { createDrizzleRouteSuggestionRepository } from '../../src/routing/infrastructure/drizzle-route-suggestion.repository.js'
 import { createTripComposer } from '../../src/routing/infrastructure/trip-composer.adapter.js'
@@ -51,6 +52,102 @@ type TestDatabase = ReturnType<typeof createDrizzleProvider>
 
 const FIRST_ADDRESS_KEY = '3543402|14020000|100'
 const SECOND_ADDRESS_KEY = '3543402|14025000|200'
+
+/**
+ * Spec 074: o teste do aceite semeia a sugestão por `insert` direto — então `create`, o **primeiro**
+ * passo do fluxo, nunca era exercitado. Ele falhava em toda chamada: a releitura pós-inserção saía
+ * por uma conexão de fora da transação, não enxergava a linha ainda não commitada, e o repositório
+ * lançava `Error` puro que virava 500.
+ *
+ * Contra Postgres de verdade porque é a única forma de o defeito aparecer: dublê de repositório não
+ * tem duas conexões, e responde o que o banco esconde.
+ */
+describe('a criação da multi-veículo contra Postgres (spec 074)', () => {
+  testWithPostgres('creates the suggestion with its pool and its fleet', async () => {
+    const database = shared?.database
+    if (database === undefined) return
+    const world = await seedSuggestion(database)
+    const repository = createDrizzleMultiVehicleSuggestionRepository(database.db)
+
+    const created = await repository.create({
+      assumptions: {
+        dutyEnabled: false,
+        endPolicy: 'depot',
+        fallbackWeightKilograms: '0.00',
+        originAddressKey: 'depot',
+        serviceTimeSeconds: 600,
+        serviceTimeSource: 'default',
+        solverTimeBudgetSeconds: 30,
+      },
+      companyId: world.companyId,
+      documentIds: world.documentIds,
+      seed: 11,
+      vehicleIds: world.vehicleIds,
+    })
+
+    expect(created.id).toBeTruthy()
+    expect(created.status).toBe('queued')
+    /** Multiveículo não parte de viagem: o `trip_id` nulo é o que a distingue da sugestão por viagem. */
+    expect(created.tripId).toBeNull()
+
+    const pool = await database.db
+      .select({ nfeDocumentId: routeSuggestionDocuments.nfeDocumentId })
+      .from(routeSuggestionDocuments)
+      .where(eq(routeSuggestionDocuments.suggestionId, created.id))
+    const fleet = await database.db
+      .select({
+        position: routeSuggestionVehicles.position,
+        vehicleId: routeSuggestionVehicles.vehicleId,
+      })
+      .from(routeSuggestionVehicles)
+      .where(eq(routeSuggestionVehicles.suggestionId, created.id))
+
+    expect(pool).toHaveLength(world.documentIds.length)
+    /** A ordem oferecida é o que faz a mesma semente distribuir igual — ela é gravada, não inferida. */
+    expect(fleet.map((row) => row.vehicleId)).toEqual([...world.vehicleIds])
+    expect(fleet.map((row) => Number(row.position))).toEqual([0, 1])
+  })
+
+  /**
+   * A recusa de negocio existia e era **inalcancavel**: o 500 da releitura fora da transacao
+   * acontecia depois dela na leitura do codigo, mas antes na pratica, porque toda chamada morria.
+   * Com a criacao funcionando, ela volta a ser o que sempre quis ser -- um 409 com o id no `details`.
+   */
+  testWithPostgres('refuses a note already linked to a trip with 409, never 500', async () => {
+    const database = shared?.database
+    if (database === undefined) return
+    const world = await seedSuggestion(database)
+    const useCase = buildUseCase(database)
+
+    const created = await useCase.create({
+      context: world.context,
+      correlationId: crypto.randomUUID(),
+      documentIds: world.documentIds,
+      vehicleIds: world.vehicleIds,
+    })
+    expect(created.status).toBe('queued')
+
+    const accepted = await useCase.accept({
+      context: world.context,
+      suggestionId: world.suggestionId,
+    })
+    expect(accepted.trips.length).toBeGreaterThan(0)
+
+    /** As notas do pool agora estao em viagem: o segundo pedido tem de recusar, nomeando-as. */
+    const refusal = await useCase
+      .create({
+        context: world.context,
+        correlationId: crypto.randomUUID(),
+        documentIds: world.documentIds,
+        vehicleIds: world.vehicleIds,
+      })
+      .then(() => null)
+      .catch((error: unknown) => error)
+
+    expect(refusal).toBeInstanceOf(MultiVehicleSuggestionDocumentUnavailableError)
+    expect((refusal as MultiVehicleSuggestionDocumentUnavailableError).status).toBe(409)
+  })
+})
 
 describe('o aceite da multi-veículo contra Postgres (spec 058 P2)', () => {
   testWithPostgres('vira duas viagens, com nota vinculada e parada na ordem proposta', async () => {
@@ -170,7 +267,9 @@ function buildUseCase(database: TestDatabase) {
 type World = {
   readonly companyId: string
   readonly context: MultiVehicleScope
+  readonly documentIds: readonly string[]
   readonly suggestionId: string
+  readonly vehicleIds: readonly string[]
 }
 
 async function seedSuggestion(database: TestDatabase): Promise<World> {
@@ -345,7 +444,9 @@ async function seedSuggestion(database: TestDatabase): Promise<World> {
   return {
     companyId,
     context: { companyId, membershipId, userId } as unknown as MultiVehicleScope,
+    documentIds: [...documentIds],
     suggestionId,
+    vehicleIds: [firstVehicleId, secondVehicleId],
   }
 }
 

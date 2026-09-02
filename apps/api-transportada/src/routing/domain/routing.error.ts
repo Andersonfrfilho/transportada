@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { DiagnosableError } from '../../shared/diagnosable.error.js'
 import { ApiError } from '../../shared/api.error.js'
 
 /**
@@ -107,5 +108,20 @@ export class MultiVehicleSuggestionVehicleUnavailableError extends ApiError {
       message: 'One or more vehicles cannot be routed',
       status: 409,
     })
+  }
+}
+
+/**
+ * Defeito nosso, nao do chamador. **Nao** estende `ApiError` de proposito: ela deve cair no ramo
+ * de erro desconhecido, que responde 500 generico ao cliente (`security.md` 3) e registra a
+ * mensagem no log do servidor. Como `ApiError`, a mensagem viajaria na resposta.
+ *
+ * Ela existe para que um defeito interno deixe de ser indistinguivel de uma falha de banco no
+ * log -- foi essa confusao que escondeu, por uma spec inteira, uma releitura fora da transacao.
+ */
+export class MultiVehicleSuggestionWriteFailedError extends DiagnosableError {
+  public constructor(reason: string) {
+    super(`Multi vehicle suggestion write failed: ${reason}`)
+    this.name = 'MultiVehicleSuggestionWriteFailedError'
   }
 }

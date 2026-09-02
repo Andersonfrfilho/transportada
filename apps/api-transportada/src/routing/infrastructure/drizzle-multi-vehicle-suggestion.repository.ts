@@ -18,6 +18,7 @@ import type {
   MultiVehicleSuggestionGroup,
   MultiVehicleSuggestionRepository,
 } from '../application/multi-vehicle-suggestion.repository.js'
+import { MultiVehicleSuggestionWriteFailedError } from '../domain/routing.error.js'
 import { createDrizzleRouteSuggestionRepository } from './drizzle-route-suggestion.repository.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -25,8 +26,6 @@ type Database = ReturnType<typeof createDrizzleProvider>['db']
 export function createDrizzleMultiVehicleSuggestionRepository(
   database: Database,
 ): MultiVehicleSuggestionRepository {
-  const suggestions = createDrizzleRouteSuggestionRepository(database)
-
   return {
     /**
      * A sugestão, o pool e a frota nascem na **mesma transação**: uma sugestão sem pool é uma
@@ -45,7 +44,9 @@ export function createDrizzleMultiVehicleSuggestionRepository(
             tripId: null,
           })
           .returning({ id: routeSuggestions.id })
-        if (row === undefined) throw new Error('multi vehicle suggestion insert returned no row')
+        if (row === undefined) {
+          throw new MultiVehicleSuggestionWriteFailedError('insert returned no row')
+        }
 
         await transaction.insert(routeSuggestionDocuments).values(
           input.documentIds.map((nfeDocumentId) => ({
@@ -63,11 +64,19 @@ export function createDrizzleMultiVehicleSuggestionRepository(
           })),
         )
 
-        const created = await suggestions.find({
+        /**
+         * O repositorio de leitura nasce **da transacao**, nunca da conexao de fora. Ligado
+         * ao `database`, ele le por outra conexao: a linha recem-inserida ainda nao commitou,
+         * e invisivel ali, e `find` devolve `null` em toda chamada -- a criacao inteira
+         * falhava sempre, com 500 (spec 074).
+         */
+        const created = await createDrizzleRouteSuggestionRepository(transaction).find({
           companyId: input.companyId,
           suggestionId: row.id,
         })
-        if (created === null) throw new Error('multi vehicle suggestion vanished after insert')
+        if (created === null) {
+          throw new MultiVehicleSuggestionWriteFailedError('suggestion vanished after insert')
+        }
 
         return created
       })
