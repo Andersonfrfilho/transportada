@@ -40,7 +40,7 @@ Uma task por vez. Contrato **antes** da implementação, falhando primeiro. Evid
 > 🤖 Modelo: `haiku`
 
 - [x] **T008** — `make check` verde, contrato de acentos verde, evidência completa.
-- [ ] **T009** — Verificar em staging: ligar a estimativa pela tela numa empresa sem fator, ver a
+- [x] **T009** — Verificar em staging: ligar a estimativa pela tela numa empresa sem fator, ver a
       ocupação aparecer na viagem, e desligar vendo-a sumir.
       ⚠️ O fator de staging foi gravado **direto no banco** na verificação da 075 — apagá-lo antes
       é parte do teste, senão a tela abre preenchida e a P1 não é exercitada.

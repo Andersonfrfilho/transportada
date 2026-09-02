@@ -402,6 +402,6 @@
   "cargoVolumeSpeciesCount": "{{count}} espécies com fator próprio.",
   "cargoVolumeSpeciesCount_other": "{{count}} espécies com fator próprio.",
   "cargoVolumeSave": "Salvar cubagem",
-  "cargoVolumeClear": "Desligar estimativa",
+  "cargoVolumeClear": "Desligar cubagem estimada",
   "cargoVolumeReadOnly": "Só quem administra configurações muda este número."
 }

@@ -90,3 +90,23 @@ describe('painel do fator de cubagem (spec 077)', () => {
     expect(locale.cargoVolumeHint).toInclude('ocupação')
   })
 })
+
+/**
+ * ⚠️ Achado na verificação em staging: o painel do peso já usa "Desligar estimativa", e o meu
+ * nasceu com o **rótulo idêntico** na mesma aba. Dois botões com o mesmo texto, lado a lado,
+ * desligando coisas diferentes — e um deles desabilitado, o que faz o operador concluir que o
+ * recurso não funciona quando ele clicou no outro.
+ *
+ * Não é detalhe de redação: eu mesmo cliquei no errado ao verificar, e levei três passos para
+ * perceber.
+ */
+describe('os rótulos da aba não se repetem (spec 077)', () => {
+  test('cada painel nomeia o que desliga', () => {
+    const locale = JSON.parse(
+      read('src/modules/nfe-workspace/locales/nfeWorkspace.locale.json'),
+    ) as Record<string, string>
+
+    expect(locale.cargoVolumeClear).not.toBe(locale.cargoWeightClear)
+    expect(locale.cargoVolumeClear).toInclude('cubagem')
+  })
+})
