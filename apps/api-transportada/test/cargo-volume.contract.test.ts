@@ -3,3 +3,4 @@
  */
 import './cargo-volume/cargo-volume.contract'
 import './cargo-volume/tenant-safety.contract'
+import './fleet-domain/vehicle-capacity.contract'

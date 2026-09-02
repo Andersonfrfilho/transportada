@@ -35,15 +35,18 @@ Uma task por vez. Contrato **antes** da implementação. Evidência em `evidence
 
 > 🤖 Modelo: `sonnet` (T007 é 🧠 — validar com `opus`)
 
-- [ ] **T006** — Contrato de `resolveVehicleCapacity`: ficha vence referência; ficha zerada cai na
+- [x] **T006** — Contrato de `resolveVehicleCapacity`: ficha vence referência; ficha zerada cai na
       referência; sem os dois ⇒ ausência. (RF3 · CA4)
-- [ ] **T007** — 🧠 Migration de `vehicle_volume_references` com chave `(vehicle_type, body_type)`,
+- [x] **T007** — 🧠 Migration de `vehicle_volume_references` com chave `(vehicle_type, body_type)`,
       **sem `company_id`**, semeada com a tabela do cliente.
       **Por que 🧠:** é a decisão D2 virando schema. Carreta é o **implemento** (`body_type` 03/04),
       não o cavalo, e implemento tem `vehicle_type` vazio. Errar a chave aqui custa migration com
       dados depois. Teste obrigatório: cavalo + carreta acoplados, medindo qual linha responde.
-- [ ] **T008** — Acrescentar a referência aos **três** contratos de paridade de `VEHICLE_TYPES`
-      (API, frontend, worker). (RNF2 · CA7)
+- [x] **T008** — ⚠️ **A task estava errada e virou outra.** `VEHICLE_TYPES` é cópia entre **duas**
+      apps (o worker não a tem), e a referência de cubagem é dado de servidor que o frontend não
+      carrega — não há paridade entre apps aqui. O contrato que faltava é o de **cobertura do
+      catálogo**: as cinco exceções nomeadas por extenso, conferidas contra a semente da migration.
+      (RNF2 · CA7)
 
 ---
 

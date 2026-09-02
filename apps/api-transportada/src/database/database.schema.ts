@@ -75,6 +75,7 @@ import {
   fleetVehicles,
 } from './fleet.schema.js'
 import { fuelPriceReferences } from './fuel-reference.schema.js'
+import { vehicleVolumeReferences } from './vehicle-volume-reference.schema.js'
 import { companyFuelPrices } from './company-fuel-prices.schema.js'
 import { energyTariffReferences } from './energy-tariff.schema.js'
 import { companyEnergySettings } from './company-energy-settings.schema.js'
@@ -157,6 +158,7 @@ export * from './energy-tariff.schema.js'
 export * from './fiscal.schema.js'
 export * from './fleet.schema.js'
 export * from './fuel-reference.schema.js'
+export * from './vehicle-volume-reference.schema.js'
 export * from './freight-region.schema.js'
 export * from './freight.schema.js'
 export * from './mdfe.schema.js'
@@ -227,6 +229,7 @@ export const databaseSchema = {
   freightRules,
   freightRuleVersions,
   fuelPriceReferences,
+  vehicleVolumeReferences,
   identityUserProfiles,
   identityUsers,
   idempotencyRecords,

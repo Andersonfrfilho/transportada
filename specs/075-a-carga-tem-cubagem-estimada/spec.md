@@ -106,8 +106,16 @@ número que pareça medido.
 
 - **RNF1** — `companyId` do contexto autenticado, em toda consulta, com contrato negativo de
   isolamento.
-- **RNF2** — `VEHICLE_TYPES` é cópia por valor entre API, frontend e worker: a referência de
-  cubagem por tipo entra nos **três** contratos de paridade, ou nasce divergente.
+- **RNF2** — ⚠️ **Corrigido na execução:** `VEHICLE_TYPES` é cópia por valor entre **API e
+  frontend**, não três apps — o worker não a tem (a cópia em três é do `FUEL_TYPES`). E a
+  referência de cubagem é **dado de servidor**: o frontend não a carrega, então não há paridade
+  entre apps a cobrar aqui.
+
+  O que precisa ser cobrado é outra coisa: **tipo do catálogo sem linha de referência e sem estar
+  nomeado como exceção faz a ocupação sumir para aquele veículo, sem erro nenhum.** O contrato lista
+  as cinco exceções por extenso (`motorcycle`, `car`, `tractor_unit`, `other`, `three_quarter`) e
+  confere a semente da migration contra elas.
+
 - **RNF3** — Nenhum dado pessoal em log.
 
 ## Casos extremos e falhas
@@ -172,11 +180,11 @@ número que pareça medido.
 - **D2b — A referência por tipo não é indexada por `vehicle_type` sozinho.**
   A tabela do cliente mistura três coisas, e cada uma cai num lugar diferente do nosso modelo:
 
-  | cliente                    | o que é aqui                                                        |
-  | -------------------------- | ------------------------------------------------------------------- |
-  | Fiorino, Sprinter          | **modelos**, não tipos — mapeiam para `utility` e `van`             |
-  | VUC, Toco, Truck           | ✅ batem com `vuc`, `toco`, `truck`                                 |
-  | Carreta Baú, Carreta Sider | **implemento**, distinguido por `body_type` (`03` baú / `04` sider) |
+  | cliente                    | o que é aqui                                                                |
+  | -------------------------- | --------------------------------------------------------------------------- |
+  | Fiorino, Sprinter          | **modelos**, não tipos — mapeiam para `utility` e `van`                     |
+  | VUC, Toco, Truck           | ✅ batem com `vuc`, `toco`, `truck`                                         |
+  | Carreta Baú, Carreta Sider | **implemento**, distinguido por `body_type` (`02` fechada/baú / `05` sider) |
 
   ⚠️ Implemento tem `vehicle_type` **vazio** no nosso modelo: o tipo é de quem traciona
   (`tractor_unit`). A carreta de 105 m³ é a linha do **baú**, não a do cavalo — então a chave é
