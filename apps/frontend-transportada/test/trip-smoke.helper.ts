@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import type { TripDetailContract } from './trip/trip.fixture'
 import { type Page, type Route } from '@playwright/test'
 
 const CORS_HEADERS = {
@@ -50,7 +51,13 @@ function tripDocument(input: Readonly<{ cteAuthorized: boolean; id: string }>) {
   } as const
 }
 
-function tripDetail(mode: DocumentsMode) {
+/**
+ * ⚠️ **Anotado de propósito.** O guard do detalhe usa `hasExactKeys`: campo do corpo ausente aqui
+ * reprova a validação inteira em tempo de execução, o detalhe não carrega, e a tela fica sem botão
+ * nenhum — o smoke quebra em quatro casos e nenhum contrato de unidade acusa. Sem o tipo, só o
+ * Playwright acha (spec 075).
+ */
+function tripDetail(mode: DocumentsMode): TripDetailContract {
   const documents =
     mode === 'has-pending'
       ? [
@@ -65,6 +72,12 @@ function tripDetail(mode: DocumentsMode) {
     drivers: [
       { driverId: DRIVER_ID, driverName: 'Jose da Silva', driverTaxId: '12345678901', position: 1 },
     ],
+    /**
+     * Spec 075: o guard do detalhe usa `hasExactKeys` — campo do corpo ausente aqui reprova a
+     * validação inteira, o detalhe não carrega e a tela fica sem botão nenhum. `null` é o estado
+     * legítimo: veículo sem capacidade conhecida não mostra ocupação.
+     */
+    occupancy: null,
     // ADR-0043 §3: a viagem tem paradas. Vazia é estado legítimo — nota ainda não reconciliada.
     stops: [],
   }

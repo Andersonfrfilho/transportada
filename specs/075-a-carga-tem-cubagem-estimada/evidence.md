@@ -136,3 +136,36 @@ bun run test (frontend)   2260 pass · 0 fail
 ⚠️ **O build pegou o que os testes não pegam.** `TripOccupancy.component.tsx` importava
 `./TripDetail.module.css`, que eu supus e não existe — o módulo é `../styles/trip.module.css`. Teste
 de contrato não resolve CSS; só `vite build` reprovou.
+
+---
+
+## Fase E — Fecho, e a regressão que o smoke pegou
+
+`CLAUDE.md` ganhou a seção de cubagem estimada. `make check` EXIT=0, `make migration-test` 90 pass.
+
+### ⚠️ Publiquei com uma regressão, e o pipeline a pegou antes de mim
+
+Quatro casos do smoke autenticado caíram no **detalhe da viagem** — `Emitir MDF-e`, `Sugerir
+roteiro` e mais dois, todos com `Test timeout` esperando um botão que não aparecia.
+
+A causa é exatamente o risco que eu **havia nomeado na Fase C e fechei pela metade**: o guard do
+frontend usa `hasExactKeys`, e `test/trip-smoke.helper.ts` monta o corpo da viagem sem `occupancy`.
+Campo ausente reprova a validação inteira, o detalhe não carrega, e a tela fica sem botão nenhum.
+O cabeçalho continuava visível porque é `h1` do chrome da página — foi isso que deu a pista.
+
+Eu havia corrigido `test/trip/trip.fixture.ts` (que é tipado, e o `tsc` cobrava) e **não** o helper
+do smoke, que **não era tipado** — por isso nem o typecheck nem os 2260 contratos acusaram. Só o
+Playwright.
+
+**O conserto durável não é o campo: é o tipo.** O helper passou a declarar
+`function tripDetail(mode: DocumentsMode): TripDetailContract`, e verifiquei que a anotação de fato
+pega o defeito — removendo `occupancy: null`, o `tsc` reprova. O que antes só o Playwright achava
+agora para no typecheck.
+
+```
+playwright (smoke local)   45 passed
+```
+
+⚠️ Fica a lição de método: **fixture não tipada é contrato que não existe.** Este repositório tem
+guards de runtime com `hasExactKeys`, e toda fixture que alimenta um deles precisa de tipo — senão
+o campo novo passa por três camadas de teste e quebra no navegador.
