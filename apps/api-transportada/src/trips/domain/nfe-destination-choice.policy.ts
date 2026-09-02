@@ -20,7 +20,15 @@ export type NfeDestinationRow = {
 export type NfeDestinationChoice = {
   readonly components: StopAddressComponents
   readonly label: string
-  /** RF4: quem consulta a parada precisa saber de onde o endereço veio — o rótulo, nunca o endereço. */
+  /**
+   * RF4: de onde o endereço veio — o rótulo, nunca o endereço (RNF1).
+   *
+   * ⚠️ **Nenhum consumidor de produção lê isto ainda**, e por isso a CA10 está em aberto: o vínculo
+   * (`drizzle-trip.repository.ts`) descarta o campo ao chamar `reconcileStopOnLink`. Persistir a
+   * origem é decisão que a spec não tomou, e ela **não é da parada**: uma parada agrupa várias
+   * notas, e a mesma chave pode ser alcançada pela entrega de uma e pelo cadastro de outra. O lugar
+   * é `trip_documents`, o vínculo — com migration própria.
+   */
   readonly origin: PhysicalDestinationOrigin
 }
 

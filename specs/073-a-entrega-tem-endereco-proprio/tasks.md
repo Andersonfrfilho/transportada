@@ -99,3 +99,19 @@ Uma task por vez. Teste de contrato **antes** da implementação. Task só fecha
       buffers 9882 → 9879, sem mudança de forma do plano.
 - [x] **T018** — `make check` verde, `make worker-integration` verde, evidência completa, e a
       seção de `<entrega>` acrescentada ao `CLAUDE.md`.
+
+---
+
+## Aberto — CA10 não foi cumprida
+
+> 🤖 Modelo: `opus` 🧠 (é decisão de modelo de dados)
+
+- [ ] **T019** — A RF4/CA10 pede que a origem do endereço (`delivery`/`recipient`) seja observável
+      na parada. `chooseNfeDestinationRow` a devolve, mas **nenhum consumidor de produção a lê**:
+      `drizzle-trip.repository.ts` a descarta ao chamar `reconcileStopOnLink`.
+      **A decisão que falta:** a origem **não é da parada**. Uma parada agrupa várias notas, e a
+      mesma chave pode ser alcançada pela entrega de uma e pelo cadastro de outra — guardá-la em
+      `trip_stops` faria a tela mentir na primeira parada mista. O lugar é `trip_documents`, com
+      migration própria, e daí sobe para a API e a tela.
+      Achado no passe de revisão da G006, **não** implementado: migration + rota + tela é escopo que
+      as tasks da Fase C não previram, e emendá-lo aqui seria decidir modelo de dados sem spec.

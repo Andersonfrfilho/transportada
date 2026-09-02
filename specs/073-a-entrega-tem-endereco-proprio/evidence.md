@@ -243,3 +243,38 @@ metade das notas traga `<entrega>`.
 
 **T018** `CLAUDE.md` ganhou a seção de `<entrega>`, com a linha divisória (ler ou não o endereço), a
 precedência, a cópia por valor e os dois de `delivery-clients` nomeados como exclusão.
+
+---
+
+## Passe de revisão (gate da G006, 2026-09-01)
+
+Duas coisas saíram, e a primeira é um defeito de verdade.
+
+### 1. Conversão pela metade no agrupamento do solver — **corrigida**
+
+`groupStops` tem **dois ramos**: criar a parada e somar a segunda nota nela. Convertido, o primeiro
+passou a usar o `recipientTaxId` resolvido; **o segundo seguia lendo `row.recipientTaxId`** — e `row`
+passou a ser a linha _escolhida_. Com `<entrega>` vencendo, a parada acumularia o CNPJ de quem recebe
+a carga no galpão, e o cadastro de cliente de entrega (spec 060) casaria com outro.
+
+Compila, passa em todo teste de caminho feliz, e é exatamente a classe de defeito que a T013 tinha
+nomeado — na task ao lado. Corrigido, com contrato por texto de fonte
+(`never reads the tax id off the chosen destination row`) que falhou antes e passa depois.
+
+⚠️ O contrato pegou, de primeira, o **comentário** que eu havia escrito explicando a correção: ele
+continha a expressão proibida. Reescrevi o comentário em vez de afrouxar a asserção.
+
+### 2. CA10 não foi cumprida — **registrada como T019, não emendada**
+
+A RF4 pede a origem observável na parada. `chooseNfeDestinationRow` a devolve e
+`drizzle-trip.repository.ts` **a descarta** ao chamar `reconcileStopOnLink`. Nenhum consumidor de
+produção lê o campo.
+
+Não emendei, e a razão é de desenho: **a origem não é da parada**. Uma parada agrupa várias notas, e
+a mesma chave pode ser alcançada pela entrega de uma e pelo cadastro de outra — `trip_stops` faria a
+tela mentir na primeira parada mista. O lugar é `trip_documents`, com migration, rota e tela — escopo
+que as tasks da Fase C não previram. Decidir modelo de dados no passe de revisão seria pior que
+deixar o item aberto com o motivo escrito.
+
+**Consequência honesta: a spec 073 está completa em 18 das 18 tasks planejadas, com a CA10 em
+aberto.** As outras nove (CA1–CA9) estão cobertas.

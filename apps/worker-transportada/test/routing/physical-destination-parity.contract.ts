@@ -65,3 +65,28 @@ describe('physical destination parity (spec 073 T013)', () => {
     ).toEqual(recipient)
   })
 })
+
+describe('the chosen address never carries the client identity (spec 073 T013)', () => {
+  /**
+   * ⚠️ O defeito que este contrato existe para pegar já aconteceu uma vez, no passe de revisão:
+   * o agrupamento tem **dois ramos** — criar a parada e somar a segunda nota nela — e só o primeiro
+   * foi convertido. O segundo seguia lendo `row.recipientTaxId`, e `row` passou a ser a linha
+   * **escolhida**: com `<entrega>` vencendo, a parada acumularia o CNPJ de quem recebe a carga no
+   * galpão em vez do cliente, e o cadastro de entrega (spec 060) casaria com outro.
+   *
+   * Endereço vem do destino escolhido; documento continua vindo do destinatário. Cobrado por texto
+   * de fonte porque o agrupamento vive dentro de um repositório com banco, e o defeito compila.
+   */
+  test('never reads the tax id off the chosen destination row', async () => {
+    const source = await readFile(
+      new URL(
+        '../../src/routing/infrastructure/drizzle-route-optimization.repository.ts',
+        import.meta.url,
+      ),
+      'utf8',
+    )
+
+    expect(source).not.toInclude('row.recipientTaxId')
+    expect(source).toInclude("candidates.find((row) => row.role === 'recipient')?.recipientTaxId")
+  })
+})

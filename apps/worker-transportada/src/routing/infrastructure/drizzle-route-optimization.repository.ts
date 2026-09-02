@@ -594,7 +594,9 @@ async function readPoolStops(input: {
       continue
     }
     existing.documentIds.push(row.nfeDocumentId)
-    if (row.recipientTaxId !== null) existing.taxIds.add(row.recipientTaxId)
+    // ⚠️ O documento vem do destinatário, resolvido acima — nunca da linha escolhida: com
+    // `<entrega>` vencendo, ela é a da entrega, e o CNPJ dela é o de quem recebe no galpão.
+    if (recipientTaxId !== null) existing.taxIds.add(recipientTaxId)
   }
   if (grouped.size === 0) return []
 
