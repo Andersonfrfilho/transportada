@@ -207,6 +207,11 @@ jobs:
         run: .github/scripts/railway-deploy.sh deploy api
       - name: Conferir migrations aplicadas
         run: .github/scripts/railway-deploy.sh assert-migrations api
+      # A api já subiu quando isto roda: a origem que falta não derruba o serviço, ela derruba a
+      # primeira chamada da app nova — em CORS, no navegador do cliente, longe daqui. Reprovar o
+      # release é o único jeito de a lacuna aparecer antes dele.
+      - name: Conferir as origens do frontend
+        run: .github/scripts/frontend-origins-check.sh
 
   # O frontend é bundle estático servido por nginx: não abre conexão com o banco e não lê tabela
   # nenhuma, então não tem por que esperar migration. Era o passo mais lento da fila (147s) e agora
