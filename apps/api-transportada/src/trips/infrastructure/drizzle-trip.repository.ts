@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 
 import {
   fleetDrivers,
@@ -409,6 +410,13 @@ function buildTripDocumentFilters(input: {
   ]
 }
 
+/**
+ * O `trip_documents_entity_xor_check` deixa a nota chegar por dois caminhos, e a T017 resolveu só o
+ * direto: por cálculo de frete a tela voltava a imprimir o UUID. O alias resolve o segundo sem
+ * tocar no join que decide o `fiscalStatus`.
+ */
+const nfeDocumentsViaFreight = alias(nfeDocuments, 'nfe_documents_via_freight')
+
 async function readTripDetail(
   queryable: TripQueryable,
   input: { readonly companyId: string; readonly tripId: string },
@@ -436,10 +444,16 @@ async function readTripDetail(
        * consulta a mais, e a alternativa (uma leitura por nota) multiplicaria por vinte a tela mais
        * pesada do módulo.
        */
-      nfeIssuedAt: nfeDocuments.issuedAt,
-      nfeNumber: nfeDocuments.number,
-      nfeSeries: nfeDocuments.series,
-      nfeTotalValue: nfeDocuments.totalValue,
+      nfeIssuedAt: sql<Date | null>`coalesce(${nfeDocuments.issuedAt}, ${nfeDocumentsViaFreight.issuedAt})`,
+      nfeNumber: sql<
+        null | string
+      >`coalesce(${nfeDocuments.number}, ${nfeDocumentsViaFreight.number})`,
+      nfeSeries: sql<
+        null | string
+      >`coalesce(${nfeDocuments.series}, ${nfeDocumentsViaFreight.series})`,
+      nfeTotalValue: sql<
+        null | string
+      >`coalesce(${nfeDocuments.totalValue}, ${nfeDocumentsViaFreight.totalValue})`,
     })
     .from(tripDocuments)
     .leftJoin(
@@ -454,6 +468,13 @@ async function readTripDetail(
       and(
         eq(freightCalculations.companyId, tripDocuments.companyId),
         eq(freightCalculations.id, tripDocuments.freightCalculationId),
+      ),
+    )
+    .leftJoin(
+      nfeDocumentsViaFreight,
+      and(
+        eq(nfeDocumentsViaFreight.companyId, tripDocuments.companyId),
+        eq(nfeDocumentsViaFreight.id, freightCalculations.nfeDocumentId),
       ),
     )
     .where(and(...buildTripDocumentListFilters(input)))
