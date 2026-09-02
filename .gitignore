@@ -14,7 +14,12 @@ coverage/
 *.tsbuildinfo
 .DS_Store
 .history/
-.railway/
+# `.railway/` era só estado local do CLI. Com a Infrastructure as Code ele passou a hospedar a
+# fonte da verdade do projeto — e o git não desce em diretório ignorado, então a exceção é por
+# arquivo, não por diretório.
+.railway/*
+!.railway/railway.ts
+!.railway/README.md
 graphify-out/
 tmp/
 

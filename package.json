@@ -20,6 +20,7 @@
     "check": "bun run format:check && bun run lint && bun run typecheck && bun run test && bun run build"
   },
   "devDependencies": {
-    "prettier": "3.6.2"
+    "prettier": "3.6.2",
+    "railway": "^3.11.0"
   }
 }
