@@ -75,6 +75,18 @@ export type TripDetailContract = TripContract &
       driverTaxId: string
       position: number
     }>[]
+    /** Spec 076: a fatia do baú por parada; `null` sem capacidade conhecida. */
+    cargoLayout: Readonly<{
+      overflowM3: string
+      slices: readonly Readonly<{
+        label: string
+        loadOrder: number
+        sequence: number
+        share: string
+        volumeM3: string
+      }>[]
+      stopsWithoutVolume: readonly Readonly<{ documentCount: number; label: string }>[]
+    }> | null
     /** Spec 075: a ocupação do baú, `null` quando a capacidade não é conhecida. */
     occupancy: Readonly<{
       capacityM3: string
@@ -135,6 +147,7 @@ export const TRIP_DETAIL = {
   drivers: [
     { driverId: DRIVER_ID, driverName: 'Jose da Silva', driverTaxId: '12345678901', position: 1 },
   ],
+  cargoLayout: null,
   occupancy: null,
   stops: [],
 } as const satisfies TripDetailContract

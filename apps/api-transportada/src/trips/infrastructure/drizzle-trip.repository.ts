@@ -54,6 +54,8 @@ import {
   cteAuthorizedExpression,
 } from './trip.query.js'
 import { loadTripOccupancy } from './trip-occupancy.support.js'
+import { resolveCargoLayout } from '../domain/cargo-layout.policy.js'
+import { formatScaledDecimal, parseScaledDecimal } from '../../shared/decimal.service.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
 
 const LIVE_DOCUMENT_CONSTRAINTS = new Set([
@@ -449,7 +451,7 @@ async function readTripDetail(
     else bucket.push(document)
   }
 
-  const occupancy = await loadTripOccupancy(queryable, {
+  const cargo = await loadTripOccupancy(queryable, {
     companyId: input.companyId,
     nfeDocumentIds: documents.flatMap((document) =>
       document.nfeDocumentId === null ? [] : [document.nfeDocumentId],
@@ -457,11 +459,40 @@ async function readTripDetail(
     vehicleId: record.vehicleId,
   })
 
+  const stops = stopRecords.map((stopRecord) => ({
+    documents: documentsByStopId.get(stopRecord.id) ?? [],
+    label: stopRecord.label,
+    sequence: Number(stopRecord.sequence),
+  }))
+
+  /**
+   * Spec 076: a fatia do baú por parada, montada do que já veio — nenhuma consulta a mais. Parada
+   * cujas notas não têm cubagem entra em `stopsWithoutVolume`, nunca como fatia zero.
+   */
+  const layout = resolveCargoLayout({
+    capacityM3: cargo.capacityM3,
+    stops: stops.map((stop) => {
+      const volumes = stop.documents.map((document) =>
+        document.nfeDocumentId === null
+          ? null
+          : (cargo.volumeByDocument.get(document.nfeDocumentId) ?? null),
+      )
+      const known = volumes.filter((volume): volume is string => volume !== null)
+      return {
+        documentsWithoutVolume: volumes.length - known.length,
+        label: stop.label,
+        sequence: stop.sequence,
+        volumeM3: known.length === 0 ? null : sumDecimals(known),
+      }
+    }),
+  })
+
   return {
     ...mapTrip(record),
+    cargoLayout: layout,
     documents,
     drivers: driverRecords.map(mapTripDriver),
-    occupancy,
+    occupancy: cargo.occupancy,
     stops: stopRecords.map((stopRecord) => ({
       ...mapTripStop(stopRecord),
       documents: documentsByStopId.get(stopRecord.id) ?? [],
@@ -483,4 +514,14 @@ async function runGuarded<TResult>(operation: () => Promise<TResult>): Promise<T
     }
     throw error
   }
+}
+
+/** Soma decimal de verdade: `Number` traria erro binário para dentro de um volume. */
+function sumDecimals(values: readonly string[]): string {
+  const total = values.reduce(
+    (accumulated, value) =>
+      accumulated + parseScaledDecimal({ errorCodePrefix: 'TRIP_CARGO_LAYOUT', scale: 6n, value }),
+    0n,
+  )
+  return formatScaledDecimal(total, 6n)
 }

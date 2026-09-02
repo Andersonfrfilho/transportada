@@ -91,10 +91,28 @@ export type TripOccupancy = Readonly<{
   source: 'declared' | 'estimated'
 }>
 
+/**
+ * Spec 076: a fatia do baú de cada parada. ⚠️ Representação proporcional, **não plano de estiva** —
+ * a NF-e não traz dimensão de volume, e não há como dizer onde cada caixa vai.
+ */
+export type TripCargoLayout = Readonly<{
+  overflowM3: string
+  slices: readonly Readonly<{
+    label: string
+    /** `1` é o fundo, e o fundo é da última entrega. */
+    loadOrder: number
+    sequence: number
+    share: string
+    volumeM3: string
+  }>[]
+  stopsWithoutVolume: readonly Readonly<{ documentCount: number; label: string }>[]
+}>
+
 export type TripDetail = Trip &
   Readonly<{
     documents: readonly TripDocumentDetail[]
     drivers: readonly TripDriverLine[]
+    cargoLayout: TripCargoLayout | null
     occupancy: TripOccupancy | null
     stops: readonly TripStopDetail[]
   }>

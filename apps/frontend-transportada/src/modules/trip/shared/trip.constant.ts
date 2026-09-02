@@ -118,7 +118,7 @@ export const TRIP_DETAIL_KEYS = [...TRIP_KEYS, 'documents', 'drivers', 'stops'] 
  * Passado o deploy que serve o campo, ele migra para `TRIP_DETAIL_KEYS` numa mudança própria — e é
  * essa mudança que torna o contrato exigível de novo.
  */
-export const TRIP_DETAIL_OPTIONAL_KEYS = ['occupancy'] as const
+export const TRIP_DETAIL_OPTIONAL_KEYS = ['cargoLayout', 'occupancy'] as const
 
 /** Spec 075: a ocupação do baú. `null` quando a capacidade do veículo não é conhecida. */
 export const TRIP_OCCUPANCY_KEYS = [

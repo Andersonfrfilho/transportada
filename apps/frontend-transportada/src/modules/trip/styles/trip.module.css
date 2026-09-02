@@ -607,3 +607,63 @@
   color: var(--color-slate);
   margin: 0;
 }
+
+/* Spec 076: o bau em escala, fatiado por parada. A largura de cada fatia e a proporcao do volume. */
+.cargoBox {
+  display: flex;
+  overflow: hidden;
+  border: 1px solid var(--color-slate);
+  border-radius: var(--radius-sm, 0.25rem);
+  height: var(--space-8);
+  margin-block: var(--space-2);
+}
+
+.cargoSlice {
+  transition: flex-grow 240ms ease;
+  min-width: 2px;
+}
+
+.cargoFree {
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent var(--space-1),
+    var(--color-fog) var(--space-1),
+    var(--color-fog) var(--space-2)
+  );
+}
+
+.cargoLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--font-size-sm);
+}
+
+.cargoLegend li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.cargoSwatch {
+  width: var(--space-3);
+  height: var(--space-3);
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.cargoOverflow {
+  color: var(--color-alert);
+  font-size: var(--font-size-sm);
+}
+
+/* RNF4: quem pediu para nao ter animacao nao tem. */
+@media (prefers-reduced-motion: reduce) {
+  .cargoSlice {
+    transition: none;
+  }
+}

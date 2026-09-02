@@ -840,6 +840,8 @@ function serializeTrip(trip: Trip): object {
 function serializeTripDetail(trip: TripDetail): object {
   return {
     ...serializeTrip(trip),
+    /** Spec 076: `null` quando a capacidade não é conhecida — escala honesta ou nada. */
+    cargoLayout: trip.cargoLayout === null ? null : { ...trip.cargoLayout },
     documents: trip.documents.map(serializeTripDocumentDetail),
     drivers: trip.drivers.map((driver) => ({ ...driver })),
     /** Spec 075: `null` quando a capacidade não é conhecida — a tela não inventa 100%. */

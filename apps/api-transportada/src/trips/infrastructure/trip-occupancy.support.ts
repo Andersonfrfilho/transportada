@@ -29,7 +29,12 @@ export async function loadTripOccupancy(
     readonly nfeDocumentIds: readonly string[]
     readonly vehicleId: string
   },
-): Promise<TripOccupancyView | null> {
+): Promise<{
+  readonly occupancy: TripOccupancyView | null
+  /** Spec 076: o volume por nota, para o layout agrupar por parada sem uma consulta nova. */
+  readonly volumeByDocument: ReadonlyMap<string, string | null>
+  readonly capacityM3: string | null
+}> {
   const [vehicle] = await queryable
     .select({
       bodyType: fleetVehicles.bodyType,
@@ -42,7 +47,9 @@ export async function loadTripOccupancy(
     .from(fleetVehicles)
     .where(and(eq(fleetVehicles.companyId, input.companyId), eq(fleetVehicles.id, input.vehicleId)))
     .limit(1)
-  if (vehicle === undefined) return null
+  if (vehicle === undefined) {
+    return { capacityM3: null, occupancy: null, volumeByDocument: new Map() }
+  }
 
   const [reference] = await queryable
     .select({
@@ -72,7 +79,9 @@ export async function loadTripOccupancy(
     cargoWidthM: vehicle.cargoWidthM,
     referenceM3,
   })
-  if (capacity === null) return null
+  if (capacity === null) {
+    return { capacityM3: null, occupancy: null, volumeByDocument: new Map() }
+  }
 
   const factors = await queryable
     .select({
@@ -113,14 +122,27 @@ export async function loadTripOccupancy(
     return { source: resolved?.source ?? null, volumeM3: resolved?.volumeM3 ?? null }
   })
 
+  const volumeByDocument = new Map(
+    input.nfeDocumentIds.map((documentId, index) => [
+      documentId,
+      documents[index]?.volumeM3 ?? null,
+    ]),
+  )
+
   const occupancy = resolveTripOccupancy({ capacityM3: capacity.capacityM3, documents })
-  if (occupancy === null) return null
+  if (occupancy === null) {
+    return { capacityM3: capacity.capacityM3, occupancy: null, volumeByDocument }
+  }
 
   return {
-    ...occupancy,
-    capacityDimensions: resolveDimensions({ reference, vehicle }, capacity.source),
     capacityM3: capacity.capacityM3,
-    capacitySource: capacity.source,
+    occupancy: {
+      ...occupancy,
+      capacityDimensions: resolveDimensions({ reference, vehicle }, capacity.source),
+      capacityM3: capacity.capacityM3,
+      capacitySource: capacity.source,
+    },
+    volumeByDocument,
   }
 }
 

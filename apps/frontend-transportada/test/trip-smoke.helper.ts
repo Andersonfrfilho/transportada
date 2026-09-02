@@ -77,6 +77,7 @@ function tripDetail(mode: DocumentsMode): TripDetailContract {
      * validação inteira, o detalhe não carrega e a tela fica sem botão nenhum. `null` é o estado
      * legítimo: veículo sem capacidade conhecida não mostra ocupação.
      */
+    cargoLayout: null,
     occupancy: null,
     // ADR-0043 §3: a viagem tem paradas. Vazia é estado legítimo — nota ainda não reconciliada.
     stops: [],

@@ -3,6 +3,17 @@
   /* Sem isto o Chrome pinta todo widget nativo em modo claro sobre o tema escuro. */
   color-scheme: dark;
   --color-alert: #ff5f57;
+  /**
+   * Spec 076: a paleta das paradas no mapa de carga. Ordenada e estável — a mesma parada tem a
+   * mesma cor na lista, no mapa e no baú. Seis tons distinguíveis entre si; acima disso a tela
+   * agrupa em vez de gerar cor que ninguém diferencia.
+   */
+  --color-cargo-stop-1: #4c8fbd;
+  --color-cargo-stop-2: #d58a47;
+  --color-cargo-stop-3: #6aae8c;
+  --color-cargo-stop-4: #b06fa8;
+  --color-cargo-stop-5: #c7913f;
+  --color-cargo-stop-6: #7d8fa8;
   --color-asphalt: #10222c;
   --color-copper: #d58a47;
   --color-fog: #f0f2ee;

@@ -46,7 +46,15 @@ function findRule(rules: readonly Rule[], selector: string, media = ''): Rule | 
 describe('trip mobile-first contract', () => {
   test('adds width with min-width only, on the shared breakpoint grid', async () => {
     const stylesheet = await readApplicationFile(TRIP_STYLESHEET_PATH)
-    const queries = [...stylesheet.matchAll(/@media[^{]+/g)].map((match) => match[0].trim())
+    /**
+     * ⚠️ Só consulta de **largura**: é ela que o `web.md` §10 governa. `prefers-reduced-motion` é
+     * consulta de preferência, usada em quatro arquivos do design system e aceita explicitamente
+     * pelo contrato global (`design-system/responsive.contract.ts`) — varrê-la aqui proibiria, só
+     * neste módulo, a acessibilidade que o resto do produto pratica.
+     */
+    const queries = [...stylesheet.matchAll(/@media[^{]+/g)]
+      .map((match) => match[0].trim())
+      .filter((query) => /width/.test(query))
 
     expect(queries.length).toBeGreaterThan(2)
     for (const query of queries) {

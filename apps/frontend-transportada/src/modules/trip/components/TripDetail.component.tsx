@@ -29,6 +29,7 @@ import {
 import { DeliveryAddressOverrideDialog } from './DeliveryAddressOverrideDialog.component'
 import { TripFiscalReadinessPanel } from './TripFiscalReadinessPanel.component'
 import { TripMdfePendingDialog } from './TripMdfePendingDialog.component'
+import { TripCargoLayoutPanel } from './TripCargoLayout.component'
 import { TripOccupancyPanel } from './TripOccupancy.component'
 import { TripProgressBar } from './TripProgressBar.component'
 import { TripReasonDialog } from './TripReasonDialog.component'
@@ -318,6 +319,8 @@ export function TripDetail({ linkForm, onClose, vehicles, workspace }: TripDetai
       <TripProgressBar documents={trip.documents} />
 
       <TripOccupancyPanel occupancy={trip.occupancy} />
+
+      <TripCargoLayoutPanel layout={trip.cargoLayout} occupancy={trip.occupancy} />
 
       {selection.selectedIds.size > 0 ? (
         <div className={styles.selectionBar} role="status">

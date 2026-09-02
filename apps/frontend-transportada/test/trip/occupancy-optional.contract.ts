@@ -4,6 +4,10 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'bun:test'
 
 import { createTripResponseAdapters } from '../../src/modules/trip/shared/tripResponse.validation'
+import {
+  TRIP_DETAIL_KEYS,
+  TRIP_DETAIL_OPTIONAL_KEYS,
+} from '../../src/modules/trip/shared/trip.constant'
 import { TRIP_DETAIL } from './trip.fixture'
 
 const adapters = createTripResponseAdapters()
@@ -63,5 +67,22 @@ describe('campo novo nasce opcional (spec 078 D2)', () => {
     )
 
     expect(source).toInclude('nasce opcional')
+  })
+})
+
+/**
+ * ⚠️ **A tipagem do helper só protege se o espelho acompanhar.** A spec 075 anotou
+ * `trip-smoke.helper.ts` com `TripDetailContract` justamente para o `tsc` pegar campo faltando — e
+ * na spec 076 ele **não pegou**, porque `TripDetailContract` é escrito à mão e eu acrescentei o
+ * campo só no tipo real. Quatro casos do smoke caíram de novo, pelo mesmo motivo.
+ *
+ * Este contrato compara o **objeto** da fixture com as chaves que o guard aceita: tipo escrito à
+ * mão não se enumera em tempo de execução, mas o objeto sim.
+ */
+describe('a fixture declara todas as chaves do detalhe (spec 076)', () => {
+  it('cobre exatamente o que o guard aceita', () => {
+    const permitidas = [...TRIP_DETAIL_KEYS, ...TRIP_DETAIL_OPTIONAL_KEYS].toSorted()
+
+    expect(Object.keys(TRIP_DETAIL).toSorted()).toEqual(permitidas)
   })
 })
