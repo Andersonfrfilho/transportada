@@ -34,6 +34,11 @@ type FakeKeycloak = {
   readonly writes: string[]
   /** O que foi escrito de permissão de troca de login, na ordem em que chegou. */
   readonly usernameWrites: boolean[]
+  /** Cada PUT de callback, como chegou — é nele que se lê se algo foi removido. */
+  readonly clientWrites: {
+    readonly redirectUris: readonly string[]
+    readonly webOrigins: readonly string[]
+  }[]
   loginThemeInHtml: string | undefined
   storedLoginTheme: string | undefined
 }
@@ -45,20 +50,30 @@ type FakeKeycloak = {
  */
 function startFakeKeycloak(input: {
   readonly loginThemeInHtml: string | undefined
+  readonly spaClient?: {
+    readonly redirectUris: readonly string[]
+    readonly webOrigins: readonly string[]
+  }
   readonly storedLoginTheme: string | undefined
   readonly storedEditUsernameAllowed?: boolean
 }): FakeKeycloak {
   const state: {
     loginThemeInHtml: string | undefined
+    spaClient: { readonly redirectUris: readonly string[]; readonly webOrigins: readonly string[] }
     storedLoginTheme: string | undefined
     storedEditUsernameAllowed: boolean
   } = {
     loginThemeInHtml: input.loginThemeInHtml,
+    spaClient: input.spaClient ?? { redirectUris: [], webOrigins: [] },
     storedEditUsernameAllowed: input.storedEditUsernameAllowed ?? true,
     storedLoginTheme: input.storedLoginTheme,
   }
   const writes: string[] = []
   const usernameWrites: boolean[] = []
+  const clientWrites: {
+    readonly redirectUris: readonly string[]
+    readonly webOrigins: readonly string[]
+  }[] = []
 
   const server = Bun.serve({
     port: 0,
@@ -111,12 +126,30 @@ function startFakeKeycloak(input: {
           headers: { 'content-type': 'text/html' },
         })
       }
+      /**
+       * O passo dos callbacks é **união com o que já está cadastrado**, então o duplo guarda estado:
+       * um duplo que respondesse lista vazia sempre deixaria o teste cego para a única coisa que
+       * pode dar errado ali — apagar o que o painel tem e o arquivo não declara.
+       */
+      if (pathname === `/admin/realms/${REALM}/clients`) {
+        return Response.json([{ id: 'spa-uuid', ...state.spaClient }])
+      }
+      if (pathname === `/admin/realms/${REALM}/clients/spa-uuid` && request.method === 'PUT') {
+        const body = (await request.json()) as {
+          readonly redirectUris: readonly string[]
+          readonly webOrigins: readonly string[]
+        }
+        clientWrites.push(body)
+        state.spaClient = { redirectUris: body.redirectUris, webOrigins: body.webOrigins }
+        return new Response(null, { status: 204 })
+      }
       return new Response('não encontrado', { status: 404 })
     },
   })
 
   return {
     baseUrl: `http://127.0.0.1:${server.port}`,
+    clientWrites,
     get loginThemeInHtml() {
       return state.loginThemeInHtml
     },
@@ -133,6 +166,10 @@ function startFakeKeycloak(input: {
 
 type RunResult = {
   readonly exitCode: number
+  readonly clientWrites: {
+    readonly redirectUris: readonly string[]
+    readonly webOrigins: readonly string[]
+  }[]
   readonly output: string
   readonly usernameWrites: readonly boolean[]
   readonly writes: readonly string[]
@@ -141,6 +178,10 @@ type RunResult = {
 async function runReconcile(input: {
   readonly storedEditUsernameAllowed?: boolean
   readonly loginThemeInHtml: string | undefined
+  readonly spaClient?: {
+    readonly redirectUris: readonly string[]
+    readonly webOrigins: readonly string[]
+  }
   readonly storedLoginTheme: string | undefined
 }): Promise<RunResult> {
   const keycloak = startFakeKeycloak(input)
@@ -173,7 +214,13 @@ async function runReconcile(input: {
   await keycloak.stop()
   await rm(home, { force: true, recursive: true })
 
-  return { exitCode, output: `${stdout}${stderr}`, usernameWrites, writes }
+  return {
+    clientWrites: keycloak.clientWrites,
+    exitCode,
+    output: `${stdout}${stderr}`,
+    usernameWrites,
+    writes,
+  }
 }
 
 /**
@@ -203,6 +250,62 @@ describe('contrato de reconciliação do realm', () => {
 
     expect(result.writes).toEqual([])
     expect(result.exitCode).toBe(0)
+  })
+
+  /**
+   * O defeito que motivou o passo: o portal do contratante subiu e o Keycloak recusou com
+   * `Invalid parameter: redirect_uri`, porque o callback dele nunca foi cadastrado — `redirectUris`
+   * não era gerenciado por lugar nenhum.
+   */
+  test('callback declarado que falta no client é acrescentado', async () => {
+    const result = await runReconcile({
+      loginThemeInHtml: LOGIN_THEME,
+      spaClient: { redirectUris: [], webOrigins: [] },
+      storedLoginTheme: LOGIN_THEME,
+    })
+
+    expect(result.exitCode).toBe(0)
+    expect(result.clientWrites).toHaveLength(1)
+    expect(result.clientWrites[0]?.redirectUris).toContain(
+      'https://cliente.staging.fernandes-transportadora.com.br/auth/callback',
+    )
+  })
+
+  /**
+   * **A guarda que impede este passo de virar o próximo incidente.** Enforcar o conjunto exato
+   * derrubaria o login de produção no primeiro deploy em que o arquivo esquecesse um callback que
+   * só existe no painel — e quem descobre isso é o cliente, na tela de entrar.
+   */
+  test('callback que só existe no painel sobrevive à reconciliação', async () => {
+    const soleInPanel = 'https://cadastrado-a-mao.example/auth/callback'
+    const result = await runReconcile({
+      loginThemeInHtml: LOGIN_THEME,
+      spaClient: { redirectUris: [soleInPanel], webOrigins: [] },
+      storedLoginTheme: LOGIN_THEME,
+    })
+
+    expect(result.exitCode).toBe(0)
+    expect(result.clientWrites[0]?.redirectUris).toContain(soleInPanel)
+  })
+
+  /** Reconciliar roda em todo deploy: escrever à toa é ruído no log de auditoria. */
+  test('client já com os callbacks não é escrito de novo', async () => {
+    const declared = (await Bun.file(
+      new URL('../../../../realm/spa-redirect-uris.json', import.meta.url).pathname,
+    ).json()) as Record<string, Record<string, { redirectUris: string[]; webOrigins: string[] }>>
+    const wanted = declared.staging?.['transportada-spa']
+
+    const result = await runReconcile({
+      loginThemeInHtml: LOGIN_THEME,
+      spaClient: {
+        redirectUris: wanted?.redirectUris ?? [],
+        webOrigins: wanted?.webOrigins ?? [],
+      },
+      storedLoginTheme: LOGIN_THEME,
+    })
+
+    expect(result.exitCode).toBe(0)
+    expect(result.clientWrites).toEqual([])
   })
 
   /**

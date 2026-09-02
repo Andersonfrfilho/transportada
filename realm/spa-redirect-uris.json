@@ -1,0 +1,40 @@
+{
+  "_comment": [
+    "Callbacks OAuth do client SPA, por ambiente. Existe porque `redirectUris` não era gerenciado",
+    "por lugar nenhum: o realm.json versionado só tem localhost, e staging e produção foram",
+    "configurados à mão no painel. O portal do contratante nasceu sem login por causa disso — o",
+    "Keycloak recusou com `Invalid parameter: redirect_uri`, e nada no repositório dizia que faltava.",
+    "",
+    "O painel e o portal compartilham o client `transportada-spa`. São bundles separados (ADR-0050",
+    "§1) servidos de origens diferentes, e cada origem precisa do seu callback aqui.",
+    "",
+    "O domínio gerado da Railway fica ao lado do próprio de propósito: ele é o que responde enquanto",
+    "o DNS do domínio próprio não entra, e tirá-lo cedo derruba o acesso que funciona hoje."
+  ],
+  "production": {
+    "transportada-spa": {
+      "redirectUris": [
+        "https://app.fernandes-transportadora.com.br/auth/callback",
+        "https://cliente.fernandes-transportadora.com.br/auth/callback"
+      ],
+      "webOrigins": [
+        "https://app.fernandes-transportadora.com.br",
+        "https://cliente.fernandes-transportadora.com.br"
+      ]
+    }
+  },
+  "staging": {
+    "transportada-spa": {
+      "redirectUris": [
+        "https://app.staging.fernandes-transportadora.com.br/auth/callback",
+        "https://cliente.staging.fernandes-transportadora.com.br/auth/callback",
+        "https://client-staging-af03.up.railway.app/auth/callback"
+      ],
+      "webOrigins": [
+        "https://app.staging.fernandes-transportadora.com.br",
+        "https://cliente.staging.fernandes-transportadora.com.br",
+        "https://client-staging-af03.up.railway.app"
+      ]
+    }
+  }
+}
