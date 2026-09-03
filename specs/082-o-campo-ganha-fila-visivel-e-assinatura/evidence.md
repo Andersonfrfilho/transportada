@@ -62,6 +62,42 @@ Comandos e resultados:
   → 6 pass, 0 fail.
 - `bun run db:check` → "Everything's fine"; `bun run format:check` e `bun run lint` → verdes.
 
-## G003..G008
+## G003 — Worker (2026-09-03, T020)
+
+Commit `2afd7d89`. Quatro chaves `TRIP_OCCURRENCE_*` (unexpected_charge, long_wait, dock_closed,
+appointment_required) no `NOTIFICATION_CATALOG` (inbox + email); `other` sem chave de propósito.
+Disparo pelo `StopOccurrenceNotifierPort` opcional em `reportStopOccurrence`, publicando no trilho
+`notification.v1` (API enfileira, worker renderiza); destinatário = quem despachou; dedupe
+`templateKey:occurrenceId`. Paridade api/worker por contrato. API 4114 e worker 885 testes verdes.
+⚠️ Instalação já semeada precisa rodar `db:seed:notification-templates` para os quatro textos.
+
+## G004 — Shell (2026-09-03, T030)
+
+Commit `8886d2fc`. Navegação Viagem·Perfil (bottom bar, alvos ≥44px), header com marca + empresa
+(`useInstallationBrand`) + avatar de iniciais (foto real depende de rota que o papel de campo não
+alcança — comentado no header), barra de progresso por parada (`driverTripProgress.service.ts`,
+`role="progressbar"`, pulso só sem `prefers-reduced-motion`). Frontend 2484 testes verdes.
+
+## G005 — Fila offline (2026-09-03, T040–T041)
+
+Commits `f30125aa` + fix do preview (`occurredAt`). IndexedDB v2 com store `event-attachments`;
+teto declarado `ATTACHMENT_QUEUE_LIMIT` (30 anexos / 50 MiB) recusado ANTES de qualquer descarte;
+drenagem única (`drainQueueWithAttachments`): rede mantém, rejeição grava `rejectionCause` legível e
+sai da drenagem automática. Tela `DriverEventQueue` (entrada pelo Perfil e pelo banner): tipo, hora,
+anexos, status, "Enviar agora" por evento e "Enviar todos". Frontend 2498 testes verdes.
+
+## G006 — Entrega (2026-09-03, T050–T053 + painel do escritório)
+
+Commits `efa0222d` (campo) e `11e36ace` (painel). Distância haversine com "X,X km" e ausência sem
+posição/coordenada; assinatura em canvas com tela inteira (`requestFullscreen` +
+`screen.orientation.lock('landscape')`, fallback iOS por CSS `rotate(90deg)`, sem suporte cai para
+foto) entrando na mesma fila com `kind: 'signature'` + `receiverName`; recorte do comprovante no
+aparelho (limiar de luminância, 4 cantos ajustáveis, "usar sem recorte", alças em
+`var(--control-height)`); campos do comprovante dirigidos por `stop.deliveryProof` do snapshot
+(`off` não renderiza, `required` bloqueia com erro por campo, documento canonicalizado sem
+`inputMode` numérico). Painel "Comprovante" na tela de Viagens (placement + permissão + fábrica da
+ADR-0057 + exceções por CNPJ). Frontend 2533 testes verdes, typecheck limpo.
+
+## G007..G008
 
 (pendente)

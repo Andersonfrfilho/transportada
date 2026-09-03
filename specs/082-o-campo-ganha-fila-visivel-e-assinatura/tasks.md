@@ -23,28 +23,28 @@ Formato: id · task · depende · verificação · 🤖 modelo. Task fecha com e
 
 ## Fase 3 — Worker
 
-- [ ] T020 Chaves `OCCURRENCE_*` + disparo `notification.v1` na ocorrência; sem template → grava e segue.
+- [x] T020 Chaves `OCCURRENCE_*` + disparo `notification.v1` na ocorrência; sem template → grava e segue.
       T010 · `worker-integration` + contrato de paridade · sonnet
 
 ## Fase 4 — Shell
 
-- [ ] T030 Navegação Viagem·Perfil, header (marca, empresa, foto do motorista), barra de progresso.
+- [x] T030 Navegação Viagem·Perfil, header (marca, empresa, foto do motorista), barra de progresso.
       — · contratos de design system + `test/trip/…` novos · sonnet
 
 ## Fase 5 — Fila
 
-- [ ] T040 Anexo na fila IndexedDB com teto declarado e descarte anunciado. 🧠 desenho com opus ·
+- [x] T040 Anexo na fila IndexedDB com teto declarado e descarte anunciado. 🧠 desenho com opus ·
       contrato de serviço puro (`offlineQueue`) · sonnet
-- [ ] T041 Tela de eventos pendentes com envio manual (um/todos) e causa de falha. T040 ·
+- [x] T041 Tela de eventos pendentes com envio manual (um/todos) e causa de falha. T040 ·
       contrato de tela por serviço puro · sonnet
 
 ## Fase 6 — Entrega
 
-- [ ] T050 Distância haversine + ocultar sem posição. T030 · contrato de serviço puro · haiku
-- [ ] T051 Assinatura canvas + tela inteira landscape lock (fallback iOS). T030 ·
+- [x] T050 Distância haversine + ocultar sem posição. T030 · contrato de serviço puro · haiku
+- [x] T051 Assinatura canvas + tela inteira landscape lock (fallback iOS). T030 ·
       contrato por texto de fonte (lock + fallback) · sonnet
-- [ ] T052 Recorte do comprovante no aparelho + ajuste manual. T040 · contrato de serviço puro · sonnet
-- [ ] T053 Campos do comprovante dirigidos pela configuração (required bloqueia, off não renderiza).
+- [x] T052 Recorte do comprovante no aparelho + ajuste manual. T040 · contrato de serviço puro · sonnet
+- [x] T053 Campos do comprovante dirigidos pela configuração (required bloqueia, off não renderiza).
       T012,T013 · contrato de tela · sonnet
 
 ## Fase 7 — Ocorrência
