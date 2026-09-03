@@ -20,6 +20,8 @@
   --color-graphite: #1c2b33;
   --color-ready: #6aae8c;
   --color-slate: #8fa3ad;
+  /* O texto que senta sobre o cobre: no escuro é a tinta escura, no claro é o papel claro. */
+  --color-ink-on-accent: #10222c;
   --font-body: 'Avenir Next', Avenir, 'Segoe UI', sans-serif;
   --font-display: Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
   --font-utility: 'SFMono-Regular', Consolas, monospace;
@@ -97,6 +99,41 @@
   --color-zone-2: #7bb85a;
   --color-zone-3: #d9b13c;
   --color-zone-4: #d9603c;
+}
+
+/**
+ * Tema claro: os mesmos nomes de token com os papéis invertidos — asfalto vira papel, névoa vira
+ * tinta — para os 42 módulos que já consomem os tokens herdarem o tema sem tocar em arquivo algum.
+ * O cobre escurece porque sobre fundo claro o tom original não tem contraste de texto.
+ *
+ * Duas portas para o mesmo bloco: `data-theme="light"` é a escolha do botão (persistida), e a
+ * media query cobre quem nunca escolheu e tem o sistema em claro. Mudou um valor num bloco?
+ * mude no outro — o contrato de tema compara os dois.
+ */
+:root[data-theme='light'] {
+  color-scheme: light;
+  --color-alert: #c2382f;
+  --color-asphalt: #f2efe9;
+  --color-copper: #a3591f;
+  --color-fog: #1d2b33;
+  --color-graphite: #fbf9f5;
+  --color-ready: #2e7d54;
+  --color-slate: #5a6b74;
+  --color-ink-on-accent: #faf8f4;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    color-scheme: light;
+    --color-alert: #c2382f;
+    --color-asphalt: #f2efe9;
+    --color-copper: #a3591f;
+    --color-fog: #1d2b33;
+    --color-graphite: #fbf9f5;
+    --color-ready: #2e7d54;
+    --color-slate: #5a6b74;
+    --color-ink-on-accent: #faf8f4;
+  }
 }
 
 * {
@@ -667,7 +704,8 @@ a {
   padding: 0;
 }
 
-.application-logout-button {
+.application-logout-button,
+.application-theme-toggle {
   flex-shrink: 0;
   width: 2rem;
   min-width: 2rem;
@@ -848,7 +886,7 @@ a {
 
 .workspace-primary-action {
   border-color: var(--color-copper);
-  color: var(--color-asphalt);
+  color: var(--color-ink-on-accent);
   background: var(--color-copper);
 }
 
@@ -968,7 +1006,7 @@ button:has([data-count-badge]) {
 
 .ui-button-default {
   border-color: var(--color-copper);
-  color: var(--color-asphalt);
+  color: var(--color-ink-on-accent);
   background: var(--color-copper);
 }
 
@@ -1045,7 +1083,7 @@ button:has([data-count-badge]) {
 
 .ui-badge-default {
   border-color: var(--color-copper);
-  color: var(--color-asphalt);
+  color: var(--color-ink-on-accent);
   background: var(--color-copper);
 }
 

@@ -16,7 +16,7 @@
   max-height: 92vh;
   padding: var(--space-5);
   overflow-y: auto;
-  border: 1px solid color-mix(in srgb, #ff5f57 45%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-alert) 45%, transparent);
   color: var(--color-fog);
   background: var(--color-graphite);
   box-shadow: 0 1.5rem 3rem color-mix(in srgb, var(--color-asphalt) 55%, transparent);
@@ -56,7 +56,7 @@
 }
 
 .outcomeFailed {
-  color: #ff8a80;
+  color: var(--color-alert);
 }
 
 .field {
@@ -84,7 +84,7 @@
 }
 
 .warning {
-  color: #ff8a80;
+  color: var(--color-alert);
   font-family: var(--font-utility);
   font-size: var(--field-font-size-compact);
 }

@@ -76,7 +76,7 @@
 
 .statusError,
 .statusForbidden {
-  color: #efaa7b;
+  color: var(--color-copper);
 }
 
 .workspaceGrid {
@@ -193,12 +193,12 @@
 }
 
 .uploadStatusError {
-  color: #ff5f57;
+  color: var(--color-alert);
 }
 
 .distributionMeta {
   margin: 0;
-  color: var(--color-fog, #9aa5b1);
+  color: var(--color-fog);
   font-size: 0.875rem;
 }
 
@@ -294,7 +294,7 @@
 }
 
 .fileStatus[data-status='failed'] {
-  color: #ff5f57;
+  color: var(--color-alert);
 }
 
 .fileStatus[data-status='uploading'] {
@@ -451,8 +451,8 @@
 .cardError {
   margin: 0;
   padding: var(--space-2) var(--space-3);
-  border-left: 3px solid #efaa7b;
-  color: #efaa7b;
+  border-left: 3px solid var(--color-copper);
+  color: var(--color-copper);
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
@@ -463,12 +463,12 @@
 }
 
 .feedbackError {
-  color: #ff5f57;
+  color: var(--color-alert);
   font-size: 0.85rem;
 }
 
 .metricDanger {
-  color: #ff5f57;
+  color: var(--color-alert);
 }
 
 .amount {
@@ -497,11 +497,11 @@
 }
 
 .badgeWarning {
-  color: #efaa7b;
+  color: var(--color-copper);
 }
 
 .badgeDanger {
-  color: #ff5f57;
+  color: var(--color-alert);
 }
 
 .badgeMuted {

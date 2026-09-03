@@ -19,6 +19,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Icon } from '@/components/ui/icon'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getDeploymentEnvironment } from '@/modules/shared/deploymentEnvironment.service'
+import { applyColorTheme, readStoredColorTheme } from '@/modules/shared/colorTheme.service'
+import { useColorTheme } from '@/modules/shared/useColorTheme.hook'
 import { applyEnvironmentBadge } from '@/modules/shared/environmentBadge.service'
 import { ApplicationFooter } from '@/modules/foundation/components/ApplicationFooter.component'
 import { EnvironmentBanner } from '@/modules/foundation/components/EnvironmentBanner.component'
@@ -69,6 +71,10 @@ const queryClient = new QueryClient({
 const deploymentEnvironment = getDeploymentEnvironment()
 
 applyEnvironmentBadge({ document, environment: deploymentEnvironment })
+applyColorTheme({
+  document,
+  theme: readStoredColorTheme(typeof window === 'undefined' ? null : window.localStorage),
+})
 
 if (!isSmokeAuthBypassEnabled()) {
   registerSW({ immediate: true })
@@ -422,6 +428,7 @@ function ApplicationShell(): ReactNode {
     userId: authMeQuery.data?.data.identity.userId,
   })
   const fiscalEnvironment = authMeQuery.data?.data.company.fiscalEnvironment ?? null
+  const colorTheme = useColorTheme()
 
   return (
     <div
@@ -547,6 +554,17 @@ function ApplicationShell(): ReactNode {
                 </span>
               )}
               <div className="application-user-area" aria-label="Sessão do usuário">
+                <Button
+                  aria-label={colorTheme.theme === 'dark' ? 'Usar tema claro' : 'Usar tema escuro'}
+                  className="application-theme-toggle"
+                  onClick={colorTheme.toggleTheme}
+                  size="sm"
+                  title={colorTheme.theme === 'dark' ? 'Usar tema claro' : 'Usar tema escuro'}
+                  type="button"
+                  variant="ghost"
+                >
+                  <Icon name={colorTheme.theme === 'dark' ? 'sun' : 'moon'} />
+                </Button>
                 <NotificationBell
                   className={NOTIFICATION_BELL_CLASS}
                   onClick={() =>

@@ -81,7 +81,7 @@
 }
 
 .calendarDayEdge {
-  color: var(--color-asphalt);
+  color: var(--color-ink-on-accent);
   font-weight: 700;
   background: var(--color-copper);
 }
@@ -205,7 +205,7 @@
 }
 
 .yearOptionSelected {
-  color: var(--color-asphalt);
+  color: var(--color-ink-on-accent);
   font-weight: 700;
   background: var(--color-copper);
 }

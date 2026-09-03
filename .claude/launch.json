@@ -12,6 +12,20 @@
       "runtimeExecutable": "bun",
       "runtimeArgs": ["run", "--cwd", "apps/frontend-landing", "dev"],
       "port": 53003
+    },
+    {
+      "name": "frontend-transportada-smoke",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "VITE_SMOKE_AUTH_BYPASS=true",
+        "FRONTEND_PORT=53010",
+        "bun",
+        "run",
+        "--cwd",
+        "apps/frontend-transportada",
+        "dev"
+      ],
+      "port": 53010
     }
   ]
 }
