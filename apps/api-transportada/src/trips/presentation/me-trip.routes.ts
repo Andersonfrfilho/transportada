@@ -103,6 +103,8 @@ export type MeTripDependencies = {
   readonly reportOccurrence: (
     input: DriverContextInput & {
       readonly description: string
+      /** ADR-0057 §3: `null` é não aferida — e ela é aceita, não recusada. */
+      readonly distanceMeters: number | null
       readonly documentId: string | null
       readonly idempotencyKey: string
       readonly kind: TripStopOccurrenceKind
@@ -453,6 +455,7 @@ export function createMeTripRoutes(
     }),
     defineRoute<{
       readonly description: string
+      readonly distanceMeters: number | null
       readonly documentId: string | null
       readonly idempotencyKey: string
       readonly kind: TripStopOccurrenceKind
@@ -464,6 +467,7 @@ export function createMeTripRoutes(
           actorUserId: context.scope.userId,
           companyId: context.scope.companyId,
           description: input.description,
+          distanceMeters: input.distanceMeters,
           documentId: input.documentId,
           driverId,
           idempotencyKey: input.idempotencyKey,
@@ -478,6 +482,7 @@ export function createMeTripRoutes(
         const body = await parseStopOccurrenceRequest(request)
         return {
           description: body.description,
+          distanceMeters: body.distanceMeters ?? null,
           documentId: body.documentId,
           idempotencyKey: parseIdempotencyKey(request),
           kind: body.kind,

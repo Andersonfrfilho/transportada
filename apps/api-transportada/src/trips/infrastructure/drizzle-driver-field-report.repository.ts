@@ -356,6 +356,7 @@ class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactio
         companyId: input.companyId,
         description: input.description,
         kind: input.kind,
+        reportedDistanceMeters: input.distanceMeters,
         stopId: input.stopId,
         tripDocumentId: input.documentId,
       })
