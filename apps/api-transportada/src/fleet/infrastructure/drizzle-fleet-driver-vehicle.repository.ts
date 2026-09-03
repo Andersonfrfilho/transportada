@@ -7,6 +7,7 @@ import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { fleetDriverVehicleAssignments, fleetVehicles } from '../../database/database.schema.js'
 import type {
   FleetDriverVehicleLink,
+  FleetDriverVehiclePair,
   FleetDriverVehicleRepositoryPort,
   FleetFuelPricePort,
 } from '../application/fleet.port.js'
@@ -35,6 +36,32 @@ export class DrizzleFleetDriverVehicleRepository implements FleetDriverVehicleRe
     readonly driverId: string
   }): Promise<readonly FleetDriverVehicleLink[]> {
     return listLiveLinks({ ...input, database: this.database, fuelPrices: this.fuelPrices })
+  }
+
+  /**
+   * Spec 081: só os dois ids, e só o vínculo vivo. Sem junção com a ficha do veículo — o pareamento
+   * do diálogo já tem a lista de veículos em mãos, e trazê-la de novo aqui seria a mesma frota duas
+   * vezes na mesma tela.
+   */
+  public async listCompanyPairs(input: {
+    readonly companyId: string
+  }): Promise<readonly FleetDriverVehiclePair[]> {
+    return this.database
+      .select({
+        driverId: fleetDriverVehicleAssignments.driverId,
+        vehicleId: fleetDriverVehicleAssignments.vehicleId,
+      })
+      .from(fleetDriverVehicleAssignments)
+      .where(
+        and(
+          eq(fleetDriverVehicleAssignments.companyId, input.companyId),
+          isNull(fleetDriverVehicleAssignments.releasedAt),
+        ),
+      )
+      .orderBy(
+        asc(fleetDriverVehicleAssignments.driverId),
+        asc(fleetDriverVehicleAssignments.assignedAt),
+      )
   }
 
   public async listExistingVehicleIds(input: {

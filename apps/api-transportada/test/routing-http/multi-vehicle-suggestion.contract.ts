@@ -15,9 +15,11 @@ const SUGGESTION_PATH = `/route-suggestions/${SUGGESTION_ID}`
 const FIRST_DOCUMENT = '00000000-0000-4000-8000-000000000020'
 const SECOND_DOCUMENT = '00000000-0000-4000-8000-000000000021'
 const VEHICLE_ID = '00000000-0000-4000-8000-000000000010'
+const SECOND_VEHICLE_ID = '00000000-0000-4000-8000-000000000011'
+const DRIVER_ID = '00000000-0000-4000-8000-000000000030'
 
-async function responseData(response: Response): Promise<Record<string, unknown>> {
-  const payload = (await response.json()) as { readonly data: Record<string, unknown> }
+async function responseData<TData = Record<string, unknown>>(response: Response): Promise<TData> {
+  const payload = (await response.json()) as { readonly data: TData }
   return payload.data
 }
 
@@ -31,7 +33,10 @@ describe('as rotas da sugestão multi-veículo (spec 058 P2)', () => {
 
     const response = await fixture.handle(
       jsonRequest({
-        body: { nfeDocumentIds: [FIRST_DOCUMENT, SECOND_DOCUMENT], vehicleIds: [VEHICLE_ID] },
+        body: {
+          nfeDocumentIds: [FIRST_DOCUMENT, SECOND_DOCUMENT],
+          vehicles: [{ vehicleId: VEHICLE_ID }],
+        },
         method: 'POST',
         path: MULTI_VEHICLE_PATH,
       }),
@@ -41,7 +46,7 @@ describe('as rotas da sugestão multi-veículo (spec 058 P2)', () => {
     expect(await responseData(response)).toMatchObject({ status: 'queued', tripId: null })
     expect(fixture.createCalls[0]).toMatchObject({
       documentIds: [FIRST_DOCUMENT, SECOND_DOCUMENT],
-      vehicleIds: [VEHICLE_ID],
+      vehicles: [{ vehicleId: VEHICLE_ID }],
     })
   })
 
@@ -54,7 +59,7 @@ describe('as rotas da sugestão multi-veículo (spec 058 P2)', () => {
 
     const withoutVehicles = await fixture.handle(
       jsonRequest({
-        body: { nfeDocumentIds: [FIRST_DOCUMENT], vehicleIds: [] },
+        body: { nfeDocumentIds: [FIRST_DOCUMENT], vehicles: [] },
         method: 'POST',
         path: MULTI_VEHICLE_PATH,
       }),
@@ -63,7 +68,11 @@ describe('as rotas da sugestão multi-veículo (spec 058 P2)', () => {
 
     const unknownField = await fixture.handle(
       jsonRequest({
-        body: { nfeDocumentIds: [FIRST_DOCUMENT], tripId: 'x', vehicleIds: [VEHICLE_ID] },
+        body: {
+          nfeDocumentIds: [FIRST_DOCUMENT],
+          tripId: 'x',
+          vehicles: [{ vehicleId: VEHICLE_ID }],
+        },
         method: 'POST',
         path: MULTI_VEHICLE_PATH,
       }),
@@ -107,13 +116,96 @@ describe('as rotas da sugestão multi-veículo (spec 058 P2)', () => {
     expect(await responseData(rejected)).toMatchObject({ status: 'rejected' })
   })
 
+  /**
+   * Spec 081 (ADR-0055): o par. O motorista é **opcional** — distribuir a carga na véspera, antes de
+   * saber quem dirige, era o único comportamento possível antes desta feature e segue válido.
+   */
+  test('aceita o par com motorista e o par sem motorista no mesmo pedido', async () => {
+    const fixture = await createMultiVehicleHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: {
+          nfeDocumentIds: [FIRST_DOCUMENT],
+          vehicles: [
+            { driverId: DRIVER_ID, vehicleId: VEHICLE_ID },
+            { vehicleId: SECOND_VEHICLE_ID },
+          ],
+        },
+        method: 'POST',
+        path: MULTI_VEHICLE_PATH,
+      }),
+    )
+
+    expect(response.status).toBe(202)
+    expect(fixture.createCalls[0]).toMatchObject({
+      vehicles: [{ driverId: DRIVER_ID, vehicleId: VEHICLE_ID }, { vehicleId: SECOND_VEHICLE_ID }],
+    })
+  })
+
+  /** O par é objeto fechado: `driverId` fora do formato ou campo extra dentro dele é 400. */
+  test('recusa par malformado antes de chegar ao caso de uso', async () => {
+    const fixture = await createMultiVehicleHttpFixture()
+
+    const notUuid = await fixture.handle(
+      jsonRequest({
+        body: {
+          nfeDocumentIds: [FIRST_DOCUMENT],
+          vehicles: [{ driverId: 'quem-dirige', vehicleId: VEHICLE_ID }],
+        },
+        method: 'POST',
+        path: MULTI_VEHICLE_PATH,
+      }),
+    )
+    expect(notUuid.status).toBe(400)
+
+    const extraField = await fixture.handle(
+      jsonRequest({
+        body: {
+          nfeDocumentIds: [FIRST_DOCUMENT],
+          vehicles: [{ plate: 'ABC1D23', vehicleId: VEHICLE_ID }],
+        },
+        method: 'POST',
+        path: MULTI_VEHICLE_PATH,
+      }),
+    )
+    expect(extraField.status).toBe(400)
+
+    /** A lista de ids da forma antiga não é mais o corpo desta rota. */
+    const legacy = await fixture.handle(
+      jsonRequest({
+        body: { nfeDocumentIds: [FIRST_DOCUMENT], vehicleIds: [VEHICLE_ID] },
+        method: 'POST',
+        path: MULTI_VEHICLE_PATH,
+      }),
+    )
+    expect(legacy.status).toBe(400)
+
+    expect(fixture.createCalls).toEqual([])
+  })
+
+  /** RF-6: quem ficou com o quê, sem uma segunda consulta à viagem recém-criada. */
+  test('o aceite nomeia o motorista de cada viagem criada', async () => {
+    const fixture = await createMultiVehicleHttpFixture()
+
+    const response = await fixture.handle(
+      jsonRequest({ method: 'POST', path: `${SUGGESTION_PATH}/accept` }),
+    )
+
+    expect(response.status).toBe(200)
+    const data = await responseData<{
+      readonly trips: readonly { readonly driverId: string | null }[]
+    }>(response)
+    expect(data.trips.map((trip) => trip.driverId)).toEqual(['driver-1'])
+  })
+
   /** Pedir roteiro é escrever viagem: `fleet.read` lê a sugestão, mas não a cria nem a decide. */
   test('exige trip.manage para criar, aceitar e rejeitar', async () => {
     const fixture = await createMultiVehicleHttpFixture({ permissions: READ_ONLY_PERMISSIONS })
 
     const created = await fixture.handle(
       jsonRequest({
-        body: { nfeDocumentIds: [FIRST_DOCUMENT], vehicleIds: [VEHICLE_ID] },
+        body: { nfeDocumentIds: [FIRST_DOCUMENT], vehicles: [{ vehicleId: VEHICLE_ID }] },
         method: 'POST',
         path: MULTI_VEHICLE_PATH,
       }),

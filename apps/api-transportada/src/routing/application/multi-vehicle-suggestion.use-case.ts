@@ -3,6 +3,8 @@
  */
 import {
   MultiVehicleSuggestionDocumentUnavailableError,
+  MultiVehicleSuggestionDriverRepeatedError,
+  MultiVehicleSuggestionDriverUnavailableError,
   MultiVehicleSuggestionEmptyError,
   MultiVehicleSuggestionVehicleUnavailableError,
   RouteSuggestionNotDecidableError,
@@ -26,6 +28,7 @@ import type { RouteSuggestionRepository } from './route-suggestion.repository.js
 export type TripComposer = Readonly<{
   createTrip: (input: {
     readonly context: MultiVehicleScope
+    readonly driverId: string | null
     readonly vehicleId: string
   }) => Promise<{ readonly tripId: string }>
   linkDocument: (input: {
@@ -90,6 +93,7 @@ export function createMultiVehicleSuggestionUseCase(
       for (const group of groups) {
         const { tripId } = await dependencies.trips.createTrip({
           context,
+          driverId: group.driverId,
           vehicleId: group.vehicleId,
         })
 
@@ -110,6 +114,7 @@ export function createMultiVehicleSuggestionUseCase(
 
         trips.push({
           documentCount: group.documentIds.length,
+          driverId: group.driverId,
           stopCount: group.orderedAddressKeys.length,
           tripId,
           vehicleId: group.vehicleId,
@@ -129,15 +134,31 @@ export function createMultiVehicleSuggestionUseCase(
 
     async create(input) {
       const documentIds = [...new Set(input.documentIds)]
-      const vehicleIds = [...new Set(input.vehicleIds)]
+      /** O par é único **pelo veículo**: pedir duas vezes o mesmo caminhão é o mesmo caminhão. */
+      const vehicles = [...new Map(input.vehicles.map((pair) => [pair.vehicleId, pair])).values()]
+      const vehicleIds = vehicles.map((pair) => pair.vehicleId)
       if (documentIds.length === 0) throw new MultiVehicleSuggestionEmptyError('documentIds')
       if (vehicleIds.length === 0) throw new MultiVehicleSuggestionEmptyError('vehicleIds')
 
       /**
-       * As duas conferências correm juntas: elas não dependem uma da outra, e a lentidão de uma
-       * seguida da outra apareceria numa tela em que o operador acabou de selecionar oitenta notas.
+       * RF-2: o mesmo motorista em dois pares seriam duas viagens simultâneas dele no PWA, sem nada
+       * dizendo qual é a de hoje. Aqui a repetição é do **chamador**, e por isso é recusa, não
+       * deduplicação como a do veículo — descartar em silêncio deixaria um caminhão sem motorista
+       * sem ninguém saber por quê.
        */
-      const [unavailableDocuments, unavailableVehicles] = await Promise.all([
+      const driverIds = vehicles
+        .map((pair) => pair.driverId)
+        .filter((driverId): driverId is string => driverId !== undefined)
+      const repeated = driverIds.filter((driverId, index) => driverIds.indexOf(driverId) !== index)
+      if (repeated.length > 0) {
+        throw new MultiVehicleSuggestionDriverRepeatedError([...new Set(repeated)])
+      }
+
+      /**
+       * As conferências correm juntas: elas não dependem uma da outra, e a lentidão de uma seguida
+       * da outra apareceria numa tela em que o operador acabou de selecionar oitenta notas.
+       */
+      const [unavailableDocuments, unavailableVehicles, unavailableDrivers] = await Promise.all([
         dependencies.multiVehicle.findUnavailableDocumentIds({
           companyId: input.context.companyId,
           documentIds,
@@ -146,12 +167,19 @@ export function createMultiVehicleSuggestionUseCase(
           companyId: input.context.companyId,
           vehicleIds,
         }),
+        dependencies.multiVehicle.findUnavailableDriverIds({
+          companyId: input.context.companyId,
+          driverIds,
+        }),
       ])
       if (unavailableDocuments.length > 0) {
         throw new MultiVehicleSuggestionDocumentUnavailableError(unavailableDocuments)
       }
       if (unavailableVehicles.length > 0) {
         throw new MultiVehicleSuggestionVehicleUnavailableError(unavailableVehicles)
+      }
+      if (unavailableDrivers.length > 0) {
+        throw new MultiVehicleSuggestionDriverUnavailableError(unavailableDrivers)
       }
 
       const settings = await dependencies.suggestions.readSettings(input.context.companyId)
@@ -170,7 +198,7 @@ export function createMultiVehicleSuggestionUseCase(
         companyId: input.context.companyId,
         documentIds,
         seed: input.seed ?? createSeed(),
-        vehicleIds,
+        vehicles,
       })
 
       await dependencies.queue.publish({

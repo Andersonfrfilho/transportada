@@ -5,6 +5,7 @@ import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 
 import {
+  fleetDrivers,
   fleetVehicles,
   nfeDocuments,
   routeSuggestionDocuments,
@@ -56,11 +57,12 @@ export function createDrizzleMultiVehicleSuggestionRepository(
           })),
         )
         await transaction.insert(routeSuggestionVehicles).values(
-          input.vehicleIds.map((vehicleId, index) => ({
+          input.vehicles.map((pair, index) => ({
             companyId: input.companyId,
+            driverId: pair.driverId ?? null,
             position: BigInt(index),
             suggestionId: row.id,
-            vehicleId,
+            vehicleId: pair.vehicleId,
           })),
         )
 
@@ -113,6 +115,26 @@ export function createDrizzleMultiVehicleSuggestionRepository(
       return documentIds.filter((documentId) => !available.has(documentId))
     },
 
+    /** Mesma forma da conferência de veículo: pergunta quem **está** disponível e subtrai. */
+    async findUnavailableDriverIds({ companyId, driverIds }) {
+      if (driverIds.length === 0) return []
+
+      const rows = await database
+        .select({ id: fleetDrivers.id })
+        .from(fleetDrivers)
+        .where(
+          and(
+            eq(fleetDrivers.companyId, companyId),
+            inArray(fleetDrivers.id, [...driverIds]),
+            eq(fleetDrivers.status, 'active'),
+          ),
+        )
+
+      const available = new Set(rows.map((row) => row.id))
+
+      return driverIds.filter((driverId) => !available.has(driverId))
+    },
+
     async findUnavailableVehicleIds({ companyId, vehicleIds }) {
       const rows = await database
         .select({ id: fleetVehicles.id })
@@ -142,6 +164,7 @@ export function createDrizzleMultiVehicleSuggestionRepository(
       const rows = await database
         .select({
           addressKey: routeSuggestionStops.addressKey,
+          driverId: routeSuggestionVehicles.driverId,
           nfeDocumentId: routeSuggestionStopDocuments.nfeDocumentId,
           position: routeSuggestionVehicles.position,
           sequence: routeSuggestionStops.sequence,
@@ -172,10 +195,17 @@ export function createDrizzleMultiVehicleSuggestionRepository(
         )
         .orderBy(routeSuggestionVehicles.position, routeSuggestionStops.sequence)
 
-      const groups = new Map<string, { addressKeys: string[]; documentIds: string[] }>()
+      const groups = new Map<
+        string,
+        { addressKeys: string[]; documentIds: string[]; driverId: string | null }
+      >()
       for (const row of rows) {
         if (row.vehicleId === null) continue
-        const group = groups.get(row.vehicleId) ?? { addressKeys: [], documentIds: [] }
+        const group = groups.get(row.vehicleId) ?? {
+          addressKeys: [],
+          documentIds: [],
+          driverId: row.driverId,
+        }
         /** A mesma parada volta uma vez por nota: a ordem é por parada, não por linha. */
         if (group.addressKeys.at(-1) !== row.addressKey) group.addressKeys.push(row.addressKey)
         if (row.nfeDocumentId !== null) group.documentIds.push(row.nfeDocumentId)
@@ -186,6 +216,7 @@ export function createDrizzleMultiVehicleSuggestionRepository(
       for (const [vehicleId, group] of groups) {
         result.push({
           documentIds: group.documentIds,
+          driverId: group.driverId,
           orderedAddressKeys: group.addressKeys,
           vehicleId,
         })

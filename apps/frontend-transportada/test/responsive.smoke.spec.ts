@@ -28,7 +28,9 @@ import { mockFreightWorkspaceApi } from './freight-smoke.helper'
 import {
   CREATED_TRIP_ID,
   FIRST_VEHICLE_ID,
+  AGGREGATE_DRIVER_ID,
   mockMultiVehicleApi,
+  STAFF_DRIVER_ID,
   SECOND_VEHICLE_ID,
 } from './multi-vehicle-smoke.helper'
 import { mockNfeWorkspaceApi } from './nfe-workspace-smoke.helper'
@@ -1249,6 +1251,25 @@ test('a distribuição multi-veículo vai da seleção de notas às viagens cria
    */
   await dialog.getByRole('button', { name: 'Veículos disponíveis' }).click()
 
+  /**
+   * Spec 081: o par. `ABC1D23` tem dois motoristas vinculados, então a linha dele fica **vazia** —
+   * escolher um deles seria adivinhar qual. `XYZ9A88` tem um só, e vem preenchido sem clique.
+   */
+  await expect(dialog.getByRole('button', { name: /Motorista do veículo ABC1D23/u })).toContainText(
+    'Sem motorista',
+  )
+  await expect(dialog.getByRole('button', { name: /Motorista do veículo XYZ9A88/u })).toContainText(
+    'Motorista da Casa',
+  )
+
+  /** O agregado entra pelo outro lado: escolher a pessoa põe o caminhão dela na distribuição. */
+  await dialog.getByRole('button', { name: 'Motoristas e agregados' }).click()
+  await page.getByRole('option', { name: 'Agregado Sintetico' }).click()
+  await dialog.getByRole('button', { name: 'Motoristas e agregados' }).click()
+  await expect(dialog.getByRole('button', { name: /Motorista do veículo ABC1D23/u })).toContainText(
+    'Agregado Sintetico',
+  )
+
   await dialog.getByRole('button', { name: 'Distribuir' }).click()
 
   /** O poll: a primeira leitura devolve `queued`, e é esse estado que o operador mais vê. */
@@ -1279,9 +1300,15 @@ test('a distribuição multi-veículo vai da seleção de notas às viagens cria
    * teste cobra é o **conjunto**: a ordem estável é contrato do multi-select, não desta tela.
    */
   const [body] = routing.createdBodies()
-  expect([...(body?.vehicleIds as readonly string[])].toSorted()).toEqual(
+  const pairs = body?.vehicles as readonly { driverId?: string; vehicleId: string }[]
+  expect(pairs.map((pair) => pair.vehicleId).toSorted()).toEqual(
     [FIRST_VEHICLE_ID, SECOND_VEHICLE_ID].toSorted(),
   )
+  /** O par chega inteiro à API: é ele que faz a viagem existir para quem dirige (ADR-0055). */
+  expect(pairs.find((pair) => pair.vehicleId === FIRST_VEHICLE_ID)?.driverId).toBe(
+    AGGREGATE_DRIVER_ID,
+  )
+  expect(pairs.find((pair) => pair.vehicleId === SECOND_VEHICLE_ID)?.driverId).toBe(STAFF_DRIVER_ID)
   expect((body?.nfeDocumentIds as readonly string[]).length).toBe(1)
 
   /** O atalho leva à viagem criada: sem ele o operador procuraria numa lista qual nasceu do clique. */

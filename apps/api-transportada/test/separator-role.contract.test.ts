@@ -85,6 +85,10 @@ describe('separator role contract', () => {
     expect(reachableRoutes(['separator'])).toEqual([
       'DELETE /trips/:id/documents/:documentId',
       'GET /fleet/capabilities',
+      // spec 081: o vínculo motorista↔veículo é leitura de `fleet.read`, e o separador a alcança de
+      // propósito — é ele quem escolhe veículo e motorista ao montar a viagem. O par não carrega
+      // nada além dos dois ids, então não abre ficha de pessoa a quem só monta carga.
+      'GET /fleet/driver-vehicles',
       'GET /fleet/drivers',
       'GET /fleet/drivers/:id/vehicles',
       'GET /fleet/vehicles',

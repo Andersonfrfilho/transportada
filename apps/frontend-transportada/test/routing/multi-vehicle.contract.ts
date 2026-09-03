@@ -5,7 +5,6 @@ import englishLocale from '../../src/modules/routing/locales/routing.en.locale.j
 import locale from '../../src/modules/routing/locales/routing.locale.json'
 import {
   canOpenMultiVehicleSuggestion,
-  canRequestMultiVehicle,
   countProposedTrips,
   groupStopsByVehicle,
   UNASSIGNED_GROUP,
@@ -68,13 +67,6 @@ describe('a tela da distribuição multi-veículo (spec 058 P2)', () => {
     expect(
       countProposedTrips(buildSuggestion({ stops: [buildStop({ sequence: 1, vehicleId: null })] })),
     ).toBe(0)
-  })
-
-  /** Sem nota ou sem veículo a API recusa — o botão não deixa chegar lá. */
-  test('só permite pedir com nota e veículo', () => {
-    expect(canRequestMultiVehicle({ documentIds: ['a'], vehicleIds: ['b'] })).toBe(true)
-    expect(canRequestMultiVehicle({ documentIds: [], vehicleIds: ['b'] })).toBe(false)
-    expect(canRequestMultiVehicle({ documentIds: ['a'], vehicleIds: [] })).toBe(false)
   })
 
   /** Pedir roteiro é escrever viagem: sem `trip.manage` não há botão morto na barra de seleção. */

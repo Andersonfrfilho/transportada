@@ -82,7 +82,7 @@ describe('a criação da multi-veículo contra Postgres (spec 074)', () => {
       companyId: world.companyId,
       documentIds: world.documentIds,
       seed: 11,
-      vehicleIds: world.vehicleIds,
+      vehicles: world.vehicles,
     })
 
     expect(created.id).toBeTruthy()
@@ -104,7 +104,7 @@ describe('a criação da multi-veículo contra Postgres (spec 074)', () => {
 
     expect(pool).toHaveLength(world.documentIds.length)
     /** A ordem oferecida é o que faz a mesma semente distribuir igual — ela é gravada, não inferida. */
-    expect(fleet.map((row) => row.vehicleId)).toEqual([...world.vehicleIds])
+    expect(fleet.map((row) => row.vehicleId)).toEqual(world.vehicles.map((pair) => pair.vehicleId))
     expect(fleet.map((row) => Number(row.position))).toEqual([0, 1])
   })
 
@@ -123,7 +123,7 @@ describe('a criação da multi-veículo contra Postgres (spec 074)', () => {
       context: world.context,
       correlationId: crypto.randomUUID(),
       documentIds: world.documentIds,
-      vehicleIds: world.vehicleIds,
+      vehicles: world.vehicles,
     })
     expect(created.status).toBe('queued')
 
@@ -139,7 +139,7 @@ describe('a criação da multi-veículo contra Postgres (spec 074)', () => {
         context: world.context,
         correlationId: crypto.randomUUID(),
         documentIds: world.documentIds,
-        vehicleIds: world.vehicleIds,
+        vehicles: world.vehicles,
       })
       .then(() => null)
       .catch((error: unknown) => error)
@@ -269,7 +269,7 @@ type World = {
   readonly context: MultiVehicleScope
   readonly documentIds: readonly string[]
   readonly suggestionId: string
-  readonly vehicleIds: readonly string[]
+  readonly vehicles: readonly { readonly vehicleId: string }[]
 }
 
 async function seedSuggestion(database: TestDatabase): Promise<World> {
@@ -446,7 +446,7 @@ async function seedSuggestion(database: TestDatabase): Promise<World> {
     context: { companyId, membershipId, userId } as unknown as MultiVehicleScope,
     documentIds: [...documentIds],
     suggestionId,
-    vehicleIds: [firstVehicleId, secondVehicleId],
+    vehicles: [{ vehicleId: firstVehicleId }, { vehicleId: secondVehicleId }],
   }
 }
 

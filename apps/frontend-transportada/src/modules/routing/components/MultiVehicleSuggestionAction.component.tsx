@@ -5,8 +5,10 @@ import { useTranslation } from 'react-i18next'
 import { Icon } from '@/components/ui/icon'
 import type { MultiSelectOption } from '@/components/ui/multi-select'
 import { useDriverVehicles } from '@/modules/fleet/hooks/useDriverVehicles.hook'
+import { useDriverVehiclePairs } from '@/modules/fleet/hooks/useDriverVehiclePairs.hook'
 
 import { useMultiVehicleSuggestion } from '../hooks/useMultiVehicleSuggestion.hook'
+import { driverOptions as toDriverOptions } from '../shared/multiVehiclePairing.service'
 import { MultiVehicleSuggestionDialog } from './MultiVehicleSuggestionDialog.component'
 
 type MultiVehicleSuggestionActionProps = Readonly<{
@@ -35,7 +37,20 @@ export function MultiVehicleSuggestionAction({
   permissions,
 }: MultiVehicleSuggestionActionProps) {
   const { t } = useTranslation('routing')
-  const dialog = useMultiVehicleSuggestion({ documentIds, onAccepted, permissions })
+  /**
+   * Spec 081: o vínculo do cadastro é o que preenche os dois lados do par. Ele só é buscado com a
+   * permissão de escrita de viagem — sem o botão não há diálogo, e sem diálogo não há pareamento.
+   */
+  const pairing = useDriverVehiclePairs({
+    ...(companyId === undefined ? {} : { companyId }),
+    permissions,
+  })
+  const dialog = useMultiVehicleSuggestion({
+    documentIds,
+    links: pairing.links,
+    onAccepted,
+    permissions,
+  })
 
   /**
    * A lista de veículos é a mesma do vínculo do motorista: veículos **ativos**, uma consulta com
@@ -60,6 +75,23 @@ export function MultiVehicleSuggestionAction({
     [fleet.options],
   )
 
+  /** Só o de vínculo único: com dois veículos não dá para saber qual ele leva hoje. */
+  const driverOptions = useMemo<readonly MultiSelectOption[]>(
+    () => toDriverOptions({ drivers: pairing.drivers, links: pairing.links }),
+    [pairing.drivers, pairing.links],
+  )
+
+  /** A linha do veículo oferece **todos** — é por ela que quem tem dois caminhões é escalado. */
+  const driverRowOptions = useMemo<readonly MultiSelectOption[]>(
+    () => pairing.drivers.map((driver) => ({ label: driver.name, value: driver.id })),
+    [pairing.drivers],
+  )
+
+  const driverLabels = useMemo<Record<string, string>>(
+    () => Object.fromEntries(pairing.drivers.map((driver) => [driver.id, driver.name])),
+    [pairing.drivers],
+  )
+
   if (!dialog.canOpen) return null
 
   return (
@@ -76,6 +108,9 @@ export function MultiVehicleSuggestionAction({
       <MultiVehicleSuggestionDialog
         dialog={dialog}
         documentCount={documentIds.length}
+        driverLabels={driverLabels}
+        driverOptions={driverOptions}
+        driverRowOptions={driverRowOptions}
         onOpenTrip={onOpenTrip}
         vehicleLabels={vehicleLabels}
         vehicleOptions={vehicleOptions}

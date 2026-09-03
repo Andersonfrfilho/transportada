@@ -112,6 +112,36 @@ export class MultiVehicleSuggestionVehicleUnavailableError extends ApiError {
 }
 
 /**
+ * Spec 081 (RF-3): motorista inexistente, de outra empresa ou inativo. Os tres motivos respondem
+ * junto, como ja acontece com o veiculo — quem esta do outro lado so precisa saber "nao use este".
+ */
+export class MultiVehicleSuggestionDriverUnavailableError extends ApiError {
+  public constructor(driverIds: readonly string[]) {
+    super({
+      code: 'ROUTE_SUGGESTION_DRIVER_UNAVAILABLE',
+      details: driverIds.map((driverId) => ({ field: 'driverIds', message: driverId })),
+      message: 'One or more drivers cannot be assigned',
+      status: 409,
+    })
+  }
+}
+
+/**
+ * Spec 081 (RF-2): o mesmo motorista em dois pares do mesmo pedido. Duas viagens simultaneas dele
+ * apareceriam juntas no PWA, sem nada dizendo qual e a de hoje.
+ */
+export class MultiVehicleSuggestionDriverRepeatedError extends ApiError {
+  public constructor(driverIds: readonly string[]) {
+    super({
+      code: 'ROUTE_SUGGESTION_DRIVER_REPEATED',
+      details: driverIds.map((driverId) => ({ field: 'driverIds', message: driverId })),
+      message: 'The same driver cannot lead two suggested trips',
+      status: 409,
+    })
+  }
+}
+
+/**
  * Defeito nosso, nao do chamador. **Nao** estende `ApiError` de proposito: ela deve cair no ramo
  * de erro desconhecido, que responde 500 generico ao cliente (`security.md` 3) e registra a
  * mensagem no log do servidor. Como `ApiError`, a mensagem viajaria na resposta.

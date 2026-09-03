@@ -50,11 +50,3 @@ export function countProposedTrips(suggestion: RouteSuggestion): number {
   return groupStopsByVehicle(suggestion).filter((group) => group.vehicleId !== UNASSIGNED_GROUP)
     .length
 }
-
-/** Sem nota selecionada ou sem veículo escolhido não há o que pedir — e a API recusaria. */
-export function canRequestMultiVehicle(input: {
-  readonly documentIds: readonly string[]
-  readonly vehicleIds: readonly string[]
-}): boolean {
-  return input.documentIds.length > 0 && input.vehicleIds.length > 0
-}

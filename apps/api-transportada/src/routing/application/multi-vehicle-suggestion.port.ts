@@ -17,7 +17,13 @@ export type CreateMultiVehicleSuggestionInput = Readonly<{
   documentIds: readonly string[]
   seed?: number | undefined
   solverTimeBudgetSeconds?: number | undefined
-  vehicleIds: readonly string[]
+  /** ADR-0055: o par. `driverId` ausente é a distribuição sem escala definida. */
+  vehicles: readonly MultiVehicleSuggestionPair[]
+}>
+
+export type MultiVehicleSuggestionPair = Readonly<{
+  driverId?: string | undefined
+  vehicleId: string
 }>
 
 export type ReadMultiVehicleSuggestionInput = Readonly<{
@@ -28,6 +34,8 @@ export type ReadMultiVehicleSuggestionInput = Readonly<{
 /** Uma viagem por veículo que o solver usou — vazio quando a sugestão não distribuiu nada. */
 export type AcceptedMultiVehicleTrip = Readonly<{
   documentCount: number
+  /** Quem dirige esta viagem, ou `null` quando o par não trouxe motorista. */
+  driverId: string | null
   stopCount: number
   tripId: string
   vehicleId: string

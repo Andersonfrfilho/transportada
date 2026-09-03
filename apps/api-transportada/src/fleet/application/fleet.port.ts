@@ -216,7 +216,16 @@ export type FleetVehicleRepositoryPort = {
   }): Promise<FleetVehicle | null>
 }
 
+/** O par cru: é só disso que o pareamento da sugestão multi-veículo precisa (spec 081, RF-7). */
+export type FleetDriverVehiclePair = {
+  readonly driverId: string
+  readonly vehicleId: string
+}
+
 export type FleetDriverVehicleRepositoryPort = {
+  listCompanyPairs(input: {
+    readonly companyId: string
+  }): Promise<readonly FleetDriverVehiclePair[]>
   listByDriver(input: {
     readonly companyId: string
     readonly driverId: string

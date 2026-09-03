@@ -4,6 +4,7 @@ import {
   DRIVER_CREATE_BODY_KEYS,
   DRIVER_AVAILABILITY_PATH,
   FLEET_CAPABILITIES_PATH,
+  FLEET_DRIVER_VEHICLE_LINKS_PATH,
   FLEET_DRIVERS_PATH,
   FLEET_ERROR,
   FLEET_VEHICLES_PATH,
@@ -25,6 +26,7 @@ import type {
   FleetDriverPage,
   FleetDriverRegionsInput,
   FleetDriverVehicleLink,
+  FleetDriverVehiclePair,
   FleetDriverVehiclesInput,
   FleetDriverVersionInput,
   FleetListInput,
@@ -72,6 +74,8 @@ export type FleetClient = Readonly<{
   listDriverVehicles: (
     input: FleetDriverVehiclesInput,
   ) => Promise<readonly FleetDriverVehicleLink[]>
+  /** Spec 081: o vínculo da empresa inteiro, em pares. Sem argumento: o recorte é o tenant. */
+  listDriverVehiclePairs: () => Promise<readonly FleetDriverVehiclePair[]>
   listDrivers: (input: FleetListInput<FleetDriverFilters>) => Promise<FleetDriverPage>
   listFreightRegions: (input: FleetListInput<FreightRegionFilters>) => Promise<FreightRegionPage>
   listVehicles: (input: FleetListInput<FleetVehicleFilters>) => Promise<FleetVehiclePage>
@@ -283,6 +287,15 @@ export function createFleetClient(dependencies: ClientDependencies): FleetClient
         path: driverVehiclesPath(input.driverId),
       })
       return adapters.driverVehicleListFromApi(response)
+    },
+    async listDriverVehiclePairs() {
+      return adapters.driverVehiclePairListFromApi(
+        await authorizedRequest({
+          dependencies,
+          method: 'GET',
+          path: FLEET_DRIVER_VEHICLE_LINKS_PATH,
+        }),
+      )
     },
     async listDrivers(input) {
       const search = buildSearch(input, {

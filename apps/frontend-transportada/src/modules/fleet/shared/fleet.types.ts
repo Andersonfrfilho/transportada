@@ -486,3 +486,9 @@ export type FleetListInput<TFilters> = Readonly<{
   filters?: TFilters
   limit: number
 }>
+
+/** Spec 081: o par cru do cadastro, do jeito que `GET /fleet/driver-vehicles` o publica. */
+export type FleetDriverVehiclePair = Readonly<{
+  driverId: string
+  vehicleId: string
+}>

@@ -93,6 +93,9 @@ export function createDriverVehicleRepositoryStub(params: DriverVehicleRepositor
         listCalls.push(structuredClone(input))
         return DRIVER_VEHICLE_LINKS
       },
+      async listCompanyPairs() {
+        return []
+      },
       async listExistingVehicleIds(input) {
         existingVehicleIdCalls.push(structuredClone(input))
         return params.existingVehicleIds ?? input.vehicleIds

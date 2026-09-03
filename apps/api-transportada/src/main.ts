@@ -1494,6 +1494,7 @@ function createApplicationRoutes({
       driverAvailability: { execute: (input) => fleetDrivers.checkAvailability(input) },
       driverVehicles: {
         list: (input) => fleetDriverVehicles.list(input),
+        listPairs: (input) => fleetDriverVehicles.listPairs(input),
         replace: (input) => fleetDriverVehicles.replace(input),
       },
       listDrivers: { execute: (input) => fleetDrivers.list(input) },

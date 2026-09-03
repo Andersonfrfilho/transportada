@@ -36,6 +36,8 @@ export type AcceptedMultiVehicleSuggestion = Readonly<{
 
 export type MultiVehicleTrip = Readonly<{
   documentCount: number
+  /** Spec 081: quem dirige esta viagem, ou `null` quando o par não trouxe motorista. */
+  driverId: string | null
   stopCount: number
   tripId: string
   vehicleId: string
@@ -50,7 +52,7 @@ export type RouteSuggestionClient = Readonly<{
     input: Readonly<{
       nfeDocumentIds: readonly string[]
       solverTimeBudgetSeconds?: number
-      vehicleIds: readonly string[]
+      vehicles: readonly Readonly<{ driverId?: string; vehicleId: string }>[]
     }>,
   ) => Promise<RouteSuggestion>
   readMultiVehicle: (input: Readonly<{ suggestionId: string }>) => Promise<RouteSuggestion>
@@ -106,7 +108,7 @@ export function createRouteSuggestionClient(
             ...(input.solverTimeBudgetSeconds === undefined
               ? {}
               : { solverTimeBudgetSeconds: input.solverTimeBudgetSeconds }),
-            vehicleIds: input.vehicleIds,
+            vehicles: input.vehicles,
           }),
           dependencies,
           method: 'POST',
@@ -214,6 +216,7 @@ function toMultiVehicleTrip(value: unknown): MultiVehicleTrip | null {
 
   return {
     documentCount: typeof record.documentCount === 'number' ? record.documentCount : 0,
+    driverId: typeof record.driverId === 'string' ? record.driverId : null,
     stopCount: typeof record.stopCount === 'number' ? record.stopCount : 0,
     tripId,
     vehicleId,

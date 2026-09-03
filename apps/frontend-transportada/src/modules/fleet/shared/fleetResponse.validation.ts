@@ -5,6 +5,7 @@ import {
   DRIVER_COVERAGE_KEYS,
   DRIVER_DETAIL_KEYS,
   DRIVER_VEHICLE_LINK_KEYS,
+  DRIVER_VEHICLE_PAIR_KEYS,
   FLEET_CAPABILITY_KEYS,
   FLEET_ERROR,
   FREIGHT_REGION_CITY_KEYS,
@@ -30,6 +31,7 @@ import type {
   FleetDriverDetail,
   FleetDriverPage,
   FleetDriverVehicleLink,
+  FleetDriverVehiclePair,
   FleetVehicleCatalogResult,
   FleetVehicleDetail,
   FleetVehiclePage,
@@ -229,6 +231,17 @@ function isDriver(value: unknown): value is FleetDriverDetail {
   )
 }
 
+function isDriverVehiclePair(value: unknown): value is FleetDriverVehiclePair {
+  if (!isRecord(value)) return false
+  if (
+    !hasOnlyKeys(value, DRIVER_VEHICLE_PAIR_KEYS) ||
+    !hasEveryKey(value, DRIVER_VEHICLE_PAIR_KEYS)
+  ) {
+    return false
+  }
+  return isString(value.driverId) && isString(value.vehicleId)
+}
+
 function isDriverVehicleLink(value: unknown): value is FleetDriverVehicleLink {
   if (!isRecord(value)) return false
   if (
@@ -345,6 +358,13 @@ export function createFleetResponseAdapters() {
       if (!isRecord(input) || !Array.isArray(input.data)) throw invalid()
       return input.data.map((item) => {
         if (!isDriverVehicleLink(item)) throw invalid()
+        return item
+      })
+    },
+    driverVehiclePairListFromApi(input: unknown): readonly FleetDriverVehiclePair[] {
+      if (!isRecord(input) || !Array.isArray(input.data)) throw invalid()
+      return input.data.map((item) => {
+        if (!isDriverVehiclePair(item)) throw invalid()
         return item
       })
     },

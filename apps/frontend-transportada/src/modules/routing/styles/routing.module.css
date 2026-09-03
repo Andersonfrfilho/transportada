@@ -271,3 +271,37 @@
   display: grid;
   gap: var(--space-2);
 }
+
+/**
+ * Spec 081: a linha do par. O veículo e o motorista dele lado a lado — uma lista corrida com o
+ * veículo repetido em cada linha esconderia justamente a decisão que se está tomando aqui.
+ */
+.multiVehiclePairs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.multiVehiclePair {
+  align-items: center;
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 40rem) {
+  .multiVehiclePair {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.multiVehiclePairVehicle {
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
