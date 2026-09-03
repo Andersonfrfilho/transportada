@@ -604,6 +604,12 @@ async function readTripDetail(
     stops: stopRecords.map((row) => ({
       ...mapTripStop(row.stop),
       documents: documentsByStopId.get(row.stop.id) ?? [],
+      /**
+       * ⚠️ **Depois do spread, e é isso que faz a tela ver o número.** `mapTripStop` devolve o
+       * rótulo **gravado**, congelado na criação da parada; derivá-lo só no `stops` intermediário
+       * (o que alimenta o desenho do baú) deixou a tela mostrando rua sem número com o gate verde.
+       */
+      label: labelOf(row.stop.id, row.stop.label),
       latitude: row.latitude,
       longitude: row.longitude,
     })),

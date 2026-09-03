@@ -13,20 +13,30 @@ function readApplicationFile(filePath: string): Promise<string> {
 }
 
 /**
- * `trip_stops.label` é gravado **uma vez**, na criação da parada, e nunca recalculado. Quando o
- * rótulo passou a levar o número do endereço, toda parada criada antes disso ficou com o texto
- * velho — e a tela seguiu mostrando rua sem número em viagem que já existia.
+ * `trip_stops.label` é gravado **uma vez**, na criação da parada, e nunca recalculado — parada
+ * criada antes de o rótulo passar a levar o número guarda o texto velho. O rótulo é derivado na
+ * leitura, do mesmo `buildStopLabel` que a criação usa.
  *
- * O rótulo passa a ser derivado na leitura, do mesmo `buildStopLabel` que a criação usa. A
- * alternativa — recalcular por migration em SQL — seria a **quarta** grafia de endereço nesta base,
- * e a terceira já divergiu em silêncio (evidência da T001).
+ * ⚠️ **A primeira versão deste contrato era decoração**, e é a razão de ele estar escrito assim: ela
+ * afirmava que `labelOf` existia e que `label: row.stop.label,` sumira — as duas coisas verdadeiras
+ * enquanto a derivação alimentava só o `stops` **intermediário**, o que monta o desenho do baú. A
+ * resposta continuava saindo de `mapTripStop`, com o rótulo gravado, e a tela seguiu mostrando rua
+ * sem número com gate verde e mutação passando. Por isso o que se cobra agora é o **objeto que a
+ * função devolve**, não a existência do auxiliar.
  */
-describe('o rótulo da parada é recalculado na leitura', () => {
-  test('a leitura do detalhe deriva o rótulo, em vez de servir o gravado', async () => {
-    const source = await readApplicationFile(REPOSITORY_PATH)
+function returnedStopsBlock(source: string): string {
+  const start = source.indexOf('stops: stopRecords.map(')
+  return start === -1 ? '' : source.slice(start, start + 600)
+}
 
-    expect(source).toContain('labelOf(row.stop.id, row.stop.label)')
-    expect(source).not.toContain('label: row.stop.label,')
+describe('o rótulo da parada é recalculado na leitura', () => {
+  test('o objeto devolvido sobrescreve o rótulo depois do spread', async () => {
+    const block = returnedStopsBlock(await readApplicationFile(REPOSITORY_PATH))
+
+    expect(block).toContain('...mapTripStop(row.stop)')
+    expect(block).toContain('label: labelOf(row.stop.id, row.stop.label)')
+    // A ordem é o que decide: sobrescrever antes do spread não sobrevive a ele.
+    expect(block.indexOf('...mapTripStop(row.stop)')).toBeLessThan(block.indexOf('label: labelOf('))
   })
 
   /** Uma consulta a mais por viagem, nunca uma por parada (§15 do code-standart). */
@@ -39,9 +49,7 @@ describe('o rótulo da parada é recalculado na leitura', () => {
 
   /** Sem endereço resolvido o gravado continua valendo: nota desvinculada não apaga o rótulo. */
   test('parada sem endereço resolvido mantém o rótulo gravado', async () => {
-    const source = await readApplicationFile(REPOSITORY_PATH)
-
-    expect(source).toContain('return stored')
+    expect(await readApplicationFile(REPOSITORY_PATH)).toContain('return stored')
   })
 
   test('a política continua omitindo número ausente em vez de imprimir vírgula solta', () => {
