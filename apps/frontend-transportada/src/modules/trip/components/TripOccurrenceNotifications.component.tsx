@@ -4,6 +4,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Icon } from '@/components/ui/icon'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select } from '@/components/ui/select'
@@ -129,6 +130,7 @@ export function TripOccurrenceNotifications({
           />
           <Checkbox checked={notifies} label={t('occurrence.notifies')} onChange={setNotifies} />
           <Button disabled={isSaving} onClick={handleAdd} size="sm" type="button">
+            <Icon name="add" />
             {t('occurrence.add')}
           </Button>
         </div>
