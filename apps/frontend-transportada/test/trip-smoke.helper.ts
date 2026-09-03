@@ -256,6 +256,21 @@ async function registerTripMocks(
     }
     await fulfillJson(route, { data: [BASE_TRIP], page: { nextCursor: null } })
   })
+  /**
+   * Spec 079: a linha da estrada. Ela precisa vir mockada **antes** do detalhe, senão o padrão
+   * `/trips/{id}` a engoliria — e o smoke afirma zero falha de rede, então uma consulta solta
+   * reprova a tela inteira por causa do mapa.
+   *
+   * `unavailable` de propósito: é o estado que a instalação sem OSRM tem, e é o que exercita o
+   * traço tracejado com a legenda de linha reta.
+   */
+  await input.page.route(/\/trips\/[^/]+\/route-geometry$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, { data: { points: [], source: 'unavailable' } })
+  })
   await input.page.route(/\/trips\/[^/]+\/fiscal-readiness$/, async (route) => {
     if (route.request().method() === 'OPTIONS') {
       await fulfillOptions(route)
