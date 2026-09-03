@@ -8,7 +8,7 @@ import { describe, expect, it } from 'bun:test'
 import trip from '../../src/modules/trip/locales/trip.locale.json'
 
 const COMPONENT = new URL(
-  '../../src/modules/trip/components/TripOccupancy.component.tsx',
+  '../../src/modules/trip/components/TripCargoPanel.component.tsx',
   import.meta.url,
 )
 const DETAIL = new URL(
@@ -101,7 +101,7 @@ describe('ocupação na tela (spec 075 T011)', () => {
 
   /** O painel tem de estar montado no detalhe, senão o contrato acima protege código morto. */
   it('está montado no detalhe da viagem', () => {
-    expect(readFileSync(DETAIL, 'utf8')).toInclude('<TripOccupancyPanel')
+    expect(readFileSync(DETAIL, 'utf8')).toInclude('<TripCargoPanel')
     expect(readFileSync(DETAIL, 'utf8')).toInclude('occupancy={trip.occupancy}')
   })
 })

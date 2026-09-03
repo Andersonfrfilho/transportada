@@ -32,10 +32,9 @@ import {
 import { DeliveryAddressOverrideDialog } from './DeliveryAddressOverrideDialog.component'
 import { TripFiscalReadinessPanel } from './TripFiscalReadinessPanel.component'
 import { TripMdfePendingDialog } from './TripMdfePendingDialog.component'
-import { TripCargoLayoutPanel } from './TripCargoLayout.component'
+import { TripCargoPanel } from './TripCargoPanel.component'
 import { TripDeliveryProof } from './TripDeliveryProof.component'
 import { TripOccurrences } from './TripOccurrences.component'
-import { TripOccupancyPanel } from './TripOccupancy.component'
 import { TripRouteMap } from './TripRouteMap.component'
 import { resolveDeliveryProofView } from '../shared/deliveryProof.service'
 import { resolveTripProgress } from '../shared/tripProgress.service'
@@ -384,9 +383,11 @@ export function TripDetail({ linkForm, onClose, vehicles, workspace }: TripDetai
         })}
       />
 
-      <TripOccupancyPanel cargoWeight={trip.cargoWeight ?? null} occupancy={trip.occupancy} />
-
-      <TripCargoLayoutPanel layout={trip.cargoLayout} occupancy={trip.occupancy} />
+      <TripCargoPanel
+        cargoWeight={trip.cargoWeight ?? null}
+        layout={trip.cargoLayout}
+        occupancy={trip.occupancy}
+      />
 
       <TripRouteMap
         canCorrect={canManage}

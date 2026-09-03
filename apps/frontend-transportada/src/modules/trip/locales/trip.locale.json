@@ -285,9 +285,12 @@
     "productLine": "{{quantity}} {{unit}} · {{description}}",
     "withoutProducts": "Esta nota não tem itens registrados."
   },
+  "cargo": { "title": "Carga da viagem" },
   "cargoLayout": {
     "title": "Mapa de carga do baú",
     "loadOrderHint": "A ordem de carregamento é o inverso da de entrega: a última parada da rota viaja no fundo, e a primeira fica na porta.",
+    "bottom": "fundo (última parada)",
+    "door": "porta (primeira parada)",
     "slice": "{{order}}º a carregar — {{label}} · {{volume}} m³",
     "overflow": "Passa {{volume}} m³ da capacidade do veículo.",
     "withoutVolume": "Sem cubagem, e por isso fora do mapa: {{stops}}.",

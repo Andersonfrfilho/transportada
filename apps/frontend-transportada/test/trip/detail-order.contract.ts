@@ -43,6 +43,6 @@ describe('a ordem do detalhe da viagem (spec 079 T021)', () => {
     const acoes = posicaoDe('<TripStateActions')
 
     expect(posicaoDe('<TripProcessFlow')).toBeLessThan(acoes)
-    expect(posicaoDe('<TripOccupancyPanel')).toBeLessThan(acoes)
+    expect(posicaoDe('<TripCargoPanel')).toBeLessThan(acoes)
   })
 })

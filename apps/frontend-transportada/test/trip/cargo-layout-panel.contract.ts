@@ -6,7 +6,7 @@ import { describe, expect, it } from 'bun:test'
 import trip from '../../src/modules/trip/locales/trip.locale.json'
 
 const PANEL = new URL(
-  '../../src/modules/trip/components/TripCargoLayout.component.tsx',
+  '../../src/modules/trip/components/TripCargoPanel.component.tsx',
   import.meta.url,
 )
 const DETAIL = new URL(
@@ -28,9 +28,15 @@ describe('o baú na tela (spec 076)', () => {
     expect(source).toInclude('if (layout === null) return null')
   })
 
-  /** RF4: a marca de estimativa acompanha o desenho com a mesma força do número. */
-  it('carrega a marca de estimativa', () => {
-    expect(source).toInclude('occupancy?.source')
+  /**
+   * RF4: a marca de estimativa acompanha o desenho com a mesma força do número — e **uma vez só**.
+   * Enquanto ocupação e desenho eram dois painéis, cada um imprimia a sua, e o operador lia a mesma
+   * ressalva duas vezes na mesma tela. Agora ela sai do bloco da ocupação, acima do desenho, e o
+   * desenho não a repete.
+   */
+  it('carrega a marca de estimativa, sem repeti-la', () => {
+    expect(source).toInclude("occupancy.source === 'estimated'")
+    expect(source.match(/t\('occupancy\.estimated'\)/gu)).toHaveLength(1)
     expect(trip.cargoLayout.estimated).toInclude('estimad')
   })
 
@@ -84,6 +90,6 @@ describe('o baú na tela (spec 076)', () => {
 
   /** O painel tem de estar montado, senão os contratos acima protegem código morto. */
   it('está montado no detalhe da viagem', () => {
-    expect(readFileSync(DETAIL, 'utf8')).toInclude('<TripCargoLayoutPanel')
+    expect(readFileSync(DETAIL, 'utf8')).toInclude('<TripCargoPanel')
   })
 })

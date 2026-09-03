@@ -8,7 +8,7 @@ import { describe, expect, it } from 'bun:test'
 import trip from '../../src/modules/trip/locales/trip.locale.json'
 
 const COMPONENT = new URL(
-  '../../src/modules/trip/components/TripOccupancy.component.tsx',
+  '../../src/modules/trip/components/TripCargoPanel.component.tsx',
   import.meta.url,
 )
 

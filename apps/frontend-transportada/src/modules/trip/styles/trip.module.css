@@ -737,7 +737,57 @@
 }
 
 /* Spec 076: o bau em escala, fatiado por parada. A largura de cada fatia e a proporcao do volume. */
+/**
+ * O baú visto de lado, com a cabine à esquerda: a fatia colada nela é a **última** parada da rota,
+ * que viaja no fundo. Desenho com caixas de CSS, não SVG — `<svg>` cru é proibido fora do design
+ * system, e a forma aqui é retângulo, não ilustração.
+ */
+.truck {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-1);
+  margin-block: var(--space-2);
+}
+
+.truckCab {
+  position: relative;
+  flex: 0 0 var(--space-8);
+  height: var(--space-6);
+  border: 1px solid var(--color-slate);
+  border-radius: var(--space-1) var(--space-2) 0 0;
+  background: color-mix(in srgb, var(--color-asphalt) 70%, transparent);
+}
+
+.truckWheel {
+  position: absolute;
+  bottom: calc(var(--space-1) * -1);
+  left: var(--space-2);
+  width: var(--space-3);
+  height: var(--space-3);
+  border: 1px solid var(--color-slate);
+  border-radius: 50%;
+  background: var(--color-asphalt);
+}
+
+.cargoSliceOrder {
+  display: block;
+  padding-block-start: var(--space-1);
+  color: var(--color-asphalt);
+  font-family: var(--font-utility);
+  font-size: 0.7rem;
+  text-align: center;
+}
+
+.truckEnds {
+  display: flex;
+  justify-content: space-between;
+  color: var(--color-slate);
+  font-size: 0.7rem;
+}
+
 .cargoBox {
+  position: relative;
+  flex: 1;
   display: flex;
   overflow: hidden;
   border: 1px solid var(--color-slate);
