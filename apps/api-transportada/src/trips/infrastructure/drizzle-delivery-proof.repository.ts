@@ -2,8 +2,14 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
+import type { SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
 import { and, desc, eq, inArray } from 'drizzle-orm'
 
+import {
+  companyDeliveryProofSettings,
+  deliveryProofSettingOverrides,
+} from '../../database/company-delivery-proof-settings.schema.js'
+import { nfeParticipants } from '../../database/nfe.schema.js'
 import { storedObjects } from '../../database/storage.schema.js'
 import {
   tripDeliveryProofs,
@@ -13,6 +19,10 @@ import {
   trips,
 } from '../../database/trip.schema.js'
 import type { DeliveryProofPort } from '../application/attach-delivery-proof.use-case.js'
+import {
+  resolveDeliveryProofSettings,
+  type DeliveryProofFieldSettings,
+} from '../domain/delivery-proof-settings.policy.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -71,15 +81,76 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
     return record?.id ?? null
   }
 
+  /**
+   * ADR-0057 §1: a configuração resolvida — geral da empresa mais a exceção pelo CNPJ do
+   * destinatário da nota. Toda consulta com o tenant no `where`; ausência de linha cai na fábrica.
+   */
+  public async resolveProofFieldSettings(input: {
+    readonly companyId: string
+    readonly documentId: string
+  }): Promise<DeliveryProofFieldSettings> {
+    const [recipient] = await this.database
+      .select({ taxId: nfeParticipants.taxId })
+      .from(tripDocuments)
+      .innerJoin(
+        nfeParticipants,
+        and(
+          eq(nfeParticipants.companyId, tripDocuments.companyId),
+          eq(nfeParticipants.documentId, tripDocuments.nfeDocumentId),
+          eq(nfeParticipants.role, 'recipient'),
+        ),
+      )
+      .where(
+        and(eq(tripDocuments.companyId, input.companyId), eq(tripDocuments.id, input.documentId)),
+      )
+      .limit(1)
+
+    const [general] = await this.database
+      .select({
+        photo: companyDeliveryProofSettings.photo,
+        receiverDocument: companyDeliveryProofSettings.receiverDocument,
+        receiverName: companyDeliveryProofSettings.receiverName,
+        signature: companyDeliveryProofSettings.signature,
+      })
+      .from(companyDeliveryProofSettings)
+      .where(eq(companyDeliveryProofSettings.companyId, input.companyId))
+      .limit(1)
+
+    const recipientTaxId = recipient?.taxId ?? ''
+    const [override] =
+      recipientTaxId.length === 0
+        ? []
+        : await this.database
+            .select({
+              photo: deliveryProofSettingOverrides.photo,
+              receiverDocument: deliveryProofSettingOverrides.receiverDocument,
+              receiverName: deliveryProofSettingOverrides.receiverName,
+              signature: deliveryProofSettingOverrides.signature,
+            })
+            .from(deliveryProofSettingOverrides)
+            .where(
+              and(
+                eq(deliveryProofSettingOverrides.companyId, input.companyId),
+                eq(deliveryProofSettingOverrides.taxId, recipientTaxId),
+              ),
+            )
+            .limit(1)
+
+    return resolveDeliveryProofSettings({ general: general ?? null, override: override ?? null })
+  }
+
   /** O objeto e o vínculo entram na mesma transação: byte no bucket sem dono é lixo que ninguém acha. */
   public async saveProof(input: {
     readonly actorUserId: string
     readonly companyId: string
     readonly eventId: string
+    readonly id: string
     readonly kind: 'photo' | 'signature'
     readonly mimeType: string
     readonly objectId: string
     readonly objectKey: string
+    readonly receiverDocumentEnvelope: SecretEnvelopeV1 | null
+    readonly receiverDocumentMasked: string
     readonly receiverName: string
     readonly sha256: string
     readonly sizeBytes: number
@@ -103,16 +174,26 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
         .values({
           actorUserId: input.actorUserId,
           companyId: input.companyId,
+          id: input.id,
           kind: input.kind,
           objectId: input.objectId,
+          receiverDocumentEnvelope: input.receiverDocumentEnvelope,
+          receiverDocumentMasked: input.receiverDocumentMasked,
           receiverName: input.receiverName,
           stopEventId: input.eventId,
         })
-        /** Segundo envio do mesmo tipo é correção: a foto tremida vira a boa, sem duplicar linha. */
+        /**
+         * Segundo envio do mesmo tipo é correção: a foto tremida vira a boa, sem duplicar linha.
+         * O `id` novo entra junto — o AAD do envelope está amarrado a ele, e manter o id antigo
+         * deixaria um envelope que nunca abre.
+         */
         .onConflictDoUpdate({
           set: {
             actorUserId: input.actorUserId,
+            id: input.id,
             objectId: input.objectId,
+            receiverDocumentEnvelope: input.receiverDocumentEnvelope,
+            receiverDocumentMasked: input.receiverDocumentMasked,
             receiverName: input.receiverName,
           },
           target: [

@@ -28,6 +28,10 @@ export const API_COMPANY_SETTINGS_SCHEDULED_DISTRIBUTION_PATH =
   '/company-settings/scheduled-distribution'
 export const API_COMPANY_SETTINGS_DISTRIBUTION_CURSOR_PATH = '/company-settings/distribution-cursor'
 export const API_COMPANY_SETTINGS_CARGO_PATH = '/company-settings/cargo'
+/** ADR-0057: a configuração do comprovante de entrega, geral e por CNPJ do destinatário. */
+export const API_COMPANY_SETTINGS_DELIVERY_PROOF_PATH = '/company-settings/delivery-proof'
+export const API_COMPANY_SETTINGS_DELIVERY_PROOF_OVERRIDES_PATH =
+  '/company-settings/delivery-proof/overrides'
 /** Spec 075: o fator de cubagem por espécie, irmão do peso padrão. */
 export const API_COMPANY_SETTINGS_CARGO_VOLUME_PATH = '/company-settings/cargo-volume-factors'
 export const API_COMPANY_SETTINGS_CONTACTS_PATH = '/company-settings/contacts'

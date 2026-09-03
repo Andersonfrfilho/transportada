@@ -56,6 +56,7 @@ export async function listDeliveryProofs(
       kind: tripDeliveryProofs.kind,
       mimeType: storedObjects.mimeType,
       objectKey: storedObjects.objectKey,
+      receiverDocumentMasked: tripDeliveryProofs.receiverDocumentMasked,
       receiverName: tripDeliveryProofs.receiverName,
     })
     .from(tripDeliveryProofs)
@@ -98,6 +99,7 @@ export async function listDeliveryProofs(
     kind: row.kind,
     mimeType: row.mimeType,
     objectKey: row.objectKey,
+    receiverDocumentMasked: row.receiverDocumentMasked,
     receiverName: row.receiverName,
   }))
 }

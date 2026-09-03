@@ -13,6 +13,7 @@ const NOT_CALLED = () => {
 
 const meRoutes = createMeTripRoutes({
   attachProof: NOT_CALLED,
+  dispatchCurrentTrip: NOT_CALLED,
   registerDriverOccurrence: NOT_CALLED,
   findCurrentTrip: NOT_CALLED,
   reportArrival: NOT_CALLED,

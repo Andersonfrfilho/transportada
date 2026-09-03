@@ -9,16 +9,16 @@ Formato: id · task · depende · verificação · 🤖 modelo. Task fecha com e
 
 ## Fase 2 — API
 
-- [ ] T010 Contratos primeiro: `test/trips-schema/delivery-proof-settings-tenant-safety.contract.ts`,
+- [x] T010 Contratos primeiro: `test/trips-schema/delivery-proof-settings-tenant-safety.contract.ts`,
       negativo de log do documento, casos de aceite do dispatch (403/`unchanged`). depende T001,T002 ·
       `bun run --cwd apps/api-transportada test` (vermelho) · sonnet
-- [ ] T011 Migration `company_delivery_proof_settings` + `delivery_proof_setting_overrides`
+- [x] T011 Migration `company_delivery_proof_settings` + `delivery_proof_setting_overrides`
       (CNPJ do destinatário), CHECKs `required/optional/off`, rollback.sql. T010 · `make migration-test` · sonnet
-- [ ] T012 Rotas de settings (`settings.manage`) + settings resolvidos no snapshot de
+- [x] T012 Rotas de settings (`settings.manage`) + settings resolvidos no snapshot de
       `/me/trips/current`. T011 · contratos verdes · sonnet
-- [ ] T013 `receiverDocument` no `proof`: schema condicional à configuração, envelope A256GCM
+- [x] T013 `receiverDocument` no `proof`: schema condicional à configuração, envelope A256GCM
       (AAD `transportada:delivery-proof:v1:${companyId}:${proofId}`), máscara nas leituras. T011 · contratos + negativo de log · 🧠 opus
-- [ ] T014 `POST /me/trips/current/dispatch` (policy no domínio, idempotente, snapshot). T010 ·
+- [x] T014 `POST /me/trips/current/dispatch` (policy no domínio, idempotente, snapshot). T010 ·
       `me-trip.integration.ts` estendida · sonnet
 
 ## Fase 3 — Worker

@@ -30,6 +30,14 @@ function buildWorld(input: { readonly eventId?: string | null } = {}) {
   const repository: DeliveryProofPort = {
     findDeliveryEventId: () =>
       Promise.resolve(input.eventId === undefined ? EVENT_ID : input.eventId),
+    /** O padrão de fábrica (ADR-0057 §4): o documento fica de fora destes casos, de propósito. */
+    resolveProofFieldSettings: () =>
+      Promise.resolve({
+        photo: 'optional' as const,
+        receiverDocument: 'off' as const,
+        receiverName: 'optional' as const,
+        signature: 'optional' as const,
+      }),
     saveProof: (proof) => {
       saved.push(proof)
       return Promise.resolve({ id: 'proof-1' })
@@ -55,12 +63,15 @@ function buildInput(
     documentId: DOCUMENT_ID,
     driverId: DRIVER_ID,
     newObjectId: () => OBJECT_ID,
+    newProofId: () => 'proof-1',
     repository: world.repository,
+    sealDocument: () => Promise.reject(new Error('DOCUMENT_MUST_NOT_BE_SEALED_HERE')),
     storage: world.storage,
     upload: {
       bytes: new Uint8Array(1024),
       kind: 'photo' as const,
       mimeType: 'image/jpeg',
+      receiverDocument: '',
       receiverName: '',
       ...upload,
     },

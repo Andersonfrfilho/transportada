@@ -859,8 +859,16 @@ export const tripDeliveryProofs = pgTable(
     stopEventId: uuid('stop_event_id').notNull(),
     kind: text().notNull().$type<TripDeliveryProofKind>(),
     objectId: uuid('object_id').notNull(),
-    /** Nome de quem recebeu, quando ele assina. Nunca documento — ver o comentário da tabela. */
+    /** Nome de quem recebeu, quando ele assina. */
     receiverName: text('receiver_name').notNull().default(''),
+    /**
+     * ADR-0057 §3 (revisa ADR-0045 §7): o documento do recebedor entra **só quando a configuração
+     * da empresa pede**, criptografado em envelope A256GCM com AAD
+     * `transportada:delivery-proof:v1:${companyId}:${proofId}`. `null` é o caso de fábrica.
+     */
+    receiverDocumentEnvelope: jsonb('receiver_document_envelope'),
+    /** A forma que toda leitura devolve (`***.938.570-**`). O valor em claro não tem coluna. */
+    receiverDocumentMasked: text('receiver_document_masked').notNull().default(''),
     actorUserId: uuid('actor_user_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -901,6 +909,11 @@ export const tripDeliveryProofs = pgTable(
     check(
       'trip_delivery_proofs_receiver_check',
       sql`${table.kind} = 'signature' or length(${table.receiverName}) = 0`,
+    ),
+    /** O documento também é da assinatura, e máscara sem envelope (ou o inverso) é meia escrita. */
+    check(
+      'trip_delivery_proofs_receiver_document_check',
+      sql`(${table.kind} = 'signature' or ${table.receiverDocumentEnvelope} is null) and ((${table.receiverDocumentEnvelope} is null) = (length(${table.receiverDocumentMasked}) = 0))`,
     ),
   ],
 )

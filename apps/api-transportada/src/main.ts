@@ -233,8 +233,13 @@ import {
 } from './trips/application/report-document-delivery.use-case'
 import { reportStopOccurrence } from './trips/application/report-stop-occurrence.use-case'
 import { attachDeliveryProof } from './trips/application/attach-delivery-proof.use-case'
+import { createDeliveryProofDocumentSecretService } from './trips/application/delivery-proof-document-secret.service'
+import { dispatchDriverTrip } from './trips/application/dispatch-driver-trip.use-case'
+import { dispatchTrip } from './trips/application/dispatch-trip.use-case'
 import { createDeliveryProofStorage } from './trips/infrastructure/delivery-proof-storage.gateway'
 import { DrizzleDeliveryProofRepository } from './trips/infrastructure/drizzle-delivery-proof.repository'
+import { DrizzleDeliveryProofSettingsRepository } from './trips/infrastructure/drizzle-delivery-proof-settings.repository'
+import { createDeliveryProofSettingsRoutes } from './trips/presentation/delivery-proof-settings.routes'
 import { DrizzleCurrentDriverTripRepository } from './trips/infrastructure/drizzle-current-driver-trip.repository'
 import { DrizzleDriverFieldReportUnitOfWork } from './trips/infrastructure/drizzle-driver-field-report.repository'
 import { createRouteSuggestionRoutes } from './routing/presentation/route-suggestion.routes'
@@ -1050,6 +1055,7 @@ function createApplicationRoutes({
   })
   const driverFieldReports = new DrizzleDriverFieldReportUnitOfWork(database)
   const deliveryProofRepository = new DrizzleDeliveryProofRepository(database)
+  const deliveryProofSettingsRepository = new DrizzleDeliveryProofSettingsRepository(database)
   const tripLifecycle = createTripLifecycleUseCase({
     batchRepository: tripDocumentBatchRepository,
     deliveryAddressOverrideRepository,
@@ -1171,6 +1177,9 @@ function createApplicationRoutes({
     unitOfWork: cteEmissionProfileRepository,
   })
   const envelopeProvider = createSecretEnvelopeProvider(envelopeKeyRing)
+  const deliveryProofDocumentSecrets = createDeliveryProofDocumentSecretService({
+    envelopeProvider,
+  })
   const nfseEmissionProfiles = createNfseEmissionProfilesUseCase({
     fingerprintService,
     unitOfWork: nfseProfileRepository,
@@ -1622,6 +1631,12 @@ function createApplicationRoutes({
       resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
       setConsent: (input) => tripLocationRepository.setConsent(input),
     }),
+    ...createDeliveryProofSettingsRoutes({
+      listOverrides: (input) => deliveryProofSettingsRepository.listOverrides(input),
+      readSettings: (input) => deliveryProofSettingsRepository.readSettings(input),
+      replaceOverrides: (input) => deliveryProofSettingsRepository.replaceOverrides(input),
+      saveSettings: (input) => deliveryProofSettingsRepository.saveSettings(input),
+    }),
     ...createMeTripRoutes({
       /**
        * Spec 079: o motorista registra a ocorrência do celular. **Sem notificador**: quem despachou
@@ -1643,11 +1658,26 @@ function createApplicationRoutes({
         attachDeliveryProof({
           ...input,
           newObjectId: () => crypto.randomUUID(),
+          newProofId: () => crypto.randomUUID(),
           repository: deliveryProofRepository,
+          sealDocument: (seal) => deliveryProofDocumentSecrets.encrypt(seal),
           storage: createDeliveryProofStorage({
             bucket: storageBucket,
             storage: storageGateway,
           }),
+        }),
+      /** ADR-0058: o mesmo `dispatchTrip` do escritório, recortado pelo vínculo — sem `force`. */
+      dispatchCurrentTrip: (input) =>
+        dispatchDriverTrip({
+          ...input,
+          dispatch: (request) =>
+            dispatchTrip({
+              actorUserId: request.actorUserId,
+              companyId: input.companyId,
+              repository: tripRouteRepository,
+              tripId: request.tripId,
+            }),
+          linkage: currentDriverTripRepository,
         }),
       findCurrentTrip: (input) =>
         findCurrentDriverTrip({ ...input, repository: currentDriverTripRepository }),

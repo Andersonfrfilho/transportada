@@ -19,6 +19,8 @@
  * **O que isto não é:** substituto da DANFE impressa. A DANFE que acompanha a mercadoria é a que o
  * emitente imprimiu e mandou na caixa; isto é a cópia digital, para conferência e consulta.
  */
+import type { DeliveryProofFieldSettings } from '../domain/delivery-proof-settings.policy.js'
+
 export type DriverTripDocument = {
   readonly accessKey: string
   readonly deliveredAt: string | null
@@ -49,6 +51,12 @@ export type DriverStopSchedule = {
 export type DriverTripStop = {
   readonly arrivedAt: string | null
   readonly completedAt: string | null
+  /**
+   * ADR-0057 §2: os campos do comprovante **resolvidos** para esta parada (geral da empresa +
+   * exceção pelo CNPJ do destinatário). O app obedece à configuração, não a conhece — por isso ela
+   * viaja aqui e não numa rota de settings do motorista.
+   */
+  readonly deliveryProof: DeliveryProofFieldSettings
   readonly deliveryWindowEnd: string | null
   readonly deliveryWindowStart: string | null
   readonly documents: readonly DriverTripDocument[]

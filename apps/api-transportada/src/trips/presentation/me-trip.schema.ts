@@ -47,6 +47,15 @@ const occurrenceSchema = z
   })
   .strict()
 
+const dispatchCurrentTripSchema = z.object({ tripId: z.uuid() }).strict()
+
+/** ADR-0058: a viagem vem no corpo — o snapshot já a entregou; o vínculo é conferido no caso de uso. */
+export async function parseDispatchCurrentTripRequest(request: Request): Promise<string> {
+  const body = await parseBody(dispatchCurrentTripSchema, request)
+
+  return body.tripId
+}
+
 export function parseIdempotencyKey(request: Request): string {
   const key = request.headers.get(IDEMPOTENCY_KEY_HEADER)
   if (key === null || key.trim() === '' || key.length > IDEMPOTENCY_KEY_MAX_LENGTH) {
