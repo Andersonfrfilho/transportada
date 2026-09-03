@@ -1089,7 +1089,27 @@ primeiro. Nota já em viagem e veículo que não traciona são recusados na cria
 ⚠️ **O aceite cria viagem, mas não escreve viagem**: ele chama os casos de uso da 056 — criar,
 vincular, ordenar, planejar —, um por veículo, e as viagens saem em `route_planned`. As viagens
 nascem **antes** de a sugestão virar `accepted`: falha no meio deixa a sugestão `ready` para repetir.
-A viagem nasce **sem motorista** — o solver decide o veículo, não quem dirige.
+
+**A viagem nasce com o motorista que o humano pareou** (ADR-0055, spec 081), e isso reverte a frase
+"viagem nasce sem motorista" da ADR-0044 §5. O argumento dela estava certo sobre _deduzir_ e errado
+sobre _carregar_: o PWA de campo acha a viagem por `membership → fleet_drivers → trip_drivers →
+trip` (`find-current-driver-trip.use-case.ts`), e **viagem sem linha em `trip_drivers` não existe
+para quem dirige** — nada do trabalho de campo chega até ele. O corpo da rota é
+`vehicles: [{vehicleId, driverId?}]` (não mais `vehicleIds`), `route_suggestion_vehicles.driver_id`
+é nulo e legítimo — distribuir na véspera, antes da escala, era o único comportamento possível antes
+disto —, e o mesmo motorista em dois pares é `409`: seriam duas viagens simultâneas dele no PWA. O
+aceite **não reconfere** o motorista; suspenso entre o pedido e o aceite, a viagem nasce com ele.
+
+⚠️ **O preenchimento é vínculo único, nunca dedução.** `multiVehiclePairing.service.ts` (frontend)
+preenche o outro lado do par só quando `fleet_driver_vehicle_assignments` tem **um** — que é o caso
+do agregado. Veículo com dois motoristas, ou motorista com dois veículos, fica vazio para o humano
+decidir, e o de dois veículos nem aparece no seletor por motorista (ele entra pelo select da linha
+do caminhão). Dois defeitos que o contrato pegou e que não se deduzem do código: desmarcar no
+seletor por motorista **não pode** derrubar o par preenchido pela ponta do veículo, e escolher o
+motorista cujo caminhão já está na lista **substitui** o par em vez de descartá-lo. O vínculo vem de
+`GET /fleet/driver-vehicles` (`fleet.read`), pares crus da empresa — a rota por motorista custaria
+uma requisição por motorista escolhido —, e o **separador a alcança**, por decisão registrada em
+`test/separator-role.contract.test.ts`.
 
 ⚠️ A chave de parada do pool (`worker-transportada/src/routing/domain/pool-address-key.ts`) é
 **cópia por valor** de `api-transportada/src/trips/domain/stop-address-key.ts`, com contrato que
