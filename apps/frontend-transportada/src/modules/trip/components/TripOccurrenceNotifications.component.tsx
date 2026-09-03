@@ -14,6 +14,12 @@ import {
   TRIP_OCCURRENCE_STAGE,
 } from '../shared/occurrence.constant'
 import type { OccurrenceType, TripOccurrenceStage } from '../shared/occurrence.constant'
+import {
+  buildOccurrenceEmailTemplateOptions,
+  findUnknownTemplatePlaceholders,
+  OCCURRENCE_TEMPLATE_FROM_SCRATCH,
+} from '../shared/occurrenceTemplate.service'
+import { useEmailTemplatesQuery } from '@/modules/notification/queries/useEmailTemplates.query'
 import styles from '../styles/trip.module.css'
 
 type TripOccurrenceTypesProps = Readonly<{
@@ -53,6 +59,19 @@ export function TripOccurrenceNotifications({
   const [notifies, setNotifies] = useState(false)
   const [emailSubject, setEmailSubject] = useState('')
   const [emailBody, setEmailBody] = useState('')
+  const [emailTemplateId, setEmailTemplateId] = useState<string>(OCCURRENCE_TEMPLATE_FROM_SCRATCH)
+
+  const emailTemplates = useEmailTemplatesQuery({ enabled: canManage })
+  const templateOptions = buildOccurrenceEmailTemplateOptions(emailTemplates.data ?? [])
+  const unknownPlaceholders = findUnknownTemplatePlaceholders(`${emailSubject}\n${emailBody}`)
+
+  function handleTemplateChange(value: string) {
+    setEmailTemplateId(value)
+    const chosen = templateOptions.find((option) => option.id === value)
+    if (chosen === undefined) return
+    setEmailSubject(chosen.subject)
+    setEmailBody(chosen.body)
+  }
 
   function handleAdd() {
     if (name.trim() === '') return
@@ -61,6 +80,7 @@ export function TripOccurrenceNotifications({
     setNotifies(false)
     setEmailSubject('')
     setEmailBody('')
+    setEmailTemplateId(OCCURRENCE_TEMPLATE_FROM_SCRATCH)
   }
 
   return (
@@ -151,6 +171,18 @@ export function TripOccurrenceNotifications({
             value={stage}
           />
           <Checkbox checked={notifies} label={t('occurrence.notifies')} onChange={setNotifies} />
+          <Select
+            ariaLabel={t('occurrence.emailTemplate')}
+            onChange={handleTemplateChange}
+            options={[
+              {
+                label: t('occurrence.emailTemplateFromScratch'),
+                value: OCCURRENCE_TEMPLATE_FROM_SCRATCH,
+              },
+              ...templateOptions.map((option) => ({ label: option.label, value: option.id })),
+            ]}
+            value={emailTemplateId}
+          />
           <input
             aria-label={t('occurrence.emailSubject')}
             onChange={(event) => setEmailSubject(event.target.value)}
@@ -169,6 +201,13 @@ export function TripOccurrenceNotifications({
            * A lista de marcadores fica **ao lado do campo**, não numa ajuda escondida: quem escreve
            * o modelo precisa dela enquanto escreve, e marcador fora dela é recusado ao salvar.
            */}
+          {unknownPlaceholders.length > 0 ? (
+            <p className={styles.hint} role="alert">
+              {t('occurrence.unknownPlaceholders', {
+                list: unknownPlaceholders.map((name) => `{{${name}}}`).join(', '),
+              })}
+            </p>
+          ) : null}
           <p className={styles.hint}>
             {t('occurrence.placeholders', {
               list: OCCURRENCE_TEMPLATE_PLACEHOLDERS.map((name) => `{{${name}}}`).join(', '),

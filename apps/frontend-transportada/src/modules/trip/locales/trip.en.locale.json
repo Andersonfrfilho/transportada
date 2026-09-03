@@ -277,5 +277,10 @@
       "add": "Add exception",
       "remove": "Remove"
     }
+  },
+  "occurrence": {
+    "emailTemplate": "Email template",
+    "emailTemplateFromScratch": "Write from scratch",
+    "unknownPlaceholders": "Placeholders outside the list: {{list}} — replace them before saving; unknown placeholders are rejected."
   }
 }

@@ -879,6 +879,24 @@
   margin-block: var(--space-2);
 }
 
+/* Os campos do tipo saem dos tokens (docs/frontend/fields.md) — nunca da altura default do browser. */
+.occurrenceForm input,
+.occurrenceForm textarea {
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  font-size: var(--field-font-size);
+  flex: 1 1 100%;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  border-radius: var(--radius-sm, 0.25rem);
+  color: var(--color-fog);
+  font-family: inherit;
+  background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
+}
+
+.occurrenceForm textarea {
+  resize: vertical;
+}
+
 /* O mapa acompanha a largura do painel e não empurra a tela para o lado no celular (web.md §10). */
 .routeMap {
   width: 100%;

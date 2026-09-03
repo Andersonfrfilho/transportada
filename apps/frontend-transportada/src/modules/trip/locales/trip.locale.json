@@ -285,7 +285,9 @@
     "productLine": "{{quantity}} {{unit}} · {{description}}",
     "withoutProducts": "Esta nota não tem itens registrados."
   },
-  "cargo": { "title": "Carga da viagem" },
+  "cargo": {
+    "title": "Carga da viagem"
+  },
   "cargoLayout": {
     "title": "Mapa de carga do baú",
     "loadOrderHint": "A ordem de carregamento é o inverso da de entrega: a última parada da rota viaja no fundo, e a primeira fica na porta.",
@@ -325,7 +327,10 @@
     "placeholders": "Marcadores disponíveis: {{list}}. Um marcador fora da lista é recusado ao salvar.",
     "withoutTemplate": "Sem e-mail: este tipo só fica registrado na viagem.",
     "emailReady": "E-mail pronto para enviar ao embarcador — confira antes de mandar.",
-    "copyEmail": "Copiar e-mail"
+    "copyEmail": "Copiar e-mail",
+    "emailTemplate": "Modelo de e-mail",
+    "emailTemplateFromScratch": "Escrever do zero",
+    "unknownPlaceholders": "Marcadores fora da lista: {{list}} — troque-os antes de salvar; o cadastro recusa marcador desconhecido."
   },
   "routeMap": {
     "title": "Mapa do roteiro",
