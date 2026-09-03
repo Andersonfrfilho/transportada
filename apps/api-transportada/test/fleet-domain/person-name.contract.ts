@@ -131,6 +131,10 @@ const DISPLAY_CASES: readonly (readonly [string, string])[] = [
   ['pedro van der ley', 'Pedro van der Ley'],
   ['carlos del castillo', 'Carlos del Castillo'],
   ['rita von schmidt y du bois', 'Rita von Schmidt y du Bois'],
+  ['ana la rocca', 'Ana la Rocca'],
+  ['paulo le blanc', 'Paulo le Blanc'],
+  ['jose de las casas', 'Jose de las Casas'],
+  ['maria de los santos', 'Maria de los Santos'],
   // O espaço sobrevive porque a função corre a cada tecla, no meio da digitação
   ['ana ', 'Ana '],
   ['ana  paula', 'Ana  Paula'],
