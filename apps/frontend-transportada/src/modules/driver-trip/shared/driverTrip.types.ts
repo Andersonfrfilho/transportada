@@ -71,36 +71,21 @@ export const DRIVER_RETURN_REASONS = [
 ] as const
 export type DriverReturnReason = (typeof DRIVER_RETURN_REASONS)[number]
 
-/** ⚠️ Cópia por valor de `TRIP_STOP_OCCURRENCE_KINDS`. */
+/**
+ * ⚠️ Cópia por valor de `TRIP_STOP_OCCURRENCE_KINDS`.
+ *
+ * **Só o que é da parada.** Três valores saíram em 2026-09-03 — `damaged_goods` e
+ * `address_not_found` são da nota e já são motivo de devolução; `customer_closed` era
+ * `establishment_closed` com outro nome. Eram duas portas para o mesmo fato na mesma tela.
+ */
 export const DRIVER_OCCURRENCE_KINDS = [
   'unexpected_charge',
   'long_wait',
   'dock_closed',
   'appointment_required',
-  'damaged_goods',
-  'address_not_found',
-  'customer_closed',
   'other',
 ] as const
 export type DriverOccurrenceKind = (typeof DRIVER_OCCURRENCE_KINDS)[number]
-
-/**
- * Spec 079: o que a tela **oferece** ao motorista na ocorrência da parada.
- *
- * ⚠️ **Três fatos tinham duas portas cada.** `TRIP_STOP_OCCURRENCE_KINDS` nasceu para o que
- * acontece na parada — espera, doca, cobrança, agendamento —, e junto dele entraram três que não
- * são da parada: `damaged_goods` e `address_not_found` são da **nota**, e já são motivo de
- * devolução; `customer_closed` é `establishment_closed` com outro nome. O motorista via os dois
- * caminhos e escolhia um, e o escritório reconciliava depois.
- *
- * ⚠️ **O catálogo acima continua completo, e o CHECK do banco não muda.** Remover valor de CHECK
- * quebra linha já gravada, e não foi possível medir quantas existem — o acesso ao banco não estava
- * disponível quando isto foi escrito. O que muda é a fronteira: a tela deixa de oferecer a segunda
- * porta, e o que já está gravado continua legível.
- */
-export function driverStopOccurrenceKinds(): readonly DriverOccurrenceKind[] {
-  return ['unexpected_charge', 'long_wait', 'dock_closed', 'appointment_required', 'other']
-}
 
 export type DriverReportedLocation = Readonly<{
   accuracyMeters?: number

@@ -715,14 +715,21 @@ export const tripStopEvents = pgTable(
  * **É independente da entrega**: `trip_document_id` é anulável e nada liga a ocorrência ao desfecho
  * da nota. Ele esperou duas horas *e* entregou — os dois fatos convivem.
  */
+/**
+ * ⚠️ **Só o que é da parada.** Três valores saíram em 2026-09-03 porque pertenciam a outro eixo:
+ * `damaged_goods` e `address_not_found` são da **nota** — e já são motivo de devolução —, e
+ * `customer_closed` era `establishment_closed` com outro nome. O motorista via duas portas para o
+ * mesmo fato e escolhia uma; o escritório reconciliava depois.
+ *
+ * Medido antes de encolher: `trip_stop_occurrences` tinha **zero linhas** nos dois ambientes, e
+ * produção tinha **zero viagens**. Sem dado para migrar, o CHECK encolheu junto — conviver com
+ * valor que a tela não oferece seria deixar a porta fechada por fora e aberta por dentro.
+ */
 export const TRIP_STOP_OCCURRENCE_KINDS = [
   'unexpected_charge',
   'long_wait',
   'dock_closed',
   'appointment_required',
-  'damaged_goods',
-  'address_not_found',
-  'customer_closed',
   'other',
 ] as const
 export type TripStopOccurrenceKind = (typeof TRIP_STOP_OCCURRENCE_KINDS)[number]

@@ -7,9 +7,9 @@ import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
 
 import {
+  DRIVER_OCCURRENCE_KINDS,
   DRIVER_RETURN_REASONS,
   driverDocumentOccurrenceTypes,
-  driverStopOccurrenceKinds,
   type DriverOccurrenceKind,
   type DriverReturnReason,
   type DriverTripDocument,
@@ -269,7 +269,7 @@ function OccurrenceForm({ onSubmit }: OccurrenceFormProps) {
         <span>{t('occurrence')}</span>
         <Select
           ariaLabel={t('occurrence')}
-          options={driverStopOccurrenceKinds().map((option) => ({
+          options={DRIVER_OCCURRENCE_KINDS.map((option) => ({
             label: t(`occurrenceKind.${option}`),
             value: option,
           }))}

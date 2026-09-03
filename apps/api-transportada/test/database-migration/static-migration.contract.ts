@@ -201,6 +201,7 @@ describe('Drizzle migrations', () => {
       '20260902160000_trip_document_destination_origin',
       '20260902170000_trip_document_occurrences',
       '20260903100000_occurrence_notification_settings',
+      '20260903120000_stop_occurrence_kind_overlap',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')

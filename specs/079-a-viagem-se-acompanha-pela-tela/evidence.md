@@ -54,13 +54,31 @@ o tenant vizinho não escreve na nota alheia. Trocá-la por um `UPDATE` cru cont
 produto e enfraqueceria cobertura de isolamento por causa de uma limpeza. O contrato que impede a
 religação entrou no lugar.
 
+## A medição que fechou a sobreposição
+
+**Em 2026-09-03, nos dois ambientes:** `trip_stop_occurrences` tinha **zero linhas**, e produção
+tinha **zero viagens** e **zero devoluções**. O módulo de viagens nunca rodou em produção.
+
+Foi essa medição que transformou o conserto pela metade em conserto inteiro. A primeira versão
+mexeu só na tela — o CHECK do banco continuou aceitando `damaged_goods`, `address_not_found` e
+`customer_closed` — porque **não havia como medir**: o MCP do Postgres não estava conectado, o banco
+não tem proxy TCP público (e criar um para uma consulta seria expor o banco à internet), e listar as
+variáveis do serviço imprimiria a `DATABASE_URL` no terminal, o que queima o segredo.
+
+O caminho que funcionou foi `railway ssh`, que roda **dentro** da rede da Railway: a credencial
+nunca sai do processo, e o banco continua sem exposição pública. Com o número em mãos — zero — o
+CHECK encolheu junto com o catálogo, porque conviver com valor que a tela não oferece é deixar a
+porta fechada por fora e aberta por dentro.
+
 ## ⚠️ O que não foi verificado
 
 **A migration `20260902170000_trip_document_occurrences` não rodou contra Postgres.** O Docker não
 estava no ar nesta sessão, e `make migration-test` falhou no `postgres-up`. O CHECK dos sete tipos é
 conferido por **leitura do SQL** (`test/trip-occurrence/catalog.contract.ts`), o que pega tipo
 esquecido mas **não** pega erro de sintaxe nem de constraint. **Rodar `make migration-test` antes de
-publicar em produção.**
+publicar em produção.** O mesmo vale para `20260903100000_occurrence_notification_settings` e
+`20260903120000_stop_occurrence_kind_overlap`, escritas na mesma sessão e pelo mesmo motivo sem
+prova contra banco.
 
 ## O que a execução ensinou
 
