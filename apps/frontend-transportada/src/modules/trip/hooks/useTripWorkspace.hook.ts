@@ -5,7 +5,11 @@ import { useState } from 'react'
 import type { DeliveryProof } from '../shared/deliveryProof.service'
 import type { RouteGeometry } from '../shared/routeGeometry.service'
 import type { OccurrenceType } from '../shared/occurrence.constant'
-import type { TripDocumentProduct, TripOccurrence } from '../shared/trip.types'
+import type {
+  RegisteredOccurrence,
+  TripDocumentProduct,
+  TripOccurrence,
+} from '../shared/trip.types'
 import { resolveTripRefetchInterval } from '../shared/tripPolling.service'
 
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
@@ -86,7 +90,7 @@ export type TripController = Readonly<{
       readonly occurrenceTypeId: string
       readonly productCode: string
     },
-  ) => Promise<TripOccurrence>
+  ) => Promise<RegisteredOccurrence>
   readTripDocumentProducts: (
     input: TripDocumentActionInput,
   ) => Promise<readonly TripDocumentProduct[]>

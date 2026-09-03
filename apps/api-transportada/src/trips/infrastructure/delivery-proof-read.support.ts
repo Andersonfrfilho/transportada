@@ -32,6 +32,7 @@ import type {
   TripOccurrence,
 } from '../application/register-trip-occurrence.use-case.js'
 import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
+import type { OccurrenceTemplateValues } from '../domain/occurrence-template.policy.js'
 import { TripDocumentNotFoundError } from '../domain/trip.error.js'
 import { contractors } from '../../database/delivery-client.schema.js'
 import { resolveDeliveryContact } from '../domain/delivery-contact.policy.js'
@@ -507,5 +508,101 @@ export async function saveOccurrenceType(
     name: saved.name,
     notifies: saved.notifies,
     stage: saved.stage,
+  }
+}
+
+/**
+ * Spec 079: tudo o que o modelo de e-mail sabe preencher, numa consulta.
+ *
+ * ⚠️ **Uma consulta, e só quando alguém registra ocorrência** — ação manual, nunca em laço. Os
+ * campos vêm de onde já estavam: a nota, o participante destinatário, a parada, o motorista da
+ * viagem e o contratante cadastrado.
+ *
+ * ⚠️ **A NFD não está aqui**, e é decisão: o número da nota de devolução nasce no balcão do cliente
+ * e não existe na nossa base. Quem registra a ocorrência o digita, e ele chega ao modelo por
+ * `{{observacao}}`.
+ */
+export async function readOccurrenceTemplateValues(
+  queryable: TripQueryable,
+  input: {
+    readonly companyId: string
+    readonly documentId: string
+    readonly note: string
+    readonly occurredOn: string
+    readonly productCode: string
+    readonly tripId: string
+  },
+): Promise<OccurrenceTemplateValues> {
+  const [row] = await queryable
+    .select({
+      driverName: tripDrivers.driverName,
+      nfeDocumentId: tripDocuments.nfeDocumentId,
+      nfeNumber: nfeDocuments.number,
+      nfeSeries: nfeDocuments.series,
+      stopLabel: tripStops.label,
+      totalValue: nfeDocuments.totalValue,
+    })
+    .from(tripDocuments)
+    .leftJoin(
+      nfeDocuments,
+      and(
+        eq(nfeDocuments.companyId, tripDocuments.companyId),
+        eq(nfeDocuments.id, tripDocuments.nfeDocumentId),
+      ),
+    )
+    .leftJoin(
+      tripStops,
+      and(eq(tripStops.companyId, tripDocuments.companyId), eq(tripStops.id, tripDocuments.stopId)),
+    )
+    .leftJoin(
+      tripDrivers,
+      and(
+        eq(tripDrivers.companyId, tripDocuments.companyId),
+        eq(tripDrivers.tripId, tripDocuments.tripId),
+      ),
+    )
+    .where(
+      and(
+        eq(tripDocuments.companyId, input.companyId),
+        eq(tripDocuments.id, input.documentId),
+        eq(tripDocuments.tripId, input.tripId),
+      ),
+    )
+    .limit(1)
+
+  const nfeDocumentId = row?.nfeDocumentId ?? null
+  const [contatos, produtos] = await Promise.all([
+    nfeDocumentId === null
+      ? new Map()
+      : listDeliveryContacts(queryable, {
+          companyId: input.companyId,
+          nfeDocumentIds: [nfeDocumentId],
+        }),
+    input.productCode === ''
+      ? []
+      : listDocumentProducts(queryable, {
+          companyId: input.companyId,
+          documentId: input.documentId,
+          tripId: input.tripId,
+        }),
+  ])
+
+  const contato = nfeDocumentId === null ? undefined : contatos.get(nfeDocumentId)
+  const produto = produtos.find((candidate) => candidate.code.trim() === input.productCode.trim())
+  const numero = row?.nfeNumber ?? ''
+  const serie = row?.nfeSeries ?? ''
+
+  return {
+    contractorName: contato?.contractorName ?? '',
+    documentLabel: numero === '' ? '' : serie === '' ? numero : `${numero}/${serie}`,
+    driverName: row?.driverName ?? '',
+    itemCode: produto?.code ?? '',
+    itemLabel: produto?.description ?? '',
+    itemQuantity: produto === undefined ? '' : String(produto.quantity),
+    note: input.note,
+    occurredOn: input.occurredOn,
+    recipientName: contato?.name ?? '',
+    stopLabel: row?.stopLabel ?? '',
+    totalValue: row?.totalValue ?? '',
   }
 }

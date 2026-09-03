@@ -25,6 +25,7 @@ import type {
   TripMdfeRequirement,
   TripDocument,
   TripDocumentActionInput,
+  RegisteredOccurrence,
   TripDocumentProduct,
   TripOccurrence,
   TripListInput,
@@ -75,7 +76,7 @@ export type TripClient = Readonly<{
       readonly occurrenceTypeId: string
       readonly productCode: string
     },
-  ) => Promise<TripOccurrence>
+  ) => Promise<RegisteredOccurrence>
   readTripDocumentProducts: (
     input: TripDocumentActionInput,
   ) => Promise<readonly TripDocumentProduct[]>
@@ -295,7 +296,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         method: 'POST',
         path: `${documentPath(input)}/occurrences`,
       })
-      return adapters.occurrenceFromApi(readEnvelopeData(response))
+      return adapters.registeredOccurrenceFromApi(readEnvelopeData(response))
     },
     async readDeliveryProofs(input) {
       const response = await authorizedRequest({

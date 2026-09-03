@@ -635,6 +635,7 @@ function TripDeliveryProofLoader({
       occurrences={
         <TripOccurrences
           canRegister={workspace.controller.canManageTrips}
+          email={workspace.registerOccurrenceMutation.data?.email ?? null}
           isRegistering={workspace.registerOccurrenceMutation.isPending}
           occurrences={workspace.occurrencesQuery.data ?? []}
           onRegister={(occurrence) =>

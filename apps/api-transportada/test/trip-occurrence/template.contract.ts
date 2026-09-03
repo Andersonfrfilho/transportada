@@ -10,9 +10,14 @@ import {
 } from '../../src/trips/domain/occurrence-template.policy.js'
 
 const DADOS = {
+  contractorName: 'Embarcador Exemplo',
   documentLabel: '680481',
   driverName: 'Motorista Um',
-  itemLabel: 'MAC ADRIA OVOS 500G',
+  itemCode: '2073170',
+  itemLabel: 'CAIXA DE PARAFUSOS 4410',
+  itemQuantity: '2',
+  note: 'NFD 45029 emitida pela loja',
+  occurredOn: '12/11/2025',
   recipientName: 'SUPERMERCADO EXEMPLO LTDA',
   stopLabel: 'RUA MIGUEL PETRONI, 1166, SAO CARLOS, SP',
   totalValue: 'R$ 7.840,64',
@@ -61,10 +66,15 @@ describe('template da ocorrência (spec 079)', () => {
   /** Os marcadores são lista fechada: é ela que a tela mostra a quem está escrevendo o texto. */
   test('a lista de marcadores é fechada e nomeada', () => {
     expect([...OCCURRENCE_TEMPLATE_PLACEHOLDERS].toSorted()).toEqual([
+      'codigoItem',
+      'contratante',
+      'data',
       'item',
       'motorista',
       'numeroNota',
+      'observacao',
       'parada',
+      'quantidadeItem',
       'razaoSocial',
       'valorNota',
     ])
@@ -75,5 +85,38 @@ describe('template da ocorrência (spec 079)', () => {
     expect(renderOccurrenceTemplate({ template: 'NF {{ numeroNota }}', values: DADOS })).toBe(
       'NF 680481',
     )
+  })
+
+  /**
+   * ⚠️ **A NFD não é marcador, e isso é decisão.** Os modelos citam o número da nota de devolução
+   * que a **loja** emite — ele nasce no balcão do cliente e não existe em lugar nenhum da nossa
+   * base. Inventar `{{nfd}}` daria um marcador que nunca preenche: quem registra o digita na
+   * observação, e o modelo o imprime por `{{observacao}}`.
+   */
+  test('o que o sistema não sabe entra pela observação', () => {
+    expect([...OCCURRENCE_TEMPLATE_PLACEHOLDERS]).not.toContain('nfd')
+    expect(
+      renderOccurrenceTemplate({
+        template: 'Devolução: {{observacao}}',
+        values: DADOS,
+      }),
+    ).toBe('Devolução: NFD 45029 emitida pela loja')
+  })
+
+  /** O modelo real da devolução parcial, montado inteiro — é o que prova que a lista basta. */
+  test('monta o assunto e a linha de item dos modelos reais', () => {
+    expect(
+      renderOccurrenceTemplate({
+        template: 'OCORRÊNCIA: {{contratante}} – NF {{numeroNota}} – DEVOLUÇÃO PARCIAL',
+        values: DADOS,
+      }),
+    ).toBe('OCORRÊNCIA: Embarcador Exemplo – NF 680481 – DEVOLUÇÃO PARCIAL')
+
+    expect(
+      renderOccurrenceTemplate({
+        template: '{{codigoItem}} {{quantidadeItem}} – {{item}} – {{observacao}}',
+        values: DADOS,
+      }),
+    ).toBe('2073170 2 – CAIXA DE PARAFUSOS 4410 – NFD 45029 emitida pela loja')
   })
 })

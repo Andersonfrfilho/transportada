@@ -17,18 +17,34 @@ export const OCCURRENCE_TEMPLATE_PLACEHOLDERS = [
   'numeroNota',
   'razaoSocial',
   'valorNota',
+  'contratante',
   'motorista',
   'parada',
+  'data',
   'item',
+  'codigoItem',
+  'quantidadeItem',
+  'observacao',
 ] as const
 
 export type OccurrenceTemplatePlaceholder = (typeof OCCURRENCE_TEMPLATE_PLACEHOLDERS)[number]
 
 export type OccurrenceTemplateValues = {
+  /** O nome do embarcador — o "SPANI" do assunto dos modelos. */
+  readonly contractorName: string
   readonly documentLabel: string
   readonly driverName: string
   /** Vazio na ocorrência da nota inteira: não há item a apontar. */
+  readonly itemCode: string
   readonly itemLabel: string
+  readonly itemQuantity: string
+  /**
+   * ⚠️ **O que o sistema não sabe entra por aqui.** Os modelos citam a NFD que a loja emitiu — um
+   * número que nasce no balcão do cliente e não existe em lugar nenhum da nossa base. Quem
+   * registra a ocorrência o digita, e o modelo o imprime por `{{observacao}}`.
+   */
+  readonly note: string
+  readonly occurredOn: string
   readonly recipientName: string
   readonly stopLabel: string
   readonly totalValue: string
@@ -38,14 +54,24 @@ const PLACEHOLDER_PATTERN = /\{\{\s*([a-zA-Z]+)\s*\}\}/gu
 
 function valueOf(placeholder: string, values: OccurrenceTemplateValues): null | string {
   switch (placeholder) {
+    case 'codigoItem':
+      return values.itemCode
+    case 'contratante':
+      return values.contractorName
+    case 'data':
+      return values.occurredOn
     case 'item':
       return values.itemLabel
     case 'motorista':
       return values.driverName
     case 'numeroNota':
       return values.documentLabel
+    case 'observacao':
+      return values.note
     case 'parada':
       return values.stopLabel
+    case 'quantidadeItem':
+      return values.itemQuantity
     case 'razaoSocial':
       return values.recipientName
     case 'valorNota':

@@ -39,6 +39,21 @@ function repository(notifies: boolean) {
     async listOccurrences() {
       return []
     },
+    async readTemplateValues() {
+      return {
+        contractorName: '',
+        documentLabel: '883658/1',
+        driverName: '',
+        itemCode: '',
+        itemLabel: '',
+        itemQuantity: '',
+        note: '',
+        occurredOn: '03/09/2026',
+        recipientName: '',
+        stopLabel: '',
+        totalValue: '',
+      }
+    },
     async saveOccurrence(saved: { readonly typeName: string }) {
       return {
         createdAt: '2026-09-03T12:00:00.000Z',
@@ -60,6 +75,7 @@ function registrar(notifies: boolean, notify: (call: object) => void) {
     documentId: DOCUMENT,
     note: '',
     notificationParameters: PARAMS,
+    occurredOn: '03/09/2026',
     notifier: {
       async notify(call) {
         notify(call)
@@ -144,6 +160,7 @@ describe('notificação por tipo de ocorrência (spec 079)', () => {
       documentId: DOCUMENT,
       note: '',
       notificationParameters: PARAMS,
+      occurredOn: '03/09/2026',
       notifier: {
         async notify() {
           throw new Error('fila fora do ar')

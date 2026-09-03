@@ -5,6 +5,8 @@
  */
 import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
 import { resolveOccurrenceProductScope } from '../domain/occurrence-scope.policy.js'
+import { renderOccurrenceTemplate } from '../domain/occurrence-template.policy.js'
+import type { OccurrenceTemplateValues } from '../domain/occurrence-template.policy.js'
 import { TripDocumentNotFoundError } from '../domain/trip.error.js'
 import { resolveOccurrenceNotification } from '../domain/occurrence-notification.policy.js'
 import type {
@@ -22,6 +24,21 @@ export type TripOccurrence = {
   readonly stage: TripOccurrenceStage
   /** O nome que a empresa deu ao tipo: é ele que a tela imprime, não um id. */
   readonly typeName: string
+}
+
+/**
+ * O que o **registro** devolve: a ocorrência mais o e-mail pronto.
+ *
+ * ⚠️ O e-mail não entra em `TripOccurrence` porque a **listagem** não o tem — e não deveria ter:
+ * renderizar o modelo de toda ocorrência passada seria trabalho por nada, e o texto de meses atrás
+ * sairia com os dados de hoje.
+ *
+ * ⚠️ Ele volta **para o operador conferir e enviar**, não para o sistema enviar: o destinatário é
+ * externo, e mandar e-mail em nome da transportadora é decisão que ainda não foi tomada. Devolver
+ * o texto pronto já tira o retrabalho de escrever à mão.
+ */
+export type RegisteredOccurrence = TripOccurrence & {
+  readonly email: null | { readonly body: string; readonly subject: string }
 }
 
 /** O tipo cadastrado, como o caso de uso precisa vê-lo para decidir. */
@@ -53,6 +70,14 @@ export type TripOccurrencePort = {
     readonly documentId: string
     readonly tripId: string
   }): Promise<readonly { readonly code: string; readonly description: string }[]>
+  readTemplateValues(input: {
+    readonly companyId: string
+    readonly documentId: string
+    readonly note: string
+    readonly occurredOn: string
+    readonly productCode: string
+    readonly tripId: string
+  }): Promise<OccurrenceTemplateValues>
   saveOccurrence(input: {
     readonly actorUserId: string
     readonly companyId: string
@@ -84,6 +109,8 @@ export type RegisterTripOccurrenceInput = {
   readonly companyId: string
   readonly documentId: string
   readonly note: string
+  /** A data que o modelo imprime. Vem de fora para o caso de uso continuar puro. */
+  readonly occurredOn: string
   /** Ausente quando a instalação não tem trilho de notificação — o registro segue igual. */
   readonly notifier?: OccurrenceNotifierPort
   readonly notificationParameters?: OccurrenceNotificationParameters
@@ -105,7 +132,7 @@ export type RegisterTripOccurrenceInput = {
  */
 export async function registerTripOccurrence(
   input: RegisterTripOccurrenceInput,
-): Promise<TripOccurrence> {
+): Promise<RegisteredOccurrence> {
   const { actorUserId, companyId, documentId, note, productCode, repository, tripId } = input
 
   /**
@@ -145,7 +172,36 @@ export async function registerTripOccurrence(
 
   await notifyOccurrence(input, occurrenceType)
 
-  return saved
+  return { ...saved, email: await renderEmail({ input, occurrenceType, scope }) }
+}
+
+/**
+ * ⚠️ **Assunto vazio é tipo sem e-mail**, e a checagem é no assunto: um corpo sem assunto sairia
+ * como mensagem sem título, e um assunto sem corpo ainda é um e-mail útil.
+ *
+ * Os valores são lidos **depois** de o registro existir, e de propósito: se a leitura falhar, a
+ * ocorrência já está gravada e o operador perde o texto pronto, não o registro.
+ */
+async function renderEmail(params: {
+  readonly input: RegisterTripOccurrenceInput
+  readonly occurrenceType: OccurrenceTypeRecord
+  readonly scope: { readonly productCode: string }
+}): Promise<null | { readonly body: string; readonly subject: string }> {
+  if (params.occurrenceType.emailSubject === '') return null
+
+  const values = await params.input.repository.readTemplateValues({
+    companyId: params.input.companyId,
+    documentId: params.input.documentId,
+    note: params.input.note,
+    occurredOn: params.input.occurredOn,
+    productCode: params.scope.productCode,
+    tripId: params.input.tripId,
+  })
+
+  return {
+    body: renderOccurrenceTemplate({ template: params.occurrenceType.emailBody, values }),
+    subject: renderOccurrenceTemplate({ template: params.occurrenceType.emailSubject, values }),
+  }
 }
 
 /**

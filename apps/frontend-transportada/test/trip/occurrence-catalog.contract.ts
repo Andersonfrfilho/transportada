@@ -54,4 +54,23 @@ describe('os tipos de ocorrência vêm do cadastro (spec 079)', () => {
     expect(opcoes.indexOf('occurrence.wholeDocument')).toBeLessThan(opcoes.indexOf('products.map'))
     expect(trip.occurrence.wholeDocument.toLowerCase()).toInclude('nota inteira')
   })
+
+  /**
+   * ⚠️ **O e-mail volta pronto para conferir e enviar, não enviado.** O destinatário é externo, e
+   * mandar em nome da transportadora é decisão que ainda não foi tomada. O que isto resolve é o
+   * retrabalho de escrever à mão — que é onde o número da nota entra trocado.
+   */
+  it('mostra o e-mail pronto sem enviá-lo', () => {
+    const panel = readFileSync(PANEL, 'utf8')
+
+    expect(panel).toInclude('email.subject')
+    expect(panel).toInclude('email.body')
+    expect(panel).not.toInclude('sendEmail')
+    expect(trip.occurrence.emailReady.toLowerCase()).toInclude('confira antes de mandar')
+  })
+
+  /** Tipo sem modelo não mostra caixa vazia: assunto vazio é tipo que não gera e-mail. */
+  it('não desenha o bloco quando não há e-mail', () => {
+    expect(readFileSync(PANEL, 'utf8')).toInclude('email === null ? null :')
+  })
 })

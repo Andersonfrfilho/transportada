@@ -158,6 +158,7 @@ import {
   listOccurrenceTypes,
   listTripOccurrences,
   readOccurrenceLabels,
+  readOccurrenceTemplateValues,
   saveOccurrenceType,
   saveTripOccurrence,
 } from './trips/infrastructure/delivery-proof-read.support.js'
@@ -1729,11 +1730,14 @@ function createApplicationRoutes({
                 } as never),
             }),
             occurrenceTypeId: input.occurrenceTypeId,
+            /** A data que o modelo imprime é a de agora: a ocorrência é registrada quando acontece. */
+            occurredOn: new Date().toLocaleDateString('pt-BR'),
             productCode: input.productCode,
             repository: {
               findOccurrenceType: (query) => findOccurrenceType(database, query),
               listDocumentProducts: (query) => listDocumentProducts(database, query),
               listOccurrences: (query) => listTripOccurrences(database, query),
+              readTemplateValues: (query) => readOccurrenceTemplateValues(database, query),
               saveOccurrence: (query) => saveTripOccurrence(database, query),
             },
             tripId: input.tripId,

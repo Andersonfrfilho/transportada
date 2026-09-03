@@ -318,7 +318,9 @@
     "emailSubject": "Assunto do e-mail",
     "emailBody": "Texto do e-mail",
     "placeholders": "Marcadores disponíveis: {{list}}. Um marcador fora da lista é recusado ao salvar.",
-    "withoutTemplate": "Sem e-mail: este tipo só fica registrado na viagem."
+    "withoutTemplate": "Sem e-mail: este tipo só fica registrado na viagem.",
+    "emailReady": "E-mail pronto para enviar ao embarcador — confira antes de mandar.",
+    "copyEmail": "Copiar e-mail"
   },
   "routeMap": {
     "title": "Mapa do roteiro",

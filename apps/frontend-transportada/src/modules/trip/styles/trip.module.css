@@ -736,3 +736,12 @@
   border-radius: var(--radius-sm, 0.25rem);
   padding: var(--space-3);
 }
+
+/* O corpo do e-mail preserva as quebras que o modelo tem, e quebra palavra longa em vez de rolar. */
+.occurrenceEmail {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  margin: 0;
+}

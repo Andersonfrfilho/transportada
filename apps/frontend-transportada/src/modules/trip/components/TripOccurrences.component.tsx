@@ -15,6 +15,8 @@ import styles from '../styles/trip.module.css'
 
 type TripOccurrencesProps = Readonly<{
   canRegister: boolean
+  /** O e-mail que o último registro produziu, para o operador conferir e enviar. */
+  email: null | Readonly<{ body: string; subject: string }>
   isRegistering: boolean
   occurrences: readonly TripOccurrence[]
   onRegister: (input: {
@@ -46,6 +48,7 @@ const momentFormatter = new Intl.DateTimeFormat('pt-BR', {
  */
 export function TripOccurrences({
   canRegister,
+  email,
   isRegistering,
   occurrences,
   onRegister,
@@ -89,6 +92,18 @@ export function TripOccurrences({
             </li>
           ))}
         </ul>
+      )}
+      {/*
+       * ⚠️ O e-mail volta **pronto para conferir e enviar**, não enviado: o destinatário é externo,
+       * e mandar em nome da transportadora é decisão que ainda não foi tomada. O que isto resolve é
+       * o retrabalho de escrever à mão — que é onde o número da nota entra trocado.
+       */}
+      {email === null ? null : (
+        <div className={styles.occurrenceForm}>
+          <p className={styles.hint}>{t('occurrence.emailReady')}</p>
+          <strong>{email.subject}</strong>
+          <pre className={styles.occurrenceEmail}>{email.body}</pre>
+        </div>
       )}
       {canRegister && disponiveis.length > 0 && !isOpen ? (
         <Button onClick={() => setIsOpen(true)} size="sm" type="button" variant="ghost">

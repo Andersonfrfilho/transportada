@@ -1,7 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { DeliveryProof } from './deliveryProof.service'
 import type { OccurrenceType } from './occurrence.constant'
-import type { TripDocumentProduct, TripOccurrence } from './trip.types'
+import type { RegisteredOccurrence, TripDocumentProduct, TripOccurrence } from './trip.types'
 import { ROUTE_GEOMETRY_SOURCES, type RouteGeometry } from './routeGeometry.service'
 import {
   BATCH_STATUS_RESULT_KEYS,
@@ -426,9 +426,18 @@ export function createTripResponseAdapters() {
       if (!Array.isArray(input) || !input.every(isOccurrence)) throw invalid()
       return input
     },
-    occurrenceFromApi(input: unknown): TripOccurrence {
-      if (!isOccurrence(input)) throw invalid()
-      return input
+    /**
+     * ⚠️ O registro devolve **mais** que a listagem: o e-mail pronto vem junto. O guard aceita a
+     * chave a mais em vez de reusar `isOccurrence`, que é exato de propósito.
+     */
+    registeredOccurrenceFromApi(input: unknown): RegisteredOccurrence {
+      if (!isRecord(input)) throw invalid()
+      const { email, ...occurrence } = input
+      if (!isOccurrence(occurrence)) throw invalid()
+      if (email !== null && !(isRecord(email) && isString(email.body) && isString(email.subject))) {
+        throw invalid()
+      }
+      return { ...occurrence, email: email as RegisteredOccurrence['email'] }
     },
     documentProductsFromApi(input: unknown): readonly TripDocumentProduct[] {
       if (!Array.isArray(input) || !input.every(isDocumentProduct)) throw invalid()

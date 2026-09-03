@@ -82,6 +82,15 @@ export type TripOccurrence = Readonly<{
   typeName: string
 }>
 
+/**
+ * O que o registro devolve: a ocorrência mais o e-mail pronto.
+ *
+ * ⚠️ O texto volta **para o operador conferir e enviar**, não para o sistema enviar — o
+ * destinatário é externo. `null` quando o tipo não tem modelo.
+ */
+export type RegisteredOccurrence = TripOccurrence &
+  Readonly<{ email: null | Readonly<{ body: string; subject: string }> }>
+
 /** Spec 079 T019: o que vai dentro da nota. Sem NCM e CFOP — ver o caso de uso na API. */
 export type TripDocumentProduct = Readonly<{
   code: string

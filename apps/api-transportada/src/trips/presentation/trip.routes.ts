@@ -7,7 +7,10 @@ import type { RouteGeometryView } from '../application/read-route-geometry.use-c
 import type { TripDocumentProduct } from '../application/read-trip-document-products.use-case.js'
 import type { TripOccurrence } from '../application/register-trip-occurrence.use-case.js'
 import { parseOccurrenceTypeRequest, parseRegisterOccurrenceRequest } from './occurrence.schema.js'
-import type { OccurrenceTypeRecord } from '../application/register-trip-occurrence.use-case.js'
+import type {
+  OccurrenceTypeRecord,
+  RegisteredOccurrence,
+} from '../application/register-trip-occurrence.use-case.js'
 
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import { API_TRIPS_PATH, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
@@ -264,7 +267,7 @@ type Dependencies = {
     execute(input: TenantInput<ReadDeliveryProofsRouteInput>): Promise<readonly TripOccurrence[]>
   }
   readonly registerTripOccurrence: {
-    execute(input: TenantInput<RegisterOccurrenceRouteInput>): Promise<TripOccurrence>
+    execute(input: TenantInput<RegisterOccurrenceRouteInput>): Promise<RegisteredOccurrence>
   }
   readonly readTripDocumentProducts: {
     execute(
