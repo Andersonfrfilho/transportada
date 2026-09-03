@@ -32,6 +32,7 @@
     "loading": "Loading",
     "dispatched": "Dispatched",
     "in_transit": "In transit",
+    "on_delivery_route": "On delivery route",
     "completed": "Completed",
     "cancelled": "Cancelled"
   },

@@ -23,6 +23,7 @@ import {
   resolveProofSettingsForRecipient,
   type DeliveryProofFieldSettings,
 } from '../domain/delivery-proof-settings.policy.js'
+import { TRIP_DISPATCHED_STATUSES } from '../domain/trip-state.policy.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -33,7 +34,8 @@ type Database = ReturnType<typeof createDrizzleProvider>['db']
  * Exportada porque a ocorrência do motorista usa **o mesmo recorte** (spec 079): duplicar a lista
  * deixaria uma das duas aceitar viagem que a outra recusa, sem nada falhar.
  */
-export const ACTIVE_TRIP_STATUSES = ['dispatched', 'in_transit', 'completed'] as const
+/** O comprovante anexa à viagem que saiu, inclusive à que já acabou. */
+export const ACTIVE_TRIP_STATUSES = TRIP_DISPATCHED_STATUSES
 
 export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
   public constructor(private readonly database: Database) {}

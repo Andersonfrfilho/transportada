@@ -86,13 +86,31 @@ export function tripStatusRank(status: TripStatus): number {
   return rank === -1 ? Number.NaN : rank
 }
 
+/**
+ * A carga está na rua: o roteiro congelou e o trabalho passou a ser de campo. `completed` entra
+ * porque ela **esteve** na rua — quem pergunta "já saiu?" quer sim para a viagem concluída.
+ *
+ * ⚠️ **Esta lista é a fonte, e as consultas a importam.** Ela era rederivada em cinco repositórios
+ * com recortes ligeiramente diferentes; ao acrescentar `on_delivery_route` à máquina, a viagem
+ * sumia de `/me/trips/current` no instante em que o motorista tocava em iniciar trajeto — porque
+ * uma das cópias não conhecia o estado novo.
+ */
+export const TRIP_DISPATCHED_STATUSES = [
+  'dispatched',
+  'in_transit',
+  'on_delivery_route',
+  'completed',
+] as const satisfies readonly TripStatus[]
+
+/** A rua **agora**: o mesmo recorte sem a viagem que já acabou. */
+export const TRIP_ON_ROAD_STATUSES = [
+  'dispatched',
+  'in_transit',
+  'on_delivery_route',
+] as const satisfies readonly TripStatus[]
+
 export function isTripDispatched(status: TripStatus): boolean {
-  return (
-    status === 'dispatched' ||
-    status === 'in_transit' ||
-    status === 'on_delivery_route' ||
-    status === 'completed'
-  )
+  return (TRIP_DISPATCHED_STATUSES as readonly TripStatus[]).includes(status)
 }
 
 /**

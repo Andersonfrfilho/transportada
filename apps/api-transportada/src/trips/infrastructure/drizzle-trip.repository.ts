@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, notInArray, isNull, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 
 import {
@@ -33,7 +33,7 @@ import {
   TripStateTransitionNotAllowedError,
 } from '../domain/trip.error.js'
 import type { TripDriverCandidate, TripVehicleCandidate } from '../domain/trip.policy.js'
-import { checkTripAcceptsLinkage } from '../domain/trip-state.policy.js'
+import { TRIP_DISPATCHED_STATUSES, checkTripAcceptsLinkage } from '../domain/trip-state.policy.js'
 import type { LinkTripDocumentsBatchResult } from '../application/link-trip-documents-batch.use-case.js'
 import {
   reconcileStopOnLink,
@@ -518,17 +518,20 @@ async function readDocumentStopIdBeforeRelease(
  * linha em vez de gravar sobre viagem fechada.
  */
 /**
- * ADR-0043 §2, T013: mesma porta de não-retorno de `checkTripAcceptsLinkage`
- * (`trip-state.policy.ts`) — `dispatched` em diante sela vínculo e desvínculo, não só os dois
- * terminais. A lista fica literal aqui porque SQL não importa `TRIP_STATUSES`; qualquer estado
- * novo que a T006 crie precisa deste `NOT IN` revisto junto.
+ * A viagem ainda aceita trabalho de barracão: nem na rua, nem terminal.
+ *
+ * ⚠️ A lista **não** é literal: ela sai de `TRIP_DISPATCHED_STATUSES` mais `cancelled`. Ela já foi
+ * literal, com um comentário pedindo revisão manual a cada estado novo — e foi assim que
+ * `on_delivery_route` quase entrou deixando esta consulta com o recorte antigo.
  */
 function tripStillOpen(input: { readonly companyId: string; readonly tripId: string }) {
   return sql`exists (
     select 1 from ${trips}
-    where ${trips.companyId} = ${input.companyId}
-      and ${trips.id} = ${input.tripId}
-      and ${trips.status} not in ('dispatched', 'in_transit', 'completed', 'cancelled')
+    where ${and(
+      eq(trips.companyId, input.companyId),
+      eq(trips.id, input.tripId),
+      notInArray(trips.status, [...TRIP_DISPATCHED_STATUSES, 'cancelled']),
+    )}
   )`
 }
 

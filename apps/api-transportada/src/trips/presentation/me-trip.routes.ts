@@ -3,6 +3,11 @@
  */
 import { defineRoute } from '../../http/router.service.js'
 import { parseUuidPathIdentifier } from '../../http/request-parsing.service.js'
+import {
+  FIELD_TRIP_STEP,
+  type FieldTripStep,
+  type StartFieldTripResult,
+} from '../application/start-field-trip.use-case.js'
 import { API_ME_CURRENT_TRIP_PATH, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
 import {
   DAMDFE_CONTENT_TYPE,
@@ -32,6 +37,9 @@ import {
   parseStopOccurrenceRequest,
 } from './me-trip.schema.js'
 
+/** ADR-0058: os dois toques que começam a viagem. Sem id — o servidor resolve pelo vínculo. */
+const TRIP_CONFIRM_LOAD_PATH = `${API_ME_CURRENT_TRIP_PATH}/confirm-load`
+const TRIP_START_ROUTE_PATH = `${API_ME_CURRENT_TRIP_PATH}/start-route`
 const STOP_ARRIVE_PATH = `${API_ME_CURRENT_TRIP_PATH}/stops/:stopId/arrive`
 const STOP_OCCURRENCES_PATH = `${API_ME_CURRENT_TRIP_PATH}/stops/:stopId/occurrences`
 const DOCUMENT_DELIVER_PATH = `${API_ME_CURRENT_TRIP_PATH}/documents/:documentId/deliver`
@@ -85,6 +93,10 @@ export type MeTripDependencies = {
   readonly reportArrival: (
     input: DriverActionInput & { readonly stopId: string },
   ) => Promise<ReportStopArrivalResult>
+  /** ADR-0058: conferir a carga e iniciar o trajeto, os dois pelo mesmo caso de uso. */
+  readonly startFieldTrip: (
+    input: DriverContextInput & { readonly step: FieldTripStep },
+  ) => Promise<StartFieldTripResult>
   readonly reportDelivery: (
     input: DriverActionInput & { readonly documentId: string },
   ) => Promise<ReportDocumentOutcomeResult>
@@ -239,6 +251,34 @@ export function createMeTripRoutes(
       pathname: TRIP_MANIFEST_DAMDFE_PATH,
       policy: DRIVER_READ_POLICY,
     }),
+    ...([FIELD_TRIP_STEP.confirmLoad, FIELD_TRIP_STEP.startRoute] as const).map((step) =>
+      defineRoute<undefined>({
+        /**
+         * `200`, e não `201`: nenhum recurso nasce aqui — a viagem já existia, e o que muda é o
+         * estado dela. E o corpo devolve `changed`, porque repetir o toque é caso normal: a rede do
+         * pátio cai e o motorista toca de novo, e isso converge em vez de dar conflito.
+         */
+        async handle({ context }): Promise<Response> {
+          const driverId = await resolveDriver(context.scope)
+          const result = await dependencies.startFieldTrip({
+            actorUserId: context.scope.userId,
+            companyId: context.scope.companyId,
+            driverId,
+            step,
+          })
+
+          return jsonResponse({
+            body: { data: { changed: result.changed, status: result.tripStatus } },
+            status: 200,
+          })
+        },
+        method: 'POST',
+        parse: () => undefined,
+        pathname:
+          step === FIELD_TRIP_STEP.confirmLoad ? TRIP_CONFIRM_LOAD_PATH : TRIP_START_ROUTE_PATH,
+        policy: DRIVER_REPORT_POLICY,
+      }),
+    ),
     defineRoute<{
       readonly idempotencyKey: string
       readonly location: ReportedLocation | null

@@ -32,6 +32,7 @@
     "loading": "Carregando",
     "dispatched": "Despachada",
     "in_transit": "Em trânsito",
+    "on_delivery_route": "Em rota de entrega",
     "completed": "Concluída",
     "cancelled": "Cancelada"
   },

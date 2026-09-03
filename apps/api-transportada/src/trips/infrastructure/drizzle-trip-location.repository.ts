@@ -12,6 +12,7 @@ import type {
   TripLocationPing,
   TripLocationRepositoryPort,
 } from '../application/trip-location.port.js'
+import { TRIP_ON_ROAD_STATUSES } from '../domain/trip-state.policy.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -20,7 +21,8 @@ type Database = ReturnType<typeof createDrizzleProvider>['db']
  * de alguém marcar a primeira chegada, e o cliente que abre o portal nesse intervalo veria o mapa
  * vazio sem motivo.
  */
-const TRACKED_STATUSES = ['dispatched', 'in_transit'] as const
+/** O rastro corre enquanto a viagem está na rua — e é em rota que ele mais importa. */
+const TRACKED_STATUSES = TRIP_ON_ROAD_STATUSES
 
 export class DrizzleTripLocationRepository implements TripLocationRepositoryPort {
   public constructor(private readonly database: Database) {}

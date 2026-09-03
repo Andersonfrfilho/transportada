@@ -469,6 +469,7 @@ import { createAggregateDocumentReviewRoutes } from './fleet/presentation/aggreg
 import { createAggregateApplicationAttachmentReviewRoutes } from './fleet/presentation/aggregate-application-attachment-review.routes.js'
 import { createAggregateApplicationAttachmentReviewUseCase } from './fleet/application/aggregate-application-attachment-review.use-case.js'
 import { createDrizzleAggregateApplicationAttachmentReviewRepository } from './fleet/infrastructure/drizzle-aggregate-application-attachment-review.repository.js'
+import { startFieldTrip } from './trips/application/start-field-trip.use-case.js'
 
 const API_PROJECT_NAME = 'transportada-api'
 const API_VERSION = '0.1.0'
@@ -1695,6 +1696,8 @@ function createApplicationRoutes({
       saveSettings: (input) => deliveryProofSettingsRepository.saveSettings(input),
     }),
     ...createMeTripRoutes({
+      startFieldTrip: (input) =>
+        startFieldTrip({ ...input, repository: currentDriverTripRepository }),
       /**
        * Spec 079: o motorista registra a ocorrência do celular. **Sem notificador**: quem despachou
        * a viagem é justamente quem receberia o aviso, e ele não precisa ser avisado de algo que o
