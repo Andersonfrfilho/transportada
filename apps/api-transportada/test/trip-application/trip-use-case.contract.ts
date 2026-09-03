@@ -100,7 +100,14 @@ function createFixture(params: FixtureParams = {}) {
     },
     async create(input) {
       createCalls.push(input)
-      return openTrip({ drivers: input.crew, vehicleId: input.vehicleId })
+      return openTrip({
+        drivers: input.crew.map((member) => ({
+          ...member,
+          driverEmail: '',
+          driverPhone: '',
+        })),
+        vehicleId: input.vehicleId,
+      })
     },
     async deliverDocument(input) {
       deliverCalls.push(input)
@@ -156,20 +163,37 @@ describe('trip use case contract', () => {
 
     expect(trip.drivers).toEqual([
       {
+        driverEmail: '',
         driverId: FIRST_DRIVER_ID,
         driverName: 'Ana Souza',
+        driverPhone: '',
         driverTaxId: '12345678909',
         position: 1,
       },
       {
+        driverEmail: '',
         driverId: SECOND_DRIVER_ID,
         driverName: 'Bruno Lima',
+        driverPhone: '',
         driverTaxId: '98765432100',
         position: 2,
       },
     ])
+    /**
+     * A tripulação **enviada** é o retrato fiscal — nome, CPF e posição. O contato só existe na
+     * leitura, e sai da ficha da frota: comparar as duas como iguais escondia essa diferença.
+     */
     expect(fixture.createCalls).toEqual([
-      { companyId: COMPANY_ID, crew: trip.drivers, vehicleId: VEHICLE_ID },
+      {
+        companyId: COMPANY_ID,
+        crew: trip.drivers.map((driver) => ({
+          driverId: driver.driverId,
+          driverName: driver.driverName,
+          driverTaxId: driver.driverTaxId,
+          position: driver.position,
+        })),
+        vehicleId: VEHICLE_ID,
+      },
     ])
   })
 

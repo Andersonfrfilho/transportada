@@ -1064,7 +1064,14 @@ function serializeTripDetail(trip: TripDetail): object {
     /** Spec 076: `null` quando a capacidade não é conhecida — escala honesta ou nada. */
     cargoLayout: trip.cargoLayout === null ? null : { ...trip.cargoLayout },
     documents: trip.documents.map(serializeTripDocumentDetail),
-    drivers: trip.drivers.map((driver) => ({ ...driver })),
+    drivers: trip.drivers.map((driver) => ({
+      driverEmail: driver.driverEmail,
+      driverId: driver.driverId,
+      driverName: driver.driverName,
+      driverPhone: driver.driverPhone,
+      driverTaxId: driver.driverTaxId,
+      position: driver.position,
+    })),
     /** Spec 075: `null` quando a capacidade não é conhecida — a tela não inventa 100%. */
     cargoWeight: trip.cargoWeight === null ? null : { ...trip.cargoWeight },
     occupancy: trip.occupancy === null ? null : { ...trip.occupancy },

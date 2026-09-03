@@ -167,9 +167,18 @@ export const TRIP_DETAIL: TripDetail = {
   documents: [TRIP_DOCUMENT_DETAIL],
   occupancy: null,
   drivers: [
-    { driverId: DRIVER_ID, driverName: 'Motorista Um', driverTaxId: '11111111111', position: 1 },
     {
+      driverEmail: 'motorista.um@empresa.test',
+      driverId: DRIVER_ID,
+      driverName: 'Motorista Um',
+      driverPhone: '16999990001',
+      driverTaxId: '11111111111',
+      position: 1,
+    },
+    {
+      driverEmail: '',
       driverId: SECOND_DRIVER_ID,
+      driverPhone: '',
       driverName: 'Motorista Dois',
       driverTaxId: '22222222222',
       position: 2,
@@ -198,7 +207,12 @@ export const MDFE_MANIFEST_DETAIL: MdfeManifestDetail = {
   destinationState: 'SP',
   dischargePostalCode: '',
   drivers: [
-    { driverId: DRIVER_ID, driverName: 'Motorista Um', driverTaxId: '11111111111', position: 1 },
+    {
+      driverId: DRIVER_ID,
+      driverName: 'Motorista Um',
+      driverTaxId: '11111111111',
+      position: 1,
+    },
     {
       driverId: SECOND_DRIVER_ID,
       driverName: 'Motorista Dois',

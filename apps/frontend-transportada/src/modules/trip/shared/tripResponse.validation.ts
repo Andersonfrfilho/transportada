@@ -19,6 +19,7 @@ import {
   TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS,
   TRIP_DOCUMENT_KEYS,
   TRIP_DRIVER_KEYS,
+  TRIP_DRIVER_OPTIONAL_KEYS,
   TRIP_ERROR,
   TRIP_KEYS,
   TRIP_STATUS_RESULT_KEYS,
@@ -92,9 +93,23 @@ function isTrip(value: unknown): value is Trip {
   return isTripFields(value)
 }
 
+/** Opcional não é "qualquer coisa": ausente passa, presente com forma errada continua reprovando. */
+function isAbsentOrNullableString(value: unknown): boolean {
+  return value === undefined || isNullableString(value)
+}
+
 function isDriverLine(value: unknown): value is TripDriverLine {
-  if (!hasExactKeys(value, TRIP_DRIVER_KEYS)) return false
+  if (
+    !hasKeys(value, {
+      allowed: [...TRIP_DRIVER_KEYS, ...TRIP_DRIVER_OPTIONAL_KEYS],
+      required: TRIP_DRIVER_KEYS,
+    })
+  ) {
+    return false
+  }
   return (
+    isAbsentOrNullableString(value.driverEmail) &&
+    isAbsentOrNullableString(value.driverPhone) &&
     isString(value.driverId) &&
     isString(value.driverName) &&
     isString(value.driverTaxId) &&

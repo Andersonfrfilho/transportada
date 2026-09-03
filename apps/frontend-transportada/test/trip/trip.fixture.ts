@@ -153,7 +153,14 @@ export const TRIP_DETAIL = {
   ...TRIP,
   documents: [TRIP_DOCUMENT_DETAIL],
   drivers: [
-    { driverId: DRIVER_ID, driverName: 'Jose da Silva', driverTaxId: '12345678901', position: 1 },
+    {
+      driverEmail: 'jose@empresa.test',
+      driverId: DRIVER_ID,
+      driverName: 'Jose da Silva',
+      driverPhone: '16999990001',
+      driverTaxId: '12345678901',
+      position: 1,
+    },
   ],
   cargoLayout: null,
   cargoWeight: null,

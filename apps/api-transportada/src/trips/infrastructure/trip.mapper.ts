@@ -9,9 +9,9 @@ import type {
   Trip,
   TripDocument,
   TripDocumentDetail,
+  TripDriverDetail,
   TripStopDetail,
 } from '../application/trip.port.js'
-import type { TripDriverLine } from '../domain/trip.policy.js'
 
 type TripDocumentRecord = typeof tripDocuments.$inferSelect
 type TripDriverRecord = typeof tripDrivers.$inferSelect
@@ -100,8 +100,12 @@ export function mapTripDocumentDetail(input: {
   }
 }
 
-export function mapTripDriver(record: TripDriverRecord): TripDriverLine {
+export function mapTripDriver(
+  record: TripDriverRecord & { readonly driverEmail?: string; readonly driverPhone?: string },
+): TripDriverDetail {
   return {
+    driverEmail: record.driverEmail ?? '',
+    driverPhone: record.driverPhone ?? '',
     driverId: record.driverId,
     driverName: record.driverName,
     driverTaxId: record.driverTaxId,

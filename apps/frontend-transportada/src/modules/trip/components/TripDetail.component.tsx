@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { formatPhone } from '@/modules/shared/phone.service'
 import { BarcodeScanner } from '@/components/ui/barcode-scanner'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
@@ -332,8 +333,26 @@ export function TripDetail({ linkForm, onClose, vehicles, workspace }: TripDetai
 
       <fieldset className={styles.driverChecklist}>
         <legend className={styles.hint}>{t('detail.drivers')}</legend>
+        {/*
+         * Nome sozinho obrigava a abrir a frota noutra aba para achar o telefone. O contato é
+         * **link**, não texto: quem está no galpão toca e liga, sem copiar número à mão.
+         */}
         {trip.drivers.map((driver) => (
-          <span key={driver.driverId}>{driver.driverName}</span>
+          <span className={styles.driverLine} key={driver.driverId}>
+            <strong>{driver.driverName}</strong>
+            {driver.driverPhone === '' ? null : (
+              <a href={`tel:${driver.driverPhone}`}>
+                <Icon name="send" />
+                {formatPhone(driver.driverPhone)}
+              </a>
+            )}
+            {driver.driverEmail === '' ? null : (
+              <a href={`mailto:${driver.driverEmail}`}>
+                <Icon name="copy" />
+                {driver.driverEmail}
+              </a>
+            )}
+          </span>
         ))}
       </fieldset>
 

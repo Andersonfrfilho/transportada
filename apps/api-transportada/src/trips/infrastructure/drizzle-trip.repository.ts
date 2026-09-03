@@ -431,9 +431,25 @@ async function readTripDetail(
     .limit(1)
   if (record === undefined) return null
 
+  /**
+   * O contato sai da **ficha**, não do retrato: `trip_drivers` guarda nome e CPF de quando a viagem
+   * foi montada, e telefone que mudou depois precisa aparecer atualizado — é para ligar agora.
+   * `left join` porque ficha apagada não pode sumir com o motorista da viagem.
+   */
   const driverRecords = await queryable
-    .select()
+    .select({
+      driver: tripDrivers,
+      driverEmail: fleetDrivers.email,
+      driverPhone: fleetDrivers.phone,
+    })
     .from(tripDrivers)
+    .leftJoin(
+      fleetDrivers,
+      and(
+        eq(fleetDrivers.companyId, tripDrivers.companyId),
+        eq(fleetDrivers.id, tripDrivers.driverId),
+      ),
+    )
     .where(and(eq(tripDrivers.companyId, input.companyId), eq(tripDrivers.tripId, input.tripId)))
     .orderBy(asc(tripDrivers.position))
   const documentRecords = await queryable
@@ -599,7 +615,13 @@ async function readTripDetail(
     cargoLayout: layout,
     cargoWeight,
     documents,
-    drivers: driverRecords.map(mapTripDriver),
+    drivers: driverRecords.map((row) =>
+      mapTripDriver({
+        ...row.driver,
+        driverEmail: row.driverEmail ?? '',
+        driverPhone: row.driverPhone ?? '',
+      }),
+    ),
     occupancy: cargo.occupancy,
     stops: stopRecords.map((row) => ({
       ...mapTripStop(row.stop),

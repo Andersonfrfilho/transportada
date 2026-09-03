@@ -65,7 +65,15 @@ describe('trip repository integration', () => {
           vehicleType: 'tractor_unit',
         })
         await database.db.insert(fleetDrivers).values([
-          { companyId, id: driverOneId, name: 'Motorista Um', taxId: '11111111111' },
+          {
+            companyId,
+            // O contato vem da **ficha**, não do retrato da viagem: é o que prova a junção.
+            email: 'motorista.um@empresa.test',
+            id: driverOneId,
+            name: 'Motorista Um',
+            phone: '16999990001',
+            taxId: '11111111111',
+          },
           { companyId, id: driverTwoId, name: 'Motorista Dois', taxId: '22222222222' },
         ])
         const nfeDocumentId = await seedNfeDocument(database, { companyId, suffix: '1', userId })
@@ -103,14 +111,19 @@ describe('trip repository integration', () => {
         })
         expect(created.drivers).toEqual([
           {
+            driverEmail: 'motorista.um@empresa.test',
             driverId: driverOneId,
             driverName: 'Motorista Um',
+            driverPhone: '16999990001',
             driverTaxId: '11111111111',
             position: 1,
           },
           {
+            // Ficha sem contato devolve vazio, nunca some com o motorista da viagem.
+            driverEmail: '',
             driverId: driverTwoId,
             driverName: 'Motorista Dois',
+            driverPhone: '',
             driverTaxId: '22222222222',
             position: 2,
           },

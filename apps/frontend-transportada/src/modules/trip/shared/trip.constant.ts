@@ -69,6 +69,9 @@ export const TRIP_KEYS = [
 
 export const TRIP_DRIVER_KEYS = ['driverId', 'driverName', 'driverTaxId', 'position'] as const
 
+/** Spec 078 D2: o contato nasce opcional — API anterior serve o motorista sem ele. */
+export const TRIP_DRIVER_OPTIONAL_KEYS = ['driverEmail', 'driverPhone'] as const
+
 export const TRIP_DOCUMENT_KEYS = [
   'createdAt',
   'deliveredAt',

@@ -9,6 +9,20 @@ import type {
   TripVehicleCandidate,
 } from '../domain/trip.policy.js'
 
+/**
+ * A tripulação **na leitura**: o retrato fiscal (`TripDriverLine`, congelado quando a viagem foi
+ * montada) mais o contato **corrente**, que sai da ficha da frota. São coisas diferentes de
+ * propósito — telefone que mudou depois precisa aparecer atualizado, porque é para ligar agora,
+ * enquanto nome e CPF são o que foi declarado.
+ *
+ * ⚠️ Isto torna a viagem o **primeiro leitor do telefone do motorista**, e a ADR-0039 decidiu
+ * criptografar esse campo: quem executar a ADR passa a ter de abrir envelope aqui.
+ */
+export type TripDriverDetail = TripDriverLine & {
+  readonly driverEmail: string
+  readonly driverPhone: string
+}
+
 export type TripCompanyContext = {
   readonly companyId: string
   readonly userId: string
@@ -167,7 +181,7 @@ export type TripCargoLayoutView = {
 export type TripDetail = Trip & {
   readonly cargoLayout: TripCargoLayoutView | null
   readonly documents: readonly TripDocumentDetail[]
-  readonly drivers: readonly TripDriverLine[]
+  readonly drivers: readonly TripDriverDetail[]
   readonly cargoWeight: TripCargoWeightView | null
   readonly occupancy: TripOccupancyView | null
   readonly stops: readonly TripStopDetail[]
