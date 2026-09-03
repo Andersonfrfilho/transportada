@@ -54,6 +54,8 @@
     "selectionCount_other": "{{count}} documents selected",
     "selectionClear": "Clear selection",
     "progressLabel": "Trip separation progress",
+    "processCount": "{{reached}} of {{total}}",
+    "processReturned": "{{count}} invoice(s) returned — outside the flow",
     "arrivedAt": "Arrived at {{time}}",
     "completedAt": "Completed at {{time}}"
   },

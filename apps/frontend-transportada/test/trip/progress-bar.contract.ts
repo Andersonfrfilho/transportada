@@ -8,7 +8,7 @@ import { describe, expect, it } from 'bun:test'
 import trip from '../../src/modules/trip/locales/trip.locale.json'
 
 const COMPONENT = new URL(
-  '../../src/modules/trip/components/TripProgressBar.component.tsx',
+  '../../src/modules/trip/components/TripProcessFlow.component.tsx',
   import.meta.url,
 )
 const CSS = new URL('../../src/modules/trip/styles/trip.module.css', import.meta.url)
@@ -18,12 +18,17 @@ const CSS = new URL('../../src/modules/trip/styles/trip.module.css', import.meta
  * criá-lo, e criar de novo teria produzido duas barras. O que falta é só o que a P4 acrescenta:
  * a transição e a previsão de término.
  */
-describe('a barra de progresso ganha movimento e previsão (spec 079 T011)', () => {
+/**
+ * ⚠️ A barra de porcentagem por status virou **fila de fases** (spec 080). As quatro decisões daqui
+ * sobreviveram à troca e continuam sendo cobradas: movimento, respeito a quem pediu menos
+ * movimento, previsão anunciada como estimativa, e ausência de previsão dita em vez de escondida.
+ */
+describe('o andamento tem movimento e previsão (spec 079 T011, 080 T013)', () => {
   const source = readFileSync(COMPONENT, 'utf8')
   const css = readFileSync(CSS, 'utf8')
 
-  it('anima a mudança de largura dos segmentos', () => {
-    const bloco = css.slice(css.indexOf('.progressTrack > span'))
+  it('anima o avanço da fase', () => {
+    const bloco = css.slice(css.indexOf('.processStageFill'))
 
     expect(bloco.slice(0, bloco.indexOf('}'))).toInclude('transition')
   })
@@ -35,7 +40,9 @@ describe('a barra de progresso ganha movimento e previsão (spec 079 T011)', () 
   it('desliga o movimento sob prefers-reduced-motion', () => {
     const reduzido = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'))
 
-    expect(reduzido).toInclude('.progressTrack > span')
+    expect(reduzido).toInclude('.processStageFill')
+    // A fase atual pulsa; sob movimento reduzido ela para junto.
+    expect(reduzido).toInclude("data-current='true'")
   })
 
   /** A previsão é estimativa, e o rótulo diz isso — número sozinho lê como compromisso. */

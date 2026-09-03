@@ -71,8 +71,11 @@ export type TripDetailContract = TripContract &
   Readonly<{
     documents: readonly TripDocumentDetailContract[]
     drivers: readonly Readonly<{
+      /** Contato nasce opcional (spec 078 D2): API anterior serve o motorista sem ele. */
+      driverEmail?: string
       driverId: string
       driverName: string
+      driverPhone?: string
       driverTaxId: string
       position: number
     }>[]

@@ -40,7 +40,7 @@ import { TripRouteMap } from './TripRouteMap.component'
 import { resolveDeliveryProofView } from '../shared/deliveryProof.service'
 import { resolveTripProgress } from '../shared/tripProgress.service'
 import type { TripDocumentDetail } from '../shared/trip.types'
-import { TripProgressBar } from './TripProgressBar.component'
+import { TripProcessFlow } from './TripProcessFlow.component'
 import { TripReasonDialog } from './TripReasonDialog.component'
 import { TripScanQueue } from './TripScanQueue.component'
 import type { FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
@@ -365,7 +365,7 @@ export function TripDetail({ linkForm, onClose, vehicles, workspace }: TripDetai
         {t('detail.refreshNow')}
       </Button>
 
-      <TripProgressBar
+      <TripProcessFlow
         documents={trip.documents}
         progress={resolveTripProgress({
           now: new Date().toISOString(),

@@ -54,6 +54,8 @@
     "selectionCount_other": "{{count}} notas selecionadas",
     "selectionClear": "Limpar seleção",
     "progressLabel": "Progresso da separação da viagem",
+    "processCount": "{{reached}} de {{total}}",
+    "processReturned": "{{count}} nota(s) devolvida(s) — fora do fluxo",
     "arrivedAt": "Chegou às {{time}}",
     "completedAt": "Concluída às {{time}}",
     "estimatedCompletion": "Previsão de término: {{moment}} (estimativa pelo ritmo das paradas já concluídas)",
