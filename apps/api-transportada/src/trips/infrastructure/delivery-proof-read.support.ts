@@ -20,8 +20,10 @@ import {
   tripDeliveryProofs,
   tripDocumentOccurrences,
   tripDocuments,
+  tripDrivers,
   tripStopEvents,
   tripStops,
+  trips,
 } from '../../database/trip.schema.js'
 import type { DeliveryProofRecord } from '../application/read-delivery-proof.use-case.js'
 import type { TripDocumentProduct } from '../application/read-trip-document-products.use-case.js'
@@ -30,6 +32,7 @@ import type { TripOccurrenceType } from '../../shared/trip-occurrence.constant.j
 import { contractors } from '../../database/delivery-client.schema.js'
 import { resolveDeliveryContact } from '../domain/delivery-contact.policy.js'
 import type { DeliveryContact } from '../domain/delivery-contact.policy.js'
+import { ACTIVE_TRIP_STATUSES } from './drizzle-delivery-proof.repository.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
 export async function listDeliveryProofs(
@@ -386,4 +389,44 @@ export async function readOccurrenceLabels(
     documentLabel: number === '' ? '' : series === '' ? number : `${number}/${series}`,
     stopLabel: row?.stopLabel ?? '',
   }
+}
+
+/**
+ * Spec 079: a nota que **este motorista** está levando agora.
+ *
+ * ⚠️ O recorte é o mesmo de `findDeliveryEventId`: junção com `trip_drivers` e viagem em estado
+ * ativo. Nota de outra viagem — ou de viagem que já fechou — responde `null`, e o caso de uso a
+ * trata como inalcançável. É a consulta que estreita o `trip.report` da empresa inteira para a
+ * carga que ele tem nas mãos; a permissão sozinha não estreita nada.
+ */
+export async function findDriverReachableDocument(
+  queryable: TripQueryable,
+  input: {
+    readonly companyId: string
+    readonly documentId: string
+    readonly driverId: string
+  },
+): Promise<null | { readonly tripId: string }> {
+  const [row] = await queryable
+    .select({ tripId: tripDocuments.tripId })
+    .from(tripDocuments)
+    .innerJoin(
+      trips,
+      and(eq(trips.companyId, tripDocuments.companyId), eq(trips.id, tripDocuments.tripId)),
+    )
+    .innerJoin(
+      tripDrivers,
+      and(eq(tripDrivers.companyId, trips.companyId), eq(tripDrivers.tripId, trips.id)),
+    )
+    .where(
+      and(
+        eq(tripDocuments.companyId, input.companyId),
+        eq(tripDocuments.id, input.documentId),
+        eq(tripDrivers.driverId, input.driverId),
+        inArray(trips.status, [...ACTIVE_TRIP_STATUSES]),
+      ),
+    )
+    .limit(1)
+
+  return row === undefined ? null : { tripId: row.tripId }
 }

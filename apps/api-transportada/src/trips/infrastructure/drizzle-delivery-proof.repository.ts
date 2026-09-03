@@ -16,7 +16,14 @@ import type { DeliveryProofPort } from '../application/attach-delivery-proof.use
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
-const ACTIVE_TRIP_STATUSES = ['dispatched', 'in_transit', 'completed'] as const
+/**
+ * As viagens que o motorista ainda alcança. `completed` entra: a viagem fecha e o canhoto (ou a
+ * ocorrência) ainda chega — quem estava na rua nem sempre tem sinal na hora.
+ *
+ * Exportada porque a ocorrência do motorista usa **o mesmo recorte** (spec 079): duplicar a lista
+ * deixaria uma das duas aceitar viagem que a outra recusa, sem nada falhar.
+ */
+export const ACTIVE_TRIP_STATUSES = ['dispatched', 'in_transit', 'completed'] as const
 
 export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
   public constructor(private readonly database: Database) {}

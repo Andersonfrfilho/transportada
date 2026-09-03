@@ -11,6 +11,7 @@ import {
 } from '../../mdfe-manifests/application/read-mdfe-document.port.js'
 import type { TripStopOccurrenceKind } from '../../database/trip.schema.js'
 import type { DeliveryProofUpload } from '../application/attach-delivery-proof.use-case.js'
+import type { TripOccurrence } from '../application/register-trip-occurrence.use-case.js'
 import type { ReportedLocation } from '../application/driver-field-report.port.js'
 import type {
   DriverTrip,
@@ -22,6 +23,7 @@ import type { ReportStopArrivalResult } from '../application/report-stop-arrival
 import type { ReportStopOccurrenceResult } from '../application/report-stop-occurrence.use-case.js'
 import { DriverNotRegisteredError } from '../domain/trip.error.js'
 import { parseDeliveryProofUpload } from './delivery-proof.schema.js'
+import { parseRegisterOccurrenceRequest } from './occurrence.schema.js'
 import {
   parseDocumentReturnRequest,
   parseFieldReportRequest,
@@ -34,6 +36,15 @@ const STOP_OCCURRENCES_PATH = `${API_ME_CURRENT_TRIP_PATH}/stops/:stopId/occurre
 const DOCUMENT_DELIVER_PATH = `${API_ME_CURRENT_TRIP_PATH}/documents/:documentId/deliver`
 const DOCUMENT_RETURN_PATH = `${API_ME_CURRENT_TRIP_PATH}/documents/:documentId/return`
 const DOCUMENT_PROOF_PATH = `${API_ME_CURRENT_TRIP_PATH}/documents/:documentId/proof`
+/**
+ * Spec 079: a ocorrência que o motorista registra do próprio celular.
+ *
+ * ⚠️ **Não há id de viagem no caminho, e isso é o desenho.** Uma versão desta rota nasceu em
+ * `/trips/:id` pedindo `trip.report` e foi desfeita: o motorista tem essa permissão para **toda a
+ * empresa**, e ali ele alcançaria qualquer viagem. Aqui o escopo é a viagem ativa dele, garantido
+ * pela consulta.
+ */
+const DOCUMENT_OCCURRENCE_PATH = `${API_ME_CURRENT_TRIP_PATH}/documents/:documentId/occurrences`
 /**
  * O manifesto sai por id, e o id vem da própria viagem que o motorista acabou de ler — ele não
  * procura manifesto, ele abre o da carga que está levando. A escala dele é a condição da consulta:
@@ -86,6 +97,14 @@ export type MeTripDependencies = {
       readonly reason: DriverReturnReason
     },
   ) => Promise<ReportDocumentOutcomeResult>
+  readonly registerDriverOccurrence: (input: {
+    readonly actorUserId: string
+    readonly companyId: string
+    readonly documentId: string
+    readonly driverId: string
+    readonly note: string
+    readonly type: string
+  }) => Promise<TripOccurrence>
   readonly attachProof: (
     input: DriverContextInput & {
       readonly documentId: string
@@ -325,6 +344,32 @@ export function createMeTripRoutes(
         }
       },
       pathname: DOCUMENT_PROOF_PATH,
+      policy: DRIVER_REPORT_POLICY,
+    }),
+    defineRoute<{ readonly documentId: string; readonly note: string; readonly type: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const driverId = await resolveDriver(context.scope)
+        const occurrence = await dependencies.registerDriverOccurrence({
+          actorUserId: context.scope.userId,
+          companyId: context.scope.companyId,
+          documentId: input.documentId,
+          driverId,
+          note: input.note,
+          type: input.type,
+        })
+
+        return jsonResponse({ body: { data: occurrence }, status: 201 })
+      },
+      method: 'POST',
+      async parse({ pathParameters, request }) {
+        const body = await parseRegisterOccurrenceRequest(request)
+        return {
+          documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
+          note: body.note,
+          type: body.type,
+        }
+      },
+      pathname: DOCUMENT_OCCURRENCE_PATH,
       policy: DRIVER_REPORT_POLICY,
     }),
     defineRoute<{

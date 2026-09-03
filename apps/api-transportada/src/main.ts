@@ -147,10 +147,12 @@ import { createOsrmRouteGeometryGateway } from './trips/infrastructure/osrm-rout
 import { listTripStopCoordinates } from './trips/infrastructure/trip-stop-coordinates.support.js'
 import { createDeliveryProofDownloadGateway } from './trips/infrastructure/delivery-proof-download.gateway.js'
 import { readTripDocumentProducts } from './trips/application/read-trip-document-products.use-case.js'
+import { registerDriverOccurrence } from './trips/application/register-driver-occurrence.use-case.js'
 import { registerTripOccurrence } from './trips/application/register-trip-occurrence.use-case.js'
 import { buildOccurrenceNotificationView } from './trips/domain/occurrence-settings.policy.js'
 import { createOccurrenceNotifier } from './trips/infrastructure/occurrence-notifier.gateway.js'
 import {
+  findDriverReachableDocument,
   listDeliveryProofs,
   listDocumentProducts,
   listOccurrenceNotificationSettings,
@@ -1619,6 +1621,20 @@ function createApplicationRoutes({
       setConsent: (input) => tripLocationRepository.setConsent(input),
     }),
     ...createMeTripRoutes({
+      /**
+       * Spec 079: o motorista registra a ocorrência do celular. **Sem notificador**: quem despachou
+       * a viagem é justamente quem receberia o aviso, e ele não precisa ser avisado de algo que o
+       * motorista acabou de contar por rádio. O aviso configurável é do registro feito no
+       * escritório.
+       */
+      registerDriverOccurrence: (input) =>
+        registerDriverOccurrence({
+          ...input,
+          repository: {
+            findReachableDocument: (query) => findDriverReachableDocument(database, query),
+            saveOccurrence: (query) => saveTripOccurrence(database, query),
+          },
+        }),
       attachProof: (input) =>
         attachDeliveryProof({
           ...input,

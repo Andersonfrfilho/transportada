@@ -13,6 +13,7 @@ const NOT_CALLED = () => {
 
 const meRoutes = createMeTripRoutes({
   attachProof: NOT_CALLED,
+  registerDriverOccurrence: NOT_CALLED,
   findCurrentTrip: NOT_CALLED,
   reportArrival: NOT_CALLED,
   reportDelivery: NOT_CALLED,
@@ -64,5 +65,20 @@ describe('as rotas do campo', () => {
     for (const route of meRoutes) {
       expect(driverPermissions.has(route.policy?.permission as never)).toBe(true)
     }
+  })
+
+  /**
+   * Spec 079. ⚠️ **A ocorrência do motorista mora aqui, e o caminho não tem id de viagem.** Uma
+   * versão dela nasceu em `/trips/:id` pedindo `trip.report` e foi desfeita: o motorista tem essa
+   * permissão para **toda a empresa**, e ali ele alcançaria qualquer viagem — foi este arquivo que
+   * pegou. Se o caminho voltar a receber um id de viagem, é aqui que a decisão se reabre.
+   */
+  it('a ocorrência do motorista não recebe id de viagem no caminho', () => {
+    const rota = meRoutes.find((route) => route.pathname.endsWith('/occurrences'))
+
+    expect(rota).toBeDefined()
+    expect(rota?.pathname).not.toInclude(':id')
+    expect(rota?.pathname).toStartWith('/me/trips/current')
+    expect(rota?.policy?.permission).toBe('trip.report')
   })
 })
