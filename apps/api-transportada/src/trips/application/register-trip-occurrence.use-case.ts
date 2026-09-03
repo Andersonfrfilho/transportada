@@ -3,10 +3,7 @@
  *
  * Spec 079 T020: registrar o que houve com um item da carga.
  */
-import type {
-  TripOccurrenceStage,
-  TripOccurrenceType,
-} from '../../shared/trip-occurrence.constant.js'
+import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
 import { resolveOccurrenceProductScope } from '../domain/occurrence-scope.policy.js'
 import { TripDocumentNotFoundError } from '../domain/trip.error.js'
 import { resolveOccurrenceNotification } from '../domain/occurrence-notification.policy.js'

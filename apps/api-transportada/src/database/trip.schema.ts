@@ -2,12 +2,11 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { TRIP_OCCURRENCE_STAGE } from '../shared/trip-occurrence.constant.js'
-import type { TripOccurrenceStage, TripOccurrenceType } from '../shared/trip-occurrence.constant.js'
+import type { TripOccurrenceStage } from '../shared/trip-occurrence.constant.js'
 import { sql } from 'drizzle-orm'
 import {
   bigint,
   boolean,
-  primaryKey,
   check,
   foreignKey,
   index,

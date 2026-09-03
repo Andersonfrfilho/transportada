@@ -271,6 +271,18 @@ async function registerTripMocks(
     }
     await fulfillJson(route, { data: { points: [], source: 'unavailable' } })
   })
+  /**
+   * O catálogo de tipos de ocorrência é consultado pelo detalhe da viagem. Sem este dublê o pedido
+   * escapa para a API real, que não sobe no smoke, e o `requestfailed` derruba três testes que nada
+   * têm a ver com ocorrência — foi o que aconteceu quando a tela passou a consultá-lo.
+   */
+  await input.page.route(/\/company-settings\/occurrence-types$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, { data: [] })
+  })
   await input.page.route(/\/trips\/[^/]+\/fiscal-readiness$/, async (route) => {
     if (route.request().method() === 'OPTIONS') {
       await fulfillOptions(route)

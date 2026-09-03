@@ -9,10 +9,7 @@
  * viagem, ele alcançaria qualquer viagem. Aqui não há id de viagem no caminho: o escopo é a viagem
  * ativa dele, e quem o garante é a consulta, não a permissão.
  */
-import {
-  resolveOccurrenceStage,
-  TRIP_OCCURRENCE_STAGE,
-} from '../../shared/trip-occurrence.constant.js'
+import { TRIP_OCCURRENCE_STAGE } from '../../shared/trip-occurrence.constant.js'
 import { TripDocumentNotReachableError } from '../domain/trip.error.js'
 import { resolveOccurrenceProductScope } from '../domain/occurrence-scope.policy.js'
 import type { OccurrenceTypeRecord, TripOccurrence } from './register-trip-occurrence.use-case.js'

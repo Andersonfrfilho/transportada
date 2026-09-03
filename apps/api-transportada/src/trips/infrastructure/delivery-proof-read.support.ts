@@ -33,7 +33,6 @@ import type {
 } from '../application/register-trip-occurrence.use-case.js'
 import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
 import { TripDocumentNotFoundError } from '../domain/trip.error.js'
-import type { TripOccurrenceType } from '../../shared/trip-occurrence.constant.js'
 import { contractors } from '../../database/delivery-client.schema.js'
 import { resolveDeliveryContact } from '../domain/delivery-contact.policy.js'
 import type { DeliveryContact } from '../domain/delivery-contact.policy.js'

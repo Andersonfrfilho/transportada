@@ -1,23 +1,14 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { HTTP_ERROR } from '../../shared/api.constant.js'
-import { ApiError } from '../../shared/api.error.js'
 import { defineRoute } from '../../http/router.service.js'
 import type { DeliveryProofView } from '../application/read-delivery-proof.use-case.js'
 import type { RouteGeometryView } from '../application/read-route-geometry.use-case.js'
 import type { TripDocumentProduct } from '../application/read-trip-document-products.use-case.js'
 import type { TripOccurrence } from '../application/register-trip-occurrence.use-case.js'
-import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
-import { acceptsOccurrenceType } from '../domain/occurrence.policy.js'
 import { parseOccurrenceTypeRequest, parseRegisterOccurrenceRequest } from './occurrence.schema.js'
 import type { OccurrenceTypeRecord } from '../application/register-trip-occurrence.use-case.js'
 
-type SaveOccurrenceNotificationInput = {
-  readonly context: CompanyContext
-  readonly notifies: boolean
-  readonly type: string
-}
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import { API_TRIPS_PATH, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
 import type { CreateTripMdfeManifestInput } from '../../mdfe-manifests/application/create-trip-mdfe-manifest.use-case.js'
@@ -92,8 +83,6 @@ const TRIP_DOCUMENT_DELIVER_PATH = `${TRIP_DOCUMENT_PATH}/deliver`
 const TRIP_DOCUMENT_PROOF_PATH = `${TRIP_DOCUMENT_PATH}/proof`
 const TRIP_DOCUMENT_PRODUCTS_PATH = `${TRIP_DOCUMENT_PATH}/products`
 const TRIP_DOCUMENT_OCCURRENCES_PATH = `${TRIP_DOCUMENT_PATH}/occurrences`
-const TRIP_DOCUMENT_SEPARATION_OCCURRENCE_PATH = `${TRIP_DOCUMENT_OCCURRENCES_PATH}/separation`
-const TRIP_DOCUMENT_DELIVERY_OCCURRENCE_PATH = `${TRIP_DOCUMENT_OCCURRENCES_PATH}/delivery`
 /**
  * Spec 079: a configuração do aviso é **da empresa**, não da viagem — ligar "recusa total" vale
  * para toda viagem, presente e futura. Pendurá-la numa viagem sugeriria um efeito local que ela
