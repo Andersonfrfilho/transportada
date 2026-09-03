@@ -32,6 +32,7 @@ function buildStop(overrides: Partial<DriverTripStop> = {}): DriverTripStop {
   return {
     arrivedAt: null,
     completedAt: null,
+    deliveryProof: null,
     deliveryWindowEnd: null,
     deliveryWindowStart: null,
     documents: [buildDocument()],

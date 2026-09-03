@@ -8,7 +8,7 @@ import { DriverBottomBar, type DriverSection } from '../components/DriverBottomB
 import { DriverLoadSheet } from '../components/DriverLoadSheet.component'
 import { DriverManifestCard } from '../components/DriverManifestCard.component'
 import { DriverShellHeader } from '../components/DriverShellHeader.component'
-import { DriverStopCard } from '../components/DriverStopCard.component'
+import { DriverStopCard, type DriverProofAttachment } from '../components/DriverStopCard.component'
 import { DriverTripProgress } from '../components/DriverTripProgress.component'
 import { useDriverTrip } from '../hooks/useDriverTrip.hook'
 import { DriverEventQueuePage } from './DriverEventQueue.page'
@@ -19,6 +19,7 @@ import { saveDriverFile } from '../shared/driverFileSave.service'
 import type {
   DriverOccurrenceType,
   DriverOccurrenceKind,
+  DriverReportedLocation,
   DriverReturnReason,
 } from '../shared/driverTrip.types'
 import { createIdempotencyKey } from '../shared/offlineQueue.service'
@@ -53,6 +54,18 @@ export function DriverTripWorkspacePage() {
    * motorista segue entregando e devolvendo, que é o que não pode parar.
    */
   const [occurrenceTypes, setOccurrenceTypes] = useState<readonly DriverOccurrenceType[]>([])
+  /** Spec 082 D2: uma leitura ao abrir — recusa vira `null`, e a distância só não aparece. */
+  const [lastKnownLocation, setLastKnownLocation] = useState<DriverReportedLocation | null>(null)
+
+  useEffect(() => {
+    let ativo = true
+    void readCurrentLocation().then((location) => {
+      if (ativo) setLastKnownLocation(location)
+    })
+    return () => {
+      ativo = false
+    }
+  }, [])
 
   useEffect(() => {
     let ativo = true
@@ -223,6 +236,7 @@ export function DriverTripWorkspacePage() {
               <DriverStopCard
                 isCurrent={stop.id === findCurrentStop(trip)?.id}
                 key={stop.id}
+                lastKnownLocation={lastKnownLocation}
                 stop={stop}
                 onArrive={(stopId) =>
                   void report((location) => ({
@@ -240,10 +254,10 @@ export function DriverTripWorkspacePage() {
                     location,
                   }))
                 }
-                onProof={(input: { documentId: string; file: File }) => {
+                onProof={(input: DriverProofAttachment) => {
                   setAttachmentLimit(undefined)
                   void driverTrip
-                    .attachProof({ documentId: input.documentId, file: input.file, kind: 'photo' })
+                    .attachProof(input)
                     .then((outcome) => {
                       if (outcome === 'count-limit' || outcome === 'size-limit') {
                         setAttachmentLimit(outcome)

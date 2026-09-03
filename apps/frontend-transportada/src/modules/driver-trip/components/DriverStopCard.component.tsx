@@ -6,12 +6,17 @@ import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
 
+import { ProofCrop } from './ProofCrop.component'
+import { SignaturePad } from './SignaturePad.component'
+import { formatStopDistance } from '../shared/driverStopDistance.service'
 import {
   DRIVER_OCCURRENCE_KINDS,
   DRIVER_RETURN_REASONS,
   driverSelectableOccurrenceTypes,
+  type DriverDeliveryProofSettings,
   type DriverOccurrenceKind,
   type DriverOccurrenceType,
+  type DriverReportedLocation,
   type DriverReturnReason,
   type DriverTripDocument,
   type DriverTripStop,
@@ -21,6 +26,14 @@ import {
   countPendingDocuments,
   isDocumentSettled,
 } from '../shared/driverTripView.service'
+import {
+  canonicalReceiverDocument,
+  listMissingProofFields,
+  maskReceiverDocument,
+  resolveProofFormPlan,
+  type ProofFieldKey,
+} from '../shared/proofFormPlan.service'
+import { isSignatureCaptureSupported } from '../shared/signatureCapture.service'
 import styles from '../styles/driverTrip.module.css'
 
 /** Sem hora marcada o agendamento ainda está sendo pedido — e dizer isso é melhor que uma data vazia. */
@@ -34,8 +47,18 @@ function formatScheduleTime(scheduledAt: string | null): string {
   })
 }
 
+export type DriverProofAttachment = Readonly<{
+  documentId: string
+  file: File
+  kind: 'photo' | 'signature'
+  receiverDocument?: string
+  receiverName?: string
+}>
+
 type DriverStopCardProps = Readonly<{
   isCurrent: boolean
+  /** Spec 082 D2: a última posição conhecida — sem ela, a distância simplesmente não aparece. */
+  lastKnownLocation: DriverReportedLocation | null
   onArrive: (stopId: string) => void
   onDeliver: (documentId: string) => void
   onDocumentOccurrence: (input: {
@@ -44,7 +67,7 @@ type DriverStopCardProps = Readonly<{
     productCode: string
   }) => void
   occurrenceTypes: readonly DriverOccurrenceType[]
-  onProof: (input: { documentId: string; file: File }) => void
+  onProof: (input: DriverProofAttachment) => void
   onOccurrence: (input: { description: string; kind: DriverOccurrenceKind; stopId: string }) => void
   onReturn: (input: { documentId: string; reason: DriverReturnReason }) => void
   stop: DriverTripStop
@@ -52,6 +75,7 @@ type DriverStopCardProps = Readonly<{
 
 export function DriverStopCard({
   isCurrent,
+  lastKnownLocation,
   onArrive,
   onDeliver,
   occurrenceTypes,
@@ -64,6 +88,7 @@ export function DriverStopCard({
   const { t } = useTranslation('driverTrip')
   const [openOccurrence, setOpenOccurrence] = useState(false)
   const isCompleted = stop.completedAt !== null
+  const distanceLabel = formatStopDistance({ location: lastKnownLocation, stop })
 
   return (
     <li
@@ -101,6 +126,10 @@ export function DriverStopCard({
           <Icon name="link" />
           {t('navigate')}
         </Button>
+        {/* Spec 082 D2: sem posição ou sem coordenada da parada, nada — nunca "0 km" */}
+        {distanceLabel === null ? null : (
+          <span className={styles.stopDistance}>{distanceLabel}</span>
+        )}
         {stop.arrivedAt === null ? (
           <Button onClick={() => onArrive(stop.id)} type="button">
             <Icon name="check" />
@@ -136,6 +165,7 @@ export function DriverStopCard({
             onDocumentOccurrence={onDocumentOccurrence}
             onProof={onProof}
             onReturn={onReturn}
+            proofSettings={stop.deliveryProof}
           />
         ))}
       </ul>
@@ -153,8 +183,9 @@ type DocumentRowProps = Readonly<{
     productCode: string
   }) => void
   occurrenceTypes: readonly DriverOccurrenceType[]
-  onProof: (input: { documentId: string; file: File }) => void
+  onProof: (input: DriverProofAttachment) => void
   onReturn: (input: { documentId: string; reason: DriverReturnReason }) => void
+  proofSettings: DriverDeliveryProofSettings | null
 }>
 
 function DocumentRow({
@@ -164,6 +195,7 @@ function DocumentRow({
   onDocumentOccurrence,
   onProof,
   onReturn,
+  proofSettings,
 }: DocumentRowProps) {
   const { t } = useTranslation('driverTrip')
   const [openReturn, setOpenReturn] = useState(false)
@@ -180,18 +212,11 @@ function DocumentRow({
         </span>
         {/* O canhoto anexa depois: a entrega já está confirmada, e o arquivo não a desfaz */}
         {document.separationStatus === 'delivered' ? (
-          <label className={styles.proofField}>
-            <span>{t('proof')}</span>
-            <input
-              accept="image/*"
-              capture="environment"
-              type="file"
-              onChange={(event) => {
-                const file = event.target.files?.[0]
-                if (file !== undefined) onProof({ documentId: document.id, file })
-              }}
-            />
-          </label>
+          <DeliveryProofSection
+            documentId={document.id}
+            onProof={onProof}
+            proofSettings={proofSettings}
+          />
         ) : null}
       </li>
     )
@@ -267,6 +292,168 @@ function DocumentRow({
         </fieldset>
       ) : null}
     </li>
+  )
+}
+
+type DeliveryProofSectionProps = Readonly<{
+  documentId: string
+  onProof: (input: DriverProofAttachment) => void
+  proofSettings: DriverDeliveryProofSettings | null
+}>
+
+/**
+ * Spec 082 T053: o formulário do comprovante é o que a configuração manda — `off` não renderiza,
+ * `required` bloqueia o anexo com mensagem **no campo** (todos de uma vez), e o documento do
+ * recebedor entra mascarado e sobe canônico. Sem canvas/pointer, a assinatura cai para a foto.
+ */
+function DeliveryProofSection({ documentId, onProof, proofSettings }: DeliveryProofSectionProps) {
+  const { t } = useTranslation('driverTrip')
+  const plan = resolveProofFormPlan(proofSettings)
+  const [receiverName, setReceiverName] = useState('')
+  const [receiverDocument, setReceiverDocument] = useState('')
+  const [missing, setMissing] = useState<readonly ProofFieldKey[]>([])
+  const [openSignature, setOpenSignature] = useState(false)
+  const [cropFile, setCropFile] = useState<File | null>(null)
+  const [attached, setAttached] = useState<{ photo: boolean; signature: boolean }>({
+    photo: false,
+    signature: false,
+  })
+  const canSign = plan.rendersSignature && isSignatureCaptureSupported()
+
+  function receiverFields(): Pick<DriverProofAttachment, 'receiverDocument' | 'receiverName'> {
+    const canonical = canonicalReceiverDocument(receiverDocument)
+    return {
+      ...(receiverName.trim() === '' ? {} : { receiverName: receiverName.trim() }),
+      ...(canonical === '' ? {} : { receiverDocument: canonical }),
+    }
+  }
+
+  /** A checagem dos campos de texto vem **antes** do anexo: campo obrigatório vazio segura o envio. */
+  function blockedByFields(next: { photo: boolean; signature: boolean }): boolean {
+    const failures = listMissingProofFields({
+      plan,
+      values: {
+        hasPhoto: next.photo,
+        hasSignature: next.signature,
+        receiverDocument,
+        receiverName,
+      },
+    }).filter((field) => field === 'receiverName' || field === 'receiverDocument')
+    setMissing(failures)
+    return failures.length > 0
+  }
+
+  function attach(kind: 'photo' | 'signature', file: File): void {
+    const next = { ...attached, [kind]: true }
+    if (blockedByFields(next)) return
+    setAttached(next)
+    onProof({ documentId, file, kind, ...receiverFields() })
+  }
+
+  return (
+    <div className={styles.proofSection}>
+      {plan.rendersReceiverName ? (
+        <label className={styles.proofField}>
+          <span>
+            {t('proofFields.receiverName')}
+            {plan.fields.receiverName === 'required' ? ' *' : ''}
+          </span>
+          <input
+            aria-invalid={missing.includes('receiverName')}
+            maxLength={120}
+            type="text"
+            value={receiverName}
+            onChange={(event) => {
+              setReceiverName(event.target.value)
+              setMissing((current) => current.filter((field) => field !== 'receiverName'))
+            }}
+          />
+          {missing.includes('receiverName') ? (
+            <span className={styles.proofFieldError} role="alert">
+              {t('proofFields.requiredField')}
+            </span>
+          ) : null}
+        </label>
+      ) : null}
+      {plan.rendersReceiverDocument ? (
+        <label className={styles.proofField}>
+          <span>
+            {t('proofFields.receiverDocument')}
+            {plan.fields.receiverDocument === 'required' ? ' *' : ''}
+          </span>
+          {/* Sem inputMode numeric: CNPJ tem letra, e o teclado numérico do celular a esconde */}
+          <input
+            aria-invalid={missing.includes('receiverDocument')}
+            autoCapitalize="characters"
+            maxLength={18}
+            type="text"
+            value={receiverDocument}
+            onChange={(event) => {
+              setReceiverDocument(maskReceiverDocument(event.target.value))
+              setMissing((current) => current.filter((field) => field !== 'receiverDocument'))
+            }}
+          />
+          {missing.includes('receiverDocument') ? (
+            <span className={styles.proofFieldError} role="alert">
+              {t('proofFields.requiredField')}
+            </span>
+          ) : null}
+        </label>
+      ) : null}
+
+      <div className={styles.actions}>
+        {canSign ? (
+          <Button
+            aria-label={t('signature.open')}
+            onClick={() => setOpenSignature((open) => !open)}
+            type="button"
+            variant="ghost"
+          >
+            <Icon name="save" />
+            {t('signature.open')}
+            {plan.fields.signature === 'required' && !attached.signature ? ' *' : ''}
+          </Button>
+        ) : null}
+        {plan.rendersPhoto || (plan.rendersSignature && !canSign) ? (
+          <label className={styles.proofField}>
+            <span>
+              {t('proof')}
+              {plan.fields.photo === 'required' && !attached.photo ? ' *' : ''}
+            </span>
+            <input
+              accept="image/*"
+              capture="environment"
+              type="file"
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+                if (file !== undefined) setCropFile(file)
+              }}
+            />
+          </label>
+        ) : null}
+      </div>
+
+      {openSignature ? (
+        <SignaturePad
+          onCancel={() => setOpenSignature(false)}
+          onConfirm={(blob) => {
+            setOpenSignature(false)
+            attach('signature', new File([blob], 'assinatura.png', { type: 'image/png' }))
+          }}
+        />
+      ) : null}
+
+      {cropFile === null ? null : (
+        <ProofCrop
+          file={cropFile}
+          onCancel={() => setCropFile(null)}
+          onConfirm={(file) => {
+            setCropFile(null)
+            attach('photo', file)
+          }}
+        />
+      )}
+    </div>
   )
 }
 

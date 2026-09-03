@@ -27,6 +27,7 @@ export type DriverProofInput = Readonly<{
   documentId: string
   file: File
   kind: 'photo' | 'signature'
+  receiverDocument?: string
   receiverName?: string
 }>
 
@@ -105,6 +106,9 @@ export function useDriverTrip(
                 type: attachment.blob.type,
               }),
               kind: attachment.kind,
+              ...(attachment.receiverDocument === undefined
+                ? {}
+                : { receiverDocument: attachment.receiverDocument }),
               ...(attachment.receiverName === undefined
                 ? {}
                 : { receiverName: attachment.receiverName }),
@@ -162,6 +166,9 @@ export function useDriverTrip(
         documentId: input.documentId,
         fileName: input.file.name,
         kind: input.kind,
+        ...(input.receiverDocument === undefined
+          ? {}
+          : { receiverDocument: input.receiverDocument }),
         ...(input.receiverName === undefined ? {} : { receiverName: input.receiverName }),
       },
       attachmentStore,

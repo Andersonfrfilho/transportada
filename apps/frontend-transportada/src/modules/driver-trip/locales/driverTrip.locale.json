@@ -87,6 +87,32 @@
   },
   "proof": "Anexar canhoto",
   "proofFailed": "Não foi possível anexar o arquivo. A entrega continua registrada.",
+  "proofFields": {
+    "receiverDocument": "Documento de quem recebeu",
+    "receiverName": "Nome de quem recebeu",
+    "requiredField": "Preencha este campo antes de anexar o comprovante."
+  },
+  "signature": {
+    "cancel": "Cancelar",
+    "canvasLabel": "Área de assinatura — desenhe com o dedo",
+    "clear": "Limpar",
+    "confirm": "Confirmar assinatura",
+    "exitFullscreen": "Sair da tela inteira",
+    "fullscreen": "Tela inteira",
+    "open": "Colher assinatura"
+  },
+  "crop": {
+    "cancel": "Cancelar",
+    "corner": {
+      "bottomLeft": "Canto inferior esquerdo",
+      "bottomRight": "Canto inferior direito",
+      "topLeft": "Canto superior esquerdo",
+      "topRight": "Canto superior direito"
+    },
+    "previewLabel": "Prévia do comprovante para recorte",
+    "useCrop": "Usar recorte",
+    "useOriginal": "Usar sem recorte"
+  },
   "queued_one": "{{count}} confirmação aguardando envio",
   "queued_other": "{{count}} confirmações aguardando envio",
   "rejected": "O escritório mudou esta nota enquanto você estava sem sinal. Confira antes de seguir.",

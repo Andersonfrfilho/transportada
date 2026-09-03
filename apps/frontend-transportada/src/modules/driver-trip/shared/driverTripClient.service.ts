@@ -57,6 +57,7 @@ export type DriverTripClient = Readonly<{
     documentId: string
     file: File
     kind: 'photo' | 'signature'
+    receiverDocument?: string
     receiverName?: string
   }) => Promise<void>
   /**
@@ -117,6 +118,7 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
       const form = new FormData()
       form.set('file', input.file)
       form.set('kind', input.kind)
+      if (input.receiverDocument !== undefined) form.set('receiverDocument', input.receiverDocument)
       if (input.receiverName !== undefined) form.set('receiverName', input.receiverName)
 
       await request({

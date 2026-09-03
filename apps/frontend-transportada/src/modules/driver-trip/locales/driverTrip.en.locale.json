@@ -1,11 +1,23 @@
 {
   "arrive": "I arrived",
   "arrived": "Arrived at {{time}}",
+  "attachmentLimitCount": "The limit of attachments waiting to be sent was reached. Send the pending ones before attaching another — nothing was discarded.",
+  "attachmentLimitSize": "The space for attachments waiting to be sent is full. Send the pending ones before attaching another — nothing was discarded.",
+  "crop": {
+    "cancel": "Cancel",
+    "corner": {
+      "bottomLeft": "Bottom left corner",
+      "bottomRight": "Bottom right corner",
+      "topLeft": "Top left corner",
+      "topRight": "Top right corner"
+    },
+    "previewLabel": "Proof preview for cropping",
+    "useCrop": "Use crop",
+    "useOriginal": "Use without cropping"
+  },
   "deliver": "Delivered",
   "documentsPending_one": "{{count}} invoice to deliver",
   "documentsPending_other": "{{count}} invoices to deliver",
-  "attachmentLimitCount": "The limit of attachments waiting to be sent was reached. Send the pending ones before attaching another — nothing was discarded.",
-  "attachmentLimitSize": "The space for attachments waiting to be sent is full. Send the pending ones before attaching another — nothing was discarded.",
   "error": "Your trip could not be loaded. Pull to try again.",
   "eventQueue": {
     "attachments_one": "{{count}} attachment",
@@ -30,24 +42,24 @@
     "title": "Pending events"
   },
   "loadSheet": {
-    "title": "Load sheet",
+    "barcodeLabel": "Barcode for the access key of NF-e {{number}}",
     "notFiscal": "This is not a fiscal document",
-    "print": "Print",
     "note": "NF-e {{number}}/{{series}}",
+    "print": "Print",
+    "title": "Load sheet",
     "volumes_one": "{{count}} package",
     "volumes_other": "{{count}} packages",
-    "weight": "{{weight}} kg",
-    "barcodeLabel": "Barcode for the access key of NF-e {{number}}"
+    "weight": "{{weight}} kg"
   },
   "loading": "Loading your trip…",
   "manifest": {
-    "title": "MDF-e for this trip",
-    "protocol": "Protocol {{protocol}}",
     "barcodeLabel": "Barcode for MDF-e access key {{accessKey}}",
+    "failed": "The document could not be fetched right now. The access key above still holds for inspection.",
     "openDamdfe": "Get DAMDFE (PDF)",
     "openXml": "Get XML",
     "opening": "Getting…",
-    "failed": "The document could not be fetched right now. The access key above still holds for inspection."
+    "protocol": "Protocol {{protocol}}",
+    "title": "MDF-e for this trip"
   },
   "nav": {
     "label": "Application sections",
@@ -87,6 +99,11 @@
   },
   "proof": "Attach proof",
   "proofFailed": "The file could not be attached. The delivery is still recorded.",
+  "proofFields": {
+    "receiverDocument": "Receiver document",
+    "receiverName": "Receiver name",
+    "requiredField": "Fill in this field before attaching the proof."
+  },
   "queued_one": "{{count}} confirmation waiting to be sent",
   "queued_other": "{{count}} confirmations waiting to be sent",
   "rejected": "The office changed this invoice while you were offline. Check before moving on.",
@@ -102,6 +119,15 @@
   "schedule": {
     "at": "Scheduled for {{time}}",
     "protocol": "Protocol {{protocol}}"
+  },
+  "signature": {
+    "cancel": "Cancel",
+    "canvasLabel": "Signature area — draw with your finger",
+    "clear": "Clear",
+    "confirm": "Confirm signature",
+    "exitFullscreen": "Exit full screen",
+    "fullscreen": "Full screen",
+    "open": "Collect signature"
   },
   "stopCompleted": "Stop completed",
   "stopTitle": "Stop {{sequence}}",

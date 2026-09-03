@@ -22,6 +22,8 @@ export type QueuedAttachment = Readonly<{
   documentId: string
   fileName: string
   kind: 'photo' | 'signature'
+  /** ⚠️ Canônico e nunca em log: é o dado da ADR da spec 082 D4 — a API o criptografa. */
+  receiverDocument?: string
   receiverName?: string
 }>
 
