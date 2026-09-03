@@ -462,7 +462,10 @@ function ApplicationShell(): ReactNode {
           >
             <span aria-hidden="true">{sidebarOpen ? '×' : '☰'}</span>
           </Button>
-          <strong>TransportAdA</strong>
+          <span className="sidebar-brand-identity">
+            <img alt="" className="sidebar-brand-logo" src="/icons/icon.svg" />
+            <strong>TransportAdA</strong>
+          </span>
         </div>
         <nav className="sidebar-navigation" aria-label="Módulos">
           {NAVIGATION_GROUPS.map((group) => (

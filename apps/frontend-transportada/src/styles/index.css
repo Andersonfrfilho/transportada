@@ -314,10 +314,33 @@ a {
   background: color-mix(in srgb, var(--color-copper) 10%, transparent);
 }
 
+.sidebar-brand-identity {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Sem medida própria o logo cresce com a caixa — a mesma razão da marca do rodapé. */
+.sidebar-brand-logo {
+  width: var(--space-8);
+  height: var(--space-8);
+  object-fit: contain;
+}
+
 .sidebar-brand strong {
   color: var(--color-fog);
   font-size: 1.35rem;
   letter-spacing: -0.02em;
+}
+
+/* No trilho recolhido o logo é o que sobra da marca: ele fica, e o nome sai. */
+.application-shell-sidebar-collapsed .sidebar-brand > .sidebar-brand-identity {
+  display: inline-flex;
+  justify-content: center;
+}
+
+.application-shell-sidebar-collapsed .sidebar-brand-identity strong {
+  display: none;
 }
 
 .sidebar-brand span {
