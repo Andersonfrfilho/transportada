@@ -9,6 +9,11 @@ import type {
 } from '../../shared/trip-occurrence.constant.js'
 import { resolveOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
 import { TripDocumentNotFoundError } from '../domain/trip.error.js'
+import { resolveOccurrenceNotification } from '../domain/occurrence-notification.policy.js'
+import type {
+  OccurrenceNotificationParameters,
+  OccurrenceNotificationSetting,
+} from '../domain/occurrence-notification.policy.js'
 
 export type TripOccurrence = {
   readonly createdAt: string
@@ -38,11 +43,28 @@ export type TripOccurrencePort = {
   }): Promise<null | TripOccurrence>
 }
 
+/**
+ * O aviso é **efeito de borda do registro**, e falhar nele não desfaz a ocorrência: a ocorrência é
+ * o fato, e o aviso é conveniência. Perder o registro porque a fila caiu seria trocar o dado pelo
+ * recado.
+ */
+export type OccurrenceNotifierPort = {
+  notify(input: {
+    readonly companyId: string
+    readonly parameters: OccurrenceNotificationParameters
+    readonly templateKey: string
+  }): Promise<void>
+}
+
 export type RegisterTripOccurrenceInput = {
   readonly actorUserId: string
   readonly companyId: string
   readonly documentId: string
   readonly note: string
+  /** Ausente quando a instalação não tem trilho de notificação — o registro segue igual. */
+  readonly notifier?: OccurrenceNotifierPort
+  readonly notificationParameters?: OccurrenceNotificationParameters
+  readonly notificationSettings?: readonly OccurrenceNotificationSetting[]
   readonly productCode: string
   readonly repository: TripOccurrencePort
   readonly tripId: string
@@ -58,16 +80,10 @@ export type RegisterTripOccurrenceInput = {
  * O grupo é **derivado do tipo**, nunca aceito do cliente: aceitá-lo no corpo deixaria quem tem
  * `trip.manage` declarar que uma ocorrência de rua é de galpão para caber na própria permissão.
  */
-export async function registerTripOccurrence({
-  actorUserId,
-  companyId,
-  documentId,
-  note,
-  productCode,
-  repository,
-  tripId,
-  type,
-}: RegisterTripOccurrenceInput): Promise<TripOccurrence> {
+export async function registerTripOccurrence(
+  input: RegisterTripOccurrenceInput,
+): Promise<TripOccurrence> {
+  const { actorUserId, companyId, documentId, note, productCode, repository, tripId, type } = input
   const stage = resolveOccurrenceStage(type)
   if (stage === null) throw new TripDocumentNotFoundError()
 
@@ -82,5 +98,37 @@ export async function registerTripOccurrence({
     type,
   })
   if (saved === null) throw new TripDocumentNotFoundError()
+
+  await notifyOccurrence(input)
+
   return saved
+}
+
+/**
+ * ⚠️ **O aviso nunca derruba o registro.** A ocorrência é o fato; o aviso é conveniência. Uma fila
+ * fora do ar não pode fazer o operador perder o que ele acabou de registrar — e ele não teria como
+ * saber que perdeu, porque a tela mostraria erro sobre uma escrita que aconteceu.
+ *
+ * O padrão continua sendo **não avisar**: sem notificador, sem parâmetros ou sem a flag ligada para
+ * aquele tipo, nada sai.
+ */
+async function notifyOccurrence(input: RegisterTripOccurrenceInput): Promise<void> {
+  if (input.notifier === undefined || input.notificationParameters === undefined) return
+
+  const notification = resolveOccurrenceNotification({
+    parameters: input.notificationParameters,
+    settings: input.notificationSettings ?? [],
+    type: input.type,
+  })
+  if (notification === null) return
+
+  try {
+    await input.notifier.notify({
+      companyId: input.companyId,
+      parameters: notification.parameters,
+      templateKey: notification.templateKey,
+    })
+  } catch {
+    // Engolido de propósito: ver o comentário acima.
+  }
 }

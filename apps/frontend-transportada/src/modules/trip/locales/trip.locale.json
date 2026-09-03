@@ -310,7 +310,11 @@
       "recusa_parcial": "Recusa parcial",
       "avaria_transporte": "Avaria no transporte",
       "destinatario_ausente": "Destinatário ausente"
-    }
+    },
+    "notificationsTitle": "Avisos por ocorrência",
+    "notificationsHint": "O aviso vai para quem despachou a viagem. O padrão é não avisar: ligue apenas os tipos que precisam de reação.",
+    "stageSeparation": "No galpão",
+    "stageDelivery": "Na rua"
   },
   "routeMap": {
     "title": "Mapa do roteiro",
@@ -332,5 +336,9 @@
     "phone": "Telefone: {{phone}}",
     "withoutPhone": "Sem telefone na nota",
     "contractor": "Contratante: {{name}}"
+  },
+  "tabs": {
+    "trips": "Viagens",
+    "notifications": "Avisos"
   }
 }

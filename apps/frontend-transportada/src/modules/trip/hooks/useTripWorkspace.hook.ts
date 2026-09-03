@@ -4,6 +4,7 @@ import { useState } from 'react'
 
 import type { DeliveryProof } from '../shared/deliveryProof.service'
 import type { RouteGeometry } from '../shared/routeGeometry.service'
+import type { OccurrenceNotificationEntry } from '../shared/occurrence.constant'
 import type { TripDocumentProduct, TripOccurrence } from '../shared/trip.types'
 import { resolveTripRefetchInterval } from '../shared/tripPolling.service'
 
@@ -67,6 +68,10 @@ export type TripController = Readonly<{
   correctGeocodedAddress: (
     input: Readonly<{ addressKey: string; latitude: string; longitude: string }>,
   ) => Promise<void>
+  readOccurrenceNotifications: () => Promise<readonly OccurrenceNotificationEntry[]>
+  saveOccurrenceNotification: (
+    input: Readonly<{ notifies: boolean; type: string }>,
+  ) => Promise<readonly OccurrenceNotificationEntry[]>
   registerTripOccurrence: (
     input: TripDocumentActionInput & { readonly note: string; readonly type: string },
   ) => Promise<TripOccurrence>
@@ -126,6 +131,8 @@ export function createTripController(
       canReadTrips ? input.client.readTripOccurrences(body) : forbidden(),
     correctGeocodedAddress: (body) =>
       canManageTrips ? input.client.correctGeocodedAddress(body) : forbidden(),
+    readOccurrenceNotifications: () => input.client.readOccurrenceNotifications(),
+    saveOccurrenceNotification: (body) => input.client.saveOccurrenceNotification(body),
     registerTripOccurrence: (body) =>
       canManageTrips ? input.client.registerTripOccurrence(body) : forbidden(),
     readTripDocumentProducts: (body) =>

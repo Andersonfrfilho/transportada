@@ -32,7 +32,11 @@ import type {
 } from './trip.types'
 import type { DeliveryProof } from './deliveryProof.service'
 import type { RouteGeometry } from './routeGeometry.service'
+import type { OccurrenceNotificationEntry } from './occurrence.constant'
 import { isRecord, isString } from './tripGuards.validation'
+
+/** Spec 079: a configuração é da empresa, não da viagem — ligar vale para toda viagem. */
+const OCCURRENCE_NOTIFICATIONS_PATH = '/company-settings/occurrence-notifications'
 import { createTripResponseAdapters } from './tripResponse.validation'
 
 type ClientDependencies = Readonly<{
@@ -52,6 +56,10 @@ export type TripClient = Readonly<{
   readDeliveryProofs: (input: TripDocumentActionInput) => Promise<readonly DeliveryProof[]>
   readRouteGeometry: (input: Readonly<{ tripId: string }>) => Promise<RouteGeometry>
   readTripOccurrences: (input: TripDocumentActionInput) => Promise<readonly TripOccurrence[]>
+  readOccurrenceNotifications: () => Promise<readonly OccurrenceNotificationEntry[]>
+  saveOccurrenceNotification: (
+    input: Readonly<{ notifies: boolean; type: string }>,
+  ) => Promise<readonly OccurrenceNotificationEntry[]>
   correctGeocodedAddress: (
     input: Readonly<{ addressKey: string; latitude: string; longitude: string }>,
   ) => Promise<void>
@@ -232,6 +240,23 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
          */
         path: `/geocoded-addresses/${encodeURIComponent(input.addressKey)}`,
       })
+    },
+    async readOccurrenceNotifications() {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: OCCURRENCE_NOTIFICATIONS_PATH,
+      })
+      return adapters.occurrenceNotificationsFromApi(readEnvelopeData(response))
+    },
+    async saveOccurrenceNotification(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({ notifies: input.notifies, type: input.type }),
+        dependencies,
+        method: 'PUT',
+        path: OCCURRENCE_NOTIFICATIONS_PATH,
+      })
+      return adapters.occurrenceNotificationsFromApi(readEnvelopeData(response))
     },
     async readTripOccurrences(input) {
       const response = await authorizedRequest({

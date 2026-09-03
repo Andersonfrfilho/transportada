@@ -726,3 +726,13 @@
   height: auto;
   color: var(--color-copper);
 }
+
+/* Cada grupo de tipos numa coluna: a lista é curta e quebra sozinha no celular (web.md §10). */
+.occurrenceStage {
+  display: grid;
+  gap: var(--space-2);
+  margin-block: var(--space-3);
+  border: 1px solid var(--color-slate);
+  border-radius: var(--radius-sm, 0.25rem);
+  padding: var(--space-3);
+}

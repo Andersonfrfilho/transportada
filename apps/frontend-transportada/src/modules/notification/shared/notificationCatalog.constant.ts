@@ -27,6 +27,7 @@ export const NOTIFICATION_SETTINGS_CATEGORY_IDS = [
   'billing',
   'identity',
   'mdfe',
+  // Spec 079: a ocorrência de entrega que a empresa escolheu ser avisada.
   'trip',
 ] as const
 
@@ -75,5 +76,6 @@ export const NOTIFICATION_PREVIEW_PAYLOAD: Readonly<Record<string, string>> = {
   plate: 'RTA2E19',
   reason: 'Certificado vencido',
   rejectionReason: 'Alíquota fora do intervalo permitido',
-  stopLabel: 'RUA QUINZE DE NOVEMBRO, SAO CARLOS, SP',
+  // O exemplo leva **número**: é a mesma regra do rótulo da parada, que imprimia rua sem ele.
+  stopLabel: 'RUA MIGUEL PETRONI, 1166, SAO CARLOS, SP',
 }

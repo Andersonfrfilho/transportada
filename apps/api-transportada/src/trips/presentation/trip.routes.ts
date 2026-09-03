@@ -10,7 +10,17 @@ import type { TripDocumentProduct } from '../application/read-trip-document-prod
 import type { TripOccurrence } from '../application/register-trip-occurrence.use-case.js'
 import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
 import { acceptsOccurrenceType } from '../domain/occurrence.policy.js'
-import { parseRegisterOccurrenceRequest } from './occurrence.schema.js'
+import {
+  parseOccurrenceNotificationRequest,
+  parseRegisterOccurrenceRequest,
+} from './occurrence.schema.js'
+import type { OccurrenceNotificationEntry } from '../domain/occurrence-settings.policy.js'
+
+type SaveOccurrenceNotificationInput = {
+  readonly context: CompanyContext
+  readonly notifies: boolean
+  readonly type: string
+}
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import { API_TRIPS_PATH, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
 import type { CreateTripMdfeManifestInput } from '../../mdfe-manifests/application/create-trip-mdfe-manifest.use-case.js'
@@ -86,6 +96,12 @@ const TRIP_DOCUMENT_PRODUCTS_PATH = `${TRIP_DOCUMENT_PATH}/products`
 const TRIP_DOCUMENT_OCCURRENCES_PATH = `${TRIP_DOCUMENT_PATH}/occurrences`
 const TRIP_DOCUMENT_SEPARATION_OCCURRENCE_PATH = `${TRIP_DOCUMENT_OCCURRENCES_PATH}/separation`
 const TRIP_DOCUMENT_DELIVERY_OCCURRENCE_PATH = `${TRIP_DOCUMENT_OCCURRENCES_PATH}/delivery`
+/**
+ * Spec 079: a configuração do aviso é **da empresa**, não da viagem — ligar "recusa total" vale
+ * para toda viagem, presente e futura. Pendurá-la numa viagem sugeriria um efeito local que ela
+ * não tem, o mesmo erro que a correção de endereço evita (ADR-0044 §3).
+ */
+const OCCURRENCE_NOTIFICATION_SETTINGS_PATH = '/company-settings/occurrence-notifications'
 
 type RegisterOccurrenceRouteInput = {
   readonly context: CompanyContext
@@ -159,6 +175,8 @@ const TRIP_CTE_BATCHES_PATH = `${API_TRIPS_PATH}/:id/cte-batches`
 const TRIP_MANAGE_POLICY = { permission: 'trip.manage', scope: 'company' } as const
 const TRIP_READ_POLICY = { permission: 'fleet.read', scope: 'company' } as const
 const MDFE_MANAGE_POLICY = { permission: 'mdfe.manage', scope: 'company' } as const
+/** Spec 079: ligar o aviso é configuração da empresa, e configuração é `settings.manage`. */
+const SETTINGS_MANAGE_POLICY = { permission: 'settings.manage', scope: 'company' } as const
 /**
  * ADR-0047 §4: o escopo do service account é **esta rota e nada mais**. Ela não é `mdfe.manage` de
  * propósito — quem emite manifesto à mão não deveria ganhar o gatilho de máquina de carona, e um
@@ -236,6 +254,16 @@ type Dependencies = {
   }
   readonly readDeliveryProofs: {
     execute(input: TenantInput<ReadDeliveryProofsRouteInput>): Promise<readonly DeliveryProofView[]>
+  }
+  readonly readOccurrenceNotifications: {
+    execute(input: {
+      readonly context: CompanyContext
+    }): Promise<readonly OccurrenceNotificationEntry[]>
+  }
+  readonly saveOccurrenceNotification: {
+    execute(
+      input: TenantInput<SaveOccurrenceNotificationInput>,
+    ): Promise<readonly OccurrenceNotificationEntry[]>
   }
   readonly listTripOccurrences: {
     execute(input: TenantInput<ReadDeliveryProofsRouteInput>): Promise<readonly TripOccurrence[]>
@@ -768,6 +796,33 @@ export function createTripRoutes(
      */
     occurrenceRoute({ pathname: TRIP_DOCUMENT_SEPARATION_OCCURRENCE_PATH, stage: 'separation' }),
     occurrenceRoute({ pathname: TRIP_DOCUMENT_DELIVERY_OCCURRENCE_PATH, stage: 'delivery' }),
+    defineRoute<undefined>({
+      async handle({ context }): Promise<Response> {
+        const settings = await dependencies.readOccurrenceNotifications.execute({
+          context: context.scope,
+        })
+        return jsonResponse({ body: { data: settings }, status: 200 })
+      },
+      method: 'GET',
+      parse: () => undefined,
+      pathname: OCCURRENCE_NOTIFICATION_SETTINGS_PATH,
+      policy: SETTINGS_MANAGE_POLICY,
+    }),
+    defineRoute<Omit<SaveOccurrenceNotificationInput, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        const settings = await dependencies.saveOccurrenceNotification.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({ body: { data: settings }, status: 200 })
+      },
+      method: 'PUT',
+      async parse({ request }) {
+        return parseOccurrenceNotificationRequest(request)
+      },
+      pathname: OCCURRENCE_NOTIFICATION_SETTINGS_PATH,
+      policy: SETTINGS_MANAGE_POLICY,
+    }),
     defineRoute<Omit<BatchStatusInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
         const result = await dependencies.batchStatus.execute({ context: context.scope, ...input })

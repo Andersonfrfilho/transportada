@@ -7,6 +7,7 @@ import { sql } from 'drizzle-orm'
 import {
   bigint,
   boolean,
+  primaryKey,
   check,
   foreignKey,
   index,
@@ -949,6 +950,41 @@ export const tripDocumentOccurrences = pgTable(
       table.companyId,
       table.tripDocumentId,
       table.createdAt,
+    ),
+  ],
+)
+
+/**
+ * Spec 079: quais tipos de ocorrência a empresa escolheu ser avisada.
+ *
+ * ⚠️ **Ausência de linha é não avisar.** O padrão é o silêncio, e ligar é decisão da empresa tipo a
+ * tipo. Linha com `false` é escolha registrada de não avisar — diferente de ausência, que é o
+ * padrão nunca tocado; guardar as duas deixa a tela mostrar o que foi decidido.
+ */
+export const companyOccurrenceNotificationSettings = pgTable(
+  'company_occurrence_notification_settings',
+  {
+    companyId: uuid('company_id').notNull(),
+    type: text().notNull().$type<TripOccurrenceType>(),
+    notifies: boolean().notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.companyId, table.type],
+      name: 'company_occurrence_notification_settings_pkey',
+    }),
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'company_occurrence_notification_settings_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    check(
+      'company_occurrence_notification_settings_type_check',
+      sql`${table.type} in (${raw(inList(TRIP_OCCURRENCE_TYPES.map((entry) => entry.type)))})`,
     ),
   ],
 )

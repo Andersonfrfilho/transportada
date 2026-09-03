@@ -1,4 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
@@ -7,6 +9,12 @@ import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
 import { TripCreationPanel } from '../components/TripCreationPanel.component'
 import { TripFilters } from '../components/TripFilters.component'
+import { Tabs } from '@/components/ui/tabs'
+
+import { SETTINGS_MANAGE_PERMISSION } from '@/modules/company-settings/shared/companySettings.constant'
+import { resolveSettingsDataScope } from '@/modules/company-settings/shared/companySettingsTabs.service'
+
+import { TripOccurrenceNotifications } from '../components/TripOccurrenceNotifications.component'
 import { TripTable } from '../components/TripTable.component'
 import { useTripCreation } from '../hooks/useTripCreation.hook'
 import { useTripTable } from '../hooks/useTripTable.hook'
@@ -99,6 +107,14 @@ function TripWorkspacePageSkeleton() {
   )
 }
 
+type TripTabId = 'notifications' | 'trips'
+
+const TRIP_TABS: readonly TripTabId[] = ['trips', 'notifications']
+
+function resolveTripTab(id: string): TripTabId {
+  return TRIP_TABS.find((tab) => tab === id) ?? 'trips'
+}
+
 export function TripWorkspacePage() {
   const { t } = useTranslation('trip')
   const authQuery = useAuthMeQuery()
@@ -108,6 +124,28 @@ export function TripWorkspacePage() {
   const tenant = { ...(companyId === undefined ? {} : { companyId }), permissions }
 
   const workspace = useTripWorkspace(tenant)
+
+  const queryClient = useQueryClient()
+  const [activeTab, setActiveTab] = useState<TripTabId>('trips')
+  const canManageSettings = permissions.includes(SETTINGS_MANAGE_PERMISSION)
+  const settingsScope = resolveSettingsDataScope('trip', activeTab)
+
+  /**
+   * Spec 079: é o `enabled` que faz o painel **vir preenchido** — abrir a aba busca o que já está
+   * gravado, em vez de mostrar todos os tipos desligados até alguém recarregar.
+   */
+  const occurrenceNotificationsQuery = useQuery({
+    enabled: canManageSettings && settingsScope.occurrenceNotifications,
+    queryFn: () => workspace.controller.readOccurrenceNotifications(),
+    queryKey: ['trip', 'occurrence-notifications'] as const,
+  })
+
+  const saveOccurrenceNotificationMutation = useMutation({
+    mutationFn: workspace.controller.saveOccurrenceNotification,
+    onSuccess: (entries) => {
+      queryClient.setQueryData(['trip', 'occurrence-notifications'], entries)
+    },
+  })
   const table = useTripTable({ canReadTrips: workspace.controller.canReadTrips, ...tenant })
   const creation = useTripCreation()
   const fleet = useFleet(tenant)
@@ -141,40 +179,68 @@ export function TripWorkspacePage() {
 
       {authQuery.isSuccess && !isForbidden ? (
         <div className={styles.deck}>
-          {feedbackKey === null ? null : (
-            <p className={styles.alert} role="alert">
-              {t(`feedback.${feedbackKey}`)}
-            </p>
-          )}
-
-          <TripCreationPanel
-            creation={creation}
-            drivers={fleet.viewModel.drivers ?? []}
-            isCreatePending={workspace.createMutation.isPending}
-            isReadOnly={!workspace.controller.canManageTrips}
-            onCreate={handleCreate}
-            tenant={tenant}
-            vehicles={fleet.viewModel.vehicles ?? []}
+          {/*
+           * Spec 079: **configuração perto do efeito.** O aviso de ocorrência se liga aqui, na tela
+           * onde a ocorrência é registrada e onde ela aparece — não numa tela de configurações que
+           * cresce sem fim e deixa quem liga longe do efeito.
+           */}
+          <Tabs
+            ariaLabel={t('title')}
+            items={TRIP_TABS.map((tab) => ({
+              id: tab,
+              label: t(`tabs.${tab}`),
+              panel:
+                tab === 'notifications' ? (
+                  <TripOccurrenceNotifications
+                    canManage={canManageSettings}
+                    entries={occurrenceNotificationsQuery.data ?? []}
+                    isSaving={saveOccurrenceNotificationMutation.isPending}
+                    onToggle={(toggle) => saveOccurrenceNotificationMutation.mutate(toggle)}
+                  />
+                ) : null,
+            }))}
+            onChange={(id) => setActiveTab(resolveTripTab(id))}
+            value={activeTab}
           />
 
-          <TripFilters table={table} />
+          {activeTab === 'notifications' ? null : (
+            <>
+              {feedbackKey === null ? null : (
+                <p className={styles.alert} role="alert">
+                  {t(`feedback.${feedbackKey}`)}
+                </p>
+              )}
 
-          {table.tripsQuery.isLoading ? (
-            <SkeletonGroup className={styles.panel} label={t('loading')}>
-              <div className={styles.panelHead}>
-                <Skeleton variant="text" width="6rem" />
-                <Skeleton variant="text" width="8rem" />
-              </div>
-              <TripsTableSkeleton />
-            </SkeletonGroup>
-          ) : null}
-          {table.tripsQuery.isError ? (
-            <p className={styles.hint} role="alert">
-              {t('error')}
-            </p>
-          ) : null}
+              <TripCreationPanel
+                creation={creation}
+                drivers={fleet.viewModel.drivers ?? []}
+                isCreatePending={workspace.createMutation.isPending}
+                isReadOnly={!workspace.controller.canManageTrips}
+                onCreate={handleCreate}
+                tenant={tenant}
+                vehicles={fleet.viewModel.vehicles ?? []}
+              />
 
-          {table.tripsQuery.isLoading ? null : <TripTable table={table} />}
+              <TripFilters table={table} />
+
+              {table.tripsQuery.isLoading ? (
+                <SkeletonGroup className={styles.panel} label={t('loading')}>
+                  <div className={styles.panelHead}>
+                    <Skeleton variant="text" width="6rem" />
+                    <Skeleton variant="text" width="8rem" />
+                  </div>
+                  <TripsTableSkeleton />
+                </SkeletonGroup>
+              ) : null}
+              {table.tripsQuery.isError ? (
+                <p className={styles.hint} role="alert">
+                  {t('error')}
+                </p>
+              ) : null}
+
+              {table.tripsQuery.isLoading ? null : <TripTable table={table} />}
+            </>
+          )}
         </div>
       ) : null}
     </main>

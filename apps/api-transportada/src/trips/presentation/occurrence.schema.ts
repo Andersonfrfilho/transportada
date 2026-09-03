@@ -26,3 +26,17 @@ export async function parseRegisterOccurrenceRequest(
 ): Promise<RegisterOccurrenceBody> {
   return parseBody(registerOccurrenceSchema, request)
 }
+
+/** A escolha é por tipo, e o `strict()` recusa campo a mais — inclusive `companyId` do cliente. */
+const occurrenceNotificationSchema = z
+  .object({
+    notifies: z.boolean(),
+    type: z.string().trim().min(1),
+  })
+  .strict()
+
+export async function parseOccurrenceNotificationRequest(
+  request: Request,
+): Promise<z.infer<typeof occurrenceNotificationSchema>> {
+  return parseBody(occurrenceNotificationSchema, request)
+}

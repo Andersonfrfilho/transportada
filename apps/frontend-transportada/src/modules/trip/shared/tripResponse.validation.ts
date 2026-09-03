@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { DeliveryProof } from './deliveryProof.service'
+import type { OccurrenceNotificationEntry } from './occurrence.constant'
 import type { TripDocumentProduct, TripOccurrence } from './trip.types'
 import { ROUTE_GEOMETRY_SOURCES, type RouteGeometry } from './routeGeometry.service'
 import {
@@ -413,6 +414,10 @@ export function createTripResponseAdapters() {
       if (!points.every(isGeometryPoint)) return { points: [], source: 'unavailable' }
       return { points, source: input.source }
     },
+    occurrenceNotificationsFromApi(input: unknown): readonly OccurrenceNotificationEntry[] {
+      if (!Array.isArray(input) || !input.every(isOccurrenceNotification)) throw invalid()
+      return input
+    },
     occurrencesFromApi(input: unknown): readonly TripOccurrence[] {
       if (!Array.isArray(input) || !input.every(isOccurrence)) throw invalid()
       return input
@@ -502,4 +507,13 @@ function isGeometryPoint(
   value: unknown,
 ): value is Readonly<{ latitude: string; longitude: string }> {
   return isRecord(value) && isString(value.latitude) && isString(value.longitude)
+}
+
+function isOccurrenceNotification(value: unknown): value is OccurrenceNotificationEntry {
+  if (!hasExactKeys(value, ['notifies', 'stage', 'type'] as const)) return false
+  return (
+    isBoolean(value.notifies) &&
+    (value.stage === 'delivery' || value.stage === 'separation') &&
+    isString(value.type)
+  )
 }

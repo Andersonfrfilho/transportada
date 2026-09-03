@@ -38,3 +38,10 @@ export function separationOccurrenceTypes(): readonly TripOccurrenceType[] {
     (entry) => entry.stage === TRIP_OCCURRENCE_STAGE.separation,
   ).map((entry) => entry.type)
 }
+
+/** Spec 079: uma linha por tipo do catálogo — os sete, sempre, mesmo os que ninguém ligou. */
+export type OccurrenceNotificationEntry = Readonly<{
+  notifies: boolean
+  stage: TripOccurrenceStage
+  type: TripOccurrenceType
+}>

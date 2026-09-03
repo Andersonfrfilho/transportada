@@ -148,10 +148,15 @@ import { listTripStopCoordinates } from './trips/infrastructure/trip-stop-coordi
 import { createDeliveryProofDownloadGateway } from './trips/infrastructure/delivery-proof-download.gateway.js'
 import { readTripDocumentProducts } from './trips/application/read-trip-document-products.use-case.js'
 import { registerTripOccurrence } from './trips/application/register-trip-occurrence.use-case.js'
+import { buildOccurrenceNotificationView } from './trips/domain/occurrence-settings.policy.js'
+import { createOccurrenceNotifier } from './trips/infrastructure/occurrence-notifier.gateway.js'
 import {
   listDeliveryProofs,
   listDocumentProducts,
+  listOccurrenceNotificationSettings,
   listTripOccurrences,
+  readOccurrenceLabels,
+  saveOccurrenceNotificationSetting,
   saveTripOccurrence,
 } from './trips/infrastructure/delivery-proof-read.support.js'
 import { createMdfeDocumentSource } from './mdfe-manifests/infrastructure/mdfe-document.query.js'
@@ -1650,6 +1655,28 @@ function createApplicationRoutes({
       createTrip: { execute: (input) => trips.create(input) },
       createTripMdfeManifest: { execute: (input) => createTripMdfeManifest.execute(input) },
       deliverTripDocument: { execute: (input) => tripLifecycle.deliver.execute(input) },
+      readOccurrenceNotifications: {
+        execute: async (input) =>
+          buildOccurrenceNotificationView({
+            settings: await listOccurrenceNotificationSettings(database, {
+              companyId: input.context.companyId,
+            }),
+          }),
+      },
+      saveOccurrenceNotification: {
+        execute: async (input) => {
+          await saveOccurrenceNotificationSetting(database, {
+            companyId: input.context.companyId,
+            notifies: input.notifies,
+            type: input.type as never,
+          })
+          return buildOccurrenceNotificationView({
+            settings: await listOccurrenceNotificationSettings(database, {
+              companyId: input.context.companyId,
+            }),
+          })
+        },
+      },
       listTripOccurrences: {
         execute: (input) =>
           listTripOccurrences(database, {
@@ -1659,13 +1686,39 @@ function createApplicationRoutes({
           }),
       },
       registerTripOccurrence: {
-        execute: (input) =>
+        execute: async (input) =>
           registerTripOccurrence({
             actorUserId: input.context.userId,
             companyId: input.context.companyId,
             documentId: input.documentId,
             note: input.note,
             productCode: input.productCode,
+            /**
+             * Spec 079: o aviso sai **se** a empresa ligou aquele tipo. A leitura da configuração
+             * acontece por registro — é uma consulta pequena, por empresa, e cacheá-la faria a
+             * escolha recém-salva demorar a valer sem ninguém entender por quê.
+             */
+            notificationParameters: {
+              ...(await readOccurrenceLabels(database, {
+                companyId: input.context.companyId,
+                documentId: input.documentId,
+                tripId: input.tripId,
+              })),
+              occurrenceType: input.type,
+              tripId: input.tripId,
+            },
+            notificationSettings: await listOccurrenceNotificationSettings(database, {
+              companyId: input.context.companyId,
+            }),
+            notifier: createOccurrenceNotifier({
+              logger,
+              queryable: database,
+              send: (params) =>
+                notifications.useCases.sendNotification.execute({
+                  ...params,
+                  locale: NOTIFICATION_DEFAULT_LOCALE,
+                } as never),
+            }),
             repository: {
               listOccurrences: (query) => listTripOccurrences(database, query),
               saveOccurrence: (query) => saveTripOccurrence(database, query),

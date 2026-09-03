@@ -146,6 +146,7 @@ import {
 import {
   tripDispatchSnapshots,
   tripDocumentEvents,
+  companyOccurrenceNotificationSettings,
   tripDocumentOccurrences,
   tripDocuments,
   tripDrivers,
@@ -316,6 +317,7 @@ export const databaseSchema = {
   tripFinancialParcels,
   tripFinancialResults,
   tripDocumentEvents,
+  companyOccurrenceNotificationSettings,
   tripDocumentOccurrences,
   tripDocuments,
   tripDrivers,

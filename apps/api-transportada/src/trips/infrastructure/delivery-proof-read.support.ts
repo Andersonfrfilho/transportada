@@ -6,19 +6,27 @@
  * uma junção sem `company_id` em qualquer degrau é o caminho pelo qual o canhoto de uma empresa
  * aparece na tela de outra.
  */
-import { and, asc, eq, inArray } from 'drizzle-orm'
+import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 
-import { nfeAddresses, nfeParticipants, nfeProducts } from '../../database/nfe.schema.js'
+import {
+  nfeAddresses,
+  nfeDocuments,
+  nfeParticipants,
+  nfeProducts,
+} from '../../database/nfe.schema.js'
 import { storedObjects } from '../../database/storage.schema.js'
 import {
+  companyOccurrenceNotificationSettings,
   tripDeliveryProofs,
   tripDocumentOccurrences,
   tripDocuments,
   tripStopEvents,
+  tripStops,
 } from '../../database/trip.schema.js'
 import type { DeliveryProofRecord } from '../application/read-delivery-proof.use-case.js'
 import type { TripDocumentProduct } from '../application/read-trip-document-products.use-case.js'
 import type { TripOccurrence } from '../application/register-trip-occurrence.use-case.js'
+import type { TripOccurrenceType } from '../../shared/trip-occurrence.constant.js'
 import { contractors } from '../../database/delivery-client.schema.js'
 import { resolveDeliveryContact } from '../domain/delivery-contact.policy.js'
 import type { DeliveryContact } from '../domain/delivery-contact.policy.js'
@@ -290,4 +298,92 @@ export async function listDeliveryContacts(
   }
 
   return contacts
+}
+
+export async function listOccurrenceNotificationSettings(
+  queryable: TripQueryable,
+  input: { readonly companyId: string },
+): Promise<readonly { notifies: boolean; type: string }[]> {
+  return queryable
+    .select({
+      notifies: companyOccurrenceNotificationSettings.notifies,
+      type: companyOccurrenceNotificationSettings.type,
+    })
+    .from(companyOccurrenceNotificationSettings)
+    .where(eq(companyOccurrenceNotificationSettings.companyId, input.companyId))
+}
+
+/**
+ * Grava a escolha da empresa. **Linha com `false` é gravada**, não apagada: ausência é o padrão
+ * nunca tocado, e `false` é a decisão registrada de não avisar — a tela mostra a diferença.
+ */
+export async function saveOccurrenceNotificationSetting(
+  queryable: TripQueryable,
+  input: {
+    readonly companyId: string
+    readonly notifies: boolean
+    readonly type: TripOccurrenceType
+  },
+): Promise<void> {
+  await queryable
+    .insert(companyOccurrenceNotificationSettings)
+    .values({ companyId: input.companyId, notifies: input.notifies, type: input.type })
+    .onConflictDoUpdate({
+      set: { notifies: input.notifies, updatedAt: sql`now()` },
+      target: [
+        companyOccurrenceNotificationSettings.companyId,
+        companyOccurrenceNotificationSettings.type,
+      ],
+    })
+}
+
+/**
+ * Os rótulos que o aviso da ocorrência imprime. **Uma consulta**, e só quando alguém registra uma
+ * ocorrência — ação manual, nunca em laço.
+ *
+ * ⚠️ Rótulo ausente vira string vazia, e o template renderiza o buraco: é melhor um aviso com
+ * lacuna do que nenhum aviso, porque a lacuna é visível e a ausência não.
+ */
+export async function readOccurrenceLabels(
+  queryable: TripQueryable,
+  input: {
+    readonly companyId: string
+    readonly documentId: string
+    readonly tripId: string
+  },
+): Promise<{ readonly documentLabel: string; readonly stopLabel: string }> {
+  const [row] = await queryable
+    .select({
+      nfeNumber: nfeDocuments.number,
+      nfeSeries: nfeDocuments.series,
+      stopLabel: tripStops.label,
+    })
+    .from(tripDocuments)
+    .leftJoin(
+      nfeDocuments,
+      and(
+        eq(nfeDocuments.companyId, tripDocuments.companyId),
+        eq(nfeDocuments.id, tripDocuments.nfeDocumentId),
+      ),
+    )
+    .leftJoin(
+      tripStops,
+      and(eq(tripStops.companyId, tripDocuments.companyId), eq(tripStops.id, tripDocuments.stopId)),
+    )
+    .where(
+      and(
+        eq(tripDocuments.companyId, input.companyId),
+        eq(tripDocuments.id, input.documentId),
+        eq(tripDocuments.tripId, input.tripId),
+      ),
+    )
+    .limit(1)
+
+  const number = row?.nfeNumber ?? ''
+  const series = row?.nfeSeries ?? ''
+
+  return {
+    documentLabel: number === '' ? '' : series === '' ? number : `${number}/${series}`,
+    stopLabel: row?.stopLabel ?? '',
+  }
 }

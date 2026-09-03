@@ -14,6 +14,7 @@ export const SETTINGS_PANELS = [
   'freightRegions',
   'nfseCredential',
   'nfseProfiles',
+  'occurrenceNotifications',
 ] as const
 
 export type SettingsPanel = (typeof SETTINGS_PANELS)[number]
@@ -23,6 +24,7 @@ export const SETTINGS_PANEL_MODULES = [
   'fleet',
   'nfe-workspace',
   'nfse-invoice',
+  'trip',
 ] as const
 
 export type SettingsPanelModule = (typeof SETTINGS_PANEL_MODULES)[number]
@@ -37,6 +39,7 @@ export type SettingsDataSource =
   | 'fuelPrices'
   | 'landing'
   | 'nfse'
+  | 'occurrenceNotifications'
   | 'scheduledDistribution'
 
 export type SettingsDataScope = Readonly<Record<SettingsDataSource, boolean>>
@@ -69,6 +72,16 @@ export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPa
   distributionCursor: { module: 'nfe-workspace', source: 'distributionCursor', tab: 'imports' },
   freightRegions: { module: 'fleet', source: 'freightRegions', tab: 'regions' },
   fuelPrices: { module: 'fleet', source: 'fuelPrices', tab: 'fuel' },
+  /**
+   * Spec 079 — o aviso de ocorrência mora **na tela de viagens**, que é onde a ocorrência é
+   * registrada e onde ela aparece. Numa tela de configurações genérica, quem liga o aviso estaria
+   * longe do efeito dele — que é justamente o que a regra "configuração perto do efeito" evita.
+   */
+  occurrenceNotifications: {
+    module: 'trip',
+    source: 'occurrenceNotifications',
+    tab: 'notifications',
+  },
   /**
    * Spec 068 — os contatos e as redes moram na aba Site: é o mesmo cadastro público que a landing
    * publica, e é onde o operador já está quando pensa em "o que aparece para quem me procura". O
@@ -130,6 +143,7 @@ export function resolveSettingsDataScope(
     fuelPrices: sources.has('fuelPrices'),
     landing: sources.has('landing'),
     nfse: sources.has('nfse'),
+    occurrenceNotifications: sources.has('occurrenceNotifications'),
     scheduledDistribution: sources.has('scheduledDistribution'),
   }
 }

@@ -17,7 +17,8 @@
     "nfse": "NFS-e",
     "trip": "Trips and deliveries",
     "subtitle": "Choose where each subject reaches you. The inbox keeps everything either way.",
-    "title": "Notification preferences"
+    "title": "Notification preferences",
+    "trip": "Trips"
   },
   "test": {
     "send": "Send a test to me",
