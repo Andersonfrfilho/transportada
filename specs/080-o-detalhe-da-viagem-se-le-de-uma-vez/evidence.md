@@ -48,3 +48,38 @@ execução).
 Unificar a terceira grafia com as duas primeiras — e cobri-la com o mesmo contrato de paridade que
 já existe entre as outras duas. Sem isso, o conserto do mapa fica de pé sobre uma chave que volta
 a divergir na próxima mudança.
+
+## T006 — ícone em toda ação da viagem ✅
+
+Catorze botões estavam sem ícone (separar, carregar e devolver na linha e no lote; limpar seleção;
+registrar/enviar/cancelar ocorrência; corrigir/salvar/cancelar no mapa; ver comprovante), enquanto
+seis já levavam. A mesma ação recebeu o mesmo símbolo nos dois lugares — `check`, `truck`,
+`arrow-up`.
+
+O contrato varre por glob os componentes de `trip` e `trip-financials`, então botão novo entra na
+conferência sem ninguém lembrar. **Mutação:** removido um ícone → 2 reprovações; restaurado → verde.
+Gates: 2405 testes do frontend, lint, typecheck, format.
+
+## T007 — o número volta ao rótulo da parada ✅
+
+O conserto do rótulo já existia (`stop-label.policy.ts`, 02/09 17:02). O que faltava era dado:
+`trip_stops.label` é gravado **uma vez**, na criação, e nunca recalculado — parada criada antes
+daquela hora guarda o texto velho, e foi isso que apareceu na tela.
+
+O rótulo passou a ser derivado na leitura, de `address.label` (que `chooseNfeDestinationRow` já
+monta com `buildStopLabel`). Uma consulta a mais por viagem, em lote, na forma de
+`listDeliveryContacts` — nunca uma por parada.
+
+⚠️ **Descartada a migration em SQL**: seria a quarta grafia de endereço nesta base, e a terceira já
+divergiu em silêncio (T001). **Mutação:** servido o gravado → reprova; derivado → verde.
+Gates: 4071 testes da API, lint, typecheck, format.
+
+## T008 — bloqueada por decisão de escopo ⏸️
+
+`POST /trips/:id/cte-batches` emite o lote da **viagem inteira**: `createTripCteBatch` deriva as
+notas de `selectPendingCteDocuments(readiness)` e não aceita subconjunto. Um botão na linha da nota
+que dissesse "esta nota" e emitisse todas seria pior que o painel de hoje.
+
+Decisão pendente: emitir por nota (mudança de API — corpo com `documentIds`, e o que fazer quando o
+subconjunto some com o lote em voo) ou manter a emissão por viagem e apenas aproximar a ação da
+lista.
