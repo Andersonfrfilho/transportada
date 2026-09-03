@@ -63,9 +63,15 @@ describe('o contato do motorista na tela da viagem', () => {
       new URL('src/modules/trip/components/TripDetail.component.tsx', APPLICATION_ROOT),
     ).text()
 
-    expect(detalhe).toContain('`tel:${driver.driverPhone}`')
-    expect(detalhe).toContain('`mailto:${driver.driverEmail}`')
-    expect(detalhe).toContain("driver.driverPhone === '' ? null")
-    expect(detalhe).toContain("driver.driverEmail === '' ? null")
+    expect(detalhe).toContain('`tel:${phone}`')
+    expect(detalhe).toContain('`mailto:${email}`')
+    expect(detalhe).toContain("phone === '' ? null")
+    expect(detalhe).toContain("email === '' ? null")
+    /**
+     * ⚠️ O contato nasce opcional, então em execução ele chega **ausente** de API anterior. Ler
+     * `=== ''` direto derrubava a tela em `formatPhone(undefined)` — o smoke pegou, o contrato não.
+     */
+    expect(detalhe).toContain("driver.driverPhone ?? ''")
+    expect(detalhe).toContain("driver.driverEmail ?? ''")
   })
 })

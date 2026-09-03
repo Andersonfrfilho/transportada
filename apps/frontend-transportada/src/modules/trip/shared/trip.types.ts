@@ -28,12 +28,12 @@ export type TripDriverLine = Readonly<{
    * Contato **corrente** do motorista, da ficha da frota — vazio quando ela não tem. Nome e CPF
    * continuam sendo o retrato de quando a viagem foi montada.
    */
-  driverEmail: string
+  driverEmail?: string
   driverId: string
   driverName: string
   driverTaxId: string
   position: number
-  driverPhone: string
+  driverPhone?: string
 }>
 
 export type Trip = Readonly<{

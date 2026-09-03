@@ -337,23 +337,33 @@ export function TripDetail({ linkForm, onClose, vehicles, workspace }: TripDetai
          * Nome sozinho obrigava a abrir a frota noutra aba para achar o telefone. O contato é
          * **link**, não texto: quem está no galpão toca e liga, sem copiar número à mão.
          */}
-        {trip.drivers.map((driver) => (
-          <span className={styles.driverLine} key={driver.driverId}>
-            <strong>{driver.driverName}</strong>
-            {driver.driverPhone === '' ? null : (
-              <a href={`tel:${driver.driverPhone}`}>
-                <Icon name="send" />
-                {formatPhone(driver.driverPhone)}
-              </a>
-            )}
-            {driver.driverEmail === '' ? null : (
-              <a href={`mailto:${driver.driverEmail}`}>
-                <Icon name="copy" />
-                {driver.driverEmail}
-              </a>
-            )}
-          </span>
-        ))}
+        {trip.drivers.map((driver) => {
+          /**
+           * `??` e não `=== ''`: o contato nasceu opcional (spec 078 D2), e uma API anterior o
+           * serve **ausente**. Tratá-lo como sempre presente derrubava a tela inteira em
+           * `formatPhone(undefined)` — a mesma armadilha do rótulo que imprimia `undefined/`.
+           */
+          const phone = driver.driverPhone ?? ''
+          const email = driver.driverEmail ?? ''
+
+          return (
+            <span className={styles.driverLine} key={driver.driverId}>
+              <strong>{driver.driverName}</strong>
+              {phone === '' ? null : (
+                <a href={`tel:${phone}`}>
+                  <Icon name="send" />
+                  {formatPhone(phone)}
+                </a>
+              )}
+              {email === '' ? null : (
+                <a href={`mailto:${email}`}>
+                  <Icon name="copy" />
+                  {email}
+                </a>
+              )}
+            </span>
+          )
+        })}
       </fieldset>
 
       {/*
