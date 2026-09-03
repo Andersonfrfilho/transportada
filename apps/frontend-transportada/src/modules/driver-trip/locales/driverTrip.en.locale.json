@@ -25,6 +25,11 @@
     "opening": "Getting…",
     "failed": "The document could not be fetched right now. The access key above still holds for inspection."
   },
+  "nav": {
+    "label": "Application sections",
+    "profile": "Profile",
+    "trip": "Trip"
+  },
   "navigate": "Navigate",
   "noTrip": "Nothing for today. Your trip shows up here once the office dispatches it.",
   "notRegistered": "Your account is not linked to a driver record yet. Talk to the office.",
@@ -41,6 +46,21 @@
     "unexpected_charge": "Unexpected charge"
   },
   "occurrenceSend": "Record",
+  "profile": {
+    "noTrip": "No trip in progress.",
+    "queueEmpty": "Nothing waiting to be sent.",
+    "queueTitle": "Send queue",
+    "roles": {
+      "aggregate": "Aggregate driver",
+      "driver": "Driver",
+      "unknown": "No field role"
+    },
+    "signOut": "Sign out",
+    "vehicleTitle": "Trip vehicle"
+  },
+  "progress": {
+    "label": "{{resolved}} of {{total}} stops resolved"
+  },
   "proof": "Attach proof",
   "proofFailed": "The file could not be attached. The delivery is still recorded.",
   "queued_one": "{{count}} confirmation waiting to be sent",

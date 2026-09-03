@@ -25,6 +25,11 @@
     "opening": "Obtendo…",
     "failed": "Não foi possível obter o documento agora. A chave acima continua valendo para conferência."
   },
+  "nav": {
+    "label": "Seções do aplicativo",
+    "profile": "Perfil",
+    "trip": "Viagem"
+  },
   "navigate": "Navegar",
   "noTrip": "Nada para hoje. Quando o escritório despachar sua viagem, ela aparece aqui.",
   "notRegistered": "Sua conta ainda não está ligada a um cadastro de motorista. Fale com o escritório.",
@@ -41,6 +46,21 @@
     "unexpected_charge": "Cobrança inesperada"
   },
   "occurrenceSend": "Registrar",
+  "profile": {
+    "noTrip": "Sem viagem em andamento.",
+    "queueEmpty": "Nada aguardando envio.",
+    "queueTitle": "Fila de envio",
+    "roles": {
+      "aggregate": "Agregado",
+      "driver": "Motorista",
+      "unknown": "Sem papel de campo"
+    },
+    "signOut": "Sair",
+    "vehicleTitle": "Veículo da viagem"
+  },
+  "progress": {
+    "label": "{{resolved}} de {{total}} paradas resolvidas"
+  },
   "proof": "Anexar canhoto",
   "proofFailed": "Não foi possível anexar o arquivo. A entrega continua registrada.",
   "queued_one": "{{count}} confirmação aguardando envio",

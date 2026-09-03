@@ -255,3 +255,196 @@
     break-inside: avoid;
   }
 }
+
+/* Spec 082 D1 — shell do módulo: header de marca, progresso da viagem e barra inferior.
+   Cantos quadrados de propósito: o mockup aprovado é radius 0 em todo o shell do campo. */
+.moduleShell {
+  display: grid;
+  min-height: 100dvh;
+  align-content: start;
+  /* A barra inferior é fixa: sem esta folga a última parada fica escondida atrás dela. */
+  padding-bottom: var(--space-16);
+}
+
+.moduleHeader {
+  align-items: center;
+  background: var(--color-graphite);
+  border-bottom: 1px solid var(--color-slate);
+  border-radius: 0;
+  display: flex;
+  gap: var(--space-3);
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+}
+
+.moduleBrand {
+  align-items: center;
+  display: flex;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.moduleBrandLogo {
+  height: var(--space-8);
+  width: var(--space-8);
+}
+
+.moduleBrandCopy {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.moduleCompanyName {
+  color: var(--color-slate);
+  font-size: var(--field-font-size-compact);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.driverAvatar {
+  align-items: center;
+  background: color-mix(in srgb, var(--color-copper) 25%, transparent);
+  border: 1px solid var(--color-copper);
+  border-radius: 0;
+  display: inline-flex;
+  font-weight: 700;
+  height: var(--space-10);
+  justify-content: center;
+  width: var(--space-10);
+}
+
+.driverAvatarLarge {
+  composes: driverAvatar;
+  font-size: 1.125rem;
+  height: var(--space-12);
+  width: var(--space-12);
+}
+
+/* Um segmento por parada: verde resolvida, cobre a corrente, cinza pendente. */
+.progressBar {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.progressSegment {
+  background: var(--color-slate);
+  border-radius: 0;
+  flex: 1;
+  height: var(--space-2);
+  transition: background-color 0.3s ease;
+}
+
+.progressSegment[data-state='resolved'] {
+  background: var(--color-ready);
+}
+
+.progressSegment[data-state='current'] {
+  background: var(--color-copper);
+}
+
+/* A pulsação da parada corrente só existe para quem não pediu movimento reduzido. */
+@media (prefers-reduced-motion: no-preference) {
+  .progressSegment[data-state='current'] {
+    animation: driver-progress-pulse 1.6s ease-in-out infinite;
+  }
+}
+
+@keyframes driver-progress-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.bottomBar {
+  background: var(--color-graphite);
+  border-radius: 0;
+  border-top: 1px solid var(--color-slate);
+  bottom: 0;
+  display: flex;
+  left: 0;
+  position: fixed;
+  right: 0;
+}
+
+.bottomBarItem {
+  align-items: center;
+  background: none;
+  border: none;
+  border-radius: 0;
+  color: var(--color-slate);
+  cursor: pointer;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  font: inherit;
+  gap: var(--space-1);
+  justify-content: center;
+  /* Alvo de toque: nunca abaixo de 44px para quem opera de pé, com uma mão. */
+  min-height: 2.75rem;
+  padding: var(--space-2);
+}
+
+.bottomBarItemActive {
+  composes: bottomBarItem;
+  color: var(--color-copper);
+  font-weight: 700;
+}
+
+.profileCard {
+  background: var(--color-graphite);
+  border: 1px solid var(--color-slate);
+  border-radius: 0;
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+}
+
+.profileIdentityCard {
+  composes: profileCard;
+  align-items: center;
+  display: flex;
+  gap: var(--space-3);
+}
+
+.profileIdentity {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.profileName {
+  font-size: 1.125rem;
+  margin: 0;
+}
+
+.profileRole {
+  color: var(--color-slate);
+  margin: 0;
+}
+
+.profileSectionTitle {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.profileMeta {
+  color: var(--color-slate);
+  margin: 0;
+}
+
+.signOutButton {
+  min-height: 2.75rem;
+}
+
+@media print {
+  .moduleHeader,
+  .bottomBar,
+  .progressBar {
+    display: none;
+  }
+}

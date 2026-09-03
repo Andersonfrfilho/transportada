@@ -4,10 +4,14 @@ import { useTranslation } from 'react-i18next'
 
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
+import { DriverBottomBar, type DriverSection } from '../components/DriverBottomBar.component'
 import { DriverLoadSheet } from '../components/DriverLoadSheet.component'
 import { DriverManifestCard } from '../components/DriverManifestCard.component'
+import { DriverShellHeader } from '../components/DriverShellHeader.component'
 import { DriverStopCard } from '../components/DriverStopCard.component'
+import { DriverTripProgress } from '../components/DriverTripProgress.component'
 import { useDriverTrip } from '../hooks/useDriverTrip.hook'
+import { DriverProfilePage } from './DriverProfile.page'
 import { getDriverTripClient } from '../shared/driverTripClient.service'
 import { readCurrentLocation } from '../shared/driverLocation.service'
 import { saveDriverFile } from '../shared/driverFileSave.service'
@@ -28,6 +32,8 @@ import styles from '../styles/driverTrip.module.css'
 export function DriverTripWorkspacePage() {
   const { t } = useTranslation('driverTrip')
   const driverTrip = useDriverTrip()
+  /** Spec 082 D1: navegação interna do módulo — estado local, sem rota nova no shell do app. */
+  const [section, setSection] = useState<DriverSection>('trip')
   /** O anexo que falha **não** desfaz a entrega: o aviso é do arquivo, e diz isso por extenso. */
   const [proofFailed, setProofFailed] = useState(false)
   /**
@@ -54,28 +60,46 @@ export function DriverTripWorkspacePage() {
     }
   }, [])
 
+  const snapshot = driverTrip.snapshot
+  const trip = snapshot?.trips[0]
+
   if (driverTrip.status === 'loading') {
     return (
-      <main className={styles.shell}>
-        <SkeletonGroup label={t('loading')}>
-          <Skeleton variant="text" />
-          <Skeleton variant="block" />
-          <Skeleton variant="block" />
-        </SkeletonGroup>
-      </main>
+      <div className={styles.moduleShell}>
+        <DriverShellHeader />
+        <main className={styles.shell}>
+          <SkeletonGroup label={t('loading')}>
+            <Skeleton variant="text" />
+            <Skeleton variant="block" />
+            <Skeleton variant="block" />
+          </SkeletonGroup>
+        </main>
+        <DriverBottomBar section={section} onSelect={setSection} />
+      </div>
     )
   }
 
   if (driverTrip.status === 'error') {
     return (
-      <main className={styles.shell}>
-        <p role="alert">{t('error')}</p>
-      </main>
+      <div className={styles.moduleShell}>
+        <DriverShellHeader />
+        <main className={styles.shell}>
+          <p role="alert">{t('error')}</p>
+        </main>
+        <DriverBottomBar section={section} onSelect={setSection} />
+      </div>
     )
   }
 
-  const snapshot = driverTrip.snapshot
-  const trip = snapshot?.trips[0]
+  if (section === 'profile') {
+    return (
+      <div className={styles.moduleShell}>
+        <DriverShellHeader />
+        <DriverProfilePage queuedCount={driverTrip.queuedCount} snapshot={snapshot} />
+        <DriverBottomBar section={section} onSelect={setSection} />
+      </div>
+    )
+  }
 
   async function openManifestDamdfe(manifestId: string): Promise<void> {
     const file = await getDriverTripClient().readManifestDamdfe(manifestId)
@@ -96,121 +120,127 @@ export function DriverTripWorkspacePage() {
   }
 
   return (
-    <main className={styles.shell}>
-      <header className={styles.header}>
-        <h1>{t('title')}</h1>
-        {trip === undefined ? null : (
-          <p className={styles.vehicle}>{t('vehicle', { plate: trip.vehiclePlate })}</p>
+    <div className={styles.moduleShell}>
+      <DriverShellHeader />
+      <main className={styles.shell}>
+        <header className={styles.header}>
+          <h1>{t('title')}</h1>
+          {trip === undefined ? null : (
+            <p className={styles.vehicle}>{t('vehicle', { plate: trip.vehiclePlate })}</p>
+          )}
+        </header>
+
+        {trip === undefined ? null : <DriverTripProgress trip={trip} />}
+
+        {/* A tela diz a verdade: o que está na fila aparece como aguardando, nunca como enviado */}
+        {driverTrip.queuedCount > 0 ? (
+          <p className={styles.queueBanner} role="status">
+            {t('queued', { count: driverTrip.queuedCount })}
+          </p>
+        ) : null}
+
+        {occurrenceFailed ? (
+          <p className={styles.alert} role="alert">
+            {t('documentOccurrenceFailed')}
+          </p>
+        ) : null}
+        {proofFailed ? (
+          <p className={styles.rejectedBanner} role="alert">
+            {t('proofFailed')}
+          </p>
+        ) : null}
+
+        {driverTrip.rejected.length > 0 ? (
+          <p className={styles.rejectedBanner} role="alert">
+            {t('rejected')}
+          </p>
+        ) : null}
+
+        {snapshot?.isRegisteredDriver === false ? <p role="alert">{t('notRegistered')}</p> : null}
+
+        {/* Spec 065 D9: com manifesto autorizado, o documento da barreira vem antes do romaneio */}
+        {trip?.manifest == null ? null : (
+          <DriverManifestCard
+            manifest={trip.manifest}
+            onOpenDamdfe={(manifestId) => openManifestDamdfe(manifestId)}
+            onOpenXml={(manifestId) => openManifestXml(manifestId)}
+          />
         )}
-      </header>
 
-      {/* A tela diz a verdade: o que está na fila aparece como aguardando, nunca como enviado */}
-      {driverTrip.queuedCount > 0 ? (
-        <p className={styles.queueBanner} role="status">
-          {t('queued', { count: driverTrip.queuedCount })}
-        </p>
-      ) : null}
+        {/* Spec 065 D1: o que ele leva na mão desde o despacho, e antes de existir MDF-e */}
+        {trip === undefined ? null : <DriverLoadSheet trip={trip} />}
 
-      {occurrenceFailed ? (
-        <p className={styles.alert} role="alert">
-          {t('documentOccurrenceFailed')}
-        </p>
-      ) : null}
-      {proofFailed ? (
-        <p className={styles.rejectedBanner} role="alert">
-          {t('proofFailed')}
-        </p>
-      ) : null}
-
-      {driverTrip.rejected.length > 0 ? (
-        <p className={styles.rejectedBanner} role="alert">
-          {t('rejected')}
-        </p>
-      ) : null}
-
-      {snapshot?.isRegisteredDriver === false ? <p role="alert">{t('notRegistered')}</p> : null}
-
-      {/* Spec 065 D9: com manifesto autorizado, o documento da barreira vem antes do romaneio */}
-      {trip?.manifest == null ? null : (
-        <DriverManifestCard
-          manifest={trip.manifest}
-          onOpenDamdfe={(manifestId) => openManifestDamdfe(manifestId)}
-          onOpenXml={(manifestId) => openManifestXml(manifestId)}
-        />
-      )}
-
-      {/* Spec 065 D1: o que ele leva na mão desde o despacho, e antes de existir MDF-e */}
-      {trip === undefined ? null : <DriverLoadSheet trip={trip} />}
-
-      {trip === undefined ? (
-        snapshot?.isRegisteredDriver === false ? null : (
-          <p>{t('noTrip')}</p>
-        )
-      ) : (
-        <ul className={styles.stopList}>
-          {trip.stops.map((stop) => (
-            <DriverStopCard
-              isCurrent={stop.id === findCurrentStop(trip)?.id}
-              key={stop.id}
-              stop={stop}
-              onArrive={(stopId) =>
-                void report((location) => ({
-                  idempotencyKey: createIdempotencyKey(),
-                  kind: 'arrive',
-                  location,
-                  stopId,
-                }))
-              }
-              onDeliver={(documentId) =>
-                void report((location) => ({
-                  documentId,
-                  idempotencyKey: createIdempotencyKey(),
-                  kind: 'deliver',
-                  location,
-                }))
-              }
-              onProof={(input: { documentId: string; file: File }) => {
-                void getDriverTripClient()
-                  .attachProof({ documentId: input.documentId, file: input.file, kind: 'photo' })
-                  .catch(() => setProofFailed(true))
-              }}
-              occurrenceTypes={occurrenceTypes}
-              onDocumentOccurrence={(input: {
-                documentId: string
-                occurrenceTypeId: string
-                productCode: string
-              }) => {
-                void getDriverTripClient()
-                  .registerDocumentOccurrence(input)
-                  .catch(() => setOccurrenceFailed(true))
-              }}
-              onOccurrence={(input: {
-                description: string
-                kind: DriverOccurrenceKind
-                stopId: string
-              }) =>
-                void driverTrip.report({
-                  description: input.description,
-                  documentId: null,
-                  idempotencyKey: createIdempotencyKey(),
-                  kind: 'occurrence',
-                  occurrenceKind: input.kind,
-                  stopId: input.stopId,
-                })
-              }
-              onReturn={(input: { documentId: string; reason: DriverReturnReason }) =>
-                void report((location) => ({
-                  documentId: input.documentId,
-                  idempotencyKey: createIdempotencyKey(),
-                  kind: 'return',
-                  location,
-                  reason: input.reason,
-                }))
-              }
-            />
-          ))}
-        </ul>
-      )}
-    </main>
+        {trip === undefined ? (
+          snapshot?.isRegisteredDriver === false ? null : (
+            <p>{t('noTrip')}</p>
+          )
+        ) : (
+          <ul className={styles.stopList}>
+            {trip.stops.map((stop) => (
+              <DriverStopCard
+                isCurrent={stop.id === findCurrentStop(trip)?.id}
+                key={stop.id}
+                stop={stop}
+                onArrive={(stopId) =>
+                  void report((location) => ({
+                    idempotencyKey: createIdempotencyKey(),
+                    kind: 'arrive',
+                    location,
+                    stopId,
+                  }))
+                }
+                onDeliver={(documentId) =>
+                  void report((location) => ({
+                    documentId,
+                    idempotencyKey: createIdempotencyKey(),
+                    kind: 'deliver',
+                    location,
+                  }))
+                }
+                onProof={(input: { documentId: string; file: File }) => {
+                  void getDriverTripClient()
+                    .attachProof({ documentId: input.documentId, file: input.file, kind: 'photo' })
+                    .catch(() => setProofFailed(true))
+                }}
+                occurrenceTypes={occurrenceTypes}
+                onDocumentOccurrence={(input: {
+                  documentId: string
+                  occurrenceTypeId: string
+                  productCode: string
+                }) => {
+                  void getDriverTripClient()
+                    .registerDocumentOccurrence(input)
+                    .catch(() => setOccurrenceFailed(true))
+                }}
+                onOccurrence={(input: {
+                  description: string
+                  kind: DriverOccurrenceKind
+                  stopId: string
+                }) =>
+                  void driverTrip.report({
+                    description: input.description,
+                    documentId: null,
+                    idempotencyKey: createIdempotencyKey(),
+                    kind: 'occurrence',
+                    occurrenceKind: input.kind,
+                    stopId: input.stopId,
+                  })
+                }
+                onReturn={(input: { documentId: string; reason: DriverReturnReason }) =>
+                  void report((location) => ({
+                    documentId: input.documentId,
+                    idempotencyKey: createIdempotencyKey(),
+                    kind: 'return',
+                    location,
+                    reason: input.reason,
+                  }))
+                }
+              />
+            ))}
+          </ul>
+        )}
+      </main>
+      <DriverBottomBar section={section} onSelect={setSection} />
+    </div>
   )
 }
