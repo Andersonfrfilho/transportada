@@ -36,6 +36,18 @@ export const NOTIFICATION_TEMPLATE_KEY = {
   MDFE_MANIFEST_ISSUANCE_FAILED: 'mdfe.manifest-issuance-failed',
   NFSE_INVOICE_REJECTED: 'nfse.invoice-rejected',
   TRIP_DELIVERY_OCCURRENCE: 'trip.delivery-occurrence',
+  /**
+   * Spec 082 D8: a ocorrência de **parada** que o motorista relata do celular, uma chave por
+   * motivo do catálogo (`TRIP_STOP_OCCURRENCE_KINDS`). O motorista nunca escreve o aviso — o
+   * texto é o template da transportadora, e a tela dele só mostra a prévia.
+   *
+   * ⚠️ `other` **não tem chave de propósito**: o motivo livre não tem texto fixo que preste, e
+   * motivo sem template configurado grava a ocorrência e segue, sem aviso.
+   */
+  TRIP_OCCURRENCE_APPOINTMENT_REQUIRED: 'trip.occurrence-appointment-required',
+  TRIP_OCCURRENCE_DOCK_CLOSED: 'trip.occurrence-dock-closed',
+  TRIP_OCCURRENCE_LONG_WAIT: 'trip.occurrence-long-wait',
+  TRIP_OCCURRENCE_UNEXPECTED_CHARGE: 'trip.occurrence-unexpected-charge',
 } as const
 export type NotificationTemplateKey =
   (typeof NOTIFICATION_TEMPLATE_KEY)[keyof typeof NOTIFICATION_TEMPLATE_KEY]
@@ -81,6 +93,72 @@ export const NOTIFICATION_CATALOG: readonly NotificationCatalogEntry[] = [
       },
       inbox: {
         body: 'A nota {{documentLabel}} teve uma ocorrência: {{occurrenceType}} ({{stopLabel}}).',
+      },
+    },
+  },
+  /**
+   * Spec 082 D8: o relato de parada do motorista, um template por motivo. Mesmas regras da
+   * ocorrência de entrega acima: sem PII (a hora, a parada e a nota — nunca quem recebeu), e o
+   * detalhe fica na viagem, atrás de autenticação. `{{documentLabel}}` sai como `—` quando o
+   * relato não aponta nota.
+   */
+  {
+    category: NOTIFICATION_CATEGORY.TRIP,
+    channels: NOTIFICATION_PRODUCT_CHANNELS,
+    placeholders: ['documentLabel', 'occurredAt', 'stopLabel'],
+    templateKey: NOTIFICATION_TEMPLATE_KEY.TRIP_OCCURRENCE_UNEXPECTED_CHARGE,
+    templates: {
+      email: {
+        body: 'O motorista relatou cobrança não prevista na parada {{stopLabel}} às {{occurredAt}}.\nNota: {{documentLabel}}.\nAbra a viagem no TransportAdA para ver o relato.',
+        subject: 'Cobrança não prevista na parada {{stopLabel}}',
+      },
+      inbox: {
+        body: 'Cobrança não prevista na parada {{stopLabel}} às {{occurredAt}} (nota {{documentLabel}}).',
+      },
+    },
+  },
+  {
+    category: NOTIFICATION_CATEGORY.TRIP,
+    channels: NOTIFICATION_PRODUCT_CHANNELS,
+    placeholders: ['documentLabel', 'occurredAt', 'stopLabel'],
+    templateKey: NOTIFICATION_TEMPLATE_KEY.TRIP_OCCURRENCE_LONG_WAIT,
+    templates: {
+      email: {
+        body: 'O motorista relatou espera longa na parada {{stopLabel}} às {{occurredAt}}.\nNota: {{documentLabel}}.\nAbra a viagem no TransportAdA para ver o relato.',
+        subject: 'Espera longa na parada {{stopLabel}}',
+      },
+      inbox: {
+        body: 'Espera longa na parada {{stopLabel}} às {{occurredAt}} (nota {{documentLabel}}).',
+      },
+    },
+  },
+  {
+    category: NOTIFICATION_CATEGORY.TRIP,
+    channels: NOTIFICATION_PRODUCT_CHANNELS,
+    placeholders: ['documentLabel', 'occurredAt', 'stopLabel'],
+    templateKey: NOTIFICATION_TEMPLATE_KEY.TRIP_OCCURRENCE_DOCK_CLOSED,
+    templates: {
+      email: {
+        body: 'O motorista encontrou a doca fechada na parada {{stopLabel}} às {{occurredAt}}.\nNota: {{documentLabel}}.\nAbra a viagem no TransportAdA para ver o relato.',
+        subject: 'Doca fechada na parada {{stopLabel}}',
+      },
+      inbox: {
+        body: 'Doca fechada na parada {{stopLabel}} às {{occurredAt}} (nota {{documentLabel}}).',
+      },
+    },
+  },
+  {
+    category: NOTIFICATION_CATEGORY.TRIP,
+    channels: NOTIFICATION_PRODUCT_CHANNELS,
+    placeholders: ['documentLabel', 'occurredAt', 'stopLabel'],
+    templateKey: NOTIFICATION_TEMPLATE_KEY.TRIP_OCCURRENCE_APPOINTMENT_REQUIRED,
+    templates: {
+      email: {
+        body: 'O motorista foi barrado por exigência de agendamento na parada {{stopLabel}} às {{occurredAt}}.\nNota: {{documentLabel}}.\nAbra a viagem no TransportAdA para ver o relato.',
+        subject: 'Agendamento exigido na parada {{stopLabel}}',
+      },
+      inbox: {
+        body: 'Agendamento exigido na parada {{stopLabel}} às {{occurredAt}} (nota {{documentLabel}}).',
       },
     },
   },

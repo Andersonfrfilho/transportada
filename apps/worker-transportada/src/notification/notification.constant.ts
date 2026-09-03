@@ -35,3 +35,26 @@ export const NOTIFICATION_TEMPLATE_PLACEHOLDERS = {
   'billing.invoice-due': ['dueDate', 'invoiceNumber'],
   'cte-batch.issuance-failed': ['batchName', 'failedCount'],
 } as const
+
+/**
+ * Spec 082 D8: as chaves da ocorrência de **parada** do motorista, uma por motivo tipado.
+ *
+ * ⚠️ Cópia por valor do catálogo da API — quem **dispara** é a API, pelo trilho `notification.v1`;
+ * este worker só consome a fila e renderiza o template semeado no banco. A cópia existe para o
+ * vocabulário ser conferível dos dois lados: `test/notification/occurrence-keys.contract.ts`
+ * guarda chave e marcadores contra os literais que a API semeia. `other` não tem chave de
+ * propósito — motivo sem template grava a ocorrência e segue, sem aviso.
+ */
+export const TRIP_OCCURRENCE_TEMPLATE_KEY = {
+  TRIP_OCCURRENCE_APPOINTMENT_REQUIRED: 'trip.occurrence-appointment-required',
+  TRIP_OCCURRENCE_DOCK_CLOSED: 'trip.occurrence-dock-closed',
+  TRIP_OCCURRENCE_LONG_WAIT: 'trip.occurrence-long-wait',
+  TRIP_OCCURRENCE_UNEXPECTED_CHARGE: 'trip.occurrence-unexpected-charge',
+} as const
+
+/** Os mesmos três marcadores em todo motivo: nota, hora e parada — nunca PII. */
+export const TRIP_OCCURRENCE_TEMPLATE_PLACEHOLDERS = [
+  'documentLabel',
+  'occurredAt',
+  'stopLabel',
+] as const

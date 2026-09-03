@@ -150,6 +150,7 @@ import { readTripDocumentProducts } from './trips/application/read-trip-document
 import { registerDriverOccurrence } from './trips/application/register-driver-occurrence.use-case.js'
 import { registerTripOccurrence } from './trips/application/register-trip-occurrence.use-case.js'
 import { createOccurrenceNotifier } from './trips/infrastructure/occurrence-notifier.gateway.js'
+import { createStopOccurrenceNotifier } from './trips/infrastructure/stop-occurrence-notifier.gateway.js'
 import {
   findDriverReachableDocument,
   listDeliveryProofs,
@@ -1691,6 +1692,20 @@ function createApplicationRoutes({
         reportStopOccurrence({
           ...input,
           attachmentObjectId: null,
+          /**
+           * Spec 082 D8: o aviso do motivo tipado sai pelo trilho `notification.v1` que já
+           * existe — o `sendNotification` do módulo enfileira no RabbitMQ e o worker consome e
+           * renderiza. Nenhuma fila nova; motivo sem template grava e segue.
+           */
+          notifier: createStopOccurrenceNotifier({
+            logger,
+            queryable: database,
+            send: (params) =>
+              notifications.useCases.sendNotification.execute({
+                ...params,
+                locale: NOTIFICATION_DEFAULT_LOCALE,
+              } as never),
+          }),
           suggestCharges: suggestDeliveryCharges,
           unitOfWork: driverFieldReports,
         }),
