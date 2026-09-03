@@ -49,4 +49,18 @@ describe('quem registra a ocorrência (spec 079 T020)', () => {
     expect(acceptsOccurrenceType({ stage: 'separation', type: 'inventado' })).toBe(false)
     expect(acceptsOccurrenceType({ stage: 'delivery', type: 'inventado' })).toBe(false)
   })
+
+  /**
+   * ⚠️ **O escritório registra ocorrência de entrega, e isso não é o furo de antes.** O furo era
+   * dar `trip.report` a uma rota da árvore `/trips/:id`: o motorista tem essa permissão, e ele
+   * alcançaria **qualquer** viagem da empresa. Com `trip.manage` — que o motorista não tem — a rota
+   * é do escritório, e é ele quem atende a ligação do motorista dizendo que a carga foi recusada.
+   *
+   * O motorista registrar do próprio celular continua sendo outra rota, na árvore `/me`, com o
+   * escopo da viagem ativa dele. Uma coisa não substitui a outra.
+   */
+  test('o escritório registra os dois grupos, e a permissão dele é trip.manage', () => {
+    expect(acceptsOccurrenceType({ stage: 'delivery', type: 'recusa_total' })).toBe(true)
+    expect(acceptsOccurrenceType({ stage: 'delivery', type: 'avaria_transporte' })).toBe(true)
+  })
 })

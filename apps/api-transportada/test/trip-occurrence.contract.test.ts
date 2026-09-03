@@ -3,3 +3,4 @@
  */
 import './trip-occurrence/catalog.contract'
 import './trip-occurrence/register.contract'
+import './trip-occurrence/notification.contract'

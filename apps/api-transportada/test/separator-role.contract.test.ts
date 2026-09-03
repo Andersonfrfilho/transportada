@@ -160,6 +160,16 @@ describe('separator role contract', () => {
        * quem encontra. A ocorrência de entrega não está aqui e não é esquecimento: ela é
        * `trip.report`, do campo, pela mesma linha da ADR-0043 que o impede de reportar entrega.
        */
+      /**
+       * ⚠️ **O separador alcança as duas**, e a de entrega merece a razão escrita: ela é
+       * `trip.manage` porque quem a registra é o **escritório** — quem atende a ligação do
+       * motorista dizendo que a carga foi recusada. Não é o motorista reportando do celular; essa é
+       * outra rota, na árvore `/me`, e ela ainda não existe.
+       *
+       * Se algum dia o escritório deixar de registrar ocorrência de rua, é aqui que a decisão se
+       * reabre — e o separador perde esta linha junto.
+       */
+      'POST /trips/:id/documents/:documentId/occurrences/delivery',
       'POST /trips/:id/documents/:documentId/occurrences/separation',
       'POST /trips/:id/documents/:documentId/return',
       'POST /trips/:id/documents/:documentId/separate',

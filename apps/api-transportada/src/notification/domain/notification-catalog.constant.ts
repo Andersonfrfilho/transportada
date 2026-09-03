@@ -14,6 +14,7 @@ export const NOTIFICATION_CATEGORY = {
   IDENTITY: 'identity',
   MDFE: 'mdfe',
   NFSE: 'nfse',
+  TRIP: 'trip',
 } as const
 export type NotificationCategory =
   (typeof NOTIFICATION_CATEGORY)[keyof typeof NOTIFICATION_CATEGORY]
@@ -34,6 +35,7 @@ export const NOTIFICATION_TEMPLATE_KEY = {
   CTE_BATCH_ISSUANCE_FAILED: 'cte-batch.issuance-failed',
   MDFE_MANIFEST_ISSUANCE_FAILED: 'mdfe.manifest-issuance-failed',
   NFSE_INVOICE_REJECTED: 'nfse.invoice-rejected',
+  TRIP_DELIVERY_OCCURRENCE: 'trip.delivery-occurrence',
 } as const
 export type NotificationTemplateKey =
   (typeof NOTIFICATION_TEMPLATE_KEY)[keyof typeof NOTIFICATION_TEMPLATE_KEY]
@@ -57,6 +59,31 @@ export type NotificationCatalogEntry = {
  * e-mail dizem o que aconteceu e onde olhar, e o detalhe fica na tela.
  */
 export const NOTIFICATION_CATALOG: readonly NotificationCatalogEntry[] = [
+  /**
+   * Spec 079: a ocorrência que a empresa escolheu ser avisada.
+   *
+   * ⚠️ **Sem PII.** O texto diz a nota, o tipo e a parada — nunca o nome de quem recebeu nem o
+   * telefone que a nota trouxe. Caixa de entrada e e-mail atravessam log de terceiro; o detalhe
+   * fica na tela, atrás de autenticação.
+   *
+   * ⚠️ **O padrão é não avisar.** Só dispara o tipo que alguém ligou: aviso que ninguém pediu vira
+   * ruído, e ruído faz o operador ignorar também o que importa.
+   */
+  {
+    category: NOTIFICATION_CATEGORY.TRIP,
+    channels: NOTIFICATION_PRODUCT_CHANNELS,
+    placeholders: ['documentLabel', 'occurrenceType', 'stopLabel'],
+    templateKey: NOTIFICATION_TEMPLATE_KEY.TRIP_DELIVERY_OCCURRENCE,
+    templates: {
+      email: {
+        body: 'A nota {{documentLabel}} teve uma ocorrência: {{occurrenceType}}.\nParada: {{stopLabel}}.\nAbra a viagem no TransportAdA para ver o registro.',
+        subject: 'Ocorrência na entrega da nota {{documentLabel}}',
+      },
+      inbox: {
+        body: 'A nota {{documentLabel}} teve uma ocorrência: {{occurrenceType}} ({{stopLabel}}).',
+      },
+    },
+  },
   {
     category: NOTIFICATION_CATEGORY.CTE_BATCH,
     channels: NOTIFICATION_PRODUCT_CHANNELS,

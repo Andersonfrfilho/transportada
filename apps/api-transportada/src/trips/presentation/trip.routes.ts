@@ -83,9 +83,7 @@ const TRIP_DOCUMENT_PROOF_PATH = `${TRIP_DOCUMENT_PATH}/proof`
 const TRIP_DOCUMENT_PRODUCTS_PATH = `${TRIP_DOCUMENT_PATH}/products`
 const TRIP_DOCUMENT_OCCURRENCES_PATH = `${TRIP_DOCUMENT_PATH}/occurrences`
 const TRIP_DOCUMENT_SEPARATION_OCCURRENCE_PATH = `${TRIP_DOCUMENT_OCCURRENCES_PATH}/separation`
-
-/** Spec 079 T020: a rua é `trip.report`, e o separador não a tem — é essa a linha que a rota guarda. */
-const TRIP_REPORT_POLICY = { permission: 'trip.report', scope: 'company' } as const
+const TRIP_DOCUMENT_DELIVERY_OCCURRENCE_PATH = `${TRIP_DOCUMENT_OCCURRENCES_PATH}/delivery`
 
 type RegisterOccurrenceRouteInput = {
   readonly context: CompanyContext
@@ -744,6 +742,7 @@ export function createTripRoutes(
      * escritório é alcançável pelo papel `driver`. A rota de rua fica para uma task própria.
      */
     occurrenceRoute({ pathname: TRIP_DOCUMENT_SEPARATION_OCCURRENCE_PATH, stage: 'separation' }),
+    occurrenceRoute({ pathname: TRIP_DOCUMENT_DELIVERY_OCCURRENCE_PATH, stage: 'delivery' }),
     defineRoute<Omit<BatchStatusInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
         const result = await dependencies.batchStatus.execute({ context: context.scope, ...input })
@@ -928,7 +927,17 @@ export function createTripRoutes(
         }
       },
       pathname: config.pathname,
-      policy: config.stage === 'separation' ? TRIP_MANAGE_POLICY : TRIP_REPORT_POLICY,
+      /**
+       * ⚠️ **As duas rotas do escritório são `trip.manage`**, inclusive a de entrega. Dar
+       * `trip.report` à de entrega foi o furo de 02/09: o motorista tem essa permissão, e uma rota
+       * da árvore `/trips/:id` com ela o deixaria alcançar **qualquer** viagem da empresa — foi
+       * `test/driver-trip/me-routes.contract.ts` que pegou.
+       *
+       * O escritório registra ocorrência de rua porque é ele quem atende a ligação do motorista. O
+       * motorista registrar do próprio celular é outra rota, na árvore `/me`, com o escopo da
+       * viagem ativa dele — e ela ainda não existe.
+       */
+      policy: TRIP_MANAGE_POLICY,
     })
   }
 
