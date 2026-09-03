@@ -42,6 +42,7 @@ import { createTripStopReconciliationPort } from './drizzle-trip-stop-reconcilia
 import {
   resolveNfeDestinationAddress,
   resolveNfeDocumentId,
+  listStopAddresses,
 } from './nfe-destination-address.support.js'
 import {
   mapTrip,
@@ -544,9 +545,30 @@ async function readTripDetail(
     loadTripCargoWeight(queryable, { companyId: input.companyId, nfeDocumentIds }),
   ])
 
+  /**
+   * O rótulo é **derivado**, não servido do gravado: `trip_stops.label` é escrito uma vez, na
+   * criação da parada, e ficou congelado quando o rótulo passou a levar o número do endereço.
+   * Recalcular por migration em SQL seria a quarta grafia de endereço nesta base — e a terceira já
+   * divergiu em silêncio. Sem endereço resolvido, o gravado continua valendo.
+   */
+  const stopAddresses = await listStopAddresses(queryable, {
+    companyId: input.companyId,
+    nfeDocumentIds,
+  })
+  const labelOf = (stopId: string, stored: string): string => {
+    for (const document of documentsByStopId.get(stopId) ?? []) {
+      const address =
+        document.nfeDocumentId === null ? undefined : stopAddresses.get(document.nfeDocumentId)
+      // `address.label` já sai de `buildStopLabel`, dentro de `chooseNfeDestinationRow`: remontar
+      // aqui seria uma segunda grafia do mesmo rótulo.
+      if (address !== undefined) return address.label
+    }
+    return stored
+  }
+
   const stops = stopRecords.map((row) => ({
     documents: documentsByStopId.get(row.stop.id) ?? [],
-    label: row.stop.label,
+    label: labelOf(row.stop.id, row.stop.label),
     sequence: Number(row.stop.sequence),
   }))
 
