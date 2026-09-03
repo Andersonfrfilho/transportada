@@ -7,6 +7,13 @@ import type { RouteGeometryView } from '../application/read-route-geometry.use-c
 import type { TripDocumentProduct } from '../application/read-trip-document-products.use-case.js'
 import type { TripOccurrence } from '../application/register-trip-occurrence.use-case.js'
 import { parseOccurrenceTypeRequest, parseRegisterOccurrenceRequest } from './occurrence.schema.js'
+import { parseTripOccurrenceFeedList } from './trip-occurrence-feed.schema.js'
+import type {
+  ListTripOccurrenceFeedInput,
+  ReadTripOccurrenceAttachmentsInput,
+  TripOccurrenceAttachmentView,
+  TripOccurrenceFeedPage,
+} from '../application/trip-occurrence-feed.use-case.js'
 import type {
   OccurrenceTypeRecord,
   RegisteredOccurrence,
@@ -149,6 +156,12 @@ const TRIP_COSTS_PATH = `${API_TRIPS_PATH}/:id/costs`
 /** D8: fora da árvore `/trips/:id`, de propósito — é uma varredura da empresa inteira, não de
  * uma viagem. */
 const RETURNED_WITH_ACTIVE_CTE_PATH = '/trip-documents/returned-with-active-cte'
+/**
+ * Fora da árvore `/trips/:id`, de propósito — é a varredura de ocorrências da empresa inteira
+ * (nota e parada juntas), não de uma viagem. Leitura pura: v1 não tem "tratar".
+ */
+const TRIP_OCCURRENCE_FEED_PATH = '/trip-occurrences'
+const TRIP_OCCURRENCE_FEED_ATTACHMENTS_PATH = `${TRIP_OCCURRENCE_FEED_PATH}/:id/attachments`
 const TRIP_STOPS_ORDER_PATH = `${TRIP_STOPS_PATH}/order`
 /**
  * Spec 060 D3: pedir, confirmar ou registrar a recusa do agendamento daquela parada. É `trip.manage`
@@ -266,6 +279,14 @@ type Dependencies = {
   }
   readonly listTripOccurrences: {
     execute(input: TenantInput<ReadDeliveryProofsRouteInput>): Promise<readonly TripOccurrence[]>
+  }
+  readonly listTripOccurrenceFeed: {
+    execute(input: TenantInput<ListTripOccurrenceFeedInput>): Promise<TripOccurrenceFeedPage>
+  }
+  readonly readTripOccurrenceAttachments: {
+    execute(
+      input: TenantInput<ReadTripOccurrenceAttachmentsInput>,
+    ): Promise<readonly TripOccurrenceAttachmentView[]>
   }
   readonly registerTripOccurrence: {
     execute(input: TenantInput<RegisterOccurrenceRouteInput>): Promise<RegisteredOccurrence>
@@ -785,6 +806,42 @@ export function createTripRoutes(
         tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
       }),
       pathname: TRIP_DOCUMENT_OCCURRENCES_PATH,
+      policy: TRIP_READ_POLICY,
+    }),
+    /** A listagem da empresa inteira: mesma permissão da leitura de viagem (TRIP_READ_POLICY). */
+    defineRoute<Omit<ListTripOccurrenceFeedInput, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        const page = await dependencies.listTripOccurrenceFeed.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({
+          body: {
+            data: page.items,
+            pagination: { nextCursor: page.nextCursor, perPage: input.limit },
+          },
+          status: 200,
+        })
+      },
+      method: 'GET',
+      parse: ({ request }) => parseTripOccurrenceFeedList(new URL(request.url)),
+      pathname: TRIP_OCCURRENCE_FEED_PATH,
+      policy: TRIP_READ_POLICY,
+    }),
+    /** O anexo sai por URL assinada de vida curta — nunca bucket nem chave no corpo. */
+    defineRoute<Omit<ReadTripOccurrenceAttachmentsInput, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        const attachments = await dependencies.readTripOccurrenceAttachments.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({ body: { data: attachments }, status: 200 })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({
+        occurrenceId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+      }),
+      pathname: TRIP_OCCURRENCE_FEED_ATTACHMENTS_PATH,
       policy: TRIP_READ_POLICY,
     }),
     /**

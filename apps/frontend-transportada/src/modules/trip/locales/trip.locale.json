@@ -381,5 +381,63 @@
       "add": "Adicionar exceção",
       "remove": "Remover"
     }
+  },
+  "occurrenceFeed": {
+    "kicker": "Operações",
+    "title": "Ocorrências",
+    "intro": "Tudo o que aconteceu com as notas e as paradas das viagens da empresa, em uma lista só.",
+    "tableTitle": "Ocorrências registradas",
+    "empty": "Nenhuma ocorrência encontrada para o filtro aplicado.",
+    "loadMore": "Carregar mais",
+    "loadingMore": "Carregando…",
+    "notified": "Aviso enviado",
+    "columns": {
+      "createdAt": "Hora",
+      "stage": "Grupo",
+      "typeName": "Tipo",
+      "vehiclePlate": "Placa",
+      "driverName": "Motorista",
+      "stopLabel": "Parada",
+      "invoice": "Nota",
+      "notified": "Aviso"
+    },
+    "columnsMenu": {
+      "title": "Colunas",
+      "moveUp": "Mover para cima",
+      "moveDown": "Mover para baixo"
+    },
+    "stage": {
+      "separation": "Separação",
+      "delivery": "Entrega",
+      "stop": "Parada"
+    },
+    "kind": {
+      "unexpected_charge": "Cobrança inesperada",
+      "long_wait": "Espera longa",
+      "dock_closed": "Doca fechada",
+      "appointment_required": "Exige agendamento",
+      "other": "Outra"
+    },
+    "filters": {
+      "title": "Filtros",
+      "stage": "Grupo",
+      "stageEmpty": "Nenhum grupo encontrado",
+      "stageSearch": "Buscar grupo",
+      "stageSummary": "{{count}} selecionados",
+      "removeStage": "Remover grupo",
+      "types": "Tipos",
+      "typesPlaceholder": "Nomes separados por vírgula",
+      "plates": "Placas",
+      "platesPlaceholder": "Placas separadas por vírgula",
+      "createdRange": "Período"
+    },
+    "detail": {
+      "title": "Detalhe",
+      "open": "Detalhar",
+      "close": "Fechar",
+      "noDescription": "Sem descrição registrada.",
+      "photoAlt": "Foto anexada à ocorrência",
+      "closePhoto": "Fechar foto"
+    }
   }
 }

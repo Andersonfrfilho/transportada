@@ -150,6 +150,14 @@ import { readTripDocumentProducts } from './trips/application/read-trip-document
 import { registerDriverOccurrence } from './trips/application/register-driver-occurrence.use-case.js'
 import { registerTripOccurrence } from './trips/application/register-trip-occurrence.use-case.js'
 import { saveOccurrenceTypeWithTemplate } from './trips/application/save-occurrence-type.use-case.js'
+import {
+  createListTripOccurrenceFeedUseCase,
+  createReadTripOccurrenceAttachmentsUseCase,
+} from './trips/application/trip-occurrence-feed.use-case.js'
+import {
+  listTripOccurrenceAttachmentLocations,
+  listTripOccurrenceFeed,
+} from './trips/infrastructure/trip-occurrence-feed.query.js'
 import { createOccurrenceNotifier } from './trips/infrastructure/occurrence-notifier.gateway.js'
 import { createStopOccurrenceNotifier } from './trips/infrastructure/stop-occurrence-notifier.gateway.js'
 import {
@@ -1763,6 +1771,21 @@ function createApplicationRoutes({
             tripId: input.tripId,
           }),
       },
+      listTripOccurrenceFeed: createListTripOccurrenceFeedUseCase({
+        reader: {
+          listAttachmentLocations: (query) =>
+            listTripOccurrenceAttachmentLocations(database, query),
+          listFeed: (query) => listTripOccurrenceFeed(database, query),
+        },
+      }),
+      readTripOccurrenceAttachments: createReadTripOccurrenceAttachmentsUseCase({
+        downloads: createDeliveryProofDownloadGateway({ storage: storageGateway }),
+        reader: {
+          listAttachmentLocations: (query) =>
+            listTripOccurrenceAttachmentLocations(database, query),
+          listFeed: (query) => listTripOccurrenceFeed(database, query),
+        },
+      }),
       registerTripOccurrence: {
         execute: async (input) =>
           registerTripOccurrence({

@@ -61,6 +61,7 @@ import notificationStyles from '@/modules/notification/styles/notification.modul
 import { OperationsDashboardPage } from '@/modules/operations/pages/OperationsDashboard.page'
 import { TripDetailPage } from '@/modules/trip/pages/TripDetail.page'
 import { TripWorkspacePage } from '@/modules/trip/pages/TripWorkspace.page'
+import { TripOccurrencesWorkspacePage } from '@/modules/trip/pages/TripOccurrencesWorkspace.page'
 import { parseTripRoute } from '@/modules/trip/shared/tripRoute.service'
 import '@/styles/index.css'
 
@@ -108,6 +109,7 @@ type WorkspaceNavigationItem = Readonly<{
     | 'notification'
     | 'operations'
     | 'trip'
+    | 'trip-occurrences'
     | 'access-profiles'
     | 'users'
   label: string
@@ -128,6 +130,7 @@ const WORKSPACE_NAVIGATION_ITEMS: readonly WorkspaceNavigationItem[] = [
   { href: '/billing', key: 'billing', label: 'Faturamento' },
   { href: '/nfse-invoices', key: 'nfse-invoice', label: 'NFS-e' },
   { href: '/operations', key: 'operations', label: 'Operações' },
+  { href: '/ocorrencias', key: 'trip-occurrences', label: 'Ocorrências' },
   { href: '/company-settings', key: 'company-settings', label: 'Empresa' },
   { href: '/usuarios', key: 'users', label: 'Acessos' },
   { href: '/papeis', key: 'access-profiles', label: 'Papéis e grupos' },
@@ -164,7 +167,9 @@ const NAVIGATION_GROUPS: readonly NavigationGroup[] = [
   {
     key: 'operations',
     label: 'Operações',
-    items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) => key === 'operations'),
+    items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) =>
+      ['operations', 'trip-occurrences'].includes(key),
+    ),
   },
   {
     key: 'registries',
@@ -219,6 +224,7 @@ function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
   if (window.location.pathname === '/nfse-invoices') return 'nfse-invoice'
   if (window.location.pathname.startsWith('/notificacoes')) return 'notification'
   if (window.location.pathname === '/operations') return 'operations'
+  if (window.location.pathname === '/ocorrencias') return 'trip-occurrences'
   if (window.location.pathname === '/freight') return 'freight'
   if (window.location.pathname === '/usuarios') return 'users'
   if (window.location.pathname === '/papeis') return 'access-profiles'
@@ -238,6 +244,7 @@ function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
     storedWorkspace === 'nfse-invoice' ||
     storedWorkspace === 'notification' ||
     storedWorkspace === 'operations' ||
+    storedWorkspace === 'trip-occurrences' ||
     storedWorkspace === 'freight' ||
     storedWorkspace === 'trip' ||
     storedWorkspace === 'users' ||
@@ -295,6 +302,8 @@ function resolvePage(
     }
     case 'operations':
       return <OperationsDashboardPage />
+    case 'trip-occurrences':
+      return <TripOccurrencesWorkspacePage />
     case 'freight':
       return <FreightWorkspacePage />
     case 'users':
@@ -336,7 +345,7 @@ function ApplicationShell(): ReactNode {
       'billing',
       'nfse-invoice',
     ].includes(currentWorkspace),
-    operations: currentWorkspace === 'operations',
+    operations: ['operations', 'trip-occurrences'].includes(currentWorkspace),
     registries: ['cte-profiles', 'fleet'].includes(currentWorkspace),
   })
   const [collapsedGroup, setCollapsedGroup] = useState<NavigationGroup['key'] | null>(null)
