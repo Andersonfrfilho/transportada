@@ -280,7 +280,8 @@
   },
   "occurrence": {
     "emailTemplate": "Email template",
-    "emailTemplateFromScratch": "Write from scratch",
-    "unknownPlaceholders": "Placeholders outside the list: {{list}} — replace them before saving; unknown placeholders are rejected."
+    "emailTemplateNone": "No email",
+    "legacyTemplate": "{{subject}} — own template (legacy)",
+    "editTemplates": "Edit email templates"
   }
 }

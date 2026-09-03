@@ -149,6 +149,7 @@ import { createDeliveryProofDownloadGateway } from './trips/infrastructure/deliv
 import { readTripDocumentProducts } from './trips/application/read-trip-document-products.use-case.js'
 import { registerDriverOccurrence } from './trips/application/register-driver-occurrence.use-case.js'
 import { registerTripOccurrence } from './trips/application/register-trip-occurrence.use-case.js'
+import { saveOccurrenceTypeWithTemplate } from './trips/application/save-occurrence-type.use-case.js'
 import { createOccurrenceNotifier } from './trips/infrastructure/occurrence-notifier.gateway.js'
 import { createStopOccurrenceNotifier } from './trips/infrastructure/stop-occurrence-notifier.gateway.js'
 import {
@@ -1725,15 +1726,33 @@ function createApplicationRoutes({
       },
       saveOccurrenceType: {
         execute: (input) =>
-          saveOccurrenceType(database, {
-            active: input.active,
+          saveOccurrenceTypeWithTemplate({
             companyId: input.context.companyId,
-            emailBody: input.emailBody,
-            emailSubject: input.emailSubject,
-            name: input.name,
-            notifies: input.notifies,
-            occurrenceTypeId: input.occurrenceTypeId,
-            stage: input.stage,
+            save: (values) =>
+              saveOccurrenceType(database, { ...values, companyId: input.context.companyId }),
+            templates: {
+              /**
+               * O predicado consulta o catálogo do módulo — a mesma fonte que a tela de templates
+               * edita. Chave sem template ativo de e-mail é recusada na gravação, não no envio.
+               */
+              hasActiveEmailTemplate: async ({ companyId, templateKey }) => {
+                const templates = await notifications.useCases.listTemplates.execute({ companyId })
+                return templates.some(
+                  (template) =>
+                    template.key === templateKey && template.channel === 'email' && template.active,
+                )
+              },
+            },
+            values: {
+              active: input.active,
+              emailBody: input.emailBody,
+              emailSubject: input.emailSubject,
+              emailTemplateKey: input.emailTemplateKey,
+              name: input.name,
+              notifies: input.notifies,
+              occurrenceTypeId: input.occurrenceTypeId,
+              stage: input.stage,
+            },
           }),
       },
       listTripOccurrences: {

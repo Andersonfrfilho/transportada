@@ -322,15 +322,13 @@
     "empty": "Nenhum tipo cadastrado ainda. Cadastre o primeiro para poder registrar ocorrências.",
     "product": "Item da nota",
     "wholeDocument": "A nota inteira",
-    "emailSubject": "Assunto do e-mail",
-    "emailBody": "Texto do e-mail",
-    "placeholders": "Marcadores disponíveis: {{list}}. Um marcador fora da lista é recusado ao salvar.",
     "withoutTemplate": "Sem e-mail: este tipo só fica registrado na viagem.",
     "emailReady": "E-mail pronto para enviar ao embarcador — confira antes de mandar.",
     "copyEmail": "Copiar e-mail",
     "emailTemplate": "Modelo de e-mail",
-    "emailTemplateFromScratch": "Escrever do zero",
-    "unknownPlaceholders": "Marcadores fora da lista: {{list}} — troque-os antes de salvar; o cadastro recusa marcador desconhecido."
+    "emailTemplateNone": "Sem e-mail",
+    "legacyTemplate": "{{subject}} — modelo próprio (legado)",
+    "editTemplates": "Editar modelos de e-mail"
   },
   "routeMap": {
     "title": "Mapa do roteiro",

@@ -47,6 +47,8 @@ export type OccurrenceTypeRecord = {
   /** Vazio é tipo que não gera e-mail: nem toda ocorrência precisa avisar o embarcador. */
   readonly emailBody: string
   readonly emailSubject: string
+  /** A chave do template do módulo de notificações; nula é o legado (assunto/corpo próprios). */
+  readonly emailTemplateKey: null | string
   readonly id: string
   readonly name: string
   readonly notifies: boolean
@@ -187,6 +189,8 @@ async function renderEmail(params: {
   readonly occurrenceType: OccurrenceTypeRecord
   readonly scope: { readonly productCode: string }
 }): Promise<null | { readonly body: string; readonly subject: string }> {
+  /** Com template do módulo, o aviso sai pelo trilho de notificação — não há e-mail a montar aqui. */
+  if (params.occurrenceType.emailTemplateKey !== null) return null
   if (params.occurrenceType.emailSubject === '') return null
 
   const values = await params.input.repository.readTemplateValues({
@@ -225,6 +229,10 @@ async function notifyOccurrence(
   const notification = resolveOccurrenceNotification({
     parameters: { ...input.notificationParameters, occurrenceType: occurrenceType.name },
     settings: [{ notifies: occurrenceType.notifies, type: occurrenceType.id }],
+    /** Tipo com chave avisa pelo template do módulo que ele selecionou; sem chave, o legado. */
+    ...(occurrenceType.emailTemplateKey === null
+      ? {}
+      : { templateKey: occurrenceType.emailTemplateKey }),
     type: occurrenceType.id,
   })
   if (notification === null) return

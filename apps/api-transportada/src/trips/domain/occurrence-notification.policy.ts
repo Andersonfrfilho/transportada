@@ -4,7 +4,6 @@
  * Spec 079: quais ocorrências viram aviso, e com que parâmetros.
  */
 import { NOTIFICATION_TEMPLATE_KEY } from '../../notification/domain/notification-catalog.constant.js'
-import type { NotificationTemplateKey } from '../../notification/domain/notification-catalog.constant.js'
 
 export type OccurrenceNotificationSetting = {
   readonly notifies: boolean
@@ -28,7 +27,11 @@ export type OccurrenceNotificationParameters = {
 
 export type OccurrenceNotification = {
   readonly parameters: OccurrenceNotificationParameters
-  readonly templateKey: NotificationTemplateKey
+  /**
+   * A chave do catálogo, ou a que o tipo selecionou no módulo de notificações — por isso o tipo é
+   * `string`, não só o enum do catálogo embarcado.
+   */
+  readonly templateKey: string
 }
 
 /**
@@ -39,6 +42,8 @@ export type OccurrenceNotification = {
 export function resolveOccurrenceNotification(input: {
   readonly parameters: OccurrenceNotificationParameters
   readonly settings: readonly OccurrenceNotificationSetting[]
+  /** A chave que o tipo selecionou no módulo de notificações; ausente, sai o template legado. */
+  readonly templateKey?: string
   readonly type: string
 }): null | OccurrenceNotification {
   const setting = input.settings.find((candidate) => candidate.type === input.type)
@@ -46,6 +51,6 @@ export function resolveOccurrenceNotification(input: {
 
   return {
     parameters: input.parameters,
-    templateKey: NOTIFICATION_TEMPLATE_KEY.TRIP_DELIVERY_OCCURRENCE,
+    templateKey: input.templateKey ?? NOTIFICATION_TEMPLATE_KEY.TRIP_DELIVERY_OCCURRENCE,
   }
 }

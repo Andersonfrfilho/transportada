@@ -407,3 +407,17 @@ export class TripCteBatchEmptyError extends ApiError {
     })
   }
 }
+
+/**
+ * A chave enviada não tem template ativo de canal e-mail para a empresa — o cadastro do tipo só
+ * seleciona o que o módulo de notificações já publicou.
+ */
+export class OccurrenceEmailTemplateNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_EMAIL_TEMPLATE_NOT_FOUND',
+      message: 'There is no active email template with this key for the company.',
+      status: 422,
+    })
+  }
+}

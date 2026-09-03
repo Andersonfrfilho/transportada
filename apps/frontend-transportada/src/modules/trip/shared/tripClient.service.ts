@@ -77,6 +77,7 @@ export type TripClient = Readonly<{
   saveOccurrenceType: (
     input: Readonly<{
       active: boolean
+      emailTemplateKey: null | string
       name: string
       notifies: boolean
       occurrenceTypeId: null | string
@@ -292,6 +293,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       const response = await authorizedRequest({
         body: JSON.stringify({
           active: input.active,
+          emailTemplateKey: input.emailTemplateKey,
           name: input.name,
           notifies: input.notifies,
           occurrenceTypeId: input.occurrenceTypeId,

@@ -33,6 +33,7 @@ function repository(
           active: overrides.active ?? true,
           emailBody: '',
           emailSubject: '',
+          emailTemplateKey: null,
           id: TIPO,
           name: 'Recusa parcial',
           notifies: false,

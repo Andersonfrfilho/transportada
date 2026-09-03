@@ -18,6 +18,7 @@ import {
   unique,
   uniqueIndex,
   uuid,
+  varchar,
 } from 'drizzle-orm/pg-core'
 
 import { companies, userCompanyMemberships } from './identity.schema.js'
@@ -1004,6 +1005,12 @@ export const companyOccurrenceTypes = pgTable(
      */
     emailSubject: text('email_subject').notNull().default(''),
     emailBody: text('email_body').notNull().default(''),
+    /**
+     * A chave do template do módulo de notificações que este tipo **seleciona**. Com ela, o texto
+     * mora no catálogo de templates — assunto/corpo acima viram legado e ficam vazios no cadastro
+     * novo. Nula é o legado (ou tipo sem e-mail).
+     */
+    emailTemplateKey: varchar('email_template_key', { length: 120 }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

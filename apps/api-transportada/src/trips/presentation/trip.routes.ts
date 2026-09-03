@@ -107,6 +107,7 @@ type SaveOccurrenceTypeInput = {
   readonly context: CompanyContext
   readonly emailBody: string
   readonly emailSubject: string
+  readonly emailTemplateKey: null | string
   readonly name: string
   readonly notifies: boolean
   readonly occurrenceTypeId: null | string

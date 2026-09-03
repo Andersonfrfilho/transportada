@@ -9,8 +9,7 @@ import trip from '../../src/modules/trip/locales/trip.locale.json'
 import tripEn from '../../src/modules/trip/locales/trip.en.locale.json'
 import {
   buildOccurrenceEmailTemplateOptions,
-  findUnknownTemplatePlaceholders,
-  OCCURRENCE_TEMPLATE_FROM_SCRATCH,
+  OCCURRENCE_TEMPLATE_NONE,
 } from '../../src/modules/trip/shared/occurrenceTemplate.service'
 
 const PANEL = new URL(
@@ -18,6 +17,7 @@ const PANEL = new URL(
   import.meta.url,
 )
 const STYLES = new URL('../../src/modules/trip/styles/trip.module.css', import.meta.url)
+const CLIENT = new URL('../../src/modules/trip/shared/tripClient.service.ts', import.meta.url)
 
 function buildTemplate(overrides: Partial<Record<string, unknown>>) {
   return {
@@ -34,8 +34,8 @@ function buildTemplate(overrides: Partial<Record<string, unknown>>) {
 }
 
 /**
- * O formulário de tipo de ocorrência: campos nos tokens do design system, e o modelo de e-mail
- * escolhido por select — alimentado pelos templates do módulo de notificações.
+ * O texto do aviso mora **só** no módulo de notificações: o formulário do tipo de ocorrência não
+ * digita assunto nem corpo — ele **seleciona** o modelo pela chave, e é a chave que vai gravada.
  */
 describe('modelo de e-mail do tipo de ocorrência', () => {
   const source = readFileSync(PANEL, 'utf8')
@@ -57,45 +57,55 @@ describe('modelo de e-mail do tipo de ocorrência', () => {
     expect(source).toInclude("t('occurrence.emailTemplate')")
     expect(trip.occurrence.emailTemplate).toBeString()
     expect(tripEn.occurrence.emailTemplate).toBeString()
-    expect(trip.occurrence.emailTemplateFromScratch).toBeString()
-    expect(tripEn.occurrence.emailTemplateFromScratch).toBeString()
+    expect(trip.occurrence.emailTemplateNone).toBeString()
+    expect(tripEn.occurrence.emailTemplateNone).toBeString()
   })
 
-  /** Escolher um modelo preenche assunto e corpo; os campos continuam editáveis. */
-  it('preenche assunto e corpo ao escolher um modelo', () => {
+  /** O valor da opção — e o que se grava — é a **chave** do template, nunca o id da variante. */
+  it('grava a chave do template, não o id da variante', () => {
     const chosen = buildOccurrenceEmailTemplateOptions([buildTemplate({})])[0]
 
-    expect(chosen?.subject).toBe('Ocorrência {{numeroNota}}')
-    expect(chosen?.body).toBe('Olá {{razaoSocial}}')
-    expect(source).toInclude('setEmailSubject(chosen.subject)')
-    expect(source).toInclude('setEmailBody(chosen.body)')
+    expect(chosen?.key).toBe('trip.occurrence')
+    expect(source).toInclude('emailTemplateKey')
+    expect(source).toInclude('option.key')
+
+    const client = readFileSync(CLIENT, 'utf8')
+    expect(client).toInclude('emailTemplateKey: input.emailTemplateKey')
+  })
+
+  /** Assunto e corpo saíram do formulário: o texto é assunto do editor de templates. */
+  it('não tem mais campos de assunto e corpo nem aviso de marcadores', () => {
+    expect(source).not.toInclude("t('occurrence.emailSubject')")
+    expect(source).not.toInclude("t('occurrence.emailBody')")
+    expect(source).not.toInclude('findUnknownTemplatePlaceholders')
+    expect(source).not.toInclude('OCCURRENCE_TEMPLATE_PLACEHOLDERS')
   })
 
   /** Só template de e-mail ativo vira opção — canal e versão desativada ficam de fora. */
   it('filtra canal e template desativado', () => {
     const options = buildOccurrenceEmailTemplateOptions([
       buildTemplate({}),
-      buildTemplate({ channel: 'push', id: 'push-1' }),
-      buildTemplate({ active: false, id: 'inactive-1' }),
+      buildTemplate({ channel: 'push', id: 'push-1', key: 'push.key' }),
+      buildTemplate({ active: false, id: 'inactive-1', key: 'inactive.key' }),
     ])
 
-    expect(options.map((option) => option.id)).toEqual(['template-1'])
-    expect(OCCURRENCE_TEMPLATE_FROM_SCRATCH).toBe('')
+    expect(options.map((option) => option.key)).toEqual(['trip.occurrence'])
+    expect(OCCURRENCE_TEMPLATE_NONE).toBe('')
   })
 
-  /**
-   * Marcador do template fora de `OCCURRENCE_TEMPLATE_PLACEHOLDERS` é avisado ao lado do campo:
-   * o salvar já recusa, e o operador não pode descobrir isso só no erro.
-   */
-  it('avisa marcador fora da lista antes do salvar', () => {
-    expect(findUnknownTemplatePlaceholders('Fatura {{invoiceNumber}} de {{razaoSocial}}')).toEqual([
-      'invoiceNumber',
-    ])
-    expect(findUnknownTemplatePlaceholders('{{numeroNota}} {{motorista}}')).toEqual([])
-    expect(source).toInclude('findUnknownTemplatePlaceholders')
-    expect(source).toInclude("t('occurrence.unknownPlaceholders'")
-    expect(trip.occurrence.unknownPlaceholders).toInclude('{{list}}')
-    expect(tripEn.occurrence.unknownPlaceholders).toInclude('{{list}}')
+  /** A linha do tipo mostra o modelo escolhido; a linha legada mostra o assunto com a marca. */
+  it('nomeia o modelo na linha, e marca o legado', () => {
+    expect(source).toInclude('legacyTemplate')
+    expect(trip.occurrence.legacyTemplate).toInclude('legado')
+    expect(tripEn.occurrence.legacyTemplate).toBeString()
+  })
+
+  /** O atalho leva ao editor de templates do módulo de notificações, pela navegação do shell. */
+  it('tem o atalho para editar os modelos', () => {
+    expect(source).toInclude("t('occurrence.editTemplates')")
+    expect(source).toInclude('NOTIFICATION_SETTINGS_HREF')
+    expect(trip.occurrence.editTemplates).toBeString()
+    expect(tripEn.occurrence.editTemplates).toBeString()
   })
 })
 
