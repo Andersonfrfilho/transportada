@@ -28,6 +28,19 @@
   stroke-width: 1.8;
 }
 
+/*
+ * ⚠️ Traço de **linha**, não de divisa. A `.shape` pinta a borda de polígono preenchido da malha do
+ * IBGE, em grafite — sobre o fundo escuro desta tela ela é praticamente invisível, e foi assim que
+ * a rota da viagem chegou a staging com 94 vértices que ninguém via. Linha é o que se lê primeiro
+ * no mapa: cor de destaque e o dobro da espessura da divisa.
+ */
+.line {
+  stroke: var(--color-fog);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.4;
+}
+
 /* Tracejado: a forma que diz "não sei o caminho", nunca a que afirma uma estrada. */
 .dashed {
   stroke-dasharray: 2 2;

@@ -68,6 +68,7 @@ export function TripRouteMap({
           {
             dashed: route.dashed,
             fill: 'none',
+            line: true,
             id: 'route',
             label: t(`routeMap.trace.${route.kind}`),
             path: route.path,

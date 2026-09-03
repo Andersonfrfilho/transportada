@@ -13,6 +13,11 @@ export type VectorMapShape = Readonly<{
    */
   dashed?: boolean | undefined
   fill: string
+  /**
+   * A forma é um traço, não uma área. Sem isto ela herda a cor de divisa da malha — correta para
+   * borda de polígono, invisível para uma rota sobre fundo escuro.
+   */
+  line?: boolean | undefined
   id: string
   label: string
   path: string
@@ -56,6 +61,7 @@ export function VectorMap({
           className={cn(
             styles.shape,
             onSelect === undefined ? undefined : styles.interactive,
+            shape.line === true ? styles.line : undefined,
             shape.dashed === true ? styles.dashed : undefined,
             shape.selected === true ? styles.selected : undefined,
           )}
