@@ -60,6 +60,11 @@ estrada — que é justamente a distinção que esta ADR existe para criar.
   almoçar e continua depois; viagem que voltasse a `in_transit` a cada pausa produziria um histórico
   de idas e vindas que não descreve nada.
 
+**Duas viagens despachadas são duas conferências.** O motorista com dois despachos no mesmo pátio
+confere a carga de cada uma. É atrito de propósito: a conferência afirma que o que está no caminhão é
+o que **aquela** viagem diz, e uma conferência que valesse para as duas não afirmaria nada sobre
+nenhuma.
+
 ### 4. O toque é do motorista, e a permissão já existe
 
 As duas transições são `trip.report`, que `driver` e `aggregate` já têm. **Nenhuma permissão nasce**,

@@ -53,6 +53,11 @@ Esta é a linha, e ela não é a mesma dos outros dois casos:
   aferida**. Isso é um estado, não um erro: o escritório vê que a distância não pôde ser medida em vez
   de ver uma distância inventada.
 
+**O raio é de 5 km.** Ele não é um palpite de precisão de GPS: é a distância a partir da qual estar
+longe deixa de ser margem de erro e passa a ser outro lugar. Um raio apertado recusaria posição
+legítima o tempo todo — a ADR-0045 §4 já registrou que precisão de quilômetro é o caso normal num
+galpão de laje, e é justamente ali que o motorista está quando abre ocorrência.
+
 ⚠️ **Isto não alcança a entrega.** A ADR-0045 §3.1 decidiu que a recusa de GPS **não** bloqueia a
 confirmação de entrega, e continua valendo: um motorista com a permissão negada segue entregando, e
 só não abre ocorrência. Aplicar a trava aos dois teria transformado uma permissão negada em campo
@@ -82,14 +87,32 @@ Aplicar a correção é gravar em `delivery_address_overrides` — **append-only
 original preservado ao lado. Nada disso é inventado aqui: é a mecânica da spec 056, com as duas
 identidades que ela já guarda (`requestedBy` em texto livre e `actorUserId` da membership).
 
+**O desvio é por nota, e a tela diz isso.** `delivery_address_overrides.tripDocumentId` amarra a
+correção a um documento, e é assim que fica: endereço de entrega é atributo da **nota**, não da parada
+— a parada é um agrupamento derivado dela. A consequência tem de estar visível ao operador: uma parada
+com cinco notas pede cinco desvios, e aplicar em quatro **parte a parada em duas** no próximo
+`buildStopAddressKey`. O painel aplica em lote sobre as notas da parada e mostra quantas foram, nunca
+esconde a contagem — correção pela metade é pior que nenhuma, porque cria uma parada fantasma no
+roteiro do dia seguinte.
+
 O que nasce é a **segunda metade**: avisar o contratante para o endereço sair certo na **próxima**
 nota. Sem ela, a correção conserta uma entrega e o defeito volta na semana seguinte — que é
 exatamente o que a ADR-0045 dizia sobre o WhatsApp: o fato existe, é dito, e morre onde foi dito.
 
-O aviso é **ação do operador, nunca automática**: ele nomeia o contratante e o cliente de entrega, e
-sai pelo trilho de notificação que já existe. Endereço divergente às vezes é o correto — armazém que
-recebe pelo fundo, loja com dois acessos —, e um aviso disparado por relato de campo estaria errado
-com frequência suficiente para o cliente parar de lê-los.
+**Quem recebe é o contratante que gerou a nota** — o embarcador, em `contractors`, e não o
+`delivery_client` que recebe a carga. O endereço errado está no cadastro de quem **emite**, e avisar
+quem recebe seria contar à loja que o endereço dela está errado na base de outra empresa.
+
+O aviso é **ação do operador, nunca automática**. Endereço divergente às vezes é o correto — armazém
+que recebe pelo fundo, loja com dois acessos —, e um aviso disparado por relato de campo estaria
+errado com frequência suficiente para o cliente parar de lê-los.
+
+### 6. As ocorrências ganham painel próprio
+
+O ponto de atenção não vive só dentro da parada em que nasceu: existe uma tela de **ocorrências** no
+painel, onde o escritório vê as abertas de todas as viagens, com tipo, distância aferida, viagem e
+nota. Sem ela, achar a ocorrência exige saber de antemão em qual viagem ela está — e quem chega ao
+painel por causa de um telefonema do cliente é justamente quem não sabe.
 
 ## Consequências
 
