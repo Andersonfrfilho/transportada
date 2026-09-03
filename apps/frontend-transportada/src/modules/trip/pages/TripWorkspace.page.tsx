@@ -134,16 +134,20 @@ export function TripWorkspacePage() {
    * Spec 079: é o `enabled` que faz o painel **vir preenchido** — abrir a aba busca o que já está
    * gravado, em vez de mostrar todos os tipos desligados até alguém recarregar.
    */
-  const occurrenceNotificationsQuery = useQuery({
+  const occurrenceTypesQuery = useQuery({
     enabled: canManageSettings && settingsScope.occurrenceNotifications,
-    queryFn: () => workspace.controller.readOccurrenceNotifications(),
-    queryKey: ['trip', 'occurrence-notifications'] as const,
+    queryFn: () => workspace.controller.listOccurrenceTypes(),
+    queryKey: ['trip', 'occurrence-types'] as const,
   })
 
-  const saveOccurrenceNotificationMutation = useMutation({
-    mutationFn: workspace.controller.saveOccurrenceNotification,
-    onSuccess: (entries) => {
-      queryClient.setQueryData(['trip', 'occurrence-notifications'], entries)
+  /**
+   * ⚠️ Invalida em vez de escrever o cache com a resposta: o `PUT` devolve **um** tipo, e a lista
+   * inteira mudou de ordem se o nome mudou. Escrever um item sobre a lista a deixaria mentindo.
+   */
+  const saveOccurrenceTypeMutation = useMutation({
+    mutationFn: workspace.controller.saveOccurrenceType,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['trip', 'occurrence-types'] })
     },
   })
   const table = useTripTable({ canReadTrips: workspace.controller.canReadTrips, ...tenant })
@@ -193,9 +197,9 @@ export function TripWorkspacePage() {
                 tab === 'notifications' ? (
                   <TripOccurrenceNotifications
                     canManage={canManageSettings}
-                    entries={occurrenceNotificationsQuery.data ?? []}
-                    isSaving={saveOccurrenceNotificationMutation.isPending}
-                    onToggle={(toggle) => saveOccurrenceNotificationMutation.mutate(toggle)}
+                    isSaving={saveOccurrenceTypeMutation.isPending}
+                    onSave={(type) => saveOccurrenceTypeMutation.mutate(type)}
+                    types={occurrenceTypesQuery.data ?? []}
                   />
                 ) : null,
             }))}

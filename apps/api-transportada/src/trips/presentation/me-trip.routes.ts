@@ -103,7 +103,8 @@ export type MeTripDependencies = {
     readonly documentId: string
     readonly driverId: string
     readonly note: string
-    readonly type: string
+    readonly occurrenceTypeId: string
+    readonly productCode: string
   }) => Promise<TripOccurrence>
   readonly attachProof: (
     input: DriverContextInput & {
@@ -346,7 +347,12 @@ export function createMeTripRoutes(
       pathname: DOCUMENT_PROOF_PATH,
       policy: DRIVER_REPORT_POLICY,
     }),
-    defineRoute<{ readonly documentId: string; readonly note: string; readonly type: string }>({
+    defineRoute<{
+      readonly documentId: string
+      readonly note: string
+      readonly occurrenceTypeId: string
+      readonly productCode: string
+    }>({
       async handle({ context, input }): Promise<Response> {
         const driverId = await resolveDriver(context.scope)
         const occurrence = await dependencies.registerDriverOccurrence({
@@ -355,7 +361,8 @@ export function createMeTripRoutes(
           documentId: input.documentId,
           driverId,
           note: input.note,
-          type: input.type,
+          occurrenceTypeId: input.occurrenceTypeId,
+          productCode: input.productCode,
         })
 
         return jsonResponse({ body: { data: occurrence }, status: 201 })
@@ -366,7 +373,8 @@ export function createMeTripRoutes(
         return {
           documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
           note: body.note,
-          type: body.type,
+          occurrenceTypeId: body.occurrenceTypeId,
+          productCode: body.productCode,
         }
       },
       pathname: DOCUMENT_OCCURRENCE_PATH,

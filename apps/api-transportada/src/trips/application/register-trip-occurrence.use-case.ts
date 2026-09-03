@@ -7,7 +7,7 @@ import type {
   TripOccurrenceStage,
   TripOccurrenceType,
 } from '../../shared/trip-occurrence.constant.js'
-import { resolveOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
+import { resolveOccurrenceProductScope } from '../domain/occurrence-scope.policy.js'
 import { TripDocumentNotFoundError } from '../domain/trip.error.js'
 import { resolveOccurrenceNotification } from '../domain/occurrence-notification.policy.js'
 import type {
@@ -19,9 +19,21 @@ export type TripOccurrence = {
   readonly createdAt: string
   readonly id: string
   readonly note: string
+  readonly occurrenceTypeId: string
+  /** Vazio é a nota inteira — ver `occurrence-scope.policy.ts`. */
   readonly productCode: string
   readonly stage: TripOccurrenceStage
-  readonly type: TripOccurrenceType
+  /** O nome que a empresa deu ao tipo: é ele que a tela imprime, não um id. */
+  readonly typeName: string
+}
+
+/** O tipo cadastrado, como o caso de uso precisa vê-lo para decidir. */
+export type OccurrenceTypeRecord = {
+  readonly active: boolean
+  readonly id: string
+  readonly name: string
+  readonly notifies: boolean
+  readonly stage: TripOccurrenceStage
 }
 
 export type TripOccurrencePort = {
@@ -31,15 +43,26 @@ export type TripOccurrencePort = {
     readonly tripId: string
   }): Promise<readonly TripOccurrence[]>
   /** `null` quando a nota não é desta viagem nesta empresa — ausência, nunca escrita às cegas. */
+  /** `null` quando o tipo não é desta empresa, ou foi aposentado. */
+  findOccurrenceType(input: {
+    readonly companyId: string
+    readonly occurrenceTypeId: string
+  }): Promise<null | OccurrenceTypeRecord>
+  listDocumentProducts(input: {
+    readonly companyId: string
+    readonly documentId: string
+    readonly tripId: string
+  }): Promise<readonly { readonly code: string; readonly description: string }[]>
   saveOccurrence(input: {
     readonly actorUserId: string
     readonly companyId: string
     readonly documentId: string
     readonly note: string
+    readonly occurrenceTypeId: string
     readonly productCode: string
     readonly stage: TripOccurrenceStage
     readonly tripId: string
-    readonly type: TripOccurrenceType
+    readonly typeName: string
   }): Promise<null | TripOccurrence>
 }
 
@@ -68,7 +91,7 @@ export type RegisterTripOccurrenceInput = {
   readonly productCode: string
   readonly repository: TripOccurrencePort
   readonly tripId: string
-  readonly type: TripOccurrenceType
+  readonly occurrenceTypeId: string
 }
 
 /**
@@ -83,23 +106,44 @@ export type RegisterTripOccurrenceInput = {
 export async function registerTripOccurrence(
   input: RegisterTripOccurrenceInput,
 ): Promise<TripOccurrence> {
-  const { actorUserId, companyId, documentId, note, productCode, repository, tripId, type } = input
-  const stage = resolveOccurrenceStage(type)
-  if (stage === null) throw new TripDocumentNotFoundError()
+  const { actorUserId, companyId, documentId, note, productCode, repository, tripId } = input
+
+  /**
+   * ⚠️ **O tipo é conferido contra o cadastro da empresa**, e não contra uma lista em código. Tipo
+   * de outra empresa e tipo aposentado respondem igual — inalcançável —, porque distinguir os dois
+   * diria a quem tenta se aquele identificador existe em algum lugar.
+   */
+  const occurrenceType = await repository.findOccurrenceType({
+    companyId,
+    occurrenceTypeId: input.occurrenceTypeId,
+  })
+  if (occurrenceType === null || !occurrenceType.active) throw new TripDocumentNotFoundError()
+
+  /**
+   * ⚠️ Produto fora da nota é **recusado**, nunca convertido em "nota inteira": apontar para item
+   * que a nota não tem é engano de quem registrou, e silenciá-lo gravaria ocorrência sobre carga
+   * que nunca esteve ali.
+   */
+  const scope = resolveOccurrenceProductScope({
+    productCode,
+    products: await repository.listDocumentProducts({ companyId, documentId, tripId }),
+  })
+  if (scope === null) throw new TripDocumentNotFoundError()
 
   const saved = await repository.saveOccurrence({
     actorUserId,
     companyId,
     documentId,
     note,
-    productCode,
-    stage,
+    occurrenceTypeId: occurrenceType.id,
+    productCode: scope.productCode,
+    stage: occurrenceType.stage,
     tripId,
-    type,
+    typeName: occurrenceType.name,
   })
   if (saved === null) throw new TripDocumentNotFoundError()
 
-  await notifyOccurrence(input)
+  await notifyOccurrence(input, occurrenceType)
 
   return saved
 }
@@ -112,13 +156,20 @@ export async function registerTripOccurrence(
  * O padrão continua sendo **não avisar**: sem notificador, sem parâmetros ou sem a flag ligada para
  * aquele tipo, nada sai.
  */
-async function notifyOccurrence(input: RegisterTripOccurrenceInput): Promise<void> {
+async function notifyOccurrence(
+  input: RegisterTripOccurrenceInput,
+  occurrenceType: OccurrenceTypeRecord,
+): Promise<void> {
   if (input.notifier === undefined || input.notificationParameters === undefined) return
 
+  /**
+   * A flag mora **no próprio tipo** desde 2026-09-03: eram a mesma decisão chaveada pelo mesmo
+   * valor, e a tabela ao lado obrigava a tela a casar duas listas para mostrar uma.
+   */
   const notification = resolveOccurrenceNotification({
-    parameters: input.notificationParameters,
-    settings: input.notificationSettings ?? [],
-    type: input.type,
+    parameters: { ...input.notificationParameters, occurrenceType: occurrenceType.name },
+    settings: [{ notifies: occurrenceType.notifies, type: occurrenceType.id }],
+    type: occurrenceType.id,
   })
   if (notification === null) return
 

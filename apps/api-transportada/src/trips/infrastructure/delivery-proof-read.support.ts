@@ -16,7 +16,7 @@ import {
 } from '../../database/nfe.schema.js'
 import { storedObjects } from '../../database/storage.schema.js'
 import {
-  companyOccurrenceNotificationSettings,
+  companyOccurrenceTypes,
   tripDeliveryProofs,
   tripDocumentOccurrences,
   tripDocuments,
@@ -27,7 +27,12 @@ import {
 } from '../../database/trip.schema.js'
 import type { DeliveryProofRecord } from '../application/read-delivery-proof.use-case.js'
 import type { TripDocumentProduct } from '../application/read-trip-document-products.use-case.js'
-import type { TripOccurrence } from '../application/register-trip-occurrence.use-case.js'
+import type {
+  OccurrenceTypeRecord,
+  TripOccurrence,
+} from '../application/register-trip-occurrence.use-case.js'
+import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
+import { TripDocumentNotFoundError } from '../domain/trip.error.js'
 import type { TripOccurrenceType } from '../../shared/trip-occurrence.constant.js'
 import { contractors } from '../../database/delivery-client.schema.js'
 import { resolveDeliveryContact } from '../domain/delivery-contact.policy.js'
@@ -154,10 +159,19 @@ export async function listTripOccurrences(
       id: tripDocumentOccurrences.id,
       note: tripDocumentOccurrences.note,
       productCode: tripDocumentOccurrences.productCode,
+      occurrenceTypeId: tripDocumentOccurrences.occurrenceTypeId,
       stage: tripDocumentOccurrences.stage,
-      type: tripDocumentOccurrences.type,
+      /** Spec 079: o nome que a empresa deu ao tipo — é ele que a tela imprime. */
+      typeName: companyOccurrenceTypes.name,
     })
     .from(tripDocumentOccurrences)
+    .innerJoin(
+      companyOccurrenceTypes,
+      and(
+        eq(companyOccurrenceTypes.companyId, tripDocumentOccurrences.companyId),
+        eq(companyOccurrenceTypes.id, tripDocumentOccurrences.occurrenceTypeId),
+      ),
+    )
     .innerJoin(
       tripDocuments,
       and(
@@ -190,9 +204,10 @@ export async function saveTripOccurrence(
     readonly documentId: string
     readonly note: string
     readonly productCode: string
+    readonly occurrenceTypeId: string
     readonly stage: TripOccurrence['stage']
     readonly tripId: string
-    readonly type: TripOccurrence['type']
+    readonly typeName: string
   },
 ): Promise<null | TripOccurrence> {
   const [document] = await queryable
@@ -214,10 +229,10 @@ export async function saveTripOccurrence(
       actorUserId: input.actorUserId,
       companyId: input.companyId,
       note: input.note,
+      occurrenceTypeId: input.occurrenceTypeId,
       productCode: input.productCode,
       stage: input.stage,
       tripDocumentId: input.documentId,
-      type: input.type,
     })
     .returning()
   if (saved === undefined) return null
@@ -226,9 +241,10 @@ export async function saveTripOccurrence(
     createdAt: saved.createdAt.toISOString(),
     id: saved.id,
     note: saved.note,
+    occurrenceTypeId: saved.occurrenceTypeId,
     productCode: saved.productCode,
     stage: saved.stage,
-    type: saved.type,
+    typeName: input.typeName,
   }
 }
 
@@ -301,43 +317,6 @@ export async function listDeliveryContacts(
   }
 
   return contacts
-}
-
-export async function listOccurrenceNotificationSettings(
-  queryable: TripQueryable,
-  input: { readonly companyId: string },
-): Promise<readonly { notifies: boolean; type: string }[]> {
-  return queryable
-    .select({
-      notifies: companyOccurrenceNotificationSettings.notifies,
-      type: companyOccurrenceNotificationSettings.type,
-    })
-    .from(companyOccurrenceNotificationSettings)
-    .where(eq(companyOccurrenceNotificationSettings.companyId, input.companyId))
-}
-
-/**
- * Grava a escolha da empresa. **Linha com `false` é gravada**, não apagada: ausência é o padrão
- * nunca tocado, e `false` é a decisão registrada de não avisar — a tela mostra a diferença.
- */
-export async function saveOccurrenceNotificationSetting(
-  queryable: TripQueryable,
-  input: {
-    readonly companyId: string
-    readonly notifies: boolean
-    readonly type: TripOccurrenceType
-  },
-): Promise<void> {
-  await queryable
-    .insert(companyOccurrenceNotificationSettings)
-    .values({ companyId: input.companyId, notifies: input.notifies, type: input.type })
-    .onConflictDoUpdate({
-      set: { notifies: input.notifies, updatedAt: sql`now()` },
-      target: [
-        companyOccurrenceNotificationSettings.companyId,
-        companyOccurrenceNotificationSettings.type,
-      ],
-    })
 }
 
 /**
@@ -429,4 +408,95 @@ export async function findDriverReachableDocument(
     .limit(1)
 
   return row === undefined ? null : { tripId: row.tripId }
+}
+
+/**
+ * O tipo cadastrado, conferido contra a empresa. ⚠️ `active` **não** entra no `where`: o caso de
+ * uso precisa distinguir "não existe" de "foi aposentado" para decidir, e filtrar aqui devolveria
+ * `null` nos dois casos.
+ */
+export async function findOccurrenceType(
+  queryable: TripQueryable,
+  input: { readonly companyId: string; readonly occurrenceTypeId: string },
+): Promise<null | OccurrenceTypeRecord> {
+  const [row] = await queryable
+    .select({
+      active: companyOccurrenceTypes.active,
+      id: companyOccurrenceTypes.id,
+      name: companyOccurrenceTypes.name,
+      notifies: companyOccurrenceTypes.notifies,
+      stage: companyOccurrenceTypes.stage,
+    })
+    .from(companyOccurrenceTypes)
+    .where(
+      and(
+        eq(companyOccurrenceTypes.companyId, input.companyId),
+        eq(companyOccurrenceTypes.id, input.occurrenceTypeId),
+      ),
+    )
+    .limit(1)
+
+  return row ?? null
+}
+
+/** Os tipos que a empresa cadastrou. O aposentado vem junto: a tela o mostra apagado, não some. */
+export async function listOccurrenceTypes(
+  queryable: TripQueryable,
+  input: { readonly companyId: string },
+): Promise<readonly OccurrenceTypeRecord[]> {
+  return queryable
+    .select({
+      active: companyOccurrenceTypes.active,
+      id: companyOccurrenceTypes.id,
+      name: companyOccurrenceTypes.name,
+      notifies: companyOccurrenceTypes.notifies,
+      stage: companyOccurrenceTypes.stage,
+    })
+    .from(companyOccurrenceTypes)
+    .where(eq(companyOccurrenceTypes.companyId, input.companyId))
+    .orderBy(asc(companyOccurrenceTypes.stage), asc(companyOccurrenceTypes.name))
+}
+
+export async function saveOccurrenceType(
+  queryable: TripQueryable,
+  input: {
+    readonly active: boolean
+    readonly companyId: string
+    readonly name: string
+    readonly notifies: boolean
+    readonly occurrenceTypeId: null | string
+    readonly stage: TripOccurrenceStage
+  },
+): Promise<OccurrenceTypeRecord> {
+  const values = {
+    active: input.active,
+    companyId: input.companyId,
+    name: input.name.trim(),
+    notifies: input.notifies,
+    stage: input.stage,
+  }
+
+  const [saved] =
+    input.occurrenceTypeId === null
+      ? await queryable.insert(companyOccurrenceTypes).values(values).returning()
+      : await queryable
+          .update(companyOccurrenceTypes)
+          .set({ ...values, updatedAt: sql`now()` })
+          .where(
+            and(
+              eq(companyOccurrenceTypes.companyId, input.companyId),
+              eq(companyOccurrenceTypes.id, input.occurrenceTypeId),
+            ),
+          )
+          .returning()
+
+  if (saved === undefined) throw new TripDocumentNotFoundError()
+
+  return {
+    active: saved.active,
+    id: saved.id,
+    name: saved.name,
+    notifies: saved.notifies,
+    stage: saved.stage,
+  }
 }

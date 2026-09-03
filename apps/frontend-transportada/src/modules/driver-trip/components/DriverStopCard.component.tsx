@@ -9,8 +9,9 @@ import { Select } from '@/components/ui/select'
 import {
   DRIVER_OCCURRENCE_KINDS,
   DRIVER_RETURN_REASONS,
-  driverDocumentOccurrenceTypes,
+  driverSelectableOccurrenceTypes,
   type DriverOccurrenceKind,
+  type DriverOccurrenceType,
   type DriverReturnReason,
   type DriverTripDocument,
   type DriverTripStop,
@@ -37,7 +38,12 @@ type DriverStopCardProps = Readonly<{
   isCurrent: boolean
   onArrive: (stopId: string) => void
   onDeliver: (documentId: string) => void
-  onDocumentOccurrence: (input: { documentId: string; type: string }) => void
+  onDocumentOccurrence: (input: {
+    documentId: string
+    occurrenceTypeId: string
+    productCode: string
+  }) => void
+  occurrenceTypes: readonly DriverOccurrenceType[]
   onProof: (input: { documentId: string; file: File }) => void
   onOccurrence: (input: { description: string; kind: DriverOccurrenceKind; stopId: string }) => void
   onReturn: (input: { documentId: string; reason: DriverReturnReason }) => void
@@ -48,6 +54,7 @@ export function DriverStopCard({
   isCurrent,
   onArrive,
   onDeliver,
+  occurrenceTypes,
   onDocumentOccurrence,
   onOccurrence,
   onProof,
@@ -125,6 +132,7 @@ export function DriverStopCard({
             document={document}
             key={document.id}
             onDeliver={onDeliver}
+            occurrenceTypes={occurrenceTypes}
             onDocumentOccurrence={onDocumentOccurrence}
             onProof={onProof}
             onReturn={onReturn}
@@ -138,14 +146,20 @@ export function DriverStopCard({
 type DocumentRowProps = Readonly<{
   document: DriverTripDocument
   onDeliver: (documentId: string) => void
-  /** Spec 079: o que aconteceu **sem** a carga voltar — recusa parcial, avaria que o cliente aceitou. */
-  onDocumentOccurrence: (input: { documentId: string; type: string }) => void
+  /** Spec 079: o que aconteceu **sem** a carga voltar. O tipo vem do cadastro da empresa. */
+  onDocumentOccurrence: (input: {
+    documentId: string
+    occurrenceTypeId: string
+    productCode: string
+  }) => void
+  occurrenceTypes: readonly DriverOccurrenceType[]
   onProof: (input: { documentId: string; file: File }) => void
   onReturn: (input: { documentId: string; reason: DriverReturnReason }) => void
 }>
 
 function DocumentRow({
   document,
+  occurrenceTypes,
   onDeliver,
   onDocumentOccurrence,
   onProof,
@@ -213,17 +227,23 @@ function DocumentRow({
         <fieldset className={styles.occurrenceForm}>
           <legend>{t('documentOccurrence')}</legend>
           <p>{t('documentOccurrenceHint')}</p>
-          {driverDocumentOccurrenceTypes().map((type) => (
+          {driverSelectableOccurrenceTypes(occurrenceTypes).map((occurrenceType) => (
             <Button
-              key={type}
+              key={occurrenceType.id}
               onClick={() => {
-                onDocumentOccurrence({ documentId: document.id, type })
+                onDocumentOccurrence({
+                  documentId: document.id,
+                  occurrenceTypeId: occurrenceType.id,
+                  /* ⚠️ Vazio é a nota inteira. O item entra quando a tela dele souber listá-lo — a
+                     nota do motorista ainda não carrega os produtos. */
+                  productCode: '',
+                })
                 setOpenDocumentOccurrence(false)
               }}
               type="button"
               variant="ghost"
             >
-              {t(`documentOccurrenceType.${type}`)}
+              {occurrenceType.name}
             </Button>
           ))}
         </fieldset>

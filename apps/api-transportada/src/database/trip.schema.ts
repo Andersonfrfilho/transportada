@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { TRIP_OCCURRENCE_STAGE, TRIP_OCCURRENCE_TYPES } from '../shared/trip-occurrence.constant.js'
+import { TRIP_OCCURRENCE_STAGE } from '../shared/trip-occurrence.constant.js'
 import type { TripOccurrenceStage, TripOccurrenceType } from '../shared/trip-occurrence.constant.js'
 import { sql } from 'drizzle-orm'
 import {
@@ -925,7 +925,8 @@ export const tripDocumentOccurrences = pgTable(
     /** O código do item em `nfe_products`. Vazio na ocorrência da nota inteira — recusa total não tem item. */
     productCode: text('product_code').notNull().default(''),
     stage: text().notNull().$type<TripOccurrenceStage>(),
-    type: text().notNull().$type<TripOccurrenceType>(),
+    /** Spec 079: o tipo que a empresa cadastrou. Deixou de ser texto de catálogo fechado. */
+    occurrenceTypeId: uuid('occurrence_type_id').notNull(),
     note: text().notNull().default(''),
     actorUserId: uuid('actor_user_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -949,10 +950,6 @@ export const tripDocumentOccurrences = pgTable(
       'trip_document_occurrences_stage_check',
       sql`${table.stage} in (${raw(inList(Object.values(TRIP_OCCURRENCE_STAGE)))})`,
     ),
-    check(
-      'trip_document_occurrences_type_check',
-      sql`${table.type} in (${raw(inList(TRIP_OCCURRENCE_TYPES.map((entry) => entry.type)))})`,
-    ),
     index('trip_document_occurrences_company_document_idx').on(
       table.companyId,
       table.tripDocumentId,
@@ -962,36 +959,43 @@ export const tripDocumentOccurrences = pgTable(
 )
 
 /**
- * Spec 079: quais tipos de ocorrência a empresa escolheu ser avisada.
+ * Spec 079: os tipos de ocorrência que **a empresa cadastrou**.
  *
- * ⚠️ **Ausência de linha é não avisar.** O padrão é o silêncio, e ligar é decisão da empresa tipo a
- * tipo. Linha com `false` é escolha registrada de não avisar — diferente de ausência, que é o
- * padrão nunca tocado; guardar as duas deixa a tela mostrar o que foi decidido.
+ * ⚠️ Deixou de ser catálogo fechado do produto em 2026-09-03. O `stage` é escolhido no cadastro
+ * porque é ele que decide **quem registra** — `separation` é do galpão (`trip.manage`) e `delivery`
+ * é da rua (`trip.report`); sem ele não há como derivar a permissão, e a linha entre barracão e rua
+ * da ADR-0043 se perderia.
+ *
+ * ⚠️ **A flag de aviso é coluna daqui**, não tabela ao lado: eram a mesma decisão chaveada pelo
+ * mesmo valor, e separá-las obrigava a tela a casar duas listas para mostrar uma.
+ *
+ * `active` aposenta o tipo sem apagar histórico — apagar deixaria ocorrência órfã.
  */
-export const companyOccurrenceNotificationSettings = pgTable(
-  'company_occurrence_notification_settings',
+export const companyOccurrenceTypes = pgTable(
+  'company_occurrence_types',
   {
+    id: uuid().defaultRandom().primaryKey(),
     companyId: uuid('company_id').notNull(),
-    type: text().notNull().$type<TripOccurrenceType>(),
+    name: text().notNull(),
+    stage: text().notNull().$type<TripOccurrenceStage>(),
     notifies: boolean().notNull().default(false),
+    active: boolean().notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    primaryKey({
-      columns: [table.companyId, table.type],
-      name: 'company_occurrence_notification_settings_pkey',
-    }),
     foreignKey({
       columns: [table.companyId],
       foreignColumns: [companies.id],
-      name: 'company_occurrence_notification_settings_company_id_companies_id_fk',
+      name: 'company_occurrence_types_company_id_companies_id_fk',
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
     check(
-      'company_occurrence_notification_settings_type_check',
-      sql`${table.type} in (${raw(inList(TRIP_OCCURRENCE_TYPES.map((entry) => entry.type)))})`,
+      'company_occurrence_types_stage_check',
+      sql`${table.stage} in (${raw(inList(Object.values(TRIP_OCCURRENCE_STAGE)))})`,
     ),
+    check('company_occurrence_types_name_check', sql`length(btrim(${table.name})) > 0`),
+    unique('company_occurrence_types_company_id_id_unique').on(table.companyId, table.id),
   ],
 )

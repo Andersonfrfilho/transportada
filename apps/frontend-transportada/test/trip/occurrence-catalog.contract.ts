@@ -6,72 +6,52 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'bun:test'
 
 import trip from '../../src/modules/trip/locales/trip.locale.json'
-import {
-  separationOccurrenceTypes,
-  TRIP_OCCURRENCE_TYPES,
-} from '../../src/modules/trip/shared/occurrence.constant'
+import { TRIP_OCCURRENCE_STAGE } from '../../src/modules/trip/shared/occurrence.constant'
+
+const CONSTANT = new URL('../../src/modules/trip/shared/occurrence.constant.ts', import.meta.url)
+const PANEL = new URL(
+  '../../src/modules/trip/components/TripOccurrences.component.tsx',
+  import.meta.url,
+)
 
 /**
- * Spec 079 T020. O gêmeo de `api-transportada/test/trip-occurrence/catalog.contract.ts`: os dois
- * restatam a mesma lista, porque o bundle não carrega código da API. Uma lista de sete itens se
- * confere de olho — é por isso que aqui a cópia é aceitável, ao contrário de um parser.
+ * Spec 079. ⚠️ **Os tipos deixaram de ser cópia por valor em 2026-09-03**: eles são cadastro da
+ * empresa e vêm do servidor. Uma lista fixa aqui voltaria a divergir do que cada transportadora
+ * cadastrou — e agora não haveria nem como saber, porque não existe mais lista canônica na API.
  */
-describe('catálogo de ocorrência no bundle (spec 079 T020)', () => {
-  it('os sete tipos, na mesma ordem da API', () => {
-    expect(TRIP_OCCURRENCE_TYPES.map((entry) => entry.type)).toEqual([
-      'item_faltante',
-      'item_avariado',
-      'divergencia_quantidade',
-      'recusa_total',
-      'recusa_parcial',
-      'avaria_transporte',
-      'destinatario_ausente',
-    ])
+describe('os tipos de ocorrência vêm do cadastro (spec 079)', () => {
+  const source = readFileSync(CONSTANT, 'utf8')
+
+  it('não há lista de tipos no bundle', () => {
+    expect(source).not.toInclude('recusa_total')
+    expect(source).not.toInclude('item_faltante')
   })
 
   /**
-   * ⚠️ A tela do escritório oferece **só** os de separação. A ocorrência de rua é `trip.report`, e
-   * um botão que a oferece aqui sempre responde 403 — pior que não existir, porque parece capaz.
+   * O **grupo** continua fixo, e isso não é inconsistência: ele decide **quem registra** — galpão é
+   * `trip.manage`, rua é `trip.report` —, e isso é regra do produto, não escolha de quem cadastra.
    */
-  it('a tela do escritório não oferece ocorrência de rua', () => {
-    expect(separationOccurrenceTypes()).toEqual([
-      'item_faltante',
-      'item_avariado',
-      'divergencia_quantidade',
-    ])
-  })
-
-  /** Tipo sem rótulo aparece como chave crua na tela — e é o que acontece quando um é acrescentado. */
-  it('todo tipo tem rótulo em português', () => {
-    for (const entry of TRIP_OCCURRENCE_TYPES) {
-      expect(trip.occurrence.type).toHaveProperty(entry.type)
-    }
+  it('o grupo continua sendo do produto', () => {
+    expect(Object.values(TRIP_OCCURRENCE_STAGE).toSorted()).toEqual(['delivery', 'separation'])
   })
 
   /**
-   * ⚠️ **A ocorrência só anota.** Invalidar a chave da viagem depois de registrá-la daria a
-   * impressão de que ela muda o estado da nota — e a decisão registrada na T020 é que não muda: sem
-   * tela de resolução, bloquear deixaria a nota travada num estado que ninguém sabe destravar.
+   * ⚠️ A tela do escritório oferece **só os de galpão, e só os ativos**. Tipo de rua é
+   * `trip.report` e mora na árvore do motorista; oferecê-lo aqui daria um botão que sempre responde
+   * 403. Tipo aposentado sai da escolha, mas o já registrado com ele continua legível.
    */
-  it('registrar ocorrência não invalida a viagem', () => {
-    const source = readFileSync(
-      new URL('../../src/modules/trip/hooks/useTripWorkspace.hook.ts', import.meta.url),
-      'utf8',
-    )
-    const inicio = source.indexOf('registerOccurrenceMutation = useMutation')
-    const trecho = source.slice(inicio, source.indexOf('})', source.indexOf('onSuccess', inicio)))
+  it('a tela oferece só tipo de galpão ativo', () => {
+    const panel = readFileSync(PANEL, 'utf8')
 
-    expect(trecho).toInclude("'occurrences'")
-    expect(trecho).not.toInclude('MUTATION_EFFECT')
+    expect(panel).toInclude('type.active && type.stage === TRIP_OCCURRENCE_STAGE.separation')
   })
 
-  /** Componente órfão não é entrega: o painel monta as ocorrências. */
-  it('está montado no painel da nota', () => {
-    const detail = readFileSync(
-      new URL('../../src/modules/trip/components/TripDetail.component.tsx', import.meta.url),
-      'utf8',
-    )
+  /** O item é opcional, e "a nota inteira" é o padrão — recusa total não tem item a apontar. */
+  it('a nota inteira é a primeira escolha do item', () => {
+    const panel = readFileSync(PANEL, 'utf8')
+    const opcoes = panel.slice(panel.indexOf("t('occurrence.product')"))
 
-    expect(detail).toMatch(/<TripOccurrences[\s/>]/u)
+    expect(opcoes.indexOf('occurrence.wholeDocument')).toBeLessThan(opcoes.indexOf('products.map'))
+    expect(trip.occurrence.wholeDocument.toLowerCase()).toInclude('nota inteira')
   })
 })

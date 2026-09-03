@@ -147,9 +147,10 @@ export const TRIP_OCCURRENCE_KEYS = [
   'createdAt',
   'id',
   'note',
+  'occurrenceTypeId',
   'productCode',
   'stage',
-  'type',
+  'typeName',
 ] as const
 
 export const TRIP_DOCUMENT_PRODUCT_KEYS = [

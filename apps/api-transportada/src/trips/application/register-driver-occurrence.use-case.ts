@@ -13,26 +13,36 @@ import {
   resolveOccurrenceStage,
   TRIP_OCCURRENCE_STAGE,
 } from '../../shared/trip-occurrence.constant.js'
-import type { TripOccurrenceType } from '../../shared/trip-occurrence.constant.js'
 import { TripDocumentNotReachableError } from '../domain/trip.error.js'
-import type { TripOccurrence } from './register-trip-occurrence.use-case.js'
+import { resolveOccurrenceProductScope } from '../domain/occurrence-scope.policy.js'
+import type { OccurrenceTypeRecord, TripOccurrence } from './register-trip-occurrence.use-case.js'
 
 export type DriverOccurrencePort = {
+  findOccurrenceType(input: {
+    readonly companyId: string
+    readonly occurrenceTypeId: string
+  }): Promise<null | OccurrenceTypeRecord>
   /** `null` quando a nota não é de uma viagem ativa deste motorista — inalcançável, não proibida. */
   findReachableDocument(input: {
     readonly companyId: string
     readonly documentId: string
     readonly driverId: string
   }): Promise<null | { readonly tripId: string }>
+  listDocumentProducts(input: {
+    readonly companyId: string
+    readonly documentId: string
+    readonly tripId: string
+  }): Promise<readonly { readonly code: string; readonly description: string }[]>
   saveOccurrence(input: {
     readonly actorUserId: string
     readonly companyId: string
     readonly documentId: string
     readonly note: string
+    readonly occurrenceTypeId: string
     readonly productCode: string
     readonly stage: 'delivery'
     readonly tripId: string
-    readonly type: TripOccurrenceType
+    readonly typeName: string
   }): Promise<null | TripOccurrence>
 }
 
@@ -42,8 +52,10 @@ export type RegisterDriverOccurrenceInput = {
   readonly documentId: string
   readonly driverId: string
   readonly note: string
+  readonly occurrenceTypeId: string
+  /** Vazio é a nota inteira: o motorista aponta o item quando o cliente recusou só parte. */
+  readonly productCode: string
   readonly repository: DriverOccurrencePort
-  readonly type: string
 }
 
 /**
@@ -57,7 +69,20 @@ export type RegisterDriverOccurrenceInput = {
 export async function registerDriverOccurrence(
   input: RegisterDriverOccurrenceInput,
 ): Promise<TripOccurrence> {
-  if (resolveOccurrenceStage(input.type) !== TRIP_OCCURRENCE_STAGE.delivery) {
+  const occurrenceType = await input.repository.findOccurrenceType({
+    companyId: input.companyId,
+    occurrenceTypeId: input.occurrenceTypeId,
+  })
+
+  /**
+   * ⚠️ Tipo de galpão, tipo aposentado, tipo de outra empresa e nota fora da viagem dele respondem
+   * **igual**: inalcançável. Distinguir os quatro diria a quem tenta qual barreira encontrou.
+   */
+  if (
+    occurrenceType === null ||
+    !occurrenceType.active ||
+    occurrenceType.stage !== TRIP_OCCURRENCE_STAGE.delivery
+  ) {
     throw new TripDocumentNotReachableError()
   }
 
@@ -68,15 +93,26 @@ export async function registerDriverOccurrence(
   })
   if (reachable === null) throw new TripDocumentNotReachableError()
 
+  const scope = resolveOccurrenceProductScope({
+    productCode: input.productCode,
+    products: await input.repository.listDocumentProducts({
+      companyId: input.companyId,
+      documentId: input.documentId,
+      tripId: reachable.tripId,
+    }),
+  })
+  if (scope === null) throw new TripDocumentNotReachableError()
+
   const saved = await input.repository.saveOccurrence({
     actorUserId: input.actorUserId,
     companyId: input.companyId,
     documentId: input.documentId,
     note: input.note,
-    productCode: '',
+    occurrenceTypeId: occurrenceType.id,
+    productCode: scope.productCode,
     stage: TRIP_OCCURRENCE_STAGE.delivery,
     tripId: reachable.tripId,
-    type: input.type as TripOccurrenceType,
+    typeName: occurrenceType.name,
   })
   if (saved === null) throw new TripDocumentNotReachableError()
 

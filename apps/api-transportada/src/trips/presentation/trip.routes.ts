@@ -10,11 +10,8 @@ import type { TripDocumentProduct } from '../application/read-trip-document-prod
 import type { TripOccurrence } from '../application/register-trip-occurrence.use-case.js'
 import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
 import { acceptsOccurrenceType } from '../domain/occurrence.policy.js'
-import {
-  parseOccurrenceNotificationRequest,
-  parseRegisterOccurrenceRequest,
-} from './occurrence.schema.js'
-import type { OccurrenceNotificationEntry } from '../domain/occurrence-settings.policy.js'
+import { parseOccurrenceTypeRequest, parseRegisterOccurrenceRequest } from './occurrence.schema.js'
+import type { OccurrenceTypeRecord } from '../application/register-trip-occurrence.use-case.js'
 
 type SaveOccurrenceNotificationInput = {
   readonly context: CompanyContext
@@ -101,15 +98,24 @@ const TRIP_DOCUMENT_DELIVERY_OCCURRENCE_PATH = `${TRIP_DOCUMENT_OCCURRENCES_PATH
  * para toda viagem, presente e futura. Pendurá-la numa viagem sugeriria um efeito local que ela
  * não tem, o mesmo erro que a correção de endereço evita (ADR-0044 §3).
  */
-const OCCURRENCE_NOTIFICATION_SETTINGS_PATH = '/company-settings/occurrence-notifications'
+const OCCURRENCE_TYPES_PATH = '/company-settings/occurrence-types'
 
 type RegisterOccurrenceRouteInput = {
   readonly context: CompanyContext
   readonly documentId: string
   readonly note: string
+  readonly occurrenceTypeId: string
   readonly productCode: string
   readonly tripId: string
-  readonly type: string
+}
+
+type SaveOccurrenceTypeInput = {
+  readonly active: boolean
+  readonly context: CompanyContext
+  readonly name: string
+  readonly notifies: boolean
+  readonly occurrenceTypeId: null | string
+  readonly stage: 'delivery' | 'separation'
 }
 
 type ReadDeliveryProofsRouteInput = {
@@ -255,15 +261,11 @@ type Dependencies = {
   readonly readDeliveryProofs: {
     execute(input: TenantInput<ReadDeliveryProofsRouteInput>): Promise<readonly DeliveryProofView[]>
   }
-  readonly readOccurrenceNotifications: {
-    execute(input: {
-      readonly context: CompanyContext
-    }): Promise<readonly OccurrenceNotificationEntry[]>
+  readonly listOccurrenceTypes: {
+    execute(input: { readonly context: CompanyContext }): Promise<readonly OccurrenceTypeRecord[]>
   }
-  readonly saveOccurrenceNotification: {
-    execute(
-      input: TenantInput<SaveOccurrenceNotificationInput>,
-    ): Promise<readonly OccurrenceNotificationEntry[]>
+  readonly saveOccurrenceType: {
+    execute(input: TenantInput<SaveOccurrenceTypeInput>): Promise<OccurrenceTypeRecord>
   }
   readonly listTripOccurrences: {
     execute(input: TenantInput<ReadDeliveryProofsRouteInput>): Promise<readonly TripOccurrence[]>
@@ -794,33 +796,59 @@ export function createTripRoutes(
      * `test/driver-trip/me-routes.contract.ts` foi quem pegou, afirmando que nenhuma rota do
      * escritório é alcançável pelo papel `driver`. A rota de rua fica para uma task própria.
      */
-    occurrenceRoute({ pathname: TRIP_DOCUMENT_SEPARATION_OCCURRENCE_PATH, stage: 'separation' }),
-    occurrenceRoute({ pathname: TRIP_DOCUMENT_DELIVERY_OCCURRENCE_PATH, stage: 'delivery' }),
-    defineRoute<undefined>({
-      async handle({ context }): Promise<Response> {
-        const settings = await dependencies.readOccurrenceNotifications.execute({
-          context: context.scope,
-        })
-        return jsonResponse({ body: { data: settings }, status: 200 })
-      },
-      method: 'GET',
-      parse: () => undefined,
-      pathname: OCCURRENCE_NOTIFICATION_SETTINGS_PATH,
-      policy: SETTINGS_MANAGE_POLICY,
-    }),
-    defineRoute<Omit<SaveOccurrenceNotificationInput, 'context'>>({
+    /**
+     * ⚠️ **Uma rota só, agora que o tipo é cadastrado.** Antes havia duas — uma por grupo — porque
+     * o grupo vinha do corpo e a autorização precisava ser estática. Com o tipo no banco, o grupo
+     * vem do **cadastro**, e o caso de uso o confere: quem manda um tipo de rua por esta rota não
+     * ganha nada, porque a permissão dela é `trip.manage` e o registro é o mesmo.
+     *
+     * O motorista continua tendo a rota dele em `/me`, com o escopo da viagem ativa.
+     */
+    defineRoute<Omit<RegisterOccurrenceRouteInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
-        const settings = await dependencies.saveOccurrenceNotification.execute({
+        const occurrence = await dependencies.registerTripOccurrence.execute({
           context: context.scope,
           ...input,
         })
-        return jsonResponse({ body: { data: settings }, status: 200 })
+        return jsonResponse({ body: { data: occurrence }, status: 201 })
+      },
+      method: 'POST',
+      async parse({ pathParameters, request }) {
+        const body = await parseRegisterOccurrenceRequest(request)
+        return {
+          documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
+          note: body.note,
+          occurrenceTypeId: body.occurrenceTypeId,
+          productCode: body.productCode,
+          tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+        }
+      },
+      pathname: TRIP_DOCUMENT_OCCURRENCES_PATH,
+      policy: TRIP_MANAGE_POLICY,
+    }),
+    defineRoute<undefined>({
+      async handle({ context }): Promise<Response> {
+        const types = await dependencies.listOccurrenceTypes.execute({ context: context.scope })
+        return jsonResponse({ body: { data: types }, status: 200 })
+      },
+      method: 'GET',
+      parse: () => undefined,
+      pathname: OCCURRENCE_TYPES_PATH,
+      policy: SETTINGS_MANAGE_POLICY,
+    }),
+    defineRoute<Omit<SaveOccurrenceTypeInput, 'context'>>({
+      async handle({ context, input }): Promise<Response> {
+        const saved = await dependencies.saveOccurrenceType.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({ body: { data: saved }, status: 200 })
       },
       method: 'PUT',
       async parse({ request }) {
-        return parseOccurrenceNotificationRequest(request)
+        return parseOccurrenceTypeRequest(request)
       },
-      pathname: OCCURRENCE_NOTIFICATION_SETTINGS_PATH,
+      pathname: OCCURRENCE_TYPES_PATH,
       policy: SETTINGS_MANAGE_POLICY,
     }),
     defineRoute<Omit<BatchStatusInput, 'context'>>({
@@ -978,48 +1006,6 @@ export function createTripRoutes(
       policy: TRIP_READ_POLICY,
     }),
   ]
-
-  function occurrenceRoute(config: {
-    readonly pathname: string
-    readonly stage: TripOccurrenceStage
-  }): ReturnType<typeof defineRoute<Omit<RegisterOccurrenceRouteInput, 'context'>>> {
-    return defineRoute<Omit<RegisterOccurrenceRouteInput, 'context'>>({
-      async handle({ context, input }): Promise<Response> {
-        if (!acceptsOccurrenceType({ stage: config.stage, type: input.type })) {
-          throw new ApiError(HTTP_ERROR.invalidRequest)
-        }
-
-        const occurrence = await dependencies.registerTripOccurrence.execute({
-          context: context.scope,
-          ...input,
-        })
-        return jsonResponse({ body: { data: occurrence }, status: 201 })
-      },
-      method: 'POST',
-      async parse({ pathParameters, request }) {
-        const body = await parseRegisterOccurrenceRequest(request)
-        return {
-          documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
-          note: body.note,
-          productCode: body.productCode,
-          tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
-          type: body.type,
-        }
-      },
-      pathname: config.pathname,
-      /**
-       * ⚠️ **As duas rotas do escritório são `trip.manage`**, inclusive a de entrega. Dar
-       * `trip.report` à de entrega foi o furo de 02/09: o motorista tem essa permissão, e uma rota
-       * da árvore `/trips/:id` com ela o deixaria alcançar **qualquer** viagem da empresa — foi
-       * `test/driver-trip/me-routes.contract.ts` que pegou.
-       *
-       * O escritório registra ocorrência de rua porque é ele quem atende a ligação do motorista. O
-       * motorista registrar do próprio celular é outra rota, na árvore `/me`, com o escopo da
-       * viagem ativa dele — e ela ainda não existe.
-       */
-      policy: TRIP_MANAGE_POLICY,
-    })
-  }
 
   /** As três ações da nota diferem só no caminho e na dependência — mesmo corpo, mesma resposta. */
   function tripDocumentActionRoute(config: {

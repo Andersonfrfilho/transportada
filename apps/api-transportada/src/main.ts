@@ -149,16 +149,16 @@ import { createDeliveryProofDownloadGateway } from './trips/infrastructure/deliv
 import { readTripDocumentProducts } from './trips/application/read-trip-document-products.use-case.js'
 import { registerDriverOccurrence } from './trips/application/register-driver-occurrence.use-case.js'
 import { registerTripOccurrence } from './trips/application/register-trip-occurrence.use-case.js'
-import { buildOccurrenceNotificationView } from './trips/domain/occurrence-settings.policy.js'
 import { createOccurrenceNotifier } from './trips/infrastructure/occurrence-notifier.gateway.js'
 import {
   findDriverReachableDocument,
   listDeliveryProofs,
   listDocumentProducts,
-  listOccurrenceNotificationSettings,
+  findOccurrenceType,
+  listOccurrenceTypes,
   listTripOccurrences,
   readOccurrenceLabels,
-  saveOccurrenceNotificationSetting,
+  saveOccurrenceType,
   saveTripOccurrence,
 } from './trips/infrastructure/delivery-proof-read.support.js'
 import { createMdfeDocumentSource } from './mdfe-manifests/infrastructure/mdfe-document.query.js'
@@ -1631,7 +1631,9 @@ function createApplicationRoutes({
         registerDriverOccurrence({
           ...input,
           repository: {
+            findOccurrenceType: (query) => findOccurrenceType(database, query),
             findReachableDocument: (query) => findDriverReachableDocument(database, query),
+            listDocumentProducts: (query) => listDocumentProducts(database, query),
             saveOccurrence: (query) => saveTripOccurrence(database, query),
           },
         }),
@@ -1671,27 +1673,19 @@ function createApplicationRoutes({
       createTrip: { execute: (input) => trips.create(input) },
       createTripMdfeManifest: { execute: (input) => createTripMdfeManifest.execute(input) },
       deliverTripDocument: { execute: (input) => tripLifecycle.deliver.execute(input) },
-      readOccurrenceNotifications: {
-        execute: async (input) =>
-          buildOccurrenceNotificationView({
-            settings: await listOccurrenceNotificationSettings(database, {
-              companyId: input.context.companyId,
-            }),
-          }),
+      listOccurrenceTypes: {
+        execute: (input) => listOccurrenceTypes(database, { companyId: input.context.companyId }),
       },
-      saveOccurrenceNotification: {
-        execute: async (input) => {
-          await saveOccurrenceNotificationSetting(database, {
+      saveOccurrenceType: {
+        execute: (input) =>
+          saveOccurrenceType(database, {
+            active: input.active,
             companyId: input.context.companyId,
+            name: input.name,
             notifies: input.notifies,
-            type: input.type as never,
-          })
-          return buildOccurrenceNotificationView({
-            settings: await listOccurrenceNotificationSettings(database, {
-              companyId: input.context.companyId,
-            }),
-          })
-        },
+            occurrenceTypeId: input.occurrenceTypeId,
+            stage: input.stage,
+          }),
       },
       listTripOccurrences: {
         execute: (input) =>
@@ -1708,7 +1702,6 @@ function createApplicationRoutes({
             companyId: input.context.companyId,
             documentId: input.documentId,
             note: input.note,
-            productCode: input.productCode,
             /**
              * Spec 079: o aviso sai **se** a empresa ligou aquele tipo. A leitura da configuração
              * acontece por registro — é uma consulta pequena, por empresa, e cacheá-la faria a
@@ -1720,12 +1713,10 @@ function createApplicationRoutes({
                 documentId: input.documentId,
                 tripId: input.tripId,
               })),
-              occurrenceType: input.type,
+              /** O nome do tipo é preenchido pelo caso de uso, que é quem lê o cadastro. */
+              occurrenceType: '',
               tripId: input.tripId,
             },
-            notificationSettings: await listOccurrenceNotificationSettings(database, {
-              companyId: input.context.companyId,
-            }),
             notifier: createOccurrenceNotifier({
               logger,
               queryable: database,
@@ -1735,12 +1726,15 @@ function createApplicationRoutes({
                   locale: NOTIFICATION_DEFAULT_LOCALE,
                 } as never),
             }),
+            occurrenceTypeId: input.occurrenceTypeId,
+            productCode: input.productCode,
             repository: {
+              findOccurrenceType: (query) => findOccurrenceType(database, query),
+              listDocumentProducts: (query) => listDocumentProducts(database, query),
               listOccurrences: (query) => listTripOccurrences(database, query),
               saveOccurrence: (query) => saveTripOccurrence(database, query),
             },
             tripId: input.tripId,
-            type: input.type as never,
           }),
       },
       readTripDocumentProducts: {

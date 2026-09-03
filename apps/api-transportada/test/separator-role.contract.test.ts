@@ -167,16 +167,15 @@ describe('separator role contract', () => {
        * `trip.report`, do campo, pela mesma linha da ADR-0043 que o impede de reportar entrega.
        */
       /**
-       * ⚠️ **O separador alcança as duas**, e a de entrega merece a razão escrita: ela é
-       * `trip.manage` porque quem a registra é o **escritório** — quem atende a ligação do
-       * motorista dizendo que a carga foi recusada. Não é o motorista reportando do celular; essa é
-       * outra rota, na árvore `/me`, e ela ainda não existe.
+       * Spec 079: **uma rota só**, desde que o tipo virou cadastro da empresa. Antes eram duas — uma
+       * por grupo — porque o grupo vinha do corpo e a autorização precisava ser estática. Com o tipo
+       * no banco, o grupo vem do cadastro e o caso de uso o confere.
        *
-       * Se algum dia o escritório deixar de registrar ocorrência de rua, é aqui que a decisão se
-       * reabre — e o separador perde esta linha junto.
+       * O separador alcança: registrar item faltante ou avariado **é** o trabalho de quem separa. Um
+       * tipo de rua mandado por aqui não lhe dá nada — a permissão é a mesma e o registro também; o
+       * que muda é que o motorista tem a rota dele em `/me`, com o escopo da viagem ativa.
        */
-      'POST /trips/:id/documents/:documentId/occurrences/delivery',
-      'POST /trips/:id/documents/:documentId/occurrences/separation',
+      'POST /trips/:id/documents/:documentId/occurrences',
       'POST /trips/:id/documents/:documentId/return',
       'POST /trips/:id/documents/:documentId/separate',
       'POST /trips/:id/documents/batch-status',

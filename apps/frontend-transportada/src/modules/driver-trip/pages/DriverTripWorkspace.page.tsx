@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
@@ -11,7 +11,11 @@ import { useDriverTrip } from '../hooks/useDriverTrip.hook'
 import { getDriverTripClient } from '../shared/driverTripClient.service'
 import { readCurrentLocation } from '../shared/driverLocation.service'
 import { saveDriverFile } from '../shared/driverFileSave.service'
-import type { DriverOccurrenceKind, DriverReturnReason } from '../shared/driverTrip.types'
+import type {
+  DriverOccurrenceType,
+  DriverOccurrenceKind,
+  DriverReturnReason,
+} from '../shared/driverTrip.types'
 import { createIdempotencyKey } from '../shared/offlineQueue.service'
 import { findCurrentStop } from '../shared/driverTripView.service'
 import styles from '../styles/driverTrip.module.css'
@@ -31,6 +35,24 @@ export function DriverTripWorkspacePage() {
    * aviso diz isso, e repetir o toque é o conserto.
    */
   const [occurrenceFailed, setOccurrenceFailed] = useState(false)
+  /**
+   * Os tipos cadastrados pela empresa. Falhar aqui deixa a lista vazia e o botão sem opção — o
+   * motorista segue entregando e devolvendo, que é o que não pode parar.
+   */
+  const [occurrenceTypes, setOccurrenceTypes] = useState<readonly DriverOccurrenceType[]>([])
+
+  useEffect(() => {
+    let ativo = true
+    void getDriverTripClient()
+      .listOccurrenceTypes()
+      .then((types) => {
+        if (ativo) setOccurrenceTypes(types)
+      })
+      .catch(() => undefined)
+    return () => {
+      ativo = false
+    }
+  }, [])
 
   if (driverTrip.status === 'loading') {
     return (
@@ -152,9 +174,14 @@ export function DriverTripWorkspacePage() {
                   .attachProof({ documentId: input.documentId, file: input.file, kind: 'photo' })
                   .catch(() => setProofFailed(true))
               }}
-              onDocumentOccurrence={(input: { documentId: string; type: string }) => {
+              occurrenceTypes={occurrenceTypes}
+              onDocumentOccurrence={(input: {
+                documentId: string
+                occurrenceTypeId: string
+                productCode: string
+              }) => {
                 void getDriverTripClient()
-                  .registerDocumentOccurrence({ documentId: input.documentId, type: input.type })
+                  .registerDocumentOccurrence(input)
                   .catch(() => setOccurrenceFailed(true))
               }}
               onOccurrence={(input: {

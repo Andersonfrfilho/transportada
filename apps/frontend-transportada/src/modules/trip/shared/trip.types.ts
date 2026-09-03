@@ -74,9 +74,12 @@ export type TripOccurrence = Readonly<{
   createdAt: string
   id: string
   note: string
+  occurrenceTypeId: string
+  /** Vazio é a nota inteira: recusa total não tem item a apontar. */
   productCode: string
   stage: 'delivery' | 'separation'
-  type: string
+  /** O nome que a empresa deu ao tipo — a tela imprime isto, nunca um id. */
+  typeName: string
 }>
 
 /** Spec 079 T019: o que vai dentro da nota. Sem NCM e CFOP — ver o caso de uso na API. */

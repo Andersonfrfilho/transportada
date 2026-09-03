@@ -32,11 +32,11 @@ import type {
 } from './trip.types'
 import type { DeliveryProof } from './deliveryProof.service'
 import type { RouteGeometry } from './routeGeometry.service'
-import type { OccurrenceNotificationEntry } from './occurrence.constant'
+import type { OccurrenceType } from './occurrence.constant'
 import { isRecord, isString } from './tripGuards.validation'
 
 /** Spec 079: a configuração é da empresa, não da viagem — ligar vale para toda viagem. */
-const OCCURRENCE_NOTIFICATIONS_PATH = '/company-settings/occurrence-notifications'
+const OCCURRENCE_TYPES_PATH = '/company-settings/occurrence-types'
 import { createTripResponseAdapters } from './tripResponse.validation'
 
 type ClientDependencies = Readonly<{
@@ -56,15 +56,25 @@ export type TripClient = Readonly<{
   readDeliveryProofs: (input: TripDocumentActionInput) => Promise<readonly DeliveryProof[]>
   readRouteGeometry: (input: Readonly<{ tripId: string }>) => Promise<RouteGeometry>
   readTripOccurrences: (input: TripDocumentActionInput) => Promise<readonly TripOccurrence[]>
-  readOccurrenceNotifications: () => Promise<readonly OccurrenceNotificationEntry[]>
-  saveOccurrenceNotification: (
-    input: Readonly<{ notifies: boolean; type: string }>,
-  ) => Promise<readonly OccurrenceNotificationEntry[]>
+  listOccurrenceTypes: () => Promise<readonly OccurrenceType[]>
+  saveOccurrenceType: (
+    input: Readonly<{
+      active: boolean
+      name: string
+      notifies: boolean
+      occurrenceTypeId: null | string
+      stage: 'delivery' | 'separation'
+    }>,
+  ) => Promise<OccurrenceType>
   correctGeocodedAddress: (
     input: Readonly<{ addressKey: string; latitude: string; longitude: string }>,
   ) => Promise<void>
   registerTripOccurrence: (
-    input: TripDocumentActionInput & { readonly note: string; readonly type: string },
+    input: TripDocumentActionInput & {
+      readonly note: string
+      readonly occurrenceTypeId: string
+      readonly productCode: string
+    },
   ) => Promise<TripOccurrence>
   readTripDocumentProducts: (
     input: TripDocumentActionInput,
@@ -241,22 +251,28 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: `/geocoded-addresses/${encodeURIComponent(input.addressKey)}`,
       })
     },
-    async readOccurrenceNotifications() {
+    async listOccurrenceTypes() {
       const response = await authorizedRequest({
         dependencies,
         method: 'GET',
-        path: OCCURRENCE_NOTIFICATIONS_PATH,
+        path: OCCURRENCE_TYPES_PATH,
       })
-      return adapters.occurrenceNotificationsFromApi(readEnvelopeData(response))
+      return adapters.occurrenceTypesFromApi(readEnvelopeData(response))
     },
-    async saveOccurrenceNotification(input) {
+    async saveOccurrenceType(input) {
       const response = await authorizedRequest({
-        body: JSON.stringify({ notifies: input.notifies, type: input.type }),
+        body: JSON.stringify({
+          active: input.active,
+          name: input.name,
+          notifies: input.notifies,
+          occurrenceTypeId: input.occurrenceTypeId,
+          stage: input.stage,
+        }),
         dependencies,
         method: 'PUT',
-        path: OCCURRENCE_NOTIFICATIONS_PATH,
+        path: OCCURRENCE_TYPES_PATH,
       })
-      return adapters.occurrenceNotificationsFromApi(readEnvelopeData(response))
+      return adapters.occurrenceTypeFromApi(readEnvelopeData(response))
     },
     async readTripOccurrences(input) {
       const response = await authorizedRequest({
@@ -268,10 +284,14 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
     },
     async registerTripOccurrence(input) {
       const response = await authorizedRequest({
-        body: JSON.stringify({ note: input.note, productCode: '', type: input.type }),
+        body: JSON.stringify({
+          note: input.note,
+          occurrenceTypeId: input.occurrenceTypeId,
+          productCode: input.productCode,
+        }),
         dependencies,
         method: 'POST',
-        path: `${documentPath(input)}/occurrences/separation`,
+        path: `${documentPath(input)}/occurrences`,
       })
       return adapters.occurrenceFromApi(readEnvelopeData(response))
     },

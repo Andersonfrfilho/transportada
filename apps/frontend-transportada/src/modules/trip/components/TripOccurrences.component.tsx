@@ -7,15 +7,22 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 
-import { separationOccurrenceTypes } from '../shared/occurrence.constant'
-import type { TripOccurrence } from '../shared/trip.types'
+import { TRIP_OCCURRENCE_STAGE } from '../shared/occurrence.constant'
+import type { OccurrenceType } from '../shared/occurrence.constant'
+import type { TripDocumentProduct, TripOccurrence } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
 
 type TripOccurrencesProps = Readonly<{
   canRegister: boolean
   isRegistering: boolean
   occurrences: readonly TripOccurrence[]
-  onRegister: (input: { readonly note: string; readonly type: string }) => void
+  onRegister: (input: {
+    readonly note: string
+    readonly occurrenceTypeId: string
+    readonly productCode: string
+  }) => void
+  products: readonly TripDocumentProduct[]
+  types: readonly OccurrenceType[]
 }>
 
 const momentFormatter = new Intl.DateTimeFormat('pt-BR', {
@@ -24,30 +31,40 @@ const momentFormatter = new Intl.DateTimeFormat('pt-BR', {
 })
 
 /**
- * Spec 079 T020: o que houve com a carga.
+ * Spec 079: o que houve com a carga.
  *
  * ⚠️ **A ocorrência só anota** — não muda o estado da nota, não bloqueia despacho. Misturar os dois
- * eixos deixaria a nota travada num estado que ninguém sabe destravar, porque não existe tela de
- * resolução de ocorrência.
+ * eixos deixaria a nota travada num estado que ninguém sabe destravar.
  *
- * ⚠️ A tela do escritório oferece **só os tipos de separação**. A ocorrência de rua é `trip.report`
- * e mora na árvore do motorista; oferecê-la aqui produziria um botão que sempre responde 403 —
- * pior que não existir, porque parece capaz.
+ * ⚠️ **A tela oferece só os tipos de galpão**, e ativos: a ocorrência de rua é `trip.report` e mora
+ * na árvore do motorista; oferecê-la aqui produziria um botão que sempre responde 403. Tipo
+ * aposentado sai da lista de escolha, mas o que já foi registrado com ele continua legível.
+ *
+ * ⚠️ **O item é opcional, e "a nota inteira" é o padrão**: recusa total não tem item a apontar, e
+ * obrigar a escolher faria quem registra escolher qualquer um.
  */
 export function TripOccurrences({
   canRegister,
   isRegistering,
   occurrences,
   onRegister,
+  products,
+  types,
 }: TripOccurrencesProps) {
   const { t } = useTranslation('trip')
   const [isOpen, setIsOpen] = useState(false)
-  const [type, setType] = useState(separationOccurrenceTypes()[0] ?? '')
+  const disponiveis = types.filter(
+    (type) => type.active && type.stage === TRIP_OCCURRENCE_STAGE.separation,
+  )
+  const [occurrenceTypeId, setOccurrenceTypeId] = useState(disponiveis[0]?.id ?? '')
+  const [productCode, setProductCode] = useState('')
   const [note, setNote] = useState('')
 
   function handleSubmit() {
-    onRegister({ note, type })
+    if (occurrenceTypeId === '') return
+    onRegister({ note, occurrenceTypeId, productCode })
     setNote('')
+    setProductCode('')
     setIsOpen(false)
   }
 
@@ -62,14 +79,17 @@ export function TripOccurrences({
             <li key={occurrence.id}>
               {t('occurrence.line', {
                 moment: momentFormatter.format(new Date(occurrence.createdAt)),
-                type: t(`occurrence.type.${occurrence.type}`),
+                type: occurrence.typeName,
               })}
+              {occurrence.productCode === ''
+                ? ` — ${t('occurrence.wholeDocument')}`
+                : ` — ${occurrence.productCode}`}
               {occurrence.note === '' ? null : ` — ${occurrence.note}`}
             </li>
           ))}
         </ul>
       )}
-      {canRegister && !isOpen ? (
+      {canRegister && disponiveis.length > 0 && !isOpen ? (
         <Button onClick={() => setIsOpen(true)} size="sm" type="button" variant="ghost">
           {t('occurrence.register')}
         </Button>
@@ -78,12 +98,21 @@ export function TripOccurrences({
         <div className={styles.occurrenceForm}>
           <Select
             ariaLabel={t('occurrence.title')}
-            onChange={setType}
-            options={separationOccurrenceTypes().map((option) => ({
-              label: t(`occurrence.type.${option}`),
-              value: option,
-            }))}
-            value={type}
+            onChange={setOccurrenceTypeId}
+            options={disponiveis.map((type) => ({ label: type.name, value: type.id }))}
+            value={occurrenceTypeId}
+          />
+          <Select
+            ariaLabel={t('occurrence.product')}
+            onChange={setProductCode}
+            options={[
+              { label: t('occurrence.wholeDocument'), value: '' },
+              ...products.map((product) => ({
+                label: `${product.code} — ${product.description}`,
+                value: product.code,
+              })),
+            ]}
+            value={productCode}
           />
           <input
             aria-label={t('occurrence.noteLabel')}

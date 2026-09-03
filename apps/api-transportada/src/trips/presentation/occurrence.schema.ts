@@ -13,9 +13,10 @@ import { parseBody } from '../../http/request-parsing.service.js'
 const registerOccurrenceSchema = z
   .object({
     note: z.string().trim().max(500).default(''),
-    /** Vazio é a ocorrência da nota inteira: recusa total não tem item. */
+    /** O tipo que a empresa cadastrou — conferido contra o cadastro dela, não contra uma lista. */
+    occurrenceTypeId: z.string().uuid(),
+    /** Vazio é a ocorrência da nota inteira: recusa total não tem item a apontar. */
     productCode: z.string().trim().max(60).default(''),
-    type: z.string().trim().min(1),
   })
   .strict()
 
@@ -27,16 +28,23 @@ export async function parseRegisterOccurrenceRequest(
   return parseBody(registerOccurrenceSchema, request)
 }
 
-/** A escolha é por tipo, e o `strict()` recusa campo a mais — inclusive `companyId` do cliente. */
-const occurrenceNotificationSchema = z
+/**
+ * O cadastro do tipo. ⚠️ `stage` é **obrigatório**: é ele que decide quem registra, e um padrão
+ * escondido aqui daria permissão por omissão. O `strict()` recusa campo a mais — inclusive
+ * `companyId` vindo do cliente.
+ */
+const occurrenceTypeSchema = z
   .object({
-    notifies: z.boolean(),
-    type: z.string().trim().min(1),
+    active: z.boolean().default(true),
+    name: z.string().trim().min(1).max(60),
+    notifies: z.boolean().default(false),
+    occurrenceTypeId: z.string().uuid().nullable().default(null),
+    stage: z.enum(['delivery', 'separation']),
   })
   .strict()
 
-export async function parseOccurrenceNotificationRequest(
+export async function parseOccurrenceTypeRequest(
   request: Request,
-): Promise<z.infer<typeof occurrenceNotificationSchema>> {
-  return parseBody(occurrenceNotificationSchema, request)
+): Promise<z.infer<typeof occurrenceTypeSchema>> {
+  return parseBody(occurrenceTypeSchema, request)
 }

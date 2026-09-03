@@ -302,19 +302,18 @@
     "submit": "Registrar",
     "cancel": "Cancelar",
     "line": "{{type}} — {{moment}}",
-    "type": {
-      "item_faltante": "Item faltante",
-      "item_avariado": "Item avariado",
-      "divergencia_quantidade": "Divergência de quantidade",
-      "recusa_total": "Recusa total",
-      "recusa_parcial": "Recusa parcial",
-      "avaria_transporte": "Avaria no transporte",
-      "destinatario_ausente": "Destinatário ausente"
-    },
-    "notificationsTitle": "Avisos por ocorrência",
-    "notificationsHint": "O aviso vai para quem despachou a viagem. O padrão é não avisar: ligue apenas os tipos que precisam de reação.",
+    "notificationsTitle": "Tipos de ocorrência",
+    "notificationsHint": "Cadastre os tipos que a operação usa. O aviso vai para quem despachou a viagem, e só nos tipos marcados — o padrão é não avisar.",
     "stageSeparation": "No galpão",
-    "stageDelivery": "Na rua"
+    "stageDelivery": "Na rua",
+    "name": "Nome do tipo",
+    "stage": "Onde acontece",
+    "notifies": "Avisar quando acontecer",
+    "active": "Em uso",
+    "add": "Cadastrar tipo",
+    "empty": "Nenhum tipo cadastrado ainda. Cadastre o primeiro para poder registrar ocorrências.",
+    "product": "Item da nota",
+    "wholeDocument": "A nota inteira"
   },
   "routeMap": {
     "title": "Mapa do roteiro",

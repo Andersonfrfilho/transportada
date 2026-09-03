@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { DeliveryProof } from './deliveryProof.service'
-import type { OccurrenceNotificationEntry } from './occurrence.constant'
+import type { OccurrenceType } from './occurrence.constant'
 import type { TripDocumentProduct, TripOccurrence } from './trip.types'
 import { ROUTE_GEOMETRY_SOURCES, type RouteGeometry } from './routeGeometry.service'
 import {
@@ -414,8 +414,12 @@ export function createTripResponseAdapters() {
       if (!points.every(isGeometryPoint)) return { points: [], source: 'unavailable' }
       return { points, source: input.source }
     },
-    occurrenceNotificationsFromApi(input: unknown): readonly OccurrenceNotificationEntry[] {
-      if (!Array.isArray(input) || !input.every(isOccurrenceNotification)) throw invalid()
+    occurrenceTypesFromApi(input: unknown): readonly OccurrenceType[] {
+      if (!Array.isArray(input) || !input.every(isOccurrenceType)) throw invalid()
+      return input
+    },
+    occurrenceTypeFromApi(input: unknown): OccurrenceType {
+      if (!isOccurrenceType(input)) throw invalid()
       return input
     },
     occurrencesFromApi(input: unknown): readonly TripOccurrence[] {
@@ -497,9 +501,10 @@ function isOccurrence(value: unknown): value is TripOccurrence {
     isString(value.createdAt) &&
     isString(value.id) &&
     isString(value.note) &&
+    isString(value.occurrenceTypeId) &&
     isString(value.productCode) &&
     (value.stage === 'delivery' || value.stage === 'separation') &&
-    isString(value.type)
+    isString(value.typeName)
   )
 }
 
@@ -509,11 +514,13 @@ function isGeometryPoint(
   return isRecord(value) && isString(value.latitude) && isString(value.longitude)
 }
 
-function isOccurrenceNotification(value: unknown): value is OccurrenceNotificationEntry {
-  if (!hasExactKeys(value, ['notifies', 'stage', 'type'] as const)) return false
+function isOccurrenceType(value: unknown): value is OccurrenceType {
+  if (!hasExactKeys(value, ['active', 'id', 'name', 'notifies', 'stage'] as const)) return false
   return (
+    isBoolean(value.active) &&
+    isString(value.id) &&
+    isString(value.name) &&
     isBoolean(value.notifies) &&
-    (value.stage === 'delivery' || value.stage === 'separation') &&
-    isString(value.type)
+    (value.stage === 'delivery' || value.stage === 'separation')
   )
 }

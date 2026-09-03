@@ -11,99 +11,114 @@ const ACTOR = '00000000-0000-4000-8000-00000000000f'
 const COMPANY = '00000000-0000-4000-8000-000000000001'
 const DOCUMENT = '00000000-0000-4000-8000-000000000017'
 const TRIP = '00000000-0000-4000-8000-000000000011'
+const TIPO = '00000000-0000-4000-8000-0000000000e1'
 
-function repositoryDouble() {
+const PARAMS = {
+  documentLabel: '883658/1',
+  occurrenceType: '',
+  stopLabel: 'RUA MIGUEL PETRONI, 1166, SAO CARLOS, SP',
+  tripId: TRIP,
+}
+
+function repository(notifies: boolean) {
   return {
+    async findOccurrenceType() {
+      return { active: true, id: TIPO, name: 'Recusa total', notifies, stage: 'delivery' as const }
+    },
+    async listDocumentProducts() {
+      return []
+    },
     async listOccurrences() {
       return []
     },
-    async saveOccurrence(saved: { readonly type: string }) {
+    async saveOccurrence(saved: { readonly typeName: string }) {
       return {
-        createdAt: '2026-09-03T10:00:00.000Z',
+        createdAt: '2026-09-03T12:00:00.000Z',
         id: '00000000-0000-4000-8000-0000000000c1',
         note: '',
+        occurrenceTypeId: TIPO,
         productCode: '',
         stage: 'delivery' as const,
-        type: saved.type as never,
+        typeName: saved.typeName,
       }
     },
   }
 }
 
-const CONFIG = [
-  { notifies: true, type: 'recusa_total' as const },
-  { notifies: false, type: 'item_faltante' as const },
-]
-
-const PARAMS = {
-  documentLabel: '883658/1',
-  occurrenceType: 'Recusa total',
-  stopLabel: 'RUA MIGUEL PETRONI, 1166, SAO CARLOS, SP',
-  tripId: '00000000-0000-4000-8000-000000000011',
+function registrar(notifies: boolean, notify: (call: object) => void) {
+  return registerTripOccurrence({
+    actorUserId: ACTOR,
+    companyId: COMPANY,
+    documentId: DOCUMENT,
+    note: '',
+    notificationParameters: PARAMS,
+    notifier: {
+      async notify(call) {
+        notify(call)
+      },
+    },
+    occurrenceTypeId: TIPO,
+    productCode: '',
+    repository: repository(notifies),
+    tripId: TRIP,
+  })
 }
 
 describe('notificação por tipo de ocorrência (spec 079)', () => {
   /**
-   * ⚠️ **A flag é por tipo, e o padrão é não avisar.** Tipo que ninguém configurou não dispara: um
-   * aviso que ninguém pediu vira ruído, e ruído faz o operador ignorar também o que importa.
+   * ⚠️ **A flag mora no próprio tipo** desde 2026-09-03: eram a mesma decisão chaveada pelo mesmo
+   * valor, e a tabela ao lado obrigava a tela a casar duas listas para mostrar uma.
    */
-  test('avisa só o tipo configurado para avisar', () => {
-    expect(
-      resolveOccurrenceNotification({ parameters: PARAMS, settings: CONFIG, type: 'recusa_total' }),
-    ).not.toBeNull()
-    expect(
-      resolveOccurrenceNotification({
-        parameters: PARAMS,
-        settings: CONFIG,
-        type: 'item_faltante',
-      }),
-    ).toBeNull()
+  test('avisa só o tipo cadastrado para avisar', async () => {
+    const ligado: object[] = []
+    const desligado: object[] = []
+
+    await registrar(true, (call) => ligado.push(call))
+    await registrar(false, (call) => desligado.push(call))
+
+    expect(ligado).toHaveLength(1)
+    expect(desligado).toEqual([])
   })
 
-  test('tipo sem configuração nenhuma não avisa', () => {
-    expect(
-      resolveOccurrenceNotification({
-        parameters: PARAMS,
-        settings: CONFIG,
-        type: 'avaria_transporte',
-      }),
-    ).toBeNull()
+  /** O nome do tipo vai no aviso, e ele é **o que a empresa cadastrou** — não um id nem um enum. */
+  test('o aviso leva o nome que a empresa deu ao tipo', async () => {
+    const calls: { readonly parameters: { readonly occurrenceType: string } }[] = []
+
+    await registrar(true, (call) =>
+      calls.push(call as { readonly parameters: { readonly occurrenceType: string } }),
+    )
+
+    expect(calls[0]?.parameters.occurrenceType).toBe('Recusa total')
   })
 
   /**
-   * ⚠️ **Todo marcador do template tem de vir preenchido.** O catálogo declara `placeholders`, e
-   * marcador sem valor renderiza um buraco no e-mail — que é pior que não avisar, porque parece
-   * defeito do sistema para quem recebe.
+   * ⚠️ Todo marcador do template vem preenchido: marcador sem valor renderiza um buraco no e-mail,
+   * que é pior que não avisar — parece defeito do sistema para quem recebe.
    */
-  test('preenche todos os marcadores que o template declara', () => {
+  test('preenche todos os marcadores que o template declara', async () => {
     const entry = NOTIFICATION_CATALOG.find(
       (candidate) => candidate.templateKey === 'trip.delivery-occurrence',
     )
     expect(entry).toBeDefined()
 
-    const notification = resolveOccurrenceNotification({
-      parameters: PARAMS,
-      settings: CONFIG,
-      type: 'recusa_total',
-    })
+    const calls: { readonly parameters: Record<string, string> }[] = []
+    await registrar(true, (call) =>
+      calls.push(call as { readonly parameters: Record<string, string> }),
+    )
 
     for (const placeholder of entry?.placeholders ?? []) {
-      expect(Object.keys(notification?.parameters ?? {})).toContain(placeholder)
+      expect(Object.keys(calls[0]?.parameters ?? {})).toContain(placeholder)
     }
   })
 
   /**
-   * ⚠️ **Sem PII no aviso.** O texto diz a nota, o tipo e a parada — nunca o nome de quem recebeu
-   * nem o telefone que a nota trouxe. A caixa de entrada e o e-mail atravessam log de terceiro; o
-   * detalhe fica na tela, atrás de autenticação.
+   * ⚠️ **Sem PII.** O texto diz a nota, o tipo e a parada — nunca o nome de quem recebeu nem o
+   * telefone que a nota trouxe. Caixa de entrada e e-mail atravessam log de terceiro.
    */
-  test('não leva contato nem nome de quem recebeu', () => {
-    const notification = resolveOccurrenceNotification({
-      parameters: { ...PARAMS },
-      settings: CONFIG,
-      type: 'recusa_total',
-    })
-    const serialized = JSON.stringify(notification)
+  test('não leva contato nem nome de quem recebeu', async () => {
+    const calls: object[] = []
+    await registrar(true, (call) => calls.push(call))
+    const serialized = JSON.stringify(calls)
 
     expect(serialized).not.toInclude('phone')
     expect(serialized).not.toInclude('recipientName')
@@ -112,8 +127,7 @@ describe('notificação por tipo de ocorrência (spec 079)', () => {
 
   /**
    * ⚠️ **O aviso nunca derruba o registro.** A ocorrência é o fato; o aviso é conveniência. Uma
-   * fila fora do ar não pode fazer o operador perder o que acabou de registrar — e ele não teria
-   * como saber que perdeu, porque a tela mostraria erro sobre uma escrita que aconteceu.
+   * fila fora do ar não pode fazer o operador perder o que acabou de registrar.
    */
   test('falha no aviso não desfaz a ocorrência', async () => {
     const saved = await registerTripOccurrence({
@@ -122,67 +136,24 @@ describe('notificação por tipo de ocorrência (spec 079)', () => {
       documentId: DOCUMENT,
       note: '',
       notificationParameters: PARAMS,
-      notificationSettings: CONFIG,
       notifier: {
         async notify() {
           throw new Error('fila fora do ar')
         },
       },
+      occurrenceTypeId: TIPO,
       productCode: '',
-      repository: repositoryDouble(),
+      repository: repository(true),
       tripId: TRIP,
-      type: 'recusa_total',
     })
 
-    expect(saved.type).toBe('recusa_total')
+    expect(saved.typeName).toBe('Recusa total')
   })
 
-  /** Sem a flag ligada, o notificador não é sequer chamado. */
-  test('tipo não configurado não chega ao notificador', async () => {
-    const calls: object[] = []
-
-    await registerTripOccurrence({
-      actorUserId: ACTOR,
-      companyId: COMPANY,
-      documentId: DOCUMENT,
-      note: '',
-      notificationParameters: PARAMS,
-      notificationSettings: CONFIG,
-      notifier: {
-        async notify(call) {
-          calls.push(call)
-        },
-      },
-      productCode: '',
-      repository: repositoryDouble(),
-      tripId: TRIP,
-      type: 'item_faltante',
-    })
-
-    expect(calls).toEqual([])
-  })
-
-  test('tipo configurado chega ao notificador com a chave do template', async () => {
-    const calls: { readonly templateKey: string }[] = []
-
-    await registerTripOccurrence({
-      actorUserId: ACTOR,
-      companyId: COMPANY,
-      documentId: DOCUMENT,
-      note: '',
-      notificationParameters: PARAMS,
-      notificationSettings: CONFIG,
-      notifier: {
-        async notify(call) {
-          calls.push(call)
-        },
-      },
-      productCode: '',
-      repository: repositoryDouble(),
-      tripId: TRIP,
-      type: 'recusa_total',
-    })
-
-    expect(calls.map((call) => call.templateKey)).toEqual(['trip.delivery-occurrence'])
+  /** A política pura continua sendo o lugar da decisão, e ela ignora o que não foi configurado. */
+  test('tipo sem configuração não avisa', () => {
+    expect(
+      resolveOccurrenceNotification({ parameters: PARAMS, settings: [], type: TIPO }),
+    ).toBeNull()
   })
 })

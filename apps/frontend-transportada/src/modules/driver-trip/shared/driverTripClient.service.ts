@@ -2,7 +2,11 @@
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
 
-import type { DriverFieldReport, DriverTripSnapshot } from './driverTrip.types'
+import type {
+  DriverFieldReport,
+  DriverOccurrenceType,
+  DriverTripSnapshot,
+} from './driverTrip.types'
 import { DriverTripResponseError, toDriverTripSnapshot } from './driverTripResponse.validation'
 
 const CURRENT_TRIP_PATH = '/me/trips/current'
@@ -57,7 +61,13 @@ export type DriverTripClient = Readonly<{
    * de entregar e devolver, isto não muda o estado da nota — falhar aqui não deixa a viagem num
    * estado que ninguém sabe destravar, e repetir o toque é o conserto.
    */
-  registerDocumentOccurrence: (input: { documentId: string; type: string }) => Promise<void>
+  registerDocumentOccurrence: (input: {
+    documentId: string
+    occurrenceTypeId: string
+    productCode: string
+  }) => Promise<void>
+  /** Os tipos de rua que a empresa cadastrou — o motorista escolhe entre eles. */
+  listOccurrenceTypes: () => Promise<readonly DriverOccurrenceType[]>
   /**
    * O DAMDFE vem como **bytes**, não como URL: numa barreira o motorista abre o papel, e uma URL
    * assinada de cinco minutos que expirou no bolso não abre nada.
@@ -115,11 +125,30 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
     },
     async registerDocumentOccurrence(input) {
       await request({
-        body: JSON.stringify({ note: '', productCode: '', type: input.type }),
+        body: JSON.stringify({
+          note: '',
+          occurrenceTypeId: input.occurrenceTypeId,
+          productCode: input.productCode,
+        }),
         dependencies,
         method: 'POST',
         path: `${CURRENT_TRIP_PATH}/documents/${input.documentId}/occurrences`,
       })
+    },
+    async listOccurrenceTypes() {
+      const body = await request({
+        dependencies,
+        method: 'GET',
+        path: '/company-settings/occurrence-types',
+      })
+
+      /**
+       * ⚠️ Corpo estranho vira **lista vazia**, nunca exceção: sem tipo o botão fica sem opção, e o
+       * motorista segue entregando e devolvendo — que é o que não pode parar por causa de um
+       * cadastro que não carregou.
+       */
+      const data = (body as { readonly data?: unknown }).data
+      return Array.isArray(data) ? (data as readonly DriverOccurrenceType[]) : []
     },
     async readManifestDamdfe(manifestId) {
       return requestFile({

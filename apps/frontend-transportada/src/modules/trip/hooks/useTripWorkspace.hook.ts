@@ -4,7 +4,7 @@ import { useState } from 'react'
 
 import type { DeliveryProof } from '../shared/deliveryProof.service'
 import type { RouteGeometry } from '../shared/routeGeometry.service'
-import type { OccurrenceNotificationEntry } from '../shared/occurrence.constant'
+import type { OccurrenceType } from '../shared/occurrence.constant'
 import type { TripDocumentProduct, TripOccurrence } from '../shared/trip.types'
 import { resolveTripRefetchInterval } from '../shared/tripPolling.service'
 
@@ -68,12 +68,22 @@ export type TripController = Readonly<{
   correctGeocodedAddress: (
     input: Readonly<{ addressKey: string; latitude: string; longitude: string }>,
   ) => Promise<void>
-  readOccurrenceNotifications: () => Promise<readonly OccurrenceNotificationEntry[]>
-  saveOccurrenceNotification: (
-    input: Readonly<{ notifies: boolean; type: string }>,
-  ) => Promise<readonly OccurrenceNotificationEntry[]>
+  listOccurrenceTypes: () => Promise<readonly OccurrenceType[]>
+  saveOccurrenceType: (
+    input: Readonly<{
+      active: boolean
+      name: string
+      notifies: boolean
+      occurrenceTypeId: null | string
+      stage: 'delivery' | 'separation'
+    }>,
+  ) => Promise<OccurrenceType>
   registerTripOccurrence: (
-    input: TripDocumentActionInput & { readonly note: string; readonly type: string },
+    input: TripDocumentActionInput & {
+      readonly note: string
+      readonly occurrenceTypeId: string
+      readonly productCode: string
+    },
   ) => Promise<TripOccurrence>
   readTripDocumentProducts: (
     input: TripDocumentActionInput,
@@ -107,6 +117,8 @@ export function createTripController(
 ): TripController {
   const canReadTrips = input.permissions.includes(TRIP_READ_PERMISSION)
   const canManageTrips = input.permissions.includes(TRIP_MANAGE_PERMISSION)
+  /** Cadastrar tipo é configuração da empresa, e configuração é `settings.manage`. */
+  const canManageSettings = input.permissions.includes('settings.manage')
   const canSubmitCte = input.permissions.includes(CTE_SUBMIT_PERMISSION)
   const canManageMdfe = input.permissions.includes(MDFE_MANAGE_PERMISSION)
 
@@ -131,8 +143,9 @@ export function createTripController(
       canReadTrips ? input.client.readTripOccurrences(body) : forbidden(),
     correctGeocodedAddress: (body) =>
       canManageTrips ? input.client.correctGeocodedAddress(body) : forbidden(),
-    readOccurrenceNotifications: () => input.client.readOccurrenceNotifications(),
-    saveOccurrenceNotification: (body) => input.client.saveOccurrenceNotification(body),
+    listOccurrenceTypes: () => input.client.listOccurrenceTypes(),
+    saveOccurrenceType: (body) =>
+      canManageSettings ? input.client.saveOccurrenceType(body) : forbidden(),
     registerTripOccurrence: (body) =>
       canManageTrips ? input.client.registerTripOccurrence(body) : forbidden(),
     readTripDocumentProducts: (body) =>
@@ -256,6 +269,13 @@ export function useTripWorkspace(
         tripId: input.tripId ?? '',
       }),
     queryKey: [...tripKey, 'document-products', openProofDocumentId] as const,
+  })
+
+  /** Os tipos cadastrados: o painel da nota precisa deles para oferecer a escolha. */
+  const occurrenceTypesQuery = useQuery({
+    enabled: controller.canReadTrips,
+    queryFn: () => controller.listOccurrenceTypes(),
+    queryKey: ['trip', 'occurrence-types'] as const,
   })
 
   const occurrencesQuery = useQuery({
@@ -386,6 +406,7 @@ export function useTripWorkspace(
     routeGeometryQuery,
     refetchTrip: () => void tripQuery.refetch(),
     documentProductsQuery,
+    occurrenceTypesQuery,
     occurrencesQuery,
     registerOccurrenceMutation,
     openProofDocumentId,

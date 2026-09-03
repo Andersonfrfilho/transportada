@@ -8,7 +8,7 @@ import { describe, expect, it } from 'bun:test'
 import driverTrip from '../../src/modules/driver-trip/locales/driverTrip.locale.json'
 import {
   DRIVER_RETURN_REASONS,
-  driverDocumentOccurrenceTypes,
+  driverSelectableOccurrenceTypes,
 } from '../../src/modules/driver-trip/shared/driverTrip.types'
 
 const CARD = new URL(
@@ -16,44 +16,44 @@ const CARD = new URL(
   import.meta.url,
 )
 
+const TIPOS = [
+  { active: true, id: 'a', name: 'Recebeu parte', stage: 'delivery' as const },
+  { active: true, id: 'b', name: 'Item faltante', stage: 'separation' as const },
+  { active: false, id: 'c', name: 'Aposentado', stage: 'delivery' as const },
+]
+
 /**
- * Spec 079. ⚠️ **Havia sobreposição, e ela foi resolvida por escolha, não por acúmulo.**
- *
- * O motorista já dizia o que houve de duas formas: o motivo da **devolução** (`recipient_refused`,
- * `recipient_absent`, `damaged_goods`…) e a ocorrência da **parada** (`long_wait`, `dock_closed`…).
- * O catálogo da 079 traz `recusa_total`, `recusa_parcial`, `avaria_transporte` e
- * `destinatario_ausente` — e três deles dizem a mesma coisa que um motivo de devolução já dizia.
- *
- * Três vocabulários para o mesmo fato, na mesma tela, é o defeito. Então a tela do motorista oferece
- * **só o que a devolução não cobre**: o que aconteceu **sem** a nota voltar.
+ * Spec 079. Os tipos viraram **cadastro da empresa**, e a tela do motorista escolhe entre eles.
  */
 describe('ocorrência de nota na tela do motorista (spec 079)', () => {
   const source = readFileSync(CARD, 'utf8')
 
-  it('oferece só o que acontece sem a nota voltar', () => {
-    expect([...driverDocumentOccurrenceTypes()]).toEqual(['recusa_parcial', 'avaria_transporte'])
-  })
-
   /**
-   * ⚠️ `recusa_total` e `destinatario_ausente` **não** aparecem: quem recusa tudo ou não encontra
-   * ninguém **devolve a nota**, e ali o motivo já é registrado. Oferecer os dois caminhos para o
-   * mesmo fato produz dois registros do mesmo evento, com vocabulários diferentes.
+   * ⚠️ **Só rua, e só ativo.** O galpão não é dele — ele não separou a carga —, e tipo aposentado
+   * sai da escolha sem apagar o que já foi registrado sob ele.
    */
-  it('não duplica o que o motivo de devolução já diz', () => {
-    const oferecidos = new Set(driverDocumentOccurrenceTypes())
-
-    expect(oferecidos.has('recusa_total')).toBe(false)
-    expect(oferecidos.has('destinatario_ausente')).toBe(false)
-    expect(DRIVER_RETURN_REASONS).toContain('recipient_refused')
-    expect(DRIVER_RETURN_REASONS).toContain('recipient_absent')
+  it('oferece só tipo de rua ativo', () => {
+    expect(driverSelectableOccurrenceTypes(TIPOS).map((type) => type.id)).toEqual(['a'])
   })
 
   it('a nota tem como registrar a ocorrência', () => {
     expect(source).toInclude('onDocumentOccurrence')
+    expect(source).toInclude('driverSelectableOccurrenceTypes')
   })
 
-  /** O texto diz que a nota **continua** com ele: é o que separa isto de devolver. */
+  /**
+   * ⚠️ **A sobreposição que a 079 resolveu continua resolvida.** O motorista já dizia o que houve
+   * pelo motivo da devolução; o que esta tela acrescenta é o que aconteceu **sem a carga voltar**,
+   * e o texto diz isso. Se um dia ela passar a oferecer "recusou tudo", volta a haver dois caminhos
+   * para o mesmo fato — e é o texto abaixo que deixa de fazer sentido primeiro.
+   */
   it('explica que a carga não volta', () => {
     expect(driverTrip.documentOccurrenceHint.toLowerCase()).toInclude('não volta')
+    expect(DRIVER_RETURN_REASONS).toContain('recipient_refused')
+  })
+
+  /** Falhar aqui não muda o estado da nota, e o aviso diz isso. */
+  it('avisa sem assustar quando o registro falha', () => {
+    expect(driverTrip.documentOccurrenceFailed.toLowerCase()).toInclude('continua como estava')
   })
 })

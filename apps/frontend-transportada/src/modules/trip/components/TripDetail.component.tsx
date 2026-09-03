@@ -627,10 +627,13 @@ function TripDeliveryProofLoader({
             workspace.registerOccurrenceMutation.mutate({
               documentId,
               note: occurrence.note,
+              occurrenceTypeId: occurrence.occurrenceTypeId,
+              productCode: occurrence.productCode,
               tripId: document.tripId,
-              type: occurrence.type,
             })
           }
+          products={workspace.documentProductsQuery.data ?? []}
+          types={workspace.occurrenceTypesQuery.data ?? []}
         />
       }
       products={workspace.documentProductsQuery.data ?? []}

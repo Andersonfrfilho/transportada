@@ -66,9 +66,7 @@
   "vehicle": "Veículo {{plate}}",
   "documentOccurrence": "Registrar ocorrência",
   "documentOccurrenceHint": "Para o que aconteceu sem a carga voltar: a nota não volta com você. Se a carga volta, use Devolver.",
-  "documentOccurrenceType": {
-    "recusa_parcial": "Recebeu parte da carga",
-    "avaria_transporte": "Recebeu com avaria"
-  },
-  "documentOccurrenceFailed": "Não deu para registrar a ocorrência. A nota continua como estava — toque de novo."
+  "documentOccurrenceFailed": "Não deu para registrar a ocorrência. A nota continua como estava — toque de novo.",
+  "documentOccurrenceProduct": "Item",
+  "documentOccurrenceWholeDocument": "A nota inteira"
 }
