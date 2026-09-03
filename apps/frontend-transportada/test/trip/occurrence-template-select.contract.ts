@@ -98,3 +98,24 @@ describe('modelo de e-mail do tipo de ocorrência', () => {
     expect(tripEn.occurrence.unknownPlaceholders).toInclude('{{list}}')
   })
 })
+
+/** A consulta devolve uma linha por variante da mesma chave — o select mostra cada modelo uma vez. */
+describe('as opções são deduplicadas por chave', () => {
+  it('a mesma chave em quatro variantes vira uma opção', () => {
+    const template = {
+      active: true,
+      body: 'corpo',
+      channel: 'email',
+      id: 'x',
+      key: 'billing.invoice-due',
+      subject: 'Fatura {{invoiceNumber}}',
+    }
+    const options = buildOccurrenceEmailTemplateOptions([
+      template,
+      { ...template, id: 'y' },
+      { ...template, id: 'z' },
+      { ...template, id: 'w' },
+    ] as never)
+    expect(options).toHaveLength(1)
+  })
+})

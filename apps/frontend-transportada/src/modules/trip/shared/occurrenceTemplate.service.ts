@@ -18,12 +18,22 @@ export type OccurrenceEmailTemplateOption = Readonly<{
   subject: string
 }>
 
-/** Só template de e-mail ativo vira opção: canal que a ocorrência não usa não entra na lista. */
+/**
+ * Só template de e-mail ativo vira opção: canal que a ocorrência não usa não entra na lista.
+ * A consulta devolve uma linha por variante da mesma chave — sem a dobra por `key`, cada modelo
+ * aparecia quadruplicado no select (medido em staging).
+ */
 export function buildOccurrenceEmailTemplateOptions(
   templates: readonly NotificationTemplateView[],
 ): readonly OccurrenceEmailTemplateOption[] {
+  const seenKeys = new Set<string>()
   return templates
-    .filter((template) => template.channel === 'email' && template.active)
+    .filter((template) => {
+      if (template.channel !== 'email' || !template.active) return false
+      if (seenKeys.has(template.key)) return false
+      seenKeys.add(template.key)
+      return true
+    })
     .map((template) => ({
       body: template.body,
       id: template.id,
