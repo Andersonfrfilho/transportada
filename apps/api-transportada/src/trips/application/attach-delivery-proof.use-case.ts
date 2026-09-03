@@ -21,6 +21,12 @@ import {
 } from '../domain/trip.error.js'
 
 export type DeliveryProofUpload = {
+  /**
+   * Spec 082 (revisão, item 5): chave de idempotência opcional do anexo. Reenvio com a mesma chave
+   * para o mesmo documento+tipo converge na linha existente, sem regravar objeto. Vazio quando o
+   * app não a manda — e aí todo reenvio é correção, como antes.
+   */
+  readonly attachmentKey: string
   readonly bytes: Uint8Array
   readonly kind: TripDeliveryProofKind
   readonly mimeType: string
@@ -58,8 +64,16 @@ export type DeliveryProofPort = {
     readonly companyId: string
     readonly documentId: string
   }): Promise<DeliveryProofFieldSettings>
+  /** `null` quando nenhum comprovante daquele evento+tipo foi gravado com esta chave. */
+  findProofIdByAttachmentKey(input: {
+    readonly attachmentKey: string
+    readonly companyId: string
+    readonly eventId: string
+    readonly kind: TripDeliveryProofKind
+  }): Promise<string | null>
   saveProof(input: {
     readonly actorUserId: string
+    readonly attachmentKey: string
     readonly companyId: string
     readonly eventId: string
     readonly id: string
@@ -131,6 +145,17 @@ export async function attachDeliveryProof(
   })
   if (eventId === null) throw new TripDocumentNotReachableError()
 
+  /** Retry de rede converge sem tocar no bucket: a mesma chave já gravou este comprovante. */
+  if (input.upload.attachmentKey.length > 0) {
+    const existingId = await input.repository.findProofIdByAttachmentKey({
+      attachmentKey: input.upload.attachmentKey,
+      companyId: input.companyId,
+      eventId,
+      kind: input.upload.kind,
+    })
+    if (existingId !== null) return { id: existingId }
+  }
+
   const objectId = input.newObjectId()
   const objectKey = buildDeliveryProofObjectKey({
     companyId: input.companyId,
@@ -153,6 +178,7 @@ export async function attachDeliveryProof(
 
   return input.repository.saveProof({
     actorUserId: input.actorUserId,
+    attachmentKey: input.upload.attachmentKey,
     companyId: input.companyId,
     eventId,
     id: proofId,

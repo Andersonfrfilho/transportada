@@ -15,6 +15,9 @@ const KIND_FIELD = 'kind'
 const RECEIVER_FIELD = 'receiverName'
 /** ADR-0057 §3: o documento só entra quando a configuração da empresa pede — quem decide é o caso de uso. */
 const RECEIVER_DOCUMENT_FIELD = 'receiverDocument'
+/** Spec 082 (revisão, item 5): chave de idempotência opcional do anexo. */
+const ATTACHMENT_KEY_FIELD = 'attachmentKey'
+const ATTACHMENT_KEY_MAX_LENGTH = 128
 const RECEIVER_NAME_MAX_LENGTH = 120
 
 function isProofKind(value: unknown): value is TripDeliveryProofKind {
@@ -46,7 +49,13 @@ export async function parseDeliveryProofUpload(request: Request): Promise<Delive
     throw new ApiError(HTTP_ERROR.invalidRequest)
   }
 
+  const attachmentKey = form.get(ATTACHMENT_KEY_FIELD)
+  if (typeof attachmentKey === 'string' && attachmentKey.length > ATTACHMENT_KEY_MAX_LENGTH) {
+    throw new ApiError(HTTP_ERROR.invalidRequest)
+  }
+
   return {
+    attachmentKey: typeof attachmentKey === 'string' ? attachmentKey : '',
     bytes: new Uint8Array(await file.arrayBuffer()),
     kind,
     mimeType: file.type,

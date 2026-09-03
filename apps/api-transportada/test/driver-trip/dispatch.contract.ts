@@ -7,6 +7,10 @@
 import { describe, expect, it } from 'bun:test'
 
 import { dispatchDriverTrip } from '../../src/trips/application/dispatch-driver-trip.use-case.js'
+import {
+  dispatchTrip,
+  type DispatchTripPort,
+} from '../../src/trips/application/dispatch-trip.use-case.js'
 import { ApiError } from '../../src/shared/api.error.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000001'
@@ -65,5 +69,44 @@ describe('o dispatch pelo motorista (ADR-0058)', () => {
 
     expect(result).toEqual({ tripStatus: 'dispatched' })
     expect(world.dispatched).toEqual([{ actorUserId: ACTOR_USER_ID, tripId: TRIP_ID }])
+  })
+
+  /**
+   * Revisão da spec 082, item 2: o POST repetido converge em `unchanged` — nenhum segundo
+   * congelamento de roteiro, e a resposta é o mesmo marcador que o use-case do escritório devolve.
+   */
+  it('dispatch repetido converge sem segundo snapshot', async () => {
+    let tripStatus: 'route_planned' | 'dispatched' = 'route_planned'
+    const snapshots: string[] = []
+    const repository: DispatchTripPort = {
+      dispatch: (request) => {
+        snapshots.push(request.tripId)
+        tripStatus = 'dispatched'
+        return Promise.resolve({ tripStatus })
+      },
+      readPreconditions: () =>
+        Promise.resolve({
+          hasRoute: true,
+          tripStatus,
+          unloadedDocumentIds: [],
+          unscheduledStopIds: [],
+        }),
+    }
+    const input = {
+      actorUserId: ACTOR_USER_ID,
+      companyId: COMPANY_ID,
+      driverId: DRIVER_ID,
+      dispatch: (request: { readonly actorUserId: string; readonly tripId: string }) =>
+        dispatchTrip({ ...request, companyId: COMPANY_ID, repository }),
+      linkage: { isTripOfDriver: () => Promise.resolve(true) },
+      tripId: TRIP_ID,
+    }
+
+    const first = await dispatchDriverTrip(input)
+    const second = await dispatchDriverTrip(input)
+
+    expect(first).toEqual({ tripStatus: 'dispatched' })
+    expect(second).toEqual({ tripStatus: 'dispatched' })
+    expect(snapshots).toHaveLength(1)
   })
 })

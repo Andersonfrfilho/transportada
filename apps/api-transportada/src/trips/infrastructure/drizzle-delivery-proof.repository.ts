@@ -20,7 +20,7 @@ import {
 } from '../../database/trip.schema.js'
 import type { DeliveryProofPort } from '../application/attach-delivery-proof.use-case.js'
 import {
-  resolveDeliveryProofSettings,
+  resolveProofSettingsForRecipient,
   type DeliveryProofFieldSettings,
 } from '../domain/delivery-proof-settings.policy.js'
 
@@ -136,25 +136,47 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
             )
             .limit(1)
 
-    return resolveDeliveryProofSettings({ general: general ?? null, override: override ?? null })
+    /** Spec 082 (revisão): a mesma regra do snapshot do motorista — um único lugar decide. */
+    return resolveProofSettingsForRecipient({
+      lookup: {
+        general: general ?? null,
+        overridesByTaxId:
+          override === undefined
+            ? new Map<string, DeliveryProofFieldSettings>()
+            : new Map([[recipientTaxId, override]]),
+      },
+      recipientTaxId,
+    })
+  }
+
+  /**
+   * Spec 082 (revisão, item 5): reenvio com a mesma `attachmentKey` para o mesmo documento+tipo é
+   * retry de rede, não correção — a linha existente responde e nada é regravado.
+   */
+  public async findProofIdByAttachmentKey(input: {
+    readonly attachmentKey: string
+    readonly companyId: string
+    readonly eventId: string
+    readonly kind: 'photo' | 'signature'
+  }): Promise<string | null> {
+    const [record] = await this.database
+      .select({ id: tripDeliveryProofs.id })
+      .from(tripDeliveryProofs)
+      .where(
+        and(
+          eq(tripDeliveryProofs.companyId, input.companyId),
+          eq(tripDeliveryProofs.stopEventId, input.eventId),
+          eq(tripDeliveryProofs.kind, input.kind),
+          eq(tripDeliveryProofs.attachmentKey, input.attachmentKey),
+        ),
+      )
+      .limit(1)
+
+    return record?.id ?? null
   }
 
   /** O objeto e o vínculo entram na mesma transação: byte no bucket sem dono é lixo que ninguém acha. */
-  public async saveProof(input: {
-    readonly actorUserId: string
-    readonly companyId: string
-    readonly eventId: string
-    readonly id: string
-    readonly kind: 'photo' | 'signature'
-    readonly mimeType: string
-    readonly objectId: string
-    readonly objectKey: string
-    readonly receiverDocumentEnvelope: SecretEnvelopeV1 | null
-    readonly receiverDocumentMasked: string
-    readonly receiverName: string
-    readonly sha256: string
-    readonly sizeBytes: number
-  }): Promise<{ readonly id: string }> {
+  public async saveProof(input: SaveProofInput): Promise<{ readonly id: string }> {
     return this.database.transaction(async (transaction) => {
       await transaction.insert(storedObjects).values({
         bucket: 'fiscal',
@@ -173,6 +195,7 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
         .insert(tripDeliveryProofs)
         .values({
           actorUserId: input.actorUserId,
+          attachmentKey: input.attachmentKey,
           companyId: input.companyId,
           id: input.id,
           kind: input.kind,
@@ -186,16 +209,13 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
          * Segundo envio do mesmo tipo é correção: a foto tremida vira a boa, sem duplicar linha.
          * O `id` novo entra junto — o AAD do envelope está amarrado a ele, e manter o id antigo
          * deixaria um envelope que nunca abre.
+         *
+         * Spec 082 (revisão, item 4): recaptura **sem** documento não anula o envelope já selado —
+         * o set omite as colunas do documento nesse caso (efeito de COALESCE), com teste próprio
+         * sobre `buildProofUpsertSet`.
          */
         .onConflictDoUpdate({
-          set: {
-            actorUserId: input.actorUserId,
-            id: input.id,
-            objectId: input.objectId,
-            receiverDocumentEnvelope: input.receiverDocumentEnvelope,
-            receiverDocumentMasked: input.receiverDocumentMasked,
-            receiverName: input.receiverName,
-          },
+          set: buildProofUpsertSet(input),
           target: [
             tripDeliveryProofs.companyId,
             tripDeliveryProofs.stopEventId,
@@ -208,5 +228,46 @@ export class DrizzleDeliveryProofRepository implements DeliveryProofPort {
 
       return proof
     })
+  }
+}
+
+type SaveProofInput = {
+  readonly actorUserId: string
+  /** Spec 082 (revisão, item 5): chave de idempotência do anexo. Vazio quando o app não a manda. */
+  readonly attachmentKey: string
+  readonly companyId: string
+  readonly eventId: string
+  readonly id: string
+  readonly kind: 'photo' | 'signature'
+  readonly mimeType: string
+  readonly objectId: string
+  readonly objectKey: string
+  readonly receiverDocumentEnvelope: SecretEnvelopeV1 | null
+  readonly receiverDocumentMasked: string
+  readonly receiverName: string
+  readonly sha256: string
+  readonly sizeBytes: number
+}
+
+/**
+ * Spec 082 (revisão, item 4): recaptura que chega sem `receiverDocument` preserva o envelope e a
+ * máscara já gravados — as duas colunas só entram no set quando o novo envelope existe, para o
+ * `onConflictDoUpdate` não anular um documento já selado. Exportada para o contrato de teste.
+ */
+export function buildProofUpsertSet(input: SaveProofInput) {
+  const base = {
+    actorUserId: input.actorUserId,
+    attachmentKey: input.attachmentKey,
+    objectId: input.objectId,
+    receiverName: input.receiverName,
+  }
+  /** O AAD do envelope preservado está amarrado ao `id` antigo — o id fica junto com ele. */
+  if (input.receiverDocumentEnvelope === null) return base
+
+  return {
+    ...base,
+    id: input.id,
+    receiverDocumentEnvelope: input.receiverDocumentEnvelope,
+    receiverDocumentMasked: input.receiverDocumentMasked,
   }
 }

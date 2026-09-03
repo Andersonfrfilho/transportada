@@ -24,6 +24,12 @@ import type { DeliveryProofFieldSettings } from '../domain/delivery-proof-settin
 export type DriverTripDocument = {
   readonly accessKey: string
   readonly deliveredAt: string | null
+  /**
+   * Spec 082 (revisão de ADR-0057 §2): os campos do comprovante **resolvidos** para esta nota —
+   * geral da empresa + exceção pelo CNPJ do destinatário **do documento**. Mora no documento, não
+   * na parada: a parada agrupa por endereço e pode ter destinatários com exceções diferentes.
+   */
+  readonly deliveryProof: DeliveryProofFieldSettings
   /** Soma do peso bruto dos volumes. Zero quando a nota importada não os trouxe — e isso é comum. */
   readonly grossWeight: string
   readonly id: string
@@ -51,12 +57,6 @@ export type DriverStopSchedule = {
 export type DriverTripStop = {
   readonly arrivedAt: string | null
   readonly completedAt: string | null
-  /**
-   * ADR-0057 §2: os campos do comprovante **resolvidos** para esta parada (geral da empresa +
-   * exceção pelo CNPJ do destinatário). O app obedece à configuração, não a conhece — por isso ela
-   * viaja aqui e não numa rota de settings do motorista.
-   */
-  readonly deliveryProof: DeliveryProofFieldSettings
   readonly deliveryWindowEnd: string | null
   readonly deliveryWindowStart: string | null
   readonly documents: readonly DriverTripDocument[]

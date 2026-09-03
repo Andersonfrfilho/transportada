@@ -35,7 +35,7 @@ function apiOccurrenceKeys(): readonly string[] {
 
 describe('contrato de paridade das chaves de ocorrência de parada (spec 082 D8)', () => {
   test('as chaves são exatamente as do catálogo da API', () => {
-    expect(Object.values(TRIP_OCCURRENCE_TEMPLATE_KEY).toSorted()).toEqual(apiOccurrenceKeys())
+    expect(Object.values(TRIP_OCCURRENCE_TEMPLATE_KEY).toSorted()).toEqual([...apiOccurrenceKeys()])
   })
 
   test('o catálogo da API declara os mesmos marcadores para cada chave de ocorrência', () => {

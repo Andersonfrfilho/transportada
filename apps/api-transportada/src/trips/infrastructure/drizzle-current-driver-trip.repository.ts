@@ -21,8 +21,8 @@ import type {
   DriverTripStop,
 } from '../application/find-current-driver-trip.use-case.js'
 import {
-  resolveDeliveryProofSettings,
-  type DeliveryProofFieldSettings,
+  resolveProofSettingsForRecipient,
+  type ProofSettingsLookup,
 } from '../domain/delivery-proof-settings.policy.js'
 import type { TripDatabase } from './trip-queryable.type.js'
 
@@ -416,27 +416,6 @@ type DocumentRow = {
   readonly volumes: VolumeTotals | null
 }
 
-type ProofSettingsLookup = {
-  readonly general: DeliveryProofFieldSettings | null
-  readonly overridesByTaxId: ReadonlyMap<string, DeliveryProofFieldSettings>
-}
-
-/**
- * ADR-0057: a exceção casa pelo CNPJ do destinatário da parada. Com mais de um destinatário na
- * mesma parada (caso raro — a parada agrupa por endereço), vence a primeira nota com exceção.
- */
-function resolveStopProofSettings(
-  documents: readonly DocumentRow[],
-  lookup: ProofSettingsLookup,
-): DeliveryProofFieldSettings {
-  const override =
-    documents
-      .map((row) => lookup.overridesByTaxId.get(row.recipientTaxId ?? ''))
-      .find((entry) => entry !== undefined) ?? null
-
-  return resolveDeliveryProofSettings({ general: lookup.general, override })
-}
-
 function toDriverStop(
   stop: StopRow,
   documentsByStop: Map<string | null, DocumentRow[]>,
@@ -446,10 +425,11 @@ function toDriverStop(
   return {
     arrivedAt: stop.arrivedAt?.toISOString() ?? null,
     completedAt: stop.completedAt?.toISOString() ?? null,
-    deliveryProof: resolveStopProofSettings(documentsByStop.get(stop.id) ?? [], proofSettings),
     deliveryWindowEnd: stop.deliveryWindowEnd?.toISOString() ?? null,
     deliveryWindowStart: stop.deliveryWindowStart?.toISOString() ?? null,
-    documents: (documentsByStop.get(stop.id) ?? []).map(toDriverDocument),
+    documents: (documentsByStop.get(stop.id) ?? []).map((row) =>
+      toDriverDocument(row, proofSettings),
+    ),
     id: stop.id,
     label: stop.label,
     latitude: stop.latitude,
@@ -463,10 +443,19 @@ function toDriverStop(
  * Toda ausência vira vazio, nunca `undefined`: a NF-e é dado de terceiro, e a tela do motorista não
  * pode quebrar porque o emitente não mandou o peso do volume.
  */
-function toDriverDocument(row: DocumentRow): DriverTripDocument {
+function toDriverDocument(
+  row: DocumentRow,
+  proofSettings: ProofSettingsLookup,
+): DriverTripDocument {
   return {
     accessKey: row.accessKey ?? '',
     deliveredAt: row.deliveredAt?.toISOString() ?? null,
+    // Spec 082 (revisão): resolvido pelo CNPJ do destinatário DESTE documento — a mesma regra da
+    // escrita do comprovante, via `resolveProofSettingsForRecipient`.
+    deliveryProof: resolveProofSettingsForRecipient({
+      lookup: proofSettings,
+      recipientTaxId: row.recipientTaxId ?? '',
+    }),
     grossWeight: row.volumes?.grossWeight ?? '0',
     id: row.id,
     number: row.number ?? '',

@@ -17,8 +17,10 @@ import {
   DEFAULT_DELIVERY_PROOF_SETTINGS,
   maskTaxId,
   resolveDeliveryProofSettings,
+  resolveProofSettingsForRecipient,
   type DeliveryProofFieldSettings,
 } from '../../src/trips/domain/delivery-proof-settings.policy.js'
+import { buildProofUpsertSet } from '../../src/trips/infrastructure/drizzle-delivery-proof.repository.js'
 import { ApiError } from '../../src/shared/api.error.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000001'
@@ -49,6 +51,7 @@ function buildWorld(settings: Partial<DeliveryProofFieldSettings> = {}) {
 
   const repository: DeliveryProofPort = {
     findDeliveryEventId: () => Promise.resolve(EVENT_ID),
+    findProofIdByAttachmentKey: () => Promise.resolve(null),
     resolveProofFieldSettings: () =>
       Promise.resolve({ ...DEFAULT_DELIVERY_PROOF_SETTINGS, ...settings }),
     saveProof: (proof) => {
@@ -85,6 +88,7 @@ function buildInput(
     },
     storage: world.storage,
     upload: {
+      attachmentKey: '',
       bytes: new Uint8Array(1024),
       kind: 'signature' as const,
       mimeType: 'image/png',
@@ -206,6 +210,77 @@ describe('o documento do recebedor no comprovante (spec 082 T013)', () => {
     expect(world.saved[0]).toMatchObject({
       receiverDocumentEnvelope: null,
       receiverDocumentMasked: '',
+    })
+  })
+})
+
+describe('a resolução por documento (spec 082 — revisão)', () => {
+  const GENERAL: DeliveryProofFieldSettings = {
+    photo: 'optional',
+    receiverDocument: 'off',
+    receiverName: 'optional',
+    signature: 'optional',
+  }
+  const OVERRIDE: DeliveryProofFieldSettings = {
+    photo: 'required',
+    receiverDocument: 'required',
+    receiverName: 'required',
+    signature: 'required',
+  }
+
+  it('a exceção casa pelo CNPJ do destinatário do documento, nunca de vizinho de parada', () => {
+    const lookup = { general: GENERAL, overridesByTaxId: new Map([['12ABC345000199', OVERRIDE]]) }
+
+    expect(resolveProofSettingsForRecipient({ lookup, recipientTaxId: '12ABC345000199' })).toEqual(
+      OVERRIDE,
+    )
+    expect(resolveProofSettingsForRecipient({ lookup, recipientTaxId: '99XYZ345000199' })).toEqual(
+      GENERAL,
+    )
+  })
+
+  it('destinatário sem CNPJ importado cai na geral, nunca numa exceção de chave vazia', () => {
+    const lookup = { general: GENERAL, overridesByTaxId: new Map([['', OVERRIDE]]) }
+
+    expect(resolveProofSettingsForRecipient({ lookup, recipientTaxId: '' })).toEqual(GENERAL)
+  })
+})
+
+describe('o upsert do comprovante (spec 082 — revisão, item 4)', () => {
+  const BASE = {
+    actorUserId: ACTOR_USER_ID,
+    attachmentKey: '',
+    companyId: COMPANY_ID,
+    eventId: EVENT_ID,
+    id: PROOF_ID,
+    kind: 'signature' as const,
+    mimeType: 'image/png',
+    objectId: OBJECT_ID,
+    objectKey: 'object-key',
+    receiverDocumentMasked: '',
+    receiverName: 'Maria de Sousa',
+    sha256: 'a'.repeat(64),
+    sizeBytes: 1024,
+  }
+
+  it('recaptura sem documento preserva o envelope selado e o id que o AAD amarra', () => {
+    const set = buildProofUpsertSet({ ...BASE, receiverDocumentEnvelope: null })
+
+    expect(set).not.toContainKeys(['receiverDocumentEnvelope', 'receiverDocumentMasked', 'id'])
+    expect(set).toMatchObject({ objectId: OBJECT_ID, receiverName: 'Maria de Sousa' })
+  })
+
+  it('recaptura com documento novo substitui envelope, máscara e id juntos', () => {
+    const set = buildProofUpsertSet({
+      ...BASE,
+      receiverDocumentEnvelope: ENVELOPE,
+      receiverDocumentMasked: '***.938.570-**',
+    })
+
+    expect(set).toMatchObject({
+      id: PROOF_ID,
+      receiverDocumentEnvelope: ENVELOPE,
+      receiverDocumentMasked: '***.938.570-**',
     })
   })
 })

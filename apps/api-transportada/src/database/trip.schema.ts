@@ -869,6 +869,12 @@ export const tripDeliveryProofs = pgTable(
     receiverDocumentEnvelope: jsonb('receiver_document_envelope'),
     /** A forma que toda leitura devolve (`***.938.570-**`). O valor em claro não tem coluna. */
     receiverDocumentMasked: text('receiver_document_masked').notNull().default(''),
+    /**
+     * Spec 082 (revisão, item 5): chave de idempotência do anexo, mandada pelo app. Reenvio com a
+     * mesma chave para o mesmo evento+tipo converge na linha existente — o unique de
+     * `(company, evento, tipo)` já impede a duplicata; a chave distingue retry de correção.
+     */
+    attachmentKey: text('attachment_key').notNull().default(''),
     actorUserId: uuid('actor_user_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },

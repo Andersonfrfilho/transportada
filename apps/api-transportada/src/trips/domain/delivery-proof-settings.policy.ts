@@ -40,6 +40,32 @@ export function resolveDeliveryProofSettings(
   return params.override ?? params.general ?? DEFAULT_DELIVERY_PROOF_SETTINGS
 }
 
+export type ProofSettingsLookup = {
+  readonly general: DeliveryProofFieldSettings | null
+  readonly overridesByTaxId: ReadonlyMap<string, DeliveryProofFieldSettings>
+}
+
+export type ResolveProofSettingsForRecipientParams = {
+  readonly lookup: ProofSettingsLookup
+  readonly recipientTaxId: string
+}
+
+/**
+ * Spec 082 (revisão): a exceção casa pelo CNPJ do destinatário **do documento**, nunca da parada —
+ * a parada agrupa por endereço e pode ter mais de um destinatário. Esta é a regra única dos dois
+ * caminhos: o snapshot do motorista e a escrita do comprovante leem daqui, senão divergem calados.
+ */
+export function resolveProofSettingsForRecipient(
+  params: ResolveProofSettingsForRecipientParams,
+): DeliveryProofFieldSettings {
+  const override =
+    params.recipientTaxId.length === 0
+      ? null
+      : (params.lookup.overridesByTaxId.get(params.recipientTaxId) ?? null)
+
+  return resolveDeliveryProofSettings({ general: params.lookup.general, override })
+}
+
 /**
  * ADR-0057 §3: toda leitura devolve o documento assim — visíveis só os dígitos 4 a 9 do CPF
  * (`***.938.570-**`) ou o miolo do CNPJ. Valor fora de forma sai todo mascarado, nunca em claro.
