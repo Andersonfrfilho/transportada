@@ -18,9 +18,7 @@ type LockableOrientation = Readonly<{
 }>
 
 function readOrientation(): LockableOrientation | undefined {
-  return typeof screen === 'undefined'
-    ? undefined
-    : (screen.orientation as LockableOrientation | undefined)
+  return typeof screen === 'undefined' ? undefined : screen.orientation
 }
 
 /**
