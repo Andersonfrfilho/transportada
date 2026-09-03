@@ -252,5 +252,30 @@
   "destinationOrigin": {
     "delivery": "Delivery",
     "deliveryHint": "The address came from the note’s delivery field, not from the recipient’s registration"
+  },
+  "deliveryProofSettings": {
+    "title": "Delivery proof",
+    "hint": "What the driver must collect on delivery. Without a saved configuration the factory default applies: document off, everything else offered.",
+    "error": "Could not load or save the delivery proof configuration.",
+    "save": "Save configuration",
+    "fields": {
+      "receiverName": "Receiver name",
+      "receiverDocument": "Receiver document",
+      "signature": "Signature",
+      "photo": "Photo"
+    },
+    "modes": {
+      "required": "Required",
+      "optional": "Optional",
+      "off": "Off"
+    },
+    "overrides": {
+      "title": "Exceptions by recipient",
+      "hint": "An exception keyed by the recipient tax id replaces the general configuration entirely.",
+      "empty": "No exceptions registered.",
+      "taxId": "Recipient CNPJ or CPF",
+      "add": "Add exception",
+      "remove": "Remove"
+    }
   }
 }

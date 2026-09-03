@@ -14,7 +14,14 @@ import { Tabs } from '@/components/ui/tabs'
 import { SETTINGS_MANAGE_PERMISSION } from '@/modules/company-settings/shared/companySettings.constant'
 import { resolveSettingsDataScope } from '@/modules/company-settings/shared/companySettingsTabs.service'
 
+import { TripDeliveryProofSettingsPanel } from '../components/TripDeliveryProofSettingsPanel.component'
 import { TripOccurrenceNotifications } from '../components/TripOccurrenceNotifications.component'
+import {
+  useDeliveryProofOverridesQuery,
+  useDeliveryProofSettingsQuery,
+  useReplaceDeliveryProofOverridesMutation,
+  useSaveDeliveryProofSettingsMutation,
+} from '../queries/useDeliveryProofSettings.query'
 import { TripTable } from '../components/TripTable.component'
 import { useTripCreation } from '../hooks/useTripCreation.hook'
 import { useTripTable } from '../hooks/useTripTable.hook'
@@ -107,9 +114,9 @@ function TripWorkspacePageSkeleton() {
   )
 }
 
-type TripTabId = 'notifications' | 'trips'
+type TripTabId = 'notifications' | 'proof' | 'trips'
 
-const TRIP_TABS: readonly TripTabId[] = ['trips', 'notifications']
+const TRIP_TABS: readonly TripTabId[] = ['trips', 'notifications', 'proof']
 
 function resolveTripTab(id: string): TripTabId {
   return TRIP_TABS.find((tab) => tab === id) ?? 'trips'
@@ -150,6 +157,19 @@ export function TripWorkspacePage() {
       void queryClient.invalidateQueries({ queryKey: ['trip', 'occurrence-types'] })
     },
   })
+  /**
+   * Spec 082: mesmo desenho da 079 — permissão **e** aba aberta ligam a consulta, e é isso que faz
+   * o painel do comprovante vir preenchido (ou com a fábrica que a API resolve) ao abrir a aba.
+   */
+  const deliveryProofSettingsQuery = useDeliveryProofSettingsQuery({
+    enabled: canManageSettings && settingsScope.deliveryProofSettings,
+  })
+  const deliveryProofOverridesQuery = useDeliveryProofOverridesQuery({
+    enabled: canManageSettings && settingsScope.deliveryProofSettings,
+  })
+  const saveDeliveryProofSettingsMutation = useSaveDeliveryProofSettingsMutation()
+  const replaceDeliveryProofOverridesMutation = useReplaceDeliveryProofOverridesMutation()
+
   const table = useTripTable({ canReadTrips: workspace.controller.canReadTrips, ...tenant })
   const creation = useTripCreation()
   const fleet = useFleet(tenant)
@@ -201,13 +221,35 @@ export function TripWorkspacePage() {
                     onSave={(type) => saveOccurrenceTypeMutation.mutate(type)}
                     types={occurrenceTypesQuery.data ?? []}
                   />
+                ) : tab === 'proof' ? (
+                  <TripDeliveryProofSettingsPanel
+                    canManage={canManageSettings}
+                    isSaving={
+                      saveDeliveryProofSettingsMutation.isPending ||
+                      replaceDeliveryProofOverridesMutation.isPending
+                    }
+                    onReplaceOverrides={(overrides) =>
+                      replaceDeliveryProofOverridesMutation.mutate(overrides)
+                    }
+                    onSaveSettings={(settings) =>
+                      saveDeliveryProofSettingsMutation.mutate(settings)
+                    }
+                    overrides={deliveryProofOverridesQuery.data ?? []}
+                    settings={deliveryProofSettingsQuery.data}
+                    showError={
+                      deliveryProofSettingsQuery.isError ||
+                      deliveryProofOverridesQuery.isError ||
+                      saveDeliveryProofSettingsMutation.isError ||
+                      replaceDeliveryProofOverridesMutation.isError
+                    }
+                  />
                 ) : null,
             }))}
             onChange={(id) => setActiveTab(resolveTripTab(id))}
             value={activeTab}
           />
 
-          {activeTab === 'notifications' ? null : (
+          {activeTab === 'notifications' || activeTab === 'proof' ? null : (
             <>
               {feedbackKey === null ? null : (
                 <p className={styles.alert} role="alert">

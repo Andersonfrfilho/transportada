@@ -351,6 +351,32 @@
   },
   "tabs": {
     "trips": "Viagens",
-    "notifications": "Avisos"
+    "notifications": "Avisos",
+    "proof": "Comprovante"
+  },
+  "deliveryProofSettings": {
+    "title": "Comprovante de entrega",
+    "hint": "O que o motorista precisa colher ao entregar. Sem configuração gravada vale o padrão de fábrica: documento desligado, o resto oferecido.",
+    "error": "Não foi possível carregar ou gravar a configuração do comprovante.",
+    "save": "Salvar configuração",
+    "fields": {
+      "receiverName": "Nome do recebedor",
+      "receiverDocument": "Documento do recebedor",
+      "signature": "Assinatura",
+      "photo": "Foto"
+    },
+    "modes": {
+      "required": "Obrigatório",
+      "optional": "Opcional",
+      "off": "Desligado"
+    },
+    "overrides": {
+      "title": "Exceções por destinatário",
+      "hint": "A exceção pelo CNPJ do destinatário vence a configuração geral por inteiro.",
+      "empty": "Nenhuma exceção cadastrada.",
+      "taxId": "CNPJ ou CPF do destinatário",
+      "add": "Adicionar exceção",
+      "remove": "Remover"
+    }
   }
 }
