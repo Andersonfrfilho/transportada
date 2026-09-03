@@ -72,6 +72,7 @@ import { parseIdempotencyKey as parseCteBatchIdempotencyKey } from '../../cte-ba
 import {
   parseBatchTransitionTripDocumentsRequest,
   parseCreateTripRequest,
+  parseCreateTripCteBatchRequest,
   parseDispatchTripRequest,
   parseLinkTripDocumentRequest,
   parseOverrideDeliveryAddressRequest,
@@ -248,6 +249,7 @@ type Dependencies = {
       readonly companyId: string
       readonly correlationId: string
       readonly idempotencyKey: string
+      readonly tripDocumentIds?: readonly string[]
       readonly tripId: string
       readonly userId: string
     }): Promise<CreateTripCteBatchResult>
@@ -389,6 +391,7 @@ export function createTripRoutes(
     defineRoute<{
       readonly correlationId: string
       readonly idempotencyKey: string
+      readonly tripDocumentIds: readonly string[]
       readonly tripId: string
     }>({
       async handle({ context, input }): Promise<Response> {
@@ -397,17 +400,23 @@ export function createTripRoutes(
           correlationId: input.correlationId,
           idempotencyKey: input.idempotencyKey,
           tripId: input.tripId,
+          // Lista vazia é a viagem inteira, como corpo ausente — não um lote de zero notas.
+          ...(input.tripDocumentIds.length === 0 ? {} : { tripDocumentIds: input.tripDocumentIds }),
           userId: context.scope.userId,
         })
 
         return jsonResponse({ body: { data: result }, status: 201 })
       },
       method: 'POST',
-      parse: ({ correlationId, pathParameters, request }) => ({
-        correlationId,
-        idempotencyKey: parseCteBatchIdempotencyKey(request.headers.get('idempotency-key')),
-        tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
-      }),
+      async parse({ correlationId, pathParameters, request }) {
+        const body = await parseCreateTripCteBatchRequest(request)
+        return {
+          correlationId,
+          idempotencyKey: parseCteBatchIdempotencyKey(request.headers.get('idempotency-key')),
+          tripDocumentIds: body.tripDocumentIds,
+          tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+        }
+      },
       pathname: TRIP_CTE_BATCHES_PATH,
       policy: CTE_SUBMIT_POLICY,
     }),

@@ -18,6 +18,7 @@ const BATCH_ID = '00000000-0000-4000-8000-000000000004'
 function document(input: {
   readonly nfeDocumentId: string
   readonly reason: TripDocumentReadiness['reason']
+  readonly tripDocumentId?: string
 }): TripDocumentReadiness {
   const expected = input.reason === 'nfse_expected' ? 'nfse' : 'cte'
 
@@ -29,11 +30,14 @@ function document(input: {
     reason: input.reason,
     rejectionCode: null,
     rejectionMessage: null,
-    tripDocumentId: crypto.randomUUID(),
+    tripDocumentId: input.tripDocumentId ?? crypto.randomUUID(),
   }
 }
 
-function buildWorld(documents: readonly TripDocumentReadiness[]) {
+function buildWorld(
+  documents: readonly TripDocumentReadiness[],
+  tripDocumentIds?: readonly string[],
+) {
   const calls: Array<{ readonly documentIds: readonly string[]; readonly name: string }> = []
   const readiness: TripFiscalReadinessSnapshot = {
     documents,
@@ -55,6 +59,7 @@ function buildWorld(documents: readonly TripDocumentReadiness[]) {
           return Promise.resolve({ id: BATCH_ID })
         },
         idempotencyKey: 'chave-do-clique',
+        ...(tripDocumentIds === undefined ? {} : { tripDocumentIds }),
         readReadiness: () => Promise.resolve(readiness),
         tripId: TRIP_ID,
         userId: USER_ID,
@@ -146,5 +151,77 @@ describe('o lote urgente da viagem', () => {
     await world.run()
 
     expect(world.calls[0]?.documentIds).toEqual(['nfe-1'])
+  })
+})
+
+/**
+ * A emissão pela seleção: o operador marca as notas na lista e emite só elas. O gesto já existe na
+ * tela (a caixa de seleção da linha), e sem o subconjunto o botão diria "esta nota" e emitiria
+ * todas — pior que o painel que ele substitui.
+ *
+ * O recorte é por `tripDocumentId` porque é o identificador que a tela tem em mãos; o lote continua
+ * sendo montado com o `nfeDocumentId`, que é o que a emissão consome.
+ */
+describe('o lote urgente por seleção', () => {
+  it('leva só as notas escolhidas', async () => {
+    const escolhida = document({
+      nfeDocumentId: 'nfe-1',
+      reason: 'no_cte',
+      tripDocumentId: 'trip-doc-1',
+    })
+    const deixada = document({
+      nfeDocumentId: 'nfe-2',
+      reason: 'no_cte',
+      tripDocumentId: 'trip-doc-2',
+    })
+    const world = buildWorld([escolhida, deixada], ['trip-doc-1'])
+
+    expect(await world.run()).toEqual({ batchId: BATCH_ID, documentCount: 1 })
+    expect(world.calls[0]?.documentIds).toEqual(['nfe-1'])
+  })
+
+  /** Seleção vazia é a viagem inteira: é o que o painel de prontidão continua fazendo. */
+  it('sem seleção, segue emitindo a viagem inteira', async () => {
+    const world = buildWorld([
+      document({ nfeDocumentId: 'nfe-1', reason: 'no_cte' }),
+      document({ nfeDocumentId: 'nfe-2', reason: 'no_cte' }),
+    ])
+
+    expect(world.calls.length).toBe(0)
+    await world.run()
+
+    expect(world.calls[0]?.documentIds).toEqual(['nfe-1', 'nfe-2'])
+  })
+
+  /**
+   * Nota escolhida que não está pendente — já autorizada, já em lote, ou de NFS-e — não vira lote
+   * silenciosamente menor: a tela precisa saber que o que ela ofereceu não vale mais.
+   */
+  it('recusa a escolha que não está pendente, nomeando a nota', async () => {
+    const world = buildWorld(
+      [
+        document({ nfeDocumentId: 'nfe-1', reason: 'no_cte', tripDocumentId: 'trip-doc-1' }),
+        document({ nfeDocumentId: 'nfe-2', reason: 'ok', tripDocumentId: 'trip-doc-2' }),
+      ],
+      ['trip-doc-1', 'trip-doc-2'],
+    )
+
+    const error = await world.run().catch((thrown: unknown) => thrown)
+
+    expect(error).toBeInstanceOf(ApiError)
+    expect((error as ApiError).code).toBe('TRIP_CTE_BATCH_DOCUMENT_NOT_PENDING')
+    expect(JSON.stringify(error)).toContain('trip-doc-2')
+  })
+
+  /** Seleção só de notas não pendentes cai no mesmo erro, não em lote vazio. */
+  it('seleção inteira fora da pendência recusa pela escolha, não pelo vazio', async () => {
+    const world = buildWorld(
+      [document({ nfeDocumentId: 'nfe-2', reason: 'ok', tripDocumentId: 'trip-doc-2' })],
+      ['trip-doc-2'],
+    )
+
+    const error = await world.run().catch((thrown: unknown) => thrown)
+
+    expect((error as ApiError).code).toBe('TRIP_CTE_BATCH_DOCUMENT_NOT_PENDING')
   })
 })

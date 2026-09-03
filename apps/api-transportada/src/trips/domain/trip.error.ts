@@ -330,6 +330,24 @@ export class TripDeliveryProofRejectedError extends ApiError {
  * Um lote vazio nasceria, seria submetido e voltaria sem nada; recusar com nome é o que diz ao
  * operador qual dos dois casos é o dele.
  */
+/**
+ * A nota escolhida não está pendente de CT-e — já autorizada, já num lote, ou de NFS-e. Recusar
+ * nomeando cada uma é o que impede o lote de nascer silenciosamente menor do que a tela ofereceu.
+ */
+export class TripCteBatchDocumentNotPendingError extends ApiError {
+  public constructor(tripDocumentIds: readonly string[]) {
+    super({
+      code: 'TRIP_CTE_BATCH_DOCUMENT_NOT_PENDING',
+      details: tripDocumentIds.map((tripDocumentId) => ({
+        field: tripDocumentId,
+        message: 'This invoice is not waiting for a CT-e.',
+      })),
+      message: 'One or more selected invoices are not waiting for a CT-e.',
+      status: 422,
+    })
+  }
+}
+
 export class TripCteBatchEmptyError extends ApiError {
   public constructor() {
     super({

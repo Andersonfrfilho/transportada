@@ -71,6 +71,16 @@ export const dispatchTripSchema = z
 
 export type DispatchTripBody = z.infer<typeof dispatchTripSchema>
 
+/**
+ * O recorte da seleção da tela. Lista **vazia é a viagem inteira**, igual a corpo ausente: o painel
+ * de prontidão continua emitindo tudo sem mandar corpo nenhum.
+ */
+export const createTripCteBatchSchema = z
+  .object({ tripDocumentIds: z.array(z.uuid()).max(MAX_BATCH_DOCUMENTS).default([]) })
+  .strict()
+
+export type CreateTripCteBatchBody = z.infer<typeof createTripCteBatchSchema>
+
 /** Teto generoso: nenhuma viagem real chega perto disso — só evita um corpo absurdo. */
 const MAX_TRIP_STOPS = 200
 

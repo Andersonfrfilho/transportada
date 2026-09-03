@@ -18,6 +18,7 @@ import { TRIP_STATUSES } from '../../database/trip.schema.js'
 import type { TripFilters } from '../application/trip.port.js'
 import {
   batchTransitionTripDocumentsSchema,
+  createTripCteBatchSchema,
   createTripSchema,
   dispatchTripSchema,
   linkTripDocumentSchema,
@@ -27,6 +28,7 @@ import {
   transitionTripDocumentSchema,
   type BatchTransitionTripDocumentsBody,
   type CreateTripBody,
+  type CreateTripCteBatchBody,
   type DispatchTripBody,
   type LinkTripDocumentBody,
   type OverrideDeliveryAddressBody,
@@ -78,6 +80,12 @@ export async function parseBatchTransitionTripDocumentsRequest(
   request: Request,
 ): Promise<BatchTransitionTripDocumentsBody> {
   return parseBody(batchTransitionTripDocumentsSchema, request)
+}
+
+export async function parseCreateTripCteBatchRequest(
+  request: Request,
+): Promise<CreateTripCteBatchBody> {
+  return parseOptionalBody(createTripCteBatchSchema, request)
 }
 
 export async function parseDispatchTripRequest(request: Request): Promise<DispatchTripBody> {
