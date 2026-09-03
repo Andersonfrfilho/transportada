@@ -55,6 +55,7 @@ import {
   buildTripListFilters,
   cteAuthorizedExpression,
 } from './trip.query.js'
+import { listDeliveryContacts } from './delivery-proof-read.support.js'
 import { loadTripCargoWeight } from './trip-cargo-weight.support.js'
 import { loadTripOccupancy } from './trip-occupancy.support.js'
 import { resolveCargoLayout } from '../domain/cargo-layout.policy.js'
@@ -480,7 +481,26 @@ async function readTripDetail(
     )
     .where(and(...buildTripDocumentListFilters(input)))
     .orderBy(asc(tripDocuments.createdAt), asc(tripDocuments.id))
-  const documents = documentRecords.map(mapTripDocumentDetail)
+  /**
+   * Spec 079 P2: o contato entra **aqui**, no mesmo map que monta a nota — depois seria tarde: as
+   * paradas já agrupam `documents`, e um segundo objeto com contato produziria duas verdades sobre
+   * a mesma nota.
+   */
+  const contacts = await listDeliveryContacts(queryable, {
+    companyId: input.companyId,
+    nfeDocumentIds: documentRecords.flatMap((row) =>
+      row.document.nfeDocumentId === null ? [] : [row.document.nfeDocumentId],
+    ),
+  })
+  const documents = documentRecords.map((row) =>
+    mapTripDocumentDetail({
+      ...row,
+      contact:
+        row.document.nfeDocumentId === null
+          ? null
+          : (contacts.get(row.document.nfeDocumentId) ?? null),
+    }),
+  )
 
   // T014: uma única leitura de paradas, independente de quantas existirem — o agrupamento com as
   // notas já buscadas acima acontece em memória, não numa query por parada (§15 do code-standart.md).

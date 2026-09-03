@@ -94,6 +94,16 @@ export type TripDocumentDetail = TripDocument &
   Readonly<{
     cteAuthorized: boolean
     fiscalStatus: string
+    /**
+     * Spec 079 P2: quem recebe e como falar com ele. O telefone vem do `<enderDest><fone>` que a
+     * nota já traz — nada é coletado.
+     */
+    contact?: Readonly<{
+      contractorName: null | string
+      name: string
+      phone: null | string
+      taxId: string
+    }> | null
     /** Spec 079 T017: como a nota se chama na tela. `null` no vínculo que é só cálculo de frete. */
     nfeIssuedAt?: null | string
     nfeNumber?: null | string

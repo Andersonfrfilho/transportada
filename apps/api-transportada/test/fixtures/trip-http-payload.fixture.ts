@@ -146,6 +146,12 @@ export const TRIP_DOCUMENT: TripDocument = {
 
 export const TRIP_DOCUMENT_DETAIL: TripDocumentDetail = {
   ...TRIP_DOCUMENT,
+  contact: {
+    contractorName: 'Zaragoza Matriz',
+    name: 'Zaragoza',
+    phone: '(16) 3371-2200',
+    taxId: '11222333000181',
+  },
   cteAuthorized: true,
   fiscalStatus: 'authorized',
   nfeIssuedAt: '2026-08-01T09:00:00.000Z',

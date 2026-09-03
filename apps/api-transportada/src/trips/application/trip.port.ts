@@ -63,6 +63,16 @@ export type TripDocumentDetail = TripDocument & {
    * quando a nota sumiu da junção — a queda para o identificador continua existindo, mas deixou de
    * ser o caminho normal.
    */
+  /**
+   * Spec 079 P2: quem recebe e como falar com ele — telefone do `<enderDest><fone>` que a nota já
+   * traz, mais o contratante quando o documento está em `contractors`.
+   */
+  readonly contact: {
+    readonly contractorName: null | string
+    readonly name: string
+    readonly phone: null | string
+    readonly taxId: string
+  } | null
   readonly nfeIssuedAt: null | string
   readonly nfeNumber: null | string
   readonly nfeSeries: null | string

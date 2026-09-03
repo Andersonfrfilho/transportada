@@ -80,6 +80,7 @@ export function mapTripDocumentDetail(input: {
   readonly document: TripDocumentRecord
   readonly freightCalculationStatus: FreightCalculationStatus | null
   readonly nfeDocumentStatus: NfeDocumentStatus | null
+  readonly contact?: TripDocumentDetail['contact']
   readonly nfeIssuedAt?: Date | null
   readonly nfeNumber?: null | string
   readonly nfeSeries?: null | string
@@ -89,6 +90,7 @@ export function mapTripDocumentDetail(input: {
   if (fiscalStatus === null) throw new Error('TRIP_DOCUMENT_FISCAL_STATUS_MISSING')
   return {
     ...mapTripDocument(input.document),
+    contact: input.contact ?? null,
     cteAuthorized: input.cteAuthorized,
     fiscalStatus,
     nfeIssuedAt: input.nfeIssuedAt?.toISOString() ?? null,

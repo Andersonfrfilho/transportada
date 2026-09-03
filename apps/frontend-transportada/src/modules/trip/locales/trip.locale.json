@@ -322,5 +322,11 @@
     "longitude": "Longitude",
     "save": "Salvar ponto",
     "cancel": "Cancelar"
+  },
+  "contact": {
+    "recipient": "Recebe: {{name}}",
+    "phone": "Telefone: {{phone}}",
+    "withoutPhone": "Sem telefone na nota",
+    "contractor": "Contratante: {{name}}"
   }
 }

@@ -1017,6 +1017,7 @@ function serializeTripDocument(document: TripDocument): object {
 function serializeTripDocumentDetail(document: TripDocumentDetail): object {
   return {
     ...serializeTripDocument(document),
+    contact: document.contact === null ? null : { ...document.contact },
     cteAuthorized: document.cteAuthorized,
     fiscalStatus: document.fiscalStatus,
     nfeIssuedAt: document.nfeIssuedAt,

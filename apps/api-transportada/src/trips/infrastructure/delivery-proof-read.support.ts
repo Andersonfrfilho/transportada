@@ -6,9 +6,9 @@
  * uma junção sem `company_id` em qualquer degrau é o caminho pelo qual o canhoto de uma empresa
  * aparece na tela de outra.
  */
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, eq, inArray } from 'drizzle-orm'
 
-import { nfeProducts } from '../../database/nfe.schema.js'
+import { nfeAddresses, nfeParticipants, nfeProducts } from '../../database/nfe.schema.js'
 import { storedObjects } from '../../database/storage.schema.js'
 import {
   tripDeliveryProofs,
@@ -19,6 +19,9 @@ import {
 import type { DeliveryProofRecord } from '../application/read-delivery-proof.use-case.js'
 import type { TripDocumentProduct } from '../application/read-trip-document-products.use-case.js'
 import type { TripOccurrence } from '../application/register-trip-occurrence.use-case.js'
+import { contractors } from '../../database/delivery-client.schema.js'
+import { resolveDeliveryContact } from '../domain/delivery-contact.policy.js'
+import type { DeliveryContact } from '../domain/delivery-contact.policy.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
 export async function listDeliveryProofs(
@@ -216,4 +219,75 @@ export async function saveTripOccurrence(
     stage: saved.stage,
     type: saved.type,
   }
+}
+
+/**
+ * Spec 079 P2: o contato de quem recebe, e o contratante.
+ *
+ * **Duas consultas, nunca uma por nota**: os participantes com o telefone do endereço, e os
+ * contratantes da empresa. O telefone vem de `nfe_addresses`, que é onde o `<enderDest><fone>` do
+ * XML foi gravado desde a spec 013 — nada é coletado aqui.
+ */
+export async function listDeliveryContacts(
+  queryable: TripQueryable,
+  input: {
+    readonly companyId: string
+    readonly nfeDocumentIds: readonly string[]
+  },
+): Promise<ReadonlyMap<string, DeliveryContact>> {
+  if (input.nfeDocumentIds.length === 0) return new Map()
+
+  const [parties, contractorRecords] = await Promise.all([
+    queryable
+      .select({
+        documentId: nfeParticipants.documentId,
+        legalName: nfeParticipants.legalName,
+        phone: nfeAddresses.phone,
+        role: nfeParticipants.role,
+        taxId: nfeParticipants.taxId,
+        tradeName: nfeParticipants.tradeName,
+      })
+      .from(nfeParticipants)
+      .leftJoin(
+        nfeAddresses,
+        and(
+          eq(nfeAddresses.companyId, nfeParticipants.companyId),
+          eq(nfeAddresses.participantId, nfeParticipants.id),
+        ),
+      )
+      .where(
+        and(
+          eq(nfeParticipants.companyId, input.companyId),
+          inArray(nfeParticipants.documentId, [...input.nfeDocumentIds]),
+        ),
+      ),
+    queryable
+      .select({ displayName: contractors.displayName, taxId: contractors.taxId })
+      .from(contractors)
+      .where(eq(contractors.companyId, input.companyId)),
+  ])
+
+  const byDocument = new Map<
+    string,
+    { legalName: string; phone: string; role: string; taxId: string; tradeName: string }[]
+  >()
+  for (const row of parties) {
+    const bucket = byDocument.get(row.documentId) ?? []
+    bucket.push({
+      legalName: row.legalName ?? '',
+      phone: row.phone ?? '',
+      role: row.role,
+      taxId: row.taxId ?? '',
+      tradeName: row.tradeName ?? '',
+    })
+    byDocument.set(row.documentId, bucket)
+  }
+
+  const contacts = new Map<string, DeliveryContact>()
+  for (const [documentId, partyList] of byDocument) {
+    const contact = resolveDeliveryContact({ contractors: contractorRecords, parties: partyList })
+    if (contact !== null) contacts.set(documentId, contact)
+  }
+
+  return contacts
 }

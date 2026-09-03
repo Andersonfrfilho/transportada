@@ -233,6 +233,28 @@ function TripStopDocumentRow({
       {document.nfeIssuedAt === null || document.nfeIssuedAt === undefined ? null : (
         <span className={styles.stopDocumentMeta}>{formatDay(document.nfeIssuedAt)}</span>
       )}
+      {/*
+       * Spec 079 P2: quem recebe, o telefone que a nota trouxe e o contratante. ⚠️ Nota sem
+       * telefone **diz** que não tem: esconder a linha faria o operador procurar o número em outra
+       * tela, e imprimir vazio faria ele tentar ligar para o nada.
+       */}
+      {document.contact === null || document.contact === undefined ? null : (
+        <>
+          <span className={styles.stopDocumentMeta}>
+            {t('contact.recipient', { name: document.contact.name })}
+          </span>
+          <span className={styles.stopDocumentMeta}>
+            {document.contact.phone === null
+              ? t('contact.withoutPhone')
+              : t('contact.phone', { phone: document.contact.phone })}
+          </span>
+          {document.contact.contractorName === null ? null : (
+            <span className={styles.stopDocumentMeta}>
+              {t('contact.contractor', { name: document.contact.contractorName })}
+            </span>
+          )}
+        </>
+      )}
       <span className={styles.separationStatusBadge}>
         {t(`separationStatus.${document.separationStatus}`)}
       </span>

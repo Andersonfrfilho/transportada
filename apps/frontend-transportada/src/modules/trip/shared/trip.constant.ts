@@ -99,6 +99,7 @@ export const TRIP_DOCUMENT_DETAIL_KEYS = [
  * corretamente, mas quebrando a tela inteira por um rótulo.
  */
 export const TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS = [
+  'contact',
   'nfeIssuedAt',
   'nfeNumber',
   'nfeSeries',
