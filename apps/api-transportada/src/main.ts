@@ -18,6 +18,7 @@ import { createDigitalCertificateSecretService } from './companies/application/d
 import { createCompanyLogoUseCase } from './companies/application/company-logo.use-case.js'
 import { createLandingLogoUseCase } from './landing/application/landing-logo.use-case.js'
 import { createLandingSettingsUseCase } from './landing/application/landing-settings.use-case.js'
+import { resolveMobileAuthentication } from './landing/domain/mobile-authentication.policy.js'
 import { createAggregateApplicationsUseCase } from './fleet/application/aggregate-applications.use-case.js'
 import { createAggregateAccountUseCase } from './fleet/application/aggregate-account.use-case.js'
 import { createDisableScheduledDistributionUseCase } from './companies/application/disable-scheduled-distribution.use-case.js'
@@ -793,6 +794,11 @@ function createAnonymousRoutes({
       companyGroupRepository: createDrizzleCompanyGroupRepository(database),
       landingCompanyId: config.companyId,
       landingSettingsRepository: createDrizzleLandingSettingsRepository(database),
+      /* Ambiente, resolvido uma vez: o endereço do realm não muda entre requisições. */
+      mobileAuthentication: resolveMobileAuthentication({
+        clientId: config.keycloak.mobileClientId,
+        issuer: config.keycloak.issuer,
+      }),
     }),
   })
   // A consulta de CNPJ já existia atrás de `settings.manage`, para o painel. A landing precisa dela
@@ -1033,6 +1039,10 @@ function createApplicationRoutes({
     companyGroupRepository: createDrizzleCompanyGroupRepository(database),
     landingCompanyId: undefined,
     landingSettingsRepository: createDrizzleLandingSettingsRepository(database),
+    mobileAuthentication: resolveMobileAuthentication({
+      clientId: keycloak.mobileClientId,
+      issuer: keycloak.issuer,
+    }),
   })
   const aggregateApplications = createAggregateApplicationsUseCase({
     companyGroupRepository: createDrizzleCompanyGroupRepository(database),

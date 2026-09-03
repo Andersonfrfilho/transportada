@@ -31,6 +31,11 @@ export type ApiEnvironment = {
     readonly audience: string
     readonly issuer: string
     readonly jwksUri: string
+    /**
+     * Spec 082 T0.1: o cliente público do aplicativo do motorista. Ausente na instalação que não
+     * publica o aplicativo — e aí o bloco some da rota pública, em vez de sair pela metade.
+     */
+    readonly mobileClientId?: string
   }
   readonly logLevel: LogLevel
   /** Broker das entregas de notificação; ausente deixa o módulo sem fila em vez de inventar uma. */
