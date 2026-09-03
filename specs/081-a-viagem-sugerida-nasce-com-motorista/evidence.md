@@ -27,8 +27,12 @@ Executado em 2026-09-03, worktree `../transportada-wt/spec-081`, branch `work/sp
 
 - **T001** — `route_suggestion_vehicles.driver_id`, FK composta, unique por sugestão e índice.
   `test/database-migration.contract.test.ts` verde depois de a migration entrar na lista explícita
-  de `static-migration.contract.ts`. ⚠️ O `make migration-test` (aplicar + reverter em Postgres
-  descartável) **não rodou** — Docker parado. É o único critério de aceite em aberto.
+  de `static-migration.contract.ts`.
+  `make migration-test` verde em Postgres descartável. Ele exercita a migration de verdade, não só a
+  lista: `database-migration.integration.ts` aplica todas em ordem, roda cada `rollback.sql` em
+  ordem **inversa** (duas vezes) e compara o journal com a listagem do diretório — e o `rollback.sql`
+  desta migration levanta exceção se não remover exatamente uma linha do journal, então um rollback
+  que não casasse com o nome falharia alto em vez de passar calado.
 - **T002/T003** — `GET /fleet/driver-vehicles`. Contrato novo
   `test/fleet-http/driver-vehicle-links.contract.ts` vermelho por `404` antes da rota, verde depois
   (85 testes no arquivo de entrada).
@@ -49,6 +53,5 @@ Executado em 2026-09-03, worktree `../transportada-wt/spec-081`, branch `work/sp
 
 ## O que ficou de fora
 
-- `make migration-test` — pendente de Docker.
-- Smoke Playwright não executado (precisa da stack de pé); o arquivo foi atualizado e typecheck e
-  lint passam sobre ele.
+- Smoke Playwright não executado (precisa da stack inteira de pé); o arquivo foi atualizado e
+  typecheck e lint passam sobre ele.

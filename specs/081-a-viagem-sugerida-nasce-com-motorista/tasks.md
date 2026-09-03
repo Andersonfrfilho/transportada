@@ -2,7 +2,7 @@
 
 > 🤖 Modelo: `sonnet` (T001 e T004 são 🧠 — migration e reversão de ADR)
 
-- [x] T001 (⚠️ migration-test pendente de Docker) 🧠 Coluna `driver_id` em `route_suggestion_vehicles` — `src/database/route-suggestion.schema.ts`,
+- [x] T001 🧠 Coluna `driver_id` em `route_suggestion_vehicles` — `src/database/route-suggestion.schema.ts`,
       `drizzle/<nova>/migration.sql` + `rollback.sql`, cópia em
       `worker-transportada/src/database/routing.schema.ts` — `make migration-test`
 - [x] T002 [P] Contrato do vínculo por empresa — `test/fleet-http/driver-vehicle-links.contract.ts`
