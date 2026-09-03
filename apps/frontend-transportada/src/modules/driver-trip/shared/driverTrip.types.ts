@@ -123,3 +123,19 @@ export type DriverFieldReport =
       occurrenceKind: DriverOccurrenceKind
       stopId: string
     }>
+
+/**
+ * Spec 079: os tipos de ocorrência que a tela do motorista oferece **por nota**.
+ *
+ * ⚠️ **Só o que a devolução não cobre.** O catálogo da 079 tem quatro tipos de rua, e três deles
+ * dizem o mesmo que um `DRIVER_RETURN_REASONS` já dizia: `recusa_total` é `recipient_refused`,
+ * `destinatario_ausente` é `recipient_absent`, e `damaged_goods` cobre a avaria que faz a carga
+ * voltar. Oferecer os dois caminhos produziria dois registros do mesmo evento com vocabulários
+ * diferentes — e é o escritório que depois tenta reconciliar isso.
+ *
+ * Sobra o que acontece **sem a nota voltar**: o cliente recebeu parte, ou recebeu avariado e ficou
+ * com a carga. Esses dois a devolução não sabe dizer, porque neles não há devolução.
+ */
+export function driverDocumentOccurrenceTypes(): readonly string[] {
+  return ['recusa_parcial', 'avaria_transporte']
+}

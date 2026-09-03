@@ -26,6 +26,11 @@ export function DriverTripWorkspacePage() {
   const driverTrip = useDriverTrip()
   /** O anexo que falha **não** desfaz a entrega: o aviso é do arquivo, e diz isso por extenso. */
   const [proofFailed, setProofFailed] = useState(false)
+  /**
+   * A ocorrência que falha **não** muda o estado da nota — ao contrário de entregar e devolver. O
+   * aviso diz isso, e repetir o toque é o conserto.
+   */
+  const [occurrenceFailed, setOccurrenceFailed] = useState(false)
 
   if (driverTrip.status === 'loading') {
     return (
@@ -84,6 +89,11 @@ export function DriverTripWorkspacePage() {
         </p>
       ) : null}
 
+      {occurrenceFailed ? (
+        <p className={styles.alert} role="alert">
+          {t('documentOccurrenceFailed')}
+        </p>
+      ) : null}
       {proofFailed ? (
         <p className={styles.rejectedBanner} role="alert">
           {t('proofFailed')}
@@ -141,6 +151,11 @@ export function DriverTripWorkspacePage() {
                 void getDriverTripClient()
                   .attachProof({ documentId: input.documentId, file: input.file, kind: 'photo' })
                   .catch(() => setProofFailed(true))
+              }}
+              onDocumentOccurrence={(input: { documentId: string; type: string }) => {
+                void getDriverTripClient()
+                  .registerDocumentOccurrence({ documentId: input.documentId, type: input.type })
+                  .catch(() => setOccurrenceFailed(true))
               }}
               onOccurrence={(input: {
                 description: string

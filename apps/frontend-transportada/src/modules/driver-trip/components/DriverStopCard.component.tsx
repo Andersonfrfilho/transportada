@@ -9,6 +9,7 @@ import { Select } from '@/components/ui/select'
 import {
   DRIVER_OCCURRENCE_KINDS,
   DRIVER_RETURN_REASONS,
+  driverDocumentOccurrenceTypes,
   type DriverOccurrenceKind,
   type DriverReturnReason,
   type DriverTripDocument,
@@ -36,6 +37,7 @@ type DriverStopCardProps = Readonly<{
   isCurrent: boolean
   onArrive: (stopId: string) => void
   onDeliver: (documentId: string) => void
+  onDocumentOccurrence: (input: { documentId: string; type: string }) => void
   onProof: (input: { documentId: string; file: File }) => void
   onOccurrence: (input: { description: string; kind: DriverOccurrenceKind; stopId: string }) => void
   onReturn: (input: { documentId: string; reason: DriverReturnReason }) => void
@@ -46,6 +48,7 @@ export function DriverStopCard({
   isCurrent,
   onArrive,
   onDeliver,
+  onDocumentOccurrence,
   onOccurrence,
   onProof,
   onReturn,
@@ -122,6 +125,7 @@ export function DriverStopCard({
             document={document}
             key={document.id}
             onDeliver={onDeliver}
+            onDocumentOccurrence={onDocumentOccurrence}
             onProof={onProof}
             onReturn={onReturn}
           />
@@ -134,13 +138,22 @@ export function DriverStopCard({
 type DocumentRowProps = Readonly<{
   document: DriverTripDocument
   onDeliver: (documentId: string) => void
+  /** Spec 079: o que aconteceu **sem** a carga voltar — recusa parcial, avaria que o cliente aceitou. */
+  onDocumentOccurrence: (input: { documentId: string; type: string }) => void
   onProof: (input: { documentId: string; file: File }) => void
   onReturn: (input: { documentId: string; reason: DriverReturnReason }) => void
 }>
 
-function DocumentRow({ document, onDeliver, onProof, onReturn }: DocumentRowProps) {
+function DocumentRow({
+  document,
+  onDeliver,
+  onDocumentOccurrence,
+  onProof,
+  onReturn,
+}: DocumentRowProps) {
   const { t } = useTranslation('driverTrip')
   const [openReturn, setOpenReturn] = useState(false)
+  const [openOccurrence, setOpenDocumentOccurrence] = useState(false)
 
   if (isDocumentSettled(document)) {
     return (
@@ -182,7 +195,39 @@ function DocumentRow({ document, onDeliver, onProof, onReturn }: DocumentRowProp
           <Icon name="close" />
           {t('return')}
         </Button>
+        {/*
+         * ⚠️ Isto **não** é devolver, e o texto do painel diz isso: aqui a carga fica com o cliente.
+         * Os tipos oferecidos são só os que a devolução não sabe dizer — ver
+         * `driverDocumentOccurrenceTypes`.
+         */}
+        <Button
+          onClick={() => setOpenDocumentOccurrence((open) => !open)}
+          type="button"
+          variant="ghost"
+        >
+          <Icon name="alert" />
+          {t('documentOccurrence')}
+        </Button>
       </div>
+      {openOccurrence ? (
+        <fieldset className={styles.occurrenceForm}>
+          <legend>{t('documentOccurrence')}</legend>
+          <p>{t('documentOccurrenceHint')}</p>
+          {driverDocumentOccurrenceTypes().map((type) => (
+            <Button
+              key={type}
+              onClick={() => {
+                onDocumentOccurrence({ documentId: document.id, type })
+                setOpenDocumentOccurrence(false)
+              }}
+              type="button"
+              variant="ghost"
+            >
+              {t(`documentOccurrenceType.${type}`)}
+            </Button>
+          ))}
+        </fieldset>
+      ) : null}
       {openReturn ? (
         <fieldset className={styles.occurrenceForm}>
           <legend>{t('returnTitle')}</legend>

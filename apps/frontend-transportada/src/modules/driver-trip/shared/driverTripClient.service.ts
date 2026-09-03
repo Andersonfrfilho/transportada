@@ -53,6 +53,12 @@ export type DriverTripClient = Readonly<{
     receiverName?: string
   }) => Promise<void>
   /**
+   * Spec 079: o que aconteceu **sem** a carga voltar. Não passa pela fila de relatos: ao contrário
+   * de entregar e devolver, isto não muda o estado da nota — falhar aqui não deixa a viagem num
+   * estado que ninguém sabe destravar, e repetir o toque é o conserto.
+   */
+  registerDocumentOccurrence: (input: { documentId: string; type: string }) => Promise<void>
+  /**
    * O DAMDFE vem como **bytes**, não como URL: numa barreira o motorista abre o papel, e uma URL
    * assinada de cinco minutos que expirou no bolso não abre nada.
    */
@@ -105,6 +111,14 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
         form,
         method: 'POST',
         path: `${CURRENT_TRIP_PATH}/documents/${input.documentId}/proof`,
+      })
+    },
+    async registerDocumentOccurrence(input) {
+      await request({
+        body: JSON.stringify({ note: '', productCode: '', type: input.type }),
+        dependencies,
+        method: 'POST',
+        path: `${CURRENT_TRIP_PATH}/documents/${input.documentId}/occurrences`,
       })
     },
     async readManifestDamdfe(manifestId) {
