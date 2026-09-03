@@ -567,10 +567,15 @@ a {
 
 /* O ambiente fiscal é aviso de segurança: sumir no celular é onde ele mais faria falta. */
 .ui-card-content.application-header-context > .application-fiscal-environment {
-  display: inline-block;
+  display: inline-flex;
 }
 
+/* Como item de flex ela estica na altura da fileira; sem centrar, o texto encosta no topo da
+   caixa e o resto do retângulo fica vazio. */
 .application-fiscal-environment {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: var(--space-1) var(--space-2);
   border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
   border-radius: var(--space-1);
