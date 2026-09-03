@@ -92,7 +92,10 @@ async function readAllAttachments(): Promise<
   })
   return keys.map((key, index) => {
     const stored = values[index]
-    return [String(key), Array.isArray(stored) ? (stored as readonly QueuedAttachment[]) : []]
+    return [
+      typeof key === 'string' ? key : JSON.stringify(key),
+      Array.isArray(stored) ? (stored as readonly QueuedAttachment[]) : [],
+    ]
   })
 }
 
