@@ -7,21 +7,24 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { Select } from '@/components/ui/select'
-import { formatTaxId, normalizeTaxId } from '@/modules/shared/taxId.service'
+import {
+  CNPJ_PATTERN,
+  CPF_PATTERN,
+  formatTaxId,
+  normalizeTaxId,
+} from '@/modules/shared/taxId.service'
 
 import {
   DEFAULT_DELIVERY_PROOF_SETTINGS,
   DELIVERY_PROOF_FIELD_MODES,
   DELIVERY_PROOF_FIELDS,
+  mergeDeliveryProofSettings,
   type DeliveryProofField,
   type DeliveryProofFieldMode,
   type DeliveryProofFieldSettings,
   type DeliveryProofSettingsOverride,
 } from '../shared/deliveryProofSettings.service'
 import styles from '../styles/trip.module.css'
-
-const CPF_LENGTH = 11
-const CNPJ_LENGTH = 14
 
 type TripDeliveryProofSettingsPanelProps = Readonly<{
   canManage: boolean
@@ -55,15 +58,16 @@ export function TripDeliveryProofSettingsPanel({
   const [overrideDraft, setOverrideDraft] = useState<Partial<DeliveryProofFieldSettings>>({})
 
   const general = settings ?? DEFAULT_DELIVERY_PROOF_SETTINGS
-  const effective: DeliveryProofFieldSettings = { ...general, ...draft }
+  const effective = mergeDeliveryProofSettings({ base: general, override: draft })
 
   const modeOptions = DELIVERY_PROOF_FIELD_MODES.map((mode) => ({
     label: t(`deliveryProofSettings.modes.${mode}`),
     value: mode,
   }))
 
+  /** Pelo conjunto, não pelo comprimento: o CNPJ tem letra na base, e onze dígitos podem ser CPF. */
   const isOverrideTaxIdComplete =
-    overrideTaxId.length === CPF_LENGTH || overrideTaxId.length === CNPJ_LENGTH
+    CPF_PATTERN.test(overrideTaxId) || CNPJ_PATTERN.test(overrideTaxId)
   const isOverrideDuplicated = overrides.some((override) => override.taxId === overrideTaxId)
 
   function handleSaveSettings() {
@@ -73,8 +77,7 @@ export function TripDeliveryProofSettingsPanel({
   function handleAddOverride() {
     if (!isOverrideTaxIdComplete || isOverrideDuplicated) return
     const override: DeliveryProofSettingsOverride = {
-      ...general,
-      ...overrideDraft,
+      ...mergeDeliveryProofSettings({ base: general, override: overrideDraft }),
       taxId: overrideTaxId,
     }
     onReplaceOverrides([...overrides, override])
@@ -182,7 +185,7 @@ export function TripDeliveryProofSettingsPanel({
               field,
               onChange: (changed, mode) =>
                 setOverrideDraft((current) => ({ ...current, [changed]: mode })),
-              value: { ...general, ...overrideDraft }[field],
+              value: mergeDeliveryProofSettings({ base: general, override: overrideDraft })[field],
             }),
           )}
           <Button

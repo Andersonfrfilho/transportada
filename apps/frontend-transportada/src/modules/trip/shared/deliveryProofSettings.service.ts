@@ -31,6 +31,22 @@ export const DEFAULT_DELIVERY_PROOF_SETTINGS: DeliveryProofFieldSettings = {
   signature: 'optional',
 }
 
+/**
+ * O merge campo a campo da configuração — a exceção parcial cai no geral. Mora aqui, não como
+ * spread inline no componente: quem espalha à mão espalha diferente em cada tela.
+ */
+export function mergeDeliveryProofSettings(input: {
+  readonly base: DeliveryProofFieldSettings
+  readonly override: Partial<DeliveryProofFieldSettings>
+}): DeliveryProofFieldSettings {
+  return {
+    photo: input.override.photo ?? input.base.photo,
+    receiverDocument: input.override.receiverDocument ?? input.base.receiverDocument,
+    receiverName: input.override.receiverName ?? input.base.receiverName,
+    signature: input.override.signature ?? input.base.signature,
+  }
+}
+
 function isFieldMode(value: unknown): value is DeliveryProofFieldMode {
   return DELIVERY_PROOF_FIELD_MODES.some((mode) => mode === value)
 }

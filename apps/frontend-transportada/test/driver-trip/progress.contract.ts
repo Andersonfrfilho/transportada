@@ -11,10 +11,13 @@ import type {
   DriverTripStop,
 } from '@/modules/driver-trip/shared/driverTrip.types'
 
+const NOW = '2026-09-03T13:00:00.000Z'
+
 function buildDocument(overrides: Partial<DriverTripDocument> = {}): DriverTripDocument {
   return {
     accessKey: '0'.repeat(44),
     deliveredAt: null,
+    deliveryProof: null,
     grossWeight: '10.000',
     id: 'document-1',
     number: '1001',
@@ -69,10 +72,12 @@ describe('a barra de progresso da viagem', () => {
     expect(isStopResolved(settled)).toBe(true)
   })
 
-  it('a corrente é a primeira não resolvida, e só ela', () => {
+  /** A corrente é a de `findCurrentStop` — a primeira com `completedAt` nulo, como na lista. */
+  it('a corrente é a primeira com completedAt nulo, e só ela', () => {
     const progress = computeTripProgress(
       buildTrip([
         buildStop({
+          completedAt: NOW,
           documents: [buildDocument({ separationStatus: 'delivered' })],
           id: 'stop-1',
         }),
@@ -93,13 +98,36 @@ describe('a barra de progresso da viagem', () => {
   it('viagem toda entregue não tem parada corrente', () => {
     const progress = computeTripProgress(
       buildTrip([
-        buildStop({ documents: [buildDocument({ separationStatus: 'delivered' })], id: 'stop-1' }),
-        buildStop({ documents: [buildDocument({ separationStatus: 'returned' })], id: 'stop-2' }),
+        buildStop({
+          completedAt: NOW,
+          documents: [buildDocument({ separationStatus: 'delivered' })],
+          id: 'stop-1',
+        }),
+        buildStop({
+          completedAt: NOW,
+          documents: [buildDocument({ separationStatus: 'returned' })],
+          id: 'stop-2',
+        }),
       ]),
     )
 
     expect(progress.segments.every((segment) => segment.state === 'resolved')).toBe(true)
     expect(progress.resolvedCount).toBe(2)
+  })
+
+  /**
+   * A definição é UMA: a barra destaca a mesma parada que a lista (`findCurrentStop`). Notas todas
+   * resolvidas com `completedAt` nulo ainda é a parada corrente — o servidor não a fechou.
+   */
+  it('a barra e a lista apontam a mesma corrente quando os dois critérios divergem', () => {
+    const progress = computeTripProgress(
+      buildTrip([
+        buildStop({ documents: [buildDocument({ separationStatus: 'delivered' })], id: 'stop-1' }),
+        buildStop({ id: 'stop-2' }),
+      ]),
+    )
+
+    expect(progress.segments.map((segment) => segment.state)).toEqual(['current', 'pending'])
   })
 
   it('viagem sem parada devolve barra vazia, nunca erro', () => {

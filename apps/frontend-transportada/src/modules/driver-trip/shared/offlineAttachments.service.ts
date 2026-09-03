@@ -17,6 +17,11 @@ export const ATTACHMENT_QUEUE_LIMIT = {
 export type AttachmentLimits = Readonly<{ maxCount: number; maxTotalBytes: number }>
 
 export type QueuedAttachment = Readonly<{
+  /**
+   * Idempotência **por anexo**, gerada na captura e persistida: é o `attachmentKey` do multipart, e
+   * é o que impede o reenvio de duplicar o blob que já subiu.
+   */
+  attachmentKey: string
   blob: Blob
   capturedAt: string
   documentId: string
@@ -25,15 +30,26 @@ export type QueuedAttachment = Readonly<{
   /** ⚠️ Canônico e nunca em log: é o dado da ADR da spec 082 D4 — a API o criptografa. */
   receiverDocument?: string
   receiverName?: string
+  /**
+   * Recusa do servidor **do anexo**, não do evento: o evento aceito permanece aceito, e este campo
+   * é o que a tela de pendentes imprime como problema do arquivo. Só o envio manual tenta de novo.
+   */
+  rejectionCause?: string
 }>
+
+export type AttachmentGroupEntries = readonly (readonly [string, readonly QueuedAttachment[]])[]
 
 export type AttachmentStore = Readonly<{
   read: (eventKey: string) => Promise<readonly QueuedAttachment[]>
-  /** Contagem por evento — é o que a tela de pendentes imprime ao lado de cada item. */
-  readCounts: () => Promise<Readonly<Record<string, number>>>
+  /** Chaves e valores numa transação só — duas leituras separadas podiam discordar entre si. */
+  readAll: () => Promise<AttachmentGroupEntries>
   readTotals: () => Promise<Readonly<{ count: number; totalBytes: number }>>
   remove: (eventKey: string) => Promise<void>
-  write: (eventKey: string, items: readonly QueuedAttachment[]) => Promise<void>
+  /** Leitura e escrita na **mesma** transação; `mutate` devolvendo `[]` apaga a chave. */
+  update: (input: {
+    readonly eventKey: string
+    readonly mutate: (items: readonly QueuedAttachment[]) => readonly QueuedAttachment[]
+  }) => Promise<readonly QueuedAttachment[]>
 }>
 
 export type EnqueueAttachmentResult =
@@ -66,8 +82,10 @@ export async function enqueueAttachment(input: {
   }
 
   const eventKey = target.report.idempotencyKey
-  const existing = await input.attachmentStore.read(eventKey)
-  await input.attachmentStore.write(eventKey, [...existing, input.attachment])
+  await input.attachmentStore.update({
+    eventKey,
+    mutate: (existing) => [...existing, input.attachment],
+  })
 
   return { accepted: true, eventKey }
 }
@@ -78,6 +96,8 @@ export type AttachmentSendOutcome =
   | Readonly<{ kind: 'sent' }>
 
 export type AttachmentDrainResult = Readonly<{
+  /** Anexos que o servidor recusou: causa própria, sem contaminar o evento já aceito. */
+  attachmentsRejected: number
   rejected: number
   remaining: number
   sent: number
@@ -85,14 +105,14 @@ export type AttachmentDrainResult = Readonly<{
 
 /**
  * A mesma drenagem serve os três gatilhos — rede voltando, abertura do app e o envio manual da tela
- * de pendentes (`only` restringe a um evento). Regras, na ordem em que aparecem:
+ * de pendentes (`only` restringe a um evento ou grupo de anexos). Regras, na ordem:
  *
  * - Falha de **rede** para tudo e mantém: insistir sem sinal só gasta bateria.
  * - Recusa do **servidor** marca `rejectionCause` e o item fica à vista; a drenagem automática o
  *   pula, e só o envio manual tenta de novo.
- * - Evento aceito envia os anexos dele pela rota multipart; **só com todos no ar** o par
- *   evento+blobs sai da fila — anexo que a rede derrubou mantém o evento (idempotente, repetir
- *   converge).
+ * - **Evento aceito permanece aceito**: ele sai da fila na hora, e os anexos dele sobem em seguida.
+ *   Anexo recusado ganha causa própria no próprio anexo — o reenvio manual não re-POSTa o evento.
+ * - Grupo de anexos cujo evento já subiu numa drenagem anterior também drena aqui.
  */
 export async function drainQueueWithAttachments(input: {
   readonly attachmentStore: AttachmentStore
@@ -102,60 +122,91 @@ export async function drainQueueWithAttachments(input: {
   readonly store: OfflineQueueStore
 }): Promise<AttachmentDrainResult> {
   const queued = await input.store.read()
-  const next: QueuedReport[] = []
+  const sentKeys = new Set<string>()
+  const rejectionByKey = new Map<string, string>()
+  let failedNetworkKey: string | undefined
   let sent = 0
   let rejected = 0
   let networkDown = false
 
   for (const item of queued) {
-    const isTargeted = input.only === undefined || item.report.idempotencyKey === input.only
+    const key = item.report.idempotencyKey
+    const isTargeted = input.only === undefined || key === input.only
     const skipRejected = input.only === undefined && item.rejectionCause !== undefined
-    if (networkDown || !isTargeted || skipRejected) {
-      next.push(item)
-      continue
-    }
+    if (networkDown || !isTargeted || skipRejected) continue
 
-    const outcome = await sendEventWithAttachments({ ...input, item })
+    const outcome = await input.send(item.report)
     if (outcome.kind === 'sent') {
+      sentKeys.add(key)
       sent += 1
       continue
     }
     if (outcome.kind === 'rejected') {
+      rejectionByKey.set(key, outcome.cause)
       rejected += 1
-      next.push({
-        attempts: item.attempts,
-        createdAt: item.createdAt,
-        rejectionCause: outcome.cause,
-        report: item.report,
-      })
       continue
     }
     networkDown = true
-    next.push({ attempts: item.attempts + 1, createdAt: item.createdAt, report: item.report })
+    failedNetworkKey = key
   }
 
-  await input.store.write(next)
-  return { rejected, remaining: next.length, sent }
-}
+  /** Reconciliação por chave, na mesma transação: toque enfileirado durante o envio fica. */
+  const remainingQueue = await input.store.update((current) =>
+    current.flatMap((item) => {
+      const key = item.report.idempotencyKey
+      if (sentKeys.has(key)) return []
+      const cause = rejectionByKey.get(key)
+      if (cause !== undefined) {
+        return [
+          {
+            attempts: item.attempts,
+            createdAt: item.createdAt,
+            rejectionCause: cause,
+            report: item.report,
+          },
+        ]
+      }
+      if (key === failedNetworkKey) return [{ ...item, attempts: item.attempts + 1 }]
+      return [item]
+    }),
+  )
 
-async function sendEventWithAttachments(input: {
-  readonly attachmentStore: AttachmentStore
-  readonly item: QueuedReport
-  readonly send: (report: QueuedReport['report']) => Promise<AttachmentSendOutcome>
-  readonly sendAttachment: (attachment: QueuedAttachment) => Promise<AttachmentSendOutcome>
-}): Promise<AttachmentSendOutcome> {
-  const outcome = await input.send(input.item.report)
-  if (outcome.kind !== 'sent') return outcome
+  let attachmentsRejected = 0
+  if (!networkDown) {
+    const queuedEventKeys = new Set(remainingQueue.map((item) => item.report.idempotencyKey))
+    const groups = await input.attachmentStore.readAll()
 
-  const eventKey = input.item.report.idempotencyKey
-  const attachments = await input.attachmentStore.read(eventKey)
-  for (const [index, attachment] of attachments.entries()) {
-    const attachmentOutcome = await input.sendAttachment(attachment)
-    if (attachmentOutcome.kind !== 'sent') return attachmentOutcome
-    /** O que já subiu sai na hora: a repetição do evento não pode reenviar o mesmo blob. */
-    await input.attachmentStore.write(eventKey, attachments.slice(index + 1))
+    for (const [eventKey, attachments] of groups) {
+      if (networkDown) break
+      const isTargeted = input.only === undefined || eventKey === input.only
+      /** O evento vai primeiro: grupo cujo evento ainda está na fila espera a vez dele. */
+      if (!isTargeted || queuedEventKeys.has(eventKey)) continue
+
+      for (const attachment of attachments) {
+        const skipRejectedAttachment =
+          input.only === undefined && attachment.rejectionCause !== undefined
+        if (skipRejectedAttachment) continue
+
+        const outcome = await input.sendAttachment(attachment)
+        if (outcome.kind === 'failed-network') {
+          networkDown = true
+          break
+        }
+        await input.attachmentStore.update({
+          eventKey,
+          mutate: (current) =>
+            outcome.kind === 'sent'
+              ? current.filter((item) => item.attachmentKey !== attachment.attachmentKey)
+              : current.map((item) =>
+                  item.attachmentKey === attachment.attachmentKey
+                    ? { ...item, rejectionCause: outcome.cause }
+                    : item,
+                ),
+        })
+        if (outcome.kind === 'rejected') attachmentsRejected += 1
+      }
+    }
   }
 
-  await input.attachmentStore.remove(eventKey)
-  return { kind: 'sent' }
+  return { attachmentsRejected, rejected, remaining: remainingQueue.length, sent }
 }

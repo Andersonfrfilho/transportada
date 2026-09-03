@@ -20,6 +20,24 @@ export function findCurrentStop(trip: DriverTrip): DriverTripStop | undefined {
   return trip.stops.find(isStopPending)
 }
 
+/**
+ * Spec 082 (revisão): a viagem `route_planned` chega ao motorista, mas as ações de campo só abrem
+ * depois de ele iniciar o trajeto — a API recusa escritas fora de `dispatched`/`in_transit`, e a
+ * fila offline não pode acumular eventos condenados.
+ */
+export function isAwaitingDispatch(trip: DriverTrip): boolean {
+  return trip.status === 'route_planned'
+}
+
+/**
+ * A foto da ocorrência pega carona no proof de **uma** nota da parada: a primeira ainda em aberto,
+ * senão a primeira da lista. A escolha mora aqui porque a prévia e o envio precisam apontar para a
+ * mesma nota — duplicada, uma das cópias divergiria calada.
+ */
+export function findOccurrencePhotoDocument(stop: DriverTripStop): DriverTripDocument | undefined {
+  return stop.documents.find((document) => !isDocumentSettled(document)) ?? stop.documents[0]
+}
+
 export function countPendingDocuments(stop: DriverTripStop): number {
   return stop.documents.filter((document) => !isDocumentSettled(document)).length
 }

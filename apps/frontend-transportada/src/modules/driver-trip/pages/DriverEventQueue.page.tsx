@@ -21,6 +21,8 @@ const KIND_LABEL_KEYS: Readonly<Record<EventQueueItemView['kind'], string>> = {
   arrive: 'eventQueue.kind.arrive',
   deliver: 'eventQueue.kind.deliver',
   occurrence: 'eventQueue.kind.occurrence',
+  /** Grupo de anexos cujo evento já subiu — só os arquivos aguardam. */
+  proof: 'eventQueue.kind.proof',
   return: 'eventQueue.kind.return',
 }
 
@@ -96,6 +98,14 @@ export function DriverEventQueuePage({
                       {t('eventQueue.attachments', { count: item.attachmentCount })}
                     </p>
                   ) : null}
+                  {/* Problema do ANEXO, não do evento: o evento aceito permanece aceito. */}
+                  {item.attachmentRejectionCause === undefined ? null : (
+                    <p className={styles.eventQueueStatusRejected}>
+                      {t('eventQueue.status.attachmentRejected', {
+                        cause: item.attachmentRejectionCause,
+                      })}
+                    </p>
+                  )}
                   <p
                     className={
                       item.status.state === 'rejected'

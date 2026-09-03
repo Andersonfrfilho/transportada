@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { DriverTrip, DriverTripStop } from './driverTrip.types'
-import { isDocumentSettled } from './driverTripView.service'
+import { findCurrentStop, isDocumentSettled, isStopPending } from './driverTripView.service'
 
 /**
  * Spec 082 D1: a barra de progresso do topo é por parada, não por nota — o motorista pensa em
@@ -28,17 +28,19 @@ export function isStopResolved(stop: DriverTripStop): boolean {
   return stop.documents.every(isDocumentSettled)
 }
 
-/** A corrente é a primeira não resolvida — a mesma leitura de "onde estou" da lista de paradas. */
+/**
+ * A corrente é **a mesma** da lista de paradas: `findCurrentStop` — a primeira com `completedAt`
+ * nulo. Uma segunda definição aqui fazia a barra destacar um portão e a lista outro.
+ */
 export function computeTripProgress(trip: DriverTrip): DriverTripProgress {
-  let currentAssigned = false
+  const currentStopId = findCurrentStop(trip)?.id
 
   const segments = trip.stops.map((stop): DriverStopProgressSegment => {
-    if (isStopResolved(stop)) {
-      return { state: 'resolved', stopId: stop.id }
-    }
-    if (!currentAssigned) {
-      currentAssigned = true
+    if (stop.id === currentStopId) {
       return { state: 'current', stopId: stop.id }
+    }
+    if (isStopResolved(stop) || !isStopPending(stop)) {
+      return { state: 'resolved', stopId: stop.id }
     }
     return { state: 'pending', stopId: stop.id }
   })

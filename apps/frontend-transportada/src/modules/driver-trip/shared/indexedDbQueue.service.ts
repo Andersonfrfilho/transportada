@@ -1,5 +1,9 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { AttachmentStore, QueuedAttachment } from './offlineAttachments.service'
+import type {
+  AttachmentGroupEntries,
+  AttachmentStore,
+  QueuedAttachment,
+} from './offlineAttachments.service'
 import type { OfflineQueueStore, QueuedReport } from './offlineQueue.service'
 
 /**
@@ -12,6 +16,9 @@ import type { OfflineQueueStore, QueuedReport } from './offlineQueue.service'
  * Spec 082 D6: os blobs de comprovante moram numa store própria, chaveada pela chave de idempotência
  * do evento — o IndexedDB guarda `Blob` por clonagem estruturada, e separar as stores deixa a fila
  * leve de ler sem carregar megabytes de foto junto.
+ *
+ * ⚠️ Toda mutação é **ler-e-escrever na mesma transação `readwrite`**: `get` e `put` separados
+ * abriam a janela em que um toque enfileirado entre os dois era sobrescrito e sumia.
  */
 const DATABASE_NAME = 'transportada.driver-trip'
 const STORE_NAME = 'field-reports'
@@ -34,17 +41,17 @@ function openDatabase(): Promise<IDBDatabase> {
   })
 }
 
-function runTransaction<TResult>(input: {
-  readonly mode: IDBTransactionMode
-  readonly operation: (store: IDBObjectStore) => IDBRequest<TResult>
+function readValue(input: {
+  readonly key: IDBValidKey
   readonly storeName: string
-}): Promise<TResult> {
+}): Promise<unknown> {
   return openDatabase().then(
     (database) =>
-      new Promise<TResult>((resolve, reject) => {
-        const request = input.operation(
-          database.transaction(input.storeName, input.mode).objectStore(input.storeName),
-        )
+      new Promise<unknown>((resolve, reject) => {
+        const request = database
+          .transaction(input.storeName, 'readonly')
+          .objectStore(input.storeName)
+          .get(input.key)
         request.onsuccess = () => {
           resolve(request.result)
           database.close()
@@ -57,62 +64,105 @@ function runTransaction<TResult>(input: {
   )
 }
 
+/**
+ * Leitura, mutação síncrona e escrita na **mesma** transação `readwrite`. `mutate` devolvendo lista
+ * vazia com `deleteWhenEmpty` apaga a chave em vez de gravar um registro oco.
+ */
+function readModifyWrite(input: {
+  readonly deleteWhenEmpty: boolean
+  readonly key: IDBValidKey
+  readonly mutate: (stored: unknown) => readonly unknown[]
+  readonly storeName: string
+}): Promise<readonly unknown[]> {
+  return openDatabase().then(
+    (database) =>
+      new Promise<readonly unknown[]>((resolve, reject) => {
+        const transaction = database.transaction(input.storeName, 'readwrite')
+        const store = transaction.objectStore(input.storeName)
+        let next: readonly unknown[] = []
+
+        const readRequest = store.get(input.key)
+        readRequest.onsuccess = () => {
+          next = input.mutate(readRequest.result)
+          if (input.deleteWhenEmpty && next.length === 0) store.delete(input.key)
+          else store.put([...next], input.key)
+        }
+        transaction.oncomplete = () => {
+          resolve(next)
+          database.close()
+        }
+        const fail = () => {
+          reject(transaction.error ?? new Error('DRIVER_QUEUE_TRANSACTION_FAILED'))
+          database.close()
+        }
+        transaction.onerror = fail
+        transaction.onabort = fail
+      }),
+  )
+}
+
+function toReports(stored: unknown): readonly QueuedReport[] {
+  return Array.isArray(stored) ? (stored as readonly QueuedReport[]) : []
+}
+
+function toAttachments(stored: unknown): readonly QueuedAttachment[] {
+  return Array.isArray(stored) ? (stored as readonly QueuedAttachment[]) : []
+}
+
 export function createIndexedDbQueueStore(): OfflineQueueStore {
   return {
     async read() {
-      const stored = await runTransaction<unknown>({
-        mode: 'readonly',
-        operation: (store) => store.get(QUEUE_KEY),
-        storeName: STORE_NAME,
-      })
-      return Array.isArray(stored) ? (stored as readonly QueuedReport[]) : []
+      return toReports(await readValue({ key: QUEUE_KEY, storeName: STORE_NAME }))
     },
-    async write(items) {
-      await runTransaction({
-        mode: 'readwrite',
-        operation: (store) => store.put([...items], QUEUE_KEY),
+    async update(mutate) {
+      const next = await readModifyWrite({
+        deleteWhenEmpty: false,
+        key: QUEUE_KEY,
+        mutate: (stored) => mutate(toReports(stored)),
         storeName: STORE_NAME,
       })
+      return next as readonly QueuedReport[]
     },
   }
 }
 
-async function readAllAttachments(): Promise<
-  readonly (readonly [string, readonly QueuedAttachment[]])[]
-> {
-  const keys = await runTransaction<IDBValidKey[]>({
-    mode: 'readonly',
-    operation: (store) => store.getAllKeys(),
-    storeName: ATTACHMENT_STORE_NAME,
-  })
-  const values = await runTransaction<unknown[]>({
-    mode: 'readonly',
-    operation: (store) => store.getAll(),
-    storeName: ATTACHMENT_STORE_NAME,
-  })
-  return keys.map((key, index) => {
-    const stored = values[index]
-    return [
-      typeof key === 'string' ? key : JSON.stringify(key),
-      Array.isArray(stored) ? (stored as readonly QueuedAttachment[]) : [],
-    ]
-  })
+/** Chaves e valores saem da **mesma** transação — duas leituras separadas podiam discordar. */
+function readAllAttachments(): Promise<AttachmentGroupEntries> {
+  return openDatabase().then(
+    (database) =>
+      new Promise<AttachmentGroupEntries>((resolve, reject) => {
+        const transaction = database.transaction(ATTACHMENT_STORE_NAME, 'readonly')
+        const store = transaction.objectStore(ATTACHMENT_STORE_NAME)
+        const keysRequest = store.getAllKeys()
+        const valuesRequest = store.getAll()
+
+        transaction.oncomplete = () => {
+          const entries = keysRequest.result.map((key, index) => {
+            const stored: unknown = valuesRequest.result[index]
+            return [
+              typeof key === 'string' ? key : JSON.stringify(key),
+              toAttachments(stored),
+            ] as const
+          })
+          resolve(entries)
+          database.close()
+        }
+        const fail = () => {
+          reject(transaction.error ?? new Error('DRIVER_QUEUE_TRANSACTION_FAILED'))
+          database.close()
+        }
+        transaction.onerror = fail
+        transaction.onabort = fail
+      }),
+  )
 }
 
 export function createIndexedDbAttachmentStore(): AttachmentStore {
   return {
     async read(eventKey) {
-      const stored = await runTransaction<unknown>({
-        mode: 'readonly',
-        operation: (store) => store.get(eventKey),
-        storeName: ATTACHMENT_STORE_NAME,
-      })
-      return Array.isArray(stored) ? (stored as readonly QueuedAttachment[]) : []
+      return toAttachments(await readValue({ key: eventKey, storeName: ATTACHMENT_STORE_NAME }))
     },
-    async readCounts() {
-      const entries = await readAllAttachments()
-      return Object.fromEntries(entries.map(([key, items]) => [key, items.length]))
-    },
+    readAll: () => readAllAttachments(),
     async readTotals() {
       const entries = await readAllAttachments()
       const items = entries.flatMap(([, stored]) => stored)
@@ -122,18 +172,21 @@ export function createIndexedDbAttachmentStore(): AttachmentStore {
       }
     },
     async remove(eventKey) {
-      await runTransaction({
-        mode: 'readwrite',
-        operation: (store) => store.delete(eventKey),
+      await readModifyWrite({
+        deleteWhenEmpty: true,
+        key: eventKey,
+        mutate: () => [],
         storeName: ATTACHMENT_STORE_NAME,
       })
     },
-    async write(eventKey, items) {
-      await runTransaction({
-        mode: 'readwrite',
-        operation: (store) => store.put([...items], eventKey),
+    async update(input) {
+      const next = await readModifyWrite({
+        deleteWhenEmpty: true,
+        key: input.eventKey,
+        mutate: (stored) => input.mutate(toAttachments(stored)),
         storeName: ATTACHMENT_STORE_NAME,
       })
+      return next as readonly QueuedAttachment[]
     },
   }
 }

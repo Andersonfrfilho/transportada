@@ -16,6 +16,12 @@
     "useOriginal": "Use without cropping"
   },
   "deliver": "Delivered",
+  "dispatch": {
+    "failed": "The route could not be started. Tap again.",
+    "start": "Start route",
+    "waiting": "Waiting for the route to start — field actions unlock after starting."
+  },
+  "eventLimitCount": "The limit of events waiting to be sent was reached. Send the pending ones before recording another — nothing was discarded.",
   "documentsPending_one": "{{count}} invoice to deliver",
   "documentsPending_other": "{{count}} invoices to deliver",
   "error": "Your trip could not be loaded. Pull to try again.",
@@ -28,12 +34,14 @@
       "arrive": "Arrival",
       "deliver": "Delivery",
       "occurrence": "Occurrence",
+      "proof": "Proof",
       "return": "Return"
     },
     "open": "See pending events",
     "sendAll": "Send all now",
     "sendNow": "Send now",
     "status": {
+      "attachmentRejected": "Attachment rejected by the server: {{cause}}. The event was already accepted.",
       "failed_one": "Failed {{count}} time — no network on the last attempt",
       "failed_other": "Failed {{count}} times — no network on the last attempt",
       "queued": "Queued",

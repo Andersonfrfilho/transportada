@@ -112,6 +112,52 @@ describe('a prévia do aviso de ocorrência (spec 082 D8 / G003)', () => {
   })
 })
 
+/**
+ * Revisão 082 (item 6): o mapa kind→templateKey da prévia tem de bater com a política da API
+ * (`stop-occurrence-notification.policy.ts`) — lido por regex do arquivo, todos os kinds.
+ */
+describe('a paridade kind→templateKey com a política da API', () => {
+  const POLICY_PATH = fileURLToPath(
+    new URL(
+      '../../../api-transportada/src/trips/domain/stop-occurrence-notification.policy.ts',
+      import.meta.url,
+    ),
+  )
+
+  function readApiKindMap(): Readonly<Record<string, string>> {
+    const catalog = readFileSync(API_CATALOG_PATH, 'utf8')
+    const keyValues = new Map(
+      [...catalog.matchAll(/(TRIP_OCCURRENCE_\w+): '([^']+)'/gu)].map(([, name, value]) => [
+        name as string,
+        value as string,
+      ]),
+    )
+    const policy = readFileSync(POLICY_PATH, 'utf8')
+    const entries = [
+      ...policy.matchAll(/(\w+): NOTIFICATION_TEMPLATE_KEY\.(TRIP_OCCURRENCE_\w+)/gu),
+    ]
+    return Object.fromEntries(
+      entries.map(([, kind, constantName]) => {
+        const templateKey = keyValues.get(constantName ?? '')
+        if (templateKey === undefined) throw new Error(`API_TEMPLATE_KEY_NOT_FOUND_${constantName}`)
+        return [kind as string, templateKey]
+      }),
+    )
+  }
+
+  it('cada kind aponta para o mesmo templateKey nos dois lados — todos os kinds', () => {
+    const apiKindMap = readApiKindMap()
+    const previewKindMap: Readonly<Record<string, string>> = Object.fromEntries(
+      Object.entries(OCCURRENCE_NOTICE_TEMPLATES).map(([kind, template]) => [
+        kind,
+        template.templateKey as string,
+      ]),
+    )
+    expect(Object.keys(apiKindMap).length).toBeGreaterThan(0)
+    expect(previewKindMap).toEqual(apiKindMap)
+  })
+})
+
 describe('a tela de ocorrência da parada', () => {
   const source = readFileSync(CARD_PATH, 'utf8')
 

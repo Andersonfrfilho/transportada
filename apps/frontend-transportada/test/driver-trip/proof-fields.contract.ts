@@ -120,6 +120,77 @@ describe('os campos do comprovante dirigidos pela configuração (D4/T053)', () 
     expect(broken.trips[0]?.stops[0]?.deliveryProof).toBeNull()
   })
 
+  /** Revisão 082 (item 3): a configuração é do DOCUMENTO — a exceção por CNPJ muda nota a nota. */
+  it('o snapshot lê document.deliveryProof, e ausente (shape antigo) vira null', () => {
+    const snapshot = toDriverTripSnapshot({
+      data: {
+        isRegisteredDriver: true,
+        trips: [
+          {
+            id: 'trip-1',
+            manifest: null,
+            status: 'dispatched',
+            stops: [
+              {
+                arrivedAt: null,
+                completedAt: null,
+                deliveryProof: null,
+                documents: [
+                  {
+                    deliveryProof: {
+                      photo: 'off',
+                      receiverDocument: 'required',
+                      receiverName: 'off',
+                      signature: 'off',
+                    },
+                    id: 'doc-1',
+                    separationStatus: 'delivered',
+                  },
+                  { id: 'doc-2', separationStatus: 'delivered' },
+                ],
+                id: 'stop-1',
+                label: 'Rua A, 1',
+                sequence: 1,
+              },
+            ],
+            vehiclePlate: 'ABC1D23',
+          },
+        ],
+      },
+    })
+    const documents = snapshot.trips[0]?.stops[0]?.documents
+    expect(documents?.[0]?.deliveryProof?.receiverDocument).toBe('required')
+    expect(documents?.[1]?.deliveryProof).toBeNull()
+  })
+
+  it('o formulário lê a configuração do documento, com a parada como reserva', () => {
+    const card = readFileSync(
+      new URL(
+        '../../src/modules/driver-trip/components/DriverStopCard.component.tsx',
+        import.meta.url,
+      ).pathname,
+      'utf8',
+    )
+    expect(card).toInclude('document.deliveryProof ?? stopProofSettings')
+    expect(card).not.toInclude('proofSettings={stop.deliveryProof}')
+  })
+
+  /** Revisão 082 (item 2): o veredito do serviço manda — assinatura e foto obrigatórias bloqueiam. */
+  it('nenhum filtro descarta signature/photo do veredito, e o erro é pintado por campo', () => {
+    const card = readFileSync(
+      new URL(
+        '../../src/modules/driver-trip/components/DriverStopCard.component.tsx',
+        import.meta.url,
+      ).pathname,
+      'utf8',
+    )
+    expect(card).not.toInclude(
+      ".filter((field) => field === 'receiverName' || field === 'receiverDocument')",
+    )
+    expect(card).toInclude("missing.includes('signature')")
+    expect(card).toInclude("missing.includes('photo')")
+  })
+
   it('o campo do documento nunca leva inputMode numeric — CNPJ tem letra (regra do repo)', () => {
     const card = readFileSync(
       new URL(

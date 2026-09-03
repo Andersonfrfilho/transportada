@@ -50,6 +50,8 @@ function toDocument(value: unknown): DriverTripDocument {
   return {
     accessKey: readOptionalText(value.accessKey),
     deliveredAt: readNullableString(value.deliveredAt),
+    /** Shape novo: o comprovante vem no documento. Ausente (shape antigo) vira `null` — a parada responde. */
+    deliveryProof: toDeliveryProof(value.deliveryProof),
     grossWeight: readOptionalText(value.grossWeight),
     id: readString(value.id),
     number: readOptionalText(value.number),

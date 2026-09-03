@@ -23,6 +23,7 @@ import {
 import {
   buildNavigationHref,
   countPendingDocuments,
+  findOccurrencePhotoDocument,
   isDocumentSettled,
 } from '../shared/driverTripView.service'
 import { renderOccurrenceNoticePreview } from '../shared/occurrenceNoticePreview.service'
@@ -57,6 +58,12 @@ export type DriverProofAttachment = Readonly<{
 
 type DriverStopCardProps = Readonly<{
   isCurrent: boolean
+  /**
+   * Spec 082 (revisão): viagem `route_planned` chega à tela, mas as ações de campo ficam trancadas
+   * até o motorista iniciar o trajeto — a API recusa essas escritas, e a fila offline não pode
+   * acumular eventos condenados.
+   */
+  isFieldWorkBlocked: boolean
   /** Spec 082 D2: a última posição conhecida — sem ela, a distância simplesmente não aparece. */
   lastKnownLocation: DriverReportedLocation | null
   onArrive: (stopId: string) => void
@@ -80,6 +87,7 @@ type DriverStopCardProps = Readonly<{
 
 export function DriverStopCard({
   isCurrent,
+  isFieldWorkBlocked,
   lastKnownLocation,
   onArrive,
   onDeliver,
@@ -136,7 +144,8 @@ export function DriverStopCard({
         {distanceLabel === null ? null : (
           <span className={styles.stopDistance}>{distanceLabel}</span>
         )}
-        {stop.arrivedAt === null ? (
+        {/* Trancado até o despacho: a API recusa `arrive` fora de dispatched/in_transit */}
+        {isFieldWorkBlocked ? null : stop.arrivedAt === null ? (
           <Button onClick={() => onArrive(stop.id)} type="button">
             <Icon name="check" />
             {t('arrive')}
@@ -146,19 +155,23 @@ export function DriverStopCard({
             {t('arrived', { time: new Date(stop.arrivedAt).toLocaleTimeString() })}
           </span>
         )}
-        <Button onClick={() => setOpenOccurrence((open) => !open)} type="button" variant="ghost">
-          <Icon name="alert" />
-          {t('occurrence')}
-        </Button>
+        {isFieldWorkBlocked ? null : (
+          <Button onClick={() => setOpenOccurrence((open) => !open)} type="button" variant="ghost">
+            <Icon name="alert" />
+            {t('occurrence')}
+          </Button>
+        )}
       </div>
+
+      {isFieldWorkBlocked ? <p className={styles.stopMeta}>{t('dispatch.waiting')}</p> : null}
 
       {openOccurrence ? (
         <OccurrenceForm
           stop={stop}
           onSubmit={(input) => {
             onOccurrence({ description: input.description, kind: input.kind, stopId: stop.id })
-            const noteDocument = stop.documents.find((item) => !isDocumentSettled(item))
-            const photoTarget = noteDocument ?? stop.documents[0]
+            /* A mesma nota da prévia: a escolha mora em `findOccurrencePhotoDocument`. */
+            const photoTarget = findOccurrencePhotoDocument(stop)
             if (photoTarget !== undefined) {
               for (const file of input.photos) {
                 onOccurrencePhoto({ documentId: photoTarget.id, file })
@@ -173,13 +186,14 @@ export function DriverStopCard({
         {stop.documents.map((document) => (
           <DocumentRow
             document={document}
+            isFieldWorkBlocked={isFieldWorkBlocked}
             key={document.id}
             onDeliver={onDeliver}
             occurrenceTypes={occurrenceTypes}
             onDocumentOccurrence={onDocumentOccurrence}
             onProof={onProof}
             onReturn={onReturn}
-            proofSettings={stop.deliveryProof}
+            stopProofSettings={stop.deliveryProof}
           />
         ))}
       </ul>
@@ -189,6 +203,7 @@ export function DriverStopCard({
 
 type DocumentRowProps = Readonly<{
   document: DriverTripDocument
+  isFieldWorkBlocked: boolean
   onDeliver: (documentId: string) => void
   /** Spec 079: o que aconteceu **sem** a carga voltar. O tipo vem do cadastro da empresa. */
   onDocumentOccurrence: (input: {
@@ -199,21 +214,32 @@ type DocumentRowProps = Readonly<{
   occurrenceTypes: readonly DriverOccurrenceType[]
   onProof: (input: DriverProofAttachment) => void
   onReturn: (input: { documentId: string; reason: DriverReturnReason }) => void
-  proofSettings: DriverDeliveryProofSettings | null
+  stopProofSettings: DriverDeliveryProofSettings | null
 }>
 
 function DocumentRow({
   document,
+  isFieldWorkBlocked,
   occurrenceTypes,
   onDeliver,
   onDocumentOccurrence,
   onProof,
   onReturn,
-  proofSettings,
+  stopProofSettings,
 }: DocumentRowProps) {
   const { t } = useTranslation('driverTrip')
   const [openReturn, setOpenReturn] = useState(false)
   const [openOccurrence, setOpenDocumentOccurrence] = useState(false)
+  /** Spec 082 (revisão): a configuração é do **documento** — a da parada é só o shape antigo. */
+  const proofSettings = document.deliveryProof ?? stopProofSettings
+
+  if (isFieldWorkBlocked) {
+    return (
+      <li className={styles.document}>
+        <span>{document.recipientName}</span>
+      </li>
+    )
+  }
 
   if (isDocumentSettled(document)) {
     return (
@@ -342,7 +368,10 @@ function DeliveryProofSection({ documentId, onProof, proofSettings }: DeliveryPr
     }
   }
 
-  /** A checagem dos campos de texto vem **antes** do anexo: campo obrigatório vazio segura o envio. */
+  /**
+   * O veredito do serviço manda, campo a campo: **todo** faltante bloqueia e é pintado — inclusive
+   * assinatura e foto obrigatórias, não só os campos de texto.
+   */
   function blockedByFields(next: { photo: boolean; signature: boolean }): boolean {
     const failures = listMissingProofFields({
       plan,
@@ -352,7 +381,7 @@ function DeliveryProofSection({ documentId, onProof, proofSettings }: DeliveryPr
         receiverDocument,
         receiverName,
       },
-    }).filter((field) => field === 'receiverName' || field === 'receiverDocument')
+    })
     setMissing(failures)
     return failures.length > 0
   }
@@ -428,6 +457,11 @@ function DeliveryProofSection({ documentId, onProof, proofSettings }: DeliveryPr
             {plan.fields.signature === 'required' && !attached.signature ? ' *' : ''}
           </Button>
         ) : null}
+        {missing.includes('signature') ? (
+          <span className={styles.proofFieldError} role="alert">
+            {t('proofFields.requiredField')}
+          </span>
+        ) : null}
         {plan.rendersPhoto || (plan.rendersSignature && !canSign) ? (
           <label className={styles.proofField}>
             <span>
@@ -443,6 +477,11 @@ function DeliveryProofSection({ documentId, onProof, proofSettings }: DeliveryPr
                 if (file !== undefined) setCropFile(file)
               }}
             />
+            {missing.includes('photo') ? (
+              <span className={styles.proofFieldError} role="alert">
+                {t('proofFields.requiredField')}
+              </span>
+            ) : null}
           </label>
         ) : null}
       </div>
@@ -491,7 +530,7 @@ function OccurrenceForm({ onSubmit, stop }: OccurrenceFormProps) {
   const [description, setDescription] = useState('')
   const [photos, setPhotos] = useState<readonly File[]>([])
 
-  const noteDocument = stop.documents.find((item) => !isDocumentSettled(item)) ?? stop.documents[0]
+  const noteDocument = findOccurrencePhotoDocument(stop)
   const preview = renderOccurrenceNoticePreview({
     documentLabel: noteDocument === undefined ? '—' : noteDocument.number,
     kind,

@@ -29,8 +29,26 @@ export type QueuedReport = Readonly<{
 
 export type OfflineQueueStore = Readonly<{
   read: () => Promise<readonly QueuedReport[]>
-  write: (items: readonly QueuedReport[]) => Promise<void>
+  /**
+   * Leitura e escrita na **mesma** transação do armazenamento: `mutate` é síncrona e recebe o que
+   * está gravado agora. Ler, esperar a rede e sobrescrever perdia o toque enfileirado no meio.
+   */
+  update: (
+    mutate: (items: readonly QueuedReport[]) => readonly QueuedReport[],
+  ) => Promise<readonly QueuedReport[]>
 }>
+
+/**
+ * Spec 082 (revisão): o teto da fila de eventos é declarado e recusado **antes** de escrever —
+ * nunca um `QuotaExceededError` cru estourando no meio da rua.
+ */
+export const EVENT_QUEUE_LIMIT = { maxCount: 200 } as const
+
+export type EventQueueLimits = Readonly<{ maxCount: number }>
+
+export type EnqueueReportResult =
+  | Readonly<{ accepted: false; reason: 'count-limit' }>
+  | Readonly<{ accepted: true; queue: readonly QueuedReport[] }>
 
 export type DrainOutcome = 'failed-network' | 'rejected' | 'sent'
 
@@ -42,23 +60,27 @@ export type DrainResult = Readonly<{
 }>
 
 export async function enqueueReport(input: {
+  readonly limits?: EventQueueLimits
   readonly now: Date
   readonly report: DriverFieldReport
   readonly store: OfflineQueueStore
-}): Promise<readonly QueuedReport[]> {
-  const queued = await input.store.read()
-  /** O mesmo toque reenviado pela tela não entra duas vezes: a chave é a identidade do item. */
-  if (queued.some((item) => item.report.idempotencyKey === input.report.idempotencyKey)) {
-    return queued
-  }
+}): Promise<EnqueueReportResult> {
+  const limits = input.limits ?? EVENT_QUEUE_LIMIT
+  let refused = false
 
-  const next = [
-    ...queued,
-    { attempts: 0, createdAt: input.now.toISOString(), report: input.report },
-  ]
-  await input.store.write(next)
+  const queue = await input.store.update((queued) => {
+    /** O mesmo toque reenviado pela tela não entra duas vezes: a chave é a identidade do item. */
+    if (queued.some((item) => item.report.idempotencyKey === input.report.idempotencyKey)) {
+      return queued
+    }
+    if (queued.length + 1 > limits.maxCount) {
+      refused = true
+      return queued
+    }
+    return [...queued, { attempts: 0, createdAt: input.now.toISOString(), report: input.report }]
+  })
 
-  return next
+  return refused ? { accepted: false, reason: 'count-limit' } : { accepted: true, queue }
 }
 
 /**
@@ -75,26 +97,31 @@ export async function drainQueue(input: {
 }): Promise<DrainResult> {
   const queued = await input.store.read()
   const rejected: QueuedReport[] = []
+  const settledKeys = new Set<string>()
+  let failedKey: string | undefined
   let sent = 0
-  let index = 0
 
-  while (index < queued.length) {
-    const item = queued[index]
-    if (item === undefined) break
-
+  for (const item of queued) {
     const outcome = await input.send(item.report)
-    if (outcome === 'failed-network') break
-
+    if (outcome === 'failed-network') {
+      // Só o item que a rede recusou conta uma tentativa: os de trás nem chegaram a ser enviados.
+      failedKey = item.report.idempotencyKey
+      break
+    }
     if (outcome === 'rejected') rejected.push(item)
     else sent += 1
-    index += 1
+    settledKeys.add(item.report.idempotencyKey)
   }
 
-  // Só o item que a rede recusou conta uma tentativa: os de trás nem chegaram a ser enviados.
-  const remaining = queued
-    .slice(index)
-    .map((item, position) => (position === 0 ? { ...item, attempts: item.attempts + 1 } : item))
-  await input.store.write(remaining)
+  /** A reconciliação é por chave, na mesma transação: toque enfileirado durante o envio fica. */
+  const remaining = await input.store.update((current) =>
+    current.flatMap((item) => {
+      const key = item.report.idempotencyKey
+      if (settledKeys.has(key)) return []
+      if (key === failedKey) return [{ ...item, attempts: item.attempts + 1 }]
+      return [item]
+    }),
+  )
 
   return { rejected, remaining: remaining.length, sent }
 }

@@ -96,6 +96,19 @@ describe('painel de configuração do comprovante (spec 082)', () => {
     expect(panel).not.toInclude('inputMode')
   })
 
+  /** Revisão 082 (item 8): a exceção valida pelo CONJUNTO (CNPJ tem letra), nunca por comprimento. */
+  it('a exceção valida o documento por padrão, não por comprimento', () => {
+    expect(panel).toInclude('CPF_PATTERN.test(overrideTaxId) || CNPJ_PATTERN.test(overrideTaxId)')
+    expect(panel).not.toInclude('overrideTaxId.length ===')
+  })
+
+  /** O merge campo a campo mora no serviço — nenhum spread inline remonta a configuração. */
+  it('o merge da configuração vem do serviço, não de spread inline', () => {
+    expect(panel).toInclude('mergeDeliveryProofSettings')
+    expect(panel).not.toInclude('{ ...general, ...draft }')
+    expect(panel).not.toInclude('{ ...general, ...overrideDraft }')
+  })
+
   /** As exceções existem na tela: lista, adicionar e remover, tudo pelo `PUT` do conjunto inteiro. */
   it('lista, adiciona e remove exceções por destinatário', () => {
     expect(panel).toInclude('handleAddOverride')

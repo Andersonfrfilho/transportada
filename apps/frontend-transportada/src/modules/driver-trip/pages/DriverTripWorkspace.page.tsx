@@ -2,6 +2,8 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/ui/button'
+import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
 import { DriverBottomBar, type DriverSection } from '../components/DriverBottomBar.component'
@@ -23,7 +25,7 @@ import type {
   DriverReturnReason,
 } from '../shared/driverTrip.types'
 import { createIdempotencyKey } from '../shared/offlineQueue.service'
-import { findCurrentStop } from '../shared/driverTripView.service'
+import { findCurrentStop, isAwaitingDispatch } from '../shared/driverTripView.service'
 import styles from '../styles/driverTrip.module.css'
 
 /**
@@ -49,6 +51,11 @@ export function DriverTripWorkspacePage() {
    * aviso diz isso, e repetir o toque é o conserto.
    */
   const [occurrenceFailed, setOccurrenceFailed] = useState(false)
+  /** Spec 082 (revisão): teto tipado da fila de EVENTOS — recusa anunciada, nada descartado. */
+  const [eventLimitReached, setEventLimitReached] = useState(false)
+  /** Iniciar trajeto: falhar não muda nada no servidor — repetir o toque é o conserto. */
+  const [isDispatching, setIsDispatching] = useState(false)
+  const [dispatchFailed, setDispatchFailed] = useState(false)
   /**
    * Os tipos cadastrados pela empresa. Falhar aqui deixa a lista vazia e o botão sem opção — o
    * motorista segue entregando e devolvendo, que é o que não pode parar.
@@ -157,8 +164,25 @@ export function DriverTripWorkspacePage() {
       location: Awaited<ReturnType<typeof readCurrentLocation>>,
     ) => Parameters<typeof driverTrip.report>[0],
   ): Promise<void> {
-    await driverTrip.report(build(await readCurrentLocation()))
+    const outcome = await driverTrip.report(build(await readCurrentLocation()))
+    if (outcome === 'count-limit') setEventLimitReached(true)
   }
+
+  /** Sucesso → refetch: é o snapshot novo que abre as ações de campo. */
+  async function dispatchTrip(tripId: string): Promise<void> {
+    setDispatchFailed(false)
+    setIsDispatching(true)
+    try {
+      await getDriverTripClient().dispatchTrip({ tripId })
+      driverTrip.refetchTrip()
+    } catch {
+      setDispatchFailed(true)
+    } finally {
+      setIsDispatching(false)
+    }
+  }
+
+  const isTripAwaitingDispatch = trip !== undefined && isAwaitingDispatch(trip)
 
   return (
     <div className={styles.moduleShell}>
@@ -172,6 +196,32 @@ export function DriverTripWorkspacePage() {
         </header>
 
         {trip === undefined ? null : <DriverTripProgress trip={trip} />}
+
+        {/* Spec 082 (revisão): viagem `route_planned` só abre as ações depois de iniciar o trajeto */}
+        {isTripAwaitingDispatch && trip !== undefined ? (
+          <div className={styles.actions}>
+            <Button
+              disabled={isDispatching}
+              onClick={() => void dispatchTrip(trip.id)}
+              type="button"
+            >
+              <Icon name="check" />
+              {t('dispatch.start')}
+            </Button>
+            <p className={styles.stopMeta}>{t('dispatch.waiting')}</p>
+          </div>
+        ) : null}
+        {dispatchFailed ? (
+          <p className={styles.alert} role="alert">
+            {t('dispatch.failed')}
+          </p>
+        ) : null}
+
+        {eventLimitReached ? (
+          <p className={styles.alert} role="alert">
+            {t('eventLimitCount')}
+          </p>
+        ) : null}
 
         {/* A tela diz a verdade: o que está na fila aparece como aguardando, nunca como enviado */}
         {driverTrip.queuedCount > 0 ? (
@@ -235,6 +285,7 @@ export function DriverTripWorkspacePage() {
             {trip.stops.map((stop) => (
               <DriverStopCard
                 isCurrent={stop.id === findCurrentStop(trip)?.id}
+                isFieldWorkBlocked={isTripAwaitingDispatch}
                 key={stop.id}
                 lastKnownLocation={lastKnownLocation}
                 stop={stop}
@@ -280,14 +331,18 @@ export function DriverTripWorkspacePage() {
                   kind: DriverOccurrenceKind
                   stopId: string
                 }) =>
-                  void driverTrip.report({
-                    description: input.description,
-                    documentId: null,
-                    idempotencyKey: createIdempotencyKey(),
-                    kind: 'occurrence',
-                    occurrenceKind: input.kind,
-                    stopId: input.stopId,
-                  })
+                  void driverTrip
+                    .report({
+                      description: input.description,
+                      documentId: null,
+                      idempotencyKey: createIdempotencyKey(),
+                      kind: 'occurrence',
+                      occurrenceKind: input.kind,
+                      stopId: input.stopId,
+                    })
+                    .then((outcome) => {
+                      if (outcome === 'count-limit') setEventLimitReached(true)
+                    })
                 }
                 onOccurrencePhoto={(input: { documentId: string; file: File }) => {
                   /* A rota de ocorrência não aceita anexo — a foto sobe pelo proof da nota. */

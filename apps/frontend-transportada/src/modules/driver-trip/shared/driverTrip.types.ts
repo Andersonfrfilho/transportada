@@ -4,6 +4,12 @@
 export type DriverTripDocument = Readonly<{
   accessKey: string
   deliveredAt: string | null
+  /**
+   * Spec 082 (revisão): a configuração do comprovante é do **documento** — a exceção por CNPJ do
+   * destinatário muda nota a nota. `null` quando o snapshot ainda não traz o campo — o app cai no
+   * `deliveryProof` da parada e, na ausência dos dois, no padrão.
+   */
+  deliveryProof: DriverDeliveryProofSettings | null
   grossWeight: string
   id: string
   number: string

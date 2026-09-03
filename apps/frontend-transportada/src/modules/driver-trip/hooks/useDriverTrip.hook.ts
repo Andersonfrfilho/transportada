@@ -16,7 +16,11 @@ import {
   type AttachmentStore,
   type QueuedAttachment,
 } from '../shared/offlineAttachments.service'
-import { enqueueReport, type OfflineQueueStore } from '../shared/offlineQueue.service'
+import {
+  createIdempotencyKey,
+  enqueueReport,
+  type OfflineQueueStore,
+} from '../shared/offlineQueue.service'
 
 const CURRENT_TRIP_QUERY_KEY = ['driver-trip', 'current'] as const
 
@@ -34,6 +38,9 @@ export type DriverProofInput = Readonly<{
 /** `sent` cobre o envio direto e o enfileirado — para quem toca, os dois são "ficou comigo". */
 export type DriverProofOutcome = 'count-limit' | 'queued' | 'sent' | 'size-limit'
 
+/** Spec 082 (revisão): o teto da fila de eventos recusa tipado, nunca `QuotaExceededError` cru. */
+export type DriverReportOutcome = 'count-limit' | 'queued'
+
 export type DriverTripController = Readonly<{
   attachProof: (input: DriverProofInput) => Promise<DriverProofOutcome>
   /** `true` até a primeira leitura do IndexedDB voltar — é o que segura o esqueleto da tela. */
@@ -43,8 +50,9 @@ export type DriverTripController = Readonly<{
   queueView: readonly EventQueueItemView[]
   /** Quantos toques ainda não subiram. É o que a tela mostra como "aguardando envio". */
   queuedCount: number
+  refetchTrip: () => void
   rejectedCount: number
-  report: (report: DriverFieldReport) => Promise<void>
+  report: (report: DriverFieldReport) => Promise<DriverReportOutcome>
   sendAllNow: () => void
   sendNow: (idempotencyKey: string) => void
   snapshot: DriverTripSnapshot | undefined
@@ -70,11 +78,8 @@ export function useDriverTrip(
   const [queueView, setQueueView] = useState<readonly EventQueueItemView[] | undefined>(undefined)
 
   const refreshQueueView = useCallback(async (): Promise<void> => {
-    const [queued, attachmentCounts] = await Promise.all([
-      store.read(),
-      attachmentStore.readCounts(),
-    ])
-    setQueueView(buildEventQueueView({ attachmentCounts, queued }))
+    const [queued, attachments] = await Promise.all([store.read(), attachmentStore.readAll()])
+    setQueueView(buildEventQueueView({ attachments, queued }))
   }, [attachmentStore, store])
 
   const currentTrip = useQuery({
@@ -101,6 +106,7 @@ export function useDriverTrip(
         sendAttachment: async (attachment: QueuedAttachment): Promise<AttachmentSendOutcome> => {
           try {
             await client.attachProof({
+              attachmentKey: attachment.attachmentKey,
               documentId: attachment.documentId,
               file: new File([attachment.blob], attachment.fileName, {
                 type: attachment.blob.type,
@@ -130,12 +136,31 @@ export function useDriverTrip(
   })
 
   /**
-   * A rede voltando é evento do navegador — é o gatilho de drenagem, e o único `useEffect` daqui.
-   * A referência da mutação fica numa `ref` para a assinatura do evento não se refazer a cada
-   * render: religar o ouvinte a cada estado novo perderia o evento que chega no meio.
+   * Spec 082 (revisão): **uma drenagem por vez.** O pedido que chega com outra em andamento é
+   * ignorado — o estado fica visível em `isSyncing`, e o gatilho seguinte (rede, refetch, manual)
+   * pega o que sobrou. A `ref` decide na hora do toque, sem esperar o render do `isPending`.
    */
-  const drainRef = useRef(drain.mutate)
-  drainRef.current = drain.mutate
+  const isDrainingRef = useRef(false)
+  const requestDrain = useCallback(
+    (only?: string) => {
+      if (isDrainingRef.current) return
+      isDrainingRef.current = true
+      drain.mutate(only, {
+        onSettled: () => {
+          isDrainingRef.current = false
+        },
+      })
+    },
+    [drain],
+  )
+
+  /**
+   * A rede voltando é evento do navegador — é o gatilho de drenagem, e o único `useEffect` daqui.
+   * A referência fica numa `ref` para a assinatura do evento não se refazer a cada render:
+   * religar o ouvinte a cada estado novo perderia o evento que chega no meio.
+   */
+  const drainRef = useRef(requestDrain)
+  drainRef.current = requestDrain
 
   useEffect(() => {
     function handleOnline(): void {
@@ -148,19 +173,24 @@ export function useDriverTrip(
     return () => window.removeEventListener('online', handleOnline)
   }, [refreshQueueView])
 
-  async function report(fieldReport: DriverFieldReport): Promise<void> {
-    await enqueueReport({ now: new Date(), report: fieldReport, store })
+  async function report(fieldReport: DriverFieldReport): Promise<DriverReportOutcome> {
+    const result = await enqueueReport({ now: new Date(), report: fieldReport, store })
+    if (!result.accepted) return result.reason
     await refreshQueueView()
-    drain.mutate(undefined)
+    requestDrain(undefined)
+    return 'queued'
   }
 
   /**
    * Spec 082 D6: com a entrega ainda na fila, o comprovante entra atrás dela; entrega já enviada
    * segue pela rota multipart direta. Teto atingido volta como recusa anunciada — nada é descartado.
+   * A chave do anexo nasce **aqui, na captura**, e é a mesma nos dois caminhos.
    */
   async function attachProof(input: DriverProofInput): Promise<DriverProofOutcome> {
+    const attachmentKey = createIdempotencyKey()
     const result = await enqueueAttachment({
       attachment: {
+        attachmentKey,
         blob: input.file,
         capturedAt: new Date().toISOString(),
         documentId: input.documentId,
@@ -176,11 +206,11 @@ export function useDriverTrip(
     })
     if (result.accepted) {
       await refreshQueueView()
-      drain.mutate(undefined)
+      requestDrain(undefined)
       return 'queued'
     }
     if (result.reason === 'event-not-queued') {
-      await getDriverTripClient().attachProof(input)
+      await getDriverTripClient().attachProof({ ...input, attachmentKey })
       return 'sent'
     }
     return result.reason
@@ -194,10 +224,11 @@ export function useDriverTrip(
     isSyncing: drain.isPending,
     queueView: loadedView,
     queuedCount: loadedView.filter((item) => item.status.state !== 'rejected').length,
+    refetchTrip: () => void queryClient.invalidateQueries({ queryKey: CURRENT_TRIP_QUERY_KEY }),
     rejectedCount: loadedView.filter((item) => item.status.state === 'rejected').length,
     report,
-    sendAllNow: () => drain.mutate(undefined),
-    sendNow: (idempotencyKey: string) => drain.mutate(idempotencyKey),
+    sendAllNow: () => requestDrain(undefined),
+    sendNow: (idempotencyKey: string) => requestDrain(idempotencyKey),
     snapshot: currentTrip.data,
     status: currentTrip.isLoading ? 'loading' : currentTrip.isError ? 'error' : 'ready',
   } satisfies DriverTripController
