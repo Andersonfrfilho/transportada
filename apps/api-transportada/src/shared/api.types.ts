@@ -81,6 +81,11 @@ export type ApiEnvironment = {
    * Provedores públicos de CEP, consultados só quando o banco da instalação não soube o endereço
    * inteiro. Ausentes os dois, a escada para no nosso banco e o operador digita — nunca derruba boot.
    */
+  /**
+   * O `/route` do OSRM, para a linha da estrada no mapa da viagem. Ausente, o mapa liga as paradas
+   * em reta — e diz na tela que são retas.
+   */
+  readonly routingMatrixUrl: string | undefined
   readonly postalCodeProviders: {
     readonly brasilApiUrl: string | undefined
     readonly viaCepUrl: string | undefined

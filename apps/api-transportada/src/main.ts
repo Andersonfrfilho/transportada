@@ -142,6 +142,9 @@ import { createReadMdfeDocumentUseCase } from './mdfe-manifests/application/read
 import { createDamdfePdfGateway } from './mdfe-manifests/infrastructure/damdfe-pdf.gateway.js'
 import { createMdfeDocumentDownloadGateway } from './mdfe-manifests/infrastructure/mdfe-document-download.gateway.js'
 import { readDeliveryProofs } from './trips/application/read-delivery-proof.use-case.js'
+import { readRouteGeometry } from './trips/application/read-route-geometry.use-case.js'
+import { createOsrmRouteGeometryGateway } from './trips/infrastructure/osrm-route-geometry.gateway.js'
+import { listTripStopCoordinates } from './trips/infrastructure/trip-stop-coordinates.support.js'
 import { createDeliveryProofDownloadGateway } from './trips/infrastructure/delivery-proof-download.gateway.js'
 import { readTripDocumentProducts } from './trips/application/read-trip-document-products.use-case.js'
 import { registerTripOccurrence } from './trips/application/register-trip-occurrence.use-case.js'
@@ -620,6 +623,7 @@ export function bootstrap(): Bun.Server<undefined> {
       keycloak: config.keycloak,
       logger,
       postalCodeProviders: config.postalCodeProviders,
+      routingMatrixUrl: config.routingMatrixUrl,
       routeOptimizationQueue,
       vehicleCatalog: config.vehicleCatalog,
     }),
@@ -901,6 +905,7 @@ type CreateApplicationRoutesParams = {
   readonly keycloak: ApiEnvironment['keycloak']
   readonly logger: ApiLogger
   readonly postalCodeProviders: ApiEnvironment['postalCodeProviders']
+  readonly routingMatrixUrl: ApiEnvironment['routingMatrixUrl']
   /** Ausente sem broker: sem quem resolva, a rota de sugestão não sobe (ADR-0044 §7). */
   readonly routeOptimizationQueue: RouteOptimizationQueue | undefined
   readonly vehicleCatalog: ApiEnvironment['vehicleCatalog']
@@ -919,6 +924,7 @@ function createApplicationRoutes({
   keycloak,
   logger,
   postalCodeProviders,
+  routingMatrixUrl,
   routeOptimizationQueue,
   vehicleCatalog,
 }: CreateApplicationRoutesParams): readonly ReturnType<
@@ -1677,6 +1683,23 @@ function createApplicationRoutes({
               listDocumentProducts: (query) => listDocumentProducts(database, query),
             },
             tripId: input.tripId,
+          }),
+      },
+      /**
+       * Spec 079: a linha da estrada para o mapa. Sem `ROUTING_MATRIX_URL` a porta devolve `null` e
+       * a tela volta a ligar as paradas em reta — **dizendo que são retas**, nunca fingindo estrada.
+       */
+      readTripRouteGeometry: {
+        execute: async (input) =>
+          readRouteGeometry({
+            geometry:
+              routingMatrixUrl === undefined
+                ? { readRouteGeometry: async () => null }
+                : createOsrmRouteGeometryGateway({ baseUrl: routingMatrixUrl }),
+            stops: await listTripStopCoordinates(database, {
+              companyId: input.context.companyId,
+              tripId: input.tripId,
+            }),
           }),
       },
       readDeliveryProofs: {

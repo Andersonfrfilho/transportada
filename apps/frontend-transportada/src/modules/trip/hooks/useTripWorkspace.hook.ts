@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import type { DeliveryProof } from '../shared/deliveryProof.service'
+import type { RouteGeometry } from '../shared/routeGeometry.service'
 import type { TripDocumentProduct, TripOccurrence } from '../shared/trip.types'
 import { resolveTripRefetchInterval } from '../shared/tripPolling.service'
 
@@ -61,6 +62,7 @@ export type TripController = Readonly<{
   createTripCteBatch: (input: Readonly<{ tripId: string }>) => Promise<TripCteBatchResult>
   deliverTripDocument: (input: TripDocumentActionInput) => Promise<TransitionTripDocumentResult>
   readDeliveryProofs: (input: TripDocumentActionInput) => Promise<readonly DeliveryProof[]>
+  readRouteGeometry: (input: Readonly<{ tripId: string }>) => Promise<RouteGeometry>
   readTripOccurrences: (input: TripDocumentActionInput) => Promise<readonly TripOccurrence[]>
   correctGeocodedAddress: (
     input: Readonly<{ addressKey: string; latitude: string; longitude: string }>,
@@ -118,6 +120,8 @@ export function createTripController(
       canManageTrips ? input.client.deliverTripDocument(body) : forbidden(),
     readDeliveryProofs: (body) =>
       canReadTrips ? input.client.readDeliveryProofs(body) : forbidden(),
+    readRouteGeometry: (body) =>
+      canReadTrips ? input.client.readRouteGeometry(body) : forbidden(),
     readTripOccurrences: (body) =>
       canReadTrips ? input.client.readTripOccurrences(body) : forbidden(),
     correctGeocodedAddress: (body) =>
@@ -215,6 +219,17 @@ export function useTripWorkspace(
    * carregá-la para todas as notas da viagem produziria uma dezena de links já vencidos quando
    * alguém finalmente clicasse num deles.
    */
+  /**
+   * Spec 079: a linha da estrada. Consulta **própria**, e não um campo do detalhe — a chamada ao
+   * OSRM custou 63 ms medidos, e o detalhe é a leitura que abre a tela inteira. O mapa desenha as
+   * paradas primeiro e engrossa a linha depois; falha aqui deixa a reta tracejada, nunca a tela.
+   */
+  const routeGeometryQuery = useQuery({
+    enabled: controller.canReadTrips && input.tripId !== undefined && input.tripId !== '',
+    queryFn: () => controller.readRouteGeometry({ tripId: input.tripId ?? '' }),
+    queryKey: [...tripKey, 'route-geometry'] as const,
+  })
+
   const deliveryProofsQuery = useQuery({
     enabled: openProofDocumentId !== null && input.tripId !== undefined && input.tripId !== '',
     queryFn: () =>
@@ -361,6 +376,7 @@ export function useTripWorkspace(
     correctAddressMutation,
     deliverDocumentMutation,
     deliveryProofsQuery,
+    routeGeometryQuery,
     refetchTrip: () => void tripQuery.refetch(),
     documentProductsQuery,
     occurrencesQuery,

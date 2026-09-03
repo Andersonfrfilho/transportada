@@ -27,3 +27,8 @@
   stroke: var(--color-fog);
   stroke-width: 1.8;
 }
+
+/* Tracejado: a forma que diz "não sei o caminho", nunca a que afirma uma estrada. */
+.dashed {
+  stroke-dasharray: 2 2;
+}

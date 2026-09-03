@@ -8,11 +8,13 @@ import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { VectorMap } from '@/components/ui/vector-map'
 
+import { resolveRouteTrace, type RouteGeometry } from '../shared/routeGeometry.service'
 import { MAP_VIEWBOX_SIZE, resolveTripRouteMap } from '../shared/tripRouteMap.service'
 import type { TripStopDetail } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
 
 type TripRouteMapProps = Readonly<{
+  geometry: RouteGeometry | null
   /** Corrigir é escrita: sem `trip.manage` a tela mostra o mapa e não oferece o pino. */
   canCorrect: boolean
   isCorrecting: boolean
@@ -34,7 +36,13 @@ const PIN_RADIUS = 2.5
  * a tela não pode é descartar a lista que ele devolve — que é onde a regra se perde entre o serviço
  * e o JSX.
  */
-export function TripRouteMap({ canCorrect, isCorrecting, onCorrect, stops }: TripRouteMapProps) {
+export function TripRouteMap({
+  canCorrect,
+  geometry,
+  isCorrecting,
+  onCorrect,
+  stops,
+}: TripRouteMapProps) {
   const { t } = useTranslation('trip')
   const map = resolveTripRouteMap({
     stops: stops.map((stop) => ({
@@ -47,17 +55,22 @@ export function TripRouteMap({ canCorrect, isCorrecting, onCorrect, stops }: Tri
 
   if (map === null) return null
 
+  /**
+   * ⚠️ O traço **diz qual dos dois é**: sólido quando é a estrada que o OSRM devolveu, tracejado
+   * quando é a reta que liga as paradas. Desenhar os dois igual faria o operador ler caminho onde
+   * não há — uma reta entre duas paradas atravessa rio e ferrovia sem pedir licença.
+   */
+  const route = resolveRouteTrace({ geometry, project: map.project, stops: map.points })
   const trace =
-    map.points.length < 2
+    route.path === ''
       ? []
       : [
           {
+            dashed: route.dashed,
             fill: 'none',
             id: 'route',
-            label: t('routeMap.title'),
-            path: map.points
-              .map((point, index) => `${index === 0 ? 'M' : 'L'}${point.x} ${point.y}`)
-              .join(' '),
+            label: t(`routeMap.trace.${route.kind}`),
+            path: route.path,
           },
         ]
 
@@ -81,6 +94,7 @@ export function TripRouteMap({ canCorrect, isCorrecting, onCorrect, stops }: Tri
       {canCorrect ? (
         <TripStopPointCorrection isCorrecting={isCorrecting} onCorrect={onCorrect} stops={stops} />
       ) : null}
+      <p className={styles.hint}>{t(`routeMap.trace.${route.kind}`)}</p>
       {map.stopsWithoutLocation.length === 0 ? null : (
         <p className={styles.hint}>
           {t('routeMap.withoutLocation', { stops: map.stopsWithoutLocation.join(', ') })}

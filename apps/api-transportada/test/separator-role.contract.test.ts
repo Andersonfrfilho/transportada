@@ -133,6 +133,12 @@ describe('separator role contract', () => {
       // Spec 059: a prontidão fiscal é leitura da viagem, e o separador a lê como o resto dela
       'GET /trips/:id/fiscal-readiness',
       /**
+       * Spec 079: a linha da estrada no mapa. Ela **é** o roteiro, e o roteiro é dele — quem ordena
+       * as paradas precisa ver por onde o caminhão vai passar. Nada de terceiro aparece aqui: são
+       * as coordenadas das paradas que ele já lê no detalhe, ligadas pela estrada.
+       */
+      'GET /trips/:id/route-geometry',
+      /**
        * Spec 060 D3: o agendamento **é** do separador, e é decisão registrada aqui. Ele monta a
        * viagem, e o portão do despacho que a pendência de agendamento levanta é dele para limpar —
        * mandar isso para outra pessoa deixaria o caminhão parado esperando quem não está no galpão.

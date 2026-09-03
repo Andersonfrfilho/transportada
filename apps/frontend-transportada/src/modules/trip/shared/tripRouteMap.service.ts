@@ -32,6 +32,15 @@ export type TripRoutePoint = Readonly<{
 export type TripRouteMap = Readonly<{
   points: readonly TripRoutePoint[]
   /**
+   * A mesma projeção que levou os pinos ao `viewBox`, para a linha da estrada cair na mesma caixa.
+   * Reprojetar a geometria pela caixa dela deslocaria pino e traço justamente onde a estrada faz a
+   * volta mais larga — e o desencontro apareceria como erro do roteiro, não do desenho.
+   */
+  project: (point: Readonly<{ latitude: number; longitude: number }>) => Readonly<{
+    x: number
+    y: number
+  }>
+  /**
    * As paradas que o mapa não desenha, **nomeadas**. Mesma regra da cidade sem polígono na aba
    * Regiões: roteiro visto pela metade é pior que roteiro visto inteiro com um aviso ao lado.
    */
@@ -87,13 +96,17 @@ export function resolveTripRouteMap(input: {
    */
   const scale = span === 0 ? 0 : drawable / span
 
+  const project = (point: { readonly latitude: number; readonly longitude: number }) => ({
+    x: half + (point.longitude - centerLongitude) * longitudeScale * scale,
+    y: half - (point.latitude - centerLatitude) * scale,
+  })
+
   return {
+    project,
     points: located.map((stop) => ({
       label: stop.label,
       sequence: stop.sequence,
-      x: half + (stop.point.longitude - centerLongitude) * longitudeScale * scale,
-      // O eixo y é invertido: no SVG ele cresce para baixo e a latitude cresce para o norte.
-      y: half - (stop.point.latitude - centerLatitude) * scale,
+      ...project(stop.point),
     })),
     stopsWithoutLocation,
   }

@@ -6,6 +6,12 @@ import { cn } from '@/lib/utils'
 import styles from './vector-map.module.css'
 
 export type VectorMapShape = Readonly<{
+  /**
+   * Traço tracejado. Existe porque a forma às vezes precisa dizer **o que ela não sabe**: no mapa
+   * do roteiro, sólido é a estrada que o roteirizador devolveu e tracejado é a reta que liga duas
+   * paradas — desenhar as duas igual faria quem olha ler caminho onde não há.
+   */
+  dashed?: boolean | undefined
   fill: string
   id: string
   label: string
@@ -50,6 +56,7 @@ export function VectorMap({
           className={cn(
             styles.shape,
             onSelect === undefined ? undefined : styles.interactive,
+            shape.dashed === true ? styles.dashed : undefined,
             shape.selected === true ? styles.selected : undefined,
           )}
           d={shape.path}

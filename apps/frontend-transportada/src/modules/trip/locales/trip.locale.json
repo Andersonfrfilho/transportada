@@ -321,7 +321,11 @@
     "latitude": "Latitude",
     "longitude": "Longitude",
     "save": "Salvar ponto",
-    "cancel": "Cancelar"
+    "cancel": "Cancelar",
+    "trace": {
+      "road": "A linha segue a estrada, pela ordem das paradas.",
+      "straight": "Linha reta entre as paradas — o traçado por estrada não está disponível agora."
+    }
   },
   "contact": {
     "recipient": "Recebe: {{name}}",

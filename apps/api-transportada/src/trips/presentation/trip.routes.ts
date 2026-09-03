@@ -5,6 +5,7 @@ import { HTTP_ERROR } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
 import { defineRoute } from '../../http/router.service.js'
 import type { DeliveryProofView } from '../application/read-delivery-proof.use-case.js'
+import type { RouteGeometryView } from '../application/read-route-geometry.use-case.js'
 import type { TripDocumentProduct } from '../application/read-trip-document-products.use-case.js'
 import type { TripOccurrence } from '../application/register-trip-occurrence.use-case.js'
 import type { TripOccurrenceStage } from '../../shared/trip-occurrence.constant.js'
@@ -77,6 +78,7 @@ import {
 const TRIP_CLOSE_PATH = `${API_TRIPS_PATH}/:id/close`
 const TRIP_DETAIL_PATH = `${API_TRIPS_PATH}/:id`
 const TRIP_DOCUMENTS_PATH = `${API_TRIPS_PATH}/:id/documents`
+const TRIP_ROUTE_GEOMETRY_PATH = `${API_TRIPS_PATH}/:id/route-geometry`
 const TRIP_DOCUMENT_PATH = `${TRIP_DOCUMENTS_PATH}/:documentId`
 const TRIP_DOCUMENT_DELIVER_PATH = `${TRIP_DOCUMENT_PATH}/deliver`
 const TRIP_DOCUMENT_PROOF_PATH = `${TRIP_DOCUMENT_PATH}/proof`
@@ -228,6 +230,9 @@ type Dependencies = {
   }
   readonly createTripMdfeManifest: {
     execute(input: TenantInput<CreateTripMdfeManifestInput>): Promise<MdfeManifestDetail>
+  }
+  readonly readTripRouteGeometry: {
+    execute(input: TenantInput<{ readonly tripId: string }>): Promise<RouteGeometryView>
   }
   readonly readDeliveryProofs: {
     execute(input: TenantInput<ReadDeliveryProofsRouteInput>): Promise<readonly DeliveryProofView[]>
@@ -692,6 +697,26 @@ export function createTripRoutes(
         tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
       }),
       pathname: TRIP_DOCUMENT_PROOF_PATH,
+      policy: TRIP_READ_POLICY,
+    }),
+    /**
+     * Spec 079: a linha da estrada, para o mapa deixar de ligar as paradas em reta.
+     *
+     * ⚠️ **Rota própria, e não um campo do detalhe.** A chamada ao OSRM custou 63 ms medidos, e o
+     * detalhe da viagem é a leitura que abre a tela inteira. Aqui o mapa desenha as paradas
+     * primeiro e engrossa a linha depois — e uma falha do OSRM não leva a tela junto.
+     */
+    defineRoute<{ readonly tripId: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const geometry = await dependencies.readTripRouteGeometry.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({ body: { data: geometry }, status: 200 })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({ tripId: parseUuidPathIdentifier(pathParameters.id ?? '') }),
+      pathname: TRIP_ROUTE_GEOMETRY_PATH,
       policy: TRIP_READ_POLICY,
     }),
     /** Spec 079 T019: o que vai dentro da nota, para quem confere a carga. Leitura, como o detalhe. */

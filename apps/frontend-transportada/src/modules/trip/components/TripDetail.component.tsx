@@ -360,6 +360,7 @@ export function TripDetail({ linkForm, onClose, vehicles, workspace }: TripDetai
 
       <TripRouteMap
         canCorrect={canManage}
+        geometry={workspace.routeGeometryQuery.data ?? null}
         isCorrecting={workspace.correctAddressMutation.isPending}
         onCorrect={(correction) => workspace.correctAddressMutation.mutate(correction)}
         stops={trip.stops}

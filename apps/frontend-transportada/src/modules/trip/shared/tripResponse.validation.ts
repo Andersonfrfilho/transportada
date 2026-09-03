@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { DeliveryProof } from './deliveryProof.service'
 import type { TripDocumentProduct, TripOccurrence } from './trip.types'
+import { ROUTE_GEOMETRY_SOURCES, type RouteGeometry } from './routeGeometry.service'
 import {
   BATCH_STATUS_RESULT_KEYS,
   DELIVERY_ADDRESS_OVERRIDE_KEYS,
@@ -400,6 +401,18 @@ export function createTripResponseAdapters() {
       if (!Array.isArray(input) || !input.every(isDeliveryProof)) throw invalid()
       return input
     },
+    /**
+     * ⚠️ Corpo estranho vira **`unavailable`**, nunca exceção: o mapa é enfeite operacional, e uma
+     * validação que estoura derrubaria a tela da viagem por causa da linha da estrada.
+     */
+    routeGeometryFromApi(input: unknown): RouteGeometry {
+      if (!isRecord(input) || !isOneOf(input.source, ROUTE_GEOMETRY_SOURCES)) {
+        return { points: [], source: 'unavailable' }
+      }
+      const points = Array.isArray(input.points) ? input.points : []
+      if (!points.every(isGeometryPoint)) return { points: [], source: 'unavailable' }
+      return { points, source: input.source }
+    },
     occurrencesFromApi(input: unknown): readonly TripOccurrence[] {
       if (!Array.isArray(input) || !input.every(isOccurrence)) throw invalid()
       return input
@@ -483,4 +496,10 @@ function isOccurrence(value: unknown): value is TripOccurrence {
     (value.stage === 'delivery' || value.stage === 'separation') &&
     isString(value.type)
   )
+}
+
+function isGeometryPoint(
+  value: unknown,
+): value is Readonly<{ latitude: string; longitude: string }> {
+  return isRecord(value) && isString(value.latitude) && isString(value.longitude)
 }

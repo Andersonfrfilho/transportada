@@ -31,6 +31,7 @@ import type {
   TripPage,
 } from './trip.types'
 import type { DeliveryProof } from './deliveryProof.service'
+import type { RouteGeometry } from './routeGeometry.service'
 import { isRecord, isString } from './tripGuards.validation'
 import { createTripResponseAdapters } from './tripResponse.validation'
 
@@ -49,6 +50,7 @@ export type TripClient = Readonly<{
   deliverTripDocument: (input: TripDocumentActionInput) => Promise<TransitionTripDocumentResult>
   dispatchTrip: (input: DispatchTripInput) => Promise<DispatchTripResult>
   readDeliveryProofs: (input: TripDocumentActionInput) => Promise<readonly DeliveryProof[]>
+  readRouteGeometry: (input: Readonly<{ tripId: string }>) => Promise<RouteGeometry>
   readTripOccurrences: (input: TripDocumentActionInput) => Promise<readonly TripOccurrence[]>
   correctGeocodedAddress: (
     input: Readonly<{ addressKey: string; latitude: string; longitude: string }>,
@@ -255,6 +257,18 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: `${documentPath(input)}/proof`,
       })
       return adapters.deliveryProofsFromApi(readEnvelopeData(response))
+    },
+    /**
+     * Consulta **própria**, fora do detalhe: a chamada ao OSRM custou 63 ms medidos, e o detalhe é
+     * a leitura que abre a tela inteira. O mapa desenha as paradas e engrossa a linha depois.
+     */
+    async readRouteGeometry(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${TRIPS_PATH}/${input.tripId}/route-geometry`,
+      })
+      return adapters.routeGeometryFromApi(readEnvelopeData(response))
     },
     async dispatchTrip(input) {
       const response = await authorizedRequest({

@@ -84,6 +84,7 @@ const server = startApiServer({
     nfseCallbackBaseUrl: undefined,
     notificationWebhookSecret: undefined,
     port: 0,
+    routingMatrixUrl: undefined,
     postalCodeProviders: { brasilApiUrl: undefined, viaCepUrl: undefined },
     logSinkUrl: undefined,
     sentryDsn: undefined,
