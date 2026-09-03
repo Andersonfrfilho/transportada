@@ -82,7 +82,9 @@ export type TripClient = Readonly<{
   findNfeDocumentByAccessKey: (
     input: FindNfeDocumentByAccessKeyInput,
   ) => Promise<null | ScannedNfeDocument>
-  createTripCteBatch: (input: Readonly<{ tripId: string }>) => Promise<TripCteBatchResult>
+  createTripCteBatch: (
+    input: Readonly<{ tripDocumentIds?: readonly string[]; tripId: string }>,
+  ) => Promise<TripCteBatchResult>
   getTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
   readFiscalReadiness: (input: Readonly<{ tripId: string }>) => Promise<TripFiscalReadiness>
   setTripMdfeRequirement: (input: SetTripMdfeRequirementInput) => Promise<TripMdfeRequirement>
@@ -354,8 +356,14 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
      * Spec 065 D4bis: a chave de idempotência é do **clique**. Sem ela, dois toques com a rede lenta
      * criariam dois lotes para a mesma viagem — e lote de CT-e duplicado é emissão duplicada.
      */
+    /**
+     * Lista vazia é omitida: para a API, ausência e vazio são a viagem inteira, e mandar `[]` daria
+     * a impressão de recorte onde não há.
+     */
     async createTripCteBatch(input) {
+      const chosen = input.tripDocumentIds ?? []
       const response = await authorizedRequest({
+        ...(chosen.length === 0 ? {} : { body: JSON.stringify({ tripDocumentIds: [...chosen] }) }),
         dependencies,
         idempotencyKey: crypto.randomUUID(),
         method: 'POST',

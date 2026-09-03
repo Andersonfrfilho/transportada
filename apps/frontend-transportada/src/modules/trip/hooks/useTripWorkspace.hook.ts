@@ -60,7 +60,9 @@ export type TripController = Readonly<{
   canSubmitCte: boolean
   closeTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
   createTrip: (input: CreateTripBody) => Promise<TripDetail>
-  createTripCteBatch: (input: Readonly<{ tripId: string }>) => Promise<TripCteBatchResult>
+  createTripCteBatch: (
+    input: Readonly<{ tripDocumentIds?: readonly string[]; tripId: string }>,
+  ) => Promise<TripCteBatchResult>
   deliverTripDocument: (input: TripDocumentActionInput) => Promise<TransitionTripDocumentResult>
   readDeliveryProofs: (input: TripDocumentActionInput) => Promise<readonly DeliveryProof[]>
   readRouteGeometry: (input: Readonly<{ tripId: string }>) => Promise<RouteGeometry>

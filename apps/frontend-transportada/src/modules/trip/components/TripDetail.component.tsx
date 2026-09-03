@@ -11,6 +11,7 @@ import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { useTripDocumentSelection } from '../hooks/useTripDocumentSelection.hook'
 import type { TripDocumentLinkFormController } from '../hooks/useTripDocumentLinkForm.hook'
 import type { TripWorkspaceController } from '../hooks/useTripWorkspace.hook'
+import { selectPendingCteDocumentIds } from '../shared/cteSelection.service'
 import type { TripStatus } from '../shared/trip.types'
 import { resolveFirstTripFeedbackKey } from '../shared/tripFeedback.service'
 import { buildLinkTripDocumentBody } from '../shared/tripForm.service'
@@ -394,6 +395,18 @@ export function TripDetail({ linkForm, onClose, vehicles, workspace }: TripDetai
         onCancel={() => workspace.cancelMutation.mutate({ tripId: trip.id })}
         onDispatch={(input) => workspace.dispatchMutation.mutate({ ...input, tripId: trip.id })}
         onPlanRoute={() => workspace.planRouteMutation.mutate({ tripId: trip.id })}
+        isGeneratingCteBatch={workspace.createCteBatchMutation.isPending}
+        pendingCteSelection={
+          workspace.controller.canSubmitCte
+            ? selectPendingCteDocumentIds({
+                documents: workspace.fiscalReadiness?.documents,
+                selectedIds: selection.selectedIds,
+              })
+            : []
+        }
+        onGenerateCteSelection={(tripDocumentIds) =>
+          workspace.createCteBatchMutation.mutate({ tripDocumentIds, tripId: trip.id })
+        }
         selection={selection}
         trip={trip}
       />

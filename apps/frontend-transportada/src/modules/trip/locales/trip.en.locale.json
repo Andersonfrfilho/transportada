@@ -105,6 +105,7 @@
     "batchSeparate": "Separate {{count}} document(s)",
     "batchLoad": "Load {{count}} document(s)",
     "batchReturn": "Return {{count}} document(s)",
+    "generateCteSelection": "Issue CT-e for {{count}} selected invoice(s)",
     "planRoute": "Plan route",
     "dispatch": "Dispatch",
     "cancel": "Cancel trip",

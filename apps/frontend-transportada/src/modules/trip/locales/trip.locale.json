@@ -108,6 +108,7 @@
     "batchSeparate": "Separar {{count}} nota(s)",
     "batchLoad": "Carregar {{count}} nota(s)",
     "batchReturn": "Devolver {{count}} nota(s)",
+    "generateCteSelection": "Gerar CT-e de {{count}} nota(s) marcada(s)",
     "planRoute": "Planejar rota",
     "dispatch": "Despachar",
     "cancel": "Cancelar viagem",
