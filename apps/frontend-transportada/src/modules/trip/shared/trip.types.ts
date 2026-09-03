@@ -132,6 +132,12 @@ export type TripDocumentDetail = TripDocument &
 /** ADR-0043 §3, T014: as mesmas notas de `TripDetail.documents`, aninhadas sob a parada que as
  * agrupa — nunca uma cópia divergente. Nota sem parada não aparece em nenhum `TripStopDetail`. */
 export type TripStopDetail = Readonly<{
+  /**
+   * Onde a parada fica, no vocabulário do IBGE — a UF diz qual malha o mapa busca, o código do
+   * município diz qual polígono desenhar. Opcionais: campo novo nasce assim (spec 078 D2).
+   */
+  cityCode?: string
+  state?: string
   addressKey: string
   /** Spec 079 T012: de `geocoded_addresses`; `null` é endereço ainda não geocodificado. */
   latitude?: null | string

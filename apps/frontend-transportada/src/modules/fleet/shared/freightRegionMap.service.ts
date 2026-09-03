@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { FreightRegion, FreightRegionCity } from './freightRegion.types'
-import type { StateMesh } from './ibgeMesh.service'
+import type { StateMesh } from '@/modules/shared/ibgeMesh.service'
 import type { MunicipalityIdentity } from './municipality.service'
 import { cityKeyOf, foldRegionCityName } from './regionCityName.service'
 

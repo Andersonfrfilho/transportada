@@ -1,14 +1,22 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useQuery } from '@tanstack/react-query'
 
 import { Icon } from '@/components/ui/icon'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { VectorMap } from '@/components/ui/vector-map'
 
+import {
+  IBGE_MESH_STALE_TIME_MS,
+  loadStateMeshFeatures,
+  type MeshFeature,
+} from '@/modules/shared/ibgeMesh.service'
+
+import { buildTripBasemapPaths } from '../shared/tripBasemap.service'
 import { resolveRouteTrace, type RouteGeometry } from '../shared/routeGeometry.service'
 import { MAP_VIEWBOX_SIZE, resolveTripRouteMap } from '../shared/tripRouteMap.service'
 import type { TripStopDetail } from '../shared/trip.types'
@@ -45,6 +53,30 @@ export function TripRouteMap({
   stops,
 }: TripRouteMapProps) {
   const { t } = useTranslation('trip')
+  /**
+   * ⚠️ O `useQuery` fica **antes** do `if (map === null)`: hook depois de retorno condicional muda
+   * a ordem entre renders, e o React quebra. Sem UF a consulta não liga.
+   */
+  const states = useMemo(
+    () =>
+      [...new Set(stops.map((stop) => stop.state ?? '').filter((state) => state !== ''))].sort(),
+    [stops],
+  )
+  const meshQuery = useQuery({
+    enabled: states.length > 0,
+    queryFn: async ({ signal }) => {
+      const meshes = await Promise.all(
+        states.map((state) =>
+          loadStateMeshFeatures({ fetch: globalThis.fetch.bind(globalThis), signal, state }),
+        ),
+      )
+      return meshes.flat()
+    },
+    /** Divisa de município muda por lei, não por semana — o mesmo tempo da aba Regiões. */
+    queryKey: ['trip-route-mesh', states] as const,
+    staleTime: IBGE_MESH_STALE_TIME_MS,
+  })
+
   const map = resolveTripRouteMap({
     stops: stops.map((stop) => ({
       label: stop.label,
@@ -76,6 +108,23 @@ export function TripRouteMap({
           },
         ]
 
+  /**
+   * O contorno do município entra **primeiro**, para ficar atrás da linha e dos pinos: o fundo é
+   * referência, e cobrir o roteiro com ele inverteria a leitura. Malha fora do ar devolve lista
+   * vazia — o mapa continua com pinos e linha, sem fundo, e nada quebra.
+   */
+  const basemap = buildTripBasemapPaths({
+    cityCodes: stops.map((stop) => stop.cityCode ?? ''),
+    features: meshQuery.data ?? ([] as readonly MeshFeature[]),
+    project: map.project,
+  }).map((path, index) => ({
+    fill: 'none',
+    id: `city-${index}`,
+    label: t('routeMap.basemapLabel'),
+    line: true,
+    path,
+  }))
+
   const pins = map.points.map((point) => ({
     fill: 'currentColor',
     id: `stop-${point.sequence}`,
@@ -90,7 +139,7 @@ export function TripRouteMap({
       <VectorMap
         ariaLabel={t('routeMap.title')}
         className={styles.routeMap}
-        shapes={[...trace, ...pins]}
+        shapes={[...basemap, ...trace, ...pins]}
         viewBox={`0 0 ${MAP_VIEWBOX_SIZE} ${MAP_VIEWBOX_SIZE}`}
       />
       {canCorrect ? (

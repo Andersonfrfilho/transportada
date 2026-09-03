@@ -8,7 +8,7 @@ import {
   buildStateMeshUrl,
   loadStateMesh,
   projectStateMesh,
-} from '../../src/modules/fleet/shared/ibgeMesh.service'
+} from '../../src/modules/shared/ibgeMesh.service'
 import {
   FREIGHT_REGION_ZONE_FILL,
   buildFreightRegionMap,

@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { BRAZIL_STATE } from './fleet.types'
-import { isRecord } from './fleetGuards.validation'
+import { BRAZIL_STATE } from '@/modules/fleet/shared/fleet.types'
+import { isRecord } from '@/modules/fleet/shared/fleetGuards.validation'
 
 /**
  * A malha vem do IBGE, e vem **por UF**: o desenho do país inteiro no recorte de município é
@@ -28,7 +28,12 @@ export type MeshLookupInput = Readonly<{
 
 type Point = readonly [number, number]
 
-type MeshFeature = Readonly<{ code: string; rings: readonly (readonly Point[])[] }>
+/**
+ * O município como o IBGE o devolve: código e anéis em **longitude/latitude crus**. Quem desenha
+ * projeta na própria escala — a aba Regiões enquadra o estado inteiro, o mapa da viagem enquadra as
+ * paradas, e uma projeção só serviria mal aos dois.
+ */
+export type MeshFeature = Readonly<{ code: string; rings: readonly (readonly Point[])[] }>
 
 const MINIMUM_RING_POINTS = 3
 
@@ -72,7 +77,7 @@ function readRings(geometry: unknown): readonly (readonly Point[])[] {
 }
 
 /** Município ilegível sai do desenho sozinho: o estado inteiro não cai por causa de uma feição. */
-function readFeatures(payload: unknown): readonly MeshFeature[] {
+export function readStateMeshFeatures(payload: unknown): readonly MeshFeature[] {
   if (!isRecord(payload) || !Array.isArray(payload['features'])) {
     throw new Error('FLEET_IBGE_MESH_MALFORMED')
   }
@@ -143,7 +148,7 @@ function toViewBox(extent: Extent, scale: number): string {
 }
 
 export function projectStateMesh(payload: unknown): StateMesh {
-  const features = readFeatures(payload)
+  const features = readStateMeshFeatures(payload)
   if (features.length === 0) return EMPTY_STATE_MESH
 
   const extent = toExtent(features)
@@ -175,4 +180,20 @@ export async function loadStateMesh(input: MeshLookupInput): Promise<StateMesh> 
   if (!response.ok) throw new Error('FLEET_IBGE_MESH_REQUEST_FAILED')
 
   return projectStateMesh(await response.json())
+}
+
+/**
+ * A malha **sem projetar**, para quem enquadra noutra escala — o mapa da viagem enquadra as paradas,
+ * não o estado inteiro. Mesma busca e mesma tolerância a feição ilegível do `loadStateMesh`.
+ */
+export async function loadStateMeshFeatures(
+  input: MeshLookupInput,
+): Promise<readonly MeshFeature[]> {
+  const state = input.state.trim().toUpperCase()
+  if (!BRAZIL_STATE.some((candidate) => candidate === state)) return []
+
+  const response = await input.fetch(buildStateMeshUrl(state), { signal: input.signal })
+  if (!response.ok) throw new Error('FLEET_IBGE_MESH_REQUEST_FAILED')
+
+  return readStateMeshFeatures(await response.json())
 }

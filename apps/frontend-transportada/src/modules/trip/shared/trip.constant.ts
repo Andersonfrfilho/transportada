@@ -110,7 +110,7 @@ export const TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS = [
 ] as const
 
 /** Spec 078 D2: campo novo nasce opcional até a API que o serve estar garantidamente no ar. */
-export const TRIP_STOP_OPTIONAL_KEYS = ['latitude', 'longitude'] as const
+export const TRIP_STOP_OPTIONAL_KEYS = ['cityCode', 'latitude', 'longitude', 'state'] as const
 
 export const TRIP_STOP_KEYS = [
   'addressKey',
