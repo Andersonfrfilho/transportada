@@ -21,11 +21,14 @@ export class DriverTripRequestError extends Error {
   public readonly code: string
   /** `true` só quando a rede falhou — recusa do servidor é resposta, e resposta não se repete. */
   public readonly isOffline: boolean
+  /** O status HTTP da recusa — a tela de pendentes imprime `status + código` como causa legível. */
+  public readonly status: number | undefined
 
-  public constructor(input: { code: string; isOffline: boolean }) {
+  public constructor(input: { code: string; isOffline: boolean; status?: number }) {
     super(input.code)
     this.code = input.code
     this.isOffline = input.isOffline
+    this.status = input.status
     this.name = 'DriverTripRequestError'
   }
 }
@@ -302,7 +305,11 @@ async function request(
    * saiu da sua viagem", e trocá-lo por um genérico apagaria a única explicação que o motorista tem.
    */
   if (!response.ok) {
-    throw new DriverTripRequestError({ code: readErrorCode(payload), isOffline: false })
+    throw new DriverTripRequestError({
+      code: readErrorCode(payload),
+      isOffline: false,
+      status: response.status,
+    })
   }
 
   return payload

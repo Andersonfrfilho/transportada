@@ -4,7 +4,31 @@
   "deliver": "Delivered",
   "documentsPending_one": "{{count}} invoice to deliver",
   "documentsPending_other": "{{count}} invoices to deliver",
+  "attachmentLimitCount": "The limit of attachments waiting to be sent was reached. Send the pending ones before attaching another — nothing was discarded.",
+  "attachmentLimitSize": "The space for attachments waiting to be sent is full. Send the pending ones before attaching another — nothing was discarded.",
   "error": "Your trip could not be loaded. Pull to try again.",
+  "eventQueue": {
+    "attachments_one": "{{count}} attachment",
+    "attachments_other": "{{count}} attachments",
+    "back": "Back",
+    "empty": "Nothing waiting to be sent.",
+    "kind": {
+      "arrive": "Arrival",
+      "deliver": "Delivery",
+      "occurrence": "Occurrence",
+      "return": "Return"
+    },
+    "open": "See pending events",
+    "sendAll": "Send all now",
+    "sendNow": "Send now",
+    "status": {
+      "failed_one": "Failed {{count}} time — no network on the last attempt",
+      "failed_other": "Failed {{count}} times — no network on the last attempt",
+      "queued": "Queued",
+      "rejected": "Rejected by the server: {{cause}}"
+    },
+    "title": "Pending events"
+  },
   "loadSheet": {
     "title": "Load sheet",
     "notFiscal": "This is not a fiscal document",

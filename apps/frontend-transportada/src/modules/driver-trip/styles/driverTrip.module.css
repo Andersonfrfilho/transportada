@@ -448,3 +448,92 @@
     display: none;
   }
 }
+
+/* Spec 082 D7 — fila de eventos pendentes: tokens quadrados do painel (radius 0), alvo >= 44px */
+.queueBannerButton,
+.rejectedBannerButton {
+  border: none;
+  border-radius: 0;
+  color: inherit;
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  gap: var(--space-1);
+  min-height: 2.75rem;
+  padding: var(--space-3);
+  text-align: left;
+}
+
+.queueBannerButton {
+  background: color-mix(in srgb, var(--color-copper) 18%, transparent);
+}
+
+.rejectedBannerButton {
+  background: color-mix(in srgb, var(--color-alert) 18%, transparent);
+}
+
+.queueBannerAction {
+  color: var(--color-slate);
+  font-size: 0.875rem;
+}
+
+.eventQueueOpenButton,
+.eventQueueSendAll {
+  border-radius: 0;
+  min-height: 2.75rem;
+}
+
+.eventQueueHeader {
+  align-items: center;
+  display: flex;
+  gap: var(--space-3);
+}
+
+.eventQueueTitle {
+  font-size: 1.125rem;
+  margin: 0;
+}
+
+.eventQueueList {
+  display: grid;
+  gap: var(--space-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.eventQueueItem {
+  align-items: center;
+  background: var(--color-graphite);
+  border: 1px solid var(--color-slate);
+  border-radius: 0;
+  display: flex;
+  gap: var(--space-3);
+  justify-content: space-between;
+  padding: var(--space-3);
+}
+
+.eventQueueItemBody {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.eventQueueItemTitle {
+  display: flex;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.eventQueueItemTime {
+  color: var(--color-slate);
+}
+
+.eventQueueStatusRejected {
+  color: var(--color-alert);
+  margin: 0;
+}
+
+.eventQueueItem button {
+  border-radius: 0;
+  min-height: 2.75rem;
+}

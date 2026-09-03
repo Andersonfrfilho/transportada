@@ -4,7 +4,31 @@
   "deliver": "Entreguei",
   "documentsPending_one": "{{count}} nota para entregar",
   "documentsPending_other": "{{count}} notas para entregar",
+  "attachmentLimitCount": "Limite de anexos aguardando envio atingido. Envie os pendentes antes de anexar outro — nada foi descartado.",
+  "attachmentLimitSize": "Espaço para anexos aguardando envio cheio. Envie os pendentes antes de anexar outro — nada foi descartado.",
   "error": "Não foi possível carregar sua viagem. Puxe para tentar de novo.",
+  "eventQueue": {
+    "attachments_one": "{{count}} anexo",
+    "attachments_other": "{{count}} anexos",
+    "back": "Voltar",
+    "empty": "Nada aguardando envio.",
+    "kind": {
+      "arrive": "Chegada",
+      "deliver": "Entrega",
+      "occurrence": "Ocorrência",
+      "return": "Devolução"
+    },
+    "open": "Ver eventos pendentes",
+    "sendAll": "Enviar todos agora",
+    "sendNow": "Enviar agora",
+    "status": {
+      "failed_one": "Falhou {{count}} vez — sem rede na última tentativa",
+      "failed_other": "Falhou {{count}} vezes — sem rede na última tentativa",
+      "queued": "Na fila",
+      "rejected": "Rejeitado pelo servidor: {{cause}}"
+    },
+    "title": "Eventos pendentes"
+  },
   "loadSheet": {
     "title": "Romaneio de carga",
     "notFiscal": "Não é documento fiscal",

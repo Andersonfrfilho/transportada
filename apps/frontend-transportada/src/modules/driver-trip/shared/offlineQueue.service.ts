@@ -19,6 +19,11 @@ export type QueuedReport = Readonly<{
   /** Quantas vezes a drenagem já tentou e a rede recusou. Falha do servidor não conta aqui. */
   attempts: number
   createdAt: string
+  /**
+   * Spec 082 D7: a causa legível da recusa do servidor. Preenchida, o item fica **à vista** como
+   * rejeitado em vez de sumir — e só o envio manual o tenta de novo (limpando a causa antes).
+   */
+  rejectionCause?: string
   report: DriverFieldReport
 }>
 

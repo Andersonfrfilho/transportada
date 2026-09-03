@@ -11,6 +11,7 @@ import type { DriverTripSnapshot } from '../shared/driverTrip.types'
 import styles from '../styles/driverTrip.module.css'
 
 type DriverProfilePageProps = Readonly<{
+  onOpenQueue: () => void
   queuedCount: number
   snapshot: DriverTripSnapshot | undefined
 }>
@@ -25,7 +26,7 @@ const FIELD_ROLE_LABEL_KEYS: Readonly<Record<string, string>> = {
  * Spec 082 D1: nome, papel, veículo da viagem corrente e o estado da fila offline — o que o
  * motorista precisa conferir sem sair da viagem. Sair reutiliza o mesmo logout do shell do app.
  */
-export function DriverProfilePage({ queuedCount, snapshot }: DriverProfilePageProps) {
+export function DriverProfilePage({ onOpenQueue, queuedCount, snapshot }: DriverProfilePageProps) {
   const { t } = useTranslation('driverTrip')
   const authMeQuery = useAuthMeQuery()
   const profile = getKeycloakAuthProvider().getProfile()
@@ -68,6 +69,15 @@ export function DriverProfilePage({ queuedCount, snapshot }: DriverProfilePagePr
         <p className={styles.profileMeta} role="status">
           {queuedCount > 0 ? t('queued', { count: queuedCount }) : t('profile.queueEmpty')}
         </p>
+        {/* Spec 082 D7: a entrada pelo Perfil para a tela de eventos pendentes */}
+        <Button
+          className={styles.eventQueueOpenButton}
+          type="button"
+          variant="secondary"
+          onClick={onOpenQueue}
+        >
+          {t('eventQueue.open')}
+        </Button>
       </section>
 
       <Button

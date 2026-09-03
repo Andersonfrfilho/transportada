@@ -11,6 +11,7 @@ import { DriverShellHeader } from '../components/DriverShellHeader.component'
 import { DriverStopCard } from '../components/DriverStopCard.component'
 import { DriverTripProgress } from '../components/DriverTripProgress.component'
 import { useDriverTrip } from '../hooks/useDriverTrip.hook'
+import { DriverEventQueuePage } from './DriverEventQueue.page'
 import { DriverProfilePage } from './DriverProfile.page'
 import { getDriverTripClient } from '../shared/driverTripClient.service'
 import { readCurrentLocation } from '../shared/driverLocation.service'
@@ -34,8 +35,14 @@ export function DriverTripWorkspacePage() {
   const driverTrip = useDriverTrip()
   /** Spec 082 D1: navegação interna do módulo — estado local, sem rota nova no shell do app. */
   const [section, setSection] = useState<DriverSection>('trip')
+  /** Spec 082 D7: a tela de pendentes abre por cima da seção corrente — banner e Perfil chegam nela. */
+  const [isQueueOpen, setIsQueueOpen] = useState(false)
   /** O anexo que falha **não** desfaz a entrega: o aviso é do arquivo, e diz isso por extenso. */
   const [proofFailed, setProofFailed] = useState(false)
+  /** Spec 082 D6: teto da fila de anexos atingido — anunciado antes de qualquer descarte. */
+  const [attachmentLimit, setAttachmentLimit] = useState<'count-limit' | 'size-limit' | undefined>(
+    undefined,
+  )
   /**
    * A ocorrência que falha **não** muda o estado da nota — ao contrário de entregar e devolver. O
    * aviso diz isso, e repetir o toque é o conserto.
@@ -91,11 +98,32 @@ export function DriverTripWorkspacePage() {
     )
   }
 
+  if (isQueueOpen) {
+    return (
+      <div className={styles.moduleShell}>
+        <DriverShellHeader />
+        <DriverEventQueuePage
+          isLoading={driverTrip.isQueueLoading}
+          isSyncing={driverTrip.isSyncing}
+          items={driverTrip.queueView}
+          onBack={() => setIsQueueOpen(false)}
+          onSendAll={() => driverTrip.sendAllNow()}
+          onSendOne={(idempotencyKey) => driverTrip.sendNow(idempotencyKey)}
+        />
+        <DriverBottomBar section={section} onSelect={setSection} />
+      </div>
+    )
+  }
+
   if (section === 'profile') {
     return (
       <div className={styles.moduleShell}>
         <DriverShellHeader />
-        <DriverProfilePage queuedCount={driverTrip.queuedCount} snapshot={snapshot} />
+        <DriverProfilePage
+          queuedCount={driverTrip.queuedCount}
+          snapshot={snapshot}
+          onOpenQueue={() => setIsQueueOpen(true)}
+        />
         <DriverBottomBar section={section} onSelect={setSection} />
       </div>
     )
@@ -134,8 +162,19 @@ export function DriverTripWorkspacePage() {
 
         {/* A tela diz a verdade: o que está na fila aparece como aguardando, nunca como enviado */}
         {driverTrip.queuedCount > 0 ? (
-          <p className={styles.queueBanner} role="status">
+          <button
+            className={styles.queueBannerButton}
+            type="button"
+            onClick={() => setIsQueueOpen(true)}
+          >
             {t('queued', { count: driverTrip.queuedCount })}
+            <span className={styles.queueBannerAction}>{t('eventQueue.open')}</span>
+          </button>
+        ) : null}
+
+        {attachmentLimit !== undefined ? (
+          <p className={styles.alert} role="alert">
+            {t(attachmentLimit === 'count-limit' ? 'attachmentLimitCount' : 'attachmentLimitSize')}
           </p>
         ) : null}
 
@@ -150,10 +189,14 @@ export function DriverTripWorkspacePage() {
           </p>
         ) : null}
 
-        {driverTrip.rejected.length > 0 ? (
-          <p className={styles.rejectedBanner} role="alert">
+        {driverTrip.rejectedCount > 0 ? (
+          <button
+            className={styles.rejectedBannerButton}
+            type="button"
+            onClick={() => setIsQueueOpen(true)}
+          >
             {t('rejected')}
-          </p>
+          </button>
         ) : null}
 
         {snapshot?.isRegisteredDriver === false ? <p role="alert">{t('notRegistered')}</p> : null}
@@ -198,8 +241,14 @@ export function DriverTripWorkspacePage() {
                   }))
                 }
                 onProof={(input: { documentId: string; file: File }) => {
-                  void getDriverTripClient()
+                  setAttachmentLimit(undefined)
+                  void driverTrip
                     .attachProof({ documentId: input.documentId, file: input.file, kind: 'photo' })
+                    .then((outcome) => {
+                      if (outcome === 'count-limit' || outcome === 'size-limit') {
+                        setAttachmentLimit(outcome)
+                      }
+                    })
                     .catch(() => setProofFailed(true))
                 }}
                 occurrenceTypes={occurrenceTypes}
