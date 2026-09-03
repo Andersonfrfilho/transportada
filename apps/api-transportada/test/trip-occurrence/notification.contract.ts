@@ -23,7 +23,15 @@ const PARAMS = {
 function repository(notifies: boolean) {
   return {
     async findOccurrenceType() {
-      return { active: true, id: TIPO, name: 'Recusa total', notifies, stage: 'delivery' as const }
+      return {
+        active: true,
+        emailBody: '',
+        emailSubject: '',
+        id: TIPO,
+        name: 'Recusa total',
+        notifies,
+        stage: 'delivery' as const,
+      }
     },
     async listDocumentProducts() {
       return []

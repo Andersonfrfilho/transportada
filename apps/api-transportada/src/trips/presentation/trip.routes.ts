@@ -113,6 +113,8 @@ type RegisterOccurrenceRouteInput = {
 type SaveOccurrenceTypeInput = {
   readonly active: boolean
   readonly context: CompanyContext
+  readonly emailBody: string
+  readonly emailSubject: string
   readonly name: string
   readonly notifies: boolean
   readonly occurrenceTypeId: null | string

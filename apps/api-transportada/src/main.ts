@@ -1681,6 +1681,8 @@ function createApplicationRoutes({
           saveOccurrenceType(database, {
             active: input.active,
             companyId: input.context.companyId,
+            emailBody: input.emailBody,
+            emailSubject: input.emailSubject,
             name: input.name,
             notifies: input.notifies,
             occurrenceTypeId: input.occurrenceTypeId,

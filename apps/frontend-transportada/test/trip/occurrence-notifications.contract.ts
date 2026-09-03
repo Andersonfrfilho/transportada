@@ -73,4 +73,29 @@ describe('configuração do aviso de ocorrência (spec 079)', () => {
     expect(page).toMatch(/<TripOccurrenceNotifications[\s/>]/u)
     expect(page).toInclude("resolveSettingsDataScope('trip', activeTab)")
   })
+
+  /**
+   * ⚠️ **O template viaja junto em toda gravação.** O `PUT` grava o tipo inteiro; omitir o texto ao
+   * marcar uma caixa de seleção apagaria o e-mail que alguém escreveu — e a perda só apareceria na
+   * próxima ocorrência, longe do clique que a causou.
+   */
+  it('marcar uma caixa não apaga o texto do e-mail', () => {
+    const gravacoes = source.split('onSave({').slice(1)
+
+    expect(gravacoes.length).toBeGreaterThan(1)
+    for (const gravacao of gravacoes) {
+      const corpo = gravacao.slice(0, gravacao.indexOf('})'))
+      expect(corpo).toInclude('emailBody')
+      expect(corpo).toInclude('emailSubject')
+    }
+  })
+
+  /**
+   * A lista de marcadores fica **ao lado do campo**: quem escreve o modelo precisa dela enquanto
+   * escreve, e marcador fora dela é recusado ao salvar — descobrir isso só no erro é tarde.
+   */
+  it('mostra os marcadores disponíveis junto do campo', () => {
+    expect(source).toInclude('OCCURRENCE_TEMPLATE_PLACEHOLDERS')
+    expect(trip.occurrence.placeholders).toInclude('{{list}}')
+  })
 })

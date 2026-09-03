@@ -515,9 +515,23 @@ function isGeometryPoint(
 }
 
 function isOccurrenceType(value: unknown): value is OccurrenceType {
-  if (!hasExactKeys(value, ['active', 'id', 'name', 'notifies', 'stage'] as const)) return false
+  if (
+    !hasExactKeys(value, [
+      'active',
+      'emailBody',
+      'emailSubject',
+      'id',
+      'name',
+      'notifies',
+      'stage',
+    ] as const)
+  ) {
+    return false
+  }
   return (
     isBoolean(value.active) &&
+    isString(value.emailBody) &&
+    isString(value.emailSubject) &&
     isString(value.id) &&
     isString(value.name) &&
     isBoolean(value.notifies) &&

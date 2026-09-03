@@ -31,6 +31,8 @@ function repository(
         if (overrides.typeFound === false) return null
         return {
           active: overrides.active ?? true,
+          emailBody: '',
+          emailSubject: '',
           id: TIPO,
           name: 'Recusa parcial',
           notifies: false,

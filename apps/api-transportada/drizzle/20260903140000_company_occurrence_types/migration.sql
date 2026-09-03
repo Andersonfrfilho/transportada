@@ -10,6 +10,8 @@ CREATE TABLE "company_occurrence_types" (
 	"stage" text NOT NULL,
 	"notifies" boolean NOT NULL DEFAULT false,
 	"active" boolean NOT NULL DEFAULT true,
+	"email_subject" text NOT NULL DEFAULT '',
+	"email_body" text NOT NULL DEFAULT '',
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -61,3 +63,9 @@ COMMENT ON COLUMN "trip_document_occurrences"."product_code" IS
 
 -- A tabela de flag por tipo deixa de existir: a flag virou coluna do proprio tipo.
 DROP TABLE IF EXISTS "company_occurrence_notification_settings";
+
+COMMENT ON COLUMN "company_occurrence_types"."email_subject" IS
+	'O assunto do e-mail ao embarcador, com marcadores {{numeroNota}}, {{razaoSocial}}, {{valorNota}}, {{motorista}}, {{parada}} e {{item}}. Vazio e tipo que nao gera e-mail. O SAC do cliente espera um padrao de assunto, e escrever a mao a cada ocorrencia e onde o numero da nota entra trocado.';
+
+COMMENT ON COLUMN "company_occurrence_types"."email_body" IS
+	'O corpo do e-mail, com os mesmos marcadores. Marcador desconhecido e recusado NO CADASTRO: descobrir no envio deixaria o operador com o cliente esperando, e sem recusa o e-mail sairia com o marcador cru.';

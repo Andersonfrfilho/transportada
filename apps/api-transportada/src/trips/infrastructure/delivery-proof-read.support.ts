@@ -422,6 +422,8 @@ export async function findOccurrenceType(
   const [row] = await queryable
     .select({
       active: companyOccurrenceTypes.active,
+      emailBody: companyOccurrenceTypes.emailBody,
+      emailSubject: companyOccurrenceTypes.emailSubject,
       id: companyOccurrenceTypes.id,
       name: companyOccurrenceTypes.name,
       notifies: companyOccurrenceTypes.notifies,
@@ -447,6 +449,8 @@ export async function listOccurrenceTypes(
   return queryable
     .select({
       active: companyOccurrenceTypes.active,
+      emailBody: companyOccurrenceTypes.emailBody,
+      emailSubject: companyOccurrenceTypes.emailSubject,
       id: companyOccurrenceTypes.id,
       name: companyOccurrenceTypes.name,
       notifies: companyOccurrenceTypes.notifies,
@@ -462,6 +466,8 @@ export async function saveOccurrenceType(
   input: {
     readonly active: boolean
     readonly companyId: string
+    readonly emailBody: string
+    readonly emailSubject: string
     readonly name: string
     readonly notifies: boolean
     readonly occurrenceTypeId: null | string
@@ -471,6 +477,8 @@ export async function saveOccurrenceType(
   const values = {
     active: input.active,
     companyId: input.companyId,
+    emailBody: input.emailBody,
+    emailSubject: input.emailSubject,
     name: input.name.trim(),
     notifies: input.notifies,
     stage: input.stage,
@@ -494,6 +502,8 @@ export async function saveOccurrenceType(
 
   return {
     active: saved.active,
+    emailBody: saved.emailBody,
+    emailSubject: saved.emailSubject,
     id: saved.id,
     name: saved.name,
     notifies: saved.notifies,

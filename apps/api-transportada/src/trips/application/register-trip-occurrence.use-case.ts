@@ -30,6 +30,9 @@ export type TripOccurrence = {
 /** O tipo cadastrado, como o caso de uso precisa vê-lo para decidir. */
 export type OccurrenceTypeRecord = {
   readonly active: boolean
+  /** Vazio é tipo que não gera e-mail: nem toda ocorrência precisa avisar o embarcador. */
+  readonly emailBody: string
+  readonly emailSubject: string
   readonly id: string
   readonly name: string
   readonly notifies: boolean

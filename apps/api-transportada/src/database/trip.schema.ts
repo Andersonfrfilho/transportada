@@ -980,6 +980,12 @@ export const companyOccurrenceTypes = pgTable(
     stage: text().notNull().$type<TripOccurrenceStage>(),
     notifies: boolean().notNull().default(false),
     active: boolean().notNull().default(true),
+    /**
+     * O e-mail ao embarcador, com marcadores. Vazio é tipo que não gera e-mail — nem toda
+     * ocorrência precisa avisar o cliente.
+     */
+    emailSubject: text('email_subject').notNull().default(''),
+    emailBody: text('email_body').notNull().default(''),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

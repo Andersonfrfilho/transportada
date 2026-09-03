@@ -314,7 +314,11 @@
     "add": "Cadastrar tipo",
     "empty": "Nenhum tipo cadastrado ainda. Cadastre o primeiro para poder registrar ocorrências.",
     "product": "Item da nota",
-    "wholeDocument": "A nota inteira"
+    "wholeDocument": "A nota inteira",
+    "emailSubject": "Assunto do e-mail",
+    "emailBody": "Texto do e-mail",
+    "placeholders": "Marcadores disponíveis: {{list}}. Um marcador fora da lista é recusado ao salvar.",
+    "withoutTemplate": "Sem e-mail: este tipo só fica registrado na viagem."
   },
   "routeMap": {
     "title": "Mapa do roteiro",

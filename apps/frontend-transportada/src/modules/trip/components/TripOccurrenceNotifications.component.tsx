@@ -9,7 +9,10 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select } from '@/components/ui/select'
 
-import { TRIP_OCCURRENCE_STAGE } from '../shared/occurrence.constant'
+import {
+  OCCURRENCE_TEMPLATE_PLACEHOLDERS,
+  TRIP_OCCURRENCE_STAGE,
+} from '../shared/occurrence.constant'
 import type { OccurrenceType, TripOccurrenceStage } from '../shared/occurrence.constant'
 import styles from '../styles/trip.module.css'
 
@@ -18,6 +21,8 @@ type TripOccurrenceTypesProps = Readonly<{
   isSaving: boolean
   onSave: (input: {
     readonly active: boolean
+    readonly emailBody: string
+    readonly emailSubject: string
     readonly name: string
     readonly notifies: boolean
     readonly occurrenceTypeId: null | string
@@ -46,12 +51,16 @@ export function TripOccurrenceNotifications({
   const [name, setName] = useState('')
   const [stage, setStage] = useState<TripOccurrenceStage>(TRIP_OCCURRENCE_STAGE.separation)
   const [notifies, setNotifies] = useState(false)
+  const [emailSubject, setEmailSubject] = useState('')
+  const [emailBody, setEmailBody] = useState('')
 
   function handleAdd() {
     if (name.trim() === '') return
-    onSave({ active: true, name, notifies, occurrenceTypeId: null, stage })
+    onSave({ active: true, emailBody, emailSubject, name, notifies, occurrenceTypeId: null, stage })
     setName('')
     setNotifies(false)
+    setEmailSubject('')
+    setEmailBody('')
   }
 
   return (
@@ -75,6 +84,11 @@ export function TripOccurrenceNotifications({
             {doGrupo.map((type) => (
               <div className={styles.occurrenceForm} key={type.id}>
                 <span>{type.name}</span>
+                {type.emailSubject === '' ? (
+                  <span className={styles.hint}>{t('occurrence.withoutTemplate')}</span>
+                ) : (
+                  <span className={styles.hint}>{type.emailSubject}</span>
+                )}
                 <Checkbox
                   checked={type.notifies}
                   disabled={!canManage || isSaving}
@@ -82,6 +96,12 @@ export function TripOccurrenceNotifications({
                   onChange={(value) =>
                     onSave({
                       active: type.active,
+                      /*
+                       * ⚠️ O template viaja junto: o `PUT` grava o tipo inteiro, e omiti-lo aqui
+                       * apagaria o texto do e-mail ao marcar uma caixa de seleção.
+                       */
+                      emailBody: type.emailBody,
+                      emailSubject: type.emailSubject,
                       name: type.name,
                       notifies: value,
                       occurrenceTypeId: type.id,
@@ -97,6 +117,8 @@ export function TripOccurrenceNotifications({
                   onChange={(value) =>
                     onSave({
                       active: value,
+                      emailBody: type.emailBody,
+                      emailSubject: type.emailSubject,
                       name: type.name,
                       notifies: type.notifies,
                       occurrenceTypeId: type.id,
@@ -129,6 +151,29 @@ export function TripOccurrenceNotifications({
             value={stage}
           />
           <Checkbox checked={notifies} label={t('occurrence.notifies')} onChange={setNotifies} />
+          <input
+            aria-label={t('occurrence.emailSubject')}
+            onChange={(event) => setEmailSubject(event.target.value)}
+            placeholder={t('occurrence.emailSubject')}
+            type="text"
+            value={emailSubject}
+          />
+          <textarea
+            aria-label={t('occurrence.emailBody')}
+            onChange={(event) => setEmailBody(event.target.value)}
+            placeholder={t('occurrence.emailBody')}
+            rows={4}
+            value={emailBody}
+          />
+          {/*
+           * A lista de marcadores fica **ao lado do campo**, não numa ajuda escondida: quem escreve
+           * o modelo precisa dela enquanto escreve, e marcador fora dela é recusado ao salvar.
+           */}
+          <p className={styles.hint}>
+            {t('occurrence.placeholders', {
+              list: OCCURRENCE_TEMPLATE_PLACEHOLDERS.map((name) => `{{${name}}}`).join(', '),
+            })}
+          </p>
           <Button disabled={isSaving} onClick={handleAdd} size="sm" type="button">
             <Icon name="add" />
             {t('occurrence.add')}

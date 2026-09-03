@@ -4,6 +4,7 @@
 import { z } from 'zod'
 
 import { parseBody } from '../../http/request-parsing.service.js'
+import { unknownTemplatePlaceholders } from '../domain/occurrence-template.policy.js'
 
 /**
  * ⚠️ `stage` **não entra no corpo**: ele é derivado do tipo, e aceitá-lo do cliente deixaria quem
@@ -36,6 +37,24 @@ export async function parseRegisterOccurrenceRequest(
 const occurrenceTypeSchema = z
   .object({
     active: z.boolean().default(true),
+    /**
+     * ⚠️ **Marcador desconhecido é recusado aqui, no cadastro.** Deixar passar faria o e-mail sair
+     * com `{{numeroNF}}` cru para o cliente, e quem escreveu o modelo só descobriria pelo SAC dele.
+     */
+    emailBody: z
+      .string()
+      .max(4000)
+      .default('')
+      .refine((texto) => unknownTemplatePlaceholders(texto).length === 0, {
+        message: 'UNKNOWN_TEMPLATE_PLACEHOLDER',
+      }),
+    emailSubject: z
+      .string()
+      .max(200)
+      .default('')
+      .refine((texto) => unknownTemplatePlaceholders(texto).length === 0, {
+        message: 'UNKNOWN_TEMPLATE_PLACEHOLDER',
+      }),
     name: z.string().trim().min(1).max(60),
     notifies: z.boolean().default(false),
     occurrenceTypeId: z.string().uuid().nullable().default(null),
