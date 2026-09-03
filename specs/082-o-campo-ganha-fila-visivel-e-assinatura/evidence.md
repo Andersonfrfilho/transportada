@@ -98,6 +98,33 @@ aparelho (limiar de luminância, 4 cantos ajustáveis, "usar sem recorte", alça
 `inputMode` numérico). Painel "Comprovante" na tela de Viagens (placement + permissão + fábrica da
 ADR-0057 + exceções por CNPJ). Frontend 2533 testes verdes, typecheck limpo.
 
-## G007..G008
+## G007 — Ocorrência (2026-09-03, T060)
 
-(pendente)
+Commit `440ab73e` + fixes de lint. Chips de motivo (`radiogroup`), prévia "Aviso que será enviado"
+renderizada por cópia por valor do catálogo da API com contrato de paridade lendo o arquivo da API;
+`other` → "Nenhum aviso será enviado ao cliente"; fotos do local/carga pelo proof da nota associada
+(rota de ocorrência é JSON puro — limitação comentada). Frontend 2541 testes verdes.
+
+## G008/G009 — Gate e revisão (2026-09-03, T070)
+
+1º `make check` verde; revisão independente pediu mudanças (1 critical + 5 high + 4 medium).
+Bloqueios corrigidos em `6b357aa4` (API), `55635f4b` (frontend) e nos commits do contrato do worker:
+
+- Iniciar trajeto real no PWA com ações de campo bloqueadas até `dispatched`.
+- Settings do comprovante com fonte única (`resolveProofSettingsForRecipient`), resolvidos por
+  documento no snapshot e na escrita; `deliveryProof` saiu do stop.
+- Filtro que anulava `required` de assinatura/foto removido; erro pintado por campo.
+- Fila offline: single-flight, leitura+escrita na mesma transação IndexedDB, `attachmentKey`
+  idempotente persistido e convergindo na API, rejeição de anexo separada da do evento, teto tipado
+  também na fila de eventos (200).
+- Upsert do proof preserva envelope selado (e o id do AAD) quando a recaptura vem sem documento.
+- Contratos: dispatch repetido → `unchanged`; log do documento por varredura glob; paridade
+  kind→templateKey frontend↔API; contrato do worker lê o catálogo da API.
+
+Verificação adversarial: 5/6 FECHADO com prova por linha; o 6º ("worker deveria buscar catálogo em
+runtime") foi **recusado por decisão**: cópia por valor com contrato de paridade é o padrão
+registrado do repo (FUEL_TYPES, VEHICLE_TYPES, preview de notificação), o CI roda do monorepo, e
+`packages/` não existe aqui por regra.
+
+2º `make check` (com todas as correções): **exit 0** — format, lint, typecheck, testes das seis
+apps (API 4126+, frontend 2564, worker 886) e builds com PWA/service worker.

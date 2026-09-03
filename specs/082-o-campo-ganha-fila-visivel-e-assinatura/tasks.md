@@ -4,8 +4,8 @@ Formato: id · task · depende · verificação · 🤖 modelo. Task fecha com e
 
 ## Fase 1 — ADRs
 
-- [ ] T001 ADR-0057 comprovante configurável + documento com envelope. — · revisão humana · 🧠 opus
-- [ ] T002 ADR-0058 dispatch pelo motorista. — · revisão humana · 🧠 opus
+- [x] T001 ADR-0057 comprovante configurável + documento com envelope. — · revisão humana · 🧠 opus
+- [x] T002 ADR-0058 dispatch pelo motorista. — · revisão humana · 🧠 opus
 
 ## Fase 2 — API
 
@@ -49,10 +49,10 @@ Formato: id · task · depende · verificação · 🤖 modelo. Task fecha com e
 
 ## Fase 7 — Ocorrência
 
-- [ ] T060 Chips de motivo → prévia do template (paridade com a chave do worker); fotos local/carga
+- [x] T060 Chips de motivo → prévia do template (paridade com a chave do worker); fotos local/carga
       pela fila. T020,T040 · contratos · sonnet
 
 ## Fase 8 — Gate
 
-- [ ] T070 `make check`, testes listados nos package.json, evidence.md completo, ai-slop-cleaner,
+- [x] T070 `make check`, testes listados nos package.json, evidence.md completo, ai-slop-cleaner,
       verificação, code review. tudo · gates verdes · sonnet + revisão opus
