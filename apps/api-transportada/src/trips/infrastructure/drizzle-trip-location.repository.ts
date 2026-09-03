@@ -2,11 +2,11 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, lt, sql } from 'drizzle-orm'
 
 import { tripLocationPings } from '../../database/client-portal.schema.js'
 import { fleetDrivers } from '../../database/fleet.schema.js'
-import { tripDrivers, trips } from '../../database/trip.schema.js'
+import { tripDispatchSnapshots, tripDrivers, trips } from '../../database/trip.schema.js'
 import type {
   DriverTrackingState,
   TripLocationPing,
@@ -41,6 +41,28 @@ export class DrizzleTripLocationRepository implements TripLocationRepositoryPort
       )
   }
 
+  /**
+   * ADR-0056 §2: apaga o ping velho tenha a viagem fechado ou não. Em lotes, porque a tabela é
+   * escrita o dia inteiro pelo campo — e devolve quantos caíram, nunca quais nem de quem.
+   */
+  public async purgeStalePings(input: {
+    readonly before: Date
+    readonly limit: number
+  }): Promise<number> {
+    const stale = this.database
+      .select({ id: tripLocationPings.id })
+      .from(tripLocationPings)
+      .where(lt(tripLocationPings.recordedAt, input.before))
+      .limit(input.limit)
+
+    const removed = await this.database
+      .delete(tripLocationPings)
+      .where(inArray(tripLocationPings.id, stale))
+      .returning({ id: tripLocationPings.id })
+
+    return removed.length
+  }
+
   public async readCurrentTracking(input: {
     readonly companyId: string
     readonly driverId: string
@@ -48,6 +70,8 @@ export class DrizzleTripLocationRepository implements TripLocationRepositoryPort
     const [row] = await this.database
       .select({
         consentAt: fleetDrivers.locationSharingConsentAt,
+        /* Append-only, escrito no despacho: é a hora em que a viagem saiu, não a do último toque. */
+        dispatchedAt: tripDispatchSnapshots.dispatchedAt,
         tripId: trips.id,
       })
       .from(tripDrivers)
@@ -66,6 +90,14 @@ export class DrizzleTripLocationRepository implements TripLocationRepositoryPort
           eq(fleetDrivers.id, tripDrivers.driverId),
         ),
       )
+      /* `left`: viagem sem instantâneo é viagem que nunca saiu, e a janela a fecha. */
+      .leftJoin(
+        tripDispatchSnapshots,
+        and(
+          eq(tripDispatchSnapshots.companyId, trips.companyId),
+          eq(tripDispatchSnapshots.tripId, trips.id),
+        ),
+      )
       .where(
         and(eq(tripDrivers.companyId, input.companyId), eq(tripDrivers.driverId, input.driverId)),
       )
@@ -74,7 +106,11 @@ export class DrizzleTripLocationRepository implements TripLocationRepositoryPort
 
     if (row === undefined) return null
 
-    return { hasConsent: row.consentAt !== null, tripId: row.tripId }
+    return {
+      dispatchedAt: row.dispatchedAt,
+      hasConsent: row.consentAt !== null,
+      tripId: row.tripId,
+    }
   }
 
   public async readLastPing(input: {

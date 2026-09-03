@@ -35,6 +35,7 @@ function buildContext(isStopRequested: () => boolean = () => false): JobRoutineC
 function buildRoutine(redact: RedactTripLocations) {
   return createTripLocationPurgeRoutine({
     logger: SILENT_LOGGER as never,
+    purgeStalePings: async () => 0,
     now: () => NOW,
     redact,
   })
@@ -58,7 +59,7 @@ describe('expurgo da coordenada de entrega', () => {
     const result = await routine.run(buildContext())
 
     expect(result.outcome).toBe('succeeded')
-    expect(result.counters).toEqual({ batches: 3, redacted: 1007 })
+    expect(result.counters).toEqual({ batches: 3, purgedPings: 0, redacted: 1007 })
     expect(asked).toHaveLength(4)
     expect(asked[0]?.limit).toBe(TRIP_LOCATION_PURGE_BATCH_SIZE)
     expect(asked[0]?.before.toISOString()).toBe('2026-05-28T09:00:00.000Z')
@@ -100,6 +101,9 @@ describe('expurgo da coordenada de entrega', () => {
   test('base sem coordenada vencida termina em sucesso sem apagar nada', async () => {
     const result = await buildRoutine(async () => 0).run(buildContext())
 
-    expect(result).toEqual({ counters: { batches: 0, redacted: 0 }, outcome: 'succeeded' })
+    expect(result).toEqual({
+      counters: { batches: 0, purgedPings: 0, redacted: 0 },
+      outcome: 'succeeded',
+    })
   })
 })

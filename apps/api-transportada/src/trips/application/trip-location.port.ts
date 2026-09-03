@@ -15,6 +15,11 @@ export type TripLocationPing = {
  * log de falha inventada.
  */
 export type DriverTrackingState = {
+  /**
+   * ADR-0056 §2: quando a viagem saiu. `null` é viagem que nunca foi despachada — e ela fecha a
+   * janela igual ao teto estourado, para o celular não conseguir perguntar pelo estado da viagem.
+   */
+  readonly dispatchedAt: Date | null
   readonly hasConsent: boolean
   readonly tripId: string
 }
@@ -22,6 +27,12 @@ export type DriverTrackingState = {
 export type TripLocationRepositoryPort = {
   /** Apaga o rastro da viagem. Chamado no fechamento e no cancelamento (ADR-0050 §5). */
   purgeByTrip(input: { readonly companyId: string; readonly tripId: string }): Promise<void>
+  /**
+   * ADR-0056 §2: apaga o ping velho **tenha a viagem fechado ou não**. É o prazo que `purgeByTrip`
+   * não dá: ele depende de alguém fechar a viagem, e é justamente a viagem esquecida aberta que
+   * transforma o rastro em histórico de deslocamento de uma pessoa.
+   */
+  purgeStalePings(input: { readonly before: Date; readonly limit: number }): Promise<number>
   readCurrentTracking(input: {
     readonly companyId: string
     readonly driverId: string

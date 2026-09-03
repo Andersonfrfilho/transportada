@@ -4,8 +4,8 @@
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, inArray, isNotNull, lt } from 'drizzle-orm'
 
-import { tripStopEvents } from '../../database/trip-execution.schema.js'
-import type { RedactTripLocations } from '../application/trip-location.port.js'
+import { tripLocationPings, tripStopEvents } from '../../database/trip-execution.schema.js'
+import type { PurgeStalePings, RedactTripLocations } from '../application/trip-location.port.js'
 
 export type TripLocationDatabase = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -30,6 +30,28 @@ export function createDrizzleRedactTripLocations(
           expired.map((row) => row.id),
         ),
       )
+
+    return expired.length
+  }
+}
+
+/** A linha inteira cai: ping sem posição não é dado, ao contrário do evento de parada. */
+export function createDrizzlePurgeStalePings(database: TripLocationDatabase): PurgeStalePings {
+  return async ({ before, limit }) => {
+    const expired = await database
+      .select({ id: tripLocationPings.id })
+      .from(tripLocationPings)
+      .where(lt(tripLocationPings.recordedAt, before))
+      .limit(limit)
+
+    if (expired.length === 0) return 0
+
+    await database.delete(tripLocationPings).where(
+      inArray(
+        tripLocationPings.id,
+        expired.map((row) => row.id),
+      ),
+    )
 
     return expired.length
   }

@@ -113,6 +113,7 @@ describeDatabase('expurgo da coordenada de entrega (integration)', () => {
   test('apaga a coordenada vencida e preserva o evento inteiro', async () => {
     const routine = createTripLocationPurgeRoutine({
       logger: SILENT_LOGGER as never,
+      purgeStalePings: async () => 0,
       now: () => NOW,
       redact: createDrizzleRedactTripLocations(db),
     })
@@ -145,6 +146,7 @@ describeDatabase('expurgo da coordenada de entrega (integration)', () => {
   test('o segundo ciclo não encontra mais nada para apagar', async () => {
     const routine = createTripLocationPurgeRoutine({
       logger: SILENT_LOGGER as never,
+      purgeStalePings: async () => 0,
       now: () => NOW,
       redact: createDrizzleRedactTripLocations(db),
     })
