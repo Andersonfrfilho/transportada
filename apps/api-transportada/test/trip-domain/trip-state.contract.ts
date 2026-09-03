@@ -31,7 +31,7 @@ const DOCUMENT_TARGET_BY_ACTION: Readonly<
   separate: 'separated',
 }
 const WAREHOUSE_STATUSES = ['route_planned', 'separating', 'loading'] as const
-const DISPATCHED_STATUSES = ['dispatched', 'in_transit'] as const
+const DISPATCHED_STATUSES = ['dispatched', 'in_transit', 'on_delivery_route'] as const
 
 const tallyOf = (statuses: readonly TripDocumentSeparationStatus[]) => tallyTripDocuments(statuses)
 
@@ -208,7 +208,7 @@ describe('trip document transitions (ADR-0043 §1)', () => {
   })
 
   test('answers every cell of the action × document status × trip status grid', () => {
-    // 4 ações × 5 estados de nota × 8 estados de viagem = 160 arestas, e nenhuma pode ficar sem
+    // 4 ações × 5 estados de nota × 9 estados de viagem = 180 arestas, e nenhuma pode ficar sem
     // resposta. É a rede que pega a aresta que ninguém pensou em nomear.
     let cells = 0
     for (const action of DOCUMENT_ACTIONS) {
@@ -226,7 +226,7 @@ describe('trip document transitions (ADR-0043 §1)', () => {
         }
       }
     }
-    expect(cells).toBe(160)
+    expect(cells).toBe(180)
   })
 })
 
@@ -303,7 +303,7 @@ describe('trip manual transitions (ADR-0043 §1 e §2)', () => {
         }
       }
     }
-    expect(cells).toBe(48)
+    expect(cells).toBe(90)
   })
 })
 
@@ -330,10 +330,15 @@ describe('derived trip status (ADR-0043 §1)', () => {
     ).toBe('loading')
   })
 
-  test('reaches in_transit on the first delivery and completed when nothing is left open', () => {
+  /**
+   * ⚠️ A ADR-0058 moveu o alvo desta derivação: `in_transit` passou a ser o toque de conferir a
+   * carga, e a primeira nota fechada adianta direto para `on_delivery_route`. Fechar nota é prova de
+   * que a viagem está na rua — mais forte que o toque que alguém pode ter esquecido.
+   */
+  test('reaches on_delivery_route on the first delivery and completed when nothing is left open', () => {
     expect(
       deriveTripStatus({ tally: tallyOf(['delivered', 'loaded']), tripStatus: 'dispatched' }),
-    ).toBe('in_transit')
+    ).toBe('on_delivery_route')
 
     expect(
       deriveTripStatus({ tally: tallyOf(['delivered', 'returned']), tripStatus: 'in_transit' }),
@@ -352,10 +357,16 @@ describe('derived trip status (ADR-0043 §1)', () => {
       deriveTripStatus({ tally: tallyOf(['loaded', 'loaded']), tripStatus: 'dispatched' }),
     ).toBe('dispatched')
 
-    // Nem uma viagem em trânsito volta para `dispatched` porque ainda falta entregar.
+    // Nem uma viagem em trânsito volta para `dispatched` porque ainda falta entregar — e a nota
+    // já fechada a adianta para a rua, que é o estado que a ADR-0058 acrescentou.
     expect(
       deriveTripStatus({ tally: tallyOf(['delivered', 'loaded']), tripStatus: 'in_transit' }),
-    ).toBe('in_transit')
+    ).toBe('on_delivery_route')
+
+    // E a viagem já em rota não recua para em trânsito enquanto sobra nota aberta.
+    expect(
+      deriveTripStatus({ tally: tallyOf(['loaded', 'loaded']), tripStatus: 'on_delivery_route' }),
+    ).toBe('on_delivery_route')
   })
 
   test('never completes a trip that never left the warehouse', () => {

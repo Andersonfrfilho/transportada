@@ -20,8 +20,12 @@ export type TripDocumentAction = (typeof TRIP_DOCUMENT_ACTION)[keyof typeof TRIP
 
 export const TRIP_ACTION = {
   cancel: 'cancel',
+  /** ADR-0058: o motorista afirma que o que está no caminhão é o que esta viagem diz. */
+  confirmLoad: 'confirmLoad',
   dispatch: 'dispatch',
   planRoute: 'planRoute',
+  /** ADR-0058: "saí". É a informação que a derivação não tinha como ver. */
+  startRoute: 'startRoute',
 } as const
 
 export type TripAction = (typeof TRIP_ACTION)[keyof typeof TRIP_ACTION]
@@ -31,7 +35,11 @@ export const TRIP_TRANSITION_BLOCK = {
   tripAlreadyDispatched: 'TRIP_ALREADY_DISPATCHED',
   tripCancelled: 'TRIP_CANCELLED',
   tripCompleted: 'TRIP_COMPLETED',
-  /** Entregar e devolver acontecem na rua — antes do despacho a nota ainda está no barracão. */
+  /**
+   * Entregar e devolver acontecem na rua — antes do despacho a nota ainda está no barracão. Vale
+   * também para os dois toques da ADR-0058: conferir carga e iniciar trajeto são de quem já está
+   * com o caminhão carregado.
+   */
   tripNotDispatched: 'TRIP_NOT_DISPATCHED',
   /** Separar carga cujo roteiro ninguém conferiu é separar carga que talvez não vá. */
   tripRouteNotPlanned: 'TRIP_ROUTE_NOT_PLANNED',
@@ -62,6 +70,7 @@ const TRIP_STATUS_ORDER = [
   'loading',
   'dispatched',
   'in_transit',
+  'on_delivery_route',
   'completed',
 ] as const
 
@@ -78,7 +87,12 @@ export function tripStatusRank(status: TripStatus): number {
 }
 
 export function isTripDispatched(status: TripStatus): boolean {
-  return status === 'dispatched' || status === 'in_transit' || status === 'completed'
+  return (
+    status === 'dispatched' ||
+    status === 'in_transit' ||
+    status === 'on_delivery_route' ||
+    status === 'completed'
+  )
 }
 
 /**
@@ -198,8 +212,36 @@ export function checkTripTransition({
 }: CheckTripTransitionParams): TripTransition<TripStatus> {
   if (action === TRIP_ACTION.cancel) return checkCancel(tripStatus)
   if (action === TRIP_ACTION.planRoute) return checkPlanRoute({ hasRoute, tripStatus })
+  if (action === TRIP_ACTION.confirmLoad) return checkFieldStart(tripStatus, 'in_transit')
+  if (action === TRIP_ACTION.startRoute) return checkFieldStart(tripStatus, 'on_delivery_route')
 
   return checkDispatch({ hasRoute, tripStatus })
+}
+
+/**
+ * ADR-0058: os dois toques do campo têm o mesmo portão e a mesma tolerância. Repetir converge em
+ * `unchanged` — a rede do pátio cai e o separador toca duas vezes —, e o estado nunca anda para
+ * trás: iniciar o trajeto de uma viagem que já está em rota não a devolve a `in_transit`.
+ *
+ * Iniciar direto de `dispatched` é aceito de propósito: quem esqueceu de conferir e já está na
+ * estrada não pode ficar preso atrás de um toque esquecido.
+ */
+function checkFieldStart(
+  tripStatus: TripStatus,
+  nextStatus: Extract<TripStatus, 'in_transit' | 'on_delivery_route'>,
+): TripTransition<TripStatus> {
+  if (tripStatus === 'cancelled') {
+    return { outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCancelled }
+  }
+  if (tripStatus === 'completed') {
+    return { outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripCompleted }
+  }
+  if (!isTripDispatched(tripStatus)) {
+    return { outcome: 'blocked', reason: TRIP_TRANSITION_BLOCK.tripNotDispatched }
+  }
+  if (tripStatusRank(tripStatus) >= tripStatusRank(nextStatus)) return { outcome: 'unchanged' }
+
+  return { outcome: 'applied', nextStatus }
 }
 
 /**
@@ -311,7 +353,8 @@ function resolveDerivedCandidate(input: {
 
   if (isTripDispatched(tripStatus)) {
     if (closed === total) return 'completed'
-    if (closed > 0) return 'in_transit'
+    /* ADR-0058 §3: fechar uma nota adianta a viagem de quem esqueceu de tocar em iniciar trajeto. */
+    if (closed > 0) return 'on_delivery_route'
 
     return tripStatus
   }

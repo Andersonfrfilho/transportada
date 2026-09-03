@@ -41,6 +41,12 @@ export const TRIP_STATUSES = [
   'loading',
   'dispatched',
   'in_transit',
+  /**
+   * ADR-0058: a viagem na estrada, entre o toque de iniciar trajeto e a última nota fechada. Ela
+   * existe porque a derivação não enxergava a hora em que mais se pergunta pela viagem — quem sai
+   * do galpão às 6h e roda uma hora até a primeira parada aparecia como `dispatched` o tempo todo.
+   */
+  'on_delivery_route',
   'completed',
   'cancelled',
 ] as const

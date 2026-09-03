@@ -8,7 +8,8 @@ import { tripDocuments, trips } from '../../src/database/database.schema.js'
 import { checkSqlByName, columnSqlTypes, requiredColumnNames } from '../fiscal-schema/support.js'
 
 describe('trip status machine (ADR-0042)', () => {
-  test('replaces the binary open/closed cycle with the eight operational states', () => {
+  /* ADR-0058 acrescentou `on_delivery_route`: a viagem na estrada, que a derivação não enxergava. */
+  test('replaces the binary open/closed cycle with the nine operational states', () => {
     expect(TRIP_STATUSES).toEqual([
       'draft',
       'route_planned',
@@ -16,6 +17,7 @@ describe('trip status machine (ADR-0042)', () => {
       'loading',
       'dispatched',
       'in_transit',
+      'on_delivery_route',
       'completed',
       'cancelled',
     ])

@@ -204,6 +204,7 @@ describe('Drizzle migrations', () => {
       '20260903120000_stop_occurrence_kind_overlap',
       '20260903140000_company_occurrence_types',
       '20260903160000_route_suggestion_vehicle_driver',
+      '20260903180000_trip_on_delivery_route',
       '20260903182455_delivery_proof_settings',
       '20260903191706_delivery_proof_attachment_key',
       '20260903200000_occurrence_email_template_key',
