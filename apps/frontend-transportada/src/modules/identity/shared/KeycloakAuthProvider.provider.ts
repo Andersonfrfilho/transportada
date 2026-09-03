@@ -190,9 +190,24 @@ async function restartAuthentication(
   redirectUri: string,
 ): Promise<never> {
   persistPostAuthenticationPath()
-  keycloak.clearToken()
-  await keycloak.login({ redirectUri })
+  await loginAgain(keycloak, redirectUri)
   throw new Error('IDENTITY_REFRESH_FAILED')
+}
+
+/**
+ * ⚠️ **A sessão que expira já sabe quem era.** Reiniciar sem `loginHint` faz o Keycloak servir a
+ * tela de fábrica dele — "Usuário" e "Senha" juntos —, que não é a tela por onde a pessoa entrou:
+ * o produto pergunta e-mail, CPF, CNPJ ou telefone, e a senha só na tela seguinte. Trocar de tela
+ * no meio do uso é a mesma instalação pedindo a mesma coisa de dois jeitos.
+ *
+ * O `preferred_username` sai do token **expirado**, que continua legível — é o mesmo valor que
+ * `/login-hints` devolve na entrada normal, então nada de novo aparece na URL. Sem token legível
+ * não há o que sugerir, e aí a tela genérica é o caminho certo.
+ */
+async function loginAgain(keycloak: KeycloakClient, redirectUri: string): Promise<void> {
+  const loginHint = readClaimString(decodeTokenClaims(keycloak.token), 'preferred_username')
+  keycloak.clearToken()
+  await keycloak.login(loginHint === undefined ? { redirectUri } : { loginHint, redirectUri })
 }
 
 export function createKeycloakAuthProvider(
@@ -275,8 +290,7 @@ export function createKeycloakAuthProvider(
     },
     async restartAuthentication(): Promise<void> {
       persistPostAuthenticationPath()
-      keycloak.clearToken()
-      await keycloak.login({ redirectUri })
+      await loginAgain(keycloak, redirectUri)
     },
   }
 }

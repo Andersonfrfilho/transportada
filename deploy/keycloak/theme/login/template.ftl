@@ -56,12 +56,16 @@
 <body class="${bodyClass}" data-page-id="login-${pageId}">
 <main class="gate">
     <section class="brand" aria-label="${realm.displayName!'TransportAdA'}">
-        <p class="brand-wordmark">TransportAdA</p>
-        <p class="brand-description">${msg("transportadaTagline")}</p>
-        <p class="brand-installation">
-            <span>${msg("transportadaInstallation")}</span>
-            <strong>${realm.displayName!''}</strong>
-        </p>
+        <#-- ADR-0021: cada deploy é de uma transportadora só, e é a marca dela que assina a porta.
+             O nome do produto é o que sobra quando a instalação não se nomeou — nunca o que lidera.
+             O tema é FreeMarker dentro do Keycloak e não alcança a nossa API, então a fonte é o
+             `displayName` do realm, que é justamente o nome da instalação. -->
+        <p class="brand-wordmark">${realm.displayName!'TransportAdA'}</p>
+        <#-- O produto assina discreto, e só quando a instalação já se nomeou: sem isso a linha
+             repetiria o que o cabeçalho acabou de dizer. -->
+        <#if realm.displayName?has_content>
+            <p class="brand-installation">${msg("transportadaProduct")}</p>
+        </#if>
     </section>
 
     <div class="panel">
