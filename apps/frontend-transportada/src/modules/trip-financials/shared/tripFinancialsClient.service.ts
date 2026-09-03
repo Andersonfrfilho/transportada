@@ -9,6 +9,8 @@ import {
   type TripFinancialResult,
 } from './tripFinancials.types'
 import { toFinancialSummary, toTripFinancialResult } from './tripFinancialsResponse.validation'
+import { toTripValuation } from './tripValuationResponse.validation'
+import type { TripValuation } from './tripValuation.service'
 
 type ClientDependencies = Readonly<{
   apiUrl: string
@@ -18,6 +20,8 @@ type ClientDependencies = Readonly<{
 
 export type TripFinancialsClient = Readonly<{
   readResult: (tripId: string) => Promise<TripFinancialResult | null>
+  /** A conta **prevista** da viagem aberta — a congelada só nasce quando ela fecha. */
+  readValuation: (tripId: string) => Promise<TripValuation | null>
   readSummary: (
     input: Readonly<{ from: string; groupBy: FinancialSummaryGroup; to: string }>,
   ) => Promise<FinancialSummary>
@@ -39,6 +43,11 @@ export function createTripFinancialsClient(dependencies: ClientDependencies): Tr
     async readResult(tripId) {
       return toTripFinancialResult(
         await request({ dependencies, method: 'GET', path: `/trips/${tripId}/financial-result` }),
+      )
+    },
+    async readValuation(tripId) {
+      return toTripValuation(
+        await request({ dependencies, method: 'GET', path: `/trips/${tripId}/valuation` }),
       )
     },
     async readSummary({ from, groupBy, to }) {

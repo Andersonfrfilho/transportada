@@ -13,13 +13,18 @@ import {
   isNegative,
   splitParcels,
 } from '../shared/financialView.service'
+import { formatAmount } from '@/modules/shared/decimalAmount.service'
+
 import type { TripFinancialResult } from '../shared/tripFinancials.types'
+import { summarizeTripValuation, type TripValuation } from '../shared/tripValuation.service'
 import styles from '../styles/tripFinancials.module.css'
 
 type TripFinancialPanelProps = Readonly<{
   isLoading: boolean
   onRecalculate: (reason: string) => Promise<void>
   result: TripFinancialResult | null
+  /** A conta prevista da viagem aberta — é ela que aparece enquanto não há congelada. */
+  valuation: TripValuation | null
 }>
 
 /**
@@ -27,7 +32,12 @@ type TripFinancialPanelProps = Readonly<{
  * margem. O painel só existe para quem tem `trip.financials`: quem monta viagem decide pela
  * avaliação prevista, que não mostra o que se paga ao agregado (ADR-0049 §6).
  */
-export function TripFinancialPanel({ isLoading, onRecalculate, result }: TripFinancialPanelProps) {
+export function TripFinancialPanel({
+  isLoading,
+  onRecalculate,
+  result,
+  valuation,
+}: TripFinancialPanelProps) {
   const { t } = useTranslation('tripFinancials')
   const [reason, setReason] = useState('')
   const [isRecalculating, setIsRecalculating] = useState(false)
@@ -40,12 +50,49 @@ export function TripFinancialPanel({ isLoading, onRecalculate, result }: TripFin
     )
   }
 
-  /** Viagem aberta não tem congelado, e dizer isso é melhor que mostrar zeros como conta fechada. */
+  /**
+   * Viagem aberta não tem congelado — e o painel dizia isso **sem mostrar a prevista**, que é a
+   * única conta que existe até ela fechar. Zeros como conta fechada seriam pior; anunciar a
+   * previsão e não a mostrar é o que estava lá.
+   */
   if (result === null) {
+    const previsto = summarizeTripValuation(valuation)
+
     return (
       <section className={styles.panel}>
         <h2>{t('panel.title')}</h2>
         <p className={styles.hint}>{t('panel.notFrozen')}</p>
+        {previsto === null ? null : (
+          <>
+            <dl className={styles.totals}>
+              <div>
+                <dt>{t('panel.expectedRevenue')}</dt>
+                <dd>{formatAmount(previsto.revenue)}</dd>
+              </div>
+              <div>
+                <dt>{t('panel.expectedCost')}</dt>
+                <dd>{formatAmount(previsto.cost)}</dd>
+              </div>
+              <div>
+                <dt>{t('panel.expectedMargin')}</dt>
+                <dd className={isNegative(previsto.margin) ? styles.negative : undefined}>
+                  {formatAmount(previsto.margin)}
+                  {previsto.marginPercentage === null
+                    ? null
+                    : ` (${formatMargin(previsto.marginPercentage)})`}
+                </dd>
+              </div>
+            </dl>
+            {/* A lacuna vai junto do número: total sem parcela sai menor do que a viagem custa. */}
+            {previsto.hasGaps ? (
+              <p className={styles.hint}>
+                {t('panel.expectedGaps', {
+                  reasons: previsto.gaps.map((gap) => t(`gap.${gap}`, gap)).join(', '),
+                })}
+              </p>
+            ) : null}
+          </>
+        )}
       </section>
     )
   }

@@ -81,6 +81,7 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
               isLoading={financials.isLoading}
               onRecalculate={financials.recalculate}
               result={financials.result}
+              valuation={financials.valuation}
             />
           ) : null}
         </div>
