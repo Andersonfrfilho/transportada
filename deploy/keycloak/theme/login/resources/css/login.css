@@ -13,6 +13,12 @@
   --transportada-graphite: #1c2b33;
   --transportada-ready: #6aae8c;
   --transportada-slate: #8fa3ad;
+  /* O texto que senta sobre o cobre: no escuro é a tinta escura, no claro é o papel claro. */
+  --transportada-ink-on-accent: #10222c;
+  /* A marca da Ada vira silhueta; o que muda entre os temas é a cor dela, não a regra. */
+  --transportada-mark-filter: brightness(0) invert(1);
+  /* Passar o mouse afasta o cobre do fundo: no escuro isso é clarear, no claro é escurecer. */
+  --transportada-copper-hover: color-mix(in srgb, var(--transportada-copper) 86%, white 14%);
   --transportada-font-body: 'Avenir Next', Avenir, 'Segoe UI', sans-serif;
   --transportada-font-display: Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
   --transportada-font-utility: 'SFMono-Regular', Consolas, monospace;
@@ -26,6 +32,29 @@
   --transportada-space-10: 2.5rem;
   --transportada-field-height: 3rem;
   color-scheme: dark;
+}
+
+/**
+ * Tema claro: os mesmos nomes de token com os papéis invertidos, cópia por valor do bloco claro de
+ * `apps/frontend-transportada/src/styles/index.css`. Aqui não há botão de sol/lua: a escolha do
+ * painel mora no `localStorage` da origem da app, e o Keycloak é outra origem — um segundo botão
+ * guardaria uma segunda preferência, e o mesmo navegador entraria claro e sairia escuro. Quem
+ * decide é o sistema, que é também o que a app obedece de quem nunca clicou.
+ */
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    --transportada-alert: #c2382f;
+    --transportada-asphalt: #f2efe9;
+    --transportada-copper: #a3591f;
+    --transportada-fog: #1d2b33;
+    --transportada-graphite: #fbf9f5;
+    --transportada-ready: #2e7d54;
+    --transportada-slate: #5a6b74;
+    --transportada-ink-on-accent: #faf8f4;
+    --transportada-mark-filter: brightness(0);
+    --transportada-copper-hover: color-mix(in srgb, var(--transportada-copper) 86%, black 14%);
+  }
 }
 
 *,
@@ -294,7 +323,7 @@ a:focus-visible {
   padding: var(--transportada-space-3) var(--transportada-space-4);
   border: 1px solid transparent;
   border-radius: 0;
-  color: var(--transportada-asphalt);
+  color: var(--transportada-ink-on-accent);
   font: inherit;
   font-weight: 700;
   background: var(--transportada-copper);
@@ -302,7 +331,7 @@ a:focus-visible {
 }
 
 .action:hover {
-  background: color-mix(in srgb, var(--transportada-copper) 86%, white 14%);
+  background: var(--transportada-copper-hover);
 }
 
 .action:disabled {
@@ -440,15 +469,16 @@ a:focus-visible {
 
 /*
  * O gradiente azul da marca é feito para fundo claro: sobre o asfalto a ponta escura some. O próprio
- * site da Ada resolve assim no rodapé escuro dele — a marca vira silhueta branca, e é essa a regra
- * que se copia aqui, não uma cor inventada.
+ * site da Ada resolve assim no rodapé escuro dele — a marca vira silhueta, e é essa a regra que se
+ * copia aqui, não uma cor inventada. A cor da silhueta é do tema: branca sobre o escuro, preta
+ * sobre o claro, onde a branca desapareceria.
  */
 .colophon-mark {
   flex: none;
   /* A marca não é quadrada: travar os dois lados a amassaria. Altura manda, largura acompanha. */
   width: auto;
   height: 1.5rem;
-  filter: brightness(0) invert(1);
+  filter: var(--transportada-mark-filter);
   opacity: 0.8;
 }
 

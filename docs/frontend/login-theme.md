@@ -37,6 +37,28 @@ O `theme.properties` traduz cada uma dessas chaves para a classe do nosso CSS (`
 não passa por build, então não há como referenciar o arquivo original. **Mudou cor, fonte ou escala
 no frontend? copie aqui.** Duas paletas no mesmo fluxo leem como dois produtos.
 
+Os oito papéis semânticos — `alert`, `asphalt`, `copper`, `fog`, `graphite`, `ink-on-accent`,
+`ready` e `slate` — são comparados nos dois arquivos, nos dois temas, por
+`apps/frontend-transportada/test/design-system/login-theme-palette.contract.ts`. Ele falha por valor
+divergente e por papel que sumiu de um dos lados.
+
+## O tema claro segue o sistema, e não tem botão
+
+O painel tem sol/lua porque a escolha cabe no `localStorage` **da origem dele**. O Keycloak é outra
+origem e não lê esse armazenamento: um botão aqui guardaria uma segunda preferência, e o mesmo
+navegador entraria claro e sairia escuro. Então o login obedece só ao `prefers-color-scheme` — que é
+exatamente o que a app faz com quem nunca clicou no botão.
+
+Três coisas mudam junto com a paleta, e as três são token:
+
+- **`--transportada-ink-on-accent`** é o texto que senta sobre o cobre. No escuro é a tinta escura;
+  no claro é o papel. Sem ele o botão de entrar herdava `asphalt`, que no tema claro é o próprio
+  fundo da página.
+- **`--transportada-copper-hover`** afasta o cobre do fundo ao passar o mouse: clareia no escuro,
+  **escurece no claro**. Clarear nos dois levaria o par texto/fundo do botão de entrar a 3,8:1.
+- **`--transportada-mark-filter`** dá a cor da silhueta da marca da Ada. Branca sobre o escuro,
+  preta sobre o claro — a regra de virar silhueta é a mesma, some só a cor fixa.
+
 ## O ícone da aba também é cópia por valor
 
 `resources/img/icon.svg` e `icon-192.png` são cópias byte a byte de
