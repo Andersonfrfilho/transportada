@@ -74,7 +74,7 @@ monta com `buildStopLabel`). Uma consulta a mais por viagem, em lote, na forma d
 divergiu em silêncio (T001). **Mutação:** servido o gravado → reprova; derivado → verde.
 Gates: 4071 testes da API, lint, typecheck, format.
 
-## T008 — bloqueada por decisão de escopo ⏸️
+## T008 — emitir CT-e pela seleção ✅
 
 `POST /trips/:id/cte-batches` emite o lote da **viagem inteira**: `createTripCteBatch` deriva as
 notas de `selectPendingCteDocuments(readiness)` e não aceita subconjunto. Um botão na linha da nota
@@ -83,3 +83,25 @@ que dissesse "esta nota" e emitisse todas seria pior que o painel de hoje.
 Decisão pendente: emitir por nota (mudança de API — corpo com `documentIds`, e o que fazer quando o
 subconjunto some com o lote em voo) ou manter a emissão por viagem e apenas aproximar a ação da
 lista.
+
+**Decidido:** emitir pela seleção que a tela já tem, com a API aceitando o recorte.
+
+- **API** (`933ed668`): o corpo aceita `tripDocumentIds` e **continua opcional** — ausente e vazio
+  são a viagem inteira, que é o que o painel de prontidão faz. Recorte por `tripDocumentId`, que é
+  o que a tela tem em mãos; o lote segue montado com `nfeDocumentId`. Escolha não pendente é
+  recusada **nomeada** em `details`, nunca descartada.
+- **Tela** (`39101a75`): o botão aparece na barra de seleção só quando o marcado tem CT-e a emitir.
+  `PENDING_CTE_REASONS` é cópia por valor com contrato restatando a lista dos dois lados.
+
+⚠️ **O primeiro contrato da tela era decoração.** A mutação que removia a checagem de
+`expectedDocument` não reprovava nada: a razão pendente já barrava a NFS-e do único caso que a
+exercitava. Só depois de entrar o caso que isola a condição — razão pendente com documento esperado
+diferente de CT-e — a mutação passou a reprovar. Sem a exigência de mutação do goal, teria passado
+por cobertura.
+
+⚠️ **As edições da tela foram feitas na árvore errada.** `cd` relativo resolve contra o diretório
+principal, que o shell restaura a cada comando — o trabalho caiu no checkout de `staging` em vez do
+worktree. Ao mover, `git diff` saiu **resumido** pelo filtro do RTK, e o `git checkout --` que veio
+depois apagou as alterações que eu acreditava ter salvo em patch. Foram refeitas com caminho
+absoluto. Duas lições: caminho absoluto sempre, e saída de `git diff` filtrada não serve como
+backup.
