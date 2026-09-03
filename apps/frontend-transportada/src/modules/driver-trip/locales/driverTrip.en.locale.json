@@ -81,6 +81,13 @@
     "other": "Other",
     "unexpected_charge": "Unexpected charge"
   },
+  "occurrencePhoto": "Occurrence photo (site or cargo)",
+  "occurrencePhotoCount_one": "{{count}} photo attached",
+  "occurrencePhotoCount_other": "{{count}} photos attached",
+  "occurrencePreview": {
+    "none": "No notice will be sent to the customer for this reason.",
+    "title": "Notice that will be sent"
+  },
   "occurrenceSend": "Record",
   "profile": {
     "noTrip": "No trip in progress.",

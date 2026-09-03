@@ -106,6 +106,44 @@
   gap: var(--space-2);
 }
 
+/* Spec 082 D8: motivo por chips — alvo de 44px, canto reto, um selecionado por vez. */
+.occurrenceChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.occurrenceChip {
+  border-radius: 0;
+  min-height: 2.75rem;
+}
+
+/* A prévia do aviso: painel destacado, com a chave do template pequena e monoespaçada. */
+.occurrencePreview {
+  border: 1px solid var(--color-slate);
+  border-left: 4px solid var(--color-copper);
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+}
+
+.occurrencePreviewTitle {
+  font-weight: 700;
+  margin: 0;
+}
+
+.occurrencePreviewText {
+  margin: 0;
+}
+
+.occurrencePreviewKey {
+  color: var(--color-slate);
+  font-family: ui-monospace, monospace;
+  font-size: 0.75rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 .proofField {
   display: grid;
   gap: var(--space-1);

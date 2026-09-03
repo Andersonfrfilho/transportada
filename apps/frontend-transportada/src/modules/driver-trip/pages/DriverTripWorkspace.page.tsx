@@ -289,6 +289,24 @@ export function DriverTripWorkspacePage() {
                     stopId: input.stopId,
                   })
                 }
+                onOccurrencePhoto={(input: { documentId: string; file: File }) => {
+                  /* A rota de ocorrência não aceita anexo — a foto sobe pelo proof da nota. */
+                  setAttachmentLimit(undefined)
+                  void driverTrip
+                    .attachProof({
+                      documentId: input.documentId,
+                      file: new File([input.file], `ocorrencia-${input.file.name}`, {
+                        type: input.file.type,
+                      }),
+                      kind: 'photo',
+                    })
+                    .then((outcome) => {
+                      if (outcome === 'count-limit' || outcome === 'size-limit') {
+                        setAttachmentLimit(outcome)
+                      }
+                    })
+                    .catch(() => setProofFailed(true))
+                }}
                 onReturn={(input: { documentId: string; reason: DriverReturnReason }) =>
                   void report((location) => ({
                     documentId: input.documentId,

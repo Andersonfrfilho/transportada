@@ -69,6 +69,13 @@
     "other": "Outro",
     "unexpected_charge": "Cobrança inesperada"
   },
+  "occurrencePhoto": "Foto da ocorrência (local ou carga)",
+  "occurrencePhotoCount_one": "{{count}} foto anexada",
+  "occurrencePhotoCount_other": "{{count}} fotos anexadas",
+  "occurrencePreview": {
+    "none": "Nenhum aviso será enviado ao cliente para este motivo.",
+    "title": "Aviso que será enviado"
+  },
   "occurrenceSend": "Registrar",
   "profile": {
     "noTrip": "Sem viagem em andamento.",

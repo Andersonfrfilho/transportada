@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
-import { Select } from '@/components/ui/select'
 
 import { ProofCrop } from './ProofCrop.component'
 import { SignaturePad } from './SignaturePad.component'
@@ -26,6 +25,7 @@ import {
   countPendingDocuments,
   isDocumentSettled,
 } from '../shared/driverTripView.service'
+import { renderOccurrenceNoticePreview } from '../shared/occurrenceNoticePreview.service'
 import {
   canonicalReceiverDocument,
   listMissingProofFields,
@@ -69,6 +69,11 @@ type DriverStopCardProps = Readonly<{
   occurrenceTypes: readonly DriverOccurrenceType[]
   onProof: (input: DriverProofAttachment) => void
   onOccurrence: (input: { description: string; kind: DriverOccurrenceKind; stopId: string }) => void
+  /**
+   * ⚠️ A rota de ocorrência de parada não aceita anexo: a foto do local/carga sobe pelo caminho de
+   * comprovante da nota associada (`/documents/:id/proof`), rotulada como foto da ocorrência.
+   */
+  onOccurrencePhoto: (input: { documentId: string; file: File }) => void
   onReturn: (input: { documentId: string; reason: DriverReturnReason }) => void
   stop: DriverTripStop
 }>
@@ -81,6 +86,7 @@ export function DriverStopCard({
   occurrenceTypes,
   onDocumentOccurrence,
   onOccurrence,
+  onOccurrencePhoto,
   onProof,
   onReturn,
   stop,
@@ -148,8 +154,16 @@ export function DriverStopCard({
 
       {openOccurrence ? (
         <OccurrenceForm
+          stop={stop}
           onSubmit={(input) => {
-            onOccurrence({ ...input, stopId: stop.id })
+            onOccurrence({ description: input.description, kind: input.kind, stopId: stop.id })
+            const noteDocument = stop.documents.find((item) => !isDocumentSettled(item))
+            const photoTarget = noteDocument ?? stop.documents[0]
+            if (photoTarget !== undefined) {
+              for (const file of input.photos) {
+                onOccurrencePhoto({ documentId: photoTarget.id, file })
+              }
+            }
             setOpenOccurrence(false)
           }}
         />
@@ -458,42 +472,89 @@ function DeliveryProofSection({ documentId, onProof, proofSettings }: DeliveryPr
 }
 
 type OccurrenceFormProps = Readonly<{
-  onSubmit: (input: { description: string; kind: DriverOccurrenceKind }) => void
+  onSubmit: (input: {
+    description: string
+    kind: DriverOccurrenceKind
+    photos: readonly File[]
+  }) => void
+  stop: DriverTripStop
 }>
 
 /**
  * O motorista descreve o que viu — e só. Não há campo de valor, de custo nem de culpa: quem decide é
- * o escritório (ADR-0045 §6.1).
+ * o escritório (ADR-0045 §6.1). Spec 082 D8: o motivo é escolha por chips, e a prévia mostra o
+ * aviso que o cliente vai receber — inclusive quando o motivo não gera aviso nenhum.
  */
-function OccurrenceForm({ onSubmit }: OccurrenceFormProps) {
+function OccurrenceForm({ onSubmit, stop }: OccurrenceFormProps) {
   const { t } = useTranslation('driverTrip')
   const [kind, setKind] = useState<DriverOccurrenceKind>('long_wait')
   const [description, setDescription] = useState('')
+  const [photos, setPhotos] = useState<readonly File[]>([])
+
+  const noteDocument = stop.documents.find((item) => !isDocumentSettled(item)) ?? stop.documents[0]
+  const preview = renderOccurrenceNoticePreview({
+    documentLabel: noteDocument === undefined ? '—' : noteDocument.number,
+    kind,
+    occurredAt: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+    stopLabel: stop.label,
+  })
 
   return (
     <div className={styles.occurrenceForm}>
-      <label>
-        <span>{t('occurrence')}</span>
-        <Select
-          ariaLabel={t('occurrence')}
-          options={DRIVER_OCCURRENCE_KINDS.map((option) => ({
-            label: t(`occurrenceKind.${option}`),
-            value: option,
-          }))}
-          value={kind}
-          onChange={(next) => setKind(next as DriverOccurrenceKind)}
-        />
-      </label>
+      <div aria-label={t('occurrence')} className={styles.occurrenceChips} role="radiogroup">
+        {DRIVER_OCCURRENCE_KINDS.map((option) => (
+          <Button
+            aria-checked={option === kind}
+            className={styles.occurrenceChip}
+            key={option}
+            onClick={() => setKind(option)}
+            role="radio"
+            type="button"
+            variant={option === kind ? 'default' : 'ghost'}
+          >
+            {t(`occurrenceKind.${option}`)}
+          </Button>
+        ))}
+      </div>
       <label>
         <span>{t('occurrenceDescription')}</span>
-        <input
+        <textarea
           maxLength={500}
           onChange={(event) => setDescription(event.target.value)}
-          type="text"
+          rows={3}
           value={description}
         />
       </label>
-      <Button onClick={() => onSubmit({ description, kind })} type="button">
+      <div className={styles.occurrencePreview}>
+        <p className={styles.occurrencePreviewTitle}>{t('occurrencePreview.title')}</p>
+        {preview === null ? (
+          <p className={styles.occurrencePreviewText}>{t('occurrencePreview.none')}</p>
+        ) : (
+          <>
+            <p className={styles.occurrencePreviewText}>{preview.text}</p>
+            <p className={styles.occurrencePreviewKey}>{preview.templateKey}</p>
+          </>
+        )}
+      </div>
+      {/* ⚠️ A rota da ocorrência não aceita anexo: a foto sobe pelo proof da nota associada. */}
+      {noteDocument === undefined ? null : (
+        <label className={styles.proofField}>
+          <span>{t('occurrencePhoto')}</span>
+          <input
+            accept="image/*"
+            capture="environment"
+            type="file"
+            onChange={(event) => {
+              const file = event.target.files?.[0]
+              if (file !== undefined) setPhotos((current) => [...current, file])
+            }}
+          />
+          {photos.length === 0 ? null : (
+            <span>{t('occurrencePhotoCount', { count: photos.length })}</span>
+          )}
+        </label>
+      )}
+      <Button onClick={() => onSubmit({ description, kind, photos })} type="button">
         <Icon name="save" />
         {t('occurrenceSend')}
       </Button>
