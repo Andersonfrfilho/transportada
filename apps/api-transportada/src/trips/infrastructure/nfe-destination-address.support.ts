@@ -18,6 +18,8 @@ export type NfeDestinationAddress = {
   readonly components: StopAddressComponents
   readonly label: string
   readonly origin: PhysicalDestinationOrigin
+  /** A UF da parada — o mapa a usa para escolher a malha do IBGE. */
+  readonly state: string
 }
 
 /** O vínculo aceita nota crua ou frete já calculado sobre ela (ADR-0023 §2) — os dois resolvem à

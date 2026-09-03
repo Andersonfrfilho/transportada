@@ -65,6 +65,9 @@ export function mapTripStop(
     id: record.id,
     label: record.label,
     sequence: Number(record.sequence),
+    /** Vazios por padrão: quem sabe é a junção com o endereço da nota, na leitura do detalhe. */
+    cityCode: '',
+    state: '',
   }
 }
 

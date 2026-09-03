@@ -571,6 +571,14 @@ async function readTripDetail(
     companyId: input.companyId,
     nfeDocumentIds,
   })
+  const addressOf = (stopId: string) => {
+    for (const document of documentsByStopId.get(stopId) ?? []) {
+      const address =
+        document.nfeDocumentId === null ? undefined : stopAddresses.get(document.nfeDocumentId)
+      if (address !== undefined) return address
+    }
+    return undefined
+  }
   const labelOf = (stopId: string, stored: string): string => {
     for (const document of documentsByStopId.get(stopId) ?? []) {
       const address =
@@ -634,6 +642,8 @@ async function readTripDetail(
       label: labelOf(row.stop.id, row.stop.label),
       latitude: row.latitude,
       longitude: row.longitude,
+      cityCode: addressOf(row.stop.id)?.components.cityCode ?? '',
+      state: addressOf(row.stop.id)?.state ?? '',
     })),
   }
 }

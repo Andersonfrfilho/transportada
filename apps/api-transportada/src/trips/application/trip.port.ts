@@ -109,6 +109,13 @@ export type TripStopDetail = {
    */
   readonly latitude: null | string
   readonly longitude: null | string
+  /**
+   * Onde a parada fica, no vocabulário do IBGE: a UF diz **qual malha** o mapa busca, e o código do
+   * município diz **qual polígono** dela desenhar. Derivados do endereço da nota, como o rótulo;
+   * vazios quando o endereço não resolve.
+   */
+  readonly cityCode: string
+  readonly state: string
   readonly arrivedAt: string | null
   readonly completedAt: string | null
   readonly deliveryWindowEnd: string | null

@@ -22,6 +22,8 @@ export type NfeDestinationRow = {
 export type NfeDestinationChoice = {
   readonly components: StopAddressComponents
   readonly label: string
+  /** A UF da parada — é ela que diz qual malha o mapa busca para desenhar o contorno. */
+  readonly state: string
   /**
    * RF4: de onde o endereço veio — o rótulo, nunca o endereço (RNF1).
    *
@@ -62,10 +64,12 @@ export function chooseNfeDestinationRow(
 
   return {
     components: chosen.components,
+    /** A UF da parada: é ela que diz **qual malha** o mapa precisa buscar para desenhar o contorno. */
+    state: chosen.row.state ?? '',
     label: buildStopLabel({
       city: chosen.row.city,
       number: chosen.row.number,
-      state: chosen.row.state,
+      state: chosen.row.state ?? '',
       street: chosen.row.street,
     }),
     origin: chosen.origin,
