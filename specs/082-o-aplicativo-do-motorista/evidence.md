@@ -34,7 +34,7 @@
 | Anexo grande não descarta a entrega                   | contrato: acima do teto some o **anexo**, e a confirmação entra                                                           |
 | O corpo da API é validado na fronteira                | campo desconhecido é ignorado, campo obrigatório ausente recusa a resposta inteira                                        |
 
-## Dois defeitos que a verificação pegou antes de existirem
+## Cinco defeitos que a verificação pegou antes de existirem
 
 1. **A lista de estados "na rua" estava rederivada em cinco repositórios**, com recortes diferentes.
    Com `on_delivery_route` na máquina e as cópias intactas, a viagem sumiria de `/me/trips/current`
@@ -44,9 +44,37 @@
    `insert` não a mencionava. Campo que a API diz aceitar e não grava é pior que campo ausente,
    porque ninguém procura o dado.
 
-E um terceiro, menor, que vale o registro: o contrato da tela reprovou o arquivo por causa da palavra
+3. **O esquema de retorno do PKCE não estava declarado em plataforma nenhuma.** Sem
+   `CFBundleURLTypes` no `Info.plist` e sem o `intent-filter` com `BROWSABLE` no `AndroidManifest`, o
+   Keycloak autentica e o navegador não sabe para onde voltar — a pessoa fica olhando uma página em
+   branco, e nada no lint, no typecheck ou nos contratos de TypeScript acusa. **Declaração nativa é
+   o que ninguém descobre lendo código.**
+4. **`NSLocationWhenInUseUsageDescription` estava vazio**, e loja recusa binário assim. Era o estado
+   em que o projeto nasceu. Junto disso, o iOS estava travado em **retrato**, o que tornaria a
+   assinatura em tela cheia deitada impossível.
+5. **O `App.tsx` ainda era a tela template do React Native**, com onze telas escritas e nenhuma
+   ligada. Lint limpo, typecheck limpo, 170 contratos verdes — cada peça certa e nenhuma conectada. É
+   o buraco que só aparece abrindo o aplicativo.
+
+E um sexto, menor, que vale o registro: o contrato da tela reprovou o arquivo por causa da palavra
 "webview" **no próprio comentário que explicava por que não há webview**. Regra que falha pelo texto
 que a documenta não guarda nada — a varredura tira comentário antes.
+
+## O que se descobriu sobre "isto é hardware"
+
+Quatro vezes esta sessão eu disse que o que faltava era hardware, e quatro vezes havia miolo puro
+embaixo. Fica registrado porque o erro é fácil de repetir:
+
+| O que parecia hardware       | O que era puro                                                                |
+| ---------------------------- | ----------------------------------------------------------------------------- |
+| PKCE no navegador do sistema | verificador, desafio S256, URL, corpo da troca e leitura do retorno           |
+| Toda a G004                  | quem recebeu, conferência da leitura, os dois catálogos e o portão de posição |
+| Toda a G005                  | o portão do rastro com as cinco travas do RF-7                                |
+| Câmera e assinatura          | a assinatura é assinatura, o recorte é recorte, e o traço vira caminho de SVG |
+
+O que sobrou, enumerado em vez de generalizado: **abrir a câmera, rasterizar o recorte para JPEG,
+capturar o toque na área de desenho, o serviço de posição em primeiro plano, e o build assinado.**
+Cada um é uma chamada ao sistema, sem decisão a provar dentro dela.
 
 ## O que ficou de fora, e é para a próxima pessoa saber
 
@@ -97,4 +125,9 @@ primeira foto, e a rede por texto de fonte não alcança.
 - **Cliente público sem segredo**: a URL de autorização e o corpo da troca não carregam
   `client_secret`, e o contrato afirma isso.
 - **A janela do rastro é curta e cumprida**: 36h na ingestão e no expurgo, com o número comparado
-  entre as duas apps por contrato.
+  entre as duas apps por contrato — e o aplicativo tem a mesma janela, afirmada dos dois lados por
+  valor, nunca lendo o arquivo do outro repositório.
+- **A assinatura vazia não vira comprovante**, e o recorte invertido não vira arquivo em branco: os
+  dois falhariam em silêncio, produzindo prova que parece existir.
+- **As razões de permissão não estão vazias**, e a de segundo plano é pedida separada e depois da de
+  uso (ADR-0056 §2.1).
