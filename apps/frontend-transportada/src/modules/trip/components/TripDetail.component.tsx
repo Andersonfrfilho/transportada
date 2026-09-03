@@ -370,6 +370,7 @@ export function TripDetail({ linkForm, onClose, vehicles, workspace }: TripDetai
         <div className={styles.selectionBar} role="status">
           <span>{t('stops.selectionCount', { count: selection.selectedIds.size })}</span>
           <Button onClick={selection.clear} size="sm" type="button" variant="ghost">
+            <Icon name="close" />
             {t('stops.selectionClear')}
           </Button>
         </div>

@@ -96,6 +96,7 @@ export function TripStateActions({
               size="sm"
               type="button"
             >
+              <Icon name="check" />
               {t('stateActions.batchSeparate', { count: selection.selectedIds.size })}
             </Button>
           ) : null}
@@ -106,6 +107,7 @@ export function TripStateActions({
               size="sm"
               type="button"
             >
+              <Icon name="truck" />
               {t('stateActions.batchLoad', { count: selection.selectedIds.size })}
             </Button>
           ) : null}
@@ -117,6 +119,7 @@ export function TripStateActions({
               type="button"
               variant="ghost"
             >
+              <Icon name="arrow-up" />
               {t('stateActions.batchReturn', { count: selection.selectedIds.size })}
             </Button>
           ) : null}

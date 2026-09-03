@@ -4,6 +4,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Icon } from '@/components/ui/icon'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 import { VectorMap } from '@/components/ui/vector-map'
@@ -133,6 +134,7 @@ function TripStopPointCorrection({
   if (!isOpen) {
     return (
       <Button onClick={() => setIsOpen(true)} size="sm" type="button" variant="ghost">
+        <Icon name="edit" />
         {t('routeMap.correct')}
       </Button>
     )
@@ -170,9 +172,11 @@ function TripStopPointCorrection({
         size="sm"
         type="button"
       >
+        <Icon name="save" />
         {t('routeMap.save')}
       </Button>
       <Button onClick={() => setIsOpen(false)} size="sm" type="button" variant="ghost">
+        <Icon name="close" />
         {t('routeMap.cancel')}
       </Button>
     </div>

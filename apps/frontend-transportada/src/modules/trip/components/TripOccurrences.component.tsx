@@ -4,6 +4,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Icon } from '@/components/ui/icon'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
 
@@ -91,6 +92,7 @@ export function TripOccurrences({
       )}
       {canRegister && disponiveis.length > 0 && !isOpen ? (
         <Button onClick={() => setIsOpen(true)} size="sm" type="button" variant="ghost">
+          <Icon name="alert" />
           {t('occurrence.register')}
         </Button>
       ) : null}
@@ -122,9 +124,11 @@ export function TripOccurrences({
             value={note}
           />
           <Button disabled={isRegistering} onClick={handleSubmit} size="sm" type="button">
+            <Icon name="save" />
             {t('occurrence.submit')}
           </Button>
           <Button onClick={() => setIsOpen(false)} size="sm" type="button" variant="ghost">
+            <Icon name="close" />
             {t('occurrence.cancel')}
           </Button>
         </div>

@@ -284,6 +284,7 @@ function TripStopDocumentRow({
             type="button"
             variant="ghost"
           >
+            <Icon name="image" />
             {t('actions.viewProof')}
           </Button>
         )}
@@ -296,6 +297,7 @@ function TripStopDocumentRow({
             size="sm"
             type="button"
           >
+            <Icon name="check" />
             {t('actions.separate')}
           </Button>
         ) : null}
@@ -308,6 +310,7 @@ function TripStopDocumentRow({
             size="sm"
             type="button"
           >
+            <Icon name="truck" />
             {t('actions.load')}
           </Button>
         ) : null}
@@ -319,6 +322,7 @@ function TripStopDocumentRow({
             type="button"
             variant="ghost"
           >
+            <Icon name="arrow-up" />
             {t('actions.return')}
           </Button>
         ) : null}
