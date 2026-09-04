@@ -754,7 +754,11 @@ test('a nota anuncia a viagem em que saiu e continua entrando no lote', async ({
   await loginAsLocalUser(page)
   await expect(page.getByRole('heading', { name: 'Documentos importados' })).toBeVisible()
 
-  const tripLink = page.getByRole('link', { name: 'Saiu nesta viagem' })
+  /**
+   * ⚠️ O rótulo passou a carregar o estado da viagem: era `Saiu nesta viagem`, fixo, e virou
+   * `Esta nota está em viagem — {estado}`. O mock manda `in_transit`, que é `Em trânsito`.
+   */
+  const tripLink = page.getByRole('link', { name: 'Esta nota está em viagem — Em trânsito' })
   await expect(tripLink).toBeVisible()
   await expect(tripLink).toHaveAttribute('href', '/trips/00000000-0000-4000-8000-000000000a11')
   await expect(page.getByRole('checkbox', { name: 'Nota bloqueada para CT-e' })).toHaveCount(0)
