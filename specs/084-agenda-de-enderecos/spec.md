@@ -235,6 +235,33 @@ mesma consulta** — um-para-um, e o resultado não elege nada: ele apenas diz _
 contratante ou ao operador, jamais como sobrescrita automática — porque o provedor também erra, e um
 "corrigir" para outra rua é indistinguível de um acerto depois de gravado.
 
+### ⚠️ O provedor avisa quando não achou, e esse é o sinal mais barato
+
+**Medido em 2026-09-04 com a chave real**, três endereços dos 149:
+
+| enviado                                            | retorno                                                   | `location_type`   |
+| -------------------------------------------------- | --------------------------------------------------------- | ----------------- |
+| `AVENIDA PRESIDENTE CASTELO BRANCO, 960, BARRINHA` | `Av. Pres. Castelo Branco, 960, Barrinha - SP, 14860-000` | **`ROOFTOP`**     |
+| `AVENIDA COSTA E SILVA, 1520, BARRINHA`            | `Av. Costa e Silva, 1520 - Jardim Lisboa, Barrinha - SP`  | **`ROOFTOP`**     |
+| `R AMERICA DE ARAUJO PERES, 533, LUIS ANTONIO`     | `Luís Antônio, SP, 14210-000` — **rua ausente**           | **`APPROXIMATE`** |
+
+⚠️ **O grafismo errado derruba o provedor pago também.** `AMERICA` por `Américo` e `PERES` por
+`Pires` fazem o Google cair no município, exatamente como o Nominatim. O teste manual que sugeriu o
+contrário buscava pelo **nome do estabelecimento** (`FERNANDES SUPERMERCADO`), que ele conhece — não
+pelo endereço da nota.
+
+A diferença que importa: ele **avisa**. Devolve `APPROXIMATE` e **omite a rua** do endereço
+formatado, em vez de inventar uma parecida. Então:
+
+| retorno                        | leitura                        | destino                             |
+| ------------------------------ | ------------------------------ | ----------------------------------- |
+| `ROOFTOP` com rua no formatado | achou a porta                  | compara texto e coordenada          |
+| `APPROXIMATE` com rua ausente  | **o texto da nota não existe** | vai direto ao pedido do contratante |
+
+Isso torna a detecção do caso mais grave **gratuita**: não é preciso comparar strings para saber que
+`R AMERICA DE ARAUJO PERES` está errado — o provedor já disse que não achou. A comparação de texto
+fica para o caso sutil: achou a rua, mas com nome diferente do que a nota diz.
+
 ### O que conta como divergência
 
 | diferença                                | é divergência?              | por quê                                                                                                |
@@ -277,6 +304,8 @@ erro custa caro.
 - **RF10** — O relatório mede **se o pedido pegou**: nota nova do mesmo cliente para o mesmo lugar,
   depois do pedido, ainda divergente = o cadastro do contratante não foi corrigido. É a diferença
   entre "pedimos" e "resolveu", e sem ela o relatório vira lista de pedidos sem desfecho.
+- **RF11** — `location_type` do provedor é sinal de primeira classe: `APPROXIMATE` com rua ausente
+  significa **texto inexistente** e vai ao contratante sem passar por comparação de string.
 - **RF9** — Divergência de **CEP** é a de maior valor e sai destacada: CEP corrigido devolve o
   endereço ao degrau 1, que é grátis e nosso — deixa de custar consulta para sempre.
 - **RF7** — O relatório publica quatro números: distribuição por origem; deslocamento das correções
