@@ -1436,6 +1436,11 @@
 
 /* As duas propostas lado a lado: a instantânea em linha reta e a do roteirizador. */
 .assemblyActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 /* Listagem de ocorrências — menu de colunas recolhido, como o da tabela de CT-es. */
 .columnsPopover {
   display: flex;
@@ -1488,6 +1493,8 @@
 .assemblyStopApproximate {
   color: var(--color-copper);
   font-size: 0.74rem;
+}
+
 .occurrencePhotoButton {
   padding: 0;
   border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
