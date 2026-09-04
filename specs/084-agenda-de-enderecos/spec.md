@@ -198,6 +198,46 @@ a próxima nota **continua chegando com o mesmo texto errado**. Por isso o pedid
 não sai da corrente quando o motorista responde: um conserta onde é, o outro conserta o que faz a
 nota casar.
 
+## O sistema acha a divergência; o humano decide
+
+O provedor devolve **texto canônico**, não só coordenada. Medido na busca real: entrada
+`AVENIDA PRESIDENTE CASTELO BRANCO, 960, BARRINHA, SP` → retorno `Av. Pres. Castelo Branco, 960 —
+Barrinha/SP, 14860-000`, com bairro. E para Luis Antonio, `R AMERICA DE ARAUJO PERES` contra
+`Rua Américo de Araújo Pires`.
+
+Logo **a comparação de texto é do sistema**, não do contratante: temos o que a nota diz e temos o que
+o provedor devolveu. Ele deixa de ser quem _descobre_ o erro e passa a ser quem _confirma_ a
+correção — o que muda o pedido de "confira este endereço" para "é isto?".
+
+### ⚠️ Isto não contradiz a rejeição do casamento por semelhança, e a distinção é a que importa
+
+O que a spec rejeita, medido em 14% com falsos positivos (`RUA 02` → `Rua 12`), é **procurar** uma
+rua entre milhares por semelhança — um problema de um-para-muitos, onde a distância de edição inventa
+acerto.
+
+O que se faz aqui é **comparar** o nosso texto com o texto que o provedor devolveu **para aquela
+mesma consulta** — um-para-um, e o resultado não elege nada: ele apenas diz _"estes dois diferem"_.
+
+**Divergência sinaliza; ela nunca corrige.** O texto do provedor entra como **sugestão** exibida ao
+contratante ou ao operador, jamais como sobrescrita automática — porque o provedor também erra, e um
+"corrigir" para outra rua é indistinguível de um acerto depois de gravado.
+
+### O que conta como divergência
+
+| diferença                                | é divergência?              | por quê                                                                                                |
+| ---------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `AVENIDA` × `Av.`, `Dr.` × `DR`          | ❌                          | tipo de via e pontuação — `buildClientStreetKey` já colapsa                                            |
+| acento (`SAO JOAO` × `São João`)         | ❌                          | mesma canonicalização                                                                                  |
+| `PRESIDENTE` × `PRES`                    | ⚠️ **sim, e vai ao humano** | abreviação do provedor, não erro da nota — mas nenhuma regra distingue isso de erro real sem adivinhar |
+| `AMERICA` × `Américo`, `PERES` × `Pires` | ✅                          | palavra diferente: é o defeito que impede a nota de casar                                              |
+| CEP diferente do que o provedor devolve  | ✅                          | e este é o mais valioso: CEP certo devolve o endereço ao degrau 1, que é grátis                        |
+| bairro ausente na nota                   | ➖                          | acréscimo, não conflito — preenche sem perguntar                                                       |
+
+⚠️ **A linha do `PRESIDENTE` × `PRES` é assumidamente conservadora.** Ela gera ruído — o operador vai
+ver divergência onde só houve abreviação do provedor. Preferimos o ruído: a alternativa é uma tabela
+de abreviações que decide sozinha, e ela erra exatamente onde os nomes são parecidos, que é onde o
+erro custa caro.
+
 ## Requisitos funcionais
 
 - **RF1** — A busca por texto envia **estado, cidade, bairro, logradouro e número**. Sem cidade e UF
@@ -218,6 +258,11 @@ nota casar.
 - **RF6** — Quando as duas fontes discordam, **nenhuma vence sozinha**: grava a mais específica,
   marca como suspeito, manda ao humano. Resolver por regra automática é como `RUA 02` virou
   `Rua 12`.
+- **RF8** — A comparação de texto é do sistema, e **sinaliza sem corrigir**. O texto canônico do
+  provedor é sugestão exibida; sobrescrita automática é proibida, porque provedor errado gravado é
+  indistinguível de provedor certo.
+- **RF9** — Divergência de **CEP** é a de maior valor e sai destacada: CEP corrigido devolve o
+  endereço ao degrau 1, que é grátis e nosso — deixa de custar consulta para sempre.
 - **RF7** — O relatório publica quatro números: distribuição por origem; deslocamento das correções
   em metros; **quantos resultados do provedor pago foram corrigidos depois por um humano**; e
   concentração por cidade e CEP. O terceiro é o que decide se vale continuar pagando.
