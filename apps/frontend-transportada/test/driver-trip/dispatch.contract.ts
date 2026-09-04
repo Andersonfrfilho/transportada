@@ -77,12 +77,26 @@ describe('iniciar trajeto (route_planned)', () => {
 describe('a fila offline no hook (revisão 082)', () => {
   const hook = readFileSync(HOOK, 'utf8')
 
-  /** 4a: uma drenagem por vez — o pedido concorrente é ignorado com o estado visível. */
-  it('a drenagem é single-flight, com guarda por ref', () => {
+  /**
+   * 4a: uma drenagem por vez — duas em paralelo mandariam o mesmo evento duas vezes.
+   *
+   * ⚠️ **Mas o pedido concorrente não é mais descartado, e essa parte da 082 estava errada.** Ela
+   * dizia "o gatilho seguinte (rede, refetch, manual) pega o que sobrou" — só que os gatilhos são a
+   * rede voltando e a montagem da tela, e com a rede boa nenhum dos dois acontece. O toque do
+   * motorista caía nessa janela e a confirmação ficava parada na fila **indefinidamente**, com a
+   * tela dizendo "aguardando envio" e a conexão perfeita.
+   *
+   * Decisão de quem responde pelo produto, em 2026-09-04: ao voltar a conexão — e em qualquer
+   * gatilho — os eventos que faltam têm de sair. O pedido que chega ocupado marca uma repetição, e
+   * ela roda quando a atual termina. Continua sendo uma por vez.
+   */
+  it('a drenagem é single-flight, e o pedido concorrente reexecuta em vez de sumir', () => {
     expect(hook).toInclude('isDrainingRef')
-    expect(hook).toInclude('if (isDrainingRef.current) return')
+    expect(hook).toInclude('hasPendingDrainRef')
     expect(hook).toInclude('requestDrain')
     expect(hook).not.toInclude('drain.mutate(undefined)')
+    /** O que não pode voltar: largar o pedido sem deixar rastro de que ele existiu. */
+    expect(hook).not.toInclude('if (isDrainingRef.current) return\n')
   })
 
   /** 4b: a chave do anexo nasce na captura e vai nos dois caminhos — fila e multipart direto. */

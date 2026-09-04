@@ -136,23 +136,46 @@ export function useDriverTrip(
   })
 
   /**
-   * Spec 082 (revisão): **uma drenagem por vez.** O pedido que chega com outra em andamento é
-   * ignorado — o estado fica visível em `isSyncing`, e o gatilho seguinte (rede, refetch, manual)
-   * pega o que sobrou. A `ref` decide na hora do toque, sem esperar o render do `isPending`.
+   * Spec 082 (revisão): **uma drenagem por vez** — duas em paralelo mandariam o mesmo evento duas
+   * vezes, e a idempotência do servidor existe para o reenvio, não para a corrida.
+   *
+   * ⚠️ **Mas o pedido que chega durante uma drenagem não pode ser descartado, e era.** A versão
+   * anterior o ignorava confiando em "o gatilho seguinte pega o que sobrou" — só que os gatilhos
+   * são a rede voltando e a montagem da tela, e nenhum dos dois acontece com a rede boa. O toque
+   * do motorista caía exatamente nessa janela: `report()` enfileira e pede a drenagem enquanto a
+   * drenagem de montagem ainda está em voo, o pedido era engolido, e a confirmação ficava parada
+   * na fila **indefinidamente**, com a tela dizendo "1 confirmação aguardando envio" e a rede
+   * perfeita. Medido pelo smoke do motorista, que reprovava por isso.
+   *
+   * O conserto é coalescer com execução final: o pedido que chega ocupado marca uma repetição, e
+   * ela roda assim que a atual termina. Continua sendo uma por vez.
+   *
+   * ⚠️ A repetição vai **sem `only`** de propósito: ela é a rede de segurança de tudo o que entrou
+   * durante a drenagem anterior, não de um item específico. Drenar o superconjunto é sempre seguro
+   * — o que já foi enviado não está mais na fila.
    */
   const isDrainingRef = useRef(false)
+  const hasPendingDrainRef = useRef(false)
+  const requestDrainRef = useRef<(only?: string) => void>(() => undefined)
   const requestDrain = useCallback(
     (only?: string) => {
-      if (isDrainingRef.current) return
+      if (isDrainingRef.current) {
+        hasPendingDrainRef.current = true
+        return
+      }
       isDrainingRef.current = true
       drain.mutate(only, {
         onSettled: () => {
           isDrainingRef.current = false
+          if (!hasPendingDrainRef.current) return
+          hasPendingDrainRef.current = false
+          requestDrainRef.current(undefined)
         },
       })
     },
     [drain],
   )
+  requestDrainRef.current = requestDrain
 
   /**
    * A rede voltando é evento do navegador — é o gatilho de drenagem, e o único `useEffect` daqui.
