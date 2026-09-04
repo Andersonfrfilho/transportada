@@ -177,6 +177,27 @@ pior que o atual, porque teria cara de melhoria.
 da rede estão em números diferentes) mas colide. Na dúvida, vai para o relatório em vez de virar
 coordenada.
 
+## A corrente das fontes, e por que ela não é uma fila
+
+Quatro fontes, cada uma mais autorizada que a anterior — mas elas **não chegam na mesma cadência**, e
+tratar as quatro como etapas de uma fila é o erro que trava o produto:
+
+| #   | fonte                     | quando chega                       | o que ela conserta                    |
+| --- | ------------------------- | ---------------------------------- | ------------------------------------- |
+| 1   | CEP                       | já está aqui                       | a rua, quando o CEP tem logradouro    |
+| 2   | Comparação com o provedor | **lote**, em dias                  | a medida de confiança da base inteira |
+| 3   | Contratante               | dias a semanas, sob pedido         | **o texto** — nomenclatura e CEP      |
+| 4   | Quem entrega              | **gotejamento**, ao longo de meses | **o ponto**, com quem esteve na porta |
+
+⚠️ **O degrau 4 é o mais autorizado e o mais lento.** O motorista só confirma endereço onde ele
+efetivamente entrega. Se o relatório esperar a confirmação para agir, ele nunca sai do lugar — os
+degraus 1 e 2 têm de bastar para o relatório nascer útil no dia um.
+
+⚠️ **O motorista confirma o ponto, não o texto.** Depois que ele confirma, a coordenada fica certa e
+a próxima nota **continua chegando com o mesmo texto errado**. Por isso o pedido ao contratante (P6)
+não sai da corrente quando o motorista responde: um conserta onde é, o outro conserta o que faz a
+nota casar.
+
 ## Requisitos funcionais
 
 - **RF1** — A busca por texto envia **estado, cidade, bairro, logradouro e número**. Sem cidade e UF
@@ -256,15 +277,19 @@ coordenada.
 
 ## Dúvidas
 
-- [NEEDS CLARIFICATION: o lote de comparação (P1) roda nos 300 endereços ou só nos 149 de precisão
-  `city`? Rodar nos 300 dá medida de confiança da base inteira por ~US$ 1,50 uma vez, e **manda todo
-  endereço de cliente ao provedor** — o que contradiz a postura da ADR-0047 e exige ADR própria.
-  Rodar só nos 149 preserva a postura e não mede os outros 147.]
+- ✅ **D1 decidido: o lote roda nos 300.** A medida de confiança é da base inteira, não só do pedaço
+  quebrado. ⚠️ Isso **contradiz a ADR-0047** — todo endereço de cliente vai ao provedor — e exige
+  **ADR própria** registrando a decisão e o porquê, antes da T04. Não é impeditivo; é decisão que
+  precisa estar escrita, e não herdada por silêncio.
 - [NEEDS CLARIFICATION: a aceitação da sugestão do contratante é manual (um operador confere) ou
   automática quando a conferência de município passa? Manual é mais seguro e não escala; automática
   escala e transforma o portal em escrita direta na operação.]
 - [NEEDS CLARIFICATION: RNF3 — os termos do Maps Platform permitem guardar a coordenada
-  permanentemente, ou só o Place ID? Bloqueia o lote.]
+  permanentemente, ou só o Place ID? Bloqueia o lote.
+  ⚠️ **Há uma saída que talvez dispense a resposta:** a **distância entre as duas fontes é conta
+  nossa**, derivada no momento da comparação. Guardando o Place ID e o número, a base ganha a medida
+  de confiança sem herdar coordenada de terceiro. A pergunta passa a valer só para o caso em que o
+  Google é a **melhor** fonte e queremos usá-lo como coordenada de entrega.]
 - [NEEDS CLARIFICATION: o pino do motorista (P4) vira coordenada **aceita** direto, ou entra como
   sugestão que o operador confirma no relatório (P6)? Ele é a fonte que esteve na porta — mas também
   é um toque numa tela pequena, no fim do turno, e um pino errado é indistinguível de um certo.]
