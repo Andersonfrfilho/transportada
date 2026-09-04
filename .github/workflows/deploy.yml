@@ -217,8 +217,31 @@ jobs:
   # nenhuma, então não tem por que esperar migration. Era o passo mais lento da fila (147s) e agora
   # começa no instante zero, junto com a API.
   deploy-frontend:
-    needs: [target, changes, gate]
-    if: needs.changes.outputs.frontend == 'true'
+    needs: [target, changes, gate, deploy-api]
+    # ⚠️ **Ele passa a ESPERAR a API, e isso custa os 147s que a decisão anterior economizava.**
+    # `needs` no Actions é espera, sempre — não há como depender só para o caso de falha, e a
+    # tentativa de ter as duas coisas foi descartada por não existir.
+    #
+    # O argumento que desacoplava — "bundle estático não toca o banco" — está certo e é sobre a
+    # coisa errada. O frontend não lê tabela, mas chama a API, e
+    # publicar painel novo contra API que não subiu deixa as telas novas batendo em rota
+    # inexistente. Aconteceu no run `33917015862`: o `deploy-api` parou na reconciliação do realm
+    # (papel `view-clients` faltando no service account de produção), o frontend publicou assim
+    # mesmo, e produção ficou 50 minutos com o painel de hoje contra a API de dois dias antes.
+    #
+    # `always()` continua necessário: sem ele, API inalterada deixa `deploy-api` em `skipped` e o
+    # frontend não publicaria por carona no skip. Ele desliga a propagação, e por isso gate e alvo
+    # precisam ser conferidos à mão — mesma armadilha documentada em `deploy-services`.
+    #
+    # O preço, dito por extenso: **o painel publica ~2,5 min depois em toda release.** Foi a troca
+    # escolhida em 04/09/2026, contra 50 minutos de desencontro quando a API falha.
+    if: >-
+      always()
+      && needs.target.result == 'success'
+      && needs.gate.result == 'success'
+      && needs.deploy-api.result != 'failure'
+      && needs.deploy-api.result != 'cancelled'
+      && needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: ${{ needs.target.outputs.environment }}

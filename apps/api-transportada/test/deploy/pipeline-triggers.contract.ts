@@ -185,14 +185,42 @@ describe('contrato do grafo de deploy', () => {
   })
 
   /**
-   * O frontend é bundle estático: não abre conexão com o banco e não lê tabela nenhuma. Pendurá-lo
-   * na API devolveria 147s à espera sem comprar segurança alguma — era o passo mais lento da fila.
+   * ⚠️ `always()` continua sendo obrigatório mesmo agora que o frontend espera: sem ele, API
+   * inalterada deixa `deploy-api` em `skipped`, e o `skipped` propagaria para cá — o frontend
+   * deixaria de publicar por carona num job que nem precisava rodar.
    */
-  test('o frontend não espera a API: ele publica junto', async () => {
+  test('a API inalterada não segura o frontend por carona no skip', async () => {
+    const workflow = await readWorkflow(DEPLOY_WORKFLOW_PATH)
+    /** O bloco dele, não o arquivo: `deploy-services` também usa `always()`, por outro motivo. */
+    const job = workflow.slice(
+      workflow.indexOf('deploy-frontend:'),
+      workflow.indexOf('deploy-landing:'),
+    )
+
+    expect(job).toContain('always()')
+    expect(needsOf(workflow, 'deploy-frontend')).toContain('gate')
+  })
+
+  /**
+   * ⚠️ **Mas paralelo não é indiferente à falha, e a versão anterior desta regra era.** O
+   * argumento dela — "bundle estático não toca o banco" — está certo e é sobre a coisa errada: o
+   * frontend não lê tabela, mas **chama a API**, e publicar painel novo contra API que não subiu
+   * põe as telas novas batendo em rota inexistente.
+   *
+   * Aconteceu no run `33917015862`: o `deploy-api` parou na reconciliação do realm — faltava
+   * `view-clients` no service account de produção — e o `deploy-frontend`, que só dependia do
+   * gate, publicou assim mesmo. Produção passou **50 minutos** com o painel de hoje contra a API
+   * de dois dias antes.
+   *
+   * A barreira é a mesma de `deploy-services`, e pelo mesmo motivo: `always()` desliga a
+   * propagação do `skipped`, então falha e cancelamento têm de ser conferidos em voz alta.
+   */
+  test('o frontend não publica contra uma API que falhou', async () => {
     const workflow = await readWorkflow(DEPLOY_WORKFLOW_PATH)
 
-    expect(needsOf(workflow, 'deploy-frontend')).toEqual(['target', 'changes', 'gate'])
-    expect(needsOf(workflow, 'deploy-frontend')).not.toContain('deploy-api')
+    expect(needsOf(workflow, 'deploy-frontend')).toContain('deploy-api')
+    expect(workflow).toContain("needs.deploy-api.result != 'failure'")
+    expect(workflow).toContain("needs.deploy-api.result != 'cancelled'")
   })
 
   /**
