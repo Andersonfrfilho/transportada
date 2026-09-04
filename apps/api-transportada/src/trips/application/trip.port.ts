@@ -48,6 +48,11 @@ export type TripDocument = {
 }
 
 export type Trip = {
+  /**
+   * Quem dirige, na ordem em que a viagem os pareou. Lista vazia é viagem sem motorista — que
+   * existe, e a tela precisa poder dizer isso em vez de deixar a célula muda.
+   */
+  readonly driverNames: readonly string[]
   readonly companyId: string
   readonly createdAt: string
   readonly id: string

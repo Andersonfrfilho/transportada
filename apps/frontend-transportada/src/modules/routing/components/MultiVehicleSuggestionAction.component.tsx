@@ -100,6 +100,8 @@ export function MultiVehicleSuggestionAction({
         className={className}
         disabled={documentIds.length === 0}
         onClick={dialog.open}
+        /** O rótulo diz o resultado ("sugerir viagens"); o tooltip diz o meio, que é o que não cabe nele. */
+        title={t('multiVehicle.title')}
         type="button"
       >
         <Icon name="send" />

@@ -17,6 +17,14 @@ const BACKGROUND_REMOVAL_CACHE_CONTROL = 'public, max-age=2592000'
 const IMMUTABLE_CACHE_CONTROL = 'public, max-age=31536000, immutable'
 const REVALIDATE_CACHE_CONTROL = 'no-cache'
 const CONTENT_SECURITY_POLICY_PATH = 'content-security-policy.txt'
+/**
+ * O mapa de rua (ADR-0044 §6). Ele é **um arquivo**, lido por faixa de bytes: o MapLibre pede o
+ * cabeçalho, depois o diretório, depois só as telhas da tela — nunca o arquivo inteiro. Por isso
+ * este caminho tem tratamento próprio de `Range`, que `new Response(BunFile)` não faz sozinho.
+ */
+const MAP_TILES_PREFIX = '/map-tiles/'
+/** Mapa envelhece por lei e por obra, não por semana; e o nome muda quando ele é refeito. */
+const MAP_TILES_CACHE_CONTROL = 'public, max-age=2592000'
 
 // A diretiva é composta no build, onde as origens da API e do Keycloak existem — aqui elas não
 // chegam, porque `VITE_*` é inlinado no bundle. Sem o arquivo o servidor não sobe: publicar sem CSP
@@ -55,6 +63,9 @@ Bun.serve({
 
     const asset = resolveAsset(url.pathname)
     if (await asset.exists()) {
+      if (url.pathname.startsWith(MAP_TILES_PREFIX)) {
+        return respond(rangeResponse(asset, request), MAP_TILES_CACHE_CONTROL)
+      }
       return respond(new Response(asset), cacheControlFor(url.pathname))
     }
 
@@ -62,6 +73,42 @@ Bun.serve({
     return respond(new Response(resolveAsset(`/${INDEX_PATH}`)), REVALIDATE_CACHE_CONTROL)
   },
 })
+
+/**
+ * ⚠️ Sem isto o MapLibre baixa o arquivo **inteiro** a cada telha pedida — centenas de MB por
+ * movimento de mapa. O `206` com `Content-Range` é o que transforma um arquivo único em servidor de
+ * telhas, e é a razão de o formato existir.
+ *
+ * Faixa ausente ou ilegível devolve o arquivo inteiro com `200`, como manda o RFC: pedido que o
+ * servidor não entende não pode virar erro para um cliente que sabe ler o corpo completo.
+ */
+function rangeResponse(file: Bun.BunFile, request: Request): Response {
+  const size = file.size
+  const header = request.headers.get('range') ?? ''
+  const match = /^bytes=(\d*)-(\d*)$/u.exec(header.trim())
+  if (match === null) {
+    return new Response(file, { headers: { 'Accept-Ranges': 'bytes' } })
+  }
+
+  const [, rawStart = '', rawEnd = ''] = match
+  const start = rawStart === '' ? Math.max(size - Number(rawEnd), 0) : Number(rawStart)
+  const end = rawStart === '' || rawEnd === '' ? size - 1 : Math.min(Number(rawEnd), size - 1)
+  if (!Number.isFinite(start) || start > end || start >= size) {
+    return new Response(null, {
+      headers: { 'Accept-Ranges': 'bytes', 'Content-Range': `bytes */${size}` },
+      status: 416,
+    })
+  }
+
+  return new Response(file.slice(start, end + 1), {
+    headers: {
+      'Accept-Ranges': 'bytes',
+      'Content-Length': String(end - start + 1),
+      'Content-Range': `bytes ${start}-${end}/${size}`,
+    },
+    status: 206,
+  })
+}
 
 function resolveAsset(pathname: string): Bun.BunFile {
   const relativePath = pathname === '/' ? INDEX_PATH : pathname.replace(/^\/+/, '')

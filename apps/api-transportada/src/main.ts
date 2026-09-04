@@ -202,6 +202,8 @@ import { createMdfeManifestRoutes } from './mdfe-manifests/presentation/mdfe-man
 import { createTripUseCase } from './trips/application/trip.use-case'
 import { createTripLifecycleUseCase } from './trips/application/trip-lifecycle.use-case'
 import { listReturnedWithActiveCte } from './trips/application/list-returned-with-active-cte.use-case'
+import { createLinkTripDocumentsBatchUseCase } from './trips/application/link-trip-documents-batch.use-case.js'
+import { previewTripValuation } from './trips/application/read-trip-valuation.use-case.js'
 import { DrizzleTripRepository } from './trips/infrastructure/drizzle-trip.repository'
 import { DrizzleTripDocumentRepository } from './trips/infrastructure/drizzle-trip-document.repository'
 import { DrizzleTripDocumentBatchRepository } from './trips/infrastructure/drizzle-trip-document-batch.repository'
@@ -1759,6 +1761,21 @@ function createApplicationRoutes({
        * Spec 079: a linha da estrada para o mapa. Sem `ROUTING_MATRIX_URL` a porta devolve `null` e
        * a tela volta a ligar as paradas em reta — **dizendo que são retas**, nunca fingindo estrada.
        */
+      /**
+       * A mesma porta e o mesmo caso de uso da geometria da viagem — muda só a origem dos pontos.
+       * Sem `ROUTING_MATRIX_URL` ela devolve `unavailable`, e a tela volta a ligar em reta **dizendo
+       * que são retas**.
+       */
+      readRouteGeometry: {
+        execute: (input) =>
+          readRouteGeometry({
+            geometry:
+              routingMatrixUrl === undefined
+                ? { readRouteGeometry: async () => null }
+                : createOsrmRouteGeometryGateway({ baseUrl: routingMatrixUrl }),
+            stops: input.points,
+          }),
+      },
       readTripRouteGeometry: {
         execute: async (input) =>
           readRouteGeometry({
@@ -1888,6 +1905,18 @@ function createApplicationRoutes({
           }),
       },
       linkTripDocument: { execute: (input) => trips.linkDocument(input) },
+      linkTripDocumentsBatch: createLinkTripDocumentsBatchUseCase({ repository: tripRepository }),
+      previewValuation: {
+        execute: (input) =>
+          previewTripValuation({
+            ...input,
+            repository: {
+              findApplicableRule: (query) => applicableFreightRuleQuery.findApplicableRule(query),
+              readContext: (query) => tripValuationQuery.readContext(query),
+              readPreviewContext: (query) => tripValuationQuery.readPreviewContext(query),
+            },
+          }),
+      },
       listStops: { execute: (input) => tripLifecycle.listStops.execute(input) },
       listTrips: { execute: (input) => trips.list(input) },
       loadTripDocument: { execute: (input) => tripLifecycle.load.execute(input) },

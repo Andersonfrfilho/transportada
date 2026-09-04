@@ -151,6 +151,14 @@ describe('separator role contract', () => {
       'GET /trips/:id/schedules',
       'GET /trips/:id/stops',
       'PATCH /trips/:id/stops/order',
+      /**
+       * A mesma linha da estrada da rota irmã, para pontos que **ainda não são viagem**: é o mapa
+       * do formulário, onde o separador confere a ordem antes de criar a viagem. Alcança pelo mesmo
+       * `fleet.read` de `GET /trips/:id/route-geometry`, e pela mesma razão — quem ordena as
+       * paradas precisa ver por onde o caminhão passa. O corpo leva coordenadas que ele já escolheu
+       * na tela; nada de ficha de pessoa entra aqui.
+       */
+      'POST /route-geometry',
       'POST /trips',
       'POST /trips/:id/cancel',
       'POST /trips/:id/close',
@@ -182,6 +190,14 @@ describe('separator role contract', () => {
       'POST /trips/:id/documents/:documentId/occurrences',
       'POST /trips/:id/documents/:documentId/return',
       'POST /trips/:id/documents/:documentId/separate',
+      /**
+       * Decisão escrita (spec 075): **o separador alcança o vínculo em lote.** Ele já alcançava o
+       * vínculo unitário (`POST /trips/:id/documents`) sob a mesma `trip.manage`, e o lote é a mesma
+       * operação num pedido só — quem monta a viagem a partir de um maço de notas é justamente ele.
+       * Negar o lote e permitir o unitário seria arbitrário, e empurraria a montagem de trezentas
+       * notas de volta para trezentas requisições.
+       */
+      'POST /trips/:id/documents/batch',
       'POST /trips/:id/documents/batch-status',
       'POST /trips/:id/plan-route',
       'POST /trips/:id/stops/:stopId/schedule',

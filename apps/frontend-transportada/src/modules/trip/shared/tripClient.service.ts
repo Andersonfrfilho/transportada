@@ -1,6 +1,20 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { NFE_DOCUMENTS_PATH, SCAN_LOOKUP_LIMIT, TRIP_ERROR, TRIPS_PATH } from './trip.constant'
+import {
+  NFE_DOCUMENTS_PATH,
+  ROUTE_SUGGESTIONS_PATH,
+  SCAN_LOOKUP_LIMIT,
+  TRIP_ERROR,
+  TRIPS_PATH,
+} from './trip.constant'
+import {
+  acceptedMultiVehicleSuggestionFromApi,
+  multiVehicleSuggestionFromApi,
+} from './multiVehicleSuggestion.validation'
 import type {
+  AcceptedMultiVehicleSuggestion,
+  CreateMultiVehicleSuggestionInput,
+  MultiVehicleSuggestion,
+  TripCandidateDocumentPage,
   BatchStatusInput,
   BatchStatusResult,
   CancelTripResult,
@@ -11,6 +25,8 @@ import type {
   DispatchTripResult,
   FindNfeDocumentByAccessKeyInput,
   LinkTripDocumentInput,
+  LinkTripDocumentsBatchInput,
+  LinkTripDocumentsBatchResult,
   OverrideDeliveryAddressInput,
   PlanTripRouteResult,
   ReorderTripStopsInput,
@@ -51,11 +67,26 @@ export type TripClient = Readonly<{
   cancelTrip: (input: Readonly<{ tripId: string }>) => Promise<CancelTripResult>
   closeTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
   createTrip: (input: CreateTripBody) => Promise<TripDetail>
+  acceptMultiVehicleSuggestion: (
+    input: Readonly<{ suggestionId: string }>,
+  ) => Promise<AcceptedMultiVehicleSuggestion>
+  createMultiVehicleSuggestion: (
+    input: CreateMultiVehicleSuggestionInput,
+  ) => Promise<MultiVehicleSuggestion>
+  readMultiVehicleSuggestion: (
+    input: Readonly<{ suggestionId: string }>,
+  ) => Promise<MultiVehicleSuggestion>
+  listNfeDocuments: (
+    input: Readonly<{ cursor: null | string; limit: number; signal?: AbortSignal }>,
+  ) => Promise<TripCandidateDocumentPage>
   /** Entregar passou pela máquina de estados na API, então devolve o estado da viagem junto. */
   deliverTripDocument: (input: TripDocumentActionInput) => Promise<TransitionTripDocumentResult>
   dispatchTrip: (input: DispatchTripInput) => Promise<DispatchTripResult>
   readDeliveryProofs: (input: TripDocumentActionInput) => Promise<readonly DeliveryProof[]>
   readRouteGeometry: (input: Readonly<{ tripId: string }>) => Promise<RouteGeometry>
+  readPointsRouteGeometry: (
+    input: Readonly<{ points: readonly Readonly<{ latitude: number; longitude: number }>[] }>,
+  ) => Promise<RouteGeometry>
   readTripOccurrences: (input: TripDocumentActionInput) => Promise<readonly TripOccurrence[]>
   listOccurrenceTypes: () => Promise<readonly OccurrenceType[]>
   saveOccurrenceType: (
@@ -90,6 +121,9 @@ export type TripClient = Readonly<{
   readFiscalReadiness: (input: Readonly<{ tripId: string }>) => Promise<TripFiscalReadiness>
   setTripMdfeRequirement: (input: SetTripMdfeRequirementInput) => Promise<TripMdfeRequirement>
   linkTripDocument: (input: LinkTripDocumentInput) => Promise<TripDocument>
+  linkTripDocumentsBatch: (
+    input: LinkTripDocumentsBatchInput,
+  ) => Promise<LinkTripDocumentsBatchResult>
   listDeliveryAddressHistory: (
     input: DeliveryAddressHistoryInput,
   ) => Promise<readonly DeliveryAddressOverride[]>
@@ -226,6 +260,34 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       })
       return adapters.tripDetailFromApi(readEnvelopeData(response))
     },
+    async acceptMultiVehicleSuggestion(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'POST',
+        path: `${ROUTE_SUGGESTIONS_PATH}/${input.suggestionId}/accept`,
+      })
+      return acceptedMultiVehicleSuggestionFromApi(readEnvelopeData(response))
+    },
+    async createMultiVehicleSuggestion(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({
+          nfeDocumentIds: input.nfeDocumentIds,
+          vehicles: input.vehicles,
+        }),
+        dependencies,
+        method: 'POST',
+        path: `${ROUTE_SUGGESTIONS_PATH}/multi-vehicle`,
+      })
+      return multiVehicleSuggestionFromApi(readEnvelopeData(response))
+    },
+    async readMultiVehicleSuggestion(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${ROUTE_SUGGESTIONS_PATH}/${input.suggestionId}`,
+      })
+      return multiVehicleSuggestionFromApi(readEnvelopeData(response))
+    },
     async deliverTripDocument(input) {
       const response = await authorizedRequest({
         dependencies,
@@ -318,6 +380,20 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       })
       return adapters.routeGeometryFromApi(readEnvelopeData(response))
     },
+    /**
+     * A linha da estrada para pontos que ainda não são viagem — o mapa da montagem. Mesma resposta
+     * da rota da viagem, e por isso o mesmo adaptador: `unavailable` com lista vazia quando o
+     * roteirizador não responde, nunca uma reta devolvida como se fosse estrada.
+     */
+    async readPointsRouteGeometry(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({ points: input.points }),
+        dependencies,
+        method: 'POST',
+        path: '/route-geometry',
+      })
+      return adapters.routeGeometryFromApi(readEnvelopeData(response))
+    },
     async dispatchTrip(input) {
       const response = await authorizedRequest({
         body: JSON.stringify({
@@ -344,6 +420,25 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         ...(input.signal === undefined ? {} : { signal: input.signal }),
       })
       return adapters.scannedNfeDocumentFromApi(response)
+    },
+    async linkTripDocumentsBatch(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({ nfeDocumentIds: input.nfeDocumentIds }),
+        dependencies,
+        method: 'POST',
+        path: `${TRIPS_PATH}/${input.tripId}/documents/batch`,
+      })
+      return adapters.linkTripDocumentsBatchResultFromApi(readEnvelopeData(response))
+    },
+    async listNfeDocuments(input) {
+      const search = buildSearch({ cursor: input.cursor, limit: input.limit }, {})
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${NFE_DOCUMENTS_PATH}?${search}`,
+        ...(input.signal === undefined ? {} : { signal: input.signal }),
+      })
+      return adapters.tripCandidateDocumentPageFromApi(response)
     },
     async getTrip(input) {
       const response = await authorizedRequest({

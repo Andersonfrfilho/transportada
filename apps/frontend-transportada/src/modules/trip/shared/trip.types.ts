@@ -38,6 +38,11 @@ export type TripDriverLine = Readonly<{
 
 export type Trip = Readonly<{
   companyId: string
+  /**
+   * Quem dirige, na ordem em que a viagem os pareou. Lista vazia é viagem sem motorista — que
+   * existe, e a tela diz isso em vez de deixar a linha muda.
+   */
+  driverNames: readonly string[]
   createdAt: string
   id: string
   /** Spec 065 D4c: `null` é "derive da classificação das notas", não "não precisa". */
@@ -420,12 +425,130 @@ export type ScannedNfeDocument = Readonly<{
   issuedAt: string
   number: string
   recipientName: string
+  /**
+   * Onde a carga vai parar. A rota sempre mandou os dois; o recorte passou a guardá-los porque a
+   * fila da viagem lista destinatário sem dizer **onde** ele está — e dois supermercados da mesma
+   * rede, com o mesmo nome, só se distinguem pela cidade.
+   */
+  /**
+   * A rua com número e bairro, já composta pela API, e o CEP cru. Quem monta a viagem confere a
+   * parada pelo endereço — duas ruas de mesmo nome em bairros diferentes são a mesma linha sem ele.
+   */
+  recipientAddress: null | string
+  recipientPostalCode: null | string
+  /** O número **do endereço**, não o da nota: é ele que entra na chave da parada. */
+  recipientAddressNumber: null | string
+  /**
+   * Onde a nota para, resolvido pela cascata de geocodificação (ADR-0044 §3).
+   *
+   * ⚠️ `recipientLocationPrecision` **não é opcional na leitura**: `city` é centroide de município,
+   * palpite de quilômetros, e a ADR-0044 §5 exige que ele apareça marcado. Desenhar a coordenada
+   * sem a marca é o modo de falha da §1 — número plausível, sem aviso.
+   */
+  recipientLatitude: null | string
+  recipientLongitude: null | string
+  recipientLocationPrecision: null | string
+  recipientCity: null | string
+  /**
+   * O código do IBGE, que é por onde o mapa da montagem casa a cidade com o polígono da malha.
+   * A grafia não serve para isso: a listagem devolve `BARRINHA` e o IBGE devolve `Barrinha`.
+   */
+  recipientCityCode: null | string
+  recipientState: null | string
   series: string
   status: ScannedNfeStatus
   totalAmount: string
+  /**
+   * A viagem em que a nota já saiu. A rota sempre mandou este campo; era o adaptador que o
+   * descartava — e sem ele a criação rápida não teria como recusar uma nota que já está em outra
+   * viagem antes de tentar vincular.
+   */
+  tripId: null | string
 }>
 
 export type FindNfeDocumentByAccessKeyInput = Readonly<{
   accessKey: string
   signal?: AbortSignal
+}>
+
+/**
+ * A recomendação de roteiro para vários veículos. O corpo servido pela API tem quinze campos; o que
+ * a tela lê é o suficiente para esperar o solver e imprimir o resultado — o mesmo recorte que
+ * `ScannedNfeDocument` faz com a linha da listagem de notas.
+ */
+/**
+ * ⚠️ Cópia por valor de `ROUTE_SUGGESTION_STATUSES` (ADR-0044 §5): a sugestão nasce `queued`, o
+ * worker a resolve, e o humano decide. Faltar um valor aqui não degrada — o validador **lança**, e
+ * a criação morria no `202` sem nunca chegar a esperar o solver.
+ */
+export type MultiVehicleSuggestionStatus =
+  | 'accepted'
+  | 'failed'
+  | 'queued'
+  | 'ready'
+  | 'rejected'
+  | 'running'
+  | 'stale'
+
+export type MultiVehicleSuggestion = Readonly<{
+  errorCode: null | string
+  estimatedDistanceMeters: null | number
+  estimatedDurationSeconds: null | number
+  id: string
+  status: MultiVehicleSuggestionStatus
+  truncated: boolean
+}>
+
+export type AcceptedMultiVehicleTrip = Readonly<{
+  documentCount: number
+  stopCount: number
+  tripId: string
+  vehicleId: string
+}>
+
+export type AcceptedMultiVehicleSuggestion = Readonly<{
+  suggestion: MultiVehicleSuggestion
+  trips: readonly AcceptedMultiVehicleTrip[]
+}>
+
+/**
+ * ⚠️ Spec 081 / ADR-0055: a distribuição é uma lista de **pares**, não de veículos. O motorista do
+ * par é o que a viagem criada pelo aceite recebe — sem ele a viagem nasce sem ninguém, e não
+ * aparece no aplicativo de quem dirige.
+ */
+export type CreateMultiVehicleSuggestionInput = Readonly<{
+  nfeDocumentIds: readonly string[]
+  vehicles: readonly Readonly<{ driverId?: string; vehicleId: string }>[]
+}>
+
+/**
+ * A nota candidata a entrar num roteiro montado por faixa de numeração. É `ScannedNfeDocument` mais
+ * `tripId`: sem ele a tela ofereceria de novo a nota que já saiu em outra viagem, e o vínculo
+ * falharia só no clique.
+ */
+export type TripCandidateDocument = ScannedNfeDocument & Readonly<{ tripId: null | string }>
+
+export type TripCandidateDocumentPage = Readonly<{
+  items: readonly TripCandidateDocument[]
+  nextCursor: null | string
+}>
+
+/**
+ * O vínculo em lote: uma requisição para o maço inteiro. `skipped` traz a nota que já estava em
+ * outra viagem — ela não derruba as demais, e o operador precisa saber quais ficaram de fora.
+ */
+export type LinkTripDocumentsBatchSkip = Readonly<{
+  nfeDocumentId: string
+  reason: 'already_linked' | 'not_found'
+}>
+
+export type LinkTripDocumentsBatchResult = Readonly<{
+  linked: readonly TripDocument[]
+  skipped: readonly LinkTripDocumentsBatchSkip[]
+  tripStatus: TripStatus
+}>
+
+export type LinkTripDocumentsBatchInput = Readonly<{
+  nfeDocumentIds: readonly string[]
+  tripId: string
 }>

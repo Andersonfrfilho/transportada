@@ -20,6 +20,7 @@ const SERVED_POLICY = buildContentSecurityPolicy({
   allowsInlineScript: false,
   apiBaseUrl: API_BASE_URL,
   keycloakUrl: KEYCLOAK_URL,
+  mapTilesUrl: undefined,
 })
 
 function directiveOf(policy: string, name: string): string {
@@ -57,7 +58,37 @@ async function collectSourceOrigins(
   return [...origins].sort()
 }
 
+/**
+ * Os hosts de telha de mapa mais comuns. A lista não precisa ser exaustiva para o contrato valer:
+ * ela é a rede que pega a tentativa **óbvia**, que é a que acontece.
+ */
+const TILE_HOST = [
+  'tile.openstreetmap.org',
+  'tiles.openstreetmap.org',
+  'basemaps.cartocdn.com',
+  'api.mapbox.com',
+  'api.maptiler.com',
+  'maps.googleapis.com',
+  'server.arcgisonline.com',
+  'tile.thunderforest.com',
+] as const
+
 describe('content security policy', () => {
+  /**
+   * ⚠️ A ADR-0044 §6 decidiu o mapa deste produto e **cobrou este contrato por escrito** — ele não
+   * existia, e por isso a proibição era só prosa. O motivo é o da ADR-0047, que ela mantém de pé:
+   * endereço de cliente é dado pessoal, e uma URL de telha é um log de servidor alheio — a
+   * coordenada da parada viaja na própria URL.
+   *
+   * O mapa de rua deste produto é PMTiles servido do nosso domínio. Quem precisar de telha de
+   * terceiro reabre a ADR primeiro, e este teste é onde a conversa começa.
+   */
+  test('never allows a third-party map tile host, in any directive', () => {
+    for (const host of TILE_HOST) {
+      expect(`${host}:${SERVED_POLICY.includes(host)}`).toBe(`${host}:false`)
+    }
+  })
+
   test('carries every external origin the bundle names, or declares it as never fetched', async () => {
     const connectSource = directiveOf(SERVED_POLICY, 'connect-src')
     const sourceOrigins = await collectSourceOrigins()
@@ -122,6 +153,7 @@ describe('content security policy', () => {
           allowsInlineScript: true,
           apiBaseUrl: API_BASE_URL,
           keycloakUrl: KEYCLOAK_URL,
+          mapTilesUrl: undefined,
         }),
         'script-src',
       ),
@@ -133,6 +165,7 @@ describe('content security policy', () => {
       allowsInlineScript: false,
       apiBaseUrl: undefined,
       keycloakUrl: '',
+      mapTilesUrl: undefined,
     })
 
     expect(directiveOf(policy, 'connect-src')).toContain("'self'")
@@ -145,6 +178,7 @@ describe('content security policy', () => {
         allowsInlineScript: false,
         apiBaseUrl: 'api.exemplo.com.br',
         keycloakUrl: KEYCLOAK_URL,
+        mapTilesUrl: undefined,
       }),
     ).toThrow()
   })

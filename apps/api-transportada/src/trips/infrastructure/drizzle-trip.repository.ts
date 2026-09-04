@@ -34,6 +34,7 @@ import {
 } from '../domain/trip.error.js'
 import type { TripDriverCandidate, TripVehicleCandidate } from '../domain/trip.policy.js'
 import { checkTripAcceptsLinkage } from '../domain/trip-state.policy.js'
+import type { LinkTripDocumentsBatchResult } from '../application/link-trip-documents-batch.use-case.js'
 import {
   reconcileStopOnLink,
   reconcileStopOnUnlink,
@@ -225,6 +226,99 @@ export class DrizzleTripRepository implements TripRepositoryPort {
     })
   }
 
+  /**
+   * O lote paga **uma** transação e **um** lock da viagem para o maço inteiro. O caminho um a um
+   * pagava os dois por nota, e uma viagem de trezentas notas era trezentas idas ao servidor — com a
+   * viagem já criada quando a centésima falhava.
+   *
+   * ⚠️ A nota já vinculada é **filtrada antes do insert**, não capturada depois: numa transação só,
+   * a violação de unicidade aborta o lote inteiro, e as duzentas e noventa e nove boas cairiam com
+   * a repetida. Entre a leitura e o insert ainda cabe outra escrita, e é o índice
+   * `trip_documents_live_nfe_document_unique` que decide — por isso o insert ignora o conflito.
+   */
+  public async linkDocumentsBatch(input: {
+    readonly companyId: string
+    readonly nfeDocumentIds: readonly string[]
+    readonly tripId: string
+  }): Promise<LinkTripDocumentsBatchResult> {
+    return this.database.transaction(async (transaction) => {
+      const [tripRow] = await transaction
+        .select({ status: trips.status })
+        .from(trips)
+        .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+        .for('update')
+        .limit(1)
+      if (tripRow === undefined) throw new TripNotFoundError()
+      const blockReason = checkTripAcceptsLinkage(tripRow.status)
+      if (blockReason !== null) throw new TripStateTransitionNotAllowedError(blockReason)
+
+      if (input.nfeDocumentIds.length === 0) {
+        return { linked: [], skipped: [], tripStatus: tripRow.status }
+      }
+
+      const live = await transaction
+        .select({ nfeDocumentId: tripDocuments.nfeDocumentId })
+        .from(tripDocuments)
+        .where(
+          and(
+            eq(tripDocuments.companyId, input.companyId),
+            inArray(tripDocuments.nfeDocumentId, [...input.nfeDocumentIds]),
+            isNull(tripDocuments.releasedAt),
+          ),
+        )
+      const alreadyLinked = new Set(
+        live.flatMap((row) => (row.nfeDocumentId === null ? [] : [row.nfeDocumentId])),
+      )
+      const pending = input.nfeDocumentIds.filter((id) => !alreadyLinked.has(id))
+
+      const created =
+        pending.length === 0
+          ? []
+          : await transaction
+              .insert(tripDocuments)
+              .values(
+                pending.map((nfeDocumentId) => ({
+                  companyId: input.companyId,
+                  freightCalculationId: null,
+                  nfeDocumentId,
+                  tripId: input.tripId,
+                })),
+              )
+              .onConflictDoNothing()
+              .returning()
+
+      const linked: TripDocument[] = []
+      for (const record of created) {
+        const { destinationOrigin, stopId } = await reconcileLinkedDocumentStop(transaction, {
+          companyId: input.companyId,
+          freightCalculationId: record.freightCalculationId,
+          nfeDocumentId: record.nfeDocumentId,
+          tripId: input.tripId,
+        })
+        if (destinationOrigin === null && stopId === null) {
+          linked.push(mapTripDocument(record))
+          continue
+        }
+        const [withStop] = await transaction
+          .update(tripDocuments)
+          .set({ destinationOrigin, stopId })
+          .where(and(eq(tripDocuments.companyId, input.companyId), eq(tripDocuments.id, record.id)))
+          .returning()
+        linked.push(mapTripDocument(withStop ?? record))
+      }
+
+      /** O que o `onConflictDoNothing` engoliu perdeu a corrida entre a leitura e o insert. */
+      const insertedIds = new Set(
+        created.flatMap((row) => (row.nfeDocumentId === null ? [] : [row.nfeDocumentId])),
+      )
+      const skipped = input.nfeDocumentIds
+        .filter((id) => !insertedIds.has(id))
+        .map((nfeDocumentId) => ({ nfeDocumentId, reason: 'already_linked' as const }))
+
+      return { linked, skipped, tripStatus: tripRow.status }
+    })
+  }
+
   public async listDrivers(input: {
     readonly companyId: string
     readonly driverIds: readonly string[]
@@ -273,7 +367,45 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         ? encodeKeysetCursor({ createdAt: last.createdAt, id: last.id })
         : null
 
-    return { items: page.map(mapTrip), nextCursor }
+    /**
+     * Uma consulta para a página inteira, nunca uma por linha: quem lê a listagem quer saber **quem
+     * dirige**, e o `vehicleId` sozinho manda o operador abrir viagem por viagem para descobrir.
+     */
+    const driversByTrip = await this.loadTripDriverNames(page.map((record) => record.id))
+
+    return {
+      items: page.map((record) => ({
+        ...mapTrip(record),
+        driverNames: driversByTrip.get(record.id) ?? [],
+      })),
+      nextCursor,
+    }
+  }
+
+  /**
+   * Só o nome, e na ordem em que a viagem os pareou (`position`): a listagem nomeia quem dirige, e
+   * CPF e contato são da ficha — trazê-los para uma tabela de varredura seria PII sem consumidor.
+   */
+  private async loadTripDriverNames(
+    tripIds: readonly string[],
+  ): Promise<Map<string, readonly string[]>> {
+    const byTrip = new Map<string, readonly string[]>()
+    if (tripIds.length === 0) return byTrip
+
+    const rows = await this.database
+      .select({
+        driverName: tripDrivers.driverName,
+        position: tripDrivers.position,
+        tripId: tripDrivers.tripId,
+      })
+      .from(tripDrivers)
+      .where(inArray(tripDrivers.tripId, [...tripIds]))
+      .orderBy(asc(tripDrivers.position))
+
+    for (const row of rows) {
+      byTrip.set(row.tripId, [...(byTrip.get(row.tripId) ?? []), row.driverName])
+    }
+    return byTrip
   }
 
   public async releaseDocument(input: {

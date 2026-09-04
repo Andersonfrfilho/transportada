@@ -47,6 +47,7 @@ import type {
   ListTripStopsResult,
   TripStopSummary,
 } from '../application/list-trip-stops.use-case.js'
+import type { LinkTripDocumentsBatchUseCase } from '../application/link-trip-documents-batch.use-case.js'
 import type { CreateTripCteBatchResult } from '../application/create-trip-cte-batch.use-case.js'
 import type { TripMdfeRequirement } from '../application/set-trip-mdfe-requirement.use-case.js'
 import type { TripValuation } from '../domain/trip-valuation.policy.js'
@@ -69,18 +70,27 @@ import {
   parseCreateTripCteBatchRequest,
   parseDispatchTripRequest,
   parseLinkTripDocumentRequest,
+  parseLinkTripDocumentsBatchRequest,
+  parsePreviewTripValuationRequest,
+  parseRouteGeometryRequest,
   parseOverrideDeliveryAddressRequest,
   parseSetTripMdfeRequirementRequest,
   parseReorderTripStopsRequest,
   parseTransitionTripDocumentRequest,
   parseTripList,
   parseUuidPathIdentifier,
+  type RouteGeometryBody,
 } from './trip.schema.js'
 
 const TRIP_CLOSE_PATH = `${API_TRIPS_PATH}/:id/close`
 const TRIP_DETAIL_PATH = `${API_TRIPS_PATH}/:id`
 const TRIP_DOCUMENTS_PATH = `${API_TRIPS_PATH}/:id/documents`
 const TRIP_ROUTE_GEOMETRY_PATH = `${API_TRIPS_PATH}/:id/route-geometry`
+/**
+ * Fora da árvore `/trips/:id` de propósito: quem monta o roteiro no formulário ainda não tem
+ * viagem, e é justamente antes de criá-la que ele precisa ver por onde o caminhão passa.
+ */
+const ROUTE_GEOMETRY_PATH = '/route-geometry'
 const TRIP_DOCUMENT_PATH = `${TRIP_DOCUMENTS_PATH}/:documentId`
 const TRIP_DOCUMENT_DELIVER_PATH = `${TRIP_DOCUMENT_PATH}/deliver`
 const TRIP_DOCUMENT_PROOF_PATH = `${TRIP_DOCUMENT_PATH}/proof`
@@ -128,6 +138,8 @@ const TRIP_DOCUMENT_SEPARATE_PATH = `${TRIP_DOCUMENT_PATH}/separate`
 const TRIP_DOCUMENT_LOAD_PATH = `${TRIP_DOCUMENT_PATH}/load`
 const TRIP_DOCUMENT_RETURN_PATH = `${TRIP_DOCUMENT_PATH}/return`
 const TRIP_DOCUMENTS_BATCH_STATUS_PATH = `${TRIP_DOCUMENTS_PATH}/batch-status`
+/** Vincular o maço de uma vez: uma transação para o lote inteiro, e não uma por nota. */
+const TRIP_DOCUMENTS_BATCH_PATH = `${TRIP_DOCUMENTS_PATH}/batch`
 const TRIP_PLAN_ROUTE_PATH = `${API_TRIPS_PATH}/:id/plan-route`
 const TRIP_DISPATCH_PATH = `${API_TRIPS_PATH}/:id/dispatch`
 const TRIP_CANCEL_PATH = `${API_TRIPS_PATH}/:id/cancel`
@@ -136,6 +148,11 @@ const TRIP_STOPS_PATH = `${API_TRIPS_PATH}/:id/stops`
 const TRIP_FISCAL_READINESS_PATH = `${API_TRIPS_PATH}/:id/fiscal-readiness`
 const TRIP_MDFE_REQUIREMENT_PATH = `${API_TRIPS_PATH}/:id/mdfe-requirement`
 const TRIP_VALUATION_PATH = `${API_TRIPS_PATH}/:id/valuation`
+/**
+ * Fora da árvore `/trips/:id` de propósito: a viagem **ainda não existe**. É a avaliação que decide
+ * se vale a pena montá-la, e a pergunta acontece antes da criação — depois dela, já foi respondida.
+ */
+const TRIP_VALUATION_PREVIEW_PATH = `${API_TRIPS_PATH}/valuation-preview`
 /**
  * Spec 061 D4: **dinheiro tem permissão própria.** O resultado congelado é `trip.financials`, de
  * `company-admin` e `finance` — quem monta viagem já tem a avaliação prevista para decidir carga, e
@@ -251,6 +268,12 @@ type Dependencies = {
   readonly createTripMdfeManifest: {
     execute(input: TenantInput<CreateTripMdfeManifestInput>): Promise<MdfeManifestDetail>
   }
+  /** A linha da estrada para pontos que ainda não são viagem — ver `ROUTE_GEOMETRY_PATH`. */
+  readonly readRouteGeometry: {
+    execute(input: {
+      readonly points: readonly Readonly<{ latitude: number; longitude: number }>[]
+    }): Promise<RouteGeometryView>
+  }
   readonly readTripRouteGeometry: {
     execute(input: TenantInput<{ readonly tripId: string }>): Promise<RouteGeometryView>
   }
@@ -308,6 +331,15 @@ type Dependencies = {
   }
   readonly linkTripDocument: {
     execute(input: TenantInput<LinkTripDocumentInput>): Promise<TripDocument>
+  }
+  readonly linkTripDocumentsBatch: LinkTripDocumentsBatchUseCase
+  readonly previewValuation: {
+    execute(input: {
+      readonly companyId: string
+      readonly driverIds: readonly string[]
+      readonly nfeDocumentIds: readonly string[]
+      readonly vehicleId: string
+    }): Promise<TripValuation>
   }
   readonly listStops: { execute(input: TenantInput<TripIdInput>): Promise<ListTripStopsResult> }
   readonly listTrips: { execute(input: TenantInput<ListTripsInput>): Promise<TripPage> }
@@ -596,6 +628,24 @@ export function createTripRoutes(
       pathname: TRIP_VALUATION_PATH,
       policy: TRIP_FINANCIALS_POLICY,
     }),
+    defineRoute<{
+      readonly driverIds: readonly string[]
+      readonly nfeDocumentIds: readonly string[]
+      readonly vehicleId: string
+    }>({
+      async handle({ context, input }): Promise<Response> {
+        const valuation = await dependencies.previewValuation.execute({
+          companyId: context.scope.companyId,
+          ...input,
+        })
+
+        return jsonResponse({ body: { data: valuation }, status: 200 })
+      },
+      method: 'POST',
+      parse: ({ request }) => parsePreviewTripValuationRequest(request),
+      pathname: TRIP_VALUATION_PREVIEW_PATH,
+      policy: TRIP_FINANCIALS_POLICY,
+    }),
     defineRoute<Omit<GetTripInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
         const trip = await dependencies.getTrip.execute({ context: context.scope, ...input })
@@ -636,6 +686,35 @@ export function createTripRoutes(
         }
       },
       pathname: TRIP_DOCUMENTS_PATH,
+      policy: TRIP_MANAGE_POLICY,
+    }),
+    defineRoute<{ readonly nfeDocumentIds: readonly string[]; readonly tripId: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const result = await dependencies.linkTripDocumentsBatch.execute({
+          context: context.scope,
+          nfeDocumentIds: input.nfeDocumentIds,
+          tripId: input.tripId,
+        })
+        return jsonResponse({
+          body: {
+            data: {
+              linked: result.linked.map(serializeTripDocument),
+              skipped: result.skipped,
+              tripStatus: result.tripStatus,
+            },
+          },
+          status: 201,
+        })
+      },
+      method: 'POST',
+      async parse({ pathParameters, request }) {
+        const body = await parseLinkTripDocumentsBatchRequest(request)
+        return {
+          nfeDocumentIds: body.nfeDocumentIds,
+          tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+        }
+      },
+      pathname: TRIP_DOCUMENTS_BATCH_PATH,
       policy: TRIP_MANAGE_POLICY,
     }),
     defineRoute<Omit<ReleaseTripDocumentInput, 'context'>>({
@@ -750,6 +829,24 @@ export function createTripRoutes(
       method: 'GET',
       parse: ({ pathParameters }) => ({ tripId: parseUuidPathIdentifier(pathParameters.id ?? '') }),
       pathname: TRIP_ROUTE_GEOMETRY_PATH,
+      policy: TRIP_READ_POLICY,
+    }),
+    /**
+     * A mesma linha da estrada, para pontos soltos. Reusa `readRouteGeometry` inteiro — o caso de
+     * uso já recebia os pontos, e o que era específico da viagem era só de onde eles vinham.
+     *
+     * ⚠️ Falha do OSRM continua devolvendo `unavailable` com lista vazia, nunca as próprias
+     * paradas: a ADR-0044 §5 é explícita — resultado ruim disfarçado de bom é pior que ausência,
+     * e a tela tem como dizer "esta linha é reta" em vez de anunciar rodovia que não existe.
+     */
+    defineRoute<RouteGeometryBody>({
+      async handle({ input }): Promise<Response> {
+        const geometry = await dependencies.readRouteGeometry.execute({ points: input.points })
+        return jsonResponse({ body: { data: geometry }, status: 200 })
+      },
+      method: 'POST',
+      parse: ({ request }) => parseRouteGeometryRequest(request),
+      pathname: ROUTE_GEOMETRY_PATH,
       policy: TRIP_READ_POLICY,
     }),
     /** Spec 079 T019: o que vai dentro da nota, para quem confere a carga. Leitura, como o detalhe. */
@@ -1054,6 +1151,7 @@ function serializeTrip(trip: Trip): object {
     requiresMdfeReason: trip.requiresMdfeReason,
     status: trip.status,
     updatedAt: trip.updatedAt,
+    driverNames: trip.driverNames,
     vehicleId: trip.vehicleId,
   }
 }

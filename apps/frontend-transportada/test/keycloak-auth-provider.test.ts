@@ -18,6 +18,7 @@ function tokenFor(claims: Record<string, string>): string {
 function createClient(overrides: Partial<KeycloakClient> = {}): KeycloakClient {
   return {
     clearToken: mock(() => undefined),
+    createLoginUrl: mock(() => Promise.resolve(CALLBACK_URL)),
     init: mock(() => Promise.resolve(true)),
     login: mock(() => Promise.resolve()),
     logout: mock(() => Promise.resolve()),
@@ -78,6 +79,7 @@ describe('KeycloakAuthProvider', () => {
   test('reports expiry when the refresh succeeds but leaves no token', async () => {
     const client: KeycloakClient = {
       clearToken: mock(() => undefined),
+      createLoginUrl: mock(() => Promise.resolve(CALLBACK_URL)),
       init: mock(() => Promise.resolve(true)),
       login: mock(() => Promise.resolve()),
       logout: mock(() => Promise.resolve()),
@@ -128,6 +130,7 @@ describe('KeycloakAuthProvider', () => {
     // `exactOptionalPropertyTypes`: ausência de token é a chave faltando, não a chave com `undefined`.
     const client: KeycloakClient = {
       clearToken: mock(() => undefined),
+      createLoginUrl: mock(() => Promise.resolve(CALLBACK_URL)),
       init: mock(() => Promise.resolve(true)),
       login: mock(() => Promise.resolve()),
       logout: mock(() => Promise.resolve()),

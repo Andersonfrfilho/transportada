@@ -3,6 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import type { CSSProperties, RefObject } from 'react'
 
 import {
+  isAnchorVisible,
   resolveFloatingLayerPosition,
   type FloatingLayerAlign,
   type FloatingLayerPosition,
@@ -67,17 +68,26 @@ export function useFloatingLayer<TLayer extends HTMLElement>({
     if (anchor === null || layer === null) return
 
     const rect = anchor.getBoundingClientRect()
+    const viewport = { height: window.innerHeight, width: window.innerWidth }
+    const anchorRect = {
+      bottom: rect.bottom,
+      left: rect.left,
+      right: rect.right,
+      top: rect.top,
+      width: rect.width,
+    }
+
+    /** Gatilho fora da janela: a camada não tem mais a que se prender, então ela fecha. */
+    if (!isAnchorVisible({ anchor: anchorRect, viewport })) {
+      dismissRef.current()
+      return
+    }
+
     const next = resolveFloatingLayerPosition({
       ...(align === undefined ? {} : { align }),
-      anchor: {
-        bottom: rect.bottom,
-        left: rect.left,
-        right: rect.right,
-        top: rect.top,
-        width: rect.width,
-      },
+      anchor: anchorRect,
       layer: { height: layer.scrollHeight, width: layer.offsetWidth },
-      viewport: { height: window.innerHeight, width: window.innerWidth },
+      viewport,
     })
 
     setPosition((current) => (current !== null && samePosition(current, next) ? current : next))
@@ -89,11 +99,25 @@ export function useFloatingLayer<TLayer extends HTMLElement>({
       return undefined
     }
     measure()
-    // Captura porque o gatilho pode rolar dentro de um painel, não só da janela.
-    window.addEventListener('scroll', measure, true)
+
+    /**
+     * Rolar a página **fecha** a camada, em vez de arrastá-la junto. Presa ao gatilho ela atravessa
+     * a tela enquanto se rola, e quem rolou estava indo ler outra coisa — não escolher.
+     *
+     * A rolagem **de dentro** da própria lista é a exceção: é assim que se chega ao fim das opções,
+     * e fechar ali tornaria toda lista longa inescolhível. A captura existe para alcançar as duas —
+     * o evento de rolagem não sobe pela árvore.
+     */
+    function handleScroll(event: Event): void {
+      const target = event.target
+      if (target instanceof Node && layerRef.current?.contains(target) === true) return
+      dismissRef.current()
+    }
+
+    window.addEventListener('scroll', handleScroll, true)
     window.addEventListener('resize', measure)
     return () => {
-      window.removeEventListener('scroll', measure, true)
+      window.removeEventListener('scroll', handleScroll, true)
       window.removeEventListener('resize', measure)
     }
   }, [isOpen, measure])

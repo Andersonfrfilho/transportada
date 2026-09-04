@@ -116,6 +116,7 @@ export const LINK_FREIGHT_CALCULATION_BODY = {
 export const CREATE_TRIP_MDFE_MANIFEST_BODY = {} as const
 
 export const TRIP: Trip = {
+  driverNames: [],
   companyId: COMPANY_ID,
   createdAt: '2026-08-04T12:00:00.000Z',
   id: TRIP_ID,

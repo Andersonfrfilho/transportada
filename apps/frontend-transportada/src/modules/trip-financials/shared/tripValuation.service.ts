@@ -6,7 +6,13 @@
  *
  * A conta congelada continua sendo outra coisa, e nasce só quando a viagem fecha.
  */
-export type ValuationSource = 'estimated' | 'measured'
+/**
+ * ⚠️ Cópia por valor de `VALUATION_SOURCES` da API. O recorte anterior conhecia só `estimated` e
+ * `measured`, e `missing` é justamente o que a conta responde quando **falta** parâmetro — regra de
+ * frete, distância, valor do agregado. O validador devolvia `null` para a avaliação inteira, então
+ * a viagem sem regra de frete não mostrava conta nenhuma, sem dizer por quê.
+ */
+export type ValuationSource = 'estimated' | 'measured' | 'missing' | 'period'
 
 export type TripValuationCostParcel = Readonly<{
   amount: string

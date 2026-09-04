@@ -903,6 +903,17 @@ Todo checkbox usa `@/components/ui/checkbox` — `<input type="checkbox">` cru �
 `src/**/*.tsx` e o contrato `test/design-system/checkbox.contract.ts` falha se algum reaparecer.
 Props, variante com/sem rótulo e estado indeterminado em `docs/frontend/checkboxes.md`.
 
+**Dica de interface é `@/components/ui/tooltip`, não o `title` nativo.** O atributo funciona e mesmo
+assim não serve: o navegador espera cerca de um segundo com o ponteiro parado, desenha fora do tema e
+não existe no toque — três dicas foram acrescentadas por `title` e as três voltaram como "passei o
+mouse e não apareceu". O componente abre em 150 ms no ponteiro e **na hora** no teclado, entra como
+`aria-describedby` (nunca como nome acessível — botão só de ícone continua com o `aria-label` dele) e
+renderiza em portal por `useFloatingLayer`, como os selects. ⚠️ O invólucro é `inline-flex` e **não**
+`display: contents`: elemento sem caixa devolve `getBoundingClientRect()` zerado e a dica nasce no
+canto da tela. O `title` fica só onde a dica é acessório de leitura, como o texto completo de célula
+truncada. O tooltip do menu lateral recolhido segue em CSS puro, exceção declarada. Regra em
+`docs/frontend/tooltips.md`, contrato em `test/design-system/tooltip.contract.ts`.
+
 Todo ícone vem de `@/components/ui/icon` — `<svg>` cru é **proibido** em `src/**/*.tsx` fora de
 `src/components/ui/` e o contrato `test/design-system/icon.contract.ts` falha se algum reaparecer.
 Tamanho por token (`--icon-size-sm`/`--icon-size-md`), cor por `currentColor`, botão só de ícone com

@@ -272,7 +272,8 @@
     },
     "chooseYear": "Escolher o ano",
     "openCalendar": "Abrir calendário",
-    "tripLink": "Saiu nesta viagem"
+    "tripLink": "Esta nota está em viagem",
+    "tripLinkWithStatus": "Esta nota está em viagem — {{status}}"
   },
   "documentStatus": {
     "authorized": "Autorizada",

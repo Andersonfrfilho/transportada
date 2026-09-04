@@ -75,7 +75,10 @@ describe('login theme palette contract', () => {
       lightBlockOf(styles, ":root:not([data-theme='dark'])"),
       'color',
     )
-    const login = extractRoles(lightBlockOf(theme, ':root {'), 'transportada')
+    const login = extractRoles(
+      lightBlockOf(theme, ":root:not([data-theme='dark'])"),
+      'transportada',
+    )
 
     expect(Object.keys(application)).toEqual([...SHARED_ROLES])
     expect(login).toEqual(application)
@@ -89,7 +92,7 @@ describe('login theme palette contract', () => {
     const theme = await repositoryFile(THEME_STYLES)
 
     expect(extractBlock(theme, ':root {')).toContain('color-scheme: dark')
-    expect(lightBlockOf(theme, ':root {')).toContain('color-scheme: light')
+    expect(lightBlockOf(theme, ":root:not([data-theme='dark'])")).toContain('color-scheme: light')
   })
 
   /**
@@ -102,7 +105,9 @@ describe('login theme palette contract', () => {
     expect(extractBlock(theme, ':root {')).toContain(
       '--transportada-mark-filter: brightness(0) invert(1);',
     )
-    expect(lightBlockOf(theme, ':root {')).toContain('--transportada-mark-filter: brightness(0);')
+    expect(lightBlockOf(theme, ":root:not([data-theme='dark'])")).toContain(
+      '--transportada-mark-filter: brightness(0);',
+    )
     expect(theme).toContain('filter: var(--transportada-mark-filter);')
   })
 
@@ -114,7 +119,7 @@ describe('login theme palette contract', () => {
     const theme = await repositoryFile(THEME_STYLES)
 
     expect(extractBlock(theme, ':root {')).toContain('white 14%')
-    expect(lightBlockOf(theme, ':root {')).toContain('black 14%')
+    expect(lightBlockOf(theme, ":root:not([data-theme='dark'])")).toContain('black 14%')
     expect(theme).toContain('background: var(--transportada-copper-hover);')
   })
 })

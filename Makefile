@@ -116,6 +116,23 @@ routing-fixture: ## 🗺️  Processa a grade sintética em deploy/osrm/data (pa
 	done
 	@echo "OSRM fixture pronto — suba com OSRM_DATASET=fixture make routing-up"
 
+# A bancada completa: infra, migrations, identidade, frota, notas e o OSRM da grade sintética. É o
+# que faltava para "montar roteiro" funcionar numa máquina nova — sem o solver a sugestão nasce e
+# fica `queued` para sempre, e sem as migrations a coluna do par motorista/veículo não existe.
+#
+# ⚠️ Ela **não** substitui o extract real (`docs/runbooks/osrm-extract.md`). A grade é sintética e
+# cobre Ribeirão Preto: serve para exercitar o solver ponta a ponta, não para medir distância de
+# verdade.
+bench: up ## 🧪 Prepara a bancada local inteira (migrations, sementes e OSRM da grade sintética)
+	@$(MAKE) --no-print-directory identity-bootstrap
+	@set -a; . "./$(ENV_FILE)"; set +a; \
+		bun run --cwd apps/api-transportada db:migrate; \
+		bun run --cwd apps/api-transportada db:seed:fleet; \
+		bun run --cwd apps/api-transportada db:seed:trip
+	@if [ ! -f deploy/osrm/data/fixture.osrm ]; then $(MAKE) --no-print-directory routing-fixture; fi
+	@OSRM_DATASET=fixture $(MAKE) --no-print-directory routing-up
+	@echo "bancada pronta — agora 'make dev'"
+
 routing-up: config ## 🗺️  Sobe o OSRM (exige o extract — ver docs/runbooks/osrm-extract.md)
 	@$(COMPOSE) --profile routing up -d --wait osrm
 

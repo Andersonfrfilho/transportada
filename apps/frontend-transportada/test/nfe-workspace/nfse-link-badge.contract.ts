@@ -131,7 +131,14 @@ describe('nfe document nfse link icon contract', () => {
     const table = await readApplicationFile(TABLE_PATH)
 
     expect(table).toContain('aria-label={nfseLink.label}')
-    expect(table).toContain('title={nfseLink.label}')
+    /**
+     * A dica saiu do `title` nativo para `@/components/ui/tooltip` — o atributo só aparecia depois
+     * de cerca de um segundo com o ponteiro parado, e quem passava o mouse concluía que não havia
+     * dica nenhuma. O que este contrato cobra não mudou: o texto continua existindo na passagem do
+     * mouse **e** no leitor de tela, por caminhos separados.
+     */
+    expect(table).toContain('<Tooltip label={nfseLink.label}>')
+    expect(table).not.toContain('title={nfseLink.label}')
     expect(table).toContain("t('documents.nfseLink', { number: document.nfseInvoiceNumber })")
     expect(table).toContain("t('documents.nfseLinkPending')")
   })

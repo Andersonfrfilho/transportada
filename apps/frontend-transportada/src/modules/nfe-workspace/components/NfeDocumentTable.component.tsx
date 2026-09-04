@@ -4,10 +4,10 @@ import { useTranslation } from 'react-i18next'
 
 import { Checkbox } from '@/components/ui/checkbox'
 import { CountBadge } from '@/components/ui/count-badge'
-import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { FilterPills, countFilterPills, type FilterPill } from '@/components/ui/filter-pills'
 import { Icon } from '@/components/ui/icon'
 import { Select, type SelectOption } from '@/components/ui/select'
+import { Tooltip } from '@/components/ui/tooltip'
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
 import { NfseEmissionAction } from '@/modules/nfse-invoice/components/NfseEmissionAction.component'
@@ -21,16 +21,11 @@ import {
 import { NFSE_LINK_BLOCK_REASON } from '../shared/nfeWorkspace.constant'
 import type { NfeDocumentListItem } from '../shared/nfeWorkspaceClient.service'
 import {
-  AMOUNT_OPERATORS,
-  AMOUNT_OPERATOR_SYMBOL,
-  CTE_ISSUED_FILTER_VALUES,
   PAGE_SIZE_OPTIONS,
   isDocumentBlocked,
   useNfeDocumentTable,
-  type AmountOperator,
   type ColumnKey,
   type DocumentStatus,
-  type FilterMode,
   type SortColumn,
   type SortDirection,
 } from '../hooks/useNfeDocumentTable.hook'
@@ -41,7 +36,7 @@ import {
   type ViewPreferencesClient,
 } from '../shared/viewPreferencesClient.service'
 import styles from '../styles/nfeWorkspace.module.css'
-import { AdvancedFilterBuilder } from './AdvancedFilterBuilder.component'
+import { NfeDocumentFilterPanel } from './NfeDocumentFilterPanel.component'
 import { MultiVehicleSuggestionAction } from '@/modules/routing/components/MultiVehicleSuggestionAction.component'
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
 import { navigateToTrip } from '@/modules/trip/shared/tripRoute.service'
@@ -72,10 +67,6 @@ const COLUMN_META: Readonly<Record<ColumnKey, ColumnMeta>> = {
   series: { sortColumn: 'series' },
   status: { sortColumn: 'status' },
 }
-
-const FILTER_MODES: readonly FilterMode[] = ['simple', 'advanced']
-
-const STATUS_VALUES: readonly DocumentStatus[] = ['authorized', 'cancelled', 'denied']
 
 const DOCUMENT_STATUS_TONE: Readonly<Record<DocumentStatus, string | undefined>> = {
   authorized: styles.badgeReady,
@@ -131,14 +122,6 @@ function formatLocation(city: string | null, state: string | null): string {
   return [city, state].filter((part) => part !== null && part.length > 0).join(' / ')
 }
 
-function cteIssuedLabelKey(value: string): string {
-  return value === 'issued' ? 'filters.cteIssuedIssued' : 'filters.cteIssuedPending'
-}
-
-function toOptions(values: readonly string[]): readonly SelectOption[] {
-  return values.map((value) => ({ label: value, value }))
-}
-
 export function NfeDocumentTable({
   companyId,
   documents,
@@ -149,6 +132,8 @@ export function NfeDocumentTable({
   permissions,
 }: NfeDocumentTableProps) {
   const { t } = useTranslation('nfeWorkspace')
+  /** O vocabulário de estado da viagem é do módulo dela: copiar as chaves daria duas grafias. */
+  const { t: tTrip } = useTranslation('trip')
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [isColumnsMenuOpen, setIsColumnsMenuOpen] = useState(false)
 
@@ -186,26 +171,6 @@ export function NfeDocumentTable({
   const visibleColumns = table.columnOrder.filter((column) => table.isColumnVisible(column))
   const columnSpan = visibleColumns.length + 2
 
-  const operatorOptions: readonly SelectOption[] = AMOUNT_OPERATORS.map((operator) => ({
-    label: AMOUNT_OPERATOR_SYMBOL[operator],
-    value: operator,
-  }))
-  const statusOptions: readonly SelectOption[] = STATUS_VALUES.map((status) => ({
-    label: statusLabels[status],
-    value: status,
-  }))
-  const cteIssuedOptions: readonly SelectOption[] = CTE_ISSUED_FILTER_VALUES.map((value) => ({
-    label: t(cteIssuedLabelKey(value)),
-    value,
-  }))
-  const selectFieldOptions = {
-    cteIssued: cteIssuedOptions,
-    emitterCity: toOptions(table.cityOptions.emitterCity),
-    emitterState: toOptions(table.stateOptions.emitterState),
-    recipientCity: toOptions(table.cityOptions.recipientCity),
-    recipientState: toOptions(table.stateOptions.recipientState),
-    status: statusOptions,
-  } as const
   const pageSizeOptions: readonly SelectOption[] = PAGE_SIZE_OPTIONS.map((size) => ({
     label: t('documents.perPage', { count: size }),
     value: String(size),
@@ -258,7 +223,9 @@ export function NfeDocumentTable({
     return (
       <td className={className}>
         <div className={styles.copyCell}>
-          <span className={styles.copyCellValue}>{display}</span>
+          <span className={styles.copyCellValue} title={value.length > 0 ? value : undefined}>
+            {display}
+          </span>
           {value.length > 0 && (
             <CopyButton
               label={t('documents.copyValue', { field: t(`documents.columns.${column}`) })}
@@ -305,36 +272,33 @@ export function NfeDocumentTable({
           {statusLabels[document.status]}
         </span>
         {nfseLink !== null && (
-          <a
-            aria-label={nfseLink.label}
-            className={styles.nfseLink}
-            href={nfseLink.href}
-            title={nfseLink.label}
-          >
-            <Icon name="invoice" />
-          </a>
+          <Tooltip label={nfseLink.label}>
+            <a aria-label={nfseLink.label} className={styles.nfseLink} href={nfseLink.href}>
+              <Icon name="invoice" />
+            </a>
+          </Tooltip>
         )}
         {nfseLink === null && document.cteBlockReason !== null && (
-          <span
-            className={`${styles.badge} ${styles.badgeMuted}`}
-            title={t('documents.blockedRow')}
-          >
-            {blockReasonLabel(document.cteBlockReason)}
-          </span>
+          <Tooltip label={t('documents.blockedRow')}>
+            <span className={`${styles.badge} ${styles.badgeMuted}`}>
+              {blockReasonLabel(document.cteBlockReason)}
+            </span>
+          </Tooltip>
         )}
         {/*
           Spec 065 D4b: fatura-se o que saiu. O sinal vem **depois** do bloqueio de propósito — ele
           não é bloqueio nenhum, e a nota que rodou é justamente a que deve entrar no lote.
         */}
         {document.tripId === null ? null : (
-          <a
-            aria-label={t('documents.tripLink')}
-            className={styles.nfseLink}
-            href={buildTripRoute(document.tripId)}
-            title={t('documents.tripLink')}
-          >
-            <Icon name="workspace-trip" />
-          </a>
+          <Tooltip label={tripLinkLabel(document.tripStatus)}>
+            <a
+              aria-label={tripLinkLabel(document.tripStatus)}
+              className={styles.nfseLink}
+              href={buildTripRoute(document.tripId)}
+            >
+              <Icon name="workspace-trip" />
+            </a>
+          </Tooltip>
         )}
       </td>
     )
@@ -358,6 +322,22 @@ export function NfeDocumentTable({
     }
   }
 
+  /**
+   * O ícone diz que a nota **está em viagem**, e em que pé ela está. Antes ele dizia só "Saiu nesta
+   * viagem" — passado, e sem o estado: quem varre a listagem não sabia se a carga ainda estava no
+   * galpão ou já na rua sem abrir a viagem.
+   *
+   * Status desconhecido cai no texto sem estado, nunca na chave crua: rótulo de status novo entra
+   * no `status.*` do módulo de viagem, e até entrar o operador lê uma frase, não um identificador.
+   */
+  function tripLinkLabel(status: null | string): string {
+    if (status === null) return t('documents.tripLink')
+    const label = tTrip(`status.${status}`, { defaultValue: '' })
+    return label === ''
+      ? t('documents.tripLink')
+      : t('documents.tripLinkWithStatus', { status: label })
+  }
+
   function blockReasonLabel(reason: string): string {
     return t(`cteEmission.blockReason.${reason}`, { defaultValue: reason })
   }
@@ -366,8 +346,12 @@ export function NfeDocumentTable({
     const location = formatLocation(city, state)
     return (
       <td className={styles.locationCell}>
-        <span>{address ?? '—'}</span>
-        {location.length > 0 && <span className={styles.locationMeta}>{location}</span>}
+        <span title={address ?? undefined}>{address ?? '—'}</span>
+        {location.length > 0 && (
+          <span className={styles.locationMeta} title={location}>
+            {location}
+          </span>
+        )}
       </td>
     )
   }
@@ -396,28 +380,30 @@ export function NfeDocumentTable({
             value={table.searchTerm}
           />
         </div>
-        <button
-          aria-expanded={isFilterOpen}
-          aria-label={isFilterOpen ? t('filters.toggleClose') : t('filters.toggle')}
-          className={isFilterOpen ? styles.iconActionActive : styles.iconAction}
-          onClick={() => setIsFilterOpen((open) => !open)}
-          title={isFilterOpen ? t('filters.toggleClose') : t('filters.toggle')}
-          type="button"
-        >
-          <Icon name="filter" />
-          <CountBadge count={filterCount} />
-        </button>
-        <div className={styles.columnsMenuWrap}>
+        <Tooltip label={isFilterOpen ? t('filters.toggleClose') : t('filters.toggle')}>
           <button
-            aria-expanded={isColumnsMenuOpen}
-            aria-label={t('documents.columnsMenu')}
-            className={isColumnsMenuOpen ? styles.iconActionActive : styles.iconAction}
-            onClick={() => setIsColumnsMenuOpen((open) => !open)}
-            title={t('documents.columnsMenu')}
+            aria-expanded={isFilterOpen}
+            aria-label={isFilterOpen ? t('filters.toggleClose') : t('filters.toggle')}
+            className={isFilterOpen ? styles.iconActionActive : styles.iconAction}
+            onClick={() => setIsFilterOpen((open) => !open)}
             type="button"
           >
-            <Icon name="columns" />
+            <Icon name="filter" />
+            <CountBadge count={filterCount} />
           </button>
+        </Tooltip>
+        <div className={styles.columnsMenuWrap}>
+          <Tooltip label={t('documents.columnsMenu')}>
+            <button
+              aria-expanded={isColumnsMenuOpen}
+              aria-label={t('documents.columnsMenu')}
+              className={isColumnsMenuOpen ? styles.iconActionActive : styles.iconAction}
+              onClick={() => setIsColumnsMenuOpen((open) => !open)}
+              type="button"
+            >
+              <Icon name="columns" />
+            </button>
+          </Tooltip>
           {isColumnsMenuOpen && (
             <div className={styles.columnsMenu} role="menu">
               {table.columnOrder.map((column, index) => (
@@ -430,26 +416,28 @@ export function NfeDocumentTable({
                     />
                   </span>
                   <div className={styles.columnReorder}>
-                    <button
-                      aria-label={t('documents.columnsReorder.moveUp')}
-                      className={styles.iconAction}
-                      disabled={index === 0}
-                      onClick={() => table.moveColumn(column, 'up')}
-                      title={t('documents.columnsReorder.moveUp')}
-                      type="button"
-                    >
-                      <Icon name="arrow-up" />
-                    </button>
-                    <button
-                      aria-label={t('documents.columnsReorder.moveDown')}
-                      className={styles.iconAction}
-                      disabled={index === table.columnOrder.length - 1}
-                      onClick={() => table.moveColumn(column, 'down')}
-                      title={t('documents.columnsReorder.moveDown')}
-                      type="button"
-                    >
-                      <Icon name="arrow-down" />
-                    </button>
+                    <Tooltip label={t('documents.columnsReorder.moveUp')}>
+                      <button
+                        aria-label={t('documents.columnsReorder.moveUp')}
+                        className={styles.iconAction}
+                        disabled={index === 0}
+                        onClick={() => table.moveColumn(column, 'up')}
+                        type="button"
+                      >
+                        <Icon name="arrow-up" />
+                      </button>
+                    </Tooltip>
+                    <Tooltip label={t('documents.columnsReorder.moveDown')}>
+                      <button
+                        aria-label={t('documents.columnsReorder.moveDown')}
+                        className={styles.iconAction}
+                        disabled={index === table.columnOrder.length - 1}
+                        onClick={() => table.moveColumn(column, 'down')}
+                        type="button"
+                      >
+                        <Icon name="arrow-down" />
+                      </button>
+                    </Tooltip>
                   </div>
                 </div>
               ))}
@@ -458,260 +446,20 @@ export function NfeDocumentTable({
         </div>
         {/* Com pílula na tela o "limpar tudo" já está lá embaixo: o ícone só cobre busca e ordenação. */}
         {pills.length === 0 && table.hasActiveFilters && (
-          <button
-            aria-label={t('documents.clearAll')}
-            className={styles.iconAction}
-            onClick={table.clearAllFilters}
-            title={t('documents.clearAll')}
-            type="button"
-          >
-            <Icon name="filter-clear" />
-          </button>
+          <Tooltip label={t('documents.clearAll')}>
+            <button
+              aria-label={t('documents.clearAll')}
+              className={styles.iconAction}
+              onClick={table.clearAllFilters}
+              type="button"
+            >
+              <Icon name="filter-clear" />
+            </button>
+          </Tooltip>
         )}
       </div>
 
-      {isFilterOpen && (
-        <div className={styles.filterPanel}>
-          <div
-            aria-label={t('documents.filterMode.label')}
-            className={styles.filterModeBar}
-            role="group"
-          >
-            {FILTER_MODES.map((filterMode) => (
-              <button
-                aria-pressed={table.mode === filterMode}
-                className={table.mode === filterMode ? styles.tabActive : styles.tab}
-                key={filterMode}
-                onClick={() => table.setMode(filterMode)}
-                type="button"
-              >
-                {t(`documents.filterMode.${filterMode}`)}
-              </button>
-            ))}
-          </div>
-          {table.mode === 'advanced' ? (
-            <div className={styles.builderWrapper}>
-              <AdvancedFilterBuilder
-                model={table.advancedFilter}
-                onAddCondition={table.addCondition}
-                onAddGroup={table.addGroup}
-                onRemoveCondition={table.removeCondition}
-                onRemoveGroup={table.removeGroup}
-                onSetGroupConnector={table.setGroupConnector}
-                onSetRootConnector={table.setRootConnector}
-                onUpdateCondition={table.updateCondition}
-                selectFieldOptions={selectFieldOptions}
-              />
-              <button
-                className={styles.builderSave}
-                disabled={table.activeConditionCount === 0}
-                onClick={table.saveAdvancedFilter}
-                type="button"
-              >
-                <Icon name="save" />
-                {t('documents.builder.save')}
-              </button>
-            </div>
-          ) : (
-            <div className={styles.filterGrid}>
-              <div className={styles.filterField}>
-                <span className={styles.filterFieldLabel}>{t('documents.fields.cteIssued')}</span>
-                <Select
-                  ariaLabel={t('documents.fields.cteIssued')}
-                  clearable
-                  onChange={(value) => table.setSelectFilter('cteIssued', value)}
-                  options={cteIssuedOptions}
-                  placeholder={t('filters.all')}
-                  value={table.filters.select.cteIssued}
-                />
-              </div>
-
-              <div className={styles.filterField}>
-                <span className={styles.filterFieldLabel}>{t('documents.fields.number')}</span>
-                <div className={styles.rangeInputs}>
-                  <input
-                    aria-label={t('documents.numberFrom')}
-                    className={styles.filterInput}
-                    inputMode="numeric"
-                    onChange={(event) => table.setNumberFrom(event.target.value)}
-                    placeholder={t('documents.numberFrom')}
-                    value={table.filters.numberFrom}
-                  />
-                  <input
-                    aria-label={t('documents.numberTo')}
-                    className={styles.filterInput}
-                    inputMode="numeric"
-                    onChange={(event) => table.setNumberTo(event.target.value)}
-                    placeholder={t('documents.numberTo')}
-                    value={table.filters.numberTo}
-                  />
-                </div>
-              </div>
-
-              <div className={styles.filterField}>
-                <span className={styles.filterFieldLabel}>{t('documents.fields.issuedAt')}</span>
-                <DateRangePicker
-                  ariaLabel={t('documents.fields.issuedAt')}
-                  clearLabel={t('documents.clearAll')}
-                  from={table.filters.dateFrom}
-                  nextMonthLabel={t('documents.nextMonth')}
-                  onChange={table.setDateRange}
-                  placeholder={t('documents.datePlaceholder')}
-                  previousMonthLabel={t('documents.previousMonth')}
-                  to={table.filters.dateTo}
-                />
-              </div>
-
-              <div className={styles.filterField}>
-                <span className={styles.filterFieldLabel}>{t('documents.fields.totalAmount')}</span>
-                <div className={styles.amountRow}>
-                  <Select
-                    ariaLabel={t('documents.operator')}
-                    clearable={false}
-                    compact
-                    onChange={(value) => table.setAmountOperator(value as AmountOperator)}
-                    options={operatorOptions}
-                    placeholder={AMOUNT_OPERATOR_SYMBOL[table.filters.amountOperator]}
-                    value={table.filters.amountOperator}
-                  />
-                  <input
-                    aria-label={t('documents.fields.totalAmount')}
-                    className={styles.filterInput}
-                    inputMode="decimal"
-                    onChange={(event) => table.setAmountValue(event.target.value)}
-                    placeholder={t('documents.fields.totalAmount')}
-                    value={table.filters.amountValue}
-                  />
-                </div>
-              </div>
-
-              <label className={styles.filterField}>
-                <span className={styles.filterFieldLabel}>{t('documents.fields.emitterName')}</span>
-                <input
-                  className={styles.filterInput}
-                  onChange={(event) => table.setTextFilter('emitterName', event.target.value)}
-                  placeholder={t('documents.fields.emitterName')}
-                  type="text"
-                  value={table.filters.text.emitterName}
-                />
-              </label>
-
-              <label className={styles.filterField}>
-                <span className={styles.filterFieldLabel}>
-                  {t('documents.fields.emitterAddress')}
-                </span>
-                <input
-                  className={styles.filterInput}
-                  onChange={(event) => table.setTextFilter('emitterAddress', event.target.value)}
-                  placeholder={t('documents.fields.emitterAddress')}
-                  type="text"
-                  value={table.filters.text.emitterAddress}
-                />
-              </label>
-
-              <div className={styles.filterField}>
-                <span className={styles.filterFieldLabel}>{t('documents.fields.emitterCity')}</span>
-                <Select
-                  ariaLabel={t('documents.fields.emitterCity')}
-                  clearable
-                  emptyLabel={t('filters.searchEmpty')}
-                  onChange={(value) => table.setSelectFilter('emitterCity', value)}
-                  options={toOptions(table.cityOptions.emitterCity)}
-                  placeholder={t('filters.all')}
-                  searchPlaceholder={t('filters.search')}
-                  value={table.filters.select.emitterCity}
-                />
-              </div>
-
-              <div className={styles.filterField}>
-                <span className={styles.filterFieldLabel}>
-                  {t('documents.fields.emitterState')}
-                </span>
-                <Select
-                  ariaLabel={t('documents.fields.emitterState')}
-                  clearable
-                  emptyLabel={t('filters.searchEmpty')}
-                  onChange={(value) => table.setSelectFilter('emitterState', value)}
-                  options={toOptions(table.stateOptions.emitterState)}
-                  placeholder={t('filters.all')}
-                  searchPlaceholder={t('filters.search')}
-                  value={table.filters.select.emitterState}
-                />
-              </div>
-
-              <label className={styles.filterField}>
-                <span className={styles.filterFieldLabel}>
-                  {t('documents.fields.recipientName')}
-                </span>
-                <input
-                  className={styles.filterInput}
-                  onChange={(event) => table.setTextFilter('recipientName', event.target.value)}
-                  placeholder={t('documents.fields.recipientName')}
-                  type="text"
-                  value={table.filters.text.recipientName}
-                />
-              </label>
-
-              <label className={styles.filterField}>
-                <span className={styles.filterFieldLabel}>
-                  {t('documents.fields.recipientAddress')}
-                </span>
-                <input
-                  className={styles.filterInput}
-                  onChange={(event) => table.setTextFilter('recipientAddress', event.target.value)}
-                  placeholder={t('documents.fields.recipientAddress')}
-                  type="text"
-                  value={table.filters.text.recipientAddress}
-                />
-              </label>
-
-              <div className={styles.filterField}>
-                <span className={styles.filterFieldLabel}>
-                  {t('documents.fields.recipientCity')}
-                </span>
-                <Select
-                  ariaLabel={t('documents.fields.recipientCity')}
-                  clearable
-                  emptyLabel={t('filters.searchEmpty')}
-                  onChange={(value) => table.setSelectFilter('recipientCity', value)}
-                  options={toOptions(table.cityOptions.recipientCity)}
-                  placeholder={t('filters.all')}
-                  searchPlaceholder={t('filters.search')}
-                  value={table.filters.select.recipientCity}
-                />
-              </div>
-
-              <div className={styles.filterField}>
-                <span className={styles.filterFieldLabel}>
-                  {t('documents.fields.recipientState')}
-                </span>
-                <Select
-                  ariaLabel={t('documents.fields.recipientState')}
-                  clearable
-                  emptyLabel={t('filters.searchEmpty')}
-                  onChange={(value) => table.setSelectFilter('recipientState', value)}
-                  options={toOptions(table.stateOptions.recipientState)}
-                  placeholder={t('filters.all')}
-                  searchPlaceholder={t('filters.search')}
-                  value={table.filters.select.recipientState}
-                />
-              </div>
-
-              <div className={styles.filterField}>
-                <span className={styles.filterFieldLabel}>{t('documents.fields.status')}</span>
-                <Select
-                  ariaLabel={t('documents.fields.status')}
-                  clearable
-                  onChange={(value) => table.setSelectFilter('status', value)}
-                  options={statusOptions}
-                  placeholder={t('filters.all')}
-                  value={table.filters.select.status}
-                />
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+      {isFilterOpen && <NfeDocumentFilterPanel table={table} />}
 
       <FilterPills
         clearAllLabel={t('documents.clearAll')}
@@ -728,13 +476,9 @@ export function NfeDocumentTable({
             </span>
           )}
           <div className={styles.selectionActions}>
+            {/* Sem dica: o texto dela seria o próprio rótulo ao lado, e dica que repete é ruído. */}
             {cteEmission.canEmit && (
-              <button
-                className={styles.labelActionActive}
-                onClick={cteEmission.open}
-                title={t('documents.emitCte', { count: table.selectedCount })}
-                type="button"
-              >
+              <button className={styles.labelActionActive} onClick={cteEmission.open} type="button">
                 <Icon name="send" />
                 {t('documents.emitCte', { count: table.selectedCount })}
               </button>
@@ -761,24 +505,26 @@ export function NfeDocumentTable({
               onEmitted={table.clearSelection}
               permissions={permissions}
             />
-            <button
-              aria-label={t('documents.downloadSelected')}
-              className={styles.iconAction}
-              onClick={handleBulkDownload}
-              title={t('documents.downloadSelected')}
-              type="button"
-            >
-              <Icon name="download" />
-            </button>
-            <button
-              aria-label={t('documents.clearSelection')}
-              className={styles.iconAction}
-              onClick={table.clearSelection}
-              title={t('documents.clearSelection')}
-              type="button"
-            >
-              <Icon name="close" />
-            </button>
+            <Tooltip label={t('documents.downloadSelected')}>
+              <button
+                aria-label={t('documents.downloadSelected')}
+                className={styles.iconAction}
+                onClick={handleBulkDownload}
+                type="button"
+              >
+                <Icon name="download" />
+              </button>
+            </Tooltip>
+            <Tooltip label={t('documents.clearSelection')}>
+              <button
+                aria-label={t('documents.clearSelection')}
+                className={styles.iconAction}
+                onClick={table.clearSelection}
+                type="button"
+              >
+                <Icon name="close" />
+              </button>
+            </Tooltip>
           </div>
         </div>
       )}
@@ -869,20 +615,23 @@ export function NfeDocumentTable({
                         <RenderCellSlot key={column}>{renderCell(column, document)}</RenderCellSlot>
                       ))}
                       <td>
-                        <button
-                          aria-label={t('documents.downloadXml')}
-                          className={styles.iconAction}
-                          disabled={downloading}
-                          onClick={() => onDownloadXml(document)}
-                          title={
+                        <Tooltip
+                          label={
                             downloading
                               ? t('documents.downloadPending')
                               : t('documents.downloadXml')
                           }
-                          type="button"
                         >
-                          <Icon name="download" />
-                        </button>
+                          <button
+                            aria-label={t('documents.downloadXml')}
+                            className={styles.iconAction}
+                            disabled={downloading}
+                            onClick={() => onDownloadXml(document)}
+                            type="button"
+                          >
+                            <Icon name="download" />
+                          </button>
+                        </Tooltip>
                         {downloading === false && downloadErrorId === document.id && (
                           <span className={styles.cardError} role="alert">
                             {t('documents.downloadError')}
@@ -916,52 +665,56 @@ export function NfeDocumentTable({
                 placeholder={t('documents.pageSize')}
                 value={String(table.pageSize)}
               />
-              <button
-                aria-label={t('documents.firstPage')}
-                className={styles.iconAction}
-                disabled={table.safePage === 0}
-                onClick={() => table.setPage(0)}
-                title={t('documents.firstPage')}
-                type="button"
-              >
-                <Icon name="page-first" />
-              </button>
-              <button
-                aria-label={t('documents.previousPage')}
-                className={styles.iconAction}
-                disabled={table.safePage === 0}
-                onClick={() => table.setPage(table.safePage - 1)}
-                title={t('documents.previousPage')}
-                type="button"
-              >
-                <Icon name="page-previous" />
-              </button>
+              <Tooltip label={t('documents.firstPage')}>
+                <button
+                  aria-label={t('documents.firstPage')}
+                  className={styles.iconAction}
+                  disabled={table.safePage === 0}
+                  onClick={() => table.setPage(0)}
+                  type="button"
+                >
+                  <Icon name="page-first" />
+                </button>
+              </Tooltip>
+              <Tooltip label={t('documents.previousPage')}>
+                <button
+                  aria-label={t('documents.previousPage')}
+                  className={styles.iconAction}
+                  disabled={table.safePage === 0}
+                  onClick={() => table.setPage(table.safePage - 1)}
+                  type="button"
+                >
+                  <Icon name="page-previous" />
+                </button>
+              </Tooltip>
               <span className={styles.pageIndicator}>
                 {t('documents.pageIndicator', {
                   current: table.safePage + 1,
                   total: table.pageCount,
                 })}
               </span>
-              <button
-                aria-label={t('documents.nextPage')}
-                className={styles.iconAction}
-                disabled={table.safePage >= table.pageCount - 1}
-                onClick={() => table.setPage(table.safePage + 1)}
-                title={t('documents.nextPage')}
-                type="button"
-              >
-                <Icon name="page-next" />
-              </button>
-              <button
-                aria-label={t('documents.lastPage')}
-                className={styles.iconAction}
-                disabled={table.safePage >= table.pageCount - 1}
-                onClick={() => table.setPage(table.pageCount - 1)}
-                title={t('documents.lastPage')}
-                type="button"
-              >
-                <Icon name="page-last" />
-              </button>
+              <Tooltip label={t('documents.nextPage')}>
+                <button
+                  aria-label={t('documents.nextPage')}
+                  className={styles.iconAction}
+                  disabled={table.safePage >= table.pageCount - 1}
+                  onClick={() => table.setPage(table.safePage + 1)}
+                  type="button"
+                >
+                  <Icon name="page-next" />
+                </button>
+              </Tooltip>
+              <Tooltip label={t('documents.lastPage')}>
+                <button
+                  aria-label={t('documents.lastPage')}
+                  className={styles.iconAction}
+                  disabled={table.safePage >= table.pageCount - 1}
+                  onClick={() => table.setPage(table.pageCount - 1)}
+                  type="button"
+                >
+                  <Icon name="page-last" />
+                </button>
+              </Tooltip>
             </div>
           </div>
         </>

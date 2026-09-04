@@ -12,6 +12,9 @@ export type IconName =
   | 'arrow-up'
   | 'calendar'
   | 'camera'
+  | 'contrast'
+  | 'minus'
+  | 'target'
   | 'check'
   | 'chevron-down'
   | 'chevron-left'
@@ -93,9 +96,15 @@ export type IconProps = {
 /** Traçados de 24×24, sem preenchimento: a cor vem do botão que hospeda o ícone. */
 const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   add: ['M12 5v14', 'M5 12h14'],
+  /** Afastar o mapa. É o "menos" do par com `add`, e por isso tem o mesmo traço horizontal. */
+  minus: ['M5 12h14'],
+  /** Meio círculo cheio: o símbolo de contraste, para alternar a leitura do mapa. */
+  contrast: ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', 'M12 3v18a9 9 0 0 0 0-18z'],
   alert: ['M12 3.5 2.7 19.5h18.6L12 3.5z', 'M12 10v4', 'M12 17h.01'],
   'arrow-down': ['M12 4v14', 'M6 12l6 6 6-6'],
   'arrow-up': ['M12 20V6', 'M6 12l6-6 6 6'],
+  /** Recentrar o mapa: a mira que devolve o enquadramento de quem se perdeu arrastando. */
+  target: ['M12 3v3', 'M12 18v3', 'M3 12h3', 'M18 12h3', 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z'],
   calendar: ['M8 3v4', 'M16 3v4', 'M4 7h16v14H4z', 'M4 11h16'],
   camera: ['M4 8h4l2-3h4l2 3h4v11H4z', 'M12 16a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z'],
   check: ['M5 13l4 4L19 7'],

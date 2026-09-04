@@ -17,6 +17,7 @@ const NFE_DOCUMENT_ID = '00000000-0000-4000-8000-000000000606'
 
 const BASE_TRIP = {
   companyId: '00000000-0000-4000-8000-000000000001',
+  driverNames: [],
   createdAt: '2026-07-28T12:00:00.000Z',
   id: TRIP_ID,
   requiresMdfe: null,

@@ -5,8 +5,8 @@ import type { ColorTheme } from './colorTheme.constant'
 import {
   applyColorTheme,
   persistColorTheme,
+  readEffectiveColorTheme as readEffectiveColorThemeOf,
   readStoredColorTheme,
-  resolveEffectiveColorTheme,
   type ColorThemeStorage,
 } from './colorTheme.service'
 
@@ -19,10 +19,7 @@ function getColorThemeStorage(): ColorThemeStorage | null {
 function readEffectiveColorTheme(): ColorTheme {
   const prefersLight =
     typeof window !== 'undefined' && window.matchMedia(LIGHT_SCHEME_QUERY).matches
-  return resolveEffectiveColorTheme({
-    stored: readStoredColorTheme(getColorThemeStorage()),
-    prefersLight,
-  })
+  return readEffectiveColorThemeOf({ storage: getColorThemeStorage(), prefersLight })
 }
 
 export type ColorThemeController = Readonly<{

@@ -117,6 +117,7 @@ describe('a diretiva deixa o logotipo carregar', () => {
     allowsInlineScript: false,
     apiBaseUrl: API_URL,
     keycloakUrl: 'https://identidade.exemplo.com.br',
+    mapTilesUrl: undefined,
   })
   const imgSource = policy
     .split(';')

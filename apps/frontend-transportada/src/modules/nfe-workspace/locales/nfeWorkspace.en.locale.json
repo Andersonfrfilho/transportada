@@ -115,7 +115,8 @@
     },
     "chooseYear": "Choose the year",
     "openCalendar": "Open calendar",
-    "tripLink": "Travelled on this trip"
+    "tripLink": "This note is on a trip",
+    "tripLinkWithStatus": "This note is on a trip — {{status}}"
   },
   "documentStatus": {
     "authorized": "Authorized",

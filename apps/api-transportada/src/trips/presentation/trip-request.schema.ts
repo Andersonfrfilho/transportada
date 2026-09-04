@@ -34,6 +34,14 @@ export type LinkTripDocumentBody = z.infer<typeof linkTripDocumentSchema>
  * (`transition-trip-documents-batch.use-case.ts`).
  */
 const MAX_BATCH_DOCUMENTS = 50
+/**
+ * O vínculo em lote tem teto próprio, dez vezes o do lote de status. São operações diferentes: o
+ * maço que o separador marca de uma vez é de dezenas, e a viagem que se monta a partir de um filtro
+ * é de centenas — a 075 mede trezentas e trinta e três num filtro só. O teto continua existindo
+ * porque o lote é **uma transação**, e uma transação que segura o lock da viagem por tempo demais
+ * trava quem despacha.
+ */
+const MAX_LINK_BATCH_DOCUMENTS = 500
 
 const TRIP_DOCUMENT_ACTIONS = ['deliver', 'load', 'return', 'separate'] as const
 
@@ -61,6 +69,55 @@ export const batchTransitionTripDocumentsSchema = z
   .strict()
 
 export type BatchTransitionTripDocumentsBody = z.infer<typeof batchTransitionTripDocumentsSchema>
+
+export const linkTripDocumentsBatchSchema = z
+  .object({ nfeDocumentIds: z.array(z.uuid()).min(1).max(MAX_LINK_BATCH_DOCUMENTS) })
+  .strict()
+
+export type LinkTripDocumentsBatchBody = z.infer<typeof linkTripDocumentsBatchSchema>
+
+/**
+ * A avaliação prevista da viagem que ainda não existe. O teto é o do vínculo em lote: é a mesma
+ * seleção de notas, avaliada antes de virar viagem.
+ */
+export const previewTripValuationSchema = z
+  .object({
+    driverIds: z.array(z.uuid()).max(MAX_LINK_BATCH_DOCUMENTS).default([]),
+    nfeDocumentIds: z.array(z.uuid()).min(1).max(MAX_LINK_BATCH_DOCUMENTS),
+    vehicleId: z.uuid(),
+  })
+  .strict()
+
+export type PreviewTripValuationBody = z.infer<typeof previewTripValuationSchema>
+
+/**
+ * A linha da estrada para pontos que **ainda não são viagem** — quem monta o roteiro no formulário
+ * precisa ver a rua antes de criar a viagem, e a rota irmã (`/trips/:id/route-geometry`) exige uma
+ * viagem que ainda não existe.
+ *
+ * ⚠️ O teto de pontos existe porque cada consulta vira uma chamada ao OSRM: a rota é autenticada,
+ * mas um corpo de mil paradas é amplificação de CPU num serviço que hospedamos. Cem cobre a maior
+ * viagem real com folga.
+ */
+export const MAX_ROUTE_GEOMETRY_POINTS = 100
+
+export const routeGeometrySchema = z
+  .object({
+    points: z
+      .array(
+        z
+          .object({
+            latitude: z.number().min(-90).max(90),
+            longitude: z.number().min(-180).max(180),
+          })
+          .strict(),
+      )
+      .min(2)
+      .max(MAX_ROUTE_GEOMETRY_POINTS),
+  })
+  .strict()
+
+export type RouteGeometryBody = z.infer<typeof routeGeometrySchema>
 
 export const dispatchTripSchema = z
   .object({

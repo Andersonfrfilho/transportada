@@ -181,6 +181,12 @@ a {
   background: color-mix(in srgb, var(--color-graphite) 88%, var(--color-asphalt) 12%);
   transform: translateX(-100%);
   transition: transform 180ms ease;
+  overflow-y: auto;
+}
+
+/* Recolhido, o flyout e o tooltip saem pela borda direita — overflow os recortaria. */
+.application-shell-sidebar-collapsed .application-sidebar {
+  overflow: visible;
 }
 
 .application-shell-sidebar-open .application-sidebar {

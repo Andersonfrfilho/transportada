@@ -237,15 +237,19 @@ describe('quem enxerga a margem (ADR-0049 §6)', () => {
   }
 
   /**
-   * O valor pago ao motorista é dado sensível **para o próprio motorista**, que tem `trip.read`. E
-   * quem separa carga não precisa saber a margem — a lista abaixo é nominal de propósito.
+   * O valor pago ao motorista é dado sensível **para o próprio motorista**, que tem `trip.read`, e
+   * para quem senta ao lado dele no barracão. A lista abaixo é nominal de propósito.
+   *
+   * ADR-0049 §6, **emendada**: o `operator` entrou. Ele é o atendente que monta o roteiro e escolhe
+   * a carga, e escolher sem ver o custo é escolher no escuro — a receita sozinha não diz se a
+   * viagem vale a pena. O `separator` continua fora: ele executa a carga que já foi escolhida.
    */
-  test('só o dono do ambiente e o financeiro alcançam o resultado', () => {
-    for (const role of ['company-admin', 'finance'] as const) {
+  test('alcança quem escolhe a carga e o financeiro, nunca o barracão nem a rua', () => {
+    for (const role of ['company-admin', 'finance', 'operator'] as const) {
       expect(() => service.authorize(contextFor(role), POLICY)).not.toThrow()
     }
 
-    for (const role of ['driver', 'aggregate', 'separator', 'operator', 'fiscal'] as const) {
+    for (const role of ['driver', 'aggregate', 'separator', 'fiscal'] as const) {
       expect(() => service.authorize(contextFor(role), POLICY)).toThrow()
     }
   })

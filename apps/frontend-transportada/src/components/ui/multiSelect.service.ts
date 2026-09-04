@@ -1,8 +1,14 @@
+import type { IconName } from './icon'
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { normalizeSearchText, type SearchableSelectOption } from './searchableSelect.service'
 
 /** `description` é a segunda linha da opção: o que distingue duas placas do mesmo modelo. */
-export type MultiSelectOption = SearchableSelectOption & Readonly<{ description?: string }>
+export type MultiSelectOption = SearchableSelectOption &
+  Readonly<{
+    description?: string
+    /** Símbolo do que a opção é (o tipo do veículo, por exemplo) — nunca decoração solta. */
+    icon?: IconName
+  }>
 
 /** A busca lê as duas linhas: quem procura pelo modelo não sabe a placa — é por isso que procura. */
 export function filterMultiSelectOptions(

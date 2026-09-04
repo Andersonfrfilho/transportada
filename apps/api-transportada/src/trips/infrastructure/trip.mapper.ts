@@ -21,6 +21,12 @@ type TripStopRecord = typeof tripStops.$inferSelect
 export function mapTrip(record: TripRecord): Trip {
   return {
     companyId: record.companyId,
+    /**
+     * ⚠️ Vazio aqui de propósito: a linha de `trips` não sabe quem dirige. Quem lista preenche em
+     * lote (`loadTripDriverNames`); o detalhe monta a partir de `trip_drivers`. Um `map` que
+     * inventasse consulta própria voltaria a ser uma ida ao banco por linha.
+     */
+    driverNames: [],
     createdAt: record.createdAt.toISOString(),
     id: record.id,
     requiresMdfe: record.requiresMdfe,

@@ -19,6 +19,10 @@
          arquivo da app, e sem ele a aba do login abre com o desenho genérico do navegador. -->
     <link rel="icon" href="${url.resourcesPath}/img/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="${url.resourcesPath}/img/icon-192.png" />
+    <#-- ⚠️ Sem `defer` e **antes** da folha de estilo: o `data-theme` tem de existir no `<html>`
+         na primeira pintura, senão a tela pisca no tema errado antes de corrigir. É por isso que
+         ele não entra no `scripts=` do `theme.properties`, que carrega tudo com `defer`. -->
+    <script src="${url.resourcesPath}/js/color-theme.js"></script>
     <#if properties.styles?has_content>
         <#list properties.styles?split(' ') as style>
             <link href="${url.resourcesPath}/${style}" rel="stylesheet" />

@@ -35,6 +35,57 @@ const emitterParticipant = aliasedTable(nfeParticipants, 'valuation_emitter_part
 export class DrizzleTripValuationQuery {
   public constructor(private readonly database: Database) {}
 
+  /**
+   * A avaliação **antes de a viagem existir**: mesma conta, ancorada nas notas escolhidas e no
+   * veículo do formulário em vez do `trip_id`. É o que responde "vale a pena montar isto?" no
+   * momento em que a pergunta é feita — depois de criada, a decisão já foi tomada.
+   *
+   * ⚠️ Sem roteiro planejado não há distância, e sem distância não há combustível. A política já
+   * trata isso: a parcela sai marcada como falta (`VALUATION_GAPS`), e a tela imprime a marca em vez
+   * de um número inventado. Pedágio e taxa de entrega são zero pelo mesmo motivo — ninguém lançou
+   * nada numa viagem que ainda não nasceu.
+   */
+  public async readPreviewContext(input: {
+    readonly companyId: string
+    readonly driverIds: readonly string[]
+    readonly nfeDocumentIds: readonly string[]
+    readonly vehicleId: string
+  }): Promise<TripValuationContext | null> {
+    const [vehicle] = await this.database
+      .select({
+        fuelType: fleetVehicles.fuelType,
+        kilometersPerLiter: fleetVehicles.averageConsumption,
+        otherCostsPerKilometer: fleetVehicles.otherCostsPerKilometer,
+      })
+      .from(fleetVehicles)
+      .where(
+        and(eq(fleetVehicles.companyId, input.companyId), eq(fleetVehicles.id, input.vehicleId)),
+      )
+      .limit(1)
+    if (vehicle === undefined) return null
+
+    const [fuelPrice, documents, crew, federalRates] = await Promise.all([
+      this.readFuelPrice({ companyId: input.companyId, product: toFuelProduct(vehicle.fuelType) }),
+      this.readPreviewDocuments(input),
+      this.readPreviewCrew(input),
+      this.readFederalRates({ companyId: input.companyId }),
+    ])
+
+    return {
+      crew,
+      deliveryChargesTotal: null,
+      distanceMeters: null,
+      documents,
+      federalRates,
+      fuelPricePerLiter: fuelPrice,
+      tollTotal: null,
+      vehicle: {
+        kilometersPerLiter: vehicle.kilometersPerLiter,
+        otherCostsPerKilometer: vehicle.otherCostsPerKilometer,
+      },
+    }
+  }
+
   public async readContext(input: {
     readonly companyId: string
     readonly tripId: string
@@ -104,6 +155,131 @@ export class DrizzleTripValuationQuery {
    * `routeAmount` fica `null` quando a tabela não cobre aquela zona ou aquela classe: é
    * desconhecido, e o cálculo trata desconhecido como desconhecido.
    */
+  /** Espelha `readCrew`, mas parte dos ids do formulário — a viagem ainda não tem `trip_drivers`. */
+  private async readPreviewCrew(input: {
+    readonly companyId: string
+    readonly driverIds: readonly string[]
+    readonly vehicleId: string
+  }): Promise<readonly TripCrewMember[]> {
+    if (input.driverIds.length === 0) return []
+
+    const [vehicle] = await this.database
+      .select({ vehicleType: fleetVehicles.vehicleType })
+      .from(fleetVehicles)
+      .where(
+        and(eq(fleetVehicles.companyId, input.companyId), eq(fleetVehicles.id, input.vehicleId)),
+      )
+      .limit(1)
+    const freightClass = resolveVehicleFreightClass(vehicle?.vehicleType ?? '')
+
+    const rows = await this.database
+      .select({
+        driverId: fleetDrivers.id,
+        paymentModel: fleetDrivers.paymentModel,
+        routeAmount: freightRegionDriverRates.driverAmount,
+      })
+      .from(fleetDrivers)
+      .leftJoin(
+        fleetDriverRegions,
+        and(
+          eq(fleetDriverRegions.companyId, fleetDrivers.companyId),
+          eq(fleetDriverRegions.driverId, fleetDrivers.id),
+        ),
+      )
+      .leftJoin(
+        freightRegionDriverRates,
+        and(
+          eq(freightRegionDriverRates.companyId, fleetDriverRegions.companyId),
+          eq(freightRegionDriverRates.regionId, fleetDriverRegions.regionId),
+          freightClass === ''
+            ? sql`false`
+            : eq(freightRegionDriverRates.freightClass, freightClass),
+        ),
+      )
+      .where(
+        and(
+          eq(fleetDrivers.companyId, input.companyId),
+          inArray(fleetDrivers.id, [...input.driverIds]),
+        ),
+      )
+
+    const byDriver = new Map<string, TripCrewMember>()
+    for (const row of rows) {
+      const current = byDriver.get(row.driverId)
+      if (current === undefined || (current.routeAmount === null && row.routeAmount !== null)) {
+        byDriver.set(row.driverId, {
+          driverId: row.driverId,
+          paymentModel: row.paymentModel,
+          routeAmount: row.routeAmount,
+        })
+      }
+    }
+    return [...byDriver.values()]
+  }
+
+  /**
+   * Espelha `readDocuments` partindo das notas escolhidas. `tripDocumentId` recebe o id da **nota**:
+   * a linha da viagem ainda não existe, e o campo só serve de chave da linha na resposta.
+   */
+  private async readPreviewDocuments(input: {
+    readonly companyId: string
+    readonly nfeDocumentIds: readonly string[]
+  }): Promise<readonly TripValuationDocument[]> {
+    if (input.nfeDocumentIds.length === 0) return []
+
+    const rows = await this.database
+      .select({
+        destinationCityCode: recipientAddress.cityCode,
+        destinationState: recipientAddress.state,
+        issuedAt: nfeDocuments.issuedAt,
+        nfeDocumentId: nfeDocuments.id,
+        nfeTotalAmount: nfeDocuments.totalValue,
+        senderTaxId: emitterParticipant.taxId,
+      })
+      .from(nfeDocuments)
+      .leftJoin(
+        emitterParticipant,
+        and(
+          eq(emitterParticipant.companyId, nfeDocuments.companyId),
+          eq(emitterParticipant.documentId, nfeDocuments.id),
+          eq(emitterParticipant.role, 'emitter'),
+        ),
+      )
+      .leftJoin(
+        recipientParticipant,
+        and(
+          eq(recipientParticipant.companyId, nfeDocuments.companyId),
+          eq(recipientParticipant.documentId, nfeDocuments.id),
+          eq(recipientParticipant.role, 'recipient'),
+        ),
+      )
+      .leftJoin(
+        recipientAddress,
+        and(
+          eq(recipientAddress.companyId, recipientParticipant.companyId),
+          eq(recipientAddress.participantId, recipientParticipant.id),
+        ),
+      )
+      .where(
+        and(
+          eq(nfeDocuments.companyId, input.companyId),
+          inArray(nfeDocuments.id, [...input.nfeDocumentIds]),
+        ),
+      )
+
+    return rows.map((row) => ({
+      destinationCityCode: row.destinationCityCode,
+      destinationState: row.destinationState,
+      issuedAt: row.issuedAt === null ? null : row.issuedAt.toISOString(),
+      /** Prévia não mede: o CT-e ainda não existe, então a receita é sempre a prevista. */
+      measuredAmount: null,
+      nfeDocumentId: row.nfeDocumentId,
+      nfeTotalAmount: row.nfeTotalAmount,
+      senderTaxId: row.senderTaxId,
+      tripDocumentId: row.nfeDocumentId,
+    }))
+  }
+
   private async readCrew(input: {
     readonly companyId: string
     readonly tripId: string

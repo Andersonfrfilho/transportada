@@ -5,8 +5,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
+const SOURCES: readonly ValuationSource[] = ['estimated', 'measured', 'missing', 'period']
+
 function isSource(value: unknown): value is ValuationSource {
-  return value === 'estimated' || value === 'measured'
+  return SOURCES.some((source) => source === value)
 }
 
 function readText(value: unknown): string {
@@ -21,8 +23,15 @@ function readGap(value: unknown): null | string {
  * Corpo malformado vira **ausência**, não exceção: a conta prevista é informação de apoio, e
  * derrubar a tela da viagem por causa dela seria trocar o problema de lugar.
  */
-export function toTripValuation(payload: unknown): TripValuation | null {
-  if (!isRecord(payload)) return null
+export function toTripValuation(envelope: unknown): TripValuation | null {
+  if (!isRecord(envelope)) return null
+  /**
+   * ⚠️ A resposta vem **envelopada** em `{ data }`, como toda rota desta API. O adaptador lia o
+   * envelope como se fosse o conteúdo: `revenueSource` era sempre `undefined`, a guarda devolvia
+   * `null`, e a avaliação prevista **nunca apareceu** — nem no painel da viagem aberta, que a pede
+   * desde a 061. O irmão `toTripFinancialResult` já desembrulhava; era a assimetria que escondia.
+   */
+  const payload = isRecord(envelope.data) ? envelope.data : envelope
   const source = payload.revenueSource
   if (!isSource(source)) return null
 

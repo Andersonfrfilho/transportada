@@ -20,6 +20,21 @@ export type NfeDocumentSummary = {
   readonly nfseInvoiceNumber: string | null
   readonly number: string
   readonly recipientAddress: string | null
+  /**
+   * O CEP do destinatário. Ele já estava em `nfe_addresses` e não saía na listagem — quem monta a
+   * viagem lê o endereço para conferir a parada, e sem o CEP duas ruas homônimas em bairros
+   * diferentes são a mesma linha na tela.
+   */
+  readonly recipientPostalCode: string | null
+  readonly recipientAddressNumber: string | null
+  /**
+   * Onde a carga para, quando a cascata já resolveu o endereço (ADR-0044 §3). A precisão vem junto
+   * e é obrigatória em qualquer tela que use a coordenada: `city` é centroide de município, palpite
+   * de quilômetros, e a ADR-0044 §5 manda marcá-la em vez de deixá-la passar por endereço.
+   */
+  readonly recipientLatitude: string | null
+  readonly recipientLongitude: string | null
+  readonly recipientLocationPrecision: string | null
   readonly recipientCity: string | null
   readonly recipientCityCode: string | null
   readonly recipientName: string

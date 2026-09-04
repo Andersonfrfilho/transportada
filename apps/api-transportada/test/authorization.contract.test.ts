@@ -152,6 +152,8 @@ describe('authorization contract', () => {
         'nfse.manage',
         'nfse.read',
         'trip.manage',
+        /** ADR-0049 §6, emendada: quem escolhe a carga vê o que ela custa. */
+        'trip.financials',
       ],
       viewer: [
         'invoices.read',
@@ -202,18 +204,20 @@ describe('authorization contract', () => {
    * decide se vale montá-la pela avaliação prevista (065 D7), que não mostra o que se paga ao
    * agregado; e o valor pago ao motorista é dado sensível para quem trabalha ao lado dele.
    */
-  test('keeps the trip financials away from every role but the owner and finance', () => {
-    for (const role of [
-      'driver',
-      'aggregate',
-      'separator',
-      'viewer',
-      'fiscal',
-      'operator',
-    ] as const) {
+  /**
+   * ADR-0049 §6, **emendada**: quem escolhe a carga precisa ver o que ela custa. O `operator` é o
+   * atendente que monta o roteiro e decide se a viagem vale a pena — decisão que precisa de custo e
+   * receita lado a lado, não só da receita.
+   *
+   * ⚠️ O `separator` **continua fora**, e é ele que a exclusão original realmente descrevia: ele
+   * trabalha no barracão, ao lado dos motoristas, e não escolhe carga nenhuma. Quem o incluir aqui
+   * põe o pagamento do agregado na tela de quem senta ao lado dele.
+   */
+  test('keeps the trip financials with who chooses the load, and away from the warehouse', () => {
+    for (const role of ['driver', 'aggregate', 'separator', 'viewer', 'fiscal'] as const) {
       expect(resolveCompanyPermissions([role]).has('trip.financials')).toBe(false)
     }
-    for (const role of ['company-admin', 'finance'] as const) {
+    for (const role of ['company-admin', 'finance', 'operator'] as const) {
       expect(resolveCompanyPermissions([role]).has('trip.financials')).toBe(true)
     }
   })

@@ -130,6 +130,7 @@ describe('fleet client contract', () => {
     await client.createVehicle({
       ...AGGREGATE_VEHICLE_BODY,
       companyId: 'forbidden-company',
+      driverNames: [],
       owner: { ...AGGREGATE_VEHICLE_BODY.owner, companyId: 'forbidden-company' },
     } as never)
     await client.createDriver({ ...DRIVER_CREATE_BODY, companyId: 'forbidden-company' } as never)

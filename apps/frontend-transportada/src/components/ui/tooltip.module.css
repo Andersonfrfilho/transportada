@@ -1,0 +1,36 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
+/**
+ * ⚠️ `display: contents` seria o invólucro invisível ideal, e **não serve aqui**: elemento com
+ * `contents` não gera caixa, então `getBoundingClientRect()` devolve zeros e a dica nasceria no
+ * canto superior esquerdo da tela em vez de ao lado do gatilho.
+ *
+ * `inline-flex` é o invólucro que se encolhe até o conteúdo: ele vira o item de `flex` no lugar do
+ * botão, herdando o espaçamento da fileira, e não altera o `display` do próprio botão — que é o que
+ * a regra global `button:has(svg)` precisa continuar governando.
+ */
+.trigger {
+  display: inline-flex;
+}
+
+/**
+ * A aparência é a **mesma** do tooltip do menu lateral recolhido (`[data-tooltip]::after` em
+ * `index.css`): borda de cobre, fundo grafite, corpo curto e sem canto arredondado. Dois tooltips
+ * com caras diferentes no mesmo produto é a inconsistência que o `web.md` §9 reprova.
+ */
+.layer {
+  position: fixed;
+  z-index: 80;
+  top: var(--floating-layer-top, 0);
+  bottom: var(--floating-layer-bottom, auto);
+  left: var(--floating-layer-left, 0);
+  max-width: 22rem;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 55%, transparent);
+  color: var(--color-fog);
+  font: 600 0.78rem/1.2 var(--font-body);
+  background: var(--color-graphite);
+  box-shadow: 0 0.75rem 1.5rem color-mix(in srgb, var(--color-asphalt) 42%, transparent);
+  /* A dica nunca recebe o ponteiro: sob o cursor ela dispararia o `mouseleave` do próprio gatilho. */
+  pointer-events: none;
+}

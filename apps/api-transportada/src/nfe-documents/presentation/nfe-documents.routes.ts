@@ -35,6 +35,11 @@ type NfeDocumentSummary = {
   readonly nfseInvoiceNumber: string | null
   readonly number: string
   readonly recipientAddress: string | null
+  readonly recipientPostalCode: string | null
+  readonly recipientAddressNumber: string | null
+  readonly recipientLatitude: string | null
+  readonly recipientLongitude: string | null
+  readonly recipientLocationPrecision: string | null
   readonly recipientCity: string | null
   readonly recipientCityCode: string | null
   readonly recipientName: string
@@ -239,6 +244,11 @@ function serializeDocument(document: NfeDocumentSummary): object {
     nfseInvoiceNumber: document.nfseInvoiceNumber,
     number: document.number,
     recipientAddress: document.recipientAddress,
+    recipientPostalCode: document.recipientPostalCode,
+    recipientAddressNumber: document.recipientAddressNumber,
+    recipientLatitude: document.recipientLatitude,
+    recipientLongitude: document.recipientLongitude,
+    recipientLocationPrecision: document.recipientLocationPrecision,
     recipientCity: document.recipientCity,
     recipientCityCode: document.recipientCityCode,
     recipientName: document.recipientName,

@@ -2,30 +2,9 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "frontend-transportada",
-      "runtimeExecutable": "bun",
-      "runtimeArgs": ["run", "--cwd", "apps/frontend-transportada", "dev"],
+      "name": "painel-local",
+      "url": "http://localhost:53000",
       "port": 53000
-    },
-    {
-      "name": "frontend-landing",
-      "runtimeExecutable": "bun",
-      "runtimeArgs": ["run", "--cwd", "apps/frontend-landing", "dev"],
-      "port": 53003
-    },
-    {
-      "name": "frontend-transportada-smoke",
-      "runtimeExecutable": "env",
-      "runtimeArgs": [
-        "VITE_SMOKE_AUTH_BYPASS=true",
-        "FRONTEND_PORT=53010",
-        "bun",
-        "run",
-        "--cwd",
-        "apps/frontend-transportada",
-        "dev"
-      ],
-      "port": 53010
     }
   ]
 }

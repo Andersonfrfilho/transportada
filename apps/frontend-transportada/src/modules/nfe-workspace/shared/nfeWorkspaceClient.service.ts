@@ -86,6 +86,13 @@ export type NfeDocumentListItem = Readonly<{
   nfseInvoiceNumber: null | string
   number: string
   recipientAddress: null | string
+  /** O CEP do destinatário, cru. A tela da viagem o imprime junto do endereço da parada. */
+  recipientPostalCode: null | string
+  recipientAddressNumber: null | string
+  /** Onde a nota para, e com que precisão — ver `trip.types.ts`. */
+  recipientLatitude: null | string
+  recipientLongitude: null | string
+  recipientLocationPrecision: null | string
   recipientCity: null | string
   recipientCityCode: null | string
   recipientName: string
@@ -312,6 +319,11 @@ function isNfeDocumentListItem(value: unknown): value is NfeDocumentListItem {
     isNullableString(value.nfseInvoiceNumber) &&
     isString(value.number) &&
     isNullableString(value.recipientAddress) &&
+    isNullableString(value.recipientPostalCode) &&
+    isNullableString(value.recipientAddressNumber) &&
+    isNullableString(value.recipientLatitude) &&
+    isNullableString(value.recipientLongitude) &&
+    isNullableString(value.recipientLocationPrecision) &&
     isNullableString(value.recipientCity) &&
     isNullableString(value.recipientCityCode) &&
     isString(value.recipientName) &&

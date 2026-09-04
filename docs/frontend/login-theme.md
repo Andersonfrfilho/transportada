@@ -30,6 +30,43 @@ O `theme.properties` traduz cada uma dessas chaves para a classe do nosso CSS (`
 `kcButtonClass=action`, e assim por diante). Mudou o nome de uma classe no `login.css`? mude no
 `theme.properties` também, ou as páginas herdadas ficam sem estilo enquanto o login continua certo.
 
+## As páginas herdadas: classe mapeada e texto em português
+
+O tema claro não precisa de página nenhuma: os `--transportada-*` vivem no `:root` do `login.css`, e
+toda página servida por este tema — inclusive as que não reescrevemos — herda a inversão do bloco
+`prefers-color-scheme`. **O que faltava nas páginas herdadas não era paleta, era classe e texto.**
+
+Três defeitos medidos na troca de senha obrigatória (a tela que toda senha temporária definida pelo
+administrador força, em 03/09/2026):
+
+- **O olho da senha cobria o campo inteiro.** O `base` escreve
+  `class="${properties.kcFormPasswordVisibilityButtonClass!}"`, e a chave não estava mapeada — o
+  botão saía sem classe. Como `.field-control` empilha os filhos na mesma célula de grade (é assim
+  que o olho fica sobre a borda direita no `login.ftl`), o botão sem `.field-reveal` esticava para
+  os 398px do campo e virava a caixa cinza do navegador por cima dele. Mapear a chave é o conserto;
+  a lição é que **classe herdada sem mapeamento não fica invisível, fica no tamanho errado**.
+- **O ícone é `<i>`, não SVG.** O markup herdado põe um `<i class="...">` onde o nosso `login.ftl`
+  põe o par de SVG. Por isso `.field-reveal-icon` desenha o olho por **máscara** sobre
+  `currentColor`, com os dois desenhos em token (`--transportada-eye-show` / `-hide`) e a troca no
+  mesmo `aria-pressed` que o nosso script escreve.
+- **O `passwordVisibility.js` do `base` alternava o campo em dobro.** As páginas herdadas terminam o
+  formulário com `<script src="${url.resourcesPath}/js/passwordVisibility.js">`. O `resourcesPath`
+  resolve primeiro no nosso tema, então `resources/js/passwordVisibility.js` existe aqui **vazio**,
+  de propósito: sem ele o script do `base` é servido, liga o mesmo `[data-password-toggle]` que o
+  nosso, e o clique alterna duas vezes — o `type` volta para `password` no mesmo instante em que o
+  nosso marca `aria-pressed="true"`. O olho passa a mentir e a senha nunca aparece.
+
+O texto segue a mesma regra do `login.ftl`: o `base` fala inglês, e chave ausente **não falha** —
+a tela aparece em inglês no meio do fluxo em português. As chaves das páginas alcançáveis neste
+produto (troca de senha obrigatória, confirmação de saída, erro, sessão expirada, aviso,
+confirmação de e-mail) estão nos dois pacotes de mensagens, e o contrato
+`test/design-system/login-theme-inherited-pages.contract.ts` cobra as três coisas: o mapeamento das
+classes, o desenho do olho e do checkbox, e a presença das chaves nos dois pacotes.
+
+⚠️ **Nada disto bifurca template novo.** `forked-from.properties` continua com `footer.ftl`,
+`login.ftl` e `template.ftl`: o conserto é de `theme.properties`, de CSS e de dicionário, que é o
+que faz ele valer para a página herdada que ainda não apareceu.
+
 ## Os tokens são cópia por valor
 
 `resources/css/login.css` declara `--transportada-*` com os mesmos valores de
@@ -42,12 +79,36 @@ Os oito papéis semânticos — `alert`, `asphalt`, `copper`, `fog`, `graphite`,
 `apps/frontend-transportada/test/design-system/login-theme-palette.contract.ts`. Ele falha por valor
 divergente e por papel que sumiu de um dos lados.
 
-## O tema claro segue o sistema, e não tem botão
+## O tema vem do painel, e não há botão aqui
 
 O painel tem sol/lua porque a escolha cabe no `localStorage` **da origem dele**. O Keycloak é outra
-origem e não lê esse armazenamento: um botão aqui guardaria uma segunda preferência, e o mesmo
-navegador entraria claro e sairia escuro. Então o login obedece só ao `prefers-color-scheme` — que é
-exatamente o que a app faz com quem nunca clicou no botão.
+origem e não lê esse armazenamento — então a escolha **atravessa pela URL de login**, e o tema a
+aplica. Continua não havendo botão nesta tela: o que chega é cópia da preferência do painel,
+reescrita a cada entrada, não uma segunda escolha. ADR-0060.
+
+As duas pontas:
+
+- **O painel põe `transportada_theme=dark|light` na URL de autenticação.** A costura é
+  `keycloak.createLoginUrl`, não `login()`: `init({onLoad: 'login-required'})` redireciona por dentro
+  do keycloak-js e não passaria por um decorador em volta do `login()`.
+- **`resources/js/color-theme.js` lê o parâmetro e escreve `data-theme` no `<html>`.** ⚠️ Ele entra
+  no `template.ftl` **sem `defer` e antes da folha de estilo**, e por isso **não** está no
+  `scripts=` do `theme.properties`, que carrega tudo com `defer` — o atributo tem de existir na
+  primeira pintura, senão a tela pisca no tema errado antes de se corrigir.
+
+⚠️ **Só a primeira tela carrega o parâmetro.** As seguintes (`/login-actions/…`, troca de senha
+obrigatória, sessão expirada) o perderam na navegação, e é por isso que o script **espelha** o valor
+no `localStorage` da origem do Keycloak. O espelho é do fluxo, não uma preferência: toda entrada nova
+o reescreve.
+
+A paleta clara tem duas portas, exatamente como `src/styles/index.css` do painel:
+`:root[data-theme='light']` para a escolha que chegou, e
+`@media (prefers-color-scheme: light) { :root:not([data-theme='dark']) }` para quem chegou sem
+escolha nenhuma. **Mudou um valor num bloco? mude no outro** — o contrato compara os dois arquivos e
+os dois blocos.
+
+⚠️ O `frontend-client` **não participa**: ele não tem botão de tema, então não tem o que repassar, e
+a tela de login continua seguindo o sistema para quem entra por lá.
 
 Três coisas mudam junto com a paleta, e as três são token:
 

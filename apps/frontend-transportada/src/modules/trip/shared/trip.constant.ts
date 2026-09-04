@@ -3,6 +3,9 @@ export const TRIPS_PATH = '/trips'
 
 /** A nota bipada é procurada na listagem de NF-e; a chave é única por empresa, então uma basta. */
 export const NFE_DOCUMENTS_PATH = '/nfe-documents'
+
+/** A recomendação de vários veículos nasce fora da árvore `/trips/:id`: é o aceite que cria viagem. */
+export const ROUTE_SUGGESTIONS_PATH = '/route-suggestions'
 export const SCAN_LOOKUP_LIMIT = 1
 
 /**
@@ -57,6 +60,8 @@ export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
 }
 
 export const TRIP_KEYS = [
+  /** Quem dirige: a listagem nomeia o motorista, e o UUID do veículo não dizia nem isso. */
+  'driverNames',
   'companyId',
   'createdAt',
   'id',

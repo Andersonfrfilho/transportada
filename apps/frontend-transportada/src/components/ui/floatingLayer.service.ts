@@ -54,6 +54,32 @@ function resolveLeft(
 }
 
 /**
+ * Quando o piso de altura passa do espaço que sobrou, a camada é **puxada para dentro** em vez de
+ * vazar: encostada no gatilho ela sairia da tela, e o certo é ela encostar na margem da janela.
+ */
+function resolveOffsets(
+  input: Readonly<{
+    anchor: FloatingAnchorRect
+    maxHeight: number
+    placement: FloatingLayerPlacement
+    viewport: FloatingViewportSize
+  }>,
+): Readonly<{ bottom: number | null; top: number | null }> {
+  const furthest = Math.max(
+    input.viewport.height - input.maxHeight - FLOATING_LAYER_VIEWPORT_MARGIN,
+    FLOATING_LAYER_VIEWPORT_MARGIN,
+  )
+
+  if (input.placement === 'below') {
+    const preferred = input.anchor.bottom + FLOATING_LAYER_GAP
+    return { bottom: null, top: clamp(preferred, FLOATING_LAYER_VIEWPORT_MARGIN, furthest) }
+  }
+
+  const preferred = input.viewport.height - input.anchor.top + FLOATING_LAYER_GAP
+  return { bottom: clamp(preferred, FLOATING_LAYER_VIEWPORT_MARGIN, furthest), top: null }
+}
+
+/**
  * Posiciona a camada em coordenadas de viewport, para ela sair de qualquer ancestral com
  * `overflow` — dentro de um modal ou de uma tabela rolável a lista era recortada na borda.
  *
@@ -72,15 +98,43 @@ export function resolveFloatingLayerPosition({
     layer.height > spaceBelow && spaceAbove > spaceBelow ? 'above' : 'below'
   const available =
     (placement === 'below' ? spaceBelow : spaceAbove) - FLOATING_LAYER_VIEWPORT_MARGIN
-  const maxHeight = Math.max(available, FLOATING_LAYER_MIN_HEIGHT)
+  /**
+   * O piso de altura é o que mantém a camada legível em tela baixa, mas ele **não pode ser maior
+   * que a janela**: sem o teto, um gatilho perto do rodapé com pouco espaço abaixo recebia 96px de
+   * altura e a lista terminava fora da tela, empurrando o scroll da página.
+   */
+  const viewportLimit = Math.max(
+    viewport.height - FLOATING_LAYER_VIEWPORT_MARGIN * 2,
+    FLOATING_LAYER_MIN_HEIGHT,
+  )
+  const maxHeight = Math.min(Math.max(available, FLOATING_LAYER_MIN_HEIGHT), viewportLimit)
   const width = Math.max(layer.width, anchor.width)
 
   return {
-    bottom: placement === 'below' ? null : viewport.height - anchor.top + FLOATING_LAYER_GAP,
     left: resolveLeft({ align, anchor, width }, viewport),
     maxHeight,
     minWidth: anchor.width,
     placement,
-    top: placement === 'below' ? anchor.bottom + FLOATING_LAYER_GAP : null,
+    ...resolveOffsets({ anchor, maxHeight, placement, viewport }),
   }
+}
+
+/**
+ * A camada só existe presa a um gatilho. Quando a rolagem leva o gatilho para fora da janela, ela
+ * fica órfã: continua aberta, no meio da tela, deslizando junto com a página e sem nada ao lado que
+ * explique de onde saiu — foi assim que ela passou a "acompanhar o scroll".
+ *
+ * O critério é **interseção**, não contenção: gatilho meio cortado na borda ainda é um gatilho que
+ * se vê, e fechar a lista nesse ponto tiraria a escolha da mão de quem está rolando para ler o fim
+ * dela.
+ */
+export function isAnchorVisible(
+  input: Readonly<{ anchor: FloatingAnchorRect; viewport: FloatingViewportSize }>,
+): boolean {
+  return (
+    input.anchor.bottom > 0 &&
+    input.anchor.top < input.viewport.height &&
+    input.anchor.right > 0 &&
+    input.anchor.left < input.viewport.width
+  )
 }

@@ -104,6 +104,12 @@ Pool de notas → quais notas em qual veículo, propondo as viagens. O solver **
 veículos** e o schema já comporta (`route_suggestions.trip_id` anulável); falta a rota, o caso de uso
 que carrega notas não vinculadas, o aceite que **cria** viagens, e a tela.
 
+### Fora do plano original — registrada depois
+
+- **083 — servir `/map-tiles` e `/route-map/area.pmtiles`** (2026-09-03): os dois mapas pedem
+  telhas de um caminho que nenhum servidor atende; o frontend degrada com aviso desde a mesma data.
+  Spec em `specs/083-servir-map-tiles/spec.md`, com duas decisões abertas antes de implementar.
+
 ## O que este plano não promete
 
 Cada spec deste conjunto tem o porte da 058, que consumiu uma sessão inteira de trabalho. O plano é

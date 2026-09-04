@@ -132,6 +132,7 @@ export function MultiSelect({
 
   const pills: readonly FilterPill[] = selection.map((option) => ({
     id: option.value,
+    ...(option.icon === undefined ? {} : { icon: option.icon }),
     label: option.label,
     onRemove: () => toggle(option.value),
     removeLabel,

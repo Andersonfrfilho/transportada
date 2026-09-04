@@ -22,13 +22,17 @@ function readApplicationFile(filePath: string): Promise<string> {
 describe('o contato do motorista na viagem', () => {
   test('a leitura junta a ficha do motorista, escopada pela empresa', async () => {
     const source = await readApplicationFile(REPOSITORY_PATH)
-    const block = source.slice(
-      source.indexOf('.from(tripDrivers)') - 800,
-      source.indexOf('.from(tripDrivers)') + 700,
-    )
+    /**
+     * ⚠️ A âncora é a **própria junção**, não a primeira consulta a `tripDrivers`: o repositório
+     * passou a ter uma segunda leitura da tabela (os nomes dos motoristas da listagem), e ancorar
+     * em "a primeira" fazia o contrato medir o bloco errado — reprovando sem que nada do que ele
+     * guarda tivesse mudado.
+     */
+    const join = 'eq(fleetDrivers.companyId, tripDrivers.companyId)'
+    expect(source).toContain(join)
 
-    expect(block).toContain('fleetDrivers')
-    expect(block).toContain('eq(fleetDrivers.companyId, tripDrivers.companyId)')
+    const block = source.slice(source.indexOf(join) - 900, source.indexOf(join) + 900)
+    expect(block).toContain('.from(tripDrivers)')
     expect(block).toContain('driverEmail')
     expect(block).toContain('driverPhone')
   })

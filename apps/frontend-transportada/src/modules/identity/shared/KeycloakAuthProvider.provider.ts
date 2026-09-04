@@ -1,6 +1,9 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import Keycloak from 'keycloak-js'
 
+import { readBrowserColorTheme } from '@/modules/shared/browserColorTheme.service'
+import type { ColorTheme } from '@/modules/shared/colorTheme.constant'
+import { appendColorThemeToLoginUrl } from '@/modules/shared/colorTheme.service'
 import { toDisplayPersonName } from '@/modules/shared/personName.service'
 
 import { getIdentityEnvironment, isIdentifierFirstLoginEnabled } from './identityEnvironment.config'
@@ -89,8 +92,35 @@ export function deriveIdentityProfile(claims: Record<string, unknown>): Identity
 
 export type KeycloakClient = Pick<
   Keycloak,
-  'clearToken' | 'init' | 'login' | 'logout' | 'token' | 'updateToken'
+  'clearToken' | 'createLoginUrl' | 'init' | 'login' | 'logout' | 'token' | 'updateToken'
 >
+
+/**
+ * A tela de login é do Keycloak, e o Keycloak é **outra origem**: ele não alcança o armazenamento do
+ * navegador onde a escolha do sol/lua mora. Sem isto o painel abre claro e o login continua escuro, porque lá o
+ * único sinal disponível é o `prefers-color-scheme` do sistema.
+ *
+ * A costura é o `createLoginUrl` porque **todo** caminho de entrada passa por ele — inclusive o
+ * `init({onLoad: 'login-required'})`, que redireciona por dentro do keycloak-js e não alcançaria um
+ * decorador em volta do `login()`. No keycloak-js ele é campo de instância, e as chamadas internas
+ * são `this.createLoginUrl(...)`: sobrescrever na instância cobre init, reautenticação e a etapa de
+ * identificação de uma vez.
+ *
+ * ⚠️ Isto **não** é a segunda preferência que a decisão anterior recusou (ADR-0060): ninguém escolhe nada na tela de
+ * login. O que viaja é cópia da escolha do painel, reescrita a cada entrada.
+ */
+export function shareColorThemeWithLoginScreen(input: {
+  readonly keycloak: Pick<KeycloakClient, 'createLoginUrl'>
+  readonly readTheme: () => ColorTheme
+}): void {
+  const createLoginUrl = input.keycloak.createLoginUrl.bind(input.keycloak)
+
+  input.keycloak.createLoginUrl = async (options) =>
+    appendColorThemeToLoginUrl({
+      url: await createLoginUrl(options),
+      theme: input.readTheme(),
+    })
+}
 
 let authProvider: KeycloakAuthProvider | undefined
 
@@ -302,10 +332,9 @@ export function getKeycloakAuthProvider(): KeycloakAuthProvider {
       return authProvider
     }
     const environment = getIdentityEnvironment()
-    authProvider = createKeycloakAuthProvider(
-      new Keycloak(environment.keycloak),
-      getAuthenticationCallbackUrl(),
-    )
+    const keycloak = new Keycloak(environment.keycloak)
+    shareColorThemeWithLoginScreen({ keycloak, readTheme: readBrowserColorTheme })
+    authProvider = createKeycloakAuthProvider(keycloak, getAuthenticationCallbackUrl())
   }
 
   return authProvider

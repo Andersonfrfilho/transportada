@@ -6,6 +6,7 @@ import { formatPhone } from '@/modules/shared/phone.service'
 import { BarcodeScanner } from '@/components/ui/barcode-scanner'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
+import { toDisplayPersonName } from '@/modules/shared/personName.service'
 import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
@@ -55,7 +56,6 @@ import styles from '../styles/trip.module.css'
 
 type TripDetailProps = Readonly<{
   linkForm: TripDocumentLinkFormController
-  onClose: () => void
   /** A frota da empresa: é dela que sai a identificação do veículo, no lugar do UUID. */
   vehicles: readonly FleetVehicleDetail[]
   workspace: TripWorkspaceController
@@ -143,7 +143,7 @@ export function TripDetailSkeleton() {
   )
 }
 
-export function TripDetail({ linkForm, onClose, vehicles, workspace }: TripDetailProps) {
+export function TripDetail({ linkForm, vehicles, workspace }: TripDetailProps) {
   const { t } = useTranslation('trip')
   const { t: tFleet } = useTranslation('fleet')
   const trip = workspace.trip
@@ -347,7 +347,7 @@ export function TripDetail({ linkForm, onClose, vehicles, workspace }: TripDetai
 
           return (
             <span className={styles.driverLine} key={driver.driverId}>
-              <strong>{driver.driverName}</strong>
+              <strong>{toDisplayPersonName(driver.driverName)}</strong>
               {phone === '' ? null : (
                 <a href={`tel:${phone}`}>
                   <Icon name="send" />
@@ -575,10 +575,6 @@ export function TripDetail({ linkForm, onClose, vehicles, workspace }: TripDetai
             {t('actions.close')}
           </Button>
         ) : null}
-        <Button onClick={onClose} size="sm" type="button" variant="ghost">
-          <Icon name="chevron-left" />
-          {t('actions.backToList')}
-        </Button>
       </div>
 
       <TripMdfePendingDialog

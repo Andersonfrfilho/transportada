@@ -1,6 +1,9 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/ui/button'
+import { Icon } from '@/components/ui/icon'
+
 import { useFleet } from '@/modules/fleet/hooks/useFleet.hook'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
@@ -51,6 +54,17 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
   return (
     <main className={styles.tripShell}>
       <header className={styles.header}>
+        {/*
+          A saída da tela fica **no topo**. Ela vivia no fim da fileira de ações, depois de todas as
+          paradas: numa viagem de quinze paradas era preciso rolar a tela inteira para voltar, e
+          quem procurava o botão concluía que ele não existia.
+        */}
+        <div className={styles.headerBack}>
+          <Button onClick={handleBackToTrips} size="sm" type="button" variant="ghost">
+            <Icon name="chevron-left" />
+            {t('actions.backToList')}
+          </Button>
+        </div>
         <p className={styles.kicker}>{t('kicker')}</p>
         <h1>{t('detail.title')}</h1>
       </header>
@@ -68,7 +82,6 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
         <div className={styles.deck}>
           <TripDetail
             linkForm={linkForm}
-            onClose={handleBackToTrips}
             vehicles={fleet.viewModel.vehicles ?? []}
             workspace={workspace}
           />
