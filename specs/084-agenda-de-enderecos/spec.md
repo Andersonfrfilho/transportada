@@ -38,6 +38,8 @@ por nome.
 
 ## Fora do escopo
 
+- **Redecidir o que a ADR-0057 já decidiu** — catálogo da ocorrência, trava de permissão, raio de
+  5 km, o app não corrigir, e o painel de ocorrências. Esta spec **consome** aquelas decisões.
 - **Pino no portal do contratante.** O pino entra no app de quem entrega e no painel (P4, P6) — no
   portal, não: o `frontend-client` não tem design system nem biblioteca de mapa, e o contratante
   corrige **texto**, que é o que ele sabe.
@@ -115,31 +117,34 @@ ponto de referência), e a correção entra como **sugestão** — a transportad
   contratante que tentar "corrigir" vai concluir que o sistema está quebrado. Ali o que resolve é o
   texto.
 
-### P4 — Quem entrega diz se o ponto está certo
+### P4 — Quem entrega **relata**; ele não corrige
 
-**Given** uma entrega concluída num endereço de precisão baixa
-**When** o motorista confirma a entrega no app
-**Then** ele responde **uma** pergunta — o ponto estava certo? — e, se não estava, **pode** apontar
-no mapa onde era. O pino é **opcional**.
+⚠️ **Esta história foi reescrita depois de a ADR-0057 ser lida.** A versão anterior dizia que o pino
+do motorista "vira `rooftop` de graça" — e isso **contradiz decisão aceita**. A ADR-0057 §4 é
+explícita: o app **não altera o endereço**. Ele abre um **ponto de atenção** na parada, e _"quem lê
+de fora propõe, quem responde decide"_. Deixar o app corrigir poria o cadastro do cliente na mão de
+quem está com o caminhão parado na rua errada, e o primeiro relato equivocado viraria endereço
+oficial.
 
-⚠️ **O pino ser opcional é o que faz o resto funcionar.** Motorista no fim do turno, com o celular
-na chuva, não vai arrastar pino — e se a resposta "estava errado" **exigir** o pino, ele responde
-"estava certo" para seguir adiante, e a base fica pior do que se ninguém perguntasse nada. Um "estava
-errado" sem coordenada já vale: ele marca o endereço no relatório, que é o que aciona o contratante.
+**Given** um motorista numa parada cujo endereço não é ali
+**When** ele abre a ocorrência `wrong_address` (ADR-0057 §1, já no catálogo de parada)
+**Then** o relato vira ponto de atenção com a **distância aferida**, e é o escritório que decide o
+que fazer com ele.
 
-São três respostas, e as três são úteis:
+O que esta spec **não** redecide, porque já está decidido:
 
-| resposta             | o que produz                                                              |
-| -------------------- | ------------------------------------------------------------------------- |
-| **certo**            | confirma a coordenada — e é o que faz a base parar de perguntar sobre ela |
-| **errado, com pino** | coordenada `rooftop` de graça, da única fonte que esteve na porta         |
-| **errado, sem pino** | marca para o relatório; quem conserta é o contratante ou o operador       |
+| assunto                                               | onde        |
+| ----------------------------------------------------- | ----------- |
+| `wrong_address` no catálogo da parada, não no da nota | ADR-0057 §1 |
+| permissão de localização bloqueia; falta de sinal não | ADR-0057 §2 |
+| raio de 5 km, e "não aferida" como estado             | ADR-0057 §2 |
+| longe **avisa e registra**, não impede                | ADR-0057 §3 |
+| o app **não corrige** o endereço                      | ADR-0057 §4 |
+| painel próprio de ocorrências                         | ADR-0057 §6 |
 
-- **Perguntar pouco**: uma pergunta, sim/não, no momento da confirmação. Formulário no fim de cada
-  parada para de ser respondido na terceira.
-- **Só onde a resposta vale**: em `city` ela paga; em `rooftop` já confirmado é ruído.
-- ⚠️ **"Não era aqui" ≠ endereço errado.** Pode ser portaria fechada, cliente mudou, outro portão.
-  Entra como **ocorrência**, nunca como sobrescrita direta da coordenada.
+**O que esta spec acrescenta**, e que a ADR-0057 não cobre: a ocorrência `wrong_address` é o quarto
+sinal do relatório de endereço (P2) — hoje ela abre pendência na parada, e aqui ela também alimenta
+a lista de endereços suspeitos, ao lado da divergência de texto e da precisão de município.
 
 ### P5 — A correção vale para a próxima nota
 
@@ -164,31 +169,38 @@ pior que o atual, porque teria cara de melhoria.
 da rede estão em números diferentes) mas colide. Na dúvida, vai para o relatório em vez de virar
 coordenada.
 
-### P6 — O operador conserta e cobra, da mesma tela
+### P6 — O operador decide, e o aviso tem destinatário certo
 
-**Given** o relatório de confirmação de endereço no painel
-**When** o operador abre um endereço marcado
-**Then** ele tem, na mesma tela, as duas ações — **apontar no mapa** e **pedir correção ao
-contratante** —, e a segunda leva o motivo junto.
+⚠️ **Reescrita depois da ADR-0057.** A §5 dela já decidiu o aviso ao contratante, e trazia duas
+coisas que a versão anterior desta história não tinha.
 
-⚠️ **As duas existem porque resolvem coisas diferentes, e confundi-las desperdiça as duas.**
+**Given** um endereço marcado — por divergência de texto (P1), por ocorrência do campo (P4) ou por
+precisão de município
+**When** o operador abre a linha no relatório
+**Then** ele tem as duas ações, e a segunda leva a sugestão concreta junto.
 
-**Apontar no mapa** conserta _onde_. Serve quando o lugar é conhecido e só a coordenada está errada
-— o operador que conhece a região, ou o pino que o motorista mandou. Efeito imediato no roteiro,
-sem depender de ninguém responder.
+#### O que a ADR-0057 §5 já decidiu, e esta spec obedece
 
-**Pedir ao contratante** conserta _como se chama_. É o caminho quando o defeito é de **nomenclatura
-ou CEP** — `R AMERICA DE ARAUJO PERES` onde a rua é `Rua Américo de Araújo Pires`, ou um CEP que não
-é daquele logradouro. Isso o motorista não sabe e o pino não resolve: a próxima nota chega com o
-mesmo texto errado, e sem o texto certo ela não casa com nada.
+⚠️ **Quem recebe o aviso é o contratante que EMITIU a nota** — o embarcador, em `contractors` — e
+**não** o `delivery_client` que recebe a carga. O endereço errado está no cadastro de quem emite;
+avisar quem recebe seria contar à loja que o endereço dela está errado na base de outra empresa.
 
-⚠️ **Um pino sem correção de texto conserta uma nota; uma correção de texto conserta todas as
-seguintes.** Por isso o pedido ao contratante não é o plano B do pino — os dois se somam, e o
-relatório deve deixar pedir os dois no mesmo endereço.
+⚠️ **O aviso é ação do operador, nunca automática.** E o motivo não é cautela genérica: _"endereço
+divergente às vezes é o correto — armazém que recebe pelo fundo, loja com dois acessos"_. Aviso
+disparado por relato de campo erraria com frequência suficiente para o cliente parar de lê-los.
 
-O pedido carrega **o que está suspeito**, não um formulário em branco: o texto como veio, o CEP como
-veio, e a razão (divergência entre fontes, ocorrência do motorista, precisão de município). Pedir
-"confira este endereço" sem dizer o que está errado devolve o mesmo endereço de volta.
+⚠️ **A correção da entrega de hoje é `delivery_address_overrides`**, que já existe desde a spec 056 —
+append-only, por **nota**, com o `enderDest` original preservado ao lado. E a consequência que a ADR
+manda deixar visível: uma parada com cinco notas pede cinco desvios, e aplicar em quatro **parte a
+parada em duas** no próximo `buildStopAddressKey`. O painel aplica em lote e **mostra quantas foram**.
+
+#### O que esta spec acrescenta
+
+O aviso deixa de ser um pedido em branco. Ele carrega o que o sistema já apurou: o texto como veio, o
+que o provedor devolveu, e a razão (`APPROXIMATE` sem rua, divergência de texto, CEP divergente).
+
+⚠️ Isso **não** afrouxa a regra de a ação ser do operador — ao contrário: ele decide com a evidência
+na mão, em vez de decidir no escuro. E continua valendo que divergência **sinaliza, nunca corrige**.
 
 ## A corrente das fontes, e por que ela não é uma fila
 
@@ -400,18 +412,22 @@ erro custa caro.
 ## Dúvidas
 
 - ✅ **D1 decidido: o lote roda nos 300.** A medida de confiança é da base inteira, não só do pedaço
-  quebrado. ⚠️ Isso **contradiz a ADR-0047** — todo endereço de cliente vai ao provedor — e exige
+  quebrado. ⚠️ Isso **contradiz a postura das ADR-0037 e ADR-0040** — o endereço não sai inteiro do
+  navegador, e o CEP vem de casa. Todo endereço de cliente passa a ir ao provedor, e isso exige
   **ADR própria** registrando a decisão e o porquê, antes da T04. Não é impeditivo; é decisão que
   precisa estar escrita, e não herdada por silêncio.
-- [NEEDS CLARIFICATION: a aceitação da sugestão do contratante é manual (um operador confere) ou
-  automática quando a conferência de município passa? Manual é mais seguro e não escala; automática
-  escala e transforma o portal em escrita direta na operação.]
+- [NEEDS CLARIFICATION: a aceitação da sugestão do contratante é manual ou automática?
+  ⚠️ **A ADR-0057 §4 já dá o princípio** — *"quem lê de fora propõe, quem responde decide"* —, e ela
+  vale para o app do motorista. Falta decidir se ele se estende ao **portal**: o contratante é dono
+  do cadastro de origem, o que é argumento para aceitar direto; mas continua sendo escrita externa
+  que move caminhão, o que é argumento para conferir. Sem a ADR-0057 esta pergunta era aberta; com
+  ela, é uma extensão a confirmar.]
 - [NEEDS CLARIFICATION: RNF3 — os termos do Maps Platform permitem guardar a coordenada
   permanentemente, ou só o Place ID? Bloqueia o lote.
   ⚠️ **Há uma saída que talvez dispense a resposta:** a **distância entre as duas fontes é conta
   nossa**, derivada no momento da comparação. Guardando o Place ID e o número, a base ganha a medida
   de confiança sem herdar coordenada de terceiro. A pergunta passa a valer só para o caso em que o
   Google é a **melhor** fonte e queremos usá-lo como coordenada de entrega.]
-- [NEEDS CLARIFICATION: o pino do motorista (P4) vira coordenada **aceita** direto, ou entra como
-  sugestão que o operador confirma no relatório (P6)? Ele é a fonte que esteve na porta — mas também
-  é um toque numa tela pequena, no fim do turno, e um pino errado é indistinguível de um certo.]
+- ✅ **D4 já estava decidido, e eu não tinha lido: ADR-0057 §4.** O app **não corrige** o endereço —
+  ele abre ponto de atenção, e quem decide é o escritório. A pergunta "aceito direto ou sugestão?"
+  não existia: a resposta é sugestão, por decisão aceita em 2026-09-03.

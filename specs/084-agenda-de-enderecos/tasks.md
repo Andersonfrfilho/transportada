@@ -19,7 +19,8 @@ o que precisa de decisão → o que precisa de gente.
 
 ### Bloco 2 — medir os 149, e olhar o resultado
 
-- [ ] **G4** — ADR do **D1**: rodar nos 300 contradiz a ADR-0047. Decisão já tomada; falta registrar.
+- [ ] **G4** — ADR do **D1**: rodar nos 300 contradiz a postura das **ADR-0037 e ADR-0040** (o
+      endereço não sai inteiro do navegador; o CEP vem de casa). Decisão já tomada; falta registrar.
 - [ ] **G5 (= B2)** — Gateway de geocodificação textual. Envia **UF, cidade, bairro, logradouro,
       número e CEP** (RF12 — o CEP não melhora a busca, medido; ele serve para comparar o que volta).
       Mapeia `location_type` para os **quatro** níveis, e ⚠️ `RANGE_INTERPOLATED` nunca vira
@@ -43,7 +44,8 @@ o que precisa de decisão → o que precisa de gente.
 - [ ] **G11 (D2)** — 🚧 Portal do contratante corrige texto e CEP.
       ⚠️ **T11 é pré-requisito duro**: esta API não tem limitador de taxa, e seria a primeira escrita
       externa que move caminhão.
-- [ ] **G12 (D4)** — 🚧 Confirmação de quem entrega, com pino **opcional**.
+- [ ] **G12** — Confirmação de quem entrega. ⚠️ **Sem pino que corrige**: a ADR-0057 §4 decidiu que
+      o app não altera endereço. O relato vira ocorrência `wrong_address`, que já está no catálogo.
       ⚠️ **G12a não depende do D4 e vale sozinha**: aceitar "errado sem pino". Se a recusa exigir
       coordenada, o motorista responde "certo" para seguir adiante e a base piora.
 - [ ] **G13** — As duas ações no relatório (apontar no mapa · pedir ao contratante), podendo as duas
@@ -70,7 +72,7 @@ por quem estiver com o teclado.
 
 | #   | pergunta                                                                                             | trava    |
 | --- | ---------------------------------------------------------------------------------------------------- | -------- |
-| D1  | O lote de comparação roda nos 300 ou só nos 149? Nos 300 contradiz a ADR-0047 e exige ADR própria.   | T04, T05 |
+| D1  | ✅ decidido: roda nos 300. Contradiz a postura das ADR-0037/0040 e exige ADR própria.                | T04, T05 |
 | D2  | A sugestão do contratante é aceita à mão ou automaticamente quando a conferência de município passa? | T13      |
 | D3  | Os termos do Maps Platform permitem guardar a coordenada, ou só o Place ID?                          | T04      |
 | D4  | O pino do motorista é aceito direto ou entra como sugestão que o operador confirma?                  | T18b     |
