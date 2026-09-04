@@ -127,6 +127,7 @@ import {
 import { geocodedAddresses } from './geocoding.schema.js'
 import { municipalityCentroids } from './municipality-centroid.schema.js'
 import { geocodingRefinementRequests } from './geocoding-refinement.schema.js'
+import { geocodedAddressCorrections } from './geocoded-address-correction.schema.js'
 import {
   companyRouteOptimizationSettings,
   routeSuggestionDocuments,
@@ -188,6 +189,7 @@ export * from './trip.schema.js'
 export * from './geocoding.schema.js'
 export * from './municipality-centroid.schema.js'
 export * from './geocoding-refinement.schema.js'
+export * from './geocoded-address-correction.schema.js'
 export * from './delivery-client.schema.js'
 export * from './trip-financial.schema.js'
 export * from './client-portal.schema.js'
@@ -301,6 +303,7 @@ export const databaseSchema = {
   geocodedAddresses,
   municipalityCentroids,
   geocodingRefinementRequests,
+  geocodedAddressCorrections,
   landingSettings,
   routeSuggestionDocuments,
   routeSuggestionStopDocuments,
