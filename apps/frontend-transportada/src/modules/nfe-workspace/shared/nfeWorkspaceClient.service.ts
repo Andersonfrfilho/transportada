@@ -3,6 +3,7 @@ import {
   isScheduledDistributionStatus,
   type ScheduledDistributionStatus,
 } from '@/modules/company-settings/shared/scheduledDistribution.validation'
+import { mapAddressReport, type AddressReport } from './addressReport.validation'
 import {
   JOB_EXECUTION_ORIGINS,
   isJobOutcome,
@@ -201,6 +202,7 @@ type ClientDependencies = Readonly<{
 
 export type NfeWorkspaceClient = Readonly<{
   downloadDocumentXml: (input: Readonly<{ id: string }>) => Promise<Blob>
+  getAddressReport: () => Promise<AddressReport>
   getDistributionStatus: () => Promise<NfeDistributionStatus>
   getImportDetail: (input: Readonly<{ id: string }>) => Promise<NfeImportSummary>
   listDocuments: (
@@ -638,6 +640,14 @@ export function createDistributionPollingState(input: {
 }
 
 export const createNfeWorkspaceClient: NfeWorkspaceClientFactory = (dependencies) => ({
+  async getAddressReport() {
+    const response = await requestJson({
+      dependencies,
+      init: { method: 'GET' },
+      path: '/address-report',
+    })
+    return mapAddressReport(response)
+  },
   async downloadDocumentXml(input) {
     const request = await getAccessTokenRequest({
       dependencies,

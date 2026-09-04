@@ -14,6 +14,8 @@ import { DistributionCursorPanel } from '../components/DistributionCursorPanel.c
 import { NfeDistributionControl } from '../components/NfeDistributionControl.component'
 import { NfeScheduledDistribution } from '../components/NfeScheduledDistribution.component'
 import { ScheduledDistributionPanel } from '../components/ScheduledDistributionPanel.component'
+import { AddressReportPanel } from '../components/AddressReportPanel.component'
+import { useAddressReport } from '../hooks/useAddressReport.hook'
 import { useDistributionCursor } from '../hooks/useDistributionCursor.hook'
 import { CargoWeightPanel } from '../components/CargoWeightPanel.component'
 import { useCargoSettings } from '../hooks/useCargoSettings.hook'
@@ -213,7 +215,7 @@ export function NfeWorkspacePage() {
   const [downloadingDocumentId, setDownloadingDocumentId] = useState<string | null>(null)
   const [downloadErrorId, setDownloadErrorId] = useState<string | null>(null)
   const [reprocessTargetId, setReprocessTargetId] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'documents' | 'imports'>('documents')
+  const [activeTab, setActiveTab] = useState<'addresses' | 'documents' | 'imports'>('documents')
   const [isFiltersOpen, setIsFiltersOpen] = useState(false)
   const canManageSettings = permissions.includes(SETTINGS_MANAGE_PERMISSION)
   const settingsScope = resolveSettingsDataScope('nfe-workspace', activeTab)
@@ -228,6 +230,15 @@ export function NfeWorkspacePage() {
   const cargoVolume = useCargoVolumeFactor({
     ...(companyId === undefined ? {} : { companyId }),
     enabled: canManageSettings && settingsScope.cargoVolumeFactors,
+  })
+  /**
+   * O relatório mora aqui porque o endereço vem da nota e quem corrige é quem a emitiu (ADR-0057).
+   * A consulta só sobe com a aba aberta **e** com a permissão — a rota exige `settings.manage`, e
+   * pedi-la sem ela renderizaria um erro numa aba que a pessoa nem escolheu abrir.
+   */
+  const addressReport = useAddressReport({
+    ...(companyId === undefined ? {} : { companyId }),
+    enabled: canManageSettings && activeTab === 'addresses',
   })
   const cargoSettings = useCargoSettings({
     ...(companyId === undefined ? {} : { companyId }),
@@ -589,8 +600,26 @@ export function NfeWorkspacePage() {
                   </>
                 ),
               },
+              {
+                ...(addressReport.data === undefined
+                  ? {}
+                  : { badge: String(addressReport.data.totals.needingAttention) }),
+                id: 'addresses',
+                label: t('tabs.addresses'),
+                panel: (
+                  <AddressReportPanel
+                    denied={!canManageSettings}
+                    failed={addressReport.isError}
+                    loading={addressReport.isLoading}
+                    report={addressReport.data}
+                  />
+                ),
+              },
             ]}
-            onChange={(id) => setActiveTab(id === 'imports' ? 'imports' : 'documents')}
+            onChange={(id) => {
+              if (id === 'imports' || id === 'addresses') setActiveTab(id)
+              else setActiveTab('documents')
+            }}
             value={activeTab}
           />
         </>
