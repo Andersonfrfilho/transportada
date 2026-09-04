@@ -1,5 +1,62 @@
 # Feature 084 — Tarefas
 
+## 🎯 GOAL ATIVO — o caminho curto até algo que dá para olhar
+
+⚠️ **`GOOGLE_MAPS_API_KEY` está vazia**, e o processo da API não a enxerga. Sem ela o lote de
+comparação não roda. Por isso o goal é dividido: **A** entrega uma tela com dado real **hoje**, sem
+chave nenhuma; **B** acende quando a chave existir.
+
+### Fase A — o relatório em pé, com o que já temos (não depende de decisão nem de chave)
+
+O sinal `precisão = city` já tem **149 endereços** e **59 municípios** nesta base. Isso basta para a
+tela nascer útil, e é o que permite olhar antes de gastar.
+
+- [ ] **A1 (= T1e)** — O `PATCH /geocoded-addresses/:key`, que **já está em produção** sob
+      `TRIP_MANAGE_POLICY`, passa a gravar `geocoded_address_corrections` **na mesma transação**.
+      ⚠️ Hoje o produto tem correção sem histórico e histórico sem correção. É a única task que
+      conserta um buraco existente em vez de acrescentar coisa nova, e é o que dá matéria-prima ao
+      relatório sem esperar as fases 4 e 5.
+      _Aceite:_ correção pela rota existente aparece na trilha; contrato que falha se gravar
+      coordenada sem trilha.
+
+- [ ] **A2 (= T05)** — Conferência de município: resultado em `cityCode` diferente do da nota é
+      **descartado, não comparado**. Escrita antes da comparação que ela protege.
+      _Aceite:_ teste negativo com resultado em município vizinho.
+
+- [ ] **A3 (= T3b)** — Ligar `resolveDeliveryCoordinate` a um chamador real e provar o aceite da T03
+      **contra uma nota**, não contra closures. É o que tira o ⚠️ da T03 e torna a economia medida.
+
+- [ ] **A4 (= T08/T09)** — Consulta do relatório: suspeitos agrupados por contratante. Nesta fase os
+      sinais são **precisão `city`** e **correções já registradas**; os de divergência entram na B.
+      _Aceite:_ ordena por gravidade, não alfabeticamente.
+
+- [ ] **A5 (= T10)** — A tela do relatório no painel.
+      **É aqui que dá para testar**: abrir e ver os 149 endereços reais, agrupados, com o motivo.
+
+### Fase B — a comparação com o provedor (precisa da chave e da ADR)
+
+- [ ] **B0** — ⚠️ **ADR registrando o D1**: rodar nos 300 contradiz a ADR-0047. Antes do código.
+- [ ] **B1** — `GOOGLE_MAPS_API_KEY` configurada e visível para o processo da API.
+- [ ] **B2 (= T04)** — Gateway de busca textual: envia **estado, cidade, bairro, logradouro e
+      número**. ⚠️ Guarda **distância, divergência de texto e Place ID** — **não** a coordenada do
+      provedor. Isso contorna o D3: a distância é conta nossa, e o Place ID é o que pode ser
+      guardado sem prazo.
+- [ ] **B3 (= T06/T07)** — O lote sobre os 300, comparando semelhante com semelhante. Divergência
+      **sinaliza, nunca corrige**.
+- [ ] **B4** — Os sinais de divergência entram no relatório da A4, e o CEP divergente sai destacado
+      (RF9) — é o que devolve o endereço ao degrau grátis.
+
+### Fora deste goal, e por quê
+
+| o quê                                       | trava                                                      |
+| ------------------------------------------- | ---------------------------------------------------------- |
+| Portal do contratante (P3, T13/T14)         | **D2** + limitador de taxa (T11), que é pré-requisito duro |
+| Pino do motorista (P4, T18b)                | **D4**                                                     |
+| Envelope do documento + coordenada          | **T1c** — decisão de dado pessoal                          |
+| Propagar correção para `geocoded_addresses` | **T1d** — tabela compartilhada, sem dono                   |
+
+---
+
 ⚠️ **A spec tem três `[NEEDS CLARIFICATION]` abertos.** A regra do repositório é explícita: não se
 implementa com eles em aberto. As tarefas marcadas **🚧 BLOQUEADA** só destravam depois da resposta,
 e estão listadas assim de propósito — para o bloqueio ficar visível em vez de virar decisão tomada
