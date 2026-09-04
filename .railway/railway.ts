@@ -330,6 +330,25 @@ export default defineRailway((ctx) => {
     env: { MP_UI_AUTH: preserve() },
   })
 
+  /**
+   * ⚠️ **O extrato é datado, e isso não é preciosismo.** A URL era `sudeste-latest.osm.pbf`, e
+   * `-latest` não quer dizer "se atualiza": quer dizer **"seja qual for o arquivo do dia em que
+   * alguém reconstruir"**. Uma reconstrução por motivo alheio — mudar o `PORT`, subir a versão do
+   * OSRM — trocava o mapa por baixo, sem decisão, sem revisão e sem registro de qual mapa está
+   * rodando. Rota mudando sem mudança de código é a mesma classe de problema que o adendo da
+   * ADR-0044 recusou no provedor pago: algo caro acontecendo sem ninguém ter escolhido.
+   *
+   * ⚠️ **Os dois serviços leem esta mesma constante, e é isso que os mantém casados.** Mapa e rota
+   * descrevendo datas diferentes é a tela e o roteirizador discordando de onde a rua está — e não dá
+   * erro nenhum, só produz um traço que passa por onde o caminhão não vai.
+   *
+   * Atualizar é editar esta linha e reconstruir **os dois** (`make map-refresh`). O Geofabrik mantém
+   * os arquivos datados por cerca de 90 dias, então uma data muito velha volta a dar 404 no build —
+   * o que é a falha certa: ela aparece no build, não numa rota errada seis meses depois.
+   */
+  const OSM_EXTRACT_URL =
+    'https://download.geofabrik.de/south-america/brazil/sudeste-260903.osm.pbf'
+
   /** Matriz de distâncias do solver. ⚠️ Só existe em staging — ver a nota no fim do arquivo. */
   const osrm = service('osrm', {
     source: transportada,
@@ -342,7 +361,7 @@ export default defineRailway((ctx) => {
     replicas: { sfo: 1 },
     env: {
       OSRM_MAX_TABLE_SIZE: preserve(),
-      OSRM_PBF_URL: preserve(),
+      OSRM_PBF_URL: OSM_EXTRACT_URL,
       PORT: preserve(),
       RAILWAY_DOCKERFILE_PATH: preserve(),
     },
@@ -390,7 +409,7 @@ export default defineRailway((ctx) => {
     },
     replicas: { sfo: 1 },
     env: {
-      MAP_PBF_URL: preserve(),
+      MAP_PBF_URL: OSM_EXTRACT_URL,
       PORT: preserve(),
       RAILWAY_DOCKERFILE_PATH: preserve(),
     },
@@ -506,9 +525,12 @@ export default defineRailway((ctx) => {
  *
  * - **`osrm` só em staging.** O solver de produção aponta o `ROUTING_MATRIX_URL` para outro lugar,
  *   ou a sugestão de roteiro não funciona lá.
- * - **`map-tiles` só em staging**, e produção não tem substituto: o `/map-tiles/` do painel serve do
- *   `dist`, que não traz o PMTiles. Ou o serviço passa a existir nos dois lados, ou o painel em
- *   produção cai para a lista ordenada — que é degradação prevista, mas não foi decidida.
+ * - **`map-tiles` estava só em staging**, e este arquivo já o declarava em produção — a divergência
+ *   era IaC não aplicada, não decisão. ✅ **Decidido em 2026-09-04: uma instância, em produção, e
+ *   staging puxa dela.** É o que a nota do serviço já argumentava (telha OSM pública, sem tenant e
+ *   sem segredo), e replicar seria assar 872 MB duas vezes e pagar egress duas vezes pelo mesmo
+ *   arquivo estático. ⚠️ Aplicar isso **remove** o serviço de staging: confira que o
+ *   `VITE_MAP_TILES_URL` do painel de staging aponta para o domínio de produção antes.
  * - **`aggregate-document-ocr` só em produção.** A leitura de imagem do anexo não tem como ser
  *   testada em staging.
  * - **`landing-TjCj-…` e `landing-uFWL-…`** existem em produção, sem domínio, e a segunda sem
