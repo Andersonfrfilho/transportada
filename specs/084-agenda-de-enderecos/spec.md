@@ -262,6 +262,31 @@ Isso torna a detecção do caso mais grave **gratuita**: não é preciso compara
 `R AMERICA DE ARAUJO PERES` está errado — o provedor já disse que não achou. A comparação de texto
 fica para o caso sutil: achou a rua, mas com nome diferente do que a nota diz.
 
+### O CEP não melhora a busca — ele serve para conferir o que volta
+
+**Medido com a chave real**, quatro formas de perguntar o mesmo endereço de Luis Antonio (com a
+grafia errada da nota): texto simples, texto com CEP, CEP em `components`, e a forma estruturada
+completa. **As quatro devolveram `APPROXIMATE` sem rua.**
+
+Faz sentido e é bom que seja assim: `14210-000` é o CEP **único do município inteiro** — ele não
+estreita nada, porque não há rua para apontar. Nas cidades de CEP único, que são exatamente os nossos
+149, **o CEP não tem informação a acrescentar à consulta**.
+
+O valor dele está na volta. Medido em Ribeirão: enviamos `14078-369` e o provedor devolveu
+**`14078-390`**. Divergência de CEP é sinal — e não dá para saber, sozinho, se o errado é o da nota
+ou se o provedor interpolou de um trecho vizinho. Vai ao humano, nunca vira correção automática.
+
+⚠️ **São quatro níveis de precisão, não dois.** A mesma consulta revelou `RANGE_INTERPOLATED`: o
+provedor conhece a rua e **não conhece aquele número** — interpolou entre dois vizinhos. É palpite
+sobre a via certa, e **não pode ser gravado como `rooftop`**:
+
+| retorno                        | significa                      | destino                          |
+| ------------------------------ | ------------------------------ | -------------------------------- |
+| `ROOFTOP`                      | a porta, conhecida             | confia                           |
+| `RANGE_INTERPOLATED`           | rua certa, **número estimado** | usa e **marca**; não é `rooftop` |
+| `APPROXIMATE` sem rua          | **o texto não existe**         | pedido ao contratante            |
+| município diferente do da nota | o provedor errou               | descarta (RF2)                   |
+
 ### O que conta como divergência
 
 | diferença                                | é divergência?              | por quê                                                                                                |
@@ -304,6 +329,10 @@ erro custa caro.
 - **RF10** — O relatório mede **se o pedido pegou**: nota nova do mesmo cliente para o mesmo lugar,
   depois do pedido, ainda divergente = o cadastro do contratante não foi corrigido. É a diferença
   entre "pedimos" e "resolveu", e sem ela o relatório vira lista de pedidos sem desfecho.
+- **RF12** — A consulta envia **estado, cidade, bairro, logradouro, número e CEP** — o CEP não para
+  melhorar a busca (medido: não melhora), mas para que o CEP **de volta** possa ser comparado.
+- **RF13** — `RANGE_INTERPOLATED` **nunca** é gravado como `rooftop`: é número estimado sobre a rua
+  certa. Achatar os dois apagaria a diferença entre a porta e o palpite sobre ela.
 - **RF11** — `location_type` do provedor é sinal de primeira classe: `APPROXIMATE` com rua ausente
   significa **texto inexistente** e vai ao contratante sem passar por comparação de string.
 - **RF9** — Divergência de **CEP** é a de maior valor e sai destacada: CEP corrigido devolve o
