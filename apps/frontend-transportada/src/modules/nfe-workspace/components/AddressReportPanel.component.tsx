@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { Tooltip } from '@/components/ui/tooltip'
+import { formatPostalCode } from '@/modules/shared/postalCode.service'
 
 import type { AddressReport, AddressFinding } from '../shared/addressReport.validation'
 import styles from '../styles/addressReport.module.css'
@@ -100,7 +101,9 @@ function FindingRow({ finding }: Readonly<{ finding: AddressFinding }>) {
         <p className={styles.side}>
           <span className={styles.sideLabel}>{t('addressReport.noteLabel')}</span>
           {`${finding.noteStreet}, ${finding.noteNumber} — ${finding.city}/${finding.state}`}
-          {finding.notePostalCode.length === 0 ? '' : ` · ${finding.notePostalCode}`}
+          {finding.notePostalCode.length === 0
+            ? ''
+            : ` · ${formatPostalCode(finding.notePostalCode)}`}
         </p>
         <p className={styles.side}>
           <span className={styles.sideLabel}>{t('addressReport.providerLabel')}</span>
@@ -109,7 +112,9 @@ function FindingRow({ finding }: Readonly<{ finding: AddressFinding }>) {
           ) : (
             <>
               {finding.providerStreet}
-              {finding.providerPostalCode.length === 0 ? '' : ` · ${finding.providerPostalCode}`}
+              {finding.providerPostalCode.length === 0
+                ? ''
+                : ` · ${formatPostalCode(finding.providerPostalCode)}`}
             </>
           )}
         </p>
