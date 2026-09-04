@@ -43,3 +43,24 @@ export type GeocodedAddressRepository = Readonly<{
   findByKeys: (addressKeys: readonly string[]) => Promise<readonly GeocodedAddressRecord[]>
   save: (record: GeocodedAddressRecord) => Promise<void>
 }>
+
+/**
+ * A correção humana de coordenada, **com trilha** (spec 084, G1/RF4).
+ *
+ * ⚠️ **Coordenada e trilha numa transação só.** Em duas escritas, uma falha no meio deixaria o
+ * endereço corrigido sem registro de quem o corrigiu — e o relatório da 084 mede exatamente isso.
+ */
+export type GeocodedAddressCorrectionRepository = Readonly<{
+  /**
+   * `applied: false` quando o banco recusou a escrita. Ele **precisa** existir: a rota devolvia
+   * `200` com a coordenada nova enquanto o `where` do upsert descartava a atualização em silêncio,
+   * e a resposta mentia.
+   */
+  applyCorrection: (input: {
+    readonly actorUserId: string
+    readonly addressKey: string
+    readonly companyId: string
+    readonly latitude: string
+    readonly longitude: string
+  }) => Promise<{ readonly applied: boolean; readonly previous: GeocodedAddressRecord | null }>
+}>

@@ -261,6 +261,7 @@ import { createLazyRabbitMqJobRunPublisher } from './operations/infrastructure/r
 import { createGeocodedAddressCorrectionUseCase } from './routing/application/geocoded-address-correction.use-case'
 import { createDrizzleRouteSuggestionRepository } from './routing/infrastructure/drizzle-route-suggestion.repository'
 import { createDrizzleGeocodedAddressRepository } from './routing/infrastructure/drizzle-geocoded-address.repository'
+import { createDrizzleGeocodedAddressCorrectionRepository } from './routing/infrastructure/drizzle-geocoded-address-correction.repository'
 import { createDrizzleTripRouteGate } from './routing/infrastructure/drizzle-trip-route-gate.adapter'
 import { createTripStopOrderWriter } from './routing/infrastructure/trip-stop-order.adapter'
 import { createLazyRabbitMqRouteOptimizationQueue } from './routing/infrastructure/rabbitmq-route-optimization.queue'
@@ -1406,7 +1407,7 @@ function createApplicationRoutes({
       ? []
       : createRouteSuggestionRoutes({
           geocodedAddressCorrection: createGeocodedAddressCorrectionUseCase({
-            repository: createDrizzleGeocodedAddressRepository(database),
+            repository: createDrizzleGeocodedAddressCorrectionRepository(database),
           }),
           refineAddress: createRefineAddressUseCase({
             components: createDrizzleAddressComponentsSource(database),
