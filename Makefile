@@ -231,24 +231,25 @@ map-refresh: ## 🗺️  Reconstrói mapa e rota juntos, na data fixada em .rail
 	@date="$$(sed -n 's|.*sudeste-\([0-9]\{6\}\)\.osm\.pbf.*|\1|p' .railway/railway.ts | head -1)"; \
 	test -n "$$date" || { echo "não achei a data do extrato em .railway/railway.ts"; exit 2; }; \
 	echo "extrato    sudeste-$$date.osm.pbf"; \
-	echo "serviços   osrm + map-tiles"; \
+	echo "serviços   osrm + map-tiles (--from-source: reconstrói, não só reinicia)"; \
 	echo "ambiente   $${RAILWAY_ENVIRONMENT:-o do link atual}"; \
 	echo; \
 	echo "⚠️  Os dois, sempre. Mapa e rota em datas diferentes é a tela e o roteirizador"; \
 	echo "    discordando de onde a rua está — e isso não dá erro, só produz um traço"; \
 	echo "    que passa por onde o caminhão não vai."; \
 	echo; \
-	echo "⚠️  Trocou a data? o valor novo só chega ao build depois de aplicar a IaC."; \
-	echo "    'railway config apply' é destrutivo (ver a nota no fim de .railway/railway.ts):"; \
-	echo "    rode 'bunx railway config plan' e leia o diff antes."; \
+	echo "⚠️  Trocou a data? o valor novo é ARG de build e vive na variável do serviço."; \
+	echo "    A IaC ainda não gerencia estes serviços — 'railway config plan' reprova enquanto"; \
+	echo "    sete deles apontarem para deploy/*/railway.json (ver docs/spec/railway.md)."; \
+	echo "    Até lá, ajuste MAP_PBF_URL e OSRM_PBF_URL no painel antes de rodar isto."; \
 	if [ "$(CONFIRM)" != "1" ]; then \
 		echo; \
 		echo "nada foi reconstruído. repita com CONFIRM=1 para executar."; \
 		exit 0; \
 	fi; \
 	echo; \
-	bunx railway redeploy --service osrm --yes && \
-	bunx railway redeploy --service map-tiles --yes
+	railway redeploy --service osrm --from-source --yes && \
+	railway redeploy --service map-tiles --from-source --yes
 
 e2e-up: e2e-bootstrap ## 🧪 Sobe somente PostgreSQL, RabbitMQ e MinIO do ambiente dedicado de E2E
 	@ENV_FILE=$(E2E_ENV_FILE) SERVICES="postgres rabbitmq minio" $(MAKE) up

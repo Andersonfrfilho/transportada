@@ -53,4 +53,25 @@ describe('o extrato do OSM que alimenta mapa e rota (ADR-0044 §2 e §6)', () =>
     expect(alvo).toContain('--service map-tiles')
     expect(alvo).toContain('CONFIRM')
   })
+
+  /**
+   * ⚠️ **`redeploy` sem `--from-source` reimplanta a imagem existente, não reconstrói.** A data do
+   * extrato é ARG de **build**: sem a bandeira, o comando fecha com sucesso, o serviço reinicia, e o
+   * mapa continua exatamente o mesmo. É a pior forma de defeito — a que parece ter funcionado.
+   */
+  test('o alvo reconstrói de verdade, e não apenas reinicia', () => {
+    const alvo = MAKEFILE.slice(MAKEFILE.indexOf('map-refresh:'))
+    /** Por serviço, não por contagem: o texto de aviso do alvo também cita a bandeira. */
+    expect(alvo).toMatch(/--service osrm --from-source/u)
+    expect(alvo).toMatch(/--service map-tiles --from-source/u)
+  })
+
+  /**
+   * ⚠️ `bunx railway` resolve o pacote npm, e o motor de IaC migrou para a CLI do sistema — o npm
+   * responde "requires Railway CLI 5.42.1 or newer" mesmo com a CLI nova instalada.
+   */
+  test('usa a CLI do sistema, não o pacote npm', () => {
+    const alvo = MAKEFILE.slice(MAKEFILE.indexOf('map-refresh:'))
+    expect(alvo).not.toContain('bunx railway')
+  })
 })

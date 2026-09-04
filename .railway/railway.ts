@@ -190,6 +190,17 @@ export default defineRailway((ctx) => {
       VITE_KEYCLOAK_REALM: preserve(),
       VITE_KEYCLOAK_URL: preserve(),
       VITE_LANDING_APP_URL: preserve(),
+      /**
+       * ⚠️ **Obrigatória nos dois ambientes, e ela não estava declarada.** Sem valor,
+       * `BASEMAP_URL` cai em `/map-tiles/area.pmtiles` — mesma origem do painel —, e o estágio de
+       * runtime do `Dockerfile` copia só o `dist`, que não traz o PMTiles: o mapa some e a tela cai
+       * na lista ordenada da ADR-0044 §6. Com `map-tiles` existindo **só em produção**, os dois
+       * lados apontam para o domínio público dele.
+       *
+       * É `VITE_*`: entra no bundle em tempo de **build**. Mudar o valor exige reconstruir o
+       * painel, não só reiniciar.
+       */
+      VITE_MAP_TILES_URL: preserve(),
     },
   })
 
