@@ -348,6 +348,54 @@ export default defineRailway((ctx) => {
     },
   })
 
+  /**
+   * O mapa de rua do painel (ADR-0044 §6): PMTiles assado na imagem pelo planetiler e servido por
+   * `Range`. Mesma forma do `osrm`, e do **mesmo** `.osm.pbf` — mapa e rota descrevendo regiões
+   * diferentes é a tela e o roteirizador discordando.
+   *
+   * ⚠️ Ele existia no painel e **não estava declarado aqui**: um `railway config apply` o teria
+   * removido junto com os `landing-*` da nota no fim do arquivo. `MAP_PBF_URL` é ARG de build, não
+   * de execução — sem ela o build para na primeira linha, de propósito.
+   *
+   * ⚠️ `healthcheckTimeout` alto porque a imagem carrega o dataset inteiro: o build baixa o `.pbf` e
+   * roda o planetiler, e é o degrau que não cabe em laptop nenhum.
+   *
+   * ⚠️ **Uma instância só, em produção, e os dois ambientes puxam dela.** Ao contrário do `osrm`,
+   * aqui não há o que isolar: a telha é OSM público, idêntica nos dois lados, sem dado de tenant e
+   * sem segredo — a mesma razão pela qual `fuel_price_references` não tem `company_id`. Replicar
+   * seria assar 872 MB duas vezes e pagar egress duas vezes pelo mesmo arquivo estático.
+   *
+   * ⚠️ Consequência: o `VITE_MAP_TILES_URL` do painel de **staging** aponta para o domínio de
+   * produção, e esse host precisa estar no `connect-src` da CSP — o pedido é `Range` sobre arquivo
+   * estático, nenhuma coordenada de entrega sai junto. Produção fora do ar leva o mapa do staging
+   * junto, e isso é aceitável: a queda cai na degradação da ADR-0044 §6, a lista ordenada.
+   *
+   * ⚠️ **E não em `transportada-ops`**, que foi considerado. Lá moram GlitchTip, OpenObserve, Gatus
+   * e o espelho de backup — coisas que *vigiam* ou *protegem* o ambiente e por isso não podem
+   * compartilhar destino com ele. O mapa não protege nada: ele serve o produto, e cair é degradação
+   * prevista. Separá-lo custaria um segundo arquivo de IaC e um segundo link de projeto para
+   * comprar isolamento que este serviço não usa.
+   */
+  const mapTiles = service('map-tiles', {
+    source: transportada,
+    build: {
+      builder: 'DOCKERFILE',
+      dockerfilePath: 'deploy/map-tiles/Dockerfile',
+      watchPatterns: ['deploy/map-tiles/**'],
+    },
+    deploy: {
+      healthcheckPath: '/health/live',
+      healthcheckTimeout: 300,
+      restartPolicyType: 'ON_FAILURE',
+    },
+    replicas: { sfo: 1 },
+    env: {
+      MAP_PBF_URL: preserve(),
+      PORT: preserve(),
+      RAILWAY_DOCKERFILE_PATH: preserve(),
+    },
+  })
+
   /** Repõe staging a partir do backup de produção — não tem par do outro lado, por definição. */
   const stagingRefresh = service('staging-refresh', {
     source: transportada,
@@ -447,7 +495,7 @@ export default defineRailway((ctx) => {
 
   return project('transportada', {
     resources: isProduction
-      ? [...shared, backup, aggregateDocumentOcr]
+      ? [...shared, backup, aggregateDocumentOcr, mapTiles]
       : [...shared, mailpit, osrm, stagingRefresh],
   })
 })
@@ -458,6 +506,9 @@ export default defineRailway((ctx) => {
  *
  * - **`osrm` só em staging.** O solver de produção aponta o `ROUTING_MATRIX_URL` para outro lugar,
  *   ou a sugestão de roteiro não funciona lá.
+ * - **`map-tiles` só em staging**, e produção não tem substituto: o `/map-tiles/` do painel serve do
+ *   `dist`, que não traz o PMTiles. Ou o serviço passa a existir nos dois lados, ou o painel em
+ *   produção cai para a lista ordenada — que é degradação prevista, mas não foi decidida.
  * - **`aggregate-document-ocr` só em produção.** A leitura de imagem do anexo não tem como ser
  *   testada em staging.
  * - **`landing-TjCj-…` e `landing-uFWL-…`** existem em produção, sem domínio, e a segunda sem
