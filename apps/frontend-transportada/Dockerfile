@@ -27,6 +27,11 @@ ARG VITE_KEYCLOAK_URL
 # A etapa de identificacao antes do login. Ausente vale `false`: o caminho de entrada continua o de
 # sempre. Como todo `VITE_*`, ela e inlinada no build — ligar ou desligar exige rebuild.
 ARG VITE_IDENTIFIER_FIRST_LOGIN
+# A origem do mapa de rua, quando ela nao e a propria (ADR-0044 §6). Ausente, `BASEMAP_URL` cai em
+# `/map-tiles/area.pmtiles` — mesma origem —, e o estagio de runtime copia so o `dist`, que nao traz
+# o PMTiles: o mapa some e a tela cai na lista ordenada. Ela tambem alimenta o `connect-src` da CSP,
+# que nasce neste build.
+ARG VITE_MAP_TILES_URL
 RUN bun run --cwd apps/frontend-transportada build
 
 FROM oven/bun:1.3.14-alpine AS runtime
