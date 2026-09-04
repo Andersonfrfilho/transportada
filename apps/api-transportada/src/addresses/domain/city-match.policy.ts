@@ -45,3 +45,22 @@ export function checkCityMatch(input: {
     ? { mismatch: false, reason: 'matched' }
     : { mismatch: true, reason: 'city_differs' }
 }
+
+/**
+ * A grafia dobrada de um município, para casar o nome que o provedor devolve com o que a nossa base
+ * conhece — e só para isso. `Luís Antônio`, `LUIS ANTONIO` e `Luis Antônio` são o mesmo lugar.
+ *
+ * ⚠️ **O resultado disto nunca é a conferência.** Ele resolve nome → código IBGE; quem confere é
+ * `checkCityMatch`, pelo código. Comparar os nomes dobrados diretamente pareceria funcionar e traria
+ * de volta o problema que esta política existe para tirar do caminho: dois municípios homônimos em
+ * estados diferentes dobram para a mesma coisa.
+ */
+export function normalizeCityName(name: string): string {
+  return name
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/gu, '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9\s]/gu, ' ')
+    .trim()
+    .replace(/\s+/gu, ' ')
+}
