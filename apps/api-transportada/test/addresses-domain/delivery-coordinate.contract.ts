@@ -69,7 +69,7 @@ describe('a escada da coordenada de entrega (spec 084, P5)', () => {
   test('a agenda do cliente vence o CEP, e o pago nem é tocado', async () => {
     const { chamadas, steps } = escada({
       clientAddress: COORDENADA,
-      postalCode: COORDENADA,
+      postalCode: { ...COORDENADA, precision: 'postal_code', source: 'postal_code' },
     })
 
     const resolvida = await resolveDeliveryCoordinate(steps)
@@ -81,7 +81,9 @@ describe('a escada da coordenada de entrega (spec 084, P5)', () => {
 
   /** O CEP é nosso e grátis: enquanto ele responder, nada sai daqui. */
   test('o CEP responde antes do provedor pago', async () => {
-    const { chamadas, steps } = escada({ postalCode: COORDENADA })
+    const { chamadas, steps } = escada({
+      postalCode: { ...COORDENADA, precision: 'postal_code', source: 'postal_code' },
+    })
 
     const resolvida = await resolveDeliveryCoordinate(steps)
 
@@ -125,5 +127,19 @@ describe('a escada da coordenada de entrega (spec 084, P5)', () => {
 
     expect(await resolveDeliveryCoordinate(steps)).toBeNull()
     expect(chamadas['centroid']).toBe(1)
+  })
+
+  /**
+   * ⚠️ **O degrau não escolhe o rótulo que quiser.** Um `centroid` mal-fiado devolvendo `rooftop`
+   * passaria por tipo e por CHECK, e o solver deixaria de excluir da otimização um palpite de ~8 km
+   * — exatamente o que a ADR-0044 §5 quer impedir ao fazer a precisão viajar visível. Achado por
+   * revisão de segurança.
+   */
+  test('recusa o degrau que mente a própria precisão', async () => {
+    const { steps } = escada({ centroid: { ...COORDENADA, precision: 'rooftop', source: 'city' } })
+
+    await expect(resolveDeliveryCoordinate(steps)).rejects.toThrow(
+      'COORDINATE_STEP_PRECISION_MISMATCH:centroid',
+    )
   })
 })

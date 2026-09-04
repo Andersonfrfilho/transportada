@@ -11,7 +11,17 @@ import {
   geocodedAddresses,
   geocodingRefinementRequests,
 } from '../../src/database/database.schema.js'
+import { readFileSync } from 'node:fs'
+
 import { checkSqlByName, columnNames, requiredColumnNames } from '../fiscal-schema/support.js'
+
+const MIGRATION = readFileSync(
+  new URL(
+    '../../drizzle/20260904120000_geocoded_address_corrections/migration.sql',
+    import.meta.url,
+  ),
+  'utf8',
+).toLowerCase()
 
 describe('correção humana de coordenada (spec 084, RF4)', () => {
   test('guarda a posição anterior e a nova, com procedência dos dois lados', () => {
@@ -54,9 +64,12 @@ describe('correção humana de coordenada (spec 084, RF4)', () => {
       checkSqlByName(geocodedAddressCorrections)['geocoded_address_corrections_previous_check'] ??
       ''
 
+    /** ⚠️ A semântica, não só os nomes: um `<>` ou um `or` no lugar do `=`/`and` passaria despercebido. */
+    expect(check.match(/is null\) = \(/gu) ?? []).toHaveLength(3)
     expect(check).toContain('previous_longitude')
     expect(check).toContain('previous_source')
     expect(check).toContain('previous_precision')
+    expect(check).not.toContain(' or ')
   })
 
   /** A correção nova é obrigatória inteira: não existe corrigir sem dizer para onde. */
@@ -85,7 +98,9 @@ describe('correção humana de coordenada (spec 084, RF4)', () => {
 
   test('amarra origem, fonte e precisão aos catálogos', () => {
     const checks = checkSqlByName(geocodedAddressCorrections)
-    expect(checks['geocoded_address_corrections_origin_check'] ?? '').toContain('contractor')
+    for (const origin of CORRECTION_ORIGINS) {
+      expect(checks['geocoded_address_corrections_origin_check'] ?? '').toContain(origin)
+    }
     for (const source of GEOCODING_SOURCES) {
       expect(checks['geocoded_address_corrections_new_source_check'] ?? '').toContain(source)
     }
@@ -114,5 +129,18 @@ describe('correção humana de coordenada (spec 084, RF4)', () => {
   test('não duplica a trilha de compra de precisão', () => {
     expect(columnNames(geocodingRefinementRequests)).not.toContain('new_latitude')
     expect(columnNames(geocodedAddressCorrections)).not.toContain('outcome')
+  })
+
+  /**
+   * ⚠️ **Neste repositório append-only é um trigger, não um comentário.** `delivery_address_overrides`,
+   * `audit_logs` e `trip_dispatch_snapshots` todos têm `reject_*_mutation`, e é isso que a palavra
+   * significa aqui. Sem ele, um `UPDATE` de "correção de bug" apaga a única prova de que o relatório
+   * depende — e nada falha. Achado por revisão de arquitetura.
+   */
+  test('a trilha é imutável no banco, não só na disciplina', () => {
+    expect(MIGRATION).toMatch(
+      /create trigger reject_geocoded_address_corrections_mutation[\s\S]*before update or delete/u,
+    )
+    expect(MIGRATION).toContain('raise exception')
   })
 })

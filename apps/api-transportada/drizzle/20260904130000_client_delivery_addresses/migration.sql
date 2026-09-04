@@ -44,13 +44,18 @@ ALTER TABLE "client_delivery_addresses"
 	ADD CONSTRAINT "client_delivery_addresses_client_place_unique"
 	UNIQUE ("company_id", "client_tax_id", "city_code", "address_number", "street_key");
 
-CREATE INDEX "client_delivery_addresses_lookup_idx"
-	ON "client_delivery_addresses" ("company_id", "client_tax_id", "city_code", "address_number");
+-- SEM indice de consulta separado: (company_id, client_tax_id, city_code, address_number) e prefixo
+-- exato do unique acima, servido pelo indice dele. Um indice extra so duplicaria o documento do
+-- cliente em disco e em backup.
 
 ALTER TABLE "client_delivery_addresses"
 	ADD CONSTRAINT "client_delivery_addresses_client_tax_id_check" CHECK (length("client_tax_id") > 0);
 ALTER TABLE "client_delivery_addresses"
 	ADD CONSTRAINT "client_delivery_addresses_city_code_check" CHECK (length("city_code") > 0);
+-- street_key vazio colapsaria duas lojas sem rua legivel no mesmo numero. Recusar o cadastro
+-- ambiguo e melhor que agrupa-lo sob uma sentinela.
+ALTER TABLE "client_delivery_addresses"
+	ADD CONSTRAINT "client_delivery_addresses_street_key_check" CHECK (length("street_key") > 0);
 ALTER TABLE "client_delivery_addresses"
 	ADD CONSTRAINT "client_delivery_addresses_address_key_check" CHECK (length("address_key") > 0);
 ALTER TABLE "client_delivery_addresses"

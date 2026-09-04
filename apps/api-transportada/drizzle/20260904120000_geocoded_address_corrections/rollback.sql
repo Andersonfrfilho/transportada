@@ -14,4 +14,7 @@ BEGIN
   END IF;
 END $$;
 
+DROP TRIGGER IF EXISTS reject_geocoded_address_corrections_mutation
+	ON "geocoded_address_corrections";
+DROP FUNCTION IF EXISTS reject_geocoded_address_corrections_mutation();
 DROP TABLE IF EXISTS "geocoded_address_corrections";

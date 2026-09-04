@@ -58,20 +58,66 @@ export type DeliveryCoordinateSteps = Readonly<{
  * Nulo quando nem o centroide responde: município sem centroide existe, e a nota fica sem
  * coordenada em vez de ganhar uma inventada.
  */
+/**
+ * ⚠️ **O degrau não escolhe o rótulo que quiser.** `source` e `precision` vêm inteiros do closure, e
+ * um `centroid` mal-fiado devolvendo `rooftop` passaria por tipo e por CHECK — o solver deixaria de
+ * excluir da otimização um palpite de ~8 km, que é exatamente o que a ADR-0044 §5 quer impedir ao
+ * fazer a precisão viajar visível. Onde o degrau **determina** a precisão, ela é conferida.
+ *
+ * A correção e a agenda ficam de fora: ali a precisão é do que foi confirmado, e vai de `city`
+ * (alguém disse "é nesta cidade") a `rooftop` (o motorista estava na porta).
+ */
+const EXPECTED_PRECISION: Partial<Record<CoordinateStep, GeocodingPrecision>> = {
+  centroid: 'city',
+  postal_code: 'postal_code',
+}
+
+export class CoordinateStepPrecisionMismatchError extends Error {
+  constructor(readonly context: Readonly<{ expected: string; got: string; step: CoordinateStep }>) {
+    super(`COORDINATE_STEP_PRECISION_MISMATCH:${context.step}`)
+    this.name = 'CoordinateStepPrecisionMismatchError'
+  }
+}
+
+/**
+ * ⚠️ **A escada é declarada uma vez só.** Antes o catálogo e a execução eram dois literais
+ * independentes: acrescentar degrau no tipo e esquecer do laço compilava, e o degrau novo nunca
+ * rodava — calado, e caro, porque um degrau grátis esquecido é consulta paga desnecessária. O
+ * `satisfies` amarra as duas metades, e chave nova no tipo passa a não compilar sem entrada aqui.
+ */
+const LADDER = [
+  ['correction', 'correction'],
+  ['clientAddress', 'client_address'],
+  ['postalCode', 'postal_code'],
+  ['paidProvider', 'paid_provider'],
+  ['centroid', 'centroid'],
+] as const satisfies readonly (readonly [keyof DeliveryCoordinateSteps, CoordinateStep])[]
+
 export async function resolveDeliveryCoordinate(
   steps: DeliveryCoordinateSteps,
 ): Promise<DeliveryCoordinate | null> {
-  const ladder: readonly (readonly [CoordinateStep, () => Promise<null | ResolvedCoordinate>])[] = [
-    ['correction', steps.correction],
-    ['client_address', steps.clientAddress],
-    ['postal_code', steps.postalCode],
-    ['paid_provider', steps.paidProvider],
-    ['centroid', steps.centroid],
-  ]
+  const ladder = LADDER.map(
+    ([key, step]) =>
+      [step, steps[key]] as const satisfies readonly [
+        CoordinateStep,
+        () => Promise<null | ResolvedCoordinate>,
+      ],
+  )
 
   for (const [step, resolve] of ladder) {
     const resolved = await resolve()
-    if (resolved !== null) return { ...resolved, step }
+    if (resolved === null) continue
+
+    const expected = EXPECTED_PRECISION[step]
+    if (expected !== undefined && resolved.precision !== expected) {
+      throw new CoordinateStepPrecisionMismatchError({
+        expected,
+        got: resolved.precision,
+        step,
+      })
+    }
+
+    return { ...resolved, step }
   }
 
   return null

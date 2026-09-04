@@ -5,7 +5,6 @@ import { sql } from 'drizzle-orm'
 import {
   check,
   foreignKey,
-  index,
   numeric,
   pgTable,
   text,
@@ -88,15 +87,21 @@ export const clientDeliveryAddresses = pgTable(
       table.addressNumber,
       table.streetKey,
     ),
-    /** A consulta do degrau 2 da precedência: cliente e lugar, sem a rua — a ambiguidade é contada. */
-    index('client_delivery_addresses_lookup_idx').on(
-      table.companyId,
-      table.clientTaxId,
-      table.cityCode,
-      table.addressNumber,
-    ),
+    /**
+     * ⚠️ **Não há índice de consulta separado**, de propósito: `(company_id, client_tax_id,
+     * city_code, address_number)` é **prefixo exato** do unique acima, e o Postgres serve a consulta
+     * do degrau 2 pelo índice dele. Um índice extra não acrescentaria desempenho e duplicaria o
+     * documento do cliente em disco e em backup — cópia de PII sem contrapartida.
+     */
     check('client_delivery_addresses_client_tax_id_check', sql`length(${table.clientTaxId}) > 0`),
     check('client_delivery_addresses_city_code_check', sql`length(${table.cityCode}) > 0`),
+    /**
+     * ⚠️ **`street_key` vazio colapsaria duas lojas.** `buildClientStreetKey` devolve `''` para rua
+     * nula, vazia ou só com pontuação — e aí duas lojas do mesmo cliente, mesma cidade e mesmo
+     * número, ambas com rua ilegível, colidem no unique. Recusar o cadastro ambíguo é melhor que
+     * agrupá-lo sob uma sentinela: a escada já sabe tratar ausência (`outcome: 'unknown'`).
+     */
+    check('client_delivery_addresses_street_key_check', sql`length(${table.streetKey}) > 0`),
     check('client_delivery_addresses_address_key_check', sql`length(${table.addressKey}) > 0`),
     check(
       'client_delivery_addresses_source_check',

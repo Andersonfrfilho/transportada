@@ -38,7 +38,7 @@ const STREET_PREFIXES = new Set([
 ])
 
 function stripAccents(value: string): string {
-  return value.normalize('NFD').replace(/[̀-ͯ]/gu, '')
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/gu, '')
 }
 
 /**
@@ -90,15 +90,27 @@ export function resolveClientAddress(input: {
 }): ClientAddressMatch {
   if (input.candidates.length === 0) return { outcome: 'unknown' }
 
-  const exact = input.candidates.filter((candidate) => candidate.streetKey === input.streetKey)
-  if (exact.length === 1) return { addressKey: exact[0]!.addressKey, outcome: 'resolved' }
-  if (exact.length > 1) {
-    return { outcome: 'ambiguous', streetKeys: exact.map((candidate) => candidate.streetKey) }
-  }
+  /**
+   * ⚠️ A rua **tem** de bater. Aceitar a candidata única sem conferi-la seria o casamento mais
+   * permissivo possível — distância infinita —, justamente o que a spec rejeita depois de medir 14%
+   * de acerto com falsos positivos. Duas revisões independentes pegaram isto: com a loja da "RUA DAS
+   * FLORES nº 25" na agenda, a nota da loja da "AVENIDA BRASIL nº 25" recebia a coordenada da
+   * primeira, calada.
+   *
+   * Rua vazia também não resolve: sem o eixo que distingue os dois lugares, não há o que conferir.
+   */
+  if (input.streetKey.length === 0) return { outcome: 'unknown' }
 
-  if (input.candidates.length === 1) {
-    return { addressKey: input.candidates[0]!.addressKey, outcome: 'resolved' }
-  }
+  const exact = input.candidates.find((candidate) => candidate.streetKey === input.streetKey)
+  if (exact !== undefined) return { addressKey: exact.addressKey, outcome: 'resolved' }
+
+  /**
+   * Nenhuma bateu. Com **uma** candidata isso é ausência — a agenda não conhece esta rua, e o degrau
+   * seguinte é o CEP, que é grátis e nosso. Com **duas ou mais**, é ambiguidade de verdade: existem
+   * lugares distintos naquele número e nenhum deles é o desta nota, o que é informação para o
+   * relatório.
+   */
+  if (input.candidates.length === 1) return { outcome: 'unknown' }
 
   return {
     outcome: 'ambiguous',

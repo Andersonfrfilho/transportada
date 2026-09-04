@@ -98,3 +98,15 @@ CREATE INDEX "geocoded_address_corrections_company_created_idx"
 
 CREATE INDEX "geocoded_address_corrections_address_key_idx"
 	ON "geocoded_address_corrections" ("address_key");
+
+-- Append-only e trigger, nao comentario. A RF4 justifica esta tabela pela reconstituicao do
+-- historico: um UPDATE de "correcao de bug" apagaria a unica prova do relatorio, sem nada falhar.
+CREATE FUNCTION reject_geocoded_address_corrections_mutation() RETURNS trigger AS $$
+BEGIN
+	RAISE EXCEPTION 'geocoded_address_corrections is append-only';
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER reject_geocoded_address_corrections_mutation
+	BEFORE UPDATE OR DELETE ON "geocoded_address_corrections"
+	FOR EACH ROW EXECUTE FUNCTION reject_geocoded_address_corrections_mutation();

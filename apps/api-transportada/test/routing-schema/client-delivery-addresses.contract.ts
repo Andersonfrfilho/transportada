@@ -70,13 +70,39 @@ describe('agenda de endereços por cliente (spec 084, P5)', () => {
     })
   })
 
-  test('candidata única resolve, mesmo com a rua grafada de outro jeito', () => {
+  test('candidata única com a mesma rua resolve', () => {
     const match = resolveClientAddress({
       candidates: [{ addressKey: '3540705|13660328|25', streetKey: 'EMILIO MALAMAN' }],
-      streetKey: 'EMILIO MALLAMAN',
+      streetKey: 'EMILIO MALAMAN',
     })
 
     expect(match).toEqual({ addressKey: '3540705|13660328|25', outcome: 'resolved' })
+  })
+
+  /**
+   * ⚠️ **O defeito que duas revisões independentes pegaram, e que este teste antes consagrava.**
+   * Aceitar a candidata única sem conferir a rua é o casamento mais permissivo que existe —
+   * distância infinita. Com a loja da "RUA DAS FLORES nº 25" na agenda, a nota da loja da "AVENIDA
+   * BRASIL nº 25" recebia a coordenada da primeira, calada e com cara de acerto. É o caso extremo
+   * que a própria spec lista.
+   */
+  test('candidata única com rua diferente NÃO resolve', () => {
+    const match = resolveClientAddress({
+      candidates: [{ addressKey: 'flores', streetKey: 'DAS FLORES' }],
+      streetKey: 'BRASIL',
+    })
+
+    expect(match).toEqual({ outcome: 'unknown' })
+  })
+
+  /** Rua ilegível não tem o que conferir: cai para o CEP, que é grátis e nosso. */
+  test('rua vazia não resolve', () => {
+    const match = resolveClientAddress({
+      candidates: [{ addressKey: 'flores', streetKey: 'DAS FLORES' }],
+      streetKey: '',
+    })
+
+    expect(match).toEqual({ outcome: 'unknown' })
   })
 
   /**
