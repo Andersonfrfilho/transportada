@@ -76,11 +76,24 @@ com a distância em metros como razão — não uma lista alfabética.
 
 Sinais de suspeita, em ordem de força:
 
-1. **Conflito entre as duas fontes** (P1) — quantitativo, disponível no dia um.
-2. **Precisão `city`** — estrutural, 149 hoje.
-3. **Ocorrência do motorista** — `trip_document_occurrences` com tipo de `company_occurrence_types`.
+1. **Divergência de texto** (RF8) — o sistema comparou o que a nota diz com o que o provedor
+   devolveu. É o sinal que vira pedido ao contratante, porque ele nomeia **o quê** está errado.
+2. **Conflito entre as duas fontes** (P1) — quantitativo, disponível no dia um.
+3. **Precisão `city`** — estrutural, 149 hoje.
+4. **Ocorrência do motorista** — `trip_document_occurrences` com tipo de `company_occurrence_types`.
    ⚠️ Tabelas existem e estão **vazias** nesta base; o sinal acende conforme a operação roda.
-4. **Devolução** — `returned_at` + `returnReason`. Zero hoje.
+5. **Devolução** — `returned_at` + `returnReason`. Zero hoje.
+
+### ⚠️ O pedido é para o cadastro dele, não para a nossa base
+
+O texto errado **não nasce aqui**: ele vem no XML, digitado no cadastro de quem emite a NF-e — e o
+contratante do frete quase sempre **é** quem emite.
+
+Então o pedido não é _"arrume este endereço para nós"_, é **"o seu cadastro está com este endereço
+errado; corrija lá, e ele para de chegar errado"**. Corrigir só na nossa base trata o sintoma: a
+próxima nota chega com o mesmo `R AMERICA DE ARAUJO PERES`, para sempre.
+
+Isso muda o texto da tela e dá um número que mede se o pedido funcionou — ver RF10.
 
 ### P3 — O contratante corrige o que só ele sabe
 
@@ -261,6 +274,9 @@ erro custa caro.
 - **RF8** — A comparação de texto é do sistema, e **sinaliza sem corrigir**. O texto canônico do
   provedor é sugestão exibida; sobrescrita automática é proibida, porque provedor errado gravado é
   indistinguível de provedor certo.
+- **RF10** — O relatório mede **se o pedido pegou**: nota nova do mesmo cliente para o mesmo lugar,
+  depois do pedido, ainda divergente = o cadastro do contratante não foi corrigido. É a diferença
+  entre "pedimos" e "resolveu", e sem ela o relatório vira lista de pedidos sem desfecho.
 - **RF9** — Divergência de **CEP** é a de maior valor e sai destacada: CEP corrigido devolve o
   endereço ao degrau 1, que é grátis e nosso — deixa de custar consulta para sempre.
 - **RF7** — O relatório publica quatro números: distribuição por origem; deslocamento das correções
@@ -319,6 +335,9 @@ erro custa caro.
       contratante), e permite as duas juntas
 - [ ] O pedido ao contratante carrega o texto e o CEP como vieram, mais a razão da suspeita — nunca
       formulário em branco
+- [ ] O pedido diz que a correção é **no cadastro dele**, não na nossa base
+- [ ] O relatório distingue "pedido enviado" de "parou de divergir" — nota nova ainda divergente
+      depois do pedido continua aparecendo
 
 ## Dúvidas
 
