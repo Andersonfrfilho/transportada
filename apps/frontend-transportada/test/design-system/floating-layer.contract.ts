@@ -281,3 +281,32 @@ describe('design system floating layer contract', () => {
     ).toBe(true)
   })
 })
+
+describe('a rolagem da lista não fecha a própria lista', () => {
+  const LISTAS_FLUTUANTES = [
+    'select.module.css',
+    'multi-select.module.css',
+    'searchable-select.module.css',
+    'date-range-picker.module.css',
+  ] as const
+
+  /**
+   * ⚠️ **A rolagem encadeada fechava a camada, e o gesto era o de chegar ao fim das opções.**
+   * `useFloatingLayer` dispensa a camada quando a **página** rola — por desenho: presa ao gatilho
+   * ela atravessaria a tela enquanto alguém rola para ler outra coisa. Só que uma lista com
+   * `overflow-y: auto` e sem contenção encadeia a rolagem para a página ao bater no fim, e aí o
+   * próprio ato de alcançar a última opção fecha a lista.
+   *
+   * Foi assim que ele apareceu: o smoke de faturamento clicava numa opção, o navegador rolou a
+   * lista para trazê-la à vista, o encadeamento rolou a página, a camada fechou e o clique esperou
+   * por um elemento que já não existia. Só reprovava na CI, onde a máquina carregada muda o
+   * enquadramento — aqui a opção cabia na tela sem rolagem nenhuma.
+   */
+  for (const arquivo of LISTAS_FLUTUANTES) {
+    test(`${arquivo} contém a rolagem dentro da camada`, async () => {
+      const css = await readApplicationFile(`src/components/ui/${arquivo}`)
+      expect(css).toContain('overflow-y: auto')
+      expect(css).toContain('overscroll-behavior: contain')
+    })
+  }
+})
