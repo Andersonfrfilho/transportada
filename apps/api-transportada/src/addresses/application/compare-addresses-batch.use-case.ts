@@ -2,9 +2,12 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { GeocodingPrecision, ProviderMatchLevel } from '../../database/database.schema.js'
+import { shouldReplaceStored } from '../../routing/domain/geocoding-precision.policy.js'
+import type { GeocodedAddressRepository } from '../../routing/application/geocoding.port.js'
 import { compareAddresses } from '../domain/address-comparison.policy.js'
 import { checkCityMatch } from '../domain/city-match.policy.js'
 import { distanceInMetres } from '../domain/coordinate-distance.js'
+import { toStoredPrecision } from '../domain/provider-address.policy.js'
 import type { AddressLookupPort } from './address-lookup.port.js'
 import type {
   AddressComparisonRepository,
@@ -24,6 +27,12 @@ export type BatchSummary = Readonly<{
   byMatchLevel: Readonly<Record<ProviderMatchLevel, number>>
   cityMismatches: number
   compared: number
+  /**
+   * ⚠️ **É esta linha que torna o gasto permanente**, e ela quase não existiu: a primeira versão do
+   * lote gravou a medição e **jogou fora a coordenada**, deixando o produto ter de comprar de novo
+   * exatamente o que já tinha pago. A ADR-0044 §3 já autorizava guardar; foi descuido, não regra.
+   */
+  coordinatesUpgraded: number
   districtDiverging: number
   postalCodeDiverging: number
   /** Endereços que o provedor não respondeu — rede, cota, chave. Não são medição: são a repetir. */
@@ -35,6 +44,7 @@ const EMPTY_SUMMARY: BatchSummary = {
   byMatchLevel: { approximate: 0, not_found: 0, range_interpolated: 0, rooftop: 0 },
   cityMismatches: 0,
   compared: 0,
+  coordinatesUpgraded: 0,
   districtDiverging: 0,
   postalCodeDiverging: 0,
   skipped: 0,
@@ -52,6 +62,7 @@ export type CompareAddressesBatchUseCase = Readonly<{
 export function createCompareAddressesBatchUseCase(dependencies: {
   readonly cityDirectory: CityDirectoryPort
   readonly comparisons: AddressComparisonRepository
+  readonly geocoded: GeocodedAddressRepository
   readonly lookup: AddressLookupPort
 }): CompareAddressesBatchUseCase {
   return {
@@ -73,6 +84,7 @@ async function measure(input: {
   dependencies: {
     readonly cityDirectory: CityDirectoryPort
     readonly comparisons: AddressComparisonRepository
+    readonly geocoded: GeocodedAddressRepository
     readonly lookup: AddressLookupPort
   }
   summary: BatchSummary
@@ -147,6 +159,8 @@ async function measure(input: {
     streetDiverges: comparison.streetDiverges,
   })
 
+  const upgraded = await storeCoordinate({ candidate, cityMismatch, dependencies, result })
+
   return {
     byMatchLevel: {
       ...summary.byMatchLevel,
@@ -154,6 +168,7 @@ async function measure(input: {
     },
     cityMismatches: summary.cityMismatches + (cityMismatch ? 1 : 0),
     compared: summary.compared + 1,
+    coordinatesUpgraded: summary.coordinatesUpgraded + (upgraded ? 1 : 0),
     districtDiverging: summary.districtDiverging + (comparison.districtDiverges ? 1 : 0),
     postalCodeDiverging: summary.postalCodeDiverging + (comparison.postalCodeDiverges ? 1 : 0),
     skipped: summary.skipped,
@@ -179,4 +194,57 @@ function toDistance(input: {
     { latitude: candidate.latitude, longitude: candidate.longitude },
     { latitude: result.latitude, longitude: result.longitude },
   )
+}
+
+/**
+ * A coordenada comprada entra na base, e é isso que faz o lote ser pago **uma vez** — endereço já
+ * visto nunca é geocodificado de novo (ADR-0044 §3).
+ *
+ * Quatro portões, e nenhum é decorativo:
+ *
+ * - **município divergente** já descartou o resultado; gravá-lo seria precisão alta na cidade errada;
+ * - **sem `place_id`** o CHECK `geocoded_addresses_place_id_check` recusaria a linha `google`;
+ * - **`approximate`** não é melhoria: o provedor caiu no mesmo centroide que a escada grátis já
+ *   conhecia, e gravá-lo marcaria o endereço como resolvido sem nada ter melhorado;
+ * - **`shouldReplaceStored`** é quem garante que correção manual nunca é desfeita e que precisão
+ *   grossa nunca substitui fina. O `where` do upsert repete a primeira metade porque entre ler e
+ *   decidir cabe outra escrita.
+ */
+async function storeCoordinate(input: {
+  candidate: ComparisonCandidate
+  cityMismatch: boolean
+  dependencies: { readonly geocoded: GeocodedAddressRepository }
+  result: {
+    latitude: null | string
+    longitude: null | string
+    matchLevel: ProviderMatchLevel
+    placeId: string
+  }
+}): Promise<boolean> {
+  const { candidate, cityMismatch, dependencies, result } = input
+  if (cityMismatch) return false
+  if (result.latitude === null || result.longitude === null) return false
+  if (result.placeId.length === 0) return false
+
+  const precision = toStoredPrecision(result.matchLevel)
+  if (precision === null) return false
+
+  const replaces = shouldReplaceStored({
+    candidatePrecision: precision,
+    candidateSource: 'google',
+    storedPrecision: candidate.precision,
+    storedSource: candidate.source,
+  })
+  if (!replaces) return false
+
+  await dependencies.geocoded.save({
+    addressKey: candidate.addressKey,
+    externalPlaceId: result.placeId,
+    latitude: result.latitude,
+    longitude: result.longitude,
+    precision,
+    source: 'google',
+  })
+
+  return true
 }

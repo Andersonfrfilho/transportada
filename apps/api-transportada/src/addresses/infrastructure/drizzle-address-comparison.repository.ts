@@ -77,6 +77,7 @@ export function createDrizzleAddressComparisonRepository(
             latitude: geocodedAddresses.latitude,
             longitude: geocodedAddresses.longitude,
             precision: geocodedAddresses.precision,
+            source: geocodedAddresses.source,
           })
           .from(geocodedAddresses)
           .where(
@@ -118,6 +119,7 @@ export function createDrizzleAddressComparisonRepository(
           number: row.number ?? '',
           postalCode: row.postalCode ?? '',
           precision: coordinate.precision,
+          source: coordinate.source,
           state: row.state ?? '',
           street: row.street ?? '',
         })

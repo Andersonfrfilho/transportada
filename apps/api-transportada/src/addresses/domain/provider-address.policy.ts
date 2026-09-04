@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { ProviderMatchLevel } from '../../database/address-comparison.schema.js'
+import type { GeocodingPrecision } from '../../database/geocoding.schema.js'
 
 /**
  * O que o provedor sabe sobre um endereço, lido do que ele devolve (spec 084, G5/RF13).
@@ -97,4 +98,20 @@ function pick(
 
 function firstNonEmpty(values: readonly string[]): string {
   return values.find((value) => value.length > 0) ?? ''
+}
+
+/**
+ * O que o nível do provedor vale na cascata de precisão da **ADR-0044 §3** — e é por aqui que a
+ * medição vira coordenada guardada.
+ *
+ * ⚠️ **`not_found` devolve `null`, e `approximate` não é melhoria.** O provedor que caiu no
+ * município sabe exatamente o mesmo que a nossa escada grátis já sabia; gravá-lo como se fosse
+ * conquista trocaria um centroide por outro e marcaria o endereço como resolvido. Quem decide se a
+ * escrita acontece é `shouldReplaceStored`, e este mapa só lhe dá o vocabulário.
+ */
+export function toStoredPrecision(matchLevel: ProviderMatchLevel): GeocodingPrecision | null {
+  if (matchLevel === 'not_found') return null
+  if (matchLevel === 'approximate') return 'city'
+
+  return matchLevel === 'rooftop' ? 'rooftop' : 'street'
 }

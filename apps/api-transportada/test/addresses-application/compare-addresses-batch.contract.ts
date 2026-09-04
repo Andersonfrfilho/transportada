@@ -8,6 +8,7 @@ import type {
   ComparisonCandidate,
 } from '../../src/addresses/application/address-comparison.port.js'
 import type { AddressLookupResult } from '../../src/addresses/application/address-lookup.port.js'
+import type { GeocodedAddressRecord } from '../../src/routing/application/geocoding.port.js'
 import { createCompareAddressesBatchUseCase } from '../../src/addresses/application/compare-addresses-batch.use-case.js'
 
 const CANDIDATO: ComparisonCandidate = {
@@ -21,6 +22,7 @@ const CANDIDATO: ComparisonCandidate = {
   number: '533',
   postalCode: '14210-000',
   precision: 'city',
+  source: 'city',
   state: 'SP',
   street: 'R AMERICA DE ARAUJO PERES',
 }
@@ -31,6 +33,7 @@ function montar(input: {
   resultado: AddressLookupResult | null
 }) {
   const gravadas: AddressComparisonRecord[] = []
+  const coordenadas: GeocodedAddressRecord[] = []
   const useCase = createCompareAddressesBatchUseCase({
     cityDirectory: { resolveCityCode: async () => input.cidade ?? '3527256' },
     comparisons: {
@@ -39,10 +42,16 @@ function montar(input: {
         gravadas.push(record)
       },
     },
+    geocoded: {
+      findByKeys: async () => [],
+      save: async (record) => {
+        coordenadas.push(record)
+      },
+    },
     lookup: { lookup: async () => input.resultado },
   })
 
-  return { gravadas, useCase }
+  return { coordenadas, gravadas, useCase }
 }
 
 const ACHOU: AddressLookupResult = {
@@ -138,6 +147,77 @@ describe('lote de medição de endereço (spec 084, G6 / ADR-0061)', () => {
     await useCase.run({ companyId: 'empresa-1', limit: 200, precisions: ['city'] })
 
     expect(gravadas[0]?.distanceMetres).toBeNull()
+  })
+
+  /**
+   * ⚠️ **O defeito que este teste existe para impedir, e que já aconteceu.** A primeira versão do
+   * lote gravou a medição e **jogou fora a coordenada** — 118 endereços de porta comprados e nenhum
+   * aplicado, com o produto tendo de comprar de novo o que já tinha pago. A ADR-0044 §3 sempre
+   * autorizou guardar; foi descuido, e sem contrato ele volta.
+   */
+  test('a coordenada comprada entra na base — é o que faz o lote ser pago uma vez', async () => {
+    const { coordenadas, useCase } = montar({ resultado: ACHOU })
+    const resumo = await useCase.run({ companyId: 'empresa-1', limit: 200, precisions: ['city'] })
+
+    expect(resumo.coordinatesUpgraded).toBe(1)
+    expect(coordenadas[0]).toEqual({
+      addressKey: '3527256|14210000|533',
+      externalPlaceId: 'ChIJexemplo',
+      latitude: '-21.5534349',
+      longitude: '-47.7042824',
+      precision: 'rooftop',
+      source: 'google',
+    })
+  })
+
+  /** `range_interpolated` é a rua certa com número estimado: vale `street`, nunca `rooftop`. */
+  test('a interpolação entra como street, nunca como rooftop', async () => {
+    const { coordenadas, useCase } = montar({
+      resultado: { ...ACHOU, matchLevel: 'range_interpolated' },
+    })
+    await useCase.run({ companyId: 'empresa-1', limit: 200, precisions: ['city'] })
+
+    expect(coordenadas[0]?.precision).toBe('street')
+  })
+
+  /**
+   * ⚠️ **`approximate` não é melhoria, e gravá-lo seria pior que não gravar.** O provedor caiu no
+   * mesmo centroide de município que a escada grátis já conhecia; escrever marcaria o endereço como
+   * resolvido por um provedor pago sem que nada tenha melhorado, e ele sairia do relatório.
+   */
+  test('o município do provedor não substitui o município que já tínhamos', async () => {
+    const { coordenadas, useCase } = montar({ resultado: { ...ACHOU, matchLevel: 'approximate' } })
+    const resumo = await useCase.run({ companyId: 'empresa-1', limit: 200, precisions: ['city'] })
+
+    expect(resumo.coordinatesUpgraded).toBe(0)
+    expect(coordenadas).toHaveLength(0)
+  })
+
+  /** ADR-0044 §3: o pino que alguém arrastou nunca é desfeito por geocodificação posterior. */
+  test('correção manual nunca é desfeita pelo lote', async () => {
+    const { coordenadas, useCase } = montar({
+      candidatos: [{ ...CANDIDATO, precision: 'rooftop', source: 'manual' }],
+      resultado: ACHOU,
+    })
+    await useCase.run({ companyId: 'empresa-1', limit: 200, precisions: ['rooftop'] })
+
+    expect(coordenadas).toHaveLength(0)
+  })
+
+  /** Município divergente descartou o resultado: gravar seria precisão alta na cidade errada. */
+  test('resultado de outro município não vira coordenada', async () => {
+    const { coordenadas, useCase } = montar({ cidade: '3543402', resultado: ACHOU })
+    await useCase.run({ companyId: 'empresa-1', limit: 200, precisions: ['city'] })
+
+    expect(coordenadas).toHaveLength(0)
+  })
+
+  /** Sem `place_id` o CHECK do banco recusaria a linha `google` — melhor não tentar. */
+  test('sem place_id não grava coordenada', async () => {
+    const { coordenadas, useCase } = montar({ resultado: { ...ACHOU, placeId: '' } })
+    await useCase.run({ companyId: 'empresa-1', limit: 200, precisions: ['city'] })
+
+    expect(coordenadas).toHaveLength(0)
   })
 
   test('o resumo soma os quatro níveis e a empresa viaja na linha', async () => {

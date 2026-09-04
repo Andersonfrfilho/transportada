@@ -9,6 +9,7 @@ import {
   createDrizzleCityDirectory,
 } from '../src/addresses/infrastructure/drizzle-address-comparison.repository.js'
 import { createGoogleAddressLookupGateway } from '../src/addresses/infrastructure/google-address-lookup.gateway.js'
+import { createDrizzleGeocodedAddressRepository } from '../src/routing/infrastructure/drizzle-geocoded-address.repository.js'
 import { GEOCODING_PRECISIONS, type GeocodingPrecision } from '../src/database/database.schema.js'
 
 /**
@@ -61,6 +62,7 @@ async function main(): Promise<void> {
   const useCase = createCompareAddressesBatchUseCase({
     cityDirectory: createDrizzleCityDirectory(provider.db, companyId),
     comparisons,
+    geocoded: createDrizzleGeocodedAddressRepository(provider.db),
     lookup: createGoogleAddressLookupGateway({ apiKey }),
   })
 
@@ -74,6 +76,7 @@ async function main(): Promise<void> {
     [
       '',
       `medidos            ${summary.compared}`,
+      `coordenada nova    ${summary.coordinatesUpgraded}`,
       `pulados (falha)    ${summary.skipped}`,
       `  rooftop            ${summary.byMatchLevel.rooftop}`,
       `  range_interpolated ${summary.byMatchLevel.range_interpolated}`,

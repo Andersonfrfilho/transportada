@@ -1,7 +1,11 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { GeocodingPrecision, ProviderMatchLevel } from '../../database/database.schema.js'
+import type {
+  GeocodingPrecision,
+  GeocodingSource,
+  ProviderMatchLevel,
+} from '../../database/database.schema.js'
 
 /**
  * Um endereço da base, com o texto que a nota trouxe e a coordenada que hoje se usa (spec 084, G6).
@@ -18,6 +22,8 @@ export type ComparisonCandidate = Readonly<{
   number: string
   postalCode: string
   precision: GeocodingPrecision
+  /** A fonte de hoje: `manual` nunca é desfeita, e é `shouldReplaceStored` quem decide. */
+  source: GeocodingSource
   state: string
   street: string
 }>
