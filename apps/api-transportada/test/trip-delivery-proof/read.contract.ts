@@ -16,6 +16,8 @@ const PROOF = {
   kind: 'signature' as const,
   mimeType: 'image/png',
   objectKey: 'companies/1/proofs/a1.png',
+  /** ADR-0057 §3: o que a linha carrega já é a máscara — a leitura nunca vê o valor em claro. */
+  receiverDocumentMasked: '***.938.570-**',
   receiverName: 'Portaria',
 }
 
@@ -77,6 +79,7 @@ describe('read delivery proofs contract', () => {
         expiresAt: '2026-09-02T12:05:00.000Z',
         id: PROOF.id,
         kind: 'signature',
+        receiverDocument: '***.938.570-**',
         receiverName: 'Portaria',
       },
     ])

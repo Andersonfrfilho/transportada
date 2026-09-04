@@ -29,6 +29,7 @@ import {
   userCompanyMemberships,
 } from '../../src/database/database.schema.js'
 import {
+  tripDispatchSnapshots,
   tripDocuments,
   tripDrivers,
   tripStopEvents,
@@ -36,6 +37,9 @@ import {
   tripStops,
   trips,
 } from '../../src/database/trip.schema.js'
+import { dispatchDriverTrip } from '../../src/trips/application/dispatch-driver-trip.use-case.js'
+import { dispatchTrip } from '../../src/trips/application/dispatch-trip.use-case.js'
+import { DrizzleTripRouteRepository } from '../../src/trips/infrastructure/drizzle-trip-route.repository.js'
 import { findCurrentDriverTrip } from '../../src/trips/application/find-current-driver-trip.use-case.js'
 import {
   reportDocumentDelivery,
@@ -264,6 +268,98 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
     })
   })
 
+  /**
+   * Spec 082 D9 / ADR-0058: o motorista vinculado abre a porta do despacho. O congelamento do
+   * roteiro e a idempotência são os mesmos do escritório — muda só quem chama.
+   */
+  testWithPostgres('o motorista despacha a própria viagem, e só a própria', async () => {
+    await withDisposableDatabase(async (database) => {
+      const world = await seedPlannedTrip(database)
+      const stranger = await seedDriverOnly(database)
+      const reads = new DrizzleCurrentDriverTripRepository(database.db)
+      const routeRepository = new DrizzleTripRouteRepository(database.db)
+      const dispatch = (input: { readonly actorUserId: string; readonly tripId: string }) =>
+        dispatchTrip({
+          actorUserId: input.actorUserId,
+          companyId: world.companyId,
+          repository: routeRepository,
+          tripId: input.tripId,
+        })
+
+      // A viagem em `route_planned` aparece na tela do motorista — é onde mora "Iniciar trajeto"
+      const opened = await findCurrentDriverTrip({
+        companyId: world.companyId,
+        membershipId: world.membershipId,
+        repository: reads,
+      })
+      expect(opened.trips.map((trip) => trip.status)).toEqual(['route_planned'])
+
+      // Outro vínculo (mesmo com cadastro de motorista) → 403, sem transição tentada
+      const foreign = dispatchDriverTrip({
+        actorUserId: stranger.userId,
+        companyId: stranger.companyId,
+        dispatch,
+        driverId: stranger.driverId,
+        linkage: reads,
+        tripId: world.tripId,
+      })
+      await expect(foreign).rejects.toMatchObject({ code: 'TRIP_NOT_OF_DRIVER', status: 403 })
+      expect(await readTripStatus(database, world.tripId)).toBe('route_planned')
+
+      // O próprio vínculo despacha, e o roteiro congela em snapshot
+      const first = await dispatchDriverTrip({
+        actorUserId: world.userId,
+        companyId: world.companyId,
+        dispatch,
+        driverId: world.driverId,
+        linkage: reads,
+        tripId: world.tripId,
+      })
+      expect(first).toEqual({ tripStatus: 'dispatched' })
+      expect(await countDispatchSnapshots(database, world.companyId)).toBe(1)
+
+      // Repetido → unchanged: mesmo status, e nenhum segundo congelamento
+      const second = await dispatchDriverTrip({
+        actorUserId: world.userId,
+        companyId: world.companyId,
+        dispatch,
+        driverId: world.driverId,
+        linkage: reads,
+        tripId: world.tripId,
+      })
+      expect(second).toEqual({ tripStatus: 'dispatched' })
+      expect(await countDispatchSnapshots(database, world.companyId)).toBe(1)
+    })
+  })
+
+  testWithPostgres('fora de route_planned o despacho do motorista é 409', async () => {
+    await withDisposableDatabase(async (database) => {
+      const world = await seedPlannedTrip(database, { status: 'draft' })
+      const reads = new DrizzleCurrentDriverTripRepository(database.db)
+      const routeRepository = new DrizzleTripRouteRepository(database.db)
+
+      const attempt = dispatchDriverTrip({
+        actorUserId: world.userId,
+        companyId: world.companyId,
+        dispatch: (input) =>
+          dispatchTrip({
+            actorUserId: input.actorUserId,
+            companyId: world.companyId,
+            repository: routeRepository,
+            tripId: input.tripId,
+          }),
+        driverId: world.driverId,
+        linkage: reads,
+        tripId: world.tripId,
+      })
+
+      await expect(attempt).rejects.toMatchObject({
+        code: 'STATE_TRANSITION_NOT_ALLOWED',
+        status: 409,
+      })
+    })
+  })
+
   /** Conta com papel de motorista e sem cadastro na frota: problema de configuração, não de viagem. */
   testWithPostgres('conta sem cadastro de motorista se anuncia como tal', async () => {
     await withDisposableDatabase(async (database) => {
@@ -320,8 +416,28 @@ async function seedDriverOnly(database: TestDatabase): Promise<{
   return { companyId, driverId, membershipId, userId }
 }
 
+async function countDispatchSnapshots(database: TestDatabase, companyId: string): Promise<number> {
+  const rows = await database.db
+    .select({ id: tripDispatchSnapshots.id })
+    .from(tripDispatchSnapshots)
+    .where(eq(tripDispatchSnapshots.companyId, companyId))
+
+  return rows.length
+}
+
+/** A viagem antes da porta: roteiro planejado (ou o status pedido), notas já carregadas. */
+async function seedPlannedTrip(
+  database: TestDatabase,
+  options: { readonly status?: 'draft' | 'route_planned' } = {},
+): Promise<World> {
+  return seedDispatchedTrip(database, { status: options.status ?? 'route_planned' })
+}
+
 /** Viagem já despachada, com duas paradas e três notas carregadas — o estado em que a rua começa. */
-async function seedDispatchedTrip(database: TestDatabase): Promise<World> {
+async function seedDispatchedTrip(
+  database: TestDatabase,
+  options: { readonly status?: 'draft' | 'dispatched' | 'route_planned' } = {},
+): Promise<World> {
   const companyId = crypto.randomUUID()
   const userId = crypto.randomUUID()
   const membershipId = crypto.randomUUID()
@@ -350,7 +466,9 @@ async function seedDispatchedTrip(database: TestDatabase): Promise<World> {
     name: 'Motorista de Campo',
     taxId: '11111111111',
   })
-  await database.db.insert(trips).values({ companyId, id: tripId, status: 'dispatched', vehicleId })
+  await database.db
+    .insert(trips)
+    .values({ companyId, id: tripId, status: options.status ?? 'dispatched', vehicleId })
   await database.db.insert(tripDrivers).values({
     companyId,
     driverId,

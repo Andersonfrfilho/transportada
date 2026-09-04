@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type {
+  DriverDeliveryProofSettings,
   DriverStopSchedule,
   DriverTrip,
   DriverTripDocument,
@@ -49,6 +50,8 @@ function toDocument(value: unknown): DriverTripDocument {
   return {
     accessKey: readOptionalText(value.accessKey),
     deliveredAt: readNullableString(value.deliveredAt),
+    /** Shape novo: o comprovante vem no documento. Ausente (shape antigo) vira `null` — a parada responde. */
+    deliveryProof: toDeliveryProof(value.deliveryProof),
     grossWeight: readOptionalText(value.grossWeight),
     id: readString(value.id),
     number: readOptionalText(value.number),
@@ -92,6 +95,22 @@ function toSchedule(value: unknown): DriverStopSchedule | null {
   }
 }
 
+const PROOF_REQUIREMENTS = ['off', 'optional', 'required']
+
+/**
+ * Spec 082 D4: configuração ausente ou fora do vocabulário vira `null` — o app aplica o padrão em
+ * vez de quebrar a tela por causa de uma configuração que não carregou.
+ */
+function toDeliveryProof(value: unknown): DriverDeliveryProofSettings | null {
+  if (!isRecord(value)) return null
+  const { photo, receiverDocument, receiverName, signature } = value
+  const values = [photo, receiverDocument, receiverName, signature]
+  if (!values.every((entry) => typeof entry === 'string' && PROOF_REQUIREMENTS.includes(entry))) {
+    return null
+  }
+  return { photo, receiverDocument, receiverName, signature } as DriverDeliveryProofSettings
+}
+
 function toStop(value: unknown): DriverTripStop {
   if (!isRecord(value) || !Array.isArray(value.documents)) throw new DriverTripResponseError()
   if (typeof value.sequence !== 'number') throw new DriverTripResponseError()
@@ -99,6 +118,7 @@ function toStop(value: unknown): DriverTripStop {
   return {
     arrivedAt: readNullableString(value.arrivedAt),
     completedAt: readNullableString(value.completedAt),
+    deliveryProof: toDeliveryProof(value.deliveryProof),
     deliveryWindowEnd: readNullableString(value.deliveryWindowEnd),
     deliveryWindowStart: readNullableString(value.deliveryWindowStart),
     documents: value.documents.map(toDocument),

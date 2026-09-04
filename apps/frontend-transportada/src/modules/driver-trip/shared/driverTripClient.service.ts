@@ -21,11 +21,14 @@ export class DriverTripRequestError extends Error {
   public readonly code: string
   /** `true` só quando a rede falhou — recusa do servidor é resposta, e resposta não se repete. */
   public readonly isOffline: boolean
+  /** O status HTTP da recusa — a tela de pendentes imprime `status + código` como causa legível. */
+  public readonly status: number | undefined
 
-  public constructor(input: { code: string; isOffline: boolean }) {
+  public constructor(input: { code: string; isOffline: boolean; status?: number }) {
     super(input.code)
     this.code = input.code
     this.isOffline = input.isOffline
+    this.status = input.status
     this.name = 'DriverTripRequestError'
   }
 }
@@ -51,11 +54,20 @@ export type DriverTripClient = Readonly<{
    * e está declarado como pendência em vez de resolvido pela metade.
    */
   attachProof: (input: {
+    /** Idempotência POR ANEXO: gerada na captura e reenviada igual — o servidor não duplica o blob. */
+    attachmentKey?: string
     documentId: string
     file: File
     kind: 'photo' | 'signature'
+    receiverDocument?: string
     receiverName?: string
   }) => Promise<void>
+  /**
+   * Spec 082 (revisão): o snapshot inclui viagem `route_planned`, e é o motorista quem inicia o
+   * trajeto. Fora de `dispatched`/`in_transit` a API recusa as escritas de campo — este é o botão
+   * que abre o portão.
+   */
+  dispatchTrip: (input: { tripId: string }) => Promise<void>
   /**
    * Spec 079: o que aconteceu **sem** a carga voltar. Não passa pela fila de relatos: ao contrário
    * de entregar e devolver, isto não muda o estado da nota — falhar aqui não deixa a viagem num
@@ -114,6 +126,8 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
       const form = new FormData()
       form.set('file', input.file)
       form.set('kind', input.kind)
+      if (input.attachmentKey !== undefined) form.set('attachmentKey', input.attachmentKey)
+      if (input.receiverDocument !== undefined) form.set('receiverDocument', input.receiverDocument)
       if (input.receiverName !== undefined) form.set('receiverName', input.receiverName)
 
       await request({
@@ -121,6 +135,14 @@ export function createDriverTripClient(dependencies: ClientDependencies): Driver
         form,
         method: 'POST',
         path: `${CURRENT_TRIP_PATH}/documents/${input.documentId}/proof`,
+      })
+    },
+    async dispatchTrip(input) {
+      await request({
+        body: JSON.stringify({ tripId: input.tripId }),
+        dependencies,
+        method: 'POST',
+        path: `${CURRENT_TRIP_PATH}/dispatch`,
       })
     },
     async registerDocumentOccurrence(input) {
@@ -302,7 +324,11 @@ async function request(
    * saiu da sua viagem", e trocá-lo por um genérico apagaria a única explicação que o motorista tem.
    */
   if (!response.ok) {
-    throw new DriverTripRequestError({ code: readErrorCode(payload), isOffline: false })
+    throw new DriverTripRequestError({
+      code: readErrorCode(payload),
+      isOffline: false,
+      status: response.status,
+    })
   }
 
   return payload

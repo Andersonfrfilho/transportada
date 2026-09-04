@@ -662,6 +662,7 @@ function isOccurrenceType(value: unknown): value is OccurrenceType {
       'active',
       'emailBody',
       'emailSubject',
+      'emailTemplateKey',
       'id',
       'name',
       'notifies',
@@ -674,6 +675,7 @@ function isOccurrenceType(value: unknown): value is OccurrenceType {
     isBoolean(value.active) &&
     isString(value.emailBody) &&
     isString(value.emailSubject) &&
+    (value.emailTemplateKey === null || isString(value.emailTemplateKey)) &&
     isString(value.id) &&
     isString(value.name) &&
     isBoolean(value.notifies) &&

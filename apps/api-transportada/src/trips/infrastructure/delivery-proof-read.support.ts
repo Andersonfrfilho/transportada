@@ -56,6 +56,7 @@ export async function listDeliveryProofs(
       kind: tripDeliveryProofs.kind,
       mimeType: storedObjects.mimeType,
       objectKey: storedObjects.objectKey,
+      receiverDocumentMasked: tripDeliveryProofs.receiverDocumentMasked,
       receiverName: tripDeliveryProofs.receiverName,
     })
     .from(tripDeliveryProofs)
@@ -98,6 +99,7 @@ export async function listDeliveryProofs(
     kind: row.kind,
     mimeType: row.mimeType,
     objectKey: row.objectKey,
+    receiverDocumentMasked: row.receiverDocumentMasked,
     receiverName: row.receiverName,
   }))
 }
@@ -424,6 +426,7 @@ export async function findOccurrenceType(
       active: companyOccurrenceTypes.active,
       emailBody: companyOccurrenceTypes.emailBody,
       emailSubject: companyOccurrenceTypes.emailSubject,
+      emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       id: companyOccurrenceTypes.id,
       name: companyOccurrenceTypes.name,
       notifies: companyOccurrenceTypes.notifies,
@@ -451,6 +454,7 @@ export async function listOccurrenceTypes(
       active: companyOccurrenceTypes.active,
       emailBody: companyOccurrenceTypes.emailBody,
       emailSubject: companyOccurrenceTypes.emailSubject,
+      emailTemplateKey: companyOccurrenceTypes.emailTemplateKey,
       id: companyOccurrenceTypes.id,
       name: companyOccurrenceTypes.name,
       notifies: companyOccurrenceTypes.notifies,
@@ -468,6 +472,7 @@ export async function saveOccurrenceType(
     readonly companyId: string
     readonly emailBody: string
     readonly emailSubject: string
+    readonly emailTemplateKey: null | string
     readonly name: string
     readonly notifies: boolean
     readonly occurrenceTypeId: null | string
@@ -479,6 +484,7 @@ export async function saveOccurrenceType(
     companyId: input.companyId,
     emailBody: input.emailBody,
     emailSubject: input.emailSubject,
+    emailTemplateKey: input.emailTemplateKey,
     name: input.name.trim(),
     notifies: input.notifies,
     stage: input.stage,
@@ -504,6 +510,7 @@ export async function saveOccurrenceType(
     active: saved.active,
     emailBody: saved.emailBody,
     emailSubject: saved.emailSubject,
+    emailTemplateKey: saved.emailTemplateKey,
     id: saved.id,
     name: saved.name,
     notifies: saved.notifies,

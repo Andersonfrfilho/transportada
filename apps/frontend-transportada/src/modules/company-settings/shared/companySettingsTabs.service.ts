@@ -15,6 +15,7 @@ export const SETTINGS_PANELS = [
   'nfseCredential',
   'nfseProfiles',
   'occurrenceNotifications',
+  'deliveryProof',
 ] as const
 
 export type SettingsPanel = (typeof SETTINGS_PANELS)[number]
@@ -34,6 +35,7 @@ export type SettingsDataSource =
   | 'cargoVolumeFactors'
   | 'companyContacts'
   | 'companySettings'
+  | 'deliveryProofSettings'
   | 'distributionCursor'
   | 'freightRegions'
   | 'fuelPrices'
@@ -69,6 +71,11 @@ export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPa
   cargoVolume: { module: 'nfe-workspace', source: 'cargoVolumeFactors', tab: 'imports' },
   cargoWeight: { module: 'nfe-workspace', source: 'cargoSettings', tab: 'imports' },
   certificates: { module: 'company-settings', source: 'companySettings', tab: 'certificates' },
+  /**
+   * Spec 082 (D4, ADR-0057) — o formulário do comprovante se decide **na tela de viagens**: é onde a
+   * entrega aparece e onde o operador confere o que o motorista colheu. Configuração perto do efeito.
+   */
+  deliveryProof: { module: 'trip', source: 'deliveryProofSettings', tab: 'proof' },
   distributionCursor: { module: 'nfe-workspace', source: 'distributionCursor', tab: 'imports' },
   freightRegions: { module: 'fleet', source: 'freightRegions', tab: 'regions' },
   fuelPrices: { module: 'fleet', source: 'fuelPrices', tab: 'fuel' },
@@ -138,6 +145,7 @@ export function resolveSettingsDataScope(
     cargoVolumeFactors: sources.has('cargoVolumeFactors'),
     companyContacts: sources.has('companyContacts'),
     companySettings: module === 'company-settings' || sources.has('companySettings'),
+    deliveryProofSettings: sources.has('deliveryProofSettings'),
     distributionCursor: sources.has('distributionCursor'),
     freightRegions: sources.has('freightRegions'),
     fuelPrices: sources.has('fuelPrices'),

@@ -1,0 +1,1 @@
+ALTER TABLE "trip_delivery_proofs" ADD COLUMN "attachment_key" text DEFAULT '' NOT NULL;

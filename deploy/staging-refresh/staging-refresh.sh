@@ -141,11 +141,20 @@ restore_over_staging() {
   openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 \
     -pass env:BACKUP_ENCRYPTION_KEY -in "$DUMP_PATH" -out "$plain"
 
-  # `--clean --if-exists` em vez de derrubar e recriar o banco: o Railway não entrega conexão de
-  # manutenção, e `drop database` exigiria desconectar a app de staging inteira primeiro. O
-  # `--clean` derruba objeto a objeto, e o que sobrou de um schema antigo sai junto.
-  pg_restore --dbname "$STAGING_DATABASE_URL" --clean --if-exists --no-owner --no-privileges \
-    <"$plain"
+  # `drop schema` em vez do `--clean` do pg_restore. A razão é o ciclo de 04/09/2026, que não
+  # espelhou: **misturou**. O `--clean` só derruba o que está no dump, com `DROP TABLE` sem
+  # `CASCADE`. Staging está quase sempre à frente de produção, e tabela nova daqui —
+  # `trip_document_occurrences`, naquele dia — carrega FK para tabela que o dump conhece. A FK trava
+  # o DROP, o CREATE seguinte falha com "already exists", as constraints falham atrás dele, e o COPY
+  # despeja produção POR CIMA das linhas de staging que sobreviveram. `pg_restore` fecha com
+  # "errors ignored on restore: 12" e sai diferente de zero, mas o estrago já está no banco.
+  #
+  # Derrubar o schema inteiro não depende da distância entre os dois schemas, que é justamente o que
+  # não se pode prever aqui. `drop database` continua fora: o Railway não entrega conexão de
+  # manutenção, e ele exigiria desconectar a app de staging antes.
+  psql "$STAGING_DATABASE_URL" --quiet --set ON_ERROR_STOP=1 \
+    --command 'drop schema if exists public cascade; create schema public;'
+  pg_restore --dbname "$STAGING_DATABASE_URL" --no-owner --no-privileges <"$plain"
   rm -f "$plain"
   log info staging_refresh_restored ",\"stamp\":\"${CYCLE_STAMP}\""
 }

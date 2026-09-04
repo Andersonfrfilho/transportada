@@ -78,6 +78,7 @@ export type TripController = Readonly<{
   saveOccurrenceType: (
     input: Readonly<{
       active: boolean
+      emailTemplateKey: null | string
       name: string
       notifies: boolean
       occurrenceTypeId: null | string

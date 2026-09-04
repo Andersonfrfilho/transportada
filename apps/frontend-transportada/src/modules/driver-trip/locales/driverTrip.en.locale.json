@@ -1,29 +1,78 @@
 {
   "arrive": "I arrived",
   "arrived": "Arrived at {{time}}",
+  "attachmentLimitCount": "The limit of attachments waiting to be sent was reached. Send the pending ones before attaching another — nothing was discarded.",
+  "attachmentLimitSize": "The space for attachments waiting to be sent is full. Send the pending ones before attaching another — nothing was discarded.",
+  "crop": {
+    "cancel": "Cancel",
+    "corner": {
+      "bottomLeft": "Bottom left corner",
+      "bottomRight": "Bottom right corner",
+      "topLeft": "Top left corner",
+      "topRight": "Top right corner"
+    },
+    "previewLabel": "Proof preview for cropping",
+    "useCrop": "Use crop",
+    "useOriginal": "Use without cropping"
+  },
   "deliver": "Delivered",
+  "dispatch": {
+    "failed": "The route could not be started. Tap again.",
+    "start": "Start route",
+    "waiting": "Waiting for the route to start — field actions unlock after starting."
+  },
+  "eventLimitCount": "The limit of events waiting to be sent was reached. Send the pending ones before recording another — nothing was discarded.",
   "documentsPending_one": "{{count}} invoice to deliver",
   "documentsPending_other": "{{count}} invoices to deliver",
   "error": "Your trip could not be loaded. Pull to try again.",
+  "eventQueue": {
+    "attachments_one": "{{count}} attachment",
+    "attachments_other": "{{count}} attachments",
+    "back": "Back",
+    "empty": "Nothing waiting to be sent.",
+    "kind": {
+      "arrive": "Arrival",
+      "deliver": "Delivery",
+      "occurrence": "Occurrence",
+      "proof": "Proof",
+      "return": "Return"
+    },
+    "open": "See pending events",
+    "sendAll": "Send all now",
+    "sendNow": "Send now",
+    "status": {
+      "attachmentRejected": "Attachment rejected by the server: {{cause}}. The event was already accepted.",
+      "failed_one": "Failed {{count}} time — no network on the last attempt",
+      "failed_other": "Failed {{count}} times — no network on the last attempt",
+      "queued": "Queued",
+      "rejected": "Rejected by the server: {{cause}}"
+    },
+    "title": "Pending events"
+  },
   "loadSheet": {
-    "title": "Load sheet",
+    "barcodeLabel": "Barcode for the access key of NF-e {{number}}",
     "notFiscal": "This is not a fiscal document",
-    "print": "Print",
     "note": "NF-e {{number}}/{{series}}",
+    "print": "Print",
+    "title": "Load sheet",
     "volumes_one": "{{count}} package",
     "volumes_other": "{{count}} packages",
-    "weight": "{{weight}} kg",
-    "barcodeLabel": "Barcode for the access key of NF-e {{number}}"
+    "weight": "{{weight}} kg"
   },
   "loading": "Loading your trip…",
   "manifest": {
-    "title": "MDF-e for this trip",
-    "protocol": "Protocol {{protocol}}",
     "barcodeLabel": "Barcode for MDF-e access key {{accessKey}}",
+    "failed": "The document could not be fetched right now. The access key above still holds for inspection.",
     "openDamdfe": "Get DAMDFE (PDF)",
     "openXml": "Get XML",
     "opening": "Getting…",
-    "failed": "The document could not be fetched right now. The access key above still holds for inspection."
+    "protocol": "Protocol {{protocol}}",
+    "title": "MDF-e for this trip"
+  },
+  "nav": {
+    "label": "Application sections",
+    "profile": "Profile",
+    "trip": "Trip"
   },
   "navigate": "Navigate",
   "noTrip": "Nothing for today. Your trip shows up here once the office dispatches it.",
@@ -40,9 +89,36 @@
     "other": "Other",
     "unexpected_charge": "Unexpected charge"
   },
+  "occurrencePhoto": "Occurrence photo (site or cargo)",
+  "occurrencePhotoCount_one": "{{count}} photo attached",
+  "occurrencePhotoCount_other": "{{count}} photos attached",
+  "occurrencePreview": {
+    "none": "No notice will be sent to the customer for this reason.",
+    "title": "Notice that will be sent"
+  },
   "occurrenceSend": "Record",
+  "profile": {
+    "noTrip": "No trip in progress.",
+    "queueEmpty": "Nothing waiting to be sent.",
+    "queueTitle": "Send queue",
+    "roles": {
+      "aggregate": "Aggregate driver",
+      "driver": "Driver",
+      "unknown": "No field role"
+    },
+    "signOut": "Sign out",
+    "vehicleTitle": "Trip vehicle"
+  },
+  "progress": {
+    "label": "{{resolved}} of {{total}} stops resolved"
+  },
   "proof": "Attach proof",
   "proofFailed": "The file could not be attached. The delivery is still recorded.",
+  "proofFields": {
+    "receiverDocument": "Receiver document",
+    "receiverName": "Receiver name",
+    "requiredField": "Fill in this field before attaching the proof."
+  },
   "queued_one": "{{count}} confirmation waiting to be sent",
   "queued_other": "{{count}} confirmations waiting to be sent",
   "rejected": "The office changed this invoice while you were offline. Check before moving on.",
@@ -58,6 +134,15 @@
   "schedule": {
     "at": "Scheduled for {{time}}",
     "protocol": "Protocol {{protocol}}"
+  },
+  "signature": {
+    "cancel": "Cancel",
+    "canvasLabel": "Signature area — draw with your finger",
+    "clear": "Clear",
+    "confirm": "Confirm signature",
+    "exitFullscreen": "Exit full screen",
+    "fullscreen": "Full screen",
+    "open": "Collect signature"
   },
   "stopCompleted": "Stop completed",
   "stopTitle": "Stop {{sequence}}",

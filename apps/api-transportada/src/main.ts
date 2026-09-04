@@ -149,7 +149,17 @@ import { createDeliveryProofDownloadGateway } from './trips/infrastructure/deliv
 import { readTripDocumentProducts } from './trips/application/read-trip-document-products.use-case.js'
 import { registerDriverOccurrence } from './trips/application/register-driver-occurrence.use-case.js'
 import { registerTripOccurrence } from './trips/application/register-trip-occurrence.use-case.js'
+import { saveOccurrenceTypeWithTemplate } from './trips/application/save-occurrence-type.use-case.js'
+import {
+  createListTripOccurrenceFeedUseCase,
+  createReadTripOccurrenceAttachmentsUseCase,
+} from './trips/application/trip-occurrence-feed.use-case.js'
+import {
+  listTripOccurrenceAttachmentLocations,
+  listTripOccurrenceFeed,
+} from './trips/infrastructure/trip-occurrence-feed.query.js'
 import { createOccurrenceNotifier } from './trips/infrastructure/occurrence-notifier.gateway.js'
+import { createStopOccurrenceNotifier } from './trips/infrastructure/stop-occurrence-notifier.gateway.js'
 import {
   findDriverReachableDocument,
   listDeliveryProofs,
@@ -238,8 +248,13 @@ import {
 } from './trips/application/report-document-delivery.use-case'
 import { reportStopOccurrence } from './trips/application/report-stop-occurrence.use-case'
 import { attachDeliveryProof } from './trips/application/attach-delivery-proof.use-case'
+import { createDeliveryProofDocumentSecretService } from './trips/application/delivery-proof-document-secret.service'
+import { dispatchDriverTrip } from './trips/application/dispatch-driver-trip.use-case'
+import { dispatchTrip } from './trips/application/dispatch-trip.use-case'
 import { createDeliveryProofStorage } from './trips/infrastructure/delivery-proof-storage.gateway'
 import { DrizzleDeliveryProofRepository } from './trips/infrastructure/drizzle-delivery-proof.repository'
+import { DrizzleDeliveryProofSettingsRepository } from './trips/infrastructure/drizzle-delivery-proof-settings.repository'
+import { createDeliveryProofSettingsRoutes } from './trips/presentation/delivery-proof-settings.routes'
 import { DrizzleCurrentDriverTripRepository } from './trips/infrastructure/drizzle-current-driver-trip.repository'
 import { DrizzleDriverFieldReportUnitOfWork } from './trips/infrastructure/drizzle-driver-field-report.repository'
 import { createRouteSuggestionRoutes } from './routing/presentation/route-suggestion.routes'
@@ -1056,6 +1071,7 @@ function createApplicationRoutes({
   })
   const driverFieldReports = new DrizzleDriverFieldReportUnitOfWork(database)
   const deliveryProofRepository = new DrizzleDeliveryProofRepository(database)
+  const deliveryProofSettingsRepository = new DrizzleDeliveryProofSettingsRepository(database)
   const tripLifecycle = createTripLifecycleUseCase({
     batchRepository: tripDocumentBatchRepository,
     deliveryAddressOverrideRepository,
@@ -1181,6 +1197,9 @@ function createApplicationRoutes({
     unitOfWork: cteEmissionProfileRepository,
   })
   const envelopeProvider = createSecretEnvelopeProvider(envelopeKeyRing)
+  const deliveryProofDocumentSecrets = createDeliveryProofDocumentSecretService({
+    envelopeProvider,
+  })
   const nfseEmissionProfiles = createNfseEmissionProfilesUseCase({
     fingerprintService,
     unitOfWork: nfseProfileRepository,
@@ -1633,6 +1652,12 @@ function createApplicationRoutes({
       resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
       setConsent: (input) => tripLocationRepository.setConsent(input),
     }),
+    ...createDeliveryProofSettingsRoutes({
+      listOverrides: (input) => deliveryProofSettingsRepository.listOverrides(input),
+      readSettings: (input) => deliveryProofSettingsRepository.readSettings(input),
+      replaceOverrides: (input) => deliveryProofSettingsRepository.replaceOverrides(input),
+      saveSettings: (input) => deliveryProofSettingsRepository.saveSettings(input),
+    }),
     ...createMeTripRoutes({
       /**
        * Spec 079: o motorista registra a ocorrência do celular. **Sem notificador**: quem despachou
@@ -1654,11 +1679,26 @@ function createApplicationRoutes({
         attachDeliveryProof({
           ...input,
           newObjectId: () => crypto.randomUUID(),
+          newProofId: () => crypto.randomUUID(),
           repository: deliveryProofRepository,
+          sealDocument: (seal) => deliveryProofDocumentSecrets.encrypt(seal),
           storage: createDeliveryProofStorage({
             bucket: storageBucket,
             storage: storageGateway,
           }),
+        }),
+      /** ADR-0058: o mesmo `dispatchTrip` do escritório, recortado pelo vínculo — sem `force`. */
+      dispatchCurrentTrip: (input) =>
+        dispatchDriverTrip({
+          ...input,
+          dispatch: (request) =>
+            dispatchTrip({
+              actorUserId: request.actorUserId,
+              companyId: input.companyId,
+              repository: tripRouteRepository,
+              tripId: request.tripId,
+            }),
+          linkage: currentDriverTripRepository,
         }),
       findCurrentTrip: (input) =>
         findCurrentDriverTrip({ ...input, repository: currentDriverTripRepository }),
@@ -1672,6 +1712,20 @@ function createApplicationRoutes({
         reportStopOccurrence({
           ...input,
           attachmentObjectId: null,
+          /**
+           * Spec 082 D8: o aviso do motivo tipado sai pelo trilho `notification.v1` que já
+           * existe — o `sendNotification` do módulo enfileira no RabbitMQ e o worker consome e
+           * renderiza. Nenhuma fila nova; motivo sem template grava e segue.
+           */
+          notifier: createStopOccurrenceNotifier({
+            logger,
+            queryable: database,
+            send: (params) =>
+              notifications.useCases.sendNotification.execute({
+                ...params,
+                locale: NOTIFICATION_DEFAULT_LOCALE,
+              } as never),
+          }),
           suggestCharges: suggestDeliveryCharges,
           unitOfWork: driverFieldReports,
         }),
@@ -1691,15 +1745,33 @@ function createApplicationRoutes({
       },
       saveOccurrenceType: {
         execute: (input) =>
-          saveOccurrenceType(database, {
-            active: input.active,
+          saveOccurrenceTypeWithTemplate({
             companyId: input.context.companyId,
-            emailBody: input.emailBody,
-            emailSubject: input.emailSubject,
-            name: input.name,
-            notifies: input.notifies,
-            occurrenceTypeId: input.occurrenceTypeId,
-            stage: input.stage,
+            save: (values) =>
+              saveOccurrenceType(database, { ...values, companyId: input.context.companyId }),
+            templates: {
+              /**
+               * O predicado consulta o catálogo do módulo — a mesma fonte que a tela de templates
+               * edita. Chave sem template ativo de e-mail é recusada na gravação, não no envio.
+               */
+              hasActiveEmailTemplate: async ({ companyId, templateKey }) => {
+                const templates = await notifications.useCases.listTemplates.execute({ companyId })
+                return templates.some(
+                  (template) =>
+                    template.key === templateKey && template.channel === 'email' && template.active,
+                )
+              },
+            },
+            values: {
+              active: input.active,
+              emailBody: input.emailBody,
+              emailSubject: input.emailSubject,
+              emailTemplateKey: input.emailTemplateKey,
+              name: input.name,
+              notifies: input.notifies,
+              occurrenceTypeId: input.occurrenceTypeId,
+              stage: input.stage,
+            },
           }),
       },
       listTripOccurrences: {
@@ -1710,6 +1782,21 @@ function createApplicationRoutes({
             tripId: input.tripId,
           }),
       },
+      listTripOccurrenceFeed: createListTripOccurrenceFeedUseCase({
+        reader: {
+          listAttachmentLocations: (query) =>
+            listTripOccurrenceAttachmentLocations(database, query),
+          listFeed: (query) => listTripOccurrenceFeed(database, query),
+        },
+      }),
+      readTripOccurrenceAttachments: createReadTripOccurrenceAttachmentsUseCase({
+        downloads: createDeliveryProofDownloadGateway({ storage: storageGateway }),
+        reader: {
+          listAttachmentLocations: (query) =>
+            listTripOccurrenceAttachmentLocations(database, query),
+          listFeed: (query) => listTripOccurrenceFeed(database, query),
+        },
+      }),
       registerTripOccurrence: {
         execute: async (input) =>
           registerTripOccurrence({

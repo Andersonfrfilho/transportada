@@ -25,6 +25,7 @@ import { DriverNotRegisteredError } from '../domain/trip.error.js'
 import { parseDeliveryProofUpload } from './delivery-proof.schema.js'
 import { parseRegisterOccurrenceRequest } from './occurrence.schema.js'
 import {
+  parseDispatchCurrentTripRequest,
   parseDocumentReturnRequest,
   parseFieldReportRequest,
   parseIdempotencyKey,
@@ -52,6 +53,11 @@ const DOCUMENT_OCCURRENCE_PATH = `${API_ME_CURRENT_TRIP_PATH}/documents/:documen
  */
 const TRIP_MANIFEST_PATH = `${API_ME_CURRENT_TRIP_PATH}/manifests/:manifestId`
 const TRIP_MANIFEST_DAMDFE_PATH = `${TRIP_MANIFEST_PATH}/damdfe`
+/**
+ * ADR-0058: o motorista abre a porta do despacho. A viagem vem no corpo — o snapshot já a entregou
+ * — e o recorte é o vínculo (`trip_drivers`), nunca permissão nova.
+ */
+const TRIP_DISPATCH_PATH = `${API_ME_CURRENT_TRIP_PATH}/dispatch`
 
 /**
  * `trip.read` lê a viagem própria e `trip.report` reporta o que aconteceu na rua. Nenhum dos dois é
@@ -106,6 +112,12 @@ export type MeTripDependencies = {
     readonly occurrenceTypeId: string
     readonly productCode: string
   }) => Promise<TripOccurrence>
+  readonly dispatchCurrentTrip: (input: {
+    readonly actorUserId: string
+    readonly companyId: string
+    readonly driverId: string
+    readonly tripId: string
+  }) => Promise<{ readonly tripStatus: string }>
   readonly attachProof: (
     input: DriverContextInput & {
       readonly documentId: string
@@ -318,6 +330,25 @@ export function createMeTripRoutes(
         }
       },
       pathname: DOCUMENT_RETURN_PATH,
+      policy: DRIVER_REPORT_POLICY,
+    }),
+    defineRoute<{ readonly tripId: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const driverId = await resolveDriver(context.scope)
+        const result = await dependencies.dispatchCurrentTrip({
+          actorUserId: context.scope.userId,
+          companyId: context.scope.companyId,
+          driverId,
+          tripId: input.tripId,
+        })
+
+        return jsonResponse({ body: { data: result }, status: 200 })
+      },
+      method: 'POST',
+      async parse({ request }) {
+        return { tripId: await parseDispatchCurrentTripRequest(request) }
+      },
+      pathname: TRIP_DISPATCH_PATH,
       policy: DRIVER_REPORT_POLICY,
     }),
     /**

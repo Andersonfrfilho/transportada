@@ -27,6 +27,7 @@ function repository(notifies: boolean) {
         active: true,
         emailBody: '',
         emailSubject: '',
+        emailTemplateKey: null,
         id: TIPO,
         name: 'Recusa total',
         notifies,

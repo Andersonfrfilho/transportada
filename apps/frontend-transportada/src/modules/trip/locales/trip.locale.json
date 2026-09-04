@@ -328,7 +328,11 @@
     "placeholders": "Marcadores disponíveis: {{list}}. Um marcador fora da lista é recusado ao salvar.",
     "withoutTemplate": "Sem e-mail: este tipo só fica registrado na viagem.",
     "emailReady": "E-mail pronto para enviar ao embarcador — confira antes de mandar.",
-    "copyEmail": "Copiar e-mail"
+    "copyEmail": "Copiar e-mail",
+    "emailTemplate": "Modelo de e-mail",
+    "emailTemplateNone": "Sem e-mail",
+    "legacyTemplate": "{{subject}} — modelo próprio (legado)",
+    "editTemplates": "Editar modelos de e-mail"
   },
   "routeMap": {
     "title": "Mapa do roteiro",
@@ -354,7 +358,8 @@
   },
   "tabs": {
     "trips": "Viagens",
-    "notifications": "Avisos"
+    "notifications": "Avisos",
+    "proof": "Comprovante"
   },
   "assemblyMap": {
     "empty": "Sem cidade para desenhar ainda — bipe ou selecione uma nota.",
@@ -505,5 +510,88 @@
     "copyPlate": "Copiar a placa {{plate}}",
     "plateCopied": "Placa copiada",
     "withoutDriver": "Sem motorista"
+  },
+  "deliveryProofSettings": {
+    "title": "Comprovante de entrega",
+    "hint": "O que o motorista precisa colher ao entregar. Sem configuração gravada vale o padrão de fábrica: documento desligado, o resto oferecido.",
+    "error": "Não foi possível carregar ou gravar a configuração do comprovante.",
+    "save": "Salvar configuração",
+    "fields": {
+      "receiverName": "Nome do recebedor",
+      "receiverDocument": "Documento do recebedor",
+      "signature": "Assinatura",
+      "photo": "Foto"
+    },
+    "modes": {
+      "required": "Obrigatório",
+      "optional": "Opcional",
+      "off": "Desligado"
+    },
+    "overrides": {
+      "title": "Exceções por destinatário",
+      "hint": "A exceção pelo CNPJ do destinatário vence a configuração geral por inteiro.",
+      "empty": "Nenhuma exceção cadastrada.",
+      "taxId": "CNPJ ou CPF do destinatário",
+      "add": "Adicionar exceção",
+      "remove": "Remover"
+    }
+  },
+  "occurrenceFeed": {
+    "kicker": "Operações",
+    "title": "Ocorrências",
+    "intro": "Tudo o que aconteceu com as notas e as paradas das viagens da empresa, em uma lista só.",
+    "tableTitle": "Ocorrências registradas",
+    "empty": "Nenhuma ocorrência encontrada para o filtro aplicado.",
+    "loadMore": "Carregar mais",
+    "loadingMore": "Carregando…",
+    "notified": "Aviso enviado",
+    "columns": {
+      "createdAt": "Hora",
+      "stage": "Grupo",
+      "typeName": "Tipo",
+      "vehiclePlate": "Placa",
+      "driverName": "Motorista",
+      "stopLabel": "Parada",
+      "invoice": "Nota",
+      "notified": "Aviso"
+    },
+    "columnsMenu": {
+      "title": "Colunas",
+      "moveUp": "Mover para cima",
+      "moveDown": "Mover para baixo"
+    },
+    "stage": {
+      "separation": "Separação",
+      "delivery": "Entrega",
+      "stop": "Parada"
+    },
+    "kind": {
+      "unexpected_charge": "Cobrança inesperada",
+      "long_wait": "Espera longa",
+      "dock_closed": "Doca fechada",
+      "appointment_required": "Exige agendamento",
+      "other": "Outra"
+    },
+    "filters": {
+      "title": "Filtros",
+      "stage": "Grupo",
+      "stageEmpty": "Nenhum grupo encontrado",
+      "stageSearch": "Buscar grupo",
+      "stageSummary": "{{count}} selecionados",
+      "removeStage": "Remover grupo",
+      "types": "Tipos",
+      "typesPlaceholder": "Nomes separados por vírgula",
+      "plates": "Placas",
+      "platesPlaceholder": "Placas separadas por vírgula",
+      "createdRange": "Período"
+    },
+    "detail": {
+      "title": "Detalhe",
+      "open": "Detalhar",
+      "close": "Fechar",
+      "noDescription": "Sem descrição registrada.",
+      "photoAlt": "Foto anexada à ocorrência",
+      "closePhoto": "Fechar foto"
+    }
   }
 }

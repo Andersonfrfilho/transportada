@@ -48,6 +48,14 @@ import type {
   TripPage,
 } from './trip.types'
 import type { DeliveryProof } from './deliveryProof.service'
+import {
+  DELIVERY_PROOF_OVERRIDES_PATH,
+  DELIVERY_PROOF_SETTINGS_PATH,
+  isDeliveryProofFieldSettings,
+  isDeliveryProofSettingsOverride,
+  type DeliveryProofFieldSettings,
+  type DeliveryProofSettingsOverride,
+} from './deliveryProofSettings.service'
 import type { RouteGeometry } from './routeGeometry.service'
 import type { OccurrenceType } from './occurrence.constant'
 import { isRecord, isString } from './tripGuards.validation'
@@ -89,9 +97,18 @@ export type TripClient = Readonly<{
   ) => Promise<RouteGeometry>
   readTripOccurrences: (input: TripDocumentActionInput) => Promise<readonly TripOccurrence[]>
   listOccurrenceTypes: () => Promise<readonly OccurrenceType[]>
+  readDeliveryProofSettings: () => Promise<DeliveryProofFieldSettings>
+  saveDeliveryProofSettings: (
+    input: DeliveryProofFieldSettings,
+  ) => Promise<DeliveryProofFieldSettings>
+  listDeliveryProofOverrides: () => Promise<readonly DeliveryProofSettingsOverride[]>
+  replaceDeliveryProofOverrides: (
+    input: Readonly<{ overrides: readonly DeliveryProofSettingsOverride[] }>,
+  ) => Promise<readonly DeliveryProofSettingsOverride[]>
   saveOccurrenceType: (
     input: Readonly<{
       active: boolean
+      emailTemplateKey: null | string
       name: string
       notifies: boolean
       occurrenceTypeId: null | string
@@ -192,6 +209,16 @@ async function authorizedRequest(
     fetch: input.dependencies.fetch,
     request: new Request(`${input.dependencies.apiUrl}${input.path}`, requestInit),
   })
+}
+
+function readDeliveryProofOverrides(input: unknown): readonly DeliveryProofSettingsOverride[] {
+  if (!isRecord(input) || !Array.isArray(input.overrides)) {
+    throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+  }
+  if (!input.overrides.every(isDeliveryProofSettingsOverride)) {
+    throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+  }
+  return input.overrides
 }
 
 function readEnvelopeData(input: unknown): unknown {
@@ -328,6 +355,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
       const response = await authorizedRequest({
         body: JSON.stringify({
           active: input.active,
+          emailTemplateKey: input.emailTemplateKey,
           name: input.name,
           notifies: input.notifies,
           occurrenceTypeId: input.occurrenceTypeId,
@@ -338,6 +366,58 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: OCCURRENCE_TYPES_PATH,
       })
       return adapters.occurrenceTypeFromApi(readEnvelopeData(response))
+    },
+    async readDeliveryProofSettings() {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: DELIVERY_PROOF_SETTINGS_PATH,
+      })
+      const data = readEnvelopeData(response)
+      if (!isDeliveryProofFieldSettings(data)) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+      return data
+    },
+    async saveDeliveryProofSettings(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({
+          photo: input.photo,
+          receiverDocument: input.receiverDocument,
+          receiverName: input.receiverName,
+          signature: input.signature,
+        }),
+        dependencies,
+        method: 'PUT',
+        path: DELIVERY_PROOF_SETTINGS_PATH,
+      })
+      const data = readEnvelopeData(response)
+      if (!isDeliveryProofFieldSettings(data)) throw requestError(TRIP_ERROR.RESPONSE_INVALID)
+      return data
+    },
+    async listDeliveryProofOverrides() {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: DELIVERY_PROOF_OVERRIDES_PATH,
+      })
+      return readDeliveryProofOverrides(readEnvelopeData(response))
+    },
+    /** O corpo do `PUT` é o conjunto inteiro — o que não veio sai. */
+    async replaceDeliveryProofOverrides(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({
+          overrides: input.overrides.map((override) => ({
+            photo: override.photo,
+            receiverDocument: override.receiverDocument,
+            receiverName: override.receiverName,
+            signature: override.signature,
+            taxId: override.taxId,
+          })),
+        }),
+        dependencies,
+        method: 'PUT',
+        path: DELIVERY_PROOF_OVERRIDES_PATH,
+      })
+      return readDeliveryProofOverrides(readEnvelopeData(response))
     },
     async readTripOccurrences(input) {
       const response = await authorizedRequest({

@@ -72,6 +72,7 @@ export const NOTIFICATION_PREVIEW_PAYLOAD: Readonly<Record<string, string>> = {
   dueDate: '10/09/2026',
   failedCount: '3',
   invoiceNumber: '1042',
+  occurredAt: '03/09/2026 14h52',
   occurrenceType: 'Recusa do destinatário',
   plate: 'RTA2E19',
   reason: 'Certificado vencido',

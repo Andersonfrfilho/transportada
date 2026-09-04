@@ -403,5 +403,94 @@
     "copyPlate": "Copy plate {{plate}}",
     "plateCopied": "Plate copied",
     "withoutDriver": "No driver"
+  },
+  "deliveryProofSettings": {
+    "title": "Delivery proof",
+    "hint": "What the driver must collect on delivery. Without a saved configuration the factory default applies: document off, everything else offered.",
+    "error": "Could not load or save the delivery proof configuration.",
+    "save": "Save configuration",
+    "fields": {
+      "receiverName": "Receiver name",
+      "receiverDocument": "Receiver document",
+      "signature": "Signature",
+      "photo": "Photo"
+    },
+    "modes": {
+      "required": "Required",
+      "optional": "Optional",
+      "off": "Off"
+    },
+    "overrides": {
+      "title": "Exceptions by recipient",
+      "hint": "An exception keyed by the recipient tax id replaces the general configuration entirely.",
+      "empty": "No exceptions registered.",
+      "taxId": "Recipient CNPJ or CPF",
+      "add": "Add exception",
+      "remove": "Remove"
+    }
+  },
+  "occurrence": {
+    "emailTemplate": "Email template",
+    "emailTemplateNone": "No email",
+    "legacyTemplate": "{{subject}} — own template (legacy)",
+    "editTemplates": "Edit email templates"
+  },
+  "occurrenceFeed": {
+    "kicker": "Operations",
+    "title": "Occurrences",
+    "intro": "Everything that happened to the company trips' documents and stops, in a single list.",
+    "tableTitle": "Recorded occurrences",
+    "empty": "No occurrence found for the applied filter.",
+    "loadMore": "Load more",
+    "loadingMore": "Loading…",
+    "notified": "Notice sent",
+    "columns": {
+      "createdAt": "Time",
+      "stage": "Group",
+      "typeName": "Type",
+      "vehiclePlate": "Plate",
+      "driverName": "Driver",
+      "stopLabel": "Stop",
+      "invoice": "Invoice",
+      "notified": "Notice"
+    },
+    "columnsMenu": {
+      "title": "Columns",
+      "moveUp": "Move up",
+      "moveDown": "Move down"
+    },
+    "stage": {
+      "separation": "Separation",
+      "delivery": "Delivery",
+      "stop": "Stop"
+    },
+    "kind": {
+      "unexpected_charge": "Unexpected charge",
+      "long_wait": "Long wait",
+      "dock_closed": "Dock closed",
+      "appointment_required": "Appointment required",
+      "other": "Other"
+    },
+    "filters": {
+      "title": "Filters",
+      "stage": "Group",
+      "stageEmpty": "No group found",
+      "stageSearch": "Search group",
+      "stageSummary": "{{count}} selected",
+      "removeStage": "Remove group",
+      "types": "Types",
+      "typesPlaceholder": "Comma-separated names",
+      "plates": "Plates",
+      "platesPlaceholder": "Comma-separated plates",
+      "createdRange": "Period"
+    },
+    "detail": {
+      "title": "Detail",
+      "open": "Details",
+      "close": "Close",
+      "noDescription": "No description recorded.",
+      "photoAlt": "Photo attached to the occurrence",
+      "closePhoto": "Close photo"
+    }
   }
 }

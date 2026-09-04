@@ -109,6 +109,10 @@ import { companyCargoSettings } from './company-cargo-settings.schema.js'
 import { companyCargoVolumeFactors } from './company-cargo-volume-factor.schema.js'
 import { companyContacts, companySocialLinks } from './company-contact.schema.js'
 import { companyDistributionSettings } from './company-distribution-settings.schema.js'
+import {
+  companyDeliveryProofSettings,
+  deliveryProofSettingOverrides,
+} from './company-delivery-proof-settings.schema.js'
 import { companyLogos } from './company-logo.schema.js'
 import { identityUserPictures } from './identity-user-picture.schema.js'
 import {
@@ -182,6 +186,7 @@ export * from './company-cargo-settings.schema.js'
 export * from './company-cargo-volume-factor.schema.js'
 export * from './company-contact.schema.js'
 export * from './company-distribution-settings.schema.js'
+export * from './company-delivery-proof-settings.schema.js'
 export * from './company-logo.schema.js'
 export * from './cte-emission-profile.schema.js'
 export * from './password-reset.schema.js'
@@ -214,7 +219,9 @@ export const databaseSchema = {
   companyCargoSettings,
   companyCargoVolumeFactors,
   companyContacts,
+  companyDeliveryProofSettings,
   companyDistributionSettings,
+  deliveryProofSettingOverrides,
   companyEnergySettings,
   companyFiscalProfiles,
   companyFuelPrices,

@@ -4,6 +4,12 @@
 export type DriverTripDocument = Readonly<{
   accessKey: string
   deliveredAt: string | null
+  /**
+   * Spec 082 (revisão): a configuração do comprovante é do **documento** — a exceção por CNPJ do
+   * destinatário muda nota a nota. `null` quando o snapshot ainda não traz o campo — o app cai no
+   * `deliveryProof` da parada e, na ausência dos dois, no padrão.
+   */
+  deliveryProof: DriverDeliveryProofSettings | null
   grossWeight: string
   id: string
   number: string
@@ -25,9 +31,21 @@ export type DriverStopSchedule = Readonly<{
   status: string
 }>
 
+/** Spec 082 D4: o painel decide o que o comprovante colhe — por empresa, com exceção por CNPJ. */
+export type ProofFieldRequirement = 'off' | 'optional' | 'required'
+
+export type DriverDeliveryProofSettings = Readonly<{
+  photo: ProofFieldRequirement
+  receiverDocument: ProofFieldRequirement
+  receiverName: ProofFieldRequirement
+  signature: ProofFieldRequirement
+}>
+
 export type DriverTripStop = Readonly<{
   arrivedAt: string | null
   completedAt: string | null
+  /** `null` quando o snapshot ainda não traz configuração — o app aplica o padrão. */
+  deliveryProof: DriverDeliveryProofSettings | null
   deliveryWindowEnd: string | null
   deliveryWindowStart: string | null
   documents: readonly DriverTripDocument[]

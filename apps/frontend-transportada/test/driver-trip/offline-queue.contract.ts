@@ -4,6 +4,7 @@ import { describe, expect, it } from 'bun:test'
 import {
   drainQueue,
   enqueueReport,
+  EVENT_QUEUE_LIMIT,
   type DrainOutcome,
   type OfflineQueueStore,
   type QueuedReport,
@@ -20,9 +21,9 @@ function createMemoryStore(initial: readonly QueuedReport[] = []): OfflineQueueS
   return {
     items: () => items,
     read: () => Promise.resolve(items),
-    write: (next) => {
-      items = [...next]
-      return Promise.resolve()
+    update: (mutate) => {
+      items = [...mutate(items)]
+      return Promise.resolve(items)
     },
   }
 }
@@ -39,8 +40,9 @@ describe('a fila offline', () => {
   it('guarda o toque com a chave que o servidor vai casar no reenvio', async () => {
     const store = createMemoryStore()
 
-    await enqueueReport({ now: NOW, report: arrival('chave-1'), store })
+    const result = await enqueueReport({ now: NOW, report: arrival('chave-1'), store })
 
+    expect(result.accepted).toBe(true)
     expect(store.items()).toHaveLength(1)
     expect(store.items()[0]?.report.idempotencyKey).toBe('chave-1')
     expect(store.items()[0]?.attempts).toBe(0)
@@ -54,6 +56,23 @@ describe('a fila offline', () => {
     await enqueueReport({ now: NOW, report: arrival('chave-1'), store })
 
     expect(store.items()).toHaveLength(1)
+  })
+
+  /** Spec 082 (revisão): teto tipado da fila de eventos — recusa antes de escrever, nunca quota crua. */
+  it('recusa pelo teto tipado antes de escrever, sem descartar o que já está lá', async () => {
+    const store = createMemoryStore()
+    await enqueueReport({ limits: { maxCount: 1 }, now: NOW, report: arrival('chave-1'), store })
+
+    const refused = await enqueueReport({
+      limits: { maxCount: 1 },
+      now: NOW,
+      report: delivery('chave-2'),
+      store,
+    })
+
+    expect(refused).toEqual({ accepted: false, reason: 'count-limit' })
+    expect(store.items()).toHaveLength(1)
+    expect(EVENT_QUEUE_LIMIT.maxCount).toBe(200)
   })
 
   /** É a história "sem sinal" da spec: três confirmações offline sobem quando a rede volta. */
@@ -110,6 +129,28 @@ describe('a fila offline', () => {
     await drainQueue({ send: () => Promise.resolve('failed-network'), store })
 
     expect(store.items().map((item) => item.attempts)).toEqual([1, 0])
+  })
+
+  /**
+   * A reconciliação final é por chave, dentro do `update` atômico: o toque enfileirado **durante**
+   * a drenagem não é sobrescrito pela escrita do resultado.
+   */
+  it('preserva o toque enfileirado no meio da drenagem', async () => {
+    const store = createMemoryStore()
+    await enqueueReport({ now: NOW, report: arrival('chave-1'), store })
+
+    const result = await drainQueue({
+      send: async (report) => {
+        if (report.idempotencyKey === 'chave-1') {
+          await enqueueReport({ now: NOW, report: delivery('chave-2'), store })
+        }
+        return 'sent'
+      },
+      store,
+    })
+
+    expect(result.sent).toBe(1)
+    expect(store.items().map((item) => item.report.idempotencyKey)).toEqual(['chave-2'])
   })
 
   /**

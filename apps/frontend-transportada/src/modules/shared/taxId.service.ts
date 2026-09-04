@@ -32,6 +32,9 @@ export function hasValidCnpjCharacterSet(value: string): boolean {
 
 const CPF_LENGTH = 11
 
+/** O CPF não mudou com a IN: onze dígitos, sempre — sem letra em posição nenhuma. */
+export const CPF_PATTERN = /^[0-9]{11}$/u
+
 type TaxIdMaskGroup = Readonly<{ end: number; separator: string; start: number }>
 
 /** CPF é só dígito — grupo fixo 3-3-3-2, sem a ressalva de posição que o CNPJ alfanumérico exige. */

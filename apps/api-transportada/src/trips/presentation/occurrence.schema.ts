@@ -55,6 +55,11 @@ const occurrenceTypeSchema = z
       .refine((texto) => unknownTemplatePlaceholders(texto).length === 0, {
         message: 'UNKNOWN_TEMPLATE_PLACEHOLDER',
       }),
+    /**
+     * A chave do template do módulo de notificações que o tipo seleciona. Presente, ela é
+     * conferida contra o catálogo da empresa na gravação, e assunto/corpo acima são ignorados.
+     */
+    emailTemplateKey: z.string().trim().min(1).max(120).nullable().default(null),
     name: z.string().trim().min(1).max(60),
     notifies: z.boolean().default(false),
     occurrenceTypeId: z.string().uuid().nullable().default(null),

@@ -82,6 +82,7 @@ export type IconName =
   | 'workspace-notification'
   | 'workspace-operations'
   | 'workspace-trip'
+  | 'workspace-trip-occurrences'
   | 'workspace-access-profiles'
   | 'workspace-users'
 
@@ -299,6 +300,8 @@ const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   'workspace-notification': ['M18 16V11a6 6 0 1 0-12 0v5l-2 3h16z', 'M10 22h4'],
   'workspace-operations': ['M4 18V6', 'M4 18h16', 'M8 15v-3', 'M12 15V8', 'M16 15v-6'],
   'workspace-trip': ['M4 17l4-10h8l4 10', 'M4 17h16v3H4z', 'M8 20v-3', 'M16 20v-3', 'M9 12h6'],
+  /** Alerta sobre a prancheta: o relato do que houve na rua e no galpão. */
+  'workspace-trip-occurrences': ['M5 4h14v16H5z', 'M12 8v5', 'M12 16v.5'],
   /** Crachá: o papel que a pessoa veste, ao lado do desenho de gente que marca os acessos. */
   'workspace-access-profiles': [
     'M6 4h12v16H6z',

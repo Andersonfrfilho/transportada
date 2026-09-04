@@ -4,7 +4,39 @@
   "deliver": "Entreguei",
   "documentsPending_one": "{{count}} nota para entregar",
   "documentsPending_other": "{{count}} notas para entregar",
+  "attachmentLimitCount": "Limite de anexos aguardando envio atingido. Envie os pendentes antes de anexar outro — nada foi descartado.",
+  "attachmentLimitSize": "Espaço para anexos aguardando envio cheio. Envie os pendentes antes de anexar outro — nada foi descartado.",
+  "dispatch": {
+    "failed": "Não foi possível iniciar o trajeto. Toque de novo.",
+    "start": "Iniciar trajeto",
+    "waiting": "Aguardando o início do trajeto — as ações de campo liberam depois de iniciar."
+  },
   "error": "Não foi possível carregar sua viagem. Puxe para tentar de novo.",
+  "eventLimitCount": "Limite de eventos aguardando envio atingido. Envie os pendentes antes de registrar outro — nada foi descartado.",
+  "eventQueue": {
+    "attachments_one": "{{count}} anexo",
+    "attachments_other": "{{count}} anexos",
+    "back": "Voltar",
+    "empty": "Nada aguardando envio.",
+    "kind": {
+      "arrive": "Chegada",
+      "deliver": "Entrega",
+      "occurrence": "Ocorrência",
+      "proof": "Comprovante",
+      "return": "Devolução"
+    },
+    "open": "Ver eventos pendentes",
+    "sendAll": "Enviar todos agora",
+    "sendNow": "Enviar agora",
+    "status": {
+      "attachmentRejected": "Anexo rejeitado pelo servidor: {{cause}}. O evento já foi aceito.",
+      "failed_one": "Falhou {{count}} vez — sem rede na última tentativa",
+      "failed_other": "Falhou {{count}} vezes — sem rede na última tentativa",
+      "queued": "Na fila",
+      "rejected": "Rejeitado pelo servidor: {{cause}}"
+    },
+    "title": "Eventos pendentes"
+  },
   "loadSheet": {
     "title": "Romaneio de carga",
     "notFiscal": "Não é documento fiscal",
@@ -25,6 +57,11 @@
     "opening": "Obtendo…",
     "failed": "Não foi possível obter o documento agora. A chave acima continua valendo para conferência."
   },
+  "nav": {
+    "label": "Seções do aplicativo",
+    "profile": "Perfil",
+    "trip": "Viagem"
+  },
   "navigate": "Navegar",
   "noTrip": "Nada para hoje. Quando o escritório despachar sua viagem, ela aparece aqui.",
   "notRegistered": "Sua conta ainda não está ligada a um cadastro de motorista. Fale com o escritório.",
@@ -40,9 +77,57 @@
     "other": "Outro",
     "unexpected_charge": "Cobrança inesperada"
   },
+  "occurrencePhoto": "Foto da ocorrência (local ou carga)",
+  "occurrencePhotoCount_one": "{{count}} foto anexada",
+  "occurrencePhotoCount_other": "{{count}} fotos anexadas",
+  "occurrencePreview": {
+    "none": "Nenhum aviso será enviado ao cliente para este motivo.",
+    "title": "Aviso que será enviado"
+  },
   "occurrenceSend": "Registrar",
+  "profile": {
+    "noTrip": "Sem viagem em andamento.",
+    "queueEmpty": "Nada aguardando envio.",
+    "queueTitle": "Fila de envio",
+    "roles": {
+      "aggregate": "Agregado",
+      "driver": "Motorista",
+      "unknown": "Sem papel de campo"
+    },
+    "signOut": "Sair",
+    "vehicleTitle": "Veículo da viagem"
+  },
+  "progress": {
+    "label": "{{resolved}} de {{total}} paradas resolvidas"
+  },
   "proof": "Anexar canhoto",
   "proofFailed": "Não foi possível anexar o arquivo. A entrega continua registrada.",
+  "proofFields": {
+    "receiverDocument": "Documento de quem recebeu",
+    "receiverName": "Nome de quem recebeu",
+    "requiredField": "Preencha este campo antes de anexar o comprovante."
+  },
+  "signature": {
+    "cancel": "Cancelar",
+    "canvasLabel": "Área de assinatura — desenhe com o dedo",
+    "clear": "Limpar",
+    "confirm": "Confirmar assinatura",
+    "exitFullscreen": "Sair da tela inteira",
+    "fullscreen": "Tela inteira",
+    "open": "Colher assinatura"
+  },
+  "crop": {
+    "cancel": "Cancelar",
+    "corner": {
+      "bottomLeft": "Canto inferior esquerdo",
+      "bottomRight": "Canto inferior direito",
+      "topLeft": "Canto superior esquerdo",
+      "topRight": "Canto superior direito"
+    },
+    "previewLabel": "Prévia do comprovante para recorte",
+    "useCrop": "Usar recorte",
+    "useOriginal": "Usar sem recorte"
+  },
   "queued_one": "{{count}} confirmação aguardando envio",
   "queued_other": "{{count}} confirmações aguardando envio",
   "rejected": "O escritório mudou esta nota enquanto você estava sem sinal. Confira antes de seguir.",

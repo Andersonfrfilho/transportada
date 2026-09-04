@@ -9,7 +9,10 @@ import driverTrip from '../../src/modules/driver-trip/locales/driverTrip.locale.
 import {
   DRIVER_RETURN_REASONS,
   driverSelectableOccurrenceTypes,
+  type DriverTripDocument,
+  type DriverTripStop,
 } from '../../src/modules/driver-trip/shared/driverTrip.types'
+import { findOccurrencePhotoDocument } from '../../src/modules/driver-trip/shared/driverTripView.service'
 
 const CARD = new URL(
   '../../src/modules/driver-trip/components/DriverStopCard.component.tsx',
@@ -55,5 +58,63 @@ describe('ocorrência de nota na tela do motorista (spec 079)', () => {
   /** Falhar aqui não muda o estado da nota, e o aviso diz isso. */
   it('avisa sem assustar quando o registro falha', () => {
     expect(driverTrip.documentOccurrenceFailed.toLowerCase()).toInclude('continua como estava')
+  })
+})
+
+function buildDocument(overrides: Partial<DriverTripDocument> = {}): DriverTripDocument {
+  return {
+    accessKey: '0'.repeat(44),
+    deliveredAt: null,
+    deliveryProof: null,
+    grossWeight: '10.000',
+    id: 'document-1',
+    number: '1001',
+    recipientName: 'Destinatário',
+    returnReason: null,
+    separationStatus: 'loaded',
+    series: '1',
+    totalAmount: '100.00',
+    volumeCount: '1',
+    ...overrides,
+  }
+}
+
+function buildStop(documents: readonly DriverTripDocument[]): DriverTripStop {
+  return {
+    arrivedAt: null,
+    completedAt: null,
+    deliveryProof: null,
+    deliveryWindowEnd: null,
+    deliveryWindowStart: null,
+    documents,
+    id: 'stop-1',
+    label: 'Rua A, 1',
+    latitude: null,
+    longitude: null,
+    schedule: null,
+    sequence: 1,
+  }
+}
+
+/**
+ * Revisão 082 (item 8): a "nota que carrega a foto da ocorrência" é UMA escolha, no serviço — a
+ * prévia e o envio apontam para a mesma nota, sempre.
+ */
+describe('a nota que carrega a foto da ocorrência', () => {
+  const source = readFileSync(CARD, 'utf8')
+
+  it('escolhe a primeira nota em aberto; sem aberta, a primeira da lista', () => {
+    const open = buildDocument({ id: 'aberta' })
+    const settled = buildDocument({ id: 'entregue', separationStatus: 'delivered' })
+
+    expect(findOccurrencePhotoDocument(buildStop([settled, open]))?.id).toBe('aberta')
+    expect(findOccurrencePhotoDocument(buildStop([settled]))?.id).toBe('entregue')
+    expect(findOccurrencePhotoDocument(buildStop([]))).toBeUndefined()
+  })
+
+  it('a tela usa o serviço nos dois pontos, sem cópia inline da escolha', () => {
+    const usages = source.match(/findOccurrencePhotoDocument\(stop\)/gu) ?? []
+    expect(usages).toHaveLength(2)
+    expect(source).not.toInclude('stop.documents.find((item) => !isDocumentSettled(item))')
   })
 })

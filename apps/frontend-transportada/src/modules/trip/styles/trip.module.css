@@ -1144,6 +1144,24 @@
   margin-block: var(--space-2);
 }
 
+/* Os campos do tipo saem dos tokens (docs/frontend/fields.md) — nunca da altura default do browser. */
+.occurrenceForm input,
+.occurrenceForm textarea {
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  font-size: var(--field-font-size);
+  flex: 1 1 100%;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  border-radius: var(--radius-sm, 0.25rem);
+  color: var(--color-fog);
+  font-family: inherit;
+  background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
+}
+
+.occurrenceForm textarea {
+  resize: vertical;
+}
+
 /* O mapa acompanha a largura do painel e não empurra a tela para o lado no celular (web.md §10). */
 .routeMap {
   width: 100%;
@@ -1418,6 +1436,40 @@
 
 /* As duas propostas lado a lado: a instantânea em linha reta e a do roteirizador. */
 .assemblyActions {
+/* Listagem de ocorrências — menu de colunas recolhido, como o da tabela de CT-es. */
+.columnsPopover {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  background: var(--color-asphalt);
+}
+
+.columnRow {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.columnReorder {
+  display: flex;
+  gap: var(--space-1);
+}
+
+/* O detalhe da linha expande embaixo dela — descrição completa e fotos, sem trocar de tela. */
+.occurrenceDetailRow td {
+  background: color-mix(in srgb, var(--color-asphalt) 55%, transparent);
+  white-space: normal;
+}
+
+.occurrenceDescription {
+  margin: 0 0 var(--space-2);
+  max-width: 60ch;
+}
+
+.occurrencePhotoGrid {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
@@ -1436,4 +1488,43 @@
 .assemblyStopApproximate {
   color: var(--color-copper);
   font-size: 0.74rem;
+.occurrencePhotoButton {
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
+  border-radius: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.occurrencePhotoThumb {
+  display: block;
+  width: 8rem;
+  height: 6rem;
+  object-fit: cover;
+}
+
+/* Foto em tela cheia ao tocar — fechar volta ao detalhe, nunca a outra tela. */
+.occurrencePhotoOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  border: 0;
+  background: color-mix(in srgb, var(--color-asphalt) 92%, transparent);
+  cursor: zoom-out;
+}
+
+.occurrencePhotoFull {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.occurrenceLoadMore {
+  display: flex;
+  justify-content: center;
+  padding-block: var(--space-3);
 }
