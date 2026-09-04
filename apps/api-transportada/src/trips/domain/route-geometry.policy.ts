@@ -8,10 +8,13 @@
  * reto amostrado à exaustão, e nenhum pixel muda por causa dela — 162 pontos e 3,5 KB desenham a
  * mesma linha com erro de 11 m, que é menos de um pixel na largura em que o mapa é exibido.
  *
- * ⚠️ **A tolerância é da escala, nunca uma constante.** Uma viagem intermunicipal e um roteiro
- * dentro de um bairro cabem no mesmo `viewBox`: os 11 m invisíveis na primeira são três pixels de
- * desvio na segunda. Ela sai da extensão do próprio traçado dividida pela largura de desenho — um
- * pixel —, e é por isso que o parâmetro se chama `targetPixels`.
+ * ⚠️ **A tolerância é em metro, e não em fração da extensão da rota.** A versão anterior dividia a
+ * extensão do traçado pela largura de desenho (`extent / 600`), o que fazia sentido enquanto o mapa
+ * era um SVG de 600px onde a rota inteira cabia sempre. No mapa vetorial isso é o defeito: o
+ * critério **piora quanto mais longa a viagem** — medido nesta rota de três paradas, extensão de
+ * 0,68° dava tolerância de **126 metros**, e a linha cortava quarteirão e saía da rua ao aproximar.
+ *
+ * Metro é o critério certo porque o mapa tem zoom: o desvio que importa é o do chão, não o da tela.
  */
 
 export type RouteGeometryPoint = {
@@ -20,9 +23,16 @@ export type RouteGeometryPoint = {
 }
 
 export type SimplifyRouteGeometryOptions = {
-  /** Largura de desenho em pixels: o que couber abaixo de um pixel não muda o traço. */
-  readonly targetPixels: number
+  /** Desvio máximo aceito entre a linha desenhada e a estrada, no chão. */
+  readonly toleranceMetres: number
 }
+
+/**
+ * Um grau de latitude são ~111,32 km em qualquer lugar do planeta. Longitude encolhe com o cosseno
+ * da latitude, e ignorar isso torna a tolerância **mais apertada** no eixo leste-oeste — erra para
+ * o lado de guardar ponto a mais, que é o lado certo de errar aqui.
+ */
+const METRES_PER_LATITUDE_DEGREE = 111_320
 
 export function simplifyRouteGeometry(
   points: readonly RouteGeometryPoint[],
@@ -30,16 +40,7 @@ export function simplifyRouteGeometry(
 ): readonly RouteGeometryPoint[] {
   if (points.length < 3) return points
 
-  const latitudes = points.map((point) => point.latitude)
-  const longitudes = points.map((point) => point.longitude)
-  const extent = Math.max(
-    Math.max(...latitudes) - Math.min(...latitudes),
-    Math.max(...longitudes) - Math.min(...longitudes),
-  )
-  // Rota inteira num ponto só: tolerância zero mantém todos, e nada divide por zero.
-  if (extent === 0) return points
-
-  return douglasPeucker(points, extent / options.targetPixels)
+  return douglasPeucker(points, options.toleranceMetres / METRES_PER_LATITUDE_DEGREE)
 }
 
 /**
