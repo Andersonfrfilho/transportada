@@ -3,3 +3,4 @@
  */
 import './addresses-domain/postal-code-suggestion.contract.js'
 import './addresses-domain/delivery-coordinate.contract.js'
+import './addresses-domain/address-comparison.contract.js'
