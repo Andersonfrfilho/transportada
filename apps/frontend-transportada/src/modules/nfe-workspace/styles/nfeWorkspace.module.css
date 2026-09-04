@@ -657,36 +657,6 @@
   gap: var(--space-2);
 }
 
-.copyButton,
-.copyButtonDone {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  min-height: 1.75rem;
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
-  font: inherit;
-  font-size: 0.72rem;
-  font-weight: 600;
-  cursor: pointer;
-  background: transparent;
-}
-
-.copyButton {
-  color: var(--color-slate);
-}
-
-.copyButtonDone {
-  color: var(--color-ready);
-  border-color: var(--color-ready);
-}
-
-.copyButton svg,
-.copyButtonDone svg {
-  width: var(--icon-size-sm);
-  height: var(--icon-size-sm);
-}
-
 .copyCell {
   display: inline-flex;
   align-items: center;
@@ -706,40 +676,9 @@
   justify-content: flex-end;
 }
 
-.copyInline,
-.copyInlineDone {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-1);
-  border: none;
-  cursor: pointer;
-  background: transparent;
-  transition:
-    opacity 0.12s ease,
-    color 0.12s ease;
-}
-
-.copyInline {
-  color: var(--color-slate);
-  opacity: 0.35;
-}
-
-.copyCell:hover .copyInline,
-.copyInline:focus-visible {
+/* O botão em linha vem de `@/components/ui/copy-button`; aqui só se diz quem o revela. */
+.copyCell:hover [data-copy-inline] {
   opacity: 1;
-}
-
-.copyInlineDone {
-  color: var(--color-ready);
-  opacity: 1;
-}
-
-.copyInline svg,
-.copyInlineDone svg {
-  width: var(--icon-size-sm);
-  height: var(--icon-size-sm);
 }
 
 .listToolbar {

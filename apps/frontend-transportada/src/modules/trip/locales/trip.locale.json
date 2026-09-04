@@ -502,6 +502,8 @@
     "taxes": "Imposto sobre o frete"
   },
   "table": {
+    "copyPlate": "Copiar a placa {{plate}}",
+    "plateCopied": "Placa copiada",
     "withoutDriver": "Sem motorista"
   }
 }

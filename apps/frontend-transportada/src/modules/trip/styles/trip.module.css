@@ -1351,6 +1351,14 @@
   letter-spacing: 0.04em;
 }
 
+/**
+ * A placa é o que se copia para colar em rastreio, planilha e conversa. O botão fica apagado até o
+ * mouse entrar na célula, para não competir com o dado — mesma revelação da tabela de notas.
+ */
+.vehicleCell:hover [data-copy-inline] {
+  opacity: 1;
+}
+
 .vehicleSpec {
   color: var(--color-slate);
   font-size: var(--font-size-xs, 0.75rem);

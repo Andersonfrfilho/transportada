@@ -41,7 +41,7 @@ import { MultiVehicleSuggestionAction } from '@/modules/routing/components/Multi
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
 import { navigateToTrip } from '@/modules/trip/shared/tripRoute.service'
 
-import { CopyButton } from './CopyButton.component'
+import { CopyButton } from '@/components/ui/copy-button'
 import { CteEmissionDialog } from './CteEmissionDialog.component'
 
 type NfeDocumentTableProps = Readonly<{
@@ -228,6 +228,7 @@ export function NfeDocumentTable({
           </span>
           {value.length > 0 && (
             <CopyButton
+              copiedLabel={t('common.copied')}
               label={t('documents.copyValue', { field: t(`documents.columns.${column}`) })}
               value={value}
               variant="inline"

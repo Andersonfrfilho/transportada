@@ -400,6 +400,8 @@
     "taxes": "Tax on the freight"
   },
   "table": {
+    "copyPlate": "Copy plate {{plate}}",
+    "plateCopied": "Plate copied",
     "withoutDriver": "No driver"
   }
 }

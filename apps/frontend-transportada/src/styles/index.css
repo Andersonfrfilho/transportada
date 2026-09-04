@@ -140,6 +140,43 @@
   box-sizing: border-box;
 }
 
+/**
+ * A barra de rolagem é discreta em toda a aplicação, e a regra é **global** de propósito: existem
+ * mais de trinta contêineres roláveis, e nenhum declarava nada — cada um herdava a barra do sistema,
+ * grossa e cinza, competindo com o dado que ela emoldura.
+ *
+ * As duas formas convivem porque nenhuma sozinha cobre os navegadores em uso: `scrollbar-width` é a
+ * padronizada (Firefox e Chromium recente) e `::-webkit-scrollbar` é o que o Safari entende. A cor
+ * sai dos tokens, e o trilho é transparente para a barra não desenhar uma faixa no fundo do painel.
+ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--color-slate) 40%, transparent) transparent;
+}
+
+::-webkit-scrollbar {
+  width: var(--space-2);
+  height: var(--space-2);
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: var(--space-2);
+  background: color-mix(in srgb, var(--color-slate) 40%, transparent);
+}
+
+/* Só ao apontar o polegar ganha contraste: quem está rolando quer vê-lo, quem está lendo não. */
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--color-slate) 70%, transparent);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 button:not(:disabled),
 [role='button']:not([aria-disabled='true']) {
   cursor: pointer;

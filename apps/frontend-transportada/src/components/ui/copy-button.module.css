@@ -1,0 +1,67 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
+.boxed,
+.boxedDone {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  min-height: 1.75rem;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 45%, transparent);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: transparent;
+}
+
+.boxed {
+  color: var(--color-slate);
+}
+
+.boxedDone {
+  border-color: var(--color-ready);
+  color: var(--color-ready);
+}
+
+/**
+ * A variante em linha vive dentro de uma célula cheia de texto: cheia de opacidade ela competiria
+ * com o dado. Quem a revela é o hospedeiro, por `[data-copy-inline]` — o mesmo recurso do
+ * `data-count-badge`, para o CSS de quem hospeda não precisar conhecer o nome da classe daqui.
+ */
+.inline,
+.inlineDone {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-1);
+  border: none;
+  cursor: pointer;
+  background: transparent;
+  transition:
+    opacity 0.12s ease,
+    color 0.12s ease;
+}
+
+.inline {
+  color: var(--color-slate);
+  opacity: 0.35;
+}
+
+.inline:focus-visible {
+  opacity: 1;
+}
+
+.inlineDone {
+  color: var(--color-ready);
+  opacity: 1;
+}
+
+.boxed svg,
+.boxedDone svg,
+.inline svg,
+.inlineDone svg {
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
+}

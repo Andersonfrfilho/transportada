@@ -7,7 +7,7 @@ import { Icon } from '@/components/ui/icon'
 import type { NfeImportSummary } from '../shared/nfeWorkspaceClient.service'
 import { formatNfeImportMoment } from '../shared/nfeImportMoment.service'
 import styles from '../styles/nfeWorkspace.module.css'
-import { CopyButton } from './CopyButton.component'
+import { CopyButton } from '@/components/ui/copy-button'
 
 type NfeImportQueueProps = Readonly<{
   readonly canImport: boolean
@@ -77,7 +77,11 @@ export function NfeImportQueue({
                 <div className={styles.cardIdentity}>
                   <div className={styles.cardCodeRow}>
                     <code className={styles.cardCode}>{item.id.slice(0, 8)}</code>
-                    <CopyButton label={t('imports.copyId')} value={item.id} />
+                    <CopyButton
+                      copiedLabel={t('common.copied')}
+                      label={t('imports.copyId')}
+                      value={item.id}
+                    />
                   </div>
                   <span className={styles.secondaryText}>
                     {t(`filters.${item.source}`)} · {item.processedCount}/{item.receivedCount}

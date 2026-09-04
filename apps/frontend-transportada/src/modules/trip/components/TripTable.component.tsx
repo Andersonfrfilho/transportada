@@ -2,6 +2,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { CopyButton } from '@/components/ui/copy-button'
 import { Icon } from '@/components/ui/icon'
 import { Tooltip } from '@/components/ui/tooltip'
 
@@ -94,6 +95,13 @@ export function TripTable({ table, vehicles }: TripTableProps) {
         {drivers}
         <span className={styles.vehicleLine}>
           <span className={styles.vehiclePlate}>{formatVehiclePlate(vehicle.plate)}</span>
+          {/* Copia a placa **crua**, não a formatada: é ela que se cola em busca e em planilha. */}
+          <CopyButton
+            copiedLabel={t('table.plateCopied')}
+            label={t('table.copyPlate', { plate: formatVehiclePlate(vehicle.plate) })}
+            value={vehicle.plate}
+            variant="inline"
+          />
           {description === '' ? null : <span className={styles.vehicleSpec}>{description}</span>}
         </span>
       </div>
