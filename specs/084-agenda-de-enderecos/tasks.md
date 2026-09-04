@@ -1,59 +1,65 @@
 # Feature 084 — Tarefas
 
-## 🎯 GOAL ATIVO — o caminho curto até algo que dá para olhar
+## 🎯 GOAL ATIVO — medir a base, depois consertar com quem sabe
 
-⚠️ **`GOOGLE_MAPS_API_KEY` está vazia**, e o processo da API não a enxerga. Sem ela o lote de
-comparação não roda. Por isso o goal é dividido: **A** entrega uma tela com dado real **hoje**, sem
-chave nenhuma; **B** acende quando a chave existir.
+Reescrito depois que a `GOOGLE_MAPS_API_KEY` entrou e as primeiras consultas reais mudaram três
+premissas. **Cada bloco fecha em algo que dá para olhar**, e a ordem é: o que não espera ninguém →
+o que precisa de decisão → o que precisa de gente.
 
-### Fase A — o relatório em pé, com o que já temos (não depende de decisão nem de chave)
+### Bloco 1 — fundação que não espera decisão nenhuma
 
-O sinal `precisão = city` já tem **149 endereços** e **59 municípios** nesta base. Isso basta para a
-tela nascer útil, e é o que permite olhar antes de gastar.
+- [ ] **G1 (= T1e)** — O `PATCH /geocoded-addresses/:key`, **já em produção** sob
+      `TRIP_MANAGE_POLICY`, grava `geocoded_address_corrections` na mesma transação.
+      ⚠️ Única task que conserta buraco existente: hoje o produto tem correção sem histórico e
+      histórico sem correção.
+- [ ] **G2 (= T05)** — Conferência de município. Resultado em `cityCode` diferente é **descartado**,
+      e o CHECK de `address_comparisons` já afirma que descarte não vem com comparação junto.
+- [ ] **G3 (= T3b)** — Ligar `resolveDeliveryCoordinate` a um chamador real e provar o aceite da T03
+      **contra uma nota**. É o que tira o ⚠️ da T03.
 
-- [ ] **A1 (= T1e)** — O `PATCH /geocoded-addresses/:key`, que **já está em produção** sob
-      `TRIP_MANAGE_POLICY`, passa a gravar `geocoded_address_corrections` **na mesma transação**.
-      ⚠️ Hoje o produto tem correção sem histórico e histórico sem correção. É a única task que
-      conserta um buraco existente em vez de acrescentar coisa nova, e é o que dá matéria-prima ao
-      relatório sem esperar as fases 4 e 5.
-      _Aceite:_ correção pela rota existente aparece na trilha; contrato que falha se gravar
-      coordenada sem trilha.
+### Bloco 2 — medir os 149, e olhar o resultado
 
-- [ ] **A2 (= T05)** — Conferência de município: resultado em `cityCode` diferente do da nota é
-      **descartado, não comparado**. Escrita antes da comparação que ela protege.
-      _Aceite:_ teste negativo com resultado em município vizinho.
+- [ ] **G4** — ADR do **D1**: rodar nos 300 contradiz a ADR-0047. Decisão já tomada; falta registrar.
+- [ ] **G5 (= B2)** — Gateway de geocodificação textual. Envia **UF, cidade, bairro, logradouro,
+      número e CEP** (RF12 — o CEP não melhora a busca, medido; ele serve para comparar o que volta).
+      Mapeia `location_type` para os **quatro** níveis, e ⚠️ `RANGE_INTERPOLATED` nunca vira
+      `rooftop` (RF13).
+- [ ] **G6** — O lote grava em `address_comparisons`. **Nos 149 primeiro**, para olhar antes de
+      estender aos 300.
+      _Aceite:_ a distribuição real — quantos `rooftop`, `range_interpolated`, `approximate`, e
+      quantos com CEP divergente.
+- [ ] **G7** — Estender aos 300, depois que a amostra confirmar o custo e o formato.
 
-- [ ] **A3 (= T3b)** — Ligar `resolveDeliveryCoordinate` a um chamador real e provar o aceite da T03
-      **contra uma nota**, não contra closures. É o que tira o ⚠️ da T03 e torna a economia medida.
+### Bloco 3 — o relatório, que é o que dá para testar
 
-- [ ] **A4 (= T08/T09)** — Consulta do relatório: suspeitos agrupados por contratante. Nesta fase os
-      sinais são **precisão `city`** e **correções já registradas**; os de divergência entram na B.
-      _Aceite:_ ordena por gravidade, não alfabeticamente.
+- [ ] **G8 (= T08/T09)** — Consulta agrupada por contratante, **ordenada por gravidade** (quem nem
+      foi achado primeiro — é quem tem defeito no texto, que nenhuma correção de coordenada resolve).
+- [ ] **G9** — Os números da RF7 e da RF10: distribuição por origem, deslocamento das correções,
+      quantos resultados pagos foram corrigidos por humano depois, e **se o pedido pegou**.
+- [ ] **G10 (= T10)** — A tela no painel. **É aqui que se testa de verdade.**
 
-- [ ] **A5 (= T10)** — A tela do relatório no painel.
-      **É aqui que dá para testar**: abrir e ver os 149 endereços reais, agrupados, com o motivo.
+### Bloco 4 — consertar com quem sabe (precisa de decisão)
 
-### Fase B — a comparação com o provedor (precisa da chave e da ADR)
+- [ ] **G11 (D2)** — 🚧 Portal do contratante corrige texto e CEP.
+      ⚠️ **T11 é pré-requisito duro**: esta API não tem limitador de taxa, e seria a primeira escrita
+      externa que move caminhão.
+- [ ] **G12 (D4)** — 🚧 Confirmação de quem entrega, com pino **opcional**.
+      ⚠️ **G12a não depende do D4 e vale sozinha**: aceitar "errado sem pino". Se a recusa exigir
+      coordenada, o motorista responde "certo" para seguir adiante e a base piora.
+- [ ] **G13** — As duas ações no relatório (apontar no mapa · pedir ao contratante), podendo as duas
+      no mesmo endereço.
 
-- [ ] **B0** — ⚠️ **ADR registrando o D1**: rodar nos 300 contradiz a ADR-0047. Antes do código.
-- [ ] **B1** — `GOOGLE_MAPS_API_KEY` configurada e visível para o processo da API.
-- [ ] **B2 (= T04)** — Gateway de busca textual: envia **estado, cidade, bairro, logradouro e
-      número**. ⚠️ Guarda **distância, divergência de texto e Place ID** — **não** a coordenada do
-      provedor. Isso contorna o D3: a distância é conta nossa, e o Place ID é o que pode ser
-      guardado sem prazo.
-- [ ] **B3 (= T06/T07)** — O lote sobre os 300, comparando semelhante com semelhante. Divergência
-      **sinaliza, nunca corrige**.
-- [ ] **B4** — Os sinais de divergência entram no relatório da A4, e o CEP divergente sai destacado
-      (RF9) — é o que devolve o endereço ao degrau grátis.
+### Decisões que ainda travam
 
-### Fora deste goal, e por quê
+| #       | pergunta                                           | trava                                                                                          |
+| ------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| **D2**  | sugestão do contratante: manual ou automática?     | G11                                                                                            |
+| **D3**  | termos do Maps: guardar coordenada ou só Place ID? | ⚠️ **contornado por desenho** — `address_comparisons` guarda a medição, não a coordenada deles |
+| **D4**  | pino do motorista: aceito direto ou sugestão?      | G12                                                                                            |
+| **T1c** | envelope do documento + coordenada                 | Bloco 4                                                                                        |
+| **T1d** | correção humana escreve em `geocoded_addresses`?   | Bloco 4                                                                                        |
 
-| o quê                                       | trava                                                      |
-| ------------------------------------------- | ---------------------------------------------------------- |
-| Portal do contratante (P3, T13/T14)         | **D2** + limitador de taxa (T11), que é pré-requisito duro |
-| Pino do motorista (P4, T18b)                | **D4**                                                     |
-| Envelope do documento + coordenada          | **T1c** — decisão de dado pessoal                          |
-| Propagar correção para `geocoded_addresses` | **T1d** — tabela compartilhada, sem dono                   |
+---
 
 ---
 

@@ -141,6 +141,29 @@ São três respostas, e as três são úteis:
 - ⚠️ **"Não era aqui" ≠ endereço errado.** Pode ser portaria fechada, cliente mudou, outro portão.
   Entra como **ocorrência**, nunca como sobrescrita direta da coordenada.
 
+### P5 — A correção vale para a próxima nota
+
+**Given** um endereço corrigido e aceito
+**When** chega nota nova do mesmo cliente para o mesmo lugar, com o texto grafado de outro jeito
+**Then** o endereço bom é usado, e **nenhum provedor é consultado**.
+
+Precedência, no mesmo formato de `resolvePhysicalDestination` (desvio → `<entrega>` → `<enderDest>`):
+
+1. Correção do contratante, aceita
+2. Endereço confirmado que já temos para aquele **cliente + endereço**
+3. CEP (degrau 1, grátis)
+4. Texto no provedor pago (degrau 2)
+5. Centroide do município — último recurso, marcado como aproximado
+
+⚠️ **O vínculo é `(cliente, endereço)`, nunca só o cliente.** A parada agrupa por endereço
+normalizado e **não** por CNPJ, de propósito: _"a mesma rede em cinco lojas é cinco paradas"_. Ligar
+coordenada a CNPJ colapsaria as cinco lojas numa, e o caminhão entregaria tudo na primeira — defeito
+pior que o atual, porque teria cara de melhoria.
+
+⚠️ **Candidato ambíguo não se aplica sozinho.** `cliente + número + cidade` discrimina bem (as lojas
+da rede estão em números diferentes) mas colide. Na dúvida, vai para o relatório em vez de virar
+coordenada.
+
 ### P6 — O operador conserta e cobra, da mesma tela
 
 **Given** o relatório de confirmação de endereço no painel
@@ -166,29 +189,6 @@ relatório deve deixar pedir os dois no mesmo endereço.
 O pedido carrega **o que está suspeito**, não um formulário em branco: o texto como veio, o CEP como
 veio, e a razão (divergência entre fontes, ocorrência do motorista, precisão de município). Pedir
 "confira este endereço" sem dizer o que está errado devolve o mesmo endereço de volta.
-
-### P5 — A correção vale para a próxima nota
-
-**Given** um endereço corrigido e aceito
-**When** chega nota nova do mesmo cliente para o mesmo lugar, com o texto grafado de outro jeito
-**Then** o endereço bom é usado, e **nenhum provedor é consultado**.
-
-Precedência, no mesmo formato de `resolvePhysicalDestination` (desvio → `<entrega>` → `<enderDest>`):
-
-1. Correção do contratante, aceita
-2. Endereço confirmado que já temos para aquele **cliente + endereço**
-3. CEP (degrau 1, grátis)
-4. Texto no provedor pago (degrau 2)
-5. Centroide do município — último recurso, marcado como aproximado
-
-⚠️ **O vínculo é `(cliente, endereço)`, nunca só o cliente.** A parada agrupa por endereço
-normalizado e **não** por CNPJ, de propósito: _"a mesma rede em cinco lojas é cinco paradas"_. Ligar
-coordenada a CNPJ colapsaria as cinco lojas numa, e o caminhão entregaria tudo na primeira — defeito
-pior que o atual, porque teria cara de melhoria.
-
-⚠️ **Candidato ambíguo não se aplica sozinho.** `cliente + número + cidade` discrimina bem (as lojas
-da rede estão em números diferentes) mas colide. Na dúvida, vai para o relatório em vez de virar
-coordenada.
 
 ## A corrente das fontes, e por que ela não é uma fila
 
@@ -323,23 +323,23 @@ erro custa caro.
 - **RF6** — Quando as duas fontes discordam, **nenhuma vence sozinha**: grava a mais específica,
   marca como suspeito, manda ao humano. Resolver por regra automática é como `RUA 02` virou
   `Rua 12`.
+- **RF7** — O relatório publica quatro números: distribuição por origem; deslocamento das correções
+  em metros; **quantos resultados do provedor pago foram corrigidos depois por um humano**; e
+  concentração por cidade e CEP. O terceiro é o que decide se vale continuar pagando.
 - **RF8** — A comparação de texto é do sistema, e **sinaliza sem corrigir**. O texto canônico do
   provedor é sugestão exibida; sobrescrita automática é proibida, porque provedor errado gravado é
   indistinguível de provedor certo.
+- **RF9** — Divergência de **CEP** é a de maior valor e sai destacada: CEP corrigido devolve o
+  endereço ao degrau 1, que é grátis e nosso — deixa de custar consulta para sempre.
 - **RF10** — O relatório mede **se o pedido pegou**: nota nova do mesmo cliente para o mesmo lugar,
   depois do pedido, ainda divergente = o cadastro do contratante não foi corrigido. É a diferença
   entre "pedimos" e "resolveu", e sem ela o relatório vira lista de pedidos sem desfecho.
+- **RF11** — `location_type` do provedor é sinal de primeira classe: `APPROXIMATE` com rua ausente
+  significa **texto inexistente** e vai ao contratante sem passar por comparação de string.
 - **RF12** — A consulta envia **estado, cidade, bairro, logradouro, número e CEP** — o CEP não para
   melhorar a busca (medido: não melhora), mas para que o CEP **de volta** possa ser comparado.
 - **RF13** — `RANGE_INTERPOLATED` **nunca** é gravado como `rooftop`: é número estimado sobre a rua
   certa. Achatar os dois apagaria a diferença entre a porta e o palpite sobre ela.
-- **RF11** — `location_type` do provedor é sinal de primeira classe: `APPROXIMATE` com rua ausente
-  significa **texto inexistente** e vai ao contratante sem passar por comparação de string.
-- **RF9** — Divergência de **CEP** é a de maior valor e sai destacada: CEP corrigido devolve o
-  endereço ao degrau 1, que é grátis e nosso — deixa de custar consulta para sempre.
-- **RF7** — O relatório publica quatro números: distribuição por origem; deslocamento das correções
-  em metros; **quantos resultados do provedor pago foram corrigidos depois por um humano**; e
-  concentração por cidade e CEP. O terceiro é o que decide se vale continuar pagando.
 
 ## Requisitos não funcionais
 
