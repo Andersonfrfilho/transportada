@@ -98,6 +98,25 @@ describe('separator role contract', () => {
       'GET /nfe-documents/:id/xml',
       'GET /nfe-documents/by-access-key/:accessKey/trip-location',
       'GET /trip-documents/returned-with-active-cte',
+      /**
+       * O feed de ocorrências da empresa, e o separador **lê** — decisão registrada aqui em
+       * 2026-09-04, a pedido de quem responde pelo produto.
+       *
+       * Ele já **escreve** ocorrência de separação (item faltante ou avariado, logo abaixo), e ler
+       * o feed é o outro lado do mesmo trabalho: a nota que volta do campo com problema é a que ele
+       * vai separar de novo, e descobrir isso pela ocorrência é mais barato que descobrir com a
+       * carga na mão.
+       *
+       * ⚠️ **Isto não lhe dá `trip.report`.** A ocorrência de **entrega** continua sendo do campo —
+       * quem entrega é quem a cria, e a linha entre barracão e rua da ADR-0043 segue de pé. O que
+       * mudou é que ele passa a **ver** o que o campo relatou, não a relatar por ele.
+       *
+       * ⚠️ As duas rotas entraram por `TRIP_READ_POLICY` (= `fleet.read`) numa spec paralela, sem
+       * passar por esta lista — foi este contrato que as barrou até a decisão existir. É para isso
+       * que ele lista por extenso.
+       */
+      'GET /trip-occurrences',
+      'GET /trip-occurrences/:id/attachments',
       'GET /trips',
       'GET /trips/:id',
       'GET /trips/:id/documents/:documentId/delivery-address-history',
