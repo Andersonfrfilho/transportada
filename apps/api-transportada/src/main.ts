@@ -188,8 +188,11 @@ import { createFleetCatalogRoutes } from './fleet/presentation/fleet-catalog.rou
 import { createIdentityContactDirectoryGateway } from './fleet/infrastructure/identity-contact-directory.gateway'
 import { createFleetRoutes } from './fleet/presentation/fleet.routes'
 import { createLookupPostalCodeUseCase } from './addresses/application/lookup-postal-code.use-case.js'
+import { createReadAddressReportUseCase } from './addresses/application/read-address-report.use-case.js'
+import { createDrizzleAddressReportRepository } from './addresses/infrastructure/drizzle-address-report.repository.js'
 import { DrizzlePostalCodeRepository } from './addresses/infrastructure/drizzle-postal-code.repository.js'
 import { createPostalCodeGateway } from './addresses/infrastructure/postal-code.gateway.js'
+import { createAddressReportRoutes } from './addresses/presentation/address-report.routes.js'
 import { createPostalCodeRoutes } from './addresses/presentation/postal-code.routes.js'
 import { createTripMdfeManifestUseCase } from './mdfe-manifests/application/create-trip-mdfe-manifest.use-case'
 import { createMdfeIssuanceUseCase } from './mdfe-manifests/application/mdfe-issuance.use-case'
@@ -1144,6 +1147,10 @@ function createApplicationRoutes({
       fetch: (target, init) => fetch(target, init),
     }),
   })
+  /** O relatório de endereços a corrigir, alimentado pelo lote de medição (spec 084, ADR-0061). */
+  const readAddressReport = createReadAddressReportUseCase({
+    repository: createDrizzleAddressReportRepository(database),
+  })
   const mdfeManifests = createMdfeManifestsUseCase({ repository: mdfeManifestRepository })
   const previewMdfeManifest = createPreviewMdfeManifestUseCase({
     repository: mdfeManifestRepository,
@@ -1508,6 +1515,7 @@ function createApplicationRoutes({
     }),
     ...createFleetCatalogRoutes({ vehicleCatalog: fleetVehicleCatalog }),
     ...createPostalCodeRoutes({ lookup: lookupPostalCode }),
+    ...createAddressReportRoutes({ readReport: readAddressReport }),
     ...createFleetDriverRegionRoutes({
       listCoverage: { execute: (input) => fleetDriverRegions.list(input) },
       replaceCoverage: { execute: (input) => fleetDriverRegions.replace(input) },
