@@ -88,6 +88,10 @@ export function useDriverTrip(
     refetchInterval: CURRENT_TRIP_REFETCH_MS,
   })
 
+  const isDrainingRef = useRef(false)
+  const hasPendingDrainRef = useRef(false)
+  const requestDrainRef = useRef<(only?: string) => void>(() => undefined)
+
   /** A drenagem é uma só — automática e manual entram pela mesma porta, `only` restringe. */
   const drain = useMutation({
     mutationFn: (only?: string) => {
@@ -133,6 +137,26 @@ export function useDriverTrip(
         void queryClient.invalidateQueries({ queryKey: CURRENT_TRIP_QUERY_KEY })
       }
     },
+    /**
+     * ⚠️ **A trava se libera aqui, na mutação, e não no callback do `mutate()` — e a diferença
+     * travava a fila para sempre.** Os callbacks passados a `mutate(vars, {...})` não rodam se o
+     * observador for desmontado antes de a mutação terminar, e o `useEffect` de montagem roda duas
+     * vezes sob StrictMode: a primeira drenagem terminava com o observador dela já descartado, o
+     * `onSettled` nunca disparava, e `isDrainingRef` — que é `useRef` e sobrevive à remontagem —
+     * ficava `true` pelo resto da vida da tela. Toda drenagem seguinte era engolida pelo guarda,
+     * com a tela dizendo "aguardando envio" e a rede perfeita.
+     *
+     * O `onSettled` da mutação é da mutação, não de quem a chamou: ele roda mesmo que o chamador
+     * tenha ido embora. Fora do StrictMode o sintoma some, e é por isso que ele sobreviveu — mas a
+     * fragilidade é real em produção também: navegar para fora e voltar durante uma drenagem
+     * deixaria a fila trancada do mesmo jeito.
+     */
+    onSettled: () => {
+      isDrainingRef.current = false
+      if (!hasPendingDrainRef.current) return
+      hasPendingDrainRef.current = false
+      requestDrainRef.current(undefined)
+    },
   })
 
   /**
@@ -154,9 +178,6 @@ export function useDriverTrip(
    * durante a drenagem anterior, não de um item específico. Drenar o superconjunto é sempre seguro
    * — o que já foi enviado não está mais na fila.
    */
-  const isDrainingRef = useRef(false)
-  const hasPendingDrainRef = useRef(false)
-  const requestDrainRef = useRef<(only?: string) => void>(() => undefined)
   const requestDrain = useCallback(
     (only?: string) => {
       if (isDrainingRef.current) {
@@ -164,14 +185,7 @@ export function useDriverTrip(
         return
       }
       isDrainingRef.current = true
-      drain.mutate(only, {
-        onSettled: () => {
-          isDrainingRef.current = false
-          if (!hasPendingDrainRef.current) return
-          hasPendingDrainRef.current = false
-          requestDrainRef.current(undefined)
-        },
-      })
+      drain.mutate(only)
     },
     [drain],
   )

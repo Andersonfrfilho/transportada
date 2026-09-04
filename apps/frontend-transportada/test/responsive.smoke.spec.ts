@@ -839,7 +839,7 @@ test('viagem com nota sem CT-e bloqueia a emissão do MDF-e num modal, sem naveg
   await loginAsLocalUser(page)
 
   await expect(page.getByRole('heading', { level: 1, name: 'Viagens' })).toBeVisible()
-  await page.getByRole('button', { name: 'Ver' }).click()
+  await page.getByRole('button', { name: /^Abrir a viagem/u }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Detalhe da viagem' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Emitir MDF-e' }).click()
@@ -871,7 +871,7 @@ test('viagem com todas as notas com CT-e autorizado emite o MDF-e sem exibir o m
   await loginAsLocalUser(page)
 
   await expect(page.getByRole('heading', { level: 1, name: 'Viagens' })).toBeVisible()
-  await page.getByRole('button', { name: 'Ver' }).click()
+  await page.getByRole('button', { name: /^Abrir a viagem/u }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Detalhe da viagem' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Emitir MDF-e' }).click()
@@ -908,7 +908,7 @@ test('a viagem editável oferece sugerir roteiro, e o painel só existe depois d
   })
   await loginAsLocalUser(page)
 
-  await page.getByRole('button', { name: 'Ver' }).click()
+  await page.getByRole('button', { name: /^Abrir a viagem/u }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Detalhe da viagem' })).toBeVisible()
 
   await expect(page.getByRole('button', { name: 'Sugerir roteiro' })).toBeVisible()
@@ -929,7 +929,7 @@ test('sem trip.manage a viagem não oferece sugerir roteiro', async ({ page }) =
   })
   await loginAsLocalUser(page)
 
-  await page.getByRole('button', { name: 'Ver' }).click()
+  await page.getByRole('button', { name: /^Abrir a viagem/u }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Detalhe da viagem' })).toBeVisible()
 
   await expect(page.getByRole('button', { name: 'Sugerir roteiro' })).toHaveCount(0)
@@ -1044,6 +1044,17 @@ test('CRLV de veículo já cadastrado oferece abrir a ficha existente', async ({
  */
 test('o motorista abre o produto e cai na viagem dele, não na tela de NF-e', async ({ page }) => {
   await page.setViewportSize(VIEWPORTS.mobile)
+  /**
+   * ⚠️ **Sem posição concedida o toque leva oito segundos, e o teste desiste aos cinco.**
+   * `readCurrentLocation` chama `getCurrentPosition` com `timeout: 8_000`; no navegador sem
+   * permissão o retorno de erro só chega no fim dele, e a confirmação nem é enfileirada antes
+   * disso. O `expect.poll` abaixo espera cinco segundos, e falhava com a tela dizendo "aguardando
+   * envio" — sintoma que aponta para a fila e não para o relógio.
+   *
+   * Conceder a posição é o que o motorista de verdade faz na primeira vez que abre o app.
+   */
+  await page.context().grantPermissions(['geolocation'])
+  await page.context().setGeolocation({ latitude: -23.5505, longitude: -46.6333 })
   const api = await mockDriverTripApi({ page })
   await loginAsLocalUser(page)
 
@@ -1120,7 +1131,7 @@ test('dispensar o MDF-e da viagem pede o motivo antes de mandar', async ({ page 
   })
   await loginAsLocalUser(page)
 
-  await page.getByRole('button', { name: 'Ver' }).click()
+  await page.getByRole('button', { name: /^Abrir a viagem/u }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Detalhe da viagem' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Dispensar MDF-e' }).click()

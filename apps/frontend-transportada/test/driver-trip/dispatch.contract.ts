@@ -99,6 +99,30 @@ describe('a fila offline no hook (revisão 082)', () => {
     expect(hook).not.toInclude('if (isDrainingRef.current) return\n')
   })
 
+  /**
+   * ⚠️ **A trava se libera no `onSettled` da mutação, nunca no callback do `mutate()`** — e a
+   * diferença trancava a fila para sempre. Callback passado a `mutate(vars, {...})` não roda se o
+   * observador for desmontado antes de a mutação terminar, e o `useEffect` de montagem roda duas
+   * vezes sob StrictMode: a primeira drenagem terminava com o observador já descartado, o
+   * `onSettled` nunca disparava, e `isDrainingRef` — que é `useRef` e sobrevive à remontagem —
+   * ficava `true` pelo resto da vida da tela. Medido pelo smoke do motorista: a confirmação
+   * enfileirava e nunca saía, com a tela dizendo "aguardando envio" e a rede perfeita.
+   *
+   * Fora do StrictMode o sintoma some, e foi por isso que ele sobreviveu — mas navegar para fora e
+   * voltar durante uma drenagem trancaria a fila do mesmo jeito em produção.
+   */
+  it('a trava da drenagem se libera pela mutação, não pelo callback da chamada', () => {
+    const chamada = hook.slice(hook.indexOf('drain.mutate'))
+    expect(chamada.slice(0, 60)).not.toInclude('onSettled')
+
+    const mutacao = hook.slice(
+      hook.indexOf('const drain = useMutation'),
+      hook.indexOf('const requestDrain = useCallback'),
+    )
+    expect(mutacao).toInclude('onSettled')
+    expect(mutacao).toInclude('isDrainingRef.current = false')
+  })
+
   /** 4b: a chave do anexo nasce na captura e vai nos dois caminhos — fila e multipart direto. */
   it('a chave do anexo nasce na captura e acompanha o multipart direto', () => {
     expect(hook).toInclude('const attachmentKey = createIdempotencyKey()')
