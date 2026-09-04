@@ -10,6 +10,7 @@ por quem estiver com o teclado.
 | D1  | O lote de comparação roda nos 300 ou só nos 149? Nos 300 contradiz a ADR-0047 e exige ADR própria.   | T04, T05 |
 | D2  | A sugestão do contratante é aceita à mão ou automaticamente quando a conferência de município passa? | T13      |
 | D3  | Os termos do Maps Platform permitem guardar a coordenada, ou só o Place ID?                          | T04      |
+| D4  | O pino do motorista é aceito direto ou entra como sugestão que o operador confirma?                  | T18b     |
 
 ---
 
@@ -138,9 +139,9 @@ corrigido no mesmo passe está no commit `feca7d9f`. O que sobra **bloqueia a Fa
 
 - [ ] **T15** — ADR: a primeira escrita do portal que move caminhão, junto da decisão de D2.
 
-## Fase 5 — O motorista
+## Fase 5 — Quem entrega diz se o ponto está certo
 
-> 🤖 Modelo: `sonnet`
+> 🤖 Modelo: `sonnet` (T18 é 🧠 — a decisão de aceitar o pino direto)
 
 - [ ] **T16** — Uma pergunta, sim/não, na confirmação de entrega — **só onde a precisão é baixa**.
       Formulário no fim de cada parada para de ser respondido na terceira.
@@ -148,8 +149,31 @@ corrigido no mesmo passe está no commit `feca7d9f`. O que sobra **bloqueia a Fa
 - [ ] **T17** — "Não era aqui" entra como **ocorrência**, nunca como sobrescrita da coordenada.
       Pode ser portaria fechada, cliente mudou, outro portão.
 
-- [ ] 🧠 **T18** — A posição do celular vira `rooftop` — a única fonte que esteve na porta, de graça
-      e sem licença de terceiro. ⚠️ Coordenada é dado pessoal: nada em log (`security.md` §1).
+- [ ] **T18a** — **O pino é opcional, e "errado sem pino" tem de ser aceito.**
+      ⚠️ É o que faz o resto funcionar: se a recusa **exigir** o pino, o motorista no fim do turno
+      responde "estava certo" para seguir adiante, e a base fica pior do que se ninguém perguntasse.
+      _Aceite:_ contrato que **falha** se a confirmação exigir coordenada para registrar a recusa.
+
+- [ ] 🧠 **T18b (D4)** — O pino vira `rooftop`. ⚠️ Decidir antes se ele é aceito direto ou entra como
+      sugestão que o operador confirma: é a fonte que esteve na porta, mas também é um toque numa
+      tela pequena, e pino errado é indistinguível de pino certo.
+      ⚠️ Coordenada é dado pessoal: nada em log (`security.md` §1).
+
+## Fase 6 — O operador conserta e cobra, da mesma tela
+
+> 🤖 Modelo: `sonnet`
+
+- [ ] **T19** — Apontar no mapa a partir do relatório. Conserta **onde**, com efeito imediato no
+      roteiro e sem depender de ninguém responder.
+
+- [ ] **T20** — Pedir correção ao contratante a partir do relatório. Conserta **como se chama** — é o
+      caminho quando o defeito é de **nomenclatura ou CEP**, que o motorista não sabe e o pino não
+      resolve.
+      ⚠️ **As duas ações se somam, não se substituem.** Um pino conserta uma nota; a correção do
+      texto conserta todas as seguintes, porque é ela que faz a próxima nota casar. O relatório tem
+      de deixar pedir as duas no mesmo endereço.
+      _Aceite:_ o pedido carrega o texto e o CEP **como vieram**, mais a razão da suspeita. Pedir
+      "confira este endereço" sem dizer o que está errado devolve o mesmo endereço de volta.
 
 ---
 

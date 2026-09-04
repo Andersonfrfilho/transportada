@@ -38,9 +38,9 @@ por nome.
 
 ## Fora do escopo
 
-- **Arrastar pino no mapa** (contratante ou operador). É o degrau que elimina a dependência de
-  provedor por completo, e fica para spec própria: o `frontend-client` não tem design system nem
-  biblioteca de mapa, e o painel precisaria de edição de coordenada sobre o mapa vetorial.
+- **Pino no portal do contratante.** O pino entra no app de quem entrega e no painel (P4, P6) — no
+  portal, não: o `frontend-client` não tem design system nem biblioteca de mapa, e o contratante
+  corrige **texto**, que é o que ele sabe.
 - **Aniversário de cidade e feriado municipal.** Não há fonte confiável para os 5.570 municípios, e
   inventar a tabela seria pior que não ter. Calendário declarado por empresa é spec separada.
 - **Trocar o mapa ou o roteirizador.** Telha e rota continuam nossas (ADR-0044 §6). Esta spec mexe
@@ -102,19 +102,57 @@ ponto de referência), e a correção entra como **sugestão** — a transportad
   contratante que tentar "corrigir" vai concluir que o sistema está quebrado. Ali o que resolve é o
   texto.
 
-### P4 — O motorista confirma quem esteve na porta
+### P4 — Quem entrega diz se o ponto está certo
 
 **Given** uma entrega concluída num endereço de precisão baixa
-**When** o motorista confirma no app
-**Then** ele responde **uma** pergunta — o endereço estava certo? — e, se não estava, **a posição do
-celular dele já é o lugar certo**: vira `rooftop` de graça, sem geocodificar e sem licença de
-terceiro.
+**When** o motorista confirma a entrega no app
+**Then** ele responde **uma** pergunta — o ponto estava certo? — e, se não estava, **pode** apontar
+no mapa onde era. O pino é **opcional**.
+
+⚠️ **O pino ser opcional é o que faz o resto funcionar.** Motorista no fim do turno, com o celular
+na chuva, não vai arrastar pino — e se a resposta "estava errado" **exigir** o pino, ele responde
+"estava certo" para seguir adiante, e a base fica pior do que se ninguém perguntasse nada. Um "estava
+errado" sem coordenada já vale: ele marca o endereço no relatório, que é o que aciona o contratante.
+
+São três respostas, e as três são úteis:
+
+| resposta             | o que produz                                                              |
+| -------------------- | ------------------------------------------------------------------------- |
+| **certo**            | confirma a coordenada — e é o que faz a base parar de perguntar sobre ela |
+| **errado, com pino** | coordenada `rooftop` de graça, da única fonte que esteve na porta         |
+| **errado, sem pino** | marca para o relatório; quem conserta é o contratante ou o operador       |
 
 - **Perguntar pouco**: uma pergunta, sim/não, no momento da confirmação. Formulário no fim de cada
   parada para de ser respondido na terceira.
-- **Só onde a resposta vale**: em `city` ela paga; em `rooftop` já corrigido é ruído.
+- **Só onde a resposta vale**: em `city` ela paga; em `rooftop` já confirmado é ruído.
 - ⚠️ **"Não era aqui" ≠ endereço errado.** Pode ser portaria fechada, cliente mudou, outro portão.
   Entra como **ocorrência**, nunca como sobrescrita direta da coordenada.
+
+### P6 — O operador conserta e cobra, da mesma tela
+
+**Given** o relatório de confirmação de endereço no painel
+**When** o operador abre um endereço marcado
+**Then** ele tem, na mesma tela, as duas ações — **apontar no mapa** e **pedir correção ao
+contratante** —, e a segunda leva o motivo junto.
+
+⚠️ **As duas existem porque resolvem coisas diferentes, e confundi-las desperdiça as duas.**
+
+**Apontar no mapa** conserta _onde_. Serve quando o lugar é conhecido e só a coordenada está errada
+— o operador que conhece a região, ou o pino que o motorista mandou. Efeito imediato no roteiro,
+sem depender de ninguém responder.
+
+**Pedir ao contratante** conserta _como se chama_. É o caminho quando o defeito é de **nomenclatura
+ou CEP** — `R AMERICA DE ARAUJO PERES` onde a rua é `Rua Américo de Araújo Pires`, ou um CEP que não
+é daquele logradouro. Isso o motorista não sabe e o pino não resolve: a próxima nota chega com o
+mesmo texto errado, e sem o texto certo ela não casa com nada.
+
+⚠️ **Um pino sem correção de texto conserta uma nota; uma correção de texto conserta todas as
+seguintes.** Por isso o pedido ao contratante não é o plano B do pino — os dois se somam, e o
+relatório deve deixar pedir os dois no mesmo endereço.
+
+O pedido carrega **o que está suspeito**, não um formulário em branco: o texto como veio, o CEP como
+veio, e a razão (divergência entre fontes, ocorrência do motorista, precisão de município). Pedir
+"confira este endereço" sem dizer o que está errado devolve o mesmo endereço de volta.
 
 ### P5 — A correção vale para a próxima nota
 
@@ -209,6 +247,12 @@ coordenada.
 - [ ] Nota nova de cliente com endereço já corrigido **não** dispara consulta a provedor — teste que
       falha se disparar
 - [ ] Vínculo por `(cliente, endereço)`: contrato que reprova colapso de duas lojas do mesmo cliente
+- [ ] **"Errado sem pino" é aceito e marca o endereço** — contrato que falha se a confirmação exigir
+      coordenada para registrar a recusa
+- [ ] O relatório oferece **as duas** ações no mesmo endereço (apontar no mapa e pedir ao
+      contratante), e permite as duas juntas
+- [ ] O pedido ao contratante carrega o texto e o CEP como vieram, mais a razão da suspeita — nunca
+      formulário em branco
 
 ## Dúvidas
 
@@ -221,3 +265,6 @@ coordenada.
   escala e transforma o portal em escrita direta na operação.]
 - [NEEDS CLARIFICATION: RNF3 — os termos do Maps Platform permitem guardar a coordenada
   permanentemente, ou só o Place ID? Bloqueia o lote.]
+- [NEEDS CLARIFICATION: o pino do motorista (P4) vira coordenada **aceita** direto, ou entra como
+  sugestão que o operador confirma no relatório (P6)? Ele é a fonte que esteve na porta — mas também
+  é um toque numa tela pequena, no fim do turno, e um pino errado é indistinguível de um certo.]
