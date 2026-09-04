@@ -87,6 +87,11 @@ export function useFloatingLayer<TLayer extends HTMLElement>({
       return
     }
 
+    // TEMPORÁRIO — diagnóstico do smoke 424, remover depois de ler o log da CI.
+    console.warn(
+      `[fl] measure anchorTop=${Math.round(anchorRect.top)} anchorBottom=${Math.round(anchorRect.bottom)} vh=${viewport.height} layerH=${layer.scrollHeight}`,
+    )
+
     const next = resolveFloatingLayerPosition({
       ...(align === undefined ? {} : { align }),
       anchor: anchorRect,
