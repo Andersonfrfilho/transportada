@@ -1,0 +1,374 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ */
+import { useEffect, useRef, useState } from 'react'
+import {
+  LngLatBounds,
+  Map as MapLibreMap,
+  Marker,
+  addProtocol,
+  type GeoJSONSource,
+  setWorkerUrl,
+} from 'maplibre-gl'
+import { Protocol } from 'pmtiles'
+import { useTranslation } from 'react-i18next'
+
+import { Button } from '@/components/ui/button'
+import { Icon } from '@/components/ui/icon'
+
+/**
+ * ⚠️ **Sem esta folha o marcador não fica preso ao mapa.** É ela que dá `position: absolute` ao
+ * `.maplibregl-marker` e recorta o canvas; sem ela os pinos escapam do quadro e aparecem por cima
+ * dos elementos da página ao aproximar. Foi exatamente o defeito relatado.
+ */
+import 'maplibre-gl/dist/maplibre-gl.css'
+/** `?url` faz o Vite resolver o especificador de pacote e servir o arquivo da nossa origem. */
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
+
+import {
+  BASEMAP_THEMES,
+  buildBasemapStyle,
+  resolveBasemapOutline,
+  type BasemapTheme,
+} from '../shared/vectorBasemap.service'
+import type { AssemblyMapPoint } from '../shared/assemblyMap.service'
+import type { RouteGeometry } from '../shared/routeGeometry.service'
+import styles from '../styles/trip.module.css'
+
+type AssemblyVectorMapProps = Readonly<{
+  geometry: RouteGeometry | null
+  nearby: readonly AssemblyMapPoint[]
+  onBasemapMissing: () => void
+  points: readonly AssemblyMapPoint[]
+  stopColor: (sequence: number) => string
+}>
+
+const ROUTE_SOURCE = 'roteiro'
+const NEARBY_SOURCE = 'fora-da-selecao'
+/** Onde o operador deixou o mapa da última vez. Preferência de leitura, não dado de operação. */
+const THEME_STORAGE_KEY = 'transportada.trip-assembly-map-theme'
+
+function readStoredTheme(): BasemapTheme {
+  try {
+    const stored = globalThis.localStorage?.getItem(THEME_STORAGE_KEY) ?? ''
+    return BASEMAP_THEMES.find((theme) => theme === stored) ?? 'claro'
+  } catch {
+    /** Janela anônima e armazenamento bloqueado lançam aqui — o mapa não pode cair por isso. */
+    return 'claro'
+  }
+}
+
+/**
+ * ⚠️ O worker sai de um arquivo **empacotado pelo Vite**, nunca de `blob:` — a CSP declara
+ * `worker-src 'self'` (ADR-0042), e o padrão do MapLibre é justamente o blob que ela proíbe. É a
+ * mesma regra que o leitor de código de barras já segue.
+ *
+ * ⚠️ **O caminho vem de um `import ?url`, e não de `new URL(…, import.meta.url)`.** Aquela forma
+ * resolve URL pura e **não** resolve especificador de pacote: `'maplibre-gl/dist/…'` virava
+ * `/src/modules/trip/components/maplibre-gl/dist/…` — 404. Sem worker o MapLibre não decodifica
+ * telha nenhuma, cai no `blob:`, a CSP barra, e o mapa fica um retângulo vazio com os controles por
+ * cima: nada falha em voz alta, e a tela parece só "não ter mapa". O Vite só reescreve `new URL`
+ * para caminho **relativo**; para especificador de pacote quem resolve é o `import`.
+ */
+let workerConfigured = false
+function configureWorker(): void {
+  if (workerConfigured) return
+  setWorkerUrl(maplibreWorkerUrl)
+  addProtocol('pmtiles', new Protocol().tile)
+  workerConfigured = true
+}
+
+/**
+ * O mapa de rua do painel de montagem (ADR-0044 §6). O fundo é o nosso PMTiles; os pinos e a linha
+ * são desenho nosso por cima. Pan e zoom vêm do MapLibre — antes eu os tinha escrito à mão sobre
+ * telhas raster, e eram cem linhas para reimplementar pior o que a biblioteca já faz.
+ */
+/**
+ * O valor de um token de design, resolvido no documento. O MapLibre pinta em WebGL e não enxerga
+ * `var(--color-…)`, então toda cor precisa chegar até ele já resolvida.
+ */
+function readToken(token: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(token).trim()
+}
+
+export function AssemblyVectorMap({
+  geometry,
+  nearby,
+  onBasemapMissing,
+  points,
+  stopColor,
+}: AssemblyVectorMapProps) {
+  const { t } = useTranslation('trip')
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const mapRef = useRef<MapLibreMap | null>(null)
+  const markersRef = useRef<Marker[]>([])
+  const [isReady, setIsReady] = useState(false)
+  /** O estilo do tema já veio pelo construtor; o efeito abaixo só vale da segunda vez em diante. */
+  const themeApplied = useRef(false)
+  const [theme, setTheme] = useState<BasemapTheme>(readStoredTheme)
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (container === null) return
+
+    configureWorker()
+    const map = new MapLibreMap({
+      /** Sem atribuição automática: ela é nossa, e já está impressa ao lado do mapa. */
+      attributionControl: false,
+      center: [-47.81, -21.17],
+      container,
+      style: buildBasemapStyle(readToken, theme),
+      zoom: 8,
+    })
+    mapRef.current = map
+    map.on('load', () => setIsReady(true))
+    /**
+     * ⚠️ Arquivo ausente é o caso **esperado** enquanto o `.pmtiles` não é gerado, e a ADR-0044 §6
+     * manda cair para a lista dizendo isso — não deixar o erro subir como falha da tela.
+     */
+    map.on('error', (event) => {
+      /**
+       * ⚠️ **Não engula o erro em silêncio.** Este tratador só chamava `onBasemapMissing()` e
+       * descartava o objeto — e um dia inteiro de diagnóstico foi gasto às cegas porque a causa
+       * era impressa pelo MapLibre e apagada aqui. Fora de produção ela vai para o console; a
+       * degradação para a lista continua a mesma.
+       */
+      if (import.meta.env.DEV) console.error('[basemap]', event.error?.message ?? event.error)
+      onBasemapMissing()
+    })
+
+    return () => {
+      map.remove()
+      mapRef.current = null
+    }
+    // O mapa nasce uma vez; ponto e linha entram pelos efeitos abaixo.
+  }, [])
+
+  /**
+   * Trocar o tema é **substituir o estilo**, e o MapLibre descarta fonte e camada junto — por isso o
+   * `isReady` volta a `false`: os efeitos abaixo remontam pino, rota e pontos cinza no `load` novo.
+   */
+  useEffect(() => {
+    const map = mapRef.current
+    if (map === null) return
+    try {
+      globalThis.localStorage?.setItem(THEME_STORAGE_KEY, theme)
+    } catch {
+      /** Preferência que não persiste não é motivo para o mapa não trocar de cor. */
+    }
+    /**
+     * ⚠️ **Na montagem este efeito não pode trocar o estilo.** O construtor acabou de receber o
+     * estilo deste mesmo tema, e o `setStyle` do MapLibre faz diff: estilo idêntico é no-op, e o
+     * `once('styledata')` abaixo **nunca dispara** — `isReady` ficava `false` para sempre, então
+     * pino, rota e pontos cinza nunca entravam e o mapa ficava um retângulo vazio com os controles
+     * por cima. Só troca de tema de verdade remonta o estilo.
+     */
+    if (!themeApplied.current) {
+      themeApplied.current = true
+      return
+    }
+
+    setIsReady(false)
+    map.setStyle(buildBasemapStyle(readToken, theme))
+    map.once('styledata', () => setIsReady(true))
+  }, [theme])
+
+  /** A parada é marcador de DOM: são poucas, e assim herdam o mesmo CSS da bolinha da lista. */
+  useEffect(() => {
+    const map = mapRef.current
+    if (map === null || !isReady) return
+
+    for (const marker of markersRef.current) marker.remove()
+    markersRef.current = []
+
+    for (const point of points) {
+      markersRef.current.push(
+        new Marker({
+          element: stopElement({
+            approximate: point.isApproximate,
+            color: stopColor(point.sequence ?? 1),
+            outline: resolveBasemapOutline(readToken, theme),
+            sequence: point.sequence ?? 1,
+          }),
+        })
+          .setLngLat([point.longitude, point.latitude])
+          .addTo(map),
+      )
+    }
+
+    /**
+     * ⚠️ O que ficou **fora da seleção** é camada, não marcador. Com o filtro aberto são centenas de
+     * notas: medido em 261 nós de DOM, que pesavam e escapavam do quadro. Em camada eles são
+     * desenhados pelo WebGL junto com o mapa — recortados pelo canvas por construção.
+     */
+    const nearbyData = {
+      type: 'FeatureCollection' as const,
+      features: nearby.map((point) => ({
+        type: 'Feature' as const,
+        geometry: { type: 'Point' as const, coordinates: [point.longitude, point.latitude] },
+        properties: {},
+      })),
+    }
+    const nearbySource: GeoJSONSource | undefined = map.getSource(NEARBY_SOURCE)
+    if (nearbySource === undefined) {
+      map.addSource(NEARBY_SOURCE, { data: nearbyData, type: 'geojson' })
+      map.addLayer({
+        id: 'fora-da-selecao-ponto',
+        paint: {
+          'circle-color': getComputedStyle(document.documentElement)
+            .getPropertyValue('--color-slate')
+            .trim(),
+          'circle-opacity': 0.5,
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 2.5, 14, 5],
+        },
+        source: NEARBY_SOURCE,
+        type: 'circle',
+      })
+    } else {
+      void nearbySource.setData(nearbyData)
+    }
+
+    fitToStops(map, points)
+  }, [isReady, nearby, points, stopColor, theme])
+
+  /**
+   * A linha da estrada. Ela é **fonte de dado**, atualizada no lugar: recriar a camada a cada
+   * resposta faria o mapa piscar a cada reordenação.
+   */
+  useEffect(() => {
+    const map = mapRef.current
+    if (map === null || !isReady) return
+
+    const road = geometry?.source === 'road' ? geometry.points : []
+    const coordinates =
+      road.length >= 2
+        ? road.map((point) => [Number(point.longitude), Number(point.latitude)])
+        : points.map((point) => [point.longitude, point.latitude])
+    const data = {
+      type: 'Feature' as const,
+      geometry: { type: 'LineString' as const, coordinates },
+      properties: {},
+    }
+
+    const existing: GeoJSONSource | undefined = map.getSource(ROUTE_SOURCE)
+    if (existing !== undefined) {
+      void existing.setData(data)
+      /** Tracejado só quando a linha é reta: sólido diria que o caminhão faz aquele caminho. */
+      map.setPaintProperty('roteiro-linha', 'line-dasharray', road.length >= 2 ? [1] : [2, 2])
+      return
+    }
+
+    if (coordinates.length < 2) return
+    map.addSource(ROUTE_SOURCE, { data, type: 'geojson' })
+    map.addLayer({
+      id: 'roteiro-linha',
+      paint: {
+        'line-color': getComputedStyle(document.documentElement)
+          .getPropertyValue('--color-copper')
+          .trim(),
+        'line-dasharray': road.length >= 2 ? [1] : [2, 2],
+        'line-width': 3,
+      },
+      source: ROUTE_SOURCE,
+      type: 'line',
+    })
+  }, [geometry, isReady, points])
+
+  return (
+    <div className={styles.vectorMap}>
+      <div className={styles.vectorMapCanvas} ref={containerRef} />
+      <div className={styles.vectorMapControls}>
+        <Button
+          aria-label={t('assemblyMap.zoomIn')}
+          onClick={() => mapRef.current?.zoomIn()}
+          size="sm"
+          type="button"
+          variant="secondary"
+        >
+          <Icon name="add" />
+        </Button>
+        <Button
+          aria-label={t('assemblyMap.zoomOut')}
+          onClick={() => mapRef.current?.zoomOut()}
+          size="sm"
+          type="button"
+          variant="secondary"
+        >
+          <Icon name="minus" />
+        </Button>
+        {/* Recentrar é a saída de quem se perdeu arrastando — devolve o enquadramento das paradas. */}
+        <Button
+          aria-label={t('assemblyMap.recenter')}
+          onClick={() => {
+            const map = mapRef.current
+            if (map !== null) fitToStops(map, points)
+          }}
+          size="sm"
+          type="button"
+          variant="secondary"
+        >
+          <Icon name="target" />
+        </Button>
+        {/*
+          O tema é preferência de leitura, e por isso ele cicla num botão só em vez de ocupar três:
+          o rótulo diz para onde o próximo clique vai, e a escolha fica guardada no navegador.
+        */}
+        <Button
+          aria-label={t('assemblyMap.theme', {
+            theme: t(`assemblyMap.themes.${nextTheme(theme)}`),
+          })}
+          onClick={() => setTheme(nextTheme(theme))}
+          size="sm"
+          type="button"
+          variant="secondary"
+        >
+          <Icon name="contrast" />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * ⚠️ **O MapLibre é dono do `transform` e do `position` deste elemento.** Ele escreve os dois inline
+ * no marcador para posicioná-lo, e o inline vence a classe — então `position`/`transform` no CSS do
+ * pino são letra morta, e quem tentar corrigir o ancoramento por lá não muda nada. O ancoramento
+ * pelo centro já é o padrão do `Marker`.
+ *
+ * O que **precisa** vir daqui é a cor: o tom da parada casa o pino com a bolinha da lista, e o anel
+ * casa o pino com o papel do tema do mapa. Nenhum dos dois é conhecido pela folha de estilo.
+ */
+function stopElement(input: {
+  readonly approximate: boolean
+  readonly color: string
+  readonly outline: string
+  readonly sequence: number
+}): HTMLElement {
+  const element = document.createElement('span')
+  /**
+   * ⚠️ **O palpite não pode ser desenhado igual ao endereço conhecido.** Metade desta base tem
+   * precisão `city`, e aí o ponto é o **centroide do município** — cai no meio do mato, e lido como
+   * entrega de verdade manda alguém procurar porta que não existe ali. ADR-0044 §1.
+   */
+  element.className = input.approximate
+    ? `${styles.tilePin ?? ''} ${styles.tilePinApproximate ?? ''}`
+    : (styles.tilePin ?? '')
+  element.style.background = input.color
+  element.style.borderColor = input.outline
+  element.textContent = String(input.sequence)
+  return element
+}
+
+/** Cicla claro → escuro → contraste → claro. Um botão diz mais que três disputando o mesmo canto. */
+function nextTheme(current: BasemapTheme): BasemapTheme {
+  const index = BASEMAP_THEMES.indexOf(current)
+  return BASEMAP_THEMES[(index + 1) % BASEMAP_THEMES.length] ?? 'claro'
+}
+
+/** O enquadramento das paradas, usado na montagem e no botão de recentrar — a mesma conta. */
+function fitToStops(map: MapLibreMap, points: readonly AssemblyMapPoint[]): void {
+  if (points.length === 0) return
+  const bounds = new LngLatBounds()
+  for (const point of points) bounds.extend([point.longitude, point.latitude])
+  map.fitBounds(bounds, { duration: 0, maxZoom: 14, padding: 48 })
+}

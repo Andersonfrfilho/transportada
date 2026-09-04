@@ -101,7 +101,11 @@
   font-size: 0.85rem;
 }
 
-.fieldGrid input {
+/* O modal entra na mesma regra do grid de campos: preso a `.fieldGrid`, o campo da criação rápida
+   nasceu cru — 21px de altura contra os 3rem do token, com a borda e a fonte do navegador. Campo
+   fora de grade é o caso normal, não a exceção. */
+.fieldGrid input,
+.dialog input {
   min-height: var(--field-height);
   padding: var(--field-padding);
   border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
@@ -387,6 +391,267 @@
     max-height: 92vh;
     border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
   }
+
+  .overlay {
+    padding: var(--space-4);
+  }
+
+  .dialog {
+    width: min(46rem, 100%);
+    height: auto;
+    max-height: 92vh;
+    border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  }
+}
+
+/* A criação rápida reusa a caixa do portão de MDF-e: dois modais com comportamentos diferentes na
+   mesma tela é pior que dois artesanais iguais. Fullscreen no celular, caixa do tablet em diante. */
+.overlay {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: color-mix(in srgb, var(--color-asphalt) 78%, transparent);
+}
+
+.dialog {
+  display: grid;
+  gap: var(--space-4);
+  align-content: start;
+  width: 100%;
+  height: 100%;
+  max-height: 100vh;
+  padding: var(--space-5);
+  overflow-y: auto;
+  border: none;
+  color: var(--color-fog);
+  background: var(--color-graphite);
+  box-shadow: 0 1.5rem 3rem color-mix(in srgb, var(--color-asphalt) 55%, transparent);
+}
+
+.dialogHeader {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.dialogHeader h2 {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 1.5rem;
+}
+
+.dialogFooter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  justify-content: flex-end;
+}
+
+/* O campo da chave é o que cresce: os botões ficam do tamanho do conteúdo e quebram para baixo
+   antes de espremer o campo, que é onde os 44 caracteres precisam caber. */
+.scanRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: end;
+}
+
+.scanField {
+  display: grid;
+  gap: var(--space-1);
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+/* O campo divide a fileira com botões `size="sm"`, que medem `--control-height-compact`. No token
+   normal ele ficava 10px mais alto que os vizinhos e a linha saía desencontrada — a altura do campo
+   é a do controle ao lado dele, e as duas saem do mesmo par de tokens. */
+.scanField input {
+  min-height: var(--field-height-compact);
+  padding: var(--field-padding-compact);
+  font-size: var(--field-font-size-compact);
+}
+
+/* A tabela do resultado rola dentro da própria caixa: sem o teto, o modal crescia com o filtro e
+   empurrava motorista, veículo e o botão de criar para fora da tela — e a lista de seleção deixava
+   de abrir, porque o gatilho dela saía do viewport. */
+/* O corpo do roteiro por faixa dentro do diálogo: sem a moldura do painel, que agora é do modal. */
+.assemblyBody {
+  display: grid;
+  gap: var(--space-4);
+}
+
+/**
+ * A espera tem a forma do que ela antecede: um cartão por veículo escolhido, que é a informação
+ * que já existe antes da resposta. Com isso a caixa não muda de altura quando o roteiro chega.
+ */
+.assemblyPending {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 40rem) {
+  .assemblyPending {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.assemblyPendingCard {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-slate);
+}
+
+/* A cidade fica ao lado do destinatário, não abaixo: a linha da fila é uma só e precisa caber. */
+/* O voltar abre o cabeçalho, acima do título: é a primeira coisa que se procura ao querer sair. */
+/* O rótulo e o "todos" dividem a linha: o botão fica à direita, na altura do nome do campo. */
+.fieldHead {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.headerBack {
+  display: flex;
+  margin-block-end: var(--space-2);
+}
+
+/* Os valores ficam acima do botão de criar: é a última coisa que se lê antes de decidir. */
+.valuation {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 35%, transparent);
+}
+
+.valuationTotals {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+}
+
+.valuationTotals dt {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Os passos abaixo dos totais: quem decide lê os três números; quem entende continua descendo. */
+.valuationSteps {
+  display: grid;
+  gap: var(--space-1);
+  padding-block-start: var(--space-2);
+  border-block-start: 1px solid color-mix(in srgb, var(--color-slate) 20%, transparent);
+}
+
+.valuationStepsTitle {
+  margin: var(--space-2) 0 0;
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.valuationStep {
+  display: flex;
+  gap: var(--space-3);
+  justify-content: space-between;
+  font-size: var(--field-font-size-compact);
+}
+
+/* A lacuna fica em texto, no lugar do número: ela é a razão, e razão não se soma. */
+.valuationStepGap {
+  color: var(--color-slate);
+  font-style: italic;
+  text-align: right;
+}
+
+.valuationTotals dd {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.negative {
+  color: var(--color-copper);
+}
+
+.scanQueuePlace {
+  color: var(--color-slate);
+  font-size: var(--field-font-size-compact);
+  white-space: nowrap;
+}
+
+.searchTableScroll {
+  max-height: 16rem;
+  overflow: auto;
+}
+
+.searchTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--field-font-size-compact);
+}
+
+.searchTable th,
+.searchTable td {
+  padding: var(--space-2);
+  text-align: left;
+  white-space: nowrap;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+}
+
+.searchTable th {
+  position: sticky;
+  top: 0;
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: var(--color-graphite);
+}
+
+/* A busca é uma seção dentro do modal: ela cresce com o filtro aberto e encolhe fechada, sem
+   empurrar o rodapé para fora — o botão de criar precisa continuar alcançável. */
+.searchSection {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 22%, transparent);
+}
+
+.scanQueueList {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 18rem;
+  overflow-y: auto;
+}
+
+.scanQueueRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 22%, transparent);
 }
 
 /* T015: a viagem lista por parada — cartão por parada, nota aninhada dentro. */
@@ -903,4 +1168,264 @@
   font-family: inherit;
   font-size: var(--font-size-sm);
   margin: 0;
+}
+
+.tileMap {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  border: 1px solid var(--color-fog);
+  border-radius: var(--radius-md, 4px);
+  background: var(--color-fog);
+}
+
+/* A telha é posicionada em pixel: ela vem em quadrado de 256 e o mosaico é montado por deslocamento. */
+.tile {
+  position: absolute;
+  display: block;
+}
+
+/*
+ * O pino da parada. Mesma medida da bolinha da lista (`.assemblyBullet`), de propósito: é a mesma
+ * parada em dois lugares da tela, e o olho precisa casar as duas sem esforço.
+ *
+ * ⚠️ **`position` e `transform` aqui são letra morta.** O MapLibre é dono do marcador e escreve os
+ * dois inline para posicioná-lo; inline vence classe. Quem tentar corrigir ancoramento por esta
+ * folha não muda nada — o ancoramento pelo centro já é o padrão do `Marker`. Declarados aqui, eles
+ * só serviam de armadilha para a próxima pessoa.
+ *
+ * ⚠️ **Cor de fundo e cor do anel vêm inline**, de `stopElement`. O fundo é o tom da parada e o anel
+ * é o papel do tema do mapa — nenhum dos dois é conhecido por esta folha, que não sabe qual das três
+ * leituras do basemap está no ar.
+ */
+.tilePin {
+  display: grid;
+  place-items: center;
+  width: var(--space-6);
+  height: var(--space-6);
+  border-radius: 50%;
+  border: 2px solid transparent;
+  color: var(--color-ink-on-accent);
+  font-size: var(--font-size-xs, 0.75rem);
+  font-weight: 600;
+  /*
+   * O pino é marca, não controle: ele não tem clique. Sem isto, arrastar o mapa a partir de um pino
+   * agarra o elemento de DOM e o mapa não acompanha — e com as paradas juntas num centro urbano é
+   * onde mais se tenta arrastar.
+   */
+  pointer-events: none;
+}
+
+/* O traço da ordem cobre o quadro inteiro, acima das telhas e abaixo dos pinos. */
+.tileTrace {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* Os controles ficam sobre o mapa, no canto onde não há atribuição nem pino de borda. */
+.tileZoom {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* Exigência da licença do OpenStreetMap: a atribuição fica visível sobre o mapa. */
+.tileAttribution {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  padding: 0 var(--space-1);
+  background: var(--color-plate-surface);
+  color: var(--color-slate);
+  font-size: var(--font-size-xs, 0.75rem);
+}
+
+/*
+ * O mapa da montagem vive dentro do modal, e o quadrado do `viewBox` esticaria para a largura
+ * inteira do diálogo — 542px de altura medidos, mais de dois terços da janela só para ele. O corte
+ * é por altura, e a proporção se preserva sozinha: o `preserveAspectRatio` do SVG encolhe o desenho
+ * em vez de deformá-lo.
+ */
+.assemblyMap {
+  max-height: 34vh;
+}
+
+/* A lista da ordem do mapa de montagem: cidade à esquerda, os dois botões de mover à direita. */
+.assemblyOrder {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.assemblyOrder li {
+  align-items: start;
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: 1fr auto auto;
+}
+
+.assemblyStop {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: auto 1fr;
+  align-items: start;
+}
+
+/* O mesmo disco do pino, na mesma cor: é o que casa a linha da lista com o ponto no mapa. */
+.assemblyBullet {
+  display: grid;
+  place-items: center;
+  width: var(--space-6);
+  height: var(--space-6);
+  border-radius: 50%;
+  color: var(--color-ink-on-accent);
+  font-size: var(--font-size-xs, 0.75rem);
+  font-weight: 600;
+}
+
+.assemblyStopBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.assemblyStopCity {
+  font-weight: 600;
+}
+
+.assemblyStopNote,
+.assemblyStopLeg {
+  color: var(--color-slate);
+  font-size: var(--font-size-xs, 0.75rem);
+}
+
+/* O trecho até a próxima parada, recuado para não se confundir com a nota que para aqui. */
+.assemblyStopLeg {
+  margin-top: var(--space-1);
+  font-style: italic;
+}
+
+/*
+ * A célula do veículo na listagem: o motorista em cima, e o veículo — placa e ficha — na linha de
+ * baixo. Quem varre a lista procura primeiro por quem leva, depois confere no quê; separar a placa
+ * da ficha em duas linhas alongava a linha da tabela sem separar nada que se leia em momentos
+ * diferentes. O UUID que morava aqui não dizia nada a quem procura o caminhão no pátio.
+ */
+.vehicleCell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.vehicleDrivers {
+  color: var(--color-copper);
+  font-size: var(--font-size-xs, 0.75rem);
+  font-weight: 600;
+}
+
+/*
+ * A ficha fica na **mesma** linha da placa: com `flex-wrap` a coluna estreita quebrava a ficha para
+ * baixo e devolvia as três linhas que esta célula veio desfazer. A tabela já rola na horizontal, e
+ * é ela quem absorve a linha larga.
+ */
+.vehicleLine {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+
+.vehiclePlate {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.vehicleSpec {
+  color: var(--color-slate);
+  font-size: var(--font-size-xs, 0.75rem);
+}
+
+/*
+ * O quadro do mapa vetorial.
+ *
+ * ⚠️ `overflow: hidden` não é enfeite: o marcador do MapLibre é posicionado em pixel a partir do
+ * canto do contêiner, e a parada que sai do enquadramento ao aproximar continua sendo desenhada.
+ * Sem o recorte ela vaza para cima do formulário — o pino cinza flutuando sobre a tela.
+ *
+ * `isolation: isolate` prende a pilha de empilhamento aqui dentro, para nenhum pino disputar
+ * `z-index` com o diálogo que hospeda o mapa.
+ */
+/*
+ * ⚠️ **`width`/`height` explícitos, e não só `inset: 0`.** O MapLibre acrescenta a classe
+ * `maplibregl-map` a este mesmo elemento, e a folha dele declara
+ * `.maplibregl-map { position: relative; overflow: hidden }`. É a mesma especificidade que esta
+ * regra (uma classe), e ela entra **depois** — então `relative` vence, o `inset: 0` fica inerte e a
+ * caixa colapsa para altura 0. O `overflow: hidden` da própria regra dele então recorta o canvas a
+ * nada: o mapa carrega, pinta e não aparece.
+ *
+ * Foi um dia inteiro de diagnóstico, porque **tudo mede como saudável** — `isStyleLoaded`,
+ * `isSourceLoaded` e `loaded()` todos verdadeiros, WebGL vivo, 17 camadas, canvas com 629×300. O
+ * único número que denuncia é a altura do elemento raiz.
+ *
+ * Com as duas medidas em 100% a regra funciona sob qualquer `position` — não depende de quem vence.
+ */
+.vectorMapCanvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Os controles ficam sobre o mapa, no canto oposto à atribuição. */
+.vectorMapControls {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.vectorMap {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  width: 100%;
+  height: 18rem;
+  border: 1px solid var(--color-graphite);
+  border-radius: var(--radius-md, 4px);
+}
+
+/* As duas propostas lado a lado: a instantânea em linha reta e a do roteirizador. */
+.assemblyActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/*
+ * O pino de posição aproximada: anel tracejado e um pouco apagado. Ele é o centroide do município,
+ * não o endereço — e precisa ser lido como palpite antes de alguém dirigir até lá (ADR-0044 §1).
+ */
+.tilePinApproximate {
+  border-style: dashed;
+  opacity: 0.75;
+}
+
+/* O aviso de posição aproximada acompanha o pino tracejado: mesma informação, na lista. */
+.assemblyStopApproximate {
+  color: var(--color-copper);
+  font-size: 0.74rem;
 }
