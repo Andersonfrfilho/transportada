@@ -258,6 +258,23 @@ async function registerTripMocks(
     await fulfillJson(route, { data: [BASE_TRIP], page: { nextCursor: null } })
   })
   /**
+   * O seletor de notas do detalhe da viagem. Ele não é exercitado por nenhum destes smokes, mas a
+   * tela o consulta ao abrir — e o smoke afirma **zero falha de rede**, então a consulta solta
+   * reprova a tela inteira por uma requisição que o teste nem usa.
+   *
+   * ⚠️ Ela ficou invisível enquanto o botão "Ver" estava com o rótulo errado: os testes paravam na
+   * lista e nunca chegavam ao detalhe. Local ela também passa despercebida, porque a API de
+   * desenvolvimento costuma estar no ar e responde de verdade — quem a pegou foi a CI, que não tem
+   * API nenhuma atrás do mock.
+   */
+  await input.page.route(/\/nfe-documents(?:\?.*)?$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, { data: [], page: { nextCursor: null } })
+  })
+  /**
    * Spec 079: a linha da estrada. Ela precisa vir mockada **antes** do detalhe, senão o padrão
    * `/trips/{id}` a engoliria — e o smoke afirma zero falha de rede, então uma consulta solta
    * reprova a tela inteira por causa do mapa.
