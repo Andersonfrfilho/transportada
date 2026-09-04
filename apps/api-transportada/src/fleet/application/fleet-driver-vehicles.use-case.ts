@@ -9,12 +9,17 @@ import type {
   FleetDriverRepositoryPort,
   FleetDriverVehicleAssignment,
   FleetDriverVehicleLink,
+  FleetDriverVehiclePair,
   FleetDriverVehicleRepositoryPort,
 } from './fleet.port.js'
 
 export type ListFleetDriverVehiclesInput = {
   readonly context: FleetCompanyContext
   readonly driverId: string
+}
+
+export type ListFleetDriverVehiclePairsInput = {
+  readonly context: FleetCompanyContext
 }
 
 export type ReplaceFleetDriverVehiclesInput = {
@@ -26,6 +31,11 @@ export type ReplaceFleetDriverVehiclesInput = {
 
 export type FleetDriverVehiclesUseCase = {
   list(input: ListFleetDriverVehiclesInput): Promise<readonly FleetDriverVehicleAssignment[]>
+  /**
+   * Spec 081: o vínculo da empresa inteiro. Não decora nada — quem pergunta quer só saber quem está
+   * amarrado a quem, e a ficha do motorista e a do veículo já vêm das listagens de frota.
+   */
+  listPairs(input: ListFleetDriverVehiclePairsInput): Promise<readonly FleetDriverVehiclePair[]>
   replace(input: ReplaceFleetDriverVehiclesInput): Promise<readonly FleetDriverVehicleAssignment[]>
 }
 
@@ -69,6 +79,10 @@ export function createFleetDriverVehiclesUseCase(dependencies: {
       const driver = await loadDriver({ companyId, driverId: input.driverId })
       const links = await repository.listByDriver({ companyId, driverId: input.driverId })
       return decorate({ driver, links })
+    },
+
+    async listPairs(input) {
+      return repository.listCompanyPairs({ companyId: input.context.companyId })
     },
 
     async replace(input) {

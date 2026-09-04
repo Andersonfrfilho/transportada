@@ -36,7 +36,15 @@ export const createMultiVehicleSuggestionSchema = z
     nfeDocumentIds: z.array(z.uuid()).min(1).max(MAX_STOPS_PER_SUGGESTION),
     seed: z.number().int().min(0).optional(),
     solverTimeBudgetSeconds: z.number().int().min(1).max(600).optional(),
-    vehicleIds: z.array(z.uuid()).min(1).max(MAX_VEHICLES_PER_SUGGESTION),
+    /**
+     * ADR-0055: **par**, não lista de veículos. O motorista é opcional — distribuir a carga antes de
+     * saber quem dirige é o uso normal de quem monta a escala na véspera —, mas quando ele vem, a
+     * viagem criada pelo aceite já nasce dele, e é isso que a faz aparecer no PWA de campo.
+     */
+    vehicles: z
+      .array(z.object({ driverId: z.uuid().optional(), vehicleId: z.uuid() }).strict())
+      .min(1)
+      .max(MAX_VEHICLES_PER_SUGGESTION),
   })
   .strict()
 

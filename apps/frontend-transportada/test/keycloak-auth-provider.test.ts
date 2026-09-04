@@ -10,9 +10,15 @@ import { readTrustedUrl } from '../src/modules/identity/shared/identityEnvironme
 const ACCESS_TOKEN = 'test-access-token'
 const CALLBACK_URL = 'http://localhost/auth/callback'
 
+/** Um JWT de mentira: só o corpo importa, e é dele que sai quem a sessão conhecia. */
+function tokenFor(claims: Record<string, string>): string {
+  return `x.${btoa(JSON.stringify(claims)).replace(/\+/g, '-').replace(/\//g, '_')}.y`
+}
+
 function createClient(overrides: Partial<KeycloakClient> = {}): KeycloakClient {
   return {
     clearToken: mock(() => undefined),
+    createLoginUrl: mock(() => Promise.resolve(CALLBACK_URL)),
     init: mock(() => Promise.resolve(true)),
     login: mock(() => Promise.resolve()),
     logout: mock(() => Promise.resolve()),
@@ -73,6 +79,7 @@ describe('KeycloakAuthProvider', () => {
   test('reports expiry when the refresh succeeds but leaves no token', async () => {
     const client: KeycloakClient = {
       clearToken: mock(() => undefined),
+      createLoginUrl: mock(() => Promise.resolve(CALLBACK_URL)),
       init: mock(() => Promise.resolve(true)),
       login: mock(() => Promise.resolve()),
       logout: mock(() => Promise.resolve()),
@@ -100,8 +107,35 @@ describe('KeycloakAuthProvider', () => {
     expect(notified).not.toHaveBeenCalled()
   })
 
-  test('restarts authentication only when the application asks for it', async () => {
-    const client = createClient()
+  /**
+   * ⚠️ Achado em staging: a sessão que expira reiniciava **sem** `loginHint`, e o Keycloak caía na
+   * tela genérica dele — "Usuário" e "Senha" juntos —, que não é a tela por onde a pessoa entrou.
+   * Quem já esteve autenticado tem o `preferred_username` no token expirado; perguntá-lo de novo é
+   * jogar fora o que a sessão sabe, e trocar a tela do produto pela de fábrica no meio do uso.
+   */
+  test('restarts authentication carrying who the expired session already knew', async () => {
+    const client = createClient({ token: tokenFor({ preferred_username: 'anderson.filho' }) })
+    const provider = createKeycloakAuthProvider(client, CALLBACK_URL)
+
+    await provider.restartAuthentication()
+
+    expect(client.login).toHaveBeenCalledWith({
+      loginHint: 'anderson.filho',
+      redirectUri: 'http://localhost/auth/callback',
+    })
+  })
+
+  /** Sem token legível não há quem sugerir — e sugerir vazio pediria a tela genérica de propósito. */
+  test('restarts without a hint when the token says nothing', async () => {
+    // `exactOptionalPropertyTypes`: ausência de token é a chave faltando, não a chave com `undefined`.
+    const client: KeycloakClient = {
+      clearToken: mock(() => undefined),
+      createLoginUrl: mock(() => Promise.resolve(CALLBACK_URL)),
+      init: mock(() => Promise.resolve(true)),
+      login: mock(() => Promise.resolve()),
+      logout: mock(() => Promise.resolve()),
+      updateToken: mock(() => Promise.resolve(false)),
+    }
     const provider = createKeycloakAuthProvider(client, CALLBACK_URL)
 
     await provider.restartAuthentication()

@@ -13,6 +13,12 @@
   --transportada-graphite: #1c2b33;
   --transportada-ready: #6aae8c;
   --transportada-slate: #8fa3ad;
+  /* O texto que senta sobre o cobre: no escuro é a tinta escura, no claro é o papel claro. */
+  --transportada-ink-on-accent: #10222c;
+  /* A marca da Ada vira silhueta; o que muda entre os temas é a cor dela, não a regra. */
+  --transportada-mark-filter: brightness(0) invert(1);
+  /* Passar o mouse afasta o cobre do fundo: no escuro isso é clarear, no claro é escurecer. */
+  --transportada-copper-hover: color-mix(in srgb, var(--transportada-copper) 86%, white 14%);
   --transportada-font-body: 'Avenir Next', Avenir, 'Segoe UI', sans-serif;
   --transportada-font-display: Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
   --transportada-font-utility: 'SFMono-Regular', Consolas, monospace;
@@ -25,7 +31,53 @@
   --transportada-space-8: 2rem;
   --transportada-space-10: 2.5rem;
   --transportada-field-height: 3rem;
+  /* O mesmo desenho de olho do `login.ftl`, em máscara, para o `<i>` das páginas herdadas. */
+  --transportada-eye-show: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6'%3E%3Cpath d='M2 12s3.8-6.5 10-6.5S22 12 22 12s-3.8 6.5-10 6.5S2 12 2 12Z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E");
+  --transportada-eye-hide: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6'%3E%3Cpath d='M2 12s3.8-6.5 10-6.5S22 12 22 12s-3.8 6.5-10 6.5S2 12 2 12Z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3Cpath d='m3 3 18 18'/%3E%3C/svg%3E");
   color-scheme: dark;
+}
+
+/**
+ * Tema claro: os mesmos nomes de token com os papéis invertidos, cópia por valor do bloco claro de
+ * `apps/frontend-transportada/src/styles/index.css`.
+ *
+ * Duas portas para a mesma paleta, exatamente como no painel: `data-theme` é a escolha que veio de
+ * lá pela URL de login (ver `js/color-theme.js`), e a media query cobre quem chegou sem escolha
+ * nenhuma. Mudou um valor num bloco? mude no outro — o contrato compara os dois arquivos e os dois
+ * blocos.
+ *
+ * Aqui continua não havendo botão de sol/lua, e a razão é a de sempre: um botão nesta origem
+ * guardaria uma **segunda** preferência, e o mesmo navegador entraria claro e sairia escuro. O que
+ * o parâmetro traz não é escolha nova, é cópia da que o painel já tem — reescrita a cada entrada.
+ */
+:root[data-theme='light'] {
+  color-scheme: light;
+  --transportada-alert: #c2382f;
+  --transportada-asphalt: #f2efe9;
+  --transportada-copper: #a3591f;
+  --transportada-fog: #1d2b33;
+  --transportada-graphite: #fbf9f5;
+  --transportada-ready: #2e7d54;
+  --transportada-slate: #5a6b74;
+  --transportada-ink-on-accent: #faf8f4;
+  --transportada-mark-filter: brightness(0);
+  --transportada-copper-hover: color-mix(in srgb, var(--transportada-copper) 86%, black 14%);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    color-scheme: light;
+    --transportada-alert: #c2382f;
+    --transportada-asphalt: #f2efe9;
+    --transportada-copper: #a3591f;
+    --transportada-fog: #1d2b33;
+    --transportada-graphite: #fbf9f5;
+    --transportada-ready: #2e7d54;
+    --transportada-slate: #5a6b74;
+    --transportada-ink-on-accent: #faf8f4;
+    --transportada-mark-filter: brightness(0);
+    --transportada-copper-hover: color-mix(in srgb, var(--transportada-copper) 86%, black 14%);
+  }
 }
 
 *,
@@ -116,19 +168,11 @@ body {
   );
 }
 
-.brand-description {
-  margin: var(--transportada-space-6) 0 0;
-  max-width: 26rem;
-  color: var(--transportada-fog);
-  font-size: 1rem;
-  line-height: 1.5;
-}
-
 .brand-installation {
   display: flex;
   flex-wrap: wrap;
   gap: var(--transportada-space-2);
-  margin: 0;
+  margin: var(--transportada-space-4) 0 0;
   color: var(--transportada-slate);
   font-family: var(--transportada-font-utility);
   font-size: 0.75rem;
@@ -252,6 +296,25 @@ body {
   height: 1.125rem;
 }
 
+/*
+ * As páginas herdadas do `base` desenham o olho como um `<i>` com classe, não como o par de SVG do
+ * nosso `login.ftl`: o desenho vem de máscara sobre `currentColor`, para o ícone continuar herdando
+ * a cor do botão nos dois temas. Quem troca a máscara é o mesmo `aria-pressed` que o nosso script
+ * escreve — a classe do `<i>` não muda, e é justamente por isso que ela não pode carregar o estado.
+ */
+.field-reveal-icon {
+  width: 1.125rem;
+  height: 1.125rem;
+  background-color: currentColor;
+  -webkit-mask: var(--transportada-eye-show) center / contain no-repeat;
+  mask: var(--transportada-eye-show) center / contain no-repeat;
+}
+
+.field-reveal[aria-pressed='true'] .field-reveal-icon {
+  -webkit-mask-image: var(--transportada-eye-hide);
+  mask-image: var(--transportada-eye-hide);
+}
+
 .field-reveal [data-icon='hide'],
 .field-reveal[aria-pressed='true'] [data-icon='show'] {
   display: none;
@@ -293,6 +356,25 @@ a:focus-visible {
   accent-color: var(--transportada-copper);
 }
 
+/*
+ * O `base` escreve o "sair dos outros dispositivos" como `.checkbox`, com o campo dentro do rótulo
+ * e sem classe nenhuma no `input`. Sem estas duas regras ele sai colado no texto, com a caixa de
+ * 13px do navegador e a cor do sistema em vez do cobre.
+ */
+.checkbox label {
+  display: flex;
+  align-items: center;
+  gap: var(--transportada-space-2);
+  color: var(--transportada-slate);
+  font-size: 0.875rem;
+}
+
+.checkbox input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--transportada-copper);
+}
+
 .action {
   display: inline-flex;
   align-items: center;
@@ -302,7 +384,7 @@ a:focus-visible {
   padding: var(--transportada-space-3) var(--transportada-space-4);
   border: 1px solid transparent;
   border-radius: 0;
-  color: var(--transportada-asphalt);
+  color: var(--transportada-ink-on-accent);
   font: inherit;
   font-weight: 700;
   background: var(--transportada-copper);
@@ -310,7 +392,7 @@ a:focus-visible {
 }
 
 .action:hover {
-  background: color-mix(in srgb, var(--transportada-copper) 86%, white 14%);
+  background: var(--transportada-copper-hover);
 }
 
 .action:disabled {
@@ -448,15 +530,16 @@ a:focus-visible {
 
 /*
  * O gradiente azul da marca é feito para fundo claro: sobre o asfalto a ponta escura some. O próprio
- * site da Ada resolve assim no rodapé escuro dele — a marca vira silhueta branca, e é essa a regra
- * que se copia aqui, não uma cor inventada.
+ * site da Ada resolve assim no rodapé escuro dele — a marca vira silhueta, e é essa a regra que se
+ * copia aqui, não uma cor inventada. A cor da silhueta é do tema: branca sobre o escuro, preta
+ * sobre o claro, onde a branca desapareceria.
  */
 .colophon-mark {
   flex: none;
   /* A marca não é quadrada: travar os dois lados a amassaria. Altura manda, largura acompanha. */
   width: auto;
   height: 1.5rem;
-  filter: brightness(0) invert(1);
+  filter: var(--transportada-mark-filter);
   opacity: 0.8;
 }
 

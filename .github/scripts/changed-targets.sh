@@ -9,9 +9,13 @@ usage() {
 
 paths_of() {
   case "$1" in
-    api) echo 'apps/api-transportada/ deploy/api/ deploy/keycloak/ realm/' ;;
-    frontend) echo 'apps/frontend-transportada/ deploy/frontend/' ;;
-    client) echo 'apps/frontend-client/' ;;
+    # Spec 078: a API e as apps que validam o corpo dela sobem JUNTAS. O cliente valida por chaves
+    # exatas — campo novo servido por uma ponta e desconhecido pela outra derruba a tela, e a guarda
+    # nao pode ser afrouxada porque ela e defesa contra vazamento de token e de identidade de tenant.
+    # A landing fica de fora: ela nao valida corpo da API.
+    api) echo 'apps/api-transportada/ apps/frontend-transportada/ apps/frontend-client/ deploy/api/ deploy/keycloak/ realm/' ;;
+    frontend) echo 'apps/frontend-transportada/ apps/api-transportada/ deploy/frontend/' ;;
+    client) echo 'apps/frontend-client/ apps/api-transportada/' ;;
     landing) echo 'apps/frontend-landing/' ;;
     worker) echo 'apps/worker-transportada/ deploy/worker/' ;;
     cron) echo 'apps/cron-transportada/ deploy/cron/' ;;

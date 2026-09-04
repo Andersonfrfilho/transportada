@@ -4,6 +4,12 @@
 export type DriverTripDocument = Readonly<{
   accessKey: string
   deliveredAt: string | null
+  /**
+   * Spec 082 (revisão): a configuração do comprovante é do **documento** — a exceção por CNPJ do
+   * destinatário muda nota a nota. `null` quando o snapshot ainda não traz o campo — o app cai no
+   * `deliveryProof` da parada e, na ausência dos dois, no padrão.
+   */
+  deliveryProof: DriverDeliveryProofSettings | null
   grossWeight: string
   id: string
   number: string
@@ -25,9 +31,21 @@ export type DriverStopSchedule = Readonly<{
   status: string
 }>
 
+/** Spec 082 D4: o painel decide o que o comprovante colhe — por empresa, com exceção por CNPJ. */
+export type ProofFieldRequirement = 'off' | 'optional' | 'required'
+
+export type DriverDeliveryProofSettings = Readonly<{
+  photo: ProofFieldRequirement
+  receiverDocument: ProofFieldRequirement
+  receiverName: ProofFieldRequirement
+  signature: ProofFieldRequirement
+}>
+
 export type DriverTripStop = Readonly<{
   arrivedAt: string | null
   completedAt: string | null
+  /** `null` quando o snapshot ainda não traz configuração — o app aplica o padrão. */
+  deliveryProof: DriverDeliveryProofSettings | null
   deliveryWindowEnd: string | null
   deliveryWindowStart: string | null
   documents: readonly DriverTripDocument[]
@@ -71,15 +89,18 @@ export const DRIVER_RETURN_REASONS = [
 ] as const
 export type DriverReturnReason = (typeof DRIVER_RETURN_REASONS)[number]
 
-/** ⚠️ Cópia por valor de `TRIP_STOP_OCCURRENCE_KINDS`. */
+/**
+ * ⚠️ Cópia por valor de `TRIP_STOP_OCCURRENCE_KINDS`.
+ *
+ * **Só o que é da parada.** Três valores saíram em 2026-09-03 — `damaged_goods` e
+ * `address_not_found` são da nota e já são motivo de devolução; `customer_closed` era
+ * `establishment_closed` com outro nome. Eram duas portas para o mesmo fato na mesma tela.
+ */
 export const DRIVER_OCCURRENCE_KINDS = [
   'unexpected_charge',
   'long_wait',
   'dock_closed',
   'appointment_required',
-  'damaged_goods',
-  'address_not_found',
-  'customer_closed',
   'other',
 ] as const
 export type DriverOccurrenceKind = (typeof DRIVER_OCCURRENCE_KINDS)[number]
@@ -123,3 +144,23 @@ export type DriverFieldReport =
       occurrenceKind: DriverOccurrenceKind
       stopId: string
     }>
+
+/**
+ * Spec 079: o tipo de ocorrência que a empresa cadastrou, como o motorista o vê.
+ *
+ * ⚠️ A lista **vem do servidor**: ela deixou de ser cópia por valor quando os tipos viraram
+ * cadastro. O motorista só enxerga os de `delivery` ativos — o galpão não é dele.
+ */
+export type DriverOccurrenceType = Readonly<{
+  active: boolean
+  id: string
+  name: string
+  stage: 'delivery' | 'separation'
+}>
+
+/** O que a tela dele oferece: rua, ativo, e nada mais. */
+export function driverSelectableOccurrenceTypes(
+  types: readonly DriverOccurrenceType[],
+): readonly DriverOccurrenceType[] {
+  return types.filter((type) => type.active && type.stage === 'delivery')
+}

@@ -281,6 +281,12 @@ export type TableViewPreferencesController = Readonly<{
 }>
 
 type UseNfeDocumentTableParams = Readonly<{
+  /**
+   * Deixa marcar nota sem CT-e e sem NFS-e possíveis. A listagem de notas não deixa, porque ali a
+   * seleção existe para emitir; a viagem deixa, porque é operação **não fiscal** e a carga sai do
+   * mesmo jeito.
+   */
+  allowBlocked?: boolean
   documents: readonly NfeDocumentListItem[]
   preferences?: TableViewPreferencesController
   statusLabels: Readonly<Record<DocumentStatus, string>>
@@ -339,6 +345,24 @@ export type UseNfeDocumentTableResult = Readonly<{
   toggleSelectAll: () => void
   toggleSort: (column: SortColumn) => void
   totalFiltered: number
+  /**
+   * Marca ou desmarca **todo o resultado do filtro**, não a página. Sem isto, juntar quinze notas
+   * espalhadas em três páginas obrigava a paginar marcando de página em página — e o total na barra
+   * nunca batia com o que o filtro dizia ter encontrado.
+   *
+   * Alterna, e não só marca: quem marcou trezentas por engano precisa de um clique para desfazer,
+   * não de trezentos. Desmarca **só o que o filtro alcança** — o que foi escolhido sob outro filtro
+   * continua escolhido, porque tirá-lo seria apagar trabalho que a tela não está mostrando.
+   */
+  toggleAllFiltered: () => void
+  /** Verdadeiro quando todo o resultado do filtro já está marcado — é o que inverte o rótulo. */
+  allFilteredSelected: boolean
+  /**
+   * O resultado inteiro do filtro, e não só a página. Quem monta um lote quer "todas as quinze da
+   * AMARELINHA", não "as quinze que couberam nesta página" — e sem isto a tela teria de repaginar
+   * para juntá-las, marcando página por página.
+   */
+  filteredDocuments: readonly NfeDocumentListItem[]
   updateCondition: (groupId: string, conditionId: string, changes: ConditionChanges) => void
   visibleSelected: () => readonly NfeDocumentListItem[]
 }>
@@ -590,31 +614,41 @@ export function countBlockedDocuments(documents: readonly NfeDocumentListItem[])
 }
 
 export function toggleDocumentSelection({
+  allowBlocked = false,
   documentId,
   documents,
   selectedIds,
 }: {
+  /**
+   * "Bloqueada" aqui é bloqueio **fiscal** — sem CT-e e sem NFS-e possíveis. A viagem é operação
+   * não fiscal: a nota continua sendo carga que sai no caminhão, e recusá-la na seleção esconderia
+   * do operador exatamente o que ele precisa carregar. Padrão `false` mantém a listagem de notas,
+   * onde a seleção existe para emitir.
+   */
+  readonly allowBlocked?: boolean
   readonly documentId: string
   readonly documents: readonly NfeDocumentListItem[]
   readonly selectedIds: ReadonlySet<string>
 }): ReadonlySet<string> {
   const document = documents.find((candidate) => candidate.id === documentId)
-  if (document !== undefined && isDocumentBlocked(document)) return selectedIds
+  if (!allowBlocked && document !== undefined && isDocumentBlocked(document)) return selectedIds
   return toggleSetValue(selectedIds, documentId)
 }
 
 export function toggleAllDocumentSelection({
+  allowBlocked = false,
   allSelected,
   pageItems,
   selectedIds,
 }: {
+  readonly allowBlocked?: boolean
   readonly allSelected: boolean
   readonly pageItems: readonly NfeDocumentListItem[]
   readonly selectedIds: ReadonlySet<string>
 }): ReadonlySet<string> {
   const next = new Set(selectedIds)
   for (const item of pageItems) {
-    if (isDocumentBlocked(item)) continue
+    if (!allowBlocked && isDocumentBlocked(item)) continue
     if (allSelected) next.delete(item.id)
     else next.add(item.id)
   }
@@ -733,6 +767,7 @@ function createInitialAdvancedFilter(nextId: () => string): AdvancedFilterModel 
 }
 
 export function useNfeDocumentTable({
+  allowBlocked = false,
   documents,
   preferences,
 }: UseNfeDocumentTableParams): UseNfeDocumentTableResult {
@@ -1046,14 +1081,37 @@ export function useNfeDocumentTable({
 
   function toggleRow(id: string): void {
     setSelectedIds((current) =>
-      toggleDocumentSelection({ documentId: id, documents: pageItems, selectedIds: current }),
+      toggleDocumentSelection({
+        allowBlocked,
+        documentId: id,
+        documents: pageItems,
+        selectedIds: current,
+      }),
     )
   }
 
   function toggleSelectAll(): void {
     setSelectedIds((current) =>
-      toggleAllDocumentSelection({ allSelected, pageItems, selectedIds: current }),
+      toggleAllDocumentSelection({ allowBlocked, allSelected, pageItems, selectedIds: current }),
     )
+  }
+
+  const selectableFilteredIds = sorted
+    .filter((document) => allowBlocked || !isDocumentBlocked(document))
+    .map((document) => document.id)
+  const allFilteredSelected =
+    selectableFilteredIds.length > 0 && selectableFilteredIds.every((id) => selectedIds.has(id))
+
+  /** A paginação é da tela, não da escolha: o que se alterna aqui é o resultado inteiro do filtro. */
+  function toggleAllFiltered(): void {
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      for (const id of selectableFilteredIds) {
+        if (allFilteredSelected) next.delete(id)
+        else next.add(id)
+      }
+      return next
+    })
   }
 
   function clearSelection(): void {
@@ -1131,9 +1189,12 @@ export function useNfeDocumentTable({
     stateOptions,
     toggleColumn,
     toggleRow,
+    allFilteredSelected,
+    toggleAllFiltered,
     toggleSelectAll,
     toggleSort,
     totalFiltered,
+    filteredDocuments: sorted,
     updateCondition,
     visibleSelected,
   }

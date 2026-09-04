@@ -232,11 +232,25 @@ describe('local Keycloak realm contract', () => {
       standardFlowEnabled: true,
     })
     expect(spaClient.attributes?.['pkce.code.challenge.method']).toBe('S256')
+    /**
+     * ⚠️ **Duas origens no mesmo cliente SPA: o painel e o portal do contratante.** A ADR-0050 §1
+     * faz do portal uma app própria — build, bundle e domínio separados —, mas ela entra pelo
+     * **mesmo** realm e pelo mesmo cliente público: quem separa os dois é o papel `contractor` e o
+     * vínculo em `contractor_portal_bindings`, não uma segunda identidade.
+     *
+     * ⚠️ Este contrato ficou desatualizado por uma sessão inteira: as origens do portal entraram no
+     * realm sem passar por aqui, e o `gate / integration` reprovou em todo push desde então. A lista
+     * é dita por extenso de propósito — origem nova em cliente público é permissão de rede, e
+     * precisa de alguém escrevendo que a quis.
+     */
     expect(spaClient.attributes?.['post.logout.redirect.uris']).toBe(
-      'http://localhost:53000/*##http://localhost:53000',
+      'http://localhost:53000/*##http://localhost:53000##http://localhost:53100/*##http://localhost:53100',
     )
-    expect(spaClient.redirectUris).toEqual(['http://localhost:53000/auth/callback'])
-    expect(spaClient.webOrigins).toEqual(['http://localhost:53000'])
+    expect(spaClient.redirectUris).toEqual([
+      'http://localhost:53000/auth/callback',
+      'http://localhost:53100/auth/callback',
+    ])
+    expect(spaClient.webOrigins).toEqual(['http://localhost:53000', 'http://localhost:53100'])
     expect(apiClient).toMatchObject({
       directAccessGrantsEnabled: false,
       implicitFlowEnabled: false,

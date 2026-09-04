@@ -82,7 +82,8 @@
   },
   "tabs": {
     "documents": "Invoices",
-    "imports": "Imports"
+    "imports": "Imports",
+    "addresses": "Addresses"
   },
   "mechanism": {
     "section": "Import source",
@@ -115,7 +116,8 @@
     },
     "chooseYear": "Choose the year",
     "openCalendar": "Open calendar",
-    "tripLink": "Travelled on this trip"
+    "tripLink": "This note is on a trip",
+    "tripLinkWithStatus": "This note is on a trip — {{status}}"
   },
   "documentStatus": {
     "authorized": "Authorized",
@@ -242,5 +244,33 @@
   "cargoWeightEnabled": "Estimating {{weight}} kg per volume. The weight stated by the issuer always wins.",
   "cargoWeightInvalid": "Enter a weight above zero, with up to four decimal places.",
   "cargoWeightSave": "Save default weight",
-  "cargoWeightClear": "Turn estimate off"
+  "cargoWeightClear": "Turn estimate off",
+  "addressReport": {
+    "tab": "Addresses",
+    "title": "Addresses to fix",
+    "summary": "{{needingAttention}} of {{measured}} measured addresses need a cadastre fix.",
+    "empty": "No address needs fixing. All {{measured}} measured are fine.",
+    "notMeasured": "No address has been measured yet.",
+    "denied": "You do not have permission to see this report.",
+    "failed": "Could not load the report.",
+    "noteLabel": "In the cadastre",
+    "providerLabel": "The provider knows",
+    "unknownStreet": "does not know this street",
+    "distance": "{{metres}} m from the point we use today",
+    "contractorWithout": "No issuer identified",
+    "kind": {
+      "street_unknown": "Street not found",
+      "city_mismatch": "Falls in another municipality",
+      "street_different": "Different street",
+      "postal_code_stale": "Generic postal code",
+      "street_incomplete": "Incomplete name"
+    },
+    "kindHelp": {
+      "street_unknown": "The provider cannot find this street in this municipality. No coordinate fixes that — the text must be corrected at the source.",
+      "city_mismatch": "The address resolves in a municipality other than the one the invoice declares. The result was discarded.",
+      "street_different": "The provider found a street with a different name at the same postal code and number.",
+      "postal_code_stale": "The cadastre holds the city-wide postal code. The street-level one makes the address lookup free.",
+      "street_incomplete": "The same street with a shorter name in the cadastre. Delivery arrives; the cadastre is just abbreviated."
+    }
+  }
 }

@@ -5,6 +5,8 @@ import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { type SQL, and, desc, eq, inArray, isNull, lt, ne, or, sum } from 'drizzle-orm'
 
 import { companyCargoSettings } from '../../database/company-cargo-settings.schema.js'
+import { geocodedAddresses } from '../../database/geocoding.schema.js'
+import { buildStopAddressKey } from '../../trips/domain/stop-address-key.js'
 import { cteBatchItemDocuments, cteBatches } from '../../database/cte-batch.schema.js'
 import { nfseServiceInvoiceDocuments, nfseServiceInvoices } from '../../database/nfse.schema.js'
 import {
@@ -37,6 +39,24 @@ type StoredObjectRecord = typeof storedObjects.$inferSelect
 
 type ParticipantDetail = {
   readonly address: string | null
+  /**
+   * O número **cru**, ao lado do endereço já composto. Ele entra na chave da parada
+   * (`buildStopAddressKey`), e extraí-lo de volta do texto composto seria uma segunda regra de
+   * normalização — a que diverge em silêncio.
+   */
+  readonly addressNumber: string | null
+  /**
+   * Onde o endereço fica, quando a cascata de geocodificação já o resolveu (ADR-0044 §3).
+   *
+   * ⚠️ A **precisão viaja junto, e é obrigatória na tela**: `city` é centroide de município, palpite
+   * de quilômetros, e a ADR-0044 §5 exige que ela apareça marcada em vez de passar por endereço.
+   * Servir a coordenada sem a precisão é o modo de falha da §1 — número plausível, sem aviso.
+   */
+  readonly latitude: string | null
+  readonly longitude: string | null
+  readonly locationPrecision: string | null
+  /** O CEP cru, sem máscara: quem imprime decide o traço, e o banco guarda oito dígitos. */
+  readonly postalCode: string | null
   readonly city: string | null
   readonly cityCode: string | null
   readonly name: string
@@ -51,6 +71,11 @@ type DocumentParticipants = {
 
 const EMPTY_PARTICIPANT: ParticipantDetail = {
   address: null,
+  addressNumber: null,
+  latitude: null,
+  longitude: null,
+  locationPrecision: null,
+  postalCode: null,
   city: null,
   cityCode: null,
   name: '',
@@ -359,6 +384,41 @@ export class DrizzleNfeDocumentRepository implements NfeDocumentRepositoryPort {
     }
   }
 
+  /**
+   * ⚠️ `geocoded_addresses` **não tem `company_id`** — a chave é o endereço, e onde uma rua fica não
+   * é dado de empresa. O recorte por tenant continua existindo onde importa: as chaves consultadas
+   * saem dos documentos que a consulta já filtrou por `companyId`, então esta tabela nunca é a porta
+   * por onde um endereço de outra empresa entraria.
+   */
+  private async loadGeocodedAddresses(
+    keys: readonly string[],
+  ): Promise<Map<string, Readonly<{ latitude: string; longitude: string; precision: string }>>> {
+    const located = new Map<
+      string,
+      Readonly<{ latitude: string; longitude: string; precision: string }>
+    >()
+    if (keys.length === 0) return located
+
+    const rows = await this.database
+      .select({
+        addressKey: geocodedAddresses.addressKey,
+        latitude: geocodedAddresses.latitude,
+        longitude: geocodedAddresses.longitude,
+        precision: geocodedAddresses.precision,
+      })
+      .from(geocodedAddresses)
+      .where(inArray(geocodedAddresses.addressKey, [...keys]))
+
+    for (const row of rows) {
+      located.set(row.addressKey, {
+        latitude: row.latitude,
+        longitude: row.longitude,
+        precision: row.precision,
+      })
+    }
+    return located
+  }
+
   private async loadParticipants(
     companyId: string,
     documentIds: readonly string[],
@@ -375,6 +435,7 @@ export class DrizzleNfeDocumentRepository implements NfeDocumentRepositoryPort {
         cityCode: nfeAddresses.cityCode,
         district: nfeAddresses.district,
         number: nfeAddresses.number,
+        postalCode: nfeAddresses.postalCode,
         state: nfeAddresses.state,
         street: nfeAddresses.street,
       })
@@ -392,10 +453,32 @@ export class DrizzleNfeDocumentRepository implements NfeDocumentRepositoryPort {
           inArray(nfeParticipants.documentId, [...documentIds]),
         ),
       )
+    /**
+     * A chave é montada **em memória**, com a mesma `buildStopAddressKey` da parada, e não por
+     * expressão SQL: normalizar CEP e número no Postgres seria uma segunda implementação da regra,
+     * e duas normalizações que discordam produzem endereço que existe na tabela e não é achado.
+     */
+    const keyByRow = new Map<(typeof rows)[number], string>()
     for (const row of rows) {
+      const key = buildStopAddressKey({
+        cityCode: row.cityCode,
+        number: row.number,
+        postalCode: row.postalCode,
+      })
+      if (key !== null) keyByRow.set(row, key)
+    }
+    const located = await this.loadGeocodedAddresses([...new Set(keyByRow.values())])
+
+    for (const row of rows) {
+      const coordinate = located.get(keyByRow.get(row) ?? '')
       const detail: ParticipantDetail = {
         address: composeAddress(row.street, row.number, row.district),
+        addressNumber: row.number,
         city: row.city,
+        latitude: coordinate?.latitude ?? null,
+        longitude: coordinate?.longitude ?? null,
+        locationPrecision: coordinate?.precision ?? null,
+        postalCode: row.postalCode,
         cityCode: row.cityCode,
         name: row.legalName ?? '',
         state: row.state,
@@ -469,6 +552,11 @@ function mapSummary(
     number: document.number,
     recipientAddress: recipient.address,
     recipientCity: recipient.city,
+    recipientPostalCode: recipient.postalCode,
+    recipientAddressNumber: recipient.addressNumber,
+    recipientLatitude: recipient.latitude,
+    recipientLongitude: recipient.longitude,
+    recipientLocationPrecision: recipient.locationPrecision,
     recipientCityCode: recipient.cityCode,
     recipientName: recipient.name,
     recipientState: recipient.state,

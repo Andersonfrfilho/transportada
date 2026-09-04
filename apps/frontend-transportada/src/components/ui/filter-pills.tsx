@@ -1,12 +1,14 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { JSX } from 'react'
 
-import { Icon } from '@/components/ui/icon'
+import { Icon, type IconName } from '@/components/ui/icon'
 
 import styles from './filter-pills.module.css'
 
 export type FilterPill = Readonly<{
   id: string
+  /** Símbolo do que a pílula representa; decorativo, então o texto continua dizendo tudo. */
+  icon?: IconName
   label: string
   onRemove: () => void
   removeLabel: string
@@ -47,6 +49,7 @@ export function FilterPills({
           className={pill.onEdit === undefined ? styles.pill : styles.pillEditable}
           key={pill.id}
         >
+          {pill.icon === undefined ? null : <Icon aria-hidden="true" name={pill.icon} size="sm" />}
           <span className={styles.label}>{pill.label}</span>
           {pill.onEdit === undefined ? (
             <span className={styles.value}>{pill.value}</span>

@@ -54,6 +54,8 @@
     "selectionCount_other": "{{count}} documents selected",
     "selectionClear": "Clear selection",
     "progressLabel": "Trip separation progress",
+    "processCount": "{{reached}} of {{total}}",
+    "processReturned": "{{count}} invoice(s) returned — outside the flow",
     "arrivedAt": "Arrived at {{time}}",
     "completedAt": "Completed at {{time}}"
   },
@@ -88,6 +90,7 @@
   "actions": {
     "title": "Actions",
     "view": "View",
+    "viewTrip": "Open the trip for {{vehicle}}",
     "create": "Create trip",
     "resetCreation": "Clear draft",
     "deliver": "Mark delivered",
@@ -105,6 +108,7 @@
     "batchSeparate": "Separate {{count}} document(s)",
     "batchLoad": "Load {{count}} document(s)",
     "batchReturn": "Return {{count}} document(s)",
+    "generateCteSelection": "Issue CT-e for {{count}} selected invoice(s)",
     "planRoute": "Plan route",
     "dispatch": "Dispatch",
     "cancel": "Cancel trip",
@@ -245,5 +249,248 @@
     "dispenseTitle": "Waive the MDF-e for this trip",
     "dispenseSubtitle": "This trip carries CT-e notes. Travelling without a manifest means fines and roadside seizure — the reason is recorded.",
     "dispenseReasonLabel": "Reason for waiving"
+  },
+  "destinationOrigin": {
+    "delivery": "Delivery",
+    "deliveryHint": "The address came from the note’s delivery field, not from the recipient’s registration"
+  },
+  "assemblyMap": {
+    "empty": "No city to draw yet — scan or select a note.",
+    "moveDown": "Move {{label}} down",
+    "moveUp": "Move {{label}} up",
+    "nearby": "Nearby and left out: {{cities}}.",
+    "nearbyLabel": "Outside the selection: {{label}}",
+    "propose": "Propose order",
+    "proposeHint": "The proposal links cities by straight-line proximity. Road distance comes from the router once the trip exists.",
+    "stopLabel": "Stop {{sequence}}: {{label}}",
+    "title": "Assembly map",
+    "unmapped": "No shape in the IBGE mesh: {{cities}}.",
+    "nearbyMore": "Nearby and left out: {{cities}} and {{count}} more cities.",
+    "basemapLabel": "City boundary",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "recenter": "Recentre the map",
+    "legTime": "{{distance}} km · {{duration}} to the next stop",
+    "totalTime": "Route time: {{duration}} — road measured by the router, plus 20 min stopped per delivery.",
+    "traceLabel": "Stop order",
+    "trace": {
+      "road": "The line is the road the router returned.",
+      "straight": "The line is straight between stops — the router has not answered for this leg."
+    },
+    "withoutBasemap": "Street map unavailable — points and order are still valid",
+    "theme": "Switch the map to {{theme}}",
+    "themes": {
+      "claro": "light",
+      "contraste": "high contrast",
+      "escuro": "dark"
+    },
+    "loading": "Loading the assembly map",
+    "solve": "Best route",
+    "solving": "Solving…",
+    "solveNeedsVehicle": "The best route uses the router — pick the vehicle, since its capacity changes the path.",
+    "solveFailed": "The router did not answer. The current order still stands.",
+    "finish": "Predicted finish {{time}} · {{distance}} km · {{total}} of route.",
+    "finishWarning": "⚠️ Falls on {{reasons}} — check whether anyone is working.",
+    "approximate": "⚠️ Approximate position — only the municipality is known; the point is its centre."
+  },
+  "quickCreate": {
+    "title": "New trip",
+    "intro": "Scan or type the access key of the invoices leaving together. Only invoices not already on a trip come in.",
+    "accessKey": "Access key",
+    "accessKeyPlaceholder": "44 characters printed under the barcode",
+    "add": "Add",
+    "scan": "Scan with the camera",
+    "close": "Close",
+    "cancel": "Cancel",
+    "submit": "Create trip",
+    "remove": "Remove this invoice",
+    "empty": "No invoice scanned yet.",
+    "resolving": "Looking the invoice up…",
+    "staged": "Ready to join",
+    "stagedCount": "{{count}} invoice joins the trip.",
+    "stagedCount_other": "{{count}} invoices join the trip.",
+    "failed": "Could not create the trip. Check the invoices and try again.",
+    "refusal": {
+      "alreadyOnTrip": "Already on another trip",
+      "lookupFailed": "Could not look it up",
+      "notAuthorized": "Not authorised at SEFAZ",
+      "notFound": "Not found in this company"
+    },
+    "issue": {
+      "noDocument": "Scan at least one available invoice.",
+      "driverRequired": "Select at least one driver.",
+      "vehicleRequired": "Select the trip vehicle."
+    },
+    "search": "Search invoices",
+    "searchTerm": "Search",
+    "searchTermPlaceholder": "Issuer, recipient or key",
+    "searchResult": "{{count}} invoice found.",
+    "searchResult_other": "{{count}} invoices found.",
+    "selectAll": "Select all on this page",
+    "stageSelected": "Add {{count}} invoice",
+    "stageSelected_other": "Add {{count}} invoices",
+    "stageFiltered": "Add all {{count}} from the filter",
+    "columns": {
+      "number": "Invoice",
+      "recipient": "Recipient",
+      "address": "Address",
+      "city": "City"
+    },
+    "selectAllFiltered": "Select all {{count}} from the filter",
+    "clearFilteredSelection": "Unselect all {{count}} from the filter"
+  },
+  "routeAssembly": {
+    "title": "Build a route from the invoice search",
+    "intro": "Search the invoices leaving together with the same filters as the invoice list, then pick the fleet. The router splits the load across the vehicles and creates one trip for each.",
+    "drivers": "Drivers",
+    "vehicles": "Vehicles",
+    "vehiclesPlaceholder": "Choose vehicles",
+    "vehiclesSearch": "Search by plate, make or model",
+    "vehiclesNoMatch": "No vehicle found",
+    "vehiclesSummary": "{{count}} vehicle chosen",
+    "vehiclesSummary_other": "{{count}} vehicles chosen",
+    "vehiclesRemove": "Remove this vehicle",
+    "vehiclesClearAll": "Remove all",
+    "selection": "{{count}} invoice in the pool",
+    "selection_other": "{{count}} invoices in the pool",
+    "alreadyOnTrip": "{{count}} is already on another trip and stays out.",
+    "alreadyOnTrip_other": "{{count}} are already on another trip and stay out.",
+    "submit": "Build route",
+    "pending": "Routing…",
+    "loadingDocuments": "Loading invoices…",
+    "outcomeAutomatic": "{{count}} trip created from the recommendation.",
+    "outcomeAutomatic_other": "{{count}} trips created from the recommendation.",
+    "failure": {
+      "timeout": "The router did not answer in time. The request is still queued and will run once the service is back — follow the trips instead of asking again, because a second request routes the same invoices twice.",
+      "stale": "The invoices changed while the route was being built. Search again and ask once more.",
+      "network": "Could not reach the server. Check the connection and try again.",
+      "unknown": "Could not build the route. Give this code to support: {{code}}."
+    },
+    "issue": {
+      "driverRequired": "Select at least one driver.",
+      "vehicleRequired": "Select at least one vehicle.",
+      "noDocument": "Add at least one available invoice from the search."
+    },
+    "boundByDriver": "{{count}} vehicle came with the driver and only leaves the trip if the driver does.",
+    "boundByDriver_other": "{{count}} vehicles came with the drivers and only leave the trip if they do.",
+    "allDrivers": "All ({{count}})",
+    "clearDrivers": "None",
+    "allVehicles": "All ({{count}})",
+    "clearVehicles": "None"
+  },
+  "valuation": {
+    "title": "What this trip earns and costs",
+    "revenue": "Expected revenue",
+    "cost": "Expected cost",
+    "margin": "Margin",
+    "loading": "Working out the numbers…",
+    "empty": "Pick the invoices and the vehicle to see the numbers.",
+    "gaps": "Still missing: {{reasons}}.",
+    "gap": {
+      "FEATURE_ABSENT": "module not in use yet",
+      "NO_DRIVER_RATE": "no rate registered for the aggregate route",
+      "NO_FEDERAL_REGIME": "federal regime not declared",
+      "NO_FREIGHT_RULE": "no freight rule for the destination",
+      "NO_FUEL_BASELINE": "vehicle consumption or fuel price not registered",
+      "NO_PLANNED_DISTANCE": "route not calculated yet — fuel comes after",
+      "NOT_RECORDED": "nobody recorded it",
+      "SALARIED_CREW_MEMBER": "salaried driver on board — a period cost, not a trip cost"
+    },
+    "operating": "Operating cost",
+    "taxes": "Tax on the freight"
+  },
+  "table": {
+    "copyPlate": "Copy plate {{plate}}",
+    "plateCopied": "Plate copied",
+    "withoutDriver": "No driver"
+  },
+  "deliveryProofSettings": {
+    "title": "Delivery proof",
+    "hint": "What the driver must collect on delivery. Without a saved configuration the factory default applies: document off, everything else offered.",
+    "error": "Could not load or save the delivery proof configuration.",
+    "save": "Save configuration",
+    "fields": {
+      "receiverName": "Receiver name",
+      "receiverDocument": "Receiver document",
+      "signature": "Signature",
+      "photo": "Photo"
+    },
+    "modes": {
+      "required": "Required",
+      "optional": "Optional",
+      "off": "Off"
+    },
+    "overrides": {
+      "title": "Exceptions by recipient",
+      "hint": "An exception keyed by the recipient tax id replaces the general configuration entirely.",
+      "empty": "No exceptions registered.",
+      "taxId": "Recipient CNPJ or CPF",
+      "add": "Add exception",
+      "remove": "Remove"
+    }
+  },
+  "occurrence": {
+    "emailTemplate": "Email template",
+    "emailTemplateNone": "No email",
+    "legacyTemplate": "{{subject}} — own template (legacy)",
+    "editTemplates": "Edit email templates"
+  },
+  "occurrenceFeed": {
+    "kicker": "Operations",
+    "title": "Occurrences",
+    "intro": "Everything that happened to the company trips' documents and stops, in a single list.",
+    "tableTitle": "Recorded occurrences",
+    "empty": "No occurrence found for the applied filter.",
+    "loadMore": "Load more",
+    "loadingMore": "Loading…",
+    "notified": "Notice sent",
+    "columns": {
+      "createdAt": "Time",
+      "stage": "Group",
+      "typeName": "Type",
+      "vehiclePlate": "Plate",
+      "driverName": "Driver",
+      "stopLabel": "Stop",
+      "invoice": "Invoice",
+      "notified": "Notice"
+    },
+    "columnsMenu": {
+      "title": "Columns",
+      "moveUp": "Move up",
+      "moveDown": "Move down"
+    },
+    "stage": {
+      "separation": "Separation",
+      "delivery": "Delivery",
+      "stop": "Stop"
+    },
+    "kind": {
+      "unexpected_charge": "Unexpected charge",
+      "long_wait": "Long wait",
+      "dock_closed": "Dock closed",
+      "appointment_required": "Appointment required",
+      "other": "Other"
+    },
+    "filters": {
+      "title": "Filters",
+      "stage": "Group",
+      "stageEmpty": "No group found",
+      "stageSearch": "Search group",
+      "stageSummary": "{{count}} selected",
+      "removeStage": "Remove group",
+      "types": "Types",
+      "typesPlaceholder": "Comma-separated names",
+      "plates": "Plates",
+      "platesPlaceholder": "Comma-separated plates",
+      "createdRange": "Period"
+    },
+    "detail": {
+      "title": "Detail",
+      "open": "Details",
+      "close": "Close",
+      "noDescription": "No description recorded.",
+      "photoAlt": "Photo attached to the occurrence",
+      "closePhoto": "Close photo"
+    }
   }
 }

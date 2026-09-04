@@ -14,6 +14,10 @@ const CALENDAR_STYLES_PATH = 'src/components/ui/date-range-picker.module.css'
 type FloatingLayerModule = Readonly<{
   FLOATING_LAYER_GAP: number
   FLOATING_LAYER_MIN_HEIGHT: number
+  isAnchorVisible: (input: {
+    anchor: { bottom: number; left: number; right: number; top: number; width: number }
+    viewport: { height: number; width: number }
+  }) => boolean
   FLOATING_LAYER_VIEWPORT_MARGIN: number
   resolveFloatingLayerPosition: (
     input: Readonly<{
@@ -113,6 +117,44 @@ describe('design system floating layer contract', () => {
     expect(cramped.bottom).toBeGreaterThanOrEqual(0)
   })
 
+  /**
+   * O piso de altura é o que mantinha a camada vazando: com pouco espaço abaixo e uma lista curta,
+   * a camada ficava colada no gatilho com 96px e terminava fora da janela, empurrando o scroll da
+   * página. Aqui o que se afirma é a borda de baixo, não a altura.
+   */
+  test('keeps a short layer inside the viewport when the minimum height exceeds the space below', async () => {
+    const { FLOATING_LAYER_VIEWPORT_MARGIN, resolveFloatingLayerPosition } =
+      await loadFloatingLayer()
+
+    const viewport = { height: 320, width: VIEWPORT.width }
+    const position = resolveFloatingLayerPosition({
+      anchor: { bottom: 300, left: 200, right: 320, top: 268, width: 120 },
+      layer: { height: 10, width: 160 },
+      viewport,
+    })
+
+    expect(position.top).not.toBeNull()
+    expect((position.top ?? 0) + position.maxHeight).toBeLessThanOrEqual(
+      viewport.height - FLOATING_LAYER_VIEWPORT_MARGIN,
+    )
+  })
+
+  test('never asks for a layer taller than the viewport', async () => {
+    const { FLOATING_LAYER_VIEWPORT_MARGIN, resolveFloatingLayerPosition } =
+      await loadFloatingLayer()
+
+    const viewport = { height: 200, width: VIEWPORT.width }
+    const position = resolveFloatingLayerPosition({
+      anchor: { bottom: 190, left: 200, right: 320, top: 170, width: 120 },
+      layer: { height: 10, width: 160 },
+      viewport,
+    })
+
+    expect(position.maxHeight).toBeLessThanOrEqual(
+      viewport.height - FLOATING_LAYER_VIEWPORT_MARGIN * 2,
+    )
+  })
+
   test('keeps the layer inside the viewport on both edges', async () => {
     const { FLOATING_LAYER_VIEWPORT_MARGIN, resolveFloatingLayerPosition } =
       await loadFloatingLayer()
@@ -205,4 +247,66 @@ describe('design system floating layer contract', () => {
     expect(rule).toContain('useFloatingLayer')
     expect(projectContext).toContain('useFloatingLayer')
   })
+
+  /**
+   * Camada aberta com o gatilho fora da janela é camada órfã: ela continua no meio da tela e desliza
+   * com a rolagem, sem nada ao lado que explique de onde saiu.
+   */
+  test('treats an anchor scrolled past either edge as no longer visible', async () => {
+    const { isAnchorVisible } = await loadFloatingLayer()
+    const viewport = { height: 900, width: 1440 }
+
+    expect(
+      isAnchorVisible({
+        anchor: { bottom: 952, left: 200, right: 320, top: 904, width: 120 },
+        viewport,
+      }),
+    ).toBe(false)
+    expect(
+      isAnchorVisible({
+        anchor: { bottom: -4, left: 200, right: 320, top: -52, width: 120 },
+        viewport,
+      }),
+    ).toBe(false)
+  })
+
+  test('keeps a partially cut anchor visible, so the list is not taken from under the reader', async () => {
+    const { isAnchorVisible } = await loadFloatingLayer()
+
+    expect(
+      isAnchorVisible({
+        anchor: { bottom: 920, left: 200, right: 320, top: 872, width: 120 },
+        viewport: { height: 900, width: 1440 },
+      }),
+    ).toBe(true)
+  })
+})
+
+describe('a rolagem da lista não fecha a própria lista', () => {
+  const LISTAS_FLUTUANTES = [
+    'select.module.css',
+    'multi-select.module.css',
+    'searchable-select.module.css',
+    'date-range-picker.module.css',
+  ] as const
+
+  /**
+   * ⚠️ **A rolagem encadeada fechava a camada, e o gesto era o de chegar ao fim das opções.**
+   * `useFloatingLayer` dispensa a camada quando a **página** rola — por desenho: presa ao gatilho
+   * ela atravessaria a tela enquanto alguém rola para ler outra coisa. Só que uma lista com
+   * `overflow-y: auto` e sem contenção encadeia a rolagem para a página ao bater no fim, e aí o
+   * próprio ato de alcançar a última opção fecha a lista.
+   *
+   * Foi assim que ele apareceu: o smoke de faturamento clicava numa opção, o navegador rolou a
+   * lista para trazê-la à vista, o encadeamento rolou a página, a camada fechou e o clique esperou
+   * por um elemento que já não existia. Só reprovava na CI, onde a máquina carregada muda o
+   * enquadramento — aqui a opção cabia na tela sem rolagem nenhuma.
+   */
+  for (const arquivo of LISTAS_FLUTUANTES) {
+    test(`${arquivo} contém a rolagem dentro da camada`, async () => {
+      const css = await readApplicationFile(`src/components/ui/${arquivo}`)
+      expect(css).toContain('overflow-y: auto')
+      expect(css).toContain('overscroll-behavior: contain')
+    })
+  }
 })

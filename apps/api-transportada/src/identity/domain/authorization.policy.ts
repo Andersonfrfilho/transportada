@@ -165,10 +165,17 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'nfse.read',
     'trip.manage',
     /**
-     * ADR-0049 §6: `trip.financials` **saiu daqui.** Quem monta a viagem decide se vale montá-la
-     * pela avaliação prevista (065 D7), que não mostra o que se paga ao agregado — e o valor pago ao
-     * motorista é dado sensível para o próprio motorista, que trabalha ao lado de quem monta.
+     * ADR-0049 §6, **emendada**: `trip.financials` voltou para o `operator`.
+     *
+     * A exclusão original protegia o pagamento do agregado de quem monta a viagem. A operação real
+     * desfez a premissa: quem monta o roteiro é o **atendente**, e ele decide se a viagem vale a
+     * pena — decisão que precisa do custo e da receita lado a lado, não só da receita. Sem o número
+     * ele montava no escuro e o custo só aparecia para quem não escolhe a carga.
+     *
+     * ⚠️ O `separator` **continua fora**, e é ele que a exclusão original realmente descrevia: o
+     * separador trabalha no barracão, ao lado dos motoristas, e não escolhe carga nenhuma.
      */
+    'trip.financials',
   ]),
   viewer: Object.freeze([
     'invoices.read',

@@ -45,6 +45,17 @@ export function AggregateApplicationAttachments({
       ) : null}
       {attachments.map((attachment) => {
         const divergences = listAttachmentDivergences({ application, attachment })
+        /**
+         * Três estados, não dois: "não reconheci nada" e "descartei depois de revisar" chegam os
+         * dois como `extractedFields: null`, e chamá-los pelo mesmo nome faria a tela dizer que
+         * falhou em ler um documento que ela leu — o operador iria abrir o arquivo à toa.
+         */
+        const readingNotice =
+          attachment.extractedFields !== null
+            ? null
+            : attachment.status === 'pending'
+              ? t('applications.attachments.notRead')
+              : t('applications.attachments.discarded')
         return (
           <div className={styles.applicationAttachment} key={attachment.id}>
             <p>
@@ -52,9 +63,9 @@ export function AggregateApplicationAttachments({
               {t(`applications.attachments.status.${attachment.status}`)}
             </p>
 
-            {attachment.extractedFields === null ? (
+            {readingNotice !== null ? (
               /* Estado próprio: sem leitura não há conferência, e isso **não** é "confere". */
-              <p>{t('applications.attachments.notRead')}</p>
+              <p>{readingNotice}</p>
             ) : divergences.length === 0 ? (
               <p>{t('applications.attachments.matches')}</p>
             ) : (

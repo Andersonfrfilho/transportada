@@ -47,6 +47,11 @@ function buildDocument(overrides: Partial<NfeDocumentListItem> = {}): NfeDocumen
     nfseInvoiceNumber: null,
     number: '11',
     recipientAddress: 'Avenida Logistica, 500',
+    recipientPostalCode: '14020000',
+    recipientAddressNumber: null,
+    recipientLatitude: null,
+    recipientLongitude: null,
+    recipientLocationPrecision: null,
     recipientCity: 'Jundiai',
     recipientCityCode: '3525904',
     recipientName: 'Destinatario Sintetico',
@@ -129,17 +134,29 @@ describe('cte issued filter contract', () => {
     expect(evaluateAdvancedFilter(PENDING_DOCUMENT, model)).toBe(false)
   })
 
+  /**
+   * A barra simples saiu da tabela para `NfeDocumentFilterPanel`: ela passou a ter dois
+   * consumidores — a listagem e a criação de viagem, que monta o lote com os mesmos filtros. O que
+   * se afirma continua sendo o mesmo, só mudou o arquivo que a hospeda.
+   */
   test('wires the filter into the simple bar, the pills and both locales', async () => {
-    const [table, builder, ptLocale, enLocale] = await Promise.all([
-      readModule('src/modules/nfe-workspace/components/NfeDocumentTable.component.tsx'),
+    const [panel, pills, builder, ptLocale, enLocale] = await Promise.all([
+      readModule('src/modules/nfe-workspace/components/NfeDocumentFilterPanel.component.tsx'),
+      readModule('src/modules/nfe-workspace/shared/nfeDocumentFilterPills.service.ts'),
       readModule('src/modules/nfe-workspace/components/AdvancedFilterBuilder.component.tsx'),
       readModule('src/modules/nfe-workspace/locales/nfeWorkspace.locale.json'),
       readModule('src/modules/nfe-workspace/locales/nfeWorkspace.en.locale.json'),
     ])
 
-    expect(table).toContain('cteIssuedOptions')
-    expect(table).toContain('select.cteIssued')
-    expect(table).toContain('filters.cteIssued')
+    expect(panel).toContain('cteIssuedOptions')
+    expect(panel).toContain('select.cteIssued')
+    /**
+     * ⚠️ A pílula é cobrada no **serviço de descritores**, não na tabela: a tabela deixou de nomear
+     * a chave quando o rótulo passou a sair de `describeNfeDocumentFilterPills`. Cobrá-la no
+     * arquivo que só a renderiza faria o contrato reprovar a extração e passar batido se o
+     * descritor sumisse — o inverso do que ele existe para guardar.
+     */
+    expect(pills).toContain('filters.cteIssued')
     expect(builder).toContain('cteIssued')
     for (const locale of [ptLocale, enLocale]) {
       expect(locale).toContain('"cteIssued"')

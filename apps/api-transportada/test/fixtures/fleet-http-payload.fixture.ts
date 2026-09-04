@@ -6,6 +6,7 @@ import type {
   FleetDriverPage,
   FleetDriverVehicleAssignment,
   FleetDriverVehicleLink,
+  FleetDriverVehiclePair,
   FleetVehicle,
   FleetVehiclePage,
 } from '../../src/fleet/application/fleet.port'
@@ -224,6 +225,12 @@ export const DRIVER_VEHICLE_LINKS: readonly FleetDriverVehicleLink[] = [
 export const DRIVER_VEHICLE_ASSIGNMENTS: readonly FleetDriverVehicleAssignment[] = [
   { ...DRIVER_VEHICLE_LINKS[0]!, ownedByDriver: false },
   { ...DRIVER_VEHICLE_LINKS[1]!, ownedByDriver: true },
+]
+
+/** Spec 081: o mesmo motorista com os dois veículos — é o caso ambíguo do pareamento. */
+export const DRIVER_VEHICLE_PAIRS: readonly FleetDriverVehiclePair[] = [
+  { driverId: DRIVER_ID, vehicleId: VEHICLE_ID },
+  { driverId: DRIVER_ID, vehicleId: DRIVER_OWNED_VEHICLE_ID },
 ]
 
 export const VEHICLE_PAGE: FleetVehiclePage = { items: [VEHICLE], nextCursor: null }

@@ -29,6 +29,10 @@ export type TripStateActionsProps = Readonly<{
   onDispatch: (input: { readonly force: boolean; readonly forceReason?: string }) => void
   onPlanRoute: () => void
   selection: TripDocumentSelectionController
+  /** O que da seleção ainda tem CT-e a emitir — resolvido em `cteSelection.service.ts`. */
+  pendingCteSelection: readonly string[]
+  isGeneratingCteBatch: boolean
+  onGenerateCteSelection: (tripDocumentIds: readonly string[]) => void
   trip: TripDetail
 }>
 
@@ -48,6 +52,9 @@ export function TripStateActions({
   onDispatch,
   onPlanRoute,
   selection,
+  pendingCteSelection,
+  isGeneratingCteBatch,
+  onGenerateCteSelection,
   trip,
 }: TripStateActionsProps) {
   const { t } = useTranslation('trip')
@@ -87,7 +94,7 @@ export function TripStateActions({
     <div className={styles.actionForm}>
       <h3>{t('stateActions.title')}</h3>
 
-      {hasSelection && (canSeparateOrLoad || canReturn) ? (
+      {hasSelection && (canSeparateOrLoad || canReturn || pendingCteSelection.length > 0) ? (
         <div className={styles.actionActions}>
           {canSeparateOrLoad ? (
             <Button
@@ -96,6 +103,7 @@ export function TripStateActions({
               size="sm"
               type="button"
             >
+              <Icon name="check" />
               {t('stateActions.batchSeparate', { count: selection.selectedIds.size })}
             </Button>
           ) : null}
@@ -106,7 +114,21 @@ export function TripStateActions({
               size="sm"
               type="button"
             >
+              <Icon name="truck" />
               {t('stateActions.batchLoad', { count: selection.selectedIds.size })}
+            </Button>
+          ) : null}
+          {/* Emitir pela seleção: o botão só existe quando o que está marcado tem CT-e a emitir —
+              oferecê-lo para nota já autorizada faria a API recusar o clique inteiro. */}
+          {pendingCteSelection.length > 0 ? (
+            <Button
+              disabled={isGeneratingCteBatch}
+              onClick={() => onGenerateCteSelection(pendingCteSelection)}
+              size="sm"
+              type="button"
+            >
+              <Icon name="send" />
+              {t('stateActions.generateCteSelection', { count: pendingCteSelection.length })}
             </Button>
           ) : null}
           {canReturn ? (
@@ -117,6 +139,7 @@ export function TripStateActions({
               type="button"
               variant="ghost"
             >
+              <Icon name="arrow-up" />
               {t('stateActions.batchReturn', { count: selection.selectedIds.size })}
             </Button>
           ) : null}

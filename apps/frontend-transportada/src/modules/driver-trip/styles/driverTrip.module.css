@@ -106,6 +106,44 @@
   gap: var(--space-2);
 }
 
+/* Spec 082 D8: motivo por chips — alvo de 44px, canto reto, um selecionado por vez. */
+.occurrenceChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.occurrenceChip {
+  border-radius: 0;
+  min-height: 2.75rem;
+}
+
+/* A prévia do aviso: painel destacado, com a chave do template pequena e monoespaçada. */
+.occurrencePreview {
+  border: 1px solid var(--color-slate);
+  border-left: 4px solid var(--color-copper);
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+}
+
+.occurrencePreviewTitle {
+  font-weight: 700;
+  margin: 0;
+}
+
+.occurrencePreviewText {
+  margin: 0;
+}
+
+.occurrencePreviewKey {
+  color: var(--color-slate);
+  font-family: ui-monospace, monospace;
+  font-size: 0.75rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 .proofField {
   display: grid;
   gap: var(--space-1);
@@ -254,4 +292,366 @@
   .loadSheetNote {
     break-inside: avoid;
   }
+}
+
+/* Spec 082 D1 — shell do módulo: header de marca, progresso da viagem e barra inferior.
+   Cantos quadrados de propósito: o mockup aprovado é radius 0 em todo o shell do campo. */
+.moduleShell {
+  display: grid;
+  min-height: 100dvh;
+  align-content: start;
+  /* A barra inferior é fixa: sem esta folga a última parada fica escondida atrás dela. */
+  padding-bottom: var(--space-16);
+}
+
+.moduleHeader {
+  align-items: center;
+  background: var(--color-graphite);
+  border-bottom: 1px solid var(--color-slate);
+  border-radius: 0;
+  display: flex;
+  gap: var(--space-3);
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+}
+
+.moduleBrand {
+  align-items: center;
+  display: flex;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.moduleBrandLogo {
+  height: var(--space-8);
+  width: var(--space-8);
+}
+
+.moduleBrandCopy {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.moduleCompanyName {
+  color: var(--color-slate);
+  font-size: var(--field-font-size-compact);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.driverAvatar {
+  align-items: center;
+  background: color-mix(in srgb, var(--color-copper) 25%, transparent);
+  border: 1px solid var(--color-copper);
+  border-radius: 0;
+  display: inline-flex;
+  font-weight: 700;
+  height: var(--space-10);
+  justify-content: center;
+  width: var(--space-10);
+}
+
+.driverAvatarLarge {
+  composes: driverAvatar;
+  font-size: 1.125rem;
+  height: var(--space-12);
+  width: var(--space-12);
+}
+
+/* Um segmento por parada: verde resolvida, cobre a corrente, cinza pendente. */
+.progressBar {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.progressSegment {
+  background: var(--color-slate);
+  border-radius: 0;
+  flex: 1;
+  height: var(--space-2);
+  transition: background-color 0.3s ease;
+}
+
+.progressSegment[data-state='resolved'] {
+  background: var(--color-ready);
+}
+
+.progressSegment[data-state='current'] {
+  background: var(--color-copper);
+}
+
+/* A pulsação da parada corrente só existe para quem não pediu movimento reduzido. */
+@media (prefers-reduced-motion: no-preference) {
+  .progressSegment[data-state='current'] {
+    animation: driver-progress-pulse 1.6s ease-in-out infinite;
+  }
+}
+
+@keyframes driver-progress-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.bottomBar {
+  background: var(--color-graphite);
+  border-radius: 0;
+  border-top: 1px solid var(--color-slate);
+  bottom: 0;
+  display: flex;
+  left: 0;
+  position: fixed;
+  right: 0;
+}
+
+.bottomBarItem {
+  align-items: center;
+  background: none;
+  border: none;
+  border-radius: 0;
+  color: var(--color-slate);
+  cursor: pointer;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  font: inherit;
+  gap: var(--space-1);
+  justify-content: center;
+  /* Alvo de toque: nunca abaixo de 44px para quem opera de pé, com uma mão. */
+  min-height: 2.75rem;
+  padding: var(--space-2);
+}
+
+.bottomBarItemActive {
+  composes: bottomBarItem;
+  color: var(--color-copper);
+  font-weight: 700;
+}
+
+.profileCard {
+  background: var(--color-graphite);
+  border: 1px solid var(--color-slate);
+  border-radius: 0;
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+}
+
+.profileIdentityCard {
+  composes: profileCard;
+  align-items: center;
+  display: flex;
+  gap: var(--space-3);
+}
+
+.profileIdentity {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.profileName {
+  font-size: 1.125rem;
+  margin: 0;
+}
+
+.profileRole {
+  color: var(--color-slate);
+  margin: 0;
+}
+
+.profileSectionTitle {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.profileMeta {
+  color: var(--color-slate);
+  margin: 0;
+}
+
+.signOutButton {
+  min-height: 2.75rem;
+}
+
+@media print {
+  .moduleHeader,
+  .bottomBar,
+  .progressBar {
+    display: none;
+  }
+}
+
+/* Spec 082 D7 — fila de eventos pendentes: tokens quadrados do painel (radius 0), alvo >= 44px */
+.queueBannerButton,
+.rejectedBannerButton {
+  border: none;
+  border-radius: 0;
+  color: inherit;
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  gap: var(--space-1);
+  min-height: 2.75rem;
+  padding: var(--space-3);
+  text-align: left;
+}
+
+.queueBannerButton {
+  background: color-mix(in srgb, var(--color-copper) 18%, transparent);
+}
+
+.rejectedBannerButton {
+  background: color-mix(in srgb, var(--color-alert) 18%, transparent);
+}
+
+.queueBannerAction {
+  color: var(--color-slate);
+  font-size: 0.875rem;
+}
+
+.eventQueueOpenButton,
+.eventQueueSendAll {
+  border-radius: 0;
+  min-height: 2.75rem;
+}
+
+.eventQueueHeader {
+  align-items: center;
+  display: flex;
+  gap: var(--space-3);
+}
+
+.eventQueueTitle {
+  font-size: 1.125rem;
+  margin: 0;
+}
+
+.eventQueueList {
+  display: grid;
+  gap: var(--space-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.eventQueueItem {
+  align-items: center;
+  background: var(--color-graphite);
+  border: 1px solid var(--color-slate);
+  border-radius: 0;
+  display: flex;
+  gap: var(--space-3);
+  justify-content: space-between;
+  padding: var(--space-3);
+}
+
+.eventQueueItemBody {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.eventQueueItemTitle {
+  display: flex;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.eventQueueItemTime {
+  color: var(--color-slate);
+}
+
+.eventQueueStatusRejected {
+  color: var(--color-alert);
+  margin: 0;
+}
+
+.eventQueueItem button {
+  border-radius: 0;
+  min-height: 2.75rem;
+}
+
+.stopDistance {
+  align-self: center;
+  color: var(--color-slate);
+  font-variant-numeric: tabular-nums;
+}
+
+.proofSection {
+  display: grid;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.proofFieldError {
+  color: var(--color-alert);
+}
+
+.signaturePad {
+  background: var(--color-graphite);
+  border: 1px solid var(--color-slate);
+  border-radius: 0;
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-2);
+}
+
+.signaturePad button {
+  border-radius: 0;
+  min-height: 2.75rem;
+}
+
+.signaturePadFullscreen {
+  align-content: center;
+  background: var(--color-graphite);
+  height: 100%;
+  justify-items: center;
+  width: 100%;
+}
+
+/* iOS sem screen.orientation.lock: o conteúdo rotaciona para o traço ficar horizontal */
+.signaturePadRotated {
+  transform: rotate(90deg);
+}
+
+.signatureCanvas {
+  background: #ffffff;
+  border: 1px dashed var(--color-slate);
+  border-radius: 0;
+  max-width: 100%;
+  touch-action: none;
+}
+
+.proofCrop {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.proofCrop button {
+  border-radius: 0;
+  min-height: 2.75rem;
+}
+
+.proofCropStage {
+  position: relative;
+  touch-action: none;
+}
+
+.proofCropStage canvas {
+  max-width: 100%;
+}
+
+.proofCropHandle {
+  background: var(--color-graphite);
+  border: 2px solid var(--color-alert);
+  border-radius: 0;
+  height: var(--control-height);
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: var(--control-height);
 }

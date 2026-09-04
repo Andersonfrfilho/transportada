@@ -18,7 +18,7 @@ import {
 } from 'drizzle-orm/pg-core'
 
 import { companies } from './identity.schema.js'
-import { fleetVehicles } from './fleet.schema.js'
+import { fleetDrivers, fleetVehicles } from './fleet.schema.js'
 import { GEOCODING_PRECISIONS, type GeocodingPrecision } from './geocoding.schema.js'
 import { inList } from './schema-check.constant.js'
 import { nfeDocuments } from './nfe.schema.js'
@@ -324,6 +324,12 @@ export const routeSuggestionVehicles = pgTable(
     companyId: uuid('company_id').notNull(),
     suggestionId: uuid('suggestion_id').notNull(),
     vehicleId: uuid('vehicle_id').notNull(),
+    /**
+     * ADR-0055: quem dirige este veículo nesta distribuição. **Nulo é legítimo** — distribuir a
+     * carga na véspera, antes de saber quem pega o caminhão, é o uso normal de quem monta a escala,
+     * e era o único comportamento possível até esta coluna existir.
+     */
+    driverId: uuid('driver_id'),
     position: bigint({ mode: 'bigint' }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -342,6 +348,19 @@ export const routeSuggestionVehicles = pgTable(
     })
       .onDelete('restrict')
       .onUpdate('cascade'),
+    /** A FK leva a empresa junto: a simples aceitaria escalar o motorista de outra transportadora. */
+    foreignKey({
+      columns: [table.companyId, table.driverId],
+      foreignColumns: [fleetDrivers.companyId, fleetDrivers.id],
+      name: 'route_suggestion_vehicles_driver_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    /** O mesmo motorista em dois pares seriam duas viagens simultâneas dele no PWA (RF-2). */
+    unique('route_suggestion_vehicles_suggestion_driver_unique').on(
+      table.suggestionId,
+      table.driverId,
+    ),
     unique('route_suggestion_vehicles_suggestion_vehicle_unique').on(
       table.suggestionId,
       table.vehicleId,

@@ -25,6 +25,8 @@ export type TripStatusContract =
 
 export type TripContract = Readonly<{
   companyId: string
+  /** Quem dirige, na ordem em que a viagem os pareou — a listagem nomeia o motorista. */
+  driverNames: readonly string[]
   createdAt: string
   id: string
   requiresMdfe: boolean | null
@@ -37,6 +39,7 @@ export type TripContract = Readonly<{
 export type TripDocumentContract = Readonly<{
   createdAt: string
   deliveredAt: null | string
+  destinationOrigin: 'delivery' | 'recipient' | null
   freightCalculationId: null | string
   id: string
   loadedAt: null | string
@@ -70,16 +73,47 @@ export type TripDetailContract = TripContract &
   Readonly<{
     documents: readonly TripDocumentDetailContract[]
     drivers: readonly Readonly<{
+      /** Contato nasce opcional (spec 078 D2): API anterior serve o motorista sem ele. */
+      driverEmail?: string
       driverId: string
       driverName: string
+      driverPhone?: string
       driverTaxId: string
       position: number
     }>[]
+    /** Spec 076: a fatia do baú por parada; `null` sem capacidade conhecida. */
+    cargoLayout: Readonly<{
+      overflowM3: string
+      slices: readonly Readonly<{
+        label: string
+        loadOrder: number
+        sequence: number
+        share: string
+        volumeM3: string
+      }>[]
+      stopsWithoutVolume: readonly Readonly<{ documentCount: number; label: string }>[]
+    }> | null
+    /** Spec 079: o peso da carga com a origem; `null` quando nenhuma nota tem peso. */
+    cargoWeight: Readonly<{
+      documentsWithoutWeight: number
+      grossWeightKilograms: string
+      source: 'declared' | 'estimated'
+    }> | null
+    /** Spec 075: a ocupação do baú, `null` quando a capacidade não é conhecida. */
+    occupancy: Readonly<{
+      capacityM3: string
+      capacitySource: 'measured' | 'declared' | 'reference'
+      documentsWithoutVolume: number
+      loadedM3: string
+      occupancyRatio: string
+      source: 'declared' | 'estimated'
+    }> | null
     stops: readonly TripStopDetailContract[]
   }>
 
 export const TRIP = {
   companyId: '00000000-0000-4000-8000-000000000001',
+  driverNames: [],
   createdAt: '2026-07-28T12:00:00.000Z',
   id: TRIP_ID,
   requiresMdfe: null,
@@ -100,6 +134,7 @@ export const SECOND_TRIP = {
 export const TRIP_DOCUMENT = {
   createdAt: '2026-07-28T12:05:00.000Z',
   deliveredAt: null,
+  destinationOrigin: null,
   freightCalculationId: null,
   id: DOCUMENT_ID,
   loadedAt: null,
@@ -124,8 +159,18 @@ export const TRIP_DETAIL = {
   ...TRIP,
   documents: [TRIP_DOCUMENT_DETAIL],
   drivers: [
-    { driverId: DRIVER_ID, driverName: 'Jose da Silva', driverTaxId: '12345678901', position: 1 },
+    {
+      driverEmail: 'jose@empresa.test',
+      driverId: DRIVER_ID,
+      driverName: 'Jose da Silva',
+      driverPhone: '16999990001',
+      driverTaxId: '12345678901',
+      position: 1,
+    },
   ],
+  cargoLayout: null,
+  cargoWeight: null,
+  occupancy: null,
   stops: [],
 } as const satisfies TripDetailContract
 
@@ -190,6 +235,11 @@ export const NFE_DOCUMENT_LISTING_ROW = {
   nfseInvoiceNumber: null,
   number: '000123456',
   recipientAddress: 'Avenida do Deposito, 44',
+  recipientPostalCode: '14020000',
+  recipientAddressNumber: null,
+  recipientLatitude: null,
+  recipientLongitude: null,
+  recipientLocationPrecision: null,
   recipientCity: 'Barrinha',
   recipientCityCode: '3505500',
   recipientName: 'Comercio Sintetico ME',
@@ -198,6 +248,8 @@ export const NFE_DOCUMENT_LISTING_ROW = {
   series: '001',
   status: 'authorized',
   totalAmount: '1250.7500',
+  /** Nota livre é o caso normal da listagem; a que já saiu carrega o id da viagem dela. */
+  tripId: null,
   variant: 'complete',
 } as const
 
@@ -208,9 +260,30 @@ export const SCANNED_NFE_DOCUMENT = {
   issuedAt: NFE_DOCUMENT_LISTING_ROW.issuedAt,
   number: NFE_DOCUMENT_LISTING_ROW.number,
   recipientName: NFE_DOCUMENT_LISTING_ROW.recipientName,
+  /**
+   * Onde a carga para. A fila da viagem lista destinatário, e dois supermercados da mesma rede só
+   * se distinguem pela cidade — sem isto a linha nomeava o cliente sem dizer para onde ele vai.
+   */
+  /** Endereço e CEP: o mapa da montagem imprime a parada, e rua homônima só se separa pelo CEP. */
+  recipientAddress: NFE_DOCUMENT_LISTING_ROW.recipientAddress,
+  recipientPostalCode: NFE_DOCUMENT_LISTING_ROW.recipientPostalCode,
+  recipientAddressNumber: null,
+  recipientLatitude: null,
+  recipientLongitude: null,
+  recipientLocationPrecision: null,
+  recipientCity: NFE_DOCUMENT_LISTING_ROW.recipientCity,
+  /** O código do IBGE, que é por onde o mapa da montagem casa a cidade com o polígono da malha. */
+  recipientCityCode: NFE_DOCUMENT_LISTING_ROW.recipientCityCode,
+  recipientState: NFE_DOCUMENT_LISTING_ROW.recipientState,
   series: NFE_DOCUMENT_LISTING_ROW.series,
   status: NFE_DOCUMENT_LISTING_ROW.status,
   totalAmount: NFE_DOCUMENT_LISTING_ROW.totalAmount,
+  /**
+   * A viagem em que a nota já saiu. A rota sempre mandou o campo; o recorte passou a guardá-lo
+   * porque é ele que faz a criação rápida recusar uma nota que já está em outra viagem — sem ele a
+   * recusa só apareceria no vínculo, com a viagem já criada.
+   */
+  tripId: NFE_DOCUMENT_LISTING_ROW.tripId,
 } as const
 
 export async function loadFutureModule<TModule>(modulePath: string): Promise<TModule> {

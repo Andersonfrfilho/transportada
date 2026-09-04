@@ -5,11 +5,13 @@ import { defineRoute } from '../../http/router.service.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import {
   API_FLEET_CAPABILITIES_PATH,
+  API_FLEET_DRIVER_VEHICLES_PATH,
   API_FLEET_DRIVERS_PATH,
   API_FLEET_VEHICLES_PATH,
   JSON_CONTENT_TYPE,
 } from '../../shared/api.constant.js'
 import type {
+  ListFleetDriverVehiclePairsInput,
   ListFleetDriverVehiclesInput,
   ReplaceFleetDriverVehiclesInput,
 } from '../application/fleet-driver-vehicles.use-case.js'
@@ -29,6 +31,7 @@ import type {
   FleetDriver,
   FleetDriverPage,
   FleetDriverVehicleAssignment,
+  FleetDriverVehiclePair,
   FleetVehicle,
   FleetVehiclePage,
 } from '../application/fleet.port.js'
@@ -47,6 +50,7 @@ import {
 const DRIVER_AVAILABILITY_PATH = `${API_FLEET_DRIVERS_PATH}/availability`
 const DRIVER_PATH = `${API_FLEET_DRIVERS_PATH}/:id`
 const DRIVER_VEHICLES_PATH = `${API_FLEET_DRIVERS_PATH}/:id/vehicles`
+const DRIVER_VEHICLE_LINKS_PATH = API_FLEET_DRIVER_VEHICLES_PATH
 const FLEET_MANAGE_POLICY = { permission: 'fleet.manage', scope: 'company' } as const
 const FLEET_READ_POLICY = { permission: 'fleet.read', scope: 'company' } as const
 const VEHICLE_PATH = `${API_FLEET_VEHICLES_PATH}/:id`
@@ -67,6 +71,9 @@ type Dependencies = {
     list(
       input: TenantInput<ListFleetDriverVehiclesInput>,
     ): Promise<readonly FleetDriverVehicleAssignment[]>
+    listPairs(
+      input: TenantInput<ListFleetDriverVehiclePairsInput>,
+    ): Promise<readonly FleetDriverVehiclePair[]>
     replace(
       input: TenantInput<ReplaceFleetDriverVehiclesInput>,
     ): Promise<readonly FleetDriverVehicleAssignment[]>
@@ -207,6 +214,20 @@ export function createFleetRoutes(
       },
       pathname: DRIVER_PATH,
       policy: FLEET_MANAGE_POLICY,
+    }),
+    /**
+     * Spec 081 (RF-7): o vínculo da empresa em pares. Ela é lida por `fleet.read` porque quem monta
+     * a viagem escolhe motorista e veículo sem administrar a frota.
+     */
+    defineRoute<Record<string, never>>({
+      async handle({ context }): Promise<Response> {
+        const pairs = await dependencies.driverVehicles.listPairs({ context: context.scope })
+        return jsonResponse({ body: { data: pairs }, status: 200 })
+      },
+      method: 'GET',
+      parse: () => ({}),
+      pathname: DRIVER_VEHICLE_LINKS_PATH,
+      policy: FLEET_READ_POLICY,
     }),
     defineRoute<Omit<ListFleetDriverVehiclesInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {

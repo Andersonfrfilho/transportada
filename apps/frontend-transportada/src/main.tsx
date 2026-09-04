@@ -7,6 +7,7 @@ import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { registerSW } from 'virtual:pwa-register'
 
+import { COPY_FEEDBACK_MILLISECONDS } from '@/modules/shared/clipboard.constant'
 import { BillingInvoiceDetailPage } from '@/modules/billing/pages/BillingInvoiceDetail.page'
 import { BillingWorkspacePage } from '@/modules/billing/pages/BillingWorkspace.page'
 import { parseBillingInvoiceRoute } from '@/modules/billing/shared/billingInvoiceRoute.service'
@@ -18,6 +19,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Icon } from '@/components/ui/icon'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getDeploymentEnvironment } from '@/modules/shared/deploymentEnvironment.service'
+import { applyColorTheme, readStoredColorTheme } from '@/modules/shared/colorTheme.service'
+import { useColorTheme } from '@/modules/shared/useColorTheme.hook'
 import { applyEnvironmentBadge } from '@/modules/shared/environmentBadge.service'
 import { ApplicationFooter } from '@/modules/foundation/components/ApplicationFooter.component'
 import { EnvironmentBanner } from '@/modules/foundation/components/EnvironmentBanner.component'
@@ -58,6 +61,7 @@ import notificationStyles from '@/modules/notification/styles/notification.modul
 import { OperationsDashboardPage } from '@/modules/operations/pages/OperationsDashboard.page'
 import { TripDetailPage } from '@/modules/trip/pages/TripDetail.page'
 import { TripWorkspacePage } from '@/modules/trip/pages/TripWorkspace.page'
+import { TripOccurrencesWorkspacePage } from '@/modules/trip/pages/TripOccurrencesWorkspace.page'
 import { parseTripRoute } from '@/modules/trip/shared/tripRoute.service'
 import '@/styles/index.css'
 
@@ -68,6 +72,10 @@ const queryClient = new QueryClient({
 const deploymentEnvironment = getDeploymentEnvironment()
 
 applyEnvironmentBadge({ document, environment: deploymentEnvironment })
+applyColorTheme({
+  document,
+  theme: readStoredColorTheme(typeof window === 'undefined' ? null : window.localStorage),
+})
 
 if (!isSmokeAuthBypassEnabled()) {
   registerSW({ immediate: true })
@@ -101,6 +109,7 @@ type WorkspaceNavigationItem = Readonly<{
     | 'notification'
     | 'operations'
     | 'trip'
+    | 'trip-occurrences'
     | 'access-profiles'
     | 'users'
   label: string
@@ -121,6 +130,7 @@ const WORKSPACE_NAVIGATION_ITEMS: readonly WorkspaceNavigationItem[] = [
   { href: '/billing', key: 'billing', label: 'Faturamento' },
   { href: '/nfse-invoices', key: 'nfse-invoice', label: 'NFS-e' },
   { href: '/operations', key: 'operations', label: 'Operações' },
+  { href: '/ocorrencias', key: 'trip-occurrences', label: 'Ocorrências' },
   { href: '/company-settings', key: 'company-settings', label: 'Empresa' },
   { href: '/usuarios', key: 'users', label: 'Acessos' },
   { href: '/papeis', key: 'access-profiles', label: 'Papéis e grupos' },
@@ -157,7 +167,9 @@ const NAVIGATION_GROUPS: readonly NavigationGroup[] = [
   {
     key: 'operations',
     label: 'Operações',
-    items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) => key === 'operations'),
+    items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) =>
+      ['operations', 'trip-occurrences'].includes(key),
+    ),
   },
   {
     key: 'registries',
@@ -212,6 +224,7 @@ function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
   if (window.location.pathname === '/nfse-invoices') return 'nfse-invoice'
   if (window.location.pathname.startsWith('/notificacoes')) return 'notification'
   if (window.location.pathname === '/operations') return 'operations'
+  if (window.location.pathname === '/ocorrencias') return 'trip-occurrences'
   if (window.location.pathname === '/freight') return 'freight'
   if (window.location.pathname === '/usuarios') return 'users'
   if (window.location.pathname === '/papeis') return 'access-profiles'
@@ -231,6 +244,7 @@ function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
     storedWorkspace === 'nfse-invoice' ||
     storedWorkspace === 'notification' ||
     storedWorkspace === 'operations' ||
+    storedWorkspace === 'trip-occurrences' ||
     storedWorkspace === 'freight' ||
     storedWorkspace === 'trip' ||
     storedWorkspace === 'users' ||
@@ -288,6 +302,8 @@ function resolvePage(
     }
     case 'operations':
       return <OperationsDashboardPage />
+    case 'trip-occurrences':
+      return <TripOccurrencesWorkspacePage />
     case 'freight':
       return <FreightWorkspacePage />
     case 'users':
@@ -329,7 +345,7 @@ function ApplicationShell(): ReactNode {
       'billing',
       'nfse-invoice',
     ].includes(currentWorkspace),
-    operations: currentWorkspace === 'operations',
+    operations: ['operations', 'trip-occurrences'].includes(currentWorkspace),
     registries: ['cte-profiles', 'fleet'].includes(currentWorkspace),
   })
   const [collapsedGroup, setCollapsedGroup] = useState<NavigationGroup['key'] | null>(null)
@@ -403,10 +419,25 @@ function ApplicationShell(): ReactNode {
    * próximo login. Buscar os bytes pela API é o mesmo caminho que os diálogos já usam, e ele
    * atualiza assim que o envio termina.
    */
+  const [hasCopiedEmail, setHasCopiedEmail] = useState(false)
+
+  /** A área de transferência falha em contexto sem permissão: o ✓ só aparece se o valor foi mesmo. */
+  async function copyEmail(email: string | undefined): Promise<void> {
+    if (email === undefined) return
+    try {
+      await navigator.clipboard.writeText(email)
+      setHasCopiedEmail(true)
+      window.setTimeout(() => setHasCopiedEmail(false), COPY_FEEDBACK_MILLISECONDS)
+    } catch {
+      setHasCopiedEmail(false)
+    }
+  }
+
   const headerPicture = useCompanyUserPicture({
     userId: authMeQuery.data?.data.identity.userId,
   })
   const fiscalEnvironment = authMeQuery.data?.data.company.fiscalEnvironment ?? null
+  const colorTheme = useColorTheme()
 
   return (
     <div
@@ -440,7 +471,10 @@ function ApplicationShell(): ReactNode {
           >
             <span aria-hidden="true">{sidebarOpen ? '×' : '☰'}</span>
           </Button>
-          <strong>TransportAdA</strong>
+          <span className="sidebar-brand-identity">
+            <img alt="" className="sidebar-brand-logo" src="/icons/icon.svg" />
+            <strong>TransportAdA</strong>
+          </span>
         </div>
         <nav className="sidebar-navigation" aria-label="Módulos">
           {NAVIGATION_GROUPS.map((group) => (
@@ -532,6 +566,17 @@ function ApplicationShell(): ReactNode {
                 </span>
               )}
               <div className="application-user-area" aria-label="Sessão do usuário">
+                <Button
+                  aria-label={colorTheme.theme === 'dark' ? 'Usar tema claro' : 'Usar tema escuro'}
+                  className="application-theme-toggle"
+                  onClick={colorTheme.toggleTheme}
+                  size="sm"
+                  title={colorTheme.theme === 'dark' ? 'Usar tema claro' : 'Usar tema escuro'}
+                  type="button"
+                  variant="ghost"
+                >
+                  <Icon name={colorTheme.theme === 'dark' ? 'sun' : 'moon'} />
+                </Button>
                 <NotificationBell
                   className={NOTIFICATION_BELL_CLASS}
                   onClick={() =>
@@ -554,9 +599,26 @@ function ApplicationShell(): ReactNode {
                     {authMeQuery.isLoading ? 'Carregando' : userProfile.displayName}
                   </span>
                   {!authMeQuery.isLoading && userProfile.subtitle !== undefined ? (
-                    <span className="application-user-subtitle">{userProfile.subtitle}</span>
+                    <span className="application-user-subtitle">
+                      <span className="application-user-email">{userProfile.subtitle}</span>
+                    </span>
                   ) : null}
                 </span>
+                {/* Na fileira de controles, não sob o e-mail: ali ele crescia o cabeçalho em 18px
+                    justamente no celular, onde a tela é o recurso escasso. */}
+                {!authMeQuery.isLoading && userProfile.subtitle !== undefined ? (
+                  <Button
+                    aria-label="Copiar e-mail"
+                    className="application-user-copy-email"
+                    onClick={() => void copyEmail(userProfile.subtitle)}
+                    size="sm"
+                    title="Copiar e-mail"
+                    type="button"
+                    variant="ghost"
+                  >
+                    <Icon name={hasCopiedEmail ? 'check' : 'copy'} />
+                  </Button>
+                ) : null}
                 <Button
                   aria-label="Sair"
                   className="application-logout-button"

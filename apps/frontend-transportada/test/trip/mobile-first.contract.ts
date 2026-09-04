@@ -46,7 +46,15 @@ function findRule(rules: readonly Rule[], selector: string, media = ''): Rule | 
 describe('trip mobile-first contract', () => {
   test('adds width with min-width only, on the shared breakpoint grid', async () => {
     const stylesheet = await readApplicationFile(TRIP_STYLESHEET_PATH)
-    const queries = [...stylesheet.matchAll(/@media[^{]+/g)].map((match) => match[0].trim())
+    /**
+     * ⚠️ Só consulta de **largura**: é ela que o `web.md` §10 governa. `prefers-reduced-motion` é
+     * consulta de preferência, usada em quatro arquivos do design system e aceita explicitamente
+     * pelo contrato global (`design-system/responsive.contract.ts`) — varrê-la aqui proibiria, só
+     * neste módulo, a acessibilidade que o resto do produto pratica.
+     */
+    const queries = [...stylesheet.matchAll(/@media[^{]+/g)]
+      .map((match) => match[0].trim())
+      .filter((query) => /width/.test(query))
 
     expect(queries.length).toBeGreaterThan(2)
     for (const query of queries) {
@@ -105,5 +113,37 @@ describe('trip mobile-first contract', () => {
 
     expect(findRule(rules, '.header')?.body).toContain('padding: var(--space-4)')
     expect(findRule(rules, '.header', TABLET_MEDIA)?.body).toContain('padding: var(--space-6)')
+  })
+
+  /**
+   * Spec 079 T014. Os quatro elementos que esta spec acrescentou ao detalhe — comprovante, itens,
+   * ocorrência e mapa — em 375px. ⚠️ **Nenhum deles pode declarar largura fixa**: é o jeito de a
+   * tela ganhar rolagem horizontal sem ninguém notar em desktop, e quem usa é o separador com o
+   * celular na mão.
+   */
+  test('o que a 079 acrescentou cabe em 375px', async () => {
+    const stylesheet = await readApplicationFile(TRIP_STYLESHEET_PATH)
+    const rules = listRules(stylesheet)
+
+    for (const selector of [
+      '.deliveryProofImage',
+      '.documentProductList',
+      '.occurrenceForm',
+      '.routeMap',
+    ]) {
+      const rule = findRule(rules, selector)
+      expect(rule).toBeDefined()
+      // `width: 100%` é largura relativa e passa; `width: 42rem` é o que quebra.
+      expect(rule?.body).not.toMatch(/width:\s*\d+(\.\d+)?(rem|px|em)\b/)
+      expect(rule?.body).not.toMatch(/min-width:\s*\d/)
+    }
+  })
+
+  /** O formulário de ocorrência quebra em vez de empurrar: `flex-wrap` é o que segura os 375px. */
+  test('o formulário de ocorrência quebra linha', async () => {
+    const stylesheet = await readApplicationFile(TRIP_STYLESHEET_PATH)
+    const rule = findRule(listRules(stylesheet), '.occurrenceForm')
+
+    expect(rule?.body).toInclude('flex-wrap')
   })
 })

@@ -1,3 +1,4 @@
+import { hasExactKeys } from '@/modules/shared/objectKeys.service'
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import {
   FUEL_UNIT_BY_PRODUCT,
@@ -66,17 +67,6 @@ export type FuelPriceListResponse = Readonly<{ data: readonly FuelPriceEntry[] }
 
 export type FuelPriceResponse = Readonly<{ data: FuelPriceEntry }>
 
-function hasExactKeys(
-  input: Readonly<{ keys: readonly string[]; value: Record<string, unknown> }>,
-): boolean {
-  const currentKeys = Object.keys(input.value).sort()
-  const expectedKeys = [...input.keys].sort()
-  return (
-    currentKeys.length === expectedKeys.length &&
-    currentKeys.every((key, index) => key === expectedKeys[index])
-  )
-}
-
 function isNullableIsoDate(value: unknown): boolean {
   if (value === null) return true
   if (typeof value !== 'string') return false
@@ -85,7 +75,7 @@ function isNullableIsoDate(value: unknown): boolean {
 }
 
 function isFuelPriceReference(value: unknown): value is FuelPriceReference {
-  if (!isRecord(value) || !hasExactKeys({ keys: REFERENCE_KEYS, value })) return false
+  if (!isRecord(value) || !hasExactKeys(value, REFERENCE_KEYS)) return false
   return (
     typeof value.pricePerUnit === 'string' &&
     PRICE_PER_UNIT.test(value.pricePerUnit) &&
@@ -97,7 +87,7 @@ function isFuelPriceReference(value: unknown): value is FuelPriceReference {
 }
 
 function isEnergyTariff(value: unknown): value is EnergyTariff {
-  if (!isRecord(value) || !hasExactKeys({ keys: TARIFF_KEYS, value })) return false
+  if (!isRecord(value) || !hasExactKeys(value, TARIFF_KEYS)) return false
   return (
     typeof value.adjustmentFactor === 'string' &&
     PRICE_PER_UNIT.test(value.adjustmentFactor) &&
@@ -115,7 +105,7 @@ function isEnergyTariff(value: unknown): value is EnergyTariff {
 }
 
 export function isFuelPriceEntry(value: unknown): value is FuelPriceEntry {
-  if (!isRecord(value) || !hasExactKeys({ keys: ENTRY_KEYS, value })) return false
+  if (!isRecord(value) || !hasExactKeys(value, ENTRY_KEYS)) return false
   if (!isFuelProduct(value.product)) return false
   return (
     (value.effectivePricePerUnit === null ||
@@ -133,12 +123,12 @@ export function isFuelPriceEntry(value: unknown): value is FuelPriceEntry {
 export function isFuelPriceListResponse(value: unknown): value is FuelPriceListResponse {
   return (
     isRecord(value) &&
-    hasExactKeys({ keys: ['data'], value }) &&
+    hasExactKeys(value, ['data']) &&
     Array.isArray(value.data) &&
     value.data.every(isFuelPriceEntry)
   )
 }
 
 export function isFuelPriceResponse(value: unknown): value is FuelPriceResponse {
-  return isRecord(value) && hasExactKeys({ keys: ['data'], value }) && isFuelPriceEntry(value.data)
+  return isRecord(value) && hasExactKeys(value, ['data']) && isFuelPriceEntry(value.data)
 }

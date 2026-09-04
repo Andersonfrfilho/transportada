@@ -81,6 +81,20 @@
       "summary_one": "1 vehicle",
       "summary_other": "{{count}} vehicles"
     },
+    "drivers": {
+      "label": "Drivers and aggregates",
+      "placeholder": "Choose the drivers",
+      "search": "Search by name",
+      "empty": "No driver has a single linked vehicle. Pick the vehicle and set the driver on its row.",
+      "clearAll": "Clear",
+      "remove": "Remove {{label}}",
+      "summary_one": "1 driver",
+      "summary_other": "{{count}} drivers"
+    },
+    "pairDriver": {
+      "label": "Driver of vehicle {{plate}}",
+      "none": "No driver"
+    },
     "request": "Split",
     "requesting": "Splitting…",
     "close": "Close",
@@ -100,6 +114,8 @@
       "ROUTE_SUGGESTION_POOL_EMPTY": "Choose at least one invoice and one vehicle.",
       "ROUTE_SUGGESTION_DOCUMENT_UNAVAILABLE": "One or more invoices are already on a trip. Remove them from the selection and try again.",
       "ROUTE_SUGGESTION_VEHICLE_UNAVAILABLE": "One or more vehicles cannot be routed — only active traction vehicles qualify.",
+      "ROUTE_SUGGESTION_DRIVER_UNAVAILABLE": "One or more drivers cannot be assigned — only active drivers count.",
+      "ROUTE_SUGGESTION_DRIVER_REPEATED": "The same driver is on two vehicles. Leave them on one and try again.",
       "unknown": "Could not split the invoices right now."
     }
   },

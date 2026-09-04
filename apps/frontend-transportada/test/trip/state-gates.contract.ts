@@ -60,6 +60,28 @@ describe('trip state gates mirror the backend transition policy', () => {
   })
 
   /**
+   * ⚠️ **A mesma regressão, agora em "Marcar entregue"** (spec 079). Entregar teve rota própria fora
+   * da máquina de estados até 02/09/2026: ela aceitava qualquer estado, e por isso o botão podia
+   * usar `isTripEditable` sem ninguém notar. Com a rota passando pela política, entregar herdou o
+   * portão de devolver — `checkTripAcceptsDocumentWork` exige viagem despachada para os dois —, e
+   * `isTripEditable` passou a oferecer o botão exatamente onde o backend responde 409.
+   *
+   * O gate de entregar **é** o de devolver. Se algum dia deixarem de ser o mesmo, é aqui que a
+   * separação se declara — não numa condição solta no JSX.
+   */
+  test('delivering opens exactly where returning opens', async () => {
+    const { canDeliverDocuments, canReturnDocuments } = await loadFutureModule<
+      TripStatusModule & { readonly canDeliverDocuments: (status: TripStatusContract) => boolean }
+    >('../../src/modules/trip/shared/tripStatus.service')
+
+    for (const status of Object.keys(GATES_BY_STATUS)) {
+      expect(canDeliverDocuments(status as TripStatusContract)).toBe(
+        canReturnDocuments(status as TripStatusContract),
+      )
+    }
+  })
+
+  /**
    * A regressão concreta que este arquivo nasceu para impedir: devolver estava preso a
    * `isTripEditable`, ou seja, oferecido só **antes** do despacho — exatamente quando o backend o
    * recusa, e escondido exatamente quando ele funciona.

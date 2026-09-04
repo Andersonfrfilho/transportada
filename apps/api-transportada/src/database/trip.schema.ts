@@ -1,6 +1,8 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { TRIP_OCCURRENCE_STAGE } from '../shared/trip-occurrence.constant.js'
+import type { TripOccurrenceStage } from '../shared/trip-occurrence.constant.js'
 import { sql } from 'drizzle-orm'
 import {
   bigint,
@@ -16,6 +18,7 @@ import {
   unique,
   uniqueIndex,
   uuid,
+  varchar,
 } from 'drizzle-orm/pg-core'
 
 import { companies, userCompanyMemberships } from './identity.schema.js'
@@ -317,6 +320,13 @@ export const tripDocuments = pgTable(
     nfeDocumentId: uuid('nfe_document_id'),
     freightCalculationId: uuid('freight_calculation_id'),
     stopId: uuid('stop_id'),
+    /**
+     * Spec 073 RF4/CA10: de onde saiu o endereço físico — `delivery` do `<entrega>`, `recipient` do
+     * `<enderDest>`. Mora no **vínculo**, nunca na parada: uma parada agrupa várias notas, e a mesma
+     * chave pode ser alcançada pela entrega de uma e pelo cadastro de outra — em `trip_stops` a tela
+     * mentiria na primeira parada mista. Nulo é vínculo anterior à migration, ou nota sem destino.
+     */
+    destinationOrigin: text('destination_origin'),
     separationStatus: text('separation_status')
       .$type<TripDocumentSeparationStatus>()
       .notNull()
@@ -705,14 +715,21 @@ export const tripStopEvents = pgTable(
  * **É independente da entrega**: `trip_document_id` é anulável e nada liga a ocorrência ao desfecho
  * da nota. Ele esperou duas horas *e* entregou — os dois fatos convivem.
  */
+/**
+ * ⚠️ **Só o que é da parada.** Três valores saíram em 2026-09-03 porque pertenciam a outro eixo:
+ * `damaged_goods` e `address_not_found` são da **nota** — e já são motivo de devolução —, e
+ * `customer_closed` era `establishment_closed` com outro nome. O motorista via duas portas para o
+ * mesmo fato e escolhia uma; o escritório reconciliava depois.
+ *
+ * Medido antes de encolher: `trip_stop_occurrences` tinha **zero linhas** nos dois ambientes, e
+ * produção tinha **zero viagens**. Sem dado para migrar, o CHECK encolheu junto — conviver com
+ * valor que a tela não oferece seria deixar a porta fechada por fora e aberta por dentro.
+ */
 export const TRIP_STOP_OCCURRENCE_KINDS = [
   'unexpected_charge',
   'long_wait',
   'dock_closed',
   'appointment_required',
-  'damaged_goods',
-  'address_not_found',
-  'customer_closed',
   'other',
 ] as const
 export type TripStopOccurrenceKind = (typeof TRIP_STOP_OCCURRENCE_KINDS)[number]
@@ -843,8 +860,22 @@ export const tripDeliveryProofs = pgTable(
     stopEventId: uuid('stop_event_id').notNull(),
     kind: text().notNull().$type<TripDeliveryProofKind>(),
     objectId: uuid('object_id').notNull(),
-    /** Nome de quem recebeu, quando ele assina. Nunca documento — ver o comentário da tabela. */
+    /** Nome de quem recebeu, quando ele assina. */
     receiverName: text('receiver_name').notNull().default(''),
+    /**
+     * ADR-0057 §3 (revisa ADR-0045 §7): o documento do recebedor entra **só quando a configuração
+     * da empresa pede**, criptografado em envelope A256GCM com AAD
+     * `transportada:delivery-proof:v1:${companyId}:${proofId}`. `null` é o caso de fábrica.
+     */
+    receiverDocumentEnvelope: jsonb('receiver_document_envelope'),
+    /** A forma que toda leitura devolve (`***.938.570-**`). O valor em claro não tem coluna. */
+    receiverDocumentMasked: text('receiver_document_masked').notNull().default(''),
+    /**
+     * Spec 082 (revisão, item 5): chave de idempotência do anexo, mandada pelo app. Reenvio com a
+     * mesma chave para o mesmo evento+tipo converge na linha existente — o unique de
+     * `(company, evento, tipo)` já impede a duplicata; a chave distingue retry de correção.
+     */
+    attachmentKey: text('attachment_key').notNull().default(''),
     actorUserId: uuid('actor_user_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -886,5 +917,116 @@ export const tripDeliveryProofs = pgTable(
       'trip_delivery_proofs_receiver_check',
       sql`${table.kind} = 'signature' or length(${table.receiverName}) = 0`,
     ),
+    /** O documento também é da assinatura, e máscara sem envelope (ou o inverso) é meia escrita. */
+    check(
+      'trip_delivery_proofs_receiver_document_check',
+      sql`(${table.kind} = 'signature' or ${table.receiverDocumentEnvelope} is null) and ((${table.receiverDocumentEnvelope} is null) = (length(${table.receiverDocumentMasked}) = 0))`,
+    ),
+  ],
+)
+
+/**
+ * Spec 079 T020: o que houve com um item da carga.
+ *
+ * ⚠️ **Append-only por desenho**, como `audit_logs` e `trip_dispatch_snapshots`: ocorrência é
+ * registro do que aconteceu, e o que aconteceu não se edita. Corrigir é registrar outra.
+ *
+ * ⚠️ **Ela só anota.** Não bloqueia transição e não muda `separation_status` — misturar o estado da
+ * nota com o que houve com ela deixaria o operador sem saída, porque não existe tela de resolução
+ * de ocorrência. Quando existir, é decisão nova, por escrito.
+ */
+export const tripDocumentOccurrences = pgTable(
+  'trip_document_occurrences',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    tripDocumentId: uuid('trip_document_id').notNull(),
+    /** O código do item em `nfe_products`. Vazio na ocorrência da nota inteira — recusa total não tem item. */
+    productCode: text('product_code').notNull().default(''),
+    stage: text().notNull().$type<TripOccurrenceStage>(),
+    /** Spec 079: o tipo que a empresa cadastrou. Deixou de ser texto de catálogo fechado. */
+    occurrenceTypeId: uuid('occurrence_type_id').notNull(),
+    note: text().notNull().default(''),
+    actorUserId: uuid('actor_user_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'trip_document_occurrences_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [table.companyId, table.tripDocumentId],
+      foreignColumns: [tripDocuments.companyId, tripDocuments.id],
+      name: 'trip_document_occurrences_company_document_fk',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    check(
+      'trip_document_occurrences_stage_check',
+      sql`${table.stage} in (${raw(inList(Object.values(TRIP_OCCURRENCE_STAGE)))})`,
+    ),
+    index('trip_document_occurrences_company_document_idx').on(
+      table.companyId,
+      table.tripDocumentId,
+      table.createdAt,
+    ),
+  ],
+)
+
+/**
+ * Spec 079: os tipos de ocorrência que **a empresa cadastrou**.
+ *
+ * ⚠️ Deixou de ser catálogo fechado do produto em 2026-09-03. O `stage` é escolhido no cadastro
+ * porque é ele que decide **quem registra** — `separation` é do galpão (`trip.manage`) e `delivery`
+ * é da rua (`trip.report`); sem ele não há como derivar a permissão, e a linha entre barracão e rua
+ * da ADR-0043 se perderia.
+ *
+ * ⚠️ **A flag de aviso é coluna daqui**, não tabela ao lado: eram a mesma decisão chaveada pelo
+ * mesmo valor, e separá-las obrigava a tela a casar duas listas para mostrar uma.
+ *
+ * `active` aposenta o tipo sem apagar histórico — apagar deixaria ocorrência órfã.
+ */
+export const companyOccurrenceTypes = pgTable(
+  'company_occurrence_types',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id').notNull(),
+    name: text().notNull(),
+    stage: text().notNull().$type<TripOccurrenceStage>(),
+    notifies: boolean().notNull().default(false),
+    active: boolean().notNull().default(true),
+    /**
+     * O e-mail ao embarcador, com marcadores. Vazio é tipo que não gera e-mail — nem toda
+     * ocorrência precisa avisar o cliente.
+     */
+    emailSubject: text('email_subject').notNull().default(''),
+    emailBody: text('email_body').notNull().default(''),
+    /**
+     * A chave do template do módulo de notificações que este tipo **seleciona**. Com ela, o texto
+     * mora no catálogo de templates — assunto/corpo acima viram legado e ficam vazios no cadastro
+     * novo. Nula é o legado (ou tipo sem e-mail).
+     */
+    emailTemplateKey: varchar('email_template_key', { length: 120 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.companyId],
+      foreignColumns: [companies.id],
+      name: 'company_occurrence_types_company_id_companies_id_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
+    check(
+      'company_occurrence_types_stage_check',
+      sql`${table.stage} in (${raw(inList(Object.values(TRIP_OCCURRENCE_STAGE)))})`,
+    ),
+    check('company_occurrence_types_name_check', sql`length(btrim(${table.name})) > 0`),
+    unique('company_occurrence_types_company_id_id_unique').on(table.companyId, table.id),
   ],
 )

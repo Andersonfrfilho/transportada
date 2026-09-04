@@ -7,7 +7,29 @@ const SEGMENT_SEPARATOR_PATTERN = /(['-])/
  * Ligação fica minúscula em qualquer posição, não só no meio: o campo de sobrenome guarda
  * `da Silva`, e subir a caixa da primeira palavra dele daria `Da Silva`, que não é grafia de nome.
  */
-export const PERSON_NAME_CONNECTIVES: readonly string[] = ['da', 'das', 'de', 'do', 'dos', 'e']
+export const PERSON_NAME_CONNECTIVES: readonly string[] = [
+  'a',
+  'd',
+  'da',
+  'das',
+  'de',
+  'del',
+  'della',
+  'den',
+  'der',
+  'di',
+  'do',
+  'dos',
+  'du',
+  'e',
+  'la',
+  'las',
+  'le',
+  'los',
+  'van',
+  'von',
+  'y',
+]
 
 const CONNECTIVE_SET: ReadonlySet<string> = new Set(PERSON_NAME_CONNECTIVES)
 
@@ -16,9 +38,15 @@ function capitalizeSegment(segment: string): string {
   return `${segment.charAt(0).toLocaleUpperCase(PERSON_NAME_LOCALE)}${segment.slice(1)}`
 }
 
+/**
+ * A ligação é conferida por segmento, não pela palavra inteira: é o que faz `d'ávila` sair
+ * `d'Ávila` com uma regra só, em vez de um caso especial para o apóstrofo.
+ */
 function capitalizeWord(word: string): string {
-  if (CONNECTIVE_SET.has(word)) return word
-  return word.split(SEGMENT_SEPARATOR_PATTERN).map(capitalizeSegment).join('')
+  return word
+    .split(SEGMENT_SEPARATOR_PATTERN)
+    .map((segment) => (CONNECTIVE_SET.has(segment) ? segment : capitalizeSegment(segment)))
+    .join('')
 }
 
 /**

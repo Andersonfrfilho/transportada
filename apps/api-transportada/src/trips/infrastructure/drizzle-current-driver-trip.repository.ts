@@ -3,6 +3,10 @@
  */
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
 
+import {
+  companyDeliveryProofSettings,
+  deliveryProofSettingOverrides,
+} from '../../database/company-delivery-proof-settings.schema.js'
 import { fleetDrivers, fleetVehicles } from '../../database/fleet.schema.js'
 import { nfeDocuments, nfeParticipants, nfeVolumes } from '../../database/nfe.schema.js'
 import { tripDocuments, tripDrivers, tripStops, trips } from '../../database/trip.schema.js'
@@ -16,10 +20,17 @@ import type {
   DriverTripDocument,
   DriverTripStop,
 } from '../application/find-current-driver-trip.use-case.js'
+import {
+  resolveProofSettingsForRecipient,
+  type ProofSettingsLookup,
+} from '../domain/delivery-proof-settings.policy.js'
 import type { TripDatabase } from './trip-queryable.type.js'
 
-/** As duas fases em que a viagem está na rua. Fora delas o motorista não tem o que reportar. */
-const ACTIVE_TRIP_STATUSES = ['dispatched', 'in_transit'] as const
+/**
+ * As fases em que a viagem aparece na tela do motorista. `route_planned` entrou com a ADR-0058: é
+ * onde mora o "Iniciar trajeto" — sem vê-la, o motorista não teria o que despachar.
+ */
+const ACTIVE_TRIP_STATUSES = ['route_planned', 'dispatched', 'in_transit'] as const
 
 /** A nota do destinatário é o que o motorista entrega; a do emitente não lhe diz nada. */
 const RECIPIENT_ROLE = 'recipient'
@@ -46,6 +57,27 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
       .limit(1)
 
     return record?.id ?? null
+  }
+
+  /** ADR-0058: o recorte da rota de despacho do motorista é o vínculo, e ele se prova aqui. */
+  public async isTripOfDriver(input: {
+    readonly companyId: string
+    readonly driverId: string
+    readonly tripId: string
+  }): Promise<boolean> {
+    const [record] = await this.database
+      .select({ tripId: tripDrivers.tripId })
+      .from(tripDrivers)
+      .where(
+        and(
+          eq(tripDrivers.companyId, input.companyId),
+          eq(tripDrivers.driverId, input.driverId),
+          eq(tripDrivers.tripId, input.tripId),
+        ),
+      )
+      .limit(1)
+
+    return record !== undefined
   }
 
   public async listActiveTrips(input: {
@@ -75,12 +107,14 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
     if (tripRows.length === 0) return []
 
     const tripIds = tripRows.map((row) => row.id)
-    const [stopRows, documentRows, manifestsByTrip, schedulesByStop] = await Promise.all([
-      this.listStops({ companyId: input.companyId, tripIds }),
-      this.listDocuments({ companyId: input.companyId, tripIds }),
-      this.listManifests({ companyId: input.companyId, tripIds }),
-      this.listSchedules({ companyId: input.companyId, tripIds }),
-    ])
+    const [stopRows, documentRows, manifestsByTrip, schedulesByStop, proofSettings] =
+      await Promise.all([
+        this.listStops({ companyId: input.companyId, tripIds }),
+        this.listDocuments({ companyId: input.companyId, tripIds }),
+        this.listManifests({ companyId: input.companyId, tripIds }),
+        this.listSchedules({ companyId: input.companyId, tripIds }),
+        this.readProofSettings({ companyId: input.companyId }),
+      ])
 
     /**
      * Volume é 1..N por nota: somar no banco, numa consulta só, evita trazer cem linhas para contar
@@ -107,7 +141,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
       manifest: manifestsByTrip.get(trip.id) ?? null,
       status: trip.status,
       stops: (stopsByTrip.get(trip.id) ?? []).map((stop) =>
-        toDriverStop(stop, documentsByStop, schedulesByStop),
+        toDriverStop(stop, documentsByStop, schedulesByStop, proofSettings),
       ),
       vehiclePlate: trip.plate,
     }))
@@ -230,6 +264,52 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
     )
   }
 
+  /**
+   * ADR-0057 §2: os campos do comprovante viajam **resolvidos** no snapshot. Uma consulta para a
+   * geral e uma para as exceções da empresa inteira — o app não ganha rota de settings.
+   */
+  private async readProofSettings(input: {
+    readonly companyId: string
+  }): Promise<ProofSettingsLookup> {
+    const [generalRows, overrideRows] = await Promise.all([
+      this.database
+        .select({
+          photo: companyDeliveryProofSettings.photo,
+          receiverDocument: companyDeliveryProofSettings.receiverDocument,
+          receiverName: companyDeliveryProofSettings.receiverName,
+          signature: companyDeliveryProofSettings.signature,
+        })
+        .from(companyDeliveryProofSettings)
+        .where(eq(companyDeliveryProofSettings.companyId, input.companyId))
+        .limit(1),
+      this.database
+        .select({
+          photo: deliveryProofSettingOverrides.photo,
+          receiverDocument: deliveryProofSettingOverrides.receiverDocument,
+          receiverName: deliveryProofSettingOverrides.receiverName,
+          signature: deliveryProofSettingOverrides.signature,
+          taxId: deliveryProofSettingOverrides.taxId,
+        })
+        .from(deliveryProofSettingOverrides)
+        .where(eq(deliveryProofSettingOverrides.companyId, input.companyId)),
+    ])
+
+    return {
+      general: generalRows[0] ?? null,
+      overridesByTaxId: new Map(
+        overrideRows.map((row) => [
+          row.taxId,
+          {
+            photo: row.photo,
+            receiverDocument: row.receiverDocument,
+            receiverName: row.receiverName,
+            signature: row.signature,
+          },
+        ]),
+      ),
+    }
+  }
+
   private async listStops(input: { readonly companyId: string; readonly tripIds: string[] }) {
     return this.database
       .select({
@@ -266,6 +346,7 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
           nfeDocumentId: tripDocuments.nfeDocumentId,
           number: nfeDocuments.number,
           recipientName: nfeParticipants.legalName,
+          recipientTaxId: nfeParticipants.taxId,
           returnReason: tripDocuments.returnReason,
           separationStatus: tripDocuments.separationStatus,
           series: nfeDocuments.series,
@@ -326,6 +407,7 @@ type DocumentRow = {
   readonly id: string
   readonly number: string | null
   readonly recipientName: string | null
+  readonly recipientTaxId: string | null
   readonly returnReason: string | null
   readonly separationStatus: string
   readonly series: string | null
@@ -338,13 +420,16 @@ function toDriverStop(
   stop: StopRow,
   documentsByStop: Map<string | null, DocumentRow[]>,
   schedulesByStop: Map<string, DriverStopSchedule>,
+  proofSettings: ProofSettingsLookup,
 ): DriverTripStop {
   return {
     arrivedAt: stop.arrivedAt?.toISOString() ?? null,
     completedAt: stop.completedAt?.toISOString() ?? null,
     deliveryWindowEnd: stop.deliveryWindowEnd?.toISOString() ?? null,
     deliveryWindowStart: stop.deliveryWindowStart?.toISOString() ?? null,
-    documents: (documentsByStop.get(stop.id) ?? []).map(toDriverDocument),
+    documents: (documentsByStop.get(stop.id) ?? []).map((row) =>
+      toDriverDocument(row, proofSettings),
+    ),
     id: stop.id,
     label: stop.label,
     latitude: stop.latitude,
@@ -358,10 +443,19 @@ function toDriverStop(
  * Toda ausência vira vazio, nunca `undefined`: a NF-e é dado de terceiro, e a tela do motorista não
  * pode quebrar porque o emitente não mandou o peso do volume.
  */
-function toDriverDocument(row: DocumentRow): DriverTripDocument {
+function toDriverDocument(
+  row: DocumentRow,
+  proofSettings: ProofSettingsLookup,
+): DriverTripDocument {
   return {
     accessKey: row.accessKey ?? '',
     deliveredAt: row.deliveredAt?.toISOString() ?? null,
+    // Spec 082 (revisão): resolvido pelo CNPJ do destinatário DESTE documento — a mesma regra da
+    // escrita do comprovante, via `resolveProofSettingsForRecipient`.
+    deliveryProof: resolveProofSettingsForRecipient({
+      lookup: proofSettings,
+      recipientTaxId: row.recipientTaxId ?? '',
+    }),
     grossWeight: row.volumes?.grossWeight ?? '0',
     id: row.id,
     number: row.number ?? '',

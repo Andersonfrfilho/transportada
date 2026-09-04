@@ -175,7 +175,15 @@ export async function createMultiVehicleHttpFixture(params: FixtureParams = {}):
         if (params.acceptError) throw params.acceptError
         return {
           suggestion: { ...poolSuggestion, status: 'accepted' as const },
-          trips: [{ documentCount: 2, stopCount: 1, tripId: 'trip-1', vehicleId: 'vehicle-1' }],
+          trips: [
+            {
+              documentCount: 2,
+              driverId: 'driver-1',
+              stopCount: 1,
+              tripId: 'trip-1',
+              vehicleId: 'vehicle-1',
+            },
+          ],
         }
       },
       async create(input) {

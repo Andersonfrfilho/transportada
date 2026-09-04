@@ -27,6 +27,8 @@ export const NOTIFICATION_SETTINGS_CATEGORY_IDS = [
   'billing',
   'identity',
   'mdfe',
+  // Spec 079: a ocorrência de entrega que a empresa escolheu ser avisada.
+  'trip',
 ] as const
 
 type TranslateLabel = (key: string) => string
@@ -66,10 +68,15 @@ export function buildNotificationSettingsOptions(translate: TranslateLabel): {
  */
 export const NOTIFICATION_PREVIEW_PAYLOAD: Readonly<Record<string, string>> = {
   batchName: 'Lote CT-e julho',
+  documentLabel: '883658/1',
   dueDate: '10/09/2026',
   failedCount: '3',
   invoiceNumber: '1042',
+  occurredAt: '03/09/2026 14h52',
+  occurrenceType: 'Recusa do destinatário',
   plate: 'RTA2E19',
   reason: 'Certificado vencido',
   rejectionReason: 'Alíquota fora do intervalo permitido',
+  // O exemplo leva **número**: é a mesma regra do rótulo da parada, que imprimia rua sem ele.
+  stopLabel: 'RUA MIGUEL PETRONI, 1166, SAO CARLOS, SP',
 }

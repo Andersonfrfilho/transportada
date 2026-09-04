@@ -6,9 +6,11 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { MultiSelect, type MultiSelectOption } from '@/components/ui/multi-select'
+import { Select } from '@/components/ui/select'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import type { MultiVehicleSuggestionController } from '../hooks/useMultiVehicleSuggestion.hook'
+import { driversTakenElsewhere } from '../shared/multiVehiclePairing.service'
 import {
   countProposedTrips,
   groupStopsByVehicle,
@@ -19,6 +21,11 @@ import styles from '../styles/routing.module.css'
 type MultiVehicleSuggestionDialogProps = Readonly<{
   dialog: MultiVehicleSuggestionController
   documentCount: number
+  driverLabels: Readonly<Record<string, string>>
+  /** Só o motorista de vínculo único (spec 081) — os demais entram pelo select da linha. */
+  driverOptions: readonly MultiSelectOption[]
+  /** Todo motorista ativo: é o que cada linha oferece, inclusive quem tem dois veículos. */
+  driverRowOptions: readonly MultiSelectOption[]
   onOpenTrip: (tripId: string) => void
   vehicleOptions: readonly MultiSelectOption[]
   vehicleLabels: Readonly<Record<string, string>>
@@ -33,6 +40,9 @@ type MultiVehicleSuggestionDialogProps = Readonly<{
 export function MultiVehicleSuggestionDialog({
   dialog,
   documentCount,
+  driverLabels,
+  driverOptions,
+  driverRowOptions,
   onOpenTrip,
   vehicleLabels,
   vehicleOptions,
@@ -96,8 +106,60 @@ export function MultiVehicleSuggestionDialog({
               removeLabel={t('multiVehicle.vehicles.remove', { label: '' })}
               searchPlaceholder={t('multiVehicle.vehicles.search')}
               summaryLabel={(count) => t('multiVehicle.vehicles.summary', { count })}
-              values={dialog.selectedVehicleIds}
+              values={dialog.pairs.map((pair) => pair.vehicleId)}
             />
+            {/*
+              A entrada pelo outro lado, e é a do agregado: escolher a pessoa já põe o caminhão dela
+              na distribuição, porque o vínculo dela é um só.
+            */}
+            <MultiSelect
+              ariaLabel={t('multiVehicle.drivers.label')}
+              clearAllLabel={t('multiVehicle.drivers.clearAll')}
+              disabled={dialog.suggestion !== null}
+              emptyLabel={t('multiVehicle.drivers.empty')}
+              onChange={dialog.setSelectedDriverIds}
+              options={driverOptions}
+              placeholder={t('multiVehicle.drivers.placeholder')}
+              removeLabel={t('multiVehicle.drivers.remove', { label: '' })}
+              searchPlaceholder={t('multiVehicle.drivers.search')}
+              summaryLabel={(count) => t('multiVehicle.drivers.summary', { count })}
+              values={dialog.selectedDriverIds}
+            />
+            {dialog.pairs.length > 0 && (
+              <ul className={styles.multiVehiclePairs}>
+                {dialog.pairs.map((pair) => (
+                  <li className={styles.multiVehiclePair} key={pair.vehicleId}>
+                    <span className={styles.multiVehiclePairVehicle}>
+                      {vehicleLabels[pair.vehicleId] ?? pair.vehicleId}
+                    </span>
+                    <Select
+                      ariaLabel={t('multiVehicle.pairDriver.label', {
+                        plate: vehicleLabels[pair.vehicleId] ?? pair.vehicleId,
+                      })}
+                      disabled={dialog.suggestion !== null}
+                      onChange={(driverId) =>
+                        dialog.setPairDriver({
+                          driverId: driverId === '' ? null : driverId,
+                          vehicleId: pair.vehicleId,
+                        })
+                      }
+                      options={[
+                        { label: t('multiVehicle.pairDriver.none'), value: '' },
+                        ...driverRowOptions.filter(
+                          (option) =>
+                            option.value === pair.driverId ||
+                            !driversTakenElsewhere({
+                              pairs: dialog.pairs,
+                              vehicleId: pair.vehicleId,
+                            }).includes(option.value),
+                        ),
+                      ]}
+                      value={pair.driverId ?? ''}
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
             {dialog.suggestion === null && (
               <div className={styles.multiVehicleActions}>
                 <Button
@@ -185,7 +247,10 @@ export function MultiVehicleSuggestionDialog({
                   {t('multiVehicle.acceptedTrip', {
                     documents: trip.documentCount,
                     stops: trip.stopCount,
-                  })}{' '}
+                  })}
+                  {/* RF-6: quem ficou com o quê, sem abrir a viagem para descobrir. */}
+                  {trip.driverId !== null &&
+                    ` · ${driverLabels[trip.driverId] ?? trip.driverId}`}{' '}
                   <button onClick={() => onOpenTrip(trip.tripId)} type="button">
                     {t('multiVehicle.openTrip')}
                   </button>

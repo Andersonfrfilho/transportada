@@ -2,15 +2,18 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { formatPhone } from '@/modules/shared/phone.service'
 import { BarcodeScanner } from '@/components/ui/barcode-scanner'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
+import { toDisplayPersonName } from '@/modules/shared/personName.service'
 import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
 import { useTripDocumentSelection } from '../hooks/useTripDocumentSelection.hook'
 import type { TripDocumentLinkFormController } from '../hooks/useTripDocumentLinkForm.hook'
 import type { TripWorkspaceController } from '../hooks/useTripWorkspace.hook'
+import { selectPendingCteDocumentIds } from '../shared/cteSelection.service'
 import type { TripStatus } from '../shared/trip.types'
 import { resolveFirstTripFeedbackKey } from '../shared/tripFeedback.service'
 import { buildLinkTripDocumentBody } from '../shared/tripForm.service'
@@ -22,6 +25,7 @@ import {
 } from '../shared/tripNavigation.service'
 import { tripDocumentLabel } from '../shared/tripDocument.service'
 import {
+  canDeliverDocuments,
   canReturnDocuments,
   canSeparateOrLoadDocuments,
   isTripEditable,
@@ -29,9 +33,20 @@ import {
 import { DeliveryAddressOverrideDialog } from './DeliveryAddressOverrideDialog.component'
 import { TripFiscalReadinessPanel } from './TripFiscalReadinessPanel.component'
 import { TripMdfePendingDialog } from './TripMdfePendingDialog.component'
-import { TripProgressBar } from './TripProgressBar.component'
+import { TripCargoPanel } from './TripCargoPanel.component'
+import { TripDeliveryProof } from './TripDeliveryProof.component'
+import { TripOccurrences } from './TripOccurrences.component'
+import { TripRouteMap } from './TripRouteMap.component'
+import { resolveDeliveryProofView } from '../shared/deliveryProof.service'
+import { resolveTripProgress } from '../shared/tripProgress.service'
+import type { TripDocumentDetail } from '../shared/trip.types'
+import { TripProcessFlow } from './TripProcessFlow.component'
 import { TripReasonDialog } from './TripReasonDialog.component'
 import { TripScanQueue } from './TripScanQueue.component'
+import type { FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
+import { resolveVehicleColorSwatch } from '@/modules/fleet/shared/vehicleOption.service'
+
+import { describeTripVehicle } from '../shared/vehicleSummary.service'
 import { TripStateActions } from './TripStateActions.component'
 import { TripStopDocumentGroup, TripStopList } from './TripStopList.component'
 import { RouteSuggestionSection } from '@/modules/routing/components/RouteSuggestionSection.component'
@@ -41,9 +56,36 @@ import styles from '../styles/trip.module.css'
 
 type TripDetailProps = Readonly<{
   linkForm: TripDocumentLinkFormController
-  onClose: () => void
+  /** A frota da empresa: é dela que sai a identificação do veículo, no lugar do UUID. */
+  vehicles: readonly FleetVehicleDetail[]
   workspace: TripWorkspaceController
 }>
+
+/**
+ * Veículo que saiu da frota (desativado, ou de outra empresa por defeito de escopo) ainda precisa
+ * nomear alguma coisa: cair no identificador é pior que hoje só se ninguém disser que é isso. O
+ * rótulo diz, e a viagem continua legível.
+ */
+function describeVehicle(
+  vehicles: readonly FleetVehicleDetail[],
+  vehicleId: string,
+  translateFleet: (key: string) => string,
+): string {
+  const vehicle = vehicles.find((entry) => entry.id === vehicleId)
+  if (vehicle === undefined) return vehicleId
+
+  return describeTripVehicle({
+    brand: vehicle.brand,
+    colorLabel:
+      resolveVehicleColorSwatch(vehicle.color) === undefined
+        ? ''
+        : translateFleet(`colorOption.${vehicle.color}`),
+    model: vehicle.model,
+    // `modelYear` é número na ficha e texto na linha: zero é ausência de cadastro, não ano zero.
+    modelYear: vehicle.modelYear > 0 ? String(vehicle.modelYear) : '',
+    plate: vehicle.plate,
+  })
+}
 
 function statusClassName(status: TripStatus): string {
   return status === 'completed' || status === 'cancelled'
@@ -101,8 +143,9 @@ export function TripDetailSkeleton() {
   )
 }
 
-export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
+export function TripDetail({ linkForm, vehicles, workspace }: TripDetailProps) {
   const { t } = useTranslation('trip')
+  const { t: tFleet } = useTranslation('fleet')
   const trip = workspace.trip
   const [isMdfeGateOpen, setIsMdfeGateOpen] = useState(false)
   const [overrideDocumentId, setOverrideDocumentId] = useState<string | null>(null)
@@ -147,6 +190,19 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
     canManage,
     canReturn,
     canSeparateOrLoad,
+    canDeliver: canDeliverDocuments(trip.status),
+    onToggleProof: (documentId: string) =>
+      workspace.setOpenProofDocumentId(
+        workspace.openProofDocumentId === documentId ? null : documentId,
+      ),
+    openProofDocumentId: workspace.openProofDocumentId,
+    renderProof: (documentId: string) => (
+      <TripDeliveryProofLoader
+        documentId={documentId}
+        documents={trip.documents}
+        workspace={workspace}
+      />
+    ),
     isDeliverPending: workspace.deliverDocumentMutation.isPending,
     isEditable,
     isReleasePending: workspace.releaseDocumentMutation.isPending,
@@ -270,54 +326,93 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
         </p>
       )}
 
-      <p className={styles.summaryLine}>{t('detail.vehicle', { vehicleId: trip.vehicleId })}</p>
+      <p className={styles.summaryLine}>
+        {t('detail.vehicle', { vehicle: describeVehicle(vehicles, trip.vehicleId, tFleet) })}
+      </p>
 
       <fieldset className={styles.driverChecklist}>
         <legend className={styles.hint}>{t('detail.drivers')}</legend>
-        {trip.drivers.map((driver) => (
-          <span key={driver.driverId}>{driver.driverName}</span>
-        ))}
+        {/*
+         * Nome sozinho obrigava a abrir a frota noutra aba para achar o telefone. O contato é
+         * **link**, não texto: quem está no galpão toca e liga, sem copiar número à mão.
+         */}
+        {trip.drivers.map((driver) => {
+          /**
+           * `??` e não `=== ''`: o contato nasceu opcional (spec 078 D2), e uma API anterior o
+           * serve **ausente**. Tratá-lo como sempre presente derrubava a tela inteira em
+           * `formatPhone(undefined)` — a mesma armadilha do rótulo que imprimia `undefined/`.
+           */
+          const phone = driver.driverPhone ?? ''
+          const email = driver.driverEmail ?? ''
+
+          return (
+            <span className={styles.driverLine} key={driver.driverId}>
+              <strong>{toDisplayPersonName(driver.driverName)}</strong>
+              {phone === '' ? null : (
+                <a href={`tel:${phone}`}>
+                  <Icon name="send" />
+                  {formatPhone(phone)}
+                </a>
+              )}
+              {email === '' ? null : (
+                <a href={`mailto:${email}`}>
+                  <Icon name="copy" />
+                  {email}
+                </a>
+              )}
+            </span>
+          )
+        })}
       </fieldset>
 
-      <TripProgressBar documents={trip.documents} />
+      {/*
+       * O botão fica **ao lado** do automático, não no lugar dele: quem está no galpão esperando a
+       * baixa não espera meio minuto, e quem só acompanha não deve apertar nada.
+       */}
+      <Button onClick={() => workspace.refetchTrip()} size="sm" type="button" variant="ghost">
+        <Icon name="refresh" />
+        {t('detail.refreshNow')}
+      </Button>
+
+      <TripProcessFlow
+        documents={trip.documents}
+        progress={resolveTripProgress({
+          now: new Date().toISOString(),
+          status: trip.status,
+          stops: trip.stops,
+        })}
+      />
+
+      <TripCargoPanel
+        cargoWeight={trip.cargoWeight ?? null}
+        layout={trip.cargoLayout}
+        occupancy={trip.occupancy}
+      />
+
+      <TripRouteMap
+        canCorrect={canManage}
+        geometry={workspace.routeGeometryQuery.data ?? null}
+        isCorrecting={workspace.correctAddressMutation.isPending}
+        onCorrect={(correction) => workspace.correctAddressMutation.mutate(correction)}
+        stops={trip.stops}
+      />
 
       {selection.selectedIds.size > 0 ? (
         <div className={styles.selectionBar} role="status">
           <span>{t('stops.selectionCount', { count: selection.selectedIds.size })}</span>
           <Button onClick={selection.clear} size="sm" type="button" variant="ghost">
+            <Icon name="close" />
             {t('stops.selectionClear')}
           </Button>
         </div>
       ) : null}
 
-      <TripStopList
-        actions={documentActions}
-        canReorder={isEditable}
-        onReorder={handleReorderStops}
-        selection={selection}
-        stops={trip.stops}
-      />
-
-      {unassignedDocuments.length === 0 ? null : (
-        <div className={styles.stopCard}>
-          <div className={styles.stopCardHead}>
-            <span className={styles.stopLabel}>{t('stops.unassigned')}</span>
-            <span className={styles.stopCounter}>
-              {t('stops.documentCount', { count: unassignedDocuments.length })}
-            </span>
-          </div>
-          <TripStopDocumentGroup
-            actions={documentActions}
-            documents={unassignedDocuments}
-            selection={selection}
-          />
-        </div>
-      )}
-
-      {trip.documents.length === 0 ? (
-        <p className={styles.hint}>{t('detail.documentsEmpty')}</p>
-      ) : null}
-
+      {/*
+       * Spec 079 T021: **vincular e agir vêm antes da lista.** Numa viagem com doze paradas os dois
+       * ficavam abaixo de tudo, e quem abria a tela para despachar rolava a viagem inteira para
+       * achar o botão. O que se **lê** — progresso, ocupação, mapa de carga — continua acima: mover
+       * os botões para o topo de tudo trocaria um problema de ordem por outro.
+       */}
       <TripStateActions
         canManage={canManage}
         canReturn={canReturn}
@@ -330,6 +425,18 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
         onCancel={() => workspace.cancelMutation.mutate({ tripId: trip.id })}
         onDispatch={(input) => workspace.dispatchMutation.mutate({ ...input, tripId: trip.id })}
         onPlanRoute={() => workspace.planRouteMutation.mutate({ tripId: trip.id })}
+        isGeneratingCteBatch={workspace.createCteBatchMutation.isPending}
+        pendingCteSelection={
+          workspace.controller.canSubmitCte
+            ? selectPendingCteDocumentIds({
+                documents: workspace.fiscalReadiness?.documents,
+                selectedIds: selection.selectedIds,
+              })
+            : []
+        }
+        onGenerateCteSelection={(tripDocumentIds) =>
+          workspace.createCteBatchMutation.mutate({ tripDocumentIds, tripId: trip.id })
+        }
         selection={selection}
         trip={trip}
       />
@@ -384,6 +491,34 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
                 <Icon name="camera" />
                 {t('detail.scan')}
               </Button>
+            ) : null}
+
+            <TripStopList
+              actions={documentActions}
+              canReorder={isEditable}
+              onReorder={handleReorderStops}
+              selection={selection}
+              stops={trip.stops}
+            />
+
+            {unassignedDocuments.length === 0 ? null : (
+              <div className={styles.stopCard}>
+                <div className={styles.stopCardHead}>
+                  <span className={styles.stopLabel}>{t('stops.unassigned')}</span>
+                  <span className={styles.stopCounter}>
+                    {t('stops.documentCount', { count: unassignedDocuments.length })}
+                  </span>
+                </div>
+                <TripStopDocumentGroup
+                  actions={documentActions}
+                  documents={unassignedDocuments}
+                  selection={selection}
+                />
+              </div>
+            )}
+
+            {trip.documents.length === 0 ? (
+              <p className={styles.hint}>{t('detail.documentsEmpty')}</p>
             ) : null}
           </div>
           <TripScanQueue entries={linkForm.scanEntries} onClear={linkForm.clearScanEntries} />
@@ -440,10 +575,6 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
             {t('actions.close')}
           </Button>
         ) : null}
-        <Button onClick={onClose} size="sm" type="button" variant="ghost">
-          <Icon name="chevron-left" />
-          {t('actions.backToList')}
-        </Button>
       </div>
 
       <TripMdfePendingDialog
@@ -503,5 +634,54 @@ export function TripDetail({ linkForm, onClose, workspace }: TripDetailProps) {
         title={t('stateActions.returnTitle')}
       />
     </section>
+  )
+}
+
+/**
+ * O carregador do comprovante. Ele existe para o painel **não** guardar a URL assinada em estado
+ * próprio: o que a consulta trouxe é o que a tela mostra, e reabrir o painel busca de novo — a URL
+ * expira em cinco minutos, e uma cópia guardada viraria imagem quebrada sem explicação.
+ */
+function TripDeliveryProofLoader({
+  documents,
+  documentId,
+  workspace,
+}: Readonly<{
+  documentId: string
+  documents: readonly TripDocumentDetail[]
+  workspace: TripWorkspaceController
+}>) {
+  const document = documents.find((candidate) => candidate.id === documentId)
+  if (document === undefined) return null
+
+  if (workspace.deliveryProofsQuery.isLoading) return <Skeleton variant="text" width="60%" />
+
+  return (
+    <TripDeliveryProof
+      occurrences={
+        <TripOccurrences
+          canRegister={workspace.controller.canManageTrips}
+          email={workspace.registerOccurrenceMutation.data?.email ?? null}
+          isRegistering={workspace.registerOccurrenceMutation.isPending}
+          occurrences={workspace.occurrencesQuery.data ?? []}
+          onRegister={(occurrence) =>
+            workspace.registerOccurrenceMutation.mutate({
+              documentId,
+              note: occurrence.note,
+              occurrenceTypeId: occurrence.occurrenceTypeId,
+              productCode: occurrence.productCode,
+              tripId: document.tripId,
+            })
+          }
+          products={workspace.documentProductsQuery.data ?? []}
+          types={workspace.occurrenceTypesQuery.data ?? []}
+        />
+      }
+      products={workspace.documentProductsQuery.data ?? []}
+      view={resolveDeliveryProofView({
+        document,
+        proofs: workspace.deliveryProofsQuery.data ?? [],
+      })}
+    />
   )
 }

@@ -118,7 +118,8 @@
   },
   "tabs": {
     "documents": "Notas",
-    "imports": "Importações"
+    "imports": "Importações",
+    "addresses": "Endereços"
   },
   "mechanism": {
     "section": "Origem da importação",
@@ -272,7 +273,8 @@
     },
     "chooseYear": "Escolher o ano",
     "openCalendar": "Abrir calendário",
-    "tripLink": "Saiu nesta viagem"
+    "tripLink": "Esta nota está em viagem",
+    "tripLinkWithStatus": "Esta nota está em viagem — {{status}}"
   },
   "documentStatus": {
     "authorized": "Autorizada",
@@ -393,5 +395,43 @@
   "cargoWeightEnabled": "Estimando {{weight}} kg por volume. O peso declarado pelo emitente sempre vence a estimativa.",
   "cargoWeightInvalid": "Informe um peso maior que zero, com até quatro casas decimais.",
   "cargoWeightSave": "Salvar peso padrão",
-  "cargoWeightClear": "Desligar estimativa"
+  "cargoWeightClear": "Desligar estimativa",
+  "cargoVolumeTitle": "Cubagem estimada da carga",
+  "cargoVolumeHint": "O volume que cada volume da nota ocupa, em metros cúbicos. A NF-e não traz medida da carga, então este número é o que estima a ocupação do veículo exibida na viagem.",
+  "cargoVolumeLabel": "m³ por volume",
+  "cargoVolumeInvalid": "Informe um número maior que zero, com até três casas decimais (por exemplo, 0,035). Para desligar a estimativa, use “Desligar cubagem estimada”.",
+  "cargoVolumeDefaultSpecies": "Vale para toda nota. A espécie do volume ainda não é declarada por nenhum emitente.",
+  "cargoVolumeSpeciesCount": "{{count}} espécies com fator próprio.",
+  "cargoVolumeSpeciesCount_other": "{{count}} espécies com fator próprio.",
+  "cargoVolumeSave": "Salvar cubagem",
+  "cargoVolumeClear": "Desligar cubagem estimada",
+  "cargoVolumeReadOnly": "Só quem administra configurações muda este número.",
+  "addressReport": {
+    "tab": "Endereços",
+    "title": "Endereços a corrigir",
+    "summary": "{{needingAttention}} de {{measured}} endereços medidos precisam de correção no cadastro.",
+    "empty": "Nenhum endereço precisa de correção. Os {{measured}} medidos estão bons.",
+    "notMeasured": "Nenhum endereço foi medido ainda.",
+    "denied": "Você não tem permissão para ver este relatório.",
+    "failed": "Não foi possível carregar o relatório.",
+    "noteLabel": "No cadastro",
+    "providerLabel": "O provedor conhece",
+    "unknownStreet": "não conhece este logradouro",
+    "distance": "{{metres}} m do ponto que usamos hoje",
+    "contractorWithout": "Sem emitente identificado",
+    "kind": {
+      "street_unknown": "Logradouro não encontrado",
+      "city_mismatch": "Cai em outro município",
+      "street_different": "Outro logradouro",
+      "postal_code_stale": "CEP genérico",
+      "street_incomplete": "Nome incompleto"
+    },
+    "kindHelp": {
+      "street_unknown": "O provedor não encontra esta rua neste município. Nenhuma coordenada conserta isso — o texto precisa ser corrigido na origem.",
+      "city_mismatch": "O endereço resolve num município diferente do que a nota declara. O resultado foi descartado.",
+      "street_different": "O provedor encontrou um logradouro com nome diferente no mesmo CEP e número.",
+      "postal_code_stale": "O CEP do cadastro é o genérico da cidade. O específico da rua deixa a busca do endereço sair de graça.",
+      "street_incomplete": "A mesma rua com o nome mais curto no cadastro. A entrega chega; o cadastro é que está abreviado."
+    }
+  }
 }

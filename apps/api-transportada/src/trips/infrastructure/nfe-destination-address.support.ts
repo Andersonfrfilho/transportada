@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 
 import {
   freightCalculations,
@@ -18,6 +18,8 @@ export type NfeDestinationAddress = {
   readonly components: StopAddressComponents
   readonly label: string
   readonly origin: PhysicalDestinationOrigin
+  /** A UF da parada — o mapa a usa para escolher a malha do IBGE. */
+  readonly state: string
 }
 
 /** O vínculo aceita nota crua ou frete já calculado sobre ela (ADR-0023 §2) — os dois resolvem à
@@ -85,4 +87,56 @@ export async function resolveNfeDestinationAddress(
     )
 
   return chooseNfeDestinationRow(rows)
+}
+
+/**
+ * A mesma escolha de participante do singular, em lote: uma consulta para todas as notas da viagem,
+ * nunca uma por parada (§15 do code-standart). Alimenta o rótulo derivado na leitura do detalhe.
+ */
+export async function listStopAddresses(
+  queryable: TripQueryable,
+  input: { readonly companyId: string; readonly nfeDocumentIds: readonly string[] },
+): Promise<Map<string, NfeDestinationAddress>> {
+  const found = new Map<string, NfeDestinationAddress>()
+  if (input.nfeDocumentIds.length === 0) return found
+
+  const rows = await queryable
+    .select({
+      city: nfeAddresses.city,
+      cityCode: nfeAddresses.cityCode,
+      documentId: nfeParticipants.documentId,
+      number: nfeAddresses.number,
+      postalCode: nfeAddresses.postalCode,
+      role: nfeParticipants.role,
+      state: nfeAddresses.state,
+      street: nfeAddresses.street,
+    })
+    .from(nfeParticipants)
+    .innerJoin(
+      nfeAddresses,
+      and(
+        eq(nfeAddresses.companyId, nfeParticipants.companyId),
+        eq(nfeAddresses.participantId, nfeParticipants.id),
+      ),
+    )
+    .where(
+      and(
+        eq(nfeParticipants.companyId, input.companyId),
+        inArray(nfeParticipants.documentId, [...new Set(input.nfeDocumentIds)]),
+        destinationRolesFilter(nfeParticipants.role),
+      ),
+    )
+
+  const byDocument = new Map<string, typeof rows>()
+  for (const row of rows) {
+    const bucket = byDocument.get(row.documentId)
+    if (bucket === undefined) byDocument.set(row.documentId, [row])
+    else bucket.push(row)
+  }
+  for (const [documentId, documentRows] of byDocument) {
+    const chosen = chooseNfeDestinationRow(documentRows)
+    if (chosen !== null) found.set(documentId, chosen)
+  }
+
+  return found
 }

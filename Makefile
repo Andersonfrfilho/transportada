@@ -31,7 +31,7 @@ COMPOSE_BASE := docker compose --env-file $(ENV_FILE) -p $(COMPOSE_PROJECT_NAME)
 COMPOSE := KEYCLOAK_PORT=$(KEYCLOAK_PORT) KEYCLOAK_MANAGEMENT_PORT=$(KEYCLOAK_MANAGEMENT_PORT) $(COMPOSE_BASE)
 E2E_ENV_FILE ?= .env.test
 
-.PHONY: help bootstrap e2e-bootstrap test-bootstrap realm-contract config postgres-up identity-bootstrap storage-bootstrap up down ps dev check migration-test smoke e2e-up e2e-down e2e-ps test-up test-down test-ps worker-integration test-worker-integration
+.PHONY: help bootstrap e2e-bootstrap test-bootstrap realm-contract config postgres-up identity-bootstrap storage-bootstrap up down ps dev check migration-test smoke e2e-up e2e-down e2e-ps test-up test-down test-ps worker-integration map-refresh test-worker-integration
 
 help: ## 📚 Lista os comandos disponíveis
 	@sed -n 's/^\([a-z][a-z-]*\):.*## \(.*\)$$/\1\t\2/p' $(MAKEFILE_LIST)
@@ -115,6 +115,23 @@ routing-fixture: ## 🗺️  Processa a grade sintética em deploy/osrm/data (pa
 			ghcr.io/project-osrm/osrm-backend:v6.0.0 $$stage >/dev/null || exit 1; \
 	done
 	@echo "OSRM fixture pronto — suba com OSRM_DATASET=fixture make routing-up"
+
+# A bancada completa: infra, migrations, identidade, frota, notas e o OSRM da grade sintética. É o
+# que faltava para "montar roteiro" funcionar numa máquina nova — sem o solver a sugestão nasce e
+# fica `queued` para sempre, e sem as migrations a coluna do par motorista/veículo não existe.
+#
+# ⚠️ Ela **não** substitui o extract real (`docs/runbooks/osrm-extract.md`). A grade é sintética e
+# cobre Ribeirão Preto: serve para exercitar o solver ponta a ponta, não para medir distância de
+# verdade.
+bench: up ## 🧪 Prepara a bancada local inteira (migrations, sementes e OSRM da grade sintética)
+	@$(MAKE) --no-print-directory identity-bootstrap
+	@set -a; . "./$(ENV_FILE)"; set +a; \
+		bun run --cwd apps/api-transportada db:migrate; \
+		bun run --cwd apps/api-transportada db:seed:fleet; \
+		bun run --cwd apps/api-transportada db:seed:trip
+	@if [ ! -f deploy/osrm/data/fixture.osrm ]; then $(MAKE) --no-print-directory routing-fixture; fi
+	@OSRM_DATASET=fixture $(MAKE) --no-print-directory routing-up
+	@echo "bancada pronta — agora 'make dev'"
 
 routing-up: config ## 🗺️  Sobe o OSRM (exige o extract — ver docs/runbooks/osrm-extract.md)
 	@$(COMPOSE) --profile routing up -d --wait osrm
@@ -209,6 +226,30 @@ smoke: config ## 🩺 Valida a stack local já iniciada
 		PLAYWRIGHT_LANDING_PORT="$${PLAYWRIGHT_LANDING_PORT:-53111}" \
 		PLAYWRIGHT_REUSE_EXISTING_LANDING_SERVER=false \
 		bun run --cwd apps/frontend-landing smoke
+
+map-refresh: ## 🗺️  Reconstrói mapa e rota juntos, na data fixada em .railway/railway.ts
+	@date="$$(sed -n 's|.*sudeste-\([0-9]\{6\}\)\.osm\.pbf.*|\1|p' .railway/railway.ts | head -1)"; \
+	test -n "$$date" || { echo "não achei a data do extrato em .railway/railway.ts"; exit 2; }; \
+	echo "extrato    sudeste-$$date.osm.pbf"; \
+	echo "serviços   osrm + map-tiles (--from-source: reconstrói, não só reinicia)"; \
+	echo "ambiente   $${RAILWAY_ENVIRONMENT:-o do link atual}"; \
+	echo; \
+	echo "⚠️  Os dois, sempre. Mapa e rota em datas diferentes é a tela e o roteirizador"; \
+	echo "    discordando de onde a rua está — e isso não dá erro, só produz um traço"; \
+	echo "    que passa por onde o caminhão não vai."; \
+	echo; \
+	echo "⚠️  Trocou a data? o valor novo é ARG de build e vive na variável do serviço."; \
+	echo "    A IaC ainda não gerencia estes serviços — 'railway config plan' reprova enquanto"; \
+	echo "    sete deles apontarem para deploy/*/railway.json (ver docs/spec/railway.md)."; \
+	echo "    Até lá, ajuste MAP_PBF_URL e OSRM_PBF_URL no painel antes de rodar isto."; \
+	if [ "$(CONFIRM)" != "1" ]; then \
+		echo; \
+		echo "nada foi reconstruído. repita com CONFIRM=1 para executar."; \
+		exit 0; \
+	fi; \
+	echo; \
+	railway redeploy --service osrm --from-source --yes && \
+	railway redeploy --service map-tiles --from-source --yes
 
 e2e-up: e2e-bootstrap ## 🧪 Sobe somente PostgreSQL, RabbitMQ e MinIO do ambiente dedicado de E2E
 	@ENV_FILE=$(E2E_ENV_FILE) SERVICES="postgres rabbitmq minio" $(MAKE) up

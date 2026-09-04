@@ -6,10 +6,17 @@ import type {
   RouteSuggestionClient,
 } from '../shared/routeSuggestionClient.service'
 import type { RouteSuggestion } from '../shared/routeSuggestion.types'
+import { canOpenMultiVehicleSuggestion } from '../shared/multiVehicleSuggestion.service'
 import {
-  canOpenMultiVehicleSuggestion,
+  assignDriver,
   canRequestMultiVehicle,
-} from '../shared/multiVehicleSuggestion.service'
+  selectDrivers,
+  selectedDriverIds,
+  selectVehicles,
+  toRequestVehicles,
+  type DriverVehicleLink,
+  type VehicleDriverPair,
+} from '../shared/multiVehiclePairing.service'
 import { getRouteSuggestionClient } from './useRouteSuggestion.hook'
 
 /** Mesmo ritmo do painel da viagem: o worker resolve, e a tela pergunta de novo. */
@@ -27,9 +34,15 @@ export type MultiVehicleSuggestionController = Readonly<{
   isOpen: boolean
   isRequesting: boolean
   open: () => void
+  /** As linhas montadas: um veículo e o motorista dele (ou nenhum). */
+  pairs: readonly VehicleDriverPair[]
   reject: () => Promise<void>
   request: () => Promise<void>
-  selectedVehicleIds: readonly string[]
+  /** O motorista de uma linha, escolhido à mão. `null` limpa a linha. */
+  setPairDriver: (input: Readonly<{ driverId: string | null; vehicleId: string }>) => void
+  /** Os motoristas marcados no seletor por motorista — só os que ele oferece. */
+  selectedDriverIds: readonly string[]
+  setSelectedDriverIds: (driverIds: readonly string[]) => void
   setSelectedVehicleIds: (vehicleIds: readonly string[]) => void
   suggestion: RouteSuggestion | null
 }>
@@ -43,17 +56,23 @@ export type MultiVehicleSuggestionController = Readonly<{
 export function useMultiVehicleSuggestion(input: {
   readonly client?: RouteSuggestionClient
   readonly documentIds: readonly string[]
+  readonly links?: readonly DriverVehicleLink[]
   readonly onAccepted?: () => void
   readonly permissions: readonly string[]
 }): MultiVehicleSuggestionController {
   const [isOpen, setIsOpen] = useState(false)
-  const [selectedVehicleIds, setSelectedVehicleIds] = useState<readonly string[]>([])
+  /**
+   * O estado é a **lista de pares**, não duas listas de ids. Guardar veículo e motorista separados
+   * obrigaria a recasá-los a cada render, e o casamento é justamente a decisão que o operador toma.
+   */
+  const [pairs, setPairs] = useState<readonly VehicleDriverPair[]>([])
   const [suggestion, setSuggestion] = useState<RouteSuggestion | null>(null)
   const [accepted, setAccepted] = useState<AcceptedMultiVehicleSuggestion | null>(null)
   const [errorCode, setErrorCode] = useState<string | null>(null)
   const [isRequesting, setIsRequesting] = useState(false)
   const [isDeciding, setIsDeciding] = useState(false)
   const clientRef = useRef<RouteSuggestionClient | null>(input.client ?? null)
+  const links = input.links ?? []
 
   function resolveClient(): RouteSuggestionClient {
     clientRef.current ??= getRouteSuggestionClient()
@@ -82,7 +101,7 @@ export function useMultiVehicleSuggestion(input: {
       setSuggestion(
         await resolveClient().createMultiVehicle({
           nfeDocumentIds: input.documentIds,
-          vehicleIds: selectedVehicleIds,
+          vehicles: toRequestVehicles(pairs),
         }),
       )
     } catch (cause) {
@@ -90,7 +109,7 @@ export function useMultiVehicleSuggestion(input: {
     } finally {
       setIsRequesting(false)
     }
-  }, [input.documentIds, selectedVehicleIds])
+  }, [input.documentIds, pairs])
 
   /** O poll para quando a sugestão assenta — depois disso ele seria tráfego por nada. */
   useEffect(() => {
@@ -146,20 +165,23 @@ export function useMultiVehicleSuggestion(input: {
     accept,
     accepted,
     canOpen: canOpenMultiVehicleSuggestion(input.permissions),
-    canRequest: canRequestMultiVehicle({
-      documentIds: input.documentIds,
-      vehicleIds: selectedVehicleIds,
-    }),
+    canRequest: canRequestMultiVehicle({ documentIds: input.documentIds, pairs }),
     close,
     errorCode,
     isDeciding,
     isOpen,
     isRequesting,
     open: () => setIsOpen(true),
+    pairs,
     reject,
     request,
-    selectedVehicleIds,
-    setSelectedVehicleIds,
+    selectedDriverIds: selectedDriverIds({ links, pairs }),
+    setPairDriver: ({ driverId, vehicleId }) =>
+      setPairs((current) => assignDriver({ driverId, pairs: current, vehicleId })),
+    setSelectedDriverIds: (driverIds) =>
+      setPairs((current) => selectDrivers({ driverIds, links, pairs: current })),
+    setSelectedVehicleIds: (vehicleIds) =>
+      setPairs((current) => selectVehicles({ links, pairs: current, vehicleIds })),
     suggestion,
   }
 }

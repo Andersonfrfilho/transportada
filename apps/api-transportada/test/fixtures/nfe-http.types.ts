@@ -68,6 +68,11 @@ export type NfeDocumentSummary = {
   readonly nfseInvoiceNumber: string | null
   readonly number: string
   readonly recipientAddress: string | null
+  readonly recipientPostalCode: string | null
+  readonly recipientAddressNumber: string | null
+  readonly recipientLatitude: string | null
+  readonly recipientLongitude: string | null
+  readonly recipientLocationPrecision: string | null
   readonly recipientCity: string | null
   readonly recipientCityCode: string | null
   readonly recipientName: string

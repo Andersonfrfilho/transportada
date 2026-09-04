@@ -12,6 +12,9 @@ export type IconName =
   | 'arrow-up'
   | 'calendar'
   | 'camera'
+  | 'contrast'
+  | 'minus'
+  | 'target'
   | 'check'
   | 'chevron-down'
   | 'chevron-left'
@@ -48,8 +51,20 @@ export type IconName =
   | 'shield'
   | 'sort'
   | 'spinner'
+  | 'sun'
+  | 'moon'
   | 'trash'
   | 'truck'
+  | 'vehicle-motorcycle'
+  | 'vehicle-car'
+  | 'vehicle-utility'
+  | 'vehicle-van'
+  | 'vehicle-vuc'
+  | 'vehicle-three-quarter'
+  | 'vehicle-toco'
+  | 'vehicle-truck'
+  | 'vehicle-tractor-unit'
+  | 'vehicle-other'
   | 'upload'
   | 'workspace-billing'
   | 'workspace-company-settings'
@@ -67,6 +82,7 @@ export type IconName =
   | 'workspace-notification'
   | 'workspace-operations'
   | 'workspace-trip'
+  | 'workspace-trip-occurrences'
   | 'workspace-access-profiles'
   | 'workspace-users'
 
@@ -81,9 +97,15 @@ export type IconProps = {
 /** Traçados de 24×24, sem preenchimento: a cor vem do botão que hospeda o ícone. */
 const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   add: ['M12 5v14', 'M5 12h14'],
+  /** Afastar o mapa. É o "menos" do par com `add`, e por isso tem o mesmo traço horizontal. */
+  minus: ['M5 12h14'],
+  /** Meio círculo cheio: o símbolo de contraste, para alternar a leitura do mapa. */
+  contrast: ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', 'M12 3v18a9 9 0 0 0 0-18z'],
   alert: ['M12 3.5 2.7 19.5h18.6L12 3.5z', 'M12 10v4', 'M12 17h.01'],
   'arrow-down': ['M12 4v14', 'M6 12l6 6 6-6'],
   'arrow-up': ['M12 20V6', 'M6 12l6-6 6 6'],
+  /** Recentrar o mapa: a mira que devolve o enquadramento de quem se perdeu arrastando. */
+  target: ['M12 3v3', 'M12 18v3', 'M3 12h3', 'M18 12h3', 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z'],
   calendar: ['M8 3v4', 'M16 3v4', 'M4 7h16v14H4z', 'M4 11h16'],
   camera: ['M4 8h4l2-3h4l2 3h4v11H4z', 'M12 16a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z'],
   check: ['M5 13l4 4L19 7'],
@@ -130,11 +152,83 @@ const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   shield: ['M12 3l7 3v6c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6l7-3z'],
   sort: ['M8 9l4-4 4 4', 'M8 15l4 4 4-4'],
   spinner: ['M12 3a9 9 0 1 0 9 9'],
+  sun: [
+    'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z',
+    'M12 2v2.5',
+    'M12 19.5V22',
+    'M4.2 4.2l1.8 1.8',
+    'M18 18l1.8 1.8',
+    'M2 12h2.5',
+    'M19.5 12H22',
+    'M4.2 19.8 6 18',
+    'M18 6l1.8-1.8',
+  ],
+  moon: ['M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z'],
   truck: [
     'M3 17V7a1 1 0 0 1 1-1h9v11H3z',
     'M13 10h4l3 3v4h-7z',
     'M7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
     'M17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
+  ],
+  'vehicle-motorcycle': [
+    'M5.8 16.6l3.4-4.2h5.2l3 4.2',
+    'M9.2 12.4L8 9.4h3.2',
+    'M11.4 12.4h4',
+    'M5.8 19a2.4 2.4 0 1 0 0-4.8 2.4 2.4 0 0 0 0 4.8z',
+    'M18.2 19a2.4 2.4 0 1 0 0-4.8 2.4 2.4 0 0 0 0 4.8z',
+  ],
+  'vehicle-car': [
+    'M2.6 15.6v-2.3l2.2-3.1h11.2l3.4 3.1v2.3Z',
+    'M7 10.2l1.3-2.4h5.6l1.7 2.4',
+    'M6.8 19a1.7 1.7 0 1 0 0-3.4 1.7 1.7 0 0 0 0 3.4z',
+    'M15.6 19a1.7 1.7 0 1 0 0-3.4 1.7 1.7 0 0 0 0 3.4z',
+  ],
+  'vehicle-utility': [
+    'M2.6 15.8V11.4L5.2 8.2h5.1v3.2h9.2v4.4Z',
+    'M10.3 11.4h9.2',
+    'M6.2 19.6a1.9 1.9 0 1 0 0-3.8 1.9 1.9 0 0 0 0 3.8z',
+    'M16 19.6a1.9 1.9 0 1 0 0-3.8 1.9 1.9 0 0 0 0 3.8z',
+  ],
+  'vehicle-van': [
+    'M2.6 15.8V9.9c0-1.5 1.1-2.5 2.7-2.5h8.3l5.4 4.3v4.1Z',
+    'M13.6 7.4v4.3h5.4',
+    'M6.4 19.6a1.9 1.9 0 1 0 0-3.8 1.9 1.9 0 0 0 0 3.8z',
+    'M16.4 19.6a1.9 1.9 0 1 0 0-3.8 1.9 1.9 0 0 0 0 3.8z',
+  ],
+  'vehicle-vuc': [
+    'M2.6 15.8V11.8L4.8 9.4h2.4V7h10.6v8.8Z',
+    'M5.9 19.6a1.9 1.9 0 1 0 0-3.8 1.9 1.9 0 0 0 0 3.8z',
+    'M14.6 19.6a1.9 1.9 0 1 0 0-3.8 1.9 1.9 0 0 0 0 3.8z',
+  ],
+  'vehicle-three-quarter': [
+    'M2.6 15.8V11.5L4.9 9h2.5V6.2h12.4v9.6Z',
+    'M6 19.6a1.9 1.9 0 1 0 0-3.8 1.9 1.9 0 0 0 0 3.8z',
+    'M16.2 19.6a1.9 1.9 0 1 0 0-3.8 1.9 1.9 0 0 0 0 3.8z',
+  ],
+  'vehicle-toco': [
+    'M2.6 15.8V11.3L5 8.6h2.6V5.2h13.8v10.6Z',
+    'M6.1 19.6a1.9 1.9 0 1 0 0-3.8 1.9 1.9 0 0 0 0 3.8z',
+    'M17.4 19.6a1.9 1.9 0 1 0 0-3.8 1.9 1.9 0 0 0 0 3.8z',
+  ],
+  'vehicle-truck': [
+    'M2.6 15.8V11.3L5 8.6h2.6V5.2h13.8v10.6Z',
+    'M6.1 19.6a1.9 1.9 0 1 0 0-3.8 1.9 1.9 0 0 0 0 3.8z',
+    'M15.7 19.6a1.9 1.9 0 1 0 0-3.8 1.9 1.9 0 0 0 0 3.8z',
+    'M19.3 19.6a1.9 1.9 0 1 0 0-3.8 1.9 1.9 0 0 0 0 3.8z',
+  ],
+  'vehicle-tractor-unit': [
+    'M2.6 15.8V10.6L5.6 7.2h5.2v8.6Z',
+    'M10.8 12.6h7.8',
+    'M18.6 12.6v3.2',
+    'M6.2 19.6a1.9 1.9 0 1 0 0-3.8 1.9 1.9 0 0 0 0 3.8z',
+    'M14.6 19.6a1.9 1.9 0 1 0 0-3.8 1.9 1.9 0 0 0 0 3.8z',
+    'M18 19.6a1.9 1.9 0 1 0 0-3.8 1.9 1.9 0 0 0 0 3.8z',
+  ],
+  'vehicle-other': [
+    'M3.4 15.8V6.6h17.2v9.2Z',
+    'M3.4 10.4h17.2',
+    'M7.2 19.6a1.9 1.9 0 1 0 0-3.8 1.9 1.9 0 0 0 0 3.8z',
+    'M16.8 19.6a1.9 1.9 0 1 0 0-3.8 1.9 1.9 0 0 0 0 3.8z',
   ],
   trash: ['M5 7h14', 'M10 7V4h4v3', 'M7 7l1 13h8l1-13'],
   upload: ['M12 20V9', 'M7 13l5-5 5 5', 'M5 4h14'],
@@ -206,6 +300,8 @@ const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   'workspace-notification': ['M18 16V11a6 6 0 1 0-12 0v5l-2 3h16z', 'M10 22h4'],
   'workspace-operations': ['M4 18V6', 'M4 18h16', 'M8 15v-3', 'M12 15V8', 'M16 15v-6'],
   'workspace-trip': ['M4 17l4-10h8l4 10', 'M4 17h16v3H4z', 'M8 20v-3', 'M16 20v-3', 'M9 12h6'],
+  /** Alerta sobre a prancheta: o relato do que houve na rua e no galpão. */
+  'workspace-trip-occurrences': ['M5 4h14v16H5z', 'M12 8v5', 'M12 16v.5'],
   /** Crachá: o papel que a pessoa veste, ao lado do desenho de gente que marca os acessos. */
   'workspace-access-profiles': [
     'M6 4h12v16H6z',

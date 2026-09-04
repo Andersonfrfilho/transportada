@@ -2,15 +2,16 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { FreightCalculationStatus } from '../../database/freight.schema.js'
+import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
 import type { NfeDocumentStatus } from '../../database/nfe.schema.js'
 import type { tripDocuments, tripDrivers, tripStops, trips } from '../../database/trip.schema.js'
 import type {
   Trip,
   TripDocument,
   TripDocumentDetail,
+  TripDriverDetail,
   TripStopDetail,
 } from '../application/trip.port.js'
-import type { TripDriverLine } from '../domain/trip.policy.js'
 
 type TripDocumentRecord = typeof tripDocuments.$inferSelect
 type TripDriverRecord = typeof tripDrivers.$inferSelect
@@ -20,6 +21,12 @@ type TripStopRecord = typeof tripStops.$inferSelect
 export function mapTrip(record: TripRecord): Trip {
   return {
     companyId: record.companyId,
+    /**
+     * ⚠️ Vazio aqui de propósito: a linha de `trips` não sabe quem dirige. Quem lista preenche em
+     * lote (`loadTripDriverNames`); o detalhe monta a partir de `trip_drivers`. Um `map` que
+     * inventasse consulta própria voltaria a ser uma ida ao banco por linha.
+     */
+    driverNames: [],
     createdAt: record.createdAt.toISOString(),
     id: record.id,
     requiresMdfe: record.requiresMdfe,
@@ -34,6 +41,7 @@ export function mapTripDocument(record: TripDocumentRecord): TripDocument {
   return {
     createdAt: record.createdAt.toISOString(),
     deliveredAt: record.deliveredAt === null ? null : record.deliveredAt.toISOString(),
+    destinationOrigin: toDestinationOrigin(record.destinationOrigin),
     freightCalculationId: record.freightCalculationId,
     id: record.id,
     loadedAt: record.loadedAt === null ? null : record.loadedAt.toISOString(),
@@ -49,7 +57,9 @@ export function mapTripDocument(record: TripDocumentRecord): TripDocument {
   }
 }
 
-export function mapTripStop(record: TripStopRecord): Omit<TripStopDetail, 'documents'> {
+export function mapTripStop(
+  record: TripStopRecord,
+): Omit<TripStopDetail, 'documents' | 'latitude' | 'longitude'> {
   return {
     addressKey: record.addressKey,
     arrivedAt: record.arrivedAt === null ? null : record.arrivedAt.toISOString(),
@@ -61,6 +71,9 @@ export function mapTripStop(record: TripStopRecord): Omit<TripStopDetail, 'docum
     id: record.id,
     label: record.label,
     sequence: Number(record.sequence),
+    /** Vazios por padrão: quem sabe é a junção com o endereço da nota, na leitura do detalhe. */
+    cityCode: '',
+    state: '',
   }
 }
 
@@ -76,17 +89,43 @@ export function mapTripDocumentDetail(input: {
   readonly document: TripDocumentRecord
   readonly freightCalculationStatus: FreightCalculationStatus | null
   readonly nfeDocumentStatus: NfeDocumentStatus | null
+  readonly contact?: TripDocumentDetail['contact']
+  readonly nfeIssuedAt?: Date | null
+  readonly nfeNumber?: null | string
+  readonly nfeSeries?: null | string
+  readonly nfeTotalValue?: null | string
 }): TripDocumentDetail {
   const fiscalStatus = input.nfeDocumentStatus ?? input.freightCalculationStatus
   if (fiscalStatus === null) throw new Error('TRIP_DOCUMENT_FISCAL_STATUS_MISSING')
-  return { ...mapTripDocument(input.document), cteAuthorized: input.cteAuthorized, fiscalStatus }
+  return {
+    ...mapTripDocument(input.document),
+    contact: input.contact ?? null,
+    cteAuthorized: input.cteAuthorized,
+    fiscalStatus,
+    nfeIssuedAt: input.nfeIssuedAt?.toISOString() ?? null,
+    nfeNumber: input.nfeNumber ?? null,
+    nfeSeries: input.nfeSeries ?? null,
+    nfeTotalValue: input.nfeTotalValue ?? null,
+  }
 }
 
-export function mapTripDriver(record: TripDriverRecord): TripDriverLine {
+export function mapTripDriver(
+  record: TripDriverRecord & { readonly driverEmail?: string; readonly driverPhone?: string },
+): TripDriverDetail {
   return {
+    driverEmail: record.driverEmail ?? '',
+    driverPhone: record.driverPhone ?? '',
     driverId: record.driverId,
     driverName: record.driverName,
     driverTaxId: record.driverTaxId,
     position: Number(record.position),
   }
+}
+
+/**
+ * O banco guarda texto com CHECK; o domínio guarda o união fechada. Valor fora da lista vira
+ * ausência — a tela deixa de dizer a origem, em vez de imprimir uma palavra que ninguém traduz.
+ */
+function toDestinationOrigin(value: string | null): PhysicalDestinationOrigin | null {
+  return value === 'delivery' || value === 'recipient' ? value : null
 }

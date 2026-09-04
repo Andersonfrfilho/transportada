@@ -12,6 +12,7 @@ import {
   orderStopsForReview,
   type RouteSuggestionWarning,
 } from '../shared/routeSuggestionWarnings.service'
+import { isProposalReordered, reorderProposedStops } from '../shared/proposalOrder.service'
 import styles from '../styles/routing.module.css'
 import { RouteSuggestionMap } from './RouteSuggestionMap.component'
 
@@ -63,7 +64,14 @@ export function RouteSuggestionPanel({
 }: RouteSuggestionPanelProps): JSX.Element {
   const { t } = useTranslation('routing')
   const warnings = collectRouteSuggestionWarnings(suggestion)
-  const stops = orderStopsForReview(suggestion.stops)
+  const proposed = orderStopsForReview(suggestion.stops)
+  /**
+   * Spec 079 T024: a ordem editada vive **na tela**, não no servidor — a proposta só vira escrita
+   * quando alguém a aceita, e gravar a cada arraste criaria estado que ninguém pediu.
+   */
+  const [order, setOrder] = useState<null | readonly (typeof proposed)[number][]>(null)
+  const stops = order ?? proposed
+  const isReordered = isProposalReordered({ current: stops, original: proposed })
   const decidable = canDecideSuggestion(suggestion)
 
   return (
@@ -82,17 +90,36 @@ export function RouteSuggestionPanel({
       <dl className={styles.estimates}>
         <div>
           <dt>{t('panel.distance')}</dt>
-          <dd>{formatKilometres(suggestion.estimatedDistanceMeters, t('panel.unknown'))}</dd>
+          <dd>
+            {isReordered
+              ? t('panel.unknown')
+              : formatKilometres(suggestion.estimatedDistanceMeters, t('panel.unknown'))}
+          </dd>
         </div>
         <div>
           <dt>{t('panel.duration')}</dt>
-          <dd>{formatDuration(suggestion.estimatedDurationSeconds, t('panel.unknown'))}</dd>
+          <dd>
+            {isReordered
+              ? t('panel.unknown')
+              : formatDuration(suggestion.estimatedDurationSeconds, t('panel.unknown'))}
+          </dd>
         </div>
         <div>
           <dt>{t('panel.cost')}</dt>
-          <dd>{formatAmount(suggestion.estimatedCostAmount, t('panel.unknown'))}</dd>
+          <dd>
+            {isReordered
+              ? t('panel.unknown')
+              : formatAmount(suggestion.estimatedCostAmount, t('panel.unknown'))}
+          </dd>
         </div>
       </dl>
+
+      {/*
+       * ⚠️ Esconder a estimativa **sem dizer por quê** é a versão silenciosa da mentira que a T024
+       * nomeia: quem viu 51 km e depois não vê nada conclui que a tela quebrou. Recalcular exigiria
+       * a matriz do OSRM, que roda no worker (ADR-0044 §7).
+       */}
+      {isReordered ? <p className={styles.status}>{t('panel.reorderedEstimates')}</p> : null}
 
       {warnings.length > 0 ? (
         <ul className={styles.warnings} role="alert">
@@ -108,10 +135,19 @@ export function RouteSuggestionPanel({
       <RouteSuggestionMap stops={stops} />
 
       <ol className={styles.stops}>
-        {stops.map((stop) => (
+        {stops.map((stop, index) => (
           <StopRow
             key={`${stop.sequence}-${stop.addressKey}`}
             {...(onRefineAddress === undefined ? {} : { onRefineAddress })}
+            onMove={(direction: -1 | 1) =>
+              setOrder(
+                reorderProposedStops({
+                  from: index,
+                  stops,
+                  to: index + direction,
+                }),
+              )
+            }
             stop={stop}
           />
         ))}
@@ -147,9 +183,12 @@ export function RouteSuggestionPanel({
 }
 
 function StopRow({
+  onMove,
   onRefineAddress,
   stop,
 }: Readonly<{
+  /** Spec 079 T024: `-1` sobe, `1` desce. Botão, não arraste: a lista é curta e o alvo é o dedo. */
+  onMove: (direction: -1 | 1) => void
   onRefineAddress?: (addressKey: string) => Promise<RefineAddressResult>
   stop: RouteSuggestionStop
 }>): JSX.Element {
@@ -172,6 +211,29 @@ function StopRow({
     <li className={styles.stop} data-excluded={stop.excludedFromOptimization}>
       <span className={styles.stopSequence}>{stop.sequence}</span>
       <span className={styles.stopLabel}>{stop.label}</span>
+      {/*
+       * Botão, não arraste: a lista da proposta é curta, e no celular do galpão dois alvos de toque
+       * são mais confiáveis que um gesto — o arraste de `TripStopList` existe para a viagem, que é
+       * onde a ordem já tem consequência.
+       */}
+      <Button
+        aria-label={t('panel.moveUp')}
+        onClick={() => onMove(-1)}
+        size="sm"
+        type="button"
+        variant="ghost"
+      >
+        <Icon name="sort" />
+      </Button>
+      <Button
+        aria-label={t('panel.moveDown')}
+        onClick={() => onMove(1)}
+        size="sm"
+        type="button"
+        variant="ghost"
+      >
+        <Icon name="sort" />
+      </Button>
       {/**
        * A precisão fica visível por parada, não só no resumo: o conferente que olha uma linha
        * específica precisa saber se aquele ponto é um telhado ou um palpite de oito quilômetros.

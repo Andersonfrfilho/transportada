@@ -1,7 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { type Page, type Route } from '@playwright/test'
 
-import { VEHICLE_DETAIL } from './fleet/fleet.fixture'
+import { DRIVER_DETAIL, VEHICLE_DETAIL } from './fleet/fleet.fixture'
 
 const CORS_HEADERS = {
   'access-control-allow-headers': 'Authorization, Content-Type, Idempotency-Key, Accept',
@@ -12,6 +12,8 @@ export const SUGGESTION_ID = '00000000-0000-4000-8000-000000000901'
 export const FIRST_VEHICLE_ID = '00000000-0000-4000-8000-000000000910'
 export const SECOND_VEHICLE_ID = '00000000-0000-4000-8000-000000000911'
 export const CREATED_TRIP_ID = '00000000-0000-4000-8000-000000000920'
+export const AGGREGATE_DRIVER_ID = '00000000-0000-4000-8000-000000000930'
+export const STAFF_DRIVER_ID = '00000000-0000-4000-8000-000000000931'
 
 const ASSUMPTIONS = {
   dutyEnabled: false,
@@ -86,6 +88,8 @@ const ACCEPTED = {
   trips: [
     {
       documentCount: 2,
+      /** RF-6: a tela diz quem ficou com a viagem sem abrir a viagem para descobrir. */
+      driverId: AGGREGATE_DRIVER_ID,
       stopCount: 1,
       tripId: CREATED_TRIP_ID,
       vehicleId: FIRST_VEHICLE_ID,
@@ -142,6 +146,38 @@ export async function mockMultiVehicleApi(page: Page): Promise<MultiVehicleMockS
         { ...VEHICLE_DETAIL, id: crypto.randomUUID(), plate: 'REB0C11', role: 'trailer' },
       ],
       page: { nextCursor: null },
+    })
+  })
+
+  /**
+   * Spec 081: o cadastro do par. O agregado tem **um** veículo e por isso preenche sozinho; o da
+   * casa tem dois, e é o caso ambíguo que a tela se recusa a decidir.
+   */
+  await page.route(/\/fleet\/drivers(?:\?.*)?$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, {
+      data: [
+        { ...DRIVER_DETAIL, id: AGGREGATE_DRIVER_ID, name: 'Agregado Sintetico' },
+        { ...DRIVER_DETAIL, id: STAFF_DRIVER_ID, name: 'Motorista da Casa' },
+      ],
+      page: { nextCursor: null },
+    })
+  })
+
+  await page.route(/\/fleet\/driver-vehicles$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, {
+      data: [
+        { driverId: AGGREGATE_DRIVER_ID, vehicleId: FIRST_VEHICLE_ID },
+        { driverId: STAFF_DRIVER_ID, vehicleId: FIRST_VEHICLE_ID },
+        { driverId: STAFF_DRIVER_ID, vehicleId: SECOND_VEHICLE_ID },
+      ],
     })
   })
 

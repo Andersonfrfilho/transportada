@@ -2,16 +2,9 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "frontend-transportada",
-      "runtimeExecutable": "bun",
-      "runtimeArgs": ["run", "--cwd", "apps/frontend-transportada", "dev"],
+      "name": "painel-local",
+      "url": "http://localhost:53000",
       "port": 53000
-    },
-    {
-      "name": "frontend-landing",
-      "runtimeExecutable": "bun",
-      "runtimeArgs": ["run", "--cwd", "apps/frontend-landing", "dev"],
-      "port": 53003
     }
   ]
 }

@@ -153,7 +153,13 @@ proíbe para `separate`/`load` — devolver só existe **depois** da saída (ant
 desvincula, não se devolve), e `separate`/`load` ainda precisam de roteiro planejado (`draft` sai
 `TRIP_ROUTE_NOT_PLANNED`). Quem tratar os três como um `isEditable` só oferece "Devolver"
 exatamente quando ele dá `409` — foi o que aconteceu no T016, e `test/trip/state-gates.contract.ts`
-(frontend) existe para travar a tabela estado→portão contra esta política. `checkTripDocumentTransition`/`checkTripTransition`
+(frontend) existe para travar a tabela estado→portão contra esta política. ⚠️ **`deliver` teve rota própria fora da máquina até 02/09/2026**, resíduo do fluxo da spec 027:
+ela gravava `delivered_at` e **não** tocava em `separation_status`, então a nota ficava `pending`
+com hora de entrega, a barra de progresso não saía de 0% e a viagem — derivada do estado das notas —
+nunca chegava a `completed`. Medido em staging com doze notas. Hoje ela usa o mesmo
+`tripDocumentActionRoute` das outras três, e por isso **herda o portão**: entregar exige viagem
+despachada. O corpo da resposta mudou de `{deliveredAt}` para `{document, tripStatus}` nos dois
+lados. `checkTripDocumentTransition`/`checkTripTransition`
 (`trips/domain/trip-state.policy.ts`) são a única fonte da máquina, e toda transição é idempotente
 por desenho (repetir converge em `unchanged`, não erro — a rede do armazém cai, o separador toca
 duas vezes). `dispatched` é a porta de não-retorno: `checkTripAcceptsLinkage` bloqueia vincular,
@@ -249,6 +255,61 @@ consequências que ficam escritas para não serem redescobertas:
   (comprometido por `payload_sha256`) e no XML preservado, e os outros três porque são o que se
   consulta.
 
+**O endereço se mede uma vez, e o que se mede vira coordenada** (ADR-0061, spec 084). A escada da
+ADR-0044 só alcança o provedor pago **depois** que alguém tropeça numa entrega, e isso deixa um vão:
+endereço em precisão de CEP parece bom e nenhum sinal grátis o distingue de um bom. A 0061 admite um
+**terceiro gatilho** para o mesmo degrau 2 — _lote de medição, uma vez, por decisão explícita com
+escopo e custo declarados antes_. ⚠️ **Não revoga o adendo da 0044:** a escalada automática em
+runtime segue recusada, e `worker-transportada/test/routing/paid-provider-never-called.contract.ts`
+continua intacto guardando o caminho de sugestão de roteiro. O gatilho é
+`scripts/address-comparison-batch.ts`, e **sem `--confirm` ele imprime escopo e custo e sai sem
+gastar** — uma rota HTTP no lugar dele seria a escalada com outro nome, porque qualquer coisa capaz
+de chamá-la passaria a gastar.
+
+⚠️ **São duas portas para o mesmo provedor, e a diferença é o filtro.** `GeocodingPort`
+(`routing/`) filtra por `components=postal_code` de propósito: quer a coordenada mais fina daquele
+CEP. `AddressLookupPort` (`addresses/`) **não pode** — o filtro obrigaria o provedor a concordar com
+o nosso CEP, e a divergência de CEP é o achado de maior valor do relatório, porque devolve o endereço
+ao degrau 1, que é grátis. Filtra o **lugar** (país e UF); o município fica de fora porque
+`checkCityMatch` o confere pelo código IBGE, e filtrar por nome recusaria a grafia da nota justamente
+quando ela está errada.
+
+`address_comparisons` guarda a **observação** — o que a nota dizia, o que o provedor devolveu, o
+nível e a distância —, e a **interpretação** vive em `address-finding.policy.ts`, recomputada a cada
+leitura. Foi isso que permitiu a divergência de rua sair de 45 para 6 sem re-consultar nada. ⚠️ A
+primeira versão do lote gravou a medição e **jogou fora a coordenada**: 118 endereços de porta
+comprados e nenhum aplicado. A ADR-0044 §3 sempre autorizou guardar — foi descuido, e
+`compare-addresses-batch.contract.ts` agora o tranca junto com os quatro portões da escrita (município
+divergente, `place_id` vazio, `approximate` não é melhoria, e `shouldReplaceStored`).
+
+⚠️ **`not_found` não passa pelo portão do município**, e rua vazia é `street_unknown` e não "você
+escreveu a rua errada". Medido em 148: `not_found` deu **zero** e treze caíram em `approximate` — o
+provedor achando só o município porque o logradouro não existe para ele.
+
+**A separação grafia × lugar é o que faz o relatório ser lido** (`street-comparison.policy.ts`). Das
+45 divergências de rua medidas, **seis** eram lugar diferente; as outras 39 eram `DR`/`Doutor`,
+`7`/`Sete`, `MELLO`/`Melo`, `RUA RUA MINAS GERAIS`. Quatro camadas determinísticas — abreviação de
+patente e título, número de data por extenso com dezena composta, tipo de via duplicado ou colado, e
+inicial do nome do meio (que ora o cadastro abrevia, ora o provedor) — mais **uma** edição em palavra
+de quatro letras ou mais. ⚠️ Distância de edição aqui é **classificação, não casamento**: o par já
+veio formado do provedor, e a pergunta é só se vale incomodar alguém. É o oposto de
+`client-address-key.ts`, onde ela escolheria qual rua é a certa entre candidatas e mediu 14% de
+acerto com falsos positivos. `EXPEDITO`/`BENEDITO` são três edições, e continuam sendo ruas
+diferentes. **Bairro nunca vira pedido**: diverge em 44 dos 148 e é palpite do provedor (`CENTRO` →
+`Itobi`, que é cidade).
+
+`GET /address-report` é `settings.manage`, não `addresses.read`: quem lê vê o cadastro de entrega de
+todos os contratantes de uma vez, com nome, rua e número — varredura de carteira, não a consulta
+pontual de um CEP. O pedido é atribuído a **quem emitiu** a nota (ADR-0057), nunca ao destinatário,
+que recebe a carga e não tem acesso ao cadastro; um contrato por texto de fonte tranca isso porque a
+troca compila igual (`legalName` existe nos dois lados). No frontend é a aba **Endereços** de
+`nfe-workspace`, e o **denominador aparece sempre** — "24 de 148 medidos" é a diferença entre um
+pedido e uma acusação, e quem recebe é um cliente.
+
+Medido em 2026-09-04, nos 149 endereços em centroide de município: 118 `rooftop`, 17
+`range_interpolated`, 13 `approximate`, zero `not_found`; 134 coordenadas novas, e a base caiu de 149
+para **15** endereços em centroide. Os 147 de precisão de CEP ainda não foram medidos.
+
 **O CEP vem de casa, e a busca textual é a que ainda sai do navegador.** O CEP passa por
 `GET /postal-codes/{cep}` (`addresses.read`, escopo `company`), que consulta **primeiro as nossas
 tabelas** — `nfe_addresses`, `fleet_drivers`, `company_fiscal_profiles` e os dois CEPs de
@@ -289,6 +350,45 @@ Remota e a tela de configurações não contarem histórias diferentes. A parida
 (`test/companies/scheduled-distribution-parity.contract.ts`). No frontend a configuração mora **na
 aba Remota da tela de Notas**, junto do efeito, e não mais em configurações de empresa — ver
 "Configuração perto do efeito" abaixo.
+
+**A carga tem cubagem estimada, e o veículo tem capacidade em três degraus** (spec 075). A NF-e
+**não traz cubagem nenhuma**: o grupo `<vol>` tem `qVol`, `esp`, `marca`, `nVol`, `pesoL` e `pesoB`,
+e `nfe_volumes` guarda quantidade, espécie e pesos — nenhuma dimensão. Medido em produção em
+2026-09-02: 1808 volumes, 1804 com peso, **zero com medida**.
+
+`resolveCargoVolume` (`nfe-documents/domain/cargo-volume.policy.ts`) estima por
+`quantidade × fator da espécie`, com `company_cargo_volume_factors` chaveada por
+`(company_id, species)`. ⚠️ `species` está **vazio em 1808 de 1808** volumes: a linha de espécie
+vazia é o padrão e responde por todo o dado de hoje — a chave por espécie é para o emitente que
+preencher `esp`. Desligar a estimativa é **apagar a linha**, nunca gravar zero (o CHECK recusa), e
+a origem tem **um valor só** (`estimated`), porque não existe cubagem declarada na NF-e — ao
+contrário do peso, onde o `pesoB` vence a estimativa (ADR-0052).
+
+A capacidade sai de `resolveVehicleCapacity` (`fleet/domain/`), nesta ordem: **dimensões da ficha**
+(`cargo_length_m × cargo_width_m × cargo_height_m`) → **`capacity_m3` da ficha** → **referência do
+tipo**, com a origem viajando junto para a tela distinguir medida de palpite.
+
+⚠️ **A dimensão é o dado primitivo; o m³ é derivado.** O m³ publicado por aí erra contra as próprias
+medidas (a carreta da tabela pesquisada destoa 3,1%), e a dispersão dentro de um tipo chega a **2×**
+— um VUC existe de 13 e de 26 m³. Por isso a referência é piso, e a ficha vence sempre.
+
+⚠️ `vehicle_volume_references` é a **segunda tabela do produto sem `company_id`**, ao lado de
+`fuel_price_references`: é catálogo de mercado. A chave é `(vehicle_type, body_type)` porque
+**carreta é o implemento, não o cavalo** — e implemento tem `vehicle_type` **vazio**, o tipo é de
+quem traciona. `resolveVolumeReferenceKey` decide qual dos dois responde. O `tpCar` é `02`
+fechada/baú e `05` sider (`03` é granelera e `04` é porta container — errar isso faz os veículos de
+produção, todos `02`, não acharem referência nenhuma).
+
+A ocupação da viagem (`trips/domain/trip-occupancy.policy.ts`) soma as notas e divide pela
+capacidade. ⚠️ **Uma nota estimada torna o total estimado**, e a tela é obrigada a imprimir a marca
+junto do número — `test/trip/occupancy.contract.ts` (frontend) reprova o componente se o percentual
+aparecer sozinho, e proíbe segunda condição escondendo a marca. Denominador ausente é `null`,
+**nunca 100% nem zero**: veículo sem capacidade conhecida com carga dentro é o caso em que um número
+inventado faria alguém parar de carregar, ou continuar. Estouro acima de 100% sai como está.
+
+⚠️ **Nada disso alimenta documento fiscal.** Nem CT-e, nem MDF-e: a cubagem estimada existe para a
+tela de quem carrega o caminhão. E `VEHICLE_TYPE_ICONS` (frontend) é `Record<VehicleType, IconName>`
+— tipo novo no catálogo **não compila** sem desenho.
 
 **O peso da carga tem duas fontes, e só o CT-e o exige** (ADR-0052, spec 067). O emitente omite
 `pesoB` **por nota**, não por política — a Zaragoza mandou 883658 com 108,670 kg e 883663 com 0,000
@@ -420,6 +520,19 @@ UUID de sistema para caber na tabela alheia seria mentir na trilha. O payload ca
 Quem lê é o worker, e **a landing continua lendo no navegador**: as duas leituras existem por motivos
 diferentes — a do navegador preenche o formulário na hora, a do servidor é o que o operador confere.
 Aceitar a leitura do cliente anônimo como prova deixaria um atacante escolher o que o operador vê.
+
+**A decisão da revisão descarta a leitura.** `extracted_fields` guarda o que o servidor leu do
+anexo — o CPF do proprietário no CRLV, o número de registro e o nome na CNH —, em texto puro e numa
+tabela **sem prazo de descarte** (a 070 decidiu não ter `expires_at`, porque o rascunho é o
+comprovante). Aprovar ou reprovar zera a coluna no **mesmo `UPDATE`** da decisão: em duas escritas,
+uma falha no meio deixaria a PII para trás no caminho de erro. O arquivo continua no bucket, então
+nada se perde — sai a cópia, não o documento. ⚠️ Isso alcança só o anexo **revisado**: rascunho
+abandonado segue sem prazo, e fechá-lo é job agendado com spec própria (`docs/SECURITY.md`,
+02/09/2026).
+
+⚠️ Na tela são **três** estados, não dois: "não consegui ler" e "descartei depois de revisar" chegam
+os dois como `null`, e o painel os separa pelo `status` — dizer que falhou em ler um documento que
+foi lido manda o operador abrir o arquivo à toa.
 
 **O pré-cadastro do agregado começa pelos documentos** (spec 071). A etapa de documentos é a
 **primeira** da landing, antes de "Dados pessoais": ter os dados antes de preencher é o ponto
@@ -845,6 +958,17 @@ Todo checkbox usa `@/components/ui/checkbox` — `<input type="checkbox">` cru �
 `src/**/*.tsx` e o contrato `test/design-system/checkbox.contract.ts` falha se algum reaparecer.
 Props, variante com/sem rótulo e estado indeterminado em `docs/frontend/checkboxes.md`.
 
+**Dica de interface é `@/components/ui/tooltip`, não o `title` nativo.** O atributo funciona e mesmo
+assim não serve: o navegador espera cerca de um segundo com o ponteiro parado, desenha fora do tema e
+não existe no toque — três dicas foram acrescentadas por `title` e as três voltaram como "passei o
+mouse e não apareceu". O componente abre em 150 ms no ponteiro e **na hora** no teclado, entra como
+`aria-describedby` (nunca como nome acessível — botão só de ícone continua com o `aria-label` dele) e
+renderiza em portal por `useFloatingLayer`, como os selects. ⚠️ O invólucro é `inline-flex` e **não**
+`display: contents`: elemento sem caixa devolve `getBoundingClientRect()` zerado e a dica nasce no
+canto da tela. O `title` fica só onde a dica é acessório de leitura, como o texto completo de célula
+truncada. O tooltip do menu lateral recolhido segue em CSS puro, exceção declarada. Regra em
+`docs/frontend/tooltips.md`, contrato em `test/design-system/tooltip.contract.ts`.
+
 Todo ícone vem de `@/components/ui/icon` — `<svg>` cru é **proibido** em `src/**/*.tsx` fora de
 `src/components/ui/` e o contrato `test/design-system/icon.contract.ts` falha se algum reaparecer.
 Tamanho por token (`--icon-size-sm`/`--icon-size-md`), cor por `currentColor`, botão só de ícone com
@@ -1031,7 +1155,27 @@ primeiro. Nota já em viagem e veículo que não traciona são recusados na cria
 ⚠️ **O aceite cria viagem, mas não escreve viagem**: ele chama os casos de uso da 056 — criar,
 vincular, ordenar, planejar —, um por veículo, e as viagens saem em `route_planned`. As viagens
 nascem **antes** de a sugestão virar `accepted`: falha no meio deixa a sugestão `ready` para repetir.
-A viagem nasce **sem motorista** — o solver decide o veículo, não quem dirige.
+
+**A viagem nasce com o motorista que o humano pareou** (ADR-0055, spec 081), e isso reverte a frase
+"viagem nasce sem motorista" da ADR-0044 §5. O argumento dela estava certo sobre _deduzir_ e errado
+sobre _carregar_: o PWA de campo acha a viagem por `membership → fleet_drivers → trip_drivers →
+trip` (`find-current-driver-trip.use-case.ts`), e **viagem sem linha em `trip_drivers` não existe
+para quem dirige** — nada do trabalho de campo chega até ele. O corpo da rota é
+`vehicles: [{vehicleId, driverId?}]` (não mais `vehicleIds`), `route_suggestion_vehicles.driver_id`
+é nulo e legítimo — distribuir na véspera, antes da escala, era o único comportamento possível antes
+disto —, e o mesmo motorista em dois pares é `409`: seriam duas viagens simultâneas dele no PWA. O
+aceite **não reconfere** o motorista; suspenso entre o pedido e o aceite, a viagem nasce com ele.
+
+⚠️ **O preenchimento é vínculo único, nunca dedução.** `multiVehiclePairing.service.ts` (frontend)
+preenche o outro lado do par só quando `fleet_driver_vehicle_assignments` tem **um** — que é o caso
+do agregado. Veículo com dois motoristas, ou motorista com dois veículos, fica vazio para o humano
+decidir, e o de dois veículos nem aparece no seletor por motorista (ele entra pelo select da linha
+do caminhão). Dois defeitos que o contrato pegou e que não se deduzem do código: desmarcar no
+seletor por motorista **não pode** derrubar o par preenchido pela ponta do veículo, e escolher o
+motorista cujo caminhão já está na lista **substitui** o par em vez de descartá-lo. O vínculo vem de
+`GET /fleet/driver-vehicles` (`fleet.read`), pares crus da empresa — a rota por motorista custaria
+uma requisição por motorista escolhido —, e o **separador a alcança**, por decisão registrada em
+`test/separator-role.contract.test.ts`.
 
 ⚠️ A chave de parada do pool (`worker-transportada/src/routing/domain/pool-address-key.ts`) é
 **cópia por valor** de `api-transportada/src/trips/domain/stop-address-key.ts`, com contrato que

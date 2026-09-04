@@ -16,6 +16,23 @@ const CHARGE_OCCURRENCE_KIND = 'unexpected_charge'
  */
 const OCCURRENCE_CHARGE_TYPE = 'other' as const
 
+/**
+ * Spec 082 D8: o aviso da ocorrência de parada, pelo trilho `notification.v1` existente — a API
+ * produz a mensagem e o worker consome e renderiza. **Nunca lança**: a ocorrência é o fato, o
+ * aviso é conveniência, e quem decide se o motivo tem template é a política — motivo sem template
+ * grava e segue, sem aviso.
+ */
+export type StopOccurrenceNotifierPort = {
+  notify(input: {
+    readonly companyId: string
+    readonly documentId: string | null
+    readonly kind: TripStopOccurrenceKind
+    readonly occurredAt: Date
+    readonly occurrenceId: string
+    readonly stopId: string
+  }): Promise<void>
+}
+
 export type ReportStopOccurrenceInput = {
   readonly actorUserId: string
   readonly attachmentObjectId: string | null
@@ -31,6 +48,8 @@ export type ReportStopOccurrenceInput = {
    * ocorrência segue sendo só relato — que é o comportamento da 057 sozinha.
    */
   readonly suggestCharges?: SuggestDeliveryChargesPort
+  /** Ausente quando a instalação não tem trilho de notificação — o registro segue igual. */
+  readonly notifier?: StopOccurrenceNotifierPort
   readonly unitOfWork: DriverFieldReportUnitOfWork
 }
 
@@ -106,6 +125,20 @@ export async function reportStopOccurrence(
       tripDocumentId: input.documentId,
     })
   }
+
+  /**
+   * Spec 082 D8: o aviso sai **depois** da transação, como a sugestão de cobrança — falhar aqui
+   * não desfaz o relato. A hora é a do registro no servidor: é quando o evento da fila offline
+   * sincronizou, e é o que o escritório precisa saber para agir agora.
+   */
+  await input.notifier?.notify({
+    companyId: input.companyId,
+    documentId: input.documentId,
+    kind: input.kind,
+    occurredAt: new Date(),
+    occurrenceId: recorded.id,
+    stopId: input.stopId,
+  })
 
   return recorded
 }

@@ -49,11 +49,14 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
-      "redirectUris": ["http://localhost:53000/auth/callback"],
-      "webOrigins": ["http://localhost:53000"],
+      "redirectUris": [
+        "http://localhost:53000/auth/callback",
+        "http://localhost:53100/auth/callback"
+      ],
+      "webOrigins": ["http://localhost:53000", "http://localhost:53100"],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost:53000/*##http://localhost:53000"
+        "post.logout.redirect.uris": "http://localhost:53000/*##http://localhost:53000##http://localhost:53100/*##http://localhost:53100"
       },
       "protocolMappers": [
         {

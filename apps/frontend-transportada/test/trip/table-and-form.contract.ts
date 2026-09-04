@@ -103,39 +103,6 @@ describe('trip filter pills contract', () => {
   })
 })
 
-describe('trip form contract', () => {
-  test('requires a vehicle and at least one driver before a trip can be created', async () => {
-    const { validateTripForm } = await loadFutureModule<TripFormModule>(
-      '../../src/modules/trip/shared/tripForm.service',
-    )
-
-    expect(validateTripForm({ driverIds: [], vehicleId: '' })).toEqual([
-      'vehicleRequired',
-      'driverRequired',
-    ])
-    expect(validateTripForm({ driverIds: ['driver-1'], vehicleId: '' })).toEqual([
-      'vehicleRequired',
-    ])
-    expect(validateTripForm({ driverIds: [], vehicleId: VEHICLE_ID })).toEqual(['driverRequired'])
-    expect(validateTripForm({ driverIds: ['driver-1'], vehicleId: VEHICLE_ID })).toEqual([])
-  })
-
-  test('maps the link draft to exactly one of freightCalculationId or nfeDocumentId', async () => {
-    const { buildLinkTripDocumentBody } = await loadFutureModule<TripFormModule>(
-      '../../src/modules/trip/shared/tripForm.service',
-    )
-
-    expect(buildLinkTripDocumentBody({ mode: 'nfe', value: 'nfe-1' })).toEqual({
-      freightCalculationId: null,
-      nfeDocumentId: 'nfe-1',
-    })
-    expect(buildLinkTripDocumentBody({ mode: 'freight', value: 'freight-1' })).toEqual({
-      freightCalculationId: 'freight-1',
-      nfeDocumentId: null,
-    })
-  })
-})
-
 describe('trip mdfe gate contract', () => {
   test('blocks issuance until every linked document has an authorized CT-e', async () => {
     const { canIssueMdfe, selectPendingCteDocuments } = await loadFutureModule<TripMdfeGateModule>(
@@ -369,13 +336,4 @@ type TripFilterPillsModule = {
     readonly filters: TripFilters
     readonly formatDay: (value: string) => string
   }) => readonly Readonly<{ field: string }>[]
-}
-
-type TripFormModule = {
-  readonly buildLinkTripDocumentBody: (
-    draft: Readonly<{ mode: 'freight' | 'nfe'; value: string }>,
-  ) => Readonly<{ freightCalculationId: null | string; nfeDocumentId: null | string }>
-  readonly validateTripForm: (
-    draft: Readonly<{ driverIds: readonly string[]; vehicleId: string }>,
-  ) => readonly string[]
 }

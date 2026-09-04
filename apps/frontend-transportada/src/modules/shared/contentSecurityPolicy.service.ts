@@ -54,6 +54,15 @@ type ContentSecurityPolicyParams = {
   readonly allowsInlineScript: boolean
   readonly apiBaseUrl: string | undefined
   readonly keycloakUrl: string | undefined
+  /**
+   * Origem do mapa de rua, quando ela **não** é a própria — o caso de desenvolvimento, que lê o
+   * arquivo já gerado em staging em vez de exigir que cada máquina asse o seu.
+   *
+   * ⚠️ Isto **não** reabre a proibição de telha de terceiro (ADR-0044 §6): o destino aqui é um
+   * domínio nosso, declarado por variável de build. Em produção a variável não existe, a diretiva
+   * não ganha origem nenhuma, e o mapa vem do mesmo domínio que serve a tela.
+   */
+  readonly mapTilesUrl: string | undefined
 }
 
 /**
@@ -70,8 +79,9 @@ export function buildContentSecurityPolicy({
   allowsInlineScript,
   apiBaseUrl,
   keycloakUrl,
+  mapTilesUrl,
 }: ContentSecurityPolicyParams): string {
-  const configured = [toOrigin(apiBaseUrl), toOrigin(keycloakUrl)].filter(
+  const configured = [toOrigin(apiBaseUrl), toOrigin(keycloakUrl), toOrigin(mapTilesUrl)].filter(
     (origin): origin is string => origin !== undefined,
   )
   /**

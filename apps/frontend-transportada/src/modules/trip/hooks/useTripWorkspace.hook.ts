@@ -1,5 +1,16 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
+
+import type { DeliveryProof } from '../shared/deliveryProof.service'
+import type { RouteGeometry } from '../shared/routeGeometry.service'
+import type { OccurrenceType } from '../shared/occurrence.constant'
+import type {
+  RegisteredOccurrence,
+  TripDocumentProduct,
+  TripOccurrence,
+} from '../shared/trip.types'
+import { resolveTripRefetchInterval } from '../shared/tripPolling.service'
 
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
@@ -11,7 +22,6 @@ import {
 import {
   CTE_SUBMIT_PERMISSION,
   MDFE_MANAGE_PERMISSION,
-  isTripOnTheRoad,
   TRIP_MANAGE_PERMISSION,
   TRIP_ON_THE_ROAD_REFETCH_MS,
   TRIP_QUERY_KEY,
@@ -54,8 +64,37 @@ export type TripController = Readonly<{
   canSubmitCte: boolean
   closeTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
   createTrip: (input: CreateTripBody) => Promise<TripDetail>
-  createTripCteBatch: (input: Readonly<{ tripId: string }>) => Promise<TripCteBatchResult>
-  deliverTripDocument: (input: TripDocumentActionInput) => Promise<TripDocument>
+  createTripCteBatch: (
+    input: Readonly<{ tripDocumentIds?: readonly string[]; tripId: string }>,
+  ) => Promise<TripCteBatchResult>
+  deliverTripDocument: (input: TripDocumentActionInput) => Promise<TransitionTripDocumentResult>
+  readDeliveryProofs: (input: TripDocumentActionInput) => Promise<readonly DeliveryProof[]>
+  readRouteGeometry: (input: Readonly<{ tripId: string }>) => Promise<RouteGeometry>
+  readTripOccurrences: (input: TripDocumentActionInput) => Promise<readonly TripOccurrence[]>
+  correctGeocodedAddress: (
+    input: Readonly<{ addressKey: string; latitude: string; longitude: string }>,
+  ) => Promise<void>
+  listOccurrenceTypes: () => Promise<readonly OccurrenceType[]>
+  saveOccurrenceType: (
+    input: Readonly<{
+      active: boolean
+      emailTemplateKey: null | string
+      name: string
+      notifies: boolean
+      occurrenceTypeId: null | string
+      stage: 'delivery' | 'separation'
+    }>,
+  ) => Promise<OccurrenceType>
+  registerTripOccurrence: (
+    input: TripDocumentActionInput & {
+      readonly note: string
+      readonly occurrenceTypeId: string
+      readonly productCode: string
+    },
+  ) => Promise<RegisteredOccurrence>
+  readTripDocumentProducts: (
+    input: TripDocumentActionInput,
+  ) => Promise<readonly TripDocumentProduct[]>
   dispatchTrip: (input: DispatchTripInput) => Promise<DispatchTripResult>
   findNfeDocumentByAccessKey: (
     input: FindNfeDocumentByAccessKeyInput,
@@ -85,6 +124,8 @@ export function createTripController(
 ): TripController {
   const canReadTrips = input.permissions.includes(TRIP_READ_PERMISSION)
   const canManageTrips = input.permissions.includes(TRIP_MANAGE_PERMISSION)
+  /** Cadastrar tipo é configuração da empresa, e configuração é `settings.manage`. */
+  const canManageSettings = input.permissions.includes('settings.manage')
   const canSubmitCte = input.permissions.includes(CTE_SUBMIT_PERMISSION)
   const canManageMdfe = input.permissions.includes(MDFE_MANAGE_PERMISSION)
 
@@ -101,6 +142,21 @@ export function createTripController(
       canSubmitCte ? input.client.createTripCteBatch(body) : forbidden(),
     deliverTripDocument: (body) =>
       canManageTrips ? input.client.deliverTripDocument(body) : forbidden(),
+    readDeliveryProofs: (body) =>
+      canReadTrips ? input.client.readDeliveryProofs(body) : forbidden(),
+    readRouteGeometry: (body) =>
+      canReadTrips ? input.client.readRouteGeometry(body) : forbidden(),
+    readTripOccurrences: (body) =>
+      canReadTrips ? input.client.readTripOccurrences(body) : forbidden(),
+    correctGeocodedAddress: (body) =>
+      canManageTrips ? input.client.correctGeocodedAddress(body) : forbidden(),
+    listOccurrenceTypes: () => input.client.listOccurrenceTypes(),
+    saveOccurrenceType: (body) =>
+      canManageSettings ? input.client.saveOccurrenceType(body) : forbidden(),
+    registerTripOccurrence: (body) =>
+      canManageTrips ? input.client.registerTripOccurrence(body) : forbidden(),
+    readTripDocumentProducts: (body) =>
+      canReadTrips ? input.client.readTripDocumentProducts(body) : forbidden(),
     dispatchTrip: (body) => (canManageTrips ? input.client.dispatchTrip(body) : forbidden()),
     findNfeDocumentByAccessKey: (query) =>
       canManageTrips ? input.client.findNfeDocumentByAccessKey(query) : forbidden(),
@@ -158,6 +214,9 @@ export function useTripWorkspace(
   /** Prefixo compartilhado: invalidar `['trips']` alcança o detalhe e a tabela paginada. */
   const listKey = [TRIP_QUERY_KEY] as const
 
+  /** Qual nota está com o comprovante aberto — `null` fecha a consulta e não busca nada. */
+  const [openProofDocumentId, setOpenProofDocumentId] = useState<null | string>(null)
+
   const tripQuery = useQuery({
     enabled: controller.canReadTrips && input.tripId !== undefined && input.tripId !== '',
     queryFn: () => controller.getTrip({ tripId: input.tripId ?? '' }),
@@ -167,14 +226,75 @@ export function useTripWorkspace(
      * Repetir a consulta numa viagem em rascunho seria bater no servidor por nada; um WebSocket
      * novo, um trilho inteiro por uma tela que atualiza a cada meio minuto.
      */
+    /**
+     * Spec 079: **duas condições, não uma.** A regra da 057 olhava só o estado da viagem, e uma
+     * viagem despachada com tudo entregue seguia batendo no servidor para sempre.
+     */
     refetchInterval: (query) =>
-      isTripOnTheRoad(query.state.data?.status) ? TRIP_ON_THE_ROAD_REFETCH_MS : false,
+      resolveTripRefetchInterval({
+        documents: query.state.data?.documents ?? [],
+        status: query.state.data?.status,
+      }),
   })
 
   /**
    * Spec 059 D1: a prontidão é **consulta**, e ela acompanha o mesmo relógio da viagem na rua — o
    * CT-e que autoriza enquanto o operador olha a tela acende o painel sem ele apertar nada.
    */
+  /**
+   * O comprovante é buscado **só quando o painel abre**: a URL assinada expira em cinco minutos, e
+   * carregá-la para todas as notas da viagem produziria uma dezena de links já vencidos quando
+   * alguém finalmente clicasse num deles.
+   */
+  /**
+   * Spec 079: a linha da estrada. Consulta **própria**, e não um campo do detalhe — a chamada ao
+   * OSRM custou 63 ms medidos, e o detalhe é a leitura que abre a tela inteira. O mapa desenha as
+   * paradas primeiro e engrossa a linha depois; falha aqui deixa a reta tracejada, nunca a tela.
+   */
+  const routeGeometryQuery = useQuery({
+    enabled: controller.canReadTrips && input.tripId !== undefined && input.tripId !== '',
+    queryFn: () => controller.readRouteGeometry({ tripId: input.tripId ?? '' }),
+    queryKey: [...tripKey, 'route-geometry'] as const,
+  })
+
+  const deliveryProofsQuery = useQuery({
+    enabled: openProofDocumentId !== null && input.tripId !== undefined && input.tripId !== '',
+    queryFn: () =>
+      controller.readDeliveryProofs({
+        documentId: openProofDocumentId ?? '',
+        tripId: input.tripId ?? '',
+      }),
+    queryKey: [...tripKey, 'delivery-proofs', openProofDocumentId] as const,
+  })
+
+  /** Os itens seguem o mesmo painel do comprovante: uma abertura, duas consultas, nenhuma antes. */
+  const documentProductsQuery = useQuery({
+    enabled: openProofDocumentId !== null && input.tripId !== undefined && input.tripId !== '',
+    queryFn: () =>
+      controller.readTripDocumentProducts({
+        documentId: openProofDocumentId ?? '',
+        tripId: input.tripId ?? '',
+      }),
+    queryKey: [...tripKey, 'document-products', openProofDocumentId] as const,
+  })
+
+  /** Os tipos cadastrados: o painel da nota precisa deles para oferecer a escolha. */
+  const occurrenceTypesQuery = useQuery({
+    enabled: controller.canReadTrips,
+    queryFn: () => controller.listOccurrenceTypes(),
+    queryKey: ['trip', 'occurrence-types'] as const,
+  })
+
+  const occurrencesQuery = useQuery({
+    enabled: openProofDocumentId !== null && input.tripId !== undefined && input.tripId !== '',
+    queryFn: () =>
+      controller.readTripOccurrences({
+        documentId: openProofDocumentId ?? '',
+        tripId: input.tripId ?? '',
+      }),
+    queryKey: [...tripKey, 'occurrences', openProofDocumentId] as const,
+  })
+
   const fiscalReadinessQuery = useQuery({
     enabled:
       controller.canReadTrips &&
@@ -206,6 +326,30 @@ export function useTripWorkspace(
     mutationFn: controller.linkTripDocument,
     onSuccess: invalidateDocumentLink,
   })
+  /**
+   * A ocorrência **só anota**: nada de invalidar a viagem inteira, porque o estado da nota não
+   * mudou. Invalidar a chave da viagem aqui daria a impressão de que ela muda alguma coisa.
+   */
+  const registerOccurrenceMutation = useMutation({
+    mutationFn: controller.registerTripOccurrence,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: [...tripKey, 'occurrences', openProofDocumentId],
+      })
+    },
+  })
+
+  /**
+   * ⚠️ Corrigir o ponto muda o **endereço**, não a viagem — mas a viagem lê a coordenada dele para
+   * desenhar o mapa, então a chave da viagem é invalidada para o pino andar sem recarregar a página.
+   */
+  const correctAddressMutation = useMutation({
+    mutationFn: controller.correctGeocodedAddress,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: tripKey })
+    },
+  })
+
   const deliverDocumentMutation = useMutation({
     mutationFn: controller.deliverTripDocument,
     onSuccess: invalidate,
@@ -263,7 +407,17 @@ export function useTripWorkspace(
     controller,
     createCteBatchMutation,
     createMutation,
+    correctAddressMutation,
     deliverDocumentMutation,
+    deliveryProofsQuery,
+    routeGeometryQuery,
+    refetchTrip: () => void tripQuery.refetch(),
+    documentProductsQuery,
+    occurrenceTypesQuery,
+    occurrencesQuery,
+    registerOccurrenceMutation,
+    openProofDocumentId,
+    setOpenProofDocumentId,
     fiscalReadiness: fiscalReadinessQuery.data,
     setMdfeRequirementMutation,
     dispatchMutation,

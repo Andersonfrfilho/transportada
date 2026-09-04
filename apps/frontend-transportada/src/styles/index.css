@@ -3,12 +3,25 @@
   /* Sem isto o Chrome pinta todo widget nativo em modo claro sobre o tema escuro. */
   color-scheme: dark;
   --color-alert: #ff5f57;
+  /**
+   * Spec 076: a paleta das paradas no mapa de carga. Ordenada e estável — a mesma parada tem a
+   * mesma cor na lista, no mapa e no baú. Seis tons distinguíveis entre si; acima disso a tela
+   * agrupa em vez de gerar cor que ninguém diferencia.
+   */
+  --color-cargo-stop-1: #4c8fbd;
+  --color-cargo-stop-2: #d58a47;
+  --color-cargo-stop-3: #6aae8c;
+  --color-cargo-stop-4: #b06fa8;
+  --color-cargo-stop-5: #c7913f;
+  --color-cargo-stop-6: #7d8fa8;
   --color-asphalt: #10222c;
   --color-copper: #d58a47;
   --color-fog: #f0f2ee;
   --color-graphite: #1c2b33;
   --color-ready: #6aae8c;
   --color-slate: #8fa3ad;
+  /* O texto que senta sobre o cobre: no escuro é a tinta escura, no claro é o papel claro. */
+  --color-ink-on-accent: #10222c;
   --font-body: 'Avenir Next', Avenir, 'Segoe UI', sans-serif;
   --font-display: Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
   --font-utility: 'SFMono-Regular', Consolas, monospace;
@@ -88,8 +101,80 @@
   --color-zone-4: #d9603c;
 }
 
+/**
+ * Tema claro: os mesmos nomes de token com os papéis invertidos — asfalto vira papel, névoa vira
+ * tinta — para os 42 módulos que já consomem os tokens herdarem o tema sem tocar em arquivo algum.
+ * O cobre escurece porque sobre fundo claro o tom original não tem contraste de texto.
+ *
+ * Duas portas para o mesmo bloco: `data-theme="light"` é a escolha do botão (persistida), e a
+ * media query cobre quem nunca escolheu e tem o sistema em claro. Mudou um valor num bloco?
+ * mude no outro — o contrato de tema compara os dois.
+ */
+:root[data-theme='light'] {
+  color-scheme: light;
+  --color-alert: #c2382f;
+  --color-asphalt: #f2efe9;
+  --color-copper: #a3591f;
+  --color-fog: #1d2b33;
+  --color-graphite: #fbf9f5;
+  --color-ready: #2e7d54;
+  --color-slate: #5a6b74;
+  --color-ink-on-accent: #faf8f4;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    color-scheme: light;
+    --color-alert: #c2382f;
+    --color-asphalt: #f2efe9;
+    --color-copper: #a3591f;
+    --color-fog: #1d2b33;
+    --color-graphite: #fbf9f5;
+    --color-ready: #2e7d54;
+    --color-slate: #5a6b74;
+    --color-ink-on-accent: #faf8f4;
+  }
+}
+
 * {
   box-sizing: border-box;
+}
+
+/**
+ * A barra de rolagem é discreta em toda a aplicação, e a regra é **global** de propósito: existem
+ * mais de trinta contêineres roláveis, e nenhum declarava nada — cada um herdava a barra do sistema,
+ * grossa e cinza, competindo com o dado que ela emoldura.
+ *
+ * As duas formas convivem porque nenhuma sozinha cobre os navegadores em uso: `scrollbar-width` é a
+ * padronizada (Firefox e Chromium recente) e `::-webkit-scrollbar` é o que o Safari entende. A cor
+ * sai dos tokens, e o trilho é transparente para a barra não desenhar uma faixa no fundo do painel.
+ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--color-slate) 40%, transparent) transparent;
+}
+
+::-webkit-scrollbar {
+  width: var(--space-2);
+  height: var(--space-2);
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: var(--space-2);
+  background: color-mix(in srgb, var(--color-slate) 40%, transparent);
+}
+
+/* Só ao apontar o polegar ganha contraste: quem está rolando quer vê-lo, quem está lendo não. */
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--color-slate) 70%, transparent);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 button:not(:disabled),
@@ -133,6 +218,12 @@ a {
   background: color-mix(in srgb, var(--color-graphite) 88%, var(--color-asphalt) 12%);
   transform: translateX(-100%);
   transition: transform 180ms ease;
+  overflow-y: auto;
+}
+
+/* Recolhido, o flyout e o tooltip saem pela borda direita — overflow os recortaria. */
+.application-shell-sidebar-collapsed .application-sidebar {
+  overflow: visible;
 }
 
 .application-shell-sidebar-open .application-sidebar {
@@ -266,10 +357,33 @@ a {
   background: color-mix(in srgb, var(--color-copper) 10%, transparent);
 }
 
+.sidebar-brand-identity {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Sem medida própria o logo cresce com a caixa — a mesma razão da marca do rodapé. */
+.sidebar-brand-logo {
+  width: var(--space-8);
+  height: var(--space-8);
+  object-fit: contain;
+}
+
 .sidebar-brand strong {
   color: var(--color-fog);
   font-size: 1.35rem;
   letter-spacing: -0.02em;
+}
+
+/* No trilho recolhido o logo é o que sobra da marca: ele fica, e o nome sai. */
+.application-shell-sidebar-collapsed .sidebar-brand > .sidebar-brand-identity {
+  display: inline-flex;
+  justify-content: center;
+}
+
+.application-shell-sidebar-collapsed .sidebar-brand-identity strong {
+  display: none;
 }
 
 .sidebar-brand span {
@@ -532,13 +646,14 @@ a {
   backdrop-filter: blur(16px);
 }
 
-.application-header-copy {
+.ui-card-header.application-header-copy {
   display: grid;
   gap: var(--space-2);
 }
 
-.application-header-context {
+.ui-card-content.application-header-context {
   display: flex;
+  min-width: 0;
   flex-wrap: wrap;
   gap: var(--space-3);
   justify-content: flex-end;
@@ -549,16 +664,21 @@ a {
   text-transform: uppercase;
 }
 
-.application-header-context > span {
+.ui-card-content.application-header-context > span {
   display: none;
 }
 
 /* O ambiente fiscal é aviso de segurança: sumir no celular é onde ele mais faria falta. */
-.application-header-context > .application-fiscal-environment {
-  display: inline-block;
+.ui-card-content.application-header-context > .application-fiscal-environment {
+  display: inline-flex;
 }
 
+/* Como item de flex ela estica na altura da fileira; sem centrar, o texto encosta no topo da
+   caixa e o resto do retângulo fica vazio. */
 .application-fiscal-environment {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: var(--space-1) var(--space-2);
   border: 1px solid color-mix(in srgb, var(--color-slate) 40%, transparent);
   border-radius: var(--space-1);
@@ -574,6 +694,7 @@ a {
 .application-user-area {
   display: inline-flex;
   width: 100%;
+  min-width: 0;
   align-items: center;
   justify-content: flex-start;
   gap: var(--space-3);
@@ -625,14 +746,32 @@ a {
 }
 
 .application-user-subtitle {
-  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
   color: var(--color-slate);
   font-size: 0.72rem;
+}
+
+/* O corte com reticências mora no texto, não no contêiner: num flex, o pai não trunca o filho. */
+.application-user-email {
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.application-logout-button {
+/* O e-mail encolhe e o botão não: sem `flex-shrink`, o alvo de toque some antes do texto. */
+.application-user-copy-email {
+  flex-shrink: 0;
+  width: var(--control-height-compact);
+  min-width: var(--control-height-compact);
+  height: var(--control-height-compact);
+  padding: 0;
+}
+
+.application-logout-button,
+.application-theme-toggle {
   flex-shrink: 0;
   width: 2rem;
   min-width: 2rem;
@@ -813,7 +952,7 @@ a {
 
 .workspace-primary-action {
   border-color: var(--color-copper);
-  color: var(--color-asphalt);
+  color: var(--color-ink-on-accent);
   background: var(--color-copper);
 }
 
@@ -933,7 +1072,7 @@ button:has([data-count-badge]) {
 
 .ui-button-default {
   border-color: var(--color-copper);
-  color: var(--color-asphalt);
+  color: var(--color-ink-on-accent);
   background: var(--color-copper);
 }
 
@@ -1010,7 +1149,7 @@ button:has([data-count-badge]) {
 
 .ui-badge-default {
   border-color: var(--color-copper);
-  color: var(--color-asphalt);
+  color: var(--color-ink-on-accent);
   background: var(--color-copper);
 }
 
@@ -1147,11 +1286,11 @@ h2 {
     align-items: center;
   }
 
-  .application-header-context {
+  .ui-card-content.application-header-context {
     font-size: 0.7rem;
   }
 
-  .application-header-context > span {
+  .ui-card-content.application-header-context > span {
     display: inline;
   }
 

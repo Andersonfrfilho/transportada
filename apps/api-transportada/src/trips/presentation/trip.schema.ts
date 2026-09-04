@@ -18,17 +18,25 @@ import { TRIP_STATUSES } from '../../database/trip.schema.js'
 import type { TripFilters } from '../application/trip.port.js'
 import {
   batchTransitionTripDocumentsSchema,
+  createTripCteBatchSchema,
   createTripSchema,
   dispatchTripSchema,
   linkTripDocumentSchema,
+  linkTripDocumentsBatchSchema,
+  previewTripValuationSchema,
+  routeGeometrySchema,
   overrideDeliveryAddressSchema,
   reorderTripStopsSchema,
   setTripMdfeRequirementSchema,
   transitionTripDocumentSchema,
   type BatchTransitionTripDocumentsBody,
   type CreateTripBody,
+  type CreateTripCteBatchBody,
   type DispatchTripBody,
   type LinkTripDocumentBody,
+  type LinkTripDocumentsBatchBody,
+  type PreviewTripValuationBody,
+  type RouteGeometryBody,
   type OverrideDeliveryAddressBody,
   type ReorderTripStopsBody,
   type SetTripMdfeRequirementBody,
@@ -52,6 +60,8 @@ type TripListing = {
 }
 
 export { parseUuidPathIdentifier } from '../../http/request-parsing.service.js'
+/** O corpo da geometria avulsa viaja para a rota, como os demais tipos de corpo deste módulo. */
+export type { RouteGeometryBody } from './trip-request.schema.js'
 
 export async function parseCreateTripRequest(request: Request): Promise<CreateTripBody> {
   return parseBody(createTripSchema, request)
@@ -68,6 +78,22 @@ export async function parseLinkTripDocumentRequest(
  * separador não digita motivo. `return` também usa esta função; o use case (T008/T009) é quem
  * exige `returnReason` quando a ação é `return`, não a fronteira HTTP.
  */
+export async function parseLinkTripDocumentsBatchRequest(
+  request: Request,
+): Promise<LinkTripDocumentsBatchBody> {
+  return parseBody(linkTripDocumentsBatchSchema, request)
+}
+
+export async function parsePreviewTripValuationRequest(
+  request: Request,
+): Promise<PreviewTripValuationBody> {
+  return parseBody(previewTripValuationSchema, request)
+}
+
+export async function parseRouteGeometryRequest(request: Request): Promise<RouteGeometryBody> {
+  return parseBody(routeGeometrySchema, request)
+}
+
 export async function parseTransitionTripDocumentRequest(
   request: Request,
 ): Promise<TransitionTripDocumentBody> {
@@ -78,6 +104,12 @@ export async function parseBatchTransitionTripDocumentsRequest(
   request: Request,
 ): Promise<BatchTransitionTripDocumentsBody> {
   return parseBody(batchTransitionTripDocumentsSchema, request)
+}
+
+export async function parseCreateTripCteBatchRequest(
+  request: Request,
+): Promise<CreateTripCteBatchBody> {
+  return parseOptionalBody(createTripCteBatchSchema, request)
 }
 
 export async function parseDispatchTripRequest(request: Request): Promise<DispatchTripBody> {

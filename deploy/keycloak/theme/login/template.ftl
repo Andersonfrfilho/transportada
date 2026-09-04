@@ -19,6 +19,10 @@
          arquivo da app, e sem ele a aba do login abre com o desenho genérico do navegador. -->
     <link rel="icon" href="${url.resourcesPath}/img/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="${url.resourcesPath}/img/icon-192.png" />
+    <#-- ⚠️ Sem `defer` e **antes** da folha de estilo: o `data-theme` tem de existir no `<html>`
+         na primeira pintura, senão a tela pisca no tema errado antes de corrigir. É por isso que
+         ele não entra no `scripts=` do `theme.properties`, que carrega tudo com `defer`. -->
+    <script src="${url.resourcesPath}/js/color-theme.js"></script>
     <#if properties.styles?has_content>
         <#list properties.styles?split(' ') as style>
             <link href="${url.resourcesPath}/${style}" rel="stylesheet" />
@@ -56,12 +60,16 @@
 <body class="${bodyClass}" data-page-id="login-${pageId}">
 <main class="gate">
     <section class="brand" aria-label="${realm.displayName!'TransportAdA'}">
-        <p class="brand-wordmark">TransportAdA</p>
-        <p class="brand-description">${msg("transportadaTagline")}</p>
-        <p class="brand-installation">
-            <span>${msg("transportadaInstallation")}</span>
-            <strong>${realm.displayName!''}</strong>
-        </p>
+        <#-- ADR-0021: cada deploy é de uma transportadora só, e é a marca dela que assina a porta.
+             O nome do produto é o que sobra quando a instalação não se nomeou — nunca o que lidera.
+             O tema é FreeMarker dentro do Keycloak e não alcança a nossa API, então a fonte é o
+             `displayName` do realm, que é justamente o nome da instalação. -->
+        <p class="brand-wordmark">${realm.displayName!'TransportAdA'}</p>
+        <#-- O produto assina discreto, e só quando a instalação já se nomeou: sem isso a linha
+             repetiria o que o cabeçalho acabou de dizer. -->
+        <#if realm.displayName?has_content>
+            <p class="brand-installation">${msg("transportadaProduct")}</p>
+        </#if>
     </section>
 
     <div class="panel">

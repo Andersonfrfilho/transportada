@@ -22,8 +22,17 @@ const DISPLAY_CASES: readonly (readonly [string, string])[] = [
   ['ANA PAULA', 'Ana Paula'],
   // Ligação no começo do campo de sobrenome continua minúscula: `Da Silva` não é grafia de nome
   ['da silva', 'da Silva'],
-  ["d'ávila", "D'Ávila"],
+  // `d'` é ligação como `da`: o apóstrofo cola, mas o nome que vem depois é que leva a maiúscula
+  ["d'ávila", "d'Ávila"],
   ['silva-souza', 'Silva-Souza'],
+  ['ana di giorgio', 'Ana di Giorgio'],
+  ['pedro van der ley', 'Pedro van der Ley'],
+  ['carlos del castillo', 'Carlos del Castillo'],
+  ['rita von schmidt y du bois', 'Rita von Schmidt y du Bois'],
+  ['ana la rocca', 'Ana la Rocca'],
+  ['paulo le blanc', 'Paulo le Blanc'],
+  ['jose de las casas', 'Jose de las Casas'],
+  ['maria de los santos', 'Maria de los Santos'],
   // O espaço sobrevive porque a função corre a cada tecla, no meio da digitação
   ['ana ', 'Ana '],
   ['ana  paula', 'Ana  Paula'],
@@ -44,7 +53,29 @@ describe('person name contract', () => {
   })
 
   test('keeps the same connectives the API keeps', () => {
-    expect([...PERSON_NAME_CONNECTIVES]).toEqual(['da', 'das', 'de', 'do', 'dos', 'e'])
+    expect([...PERSON_NAME_CONNECTIVES]).toEqual([
+      'a',
+      'd',
+      'da',
+      'das',
+      'de',
+      'del',
+      'della',
+      'den',
+      'der',
+      'di',
+      'do',
+      'dos',
+      'du',
+      'e',
+      'la',
+      'las',
+      'le',
+      'los',
+      'van',
+      'von',
+      'y',
+    ])
     for (const connective of PERSON_NAME_CONNECTIVES) {
       expect(toDisplayPersonName(`joão ${connective} souza`)).toBe(`João ${connective} Souza`)
     }

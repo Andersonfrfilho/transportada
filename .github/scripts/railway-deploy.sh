@@ -124,6 +124,17 @@ deploy() {
   local exit_code=0
   local deployment_id
 
+  # Spec 078: a revisao publicada, para o descompasso entre API e bundle deixar de ser mudo. O
+  # deploy e por imagem, entao a Railway nao popula variavel de git sozinha — quem sabe o SHA e o
+  # Action. Falha aqui nao derruba o deploy: o servico responde `unknown`, que e legivel.
+  if [ -n "${GITHUB_SHA:-}" ]; then
+    railway variables \
+      --service "$service" \
+      --environment "$TARGET_ENVIRONMENT" \
+      --set "DEPLOYED_REVISION=${GITHUB_SHA:0:7}" \
+      --skip-deploys >/dev/null 2>&1 || echo "$service: revisao nao gravada; a saude dira unknown."
+  fi
+
   output="$(railway up \
     --ci \
     --service "$service" \

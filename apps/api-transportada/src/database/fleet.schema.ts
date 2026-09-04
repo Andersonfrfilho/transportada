@@ -169,6 +169,13 @@ export const fleetVehicles = pgTable(
     tareWeightKg: measureColumn('tare_weight_kg').notNull().default('0'),
     capacityKg: measureColumn('capacity_kg').notNull().default('0'),
     capacityM3: measureColumn('capacity_m3').notNull().default('0'),
+    /**
+     * Spec 075: a dimensão é o dado primitivo e o `capacity_m3` acima é o degrau seguinte. Zero é
+     * ausência de medida, nunca baú de volume zero — e por isso o resolvedor exige as três.
+     */
+    cargoLengthM: numeric('cargo_length_m', { precision: 8, scale: 3 }).notNull().default('0'),
+    cargoWidthM: numeric('cargo_width_m', { precision: 8, scale: 3 }).notNull().default('0'),
+    cargoHeightM: numeric('cargo_height_m', { precision: 8, scale: 3 }).notNull().default('0'),
     bodyType: text('body_type').$type<MdfeBodyType>().notNull().default('00'),
     axleCount: integer('axle_count').notNull().default(0),
     // O que o operador escolhe; `tipoRodado` e classe de frete saem dele por derivação

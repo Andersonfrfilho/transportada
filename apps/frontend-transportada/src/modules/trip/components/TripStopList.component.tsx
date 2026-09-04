@@ -2,6 +2,7 @@
 import { closestCenter, DndContext, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -21,6 +22,8 @@ import styles from '../styles/trip.module.css'
  * Colapsar os três num `isEditable` só mostrava "Devolver" exatamente quando ele falharia.
  */
 export type TripStopDocumentActions = Readonly<{
+  /** Spec 079: entregar é o mesmo trabalho de rua que devolver, e desde 02/09 o backend o exige. */
+  canDeliver: boolean
   canManage: boolean
   canReturn: boolean
   canSeparateOrLoad: boolean
@@ -29,6 +32,10 @@ export type TripStopDocumentActions = Readonly<{
   isReleasePending: boolean
   isTransitionPending: boolean
   onDeliver: (documentId: string) => void
+  /** Spec 079 T006/T025: abre e fecha o comprovante da nota. */
+  onToggleProof: (documentId: string) => void
+  openProofDocumentId: null | string
+  renderProof: (documentId: string) => ReactNode
   onLoad: (documentId: string) => void
   onOverrideAddress: (documentId: string) => void
   onRelease: (documentId: string) => void
@@ -215,13 +222,72 @@ function TripStopDocumentRow({
         onChange={() => selection.toggle(document.id)}
       />
       <span className={styles.stopDocumentLabel}>{tripDocumentLabel(document)}</span>
+      {/*
+       * Valor e data ao lado do número: é o que o operador confere para saber que é a nota certa
+       * sem abrir outra tela. Ausentes quando o vínculo é só cálculo de frete — e aí não se imprime
+       * traço nem zero, que seriam afirmações sobre uma nota que não existe.
+       */}
+      {document.nfeTotalValue === null || document.nfeTotalValue === undefined ? null : (
+        <span className={styles.stopDocumentMeta}>{formatAmount(document.nfeTotalValue)}</span>
+      )}
+      {document.nfeIssuedAt === null || document.nfeIssuedAt === undefined ? null : (
+        <span className={styles.stopDocumentMeta}>{formatDay(document.nfeIssuedAt)}</span>
+      )}
+      {/*
+       * Spec 079 P2: quem recebe, o telefone que a nota trouxe e o contratante. ⚠️ Nota sem
+       * telefone **diz** que não tem: esconder a linha faria o operador procurar o número em outra
+       * tela, e imprimir vazio faria ele tentar ligar para o nada.
+       */}
+      {document.contact === null || document.contact === undefined ? null : (
+        <>
+          <span className={styles.stopDocumentMeta}>
+            {t('contact.recipient', { name: document.contact.name })}
+          </span>
+          <span className={styles.stopDocumentMeta}>
+            {document.contact.phone === null
+              ? t('contact.withoutPhone')
+              : t('contact.phone', { phone: document.contact.phone })}
+          </span>
+          {document.contact.contractorName === null ? null : (
+            <span className={styles.stopDocumentMeta}>
+              {t('contact.contractor', { name: document.contact.contractorName })}
+            </span>
+          )}
+        </>
+      )}
       <span className={styles.separationStatusBadge}>
         {t(`separationStatus.${document.separationStatus}`)}
       </span>
+      {/*
+       * Spec 073 CA10: a marca aparece **só** no endereço de entrega. Em 345 de 345 notas reais o
+       * endereço é o do cadastro — imprimir "Cadastro" em todas seria ruído que apaga justamente a
+       * linha que explica por que o motorista foi a outro portão.
+       */}
+      {document.destinationOrigin === 'delivery' ? (
+        <span className={styles.destinationOriginBadge} title={t('destinationOrigin.deliveryHint')}>
+          {t('destinationOrigin.delivery')}
+        </span>
+      ) : null}
       {hasTripDocumentFiscalWarning(document) ? (
         <span className={styles.fiscalWarning}>{t('detail.fiscalWarning')}</span>
       ) : null}
       <div className={styles.rowActions}>
+        {/*
+         * O comprovante é do escritório, e ler não é administrar: quem acompanha a operação abre o
+         * canhoto sem `trip.manage`. O botão só aparece quando há entrega ou devolução para
+         * comprovar — numa nota que ainda está no galpão não há o que mostrar.
+         */}
+        {document.deliveredAt === null && document.returnedAt === null ? null : (
+          <Button
+            onClick={() => actions.onToggleProof(document.id)}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Icon name="image" />
+            {t('actions.viewProof')}
+          </Button>
+        )}
         {actions.canManage &&
         actions.canSeparateOrLoad &&
         document.separationStatus === 'pending' ? (
@@ -231,6 +297,7 @@ function TripStopDocumentRow({
             size="sm"
             type="button"
           >
+            <Icon name="check" />
             {t('actions.separate')}
           </Button>
         ) : null}
@@ -243,6 +310,7 @@ function TripStopDocumentRow({
             size="sm"
             type="button"
           >
+            <Icon name="truck" />
             {t('actions.load')}
           </Button>
         ) : null}
@@ -254,10 +322,11 @@ function TripStopDocumentRow({
             type="button"
             variant="ghost"
           >
+            <Icon name="arrow-up" />
             {t('actions.return')}
           </Button>
         ) : null}
-        {actions.canManage && actions.isEditable && document.deliveredAt === null ? (
+        {actions.canManage && actions.canDeliver && document.deliveredAt === null ? (
           <Button
             disabled={actions.isDeliverPending}
             onClick={() => actions.onDeliver(document.id)}
@@ -292,6 +361,22 @@ function TripStopDocumentRow({
           </Button>
         ) : null}
       </div>
+      {actions.openProofDocumentId === document.id ? actions.renderProof(document.id) : null}
     </li>
   )
+}
+
+const amountFormatter = new Intl.NumberFormat('pt-BR', {
+  currency: 'BRL',
+  style: 'currency',
+})
+
+const dayFormatter = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' })
+
+function formatAmount(value: string): string {
+  return amountFormatter.format(Number.parseFloat(value))
+}
+
+function formatDay(value: string): string {
+  return dayFormatter.format(new Date(value))
 }

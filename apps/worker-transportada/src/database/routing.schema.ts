@@ -156,6 +156,8 @@ export const routeSuggestionVehicles = pgTable('route_suggestion_vehicles', {
   companyId: uuid('company_id').notNull(),
   suggestionId: uuid('suggestion_id').notNull(),
   vehicleId: uuid('vehicle_id').notNull(),
+  /** ADR-0055: o motorista do par. O solver não o lê — a coluna existe aqui para a cópia não mentir. */
+  driverId: uuid('driver_id'),
   position: bigint({ mode: 'bigint' }).notNull(),
 })
 

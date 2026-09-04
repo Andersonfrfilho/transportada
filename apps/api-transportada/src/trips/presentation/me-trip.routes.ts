@@ -11,6 +11,7 @@ import {
 } from '../../mdfe-manifests/application/read-mdfe-document.port.js'
 import type { TripStopOccurrenceKind } from '../../database/trip.schema.js'
 import type { DeliveryProofUpload } from '../application/attach-delivery-proof.use-case.js'
+import type { TripOccurrence } from '../application/register-trip-occurrence.use-case.js'
 import type { ReportedLocation } from '../application/driver-field-report.port.js'
 import type {
   DriverTrip,
@@ -22,7 +23,9 @@ import type { ReportStopArrivalResult } from '../application/report-stop-arrival
 import type { ReportStopOccurrenceResult } from '../application/report-stop-occurrence.use-case.js'
 import { DriverNotRegisteredError } from '../domain/trip.error.js'
 import { parseDeliveryProofUpload } from './delivery-proof.schema.js'
+import { parseRegisterOccurrenceRequest } from './occurrence.schema.js'
 import {
+  parseDispatchCurrentTripRequest,
   parseDocumentReturnRequest,
   parseFieldReportRequest,
   parseIdempotencyKey,
@@ -35,12 +38,26 @@ const DOCUMENT_DELIVER_PATH = `${API_ME_CURRENT_TRIP_PATH}/documents/:documentId
 const DOCUMENT_RETURN_PATH = `${API_ME_CURRENT_TRIP_PATH}/documents/:documentId/return`
 const DOCUMENT_PROOF_PATH = `${API_ME_CURRENT_TRIP_PATH}/documents/:documentId/proof`
 /**
+ * Spec 079: a ocorrência que o motorista registra do próprio celular.
+ *
+ * ⚠️ **Não há id de viagem no caminho, e isso é o desenho.** Uma versão desta rota nasceu em
+ * `/trips/:id` pedindo `trip.report` e foi desfeita: o motorista tem essa permissão para **toda a
+ * empresa**, e ali ele alcançaria qualquer viagem. Aqui o escopo é a viagem ativa dele, garantido
+ * pela consulta.
+ */
+const DOCUMENT_OCCURRENCE_PATH = `${API_ME_CURRENT_TRIP_PATH}/documents/:documentId/occurrences`
+/**
  * O manifesto sai por id, e o id vem da própria viagem que o motorista acabou de ler — ele não
  * procura manifesto, ele abre o da carga que está levando. A escala dele é a condição da consulta:
  * manifesto de outra viagem responde 404, como se não existisse.
  */
 const TRIP_MANIFEST_PATH = `${API_ME_CURRENT_TRIP_PATH}/manifests/:manifestId`
 const TRIP_MANIFEST_DAMDFE_PATH = `${TRIP_MANIFEST_PATH}/damdfe`
+/**
+ * ADR-0058: o motorista abre a porta do despacho. A viagem vem no corpo — o snapshot já a entregou
+ * — e o recorte é o vínculo (`trip_drivers`), nunca permissão nova.
+ */
+const TRIP_DISPATCH_PATH = `${API_ME_CURRENT_TRIP_PATH}/dispatch`
 
 /**
  * `trip.read` lê a viagem própria e `trip.report` reporta o que aconteceu na rua. Nenhum dos dois é
@@ -86,6 +103,21 @@ export type MeTripDependencies = {
       readonly reason: DriverReturnReason
     },
   ) => Promise<ReportDocumentOutcomeResult>
+  readonly registerDriverOccurrence: (input: {
+    readonly actorUserId: string
+    readonly companyId: string
+    readonly documentId: string
+    readonly driverId: string
+    readonly note: string
+    readonly occurrenceTypeId: string
+    readonly productCode: string
+  }) => Promise<TripOccurrence>
+  readonly dispatchCurrentTrip: (input: {
+    readonly actorUserId: string
+    readonly companyId: string
+    readonly driverId: string
+    readonly tripId: string
+  }) => Promise<{ readonly tripStatus: string }>
   readonly attachProof: (
     input: DriverContextInput & {
       readonly documentId: string
@@ -300,6 +332,25 @@ export function createMeTripRoutes(
       pathname: DOCUMENT_RETURN_PATH,
       policy: DRIVER_REPORT_POLICY,
     }),
+    defineRoute<{ readonly tripId: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const driverId = await resolveDriver(context.scope)
+        const result = await dependencies.dispatchCurrentTrip({
+          actorUserId: context.scope.userId,
+          companyId: context.scope.companyId,
+          driverId,
+          tripId: input.tripId,
+        })
+
+        return jsonResponse({ body: { data: result }, status: 200 })
+      },
+      method: 'POST',
+      async parse({ request }) {
+        return { tripId: await parseDispatchCurrentTripRequest(request) }
+      },
+      pathname: TRIP_DISPATCH_PATH,
+      policy: DRIVER_REPORT_POLICY,
+    }),
     /**
      * O comprovante anexa a uma entrega **que já aconteceu** — ele não é passo dela. Em 3G ruim,
      * esperar o arquivo para confirmar a entrega é perder a entrega, e a spec pede o contrário.
@@ -325,6 +376,39 @@ export function createMeTripRoutes(
         }
       },
       pathname: DOCUMENT_PROOF_PATH,
+      policy: DRIVER_REPORT_POLICY,
+    }),
+    defineRoute<{
+      readonly documentId: string
+      readonly note: string
+      readonly occurrenceTypeId: string
+      readonly productCode: string
+    }>({
+      async handle({ context, input }): Promise<Response> {
+        const driverId = await resolveDriver(context.scope)
+        const occurrence = await dependencies.registerDriverOccurrence({
+          actorUserId: context.scope.userId,
+          companyId: context.scope.companyId,
+          documentId: input.documentId,
+          driverId,
+          note: input.note,
+          occurrenceTypeId: input.occurrenceTypeId,
+          productCode: input.productCode,
+        })
+
+        return jsonResponse({ body: { data: occurrence }, status: 201 })
+      },
+      method: 'POST',
+      async parse({ pathParameters, request }) {
+        const body = await parseRegisterOccurrenceRequest(request)
+        return {
+          documentId: parseUuidPathIdentifier(pathParameters.documentId ?? ''),
+          note: body.note,
+          occurrenceTypeId: body.occurrenceTypeId,
+          productCode: body.productCode,
+        }
+      },
+      pathname: DOCUMENT_OCCURRENCE_PATH,
       policy: DRIVER_REPORT_POLICY,
     }),
     defineRoute<{

@@ -9,6 +9,8 @@ import {
   type TripFinancialResult,
 } from './tripFinancials.types'
 import { toFinancialSummary, toTripFinancialResult } from './tripFinancialsResponse.validation'
+import { toTripValuation } from './tripValuationResponse.validation'
+import type { TripValuation } from './tripValuation.service'
 
 type ClientDependencies = Readonly<{
   apiUrl: string
@@ -18,6 +20,16 @@ type ClientDependencies = Readonly<{
 
 export type TripFinancialsClient = Readonly<{
   readResult: (tripId: string) => Promise<TripFinancialResult | null>
+  /** A conta **prevista** da viagem aberta — a congelada só nasce quando ela fecha. */
+  readValuation: (tripId: string) => Promise<TripValuation | null>
+  /** A mesma conta antes de a viagem existir, sobre as notas e a frota escolhidas no formulário. */
+  previewValuation: (
+    input: Readonly<{
+      driverIds: readonly string[]
+      nfeDocumentIds: readonly string[]
+      vehicleId: string
+    }>,
+  ) => Promise<TripValuation | null>
   readSummary: (
     input: Readonly<{ from: string; groupBy: FinancialSummaryGroup; to: string }>,
   ) => Promise<FinancialSummary>
@@ -39,6 +51,29 @@ export function createTripFinancialsClient(dependencies: ClientDependencies): Tr
     async readResult(tripId) {
       return toTripFinancialResult(
         await request({ dependencies, method: 'GET', path: `/trips/${tripId}/financial-result` }),
+      )
+    },
+    /**
+     * A prévia é `POST` e fica **fora** da árvore `/trips/:id`: a viagem ainda não existe. É o que
+     * responde "vale a pena montar isto?" no momento em que a pergunta é feita.
+     */
+    async previewValuation(input) {
+      return toTripValuation(
+        await request({
+          body: JSON.stringify({
+            driverIds: input.driverIds,
+            nfeDocumentIds: input.nfeDocumentIds,
+            vehicleId: input.vehicleId,
+          }),
+          dependencies,
+          method: 'POST',
+          path: '/trips/valuation-preview',
+        }),
+      )
+    },
+    async readValuation(tripId) {
+      return toTripValuation(
+        await request({ dependencies, method: 'GET', path: `/trips/${tripId}/valuation` }),
       )
     },
     async readSummary({ from, groupBy, to }) {

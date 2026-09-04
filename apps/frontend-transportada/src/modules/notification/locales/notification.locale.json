@@ -15,8 +15,10 @@
     "inboxHint": "Dentro do TransportAdA, no sino do cabeçalho.",
     "mdfe": "MDF-e",
     "nfse": "NFS-e",
+    "trip": "Viagens e entregas",
     "subtitle": "Escolha por onde receber cada assunto. A caixa de entrada guarda tudo de qualquer forma.",
-    "title": "Preferências de notificação"
+    "title": "Preferências de notificação",
+    "trip": "Viagens"
   },
   "test": {
     "send": "Enviar teste para mim",

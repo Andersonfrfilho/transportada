@@ -81,6 +81,11 @@ export type ApiEnvironment = {
    * Provedores públicos de CEP, consultados só quando o banco da instalação não soube o endereço
    * inteiro. Ausentes os dois, a escada para no nosso banco e o operador digita — nunca derruba boot.
    */
+  /**
+   * O `/route` do OSRM, para a linha da estrada no mapa da viagem. Ausente, o mapa liga as paradas
+   * em reta — e diz na tela que são retas.
+   */
+  readonly routingMatrixUrl: string | undefined
   readonly postalCodeProviders: {
     readonly brasilApiUrl: string | undefined
     readonly viaCepUrl: string | undefined
@@ -126,6 +131,12 @@ export type HealthStatus = 'ok' | 'degraded'
 export type DependencyStatus = 'up' | 'down'
 
 type HealthResponseBase = {
+  /**
+   * Spec 078: a revisão que subiu. `unknown` quando a variável não foi declarada — **nunca
+   * ausente**: campo que some obrigaria quem consulta a distinguir "não sei" de "esta versão é
+   * antiga e não tinha o campo", que é a ambiguidade que ele existe para eliminar.
+   */
+  readonly revision: string
   readonly service: 'api'
   readonly timestamp: string
 }

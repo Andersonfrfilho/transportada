@@ -28,6 +28,12 @@ export const API_COMPANY_SETTINGS_SCHEDULED_DISTRIBUTION_PATH =
   '/company-settings/scheduled-distribution'
 export const API_COMPANY_SETTINGS_DISTRIBUTION_CURSOR_PATH = '/company-settings/distribution-cursor'
 export const API_COMPANY_SETTINGS_CARGO_PATH = '/company-settings/cargo'
+/** ADR-0057: a configuração do comprovante de entrega, geral e por CNPJ do destinatário. */
+export const API_COMPANY_SETTINGS_DELIVERY_PROOF_PATH = '/company-settings/delivery-proof'
+export const API_COMPANY_SETTINGS_DELIVERY_PROOF_OVERRIDES_PATH =
+  '/company-settings/delivery-proof/overrides'
+/** Spec 075: o fator de cubagem por espécie, irmão do peso padrão. */
+export const API_COMPANY_SETTINGS_CARGO_VOLUME_PATH = '/company-settings/cargo-volume-factors'
 export const API_COMPANY_SETTINGS_CONTACTS_PATH = '/company-settings/contacts'
 export const API_COMPANY_SETTINGS_FUEL_PRICES_PATH = '/company-settings/fuel-prices'
 export const API_COMPANY_SETTINGS_ENERGY_PATH = '/company-settings/energy'
@@ -51,11 +57,13 @@ export const API_FINANCIAL_RESULTS_PATH = '/financial-results'
 export const API_PUBLIC_EXTRA_CHARGE_BATCHES_PATH = '/public/extra-charge-batches/:token'
 export const API_FLEET_VEHICLES_PATH = '/fleet/vehicles'
 export const API_FLEET_DRIVERS_PATH = '/fleet/drivers'
+export const API_FLEET_DRIVER_VEHICLES_PATH = '/fleet/driver-vehicles'
 export const API_FLEET_CAPABILITIES_PATH = '/fleet/capabilities'
 export const API_FLEET_VEHICLE_CATALOG_BRANDS_PATH = '/fleet/vehicle-catalog/brands'
 export const API_FLEET_VEHICLE_CATALOG_MODELS_PATH = '/fleet/vehicle-catalog/models'
 /** Não é rota de frota: os três formulários com campo de CEP — motorista, empresa e MDF-e — a usam. */
 export const API_POSTAL_CODES_PATH = '/postal-codes'
+export const API_ADDRESS_REPORT_PATH = '/address-report'
 export const API_MDFE_MANIFESTS_PATH = '/mdfe-manifests'
 export const API_MDFE_MANIFESTS_PREVIEW_PATH = '/mdfe-manifests/preview'
 export const API_TRIPS_PATH = '/trips'

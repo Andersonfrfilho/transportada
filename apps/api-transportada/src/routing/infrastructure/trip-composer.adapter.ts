@@ -40,12 +40,21 @@ export type TripComposerDependencies = Readonly<{
 
 export function createTripComposer(dependencies: TripComposerDependencies): TripComposer {
   return {
-    async createTrip({ context, vehicleId }) {
+    async createTrip({ context, driverId, vehicleId }) {
       /**
-       * Viagem nasce **sem motorista**: o solver decide o veículo, não quem dirige. Escolher a
-       * tripulação é decisão de escala, e inventá-la aqui poria alguém na estrada por dedução.
+       * ADR-0055: a viagem nasce **com** o motorista que o humano pareou no diálogo. O solver
+       * continua sem saber que motorista existe — quem escolhe é quem monta a escala —, mas o par
+       * escolhido chega até aqui, e é o que faz a viagem aparecer no PWA de quem dirige: o caminho
+       * de leitura do campo parte de `trip_drivers`, e viagem sem linha ali não existe para ele.
+       *
+       * `null` continua sendo legítimo: distribuir a carga na véspera, antes de saber quem pega o
+       * caminhão, era o único comportamento possível antes desta ADR e segue sendo válido.
        */
-      const created = await dependencies.create({ context, driverIds: [], vehicleId })
+      const created = await dependencies.create({
+        context,
+        driverIds: driverId === null ? [] : [driverId],
+        vehicleId,
+      })
 
       return { tripId: created.id }
     },

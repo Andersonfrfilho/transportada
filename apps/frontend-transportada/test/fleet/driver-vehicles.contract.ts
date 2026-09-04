@@ -71,6 +71,7 @@ describe('fleet driver vehicles contract', () => {
 
     await client.replaceDriverVehicles({
       companyId: 'forbidden-company',
+      driverNames: [],
       driverId: DRIVER_ID,
       vehicleIds: [VEHICLE_ID],
     } as never)

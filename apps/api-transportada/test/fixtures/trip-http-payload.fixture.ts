@@ -116,6 +116,7 @@ export const LINK_FREIGHT_CALCULATION_BODY = {
 export const CREATE_TRIP_MDFE_MANIFEST_BODY = {} as const
 
 export const TRIP: Trip = {
+  driverNames: [],
   companyId: COMPANY_ID,
   createdAt: '2026-08-04T12:00:00.000Z',
   id: TRIP_ID,
@@ -129,6 +130,7 @@ export const TRIP: Trip = {
 export const TRIP_DOCUMENT: TripDocument = {
   createdAt: '2026-08-04T12:05:00.000Z',
   deliveredAt: null,
+  destinationOrigin: null,
   freightCalculationId: null,
   id: TRIP_DOCUMENT_ID,
   loadedAt: null,
@@ -145,17 +147,39 @@ export const TRIP_DOCUMENT: TripDocument = {
 
 export const TRIP_DOCUMENT_DETAIL: TripDocumentDetail = {
   ...TRIP_DOCUMENT,
+  contact: {
+    contractorName: 'Zaragoza Matriz',
+    name: 'Zaragoza',
+    phone: '(16) 3371-2200',
+    taxId: '11222333000181',
+  },
   cteAuthorized: true,
   fiscalStatus: 'authorized',
+  nfeIssuedAt: '2026-08-01T09:00:00.000Z',
+  nfeNumber: '883658',
+  nfeSeries: '1',
+  nfeTotalValue: '1500.0000',
 }
 
 export const TRIP_DETAIL: TripDetail = {
   ...TRIP,
+  cargoLayout: null,
+  cargoWeight: null,
   documents: [TRIP_DOCUMENT_DETAIL],
+  occupancy: null,
   drivers: [
-    { driverId: DRIVER_ID, driverName: 'Motorista Um', driverTaxId: '11111111111', position: 1 },
     {
+      driverEmail: 'motorista.um@empresa.test',
+      driverId: DRIVER_ID,
+      driverName: 'Motorista Um',
+      driverPhone: '16999990001',
+      driverTaxId: '11111111111',
+      position: 1,
+    },
+    {
+      driverEmail: '',
       driverId: SECOND_DRIVER_ID,
+      driverPhone: '',
       driverName: 'Motorista Dois',
       driverTaxId: '22222222222',
       position: 2,
@@ -184,7 +208,12 @@ export const MDFE_MANIFEST_DETAIL: MdfeManifestDetail = {
   destinationState: 'SP',
   dischargePostalCode: '',
   drivers: [
-    { driverId: DRIVER_ID, driverName: 'Motorista Um', driverTaxId: '11111111111', position: 1 },
+    {
+      driverId: DRIVER_ID,
+      driverName: 'Motorista Um',
+      driverTaxId: '11111111111',
+      position: 1,
+    },
     {
       driverId: SECOND_DRIVER_ID,
       driverName: 'Motorista Dois',

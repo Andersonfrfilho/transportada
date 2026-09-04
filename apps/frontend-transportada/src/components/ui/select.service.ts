@@ -1,3 +1,5 @@
+import type { IconName } from './icon'
+
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { normalizeSearchText } from './searchableSelect.service'
 
@@ -8,6 +10,8 @@ import { normalizeSearchText } from './searchableSelect.service'
 export type SelectOption = Readonly<{
   label: string
   description?: string
+  /** Símbolo do que a opção é (o tipo do veículo, por exemplo) — nunca decoração solta. */
+  icon?: IconName
   swatch?: string
   value: string
 }>

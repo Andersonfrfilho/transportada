@@ -190,6 +190,17 @@ export default defineRailway((ctx) => {
       VITE_KEYCLOAK_REALM: preserve(),
       VITE_KEYCLOAK_URL: preserve(),
       VITE_LANDING_APP_URL: preserve(),
+      /**
+       * ⚠️ **Obrigatória nos dois ambientes, e ela não estava declarada.** Sem valor,
+       * `BASEMAP_URL` cai em `/map-tiles/area.pmtiles` — mesma origem do painel —, e o estágio de
+       * runtime do `Dockerfile` copia só o `dist`, que não traz o PMTiles: o mapa some e a tela cai
+       * na lista ordenada da ADR-0044 §6. Com `map-tiles` existindo **só em produção**, os dois
+       * lados apontam para o domínio público dele.
+       *
+       * É `VITE_*`: entra no bundle em tempo de **build**. Mudar o valor exige reconstruir o
+       * painel, não só reiniciar.
+       */
+      VITE_MAP_TILES_URL: preserve(),
     },
   })
 
@@ -330,6 +341,25 @@ export default defineRailway((ctx) => {
     env: { MP_UI_AUTH: preserve() },
   })
 
+  /**
+   * ⚠️ **O extrato é datado, e isso não é preciosismo.** A URL era `sudeste-latest.osm.pbf`, e
+   * `-latest` não quer dizer "se atualiza": quer dizer **"seja qual for o arquivo do dia em que
+   * alguém reconstruir"**. Uma reconstrução por motivo alheio — mudar o `PORT`, subir a versão do
+   * OSRM — trocava o mapa por baixo, sem decisão, sem revisão e sem registro de qual mapa está
+   * rodando. Rota mudando sem mudança de código é a mesma classe de problema que o adendo da
+   * ADR-0044 recusou no provedor pago: algo caro acontecendo sem ninguém ter escolhido.
+   *
+   * ⚠️ **Os dois serviços leem esta mesma constante, e é isso que os mantém casados.** Mapa e rota
+   * descrevendo datas diferentes é a tela e o roteirizador discordando de onde a rua está — e não dá
+   * erro nenhum, só produz um traço que passa por onde o caminhão não vai.
+   *
+   * Atualizar é editar esta linha e reconstruir **os dois** (`make map-refresh`). O Geofabrik mantém
+   * os arquivos datados por cerca de 90 dias, então uma data muito velha volta a dar 404 no build —
+   * o que é a falha certa: ela aparece no build, não numa rota errada seis meses depois.
+   */
+  const OSM_EXTRACT_URL =
+    'https://download.geofabrik.de/south-america/brazil/sudeste-260903.osm.pbf'
+
   /** Matriz de distâncias do solver. ⚠️ Só existe em staging — ver a nota no fim do arquivo. */
   const osrm = service('osrm', {
     source: transportada,
@@ -342,7 +372,55 @@ export default defineRailway((ctx) => {
     replicas: { sfo: 1 },
     env: {
       OSRM_MAX_TABLE_SIZE: preserve(),
-      OSRM_PBF_URL: preserve(),
+      OSRM_PBF_URL: OSM_EXTRACT_URL,
+      PORT: preserve(),
+      RAILWAY_DOCKERFILE_PATH: preserve(),
+    },
+  })
+
+  /**
+   * O mapa de rua do painel (ADR-0044 §6): PMTiles assado na imagem pelo planetiler e servido por
+   * `Range`. Mesma forma do `osrm`, e do **mesmo** `.osm.pbf` — mapa e rota descrevendo regiões
+   * diferentes é a tela e o roteirizador discordando.
+   *
+   * ⚠️ Ele existia no painel e **não estava declarado aqui**: um `railway config apply` o teria
+   * removido junto com os `landing-*` da nota no fim do arquivo. `MAP_PBF_URL` é ARG de build, não
+   * de execução — sem ela o build para na primeira linha, de propósito.
+   *
+   * ⚠️ `healthcheckTimeout` alto porque a imagem carrega o dataset inteiro: o build baixa o `.pbf` e
+   * roda o planetiler, e é o degrau que não cabe em laptop nenhum.
+   *
+   * ⚠️ **Uma instância só, em produção, e os dois ambientes puxam dela.** Ao contrário do `osrm`,
+   * aqui não há o que isolar: a telha é OSM público, idêntica nos dois lados, sem dado de tenant e
+   * sem segredo — a mesma razão pela qual `fuel_price_references` não tem `company_id`. Replicar
+   * seria assar 872 MB duas vezes e pagar egress duas vezes pelo mesmo arquivo estático.
+   *
+   * ⚠️ Consequência: o `VITE_MAP_TILES_URL` do painel de **staging** aponta para o domínio de
+   * produção, e esse host precisa estar no `connect-src` da CSP — o pedido é `Range` sobre arquivo
+   * estático, nenhuma coordenada de entrega sai junto. Produção fora do ar leva o mapa do staging
+   * junto, e isso é aceitável: a queda cai na degradação da ADR-0044 §6, a lista ordenada.
+   *
+   * ⚠️ **E não em `transportada-ops`**, que foi considerado. Lá moram GlitchTip, OpenObserve, Gatus
+   * e o espelho de backup — coisas que *vigiam* ou *protegem* o ambiente e por isso não podem
+   * compartilhar destino com ele. O mapa não protege nada: ele serve o produto, e cair é degradação
+   * prevista. Separá-lo custaria um segundo arquivo de IaC e um segundo link de projeto para
+   * comprar isolamento que este serviço não usa.
+   */
+  const mapTiles = service('map-tiles', {
+    source: transportada,
+    build: {
+      builder: 'DOCKERFILE',
+      dockerfilePath: 'deploy/map-tiles/Dockerfile',
+      watchPatterns: ['deploy/map-tiles/**'],
+    },
+    deploy: {
+      healthcheckPath: '/health/live',
+      healthcheckTimeout: 300,
+      restartPolicyType: 'ON_FAILURE',
+    },
+    replicas: { sfo: 1 },
+    env: {
+      MAP_PBF_URL: OSM_EXTRACT_URL,
       PORT: preserve(),
       RAILWAY_DOCKERFILE_PATH: preserve(),
     },
@@ -447,7 +525,7 @@ export default defineRailway((ctx) => {
 
   return project('transportada', {
     resources: isProduction
-      ? [...shared, backup, aggregateDocumentOcr]
+      ? [...shared, backup, aggregateDocumentOcr, mapTiles]
       : [...shared, mailpit, osrm, stagingRefresh],
   })
 })
@@ -458,6 +536,12 @@ export default defineRailway((ctx) => {
  *
  * - **`osrm` só em staging.** O solver de produção aponta o `ROUTING_MATRIX_URL` para outro lugar,
  *   ou a sugestão de roteiro não funciona lá.
+ * - **`map-tiles` estava só em staging**, e este arquivo já o declarava em produção — a divergência
+ *   era IaC não aplicada, não decisão. ✅ **Decidido em 2026-09-04: uma instância, em produção, e
+ *   staging puxa dela.** É o que a nota do serviço já argumentava (telha OSM pública, sem tenant e
+ *   sem segredo), e replicar seria assar 872 MB duas vezes e pagar egress duas vezes pelo mesmo
+ *   arquivo estático. ⚠️ Aplicar isso **remove** o serviço de staging: confira que o
+ *   `VITE_MAP_TILES_URL` do painel de staging aponta para o domínio de produção antes.
  * - **`aggregate-document-ocr` só em produção.** A leitura de imagem do anexo não tem como ser
  *   testada em staging.
  * - **`landing-TjCj-…` e `landing-uFWL-…`** existem em produção, sem domínio, e a segunda sem

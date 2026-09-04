@@ -70,3 +70,38 @@ describe('contrato do tema bifurcado do Keycloak', () => {
     expect([...declared].sort()).toEqual([...present].sort())
   })
 })
+
+/**
+ * ⚠️ Achado por captura de tela em staging: a tela de login do Keycloak abria com o nome do
+ * **produto** e o slogan de venda dele — "Importa NF-e, calcula frete e emite CT-e em lote." —,
+ * enquanto a tela de entrada da app abre com a marca da **transportadora**.
+ *
+ * Cada deploy é de uma transportadora só (ADR-0021). Estampar o fornecedor no lugar do cliente é o
+ * avesso disso, e é a mesma decisão que `fix(notification): a prévia assina com a marca da
+ * instalação` já tinha tomado para o e-mail.
+ *
+ * O tema não alcança a nossa API para ler a marca — ele é FreeMarker dentro do Keycloak. O que ele
+ * tem é `realm.displayName`, que é justamente o nome da instalação.
+ */
+describe('a tela de login assina com a marca da instalação (ADR-0021)', () => {
+  test('o cabeçalho lidera com a instalação, e o produto é o que sobra sem ela', async () => {
+    const template = await Bun.file(new URL('template.ftl', THEME_DIRECTORY)).text()
+    // ⚠️ A conta é sobre o que se **lê**, não sobre o `aria-label` da seção — ele já cita a
+    // instalação, e medi-lo faria este teste passar com o slogan intacto no topo.
+    const wordmark = template.slice(
+      template.indexOf('class="brand-wordmark"'),
+      template.indexOf('</p>', template.indexOf('class="brand-wordmark"')),
+    )
+
+    expect(wordmark).toInclude('realm.displayName')
+  })
+
+  /** Slogan de venda não tem o que fazer na porta de quem já é cliente. */
+  test('não vende o produto para quem já comprou', async () => {
+    const mensagens = await Bun.file(
+      new URL('messages/messages_pt_BR.properties', THEME_DIRECTORY),
+    ).text()
+
+    expect(mensagens).not.toInclude('transportadaTagline=')
+  })
+})

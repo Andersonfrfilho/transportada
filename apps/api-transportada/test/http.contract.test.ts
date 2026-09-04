@@ -50,6 +50,7 @@ describe('API HTTP contracts', () => {
     expect(response.status).toBe(200)
     expect(response.headers.get('x-correlation-id')).toBe('Client-Request_123')
     expect(await response.json()).toEqual({
+      revision: 'unknown',
       service: 'api',
       status: 'ok',
       timestamp: NOW.toISOString(),
@@ -89,6 +90,7 @@ describe('API HTTP contracts', () => {
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({
       dependencies: { database: 'up', identity: 'up', migrations: 'up' },
+      revision: 'unknown',
       service: 'api',
       status: 'ok',
       timestamp: NOW.toISOString(),
@@ -120,6 +122,7 @@ describe('API HTTP contracts', () => {
     expect(response.status).toBe(503)
     expect(await response.json()).toEqual({
       dependencies: { database: 'down', identity: 'up', migrations: 'up' },
+      revision: 'unknown',
       service: 'api',
       status: 'degraded',
       timestamp: NOW.toISOString(),
@@ -143,6 +146,7 @@ describe('API HTTP contracts', () => {
     expect(response.status).toBe(503)
     expect(await response.json()).toEqual({
       dependencies: { database: 'up', identity: 'down', migrations: 'up' },
+      revision: 'unknown',
       service: 'api',
       status: 'degraded',
       timestamp: NOW.toISOString(),

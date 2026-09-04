@@ -28,7 +28,9 @@ import { mockFreightWorkspaceApi } from './freight-smoke.helper'
 import {
   CREATED_TRIP_ID,
   FIRST_VEHICLE_ID,
+  AGGREGATE_DRIVER_ID,
   mockMultiVehicleApi,
+  STAFF_DRIVER_ID,
   SECOND_VEHICLE_ID,
 } from './multi-vehicle-smoke.helper'
 import { mockNfeWorkspaceApi } from './nfe-workspace-smoke.helper'
@@ -752,7 +754,11 @@ test('a nota anuncia a viagem em que saiu e continua entrando no lote', async ({
   await loginAsLocalUser(page)
   await expect(page.getByRole('heading', { name: 'Documentos importados' })).toBeVisible()
 
-  const tripLink = page.getByRole('link', { name: 'Saiu nesta viagem' })
+  /**
+   * ⚠️ O rótulo passou a carregar o estado da viagem: era `Saiu nesta viagem`, fixo, e virou
+   * `Esta nota está em viagem — {estado}`. O mock manda `in_transit`, que é `Em trânsito`.
+   */
+  const tripLink = page.getByRole('link', { name: 'Esta nota está em viagem — Em trânsito' })
   await expect(tripLink).toBeVisible()
   await expect(tripLink).toHaveAttribute('href', '/trips/00000000-0000-4000-8000-000000000a11')
   await expect(page.getByRole('checkbox', { name: 'Nota bloqueada para CT-e' })).toHaveCount(0)
@@ -833,7 +839,7 @@ test('viagem com nota sem CT-e bloqueia a emissão do MDF-e num modal, sem naveg
   await loginAsLocalUser(page)
 
   await expect(page.getByRole('heading', { level: 1, name: 'Viagens' })).toBeVisible()
-  await page.getByRole('button', { name: 'Ver' }).click()
+  await page.getByRole('button', { name: /^Abrir a viagem/u }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Detalhe da viagem' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Emitir MDF-e' }).click()
@@ -865,7 +871,7 @@ test('viagem com todas as notas com CT-e autorizado emite o MDF-e sem exibir o m
   await loginAsLocalUser(page)
 
   await expect(page.getByRole('heading', { level: 1, name: 'Viagens' })).toBeVisible()
-  await page.getByRole('button', { name: 'Ver' }).click()
+  await page.getByRole('button', { name: /^Abrir a viagem/u }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Detalhe da viagem' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Emitir MDF-e' }).click()
@@ -902,7 +908,7 @@ test('a viagem editável oferece sugerir roteiro, e o painel só existe depois d
   })
   await loginAsLocalUser(page)
 
-  await page.getByRole('button', { name: 'Ver' }).click()
+  await page.getByRole('button', { name: /^Abrir a viagem/u }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Detalhe da viagem' })).toBeVisible()
 
   await expect(page.getByRole('button', { name: 'Sugerir roteiro' })).toBeVisible()
@@ -923,7 +929,7 @@ test('sem trip.manage a viagem não oferece sugerir roteiro', async ({ page }) =
   })
   await loginAsLocalUser(page)
 
-  await page.getByRole('button', { name: 'Ver' }).click()
+  await page.getByRole('button', { name: /^Abrir a viagem/u }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Detalhe da viagem' })).toBeVisible()
 
   await expect(page.getByRole('button', { name: 'Sugerir roteiro' })).toHaveCount(0)
@@ -1038,6 +1044,17 @@ test('CRLV de veículo já cadastrado oferece abrir a ficha existente', async ({
  */
 test('o motorista abre o produto e cai na viagem dele, não na tela de NF-e', async ({ page }) => {
   await page.setViewportSize(VIEWPORTS.mobile)
+  /**
+   * ⚠️ **Sem posição concedida o toque leva oito segundos, e o teste desiste aos cinco.**
+   * `readCurrentLocation` chama `getCurrentPosition` com `timeout: 8_000`; no navegador sem
+   * permissão o retorno de erro só chega no fim dele, e a confirmação nem é enfileirada antes
+   * disso. O `expect.poll` abaixo espera cinco segundos, e falhava com a tela dizendo "aguardando
+   * envio" — sintoma que aponta para a fila e não para o relógio.
+   *
+   * Conceder a posição é o que o motorista de verdade faz na primeira vez que abre o app.
+   */
+  await page.context().grantPermissions(['geolocation'])
+  await page.context().setGeolocation({ latitude: -23.5505, longitude: -46.6333 })
   const api = await mockDriverTripApi({ page })
   await loginAsLocalUser(page)
 
@@ -1114,7 +1131,7 @@ test('dispensar o MDF-e da viagem pede o motivo antes de mandar', async ({ page 
   })
   await loginAsLocalUser(page)
 
-  await page.getByRole('button', { name: 'Ver' }).click()
+  await page.getByRole('button', { name: /^Abrir a viagem/u }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Detalhe da viagem' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Dispensar MDF-e' }).click()
@@ -1249,6 +1266,25 @@ test('a distribuição multi-veículo vai da seleção de notas às viagens cria
    */
   await dialog.getByRole('button', { name: 'Veículos disponíveis' }).click()
 
+  /**
+   * Spec 081: o par. `ABC1D23` tem dois motoristas vinculados, então a linha dele fica **vazia** —
+   * escolher um deles seria adivinhar qual. `XYZ9A88` tem um só, e vem preenchido sem clique.
+   */
+  await expect(dialog.getByRole('button', { name: /Motorista do veículo ABC1D23/u })).toContainText(
+    'Sem motorista',
+  )
+  await expect(dialog.getByRole('button', { name: /Motorista do veículo XYZ9A88/u })).toContainText(
+    'Motorista da Casa',
+  )
+
+  /** O agregado entra pelo outro lado: escolher a pessoa põe o caminhão dela na distribuição. */
+  await dialog.getByRole('button', { name: 'Motoristas e agregados' }).click()
+  await page.getByRole('option', { name: 'Agregado Sintetico' }).click()
+  await dialog.getByRole('button', { name: 'Motoristas e agregados' }).click()
+  await expect(dialog.getByRole('button', { name: /Motorista do veículo ABC1D23/u })).toContainText(
+    'Agregado Sintetico',
+  )
+
   await dialog.getByRole('button', { name: 'Distribuir' }).click()
 
   /** O poll: a primeira leitura devolve `queued`, e é esse estado que o operador mais vê. */
@@ -1279,9 +1315,15 @@ test('a distribuição multi-veículo vai da seleção de notas às viagens cria
    * teste cobra é o **conjunto**: a ordem estável é contrato do multi-select, não desta tela.
    */
   const [body] = routing.createdBodies()
-  expect([...(body?.vehicleIds as readonly string[])].toSorted()).toEqual(
+  const pairs = body?.vehicles as readonly { driverId?: string; vehicleId: string }[]
+  expect(pairs.map((pair) => pair.vehicleId).toSorted()).toEqual(
     [FIRST_VEHICLE_ID, SECOND_VEHICLE_ID].toSorted(),
   )
+  /** O par chega inteiro à API: é ele que faz a viagem existir para quem dirige (ADR-0055). */
+  expect(pairs.find((pair) => pair.vehicleId === FIRST_VEHICLE_ID)?.driverId).toBe(
+    AGGREGATE_DRIVER_ID,
+  )
+  expect(pairs.find((pair) => pair.vehicleId === SECOND_VEHICLE_ID)?.driverId).toBe(STAFF_DRIVER_ID)
   expect((body?.nfeDocumentIds as readonly string[]).length).toBe(1)
 
   /** O atalho leva à viagem criada: sem ele o operador procuraria numa lista qual nasceu do clique. */

@@ -93,6 +93,13 @@ export type NfeDocumentListItemContract = Readonly<{
   recipientAddress: null | string
   recipientCity: null | string
   recipientCityCode: null | string
+  /** Spec do mapa da montagem: o CEP do destinatário passou a sair na listagem. */
+  recipientPostalCode: null | string
+  recipientAddressNumber: null | string
+  /** ADR-0044: onde a nota para, com a precisão junto — `city` é palpite e tem de aparecer marcado. */
+  recipientLatitude: null | string
+  recipientLongitude: null | string
+  recipientLocationPrecision: null | string
   recipientName: string
   recipientState: null | string
   recipientTaxId: null | string
@@ -224,6 +231,11 @@ export const DOCUMENT_LIST_PAGE = {
       nfseInvoiceNumber: null,
       number: '000000011',
       recipientAddress: 'Avenida Logística, 500 - Distrito Industrial',
+      recipientPostalCode: '14020000',
+      recipientAddressNumber: '500',
+      recipientLatitude: '-21.1699000',
+      recipientLongitude: '-47.8103000',
+      recipientLocationPrecision: 'postal_code',
       recipientCity: 'Jundiaí',
       recipientCityCode: '3525904',
       recipientName: 'Destinatario Cliente',

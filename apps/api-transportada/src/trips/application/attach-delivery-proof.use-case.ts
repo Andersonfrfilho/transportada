@@ -1,6 +1,8 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
+
 import type { TripDeliveryProofKind } from '../../database/trip.schema.js'
 import {
   buildDeliveryProofObjectKey,
@@ -8,15 +10,32 @@ import {
   isDeliveryProofMimeType,
 } from '../domain/delivery-proof.policy.js'
 import {
+  maskTaxId,
+  type DeliveryProofFieldSettings,
+} from '../domain/delivery-proof-settings.policy.js'
+import {
+  TripDeliveryProofDocumentNotAcceptedError,
+  TripDeliveryProofDocumentRequiredError,
   TripDeliveryProofRejectedError,
   TripDocumentNotReachableError,
 } from '../domain/trip.error.js'
 
 export type DeliveryProofUpload = {
+  /**
+   * Spec 082 (revisão, item 5): chave de idempotência opcional do anexo. Reenvio com a mesma chave
+   * para o mesmo documento+tipo converge na linha existente, sem regravar objeto. Vazio quando o
+   * app não a manda — e aí todo reenvio é correção, como antes.
+   */
+  readonly attachmentKey: string
   readonly bytes: Uint8Array
   readonly kind: TripDeliveryProofKind
   readonly mimeType: string
-  /** Nome de quem recebeu, na assinatura. **Nunca CPF** — ADR-0045 §7. */
+  /**
+   * ADR-0057 §3 (revisa ADR-0045 §7): o documento de quem recebeu, na forma canônica. Vazio é o
+   * caso de fábrica; ele só entra quando a configuração resolvida da empresa o aceita.
+   */
+  readonly receiverDocument: string
+  /** Nome de quem recebeu, na assinatura. */
   readonly receiverName: string
 }
 
@@ -37,14 +56,33 @@ export type DeliveryProofPort = {
     readonly documentId: string
     readonly driverId: string
   }): Promise<string | null>
-  saveProof(input: {
-    readonly actorUserId: string
+  /**
+   * ADR-0057 §1: a configuração resolvida (geral + exceção pelo CNPJ do destinatário da nota).
+   * Quem resolve é a infraestrutura — o caso de uso só obedece.
+   */
+  resolveProofFieldSettings(input: {
+    readonly companyId: string
+    readonly documentId: string
+  }): Promise<DeliveryProofFieldSettings>
+  /** `null` quando nenhum comprovante daquele evento+tipo foi gravado com esta chave. */
+  findProofIdByAttachmentKey(input: {
+    readonly attachmentKey: string
     readonly companyId: string
     readonly eventId: string
+    readonly kind: TripDeliveryProofKind
+  }): Promise<string | null>
+  saveProof(input: {
+    readonly actorUserId: string
+    readonly attachmentKey: string
+    readonly companyId: string
+    readonly eventId: string
+    readonly id: string
     readonly kind: TripDeliveryProofKind
     readonly mimeType: string
     readonly objectId: string
     readonly objectKey: string
+    readonly receiverDocumentEnvelope: SecretEnvelopeV1 | null
+    readonly receiverDocumentMasked: string
     readonly receiverName: string
     readonly sha256: string
     readonly sizeBytes: number
@@ -57,7 +95,14 @@ export type AttachDeliveryProofInput = {
   readonly documentId: string
   readonly driverId: string
   readonly newObjectId: () => string
+  readonly newProofId: () => string
   readonly repository: DeliveryProofPort
+  /** Sela o documento em envelope A256GCM, com AAD amarrado ao `proofId`. */
+  readonly sealDocument: (input: {
+    readonly companyId: string
+    readonly proofId: string
+    readonly receiverDocument: string
+  }) => Promise<SecretEnvelopeV1>
   readonly storage: DeliveryProofStoragePort
   readonly upload: DeliveryProofUpload
 }
@@ -76,12 +121,40 @@ export async function attachDeliveryProof(
     throw new TripDeliveryProofRejectedError('UNSUPPORTED_TYPE')
   }
 
+  /**
+   * ADR-0057: quem decide se o documento entra é a configuração resolvida, nunca o app. `off` com
+   * documento no corpo é recusa; `required` sem documento na assinatura também.
+   */
+  const settings = await input.repository.resolveProofFieldSettings({
+    companyId: input.companyId,
+    documentId: input.documentId,
+  })
+  const isSignature = input.upload.kind === 'signature'
+  const receiverDocument = isSignature ? input.upload.receiverDocument : ''
+  if (receiverDocument.length > 0 && settings.receiverDocument === 'off') {
+    throw new TripDeliveryProofDocumentNotAcceptedError()
+  }
+  if (isSignature && settings.receiverDocument === 'required' && receiverDocument.length === 0) {
+    throw new TripDeliveryProofDocumentRequiredError()
+  }
+
   const eventId = await input.repository.findDeliveryEventId({
     companyId: input.companyId,
     documentId: input.documentId,
     driverId: input.driverId,
   })
   if (eventId === null) throw new TripDocumentNotReachableError()
+
+  /** Retry de rede converge sem tocar no bucket: a mesma chave já gravou este comprovante. */
+  if (input.upload.attachmentKey.length > 0) {
+    const existingId = await input.repository.findProofIdByAttachmentKey({
+      attachmentKey: input.upload.attachmentKey,
+      companyId: input.companyId,
+      eventId,
+      kind: input.upload.kind,
+    })
+    if (existingId !== null) return { id: existingId }
+  }
 
   const objectId = input.newObjectId()
   const objectKey = buildDeliveryProofObjectKey({
@@ -97,15 +170,25 @@ export async function attachDeliveryProof(
     objectKey,
   })
 
+  const proofId = input.newProofId()
+  const receiverDocumentEnvelope =
+    receiverDocument.length === 0
+      ? null
+      : await input.sealDocument({ companyId: input.companyId, proofId, receiverDocument })
+
   return input.repository.saveProof({
     actorUserId: input.actorUserId,
+    attachmentKey: input.upload.attachmentKey,
     companyId: input.companyId,
     eventId,
+    id: proofId,
     kind: input.upload.kind,
     mimeType: input.upload.mimeType,
     objectId,
     objectKey,
-    receiverName: input.upload.kind === 'signature' ? input.upload.receiverName : '',
+    receiverDocumentEnvelope,
+    receiverDocumentMasked: receiverDocument.length === 0 ? '' : maskTaxId(receiverDocument),
+    receiverName: isSignature ? input.upload.receiverName : '',
     sha256: stored.sha256,
     sizeBytes: input.upload.bytes.byteLength,
   })

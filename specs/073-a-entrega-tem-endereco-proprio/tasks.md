@@ -106,12 +106,18 @@ Uma task por vez. Teste de contrato **antes** da implementação. Task só fecha
 
 > 🤖 Modelo: `opus` 🧠 (é decisão de modelo de dados)
 
-- [ ] **T019** — A RF4/CA10 pede que a origem do endereço (`delivery`/`recipient`) seja observável
-      na parada. `chooseNfeDestinationRow` a devolve, mas **nenhum consumidor de produção a lê**:
-      `drizzle-trip.repository.ts` a descarta ao chamar `reconcileStopOnLink`.
-      **A decisão que falta:** a origem **não é da parada**. Uma parada agrupa várias notas, e a
-      mesma chave pode ser alcançada pela entrega de uma e pelo cadastro de outra — guardá-la em
-      `trip_stops` faria a tela mentir na primeira parada mista. O lugar é `trip_documents`, com
-      migration própria, e daí sobe para a API e a tela.
-      Achado no passe de revisão da G006, **não** implementado: migration + rota + tela é escopo que
-      as tasks da Fase C não previram, e emendá-lo aqui seria decidir modelo de dados sem spec.
+- [x] **T019** — A origem do endereço físico (`delivery`/`recipient`) passou a ser **persistida no
+      vínculo**, e não mais calculada e descartada.
+      **A decisão de modelo:** a origem não é da parada — uma parada agrupa várias notas, e a mesma
+      chave pode ser alcançada pela entrega de uma e pelo cadastro de outra. Ela mora em
+      `trip_documents.destination_origin` (migration `20260902160000_trip_document_destination_origin`,
+      `text` nulável com CHECK), sobe por `TripDocument` → `serializeTripDocument` → validação do
+      cliente, e a tela imprime **só** o crachá "Entrega".
+      ⚠️ **A origem sobrevive à parada ausente:** o CEP que não normaliza deixa a nota `SEM ENDEREÇO`
+      (T007) e a procedência continua conhecida — gravá-la só junto do `stop_id` perderia justamente
+      a nota cuja origem mais precisa ser explicada.
+      ⚠️ **`recipient` não vira crachá.** Em 1808 de 1808 notas de produção o endereço é o do
+      cadastro; imprimir "Cadastro" em todas apagaria por ruído a única linha que explica por que o
+      motorista foi a outro portão.
+      **Evidência:** `test/trip-domain/physical-destination-wiring.contract.ts` (3 casos novos, os
+      dois primeiros reprovando antes da implementação), `make migration-test` (90 verdes, migration + rollback contra Postgres), `make check`.

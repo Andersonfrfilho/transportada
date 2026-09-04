@@ -545,8 +545,8 @@
 
 .dangerAction {
   color: var(--color-fog);
-  border-color: #ff5f57;
-  background: color-mix(in srgb, #ff5f57 18%, var(--color-asphalt) 82%);
+  border-color: var(--color-alert);
+  background: color-mix(in srgb, var(--color-alert) 18%, var(--color-asphalt) 82%);
 }
 
 .secondaryAction:disabled,

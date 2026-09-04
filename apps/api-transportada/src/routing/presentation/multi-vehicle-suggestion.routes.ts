@@ -39,7 +39,10 @@ export function createMultiVehicleSuggestionRoutes(dependencies: Dependencies) {
       readonly documentIds: readonly string[]
       readonly seed?: number | undefined
       readonly solverTimeBudgetSeconds?: number | undefined
-      readonly vehicleIds: readonly string[]
+      readonly vehicles: readonly {
+        readonly driverId?: string | undefined
+        readonly vehicleId: string
+      }[]
     }>({
       async handle({ context, input }): Promise<Response> {
         const suggestion = await dependencies.multiVehicleSuggestions.create({
@@ -61,7 +64,7 @@ export function createMultiVehicleSuggestionRoutes(dependencies: Dependencies) {
           ...(body.solverTimeBudgetSeconds === undefined
             ? {}
             : { solverTimeBudgetSeconds: body.solverTimeBudgetSeconds }),
-          vehicleIds: body.vehicleIds,
+          vehicles: body.vehicles,
         }
       },
       pathname: MULTI_VEHICLE_PATH,
@@ -142,6 +145,8 @@ function serializeAccepted(accepted: AcceptedMultiVehicleSuggestion): object {
     suggestion: serializeSuggestion(accepted.suggestion),
     trips: accepted.trips.map((trip) => ({
       documentCount: trip.documentCount,
+      /** RF-6: quem ficou com o quê, sem uma segunda consulta à viagem recém-criada. */
+      driverId: trip.driverId,
       stopCount: trip.stopCount,
       tripId: trip.tripId,
       vehicleId: trip.vehicleId,

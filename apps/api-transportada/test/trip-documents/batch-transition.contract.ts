@@ -31,6 +31,7 @@ function fakeDocument(id: string): TripDocument {
   return {
     createdAt: '2026-08-01T10:00:00.000Z',
     deliveredAt: null,
+    destinationOrigin: null,
     freightCalculationId: null,
     id,
     loadedAt: null,

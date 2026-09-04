@@ -1,6 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
+import { Icon } from '@/components/ui/icon'
+import { VEHICLE_TYPE_ICONS } from '@/modules/shared/vehicleTypeIcon.service'
 import { VEHICLE_TYPES } from '@/modules/shared/vehicleType.constant'
 
 import { BRAZIL_STATE, FLEET_VEHICLE_ROLE, type FleetVehicleFormState } from '../shared/fleet.types'
@@ -74,6 +76,10 @@ export function VehicleIdentityFields({
       </div>
       {state.role === 'traction' ? (
         <p className={styles.hint}>
+          {/* Spec 075 RF5: o desenho do tipo vem do design system, nunca do módulo. */}
+          {state.vehicleType === '' ? null : (
+            <Icon aria-hidden="true" name={VEHICLE_TYPE_ICONS[state.vehicleType]} />
+          )}{' '}
           {state.vehicleType === '' ? t('vehicleTypeRequiredHint') : t('vehicleTypeHint')}
         </p>
       ) : null}

@@ -28,6 +28,7 @@ const ACTOR_USER_ID = '44444444-4444-4444-8444-444444444444'
 const DOCUMENT: TripDocument = {
   createdAt: '2026-08-01T10:00:00.000Z',
   deliveredAt: null,
+  destinationOrigin: null,
   freightCalculationId: null,
   id: DOCUMENT_ID,
   loadedAt: null,

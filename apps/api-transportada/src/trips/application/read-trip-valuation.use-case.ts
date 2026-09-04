@@ -107,6 +107,69 @@ export async function readTripValuation(input: ReadTripValuationInput): Promise<
   const context = await input.repository.readContext(input)
   if (context === null) throw new TripNotFoundError()
 
+  return valuationOf({
+    companyId: input.companyId,
+    context,
+    repository: input.repository,
+  })
+}
+
+/**
+ * A prévia lê o mesmo contexto por outro caminho: as notas escolhidas e o veículo do formulário, em
+ * vez da viagem. O resto do cálculo é o mesmo — é por isso que a porta **estende** a de leitura em
+ * vez de duplicá-la.
+ */
+export type TripValuationPreviewPort = TripValuationPort & {
+  /** `null` quando o veículo não existe nesta empresa. */
+  readPreviewContext(input: {
+    readonly companyId: string
+    readonly driverIds: readonly string[]
+    readonly nfeDocumentIds: readonly string[]
+    readonly vehicleId: string
+  }): Promise<TripValuationContext | null>
+}
+
+export type PreviewTripValuationInput = {
+  readonly companyId: string
+  readonly driverIds: readonly string[]
+  readonly nfeDocumentIds: readonly string[]
+  readonly repository: TripValuationPreviewPort
+  readonly vehicleId: string
+}
+
+/**
+ * A mesma avaliação, **antes de a viagem existir**. É o que responde "vale a pena montar isto?" no
+ * momento em que a pergunta é feita: depois de criada, a decisão já foi tomada.
+ *
+ * ⚠️ Sem roteiro planejado não há distância, e sem distância não há combustível. Nada é inventado —
+ * a parcela sobe marcada como falta e a tela imprime a marca, que é o que distingue "custo baixo"
+ * de "custo que ainda não dá para saber".
+ */
+export async function previewTripValuation(
+  input: PreviewTripValuationInput,
+): Promise<TripValuation> {
+  const context = await input.repository.readPreviewContext({
+    companyId: input.companyId,
+    driverIds: input.driverIds,
+    nfeDocumentIds: input.nfeDocumentIds,
+    vehicleId: input.vehicleId,
+  })
+  if (context === null) throw new TripNotFoundError()
+
+  return valuationOf({
+    companyId: input.companyId,
+    context,
+    repository: input.repository,
+  })
+}
+
+async function valuationOf(input: {
+  readonly companyId: string
+  readonly context: TripValuationContext
+  readonly repository: TripValuationPort
+}): Promise<TripValuation> {
+  const { context } = input
+
   const revenueLines = await Promise.all(
     context.documents.map((document) =>
       resolveRevenueLine({ companyId: input.companyId, document, repository: input.repository }),

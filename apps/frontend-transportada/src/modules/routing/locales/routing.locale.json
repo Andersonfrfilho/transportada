@@ -6,7 +6,10 @@
     "cost": "Custo estimado",
     "unknown": "—",
     "accept": "Aceitar roteiro",
-    "reject": "Descartar"
+    "reject": "Descartar",
+    "reorderedEstimates": "A ordem foi alterada: a distância será recalculada quando a proposta for aceita.",
+    "moveUp": "Mover para cima",
+    "moveDown": "Mover para baixo"
   },
   "status": {
     "queued": "Na fila",
@@ -81,6 +84,20 @@
       "summary_one": "1 veículo",
       "summary_other": "{{count}} veículos"
     },
+    "drivers": {
+      "label": "Motoristas e agregados",
+      "placeholder": "Escolha os motoristas",
+      "search": "Buscar por nome",
+      "empty": "Nenhum motorista com um único veículo vinculado. Escolha o veículo e o motorista na linha dele.",
+      "clearAll": "Limpar",
+      "remove": "Remover {{label}}",
+      "summary_one": "1 motorista",
+      "summary_other": "{{count}} motoristas"
+    },
+    "pairDriver": {
+      "label": "Motorista do veículo {{plate}}",
+      "none": "Sem motorista"
+    },
     "request": "Distribuir",
     "requesting": "Distribuindo…",
     "close": "Fechar",
@@ -100,6 +117,8 @@
       "ROUTE_SUGGESTION_POOL_EMPTY": "Escolha ao menos uma nota e um veículo.",
       "ROUTE_SUGGESTION_DOCUMENT_UNAVAILABLE": "Uma ou mais notas já estão em viagem. Tire-as da seleção e peça de novo.",
       "ROUTE_SUGGESTION_VEHICLE_UNAVAILABLE": "Um ou mais veículos não podem ser roteirizados — só veículo de tração ativo entra.",
+      "ROUTE_SUGGESTION_DRIVER_UNAVAILABLE": "Um ou mais motoristas não podem ser escalados — só motorista ativo do cadastro entra.",
+      "ROUTE_SUGGESTION_DRIVER_REPEATED": "O mesmo motorista está em dois veículos. Deixe-o em um só e peça de novo.",
       "unknown": "Não foi possível distribuir as notas agora."
     }
   },

@@ -148,6 +148,9 @@ export const TRIP_TABLES = [
   'trip_stop_occurrences',
   'trip_field_reports',
   'trip_delivery_proofs',
+  /** Spec 082 / ADR-0057: a configuração do comprovante, geral e por CNPJ do destinatário. */
+  'company_delivery_proof_settings',
+  'delivery_proof_setting_overrides',
 ] as const
 
 export const INVITATION_TABLES = ['user_invitations', 'user_invitation_roles'] as const

@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { COPY_FEEDBACK_MILLISECONDS } from '@/modules/shared/clipboard.constant'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { saveArchiveFile } from '@/modules/shared/archiveDownload.service'
@@ -16,8 +17,6 @@ import {
   type FreightRegionExportColumn,
 } from '../shared/freightRegionExport.service'
 import styles from '../styles/fleet.module.css'
-
-const COPY_FEEDBACK_MILLISECONDS = 2_000
 
 type FreightRegionSelectionBarProps = Readonly<{ table: FreightRegionTableController }>
 

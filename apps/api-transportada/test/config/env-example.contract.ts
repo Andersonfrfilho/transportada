@@ -75,6 +75,23 @@ describe('contrato do .env.example', () => {
     }
   })
 
+  /**
+   * ⚠️ **Vazia por padrão, e há um custo medido em deixá-la preenchida.** O OSRM é opt-in
+   * (`make routing-up`) e exige um extract OSM de centenas de MB. A CI deriva o ambiente **deste
+   * arquivo**, e os testes de integração do roteirizador pulam por `ROUTING_MATRIX_URL` vazia — com
+   * ela preenchida eles param de pular, tentam conectar num serviço que a CI não sobe, e o
+   * `gate / integration` reprova em **todo push**.
+   *
+   * Foi exatamente o que aconteceu: alguém a descomentou para usar o solver localmente e mandou o
+   * arquivo junto. Quem precisa do valor o põe no `.env`, que não é versionado.
+   */
+  test('a matriz de estrada é declarada, e vazia', async () => {
+    const declarations = readDeclarations(await Bun.file(ENV_EXAMPLE_PATH).text())
+    const declaration = declarations.find((candidate) => candidate.key === 'ROUTING_MATRIX_URL')
+
+    expect(`ROUTING_MATRIX_URL=${declaration?.value}`).toBe('ROUTING_MATRIX_URL=')
+  })
+
   test('todo valor sobrevive ao `. ./.env` que o CI executa', async () => {
     const declarations = readDeclarations(await Bun.file(ENV_EXAMPLE_PATH).text())
     expect(declarations.length).toBeGreaterThan(0)

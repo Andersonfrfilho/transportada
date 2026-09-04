@@ -203,6 +203,19 @@ const environmentSchema = z.object({
   // Par compartilhado com o worker: o prefixo nomeia a trilha do ambiente, e sem os dois o módulo
   // fica sem broker. Opcional para o ambiente de teste subir sem RabbitMQ.
   QUEUE_PREFIX: optionalText(),
+  /**
+   * O `/route` do OSRM, para desenhar a linha da estrada no mapa da viagem (spec 079).
+   *
+   * ⚠️ Validado como **infraestrutura**, não como provedor de consulta: é o mesmo serviço que o
+   * worker usa para a matriz, na rede interna da instalação (`http://osrm.railway.internal:5000`),
+   * e `isTrustedLookupUrl` — que exige HTTPS ou localhost — o recusaria. A regra estrita existe
+   * para onde vai dado vindo do usuário; aqui saem coordenadas que a própria API calculou, para um
+   * endereço que só o operador configura.
+   *
+   * Vazio é o padrão: sem ele o mapa desenha o que já desenha hoje, linhas retas entre as paradas,
+   * e diz na tela que são retas.
+   */
+  ROUTING_MATRIX_URL: optionalUrl('ROUTING_MATRIX_URL'),
   RABBITMQ_URL: optionalText(),
   SMTP_URL: optionalUrl('SMTP_URL'),
   LOG_SINK_URL: optionalUrl('LOG_SINK_URL'),
@@ -260,6 +273,7 @@ export function parseEnvironment(environment: Record<string, string | undefined>
           }),
     },
     port: parsed.APP_PORT,
+    routingMatrixUrl: parsed.ROUTING_MATRIX_URL,
     postalCodeProviders: {
       brasilApiUrl: parsed.POSTAL_CODE_BRASIL_API_URL,
       viaCepUrl: parsed.POSTAL_CODE_VIA_CEP_URL,

@@ -16,6 +16,7 @@ import {
   DRIVER_AVAILABILITY,
   DRIVER_PAGE,
   DRIVER_VEHICLE_ASSIGNMENTS,
+  DRIVER_VEHICLE_PAIRS,
   FRONTEND_ORIGIN,
   VEHICLE,
   VEHICLE_PAGE,
@@ -37,6 +38,7 @@ type RouteDependencies = {
   readonly updateVehicle: { execute(input: ExecuteCall): Promise<typeof VEHICLE> }
   readonly driverVehicles: {
     list(input: ExecuteCall): Promise<typeof DRIVER_VEHICLE_ASSIGNMENTS>
+    listPairs(input: ExecuteCall): Promise<readonly { driverId: string; vehicleId: string }[]>
     replace(input: ExecuteCall): Promise<typeof DRIVER_VEHICLE_ASSIGNMENTS>
   }
   readonly vehicleCatalog: {
@@ -67,6 +69,7 @@ export async function createFleetHttpFixture(params: CreateFixtureParams = {}): 
   readonly handle: (request: Request) => Promise<Response>
   readonly listDriverCalls: ExecuteCall[]
   readonly listDriverVehicleCalls: ExecuteCall[]
+  readonly listDriverVehicleLinkCalls: ExecuteCall[]
   readonly listVehicleCalls: ExecuteCall[]
   readonly replaceDriverVehicleCalls: ExecuteCall[]
   readonly updateDriverCalls: ExecuteCall[]
@@ -77,6 +80,7 @@ export async function createFleetHttpFixture(params: CreateFixtureParams = {}): 
   const driverAvailabilityCalls: ExecuteCall[] = []
   const listDriverCalls: ExecuteCall[] = []
   const listDriverVehicleCalls: ExecuteCall[] = []
+  const listDriverVehicleLinkCalls: ExecuteCall[] = []
   const listVehicleCalls: ExecuteCall[] = []
   const replaceDriverVehicleCalls: ExecuteCall[] = []
   const updateDriverCalls: ExecuteCall[] = []
@@ -107,6 +111,10 @@ export async function createFleetHttpFixture(params: CreateFixtureParams = {}): 
       async list(input) {
         listDriverVehicleCalls.push(structuredClone(input))
         return DRIVER_VEHICLE_ASSIGNMENTS
+      },
+      async listPairs(input) {
+        listDriverVehicleLinkCalls.push(structuredClone(input))
+        return DRIVER_VEHICLE_PAIRS
       },
       async replace(input) {
         replaceDriverVehicleCalls.push(structuredClone(input))
@@ -163,6 +171,7 @@ export async function createFleetHttpFixture(params: CreateFixtureParams = {}): 
     handle: (request) => handleRequest(request, { timeout() {} }),
     listDriverCalls,
     listDriverVehicleCalls,
+    listDriverVehicleLinkCalls,
     listVehicleCalls,
     replaceDriverVehicleCalls,
     updateDriverCalls,

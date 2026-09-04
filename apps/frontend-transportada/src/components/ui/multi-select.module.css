@@ -59,6 +59,12 @@
   margin: 0;
   padding: var(--space-1);
   overflow-y: auto;
+  /*
+   * A rolagem encadeada fechava a própria lista: chegando ao fim dela o navegador rola a PÁGINA, e
+   * rolar a página é o gesto que dispensa a camada flutuante (por desenho, em useFloatingLayer).
+   * No dedo isso fecha a lista longa exatamente quando se chega ao fim das opções.
+   */
+  overscroll-behavior: contain;
   list-style: none;
 }
 

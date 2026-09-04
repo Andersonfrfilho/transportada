@@ -43,6 +43,14 @@ describe('design system icon contract', () => {
     expect(component).toContain('aria-hidden="true"')
   })
 
+  /**
+   * ⚠️ A varredura ignora comentário, e a razão é medida: o `TripRouteMap` (spec 079 T013) usa o
+   * primitivo `VectorMap` corretamente e **documenta isso** numa frase que cita `<svg>` — e foi a
+   * frase, não o código, que segurou o gate de staging por horas.
+   *
+   * Rejeitar quem explica a regra é o avesso da regra. O que se procura é `<svg` renderizado, e
+   * comentário não renderiza — inclusive código comentado, que também não desenha nada.
+   */
   test('forbids a hand-drawn svg anywhere outside the design system', async () => {
     const components = await listSourceComponents()
     const offenders: string[] = []
@@ -50,7 +58,7 @@ describe('design system icon contract', () => {
     for (const filePath of components) {
       if (filePath.startsWith(DESIGN_SYSTEM_PREFIX)) continue
       const source = await readApplicationFile(filePath)
-      if (source.includes('<svg')) offenders.push(filePath)
+      if (withoutComments(source).includes('<svg')) offenders.push(filePath)
     }
 
     expect(offenders).toEqual([])
@@ -136,3 +144,8 @@ describe('design system icon contract', () => {
     expect(projectContext).toContain('docs/frontend/icons.md')
   })
 })
+
+/** Tira comentário de bloco e de linha antes da varredura — prosa não é o que a tela renderiza. */
+function withoutComments(source: string): string {
+  return source.replaceAll(/\/\*[\s\S]*?\*\//gu, '').replaceAll(/\/\/[^\n]*/gu, '')
+}

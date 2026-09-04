@@ -60,9 +60,17 @@ describe('trip stop destination (spec 073 P1/CA1, CA2)', () => {
     )
   })
 
-  /** O rótulo da parada acompanha o endereço escolhido — senão a tela nomeia o lugar errado. */
+  /**
+   * O rótulo da parada acompanha o endereço escolhido — senão a tela nomeia o lugar errado.
+   *
+   * ⚠️ **O número entra no rótulo** desde que a parada passou a imprimi-lo: a parada agrupa por
+   * `(CEP, número, município)`, então dois portões da mesma rua são duas paradas, e sem o número
+   * apareciam com texto idêntico. A grafia é a do cadastro, não a normalizada da chave.
+   */
   it('labels the stop with the chosen address, not the other one', () => {
-    expect(chooseNfeDestinationRow([CADASTRO, ENTREGA])?.label).toBe('Rua da Doca, Campinas, SP')
+    expect(chooseNfeDestinationRow([CADASTRO, ENTREGA])?.label).toBe(
+      'Rua da Doca, 4500, Campinas, SP',
+    )
   })
 
   it('returns null when the note resolves to no destination party', () => {
@@ -112,5 +120,47 @@ describe('manual override precedence (spec 073 P4/CA4)', () => {
   it('bases the override on the physical destination', () => {
     expect(source).not.toInclude("'recipient'")
     expect(source).toInclude('chooseNfeDestinationRow')
+  })
+})
+
+describe('destination origin is persisted on the link (spec 073 P4/CA10, T019)', () => {
+  const repository = readFileSync(
+    new URL('../../src/trips/infrastructure/drizzle-trip.repository.ts', import.meta.url),
+    'utf8',
+  )
+
+  /**
+   * A origem era **calculada e descartada**: `chooseNfeDestinationRow` já a devolvia, e o vínculo
+   * chamava `reconcileStopOnLink` sem ela. Compila, passa em tudo, e a tela nunca sabe por que o
+   * motorista foi parar naquele portão.
+   */
+  it('writes the origin into the link instead of dropping it', () => {
+    expect(repository).toInclude('destinationOrigin')
+  })
+
+  /**
+   * A origem **não é da parada**: uma parada agrupa várias notas, e a mesma chave pode ser
+   * alcançada pela entrega de uma e pelo cadastro de outra. Guardá-la em `trip_stops` faria a tela
+   * mentir na primeira parada mista — o lugar é o vínculo.
+   */
+  it('never puts the origin on the stop, which would lie on a mixed stop', () => {
+    const stops = readFileSync(
+      new URL('../../src/database/trip.schema.ts', import.meta.url),
+      'utf8',
+    )
+    const stopTable = stops.slice(
+      stops.indexOf('export const tripStops'),
+      stops.indexOf('export const tripDocuments'),
+    )
+
+    expect(stopTable).not.toInclude('destination_origin')
+  })
+
+  /**
+   * ⚠️ O CEP que não normaliza deixa a nota **sem parada** — e a origem continua conhecida. Gravá-la
+   * só junto do `stop_id` perderia justamente a nota cuja procedência mais importa explicar.
+   */
+  it('persists the origin even when the address yields no stop', () => {
+    expect(repository).not.toInclude('if (stopId === null) return mapTripDocument(record)')
   })
 })

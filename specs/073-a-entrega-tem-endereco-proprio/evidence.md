@@ -276,5 +276,135 @@ tela mentir na primeira parada mista. O lugar é `trip_documents`, com migration
 que as tasks da Fase C não previram. Decidir modelo de dados no passe de revisão seria pior que
 deixar o item aberto com o motivo escrito.
 
-**Consequência honesta: a spec 073 está completa em 18 das 18 tasks planejadas, com a CA10 em
+**Consequência à época: a spec 073 ficou completa em 18 das 18 tasks planejadas, com a CA10 em
 aberto.** As outras nove (CA1–CA9) estão cobertas.
+
+---
+
+## ~~Defeito~~ — falso alarme, e o que ele ensinou (2026-09-02)
+
+**Não havia defeito.** Registrei um, investiguei fundo e o desmenti com medição. Fica escrito porque
+o modo de errar é reaproveitável.
+
+### O que eu media
+
+Montei uma viagem de doze paradas em São Carlos pela interface e pedi o roteiro: **1 608 m**, com dez
+de onze trechos zerados. Refinei nove endereços pelo Google (`outcome: refined`, `precision:
+rooftop`), pedi de novo — e a tela mostrou **os mesmos 1 608 m**. Concluí que a coordenada não chegava
+ao consumidor.
+
+### O que estava errado na minha leitura
+
+**A segunda sugestão nunca existiu.** Os carimbos provam: a última sugestão é de `17:55:11` e o último
+refino é de `17:56:56`. O painel me devolveu a sugestão **anterior**, e eu li o número dela como
+resultado novo. Comparei duas vezes o mesmo dado e chamei de "não mudou".
+
+Rodando uma sugestão de verdade depois disso: **51 813 m**, com trechos de 34 893, 1 059, 2 920 e 908
+metros. O roteiro funciona.
+
+### As três coisas que conferi antes de desmentir, e que valem por si
+
+- **OSRM responde**: matriz de doze pontos, 144 células, 18 zeros (a diagonal), primeira linha com
+  35 km. `ROUTING_MATRIX_URL` do worker aponta para `osrm.railway.internal` com o PBF do Sudeste.
+- **As coordenadas existem e são distintas**: dez pontos distintos entre as doze paradas, de
+  `-21.99` a `-22.25` de latitude.
+- **`readStops` já junta `geocoded_addresses`** pela `address_key`, e não lê `trip_stops.latitude`.
+
+### Dois achados reais que sobraram
+
+⚠️ **`trip_stops.latitude`, `longitude` e `geocoding_precision` nunca são escritos** — nenhuma escrita
+em todo o `src/` os toca. Não afetam o roteiro (que lê `geocoded_addresses`), mas o app do motorista
+lê `trip_stops`: `drizzle-current-driver-trip.repository.ts` seleciona `latitude`. **Colunas mortas
+que um consumidor já lê são pior que colunas ausentes** — quem for usá-las recebe `null` sem
+explicação.
+
+⚠️ **`geocoding_precision` da parada da sugestão sai `null`.** `applyResolvedCoordinates` grava
+`latitude` e `longitude` e **não grava a precisão**, então a tela não distingue rooftop de centroide
+de CEP depois do fato.
+
+⚠️ **`ROUTING_MATRIX_URL` não existe no worker de produção**, e `osrm` só existe em staging. Sugestão
+de roteiro em produção falha com `ROUTING_MATRIX_UNAVAILABLE`.
+
+### O erro de método
+
+Eu li **"Endereço errado"**, que é o rótulo do botão de corrigir pino, como se fosse marcação de
+defeito nas doze paradas. E aceitei que a tela tivesse recalculado sem conferir se um registro novo
+nasceu. **Dois sinais lidos como fato**, e uma investigação inteira construída em cima deles.
+
+O que teria evitado: conferir o `created_at` da sugestão na primeira vez que o número não mudou.
+
+A **spec 079** herda dois avisos daqui, e nenhum é bloqueio: `geocoding_precision` da parada da
+sugestão sai `null`, então o mapa lê `geocoded_addresses`; e `trip_stops.latitude/longitude/
+geocoding_precision` nunca são escritos, apesar de o app do motorista os ler.
+
+---
+
+## T019 — a origem deixou de ser calculada e descartada (CA10 fechada)
+
+**Data:** 2026-09-02.
+
+A origem do endereço físico agora é persistida em `trip_documents.destination_origin` — o vínculo,
+nunca a parada. Uma parada agrupa várias notas, e a mesma chave pode ser alcançada pela entrega de
+uma e pelo cadastro de outra: em `trip_stops` a tela mentiria na primeira parada mista, e o contrato
+trava isso por texto de fonte.
+
+**Contrato antes da implementação** (`test/trip-domain/physical-destination-wiring.contract.ts`):
+dos três casos novos, dois reprovaram contra o código de então —
+
+```
+(fail) writes the origin into the link instead of dropping it
+(fail) persists the origin even when the address yields no stop
+```
+
+⚠️ **A origem sobrevive à parada ausente.** O CEP que não normaliza deixa a nota `SEM ENDEREÇO`
+(T007) e a procedência continua conhecida. O corte antigo — `if (stopId === null) return` — a jogaria
+fora justamente na nota cuja origem mais precisa ser explicada; hoje o retorno curto exige que as
+**duas** metades estejam ausentes.
+
+⚠️ **`recipient` não vira crachá na tela.** Medido em produção nesta data: os três papéis de
+participante somam 1808 cada, e **`delivery` não aparece nenhuma vez**. Imprimir "Cadastro" em toda
+linha apagaria por ruído a única que explica um portão diferente — o crachá sai só no `<entrega>`.
+
+**Consequência que fica escrita:** a 073 é correção **latente**. Nenhuma nota de produção traz
+`<entrega>` hoje; o importador sabe gravá-lo (`NFE_PARTICIPANT_ROLE.DELIVERY`, alimentado por
+`document.delivery` do pacote fiscal), e é quando a primeira chegar que a diferença aparece.
+
+**Gates:** `make migration-test` 90 verdes (migration + rollback contra Postgres descartável),
+`make check` completo, API 3966 verdes, frontend 2302 verdes.
+
+**A spec 073 está completa em 19 das 19 tasks, com CA1–CA10 cobertas.**
+
+### Verificado em staging (2026-09-02), com nota que traz `<entrega>`
+
+Nenhuma nota de staging tinha `<entrega>` — os três papéis somavam 646 cada, e `delivery` era zero.
+Semeei um participante de entrega em `RUA DA DOCA, CAMPINAS` numa nota cujo destinatário fica em
+outra cidade, vinculei **pela tela** e removi o dado de teste depois.
+
+O que a tela imprimiu na linha da nota:
+
+```
+113771f5-…  PENDENTE  ENTREGA   [Marcar entregue] [Desvincular] [Desviar entrega]
+1º a carregar — RUA DA DOCA, CAMPINAS, SP · 0,50 m³
+```
+
+E o que a base gravou:
+
+```
+destination_origin: delivery   parada: RUA DA DOCA, CAMPINAS, SP
+distribuição: {delivery: 1, null: 18}
+```
+
+As dezoito notas anteriores continuam `null` e **sem crachá** — a migration não inventa origem para
+vínculo que nasceu antes dela.
+
+⚠️ **A origem sobrevive à liberação da nota, e isso é o desenho.** Ao desvincular, `stop_id` volta a
+nulo e `destination_origin` **fica**: a linha é registro histórico de para onde aquele vínculo
+apontou, não estado corrente da parada. Conferido: `{destination_origin: 'delivery', stop_id: null,
+released_at: <preenchido>}`.
+
+⚠️ **A porta de não-retorno pegou primeiro.** A tentativa inicial foi numa viagem já `dispatched` e
+a tela respondeu "Esta ação não é mais permitida no estado atual da viagem" — `checkTripAcceptsLinkage`
+funcionando, e prova de que o caminho verificado é o real, não um atalho.
+
+E uma conferência que veio de brinde: **zero paradas vazias em toda a base** — `reconcileStopOnUnlink`
+apaga a parada quando a última nota sai.

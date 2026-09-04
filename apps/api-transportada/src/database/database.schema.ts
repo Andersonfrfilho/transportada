@@ -75,6 +75,7 @@ import {
   fleetVehicles,
 } from './fleet.schema.js'
 import { fuelPriceReferences } from './fuel-reference.schema.js'
+import { vehicleVolumeReferences } from './vehicle-volume-reference.schema.js'
 import { companyFuelPrices } from './company-fuel-prices.schema.js'
 import { energyTariffReferences } from './energy-tariff.schema.js'
 import { companyEnergySettings } from './company-energy-settings.schema.js'
@@ -105,8 +106,13 @@ import {
 } from './nfse.schema.js'
 import { viewPreferences } from './view-preferences.schema.js'
 import { companyCargoSettings } from './company-cargo-settings.schema.js'
+import { companyCargoVolumeFactors } from './company-cargo-volume-factor.schema.js'
 import { companyContacts, companySocialLinks } from './company-contact.schema.js'
 import { companyDistributionSettings } from './company-distribution-settings.schema.js'
+import {
+  companyDeliveryProofSettings,
+  deliveryProofSettingOverrides,
+} from './company-delivery-proof-settings.schema.js'
 import { companyLogos } from './company-logo.schema.js'
 import { identityUserPictures } from './identity-user-picture.schema.js'
 import {
@@ -125,6 +131,9 @@ import {
 import { geocodedAddresses } from './geocoding.schema.js'
 import { municipalityCentroids } from './municipality-centroid.schema.js'
 import { geocodingRefinementRequests } from './geocoding-refinement.schema.js'
+import { geocodedAddressCorrections } from './geocoded-address-correction.schema.js'
+import { clientDeliveryAddresses } from './client-delivery-address.schema.js'
+import { addressComparisons } from './address-comparison.schema.js'
 import {
   companyRouteOptimizationSettings,
   routeSuggestionDocuments,
@@ -144,6 +153,8 @@ import {
 import {
   tripDispatchSnapshots,
   tripDocumentEvents,
+  companyOccurrenceTypes,
+  tripDocumentOccurrences,
   tripDocuments,
   tripDrivers,
   tripStops,
@@ -156,6 +167,7 @@ export * from './energy-tariff.schema.js'
 export * from './fiscal.schema.js'
 export * from './fleet.schema.js'
 export * from './fuel-reference.schema.js'
+export * from './vehicle-volume-reference.schema.js'
 export * from './freight-region.schema.js'
 export * from './freight.schema.js'
 export * from './mdfe.schema.js'
@@ -171,8 +183,10 @@ export * from './billing.schema.js'
 export * from './billing-description-template.schema.js'
 export * from './view-preferences.schema.js'
 export * from './company-cargo-settings.schema.js'
+export * from './company-cargo-volume-factor.schema.js'
 export * from './company-contact.schema.js'
 export * from './company-distribution-settings.schema.js'
+export * from './company-delivery-proof-settings.schema.js'
 export * from './company-logo.schema.js'
 export * from './cte-emission-profile.schema.js'
 export * from './password-reset.schema.js'
@@ -182,6 +196,9 @@ export * from './trip.schema.js'
 export * from './geocoding.schema.js'
 export * from './municipality-centroid.schema.js'
 export * from './geocoding-refinement.schema.js'
+export * from './geocoded-address-correction.schema.js'
+export * from './client-delivery-address.schema.js'
+export * from './address-comparison.schema.js'
 export * from './delivery-client.schema.js'
 export * from './trip-financial.schema.js'
 export * from './client-portal.schema.js'
@@ -200,8 +217,11 @@ export const databaseSchema = {
   auditLogs,
   companies,
   companyCargoSettings,
+  companyCargoVolumeFactors,
   companyContacts,
+  companyDeliveryProofSettings,
   companyDistributionSettings,
+  deliveryProofSettingOverrides,
   companyEnergySettings,
   companyFiscalProfiles,
   companyFuelPrices,
@@ -224,6 +244,7 @@ export const databaseSchema = {
   freightRules,
   freightRuleVersions,
   fuelPriceReferences,
+  vehicleVolumeReferences,
   identityUserProfiles,
   identityUsers,
   idempotencyRecords,
@@ -293,6 +314,9 @@ export const databaseSchema = {
   geocodedAddresses,
   municipalityCentroids,
   geocodingRefinementRequests,
+  geocodedAddressCorrections,
+  clientDeliveryAddresses,
+  addressComparisons,
   landingSettings,
   routeSuggestionDocuments,
   routeSuggestionStopDocuments,
@@ -309,6 +333,8 @@ export const databaseSchema = {
   tripFinancialParcels,
   tripFinancialResults,
   tripDocumentEvents,
+  companyOccurrenceTypes,
+  tripDocumentOccurrences,
   tripDocuments,
   tripDrivers,
   tripStops,

@@ -3,6 +3,7 @@ import {
   isScheduledDistributionStatus,
   type ScheduledDistributionStatus,
 } from '@/modules/company-settings/shared/scheduledDistribution.validation'
+import { mapAddressReport, type AddressReport } from './addressReport.validation'
 import {
   JOB_EXECUTION_ORIGINS,
   isJobOutcome,
@@ -86,6 +87,13 @@ export type NfeDocumentListItem = Readonly<{
   nfseInvoiceNumber: null | string
   number: string
   recipientAddress: null | string
+  /** O CEP do destinatário, cru. A tela da viagem o imprime junto do endereço da parada. */
+  recipientPostalCode: null | string
+  recipientAddressNumber: null | string
+  /** Onde a nota para, e com que precisão — ver `trip.types.ts`. */
+  recipientLatitude: null | string
+  recipientLongitude: null | string
+  recipientLocationPrecision: null | string
   recipientCity: null | string
   recipientCityCode: null | string
   recipientName: string
@@ -194,6 +202,7 @@ type ClientDependencies = Readonly<{
 
 export type NfeWorkspaceClient = Readonly<{
   downloadDocumentXml: (input: Readonly<{ id: string }>) => Promise<Blob>
+  getAddressReport: () => Promise<AddressReport>
   getDistributionStatus: () => Promise<NfeDistributionStatus>
   getImportDetail: (input: Readonly<{ id: string }>) => Promise<NfeImportSummary>
   listDocuments: (
@@ -312,6 +321,11 @@ function isNfeDocumentListItem(value: unknown): value is NfeDocumentListItem {
     isNullableString(value.nfseInvoiceNumber) &&
     isString(value.number) &&
     isNullableString(value.recipientAddress) &&
+    isNullableString(value.recipientPostalCode) &&
+    isNullableString(value.recipientAddressNumber) &&
+    isNullableString(value.recipientLatitude) &&
+    isNullableString(value.recipientLongitude) &&
+    isNullableString(value.recipientLocationPrecision) &&
     isNullableString(value.recipientCity) &&
     isNullableString(value.recipientCityCode) &&
     isString(value.recipientName) &&
@@ -626,6 +640,14 @@ export function createDistributionPollingState(input: {
 }
 
 export const createNfeWorkspaceClient: NfeWorkspaceClientFactory = (dependencies) => ({
+  async getAddressReport() {
+    const response = await requestJson({
+      dependencies,
+      init: { method: 'GET' },
+      path: '/address-report',
+    })
+    return mapAddressReport(response)
+  },
   async downloadDocumentXml(input) {
     const request = await getAccessTokenRequest({
       dependencies,

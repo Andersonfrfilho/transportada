@@ -15,7 +15,7 @@ import {
   IBGE_MESH_QUERY_KEY,
   IBGE_MESH_STALE_TIME_MS,
   loadStateMesh,
-} from '../shared/ibgeMesh.service'
+} from '@/modules/shared/ibgeMesh.service'
 import {
   listMunicipalityIdentities,
   MUNICIPALITY_IDENTITY_QUERY_KEY,

@@ -18,6 +18,8 @@ import type {
 } from '../../src/routing/application/route-suggestion.repository.js'
 import {
   MultiVehicleSuggestionDocumentUnavailableError,
+  MultiVehicleSuggestionDriverRepeatedError,
+  MultiVehicleSuggestionDriverUnavailableError,
   MultiVehicleSuggestionEmptyError,
   MultiVehicleSuggestionVehicleUnavailableError,
   RouteSuggestionNotDecidableError,
@@ -29,6 +31,7 @@ const USER_ID = '00000000-0000-4000-8000-000000000002'
 const SUGGESTION_ID = '00000000-0000-4000-8000-000000000003'
 const FIRST_VEHICLE = '00000000-0000-4000-8000-000000000010'
 const SECOND_VEHICLE = '00000000-0000-4000-8000-000000000011'
+const FIRST_DRIVER = '00000000-0000-4000-8000-000000000030'
 const FIRST_DOCUMENT = '00000000-0000-4000-8000-000000000020'
 const SECOND_DOCUMENT = '00000000-0000-4000-8000-000000000021'
 
@@ -85,6 +88,7 @@ function buildFixture(
     readonly groups?: readonly MultiVehicleSuggestionGroup[]
     readonly stored?: RouteSuggestionRecord | null
     readonly unavailableDocuments?: readonly string[]
+    readonly unavailableDrivers?: readonly string[]
     readonly unavailableVehicles?: readonly string[]
   } = {},
 ) {
@@ -104,6 +108,7 @@ function buildFixture(
       return suggestion({ status: 'queued' })
     },
     findUnavailableDocumentIds: async () => input.unavailableDocuments ?? [],
+    findUnavailableDriverIds: async () => input.unavailableDrivers ?? [],
     findUnavailableVehicleIds: async () => input.unavailableVehicles ?? [],
     readGroups: async () => input.groups ?? [],
   }
@@ -161,7 +166,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
         context: CONTEXT,
         correlationId: 'correlation',
         documentIds: [],
-        vehicleIds: [FIRST_VEHICLE],
+        vehicles: [{ vehicleId: FIRST_VEHICLE }],
       }),
     ).rejects.toBeInstanceOf(MultiVehicleSuggestionEmptyError)
 
@@ -170,7 +175,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
         context: CONTEXT,
         correlationId: 'correlation',
         documentIds: [FIRST_DOCUMENT],
-        vehicleIds: [],
+        vehicles: [],
       }),
     ).rejects.toBeInstanceOf(MultiVehicleSuggestionEmptyError)
 
@@ -185,7 +190,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
         context: CONTEXT,
         correlationId: 'correlation',
         documentIds: [FIRST_DOCUMENT, SECOND_DOCUMENT],
-        vehicleIds: [FIRST_VEHICLE],
+        vehicles: [{ vehicleId: FIRST_VEHICLE }],
       }),
     ).rejects.toBeInstanceOf(MultiVehicleSuggestionDocumentUnavailableError)
 
@@ -195,9 +200,111 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
         context: CONTEXT,
         correlationId: 'correlation',
         documentIds: [FIRST_DOCUMENT],
-        vehicleIds: [FIRST_VEHICLE],
+        vehicles: [{ vehicleId: FIRST_VEHICLE }],
       }),
     ).rejects.toBeInstanceOf(MultiVehicleSuggestionVehicleUnavailableError)
+  })
+
+  /**
+   * Spec 081 (RF-3): motorista inexistente, de outra empresa ou inativo. Os três motivos respondem
+   * junto — quem está do outro lado só precisa saber "não use este".
+   */
+  test('recusa motorista indisponível, com o id no detalhe', async () => {
+    const fixture = buildFixture({ unavailableDrivers: [FIRST_DRIVER] })
+
+    const refusal = await fixture.useCase
+      .create({
+        context: CONTEXT,
+        correlationId: 'correlation',
+        documentIds: [FIRST_DOCUMENT],
+        vehicles: [{ driverId: FIRST_DRIVER, vehicleId: FIRST_VEHICLE }],
+      })
+      .then(() => null)
+      .catch((error: unknown) => error)
+
+    expect(refusal).toBeInstanceOf(MultiVehicleSuggestionDriverUnavailableError)
+    expect((refusal as MultiVehicleSuggestionDriverUnavailableError).details).toEqual([
+      { field: 'driverIds', message: FIRST_DRIVER },
+    ])
+    expect(fixture.calls.create).toEqual([])
+  })
+
+  /**
+   * RF-2: a repetição do motorista é **recusa**, não deduplicação como a do veículo. Descartar em
+   * silêncio deixaria um caminhão sem motorista sem ninguém saber por quê — e aceitar criaria duas
+   * viagens simultâneas da mesma pessoa, que o PWA dela mostraria juntas.
+   */
+  test('recusa o mesmo motorista em dois pares, antes de qualquer consulta', async () => {
+    const fixture = buildFixture()
+
+    const refusal = await fixture.useCase
+      .create({
+        context: CONTEXT,
+        correlationId: 'correlation',
+        documentIds: [FIRST_DOCUMENT],
+        vehicles: [
+          { driverId: FIRST_DRIVER, vehicleId: FIRST_VEHICLE },
+          { driverId: FIRST_DRIVER, vehicleId: SECOND_VEHICLE },
+        ],
+      })
+      .then(() => null)
+      .catch((error: unknown) => error)
+
+    expect(refusal).toBeInstanceOf(MultiVehicleSuggestionDriverRepeatedError)
+    expect(fixture.calls.create).toEqual([])
+  })
+
+  /** Par sem motorista continua legítimo: é a distribuição da véspera, antes de a escala existir. */
+  test('aceita pares sem motorista misturados com pares com motorista', async () => {
+    const fixture = buildFixture()
+
+    await fixture.useCase.create({
+      context: CONTEXT,
+      correlationId: 'correlation',
+      documentIds: [FIRST_DOCUMENT],
+      vehicles: [
+        { driverId: FIRST_DRIVER, vehicleId: FIRST_VEHICLE },
+        { vehicleId: SECOND_VEHICLE },
+      ],
+    })
+
+    expect(fixture.calls.create?.[0]).toMatchObject({
+      vehicles: [
+        { driverId: FIRST_DRIVER, vehicleId: FIRST_VEHICLE },
+        { vehicleId: SECOND_VEHICLE },
+      ],
+    })
+  })
+
+  /**
+   * ADR-0055: é aqui que a viagem passa a existir para quem dirige. O caminho de leitura do PWA
+   * parte de `trip_drivers`, e viagem sem linha ali não aparece para o motorista.
+   */
+  test('o aceite cria a viagem com o motorista do par, e sem ele quando o par não trouxe nenhum', async () => {
+    const fixture = buildFixture({
+      groups: [
+        {
+          documentIds: [FIRST_DOCUMENT],
+          driverId: FIRST_DRIVER,
+          orderedAddressKeys: [],
+          vehicleId: FIRST_VEHICLE,
+        },
+        {
+          documentIds: [SECOND_DOCUMENT],
+          driverId: null,
+          orderedAddressKeys: [],
+          vehicleId: SECOND_VEHICLE,
+        },
+      ],
+    })
+
+    const accepted = await fixture.useCase.accept({ context: CONTEXT, suggestionId: SUGGESTION_ID })
+
+    expect(accepted.trips.map((trip) => trip.driverId)).toEqual([FIRST_DRIVER, null])
+    expect(fixture.calls.trip).toMatchObject([
+      { driverId: FIRST_DRIVER, vehicleId: FIRST_VEHICLE },
+      { driverId: null, vehicleId: SECOND_VEHICLE },
+    ])
   })
 
   /** Publicar antes de a linha existir abriria a janela em que o worker busca o que não foi gravado. */
@@ -208,7 +315,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
       context: CONTEXT,
       correlationId: 'correlation',
       documentIds: [FIRST_DOCUMENT, FIRST_DOCUMENT, SECOND_DOCUMENT],
-      vehicleIds: [FIRST_VEHICLE, FIRST_VEHICLE],
+      vehicles: [{ vehicleId: FIRST_VEHICLE }, { vehicleId: FIRST_VEHICLE }],
     })
 
     expect(fixture.calls.create).toEqual([
@@ -225,7 +332,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
         companyId: COMPANY_ID,
         documentIds: [FIRST_DOCUMENT, SECOND_DOCUMENT],
         seed: 42,
-        vehicleIds: [FIRST_VEHICLE],
+        vehicles: [{ vehicleId: FIRST_VEHICLE }],
       },
     ])
     expect(fixture.calls.publish).toHaveLength(1)
@@ -240,11 +347,13 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
       groups: [
         {
           documentIds: [FIRST_DOCUMENT],
+          driverId: null,
           orderedAddressKeys: ['3543402|14020000|100'],
           vehicleId: FIRST_VEHICLE,
         },
         {
           documentIds: [SECOND_DOCUMENT],
+          driverId: null,
           orderedAddressKeys: ['3543402|14020000|200'],
           vehicleId: SECOND_VEHICLE,
         },
@@ -254,8 +363,20 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
     const accepted = await fixture.useCase.accept({ context: CONTEXT, suggestionId: SUGGESTION_ID })
 
     expect(accepted.trips).toEqual([
-      { documentCount: 1, stopCount: 1, tripId: 'trip-1', vehicleId: FIRST_VEHICLE },
-      { documentCount: 1, stopCount: 1, tripId: 'trip-2', vehicleId: SECOND_VEHICLE },
+      {
+        documentCount: 1,
+        driverId: null,
+        stopCount: 1,
+        tripId: 'trip-1',
+        vehicleId: FIRST_VEHICLE,
+      },
+      {
+        documentCount: 1,
+        driverId: null,
+        stopCount: 1,
+        tripId: 'trip-2',
+        vehicleId: SECOND_VEHICLE,
+      },
     ])
     expect(fixture.calls.link).toHaveLength(2)
     expect(fixture.calls.reorder).toHaveLength(2)
@@ -319,8 +440,18 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
   test('cria as viagens na ordem em que o repositório devolve os grupos', async () => {
     const fixture = buildFixture({
       groups: [
-        { documentIds: [SECOND_DOCUMENT], orderedAddressKeys: [], vehicleId: SECOND_VEHICLE },
-        { documentIds: [FIRST_DOCUMENT], orderedAddressKeys: [], vehicleId: FIRST_VEHICLE },
+        {
+          documentIds: [SECOND_DOCUMENT],
+          driverId: null,
+          orderedAddressKeys: [],
+          vehicleId: SECOND_VEHICLE,
+        },
+        {
+          documentIds: [FIRST_DOCUMENT],
+          driverId: null,
+          orderedAddressKeys: [],
+          vehicleId: FIRST_VEHICLE,
+        },
       ],
     })
 

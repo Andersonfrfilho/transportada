@@ -23,13 +23,28 @@ const OBJECT_ID = '00000000-0000-4000-8000-000000000006'
 
 type SavedProof = Parameters<DeliveryProofPort['saveProof']>[0]
 
-function buildWorld(input: { readonly eventId?: string | null } = {}) {
+function buildWorld(
+  input: {
+    readonly eventId?: string | null
+    readonly existingProofByKey?: Readonly<Record<string, string>>
+  } = {},
+) {
   const saved: SavedProof[] = []
   const stored: Array<{ readonly objectKey: string }> = []
 
   const repository: DeliveryProofPort = {
     findDeliveryEventId: () =>
       Promise.resolve(input.eventId === undefined ? EVENT_ID : input.eventId),
+    findProofIdByAttachmentKey: (query) =>
+      Promise.resolve(input.existingProofByKey?.[query.attachmentKey] ?? null),
+    /** O padrão de fábrica (ADR-0057 §4): o documento fica de fora destes casos, de propósito. */
+    resolveProofFieldSettings: () =>
+      Promise.resolve({
+        photo: 'optional' as const,
+        receiverDocument: 'off' as const,
+        receiverName: 'optional' as const,
+        signature: 'optional' as const,
+      }),
     saveProof: (proof) => {
       saved.push(proof)
       return Promise.resolve({ id: 'proof-1' })
@@ -55,12 +70,16 @@ function buildInput(
     documentId: DOCUMENT_ID,
     driverId: DRIVER_ID,
     newObjectId: () => OBJECT_ID,
+    newProofId: () => 'proof-1',
     repository: world.repository,
+    sealDocument: () => Promise.reject(new Error('DOCUMENT_MUST_NOT_BE_SEALED_HERE')),
     storage: world.storage,
     upload: {
+      attachmentKey: '',
       bytes: new Uint8Array(1024),
       kind: 'photo' as const,
       mimeType: 'image/jpeg',
+      receiverDocument: '',
       receiverName: '',
       ...upload,
     },
@@ -148,6 +167,26 @@ describe('o comprovante da entrega', () => {
       'TRIP_DELIVERY_PROOF_UNSUPPORTED_TYPE',
     )
     expect(world.stored).toHaveLength(0)
+  })
+
+  /** Spec 082 (revisão, item 5): reenvio com a mesma chave converge sem duplicar nem regravar. */
+  it('reenvio com a mesma attachmentKey devolve o comprovante existente sem tocar no bucket', async () => {
+    const world = buildWorld({ existingProofByKey: { 'retry-1': 'proof-existing' } })
+
+    const result = await attachDeliveryProof(buildInput(world, { attachmentKey: 'retry-1' }))
+
+    expect(result.id).toBe('proof-existing')
+    expect(world.stored).toHaveLength(0)
+    expect(world.saved).toHaveLength(0)
+  })
+
+  it('a attachmentKey inédita grava e viaja até a persistência', async () => {
+    const world = buildWorld()
+
+    const result = await attachDeliveryProof(buildInput(world, { attachmentKey: 'retry-2' }))
+
+    expect(result.id).toBe('proof-1')
+    expect(world.saved[0]).toMatchObject({ attachmentKey: 'retry-2' })
   })
 
   /** Nota que não tem entrega deste motorista não recebe comprovante de ninguém. */

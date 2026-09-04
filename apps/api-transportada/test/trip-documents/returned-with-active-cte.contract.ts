@@ -66,6 +66,7 @@ describe('returning a document never touches the fiscal side (D8 negative test)'
     const document = {
       createdAt: '2026-08-01T10:00:00.000Z',
       deliveredAt: null,
+      destinationOrigin: null,
       freightCalculationId: null,
       id: DOCUMENT_ID,
       loadedAt: '2026-08-01T09:00:00.000Z',

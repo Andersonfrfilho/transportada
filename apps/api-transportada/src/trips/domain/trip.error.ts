@@ -301,6 +301,56 @@ export class DriverNotRegisteredError extends ApiError {
   }
 }
 
+/**
+ * ADR-0058: a rota do motorista só alcança viagem do próprio vínculo. O 403 não distingue viagem
+ * inexistente de viagem alheia — distinguir seria enumerar viagens por id.
+ */
+export class TripNotOfDriverError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_NOT_OF_DRIVER',
+      message: 'The trip does not belong to this driver.',
+      status: 403,
+    })
+  }
+}
+
+/**
+ * ADR-0057 §3: documento enviado com a configuração em `off` não entra — aceitar seria colher dado
+ * pessoal que a empresa decidiu não colher.
+ */
+export class TripDeliveryProofDocumentNotAcceptedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_DELIVERY_PROOF_DOCUMENT_NOT_ACCEPTED',
+      message: 'This company does not collect the receiver document.',
+      status: 422,
+    })
+  }
+}
+
+/** ADR-0057 §1: com o campo em `required`, assinatura sem documento não confirma. */
+export class TripDeliveryProofDocumentRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_DELIVERY_PROOF_DOCUMENT_REQUIRED',
+      message: 'This company requires the receiver document on the signature.',
+      status: 422,
+    })
+  }
+}
+
+/** Falha do chaveiro ao selar o documento: indisponibilidade nossa, nunca culpa do arquivo. */
+export class TripDeliveryProofDocumentUnavailableError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_DELIVERY_PROOF_DOCUMENT_UNAVAILABLE',
+      message: 'The receiver document could not be sealed. Try again.',
+      status: 503,
+    })
+  }
+}
+
 const DELIVERY_PROOF_REJECTION_MESSAGES = {
   TOO_LARGE: 'The delivery proof is larger than the accepted size.',
   UNSUPPORTED_TYPE: 'The delivery proof must be an image.',
@@ -330,11 +380,43 @@ export class TripDeliveryProofRejectedError extends ApiError {
  * Um lote vazio nasceria, seria submetido e voltaria sem nada; recusar com nome é o que diz ao
  * operador qual dos dois casos é o dele.
  */
+/**
+ * A nota escolhida não está pendente de CT-e — já autorizada, já num lote, ou de NFS-e. Recusar
+ * nomeando cada uma é o que impede o lote de nascer silenciosamente menor do que a tela ofereceu.
+ */
+export class TripCteBatchDocumentNotPendingError extends ApiError {
+  public constructor(tripDocumentIds: readonly string[]) {
+    super({
+      code: 'TRIP_CTE_BATCH_DOCUMENT_NOT_PENDING',
+      details: tripDocumentIds.map((tripDocumentId) => ({
+        field: tripDocumentId,
+        message: 'This invoice is not waiting for a CT-e.',
+      })),
+      message: 'One or more selected invoices are not waiting for a CT-e.',
+      status: 422,
+    })
+  }
+}
+
 export class TripCteBatchEmptyError extends ApiError {
   public constructor() {
     super({
       code: 'TRIP_CTE_BATCH_EMPTY',
       message: 'This trip has no invoice waiting for a CT-e.',
+      status: 422,
+    })
+  }
+}
+
+/**
+ * A chave enviada não tem template ativo de canal e-mail para a empresa — o cadastro do tipo só
+ * seleciona o que o módulo de notificações já publicou.
+ */
+export class OccurrenceEmailTemplateNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'OCCURRENCE_EMAIL_TEMPLATE_NOT_FOUND',
+      message: 'There is no active email template with this key for the company.',
       status: 422,
     })
   }

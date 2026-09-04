@@ -1,3 +1,4 @@
+import { hasExactKeys } from '@/modules/shared/objectKeys.service'
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { isRecord } from './companySettingsResponse.validation'
 
@@ -24,19 +25,8 @@ export type EnergySettings = Readonly<{
 
 export type EnergySettingsResponse = Readonly<{ data: EnergySettings }>
 
-function hasExactKeys(
-  input: Readonly<{ keys: readonly string[]; value: Record<string, unknown> }>,
-): boolean {
-  const currentKeys = Object.keys(input.value).sort()
-  const expectedKeys = [...input.keys].sort()
-  return (
-    currentKeys.length === expectedKeys.length &&
-    currentKeys.every((key, index) => key === expectedKeys[index])
-  )
-}
-
 function isEnergyDistributor(value: unknown): value is EnergyDistributor {
-  if (!isRecord(value) || !hasExactKeys({ keys: DISTRIBUTOR_KEYS, value })) return false
+  if (!isRecord(value) || !hasExactKeys(value, DISTRIBUTOR_KEYS)) return false
   return (
     typeof value.code === 'string' &&
     value.code.length > 0 &&
@@ -45,7 +35,7 @@ function isEnergyDistributor(value: unknown): value is EnergyDistributor {
 }
 
 export function isEnergySettings(value: unknown): value is EnergySettings {
-  if (!isRecord(value) || !hasExactKeys({ keys: SETTINGS_KEYS, value })) return false
+  if (!isRecord(value) || !hasExactKeys(value, SETTINGS_KEYS)) return false
   return (
     typeof value.adjustmentFactor === 'string' &&
     ADJUSTMENT_FACTOR.test(value.adjustmentFactor) &&
@@ -57,5 +47,5 @@ export function isEnergySettings(value: unknown): value is EnergySettings {
 }
 
 export function isEnergySettingsResponse(value: unknown): value is EnergySettingsResponse {
-  return isRecord(value) && hasExactKeys({ keys: ['data'], value }) && isEnergySettings(value.data)
+  return isRecord(value) && hasExactKeys(value, ['data']) && isEnergySettings(value.data)
 }

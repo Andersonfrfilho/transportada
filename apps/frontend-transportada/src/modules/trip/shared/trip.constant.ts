@@ -3,6 +3,9 @@ export const TRIPS_PATH = '/trips'
 
 /** A nota bipada é procurada na listagem de NF-e; a chave é única por empresa, então uma basta. */
 export const NFE_DOCUMENTS_PATH = '/nfe-documents'
+
+/** A recomendação de vários veículos nasce fora da árvore `/trips/:id`: é o aceite que cria viagem. */
+export const ROUTE_SUGGESTIONS_PATH = '/route-suggestions'
 export const SCAN_LOOKUP_LIMIT = 1
 
 /**
@@ -57,6 +60,8 @@ export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
 }
 
 export const TRIP_KEYS = [
+  /** Quem dirige: a listagem nomeia o motorista, e o UUID do veículo não dizia nem isso. */
+  'driverNames',
   'companyId',
   'createdAt',
   'id',
@@ -69,9 +74,13 @@ export const TRIP_KEYS = [
 
 export const TRIP_DRIVER_KEYS = ['driverId', 'driverName', 'driverTaxId', 'position'] as const
 
+/** Spec 078 D2: o contato nasce opcional — API anterior serve o motorista sem ele. */
+export const TRIP_DRIVER_OPTIONAL_KEYS = ['driverEmail', 'driverPhone'] as const
+
 export const TRIP_DOCUMENT_KEYS = [
   'createdAt',
   'deliveredAt',
+  'destinationOrigin',
   'freightCalculationId',
   'id',
   'loadedAt',
@@ -92,6 +101,22 @@ export const TRIP_DOCUMENT_DETAIL_KEYS = [
   'fiscalStatus',
 ] as const
 
+/**
+ * Spec 078 D2: campo novo nasce opcional, e sai desta lista quando a API que o serve estiver
+ * garantidamente no ar. Bundle novo com API antiga tem o campo ausente, e ausente reprovaria —
+ * corretamente, mas quebrando a tela inteira por um rótulo.
+ */
+export const TRIP_DOCUMENT_DETAIL_OPTIONAL_KEYS = [
+  'contact',
+  'nfeIssuedAt',
+  'nfeNumber',
+  'nfeSeries',
+  'nfeTotalValue',
+] as const
+
+/** Spec 078 D2: campo novo nasce opcional até a API que o serve estar garantidamente no ar. */
+export const TRIP_STOP_OPTIONAL_KEYS = ['cityCode', 'latitude', 'longitude', 'state'] as const
+
 export const TRIP_STOP_KEYS = [
   'addressKey',
   'arrivedAt',
@@ -105,6 +130,72 @@ export const TRIP_STOP_KEYS = [
 ] as const
 
 export const TRIP_DETAIL_KEYS = [...TRIP_KEYS, 'documents', 'drivers', 'stops'] as const
+
+/**
+ * Spec 078 D2: **campo novo nasce opcional**, e sai desta lista até a API que o serve estar
+ * garantidamente no ar.
+ *
+ * O deploy atômico cobre "API à frente do bundle"; ele **não** cobre o inverso — bundle novo com
+ * API antiga tem o campo ausente, e ausente reprova, corretamente. A guarda não pode ser afrouxada
+ * para resolver isso: a rigidez dela é defesa contra vazamento de token e de identidade de tenant
+ * (D1). Então a saída é de escrita, não de validação.
+ *
+ * Passado o deploy que serve o campo, ele migra para `TRIP_DETAIL_KEYS` numa mudança própria — e é
+ * essa mudança que torna o contrato exigível de novo.
+ */
+export const TRIP_DETAIL_OPTIONAL_KEYS = ['cargoLayout', 'cargoWeight', 'occupancy'] as const
+
+/**
+ * Spec 079: o peso da carga. **Sem razão de ocupação** — a ficha do veículo não guarda capacidade
+ * em massa, e um teto inventado para produzir porcentagem faria alguém parar de carregar, ou
+ * continuar.
+ */
+/** Spec 079 T004: o que a rota do comprovante publica. Sem `bucket` e sem chave de objeto. */
+export const TRIP_OCCURRENCE_KEYS = [
+  'createdAt',
+  'id',
+  'note',
+  'occurrenceTypeId',
+  'productCode',
+  'stage',
+  'typeName',
+] as const
+
+export const TRIP_DOCUMENT_PRODUCT_KEYS = [
+  'code',
+  'commercialUnit',
+  'description',
+  'ordinal',
+  'quantity',
+  'totalValue',
+  'unitValue',
+] as const
+
+export const DELIVERY_PROOF_KEYS = [
+  'createdAt',
+  'downloadUrl',
+  'expiresAt',
+  'id',
+  'kind',
+  'receiverName',
+] as const
+
+export const TRIP_CARGO_WEIGHT_KEYS = [
+  'documentsWithoutWeight',
+  'grossWeightKilograms',
+  'source',
+] as const
+
+/** Spec 075: a ocupação do baú. `null` quando a capacidade do veículo não é conhecida. */
+export const TRIP_OCCUPANCY_KEYS = [
+  'capacityDimensions',
+  'capacityM3',
+  'capacitySource',
+  'documentsWithoutVolume',
+  'loadedM3',
+  'occupancyRatio',
+  'source',
+] as const
 
 export const STOP_ADDRESS_COMPONENTS_KEYS = ['cityCode', 'number', 'postalCode'] as const
 

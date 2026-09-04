@@ -32,6 +32,13 @@ import { createCompanyContactsUseCase } from './companies/application/company-co
 import { DrizzleCompanyContactsRepository } from './companies/infrastructure/drizzle-company-contacts.repository.js'
 import { createCompanyContactsRoutes } from './companies/presentation/company-contacts.routes.js'
 import { DrizzleCargoSettingsRepository } from './companies/infrastructure/drizzle-cargo-settings.repository.js'
+import { DrizzleCargoVolumeFactorRepository } from './companies/infrastructure/drizzle-cargo-volume-factor.repository.js'
+import {
+  createListCargoVolumeFactorsUseCase,
+  createRemoveCargoVolumeFactorUseCase,
+  createSaveCargoVolumeFactorUseCase,
+} from './companies/application/cargo-volume-factor.use-case.js'
+import { createCargoVolumeFactorRoutes } from './companies/presentation/cargo-volume-factor.routes.js'
 import { createCargoSettingsRoutes } from './companies/presentation/cargo-settings.routes.js'
 import { createAdjustFuelPriceUseCase } from './companies/application/adjust-fuel-price.use-case.js'
 import { createClearFuelPriceUseCase } from './companies/application/clear-fuel-price.use-case.js'
@@ -134,6 +141,37 @@ import { createRenderDacteUseCase } from './cte-issuance/application/render-dact
 import { createReadMdfeDocumentUseCase } from './mdfe-manifests/application/read-mdfe-document.use-case.js'
 import { createDamdfePdfGateway } from './mdfe-manifests/infrastructure/damdfe-pdf.gateway.js'
 import { createMdfeDocumentDownloadGateway } from './mdfe-manifests/infrastructure/mdfe-document-download.gateway.js'
+import { readDeliveryProofs } from './trips/application/read-delivery-proof.use-case.js'
+import { readRouteGeometry } from './trips/application/read-route-geometry.use-case.js'
+import { createOsrmRouteGeometryGateway } from './trips/infrastructure/osrm-route-geometry.gateway.js'
+import { listTripStopCoordinates } from './trips/infrastructure/trip-stop-coordinates.support.js'
+import { createDeliveryProofDownloadGateway } from './trips/infrastructure/delivery-proof-download.gateway.js'
+import { readTripDocumentProducts } from './trips/application/read-trip-document-products.use-case.js'
+import { registerDriverOccurrence } from './trips/application/register-driver-occurrence.use-case.js'
+import { registerTripOccurrence } from './trips/application/register-trip-occurrence.use-case.js'
+import { saveOccurrenceTypeWithTemplate } from './trips/application/save-occurrence-type.use-case.js'
+import {
+  createListTripOccurrenceFeedUseCase,
+  createReadTripOccurrenceAttachmentsUseCase,
+} from './trips/application/trip-occurrence-feed.use-case.js'
+import {
+  listTripOccurrenceAttachmentLocations,
+  listTripOccurrenceFeed,
+} from './trips/infrastructure/trip-occurrence-feed.query.js'
+import { createOccurrenceNotifier } from './trips/infrastructure/occurrence-notifier.gateway.js'
+import { createStopOccurrenceNotifier } from './trips/infrastructure/stop-occurrence-notifier.gateway.js'
+import {
+  findDriverReachableDocument,
+  listDeliveryProofs,
+  listDocumentProducts,
+  findOccurrenceType,
+  listOccurrenceTypes,
+  listTripOccurrences,
+  readOccurrenceLabels,
+  readOccurrenceTemplateValues,
+  saveOccurrenceType,
+  saveTripOccurrence,
+} from './trips/infrastructure/delivery-proof-read.support.js'
 import { createMdfeDocumentSource } from './mdfe-manifests/infrastructure/mdfe-document.query.js'
 import { createMdfeXmlReaderGateway } from './mdfe-manifests/infrastructure/mdfe-xml-reader.gateway.js'
 import { createCteArchiveGateway } from './cte-issuance/infrastructure/cte-archive.gateway.js'
@@ -160,8 +198,11 @@ import { createFleetCatalogRoutes } from './fleet/presentation/fleet-catalog.rou
 import { createIdentityContactDirectoryGateway } from './fleet/infrastructure/identity-contact-directory.gateway'
 import { createFleetRoutes } from './fleet/presentation/fleet.routes'
 import { createLookupPostalCodeUseCase } from './addresses/application/lookup-postal-code.use-case.js'
+import { createReadAddressReportUseCase } from './addresses/application/read-address-report.use-case.js'
+import { createDrizzleAddressReportRepository } from './addresses/infrastructure/drizzle-address-report.repository.js'
 import { DrizzlePostalCodeRepository } from './addresses/infrastructure/drizzle-postal-code.repository.js'
 import { createPostalCodeGateway } from './addresses/infrastructure/postal-code.gateway.js'
+import { createAddressReportRoutes } from './addresses/presentation/address-report.routes.js'
 import { createPostalCodeRoutes } from './addresses/presentation/postal-code.routes.js'
 import { createTripMdfeManifestUseCase } from './mdfe-manifests/application/create-trip-mdfe-manifest.use-case'
 import { createMdfeIssuanceUseCase } from './mdfe-manifests/application/mdfe-issuance.use-case'
@@ -174,6 +215,8 @@ import { createMdfeManifestRoutes } from './mdfe-manifests/presentation/mdfe-man
 import { createTripUseCase } from './trips/application/trip.use-case'
 import { createTripLifecycleUseCase } from './trips/application/trip-lifecycle.use-case'
 import { listReturnedWithActiveCte } from './trips/application/list-returned-with-active-cte.use-case'
+import { createLinkTripDocumentsBatchUseCase } from './trips/application/link-trip-documents-batch.use-case.js'
+import { previewTripValuation } from './trips/application/read-trip-valuation.use-case.js'
 import { DrizzleTripRepository } from './trips/infrastructure/drizzle-trip.repository'
 import { DrizzleTripDocumentRepository } from './trips/infrastructure/drizzle-trip-document.repository'
 import { DrizzleTripDocumentBatchRepository } from './trips/infrastructure/drizzle-trip-document-batch.repository'
@@ -205,8 +248,13 @@ import {
 } from './trips/application/report-document-delivery.use-case'
 import { reportStopOccurrence } from './trips/application/report-stop-occurrence.use-case'
 import { attachDeliveryProof } from './trips/application/attach-delivery-proof.use-case'
+import { createDeliveryProofDocumentSecretService } from './trips/application/delivery-proof-document-secret.service'
+import { dispatchDriverTrip } from './trips/application/dispatch-driver-trip.use-case'
+import { dispatchTrip } from './trips/application/dispatch-trip.use-case'
 import { createDeliveryProofStorage } from './trips/infrastructure/delivery-proof-storage.gateway'
 import { DrizzleDeliveryProofRepository } from './trips/infrastructure/drizzle-delivery-proof.repository'
+import { DrizzleDeliveryProofSettingsRepository } from './trips/infrastructure/drizzle-delivery-proof-settings.repository'
+import { createDeliveryProofSettingsRoutes } from './trips/presentation/delivery-proof-settings.routes'
 import { DrizzleCurrentDriverTripRepository } from './trips/infrastructure/drizzle-current-driver-trip.repository'
 import { DrizzleDriverFieldReportUnitOfWork } from './trips/infrastructure/drizzle-driver-field-report.repository'
 import { createRouteSuggestionRoutes } from './routing/presentation/route-suggestion.routes'
@@ -231,6 +279,7 @@ import { createLazyRabbitMqJobRunPublisher } from './operations/infrastructure/r
 import { createGeocodedAddressCorrectionUseCase } from './routing/application/geocoded-address-correction.use-case'
 import { createDrizzleRouteSuggestionRepository } from './routing/infrastructure/drizzle-route-suggestion.repository'
 import { createDrizzleGeocodedAddressRepository } from './routing/infrastructure/drizzle-geocoded-address.repository'
+import { createDrizzleGeocodedAddressCorrectionRepository } from './routing/infrastructure/drizzle-geocoded-address-correction.repository'
 import { createDrizzleTripRouteGate } from './routing/infrastructure/drizzle-trip-route-gate.adapter'
 import { createTripStopOrderWriter } from './routing/infrastructure/trip-stop-order.adapter'
 import { createLazyRabbitMqRouteOptimizationQueue } from './routing/infrastructure/rabbitmq-route-optimization.queue'
@@ -436,6 +485,13 @@ export function bootstrap(): Bun.Server<undefined> {
     database,
     identityReadiness: identityGateway,
     migrationStatus: new DrizzleMigrationStatusRepository({ database: database.db }),
+    /**
+     * Spec 078: a revisão publicada, para o descompasso entre API e bundle deixar de ser mudo.
+     * Ausente vira `unknown` no próprio serviço — nunca campo que some do corpo.
+     */
+    ...(process.env.DEPLOYED_REVISION === undefined
+      ? {}
+      : { revision: process.env.DEPLOYED_REVISION }),
   })
   const messaging = config.messaging
   const notificationQueue =
@@ -596,6 +652,7 @@ export function bootstrap(): Bun.Server<undefined> {
       keycloak: config.keycloak,
       logger,
       postalCodeProviders: config.postalCodeProviders,
+      routingMatrixUrl: config.routingMatrixUrl,
       routeOptimizationQueue,
       vehicleCatalog: config.vehicleCatalog,
     }),
@@ -877,6 +934,7 @@ type CreateApplicationRoutesParams = {
   readonly keycloak: ApiEnvironment['keycloak']
   readonly logger: ApiLogger
   readonly postalCodeProviders: ApiEnvironment['postalCodeProviders']
+  readonly routingMatrixUrl: ApiEnvironment['routingMatrixUrl']
   /** Ausente sem broker: sem quem resolva, a rota de sugestão não sobe (ADR-0044 §7). */
   readonly routeOptimizationQueue: RouteOptimizationQueue | undefined
   readonly vehicleCatalog: ApiEnvironment['vehicleCatalog']
@@ -895,6 +953,7 @@ function createApplicationRoutes({
   keycloak,
   logger,
   postalCodeProviders,
+  routingMatrixUrl,
   routeOptimizationQueue,
   vehicleCatalog,
 }: CreateApplicationRoutesParams): readonly ReturnType<
@@ -956,6 +1015,7 @@ function createApplicationRoutes({
   const scheduledDistributionRepository = new DrizzleScheduledDistributionRepository(database)
   const distributionCursorRepository = new DrizzleDistributionCursorRepository(database)
   const cargoSettingsRepository = new DrizzleCargoSettingsRepository(database)
+  const cargoVolumeFactorRepository = new DrizzleCargoVolumeFactorRepository(database)
   const fuelPriceRepository = new DrizzleFuelPriceRepository(database)
   const companyEnergyRepository = new DrizzleCompanyEnergyRepository(database)
   const companyLogoRepository = new DrizzleCompanyLogoRepository(database)
@@ -1011,6 +1071,7 @@ function createApplicationRoutes({
   })
   const driverFieldReports = new DrizzleDriverFieldReportUnitOfWork(database)
   const deliveryProofRepository = new DrizzleDeliveryProofRepository(database)
+  const deliveryProofSettingsRepository = new DrizzleDeliveryProofSettingsRepository(database)
   const tripLifecycle = createTripLifecycleUseCase({
     batchRepository: tripDocumentBatchRepository,
     deliveryAddressOverrideRepository,
@@ -1102,6 +1163,10 @@ function createApplicationRoutes({
       fetch: (target, init) => fetch(target, init),
     }),
   })
+  /** O relatório de endereços a corrigir, alimentado pelo lote de medição (spec 084, ADR-0061). */
+  const readAddressReport = createReadAddressReportUseCase({
+    repository: createDrizzleAddressReportRepository(database),
+  })
   const mdfeManifests = createMdfeManifestsUseCase({ repository: mdfeManifestRepository })
   const previewMdfeManifest = createPreviewMdfeManifestUseCase({
     repository: mdfeManifestRepository,
@@ -1132,6 +1197,9 @@ function createApplicationRoutes({
     unitOfWork: cteEmissionProfileRepository,
   })
   const envelopeProvider = createSecretEnvelopeProvider(envelopeKeyRing)
+  const deliveryProofDocumentSecrets = createDeliveryProofDocumentSecretService({
+    envelopeProvider,
+  })
   const nfseEmissionProfiles = createNfseEmissionProfilesUseCase({
     fingerprintService,
     unitOfWork: nfseProfileRepository,
@@ -1334,6 +1402,11 @@ function createApplicationRoutes({
       get: createGetCargoSettingsUseCase({ cargoSettings: cargoSettingsRepository }),
       set: createSetDefaultVolumeWeightUseCase({ cargoSettings: cargoSettingsRepository }),
     }),
+    ...createCargoVolumeFactorRoutes({
+      list: createListCargoVolumeFactorsUseCase({ factors: cargoVolumeFactorRepository }),
+      remove: createRemoveCargoVolumeFactorUseCase({ factors: cargoVolumeFactorRepository }),
+      save: createSaveCargoVolumeFactorUseCase({ factors: cargoVolumeFactorRepository }),
+    }),
     ...createCompanyContactsRoutes({ companyContacts }),
     ...createFuelPriceRoutes({
       adjust: createAdjustFuelPriceUseCase({ fuelPrices: fuelPriceRepository }),
@@ -1360,7 +1433,7 @@ function createApplicationRoutes({
       ? []
       : createRouteSuggestionRoutes({
           geocodedAddressCorrection: createGeocodedAddressCorrectionUseCase({
-            repository: createDrizzleGeocodedAddressRepository(database),
+            repository: createDrizzleGeocodedAddressCorrectionRepository(database),
           }),
           refineAddress: createRefineAddressUseCase({
             components: createDrizzleAddressComponentsSource(database),
@@ -1450,6 +1523,7 @@ function createApplicationRoutes({
       driverAvailability: { execute: (input) => fleetDrivers.checkAvailability(input) },
       driverVehicles: {
         list: (input) => fleetDriverVehicles.list(input),
+        listPairs: (input) => fleetDriverVehicles.listPairs(input),
         replace: (input) => fleetDriverVehicles.replace(input),
       },
       listDrivers: { execute: (input) => fleetDrivers.list(input) },
@@ -1460,6 +1534,7 @@ function createApplicationRoutes({
     }),
     ...createFleetCatalogRoutes({ vehicleCatalog: fleetVehicleCatalog }),
     ...createPostalCodeRoutes({ lookup: lookupPostalCode }),
+    ...createAddressReportRoutes({ readReport: readAddressReport }),
     ...createFleetDriverRegionRoutes({
       listCoverage: { execute: (input) => fleetDriverRegions.list(input) },
       replaceCoverage: { execute: (input) => fleetDriverRegions.replace(input) },
@@ -1577,16 +1652,53 @@ function createApplicationRoutes({
       resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
       setConsent: (input) => tripLocationRepository.setConsent(input),
     }),
+    ...createDeliveryProofSettingsRoutes({
+      listOverrides: (input) => deliveryProofSettingsRepository.listOverrides(input),
+      readSettings: (input) => deliveryProofSettingsRepository.readSettings(input),
+      replaceOverrides: (input) => deliveryProofSettingsRepository.replaceOverrides(input),
+      saveSettings: (input) => deliveryProofSettingsRepository.saveSettings(input),
+    }),
     ...createMeTripRoutes({
+      /**
+       * Spec 079: o motorista registra a ocorrência do celular. **Sem notificador**: quem despachou
+       * a viagem é justamente quem receberia o aviso, e ele não precisa ser avisado de algo que o
+       * motorista acabou de contar por rádio. O aviso configurável é do registro feito no
+       * escritório.
+       */
+      registerDriverOccurrence: (input) =>
+        registerDriverOccurrence({
+          ...input,
+          repository: {
+            findOccurrenceType: (query) => findOccurrenceType(database, query),
+            findReachableDocument: (query) => findDriverReachableDocument(database, query),
+            listDocumentProducts: (query) => listDocumentProducts(database, query),
+            saveOccurrence: (query) => saveTripOccurrence(database, query),
+          },
+        }),
       attachProof: (input) =>
         attachDeliveryProof({
           ...input,
           newObjectId: () => crypto.randomUUID(),
+          newProofId: () => crypto.randomUUID(),
           repository: deliveryProofRepository,
+          sealDocument: (seal) => deliveryProofDocumentSecrets.encrypt(seal),
           storage: createDeliveryProofStorage({
             bucket: storageBucket,
             storage: storageGateway,
           }),
+        }),
+      /** ADR-0058: o mesmo `dispatchTrip` do escritório, recortado pelo vínculo — sem `force`. */
+      dispatchCurrentTrip: (input) =>
+        dispatchDriverTrip({
+          ...input,
+          dispatch: (request) =>
+            dispatchTrip({
+              actorUserId: request.actorUserId,
+              companyId: input.companyId,
+              repository: tripRouteRepository,
+              tripId: request.tripId,
+            }),
+          linkage: currentDriverTripRepository,
         }),
       findCurrentTrip: (input) =>
         findCurrentDriverTrip({ ...input, repository: currentDriverTripRepository }),
@@ -1600,6 +1712,20 @@ function createApplicationRoutes({
         reportStopOccurrence({
           ...input,
           attachmentObjectId: null,
+          /**
+           * Spec 082 D8: o aviso do motivo tipado sai pelo trilho `notification.v1` que já
+           * existe — o `sendNotification` do módulo enfileira no RabbitMQ e o worker consome e
+           * renderiza. Nenhuma fila nova; motivo sem template grava e segue.
+           */
+          notifier: createStopOccurrenceNotifier({
+            logger,
+            queryable: database,
+            send: (params) =>
+              notifications.useCases.sendNotification.execute({
+                ...params,
+                locale: NOTIFICATION_DEFAULT_LOCALE,
+              } as never),
+          }),
           suggestCharges: suggestDeliveryCharges,
           unitOfWork: driverFieldReports,
         }),
@@ -1613,7 +1739,164 @@ function createApplicationRoutes({
       closeTrip: { execute: (input) => trips.close(input) },
       createTrip: { execute: (input) => trips.create(input) },
       createTripMdfeManifest: { execute: (input) => createTripMdfeManifest.execute(input) },
-      deliverTripDocument: { execute: (input) => trips.deliverDocument(input) },
+      deliverTripDocument: { execute: (input) => tripLifecycle.deliver.execute(input) },
+      listOccurrenceTypes: {
+        execute: (input) => listOccurrenceTypes(database, { companyId: input.context.companyId }),
+      },
+      saveOccurrenceType: {
+        execute: (input) =>
+          saveOccurrenceTypeWithTemplate({
+            companyId: input.context.companyId,
+            save: (values) =>
+              saveOccurrenceType(database, { ...values, companyId: input.context.companyId }),
+            templates: {
+              /**
+               * O predicado consulta o catálogo do módulo — a mesma fonte que a tela de templates
+               * edita. Chave sem template ativo de e-mail é recusada na gravação, não no envio.
+               */
+              hasActiveEmailTemplate: async ({ companyId, templateKey }) => {
+                const templates = await notifications.useCases.listTemplates.execute({ companyId })
+                return templates.some(
+                  (template) =>
+                    template.key === templateKey && template.channel === 'email' && template.active,
+                )
+              },
+            },
+            values: {
+              active: input.active,
+              emailBody: input.emailBody,
+              emailSubject: input.emailSubject,
+              emailTemplateKey: input.emailTemplateKey,
+              name: input.name,
+              notifies: input.notifies,
+              occurrenceTypeId: input.occurrenceTypeId,
+              stage: input.stage,
+            },
+          }),
+      },
+      listTripOccurrences: {
+        execute: (input) =>
+          listTripOccurrences(database, {
+            companyId: input.context.companyId,
+            documentId: input.documentId,
+            tripId: input.tripId,
+          }),
+      },
+      listTripOccurrenceFeed: createListTripOccurrenceFeedUseCase({
+        reader: {
+          listAttachmentLocations: (query) =>
+            listTripOccurrenceAttachmentLocations(database, query),
+          listFeed: (query) => listTripOccurrenceFeed(database, query),
+        },
+      }),
+      readTripOccurrenceAttachments: createReadTripOccurrenceAttachmentsUseCase({
+        downloads: createDeliveryProofDownloadGateway({ storage: storageGateway }),
+        reader: {
+          listAttachmentLocations: (query) =>
+            listTripOccurrenceAttachmentLocations(database, query),
+          listFeed: (query) => listTripOccurrenceFeed(database, query),
+        },
+      }),
+      registerTripOccurrence: {
+        execute: async (input) =>
+          registerTripOccurrence({
+            actorUserId: input.context.userId,
+            companyId: input.context.companyId,
+            documentId: input.documentId,
+            note: input.note,
+            /**
+             * Spec 079: o aviso sai **se** a empresa ligou aquele tipo. A leitura da configuração
+             * acontece por registro — é uma consulta pequena, por empresa, e cacheá-la faria a
+             * escolha recém-salva demorar a valer sem ninguém entender por quê.
+             */
+            notificationParameters: {
+              ...(await readOccurrenceLabels(database, {
+                companyId: input.context.companyId,
+                documentId: input.documentId,
+                tripId: input.tripId,
+              })),
+              /** O nome do tipo é preenchido pelo caso de uso, que é quem lê o cadastro. */
+              occurrenceType: '',
+              tripId: input.tripId,
+            },
+            notifier: createOccurrenceNotifier({
+              logger,
+              queryable: database,
+              send: (params) =>
+                notifications.useCases.sendNotification.execute({
+                  ...params,
+                  locale: NOTIFICATION_DEFAULT_LOCALE,
+                } as never),
+            }),
+            occurrenceTypeId: input.occurrenceTypeId,
+            /** A data que o modelo imprime é a de agora: a ocorrência é registrada quando acontece. */
+            occurredOn: new Date().toLocaleDateString('pt-BR'),
+            productCode: input.productCode,
+            repository: {
+              findOccurrenceType: (query) => findOccurrenceType(database, query),
+              listDocumentProducts: (query) => listDocumentProducts(database, query),
+              listOccurrences: (query) => listTripOccurrences(database, query),
+              readTemplateValues: (query) => readOccurrenceTemplateValues(database, query),
+              saveOccurrence: (query) => saveTripOccurrence(database, query),
+            },
+            tripId: input.tripId,
+          }),
+      },
+      readTripDocumentProducts: {
+        execute: (input) =>
+          readTripDocumentProducts({
+            companyId: input.context.companyId,
+            documentId: input.documentId,
+            repository: {
+              listDocumentProducts: (query) => listDocumentProducts(database, query),
+            },
+            tripId: input.tripId,
+          }),
+      },
+      /**
+       * Spec 079: a linha da estrada para o mapa. Sem `ROUTING_MATRIX_URL` a porta devolve `null` e
+       * a tela volta a ligar as paradas em reta — **dizendo que são retas**, nunca fingindo estrada.
+       */
+      /**
+       * A mesma porta e o mesmo caso de uso da geometria da viagem — muda só a origem dos pontos.
+       * Sem `ROUTING_MATRIX_URL` ela devolve `unavailable`, e a tela volta a ligar em reta **dizendo
+       * que são retas**.
+       */
+      readRouteGeometry: {
+        execute: (input) =>
+          readRouteGeometry({
+            geometry:
+              routingMatrixUrl === undefined
+                ? { readRouteGeometry: async () => null }
+                : createOsrmRouteGeometryGateway({ baseUrl: routingMatrixUrl }),
+            stops: input.points,
+          }),
+      },
+      readTripRouteGeometry: {
+        execute: async (input) =>
+          readRouteGeometry({
+            geometry:
+              routingMatrixUrl === undefined
+                ? { readRouteGeometry: async () => null }
+                : createOsrmRouteGeometryGateway({ baseUrl: routingMatrixUrl }),
+            stops: await listTripStopCoordinates(database, {
+              companyId: input.context.companyId,
+              tripId: input.tripId,
+            }),
+          }),
+      },
+      readDeliveryProofs: {
+        execute: (input) =>
+          readDeliveryProofs({
+            companyId: input.context.companyId,
+            documentId: input.documentId,
+            downloads: createDeliveryProofDownloadGateway({ storage: storageGateway }),
+            repository: {
+              listDeliveryProofs: (query) => listDeliveryProofs(database, query),
+            },
+            tripId: input.tripId,
+          }),
+      },
       dispatchTrip: { execute: (input) => tripLifecycle.dispatch.execute(input) },
       createTripCteBatch: {
         execute: async (input) => {
@@ -1718,6 +2001,18 @@ function createApplicationRoutes({
           }),
       },
       linkTripDocument: { execute: (input) => trips.linkDocument(input) },
+      linkTripDocumentsBatch: createLinkTripDocumentsBatchUseCase({ repository: tripRepository }),
+      previewValuation: {
+        execute: (input) =>
+          previewTripValuation({
+            ...input,
+            repository: {
+              findApplicableRule: (query) => applicableFreightRuleQuery.findApplicableRule(query),
+              readContext: (query) => tripValuationQuery.readContext(query),
+              readPreviewContext: (query) => tripValuationQuery.readPreviewContext(query),
+            },
+          }),
+      },
       listStops: { execute: (input) => tripLifecycle.listStops.execute(input) },
       listTrips: { execute: (input) => trips.list(input) },
       loadTripDocument: { execute: (input) => tripLifecycle.load.execute(input) },

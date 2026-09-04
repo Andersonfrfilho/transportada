@@ -54,8 +54,12 @@
     "selectionCount_other": "{{count}} notas selecionadas",
     "selectionClear": "Limpar seleção",
     "progressLabel": "Progresso da separação da viagem",
+    "processCount": "{{reached}} de {{total}}",
+    "processReturned": "{{count}} nota(s) devolvida(s) — fora do fluxo",
     "arrivedAt": "Chegou às {{time}}",
-    "completedAt": "Concluída às {{time}}"
+    "completedAt": "Concluída às {{time}}",
+    "estimatedCompletion": "Previsão de término: {{moment}} (estimativa pelo ritmo das paradas já concluídas)",
+    "withoutEstimate": "Sem previsão de término: ainda não há paradas concluídas suficientes para medir o ritmo."
   },
   "deliveryOverride": {
     "menuAction": "Desviar entrega",
@@ -88,6 +92,7 @@
   "actions": {
     "title": "Ações",
     "view": "Ver",
+    "viewTrip": "Abrir a viagem de {{vehicle}}",
     "create": "Criar viagem",
     "resetCreation": "Limpar rascunho",
     "deliver": "Marcar entregue",
@@ -98,13 +103,15 @@
     "linkDocument": "Vincular",
     "close": "Encerrar viagem",
     "backToList": "Voltar às viagens",
-    "issueMdfe": "Emitir MDF-e"
+    "issueMdfe": "Emitir MDF-e",
+    "viewProof": "Comprovante"
   },
   "stateActions": {
     "title": "Ações da viagem",
     "batchSeparate": "Separar {{count}} nota(s)",
     "batchLoad": "Carregar {{count}} nota(s)",
     "batchReturn": "Devolver {{count}} nota(s)",
+    "generateCteSelection": "Gerar CT-e de {{count}} nota(s) marcada(s)",
     "planRoute": "Planejar rota",
     "dispatch": "Despachar",
     "cancel": "Cancelar viagem",
@@ -152,7 +159,7 @@
   },
   "detail": {
     "title": "Detalhe da viagem",
-    "vehicle": "Veículo: {{vehicleId}}",
+    "vehicle": "Veículo: {{vehicle}}",
     "drivers": "Motoristas",
     "documentColumn": "Nota",
     "fiscalStatusColumn": "Situação fiscal",
@@ -179,7 +186,8 @@
     "scanQueueResolving": "Procurando a nota…",
     "scanQueueLinking": "Vinculando à viagem…",
     "scanQueueLinked": "Vinculada",
-    "scanQueueClear": "Limpar leituras"
+    "scanQueueClear": "Limpar leituras",
+    "refreshNow": "Atualizar agora"
   },
   "feedback": {
     "closed": "Esta viagem já está encerrada.",
@@ -245,5 +253,345 @@
     "dispenseTitle": "Dispensar o MDF-e desta viagem",
     "dispenseSubtitle": "A viagem tem nota de CT-e. Circular sem manifesto é multa e retenção em barreira — o motivo fica registrado.",
     "dispenseReasonLabel": "Motivo da dispensa"
+  },
+  "occupancy": {
+    "title": "Ocupação do veículo",
+    "ratio": "{{percent}}% do baú",
+    "loaded": "{{loaded}} m³ de {{capacity}} m³",
+    "estimated": "Valor estimado: a nota fiscal não traz medida da carga, e o cálculo usa o fator de cubagem por volume configurado.",
+    "capacityReference": "A capacidade é referência do tipo de veículo, não medida deste baú. Preencha as dimensões na ficha para o número ficar exato.",
+    "withoutVolume": "{{count}} nota sem cubagem não entrou na conta.",
+    "withoutVolume_other": "{{count}} notas sem cubagem não entraram na conta.",
+    "dimensions": "Baú de {{length}} × {{width}} × {{height}} m = {{volume}} m³."
+  },
+  "cargoWeight": {
+    "title": "Peso da carga",
+    "total": "{{weight}} kg",
+    "estimated": "Peso estimado: o emitente não declarou o peso de nenhum volume desta carga, e o cálculo usa o peso por volume configurado.",
+    "withoutWeight": "{{count}} nota sem peso não entrou na conta.",
+    "withoutWeight_other": "{{count}} notas sem peso não entraram na conta."
+  },
+  "deliveryProof": {
+    "title": "Comprovante da entrega",
+    "deliveredAt": "Entregue em {{moment}}",
+    "receiver": "Recebido por {{name}}",
+    "withoutProof": "Entrega registrada sem comprovante anexado.",
+    "notDelivered": "Esta nota ainda não foi entregue.",
+    "returned": "Nota devolvida: {{reason}}",
+    "returnedWithoutReason": "Nota devolvida.",
+    "photoAlt": "Foto do comprovante de entrega",
+    "signatureAlt": "Assinatura de quem recebeu a carga",
+    "open": "Abrir em tamanho real",
+    "products": "O que vai na nota",
+    "productLine": "{{quantity}} {{unit}} · {{description}}",
+    "withoutProducts": "Esta nota não tem itens registrados."
+  },
+  "cargo": {
+    "title": "Carga da viagem"
+  },
+  "cargoLayout": {
+    "title": "Mapa de carga do baú",
+    "loadOrderHint": "A ordem de carregamento é o inverso da de entrega: a última parada da rota viaja no fundo, e a primeira fica na porta.",
+    "bottom": "fundo (última parada)",
+    "door": "porta (primeira parada)",
+    "slice": "{{order}}º a carregar — {{label}} · {{volume}} m³",
+    "overflow": "Passa {{volume}} m³ da capacidade do veículo.",
+    "withoutVolume": "Sem cubagem, e por isso fora do mapa: {{stops}}.",
+    "estimated": "As fatias saem da cubagem estimada, não de medida da carga."
+  },
+  "destinationOrigin": {
+    "delivery": "Entrega",
+    "deliveryHint": "O endereço veio do campo de entrega da nota, não do cadastro do destinatário"
+  },
+  "occurrence": {
+    "title": "Ocorrências",
+    "register": "Registrar ocorrência",
+    "none": "Nenhuma ocorrência registrada.",
+    "noteLabel": "Observação",
+    "submit": "Registrar",
+    "cancel": "Cancelar",
+    "line": "{{type}} — {{moment}}",
+    "notificationsTitle": "Tipos de ocorrência",
+    "notificationsHint": "Cadastre os tipos que a operação usa. O aviso vai para quem despachou a viagem, e só nos tipos marcados — o padrão é não avisar.",
+    "stageSeparation": "No galpão",
+    "stageDelivery": "Na rua",
+    "name": "Nome do tipo",
+    "stage": "Onde acontece",
+    "notifies": "Avisar quando acontecer",
+    "active": "Em uso",
+    "add": "Cadastrar tipo",
+    "empty": "Nenhum tipo cadastrado ainda. Cadastre o primeiro para poder registrar ocorrências.",
+    "product": "Item da nota",
+    "wholeDocument": "A nota inteira",
+    "emailSubject": "Assunto do e-mail",
+    "emailBody": "Texto do e-mail",
+    "placeholders": "Marcadores disponíveis: {{list}}. Um marcador fora da lista é recusado ao salvar.",
+    "withoutTemplate": "Sem e-mail: este tipo só fica registrado na viagem.",
+    "emailReady": "E-mail pronto para enviar ao embarcador — confira antes de mandar.",
+    "copyEmail": "Copiar e-mail",
+    "emailTemplate": "Modelo de e-mail",
+    "emailTemplateNone": "Sem e-mail",
+    "legacyTemplate": "{{subject}} — modelo próprio (legado)",
+    "editTemplates": "Editar modelos de e-mail"
+  },
+  "routeMap": {
+    "title": "Mapa do roteiro",
+    "withoutLocation": "Sem localização no mapa: {{stops}}",
+    "basemapLabel": "Contorno do município",
+    "stopLabel": "Parada {{sequence}}: {{label}}",
+    "correct": "Corrigir ponto no mapa",
+    "correctionScope": "A correção é do endereço, não desta viagem: ela vale para todas as viagens que passarem por este portão.",
+    "latitude": "Latitude",
+    "longitude": "Longitude",
+    "save": "Salvar ponto",
+    "cancel": "Cancelar",
+    "trace": {
+      "road": "A linha segue a estrada, pela ordem das paradas.",
+      "straight": "Linha reta entre as paradas — o traçado por estrada não está disponível agora."
+    }
+  },
+  "contact": {
+    "recipient": "Recebe: {{name}}",
+    "phone": "Telefone: {{phone}}",
+    "withoutPhone": "Sem telefone na nota",
+    "contractor": "Contratante: {{name}}"
+  },
+  "tabs": {
+    "trips": "Viagens",
+    "notifications": "Avisos",
+    "proof": "Comprovante"
+  },
+  "assemblyMap": {
+    "empty": "Sem cidade para desenhar ainda — bipe ou selecione uma nota.",
+    "moveDown": "Descer {{label}}",
+    "moveUp": "Subir {{label}}",
+    "nearby": "Perto e fora da seleção: {{cities}}.",
+    "nearbyLabel": "Fora da seleção: {{label}}",
+    "propose": "Propor ordem",
+    "proposeHint": "A proposta liga as cidades pela mais próxima em linha reta. A distância pela estrada sai do roteirizador depois que a viagem é criada.",
+    "stopLabel": "Parada {{sequence}}: {{label}}",
+    "title": "Mapa da montagem",
+    "unmapped": "Sem desenho na malha do IBGE: {{cities}}.",
+    "nearbyMore": "Perto e fora da seleção: {{cities}} e mais {{count}} cidades.",
+    "basemapLabel": "Divisa do município",
+    "zoomIn": "Aproximar o mapa",
+    "zoomOut": "Afastar o mapa",
+    "recenter": "Recentrar o mapa",
+    "legTime": "{{distance}} km · {{duration}} até a próxima",
+    "totalTime": "Tempo do roteiro: {{duration}} — estrada medida pelo roteirizador, mais 20 min parados por entrega.",
+    "traceLabel": "Ordem das paradas",
+    "trace": {
+      "road": "A linha é a estrada que o roteirizador devolveu.",
+      "straight": "A linha é reta entre as paradas — o roteirizador ainda não respondeu por este trecho."
+    },
+    "withoutBasemap": "Mapa de rua indisponível — os pontos e a ordem continuam válidos",
+    "theme": "Mudar a leitura do mapa para {{theme}}",
+    "themes": {
+      "claro": "claro",
+      "contraste": "alto contraste",
+      "escuro": "escuro"
+    },
+    "loading": "Carregando o mapa da montagem",
+    "solve": "Melhor rota",
+    "solving": "Calculando…",
+    "solveNeedsVehicle": "A melhor rota usa o roteirizador — escolha o veículo, porque a capacidade dele muda o caminho.",
+    "solveFailed": "O roteirizador não respondeu. A ordem atual continua valendo.",
+    "finish": "Término previsto {{time}} · {{distance}} km · {{total}} de roteiro.",
+    "finishWarning": "⚠️ Cai em {{reasons}} — confira se há expediente.",
+    "approximate": "⚠️ Posição aproximada — só o município é conhecido, o ponto é o centro dele."
+  },
+  "quickCreate": {
+    "title": "Nova viagem",
+    "intro": "Bipe ou digite a chave das notas que saem juntas. Só entram notas que ainda não estão em nenhuma viagem.",
+    "accessKey": "Chave de acesso",
+    "accessKeyPlaceholder": "44 caracteres impressos sob o código de barras",
+    "add": "Acrescentar",
+    "scan": "Ler com a câmera",
+    "close": "Fechar",
+    "cancel": "Cancelar",
+    "submit": "Criar viagem",
+    "remove": "Retirar esta nota",
+    "empty": "Nenhuma nota lida ainda.",
+    "resolving": "Procurando a nota…",
+    "staged": "Pronta para entrar",
+    "stagedCount": "{{count}} nota entra na viagem.",
+    "stagedCount_other": "{{count}} notas entram na viagem.",
+    "failed": "Não foi possível criar a viagem. Confira as notas e tente de novo.",
+    "refusal": {
+      "alreadyOnTrip": "Já está em outra viagem",
+      "lookupFailed": "Não foi possível consultar",
+      "notAuthorized": "Não está autorizada na SEFAZ",
+      "notFound": "Não encontrada nesta empresa"
+    },
+    "issue": {
+      "noDocument": "Leia ao menos uma nota disponível.",
+      "driverRequired": "Selecione ao menos um motorista.",
+      "vehicleRequired": "Selecione o veículo da viagem."
+    },
+    "search": "Buscar notas",
+    "searchTerm": "Busca",
+    "searchTermPlaceholder": "Emitente, destinatário ou chave",
+    "searchResult": "{{count}} nota encontrada.",
+    "searchResult_other": "{{count}} notas encontradas.",
+    "selectAll": "Selecionar todas da página",
+    "stageSelected": "Acrescentar {{count}} nota",
+    "stageSelected_other": "Acrescentar {{count}} notas",
+    "stageFiltered": "Acrescentar as {{count}} do filtro",
+    "columns": {
+      "number": "Nota",
+      "recipient": "Destinatário",
+      "address": "Endereço",
+      "city": "Cidade"
+    },
+    "selectAllFiltered": "Selecionar as {{count}} do filtro",
+    "clearFilteredSelection": "Desmarcar as {{count}} do filtro"
+  },
+  "routeAssembly": {
+    "title": "Montar roteiro pela busca de notas",
+    "intro": "Busque as notas que saem juntas com os mesmos filtros da tela de notas e escolha a frota. O roteirizador reparte a carga entre os veículos e cria uma viagem para cada um.",
+    "drivers": "Motoristas",
+    "vehicles": "Veículos",
+    "vehiclesPlaceholder": "Escolher veículos",
+    "vehiclesSearch": "Buscar por placa, marca ou modelo",
+    "vehiclesNoMatch": "Nenhum veículo encontrado",
+    "vehiclesSummary": "{{count}} veículo escolhido",
+    "vehiclesSummary_other": "{{count}} veículos escolhidos",
+    "vehiclesRemove": "Retirar este veículo",
+    "vehiclesClearAll": "Retirar todos",
+    "selection": "{{count}} nota no lote",
+    "selection_other": "{{count}} notas no lote",
+    "alreadyOnTrip": "{{count}} já está em outra viagem e fica de fora.",
+    "alreadyOnTrip_other": "{{count}} já estão em outra viagem e ficam de fora.",
+    "submit": "Montar roteiro",
+    "pending": "Roteirizando…",
+    "loadingDocuments": "Carregando as notas…",
+    "outcomeAutomatic": "{{count}} viagem criada pela recomendação.",
+    "outcomeAutomatic_other": "{{count}} viagens criadas pela recomendação.",
+    "failure": {
+      "timeout": "O roteirizador não respondeu a tempo. O pedido continua na fila e será processado quando o serviço voltar — acompanhe as viagens em vez de pedir de novo, porque um segundo pedido roteiriza as mesmas notas duas vezes.",
+      "stale": "As notas mudaram enquanto o roteiro era montado. Refaça a busca e peça de novo.",
+      "network": "Não foi possível falar com o servidor. Confira a conexão e tente de novo.",
+      "unknown": "Não foi possível montar o roteiro. Informe este código ao suporte: {{code}}."
+    },
+    "issue": {
+      "driverRequired": "Selecione ao menos um motorista.",
+      "vehicleRequired": "Selecione ao menos um veículo.",
+      "noDocument": "Acrescente ao menos uma nota disponível pela busca."
+    },
+    "boundByDriver": "{{count}} veículo veio junto com o motorista e sai da viagem só se ele sair.",
+    "boundByDriver_other": "{{count}} veículos vieram junto com os motoristas e saem da viagem só se eles saírem.",
+    "allDrivers": "Todos ({{count}})",
+    "clearDrivers": "Nenhum",
+    "allVehicles": "Todos ({{count}})",
+    "clearVehicles": "Nenhum"
+  },
+  "valuation": {
+    "title": "O que esta viagem rende e custa",
+    "revenue": "Receita prevista",
+    "cost": "Custo previsto",
+    "margin": "Margem",
+    "loading": "Calculando os valores…",
+    "empty": "Escolha as notas e o veículo para ver os valores.",
+    "gaps": "Ainda falta: {{reasons}}.",
+    "gap": {
+      "FEATURE_ABSENT": "módulo ainda não usado",
+      "NO_DRIVER_RATE": "rota do agregado sem valor cadastrado",
+      "NO_FEDERAL_REGIME": "regime federal não declarado",
+      "NO_FREIGHT_RULE": "sem regra de frete para o destino",
+      "NO_FUEL_BASELINE": "consumo do veículo ou preço do combustível sem cadastro",
+      "NO_PLANNED_DISTANCE": "roteiro ainda não calculado — o combustível entra depois",
+      "NOT_RECORDED": "ninguém lançou",
+      "SALARIED_CREW_MEMBER": "há motorista assalariado — custo do período, não da viagem"
+    },
+    "operating": "Custo da operação",
+    "taxes": "Imposto sobre o frete"
+  },
+  "table": {
+    "copyPlate": "Copiar a placa {{plate}}",
+    "plateCopied": "Placa copiada",
+    "withoutDriver": "Sem motorista"
+  },
+  "deliveryProofSettings": {
+    "title": "Comprovante de entrega",
+    "hint": "O que o motorista precisa colher ao entregar. Sem configuração gravada vale o padrão de fábrica: documento desligado, o resto oferecido.",
+    "error": "Não foi possível carregar ou gravar a configuração do comprovante.",
+    "save": "Salvar configuração",
+    "fields": {
+      "receiverName": "Nome do recebedor",
+      "receiverDocument": "Documento do recebedor",
+      "signature": "Assinatura",
+      "photo": "Foto"
+    },
+    "modes": {
+      "required": "Obrigatório",
+      "optional": "Opcional",
+      "off": "Desligado"
+    },
+    "overrides": {
+      "title": "Exceções por destinatário",
+      "hint": "A exceção pelo CNPJ do destinatário vence a configuração geral por inteiro.",
+      "empty": "Nenhuma exceção cadastrada.",
+      "taxId": "CNPJ ou CPF do destinatário",
+      "add": "Adicionar exceção",
+      "remove": "Remover"
+    }
+  },
+  "occurrenceFeed": {
+    "kicker": "Operações",
+    "title": "Ocorrências",
+    "intro": "Tudo o que aconteceu com as notas e as paradas das viagens da empresa, em uma lista só.",
+    "tableTitle": "Ocorrências registradas",
+    "empty": "Nenhuma ocorrência encontrada para o filtro aplicado.",
+    "loadMore": "Carregar mais",
+    "loadingMore": "Carregando…",
+    "notified": "Aviso enviado",
+    "columns": {
+      "createdAt": "Hora",
+      "stage": "Grupo",
+      "typeName": "Tipo",
+      "vehiclePlate": "Placa",
+      "driverName": "Motorista",
+      "stopLabel": "Parada",
+      "invoice": "Nota",
+      "notified": "Aviso"
+    },
+    "columnsMenu": {
+      "title": "Colunas",
+      "moveUp": "Mover para cima",
+      "moveDown": "Mover para baixo"
+    },
+    "stage": {
+      "separation": "Separação",
+      "delivery": "Entrega",
+      "stop": "Parada"
+    },
+    "kind": {
+      "unexpected_charge": "Cobrança inesperada",
+      "long_wait": "Espera longa",
+      "dock_closed": "Doca fechada",
+      "appointment_required": "Exige agendamento",
+      "other": "Outra"
+    },
+    "filters": {
+      "title": "Filtros",
+      "stage": "Grupo",
+      "stageEmpty": "Nenhum grupo encontrado",
+      "stageSearch": "Buscar grupo",
+      "stageSummary": "{{count}} selecionados",
+      "removeStage": "Remover grupo",
+      "types": "Tipos",
+      "typesPlaceholder": "Nomes separados por vírgula",
+      "plates": "Placas",
+      "platesPlaceholder": "Placas separadas por vírgula",
+      "createdRange": "Período"
+    },
+    "detail": {
+      "title": "Detalhe",
+      "open": "Detalhar",
+      "close": "Fechar",
+      "noDescription": "Sem descrição registrada.",
+      "photoAlt": "Foto anexada à ocorrência",
+      "closePhoto": "Fechar foto"
+    }
   }
 }

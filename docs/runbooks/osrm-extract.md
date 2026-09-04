@@ -14,8 +14,10 @@ Você precisa disto quando:
   as paradas de fora viram pares inalcançáveis, e a sugestão as separa com aviso;
 - o mapa envelheceu a ponto de a rota divergir da rua (uma via nova, um binário que inverteu).
 
-> O mesmo extract alimenta o `.pmtiles` do painel (ADR-0044 §6). Refez um, considere refazer o outro
-> — eles descrevendo mapas de datas diferentes é como o mapa e a rota discordarem na tela.
+> O mesmo extract alimenta o `.pmtiles` do painel (ADR-0044 §6), e nos serviços implantados os dois
+> leem a **mesma** constante `OSM_EXTRACT_URL`. Em produção, refazer é `make map-refresh CONFIRM=1`,
+> que reconstrói os dois juntos — mapa e rota descrevendo datas diferentes é a tela e o roteirizador
+> discordando de onde a rua está, e isso não dá erro nenhum.
 
 ## O que é preciso
 
@@ -35,8 +37,14 @@ metropolitana recortada — processa em minutos e responde igual onde importa.
 
 ```bash
 mkdir -p deploy/osrm/data && cd deploy/osrm/data
-curl -O https://download.geofabrik.de/south-america/brazil/sudeste-latest.osm.pbf
+curl -O https://download.geofabrik.de/south-america/brazil/sudeste-260903.osm.pbf
 ```
+
+⚠️ **Use o arquivo datado, nunca `-latest`.** `-latest` não quer dizer "se atualiza": quer dizer
+"seja qual for o arquivo do dia em que alguém baixar". Com ele, duas máquinas — ou dois builds da
+mesma máquina em semanas diferentes — produzem mapas diferentes, e nada registra qual está rodando.
+A data em uso pelos serviços implantados é a constante `OSM_EXTRACT_URL` de `.railway/railway.ts`, e
+é dela que este comando deve copiar. O Geofabrik mantém os datados por cerca de 90 dias.
 
 Para recortar uma área menor que o estado, use `osmium extract` com uma bbox antes do passo abaixo.
 

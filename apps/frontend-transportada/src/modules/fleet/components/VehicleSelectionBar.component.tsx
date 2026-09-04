@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { COPY_FEEDBACK_MILLISECONDS } from '@/modules/shared/clipboard.constant'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { saveArchiveFile } from '@/modules/shared/archiveDownload.service'
@@ -17,8 +18,6 @@ import {
   type VehicleExportColumn,
 } from '../shared/vehicleSelectionExport.service'
 import styles from '../styles/fleet.module.css'
-
-const COPY_FEEDBACK_MILLISECONDS = 2_000
 
 /** Coluna cujo valor é slug fechado: o arquivo leva o rótulo que o operador lê na tela. */
 const EXPORT_VALUE_KEY_PREFIX: Readonly<Partial<Record<VehicleExportColumn, string>>> = {

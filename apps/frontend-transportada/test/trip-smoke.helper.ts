@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import type { TripDetailContract } from './trip/trip.fixture'
 import { type Page, type Route } from '@playwright/test'
 
 const CORS_HEADERS = {
@@ -16,6 +17,7 @@ const NFE_DOCUMENT_ID = '00000000-0000-4000-8000-000000000606'
 
 const BASE_TRIP = {
   companyId: '00000000-0000-4000-8000-000000000001',
+  driverNames: [],
   createdAt: '2026-07-28T12:00:00.000Z',
   id: TRIP_ID,
   requiresMdfe: null,
@@ -33,6 +35,7 @@ function tripDocument(input: Readonly<{ cteAuthorized: boolean; id: string }>) {
     createdAt: '2026-07-28T12:05:00.000Z',
     cteAuthorized: input.cteAuthorized,
     deliveredAt: null,
+    destinationOrigin: null,
     fiscalStatus: input.cteAuthorized ? 'authorized' : 'unsigned',
     freightCalculationId: null,
     id: input.id,
@@ -50,7 +53,13 @@ function tripDocument(input: Readonly<{ cteAuthorized: boolean; id: string }>) {
   } as const
 }
 
-function tripDetail(mode: DocumentsMode) {
+/**
+ * ⚠️ **Anotado de propósito.** O guard do detalhe usa `hasExactKeys`: campo do corpo ausente aqui
+ * reprova a validação inteira em tempo de execução, o detalhe não carrega, e a tela fica sem botão
+ * nenhum — o smoke quebra em quatro casos e nenhum contrato de unidade acusa. Sem o tipo, só o
+ * Playwright acha (spec 075).
+ */
+function tripDetail(mode: DocumentsMode): TripDetailContract {
   const documents =
     mode === 'has-pending'
       ? [
@@ -65,6 +74,14 @@ function tripDetail(mode: DocumentsMode) {
     drivers: [
       { driverId: DRIVER_ID, driverName: 'Jose da Silva', driverTaxId: '12345678901', position: 1 },
     ],
+    /**
+     * Spec 075: o guard do detalhe usa `hasExactKeys` — campo do corpo ausente aqui reprova a
+     * validação inteira, o detalhe não carrega e a tela fica sem botão nenhum. `null` é o estado
+     * legítimo: veículo sem capacidade conhecida não mostra ocupação.
+     */
+    cargoLayout: null,
+    cargoWeight: null,
+    occupancy: null,
     // ADR-0043 §3: a viagem tem paradas. Vazia é estado legítimo — nota ainda não reconciliada.
     stops: [],
   }
@@ -239,6 +256,50 @@ async function registerTripMocks(
       return
     }
     await fulfillJson(route, { data: [BASE_TRIP], page: { nextCursor: null } })
+  })
+  /**
+   * O seletor de notas do detalhe da viagem. Ele não é exercitado por nenhum destes smokes, mas a
+   * tela o consulta ao abrir — e o smoke afirma **zero falha de rede**, então a consulta solta
+   * reprova a tela inteira por uma requisição que o teste nem usa.
+   *
+   * ⚠️ Ela ficou invisível enquanto o botão "Ver" estava com o rótulo errado: os testes paravam na
+   * lista e nunca chegavam ao detalhe. Local ela também passa despercebida, porque a API de
+   * desenvolvimento costuma estar no ar e responde de verdade — quem a pegou foi a CI, que não tem
+   * API nenhuma atrás do mock.
+   */
+  await input.page.route(/\/nfe-documents(?:\?.*)?$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, { data: [], page: { nextCursor: null } })
+  })
+  /**
+   * Spec 079: a linha da estrada. Ela precisa vir mockada **antes** do detalhe, senão o padrão
+   * `/trips/{id}` a engoliria — e o smoke afirma zero falha de rede, então uma consulta solta
+   * reprova a tela inteira por causa do mapa.
+   *
+   * `unavailable` de propósito: é o estado que a instalação sem OSRM tem, e é o que exercita o
+   * traço tracejado com a legenda de linha reta.
+   */
+  await input.page.route(/\/trips\/[^/]+\/route-geometry$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, { data: { points: [], source: 'unavailable' } })
+  })
+  /**
+   * O catálogo de tipos de ocorrência é consultado pelo detalhe da viagem. Sem este dublê o pedido
+   * escapa para a API real, que não sobe no smoke, e o `requestfailed` derruba três testes que nada
+   * têm a ver com ocorrência — foi o que aconteceu quando a tela passou a consultá-lo.
+   */
+  await input.page.route(/\/company-settings\/occurrence-types$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, { data: [] })
   })
   await input.page.route(/\/trips\/[^/]+\/fiscal-readiness$/, async (route) => {
     if (route.request().method() === 'OPTIONS') {

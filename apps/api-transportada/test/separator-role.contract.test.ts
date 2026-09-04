@@ -85,6 +85,10 @@ describe('separator role contract', () => {
     expect(reachableRoutes(['separator'])).toEqual([
       'DELETE /trips/:id/documents/:documentId',
       'GET /fleet/capabilities',
+      // spec 081: o vínculo motorista↔veículo é leitura de `fleet.read`, e o separador a alcança de
+      // propósito — é ele quem escolhe veículo e motorista ao montar a viagem. O par não carrega
+      // nada além dos dois ids, então não abre ficha de pessoa a quem só monta carga.
+      'GET /fleet/driver-vehicles',
       'GET /fleet/drivers',
       'GET /fleet/drivers/:id/vehicles',
       'GET /fleet/vehicles',
@@ -94,11 +98,69 @@ describe('separator role contract', () => {
       'GET /nfe-documents/:id/xml',
       'GET /nfe-documents/by-access-key/:accessKey/trip-location',
       'GET /trip-documents/returned-with-active-cte',
+      /**
+       * O feed de ocorrências da empresa, e o separador **lê** — decisão registrada aqui em
+       * 2026-09-04, a pedido de quem responde pelo produto.
+       *
+       * Ele já **escreve** ocorrência de separação (item faltante ou avariado, logo abaixo), e ler
+       * o feed é o outro lado do mesmo trabalho: a nota que volta do campo com problema é a que ele
+       * vai separar de novo, e descobrir isso pela ocorrência é mais barato que descobrir com a
+       * carga na mão.
+       *
+       * ⚠️ **Isto não lhe dá `trip.report`.** A ocorrência de **entrega** continua sendo do campo —
+       * quem entrega é quem a cria, e a linha entre barracão e rua da ADR-0043 segue de pé. O que
+       * mudou é que ele passa a **ver** o que o campo relatou, não a relatar por ele.
+       *
+       * ⚠️ As duas rotas entraram por `TRIP_READ_POLICY` (= `fleet.read`) numa spec paralela, sem
+       * passar por esta lista — foi este contrato que as barrou até a decisão existir. É para isso
+       * que ele lista por extenso.
+       */
+      'GET /trip-occurrences',
+      'GET /trip-occurrences/:id/attachments',
       'GET /trips',
       'GET /trips/:id',
       'GET /trips/:id/documents/:documentId/delivery-address-history',
+      /**
+       * Spec 079 T020: o que houve com a carga, e o separador **lê e escreve** — decisão registrada
+       * aqui. Ele é quem encontra o item faltante ou avariado ao separar; a ocorrência de separação
+       * nasceu para ele.
+       *
+       * ⚠️ A ocorrência de **entrega** não está nesta lista, e não é esquecimento: ela é
+       * `trip.report`, do campo, e o separador não a tem. Aqui a linha entre barracão e rua é a
+       * mesma da ADR-0043 — o mesmo motivo pelo qual ele não reporta entrega.
+       */
+      'GET /trips/:id/documents/:documentId/occurrences',
+      /**
+       * Spec 079 T019: os itens da nota, e o separador os alcança — decisão registrada aqui.
+       *
+       * Conferir o que vai dentro da caixa **é** o trabalho dele: é a lista que ele lê de pé no
+       * galpão para saber que a carga está completa antes de carregar. Esconder isso de quem separa
+       * seria esconder a informação de quem mais a usa.
+       *
+       * ⚠️ A rota publica código, descrição e quantidade — **nunca NCM e CFOP**, que são
+       * classificação fiscal. Se algum dia ela passar a publicá-los, esta decisão se reabre.
+       */
+      'GET /trips/:id/documents/:documentId/products',
+      /**
+       * Spec 079 T004: o comprovante de entrega, e o separador o alcança — decisão registrada aqui.
+       *
+       * Ele já lê o detalhe inteiro da viagem por `fleet.read`, incluindo que a nota foi entregue e
+       * quando; negar só o canhoto exigiria permissão nova para uma fatia do que ele já vê. E é ele
+       * quem atende o cliente que liga perguntando quem recebeu — mandá-lo pedir a outra pessoa
+       * para abrir a mesma tela não protege ninguém.
+       *
+       * ⚠️ O que o comprovante carrega de terceiro é o **nome** de quem recebeu, nunca documento
+       * (ADR-0045 §7). Se algum dia ele carregar mais que isso, esta decisão se reabre.
+       */
+      'GET /trips/:id/documents/:documentId/proof',
       // Spec 059: a prontidão fiscal é leitura da viagem, e o separador a lê como o resto dela
       'GET /trips/:id/fiscal-readiness',
+      /**
+       * Spec 079: a linha da estrada no mapa. Ela **é** o roteiro, e o roteiro é dele — quem ordena
+       * as paradas precisa ver por onde o caminhão vai passar. Nada de terceiro aparece aqui: são
+       * as coordenadas das paradas que ele já lê no detalhe, ligadas pela estrada.
+       */
+      'GET /trips/:id/route-geometry',
       /**
        * Spec 060 D3: o agendamento **é** do separador, e é decisão registrada aqui. Ele monta a
        * viagem, e o portão do despacho que a pendência de agendamento levanta é dele para limpar —
@@ -108,6 +170,14 @@ describe('separator role contract', () => {
       'GET /trips/:id/schedules',
       'GET /trips/:id/stops',
       'PATCH /trips/:id/stops/order',
+      /**
+       * A mesma linha da estrada da rota irmã, para pontos que **ainda não são viagem**: é o mapa
+       * do formulário, onde o separador confere a ordem antes de criar a viagem. Alcança pelo mesmo
+       * `fleet.read` de `GET /trips/:id/route-geometry`, e pela mesma razão — quem ordena as
+       * paradas precisa ver por onde o caminhão passa. O corpo leva coordenadas que ele já escolheu
+       * na tela; nada de ficha de pessoa entra aqui.
+       */
+      'POST /route-geometry',
       'POST /trips',
       'POST /trips/:id/cancel',
       'POST /trips/:id/close',
@@ -122,8 +192,31 @@ describe('separator role contract', () => {
       'POST /trips/:id/documents/:documentId/deliver',
       'POST /trips/:id/documents/:documentId/delivery-address',
       'POST /trips/:id/documents/:documentId/load',
+      /**
+       * Spec 079 T020: registrar item faltante ou avariado **é** o trabalho de quem separa — ele é
+       * quem encontra. A ocorrência de entrega não está aqui e não é esquecimento: ela é
+       * `trip.report`, do campo, pela mesma linha da ADR-0043 que o impede de reportar entrega.
+       */
+      /**
+       * Spec 079: **uma rota só**, desde que o tipo virou cadastro da empresa. Antes eram duas — uma
+       * por grupo — porque o grupo vinha do corpo e a autorização precisava ser estática. Com o tipo
+       * no banco, o grupo vem do cadastro e o caso de uso o confere.
+       *
+       * O separador alcança: registrar item faltante ou avariado **é** o trabalho de quem separa. Um
+       * tipo de rua mandado por aqui não lhe dá nada — a permissão é a mesma e o registro também; o
+       * que muda é que o motorista tem a rota dele em `/me`, com o escopo da viagem ativa.
+       */
+      'POST /trips/:id/documents/:documentId/occurrences',
       'POST /trips/:id/documents/:documentId/return',
       'POST /trips/:id/documents/:documentId/separate',
+      /**
+       * Decisão escrita (spec 075): **o separador alcança o vínculo em lote.** Ele já alcançava o
+       * vínculo unitário (`POST /trips/:id/documents`) sob a mesma `trip.manage`, e o lote é a mesma
+       * operação num pedido só — quem monta a viagem a partir de um maço de notas é justamente ele.
+       * Negar o lote e permitir o unitário seria arbitrário, e empurraria a montagem de trezentas
+       * notas de volta para trezentas requisições.
+       */
+      'POST /trips/:id/documents/batch',
       'POST /trips/:id/documents/batch-status',
       'POST /trips/:id/plan-route',
       'POST /trips/:id/stops/:stopId/schedule',

@@ -3,6 +3,8 @@ import type { VehicleColor } from './fleet.types'
 
 export const FLEET_VEHICLES_PATH = '/fleet/vehicles'
 export const FLEET_DRIVERS_PATH = '/fleet/drivers'
+/** Spec 081: o vínculo da empresa em pares — a fonte do pareamento da sugestão multi-veículo. */
+export const FLEET_DRIVER_VEHICLE_LINKS_PATH = '/fleet/driver-vehicles'
 export const FLEET_CAPABILITIES_PATH = '/fleet/capabilities'
 export const DRIVER_AVAILABILITY_PATH = `${FLEET_DRIVERS_PATH}/availability`
 export const FLEET_VEHICLE_CATALOG_BRANDS_PATH = '/fleet/vehicle-catalog/brands'
@@ -125,6 +127,7 @@ export const VEHICLE_COST_BREAKDOWN_KEYS = [
 export const VEHICLE_FUEL_PRICE_KEYS = ['pricePerUnit', 'source', 'unit', 'weekEndingOn'] as const
 
 export const DRIVER_VEHICLE_LINK_KEYS = ['assignedAt', 'id', 'ownedByDriver', 'vehicle'] as const
+export const DRIVER_VEHICLE_PAIR_KEYS = ['driverId', 'vehicleId'] as const
 
 export const DRIVER_COVERAGE_KEYS = [
   'city',
@@ -138,6 +141,7 @@ export const DRIVER_COVERAGE_KEYS = [
 
 /** A caixa de vínculos lista a frota inteira de uma vez; não há paginação dentro do formulário. */
 export const FLEET_VEHICLE_OPTIONS_PAGE_SIZE = 100
+export const FLEET_DRIVER_OPTIONS_PAGE_SIZE = 100
 
 export const VEHICLE_COST_KEYS = [
   'acquisitionAmount',

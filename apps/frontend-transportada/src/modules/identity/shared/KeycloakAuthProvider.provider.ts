@@ -1,6 +1,11 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import Keycloak from 'keycloak-js'
 
+import { readBrowserColorTheme } from '@/modules/shared/browserColorTheme.service'
+import type { ColorTheme } from '@/modules/shared/colorTheme.constant'
+import { appendColorThemeToLoginUrl } from '@/modules/shared/colorTheme.service'
+import { toDisplayPersonName } from '@/modules/shared/personName.service'
+
 import { getIdentityEnvironment, isIdentifierFirstLoginEnabled } from './identityEnvironment.config'
 import { isSmokeAuthBypassEnabled } from './smokeAuthBypass.service'
 
@@ -66,8 +71,15 @@ function decodeTokenClaims(token: string | undefined): Record<string, unknown> {
 export function deriveIdentityProfile(claims: Record<string, unknown>): IdentityProfile {
   const email = readClaimString(claims, 'email')
   const preferredUsername = readClaimString(claims, 'preferred_username')
+  const claimedName = readClaimString(claims, 'name')
+  /**
+   * Só o nome ganha a grafia de tela: o que sobra sem ele é login ou e-mail, e recapitalizar
+   * `anderson.filho@…` daria um endereço que não existe estampado no cabeçalho.
+   */
   const displayName =
-    readClaimString(claims, 'name') ?? preferredUsername ?? email ?? FALLBACK_PROFILE.displayName
+    claimedName !== undefined
+      ? toDisplayPersonName(claimedName)
+      : (preferredUsername ?? email ?? FALLBACK_PROFILE.displayName)
   const subtitle = email !== undefined && email !== displayName ? email : preferredUsername
 
   return {
@@ -80,8 +92,35 @@ export function deriveIdentityProfile(claims: Record<string, unknown>): Identity
 
 export type KeycloakClient = Pick<
   Keycloak,
-  'clearToken' | 'init' | 'login' | 'logout' | 'token' | 'updateToken'
+  'clearToken' | 'createLoginUrl' | 'init' | 'login' | 'logout' | 'token' | 'updateToken'
 >
+
+/**
+ * A tela de login é do Keycloak, e o Keycloak é **outra origem**: ele não alcança o armazenamento do
+ * navegador onde a escolha do sol/lua mora. Sem isto o painel abre claro e o login continua escuro, porque lá o
+ * único sinal disponível é o `prefers-color-scheme` do sistema.
+ *
+ * A costura é o `createLoginUrl` porque **todo** caminho de entrada passa por ele — inclusive o
+ * `init({onLoad: 'login-required'})`, que redireciona por dentro do keycloak-js e não alcançaria um
+ * decorador em volta do `login()`. No keycloak-js ele é campo de instância, e as chamadas internas
+ * são `this.createLoginUrl(...)`: sobrescrever na instância cobre init, reautenticação e a etapa de
+ * identificação de uma vez.
+ *
+ * ⚠️ Isto **não** é a segunda preferência que a decisão anterior recusou (ADR-0060): ninguém escolhe nada na tela de
+ * login. O que viaja é cópia da escolha do painel, reescrita a cada entrada.
+ */
+export function shareColorThemeWithLoginScreen(input: {
+  readonly keycloak: Pick<KeycloakClient, 'createLoginUrl'>
+  readonly readTheme: () => ColorTheme
+}): void {
+  const createLoginUrl = input.keycloak.createLoginUrl.bind(input.keycloak)
+
+  input.keycloak.createLoginUrl = async (options) =>
+    appendColorThemeToLoginUrl({
+      url: await createLoginUrl(options),
+      theme: input.readTheme(),
+    })
+}
 
 let authProvider: KeycloakAuthProvider | undefined
 
@@ -181,9 +220,24 @@ async function restartAuthentication(
   redirectUri: string,
 ): Promise<never> {
   persistPostAuthenticationPath()
-  keycloak.clearToken()
-  await keycloak.login({ redirectUri })
+  await loginAgain(keycloak, redirectUri)
   throw new Error('IDENTITY_REFRESH_FAILED')
+}
+
+/**
+ * ⚠️ **A sessão que expira já sabe quem era.** Reiniciar sem `loginHint` faz o Keycloak servir a
+ * tela de fábrica dele — "Usuário" e "Senha" juntos —, que não é a tela por onde a pessoa entrou:
+ * o produto pergunta e-mail, CPF, CNPJ ou telefone, e a senha só na tela seguinte. Trocar de tela
+ * no meio do uso é a mesma instalação pedindo a mesma coisa de dois jeitos.
+ *
+ * O `preferred_username` sai do token **expirado**, que continua legível — é o mesmo valor que
+ * `/login-hints` devolve na entrada normal, então nada de novo aparece na URL. Sem token legível
+ * não há o que sugerir, e aí a tela genérica é o caminho certo.
+ */
+async function loginAgain(keycloak: KeycloakClient, redirectUri: string): Promise<void> {
+  const loginHint = readClaimString(decodeTokenClaims(keycloak.token), 'preferred_username')
+  keycloak.clearToken()
+  await keycloak.login(loginHint === undefined ? { redirectUri } : { loginHint, redirectUri })
 }
 
 export function createKeycloakAuthProvider(
@@ -266,8 +320,7 @@ export function createKeycloakAuthProvider(
     },
     async restartAuthentication(): Promise<void> {
       persistPostAuthenticationPath()
-      keycloak.clearToken()
-      await keycloak.login({ redirectUri })
+      await loginAgain(keycloak, redirectUri)
     },
   }
 }
@@ -279,10 +332,9 @@ export function getKeycloakAuthProvider(): KeycloakAuthProvider {
       return authProvider
     }
     const environment = getIdentityEnvironment()
-    authProvider = createKeycloakAuthProvider(
-      new Keycloak(environment.keycloak),
-      getAuthenticationCallbackUrl(),
-    )
+    const keycloak = new Keycloak(environment.keycloak)
+    shareColorThemeWithLoginScreen({ keycloak, readTheme: readBrowserColorTheme })
+    authProvider = createKeycloakAuthProvider(keycloak, getAuthenticationCallbackUrl())
   }
 
   return authProvider

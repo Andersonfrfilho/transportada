@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 
 import {
   fleetDrivers,
@@ -9,6 +10,7 @@ import {
   freightCalculations,
   nfeDocuments,
 } from '../../database/database.schema.js'
+import { geocodedAddresses } from '../../database/geocoding.schema.js'
 import { tripDocuments, tripDrivers, tripStops, trips } from '../../database/trip.schema.js'
 import {
   violatedForeignKeyConstraint,
@@ -32,6 +34,7 @@ import {
 } from '../domain/trip.error.js'
 import type { TripDriverCandidate, TripVehicleCandidate } from '../domain/trip.policy.js'
 import { checkTripAcceptsLinkage } from '../domain/trip-state.policy.js'
+import type { LinkTripDocumentsBatchResult } from '../application/link-trip-documents-batch.use-case.js'
 import {
   reconcileStopOnLink,
   reconcileStopOnUnlink,
@@ -40,6 +43,7 @@ import { createTripStopReconciliationPort } from './drizzle-trip-stop-reconcilia
 import {
   resolveNfeDestinationAddress,
   resolveNfeDocumentId,
+  listStopAddresses,
 } from './nfe-destination-address.support.js'
 import {
   mapTrip,
@@ -53,6 +57,12 @@ import {
   buildTripListFilters,
   cteAuthorizedExpression,
 } from './trip.query.js'
+import { listDeliveryContacts } from './delivery-proof-read.support.js'
+import { loadTripCargoWeight } from './trip-cargo-weight.support.js'
+import { loadTripOccupancy } from './trip-occupancy.support.js'
+import { resolveCargoLayout } from '../domain/cargo-layout.policy.js'
+import { formatScaledDecimal, parseScaledDecimal } from '../../shared/decimal.service.js'
+import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
 
 const LIVE_DOCUMENT_CONSTRAINTS = new Set([
@@ -196,20 +206,116 @@ export class DrizzleTripRepository implements TripRepositoryPort {
       })
       if (record === undefined) throw new Error('TRIP_DOCUMENT_LINK_FAILED')
 
-      const stopId = await reconcileLinkedDocumentStop(transaction, {
+      const { destinationOrigin, stopId } = await reconcileLinkedDocumentStop(transaction, {
         companyId: input.companyId,
         freightCalculationId: record.freightCalculationId,
         nfeDocumentId: record.nfeDocumentId,
         tripId: input.tripId,
       })
-      if (stopId === null) return mapTripDocument(record)
+      // ⚠️ A origem sobrevive à parada ausente: o CEP que não normaliza deixa a nota `SEM ENDEREÇO`
+      // (T007) e a procedência do endereço continua conhecida — é justamente a nota cuja origem
+      // mais precisa ser explicada na tela.
+      if (destinationOrigin === null && stopId === null) return mapTripDocument(record)
 
       const [withStop] = await transaction
         .update(tripDocuments)
-        .set({ stopId })
+        .set({ destinationOrigin, stopId })
         .where(and(eq(tripDocuments.companyId, input.companyId), eq(tripDocuments.id, record.id)))
         .returning()
       return mapTripDocument(withStop ?? record)
+    })
+  }
+
+  /**
+   * O lote paga **uma** transação e **um** lock da viagem para o maço inteiro. O caminho um a um
+   * pagava os dois por nota, e uma viagem de trezentas notas era trezentas idas ao servidor — com a
+   * viagem já criada quando a centésima falhava.
+   *
+   * ⚠️ A nota já vinculada é **filtrada antes do insert**, não capturada depois: numa transação só,
+   * a violação de unicidade aborta o lote inteiro, e as duzentas e noventa e nove boas cairiam com
+   * a repetida. Entre a leitura e o insert ainda cabe outra escrita, e é o índice
+   * `trip_documents_live_nfe_document_unique` que decide — por isso o insert ignora o conflito.
+   */
+  public async linkDocumentsBatch(input: {
+    readonly companyId: string
+    readonly nfeDocumentIds: readonly string[]
+    readonly tripId: string
+  }): Promise<LinkTripDocumentsBatchResult> {
+    return this.database.transaction(async (transaction) => {
+      const [tripRow] = await transaction
+        .select({ status: trips.status })
+        .from(trips)
+        .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+        .for('update')
+        .limit(1)
+      if (tripRow === undefined) throw new TripNotFoundError()
+      const blockReason = checkTripAcceptsLinkage(tripRow.status)
+      if (blockReason !== null) throw new TripStateTransitionNotAllowedError(blockReason)
+
+      if (input.nfeDocumentIds.length === 0) {
+        return { linked: [], skipped: [], tripStatus: tripRow.status }
+      }
+
+      const live = await transaction
+        .select({ nfeDocumentId: tripDocuments.nfeDocumentId })
+        .from(tripDocuments)
+        .where(
+          and(
+            eq(tripDocuments.companyId, input.companyId),
+            inArray(tripDocuments.nfeDocumentId, [...input.nfeDocumentIds]),
+            isNull(tripDocuments.releasedAt),
+          ),
+        )
+      const alreadyLinked = new Set(
+        live.flatMap((row) => (row.nfeDocumentId === null ? [] : [row.nfeDocumentId])),
+      )
+      const pending = input.nfeDocumentIds.filter((id) => !alreadyLinked.has(id))
+
+      const created =
+        pending.length === 0
+          ? []
+          : await transaction
+              .insert(tripDocuments)
+              .values(
+                pending.map((nfeDocumentId) => ({
+                  companyId: input.companyId,
+                  freightCalculationId: null,
+                  nfeDocumentId,
+                  tripId: input.tripId,
+                })),
+              )
+              .onConflictDoNothing()
+              .returning()
+
+      const linked: TripDocument[] = []
+      for (const record of created) {
+        const { destinationOrigin, stopId } = await reconcileLinkedDocumentStop(transaction, {
+          companyId: input.companyId,
+          freightCalculationId: record.freightCalculationId,
+          nfeDocumentId: record.nfeDocumentId,
+          tripId: input.tripId,
+        })
+        if (destinationOrigin === null && stopId === null) {
+          linked.push(mapTripDocument(record))
+          continue
+        }
+        const [withStop] = await transaction
+          .update(tripDocuments)
+          .set({ destinationOrigin, stopId })
+          .where(and(eq(tripDocuments.companyId, input.companyId), eq(tripDocuments.id, record.id)))
+          .returning()
+        linked.push(mapTripDocument(withStop ?? record))
+      }
+
+      /** O que o `onConflictDoNothing` engoliu perdeu a corrida entre a leitura e o insert. */
+      const insertedIds = new Set(
+        created.flatMap((row) => (row.nfeDocumentId === null ? [] : [row.nfeDocumentId])),
+      )
+      const skipped = input.nfeDocumentIds
+        .filter((id) => !insertedIds.has(id))
+        .map((nfeDocumentId) => ({ nfeDocumentId, reason: 'already_linked' as const }))
+
+      return { linked, skipped, tripStatus: tripRow.status }
     })
   }
 
@@ -261,7 +367,45 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         ? encodeKeysetCursor({ createdAt: last.createdAt, id: last.id })
         : null
 
-    return { items: page.map(mapTrip), nextCursor }
+    /**
+     * Uma consulta para a página inteira, nunca uma por linha: quem lê a listagem quer saber **quem
+     * dirige**, e o `vehicleId` sozinho manda o operador abrir viagem por viagem para descobrir.
+     */
+    const driversByTrip = await this.loadTripDriverNames(page.map((record) => record.id))
+
+    return {
+      items: page.map((record) => ({
+        ...mapTrip(record),
+        driverNames: driversByTrip.get(record.id) ?? [],
+      })),
+      nextCursor,
+    }
+  }
+
+  /**
+   * Só o nome, e na ordem em que a viagem os pareou (`position`): a listagem nomeia quem dirige, e
+   * CPF e contato são da ficha — trazê-los para uma tabela de varredura seria PII sem consumidor.
+   */
+  private async loadTripDriverNames(
+    tripIds: readonly string[],
+  ): Promise<Map<string, readonly string[]>> {
+    const byTrip = new Map<string, readonly string[]>()
+    if (tripIds.length === 0) return byTrip
+
+    const rows = await this.database
+      .select({
+        driverName: tripDrivers.driverName,
+        position: tripDrivers.position,
+        tripId: tripDrivers.tripId,
+      })
+      .from(tripDrivers)
+      .where(inArray(tripDrivers.tripId, [...tripIds]))
+      .orderBy(asc(tripDrivers.position))
+
+    for (const row of rows) {
+      byTrip.set(row.tripId, [...(byTrip.get(row.tripId) ?? []), row.driverName])
+    }
+    return byTrip
   }
 
   public async releaseDocument(input: {
@@ -307,10 +451,21 @@ export class DrizzleTripRepository implements TripRepositoryPort {
   }
 }
 
+type LinkedDocumentDestination = {
+  readonly destinationOrigin: PhysicalDestinationOrigin | null
+  readonly stopId: string | null
+}
+
+/** Nota que não resolve a destino algum: nem parada, nem procedência a declarar. */
+const NO_DESTINATION: LinkedDocumentDestination = { destinationOrigin: null, stopId: null }
+
 /**
  * ADR-0043 §3: vincular cria a parada se faltar, reaproveitando a que já agrupa o mesmo endereço
- * normalizado. `null` quando a NF-e não resolve a nenhum destinatário cadastrado, ou quando o CEP
- * não normaliza (T007) — a nota fica `SEM ENDEREÇO`, sem quebrar o vínculo em si.
+ * normalizado. `stopId` nulo quando a NF-e não resolve a destino algum, ou quando o CEP não
+ * normaliza (T007) — a nota fica `SEM ENDEREÇO`, sem quebrar o vínculo em si.
+ *
+ * A origem (spec 073 CA10) é devolvida **junto e em separado**: no segundo caso ela é conhecida e o
+ * `stopId` não, e é essa nota que mais precisa da procedência impressa na tela.
  */
 async function reconcileLinkedDocumentStop(
   transaction: TripTransaction,
@@ -320,15 +475,15 @@ async function reconcileLinkedDocumentStop(
     readonly nfeDocumentId: string | null
     readonly tripId: string
   },
-): Promise<string | null> {
+): Promise<LinkedDocumentDestination> {
   const nfeDocumentId = await resolveNfeDocumentId(transaction, input)
-  if (nfeDocumentId === null) return null
+  if (nfeDocumentId === null) return NO_DESTINATION
 
   const destination = await resolveNfeDestinationAddress(transaction, {
     companyId: input.companyId,
     nfeDocumentId,
   })
-  if (destination === null) return null
+  if (destination === null) return NO_DESTINATION
 
   const stop = await reconcileStopOnLink({
     addressComponents: destination.components,
@@ -337,7 +492,7 @@ async function reconcileLinkedDocumentStop(
     repository: createTripStopReconciliationPort(transaction),
     tripId: input.tripId,
   })
-  return stop?.id ?? null
+  return { destinationOrigin: destination.origin, stopId: stop?.id ?? null }
 }
 
 /**
@@ -390,6 +545,13 @@ function buildTripDocumentFilters(input: {
   ]
 }
 
+/**
+ * O `trip_documents_entity_xor_check` deixa a nota chegar por dois caminhos, e a T017 resolveu só o
+ * direto: por cálculo de frete a tela voltava a imprimir o UUID. O alias resolve o segundo sem
+ * tocar no join que decide o `fiscalStatus`.
+ */
+const nfeDocumentsViaFreight = alias(nfeDocuments, 'nfe_documents_via_freight')
+
 async function readTripDetail(
   queryable: TripQueryable,
   input: { readonly companyId: string; readonly tripId: string },
@@ -401,9 +563,25 @@ async function readTripDetail(
     .limit(1)
   if (record === undefined) return null
 
+  /**
+   * O contato sai da **ficha**, não do retrato: `trip_drivers` guarda nome e CPF de quando a viagem
+   * foi montada, e telefone que mudou depois precisa aparecer atualizado — é para ligar agora.
+   * `left join` porque ficha apagada não pode sumir com o motorista da viagem.
+   */
   const driverRecords = await queryable
-    .select()
+    .select({
+      driver: tripDrivers,
+      driverEmail: fleetDrivers.email,
+      driverPhone: fleetDrivers.phone,
+    })
     .from(tripDrivers)
+    .leftJoin(
+      fleetDrivers,
+      and(
+        eq(fleetDrivers.companyId, tripDrivers.companyId),
+        eq(fleetDrivers.id, tripDrivers.driverId),
+      ),
+    )
     .where(and(eq(tripDrivers.companyId, input.companyId), eq(tripDrivers.tripId, input.tripId)))
     .orderBy(asc(tripDrivers.position))
   const documentRecords = await queryable
@@ -412,6 +590,21 @@ async function readTripDetail(
       document: tripDocuments,
       freightCalculationStatus: freightCalculations.status,
       nfeDocumentStatus: nfeDocuments.status,
+      /**
+       * Spec 079 T017: o que identifica a nota na tela. Sai da junção que já existia — nenhuma
+       * consulta a mais, e a alternativa (uma leitura por nota) multiplicaria por vinte a tela mais
+       * pesada do módulo.
+       */
+      nfeIssuedAt: sql<Date | null>`coalesce(${nfeDocuments.issuedAt}, ${nfeDocumentsViaFreight.issuedAt})`,
+      nfeNumber: sql<
+        null | string
+      >`coalesce(${nfeDocuments.number}, ${nfeDocumentsViaFreight.number})`,
+      nfeSeries: sql<
+        null | string
+      >`coalesce(${nfeDocuments.series}, ${nfeDocumentsViaFreight.series})`,
+      nfeTotalValue: sql<
+        null | string
+      >`coalesce(${nfeDocuments.totalValue}, ${nfeDocumentsViaFreight.totalValue})`,
     })
     .from(tripDocuments)
     .leftJoin(
@@ -428,15 +621,55 @@ async function readTripDetail(
         eq(freightCalculations.id, tripDocuments.freightCalculationId),
       ),
     )
+    .leftJoin(
+      nfeDocumentsViaFreight,
+      and(
+        eq(nfeDocumentsViaFreight.companyId, tripDocuments.companyId),
+        eq(nfeDocumentsViaFreight.id, freightCalculations.nfeDocumentId),
+      ),
+    )
     .where(and(...buildTripDocumentListFilters(input)))
     .orderBy(asc(tripDocuments.createdAt), asc(tripDocuments.id))
-  const documents = documentRecords.map(mapTripDocumentDetail)
+  /**
+   * Spec 079 P2: o contato entra **aqui**, no mesmo map que monta a nota — depois seria tarde: as
+   * paradas já agrupam `documents`, e um segundo objeto com contato produziria duas verdades sobre
+   * a mesma nota.
+   */
+  const contacts = await listDeliveryContacts(queryable, {
+    companyId: input.companyId,
+    nfeDocumentIds: documentRecords.flatMap((row) =>
+      row.document.nfeDocumentId === null ? [] : [row.document.nfeDocumentId],
+    ),
+  })
+  const documents = documentRecords.map((row) =>
+    mapTripDocumentDetail({
+      ...row,
+      contact:
+        row.document.nfeDocumentId === null
+          ? null
+          : (contacts.get(row.document.nfeDocumentId) ?? null),
+    }),
+  )
 
   // T014: uma única leitura de paradas, independente de quantas existirem — o agrupamento com as
   // notas já buscadas acima acontece em memória, não numa query por parada (§15 do code-standart.md).
   const stopRecords = await queryable
-    .select()
+    .select({
+      /**
+       * Spec 079 T012: a coordenada vem de `geocoded_addresses` pela `address_key`, **não** de
+       * `trip_stops.latitude/longitude` — essas colunas existem e nunca são escritas (achado da
+       * T009), e lê-las devolveria nulo em toda parada. `left join` porque endereço ainda não
+       * geocodificado é o caso normal, e a tela o nomeia fora do mapa.
+       *
+       * ⚠️ `geocoded_addresses` **não tem tenant** de propósito (ADR-0044): é cache de endereço
+       * público, e o recorte por empresa está na parada, que é o lado de cima da junção.
+       */
+      latitude: geocodedAddresses.latitude,
+      longitude: geocodedAddresses.longitude,
+      stop: tripStops,
+    })
     .from(tripStops)
+    .leftJoin(geocodedAddresses, eq(geocodedAddresses.addressKey, tripStops.addressKey))
     .where(and(eq(tripStops.companyId, input.companyId), eq(tripStops.tripId, input.tripId)))
     .orderBy(asc(tripStops.sequence))
 
@@ -448,13 +681,101 @@ async function readTripDetail(
     else bucket.push(document)
   }
 
+  const nfeDocumentIds = documents.flatMap((document) =>
+    document.nfeDocumentId === null ? [] : [document.nfeDocumentId],
+  )
+  const [cargo, cargoWeight] = await Promise.all([
+    loadTripOccupancy(queryable, {
+      companyId: input.companyId,
+      nfeDocumentIds,
+      vehicleId: record.vehicleId,
+    }),
+    loadTripCargoWeight(queryable, { companyId: input.companyId, nfeDocumentIds }),
+  ])
+
+  /**
+   * O rótulo é **derivado**, não servido do gravado: `trip_stops.label` é escrito uma vez, na
+   * criação da parada, e ficou congelado quando o rótulo passou a levar o número do endereço.
+   * Recalcular por migration em SQL seria a quarta grafia de endereço nesta base — e a terceira já
+   * divergiu em silêncio. Sem endereço resolvido, o gravado continua valendo.
+   */
+  const stopAddresses = await listStopAddresses(queryable, {
+    companyId: input.companyId,
+    nfeDocumentIds,
+  })
+  const addressOf = (stopId: string) => {
+    for (const document of documentsByStopId.get(stopId) ?? []) {
+      const address =
+        document.nfeDocumentId === null ? undefined : stopAddresses.get(document.nfeDocumentId)
+      if (address !== undefined) return address
+    }
+    return undefined
+  }
+  const labelOf = (stopId: string, stored: string): string => {
+    for (const document of documentsByStopId.get(stopId) ?? []) {
+      const address =
+        document.nfeDocumentId === null ? undefined : stopAddresses.get(document.nfeDocumentId)
+      // `address.label` já sai de `buildStopLabel`, dentro de `chooseNfeDestinationRow`: remontar
+      // aqui seria uma segunda grafia do mesmo rótulo.
+      if (address !== undefined) return address.label
+    }
+    return stored
+  }
+
+  const stops = stopRecords.map((row) => ({
+    documents: documentsByStopId.get(row.stop.id) ?? [],
+    label: labelOf(row.stop.id, row.stop.label),
+    sequence: Number(row.stop.sequence),
+  }))
+
+  /**
+   * Spec 076: a fatia do baú por parada, montada do que já veio — nenhuma consulta a mais. Parada
+   * cujas notas não têm cubagem entra em `stopsWithoutVolume`, nunca como fatia zero.
+   */
+  const layout = resolveCargoLayout({
+    capacityM3: cargo.capacityM3,
+    stops: stops.map((stop) => {
+      const volumes = stop.documents.map((document) =>
+        document.nfeDocumentId === null
+          ? null
+          : (cargo.volumeByDocument.get(document.nfeDocumentId) ?? null),
+      )
+      const known = volumes.filter((volume): volume is string => volume !== null)
+      return {
+        documentsWithoutVolume: volumes.length - known.length,
+        label: stop.label,
+        sequence: stop.sequence,
+        volumeM3: known.length === 0 ? null : sumDecimals(known),
+      }
+    }),
+  })
+
   return {
     ...mapTrip(record),
+    cargoLayout: layout,
+    cargoWeight,
     documents,
-    drivers: driverRecords.map(mapTripDriver),
-    stops: stopRecords.map((stopRecord) => ({
-      ...mapTripStop(stopRecord),
-      documents: documentsByStopId.get(stopRecord.id) ?? [],
+    drivers: driverRecords.map((row) =>
+      mapTripDriver({
+        ...row.driver,
+        driverEmail: row.driverEmail ?? '',
+        driverPhone: row.driverPhone ?? '',
+      }),
+    ),
+    occupancy: cargo.occupancy,
+    stops: stopRecords.map((row) => ({
+      ...mapTripStop(row.stop),
+      documents: documentsByStopId.get(row.stop.id) ?? [],
+      /**
+       * ⚠️ **Depois do spread, e é isso que faz a tela ver o número.** `mapTripStop` devolve o
+       * rótulo **gravado**, congelado na criação da parada; derivá-lo só no `stops` intermediário
+       * (o que alimenta o desenho do baú) deixou a tela mostrando rua sem número com o gate verde.
+       */
+      label: labelOf(row.stop.id, row.stop.label),
+      latitude: row.latitude,
+      longitude: row.longitude,
+      cityCode: addressOf(row.stop.id)?.components.cityCode ?? '',
+      state: addressOf(row.stop.id)?.state ?? '',
     })),
   }
 }
@@ -473,4 +794,14 @@ async function runGuarded<TResult>(operation: () => Promise<TResult>): Promise<T
     }
     throw error
   }
+}
+
+/** Soma decimal de verdade: `Number` traria erro binário para dentro de um volume. */
+function sumDecimals(values: readonly string[]): string {
+  const total = values.reduce(
+    (accumulated, value) =>
+      accumulated + parseScaledDecimal({ errorCodePrefix: 'TRIP_CARGO_LAYOUT', scale: 6n, value }),
+    0n,
+  )
+  return formatScaledDecimal(total, 6n)
 }

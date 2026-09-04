@@ -21,6 +21,7 @@ import {
   storedObjects,
 } from '../../src/database/database.schema.js'
 import { createDrizzleAggregateApplicationRepository } from '../../src/fleet/infrastructure/drizzle-aggregate-application.repository.js'
+import { createDrizzleAggregateApplicationAttachmentReviewRepository } from '../../src/fleet/infrastructure/drizzle-aggregate-application-attachment-review.repository.js'
 
 const databaseUrl =
   process.env.DRIZZLE_TEST_DATABASE_URL ??
@@ -96,6 +97,54 @@ async function seedDraft(
     .returning({ draftId: aggregateApplicationAttachments.draftId })
   if (row === undefined) throw new Error('draft not seeded')
   return row.draftId
+}
+
+/**
+ * Um anexo já lido: é o estado em que a revisão o encontra, e o único em que a limpeza tem o que
+ * limpar. Devolve o `id` (não o `draft_id`), porque é por ele que a revisão endereça.
+ */
+async function seedReadAttachment(
+  db: TestDatabase['db'],
+  input: { readonly applicationId: string; readonly companyId: string },
+): Promise<string> {
+  const storedObjectId = crypto.randomUUID()
+  await db.insert(storedObjects).values({
+    bucket: 'test-bucket',
+    companyId: input.companyId,
+    id: storedObjectId,
+    mimeType: 'application/pdf',
+    objectKey: `tenants/${input.companyId}/aggregate-application-attachments/cnh/${storedObjectId}`,
+    provider: 'object-storage',
+    purpose: 'aggregate_application_attachment',
+    sha256: 'b'.repeat(64),
+    sizeBytes: BigInt(2048),
+    status: 'final',
+  })
+
+  const [row] = await db
+    .insert(aggregateApplicationAttachments)
+    .values({
+      applicationId: input.applicationId,
+      companyId: input.companyId,
+      // O que a leitura do servidor grava: nome, registro da CNH e o CPF do proprietário do CRLV.
+      extractedFields: { licenseNumber: '01234567890', name: 'Maria de Sousa' },
+      storedObjectId,
+      type: 'cnh',
+    })
+    .returning({ id: aggregateApplicationAttachments.id })
+  if (row === undefined) throw new Error('attachment not seeded')
+  return row.id
+}
+
+async function readExtractedFields(db: TestDatabase['db'], attachmentId: string): Promise<unknown> {
+  const [row] = await db
+    .select({
+      extractedFields: aggregateApplicationAttachments.extractedFields,
+      status: aggregateApplicationAttachments.status,
+    })
+    .from(aggregateApplicationAttachments)
+    .where(eq(aggregateApplicationAttachments.id, attachmentId))
+  return row
 }
 
 async function readApplicationId(
@@ -224,3 +273,64 @@ async function withDisposableDatabase(
     }
   }
 }
+
+/**
+ * A leitura do servidor guarda CPF e número de CNH em texto puro, numa tabela sem prazo de descarte
+ * — inclusive de terceiros, porque o proprietário do CRLV frequentemente não é quem se candidatou
+ * (achado de 02/09/2026 no `docs/SECURITY.md`). A coluna existe para a **conferência**: revisada a
+ * candidatura, ela é cópia redundante de dado pessoal, e o arquivo original continua no bucket.
+ *
+ * A limpeza vai no **mesmo `UPDATE`** da decisão de propósito: em duas escritas, uma falha no meio
+ * deixaria a PII para trás justamente no caminho de erro, que é o menos observado.
+ */
+describe('a revisão descarta a leitura, contra Postgres', () => {
+  testWithPostgres(
+    'aprovar limpa os campos lidos e mantém a decisão',
+    async () => {
+      await withDisposableDatabase(async ({ db }) => {
+        const companyId = await seedCompany(db)
+        const applicationId = await seedApplication(db, companyId)
+        const attachmentId = await seedReadAttachment(db, { applicationId, companyId })
+
+        await createDrizzleAggregateApplicationAttachmentReviewRepository(db).review({
+          attachmentId,
+          companyId,
+          decision: 'approved',
+          rejectionReason: '',
+          reviewedBy: crypto.randomUUID(),
+        })
+
+        expect(await readExtractedFields(db, attachmentId)).toEqual({
+          extractedFields: null,
+          status: 'approved',
+        })
+      })
+    },
+    DISPOSABLE_DATABASE_TIMEOUT_MS,
+  )
+
+  testWithPostgres(
+    'reprovar limpa os campos lidos e mantém o motivo',
+    async () => {
+      await withDisposableDatabase(async ({ db }) => {
+        const companyId = await seedCompany(db)
+        const applicationId = await seedApplication(db, companyId)
+        const attachmentId = await seedReadAttachment(db, { applicationId, companyId })
+
+        await createDrizzleAggregateApplicationAttachmentReviewRepository(db).review({
+          attachmentId,
+          companyId,
+          decision: 'rejected',
+          rejectionReason: 'documento ilegível',
+          reviewedBy: crypto.randomUUID(),
+        })
+
+        expect(await readExtractedFields(db, attachmentId)).toEqual({
+          extractedFields: null,
+          status: 'rejected',
+        })
+      })
+    },
+    DISPOSABLE_DATABASE_TIMEOUT_MS,
+  )
+})

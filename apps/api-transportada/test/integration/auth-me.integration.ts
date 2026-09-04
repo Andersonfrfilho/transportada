@@ -102,6 +102,7 @@ describe('GET /auth/me PostgreSQL isolation', () => {
             nfseCallbackBaseUrl: undefined,
             notificationWebhookSecret: undefined,
             port: 0,
+            routingMatrixUrl: undefined,
             postalCodeProviders: { brasilApiUrl: undefined, viaCepUrl: undefined },
             logSinkUrl: undefined,
             sentryDsn: undefined,

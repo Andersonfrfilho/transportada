@@ -22,6 +22,7 @@ import type {
   FleetDriverPage,
   FleetDriverRegionsInput,
   FleetDriverVehicleLink,
+  FleetDriverVehiclePair,
   FleetDriverVehiclesInput,
   FleetDriverVersionInput,
   FleetListInput,
@@ -49,6 +50,7 @@ export type FleetController = Readonly<{
   listDriverVehicles: (
     input: FleetDriverVehiclesInput,
   ) => Promise<readonly FleetDriverVehicleLink[]>
+  listDriverVehiclePairs: () => Promise<readonly FleetDriverVehiclePair[]>
   listDrivers: (input: FleetListInput<FleetDriverFilters>) => Promise<FleetDriverPage>
   listVehicles: (input: FleetListInput<FleetVehicleFilters>) => Promise<FleetVehiclePage>
   replaceDriverRegions: (
@@ -84,6 +86,8 @@ export function createFleetController(input: ControllerInput): FleetController {
       canReadFleet ? input.client.listDriverRegions(query) : forbidden(),
     listDriverVehicles: (query) =>
       canReadFleet ? input.client.listDriverVehicles(query) : forbidden(),
+    listDriverVehiclePairs: () =>
+      canReadFleet ? input.client.listDriverVehiclePairs() : forbidden(),
     listDrivers: (query) => (canReadFleet ? input.client.listDrivers(query) : forbidden()),
     listVehicles: (query) => (canReadFleet ? input.client.listVehicles(query) : forbidden()),
     replaceDriverRegions: (body) =>

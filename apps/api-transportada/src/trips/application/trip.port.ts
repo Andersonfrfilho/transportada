@@ -1,12 +1,27 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
 import type { TripDocumentSeparationStatus, TripStatus } from '../../database/trip.schema.js'
 import type {
   TripDriverCandidate,
   TripDriverLine,
   TripVehicleCandidate,
 } from '../domain/trip.policy.js'
+
+/**
+ * A tripulação **na leitura**: o retrato fiscal (`TripDriverLine`, congelado quando a viagem foi
+ * montada) mais o contato **corrente**, que sai da ficha da frota. São coisas diferentes de
+ * propósito — telefone que mudou depois precisa aparecer atualizado, porque é para ligar agora,
+ * enquanto nome e CPF são o que foi declarado.
+ *
+ * ⚠️ Isto torna a viagem o **primeiro leitor do telefone do motorista**, e a ADR-0039 decidiu
+ * criptografar esse campo: quem executar a ADR passa a ter de abrir envelope aqui.
+ */
+export type TripDriverDetail = TripDriverLine & {
+  readonly driverEmail: string
+  readonly driverPhone: string
+}
 
 export type TripCompanyContext = {
   readonly companyId: string
@@ -16,6 +31,8 @@ export type TripCompanyContext = {
 export type TripDocument = {
   readonly createdAt: string
   readonly deliveredAt: string | null
+  /** Spec 073 RF4: `delivery` quando o endereço veio do `<entrega>`, `recipient` do cadastro. */
+  readonly destinationOrigin: PhysicalDestinationOrigin | null
   readonly freightCalculationId: string | null
   readonly id: string
   readonly loadedAt: string | null
@@ -31,6 +48,11 @@ export type TripDocument = {
 }
 
 export type Trip = {
+  /**
+   * Quem dirige, na ordem em que a viagem os pareou. Lista vazia é viagem sem motorista — que
+   * existe, e a tela precisa poder dizer isso em vez de deixar a célula muda.
+   */
+  readonly driverNames: readonly string[]
   readonly companyId: string
   readonly createdAt: string
   readonly id: string
@@ -55,6 +77,25 @@ export type Trip = {
 export type TripDocumentDetail = TripDocument & {
   readonly cteAuthorized: boolean
   readonly fiscalStatus: string
+  /**
+   * Spec 079 T017: como a nota se chama na tela. `null` quando o vínculo é só cálculo de frete, ou
+   * quando a nota sumiu da junção — a queda para o identificador continua existindo, mas deixou de
+   * ser o caminho normal.
+   */
+  /**
+   * Spec 079 P2: quem recebe e como falar com ele — telefone do `<enderDest><fone>` que a nota já
+   * traz, mais o contratante quando o documento está em `contractors`.
+   */
+  readonly contact: {
+    readonly contractorName: null | string
+    readonly name: string
+    readonly phone: null | string
+    readonly taxId: string
+  } | null
+  readonly nfeIssuedAt: null | string
+  readonly nfeNumber: null | string
+  readonly nfeSeries: null | string
+  readonly nfeTotalValue: null | string
 }
 
 /**
@@ -66,6 +107,20 @@ export type TripDocumentDetail = TripDocument & {
  */
 export type TripStopDetail = {
   readonly addressKey: string
+  /**
+   * Spec 079 T012: onde a parada fica, para o mapa. Sai de `geocoded_addresses` pela `address_key`
+   * — **não** de `trip_stops.latitude/longitude`, que existem e nunca são escritos (achado da T009).
+   * `null` é endereço ainda não geocodificado, e a tela nomeia a parada fora do mapa.
+   */
+  readonly latitude: null | string
+  readonly longitude: null | string
+  /**
+   * Onde a parada fica, no vocabulário do IBGE: a UF diz **qual malha** o mapa busca, e o código do
+   * município diz **qual polígono** dela desenhar. Derivados do endereço da nota, como o rótulo;
+   * vazios quando o endereço não resolve.
+   */
+  readonly cityCode: string
+  readonly state: string
   readonly arrivedAt: string | null
   readonly completedAt: string | null
   readonly deliveryWindowEnd: string | null
@@ -76,9 +131,71 @@ export type TripStopDetail = {
   readonly sequence: number
 }
 
+/**
+ * Spec 075: quanto do baú já foi ocupado. `null` quando a capacidade do veículo não é conhecida —
+ * nunca 100%, nunca zero: veículo sem capacidade com carga dentro é o caso em que um número
+ * inventado faria alguém parar de carregar, ou continuar.
+ *
+ * ⚠️ `source` é `estimated` se **qualquer** nota entrou estimada, e a tela é obrigada a imprimir a
+ * marca junto do número (contrato de tela, T011).
+ */
+/**
+ * Spec 079: o peso da carga da viagem. **Sem percentual** — a ficha do veículo não guarda
+ * capacidade em massa, e um teto inventado para produzir porcentagem é o defeito que a ocupação
+ * evita ao devolver `null` sem capacidade conhecida.
+ */
+export type TripCargoWeightView = {
+  readonly documentsWithoutWeight: number
+  readonly grossWeightKilograms: string
+  readonly source: 'declared' | 'estimated'
+}
+
+export type TripOccupancyView = {
+  readonly capacityM3: string
+  /**
+   * As medidas de onde o m³ saiu — da ficha quando `measured`, da referência quando `reference`.
+   * `null` no degrau `declared`, em que alguém digitou o volume e as medidas não existem.
+   * A tela as imprime para o número parar de ser um total sem procedência.
+   */
+  readonly capacityDimensions: {
+    readonly heightM: string
+    readonly lengthM: string
+    readonly widthM: string
+  } | null
+  readonly capacitySource: 'measured' | 'declared' | 'reference'
+  readonly documentsWithoutVolume: number
+  readonly loadedM3: string
+  readonly occupancyRatio: string
+  readonly source: 'declared' | 'estimated'
+}
+
+/**
+ * Spec 076: a fatia do baú de cada parada. ⚠️ É **representação proporcional, não plano de estiva**:
+ * a NF-e não traz dimensão de volume, então não há como dizer onde cada caixa vai. `null` quando a
+ * capacidade não é conhecida — escala honesta ou nada.
+ */
+export type TripCargoLayoutView = {
+  readonly overflowM3: string
+  readonly slices: readonly {
+    readonly label: string
+    /** `1` é o fundo, e o fundo é da **última** entrega. */
+    readonly loadOrder: number
+    readonly sequence: number
+    readonly share: string
+    readonly volumeM3: string
+  }[]
+  readonly stopsWithoutVolume: readonly {
+    readonly documentCount: number
+    readonly label: string
+  }[]
+}
+
 export type TripDetail = Trip & {
+  readonly cargoLayout: TripCargoLayoutView | null
   readonly documents: readonly TripDocumentDetail[]
-  readonly drivers: readonly TripDriverLine[]
+  readonly drivers: readonly TripDriverDetail[]
+  readonly cargoWeight: TripCargoWeightView | null
+  readonly occupancy: TripOccupancyView | null
   readonly stops: readonly TripStopDetail[]
 }
 
