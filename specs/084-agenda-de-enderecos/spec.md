@@ -40,9 +40,12 @@ por nome.
 
 - **Redecidir o que a ADR-0057 já decidiu** — catálogo da ocorrência, trava de permissão, raio de
   5 km, o app não corrigir, e o painel de ocorrências. Esta spec **consome** aquelas decisões.
-- **Pino no portal do contratante.** O pino entra no app de quem entrega e no painel (P4, P6) — no
-  portal, não: o `frontend-client` não tem design system nem biblioteca de mapa, e o contratante
-  corrige **texto**, que é o que ele sabe.
+- **Pino no portal do contratante.** O contratante corrige **texto**, que é o que ele sabe — a rua e
+  o CEP do cadastro dele.
+  ⚠️ **A justificativa anterior estava factualmente errada.** Eu havia escrito que o portal "não tem
+  biblioteca de mapa"; a **ADR-0050 §5** decidiu o contrário: _"o portal usa a mesma malha [do IBGE]
+  com o ponto por cima"_, e _"nenhuma coordenada de cliente sai daqui"_. O pino fica fora por ser
+  **o trabalho errado para ele**, não por falta de mapa.
 - **Aniversário de cidade e feriado municipal.** Não há fonte confiável para os 5.570 municípios, e
   inventar a tabela seria pior que não ter. Calendário declarado por empresa é spec separada.
 - **Trocar o mapa ou o roteirizador.** Telha e rota continuam nossas (ADR-0044 §6). Esta spec mexe
@@ -104,9 +107,14 @@ Isso muda o texto da tela e dá um número que mede se o pedido funcionou — ve
 **Then** ele pode corrigir **CEP e/ou o endereço escrito** (logradouro, número, bairro, complemento,
 ponto de referência), e a correção entra como **sugestão** — a transportadora aceita.
 
-- **Permissão própria**, `deliveries.address.suggest`. Não pega carona em `deliveries.track`, pelo
-  mesmo motivo que `charges.decide` é separada: mexer no endereço para onde um caminhão vai não é
-  acompanhar entrega.
+- **Permissão própria**, `deliveries.address.suggest`. Não pega carona em `deliveries.track`: mexer
+  no endereço para onde um caminhão vai não é acompanhar entrega.
+  ⚠️ **Eu vinha citando `charges.decide` como precedente, e ela não tem ADR nenhuma** — existe só no
+  código. O precedente registrado de "permissão própria para o que custa" é a **ADR-0049 §6**
+  (`trip.financials`, _"é de `company-admin` e `finance`, e de mais ninguém"_).
+  ⚠️ E ampliar o papel não é terreno livre: a **ADR-0050 §2** diz que o contratante tem _"uma
+  permissão só"_, e a **ADR-0003** congela a matriz — _"ampliar uma role exige nova decisão"_. P3
+  precisa de ADR por isso, não só pelo risco.
 - **Nomeada por chave de acesso**, nunca por id interno — a regra do portal não abre exceção.
 - **Sugestão, não escrita direta.** O portal é a única superfície externa do produto, e um pino
   errado vindo de fora manda o caminhão para o outro lado da cidade. O par já tem precedente:
@@ -355,10 +363,15 @@ erro custa caro.
 
 ## Requisitos não funcionais
 
-- **RNF1** — ⚠️ **Esta API não tem limitador de taxa nenhum**, achado já registrado em
-  `docs/SECURITY.md` para as rotas de senha. P3 abre a **primeira escrita externa que afeta
-  operação** — hoje o contratante só lê entrega e decide repasse, e nenhuma das duas move caminhão.
-  O limitador deixa de ser dívida e vira **pré-requisito de P3**.
+- **RNF1** — ⚠️ **Esta API não tem limitador de taxa**, e o achado **não é "das rotas de senha"**
+  como escrevi antes: a **ADR-0040 §5** o abriu para a rota de CEP e a **ADR-0041** para a rota
+  pública da landing — no mínimo três consumidores registrados.
+  ⚠️ **E três ADRs aceitas decidiram subir sem ele**, cada uma com mitigação compensatória nomeada
+  (base local primeiro; `202` invariável; enfileirar em vez de limitar — 0040 §5, 0041, 0053). Fazer
+  do limitador um **pré-requisito duro** de P3 é **mudança de postura sobre decisão tomada três
+  vezes**, não consequência óbvia do achado. Ou P3 traz ADR justificando a inversão — ela é a
+  primeira escrita externa que **move caminhão**, o que é argumento real —, ou traz mitigação
+  compensatória no mesmo formato das outras três.
 - **RNF2** — O provedor pago é chamado **em lote, fora do caminho quente da importação**, sob
   condição detectável antes de gastar. Custo medido: ~US$ 5 por mil consultas, cacheadas por
   endereço — os 149 saem por menos de um dólar, uma vez.
@@ -409,6 +422,30 @@ erro custa caro.
 - [ ] O relatório distingue "pedido enviado" de "parou de divergir" — nota nova ainda divergente
       depois do pedido continua aparecendo
 
+## Decisões já aceitas que esta spec consome — e não redecide
+
+⚠️ **Esta seção nasceu de uma varredura das 60 ADRs feita tarde demais.** Antes dela eu propus, nesta
+mesma spec, coisas já decididas — e algumas em sentido contrário. Fica escrita para a próxima pessoa
+não repetir: **ler `docs/adr/` antes de desenhar não é formalidade.**
+
+| ADR                             | O que ela já decidiu                                                                                                                                           | O que esta spec faz                                                                               |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| **0044 adendo**                 | Escalada automática ao provedor pago foi **avaliada e recusada** — _"gasta sem ninguém decidir"_. Há teste guardando: `paid-provider-never-called.contract.ts` | ⛔ **O lote nos 300 (D1) contradiz.** Exige ADR de reversão ou redução ao que a 0044 permite      |
+| **0044 §3**                     | Armazenar coordenada do Google permanentemente **já foi assumido**, com três mitigações                                                                        | ✅ consome; o D3 que escrevi era bloqueio inexistente                                             |
+| **0044 §5**                     | Parada `city` não entra na otimização automática                                                                                                               | ✅ consome                                                                                        |
+| **0021 §2**                     | Isolamento multiempresa é obrigatório — _"vazamento entre CNPJs do mesmo dono"_                                                                                | ⚠️ **A base é `geocoded_addresses`, que não tem `company_id`.** Decisão a tomar antes da migração |
+| **0050 §5**                     | O portal **tem** mapa (malha IBGE + ponto), e coordenada de cliente não sai dele                                                                               | ✅ corrigido; o pino fica fora por outro motivo                                                   |
+| **0050 §2** / **0003**          | `contractor` tem _"uma permissão só"_; a matriz é congelada                                                                                                    | ⚠️ P3 amplia — exige ADR                                                                          |
+| **0057**                        | Ocorrência `wrong_address`, o app não corrige, aviso é do operador, destinatário é quem emitiu                                                                 | ✅ consome (P4, P6)                                                                               |
+| **0048 §3**                     | `municipal_holidays` `(company_id, city_ibge_code, holiday_on)`, à mão                                                                                         | ⚠️ eu chamei de "spec futura"; **já existe**                                                      |
+| **0031**                        | Módulo de notificação com template editável e `recipientResolver`                                                                                              | ⚠️ o aviso de P6 deve usá-lo, não nascer do zero                                                  |
+| **0032 / 0020**                 | Provedor pago = porta + gateway por env + capacidade booleana + **permissão de gasto**                                                                         | ⚠️ o desenho do degrau 2 deve seguir                                                              |
+| **0040 §5 / 0041 / 0053**       | Subir sem limitador é postura aceita, com mitigação nomeada                                                                                                    | ⚠️ ver RNF1                                                                                       |
+| **0040 §2**                     | A sugestão de CEP **nunca** projeta `number` nem `complement`                                                                                                  | ⚠️ P3 recebe os dois — é escrita, não projeção, mas precisa da linha explícita                    |
+| **0012**                        | Ator sintético por empresa + `triggered_by` (`user`/`automation`)                                                                                              | ⚠️ é a resposta para "quem é o ator do lote", que a RF3 deixaria nula                             |
+| **0024**                        | Divergir de `data-tables.md` exige ADR; não há `sortBy` no servidor                                                                                            | ⚠️ P2 ordena por métrica e P6 age em lote — as duas divergem                                      |
+| **0033 §5 · 0038 §6 · 0048 §5** | Automático nasce **proposto**; referência nunca sobrescreve escolha manual                                                                                     | ✅ é o princípio de RF8, e ele já tinha nome                                                      |
+
 ## Dúvidas
 
 - ✅ **D1 decidido: o lote roda nos 300.** A medida de confiança é da base inteira, não só do pedaço
@@ -422,8 +459,12 @@ erro custa caro.
   do cadastro de origem, o que é argumento para aceitar direto; mas continua sendo escrita externa
   que move caminhão, o que é argumento para conferir. Sem a ADR-0057 esta pergunta era aberta; com
   ela, é uma extensão a confirmar.]
-- [NEEDS CLARIFICATION: RNF3 — os termos do Maps Platform permitem guardar a coordenada
-  permanentemente, ou só o Place ID? Bloqueia o lote.
+- ✅ **D3 nunca foi pergunta, e eu inventei o bloqueio.** A **ADR-0044 §3** já decidiu, por escrito:
+  _"Os Termos do Google Maps Platform não permitem o armazenamento permanente descrito acima. **A
+  decisão do produto é armazenar permanentemente mesmo assim.** Está aqui para que a próxima pessoa
+  saiba que foi escolha consciente, não descuido."_ Com as três mitigações nomeadas lá — `place_id`
+  `not null`, `GeocodingPort` e volume observável.
+  ~~[NEEDS CLARIFICATION: os termos permitem guardar a coordenada, ou só o Place ID?
   ⚠️ **Há uma saída que talvez dispense a resposta:** a **distância entre as duas fontes é conta
   nossa**, derivada no momento da comparação. Guardando o Place ID e o número, a base ganha a medida
   de confiança sem herdar coordenada de terceiro. A pergunta passa a valer só para o caso em que o
