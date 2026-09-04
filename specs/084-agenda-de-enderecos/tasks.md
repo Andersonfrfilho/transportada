@@ -20,22 +20,66 @@ por quem estiver com o teclado.
 Sem histórico, nada mais desta spec tem matéria-prima: o relatório não tem o que ordenar e a taxa de
 erro do provedor é incalculável.
 
-- [ ] **T01** — Migration: `geocoded_address_corrections`, append-only, no padrão de
+- [x] **T01** ✅ — Migration: `geocoded_address_corrections`, append-only, no padrão de
       `delivery_address_overrides`. Posição anterior e nova, origem, precisão, ator e data.
       _Verificação:_ `make migration-test` (migration + rollback em Postgres descartável).
       _Aceite:_ rollback devolve o schema sem a tabela.
 
-- [ ] 🧠 **T02** — Migration: o vínculo permanente `(cliente, endereço)`.
+- [x] 🧠 **T02** ✅ — Migration: o vínculo permanente `(cliente, endereço)`.
       ⚠️ **Nunca por CNPJ sozinho** — a parada agrupa por endereço normalizado de propósito, e
       _"a mesma rede em cinco lojas é cinco paradas"_. Colapsar as lojas seria defeito pior que o
       atual, porque teria cara de melhoria.
       _Aceite:_ contrato que reprova o colapso de duas lojas do mesmo cliente em números diferentes.
 
-- [ ] **T03** — `resolveDeliveryCoordinate`: a política de precedência (correção aceita → confirmado
+- [x] **T03** ⚠️ — `resolveDeliveryCoordinate`: a política de precedência (correção aceita → confirmado
       para cliente+endereço → CEP → provedor pago → centroide), no formato de
       `resolvePhysicalDestination`.
       _Aceite:_ teste que **falha se uma nota de cliente com endereço já corrigido disparar consulta
       a provedor**. É o teste que prova a economia.
+      ⚠️ **Cumprida pela metade, e isso fica escrito.** O curto-circuito está provado contando
+      chamadas — mas sobre closures fabricadas, não sobre nota. `resolveDeliveryCoordinate` **não tem
+      chamador em `src/`**, e as duas tabelas não têm repositório. A economia que a spec manda medir
+      ("medido, não presumido") só existe depois da T3b.
+
+## Fase 1b — O que as revisões deixaram como bloqueio
+
+> 🤖 Modelo: `sonnet` (T1c é 🧠 — decisão de dado pessoal)
+
+Três revisões independentes (segurança, arquitetura, código) rodaram sobre a Fase 1. O que foi
+corrigido no mesmo passe está no commit `feca7d9f`. O que sobra **bloqueia a Fase 2**:
+
+- [ ] 🧠 **T1a** — **Autorização por objeto para `origin: 'contractor'`.** A FK composta prova que o
+      ator é membro da empresa; ela **não** prova que aquele contratante tem direito àquele endereço.
+      Sem `resolveContractorScope` na rota, um contratante autenticado corrige a coordenada de cliente
+      alheio — e a correção é o degrau 1 da escada, então ela vence tudo e redireciona carga de
+      outro. Não há nem coluna que ancore a correção ao vínculo para auditar depois.
+
+- [ ] **T1b** — `tenant-safety.contract.ts` para as duas tabelas. O `CLAUDE.md` os torna obrigatórios
+      em qualquer mudança de query; a Fase 1 não introduz query, então é bloqueio da T04, não
+      violação de hoje.
+
+- [ ] 🧠 **T1c** — **Decidir por escrito o envelope de `client_tax_id` + coordenada.** A linha junta
+      documento identificável (que pode ser CPF) com posição de resolução de centímetro,
+      permanentemente e em claro. A ADR-0039 decidiu envelope para os campos do motorista **porque
+      não havia leitor** — que é exatamente a situação desta tabela agora, e deixa de ser depois da
+      T04. Se a decisão for manter em claro, ela precisa ser ADR ou entrada datada em
+      `docs/SECURITY.md`, não herança por silêncio.
+
+- [ ] 🧠 **T1d** — **Decidir se correção humana escreve em `geocoded_addresses`.** Aquela tabela é
+      ativo compartilhado sem `company_id`, por decisão declarada. Propagar uma correção aceita pela
+      empresa A envenenaria a coordenada que serve a empresa B, que nunca aprovou nada. Combinado com
+      a T1a, é caminho de ator externo de um tenant até o roteiro de outro.
+
+- [ ] **T3b** — **Ligar a escada a um chamador real** e escrever o teste do aceite da T03 contra uma
+      nota, não contra closures. Sem isso a economia da spec continua não medida.
+
+- [ ] **T1e** — **O `PATCH /geocoded-addresses/:key` já existe e está em produção** sob
+      `TRIP_MANAGE_POLICY` (`route-suggestion.routes.ts:162-185`), e grava coordenada **sem deixar
+      trilha**. Hoje o produto tem correção sem histórico e histórico sem correção. Fazer o `PATCH`
+      escrever em `geocoded_address_corrections` na mesma transação é o menor caminho para a RF7 nº 3
+      ter dado real, sem esperar as fases 4 e 5.
+      ⚠️ Isso também **desatualiza o "Fora do escopo" da spec**, que trata edição manual de coordenada
+      como futura.
 
 ## Fase 2 — Medir a base
 
