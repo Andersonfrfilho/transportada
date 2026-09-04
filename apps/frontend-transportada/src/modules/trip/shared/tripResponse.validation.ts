@@ -2,7 +2,11 @@
 import type { DeliveryProof } from './deliveryProof.service'
 import type { OccurrenceType } from './occurrence.constant'
 import type { RegisteredOccurrence, TripDocumentProduct, TripOccurrence } from './trip.types'
-import { ROUTE_GEOMETRY_SOURCES, type RouteGeometry } from './routeGeometry.service'
+import {
+  ROUTE_GEOMETRY_SOURCES,
+  type RouteGeometry,
+  type RouteGeometryLeg,
+} from './routeGeometry.service'
 import {
   BATCH_STATUS_RESULT_KEYS,
   DELIVERY_ADDRESS_OVERRIDE_KEYS,
@@ -43,6 +47,8 @@ import type {
   PlanTripRouteResult,
   ReorderTripStopsResult,
   ScannedNfeDocument,
+  LinkTripDocumentsBatchResult,
+  TripCandidateDocumentPage,
   StopAddressComponents,
   Trip,
   TripDetail,
@@ -71,14 +77,29 @@ import {
   isUnsignedInteger,
 } from './tripGuards.validation'
 
+/**
+ * Coluna que a listagem de notas pode não ter mandado: ausente é ausência, não resposta inválida —
+ * a guarda de forma desta linha é parcial de propósito (ver `isScannedDocument`).
+ */
+function readNullableColumn(row: unknown, column: string): null | string {
+  if (!isRecord(row)) return null
+  const value = row[column]
+  return isString(value) ? value : null
+}
+
 function invalid(): Error {
   return new Error(TRIP_ERROR.RESPONSE_INVALID)
+}
+
+function isStringArray(value: unknown): value is readonly string[] {
+  return Array.isArray(value) && value.every((entry) => isString(entry))
 }
 
 function isTripFields(value: Record<string, unknown>): boolean {
   return (
     isString(value.companyId) &&
     isString(value.createdAt) &&
+    isStringArray(value.driverNames) &&
     isString(value.id) &&
     (value.requiresMdfe === null || typeof value.requiresMdfe === 'boolean') &&
     isNullableString(value.requiresMdfeReason) &&
@@ -375,9 +396,86 @@ export function createTripResponseAdapters() {
         issuedAt: row.issuedAt,
         number: row.number,
         recipientName: row.recipientName,
+        recipientAddress: readNullableColumn(row, 'recipientAddress'),
+        recipientPostalCode: readNullableColumn(row, 'recipientPostalCode'),
+        recipientAddressNumber: readNullableColumn(row, 'recipientAddressNumber'),
+        recipientLatitude: readNullableColumn(row, 'recipientLatitude'),
+        recipientLongitude: readNullableColumn(row, 'recipientLongitude'),
+        recipientLocationPrecision: readNullableColumn(row, 'recipientLocationPrecision'),
+        recipientCity: readNullableColumn(row, 'recipientCity'),
+        recipientCityCode: readNullableColumn(row, 'recipientCityCode'),
+        recipientState: readNullableColumn(row, 'recipientState'),
         series: row.series,
         status: row.status,
         totalAmount: row.totalAmount,
+        tripId: isString((row as Record<string, unknown>).tripId)
+          ? ((row as Record<string, unknown>).tripId as string)
+          : null,
+      }
+    },
+    /**
+     * A montagem por faixa lê a página inteira, não uma nota. Linha que não casa a forma esperada é
+     * **descartada**, nunca derruba a página: a faixa que o operador digitou continua resolvendo com
+     * o que veio bem-formado, e uma coluna nova na listagem de notas não pode travar a viagem.
+     */
+    /**
+     * O que a tela precisa saber do lote é o que **entrou** e o que ficou de fora. A linha pulada
+     * com forma estranha é descartada em vez de derrubar a resposta: a viagem já foi criada do
+     * outro lado, e reprovar o corpo inteiro esconderia isso de quem acabou de vincular.
+     */
+    linkTripDocumentsBatchResultFromApi(input: unknown): LinkTripDocumentsBatchResult {
+      if (
+        !isRecord(input) ||
+        !Array.isArray(input.linked) ||
+        !isOneOf(input.tripStatus, TRIP_STATUS)
+      )
+        throw invalid()
+      const skippedRows: readonly unknown[] = Array.isArray(input.skipped) ? input.skipped : []
+      return {
+        linked: input.linked.filter(isDocument),
+        skipped: skippedRows.flatMap((row) =>
+          isRecord(row) && isString(row.nfeDocumentId) && isString(row.reason)
+            ? [{ nfeDocumentId: row.nfeDocumentId, reason: row.reason as 'already_linked' }]
+            : [],
+        ),
+        tripStatus: input.tripStatus,
+      }
+    },
+    tripCandidateDocumentPageFromApi(input: unknown): TripCandidateDocumentPage {
+      if (!isRecord(input) || !Array.isArray(input.data)) throw invalid()
+      const rows: readonly unknown[] = input.data
+      return {
+        items: rows.flatMap((row) =>
+          isScannedDocument(row) && isRecord(row)
+            ? [
+                {
+                  accessKey: row.accessKey,
+                  emitterName: row.emitterName,
+                  id: row.id,
+                  issuedAt: row.issuedAt,
+                  number: row.number,
+                  recipientName: row.recipientName,
+                  recipientAddress: readNullableColumn(row, 'recipientAddress'),
+                  recipientPostalCode: readNullableColumn(row, 'recipientPostalCode'),
+                  recipientAddressNumber: readNullableColumn(row, 'recipientAddressNumber'),
+                  recipientLatitude: readNullableColumn(row, 'recipientLatitude'),
+                  recipientLongitude: readNullableColumn(row, 'recipientLongitude'),
+                  recipientLocationPrecision: readNullableColumn(row, 'recipientLocationPrecision'),
+                  recipientCity: readNullableColumn(row, 'recipientCity'),
+                  recipientCityCode: readNullableColumn(row, 'recipientCityCode'),
+                  recipientState: readNullableColumn(row, 'recipientState'),
+                  series: row.series,
+                  status: row.status,
+                  totalAmount: row.totalAmount,
+                  tripId: isString((row as Record<string, unknown>).tripId)
+                    ? ((row as Record<string, unknown>).tripId as string)
+                    : null,
+                },
+              ]
+            : [],
+        ),
+        nextCursor:
+          isRecord(input.page) && isString(input.page.nextCursor) ? input.page.nextCursor : null,
       }
     },
     deliveryAddressHistoryFromApi(input: unknown): readonly DeliveryAddressOverride[] {
@@ -423,11 +521,17 @@ export function createTripResponseAdapters() {
      */
     routeGeometryFromApi(input: unknown): RouteGeometry {
       if (!isRecord(input) || !isOneOf(input.source, ROUTE_GEOMETRY_SOURCES)) {
-        return { points: [], source: 'unavailable' }
+        return { legs: [], points: [], source: 'unavailable' }
       }
       const points = Array.isArray(input.points) ? input.points : []
-      if (!points.every(isGeometryPoint)) return { points: [], source: 'unavailable' }
-      return { points, source: input.source }
+      if (!points.every(isGeometryPoint)) return { legs: [], points: [], source: 'unavailable' }
+      /**
+       * ⚠️ Trecho estranho zera **só os trechos**, não a linha: a estrada continua desenhável, e o
+       * que se perde é o tempo — que some da tela em vez de virar palpite. Devolver `unavailable`
+       * aqui apagaria um desenho bom por causa de um número ruim.
+       */
+      const legs = Array.isArray(input.legs) ? input.legs : []
+      return { legs: legs.every(isGeometryLeg) ? legs : [], points, source: input.source }
     },
     occurrenceTypesFromApi(input: unknown): readonly OccurrenceType[] {
       if (!Array.isArray(input) || !input.every(isOccurrenceType)) throw invalid()
@@ -536,6 +640,20 @@ function isGeometryPoint(
   value: unknown,
 ): value is Readonly<{ latitude: string; longitude: string }> {
   return isRecord(value) && isString(value.latitude) && isString(value.longitude)
+}
+
+/**
+ * ⚠️ Número **finito**, não só `number`: `NaN` e infinito atravessam `typeof` e vão parar numa soma
+ * que devolve tempo de roteiro sem valor nenhum.
+ */
+function isGeometryLeg(value: unknown): value is RouteGeometryLeg {
+  return (
+    isRecord(value) &&
+    typeof value.distanceMetres === 'number' &&
+    Number.isFinite(value.distanceMetres) &&
+    typeof value.durationSeconds === 'number' &&
+    Number.isFinite(value.durationSeconds)
+  )
 }
 
 function isOccurrenceType(value: unknown): value is OccurrenceType {

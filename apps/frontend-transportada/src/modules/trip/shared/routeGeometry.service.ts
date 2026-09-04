@@ -15,7 +15,18 @@
 export const ROUTE_GEOMETRY_SOURCES = ['road', 'unavailable'] as const
 export type RouteGeometrySource = (typeof ROUTE_GEOMETRY_SOURCES)[number]
 
+/**
+ * O que o trecho entre duas paradas **custou na estrada**, na unidade que o roteirizador publica.
+ * Ele vem junto da geometria, na mesma resposta — ver `assemblyLeg.service.ts`.
+ */
+export type RouteGeometryLeg = Readonly<{
+  distanceMetres: number
+  durationSeconds: number
+}>
+
 export type RouteGeometry = Readonly<{
+  /** Um por par de paradas consecutivas. Vazio quando a estrada não veio — nunca estimado. */
+  legs: readonly RouteGeometryLeg[]
   points: readonly Readonly<{ latitude: string; longitude: string }>[]
   source: RouteGeometrySource
 }>
