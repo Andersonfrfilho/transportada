@@ -255,6 +255,61 @@ consequências que ficam escritas para não serem redescobertas:
   (comprometido por `payload_sha256`) e no XML preservado, e os outros três porque são o que se
   consulta.
 
+**O endereço se mede uma vez, e o que se mede vira coordenada** (ADR-0061, spec 084). A escada da
+ADR-0044 só alcança o provedor pago **depois** que alguém tropeça numa entrega, e isso deixa um vão:
+endereço em precisão de CEP parece bom e nenhum sinal grátis o distingue de um bom. A 0061 admite um
+**terceiro gatilho** para o mesmo degrau 2 — _lote de medição, uma vez, por decisão explícita com
+escopo e custo declarados antes_. ⚠️ **Não revoga o adendo da 0044:** a escalada automática em
+runtime segue recusada, e `worker-transportada/test/routing/paid-provider-never-called.contract.ts`
+continua intacto guardando o caminho de sugestão de roteiro. O gatilho é
+`scripts/address-comparison-batch.ts`, e **sem `--confirm` ele imprime escopo e custo e sai sem
+gastar** — uma rota HTTP no lugar dele seria a escalada com outro nome, porque qualquer coisa capaz
+de chamá-la passaria a gastar.
+
+⚠️ **São duas portas para o mesmo provedor, e a diferença é o filtro.** `GeocodingPort`
+(`routing/`) filtra por `components=postal_code` de propósito: quer a coordenada mais fina daquele
+CEP. `AddressLookupPort` (`addresses/`) **não pode** — o filtro obrigaria o provedor a concordar com
+o nosso CEP, e a divergência de CEP é o achado de maior valor do relatório, porque devolve o endereço
+ao degrau 1, que é grátis. Filtra o **lugar** (país e UF); o município fica de fora porque
+`checkCityMatch` o confere pelo código IBGE, e filtrar por nome recusaria a grafia da nota justamente
+quando ela está errada.
+
+`address_comparisons` guarda a **observação** — o que a nota dizia, o que o provedor devolveu, o
+nível e a distância —, e a **interpretação** vive em `address-finding.policy.ts`, recomputada a cada
+leitura. Foi isso que permitiu a divergência de rua sair de 45 para 6 sem re-consultar nada. ⚠️ A
+primeira versão do lote gravou a medição e **jogou fora a coordenada**: 118 endereços de porta
+comprados e nenhum aplicado. A ADR-0044 §3 sempre autorizou guardar — foi descuido, e
+`compare-addresses-batch.contract.ts` agora o tranca junto com os quatro portões da escrita (município
+divergente, `place_id` vazio, `approximate` não é melhoria, e `shouldReplaceStored`).
+
+⚠️ **`not_found` não passa pelo portão do município**, e rua vazia é `street_unknown` e não "você
+escreveu a rua errada". Medido em 148: `not_found` deu **zero** e treze caíram em `approximate` — o
+provedor achando só o município porque o logradouro não existe para ele.
+
+**A separação grafia × lugar é o que faz o relatório ser lido** (`street-comparison.policy.ts`). Das
+45 divergências de rua medidas, **seis** eram lugar diferente; as outras 39 eram `DR`/`Doutor`,
+`7`/`Sete`, `MELLO`/`Melo`, `RUA RUA MINAS GERAIS`. Quatro camadas determinísticas — abreviação de
+patente e título, número de data por extenso com dezena composta, tipo de via duplicado ou colado, e
+inicial do nome do meio (que ora o cadastro abrevia, ora o provedor) — mais **uma** edição em palavra
+de quatro letras ou mais. ⚠️ Distância de edição aqui é **classificação, não casamento**: o par já
+veio formado do provedor, e a pergunta é só se vale incomodar alguém. É o oposto de
+`client-address-key.ts`, onde ela escolheria qual rua é a certa entre candidatas e mediu 14% de
+acerto com falsos positivos. `EXPEDITO`/`BENEDITO` são três edições, e continuam sendo ruas
+diferentes. **Bairro nunca vira pedido**: diverge em 44 dos 148 e é palpite do provedor (`CENTRO` →
+`Itobi`, que é cidade).
+
+`GET /address-report` é `settings.manage`, não `addresses.read`: quem lê vê o cadastro de entrega de
+todos os contratantes de uma vez, com nome, rua e número — varredura de carteira, não a consulta
+pontual de um CEP. O pedido é atribuído a **quem emitiu** a nota (ADR-0057), nunca ao destinatário,
+que recebe a carga e não tem acesso ao cadastro; um contrato por texto de fonte tranca isso porque a
+troca compila igual (`legalName` existe nos dois lados). No frontend é a aba **Endereços** de
+`nfe-workspace`, e o **denominador aparece sempre** — "24 de 148 medidos" é a diferença entre um
+pedido e uma acusação, e quem recebe é um cliente.
+
+Medido em 2026-09-04, nos 149 endereços em centroide de município: 118 `rooftop`, 17
+`range_interpolated`, 13 `approximate`, zero `not_found`; 134 coordenadas novas, e a base caiu de 149
+para **15** endereços em centroide. Os 147 de precisão de CEP ainda não foram medidos.
+
 **O CEP vem de casa, e a busca textual é a que ainda sai do navegador.** O CEP passa por
 `GET /postal-codes/{cep}` (`addresses.read`, escopo `company`), que consulta **primeiro as nossas
 tabelas** — `nfe_addresses`, `fleet_drivers`, `company_fiscal_profiles` e os dois CEPs de

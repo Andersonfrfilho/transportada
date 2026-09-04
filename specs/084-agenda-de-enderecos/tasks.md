@@ -23,23 +23,39 @@ o que precisa de decisão → o que precisa de gente.
       lote é **terceiro gatilho** do degrau 2 (decidido, escopo e custo declarados), não escalada
       automática. O adendo da **ADR-0044** e `paid-provider-never-called.contract.ts` seguem
       intactos, e a postura das **ADR-0037/0040** fica registrada em vez de herdada por silêncio.
-- [ ] **G5 (= B2)** — Gateway de geocodificação textual. Envia **UF, cidade, bairro, logradouro,
-      número e CEP** (RF12 — o CEP não melhora a busca, medido; ele serve para comparar o que volta).
-      Mapeia `location_type` para os **quatro** níveis, e ⚠️ `RANGE_INTERPOLATED` nunca vira
-      `rooftop` (RF13).
-- [ ] **G6** — O lote grava em `address_comparisons`. **Nos 149 primeiro**, para olhar antes de
-      estender aos 300.
-      _Aceite:_ a distribuição real — quantos `rooftop`, `range_interpolated`, `approximate`, e
-      quantos com CEP divergente.
-- [ ] **G7** — Estender aos 300, depois que a amostra confirmar o custo e o formato.
+- [x] **G5 (= B2)** — ✅ `google-address-lookup.gateway.ts`. Envia os seis campos, e ⚠️ **não filtra
+      por CEP** — o filtro obrigaria o provedor a concordar com o nosso, apagando o achado de maior
+      valor antes de medi-lo. Filtra o **lugar** (país e UF). `RANGE_INTERPOLATED` tem nível próprio;
+      `not_found` é resultado e falha de chamada é `null`.
+- [x] **G6** — ✅ Rodado nos 149 em 2026-09-04, por `scripts/address-comparison-batch.ts` (sem
+      `--confirm` ele imprime escopo e custo e sai — é o gatilho que a ADR-0061 descreve).
+      _Medido:_ 148 medidos, 1 pulado. **118 `rooftop`**, 17 `range_interpolated`, 13 `approximate`,
+      **zero `not_found`**. 45 divergiam de rua, 3 de CEP (todos genérico → de rua), 1 caiu em outro
+      município. A hipótese "o texto não existe" era rara: a escada grátis é que falhava.
+      ⚠️ **Defeito corrigido no meio:** a primeira versão gravou a medição e jogou fora a
+      coordenada. Reexecutado, **134 coordenadas novas**, e a base saiu de 149 endereços em centroide
+      de município para **15**.
+- [ ] **G7** — Estender aos 147 de precisão de CEP. A amostra confirmou custo (US$ 0,74 por 149) e
+      formato; aqui está a informação **nova**, porque nenhum sinal grátis distingue esses 147 de um
+      endereço bom.
 
 ### Bloco 3 — o relatório, que é o que dá para testar
 
-- [ ] **G8 (= T08/T09)** — Consulta agrupada por contratante, **ordenada por gravidade** (quem nem
-      foi achado primeiro — é quem tem defeito no texto, que nenhuma correção de coordenada resolve).
+- [x] **G8 (= T08/T09)** — ✅ `GET /address-report` (`settings.manage`), agrupado por contratante e
+      ordenado por gravidade. ⚠️ **A separação grafia × lugar foi o achado da task:** das 45
+      divergências de rua, **seis** eram lugar diferente; as outras 39 eram `DR`/`Doutor`,
+      `7`/`Sete`, `MELLO`/`Melo`, `RUA RUA MINAS GERAIS`. Sem separar, o relatório ensina o
+      contratante a fechar a página sem ler. **24 pedidos em 148 medições.**
+      Bairro ficou de fora: diverge em 44 e é palpite do provedor (`CENTRO` → `Itobi`).
 - [ ] **G9** — Os números da RF7 e da RF10: distribuição por origem, deslocamento das correções,
       quantos resultados pagos foram corrigidos por humano depois, e **se o pedido pegou**.
-- [ ] **G10 (= T10)** — A tela no painel. **É aqui que se testa de verdade.**
+      ⚠️ **Sem dado ainda**, e de propósito: `geocoded_address_corrections` está vazia porque
+      ninguém corrigiu nada, e os pedidos nasceram hoje. Construir agora entregaria uma tela de
+      zeros — ela mede a eficácia do relatório, e o relatório precisa rodar antes.
+- [x] **G10 (= T10)** — ✅ Aba **Endereços** em `nfe-workspace`, verificada no navegador com dado
+      real: badge 24, "24 de 148 endereços medidos", agrupado por emitente, os dois lados do endereço
+      lado a lado e a distância por linha. O denominador aparece sempre — é o que separa um pedido de
+      uma acusação.
 
 ### Bloco 4 — consertar com quem sabe (precisa de decisão)
 
