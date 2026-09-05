@@ -194,10 +194,17 @@ async function valuationOf(input: {
   })
 }
 
-async function resolveRevenueLine(input: {
+/**
+ * ⚠️ **Exportada para a listagem de viagens, e é de propósito que seja a mesma função.** A coluna de
+ * ganho de `/trips` responde à mesma pergunta que o painel de valoração — "quanto esta nota rende?"
+ * — e reimplementá-la lá produziria dois números para a mesma carga, divergindo no dia em que a
+ * regra de frete mudasse de forma. Quem chama em lote é `readTripRevenueTotals`.
+ */
+export async function resolveRevenueLine(input: {
   readonly companyId: string
   readonly document: TripValuationDocument
-  readonly repository: TripValuationPort
+  /** Só a busca de regra: a linha não lê contexto, e pedir a porta inteira travaria o chamador em lote. */
+  readonly repository: Pick<TripValuationPort, 'findApplicableRule'>
 }): Promise<TripRevenueLine> {
   const { document } = input
   const line = {

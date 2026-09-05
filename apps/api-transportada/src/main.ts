@@ -212,6 +212,7 @@ import { DrizzleMdfeIssuanceRepository } from './mdfe-manifests/infrastructure/d
 import { DrizzleMdfeManifestRepository } from './mdfe-manifests/infrastructure/drizzle-mdfe-manifest.repository'
 import { createMdfeIssuanceRoutes } from './mdfe-manifests/presentation/mdfe-issuance.routes'
 import { createMdfeManifestRoutes } from './mdfe-manifests/presentation/mdfe-manifests.routes'
+import { readTripRevenueTotals } from './trips/application/read-trip-revenue-totals.use-case.js'
 import { createTripUseCase } from './trips/application/trip.use-case'
 import { createTripLifecycleUseCase } from './trips/application/trip-lifecycle.use-case'
 import { listReturnedWithActiveCte } from './trips/application/list-returned-with-active-cte.use-case'
@@ -1175,7 +1176,25 @@ function createApplicationRoutes({
     now: () => new Date(),
     repository: mdfeIssuanceRepository,
   })
-  const trips = createTripUseCase({ locations: tripLocationRepository, repository: tripRepository })
+  const trips = createTripUseCase({
+    /**
+     * A coluna de valores de `/trips`: uma consulta para as notas da página inteira, e a busca de
+     * regra de frete memoizada por chave. Ver `readTripRevenueTotals` — chamar `readTripValuation`
+     * por linha seria N+1.
+     */
+    amounts: {
+      read: (input) =>
+        readTripRevenueTotals({
+          ...input,
+          repository: {
+            findApplicableRule: (query) => applicableFreightRuleQuery.findApplicableRule(query),
+            readDocumentsByTrip: (query) => tripValuationQuery.readDocumentsByTrip(query),
+          },
+        }),
+    },
+    locations: tripLocationRepository,
+    repository: tripRepository,
+  })
   const createTripMdfeManifest = createTripMdfeManifestUseCase({
     manifests: mdfeManifests,
     readiness: {

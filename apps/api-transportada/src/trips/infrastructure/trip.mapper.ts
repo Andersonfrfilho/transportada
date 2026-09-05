@@ -20,6 +20,8 @@ type TripStopRecord = typeof tripStops.$inferSelect
 
 export function mapTrip(record: TripRecord): Trip {
   return {
+    /** A listagem enriquece depois; toda outra leitura devolve a viagem sem conta de dinheiro. */
+    amounts: null,
     companyId: record.companyId,
     /**
      * ⚠️ Vazio aqui de propósito: a linha de `trips` não sabe quem dirige. Quem lista preenche em

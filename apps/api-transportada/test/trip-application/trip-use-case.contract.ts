@@ -37,6 +37,7 @@ const DRIVERS: readonly TripDriverCandidate[] = [
 ]
 
 const openTrip = (overrides: Partial<TripDetail> = {}): TripDetail => ({
+  amounts: null,
   companyId: COMPANY_ID,
   driverNames: [],
   createdAt: '2026-08-01T10:00:00.000Z',

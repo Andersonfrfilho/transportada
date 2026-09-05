@@ -82,7 +82,9 @@
     "vehicleId": "Veículo",
     "status": "Situação",
     "createdAt": "Criada em",
-    "updatedAt": "Atualizada em"
+    "updatedAt": "Atualizada em",
+    "cargoValue": "Valor da carga",
+    "revenue": "Ganho"
   },
   "sort": {
     "asc": "ordenado crescente",
@@ -509,7 +511,10 @@
   "table": {
     "copyPlate": "Copiar a placa {{plate}}",
     "plateCopied": "Placa copiada",
-    "withoutDriver": "Sem motorista"
+    "withoutDriver": "Sem motorista",
+    "noAmount": "—",
+    "revenueMissing": "sem regra",
+    "revenueEstimated": "previsto"
   },
   "deliveryProofSettings": {
     "title": "Comprovante de entrega",

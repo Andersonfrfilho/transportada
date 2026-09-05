@@ -3,6 +3,7 @@
  */
 import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
 import type { TripDocumentSeparationStatus, TripStatus } from '../../database/trip.schema.js'
+import type { TripAmounts } from './read-trip-revenue-totals.use-case.js'
 import type {
   TripDriverCandidate,
   TripDriverLine,
@@ -48,6 +49,12 @@ export type TripDocument = {
 }
 
 export type Trip = {
+  /**
+   * O dinheiro da linha (spec da coluna de valores em `/trips`): quanto a carga vale e quanto ela
+   * rende. `null` na criação e em toda leitura que não passa pela listagem — quem monta a viagem não
+   * paga por uma conta que ninguém vai olhar.
+   */
+  readonly amounts: TripAmounts | null
   /**
    * Quem dirige, na ordem em que a viagem os pareou. Lista vazia é viagem sem motorista — que
    * existe, e a tela precisa poder dizer isso em vez de deixar a célula muda.
