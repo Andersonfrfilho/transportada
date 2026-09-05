@@ -27,7 +27,7 @@ API verdes, `tsc --noEmit` limpo.
 
 ---
 
-## T2 — A idempotência da importação sobrevive à dobra
+## T2 — A idempotência da importação sobrevive à dobra ✅
 
 > 🤖 `sonnet`
 
@@ -44,7 +44,7 @@ API verdes, `tsc --noEmit` limpo.
 
 ---
 
-## T3 — `resolveTripDriverZone`, política pura
+## T3 — `resolveTripDriverZone`, política pura ✅
 
 > 🤖 `sonnet`
 
@@ -66,7 +66,7 @@ API verdes, `tsc --noEmit` limpo.
 
 ---
 
-## T4 — A lacuna nova, nomeada
+## T4 — A lacuna nova, nomeada ✅
 
 > 🤖 `sonnet`
 
