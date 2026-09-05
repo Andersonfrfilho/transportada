@@ -139,6 +139,12 @@ export default defineRailway((ctx) => {
       ENCRYPTION_ACTIVE_KEY_ID: preserve(),
       ENCRYPTION_KEYRING_JSON: preserve(),
       FISCAL_ENVIRONMENT: preserve(),
+      /**
+       * ADR-0062: a mesma chave da API, por referência (`${{api.GOOGLE_MAPS_API_KEY}}`) — o valor
+       * não é copiado, então rotacionar na API rotaciona aqui. Sem ela a rotina `geocoding.refine`
+       * não é registrada e a janela dela pousa em `job_run_routine_missing`.
+       */
+      GOOGLE_MAPS_API_KEY: preserve(),
       FOUNDATION_SYNTHETIC_CONSUMER_ENABLED: preserve(),
       IDEMPOTENCY_HMAC_KEY: preserve(),
       LOG_LEVEL: preserve(),
