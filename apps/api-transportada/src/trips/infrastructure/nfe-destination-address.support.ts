@@ -15,6 +15,8 @@ import type { StopAddressComponents } from '../domain/stop-address-key.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
 export type NfeDestinationAddress = {
+  /** O município do destino físico — a zona de frete da spec 086 casa por ele. */
+  readonly city: string
   readonly components: StopAddressComponents
   readonly label: string
   readonly origin: PhysicalDestinationOrigin

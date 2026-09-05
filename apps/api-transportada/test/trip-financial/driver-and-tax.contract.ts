@@ -9,6 +9,60 @@ import { buildTripTaxParcels } from '../../src/trips/domain/trip-tax.policy.js'
 const AGGREGATE = { driverId: 'a', paymentModel: 'route_table' as const, routeAmount: '812.4500' }
 const SALARIED = { driverId: 'b', paymentModel: 'fixed' as const, routeAmount: null }
 
+/**
+ * Spec 086 T5: **a lacuna do agregado passou a ter duas causas, e elas pedem ações diferentes.**
+ * "este motorista não cobre esta zona" se resolve na ficha dele; "ITOBI/SP não está na tabela de
+ * regiões" se resolve na aba Regiões. Uma lacuna só mandava o operador procurar no lugar errado
+ * metade das vezes, e o nome da cidade é o que transforma o aviso em ação.
+ */
+describe('a causa da lacuna do agregado (spec 086)', () => {
+  test('a cidade fora da tabela sobe por nome, não como falta de cadastro do motorista', () => {
+    expect(
+      buildTripDriverCost([
+        {
+          cityToRegister: 'ITOBI/SP',
+          driverId: 'a',
+          paymentModel: 'route_table',
+          routeAmount: null,
+          routeGap: 'CITY_WITHOUT_REGION',
+        },
+      ]),
+    ).toEqual({
+      amount: '0.0000',
+      detail: 'ITOBI/SP',
+      gap: 'CITY_WITHOUT_REGION',
+      kind: 'driver',
+      source: 'missing',
+    })
+  })
+
+  /** Sem causa declarada, a lacuna continua sendo a de sempre — nada muda para quem já funcionava. */
+  test('sem causa declarada, segue NO_DRIVER_RATE', () => {
+    expect(
+      buildTripDriverCost([{ driverId: 'a', paymentModel: 'route_table', routeAmount: null }]),
+    ).toMatchObject({ detail: null, gap: 'NO_DRIVER_RATE' })
+  })
+
+  /**
+   * Dois agregados sem valor por causas diferentes: a que nomeia a cidade vence, porque é a
+   * acionável. Escolher a genérica esconderia o único dado que resolve o problema.
+   */
+  test('entre duas causas, a que nomeia a cidade é a que aparece', () => {
+    expect(
+      buildTripDriverCost([
+        { driverId: 'a', paymentModel: 'route_table', routeAmount: null },
+        {
+          cityToRegister: 'ORLANDIA/SP',
+          driverId: 'b',
+          paymentModel: 'route_table',
+          routeAmount: null,
+          routeGap: 'CITY_WITHOUT_REGION',
+        },
+      ]),
+    ).toMatchObject({ detail: 'ORLANDIA/SP', gap: 'CITY_WITHOUT_REGION' })
+  })
+})
+
 describe('o custo do motorista (spec 061 T003)', () => {
   /** O caso do agregado: a tabela de região cruzada com a classe do veículo dá o valor da rota. */
   test('soma o que a tabela paga a cada agregado', () => {
@@ -19,6 +73,7 @@ describe('o custo do motorista (spec 061 T003)', () => {
 
     expect(parcel).toEqual({
       amount: '1086.0000',
+      detail: null,
       gap: null,
       kind: 'driver',
       source: 'measured',
@@ -31,6 +86,7 @@ describe('o custo do motorista (spec 061 T003)', () => {
    */
   test('tripulação assalariada é custo do período, não da viagem', () => {
     expect(buildTripDriverCost([SALARIED])).toEqual({
+      detail: null,
       amount: '0.0000',
       gap: null,
       kind: 'driver',
@@ -59,6 +115,7 @@ describe('o custo do motorista (spec 061 T003)', () => {
 
     expect(parcel).toEqual({
       amount: '0.0000',
+      detail: null,
       gap: 'NO_DRIVER_RATE',
       kind: 'driver',
       source: 'missing',
@@ -81,7 +138,13 @@ describe('o imposto que desce da receita (spec 061 T004)', () => {
       revenueAmount: '2000.0000',
     })
 
-    expect(icms).toEqual({ amount: '200.0000', gap: null, kind: 'icms', source: 'measured' })
+    expect(icms).toEqual({
+      amount: '200.0000',
+      detail: null,
+      gap: null,
+      kind: 'icms',
+      source: 'measured',
+    })
   })
 
   /**
@@ -122,6 +185,7 @@ describe('o imposto que desce da receita (spec 061 T004)', () => {
 
     expect(federal).toEqual({
       amount: '73.0000',
+      detail: null,
       gap: null,
       kind: 'pis_cofins',
       source: 'measured',
@@ -141,6 +205,7 @@ describe('o imposto que desce da receita (spec 061 T004)', () => {
 
     expect(federal).toEqual({
       amount: '0.0000',
+      detail: null,
       gap: 'NO_FEDERAL_REGIME',
       kind: 'pis_cofins',
       source: 'missing',

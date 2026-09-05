@@ -289,10 +289,10 @@ function resolveRecordedParcel(input: {
   readonly kind: TripCostParcel['kind']
 }): TripCostParcel {
   if (input.amount === null) {
-    return { amount: ZERO, gap: input.gap, kind: input.kind, source: 'missing' }
+    return { amount: ZERO, detail: null, gap: input.gap, kind: input.kind, source: 'missing' }
   }
 
-  return { amount: input.amount, gap: null, kind: input.kind, source: 'measured' }
+  return { amount: input.amount, detail: null, gap: null, kind: input.kind, source: 'measured' }
 }
 
 function resolveFuelParcel(input: {
@@ -301,20 +301,38 @@ function resolveFuelParcel(input: {
 }): TripCostParcel {
   const { context, distanceMeters } = input
   if (distanceMeters === null) {
-    return { amount: ZERO, gap: VALUATION_GAPS.noPlannedDistance, kind: 'fuel', source: 'missing' }
+    return {
+      amount: ZERO,
+      detail: null,
+      gap: VALUATION_GAPS.noPlannedDistance,
+      kind: 'fuel',
+      source: 'missing',
+    }
   }
   const consumption = context.vehicle.kilometersPerLiter
   const price = context.fuelPricePerLiter
   if (consumption === null || price === null) {
-    return { amount: ZERO, gap: VALUATION_GAPS.noFuelBaseline, kind: 'fuel', source: 'missing' }
+    return {
+      amount: ZERO,
+      detail: null,
+      gap: VALUATION_GAPS.noFuelBaseline,
+      kind: 'fuel',
+      source: 'missing',
+    }
   }
 
   const amount = fuelCost({ distanceMeters, kilometersPerLiter: consumption, pricePerLiter: price })
   if (amount === null) {
-    return { amount: ZERO, gap: VALUATION_GAPS.noFuelBaseline, kind: 'fuel', source: 'missing' }
+    return {
+      amount: ZERO,
+      detail: null,
+      gap: VALUATION_GAPS.noFuelBaseline,
+      kind: 'fuel',
+      source: 'missing',
+    }
   }
 
-  return { amount, gap: null, kind: 'fuel', source: 'estimated' }
+  return { amount, detail: null, gap: null, kind: 'fuel', source: 'estimated' }
 }
 
 function resolveOtherPerKilometer(input: {
@@ -326,6 +344,7 @@ function resolveOtherPerKilometer(input: {
   if (distanceMeters === null) {
     return {
       amount: ZERO,
+      detail: null,
       gap: VALUATION_GAPS.noPlannedDistance,
       kind: 'other_per_kilometer',
       source: 'missing',
@@ -334,6 +353,7 @@ function resolveOtherPerKilometer(input: {
   if (perKilometer === null) {
     return {
       amount: ZERO,
+      detail: null,
       gap: VALUATION_GAPS.notRecorded,
       kind: 'other_per_kilometer',
       source: 'missing',
@@ -342,6 +362,7 @@ function resolveOtherPerKilometer(input: {
 
   return {
     amount: costOverDistance({ amountPerKilometer: perKilometer, distanceMeters }),
+    detail: null,
     gap: null,
     kind: 'other_per_kilometer',
     source: 'estimated',

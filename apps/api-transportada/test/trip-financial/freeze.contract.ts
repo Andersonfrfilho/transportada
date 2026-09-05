@@ -26,10 +26,10 @@ const USER_ID = '00000000-0000-4000-8000-000000000003'
 function valuation(overrides: Partial<TripValuation> = {}): TripValuation {
   return {
     costParcels: [
-      { amount: '812.4500', gap: null, kind: 'driver', source: 'measured' },
-      { amount: '480.0000', gap: null, kind: 'fuel', source: 'estimated' },
-      { amount: '0.0000', gap: null, kind: 'icms', source: 'measured' },
-      { amount: '73.0000', gap: null, kind: 'pis_cofins', source: 'measured' },
+      { amount: '812.4500', detail: null, gap: null, kind: 'driver', source: 'measured' },
+      { amount: '480.0000', detail: null, gap: null, kind: 'fuel', source: 'estimated' },
+      { amount: '0.0000', detail: null, gap: null, kind: 'icms', source: 'measured' },
+      { amount: '73.0000', detail: null, gap: null, kind: 'pis_cofins', source: 'measured' },
     ],
     hasGaps: false,
     marginPercentage: '32.100000',
@@ -100,8 +100,14 @@ describe('o congelamento do resultado (spec 061 T005)', () => {
       tripId: TRIP_ID,
       valuation: valuation({
         costParcels: [
-          { amount: '0.0000', gap: null, kind: 'driver', source: 'period' },
-          { amount: '0.0000', gap: 'NO_FUEL_BASELINE', kind: 'fuel', source: 'missing' },
+          { amount: '0.0000', detail: null, gap: null, kind: 'driver', source: 'period' },
+          {
+            amount: '0.0000',
+            detail: null,
+            gap: 'NO_FUEL_BASELINE',
+            kind: 'fuel',
+            source: 'missing',
+          },
         ],
         hasGaps: true,
       }),

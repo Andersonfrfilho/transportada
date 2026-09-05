@@ -81,6 +81,12 @@ export type TripRevenueLine = {
 
 export type TripCostParcel = {
   readonly amount: string
+  /**
+   * O que a lacuna precisa nomear para virar ação — hoje a cidade a cadastrar
+   * (`CITY_WITHOUT_REGION`). Genérico de propósito: é a lacuna que decide o que o texto significa, e
+   * um campo por parcela faria a próxima lacuna nascer sem lugar para o dado dela.
+   */
+  readonly detail: null | string
   readonly gap: null | ValuationGap
   readonly kind: TripCostKind
   readonly source: ValuationSource

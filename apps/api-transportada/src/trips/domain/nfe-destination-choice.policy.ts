@@ -20,6 +20,8 @@ export type NfeDestinationRow = {
 }
 
 export type NfeDestinationChoice = {
+  /** O município do destino físico, como a nota o escreveu — a zona de frete casa por ele. */
+  readonly city: string
   readonly components: StopAddressComponents
   readonly label: string
   /** A UF da parada — é ela que diz qual malha o mapa busca para desenhar o contorno. */
@@ -63,6 +65,7 @@ export function chooseNfeDestinationRow(
   if (chosen === null) return null
 
   return {
+    city: chosen.row.city ?? '',
     components: chosen.components,
     /** A UF da parada: é ela que diz **qual malha** o mapa precisa buscar para desenhar o contorno. */
     state: chosen.row.state ?? '',
