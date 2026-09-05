@@ -424,10 +424,6 @@ test('operador baixa o ZIP de XML por seleção e por filtro no desktop', async 
 test('operator creates a billing invoice on mobile without horizontal overflow', async ({
   page,
 }) => {
-  // TEMPORÁRIO — encaminha o diagnóstico do useFloatingLayer para o log da CI. Remover junto.
-  page.on('console', (message) => {
-    if (message.text().startsWith('[fl]')) console.log(message.text())
-  })
   await page.setViewportSize(VIEWPORTS.mobile)
   await page.addInitScript(() => sessionStorage.setItem('transportada.workspace', 'billing'))
   const api = await mockBillingWorkspaceApi({

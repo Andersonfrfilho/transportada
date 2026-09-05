@@ -79,18 +79,9 @@ export function useFloatingLayer<TLayer extends HTMLElement>({
 
     /** Gatilho fora da janela: a camada não tem mais a que se prender, então ela fecha. */
     if (!isAnchorVisible({ anchor: anchorRect, viewport })) {
-      // TEMPORÁRIO — diagnóstico do smoke 424, remover depois de ler o log da CI.
-      console.warn(
-        `[fl] dismiss=anchor-invisible top=${Math.round(anchorRect.top)} bottom=${Math.round(anchorRect.bottom)} vh=${viewport.height}`,
-      )
       dismissRef.current()
       return
     }
-
-    // TEMPORÁRIO — diagnóstico do smoke 424, remover depois de ler o log da CI.
-    console.warn(
-      `[fl] measure anchorTop=${Math.round(anchorRect.top)} anchorBottom=${Math.round(anchorRect.bottom)} vh=${viewport.height} layerH=${layer.scrollHeight}`,
-    )
 
     const next = resolveFloatingLayerPosition({
       ...(align === undefined ? {} : { align }),
@@ -120,10 +111,6 @@ export function useFloatingLayer<TLayer extends HTMLElement>({
     function handleScroll(event: Event): void {
       const target = event.target
       if (target instanceof Node && layerRef.current?.contains(target) === true) return
-      // TEMPORÁRIO — diagnóstico do smoke 424, remover depois de ler o log da CI.
-      const nome =
-        target instanceof Element ? target.tagName : target instanceof Document ? 'document' : '?'
-      console.warn(`[fl] dismiss=page-scroll target=${nome}`)
       dismissRef.current()
     }
 
