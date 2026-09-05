@@ -137,4 +137,32 @@ describe('o traço do roteiro usa a paleta da listagem, um trecho por parada', (
     expect(source).toContain('{ stroke: shape.color }')
     expect(source).not.toContain('stroke={shape.color}')
   })
+
+  /**
+   * ⚠️ **`line-dasharray` não é data-driven no MapLibre**, e este teste existe porque eu quebrei o
+   * mapa com isso: uma expressão nessa chave faz o `addLayer` recusar a camada **inteira**, e o
+   * sintoma não é erro na tela — é o roteiro sumir com as cores e os pinos continuando no lugar.
+   *
+   * Nenhum contrato pegou. Os testes provavam a segmentação (função pura) e a fiação (texto de
+   * fonte), e a regra violada era do renderizador. Este cobre a diferença: `line-color` **pode** ser
+   * expressão, `line-dasharray` **não**.
+   */
+  it('não pinta o tracejado com expressão, que o MapLibre recusaria', () => {
+    const source = readFileSync(ASSEMBLY, 'utf8')
+    const layer = source.slice(source.indexOf("id: 'roteiro-linha'"))
+    const dash = layer.slice(layer.indexOf("'line-dasharray'"))
+    const value = dash.slice(0, dash.indexOf('\n'))
+
+    expect(value).not.toContain("['case'")
+    expect(value).not.toContain("['get'")
+    /** Constante é legítima porque os trechos são homogêneos: ou todos estrada, ou todos reta. */
+    expect(value).toContain('dashArray')
+  })
+
+  /** Trocar os dados sem reajustar o tracejado deixaria reta desenhada como estrada. */
+  it('reajusta o tracejado quando a fonte é atualizada', () => {
+    const source = readFileSync(ASSEMBLY, 'utf8')
+
+    expect(source).toContain("setPaintProperty('roteiro-linha', 'line-dasharray', dashArray)")
+  })
 })

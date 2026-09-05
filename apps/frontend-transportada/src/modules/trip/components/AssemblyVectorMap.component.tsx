@@ -271,9 +271,21 @@ export function AssemblyVectorMap({
       })),
     }
 
+    /**
+     * ⚠️ **`line-dasharray` não é data-driven no MapLibre**, e é por isso que o tracejado é constante
+     * aqui em vez de sair do `dashed` de cada trecho. Uma expressão nessa chave faz o `addLayer`
+     * recusar a camada **inteira** — e o sintoma não é erro na tela, é o roteiro sumir do mapa com
+     * as cores e os pinos continuando no lugar. Foi exatamente o que aconteceu.
+     *
+     * A constante é honesta porque os trechos são homogêneos por construção: `resolveRouteLegs`
+     * devolve todos de estrada quando a polilinha veio, e todos retas quando não veio.
+     */
+    const dashArray = legs[0]?.dashed === true ? [2, 2] : [1]
+
     const existing: GeoJSONSource | undefined = map.getSource(ROUTE_SOURCE)
     if (existing !== undefined) {
       void existing.setData(data)
+      map.setPaintProperty('roteiro-linha', 'line-dasharray', dashArray)
       return
     }
 
@@ -284,7 +296,7 @@ export function AssemblyVectorMap({
       paint: {
         'line-color': ['get', 'color'],
         /** Tracejado só quando o trecho é reta: sólido diria que o caminhão faz aquele caminho. */
-        'line-dasharray': ['case', ['get', 'dashed'], ['literal', [2, 2]], ['literal', [1]]],
+        'line-dasharray': dashArray,
         'line-width': 3,
       },
       source: ROUTE_SOURCE,
