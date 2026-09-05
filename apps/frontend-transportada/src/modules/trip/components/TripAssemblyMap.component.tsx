@@ -18,6 +18,7 @@ import { getTripClient } from '../hooks/useTripWorkspace.hook'
 import { useSolverCityOrder } from '../hooks/useSolverCityOrder.hook'
 import { buildAssemblyMap, type AssemblyMapNote } from '../shared/assemblyMap.service'
 import { buildStopAddressKey } from '../shared/stopAddressKey.service'
+import { stopColorOf } from '../shared/stopColor.service'
 import {
   buildAssemblyLegs,
   formatDuration,
@@ -58,7 +59,6 @@ const NEARBY_NAME_LIMIT = 6
  * baú usa (spec 076): a sétima parada recomeça no primeiro, porque inventar tom novo aqui daria
  * duas paletas para a mesma viagem.
  */
-const STOP_COLOR_COUNT = 6
 
 /** `2026-09-05T17:40:00Z` vira "05/09 17:40" — data curta porque o roteiro é do dia, não do ano. */
 function formatFinishTime(iso: string): string {
@@ -70,10 +70,6 @@ function formatFinishTime(iso: string): string {
     minute: '2-digit',
     month: '2-digit',
   })
-}
-
-function stopColor(sequence: number): string {
-  return `var(--color-cargo-stop-${((sequence - 1) % STOP_COLOR_COUNT) + 1})`
 }
 
 /**
@@ -271,7 +267,7 @@ export function TripAssemblyMap({
             nearby={map.nearby}
             onBasemapMissing={() => setHasBasemap(false)}
             points={map.points}
-            stopColor={stopColor}
+            stopColor={stopColorOf}
           />
         </Suspense>
       ) : (
@@ -296,7 +292,7 @@ export function TripAssemblyMap({
             <div className={styles.assemblyStop}>
               <span
                 className={styles.assemblyBullet}
-                style={{ background: stopColor(point.sequence ?? 1) }}
+                style={{ background: stopColorOf(point.sequence ?? 1) }}
               >
                 {point.sequence}
               </span>

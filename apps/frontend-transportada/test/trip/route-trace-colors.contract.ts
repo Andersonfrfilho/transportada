@@ -1,0 +1,140 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+import { readFileSync } from 'node:fs'
+
+import { describe, expect, it } from 'bun:test'
+
+import { resolveRouteLegs } from '../../src/modules/trip/shared/routeGeometry.service'
+import type { RouteGeometry } from '../../src/modules/trip/shared/routeGeometry.service'
+import { stopColorOf, stopColorTokenOf } from '../../src/modules/trip/shared/stopColor.service'
+
+const VECTOR_MAP = new URL('../../src/components/ui/vector-map.tsx', import.meta.url)
+const ASSEMBLY = new URL(
+  '../../src/modules/trip/components/AssemblyVectorMap.component.tsx',
+  import.meta.url,
+)
+
+/** Projeção de mentira: o teste mede o corte, não a cartografia. */
+const project = (point: { readonly latitude: number; readonly longitude: number }) => ({
+  x: point.longitude,
+  y: point.latitude,
+})
+
+function road(points: readonly (readonly [number, number])[]): RouteGeometry {
+  return {
+    legs: [],
+    points: points.map(([longitude, latitude]) => ({
+      latitude: String(latitude),
+      longitude: String(longitude),
+    })),
+    source: 'road',
+  }
+}
+
+describe('o traço do roteiro usa a paleta da listagem, um trecho por parada', () => {
+  /**
+   * ⚠️ **O laranja do tema já é usado por outros traços do mapa.** O roteiro inteiro saía em
+   * `--color-copper` e se perdia no meio deles; agora cada trecho leva a cor da parada a que ele
+   * chega, que é a mesma da listagem ao lado.
+   */
+  it('não pinta mais o roteiro com a cor única do tema', () => {
+    const source = readFileSync(ASSEMBLY, 'utf8')
+    const layer = source.slice(source.indexOf("id: 'roteiro-linha'"))
+
+    expect(layer).not.toContain('--color-copper')
+    expect(layer).toContain("'line-color': ['get', 'color']")
+  })
+
+  it('numera a paleta a partir da parada 1 e dá a volta depois da sexta', () => {
+    expect(stopColorTokenOf(1)).toBe('--color-cargo-stop-1')
+    expect(stopColorTokenOf(6)).toBe('--color-cargo-stop-6')
+    expect(stopColorTokenOf(7)).toBe('--color-cargo-stop-1')
+    expect(stopColorOf(2)).toBe('var(--color-cargo-stop-2)')
+  })
+
+  /**
+   * ⚠️ **Os `legs` da API não dizem onde cada trecho começa na polilinha** — trazem só distância e
+   * duração. O corte acha, para cada parada, o ponto mais próximo dela; e isso não é palpite,
+   * porque a polilinha foi gerada roteirizando por essas paradas.
+   */
+  it('corta a polilinha da estrada em um trecho por par de paradas', () => {
+    const legs = resolveRouteLegs({
+      geometry: road([
+        [0, 0],
+        [1, 0],
+        [2, 0],
+        [3, 0],
+        [4, 0],
+      ]),
+      project,
+      stops: [
+        { x: 0, y: 0 },
+        { x: 2, y: 0 },
+        { x: 4, y: 0 },
+      ],
+    })
+
+    expect(legs).toHaveLength(2)
+    expect(legs[0]?.toSequence).toBe(2)
+    expect(legs[1]?.toSequence).toBe(3)
+    /** O ponto do corte pertence aos dois trechos: sem isso a linha abriria um vão na parada. */
+    expect(legs[0]?.points.at(-1)).toEqual({ x: 2, y: 0 })
+    expect(legs[1]?.points[0]).toEqual({ x: 2, y: 0 })
+  })
+
+  /**
+   * ⚠️ Rota que passa duas vezes perto da mesma parada produziria trecho de comprimento negativo se
+   * cada busca varresse a polilinha inteira. Os índices são monotônicos por construção.
+   */
+  it('nunca volta atrás no corte quando a rota passa duas vezes pelo mesmo lugar', () => {
+    const legs = resolveRouteLegs({
+      geometry: road([
+        [0, 0],
+        [5, 0],
+        [0, 0],
+        [9, 0],
+      ]),
+      project,
+      stops: [
+        { x: 0, y: 0 },
+        { x: 5, y: 0 },
+        { x: 0, y: 0 },
+      ],
+    })
+
+    for (const leg of legs) expect(leg.points.length).toBeGreaterThanOrEqual(2)
+    expect(legs.at(-1)?.points.at(-1)).toEqual({ x: 9, y: 0 })
+  })
+
+  /** Sem estrada o trecho é a reta entre duas paradas — e continua tracejado dizendo que não é caminho. */
+  it('sem geometria de estrada, liga parada a parada e mantém o tracejado', () => {
+    const legs = resolveRouteLegs({
+      geometry: null,
+      project,
+      stops: [
+        { x: 0, y: 0 },
+        { x: 1, y: 1 },
+        { x: 2, y: 2 },
+      ],
+    })
+
+    expect(legs.map((leg) => leg.kind)).toEqual(['straight', 'straight'])
+    expect(legs.every((leg) => leg.dashed)).toBe(true)
+    expect(legs.map((leg) => leg.toSequence)).toEqual([2, 3])
+  })
+
+  it('uma parada só não tem trecho nenhum', () => {
+    expect(resolveRouteLegs({ geometry: null, project, stops: [{ x: 0, y: 0 }] })).toEqual([])
+  })
+
+  /**
+   * ⚠️ `.line` declara `stroke` em CSS, e **classe vence atributo de apresentação**: o traço sairia
+   * na cor do tema com o atributo ignorado, e o defeito seria invisível — a linha aparece, só que
+   * na cor errada.
+   */
+  it('a cor do traço entra inline, porque a classe venceria o atributo', () => {
+    const source = readFileSync(VECTOR_MAP, 'utf8')
+
+    expect(source).toContain('{ stroke: shape.color }')
+    expect(source).not.toContain('stroke={shape.color}')
+  })
+})

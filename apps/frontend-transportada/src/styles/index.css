@@ -8,12 +8,27 @@
    * mesma cor na lista, no mapa e no baú. Seis tons distinguíveis entre si; acima disso a tela
    * agrupa em vez de gerar cor que ninguém diferencia.
    */
-  --color-cargo-stop-1: #4c8fbd;
-  --color-cargo-stop-2: #d58a47;
-  --color-cargo-stop-3: #6aae8c;
-  --color-cargo-stop-4: #b06fa8;
-  --color-cargo-stop-5: #c7913f;
-  --color-cargo-stop-6: #7d8fa8;
+  /*
+   * A paleta das paradas — e, desde o traço colorido do roteiro, também a das linhas sobre o mapa.
+   *
+   * ⚠️ Metade dela colidia com o próprio tema, e não por parecença: `stop-2` era **exatamente**
+   * `--color-copper` e `stop-3` era **exatamente** `--color-ready`. No mapa isso fazia o roteiro
+   * sumir dentro dos outros traços, que já usam o cobre.
+   *
+   * ⚠️ E a colisão não é só com o tema: `--color-zone-*` pinta o mapa de regiões, e a primeira
+   * tentativa de conserto pôs uma parada a ΔE 13 da zona 0. **Toda cor que aparece sobre mapa entra
+   * na conta.**
+   *
+   * Os valores atuais foram escolhidos por medida, não a olho, e `test/design-system/stop-palette`
+   * cobra as quatro: ΔE ≥ 30 de toda cor de superfície de mapa (em todos os temas), contraste ≥ 2,4
+   * sobre o fundo claro e o escuro, ΔE ≥ 40 entre si, e matizes ≥ 30° apartados.
+   */
+  --color-cargo-stop-1: #1bb11b;
+  --color-cargo-stop-2: #1073d5;
+  --color-cargo-stop-3: #5d4ee4;
+  --color-cargo-stop-4: #cc12ed;
+  --color-cargo-stop-5: #ed12a0;
+  --color-cargo-stop-6: #cc6675;
   --color-asphalt: #10222c;
   --color-copper: #d58a47;
   --color-fog: #f0f2ee;

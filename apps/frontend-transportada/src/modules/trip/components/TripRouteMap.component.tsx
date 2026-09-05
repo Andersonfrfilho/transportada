@@ -17,7 +17,8 @@ import {
 } from '@/modules/shared/ibgeMesh.service'
 
 import { buildTripBasemapPaths } from '../shared/tripBasemap.service'
-import { resolveRouteTrace, type RouteGeometry } from '../shared/routeGeometry.service'
+import { resolveRouteTraceSegments, type RouteGeometry } from '../shared/routeGeometry.service'
+import { stopColorOf } from '../shared/stopColor.service'
 import { MAP_VIEWBOX_SIZE, resolveTripRouteMap } from '../shared/tripRouteMap.service'
 import type { TripStopDetail } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
@@ -93,20 +94,22 @@ export function TripRouteMap({
    * quando é a reta que liga as paradas. Desenhar os dois igual faria o operador ler caminho onde
    * não há — uma reta entre duas paradas atravessa rio e ferrovia sem pedir licença.
    */
-  const route = resolveRouteTrace({ geometry, project: map.project, stops: map.points })
-  const trace =
-    route.path === ''
-      ? []
-      : [
-          {
-            dashed: route.dashed,
-            fill: 'none',
-            line: true,
-            id: 'route',
-            label: t(`routeMap.trace.${route.kind}`),
-            path: route.path,
-          },
-        ]
+  const segments = resolveRouteTraceSegments({
+    geometry,
+    project: map.project,
+    stops: map.points,
+  })
+  const trace = segments.map((segment) => ({
+    color: stopColorOf(segment.toSequence),
+    dashed: segment.dashed,
+    fill: 'none',
+    id: `route-${segment.toSequence}`,
+    label: t(`routeMap.trace.${segment.kind}`),
+    line: true,
+    path: segment.path,
+  }))
+  /** A legenda continua falando do traço inteiro: os trechos só mudam de cor, não de natureza. */
+  const traceKind = segments[0]?.kind ?? 'straight'
 
   /**
    * O contorno do município entra **primeiro**, para ficar atrás da linha e dos pinos: o fundo é
@@ -145,7 +148,7 @@ export function TripRouteMap({
       {canCorrect ? (
         <TripStopPointCorrection isCorrecting={isCorrecting} onCorrect={onCorrect} stops={stops} />
       ) : null}
-      <p className={styles.hint}>{t(`routeMap.trace.${route.kind}`)}</p>
+      <p className={styles.hint}>{t(`routeMap.trace.${traceKind}`)}</p>
       {map.stopsWithoutLocation.length === 0 ? null : (
         <p className={styles.hint}>
           {t('routeMap.withoutLocation', { stops: map.stopsWithoutLocation.join(', ') })}

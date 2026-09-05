@@ -63,7 +63,12 @@ describe('o baú na tela (spec 076)', () => {
   /** RF6: cor por parada vem dos tokens. Cor literal no módulo é rejeitada em code review. */
   it('usa a paleta de tokens, nunca cor literal', () => {
     expect(source).not.toMatch(/#[0-9a-fA-F]{3,8}\b/u)
-    expect(source).toInclude('--color-cargo-stop-')
+    /**
+     * ⚠️ O token deixou de aparecer aqui quando a paleta virou `stopColor.service` — o traço do
+     * roteiro passou a precisar dela, e três cópias da mesma aritmética é como a divergência começa.
+     * O que este contrato guarda continua sendo o mesmo: nenhuma cor literal, e a paleta compartilhada.
+     */
+    expect(source).toInclude('stopColorOf')
     expect(readFileSync(TOKENS, 'utf8')).toInclude('--color-cargo-stop-1')
   })
 
