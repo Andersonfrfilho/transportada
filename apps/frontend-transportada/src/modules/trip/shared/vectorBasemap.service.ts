@@ -47,9 +47,12 @@ export type BasemapTheme = (typeof BASEMAP_THEMES)[number]
  * As duas leituras do mesmo mapa. **Claro** é o formato que todo mundo já sabe ler e o que separa
  * rodovia de rua no zoom de região; **escuro** casa com o painel e cansa menos em turno longo.
  *
- * ⚠️ Os tokens são escolhidos pelo **valor**, nunca pelo nome: a primeira versão usou
- * `--color-plate-*`, que é a paleta da **placa do veículo** (#eef0f2), e pintou via quase branca
- * sobre fundo quase branco — o mapa carregava e só os rios apareciam.
+ * ⚠️ **A paleta é `--color-basemap-*`, e ela não segue o tema do painel.** As versões anteriores
+ * pediam `--color-fog`, `--color-asphalt` e `--color-graphite`, que **trocam de significado** entre
+ * o tema claro e o escuro do documento: névoa é quase branca num e quase preta no outro. O tema
+ * "claro" do mapa pintava terra com névoa — certo com o painel escuro, invertido com o painel
+ * claro, e aí não se enxergava nada. O tema do mapa é estado **do mapa**, e o painel por baixo pode
+ * estar em qualquer um dos dois.
  *
  * ⚠️ `contorno` é o **papel** do tema, e é o anel do pino da parada. Ele existe porque o pino caiu
  * no mesmo defeito descrito acima e ninguém percebeu: o anel era `--color-plate-surface` fixo, que
@@ -59,52 +62,47 @@ export type BasemapTheme = (typeof BASEMAP_THEMES)[number]
  */
 const PALETTE: Readonly<Record<BasemapTheme, Readonly<Record<string, string>>>> = {
   claro: {
-    agua: '--color-plate-flag-blue',
+    agua: '--color-basemap-water',
     /** O papel deste tema — ver `contorno` no fim de cada bloco. */
-    contorno: '--color-fog',
-    relevo: '--color-plate-surface',
-    rotulo: '--color-asphalt',
-    terra: '--color-fog',
-    verde: '--color-ready',
-    via: '--color-graphite',
+    contorno: '--color-basemap-paper',
+    relevo: '--color-basemap-white',
+    rotulo: '--color-basemap-ink',
+    terra: '--color-basemap-paper',
+    verde: '--color-basemap-green',
+    via: '--color-basemap-ink',
     /** Convenção do OpenStreetMap: rodovia vermelha, troncal laranja, secundária amarela. */
-    rodovia: '--color-alert',
-    troncal: '--color-copper',
-    secundaria: '--color-plate-flag-yellow',
+    rodovia: '--color-basemap-road-major',
+    troncal: '--color-basemap-road-trunk',
+    secundaria: '--color-basemap-road-minor',
   },
   escuro: {
-    agua: '--color-plate-flag-blue',
-    contorno: '--color-asphalt',
-    relevo: '--color-graphite',
-    rotulo: '--color-fog',
-    terra: '--color-asphalt',
-    verde: '--color-ready',
-    via: '--color-slate',
-    rodovia: '--color-alert',
-    troncal: '--color-copper',
-    secundaria: '--color-plate-flag-yellow',
+    agua: '--color-basemap-water-dark',
+    contorno: '--color-basemap-land-dark',
+    relevo: '--color-basemap-relief-dark',
+    rotulo: '--color-basemap-paper',
+    terra: '--color-basemap-land-dark',
+    verde: '--color-basemap-green',
+    via: '--color-basemap-street-dark',
+    rodovia: '--color-basemap-road-major',
+    troncal: '--color-basemap-road-trunk',
+    secundaria: '--color-basemap-road-minor',
   },
   /**
    * Papel branco, traço preto, sem vegetação nem mancha urbana competindo. É o que se lê num galpão
    * com o sol batendo na tela do celular — e o que imprime, se alguém levar o roteiro no papel.
    */
   contraste: {
-    agua: '--color-graphite',
-    /**
-     * ⚠️ Aqui `--color-plate-*` é escolhido **pelo valor** e está certo: este tema é papel branco, e
-     * #eef0f2 é o branco de papel que ele quer. Não confundir com o defeito descrito acima, que era
-     * usar essa paleta onde o fundo já era claro.
-     */
-    contorno: '--color-plate-surface',
-    relevo: '--color-fog',
-    rotulo: '--color-asphalt',
-    terra: '--color-plate-surface',
-    verde: '--color-fog',
-    via: '--color-asphalt',
+    agua: '--color-basemap-ink',
+    contorno: '--color-basemap-white',
+    relevo: '--color-basemap-paper',
+    rotulo: '--color-basemap-ink',
+    terra: '--color-basemap-white',
+    verde: '--color-basemap-paper',
+    via: '--color-basemap-ink',
     /** No alto contraste a classe não colore: o que separa via é a espessura, não o matiz. */
-    rodovia: '--color-asphalt',
-    troncal: '--color-asphalt',
-    secundaria: '--color-asphalt',
+    rodovia: '--color-basemap-ink',
+    troncal: '--color-basemap-ink',
+    secundaria: '--color-basemap-ink',
   },
 }
 
@@ -116,18 +114,30 @@ const PALETTE: Readonly<Record<BasemapTheme, Readonly<Record<string, string>>>> 
  * cor fixa na folha de estilo não tem como acompanhar isso — foi exatamente assim que o anel ficou
  * quase branco nos dois temas de papel claro.
  */
+/**
+ * O tema do mapa que **acompanha o do painel**: escuro embaixo de escuro, papel embaixo de papel.
+ *
+ * ⚠️ Isto é o padrão, não uma amarra. `contraste` não tem contraparte no painel — ele existe para o
+ * galpão com sol na tela, e para o roteiro impresso —, então a escolha explícita do operador
+ * continua vencendo. O que o padrão conserta é o mapa nascer discordando da tela em volta.
+ */
+export function basemapThemeForApp(appTheme: 'dark' | 'light'): BasemapTheme {
+  return appTheme === 'light' ? 'claro' : 'escuro'
+}
+
 export function resolveBasemapOutline(
   resolveToken: (token: string) => string,
   theme: BasemapTheme,
 ): string {
-  return resolveToken(PALETTE[theme]?.contorno ?? '--color-fog')
+  return resolveToken(PALETTE[theme]?.contorno ?? '--color-basemap-paper')
 }
 
 export function buildBasemapStyle(
   resolveToken: (token: string) => string,
   theme: BasemapTheme = 'claro',
 ): StyleSpecification {
-  const tom = (nome: string): string => resolveToken(PALETTE[theme][nome] ?? '--color-fog')
+  const tom = (nome: string): string =>
+    resolveToken(PALETTE[theme][nome] ?? '--color-basemap-paper')
   /**
    * ⚠️ Os tokens são escolhidos pelo **valor**, nunca pelo nome: a primeira versão usou
    * `--color-plate-*`, que é a paleta da **placa do veículo** (#eef0f2), e pintou via quase branca

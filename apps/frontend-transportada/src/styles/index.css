@@ -23,6 +23,38 @@
    * cobra as quatro: ΔE ≥ 30 de toda cor de superfície de mapa (em todos os temas), contraste ≥ 2,4
    * sobre o fundo claro e o escuro, ΔE ≥ 40 entre si, e matizes ≥ 30° apartados.
    */
+  /*
+   * A cartografia do mapa vetorial, e ela é **independente do tema do painel** — de propósito.
+   *
+   * ⚠️ Os temas do basemap (`claro`, `escuro`, `contraste`) eram montados com `--color-fog`,
+   * `--color-asphalt` e `--color-graphite`, que **trocam de significado** entre o tema claro e o
+   * escuro: névoa é quase branca num e quase preta no outro. O tema "claro" do mapa pintava terra
+   * com névoa — certo com o painel escuro, invertido com o painel claro, e aí não se enxergava
+   * nada. O arquivo já registrava dois incidentes desta mesma família; a raiz é esta.
+   *
+   * O tema do mapa é estado **do mapa**, não do documento: o operador escolhe a leitura da
+   * cartografia por cima, e o painel pode estar em qualquer tema por baixo. Token que segue o
+   * documento não tem como servir aos dois.
+   */
+  --color-basemap-paper: #f2efe9;
+  --color-basemap-ink: #10222c;
+  --color-basemap-water: #17298a;
+  /*
+    ⚠️ A água tem dois tons porque a terra tem dois. O anil sobre o papel claro dá 10,6 de
+    contraste e sobre a terra escura dá 1,34 — rio e represa sumiam no tema escuro. O tom
+    escuro é petróleo, medido a 2,7 contra a terra e a ΔE 46 da parada mais próxima: ele lê
+    como água, e não se confunde com traço de roteiro.
+  */
+  --color-basemap-water-dark: #1c6c84;
+  --color-basemap-land-dark: #10222c;
+  --color-basemap-relief-dark: #1c2b33;
+  --color-basemap-green: #6aae8c;
+  --color-basemap-road-major: #c2382f;
+  --color-basemap-road-trunk: #d58a47;
+  --color-basemap-road-minor: #d9b13c;
+  --color-basemap-street-dark: #8fa3ad;
+  --color-basemap-white: #eef0f2;
+
   --color-cargo-stop-1: #1bb11b;
   --color-cargo-stop-2: #1073d5;
   --color-cargo-stop-3: #5d4ee4;
