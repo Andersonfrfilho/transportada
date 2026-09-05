@@ -71,6 +71,7 @@ import { createGeocodingBackfillRoutine } from './geocoding-backfill/application
 import { createDrizzlePendingAddressSource } from './geocoding-backfill/infrastructure/drizzle-pending-address.repository.js'
 import { createGeocodingRefineRoutine } from './geocoding-refine/application/geocoding-refine.routine.js'
 import { createGoogleGeocodingGateway } from './geocoding-refine/infrastructure/google-geocoding.gateway.js'
+import { createGooglePlacesGateway } from './geocoding-refine/infrastructure/google-places.gateway.js'
 import {
   createDrizzlePendingRefinementSource,
   createDrizzleRefinedAddressRepository,
@@ -995,6 +996,12 @@ export async function startWorkerRuntime(
                   ),
                   geocoding: createGoogleGeocodingGateway({ apiKey: config.googleMapsApiKey }),
                   logger,
+                  /**
+                   * O degrau 2b: mesma chave, outra API. Ela entra junto porque só é chamada quando
+                   * a Geocoding já falhou — configurar uma sem a outra deixaria a queda desligada
+                   * sem ninguém pedir isso.
+                   */
+                  places: createGooglePlacesGateway({ apiKey: config.googleMapsApiKey }),
                   repository: createDrizzleRefinedAddressRepository(
                     database.db as ReturnType<typeof createDrizzleProvider>['db'],
                   ),

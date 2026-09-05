@@ -142,3 +142,68 @@ outra.
 - A escalada automática deixa de ser proibida **neste recorte e só nele**. Escalada por colisão,
   escalada por marca de qualidade e escalada dentro da sugestão seguem recusadas, e o contrato da
   sugestão continua provando a última.
+
+## Adendo, 2026-09-05 — o degrau 2b: quando a Geocoding não basta, a Places basta
+
+A §2 disse "provedor pago" como se fosse um. São dois, e a diferença é medida.
+
+### O que se mediu
+
+Endereço real, em Luís Antônio/SP. O cadastro da nota grafa `R AMERICA DE ARAUJO PERES`; o logradouro
+é `R. Américo de Araújo Píres`. **Dois** erros de uma letra cada.
+
+| consulta à **Geocoding API**               | resposta                                        |
+| ------------------------------------------ | ----------------------------------------------- |
+| texto do cadastro, como o mandamos hoje    | `APPROXIMATE` — centro do município, 6 km fora  |
+| idem, com filtro `components=postal_code`  | `APPROXIMATE` — idêntico                        |
+| idem, sem CEP no texto / sem filtro nenhum | `APPROXIMATE`                                   |
+| só `PERES`→`PIRES` corrigido               | **`ROOFTOP`**, no ponto certo                   |
+| só `AMERICA`→`AMERICO` corrigido           | `GEOMETRIC_CENTER` (acha a rua, perde o número) |
+
+A Geocoding tolera **um** erro de grafia e desiste com dois. Não é a nossa consulta que está
+malformada — é o texto da nota, e ele é assim o tempo todo.
+
+A **Places API (New)**, `places:searchText`, com o **mesmo texto errado**, devolve o lugar certo.
+
+### A decisão
+
+Um degrau **2b** dentro da mesma rotina `geocoding.refine`: a Geocoding não melhorou → pergunta à
+Places. Continua **uma tentativa por endereço na vida**, sob o mesmo `paid_refined_at` — o que muda é
+que a tentativa agora tem dois provedores, não que existam duas tentativas.
+
+⚠️ **Ela manda só o endereço, nunca o nome do destinatário.** Foi medido que o endereço basta, e isso
+mantém intacta a linha do `CLAUDE.md` de que este seam lê o lugar e não quem consome. Se um dia
+alguém quiser mandar o nome para melhorar a taxa de acerto, isso é decisão nova.
+
+### Três guardas, e a do meio é a que importa
+
+1. **Sem `street_number` na resposta, recusa.** Resultado sem número é ponto de rua, e a rua o degrau
+   1 já dá de graça.
+2. ⚠️ **Número divergente recusa.** Medido: pedindo o número `99999` na rua certa, a Places devolve o
+   `533` — o prédio certo da rua, que é o prédio errado do pedido — **sem nada na resposta dizendo
+   que trocou**. Gravar isso seria coordenada de outro lugar com cara de acerto: a família de defeito
+   da ADR-0044 §1.
+3. **Município divergente recusa**, comparado sem acento e em caixa alta — a nota grafa
+   `LUIS ANTONIO` e o provedor devolve `Luís Antônio`, e recusar por acento jogaria fora justamente o
+   caso que este degrau existe para resolver.
+
+⚠️ **No Brasil o município vem como `administrative_area_level_2`, não `locality`.** A primeira
+versão do gateway pedia só `locality`, e o efeito não era um erro: era a guarda 3 **desligada em
+silêncio** — o campo vinha vazio, e a política trata vazio como "o provedor não nomeou o município",
+que aceita. Guarda que falha aberta é pior que guarda nenhuma, porque ninguém procura por ela. Só a
+chamada contra a API real pegou isso; o teste com dublê passava.
+
+### O que torna isto seguro, e é medido
+
+Rua **inventada** na mesma cidade devolve **lista vazia**. A Places não entrega palpite plausível
+quando o endereço não existe — era o maior risco desta decisão, e a resposta é a certa.
+
+### Consequências
+
+- Segunda chamada paga, **só** para o endereço que a Geocoding não resolveu — hoje quinze. A Text
+  Search é mais cara por chamada que a Geocoding.
+- A **Places API (New)** precisa estar habilitada no projeto do Google Cloud. Sem ela a resposta é
+  HTTP de erro, que **adia** (não carimba): endereço nenhum queima a chance paga por API desligada.
+- A legada (`maps/api/place/textsearch`) **não** serve: o Google recusa projetos que não a usavam.
+- O que não passa nas guardas continua caindo em "Clientes que precisam de atualizações", que segue
+  sendo o desfecho de quem tem cadastro errado.

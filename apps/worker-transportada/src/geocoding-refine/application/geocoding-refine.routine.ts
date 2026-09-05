@@ -17,16 +17,23 @@ import {
   GEOCODING_REFINE_MAX_BATCHES,
   GEOCODING_REFINE_REQUEST_PAUSE_MILLISECONDS,
 } from '../domain/geocoding-refine.constant.js'
+import { checkPlaceAcceptance } from '../domain/place-acceptance.policy.js'
 
 import type {
   PendingRefinementSource,
   RefinedAddressRepository,
 } from './pending-refinement.port.js'
+import type { PlaceLookupPort } from './place-lookup.port.js'
 
 export type GeocodingRefineDependencies = {
   readonly addresses: PendingRefinementSource
   readonly geocoding: GeocodingPort
   readonly logger: WorkerLogger
+  /**
+   * O degrau 2b (adendo de 2026-09-05 à ADR-0062). Opcional: sem ele a rotina se comporta como
+   * antes, e o endereço que a Geocoding não resolve é carimbado e vira pendência de cadastro.
+   */
+  readonly places?: PlaceLookupPort
   readonly repository: RefinedAddressRepository
   readonly wait: (milliseconds: number) => Promise<void>
 }
@@ -103,9 +110,67 @@ async function runCycle(input: {
 }
 
 type RefineOutcome = Readonly<{
-  cause: GeocodeFailureCause | null
+  /** Vocabulário aberto: o degrau 2b acrescenta as recusas dele às causas da geocodificação. */
+  cause: GeocodeFailureCause | PlaceRefusal | null
   kind: 'refined' | 'unchanged' | 'deferred'
 }>
+
+type PlaceRefusal =
+  | 'place_city_mismatch'
+  | 'place_no_result'
+  | 'place_number_mismatch'
+  | 'place_without_number'
+
+/**
+ * `null` quando o degrau 2b não decidiu nada — sem provedor configurado, ou recusa que deve deixar o
+ * fluxo seguir para o carimbo. Quem chama não precisa saber a diferença; o contador sim.
+ */
+async function lookupPlace(input: {
+  readonly dependencies: GeocodingRefineDependencies
+  readonly pending: { readonly request: Parameters<GeocodingPort['geocode']>[0] }
+}): Promise<RefineOutcome | null> {
+  const { dependencies, pending } = input
+  if (dependencies.places === undefined) return null
+
+  const found = await dependencies.places
+    .lookup(pending.request)
+    .catch(() => ({ cause: 'transport_error' as const, place: null }))
+
+  /** Adia sem carimbar, pela mesma razão do degrau 1: recusa do provedor não é resposta. */
+  if (found.cause === 'transport_error' || found.cause === 'not_configured') {
+    return { cause: found.cause, kind: 'deferred' }
+  }
+  if (found.place === null) {
+    await dependencies.repository.markPaid(pending.request.addressKey)
+
+    return { cause: 'place_no_result', kind: 'unchanged' }
+  }
+
+  const acceptance = checkPlaceAcceptance({
+    candidate: found.place,
+    request: { city: pending.request.city, number: pending.request.number },
+  })
+  if (acceptance !== 'accepted') {
+    await dependencies.repository.markPaid(pending.request.addressKey)
+
+    return { cause: `place_${acceptance}` as PlaceRefusal, kind: 'unchanged' }
+  }
+
+  /**
+   * `rooftop` porque a Places devolveu a **porta** — o `street_number` bateu com o pedido, e é essa
+   * conferência que separa isto de um ponto de rua. Sem ela seria a família de defeito da
+   * ADR-0044 §1: número plausível, sem aviso.
+   */
+  await dependencies.repository.replace({
+    addressKey: pending.request.addressKey,
+    externalPlaceId: found.place.placeId,
+    latitude: found.place.latitude,
+    longitude: found.place.longitude,
+    precision: 'rooftop',
+  })
+
+  return { cause: null, kind: 'refined' }
+}
 
 async function refineOne(input: {
   readonly dependencies: GeocodingRefineDependencies
@@ -131,6 +196,14 @@ async function refineOne(input: {
   }
 
   if (result.coordinate === null || !isOptimizablePrecision(result.coordinate.precision)) {
+    /**
+     * ⚠️ **É aqui que o degrau 2b entra, e a razão é medida.** A Geocoding tolera **um** erro de
+     * grafia no logradouro e desiste com dois — e o cadastro real tem dois com frequência. A Places
+     * acha o lugar mesmo assim, e recusa (lista vazia) quando a rua não existe.
+     */
+    const fromPlace = await lookupPlace({ dependencies, pending })
+    if (fromPlace !== null) return fromPlace
+
     await dependencies.repository.markPaid(pending.request.addressKey)
 
     /** `approximate` do provedor é o mesmo município que já estava lá: pago, e sem melhora. */

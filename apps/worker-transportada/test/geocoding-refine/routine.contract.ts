@@ -9,6 +9,10 @@ import type {
   PendingRefinementSource,
   RefinedAddressRepository,
 } from '../../src/geocoding-refine/application/pending-refinement.port.js'
+import type {
+  PlaceLookupPort,
+  PlaceLookupResult,
+} from '../../src/geocoding-refine/application/place-lookup.port.js'
 import type { GeocodeResult, GeocodingPort } from '../../src/routing/application/geocoding.port.js'
 
 const CONTEXT = {
@@ -74,15 +78,24 @@ const SILENT_LOGGER = {
   warn: () => undefined,
 }
 
+/** O degrau 1 que não resolve: é o que abre caminho para o 2b. */
+const ONLY_THE_MUNICIPALITY: GeocodeResult = { cause: 'not_found', coordinate: null }
+
+function placesOf(result: PlaceLookupResult): PlaceLookupPort {
+  return { lookup: () => Promise.resolve(result) }
+}
+
 function runWith(input: {
   readonly geocoding: GeocodingPort
   readonly items?: readonly PendingRefinement[]
+  readonly places?: PlaceLookupPort
   readonly writes: RecordedWrites
 }) {
   return createGeocodingRefineRoutine({
     addresses: sourceOf(input.items ?? [pending('3551504|14150000|100')]),
     geocoding: input.geocoding,
     logger: SILENT_LOGGER as never,
+    ...(input.places === undefined ? {} : { places: input.places }),
     repository: repositoryOf(input.writes),
     wait: () => Promise.resolve(),
   }).run(CONTEXT)
@@ -220,5 +233,118 @@ describe('geocoding refine routine (ADR-0062)', () => {
 
     expect(asked).toBe(0)
     expect(result.counters.examined).toBe(0)
+  })
+})
+
+describe('o degrau 2b: a busca de lugar quando a geocodificação só acha o município', () => {
+  const PLACE = {
+    cityName: 'Serrana',
+    latitude: '-21.5534349',
+    longitude: '-47.7042824',
+    placeId: 'places/ChIJXdwM7l43uJQR',
+    streetNumber: '100',
+  }
+  const FOUND: PlaceLookupResult = { cause: null, place: PLACE }
+
+  test('grava a porta que a Places achou quando a Geocoding desistiu', async () => {
+    const writes: RecordedWrites = { marked: [], replaced: [] }
+
+    const result = await runWith({
+      geocoding: portOf(ONLY_THE_MUNICIPALITY),
+      places: placesOf(FOUND),
+      writes,
+    })
+
+    expect(writes.replaced).toEqual(['3551504|14150000|100'])
+    expect(writes.marked).toEqual([])
+    expect(result.counters.refined).toBe(1)
+  })
+
+  /**
+   * ⚠️ **A guarda que impede coordenada de outro prédio.** Medido: pedir o número 99999 devolve o
+   * 533 da mesma rua, calado. O número que volta tem de ser o que se pediu.
+   */
+  test('recusa e carimba quando o número que volta não é o pedido', async () => {
+    const writes: RecordedWrites = { marked: [], replaced: [] }
+
+    const result = await runWith({
+      geocoding: portOf(ONLY_THE_MUNICIPALITY),
+      places: placesOf({ cause: null, place: { ...PLACE, streetNumber: '999' } }),
+      writes,
+    })
+
+    expect(writes.replaced).toEqual([])
+    expect(writes.marked).toEqual(['3551504|14150000|100'])
+    expect(result.counters.place_number_mismatch).toBe(1)
+  })
+
+  /** Rua inventada devolve lista vazia — a recusa que torna o degrau seguro. Pago, e sem melhora. */
+  test('carimba quando a Places também não acha', async () => {
+    const writes: RecordedWrites = { marked: [], replaced: [] }
+
+    const result = await runWith({
+      geocoding: portOf(ONLY_THE_MUNICIPALITY),
+      places: placesOf({ cause: 'no_result', place: null }),
+      writes,
+    })
+
+    expect(writes.marked).toEqual(['3551504|14150000|100'])
+    expect(result.counters.place_no_result).toBe(1)
+  })
+
+  /**
+   * ⚠️ API desabilitada no projeto responde `PERMISSION_DENIED`, e isso **não** é ausência de
+   * endereço: carimbar aqui queimaria a chance paga única sem ter perguntado nada.
+   */
+  test('adia sem carimbar quando o provedor recusa a chamada', async () => {
+    const writes: RecordedWrites = { marked: [], replaced: [] }
+
+    const result = await runWith({
+      geocoding: portOf(ONLY_THE_MUNICIPALITY),
+      places: placesOf({ cause: 'transport_error', place: null }),
+      writes,
+    })
+
+    expect(writes.marked).toEqual([])
+    expect(writes.replaced).toEqual([])
+    expect(result.counters.deferred).toBe(1)
+  })
+
+  /** Sem o degrau 2b configurado a rotina se comporta exatamente como antes dele existir. */
+  test('sem provedor de lugar, carimba como antes', async () => {
+    const writes: RecordedWrites = { marked: [], replaced: [] }
+
+    const result = await runWith({ geocoding: portOf(ONLY_THE_MUNICIPALITY), writes })
+
+    expect(writes.marked).toEqual(['3551504|14150000|100'])
+    expect(result.counters.not_found).toBe(1)
+  })
+
+  /** A Places só é perguntada quando o degrau 1 falha: coordenada boa não custa segunda chamada. */
+  test('não pergunta à Places quando a Geocoding resolveu', async () => {
+    const writes: RecordedWrites = { marked: [], replaced: [] }
+    let asked = 0
+
+    await runWith({
+      geocoding: portOf({
+        cause: null,
+        coordinate: {
+          externalPlaceId: 'place-1',
+          latitude: '-21.5',
+          longitude: '-47.7',
+          precision: 'rooftop',
+          source: 'google',
+        },
+      }),
+      places: {
+        lookup: () => {
+          asked += 1
+          return Promise.resolve(FOUND)
+        },
+      },
+      writes,
+    })
+
+    expect(asked).toBe(0)
   })
 })
