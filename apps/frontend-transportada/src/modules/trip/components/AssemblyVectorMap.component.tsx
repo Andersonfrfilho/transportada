@@ -30,12 +30,14 @@ import {
   buildBasemapStyle,
   resolveBasemapOutline,
   type BasemapTheme,
+  basemapThemeForApp,
 } from '../shared/vectorBasemap.service'
 import type { AssemblyMapPoint } from '../shared/assemblyMap.service'
 import type { RouteGeometry } from '../shared/routeGeometry.service'
 import styles from '../styles/trip.module.css'
 import { resolveRouteLegs } from '../shared/routeGeometry.service'
 import { resolveStopColor } from '../shared/stopColor.service'
+import { readEffectiveColorTheme } from '@/modules/shared/colorTheme.service'
 
 type AssemblyVectorMapProps = Readonly<{
   geometry: RouteGeometry | null
@@ -50,14 +52,56 @@ const NEARBY_SOURCE = 'fora-da-selecao'
 /** Onde o operador deixou o mapa da última vez. Preferência de leitura, não dado de operação. */
 const THEME_STORAGE_KEY = 'transportada.trip-assembly-map-theme'
 
-function readStoredTheme(): BasemapTheme {
+/**
+ * A escolha **explícita** do operador, se houver — e `null` quando ele nunca tocou no botão, que é
+ * quando o mapa segue o painel.
+ */
+function readStoredTheme(): BasemapTheme | null {
   try {
     const stored = globalThis.localStorage?.getItem(THEME_STORAGE_KEY) ?? ''
-    return BASEMAP_THEMES.find((theme) => theme === stored) ?? 'claro'
+    return BASEMAP_THEMES.find((theme) => theme === stored) ?? null
   } catch {
     /** Janela anônima e armazenamento bloqueado lançam aqui — o mapa não pode cair por isso. */
-    return 'claro'
+    return null
   }
+}
+
+/**
+ * O tema do painel, lido do documento e do sistema — e **observado**, para o mapa acompanhar quando
+ * alguém troca no meio da montagem em vez de só na próxima abertura.
+ */
+function useAppColorTheme(): 'dark' | 'light' {
+  const [appTheme, setAppTheme] = useState<'dark' | 'light'>(() =>
+    readEffectiveColorTheme({
+      prefersLight: globalThis.matchMedia?.('(prefers-color-scheme: light)').matches ?? false,
+      storage: globalThis.localStorage ?? null,
+    }),
+  )
+
+  useEffect(() => {
+    const media = globalThis.matchMedia?.('(prefers-color-scheme: light)')
+    const sync = () =>
+      setAppTheme(
+        readEffectiveColorTheme({
+          prefersLight: media?.matches ?? false,
+          storage: globalThis.localStorage ?? null,
+        }),
+      )
+    media?.addEventListener('change', sync)
+    /** O botão do painel escreve `data-theme` no `<html>`; é ele que o observador espera. */
+    const observer = new MutationObserver(sync)
+    observer.observe(document.documentElement, {
+      attributeFilter: ['data-theme'],
+      attributes: true,
+    })
+
+    return () => {
+      media?.removeEventListener('change', sync)
+      observer.disconnect()
+    }
+  }, [])
+
+  return appTheme
 }
 
 /**
@@ -107,7 +151,10 @@ export function AssemblyVectorMap({
   const [isReady, setIsReady] = useState(false)
   /** O estilo do tema já veio pelo construtor; o efeito abaixo só vale da segunda vez em diante. */
   const themeApplied = useRef(false)
-  const [theme, setTheme] = useState<BasemapTheme>(readStoredTheme)
+  const appTheme = useAppColorTheme()
+  const [chosenTheme, setChosenTheme] = useState<BasemapTheme | null>(readStoredTheme)
+  /** Segue o painel enquanto ninguém escolher; a escolha explícita vence e fica guardada. */
+  const theme = chosenTheme ?? basemapThemeForApp(appTheme)
 
   useEffect(() => {
     const container = containerRef.current
@@ -154,7 +201,7 @@ export function AssemblyVectorMap({
     const map = mapRef.current
     if (map === null) return
     try {
-      globalThis.localStorage?.setItem(THEME_STORAGE_KEY, theme)
+      if (chosenTheme !== null) globalThis.localStorage?.setItem(THEME_STORAGE_KEY, chosenTheme)
     } catch {
       /** Preferência que não persiste não é motivo para o mapa não trocar de cor. */
     }
@@ -172,8 +219,23 @@ export function AssemblyVectorMap({
 
     setIsReady(false)
     map.setStyle(buildBasemapStyle(readToken, theme))
-    map.once('styledata', () => setIsReady(true))
-  }, [theme])
+    /**
+     * ⚠️ **`styledata` dispara cedo demais, e é isso que fazia o roteiro sumir ao trocar de tema.**
+     * Ele é emitido várias vezes durante o carregamento do estilo, e a primeira vem **antes** de o
+     * estilo estar completo: os efeitos abaixo criavam fonte e camada nesse instante, e o estilo
+     * terminava de carregar **descartando as duas**.
+     *
+     * O sintoma enganava porque não era simétrico: pino é marcador de DOM e sobrevive à troca de
+     * estilo; a linha é camada do estilo e ia junto. Ficavam os pontos e nenhum traço.
+     *
+     * `style.load` só é emitido com o estilo pronto. O `styledata` fica como rede: se por algum
+     * motivo `style.load` não vier, a tela volta a montar em vez de ficar vazia para sempre.
+     */
+    map.once('style.load', () => setIsReady(true))
+    map.once('styledata', () => {
+      if (map.isStyleLoaded()) setIsReady(true)
+    })
+  }, [chosenTheme, theme])
 
   /** A parada é marcador de DOM: são poucas, e assim herdam o mesmo CSS da bolinha da lista. */
   useEffect(() => {
@@ -347,7 +409,7 @@ export function AssemblyVectorMap({
           aria-label={t('assemblyMap.theme', {
             theme: t(`assemblyMap.themes.${nextTheme(theme)}`),
           })}
-          onClick={() => setTheme(nextTheme(theme))}
+          onClick={() => setChosenTheme(nextTheme(theme))}
           size="sm"
           type="button"
           variant="secondary"

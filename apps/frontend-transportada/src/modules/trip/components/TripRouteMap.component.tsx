@@ -121,10 +121,15 @@ export function TripRouteMap({
     features: meshQuery.data ?? ([] as readonly MeshFeature[]),
     project: map.project,
   }).map((path, index) => ({
+    /*
+      ⚠️ **Sem `line: true` de propósito.** `.line` declara `stroke: var(--color-fog)`, que é quase
+      branco no tema claro do painel: o contorno do município saía como um risco branco por cima do
+      mapa, mais forte que o próprio roteiro. O contorno é referência de fundo, então ele fica com
+      `.shape` — grafite a 70%, que inverte junto com o documento e sempre lê como fundo.
+    */
     fill: 'none',
     id: `city-${index}`,
     label: t('routeMap.basemapLabel'),
-    line: true,
     path,
   }))
 

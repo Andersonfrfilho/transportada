@@ -1,0 +1,150 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+import { readFileSync } from 'node:fs'
+
+import { describe, expect, it } from 'bun:test'
+
+const SERVICE = new URL('../../src/modules/trip/shared/vectorBasemap.service.ts', import.meta.url)
+const ASSEMBLY = new URL(
+  '../../src/modules/trip/components/AssemblyVectorMap.component.tsx',
+  import.meta.url,
+)
+const STYLES = new URL('../../src/styles/index.css', import.meta.url)
+
+/**
+ * Tokens que **trocam de significado** entre o tema claro e o escuro do painel. Névoa é quase branca
+ * num e quase preta no outro; asfalto e grafite fazem o mesmo, ao contrário.
+ */
+const INVERTEM_COM_O_TEMA = [
+  '--color-fog',
+  '--color-asphalt',
+  '--color-graphite',
+  '--color-slate',
+  '--color-copper',
+  '--color-ready',
+  '--color-alert',
+] as const
+
+describe('a cartografia do basemap não segue o tema do painel', () => {
+  /**
+   * ⚠️ **A raiz de "nos outros temas não dá para enxergar nada".** A paleta do basemap era montada
+   * com tokens do painel, e o tema "claro" do mapa pintava terra com `--color-fog`: certo com o
+   * painel escuro, **invertido** com o painel claro — terra quase preta e rótulo quase branco.
+   *
+   * O arquivo já registrava dois incidentes desta mesma família antes deste contrato existir. A
+   * diferença é que os dois foram consertados caso a caso, e a causa continuou de pé.
+   */
+  it('nenhum tema do mapa pede token que inverte com o documento', () => {
+    const source = readFileSync(SERVICE, 'utf8')
+    const paleta = source.slice(
+      source.indexOf('const PALETTE'),
+      source.indexOf('\n}\n', source.indexOf('const PALETTE')),
+    )
+
+    for (const token of INVERTEM_COM_O_TEMA) {
+      expect(paleta).not.toContain(`'${token}'`)
+    }
+  })
+
+  it('toda cor do basemap sai da paleta própria', () => {
+    const source = readFileSync(SERVICE, 'utf8')
+    const paleta = source.slice(
+      source.indexOf('const PALETTE'),
+      source.indexOf('\n}\n', source.indexOf('const PALETTE')),
+    )
+    const tokens = [...paleta.matchAll(/'(--color-[a-z0-9-]+)'/gu)].map((match) => match[1] ?? '')
+
+    expect(tokens.length).toBeGreaterThan(20)
+    for (const token of tokens) expect(token).toStartWith('--color-basemap-')
+  })
+
+  /** Declarados uma vez, fora dos blocos de tema — é isso que os faz não inverter. */
+  it('os tokens do basemap não são redeclarados no tema claro', () => {
+    const css = readFileSync(STYLES, 'utf8')
+    const nomes = [...css.matchAll(/(--color-basemap-[a-z-]+):/gu)].map((match) => match[1] ?? '')
+
+    expect(new Set(nomes).size).toBeGreaterThan(8)
+    for (const nome of new Set(nomes)) {
+      const ocorrencias = [...css.matchAll(new RegExp(`${nome}:`, 'gu'))].length
+      expect(ocorrencias).toBe(1)
+    }
+  })
+
+  /**
+   * ⚠️ **`styledata` dispara antes de o estilo estar pronto.** Trocar o tema chama `setStyle`, que
+   * descarta fonte e camada customizadas; com `styledata` os efeitos remontavam a linha do roteiro
+   * cedo demais e o estilo, ao terminar de carregar, a descartava de novo.
+   *
+   * O sintoma não era simétrico e por isso enganava: pino é marcador de DOM e sobrevivia; a linha é
+   * camada do estilo e sumia. Ficavam os pontos e nenhum traço.
+   */
+  it('espera o estilo carregar antes de remontar a rota', () => {
+    const source = readFileSync(ASSEMBLY, 'utf8')
+
+    expect(source).toContain("map.once('style.load'")
+    expect(source).toContain('isStyleLoaded()')
+  })
+})
+
+function hexOf(css: string, token: string): string {
+  const match = new RegExp(`${token}:\\s*(#[0-9a-f]{6})`, 'u').exec(css)
+  if (match === null) throw new Error(`token sem valor: ${token}`)
+  return match[1] ?? ''
+}
+
+function relativeLuminance(hex: string): number {
+  const channels = [1, 3, 5].map((start) => Number.parseInt(hex.slice(start, start + 2), 16) / 255)
+  const linear = channels.map((value) =>
+    value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4,
+  )
+  return 0.2126 * (linear[0] ?? 0) + 0.7152 * (linear[1] ?? 0) + 0.0722 * (linear[2] ?? 0)
+}
+
+function contrast(first: string, second: string): number {
+  const [brighter, darker] = [relativeLuminance(first), relativeLuminance(second)].sort(
+    (left, right) => right - left,
+  )
+  return ((brighter ?? 0) + 0.05) / ((darker ?? 0) + 0.05)
+}
+
+/** Extrai `{papel: token}` de um bloco de tema da constante `PALETTE`. */
+function themeTokens(source: string, theme: string): Readonly<Record<string, string>> {
+  const start = source.indexOf(`  ${theme}: {`)
+  const block = source.slice(start, source.indexOf('\n  },', start))
+  return Object.fromEntries(
+    [...block.matchAll(/(\w+): '(--color-basemap-[a-z-]+)'/gu)].map((match) => [
+      match[1] ?? '',
+      match[2] ?? '',
+    ]),
+  )
+}
+
+describe('os três temas do mapa são legíveis', () => {
+  const source = readFileSync(SERVICE, 'utf8')
+  const css = readFileSync(STYLES, 'utf8')
+
+  /**
+   * ⚠️ **A água tinha um tom só, e a terra tem dois.** `#17298a` sobre o papel claro dá 10,6; sobre
+   * a terra escura dava **1,34** — rio, represa e o próprio litoral desapareciam no tema escuro,
+   * que é exatamente o "não dá para enxergar nada". Medir foi o que apontou isso: no desenho o mapa
+   * escuro parecia só um mapa escuro.
+   */
+  it('a água se separa da terra em todo tema', () => {
+    for (const theme of ['claro', 'escuro', 'contraste'] as const) {
+      const tokens = themeTokens(source, theme)
+      const razao = contrast(hexOf(css, tokens.agua ?? ''), hexOf(css, tokens.terra ?? ''))
+
+      expect({ razao: razao >= 2, theme }).toEqual({ razao: true, theme })
+    }
+  })
+
+  /** Rótulo é texto: ele não se contenta com "aparece", ele precisa do piso de leitura da WCAG. */
+  it('o rótulo lê contra a terra em todo tema', () => {
+    for (const theme of ['claro', 'escuro', 'contraste'] as const) {
+      const tokens = themeTokens(source, theme)
+
+      expect(
+        contrast(hexOf(css, tokens.rotulo ?? ''), hexOf(css, tokens.terra ?? '')),
+      ).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+})

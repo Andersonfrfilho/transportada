@@ -166,3 +166,37 @@ describe('o traço do roteiro usa a paleta da listagem, um trecho por parada', (
     expect(source).toContain("setPaintProperty('roteiro-linha', 'line-dasharray', dashArray)")
   })
 })
+
+const ROUTE_MAP = new URL(
+  '../../src/modules/trip/components/TripRouteMap.component.tsx',
+  import.meta.url,
+)
+
+describe('o contorno do município é fundo, não traço', () => {
+  /**
+   * ⚠️ **A linha branca da viagem 2.** `.line` declara `stroke: var(--color-fog)` — quase branco no
+   * tema claro do painel —, e o contorno do município ia como `line: true` sem cor própria. Ele
+   * saía por cima do mapa mais forte que o roteiro, e num tom que nenhuma parada usa.
+   *
+   * Sem `line`, ele fica com `.shape`: grafite a 70%, que inverte junto com o documento.
+   */
+  it('a malha do IBGE não pede a classe de linha', () => {
+    const source = readFileSync(ROUTE_MAP, 'utf8')
+    const basemap = source.slice(source.indexOf('const basemap ='), source.indexOf('const pins'))
+
+    expect(basemap).toContain('city-')
+    expect(basemap).not.toMatch(/^\s*line: true,$/mu)
+  })
+
+  /** O traço do roteiro continua sendo linha — e continua levando cor de parada. */
+  it('o trecho do roteiro segue com linha e cor própria', () => {
+    const source = readFileSync(ROUTE_MAP, 'utf8')
+    const trace = source.slice(
+      source.indexOf('const trace = segments.map'),
+      source.indexOf('const traceKind'),
+    )
+
+    expect(trace).toContain('line: true')
+    expect(trace).toContain('stopColorOf(segment.toSequence)')
+  })
+})
