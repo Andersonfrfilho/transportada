@@ -64,6 +64,8 @@ export type WorkerEnvironment = {
    * serviço que não existe não pode reciclar a mensagem do anexo para sempre.
    */
   readonly aggregateDocumentOcrUrl?: string
+  /** ADR-0062: sem ela a rotina `geocoding.refine` não é registrada. */
+  readonly googleMapsApiKey?: string
   /** Endereço da própria API. Hoje o e-mail de código lê dele a marca pública da instalação. */
   readonly apiBaseUrl: string | undefined
   /** Origem do painel, de onde o rodapé do e-mail carrega o desenho da Ada. */

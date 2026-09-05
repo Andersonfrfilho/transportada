@@ -25,7 +25,10 @@ import {
   TRIP_DRIVER_KEYS,
   TRIP_DRIVER_OPTIONAL_KEYS,
   TRIP_ERROR,
+  TRIP_AMOUNTS_KEYS,
   TRIP_KEYS,
+  TRIP_OPTIONAL_KEYS,
+  TRIP_REVENUE_SOURCES,
   TRIP_STATUS_RESULT_KEYS,
   TRIP_STOP_KEYS,
   TRIP_STOP_OPTIONAL_KEYS,
@@ -110,8 +113,27 @@ function isTripFields(value: Record<string, unknown>): boolean {
 }
 
 function isTrip(value: unknown): value is Trip {
-  if (!hasExactKeys(value, TRIP_KEYS)) return false
-  return isTripFields(value)
+  if (!hasKeys(value, { allowed: [...TRIP_KEYS, ...TRIP_OPTIONAL_KEYS], required: TRIP_KEYS })) {
+    return false
+  }
+
+  return isTripFields(value) && isAbsentOrTripAmounts((value as { amounts?: unknown }).amounts)
+}
+
+/**
+ * Opcional não é "qualquer coisa" (spec 078 D2): ausente e `null` passam — a API só calcula na
+ * listagem —, mas presente com forma errada continua reprovando. `revenueTotal` é obrigatório
+ * quando o objeto existe: total de receita ausente seria a coluna imprimindo vazio sem dizer por quê.
+ */
+function isAbsentOrTripAmounts(value: unknown): boolean {
+  if (value === undefined || value === null) return true
+  if (!hasExactKeys(value, TRIP_AMOUNTS_KEYS)) return false
+
+  return (
+    isNullableString(value.documentsTotal) &&
+    isOneOf(value.revenueSource, TRIP_REVENUE_SOURCES) &&
+    isString(value.revenueTotal)
+  )
 }
 
 /** Opcional não é "qualquer coisa": ausente passa, presente com forma errada continua reprovando. */

@@ -43,6 +43,15 @@ export const geocodedAddresses = pgTable(
     source: text().$type<GeocodingSource>().notNull(),
     precision: text().$type<GeocodingPrecision>().notNull(),
     geocodedAt: timestamp('geocoded_at', { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * ADR-0062: **"já gastamos por este endereço"**, nunca "já tentamos". A escalada automática
+     * seleciona `precision = 'city' and paid_refined_at is null` e carimba a coluna qualquer que
+     * seja o resultado — inclusive quando o provedor não melhorou nada. É o que dá teto ao gasto:
+     * uma chamada por endereço, para sempre.
+     *
+     * ⚠️ Zerá-la num backfill achando que é cache **recompra a base inteira**.
+     */
+    paidRefinedAt: timestamp('paid_refined_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

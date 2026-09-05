@@ -1202,6 +1202,11 @@ function jsonResponse(input: { readonly body: object; readonly status: number })
 
 function serializeTrip(trip: Trip): object {
   return {
+    /**
+     * `null` fora da listagem: o detalhe da viagem tem painel de valoração próprio, com custo e
+     * margem, e repetir só a receita ali daria dois números para a mesma pergunta.
+     */
+    amounts: trip.amounts === null ? null : { ...trip.amounts },
     companyId: trip.companyId,
     createdAt: trip.createdAt,
     id: trip.id,

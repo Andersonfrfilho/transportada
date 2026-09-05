@@ -26,10 +26,27 @@ const LINHA: AddressReportRow = {
   state: 'SP',
 }
 
-function relatorio(linhas: readonly AddressReportRow[]) {
+function relatorio(
+  linhas: readonly AddressReportRow[],
+  naoResolvidos: readonly AddressReportRow[] = [],
+) {
   return createReadAddressReportUseCase({
-    repository: { listMeasurements: async () => linhas },
+    repository: {
+      read: async () => ({ measurements: linhas, unresolved: naoResolvidos }),
+    },
   }).read({ companyId: 'empresa-1' })
+}
+
+/** ADR-0062: o que a rotina paga tentou e não conseguiu apontar. Sem medição guardada. */
+const NAO_RESOLVIDO: AddressReportRow = {
+  ...LINHA,
+  addressKey: '3527256|14210000|999',
+  distanceMetres: null,
+  matchLevel: 'not_found',
+  providerDistrict: '',
+  providerNumber: '',
+  providerPostalCode: '',
+  providerStreet: '',
 }
 
 describe('relatório de endereços a corrigir (spec 084, G8)', () => {
@@ -108,5 +125,38 @@ describe('relatório de endereços a corrigir (spec 084, G8)', () => {
     ])
 
     expect(groups[0]?.findings.map((finding) => finding.addressKey)).toEqual(['longe', 'perto'])
+  })
+
+  /**
+   * ⚠️ **O não resolvido não passa pelo classificador** (ADR-0062). Ele tem `matchLevel: not_found`
+   * e rua do provedor vazia, que é exatamente o que `resolveAddressFinding` chamaria de
+   * `street_unknown` — e são coisas diferentes: ali o provedor conhece o município e não a rua;
+   * aqui ele não pôs a carga em lugar nenhum, e a entrega sai com palpite de ~8 km.
+   */
+  test('o endereço que nem pagando foi apontado vira o achado mais grave', async () => {
+    const { groups, totals } = await relatorio([], [NAO_RESOLVIDO])
+
+    expect(groups[0]?.findings[0]?.kind).toBe('coordinate_unresolved')
+    expect(totals).toEqual({ measured: 1, needingAttention: 1 })
+  })
+
+  test('o não resolvido vem antes de qualquer divergência de texto do mesmo cliente', async () => {
+    const { groups } = await relatorio(
+      [{ ...LINHA, addressKey: 'a', providerStreet: 'Avenida Júlio Macari' }],
+      [NAO_RESOLVIDO],
+    )
+
+    expect(groups).toHaveLength(1)
+    expect(groups[0]?.findings.map((finding) => finding.kind)).toEqual([
+      'coordinate_unresolved',
+      'street_different',
+    ])
+  })
+
+  /** O denominador soma as duas origens: as duas custaram uma consulta ao provedor. */
+  test('conta no denominador o que a rotina paga tentou', async () => {
+    const { totals } = await relatorio([LINHA], [NAO_RESOLVIDO])
+
+    expect(totals.measured).toBe(2)
   })
 })

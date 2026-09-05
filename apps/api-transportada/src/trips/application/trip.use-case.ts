@@ -9,6 +9,7 @@ import {
   TripNotFoundError,
   TripStateTransitionNotAllowedError,
 } from '../domain/trip.error.js'
+import type { TripAmounts } from './read-trip-revenue-totals.use-case.js'
 import { resolveTripCrewForCreation, resolveTripVehicleForCreation } from './trip-crew.service.js'
 import type {
   TripCompanyContext,
@@ -76,6 +77,16 @@ export function createTripUseCase(dependencies: {
   readonly locations: {
     purgeByTrip(input: { readonly companyId: string; readonly tripId: string }): Promise<void>
   }
+  /**
+   * Quanto a carga vale e quanto ela rende, por viagem da página. Opcional porque a listagem tem de
+   * continuar respondendo sem ela — a coluna some, a tela não.
+   */
+  readonly amounts?: {
+    read(input: {
+      readonly companyId: string
+      readonly tripIds: readonly string[]
+    }): Promise<ReadonlyMap<string, TripAmounts>>
+  }
   readonly repository: TripRepositoryPort
 }): TripUseCase {
   const { repository } = dependencies
@@ -131,12 +142,28 @@ export function createTripUseCase(dependencies: {
     },
 
     async list({ context, cursor, filters, limit }) {
-      return repository.list({
+      const page = await repository.list({
         companyId: context.companyId,
         cursor,
         ...(filters === undefined ? {} : { filters }),
         limit,
       })
+
+      /**
+       * A conta de dinheiro é **opcional por dependência**, não por flag: instalação que não a
+       * injeta continua listando viagem com `amounts: null`, e a tela imprime a coluna vazia em vez
+       * de quebrar. É o mesmo desenho da porta de notificação do worker.
+       */
+      const amounts = await dependencies.amounts?.read({
+        companyId: context.companyId,
+        tripIds: page.items.map((trip) => trip.id),
+      })
+      if (amounts === undefined) return page
+
+      return {
+        ...page,
+        items: page.items.map((trip) => ({ ...trip, amounts: amounts.get(trip.id) ?? null })),
+      }
     },
 
     async releaseDocument({ context, documentId, tripId }) {

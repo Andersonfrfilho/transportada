@@ -36,7 +36,22 @@ export type TripDriverLine = Readonly<{
   driverPhone?: string
 }>
 
+/** A origem do número de receita: realizado, previsto pela parametrização, ou sem regra cadastrada. */
+export type TripRevenueSource = 'estimated' | 'measured' | 'missing' | 'period'
+
+export type TripAmounts = Readonly<{
+  /** `null` quando nenhuma nota tem valor conhecido — e **nunca zero**, que diria carga sem valor. */
+  documentsTotal: null | string
+  revenueSource: TripRevenueSource
+  revenueTotal: string
+}>
+
 export type Trip = Readonly<{
+  /**
+   * Quanto a carga vale e quanto ela rende. Opcional porque campo novo nasce assim (spec 078 D2), e
+   * `null` porque a API só a calcula na listagem — nas outras leituras a viagem vem sem conta.
+   */
+  amounts?: TripAmounts | null
   companyId: string
   /**
    * Quem dirige, na ordem em que a viagem os pareou. Lista vazia é viagem sem motorista — que

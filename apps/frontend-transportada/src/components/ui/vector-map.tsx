@@ -11,6 +11,12 @@ export type VectorMapShape = Readonly<{
    * do roteiro, sólido é a estrada que o roteirizador devolveu e tracejado é a reta que liga duas
    * paradas — desenhar as duas igual faria quem olha ler caminho onde não há.
    */
+  /**
+   * Cor do traço. Ausente herda `currentColor`, que é o certo para borda de malha; presente é o que
+   * permite o roteiro sair da cor única — o laranja do tema já é usado por outros traços do mapa, e
+   * o roteiro se perdia no meio deles.
+   */
+  color?: string | undefined
   dashed?: boolean | undefined
   fill: string
   /**
@@ -68,6 +74,12 @@ export function VectorMap({
           d={shape.path}
           fill={shape.fill}
           key={shape.id}
+          /**
+           * ⚠️ Inline, e não classe: `.line` declara `stroke` em CSS, e classe vence atributo de
+           * apresentação — o `stroke={...}` sairia ignorado. A cor é **dado de execução** (a parada
+           * a que o trecho leva), então ela não tem classe possível.
+           */
+          style={shape.color === undefined ? undefined : { stroke: shape.color }}
           onClick={onSelect === undefined ? undefined : () => onSelect(shape.id)}
         >
           <title>{shape.label}</title>

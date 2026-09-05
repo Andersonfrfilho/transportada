@@ -15,7 +15,18 @@ export type AddressComponentsDatabase = ReturnType<typeof createDrizzleProvider>
  * consulta ao provedor seria vazamento com outro nome.
  *
  * A chave é remontada em SQL pela mesma normalização de `buildStopAddressKey` (spec 056) — e é por
- * isso que a forma dela é travada por contrato (T016): três lugares a conhecem.
+ * isso que a forma dela é travada por contrato (T016): quatro lugares a conhecem.
+ *
+ * ⚠️ **`coalesce` no município não é enfeite, e a falta dele deixava o degrau 2 indisponível.**
+ * `concat_ws` **pula argumento nulo**: com `city_code` nulo a chave saía com duas partes
+ * (`14015000|100`), enquanto `buildStopAddressKey` produz três (`|14015000|100`) — porque a
+ * normalização dela transforma nulo em vazio. A comparação não casava, `refine` respondia
+ * `not_improved` **sem nunca chamar o provedor**, e o conferente concluía que a marca estava
+ * quebrada. `nfe_addresses.city_code` é nulo com frequência aqui, a ponto de existir um backfill só
+ * para ele.
+ *
+ * É o mesmo defeito que `drizzle-pending-address.repository.ts` já corrigiu no worker; a correção
+ * não tinha atravessado para a API.
  */
 export function createDrizzleAddressComponentsSource(
   database: AddressComponentsDatabase,
@@ -43,7 +54,7 @@ export function createDrizzleAddressComponentsSource(
         .where(
           and(
             eq(nfeAddresses.companyId, input.companyId),
-            sql`concat_ws('|', ${nfeAddresses.cityCode}, regexp_replace(${nfeAddresses.postalCode}, '\\D', '', 'g'), upper(coalesce(nullif(trim(${nfeAddresses.number}), ''), 'S/N'))) = ${input.addressKey}`,
+            sql`concat_ws('|', coalesce(${nfeAddresses.cityCode}, ''), regexp_replace(${nfeAddresses.postalCode}, '\\D', '', 'g'), upper(coalesce(nullif(trim(${nfeAddresses.number}), ''), 'S/N'))) = ${input.addressKey}`,
           ),
         )
         .limit(1)

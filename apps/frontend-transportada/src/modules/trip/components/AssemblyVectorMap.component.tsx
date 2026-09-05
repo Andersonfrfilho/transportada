@@ -34,6 +34,8 @@ import {
 import type { AssemblyMapPoint } from '../shared/assemblyMap.service'
 import type { RouteGeometry } from '../shared/routeGeometry.service'
 import styles from '../styles/trip.module.css'
+import { resolveRouteLegs } from '../shared/routeGeometry.service'
+import { resolveStopColor } from '../shared/stopColor.service'
 
 type AssemblyVectorMapProps = Readonly<{
   geometry: RouteGeometry | null
@@ -239,34 +241,62 @@ export function AssemblyVectorMap({
     const map = mapRef.current
     if (map === null || !isReady) return
 
-    const road = geometry?.source === 'road' ? geometry.points : []
-    const coordinates =
-      road.length >= 2
-        ? road.map((point) => [Number(point.longitude), Number(point.latitude)])
-        : points.map((point) => [point.longitude, point.latitude])
+    /**
+     * ⚠️ **Um traço por trecho, com a cor da parada a que ele leva.** Antes era uma linha só em
+     * `--color-copper`, e o laranja do tema já é usado por outros traços do mapa: o roteiro se
+     * perdia no meio deles. A cor vem da mesma paleta da listagem, que é o que a pessoa está lendo
+     * ao lado do mapa.
+     */
+    const legs = resolveRouteLegs({
+      geometry,
+      /** Aqui não há projeção: o MapLibre recebe grau, e o corte por proximidade é no próprio grau. */
+      project: (point: { readonly latitude: number; readonly longitude: number }) => ({
+        x: point.longitude,
+        y: point.latitude,
+      }),
+      stops: points.map((point) => ({ x: point.longitude, y: point.latitude })),
+    })
     const data = {
-      type: 'Feature' as const,
-      geometry: { type: 'LineString' as const, coordinates },
-      properties: {},
+      type: 'FeatureCollection' as const,
+      features: legs.map((leg) => ({
+        type: 'Feature' as const,
+        geometry: {
+          type: 'LineString' as const,
+          coordinates: leg.points.map((point) => [point.x, point.y]),
+        },
+        properties: {
+          color: resolveStopColor(leg.toSequence, document.documentElement),
+          dashed: leg.dashed,
+        },
+      })),
     }
+
+    /**
+     * ⚠️ **`line-dasharray` não é data-driven no MapLibre**, e é por isso que o tracejado é constante
+     * aqui em vez de sair do `dashed` de cada trecho. Uma expressão nessa chave faz o `addLayer`
+     * recusar a camada **inteira** — e o sintoma não é erro na tela, é o roteiro sumir do mapa com
+     * as cores e os pinos continuando no lugar. Foi exatamente o que aconteceu.
+     *
+     * A constante é honesta porque os trechos são homogêneos por construção: `resolveRouteLegs`
+     * devolve todos de estrada quando a polilinha veio, e todos retas quando não veio.
+     */
+    const dashArray = legs[0]?.dashed === true ? [2, 2] : [1]
 
     const existing: GeoJSONSource | undefined = map.getSource(ROUTE_SOURCE)
     if (existing !== undefined) {
       void existing.setData(data)
-      /** Tracejado só quando a linha é reta: sólido diria que o caminhão faz aquele caminho. */
-      map.setPaintProperty('roteiro-linha', 'line-dasharray', road.length >= 2 ? [1] : [2, 2])
+      map.setPaintProperty('roteiro-linha', 'line-dasharray', dashArray)
       return
     }
 
-    if (coordinates.length < 2) return
+    if (data.features.length === 0) return
     map.addSource(ROUTE_SOURCE, { data, type: 'geojson' })
     map.addLayer({
       id: 'roteiro-linha',
       paint: {
-        'line-color': getComputedStyle(document.documentElement)
-          .getPropertyValue('--color-copper')
-          .trim(),
-        'line-dasharray': road.length >= 2 ? [1] : [2, 2],
+        'line-color': ['get', 'color'],
+        /** Tracejado só quando o trecho é reta: sólido diria que o caminhão faz aquele caminho. */
+        'line-dasharray': dashArray,
         'line-width': 3,
       },
       source: ROUTE_SOURCE,

@@ -421,10 +421,50 @@ export class DrizzleTripValuationQuery {
    * a NF-e direta e o cálculo de frete. O valor medido é a soma dos encargos do item de lote cujo
    * CT-e está **autorizado**: item sem autorização não é receita, é intenção.
    */
-  private async readDocuments(input: {
+  /**
+   * As notas de **várias** viagens numa consulta só, para a coluna de valores da listagem
+   * (`readTripRevenueTotals`). Mesma junção de `readDocuments`, com o `trip_id` na projeção e sem o
+   * ICMS: quem lista quer receita, e o imposto é do painel de resultado.
+   */
+  public async readDocumentsByTrip(input: {
     readonly companyId: string
-    readonly tripId: string
-  }): Promise<readonly TripValuationDocument[]> {
+    readonly tripIds: readonly string[]
+  }): Promise<ReadonlyMap<string, readonly TripValuationDocument[]>> {
+    const byTrip = new Map<string, TripValuationDocument[]>()
+    if (input.tripIds.length === 0) return byTrip
+
+    const rows = await this.selectValuationDocuments(
+      and(
+        eq(tripDocuments.companyId, input.companyId),
+        inArray(tripDocuments.tripId, [...input.tripIds]),
+      ),
+    )
+
+    for (const row of rows) {
+      const current = byTrip.get(row.tripId)
+      const document: TripValuationDocument = {
+        destinationCityCode: row.destinationCityCode,
+        destinationState: row.destinationState,
+        issuedAt: row.issuedAt === null ? null : row.issuedAt.toISOString(),
+        measuredAmount: row.measuredAmount,
+        nfeDocumentId: row.nfeDocumentId,
+        nfeTotalAmount: row.nfeTotalAmount,
+        senderTaxId: row.senderTaxId,
+        tripDocumentId: row.tripDocumentId,
+      }
+      if (current === undefined) byTrip.set(row.tripId, [document])
+      else current.push(document)
+    }
+
+    return byTrip
+  }
+
+  /**
+   * A junção que responde "quanto esta nota vale e quanto ela já cobrou": nota (direta ou pelo
+   * cálculo de frete), emitente, endereço do destinatário e o CT-e autorizado. Uma só, porque a
+   * listagem e o painel precisam exatamente da mesma — e duas escreveriam duas verdades.
+   */
+  private selectValuationDocuments(where: ReturnType<typeof and>) {
     const measuredAmount = this.database
       .select({ total: sum(cteBatchItemCharges.amount).as('measured_amount') })
       .from(cteBatchItems)
@@ -450,9 +490,10 @@ export class DrizzleTripValuationQuery {
         ),
       )
 
-    const rows = await this.database
+    return this.database
       .select({
         destinationCityCode: recipientAddress.cityCode,
+        tripId: tripDocuments.tripId,
         destinationState: recipientAddress.state,
         issuedAt: nfeDocuments.issuedAt,
         measuredAmount: sql<null | string>`(${measuredAmount})`.as('measured_amount'),
@@ -502,9 +543,16 @@ export class DrizzleTripValuationQuery {
           eq(recipientAddress.participantId, recipientParticipant.id),
         ),
       )
-      .where(
-        and(eq(tripDocuments.companyId, input.companyId), eq(tripDocuments.tripId, input.tripId)),
-      )
+      .where(where)
+  }
+
+  private async readDocuments(input: {
+    readonly companyId: string
+    readonly tripId: string
+  }): Promise<readonly TripValuationDocument[]> {
+    const rows = await this.selectValuationDocuments(
+      and(eq(tripDocuments.companyId, input.companyId), eq(tripDocuments.tripId, input.tripId)),
+    )
 
     const icmsByDocument = await this.readIcmsByDocument({
       companyId: input.companyId,

@@ -80,7 +80,9 @@
     "vehicleId": "Vehicle",
     "status": "Status",
     "createdAt": "Created at",
-    "updatedAt": "Updated at"
+    "updatedAt": "Updated at",
+    "cargoValue": "Cargo value",
+    "revenue": "Revenue"
   },
   "sort": {
     "asc": "sorted ascending",
@@ -402,7 +404,10 @@
   "table": {
     "copyPlate": "Copy plate {{plate}}",
     "plateCopied": "Plate copied",
-    "withoutDriver": "No driver"
+    "withoutDriver": "No driver",
+    "noAmount": "—",
+    "revenueMissing": "no rule",
+    "revenueEstimated": "forecast"
   },
   "deliveryProofSettings": {
     "title": "Delivery proof",

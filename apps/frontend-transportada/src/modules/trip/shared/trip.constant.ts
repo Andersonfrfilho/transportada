@@ -131,6 +131,17 @@ export const TRIP_STOP_KEYS = [
 
 export const TRIP_DETAIL_KEYS = [...TRIP_KEYS, 'documents', 'drivers', 'stops'] as const
 
+/** Spec 078 D2: `amounts` nasce opcional — bundle novo com API antiga tem o campo ausente. */
+export const TRIP_OPTIONAL_KEYS = ['amounts'] as const
+
+export const TRIP_AMOUNTS_KEYS = ['documentsTotal', 'revenueSource', 'revenueTotal'] as const
+
+/**
+ * ⚠️ **Cópia por valor da API**, como `FUEL_TYPES`: o bundle não carrega código do servidor. Fonte:
+ * `api-transportada/src/trips/domain/trip-valuation.policy.ts` (`VALUATION_SOURCES`).
+ */
+export const TRIP_REVENUE_SOURCES = ['measured', 'estimated', 'missing', 'period'] as const
+
 /**
  * Spec 078 D2: **campo novo nasce opcional**, e sai desta lista até a API que o serve estar
  * garantidamente no ar.

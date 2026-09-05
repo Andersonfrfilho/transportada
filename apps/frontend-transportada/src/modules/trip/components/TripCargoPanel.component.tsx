@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 
 import type { TripCargoLayout, TripCargoWeight, TripOccupancy } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
+import { stopColorOf } from '../shared/stopColor.service'
 
 type TripCargoPanelProps = {
   cargoWeight: TripCargoWeight | null
@@ -13,9 +14,6 @@ type TripCargoPanelProps = {
 }
 
 const PERCENT_SCALE = 100
-
-/** Seis tons distinguíveis; acima disso a tela agrupa em vez de inventar cor que ninguém separa. */
-const STOP_COLORS = 6
 
 /**
  * Duas casas, vírgula decimal e separador de milhar — a escala do banco é seis, e imprimir
@@ -41,8 +39,9 @@ function formatVolume(value: string): string {
   return volumeFormatter.format(Number.parseFloat(value))
 }
 
+/** O índice é 0-based aqui; a paleta é numerada a partir de 1, e a conversão é da chamada. */
 function colorOf(index: number): string {
-  return `var(--color-cargo-stop-${(index % STOP_COLORS) + 1})`
+  return stopColorOf(index + 1)
 }
 
 /**

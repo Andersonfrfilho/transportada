@@ -10,6 +10,7 @@ import { formatVehiclePlate } from '@/modules/fleet/shared/vehiclePlateFormat.se
 import { resolveVehicleColorSwatch } from '@/modules/fleet/shared/vehicleOption.service'
 import type { FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
 
+import { formatAmount } from '@/modules/shared/decimalAmount.service'
 import { toDisplayPersonName } from '@/modules/shared/personName.service'
 
 import { describeBoundVehicle } from '../shared/driverBoundVehicles.service'
@@ -48,9 +49,49 @@ export function TripTable({ table, vehicles }: TripTableProps) {
       return <span className={statusClassName(trip.status)}>{t(`status.${trip.status}`)}</span>
     }
     if (column === 'vehicleId') return renderVehicle(trip)
+    if (column === 'cargoValue') return renderCargoValue(trip)
+    if (column === 'revenue') return renderRevenue(trip)
     if (column === 'createdAt') return formatMoment(trip.createdAt)
     if (column === 'updatedAt') return formatMoment(trip.updatedAt)
+
     return trip[column]
+  }
+
+  /**
+   * ⚠️ **Ausência é dita, nunca somada como zero.** Viagem sem nota com valor conhecido e viagem
+   * cuja carga não vale nada diriam o mesmo número, e a segunda não existe — a primeira é a que
+   * precisa de alguém olhando.
+   */
+  function renderCargoValue(trip: Trip) {
+    const total = trip.amounts?.documentsTotal ?? null
+    if (total === null) return <span className={styles.amountUnknown}>{t('table.noAmount')}</span>
+
+    return <span className={styles.amount}>{formatAmount(total)}</span>
+  }
+
+  /**
+   * ⚠️ **O número nunca aparece sozinho quando é previsão.** Ele sai da parametrização de frete, sem
+   * CT-e emitido, e um valor previsto lido como realizado é o tipo de erro que só aparece na
+   * conciliação do mês. Mesma regra da ocupação da viagem: a marca vem junto do número, e nenhuma
+   * condição a esconde.
+   *
+   * `missing` não imprime número: sem regra de frete cadastrada, zero seria uma resposta inventada.
+   */
+  function renderRevenue(trip: Trip) {
+    const amounts = trip.amounts ?? null
+    if (amounts === null) return <span className={styles.amountUnknown}>{t('table.noAmount')}</span>
+    if (amounts.revenueSource === 'missing') {
+      return <span className={styles.amountUnknown}>{t('table.revenueMissing')}</span>
+    }
+
+    return (
+      <span className={styles.amount}>
+        {formatAmount(amounts.revenueTotal)}
+        {amounts.revenueSource === 'measured' ? null : (
+          <span className={styles.amountMark}>{t('table.revenueEstimated')}</span>
+        )}
+      </span>
+    )
   }
 
   /**

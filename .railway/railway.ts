@@ -139,6 +139,12 @@ export default defineRailway((ctx) => {
       ENCRYPTION_ACTIVE_KEY_ID: preserve(),
       ENCRYPTION_KEYRING_JSON: preserve(),
       FISCAL_ENVIRONMENT: preserve(),
+      /**
+       * ADR-0062: a mesma chave da API, por referência (`${{api.GOOGLE_MAPS_API_KEY}}`) — o valor
+       * não é copiado, então rotacionar na API rotaciona aqui. Sem ela a rotina `geocoding.refine`
+       * não é registrada e a janela dela pousa em `job_run_routine_missing`.
+       */
+      GOOGLE_MAPS_API_KEY: preserve(),
       FOUNDATION_SYNTHETIC_CONSUMER_ENABLED: preserve(),
       IDEMPOTENCY_HMAC_KEY: preserve(),
       LOG_LEVEL: preserve(),
@@ -360,8 +366,19 @@ export default defineRailway((ctx) => {
   const OSM_EXTRACT_URL =
     'https://download.geofabrik.de/south-america/brazil/sudeste-260903.osm.pbf'
 
-  /** Matriz de distâncias do solver. ⚠️ Só existe em staging — ver a nota no fim do arquivo. */
-  const osrm = service('osrm', {
+  /**
+   * Matriz de distâncias do solver. Existe **nos dois ambientes** desde 04/09/2026 — antes só em
+   * staging, e por isso a sugestão de roteiro não funcionava em produção: sem `ROUTING_MATRIX_URL`
+   * o consumidor não sobe e toda sugestão fica `queued` para sempre (ADR-0044 §2).
+   *
+   * ⚠️ O nome diverge por ambiente porque foi assim que o serviço nasceu em produção. Trocá-lo
+   * agora exigiria recriar o serviço e reconstruir o extrato — vinte minutos de build para ganhar
+   * simetria de nome.
+   *
+   * ⚠️ **Ele não tem domínio público, e não deve ganhar um.** O worker o alcança pelo domínio
+   * privado do ambiente; expor um roteirizador à internet é oferecer cálculo caro a quem pedir.
+   */
+  const osrm = service(isProduction ? 'osrm-production' : 'osrm', {
     source: transportada,
     build: {
       builder: 'DOCKERFILE',
@@ -406,7 +423,7 @@ export default defineRailway((ctx) => {
    * prevista. Separá-lo custaria um segundo arquivo de IaC e um segundo link de projeto para
    * comprar isolamento que este serviço não usa.
    */
-  const mapTiles = service('map-tiles', {
+  const mapTiles = service('map-tiles-production', {
     source: transportada,
     build: {
       builder: 'DOCKERFILE',
@@ -525,7 +542,7 @@ export default defineRailway((ctx) => {
 
   return project('transportada', {
     resources: isProduction
-      ? [...shared, backup, aggregateDocumentOcr, mapTiles]
+      ? [...shared, backup, aggregateDocumentOcr, mapTiles, osrm]
       : [...shared, mailpit, osrm, stagingRefresh],
   })
 })
@@ -534,14 +551,21 @@ export default defineRailway((ctx) => {
  * ⚠️ **Três divergências entre os ambientes que este arquivo apenas registra — nenhuma foi decidida
  * aqui, e todas merecem decisão de quem responde pelo produto:**
  *
- * - **`osrm` só em staging.** O solver de produção aponta o `ROUTING_MATRIX_URL` para outro lugar,
- *   ou a sugestão de roteiro não funciona lá.
- * - **`map-tiles` estava só em staging**, e este arquivo já o declarava em produção — a divergência
- *   era IaC não aplicada, não decisão. ✅ **Decidido em 2026-09-04: uma instância, em produção, e
- *   staging puxa dela.** É o que a nota do serviço já argumentava (telha OSM pública, sem tenant e
- *   sem segredo), e replicar seria assar 872 MB duas vezes e pagar egress duas vezes pelo mesmo
- *   arquivo estático. ⚠️ Aplicar isso **remove** o serviço de staging: confira que o
- *   `VITE_MAP_TILES_URL` do painel de staging aponta para o domínio de produção antes.
+ * - **`osrm` estava só em staging**, e a consequência era a segunda: a sugestão de roteiro **não
+ *   funcionava em produção**, e não por falha — sem `ROUTING_MATRIX_URL` o consumidor não sobe e
+ *   toda sugestão fica `queued` para sempre (ADR-0044 §2). ✅ **Resolvido em 04/09/2026:**
+ *   `osrm-production` criado, worker apontado para o domínio privado dele, e o aviso
+ *   `route_optimization_consumer_disabled` deixou de aparecer no boot.
+ *
+ *   ⚠️ Os dois ambientes têm instância própria, ao contrário do mapa: o domínio privado do Railway
+ *   é **por ambiente**, então o worker de staging não alcança o OSRM de produção. Compartilhar
+ *   exigiria domínio público num roteirizador, que é oferecer cálculo caro a quem pedir.
+ * - **`map-tiles` estava só em staging**, e este arquivo já o declarava em produção. ✅ **Decidido
+ *   e executado em 04/09/2026: uma instância, em produção (`map-tiles-production`), e staging puxa
+ *   dela.** Medido antes de decidir: 6,7 MB de RAM média e ~32 MB de egress por semana — a segunda
+ *   instância custaria cerca de US$ 1,50/mês, e o que ela realmente cobra é **um build a mais por
+ *   atualização do extrato**, que é o eixo caro. ⚠️ Aplicar isto **remove** o serviço de staging:
+ *   confira que o `VITE_MAP_TILES_URL` do painel de staging aponta para o domínio de produção antes.
  * - **`aggregate-document-ocr` só em produção.** A leitura de imagem do anexo não tem como ser
  *   testada em staging.
  * - **`landing-TjCj-…` e `landing-uFWL-…`** existem em produção, sem domínio, e a segunda sem

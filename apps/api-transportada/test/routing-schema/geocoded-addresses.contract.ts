@@ -25,6 +25,8 @@ describe('geocoded addresses (ADR-0044 §3)', () => {
       'source',
       'precision',
       'geocoded_at',
+      /** ADR-0062: "já gastamos por este endereço", e não "já tentamos". */
+      'paid_refined_at',
       'created_at',
       'updated_at',
     ])

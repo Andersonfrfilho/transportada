@@ -75,6 +75,7 @@
   width: fit-content;
 }
 
+.kind[data-kind='coordinate_unresolved'],
 .kind[data-kind='street_unknown'],
 .kind[data-kind='city_mismatch'] {
   color: var(--color-danger);

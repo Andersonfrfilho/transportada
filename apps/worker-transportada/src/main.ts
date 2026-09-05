@@ -69,6 +69,13 @@ import { startRouteOptimizationConsumer } from './runtime/route-optimization-con
 import { createDrizzleRouteOptimizationRepository } from './routing/infrastructure/drizzle-route-optimization.repository.js'
 import { createGeocodingBackfillRoutine } from './geocoding-backfill/application/geocoding-backfill.routine.js'
 import { createDrizzlePendingAddressSource } from './geocoding-backfill/infrastructure/drizzle-pending-address.repository.js'
+import { createGeocodingRefineRoutine } from './geocoding-refine/application/geocoding-refine.routine.js'
+import { createGoogleGeocodingGateway } from './geocoding-refine/infrastructure/google-geocoding.gateway.js'
+import { createGooglePlacesGateway } from './geocoding-refine/infrastructure/google-places.gateway.js'
+import {
+  createDrizzlePendingRefinementSource,
+  createDrizzleRefinedAddressRepository,
+} from './geocoding-refine/infrastructure/drizzle-pending-refinement.repository.js'
 import { createBrasilApiPostalCodeGateway } from './routing/infrastructure/brasil-api-postal-code.gateway.js'
 import { createDrizzleGeocodedAddressRepository } from './routing/infrastructure/drizzle-geocoded-address.repository.js'
 import { createMunicipalityCentroidGateway } from './routing/infrastructure/municipality-centroid.gateway.js'
@@ -974,6 +981,34 @@ export async function startWorkerRuntime(
             ),
             wait: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
           }),
+          /**
+           * ADR-0062: registrada **só** com a chave declarada. Ao contrário de `geocoding.backfill`,
+           * que sempre sobe porque o pior caso dela é não resolver nada, aqui o pior caso de subir
+           * sem chave seria carimbar `paid_refined_at` sem ter comprado nada — queimando a chance
+           * única de cada endereço em silêncio.
+           */
+          ...(config.googleMapsApiKey === undefined
+            ? {}
+            : {
+                ['geocoding.refine' as const]: createGeocodingRefineRoutine({
+                  addresses: createDrizzlePendingRefinementSource(
+                    database.db as ReturnType<typeof createDrizzleProvider>['db'],
+                  ),
+                  geocoding: createGoogleGeocodingGateway({ apiKey: config.googleMapsApiKey }),
+                  logger,
+                  /**
+                   * O degrau 2b: mesma chave, outra API. Ela entra junto porque só é chamada quando
+                   * a Geocoding já falhou — configurar uma sem a outra deixaria a queda desligada
+                   * sem ninguém pedir isso.
+                   */
+                  places: createGooglePlacesGateway({ apiKey: config.googleMapsApiKey }),
+                  repository: createDrizzleRefinedAddressRepository(
+                    database.db as ReturnType<typeof createDrizzleProvider>['db'],
+                  ),
+                  wait: (milliseconds) =>
+                    new Promise((resolve) => setTimeout(resolve, milliseconds)),
+                }),
+              }),
           [TRIP_LOCATION_PURGE_JOB]: createTripLocationPurgeRoutine({
             logger,
             now: () => new Date(),

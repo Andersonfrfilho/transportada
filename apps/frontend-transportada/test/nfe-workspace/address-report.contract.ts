@@ -52,8 +52,9 @@ describe('relatório de endereços a corrigir (spec 084, G10)', () => {
    * carrega código do servidor, e é o mesmo caso de `FUEL_TYPES` e `VEHICLE_TYPES`: mudou de um
    * lado, mude do outro (`api-transportada/src/addresses/domain/address-finding.policy.ts`).
    */
-  test('os cinco tipos de pedido, na ordem da gravidade', () => {
+  test('os seis tipos de pedido, na ordem da gravidade', () => {
     expect([...ADDRESS_FINDING_KINDS]).toEqual([
+      'coordinate_unresolved',
       'street_unknown',
       'city_mismatch',
       'street_different',
