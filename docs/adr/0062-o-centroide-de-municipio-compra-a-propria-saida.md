@@ -91,14 +91,42 @@ pino manual, e é dela que a tela de pendências (§5) se alimenta.
 
 Essa distinção não existia: antes, "ninguém tentou" e "tentamos e não deu" eram o mesmo estado.
 
-### 5. A pendência ganha tela própria, e não uma linha a mais no relatório de endereços
+### 5. A pendência entra no relatório que já existe, e ele passa a se chamar pelo que faz
 
-O relatório da ADR-0057 responde outra pergunta — _"o cadastro deste cliente está errado?"_ —, é
-`settings.manage`, e o que ele produz é um **pedido a um cliente**. A pendência de coordenada é
-trabalho interno de quem monta roteiro: a ação é arrastar um pino, não escrever para alguém.
+⚠️ **Esta seção foi decidida ao contrário e corrigida no mesmo dia.** A primeira versão dava tela
+própria à pendência, com o argumento de que ela é trabalho interno de quem monta roteiro — "a ação é
+arrastar um pino, não escrever para alguém".
 
-Misturar as duas faria a tela pedir duas decisões diferentes na mesma lista, e obrigaria quem cuida
-de roteiro a ter permissão de configuração para ver o próprio trabalho.
+O argumento estava errado sobre **este** caso. Um endereço que o provedor pago, recebendo logradouro,
+número, bairro, cidade e UF, ainda assim não localizou, não é um pino que alguém esqueceu de arrastar:
+é cadastro errado na origem. A ação é a mesma dos outros achados — pedir ao cliente que atualize —, o
+público é o mesmo, o agrupamento é o mesmo (por quem **emitiu** a nota, ADR-0057) e a permissão é a
+mesma. Duas telas respondendo à mesma pergunta divergiriam, e a segunda seria a que ninguém abre.
+
+Então a pendência vira um `AddressFindingKind` novo — `coordinate_unresolved`, o **mais grave** da
+lista, porque é o único em que a carga não sabe para onde ir; os outros cinco são cadastro feio com
+entrega boa. E a tela passa a se chamar **"Clientes que precisam de atualizações"**, que é o que ela
+sempre fez e não dizia.
+
+Três consequências de detalhe que não se deduzem do código:
+
+- **A linha não passa pelo classificador.** Ela tem `matchLevel: not_found` e rua do provedor vazia,
+  que é exatamente o que `resolveAddressFinding` chamaria de `street_unknown` — e são coisas
+  diferentes: ali o provedor conhece o município e não a rua; aqui ele não pôs a carga em lugar
+  nenhum.
+- **Ela não tem lado do provedor na tela.** A rotina guarda o carimbo, nunca o que o provedor
+  respondeu; imprimir "o provedor conhece: não conhece este logradouro" afirmaria o que não foi
+  medido. No lugar vai para onde a entrega aponta hoje.
+- **`paid_refined_at` nulo não aparece.** "Ninguém tentou ainda" é fila nossa, e anunciá-la mandaria
+  o operador cobrar cadastro que a próxima janela pode resolver sozinha.
+- **O denominador soma as duas origens** — medições do lote e tentativas da rotina —, porque as duas
+  custaram uma consulta ao provedor, e é isso que o número promete. Sem denominador, "24 pedidos" é
+  uma acusação; com ele, é um pedido.
+
+⚠️ `geocoded_addresses` **não tem tenant** (ADR-0044 §3). O recorte por empresa vem do mapa de
+`addressKey` → nota, que sai de `nfe_addresses` já filtrado por `company_id`: chave que a empresa
+nunca viu não casa, e a linha não entra. Sem isso o relatório de uma empresa listaria endereço de
+outra.
 
 ## Consequências
 
@@ -108,6 +136,9 @@ de roteiro a ter permissão de configuração para ver o próprio trabalho.
   tentamos" — é o que impede alguém de zerá-la num backfill achando que é cache.
 - A exceção de licença da ADR-0044 §3 continua assumida por escrito, e passa a cobrir um punhado de
   linhas a mais.
+- A tela do relatório de endereços muda de nome e ganha um sexto tipo de achado; a aba fica curta
+  ("Clientes a atualizar") e o título carrega o nome por extenso, porque tab longa quebra a faixa no
+  celular.
 - A escalada automática deixa de ser proibida **neste recorte e só nele**. Escalada por colisão,
   escalada por marca de qualidade e escalada dentro da sugestão seguem recusadas, e o contrato da
   sugestão continua provando a última.

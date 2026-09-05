@@ -9,6 +9,8 @@
  * (`api-transportada/src/addresses/domain/address-finding.policy.ts`).
  */
 export const ADDRESS_FINDING_KINDS = [
+  /** ADR-0062: nem pagando o provedor apontou. É o único em que a carga não sabe para onde ir. */
+  'coordinate_unresolved',
   'street_unknown',
   'city_mismatch',
   'street_different',

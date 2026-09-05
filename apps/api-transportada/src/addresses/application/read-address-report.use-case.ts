@@ -25,17 +25,29 @@ export function createReadAddressReportUseCase(dependencies: {
 }): ReadAddressReportUseCase {
   return {
     async read(input) {
-      const rows = await dependencies.repository.listMeasurements(input)
+      const source = await dependencies.repository.read(input)
 
       const findings: AddressFinding[] = []
-      for (const row of rows) {
+      for (const row of source.measurements) {
         const kind = resolveAddressFinding(row)
         if (kind !== null) findings.push({ ...row, kind })
+      }
+      /**
+       * ADR-0062: a linha que a rotina paga tentou e não conseguiu apontar **não passa pelo
+       * classificador** — não há medição para classificar, e o achado é o próprio fato de não haver.
+       * Mandá-la para `resolveAddressFinding` a devolveria como `street_unknown`, que é outra coisa:
+       * ali o provedor conhece o município e não a rua; aqui ele não pôs a carga em lugar nenhum.
+       */
+      for (const row of source.unresolved) {
+        findings.push({ ...row, kind: 'coordinate_unresolved' })
       }
 
       return {
         groups: groupByContractor(findings),
-        totals: { measured: rows.length, needingAttention: findings.length },
+        totals: {
+          measured: source.measurements.length + source.unresolved.length,
+          needingAttention: findings.length,
+        },
       }
     },
   }

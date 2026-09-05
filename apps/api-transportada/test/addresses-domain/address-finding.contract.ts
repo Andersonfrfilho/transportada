@@ -27,7 +27,12 @@ describe('o que vai ao contratante, e em que ordem (spec 084, G8)', () => {
   test('a gravidade segue a ordem declarada', () => {
     const severities = ADDRESS_FINDING_KINDS.map((kind) => FINDING_SEVERITY[kind])
     expect(severities).toEqual([...severities].sort((a, b) => a - b))
-    expect(ADDRESS_FINDING_KINDS[0]).toBe('street_unknown')
+    /**
+     * ADR-0062 entrou na frente: o endereço que nem pagando foi apontado é o único em que a carga
+     * não sabe para onde ir. Os outros são cadastro feio com entrega boa.
+     */
+    expect(ADDRESS_FINDING_KINDS[0]).toBe('coordinate_unresolved')
+    expect(ADDRESS_FINDING_KINDS[1]).toBe('street_unknown')
   })
 
   /** O caso comum e desejado: o texto está bom, e o que se comprou foi coordenada melhor. */

@@ -83,7 +83,7 @@
   "tabs": {
     "documents": "Invoices",
     "imports": "Imports",
-    "addresses": "Addresses"
+    "addresses": "Clients to update"
   },
   "mechanism": {
     "section": "Import source",
@@ -246,10 +246,10 @@
   "cargoWeightSave": "Save default weight",
   "cargoWeightClear": "Turn estimate off",
   "addressReport": {
-    "tab": "Addresses",
-    "title": "Addresses to fix",
-    "summary": "{{needingAttention}} of {{measured}} measured addresses need a cadastre fix.",
-    "empty": "No address needs fixing. All {{measured}} measured are fine.",
+    "tab": "Clients to update",
+    "title": "Clients needing updates",
+    "summary": "{{needingAttention}} of {{measured}} checked addresses need a registration update.",
+    "empty": "No client needs a registration update. All {{measured}} checked addresses are good.",
     "notMeasured": "No address has been measured yet.",
     "denied": "You do not have permission to see this report.",
     "failed": "Could not load the report.",
@@ -259,6 +259,7 @@
     "distance": "{{metres}} m from the point we use today",
     "contractorWithout": "No issuer identified",
     "kind": {
+      "coordinate_unresolved": "Address not located",
       "street_unknown": "Street not found",
       "city_mismatch": "Falls in another municipality",
       "street_different": "Different street",
@@ -266,11 +267,13 @@
       "street_incomplete": "Incomplete name"
     },
     "kindHelp": {
+      "coordinate_unresolved": "Not even a paid lookup located this address. Delivery aims at the municipality centre and can be kilometres off. Only the client fixing the registration resolves it.",
       "street_unknown": "The provider cannot find this street in this municipality. No coordinate fixes that — the text must be corrected at the source.",
       "city_mismatch": "The address resolves in a municipality other than the one the invoice declares. The result was discarded.",
       "street_different": "The provider found a street with a different name at the same postal code and number.",
       "postal_code_stale": "The cadastre holds the city-wide postal code. The street-level one makes the address lookup free.",
       "street_incomplete": "The same street with a shorter name in the cadastre. Delivery arrives; the cadastre is just abbreviated."
-    }
+    },
+    "unresolvedAim": "Delivery currently aims at the municipality centre"
   }
 }

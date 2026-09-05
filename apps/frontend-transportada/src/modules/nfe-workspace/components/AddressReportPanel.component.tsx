@@ -102,17 +102,29 @@ function FindingRow({ finding }: Readonly<{ finding: AddressFinding }>) {
           {`${finding.noteStreet}, ${finding.noteNumber} — ${finding.city}/${finding.state}`}
           {finding.notePostalCode.length === 0 ? '' : ` · ${finding.notePostalCode}`}
         </p>
-        <p className={styles.side}>
-          <span className={styles.sideLabel}>{t('addressReport.providerLabel')}</span>
-          {finding.providerStreet.length === 0 ? (
-            <em className={styles.unknown}>{t('addressReport.unknownStreet')}</em>
-          ) : (
-            <>
-              {finding.providerStreet}
-              {finding.providerPostalCode.length === 0 ? '' : ` · ${finding.providerPostalCode}`}
-            </>
-          )}
-        </p>
+        {/**
+         * ⚠️ **O não localizado não tem lado do provedor** (ADR-0062). A rotina paga guarda o
+         * carimbo, nunca o que o provedor respondeu — então imprimir "o provedor conhece: não
+         * conhece este logradouro" aqui seria afirmar o que não foi medido. O que a pessoa precisa
+         * saber é para onde a entrega está apontando hoje.
+         */}
+        {finding.kind === 'coordinate_unresolved' ? (
+          <p className={styles.side}>
+            <em className={styles.unknown}>{t('addressReport.unresolvedAim')}</em>
+          </p>
+        ) : (
+          <p className={styles.side}>
+            <span className={styles.sideLabel}>{t('addressReport.providerLabel')}</span>
+            {finding.providerStreet.length === 0 ? (
+              <em className={styles.unknown}>{t('addressReport.unknownStreet')}</em>
+            ) : (
+              <>
+                {finding.providerStreet}
+                {finding.providerPostalCode.length === 0 ? '' : ` · ${finding.providerPostalCode}`}
+              </>
+            )}
+          </p>
+        )}
       </div>
 
       {finding.distanceMetres === null ? null : (

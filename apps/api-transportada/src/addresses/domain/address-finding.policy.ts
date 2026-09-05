@@ -13,6 +13,12 @@ import { compareStreetNames } from './street-comparison.policy.js'
  * município, que é o caso que já se resolveu sozinho comprando a coordenada.
  */
 export const ADDRESS_FINDING_KINDS = [
+  /**
+   * ADR-0062: o endereço que **nem pagando** o provedor conseguiu apontar. Ele continua no centroide
+   * do município, e a entrega sai com um palpite de ~8 km. É o achado mais grave da lista porque é o
+   * único em que a carga não sabe para onde ir — os outros quatro são cadastro feio com entrega boa.
+   */
+  'coordinate_unresolved',
   'street_unknown',
   'city_mismatch',
   'street_different',
@@ -22,11 +28,12 @@ export const ADDRESS_FINDING_KINDS = [
 export type AddressFindingKind = (typeof ADDRESS_FINDING_KINDS)[number]
 
 export const FINDING_SEVERITY: Readonly<Record<AddressFindingKind, number>> = {
-  city_mismatch: 2,
-  postal_code_stale: 4,
-  street_different: 3,
-  street_incomplete: 5,
-  street_unknown: 1,
+  city_mismatch: 3,
+  coordinate_unresolved: 1,
+  postal_code_stale: 5,
+  street_different: 4,
+  street_incomplete: 6,
+  street_unknown: 2,
 }
 
 export type AddressComparisonFacts = Readonly<{
