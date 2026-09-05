@@ -1,6 +1,7 @@
 {
   "gap": {
     "FEATURE_ABSENT": "módulo ainda não usado",
+    "CITY_WITHOUT_REGION": "destino sem zona de frete cadastrada",
     "NO_DRIVER_RATE": "rota do agregado sem valor cadastrado",
     "NO_FEDERAL_REGIME": "regime federal não declarado",
     "NO_FREIGHT_RULE": "nota ainda sem CT-e autorizado",

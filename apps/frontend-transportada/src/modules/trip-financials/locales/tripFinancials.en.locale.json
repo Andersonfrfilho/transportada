@@ -1,6 +1,7 @@
 {
   "gap": {
     "FEATURE_ABSENT": "module not in use yet",
+    "CITY_WITHOUT_REGION": "destination without a registered freight zone",
     "NO_DRIVER_RATE": "aggregate route without a rate",
     "NO_FEDERAL_REGIME": "federal regime not declared",
     "NO_FREIGHT_RULE": "invoice without an authorized CT-e",

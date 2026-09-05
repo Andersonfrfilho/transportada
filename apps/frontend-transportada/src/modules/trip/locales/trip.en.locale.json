@@ -390,6 +390,7 @@
     "gaps": "Still missing: {{reasons}}.",
     "gap": {
       "FEATURE_ABSENT": "module not in use yet",
+      "CITY_WITHOUT_REGION": "destination without a registered freight zone",
       "NO_DRIVER_RATE": "no rate registered for the aggregate route",
       "NO_FEDERAL_REGIME": "federal regime not declared",
       "NO_FREIGHT_RULE": "no freight rule for the destination",
