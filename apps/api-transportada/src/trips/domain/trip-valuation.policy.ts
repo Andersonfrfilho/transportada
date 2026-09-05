@@ -49,6 +49,12 @@ export const VALUATION_GAPS = {
   noPlannedDistance: 'NO_PLANNED_DISTANCE',
   /** Pedágio é lançamento manual e ainda não existe (061 D2). */
   notRecorded: 'NOT_RECORDED',
+  /**
+   * Spec 086 D2: o destino da viagem não está em `freight_region_cities`. Distinta de
+   * `noDriverRate` de propósito — "cadastre ITOBI/SP" e "este motorista não cobre esta zona" pedem
+   * ações diferentes, e uma lacuna só faria o operador procurar no lugar errado.
+   */
+  cityWithoutRegion: 'CITY_WITHOUT_REGION',
 } as const
 
 export type ValuationGap = (typeof VALUATION_GAPS)[keyof typeof VALUATION_GAPS]
