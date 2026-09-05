@@ -155,6 +155,24 @@ export const JOB_CATALOG = [
      */
     minimumIntervalSeconds: 3_600,
   },
+  {
+    /**
+     * ⚠️ **`deferred` não é falha, e é a distinção que dá teto ao gasto.** Provedor fora do ar ou
+     * chave ausente adiam o endereço com a chance paga dele **intacta**; o que o provedor respondeu
+     * — não achou, achou sem coordenada, achou o mesmo município — carimba e não volta.
+     *
+     * Nada aqui, então, é falha do ciclo: a rotina fecha `succeeded` mesmo sem ter melhorado
+     * nenhum endereço. Meia passada não existe — cada endereço é uma decisão independente.
+     */
+    failureOutcomes: [],
+    job: 'geocoding.refine',
+    /**
+     * Uma hora, e aqui o piso **não** é cortesia com serviço gratuito como em `geocoding.backfill`:
+     * é dinheiro (ADR-0062). O teto real é `paid_refined_at` — uma chamada por endereço na vida —,
+     * e a cadência só decide em quantas janelas a população se dilui.
+     */
+    minimumIntervalSeconds: 3_600,
+  },
 ] as const
 
 export type JobCatalogEntry = (typeof JOB_CATALOG)[number]

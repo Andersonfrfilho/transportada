@@ -76,6 +76,17 @@ const workerEnvironmentSchema = z
     // serviço que não existe não pode reciclar a mensagem do anexo para sempre. Mesma variável e
     // mesma regra de endereço confiável que a API usa, por valor.
     AGGREGATE_DOCUMENT_OCR_URL: optionalTrustedUrl('AGGREGATE_DOCUMENT_OCR_URL'),
+    // ADR-0062: a escalada automática do endereço em centroide de município. Opcional, e a ausência
+    // **não registra a rotina** — a janela dela pousa em `job_run_routine_missing`, como
+    // `fuel.price.pull` faz com as agências. É a mesma chave da API, por valor: lá ela serve a marca
+    // humana (degrau 2), aqui a compra automática, e as duas gastam da mesma conta.
+    // Vazio é ausente: `.env.example` traz a chave sem valor, e um `min(1)` cru derrubaria o boot de
+    // toda instalação que ainda não a preencheu.
+    GOOGLE_MAPS_API_KEY: z
+      .string()
+      .trim()
+      .optional()
+      .transform((value) => (value === undefined || value.length === 0 ? undefined : value)),
     LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
     // Endereço público desta instalação, de onde sai a `CallbackUrl` obrigatória do `/emitir`. É a
     // mesma variável que a API usa para registrar a rota do postback — configurar uma sem a outra é
@@ -196,6 +207,9 @@ export function parseWorkerEnvironment(
       ? {}
       : { aggregateDocumentOcrUrl: result.data.AGGREGATE_DOCUMENT_OCR_URL }),
     appEnv: result.data.APP_ENV,
+    ...(result.data.GOOGLE_MAPS_API_KEY === undefined
+      ? {}
+      : { googleMapsApiKey: result.data.GOOGLE_MAPS_API_KEY }),
     ...(technicalResponsible === undefined
       ? {}
       : { cteTechnicalResponsible: technicalResponsible }),

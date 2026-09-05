@@ -77,6 +77,12 @@ const CATALOG = [
     job: 'geocoding.backfill',
     minimumIntervalSeconds: 3600,
   },
+  {
+    /** ADR-0062: `deferred` preserva a chance paga do endereço, então nada aqui é falha do ciclo. */
+    failureOutcomes: [],
+    job: 'geocoding.refine',
+    minimumIntervalSeconds: 3600,
+  },
 ] as const
 
 describe('worker job catalog', () => {

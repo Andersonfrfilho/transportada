@@ -38,6 +38,8 @@ export const geocodedAddresses = pgTable('geocoded_addresses', {
   source: text().$type<GeocodingSource>().notNull(),
   precision: text().$type<GeocodingPrecision>().notNull(),
   geocodedAt: timestamp('geocoded_at', { withTimezone: true }).notNull().defaultNow(),
+  /** ADR-0062: "já gastamos por este endereço". A escalada automática o carimba e nunca o zera. */
+  paidRefinedAt: timestamp('paid_refined_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
