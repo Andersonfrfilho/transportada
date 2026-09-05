@@ -30,14 +30,12 @@ import {
   buildBasemapStyle,
   resolveBasemapOutline,
   type BasemapTheme,
-  basemapThemeForApp,
 } from '../shared/vectorBasemap.service'
 import type { AssemblyMapPoint } from '../shared/assemblyMap.service'
 import type { RouteGeometry } from '../shared/routeGeometry.service'
 import styles from '../styles/trip.module.css'
 import { resolveRouteLegs } from '../shared/routeGeometry.service'
 import { resolveStopColor } from '../shared/stopColor.service'
-import { readEffectiveColorTheme } from '@/modules/shared/colorTheme.service'
 
 type AssemblyVectorMapProps = Readonly<{
   geometry: RouteGeometry | null
@@ -64,44 +62,6 @@ function readStoredTheme(): BasemapTheme | null {
     /** Janela anônima e armazenamento bloqueado lançam aqui — o mapa não pode cair por isso. */
     return null
   }
-}
-
-/**
- * O tema do painel, lido do documento e do sistema — e **observado**, para o mapa acompanhar quando
- * alguém troca no meio da montagem em vez de só na próxima abertura.
- */
-function useAppColorTheme(): 'dark' | 'light' {
-  const [appTheme, setAppTheme] = useState<'dark' | 'light'>(() =>
-    readEffectiveColorTheme({
-      prefersLight: globalThis.matchMedia?.('(prefers-color-scheme: light)').matches ?? false,
-      storage: globalThis.localStorage ?? null,
-    }),
-  )
-
-  useEffect(() => {
-    const media = globalThis.matchMedia?.('(prefers-color-scheme: light)')
-    const sync = () =>
-      setAppTheme(
-        readEffectiveColorTheme({
-          prefersLight: media?.matches ?? false,
-          storage: globalThis.localStorage ?? null,
-        }),
-      )
-    media?.addEventListener('change', sync)
-    /** O botão do painel escreve `data-theme` no `<html>`; é ele que o observador espera. */
-    const observer = new MutationObserver(sync)
-    observer.observe(document.documentElement, {
-      attributeFilter: ['data-theme'],
-      attributes: true,
-    })
-
-    return () => {
-      media?.removeEventListener('change', sync)
-      observer.disconnect()
-    }
-  }, [])
-
-  return appTheme
 }
 
 /**
@@ -151,10 +111,17 @@ export function AssemblyVectorMap({
   const [isReady, setIsReady] = useState(false)
   /** O estilo do tema já veio pelo construtor; o efeito abaixo só vale da segunda vez em diante. */
   const themeApplied = useRef(false)
-  const appTheme = useAppColorTheme()
+  /** O mapa já abriu ao menos uma vez — depois disso, erro é rede, não ausência do arquivo. */
+  const basemapLoaded = useRef(false)
   const [chosenTheme, setChosenTheme] = useState<BasemapTheme | null>(readStoredTheme)
   /** Segue o painel enquanto ninguém escolher; a escolha explícita vence e fica guardada. */
-  const theme = chosenTheme ?? basemapThemeForApp(appTheme)
+  /**
+   * ⚠️ **O padrão é o papel bege, não o tema do painel.** Seguir o documento deixava o mapa nascer
+   * quase preto para quem usa o painel escuro, e cartografia escura é para quem a escolhe — não o
+   * ponto de partida de quem só quer ver onde a carga vai. A escolha explícita continua mandando e
+   * continua persistindo; o seletor de tema continua com os três.
+   */
+  const theme = chosenTheme ?? 'claro'
 
   useEffect(() => {
     const container = containerRef.current
@@ -166,11 +133,19 @@ export function AssemblyVectorMap({
       attributionControl: false,
       center: [-47.81, -21.17],
       container,
+      /**
+       * ⚠️ **Zero, e não o padrão de 300 ms.** O cross-fade do MapLibre redesenha o quadro inteiro
+       * enquanto o tile novo entra, e arrastar o mapa vira um piscar contínuo da tela toda.
+       */
+      fadeDuration: 0,
       style: buildBasemapStyle(readToken, theme),
       zoom: 8,
     })
     mapRef.current = map
-    map.on('load', () => setIsReady(true))
+    map.on('load', () => {
+      basemapLoaded.current = true
+      setIsReady(true)
+    })
     /**
      * ⚠️ Arquivo ausente é o caso **esperado** enquanto o `.pmtiles` não é gerado, e a ADR-0044 §6
      * manda cair para a lista dizendo isso — não deixar o erro subir como falha da tela.
@@ -183,6 +158,19 @@ export function AssemblyVectorMap({
        * degradação para a lista continua a mesma.
        */
       if (import.meta.env.DEV) console.error('[basemap]', event.error?.message ?? event.error)
+
+      /**
+       * ⚠️ **Só o mapa que nunca abriu cai para a lista.** Antes qualquer erro desmontava o mapa —
+       * e o MapLibre emite `error` por **tile**, o tempo todo, enquanto se arrasta: um tile que
+       * falha derrubava o mapa inteiro, o pai remontava, o mapa buscava tudo de novo e falhava de
+       * novo. O sintoma não era "sumiu", era a tela **piscando** e o mapa lento, porque o laço
+       * rodava a cada arrasto.
+       *
+       * Depois do `load` o mapa já provou que o arquivo existe: erro dali em diante é rede, e rede
+       * se resolve sozinha no próximo quadro. Só a falha **antes** de abrir é a ausência que a
+       * ADR-0044 §6 manda degradar.
+       */
+      if (basemapLoaded.current) return
       onBasemapMissing()
     })
 
@@ -231,7 +219,10 @@ export function AssemblyVectorMap({
      * `style.load` só é emitido com o estilo pronto. O `styledata` fica como rede: se por algum
      * motivo `style.load` não vier, a tela volta a montar em vez de ficar vazia para sempre.
      */
-    map.once('style.load', () => setIsReady(true))
+    map.once('style.load', () => {
+      basemapLoaded.current = true
+      setIsReady(true)
+    })
     map.once('styledata', () => {
       if (map.isStyleLoaded()) setIsReady(true)
     })

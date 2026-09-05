@@ -148,3 +148,44 @@ describe('os três temas do mapa são legíveis', () => {
     }
   })
 })
+
+describe('arrastar o mapa não o derruba', () => {
+  const source = readFileSync(ASSEMBLY, 'utf8')
+
+  /**
+   * ⚠️ **A raiz do "a tela toda está piscando".** O tratador de `error` chamava `onBasemapMissing()`
+   * sem olhar o quê: o MapLibre emite `error` **por tile**, e arrastar o mapa produz um punhado
+   * deles. Um tile que falhava desmontava o mapa inteiro, o pai remontava, o mapa rebuscava tudo e
+   * falhava de novo — o laço rodava a cada arrasto, e por isso o sintoma era pisca **e** lentidão,
+   * nunca "o mapa sumiu".
+   *
+   * Depois do `load` o arquivo já provou que existe. Só a falha **antes** de abrir é a ausência que
+   * a ADR-0044 §6 manda degradar para a lista.
+   */
+  it('erro depois de o mapa abrir não degrada para a lista', () => {
+    const inicio = source.indexOf("map.on('error'")
+    const handler = source.slice(inicio, source.indexOf('\n    })', inicio))
+
+    /** A guarda vem **antes** da degradação, senão ela não guarda nada. */
+    const guarda = handler.indexOf('if (basemapLoaded.current) return')
+    const degrada = handler.lastIndexOf('onBasemapMissing()')
+
+    expect(guarda).toBeGreaterThan(-1)
+    expect(degrada).toBeGreaterThan(guarda)
+  })
+
+  /** O cross-fade redesenha o quadro inteiro a cada tile que entra — é pisca por construção. */
+  it('o mapa nasce sem cross-fade de tile', () => {
+    expect(source).toMatch(/fadeDuration: 0/u)
+  })
+
+  /**
+   * ⚠️ **O padrão é o papel bege.** Seguir o tema do painel fazia o mapa nascer quase preto para
+   * quem usa o painel escuro. A escolha explícita continua mandando; o que muda é o ponto de
+   * partida de quem nunca escolheu.
+   */
+  it('sem escolha, o mapa abre no tema claro', () => {
+    expect(source).toMatch(/chosenTheme \?\? 'claro'/u)
+    expect(source).not.toContain('basemapThemeForApp')
+  })
+})
