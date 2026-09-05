@@ -189,3 +189,38 @@ describe('arrastar o mapa não o derruba', () => {
     expect(source).not.toContain('basemapThemeForApp')
   })
 })
+
+describe('o roteiro sobrevive a toda troca de tema', () => {
+  const source = readFileSync(ASSEMBLY, 'utf8')
+
+  /**
+   * ⚠️ **Três tentativas anteriores falharam por tratar "o estilo mudou" como um instante.** O
+   * `setStyle` da troca de tema resolve por **diff**: ele aplica as diferenças em vez de recarregar,
+   * e por isso `style.load` **nunca é emitido** — a espera por evento não terminava, e a camada do
+   * roteiro, que é acrescentada em tempo de execução e não existe no estilo novo, era apagada pelo
+   * próprio diff. Medido: a primeira troca voltava a funcionar e a segunda não.
+   *
+   * A resposta é idempotente e repetida — reaplicar em todo `styledata`, acrescentando só o que
+   * falta. Por isso a inscrição é `on`, nunca `once`.
+   */
+  it('a camada se recoloca a cada mudança de estilo', () => {
+    expect(source).toContain("map.on('styledata', () => applyRoute(map))")
+    expect(source).not.toContain("map.once('styledata'")
+  })
+
+  /**
+   * ⚠️ **`isStyleLoaded()` não é a pergunta certa, e usá-la como portão apagava o traço sempre.**
+   * Medido: ela responde `false` em toda a janela em que este código roda, porque significa "toda
+   * fonte e telha terminou de carregar" — não "dá para acrescentar camada".
+   */
+  it('a aplicação do roteiro não é barrada por isStyleLoaded', () => {
+    const aplicacao = source.slice(
+      source.indexOf('const applyRoute'),
+      source.indexOf('}, [])', source.indexOf('const applyRoute')),
+    )
+
+    expect(aplicacao).toContain('addLayer')
+    /** A prosa pode citá-lo; o que não pode existir é o portão. */
+    expect(aplicacao).not.toMatch(/if \(!map\.isStyleLoaded\(\)\) return/u)
+  })
+})

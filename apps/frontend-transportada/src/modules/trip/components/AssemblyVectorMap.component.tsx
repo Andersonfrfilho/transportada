@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   LngLatBounds,
   Map as MapLibreMap,
@@ -46,6 +46,17 @@ type AssemblyVectorMapProps = Readonly<{
 }>
 
 const ROUTE_SOURCE = 'roteiro'
+const ROUTE_LAYER = 'roteiro-linha'
+
+/** O que o efeito monta e o `applyRoute` reaplica — um trecho por parada, com a cor dela. */
+type RouteCollection = {
+  readonly type: 'FeatureCollection'
+  readonly features: readonly {
+    readonly type: 'Feature'
+    readonly geometry: { readonly type: 'LineString'; readonly coordinates: number[][] }
+    readonly properties: { readonly color: string; readonly dashed: boolean }
+  }[]
+}
 const NEARBY_SOURCE = 'fora-da-selecao'
 /** Onde o operador deixou o mapa da última vez. Preferência de leitura, não dado de operação. */
 const THEME_STORAGE_KEY = 'transportada.trip-assembly-map-theme'
@@ -113,6 +124,71 @@ export function AssemblyVectorMap({
   const themeApplied = useRef(false)
   /** O mapa já abriu ao menos uma vez — depois disso, erro é rede, não ausência do arquivo. */
   const basemapLoaded = useRef(false)
+  /**
+   * O último roteiro calculado. Ele vive fora do React porque quem o recoloca não é um render — é o
+   * próprio MapLibre, avisando que o estilo mudou.
+   */
+  const routeRef = useRef<{
+    readonly dashArray: readonly number[]
+    readonly data: RouteCollection
+  } | null>(null)
+
+  /**
+   * ⚠️ **A camada do roteiro se recoloca sozinha, e é isso que finalmente conserta o traço que
+   * sumia ao trocar de tema.** Três tentativas anteriores falharam por apostar num evento:
+   *
+   * - `styledata` sozinho remontava cedo demais, e o estilo terminando de carregar descartava tudo;
+   * - `style.load` **não é emitido** quando o `setStyle` resolve por diff, que é o caso da troca de
+   *   tema — a espera nunca terminava e o traço não voltava;
+   * - conferir `isStyleLoaded()` uma vez acertava a primeira troca e errava as seguintes, porque na
+   *   segunda o estilo ainda estava carregando quando o efeito passou por ali.
+   *
+   * O que todas tinham em comum era tratar "o estilo mudou" como um instante. Não é: é um estado
+   * que pode mudar de novo a qualquer momento, e a camada acrescentada em tempo de execução é
+   * apagada pelo diff toda vez. Então a resposta é **idempotente e repetida** — reaplicar sempre que
+   * o MapLibre disser que mexeu no estilo, adicionando só o que não existe.
+   */
+  const applyRoute = useCallback((map: MapLibreMap): void => {
+    const route = routeRef.current
+    if (route === null || route.data.features.length === 0) return
+
+    /**
+     * ⚠️ **Não se pergunta `isStyleLoaded()` aqui.** Medido: ele responde `false` em **toda** a
+     * janela em que este código roda, porque significa "todas as fontes e telhas terminaram de
+     * carregar" — e não "dá para acrescentar camada", que é a pergunta de verdade. Usá-lo como
+     * portão fazia o traço nunca entrar.
+     *
+     * A camada pode ser acrescentada desde que o estilo exista, e quem chama aqui só chama depois
+     * disso. O `try` cobre a janela estreita em que o estilo está sendo trocado: falhar em pôr o
+     * traço é motivo para tentar de novo no próximo `styledata`, nunca para derrubar a tela.
+     */
+    try {
+      const existing: GeoJSONSource | undefined = map.getSource(ROUTE_SOURCE)
+      if (existing === undefined) {
+        map.addSource(ROUTE_SOURCE, { data: route.data, type: 'geojson' })
+      } else {
+        void existing.setData(route.data)
+      }
+
+      if (map.getLayer(ROUTE_LAYER) === undefined) {
+        map.addLayer({
+          id: ROUTE_LAYER,
+          paint: {
+            'line-color': ['get', 'color'],
+            /** Tracejado só quando o trecho é reta: sólido diria que o caminhão faz o caminho. */
+            'line-dasharray': [...route.dashArray],
+            'line-width': 3,
+          },
+          source: ROUTE_SOURCE,
+          type: 'line',
+        })
+        return
+      }
+      map.setPaintProperty(ROUTE_LAYER, 'line-dasharray', [...route.dashArray])
+    } catch {
+      /** Estilo em troca: o `styledata` seguinte reaplica. */
+    }
+  }, [])
   const [chosenTheme, setChosenTheme] = useState<BasemapTheme | null>(readStoredTheme)
   /** Segue o painel enquanto ninguém escolher; a escolha explícita vence e fica guardada. */
   /**
@@ -147,6 +223,14 @@ export function AssemblyVectorMap({
       setIsReady(true)
     })
     /**
+     * ⚠️ **A rede de segurança do traço, e ela é para a vida inteira do mapa.** Toda troca de tema
+     * passa por `setStyle`, o diff apaga a camada acrescentada em tempo de execução, e nenhum
+     * evento de "carreguei" vem depois quando a troca resolve por diff. Reagir a `styledata` — que
+     * é emitido em toda mexida no estilo — e reaplicar de forma idempotente é o que faz o roteiro
+     * sobreviver à segunda, à terceira e à enésima troca, e não só à primeira.
+     */
+    map.on('styledata', () => applyRoute(map))
+    /**
      * ⚠️ Arquivo ausente é o caso **esperado** enquanto o `.pmtiles` não é gerado, e a ADR-0044 §6
      * manda cair para a lista dizendo isso — não deixar o erro subir como falha da tela.
      */
@@ -178,12 +262,13 @@ export function AssemblyVectorMap({
       map.remove()
       mapRef.current = null
     }
-    // O mapa nasce uma vez; ponto e linha entram pelos efeitos abaixo.
+    // O mapa nasce uma vez; ponto e linha entram pelos efeitos abaixo. `theme` é lido só no
+    // construtor, e trocar de tema é `setStyle` no efeito abaixo — nunca remontar o mapa.
   }, [])
 
   /**
-   * Trocar o tema é **substituir o estilo**, e o MapLibre descarta fonte e camada junto — por isso o
-   * `isReady` volta a `false`: os efeitos abaixo remontam pino, rota e pontos cinza no `load` novo.
+   * Trocar o tema é **substituir o estilo**, e o MapLibre descarta fonte e camada junto. O traço tem
+   * rede própria (`applyRoute` no `styledata`); `isReady` aqui é o que remonta pino e pontos cinza.
    */
   useEffect(() => {
     const map = mapRef.current
@@ -208,24 +293,41 @@ export function AssemblyVectorMap({
     setIsReady(false)
     map.setStyle(buildBasemapStyle(readToken, theme))
     /**
-     * ⚠️ **`styledata` dispara cedo demais, e é isso que fazia o roteiro sumir ao trocar de tema.**
-     * Ele é emitido várias vezes durante o carregamento do estilo, e a primeira vem **antes** de o
-     * estilo estar completo: os efeitos abaixo criavam fonte e camada nesse instante, e o estilo
-     * terminava de carregar **descartando as duas**.
+     * ⚠️ **`setStyle` faz diff, e diff não emite `style.load`.** Quando o estilo novo é alcançável
+     * a partir do atual, o MapLibre aplica as diferenças em vez de recarregar — e o evento de
+     * carga **nunca vem**. Como a fonte e a camada do roteiro são acrescentadas em tempo de
+     * execução, elas não existem no estilo novo e o próprio diff as remove: o traço some, e o
+     * efeito que o recriaria espera para sempre por um `style.load` que não virá.
      *
-     * O sintoma enganava porque não era simétrico: pino é marcador de DOM e sobrevive à troca de
-     * estilo; a linha é camada do estilo e ia junto. Ficavam os pontos e nenhum traço.
+     * ⚠️ E o fallback **não pode ser `once('styledata')`**: esse evento é emitido várias vezes
+     * durante a troca, e a primeira chega com `isStyleLoaded()` ainda `false`. O `once` gastava a
+     * única inscrição justamente nela e nunca mais era chamado — que é a razão de o traço sumir ao
+     * trocar de tema mesmo depois de a espera por `style.load` ter sido escrita.
      *
-     * `style.load` só é emitido com o estilo pronto. O `styledata` fica como rede: se por algum
-     * motivo `style.load` não vier, a tela volta a montar em vez de ficar vazia para sempre.
+     * Então: escuta contínua, com o desligamento na mão quando o estilo termina.
      */
-    map.once('style.load', () => {
+    const aoTerminar = () => {
+      if (!map.isStyleLoaded()) return
+      map.off('styledata', aoTerminar)
       basemapLoaded.current = true
       setIsReady(true)
-    })
-    map.once('styledata', () => {
-      if (map.isStyleLoaded()) setIsReady(true)
-    })
+    }
+
+    /**
+     * ⚠️ **Com diff o estilo já está pronto aqui, e nenhum evento virá depois.** Medido: logo após
+     * o `setStyle`, `isStyleLoaded()` responde `true` — a troca foi aplicada em linha. Ficar
+     * esperando evento nesse caminho é esperar para sempre, e era isso que deixava `isReady` em
+     * `false` e o traço fora do mapa.
+     *
+     * O caminho por evento continua para o `setStyle` que **recarrega** de verdade (estilo que o
+     * diff não alcança), onde a carga é assíncrona.
+     */
+    if (map.isStyleLoaded()) {
+      aoTerminar()
+      return
+    }
+    map.on('styledata', aoTerminar)
+    map.once('style.load', aoTerminar)
   }, [chosenTheme, theme])
 
   /** A parada é marcador de DOM: são poucas, e assim herdam o mesmo CSS da bolinha da lista. */
@@ -335,27 +437,9 @@ export function AssemblyVectorMap({
      */
     const dashArray = legs[0]?.dashed === true ? [2, 2] : [1]
 
-    const existing: GeoJSONSource | undefined = map.getSource(ROUTE_SOURCE)
-    if (existing !== undefined) {
-      void existing.setData(data)
-      map.setPaintProperty('roteiro-linha', 'line-dasharray', dashArray)
-      return
-    }
-
-    if (data.features.length === 0) return
-    map.addSource(ROUTE_SOURCE, { data, type: 'geojson' })
-    map.addLayer({
-      id: 'roteiro-linha',
-      paint: {
-        'line-color': ['get', 'color'],
-        /** Tracejado só quando o trecho é reta: sólido diria que o caminhão faz aquele caminho. */
-        'line-dasharray': dashArray,
-        'line-width': 3,
-      },
-      source: ROUTE_SOURCE,
-      type: 'line',
-    })
-  }, [geometry, isReady, points])
+    routeRef.current = { dashArray, data }
+    applyRoute(map)
+  }, [applyRoute, geometry, isReady, points, theme])
 
   return (
     <div className={styles.vectorMap}>
