@@ -5,7 +5,7 @@ import { z } from 'zod'
 
 import { FREIGHT_REGION_STATUSES } from '../../database/freight-region.schema.js'
 import { FREIGHT_VEHICLE_CLASSES } from '../../shared/freight-class.constant.js'
-import { REGION_CODE_PATTERN, normalizeRegionCity } from '../domain/region-coverage.policy.js'
+import { REGION_CODE_PATTERN, foldRegionCity } from '../domain/region-coverage.policy.js'
 
 const CITY_MAX_LENGTH = 60
 const MONEY_DECIMAL = /^(?:0|[1-9][0-9]{0,14})(?:\.[0-9]{4})$/
@@ -39,14 +39,13 @@ const rateSchema = z
  * cadastrada como zona 1 não contradiz constraint nenhuma e passa a valer como preço.
  */
 const regionFieldsSchema = z.object({
-  cities: z
-    .array(citySchema)
-    .refine(
-      (value) =>
-        new Set(value.map((entry) => `${normalizeRegionCity(entry.city)}/${entry.state}`)).size ===
-        value.length,
-      'cities must be unique',
-    ),
+  cities: z.array(citySchema).refine(
+    (value) =>
+      /** Spec 086: `São Carlos` e `SAO CARLOS` no mesmo arquivo são a mesma cidade, não duas. */
+      new Set(value.map((entry) => `${foldRegionCity(entry.city)}/${entry.state}`)).size ===
+      value.length,
+    'cities must be unique',
+  ),
   code: z.string().regex(REGION_CODE_PATTERN),
   name: z.string().trim().min(1).max(NAME_MAX_LENGTH),
   rates: z

@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { FreightRegionVersionConflictError } from '../domain/freight-region.error.js'
+import { foldRegionCity } from '../domain/region-coverage.policy.js'
 import type {
   FreightRegion,
   FreightRegionCompanyContext,
@@ -98,8 +99,13 @@ function matches(current: FreightRegion, region: FreightRegionInput): boolean {
   )
 }
 
+/**
+ * Spec 086: a comparação dobra o acento, a gravação não. O arquivo do cliente escreve `SÃO CARLOS`
+ * ou `SAO CARLOS` conforme quem exportou; contar isso como mudança subiria a versão de rotas que
+ * ninguém mexeu e trocaria a forma acentuada — a que o operador lê — pela sem acento.
+ */
 function serializeCities(region: FreightRegionInput): string {
-  return region.cities.map((city) => `${city.city}/${city.state}`).join('|')
+  return region.cities.map((city) => `${foldRegionCity(city.city)}/${city.state}`).join('|')
 }
 
 function serializeRates(region: FreightRegionInput): string {
