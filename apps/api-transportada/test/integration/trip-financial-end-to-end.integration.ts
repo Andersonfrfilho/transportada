@@ -27,6 +27,7 @@ import {
   fleetDrivers,
   fleetVehicles,
   freightCalculations,
+  freightRegionCities,
   freightRegionDriverRates,
   freightRegions,
   freightRuleVersions,
@@ -228,6 +229,16 @@ async function seedTrip(database: TestDatabase): Promise<World> {
     freightClass: 'toco',
     regionId,
   })
+  /*
+    ⚠️ **A cidade da zona é o que decide o pagamento desde a spec 086.** Antes a consulta juntava a
+    cobertura do motorista sem filtro de destino e ficava com a primeira linha que trouxesse valor —
+    o preço saía da ordem que o Postgres devolveu. Hoje quem manda é a zona do **último destino**, e
+    ela é resolvida por `freight_region_cities`. Sem esta linha o destino não casa zona nenhuma, o
+    agregado fica sem preço, e o teste reprova acusando o cálculo quando o incompleto é o cenário.
+  */
+  await database.db
+    .insert(freightRegionCities)
+    .values({ city: 'Barretos', companyId, regionId, state: 'SP' })
   await database.db
     .insert(fleetDriverRegions)
     .values({ companyId, driverId, regionId, scope: 'region' })
