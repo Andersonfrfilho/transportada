@@ -60,3 +60,32 @@ gerado do mesmo `.osm.pbf`, falhando em separado.
 ## Fase 1 — pendente
 
 ## Fase 2 — pendente
+
+## Fase 1
+
+### T100 — contrato vermelho antes da implementação
+
+`apps/frontend-transportada/test/trip/vector-basemap.contract.ts`: cinco expectativas novas sobre
+três camadas que ainda não existem (`sentido-da-via`, `via-com-pedagio`, `cabine-de-pedagio`), mais
+um teste de invariante de ordem.
+
+```
+$ bun test test/trip.contract.test.ts
+(fail) sentido, pedágio e cabine — o que já vem nas telhas > marca o sentido só onde o atributo existe, sem supor o valor
+(fail) sentido, pedágio e cabine — o que já vem nas telhas > inverte a seta quando oneway = -1
+(fail) sentido, pedágio e cabine — o que já vem nas telhas > só desenha a seta a partir do zoom de conferência de endereço
+(fail) sentido, pedágio e cabine — o que já vem nas telhas > distingue o trecho com pedágio
+(fail) sentido, pedágio e cabine — o que já vem nas telhas > marca a cabine de pedágio
+
+ 372 pass
+ 5 fail
+Ran 377 tests across 1 file.
+```
+
+As cinco falhas são exatamente as camadas que a T102–T104 introduzem — nenhuma falha por engano em
+teste já existente.
+
+O teste de invariante de ordem (`nenhum addLayer do componente usa beforeId`) já passa hoje, contra
+o componente como está: 3 chamadas de `map.addLayer` no `AssemblyVectorMap.component.tsx`, nenhuma
+com `beforeId`. Ele trava a premissa da T105 antes de qualquer código novo — se algum `addLayer`
+futuro ganhar `beforeId`, este teste denuncia antes de a ordem virar bug visual.

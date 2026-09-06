@@ -19,6 +19,12 @@ function cityLayer(theme: (typeof BASEMAP_THEMES)[number]) {
   return layer
 }
 
+function layerById(theme: (typeof BASEMAP_THEMES)[number], id: string) {
+  const layer = buildBasemapStyle(resolveToken, theme).layers.find((entry) => entry.id === id)
+  if (layer === undefined) throw new Error(`camada ${id} ausente`)
+  return layer
+}
+
 /**
  * Toda sub-expressão `['interpolate', …, ['get','rank'], …]` dentro do valor, em qualquer
  * profundidade — a rampa de rank vive aninhada como saída da rampa de zoom.
@@ -85,6 +91,92 @@ describe('o estilo do mapa vetorial', () => {
   it('dá ao pino um anel diferente por tema de mapa', () => {
     const anéis = BASEMAP_THEMES.map((theme) => resolveBasemapOutline(resolveToken, theme))
     expect(new Set(anéis).size).toBeGreaterThan(1)
+  })
+})
+
+/**
+ * Feature 089 — medido nas telhas de Ribeirão (specs/089-…/evidence.md): `oneway`, `toll` e o
+ * `subclass` `toll_booth` da camada `poi` já vêm no arquivo que já servimos. Não faltava dado,
+ * faltava desenho.
+ */
+describe('sentido, pedágio e cabine — o que já vem nas telhas', () => {
+  /**
+   * ⚠️ `oneway` só assume o valor `1` nesta base — nunca `0`, nunca `-1` (medido: 5165 feições em
+   * `1`, zero em qualquer outro valor). O filtro é `['has', 'oneway']`, não uma comparação de
+   * valor: comparar contra `1` funcionaria hoje e pararia de desenhar a seta no dia em que a
+   * telha trouxer `-1` de verdade, sem ninguém perceber — é o próprio caso que a T102 cobre a
+   * seguir.
+   */
+  it('marca o sentido só onde o atributo existe, sem supor o valor', () => {
+    const layer = layerById('claro', 'sentido-da-via')
+    expect(layer.filter).toEqual(['has', 'oneway'])
+    expect(layer['source-layer']).toBe('transportation')
+  })
+
+  /**
+   * ⚠️ Este é o caso que não ocorre na base medida (0 de 5165) e entra assim mesmo: se ocorrer, uma
+   * seta apontando para o lado errado é o tipo de defeito que ninguém confere olhando o mapa.
+   */
+  it('inverte a seta quando oneway = -1', () => {
+    const layer = layerById('claro', 'sentido-da-via')
+    const rotação = layer.layout?.['icon-rotate'] ?? layer.layout?.['text-rotate']
+    expect(rotação).toBeDefined()
+    const texto = JSON.stringify(rotação)
+    expect(texto).toContain('"oneway"')
+    expect(texto).toContain('-1')
+  })
+
+  /**
+   * ⚠️ A seta só faz sentido a partir do zoom em que se confere endereço — no zoom de região ela
+   * competiria com o traço da rota, que é o assunto da tela. O nome da rua entra em 13 e o número
+   * da porta em 16; a seta fica entre os dois.
+   */
+  it('só desenha a seta a partir do zoom de conferência de endereço', () => {
+    const layer = layerById('claro', 'sentido-da-via')
+    expect(layer.minzoom ?? 0).toBeGreaterThanOrEqual(14)
+  })
+
+  /**
+   * ⚠️ `toll` não tem valor único nesta base (64 feições com o atributo presente, nas 23 telhas
+   * medidas) — o filtro é presença, como em `oneway`.
+   */
+  it('distingue o trecho com pedágio', () => {
+    const layer = layerById('claro', 'via-com-pedagio')
+    expect(layer.type).toBe('line')
+    expect(layer.filter).toEqual(['has', 'toll'])
+    expect(layer['source-layer']).toBe('transportation')
+    /** Tracejado, não cor nova: no tema `contraste` a classe de via não colore (ver PALETTE). */
+    expect(layer.paint?.['line-dasharray']).toBeDefined()
+  })
+
+  /** As 16 cabines medidas na região vêm como `poi`/`toll_booth` — nunca uma camada própria. */
+  it('marca a cabine de pedágio', () => {
+    const layer = layerById('claro', 'cabine-de-pedagio')
+    expect(layer.type).toBe('symbol')
+    expect(layer['source-layer']).toBe('poi')
+    expect(layer.filter).toEqual(['==', ['get', 'subclass'], 'toll_booth'])
+  })
+})
+
+/**
+ * ⚠️ **A ordem "abaixo dos pinos" não é escolha de índice, é ausência de `beforeId`.** O MapLibre
+ * empilha toda camada de `addLayer` sem `beforeId` no topo do que já existe no estilo — então
+ * qualquer camada nova aqui fica sempre abaixo do pino e da rota que o componente desenha por
+ * cima, contanto que ele continue sem passar `beforeId`. Este teste tranca a premissa por texto de
+ * fonte: se algum `addLayer` ganhar `beforeId`, a ordem passa a depender de qual id foi escolhido,
+ * e as três camadas novas podem passar a competir com o pino sem que nenhum teste do estilo em si
+ * denuncie isso.
+ */
+describe('a ordem entre o basemap e o que o componente desenha por cima', () => {
+  const componente = readFileSync(
+    new URL('../../src/modules/trip/components/AssemblyVectorMap.component.tsx', import.meta.url),
+    'utf8',
+  )
+
+  it('nenhum addLayer do componente usa beforeId', () => {
+    const chamadas = componente.match(/map\.addLayer\(\{[\s\S]*?\n\s{4}\}\)/gu) ?? []
+    expect(chamadas.length).toBeGreaterThan(0)
+    for (const chamada of chamadas) expect(chamada).not.toContain('beforeId')
   })
 })
 
