@@ -165,6 +165,7 @@ export class DrizzleApplicableFreightRuleQuery {
 
     return {
       freightRuleId: requiredString(record.freightRuleId),
+      freightRuleName: record.freightRuleName ?? '',
       freightRuleVersionId: requiredString(record.freightRuleVersionId),
       maximumAmount: record.maximumAmount ?? '',
       minimumAmount: record.minimumAmount ?? '',
@@ -567,7 +568,7 @@ async function findApplicableVersion(
      */
     .orderBy(desc(freightRules.priority), desc(freightRuleVersions.validFrom))
     .limit(1)
-  return record === undefined ? null : mapApplicableVersion(record.version)
+  return record === undefined ? null : mapApplicableVersion(record.version, record.rule.name)
 }
 
 function versionSelectorMatches(selector: string, value: string | null | undefined): SQL {
@@ -1143,10 +1144,11 @@ function decodeCursor(
   return Number.isNaN(createdAt.getTime()) || id.length === 0 ? null : { createdAt, id }
 }
 
-function mapApplicableVersion(record: RuleVersionRecord): Record<string, string> {
+function mapApplicableVersion(record: RuleVersionRecord, ruleName = ''): Record<string, string> {
   return {
     companyId: record.companyId,
     freightRuleId: record.freightRuleId,
+    freightRuleName: ruleName,
     freightRuleVersionId: record.id,
     maximumAmount: record.maximumAmount ?? '',
     minimumAmount: record.minimumAmount ?? '',

@@ -24,6 +24,11 @@ const TYPED_AMOUNT_MAX_DIGITS = 15
 const TYPED_MEASURE_MAX_INTEGER_DIGITS = 10
 const MEASURE_DECIMAL_SEPARATOR = ','
 const currencyFormatter = new Intl.NumberFormat('pt-BR', { currency: 'BRL', style: 'currency' })
+const weightFormatter = new Intl.NumberFormat('pt-BR', {
+  maximumFractionDigits: 3,
+  minimumFractionDigits: 3,
+  style: 'decimal',
+})
 
 type ScaledAmount = {
   readonly scale: number
@@ -190,6 +195,19 @@ export function formatAmount(value: string): string {
   const amount = parseScaledAmount(value)
 
   return currencyFormatter.format(toNumericLiteral(toDecimalString(amount.units, amount.scale)))
+}
+
+/**
+ * Peso em quilos, na precisão que a NF-e declara — o `pesoB` do bloco `<vol>` tem três casas, e
+ * cortar para duas some com a grama que separa duas notas quase iguais.
+ *
+ * ⚠️ Ele **não** é dinheiro: a escala guardada é 4, como a de valor, mas a unidade é outra e o
+ * símbolo é outro. Reusar `formatAmount` imprimiria `R$ 108,67` num campo de massa.
+ */
+export function formatWeightKilograms(value: string): string {
+  const weight = parseScaledAmount(value)
+
+  return weightFormatter.format(toNumericLiteral(toDecimalString(weight.units, weight.scale)))
 }
 
 /** `Intl.NumberFormat` aceita string decimal em runtime; o tipo do TS é mais estreito que a spec. */

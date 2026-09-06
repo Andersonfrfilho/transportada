@@ -61,6 +61,13 @@ export type TripValuationContext = {
 
 export type ApplicableFreightRule = {
   readonly freightRuleId: string
+  /**
+   * O nome da regra que precificou. A consulta já juntava `freight_rules` para filtrar por tipo e
+   * status, e o mapper descartava a linha inteira — quem via o número na tela não tinha como saber
+   * qual parametrização o produziu, e com duas regras empatadas em prioridade isso é justamente o
+   * que precisa aparecer.
+   */
+  readonly freightRuleName: string
   readonly freightRuleVersionId: string
   readonly maximumAmount: string
   readonly minimumAmount: string
@@ -208,7 +215,10 @@ export async function resolveRevenueLine(input: {
 }): Promise<TripRevenueLine> {
   const { document } = input
   const line = {
+    freightRuleId: null,
+    freightRuleName: null,
     nfeDocumentId: document.nfeDocumentId,
+    percentage: null,
     tripDocumentId: document.tripDocumentId,
   }
 
@@ -250,7 +260,15 @@ export async function resolveRevenueLine(input: {
     }),
   })
 
-  return { ...line, amount: calculation.totalAmount, gap: null, source: 'estimated' }
+  return {
+    ...line,
+    amount: calculation.totalAmount,
+    freightRuleId: rule.freightRuleId,
+    freightRuleName: rule.freightRuleName === '' ? null : rule.freightRuleName,
+    gap: null,
+    percentage: rule.percentage,
+    source: 'estimated',
+  }
 }
 
 /**

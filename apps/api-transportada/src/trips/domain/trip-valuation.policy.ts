@@ -73,8 +73,18 @@ export type TripCostKind = (typeof TRIP_COST_KINDS)[number]
 
 export type TripRevenueLine = {
   readonly amount: string
+  /**
+   * Qual parametrização produziu o número, e a que percentual.
+   *
+   * ⚠️ Só a linha `estimated` os tem. `measured` é a soma dos encargos do **CT-e autorizado** — ali
+   * a origem é o documento já emitido, cujo perfil decidiu o preço na emissão, e não uma regra
+   * aplicada agora; inventar um nome de regra para ela diria que a conta foi refeita, e não foi.
+   */
+  readonly freightRuleId: null | string
+  readonly freightRuleName: null | string
   readonly gap: null | ValuationGap
   readonly nfeDocumentId: null | string
+  readonly percentage: null | string
   readonly source: ValuationSource
   readonly tripDocumentId: string
 }

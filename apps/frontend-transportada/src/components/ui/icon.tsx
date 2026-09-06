@@ -20,6 +20,7 @@ export type IconName =
   | 'chevron-left'
   | 'chevron-right'
   | 'chevron-up'
+  | 'clock'
   | 'close'
   | 'columns'
   | 'copy'
@@ -113,6 +114,8 @@ const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   'chevron-left': ['M15 18l-6-6 6-6'],
   'chevron-right': ['M9 18l6-6-6-6'],
   'chevron-up': ['M6 15l6-6 6 6'],
+  /** Relógio: o tempo que o roteiro leva, ao lado do número que o diz. */
+  clock: ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', 'M12 7v5l3 2'],
   close: ['M6 6l12 12', 'M18 6L6 18'],
   columns: ['M4 5h16v14H4z', 'M10 5v14', 'M15 5v14'],
   copy: ['M9 9h11v11H9z', 'M15 9V4H4v11h5'],

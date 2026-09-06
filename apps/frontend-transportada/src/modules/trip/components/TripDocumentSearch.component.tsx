@@ -7,6 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { CountBadge } from '@/components/ui/count-badge'
 import { Icon } from '@/components/ui/icon'
 import { NfeDocumentFilterPanel } from '@/modules/nfe-workspace/components/NfeDocumentFilterPanel.component'
+import { formatAmount, formatWeightKilograms } from '@/modules/shared/decimalAmount.service'
 import { useNfeDocumentTable } from '@/modules/nfe-workspace/hooks/useNfeDocumentTable.hook'
 import type { NfeDocumentListItem } from '@/modules/nfe-workspace/shared/nfeWorkspaceClient.service'
 
@@ -146,6 +147,9 @@ export function TripDocumentSearch({
                   <th scope="col">{t('quickCreate.columns.recipient')}</th>
                   <th scope="col">{t('quickCreate.columns.address')}</th>
                   <th scope="col">{t('quickCreate.columns.city')}</th>
+                  <th scope="col">{t('quickCreate.columns.amount')}</th>
+                  <th scope="col">{t('quickCreate.columns.weight')}</th>
+                  <th scope="col">{t('quickCreate.columns.freight')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -166,6 +170,54 @@ export function TripDocumentSearch({
                     <td>
                       {document.recipientCity ?? ''}
                       {document.recipientState === null ? '' : `/${document.recipientState}`}
+                    </td>
+                    <td className={styles.searchNumericCell}>
+                      {formatAmount(document.totalAmount)}
+                    </td>
+                    {/*
+                      ⚠️ O peso vem **com a origem**. `estimated` é `volumes × peso padrão da
+                      empresa` — palpite —, e um número de quilos sem marca é indistinguível da
+                      massa que o emitente declarou. É por peso que se decide o que ainda cabe no
+                      caminhão, e é aí que o palpite passando por medida faz alguém parar de
+                      carregar, ou continuar.
+                    */}
+                    <td className={styles.searchNumericCell}>
+                      {document.cargoGrossWeight === null ? (
+                        ''
+                      ) : (
+                        <>
+                          {t('quickCreate.weightValue', {
+                            weight: formatWeightKilograms(document.cargoGrossWeight),
+                          })}
+                          {document.cargoWeightSource === 'estimated' ? (
+                            <span
+                              className={styles.searchEstimateMark}
+                              title={t('quickCreate.weightEstimatedHint')}
+                            >
+                              {t('quickCreate.weightEstimated')}
+                            </span>
+                          ) : null}
+                        </>
+                      )}
+                    </td>
+                    {/*
+                      ⚠️ **Previsão, não receita.** Vazio quando nenhuma regra casa **e** quando duas
+                      casam igualmente bem — o empate vira ausência de propósito, para a configuração
+                      ambígua aparecer em vez de sair um número arbitrário.
+                    */}
+                    <td className={styles.searchNumericCell}>
+                      {document.freightAmount === null ? (
+                        ''
+                      ) : (
+                        <>
+                          {formatAmount(document.freightAmount)}
+                          {document.freightRuleName === null ? null : (
+                            <span className={styles.searchEstimateMark}>
+                              {document.freightRuleName}
+                            </span>
+                          )}
+                        </>
+                      )}
                     </td>
                   </tr>
                 ))}

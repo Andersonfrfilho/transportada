@@ -34,6 +34,29 @@ export type AssemblyMapNote = Readonly<{
   /** O número da nota, para a lista dizer **qual** carga para naquele endereço. */
   number: null | string
   postalCode: null | string
+  /**
+   * O telefone do destinatário, cru. É o que a linha da parada imprime ao lado do botão de copiar —
+   * quem monta a viagem liga antes de o caminhão sair, e o número morava no banco sem caminho até a
+   * tela. Ele **não entra na chave da parada**: duas notas do mesmo endereço com telefones
+   * diferentes continuam sendo uma parada só.
+   */
+  phone: null | string
+  /**
+   * Quanto a nota vale e quanto ela pesa — as duas grandezas por onde se decide o que sai junto.
+   * A origem do peso vem colada nele: `estimated` é `volumes × peso padrão da empresa`, e um número
+   * de quilos sem marca lê igual à massa que o emitente declarou.
+   */
+  totalAmount: null | string
+  /**
+   * O frete previsto pela parametrização, vindo da **listagem** — que o calcula sem depender de
+   * veículo. É a base da linha da parada; a avaliação da viagem sobrepõe quando existe, porque ela
+   * também conhece a receita já realizada. Sem esta base o ganho só aparecia depois de escolher o
+   * caminhão, e quem monta a carga decide justamente antes disso.
+   */
+  freightAmount: null | string
+  freightRuleName: null | string
+  cargoGrossWeight: null | string
+  cargoWeightSource: 'estimated' | 'xml' | null
   recipient: null | string
   state: null | string
 }>

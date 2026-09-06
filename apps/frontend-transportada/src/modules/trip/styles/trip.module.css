@@ -625,6 +625,27 @@
   background: var(--color-graphite);
 }
 
+/*
+ * Valor e peso são grandeza, e grandeza se lê pela direita: alinhada à esquerda, a vírgula de cada
+ * linha cai num lugar diferente e comparar duas notas passa a exigir leitura, não varredura.
+ * O `tabular-nums` trava a largura do dígito para as colunas não dançarem entre as páginas.
+ */
+.searchNumericCell {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * A marca do peso estimado. Ela é discreta de propósito — o número continua sendo o dado —, mas
+ * nunca opcional: sem ela um palpite de quilos lê igual à massa que o emitente declarou.
+ */
+.searchEstimateMark {
+  margin-left: var(--space-1);
+  color: var(--color-slate);
+  font-size: 0.72rem;
+  font-style: italic;
+}
+
 /* A busca é uma seção dentro do modal: ela cresce com o filtro aberto e encolhe fechada, sem
    empurrar o rodapé para fora — o botão de criar precisa continuar alcançável. */
 .searchSection {
@@ -1304,6 +1325,51 @@
 }
 
 /* A lista da ordem do mapa de montagem: cidade à esquerda, os dois botões de mover à direita. */
+/*
+ * A linha do tempo total hospeda um ícone antes do texto: sem a caixa flex o traçado do relógio
+ * assenta na base da linha e fica meio passo abaixo do número que ele anuncia.
+ */
+.assemblyTotalTime {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/*
+ * As três grandezas da nota — valor, peso e frete — numa fileira própria abaixo do endereço. Elas
+ * não entram no `join(' · ')` da linha porque a linha já é longa e porque cada uma tem marca
+ * própria de origem; empilhá-las no mesmo texto tiraria o lugar onde a marca cabe.
+ */
+.assemblyStopFigures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin-top: var(--space-1);
+  color: var(--color-slate);
+  font-size: var(--font-size-xs, 0.75rem);
+  font-variant-numeric: tabular-nums;
+}
+
+/* De qual regra saiu o frete. Discreto: o número é o dado, a procedência é a conferência. */
+.assemblyStopRule {
+  margin-left: var(--space-1);
+  color: var(--color-slate);
+  font-size: 0.72rem;
+}
+
+/* O frete é o número que decide se a nota vale a viagem: ele sai do cinza das outras duas. */
+.assemblyStopRevenue {
+  color: var(--color-fog);
+}
+
+/* Os totais da seleção, na mesma fileira e com o mesmo tratamento numérico das linhas. */
+.assemblyTotals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  font-variant-numeric: tabular-nums;
+}
+
 .assemblyOrder {
   display: flex;
   flex-direction: column;
@@ -1354,6 +1420,28 @@
 .assemblyStopLeg {
   color: var(--color-slate);
   font-size: var(--font-size-xs, 0.75rem);
+}
+
+/*
+ * O telefone da nota e o botão de copiar. A linha da nota já é longa — número, cliente, rua, CEP —,
+ * e por isso o telefone vira caixa própria em vez de mais um pedaço do `join(' · ')`: só assim o
+ * botão tem área de clique estável quando o texto quebra em duas linhas no celular.
+ */
+.assemblyStopPhone {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: var(--space-2);
+  white-space: nowrap;
+}
+
+/*
+ * Mesma revelação da placa do veículo e da tabela de notas: o botão fica apagado até o mouse entrar
+ * na parada, para não competir com o endereço. No toque não há `hover`, e a opacidade de repouso do
+ * primitivo já o deixa visível o bastante para ser acertado com o dedo.
+ */
+.assemblyStop:hover [data-copy-inline] {
+  opacity: 1;
 }
 
 /* O trecho até a próxima parada, recuado para não se confundir com a nota que para aqui. */
