@@ -112,6 +112,7 @@ export function serializeProfileDetail(profile: CteEmissionProfileDetail): objec
     matchers: profile.matchers.map((matcher) => ({ ...matcher })),
     matchMode: profile.matchMode,
     modal: profile.modal,
+    municipalServicePolicy: profile.municipalServicePolicy,
     name: profile.name,
     observations: profile.observations,
     operationNature: profile.operationNature,
