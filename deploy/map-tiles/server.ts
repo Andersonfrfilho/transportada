@@ -1,18 +1,28 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Serve **um arquivo** — o mapa de rua em PMTiles — por faixa de bytes.
+ * Serve **dois arquivos** — o mapa de rua em PMTiles e o overlay do radar — por faixa de bytes.
  *
  * ⚠️ O `Range` é a razão de o formato existir: o MapLibre pede o cabeçalho, depois o diretório, e
  * daí só as telhas da tela. Sem `206` o cliente baixaria centenas de MB a cada movimento de mapa, e
  * o serviço pareceria "lento" quando na verdade estaria mandando o arquivo inteiro toda vez.
+ *
+ * O basemap é o que justifica o serviço existir — sem ele, é o próprio incidente que a spec 083
+ * resolveu (toda telha 404 em silêncio) — e continua derrubando o boot se faltar. O overlay do
+ * radar (feature 089, fase 2) é acréscimo: instalação com build anterior a esta feature, ou sem o
+ * arquivo por qualquer motivo, continua servindo o basemap normalmente — só o radar some, degradado
+ * como 404 limpo, do mesmo jeito que o frontend já sabe ler quando o basemap falta.
  */
+type BunFile = ReturnType<typeof Bun.file>
+
 const TILES_PATH = '/map-tiles/area.pmtiles'
+const OVERLAY_PATH = '/map-tiles/overlay.pmtiles'
 /** Os glifos do rótulo, servidos como arquivo comum — o MapLibre os pede por faixa de código. */
 const FONTS_PREFIX = '/map-tiles/fonts/'
 const FONTS_DIRECTORY = new URL('./map-tiles/fonts/', import.meta.url)
 const HEALTH_PATH = '/health/live'
 const FILE = Bun.file(new URL('./map-tiles/area.pmtiles', import.meta.url))
+const OVERLAY_FILE = Bun.file(new URL('./map-tiles/overlay.pmtiles', import.meta.url))
 
 if (!(await FILE.exists())) {
   // Falha no boot: um serviço de mapa sem mapa responde 404 em silêncio e parece rede ruim.
@@ -31,14 +41,26 @@ Bun.serve({
       if (request.method === 'OPTIONS') return withHeaders(new Response(null, { status: 204 }))
       return withHeaders(await glyphResponse(url.pathname))
     }
-    if (url.pathname !== TILES_PATH) return new Response(null, { status: 404 })
+
+    const file = resolveTileFile(url.pathname)
+    if (file === null) return new Response(null, { status: 404 })
 
     /** O `Range` é pedido não-simples: sem a pré-vistoria o navegador nem chega a fazer o GET. */
     if (request.method === 'OPTIONS') return withHeaders(new Response(null, { status: 204 }))
 
-    return withHeaders(rangeResponse(request))
+    /** O overlay pode faltar mesmo depois de reconhecido o caminho — instalação sem a feature 089. */
+    if (!(await file.exists())) return new Response(null, { status: 404 })
+
+    return withHeaders(rangeResponse(request, file))
   },
 })
+
+/** Só os dois caminhos conhecidos servem telha; qualquer outro é 404, resolvido antes do `Range`. */
+function resolveTileFile(pathname: string): BunFile | null {
+  if (pathname === TILES_PATH) return FILE
+  if (pathname === OVERLAY_PATH) return OVERLAY_FILE
+  return null
+}
 
 /**
  * ⚠️ O caminho é decodificado **e** barrado contra travessia: o nome da pilha de fontes vem da URL
@@ -57,11 +79,16 @@ async function glyphResponse(pathname: string): Promise<Response> {
   return new Response(file, { headers: { 'Content-Type': 'application/x-protobuf' } })
 }
 
-function rangeResponse(request: Request): Response {
-  const size = FILE.size
+/**
+ * ⚠️ Parametrizada pelo arquivo, e não duplicada por arquivo: a lógica de faixa já causou um
+ * incidente (a telha inteira em vez de 206) quando existia uma vez só — copiá-la para o segundo
+ * arquivo duplicaria o risco de errar a mesma conta duas vezes.
+ */
+function rangeResponse(request: Request, file: BunFile): Response {
+  const size = file.size
   const match = /^bytes=(\d*)-(\d*)$/u.exec((request.headers.get('range') ?? '').trim())
   /** Pedido sem faixa devolve o corpo inteiro, como manda o RFC — não é erro. */
-  if (match === null) return new Response(FILE)
+  if (match === null) return new Response(file)
 
   const [, rawStart = '', rawEnd = ''] = match
   const start = rawStart === '' ? Math.max(size - Number(rawEnd), 0) : Number(rawStart)
@@ -70,7 +97,7 @@ function rangeResponse(request: Request): Response {
     return new Response(null, { headers: { 'Content-Range': `bytes */${size}` }, status: 416 })
   }
 
-  return new Response(FILE.slice(start, end + 1), {
+  return new Response(file.slice(start, end + 1), {
     headers: {
       'Content-Length': String(end - start + 1),
       'Content-Range': `bytes ${start}-${end}/${size}`,

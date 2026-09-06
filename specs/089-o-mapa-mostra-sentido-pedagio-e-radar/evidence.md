@@ -200,3 +200,23 @@ próprio projeto (`--download --force --output=/data/my_pois.pmtiles --schema=/d
 [planetiler-custommap](https://github.com/onthegomap/planetiler/tree/main/planetiler-custommap)),
 não por execução. A verificação de que o comando realmente produz o arquivo é a T205, contra o build
 publicado.
+
+### T202 — server.ts serve dois arquivos
+
+`resolveTileFile(pathname)` substitui a comparação única contra `TILES_PATH`: devolve `FILE`,
+`OVERLAY_FILE` ou `null`. A checagem de existência do arquivo em runtime é **genérica** (`if
+(!(await file.exists()))`), então cobre o overlay sem duplicar a lógica do basemap — e continua um
+no-op para o basemap, que já passou pela checagem de boot antes.
+
+```
+$ bun test test/deploy.contract.test.ts
+142 pass
+0 fail
+```
+
+⚠️ `deploy/map-tiles/server.ts` não está sob nenhum `tsconfig.json` do monorepo — é um script solto
+para a imagem Docker, fora de `apps/*` (confirmado: nenhum `include` de `apps/*/tsconfig.json`
+alcança `deploy/`, e não há `tsconfig` em `deploy/`). Isso já era assim antes desta spec. Conferido à
+mão com `tsc --noEmit --strict` isolado contra o arquivo: os únicos erros são de lib do Bun sem
+`DOM`/`node` no `--lib` do comando avulso, nenhum aponta para `server.ts`. Não é gate automático —
+fica registrado para quem mexer aqui de novo.

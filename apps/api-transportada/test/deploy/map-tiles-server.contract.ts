@@ -42,14 +42,26 @@ describe('o serviço de telhas serve dois arquivos (feature 089, fase 2)', () =>
    */
   test('a ausência do overlay não derruba o boot', async () => {
     const source = await readServerSource()
-    const overlayThrow = /OVERLAY[\s\S]{0,200}throw new Error/u.exec(source)
-    expect(overlayThrow).toBeNull()
+    /**
+     * O único `throw` do arquivo é o do basemap, no boot. Contar em vez de checar proximidade de
+     * texto: a segunda ocorrência, seja qual for a forma, é sempre uma queda de boot por causa do
+     * overlay — o que esta feature proíbe.
+     */
+    const throwStatements = source.match(/throw new Error\(/gu) ?? []
+    expect(throwStatements).toHaveLength(1)
+    expect(throwStatements[0]).toBeDefined()
   })
 
-  /** O overlay ausente é 404 limpo em runtime — a mesma degradação que o frontend já sabe ler. */
+  /**
+   * ⚠️ O overlay ausente é 404 limpo em runtime — a mesma degradação que o frontend já sabe ler. A
+   * checagem não precisa citar `OVERLAY_FILE` pelo nome: uma checagem só, que vale para qualquer
+   * arquivo resolvido pelo caminho, cobre os dois sem duplicar a lógica.
+   */
   test('o overlay ausente responde 404, não 500 nem corpo vazio silencioso', async () => {
     const source = await readServerSource()
-    expect(source).toMatch(/OVERLAY_FILE\.exists\(\)/u)
+    expect(source).toMatch(
+      /if \(!\(await file\.exists\(\)\)\) return new Response\(null, \{ status: 404 \}\)/u,
+    )
   })
 
   /**
