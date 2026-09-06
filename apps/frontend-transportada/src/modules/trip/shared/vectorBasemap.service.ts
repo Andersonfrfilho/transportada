@@ -17,6 +17,14 @@ import type { StyleSpecification } from 'maplibre-gl'
  */
 export const BASEMAP_URL = import.meta.env.VITE_MAP_TILES_URL?.trim() || '/map-tiles/area.pmtiles'
 const SOURCE = 'basemap'
+/**
+ * Feature 089 (fase 2) — o overlay do radar mora **ao lado** do basemap: mesmo serviço, mesma
+ * origem, só o nome do arquivo muda. Derivar de `BASEMAP_URL` em vez de uma segunda variável de
+ * ambiente evita que as duas apontem para servidores diferentes por engano — o mesmo raciocínio de
+ * `resolveGlyphsUrl` para os glifos.
+ */
+export const OVERLAY_URL = BASEMAP_URL.replace(/area\.pmtiles$/u, 'overlay.pmtiles')
+export const RADAR_SOURCE = 'radar-overlay'
 /** A pilha embarcada no serviço de mapa. Trocar o nome aqui sem trocar a imagem apaga todo rótulo. */
 const FONT_STACK = 'Noto Sans Regular'
 
@@ -175,6 +183,13 @@ export function buildBasemapStyle(
      */
     sources: {
       [SOURCE]: { type: 'vector', url: `pmtiles://${BASEMAP_URL}` },
+      /**
+       * ⚠️ Sempre declarada, mesmo em instalação sem o arquivo ainda gerado: a degradação é do
+       * tratador de erro do componente (`RADAR_SOURCE`), não da ausência da fonte no estilo. Uma
+       * fonte condicional exigiria saber de antemão se o arquivo existe, e é exatamente essa
+       * pergunta que o `Range` do serviço responde em runtime, não aqui.
+       */
+      [RADAR_SOURCE]: { type: 'vector', url: `pmtiles://${OVERLAY_URL}` },
     },
     layers: [
       { id: 'terra', type: 'background', paint: { 'background-color': terra } },
@@ -484,6 +499,30 @@ export function buildBasemapStyle(
         paint: {
           /** Mesma cor da via com pedágio (`rodovia`) — pedágio é uma linguagem visual só. */
           'text-color': rodovia,
+          'text-halo-color': terra,
+          'text-halo-width': 1.4,
+        },
+      },
+      /**
+       * ⚠️ Feature 089 (fase 2) — vem do arquivo separado (`RADAR_SOURCE`), nunca do basemap: o
+       * esquema OpenMapTiles não tem `speed_camera`. Zoom 11, o mesmo patamar em que `poi` existe
+       * no basemap. Glifo **diferente** da cabine de pedágio (▲, não ●) — as duas linguagens
+       * visuais de pedágio e radar não podem se confundir na mesma tela.
+       */
+      {
+        id: 'radar',
+        type: 'symbol',
+        source: RADAR_SOURCE,
+        'source-layer': 'radar',
+        minzoom: 11,
+        layout: {
+          'text-field': '▲',
+          'text-font': [FONT_STACK],
+          'text-size': 9,
+          'text-allow-overlap': true,
+        },
+        paint: {
+          'text-color': troncal,
           'text-halo-color': terra,
           'text-halo-width': 1.4,
         },

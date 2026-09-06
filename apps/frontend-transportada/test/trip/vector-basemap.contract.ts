@@ -6,6 +6,9 @@ import { describe, expect, it } from 'bun:test'
 
 import {
   BASEMAP_THEMES,
+  BASEMAP_URL,
+  OVERLAY_URL,
+  RADAR_SOURCE,
   buildBasemapStyle,
   resolveBasemapOutline,
 } from '@/modules/trip/shared/vectorBasemap.service'
@@ -159,6 +162,73 @@ describe('sentido, pedágio e cabine — o que já vem nas telhas', () => {
     const layer = symbolLayerById('claro', 'cabine-de-pedagio')
     expect(layer['source-layer']).toBe('poi')
     expect(layer.filter).toEqual(['==', ['get', 'subclass'], 'toll_booth'])
+  })
+})
+
+/**
+ * Feature 089 (fase 2) — o esquema OpenMapTiles não tem `speed_camera` (medido: 70 no OSM da
+ * região, zero nas telhas do basemap). O radar vem de um **segundo** arquivo PMTiles
+ * (`overlay.pmtiles`, gerado por `generate-custom` — `deploy/map-tiles/overlay.yml`), nunca de um
+ * fork do perfil OpenMapTiles: reassar o perfil inteiro a cada radar novo arriscaria o basemap que
+ * hoje funciona.
+ */
+describe('o overlay do radar — segundo arquivo, mesma origem', () => {
+  it('deriva a URL do overlay a partir da URL do basemap, no mesmo serviço', () => {
+    expect(OVERLAY_URL).not.toBe(BASEMAP_URL)
+    expect(OVERLAY_URL.endsWith('overlay.pmtiles')).toBe(true)
+    /** Mesma origem: só o nome do arquivo muda, nunca o servidor. */
+    const origemBasemap = BASEMAP_URL.replace(/area\.pmtiles$/u, '')
+    const origemOverlay = OVERLAY_URL.replace(/overlay\.pmtiles$/u, '')
+    expect(origemOverlay).toBe(origemBasemap)
+  })
+
+  it('declara o overlay como uma fonte separada, nunca dentro da fonte do basemap', () => {
+    const style = buildBasemapStyle(resolveToken, 'claro')
+    expect(Object.keys(style.sources)).toContain(RADAR_SOURCE)
+    const source = style.sources[RADAR_SOURCE]
+    expect(source?.type).toBe('vector')
+    expect((source as { url?: string })?.url).toBe(`pmtiles://${OVERLAY_URL}`)
+  })
+
+  it('marca o radar a partir do zoom em que a camada poi já existe no basemap', () => {
+    const layer = symbolLayerById('claro', 'radar')
+    expect(layer.source).toBe(RADAR_SOURCE)
+    expect(layer['source-layer']).toBe('radar')
+    expect(layer.minzoom ?? 0).toBeGreaterThanOrEqual(11)
+  })
+
+  /** Radar e cabine de pedágio precisam ser distinguíveis — nunca o mesmo glifo. */
+  it('usa um glifo diferente do da cabine de pedágio', () => {
+    const radar = symbolLayerById('claro', 'radar')
+    const cabine = symbolLayerById('claro', 'cabine-de-pedagio')
+    expect(radar.layout?.['text-field']).not.toEqual(cabine.layout?.['text-field'])
+  })
+})
+
+/**
+ * ⚠️ **O overlay ausente não pode acionar `onBasemapMissing`.** O PMTiles do radar 404 é o estado
+ * normal em qualquer instalação de build anterior a esta feature — e antes da T204 qualquer erro de
+ * origem do mapa, seja qual for a fonte, cai para a lista inteira (o comportamento que a ADR-0044
+ * §6 desenhou pensando só no basemap). Sem esta distinção, publicar esta feature quebraria o mapa
+ * de quem ainda não gerou o overlay.
+ */
+describe('o overlay ausente não derruba o mapa inteiro', () => {
+  const componente = readFileSync(
+    new URL('../../src/modules/trip/components/AssemblyVectorMap.component.tsx', import.meta.url),
+    'utf8',
+  )
+
+  it('o tratador de erro do mapa distingue a fonte do radar antes de cair para a lista', () => {
+    expect(componente).toContain('RADAR_SOURCE')
+    /**
+     * `lastIndexOf` no fim: a primeira ocorrência de "onBasemapMissing()" no arquivo é dentro de um
+     * comentário explicando o próprio tratador (com crases), não a chamada de verdade.
+     */
+    const handler = componente.slice(
+      componente.indexOf("map.on('error'"),
+      componente.lastIndexOf('onBasemapMissing()') + 'onBasemapMissing()'.length,
+    )
+    expect(handler).toContain('RADAR_SOURCE')
   })
 })
 

@@ -220,3 +220,30 @@ alcança `deploy/`, e não há `tsconfig` em `deploy/`). Isso já era assim ante
 mão com `tsc --noEmit --strict` isolado contra o arquivo: os únicos erros são de lib do Bun sem
 `DOM`/`node` no `--lib` do comando avulso, nenhum aponta para `server.ts`. Não é gate automático —
 fica registrado para quem mexer aqui de novo.
+
+### T203 — segunda fonte no estilo e camada `radar`
+
+`OVERLAY_URL` derivado de `BASEMAP_URL` (troca só o nome do arquivo, nunca a origem — mesmo
+raciocínio de `resolveGlyphsUrl`). `RADAR_SOURCE` sempre declarada no estilo, mesmo sem o arquivo
+existir: a degradação é do tratador de erro do componente, não da ausência da fonte. Camada `radar`
+com glifo `▲` (distinto de `●` da cabine), zoom 11.
+
+### T204 — o overlay ausente não derruba o mapa inteiro
+
+`AssemblyVectorMap.component.tsx`: o tratador de `map.on('error', …)` lê `sourceId` do evento
+(injetado em runtime pelo `setEventedParent` do MapLibre — confirmado contra o código-fonte de
+`maplibre-gl-dev.mjs`, não documentado no `.d.ts`) e retorna cedo quando `sourceId === RADAR_SOURCE`,
+antes do portão que hoje só olha `basemapLoaded.current`.
+
+```
+$ bun run test    # frontend-transportada, script explícito do package.json
+2771 pass
+0 fail
+Ran 2771 tests across 24 files.
+```
+
+`bun run typecheck` e `bun run lint` limpos.
+
+⚠️ `bun test` **puro** (sem o script) varre `test/responsive.smoke.spec.ts`, um arquivo Playwright, e
+falha por conflito de runner — pré-existente, sem relação com esta spec. O gate real do projeto é
+`bun run test`.

@@ -27,6 +27,7 @@ import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 
 import {
   BASEMAP_THEMES,
+  RADAR_SOURCE,
   buildBasemapStyle,
   resolveBasemapOutline,
   type BasemapTheme,
@@ -242,6 +243,20 @@ export function AssemblyVectorMap({
        * degradação para a lista continua a mesma.
        */
       if (import.meta.env.DEV) console.error('[basemap]', event.error?.message ?? event.error)
+
+      /**
+       * ⚠️ Feature 089 (fase 2) — **o radar não pode acionar a queda para a lista.** O
+       * `overlay.pmtiles` 404 é o estado normal de toda instalação com build anterior a esta
+       * feature (ou sem o arquivo por qualquer motivo): sem esta distinção, o mesmo `error` que o
+       * basemap ausente dispara também viria do radar ausente, e o mapa cairia para a lista por uma
+       * camada que a ADR-0044 §6 nem exige.
+       *
+       * `sourceId` não está no tipo do evento — o MapLibre o injeta em runtime via
+       * `setEventedParent`, específico da fonte que originou o erro (confirmado contra o código-
+       * fonte do maplibre-gl: `tileManager.setEventedParent(this, () => ({ ..., sourceId: id }))`).
+       */
+      const sourceId = (event as unknown as { sourceId?: string }).sourceId
+      if (sourceId === RADAR_SOURCE) return
 
       /**
        * ⚠️ **Só o mapa que nunca abriu cai para a lista.** Antes qualquer erro desmontava o mapa —
