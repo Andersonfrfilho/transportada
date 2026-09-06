@@ -183,3 +183,20 @@ Ran 142 tests across 1 file.
 
 As três falhas são exatamente o que a T202 introduz; as demais 139 (inclusive "basemap ausente
 derruba o boot" e "caminho desconhecido é 404", que já valiam) continuam verdes.
+
+### T201 — schema do overlay e o segundo generate-custom no Dockerfile
+
+`deploy/map-tiles/overlay.yml` — schema mínimo (`highway=speed_camera` → camada `radar`), `min_zoom:
+11` (mesmo patamar em que `poi` existe no basemap).
+
+`deploy/map-tiles/Dockerfile`: `COPY` do schema **antes** do `RUN`, e um **segundo** invocation do
+`generate-custom` dentro do mesmo `RUN` que já baixou o `.osm.pbf` — antes do `rm` que o apaga.
+`--output=/data/overlay.pmtiles --force`, sem `--download` (as fontes auxiliares do OpenMapTiles —
+contorno de lago, natural earth — não são lidas por este schema mínimo).
+
+⚠️ **Não roda localmente** (a mesma razão do basemap: builder do Railway tem os GB que faltam no
+laptop) — a sintaxe do `generate-custom --output=` foi confirmada contra um exemplo documentado do
+próprio projeto (`--download --force --output=/data/my_pois.pmtiles --schema=/data/my_pois.yml`,
+[planetiler-custommap](https://github.com/onthegomap/planetiler/tree/main/planetiler-custommap)),
+não por execução. A verificação de que o comando realmente produz o arquivo é a T205, contra o build
+publicado.

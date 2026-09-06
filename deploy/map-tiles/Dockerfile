@@ -24,12 +24,21 @@ ARG MAP_PBF_URL
 
 WORKDIR /data
 
+# Feature 089 (fase 2) — o schema do overlay do radar. Copiado antes do RUN porque ele lê o mesmo
+# `.osm.pbf` que o RUN baixa: o schema é um arquivo do repositório, o `.pbf` não é.
+COPY deploy/map-tiles/overlay.yml /data/overlay.yml
+
 # ⚠️ O entrypoint da imagem é jib (`java -cp @/app/jib-classpath-file …`), e não um jar solto:
 # `java -jar /planetiler.jar` falha com "Unable to access jarfile" — e falharia só aqui, no build
 # remoto, depois de baixar o `.pbf` inteiro.
 #
 # `--download` busca as fontes auxiliares (contorno de lago, polígono de água, natural earth) que o
 # esquema OpenMapTiles exige; sem elas o processo aborta antes de ler o `.pbf`.
+#
+# ⚠️ **O overlay lê o `.osm.pbf` já baixado, nunca baixa o próprio.** Ele roda **antes** do `rm` que
+# apaga o arquivo — depois disso não haveria mais nada para o `generate-custom` ler. Dois
+# `generate-custom` no lugar de um perfil customizado do OpenMapTiles (T002 do tasks.md): reassar o
+# perfil inteiro a cada radar novo arriscaria o basemap que hoje funciona.
 RUN set -eu; \
   if [ -z "${MAP_PBF_URL:-}" ]; then \
     echo 'MAP_PBF_URL é obrigatório — ver docs/runbooks/map-tiles.md' >&2; exit 1; \
@@ -38,7 +47,9 @@ RUN set -eu; \
   java -cp @/app/jib-classpath-file com.onthegomap.planetiler.Main \
     --osm-path=/data/area.osm.pbf --output=/data/area.pmtiles \
     --force --download --nodemap-type=array; \
-  rm -rf /data/area.osm.pbf /data/sources /data/tmp
+  java -cp @/app/jib-classpath-file com.onthegomap.planetiler.Main \
+    generate-custom --schema=/data/overlay.yml --output=/data/overlay.pmtiles --force; \
+  rm -rf /data/area.osm.pbf /data/overlay.yml /data/sources /data/tmp
 
 # Os glifos do rótulo. Sem eles o MapLibre **não desenha texto nenhum** — e mapa de roteiro sem nome
 # de cidade obriga quem confere a reconhecer a região pelo formato do rio.
@@ -60,6 +71,7 @@ FROM oven/bun:1.3.14-alpine
 
 WORKDIR /app
 COPY --from=dataset /data/area.pmtiles /app/map-tiles/area.pmtiles
+COPY --from=dataset /data/overlay.pmtiles /app/map-tiles/overlay.pmtiles
 COPY --from=fonts /fonts /app/map-tiles/fonts
 COPY deploy/map-tiles/server.ts /app/server.ts
 
