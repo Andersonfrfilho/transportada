@@ -37,8 +37,25 @@ de um tipo chega a **2×** (um VUC existe de 13 e de 26 m³, conforme o CLAUDE.m
 a planta de um baú específico com a medida média do tipo é dizer ao conferente, em metros, uma coisa
 que a fita dele vai desmentir.
 
+**E elas não chegam por nenhum caminho automático** — conferido nos dois que existem neste
+repositório, em 2026-09-06:
+
+- **CRLV.** `CrlvValues` do `@adatechnology/document-intake` entrega treze campos — placa, RENAVAM,
+  marca, modelo, ano, cor, combustível, carroceria, eixos, município, UF e o par nome/documento do
+  proprietário. Nenhuma dimensão. Não é falha do parser: o CRLV imprime **peso** (PBT, CMT, tara,
+  lotação), nunca a medida interna do compartimento. O baú é montado por um implementador depois do
+  chassi, e o que ele mede por dentro não é campo de registro.
+- **Herança por marca/modelo.** `VEHICLE_BRAND_DEFAULT_FIELDS` copia doze campos entre veículos da
+  mesma marca, incluindo `capacityCubicMeters` e `capacityKilograms`, e **não** as dimensões. O
+  arquivo já registrava o porquê: o catálogo FIPE devolve só marca e modelo.
+
 O caminho mais barato para uma planta fiel é **perguntar as três medidas uma vez por caminhão**, a
 quem cadastra a frota, com a fita na mão. Oito veículos, três números cada.
+
+⚠️ **Achado vizinho, fora do escopo desta spec:** o CRLV imprime tara e capacidade em quilos, e o
+parser não os extrai — `tareWeightKilograms` e `capacityKilograms` continuam digitados à mão. Peso
+não desenha planta, então isso não entra aqui; mas é o mesmo tipo de campo que existe no documento e
+ninguém lê, e foi essa família que originou esta spec.
 
 ## Decisões
 
