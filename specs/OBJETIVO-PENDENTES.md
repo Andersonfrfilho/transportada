@@ -120,6 +120,16 @@ que carrega notas não vinculadas, o aceite que **cria** viagens, e a tela.
   `nfe_package_boxes` aqui (ADR-0062). ⚠️ Falta o que só o uso produz: **nenhuma caixa foi medida
   ainda**, e a cobertura real da ocupação continua zero até o conferente descer a fila.
 
+- **088 — onde encostar a carga** (2026-09-06): a 085 respondeu "cabe, e em que ordem"; falta
+  "onde encosto". Planta do baú em escala, vista de cima, com a faixa de cada entrega em metros e na
+  ordem inversa da descarga. ⚠️ **A descoberta que ordena a spec:** a ficha do veículo nunca pediu as
+  três medidas do baú — as colunas existem desde a 075, `resolveVehicleCapacity` as prefere, e o
+  formulário só pergunta `Capacidade (m³)`. Por isso estão zeradas em **8 de 8** veículos. A escala
+  sai da ficha e **não** da referência de mercado: a dispersão dentro de um tipo chega a 2×, e errar
+  2× em metro na tela de quem vai medir com fita é pior que não desenhar. Medido também: 6 de 663
+  caixas medidas, o que mantém o empacotamento caixa a caixa fora do escopo. Spec, plano e tasks em
+  `specs/088-onde-encostar-a-carga/` — **sem decisão em aberto**.
+
 - **087 — toda rota de 204 falha no navegador quando chamada de outra origem** (2026-09-06):
   medido num experimento controlado durante a 085 — mesma rota, mesmo método, mesmo corpo, só o
   status mudando: `200` passa e `204` faz o `fetch` lançar `TypeError: Failed to fetch`, com a
