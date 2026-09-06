@@ -247,3 +247,53 @@ Ran 2771 tests across 24 files.
 ⚠️ `bun test` **puro** (sem o script) varre `test/responsive.smoke.spec.ts`, um arquivo Playwright, e
 falha por conflito de runner — pré-existente, sem relação com esta spec. O gate real do projeto é
 `bun run test`.
+
+### T205 — medição contra o overlay publicado
+
+⚠️ **Duas voltas de infraestrutura antes de chegar aqui, registradas para quem mexer nisto de novo:**
+
+1. O `map-tiles` de **staging** tinha a fonte desconectada do GitHub — um `.railway/railway.ts`
+   já registrava (linhas 556–560) a decisão de consolidar o mapa numa instância só em produção
+   (`map-tiles-production`) e "executá-la" em 04/09/2026, mas o serviço de staging continuava de pé
+   com fonte desatualizada. `railway redeploy --from-source` nele reconstruía sempre o Dockerfile
+   **antigo** (3 passos em `dataset`, 5 em `stage-2`, `sudeste-latest.osm.pbf`).
+2. `map-tiles-production` builda da branch **`main`** (`.railway/railway.ts:41`), e a spec 089 só
+   estava em `staging` — reconstruí-lo também trouxe o Dockerfile antigo, pelo motivo oposto: ele
+   está correto, só não tinha o código ainda. Levá-lo para lá seria merge para produção, decisão de
+   release que não cabia tomar aqui.
+3. `railway service source connect --repo … --branch staging --service map-tiles --environment
+staging` respondeu `ServiceInstance not found` duas vezes, mas **funcionou de qualquer jeito**:
+   dois builds concorrentes nasceram nos segundos seguintes, seguidos por um terceiro
+   (`23dc92da`) que **sim** trouxe o Dockerfile novo (4 passos em `dataset`, 6 em `stage-2`, com
+   `overlay.yml` e o segundo `generate-custom`). Os dois builds anteriores foram substituídos
+   (`REMOVED`) sem deixar o serviço inconsistente.
+4. **Gerar o overlay localmente também falhou**, e não por acaso: o mesmo aviso já escrito no
+   `Dockerfile` ("a geração local morreu, com No space left on device") se confirmou até para o
+   schema mínimo do radar — `Channel not open for writing - cannot extend file to required size`,
+   mmap sobre bind mount do Docker Desktop no Mac. Não é specific do perfil OpenMapTiles completo.
+
+Deployment final: `23dc92da-8c49-4dd3-a42d-d06f7d1be946`, `SUCCESS`, 2026-09-06 18:51. Metadados do
+overlay publicado:
+
+```
+minzoom 0 maxzoom 14
+vector_layers: [{ id: "radar", fields: { class: "String" }, minzoom: 11, maxzoom: 14 }]
+name: "Radares de velocidade"
+planetiler:osm:osmosisreplicationtime: 2026-09-05T20:22:06Z
+```
+
+Medição: as 44 telhas z14 distintas que contêm os 70 radares medidos na Fase 0 (Overpass, OSM),
+decodificadas com `pmtiles` + `@mapbox/vector-tile` + `pbf` — o mesmo par de bibliotecas da Fase 0.
+
+```
+radares no OSM (Fase 0): 70
+telhas z14 distintas conferidas: 44
+feições da camada radar encontradas: 72
+classes: speed_camera:72
+```
+
+72 contra 70 é o padrão esperado de radar perto de borda de telha aparecendo em duas telhas
+vizinhas (o buffer de tile do planetiler, não um defeito do schema) — a mesma ordem de grandeza de
+"342 feições `minor` contra 395 ways" que a Fase 0 já havia registrado para outra camada, na direção
+oposta (lá a telha via menos que a realidade; aqui vê um pouco mais). Nenhuma feição fora de
+`class: speed_camera` apareceu.

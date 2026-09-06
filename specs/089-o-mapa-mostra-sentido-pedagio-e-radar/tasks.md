@@ -30,14 +30,18 @@ Fase 2 — o overlay do radar
 
 > 🤖 Modelo: `sonnet` (T201 é 🧠 — mexe no build que só roda remoto)
 
-- [ ] T200 Contrato: o serviço serve os dois arquivos, recusa qualquer outro caminho e mantém `Range`
+- [x] T200 Contrato: o serviço serve os dois arquivos, recusa qualquer outro caminho e mantém `Range`
       — `test/deploy/` — vermelho antes da T202
-- [ ] T201 🧠 `deploy/map-tiles/overlay.yml` + `generate-custom` no mesmo estágio do `.pbf` já baixado
+- [x] T201 🧠 `deploy/map-tiles/overlay.yml` + `generate-custom` no mesmo estágio do `.pbf` já baixado
       — `deploy/map-tiles/Dockerfile` — build no Railway
-- [ ] T202 `server.ts` serve dois arquivos; overlay ausente **não** derruba o boot — T200 verde
-- [ ] T203 Segunda fonte no estilo + camada `radar`, degradando sem o overlay — `vectorBasemap.service.ts` — contrato
-- [ ] T204 [P] Sonda do overlay no componente, no molde da que já existe — `AssemblyVectorMap.component.tsx` — contrato
-- [ ] T205 Medição contra o overlay publicado, esperando os 70 radares da região — evidência
+- [x] T202 `server.ts` serve dois arquivos; overlay ausente **não** derruba o boot — T200 verde
+- [x] T203 Segunda fonte no estilo + camada `radar`, degradando sem o overlay — `vectorBasemap.service.ts` — contrato
+- [x] T204 [P] Sonda do overlay no componente, no molde da que já existe — `AssemblyVectorMap.component.tsx` — contrato
+- [x] T205 Medição contra o overlay publicado, esperando os 70 radares da região — evidência.
+      **72 feições `radar` nas 44 telhas que contêm os 70 radares medidos na Fase 0** — o overlay
+      publicado (`23dc92da`, staging) bate. Achado de infraestrutura registrado em `evidence.md`: o
+      `map-tiles` de staging tinha a fonte GitHub desconectada, fora do que `.railway/railway.ts`
+      já registrava como decidido — reconectada durante esta task.
 
 ## Portões
 
