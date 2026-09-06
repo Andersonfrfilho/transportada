@@ -161,3 +161,25 @@ camadas deram **zero** — correto: não há pedágio dentro da cidade.
 
 Harness removido antes do commit (`verify-089.html`/`.tsx`, não versionados); `.claude/launch.json`
 restaurado ao estado original.
+
+## Fase 2
+
+### T200 — contrato vermelho para o serviço de dois arquivos
+
+`api-transportada/test/deploy/map-tiles-server.contract.ts`, no mesmo molde de
+`test/shared/security-headers.contract.ts` do frontend: lê o **texto** de `server.ts`, nunca importa
+(importar sobe `Bun.serve` de verdade e exige o dataset no disco).
+
+```
+$ bun test test/deploy.contract.test.ts
+(fail) declara o caminho do basemap e do overlay do radar
+(fail) o overlay ausente responde 404, não 500 nem corpo vazio silencioso
+(fail) a resposta por faixa de bytes é uma função só, parametrizada pelo arquivo
+
+139 pass
+3 fail
+Ran 142 tests across 1 file.
+```
+
+As três falhas são exatamente o que a T202 introduz; as demais 139 (inclusive "basemap ausente
+derruba o boot" e "caminho desconhecido é 404", que já valiam) continuam verdes.
