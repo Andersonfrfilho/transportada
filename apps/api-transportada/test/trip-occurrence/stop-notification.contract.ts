@@ -217,6 +217,8 @@ describe('disparo do aviso de ocorrência de parada (spec 082 D8)', () => {
       attachmentObjectId: null,
       companyId: COMPANY_ID,
       description: 'Duas horas na fila da doca',
+      /** Spec 082: `null` é **não aferida** — este caminho não mede distância, e diz isso. */
+      distanceMeters: null,
       documentId: null,
       driverId: '00000000-0000-4000-8000-000000000003',
       idempotencyKey: 'chave-1',
@@ -237,6 +239,7 @@ describe('disparo do aviso de ocorrência de parada (spec 082 D8)', () => {
       attachmentObjectId: null,
       companyId: COMPANY_ID,
       description: 'Sem trilho de notificação',
+      distanceMeters: null,
       documentId: null,
       driverId: '00000000-0000-4000-8000-000000000003',
       idempotencyKey: 'chave-2',
