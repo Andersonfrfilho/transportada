@@ -107,6 +107,8 @@ export type DriverFieldReportTransactionPort = {
     readonly attachmentObjectId: string | null
     readonly companyId: string
     readonly description: string
+    /** ADR-0057 §3: `null` é não aferida — parada sem coordenada, ou posição que nunca fixou. */
+    readonly distanceMeters: number | null
     readonly documentId: string | null
     readonly kind: TripStopOccurrenceKind
     readonly stopId: string

@@ -10,6 +10,7 @@ import {
   check,
   foreignKey,
   index,
+  integer,
   jsonb,
   numeric,
   pgTable,
@@ -41,6 +42,12 @@ export const TRIP_STATUSES = [
   'loading',
   'dispatched',
   'in_transit',
+  /**
+   * ADR-0058: a viagem na estrada, entre o toque de iniciar trajeto e a última nota fechada. Ela
+   * existe porque a derivação não enxergava a hora em que mais se pergunta pela viagem — quem sai
+   * do galpão às 6h e roda uma hora até a primeira parada aparecia como `dispatched` o tempo todo.
+   */
+  'on_delivery_route',
   'completed',
   'cancelled',
 ] as const
@@ -744,6 +751,17 @@ export const tripStopOccurrences = pgTable(
     kind: text().notNull().$type<TripStopOccurrenceKind>(),
     /** Curta de propósito: é relato de campo digitado com uma mão, não formulário. */
     description: text().notNull().default(''),
+    /**
+     * ADR-0057 §2 e §3: a distância entre onde o motorista estava e a parada, em metros inteiros.
+     *
+     * `null` é **não aferida**, e é um estado, não um erro: parada sem coordenada (latitude e
+     * longitude são nulas no contrato de hoje) ou posição que nunca fixou. O escritório vê que a
+     * distância não pôde ser medida, em vez de ver uma distância inventada.
+     *
+     * Longe **não impede**: acima do raio a tela avisa, grava e deixa seguir. Quem decide se a
+     * distância invalida o relato é quem tem o contrato (ADR-0045 §6.1).
+     */
+    reportedDistanceMeters: integer('reported_distance_meters'),
     attachmentObjectId: uuid('attachment_object_id'),
     actorUserId: uuid('actor_user_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -789,6 +807,11 @@ export const tripStopOccurrences = pgTable(
       table.companyId,
       table.stopId,
       table.createdAt,
+    ),
+    /* Distância negativa é leitura corrompida; zero é legítimo — é o motorista na porta. */
+    check(
+      'trip_stop_occurrences_distance_check',
+      sql`${table.reportedDistanceMeters} is null or ${table.reportedDistanceMeters} >= 0`,
     ),
     check(
       'trip_stop_occurrences_kind_check',

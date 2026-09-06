@@ -148,4 +148,62 @@ describe(`GET/PUT ${LANDING_SETTINGS_PATH} HTTP contract`, () => {
       data: { accentColor: '#1a2b3c', brandName: 'Transportadora Azul' },
     })
   })
+
+  /**
+   * Spec 082 T0.1: o aplicativo do motorista conhece uma URL só — a da instalação que o operador
+   * digitou. Sem este bloco ele não tem para onde mandar quem quer entrar.
+   */
+  test('publica onde o aplicativo autentica, quando a instalação declara o cliente', async () => {
+    const fixture = await createLandingHttpFixture({
+      mobileAuthentication: {
+        clientId: 'transportada-mobile',
+        realm: 'transportada',
+        url: 'https://auth.cliente.com.br',
+      },
+    })
+
+    const response = await fixture.handle(
+      landingRequest({ authenticated: false, method: 'GET', pathname: LANDING_PUBLIC_PATH }),
+    )
+
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as { readonly data: Record<string, unknown> }
+    expect(body.data.keycloak).toEqual({
+      clientId: 'transportada-mobile',
+      realm: 'transportada',
+      url: 'https://auth.cliente.com.br',
+    })
+  })
+
+  /**
+   * Omitido, e não `null`: o cliente distingue "esta instalação não publica o aplicativo" de "o
+   * campo veio vazio", e recusa a instalação em vez de montar uma autorização pela metade.
+   */
+  test('omite o bloco quando a instalação não publica o aplicativo', async () => {
+    const fixture = await createLandingHttpFixture()
+
+    const response = await fixture.handle(
+      landingRequest({ authenticated: false, method: 'GET', pathname: LANDING_PUBLIC_PATH }),
+    )
+
+    const body = (await response.json()) as { readonly data: Record<string, unknown> }
+    expect('keycloak' in body.data).toBe(false)
+  })
+
+  /* O bloco é público por desenho no PKCE, e a rota continua sem autenticação nenhuma. */
+  test('serve o bloco sem exigir autorização', async () => {
+    const fixture = await createLandingHttpFixture({
+      mobileAuthentication: {
+        clientId: 'transportada-mobile',
+        realm: 'transportada',
+        url: 'https://auth.cliente.com.br',
+      },
+    })
+
+    const response = await fixture.handle(
+      landingRequest({ authenticated: false, method: 'GET', pathname: LANDING_PUBLIC_PATH }),
+    )
+
+    expect(response.status).toBe(200)
+  })
 })

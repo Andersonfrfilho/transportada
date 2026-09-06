@@ -25,12 +25,21 @@ import {
   type ProofSettingsLookup,
 } from '../domain/delivery-proof-settings.policy.js'
 import type { TripDatabase } from './trip-queryable.type.js'
+import { TRIP_ON_ROAD_STATUSES } from '../domain/trip-state.policy.js'
+import type { TripStatus } from '../../database/trip.schema.js'
 
 /**
- * As fases em que a viagem aparece na tela do motorista. `route_planned` entrou com a ADR-0058: é
- * onde mora o "Iniciar trajeto" — sem vê-la, o motorista não teria o que despachar.
+ * As fases em que a viagem aparece na tela do motorista.
+ *
+ * ⚠️ **Não é `TRIP_ON_ROAD_STATUSES`, e a diferença é `route_planned`.** A rua começa em
+ * `dispatched`; a **tela do motorista** começa um passo antes, porque é ele quem despacha pelo app
+ * (ADR-0058) — sem ver a viagem planejada, ele não teria o que despachar. Trocar esta lista pela da
+ * rua deixaria a rota de despacho inalcançável, e o defeito seria "a viagem não aparece", longe da
+ * linha que o causou.
+ *
+ * O resto vem importado, nunca redigitado: é a lição das cinco cópias que divergiram.
  */
-const ACTIVE_TRIP_STATUSES = ['route_planned', 'dispatched', 'in_transit'] as const
+const ACTIVE_TRIP_STATUSES = ['route_planned', ...TRIP_ON_ROAD_STATUSES] as const
 
 /** A nota do destinatário é o que o motorista entrega; a do emitente não lhe diz nada. */
 const RECIPIENT_ROLE = 'recipient'
@@ -78,6 +87,48 @@ export class DrizzleCurrentDriverTripRepository implements CurrentDriverTripPort
       .limit(1)
 
     return record !== undefined
+  }
+
+  /**
+   * ADR-0058: a viagem que os dois toques do campo alcançam. Devolve a **primeira** ativa, na mesma
+   * ordem de `listActiveTrips` — com dois despachos simultâneos, conferir a carga vale para a que a
+   * tela está mostrando, e a segunda tem a conferência dela.
+   */
+  public async readCurrent(input: {
+    readonly companyId: string
+    readonly driverId: string
+  }): Promise<{ readonly tripId: string; readonly tripStatus: TripStatus } | null> {
+    const [record] = await this.database
+      .select({ status: trips.status, tripId: trips.id })
+      .from(tripDrivers)
+      .innerJoin(
+        trips,
+        and(eq(trips.companyId, tripDrivers.companyId), eq(trips.id, tripDrivers.tripId)),
+      )
+      .where(
+        and(
+          eq(tripDrivers.companyId, input.companyId),
+          eq(tripDrivers.driverId, input.driverId),
+          inArray(trips.status, [...ACTIVE_TRIP_STATUSES]),
+        ),
+      )
+      .orderBy(asc(trips.createdAt))
+      .limit(1)
+
+    return record === undefined ? null : { tripId: record.tripId, tripStatus: record.status }
+  }
+
+  /** O `where` leva `company_id` junto do id: viagem de outra empresa é ausência, nunca escrita. */
+  public async updateStatus(input: {
+    readonly actorUserId: string
+    readonly companyId: string
+    readonly tripId: string
+    readonly tripStatus: TripStatus
+  }): Promise<void> {
+    await this.database
+      .update(trips)
+      .set({ status: input.tripStatus })
+      .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
   }
 
   public async listActiveTrips(input: {

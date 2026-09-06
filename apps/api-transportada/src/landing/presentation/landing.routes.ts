@@ -142,6 +142,14 @@ function serializePublic(settings: PublicLandingSettings): object {
   return {
     accentColor: settings.accentColor ?? null,
     brandName: settings.brandName ?? null,
+    /**
+     * Omitido, e não `null`, quando a instalação não publica o aplicativo: o cliente distingue
+     * "esta instalação não tem app" de "o campo veio vazio", e o app recusa a instalação com
+     * `keycloak_missing` em vez de tentar montar uma autorização pela metade.
+     */
+    ...(settings.mobileAuthentication === undefined
+      ? {}
+      : { keycloak: settings.mobileAuthentication }),
     contacts: settings.contacts.map((contact) => ({
       isWhatsapp: contact.isWhatsapp,
       kind: contact.kind,
@@ -151,6 +159,14 @@ function serializePublic(settings: PublicLandingSettings): object {
     socialLinks: settings.socialLinks.map((link) => ({ network: link.network, url: link.url })),
     contactEmail: settings.contactEmail ?? null,
     contactPhone: settings.contactPhone ?? null,
+    /**
+     * Omitido, e não `null`, quando a instalação não publica o aplicativo: o cliente distingue
+     * "esta instalação não tem app" de "o campo veio vazio", e o app recusa a instalação com
+     * `keycloak_missing` em vez de tentar montar uma autorização pela metade.
+     */
+    ...(settings.mobileAuthentication === undefined
+      ? {}
+      : { keycloak: settings.mobileAuthentication }),
     sections: settings.sections,
     units: settings.units.map((unit) => ({
       city: unit.city,

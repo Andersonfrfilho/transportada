@@ -14,3 +14,10 @@ export type RedactTripLocationsInput = {
  * atendimento que a 058 e a 060 leem, e não é isso que a LGPD pede.
  */
 export type RedactTripLocations = (input: RedactTripLocationsInput) => Promise<number>
+
+/**
+ * ADR-0056 §2: apaga o ping velho **tenha a viagem fechado ou não**. É o prazo que `purgeByTrip`
+ * não dá — ele depende de alguém fechar a viagem, e é a viagem esquecida aberta que transforma o
+ * rastro em histórico de deslocamento de uma pessoa.
+ */
+export type PurgeStalePings = (input: RedactTripLocationsInput) => Promise<number>

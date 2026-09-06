@@ -18,6 +18,7 @@ import { createDigitalCertificateSecretService } from './companies/application/d
 import { createCompanyLogoUseCase } from './companies/application/company-logo.use-case.js'
 import { createLandingLogoUseCase } from './landing/application/landing-logo.use-case.js'
 import { createLandingSettingsUseCase } from './landing/application/landing-settings.use-case.js'
+import { resolveMobileAuthentication } from './landing/domain/mobile-authentication.policy.js'
 import { createAggregateApplicationsUseCase } from './fleet/application/aggregate-applications.use-case.js'
 import { createAggregateAccountUseCase } from './fleet/application/aggregate-account.use-case.js'
 import { createDisableScheduledDistributionUseCase } from './companies/application/disable-scheduled-distribution.use-case.js'
@@ -468,6 +469,7 @@ import { createAggregateDocumentReviewRoutes } from './fleet/presentation/aggreg
 import { createAggregateApplicationAttachmentReviewRoutes } from './fleet/presentation/aggregate-application-attachment-review.routes.js'
 import { createAggregateApplicationAttachmentReviewUseCase } from './fleet/application/aggregate-application-attachment-review.use-case.js'
 import { createDrizzleAggregateApplicationAttachmentReviewRepository } from './fleet/infrastructure/drizzle-aggregate-application-attachment-review.repository.js'
+import { startFieldTrip } from './trips/application/start-field-trip.use-case.js'
 
 const API_PROJECT_NAME = 'transportada-api'
 const API_VERSION = '0.1.0'
@@ -793,6 +795,11 @@ function createAnonymousRoutes({
       companyGroupRepository: createDrizzleCompanyGroupRepository(database),
       landingCompanyId: config.companyId,
       landingSettingsRepository: createDrizzleLandingSettingsRepository(database),
+      /* Ambiente, resolvido uma vez: o endereço do realm não muda entre requisições. */
+      mobileAuthentication: resolveMobileAuthentication({
+        clientId: config.keycloak.mobileClientId,
+        issuer: config.keycloak.issuer,
+      }),
     }),
   })
   // A consulta de CNPJ já existia atrás de `settings.manage`, para o painel. A landing precisa dela
@@ -1033,6 +1040,10 @@ function createApplicationRoutes({
     companyGroupRepository: createDrizzleCompanyGroupRepository(database),
     landingCompanyId: undefined,
     landingSettingsRepository: createDrizzleLandingSettingsRepository(database),
+    mobileAuthentication: resolveMobileAuthentication({
+      clientId: keycloak.mobileClientId,
+      issuer: keycloak.issuer,
+    }),
   })
   const aggregateApplications = createAggregateApplicationsUseCase({
     companyGroupRepository: createDrizzleCompanyGroupRepository(database),
@@ -1685,6 +1696,8 @@ function createApplicationRoutes({
       saveSettings: (input) => deliveryProofSettingsRepository.saveSettings(input),
     }),
     ...createMeTripRoutes({
+      startFieldTrip: (input) =>
+        startFieldTrip({ ...input, repository: currentDriverTripRepository }),
       /**
        * Spec 079: o motorista registra a ocorrência do celular. **Sem notificador**: quem despachou
        * a viagem é justamente quem receberia o aviso, e ele não precisa ser avisado de algo que o

@@ -70,6 +70,12 @@ const environmentSchema = z.object({
   KEYCLOAK_ADMIN_CLIENT_ID: z.string().trim().min(1),
   KEYCLOAK_ADMIN_CLIENT_SECRET: z.string().trim().min(1),
   KEYCLOAK_AUDIENCE: z.string().trim().min(1),
+  /**
+   * Spec 082 T0.1: o cliente público do aplicativo do motorista (ADR-0047 — cada serviço é um
+   * cliente). Opcional: instalação que não publica o aplicativo simplesmente omite o bloco, e o app
+   * recusa aquela instalação. Exigi-la derrubaria o boot de toda API já em produção.
+   */
+  KEYCLOAK_MOBILE_CLIENT_ID: z.string().trim().min(1).optional(),
   KEYCLOAK_ISSUER: z.string().refine(isTrustedIdentityUrl, {
     message: 'KEYCLOAK_ISSUER must be an HTTPS URL or an HTTP localhost URL',
   }),
@@ -245,6 +251,9 @@ export function parseEnvironment(environment: Record<string, string | undefined>
       },
       audience: parsed.KEYCLOAK_AUDIENCE,
       issuer: parsed.KEYCLOAK_ISSUER,
+      ...(parsed.KEYCLOAK_MOBILE_CLIENT_ID === undefined
+        ? {}
+        : { mobileClientId: parsed.KEYCLOAK_MOBILE_CLIENT_ID }),
       jwksUri: parsed.KEYCLOAK_JWKS_URI,
     },
     logLevel: parsed.LOG_LEVEL,

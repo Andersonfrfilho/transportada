@@ -1,6 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-/** ADR-0043 §1: `open`/`closed` migraram para os nove estados da viagem (`open → draft`,
- * `closed → completed`). */
+/**
+ * ADR-0043 §1: `open`/`closed` migraram para os estados da viagem (`open → draft`,
+ * `closed → completed`). ADR-0058 acrescentou `on_delivery_route`, a viagem na estrada.
+ *
+ * ⚠️ Cópia por valor de `TRIP_STATUSES` da API — o bundle não carrega código de lá.
+ */
 export const TRIP_STATUS = [
   'cancelled',
   'completed',
@@ -8,6 +12,7 @@ export const TRIP_STATUS = [
   'draft',
   'in_transit',
   'loading',
+  'on_delivery_route',
   'route_planned',
   'separating',
 ] as const

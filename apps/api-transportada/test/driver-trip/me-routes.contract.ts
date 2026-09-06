@@ -23,6 +23,7 @@ const meRoutes = createMeTripRoutes({
   renderManifestDamdfe: NOT_CALLED,
   reportReturn: NOT_CALLED,
   resolveDriverId: NOT_CALLED,
+  startFieldTrip: NOT_CALLED,
 })
 
 const officeRoutes = createTripRoutes(
@@ -81,5 +82,31 @@ describe('as rotas do campo', () => {
     expect(rota?.pathname).not.toInclude(':id')
     expect(rota?.pathname).toStartWith('/me/trips/current')
     expect(rota?.policy?.permission).toBe('trip.report')
+  })
+})
+
+describe('os dois toques que começam a viagem (ADR-0058)', () => {
+  const paths = meRoutes.map((route) => route.pathname)
+
+  it('conferir a carga e iniciar trajeto existem sob a viagem atual', () => {
+    expect(paths).toContain('/me/trips/current/confirm-load')
+    expect(paths).toContain('/me/trips/current/start-route')
+  })
+
+  /* ADR-0045 §2: quem não escolhe id não enumera — vale para as duas novas como para as demais. */
+  it('nenhuma das duas recebe id de viagem', () => {
+    for (const pathname of ['/me/trips/current/confirm-load', '/me/trips/current/start-route']) {
+      expect(pathname).not.toContain(':tripId')
+      expect(pathname).not.toContain(':id')
+    }
+  })
+
+  it('as duas pedem trip.report, e nenhuma pede trip.manage', () => {
+    for (const route of meRoutes.filter(
+      (candidate) =>
+        candidate.pathname.endsWith('/confirm-load') || candidate.pathname.endsWith('/start-route'),
+    )) {
+      expect(route.policy).toEqual({ permission: 'trip.report', scope: 'company' })
+    }
   })
 })
