@@ -70,9 +70,10 @@ describe('a fila de medição vista pelo conferente (spec 085 G005)', () => {
   /** A fila abre no que falta medir: ela existe para dizer o que medir agora. */
   it('a situação padrão é o que falta medir', async () => {
     const captured: { url?: string } = {}
-    await buildClient({ data: { coveredCount: 0, items: [], totalVolumes: 0 } }, captured).listBoxes(
-      { status: 'pending' },
-    )
+    await buildClient(
+      { data: { coveredCount: 0, items: [], totalVolumes: 0 } },
+      captured,
+    ).listBoxes({ status: 'pending' })
 
     expect(captured.url).toContain('status=pending')
   })
@@ -80,9 +81,10 @@ describe('a fila de medição vista pelo conferente (spec 085 G005)', () => {
   /** Ver o já medido é o caminho de conferir e corrigir uma caixa — não some atrás de um checkbox. */
   it('pede as medidas quando o operador troca a situação', async () => {
     const captured: { url?: string } = {}
-    await buildClient({ data: { coveredCount: 0, items: [], totalVolumes: 0 } }, captured).listBoxes(
-      { status: 'all' },
-    )
+    await buildClient(
+      { data: { coveredCount: 0, items: [], totalVolumes: 0 } },
+      captured,
+    ).listBoxes({ status: 'all' })
 
     expect(captured.url).toContain('status=all')
   })

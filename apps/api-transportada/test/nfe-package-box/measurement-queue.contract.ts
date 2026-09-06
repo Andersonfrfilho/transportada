@@ -68,7 +68,9 @@ describe('a fila de medição de caixas (spec 085 G005)', () => {
    * por ele produziria `NaN` em toda a coluna de porcentagem.
    */
   test('nada transportado não vira divisão por zero', () => {
-    const queue = buildMeasurementQueue({ items: [{ id: 'a', measured: false, transportedVolumes: 0 }] })
+    const queue = buildMeasurementQueue({
+      items: [{ id: 'a', measured: false, transportedVolumes: 0 }],
+    })
 
     expect(queue.totalVolumes).toBe(0)
     expect(queue.entries[0]?.cumulativeShare).toBe(0)

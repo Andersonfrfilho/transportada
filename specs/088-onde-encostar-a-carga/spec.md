@@ -17,13 +17,13 @@ Quem carrega passa a poder medir com a fita o que a tela mostra.
 
 Medido em 2026-09-06, na base local com a frota e as 345 NF-e reais:
 
-| medida | resultado |
-|---|---|
+| medida                                  | resultado                                                                          |
+| --------------------------------------- | ---------------------------------------------------------------------------------- |
 | Veículos com dimensão de baú preenchida | **0 de 8** — `cargo_length_m`, `cargo_width_m` e `cargo_height_m` zerados em todos |
-| Veículos com `capacity_m3` digitado | 4 (42, 28, 20 e 16 m³) |
-| Referências de mercado com dimensão | 5 chaves: `vuc`, `toco`, `truck`, `utility`, `van`, mais a carreta pelo implemento |
-| Tipos da frota **sem** referência | `three_quarter` (existe na frota, com 20 m³ declarados) e todo `body_type = '00'` |
-| Caixas medidas pelo conferente | **6 de 663** |
+| Veículos com `capacity_m3` digitado     | 4 (42, 28, 20 e 16 m³)                                                             |
+| Referências de mercado com dimensão     | 5 chaves: `vuc`, `toco`, `truck`, `utility`, `van`, mais a carreta pelo implemento |
+| Tipos da frota **sem** referência       | `three_quarter` (existe na frota, com 20 m³ declarados) e todo `body_type = '00'`  |
+| Caixas medidas pelo conferente          | **6 de 663**                                                                       |
 
 ## A descoberta que ordena o resto
 

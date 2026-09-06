@@ -141,7 +141,6 @@ que carrega notas não vinculadas, o aceite que **cria** viagens, e a tela.
   aconteceu, e quem estiver do outro lado repete a ação. `POST /nfe-package-boxes/:id` desviou para
   `200` com corpo vazio, com o motivo escrito na rota, enquanto isso não é resolvido.
 
-
 ## O que este plano não promete
 
 Cada spec deste conjunto tem o porte da 058, que consumiu uma sessão inteira de trabalho. O plano é

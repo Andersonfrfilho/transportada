@@ -15,6 +15,7 @@ falta o caminho de escrita.**
 ## Arquitetura e arquivos afetados
 
 **Escrita da medida (R1)**
+
 - `api/src/fleet/presentation/fleet-request.schema.ts` — três campos opcionais com piso e teto.
 - `api/src/database/fleet.schema.ts` + migration — CHECK por dimensão (ver abaixo).
 - `frontend/src/modules/fleet/components/VehicleOperationFields.component.tsx` — os três campos ao
@@ -22,6 +23,7 @@ falta o caminho de escrita.**
 - `frontend/src/modules/fleet/shared/{fleet.types,fleetForm.service,fleet.constant}.ts`.
 
 **A planta (R2–R6)**
+
 - `api/src/trips/domain/cargo-layout.policy.ts` — a fileira ganha `depthM` e `distanceFromDoorM`,
   derivados de `capacityDimensions.lengthM`. **Sem dimensões, os dois saem `null`** e nada mais muda.
 - `api/src/trips/domain/cargo-plan.policy.ts` (novo) — caixas por camada, a partir da pegada da caixa
