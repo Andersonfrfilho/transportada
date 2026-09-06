@@ -14,6 +14,7 @@ const COMPANY_ID = 'empresa-1'
 
 const RULE: ApplicableFreightRule = {
   freightRuleId: 'regra-1',
+  freightRuleName: 'Regra de bancada',
   freightRuleVersionId: 'versao-1',
   maximumAmount: '',
   minimumAmount: '',
