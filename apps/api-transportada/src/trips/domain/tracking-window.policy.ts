@@ -24,15 +24,23 @@ const MILLISECONDS_PER_HOUR = 3_600_000
 export type TrackingWindowVerdict = 'open' | 'trip_too_old'
 
 /**
- * `dispatchedAt` ausente é viagem que nunca saiu: não há janela a abrir, e o ping não tem o que
- * carimbar. Ele responde igual ao teto estourado de propósito — o aplicativo não precisa saber
- * qual dos dois é, e distinguir daria ao celular um jeito de perguntar pelo estado da viagem.
+ * ⚠️ **Ausência de data não é idade.**
+ *
+ * A primeira versão recusava o ping quando `dispatchedAt` era nulo, lendo a ausência como "viagem
+ * que nunca saiu". Mas a data vem de `trip_dispatch_snapshots` por `leftJoin` — `trips` **não tem**
+ * `dispatched_at` —, então toda viagem sem snapshot passou a perder o rastro **em silêncio**: o
+ * motorista seguia mandando posição, o portal do contratante mostrava vazio, e nada acusava. Duas
+ * integrações do portal reprovaram por isso, e elas descrevem o caso real.
+ *
+ * Sem data não há o que comparar, e a resposta honesta é deixar passar. O prazo da ADR-0056 §2
+ * continua cumprido por `resolveTrackingPurgeCutoff`, que corta o ping velho tenha a viagem fechado
+ * ou não — é o expurgo que garante a LGPD aqui, não este portão.
  */
 export function checkTrackingWindow(input: {
   readonly dispatchedAt: Date | null
   readonly now: Date
 }): TrackingWindowVerdict {
-  if (input.dispatchedAt === null) return 'trip_too_old'
+  if (input.dispatchedAt === null) return 'open'
 
   const elapsedHours = (input.now.getTime() - input.dispatchedAt.getTime()) / MILLISECONDS_PER_HOUR
 

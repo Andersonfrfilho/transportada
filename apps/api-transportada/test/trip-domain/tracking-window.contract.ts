@@ -37,11 +37,20 @@ describe('a janela do rastro (ADR-0056 §2)', () => {
   })
 
   /**
-   * Viagem que nunca saiu responde igual ao teto estourado: o app não precisa distinguir, e
-   * distinguir daria ao celular um jeito de perguntar pelo estado da viagem.
+   * ⚠️ **Ausência de data não é idade, e tratá-la como velhice apaga o rastro em silêncio.**
+   *
+   * A data sai de `trip_dispatch_snapshots` por `leftJoin` — `trips` não tem `dispatched_at`. Então
+   * toda viagem sem snapshot (as anteriores à tabela, e qualquer despacho que não o tenha gravado)
+   * caía como "velha demais": o motorista seguia mandando posição, o portal do contratante mostrava
+   * vazio, e **nada acusava**. Foram duas integrações do portal reprovando que trouxeram isto à
+   * tona, e elas descrevem o caso real — viagem despachada, sem snapshot.
+   *
+   * Sem data não há o que comparar, e a resposta honesta é **deixar passar**: quem cumpre a LGPD
+   * aqui é o expurgo por idade, que corta o ping velho tenha a viagem fechado ou não. Inferir
+   * idade de um dado que não é sobre idade era a troca errada.
    */
-  test('viagem sem despacho não abre janela', () => {
-    expect(checkTrackingWindow({ dispatchedAt: null, now: NOW })).toBe('trip_too_old')
+  test('viagem sem data de despacho não é viagem velha', () => {
+    expect(checkTrackingWindow({ dispatchedAt: null, now: NOW })).toBe('open')
   })
 
   test('o corte do expurgo é o mesmo teto, contado para trás', () => {
