@@ -44,6 +44,8 @@ const DEFAULT_DRIVER_PROFILE: FleetDriverProfile = 'driver'
 const DEFAULT_DRIVER_NATIONALITY = 'Brasileiro'
 
 export const EMPTY_VEHICLE_FORM: FleetVehicleFormState = {
+  /** O padrao e o mais restritivo: prometer alcance lateral que nao existe faz carregar errado. */
+  loadingAccess: 'rear',
   acquisitionAmount: '',
   annualInsuranceAmount: '',
   annualVehicleTaxAmount: '',
@@ -162,6 +164,7 @@ export function toVehicleFormState(vehicle: FleetVehicleDetail): FleetVehicleFor
   return {
     axleCount: String(vehicle.axleCount),
     bodyType: vehicle.bodyType,
+    loadingAccess: vehicle.loadingAccess,
     brand: vehicle.brand,
     color: toVehicleColor(vehicle.color),
     fleetNumber: vehicle.fleetNumber,
@@ -299,6 +302,7 @@ export function toVehicleBody(state: FleetVehicleFormState): FleetVehicleBody {
   return {
     axleCount: Number(normalizeUnsignedInteger(state.axleCount)),
     bodyType: state.bodyType,
+    loadingAccess: state.loadingAccess,
     brand: state.brand,
     color: state.color,
     fleetNumber: state.fleetNumber,

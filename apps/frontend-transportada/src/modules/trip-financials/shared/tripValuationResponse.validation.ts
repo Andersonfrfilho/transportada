@@ -41,6 +41,8 @@ export function toTripValuation(envelope: unknown): TripValuation | null {
   return {
     costParcels: costParcels.filter(isRecord).map((parcel) => ({
       amount: readText(parcel.amount),
+      /** Resposta anterior à 086 não traz o campo: ausência é `null`, nunca "undefined" na tela. */
+      detail: typeof parcel.detail === 'string' && parcel.detail !== '' ? parcel.detail : null,
       gap: readGap(parcel.gap),
       kind: readText(parcel.kind),
       source: isSource(parcel.source) ? parcel.source : 'estimated',

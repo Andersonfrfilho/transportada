@@ -10,6 +10,7 @@ const EXPECTED_TABLE_NAMES = [
   'nfe_participants',
   'nfe_addresses',
   'nfe_volumes',
+  'nfe_package_boxes',
   'nfe_products',
   'nfe_events',
   'nfe_distribution_cursors',

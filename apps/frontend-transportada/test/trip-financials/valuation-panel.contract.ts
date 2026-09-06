@@ -53,7 +53,13 @@ describe('a avaliação prevista da viagem', () => {
     const resumo = summarizeTripValuation(
       valuation({
         costParcels: [
-          { amount: '0.0000', gap: 'NO_FUEL_BASELINE', kind: 'fuel', source: 'estimated' },
+          {
+            amount: '0.0000',
+            detail: null,
+            gap: 'NO_FUEL_BASELINE',
+            kind: 'fuel',
+            source: 'estimated',
+          },
         ],
         hasGaps: true,
       }),

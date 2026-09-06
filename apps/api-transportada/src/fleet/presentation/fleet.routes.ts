@@ -330,6 +330,7 @@ function serializeVehicle(vehicle: FleetVehicle): object {
     averageConsumption: vehicle.averageConsumption,
     axleCount: vehicle.axleCount,
     bodyType: vehicle.bodyType,
+    loadingAccess: vehicle.loadingAccess,
     brand: vehicle.brand,
     capacityCubicMeters: vehicle.capacityCubicMeters,
     capacityKilograms: vehicle.capacityKilograms,

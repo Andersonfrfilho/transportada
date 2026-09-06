@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { LoadingAccess } from '../../shared/loading-access.constant.js'
 import type {
   FleetDriverStatus,
   FleetVehicleOwnership,
@@ -42,6 +43,8 @@ export type FleetVehicleInput = {
   readonly averageConsumption: string
   readonly axleCount: number
   readonly bodyType: MdfeBodyType
+  /** Spec 085: por onde a carga entra e sai — decide se a ordem de carregamento e obrigatoria. */
+  readonly loadingAccess: LoadingAccess
   readonly brand: string
   readonly capacityCubicMeters: string
   readonly capacityKilograms: string

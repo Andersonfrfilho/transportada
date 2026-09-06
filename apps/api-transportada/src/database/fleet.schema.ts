@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { sql } from 'drizzle-orm'
+import { LOADING_ACCESS_KINDS, type LoadingAccess } from '../shared/loading-access.constant.js'
 import {
   bigint,
   check,
@@ -177,6 +178,8 @@ export const fleetVehicles = pgTable(
     cargoWidthM: numeric('cargo_width_m', { precision: 8, scale: 3 }).notNull().default('0'),
     cargoHeightM: numeric('cargo_height_m', { precision: 8, scale: 3 }).notNull().default('0'),
     bodyType: text('body_type').$type<MdfeBodyType>().notNull().default('00'),
+    /** Spec 085: por onde a carga entra e sai. Semeado do `body_type`, depois disso e da ficha. */
+    loadingAccess: text('loading_access').$type<LoadingAccess>().notNull().default('rear'),
     axleCount: integer('axle_count').notNull().default(0),
     // O que o operador escolhe; `tipoRodado` e classe de frete saem dele por derivação
     vehicleType: varchar('vehicle_type', { length: VEHICLE_TYPE_MAX_LENGTH })
@@ -276,6 +279,10 @@ export const fleetVehicles = pgTable(
     check(
       'fleet_vehicles_vehicle_type_check',
       sql`(${table.role} = 'traction') = (${table.vehicleType} in (${sql.raw(inList(VEHICLE_TYPES))}))`,
+    ),
+    check(
+      'fleet_vehicles_loading_access_check',
+      sql`${table.loadingAccess} in (${sql.raw(inList(LOADING_ACCESS_KINDS))})`,
     ),
     check(
       'fleet_vehicles_body_type_check',

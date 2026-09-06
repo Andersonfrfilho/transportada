@@ -30,6 +30,7 @@ const NO_COSTS_VEHICLE: FleetVehicleInput = {
   averageConsumption: '0.00',
   axleCount: 0,
   bodyType: '00',
+  loadingAccess: 'rear',
   brand: '',
   capacityCubicMeters: '90.00',
   capacityKilograms: '27000.00',

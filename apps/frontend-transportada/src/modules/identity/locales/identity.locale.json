@@ -354,6 +354,10 @@
         "label": "Ver viagens",
         "where": "Tela Viagens: roteiro, paradas e notas vinculadas."
       },
+      "cargo.measure": {
+        "label": "Medir caixa",
+        "where": "Preencher as dimensões da caixa de papelão do produto, na fila de medição."
+      },
       "trip.manage": {
         "label": "Montar viagem",
         "where": "Criar viagem, vincular nota, ordenar parada, separar e carregar."

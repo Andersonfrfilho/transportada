@@ -71,6 +71,46 @@ O perfil é `car.lua` porque é o que descreve veículo motorizado em via públi
 caminhão em fork do OSRM (com restrição de altura, peso e via proibida); ele **não** é o padrão, e
 adotá-lo é decisão de produto, não passo de runbook.
 
+## O que o roteiro respeita, e o que ele não sabe
+
+Medido com `osmium` sobre `deploy/osrm/data/ribeirao.osm.pbf` em 2026-09-06, em **487.735** vias com
+`highway`:
+
+| sinal                                           | vias marcadas | o roteiro usa?               |
+| ----------------------------------------------- | ------------- | ---------------------------- |
+| `oneway`                                        | 131.094       | ✅ sim                       |
+| restrição de conversão (`type=restriction`)     | 12.313        | ✅ sim                       |
+| `hgv`                                           | 244           | ⚠️ só com perfil de caminhão |
+| `maxheight`                                     | 200           | ⚠️ idem                      |
+| `maxweight`                                     | 105           | ⚠️ idem                      |
+| `maxlength`                                     | 5             | ⚠️ idem                      |
+| `maxaxleload`                                   | 0             | —                            |
+| `motor_vehicle:conditional` · `hgv:conditional` | 0             | ❌ não existe no dado        |
+| `maxspeed:conditional`                          | 78            | ❌ o `car.lua` ignora        |
+
+Três conclusões, e elas decidem o que vale a pena tentar:
+
+**Sentido de via e conversão proibida já valem hoje**, e valem bem: 131 mil vias com `oneway` e 12,3
+mil relações de restrição. Vale para o traço (`/route`) e para a ordem das paradas, porque o solver
+lê `/table` do mesmo grafo direcionado. Conferido medindo ida e volta entre dois pontos do centro de
+Ribeirão: 562,9 m contra 649,2 m — a assimetria **é** a mão única.
+
+⚠️ **Restrição de caminhão existe no dado, e é rala demais para confiar.** As quatro chaves somam
+**554 vias em 487.735 — 0,11%**. Trocar para um perfil de caminhão é barato (refazer o extract com
+outro `-p`, sem fonte de dado nova) e passa a respeitar essas 554; o teto é a cobertura do
+mapeamento, não o roteirizador. Quem adotar isso precisa dizer, na tela, que a restrição é **melhor
+esforço** — prometer "rota de caminhão" com 0,11% de cobertura é o modo de falha da ADR-0044 §1.
+
+⚠️ **Trânsito e hora do dia não existem aqui, e não é questão de perfil.** O OSRM aceita velocidade
+por segmento (`osrm-customize --segment-speed-file`), então o encanamento existe; o que falta é a
+**fonte**, que é dado de trânsito ao vivo e é pago. Sem ela a velocidade é a nominal da via, e o
+tempo previsto não conhece pico, obra nem acidente. `maxspeed:conditional` (78 vias) é limite que
+muda por horário, não trânsito, e o `car.lua` nem o lê.
+
+⚠️ **Rodízio e zona de restrição urbana não estão no dado**: `motor_vehicle:conditional` e
+`hgv:conditional` deram **zero**. Não há o que ligar — seria cadastro próprio, com fonte municipal e
+manutenção nossa.
+
 `--algorithm mld` no `compose.yaml` tem de casar com `osrm-partition`/`osrm-customize` daqui. Rodar
 `osrm-contract` (que é do algoritmo CH) e servir com `mld` faz o container subir e recusar toda
 consulta.

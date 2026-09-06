@@ -23,6 +23,7 @@ const RECORD: VehicleRecord = {
   averageConsumption: '12.00',
   axleCount: 0,
   bodyType: '00',
+  loadingAccess: 'rear' as const,
   brand: '',
   cargoHeightM: '0.000',
   cargoLengthM: '0.000',

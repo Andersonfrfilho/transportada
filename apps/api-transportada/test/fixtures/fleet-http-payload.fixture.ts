@@ -30,6 +30,7 @@ export const CREATE_VEHICLE_BODY = {
   averageConsumption: '0.00',
   axleCount: 0,
   bodyType: '00',
+  loadingAccess: 'rear',
   brand: '',
   capacityCubicMeters: '90.00',
   capacityKilograms: '27000.00',
@@ -55,6 +56,7 @@ export const CREATE_VEHICLE_BODY = {
 export const CREATE_TRAILER_BODY = {
   ...CREATE_VEHICLE_BODY,
   bodyType: '01',
+  loadingAccess: 'rear',
   plate: 'XYZ9A88',
   role: 'trailer',
   vehicleType: '',

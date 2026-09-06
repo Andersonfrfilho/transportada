@@ -173,7 +173,11 @@ export type TripOccupancyView = {
   readonly documentsWithoutVolume: number
   readonly loadedM3: string
   readonly occupancyRatio: string
-  readonly source: 'declared' | 'estimated'
+  /**
+   * Spec 085 G006: `measured` quando toda nota somou caixa medida, `partial` quando alguma linha
+   * caiu na mediana da empresa. A pior origem manda — a tela imprime a marca ao lado do número.
+   */
+  readonly source: 'declared' | 'estimated' | 'measured' | 'partial'
 }
 
 /**
@@ -182,6 +186,18 @@ export type TripOccupancyView = {
  * capacidade não é conhecida — escala honesta ou nada.
  */
 export type TripCargoLayoutView = {
+  /** Fileiras do fundo para a porta; a parada dona aparece em fileiras seguidas (spec 085). */
+  readonly rows: readonly {
+    readonly label: string
+    readonly loadOrder: number
+    readonly sequence: number
+    readonly sideReachable: boolean
+  }[]
+  readonly freeRows: number
+  /** `true` quando a ordem e obrigacao — veiculo que abre so atras (spec 085 G003). */
+  readonly orderIsBinding: boolean
+  /** `false` sem capacidade: divide a carga e cala sobre o espaço livre. */
+  readonly occupancyKnown: boolean
   readonly overflowM3: string
   readonly slices: readonly {
     readonly label: string

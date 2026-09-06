@@ -264,7 +264,9 @@
     "capacityReference": "A capacidade é referência do tipo de veículo, não medida deste baú. Preencha as dimensões na ficha para o número ficar exato.",
     "withoutVolume": "{{count}} nota sem cubagem não entrou na conta.",
     "withoutVolume_other": "{{count}} notas sem cubagem não entraram na conta.",
-    "dimensions": "Baú de {{length}} × {{width}} × {{height}} m = {{volume}} m³."
+    "dimensions": "Baú de {{length}} × {{width}} × {{height}} m = {{volume}} m³.",
+    "partial": "Parcial: parte das caixas usou a medida mediana da empresa.",
+    "weightConcentration": "Atenção: {{percent}}% do peso está na parada {{stop}} — o desenho acima é de volume, não de peso."
   },
   "cargoWeight": {
     "title": "Peso da carga",
@@ -299,7 +301,9 @@
     "slice": "{{order}}º a carregar — {{label}} · {{volume}} m³",
     "overflow": "Passa {{volume}} m³ da capacidade do veículo.",
     "withoutVolume": "Sem cubagem, e por isso fora do mapa: {{stops}}.",
-    "estimated": "As fatias saem da cubagem estimada, não de medida da carga."
+    "estimated": "As fatias saem da cubagem estimada, não de medida da carga.",
+    "loadOrderOptional": "A ordem sugerida abaixo ajuda, mas este veículo abre pela lateral — dá para alcançar a carga marcada sem descarregar o que está na frente.",
+    "stop": "{{order}}ª a carregar — {{label}}"
   },
   "destinationOrigin": {
     "delivery": "Entrega",
@@ -497,6 +501,7 @@
     "gaps": "Ainda falta: {{reasons}}.",
     "gap": {
       "FEATURE_ABSENT": "módulo ainda não usado",
+      "CITY_WITHOUT_REGION": "destino sem zona de frete cadastrada",
       "NO_DRIVER_RATE": "rota do agregado sem valor cadastrado",
       "NO_FEDERAL_REGIME": "regime federal não declarado",
       "NO_FREIGHT_RULE": "sem regra de frete para o destino",

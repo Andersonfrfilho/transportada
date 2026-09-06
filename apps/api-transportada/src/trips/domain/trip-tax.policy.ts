@@ -57,7 +57,13 @@ export function buildTripTaxParcels(input: BuildTripTaxParcelsParams): readonly 
 function buildIcmsParcel(documents: readonly TripTaxDocument[]): TripCostParcel {
   const emitted = documents.filter((document) => document.icmsAmount !== null)
   if (emitted.length === 0) {
-    return { amount: ZERO, gap: VALUATION_GAPS.noFreightRule, kind: 'icms', source: 'missing' }
+    return {
+      amount: ZERO,
+      detail: null,
+      gap: VALUATION_GAPS.noFreightRule,
+      kind: 'icms',
+      source: 'missing',
+    }
   }
 
   const total = emitted.reduce(
@@ -67,6 +73,7 @@ function buildIcmsParcel(documents: readonly TripTaxDocument[]): TripCostParcel 
 
   return {
     amount: formatScaledDecimal(total, MONEY_SCALE),
+    detail: null,
     /**
      * Nota ainda sem documento é lacuna do **conjunto**, não do imposto: o total de ICMS é medido
      * sobre o que existe, e a receita já se declara incompleta pelo mesmo motivo.
@@ -81,6 +88,7 @@ function buildFederalParcel(input: BuildTripTaxParcelsParams): TripCostParcel {
   if (input.federalRates === null) {
     return {
       amount: ZERO,
+      detail: null,
       gap: VALUATION_GAPS.noFederalRegime,
       kind: 'pis_cofins',
       source: 'missing',
@@ -92,6 +100,7 @@ function buildFederalParcel(input: BuildTripTaxParcelsParams): TripCostParcel {
 
   return {
     amount: formatScaledDecimal(divideHalfUp(revenue * rate, PERCENTAGE_FACTOR), MONEY_SCALE),
+    detail: null,
     gap: null,
     kind: 'pis_cofins',
     /**

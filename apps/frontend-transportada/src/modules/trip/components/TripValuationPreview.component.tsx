@@ -35,6 +35,9 @@ function ParcelRow({ parcel }: Readonly<{ parcel: TripValuationCostParcel }>) {
       ) : (
         <span className={styles.valuationStepGap}>
           {t(`valuation.gap.${parcel.gap}`, parcel.gap)}
+          {/* O nome da cidade é o que transforma o aviso em ação: sem ele, uma viagem de doze
+              paradas manda o operador conferir doze endereços. */}
+          {parcel.detail === null ? null : ` — ${parcel.detail}`}
         </span>
       )}
     </div>

@@ -1,0 +1,186 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+
+/*
+ * A fila de medição segue a moldura dos painéis vizinhos (`distributionSettings.module.css`): a
+ * tela é a mesma, e um terceiro visual na mesma aba seria a divergência que `web.md` §14 chama de
+ * defeito. Campo e botão saem dos tokens — nenhuma métrica própria aqui.
+ */
+
+.panel {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.header {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.header h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.hint {
+  margin: 0;
+  color: var(--color-slate);
+  font-size: 0.85rem;
+}
+
+.notice {
+  margin: 0;
+  color: var(--color-slate);
+}
+
+/* Mobile-first: a busca ocupa a largura toda e o leitor cai abaixo dela no celular. */
+.search {
+  display: grid;
+  gap: var(--space-2);
+  align-items: end;
+}
+
+.field {
+  display: grid;
+  gap: var(--space-1);
+  align-content: start;
+  min-width: 0;
+  color: var(--color-slate);
+}
+
+.field input {
+  min-width: 0;
+  min-height: var(--field-height);
+  padding: var(--field-padding);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  border-radius: 0;
+  color: var(--color-fog);
+  font: inherit;
+  font-size: var(--field-font-size);
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+}
+
+.field input:focus {
+  outline: 2px solid color-mix(in srgb, var(--color-copper) 70%, transparent);
+  outline-offset: 2px;
+}
+
+.field input[aria-invalid='true'] {
+  border-color: var(--color-alert);
+}
+
+.fieldError {
+  margin: 0;
+  color: var(--color-alert);
+  font-size: 0.8rem;
+}
+
+.list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-graphite) 86%, transparent),
+      color-mix(in srgb, var(--color-asphalt) 72%, transparent)
+    ),
+    color-mix(in srgb, var(--color-graphite) 65%, transparent);
+}
+
+/*
+ * A cauda continua visível e continua medível — o aviso é de prioridade, não de bloqueio. A borda
+ * tracejada diz isso sem apagar o texto, que era o que a opacidade fazia.
+ */
+.item[data-within-coverage='false'] {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--color-slate) 28%, transparent);
+}
+
+.itemHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+}
+
+/* Nome de produto é longo e o dedo não rola de lado: ele quebra em vez de empurrar a página. */
+.itemHeader strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.itemHeader strong {
+  color: var(--color-fog);
+  font-size: 0.95rem;
+}
+
+.unit {
+  color: var(--color-slate);
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.tail {
+  color: var(--color-copper);
+}
+
+.form {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-1);
+}
+
+/*
+ * Duas colunas já no celular: são três números curtos, e empilhados um por linha a ficha ficava
+ * mais alta que a tela — o conferente rolava para achar o botão de gravar, de pé, com a fita na
+ * outra mão.
+ */
+.dimensions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/*
+ * A tela é usada de pé no galpão, com o celular numa mão e a fita na outra: aqui o alvo cresce sem
+ * inchar o desenho no mouse. `pointer: coarse` pergunta pelo dedo, não pela largura — não é ponto
+ * de quebra (`responsive.md`).
+ */
+@media (pointer: coarse) {
+  .actions button,
+  .search button {
+    min-height: var(--control-height);
+    padding-inline: var(--space-4);
+  }
+
+  .item {
+    padding: var(--space-3);
+  }
+}
+
+@media (min-width: 40rem) {
+  .search {
+    grid-template-columns: 1fr auto;
+  }
+
+  .dimensions {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

@@ -5,6 +5,7 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   coversRegion,
+  foldRegionCity,
   normalizeRegionCity,
   parseRegionCode,
 } from '../../src/freight-regions/domain/region-coverage.policy.js'
@@ -49,5 +50,45 @@ describe('freight region coverage policy', () => {
   test('folds city names by one rule', () => {
     expect(normalizeRegionCity('  são  joaquim da barra ')).toBe('SÃO JOAQUIM DA BARRA')
     expect(normalizeRegionCity('Matão')).toBe('MATÃO')
+  })
+})
+
+/**
+ * Spec 086 T1: **a grafia não pode decidir se a cidade tem zona.** A NF-e escreve o município sem
+ * acento e a planilha do cliente escreve com — medido nesta base: das 76 cidades de destino, 39
+ * casavam com `freight_region_cities` pela dobra de hoje, e as 37 que falhavam eram **todas** apenas
+ * grafia (`RIBEIRAO PRETO` contra `Ribeirão Preto`), não cidade faltando. Dobrando o acento, 65.
+ *
+ * ⚠️ A dobra do acento é **chave de casamento, não forma de guardar**. `normalizeRegionCity` continua
+ * devolvendo o nome acentuado, que é o que a tela imprime e o que a importação grava; quem compara
+ * usa `foldRegionCity`. Trocar a gravação por "MATAO" resolveria o casamento e estragaria o
+ * cadastro — o operador leria o nome errado da própria cidade dele.
+ */
+describe('freight region city folding', () => {
+  test('keeps the accent in the stored form', () => {
+    expect(normalizeRegionCity('Matão')).toBe('MATÃO')
+    expect(normalizeRegionCity('  são  joaquim da barra ')).toBe('SÃO JOAQUIM DA BARRA')
+  })
+
+  test('the matching key folds the accent away, both sides alike', () => {
+    for (const [fromInvoice, fromSpreadsheet] of [
+      ['RIBEIRAO PRETO', 'Ribeirão Preto'],
+      ['SAO CARLOS', 'São Carlos'],
+      ['MATAO', 'Matão'],
+      ['GUAIRA', 'Guaíra'],
+      ['SANTA CRUZ DA CONCEICAO', 'Santa Cruz da Conceição'],
+    ] as const) {
+      expect(foldRegionCity(fromInvoice)).toBe(foldRegionCity(fromSpreadsheet))
+    }
+  })
+
+  /** A dobra não pode colapsar cidades que são diferentes de verdade. */
+  test('folding never merges two different cities', () => {
+    expect(foldRegionCity('Barrinha')).not.toBe(foldRegionCity('Barretos'))
+    expect(foldRegionCity('Guará')).not.toBe(foldRegionCity('Guaíra'))
+  })
+
+  test('the matching key keeps the case and whitespace folding it already had', () => {
+    expect(foldRegionCity('  são  carlos ')).toBe(foldRegionCity('SAO CARLOS'))
   })
 })

@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { z } from 'zod'
+import { LOADING_ACCESS_KINDS } from '../../shared/loading-access.constant.js'
 
 import {
   FLEET_DRIVER_STATUSES,
@@ -103,6 +104,7 @@ const vehicleFieldsSchema = z.object({
   averageConsumption: z.string().regex(CONSUMPTION_DECIMAL),
   axleCount: optionalRangedInteger(AXLE_COUNT_MIN, AXLE_COUNT_MAX),
   bodyType: z.enum(MDFE_BODY_TYPES),
+  loadingAccess: z.enum(LOADING_ACCESS_KINDS).default('rear'),
   brand: z.string().trim().max(VEHICLE_BRAND_MAX_LENGTH),
   capacityCubicMeters: z.string().regex(MEASURE_DECIMAL),
   capacityKilograms: z.string().regex(MEASURE_DECIMAL),

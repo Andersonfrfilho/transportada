@@ -141,6 +141,7 @@ describe('a viagem diz quanto rende antes de qualquer emissão', () => {
 
     expect(byKind.get('fuel')).toMatchObject({
       amount: '0.0000',
+      detail: null,
       gap: VALUATION_GAPS.noPlannedDistance,
       source: 'missing',
     })

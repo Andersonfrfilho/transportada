@@ -83,7 +83,8 @@
   "tabs": {
     "documents": "Invoices",
     "imports": "Imports",
-    "addresses": "Clients to update"
+    "addresses": "Clients to update",
+    "packageBoxes": "Boxes"
   },
   "mechanism": {
     "section": "Import source",
@@ -275,5 +276,41 @@
       "street_incomplete": "The same street with a shorter name in the cadastre. Delivery arrives; the cadastre is just abbreviated."
     },
     "unresolvedAim": "Delivery currently aims at the municipality centre"
+  },
+  "packageBoxes": {
+    "title": "Boxes to measure",
+    "description": "Measure the product's cardboard box. The queue is ordered by what ships the most.",
+    "searchLabel": "Search by product or code",
+    "scan": "Scan label",
+    "empty": "No boxes for this search.",
+    "denied": "You do not have permission to measure boxes.",
+    "failed": "Could not load the measurement queue.",
+    "transported": "{{count}} volumes shipped",
+    "cumulative": "{{percent}}% cumulative",
+    "tail": "below what is worth measuring",
+    "length": "Length (cm)",
+    "width": "Width (cm)",
+    "height": "Height (cm)",
+    "measure": "Measure",
+    "remeasure": "Measure again",
+    "save": "Save measurement",
+    "cancel": "Cancel",
+    "scanner": {
+      "title": "Scan the box label",
+      "close": "Close",
+      "reading": "Reading…",
+      "starting": "Opening the camera…",
+      "denied": "Camera permission denied. Type the code in the search field.",
+      "unavailable": "The camera is unavailable on this device. Type the code in the search field."
+    },
+    "outOfRange": "Out of range: {{max}} cm at most.",
+    "unitsPerBox": "Units per box",
+    "statusLabel": "Status",
+    "status": {
+      "pending": "To measure",
+      "measured": "Measured",
+      "all": "All"
+    },
+    "measured": "{{length}} × {{width}} × {{height}} cm · {{units}} per box"
   }
 }

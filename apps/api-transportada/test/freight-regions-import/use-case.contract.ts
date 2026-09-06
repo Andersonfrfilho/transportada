@@ -171,6 +171,53 @@ describe('import freight regions use case', () => {
   })
 
   /** Cidade retirada da tabela do cliente deixa de valer; a rota continua a mesma rota. */
+  /**
+   * Spec 086 T2: **a grafia da cidade não é mudança de cadastro.** O acento entra e sai do arquivo
+   * do cliente conforme quem exportou; se `SÃO CARLOS` gravado e `SAO CARLOS` importado contarem
+   * como alteração, toda importação sobe a versão de rotas que ninguém mexeu, e a forma acentuada —
+   * a que o operador lê na tela — é substituída pela sem acento.
+   */
+  test('the same city written with and without accent is not a change', async () => {
+    const stored: FreightRegionInput = {
+      ...BARRETOS,
+      cities: [
+        { city: 'SÃO CARLOS', state: 'SP' },
+        { city: 'MATÃO', state: 'SP' },
+      ],
+    }
+    const repository = new FakeRepository([{ region: stored }])
+    const useCase = createImportFreightRegionsUseCase({ repository })
+
+    const summary = await useCase.import({
+      context: CONTEXT,
+      regions: [
+        {
+          ...stored,
+          cities: [
+            { city: 'SAO CARLOS', state: 'SP' },
+            { city: 'MATAO', state: 'SP' },
+          ],
+        },
+      ],
+    })
+
+    expect(summary).toEqual({ created: 0, deactivated: 0, updated: 0 })
+    expect(repository.updateCalls).toHaveLength(0)
+  })
+
+  /** A dobra não pode esconder mudança real: outra cidade continua sendo outra cidade. */
+  test('a genuinely different city is still an update', async () => {
+    const repository = new FakeRepository([{ region: BARRETOS }])
+    const useCase = createImportFreightRegionsUseCase({ repository })
+
+    const summary = await useCase.import({
+      context: CONTEXT,
+      regions: [{ ...BARRETOS, cities: [{ city: 'BARRETOS', state: 'SP' }] }],
+    })
+
+    expect(summary.updated).toBe(1)
+  })
+
   test('updates when only the city list changed', async () => {
     const seeded = new FakeRepository([{ region: BARRETOS }])
     const useCase = createImportFreightRegionsUseCase({ repository: seeded })

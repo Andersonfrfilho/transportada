@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { FuelProduct, FuelUnit } from '../../shared/fuel.constant'
+import type { LoadingAccess } from '@/modules/shared/loadingAccess.constant'
 import type { VehicleType } from '../../shared/vehicleType.constant'
 import type { FleetDriverCoverageEntry } from './driverCoverage.service'
 
@@ -196,6 +197,8 @@ export type FleetVehicleBody = FleetVehicleCostFields &
   Readonly<{
     axleCount: number
     bodyType: MdfeBodyType
+    /** Spec 085: por onde a carga entra e sai — campo da ficha, nunca deduzido do tipo. */
+    loadingAccess: LoadingAccess
     brand: string
     capacityCubicMeters: string
     capacityKilograms: string
@@ -411,6 +414,8 @@ export type FleetVehicleFormState = FleetVehicleCostFields &
   Readonly<{
     axleCount: string
     bodyType: MdfeBodyType
+    /** Spec 085: por onde a carga entra e sai — campo da ficha, nunca deduzido do tipo. */
+    loadingAccess: LoadingAccess
     brand: string
     capacityCubicMeters: string
     capacityKilograms: string

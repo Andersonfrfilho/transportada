@@ -16,6 +16,8 @@ export type ValuationSource = 'estimated' | 'measured' | 'missing' | 'period'
 
 export type TripValuationCostParcel = Readonly<{
   amount: string
+  /** O que a lacuna nomeia — hoje a cidade a cadastrar (spec 086). `null` quando não há o que dizer. */
+  detail: null | string
   gap: null | string
   kind: string
   source: ValuationSource

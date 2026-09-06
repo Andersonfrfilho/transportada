@@ -60,8 +60,7 @@ import {
 import { listDeliveryContacts } from './delivery-proof-read.support.js'
 import { loadTripCargoWeight } from './trip-cargo-weight.support.js'
 import { loadTripOccupancy } from './trip-occupancy.support.js'
-import { resolveCargoLayout } from '../domain/cargo-layout.policy.js'
-import { formatScaledDecimal, parseScaledDecimal } from '../../shared/decimal.service.js'
+import { resolveCargoLayout, sumVolumes } from '../domain/cargo-layout.policy.js'
 import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
 
@@ -690,7 +689,9 @@ async function readTripDetail(
       nfeDocumentIds,
       vehicleId: record.vehicleId,
     }),
-    loadTripCargoWeight(queryable, { companyId: input.companyId, nfeDocumentIds }),
+    loadTripCargoWeight(queryable, { companyId: input.companyId, nfeDocumentIds }).then(
+      (weight) => weight.view,
+    ),
   ])
 
   /**
@@ -734,6 +735,7 @@ async function readTripDetail(
    */
   const layout = resolveCargoLayout({
     capacityM3: cargo.capacityM3,
+    loadingAccess: cargo.loadingAccess,
     stops: stops.map((stop) => {
       const volumes = stop.documents.map((document) =>
         document.nfeDocumentId === null
@@ -745,7 +747,7 @@ async function readTripDetail(
         documentsWithoutVolume: volumes.length - known.length,
         label: stop.label,
         sequence: stop.sequence,
-        volumeM3: known.length === 0 ? null : sumDecimals(known),
+        volumeM3: known.length === 0 ? null : sumVolumes(known),
       }
     }),
   })
@@ -794,14 +796,4 @@ async function runGuarded<TResult>(operation: () => Promise<TResult>): Promise<T
     }
     throw error
   }
-}
-
-/** Soma decimal de verdade: `Number` traria erro binário para dentro de um volume. */
-function sumDecimals(values: readonly string[]): string {
-  const total = values.reduce(
-    (accumulated, value) =>
-      accumulated + parseScaledDecimal({ errorCodePrefix: 'TRIP_CARGO_LAYOUT', scale: 6n, value }),
-    0n,
-  )
-  return formatScaledDecimal(total, 6n)
 }

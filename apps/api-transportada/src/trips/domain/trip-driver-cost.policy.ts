@@ -7,7 +7,7 @@ import {
   MONEY_SCALE,
   parseScaledDecimal,
 } from '../../shared/decimal.service.js'
-import { VALUATION_GAPS, type TripCostParcel } from './trip-valuation.policy.js'
+import { VALUATION_GAPS, type TripCostParcel, type ValuationGap } from './trip-valuation.policy.js'
 
 /**
  * ADR-0049 §3: **os dois modelos convivem na mesma frota.** O que o cálculo precisa saber de cada
@@ -17,9 +17,17 @@ import { VALUATION_GAPS, type TripCostParcel } from './trip-valuation.policy.js'
  * **desconhecido**, não zero.
  */
 export type TripCrewMember = {
+  /** A cidade que a lacuna nomeia, quando a causa é `CITY_WITHOUT_REGION`. */
+  readonly cityToRegister?: null | string
   readonly driverId: string
   readonly paymentModel: DriverPaymentModel
   readonly routeAmount: null | string
+  /**
+   * Spec 086: **por que** faltou o valor. "O motorista não cobre esta zona" se resolve na ficha
+   * dele; "ITOBI/SP não está na tabela" se resolve na aba Regiões. Ausente cai em `NO_DRIVER_RATE`,
+   * que é o que sempre foi.
+   */
+  readonly routeGap?: null | ValuationGap
 }
 
 /**
@@ -42,14 +50,28 @@ export function buildTripDriverCost(crew: readonly TripCrewMember[]): TripCostPa
   const salaried = crew.filter((member) => member.paymentModel === 'fixed')
 
   if (crew.length === 0) {
-    return { amount: ZERO, gap: VALUATION_GAPS.noDriverRate, kind: 'driver', source: 'missing' }
+    return missing({ cityToRegister: null, routeGap: null })
   }
   if (paidByRoute.length === 0) {
     /** Só assalariado: o custo é do período, e a viagem diz isso em vez de fingir que é zero. */
-    return { amount: ZERO, gap: null, kind: 'driver', source: 'period' }
+    return { amount: ZERO, detail: null, gap: null, kind: 'driver', source: 'period' }
   }
-  if (paidByRoute.some((member) => member.routeAmount === null)) {
-    return { amount: ZERO, gap: VALUATION_GAPS.noDriverRate, kind: 'driver', source: 'missing' }
+
+  const withoutAmount = paidByRoute.filter((member) => member.routeAmount === null)
+  if (withoutAmount.length > 0) {
+    /**
+     * Entre duas causas, a que **nomeia a cidade** vence: ela é a acionável, e escolher a genérica
+     * esconderia o único dado que resolve o problema.
+     */
+    const named = withoutAmount.find(
+      (member) => member.routeGap === VALUATION_GAPS.cityWithoutRegion,
+    )
+    const chosen = named ?? withoutAmount[0]
+
+    return missing({
+      cityToRegister: chosen?.cityToRegister ?? null,
+      routeGap: chosen?.routeGap ?? null,
+    })
   }
 
   const total = paidByRoute.reduce(
@@ -65,6 +87,7 @@ export function buildTripDriverCost(crew: readonly TripCrewMember[]): TripCostPa
 
   return {
     amount: formatScaledDecimal(total, MONEY_SCALE),
+    detail: null,
     /**
      * Há salário fora da conta, e a viagem carrega isso como lacuna — não para bloquear o número,
      * mas para a tela poder dizer "e mais um motorista da casa, que é custo do período".
@@ -72,6 +95,19 @@ export function buildTripDriverCost(crew: readonly TripCrewMember[]): TripCostPa
     gap: salaried.length > 0 ? VALUATION_GAPS.salariedCrewMember : null,
     kind: 'driver',
     source: 'measured',
+  }
+}
+
+function missing(input: {
+  readonly cityToRegister: null | string
+  readonly routeGap: null | ValuationGap
+}): TripCostParcel {
+  return {
+    amount: ZERO,
+    detail: input.cityToRegister ?? null,
+    gap: input.routeGap ?? VALUATION_GAPS.noDriverRate,
+    kind: 'driver',
+    source: 'missing',
   }
 }
 

@@ -66,6 +66,8 @@ const COMPANY_PERMISSIONS = [
    * vocabulário do que a API pode devolver — deixá-la de fora faria a lista mentir sobre isso.
    */
   'mdfe.auto-issue',
+  /** Spec 085 G005: medir a caixa é galpão, e não sai de carona com `settings.manage`. */
+  'cargo.measure',
   /** ADR-0050: o contratante acompanha a entrega das notas amarradas à conta dele. */
   'deliveries.track',
   /** ADR-0050 §6: decidir repasse é dinheiro, e não sai de carona com acompanhar entrega. */

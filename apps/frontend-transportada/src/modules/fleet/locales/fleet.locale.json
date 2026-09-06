@@ -756,5 +756,11 @@
     "rejectReasonLabel": "Motivo da recusa (o agregado vai ler)",
     "confirmRejectButton": "Confirmar recusa",
     "cancelButton": "Cancelar"
+  },
+  "loadingAccess": "Por onde carrega",
+  "loadingAccessOption": {
+    "rear": "Só pela traseira",
+    "rear_and_side": "Traseira e lateral",
+    "open": "Aberta — alcança por todos os lados"
   }
 }

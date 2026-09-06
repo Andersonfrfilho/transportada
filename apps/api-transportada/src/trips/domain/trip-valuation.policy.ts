@@ -49,6 +49,12 @@ export const VALUATION_GAPS = {
   noPlannedDistance: 'NO_PLANNED_DISTANCE',
   /** Pedágio é lançamento manual e ainda não existe (061 D2). */
   notRecorded: 'NOT_RECORDED',
+  /**
+   * Spec 086 D2: o destino da viagem não está em `freight_region_cities`. Distinta de
+   * `noDriverRate` de propósito — "cadastre ITOBI/SP" e "este motorista não cobre esta zona" pedem
+   * ações diferentes, e uma lacuna só faria o operador procurar no lugar errado.
+   */
+  cityWithoutRegion: 'CITY_WITHOUT_REGION',
 } as const
 
 export type ValuationGap = (typeof VALUATION_GAPS)[keyof typeof VALUATION_GAPS]
@@ -75,6 +81,12 @@ export type TripRevenueLine = {
 
 export type TripCostParcel = {
   readonly amount: string
+  /**
+   * O que a lacuna precisa nomear para virar ação — hoje a cidade a cadastrar
+   * (`CITY_WITHOUT_REGION`). Genérico de propósito: é a lacuna que decide o que o texto significa, e
+   * um campo por parcela faria a próxima lacuna nascer sem lugar para o dado dela.
+   */
+  readonly detail: null | string
   readonly gap: null | ValuationGap
   readonly kind: TripCostKind
   readonly source: ValuationSource

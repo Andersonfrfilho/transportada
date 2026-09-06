@@ -46,6 +46,7 @@ import type {
   TripOccurrence,
   TripListInput,
   TripPage,
+  TripCargoPreview,
 } from './trip.types'
 import type { DeliveryProof } from './deliveryProof.service'
 import {
@@ -92,6 +93,14 @@ export type TripClient = Readonly<{
   dispatchTrip: (input: DispatchTripInput) => Promise<DispatchTripResult>
   readDeliveryProofs: (input: TripDocumentActionInput) => Promise<readonly DeliveryProof[]>
   readRouteGeometry: (input: Readonly<{ tripId: string }>) => Promise<RouteGeometry>
+  /** A carga antes de a viagem existir: notas, veículo e a ordem que o operador montou no mapa. */
+  previewCargo: (
+    input: Readonly<{
+      nfeDocumentIds: readonly string[]
+      stopOrder: readonly string[]
+      vehicleId: string
+    }>,
+  ) => Promise<TripCargoPreview>
   readPointsRouteGeometry: (
     input: Readonly<{ points: readonly Readonly<{ latitude: number; longitude: number }>[] }>,
   ) => Promise<RouteGeometry>
@@ -465,6 +474,19 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
      * da rota da viagem, e por isso o mesmo adaptador: `unavailable` com lista vazia quando o
      * roteirizador não responde, nunca uma reta devolvida como se fosse estrada.
      */
+    async previewCargo(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({
+          nfeDocumentIds: input.nfeDocumentIds,
+          stopOrder: input.stopOrder,
+          vehicleId: input.vehicleId,
+        }),
+        dependencies,
+        method: 'POST',
+        path: '/cargo-preview',
+      })
+      return adapters.tripCargoPreviewFromApi(readEnvelopeData(response))
+    },
     async readPointsRouteGeometry(input) {
       const response = await authorizedRequest({
         body: JSON.stringify({ points: input.points }),

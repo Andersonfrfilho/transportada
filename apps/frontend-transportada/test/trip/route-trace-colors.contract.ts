@@ -38,7 +38,8 @@ describe('o traço do roteiro usa a paleta da listagem, um trecho por parada', (
    */
   it('não pinta mais o roteiro com a cor única do tema', () => {
     const source = readFileSync(ASSEMBLY, 'utf8')
-    const layer = source.slice(source.indexOf("id: 'roteiro-linha'"))
+    const inicio = source.indexOf('id: ROUTE_LAYER')
+    const layer = source.slice(inicio, source.indexOf("type: 'line',", inicio))
 
     expect(layer).not.toContain('--color-copper')
     expect(layer).toContain("'line-color': ['get', 'color']")
@@ -149,21 +150,24 @@ describe('o traço do roteiro usa a paleta da listagem, um trecho por parada', (
    */
   it('não pinta o tracejado com expressão, que o MapLibre recusaria', () => {
     const source = readFileSync(ASSEMBLY, 'utf8')
-    const layer = source.slice(source.indexOf("id: 'roteiro-linha'"))
+    const inicio = source.indexOf('id: ROUTE_LAYER')
+    const layer = source.slice(inicio, source.indexOf("type: 'line',", inicio))
     const dash = layer.slice(layer.indexOf("'line-dasharray'"))
     const value = dash.slice(0, dash.indexOf('\n'))
 
     expect(value).not.toContain("['case'")
     expect(value).not.toContain("['get'")
     /** Constante é legítima porque os trechos são homogêneos: ou todos estrada, ou todos reta. */
-    expect(value).toContain('dashArray')
+    expect(value).toContain('route.dashArray')
   })
 
   /** Trocar os dados sem reajustar o tracejado deixaria reta desenhada como estrada. */
   it('reajusta o tracejado quando a fonte é atualizada', () => {
     const source = readFileSync(ASSEMBLY, 'utf8')
 
-    expect(source).toContain("setPaintProperty('roteiro-linha', 'line-dasharray', dashArray)")
+    expect(source).toContain(
+      "setPaintProperty(ROUTE_LAYER, 'line-dasharray', [...route.dashArray])",
+    )
   })
 })
 

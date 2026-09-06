@@ -6,6 +6,7 @@ import { ApiError } from '../../shared/api.error.js'
 /** A forma impressa na coluna NUM ROTA: família, ponto, três dígitos. */
 export const REGION_CODE_PATTERN = /^([0-9])\.(00[0-3])$/
 const WHITESPACE_PATTERN = /\s+/g
+const DIACRITIC_PATTERN = /\p{Diacritic}/gu
 
 /** Família `0` é a matriz — saída, não zona. Por isso ela não entra na contagem acumulativa. */
 const HEAD_OFFICE_FAMILY = '0'
@@ -60,4 +61,21 @@ export function coversRegion(input: CoversRegionInput): boolean {
 /** Dobra única de nome de cidade: "Matão", "MATÃO" e "  matão " são a mesma cidade. */
 export function normalizeRegionCity(value: string): string {
   return value.trim().toUpperCase().replace(WHITESPACE_PATTERN, ' ')
+}
+
+/**
+ * A chave de **casamento** da cidade — `normalizeRegionCity` mais a dobra do acento.
+ *
+ * A NF-e escreve o município sem acento e a planilha do cliente escreve com. Medido nesta base em
+ * 2026-09-05: das 76 cidades de destino, **39** casavam com `freight_region_cities`, e as 37 que
+ * falhavam eram todas grafia — `RIBEIRAO PRETO` contra `Ribeirão Preto`, `MATAO` contra `Matão`.
+ * Com a dobra, **65**; as 12 restantes são ausência de verdade, e é delas que a lacuna fala.
+ *
+ * ⚠️ Isto é chave, **não forma de guardar**. Quem grava e quem imprime usa `normalizeRegionCity`:
+ * dobrar o acento no cadastro consertaria o casamento e faria o operador ler "MATAO" no nome da
+ * própria cidade dele. Os dois lados da comparação passam por aqui, sempre — dobrar só a entrada
+ * deixaria as 83 cidades já gravadas fora do casamento.
+ */
+export function foldRegionCity(value: string): string {
+  return normalizeRegionCity(value).normalize('NFD').replace(DIACRITIC_PATTERN, '')
 }
