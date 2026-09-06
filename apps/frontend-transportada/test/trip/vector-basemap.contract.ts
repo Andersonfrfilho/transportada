@@ -19,9 +19,15 @@ function cityLayer(theme: (typeof BASEMAP_THEMES)[number]) {
   return layer
 }
 
-function layerById(theme: (typeof BASEMAP_THEMES)[number], id: string) {
+function symbolLayerById(theme: (typeof BASEMAP_THEMES)[number], id: string) {
   const layer = buildBasemapStyle(resolveToken, theme).layers.find((entry) => entry.id === id)
-  if (layer === undefined) throw new Error(`camada ${id} ausente`)
+  if (layer === undefined || layer.type !== 'symbol') throw new Error(`camada ${id} ausente`)
+  return layer
+}
+
+function lineLayerById(theme: (typeof BASEMAP_THEMES)[number], id: string) {
+  const layer = buildBasemapStyle(resolveToken, theme).layers.find((entry) => entry.id === id)
+  if (layer === undefined || layer.type !== 'line') throw new Error(`camada ${id} ausente`)
   return layer
 }
 
@@ -108,7 +114,7 @@ describe('sentido, pedágio e cabine — o que já vem nas telhas', () => {
    * seguir.
    */
   it('marca o sentido só onde o atributo existe, sem supor o valor', () => {
-    const layer = layerById('claro', 'sentido-da-via')
+    const layer = symbolLayerById('claro', 'sentido-da-via')
     expect(layer.filter).toEqual(['has', 'oneway'])
     expect(layer['source-layer']).toBe('transportation')
   })
@@ -118,7 +124,7 @@ describe('sentido, pedágio e cabine — o que já vem nas telhas', () => {
    * seta apontando para o lado errado é o tipo de defeito que ninguém confere olhando o mapa.
    */
   it('inverte a seta quando oneway = -1', () => {
-    const layer = layerById('claro', 'sentido-da-via')
+    const layer = symbolLayerById('claro', 'sentido-da-via')
     const rotação = layer.layout?.['icon-rotate'] ?? layer.layout?.['text-rotate']
     expect(rotação).toBeDefined()
     const texto = JSON.stringify(rotação)
@@ -132,7 +138,7 @@ describe('sentido, pedágio e cabine — o que já vem nas telhas', () => {
    * da porta em 16; a seta fica entre os dois.
    */
   it('só desenha a seta a partir do zoom de conferência de endereço', () => {
-    const layer = layerById('claro', 'sentido-da-via')
+    const layer = symbolLayerById('claro', 'sentido-da-via')
     expect(layer.minzoom ?? 0).toBeGreaterThanOrEqual(14)
   })
 
@@ -141,8 +147,7 @@ describe('sentido, pedágio e cabine — o que já vem nas telhas', () => {
    * medidas) — o filtro é presença, como em `oneway`.
    */
   it('distingue o trecho com pedágio', () => {
-    const layer = layerById('claro', 'via-com-pedagio')
-    expect(layer.type).toBe('line')
+    const layer = lineLayerById('claro', 'via-com-pedagio')
     expect(layer.filter).toEqual(['has', 'toll'])
     expect(layer['source-layer']).toBe('transportation')
     /** Tracejado, não cor nova: no tema `contraste` a classe de via não colore (ver PALETTE). */
@@ -151,8 +156,7 @@ describe('sentido, pedágio e cabine — o que já vem nas telhas', () => {
 
   /** As 16 cabines medidas na região vêm como `poi`/`toll_booth` — nunca uma camada própria. */
   it('marca a cabine de pedágio', () => {
-    const layer = layerById('claro', 'cabine-de-pedagio')
-    expect(layer.type).toBe('symbol')
+    const layer = symbolLayerById('claro', 'cabine-de-pedagio')
     expect(layer['source-layer']).toBe('poi')
     expect(layer.filter).toEqual(['==', ['get', 'subclass'], 'toll_booth'])
   })

@@ -113,3 +113,51 @@ tem 8595 (↓)? true
 
 Decisão: a seta é `text-field: '→'` com `text-rotate` — **não** precisa de `map.addImage`. O caminho
 de imagem gerada em runtime, cogitado no `plan.md` como risco, não é necessário.
+
+### T102–T105 — as três camadas e a ordem
+
+`vectorBasemap.service.ts`: `via-com-pedagio` (após `via-principal`), `sentido-da-via` (após
+`nome-da-via`, glifo `→` com `text-rotate` para o caso `-1`) e `cabine-de-pedagio` (glifo `●`, não
+emoji — `web.md` §9 — logo antes de `numero-da-porta`).
+
+```
+$ bun test test/trip.contract.test.ts
+377 pass
+0 fail
+```
+
+`bun run typecheck` e `bun run lint` limpos.
+
+### T106 — conferência repetida contra staging, com dado real
+
+Harness descartável (fora do commit): instância direta de `MapLibreMap` usando o **mesmo**
+`buildBasemapStyle` exportado, contra `https://map-tiles-staging.up.railway.app/map-tiles/area.pmtiles`
+— o mesmo arquivo da Fase 0. Servido por `bunx vite` numa porta avulsa (53010), fora do
+`launch.json` do worktree principal.
+
+**Rua conhecida (centro de Ribeirão Preto):** `Rua Duque de Caxias` — bounding box da geometria
+tirada da camada `nome-da-via`, cruzada contra `sentido-da-via` no mesmo retângulo:
+
+```
+encontrados: 2 feições
+onewayValues: [1, 1]
+```
+
+Screenshot em zoom 17,5 confirma a seta desenhada e rotacionada ao longo do traço em
+`Rua Amador Bueno`, `Rua Álvares Cabral` e na própria `Rua Duque de Caxias` — a mesma rua da
+consulta programática.
+
+**Cabine de pedágio real (Rodovia Atílio Balbo):** `map.jumpTo` para
+`(-47.9144759, -21.1668441)`, a coordenada exata de uma das 16 cabines medidas na Fase 0:
+
+```
+via-com-pedagio: 8 feições
+cabine-de-pedagio: 2 feições
+```
+
+As duas batem com os dois nós `barrier=toll_booth` do OSM medidos naquele ponto
+(`-21.1668441,-47.9144759` e `-21.1671772,-47.914466`). No centro urbano, na mesma sessão, as duas
+camadas deram **zero** — correto: não há pedágio dentro da cidade.
+
+Harness removido antes do commit (`verify-089.html`/`.tsx`, não versionados); `.claude/launch.json`
+restaurado ao estado original.
