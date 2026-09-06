@@ -29,8 +29,12 @@ export async function loadTripCargoWeight(
     readonly companyId: string
     readonly nfeDocumentIds: readonly string[]
   },
-): Promise<null | TripCargoWeightView> {
-  if (input.nfeDocumentIds.length === 0) return null
+): Promise<{
+  readonly view: null | TripCargoWeightView
+  /** Spec 085 G006: o peso por nota, para o alerta de concentração somar por parada. */
+  readonly weightByDocument: ReadonlyMap<string, string | null>
+}> {
+  if (input.nfeDocumentIds.length === 0) return { view: null, weightByDocument: new Map() }
 
   const [volumes, [settings]] = await Promise.all([
     queryable
@@ -71,5 +75,13 @@ export async function loadTripCargoWeight(
     }
   })
 
-  return resolveTripCargoWeight({ documents })
+  return {
+    view: resolveTripCargoWeight({ documents }),
+    weightByDocument: new Map(
+      input.nfeDocumentIds.map((documentId, index) => [
+        documentId,
+        documents[index]?.grossWeightKilograms ?? null,
+      ]),
+    ),
+  }
 }

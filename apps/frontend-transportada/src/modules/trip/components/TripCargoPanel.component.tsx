@@ -3,7 +3,16 @@
  */
 import { useTranslation } from 'react-i18next'
 
-import type { TripCargoLayout, TripCargoWeight, TripOccupancy } from '../shared/trip.types'
+import { Icon } from '@/components/ui/icon'
+import { VEHICLE_TYPE_ICONS } from '@/modules/shared/vehicleTypeIcon.service'
+import type { VehicleType } from '@/modules/shared/vehicleType.constant'
+
+import type {
+  TripCargoLayout,
+  TripCargoWeight,
+  TripOccupancy,
+  TripWeightConcentration,
+} from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
 import { stopColorOf } from '../shared/stopColor.service'
 
@@ -11,6 +20,10 @@ type TripCargoPanelProps = {
   cargoWeight: TripCargoWeight | null
   layout: TripCargoLayout | null
   occupancy: TripOccupancy | null
+  /** O tipo do veículo escolhido, para a cabine ser a dele. Vazio cai no desenho genérico. */
+  vehicleType?: VehicleType | ''
+  /** A parada que carrega mais que a própria fatia do peso; o desenho é de volume e não a mostra. */
+  weightConcentration?: TripWeightConcentration | null
 }
 
 const PERCENT_SCALE = 100
@@ -58,12 +71,28 @@ function colorOf(index: number): string {
  * Ausência é ausência: sem capacidade conhecida a ocupação não aparece, em vez de mostrar 0% ou
  * 100%; sem cubagem não se desenha o baú.
  */
-export function TripCargoPanel({ cargoWeight, layout, occupancy }: TripCargoPanelProps) {
+export function TripCargoPanel({
+  cargoWeight,
+  layout,
+  occupancy,
+  vehicleType = '',
+  weightConcentration = null,
+}: TripCargoPanelProps) {
   const { t } = useTranslation('trip')
   if (occupancy === null) return <TripCargoWeightPanel cargoWeight={cargoWeight} />
 
   const percent = Math.round(Number.parseFloat(occupancy.occupancyRatio) * PERCENT_SCALE)
-  const isEstimated = occupancy.source === 'estimated'
+  /**
+   * ⚠️ Spec 085 G006: a marca é **obrigatória** em toda origem que não é medida. Imprimir o
+   * percentual sozinho é o que faz alguém confiar num baú que não cabe, e
+   * `test/trip/occupancy.contract.ts` reprova o componente se ela sumir.
+   */
+  const originHint =
+    occupancy.source === 'estimated'
+      ? t('occupancy.estimated')
+      : occupancy.source === 'partial'
+        ? t('occupancy.partial')
+        : null
   const dimensions = occupancy.capacityDimensions
 
   return (
@@ -90,7 +119,15 @@ export function TripCargoPanel({ cargoWeight, layout, occupancy }: TripCargoPane
           })}
         </p>
       )}
-      {isEstimated ? <p className={styles.hint}>{t('occupancy.estimated')}</p> : null}
+      {originHint === null ? null : <p className={styles.hint}>{originHint}</p>}
+      {weightConcentration === null ? null : (
+        <p className={styles.hint}>
+          {t('occupancy.weightConcentration', {
+            percent: Math.round(weightConcentration.share * PERCENT_SCALE),
+            stop: weightConcentration.stopId,
+          })}
+        </p>
+      )}
       {occupancy.capacitySource === 'reference' ? (
         <p className={styles.hint}>{t('occupancy.capacityReference')}</p>
       ) : null}
@@ -101,7 +138,7 @@ export function TripCargoPanel({ cargoWeight, layout, occupancy }: TripCargoPane
       ) : null}
 
       <TripCargoWeightLines cargoWeight={cargoWeight} />
-      <TripCargoDrawing layout={layout} />
+      <TripCargoDrawing layout={layout} vehicleType={vehicleType} />
     </section>
   )
 }
@@ -114,35 +151,64 @@ export function TripCargoPanel({ cargoWeight, layout, occupancy }: TripCargoPane
  * ⚠️ A fatia é a **proporção de volume da parada**, não a caixa: ela não diz altura, não diz pilha
  * e não diz canto. Quem mexer aqui não deve fazê-la sugerir posição de peça.
  */
-function TripCargoDrawing({ layout }: { layout: TripCargoLayout | null }) {
+function TripCargoDrawing({
+  layout,
+  vehicleType,
+}: {
+  layout: TripCargoLayout | null
+  vehicleType: VehicleType | ''
+}) {
   const { t } = useTranslation('trip')
   if (layout === null) return null
 
-  const byLoadOrder = [...layout.slices].sort((first, second) => first.loadOrder - second.loadOrder)
+  /** Uma entrada por parada, na ordem de carregamento — é ela que dá a cor e alimenta a legenda. */
+  const stops = [...new Map(layout.rows.map((row) => [row.sequence, row])).values()].sort(
+    (first, second) => first.loadOrder - second.loadOrder,
+  )
+  const colorBySequence = new Map(stops.map((stop, index) => [stop.sequence, colorOf(index)]))
 
   return (
     <>
-      <p className={styles.hint}>{t('cargoLayout.loadOrderHint')}</p>
+      {/*
+        ⚠️ O texto muda com a porta: com lateral a ordem **ajuda** e não obriga, e ler uma exigência
+        onde há sugestão faz o conferente descarregar carga que ele podia alcançar pelo lado.
+      */}
+      <p className={styles.hint}>
+        {t(layout.orderIsBinding ? 'cargoLayout.loadOrderHint' : 'cargoLayout.loadOrderOptional')}
+      </p>
 
       {/* O desenho é decorativo: a mesma informação sai na lista abaixo, para leitor de tela e impressão. */}
       <div aria-hidden="true" className={styles.truck}>
+        {/*
+          ⚠️ A cabine é o **ícone do tipo do veículo escolhido**, não um desenho genérico: o
+          operador reconhece o VUC antes de ler a placa. Implemento tem `vehicleType` vazio — o tipo
+          é de quem traciona —, e aí a cabine volta ao retângulo.
+        */}
         <div className={styles.truckCab}>
+          {vehicleType === '' ? null : (
+            <Icon className={styles.truckSilhouette ?? ''} name={VEHICLE_TYPE_ICONS[vehicleType]} />
+          )}
           <span className={styles.truckWheel} />
         </div>
         <div className={styles.cargoBox}>
-          {byLoadOrder.map((slice, index) => (
+          {layout.rows.map((row, index) => (
             <div
-              className={styles.cargoSlice}
-              key={slice.sequence}
-              style={{
-                backgroundColor: colorOf(index),
-                flexGrow: Number.parseFloat(slice.share),
-              }}
+              className={row.sideReachable ? styles.cargoRowSide : styles.cargoRow}
+              key={`${String(row.sequence)}-${String(index)}`}
+              style={{ backgroundColor: colorBySequence.get(row.sequence) }}
             >
-              <span className={styles.cargoSliceOrder}>{slice.loadOrder}</span>
+              {/*
+                O número sai **uma vez por bloco**, não por fileira: repetido em cada uma ele vira
+                ruído e some justamente onde a parada ocupa mais espaço.
+              */}
+              {layout.rows[index - 1]?.sequence === row.sequence ? null : (
+                <span className={styles.cargoRowOrder}>{row.loadOrder}</span>
+              )}
             </div>
           ))}
-          <div className={styles.cargoFree} style={{ flexGrow: freeShare(layout) }} />
+          {Array.from({ length: layout.freeRows }, (_, index) => (
+            <div className={styles.cargoRowFree} key={`livre-${String(index)}`} />
+          ))}
           <span className={styles.truckWheel} />
         </div>
       </div>
@@ -152,18 +218,14 @@ function TripCargoDrawing({ layout }: { layout: TripCargoLayout | null }) {
       </p>
 
       <ul className={styles.cargoLegend} role="list">
-        {byLoadOrder.map((slice, index) => (
-          <li key={slice.sequence}>
+        {stops.map((stop) => (
+          <li key={stop.sequence}>
             <span
               aria-hidden="true"
               className={styles.cargoSwatch}
-              style={{ backgroundColor: colorOf(index) }}
+              style={{ backgroundColor: colorBySequence.get(stop.sequence) }}
             />
-            {t('cargoLayout.slice', {
-              label: slice.label,
-              order: slice.loadOrder,
-              volume: formatVolume(slice.volumeM3),
-            })}
+            {t('cargoLayout.stop', { label: stop.label, order: stop.loadOrder })}
           </li>
         ))}
       </ul>
@@ -235,10 +297,4 @@ function TripCargoWeightPanel({ cargoWeight }: { cargoWeight: TripCargoWeight | 
       <TripCargoWeightLines cargoWeight={cargoWeight} />
     </section>
   )
-}
-
-/** O espaço livre é o resto — e ele nunca é negativo: o excedente é dito fora, não comprimido. */
-function freeShare(layout: TripCargoLayout): number {
-  const used = layout.slices.reduce((total, slice) => total + Number.parseFloat(slice.share), 0)
-  return Math.max(0, 1 - used)
 }

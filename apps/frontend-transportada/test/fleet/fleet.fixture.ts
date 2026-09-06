@@ -55,6 +55,8 @@ export type FleetVehicleBodyContract = FleetVehicleCostFieldsContract &
   Readonly<{
     axleCount: number
     bodyType: '00' | '01' | '02' | '03' | '04' | '05'
+    /** Spec 085: o contrato restata a lista, como faz com o `bodyType` — cópia por valor. */
+    loadingAccess: 'open' | 'rear' | 'rear_and_side'
     brand: string
     capacityCubicMeters: string
     capacityKilograms: string
@@ -197,6 +199,7 @@ export const VEHICLE_BODY = {
   averageConsumption: '2.50',
   axleCount: 3,
   bodyType: '00',
+  loadingAccess: 'rear',
   brand: 'Marca Sintetica',
   capacityCubicMeters: '90.00',
   capacityKilograms: '27000.00',
@@ -458,6 +461,7 @@ export const VEHICLE_DRAFT_BODY = {
   ...VEHICLE_COST_DRAFT,
   axleCount: 0,
   bodyType: '00',
+  loadingAccess: 'rear',
   brand: '',
   capacityCubicMeters: '0.00',
   capacityKilograms: '0.00',

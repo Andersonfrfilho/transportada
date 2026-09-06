@@ -11,6 +11,7 @@ import {
   text,
   timestamp,
   uuid,
+  varchar,
 } from 'drizzle-orm/pg-core'
 
 import {
@@ -288,3 +289,24 @@ export const nfeDistributionCursors = pgTable(
     }),
   ],
 )
+
+/**
+ * Spec 085: a caixa de papelao do produto. Cópia por valor da tabela da API — migrations só rodam
+ * lá. A importação cria a linha **sem medida**; quem mede é o conferente, pela API.
+ */
+export const nfePackageBoxes = pgTable('nfe_package_boxes', {
+  id: uuid().defaultRandom().primaryKey(),
+  companyId: uuid('company_id').notNull(),
+  emitterTaxId: varchar('emitter_tax_id', { length: 14 }).notNull(),
+  productCode: text('product_code').notNull(),
+  commercialUnit: text('commercial_unit').notNull(),
+  description: text().notNull().default(''),
+  cartonGtin: varchar('carton_gtin', { length: 14 }),
+  lengthMm: integer('length_mm'),
+  widthMm: integer('width_mm'),
+  heightMm: integer('height_mm'),
+  grossWeightGrams: integer('gross_weight_grams'),
+  measuredAt: timestamp('measured_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})

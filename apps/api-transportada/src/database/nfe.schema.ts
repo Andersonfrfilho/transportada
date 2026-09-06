@@ -17,6 +17,7 @@ import {
   unique,
   uniqueIndex,
   uuid,
+  varchar,
 } from 'drizzle-orm/pg-core'
 
 import { companies, identityUsers, userCompanyMemberships } from './identity.schema.js'
@@ -442,6 +443,75 @@ export const nfeVolumes = pgTable(
       'nfe_volumes_values_check',
       sql`${table.ordinal} > 0 and ${table.quantity} >= 0 and ${table.grossWeight} >= 0 and ${table.netWeight} >= 0`,
     ),
+  ],
+)
+
+/**
+ * A caixa de papelao que carrega os produtos, e a medida dela (spec 085, ADR-0062).
+ *
+ * ⚠️ A identidade e `(empresa, emitente, cProd, uCom)`. O `cProd` e o codigo **do emitente** —
+ * sozinho nao identifica nada — e o `uCom` entra na chave porque o mesmo produto em `CX12` e `CX24`
+ * sao **duas caixas diferentes**: medido em 345 NF-e, `CX12` cobre 151 produtos distintos.
+ *
+ * ⚠️ A linha nasce **sem medida**, na importacao: o cadastro se popula do que roda, e medir e
+ * preencher o que ja esta la. Milimetro e grama inteiros, como o dinheiro e centavo; o m3 e
+ * derivado das tres dimensoes, nunca digitado.
+ */
+export const nfePackageBoxes = pgTable(
+  'nfe_package_boxes',
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => companies.id, { onDelete: 'restrict', onUpdate: 'cascade' }),
+    emitterTaxId: varchar('emitter_tax_id', { length: 14 }).notNull(),
+    /** ⚠️ `text`, como `nfe_products.code`: truncar aqui e comparar inteiro no join da ocupação
+     * fazia a caixa medida existir e nunca alcançar viagem nenhuma, calada. */
+    productCode: text('product_code').notNull(),
+    commercialUnit: text('commercial_unit').notNull(),
+    description: text().notNull().default(''),
+    /**
+     * Quantas unidades comerciais cabem na caixa. `1` quando `uCom` já é a embalagem (`CX24`); o
+     * conferente informa o resto — sem isto, 480 `UN` multiplicavam a caixa master por 480.
+     */
+    unitsPerBox: integer('units_per_box').notNull().default(1),
+    /** GTIN-14 da caixa: alias **global**, presente em so 11% delas. Complementa a chave. */
+    cartonGtin: varchar('carton_gtin', { length: 14 }),
+    lengthMm: integer('length_mm'),
+    widthMm: integer('width_mm'),
+    heightMm: integer('height_mm'),
+    grossWeightGrams: integer('gross_weight_grams'),
+    measuredAt: timestamp('measured_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('nfe_package_boxes_identity_unique').on(
+      table.companyId,
+      table.emitterTaxId,
+      table.productCode,
+      table.commercialUnit,
+    ),
+    check('nfe_package_boxes_units_per_box_check', sql`${table.unitsPerBox} > 0`),
+    check(
+      'nfe_package_boxes_dimensions_check',
+      sql`(${table.lengthMm} is null or (${table.lengthMm} > 0 and ${table.lengthMm} <= 6000)) and (${table.widthMm} is null or (${table.widthMm} > 0 and ${table.widthMm} <= 3000)) and (${table.heightMm} is null or (${table.heightMm} > 0 and ${table.heightMm} <= 3000)) and (${table.grossWeightGrams} is null or (${table.grossWeightGrams} > 0 and ${table.grossWeightGrams} <= 2000000))`,
+    ),
+    /** Medida pela metade nao mede nada: ou as tres dimensoes, ou nenhuma. */
+    check(
+      'nfe_package_boxes_dimensions_together_check',
+      sql`(${table.lengthMm} is null and ${table.widthMm} is null and ${table.heightMm} is null) or (${table.lengthMm} is not null and ${table.widthMm} is not null and ${table.heightMm} is not null)`,
+    ),
+    check(
+      'nfe_package_boxes_measured_at_check',
+      sql`(${table.lengthMm} is null) = (${table.measuredAt} is null)`,
+    ),
+    index('nfe_package_boxes_company_pending_idx')
+      .on(table.companyId)
+      .where(sql`${table.lengthMm} is null`),
+    index('nfe_package_boxes_company_gtin_idx')
+      .on(table.companyId, table.cartonGtin)
+      .where(sql`${table.cartonGtin} is not null`),
   ],
 )
 

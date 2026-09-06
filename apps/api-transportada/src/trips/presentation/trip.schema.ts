@@ -23,6 +23,7 @@ import {
   dispatchTripSchema,
   linkTripDocumentSchema,
   linkTripDocumentsBatchSchema,
+  previewTripCargoSchema,
   previewTripValuationSchema,
   routeGeometrySchema,
   overrideDeliveryAddressSchema,
@@ -35,6 +36,7 @@ import {
   type DispatchTripBody,
   type LinkTripDocumentBody,
   type LinkTripDocumentsBatchBody,
+  type PreviewTripCargoBody,
   type PreviewTripValuationBody,
   type RouteGeometryBody,
   type OverrideDeliveryAddressBody,
@@ -88,6 +90,12 @@ export async function parsePreviewTripValuationRequest(
   request: Request,
 ): Promise<PreviewTripValuationBody> {
   return parseBody(previewTripValuationSchema, request)
+}
+
+export async function parsePreviewTripCargoRequest(
+  request: Request,
+): Promise<PreviewTripCargoBody> {
+  return parseBody(previewTripCargoSchema, request)
 }
 
 export async function parseRouteGeometryRequest(request: Request): Promise<RouteGeometryBody> {

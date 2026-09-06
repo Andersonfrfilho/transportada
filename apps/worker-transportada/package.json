@@ -10,7 +10,7 @@
   "scripts": {
     "backfill:nfe-address-city-code": "bun src/nfe-imports/nfe-address-city-code-backfill.main.ts",
     "backfill:nfe-party-contact": "bun src/nfe-imports/nfe-party-contact-backfill.main.ts",
-    "build": "bun build ./src/main.ts ./src/nfe-imports/nfe-address-city-code-backfill.main.ts ./src/nfe-imports/nfe-party-contact-backfill.main.ts ./src/aggregate-attachment/infrastructure/pdf-extraction.worker.ts --target=bun --packages=external --outdir=dist --root ./src",
+    "build": "bun build ./src/main.ts ./src/nfe-imports/nfe-address-city-code-backfill.main.ts ./src/nfe-imports/nfe-party-contact-backfill.main.ts ./src/nfe-imports/nfe-package-box-backfill.main.ts ./src/aggregate-attachment/infrastructure/pdf-extraction.worker.ts --target=bun --packages=external --outdir=dist --root ./src",
     "check": "bun run lint && bun run typecheck && bun run test && bun run build",
     "dev": "bun --watch ./src/main.ts",
     "lint": "bunx eslint src test scripts eslint.config.js --max-warnings=0",

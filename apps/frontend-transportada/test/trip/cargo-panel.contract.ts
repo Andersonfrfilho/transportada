@@ -34,7 +34,7 @@ describe('a carga da viagem num painel só (spec 080 T011/T012)', () => {
   it('o painel reúne ocupação, peso e desenho', () => {
     expect(source).toInclude("t('occupancy.ratio'")
     expect(source).toInclude("t('cargoWeight.total'")
-    expect(source).toInclude('layout.slices')
+    expect(source).toInclude('layout.rows')
   })
 
   /**
@@ -43,7 +43,8 @@ describe('a carga da viagem num painel só (spec 080 T011/T012)', () => {
    * inverso do que o operador tem de fazer com o caminhão vazio na frente dele.
    */
   it('desenha na ordem de carregamento, não na de entrega', () => {
-    expect(source).toInclude('sort((first, second) => first.loadOrder - second.loadOrder)')
+    /** Sem o espaçamento: a intenção é ordenar por carregamento, não a formatação da linha. */
+    expect(source).toInclude('first.loadOrder - second.loadOrder')
     expect(trip.cargoLayout.bottom).toInclude('última')
     expect(trip.cargoLayout.door).toInclude('primeira')
   })

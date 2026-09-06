@@ -354,6 +354,10 @@
         "label": "Ver viagens",
         "where": "Tela Viagens: roteiro, paradas e notas vinculadas."
       },
+      "cargo.measure": {
+        "label": "Measure box",
+        "where": "Fill in the product's cardboard box dimensions in the measurement queue."
+      },
       "trip.manage": {
         "label": "Montar viagem",
         "where": "Criar viagem, vincular nota, ordenar parada, separar e carregar."

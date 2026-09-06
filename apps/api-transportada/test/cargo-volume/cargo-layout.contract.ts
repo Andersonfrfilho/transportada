@@ -86,9 +86,23 @@ describe('mapa de carga do baú (spec 076)', () => {
     expect(layout?.stopsWithoutVolume).toEqual([{ documentCount: 2, label: 'Sem volume' }])
   })
 
-  /** D3: escala honesta ou nada. Sem capacidade não há proporção, e um retângulo genérico mentiria. */
-  test('sem capacidade não há layout', () => {
-    expect(resolveCargoLayout({ capacityM3: null, stops: PARADAS })).toBeNull()
+  /**
+   * ⚠️ **A 085 reverte metade da D3 da 076, de propósito.** A 076 recusava desenhar sem capacidade
+   * porque a única saída era a fatia **sobre a capacidade** — sem denominador, o retângulo mentiria.
+   * A 085 mediu que a divisão **entre paradas** é invariante ao fator de cubagem (`f` está no
+   * numerador e no denominador e cancela), então ela não precisa de capacidade nenhuma.
+   *
+   * O que continua recusado é o que a D3 realmente protegia: **afirmar quanto sobra**. Sem
+   * capacidade, `freeRows` é zero e `occupancyKnown` é falso — o desenho divide a carga e cala
+   * sobre o espaço livre.
+   */
+  test('sem capacidade o baú divide a carga, mas não afirma espaço livre', () => {
+    const layout = resolveCargoLayout({ capacityM3: null, stops: PARADAS })
+
+    expect(layout).not.toBeNull()
+    expect(layout?.occupancyKnown).toBe(false)
+    expect(layout?.freeRows).toBe(0)
+    expect(layout?.slices).toEqual([])
   })
 
   /** Viagem sem parada é baú vazio de verdade — não é ausência. */

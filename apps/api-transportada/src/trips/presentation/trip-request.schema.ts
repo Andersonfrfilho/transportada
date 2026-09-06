@@ -91,6 +91,21 @@ export const previewTripValuationSchema = z
 export type PreviewTripValuationBody = z.infer<typeof previewTripValuationSchema>
 
 /**
+ * ⚠️ `stopOrder` é a ordem que o operador montou no mapa, por **chave de parada** — a mesma
+ * `cidade|CEP|número` que o vínculo cria. Ausente é ordem de chegada da nota: a prévia não inventa
+ * roteiro, e um `sort` escolhido aqui discordaria do desenho que ele tem na frente.
+ */
+export const previewTripCargoSchema = z
+  .object({
+    nfeDocumentIds: z.array(z.uuid()).min(1).max(MAX_LINK_BATCH_DOCUMENTS),
+    stopOrder: z.array(z.string().min(1)).max(MAX_LINK_BATCH_DOCUMENTS).default([]),
+    vehicleId: z.uuid(),
+  })
+  .strict()
+
+export type PreviewTripCargoBody = z.infer<typeof previewTripCargoSchema>
+
+/**
  * A linha da estrada para pontos que **ainda não são viagem** — quem monta o roteiro no formulário
  * precisa ver a rua antes de criar a viagem, e a rota irmã (`/trips/:id/route-geometry`) exige uma
  * viagem que ainda não existe.

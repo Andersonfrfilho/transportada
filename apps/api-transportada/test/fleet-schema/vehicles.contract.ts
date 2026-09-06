@@ -42,6 +42,8 @@ describe('fleet vehicle schema', () => {
       'cargo_width_m',
       'cargo_height_m',
       'body_type',
+      /** Spec 085: por onde a carga entra e sai — semeado do `body_type`, depois disso da ficha. */
+      'loading_access',
       'axle_count',
       'vehicle_type',
       'state',

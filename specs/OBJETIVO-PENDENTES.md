@@ -110,6 +110,28 @@ que carrega notas não vinculadas, o aceite que **cria** viagens, e a tela.
   telhas de um caminho que nenhum servidor atende; o frontend degrada com aviso desde a mesma data.
   Spec em `specs/083-servir-map-tiles/spec.md`, com duas decisões abertas antes de implementar.
 
+- **085 — a carga cabe, e em que ordem ela entra** (2026-09-05): baú por fileiras na tela
+  Nova viagem, porta lateral na ficha do veículo, e cadastro de caixa que se popula pela
+  importação. Medido em 345 NF-e reais: a NF-e **não traz dimensão** (345/345), mas
+  `qVol` = Σ `qCom` em 100% e **o fator de cubagem cancela na divisão do baú** — o desenho
+  não precisa de calibragem. Spec em `specs/085-a-carga-cabe-e-em-que-ordem/`, evidência em
+  `evidence.md`. As duas decisões abertas foram fechadas: a unidade é **a caixa de papelão**
+  (não paletizado), e o `catalog-module` **não** é alterado nem consumido — a medida mora em
+  `nfe_package_boxes` aqui (ADR-0062). ⚠️ Falta o que só o uso produz: **nenhuma caixa foi medida
+  ainda**, e a cobertura real da ocupação continua zero até o conferente descer a fila.
+
+- **087 — toda rota de 204 falha no navegador quando chamada de outra origem** (2026-09-06):
+  medido num experimento controlado durante a 085 — mesma rota, mesmo método, mesmo corpo, só o
+  status mudando: `200` passa e `204` faz o `fetch` lançar `TypeError: Failed to fetch`, com a
+  escrita **já efetivada** no banco. Construir o 204 no molde das outras rotas daqui (com
+  `cache-control: no-store` no construtor) não muda nada. A causa não foi isolada, e o alcance é
+  toda rota que responde 204 chamada do painel: `PUT /company-users/:id/password`, os `DELETE` de
+  ajuste de combustível, `PUT`/`DELETE` de busca automática, e as duas de `password-resets`. O
+  sintoma é traiçoeiro porque **a escrita funciona** — a tela mostra falha sobre um efeito que
+  aconteceu, e quem estiver do outro lado repete a ação. `POST /nfe-package-boxes/:id` desviou para
+  `200` com corpo vazio, com o motivo escrito na rota, enquanto isso não é resolvido.
+
+
 ## O que este plano não promete
 
 Cada spec deste conjunto tem o porte da 058, que consumiu uma sessão inteira de trabalho. O plano é

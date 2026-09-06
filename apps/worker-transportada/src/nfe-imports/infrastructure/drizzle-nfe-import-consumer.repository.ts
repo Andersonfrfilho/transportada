@@ -14,10 +14,12 @@ import {
   nfeImportItems,
   nfeImports,
   nfeParticipants,
+  nfePackageBoxes,
   nfeProducts,
   nfeVolumes,
   storedObjects,
 } from '../../database/nfe.schema.js'
+import { buildPackageBoxRows, deriveBoxGrossWeightGrams } from '../domain/package-box.policy.js'
 import { NFE_PARTICIPANT_ROLE } from '../domain/nfe-participant-role.constant.js'
 import { ensureDeliveryRegistry, type DeliveryRegistryLogger } from './delivery-registry.writer.js'
 
@@ -429,6 +431,40 @@ export async function writeDocumentChildren(input: {
         unitValue: product.unitValue,
       })),
     )
+
+    const boxes = buildPackageBoxRows({
+      emitterTaxId: input.document.issuer.taxId,
+      products: input.document.products,
+    })
+    /** Peso só na nota de item único: com duas linhas o `pesoB` é da carga, não da caixa. */
+    const grossWeightGrams = deriveBoxGrossWeightGrams({
+      products: input.document.products,
+      volumes: input.document.volumes,
+    })
+    if (boxes.length > 0) {
+      /**
+       * Spec 085: a caixa entra sem medida, e `doNothing` é o ponto inteiro — a linha já existente
+       * carrega a medição do conferente, e reescrevê-la apagaria o trabalho dele a cada nota nova
+       * do mesmo produto.
+       */
+      await input.tx
+        .insert(nfePackageBoxes)
+        .values(
+          boxes.map((box) => ({
+            ...box,
+            companyId: input.companyId,
+            ...(grossWeightGrams === null ? {} : { grossWeightGrams }),
+          })),
+        )
+        .onConflictDoNothing({
+          target: [
+            nfePackageBoxes.companyId,
+            nfePackageBoxes.emitterTaxId,
+            nfePackageBoxes.productCode,
+            nfePackageBoxes.commercialUnit,
+          ],
+        })
+    }
   }
 
   if (input.document.volumes.length > 0) {

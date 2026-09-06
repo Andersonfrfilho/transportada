@@ -64,6 +64,8 @@ describe('authorization contract', () => {
       'trip.financials',
       // ADR-0047 §4: a permissão do serviço, com escopo de uma rota só
       'mdfe.auto-issue',
+      // Spec 085 G005: medir a caixa é galpão, e não sai de carona com `settings.manage`
+      'cargo.measure',
       // ADR-0050: a permissão do contratante — acompanhar a entrega das notas dos documentos dele
       'deliveries.track',
       // ADR-0050 §6: decidir repasse é dinheiro, e não sai de carona com acompanhar entrega
@@ -98,6 +100,7 @@ describe('authorization contract', () => {
         'nfse.read',
         'trip.manage',
         'trip.financials',
+        'cargo.measure',
       ],
       finance: [
         'cte.read',
@@ -154,6 +157,7 @@ describe('authorization contract', () => {
         'trip.manage',
         /** ADR-0049 §6, emendada: quem escolhe a carga vê o que ela custa. */
         'trip.financials',
+        'cargo.measure',
       ],
       viewer: [
         'invoices.read',
@@ -166,7 +170,7 @@ describe('authorization contract', () => {
       ],
       driver: ['trip.read', 'trip.report'],
       aggregate: ['trip.read', 'trip.report'],
-      separator: ['invoices.read', 'fleet.read', 'trip.read', 'trip.manage'],
+      separator: ['invoices.read', 'fleet.read', 'trip.read', 'trip.manage', 'cargo.measure'],
       contractor: ['deliveries.track', 'charges.decide'],
       automation: ['mdfe.auto-issue'],
     })

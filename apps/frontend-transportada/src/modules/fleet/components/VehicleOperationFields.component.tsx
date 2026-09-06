@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
+import { LOADING_ACCESS_KINDS } from '@/modules/shared/loadingAccess.constant'
 
 import { MDFE_BODY_TYPE, type FleetVehicleFormState } from '../shared/fleet.types'
 import { VEHICLE_MEASURE_FIELD_SCALE } from '../shared/fleetVehicleMeasure.service'
@@ -30,6 +31,17 @@ export function VehicleOperationFields({
           options={MDFE_BODY_TYPE}
           value={state.bodyType}
           onChange={(bodyType) => onChange({ bodyType })}
+        />
+        {/*
+          ⚠️ Campo próprio, e **não** deduzido do tipo nem da carroceria: a mesma Sprinter existe
+          com e sem porta lateral. O `bodyType` semeia o valor na migration e para por aí.
+        */}
+        <FleetSelectField
+          label={t('loadingAccess')}
+          optionLabelKey="loadingAccessOption"
+          options={LOADING_ACCESS_KINDS}
+          value={state.loadingAccess}
+          onChange={(loadingAccess) => onChange({ loadingAccess })}
         />
         <FleetMeasureField
           label={t('tareWeightKilograms')}

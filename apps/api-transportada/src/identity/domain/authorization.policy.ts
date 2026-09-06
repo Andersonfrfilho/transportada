@@ -69,6 +69,12 @@ export const TRANSPORTADA_PERMISSIONS = Object.freeze([
    * que também descarta manifesto —, e sim a permissão criada para o gatilho automático.
    */
   'mdfe.auto-issue',
+  /**
+   * Spec 085 G005: medir a caixa de papelão é trabalho de galpão, e tem permissão própria.
+   * `settings.manage` entregaria de carona o preço do combustível, a tabela de frete e a credencial
+   * da prefeitura — quem confere caixa não administra nada disso.
+   */
+  'cargo.measure',
   /** ADR-0050: o contratante acompanha a entrega das notas amarradas à conta dele. */
   'deliveries.track',
   /** ADR-0050 §6: decidir repasse é dinheiro, e não sai de carona com acompanhar entrega. */
@@ -110,6 +116,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
     'nfse.read',
     'trip.manage',
     'trip.financials',
+    'cargo.measure',
   ]),
   finance: Object.freeze([
     'cte.read',
@@ -176,6 +183,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
      * separador trabalha no barracão, ao lado dos motoristas, e não escolhe carga nenhuma.
      */
     'trip.financials',
+    'cargo.measure',
   ]),
   viewer: Object.freeze([
     'invoices.read',
@@ -194,7 +202,13 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
   // O separador monta a viagem do celular: lê a nota que bipa, lê a frota para escolher veículo e
   // motorista, e escreve a viagem. Ele não cadastra frota, não fatura e não emite documento fiscal
   // — e não reporta entrega, que é do campo.
-  separator: Object.freeze(['invoices.read', 'fleet.read', 'trip.read', 'trip.manage']),
+  separator: Object.freeze([
+    'invoices.read',
+    'fleet.read',
+    'trip.read',
+    'trip.manage',
+    'cargo.measure',
+  ]),
   /**
    * ADR-0050: o contratante lê **a entrega**, e só a das notas dos documentos dele — o recorte não
    * vem do papel, vem do vínculo, e é o repositório que o aplica. Nada de frota, faturamento ou

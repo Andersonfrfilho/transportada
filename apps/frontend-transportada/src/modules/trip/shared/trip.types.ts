@@ -194,7 +194,11 @@ export type TripOccupancy = Readonly<{
   documentsWithoutVolume: number
   loadedM3: string
   occupancyRatio: string
-  source: 'declared' | 'estimated'
+  /**
+   * Spec 085 G006: `measured` quando toda nota somou caixa medida pelo conferente, `partial` quando
+   * alguma linha caiu na mediana da empresa. A pior origem manda, e a tela imprime a marca.
+   */
+  source: 'declared' | 'estimated' | 'measured' | 'partial'
 }>
 
 /**
@@ -202,6 +206,26 @@ export type TripOccupancy = Readonly<{
  * a NF-e não traz dimensão de volume, e não há como dizer onde cada caixa vai.
  */
 export type TripCargoLayout = Readonly<{
+  /**
+   * As fileiras do baú, do fundo para a porta. A parada dona aparece em fileiras **seguidas**, e a
+   * quebra da carga em blocos da mesma cor é consequência da quantização (spec 085 G001).
+   */
+  rows: readonly Readonly<{
+    label: string
+    loadOrder: number
+    sequence: number
+    /** Se dá para chegar nesta carga sem descarregar o que está na frente (spec 085 G003). */
+    sideReachable: boolean
+  }>[]
+  /** `true` quando a ordem é obrigação, não conveniência — veículo que abre só atrás. */
+  orderIsBinding: boolean
+  /** Fileiras vazias entre a carga e a porta. Zero quando a capacidade não é conhecida. */
+  freeRows: number
+  /**
+   * ⚠️ `false` sem capacidade: o desenho divide a carga e **cala sobre o espaço livre**. A divisão
+   * entre paradas não precisa de capacidade — ela é invariante ao fator de cubagem.
+   */
+  occupancyKnown: boolean
   overflowM3: string
   slices: readonly Readonly<{
     label: string
@@ -212,6 +236,20 @@ export type TripCargoLayout = Readonly<{
     volumeM3: string
   }>[]
   stopsWithoutVolume: readonly Readonly<{ documentCount: number; label: string }>[]
+}>
+
+/**
+ * A carga desenhada **antes de a viagem existir** — os mesmos três blocos do detalhe, servidos por
+ * `POST /trips/cargo-preview` a partir das notas e do veículo que o operador acabou de escolher.
+ */
+/** A parada que carrega mais que a própria fatia do peso (spec 085 G006). */
+export type TripWeightConcentration = Readonly<{ share: number; stopId: string }>
+
+export type TripCargoPreview = Readonly<{
+  cargoLayout: TripCargoLayout | null
+  cargoWeight: TripCargoWeight | null
+  occupancy: TripOccupancy | null
+  weightConcentration: TripWeightConcentration | null
 }>
 
 export type TripDetail = Trip &

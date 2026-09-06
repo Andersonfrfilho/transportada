@@ -9,6 +9,7 @@ export const NFE_SCHEMA_EXPORT_NAMES = [
   'nfeParticipants',
   'nfeAddresses',
   'nfeVolumes',
+  'nfePackageBoxes',
   'nfeProducts',
   'nfeEvents',
   'nfeDistributionCursors',

@@ -119,7 +119,8 @@
   "tabs": {
     "documents": "Notas",
     "imports": "Importações",
-    "addresses": "Clientes a atualizar"
+    "addresses": "Clientes a atualizar",
+    "packageBoxes": "Caixas"
   },
   "mechanism": {
     "section": "Origem da importação",
@@ -436,5 +437,35 @@
       "street_incomplete": "A mesma rua com o nome mais curto no cadastro. A entrega chega; o cadastro é que está abreviado."
     },
     "unresolvedAim": "Hoje a entrega aponta para o centro do município"
+  },
+  "packageBoxes": {
+    "title": "Caixas por medir",
+    "description": "Meça a caixa de papelão do produto. A fila vem na ordem do que mais roda: as primeiras cobrem a maior parte do que sai do galpão.",
+    "searchLabel": "Buscar por produto ou código",
+    "scan": "Ler etiqueta",
+    "pendingOnly": "Mostrar só o que falta medir",
+    "empty": "Nenhuma caixa nesta busca.",
+    "denied": "Você não tem permissão para medir caixas.",
+    "failed": "Não foi possível carregar a fila de medição.",
+    "transported": "{{count}} volumes transportados",
+    "cumulative": "{{percent}}% acumulado",
+    "tail": "abaixo do que compensa medir",
+    "length": "Comprimento (mm)",
+    "width": "Largura (mm)",
+    "height": "Altura (mm)",
+    "measure": "Medir",
+    "remeasure": "Medir de novo",
+    "save": "Gravar medida",
+    "cancel": "Cancelar",
+    "scanner": {
+      "title": "Ler etiqueta da caixa",
+      "close": "Fechar",
+      "reading": "Lendo…",
+      "starting": "Abrindo a câmera…",
+      "denied": "Permissão de câmera negada. Digite o código na busca.",
+      "unavailable": "A câmera não está disponível neste aparelho. Digite o código na busca."
+    },
+    "outOfRange": "Valor fora da faixa: no máximo {{max}} mm.",
+    "unitsPerBox": "Unidades por caixa"
   }
 }

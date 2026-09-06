@@ -11,8 +11,6 @@
  */
 import { formatScaledDecimal, parseScaledDecimal } from '../../shared/decimal.service.js'
 import { CARGO_WEIGHT_SOURCE } from '../../nfe-documents/domain/cargo-weight.policy.js'
-import { TRIP_OCCUPANCY_SOURCE } from './trip-occupancy.policy.js'
-import type { TripOccupancySource } from './trip-occupancy.policy.js'
 
 const ERROR_CODE_PREFIX = 'TRIP_CARGO_WEIGHT'
 const WEIGHT_SCALE = 4n
@@ -26,11 +24,19 @@ export type ResolveTripCargoWeightParams = {
   readonly documents: readonly TripCargoWeightDocument[]
 }
 
+/**
+ * ⚠️ Origem **própria**, não a do volume. Ela emprestava `TripOccupancySource`, e quando a spec 085
+ * deu ao volume as origens `measured` e `partial` — que vêm da caixa medida e **não existem para
+ * massa**, porque a NF-e declara `pesoB` e nunca dimensão — o empréstimo passou a prometer ao peso
+ * dois estados inalcançáveis. Duas grandezas, dois vocabulários.
+ */
+export type TripCargoWeightSource = 'declared' | 'estimated'
+
 export type ResolvedTripCargoWeight = {
   /** Notas sem peso — ditas à parte, nunca somadas como zero. */
   readonly documentsWithoutWeight: number
   readonly grossWeightKilograms: string
-  readonly source: TripOccupancySource
+  readonly source: TripCargoWeightSource
 }
 
 /**
@@ -64,6 +70,6 @@ export function resolveTripCargoWeight({
   return {
     documentsWithoutWeight,
     grossWeightKilograms: formatScaledDecimal(total, WEIGHT_SCALE),
-    source: estimated ? TRIP_OCCUPANCY_SOURCE.estimated : TRIP_OCCUPANCY_SOURCE.declared,
+    source: estimated ? 'estimated' : 'declared',
   }
 }

@@ -20,6 +20,10 @@ const RATIO_FACTOR = 10n ** RATIO_SCALE
 export const TRIP_OCCUPANCY_SOURCE = {
   declared: 'declared',
   estimated: 'estimated',
+  /** Spec 085 G006: toda nota somou caixa medida pelo conferente. */
+  measured: 'measured',
+  /** Ao menos uma linha caiu na mediana das caixas medidas da empresa. */
+  partial: 'partial',
 } as const
 
 export type TripOccupancySource = (typeof TRIP_OCCUPANCY_SOURCE)[keyof typeof TRIP_OCCUPANCY_SOURCE]
@@ -65,6 +69,8 @@ export function resolveTripOccupancy({
   let loaded = 0n
   let documentsWithoutVolume = 0
   let estimated = false
+  let partial = false
+  let measured = false
   for (const document of documents) {
     if (document.volumeM3 === null) {
       documentsWithoutVolume += 1
@@ -72,12 +78,30 @@ export function resolveTripOccupancy({
     }
     loaded += toScaled(document.volumeM3)
     if (document.source === TRIP_OCCUPANCY_SOURCE.estimated) estimated = true
+    if (document.source === TRIP_OCCUPANCY_SOURCE.partial) partial = true
+    if (document.source === TRIP_OCCUPANCY_SOURCE.measured) measured = true
   }
 
   return {
     documentsWithoutVolume,
     loadedM3: formatScaledDecimal(loaded, VOLUME_SCALE),
     occupancyRatio: formatScaledDecimal(divideHalfUp(loaded * RATIO_FACTOR, capacity), RATIO_SCALE),
-    source: estimated ? TRIP_OCCUPANCY_SOURCE.estimated : TRIP_OCCUPANCY_SOURCE.declared,
+    source: resolveSource({ estimated, measured, partial }),
   }
+}
+
+/**
+ * ⚠️ **A pior origem manda.** Estimado vence parcial, que vence medido: quem carrega decide pelo
+ * pior caso, e um total com cara de medido porque a maioria das parcelas era medida é exatamente o
+ * número que faz alguém confiar num baú que não cabe.
+ */
+function resolveSource(input: {
+  readonly estimated: boolean
+  readonly measured: boolean
+  readonly partial: boolean
+}): TripOccupancySource {
+  if (input.estimated) return TRIP_OCCUPANCY_SOURCE.estimated
+  if (input.partial) return TRIP_OCCUPANCY_SOURCE.partial
+  if (input.measured) return TRIP_OCCUPANCY_SOURCE.measured
+  return TRIP_OCCUPANCY_SOURCE.declared
 }

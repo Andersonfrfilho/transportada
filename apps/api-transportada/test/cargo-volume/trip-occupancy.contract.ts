@@ -96,3 +96,48 @@ describe('ocupação da viagem (spec 075 P3/RF4)', () => {
     expect(resolved?.occupancyRatio).toBe('2.0000')
   })
 })
+
+/**
+ * Spec 085 G006: com a caixa medida a viagem passa a ter três origens, e a **pior manda** — a mesma
+ * regra que já valia para `estimated`: quem carrega decide pelo pior caso.
+ */
+describe('a origem do total quando há caixa medida', () => {
+  const CAPACITY = { capacityM3: '10.000000' }
+
+  test('todas as notas medidas tornam o total medido', () => {
+    expect(
+      resolveTripOccupancy({
+        ...CAPACITY,
+        documents: [
+          { source: 'measured', volumeM3: '1.000000' },
+          { source: 'measured', volumeM3: '2.000000' },
+        ],
+      })?.source,
+    ).toBe('measured')
+  })
+
+  test('uma nota parcial torna o total parcial', () => {
+    expect(
+      resolveTripOccupancy({
+        ...CAPACITY,
+        documents: [
+          { source: 'measured', volumeM3: '1.000000' },
+          { source: 'partial', volumeM3: '2.000000' },
+        ],
+      })?.source,
+    ).toBe('partial')
+  })
+
+  /** Estimado é pior que parcial: a parcial ao menos mede parte, a estimada não mede nada. */
+  test('uma nota estimada vence a parcial', () => {
+    expect(
+      resolveTripOccupancy({
+        ...CAPACITY,
+        documents: [
+          { source: 'partial', volumeM3: '1.000000' },
+          { source: 'estimated', volumeM3: '2.000000' },
+        ],
+      })?.source,
+    ).toBe('estimated')
+  })
+})

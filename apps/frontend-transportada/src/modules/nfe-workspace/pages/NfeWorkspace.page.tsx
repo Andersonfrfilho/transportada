@@ -18,8 +18,10 @@ import { AddressReportPanel } from '../components/AddressReportPanel.component'
 import { useAddressReport } from '../hooks/useAddressReport.hook'
 import { useDistributionCursor } from '../hooks/useDistributionCursor.hook'
 import { CargoWeightPanel } from '../components/CargoWeightPanel.component'
+import { PackageBoxMeasurementPanel } from '../components/PackageBoxMeasurementPanel.component'
 import { useCargoSettings } from '../hooks/useCargoSettings.hook'
 import { useCargoVolumeFactor } from '../hooks/useCargoVolumeFactor.hook'
+import { usePackageBoxQueue } from '../hooks/usePackageBoxQueue.hook'
 import { CargoVolumeFactorPanel } from '../components/CargoVolumeFactorPanel.component'
 import { useScheduledDistribution } from '../hooks/useScheduledDistribution.hook'
 import { NfeDocumentTable } from '../components/NfeDocumentTable.component'
@@ -215,9 +217,13 @@ export function NfeWorkspacePage() {
   const [downloadingDocumentId, setDownloadingDocumentId] = useState<string | null>(null)
   const [downloadErrorId, setDownloadErrorId] = useState<string | null>(null)
   const [reprocessTargetId, setReprocessTargetId] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'addresses' | 'documents' | 'imports'>('documents')
+  const [activeTab, setActiveTab] = useState<'addresses' | 'boxes' | 'documents' | 'imports'>(
+    'documents',
+  )
   const [isFiltersOpen, setIsFiltersOpen] = useState(false)
   const canManageSettings = permissions.includes(SETTINGS_MANAGE_PERMISSION)
+  /** Medir caixa é `cargo.measure`, nunca `settings.manage` — o separador mede e não configura. */
+  const canMeasureCargo = permissions.includes('cargo.measure')
   const settingsScope = resolveSettingsDataScope('nfe-workspace', activeTab)
   const scheduledDistribution = useScheduledDistribution({
     ...(companyId === undefined ? {} : { companyId }),
@@ -239,6 +245,10 @@ export function NfeWorkspacePage() {
   const addressReport = useAddressReport({
     ...(companyId === undefined ? {} : { companyId }),
     enabled: canManageSettings && activeTab === 'addresses',
+  })
+  const packageBoxes = usePackageBoxQueue({
+    ...(companyId === undefined ? {} : { companyId }),
+    enabled: canMeasureCargo && activeTab === 'boxes',
   })
   const cargoSettings = useCargoSettings({
     ...(companyId === undefined ? {} : { companyId }),
@@ -615,9 +625,28 @@ export function NfeWorkspacePage() {
                   />
                 ),
               },
+              {
+                id: 'boxes',
+                label: t('tabs.packageBoxes'),
+                panel: (
+                  <PackageBoxMeasurementPanel
+                    denied={!canMeasureCargo}
+                    failed={packageBoxes.failed}
+                    loading={packageBoxes.isLoading}
+                    onMeasure={(measurement) => packageBoxes.measure.mutate(measurement)}
+                    onPendingOnlyChange={packageBoxes.setPendingOnly}
+                    onScan={packageBoxes.setScanned}
+                    onSearchChange={packageBoxes.setSearch}
+                    pendingOnly={packageBoxes.pendingOnly}
+                    queue={packageBoxes.queue}
+                    saving={packageBoxes.measure.isPending}
+                    search={packageBoxes.search}
+                  />
+                ),
+              },
             ]}
             onChange={(id) => {
-              if (id === 'imports' || id === 'addresses') setActiveTab(id)
+              if (id === 'imports' || id === 'addresses' || id === 'boxes') setActiveTab(id)
               else setActiveTab('documents')
             }}
             value={activeTab}

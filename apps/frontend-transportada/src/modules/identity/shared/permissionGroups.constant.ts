@@ -19,7 +19,7 @@ export const PERMISSION_GROUPS = [
   { key: 'fleet', permissions: ['fleet.read', 'fleet.manage'] },
   {
     key: 'trip',
-    permissions: ['trip.read', 'trip.manage', 'trip.report', 'trip.financials'],
+    permissions: ['trip.read', 'trip.manage', 'trip.report', 'trip.financials', 'cargo.measure'],
   },
   {
     key: 'mdfe',

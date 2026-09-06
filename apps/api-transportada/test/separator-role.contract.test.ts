@@ -220,6 +220,13 @@ describe('separator role contract', () => {
       'POST /trips/:id/documents/batch-status',
       'POST /trips/:id/plan-route',
       'POST /trips/:id/stops/:stopId/schedule',
+      /**
+       * ⚠️ **Decisão escrita (spec 085 G002/G003):** o separador **alcança** a prévia de carga. Ela
+       * responde "cabe no baú, e em que ordem entra?", que é a pergunta de quem carrega o caminhão
+       * — e por isso ela nasceu sob `trip.manage`, e não sob `trip.financials` como a prévia de
+       * valores ao lado. Ele continua sem enxergar receita, custo e margem.
+       */
+      'POST /trips/cargo-preview',
     ])
   })
 
@@ -249,5 +256,30 @@ describe('separator role contract', () => {
   // O separador monta a viagem; o MDF-e é documento fiscal e continua com quem responde por ele.
   test('does not reach the fiscal manifest of the trip it assembles', () => {
     expect(reachableRoutes(['separator'])).not.toContain('POST /trips/:id/mdfe-manifests')
+  })
+})
+
+/**
+ * Spec 085 G005: medir a caixa é trabalho de galpão, e ele precisa de permissão própria.
+ * `settings.manage` entregaria de carona o preço do combustível, a tabela de frete e a credencial
+ * da prefeitura — e é o que o conferente teria de receber se a medição pegasse carona nela.
+ */
+describe('cargo.measure — a permissão de quem mede a caixa', () => {
+  test('chega ao separador, ao operador e ao administrador', () => {
+    for (const role of ['separator', 'operator', 'company-admin'] as const) {
+      expect(resolveCompanyPermissions([role])).toContain('cargo.measure')
+    }
+  })
+
+  /** Quem mede não passa a administrar configuração — é o ponto de a permissão existir. */
+  test('não arrasta settings.manage para quem mede', () => {
+    expect(resolveCompanyPermissions(['separator'])).not.toContain('settings.manage')
+  })
+
+  /** Ler e medir são a mesma tela; papel de campo e contratante não têm galpão nenhum. */
+  test('não alcança motorista, agregado nem contratante', () => {
+    for (const role of ['driver', 'aggregate', 'contractor'] as const) {
+      expect(resolveCompanyPermissions([role])).not.toContain('cargo.measure')
+    }
   })
 })

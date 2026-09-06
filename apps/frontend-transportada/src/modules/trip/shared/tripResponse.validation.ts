@@ -1,7 +1,16 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { DeliveryProof } from './deliveryProof.service'
 import type { OccurrenceType } from './occurrence.constant'
-import type { RegisteredOccurrence, TripDocumentProduct, TripOccurrence } from './trip.types'
+import type {
+  RegisteredOccurrence,
+  TripDocumentProduct,
+  TripOccurrence,
+  TripCargoLayout,
+  TripCargoPreview,
+  TripCargoWeight,
+  TripOccupancy,
+  TripWeightConcentration,
+} from './trip.types'
 import {
   ROUTE_GEOMETRY_SOURCES,
   type RouteGeometry,
@@ -541,6 +550,30 @@ export function createTripResponseAdapters() {
      * ⚠️ Corpo estranho vira **`unavailable`**, nunca exceção: o mapa é enfeite operacional, e uma
      * validação que estoura derrubaria a tela da viagem por causa da linha da estrada.
      */
+    /**
+     * ⚠️ Aqui a validação **estoura**, ao contrário do mapa: a prévia é o que responde "cabe?", e
+     * desenhar um baú a partir de corpo estranho afirmaria espaço que ninguém apurou.
+     */
+    tripCargoPreviewFromApi(input: unknown): TripCargoPreview {
+      if (!isRecord(input)) throw invalid()
+      const { cargoLayout, cargoWeight, occupancy, weightConcentration } = input
+      const layoutOk =
+        cargoLayout === null || cargoLayout === undefined || isCargoLayout(cargoLayout)
+      const weightOk =
+        cargoWeight === null || cargoWeight === undefined || isCargoWeight(cargoWeight)
+      const occupancyOk = occupancy === null || occupancy === undefined || isOccupancy(occupancy)
+      const concentrationOk =
+        weightConcentration === null ||
+        weightConcentration === undefined ||
+        isWeightConcentration(weightConcentration)
+      if (!layoutOk || !weightOk || !occupancyOk || !concentrationOk) throw invalid()
+      return {
+        cargoLayout: (cargoLayout ?? null) as TripCargoLayout | null,
+        cargoWeight: (cargoWeight ?? null) as TripCargoWeight | null,
+        occupancy: (occupancy ?? null) as TripOccupancy | null,
+        weightConcentration: weightConcentration ?? null,
+      }
+    },
     routeGeometryFromApi(input: unknown): RouteGeometry {
       if (!isRecord(input) || !isOneOf(input.source, ROUTE_GEOMETRY_SOURCES)) {
         return { legs: [], points: [], source: 'unavailable' }
@@ -598,14 +631,50 @@ export function createTripResponseAdapters() {
   }
 }
 
+/**
+ * ⚠️ O detalhe da viagem **não valida** `cargoLayout` — ele passa direto, lacuna da spec 076. A
+ * prévia valida, porque ela desenha a partir do que chega e um `rows` estranho viraria um baú com
+ * fileiras sem dono em vez de um erro.
+ */
+function isCargoLayout(value: unknown): boolean {
+  if (!isRecord(value)) return false
+  return (
+    Array.isArray(value.rows) &&
+    value.rows.every(
+      (row) =>
+        isRecord(row) &&
+        isString(row.label) &&
+        isUnsignedInteger(row.loadOrder) &&
+        isUnsignedInteger(row.sequence) &&
+        typeof row.sideReachable === 'boolean',
+    ) &&
+    isUnsignedInteger(value.freeRows) &&
+    typeof value.orderIsBinding === 'boolean' &&
+    typeof value.occupancyKnown === 'boolean' &&
+    isString(value.overflowM3) &&
+    Array.isArray(value.stopsWithoutVolume)
+  )
+}
+
 /** Spec 075: ausência é `null`, e a tela lê isso como "não dá para dizer" — nunca como zero. */
 function isCargoWeight(value: unknown): boolean {
   if (!hasExactKeys(value, TRIP_CARGO_WEIGHT_KEYS)) return false
   return (
     isUnsignedInteger(value.documentsWithoutWeight) &&
     isString(value.grossWeightKilograms) &&
-    (value.source === 'declared' || value.source === 'estimated')
+    isOneOf(value.source, TRIP_OCCUPANCY_SOURCES)
   )
+}
+
+/**
+ * ⚠️ As quatro origens do total. Origem que esta lista não conhece é **recusa**, não número sem
+ * marca: a marca é o que separa "cabe" de "deve caber", e a tela é proibida de imprimir o
+ * percentual sozinho.
+ */
+const TRIP_OCCUPANCY_SOURCES = ['declared', 'estimated', 'measured', 'partial'] as const
+
+function isWeightConcentration(value: unknown): value is TripWeightConcentration {
+  return isRecord(value) && typeof value.share === 'number' && isString(value.stopId)
 }
 
 function isOccupancy(value: unknown): boolean {
@@ -616,7 +685,7 @@ function isOccupancy(value: unknown): boolean {
     isUnsignedInteger(value.documentsWithoutVolume) &&
     isString(value.loadedM3) &&
     isString(value.occupancyRatio) &&
-    (value.source === 'declared' || value.source === 'estimated')
+    isOneOf(value.source, TRIP_OCCUPANCY_SOURCES)
   )
 }
 

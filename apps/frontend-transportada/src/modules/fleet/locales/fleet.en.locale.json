@@ -752,5 +752,11 @@
     "rejectReasonLabel": "Rejection reason (the aggregate will read it)",
     "confirmRejectButton": "Confirm rejection",
     "cancelButton": "Cancel"
+  },
+  "loadingAccess": "Loading access",
+  "loadingAccessOption": {
+    "rear": "Rear door only",
+    "rear_and_side": "Rear and side",
+    "open": "Open — reachable from every side"
   }
 }

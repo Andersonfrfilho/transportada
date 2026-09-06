@@ -390,6 +390,74 @@ inventado faria alguém parar de carregar, ou continuar. Estouro acima de 100% s
 tela de quem carrega o caminhão. E `VEHICLE_TYPE_ICONS` (frontend) é `Record<VehicleType, IconName>`
 — tipo novo no catálogo **não compila** sem desenho.
 
+**A caixa se mede uma vez, e o cadastro se popula do que roda** (ADR-0062, spec 085). A NF-e não
+traz dimensão nenhuma — medido em 345 XMLs desta base: **345 de 345** sem medida no grupo `<vol>` —,
+então a medida é trabalho humano, e a decisão da 085 é que ela mora em `nfe_package_boxes` **aqui**,
+não no `catalog-module` que três produtos consomem.
+
+A chave é `(company_id, emitter_tax_id, product_code, commercial_unit)`. ⚠️ **`uCom` entra na
+chave**: o mesmo produto em `CX12` e `CX24` são duas caixas, e medido nesta base `CX12` cobre **151
+produtos distintos** — o código diz quantas unidades vão dentro, nunca o tamanho da caixa. A
+importação cria a linha **sem medida** (`onConflictDoNothing`, em
+`worker/.../drizzle-nfe-import-consumer.repository.ts`), e o `doNothing` é o ponto inteiro: a linha
+existente carrega a medição do conferente, e reescrevê-la a cada nota nova do mesmo produto apagaria
+o trabalho dele. `nfe-package-box-backfill.main.ts` relê os XMLs arquivados no molde do backfill de
+contatos, e varre **todas** as notas — a caixa é do par, não da nota, e não há filtro barato que
+diga se uma nota ainda acrescenta linha.
+
+⚠️ **`uCom` nem sempre é a caixa**, e por isso a linha guarda `units_per_box`. Em `CX24` a nota já
+conta caixas e o valor é `1`; em `UN` ela conta unidades, e multiplicar 480 `UN` pela caixa master
+dava dez vezes o volume real — número que, por vir marcado `measured`, **vencia** a estimativa e saía
+da tela sem marca de palpite. A conta arredonda para cima: cinco unidades de um produto que vem de
+doze ainda viajam dentro de uma caixa.
+
+⚠️ **O peso só é deduzido da nota de item único** (`deriveBoxGrossWeightGrams`): com duas linhas o
+`pesoB` é da carga inteira, e dividi-lo pelos volumes daria a **média** das caixas — número
+plausível atribuído à caixa errada. Medido: 9% das notas, 18 de 663 caixas. `carton_gtin` fica nulo
+até `NfeXmlProduct` do `@adatechnology/fiscal-provider` ganhar o campo de código de barras — mesma
+lacuna de pacote do caso `<email>` —, e é por isso que o bipe casa **duas** colunas: `carton_gtin` e
+`product_code`. Casar só pela primeira devolveria lista vazia em todo bipe; é comum o emitente usar
+o próprio EAN como `cProd`, e é isso que sustenta a leitura enquanto o campo não existe.
+
+**Medir é `cargo.measure`, e a permissão nasceu para não dar carona.** `settings.manage` entregaria
+ao conferente o preço do combustível, a tabela de frete e a credencial da prefeitura. `separator`,
+`operator` e `company-admin` a recebem; `driver`, `aggregate` e `contractor` não. `GET
+/nfe-package-boxes` e `PUT /nfe-package-boxes/:id` são as duas rotas, e é `PUT` porque medir de novo
+**substitui** — duas medidas para a mesma caixa seriam duas verdades. ⚠️ Ele responde **204**: a
+linha gravada não tem `share`, `cumulativeShare` nem `withinCoverage`, que nascem da política de
+ordenação da fila, e devolvê-la fazia o cliente validá-la com o guard da fila — toda medição
+bem-sucedida virava erro na tela, com a medida já no banco, e o conferente remedia a mesma caixa. No frontend é a aba **Caixas**
+de `nfe-workspace`, mobile-first, com o leitor da ADR-0042; ⚠️ quem chegou pela câmera **volta para
+ela** depois de gravar (o conferente varre uma pilha inteira), e quem chegou digitando fica na busca.
+
+⚠️ **Etiqueta que não vira código nenhum é busca vazia, nunca busca sem filtro** — tratá-la como
+ausência de filtro mostrava as cinquenta primeiras caixas como se a leitura tivesse achado algo, e o
+conferente media a primeira da lista. E a fila ordena por `coalesce(volumes, 0) desc`: em Postgres
+`ORDER BY x DESC` é **NULLS FIRST**, e sem o `coalesce` a página abria com as caixas órfãs.
+
+⚠️ **A etiqueta da caixa é DUN-14 e o cadastro casa pelo GTIN-13** — `reduceToGtin13` recalcula o
+dígito GS1, e sem ela o leitor acha a etiqueta e a busca não acha o produto (90% dos casos medidos).
+GTIN-8 e GTIN-12 passam intactos: existem na prateleira e não são DUN. A fila ordena pelo volume
+transportado — `sum(nfe_products.quantity)` do par, e **não** um join a `nfe_volumes`, porque `qVol`
+= Σ `qCom` em **100%** das 345 notas: cada volume da nota é uma caixa. Ela carrega o acumulado e diz
+**até onde compensa**; sem essa marca a tela é uma lista de 663 itens sem lugar para parar de descer.
+
+**A ocupação ganhou duas origens novas, e a pior manda** (spec 085 G006). `resolveMeasuredCargoVolume`
+soma `qCom × caixa medida` por linha; item sem medida usa a **mediana** das caixas medidas da empresa
+e a origem cai para `partial`. ⚠️ **Sem reserva, item sem medida devolve ausência** em vez de sair da
+soma: um total que ignora linhas subestima a carga, e ocupação menor que a real é o número que faz
+alguém continuar carregando um baú que já encheu. Mediana e não média — uma caixa de geladeira no
+meio de mil caixas de refrigerante move a média e não move a mediana. No total da viagem
+`estimated` vence `partial`, que vence `measured`, pela mesma razão da 075: quem carrega decide pelo
+pior caso, e a tela é proibida de imprimir o percentual sem a marca.
+
+⚠️ **O desenho do baú é de volume, e o alerta de peso existe porque volume não conta essa história.**
+`detectWeightConcentration` acusa a parada que carrega mais que a própria fatia — e o piso é **a
+fatia igualitária**, nunca um limite fixo: com duas paradas, meio a meio é a carga mais equilibrada
+que existe e passaria de 40%, fazendo o alerta disparar em toda viagem de duas paradas até virar
+ruído que se aprende a ignorar. Viagem de uma parada não acusa nada: ali a concentração é 100% por
+definição e não há o que fazer com o aviso.
+
 **O peso da carga tem duas fontes, e só o CT-e o exige** (ADR-0052, spec 067). O emitente omite
 `pesoB` **por nota**, não por política — a Zaragoza mandou 883658 com 108,670 kg e 883663 com 0,000
 no mesmo caminhão, mesmo lacre, mesmo minuto. Duas consequências:

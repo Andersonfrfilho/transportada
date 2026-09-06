@@ -217,6 +217,8 @@ import { createTripUseCase } from './trips/application/trip.use-case'
 import { createTripLifecycleUseCase } from './trips/application/trip-lifecycle.use-case'
 import { listReturnedWithActiveCte } from './trips/application/list-returned-with-active-cte.use-case'
 import { createLinkTripDocumentsBatchUseCase } from './trips/application/link-trip-documents-batch.use-case.js'
+import { previewTripCargo } from './trips/application/preview-trip-cargo.use-case.js'
+import { readCargoPreviewContext } from './trips/infrastructure/trip-cargo-preview.query.js'
 import { previewTripValuation } from './trips/application/read-trip-valuation.use-case.js'
 import { DrizzleTripRepository } from './trips/infrastructure/drizzle-trip.repository'
 import { DrizzleTripDocumentRepository } from './trips/infrastructure/drizzle-trip-document.repository'
@@ -412,6 +414,10 @@ import { DrizzleNfeImportRepository } from './nfe-imports/infrastructure/drizzle
 import { createNfeImportRoutes } from './nfe-imports/presentation/nfe-imports.routes'
 import { DrizzleNfeDocumentRepository } from './nfe-documents/infrastructure/drizzle-nfe-document.repository'
 import { createNfeDocumentRoutes } from './nfe-documents/presentation/nfe-documents.routes'
+import { createListPackageBoxes } from './nfe-documents/application/list-package-boxes.use-case'
+import { createMeasurePackageBox } from './nfe-documents/application/measure-package-box.use-case'
+import { DrizzlePackageBoxRepository } from './nfe-documents/infrastructure/drizzle-package-box.repository'
+import { createPackageBoxRoutes } from './nfe-documents/presentation/package-box.routes'
 import { createOperationsUseCase } from './operations/application/operations.use-case'
 import { DrizzleOperationsRepository } from './operations/infrastructure/drizzle-operations.repository'
 import { createOperationsRoutes } from './operations/presentation/operations.routes'
@@ -1099,6 +1105,7 @@ function createApplicationRoutes({
   })
   const storedObjectRepository = new DrizzleStoredObjectRepository(database)
   const nfeDocumentRepository = new DrizzleNfeDocumentRepository(database, storageGateway)
+  const packageBoxRepository = new DrizzlePackageBoxRepository(database)
   const viewPreferencesRepository = new DrizzleViewPreferencesRepository(database)
   const fingerprintService = createIdempotencyFingerprintService({ key: idempotencyHmacKey })
   const requestImport = createRequestNfeImportUseCase({
@@ -2021,6 +2028,15 @@ function createApplicationRoutes({
       },
       linkTripDocument: { execute: (input) => trips.linkDocument(input) },
       linkTripDocumentsBatch: createLinkTripDocumentsBatchUseCase({ repository: tripRepository }),
+      previewCargo: {
+        execute: (input) =>
+          previewTripCargo({
+            ...input,
+            repository: {
+              readCargoPreviewContext: (query) => readCargoPreviewContext(database, query),
+            },
+          }),
+      },
       previewValuation: {
         execute: (input) =>
           previewTripValuation({
@@ -2234,6 +2250,10 @@ function createApplicationRoutes({
       getEligibility: { execute: (input) => nfeDocumentRepository.getEligibility(input) },
       listDocuments: { execute: (input) => nfeDocumentRepository.list(input) },
       locateTripByAccessKey: { execute: (input) => tripLifecycle.locateByAccessKey.execute(input) },
+    }),
+    ...createPackageBoxRoutes({
+      listPackageBoxes: createListPackageBoxes({ repository: packageBoxRepository }),
+      measurePackageBox: createMeasurePackageBox({ repository: packageBoxRepository }),
     }),
     ...createViewPreferencesRoutes({
       getPreferences: createGetViewPreferencesUseCase({ repository: viewPreferencesRepository }),

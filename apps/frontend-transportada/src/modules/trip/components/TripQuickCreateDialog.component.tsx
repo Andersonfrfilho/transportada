@@ -15,9 +15,11 @@ import { VEHICLE_TYPE_ICONS } from '@/modules/shared/vehicleTypeIcon.service'
 import type { FleetDriverDetail, FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
 import type { NfeDocumentListItem } from '@/modules/nfe-workspace/shared/nfeWorkspaceClient.service'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
+import { useTripCargoPreview } from '../hooks/useTripCargoPreview.hook'
 import { useTripValuationPreview } from '@/modules/trip-financials/hooks/useTripValuationPreview.hook'
 
 import { TripAssemblyMap } from './TripAssemblyMap.component'
+import { TripCargoPanel } from './TripCargoPanel.component'
 import { TripDocumentSearch } from './TripDocumentSearch.component'
 import { TripValuationPreview } from './TripValuationPreview.component'
 import type { TripQuickCreateController } from '../hooks/useTripQuickCreate.hook'
@@ -138,6 +140,17 @@ export function TripQuickCreateDialog({
     const staged = new Set(quickCreate.stagedDocuments.map((document) => document.id))
     return filteredDocuments.filter((document) => !staged.has(document.id)).map(toAssemblyNote)
   }, [filteredDocuments, quickCreate.stagedDocuments])
+
+  /**
+   * A carga desenhada **antes de a viagem existir**: cabe no baú, e em que ordem entra. A ordem das
+   * paradas é a que o operador acabou de montar no mapa acima — a prévia não inventa roteiro.
+   */
+  const cargoPreview = useTripCargoPreview({
+    nfeDocumentIds: stagedDocumentIds(quickCreate.queue),
+    permissions,
+    stopOrder: quickCreate.cityOrder,
+    vehicleId: quickCreate.vehicleId,
+  })
 
   const valuationPreview = useTripValuationPreview({
     driverIds: quickCreate.driverIds,
@@ -291,6 +304,18 @@ export function TripQuickCreateDialog({
           selected={selectedNotes}
           vehicleId={quickCreate.vehicleId}
         />
+
+        {cargoPreview.preview === null ? null : (
+          <TripCargoPanel
+            cargoWeight={cargoPreview.preview.cargoWeight}
+            layout={cargoPreview.preview.cargoLayout}
+            occupancy={cargoPreview.preview.occupancy}
+            weightConcentration={cargoPreview.preview.weightConcentration}
+            vehicleType={
+              vehicles.find((vehicle) => vehicle.id === quickCreate.vehicleId)?.vehicleType ?? ''
+            }
+          />
+        )}
 
         <TripValuationPreview preview={valuationPreview} />
 

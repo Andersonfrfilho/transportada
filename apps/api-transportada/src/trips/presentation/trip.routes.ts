@@ -58,6 +58,7 @@ import type { LinkTripDocumentsBatchUseCase } from '../application/link-trip-doc
 import type { CreateTripCteBatchResult } from '../application/create-trip-cte-batch.use-case.js'
 import type { TripMdfeRequirement } from '../application/set-trip-mdfe-requirement.use-case.js'
 import type { TripValuation } from '../domain/trip-valuation.policy.js'
+import type { TripCargoPreview } from '../application/preview-trip-cargo.use-case.js'
 import type { TripFiscalReadinessSnapshot } from '../application/read-trip-fiscal-readiness.use-case.js'
 import type { PlanTripRouteResult } from '../application/plan-trip-route.use-case.js'
 import type { ReorderTripStopsResult } from '../application/reorder-trip-stops.use-case.js'
@@ -78,6 +79,7 @@ import {
   parseDispatchTripRequest,
   parseLinkTripDocumentRequest,
   parseLinkTripDocumentsBatchRequest,
+  parsePreviewTripCargoRequest,
   parsePreviewTripValuationRequest,
   parseRouteGeometryRequest,
   parseOverrideDeliveryAddressRequest,
@@ -161,6 +163,8 @@ const TRIP_VALUATION_PATH = `${API_TRIPS_PATH}/:id/valuation`
  * se vale a pena montá-la, e a pergunta acontece antes da criação — depois dela, já foi respondida.
  */
 const TRIP_VALUATION_PREVIEW_PATH = `${API_TRIPS_PATH}/valuation-preview`
+/** Fora da árvore `/trips/:id`: a prévia responde **antes** de a viagem existir. */
+const TRIP_CARGO_PREVIEW_PATH = `${API_TRIPS_PATH}/cargo-preview`
 /**
  * Spec 061 D4: **dinheiro tem permissão própria.** O resultado congelado é `trip.financials`, de
  * `company-admin` e `finance` — quem monta viagem já tem a avaliação prevista para decidir carga, e
@@ -355,6 +359,14 @@ type Dependencies = {
     execute(input: TenantInput<LinkTripDocumentInput>): Promise<TripDocument>
   }
   readonly linkTripDocumentsBatch: LinkTripDocumentsBatchUseCase
+  readonly previewCargo: {
+    execute(input: {
+      readonly companyId: string
+      readonly nfeDocumentIds: readonly string[]
+      readonly stopOrder: readonly string[]
+      readonly vehicleId: string
+    }): Promise<TripCargoPreview>
+  }
   readonly previewValuation: {
     execute(input: {
       readonly companyId: string
@@ -667,6 +679,28 @@ export function createTripRoutes(
       parse: ({ request }) => parsePreviewTripValuationRequest(request),
       pathname: TRIP_VALUATION_PREVIEW_PATH,
       policy: TRIP_FINANCIALS_POLICY,
+    }),
+    /**
+     * ⚠️ A prévia da carga é `TRIP_MANAGE_POLICY`, não `TRIP_FINANCIALS_POLICY`: quem monta a
+     * viagem precisa saber se cabe, e o separador monta sem enxergar receita nem custo.
+     */
+    defineRoute<{
+      readonly nfeDocumentIds: readonly string[]
+      readonly stopOrder: readonly string[]
+      readonly vehicleId: string
+    }>({
+      async handle({ context, input }): Promise<Response> {
+        const preview = await dependencies.previewCargo.execute({
+          companyId: context.scope.companyId,
+          ...input,
+        })
+
+        return jsonResponse({ body: { data: preview }, status: 200 })
+      },
+      method: 'POST',
+      parse: ({ request }) => parsePreviewTripCargoRequest(request),
+      pathname: TRIP_CARGO_PREVIEW_PATH,
+      policy: TRIP_MANAGE_POLICY,
     }),
     defineRoute<Omit<GetTripInput, 'context'>>({
       async handle({ context, input }): Promise<Response> {
