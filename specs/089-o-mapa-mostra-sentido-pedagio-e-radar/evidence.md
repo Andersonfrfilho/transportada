@@ -89,3 +89,27 @@ O teste de invariante de ordem (`nenhum addLayer do componente usa beforeId`) j�
 o componente como está: 3 chamadas de `map.addLayer` no `AssemblyVectorMap.component.tsx`, nenhuma
 com `beforeId`. Ele trava a premissa da T105 antes de qualquer código novo — se algum `addLayer`
 futuro ganhar `beforeId`, este teste denuncia antes de a ordem virar bug visual.
+
+### T101 — o glifo da seta cabe na fonte embarcada
+
+Fetch direto de `https://map-tiles-staging.up.railway.app/map-tiles/fonts/Noto%20Sans%20Regular/8448-8703.pbf`
+(bloco de 256 codepoints que cobre U+2190–U+2193, as setas de direção), decodificado com `pbf`
+(`PbfReader`) contra o schema real do glyphs.pbf.
+
+⚠️ **A primeira tentativa de decodificar usou os números de campo errados** (supus
+`name=1, glyphs=2, range=3`) e devolveu zero glifos sem erro — silencioso, não vermelho. A conferência
+byte a byte contra o hexdump revelou o schema real: `name=1, range=2, glyphs=3` dentro de
+`fontstack`, e `id=1, bitmap=2, …` dentro de `glyph`. Fica registrado pela mesma razão do "zero
+pedágio" da Fase 0: decodificador que erra e não avisa produz número plausível e errado.
+
+```
+range: 8448-8703 · total de glifos: 76
+faixa de ids: 8448 - 8693
+tem 8594 (→)? true
+tem 8592 (←)? true
+tem 8593 (↑)? true
+tem 8595 (↓)? true
+```
+
+Decisão: a seta é `text-field: '→'` com `text-rotate` — **não** precisa de `map.addImage`. O caminho
+de imagem gerada em runtime, cogitado no `plan.md` como risco, não é necessário.
