@@ -131,8 +131,30 @@ describe('os tetos da medida na tela e no banco', () => {
       ),
     ).text()
 
-    expect(panel).toContain('{ heightMm: 3000, lengthMm: 6000, widthMm: 3000 }')
+    expect(panel).toContain('{ heightMm: 300, lengthMm: 600, widthMm: 300 }')
     expect(panel).toContain('aria-invalid=')
+  })
+
+  /**
+   * ⚠️ **A tela fala centímetro e o banco guarda milímetro**, e é aqui que um erro de ordem de
+   * grandeza entraria calado: 38 cm virando 38 mm passa em qualquer CHECK, cabe em qualquer coluna,
+   * e só aparece quando a ocupação da viagem der um décimo do que deveria. A conversão mora num
+   * lugar só, e é este teste que a prende ali.
+   */
+  it('converte centímetro em milímetro num lugar só, aceitando vírgula', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(panel).toContain('const MILLIMETRES_PER_CENTIMETRE = 10')
+    expect(panel).toContain('Math.round(centimetres * MILLIMETRES_PER_CENTIMETRE)')
+    /** O teclado do celular manda `38,5`, e meio centímetro é medida legítima. */
+    expect(panel).toContain("replace(',', '.')")
+    /** O teto é conferido **em centímetro**, antes de multiplicar: senão 600 cm passaria. */
+    expect(panel).toContain('if (centimetres > MAX_CENTIMETRES[field]) return null')
   })
 })
 

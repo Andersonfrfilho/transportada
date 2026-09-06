@@ -450,9 +450,9 @@
     "transported": "{{count}} volumes transportados",
     "cumulative": "{{percent}}% acumulado",
     "tail": "abaixo do que compensa medir",
-    "length": "Comprimento (mm)",
-    "width": "Largura (mm)",
-    "height": "Altura (mm)",
+    "length": "Comprimento (cm)",
+    "width": "Largura (cm)",
+    "height": "Altura (cm)",
     "measure": "Medir",
     "remeasure": "Medir de novo",
     "save": "Gravar medida",
@@ -465,7 +465,7 @@
       "denied": "Permissão de câmera negada. Digite o código na busca.",
       "unavailable": "A câmera não está disponível neste aparelho. Digite o código na busca."
     },
-    "outOfRange": "Valor fora da faixa: no máximo {{max}} mm.",
+    "outOfRange": "Valor fora da faixa: no máximo {{max}} cm.",
     "unitsPerBox": "Unidades por caixa"
   }
 }

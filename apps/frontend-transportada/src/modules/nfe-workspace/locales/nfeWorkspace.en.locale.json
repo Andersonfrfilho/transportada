@@ -289,9 +289,9 @@
     "transported": "{{count}} volumes shipped",
     "cumulative": "{{percent}}% cumulative",
     "tail": "below what is worth measuring",
-    "length": "Length (mm)",
-    "width": "Width (mm)",
-    "height": "Height (mm)",
+    "length": "Length (cm)",
+    "width": "Width (cm)",
+    "height": "Height (cm)",
     "measure": "Measure",
     "remeasure": "Measure again",
     "save": "Save measurement",
@@ -304,7 +304,7 @@
       "denied": "Camera permission denied. Type the code in the search field.",
       "unavailable": "The camera is unavailable on this device. Type the code in the search field."
     },
-    "outOfRange": "Out of range: {{max}} mm at most.",
+    "outOfRange": "Out of range: {{max}} cm at most.",
     "unitsPerBox": "Units per box"
   }
 }

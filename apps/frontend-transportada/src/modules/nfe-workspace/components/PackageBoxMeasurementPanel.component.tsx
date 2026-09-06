@@ -34,19 +34,27 @@ type PackageBoxMeasurementPanelProps = Readonly<{
 }>
 
 /**
- * ⚠️ Os tetos são **cópia por valor** dos CHECKs da coluna, guardados por contrato. Sem eles, digitar
- * 9000 de comprimento devolvia um `400` genérico que virava "não foi possível gravar" sem dizer qual
- * campo — e `web.md` §11 exige o erro ancorado no campo.
+ * ⚠️ **A tela fala centímetro, o banco guarda milímetro.** A fita métrica do galpão é marcada em
+ * cm, e obrigar o conferente a multiplicar por dez de cabeça, de pé, a cada caixa, é onde nasce o
+ * erro de uma ordem de grandeza — 38 virando 38 mm. A coluna continua `length_mm` porque milímetro
+ * é inteiro e não perde meia unidade; a conversão mora **aqui**, num lugar só, na borda.
+ *
+ * ⚠️ Os tetos são **cópia por valor** dos CHECKs da coluna (6000/3000/3000 mm), guardados por
+ * contrato. Sem eles, digitar 900 de comprimento devolvia um `400` genérico que virava "não foi
+ * possível gravar" sem dizer qual campo — e `web.md` §11 exige o erro ancorado no campo.
  */
-const MAX_MILLIMETRES = { heightMm: 3000, lengthMm: 6000, widthMm: 3000 } as const
+const MAX_CENTIMETRES = { heightMm: 300, lengthMm: 600, widthMm: 300 } as const
 
+const MILLIMETRES_PER_CENTIMETRE = 10
 const PERCENT_SCALE = 100
 
-function toMillimetres(value: string, field: keyof typeof MAX_MILLIMETRES): number | null {
-  const parsed = Number(value.trim().replace(',', '.'))
-  if (!Number.isFinite(parsed) || parsed <= 0) return null
-  const rounded = Math.round(parsed)
-  return rounded > MAX_MILLIMETRES[field] ? null : rounded
+/** Aceita vírgula: o teclado do celular manda `38,5`, e meio centímetro é medida legítima. */
+function toMillimetres(value: string, field: keyof typeof MAX_CENTIMETRES): number | null {
+  const centimetres = Number(value.trim().replace(',', '.'))
+  if (!Number.isFinite(centimetres) || centimetres <= 0) return null
+  if (centimetres > MAX_CENTIMETRES[field]) return null
+  const millimetres = Math.round(centimetres * MILLIMETRES_PER_CENTIMETRE)
+  return millimetres > 0 ? millimetres : null
 }
 
 function QueueSkeleton() {
@@ -296,7 +304,7 @@ function PackageBoxRow({
 }
 
 type DimensionFieldProps = Readonly<{
-  field: keyof typeof MAX_MILLIMETRES
+  field: keyof typeof MAX_CENTIMETRES
   id: string
   label: string
   onChange: (value: string) => void
@@ -321,7 +329,7 @@ function DimensionField({ field, id, label, onChange, parsed, value }: Dimension
       />
       {invalid ? (
         <span className={styles.fieldError} id={`${id}-error`} role="alert">
-          {t('packageBoxes.outOfRange', { max: MAX_MILLIMETRES[field] })}
+          {t('packageBoxes.outOfRange', { max: MAX_CENTIMETRES[field] })}
         </span>
       ) : null}
     </label>
