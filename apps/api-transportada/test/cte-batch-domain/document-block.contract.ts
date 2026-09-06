@@ -15,7 +15,10 @@ const NFSE_INVOICE_ID = '00000000-0000-4000-8000-000000000602'
 
 const ELIGIBLE: EligibilityDocument = {
   grossWeight: '120.5000',
+  municipalServicePolicy: 'allow',
   recipientCity: 'Jundiaí',
+  recipientCityCode: '3525904',
+  senderCityCode: '3509502',
   recipientState: 'SP',
   recipientTaxId: '12345678000199',
   senderCity: 'Campinas',

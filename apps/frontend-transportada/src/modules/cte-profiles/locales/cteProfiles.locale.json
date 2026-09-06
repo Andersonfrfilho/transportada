@@ -142,5 +142,10 @@
   "predominantProductName": "Nome do produto predominante",
   "observations": "Observações do CT-e",
   "invalidRate": "Percentual inválido",
-  "invalidAmount": "Valor inválido"
+  "invalidAmount": "Valor inválido",
+  "municipalServicePolicy": "Serviço municipal",
+  "municipalServicePolicyOption": {
+    "allow": "Aceita no lote de CT-e",
+    "block": "Vai para NFS-e — bloqueia no lote"
+  }
 }

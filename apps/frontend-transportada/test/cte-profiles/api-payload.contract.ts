@@ -19,6 +19,7 @@ const API_LIST_RESPONSE = {
   data: [
     {
       cargoInsuranceDeclared: false,
+      municipalServicePolicy: 'allow',
       cfopInternal: '5353',
       cfopInterstate: '6353',
       chargeComponentLabel: 'Frete 4,5',

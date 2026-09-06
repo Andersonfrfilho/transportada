@@ -9,7 +9,10 @@ import { resolveNfseDocumentBlock } from '../../src/nfe-documents/domain/nfse-do
 /** A 883663/2: autorizada, completa, com partes e municípios, e sem peso nenhum. */
 const DOCUMENT = {
   grossWeight: null,
+  municipalServicePolicy: 'allow',
   recipientCity: 'Ribeirão Preto',
+  recipientCityCode: '3543402',
+  senderCityCode: '3554102',
   recipientState: 'SP',
   recipientTaxId: '07531737000180',
   senderCity: 'Taubaté',

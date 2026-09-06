@@ -16,6 +16,16 @@ import {
   nfeVolumes,
 } from '../../database/nfe.schema.js'
 import { resolveDocumentBlock } from '../../cte-batches/domain/cte-batch-eligibility.policy.js'
+import {
+  cteEmissionProfileMatchers,
+  cteEmissionProfiles,
+} from '../../database/cte-emission-profile.schema.js'
+import type {
+  CteEmissionMatchRole,
+  CteMunicipalServicePolicy,
+} from '../../database/cte-emission-profile.schema.js'
+import { resolveMunicipalServicePolicy } from '../../cte-profiles/domain/emission-profile-resolution.policy.js'
+import type { EmissionProfileCandidate } from '../../cte-profiles/domain/emission-profile-resolution.policy.js'
 import { resolveCargoWeight } from '../domain/cargo-weight.policy.js'
 import { resolveNfseDocumentBlock } from '../domain/nfse-document-block.policy.js'
 import { findTripLinks } from '../../cte-batches/infrastructure/cte-batch-selection.query.js'
@@ -136,8 +146,18 @@ type ActiveFreightRule = {
   readonly validUntil: Date | null
 }
 
+/** O perfil, reduzido ao que a listagem precisa para decidir o portão de serviço municipal. */
+type MunicipalPolicyProfile = EmissionProfileCandidate & {
+  readonly municipalServicePolicy: CteMunicipalServicePolicy
+}
+
 type DocumentBlockContext = {
   readonly batchIdByDocumentId: ReadonlyMap<string, string>
+  /**
+   * Os perfis de emissão ativos da empresa. A listagem precisa deles porque o portão de serviço
+   * municipal é escolha do perfil, e é o perfil que casa com o emitente da nota que manda.
+   */
+  readonly emissionProfiles: readonly MunicipalPolicyProfile[]
   readonly freightRules: readonly ActiveFreightRule[]
   /** Nulo é estimativa desligada nesta empresa; resolvido uma vez por página, nunca por linha. */
   readonly defaultVolumeWeight: string | null
@@ -149,6 +169,7 @@ type DocumentBlockContext = {
 
 const EMPTY_BLOCK_CONTEXT: DocumentBlockContext = {
   batchIdByDocumentId: new Map(),
+  emissionProfiles: [],
   freightRules: [],
   defaultVolumeWeight: null,
   volumeTotalsByDocumentId: new Map(),
@@ -414,6 +435,7 @@ export class DrizzleNfeDocumentRepository implements NfeDocumentRepositoryPort {
           { id: row.invoiceId, number: row.providerNumber },
         ]),
       ),
+      emissionProfiles: await this.loadActiveEmissionProfiles(scope.companyId),
       freightRules: await this.loadActiveFreightRules(scope.companyId),
       tripByDocumentId: new Map(tripLinkRows.map((row) => [row.documentId, row])),
     }
@@ -424,6 +446,52 @@ export class DrizzleNfeDocumentRepository implements NfeDocumentRepositoryPort {
    * linhas nesta instalação —, e resolvê-la por documento faria mil idas ao banco numa página de mil
    * notas. Mesmo padrão do preço de combustível na listagem de veículos.
    */
+  /**
+   * Os perfis de emissão ativos com os matchers deles, **uma consulta por página** — mesma razão das
+   * regras de frete: perfil é configuração, e resolvê-lo por documento faria mil idas ao banco numa
+   * página de mil notas.
+   */
+  private async loadActiveEmissionProfiles(
+    companyId: string,
+  ): Promise<readonly MunicipalPolicyProfile[]> {
+    const rows = await this.database
+      .select({ profile: cteEmissionProfiles, matcher: cteEmissionProfileMatchers })
+      .from(cteEmissionProfiles)
+      .leftJoin(
+        cteEmissionProfileMatchers,
+        and(
+          eq(cteEmissionProfileMatchers.companyId, cteEmissionProfiles.companyId),
+          eq(cteEmissionProfileMatchers.profileId, cteEmissionProfiles.id),
+        ),
+      )
+      .where(
+        and(eq(cteEmissionProfiles.companyId, companyId), eq(cteEmissionProfiles.status, 'active')),
+      )
+
+    const profileById = new Map<string, (typeof rows)[number]['profile']>()
+    const matchersByProfileId = new Map<
+      string,
+      { matchRole: CteEmissionMatchRole; taxId: string }[]
+    >()
+    for (const row of rows) {
+      profileById.set(row.profile.id, row.profile)
+      if (row.matcher === null) continue
+      const matchers = matchersByProfileId.get(row.profile.id) ?? []
+      matchers.push({ matchRole: row.matcher.matchRole, taxId: row.matcher.taxId })
+      matchersByProfileId.set(row.profile.id, matchers)
+    }
+
+    return [...profileById.values()].map((profile) => ({
+      id: profile.id,
+      matchMode: profile.matchMode,
+      matchers: matchersByProfileId.get(profile.id) ?? [],
+      municipalServicePolicy: profile.municipalServicePolicy,
+      name: profile.name,
+      priority: profile.priority,
+      status: profile.status,
+    }))
+  }
+
   private async loadActiveFreightRules(companyId: string): Promise<readonly ActiveFreightRule[]> {
     const rows = await this.database
       .select({ rule: freightRules, version: freightRuleVersions })
@@ -594,6 +662,16 @@ function mapSummary(
   })
   const eligibilityDocument = {
     grossWeight: cargoWeight?.grossWeight ?? null,
+    /**
+     * O portão de serviço municipal é escolha do perfil que rege esta nota — casado pelo CNPJ do
+     * emitente, como a emissão casaria. Nota sem perfil, empate e participante sem CNPJ caem em
+     * `allow`: ninguém escolheu bloquear.
+     */
+    municipalServicePolicy: resolveMunicipalServicePolicy({
+      profiles: blockContext.emissionProfiles,
+      recipientTaxId: recipient.taxId,
+      senderTaxId: emitter.taxId,
+    }),
     recipientCity: recipient.city,
     recipientCityCode: recipient.cityCode,
     recipientState: recipient.state,

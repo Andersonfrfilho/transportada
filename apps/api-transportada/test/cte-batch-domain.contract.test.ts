@@ -3,4 +3,5 @@
  */
 import './cte-batch-domain/batch-name.contract.js'
 import './cte-batch-domain/document-block.contract.js'
+import './cte-batch-domain/municipal-service.contract.js'
 import './cte-batch-domain/weight-gate.contract.js'

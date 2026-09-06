@@ -62,6 +62,9 @@ describe('peso efetivo da carga', () => {
 })
 
 const DOCUMENT = {
+  municipalServicePolicy: 'allow',
+  recipientCityCode: '3554102',
+  senderCityCode: '3543402',
   recipientCity: 'Ribeirão Preto',
   recipientState: 'SP',
   recipientTaxId: '07531737000180',

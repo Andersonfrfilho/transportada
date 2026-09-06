@@ -29,6 +29,7 @@ export const CONTEXT = { companyId: COMPANY_ID, userId: USER_ID } as const
 
 export const PROFILE_SETTINGS: CteEmissionProfileSettings = {
   cargoInsuranceDeclared: true,
+  municipalServicePolicy: 'allow',
   cfopInternal: '5353',
   cfopInterstate: '6353',
   chargeComponentLabel: 'Frete Spani 4,5',

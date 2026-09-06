@@ -10,6 +10,7 @@ import {
   CTE_EMISSION_PROFILE_MATCH_MODES,
   CTE_ICMS_CSTS,
   CTE_MODALS,
+  CTE_MUNICIPAL_SERVICE_POLICIES,
   CTE_PICKUP_INDICATORS,
   CTE_PREDOMINANT_PRODUCT_MODES,
   CTE_RECEIVER_IE_INDICATORS,
@@ -65,6 +66,7 @@ const matcherSchema = z
 const settingsSchema = z
   .object({
     cargoInsuranceDeclared: z.boolean(),
+    municipalServicePolicy: z.enum(CTE_MUNICIPAL_SERVICE_POLICIES),
     cfopInternal: z.string().regex(CFOP),
     cfopInterstate: z.string().regex(CFOP),
     chargeComponentLabel: z.string().trim().min(1).max(100),

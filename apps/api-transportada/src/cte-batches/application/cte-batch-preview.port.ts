@@ -14,6 +14,9 @@ export type CteBatchPreviewDocument = {
   readonly issuedAt: string
   readonly number: string
   readonly recipientCity: string | null
+  /** O código do IBGE dos dois lados: é por ele que a competência do serviço é decidida. */
+  readonly recipientCityCode: string | null
+  readonly senderCityCode: string | null
   readonly recipientState: string | null
   readonly recipientTaxId: string | null
   readonly senderCity: string | null

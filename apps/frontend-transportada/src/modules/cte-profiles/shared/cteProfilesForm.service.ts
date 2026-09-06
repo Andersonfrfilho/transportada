@@ -85,6 +85,7 @@ export function toFormState(profile?: CteProfileDetail): ProfileFormState {
 
   return {
     cargoInsuranceDeclared: settings.cargoInsuranceDeclared,
+    municipalServicePolicy: settings.municipalServicePolicy,
     cfopInternal: settings.cfopInternal,
     cfopInterstate: settings.cfopInterstate,
     chargeComponentLabel: settings.chargeComponentLabel,
@@ -142,6 +143,7 @@ export function toProfileBody(state: ProfileFormState): CteProfileBody {
     matchers: state.matchers.filter((matcher) => matcher.taxId.trim() !== ''),
     settings: {
       cargoInsuranceDeclared: state.cargoInsuranceDeclared,
+      municipalServicePolicy: state.municipalServicePolicy,
       cfopInternal: state.cfopInternal,
       cfopInterstate: state.cfopInterstate,
       chargeComponentLabel: state.chargeComponentLabel,

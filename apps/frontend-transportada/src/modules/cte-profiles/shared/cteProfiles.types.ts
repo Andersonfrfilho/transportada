@@ -33,8 +33,16 @@ export const CTE_PROFILE_TAKER = ['0', '1', '2', '3'] as const
 export const CTE_PROFILE_RECEIVER_IE_INDICATOR = ['1', '2', '9'] as const
 export const CTE_PROFILE_PICKUP_INDICATOR = ['0', '1'] as const
 
+/**
+ * O que o perfil faz com serviço que começa e termina no mesmo município. ⚠️ Cópia por valor do
+ * catálogo da API (`CTE_MUNICIPAL_SERVICE_POLICIES`) — o bundle não carrega código dela. `allow` é
+ * o padrão e é o comportamento de sempre: quem separa CT-e de NFS-e é o operador, pelos dois botões.
+ */
+export const CTE_PROFILE_MUNICIPAL_SERVICE_POLICY = ['allow', 'block'] as const
+
 export type CteProfileSettings = Readonly<{
   cargoInsuranceDeclared: boolean
+  municipalServicePolicy: (typeof CTE_PROFILE_MUNICIPAL_SERVICE_POLICY)[number]
   cfopInternal: string
   cfopInterstate: string
   chargeComponentLabel: string

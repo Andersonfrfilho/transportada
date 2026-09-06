@@ -555,6 +555,34 @@ e as duas pontas provadas contra Postgres em `test/route-optimization-trip-weigh
 (a parada da viagem, que não tinha cobertura de integração nenhuma) e
 `test/route-optimization-pool.integration.test.ts` (o pool).
 
+**Serviço municipal é escolha do perfil, não premissa do produto** (spec do portão municipal).
+Transporte que começa e termina no mesmo município é NFS-e, com ISS, e não CT-e, que é ICMS — mas
+**medido em produção**: das notas de mesmo município, **0 de 920** tinham CT-e (um portão ligado por
+padrão não barraria nada), e as **62 de 62** NFS-e emitidas eram **intermunicipais** (a leitura
+inversa barraria a operação inteira). Nenhuma das duas descreve a operação, e o produto é genérico
+(ADR-0021): a regra virou dado.
+
+`cte_emission_profiles.municipal_service_policy` é `allow` (padrão, e o comportamento de sempre) ou
+`block`. Em `allow` quem separa CT-e de NFS-e continua sendo o operador, pelos dois botões da tela;
+em `block` a nota de mesmo município é recusada na seleção do lote com
+`CTE_BATCH_DOCUMENT_MUNICIPAL_SERVICE`. A migration `20260906140000_cte_profile_municipal_service_policy`
+é aditiva com default — **nenhuma instalação muda de comportamento ao aplicá-la**.
+
+⚠️ **A comparação é pelo código do IBGE, nunca pelo nome** (`RIBEIRAO PRETO`, `Ribeirão Preto` e
+`RIBEIRÃO PRETO` chegam das notas como três grafias), e são os municípios dos **participantes
+fiscais** — não o destino físico da spec 073: onde o caminhão encosta é roteiro, quem figura no
+documento define a competência do imposto. Código ausente de um dos lados **não barra nem com o
+portão ligado**.
+
+⚠️ **Dois consumidores perguntam qual perfil rege a nota**, e por isso a resposta mora num lugar só:
+`resolveMunicipalServicePolicy` (`cte-profiles/domain/emission-profile-resolution.policy.ts`). Ela
+usa `findEmissionProfile`, que é `resolveEmissionProfile` **sem lançar** — nota sem perfil, empate e
+participante sem CNPJ viram ausência, e ausência vira `allow`. A versão que lança continua sendo a da
+emissão, onde a falta de perfil é erro de verdade; usá-la na listagem derrubaria a tela inteira por
+causa de uma linha. Na seleção do lote o perfil é resolvido **duas vezes** de propósito: o portão
+roda antes de a nota ser considerada cobrável, e as duas leituras escolhem o mesmo perfil do mesmo
+catálogo. Na listagem os perfis ativos são carregados **uma vez por página**, como as regras de frete.
+
 **Cliente da fatura:** é o **tomador do frete**, quem paga — nunca um papel de participante da nota.
 Quem é o tomador está configurado em `cte_emission_profiles.taker` (`0` remetente, `3` destinatário)
 e a emissão grava o valor resolvido em `cte_issuance_payloads.taker_tax_id`/`taker_legal_name`; o

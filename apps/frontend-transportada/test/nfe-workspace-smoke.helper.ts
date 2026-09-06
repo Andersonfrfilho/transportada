@@ -112,6 +112,7 @@ const EMISSION_PROFILE_PAGE = {
   data: [
     {
       cargoInsuranceDeclared: false,
+      municipalServicePolicy: 'allow',
       cfopInternal: '5353',
       cfopInterstate: '6353',
       chargeComponentLabel: 'Frete',
