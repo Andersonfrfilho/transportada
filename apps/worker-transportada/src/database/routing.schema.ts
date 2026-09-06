@@ -129,6 +129,20 @@ export const tripStops = pgTable('trip_stops', {
   deliveryWindowEnd: timestamp('delivery_window_end', { withTimezone: true }),
 })
 
+/**
+ * O vínculo nota↔parada, que é o que dá massa medida à parada (spec 067 no roteirizador). Nota
+ * liberada perde o `stop_id` no mesmo `UPDATE` que carimba `released_at`; o filtro pede os dois
+ * porque um vínculo sem parada não é carga de parada nenhuma.
+ */
+export const tripDocuments = pgTable('trip_documents', {
+  id: uuid().primaryKey(),
+  companyId: uuid('company_id').notNull(),
+  tripId: uuid('trip_id').notNull(),
+  nfeDocumentId: uuid('nfe_document_id'),
+  stopId: uuid('stop_id'),
+  releasedAt: timestamp('released_at', { withTimezone: true }),
+})
+
 export const trips = pgTable('trips', {
   id: uuid().primaryKey(),
   companyId: uuid('company_id').notNull(),

@@ -85,11 +85,31 @@ describeDatabase('a proposta multi-veículo contra Postgres (spec 058 P2)', () =
       `)
     }
 
+    /**
+     * Spec 067 no roteirizador: o `pesoB` que o emitente declarou. A nota gêmea entra **sem volume**
+     * de propósito — é o emitente que omite a massa por nota, não por política, e é a parada mista
+     * que prova que a marca de estimativa é do pior caso.
+     */
     const seeded = [
-      { documentId: documentIds[0] as string, point: POINTS[0], number: '900001' },
-      { documentId: documentIds[1] as string, point: POINTS[1], number: '900002' },
-      { documentId: documentIds[2] as string, point: POINTS[2], number: '900003' },
-      { documentId: twinDocumentId, point: POINTS[0], number: '900004' },
+      {
+        documentId: documentIds[0] as string,
+        grossWeight: '37.6620',
+        point: POINTS[0],
+        number: '900001',
+      },
+      {
+        documentId: documentIds[1] as string,
+        grossWeight: '107.8440',
+        point: POINTS[1],
+        number: '900002',
+      },
+      {
+        documentId: documentIds[2] as string,
+        grossWeight: '336.0000',
+        point: POINTS[2],
+        number: '900003',
+      },
+      { documentId: twinDocumentId, grossWeight: null, point: POINTS[0], number: '900004' },
     ]
 
     for (const [index, entry] of seeded.entries()) {
@@ -118,6 +138,13 @@ describeDatabase('a proposta multi-veículo contra Postgres (spec 058 P2)', () =
         values (${participantId}, ${companyId}, ${entry.documentId}, 'recipient',
           '98765432000109', 'Destinatário')
       `)
+      if (entry.grossWeight !== null) {
+        await db.execute(sql`
+          insert into nfe_volumes (id, company_id, document_id, ordinal, quantity, gross_weight, net_weight)
+          values (${crypto.randomUUID()}, ${companyId}, ${entry.documentId}, 1, '8',
+            ${entry.grossWeight}, ${entry.grossWeight})
+        `)
+      }
       await db.execute(sql`
         insert into nfe_addresses
           (id, company_id, participant_id, street, number, district, city, city_code, state, postal_code)
@@ -175,6 +202,7 @@ describeDatabase('a proposta multi-veículo contra Postgres (spec 058 P2)', () =
     await db.execute(sql`delete from delivery_clients where company_id = ${companyId}`)
     await db.execute(sql`delete from nfe_addresses where company_id = ${companyId}`)
     await db.execute(sql`delete from nfe_participants where company_id = ${companyId}`)
+    await db.execute(sql`delete from nfe_volumes where company_id = ${companyId}`)
     await db.execute(sql`delete from nfe_documents where company_id = ${companyId}`)
     await db.execute(sql`delete from stored_objects where company_id = ${companyId}`)
     await db.execute(sql`delete from nfe_imports where company_id = ${companyId}`)
@@ -243,8 +271,15 @@ describeDatabase('a proposta multi-veículo contra Postgres (spec 058 P2)', () =
     const knownVehicles = new Set<string>([firstVehicleId, secondVehicleId])
     for (const stop of stops) expect(knownVehicles.has(stop.vehicle_id ?? '')).toBe(true)
 
-    /** O peso vem **marcado**: a nota do pool não passou pelo cálculo de frete (ADR-0044 §5). */
-    for (const stop of stops) expect(stop.weight_estimated).toBe(true)
+    /**
+     * Spec 067 no roteirizador: **o peso vem da nota.** As duas paradas cujas notas declararam
+     * `pesoB` saem medidas; a parada gêmea, que junta uma nota medida e uma sem massa, sai
+     * **marcada** — a marca é do pior caso, e a tela a mostra antes do aceite (ADR-0044 §5).
+     */
+    const twinAddressKey = POINTS[0]?.addressKey ?? ''
+    for (const stop of stops) {
+      expect(stop.weight_estimated).toBe(stop.address_key === twinAddressKey)
+    }
 
     /**
      * Spec 060 D2 no pool: **a janela do cliente chegou ao solver.** Sem ela, todas as paradas

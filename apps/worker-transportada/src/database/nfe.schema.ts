@@ -310,3 +310,15 @@ export const nfePackageBoxes = pgTable('nfe_package_boxes', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
+
+/**
+ * ⚠️ Cópia por valor de `company-cargo-settings.schema.ts` da API. Nulo é **estimativa desligada**,
+ * e é o padrão — a nota sem `pesoB` fica sem massa, e quem decide o que fazer com isso é quem lê.
+ *
+ * ⚠️ Não confundir com `company_route_optimization_settings.fallback_weight_kilograms`: aquele é
+ * peso por parada, este é peso por volume.
+ */
+export const companyCargoSettings = pgTable('company_cargo_settings', {
+  companyId: uuid('company_id').primaryKey(),
+  defaultVolumeWeight: numeric('default_volume_weight', { precision: 14, scale: 4 }),
+})

@@ -211,6 +211,49 @@ sintoma hoje, e o caminho de escrita nunca rodou contra nota real; é
 escrita. A população adiantada adianta os **dois** papéis, de propósito: o superconjunto nunca erra
 por falta, e o excedente é grátis porque o degrau que resolve é o do CEP.
 
+**O telefone do cliente já estava no banco, faltava o caminho até a tela.** O `<fone>` de
+`<enderDest>` é importado desde sempre e vive em `nfe_addresses.phone` — com um backfill próprio no
+worker (`nfe-party-contact-backfill.service.ts`) —, e a listagem não o publicava: quem monta a
+viagem precisa ligar para o cliente antes de o caminhão sair e não tinha por onde. Hoje
+`NfeDocumentSummary.recipientPhone` sai na listagem e no detalhe, e a linha da parada no mapa da
+montagem o imprime ao lado de um `CopyButton` em variante `inline`.
+
+⚠️ Ele é do **destinatário**, não do destino físico: é um "quem", e a linha divisória da spec 073
+mantém "quem" no destinatário mesmo quando `<entrega>` manda no lugar da parada. E ele **não entra
+na chave da parada** — duas notas do mesmo endereço com telefones diferentes continuam sendo uma
+parada só.
+
+⚠️ **O servidor serve o cru, e a máscara é de quem imprime.** `formatPhone` (frontend) é a máscara
+de quem **digita** e sempre trata os dois primeiros dígitos como DDD — verdade num campo em
+preenchimento, mentira no `<fone>` da nota, onde `39771234` é telefone local e viraria `(39) 771234`,
+um DDD de Minas num número de Ribeirão Preto. Quem imprime valor guardado usa `formatStoredPhone`,
+que só põe DDD em 10 ou 11 dígitos, quebra 8 e 9 sem DDD, e devolve **intacto** o que não cabe em
+nenhuma das quatro formas. O botão copia o **cru**, não o mascarado: colar num discador não deve
+obrigar ninguém a limpar pontuação. Contratos em `test/shared/stored-phone.contract.ts` e
+`test/trip/assembly-stop-phone.contract.ts` (frontend) e
+`test/nfe-documents/recipient-phone.contract.ts` (API).
+
+⚠️ **O e-mail do destinatário chega em quase toda nota e era descartado na leitura.** Medido em
+2026-09-05 sobre os XMLs arquivados desta base: **2337 de 2372** NF-e trazem `<email>` dentro de
+`<dest>`, 98,5% — em `883649 · MINIMERCADO ABADE LTDA` ele vem literalmente ao lado do `<fone>` que
+já importamos. A raiz era o pacote: `NfeXmlParty` do `@adatechnology/fiscal-provider` não tinha o
+campo, então o valor era lido do XML e jogado fora. Corrigido em
+`Andersonfrfilho/adatechnology-packages#105` (duas linhas: o campo no tipo e a leitura em
+`parseParty`).
+
+⚠️ **Ele é irmão de `<enderDest>`, não filho, e isso decide a tabela.** No layout o telefone mora no
+**endereço** e o e-mail mora na **parte** — então o destino é `nfe_participants`, ao lado de
+`tradeName`, e **não** `nfe_addresses` como o telefone. Repetir o caminho do telefone por analogia
+guardaria o campo na tabela errada, e lê-lo do endereço devolveria `undefined` em toda nota sem erro
+nenhum.
+
+O que falta aqui depois de a versão sair: coluna em `nfe_participants` → persistir na importação →
+preencher as já importadas por `nfe-party-contact-backfill.service.ts` (ele já relê os XMLs para
+`phoneByAddressId` e `tradeNameByParticipantId`; e-mail é `emailByParticipantId`, irmão do segundo) →
+`recipientEmail` na listagem → tela com botão de copiar, igual ao telefone. ⚠️ O bump não é pequeno:
+as duas apps pinam `0.3.0-rc.7` e o `main` do pacote já está em `0.3.0` estável, então o upgrade
+atravessa a estabilização e carrega o que mudou entre as duas linhas.
+
 **A chave de acesso é filtro de listagem, não rota nova.** `GET /nfe-documents?accessKey=` resolve os
 44 caracteres que a câmera leu no identificador que o vínculo pede, dentro do `companyId` do contexto
 — chave de outra empresa é ausência, não 403, e é
@@ -474,8 +517,43 @@ no mesmo caminhão, mesmo lacre, mesmo minuto. Duas consequências:
   CHECK (zero declararia que a carga não pesa nada). A estimativa entra **por volume**, para a soma
   de `composeCargoQuantities` continuar coerente com o `qVol`, e nota com **algum** volume pesado
   não é tocada. ⚠️ Não confundir com `company_route_optimization_settings.fallback_weight_kilograms`,
-  que é peso **por parada** para o solver. ⚠️ **Nenhuma tela mostra peso hoje**, então não há marca
-  de "estimado" por nota — quem expuser peso em qualquer superfície leva a origem junto.
+  que é peso **por parada** para o solver. ⚠️ **A primeira tela a mostrar peso é a busca de notas do
+  diálogo "Nova viagem"**, e ela leva a origem junto: `NfeDocumentSummary` publica
+  `cargoGrossWeight` **e** `cargoWeightSource`, e a coluna imprime "estimado" ao lado do número
+  quando a origem não é o XML. Os dois campos andam sempre em par — quem expuser peso em qualquer
+  outra superfície leva a origem junto, pela mesma razão da ADR-0044 §1: número plausível sem aviso
+  é o modo de falha. Ausência é `null` nos dois, nunca zero. O valor da nota (`totalAmount`) ganhou
+  coluna na mesma tabela, e o `formatWeightKilograms` de
+  `frontend-transportada/src/modules/shared/decimalAmount.service.ts` é separado do `formatAmount`
+  de propósito: as duas grandezas são `numeric(_, 4)`, e reusar o de dinheiro imprimiria `R$ 108,67`
+  numa coluna de massa sem o tipo acusar nada. Contratos em
+  `test/nfe-documents/cargo-weight-listing.contract.ts` (API) e
+  `test/trip/document-search-columns.contract.ts` (frontend). Medido em 2026-09-05: **344 das 345
+  notas trazem `pesoB`**, e `company_cargo_settings` está vazia — a estimativa não roda hoje.
+
+**O roteirizador passou a ler esse mesmo peso.** Até 2026-09-06 `readStops` e `readPoolStops`
+(`worker-transportada/src/routing/infrastructure/drizzle-route-optimization.repository.ts`) gravavam
+`weightEstimated: true` e `fallback_weight_kilograms` em **toda** parada — a média da empresa decidia
+capacidade enquanto a massa medida estava no banco. Medido em 347 XMLs reais do cliente: **todos**
+trazem `pesoB`, de 13,108 kg a 1.092,000 kg — uma faixa de 83× que um número só não representa.
+
+Hoje a precedência é a de `resolveStopWeight`
+(`worker-transportada/src/routing/domain/stop-weight.policy.ts`), e ela é **a mesma da listagem**:
+`pesoB` declarado → `qVol × company_cargo_settings.default_volume_weight` → ausência. Duas ordens
+diferentes fariam a tela e o roteirizador discordarem sobre a mesma nota.
+
+⚠️ Onde as duas divergem é na ausência: a listagem publica `null` (e a coluna fica vazia), e o solver
+**precisa de um número** — ignorar a nota mandaria carga a mais para um caminhão que ele acredita
+vazio. Ali entra `fallback_weight_kilograms`, que deixou de ser peso **por parada** e passou a ser
+peso **por nota sem medida**; com uma nota só, que era o caso de ontem, o resultado é idêntico.
+
+⚠️ `weightEstimated` é do **pior caso da parada**: uma nota sem massa entre outras medidas marca a
+parada inteira, porque é a marca que o conferente lê antes de aceitar (ADR-0044 §5). O worker ganhou
+cópia por valor de `trip_documents` (em `routing.schema.ts`) e de `company_cargo_settings` (em
+`nfe.schema.ts`) — migration continua sendo da API. Contrato em `test/routing/stop-weight.contract.ts`
+e as duas pontas provadas contra Postgres em `test/route-optimization-trip-weight.integration.test.ts`
+(a parada da viagem, que não tinha cobertura de integração nenhuma) e
+`test/route-optimization-pool.integration.test.ts` (o pool).
 
 **Cliente da fatura:** é o **tomador do frete**, quem paga — nunca um papel de participante da nota.
 Quem é o tomador está configurado em `cte_emission_profiles.taker` (`0` remetente, `3` destinatário)

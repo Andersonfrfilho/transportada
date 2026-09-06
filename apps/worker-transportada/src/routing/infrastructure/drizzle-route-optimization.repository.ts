@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
 
 import {
   companyRouteOptimizationSettings,
@@ -13,10 +13,16 @@ import {
   routeSuggestionStops,
   routeSuggestionVehicles,
   routeSuggestions,
+  tripDocuments,
   tripStops,
   trips,
 } from '../../database/routing.schema.js'
-import { nfeAddresses, nfeParticipants } from '../../database/nfe.schema.js'
+import {
+  companyCargoSettings,
+  nfeAddresses,
+  nfeParticipants,
+  nfeVolumes,
+} from '../../database/nfe.schema.js'
 import {
   deliveryClientExceptions,
   deliveryClientWindows,
@@ -29,6 +35,8 @@ import {
 } from '../domain/physical-destination.policy.js'
 import { resolveDeliveryWindow } from '../domain/delivery-window.policy.js'
 import { buildStopAddressKey } from '../domain/pool-address-key.js'
+import { resolveStopWeight } from '../domain/stop-weight.policy.js'
+import type { StopWeightDocument } from '../domain/stop-weight.policy.js'
 import type {
   RouteOptimizationContext,
   RouteOptimizationOutcome,
@@ -104,6 +112,11 @@ export function createDrizzleRouteOptimizationRepository(
       if (suggestion === undefined) return null
 
       const settings = await readSettings({ companyId: job.companyId, database })
+      /** Uma leitura por execução: a estimativa por volume é a mesma linha para toda parada. */
+      const defaultVolumeWeight = await readDefaultVolumeWeight({
+        companyId: job.companyId,
+        database,
+      })
       /**
        * O dia da sugestão, e ele é **um só**: a janela do cliente e o relógio do solver precisam da
        * mesma origem, senão a parada abriria às 8h de um dia e o percurso contaria a partir de outro.
@@ -125,6 +138,7 @@ export function createDrizzleRouteOptimizationRepository(
               dayStartSeconds,
               timezone: settings.timezone,
               defaultServiceTimeSeconds: settings.defaultServiceTimeSeconds,
+              defaultVolumeWeight,
               fallbackWeightKilograms: settings.fallbackWeightKilograms,
               suggestionId: job.suggestionId,
             })
@@ -132,6 +146,7 @@ export function createDrizzleRouteOptimizationRepository(
               companyId: job.companyId,
               database,
               defaultServiceTimeSeconds: settings.defaultServiceTimeSeconds,
+              defaultVolumeWeight,
               fallbackWeightKilograms: settings.fallbackWeightKilograms,
               tripId: suggestion.tripId,
             })
@@ -323,6 +338,57 @@ async function readSettings(input: {
 }
 
 /**
+ * O peso padrão por volume da empresa (spec 067). Uma consulta por execução, nunca por parada —
+ * é a mesma linha para todas elas. Ausência é estimativa desligada, que é o padrão da instalação.
+ */
+async function readDefaultVolumeWeight(input: {
+  readonly companyId: string
+  readonly database: RouteOptimizationDatabase
+}): Promise<string | null> {
+  const [row] = await input.database
+    .select({ defaultVolumeWeight: companyCargoSettings.defaultVolumeWeight })
+    .from(companyCargoSettings)
+    .where(eq(companyCargoSettings.companyId, input.companyId))
+    .limit(1)
+
+  return row?.defaultVolumeWeight ?? null
+}
+
+/**
+ * A massa declarada de cada nota, somada no banco. Uma consulta para o problema inteiro: um pool de
+ * oitenta notas viraria oitenta idas ao banco na rotina mais pesada do worker.
+ */
+async function readDocumentWeights(input: {
+  readonly companyId: string
+  readonly database: RouteOptimizationDatabase
+  readonly documentIds: readonly string[]
+}): Promise<ReadonlyMap<string, StopWeightDocument>> {
+  if (input.documentIds.length === 0) return new Map()
+
+  const rows = await input.database
+    .select({
+      documentId: nfeVolumes.documentId,
+      grossWeight: sql<string>`coalesce(sum(${nfeVolumes.grossWeight}), 0)::text`,
+      quantity: sql<string>`coalesce(sum(${nfeVolumes.quantity}), 0)::text`,
+    })
+    .from(nfeVolumes)
+    .where(
+      and(
+        eq(nfeVolumes.companyId, input.companyId),
+        inArray(nfeVolumes.documentId, [...input.documentIds]),
+      ),
+    )
+    .groupBy(nfeVolumes.documentId)
+
+  return new Map(
+    rows.map((row) => [row.documentId, { grossWeight: row.grossWeight, quantity: row.quantity }]),
+  )
+}
+
+/** Nota sem volume nenhum não some da parada: ela entra sem massa, e a política decide o que fazer. */
+const DOCUMENT_WITHOUT_VOLUMES: StopWeightDocument = { grossWeight: null, quantity: null }
+
+/**
  * A parada só entra na otimização com coordenada **fina**. Sem geocodificação, ou com centroide de
  * município, ela é marcada e sai — pedi-la ao OSRM gastaria um palpite de quilômetros (ADR-0044 §5).
  */
@@ -330,6 +396,7 @@ async function readStops(input: {
   readonly companyId: string
   readonly database: RouteOptimizationDatabase
   readonly defaultServiceTimeSeconds: number
+  readonly defaultVolumeWeight: string | null
   readonly fallbackWeightKilograms: string
   readonly tripId: string
 }): Promise<readonly RouteOptimizationStop[]> {
@@ -350,9 +417,41 @@ async function readStops(input: {
     .where(and(eq(tripStops.companyId, input.companyId), eq(tripStops.tripId, input.tripId)))
     .orderBy(tripStops.sequence)
 
+  const links = await input.database
+    .select({ nfeDocumentId: tripDocuments.nfeDocumentId, stopId: tripDocuments.stopId })
+    .from(tripDocuments)
+    .where(
+      and(
+        eq(tripDocuments.companyId, input.companyId),
+        eq(tripDocuments.tripId, input.tripId),
+        isNull(tripDocuments.releasedAt),
+        isNotNull(tripDocuments.stopId),
+        isNotNull(tripDocuments.nfeDocumentId),
+      ),
+    )
+
+  const weights = await readDocumentWeights({
+    companyId: input.companyId,
+    database: input.database,
+    documentIds: links.flatMap((link) => (link.nfeDocumentId === null ? [] : [link.nfeDocumentId])),
+  })
+
+  const documentsByStop = new Map<string, StopWeightDocument[]>()
+  for (const link of links) {
+    if (link.stopId === null || link.nfeDocumentId === null) continue
+    const current = documentsByStop.get(link.stopId) ?? []
+    current.push(weights.get(link.nfeDocumentId) ?? DOCUMENT_WITHOUT_VOLUMES)
+    documentsByStop.set(link.stopId, current)
+  }
+
   const dayStart = startOfUtcDaySeconds(new Date())
 
   return rows.map((row) => {
+    const weight = resolveStopWeight({
+      defaultWeightPerVolume: input.defaultVolumeWeight,
+      documents: documentsByStop.get(row.id) ?? [],
+      fallbackWeightKilograms: input.fallbackWeightKilograms,
+    })
     const hasFineCoordinate =
       row.latitude !== null && row.longitude !== null && isOptimizablePrecision(row.precision)
 
@@ -368,11 +467,12 @@ async function readStops(input: {
       serviceTimeSeconds: input.defaultServiceTimeSeconds,
       stopId: row.id,
       /**
-       * O peso ainda não vem da nota (spec 060): entra o médio da empresa, e **marcado** — o
-       * conferente precisa saber que aquela linha é estimativa antes de aceitar.
+       * O peso vem da nota (spec 067): a soma do `pesoB` das notas da parada. A marca continua
+       * saindo daqui, e ela é do **pior caso** — uma nota sem massa entre outras torna a parada
+       * estimativa, e o conferente precisa saber disso antes de aceitar.
        */
-      weightEstimated: true,
-      weightKilograms: Number(input.fallbackWeightKilograms),
+      weightEstimated: weight.estimated,
+      weightKilograms: weight.weightKilograms,
       windowEndSeconds: toRelativeSeconds(row.deliveryWindowEnd, dayStart),
       windowStartSeconds: toRelativeSeconds(row.deliveryWindowStart, dayStart),
     }
@@ -501,6 +601,7 @@ async function readPoolStops(input: {
   readonly date: string
   readonly dayStartSeconds: number
   readonly defaultServiceTimeSeconds: number
+  readonly defaultVolumeWeight: string | null
   readonly fallbackWeightKilograms: string
   readonly suggestionId: string
   readonly timezone: string
@@ -611,6 +712,11 @@ async function readPoolStops(input: {
     .where(inArray(geocodedAddresses.addressKey, [...grouped.keys()]))
 
   const byKey = new Map(coordinates.map((row) => [row.addressKey, row]))
+  const weights = await readDocumentWeights({
+    companyId: input.companyId,
+    database: input.database,
+    documentIds: [...grouped.values()].flatMap((group) => group.documentIds),
+  })
   const windows = await readPoolWindows({
     companyId: input.companyId,
     database: input.database,
@@ -630,6 +736,13 @@ async function readPoolStops(input: {
     })
     const hasFineCoordinate =
       point?.latitude != null && point.longitude !== null && point.precision !== 'city'
+    const weight = resolveStopWeight({
+      defaultWeightPerVolume: input.defaultVolumeWeight,
+      documents: group.documentIds.map(
+        (documentId) => weights.get(documentId) ?? DOCUMENT_WITHOUT_VOLUMES,
+      ),
+      fallbackWeightKilograms: input.fallbackWeightKilograms,
+    })
 
     return {
       addressKey,
@@ -643,12 +756,12 @@ async function readPoolStops(input: {
       /** A parada não existe ainda: é o aceite que a cria, pela reconciliação da 056. */
       stopId: null,
       /**
-       * O peso é sempre o de fallback aqui: a nota do pool ainda não passou pelo cálculo de frete, e
-       * inventar peso por produto seria uma segunda regra de peso. Ele vem **marcado**, e a tela
-       * mostra isso antes do aceite (ADR-0044 §5).
+       * O peso do pool é o das notas que caem nesta parada proposta — a mesma soma que a parada da
+       * viagem usa, porque é o mesmo agrupamento. A marca segue viajando junto, e a tela a mostra
+       * antes do aceite (ADR-0044 §5).
        */
-      weightEstimated: true,
-      weightKilograms: Number(input.fallbackWeightKilograms),
+      weightEstimated: weight.estimated,
+      weightKilograms: weight.weightKilograms,
       windowEndSeconds: window.endSeconds,
       windowStartSeconds: window.startSeconds,
     }
