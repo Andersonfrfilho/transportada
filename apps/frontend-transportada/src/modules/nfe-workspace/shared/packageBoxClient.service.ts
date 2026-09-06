@@ -20,6 +20,11 @@ export type PackageBox = Readonly<{
   withinCoverage: boolean
 }>
 
+/** As três situações da fila. `pending` é o padrão: ela existe para dizer o que medir agora. */
+export const PACKAGE_BOX_STATUS_FILTERS = ['pending', 'measured', 'all'] as const
+
+export type PackageBoxStatusFilter = (typeof PACKAGE_BOX_STATUS_FILTERS)[number]
+
 export type PackageBoxQueue = Readonly<{
   coveredCount: number
   items: readonly PackageBox[]
@@ -44,7 +49,7 @@ type ClientDependencies = Readonly<{
 
 export type PackageBoxClient = Readonly<{
   listBoxes: (
-    input?: Readonly<{ pendingOnly?: boolean; scanned?: string; search?: string }>,
+    input?: Readonly<{ scanned?: string; search?: string; status?: PackageBoxStatusFilter }>,
   ) => Promise<PackageBoxQueue>
   /** Grava e não devolve nada: a linha gravada não é a linha da fila, e quem recarrega é a query. */
   measureBox: (input: PackageBoxMeasurementInput) => Promise<void>
@@ -69,7 +74,7 @@ export function createPackageBoxClient(dependencies: ClientDependencies): Packag
       if (input?.search) url.searchParams.set('search', input.search)
       /** A etiqueta vai crua: reduzir DUN-14 a GTIN-13 é decisão da API, não da tela. */
       if (input?.scanned) url.searchParams.set('scanned', input.scanned)
-      if (input?.pendingOnly === false) url.searchParams.set('pending', 'false')
+      if (input?.status !== undefined) url.searchParams.set('status', input.status)
 
       const response = await dependencies.fetch(url, {
         headers: { authorization: await authorization() },

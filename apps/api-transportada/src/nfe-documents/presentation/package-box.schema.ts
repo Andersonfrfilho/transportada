@@ -4,7 +4,11 @@
 import { z } from 'zod'
 
 import { invalidRequest } from '../../http/request-parsing.service.js'
-import type { PackageBoxMeasurement } from '../application/package-box.port.js'
+import {
+  PACKAGE_BOX_STATUS_FILTERS,
+  type PackageBoxMeasurement,
+  type PackageBoxStatusFilter,
+} from '../application/package-box.port.js'
 
 const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 200
@@ -29,26 +33,34 @@ export function parsePackageBoxMeasurement(body: unknown): PackageBoxMeasurement
 export type PackageBoxListInput = {
   readonly filters: {
     readonly gtin?: string
-    readonly pendingOnly?: boolean
+    readonly status?: PackageBoxStatusFilter
     readonly scanned?: string
     readonly search?: string
   }
   readonly limit: number
 }
 
-/** A fila abre no que falta medir: `pending=false` é o operador pedindo para ver o já medido. */
+/** A fila abre no que falta medir; `status` é o operador pedindo para conferir o já medido. */
 export function parsePackageBoxList(url: URL): PackageBoxListInput {
   const limit = Number(url.searchParams.get('limit') ?? DEFAULT_LIMIT)
   if (!Number.isInteger(limit) || limit < 1 || limit > MAX_LIMIT) throw invalidRequest()
 
   const search = url.searchParams.get('search')?.trim()
   const scanned = url.searchParams.get('scanned')?.trim()
+  const status = url.searchParams.get('status')
+  /** Situação desconhecida é recusa, não silêncio: senão a tela pediria uma coisa e receberia outra. */
+  if (status !== null && !isStatusFilter(status)) throw invalidRequest()
+
   return {
     filters: {
-      pendingOnly: url.searchParams.get('pending') !== 'false',
+      status: status ?? 'pending',
       ...(search ? { search } : {}),
       ...(scanned ? { scanned } : {}),
     },
     limit,
   }
+}
+
+function isStatusFilter(value: string): value is PackageBoxStatusFilter {
+  return PACKAGE_BOX_STATUS_FILTERS.some((filter) => filter === value)
 }

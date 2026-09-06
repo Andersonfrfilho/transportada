@@ -4,11 +4,16 @@ import { useTranslation } from 'react-i18next'
 
 import { BarcodeScanner } from '@/components/ui/barcode-scanner'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
+import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
-import type { PackageBox, PackageBoxQueue } from '../shared/packageBoxClient.service'
+import {
+  PACKAGE_BOX_STATUS_FILTERS,
+  type PackageBox,
+  type PackageBoxQueue,
+  type PackageBoxStatusFilter,
+} from '../shared/packageBoxClient.service'
 import styles from '../styles/packageBoxes.module.css'
 
 type PackageBoxMeasurement = Readonly<{
@@ -24,13 +29,13 @@ type PackageBoxMeasurementPanelProps = Readonly<{
   failed: boolean
   loading: boolean
   onMeasure: (input: PackageBoxMeasurement & { id: string }) => void
-  onPendingOnlyChange: (pendingOnly: boolean) => void
+  onStatusChange: (status: PackageBoxStatusFilter) => void
   onScan: (text: string) => void
   onSearchChange: (search: string) => void
-  pendingOnly: boolean
   queue: PackageBoxQueue | null
   saving: boolean
   search: string
+  status: PackageBoxStatusFilter
 }>
 
 /**
@@ -47,6 +52,20 @@ const MAX_CENTIMETRES = { heightMm: 300, lengthMm: 600, widthMm: 300 } as const
 
 const MILLIMETRES_PER_CENTIMETRE = 10
 const PERCENT_SCALE = 100
+
+/**
+ * O caminho de volta: milímetro guardado vira centímetro digitável. Sem ele o formulário abria em
+ * branco sobre uma medida que existe — a mesma falha que `CargoVolumeFactorPanel` já evita —, e
+ * gravar por cima devolvia `unidades por caixa` a 1 **em silêncio**.
+ */
+function toCentimetres(millimetres: null | number): string {
+  if (millimetres === null) return ''
+  const centimetres = millimetres / MILLIMETRES_PER_CENTIMETRE
+  return String(Number.isInteger(centimetres) ? centimetres : centimetres.toFixed(1)).replace(
+    '.',
+    ',',
+  )
+}
 
 /** Aceita vírgula: o teclado do celular manda `38,5`, e meio centímetro é medida legítima. */
 function toMillimetres(value: string, field: keyof typeof MAX_CENTIMETRES): number | null {
@@ -82,13 +101,13 @@ export function PackageBoxMeasurementPanel({
   failed,
   loading,
   onMeasure,
-  onPendingOnlyChange,
   onScan,
   onSearchChange,
-  pendingOnly,
+  onStatusChange,
   queue,
   saving,
   search,
+  status,
 }: PackageBoxMeasurementPanelProps) {
   const { t } = useTranslation('nfeWorkspace')
   const [isScannerOpen, setIsScannerOpen] = useState(false)
@@ -133,11 +152,18 @@ export function PackageBoxMeasurementPanel({
         </Button>
       </div>
 
-      <Checkbox
-        checked={pendingOnly}
-        label={t('packageBoxes.pendingOnly')}
-        onChange={onPendingOnlyChange}
-      />
+      <label className={styles.field} htmlFor="package-box-status">
+        {t('packageBoxes.statusLabel')}
+        <Select
+          ariaLabel={t('packageBoxes.statusLabel')}
+          onChange={(value) => onStatusChange(value as PackageBoxStatusFilter)}
+          options={PACKAGE_BOX_STATUS_FILTERS.map((filter) => ({
+            label: t(`packageBoxes.status.${filter}`),
+            value: filter,
+          }))}
+          value={status}
+        />
+      </label>
 
       {items.length === 0 ? (
         <p className={styles.notice}>{t('packageBoxes.empty')}</p>
@@ -147,7 +173,7 @@ export function PackageBoxMeasurementPanel({
             <PackageBoxRow
               box={box}
               isEditing={editingId === box.id}
-              key={box.id}
+              key={`${box.id}:${box.measuredAt ?? 'sem-medida'}`}
               onCancel={() => setEditingId(null)}
               onMeasure={(measurement) => {
                 onMeasure({ ...measurement, id: box.id })
@@ -198,15 +224,15 @@ function PackageBoxRow({
   saving,
 }: PackageBoxRowProps) {
   const { t } = useTranslation('nfeWorkspace')
-  const [lengthMm, setLengthMm] = useState('')
-  const [widthMm, setWidthMm] = useState('')
-  const [heightMm, setHeightMm] = useState('')
+  const [lengthMm, setLengthMm] = useState(() => toCentimetres(box.lengthMm))
+  const [widthMm, setWidthMm] = useState(() => toCentimetres(box.widthMm))
+  const [heightMm, setHeightMm] = useState(() => toCentimetres(box.heightMm))
   /**
    * ⚠️ Quantas unidades vão dentro. Só importa quando `uCom` **não** é a embalagem: em `CX24` a nota
    * já conta caixas e o valor é 1, em `UN` ela conta unidades e sem isto a ocupação sairia
    * multiplicada por quantas couberem.
    */
-  const [unitsPerBox, setUnitsPerBox] = useState('1')
+  const [unitsPerBox, setUnitsPerBox] = useState(() => String(box.unitsPerBox))
 
   const length = toMillimetres(lengthMm, 'lengthMm')
   const width = toMillimetres(widthMm, 'widthMm')
@@ -220,16 +246,39 @@ function PackageBoxRow({
         <strong>{box.description || box.productCode}</strong>
         <span className={styles.unit}>{box.commercialUnit}</span>
       </div>
+      {/*
+        ⚠️ O acumulado e a marca de cobertura só valem para o que **falta** medir: eles respondem
+        "até onde vale descer a fila". Na caixa já medida eles anunciariam uma decisão que não
+        existe mais, e é a medida dela que interessa ali.
+      */}
       <p className={styles.hint}>
-        {t('packageBoxes.transported', { count: box.transportedVolumes })} ·{' '}
-        {t('packageBoxes.cumulative', { percent: Math.round(box.cumulativeShare * PERCENT_SCALE) })}
-        {box.withinCoverage ? null : (
+        {t('packageBoxes.transported', { count: box.transportedVolumes })}
+        {box.measuredAt !== null ? null : (
           <>
             {' · '}
-            <span className={styles.tail}>{t('packageBoxes.tail')}</span>
+            {t('packageBoxes.cumulative', {
+              percent: Math.round(box.cumulativeShare * PERCENT_SCALE),
+            })}
+            {box.withinCoverage ? null : (
+              <>
+                {' · '}
+                <span className={styles.tail}>{t('packageBoxes.tail')}</span>
+              </>
+            )}
           </>
         )}
       </p>
+
+      {box.measuredAt === null || isEditing ? null : (
+        <p className={styles.hint}>
+          {t('packageBoxes.measured', {
+            height: toCentimetres(box.heightMm),
+            length: toCentimetres(box.lengthMm),
+            units: box.unitsPerBox,
+            width: toCentimetres(box.widthMm),
+          })}
+        </p>
+      )}
 
       {isEditing ? (
         <form

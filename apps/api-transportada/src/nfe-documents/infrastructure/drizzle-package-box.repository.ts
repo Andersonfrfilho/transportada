@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm'
+import { and, eq, ilike, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
 
 import {
   nfeDocuments,
@@ -92,7 +92,7 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
       .where(
         and(
           eq(nfePackageBoxes.companyId, input.companyId),
-          input.filters.pendingOnly === true ? isNull(nfePackageBoxes.measuredAt) : undefined,
+          buildStatusFilter(input.filters.status),
           buildScanFilter(input.filters.scanCodes),
           search === undefined
             ? undefined
@@ -142,6 +142,12 @@ export class DrizzlePackageBoxRepository implements PackageBoxRepositoryPort {
 
     return rows.length > 0
   }
+}
+
+function buildStatusFilter(status: PackageBoxFilters['status']) {
+  if (status === 'measured') return isNotNull(nfePackageBoxes.measuredAt)
+  if (status === 'all') return undefined
+  return isNull(nfePackageBoxes.measuredAt)
 }
 
 /**

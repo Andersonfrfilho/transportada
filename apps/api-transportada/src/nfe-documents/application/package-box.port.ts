@@ -19,6 +19,10 @@ export type PackageBoxView = {
   readonly widthMm: number | null
 }
 
+export const PACKAGE_BOX_STATUS_FILTERS = ['pending', 'measured', 'all'] as const
+
+export type PackageBoxStatusFilter = (typeof PACKAGE_BOX_STATUS_FILTERS)[number]
+
 export type PackageBoxFilters = {
   /** Texto livre do conferente: casa descrição e código do produto. */
   readonly search?: string
@@ -27,8 +31,11 @@ export type PackageBoxFilters = {
    * "li algo que não é código nenhum" — busca sem resultado, nunca busca sem filtro.
    */
   readonly scanCodes?: readonly string[]
-  /** `true` traz só o que ainda não tem medida — o padrão da fila. */
-  readonly pendingOnly?: boolean
+  /**
+   * A situação da medida. `pending` é o padrão — a fila existe para dizer o que medir agora —, e
+   * `all` serve a quem foi conferir ou corrigir uma caixa que já mediu.
+   */
+  readonly status?: PackageBoxStatusFilter
 }
 
 export type PackageBoxMeasurement = {

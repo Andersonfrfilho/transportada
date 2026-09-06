@@ -67,6 +67,26 @@ describe('a fila de medição vista pelo conferente (spec 085 G005)', () => {
     expect(() => packageBoxQueueFromApi(null)).toThrow()
   })
 
+  /** A fila abre no que falta medir: ela existe para dizer o que medir agora. */
+  it('a situação padrão é o que falta medir', async () => {
+    const captured: { url?: string } = {}
+    await buildClient({ data: { coveredCount: 0, items: [], totalVolumes: 0 } }, captured).listBoxes(
+      { status: 'pending' },
+    )
+
+    expect(captured.url).toContain('status=pending')
+  })
+
+  /** Ver o já medido é o caminho de conferir e corrigir uma caixa — não some atrás de um checkbox. */
+  it('pede as medidas quando o operador troca a situação', async () => {
+    const captured: { url?: string } = {}
+    await buildClient({ data: { coveredCount: 0, items: [], totalVolumes: 0 } }, captured).listBoxes(
+      { status: 'all' },
+    )
+
+    expect(captured.url).toContain('status=all')
+  })
+
   /** O que o leitor bipa vai como `scanned`: quem reduz DUN-14 a GTIN-13 é a API, não a tela. */
   it('manda a etiqueta lida como scanned, sem reduzi-la aqui', async () => {
     const captured: { url?: string } = {}
@@ -190,5 +210,29 @@ describe('os cabeçalhos que cada método manda', () => {
 
     const headers = captured.init?.headers as Record<string, string>
     expect(Object.keys(headers).sort()).toEqual(['authorization', 'content-type'])
+  })
+})
+
+/**
+ * ⚠️ **Editar uma medida abre preenchido.** Campo em branco sobre dado que existe é a falha que o
+ * registro evita (mesma regra de `CargoVolumeFactorPanel`) — e aqui ela era pior que estética: com
+ * `unidades por caixa` voltando a `1`, gravar por cima **apagava** a medida em silêncio, e a
+ * ocupação da viagem passava a contar cada unidade como uma caixa inteira.
+ */
+describe('editar a medida de uma caixa já medida', () => {
+  it('abre com o que está gravado, convertido de volta para centímetro', async () => {
+    const panel = await Bun.file(
+      new URL(
+        '../../src/modules/nfe-workspace/components/PackageBoxMeasurementPanel.component.tsx',
+        import.meta.url,
+      ),
+    ).text()
+
+    expect(panel).toContain('useState(() => toCentimetres(box.lengthMm))')
+    expect(panel).toContain('useState(() => String(box.unitsPerBox))')
+    /** A linha remonta quando a medida muda: sem isso o estado inicial ficaria preso ao antigo. */
+    expect(panel).toContain("key={`${box.id}:${box.measuredAt ?? 'sem-medida'}`}")
+    /** E a medida aparece na linha, para conferir sem precisar abrir o formulário. */
+    expect(panel).toContain("t('packageBoxes.measured'")
   })
 })

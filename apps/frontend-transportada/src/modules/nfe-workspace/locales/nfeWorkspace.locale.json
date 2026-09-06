@@ -443,7 +443,6 @@
     "description": "Meça a caixa de papelão do produto. A fila vem na ordem do que mais roda: as primeiras cobrem a maior parte do que sai do galpão.",
     "searchLabel": "Buscar por produto ou código",
     "scan": "Ler etiqueta",
-    "pendingOnly": "Mostrar só o que falta medir",
     "empty": "Nenhuma caixa nesta busca.",
     "denied": "Você não tem permissão para medir caixas.",
     "failed": "Não foi possível carregar a fila de medição.",
@@ -466,6 +465,13 @@
       "unavailable": "A câmera não está disponível neste aparelho. Digite o código na busca."
     },
     "outOfRange": "Valor fora da faixa: no máximo {{max}} cm.",
-    "unitsPerBox": "Unidades por caixa"
+    "unitsPerBox": "Unidades por caixa",
+    "statusLabel": "Situação",
+    "status": {
+      "pending": "Faltam medir",
+      "measured": "Já medidas",
+      "all": "Todas"
+    },
+    "measured": "{{length}} × {{width}} × {{height}} cm · {{units}} un/cx"
   }
 }

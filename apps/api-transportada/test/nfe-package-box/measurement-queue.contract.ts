@@ -6,9 +6,9 @@ import { describe, expect, test } from 'bun:test'
 import { buildMeasurementQueue } from '../../src/nfe-documents/domain/package-box-queue.policy.js'
 
 const ITEMS = [
-  { id: 'c', transportedVolumes: 10 },
-  { id: 'a', transportedVolumes: 60 },
-  { id: 'b', transportedVolumes: 30 },
+  { id: 'c', measured: false, transportedVolumes: 10 },
+  { id: 'a', measured: false, transportedVolumes: 60 },
+  { id: 'b', measured: false, transportedVolumes: 30 },
 ]
 
 describe('a fila de medição de caixas (spec 085 G005)', () => {
@@ -45,7 +45,7 @@ describe('a fila de medição de caixas (spec 085 G005)', () => {
   test('a primeira linha sempre compensa', () => {
     const queue = buildMeasurementQueue({
       coverageTarget: 0.5,
-      items: [{ id: 'unico', transportedVolumes: 900 }],
+      items: [{ id: 'unico', measured: false, transportedVolumes: 900 }],
     })
 
     expect(queue.entries[0]?.withinCoverage).toBe(true)
@@ -55,8 +55,8 @@ describe('a fila de medição de caixas (spec 085 G005)', () => {
   test('empate tem ordem estável', () => {
     const queue = buildMeasurementQueue({
       items: [
-        { id: 'z', transportedVolumes: 5 },
-        { id: 'a', transportedVolumes: 5 },
+        { id: 'z', measured: false, transportedVolumes: 5 },
+        { id: 'a', measured: false, transportedVolumes: 5 },
       ],
     })
 
@@ -68,11 +68,31 @@ describe('a fila de medição de caixas (spec 085 G005)', () => {
    * por ele produziria `NaN` em toda a coluna de porcentagem.
    */
   test('nada transportado não vira divisão por zero', () => {
-    const queue = buildMeasurementQueue({ items: [{ id: 'a', transportedVolumes: 0 }] })
+    const queue = buildMeasurementQueue({ items: [{ id: 'a', measured: false, transportedVolumes: 0 }] })
 
     expect(queue.totalVolumes).toBe(0)
     expect(queue.entries[0]?.cumulativeShare).toBe(0)
     expect(queue.entries[0]?.withinCoverage).toBe(false)
     expect(buildMeasurementQueue({ items: [] }).entries).toEqual([])
+  })
+})
+
+/**
+ * ⚠️ **A prioridade é do filtro, não da ordem** (spec 085 G005). Ordenar "pendentes primeiro" foi
+ * tentado e desfeito: com 663 caixas por medir e cinco medidas, toda medida caía para além das
+ * cinquenta da página e a opção "Todas" ficava idêntica a "Faltam medir". A ordem é sempre o volume
+ * transportado — a mesma que dá sentido à fatia e ao acumulado.
+ */
+describe('a ordem não conhece a situação da medida', () => {
+  test('a caixa medida de maior volume continua na frente', () => {
+    const queue = buildMeasurementQueue({
+      items: [
+        { id: 'medida-grande', measured: true, transportedVolumes: 900 },
+        { id: 'pendente-media', measured: false, transportedVolumes: 100 },
+      ],
+    })
+
+    expect(queue.entries.map((entry) => entry.id)).toEqual(['medida-grande', 'pendente-media'])
+    expect(queue.entries[0]?.share).toBeCloseTo(0.9, 3)
   })
 })

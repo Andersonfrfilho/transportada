@@ -53,7 +53,11 @@ export function createListPackageBoxes(dependencies: {
       })
 
       const queue: MeasurementQueue = buildMeasurementQueue({
-        items: items.map((item) => ({ id: item.id, transportedVolumes: item.transportedVolumes })),
+        items: items.map((item) => ({
+          id: item.id,
+          measured: item.measuredAt !== null,
+          transportedVolumes: item.transportedVolumes,
+        })),
       })
       const byId = new Map(items.map((item) => [item.id, item]))
 

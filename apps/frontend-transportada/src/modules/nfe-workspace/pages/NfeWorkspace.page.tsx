@@ -634,13 +634,13 @@ export function NfeWorkspacePage() {
                     failed={packageBoxes.failed}
                     loading={packageBoxes.isLoading}
                     onMeasure={(measurement) => packageBoxes.measure.mutate(measurement)}
-                    onPendingOnlyChange={packageBoxes.setPendingOnly}
                     onScan={packageBoxes.setScanned}
                     onSearchChange={packageBoxes.setSearch}
-                    pendingOnly={packageBoxes.pendingOnly}
+                    onStatusChange={packageBoxes.setStatus}
                     queue={packageBoxes.queue}
                     saving={packageBoxes.measure.isPending}
                     search={packageBoxes.search}
+                    status={packageBoxes.status}
                   />
                 ),
               },

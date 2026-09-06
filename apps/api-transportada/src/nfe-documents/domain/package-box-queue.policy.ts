@@ -7,6 +7,8 @@ const DEFAULT_COVERAGE_TARGET = 0.8
 
 export type MeasurementQueueItem = {
   readonly id: string
+  /** `true` quando o conferente já mediu esta caixa — decide a ordem, nunca a fatia. */
+  readonly measured: boolean
   /** Quantos volumes desta caixa a empresa já transportou — é o que ordena a fila. */
   readonly transportedVolumes: number
 }
@@ -86,3 +88,13 @@ function computeCheckDigit(base: string): number {
   }
   return (10 - (sum % 10)) % 10
 }
+
+/**
+ * ⚠️ **Não existe ordenação "pendentes primeiro", e a ausência é decisão.** Ela foi escrita e
+ * removida no mesmo dia: com 663 caixas por medir e cinco medidas, pôr as pendentes na frente
+ * empurrava toda medida para além das cinquenta da página, e a opção "Todas" ficava idêntica a
+ * "Faltam medir" — a ordem por prioridade escondia justamente o que aquela opção existe para
+ * mostrar. Quem separa as duas coisas é o **filtro de situação**, não a ordem.
+ *
+ * A ordem é sempre a do volume transportado, e é a mesma que dá sentido à fatia e ao acumulado.
+ */

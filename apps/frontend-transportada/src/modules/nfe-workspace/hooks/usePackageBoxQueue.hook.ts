@@ -6,6 +6,7 @@ import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthP
 import {
   createPackageBoxClient,
   type PackageBoxMeasurementInput,
+  type PackageBoxStatusFilter,
 } from '../shared/packageBoxClient.service'
 
 const PACKAGE_BOX_QUERY_KEY = 'nfe-package-boxes'
@@ -40,7 +41,8 @@ export function usePackageBoxQueue(input: Readonly<{ companyId?: string; enabled
   const client = createClient()
   const [search, setSearch] = useState('')
   const [scanned, setScanned] = useState<string | null>(null)
-  const [pendingOnly, setPendingOnly] = useState(true)
+  /** Abre no que falta medir: a fila existe para dizer o que medir agora. */
+  const [status, setStatus] = useState<PackageBoxStatusFilter>('pending')
   /**
    * ⚠️ O termo entra na chave **depois** do repouso: cru, "REFRIGERANTE" dispara doze requisições,
    * cada uma com a soma do volume transportado da empresa inteira atrás dela. Mesmo intervalo da
@@ -52,14 +54,14 @@ export function usePackageBoxQueue(input: Readonly<{ companyId?: string; enabled
     input.companyId,
     debouncedSearch,
     scanned,
-    pendingOnly,
+    status,
   ] as const
 
   const query = useQuery({
     enabled: input.enabled && input.companyId !== undefined,
     queryFn: () =>
       client.listBoxes({
-        pendingOnly,
+        status,
         ...(scanned === null ? {} : { scanned }),
         ...(debouncedSearch === '' ? {} : { search: debouncedSearch }),
       }),
@@ -81,11 +83,10 @@ export function usePackageBoxQueue(input: Readonly<{ companyId?: string; enabled
     failed: query.isError,
     isLoading: query.isLoading,
     measure,
-    pendingOnly,
     queue: query.data ?? null,
     scanned,
     search,
-    setPendingOnly,
+    setStatus,
     /** Bipar substitui o texto digitado: são a mesma pergunta, feita de dois jeitos. */
     setScanned: (value: null | string) => {
       setScanned(value)
@@ -95,5 +96,6 @@ export function usePackageBoxQueue(input: Readonly<{ companyId?: string; enabled
       setSearch(value)
       setScanned(null)
     },
+    status,
   }
 }

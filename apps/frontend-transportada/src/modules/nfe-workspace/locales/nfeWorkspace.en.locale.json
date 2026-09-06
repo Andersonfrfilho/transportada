@@ -282,7 +282,6 @@
     "description": "Measure the product's cardboard box. The queue is ordered by what ships the most.",
     "searchLabel": "Search by product or code",
     "scan": "Scan label",
-    "pendingOnly": "Show only what is missing",
     "empty": "No boxes for this search.",
     "denied": "You do not have permission to measure boxes.",
     "failed": "Could not load the measurement queue.",
@@ -305,6 +304,13 @@
       "unavailable": "The camera is unavailable on this device. Type the code in the search field."
     },
     "outOfRange": "Out of range: {{max}} cm at most.",
-    "unitsPerBox": "Units per box"
+    "unitsPerBox": "Units per box",
+    "statusLabel": "Status",
+    "status": {
+      "pending": "To measure",
+      "measured": "Measured",
+      "all": "All"
+    },
+    "measured": "{{length}} × {{width}} × {{height}} cm · {{units}} per box"
   }
 }
