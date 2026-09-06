@@ -14,15 +14,17 @@ Fase 1 — o que já está no arquivo
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T100 Contrato: as três camadas existem, o estilo segue válido nos três temas, e a seta inverte
+- [x] T100 Contrato: as três camadas existem, o estilo segue válido nos três temas, e a seta inverte
       em `oneway = -1` — `test/trip/vector-basemap.contract.ts` — vermelho antes da T102
-- [ ] T101 Conferir se a seta cabe num glifo da `Noto Sans Regular` embarcada; se não, `map.addImage`
-      — decide o caminho da T102, e o risco está no `plan.md`
-- [ ] T102 Camada `sentido-da-via` a partir do zoom 15, no sentido do traço — `vectorBasemap.service.ts` — T100 verde
-- [ ] T103 [P] Camada `via-com-pedagio`, tracejada sobre o traçado — `vectorBasemap.service.ts` — contrato
-- [ ] T104 [P] Camada `cabine-de-pedagio` sobre `poi/toll_booth` — `vectorBasemap.service.ts` — contrato
-- [ ] T105 Ordem no estilo: as três abaixo dos pinos da parada — `vectorBasemap.service.ts` — contrato de ordem
-- [ ] T106 Conferência em staging sobre rua de mão única conhecida — evidência com a medição repetida
+- [x] T101 Conferir se a seta cabe num glifo da `Noto Sans Regular` embarcada; se não, `map.addImage`
+      — decide o caminho da T102, e o risco está no `plan.md`. **Cabe** — `→` no bloco `8448-8703`.
+- [x] T102 Camada `sentido-da-via` a partir do zoom 15, no sentido do traço — `vectorBasemap.service.ts` — T100 verde
+- [x] T103 [P] Camada `via-com-pedagio`, tracejada sobre o traçado — `vectorBasemap.service.ts` — contrato
+- [x] T104 [P] Camada `cabine-de-pedagio` sobre `poi/toll_booth` — `vectorBasemap.service.ts` — contrato
+- [x] T105 Ordem no estilo: as três abaixo dos pinos da parada — `vectorBasemap.service.ts` — contrato de ordem
+- [x] T106 Conferência em staging sobre rua de mão única conhecida — evidência com a medição repetida.
+      **Rua Duque de Caxias** (centro): 2 feições, `oneway=1`. Cabine real na Rodovia Atílio Balbo:
+      2 feições, batendo com os 2 nós `toll_booth` do OSM naquele ponto.
 
 Fase 2 — o overlay do radar
 
