@@ -668,6 +668,14 @@ function isCargoLayout(value: unknown): boolean {
     typeof value.orderIsBinding === 'boolean' &&
     typeof value.occupancyKnown === 'boolean' &&
     isString(value.overflowM3) &&
+    /**
+     * Spec 088: os quatro andam juntos — ou o baú tem medida e a planta existe, ou nenhum deles vem.
+     * Um só preenchido seria uma planta com metade da escala, desenhada mesmo assim.
+     */
+    isNullableString(value.bedLengthM) &&
+    isNullableString(value.bedWidthM) &&
+    isNullableString(value.freeDepthM) &&
+    isNullableString(value.overflowDepthM) &&
     Array.isArray(value.stopsWithoutVolume)
   )
 }

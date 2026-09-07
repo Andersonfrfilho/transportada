@@ -267,7 +267,8 @@
     "withoutVolume_other": "{{count}} notas sem cubagem não entraram na conta.",
     "dimensions": "Baú de {{length}} × {{width}} × {{height}} m = {{volume}} m³.",
     "partial": "Parcial: parte das caixas usou a medida mediana da empresa.",
-    "weightConcentration": "Atenção: {{percent}}% do peso está na parada {{stop}} — o desenho acima é de volume, não de peso."
+    "weightConcentration": "Atenção: {{percent}}% do peso está na parada {{stop}} — o desenho acima é de volume, não de peso.",
+    "capacityUnknown": "Este veículo não tem capacidade cadastrada, e o tipo dele não tem referência de mercado — por isso não há ocupação nem planta do baú. Preencha comprimento, largura e altura do baú na ficha do veículo, em Frota."
   },
   "cargoWeight": {
     "title": "Peso da carga",
@@ -305,6 +306,23 @@
     "overflow": "Passa {{volume}} m³ da capacidade do veículo.",
     "withoutVolume": "Sem cubagem, e por isso fora do mapa: {{stops}}.",
     "estimated": "As fatias saem da cubagem estimada, não de medida da carga."
+  },
+  "cargoPlan": {
+    "title": "Planta do baú, vista de cima",
+    "ariaLabel": "Planta do baú em escala: {{length}} m de comprimento por {{width}} m de largura",
+    "door": "Porta",
+    "band": "{{label}}: ocupa {{depth}} m de baú, a partir de {{distance}} m da porta.",
+    "layers": "Cabem {{perLayer}} caixas por camada, em {{layers}} camadas.",
+    "overflow": "A carga passa {{metres}} m da porta — o excedente aparece hachurado, fora do baú.",
+    "unmeasuredBoxes": "{{count}} caixa desta viagem ainda não foi medida, e por isso a faixa dela não conta camadas.",
+    "sideReachable": "Este veículo abre pela lateral: a ordem ajuda a descarregar, mas não obriga.",
+    "missingBed": "Sem a medida do baú a tela não promete metro — as fileiras acima são proporção, não posição.",
+    "missingBedField": "Preencha comprimento, largura e altura do baú na ficha do veículo, em Frota.",
+    "reserved": "Cada faixa é o espaço que o volume daquela entrega reserva no baú, não a posição das caixas: a divisão é ao longo do comprimento, do fundo até a porta.",
+    "missingBedLink": "Abrir a ficha do veículo",
+    "bandThroughDoor": "{{label}}: ocupa {{depth}} m de baú e atravessa {{distance}} m para fora da porta.",
+    "unmeasuredBoxes_other": "{{count}} caixas desta viagem ainda não foram medidas, e por isso as faixas delas não contam camadas.",
+    "unmeasuredBoxesLink": "Abrir a fila de medição"
   },
   "destinationOrigin": {
     "delivery": "Entrega",

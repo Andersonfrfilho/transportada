@@ -2,7 +2,12 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { formatScaledDecimal, parseScaledDecimal } from '../../shared/decimal.service.js'
-import { resolveCargoLayout, type ResolvedCargoLayout } from '../domain/cargo-layout.policy.js'
+import type { CargoPlanBox } from '../domain/cargo-plan.policy.js'
+import {
+  resolveBedDimensions,
+  resolveCargoLayout,
+  type ResolvedCargoLayout,
+} from '../domain/cargo-layout.policy.js'
 import {
   buildCargoPreviewStops,
   type CargoPreviewDocument,
@@ -29,6 +34,8 @@ export type TripCargoPreview = {
 }
 
 export type TripCargoPreviewContext = {
+  /** Spec 088 G003: as caixas medidas por nota — a parada as reúne no mesmo agrupamento. */
+  readonly boxesByDocument: ReadonlyMap<string, readonly CargoPlanBox[]>
   readonly capacityM3: string | null
   readonly loadingAccess: LoadingAccess
   readonly cargoWeight: TripCargoWeightView | null
@@ -73,9 +80,12 @@ export async function previewTripCargo(input: PreviewTripCargoInput): Promise<Tr
 
   return {
     cargoLayout: resolveCargoLayout({
+      /** Spec 088 D2: só a ficha desenha planta — a referência de mercado erra por 2× no tipo. */
+      bedDimensions: resolveBedDimensions(context.occupancy),
       capacityM3: context.capacityM3,
       loadingAccess: context.loadingAccess,
       stops: buildCargoPreviewStops({
+        boxesByDocument: context.boxesByDocument,
         documents: context.documents,
         order: input.stopOrder,
       }),

@@ -97,6 +97,32 @@ const ownerSchema = z
   })
   .strict()
 
+/**
+ * ⚠️ Os mesmos pisos e tetos dos CHECKs `fleet_vehicles_cargo_{length,width,height}_check`. Sem
+ * eles a fronteira aceita os 2,5 cm que a spec 088 cita como caso extremo, o `INSERT` estoura o
+ * CHECK e o Exception Filter devolve **500 genérico** — nenhum campo marcado, e a separação dos
+ * três CHECKs (feita justamente para nomear qual medida está fora) sem leitor nenhum.
+ *
+ * Zero continua passando: é ausência de medida, e é o estado da frota que ainda não mediu.
+ */
+const CARGO_DIMENSION_BOUNDS = {
+  cargoHeightMeters: { max: 5, min: 0.3 },
+  cargoLengthMeters: { max: 30, min: 0.3 },
+  cargoWidthMeters: { max: 4, min: 0.3 },
+} as const
+
+function buildCargoDimensionSchema(key: keyof typeof CARGO_DIMENSION_BOUNDS) {
+  const { max, min } = CARGO_DIMENSION_BOUNDS[key]
+
+  return z
+    .string()
+    .regex(MEASURE_DECIMAL)
+    .refine((value) => {
+      const metres = Number(value)
+      return metres === 0 || (metres >= min && metres <= max)
+    })
+}
+
 const vehicleFieldsSchema = z.object({
   acquisitionAmount: z.string().regex(MONEY_DECIMAL),
   annualInsuranceAmount: z.string().regex(MONEY_DECIMAL),
@@ -108,9 +134,9 @@ const vehicleFieldsSchema = z.object({
   brand: z.string().trim().max(VEHICLE_BRAND_MAX_LENGTH),
   capacityCubicMeters: z.string().regex(MEASURE_DECIMAL),
   capacityKilograms: z.string().regex(MEASURE_DECIMAL),
-  cargoHeightMeters: z.string().regex(MEASURE_DECIMAL),
-  cargoLengthMeters: z.string().regex(MEASURE_DECIMAL),
-  cargoWidthMeters: z.string().regex(MEASURE_DECIMAL),
+  cargoHeightMeters: buildCargoDimensionSchema('cargoHeightMeters'),
+  cargoLengthMeters: buildCargoDimensionSchema('cargoLengthMeters'),
+  cargoWidthMeters: buildCargoDimensionSchema('cargoWidthMeters'),
   color: z.literal('').or(z.enum(VEHICLE_COLORS)),
   fleetNumber: z.string().trim().max(VEHICLE_FLEET_NUMBER_MAX_LENGTH),
   fuelType: z.enum(FUEL_PRODUCTS_TUPLE),

@@ -169,6 +169,32 @@ describe('fleet vehicle schema', () => {
     expect(check).toContain('>= 0')
   })
 
+  /**
+   * Spec 088: a medida do baú é o que a planta desenha em metros, e a fita do conferente desmente
+   * erro de ordem de grandeza. Zero continua sendo ausência — 8 de 8 veículos estão zerados porque
+   * a tela nunca perguntou —, mas baú de 40 m e baú de 4 cm não existem e não entram.
+   */
+  test('accepts zero as not-measured for each cargo dimension, else a plausible range', () => {
+    const checks = checkSqlByName(fleetVehicles)
+
+    expect(checks.fleet_vehicles_cargo_length_check).toContain('= 0')
+    expect(checks.fleet_vehicles_cargo_length_check).toContain('between 0.300 and 30.000')
+    expect(checks.fleet_vehicles_cargo_width_check).toContain('= 0')
+    expect(checks.fleet_vehicles_cargo_width_check).toContain('between 0.300 and 4.000')
+    expect(checks.fleet_vehicles_cargo_height_check).toContain('= 0')
+    expect(checks.fleet_vehicles_cargo_height_check).toContain('between 0.300 and 5.000')
+  })
+
+  /**
+   * Um CHECK por dimensão, nunca os três num só: a recusa precisa nomear qual medida está fora, e
+   * `fleet_vehicles_cargo_dimensions_check` dizia apenas que alguma das três não passou.
+   */
+  test('names the offending dimension instead of failing all three together', () => {
+    expect(checkSqlByName(fleetVehicles)).not.toHaveProperty(
+      'fleet_vehicles_cargo_dimensions_check',
+    )
+  })
+
   // 0 é "não informado" em todo campo de custo — nenhum motorista trava o cadastro por falta de nota
   test('keeps every cost and consumption field non-negative', () => {
     const check = checkSqlByName(fleetVehicles).fleet_vehicles_cost_check

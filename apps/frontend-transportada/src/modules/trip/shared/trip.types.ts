@@ -232,7 +232,27 @@ export type TripCargoLayout = Readonly<{
    */
   occupancyKnown: boolean
   overflowM3: string
+  /**
+   * Spec 088: o comprimento e a largura internos do baú, da ficha do veículo. `null` sem as três
+   * medidas — e aí a tela mantém as fileiras da 085 e não promete metro nenhum.
+   */
+  bedLengthM: null | string
+  bedWidthM: null | string
+  /** Metros de baú vazios entre a carga e a porta. Espelha `freeRows`, agora em metro. */
+  freeDepthM: null | string
+  /** Metros de carga que atravessam a porta, desenhados **fora** dela. */
+  overflowDepthM: null | string
   slices: readonly Readonly<{
+    /** Quanto de baú esta faixa ocupa, em metros. `null` sem a medida do baú. */
+    depthM: null | string
+    /** ⚠️ Negativa é a carga que não coube e atravessou a porta — não é erro, é o excedente. */
+    distanceFromDoorM: null | string
+    /**
+     * Spec 088 R4: caixas por camada e camadas. `null` com uma caixa por medir — e também quando a
+     * caixa não cabe na faixa, e é por isso que `boxesToMeasure` existe ao lado.
+     */
+    layers: null | Readonly<{ boxCount: number; boxesPerLayer: number; layers: number }>
+    boxesToMeasure: number
     label: string
     /** `1` é o fundo, e o fundo é da última entrega. */
     loadOrder: number
@@ -555,13 +575,7 @@ export type FindNfeDocumentByAccessKeyInput = Readonly<{
  * a criação morria no `202` sem nunca chegar a esperar o solver.
  */
 export type MultiVehicleSuggestionStatus =
-  | 'accepted'
-  | 'failed'
-  | 'queued'
-  | 'ready'
-  | 'rejected'
-  | 'running'
-  | 'stale'
+  'accepted' | 'failed' | 'queued' | 'ready' | 'rejected' | 'running' | 'stale'
 
 export type MultiVehicleSuggestion = Readonly<{
   errorCode: null | string

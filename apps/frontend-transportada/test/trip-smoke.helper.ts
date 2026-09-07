@@ -28,7 +28,67 @@ const BASE_TRIP = {
   vehicleId: VEHICLE_ID,
 } as const
 
-type DocumentsMode = 'all-authorized' | 'has-pending'
+type DocumentsMode = 'all-authorized' | 'has-pending' | 'measured-bed'
+
+/**
+ * Spec 088: o baú medido, com duas paradas e a planta em escala. Só uma delas tem todas as caixas
+ * medidas — é o caso real (6 de 663 medidas), e é ele que a tela precisa saber distinguir.
+ */
+const MEASURED_CARGO_LAYOUT = {
+  bedLengthM: '7.400',
+  bedWidthM: '2.470',
+  freeDepthM: '3.400',
+  freeRows: 5,
+  occupancyKnown: true,
+  orderIsBinding: true,
+  overflowDepthM: '0.000',
+  overflowM3: '0.000000',
+  rows: [
+    { label: 'Campinas', loadOrder: 1, sequence: 2, sideReachable: false },
+    { label: 'Campinas', loadOrder: 1, sequence: 2, sideReachable: false },
+    { label: 'Barrinha', loadOrder: 2, sequence: 1, sideReachable: false },
+  ],
+  slices: [
+    {
+      boxesToMeasure: 0,
+      depthM: '1.400',
+      distanceFromDoorM: '3.400',
+      label: 'Barrinha',
+      layers: { boxCount: 40, boxesPerLayer: 17, layers: 3 },
+      loadOrder: 2,
+      sequence: 1,
+      share: '0.2000',
+      volumeM3: '8.400000',
+    },
+    {
+      boxesToMeasure: 12,
+      depthM: '2.600',
+      distanceFromDoorM: '4.800',
+      label: 'Campinas',
+      layers: null,
+      loadOrder: 1,
+      sequence: 2,
+      share: '0.3700',
+      volumeM3: '15.600000',
+    },
+  ],
+  stopsWithoutVolume: [],
+} as const
+
+const MEASURED_OCCUPANCY = {
+  capacityDimensions: { heightM: '2.300', lengthM: '7.400', widthM: '2.470' },
+  capacityM3: '42.039000',
+  capacitySource: 'measured',
+  documentsWithoutVolume: 0,
+  loadedM3: '24.000000',
+  occupancyRatio: '0.5709',
+  /**
+   * ⚠️ `estimated` e não `partial`: o `TripDetailContract` deste smoke restata as origens e ficou
+   * na lista de antes da 085 G006. Não é o que esta spec veio consertar, e a origem não muda o que
+   * o teste abaixo mede — a planta e a escala.
+   */
+  source: 'estimated',
+} as const
 
 function tripDocument(input: Readonly<{ cteAuthorized: boolean; id: string }>) {
   return {
@@ -79,9 +139,10 @@ function tripDetail(mode: DocumentsMode): TripDetailContract {
      * validação inteira, o detalhe não carrega e a tela fica sem botão nenhum. `null` é o estado
      * legítimo: veículo sem capacidade conhecida não mostra ocupação.
      */
-    cargoLayout: null,
+    ...(mode === 'measured-bed'
+      ? { cargoLayout: MEASURED_CARGO_LAYOUT, occupancy: MEASURED_OCCUPANCY }
+      : { cargoLayout: null, occupancy: null }),
     cargoWeight: null,
-    occupancy: null,
     // ADR-0043 §3: a viagem tem paradas. Vazia é estado legítimo — nota ainda não reconciliada.
     stops: [],
   }

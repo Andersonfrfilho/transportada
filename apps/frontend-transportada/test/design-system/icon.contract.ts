@@ -17,6 +17,12 @@ const DATA_GEOMETRY_PATHS: readonly string[] = [
   'src/components/ui/vector-map.tsx',
   // Code 128: as barras saem do cálculo da chave da NF-e, e mudam a cada nota (spec 065 D1b).
   'src/components/ui/barcode.tsx',
+  /**
+   * Planta em escala: o contorno, a régua e cada faixa saem das medidas do baú e do volume da
+   * parada, em tempo de execução (spec 088 R2). Não há retângulo para declarar antes — e a escala
+   * é a promessa do desenho, então ele não pode virar glifo de tamanho fixo.
+   */
+  'src/components/ui/scale-plan.tsx',
 ]
 
 function readApplicationFile(filePath: string): Promise<string> {

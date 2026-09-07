@@ -1,0 +1,76 @@
+/*
+ * A planta rola no PRÓPRIO contêiner, nunca a página: o baú de 8,9 m não cabe num celular de
+ * 375px, e comprimir o desenho para caber destruiria a escala, que é a única coisa que ele promete.
+ */
+.frame {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding-bottom: var(--space-2);
+  width: 100%;
+}
+
+.root {
+  display: block;
+  /* Altura por proporção do `viewBox`: a largura é quem manda, e a escala segue. */
+  height: auto;
+  max-width: none;
+}
+
+.outline {
+  fill: none;
+  stroke: var(--color-graphite);
+  stroke-width: 3;
+}
+
+.band {
+  stroke: var(--color-asphalt);
+  stroke-width: 2;
+}
+
+.bandOutside {
+  stroke: var(--color-alert);
+  stroke-dasharray: 8 6;
+  stroke-width: 3;
+}
+
+.hatch {
+  stroke: var(--color-alert);
+  stroke-width: 4;
+}
+
+/* A lateral alcançável é uma borda de verdade, na parede que abre. */
+.sideMark {
+  stroke: var(--color-fog);
+  stroke-dasharray: 14 8;
+  stroke-width: 6;
+}
+
+.door {
+  stroke: var(--color-fog);
+  stroke-width: 8;
+}
+
+.bandLabel {
+  dominant-baseline: middle;
+  fill: var(--color-asphalt);
+  font-size: 34px;
+  font-weight: 600;
+  text-anchor: middle;
+}
+
+.doorLabel {
+  fill: var(--color-fog);
+  font-size: 30px;
+  text-anchor: end;
+}
+
+.tick {
+  stroke: var(--color-slate);
+  stroke-width: 2;
+}
+
+.tickLabel {
+  fill: var(--color-slate);
+  font-size: 26px;
+  text-anchor: middle;
+}

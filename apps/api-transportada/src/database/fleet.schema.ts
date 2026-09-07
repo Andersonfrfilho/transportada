@@ -270,6 +270,24 @@ export const fleetVehicles = pgTable(
       'fleet_vehicles_capacity_check',
       sql`${table.tareWeightKg} >= 0 and ${table.capacityKg} >= 0 and ${table.capacityM3} >= 0`,
     ),
+    /**
+     * Spec 088: um CHECK por dimensão, e não os três juntos, porque a recusa precisa nomear qual
+     * medida está fora. Zero segue sendo ausência — a ficha só passou a pedir estas três agora —,
+     * mas a planta é desenhada em metros contra a fita do conferente: baú de 40 m e baú de 4 cm são
+     * erro de ordem de grandeza, não medida.
+     */
+    check(
+      'fleet_vehicles_cargo_length_check',
+      sql`${table.cargoLengthM} = 0 or ${table.cargoLengthM} between 0.300 and 30.000`,
+    ),
+    check(
+      'fleet_vehicles_cargo_width_check',
+      sql`${table.cargoWidthM} = 0 or ${table.cargoWidthM} between 0.300 and 4.000`,
+    ),
+    check(
+      'fleet_vehicles_cargo_height_check',
+      sql`${table.cargoHeightM} = 0 or ${table.cargoHeightM} between 0.300 and 5.000`,
+    ),
     // 0 é "não informado" em todo campo de custo — nenhum motorista trava o cadastro por falta de nota
     check(
       'fleet_vehicles_cost_check',

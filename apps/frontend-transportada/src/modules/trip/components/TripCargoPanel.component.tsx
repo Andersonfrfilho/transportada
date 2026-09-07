@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next'
 
 import { Icon } from '@/components/ui/icon'
 import { VEHICLE_TYPE_ICONS } from '@/modules/shared/vehicleTypeIcon.service'
+
+import { TripCargoPlan } from './TripCargoPlan.component'
 import type { VehicleType } from '@/modules/shared/vehicleType.constant'
 
 import type {
@@ -139,6 +141,10 @@ export function TripCargoPanel({
 
       <TripCargoWeightLines cargoWeight={cargoWeight} />
       <TripCargoDrawing layout={layout} vehicleType={vehicleType} />
+      {/* Spec 088: a planta em escala, ao lado do painel de fileiras — as duas, nunca uma no lugar
+          da outra. A fileira diz a ordem e a proporção; a planta diz o metro, e só existe com a
+          ficha do veículo medida. */}
+      <TripCargoPlan layout={layout} />
     </section>
   )
 }
@@ -295,6 +301,15 @@ function TripCargoWeightPanel({ cargoWeight }: { cargoWeight: TripCargoWeight | 
         {t('cargoWeight.title')}
       </h3>
       <TripCargoWeightLines cargoWeight={cargoWeight} />
+      {/*
+        ⚠️ Spec 088 D7/critério 7: **tipo sem referência não vira exceção silenciosa.** `three_quarter`
+        e todo `body_type = '00'` não têm linha em `vehicle_volume_references`, e sem ficha nem m³
+        digitado a ocupação inteira desaparecia daqui sem uma palavra. O caso continua nomeado, com
+        o campo a preencher e o caminho até ele.
+      */}
+      <p className={styles.hint}>
+        {t('occupancy.capacityUnknown')} <a href="/fleet">{t('cargoPlan.missingBedLink')}</a>
+      </p>
     </section>
   )
 }

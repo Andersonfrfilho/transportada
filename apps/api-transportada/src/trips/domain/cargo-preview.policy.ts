@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { sumVolumes, type CargoLayoutStop } from './cargo-layout.policy.js'
+import type { CargoPlanBox } from './cargo-plan.policy.js'
 
 export type CargoPreviewDocument = {
   /** A chave da parada — `buildStopAddressKey`. `null` quando o endereço não normaliza. */
@@ -24,10 +25,15 @@ export type CargoPreviewDocument = {
  * ordem escolhida vale a ordem de chegada da nota, que é o que ele acabou de fazer com as mãos.
  */
 export function buildCargoPreviewStops(input: {
+  /** Spec 088 G003: as caixas por nota, que aqui viram as caixas **da parada**. */
+  readonly boxesByDocument?: ReadonlyMap<string, readonly CargoPlanBox[]>
   readonly documents: readonly CargoPreviewDocument[]
   readonly order: readonly string[]
 }): readonly CargoLayoutStop[] {
-  const grouped = new Map<string, { readonly label: string; missing: number; volumes: string[] }>()
+  const grouped = new Map<
+    string,
+    { boxes: CargoPlanBox[]; readonly label: string; missing: number; volumes: string[] }
+  >()
 
   for (const document of input.documents) {
     /**
@@ -35,9 +41,15 @@ export function buildCargoPreviewStops(input: {
      * não têm nada a ver. Cada um vira parada própria — o mesmo destino do balde "Sem parada".
      */
     const key = document.addressKey ?? `documento:${document.nfeDocumentId}`
-    const current = grouped.get(key) ?? { label: document.label, missing: 0, volumes: [] }
+    const current = grouped.get(key) ?? {
+      boxes: [],
+      label: document.label,
+      missing: 0,
+      volumes: [],
+    }
     if (document.volumeM3 === null) current.missing += 1
     else current.volumes.push(document.volumeM3)
+    current.boxes.push(...(input.boxesByDocument?.get(document.nfeDocumentId) ?? []))
     grouped.set(key, current)
   }
 
@@ -50,6 +62,7 @@ export function buildCargoPreviewStops(input: {
         (rank.get(second) ?? Number.MAX_SAFE_INTEGER),
     )
     .map(([, stop], index) => ({
+      boxes: stop.boxes,
       documentsWithoutVolume: stop.missing,
       label: stop.label,
       sequence: index + 1,

@@ -1,19 +1,14 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { NotificationBell, NotificationProvider } from '@adatechnology/notification-ui'
 import '@adatechnology/notification-ui/styles.css'
-import { StrictMode, useEffect, useState } from 'react'
+import { lazy, StrictMode, Suspense, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { registerSW } from 'virtual:pwa-register'
 
 import { COPY_FEEDBACK_MILLISECONDS } from '@/modules/shared/clipboard.constant'
-import { BillingInvoiceDetailPage } from '@/modules/billing/pages/BillingInvoiceDetail.page'
-import { BillingWorkspacePage } from '@/modules/billing/pages/BillingWorkspace.page'
 import { parseBillingInvoiceRoute } from '@/modules/billing/shared/billingInvoiceRoute.service'
-import { CteBatchWorkspacePage } from '@/modules/cte-batch/pages/CteBatchWorkspace.page'
-import { CompanySettingsPage } from '@/modules/company-settings/pages/CompanySettings.page'
-import { CteProfilesPage } from '@/modules/cte-profiles/pages/CteProfiles.page'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Icon } from '@/components/ui/icon'
@@ -25,21 +20,13 @@ import { applyEnvironmentBadge } from '@/modules/shared/environmentBadge.service
 import { ApplicationFooter } from '@/modules/foundation/components/ApplicationFooter.component'
 import { EnvironmentBanner } from '@/modules/foundation/components/EnvironmentBanner.component'
 import '@/modules/shared/i18n/i18n.service'
-import { DeliveryClientWorkspacePage } from '@/modules/delivery-clients/pages/DeliveryClientWorkspace.page'
-import { ExtraChargeWorkspacePage } from '@/modules/extra-charges/pages/ExtraChargeWorkspace.page'
-import { FinancialResultsWorkspacePage } from '@/modules/trip-financials/pages/FinancialResultsWorkspace.page'
-import { DriverTripWorkspacePage } from '@/modules/driver-trip/pages/DriverTripWorkspace.page'
 import {
   DRIVER_TRIP_PATH,
   isFieldOnlyUser,
 } from '@/modules/driver-trip/shared/driverWorkspace.service'
-import { FleetWorkspacePage } from '@/modules/fleet/pages/FleetWorkspace.page'
-import { FreightWorkspacePage } from '@/modules/freight/pages/FreightWorkspace.page'
 import { FirstAccessPage } from '@/modules/identity/pages/FirstAccess.page'
 import { LoginIdentifierPage } from '@/modules/identity/pages/LoginIdentifier.page'
 import { PasswordResetPage } from '@/modules/identity/pages/PasswordReset.page'
-import { AccessProfilesPage } from './modules/identity/pages/AccessProfiles.page'
-import { UserAdministrationPage } from '@/modules/identity/pages/UserAdministration.page'
 import { useAuthMeQuery, type FiscalEnvironment } from '@/modules/identity/queries/useAuthMe.query'
 import { useCompanyUserPicture } from '@/modules/identity/hooks/useCompanyUserPicture.hook'
 import {
@@ -47,21 +34,12 @@ import {
   initializeKeycloakAuth,
 } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
 import { isSmokeAuthBypassEnabled } from '@/modules/identity/shared/smokeAuthBypass.service'
-import { MdfeManifestWorkspacePage } from '@/modules/mdfe-manifest/pages/MdfeManifestWorkspace.page'
 import { parseMdfeManifestTripParameter } from '@/modules/mdfe-manifest/shared/mdfeManifestRoute.service'
-import { NfeWorkspacePage } from '@/modules/nfe-workspace/pages/NfeWorkspace.page'
-import { NfseInvoiceWorkspacePage } from '@/modules/nfse-invoice/pages/NfseInvoiceWorkspace.page'
 import { parseNfseInvoiceParameter } from '@/modules/nfse-invoice/shared/nfseInvoiceRoute.service'
-import { NotificationSettingsPage } from '@/modules/notification/pages/NotificationSettings.page'
-import { NotificationWorkspacePage } from '@/modules/notification/pages/NotificationWorkspace.page'
 import { NOTIFICATION_SETTINGS_HREF } from '@/modules/notification/shared/notificationCatalog.constant'
 import { getNotificationClient } from '@/modules/notification/shared/notificationClient.service'
 import { NOTIFICATION_THEME_CLASS } from '@/modules/notification/shared/notificationTheme.constant'
 import notificationStyles from '@/modules/notification/styles/notification.module.css'
-import { OperationsDashboardPage } from '@/modules/operations/pages/OperationsDashboard.page'
-import { TripDetailPage } from '@/modules/trip/pages/TripDetail.page'
-import { TripWorkspacePage } from '@/modules/trip/pages/TripWorkspace.page'
-import { TripOccurrencesWorkspacePage } from '@/modules/trip/pages/TripOccurrencesWorkspace.page'
 import { parseTripRoute } from '@/modules/trip/shared/tripRoute.service'
 import '@/styles/index.css'
 
@@ -255,6 +233,96 @@ function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
 
   return 'nfe'
 }
+
+/**
+ * ⚠️ Cada tela é um `import()` próprio, e não um import estático: sem isto o `index` levava as 25
+ * páginas num bundle só e passava do teto de precache do PWA — o build quebrava, e com ele `make
+ * check` e todo o smoke. O `react.md` já pedia `React.lazy` + `Suspense` por rota; aqui ele deixou
+ * de ser recomendação e virou o que faz a aplicação compilar.
+ *
+ * As três telas de entrada (primeiro acesso, recuperação de senha e identificação) ficam de fora:
+ * elas renderizam **antes** da casca, e adiar o carregamento delas trocaria o custo por um piscar
+ * na primeira coisa que o usuário vê.
+ */
+const AccessProfilesPage = lazy(async () => ({
+  default: (await import('./modules/identity/pages/AccessProfiles.page')).AccessProfilesPage,
+}))
+const BillingInvoiceDetailPage = lazy(async () => ({
+  default: (await import('@/modules/billing/pages/BillingInvoiceDetail.page'))
+    .BillingInvoiceDetailPage,
+}))
+const BillingWorkspacePage = lazy(async () => ({
+  default: (await import('@/modules/billing/pages/BillingWorkspace.page')).BillingWorkspacePage,
+}))
+const CompanySettingsPage = lazy(async () => ({
+  default: (await import('@/modules/company-settings/pages/CompanySettings.page'))
+    .CompanySettingsPage,
+}))
+const CteBatchWorkspacePage = lazy(async () => ({
+  default: (await import('@/modules/cte-batch/pages/CteBatchWorkspace.page')).CteBatchWorkspacePage,
+}))
+const CteProfilesPage = lazy(async () => ({
+  default: (await import('@/modules/cte-profiles/pages/CteProfiles.page')).CteProfilesPage,
+}))
+const DeliveryClientWorkspacePage = lazy(async () => ({
+  default: (await import('@/modules/delivery-clients/pages/DeliveryClientWorkspace.page'))
+    .DeliveryClientWorkspacePage,
+}))
+const DriverTripWorkspacePage = lazy(async () => ({
+  default: (await import('@/modules/driver-trip/pages/DriverTripWorkspace.page'))
+    .DriverTripWorkspacePage,
+}))
+const ExtraChargeWorkspacePage = lazy(async () => ({
+  default: (await import('@/modules/extra-charges/pages/ExtraChargeWorkspace.page'))
+    .ExtraChargeWorkspacePage,
+}))
+const FinancialResultsWorkspacePage = lazy(async () => ({
+  default: (await import('@/modules/trip-financials/pages/FinancialResultsWorkspace.page'))
+    .FinancialResultsWorkspacePage,
+}))
+const FleetWorkspacePage = lazy(async () => ({
+  default: (await import('@/modules/fleet/pages/FleetWorkspace.page')).FleetWorkspacePage,
+}))
+const FreightWorkspacePage = lazy(async () => ({
+  default: (await import('@/modules/freight/pages/FreightWorkspace.page')).FreightWorkspacePage,
+}))
+const MdfeManifestWorkspacePage = lazy(async () => ({
+  default: (await import('@/modules/mdfe-manifest/pages/MdfeManifestWorkspace.page'))
+    .MdfeManifestWorkspacePage,
+}))
+const NfeWorkspacePage = lazy(async () => ({
+  default: (await import('@/modules/nfe-workspace/pages/NfeWorkspace.page')).NfeWorkspacePage,
+}))
+const NfseInvoiceWorkspacePage = lazy(async () => ({
+  default: (await import('@/modules/nfse-invoice/pages/NfseInvoiceWorkspace.page'))
+    .NfseInvoiceWorkspacePage,
+}))
+const NotificationSettingsPage = lazy(async () => ({
+  default: (await import('@/modules/notification/pages/NotificationSettings.page'))
+    .NotificationSettingsPage,
+}))
+const NotificationWorkspacePage = lazy(async () => ({
+  default: (await import('@/modules/notification/pages/NotificationWorkspace.page'))
+    .NotificationWorkspacePage,
+}))
+const OperationsDashboardPage = lazy(async () => ({
+  default: (await import('@/modules/operations/pages/OperationsDashboard.page'))
+    .OperationsDashboardPage,
+}))
+const TripDetailPage = lazy(async () => ({
+  default: (await import('@/modules/trip/pages/TripDetail.page')).TripDetailPage,
+}))
+const TripOccurrencesWorkspacePage = lazy(async () => ({
+  default: (await import('@/modules/trip/pages/TripOccurrencesWorkspace.page'))
+    .TripOccurrencesWorkspacePage,
+}))
+const TripWorkspacePage = lazy(async () => ({
+  default: (await import('@/modules/trip/pages/TripWorkspace.page')).TripWorkspacePage,
+}))
+const UserAdministrationPage = lazy(async () => ({
+  default: (await import('@/modules/identity/pages/UserAdministration.page'))
+    .UserAdministrationPage,
+}))
 
 function resolvePage(
   input: Readonly<{ path: string; search: string; workspace: WorkspaceNavigationItem['key'] }>,
@@ -651,10 +719,21 @@ function ApplicationShell(): ReactNode {
           </div>
         ) : null}
         <div className="application-page-transition" aria-busy={pageTransitionPending}>
+          {/*
+            O mesmo esqueleto serve às duas esperas: a transição entre telas e o `import()` da tela
+            que ainda não chegou. Texto solto ou `null` aqui produziria o piscar que
+            `docs/frontend/loading.md` proíbe.
+          */}
           {pageTransitionPending ? (
             <PageTransitionSkeleton />
           ) : (
-            resolvePage({ path: currentPath, search: currentSearch, workspace: currentWorkspace })
+            <Suspense fallback={<PageTransitionSkeleton />}>
+              {resolvePage({
+                path: currentPath,
+                search: currentSearch,
+                workspace: currentWorkspace,
+              })}
+            </Suspense>
           )}
         </div>
         <ApplicationFooter />

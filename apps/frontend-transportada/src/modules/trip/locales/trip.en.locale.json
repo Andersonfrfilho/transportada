@@ -515,5 +515,22 @@
       "photoAlt": "Photo attached to the occurrence",
       "closePhoto": "Close photo"
     }
+  },
+  "cargoPlan": {
+    "title": "Bed plan, seen from above",
+    "ariaLabel": "Bed plan to scale: {{length}} m long by {{width}} m wide",
+    "door": "Door",
+    "reserved": "Each band is the space the volume of that delivery reserves in the bed, not where the boxes go: the split runs along the length, from the back wall to the door.",
+    "band": "{{label}}: takes {{depth}} m of bed, starting {{distance}} m from the door.",
+    "bandThroughDoor": "{{label}}: takes {{depth}} m of bed and runs {{distance}} m out past the door.",
+    "layers": "{{perLayer}} boxes per layer, in {{layers}} layers.",
+    "overflow": "The load runs {{metres}} m past the door — the excess is hatched, outside the bed.",
+    "unmeasuredBoxes": "{{count}} box on this trip has not been measured, so its band shows no layers.",
+    "unmeasuredBoxes_other": "{{count}} boxes on this trip have not been measured, so their bands show no layers.",
+    "unmeasuredBoxesLink": "Open the measuring queue",
+    "sideReachable": "This vehicle opens from the side: the order helps unloading, but does not bind.",
+    "missingBed": "Without the bed measurement the screen promises no metres — the rows above are proportion, not position.",
+    "missingBedField": "Fill in the bed length, width and height on the vehicle sheet, under Fleet.",
+    "missingBedLink": "Open the vehicle sheet"
   }
 }

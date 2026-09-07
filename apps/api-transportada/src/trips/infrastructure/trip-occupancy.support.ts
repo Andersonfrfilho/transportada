@@ -16,10 +16,12 @@ import {
 } from '../../database/nfe.schema.js'
 import { vehicleVolumeReferences } from '../../database/vehicle-volume-reference.schema.js'
 import {
+  countMeasuredBoxes,
   medianBoxVolumeM3,
   resolveCargoVolume,
   resolveMeasuredCargoVolume,
 } from '../../nfe-documents/domain/cargo-volume.policy.js'
+import type { CargoPlanBox } from '../domain/cargo-plan.policy.js'
 import { resolveVehicleCapacity } from '../../fleet/domain/vehicle-capacity.policy.js'
 import type { TripOccupancyView } from '../application/trip.port.js'
 import { resolveTripOccupancy } from '../domain/trip-occupancy.policy.js'
@@ -45,6 +47,12 @@ export async function loadTripOccupancy(
   readonly occupancy: TripOccupancyView | null
   /** Spec 076: o volume por nota, para o layout agrupar por parada sem uma consulta nova. */
   readonly volumeByDocument: ReadonlyMap<string, string | null>
+  /**
+   * Spec 088 G003: as caixas por nota, na mesma viagem da consulta acima. Quem conhece as paradas
+   * agrupa por parada — aqui só há `nfeDocumentIds`, e inventar a parada seria um segundo critério
+   * de agrupamento ao lado do `buildStopAddressKey` que o vínculo já usa.
+   */
+  readonly boxesByDocument: ReadonlyMap<string, readonly CargoPlanBox[]>
   readonly capacityM3: string | null
   /** Spec 085: por onde a carga entra — o layout decide com ela se a ordem e obrigacao. */
   readonly loadingAccess: LoadingAccess
@@ -64,6 +72,7 @@ export async function loadTripOccupancy(
     .limit(1)
   if (vehicle === undefined) {
     return {
+      boxesByDocument: new Map(),
       capacityM3: null,
       /** Veiculo desconhecido assume o mais restritivo, como a ausencia de acesso declarado. */
       loadingAccess: 'rear',
@@ -102,6 +111,7 @@ export async function loadTripOccupancy(
   })
   if (capacity === null) {
     return {
+      boxesByDocument: new Map(),
       capacityM3: null,
       loadingAccess: vehicle.loadingAccess,
       occupancy: null,
@@ -169,6 +179,7 @@ export async function loadTripOccupancy(
   const occupancy = resolveTripOccupancy({ capacityM3: capacity.capacityM3, documents })
   if (occupancy === null) {
     return {
+      boxesByDocument: measured.boxesByDocument,
       capacityM3: capacity.capacityM3,
       loadingAccess: vehicle.loadingAccess,
       occupancy: null,
@@ -177,6 +188,7 @@ export async function loadTripOccupancy(
   }
 
   return {
+    boxesByDocument: measured.boxesByDocument,
     capacityM3: capacity.capacityM3,
     loadingAccess: vehicle.loadingAccess,
     occupancy: {
@@ -223,10 +235,14 @@ async function loadMeasuredItems(
   queryable: TripQueryable,
   input: { readonly companyId: string; readonly nfeDocumentIds: readonly string[] },
 ): Promise<{
+  /** Spec 088 G003: a mesma linha, agora com a caixa que a planta conta em camadas. */
+  readonly boxesByDocument: ReadonlyMap<string, readonly CargoPlanBox[]>
   readonly itemsByDocument: ReadonlyMap<string, readonly MeasuredCargoItem[]>
   readonly medianM3: string | null
 }> {
-  if (input.nfeDocumentIds.length === 0) return { itemsByDocument: new Map(), medianM3: null }
+  if (input.nfeDocumentIds.length === 0) {
+    return { boxesByDocument: new Map(), itemsByDocument: new Map(), medianM3: null }
+  }
 
   const boxVolume = sql<string | null>`
     case
@@ -242,7 +258,10 @@ async function loadMeasuredItems(
   const [rows, measuredBoxes] = await Promise.all([
     queryable
       .select({
+        boxHeightMm: nfePackageBoxes.heightMm,
+        boxLengthMm: nfePackageBoxes.lengthMm,
         boxVolumeM3: boxVolume,
+        boxWidthMm: nfePackageBoxes.widthMm,
         documentId: nfeProducts.documentId,
         quantity: nfeProducts.quantity,
         unitsPerBox: nfePackageBoxes.unitsPerBox,
@@ -287,18 +306,33 @@ async function loadMeasuredItems(
   ])
 
   const itemsByDocument = new Map<string, MeasuredCargoItem[]>()
+  const boxesByDocument = new Map<string, CargoPlanBox[]>()
   for (const row of rows) {
-    const items = itemsByDocument.get(row.documentId) ?? []
-    items.push({
+    const item: MeasuredCargoItem = {
       boxVolumeM3: row.boxVolumeM3,
       quantity: row.quantity,
       /** Caixa ainda não medida não tem coluna: a reserva conta a linha como uma caixa por unidade. */
       unitsPerBox: row.unitsPerBox ?? 1,
-    })
-    itemsByDocument.set(row.documentId, items)
+    }
+    itemsByDocument.set(row.documentId, [...(itemsByDocument.get(row.documentId) ?? []), item])
+    /**
+     * ⚠️ A contagem de caixas é a **mesma** de `resolveMeasuredCargoVolume` — arredondada para
+     * cima, porque cinco unidades de um produto que vem de doze ainda viajam dentro de uma caixa.
+     * Duas contagens diferentes fariam o m³ da faixa e as camadas dentro dela discordarem.
+     */
+    boxesByDocument.set(row.documentId, [
+      ...(boxesByDocument.get(row.documentId) ?? []),
+      {
+        count: countMeasuredBoxes(item),
+        heightMm: row.boxHeightMm,
+        lengthMm: row.boxLengthMm,
+        widthMm: row.boxWidthMm,
+      },
+    ])
   }
 
   return {
+    boxesByDocument,
     itemsByDocument,
     medianM3: medianBoxVolumeM3(
       measuredBoxes.flatMap((row) => (row.boxVolumeM3 === null ? [] : [row.boxVolumeM3])),

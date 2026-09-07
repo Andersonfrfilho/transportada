@@ -544,6 +544,93 @@ que existe e passaria de 40%, fazendo o alerta disparar em toda viagem de duas p
 ruído que se aprende a ignorar. Viagem de uma parada não acusa nada: ali a concentração é 100% por
 definição e não há o que fazer com o aviso.
 
+**A fileira virou metro, e a escala sai da ficha — de mais lugar nenhum** (spec 088). A fileira da
+085 é proporção: ela não diz se a carga da terceira parada ocupa meio metro ou dois metros e meio de
+baú. `resolveCargoLayout` passou a devolver `depthM` e `distanceFromDoorM` por faixa, mais
+`bedLengthM`/`bedWidthM`/`freeDepthM`/`overflowDepthM`, e a tela desenha a **planta do baú vista de
+cima**, em escala, na montagem da viagem.
+
+A profundidade é `volume ÷ (largura × altura)` — a fatia transversal de verdade —, e **não** passa
+pela capacidade: com o baú medido as duas contas coincidem, mas `capacity_m3` pode ser um número que
+alguém digitou, e aí a faixa herdaria um denominador que não é deste baú.
+
+⚠️ **A escala sai da FICHA, e `resolveBedDimensions` é o único lugar onde essa linha é traçada.**
+`occupancy.capacityDimensions` chega preenchida também no degrau `reference`, porque a ocupação
+aceita o palpite de mercado como piso de m³ (ADR da 075). A planta recusa: a dispersão dentro de um
+tipo chega a 2× — um VUC existe de 13 e de 26 m³ —, e ali o erro deixa de ser porcentagem e vira
+**metro** na tela de quem vai conferir com fita. Sem as três medidas não há planta: a tela mantém as
+fileiras proporcionais da 085 e nomeia os três campos, com atalho para a ficha.
+
+⚠️ **A ficha nunca tinha pedido as três medidas.** As colunas existem desde a 075 e
+`resolveVehicleCapacity` já as preferia — medido em 2026-09-06: **0 de 12** veículos preenchidos, e
+não por descuido do operador. O formulário da frota passou a pedir comprimento, largura e altura, com
+o m³ derivado aparecendo ao lado e dizendo de onde veio. O CHECK é **um por dimensão**
+(`fleet_vehicles_cargo_{length,width,height}_check`, zero é ausência, senão `between` piso e teto):
+os três juntos dariam a mesma mensagem para quem digitou 40 m de comprimento e para quem digitou
+2,5 cm de largura. ⚠️ O baú **não é herdado** por marca e modelo como o `capacity_m3` ao lado dele: o
+m³ herdado alimenta uma porcentagem, e a medida do baú alimenta um desenho que diz "encoste a 4,20 m
+da porta" — no caminhão brasileiro o chassi é do catálogo e o baú é de um implementador qualquer.
+
+⚠️ **A camada só existe com toda a caixa da parada medida** (`cargo-plan.policy.ts`). Área da faixa ÷
+pegada da caixa dá as caixas por camada; altura do baú ÷ altura da caixa dá as camadas. Uma medida
+faltando e a conta inteira não acontece — "25 caixas por camada" é lido como instrução, e instrução
+com palpite dentro é pior que nenhuma. Caixas diferentes na mesma parada saem pela **maior** pegada e
+pela **mais alta**: subestimar faz parar de carregar cedo, superestimar faz a carga invadir a faixa
+seguinte. As caixas viajam em `CargoLayoutStop.boxes`, montadas onde o agrupamento por endereço já
+acontece (`buildCargoPreviewStops` e o repositório da viagem) — nunca num mapa ao lado, que precisaria
+refazer o agrupamento e poderia discordar dele. Medido: 15 de 345 notas têm todas as linhas casadas a
+caixa medida, e é esse o denominador da camada.
+
+⚠️ O `<svg>` da planta mora em `src/components/ui/scale-plan.tsx`, não no módulo: `<svg>` cru é
+proibido fora do design system, e ele entrou em `DATA_GEOMETRY_PATHS` ao lado de `vector-map` e
+`barcode` — a geometria sai das medidas em tempo de execução. `buildScalePlanViewBox` é função pura
+porque a razão do `viewBox` **é** a promessa de escala, e é a única parte conferível sem DOM. No
+celular a planta rola no **próprio contêiner**: comprimi-la para caber destruiria a escala, que é a
+única coisa que o desenho promete. Distância negativa da porta é legítima — é a carga que atravessou
+a porta, e sai hachurada fora do contorno.
+
+**Cada tela é um `import()` próprio, e isso não é otimização — é o que faz a aplicação compilar.**
+As 22 telas de workspace de `src/main.tsx` são `lazy(async () => ({ default: (await import(...)).X }))`,
+com um `<Suspense>` cujo `fallback` é o `PageTransitionSkeleton` que já servia à troca de tela — o
+mesmo esqueleto nas duas esperas, como `docs/frontend/loading.md` manda.
+
+⚠️ **As três telas de entrada ficam eager**: `FirstAccessPage`, `PasswordResetPage` e
+`LoginIdentifierPage` renderizam **antes** da casca, em `bootstrapApplication`, e adiá-las trocaria
+o custo por um piscar na primeira coisa que o usuário vê.
+
+⚠️ O motivo é medido, não estético: com tudo num `index` só, o bundle chegou a **2.099,31 kB**
+contra o teto de 2 MiB do precache do `vite-plugin-pwa`, e o **build falhava** — derrubando junto
+`make check` e todo o `bun run smoke`, que precisa do `preview`. Depois da divisão o `index` é
+**837,63 kB** (gzip 583,52 → 254,08). Tela nova entra por `import()`; um import estático de página
+volta a empurrar o `index` para o teto, e a falha aparece longe de quem a causou.
+
+Todo estado de carregamento (`isLoading` de query, gate de página, tabela, painel, diálogo)
+renderiza um esqueleto de `@/components/ui/skeleton` com a mesma forma do conteúdo real que ele
+antecede — nunca texto solto ("Carregando…") nem `null`, que é o que causa o piscar da tela ao
+trocar para o conteúdo. Regra completa e como compor por tipo de tela em `docs/frontend/loading.md`,
+contrato em `test/design-system/skeleton.contract.ts`.
+
+Todo painel que nasce por clique do operador — os quatro editores inline: `FreightRegionForm`,
+`VehicleForm`, `DriverForm` e `CteProfileForm` — chama `useRevealedPanel`
+(`shared/useRevealedPanel.hook.ts`), que rola até ele (`block: 'start'`, instantâneo sob
+`prefers-reduced-motion`) e foca o primeiro campo com `preventScroll`. Esses formulários são
+renderizados **depois** da lista que os abre: com a tabela cheia o painel montava duas telas abaixo
+do botão, e quem clicava em "Nova zona" concluía que nada tinha acontecido — o `<form>` estava no
+DOM, que é por isso que a conferência por DOM não pegou. A margem do topo é a regra global
+`[data-revealed-panel]` em `src/styles/index.css`, nunca CSS de módulo. Painel sempre visível e
+formulário em diálogo (que já tem `useModalDialog`) ficam de fora. Regra em
+`docs/frontend/panels.md`, contrato em `test/design-system/panel-reveal.contract.ts`.
+
+Toda mutação que mexe num **vínculo** dispara um efeito de
+`shared/mutationInvalidation.service.ts` (`invalidateMutationEffect`), nunca uma lista de chaves
+montada à mão — e nenhum hook importa a chave de consulta de outro módulo para invalidá-la. O
+alcance mora num lugar só porque era rederivado em dez hooks: todo caminho que _cria_ o vínculo
+invalidava os dois lados, e todo caminho que o _solta_ nasceu invalidando só o seu — descartar a
+NFS-e devolvia a nota no banco e a tabela seguia com o `cteBlockReason` da consulta anterior, nota
+impossível de selecionar até recarregar a página. Dois efeitos hoje: `nfeDocumentLink` e
+`billingInvoiceItem`. Regra e como acrescentar um efeito em `docs/frontend/mutations.md`, contrato
+em `test/shared/mutation-invalidation.contract.ts`.
+
 **O peso da carga tem duas fontes, e só o CT-e o exige** (ADR-0052, spec 067). O emitente omite
 `pesoB` **por nota**, não por política — a Zaragoza mandou 883658 com 108,670 kg e 883663 com 0,000
 no mesmo caminhão, mesmo lacre, mesmo minuto. Duas consequências:

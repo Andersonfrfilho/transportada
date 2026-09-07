@@ -215,6 +215,7 @@ describe('Drizzle migrations', () => {
       '20260905120000_fleet_loading_access',
       '20260905130000_geocoded_address_paid_refinement',
       '20260905130000_nfe_package_boxes',
+      '20260906120000_fleet_vehicle_cargo_dimension_bounds',
       '20260906140000_cte_profile_municipal_service_policy',
     ])
 

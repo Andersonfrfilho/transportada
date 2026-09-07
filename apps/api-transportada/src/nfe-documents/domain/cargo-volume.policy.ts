@@ -111,7 +111,7 @@ export function resolveMeasuredCargoVolume(input: {
     const box = item.boxVolumeM3 ?? fallback
     if (box === null) return null
     if (item.boxVolumeM3 === null) usedFallback = true
-    total += divideHalfUp(toScaled(box) * toScaled(String(countBoxes(item))), VOLUME_FACTOR)
+    total += divideHalfUp(toScaled(box) * toScaled(String(countMeasuredBoxes(item))), VOLUME_FACTOR)
   }
   if (total <= 0n) return null
 
@@ -139,7 +139,7 @@ export function medianBoxVolumeM3(values: readonly string[]): string | null {
  * Quantas caixas a linha ocupa. ⚠️ Arredonda **para cima**: cinco unidades de um produto que vem de
  * doze ainda viajam dentro de uma caixa, e o baú não sabe que ela está pela metade.
  */
-function countBoxes(item: MeasuredCargoItem): number {
+export function countMeasuredBoxes(item: MeasuredCargoItem): number {
   const quantity = Number(item.quantity)
   const perBox = item.unitsPerBox > 0 ? item.unitsPerBox : 1
   if (!Number.isFinite(quantity) || quantity <= 0) return 0
