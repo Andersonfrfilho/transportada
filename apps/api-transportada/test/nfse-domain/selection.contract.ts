@@ -93,6 +93,8 @@ function buildDocument(
   return {
     accessKey: `3526${overrides.documentId.padStart(40, '0')}`,
     issuedAt: ISSUED_AT,
+    recipientCityCode: '3543402',
+    senderCityCode: '3554102',
     number: '1',
     recipientAddress: RECIPIENT_ADDRESS,
     recipientCity: 'Ribeirão Preto',

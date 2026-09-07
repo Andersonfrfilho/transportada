@@ -142,5 +142,10 @@
   "predominantProductName": "Predominant product name",
   "observations": "CT-e observations",
   "invalidRate": "Invalid rate",
-  "invalidAmount": "Invalid amount"
+  "invalidAmount": "Invalid amount",
+  "municipalServicePolicy": "Municipal service",
+  "municipalServicePolicyOption": {
+    "allow": "Accepted in the CT-e batch",
+    "block": "Goes to NFS-e — blocked in the batch"
+  }
 }

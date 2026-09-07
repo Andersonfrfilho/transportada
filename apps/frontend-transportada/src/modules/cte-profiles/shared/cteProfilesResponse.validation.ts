@@ -66,6 +66,7 @@ function isSettings(value: Record<string, unknown>): boolean {
   return (
     hasEveryKey(value, SETTINGS_KEYS) &&
     typeof value.cargoInsuranceDeclared === 'boolean' &&
+    isString(value.municipalServicePolicy) &&
     isString(value.cfopInternal) &&
     isString(value.cfopInterstate) &&
     isString(value.chargeComponentLabel) &&

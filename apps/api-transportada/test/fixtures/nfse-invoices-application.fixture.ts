@@ -118,6 +118,8 @@ export function selectionDocument(
     number: '000000123',
     recipientAddress: RECIPIENT_ADDRESS,
     recipientCity: 'Ribeirão Preto',
+    recipientCityCode: '3543402',
+    senderCityCode: '3554102',
     recipientLegalName: 'Cliente Sintético Ltda',
     recipientState: 'SP',
     recipientTaxId: '98765432000188',

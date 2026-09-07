@@ -3,6 +3,7 @@
  */
 import type {
   CteEmissionMatchRole,
+  CteMunicipalServicePolicy,
   CteEmissionProfileMatchMode,
   CteEmissionProfileStatus,
 } from '../../database/cte-emission-profile.schema.js'
@@ -87,6 +88,80 @@ export function resolveEmissionProfile({
     precision: best.precision,
     profileId: best.candidate.id,
   }
+}
+
+/**
+ * A mesma escolha de `resolveEmissionProfile`, **sem lançar**. A listagem de notas precisa saber
+ * qual perfil rege cada linha para aplicar o que ele configura, e os três casos que a emissão trata
+ * como erro — nota sem perfil, empate, documento fora do padrão — são casos normais numa tela que
+ * mostra a base inteira. Ausência aqui significa "nenhum perfil rege esta nota", e quem consome
+ * decide o que fazer com isso; hoje, não aplicar portão nenhum.
+ */
+export function findEmissionProfile({
+  invoice,
+  profiles,
+}: {
+  readonly invoice: EmissionProfileInvoiceParties
+  readonly profiles: readonly EmissionProfileCandidate[]
+}): EmissionProfileResolution | null {
+  if (!CNPJ_PATTERN.test(invoice.senderTaxId) || !CNPJ_PATTERN.test(invoice.recipientTaxId)) {
+    return null
+  }
+
+  const matches = profiles
+    .filter((candidate) => candidate.matchMode === 'sender_tax_id' && candidate.status === 'active')
+    .flatMap((candidate) =>
+      matchCandidate({
+        candidate,
+        recipientTaxId: invoice.recipientTaxId,
+        senderTaxId: invoice.senderTaxId,
+      }),
+    )
+    .toSorted(compareMatches)
+
+  const [best, runnerUp] = matches
+  if (best === undefined) return null
+  if (runnerUp !== undefined && compareMatches(best, runnerUp) === 0) return null
+
+  return {
+    matchedBy: best.role === 'sender' ? 'sender_tax_id' : 'recipient_tax_id',
+    matchedTaxId: best.matchedTaxId,
+    precision: best.precision,
+    profileId: best.candidate.id,
+  }
+}
+
+/**
+ * A política de serviço municipal que rege uma nota. Mora aqui, e não em cada consumidor, porque
+ * **dois** fazem a mesma pergunta — a listagem de notas e a seleção do lote de CT-e. Se cada um a
+ * respondesse do seu jeito, a tela mostraria um bloqueio que a seleção não aplica, ou o contrário.
+ *
+ * Ausência de perfil, empate e participante sem CNPJ caem todos em `allow`: ninguém escolheu
+ * bloquear, e o padrão do produto é não bloquear.
+ */
+export function resolveMunicipalServicePolicy({
+  profiles,
+  recipientTaxId,
+  senderTaxId,
+}: {
+  readonly profiles: readonly (EmissionProfileCandidate & {
+    readonly municipalServicePolicy: CteMunicipalServicePolicy
+  })[]
+  readonly recipientTaxId: string | null
+  readonly senderTaxId: string | null
+}): CteMunicipalServicePolicy {
+  if (senderTaxId === null || recipientTaxId === null) return 'allow'
+
+  const resolution = findEmissionProfile({
+    invoice: { recipientTaxId, senderTaxId },
+    profiles,
+  })
+  if (resolution === null) return 'allow'
+
+  return (
+    profiles.find((profile) => profile.id === resolution.profileId)?.municipalServicePolicy ??
+    'allow'
+  )
 }
 
 function resolveRequestedProfile(

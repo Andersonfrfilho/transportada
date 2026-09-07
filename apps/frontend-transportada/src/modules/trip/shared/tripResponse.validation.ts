@@ -93,6 +93,12 @@ import {
  * Coluna que a listagem de notas pode não ter mandado: ausente é ausência, não resposta inválida —
  * a guarda de forma desta linha é parcial de propósito (ver `isScannedDocument`).
  */
+/** Origem fechada: sigla nova na API sem tradução aqui vira ausência, nunca texto cru na tela. */
+function readCargoWeightSource(row: unknown): 'estimated' | 'xml' | null {
+  const value = isRecord(row) ? row.cargoWeightSource : null
+  return value === 'estimated' || value === 'xml' ? value : null
+}
+
 function readNullableColumn(row: unknown, column: string): null | string {
   if (!isRecord(row)) return null
   const value = row[column]
@@ -429,6 +435,11 @@ export function createTripResponseAdapters() {
         recipientName: row.recipientName,
         recipientAddress: readNullableColumn(row, 'recipientAddress'),
         recipientPostalCode: readNullableColumn(row, 'recipientPostalCode'),
+        recipientPhone: readNullableColumn(row, 'recipientPhone'),
+        cargoGrossWeight: readNullableColumn(row, 'cargoGrossWeight'),
+        freightAmount: readNullableColumn(row, 'freightAmount'),
+        freightRuleName: readNullableColumn(row, 'freightRuleName'),
+        cargoWeightSource: readCargoWeightSource(row),
         recipientAddressNumber: readNullableColumn(row, 'recipientAddressNumber'),
         recipientLatitude: readNullableColumn(row, 'recipientLatitude'),
         recipientLongitude: readNullableColumn(row, 'recipientLongitude'),
@@ -488,6 +499,11 @@ export function createTripResponseAdapters() {
                   recipientName: row.recipientName,
                   recipientAddress: readNullableColumn(row, 'recipientAddress'),
                   recipientPostalCode: readNullableColumn(row, 'recipientPostalCode'),
+                  recipientPhone: readNullableColumn(row, 'recipientPhone'),
+                  cargoGrossWeight: readNullableColumn(row, 'cargoGrossWeight'),
+                  freightAmount: readNullableColumn(row, 'freightAmount'),
+                  freightRuleName: readNullableColumn(row, 'freightRuleName'),
+                  cargoWeightSource: readCargoWeightSource(row),
                   recipientAddressNumber: readNullableColumn(row, 'recipientAddressNumber'),
                   recipientLatitude: readNullableColumn(row, 'recipientLatitude'),
                   recipientLongitude: readNullableColumn(row, 'recipientLongitude'),

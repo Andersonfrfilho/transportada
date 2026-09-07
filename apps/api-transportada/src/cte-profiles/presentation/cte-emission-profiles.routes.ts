@@ -165,6 +165,7 @@ function serializeProfile(profile: CteEmissionProfileDetail): object {
     matchers: profile.matchers.map((matcher) => ({ ...matcher })),
     matchMode: profile.matchMode,
     modal: profile.modal,
+    municipalServicePolicy: profile.municipalServicePolicy,
     name: profile.name,
     observations: profile.observations,
     operationNature: profile.operationNature,

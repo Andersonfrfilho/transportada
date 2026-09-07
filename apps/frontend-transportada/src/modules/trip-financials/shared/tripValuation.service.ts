@@ -25,6 +25,13 @@ export type TripValuationCostParcel = Readonly<{
 
 export type TripValuationRevenueLine = Readonly<{
   amount: string
+  /**
+   * A parametrização que produziu o número, e a que percentual. ⚠️ Só a linha `estimated` os tem —
+   * `measured` é a soma dos encargos do CT-e autorizado, e ali a origem é o documento emitido.
+   */
+  freightRuleId: null | string
+  freightRuleName: null | string
+  percentage: null | string
   gap: null | string
   nfeDocumentId: null | string
   source: ValuationSource

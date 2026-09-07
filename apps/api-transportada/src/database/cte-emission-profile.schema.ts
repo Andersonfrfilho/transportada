@@ -26,6 +26,19 @@ export type CteEmissionProfileStatus = (typeof CTE_EMISSION_PROFILE_STATUSES)[nu
 export const CTE_EMISSION_PROFILE_MATCH_MODES = ['sender_tax_id', 'manual'] as const
 export type CteEmissionProfileMatchMode = (typeof CTE_EMISSION_PROFILE_MATCH_MODES)[number]
 
+/**
+ * O que este perfil faz com serviço que começa e termina no mesmo município. `allow` é o padrão e é
+ * o comportamento de sempre — quem separa CT-e de NFS-e é o operador, pelos dois botões da tela.
+ * `block` é a instalação declarando que ali serviço municipal nunca é CT-e, e aí o servidor recusa
+ * a nota na seleção do lote em vez de depender do clique certo.
+ *
+ * ⚠️ É configuração, não premissa: medido em produção, das notas de mesmo município **0 de 920**
+ * tinham CT-e, e as 62 NFS-e emitidas eram todas **intermunicipais**. Ligar isto para todo mundo
+ * não descreveria nenhuma das duas operações — e o produto é genérico (ADR-0021).
+ */
+export const CTE_MUNICIPAL_SERVICE_POLICIES = ['allow', 'block'] as const
+export type CteMunicipalServicePolicy = (typeof CTE_MUNICIPAL_SERVICE_POLICIES)[number]
+
 export const CTE_EMISSION_GROUPING_MODES = ['per_invoice', 'sender_recipient'] as const
 export type CteEmissionGroupingMode = (typeof CTE_EMISSION_GROUPING_MODES)[number]
 
@@ -112,6 +125,10 @@ export const cteEmissionProfiles = pgTable(
     icmsRate: rateColumn('icms_rate').notNull().default('0'),
     icmsBaseReductionRate: rateColumn('icms_base_reduction_rate').notNull().default('0'),
     cargoInsuranceDeclared: boolean('cargo_insurance_declared').notNull().default(true),
+    municipalServicePolicy: text('municipal_service_policy')
+      .$type<CteMunicipalServicePolicy>()
+      .notNull()
+      .default('allow'),
     version: bigint({ mode: 'bigint' }).notNull().default(1n),
     createdByUserId: uuid('created_by_user_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -149,6 +166,10 @@ export const cteEmissionProfiles = pgTable(
     check(
       'cte_emission_profiles_status_check',
       sql`${table.status} in (${sql.raw(inList(CTE_EMISSION_PROFILE_STATUSES))})`,
+    ),
+    check(
+      'cte_emission_profiles_municipal_service_policy_check',
+      sql`${table.municipalServicePolicy} in (${sql.raw(inList(CTE_MUNICIPAL_SERVICE_POLICIES))})`,
     ),
     check(
       'cte_emission_profiles_match_mode_check',

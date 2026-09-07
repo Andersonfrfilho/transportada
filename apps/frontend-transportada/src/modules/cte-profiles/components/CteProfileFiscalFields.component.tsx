@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import {
   CTE_PROFILE_ICMS_CST,
   CTE_PROFILE_MODAL,
+  CTE_PROFILE_MUNICIPAL_SERVICE_POLICY,
   CTE_PROFILE_PICKUP_INDICATOR,
   CTE_PROFILE_PREDOMINANT_PRODUCT_MODE,
   CTE_PROFILE_RECEIVER_IE_INDICATOR,
@@ -43,6 +44,13 @@ export function CteProfileFiscalFields({ onChange, state }: CteProfileFiscalFiel
           maxLength={4}
           value={state.cfopInterstate}
           onChange={(cfopInterstate) => onChange({ cfopInterstate })}
+        />
+        <ProfileSelectField
+          label={t('municipalServicePolicy')}
+          optionLabelKey="municipalServicePolicyOption"
+          options={CTE_PROFILE_MUNICIPAL_SERVICE_POLICY}
+          value={state.municipalServicePolicy}
+          onChange={(municipalServicePolicy) => onChange({ municipalServicePolicy })}
         />
         <ProfileSelectField
           label={t('icmsCst')}

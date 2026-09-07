@@ -52,6 +52,10 @@ export function toTripValuation(envelope: unknown): TripValuation | null {
       typeof payload.marginPercentage === 'string' ? payload.marginPercentage : null,
     revenueLines: revenueLines.filter(isRecord).map((line) => ({
       amount: readText(line.amount),
+      /** Só a linha prevista traz regra: a realizada vem do CT-e já emitido, não de um cálculo agora. */
+      freightRuleId: typeof line.freightRuleId === 'string' ? line.freightRuleId : null,
+      freightRuleName: typeof line.freightRuleName === 'string' ? line.freightRuleName : null,
+      percentage: typeof line.percentage === 'string' ? line.percentage : null,
       gap: readGap(line.gap),
       nfeDocumentId: typeof line.nfeDocumentId === 'string' ? line.nfeDocumentId : null,
       source: isSource(line.source) ? line.source : 'estimated',

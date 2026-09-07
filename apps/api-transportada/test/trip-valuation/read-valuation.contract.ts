@@ -15,6 +15,7 @@ const COMPANY_ID = '00000000-0000-4000-8000-000000000001'
 const TRIP_ID = '00000000-0000-4000-8000-000000000a11'
 
 const TEN_PERCENT_RULE: ApplicableFreightRule = {
+  freightRuleName: 'Regra de teste',
   freightRuleId: '00000000-0000-4000-8000-000000000b01',
   freightRuleVersionId: '00000000-0000-4000-8000-000000000b02',
   maximumAmount: '',

@@ -19,6 +19,7 @@ export const DEFAULT_VALID_FROM = '2026-01-01T00:00:00.000Z'
 
 const DEFAULT_SETTINGS: CteProfileSettings = {
   cargoInsuranceDeclared: true,
+  municipalServicePolicy: 'allow',
   cfopInternal: '5353',
   cfopInterstate: '6353',
   chargeComponentLabel: 'Frete',

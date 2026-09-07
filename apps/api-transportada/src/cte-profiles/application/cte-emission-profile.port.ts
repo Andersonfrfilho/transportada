@@ -9,6 +9,7 @@ import type {
   CteEmissionProfileStatus,
   CteIcmsCst,
   CteModal,
+  CteMunicipalServicePolicy,
   CtePickupIndicator,
   CtePredominantProductMode,
   CteReceiverIeIndicator,
@@ -46,6 +47,8 @@ export type CteEmissionProfileFreightRuleInput = {
 
 export type CteEmissionProfileSettings = {
   readonly cargoInsuranceDeclared: boolean
+  /** O que este perfil faz com serviço que começa e termina no mesmo município. */
+  readonly municipalServicePolicy: CteMunicipalServicePolicy
   readonly cfopInternal: string
   readonly cfopInterstate: string
   readonly chargeComponentLabel: string

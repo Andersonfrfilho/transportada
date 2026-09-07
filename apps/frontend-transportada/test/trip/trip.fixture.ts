@@ -236,6 +236,11 @@ export const NFE_DOCUMENT_LISTING_ROW = {
   number: '000123456',
   recipientAddress: 'Avenida do Deposito, 44',
   recipientPostalCode: '14020000',
+  recipientPhone: '1639771234',
+  freightAmount: '136.8900',
+  freightRuleName: 'Spani',
+  cargoGrossWeight: '108.6700',
+  cargoWeightSource: 'xml',
   recipientAddressNumber: null,
   recipientLatitude: null,
   recipientLongitude: null,
@@ -267,6 +272,14 @@ export const SCANNED_NFE_DOCUMENT = {
   /** Endereço e CEP: o mapa da montagem imprime a parada, e rua homônima só se separa pelo CEP. */
   recipientAddress: NFE_DOCUMENT_LISTING_ROW.recipientAddress,
   recipientPostalCode: NFE_DOCUMENT_LISTING_ROW.recipientPostalCode,
+  /** O telefone do cliente, cru: é o que a parada imprime e o que o botão de copiar entrega. */
+  recipientPhone: NFE_DOCUMENT_LISTING_ROW.recipientPhone,
+  /** Peso e origem: a linha da parada imprime os dois, e a marca de estimado depende do segundo. */
+  cargoGrossWeight: NFE_DOCUMENT_LISTING_ROW.cargoGrossWeight,
+  cargoWeightSource: NFE_DOCUMENT_LISTING_ROW.cargoWeightSource,
+  /** O previsto da listagem: é ele que faz o ganho aparecer antes de escolher o veículo. */
+  freightAmount: NFE_DOCUMENT_LISTING_ROW.freightAmount,
+  freightRuleName: NFE_DOCUMENT_LISTING_ROW.freightRuleName,
   recipientAddressNumber: null,
   recipientLatitude: null,
   recipientLongitude: null,

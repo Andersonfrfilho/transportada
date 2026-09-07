@@ -494,6 +494,21 @@ export type ScannedNfeDocument = Readonly<{
    */
   recipientAddress: null | string
   recipientPostalCode: null | string
+  /**
+   * O telefone do destinatário, **cru**, como o emitente escreveu o `<fone>` da nota. A máscara é
+   * de quem imprime: metade dos emitentes manda sem DDD, e inventar um a partir dos dois primeiros
+   * dígitos daria um número que disca errado.
+   */
+  recipientPhone: null | string
+  /**
+   * O peso da carga e a origem dele. Os dois andam juntos: `estimated` é palpite por quantidade de
+   * volumes, e a tela é obrigada a marcá-lo ao lado do número.
+   */
+  cargoGrossWeight: null | string
+  cargoWeightSource: 'estimated' | 'xml' | null
+  /** O frete previsto pela parametrização e a regra que o produziu — a listagem os calcula sem veículo. */
+  freightAmount: null | string
+  freightRuleName: null | string
   /** O número **do endereço**, não o da nota: é ele que entra na chave da parada. */
   recipientAddressNumber: null | string
   /**

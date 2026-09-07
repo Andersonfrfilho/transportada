@@ -89,6 +89,26 @@ export type NfeDocumentListItem = Readonly<{
   recipientAddress: null | string
   /** O CEP do destinatário, cru. A tela da viagem o imprime junto do endereço da parada. */
   recipientPostalCode: null | string
+  /**
+   * O `<fone>` do destinatário, cru. Quem monta a viagem liga para o cliente antes de o caminhão
+   * sair; a máscara é de quem imprime, porque o emitente manda com e sem DDD.
+   */
+  recipientPhone: null | string
+  /**
+   * O peso bruto da carga e **de onde ele veio**. Os dois andam juntos: `estimated` é
+   * `quantidade de volumes × peso padrão da empresa`, e imprimir o número sem a marca faz um
+   * palpite de quilos parecer massa medida — a tela é obrigada a mostrar a origem junto.
+   */
+  /**
+   * O frete previsto pela parametrização vigente e o nome da regra que o produziu. ⚠️ Previsão, não
+   * receita realizada — a realizada nasce do CT-e emitido. Ambos `null` quando nenhuma regra casa e
+   * também quando duas casam igualmente bem: célula vazia manda alguém olhar a configuração,
+   * número arbitrário não.
+   */
+  freightAmount: null | string
+  freightRuleName: null | string
+  cargoGrossWeight: null | string
+  cargoWeightSource: 'estimated' | 'xml' | null
   recipientAddressNumber: null | string
   /** Onde a nota para, e com que precisão — ver `trip.types.ts`. */
   recipientLatitude: null | string
@@ -237,6 +257,11 @@ function isString(value: unknown): value is string {
   return typeof value === 'string'
 }
 
+/** A origem é fechada: sigla nova na API sem rótulo aqui vira linha recusada, não texto cru na tela. */
+function isCargoWeightSource(value: unknown): value is 'estimated' | 'xml' | null {
+  return value === null || value === 'estimated' || value === 'xml'
+}
+
 function isNullableString(value: unknown): value is null | string {
   return value === null || typeof value === 'string'
 }
@@ -322,6 +347,11 @@ function isNfeDocumentListItem(value: unknown): value is NfeDocumentListItem {
     isString(value.number) &&
     isNullableString(value.recipientAddress) &&
     isNullableString(value.recipientPostalCode) &&
+    isNullableString(value.recipientPhone) &&
+    isNullableString(value.freightAmount) &&
+    isNullableString(value.freightRuleName) &&
+    isNullableString(value.cargoGrossWeight) &&
+    isCargoWeightSource(value.cargoWeightSource) &&
     isNullableString(value.recipientAddressNumber) &&
     isNullableString(value.recipientLatitude) &&
     isNullableString(value.recipientLongitude) &&

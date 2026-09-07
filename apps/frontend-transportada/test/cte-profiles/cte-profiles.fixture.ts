@@ -8,6 +8,7 @@ export const FREIGHT_RULE_ID = '00000000-0000-4000-8000-000000000904'
 
 export type CteProfileSettingsContract = Readonly<{
   cargoInsuranceDeclared: boolean
+  municipalServicePolicy: string
   cfopInternal: string
   cfopInterstate: string
   chargeComponentLabel: string
@@ -81,6 +82,7 @@ export type CteProfileListPageContract = Readonly<{
 
 export const PROFILE_SETTINGS = {
   cargoInsuranceDeclared: true,
+  municipalServicePolicy: 'allow',
   cfopInternal: '5353',
   cfopInterstate: '6353',
   chargeComponentLabel: 'Frete',

@@ -301,6 +301,7 @@ export function TripQuickCreateDialog({
           nearby={nearbyNotes}
           onOrderChange={quickCreate.setCityOrder}
           order={quickCreate.cityOrder}
+          revenueLines={valuationPreview.valuation?.revenueLines}
           selected={selectedNotes}
           vehicleId={quickCreate.vehicleId}
         />
@@ -380,6 +381,12 @@ function toAssemblyNote(document: ScannedNfeDocument) {
     locationPrecision: document.recipientLocationPrecision,
     longitude: document.recipientLongitude,
     number: document.number,
+    phone: document.recipientPhone,
+    totalAmount: document.totalAmount,
+    freightAmount: document.freightAmount,
+    freightRuleName: document.freightRuleName,
+    cargoGrossWeight: document.cargoGrossWeight,
+    cargoWeightSource: document.cargoWeightSource,
     postalCode: document.recipientPostalCode,
     recipient: document.recipientName,
     state: document.recipientState,

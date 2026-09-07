@@ -75,6 +75,8 @@ const ZARAGOZA_883663 = {
   senderCity: 'Taubaté',
   senderLegalName: 'Comercial Zaragoza Imp Exp LTDA',
   senderState: 'SP',
+  recipientCityCode: '3543402',
+  senderCityCode: '3554102',
   senderTaxId: '05868574001090',
   series: '2',
   status: 'authorized',
@@ -101,7 +103,11 @@ describe('elegibilidade de NFS-e sem peso da carga', () => {
    * cair junto com o de cima, alguém tirou o gate dos dois de uma vez.
    */
   test('a mesma nota segue inelegível para CT-e, por falta de peso', () => {
-    const eligibility = checkDocumentEligibility({ ...ZARAGOZA_883663, grossWeight: '0.0000' })
+    const eligibility = checkDocumentEligibility({
+      ...ZARAGOZA_883663,
+      grossWeight: '0.0000',
+      municipalServicePolicy: 'allow',
+    })
 
     expect(eligibility.reason).toBe(CTE_BATCH_BLOCK_REASON.missingWeight)
   })

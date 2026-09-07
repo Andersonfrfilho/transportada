@@ -69,6 +69,11 @@ export type NfeDocumentSummary = {
   readonly number: string
   readonly recipientAddress: string | null
   readonly recipientPostalCode: string | null
+  readonly freightAmount: string | null
+  readonly freightRuleName: string | null
+  readonly cargoGrossWeight: string | null
+  readonly cargoWeightSource: 'estimated' | 'xml' | null
+  readonly recipientPhone: string | null
   readonly recipientAddressNumber: string | null
   readonly recipientLatitude: string | null
   readonly recipientLongitude: string | null

@@ -48,6 +48,11 @@ const DOCUMENT_PAGE = {
       number: '1',
       recipientAddress: 'Avenida do Destino, 200',
       recipientPostalCode: '14020000',
+      recipientPhone: '1639771234',
+      freightAmount: '136.8900',
+      freightRuleName: 'Spani',
+      cargoGrossWeight: '108.6700',
+      cargoWeightSource: 'xml' as const,
       recipientAddressNumber: null,
       recipientLatitude: null,
       recipientLongitude: null,
@@ -107,6 +112,7 @@ const EMISSION_PROFILE_PAGE = {
   data: [
     {
       cargoInsuranceDeclared: false,
+      municipalServicePolicy: 'allow',
       cfopInternal: '5353',
       cfopInterstate: '6353',
       chargeComponentLabel: 'Frete',
