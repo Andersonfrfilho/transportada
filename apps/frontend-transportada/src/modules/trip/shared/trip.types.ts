@@ -188,6 +188,9 @@ export type TripStopDetail = Readonly<{
 export type TripCargoWeight = Readonly<{
   documentsWithoutWeight: number
   grossWeightKilograms: string
+  /** Spec 093: o teto da ficha (`capacity_kg`) e quanto dele a carga ocupa. `null` sem teto. */
+  maxPayloadKg: string | null
+  payloadRatio: string | null
   source: 'declared' | 'estimated'
 }>
 

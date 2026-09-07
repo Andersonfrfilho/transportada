@@ -105,3 +105,27 @@ describe('ocupação na tela (spec 075 T011)', () => {
     expect(readFileSync(DETAIL, 'utf8')).toInclude('occupancy={trip.occupancy}')
   })
 })
+
+/**
+ * Spec 093: o teto de peso que sempre esteve no banco. `fleet_vehicles.capacity_kg` é o `capKG` do
+ * MDF-e, preenchida em 11 dos 12 veículos desta base — o que faltava era a montagem lê-la.
+ */
+describe('teto de peso da montagem', () => {
+  const source = readFileSync(COMPONENT, 'utf8')
+
+  it('imprime quanto da carga máxima do veículo a carga ocupa', () => {
+    expect(source).toInclude('cargoWeight.payload')
+    expect(trip.cargoWeight.payload).toInclude('{{percent}}%')
+    expect(trip.cargoWeight.payload).toInclude('{{capacity}}')
+  })
+
+  /**
+   * ⚠️ Ausência é ausência: nunca 0%, nunca 100%. Veículo sem teto cadastrado com carga dentro é o
+   * caso em que um número inventado faz alguém parar de carregar, ou continuar — a mesma regra que
+   * a ocupação de volume segue ao lado.
+   */
+  it('não inventa percentual quando o teto não está cadastrado', () => {
+    expect(source).toInclude('cargoWeight.payloadRatio === null')
+    expect(source).toInclude('cargoWeight.maxPayloadKg === null ? null :')
+  })
+})

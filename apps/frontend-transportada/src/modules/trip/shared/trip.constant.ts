@@ -207,6 +207,14 @@ export const DELIVERY_PROOF_KEYS = [
 export const TRIP_CARGO_WEIGHT_KEYS = [
   'documentsWithoutWeight',
   'grossWeightKilograms',
+  /**
+   * ⚠️ Spec 093: chave nova em lista validada por `hasExactKeys` — **a API sobe antes do
+   * frontend**. Com a API servindo o corpo antigo, toda prévia de carga é recusada na validação e o
+   * painel some com 200 na rede e nada no console, que é o mesmo defeito já registrado em
+   * `VEHICLE_DETAIL_KEYS`.
+   */
+  'maxPayloadKg',
+  'payloadRatio',
   'source',
 ] as const
 

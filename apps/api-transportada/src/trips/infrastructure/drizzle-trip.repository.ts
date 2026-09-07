@@ -59,6 +59,7 @@ import {
 } from './trip.query.js'
 import { listDeliveryContacts } from './delivery-proof-read.support.js'
 import { loadTripCargoWeight } from './trip-cargo-weight.support.js'
+import { withPayloadCeiling } from '../domain/trip-cargo-weight.policy.js'
 import { loadTripOccupancy } from './trip-occupancy.support.js'
 import { resolveCargoLayout, sumVolumes } from '../domain/cargo-layout.policy.js'
 import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
@@ -696,6 +697,11 @@ async function readTripDetail(
       (weight) => weight.view,
     ),
   ])
+  /** Spec 093: o teto sai do mesmo veículo que a ocupação já leu — sem segunda consulta. */
+  const cargoWeightWithCeiling = withPayloadCeiling({
+    maxPayloadKg: cargo.maxPayloadKg,
+    view: cargoWeight,
+  })
 
   /**
    * O rótulo é **derivado**, não servido do gravado: `trip_stops.label` é escrito uma vez, na
@@ -766,7 +772,7 @@ async function readTripDetail(
   return {
     ...mapTrip(record),
     cargoLayout: layout,
-    cargoWeight,
+    cargoWeight: cargoWeightWithCeiling,
     documents,
     drivers: driverRecords.map((row) =>
       mapTripDriver({

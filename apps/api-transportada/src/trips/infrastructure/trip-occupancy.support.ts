@@ -63,6 +63,12 @@ export async function loadTripOccupancy(
    */
   readonly bedDimensions: CargoBedDimensions | null
   readonly capacityM3: string | null
+  /**
+   * Spec 093: o teto de peso da ficha (`capacity_kg`, o `capKG` do MDF-e). Viaja daqui porque o
+   * veículo já foi lido: pedi-lo de novo no suporte de peso serializaria duas consultas paralelas.
+   * `null` quando o veículo não existe — zero, que é ausência, quem trata é a política.
+   */
+  readonly maxPayloadKg: string | null
   /** Spec 085: por onde a carga entra — o layout decide com ela se a ordem e obrigacao. */
   readonly loadingAccess: LoadingAccess
 }> {
@@ -70,6 +76,8 @@ export async function loadTripOccupancy(
     .select({
       bodyType: fleetVehicles.bodyType,
       loadingAccess: fleetVehicles.loadingAccess,
+      /** Spec 093: o `capKG` do MDF-e, que aqui vira o teto de peso da montagem. */
+      capacityKg: fleetVehicles.capacityKg,
       capacityM3: fleetVehicles.capacityM3,
       cargoHeightM: fleetVehicles.cargoHeightM,
       cargoLengthM: fleetVehicles.cargoLengthM,
@@ -86,6 +94,7 @@ export async function loadTripOccupancy(
       capacityM3: null,
       /** Veiculo desconhecido assume o mais restritivo, como a ausencia de acesso declarado. */
       loadingAccess: 'rear',
+      maxPayloadKg: null,
       occupancy: null,
       volumeByDocument: new Map(),
     }
@@ -125,6 +134,7 @@ export async function loadTripOccupancy(
       boxesByDocument: new Map(),
       capacityM3: null,
       loadingAccess: vehicle.loadingAccess,
+      maxPayloadKg: vehicle.capacityKg,
       occupancy: null,
       volumeByDocument: new Map(),
     }
@@ -194,6 +204,7 @@ export async function loadTripOccupancy(
       boxesByDocument: measured.boxesByDocument,
       capacityM3: capacity.capacityM3,
       loadingAccess: vehicle.loadingAccess,
+      maxPayloadKg: vehicle.capacityKg,
       occupancy: null,
       volumeByDocument,
     }
@@ -204,6 +215,8 @@ export async function loadTripOccupancy(
     boxesByDocument: measured.boxesByDocument,
     capacityM3: capacity.capacityM3,
     loadingAccess: vehicle.loadingAccess,
+    /** Spec 093: o `capKG` do MDF-e, que a montagem passou a ler como teto de peso da viagem. */
+    maxPayloadKg: vehicle.capacityKg,
     occupancy: {
       ...occupancy,
       capacityDimensions: resolveDimensions({ reference, vehicle }, capacity.source),

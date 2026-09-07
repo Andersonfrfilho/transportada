@@ -266,6 +266,15 @@ function TripCargoWeightLines({ cargoWeight }: { cargoWeight: TripCargoWeight | 
   if (cargoWeight === null) return null
 
   const isWeightEstimated = cargoWeight.source === 'estimated'
+  /**
+   * ⚠️ Spec 093: o teto **só aparece quando existe**. Ausência é ausência — nunca 0%, nunca 100%:
+   * veículo sem carga máxima cadastrada com carga dentro é o caso em que um número inventado faz
+   * alguém parar de carregar, ou continuar. E o estouro sai como está, acima de 100%.
+   */
+  const payloadPercent =
+    cargoWeight.payloadRatio === null
+      ? null
+      : Math.round(Number.parseFloat(cargoWeight.payloadRatio) * PERCENT_SCALE)
 
   return (
     <>
@@ -277,6 +286,14 @@ function TripCargoWeightLines({ cargoWeight }: { cargoWeight: TripCargoWeight | 
           })}
         </span>
       </p>
+      {payloadPercent === null || cargoWeight.maxPayloadKg === null ? null : (
+        <p className={styles.hint}>
+          {t('cargoWeight.payload', {
+            capacity: weightFormatter.format(Number.parseFloat(cargoWeight.maxPayloadKg)),
+            percent: payloadPercent,
+          })}
+        </p>
+      )}
       {isWeightEstimated ? <p className={styles.hint}>{t('cargoWeight.estimated')}</p> : null}
       {cargoWeight.documentsWithoutWeight > 0 ? (
         <p className={styles.hint}>

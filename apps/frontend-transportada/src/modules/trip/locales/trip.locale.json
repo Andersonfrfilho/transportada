@@ -273,6 +273,7 @@
   "cargoWeight": {
     "title": "Peso da carga",
     "total": "{{weight}} kg",
+    "payload": "{{percent}}% da carga máxima do veículo ({{capacity}} kg).",
     "estimated": "Peso estimado: o emitente não declarou o peso de nenhum volume desta carga, e o cálculo usa o peso por volume configurado.",
     "withoutWeight": "{{count}} nota sem peso não entrou na conta.",
     "withoutWeight_other": "{{count}} notas sem peso não entraram na conta."

@@ -687,6 +687,9 @@ function isCargoWeight(value: unknown): boolean {
   return (
     isUnsignedInteger(value.documentsWithoutWeight) &&
     isString(value.grossWeightKilograms) &&
+    /** Os dois andam juntos: teto sem percentual, ou percentual sem teto, é resposta pela metade. */
+    isNullableString(value.maxPayloadKg) &&
+    isNullableString(value.payloadRatio) &&
     isOneOf(value.source, TRIP_OCCUPANCY_SOURCES)
   )
 }
