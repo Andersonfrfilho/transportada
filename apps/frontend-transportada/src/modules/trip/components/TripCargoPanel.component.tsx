@@ -126,7 +126,7 @@ export function TripCargoPanel({
         <p className={styles.hint}>
           {t('occupancy.weightConcentration', {
             percent: Math.round(weightConcentration.share * PERCENT_SCALE),
-            stop: weightConcentration.stopId,
+            stop: weightConcentration.label,
           })}
         </p>
       )}

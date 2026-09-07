@@ -100,15 +100,19 @@ export async function previewTripCargo(input: PreviewTripCargoInput): Promise<Tr
  * normaliza vira parada própria, como em `buildCargoPreviewStops` — dois critérios de agrupamento
  * fariam o alerta apontar para uma parada que o desenho não mostra.
  */
-function sumWeightByStop(
-  documents: readonly CargoPreviewDocument[],
-): readonly { readonly stopId: string; readonly weightKilograms: string | null }[] {
+function sumWeightByStop(documents: readonly CargoPreviewDocument[]): readonly {
+  readonly label: string
+  readonly stopId: string
+  readonly weightKilograms: string | null
+}[] {
   /**
    * ⚠️ Soma em `bigint` escalado, não em `number`: `nfe_volumes.gross_weight` é `numeric(_,4)`, e
    * somar em float e voltar por `String()` produz `"0.30000000000000004"` — e notação exponencial
    * em totais grandes, que o próximo leitor da string não reabre.
    */
   const byStop = new Map<string, bigint>()
+  /** O rótulo da parada, para o aviso nomear um endereço em vez da chave que o agrupa. */
+  const labelByStop = new Map<string, string>()
   for (const document of documents) {
     const stopId = document.addressKey ?? `documento:${document.nfeDocumentId}`
     const weight =
@@ -120,8 +124,10 @@ function sumWeightByStop(
             value: document.weightKilograms,
           })
     byStop.set(stopId, (byStop.get(stopId) ?? 0n) + weight)
+    if (!labelByStop.has(stopId)) labelByStop.set(stopId, document.label)
   }
   return [...byStop].map(([stopId, weight]) => ({
+    label: labelByStop.get(stopId) ?? stopId,
     stopId,
     weightKilograms: formatScaledDecimal(weight, WEIGHT_SCALE),
   }))

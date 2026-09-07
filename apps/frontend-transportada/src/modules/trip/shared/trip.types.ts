@@ -271,7 +271,12 @@ export type TripCargoLayout = Readonly<{
  * `POST /trips/cargo-preview` a partir das notas e do veículo que o operador acabou de escolher.
  */
 /** A parada que carrega mais que a própria fatia do peso (spec 085 G006). */
-export type TripWeightConcentration = Readonly<{ share: number; stopId: string }>
+/**
+ * ⚠️ `label` é o que a tela imprime; `stopId` é a chave que agrupa. O aviso saía com a chave crua
+ * (`3534302|14620000|50` — IBGE, CEP e número), e quem lê não descobre de qual parada se trata
+ * justamente no aviso que pede uma ação.
+ */
+export type TripWeightConcentration = Readonly<{ label: string; share: number; stopId: string }>
 
 export type TripCargoPreview = Readonly<{
   cargoLayout: TripCargoLayout | null

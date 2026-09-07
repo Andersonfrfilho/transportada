@@ -702,7 +702,12 @@ function isCargoWeight(value: unknown): boolean {
 const TRIP_OCCUPANCY_SOURCES = ['declared', 'estimated', 'measured', 'partial'] as const
 
 function isWeightConcentration(value: unknown): value is TripWeightConcentration {
-  return isRecord(value) && typeof value.share === 'number' && isString(value.stopId)
+  return (
+    isRecord(value) &&
+    isString(value.label) &&
+    typeof value.share === 'number' &&
+    isString(value.stopId)
+  )
 }
 
 function isOccupancy(value: unknown): boolean {
