@@ -360,6 +360,23 @@ export function TripAssemblyMap({
               {t('assemblyMap.toll.withoutCharge', { count: toll.boothsWithoutCharge })}
             </p>
           )}
+          {/*
+            Spec 090 T8: praça a praça, na ordem em que o caminhão passa — quem confere sabe por
+            onde o custo entrou. Rota sem praça nunca é lista vazia: ela diz que não há pedágio,
+            porque sumir é indistinguível de "ninguém calculou".
+          */}
+          <p className={styles.hint}>
+            {toll.booths.length === 0
+              ? t('assemblyMap.toll.none')
+              : toll.booths
+                  .map((booth) =>
+                    t('assemblyMap.toll.booth', {
+                      name: booth.name ?? t('assemblyMap.toll.boothUnnamed'),
+                      operator: booth.operator ?? t('assemblyMap.toll.operatorUnknown'),
+                    }),
+                  )
+                  .join(' · ')}
+          </p>
         </div>
       )}
       {/*

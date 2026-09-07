@@ -438,7 +438,11 @@
       "summary": "Pedágio: {{total}} — {{boothCount}} praças, {{chargePerAxle}} por eixo × {{axleCount}} eixos",
       "tariff": " · tarifa de {{month}}",
       "estimated": "· eixo estimado",
-      "withoutCharge": "{{count}} praças sem tarifa conhecida"
+      "withoutCharge": "{{count}} praças sem tarifa conhecida",
+      "none": "Sem pedágio no trajeto.",
+      "booth": "{{name}} ({{operator}})",
+      "boothUnnamed": "praça sem nome",
+      "operatorUnknown": "operador desconhecido"
     }
   },
   "quickCreate": {
