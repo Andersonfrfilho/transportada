@@ -739,11 +739,66 @@ atributo do produto (GNV em m³, os outros quatro em litro) — e `other_costs_p
 O preço efetivo é `ajuste da empresa ?? referência da ANP da UF`, por produto
 (`companies/domain/fuel-price.policy.ts`), e `GET`/`PUT`/`DELETE
 /company-settings/fuel-prices[/{produto}]` (`settings.manage`, escopo `company`) leem e alternam o
-ajuste. ⚠️ `fuel_price_references` é a **única tabela do produto sem `company_id`**, de propósito: a
+ajuste. ⚠️ `fuel_price_references` é **uma das três tabelas do produto sem `company_id`** — ao lado de
+`vehicle_volume_references` e `toll_booths` —, de propósito: a
 publicação semanal da ANP é dado público de mercado, idêntico para toda empresa da instalação, sem
 PII e sem efeito fiscal. `test/fleet-schema/tenant-safety.contract.ts` a lista como exceção
 declarada — se ela sumir da lista, o contrato passa a cobrar o tenant. A leitura do preço dentro da
 listagem de veículos é **uma por empresa**, resolvida antes do `map` da página, nunca por linha.
+
+**O pedágio da rota é calculado, não lançado à mão** (spec 090, ADR pendente). `toll_booths` é a
+**terceira** tabela sem `company_id`, ao lado de `fuel_price_references` e `vehicle_volume_references`:
+tarifa pública mapeada no OSM, carregada do mesmo `.osm.pbf` que alimenta o OSRM por
+`scripts/toll-booth-extract.ts` e um seed idempotente por `osm_node_id`. Medido no extract real: 166
+praças, 163 com tarifa, **162 com tarifa por eixo**.
+
+⚠️ **A praça se casa por identidade de nó, nunca por proximidade.** A praça **é** um nó do OSM, então
+`annotations=nodes` no `/route` do OSRM entrega a interseção exata — e o sentido sai resolvido por
+construção. Medido: numa rota Ribeirão Preto → Limeira as cinco praças casadas são todas "(sentido
+Sul)", com as gêmeas do sentido Norte a poucos metros no mapa e **nenhuma** entrando. Um raio teria
+cobrado as duas. `resolveTollRouteCost` (`toll-booths/domain/`) é o **único** lugar que soma; o que
+muda por consumidor é de qual rota vêm os nós.
+
+⚠️ **O pedágio viaja na resposta da rota** (D4), nunca numa chamada própria: duas consultas para o
+mesmo trajeto podem devolver caminhos diferentes, e aí a tela mostra um traço e cobra outro, os dois
+plausíveis. Pela mesma razão a prévia da montagem tira **distância e pedágio da mesma chamada**.
+
+⚠️ **A praça conta uma vez por rota.** Medido: numa rota de 89,4 km, 27 nós aparecem mais de uma vez
+com 65 ocorrências extras — alça de trevo e retorno de rotatória, não segunda cancela.
+
+⚠️ **`nodeIds` nulo é desconhecido; rota sem praça é zero.** As duas coisas são diferentes na conta, e
+colapsá-las faria uma rota cuja anotação não veio parecer uma rota sem pedágio.
+
+⚠️ **`0.00` é tarifa declarada em 4 das 166 praças e nem sempre significa isenção** — duas da SP-291
+têm nome de praça de rodovia e zero em tudo, que é campo não mapeado. Por isso a tela é obrigada a
+imprimir **quantas praças estão sem tarifa conhecida** ao lado do total, e a data da tarifa
+(`observed_on`) junto: reajuste de pedágio é anual.
+
+O eixo sai de `resolveVehicleAxles`: `axle_count > 0` → `declared`, senão a referência por
+`vehicle_type` → `estimated`, e **um eixo estimado marca o total** — a tela é proibida de imprimir o
+valor sem a marca. ⚠️ A referência é **constante**, não tabela: dez linhas que ninguém atualiza fora
+do código não pagam migration, seed e exceção de isolamento. E `toco` é caminhão de **dois** eixos —
+o `truck` é que tem três; nas três praças medidas isso é R$ 65,60, não R$ 98,40.
+
+⚠️ **A viagem já criada ainda não carrega o pedágio dela** (T11 aberta). Ela persiste
+`planned_distance` e nenhum nó, então calcular agora parearia a rota de hoje com a distância de
+ontem — a mesma divergência da D4 dentro de um painel só. O caminho é congelar o pedágio junto com o
+roteiro, como `trip_dispatch_snapshots` faz. Até lá, a conta da viagem mostra o lançamento manual, e
+**o manual sempre vence o calculado**: ele é pagamento registrado, o outro é projeção.
+
+**A rota mais barata pode ser a que tem mais pedágio** (spec 093). `alternatives=true` funciona no
+OSRM em MLD, mas só **uma de quatro** rotas medidas ofereceu segunda opção. Onde ofereceu — Ribeirão
+Preto → Campinas — a alternativa economiza R$ 15,40 de pedágio e roda 18,1 km a mais, que num toco a
+3,5 km/l custam ~R$ 32: ela é **~R$ 16 mais cara**. Por isso `rankRouteOptions`
+(`toll-booths/domain/route-option.policy.ts`) elege a mais barata por **pedágio + combustível**, e um
+contrato reprova a eleição feita só pelo pedágio. Sem consumo ou sem preço **não existe** rótulo de
+mais barata; uma opção só não é escolha e a tela não desenha seletor.
+
+**O radar mostra a velocidade que o mapa souber.** O `overlay.yml` carrega `maxspeed`,
+`maxspeed:hgv` e `direction`; medido: 527 radares, 438 com velocidade, 12 com limite próprio de
+caminhão — e ⚠️ **`maxspeed:hgv` vence**, porque em rodovia brasileira o limite do caminhão é menor e
+quem lê este mapa opera frota. Os 89 sem a tag ficam **só com o triângulo**: inventar "60" porque é o
+valor mais comum seria inventar o número que o motorista obedece.
 
 **A região do motorista é o que a transportadora paga, não o que ela cobra:**
 `freight_region_driver_rates.driver_amount` é custo — o valor do agregado por viagem naquela rota e
