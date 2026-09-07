@@ -170,14 +170,25 @@ campo novo que nascer nativo.
 - [ ] Nenhum caminho novo de `<input type="file">` cru
 - [ ] Smoke: anexar, ver na lista, revelar, substituir, remover
 
+## Decisões fechadas em 07/09/2026
+
+- **`fleet.reveal` é permissão nova**, no molde do `users.reveal`. Generalizar a existente
+  misturaria dois cadastros com donos diferentes: quem administra usuários não é quem administra
+  frota, e a permissão daria carona de um para o outro. Custa uma migration nos CHECKs de
+  `membership_roles.role` e `user_invitation_roles.role`.
+- **O documento vive enquanto a ficha viver.** Sai com o motorista, na mesma transação. ⚠️ Isso
+  significa **na prática indefinidamente**, porque ficha de motorista é desativada, não removida —
+  a consequência fica registrada aqui e em `docs/SECURITY.md`, e é a mesma que a 071 assumiu. É
+  também mais uma razão para a cifra da ADR-0039 vir antes (D1), não depois.
+- **A ADR-0039 é a primeira etapa deste trabalho**, não um pré-requisito externo. O `plan.md`
+  começa por ela.
+
+⚠️ **Adiado, não resolvido:** anexo de candidatura aprovada **não** vira anexo do motorista criado a
+partir dela. Medido: 0 candidaturas nesta instalação, então não há o que migrar hoje, e construir a
+ponte agora seria desenhar contra um fluxo que ninguém exerceu. Quando a landing passar a ser usada,
+o mesmo documento passa a existir em duas tabelas — e é aí que a decisão precisa ser tomada, com
+dado real na mão. Não é dívida escondida: está escrito, e o gatilho é a primeira candidatura.
+
 ## Dúvidas
 
-- [NEEDS CLARIFICATION: `fleet.reveal` é permissão nova ou o `users.reveal` existente se
-  generaliza para "revelar PII"? A segunda forma é mais simples e mistura dois cadastros que hoje
-  têm donos diferentes — quem administra usuários não é quem administra frota.]
-- [NEEDS CLARIFICATION: o documento acompanha o motorista para sempre, ou tem prazo próprio? A D6
-  diz "sai quando a ficha sai", mas ficha de motorista não é removida na prática — ela é
-  desativada. Prazo por inatividade precisa de número, e o número é decisão de negócio.]
-- [NEEDS CLARIFICATION: anexo de candidatura aprovada deve virar anexo do motorista criado a partir
-  dela? Está fora do escopo por ora, e isso deixa o mesmo documento em duas tabelas quando a landing
-  passar a ser usada.]
+Nenhuma bloqueante. As três de 06/09/2026 foram fechadas acima.
