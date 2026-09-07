@@ -476,6 +476,46 @@ marca e modelo. O CRLV também não as traz: ele imprime **peso** (PBT, CMT, tar
 medida interna do compartimento. A fita é o único caminho, e `test/fleet/vehicle-cargo-dimensions.contract.ts`
 tranca as duas metades — o zeramento e a ausência da herança.
 
+**A ficha nasce preenchida, e diz de onde veio** (spec 093). Um dia depois de a 088 entrar, **3 de
+12** veículos tinham o baú medido — e preencher doze fichas com fita não acontece antes da próxima
+viagem. Hoje o formulário sugere comprimento, largura, altura e `capacity_kg` ao escolher o tipo, e
+`resolveVehicleSuggestion` (`fleet/shared/vehicleSuggestion.service.ts`) decide a origem nesta ordem:
+**veículo da frota com a mesma marca E o mesmo modelo, já medido → referência do tipo → ausência**.
+
+⚠️ **Marca sozinha não herda medida**, ao contrário de `resolveVehicleBrandDefaults` ao lado, que
+cai para a marca quando não acha o modelo: dois modelos da mesma marca não têm o mesmo baú, e ali o
+erro vira metro na planta em vez de porcentagem na ocupação. ⚠️ A sugestão entra **só em campo
+vazio**, por baixo da herança e dos padrões do tipo, e **digitar apaga a marca de origem** — a mesma
+regra do campo vindo de documento. ⚠️ Ela **nunca alimenta a planta por baixo**: a 088 D2 recusou a
+referência como escala, e a medição desta spec confirma o motivo — a van vai de **7,0 a 15,5 m³** na
+mesma sigla. O que a torna aceitável é a origem impressa ao lado do campo e o salvamento: a partir
+dele, é o que a ficha afirma.
+
+`vehicle_volume_references` ganhou `max_payload_kg` (nulo é ausência de fonte, e o CHECK **recusa
+zero** — o oposto do vocabulário da ficha, onde zero é "ninguém mediu") e as linhas de
+`three_quarter` e `motorcycle`, que não existiam; `three_quarter` é o tipo do `RTD-5J78`, e é por
+isso que ele não achava referência nenhuma. ⚠️ As dimensões das sete linhas antigas **não foram
+tocadas**, embora a pesquisa devolva números maiores: a referência é **piso**, e subi-lo mudaria
+calado a ocupação de todo veículo sem ficha. `car` e `tractor_unit` seguem sem linha — o carro de
+passeio não tem compartimento publicado (porta-malas é outra grandeza) e o cavalo não tem baú
+próprio. ⚠️ Ela é a **terceira** tabela sem `company_id`, e era a única das três cuja ausência não
+estava assertada em `tenant-safety`. Serve por `GET /fleet/vehicle-references` sob `fleet.read` —
+não `settings.manage`: quem cadastra veículo é quem precisa da sugestão. Catálogo fora do ar é ficha
+sem sugestão, nunca ficha travada.
+
+**O peso da carga ganhou teto, e ele sempre esteve no banco** (spec 093). `fleet_vehicles.capacity_kg`
+é o `capKG` que o MDF-e exige e está preenchida em **10 dos 12** veículos; nenhuma tela a lia fora
+da emissão fiscal, e por isso a montagem somava o peso sem comparar com nada. Hoje `cargoWeight`
+publica `maxPayloadKg` e `payloadRatio` na prévia e no detalhe. ⚠️ O comentário de
+`trip-cargo-weight.policy.ts` afirmava que a ficha **não guardava massa nenhuma** — era a premissa,
+não a coluna, que faltava; criar um `max_payload_kg` ao lado teria posto dois campos de massa na
+mesma ficha, e quem preenchesse o novo veria a rejeição no MDF-e. A conta vive num lugar só
+(`withPayloadCeiling`), aplicada sobre a view já montada porque o peso e o veículo são lidos em
+paralelo. Ausência é `null` nos dois campos — **nunca 0%, nunca 100%** —, e o estouro sai como está.
+⚠️ `TRIP_CARGO_WEIGHT_KEYS` é `hasExactKeys`: **a API sobe antes do frontend**, senão a prévia de
+carga é recusada na validação e o painel some com 200 na rede e nada no console — o mesmo defeito de
+`VEHICLE_DETAIL_KEYS`.
+
 **A caixa se mede uma vez, e o cadastro se popula do que roda** (ADR-0062, spec 085). A NF-e não
 traz dimensão nenhuma — medido em 345 XMLs desta base: **345 de 345** sem medida no grupo `<vol>` —,
 então a medida é trabalho humano, e a decisão da 085 é que ela mora em `nfe_package_boxes` **aqui**,
