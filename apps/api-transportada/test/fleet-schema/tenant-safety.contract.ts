@@ -13,6 +13,7 @@ import {
   fleetVehicles,
   fuelPriceReferences,
   userCompanyMemberships,
+  vehicleVolumeReferences,
 } from '../../src/database/database.schema.js'
 import { columnNames, foreignKeys, uniqueColumnsByName } from '../fiscal-schema/support.js'
 
@@ -87,6 +88,18 @@ describe('fleet tenant safety', () => {
   test('keeps the published tariff tenant-less on purpose, and unable to reach a company', () => {
     expect(columnNames(energyTariffReferences)).not.toContain('company_id')
     expect(foreignKeys(energyTariffReferences)).toEqual([])
+  })
+
+  /**
+   * ⚠️ Spec 093: a **terceira** tabela sem tenant, e até aqui a única das três cuja ausência não
+   * estava assertada — passava por esquecimento, que é exatamente o que estes testes existem para
+   * impedir. A cubagem de referência é catálogo de mercado: idêntica para toda instalação, sem PII
+   * e sem efeito fiscal. Se ela ganhar `company_id`, vira configuração por empresa e a spec muda de
+   * tamanho.
+   */
+  test('keeps the volume reference tenant-less on purpose, and unable to reach a company', () => {
+    expect(columnNames(vehicleVolumeReferences)).not.toContain('company_id')
+    expect(foreignKeys(vehicleVolumeReferences)).toEqual([])
   })
 
   // Um motorista de outra empresa não pode herdar o login desta — o vínculo passa pelo tenant

@@ -61,6 +61,11 @@ export const API_FLEET_DRIVER_VEHICLES_PATH = '/fleet/driver-vehicles'
 export const API_FLEET_CAPABILITIES_PATH = '/fleet/capabilities'
 export const API_FLEET_VEHICLE_CATALOG_BRANDS_PATH = '/fleet/vehicle-catalog/brands'
 export const API_FLEET_VEHICLE_CATALOG_MODELS_PATH = '/fleet/vehicle-catalog/models'
+/**
+ * Spec 093: o catálogo de referência de baú por tipo, que alimenta a sugestão do cadastro. Fica sob
+ * `/fleet` como o catálogo FIPE ao lado — quem cadastra veículo já tem `fleet.read`.
+ */
+export const API_FLEET_VEHICLE_REFERENCES_PATH = '/fleet/vehicle-references'
 /** Não é rota de frota: os três formulários com campo de CEP — motorista, empresa e MDF-e — a usam. */
 export const API_POSTAL_CODES_PATH = '/postal-codes'
 export const API_ADDRESS_REPORT_PATH = '/address-report'
