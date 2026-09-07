@@ -272,6 +272,10 @@
   "tareWeightKilograms": "Tare weight (kg)",
   "capacityKilograms": "Capacity (kg)",
   "capacityCubicMeters": "Capacity (m³)",
+  "cargoLengthMeters": "Cargo length (m)",
+  "cargoWidthMeters": "Cargo width (m)",
+  "cargoHeightMeters": "Cargo height (m)",
+  "capacityCubicMetersDerivedHint": "Derived from the cargo length, width and height.",
   "ownership": "Ownership",
   "ownershipOption": {
     "aggregate": "Aggregate",

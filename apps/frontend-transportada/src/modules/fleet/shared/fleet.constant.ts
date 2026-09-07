@@ -157,6 +157,9 @@ export const VEHICLE_COST_KEYS = [
 export const VEHICLE_MEASURE_KEYS = [
   'capacityCubicMeters',
   'capacityKilograms',
+  'cargoHeightMeters',
+  'cargoLengthMeters',
+  'cargoWidthMeters',
   'tareWeightKilograms',
 ] as const
 
@@ -168,6 +171,9 @@ export const VEHICLE_BODY_KEYS = [
   'brand',
   'capacityCubicMeters',
   'capacityKilograms',
+  'cargoHeightMeters',
+  'cargoLengthMeters',
+  'cargoWidthMeters',
   'color',
   'fleetNumber',
   'fuelType',
@@ -207,6 +213,9 @@ export const VEHICLE_FORM_KEYS = [
   'brand',
   'capacityCubicMeters',
   'capacityKilograms',
+  'cargoHeightMeters',
+  'cargoLengthMeters',
+  'cargoWidthMeters',
   'color',
   'fleetNumber',
   'fuelType',

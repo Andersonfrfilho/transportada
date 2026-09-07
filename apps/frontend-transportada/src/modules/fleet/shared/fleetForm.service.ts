@@ -30,6 +30,7 @@ import type {
 } from './fleet.types'
 import { toVehicleCostBody, toVehicleCostFormState } from './fleetVehicleCost.service'
 import { toVehicleMeasureBody, toVehicleMeasureFormState } from './fleetVehicleMeasure.service'
+import { resolveSubmittedCapacity } from './vehicleCargoDimensions.service'
 
 const OWN_OWNERSHIP = 'own'
 const UNAVAILABLE_CATALOG_SOURCE: FleetVehicleCatalogSource = 'unavailable'
@@ -55,6 +56,9 @@ export const EMPTY_VEHICLE_FORM: FleetVehicleFormState = {
   brand: '',
   capacityCubicMeters: '',
   capacityKilograms: '',
+  cargoHeightMeters: '',
+  cargoLengthMeters: '',
+  cargoWidthMeters: '',
   color: '',
   fleetNumber: '',
   fuelType: DEFAULT_FUEL_PRODUCT,
@@ -327,7 +331,7 @@ export function toVehicleBody(state: FleetVehicleFormState): FleetVehicleBody {
     // O tipo é do veículo que traciona: implemento não puxa frete, e guardá-lo nele mente na tabela
     vehicleType: state.role === TRACTION_ROLE ? state.vehicleType : '',
     ...toVehicleCostBody(state),
-    ...toVehicleMeasureBody(state),
+    ...toVehicleMeasureBody({ ...state, capacityCubicMeters: resolveSubmittedCapacity(state) }),
   }
 }
 

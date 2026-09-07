@@ -158,6 +158,9 @@ function isVehicle(value: unknown): value is FleetVehicleDetail {
     isString(value.brand) &&
     isDecimalString(value.capacityCubicMeters) &&
     isDecimalString(value.capacityKilograms) &&
+    isDecimalString(value.cargoHeightMeters) &&
+    isDecimalString(value.cargoLengthMeters) &&
+    isDecimalString(value.cargoWidthMeters) &&
     isString(value.color) &&
     isNullableDecimalString(value.costPerKilometer) &&
     isCostBreakdown(value.costPerKilometerBreakdown) &&

@@ -8,7 +8,12 @@ import {
   formatVehicleMeasure,
   VEHICLE_MEASURE_FIELD_SCALE,
 } from '@/modules/fleet/shared/fleetVehicleMeasure.service'
-import { VEHICLE_BRAND_DEFAULT_BLANK } from '@/modules/fleet/shared/vehicleBrandDefaults.service'
+import {
+  VEHICLE_BRAND_DEFAULT_BLANK,
+  VEHICLE_BRAND_DEFAULT_FIELDS,
+  type VehicleBrandDefaultField,
+} from '@/modules/fleet/shared/vehicleBrandDefaults.service'
+import { CARGO_DIMENSION_KEYS } from '@/modules/fleet/shared/vehicleCargoDimensions.service'
 import { maskTypedMeasure, parseTypedMeasure } from '@/modules/shared/decimalAmount.service'
 
 import { VEHICLE_DETAIL } from './fleet.fixture'
@@ -58,6 +63,9 @@ describe('Vehicle measure fields', () => {
     expect([...VEHICLE_MEASURE_KEYS]).toEqual([
       'capacityCubicMeters',
       'capacityKilograms',
+      'cargoHeightMeters',
+      'cargoLengthMeters',
+      'cargoWidthMeters',
       'tareWeightKilograms',
     ])
     for (const key of VEHICLE_MEASURE_KEYS) {
@@ -103,7 +111,17 @@ describe('Vehicle measure fields', () => {
     expect(body.capacityCubicMeters).toBe('0.00')
 
     for (const key of VEHICLE_MEASURE_KEYS) {
-      expect(VEHICLE_BRAND_DEFAULT_BLANK[key]).toBe('')
+      if (key in VEHICLE_BRAND_DEFAULT_BLANK) {
+        expect(VEHICLE_BRAND_DEFAULT_BLANK[key as VehicleBrandDefaultField]).toBe('')
+      }
+    }
+
+    /**
+     * Spec 088: a medida do baú não se herda por marca. O catálogo FIPE devolve marca e modelo, e o
+     * baú é montado depois do chassi — copiar do irmão de placa daria metro que a fita desmente.
+     */
+    for (const key of CARGO_DIMENSION_KEYS) {
+      expect(VEHICLE_BRAND_DEFAULT_FIELDS).not.toContain(key)
     }
   })
 

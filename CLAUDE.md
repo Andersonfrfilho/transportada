@@ -390,6 +390,37 @@ inventado faria alguém parar de carregar, ou continuar. Estouro acima de 100% s
 tela de quem carrega o caminhão. E `VEHICLE_TYPE_ICONS` (frontend) é `Record<VehicleType, IconName>`
 — tipo novo no catálogo **não compila** sem desenho.
 
+⚠️ **`VEHICLE_DETAIL_KEYS` é contrato de duas pontas, e quebrar sozinho é silencioso.** O
+`isVehicle` do frontend valida com `hasOnlyKeys` **e** `hasEveryKey`: campo novo na lista com a API
+ainda servindo o corpo antigo faz toda linha ser recusada na validação, e a tabela de frota
+renderiza **vazia** — 200 na rede, nada no console, nenhum erro na tela. Aconteceu ao acrescentar os
+três campos de baú, com a API de desenvolvimento rodando código anterior. Num deploy com API e
+frontend em serviços separados, a janela entre os dois é uma tela de frota vazia para o cliente:
+sobe a API primeiro.
+
+**A escala do baú sai da ficha, e medi-lo apaga o m³ digitado** (spec 088 R1). A ficha do veículo
+nunca pediu as três medidas: as colunas existem desde a 075, `resolveVehicleCapacity` as prefere a
+qualquer outra fonte, e o formulário perguntava só `Capacidade (m³)` — medido em 2026-09-06, **0 de
+8** veículos com dimensão preenchida. Hoje ela pede comprimento, largura e altura, os três
+opcionais, e `cargoLengthMeters`/`cargoWidthMeters`/`cargoHeightMeters` atravessam a rota de escrita
+até `cargo_length_m` e as duas irmãs.
+
+⚠️ **Preenchidas as três, o `capacityCubicMeters` submetido é zero** —
+`resolveSubmittedCapacity` (`fleet/shared/vehicleCargoDimensions.service.ts`), e o campo da tela
+vira somente-leitura mostrando o derivado. Travar o campo sem zerar o envio era o meio caminho que
+não resolve nada: o m³ antigo continuava no banco, invisível enquanto as medidas existissem, e
+voltava a valer sozinho no dia em que alguém as apagasse por troca de implemento — reafirmado por
+ninguém, e justamente o número que a spec diz não merecer confiança. Zero é o vocabulário que o
+resolvedor **já** lê como ausência (nunca como baú de volume zero), então apagar não inventa
+sinalizador novo.
+
+⚠️ A medida **não se herda por marca**: `VEHICLE_BRAND_DEFAULT_FIELDS` copia doze campos entre
+veículos da mesma marca — `capacityCubicMeters` incluído — e as três dimensões ficam de fora de
+propósito, porque o baú é montado por um implementador depois do chassi e o catálogo FIPE devolve só
+marca e modelo. O CRLV também não as traz: ele imprime **peso** (PBT, CMT, tara, lotação), nunca a
+medida interna do compartimento. A fita é o único caminho, e `test/fleet/vehicle-cargo-dimensions.contract.ts`
+tranca as duas metades — o zeramento e a ausência da herança.
+
 **A caixa se mede uma vez, e o cadastro se popula do que roda** (ADR-0062, spec 085). A NF-e não
 traz dimensão nenhuma — medido em 345 XMLs desta base: **345 de 345** sem medida no grupo `<vol>` —,
 então a medida é trabalho humano, e a decisão da 085 é que ela mora em `nfe_package_boxes` **aqui**,

@@ -60,6 +60,10 @@ export type FleetVehicleBodyContract = FleetVehicleCostFieldsContract &
     brand: string
     capacityCubicMeters: string
     capacityKilograms: string
+    /** Spec 088 R1: a medida do baú, restatada aqui como o resto do contrato. */
+    cargoHeightMeters: string
+    cargoLengthMeters: string
+    cargoWidthMeters: string
     color: string
     fleetNumber: string
     fuelType: FleetVehicleFuelProductContract
@@ -203,6 +207,9 @@ export const VEHICLE_BODY = {
   brand: 'Marca Sintetica',
   capacityCubicMeters: '90.00',
   capacityKilograms: '27000.00',
+  cargoHeightMeters: '0.00',
+  cargoLengthMeters: '0.00',
+  cargoWidthMeters: '0.00',
   color: 'branca',
   fleetNumber: '101',
   fuelType: 'diesel-s10',
@@ -465,6 +472,9 @@ export const VEHICLE_DRAFT_BODY = {
   brand: '',
   capacityCubicMeters: '0.00',
   capacityKilograms: '0.00',
+  cargoHeightMeters: '0.00',
+  cargoLengthMeters: '0.00',
+  cargoWidthMeters: '0.00',
   color: '',
   fleetNumber: '',
   fuelType: 'diesel-s10',

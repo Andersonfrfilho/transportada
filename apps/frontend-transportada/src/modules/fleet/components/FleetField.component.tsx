@@ -38,9 +38,12 @@ type FleetMoneyFieldProps = Readonly<{
 }>
 
 type FleetMeasureFieldProps = Readonly<{
+  hint?: string
   label: string
   onChange: (value: string) => void
   optional?: boolean
+  /** Spec 088 R1: campo derivado continua legível e copiável, e deixa de aceitar digitação. */
+  readOnly?: boolean
   scale: number
   value: string
 }>
@@ -196,9 +199,11 @@ export function FleetMoneyField({
  * enquanto se digita. A vírgula é do operador; o ponto que separa o milhar é sempre da máscara.
  */
 export function FleetMeasureField({
+  hint,
   label,
   onChange,
   optional = false,
+  readOnly = false,
   scale,
   value,
 }: FleetMeasureFieldProps) {
@@ -211,10 +216,12 @@ export function FleetMeasureField({
       </span>
       <input
         inputMode="decimal"
+        readOnly={readOnly}
         type="text"
         value={maskTypedMeasure({ scale, value })}
         onChange={(event) => onChange(maskTypedMeasure({ scale, value: event.target.value }))}
       />
+      {hint === undefined ? null : <small className={styles.fieldHint}>{hint}</small>}
     </label>
   )
 }

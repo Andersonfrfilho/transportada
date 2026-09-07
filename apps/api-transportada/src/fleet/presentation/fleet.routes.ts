@@ -334,6 +334,9 @@ function serializeVehicle(vehicle: FleetVehicle): object {
     brand: vehicle.brand,
     capacityCubicMeters: vehicle.capacityCubicMeters,
     capacityKilograms: vehicle.capacityKilograms,
+    cargoHeightMeters: vehicle.cargoHeightMeters,
+    cargoLengthMeters: vehicle.cargoLengthMeters,
+    cargoWidthMeters: vehicle.cargoWidthMeters,
     color: vehicle.color,
     costPerKilometer: vehicle.costPerKilometer,
     costPerKilometerBreakdown:

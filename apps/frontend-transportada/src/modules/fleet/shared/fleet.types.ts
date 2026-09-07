@@ -202,6 +202,10 @@ export type FleetVehicleBody = FleetVehicleCostFields &
     brand: string
     capacityCubicMeters: string
     capacityKilograms: string
+    /** Spec 088 R1: a medida do baú, em metros. Zero é ausência — o resolvedor exige as três. */
+    cargoHeightMeters: string
+    cargoLengthMeters: string
+    cargoWidthMeters: string
     color: string
     fleetNumber: string
     fuelType: FuelProduct
@@ -419,6 +423,9 @@ export type FleetVehicleFormState = FleetVehicleCostFields &
     brand: string
     capacityCubicMeters: string
     capacityKilograms: string
+    cargoHeightMeters: string
+    cargoLengthMeters: string
+    cargoWidthMeters: string
     color: '' | VehicleColor
     fleetNumber: string
     fuelType: FuelProduct
