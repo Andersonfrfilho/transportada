@@ -115,6 +115,55 @@ manutenção nossa.
 `osrm-contract` (que é do algoritmo CH) e servir com `mld` faz o container subir e recusar toda
 consulta.
 
+## Carregar as praças de pedágio do mesmo `.pbf` (spec 090)
+
+O catálogo de praças sai do **mesmo arquivo** que alimenta o roteirizador — nunca de uma consulta em
+tempo de execução. Reconstruiu o extract? recarregue as praças, ou o mapa e a tarifa passam a
+descrever regiões diferentes.
+
+```bash
+bun run --cwd apps/api-transportada scripts/toll-booth-extract.ts \
+  --pbf deploy/osrm/data/<dataset>.osm.pbf --out /tmp/pracas.json
+```
+
+Ele imprime as três contagens, e são elas que dizem se o extract cobre a operação:
+
+```
+praças              166
+com tarifa          163
+com tarifa por eixo 162
+```
+
+⚠️ **Praça sem `charge` entra com tarifa nula, e isso é de propósito** — ela existe na estrada, e
+descartá-la faria a rota parecer sem pedágio ali. ⚠️ E **`0.00` é tarifa declarada em 4 das 166,
+nem sempre significando isenção**: duas da SP-291 têm nome de praça de rodovia e zero em tudo, que é
+campo não mapeado. Por isso a tela imprime quantas praças estão sem tarifa conhecida ao lado do
+total.
+
+O seed é idempotente por `osm_node_id` — rodar duas vezes deixa as mesmas linhas —, e `observed_on`
+é a data que **você** informa (`--observed-on`, padrão hoje), não a do arquivo: o extrator não sabe
+quando foi rodado, e reajuste de pedágio é anual.
+
+## Reassar o overlay do radar (spec 093)
+
+Mesma regra: o overlay sai do mesmo `.pbf`. Ele carrega `maxspeed`, `maxspeed:hgv` e `direction`, e
+**não** precisa de build remoto para ser conferido — o jar do planetiler se extrai uma vez:
+
+```bash
+docker create --name planetiler-extract ghcr.io/onthegomap/planetiler:latest
+docker cp planetiler-extract:/app ./app && docker rm planetiler-extract
+
+java -cp "app/resources:app/classes:app/libs/*" com.onthegomap.planetiler.Main generate-custom \
+  --schema=deploy/map-tiles/overlay.yml --output=overlay.pmtiles --force \
+  --osm_path=deploy/osrm/data/<dataset>.osm.pbf
+```
+
+⚠️ Exige **Java 21+** (o jar é class file 65). E ⚠️ **sem o `@` no classpath**: `-cp "@caminho"` faz o
+Java ler o argumento como argfile e falhar com uma mensagem que não parece ter nada a ver.
+
+Medido em 5 s sobre `ribeirao.osm.pbf`, 112 kB: 527 radares, 438 com velocidade, 12 com limite
+próprio de caminhão.
+
 ## Apontar o serviço para o dataset
 
 O nome do arquivo, sem `.osrm`, é o que o `compose.yaml` lê:
