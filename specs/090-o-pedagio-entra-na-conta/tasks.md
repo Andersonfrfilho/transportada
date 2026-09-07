@@ -101,8 +101,15 @@ persistido na viagem.
 
 ### T7 — O custo na montagem
 
-Na `TripAssemblyMap`, ao lado de "Tempo do roteiro": total, número de praças, valor por eixo,
-quantidade de eixos e **a data da tarifa**.
+Na `TripAssemblyMap`, **imediatamente abaixo** de "Tempo do roteiro": total, número de praças, valor
+por eixo, quantidade de eixos, **a data da tarifa** e **quantas praças estão sem tarifa conhecida**.
+
+⚠️ O dado vem na **resposta do `POST /route-geometry`** (decisão D4), junto do traço e dos trechos —
+nunca de uma chamada própria, que seria uma segunda rota podendo discordar da desenhada.
+
+⚠️ A contagem de praças sem tarifa é obrigatória, e não é zelo: medido no extract real, `0.00`
+aparece como tarifa em 4 das 166 praças, duas delas com nome de praça de rodovia e zero em tudo —
+campo não mapeado, não isenção. O total sozinho seria número crível e possivelmente falso.
 
 - **Depende de:** T5, T6, T6B.
 - **Aceite:** contrato que reprova o componente se o valor aparecer **sem a marca de estimado**

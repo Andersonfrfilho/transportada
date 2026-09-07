@@ -110,6 +110,29 @@ diferente de "a rota desta montagem não foi persistida ainda".
 sem valor cadastrado", spec 086), e cadastro ausente não vira número por mudança de fonte de
 distância. O painel continua listando o que falta.
 
+### D4 — O pedágio viaja na resposta da rota, nunca numa chamada ao lado
+
+Decidido em 2026-09-07, com a T5 pronta e antes de escrever a tela.
+
+O `POST /route-geometry` já pede `annotations=nodes` e já recebe os nós percorridos (T4). Calcular o
+pedágio ali é **de graça**: os nós estão na mão, e o cruzamento com o catálogo é um `Map`. Uma rota
+própria para o pedágio custaria uma segunda ida ao OSRM pela mesma rota.
+
+⚠️ **E o custo maior não é a chamada, é a divergência.** Duas consultas para o mesmo trajeto podem
+devolver caminhos diferentes — versão do dataset, empate entre alternativas, reordenação de parada
+entre um clique e outro —, e aí a tela mostra um traço de 106 km ao lado de um pedágio calculado
+sobre outro caminho. Os dois números são plausíveis, nenhum acusa nada, e é a mesma armadilha que a
+D3 acabou de fechar do lado da distância. Vindos da mesma resposta, discordar é impossível por
+construção.
+
+Na montagem, isso põe o pedágio **imediatamente abaixo da linha "Tempo do roteiro"**, alimentado pelo
+mesmo payload que desenhou o traço.
+
+⚠️ **Isto não cria um segundo cálculo de pedágio.** `resolveTollRouteCost` continua sendo o único
+lugar que soma; o que muda por consumidor é **de qual rota vêm os nós** — a da montagem, aqui, e a da
+viagem já criada, na conta da viagem (T9). Duas rotas diferentes são duas perguntas diferentes; duas
+somas seriam o defeito.
+
 ## Onde o dado mora
 
 `toll_booths`, **sem `company_id`** — dado público de mercado, idêntico para toda instalação:
