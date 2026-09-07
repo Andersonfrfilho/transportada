@@ -235,3 +235,43 @@ describe('o motivo de cada posição (spec 094 P4)', () => {
     }
   })
 })
+
+/**
+ * ⚠️ O teto de tempo é critério de aceite, não zelo: a planta é calculada **dentro** da prévia de
+ * carga, que roda a cada clique na montagem. Uma viagem grande travando a tela é o tipo de coisa
+ * que só aparece em produção quando não é medida antes.
+ */
+describe('desempenho do empacotador (spec 094 RF-NF)', () => {
+  test('uma viagem de 300 notas cabe em 50 ms', () => {
+    /** Três caixas por nota, o que esta base tem de mediana — 900 caixas ao todo. */
+    const boxes = Array.from({ length: 900 }, (_, index) =>
+      box({ count: 4, stopSequence: (index % 12) + 1 }),
+    )
+
+    const startedAt = performance.now()
+    const plan = resolveCargoPlacement({ bed: BED, boxes })
+    const elapsed = performance.now() - startedAt
+
+    expect(plan).not.toBeNull()
+    expect(elapsed).toBeLessThan(50)
+  })
+
+  /**
+   * ⚠️ O teto de caixas desenhadas existe porque o desenho não fica melhor com duas mil — fica
+   * lento e ilegível. O excedente é **dito**, como tudo que não entra.
+   */
+  test('para de desenhar no teto e nomeia o excedente', () => {
+    /**
+     * Caixa pequena de propósito: com a de 60 × 40 × 40 o **baú** enche em 360 e o teto de desenho
+     * nunca é alcançado — o teste passaria sem exercitar nada.
+     */
+    const boxes = Array.from({ length: 400 }, () =>
+      box({ count: 4, heightMm: 200, lengthMm: 200, widthMm: 200 }),
+    )
+    const plan = resolveCargoPlacement({ bed: BED, boxes })
+    const placed = plan?.layers.reduce((total, layer) => total + layer.boxes.length, 0) ?? 0
+
+    expect(placed).toBeLessThanOrEqual(600)
+    expect(plan?.unplaced.some((entry) => entry.reason === 'tooMany')).toBe(true)
+  })
+})
