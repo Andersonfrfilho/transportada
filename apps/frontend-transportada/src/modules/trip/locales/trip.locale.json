@@ -443,6 +443,18 @@
       "booth": "{{name}} ({{operator}})",
       "boothUnnamed": "praça sem nome",
       "operatorUnknown": "operador desconhecido"
+    },
+    "routeOptions": {
+      "title": "Rotas alternativas",
+      "option": "{{distance}} km · {{duration}} · {{boothCount}} praças",
+      "total": "Total estimado: {{amount}}",
+      "fastest": "mais rápida",
+      "cheapest": "mais barata",
+      "fastestAndCheapest": "mais rápida e mais barata",
+      "gap": {
+        "NO_FUEL_BASELINE": "Sem consumo ou preço de combustível declarado para o veículo, não há como dizer qual rota é mais barata.",
+        "TOLL_UNKNOWN": "O pedágio de alguma rota não pôde ser calculado — sem como comparar o custo total entre elas."
+      }
     }
   },
   "quickCreate": {

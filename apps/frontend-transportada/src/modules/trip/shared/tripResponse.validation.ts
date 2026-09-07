@@ -13,9 +13,11 @@ import type {
 } from './trip.types'
 import {
   AXLE_COUNT_SOURCES,
+  ROUTE_COST_GAPS,
   ROUTE_GEOMETRY_SOURCES,
   type RouteGeometry,
   type RouteGeometryLeg,
+  type RouteGeometryOption,
   type RouteGeometryToll,
   type RouteGeometryTollBooth,
 } from './routeGeometry.service'
@@ -110,6 +112,19 @@ function readNullableColumn(row: unknown, column: string): null | string {
 
 function invalid(): Error {
   return new Error(TRIP_ERROR.RESPONSE_INVALID)
+}
+
+/** `unavailable` com lista vazia é o único jeito de dizer "não sei o caminho" (spec 079/093). */
+const UNAVAILABLE_ROUTE_GEOMETRY: RouteGeometry = {
+  cheapestIndex: null,
+  costGap: null,
+  fastestIndex: null,
+  hasChoice: false,
+  legs: [],
+  options: [],
+  points: [],
+  source: 'unavailable',
+  toll: null,
 }
 
 function isStringArray(value: unknown): value is readonly string[] {
@@ -596,11 +611,11 @@ export function createTripResponseAdapters() {
     },
     routeGeometryFromApi(input: unknown): RouteGeometry {
       if (!isRecord(input) || !isOneOf(input.source, ROUTE_GEOMETRY_SOURCES)) {
-        return { legs: [], points: [], source: 'unavailable', toll: null }
+        return UNAVAILABLE_ROUTE_GEOMETRY
       }
       const points = Array.isArray(input.points) ? input.points : []
       if (!points.every(isGeometryPoint)) {
-        return { legs: [], points: [], source: 'unavailable', toll: null }
+        return UNAVAILABLE_ROUTE_GEOMETRY
       }
       /**
        * ⚠️ Trecho estranho zera **só os trechos**, não a linha: a estrada continua desenhável, e o
@@ -612,8 +627,19 @@ export function createTripResponseAdapters() {
        * ⚠️ Pedágio estranho zera **só o pedágio**, pelo mesmo motivo do trecho: a linha e o tempo
        * continuam valendo, e é melhor a tela dizer "não calculei" do que esconder o mapa inteiro.
        */
+      /**
+       * Spec 093 T1: as alternativas, mais o ranking de `rankRouteOptions` (T2). Opção estranha
+       * zera **só as opções** — a linha, o tempo e o pedágio da principal continuam valendo, e a
+       * tela simplesmente deixa de oferecer seletor (o mesmo comportamento de rota única, D2).
+       */
+      const options = Array.isArray(input.options) ? input.options : []
       return {
+        cheapestIndex: isNullableNumber(input.cheapestIndex) ? input.cheapestIndex : null,
+        costGap: isOneOf(input.costGap, ROUTE_COST_GAPS) ? input.costGap : null,
+        fastestIndex: isNullableNumber(input.fastestIndex) ? input.fastestIndex : null,
+        hasChoice: input.hasChoice === true,
         legs: legs.every(isGeometryLeg) ? legs : [],
+        options: options.every(isGeometryOption) ? options : [],
         points,
         source: input.source,
         toll: isGeometryToll(input.toll) ? input.toll : null,
@@ -813,6 +839,29 @@ function isGeometryToll(value: unknown): value is RouteGeometryToll {
     isNullableString(tariffObservedOn) &&
     isString(total)
   )
+}
+
+/** Spec 093 T1: a alternativa de rota, com a mesma forma que a geometria — mais o custo total. */
+function isGeometryOption(value: unknown): value is RouteGeometryOption {
+  if (!isRecord(value)) return false
+  const { distanceMeters, durationSeconds, fuelTotal, legs, points, toll, totalCost } = value
+  return (
+    typeof distanceMeters === 'number' &&
+    Number.isFinite(distanceMeters) &&
+    typeof durationSeconds === 'number' &&
+    Number.isFinite(durationSeconds) &&
+    isNullableString(fuelTotal) &&
+    Array.isArray(legs) &&
+    legs.every(isGeometryLeg) &&
+    Array.isArray(points) &&
+    points.every(isGeometryPoint) &&
+    (toll === null || isGeometryToll(toll)) &&
+    isNullableString(totalCost)
+  )
+}
+
+function isNullableNumber(value: unknown): value is null | number {
+  return value === null || (typeof value === 'number' && Number.isFinite(value))
 }
 
 function isOccurrenceType(value: unknown): value is OccurrenceType {

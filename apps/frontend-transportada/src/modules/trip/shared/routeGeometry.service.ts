@@ -55,13 +55,49 @@ export type RouteGeometryToll = Readonly<{
   total: string
 }>
 
+/**
+ * Por que não há rota mais barata — as duas razões são ausência de dado, nunca empate (spec 093
+ * D1): o rótulo simplesmente não é atribuído, e a tela diz qual das duas faltou.
+ */
+export const ROUTE_COST_GAPS = ['NO_FUEL_BASELINE', 'TOLL_UNKNOWN'] as const
+export type RouteCostGap = (typeof ROUTE_COST_GAPS)[number]
+
+/**
+ * Uma alternativa de rota (spec 093 T1) — a mesma forma que os campos de sempre de `RouteGeometry`
+ * (`legs`, `points`, `toll`), mais o que só faz sentido comparando opções entre si.
+ */
+export type RouteGeometryOption = Readonly<{
+  distanceMeters: number
+  durationSeconds: number
+  /** `null` quando o veículo não declara consumo/preço, ou quando o pedágio é desconhecido. */
+  fuelTotal: null | string
+  legs: readonly RouteGeometryLeg[]
+  points: readonly Readonly<{ latitude: string; longitude: string }>[]
+  toll: null | RouteGeometryToll
+  totalCost: null | string
+}>
+
 export type RouteGeometry = Readonly<{
-  /** Um por par de paradas consecutivas. Vazio quando a estrada não veio — nunca estimado. */
+  /** Um por par de paradas consecutivas. Vazio quando a estrada não veio — nunca estimado.
+   *  ⚠️ Sempre os da rota **principal** — ver `options[0]` para as alternativas (spec 093 T1). */
   legs: readonly RouteGeometryLeg[]
   points: readonly Readonly<{ latitude: string; longitude: string }>[]
   /** `null` quando ninguém pediu pedágio (sem veículo escolhido) ou a rota não anotou os nós. */
   toll: null | RouteGeometryToll
   source: RouteGeometrySource
+  /**
+   * As rotas que o roteirizador ofereceu, a principal em `[0]` (spec 093 T1). Campo opcional para
+   * não quebrar literal antigo desta tela — ausente é tratado igual a lista vazia.
+   */
+  options?: readonly RouteGeometryOption[]
+  /** Índice em `options` da rota mais barata. `null` quando `costGap` diz por que não há uma. */
+  cheapestIndex?: null | number
+  /** Por que não há mais barata — ausência de dado, nunca empate. */
+  costGap?: null | RouteCostGap
+  /** Índice em `options` da rota mais rápida. */
+  fastestIndex?: null | number
+  /** `false` quando o roteirizador só ofereceu um caminho — a tela não desenha seletor. */
+  hasChoice?: boolean
 }>
 
 export type ProjectedPoint = Readonly<{ x: number; y: number }>

@@ -1342,6 +1342,41 @@
   gap: var(--space-1);
 }
 
+/* O seletor de rota alternativa (spec 093 T3), logo abaixo do bloco de pedágio. */
+.routeOptions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Cada opção é um cartão clicável, não uma linha de tabela — a escolha troca o traço inteiro. */
+.routeOptionList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.routeOption {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  height: auto;
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  white-space: normal;
+}
+
+/* "mais rápida"/"mais barata": discreta, como a marca de estimativa ao lado do peso. */
+.routeOptionBadge {
+  color: var(--color-slate);
+  font-size: 0.72rem;
+  font-style: italic;
+}
+
 /*
  * As três grandezas da nota — valor, peso e frete — numa fileira própria abaixo do endereço. Elas
  * não entram no `join(' · ')` da linha porque a linha já é longa e porque cada uma tem marca
