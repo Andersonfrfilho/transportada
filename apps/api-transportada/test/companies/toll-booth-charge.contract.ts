@@ -28,6 +28,8 @@ describe('GET /company-settings/toll-booth-charges HTTP contract', () => {
         {
           actorUserId: ACTOR_USER_ID,
           catalog: { chargeCar: '10.50', chargePerAxle: '10.50', observedOn: '2026-06-01' },
+          chargeCarSource: 'manual',
+          chargePerAxleSource: 'manual',
           effectiveChargeCar: '11.00',
           effectiveChargePerAxle: '11.00',
           name: 'Praça SP-330',
@@ -70,6 +72,9 @@ describe('PUT /company-settings/toll-booth-charges/{osmNodeId} HTTP contract', (
       data: {
         actorUserId: ACTOR_USER_ID,
         catalog: { chargeCar: null, chargePerAxle: null, observedOn: '2026-06-01' },
+        /** ⚠️ Só o por eixo foi corrigido; o de carro segue sendo o do mapa (que aqui não sabe). */
+        chargeCarSource: 'catalog',
+        chargePerAxleSource: 'manual',
         effectiveChargeCar: null,
         effectiveChargePerAxle: '9.9000',
         name: 'Praça SP-291',

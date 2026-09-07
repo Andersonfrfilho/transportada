@@ -197,3 +197,37 @@ Inclui as cinco suítes novas desta task:
 - **Congelar o ajuste no payload da viagem** — fora de escopo aqui; a T11 aberta da 090 (congelar o
   pedágio junto do roteiro) permanece aberta, e o ajuste hoje é lido ao vivo como o catálogo sempre
   foi.
+
+## Conferência independente, e uma correção (2026-09-07)
+
+`make migration-test` e as suítes reconferidos por esta sessão: 110 pass em `fleet-schema` +
+`toll-booths`, 126 em `companies`. A asserção de tenant está lá — `company_toll_booth_charges` **tem**
+`company_id` e é cobrada por isso, ao contrário de `toll_booths`, que segue na lista de exceções.
+
+### Corrigido — a origem era por linha, e mentia sobre metade
+
+`EffectiveTollBoothCharge.source` dizia `manual` para a linha inteira sempre que houvesse ajuste. Um
+ajuste que corrige **só a tarifa de carro** deixa o valor **por eixo** vindo do mapa — e é o por eixo
+que decide o custo do caminhão. A página existe justamente para dizer de onde cada número veio, e uma
+origem só para dois campos que vencem o catálogo em separado mente sobre um deles.
+
+Agora são `chargePerAxleSource` e `chargeCarSource`, resolvidos por campo. O `source` de linha
+continua publicado, para quem só quer saber se existe ajuste.
+
+### ⚠️ Desvio de processo, declarado pelo próprio executor
+
+A implementação e os testes nasceram juntos, não vermelho-depois-verde. Os gates passaram, o processo
+não — e a regra é dura nesta base (`AGENTS.md`: teste de aceite/contrato **antes**). Fica registrado
+porque o custo de um teste escrito depois é invisível: ele nasce sabendo o que o código faz, e
+concorda com ele por construção.
+
+A correção da origem por campo, acima, foi feita no processo certo: contrato vermelho
+(`ReferenceError` primeiro, depois duas asserções falhando), implementação, verde.
+
+### O que continua faltando, e é decisão
+
+A **aba** não existe. Nada no produto guarda por quais praças uma empresa já passou — o cálculo de
+rota é preguiçoso e nem `trips` nem `route_suggestions` gravam id de nó. As três saídas estão na
+seção acima; a recomendação desta sessão é a terceira (adiar a aba até a curadoria oficial
+ANTT/ARTESP), porque com tarifa oficial a página deixa de ser sobre consertar o OSM e passa a ser
+sobre contrato e desconto — que é o que o mercado realmente ajusta à mão.

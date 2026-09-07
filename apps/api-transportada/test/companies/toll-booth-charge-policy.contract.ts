@@ -89,3 +89,33 @@ describe('effective toll booth charge policy contract (spec 095 D1)', () => {
     })
   })
 })
+
+describe('origem por campo (conferência de 2026-09-07)', () => {
+  /**
+   * ⚠️ `source` era **por linha**: um ajuste que corrige só a tarifa de carro marcava a linha
+   * inteira como `manual`, incluindo o valor por eixo que continua vindo do mapa. A tela desta
+   * página existe para dizer de onde cada número veio — e é o valor por eixo que decide o custo do
+   * caminhão. Uma origem só, para dois campos que vencem o catálogo em separado, mente sobre um
+   * deles.
+   */
+  test('diz manual só no campo que a pessoa corrigiu', () => {
+    const result = resolveEffectiveTollBoothCharge({
+      adjustment: adjustment({ chargeCar: '9.90', chargePerAxle: null }),
+      catalog: catalog(),
+    })
+
+    expect(result.chargeCarSource).toBe('manual')
+    expect(result.chargePerAxleSource).toBe('catalog')
+    expect(result.effectiveChargePerAxle).toBe('10.50')
+  })
+
+  test('diz catálogo nos dois campos quando não há ajuste', () => {
+    const result = resolveEffectiveTollBoothCharge({
+      adjustment: null,
+      catalog: catalog(),
+    })
+
+    expect(result.chargeCarSource).toBe('catalog')
+    expect(result.chargePerAxleSource).toBe('catalog')
+  })
+})

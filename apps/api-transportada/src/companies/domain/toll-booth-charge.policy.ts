@@ -34,6 +34,14 @@ export type EffectiveTollBoothCharge = Readonly<{
     chargePerAxle: null | string
     observedOn: string
   }>
+  /**
+   * ⚠️ **A origem é por campo, não por linha.** Um ajuste que corrige só a tarifa de carro deixa o
+   * valor por eixo vindo do mapa — e é o por eixo que decide o custo do caminhão. Uma origem só
+   * para os dois mentiria sobre um deles, na página que existe justamente para dizer de onde cada
+   * número veio.
+   */
+  chargeCarSource: TollBoothChargeSource
+  chargePerAxleSource: TollBoothChargeSource
   effectiveChargeCar: null | string
   effectiveChargePerAxle: null | string
   name: null | string
@@ -61,6 +69,8 @@ export function resolveEffectiveTollBoothCharge(input: {
       chargePerAxle: catalog.chargePerAxle,
       observedOn: catalog.observedOn,
     },
+    chargeCarSource: sourceOf(adjustment?.chargeCar ?? null),
+    chargePerAxleSource: sourceOf(adjustment?.chargePerAxle ?? null),
     effectiveChargeCar: adjustment?.chargeCar ?? catalog.chargeCar,
     effectiveChargePerAxle: adjustment?.chargePerAxle ?? catalog.chargePerAxle,
     name: catalog.name,
@@ -70,4 +80,9 @@ export function resolveEffectiveTollBoothCharge(input: {
     source: adjustment === null ? 'catalog' : 'manual',
     updatedAt: adjustment?.updatedAt ?? null,
   }
+}
+
+/** Campo ajustado é `manual`; campo em branco no ajuste continua sendo o do mapa. */
+function sourceOf(adjusted: null | string): TollBoothChargeSource {
+  return adjusted === null ? 'catalog' : 'manual'
 }

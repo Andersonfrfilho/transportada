@@ -107,6 +107,8 @@ function serializeTollBoothCharge(charge: EffectiveTollBoothCharge): Record<stri
     observedOn: charge.observedOn,
     operator: charge.operator,
     osmNodeId: charge.osmNodeId,
+    chargeCarSource: charge.chargeCarSource,
+    chargePerAxleSource: charge.chargePerAxleSource,
     source: charge.source,
     updatedAt: charge.updatedAt?.toISOString() ?? null,
   }
