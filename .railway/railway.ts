@@ -139,12 +139,6 @@ export default defineRailway((ctx) => {
       ENCRYPTION_ACTIVE_KEY_ID: preserve(),
       ENCRYPTION_KEYRING_JSON: preserve(),
       FISCAL_ENVIRONMENT: preserve(),
-      /**
-       * ADR-0062: a mesma chave da API, por referência (`${{api.GOOGLE_MAPS_API_KEY}}`) — o valor
-       * não é copiado, então rotacionar na API rotaciona aqui. Sem ela a rotina `geocoding.refine`
-       * não é registrada e a janela dela pousa em `job_run_routine_missing`.
-       */
-      GOOGLE_MAPS_API_KEY: preserve(),
       FOUNDATION_SYNTHETIC_CONSUMER_ENABLED: preserve(),
       IDEMPOTENCY_HMAC_KEY: preserve(),
       LOG_LEVEL: preserve(),
@@ -407,15 +401,17 @@ export default defineRailway((ctx) => {
    * ⚠️ `healthcheckTimeout` alto porque a imagem carrega o dataset inteiro: o build baixa o `.pbf` e
    * roda o planetiler, e é o degrau que não cabe em laptop nenhum.
    *
-   * ⚠️ **Uma instância só, em produção, e os dois ambientes puxam dela.** Ao contrário do `osrm`,
-   * aqui não há o que isolar: a telha é OSM público, idêntica nos dois lados, sem dado de tenant e
-   * sem segredo — a mesma razão pela qual `fuel_price_references` não tem `company_id`. Replicar
-   * seria assar 872 MB duas vezes e pagar egress duas vezes pelo mesmo arquivo estático.
-   *
-   * ⚠️ Consequência: o `VITE_MAP_TILES_URL` do painel de **staging** aponta para o domínio de
-   * produção, e esse host precisa estar no `connect-src` da CSP — o pedido é `Range` sobre arquivo
-   * estático, nenhuma coordenada de entrega sai junto. Produção fora do ar leva o mapa do staging
-   * junto, e isso é aceitável: a queda cai na degradação da ADR-0044 §6, a lista ordenada.
+   * ⚠️ **A consolidação "uma instância só, em produção" foi revertida em 2026-09-06, e staging
+   * volta a ter a própria.** O comentário anterior dizia os dois ambientes puxarem de produção —
+   * mas o serviço de staging nunca foi removido de fato (achado durante a feature 089), e a fonte
+   * dele ficou desconectada do GitHub por meses sem ninguém notar, porque nada dependia dela
+   * reconstruir. Reconectá-la teve um efeito colateral direto: **sem `watchPatterns`, o serviço
+   * passou a reconstruir a cada push em `staging`**, não só quando o mapa muda — um build de vários
+   * minutos (baixa o `.pbf`, roda o planetiler) disparando por qualquer commit, em qualquer módulo.
+   * A correção mínima seria terminar a consolidação (apontar `VITE_MAP_TILES_URL` de staging para o
+   * domínio de produção e remover o serviço); a decisão tomada em vez disso foi manter os dois
+   * ambientes com instância própria — como o `osrm` já faz — e aplicar aqui o mesmo filtro que
+   * produção já tinha, para o ruído desaparecer sem depender de produção estar sempre no ar.
    *
    * ⚠️ **E não em `transportada-ops`**, que foi considerado. Lá moram GlitchTip, OpenObserve, Gatus
    * e o espelho de backup — coisas que *vigiam* ou *protegem* o ambiente e por isso não podem
@@ -423,7 +419,7 @@ export default defineRailway((ctx) => {
    * prevista. Separá-lo custaria um segundo arquivo de IaC e um segundo link de projeto para
    * comprar isolamento que este serviço não usa.
    */
-  const mapTiles = service('map-tiles-production', {
+  const mapTiles = service(isProduction ? 'map-tiles-production' : 'map-tiles', {
     source: transportada,
     build: {
       builder: 'DOCKERFILE',
@@ -543,7 +539,7 @@ export default defineRailway((ctx) => {
   return project('transportada', {
     resources: isProduction
       ? [...shared, backup, aggregateDocumentOcr, mapTiles, osrm]
-      : [...shared, mailpit, osrm, stagingRefresh],
+      : [...shared, mailpit, mapTiles, osrm, stagingRefresh],
   })
 })
 

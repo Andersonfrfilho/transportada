@@ -246,11 +246,25 @@ describe('local Keycloak realm contract', () => {
     expect(spaClient.attributes?.['post.logout.redirect.uris']).toBe(
       'http://localhost:53000/*##http://localhost:53000##http://localhost:53100/*##http://localhost:53100',
     )
+    /**
+     * ⚠️ **A landing (53003) é a terceira origem, e ela entrou pelo realm sem passar por aqui** — o
+     * mesmo descuido que a nota acima descreve, repetido. Fica escrito que a quisemos: a landing
+     * hospeda o pré-cadastro do agregado, que é anônimo, mas ela reaproveita o mesmo cliente
+     * público para a volta do login de quem já tem conta.
+     *
+     * ⚠️ Ela **não** está em `post.logout.redirect.uris`, e a assimetria é do realm, não deste
+     * teste: dali não se faz logout. Quem for acrescentá-la lá acrescenta aqui também.
+     */
     expect(spaClient.redirectUris).toEqual([
       'http://localhost:53000/auth/callback',
       'http://localhost:53100/auth/callback',
+      'http://localhost:53003/auth/callback',
     ])
-    expect(spaClient.webOrigins).toEqual(['http://localhost:53000', 'http://localhost:53100'])
+    expect(spaClient.webOrigins).toEqual([
+      'http://localhost:53000',
+      'http://localhost:53100',
+      'http://localhost:53003',
+    ])
     expect(apiClient).toMatchObject({
       directAccessGrantsEnabled: false,
       implicitFlowEnabled: false,
