@@ -7,8 +7,13 @@ mostra hoje é combustível mais o que o veículo declara por quilômetro. **Ped
 numa rota de interior ele é a diferença entre uma viagem que paga e uma que não paga.
 
 Medido nesta base: a rota Ribeirão Preto → sul do estado, **126 km**, passa por **três praças**, que
-somam **R$ 32,80 por eixo**. Um `toco` de 3 eixos paga **R$ 98,40**; uma carreta de 5 eixos, **R$
+somam **R$ 32,80 por eixo**. Um `toco` de 2 eixos paga **R$ 65,60**; uma carreta de 5 eixos, **R$
 164,00**. Nenhum desses números aparece na montagem.
+
+⚠️ A primeira versão desta linha dizia "um toco de 3 eixos paga R$ 98,40" e contradizia a própria
+T6, duas seções abaixo ("`toco` e `truck` da base real, 2 e 3 eixos"). `toco` é caminhão de dois
+eixos — um dianteiro e um traseiro simples —, e quem tem três é o `truck`, o truncado. Corrigido ao
+executar a T6, e o valor certo é o que está acima.
 
 O resultado desta feature: **o custo de pedágio da rota entra na descrição do roteiro e na conta da
 viagem**, com as praças nomeadas, o valor por eixo, o total pelo veículo escolhido, e a data da

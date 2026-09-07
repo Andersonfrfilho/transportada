@@ -287,3 +287,64 @@ para a T5 e a T7:** o total não pode ser a única coisa impressa — a tela diz
 e **quantas estão sem tarifa conhecida**. Uma rota que só passe pelas duas da SP-291 imprimiria
 "R$ 0,00 · 2 praças", número crível e possivelmente falso; com a contagem ao lado, quem lê sabe que
 não é isenção medida.
+
+## T5 — A política que soma o pedágio (2026-09-07)
+
+Contrato antes, vermelho por módulo inexistente. Verde depois:
+
+```
+bun test test/toll-booths.contract.test.ts
+ 25 pass, 0 fail, 46 expect() calls
+```
+
+Nove asserções, e três delas saem de medição, não de suposição:
+
+- **Uma vez por rota.** As 40 repetições não consecutivas medidas na T4 são alça de trevo, não
+  segunda cancela.
+- **Zero com origem conhecida** quando a rota não passa por praça, e **`null`** quando os nós não
+  vieram. Colapsar as duas faria uma rota sem anotação parecer uma rota sem pedágio.
+- **`boothsWithoutCharge`** conta a praça cuja tarifa ninguém sabe, em vez de tratá-la como isenta —
+  é o que a medição de `0.00` da conferência acima exige.
+
+### O contrato reprovou a própria justificativa, e quem estava errado era o contrato
+
+⚠️ A primeira versão do contrato de texto de fonte proibia a palavra `latitude` em qualquer lugar do
+arquivo, e reprovou **o comentário que explica por que a política não lê coordenada**:
+
+```
+(fail) never reaches for distance arithmetic to decide which booth was passed
+ 24 pass, 1 fail
+```
+
+Corrigido no **teste**, não no código: a busca passou a ser pelo acesso ao campo (`.latitude`), que é
+o que caracteriza a aritmética de distância. Contrato que reprova a própria justificativa ensina a
+apagar a justificativa, e aí some o motivo de a regra existir.
+
+## T6 — Eixos: ficha, referência, origem (2026-09-07)
+
+```
+bun test test/toll-booths.contract.test.ts
+ 29 pass, 0 fail, 70 expect() calls
+bunx tsc --noEmit    # sem erro
+bunx eslint          # sem aviso, --max-warnings=0
+bunx prettier --check # All matched files use Prettier code style
+```
+
+### Duas divergências da spec, as duas deliberadas
+
+⚠️ **A referência de eixos é constante, não tabela.** A D2 pedia "tabela de mercado sem
+`company_id`, como `fuel_price_references`". Aqui isso não paga: aquela é carregada toda semana de
+uma publicação externa que muda, e esta é um mapa de dez linhas que ninguém atualiza fora do código.
+Tabela custaria migration, seed, repositório e mais uma exceção declarada no contrato de isolamento,
+por dado que nasce e morre num arquivo. Segue o molde de `VEHICLE_TYPES` e `FUEL_TYPES`, que são
+catálogo pela mesma razão. Reverter é barato se alguém quiser a tabela.
+
+⚠️ **A spec se contradizia sobre o `toco`, e a abertura dela estava errada.** O problema dizia "um
+`toco` de 3 eixos paga R$ 98,40" e a T6, duas seções abaixo, dizia "`toco` e `truck` da base real
+(2 e 3 eixos)". `toco` é caminhão de dois eixos — um dianteiro e um traseiro simples —, e quem tem
+três é o `truck`, o truncado. A conta certa nas três praças medidas é **32,80 × 2 = R$ 65,60**, e o
+`spec.md` foi corrigido junto com esta task.
+
+`tractor_unit` conta **o conjunto que roda** (cavalo mais semirreboque, 5 eixos): o cavalo sozinho
+não atravessa a praça carregado, e a cancela cobra o que passa por ela. `other` recebe o piso do
+menor caminhão — superestimar inventaria custo que não existe.
