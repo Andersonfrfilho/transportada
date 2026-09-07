@@ -348,3 +348,30 @@ três é o `truck`, o truncado. A conta certa nas três praças medidas é **32,
 `tractor_unit` conta **o conjunto que roda** (cavalo mais semirreboque, 5 eixos): o cavalo sozinho
 não atravessa a praça carregado, e a cancela cobra o que passa por ela. `other` recebe o piso do
 menor caminhão — superestimar inventaria custo que não existe.
+
+## G002 — verificação ponta a ponta, rota real × catálogo real (2026-09-07)
+
+Rota do OSRM local (`annotations=nodes`) cruzada com as 166 praças do extrator, casando **por id de
+nó**, uma vez por rota:
+
+| rota                           |    km |  nós | praças | por eixo |  toco (2) | carreta (5) |
+| ------------------------------ | ----: | ---: | -----: | -------: | --------: | ----------: |
+| Ribeirão Preto → Pirassununga  | 106,6 |  796 |      3 | R$ 32,80 |  R$ 65,60 |   R$ 164,00 |
+| Ribeirão Preto → Limeira       | 169,5 | 1255 |      5 | R$ 54,30 | R$ 108,60 |   R$ 271,50 |
+| Ribeirão Preto → Campinas      | 221,5 | 2166 |      5 | R$ 54,30 | R$ 108,60 |   R$ 271,50 |
+| Ribeirão Preto → norte (89 km) |  89,4 | 1106 |      0 |  R$ 0,00 |   R$ 0,00 |     R$ 0,00 |
+
+A primeira linha **é o aceite da spec**: São Simão (10,50) + Santa Rita do Passa Quatro (10,50) +
+Pirassununga (11,80) = **R$ 32,80 por eixo**, as mesmas três praças que a D1 previu. A quilometragem
+difere (106,6 contra os 126 km citados) porque o destino exato da medição original não está na spec;
+as praças e a tarifa batem exatamente.
+
+E confirma a correção da T6: **R$ 65,60 num toco**, não os R$ 98,40 que a abertura da spec dizia. O
+número da carreta que ela dava, R$ 164,00, estava certo.
+
+⚠️ **As cinco praças casadas são todas "(sentido Sul)"**, e isso é a prova de que o casamento por nó
+resolve o sentido por construção: as gêmeas do sentido Norte estão a poucos metros dali no mapa e
+**nenhuma** entrou. Um casamento por raio teria cobrado as duas.
+
+A quarta linha é o outro lado do contrato: rota sem praça devolve zero, e zero aqui é medido — não é
+a ausência de anotação, que devolveria `null`.
