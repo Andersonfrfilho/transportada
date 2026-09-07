@@ -4,6 +4,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { Icon } from '@/components/ui/icon'
+import { ProgressBar } from '@/components/ui/progress'
 import { VEHICLE_TYPE_ICONS } from '@/modules/shared/vehicleTypeIcon.service'
 
 import { TripCargoPlan } from './TripCargoPlan.component'
@@ -109,16 +110,24 @@ export function TripCargoPanel({
         pela metade. Quem carrega precisa das duas no mesmo golpe de vista.
       */}
       <div className={styles.cargoMeasures}>
-        <p className={styles.cargoMeasure}>
+        <div className={styles.cargoMeasure}>
           <span className={styles.cargoMeasureLabel}>{t('occupancy.label')}</span>
           <span className={styles.cargoMeasureValue}>{t('occupancy.ratio', { percent })}</span>
-          <span className={styles.cargoMeasureDetail}>
-            {t('occupancy.loaded', {
+          {/*
+            A barra é o mesmo número em forma de comprimento: quem enche o caminhão lê o quanto
+            falta antes de ler o algarismo. Acima do teto ela enche e troca de cor — o percentual ao
+            lado continua dizendo quanto passou.
+          */}
+          <ProgressBar
+            completed={Number.parseFloat(occupancy.loadedM3)}
+            label={t('occupancy.label')}
+            total={Number.parseFloat(occupancy.capacityM3)}
+            valueText={t('occupancy.loaded', {
               capacity: formatVolume(occupancy.capacityM3),
               loaded: formatVolume(occupancy.loadedM3),
             })}
-          </span>
-        </p>
+          />
+        </div>
         <TripCargoWeightMeasure cargoWeight={cargoWeight} />
       </div>
       {dimensions === null ? null : (
@@ -282,7 +291,7 @@ function TripCargoWeightMeasure({ cargoWeight }: { cargoWeight: TripCargoWeight 
       : Math.round(Number.parseFloat(cargoWeight.payloadRatio) * PERCENT_SCALE)
 
   return (
-    <p className={styles.cargoMeasure}>
+    <div className={styles.cargoMeasure}>
       <span className={styles.cargoMeasureLabel}>{t('cargoWeight.label')}</span>
       {payloadPercent === null || cargoWeight.maxPayloadKg === null ? (
         <>
@@ -297,15 +306,18 @@ function TripCargoWeightMeasure({ cargoWeight }: { cargoWeight: TripCargoWeight 
           <span className={styles.cargoMeasureValue}>
             {t('cargoWeight.ratio', { percent: payloadPercent })}
           </span>
-          <span className={styles.cargoMeasureDetail}>
-            {t('cargoWeight.loaded', {
+          <ProgressBar
+            completed={Number.parseFloat(cargoWeight.grossWeightKilograms)}
+            label={t('cargoWeight.label')}
+            total={Number.parseFloat(cargoWeight.maxPayloadKg)}
+            valueText={t('cargoWeight.loaded', {
               capacity: weightFormatter.format(Number.parseFloat(cargoWeight.maxPayloadKg)),
               weight,
             })}
-          </span>
+          />
         </>
       )}
-    </p>
+    </div>
   )
 }
 

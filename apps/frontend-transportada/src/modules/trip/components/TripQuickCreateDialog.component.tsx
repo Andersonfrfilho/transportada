@@ -29,7 +29,11 @@ import {
 } from '../shared/driverBoundVehicles.service'
 import type { ScannedNfeDocument } from '../shared/trip.types'
 import type { TripQuickCreateEntry } from '../shared/tripQuickCreate.service'
-import { isQuickCreateEntryPending, stagedDocumentIds } from '../shared/tripQuickCreate.service'
+import {
+  isQuickCreateEntryPending,
+  listSelectableDocuments,
+  stagedDocumentIds,
+} from '../shared/tripQuickCreate.service'
 import styles from '../styles/trip.module.css'
 
 type TripQuickCreateDialogProps = Readonly<{
@@ -224,8 +228,16 @@ export function TripQuickCreateDialog({
           ) : null}
         </div>
 
+        {/*
+          ⚠️ A busca oferece só o que ainda não está na fila. Nota escolhida sai da lista e volta
+          quando for retirada — oferecê-la de novo faz quem monta um lote grande perder a conta de
+          quais faltam.
+        */}
         <TripDocumentSearch
-          documents={availableDocuments}
+          documents={listSelectableDocuments({
+            documents: availableDocuments,
+            queue: quickCreate.queue,
+          })}
           onFilteredChange={setFilteredDocuments}
           onStage={quickCreate.stageDocuments}
         />

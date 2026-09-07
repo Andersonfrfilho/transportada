@@ -41,6 +41,15 @@
   background: var(--color-ready);
 }
 
+/**
+ * Acima do teto: a barra continua cheia — não há como desenhar mais que a pista — e a cor é o que
+ * separa "coube exatamente" de "passou". As listras seguem animadas aqui, ao contrário do completo:
+ * é o único estado em que o movimento carrega informação.
+ */
+.indicatorOver {
+  background: var(--color-alert);
+}
+
 .indicatorComplete::after {
   animation: none;
   opacity: 0;
