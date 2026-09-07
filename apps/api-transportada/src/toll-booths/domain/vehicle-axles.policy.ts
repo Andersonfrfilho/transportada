@@ -7,8 +7,10 @@
  * 12** veículos da base real, então sem a referência a maior parte da frota não teria pedágio
  * nenhum calculado — e "R$ 0,00" é pior que "R$ 65,60 estimado", porque o primeiro não avisa nada.
  */
-import type { VehicleType } from '../../shared/vehicle-type.constant.js'
+import { VEHICLE_TYPES, type VehicleType } from '../../shared/vehicle-type.constant.js'
 import type { AxleCount } from './toll-route-cost.policy.js'
+
+const VEHICLE_TYPE_SET = new Set<string>(VEHICLE_TYPES)
 
 /**
  * O piso por tipo, **não** uma tabela no banco.
@@ -48,4 +50,23 @@ export function resolveVehicleAxles(input: ResolveVehicleAxlesParams): AxleCount
   if (input.axleCount > 0) return { count: input.axleCount, source: 'declared' }
 
   return { count: AXLES_BY_VEHICLE_TYPE[input.vehicleType], source: 'estimated' }
+}
+
+/**
+ * A mesma resolução acima, para a coluna crua da ficha — onde `vehicleType` é `VehicleType | ''`
+ * (implemento, ou cadastro incompleto). Declarado vence **mesmo** sem tipo válido: quem já contou
+ * os eixos não precisa do catálogo. Sem os dois, `null` é "não sei", nunca dois eixos por padrão —
+ * ver `read-route-geometry.use-case.ts` e `trip-valuation.query.ts` (spec 090 T7/T9).
+ */
+export function resolveDeclaredVehicleAxles(input: {
+  readonly axleCount: number
+  readonly vehicleType: string
+}): AxleCount | null {
+  if (input.axleCount > 0) return { count: input.axleCount, source: 'declared' }
+  if (!VEHICLE_TYPE_SET.has(input.vehicleType)) return null
+
+  return resolveVehicleAxles({
+    axleCount: input.axleCount,
+    vehicleType: input.vehicleType as VehicleType,
+  })
 }

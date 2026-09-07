@@ -18,6 +18,7 @@ import {
 } from '../../database/freight-region.schema.js'
 import { companyTaxSettings, tripCostEntries } from '../../database/trip-financial.schema.js'
 import { resolveVehicleFreightClass } from '../../shared/vehicle-type.constant.js'
+import { resolveDeclaredVehicleAxles } from '../../toll-booths/domain/vehicle-axles.policy.js'
 import type { FreightVehicleClass } from '../../shared/freight-class.constant.js'
 import type { DriverPaymentModel } from '../../database/fleet.schema.js'
 import type { TripCrewMember } from '../domain/trip-driver-cost.policy.js'
@@ -68,9 +69,11 @@ export class DrizzleTripValuationQuery {
   }): Promise<TripValuationContext | null> {
     const [vehicle] = await this.database
       .select({
+        axleCount: fleetVehicles.axleCount,
         fuelType: fleetVehicles.fuelType,
         kilometersPerLiter: fleetVehicles.averageConsumption,
         otherCostsPerKilometer: fleetVehicles.otherCostsPerKilometer,
+        vehicleType: fleetVehicles.vehicleType,
       })
       .from(fleetVehicles)
       .where(
@@ -95,6 +98,11 @@ export class DrizzleTripValuationQuery {
       fuelPricePerLiter: fuelPrice,
       tollTotal: null,
       vehicle: {
+        /** Spec 090 T9: mesma seleção do combustível — não paga uma segunda consulta pela ficha. */
+        axles: resolveDeclaredVehicleAxles({
+          axleCount: vehicle.axleCount,
+          vehicleType: vehicle.vehicleType,
+        }),
         kilometersPerLiter: vehicle.kilometersPerLiter,
         otherCostsPerKilometer: vehicle.otherCostsPerKilometer,
       },

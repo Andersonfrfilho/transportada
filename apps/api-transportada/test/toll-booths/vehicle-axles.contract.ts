@@ -4,7 +4,10 @@
 import { describe, expect, it } from 'bun:test'
 
 import { VEHICLE_TYPES } from '../../src/shared/vehicle-type.constant.js'
-import { resolveVehicleAxles } from '../../src/toll-booths/domain/vehicle-axles.policy.js'
+import {
+  resolveDeclaredVehicleAxles,
+  resolveVehicleAxles,
+} from '../../src/toll-booths/domain/vehicle-axles.policy.js'
 
 describe('vehicle axles (spec 090 T6)', () => {
   it('believes the ficha when it declares the axles', () => {
@@ -42,5 +45,32 @@ describe('vehicle axles (spec 090 T6)', () => {
       expect(axles.count).toBeGreaterThanOrEqual(2)
       expect(axles.source).toBe('estimated')
     }
+  })
+})
+
+/**
+ * Spec 090 T7/T9: a mesma resolução, para a coluna crua da ficha (`vehicleType` é `VehicleType | ''`
+ * — implemento, ou cadastro incompleto). Usada por `read-route-geometry.use-case.ts` (T7) e
+ * `trip-valuation.query.ts` (T9), que leem o veículo direto do banco.
+ */
+describe('vehicle axles declarados na ficha crua (spec 090 T7/T9)', () => {
+  it('a ficha vence mesmo sem tipo válido', () => {
+    expect(resolveDeclaredVehicleAxles({ axleCount: 5, vehicleType: '' })).toEqual({
+      count: 5,
+      source: 'declared',
+    })
+  })
+
+  it('estima pelo tipo quando a ficha está silenciosa', () => {
+    expect(resolveDeclaredVehicleAxles({ axleCount: 0, vehicleType: 'toco' })).toEqual({
+      count: 2,
+      source: 'estimated',
+    })
+  })
+
+  /** Sem ficha e sem tipo válido não há o que estimar — nunca dois eixos por padrão. */
+  it('sem eixo declarado e sem tipo válido, é ausência', () => {
+    expect(resolveDeclaredVehicleAxles({ axleCount: 0, vehicleType: '' })).toBeNull()
+    expect(resolveDeclaredVehicleAxles({ axleCount: 0, vehicleType: 'implement' })).toBeNull()
   })
 })

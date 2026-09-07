@@ -2092,6 +2092,8 @@ function createApplicationRoutes({
               readPreviewStopCoordinates: (query) =>
                 tripValuationQuery.readPreviewStopCoordinates(query),
             },
+            /** Spec 090 T9: o mesmo catálogo de praças que o `/route-geometry` da montagem usa. */
+            tollBooths: tollBoothRepository,
           }),
       },
       listStops: { execute: (input) => tripLifecycle.listStops.execute(input) },

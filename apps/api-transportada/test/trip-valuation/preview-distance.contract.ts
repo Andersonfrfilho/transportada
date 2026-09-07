@@ -55,6 +55,8 @@ function run(input: {
         },
       },
       stopOrder: input.stopOrder ?? [],
+      /** Sem eixo declarado no fixture, o pedágio da T9 não entra na conta — este teste é da T6B. */
+      tollBooths: { readByNodeIds: () => Promise.resolve([]) },
       vehicleId: VEHICLE_ID,
     }),
   }

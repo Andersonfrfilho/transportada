@@ -17,7 +17,12 @@ import {
 import { buildTripDriverCost, type TripCrewMember } from '../domain/trip-driver-cost.policy.js'
 import { buildTripTaxParcels, type CompanyFederalRates } from '../domain/trip-tax.policy.js'
 import { TripNotFoundError } from '../domain/trip.error.js'
-import { readRouteGeometry } from './read-route-geometry.use-case.js'
+import {
+  readRouteGeometry,
+  type ReadRouteGeometryTollBoothsPort,
+  type RouteGeometryToll,
+} from './read-route-geometry.use-case.js'
+import type { AxleCount } from '../../toll-booths/domain/toll-route-cost.policy.js'
 import type { RouteGeometryPoint } from '../domain/route-geometry.policy.js'
 import type { RouteGeometryPort } from './route-geometry.port.js'
 
@@ -42,6 +47,12 @@ export type TripValuationDocument = {
 }
 
 export type TripValuationVehicle = {
+  /**
+   * Spec 090 T9: quantos eixos o veículo tem, e de onde o número veio (T6). `undefined` na viagem
+   * já criada — ela ainda não calcula pedágio (ver nota no fim do arquivo); `null` na prévia
+   * quando a ficha não tem eixo declarado nem tipo reconhecido para estimar.
+   */
+  readonly axles?: AxleCount | null
   readonly kilometersPerLiter: null | string
   readonly otherCostsPerKilometer: null | string
 }
@@ -57,6 +68,12 @@ export type TripValuationContext = {
   /** `null` quando a empresa não declarou regime federal: PIS/COFINS fica `missing`. */
   readonly federalRates?: CompanyFederalRates | null
   readonly fuelPricePerLiter: null | string
+  /**
+   * Spec 090 T9: o pedágio calculado pela mesma rota que resolveu `distanceMeters` — `undefined`
+   * fora da prévia. É a **projeção**; `tollTotal` abaixo é o **lançamento real**, e ele vence
+   * sempre que existir (ver `resolveTollParcel`).
+   */
+  readonly toll?: null | RouteGeometryToll
   /** Pedágio e avulsos lançados na viagem. `null` quando ninguém lançou nada. */
   readonly tollTotal?: null | string
   readonly vehicle: TripValuationVehicle
@@ -158,6 +175,8 @@ export type PreviewTripValuationInput = {
   readonly repository: TripValuationPreviewPort
   /** A ordem que o operador montou no mapa. Vazia é ordem de chegada — a prévia não inventa roteiro. */
   readonly stopOrder: readonly string[]
+  /** O catálogo de praças — spec 090 T9, a mesma porta que `/route-geometry` já usa (T7). */
+  readonly tollBooths: ReadRouteGeometryTollBoothsPort
   readonly vehicleId: string
 }
 
@@ -177,51 +196,70 @@ export type PreviewTripValuationInput = {
 export async function previewTripValuation(
   input: PreviewTripValuationInput,
 ): Promise<TripValuation> {
-  const [context, distanceMeters] = await Promise.all([
-    input.repository.readPreviewContext({
-      companyId: input.companyId,
-      driverIds: input.driverIds,
-      nfeDocumentIds: input.nfeDocumentIds,
-      vehicleId: input.vehicleId,
-    }),
-    resolvePreviewDistanceMeters({
-      companyId: input.companyId,
-      geometry: input.geometry,
-      nfeDocumentIds: input.nfeDocumentIds,
-      repository: input.repository,
-      stopOrder: input.stopOrder,
-    }),
-  ])
+  const context = await input.repository.readPreviewContext({
+    companyId: input.companyId,
+    driverIds: input.driverIds,
+    nfeDocumentIds: input.nfeDocumentIds,
+    vehicleId: input.vehicleId,
+  })
   if (context === null) throw new TripNotFoundError()
+
+  /**
+   * ⚠️ D4/T9: o pedágio precisa do eixo do veículo, que só se conhece **depois** de ler o
+   * contexto — por isso esta chamada não corre em paralelo com a de cima como a do combustível
+   * corria antes desta task. `readRouteGeometry` continua sendo a **única** chamada ao
+   * roteirizador: distância e pedágio saem da mesma resposta, nunca de duas rotas que poderiam
+   * discordar (D4).
+   */
+  const road = await resolvePreviewRoad({
+    axles: context.vehicle.axles ?? null,
+    companyId: input.companyId,
+    geometry: input.geometry,
+    nfeDocumentIds: input.nfeDocumentIds,
+    repository: input.repository,
+    stopOrder: input.stopOrder,
+    tollBooths: input.tollBooths,
+  })
 
   return valuationOf({
     companyId: input.companyId,
-    context: { ...context, distanceMeters },
+    context: { ...context, distanceMeters: road.distanceMeters, toll: road.toll },
     repository: input.repository,
   })
 }
 
 /**
- * ⚠️ Sem geometria (rota indisponível, ou menos de duas paradas) o resultado é `null`, e o gap de
- * `noPlannedDistance` continua valendo — nada muda no que já existe hoje.
+ * ⚠️ Sem geometria (rota indisponível, ou menos de duas paradas) a distância é `null`, e o gap de
+ * `noPlannedDistance` continua valendo — nada muda no que já existia antes desta task. O pedágio
+ * segue a mesma regra de `readRouteGeometry`: `null` é "não calculei", nunca zero inventado.
  */
-async function resolvePreviewDistanceMeters(input: {
+async function resolvePreviewRoad(input: {
+  readonly axles: AxleCount | null
   readonly companyId: string
   readonly geometry: RouteGeometryPort
   readonly nfeDocumentIds: readonly string[]
   readonly repository: Pick<TripValuationPreviewPort, 'readPreviewStopCoordinates'>
   readonly stopOrder: readonly string[]
-}): Promise<null | number> {
+  readonly tollBooths: ReadRouteGeometryTollBoothsPort
+}): Promise<{ readonly distanceMeters: null | number; readonly toll: null | RouteGeometryToll }> {
   const points = await input.repository.readPreviewStopCoordinates({
     companyId: input.companyId,
     nfeDocumentIds: input.nfeDocumentIds,
     stopOrder: input.stopOrder,
   })
 
-  const road = await readRouteGeometry({ geometry: input.geometry, stops: points })
-  if (road.legs.length === 0) return null
+  const road = await readRouteGeometry({
+    axles: input.axles,
+    geometry: input.geometry,
+    stops: points,
+    tollBooths: input.tollBooths,
+  })
+  if (road.legs.length === 0) return { distanceMeters: null, toll: road.toll }
 
-  return road.legs.reduce((total, leg) => total + leg.distanceMetres, 0)
+  return {
+    distanceMeters: road.legs.reduce((total, leg) => total + leg.distanceMetres, 0),
+    toll: road.toll,
+  }
 }
 
 async function valuationOf(input: {
@@ -338,17 +376,38 @@ function buildCostParcels(context: TripValuationContext): readonly TripCostParce
     buildTripDriverCost(context.crew ?? []),
     resolveFuelParcel({ context, distanceMeters: hasDistance ? distance : null }),
     resolveOtherPerKilometer({ context, distanceMeters: hasDistance ? distance : null }),
-    resolveRecordedParcel({
-      amount: context.tollTotal ?? null,
-      gap: VALUATION_GAPS.notRecorded,
-      kind: 'toll',
-    }),
+    resolveTollParcel(context),
     resolveRecordedParcel({
       amount: context.deliveryChargesTotal ?? null,
       gap: VALUATION_GAPS.featureAbsent,
       kind: 'delivery_charges',
     }),
   ]
+}
+
+/**
+ * Spec 090 T9: **lançamento manual sempre vence o calculado.** `tollTotal` é um pagamento real já
+ * registrado; `context.toll` é uma projeção sobre o catálogo do OSM — a mesma inversão que a
+ * receita proíbe entre `measured` e `estimated` (ADR-0049 §2 / spec 065 D7) valeria aqui: deixar a
+ * projeção sobrescrever um valor pago de verdade esconderia dinheiro que já saiu do caixa.
+ *
+ * O calculado entra como `estimated` mesmo quando o eixo é `declared` — ele continua sendo uma
+ * projeção sobre a rota, não um pagamento conferido; a marca de eixo estimado é responsabilidade
+ * da tela da montagem (T7), não desta parcela. Fora da prévia (`context.toll === undefined`) o
+ * comportamento é idêntico ao de antes desta task.
+ */
+function resolveTollParcel(context: TripValuationContext): TripCostParcel {
+  const recorded = resolveRecordedParcel({
+    amount: context.tollTotal ?? null,
+    gap: VALUATION_GAPS.notRecorded,
+    kind: 'toll',
+  })
+  if (recorded.gap === null) return recorded
+
+  const calculated = context.toll ?? null
+  if (calculated === null) return recorded
+
+  return { amount: calculated.total, detail: null, gap: null, kind: 'toll', source: 'estimated' }
 }
 
 /**
