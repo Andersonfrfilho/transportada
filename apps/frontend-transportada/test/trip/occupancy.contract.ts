@@ -108,7 +108,7 @@ describe('ocupação na tela (spec 075 T011)', () => {
 
 /**
  * Spec 093: o teto de peso que sempre esteve no banco. `fleet_vehicles.capacity_kg` é o `capKG` do
- * MDF-e, preenchida em 11 dos 12 veículos desta base — o que faltava era a montagem lê-la.
+ * MDF-e, preenchida em 10 dos 12 veículos desta base — o que faltava era a montagem lê-la.
  */
 describe('teto de peso da montagem', () => {
   const source = readFileSync(COMPONENT, 'utf8')

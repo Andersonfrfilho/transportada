@@ -7,7 +7,7 @@
 Migration: `vehicle_volume_references.max_payload_kg`, as linhas de `three_quarter` e `motorcycle`, e
 as cargas das sete existentes. Schema Drizzle e `rollback.sql` ao lado.
 ⚠️ **A ficha não ganha coluna** — `fleet_vehicles.capacity_kg` já é a carga máxima (o `capKG` do
-MDF-e), preenchida em 11 de 12.
+MDF-e), preenchida em 10 de 12.
 **Depende de:** nada. **Verificação:** `bun test ./test/fleet-schema.contract.test.ts` e
 `bun run --cwd apps/api-transportada test:migration`. **Aceite:** critérios 5, 6 e 8.
 

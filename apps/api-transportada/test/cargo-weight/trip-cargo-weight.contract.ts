@@ -99,7 +99,7 @@ describe('trip cargo weight contract', () => {
 
 /**
  * Spec 093: o teto que sempre esteve no banco. `fleet_vehicles.capacity_kg` é o `capKG` do MDF-e e
- * está preenchida em 11 dos 12 veículos desta base — o que faltava era alguém lê-la fora da emissão
+ * está preenchida em 10 dos 12 veículos desta base — o que faltava era alguém lê-la fora da emissão
  * fiscal, e por isso a montagem somava o peso sem comparar com nada.
  */
 describe('trip cargo weight ceiling contract', () => {

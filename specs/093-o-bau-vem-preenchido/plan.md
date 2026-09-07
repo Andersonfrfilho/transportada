@@ -35,7 +35,7 @@ nothing` das linhas de `three_quarter` e `motorcycle` e o `update` das cargas. S
 
 ⚠️ Medido antes de escrever a migration: `fleet_vehicles.capacity_kg` **já é** a carga máxima. Ela é
 o `capKG` do MDF-e (`mdfe-payload.builder.ts:157`), atravessa `fleet.mapper.ts` como
-`capacityKilograms`, tem rótulo `Capacidade (kg)` no formulário e está preenchida em 11 dos 12
+`capacityKilograms`, tem rótulo `Capacidade (kg)` no formulário e está preenchida em 10 dos 12
 veículos — de 3.000 kg no VUC a 12.000 kg no truck. A coluna nova que este plano previa teria criado
 **dois campos de massa na mesma ficha**, e quem preenchesse o novo veria a rejeição no MDF-e, que lê
 o antigo.

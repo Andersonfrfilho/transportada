@@ -5,7 +5,7 @@
  * o mesmo para cubagem.
  *
  * ⚠️ Spec 093: **o denominador existe, e sempre existiu.** `fleet_vehicles.capacity_kg` é o `capKG`
- * que o MDF-e exige e está preenchida em 11 dos 12 veículos desta base; o que faltava era alguém
+ * que o MDF-e exige e está preenchida em 10 dos 12 veículos desta base; o que faltava era alguém
  * lê-la fora da emissão fiscal. O comentário antigo aqui afirmava que a ficha não guardava massa
  * nenhuma, e é essa premissa — não a coluna — que estava faltando.
  *

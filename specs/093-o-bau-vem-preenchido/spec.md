@@ -12,7 +12,7 @@ viagem. O que falta não é o campo — é o campo **vir preenchido** com o melh
 para o operador **conferir** em vez de medir do zero.
 
 E há um segundo buraco ao lado, de outra natureza. ⚠️ **A carga máxima já existe e já está
-preenchida**: `fleet_vehicles.capacity_kg` é o `capKG` que o MDF-e exige, e 11 dos 12 veículos a têm
+preenchida**: `fleet_vehicles.capacity_kg` é o `capKG` que o MDF-e exige, e 10 dos 12 veículos a têm
 (de 3.000 a 12.000 kg). O que falta não é a coluna — é **alguém lê-la fora da emissão fiscal**. A
 montagem soma o peso das notas e não o compara com nada, e por isso o alerta de concentração da 085
 consegue acusar desequilíbrio entre paradas e é incapaz de dizer "isto não pode sair assim".
@@ -52,7 +52,7 @@ e `Mercedes-Benz` seriam duas marcas.
 
 ### P3 — O teto que já estava no banco aparece na montagem
 
-**Given** um veículo com `capacity_kg` cadastrada — o caso de 11 dos 12
+**Given** um veículo com `capacity_kg` cadastrada — o caso de 10 dos 12
 **When** a montagem soma o peso das notas
 **Then** a tela imprime quanto do teto foi ocupado, com a mesma marca de estimativa que o volume já
 carrega
@@ -71,7 +71,7 @@ publicado, e o cavalo mecânico não tem baú próprio (o volume é do implement
   `three_quarter` e `motorcycle`, hoje ausentes — é o buraco que faz `RTD-5J78` (`three_quarter`) não
   achar referência nenhuma.
 - **RF2** ⚠️ **Nenhuma coluna nova na ficha.** `fleet_vehicles.capacity_kg` já é a carga máxima, já
-  atravessa rota, formulário e MDF-e, e já está preenchida em 11 de 12 veículos. Esta spec a
+  atravessa rota, formulário e MDF-e, e já está preenchida em 10 de 12 veículos. Esta spec a
   **sugere** no cadastro e a **lê** na montagem; criar `max_payload_kg` ao lado dela produziria dois
   campos de massa na mesma ficha, e a primeira pessoa a preencher o errado descobriria isso na
   rejeição do MDF-e.

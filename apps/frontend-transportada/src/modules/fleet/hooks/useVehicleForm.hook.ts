@@ -18,16 +18,9 @@ import type {
 } from '../shared/fleet.types'
 import { resolveFleetFeedbackKey } from '../shared/fleetFeedback.service'
 import { createVehicleDraft, toVehicleBody, toVehicleFormState } from '../shared/fleetForm.service'
-import { resolveSecondaryFuelDefaults } from '../shared/fuelArrangement.service'
-import { resolveVehicleBrandDefaults } from '../shared/vehicleBrandDefaults.service'
-import {
-  applyVehicleSuggestion,
-  resolveVehicleSuggestion,
-  type VehicleReference,
-  type VehicleSuggestionOrigin,
-} from '../shared/vehicleSuggestion.service'
+import { composeVehicleFormPatch } from '../shared/vehicleFormPatch.service'
+import type { VehicleReference, VehicleSuggestionOrigin } from '../shared/vehicleSuggestion.service'
 import { listIncompleteVehicleOwnerFields } from '../shared/vehicleOwner.service'
-import { resolveVehicleTypeDefaults } from '../shared/vehicleTypeAxles.service'
 
 const OWNER_INCOMPLETE_FEEDBACK_KEY = 'ownerIncompleteFeedback'
 const VEHICLE_DRAFT_STORAGE_KEY = 'transportada.fleet.vehicle-draft'
@@ -96,46 +89,39 @@ export function useVehicleForm(input: UseVehicleFormInput): VehicleFormControlle
      * que ele veio do catálogo seria atribuir a medida a quem não a tirou.
      */
     setSuggestedFields((previous) => forgetTouched(previous, values))
+
+    /**
+     * ⚠️ A composição roda **fora** do updater, sobre o estado deste render: o updater precisa ser
+     * puro, e chamar `setSuggestedFields` de dentro dele deixava a marca de origem dessincronizada
+     * dos valores aplicados — em StrictMode o React executa o updater duas vezes.
+     */
+    const composed = composeVehicleFormPatch({
+      previous: state,
+      references,
+      suggestionEnabled: vehicle === undefined,
+      values,
+      vehicles,
+    })
+    if (composed.suggestedFields.length > 0) {
+      setSuggestedFields((previous) => new Set([...previous, ...composed.suggestedFields]))
+      setSuggestionOrigin(composed.origin)
+    }
+
     setState((previous) => {
-      const next = { ...previous, ...values }
-      // Os padrões entram por baixo do que já foi digitado: eles só alcançam campo ainda em branco
-      const brandDefaults =
-        values.brand === undefined && values.model === undefined
-          ? {}
-          : resolveVehicleBrandDefaults({ state: next, vehicles })
-      // O tipo vem depois porque o eixo dele é certo, e o da frota é o que ela repetiu até agora
-      const typeDefaults =
-        next.vehicleType === previous.vehicleType ? {} : resolveVehicleTypeDefaults(next)
-      const resolved = { ...next, ...brandDefaults, ...typeDefaults }
-      // O par de combustíveis é corrigido depois dos outros defaults: trocar o primário para o
-      // produto do secundário deixaria os dois tanques com o mesmo combustível
-      const corrected = { ...resolved, ...resolveSecondaryFuelDefaults(resolved) }
-      /**
-       * ⚠️ A sugestão entra **por último e por baixo**: ela só alcança campo ainda em branco depois
-       * de a herança de marca e os padrões do tipo terem falado. O veículo medido da frota já é a
-       * primeira escolha dentro dela; o que sobra aqui é a média do tipo.
-       */
-      const suggestion = resolveVehicleSuggestion({
-        brand: corrected.brand,
-        model: corrected.model,
+      const draft = composeVehicleFormPatch({
+        previous,
         references,
+        suggestionEnabled: vehicle === undefined,
+        values,
         vehicles,
-        vehicleType: corrected.vehicleType,
-      })
-      const suggested = applyVehicleSuggestion({ state: corrected, suggestion })
-      const suggestedKeys = Object.keys(suggested)
-      if (suggestedKeys.length > 0) {
-        setSuggestedFields((previous) => new Set([...previous, ...suggestedKeys]))
-        setSuggestionOrigin(suggestion?.origin ?? null)
-      }
-      Object.assign(corrected, suggested)
+      }).state
       writeFormDraft({
-        draft: corrected,
+        draft,
         fields: VEHICLE_FORM_KEYS,
         storage,
         storageKey: VEHICLE_DRAFT_STORAGE_KEY,
       })
-      return corrected
+      return draft
     })
   }
 

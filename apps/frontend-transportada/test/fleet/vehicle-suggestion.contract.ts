@@ -1,6 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { describe, expect, test } from 'bun:test'
 
+import { composeVehicleFormPatch } from '@/modules/fleet/shared/vehicleFormPatch.service'
+import { EMPTY_VEHICLE_FORM } from '@/modules/fleet/shared/fleetForm.service'
 import {
   resolveVehicleSuggestion,
   type VehicleReference,
@@ -193,12 +195,28 @@ describe('Vehicle suggestion wiring', () => {
    * mede o baú com fita, troca o tipo por engano e perde a medida.
    */
   test('applies the suggestion under what was already typed, never over it', async () => {
-    const hook = await readApplicationFile('src/modules/fleet/hooks/useVehicleForm.hook.ts')
+    const service = await readApplicationFile(
+      'src/modules/fleet/shared/vehicleFormPatch.service.ts',
+    )
 
-    expect(hook).toContain('applyVehicleSuggestion')
-    expect(hook).toContain('resolveVehicleSuggestion')
+    expect(service).toContain('applyVehicleSuggestion')
+    expect(service).toContain('resolveVehicleSuggestion')
     /** O estado corrigido é o argumento: aplicar sobre `previous` ignoraria o que acabou de mudar. */
-    expect(hook).toContain('applyVehicleSuggestion({ state: corrected, suggestion })')
+    expect(service).toContain('applyVehicleSuggestion({ state: corrected, suggestion })')
+  })
+
+  /**
+   * ⚠️ A composição é **pura e mora fora do hook**: chamar `setSuggestedFields` de dentro do updater
+   * de `setState` deixava a marca de origem dessincronizada dos valores aplicados, e em StrictMode o
+   * React executa o updater duas vezes.
+   */
+  test('keeps the state updater free of side effects', async () => {
+    const hook = await readApplicationFile('src/modules/fleet/hooks/useVehicleForm.hook.ts')
+    const start = hook.indexOf('setState((previous) => {')
+    const updater = hook.slice(start, hook.indexOf('return draft', start))
+
+    expect(updater).not.toContain('setSuggestedFields')
+    expect(updater).not.toContain('setSuggestionOrigin')
   })
 
   /** Digitar apaga a marca de origem — a mesma regra do campo vindo de documento, ao lado. */
@@ -234,5 +252,79 @@ describe('Vehicle suggestion wiring', () => {
     const hook = await readApplicationFile('src/modules/fleet/hooks/useVehicleCatalog.hook.ts')
 
     expect(hook).toContain('return query.data ?? []')
+  })
+})
+
+/**
+ * A composição do `patch`, onde os dois defeitos de fiação moravam: a sugestão rodando em todo
+ * `patch` (campo impossível de apagar) e rodando na edição de ficha gravada (medida injetada em
+ * quem só queria corrigir a cor).
+ */
+describe('Vehicle form patch composition', () => {
+  const BASE = {
+    previous: EMPTY_VEHICLE_FORM,
+    references: REFERENCES,
+    suggestionEnabled: true,
+    vehicles: [] as readonly FleetVehicleDetail[],
+  }
+
+  test('fills the bed when the operator picks the type', () => {
+    const composed = composeVehicleFormPatch({ ...BASE, values: { vehicleType: 'vuc' } })
+
+    expect(composed.state.cargoLengthMeters).toBe('3,15')
+    expect(composed.origin).toEqual({ kind: 'reference' })
+    expect([...composed.suggestedFields].sort()).toEqual([
+      'capacityKilograms',
+      'cargoHeightMeters',
+      'cargoLengthMeters',
+      'cargoWidthMeters',
+    ])
+  })
+
+  /**
+   * ⚠️ Clearing a suggested field used to re-fill it in the same cycle, and the value came back
+   * **without** the origin badge that `forgetTouched` had just removed — impossible to empty, and
+   * indistinguishable from a measurement.
+   */
+  test('lets the operator empty a suggested field instead of refilling it', () => {
+    const filled = composeVehicleFormPatch({ ...BASE, values: { vehicleType: 'vuc' } }).state
+
+    const cleared = composeVehicleFormPatch({
+      ...BASE,
+      previous: filled,
+      values: { cargoLengthMeters: '' },
+    })
+
+    expect(cleared.state.cargoLengthMeters).toBe('')
+    expect(cleared.suggestedFields).toEqual([])
+    expect(cleared.origin).toBeNull()
+  })
+
+  /**
+   * ⚠️ Ficha gravada sem baú medido tem os três campos vazios (zero vira `''` na leitura). Sem esta
+   * trava, mexer na cor injetava a média do tipo — e o operador salvava a correção de cor levando
+   * junto três medidas que ninguém tirou.
+   */
+  test('never injects a measurement while editing a saved vehicle', () => {
+    const composed = composeVehicleFormPatch({
+      ...BASE,
+      previous: { ...EMPTY_VEHICLE_FORM, vehicleType: 'vuc' },
+      suggestionEnabled: false,
+      values: { color: 'branca' },
+    })
+
+    expect(composed.state.cargoLengthMeters).toBe('')
+    expect(composed.suggestedFields).toEqual([])
+  })
+
+  /** Sem gatilho não há sugestão: digitar a placa não preenche o baú. */
+  test('only suggests when the type, brand or model changes', () => {
+    const composed = composeVehicleFormPatch({
+      ...BASE,
+      previous: { ...EMPTY_VEHICLE_FORM, vehicleType: 'vuc' },
+      values: { plate: 'RTD5J78' },
+    })
+
+    expect(composed.suggestedFields).toEqual([])
   })
 })
