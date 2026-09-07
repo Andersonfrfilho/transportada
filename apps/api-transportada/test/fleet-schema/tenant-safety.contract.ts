@@ -12,7 +12,9 @@ import {
   fleetDrivers,
   fleetVehicles,
   fuelPriceReferences,
+  tollBooths,
   userCompanyMemberships,
+  vehicleVolumeReferences,
 } from '../../src/database/database.schema.js'
 import { columnNames, foreignKeys, uniqueColumnsByName } from '../fiscal-schema/support.js'
 
@@ -87,6 +89,29 @@ describe('fleet tenant safety', () => {
   test('keeps the published tariff tenant-less on purpose, and unable to reach a company', () => {
     expect(columnNames(energyTariffReferences)).not.toContain('company_id')
     expect(foreignKeys(energyTariffReferences)).toEqual([])
+  })
+
+  /**
+   * Spec 090 T1: a praça de pedágio é a **terceira** tabela do produto sem `company_id` — tarifa
+   * pública mapeada no OSM, idêntica para toda instalação, sem PII e sem efeito fiscal.
+   *
+   * ⚠️ Esta asserção é a razão de a exceção ser **declarada**, e não descoberta. Uma tabela nasce
+   * sem tenant por decisão ou por esquecimento, e as duas se parecem no diff; o que as separa é
+   * haver uma linha aqui dizendo qual das duas foi.
+   */
+  test('keeps the toll booth catalogue tenant-less on purpose, and unable to reach a company', () => {
+    expect(columnNames(tollBooths)).not.toContain('company_id')
+    expect(foreignKeys(tollBooths)).toEqual([])
+  })
+
+  /**
+   * A cubagem de referência por tipo de veículo é a segunda, e estava fora desta lista — a spec 075
+   * a declarou tenant-less no comentário do schema e ninguém a assertou. Contada aqui para as três
+   * exceções caberem num lugar só.
+   */
+  test('keeps the volume reference tenant-less on purpose, and unable to reach a company', () => {
+    expect(columnNames(vehicleVolumeReferences)).not.toContain('company_id')
+    expect(foreignKeys(vehicleVolumeReferences)).toEqual([])
   })
 
   // Um motorista de outra empresa não pode herdar o login desta — o vínculo passa pelo tenant
