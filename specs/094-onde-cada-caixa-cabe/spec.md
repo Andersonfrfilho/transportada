@@ -19,16 +19,40 @@ de entrega.
 **Promete:** este arranjo **cabe**. As caixas desta viagem entram no baú nesta disposição, e a carga
 da última parada fica no fundo.
 
-**Não promete** que este é o arranjo certo. Faltam três coisas para isso, e nenhuma existe no modelo:
+**Não promete** que este é o arranjo certo — **enquanto os campos não estiverem preenchidos**. Os
+campos passam a existir nesta spec, e a planta usa o que encontrar:
 
-- **Empilhabilidade e fragilidade** — nada impede a planta de pôr a caixa de ovos embaixo da de
-  detergente.
-- **Peso por caixa** — existe a coluna, preenchida em **1** das 6 caixas medidas. Sem ela não há
-  distribuição de peso.
-- **Peso por eixo** — não existe, e é o que gera multa na balança.
+| propriedade                                                | onde                                   | estado                              |
+| ---------------------------------------------------------- | -------------------------------------- | ----------------------------------- |
+| empilhável, limite de pilha, frágil, "este lado para cima" | `nfe_package_boxes`                    | colunas criadas, **nulas**          |
+| peso da caixa                                              | `nfe_package_boxes.gross_weight_grams` | existia; 1 das 6 medidas preenchida |
+| eixo: posição e limite                                     | `fleet_vehicle_axles` (tabela nova)    | criada, **vazia**                   |
 
-A tela diz isso em uma linha, sempre visível. Um desenho que promete estiva sem esses dados é o
-defeito que a 085 evitou, com outra roupa.
+⚠️ **Nulo é "ninguém informou", nunca "pode".** A diferença aparece no desenho: com `is_stackable`
+nulo a planta empilha e **marca o arranjo como presumido**; com `false` ela não empilha e não marca,
+porque a restrição é conhecida. Tratar ausência como permissão apagaria a distinção entre uma carga
+que alguém conferiu e uma que ninguém olhou.
+
+⚠️ **Nada disso trava a planta.** Enquanto os campos estiverem vazios a tela **apenas posiciona**, e
+diz o que não conferiu. Exigir o cadastro antes de desenhar deixaria a tela vazia para a frota
+inteira de hoje — zero eixos declarados e 6 caixas medidas de 663.
+
+## Por que 2D, e não 3D
+
+A pergunta é legítima: com empilhabilidade e peso por eixo preenchidos, o desenho passa a ter
+profundidade de verdade. Ainda assim a vista é **2D em duas projeções** — planta por camada e corte
+lateral —, e a razão não é de gosto:
+
+- **Oclusão.** No isométrico o que está atrás some, e o que está atrás é a carga do fundo: a da
+  última parada, a primeira que o conferente precisa enxergar.
+- **Escala.** A planta promete metro (spec 088: "encoste a 4,20 m da porta"). Projeção isométrica não
+  pode prometer isso — distância na diagonal não se lê com fita.
+- **Quem usa.** O separador trabalha no galpão, no celular. Girar um 3D em 375 px é pior que trocar
+  de camada com um toque.
+- **Custo.** Exigiria `three.js`, dependência nova contra a CSP restritiva do produto (ADR-0037).
+
+As duas projeções juntas dizem o que o isométrico diria, e as duas se conferem com fita. Se um dia o
+3D entrar, entra como **visualização complementar** — nunca como a ferramenta de conferência.
 
 ## Fora do escopo
 
@@ -66,7 +90,19 @@ que a contém carrega a marca
 **Then** vale a **pior** origem, como no volume e no peso: uma caixa presumida torna presumido o
 arranjo todo — quem carrega decide pelo pior caso.
 
-### P4 — Caixa que não cabe é dita, não escondida
+### P4 — A planta diz por que cada caixa está ali
+
+**Given** um arranjo calculado
+**When** o operador toca numa caixa, ou lê a legenda da camada
+**Then** aparece o **motivo** daquela posição, de um vocabulário fechado: última parada viaja no
+fundo, frágil não recebe peso, não empilhável fica sem nada em cima, este lado para cima não deita,
+medida presumida
+**And** um motivo que a política não conhece **não** vira texto livre: ele não existe.
+
+⚠️ É o motivo que separa um desenho de uma instrução. Sem ele o operador vê uma arrumação e não tem
+como discordar dela — e discordar é o que ele faz melhor que o algoritmo, porque viu a carga.
+
+### P5 — Caixa que não cabe é dita, não escondida
 
 **Given** uma caixa mais larga que o baú, ou carga que estoura a última camada
 **When** a planta é calculada
@@ -86,6 +122,13 @@ source}], heightM, source}`.
 - **RF4** A planta só existe com as **três** medidas do baú na ficha do veículo (regra da 088 D2).
   Sem elas, a tela continua mostrando as faixas proporcionais e o aviso que já existe.
 - **RF5** A tela desenha **uma camada por vez**, com navegação entre elas, e diz quantas são.
+- **RF6** Cada caixa carrega `reasons: readonly PlacementReason[]` — vocabulário fechado
+  (`lastStopFirst`, `fragileOnTop`, `notStackable`, `keepUpright`, `estimatedBox`,
+  `axleNotChecked`). Motivo fora da lista não compila.
+- **RF7** As restrições conhecidas são **respeitadas**; as ausentes são **declaradas**. Caixa frágil
+  não recebe peso em cima; caixa com empilhabilidade nula empilha e marca o arranjo como presumido.
+- **RF8** Sem eixo cadastrado, a planta sai com `axleNotChecked` no resumo — nunca com um veredito de
+  peso por eixo que ninguém pôde calcular.
 
 ## Requisitos não funcionais
 
@@ -114,6 +157,9 @@ source}], heightM, source}`.
 5. Veículo sem as três medidas do baú não mostra planta nenhuma — o comportamento da 088 é mantido.
 6. A linha que diz o que a planta **não** promete está sempre visível.
 7. O tempo de cálculo de uma viagem de 300 notas não passa de 50 ms no teste de domínio.
+8. Caixa marcada `is_fragile` não recebe nenhuma caixa em cima; caixa `keep_upright` não é deitada.
+9. Caixa com `is_stackable` **nulo** empilha, e o arranjo sai marcado como presumido.
+10. Veículo sem eixo cadastrado desenha a planta e diz que não conferiu peso por eixo.
 
 ## Dúvidas
 

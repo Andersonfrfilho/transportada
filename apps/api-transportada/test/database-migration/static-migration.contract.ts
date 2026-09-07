@@ -218,6 +218,7 @@ describe('Drizzle migrations', () => {
       '20260906120000_fleet_vehicle_cargo_dimension_bounds',
       '20260906140000_cte_profile_municipal_service_policy',
       '20260907120000_vehicle_reference_payload',
+      '20260907190000_cargo_placement_properties',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
