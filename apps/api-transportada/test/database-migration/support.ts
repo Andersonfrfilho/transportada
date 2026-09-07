@@ -272,11 +272,19 @@ export async function readBusinessTables(database: SQL): Promise<readonly string
   return tables.map((row) => row.table_name)
 }
 
+/**
+ * ⚠️ O desempate por `name` não é enfeite: `created_at` sai do **prefixo do nome da pasta**, não do
+ * relógio, então duas migrations do mesmo timestamp — hoje as duas de `20260903200000` — gravam o
+ * mesmo valor. Sem o desempate a leitura sai na ordem física da tabela, que muda quando qualquer
+ * linha nova entra: acrescentar uma migration no fim reprovava a asserção por causa de duas que
+ * ninguém tocou. `name` é o mesmo critério que `listMigrationDirectories` usa, e é o que a
+ * convenção de prefixo já promete.
+ */
 export async function readMigrationNames(database: SQL): Promise<readonly string[]> {
   const migrations = await database<Array<{ readonly name: string }>>`
     select name
     from drizzle.__drizzle_migrations
-    order by created_at
+    order by created_at, name
   `
 
   return migrations.map((migration) => migration.name)
