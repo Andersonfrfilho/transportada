@@ -47,19 +47,26 @@ dentro da conta. Hoje, depois da 089b:
 | pedágio    | ❌ (não entra no custo)  | ✅ trecho tracejado + cabine         |
 | radar      | ❌ (e não deve entrar)   | ✅ camada do `overlay.pmtiles`       |
 
-| Spec     | O que é                                    | Estado                                         |
-| -------- | ------------------------------------------ | ---------------------------------------------- |
-| **089a** | o que o mapa ainda não conta (diagnóstico) | ✅ concluída — é a medição acima               |
-| **089b** | o mapa mostra sentido, pedágio e radar     | ✅ concluída — 13 tasks, `evidence.md` fechado |
-| **090**  | o pedágio entra na conta                   | em execução — ver `.omc/ultragoal`             |
-| **093**  | restrição de caminhão: perfil + cadastro   | não escrita                                    |
-| **094**  | velocidade da via no mapa                  | não escrita                                    |
-| **095**  | trânsito pelo nosso rastro                 | não escrita — **bloqueada por ADR**            |
+| Spec     | O que é                                             | Estado                                           |
+| -------- | --------------------------------------------------- | ------------------------------------------------ |
+| **089a** | o que o mapa ainda não conta (diagnóstico)          | ✅ concluída — é a medição acima                 |
+| **089b** | o mapa mostra sentido, pedágio e radar              | ✅ concluída — 13 tasks, `evidence.md` fechado   |
+| **090**  | o pedágio entra na conta                            | ✅ executada — 19 commits, `evidence.md` fechado |
+| **094**  | a rota tem alternativa, e o radar mostra velocidade | ✅ executada — nasceu do uso, não deste plano    |
+| **095**  | a tarifa de pedágio se corrige à mão                | escrita, não executada                           |
+| **096**  | restrição de caminhão: perfil + cadastro            | não escrita                                      |
+| **097**  | velocidade da via na tela da rota                   | não escrita                                      |
+| **098**  | trânsito pelo nosso rastro                          | não escrita — **bloqueada por ADR**              |
+
+⚠️ **Renumerado em 2026-09-07, e a razão vale mais que os números:** este arquivo reservava 091 a 093,
+e **duas sessões diferentes** já criaram features com esses números enquanto isso — inclusive uma 093
+paralela à minha, na mesma semana. Reservar número em documento de plano não reserva nada no
+diretório, e a colisão só aparece no merge. Confira `ls specs/` antes de escolher, sempre.
 
 ⚠️ **A numeração deste plano envelheceu.** Ele foi escrito em 2026-09-06 reservando 091, 092 e 093, e
 os dois primeiros foram tomados por features de outro assunto
 (`091-o-documento-do-motorista-tem-onde-ficar`, `092-pular-nao-e-passar`). O próximo número livre é
-**093**, e é dele para cima que as três pendentes saem. Reservar número em documento de plano não
+**094**, e é dele para cima que as três pendentes saem. Reservar número em documento de plano não
 reserva nada no diretório.
 
 ⚠️ **Radar e sentido de via já estão na tela**, e não pela ordem que este arquivo previa. Eles saíram
@@ -80,13 +87,13 @@ isso inteiro. O que sobrou de ordem é por decisão pendente, não por dependên
 ```
 089b ✅ ── overlay.pmtiles + generate-custom + segunda fonte no estilo
               │
-              └─▶ 094 velocidade  (só acrescenta bloco no overlay.yml)
+              └─▶ 097 velocidade da via (o radar já saiu na 094)
 
 090 pedágio  ── independente hoje: é conta, não desenho
 
-093 caminhão ── independente, mas pede decisão de produto sobre "melhor esforço"
+096 caminhão ── independente, mas pede decisão de produto sobre "melhor esforço"
 
-095 trânsito ── bloqueada: exige ADR de privacidade antes de qualquer código
+098 trânsito ── bloqueada: exige ADR de privacidade antes de qualquer código
 ```
 
 **1. 090 — pedágio.** Primeiro porque o dado está pronto (98% das praças com tarifa por eixo), porque
@@ -94,7 +101,7 @@ não há decisão pendente, e porque é **dinheiro num número que a tela já mo
 compara ganho com custo, e o custo não tem pedágio. Medido: 126 km, três praças, R$ 32,80 por eixo —
 R$ 98,40 num toco.
 
-**2. 094 — velocidade da via.** A mais barata das que restam, e a que o diagnóstico não previu.
+**2. 097 — velocidade da via na tela.** A mais barata das que restam, e a que o diagnóstico não previu.
 Medido: **35.520 vias com `maxspeed`** no `.pbf`, e o roteirizador **já as usa** — a duração que o
 OSRM devolve sai dessas velocidades. O que falta é a tela: o `maxspeed` **não existe no esquema
 OpenMapTiles**, e isso não é palpite — a lista de campos da camada `transportation` do `area.pmtiles`
@@ -112,14 +119,14 @@ ausência não diz "mão dupla". Rótulo de velocidade em via sem `maxspeed` é 
 de quem decide despachar; a via sem o atributo fica sem rótulo, e nenhuma superfície calcula média,
 percentual ou "velocidade do trajeto" a partir disso.
 
-**3. 093 — restrição de caminhão.** Independente das duas anteriores, e é a que tem **decisão de
+**3. 096 — restrição de caminhão.** Independente das duas anteriores, e é a que tem **decisão de
 produto antes de código**: o perfil de caminhão custa só refazer o extract, mas cobre **0,11%** das
 vias. Adotá-lo e chamar de "rota de caminhão" promete o que o dado não sustenta. A spec precisa
 decidir, por escrito, que ele entra como **piso com aviso de melhor esforço**, e que a cobertura real
 vem de cadastro nosso — as ruas que os motoristas já sabem que não dão caminhão. Cadastro pede tela,
 que é o custo de verdade desta.
 
-**4. 095 — trânsito.** Última, e **bloqueada**: `trip_location_pings` seria a melhor fonte possível —
+**4. 098 — trânsito.** Última, e **bloqueada**: `trip_location_pings` seria a melhor fonte possível —
 nossa, na região certa, com o veículo certo —, mas a **ADR-0050 §5 manda apagar** o rastro no
 fechamento da viagem (`purgeByTrip`). Hoje produzimos e destruímos o dado. Destravar exige ADR nova
 decidindo agregar e anonimizar **antes** do purge: velocidade média por segmento e faixa de horário,

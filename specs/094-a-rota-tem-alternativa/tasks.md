@@ -1,4 +1,4 @@
-# Tasks — 093 A rota tem alternativa
+# Tasks — 094 A rota tem alternativa
 
 > 🤖 Modelo: `sonnet` (T1 e T5 são 🧠 — validar com `opus` antes)
 

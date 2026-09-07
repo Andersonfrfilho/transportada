@@ -1,4 +1,4 @@
-# Feature 093 — A rota tem alternativa, e a mais barata pode ser a mais cara
+# Feature 094 — A rota tem alternativa, e a mais barata pode ser a mais cara
 
 > Registrada em 2026-09-07. Estado: **pendente**. Depende da 090 (o catálogo de praças, a política
 > que soma e o `annotations=nodes` são dela) e da 089b (o `overlay.pmtiles` e o estilo do mapa).
