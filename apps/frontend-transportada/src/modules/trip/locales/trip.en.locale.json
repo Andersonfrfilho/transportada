@@ -416,15 +416,16 @@
     "empty": "Pick the invoices and the vehicle to see the numbers.",
     "gaps": "Still missing: {{reasons}}.",
     "gap": {
-      "FEATURE_ABSENT": "module not in use yet",
       "CITY_WITHOUT_REGION": "destination without a registered freight zone",
+      "FEATURE_ABSENT": "module not in use yet",
+      "NOT_RECORDED": "nobody recorded it",
       "NO_DRIVER_RATE": "no rate registered for the aggregate route",
       "NO_FEDERAL_REGIME": "federal regime not declared",
       "NO_FREIGHT_RULE": "no freight rule for the destination",
       "NO_FUEL_BASELINE": "vehicle consumption or fuel price not registered",
       "NO_PLANNED_DISTANCE": "route not calculated yet — fuel comes after",
-      "NOT_RECORDED": "nobody recorded it",
-      "SALARIED_CREW_MEMBER": "salaried driver on board — a period cost, not a trip cost"
+      "SALARIED_CREW_MEMBER": "salaried driver on board — a period cost, not a trip cost",
+      "TOLL_PARTIAL": "a toll plaza on the route has no known tariff — the total only sums the others"
     },
     "operating": "Operating cost",
     "taxes": "Tax on the freight"
