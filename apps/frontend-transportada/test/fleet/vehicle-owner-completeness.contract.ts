@@ -7,11 +7,17 @@ import {
 } from '../../src/modules/fleet/shared/vehicleOwner.service.js'
 import { DRIVER_DETAIL } from './fleet.fixture.js'
 
+/**
+ * ⚠️ **CPF de fixture é sintético por construção: dígitos verificadores inválidos.** É a convenção
+ * do seed local, e ela existe para que nenhum número aqui possa pertencer a alguém. Este bloco já
+ * carregou o proprietário de um CRLV real — nome, CPF e RNTRC de uma pessoa —, achado em 06/09/2026
+ * porque o mesmo trio apareceu na tela de quem subiu aquele documento.
+ */
 const COMPLETE_OWNER = {
-  ownerName: 'LAZARO MATIAS CIPRIANO',
-  ownerRntrc: '054941988',
+  ownerName: 'ORLANDO PACHECO SINTETICO',
+  ownerRntrc: '071350284',
   ownerState: 'SP',
-  ownerTaxId: '44423659891',
+  ownerTaxId: '52914068731',
   ownership: 'aggregated',
 } as const
 
@@ -90,7 +96,7 @@ describe('placeholder linked document contract', () => {
       identityDocumentState: '',
       licenseIssuedCity: '',
       licenseIssuedState: '',
-      linkedLegalName: 'LAZARO MATIAS CIPRIANO',
+      linkedLegalName: 'ORLANDO PACHECO SINTETICO',
       linkedTaxId: '00000000000000',
       motherName: '',
       nationality: '',
