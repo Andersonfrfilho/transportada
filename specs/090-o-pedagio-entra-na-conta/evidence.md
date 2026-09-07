@@ -375,3 +375,150 @@ resolve o sentido por construção: as gêmeas do sentido Norte estão a poucos 
 
 A quarta linha é o outro lado do contrato: rota sem praça devolve zero, e zero aqui é medido — não é
 a ausência de anotação, que devolveria `null`.
+
+## T6B — A montagem lê a distância que o mapa desenhou (2026-09-07)
+
+Contrato **antes** da implementação. Vermelho conferido (`readPreviewStopCoordinates` inexistente na
+porta, e `stopOrder` ainda não passava para o roteirizador):
+
+```
+bun test ./test/trip-valuation.contract.test.ts ./test/cargo-volume.contract.test.ts
+
+test/trip-valuation.contract.test.ts:
+(fail) a prévia lê a distância que o mapa desenhou (spec 090 D3) > soma os trechos da geometria e
+  alimenta combustível e outros-por-quilômetro
+    - "amount": "255.8400", "source": "estimated"
+    + "amount": "0.0000", "gap": "NO_PLANNED_DISTANCE", "source": "missing"
+(fail) a prévia lê a distância que o mapa desenhou (spec 090 D3) > manda o stopOrder recebido para
+  o mesmo agrupamento da prévia de carga
+(fail) a prévia lê a distância que o mapa desenhou (spec 090 D3) > soma vários trechos quando há
+  mais de duas paradas
+
+test/cargo-volume.contract.test.ts:
+# Unhandled error between tests
+SyntaxError: Export named 'resolvePreviewStopKeys' not found in module
+  '.../src/trips/domain/cargo-preview.policy.ts'
+
+ 42 pass
+ 4 fail
+ 1 error
+```
+
+Verde depois da implementação:
+
+```
+bun test ./test/trip-valuation.contract.test.ts ./test/cargo-volume.contract.test.ts
+ 161 pass
+ 0 fail
+ 280 expect() calls
+```
+
+### O que mudou, e por quê
+
+`readPreviewContext` (`trips/infrastructure/trip-valuation.query.ts`) sempre devolveu
+`distanceMeters: null` fixo — a viagem ainda não existe, então não há `trip_stops` para somar. O
+painel de custo, logo abaixo do mapa que já sabe o tempo do roteiro, imprimia "combustível — roteiro
+ainda não calculado" ao lado de um tempo medido: as duas frases eram verdadeiras e a tela parecia
+quebrada.
+
+`previewTripValuation` (`trips/application/read-trip-valuation.use-case.ts`) passou a resolver a
+distância pela **mesma rota que o mapa desenhou**: recebe agora `stopOrder` (a ordem que o operador
+montou no mapa) e uma porta `geometry: RouteGeometryPort` — a mesma que `/route-geometry` já usa —, e:
+
+1. pede ao repositório as coordenadas ordenadas da prévia (`readPreviewStopCoordinates`);
+2. pede a geometria dessas coordenadas ao mesmo `readRouteGeometry` que a viagem já criada usa para
+   o mapa;
+3. soma os `legs[].distanceMetres` da resposta e substitui o `distanceMeters` do contexto antes de
+   `buildCostParcels` calcular combustível e outros-por-quilômetro.
+
+Sem geometria disponível (`ROUTING_MATRIX_URL` ausente, rota indisponível, ou menos de duas paradas
+resolvidas) o resultado é `null` e o gap `noPlannedDistance` continua valendo — nada mudou no
+comportamento de hoje para quem não tem roteirizador configurado.
+
+### A armadilha era o agrupamento, não o cálculo
+
+O ponto inteiro da task é o mapa e o painel nunca poderem contar duas histórias da mesma rota. Se o
+servidor reagrupasse as notas por conta própria (por CNPJ, por nota, por qualquer critério que não
+seja a chave de endereço da parada), o mapa numeraria uma parada e a distância seria somada sobre
+outra — dois números plausíveis e discordantes, sem ninguém perceber.
+
+Por isso `readPreviewStopCoordinates` **não escreve um segundo agrupador**: extraí de
+`buildCargoPreviewStops` (que a prévia de carga já usa) duas funções puras —
+
+- `orderStopKeys` — a mesma regra "ordem escolhida manda, quem sobra vai para o fim" que já existia
+  dentro de `buildCargoPreviewStops`, agora exportada;
+- `resolvePreviewStopKeys` — agrupa cada `nfeDocumentId` pela chave de endereço (`buildStopAddressKey`),
+  com o mesmo fallback `documento:${id}` para nota sem endereço normalizável, e ordena pelo
+  `orderStopKeys` acima.
+
+`buildCargoPreviewStops` foi **refatorada** para usar `orderStopKeys` em vez do `sort` que tinha
+embutido — mesmo comportamento, mesma ordem, provado pelos testes que já existiam em
+`test/cargo-volume/cargo-preview.contract.ts` (continuam verdes sem alteração de asserção). A query
+de distância usa a mesma `resolvePreviewStopKeys`, então o mapa e o painel numeram a parada da mesma
+forma por construção — não por disciplina de quem escreve o próximo código.
+
+As coordenadas em si saem de `geocoded_addresses`, casadas pela chave de endereço — a mesma tabela
+que `listTripStopCoordinates` já lê depois de a viagem existir (ela não mora em `trip_stops`, cujas
+colunas de latitude/longitude estão nulas em toda a base). Nota cujo endereço nunca foi
+geocodificado não entra na conta, exatamente como acontece hoje com o roteiro já planejado.
+
+### O que ficou de fora, por decisão do próprio T6B
+
+- **Pedágio não entra aqui.** T5/T6 (`toll-route-cost.policy.ts`, `vehicle-axles.policy.ts`) são
+  políticas puras já testadas e ainda **não estão ligadas** a nenhuma viagem real nem à prévia — isso
+  é T7/T9, que dependem explicitamente desta task. T6B resolve só a fonte da distância que alimenta
+  combustível e outros-por-quilômetro, como o próprio `tasks.md` da T6B define.
+- **A parcela do motorista não muda.** Ela falta por cadastro ausente (spec 086), e mudar a fonte da
+  distância não inventa tabela de região que não existe.
+
+### Testes escritos
+
+- `test/cargo-volume/cargo-preview.contract.ts` — quatro casos novos para `resolvePreviewStopKeys`
+  (mesmo endereço vira uma parada, ordem escolhida manda, parada fora da ordem vai para o fim, nota
+  sem chave vira parada própria pelo id) — os mesmos quatro comportamentos que já cobriam
+  `buildCargoPreviewStops`, provando que a extração não mudou a regra.
+- `test/trip-valuation/preview-distance.contract.ts` (novo) — `previewTripValuation` com porta de
+  geometria e repositório falsos: soma os trechos e alimenta combustível/outros-por-km; propaga o
+  `stopOrder` recebido para `readPreviewStopCoordinates`; soma múltiplos trechos (mais de duas
+  paradas); sem geometria disponível (ou com menos de duas paradas) mantém `noPlannedDistance` e
+  **não chama** a porta de geometria.
+
+### Gates
+
+```
+bun run --cwd apps/api-transportada typecheck   # bunx tsc --noEmit — sem erro
+bun run --cwd apps/api-transportada lint        # bunx eslint --max-warnings=0 — sem aviso
+bunx prettier --check apps/api-transportada/src apps/api-transportada/test
+  # All matched files use Prettier code style!
+bun run --cwd apps/api-transportada test
+  # 4527 pass, 23 skip, 0 fail, 16563 expect() calls (158 arquivos)
+```
+
+⚠️ Uma execução isolada do `test` completo acusou `1 fail` em
+`test/deploy/keycloak-realm.contract.ts` (exit code 22 num teste que não toca em `trips/` nem
+`toll-booths/`); rodado de novo — sozinho e dentro do `test` completo — deu 0 fail nas duas vezes
+seguintes. Flutuação pré-existente, não relacionada a esta task.
+
+### Frontend
+
+`useTripValuationPreview` (spec 090 D3) passou a receber `stopOrder` e a mandá-lo no corpo de
+`POST /trips/valuation-preview`, com a mesma chave de consulta sem `sort` que `useTripCargoPreview`
+já usa para a ordem (`orderKey = input.stopOrder.join('>')` — ordenar a chave esconderia a
+reordenação). `TripQuickCreateDialog` passa `quickCreate.cityOrder`, a mesma ordem que já alimenta a
+prévia de carga e o mapa.
+
+```
+bun run --cwd apps/frontend-transportada typecheck   # tsc --noEmit — sem erro
+bun run --cwd apps/frontend-transportada lint        # eslint . — sem aviso
+bunx prettier --check apps/frontend-transportada/src/modules/trip-financials
+  apps/frontend-transportada/src/modules/trip/components/TripQuickCreateDialog.component.tsx
+  # All matched files use Prettier code style!
+bun run --cwd apps/frontend-transportada test
+  # 2865 pass, 0 fail, 15951 expect() calls (24 arquivos)
+```
+
+### Divergências deste briefing
+
+Nenhuma decisão própria além do reaproveitamento descrito acima (extrair `orderStopKeys` de dentro
+de `buildCargoPreviewStops` em vez de duplicar o critério de ordenação) — o briefing já previa essa
+armadilha e pedia exatamente esse reuso.

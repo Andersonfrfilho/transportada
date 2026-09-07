@@ -2054,10 +2054,20 @@ function createApplicationRoutes({
         execute: (input) =>
           previewTripValuation({
             ...input,
+            /**
+             * A mesma porta e o mesmo caso de uso da geometria da viagem — spec 090 D3. Sem
+             * `ROUTING_MATRIX_URL` ela devolve `unavailable`, e a distância continua `null`.
+             */
+            geometry:
+              routingMatrixUrl === undefined
+                ? { readRouteGeometry: async () => null }
+                : createOsrmRouteGeometryGateway({ baseUrl: routingMatrixUrl }),
             repository: {
               findApplicableRule: (query) => applicableFreightRuleQuery.findApplicableRule(query),
               readContext: (query) => tripValuationQuery.readContext(query),
               readPreviewContext: (query) => tripValuationQuery.readPreviewContext(query),
+              readPreviewStopCoordinates: (query) =>
+                tripValuationQuery.readPreviewStopCoordinates(query),
             },
           }),
       },

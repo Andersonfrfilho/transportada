@@ -79,11 +79,16 @@ export type LinkTripDocumentsBatchBody = z.infer<typeof linkTripDocumentsBatchSc
 /**
  * A avaliação prevista da viagem que ainda não existe. O teto é o do vínculo em lote: é a mesma
  * seleção de notas, avaliada antes de virar viagem.
+ *
+ * ⚠️ `stopOrder` (spec 090 D3) é a mesma ordem que a prévia de carga recebe — a que o mapa numerou.
+ * O combustível e os outros-por-quilômetro passam a somar a mesma rota que o mapa desenhou, e
+ * divergir da ordem dele produziria dois números plausíveis e diferentes para a mesma viagem.
  */
 export const previewTripValuationSchema = z
   .object({
     driverIds: z.array(z.uuid()).max(MAX_LINK_BATCH_DOCUMENTS).default([]),
     nfeDocumentIds: z.array(z.uuid()).min(1).max(MAX_LINK_BATCH_DOCUMENTS),
+    stopOrder: z.array(z.string().min(1)).max(MAX_LINK_BATCH_DOCUMENTS).default([]),
     vehicleId: z.uuid(),
   })
   .strict()

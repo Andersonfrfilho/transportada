@@ -3,7 +3,10 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { buildCargoPreviewStops } from '../../src/trips/domain/cargo-preview.policy.js'
+import {
+  buildCargoPreviewStops,
+  resolvePreviewStopKeys,
+} from '../../src/trips/domain/cargo-preview.policy.js'
 import { previewTripCargo } from '../../src/trips/application/preview-trip-cargo.use-case.js'
 
 const NOTAS = [
@@ -221,5 +224,65 @@ describe('a prévia acusa peso concentrado numa parada', () => {
     })
 
     expect(preview.weightConcentration).toBeNull()
+  })
+})
+
+/**
+ * Spec 090 D3: a distância da prévia agrupa e ordena as paradas pela **mesma** regra que
+ * `buildCargoPreviewStops` — é o que garante que o mapa e o combustível numeram a mesma parada.
+ */
+describe('a chave da parada, para a distância da prévia (spec 090 D3)', () => {
+  test('notas do mesmo endereço viram uma parada só, como na prévia de carga', () => {
+    const keys = resolvePreviewStopKeys({
+      addressKeyByDocument: new Map([
+        ['a', 'barrinha|14710000|100'],
+        ['b', 'campinas|13000000|20'],
+        ['c', 'barrinha|14710000|100'],
+      ]),
+      nfeDocumentIds: ['a', 'b', 'c'],
+      order: [],
+    })
+
+    expect(keys).toEqual(['barrinha|14710000|100', 'campinas|13000000|20'])
+  })
+
+  test('a ordem escolhida manda na sequência', () => {
+    const keys = resolvePreviewStopKeys({
+      addressKeyByDocument: new Map([
+        ['a', 'barrinha|14710000|100'],
+        ['b', 'campinas|13000000|20'],
+      ]),
+      nfeDocumentIds: ['a', 'b'],
+      order: ['campinas|13000000|20', 'barrinha|14710000|100'],
+    })
+
+    expect(keys).toEqual(['campinas|13000000|20', 'barrinha|14710000|100'])
+  })
+
+  test('parada que a ordem não menciona vai para o fim', () => {
+    const keys = resolvePreviewStopKeys({
+      addressKeyByDocument: new Map([
+        ['a', 'barrinha|14710000|100'],
+        ['b', 'campinas|13000000|20'],
+      ]),
+      nfeDocumentIds: ['a', 'b'],
+      order: ['campinas|13000000|20'],
+    })
+
+    expect(keys).toEqual(['campinas|13000000|20', 'barrinha|14710000|100'])
+  })
+
+  /** Nota sem endereço vira parada própria, como o balde "Sem parada" da prévia de carga. */
+  test('nota sem chave de endereço vira parada própria pelo id da nota', () => {
+    const keys = resolvePreviewStopKeys({
+      addressKeyByDocument: new Map([
+        ['a', null],
+        ['b', null],
+      ]),
+      nfeDocumentIds: ['a', 'b'],
+      order: [],
+    })
+
+    expect(keys).toEqual(['documento:a', 'documento:b'])
   })
 })

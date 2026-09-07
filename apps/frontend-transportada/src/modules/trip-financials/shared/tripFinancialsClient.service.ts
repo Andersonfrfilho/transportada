@@ -22,11 +22,17 @@ export type TripFinancialsClient = Readonly<{
   readResult: (tripId: string) => Promise<TripFinancialResult | null>
   /** A conta **prevista** da viagem aberta — a congelada só nasce quando ela fecha. */
   readValuation: (tripId: string) => Promise<TripValuation | null>
-  /** A mesma conta antes de a viagem existir, sobre as notas e a frota escolhidas no formulário. */
+  /**
+   * A mesma conta antes de a viagem existir, sobre as notas e a frota escolhidas no formulário.
+   *
+   * `stopOrder` (spec 090 D3) é a mesma ordem que a prévia de carga recebe — a que o mapa numerou.
+   * Sem ela o combustível calcularia sobre um agrupamento diferente do que o mapa desenhou.
+   */
   previewValuation: (
     input: Readonly<{
       driverIds: readonly string[]
       nfeDocumentIds: readonly string[]
+      stopOrder: readonly string[]
       vehicleId: string
     }>,
   ) => Promise<TripValuation | null>
@@ -63,6 +69,7 @@ export function createTripFinancialsClient(dependencies: ClientDependencies): Tr
           body: JSON.stringify({
             driverIds: input.driverIds,
             nfeDocumentIds: input.nfeDocumentIds,
+            stopOrder: input.stopOrder,
             vehicleId: input.vehicleId,
           }),
           dependencies,

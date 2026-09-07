@@ -156,6 +156,7 @@ export function TripQuickCreateDialog({
     driverIds: quickCreate.driverIds,
     nfeDocumentIds: stagedDocumentIds(quickCreate.queue),
     permissions,
+    stopOrder: quickCreate.cityOrder,
     vehicleId: quickCreate.vehicleId,
   })
   const bindingByDriverId = new Map(

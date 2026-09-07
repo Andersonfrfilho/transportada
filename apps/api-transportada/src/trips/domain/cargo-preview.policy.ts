@@ -15,6 +15,42 @@ export type CargoPreviewDocument = {
 }
 
 /**
+ * A ordem final das paradas: a que o operador escolheu manda, e quem não está nela vai para o fim,
+ * na ordem em que a chave apareceu. É a mesma regra que numera o mapa da montagem — extraída para
+ * que a distância da prévia (spec 090 D3) numere as paradas exatamente como `buildCargoPreviewStops`
+ * já numera, em vez de um segundo critério que poderia discordar dele.
+ */
+export function orderStopKeys(input: {
+  readonly keys: readonly string[]
+  readonly order: readonly string[]
+}): readonly string[] {
+  const rank = new Map(input.order.map((key, index) => [key, index]))
+  return [...input.keys].sort(
+    (first, second) =>
+      (rank.get(first) ?? Number.MAX_SAFE_INTEGER) - (rank.get(second) ?? Number.MAX_SAFE_INTEGER),
+  )
+}
+
+/**
+ * A chave de parada de cada nota, agrupada e ordenada — sem o resto do desenho de carga. É o que a
+ * distância da prévia (spec 090 D3) precisa: só a lista de paradas, na ordem que o mapa numerou,
+ * pela mesma regra de agrupamento que `buildCargoPreviewStops` usa (nota sem chave vira parada
+ * própria por `documento:${nfeDocumentId}`).
+ */
+export function resolvePreviewStopKeys(input: {
+  readonly addressKeyByDocument: ReadonlyMap<string, string | null>
+  readonly nfeDocumentIds: readonly string[]
+  readonly order: readonly string[]
+}): readonly string[] {
+  const keys = new Set<string>()
+  for (const nfeDocumentId of input.nfeDocumentIds) {
+    const key = input.addressKeyByDocument.get(nfeDocumentId) ?? null
+    keys.add(key ?? `documento:${nfeDocumentId}`)
+  }
+  return orderStopKeys({ keys: [...keys], order: input.order })
+}
+
+/**
  * As paradas da carga **antes de a viagem existir**.
  *
  * ⚠️ A unidade é o **endereço**, nunca a nota nem o CNPJ: a mesma rede em cinco lojas é cinco
@@ -54,19 +90,20 @@ export function buildCargoPreviewStops(input: {
   }
 
   /** Parada que a ordem não menciona não some: ela vai para o fim, e continua desenhada. */
-  const rank = new Map(input.order.map((key, index) => [key, index]))
-  return [...grouped.entries()]
-    .sort(
-      ([first], [second]) =>
-        (rank.get(first) ?? Number.MAX_SAFE_INTEGER) -
-        (rank.get(second) ?? Number.MAX_SAFE_INTEGER),
-    )
-    .map(([, stop], index) => ({
-      boxes: stop.boxes,
-      documentsWithoutVolume: stop.missing,
-      label: stop.label,
-      sequence: index + 1,
-      /** Zero diria que a parada não ocupa espaço; ausência diz que não se sabe. */
-      volumeM3: stop.volumes.length === 0 ? null : sumVolumes(stop.volumes),
-    }))
+  const orderedKeys = orderStopKeys({ keys: [...grouped.keys()], order: input.order })
+  return orderedKeys.flatMap((key, index) => {
+    const stop = grouped.get(key)
+    if (stop === undefined) return []
+
+    return [
+      {
+        boxes: stop.boxes,
+        documentsWithoutVolume: stop.missing,
+        label: stop.label,
+        sequence: index + 1,
+        /** Zero diria que a parada não ocupa espaço; ausência diz que não se sabe. */
+        volumeM3: stop.volumes.length === 0 ? null : sumVolumes(stop.volumes),
+      },
+    ]
+  })
 }

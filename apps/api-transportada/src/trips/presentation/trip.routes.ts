@@ -372,6 +372,7 @@ type Dependencies = {
       readonly companyId: string
       readonly driverIds: readonly string[]
       readonly nfeDocumentIds: readonly string[]
+      readonly stopOrder: readonly string[]
       readonly vehicleId: string
     }): Promise<TripValuation>
   }
@@ -665,6 +666,7 @@ export function createTripRoutes(
     defineRoute<{
       readonly driverIds: readonly string[]
       readonly nfeDocumentIds: readonly string[]
+      readonly stopOrder: readonly string[]
       readonly vehicleId: string
     }>({
       async handle({ context, input }): Promise<Response> {

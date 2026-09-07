@@ -17,6 +17,9 @@ import {
 import { buildTripDriverCost, type TripCrewMember } from '../domain/trip-driver-cost.policy.js'
 import { buildTripTaxParcels, type CompanyFederalRates } from '../domain/trip-tax.policy.js'
 import { TripNotFoundError } from '../domain/trip.error.js'
+import { readRouteGeometry } from './read-route-geometry.use-case.js'
+import type { RouteGeometryPoint } from '../domain/route-geometry.policy.js'
+import type { RouteGeometryPort } from './route-geometry.port.js'
 
 const ZERO = '0.0000'
 
@@ -134,13 +137,27 @@ export type TripValuationPreviewPort = TripValuationPort & {
     readonly nfeDocumentIds: readonly string[]
     readonly vehicleId: string
   }): Promise<TripValuationContext | null>
+  /**
+   * Spec 090 D3: as coordenadas ordenadas da prévia, agrupadas pela mesma chave de parada que
+   * `buildCargoPreviewStops` usa — a mesma que o mapa numerou. `stopOrder` vazio é ordem de
+   * chegada da nota, igual à prévia de carga.
+   */
+  readPreviewStopCoordinates(input: {
+    readonly companyId: string
+    readonly nfeDocumentIds: readonly string[]
+    readonly stopOrder: readonly string[]
+  }): Promise<readonly RouteGeometryPoint[]>
 }
 
 export type PreviewTripValuationInput = {
   readonly companyId: string
   readonly driverIds: readonly string[]
+  /** A mesma porta da geometria avulsa do mapa (`/route-geometry`) — spec 090 D3. */
+  readonly geometry: RouteGeometryPort
   readonly nfeDocumentIds: readonly string[]
   readonly repository: TripValuationPreviewPort
+  /** A ordem que o operador montou no mapa. Vazia é ordem de chegada — a prévia não inventa roteiro. */
+  readonly stopOrder: readonly string[]
   readonly vehicleId: string
 }
 
@@ -151,23 +168,60 @@ export type PreviewTripValuationInput = {
  * ⚠️ Sem roteiro planejado não há distância, e sem distância não há combustível. Nada é inventado —
  * a parcela sobe marcada como falta e a tela imprime a marca, que é o que distingue "custo baixo"
  * de "custo que ainda não dá para saber".
+ *
+ * Spec 090 D3: até aqui a distância vinha sempre `null` — a viagem não existe, então não havia
+ * `trip_stops` para somar. Agora ela sai da mesma rota que o mapa da montagem já pediu ao
+ * roteirizador, resolvida de novo aqui pelas mesmas paradas (`stopOrder` + agrupamento por
+ * endereço), nunca lida de uma resposta que o cliente poderia adulterar.
  */
 export async function previewTripValuation(
   input: PreviewTripValuationInput,
 ): Promise<TripValuation> {
-  const context = await input.repository.readPreviewContext({
-    companyId: input.companyId,
-    driverIds: input.driverIds,
-    nfeDocumentIds: input.nfeDocumentIds,
-    vehicleId: input.vehicleId,
-  })
+  const [context, distanceMeters] = await Promise.all([
+    input.repository.readPreviewContext({
+      companyId: input.companyId,
+      driverIds: input.driverIds,
+      nfeDocumentIds: input.nfeDocumentIds,
+      vehicleId: input.vehicleId,
+    }),
+    resolvePreviewDistanceMeters({
+      companyId: input.companyId,
+      geometry: input.geometry,
+      nfeDocumentIds: input.nfeDocumentIds,
+      repository: input.repository,
+      stopOrder: input.stopOrder,
+    }),
+  ])
   if (context === null) throw new TripNotFoundError()
 
   return valuationOf({
     companyId: input.companyId,
-    context,
+    context: { ...context, distanceMeters },
     repository: input.repository,
   })
+}
+
+/**
+ * ⚠️ Sem geometria (rota indisponível, ou menos de duas paradas) o resultado é `null`, e o gap de
+ * `noPlannedDistance` continua valendo — nada muda no que já existe hoje.
+ */
+async function resolvePreviewDistanceMeters(input: {
+  readonly companyId: string
+  readonly geometry: RouteGeometryPort
+  readonly nfeDocumentIds: readonly string[]
+  readonly repository: Pick<TripValuationPreviewPort, 'readPreviewStopCoordinates'>
+  readonly stopOrder: readonly string[]
+}): Promise<null | number> {
+  const points = await input.repository.readPreviewStopCoordinates({
+    companyId: input.companyId,
+    nfeDocumentIds: input.nfeDocumentIds,
+    stopOrder: input.stopOrder,
+  })
+
+  const road = await readRouteGeometry({ geometry: input.geometry, stops: points })
+  if (road.legs.length === 0) return null
+
+  return road.legs.reduce((total, leg) => total + leg.distanceMetres, 0)
 }
 
 async function valuationOf(input: {

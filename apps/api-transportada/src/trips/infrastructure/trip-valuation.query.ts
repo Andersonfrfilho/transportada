@@ -29,6 +29,10 @@ import {
 } from '../domain/trip-driver-zone.policy.js'
 import { listStopAddresses } from './nfe-destination-address.support.js'
 import type { CompanyFederalRates } from '../domain/trip-tax.policy.js'
+import { resolvePreviewStopKeys } from '../domain/cargo-preview.policy.js'
+import type { RouteGeometryPoint } from '../domain/route-geometry.policy.js'
+import { buildStopAddressKey } from '../domain/stop-address-key.js'
+import { geocodedAddresses } from '../../database/geocoding.schema.js'
 import { freightCalculations } from '../../database/freight.schema.js'
 import { nfeAddresses, nfeDocuments, nfeParticipants } from '../../database/nfe.schema.js'
 import { tripDocuments, tripDrivers, tripStops, trips } from '../../database/trip.schema.js'
@@ -95,6 +99,64 @@ export class DrizzleTripValuationQuery {
         otherCostsPerKilometer: vehicle.otherCostsPerKilometer,
       },
     }
+  }
+
+  /**
+   * Spec 090 D3: as coordenadas ordenadas da prévia, para o use case pedir a mesma geometria que o
+   * mapa da montagem já pediu ao roteirizador.
+   *
+   * ⚠️ Agrupamento e ordem saem de `resolvePreviewStopKeys` — a mesma regra de
+   * `buildCargoPreviewStops` — nunca um segundo critério: se divergissem, o mapa numeraria uma
+   * parada e a distância seria calculada sobre outra.
+   *
+   * A coordenada é `geocoded_addresses`, a mesma tabela que `listTripStopCoordinates` lê depois de
+   * a viagem existir — nota cujo endereço nunca foi geocodificado não entra na conta, como acontece
+   * hoje com o roteiro já planejado.
+   */
+  public async readPreviewStopCoordinates(input: {
+    readonly companyId: string
+    readonly nfeDocumentIds: readonly string[]
+    readonly stopOrder: readonly string[]
+  }): Promise<readonly RouteGeometryPoint[]> {
+    if (input.nfeDocumentIds.length === 0) return []
+
+    const addresses = await listStopAddresses(this.database, {
+      companyId: input.companyId,
+      nfeDocumentIds: input.nfeDocumentIds,
+    })
+
+    const addressKeyByDocument = new Map<string, string | null>()
+    for (const nfeDocumentId of input.nfeDocumentIds) {
+      const address = addresses.get(nfeDocumentId)
+      addressKeyByDocument.set(
+        nfeDocumentId,
+        address === undefined ? null : buildStopAddressKey(address.components),
+      )
+    }
+
+    const orderedKeys = resolvePreviewStopKeys({
+      addressKeyByDocument,
+      nfeDocumentIds: input.nfeDocumentIds,
+      order: input.stopOrder,
+    })
+
+    const rows = await this.database
+      .select({
+        addressKey: geocodedAddresses.addressKey,
+        latitude: geocodedAddresses.latitude,
+        longitude: geocodedAddresses.longitude,
+      })
+      .from(geocodedAddresses)
+      .where(inArray(geocodedAddresses.addressKey, [...orderedKeys]))
+
+    const rowByKey = new Map(rows.map((row) => [row.addressKey, row]))
+
+    return orderedKeys.flatMap((key) => {
+      const row = rowByKey.get(key)
+      if (row === undefined) return []
+
+      return [{ latitude: Number(row.latitude), longitude: Number(row.longitude) }]
+    })
   }
 
   public async readContext(input: {
