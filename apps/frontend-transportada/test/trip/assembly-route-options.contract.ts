@@ -29,6 +29,8 @@ function opcao(input: {
             booths: Array.from({ length: input.boothCount }, (_unused, index) => ({
               chargeCar: null,
               chargePerAxle: null,
+              latitude: '-21.9000000',
+              longitude: '-47.5000000',
               name: `Praça ${index}`,
               operator: null,
               osmNodeId: index,

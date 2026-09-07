@@ -140,6 +140,30 @@ export function resolveBasemapOutline(
   return resolveToken(PALETTE[theme]?.contorno ?? '--color-basemap-paper')
 }
 
+/**
+ * A cor da linguagem visual de pedágio (`cabine-de-pedagio`, `via-com-pedagio`), para a praça
+ * desenhada em tempo de execução (spec 093 T4) usar o mesmo tom do resto do mapa, e não uma cor
+ * própria que competiria com o vocabulário que já existe.
+ */
+export function resolveBasemapTollColor(
+  resolveToken: (token: string) => string,
+  theme: BasemapTheme,
+): string {
+  return resolveToken(PALETTE[theme]?.rodovia ?? '--color-basemap-road-major')
+}
+
+/**
+ * O fundo do mapa (`terra`), para o halo de texto acrescentado em tempo de execução legível em
+ * qualquer um dos três temas — ele muda de tom entre `claro`, `escuro` e `contraste` como o resto
+ * da paleta.
+ */
+export function resolveBasemapBackground(
+  resolveToken: (token: string) => string,
+  theme: BasemapTheme,
+): string {
+  return resolveToken(PALETTE[theme]?.terra ?? '--color-basemap-paper')
+}
+
 export function buildBasemapStyle(
   resolveToken: (token: string) => string,
   theme: BasemapTheme = 'claro',

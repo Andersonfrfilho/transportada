@@ -30,10 +30,18 @@ export type AxleCountSource = (typeof AXLE_COUNT_SOURCES)[number]
 
 export type AxleCount = Readonly<{ count: number; source: AxleCountSource }>
 
-/** Uma praça que a rota passou, na ordem de passagem (spec 090 T7/T8). */
+/**
+ * Uma praça que a rota passou, na ordem de passagem (spec 090 T7/T8).
+ *
+ * ⚠️ `latitude`/`longitude` existem só para o mapa desenhar o ícone sobre a praça **do trajeto**
+ * (spec 093 D3/T4) — nunca para casar a praça pela coordenada, que continua sendo a identidade do
+ * nó no backend.
+ */
 export type RouteGeometryTollBooth = Readonly<{
   chargeCar: null | string
   chargePerAxle: null | string
+  latitude: string
+  longitude: string
   name: null | string
   operator: null | string
   osmNodeId: number

@@ -277,3 +277,86 @@ Suítes: 63 pass nas três da API tocadas, 470 no `trip` do frontend, todas verd
 
 ⚠️ Os centavos aqui (R$ 500,9695) diferem por 2/10000 dos do contrato da T2 (R$ 500,9713) porque lá a
 distância entra arredondada em metros redondos e aqui vem crua do OSRM. Não é divergência de regra.
+
+## T4 — A praça do trajeto no mapa, com o valor ao lado (2026-09-07)
+
+Contrato antes, vermelho por campo/wiring inexistente. Verde depois:
+
+```
+bunx tsc --noEmit (api-transportada)                              → sem erro, vermelho antes (6 erros TS2353/TS2339)
+bun run test (api-transportada, suíte completa)                   → 4559 pass, 23 skip, 0 fail
+bun test test/trip.contract.test.ts (frontend-transportada)       → 478 pass, 0 fail (route-toll-booth-markers.contract.ts)
+bunx tsc --noEmit (frontend-transportada)                          → sem erro
+bun run test (frontend-transportada, suíte completa)               → 2900 pass, 0 fail
+bun run lint / format:check (raiz, todas as apps)                  → sem erro
+```
+
+### A coordenada da praça é dado novo até a resposta da rota; o schema já a tinha
+
+`toll_booths.latitude`/`longitude` existem desde a 090 (para a seed e para nada mais). O que faltava
+era o fio até `RouteGeometryToll.booths[]`: `TollBoothRecord` (API,
+`toll-booths/domain/toll-route-cost.policy.ts`) ganhou os dois campos, `readByNodeIds`
+(`drizzle-toll-booth.repository.ts`) passou a selecioná-los, e como `resolveTollRouteCost` já
+devolve a própria linha do catálogo em `booths[]` (T5, spec 090), a coordenada atravessa sem tocar
+em `read-route-geometry.use-case.ts`. Vermelho confirmado desligando as duas mudanças
+(`git stash`) e rodando `tsc`: quatro `praca()` de teste e a leitura de `.latitude`/`.longitude`
+reprovam por campo inexistente — o mesmo tipo de erro que o contrato novo
+(`route-geometry-toll.contract.ts`, "a praça cobrada carrega a própria coordenada") cobre em
+tempo de execução.
+
+⚠️ **A política pura continua sem saber de coordenada nenhuma** (D1, cabeçalho do arquivo): ela só
+carrega o campo adiante dentro do `TollBoothRecord` que já manipulava — nenhuma linha nova em
+`resolveTollRouteCost` lê `latitude`/`longitude`, e a praça continua sendo casada por identidade de
+nó. `RouteGeometryTollBooth` (frontend) e `isGeometryTollBooth` (validação) ganharam os mesmos dois
+campos, como string — a mesma forma que o resto da API publica coordenada geográfica.
+
+### O desenho é camada nova, alimentada pela opção **escolhida**, nunca pela principal à força
+
+`resolveTollBoothMarkers` (`trip/shared/assemblyToll.service.ts`) é pura: recebe
+`RouteGeometryToll | null` e devolve `{latitude, longitude, label}[]`, com `formatBoothCharge` ao
+lado decidindo o rótulo. `AssemblyVectorMap` já recebia `geometry` como a opção **ativa**
+(`activeGeometry` — T3, spec 093), então a nova camada lê `geometry?.toll` no mesmo `useEffect`
+que reage a `[geometry, isReady, theme]`: trocar de opção no seletor redesenha o traço, o bloco de
+texto acima e as praças no mapa, todos da mesma resposta.
+
+A fonte (`pracas-do-trajeto`) e a camada (`praca-do-trajeto`) nascem em tempo de execução, no molde
+exato de `fora-da-selecao`/`fora-da-selecao-ponto`: `GeoJSONSource.setData` quando já existem,
+`addSource`/`addLayer` na primeira vez. **Nenhuma delas passa `beforeId`** — a mesma garantia que
+`vector-basemap.contract.ts` já cobrava para o roteiro e para "fora da seleção" — e é essa ausência,
+não a ordem de declaração, que deixa a camada sempre abaixo dos marcadores de parada: eles são
+`Marker` de DOM, que o navegador desenha por cima do `<canvas>` do MapLibre de qualquer forma.
+
+### O valor por eixo, nunca o total da rota — e nunca "R$ 0,00" para desconhecida
+
+O rótulo é `chargePerAxle` da própria praça (o mesmo campo que o bloco de texto abaixo do seletor já
+lista por nome), não `total`/`chargePerAxle` agregados da rota inteira — esses continuam sendo o
+resumo, este é o valor daquela cabine. `formatBoothCharge` distingue `null` (desconhecida, imprime
+"—") de qualquer string declarada, inclusive `"0.00"` (imprime o valor formatado): a mesma regra já
+medida na 090 — `0.00` é tarifa declarada em 4 das 166 praças, e nem sempre é isenção — continua
+sendo "não inventar zero", nunca "toda tarifa baixa é suspeita". O glifo é `● ` seguido do rótulo,
+mesmo símbolo de `cabine-de-pedagio` do basemap: a linguagem visual de pedágio continua sendo uma
+só, e a cor sai de `resolveBasemapTollColor` (novo export de `vectorBasemap.service.ts`, o mesmo
+token `rodovia` que a cabine e a via tracejada já usam) — nunca uma cor própria que competiria com
+o vocabulário existente.
+
+### O que decidi sozinho (não estava no briefing)
+
+- **Dois novos exports em `vectorBasemap.service.ts`** (`resolveBasemapTollColor`,
+  `resolveBasemapBackground`), no molde de `resolveBasemapOutline` que já existia: a cor da praça e
+  o halo do texto precisam acompanhar o tema do mapa (claro/escuro/contraste) como todo o resto da
+  paleta, e os únicos acessores expostos antes desta task eram o do anel do pino. Ler `PALETTE`
+  direto do componente exigiria exportar o objeto inteiro, que é privado de propósito.
+- **O teste de "sem `beforeId`" da camada nova não repete o regex de `vector-basemap.contract.ts`.**
+  Medido: aquele regex (`/map\.addLayer\(\{[\s\S]*?\n\s{4}\}\)/gu`) captura, por causa do
+  quantificador fixo `\s{4}`, um trecho muito maior que a chamada de `addLayer` de cada camada
+  sempre que a indentação real é diferente de quatro espaços — o que já era o caso das duas camadas
+  anteriores (seis e oito espaços) e continuou sendo o caso da nova. O contrato antigo ainda vale
+  (ele varre o arquivo inteiro em busca da palavra "beforeId", e captura grande o suficiente para
+  isso), mas escrevê-lo de novo, isolado, produziria uma asserção que passa por acidente. O teste
+  novo em `route-toll-booth-markers.contract.ts` isola a chamada por `indexOf` exato do início e do
+  primeiro `'})'` — que só ocorre no fechamento verdadeiro do objeto, nunca nas chaves internas
+  (`layout`/`paint` fecham com `},`, não `})`).
+- **A palavra "beforeId" saiu do comentário que eu tinha escrito na primeira versão do efeito.**
+  Ela derrubava `vector-basemap.contract.ts` (que varre o arquivo inteiro): o comentário citava a
+  prop por nome para explicar a regra, e o próprio nome bastava para reprovar o teste que confere a
+  ausência dela em qualquer lugar do arquivo. Reescrito sem citar o nome literal da prop.

@@ -31,10 +31,18 @@ export type AxleCount = Readonly<{
   source: AxleCountSource
 }>
 
-/** A praça como o catálogo a guarda. Tarifa `null` é **desconhecida**, nunca gratuita. */
+/**
+ * A praça como o catálogo a guarda. Tarifa `null` é **desconhecida**, nunca gratuita.
+ *
+ * ⚠️ `latitude`/`longitude` viajam junto **só para o mapa desenhar o ícone** (spec 093 D3) — quem
+ * decide se a praça foi cobrada continua sendo a identidade do nó, nunca a coordenada (ver o
+ * cabeçalho deste arquivo).
+ */
 export type TollBoothRecord = Readonly<{
   chargeCar: null | string
   chargePerAxle: null | string
+  latitude: string
+  longitude: string
   name: null | string
   operator: null | string
   osmNodeId: number

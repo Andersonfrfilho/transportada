@@ -29,7 +29,9 @@ import {
   BASEMAP_THEMES,
   RADAR_SOURCE,
   buildBasemapStyle,
+  resolveBasemapBackground,
   resolveBasemapOutline,
+  resolveBasemapTollColor,
   type BasemapTheme,
 } from '../shared/vectorBasemap.service'
 import { resolveMarkerOffsets, type AssemblyMapPoint } from '../shared/assemblyMap.service'
@@ -37,6 +39,7 @@ import type { RouteGeometry } from '../shared/routeGeometry.service'
 import styles from '../styles/trip.module.css'
 import { resolveRouteLegs } from '../shared/routeGeometry.service'
 import { resolveStopColor } from '../shared/stopColor.service'
+import { resolveTollBoothMarkers } from '../shared/assemblyToll.service'
 
 type AssemblyVectorMapProps = Readonly<{
   geometry: RouteGeometry | null
@@ -59,6 +62,11 @@ type RouteCollection = {
   }[]
 }
 const NEARBY_SOURCE = 'fora-da-selecao'
+/**
+ * Spec 093 T4 — as praças do **trajeto**, alimentadas pela resposta da rota (spec 090 D4), nunca
+ * pela camada `cabine-de-pedagio` do basemap: aquela é toda cabine da região, sem valor.
+ */
+const TOLL_BOOTH_SOURCE = 'pracas-do-trajeto'
 /** Onde o operador deixou o mapa da última vez. Preferência de leitura, não dado de operação. */
 const THEME_STORAGE_KEY = 'transportada.trip-assembly-map-theme'
 
@@ -404,6 +412,54 @@ export function AssemblyVectorMap({
 
     fitToStops(map, points)
   }, [isReady, nearby, points, stopColor, theme])
+
+  /**
+   * As praças do **trajeto** — a opção de rota escolhida, nunca a principal a força (spec 093 D3):
+   * `geometry` já é a opção ativa (`activeGeometry` em `TripAssemblyMap`), então trocar de opção no
+   * seletor da T3 redesenha o traço **e** estas praças juntos.
+   *
+   * ⚠️ **Camada, não `Marker` de DOM.** São poucas por rota, mas o motivo aqui não é volume — é não
+   * competir com o pino da parada: o WebGL fica sempre atrás dos marcadores de DOM, contanto que a
+   * ordem entre camadas continue implícita (ver `vector-basemap.contract.ts`).
+   */
+  useEffect(() => {
+    const map = mapRef.current
+    if (map === null || !isReady) return
+
+    const marcadores = resolveTollBoothMarkers(geometry?.toll ?? null)
+    const data = {
+      type: 'FeatureCollection' as const,
+      features: marcadores.map((marcador) => ({
+        type: 'Feature' as const,
+        geometry: { type: 'Point' as const, coordinates: [marcador.longitude, marcador.latitude] },
+        properties: { label: marcador.label },
+      })),
+    }
+
+    const source: GeoJSONSource | undefined = map.getSource(TOLL_BOOTH_SOURCE)
+    if (source === undefined) {
+      map.addSource(TOLL_BOOTH_SOURCE, { data, type: 'geojson' })
+      map.addLayer({
+        id: 'praca-do-trajeto',
+        layout: {
+          /** Mesmo glifo de `cabine-de-pedagio` — é a mesma praça, só que com o valor ao lado. */
+          'text-field': ['concat', '● ', ['get', 'label']],
+          'text-font': ['Noto Sans Regular'],
+          'text-size': 10,
+          'text-allow-overlap': true,
+        },
+        paint: {
+          'text-color': resolveBasemapTollColor(readToken, theme),
+          'text-halo-color': resolveBasemapBackground(readToken, theme),
+          'text-halo-width': 1.4,
+        },
+        source: TOLL_BOOTH_SOURCE,
+        type: 'symbol',
+      })
+    } else {
+      void source.setData(data)
+    }
+  }, [geometry, isReady, theme])
 
   /**
    * A linha da estrada. Ela é **fonte de dado**, atualizada no lugar: recriar a camada a cada

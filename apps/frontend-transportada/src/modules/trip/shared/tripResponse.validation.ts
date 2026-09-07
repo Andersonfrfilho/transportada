@@ -817,6 +817,8 @@ function isGeometryTollBooth(value: unknown): value is RouteGeometryTollBooth {
     isRecord(value) &&
     isNullableString(value.chargeCar) &&
     isNullableString(value.chargePerAxle) &&
+    isString(value.latitude) &&
+    isString(value.longitude) &&
     isNullableString(value.name) &&
     isNullableString(value.operator) &&
     typeof value.osmNodeId === 'number' &&

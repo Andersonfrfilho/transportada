@@ -46,6 +46,8 @@ function praca(osmNodeId: number, chargePerAxle: string, observedOn: string): To
   return {
     chargeCar: chargePerAxle,
     chargePerAxle,
+    latitude: '-22.0175000',
+    longitude: '-47.8908000',
     name: `Praça ${osmNodeId}`,
     observedOn,
     operator: 'Operadora',
@@ -69,6 +71,27 @@ describe('pedágio na resposta da geometria (spec 090 T7)', () => {
 
     expect(view.toll?.total).toBe('44.6000')
     expect(view.toll?.booths.map((booth) => booth.osmNodeId)).toEqual([10, 20])
+  })
+
+  /**
+   * Spec 093 T4: a coordenada viaja da praça até a resposta da rota, para o mapa desenhar o ícone
+   * sobre a praça do trajeto — nunca sobre toda cabine da região (D3).
+   */
+  test('a praça cobrada carrega a própria coordenada', async () => {
+    const { geometryPort, tollBooths } = porta({
+      booths: [praca(10, '10.50', '2026-07-01')],
+      nodeIds: [10],
+    })
+
+    const view = await readRouteGeometry({
+      axles: { count: 2, source: 'declared' },
+      geometry: geometryPort,
+      stops: PARADAS,
+      tollBooths,
+    })
+
+    expect(view.toll?.booths[0]?.latitude).toBe('-22.0175000')
+    expect(view.toll?.booths[0]?.longitude).toBe('-47.8908000')
   })
 
   /** A data que a tela imprime é a mais antiga entre as praças cobradas — a mais conservadora. */

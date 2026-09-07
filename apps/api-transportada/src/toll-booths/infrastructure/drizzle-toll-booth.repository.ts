@@ -27,6 +27,8 @@ export function createDrizzleTollBoothRepository(database: TollBoothDatabase): T
         .select({
           chargeCar: tollBooths.chargeCar,
           chargePerAxle: tollBooths.chargePerAxle,
+          latitude: tollBooths.latitude,
+          longitude: tollBooths.longitude,
           name: tollBooths.name,
           observedOn: tollBooths.observedOn,
           operator: tollBooths.operator,
@@ -38,6 +40,8 @@ export function createDrizzleTollBoothRepository(database: TollBoothDatabase): T
       return rows.map((row) => ({
         chargeCar: row.chargeCar,
         chargePerAxle: row.chargePerAxle,
+        latitude: row.latitude,
+        longitude: row.longitude,
         name: row.name,
         observedOn: row.observedOn,
         operator: row.operator,

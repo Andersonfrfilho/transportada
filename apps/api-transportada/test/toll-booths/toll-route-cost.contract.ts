@@ -16,6 +16,8 @@ function praca(osmNodeId: number, chargePerAxle: null | string): TollBoothRecord
   return {
     chargeCar: chargePerAxle,
     chargePerAxle,
+    latitude: '-21.1775000',
+    longitude: '-47.8103000',
     name: `Praça ${osmNodeId}`,
     operator: 'Operadora',
     osmNodeId,
