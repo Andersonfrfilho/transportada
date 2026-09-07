@@ -390,6 +390,18 @@ inventado faria alguém parar de carregar, ou continuar. Estouro acima de 100% s
 tela de quem carrega o caminhão. E `VEHICLE_TYPE_ICONS` (frontend) é `Record<VehicleType, IconName>`
 — tipo novo no catálogo **não compila** sem desenho.
 
+**O `?url` do worker do pdf.js é `import` estático, e a diferença só aparece em dev.** Como
+`import()` dinâmico o sufixo é ignorado pelo `vite dev`: o que volta é o módulo do worker
+(`{ WorkerMessageHandler }`), sem `default`. O `workerSrc` recebia `undefined` e o pdf.js lançava
+`Invalid workerSrc type` **antes de olhar o arquivo** — todo upload de documento falhava em
+desenvolvimento, com qualquer PDF, sob a mensagem "confira se é um PDF e tente de novo". No bundle
+construído a forma dinâmica funciona, e é por isso que **nenhum smoke pegava**: eles rodam contra o
+`vite preview`. Medido em 06/09/2026 com um CRLV-e real de 80 kB, que depois da correção entrega
+onze campos. ⚠️ `new URL(…, import.meta.url)` **não serve aqui** — ela não resolve especificador de
+pacote, que é a mesma razão registrada no `AssemblyVectorMap`. Contrato em
+`test/document-intake/pdfjs-worker.contract.ts`, sobre a **forma do import**, que é onde a
+diferença mora.
+
 ⚠️ **`VEHICLE_DETAIL_KEYS` é contrato de duas pontas, e quebrar sozinho é silencioso.** O
 `isVehicle` do frontend valida com `hasOnlyKeys` **e** `hasEveryKey`: campo novo na lista com a API
 ainda servindo o corpo antigo faz toda linha ser recusada na validação, e a tabela de frota
