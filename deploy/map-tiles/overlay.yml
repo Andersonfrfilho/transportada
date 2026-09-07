@@ -27,3 +27,20 @@ layers:
         attributes:
           - key: class
             value: speed_camera
+          # Feature 093 T5 — a velocidade permitida ao lado do ícone.
+          #
+          # Medido em 2026-09-07 no `ribeirao.osm.pbf`: 527 radares, **438 com `maxspeed`** (83%) —
+          # 40 (110×), 60 (108×), 110 (61×), 50 (52×). Os 89 sem a tag entram **sem número**: um
+          # radar existe mesmo quando ninguém mapeou o limite, e imprimir "60" porque é o valor mais
+          # comum seria inventar o número que o motorista vai obedecer.
+          - key: maxspeed
+            tag_value: maxspeed
+          # ⚠️ 12 radares declaram limite próprio de caminhão, e é ele que interessa a quem opera
+          # frota — em rodovia brasileira o limite do caminhão é menor que o do carro. O estilo
+          # prefere este quando existir.
+          - key: maxspeed_hgv
+            tag_value: maxspeed:hgv
+          # ⚠️ 49 radares dizem o sentido em que fiscalizam. Sem isso o mapa marca fiscalização na
+          # pista contrária — a mesma armadilha de sentido que o pedágio resolve por identidade de nó.
+          - key: direction
+            tag_value: direction

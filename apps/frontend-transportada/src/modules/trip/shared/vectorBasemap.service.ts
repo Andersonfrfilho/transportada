@@ -516,7 +516,25 @@ export function buildBasemapStyle(
         'source-layer': 'radar',
         minzoom: 11,
         layout: {
-          'text-field': '▲',
+          /**
+           * Feature 093 T5 — a velocidade permitida ao lado do triângulo.
+           *
+           * ⚠️ **`maxspeed:hgv` vence quando existir.** Em rodovia brasileira o limite do caminhão é
+           * menor que o do carro, e quem lê este mapa opera frota: mostrar o limite do carro seria
+           * mostrar o número errado para o único leitor que existe. Medido: 12 radares o declaram.
+           *
+           * ⚠️ **Radar sem `maxspeed` fica só com o triângulo.** Medido: 89 dos 527 não têm a tag.
+           * Imprimir "60" porque é o valor mais comum seria inventar o número que o motorista
+           * obedece — e o radar existe mesmo quando ninguém mapeou o limite dele.
+           */
+          'text-field': [
+            'case',
+            ['has', 'maxspeed_hgv'],
+            ['concat', '▲ ', ['get', 'maxspeed_hgv']],
+            ['has', 'maxspeed'],
+            ['concat', '▲ ', ['get', 'maxspeed']],
+            '▲',
+          ],
           'text-font': [FONT_STACK],
           'text-size': 9,
           'text-allow-overlap': true,

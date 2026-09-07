@@ -197,6 +197,37 @@ describe('o overlay do radar — segundo arquivo, mesma origem', () => {
     expect(layer.minzoom ?? 0).toBeGreaterThanOrEqual(11)
   })
 
+  /**
+   * Feature 093 T5 — a velocidade permitida ao lado do triângulo.
+   *
+   * ⚠️ **`maxspeed:hgv` vence `maxspeed`.** Em rodovia brasileira o limite do caminhão é menor que o
+   * do carro, e quem lê este mapa opera frota: imprimir o limite do carro seria o número errado para
+   * o único leitor que existe. Medido no extract: 12 radares declaram limite próprio de caminhão.
+   */
+  it('prefere o limite do caminhão ao do carro quando o mapa declara os dois', () => {
+    const field = JSON.stringify(symbolLayerById('claro', 'radar').layout?.['text-field'])
+    const posicaoHgv = field.indexOf('maxspeed_hgv')
+    const posicaoCarro = field.indexOf('"maxspeed"')
+
+    expect(posicaoHgv).toBeGreaterThanOrEqual(0)
+    expect(posicaoCarro).toBeGreaterThanOrEqual(0)
+    expect(posicaoHgv).toBeLessThan(posicaoCarro)
+  })
+
+  /**
+   * ⚠️ Medido: **89 dos 527 radares não têm `maxspeed`**. Eles continuam desenhados, e **sem
+   * número** — imprimir "60" porque é o valor mais comum seria inventar o número que o motorista
+   * obedece, e o radar existe mesmo quando ninguém mapeou o limite dele.
+   */
+  it('desenha o radar sem número quando o mapa não sabe a velocidade', () => {
+    const field = symbolLayerById('claro', 'radar').layout?.['text-field']
+
+    expect(Array.isArray(field)).toBe(true)
+    expect((field as unknown[])[0]).toBe('case')
+    /** O último ramo do `case` é o padrão: o glifo sozinho, sem `concat` de velocidade nenhuma. */
+    expect((field as unknown[]).at(-1)).toBe('▲')
+  })
+
   /** Radar e cabine de pedágio precisam ser distinguíveis — nunca o mesmo glifo. */
   it('usa um glifo diferente do da cabine de pedágio', () => {
     const radar = symbolLayerById('claro', 'radar')
