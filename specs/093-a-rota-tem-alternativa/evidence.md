@@ -252,3 +252,28 @@ uma feature que não pediu ícone novo.
   mas sem ele uma segunda resposta com menos opções deixaria `selectedOptionIndex` sobrando (contido
   pelo `boundedOptionIndex`, que evita o crash, mas silenciosamente trocaria a escolha do operador
   sem avisar).
+
+## Conferência independente da T1/T3 (2026-09-07)
+
+Rodado por esta sessão pelo **gateway de produção** contra o OSRM local, com o catálogo real de
+praças e as duas políticas em cima — nada de mock:
+
+```
+createOsrmRouteGeometryGateway → readRouteGeometry(Ribeirão Preto → Campinas)
+
+rotas devolvidas pelo gateway: 2
+   221.5 km | 179 min | 5 praças | pedágio R$ 108,60
+   239.6 km | 198 min | 4 praças | pedágio R$  93,20
+rankRouteOptions → mais rápida: 0 | mais barata: 0 | há escolha: true
+   total R$ 500,97
+   total R$ 517,56
+```
+
+**A armadilha da D1 acontece pelo caminho real**: a rota com uma praça a menos é eleita pela conta
+completa como a **mais cara**, e a mesma rota ganha os dois rótulos. O seletor existe (`hasChoice`),
+e é aqui que ele mostra as duas opções em vez de esconder a escolha.
+
+Suítes: 63 pass nas três da API tocadas, 470 no `trip` do frontend, todas verdes.
+
+⚠️ Os centavos aqui (R$ 500,9695) diferem por 2/10000 dos do contrato da T2 (R$ 500,9713) porque lá a
+distância entra arredondada em metros redondos e aqui vem crua do OSRM. Não é divergência de regra.
