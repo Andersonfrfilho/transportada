@@ -130,6 +130,7 @@ function tripDetail(mode: DocumentsMode): TripDetailContract {
 
   return {
     ...BASE_TRIP,
+    amounts: null,
     documents,
     drivers: [
       { driverId: DRIVER_ID, driverName: 'Jose da Silva', driverTaxId: '12345678901', position: 1 },

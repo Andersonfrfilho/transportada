@@ -154,7 +154,12 @@ export const TRIP_REVENUE_SOURCES = ['measured', 'estimated', 'missing', 'period
  * Passado o deploy que serve o campo, ele migra para `TRIP_DETAIL_KEYS` numa mudança própria — e é
  * essa mudança que torna o contrato exigível de novo.
  */
-export const TRIP_DETAIL_OPTIONAL_KEYS = ['cargoLayout', 'cargoWeight', 'occupancy'] as const
+export const TRIP_DETAIL_OPTIONAL_KEYS = [
+  'amounts',
+  'cargoLayout',
+  'cargoWeight',
+  'occupancy',
+] as const
 
 /**
  * Spec 079: o peso da carga. **Sem razão de ocupação** — a ficha do veículo não guarda capacidade

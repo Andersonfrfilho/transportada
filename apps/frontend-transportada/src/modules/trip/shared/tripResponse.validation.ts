@@ -246,6 +246,7 @@ function isDetail(value: unknown): value is TripDetail {
   }
   return (
     isTripFields(value) &&
+    isAbsentOrTripAmounts((value as { amounts?: unknown }).amounts) &&
     isEveryItem(value.documents, isDocumentDetail) &&
     isEveryItem(value.drivers, isDriverLine) &&
     /** Opcional não é "qualquer coisa": presente com forma errada continua reprovando (D2). */

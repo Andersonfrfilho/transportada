@@ -71,6 +71,16 @@ export type TripStopDetailContract = Readonly<{
 
 export type TripDetailContract = TripContract &
   Readonly<{
+    /**
+     * A API devolve isto no detalhe também, não só na listagem que a spec que o criou nomeava —
+     * achado testando localmente: o guard recusava a viagem inteira por causa de uma chave
+     * "inesperada". `null` sem receita calculada ainda.
+     */
+    amounts: Readonly<{
+      documentsTotal: null | string
+      revenueSource: 'estimated' | 'measured' | 'missing' | 'period'
+      revenueTotal: string
+    }> | null
     documents: readonly TripDocumentDetailContract[]
     drivers: readonly Readonly<{
       /** Contato nasce opcional (spec 078 D2): API anterior serve o motorista sem ele. */
@@ -157,6 +167,7 @@ export const TRIP_DOCUMENT_DETAIL = {
 
 export const TRIP_DETAIL = {
   ...TRIP,
+  amounts: null,
   documents: [TRIP_DOCUMENT_DETAIL],
   drivers: [
     {
