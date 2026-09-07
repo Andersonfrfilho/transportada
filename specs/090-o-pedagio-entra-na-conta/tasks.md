@@ -50,6 +50,9 @@ natural é `osm_node_id`.
 A chamada ao OSRM passa a pedir os nós percorridos, e a porta de geometria passa a devolvê-los.
 
 - **Depende de:** nada (pode correr em paralelo com a Fase 1).
+- **Onde:** `apps/api-transportada/src/trips/infrastructure/osrm-route-geometry.gateway.ts:38` — a
+  chamada **já existe** e é a mesma que desenha o mapa da montagem; hoje ela pede
+  `?overview=full&geometries=geojson`. É um parâmetro a mais, não integração nova.
 - **Aceite:** contrato **por texto de fonte** exigindo `annotations=nodes` na consulta. Sem ele o
   custo sai zero sem erro nenhum — a falha é silenciosa, e é por isso que o contrato é de fonte e
   não de comportamento.
@@ -76,6 +79,22 @@ A chamada ao OSRM passa a pedir os nós percorridos, e a porta de geometria pass
 - **Aceite:** a referência é tabela de mercado sem `company_id`; `toco` e `truck` da base real (2 e 3
   eixos) continuam batendo. Origem viaja junto do número, sempre.
 
+### T6B — A montagem lê a distância que o mapa desenhou (D3)
+
+O painel _Custo da operação_ do diálogo **Nova viagem** passa a alimentar pedágio **e combustível**
+com a rota que o mapa acabou de receber (`RouteGeometryLeg.distanceMetres`), em vez do campo
+persistido na viagem.
+
+- **Depende de:** T5.
+- **Por quê:** hoje o mapa diz "estrada medida pelo roteirizador" e o painel logo abaixo diz "roteiro
+  ainda não calculado". Acrescentar só o pedágio ali deixaria o painel pior que hoje: uma parcela com
+  valor ao lado de outra alegando que não há roteiro, e um "Custo previsto" parcial com cara de
+  completo.
+- **Aceite:** contrato que reprova a tela que imprimir pedágio com valor enquanto o combustível alega
+  `noPlannedDistance`, e vice-versa. `noPlannedDistance` **continua** valendo na viagem já criada —
+  a task não o remove, só deixa de usá-lo onde a distância existe.
+- **Fora:** a parcela do motorista, que falta por cadastro (spec 086) e não por fonte de distância.
+
 ## Fase 3 — A tela conta a história
 
 > 🤖 Modelo: `sonnet`
@@ -85,7 +104,7 @@ A chamada ao OSRM passa a pedir os nós percorridos, e a porta de geometria pass
 Na `TripAssemblyMap`, ao lado de "Tempo do roteiro": total, número de praças, valor por eixo,
 quantidade de eixos e **a data da tarifa**.
 
-- **Depende de:** T5, T6.
+- **Depende de:** T5, T6, T6B.
 - **Aceite:** contrato que reprova o componente se o valor aparecer **sem a marca de estimado**
   quando a origem do eixo for `estimated`, e que proíbe segunda condição escondendo a marca — a
   mesma trava de `test/trip/occupancy.contract.ts`.
@@ -115,4 +134,4 @@ Entra como custo previsto ao lado do combustível, herdando a origem.
 `CLAUDE.md` ganha o parágrafo do pedágio; o runbook do OSRM ganha o passo do extrator; `evidence.md`
 recebe as saídas de teste de cada task.
 
-- **Depende de:** T1..T9.
+- **Depende de:** T1..T9, T6B.

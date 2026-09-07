@@ -54,6 +54,13 @@ o sentido está resolvido por construção: cada pista tem os seus.
 `annotations=nodes`. Sem isso não há o que cruzar, e o custo sai zero **sem erro nenhum** — que é o
 modo de falha silencioso desta feature.
 
+⚠️ **A chamada já existe, e é a mesma que desenha o mapa da montagem** — conferido em 2026-09-07:
+`apps/api-transportada/src/trips/infrastructure/osrm-route-geometry.gateway.ts:38` pede
+`/route/v1/driving/…?overview=full&geometries=geojson`, e é dessa resposta que saem o traço da rota e
+o "Tempo do roteiro" que o diálogo **Nova viagem** já mostra. O `annotations=nodes` é **um parâmetro
+a mais nela**, não integração nova. Isso barateia a T4 e é a razão de a fase 2 poder correr em
+paralelo com a 1.
+
 ### D2 — O eixo tem duas origens, e a tela diz qual é
 
 `fleet_vehicles.axle_count` já existe (2 a 9, ou zero para não informado) e está preenchido em **4
@@ -69,6 +76,34 @@ A referência é tabela de mercado sem `company_id`, como `fuel_price_references
 ⚠️ **Um veículo estimado torna o total estimado**, e a tela é obrigada a imprimir a marca junto do
 número — a mesma regra do peso (ADR-0052) e da ocupação (spec 075). Custo de pedágio plausível sem
 aviso é o modo de falha da ADR-0044 §1, e aqui ele vira decisão de aceitar ou recusar carga.
+
+### D3 — O pedágio na montagem obriga o painel a ler a distância que o mapa já tem
+
+O requisito é **aparecer na criação da viagem**, e ali há uma armadilha que a primeira versão desta
+spec não viu. Conferido em 2026-09-07, no mesmo diálogo **Nova viagem**:
+
+- o mapa imprime "Tempo do roteiro: 1 h 26 min — **estrada medida pelo roteirizador**";
+- o painel _Custo da operação_, logo abaixo, imprime "Combustível — **roteiro ainda não calculado**".
+
+As duas frases são verdadeiras ao mesmo tempo, e a razão é a fonte: a valoração lê a distância
+**persistida na viagem** (`resolveFuelParcel` → `VALUATION_GAPS.noPlannedDistance`), e na montagem a
+viagem ainda não existe. O mapa calcula a rota na hora; o painel não a enxerga.
+
+**Decisão: na montagem, a parcela de pedágio e a de combustível saem da mesma rota que o mapa
+desenhou.** Acrescentar só o pedágio ali produziria um painel pior que o de hoje — uma parcela com
+valor ao lado de outra dizendo que não há roteiro, e um "Custo previsto" parcialmente preenchido com
+cara de completo. Meia conta com aparência de conta inteira é exatamente a margem otimista que a
+ADR-0049 §2 proíbe, e aqui ela decide aceitar ou recusar carga.
+
+⚠️ **Isto alarga o escopo de propósito**, e o alargamento é pequeno: a distância já está na resposta
+que a tela recebe (`RouteGeometryLeg.distanceMetres`, um por par de paradas), e o que falta é o
+painel de montagem passar a consumi-la em vez do campo persistido. `noPlannedDistance` continua
+existindo e continua certo **na viagem já criada** — ele diz "ninguém planejou a rota", que é
+diferente de "a rota desta montagem não foi persistida ainda".
+
+⚠️ **A parcela do motorista não entra nesse conserto.** Ela falta por outro motivo ("rota do agregado
+sem valor cadastrado", spec 086), e cadastro ausente não vira número por mudança de fonte de
+distância. O painel continua listando o que falta.
 
 ## Onde o dado mora
 
@@ -101,6 +136,10 @@ para quem confere saber **por onde** o custo entrou.
 Na conta da viagem, o pedágio entra como custo previsto ao lado do combustível, com a mesma origem
 (`estimated` quando o eixo foi estimado).
 
+⚠️ E **no painel da montagem** ele aparece pela D3 — junto do combustível, os dois alimentados pela
+rota que o mapa acabou de desenhar. Rota sem praça imprime "sem pedágio no trajeto"; ela nunca some
+da lista, porque sumir é indistinguível de não ter sido calculada.
+
 ## Fora de escopo, e por quê
 
 - **Volta.** A viagem é modelada até a última parada; o retorno não existe no roteiro, então o custo
@@ -124,3 +163,5 @@ Na conta da viagem, o pedágio entra como custo previsto ao lado do combustível
 - `toll_booths` na lista de exceções de `tenant-safety` como terceira tabela sem `company_id`.
 - Rota sem praça devolve **zero com origem conhecida**, nunca `null` — "não passa por pedágio" e
   "não sei" são coisas diferentes na conta.
+- No painel da montagem, pedágio e combustível saem da **mesma** origem de distância — contrato que
+  reprova a tela que imprimir um dos dois com valor enquanto o outro alega roteiro não calculado.
