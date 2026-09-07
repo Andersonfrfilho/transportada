@@ -41,6 +41,8 @@ export async function readCargoPreviewContext(
     bedDimensions: cargo.bedDimensions,
     boxesByDocument: cargo.boxesByDocument,
     capacityM3: cargo.capacityM3,
+    fallbackBoxVolumeM3: cargo.fallbackBoxVolumeM3,
+    measuredShapes: cargo.measuredShapes,
     loadingAccess: cargo.loadingAccess,
     /**
      * ⚠️ O teto entra **depois** das duas leituras, nunca encadeando uma na outra: o peso e o

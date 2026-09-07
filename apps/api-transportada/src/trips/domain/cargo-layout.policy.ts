@@ -10,7 +10,9 @@ import {
 } from './cargo-plan.policy.js'
 import {
   resolveCargoPlacement,
+  resolveFallbackBox,
   type CargoPlacement,
+  type MeasuredBoxShape,
   type PlacementBox,
 } from './cargo-placement.policy.js'
 import {
@@ -237,6 +239,13 @@ export function resolveCargoLayout(input: {
    * para alcançar o meio de um baú que só abre atrás, e quem seguisse carregaria errado.
    */
   readonly loadingAccess?: LoadingAccess
+  /**
+   * Spec 094: o volume típico de uma caixa da empresa, para a presumida ter tamanho. Sem ele a
+   * caixa não medida continua fora do desenho — e nomeada, que é melhor que inventada.
+   */
+  readonly fallbackBoxVolumeM3?: number | null
+  /** As formas medidas, de onde sai a **proporção** da caixa presumida. */
+  readonly measuredShapes?: readonly MeasuredBoxShape[]
   readonly stops: readonly CargoLayoutStop[]
 }): ResolvedCargoLayout | null {
   const capacity = toScaled(input.capacityM3)
@@ -349,7 +358,14 @@ export function resolveCargoLayout(input: {
      * última entrega no fundo. Passar as paradas na ordem de entrega faria a planta desenhar o
      * inverso do que o painel acima dela mostra, e as duas ficariam brigando na mesma tela.
      */
-    placement: resolveCargoPlacement({ bed, boxes: toPlacementBoxes(ordered) }),
+    placement: resolveCargoPlacement({
+      bed,
+      boxes: toPlacementBoxes({
+        fallbackVolumeM3: input.fallbackBoxVolumeM3 ?? null,
+        measuredShapes: input.measuredShapes ?? [],
+        stops: ordered,
+      }),
+    }),
     bedWidthM:
       bed === null || !bedKnown ? null : formatScaledDecimal(toLength(bed.widthM), LENGTH_SCALE),
     freeDepthM: bedKnown
@@ -379,20 +395,42 @@ export function resolveCargoLayout(input: {
  * ⚠️ A `sequence` da parada viaja junto porque é ela que o desenho colore — a paleta da planta é a
  * mesma das faixas, e sem a sequência as duas mostrariam cores diferentes para a mesma parada.
  */
-function toPlacementBoxes(stops: readonly CargoLayoutStop[]): readonly PlacementBox[] {
-  return stops.flatMap((stop) =>
-    (stop.boxes ?? []).map((box) => ({
-      count: box.count,
-      heightMm: box.heightMm,
-      isFragile: box.isFragile ?? null,
-      isStackable: box.isStackable ?? null,
-      keepUpright: box.keepUpright ?? null,
-      label: box.label ?? stop.label,
-      lengthMm: box.lengthMm,
-      maxStackCount: box.maxStackCount ?? null,
-      source: 'measured' as const,
-      stopSequence: stop.sequence,
-      widthMm: box.widthMm,
-    })),
+function toPlacementBoxes(
+  input: Readonly<{
+    fallbackVolumeM3: number | null
+    measuredShapes: readonly MeasuredBoxShape[]
+    stops: readonly CargoLayoutStop[]
+  }>,
+): readonly PlacementBox[] {
+  /**
+   * ⚠️ A caixa presumida é derivada **uma vez**, não por caixa: a proporção e o volume são os
+   * mesmos para toda a empresa, e recalcular por linha só gastaria tempo repetindo a mesma conta.
+   */
+  const fallback = resolveFallbackBox({
+    measured: input.measuredShapes,
+    volumeM3: input.fallbackVolumeM3,
+  })
+
+  return input.stops.flatMap((stop) =>
+    (stop.boxes ?? []).map((box) => {
+      const measured = box.heightMm !== null && box.lengthMm !== null && box.widthMm !== null
+      /** Sem medida e sem fallback, a caixa segue sem dimensão e a planta a nomeia como não medida. */
+      const shape = measured ? box : (fallback ?? box)
+
+      return {
+        count: box.count,
+        heightMm: shape.heightMm,
+        isFragile: box.isFragile ?? null,
+        isStackable: box.isStackable ?? null,
+        keepUpright: box.keepUpright ?? null,
+        label: box.label ?? stop.label,
+        lengthMm: shape.lengthMm,
+        maxStackCount: box.maxStackCount ?? null,
+        /** A origem é a da **caixa**, não a do arranjo: é ela que sai hachurada no desenho. */
+        source: measured ? ('measured' as const) : ('estimated' as const),
+        stopSequence: stop.sequence,
+        widthMm: shape.widthMm,
+      }
+    }),
   )
 }

@@ -23,9 +23,33 @@ export type ScalePlanBand = Readonly<{
   sideMarked?: boolean | undefined
 }>
 
+/**
+ * Spec 094: uma caixa **posicionada** dentro do baú, vista de cima. É o que a faixa não diz — a
+ * faixa reserva espaço para a parada, a caixa ocupa um lugar.
+ */
+export type ScalePlanBox = Readonly<{
+  color: string
+  /** Quanto ocupa no comprimento do baú, em metros. */
+  depthM: number
+  id: string
+  /** Presumida sai hachurada: a diferença entre o que foi medido e o que foi derivado do volume. */
+  isEstimated: boolean
+  label: string
+  widthM: number
+  /** Distância do fundo, em metros. */
+  xM: number
+  /** Distância da parede lateral, em metros. */
+  yM: number
+}>
+
 export type ScalePlanProps = Readonly<{
   ariaLabel: string
   bands: readonly ScalePlanBand[]
+  /**
+   * As caixas desta camada. Quando vêm, elas são o desenho: as faixas ficam ao fundo, em traço
+   * fraco, marcando de quem é o espaço.
+   */
+  boxes?: readonly ScalePlanBox[]
   className?: string | undefined
   /** Rótulo da borda direita — é dela que quem carrega se orienta. */
   doorLabel: string
@@ -66,6 +90,7 @@ export function buildScalePlanViewBox(
 export function ScalePlan({
   ariaLabel,
   bands,
+  boxes = [],
   className,
   doorLabel,
   widthM,
@@ -96,51 +121,97 @@ export function ScalePlan({
           </pattern>
         </defs>
 
-        {bands.map((band) => (
-          <g key={band.id}>
-            {/*
-              ⚠️ A cor da parada fica **por baixo** da hachura, sempre. Trocar o preenchimento pela
-              hachura apagava a cor da faixa inteira mesmo quando só uma ponta dela sai do baú — e é
-              a cor que liga a faixa à legenda e ao pino do mapa.
-            */}
-            <rect
-              className={band.outside === true ? styles.bandOutside : styles.band}
-              fill={band.color}
-              height={widthM * PIXELS_PER_METRE}
-              width={band.lengthM * PIXELS_PER_METRE}
-              x={MARGIN + band.offsetM * PIXELS_PER_METRE}
-              y={MARGIN}
-            />
-            {band.outside !== true ? null : (
+        {/*
+          ⚠️ Com caixas, as faixas ficam **atrás e fracas**: elas dizem de quem é o espaço, e a
+          caixa diz o que ocupa. Desenhar as duas com o mesmo peso faria a faixa competir com a
+          carga que está dentro dela.
+        */}
+        {boxes.length > 0 ? (
+          <g className={styles.bandsBehind}>
+            {bands.map((band) => (
               <rect
-                className={styles.bandOutside}
-                fill="url(#scale-plan-hatch)"
+                fill={band.color}
                 height={widthM * PIXELS_PER_METRE}
+                key={`faixa-${band.id}`}
                 width={band.lengthM * PIXELS_PER_METRE}
                 x={MARGIN + band.offsetM * PIXELS_PER_METRE}
                 y={MARGIN}
               />
-            )}
-            {band.sideMarked !== true ? null : (
-              <line
-                className={styles.sideMark}
-                x1={MARGIN + band.offsetM * PIXELS_PER_METRE}
-                x2={MARGIN + (band.offsetM + band.lengthM) * PIXELS_PER_METRE}
-                y1={MARGIN}
-                y2={MARGIN}
+            ))}
+          </g>
+        ) : null}
+
+        {boxes.map((cargoBox) => (
+          <g key={cargoBox.id}>
+            <rect
+              className={styles.box}
+              fill={cargoBox.isEstimated ? 'url(#scale-plan-hatch)' : cargoBox.color}
+              height={cargoBox.widthM * PIXELS_PER_METRE}
+              width={cargoBox.depthM * PIXELS_PER_METRE}
+              x={MARGIN + cargoBox.xM * PIXELS_PER_METRE}
+              y={MARGIN + cargoBox.yM * PIXELS_PER_METRE}
+            />
+            {/* Contorno na cor da parada mesmo na presumida: a hachura tira a cor do preenchimento. */}
+            {cargoBox.isEstimated ? (
+              <rect
+                className={styles.boxEstimatedEdge}
+                height={cargoBox.widthM * PIXELS_PER_METRE}
+                stroke={cargoBox.color}
+                width={cargoBox.depthM * PIXELS_PER_METRE}
+                x={MARGIN + cargoBox.xM * PIXELS_PER_METRE}
+                y={MARGIN + cargoBox.yM * PIXELS_PER_METRE}
               />
-            )}
-            {band.label === '' ? null : (
-              <text
-                className={styles.bandLabel}
-                x={MARGIN + (band.offsetM + band.lengthM / 2) * PIXELS_PER_METRE}
-                y={MARGIN + (widthM * PIXELS_PER_METRE) / 2}
-              >
-                {band.label}
-              </text>
-            )}
+            ) : null}
           </g>
         ))}
+
+        {boxes.length > 0
+          ? null
+          : bands.map((band) => (
+              <g key={band.id}>
+                {/*
+              ⚠️ A cor da parada fica **por baixo** da hachura, sempre. Trocar o preenchimento pela
+              hachura apagava a cor da faixa inteira mesmo quando só uma ponta dela sai do baú — e é
+              a cor que liga a faixa à legenda e ao pino do mapa.
+            */}
+                <rect
+                  className={band.outside === true ? styles.bandOutside : styles.band}
+                  fill={band.color}
+                  height={widthM * PIXELS_PER_METRE}
+                  width={band.lengthM * PIXELS_PER_METRE}
+                  x={MARGIN + band.offsetM * PIXELS_PER_METRE}
+                  y={MARGIN}
+                />
+                {band.outside !== true ? null : (
+                  <rect
+                    className={styles.bandOutside}
+                    fill="url(#scale-plan-hatch)"
+                    height={widthM * PIXELS_PER_METRE}
+                    width={band.lengthM * PIXELS_PER_METRE}
+                    x={MARGIN + band.offsetM * PIXELS_PER_METRE}
+                    y={MARGIN}
+                  />
+                )}
+                {band.sideMarked !== true ? null : (
+                  <line
+                    className={styles.sideMark}
+                    x1={MARGIN + band.offsetM * PIXELS_PER_METRE}
+                    x2={MARGIN + (band.offsetM + band.lengthM) * PIXELS_PER_METRE}
+                    y1={MARGIN}
+                    y2={MARGIN}
+                  />
+                )}
+                {band.label === '' ? null : (
+                  <text
+                    className={styles.bandLabel}
+                    x={MARGIN + (band.offsetM + band.lengthM / 2) * PIXELS_PER_METRE}
+                    y={MARGIN + (widthM * PIXELS_PER_METRE) / 2}
+                  >
+                    {band.label}
+                  </text>
+                )}
+              </g>
+            ))}
 
         {/* O contorno vem depois das faixas para a borda ficar por cima delas, e a porta é dele. */}
         <rect

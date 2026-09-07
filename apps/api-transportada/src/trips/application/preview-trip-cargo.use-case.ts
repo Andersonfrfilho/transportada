@@ -5,6 +5,7 @@ import { formatScaledDecimal, parseScaledDecimal } from '../../shared/decimal.se
 import type { CargoBedDimensions } from '../domain/cargo-layout.policy.js'
 import type { CargoPlanBox } from '../domain/cargo-plan.policy.js'
 import { resolveCargoLayout, type ResolvedCargoLayout } from '../domain/cargo-layout.policy.js'
+import type { MeasuredBoxShape } from '../domain/cargo-placement.policy.js'
 import {
   buildCargoPreviewStops,
   type CargoPreviewDocument,
@@ -36,6 +37,9 @@ export type TripCargoPreviewContext = {
   /** Spec 088 G003: as caixas medidas por nota — a parada as reúne no mesmo agrupamento. */
   readonly boxesByDocument: ReadonlyMap<string, readonly CargoPlanBox[]>
   readonly capacityM3: string | null
+  /** O volume típico de uma caixa da empresa — a mediana das medidas. */
+  readonly fallbackBoxVolumeM3: number | null
+  readonly measuredShapes: readonly MeasuredBoxShape[]
   readonly loadingAccess: LoadingAccess
   readonly cargoWeight: TripCargoWeightView | null
   readonly documents: readonly CargoPreviewDocument[]
@@ -82,7 +86,10 @@ export async function previewTripCargo(input: PreviewTripCargoInput): Promise<Tr
       /** Spec 088 D2: só a ficha desenha planta — a referência de mercado erra por 2× no tipo. */
       bedDimensions: context.bedDimensions,
       capacityM3: context.capacityM3,
+      /** Spec 094: dá tamanho e forma à caixa presumida — sem isso ela fica fora do desenho. */
+      fallbackBoxVolumeM3: context.fallbackBoxVolumeM3,
       loadingAccess: context.loadingAccess,
+      measuredShapes: context.measuredShapes,
       stops: buildCargoPreviewStops({
         boxesByDocument: context.boxesByDocument,
         documents: context.documents,

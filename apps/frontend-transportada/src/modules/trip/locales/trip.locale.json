@@ -644,5 +644,25 @@
       "photoAlt": "Foto anexada à ocorrência",
       "closePhoto": "Fechar foto"
     }
+  },
+  "cargoLayers": {
+    "title": "Onde cada caixa cabe",
+    "promise": "Este arranjo cabe no baú e respeita a ordem de entrega. Ele não é plano de estiva: a tela ainda não conhece a empilhabilidade de toda caixa, o peso de cada uma nem o limite por eixo.",
+    "previous": "Camada abaixo",
+    "next": "Camada acima",
+    "position": "Camada {{index}} de {{total}}",
+    "planLabel": "Planta da camada {{index}}, vista de cima",
+    "sideLayer": "Camada {{index}}",
+    "estimated": "Arranjo presumido: parte das caixas foi derivada do volume, ou tem restrição de empilhamento que ninguém informou.",
+    "unplaced": {
+      "notMeasured": "{{count}} caixa de {{label}} ficou fora do desenho: ninguém a mediu.",
+      "notMeasured_other": "{{count}} caixas de {{label}} ficaram fora do desenho: ninguém as mediu.",
+      "largerThanBed": "{{count}} caixa de {{label}} não cabe neste baú.",
+      "largerThanBed_other": "{{count}} caixas de {{label}} não cabem neste baú.",
+      "bedFull": "{{count}} caixa de {{label}} não coube: o baú encheu.",
+      "bedFull_other": "{{count}} caixas de {{label}} não couberam: o baú encheu.",
+      "tooMany": "{{count}} caixa de {{label}} ficou fora do desenho por limite de detalhe.",
+      "tooMany_other": "{{count}} caixas de {{label}} ficaram fora do desenho por limite de detalhe."
+    }
   }
 }

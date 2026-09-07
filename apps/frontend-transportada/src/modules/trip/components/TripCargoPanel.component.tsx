@@ -8,6 +8,7 @@ import { CargoVehicle } from '@/components/ui/cargo-vehicle'
 import { ProgressBar } from '@/components/ui/progress'
 import { VEHICLE_TYPE_ICONS } from '@/modules/shared/vehicleTypeIcon.service'
 
+import { TripCargoLayers } from './TripCargoLayers.component'
 import { TripCargoPlan } from './TripCargoPlan.component'
 import type { VehicleType } from '@/modules/shared/vehicleType.constant'
 
@@ -171,6 +172,8 @@ export function TripCargoPanel({
           da outra. A fileira diz a ordem e a proporção; a planta diz o metro, e só existe com a
           ficha do veículo medida. */}
       <TripCargoPlan layout={layout} />
+      {/* Spec 094: a planta de faixas diz de quem é o espaço; esta diz onde cada caixa cabe. */}
+      <TripCargoLayers layout={layout} />
     </section>
   )
 }

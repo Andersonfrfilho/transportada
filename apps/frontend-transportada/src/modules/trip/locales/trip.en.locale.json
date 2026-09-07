@@ -532,5 +532,25 @@
     "missingBed": "Without the bed measurement the screen promises no metres — the rows above are proportion, not position.",
     "missingBedField": "Fill in the bed length, width and height on the vehicle sheet, under Fleet.",
     "missingBedLink": "Open the vehicle sheet"
+  },
+  "cargoLayers": {
+    "title": "Where each box fits",
+    "promise": "This arrangement fits the bed and respects the delivery order. It is not a stowage plan: the screen does not yet know every box stackability, the weight of each one, nor the per-axle limit.",
+    "previous": "Layer below",
+    "next": "Layer above",
+    "position": "Layer {{index}} of {{total}}",
+    "planLabel": "Layer {{index}} plan, seen from above",
+    "sideLayer": "Layer {{index}}",
+    "estimated": "Presumed arrangement: some boxes were derived from volume, or carry a stacking restriction nobody informed.",
+    "unplaced": {
+      "notMeasured": "{{count}} {{label}} box left the drawing: nobody measured it.",
+      "notMeasured_other": "{{count}} {{label}} boxes left the drawing: nobody measured them.",
+      "largerThanBed": "{{count}} {{label}} box does not fit this bed.",
+      "largerThanBed_other": "{{count}} {{label}} boxes do not fit this bed.",
+      "bedFull": "{{count}} {{label}} box did not fit: the bed is full.",
+      "bedFull_other": "{{count}} {{label}} boxes did not fit: the bed is full.",
+      "tooMany": "{{count}} {{label}} box left the drawing due to a detail cap.",
+      "tooMany_other": "{{count}} {{label}} boxes left the drawing due to a detail cap."
+    }
   }
 }

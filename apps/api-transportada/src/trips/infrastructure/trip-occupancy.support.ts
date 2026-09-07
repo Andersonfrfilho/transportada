@@ -23,6 +23,7 @@ import {
 } from '../../nfe-documents/domain/cargo-volume.policy.js'
 import type { CargoBedDimensions } from '../domain/cargo-layout.policy.js'
 import type { CargoPlanBox } from '../domain/cargo-plan.policy.js'
+import type { MeasuredBoxShape } from '../domain/cargo-placement.policy.js'
 import { resolveVehicleCapacity } from '../../fleet/domain/vehicle-capacity.policy.js'
 import type { TripOccupancyView } from '../application/trip.port.js'
 import { resolveTripOccupancy } from '../domain/trip-occupancy.policy.js'
@@ -64,6 +65,12 @@ export async function loadTripOccupancy(
   readonly bedDimensions: CargoBedDimensions | null
   readonly capacityM3: string | null
   /**
+   * Spec 094: o volume típico de uma caixa da empresa e as formas medidas — é deles que a caixa
+   * presumida tira tamanho e proporção. Sem eles ela não é desenhada, e sim nomeada.
+   */
+  readonly fallbackBoxVolumeM3: number | null
+  readonly measuredShapes: readonly MeasuredBoxShape[]
+  /**
    * Spec 093: o teto de peso da ficha (`capacity_kg`, o `capKG` do MDF-e). Viaja daqui porque o
    * veículo já foi lido: pedi-lo de novo no suporte de peso serializaria duas consultas paralelas.
    * `null` quando o veículo não existe — zero, que é ausência, quem trata é a política.
@@ -92,6 +99,8 @@ export async function loadTripOccupancy(
       bedDimensions: null,
       boxesByDocument: new Map(),
       capacityM3: null,
+      fallbackBoxVolumeM3: null,
+      measuredShapes: [],
       /** Veiculo desconhecido assume o mais restritivo, como a ausencia de acesso declarado. */
       loadingAccess: 'rear',
       maxPayloadKg: null,
@@ -133,6 +142,8 @@ export async function loadTripOccupancy(
       bedDimensions: toBedDimensions(vehicle),
       boxesByDocument: new Map(),
       capacityM3: null,
+      fallbackBoxVolumeM3: null,
+      measuredShapes: [],
       loadingAccess: vehicle.loadingAccess,
       maxPayloadKg: vehicle.capacityKg,
       occupancy: null,
@@ -203,6 +214,8 @@ export async function loadTripOccupancy(
       bedDimensions: toBedDimensions(vehicle),
       boxesByDocument: measured.boxesByDocument,
       capacityM3: capacity.capacityM3,
+      fallbackBoxVolumeM3: toNumber(measured.medianM3),
+      measuredShapes: measured.measuredShapes,
       loadingAccess: vehicle.loadingAccess,
       maxPayloadKg: vehicle.capacityKg,
       occupancy: null,
@@ -214,6 +227,8 @@ export async function loadTripOccupancy(
     bedDimensions: toBedDimensions(vehicle),
     boxesByDocument: measured.boxesByDocument,
     capacityM3: capacity.capacityM3,
+    fallbackBoxVolumeM3: toNumber(measured.medianM3),
+    measuredShapes: measured.measuredShapes,
     loadingAccess: vehicle.loadingAccess,
     /** Spec 093: o `capKG` do MDF-e, que a montagem passou a ler como teto de peso da viagem. */
     maxPayloadKg: vehicle.capacityKg,
@@ -283,10 +298,21 @@ async function loadMeasuredItems(
   /** Spec 088 G003: a mesma linha, agora com a caixa que a planta conta em camadas. */
   readonly boxesByDocument: ReadonlyMap<string, readonly CargoPlanBox[]>
   readonly itemsByDocument: ReadonlyMap<string, readonly MeasuredCargoItem[]>
+  /**
+   * Spec 094: as formas das caixas que a empresa mediu. É delas que sai a **proporção** da caixa
+   * presumida — proporção, não cubo: um cubo de 0,021 m³ empilha diferente de uma caixa de
+   * 38 × 26 × 21, e a planta é justamente sobre como as peças se arrumam no piso.
+   */
+  readonly measuredShapes: readonly MeasuredBoxShape[]
   readonly medianM3: string | null
 }> {
   if (input.nfeDocumentIds.length === 0) {
-    return { boxesByDocument: new Map(), itemsByDocument: new Map(), medianM3: null }
+    return {
+      boxesByDocument: new Map(),
+      itemsByDocument: new Map(),
+      measuredShapes: [],
+      medianM3: null,
+    }
   }
 
   const boxVolume = sql<string | null>`
@@ -350,7 +376,12 @@ async function loadMeasuredItems(
         ),
       ),
     queryable
-      .select({ boxVolumeM3: boxVolume })
+      .select({
+        boxVolumeM3: boxVolume,
+        heightMm: nfePackageBoxes.heightMm,
+        lengthMm: nfePackageBoxes.lengthMm,
+        widthMm: nfePackageBoxes.widthMm,
+      })
       .from(nfePackageBoxes)
       .where(
         and(eq(nfePackageBoxes.companyId, input.companyId), isNotNull(nfePackageBoxes.measuredAt)),
@@ -392,8 +423,21 @@ async function loadMeasuredItems(
   return {
     boxesByDocument,
     itemsByDocument,
+    measuredShapes: measuredBoxes.flatMap((row) =>
+      row.heightMm === null || row.lengthMm === null || row.widthMm === null
+        ? []
+        : [{ heightMm: row.heightMm, lengthMm: row.lengthMm, widthMm: row.widthMm }],
+    ),
     medianM3: medianBoxVolumeM3(
       measuredBoxes.flatMap((row) => (row.boxVolumeM3 === null ? [] : [row.boxVolumeM3])),
     ),
   }
+}
+
+/** A mediana chega como decimal em texto; o empacotador pensa em número. */
+function toNumber(value: string | null): number | null {
+  if (value === null) return null
+  const parsed = Number.parseFloat(value)
+
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
 }
