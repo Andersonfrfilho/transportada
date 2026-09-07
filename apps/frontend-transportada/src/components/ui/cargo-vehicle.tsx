@@ -94,8 +94,6 @@ const GROUND = 40
 const VIEWBOX = { height: 44, width: 587 } as const
 /** A linha da estrada. É nela que a roda encosta — com o centro no chão, meia roda ficava enterrada. */
 const ROAD_Y = GROUND + 4
-/** Só o valor de partida do desenho do implemento, que não declara roda própria. */
-const WHEEL_RADIUS_FALLBACK_M = 0.52
 /** O tracejado da pista: risco + vão, em unidades do `viewBox`. É o período que fecha o laço. */
 const ROAD_DASH = { gap: 5, stroke: 6 } as const
 /** O laço do cenário: uma cópia entra exatamente quando a outra sai. */
