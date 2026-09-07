@@ -183,7 +183,12 @@ export const LOCAL_TRIP_SEED_VEHICLES: readonly FleetVehicleInput[] = [
     averageConsumption: '9.5000',
     axleCount: 2,
     bodyType: '02',
-    loadingAccess: 'rear',
+    /**
+     * ⚠️ Furgão brasileiro sai de fábrica com porta lateral **direita**: a Sprinter, a Master,
+     * a Ducato e a Fiorino. Cadastrá-lo como `rear` faz a planta tratar a ordem de carregamento
+     * como obrigação — e quem carrega descarrega meia carga para alcançar o que dava pela lateral.
+     */
+    loadingAccess: 'rear_and_side',
     brand: 'MERCEDES-BENZ',
     capacityCubicMeters: '0.000',
     capacityKilograms: '1500.000',
@@ -216,7 +221,12 @@ export const LOCAL_TRIP_SEED_VEHICLES: readonly FleetVehicleInput[] = [
     averageConsumption: '11.0000',
     axleCount: 2,
     bodyType: '02',
-    loadingAccess: 'rear',
+    /**
+     * ⚠️ Furgão brasileiro sai de fábrica com porta lateral **direita**: a Sprinter, a Master,
+     * a Ducato e a Fiorino. Cadastrá-lo como `rear` faz a planta tratar a ordem de carregamento
+     * como obrigação — e quem carrega descarrega meia carga para alcançar o que dava pela lateral.
+     */
+    loadingAccess: 'rear_and_side',
     brand: 'FIAT',
     capacityCubicMeters: '0.000',
     capacityKilograms: '650.000',

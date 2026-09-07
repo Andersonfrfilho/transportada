@@ -67,6 +67,8 @@ describe('Vehicle suggestion', () => {
       cargoHeightMeters: '2,20',
       cargoLengthMeters: '3,15',
       cargoWidthMeters: '1,90',
+      /** VUC não é monovolume: o acesso continua sendo escolha da ficha. */
+      loadingAccess: '',
       origin: { kind: 'reference' },
     })
   })
@@ -89,6 +91,8 @@ describe('Vehicle suggestion', () => {
       cargoHeightMeters: '2,20',
       cargoLengthMeters: '5,32',
       cargoWidthMeters: '2,08',
+      /** Do veículo igual vem também o acesso: é o mesmo modelo, com a mesma carroceria. */
+      loadingAccess: 'rear',
       origin: { kind: 'vehicle', plate: 'RTD5J78' },
     })
   })
@@ -326,5 +330,42 @@ describe('Vehicle form patch composition', () => {
     })
 
     expect(composed.suggestedFields).toEqual([])
+  })
+})
+
+/**
+ * ⚠️ Furgão brasileiro sai de fábrica com porta lateral direita — Sprinter, Master, Ducato, Fiorino.
+ * Cadastrá-lo como "só traseira" faz a planta tratar a ordem de carregamento como **obrigação**, e
+ * quem carrega descarrega meia carga para alcançar o que dava pela lateral.
+ *
+ * É **sugestão, não dedução**: a mesma Sprinter existe sem a porta, e o campo continua sendo da
+ * ficha — a sugestão preenche campo em branco e o operador corrige.
+ */
+describe('porta lateral do furgão', () => {
+  test('sugere acesso lateral para van e utilitário', () => {
+    for (const vehicleType of ['van', 'utility'] as const) {
+      const suggestion = resolveVehicleSuggestion({
+        brand: '',
+        model: '',
+        references: REFERENCES,
+        vehicles: [],
+        vehicleType,
+      })
+
+      expect(suggestion?.loadingAccess).toBe('rear_and_side')
+    }
+  })
+
+  /** Caminhão não ganha porta que ele não tem: baú de toco e truck abre atrás. */
+  test('não sugere acesso lateral para os pesados', () => {
+    const suggestion = resolveVehicleSuggestion({
+      brand: '',
+      model: '',
+      references: REFERENCES,
+      vehicles: [],
+      vehicleType: 'toco',
+    })
+
+    expect(suggestion?.loadingAccess ?? '').toBe('')
   })
 })

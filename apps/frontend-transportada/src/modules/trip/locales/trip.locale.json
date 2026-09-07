@@ -663,6 +663,7 @@
       "bedFull_other": "{{count}} caixas de {{label}} não couberam: o baú encheu.",
       "tooMany": "{{count}} caixa de {{label}} ficou fora do desenho por limite de detalhe.",
       "tooMany_other": "{{count}} caixas de {{label}} ficaram fora do desenho por limite de detalhe."
-    }
+    },
+    "sideDoor": "Porta lateral (direita)"
   }
 }

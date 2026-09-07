@@ -551,6 +551,7 @@
       "bedFull_other": "{{count}} {{label}} boxes did not fit: the bed is full.",
       "tooMany": "{{count}} {{label}} box left the drawing due to a detail cap.",
       "tooMany_other": "{{count}} {{label}} boxes left the drawing due to a detail cap."
-    }
+    },
+    "sideDoor": "Side door (right)"
   }
 }

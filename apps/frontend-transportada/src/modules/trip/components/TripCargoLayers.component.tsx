@@ -89,6 +89,7 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
         bands={[]}
         boxes={boxes}
         doorLabel={t('cargoPlan.door')}
+        {...(layout.loadingAccess === 'rear' ? {} : { sideDoorLabel: t('cargoLayers.sideDoor') })}
         lengthM={Number.parseFloat(layout.bedLengthM)}
         widthM={Number.parseFloat(layout.bedWidthM)}
       />

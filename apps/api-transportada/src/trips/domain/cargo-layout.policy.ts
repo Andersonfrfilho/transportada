@@ -111,6 +111,12 @@ export type ResolvedCargoLayout = {
   /** O comprimento interno do baú, da ficha. `null` sem as três medidas — e aí não há planta. */
   readonly bedLengthM: string | null
   /**
+   * Por onde a carga entra. ⚠️ A planta precisa do **valor**, não do `orderIsBinding` derivado dele:
+   * a marca da porta lateral vai numa borda específica do desenho, e `orderIsBinding: false` não diz
+   * se o veículo abre a lateral ou é aberto dos dois lados.
+   */
+  readonly loadingAccess: LoadingAccess
+  /**
    * Spec 094: o arranjo camada por camada. `null` quando o baú não tem medida — a mesma regra da
    * 088 D2, e pelo mesmo motivo: sem escala o desenho não pode prometer metro.
    */
@@ -353,6 +359,7 @@ export function resolveCargoLayout(input: {
 
   return {
     bedLengthM: bedKnown ? formatScaledDecimal(bedLength, LENGTH_SCALE) : null,
+    loadingAccess: access,
     /**
      * ⚠️ A ordem das paradas aqui é a **de carregamento** (`ordered`), a mesma das fileiras: a
      * última entrega no fundo. Passar as paradas na ordem de entrega faria a planta desenhar o

@@ -3,7 +3,8 @@ import { isZeroAmount, toTypedMeasure } from '@/modules/shared/decimalAmount.ser
 
 import { VEHICLE_MEASURE_FIELD_SCALE } from './fleetVehicleMeasure.service'
 import { normalizeVehicleCatalogName } from './vehicleCatalogChoices.service'
-import type { FleetVehicleDetail } from './fleet.types'
+import type { FleetVehicleDetail, FleetVehicleFormState } from './fleet.types'
+import type { LoadingAccess } from '@/modules/shared/loadingAccess.constant'
 import type { VehicleType } from '@/modules/shared/vehicleType.constant'
 
 /** Uma linha do catálogo de mercado, como a API a serve. */
@@ -25,11 +26,23 @@ export type VehicleSuggestionOrigin =
   | Readonly<{ kind: 'reference' }>
   | Readonly<{ kind: 'vehicle'; plate: string }>
 
+/**
+ * ⚠️ Os furgões brasileiros saem de fábrica com **porta lateral direita** — Sprinter, Master, Ducato
+ * e Fiorino. Cadastrá-los como "só traseira" faz a planta tratar a ordem de carregamento como
+ * obrigação, e quem carrega descarrega meia carga para alcançar o que dava pela lateral.
+ *
+ * ⚠️ É **sugestão, não dedução**: a mesma Sprinter existe sem a porta, e o campo continua sendo da
+ * ficha. A sugestão preenche campo em branco e o operador corrige — a mesma regra da medida do baú.
+ */
+const SIDE_DOOR_TYPES: readonly (VehicleType | '')[] = ['van', 'utility']
+
 export type VehicleSuggestion = Readonly<{
   capacityKilograms: string
   cargoHeightMeters: string
   cargoLengthMeters: string
   cargoWidthMeters: string
+  /** `''` quando o tipo não tem sugestão de acesso — o campo fica como o operador o deixou. */
+  loadingAccess: LoadingAccess | ''
   origin: VehicleSuggestionOrigin
 }>
 
@@ -62,7 +75,27 @@ export function resolveVehicleSuggestion(
     vehicleType: VehicleType | ''
   }>,
 ): VehicleSuggestion | null {
-  return fromMeasuredVehicle(input) ?? fromReference(input)
+  const measured = fromMeasuredVehicle(input)
+  if (measured !== null) return measured
+
+  const reference = fromReference(input)
+  if (reference !== null) return reference
+
+  /**
+   * ⚠️ **A porta não depende do catálogo.** Tipo sem linha em `vehicle_volume_references` não tem
+   * medida sugerida — mas continua sendo um furgão, e a porta lateral é do formato dele. Antes, a
+   * ausência de referência matava as duas sugestões juntas.
+   */
+  if (!SIDE_DOOR_TYPES.includes(input.vehicleType)) return null
+
+  return {
+    capacityKilograms: '',
+    cargoHeightMeters: '',
+    cargoLengthMeters: '',
+    cargoWidthMeters: '',
+    loadingAccess: 'rear_and_side',
+    origin: { kind: 'reference' },
+  }
 }
 
 function fromMeasuredVehicle(
@@ -92,6 +125,8 @@ function fromMeasuredVehicle(
 
   return {
     capacityKilograms: toFormMeasure(source.capacityKilograms),
+    /** Do veículo igual vem também o acesso: é o mesmo modelo, com a mesma carroceria. */
+    loadingAccess: source.loadingAccess,
     cargoHeightMeters: toFormMeasure(source.cargoHeightMeters),
     cargoLengthMeters: toFormMeasure(source.cargoLengthMeters),
     cargoWidthMeters: toFormMeasure(source.cargoWidthMeters),
@@ -120,6 +155,7 @@ function fromReference(
 
   return {
     capacityKilograms: reference.maxPayloadKg === null ? '' : toFormMeasure(reference.maxPayloadKg),
+    loadingAccess: SIDE_DOOR_TYPES.includes(input.vehicleType) ? 'rear_and_side' : '',
     cargoHeightMeters: toFormMeasure(reference.cargoHeightM),
     cargoLengthMeters: toFormMeasure(reference.cargoLengthM),
     cargoWidthMeters: toFormMeasure(reference.cargoWidthM),
@@ -146,11 +182,17 @@ function toFormMeasure(value: string): string {
 }
 
 /** Os quatro campos que a sugestão alcança. Fora daqui, nada é preenchido por palpite. */
-export const VEHICLE_SUGGESTION_FIELDS = [
+/** Os campos de medida, que compartilham a mesma regra: entram só quando o campo está em branco. */
+const VEHICLE_MEASURE_SUGGESTION_FIELDS = [
   'cargoLengthMeters',
   'cargoWidthMeters',
   'cargoHeightMeters',
   'capacityKilograms',
+] as const
+
+export const VEHICLE_SUGGESTION_FIELDS = [
+  ...VEHICLE_MEASURE_SUGGESTION_FIELDS,
+  'loadingAccess',
 ] as const
 export type VehicleSuggestionField = (typeof VEHICLE_SUGGESTION_FIELDS)[number]
 
@@ -163,17 +205,30 @@ export type VehicleSuggestionField = (typeof VEHICLE_SUGGESTION_FIELDS)[number]
  */
 export function applyVehicleSuggestion(
   input: Readonly<{
-    state: Readonly<Record<VehicleSuggestionField, string>>
+    state: Pick<FleetVehicleFormState, VehicleSuggestionField>
     suggestion: VehicleSuggestion | null
   }>,
-): Partial<Record<VehicleSuggestionField, string>> {
+): Partial<Pick<FleetVehicleFormState, VehicleSuggestionField>> {
   if (input.suggestion === null) return {}
 
-  const applied: Partial<Record<VehicleSuggestionField, string>> = {}
-  for (const field of VEHICLE_SUGGESTION_FIELDS) {
-    const candidate = input.suggestion[field]
+  const suggestion = input.suggestion
+  const applied: {
+    -readonly [Field in VehicleSuggestionField]?: FleetVehicleFormState[Field]
+  } = {}
+
+  for (const field of VEHICLE_MEASURE_SUGGESTION_FIELDS) {
+    const candidate = suggestion[field]
     if (candidate === '' || input.state[field] !== '') continue
     applied[field] = candidate
+  }
+
+  /**
+   * ⚠️ O acesso tem regra **e vazio** próprios, e por isso fica fora do laço: `''` aqui é "este tipo
+   * não sugere acesso", e o campo do formulário nunca é branco — ele nasce em `rear`. Compará-lo com
+   * o branco dos campos de medida faria a sugestão nunca alcançá-lo.
+   */
+  if (suggestion.loadingAccess !== '' && input.state.loadingAccess === 'rear') {
+    applied.loadingAccess = suggestion.loadingAccess
   }
 
   return applied

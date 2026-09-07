@@ -53,6 +53,15 @@ export type ScalePlanProps = Readonly<{
   className?: string | undefined
   /** Rótulo da borda direita — é dela que quem carrega se orienta. */
   doorLabel: string
+  /**
+   * A porta lateral, desenhada na borda de cima — que é o **lado direito** do veículo, porque a
+   * planta olha de cima com a frente à esquerda.
+   *
+   * ⚠️ Ela muda o que a ordem de carregamento significa: com lateral, a última parada no fundo é
+   * conveniência; sem, é obrigação. Desenhar as duas iguais faria o conferente descarregar meia
+   * carga para alcançar o que dava pela porta do lado.
+   */
+  sideDoorLabel?: string | undefined
   /** A largura do desenho, em metros: a dimensão curta do baú, vista de cima. */
   widthM: number
   /** O comprimento do baú, em metros. O contorno vai de zero até aqui. */
@@ -92,6 +101,7 @@ export function ScalePlan({
   bands,
   boxes = [],
   className,
+  sideDoorLabel,
   doorLabel,
   widthM,
   lengthM,
@@ -232,6 +242,29 @@ export function ScalePlan({
           y1={MARGIN}
           y2={MARGIN + widthM * PIXELS_PER_METRE}
         />
+
+        {/*
+          A porta lateral, na borda de cima — o **lado direito** do veículo, porque a planta olha de
+          cima com a frente à esquerda. Ela ocupa o terço traseiro, que é onde o furgão a instala.
+        */}
+        {sideDoorLabel === undefined ? null : (
+          <>
+            <line
+              className={styles.sideDoor}
+              x1={MARGIN + lengthM * 0.42 * PIXELS_PER_METRE}
+              x2={MARGIN + lengthM * 0.78 * PIXELS_PER_METRE}
+              y1={MARGIN}
+              y2={MARGIN}
+            />
+            <text
+              className={styles.doorLabel}
+              x={MARGIN + lengthM * 0.6 * PIXELS_PER_METRE}
+              y={MARGIN - TICK_LENGTH}
+            >
+              {sideDoorLabel}
+            </text>
+          </>
+        )}
         <text
           className={styles.doorLabel}
           x={MARGIN + lengthM * PIXELS_PER_METRE}

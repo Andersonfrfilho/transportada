@@ -93,3 +93,13 @@
   fill: none;
   stroke-width: 2;
 }
+
+/**
+ * A porta lateral: traço grosso e vazado na borda do lado direito. Ela muda o que a ordem de
+ * carregamento significa — com lateral a última parada no fundo é conveniência, sem ela é obrigação.
+ */
+.sideDoor {
+  stroke: var(--color-copper);
+  stroke-width: 5;
+  stroke-linecap: round;
+}

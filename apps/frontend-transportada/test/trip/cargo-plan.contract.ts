@@ -32,6 +32,8 @@ const LAYOUT: TripCargoLayout = {
   bedWidthM: '2.500',
   freeDepthM: '2.900',
   freeRows: 6,
+  /** Baú de truck do teste: só a traseira abre. */
+  loadingAccess: 'rear' as const,
   occupancyKnown: true,
   orderIsBinding: true,
   /** Spec 094: sem arranjo é o caso da API antiga, e a planta de faixas continua valendo. */
