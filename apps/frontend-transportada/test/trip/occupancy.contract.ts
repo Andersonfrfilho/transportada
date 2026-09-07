@@ -114,9 +114,25 @@ describe('teto de peso da montagem', () => {
   const source = readFileSync(COMPONENT, 'utf8')
 
   it('imprime quanto da carga máxima do veículo a carga ocupa', () => {
-    expect(source).toInclude('cargoWeight.payload')
-    expect(trip.cargoWeight.payload).toInclude('{{percent}}%')
-    expect(trip.cargoWeight.payload).toInclude('{{capacity}}')
+    expect(source).toInclude("t('cargoWeight.ratio'")
+    expect(trip.cargoWeight.ratio).toInclude('{{percent}}%')
+    expect(trip.cargoWeight.loaded).toInclude('{{capacity}}')
+  })
+
+  /**
+   * ⚠️ As **duas** medidas com o mesmo peso visual: volume e peso dizem coisas diferentes e
+   * igualmente decisivas — um baú cheio de papel higiênico está longe do teto de massa, e uma
+   * carreta de bebida enche o peso com o baú pela metade. Com uma delas em texto de rodapé, quem
+   * carrega olha só a outra.
+   */
+  it('dá às duas medidas a mesma forma, lado a lado', () => {
+    expect(source).toInclude('styles.cargoMeasures')
+    expect(source).toInclude("t('occupancy.label')")
+    expect(source).toInclude("t('cargoWeight.label')")
+    const volume = source.indexOf("t('occupancy.ratio'")
+    const peso = source.indexOf("t('cargoWeight.ratio'")
+    expect(volume).toBeGreaterThan(-1)
+    expect(peso).toBeGreaterThan(-1)
   })
 
   /**
@@ -126,6 +142,6 @@ describe('teto de peso da montagem', () => {
    */
   it('não inventa percentual quando o teto não está cadastrado', () => {
     expect(source).toInclude('cargoWeight.payloadRatio === null')
-    expect(source).toInclude('cargoWeight.maxPayloadKg === null ? null :')
+    expect(source).toInclude('cargoWeight.maxPayloadKg === null ? (')
   })
 })

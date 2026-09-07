@@ -268,7 +268,8 @@
     "dimensions": "Baú de {{length}} × {{width}} × {{height}} m = {{volume}} m³.",
     "partial": "Parcial: parte das caixas usou a medida mediana da empresa.",
     "weightConcentration": "Atenção: {{percent}}% do peso está na parada {{stop}} — o desenho acima é de volume, não de peso.",
-    "capacityUnknown": "Este veículo não tem capacidade cadastrada, e o tipo dele não tem referência de mercado — por isso não há ocupação nem planta do baú. Preencha comprimento, largura e altura do baú na ficha do veículo, em Frota."
+    "capacityUnknown": "Este veículo não tem capacidade cadastrada, e o tipo dele não tem referência de mercado — por isso não há ocupação nem planta do baú. Preencha comprimento, largura e altura do baú na ficha do veículo, em Frota.",
+    "label": "Ocupação do baú"
   },
   "cargoWeight": {
     "title": "Peso da carga",
@@ -276,7 +277,11 @@
     "payload": "{{percent}}% da carga máxima do veículo ({{capacity}} kg).",
     "estimated": "Peso estimado: o emitente não declarou o peso de nenhum volume desta carga, e o cálculo usa o peso por volume configurado.",
     "withoutWeight": "{{count}} nota sem peso não entrou na conta.",
-    "withoutWeight_other": "{{count}} notas sem peso não entraram na conta."
+    "withoutWeight_other": "{{count}} notas sem peso não entraram na conta.",
+    "label": "Peso da carga",
+    "ratio": "{{percent}}% do peso",
+    "loaded": "{{weight}} kg de {{capacity}} kg",
+    "withoutCeiling": "Carga máxima não cadastrada na ficha do veículo — sem ela não há percentual de peso."
   },
   "deliveryProof": {
     "title": "Comprovante da entrega",

@@ -1676,3 +1676,51 @@
   color: var(--color-slate);
   font-size: var(--font-size-xs, 0.75rem);
 }
+
+/**
+ * Spec 093: as **duas** medidas da carga lado a lado — quanto do baú e quanto do peso. Elas dizem
+ * coisas diferentes e igualmente decisivas: um baú cheio de papel higiênico está longe do teto de
+ * massa, e uma carreta de bebida enche o peso com o baú pela metade. Uma delas em texto de rodapé
+ * fazia quem carrega olhar só a outra.
+ */
+.cargoMeasures {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+}
+
+@media (min-width: 40rem) {
+  .cargoMeasures {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.cargoMeasure {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.cargoMeasureLabel {
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cargoMeasureValue {
+  font-size: 1.6rem;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+/** Sem denominador não há percentual, e o número absoluto ocupa o lugar dele sem fingir escala. */
+.cargoMeasureValueMuted {
+  font-size: 1.2rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.cargoMeasureDetail {
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  font-size: 0.85rem;
+}
