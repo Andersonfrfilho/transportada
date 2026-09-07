@@ -198,3 +198,92 @@ que o `unique` da T1 sustenta.
   comprovada manualmente contra Postgres real, e é isso que está registrado acima; automatizar a
   chamada ao `osmium` (T2) dentro de um pipeline de seed fica para quando o runbook do OSRM (T10)
   decidir onde esse passo mora no processo de deploy.
+
+## T4 — `annotations=nodes` na geometria (2026-09-07)
+
+Contrato **por texto de fonte**, como a task pede, mais quatro de comportamento. Vermelho antes:
+
+```
+bun test test/trip-infrastructure.contract.test.ts
+ 4 pass, 5 fail
+```
+
+Verde depois de o gateway pedir a anotação e o `RouteGeometryRoad` publicar `nodeIds`:
+
+```
+ 9 pass, 0 fail, 15 expect() calls
+bunx tsc --noEmit   # sem erro
+```
+
+### A medição, que o contrato de fonte sozinho não daria
+
+⚠️ **O contrato de fonte prova que pedimos, nunca que o serviço responde.** O OSRM roda com
+`--algorithm mld` (`compose.yaml`), e nada garantia que essa configuração publica anotação. Medido
+contra a instância local (`transportada-local-osrm-1`, porta 53005), rota
+`-47.8103,-21.1767` → `-47.4200,-20.7500`:
+
+```
+http 200, 39699 B — code: Ok — 89,4 km — 76 min — 1 trecho
+nós no trecho: 1106 | distintos: 1041
+repetidos consecutivos: 25
+nós que aparecem mais de uma vez: 27 | ocorrências extras: 65
+exemplo: nó 12914389230 nas posições 174 e 202 de 1106
+maior id: 13154279450 (inteiro seguro do JS: 9007199254740991)
+```
+
+Três conclusões:
+
+1. **`annotations=nodes` funciona no MLD.** Era o risco da task, e está afastado por medida.
+2. **A repetição consecutiva acontece dentro do trecho**, não só na emenda entre paradas — 25 num
+   trecho só. O colapso do gateway pega as duas, e sem ele a praça que cai ali seria cobrada em
+   dobro.
+3. ⚠️ **Sobram 40 repetições não consecutivas**, a 28 posições de distância no exemplo — retorno de
+   rotatória ou alça de trevo, não segunda passagem por praça. **Isto decide a T5: a praça conta uma
+   vez por rota.** Cobrar duas por causa de alça dá número maior que o real na tela de quem decide
+   aceitar a carga, e a "volta" está fora de escopo por decisão da spec.
+
+Id de nó cabe com três ordens de grandeza de folga no inteiro seguro do JS; o `Number.isSafeInteger`
+do gateway não recusa nada real. (O JSON do OSRM mistura `int` e `float` na mesma lista — todos
+integrais.)
+
+### O que a task decidiu, e não estava na spec
+
+- **`nodeIds` é `readonly number[] | null`, e o `null` é o ponto.** Lista vazia diria "esta rota não
+  passa por praça nenhuma", e o pedágio sairia zero com cara de medido — exatamente o modo de falha
+  que a D1 nomeia. `null` deixa a parcela declarar a lacuna, e o mapa continua desenhado.
+- **Um trecho sem anotação torna a rota inteira desconhecida.** Devolver os nós que vieram diria "o
+  resto não tem praça", e a conta sairia menor que a verdade sem avisar. Meia lista é pior que lista
+  nenhuma, porque parece completa.
+
+## Conferência independente da T2/T3, e um achado (2026-09-07)
+
+O extrator foi reexecutado por esta sessão contra o mesmo `.pbf`, sem confiar no relatório:
+
+```
+praças              166
+com tarifa          163
+com tarifa por eixo 162
+```
+
+`name` preenchido em 159 de 166 (vindo de `note`, como a T2 registrou), `operator` em 158, e **3
+praças sem tarifa nenhuma** — que entram assim mesmo, por decisão da T1.
+
+⚠️ **Achado: `0.00` aparece como tarifa, e não quer dizer sempre "grátis".** Quatro praças declaram
+zero em pelo menos um campo:
+
+| nó         | nome                                     | operador                 | eixo | carro |
+| ---------- | ---------------------------------------- | ------------------------ | ---- | ----- |
+| 2297499636 | Vicinal Graciano da Ressurreição Affonso | Prefeitura de Araraquara | 0.00 | 0.00  |
+| 2476142224 | Pedágio Municipal Limeira (sentido Sul)  | Prefeitura de Limeira    | 6.10 | 0.00  |
+| 5219021670 | SP-291 - Rod Mario Donega - 2            | —                        | —    | 0.00  |
+| 5219021671 | SP-291 - Rod Mario Donega - 1            | —                        | 0.00 | 0.00  |
+
+A T1 separou `null` (desconhecido) de `0` (isento), e **o dado do OSM não respeita essa separação**:
+a de Limeira cobra 6,10 por eixo e zero de carro, o que é plausível; as duas da SP-291 têm nome de
+praça de rodovia e zero em tudo, o que parece campo não mapeado.
+
+Não há como distinguir os dois casos a partir do mapa, e inventar valor seria pior. **Consequência
+para a T5 e a T7:** o total não pode ser a única coisa impressa — a tela diz quantas praças entraram
+e **quantas estão sem tarifa conhecida**. Uma rota que só passe pelas duas da SP-291 imprimiria
+"R$ 0,00 · 2 praças", número crível e possivelmente falso; com a contagem ao lado, quem lê sabe que
+não é isenção medida.
