@@ -1907,16 +1907,17 @@ function createApplicationRoutes({
        */
       readRouteGeometry: {
         execute: async (input) => {
-          const axles =
+          const vehicleContext =
             input.vehicleId === null
               ? null
-              : await routeGeometryVehicleAxlesQuery.readVehicleAxles({
+              : await routeGeometryVehicleAxlesQuery.readVehicleContext({
                   companyId: input.context.companyId,
                   vehicleId: input.vehicleId,
                 })
 
           return readRouteGeometry({
-            axles,
+            axles: vehicleContext?.axles ?? null,
+            fuelBaseline: vehicleContext?.fuelBaseline ?? null,
             geometry:
               routingMatrixUrl === undefined
                 ? { readRouteGeometry: async () => null }
@@ -1929,12 +1930,14 @@ function createApplicationRoutes({
       readTripRouteGeometry: {
         execute: async (input) => {
           const trip = await trips.get(input)
+          const vehicleContext = await routeGeometryVehicleAxlesQuery.readVehicleContext({
+            companyId: input.context.companyId,
+            vehicleId: trip.vehicleId,
+          })
 
           return readRouteGeometry({
-            axles: await routeGeometryVehicleAxlesQuery.readVehicleAxles({
-              companyId: input.context.companyId,
-              vehicleId: trip.vehicleId,
-            }),
+            axles: vehicleContext.axles,
+            fuelBaseline: vehicleContext.fuelBaseline,
             geometry:
               routingMatrixUrl === undefined
                 ? { readRouteGeometry: async () => null }

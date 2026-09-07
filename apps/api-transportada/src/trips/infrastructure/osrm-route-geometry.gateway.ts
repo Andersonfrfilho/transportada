@@ -8,18 +8,24 @@
  * devolvem `null`, e a tela volta a ligar as paradas em linha reta **dizendo que são retas**. Uma
  * reta desenhada como se fosse estrada atravessa rio e ferrovia sem avisar.
  */
-import type { RouteGeometryLeg, RouteGeometryPort } from '../application/route-geometry.port.js'
+import type {
+  RouteGeometryLeg,
+  RouteGeometryPort,
+  RouteGeometryRoad,
+} from '../application/route-geometry.port.js'
 import type { RouteGeometryPoint } from '../domain/route-geometry.policy.js'
 
 const OK_CODE = 'Ok'
 const DEFAULT_TIMEOUT_MILLISECONDS = 5_000
 
+type OsrmRoute = {
+  readonly geometry?: { readonly coordinates?: unknown }
+  readonly legs?: unknown
+}
+
 type OsrmRouteResponse = {
   readonly code?: string
-  readonly routes?: readonly {
-    readonly geometry?: { readonly coordinates?: unknown }
-    readonly legs?: unknown
-  }[]
+  readonly routes?: readonly OsrmRoute[]
 }
 
 export function createOsrmRouteGeometryGateway(input: {
@@ -35,7 +41,7 @@ export function createOsrmRouteGeometryGateway(input: {
       if (points.length < 2) return null
 
       const path = points.map((point) => `${point.longitude},${point.latitude}`).join(';')
-      const url = `${input.baseUrl.replace(/\/$/u, '')}/route/v1/driving/${path}?overview=full&geometries=geojson&annotations=nodes`
+      const url = `${input.baseUrl.replace(/\/$/u, '')}/route/v1/driving/${path}?overview=full&geometries=geojson&annotations=nodes&alternatives=true`
 
       try {
         const response = await fetchImplementation(url, {
@@ -46,25 +52,48 @@ export function createOsrmRouteGeometryGateway(input: {
         const payload = (await response.json()) as OsrmRouteResponse
         if (payload.code !== OK_CODE) return null
 
-        const route = payload.routes?.[0]
-        const roadPoints = toPoints(route?.geometry?.coordinates)
-        if (roadPoints === null) return null
+        const expectedLegs = points.length - 1
+        const routes = payload.routes ?? []
+        const primary = toRoad(routes[0], expectedLegs)
+        if (primary === null) return null
 
         /**
-         * ⚠️ Um trecho por **par** de pontos enviados. Contagem diferente é resposta que não casa
-         * com o pedido, e casar leg com parada errada põe o tempo do trecho seguinte ao pé da
-         * parada anterior — número plausível e errado, que é pior que número nenhum.
+         * ⚠️ **Alternativa malformada não derruba a rota principal** — ela só fica de fora. A
+         * exigência estrita continua valendo para a primária, que é o traço que a tela desenha por
+         * padrão (spec 093 D2/spec.md).
          */
-        const legs = toLegs(route?.legs)
-        if (legs === null || legs.length !== points.length - 1) return null
+        const alternatives = routes
+          .slice(1)
+          .map((route) => toRoad(route, expectedLegs))
+          .filter((road): road is RouteGeometryRoad => road !== null)
 
-        return { legs, nodeIds: toNodeIds(route?.legs), points: roadPoints }
+        return alternatives.length === 0 ? primary : { ...primary, alternatives }
       } catch {
         // O mapa é enfeite operacional: ele degrada para reta, e nenhuma tela cai por causa disso.
         return null
       }
     },
   }
+}
+
+/**
+ * Um `routes[]` do OSRM (principal ou alternativa) reduzido ao que a resposta precisa. `null` é
+ * "esta rota não presta" — a alternativa malformada é descartada por quem chama, sem derrubar a
+ * chamada inteira.
+ */
+function toRoad(route: OsrmRoute | undefined, expectedLegs: number): RouteGeometryRoad | null {
+  const roadPoints = toPoints(route?.geometry?.coordinates)
+  if (roadPoints === null) return null
+
+  /**
+   * ⚠️ Um trecho por **par** de pontos enviados. Contagem diferente é resposta que não casa
+   * com o pedido, e casar leg com parada errada põe o tempo do trecho seguinte ao pé da
+   * parada anterior — número plausível e errado, que é pior que número nenhum.
+   */
+  const legs = toLegs(route?.legs)
+  if (legs === null || legs.length !== expectedLegs) return null
+
+  return { legs, nodeIds: toNodeIds(route?.legs), points: roadPoints }
 }
 
 /**

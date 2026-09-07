@@ -30,6 +30,14 @@ export type RouteGeometryRoad = Readonly<{
    */
   nodeIds: readonly number[] | null
   points: readonly RouteGeometryPoint[]
+  /**
+   * As demais rotas que o OSRM ofereceu para o **mesmo** par de paradas, na ordem em que ele as
+   * devolveu (spec 093 T1). Ausente ou vazia é "o roteirizador só tem um caminho" — medido: **uma
+   * de quatro** rotas reais teve segunda opção — e a tela usa isso para não desenhar seletor
+   * nenhum (D2). Cada alternativa não carrega as suas próprias, porque a resposta do OSRM não tem
+   * alternativa de alternativa.
+   */
+  alternatives?: readonly Omit<RouteGeometryRoad, 'alternatives'>[]
 }>
 
 export type RouteGeometryPort = {
