@@ -5,6 +5,7 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   resolveCargoPlacement,
+  resolveFallbackBox,
   type PlacementBox,
 } from '../../src/trips/domain/cargo-placement.policy.js'
 
@@ -136,5 +137,54 @@ describe('empacotamento da carga (spec 094)', () => {
 
     expect(plan?.layers.flatMap((layer) => layer.boxes)).toHaveLength(0)
     expect(plan?.unplaced[0]?.reason).toBe('notMeasured')
+  })
+})
+
+/**
+ * A caixa presumida: sem medida, o desenho ainda posiciona — derivando uma caixa do volume
+ * estimado, na proporção da que a empresa já mediu.
+ */
+describe('caixa presumida (spec 094 P2)', () => {
+  /** As cinco caixas medidas desta base: 0,0163 a 0,0300 m³, mediana 0,0210. */
+  const MEASURED = [
+    { heightMm: 250, lengthMm: 400, widthMm: 300 },
+    { heightMm: 210, lengthMm: 385, widthMm: 260 },
+    { heightMm: 220, lengthMm: 380, widthMm: 280 },
+    { heightMm: 210, lengthMm: 360, widthMm: 260 },
+    { heightMm: 200, lengthMm: 340, widthMm: 240 },
+  ]
+
+  test('deriva a caixa do volume, na proporção da mediana medida', () => {
+    const fallback = resolveFallbackBox({ measured: MEASURED, volumeM3: 0.021 })
+
+    expect(fallback).not.toBeNull()
+    const volume =
+      ((fallback?.heightMm ?? 0) * (fallback?.lengthMm ?? 0) * (fallback?.widthMm ?? 0)) / 1e9
+    expect(volume).toBeCloseTo(0.021, 3)
+  })
+
+  /**
+   * ⚠️ **Proporção, não cubo.** Um cubo de 0,021 m³ tem 27,6 cm de lado e empilha diferente de uma
+   * caixa de 38 × 26 × 21 — e a planta é justamente sobre como as peças se arrumam no piso.
+   */
+  test('mantém a forma da caixa da empresa, não um cubo', () => {
+    const fallback = resolveFallbackBox({ measured: MEASURED, volumeM3: 0.021 })
+    const ratio = (fallback?.lengthMm ?? 0) / (fallback?.widthMm ?? 1)
+
+    expect(ratio).toBeGreaterThan(1.2)
+  })
+
+  /** Sem nenhuma caixa medida na empresa, a proporção vem do catálogo — e o desenho continua. */
+  test('cai na proporção de catálogo quando a empresa não mediu nada', () => {
+    const fallback = resolveFallbackBox({ measured: [], volumeM3: 0.021 })
+
+    expect(fallback).not.toBeNull()
+    expect(fallback?.lengthMm).toBeGreaterThan(fallback?.widthMm ?? 0)
+  })
+
+  /** Volume ausente ou zero não vira caixa: seria inventar tamanho, não estimá-lo. */
+  test('não inventa caixa sem volume', () => {
+    expect(resolveFallbackBox({ measured: MEASURED, volumeM3: 0 })).toBeNull()
+    expect(resolveFallbackBox({ measured: MEASURED, volumeM3: null })).toBeNull()
   })
 })

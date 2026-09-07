@@ -219,6 +219,79 @@ export function resolveCargoPlacement(input: {
 }
 
 /**
+ * A proporção da caixa quando a empresa não mediu nenhuma: a base modular do palete PBR (40 × 30
+ * cm), que é a que fecha a face com dez caixas por camada. Altura em 25 cm, o meio da faixa
+ * observada.
+ */
+const CATALOGUE_RATIO = { heightM: 0.25, lengthM: 0.4, widthM: 0.3 } as const
+
+export type MeasuredBoxShape = {
+  readonly heightMm: number
+  readonly lengthMm: number
+  readonly widthMm: number
+}
+
+export type FallbackBox = {
+  readonly heightMm: number
+  readonly lengthMm: number
+  readonly widthMm: number
+}
+
+/**
+ * A **caixa presumida**: sem medida, o desenho ainda posiciona — derivando uma caixa daquele volume,
+ * na proporção da que a empresa já mediu.
+ *
+ * ⚠️ **Proporção, não cubo.** Um cubo de 0,021 m³ tem 27,6 cm de lado e empilha diferente de uma
+ * caixa de 38 × 26 × 21 — e a planta é justamente sobre como as peças se arrumam no piso. A forma
+ * importa tanto quanto o volume.
+ *
+ * ⚠️ A mediana, não a média: uma caixa de geladeira no meio de mil de refrigerante move a média e
+ * não move a mediana — a mesma razão que a spec 085 registra para o volume.
+ *
+ * Sem volume não há caixa: inventar tamanho não é estimar.
+ */
+export function resolveFallbackBox(input: {
+  readonly measured: readonly MeasuredBoxShape[]
+  readonly volumeM3: number | null
+}): FallbackBox | null {
+  if (input.volumeM3 === null || input.volumeM3 <= 0) return null
+
+  const ratio = resolveShapeRatio(input.measured)
+  const referenceVolume = ratio.heightM * ratio.lengthM * ratio.widthM
+  if (referenceVolume <= 0) return null
+
+  /** Escala linear: o volume cresce com o cubo, então o fator é a raiz cúbica da razão. */
+  const scale = Math.cbrt(input.volumeM3 / referenceVolume)
+
+  return {
+    heightMm: Math.round(ratio.heightM * scale * MILLIMETRES_PER_METRE),
+    lengthMm: Math.round(ratio.lengthM * scale * MILLIMETRES_PER_METRE),
+    widthMm: Math.round(ratio.widthM * scale * MILLIMETRES_PER_METRE),
+  }
+}
+
+/** A forma típica da empresa — mediana de cada dimensão, ou o catálogo quando não há nenhuma. */
+function resolveShapeRatio(
+  measured: readonly MeasuredBoxShape[],
+): Readonly<{ heightM: number; lengthM: number; widthM: number }> {
+  if (measured.length === 0) return CATALOGUE_RATIO
+
+  return {
+    heightM: median(measured.map((box) => box.heightMm)) / MILLIMETRES_PER_METRE,
+    lengthM: median(measured.map((box) => box.lengthMm)) / MILLIMETRES_PER_METRE,
+    widthM: median(measured.map((box) => box.widthMm)) / MILLIMETRES_PER_METRE,
+  }
+}
+
+function median(values: readonly number[]): number {
+  const sorted = [...values].sort((first, second) => first - second)
+  const middle = Math.floor(sorted.length / 2)
+  if (sorted.length % 2 === 1) return sorted[middle] ?? 0
+
+  return ((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2
+}
+
+/**
  * Quantas camadas esta caixa aceita ter **abaixo** dela. Zero é "só o piso": não empilhável e frágil
  * ficam por cima, e sem informação a caixa empilha à vontade — marcando o arranjo como presumido.
  */
