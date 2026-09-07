@@ -86,6 +86,49 @@ export type AssemblyMapPoint = Readonly<{
   y: number
 }>
 
+/**
+ * ⚠️ Duas paradas **diferentes** podem cair na mesma coordenada: as duas em posição aproximada
+ * (centroide do mesmo município — o caso comum) ou, mais raro, mesmo endereço exato. Achado
+ * testando localmente: duas notas em ORLANDIA/SP, endereços diferentes, ambas sem geocodificação
+ * de rua, colapsaram no mesmo ponto — o `Marker` mais recente cobriu o anterior no pixel idêntico,
+ * e quem monta a viagem via 2 pinos onde havia 3 paradas, sem indício nenhum de que um estava
+ * escondido atrás do outro.
+ *
+ * O deslocamento é pequeno de propósito (dezenas de metros, não quilômetros): a mensagem "posição
+ * aproximada" que a lista já mostra continua verdadeira — visualmente, o ponto segue sendo o centro
+ * do município, só não empilhado.
+ */
+const OVERLAP_FAN_RADIUS_DEGREES = 0.0008
+
+export function resolveMarkerCoordinates(
+  points: readonly AssemblyMapPoint[],
+): ReadonlyMap<string, Readonly<{ latitude: number; longitude: number }>> {
+  const groups = new Map<string, AssemblyMapPoint[]>()
+  for (const point of points) {
+    const key = `${point.latitude}:${point.longitude}`
+    const group = groups.get(key)
+    if (group === undefined) groups.set(key, [point])
+    else group.push(point)
+  }
+
+  const coordinates = new Map<string, Readonly<{ latitude: number; longitude: number }>>()
+  for (const group of groups.values()) {
+    if (group.length === 1) {
+      const [only] = group as [AssemblyMapPoint]
+      coordinates.set(only.stopKey, { latitude: only.latitude, longitude: only.longitude })
+      continue
+    }
+    group.forEach((point, index) => {
+      const angle = (2 * Math.PI * index) / group.length
+      coordinates.set(point.stopKey, {
+        latitude: point.latitude + OVERLAP_FAN_RADIUS_DEGREES * Math.sin(angle),
+        longitude: point.longitude + OVERLAP_FAN_RADIUS_DEGREES * Math.cos(angle),
+      })
+    })
+  }
+  return coordinates
+}
+
 export type AssemblyMap = Readonly<{
   /**
    * A mesma projeção que colocou os pinos, exposta para o contorno do município cair na **mesma**

@@ -32,7 +32,7 @@ import {
   resolveBasemapOutline,
   type BasemapTheme,
 } from '../shared/vectorBasemap.service'
-import type { AssemblyMapPoint } from '../shared/assemblyMap.service'
+import { resolveMarkerCoordinates, type AssemblyMapPoint } from '../shared/assemblyMap.service'
 import type { RouteGeometry } from '../shared/routeGeometry.service'
 import styles from '../styles/trip.module.css'
 import { resolveRouteLegs } from '../shared/routeGeometry.service'
@@ -353,7 +353,9 @@ export function AssemblyVectorMap({
     for (const marker of markersRef.current) marker.remove()
     markersRef.current = []
 
+    const markerCoordinates = resolveMarkerCoordinates(points)
     for (const point of points) {
+      const coordinates = markerCoordinates.get(point.stopKey) ?? point
       markersRef.current.push(
         new Marker({
           element: stopElement({
@@ -363,7 +365,7 @@ export function AssemblyVectorMap({
             sequence: point.sequence ?? 1,
           }),
         })
-          .setLngLat([point.longitude, point.latitude])
+          .setLngLat([coordinates.longitude, coordinates.latitude])
           .addTo(map),
       )
     }

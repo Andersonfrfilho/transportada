@@ -8,6 +8,7 @@ import type { MeshFeature } from '@/modules/shared/ibgeMesh.service'
 import { buildAssemblyLegs, totalAssemblyMinutes } from '@/modules/trip/shared/assemblyLeg.service'
 import {
   buildAssemblyMap,
+  resolveMarkerCoordinates,
   ASSEMBLY_MAP_VIEWBOX,
   type AssemblyMapPoint,
 } from '@/modules/trip/shared/assemblyMap.service'
@@ -619,5 +620,77 @@ describe('posição aproximada', () => {
     })
 
     expect(mapaMontado.points[0]?.isApproximate).toBe(true)
+  })
+})
+
+/**
+ * Feature: achado testando localmente (2026-09-07) — duas notas em ORLANDIA/SP, endereços
+ * diferentes, ambas com posição aproximada (centroide do mesmo município), colapsaram na mesma
+ * coordenada. O `Marker` mais recente cobriu o anterior no mesmo pixel: o operador via 2 pinos
+ * onde havia 3 paradas, sem nenhum indício de que um estava escondido atrás do outro.
+ */
+describe('coordenada de pinos que colidem no mesmo pixel', () => {
+  const parada = (stopKey: string, latitude: number, longitude: number): AssemblyMapPoint => ({
+    cityCode: RIBEIRAO,
+    isApproximate: true,
+    label: stopKey,
+    latitude,
+    longitude,
+    notes: [],
+    sequence: 1,
+    stopKey,
+    x: 50,
+    y: 50,
+  })
+
+  it('mantém a coordenada original quando nenhum ponto colide', () => {
+    const pontos = [parada('a', -21.17, -47.81), parada('b', -21.2, -47.77)]
+
+    const coordenadas = resolveMarkerCoordinates(pontos)
+
+    expect(coordenadas.get('a')).toEqual({ latitude: -21.17, longitude: -47.81 })
+    expect(coordenadas.get('b')).toEqual({ latitude: -21.2, longitude: -47.77 })
+  })
+
+  it('afasta pontos que caem na mesma coordenada exata, sem sumir com nenhum', () => {
+    const pontos = [
+      parada('a', -21.17, -47.81),
+      parada('b', -21.17, -47.81),
+      parada('c', -21.17, -47.81),
+    ]
+
+    const coordenadas = resolveMarkerCoordinates(pontos)
+
+    expect(coordenadas.size).toBe(3)
+    const posicoes = [...coordenadas.values()]
+    /** As três precisam ser distintas — é isso que impede um pino de cobrir o outro. */
+    const chaves = new Set(posicoes.map((p) => `${p.latitude}:${p.longitude}`))
+    expect(chaves.size).toBe(3)
+  })
+
+  /** O espalhamento é pequeno de propósito: o aviso "posição aproximada" continua verdadeiro. */
+  it('desloca por dezenas de metros, não quilômetros', () => {
+    const pontos = [parada('a', -21.17, -47.81), parada('b', -21.17, -47.81)]
+
+    const coordenadas = resolveMarkerCoordinates(pontos)
+    const a = coordenadas.get('a')!
+    const b = coordenadas.get('b')!
+
+    expect(Math.abs(a.latitude - -21.17)).toBeLessThan(0.01)
+    expect(Math.abs(a.longitude - -47.81)).toBeLessThan(0.01)
+    expect(Math.abs(b.latitude - -21.17)).toBeLessThan(0.01)
+    expect(Math.abs(b.longitude - -47.81)).toBeLessThan(0.01)
+  })
+
+  it('não mexe em coordenadas que já eram distintas, mesmo em grupo grande', () => {
+    const pontos = [
+      parada('a', -21.17, -47.81),
+      parada('b', -21.17, -47.81),
+      parada('c', -21.2, -47.77),
+    ]
+
+    const coordenadas = resolveMarkerCoordinates(pontos)
+
+    expect(coordenadas.get('c')).toEqual({ latitude: -21.2, longitude: -47.77 })
   })
 })
