@@ -132,6 +132,27 @@ Entra como custo previsto ao lado do combustível, herdando a origem.
 - **Aceite:** um eixo estimado torna o custo previsto da viagem estimado; a tela diz isso onde já diz
   "previsto".
 
+### T11 — A viagem criada carrega o pedágio dela (lacuna aberta pela T9)
+
+A T9 pôs o pedágio calculado na **prévia da montagem**, e **não** em `readTripValuation`, a conta da
+viagem já criada. A lacuna é real e a saída óbvia é a errada.
+
+⚠️ **Chamar o OSRM de novo na viagem criada pareia a rota de hoje com a distância de ontem.** A
+viagem persiste `planned_distance` no momento em que o roteiro foi planejado, e não persiste nó
+nenhum. Calcular o pedágio agora traria o caminho que o roteirizador escolhe **hoje** — dataset
+diferente, empate desfeito de outro jeito — ao lado de uma distância congelada de outro dia. É a
+divergência da D4 acontecendo **dentro do mesmo painel**, e os dois números continuariam plausíveis.
+
+O caminho certo é **congelar o pedágio junto com o roteiro**: quando a rota é planejada, guardar o
+custo (ou os nós que o produziram) na viagem, como `trip_dispatch_snapshots` já faz com o roteiro. Aí
+a conta da viagem lê o que foi decidido, não o que o mapa acha agora.
+
+- **Depende de:** T9.
+- **Custo:** migration + escrita no planejamento de rota + leitura na valoração. É task com esquema,
+  não remendo.
+- **Enquanto não existir:** a conta da viagem criada mostra o pedágio **lançado à mão**, com o gap
+  `notRecorded` quando não houver — que é honesto, não é zero silencioso.
+
 ## Fase 4 — Fechamento
 
 > 🤖 Modelo: `haiku`
