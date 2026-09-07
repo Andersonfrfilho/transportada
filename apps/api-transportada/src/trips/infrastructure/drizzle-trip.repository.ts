@@ -737,6 +737,8 @@ async function readTripDetail(
    * cujas notas não têm cubagem entra em `stopsWithoutVolume`, nunca como fatia zero.
    */
   const layout = resolveCargoLayout({
+    /** Spec 088 D2: a medida vem da ficha, e não da ocupação — que é nula sem cubagem nenhuma. */
+    bedDimensions: cargo.bedDimensions,
     capacityM3: cargo.capacityM3,
     loadingAccess: cargo.loadingAccess,
     stops: stops.map((stop) => {
@@ -747,6 +749,12 @@ async function readTripDetail(
       )
       const known = volumes.filter((volume): volume is string => volume !== null)
       return {
+        /** Spec 088 G003: as caixas viajam com a parada que o agrupamento por endereço formou. */
+        boxes: stop.documents.flatMap((document) =>
+          document.nfeDocumentId === null
+            ? []
+            : [...(cargo.boxesByDocument.get(document.nfeDocumentId) ?? [])],
+        ),
         documentsWithoutVolume: volumes.length - known.length,
         label: stop.label,
         sequence: stop.sequence,

@@ -37,6 +37,7 @@ export async function readCargoPreviewContext(
   ])
 
   return {
+    bedDimensions: cargo.bedDimensions,
     boxesByDocument: cargo.boxesByDocument,
     capacityM3: cargo.capacityM3,
     loadingAccess: cargo.loadingAccess,

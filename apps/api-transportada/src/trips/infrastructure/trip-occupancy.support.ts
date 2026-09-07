@@ -21,6 +21,7 @@ import {
   resolveCargoVolume,
   resolveMeasuredCargoVolume,
 } from '../../nfe-documents/domain/cargo-volume.policy.js'
+import type { CargoBedDimensions } from '../domain/cargo-layout.policy.js'
 import type { CargoPlanBox } from '../domain/cargo-plan.policy.js'
 import { resolveVehicleCapacity } from '../../fleet/domain/vehicle-capacity.policy.js'
 import type { TripOccupancyView } from '../application/trip.port.js'
@@ -53,6 +54,14 @@ export async function loadTripOccupancy(
    * de agrupamento ao lado do `buildStopAddressKey` que o vínculo já usa.
    */
   readonly boxesByDocument: ReadonlyMap<string, readonly CargoPlanBox[]>
+  /**
+   * ⚠️ Spec 088 D2: a medida do baú vem da **ficha do veículo**, e por isso viaja fora de
+   * `occupancy`. Derivá-la da ocupação jogava a medida fora quando **nenhuma nota tinha cubagem** —
+   * a planta sumia por falta de um dado que não é dela, e o aviso mandava preencher um campo que já
+   * estava preenchido. Ler as colunas do veículo também descarta a referência de mercado por
+   * construção, que é mais forte que filtrar pela origem do m³.
+   */
+  readonly bedDimensions: CargoBedDimensions | null
   readonly capacityM3: string | null
   /** Spec 085: por onde a carga entra — o layout decide com ela se a ordem e obrigacao. */
   readonly loadingAccess: LoadingAccess
@@ -72,6 +81,7 @@ export async function loadTripOccupancy(
     .limit(1)
   if (vehicle === undefined) {
     return {
+      bedDimensions: null,
       boxesByDocument: new Map(),
       capacityM3: null,
       /** Veiculo desconhecido assume o mais restritivo, como a ausencia de acesso declarado. */
@@ -111,6 +121,7 @@ export async function loadTripOccupancy(
   })
   if (capacity === null) {
     return {
+      bedDimensions: toBedDimensions(vehicle),
       boxesByDocument: new Map(),
       capacityM3: null,
       loadingAccess: vehicle.loadingAccess,
@@ -179,6 +190,7 @@ export async function loadTripOccupancy(
   const occupancy = resolveTripOccupancy({ capacityM3: capacity.capacityM3, documents })
   if (occupancy === null) {
     return {
+      bedDimensions: toBedDimensions(vehicle),
       boxesByDocument: measured.boxesByDocument,
       capacityM3: capacity.capacityM3,
       loadingAccess: vehicle.loadingAccess,
@@ -188,6 +200,7 @@ export async function loadTripOccupancy(
   }
 
   return {
+    bedDimensions: toBedDimensions(vehicle),
     boxesByDocument: measured.boxesByDocument,
     capacityM3: capacity.capacityM3,
     loadingAccess: vehicle.loadingAccess,
@@ -198,6 +211,25 @@ export async function loadTripOccupancy(
       capacitySource: capacity.source,
     },
     volumeByDocument,
+  }
+}
+
+/**
+ * As três medidas da ficha, ou nada. Medida pela metade não desenha planta pela metade: duas
+ * medidas e um palpite não descrevem um baú, e a escala é a única coisa que o desenho promete.
+ */
+function toBedDimensions(vehicle: Dimensions): CargoBedDimensions | null {
+  const [height, length, width] = [
+    Number(vehicle.cargoHeightM),
+    Number(vehicle.cargoLengthM),
+    Number(vehicle.cargoWidthM),
+  ]
+  if (!(height > 0) || !(length > 0) || !(width > 0)) return null
+
+  return {
+    heightM: vehicle.cargoHeightM,
+    lengthM: vehicle.cargoLengthM,
+    widthM: vehicle.cargoWidthM,
   }
 }
 

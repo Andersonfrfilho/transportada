@@ -129,6 +129,30 @@ describe('profundidade da faixa no baú (spec 088)', () => {
    * por 2× dentro do mesmo tipo — um VUC existe de 13 e de 26 m³ —, e aqui o erro deixaria de ser
    * uma porcentagem e viraria metro na tela de quem vai medir com fita.
    */
+  /**
+   * ⚠️ Visto na tela, não no teste: a planta sumia de uma viagem cujo veículo TEM as três medidas,
+   * porque a medida era derivada de `occupancy` — e a ocupação é nula quando **nenhuma nota tem
+   * cubagem**. Pior que sumir: o aviso mandava preencher um campo que já estava preenchido.
+   *
+   * A escala é da FICHA. Volume é outra pergunta, e a resposta dela não pode apagar a primeira.
+   */
+  test('a planta existe sem cubagem nenhuma, porque a escala não vem do volume', () => {
+    const layout = resolveCargoLayout({
+      bedDimensions: BAU,
+      capacityM3: null,
+      stops: [
+        { documentsWithoutVolume: 3, label: 'Franca', sequence: 1, volumeM3: null },
+        { documentsWithoutVolume: 2, label: 'Batatais', sequence: 2, volumeM3: null },
+      ],
+    })
+
+    expect(layout?.bedLengthM).toBe('8.900')
+    expect(layout?.bedWidthM).toBe('2.500')
+    /** Sem volume não há faixa — mas o baú continua medido, e a tela não acusa a ficha. */
+    expect(layout?.slices).toEqual([])
+    expect(layout?.stopsWithoutVolume).toHaveLength(2)
+  })
+
   test('a referência de mercado alimenta a ocupação e nunca a planta', () => {
     const daFicha = { capacityDimensions: BAU, capacitySource: 'measured' } as const
     const daReferencia = { capacityDimensions: BAU, capacitySource: 'reference' } as const

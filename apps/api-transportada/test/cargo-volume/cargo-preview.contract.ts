@@ -151,6 +151,7 @@ describe('paradas da prévia de carga (spec 085 G002)', () => {
  */
 describe('a prévia acusa peso concentrado numa parada', () => {
   const CONTEXT = {
+    bedDimensions: null,
     boxesByDocument: new Map(),
     capacityM3: '10.000000',
     cargoWeight: null,
