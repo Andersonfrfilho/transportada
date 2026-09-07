@@ -154,8 +154,16 @@ export const TRIP_REVENUE_SOURCES = ['measured', 'estimated', 'missing', 'period
  * Passado o deploy que serve o campo, ele migra para `TRIP_DETAIL_KEYS` numa mudança própria — e é
  * essa mudança que torna o contrato exigível de novo.
  */
+/**
+ * ⚠️ O detalhe herda os opcionais da viagem, e não só os dele. `TRIP_DETAIL_KEYS` espalha
+ * `TRIP_KEYS` mas parava aí: `amounts` — que a listagem já conhecia — chegava no detalhe como chave
+ * desconhecida, e `hasKeys` recusa a resposta **inteira**. O efeito não era um campo faltando: era
+ * a tela de detalhe inteira caindo em "Não foi possível carregar as viagens", levando junto as
+ * notas, as paradas e o painel de carga. Campo novo da viagem entra numa lista só, e as duas telas
+ * o aceitam.
+ */
 export const TRIP_DETAIL_OPTIONAL_KEYS = [
-  'amounts',
+  ...TRIP_OPTIONAL_KEYS,
   'cargoLayout',
   'cargoWeight',
   'occupancy',

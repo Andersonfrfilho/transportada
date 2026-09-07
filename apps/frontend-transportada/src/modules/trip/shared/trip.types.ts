@@ -575,7 +575,13 @@ export type FindNfeDocumentByAccessKeyInput = Readonly<{
  * a criação morria no `202` sem nunca chegar a esperar o solver.
  */
 export type MultiVehicleSuggestionStatus =
-  'accepted' | 'failed' | 'queued' | 'ready' | 'rejected' | 'running' | 'stale'
+  | 'accepted'
+  | 'failed'
+  | 'queued'
+  | 'ready'
+  | 'rejected'
+  | 'running'
+  | 'stale'
 
 export type MultiVehicleSuggestion = Readonly<{
   errorCode: null | string
