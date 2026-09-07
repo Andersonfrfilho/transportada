@@ -34,11 +34,20 @@ Medido em 07/09/2026, na `api-transportada` desta base, contra o Postgres de tes
 | Alvo `make` para a integração da API                                | **não existe**                  |
 | Alvo `make worker-integration`                                      | existe, e carrega o env         |
 | `make check` inclui integração                                      | **não**                         |
+| Variáveis distintas gateando teste                                  | **3** — ver abaixo              |
 
-Dois números que explicam o resto:
+Três achados que explicam o resto:
 
-- **136 → 4.** Os 4 que restam com banco de pé são do `cte-archive-gateway`, que pula por falta de
-  MinIO. Esse pulo é legítimo e deve continuar (§ Fora do escopo).
+- **São três variáveis, não uma.** `API_TEST_DATABASE_URL ?? DATABASE_URL` gateia as 38
+  integrações; **`DRIZZLE_TEST_DATABASE_URL`** gateia os contratos de migration
+  (`test/database-migration/support.ts:5`); `STORAGE_*` gateia o object storage. Carregar o
+  `.env.test` resolve **uma só** — a terceira não existe em `.env` nem em `.env.test`, e é definida
+  inline apenas pelo `make migration-test`. São dela os **4 skips que sobram** com o banco de pé:
+  eles continuam calados mesmo com o ambiente carregado.
+- **O seam que esta spec propõe já existe, e cobre um terço do problema.**
+  `test/database-migration/support.ts` é ponto único, com timeout deliberado e comentário
+  explicando por quê. O desenho está certo e provado no repositório; falta generalizá-lo — e
+  unificar as três variáveis é parte do trabalho, não detalhe.
 - **35 de 38, com 33 cópias.** A decisão de pular é tomada 33 vezes, em 33 arquivos. O
   comportamento certo **já existe no repositório e é um arquivo só**: `server.integration.ts`
   resolve a URL no topo do módulo e **lança na carga** (`server.integration.ts:18`) — é ele que
@@ -51,18 +60,28 @@ que gerou o `1 fail` da rodada sem env. Não é um segundo padrão deliberado: �
 convenção mantida à mão em 33 lugares **não se sustenta**, e de que o vazamento é silencioso nos
 dois sentidos — ora se pula o que deveria rodar, ora se roda o que deveria pular.
 
-⚠️ As **7 falhas com env são outra coisa**: timeout de 5s em `fleet-vehicle-repository` e
-`fuel-price-repository`, que passam isolados (18 pass, 0 fail). É contenção no Postgres
-compartilhado, não defeito, e não é escopo desta spec.
+⚠️ **O MinIO não é pulo legítimo, e nem chega a pular.** `make up` sobe o MinIO **e cria o bucket**
+(`storage-bootstrap`, `Makefile:103`), então a capacidade está sempre presente; os 2 testes de
+`cte-archive-gateway` **rodam e falham** quando o bucket não bate — medido isolado: `0 pass, 2 fail`.
+A única justificativa escrita de pulo opt-in no repositório é a do **OSRM** (`Makefile:271`: _"a
+integração comum não pode exigir um dataset de centenas de MB"_), e ela não se estende a um serviço
+que sobe junto com o Postgres. Esta spec **não preserva** o pulo por object storage.
+
+⚠️ As **7 falhas com env se dividem**: 5 são timeout de 5s em `fleet-vehicle-repository` e
+`fuel-price-repository`, que passam isolados (18 pass, 0 fail) — contenção no Postgres
+compartilhado, não defeito, fora do escopo. As outras **2 são o `cte-archive-gateway`**, que falha
+por bucket ausente: defeito de verdade, hoje escondido no meio dos flakes.
 
 ## Fora do escopo
 
-- **Os 7 timeouts sob carga.** Investigação própria: ou o limite de 5s é curto para a suíte
+- **Os 5 timeouts sob carga.** Investigação própria: ou o limite de 5s é curto para a suíte
   paralela, ou esses dois arquivos disputam a mesma tabela. Não se conserta junto.
-- **O pulo por capacidade opcional.** MinIO no `cte-archive-gateway` e OSRM no worker pulam **de
-  propósito** — o comentário em `Makefile:271` já diz por quê: a integração comum não pode exigir
-  um dataset de centenas de MB. Esta spec preserva esse pulo; o que ela proíbe é o pulo por falta
-  do que é **obrigatório**.
+- **O pulo por capacidade genuinamente opcional.** Só o **OSRM**, no worker, se qualifica hoje — o
+  comentário em `Makefile:271` diz por quê: a integração comum não pode exigir um dataset de
+  centenas de MB. Esta spec preserva **esse** pulo, e nenhum outro. O do object storage não se
+  qualifica (ver acima), e o dele nem existe de fato.
+- **As 2 falhas do `cte-archive-gateway`.** São defeito real de fixture — o bucket do `.env.test`
+  não bate. Consertar é trabalho separado; esta spec só faz parar de escondê-las.
 - **`worker-transportada` e `cron-transportada`.** O worker já tem alvo `make` que carrega o env, e
   nenhum dos dois usa o padrão de skip por banco. Nada a fazer ali.
 - **A reformatação de 50 `snapshot.json` por `bun run db:test`.** Achado da mesma sessão, defeito
@@ -83,12 +102,12 @@ nomeia o comando que carrega o ambiente.
 **When** alguém roda o alvo `make` da integração da API
 **Then** o `.env` é carregado como o CI faz, e as 196 rodam.
 
-### P3 — O pulo legítimo continua, e se anuncia
+### P3 — As três variáveis param de discordar
 
-**Given** o MinIO fora do ar
-**When** a suíte roda com banco
-**Then** os testes de object storage pulam, e a saída **diz que pularam e por quê** — sem que a
-suíte passe a mentir sobre cobertura.
+**Given** o ambiente carregado pelo alvo `make`
+**When** a suíte roda
+**Then** os contratos de migration rodam junto — hoje eles pulam calados porque gateiam por
+`DRIZZLE_TEST_DATABASE_URL`, que nenhum dos dois arquivos de env define.
 
 ## Requisitos funcionais
 
@@ -100,8 +119,12 @@ suíte passe a mentir sobre cobertura.
   diz a quem a lê o que fazer em seguida.
 - **RF4** — Existe `make api-integration`, no molde do `worker-integration`: sobe o que precisa,
   carrega o env, roda.
-- **RF5** — O pulo por capacidade opcional (MinIO) continua existindo, declarado numa lista fechada
-  e distinguível na saída do pulo por defeito.
+- **RF5** — As três variáveis (`API_TEST_DATABASE_URL`/`DATABASE_URL`, `DRIZZLE_TEST_DATABASE_URL`,
+  `STORAGE_*`) passam pelo mesmo ponto e são declaradas **num lugar só**. O alvo `make` do RF4 as
+  supre todas — hoje `.env` e `.env.test` não definem a segunda, e por isso os contratos de
+  migration pulam mesmo com o ambiente carregado.
+- **RF5b** — O único pulo por capacidade opcional que sobrevive é o do OSRM, no worker, declarado
+  numa lista fechada e distinguível na saída do pulo por defeito. Object storage sai da lista.
 - **RF6** — Um contrato falha quando um `*.integration.ts` novo não passa pelo ponto único. Sem
   isso a regra vale só para os 38 de hoje.
 
@@ -119,7 +142,9 @@ suíte passe a mentir sobre cobertura.
 - **`API_TEST_DATABASE_URL` presente e `DATABASE_URL` ausente** (e vice-versa): a precedência de
   hoje se mantém; a spec não muda qual vence.
 - **Banco declarado mas inalcançável:** já falha hoje, na conexão. Não é caso novo.
-- **MinIO ausente com banco presente:** pula os 4, suíte verde, aviso na saída.
+- **`DRIZZLE_TEST_DATABASE_URL` ausente com as outras presentes:** é o caso de hoje, e é o que
+  produz os 4 skips silenciosos. Passa a falhar como os demais.
+- **Object storage inalcançável:** falha, não pula — é o comportamento de hoje, e ele fica.
 - **CI:** carrega o env antes de invocar; o guard nunca dispara lá. Se disparar, é sinal de que o
   `.env` do runner quebrou — e aí falhar é o comportamento desejado.
 
@@ -127,7 +152,9 @@ suíte passe a mentir sobre cobertura.
 
 - [ ] `bun run --cwd apps/api-transportada test:integration` sem env → **exit ≠ 0**, nenhum teste
       executado, e a mensagem cita `make api-integration`.
-- [ ] `make api-integration` com a infra de pé → **196 pass**, os mesmos de hoje.
+- [ ] `make api-integration` com a infra de pé → **200 pass** (os 196 de hoje mais os 4 contratos
+      de migration que deixam de pular), e as 2 falhas do `cte-archive-gateway` visíveis em vez de
+      diluídas.
 - [ ] `grep -c "const databaseUrl" test/integration/*.integration.ts` → **0**.
 - [ ] `server.integration.ts` passa a usar o ponto único, e o guard dele sai — o comportamento
       dele vira o de todos.
@@ -139,10 +166,11 @@ suíte passe a mentir sobre cobertura.
 
 ## Dúvidas
 
-- `[NEEDS CLARIFICATION: o pulo do MinIO deve virar falha no CI?]` No runner o `make up` sobe o
-  MinIO, então lá a capacidade **existe** e pular esconderia regressão de object storage. Local,
-  exigi-la contraria a razão pela qual o pulo foi criado. As opções são (a) manter opcional nos
-  dois, (b) exigir quando `CI=true`, ou (c) uma variável explícita de opt-out. Bloqueia o RF5.
+**Resolvida por medição — o pulo do MinIO.** A primeira versão desta spec perguntava se ele deveria
+virar falha no CI, tratando-o como pulo legítimo por analogia com o OSRM. A analogia não se
+sustenta: `make up` sobe o MinIO e cria o bucket, então a capacidade está sempre presente, e os
+testes de `cte-archive-gateway` **rodam e falham** em vez de pular. Não há decisão a tomar — há uma
+premissa errada removida, e duas falhas reais que a spec passa a expor (§ Fora do escopo).
 
 - `[NEEDS CLARIFICATION: make check passa a incluir a integração?]` Hoje não inclui, e é por isso
   que "rodei o gate" não quer dizer "rodei as integrações" — a mesma confusão que originou esta
