@@ -35,7 +35,7 @@ export function createOsrmRouteGeometryGateway(input: {
       if (points.length < 2) return null
 
       const path = points.map((point) => `${point.longitude},${point.latitude}`).join(';')
-      const url = `${input.baseUrl.replace(/\/$/u, '')}/route/v1/driving/${path}?overview=full&geometries=geojson`
+      const url = `${input.baseUrl.replace(/\/$/u, '')}/route/v1/driving/${path}?overview=full&geometries=geojson&annotations=nodes`
 
       try {
         const response = await fetchImplementation(url, {
@@ -58,13 +58,45 @@ export function createOsrmRouteGeometryGateway(input: {
         const legs = toLegs(route?.legs)
         if (legs === null || legs.length !== points.length - 1) return null
 
-        return { legs, points: roadPoints }
+        return { legs, nodeIds: toNodeIds(route?.legs), points: roadPoints }
       } catch {
         // O mapa é enfeite operacional: ele degrada para reta, e nenhuma tela cai por causa disso.
         return null
       }
     },
   }
+}
+
+/**
+ * Os nós percorridos, colados na ordem dos trechos (spec 090 D1).
+ *
+ * ⚠️ **O OSRM repete o nó da parada** no fim de um trecho e no começo do seguinte. Concatenar cru
+ * faria a praça que cai exatamente ali ser cobrada **duas vezes** — número plausível, maior que o
+ * real, na tela de quem decide aceitar a carga.
+ *
+ * ⚠️ **Um trecho sem anotação torna a rota inteira desconhecida.** Devolver os nós que vieram diria
+ * "o resto não tem praça", e a conta sairia menor que a verdade sem avisar ninguém. Meia lista é
+ * pior que lista nenhuma, porque parece completa.
+ */
+function toNodeIds(value: unknown): readonly number[] | null {
+  if (!Array.isArray(value)) return null
+
+  const nodeIds: number[] = []
+  for (const entry of value) {
+    if (typeof entry !== 'object' || entry === null) return null
+    const { annotation } = entry as Record<string, unknown>
+    if (typeof annotation !== 'object' || annotation === null) return null
+    const { nodes } = annotation as Record<string, unknown>
+    if (!Array.isArray(nodes)) return null
+
+    for (const node of nodes) {
+      if (typeof node !== 'number' || !Number.isSafeInteger(node) || node <= 0) return null
+      if (nodeIds.at(-1) === node) continue
+      nodeIds.push(node)
+    }
+  }
+
+  return nodeIds
 }
 
 /** O GeoJSON vem `[longitude, latitude]` — trocar a ordem põe a viagem no oceano. */

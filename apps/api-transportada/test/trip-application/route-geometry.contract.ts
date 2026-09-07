@@ -31,7 +31,8 @@ function porta(
     port: {
       readRouteGeometry: async (points: readonly RouteGeometryPoint[]) => {
         calls.push(points)
-        return road === null ? null : { legs, points: road }
+        // Esta suíte é da geometria, não do pedágio: os nós ficam desconhecidos de propósito.
+        return road === null ? null : { legs, nodeIds: null, points: road }
       },
     },
   }
