@@ -36,6 +36,8 @@ export const API_COMPANY_SETTINGS_DELIVERY_PROOF_OVERRIDES_PATH =
 export const API_COMPANY_SETTINGS_CARGO_VOLUME_PATH = '/company-settings/cargo-volume-factors'
 export const API_COMPANY_SETTINGS_CONTACTS_PATH = '/company-settings/contacts'
 export const API_COMPANY_SETTINGS_FUEL_PRICES_PATH = '/company-settings/fuel-prices'
+/** Spec 095: o ajuste manual da tarifa de pedágio, por praça do catálogo do OSM. */
+export const API_COMPANY_SETTINGS_TOLL_BOOTH_CHARGES_PATH = '/company-settings/toll-booth-charges'
 export const API_COMPANY_SETTINGS_ENERGY_PATH = '/company-settings/energy'
 export const API_DIGITAL_CERTIFICATES_PATH = '/digital-certificates'
 export const API_FREIGHT_RULES_PATH = '/freight-rules'

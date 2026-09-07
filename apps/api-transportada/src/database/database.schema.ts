@@ -164,6 +164,7 @@ import {
 
 export * from './company-energy-settings.schema.js'
 export * from './company-fuel-prices.schema.js'
+export * from './company-toll-booth-charge.schema.js'
 export * from './energy-tariff.schema.js'
 export * from './fiscal.schema.js'
 export * from './fleet.schema.js'

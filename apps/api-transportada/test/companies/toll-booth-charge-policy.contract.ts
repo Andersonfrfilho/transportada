@@ -1,0 +1,91 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ */
+import { describe, expect, test } from 'bun:test'
+
+import {
+  resolveEffectiveTollBoothCharge,
+  type TollBoothCatalogEntry,
+  type TollBoothChargeAdjustmentRow,
+} from '../../src/companies/domain/toll-booth-charge.policy.js'
+
+const UPDATED_AT = new Date('2026-09-07T12:00:00.000Z')
+
+function catalog(overrides: Partial<TollBoothCatalogEntry> = {}): TollBoothCatalogEntry {
+  return {
+    chargeCar: '10.50',
+    chargePerAxle: '10.50',
+    name: 'Praça SP-330',
+    observedOn: '2026-06-01',
+    operator: 'CCR',
+    osmNodeId: 123,
+    ...overrides,
+  }
+}
+
+function adjustment(
+  overrides: Partial<TollBoothChargeAdjustmentRow> = {},
+): TollBoothChargeAdjustmentRow {
+  return {
+    actorUserId: 'user-1',
+    chargeCar: '12.00',
+    chargePerAxle: '12.00',
+    observedOn: '2026-09-01',
+    osmNodeId: 123,
+    updatedAt: UPDATED_AT,
+    ...overrides,
+  }
+}
+
+describe('effective toll booth charge policy contract (spec 095 D1)', () => {
+  test('falls back to the catalog when there is no adjustment', () => {
+    const result = resolveEffectiveTollBoothCharge({ adjustment: null, catalog: catalog() })
+
+    expect(result.effectiveChargeCar).toBe('10.50')
+    expect(result.effectiveChargePerAxle).toBe('10.50')
+    expect(result.source).toBe('catalog')
+    expect(result.actorUserId).toBeNull()
+    expect(result.updatedAt).toBeNull()
+    expect(result.observedOn).toBe('2026-06-01')
+  })
+
+  test('the adjustment wins over the catalog, field by field', () => {
+    const result = resolveEffectiveTollBoothCharge({
+      adjustment: adjustment({ chargeCar: null }),
+      catalog: catalog(),
+    })
+
+    // chargePerAxle veio do ajuste; chargeCar, sem ajuste, continua do catálogo
+    expect(result.effectiveChargePerAxle).toBe('12.00')
+    expect(result.effectiveChargeCar).toBe('10.50')
+    expect(result.source).toBe('manual')
+    expect(result.actorUserId).toBe('user-1')
+    expect(result.observedOn).toBe('2026-09-01')
+    expect(result.updatedAt).toBe(UPDATED_AT)
+  })
+
+  /**
+   * ⚠️ `0.00` gravado à mão é isenção afirmada por gente, e vence o `null` "desconhecida" do
+   * catálogo — a distinção que o OSM não tem (spec 095, achado 3 da revisão da 090).
+   */
+  test('a manual 0.00 wins over an unknown catalog charge, and is not confused with absence', () => {
+    const result = resolveEffectiveTollBoothCharge({
+      adjustment: adjustment({ chargeCar: '0.0000', chargePerAxle: '0.0000' }),
+      catalog: catalog({ chargeCar: null, chargePerAxle: null }),
+    })
+
+    expect(result.effectiveChargeCar).toBe('0.0000')
+    expect(result.effectiveChargePerAxle).toBe('0.0000')
+    expect(result.source).toBe('manual')
+  })
+
+  test('keeps the catalog values alongside the effective ones, for the settings screen', () => {
+    const result = resolveEffectiveTollBoothCharge({ adjustment: adjustment(), catalog: catalog() })
+
+    expect(result.catalog).toEqual({
+      chargeCar: '10.50',
+      chargePerAxle: '10.50',
+      observedOn: '2026-06-01',
+    })
+  })
+})

@@ -7,6 +7,7 @@ import {
   aggregateApplications,
   companyEnergySettings,
   companyFuelPrices,
+  companyTollBoothCharges,
   energyTariffReferences,
   fleetDriverVehicleAssignments,
   fleetDrivers,
@@ -102,6 +103,21 @@ describe('fleet tenant safety', () => {
   test('keeps the toll booth catalogue tenant-less on purpose, and unable to reach a company', () => {
     expect(columnNames(tollBooths)).not.toContain('company_id')
     expect(foreignKeys(tollBooths)).toEqual([])
+  })
+
+  /**
+   * Spec 095 D1: ao contrário do catálogo acima, o ajuste é decisão de uma transportadora sobre o
+   * valor que ela paga — e por isso TEM `company_id`, e é assertado aqui como âncora ao tenant.
+   */
+  test('anchors the company toll booth charge adjustment to the tenant', () => {
+    expect(foreignKeys(companyTollBoothCharges)).toContainEqual({
+      columns: ['company_id'],
+      foreignColumns: ['id'],
+      foreignTable: 'companies',
+      name: 'company_toll_booth_charges_company_id_companies_id_fk',
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
+    })
   })
 
   /**

@@ -44,8 +44,14 @@ import { createCargoSettingsRoutes } from './companies/presentation/cargo-settin
 import { createAdjustFuelPriceUseCase } from './companies/application/adjust-fuel-price.use-case.js'
 import { createClearFuelPriceUseCase } from './companies/application/clear-fuel-price.use-case.js'
 import { createListFuelPricesUseCase } from './companies/application/list-fuel-prices.use-case.js'
+import { createAdjustTollBoothChargeUseCase } from './companies/application/adjust-toll-booth-charge.use-case.js'
+import { createClearTollBoothChargeUseCase } from './companies/application/clear-toll-booth-charge.use-case.js'
+import { createListTollBoothChargesUseCase } from './companies/application/list-toll-booth-charges.use-case.js'
 import { DrizzleFuelPriceRepository } from './companies/infrastructure/drizzle-fuel-price.repository.js'
+import { DrizzleTollBoothChargeRepository } from './companies/infrastructure/drizzle-toll-booth-charge.repository.js'
 import { createFuelPriceRoutes } from './companies/presentation/fuel-price.routes.js'
+import { createTollBoothChargeRoutes } from './companies/presentation/toll-booth-charge.routes.js'
+import { createCompanyScopedTollBoothGateway } from './trips/infrastructure/company-scoped-toll-booth.gateway.js'
 import { createChooseEnergyDistributorUseCase } from './companies/application/choose-energy-distributor.use-case.js'
 import { createClearEnergyDistributorUseCase } from './companies/application/clear-energy-distributor.use-case.js'
 import { createGetCompanyEnergyUseCase } from './companies/application/get-company-energy.use-case.js'
@@ -1033,6 +1039,7 @@ function createApplicationRoutes({
   const cargoSettingsRepository = new DrizzleCargoSettingsRepository(database)
   const cargoVolumeFactorRepository = new DrizzleCargoVolumeFactorRepository(database)
   const fuelPriceRepository = new DrizzleFuelPriceRepository(database)
+  const tollBoothChargeRepository = new DrizzleTollBoothChargeRepository(database)
   const companyEnergyRepository = new DrizzleCompanyEnergyRepository(database)
   const companyLogoRepository = new DrizzleCompanyLogoRepository(database)
   const companyContactsRepository = new DrizzleCompanyContactsRepository(database)
@@ -1453,6 +1460,17 @@ function createApplicationRoutes({
       adjust: createAdjustFuelPriceUseCase({ fuelPrices: fuelPriceRepository }),
       clear: createClearFuelPriceUseCase({ fuelPrices: fuelPriceRepository }),
       list: createListFuelPricesUseCase({ fuelPrices: fuelPriceRepository }),
+    }),
+    ...createTollBoothChargeRoutes({
+      adjust: createAdjustTollBoothChargeUseCase({
+        catalog: tollBoothRepository,
+        charges: tollBoothChargeRepository,
+      }),
+      clear: createClearTollBoothChargeUseCase({ charges: tollBoothChargeRepository }),
+      list: createListTollBoothChargesUseCase({
+        catalog: tollBoothRepository,
+        charges: tollBoothChargeRepository,
+      }),
     }),
     ...createCompanyEnergyRoutes({
       choose: createChooseEnergyDistributorUseCase({ energy: companyEnergyRepository }),
@@ -1923,7 +1941,11 @@ function createApplicationRoutes({
                 ? { readRouteGeometry: async () => null }
                 : createOsrmRouteGeometryGateway({ baseUrl: routingMatrixUrl }),
             stops: input.points,
-            tollBooths: tollBoothRepository,
+            tollBooths: createCompanyScopedTollBoothGateway({
+              catalog: tollBoothRepository,
+              charges: tollBoothChargeRepository,
+              companyId: input.context.companyId,
+            }),
           })
         },
       },
@@ -1946,7 +1968,11 @@ function createApplicationRoutes({
               companyId: input.context.companyId,
               tripId: input.tripId,
             }),
-            tollBooths: tollBoothRepository,
+            tollBooths: createCompanyScopedTollBoothGateway({
+              catalog: tollBoothRepository,
+              charges: tollBoothChargeRepository,
+              companyId: input.context.companyId,
+            }),
           })
         },
       },
@@ -2096,7 +2122,11 @@ function createApplicationRoutes({
                 tripValuationQuery.readPreviewStopCoordinates(query),
             },
             /** Spec 090 T9: o mesmo catálogo de praças que o `/route-geometry` da montagem usa. */
-            tollBooths: tollBoothRepository,
+            tollBooths: createCompanyScopedTollBoothGateway({
+              catalog: tollBoothRepository,
+              charges: tollBoothChargeRepository,
+              companyId: input.companyId,
+            }),
           }),
       },
       listStops: { execute: (input) => tripLifecycle.listStops.execute(input) },
