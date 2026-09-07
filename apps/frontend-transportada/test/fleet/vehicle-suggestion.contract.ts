@@ -179,3 +179,60 @@ describe('Vehicle suggestion', () => {
     expect(suggestion?.capacityKilograms).toBe('')
   })
 })
+
+const APPLICATION_ROOT = new URL('../..', import.meta.url)
+
+function readApplicationFile(filePath: string): Promise<string> {
+  return Bun.file(new URL(filePath, APPLICATION_ROOT)).text()
+}
+
+describe('Vehicle suggestion wiring', () => {
+  /**
+   * ⚠️ Por texto de fonte porque a troca **compila igual**: um formulário que aplique a sugestão por
+   * cima do que já está no estado passa em todo teste de caminho feliz e só aparece quando alguém
+   * mede o baú com fita, troca o tipo por engano e perde a medida.
+   */
+  test('applies the suggestion under what was already typed, never over it', async () => {
+    const hook = await readApplicationFile('src/modules/fleet/hooks/useVehicleForm.hook.ts')
+
+    expect(hook).toContain('applyVehicleSuggestion')
+    expect(hook).toContain('resolveVehicleSuggestion')
+    /** O estado corrigido é o argumento: aplicar sobre `previous` ignoraria o que acabou de mudar. */
+    expect(hook).toContain('applyVehicleSuggestion({ state: corrected, suggestion })')
+  })
+
+  /** Digitar apaga a marca de origem — a mesma regra do campo vindo de documento, ao lado. */
+  test('forgets the origin of a field the operator touched', async () => {
+    const hook = await readApplicationFile('src/modules/fleet/hooks/useVehicleForm.hook.ts')
+
+    expect(hook).toContain('setSuggestedFields((previous) => forgetTouched(previous, values))')
+  })
+
+  /**
+   * A origem impressa é o que separa uma sugestão de uma medição. Sem o `hint` no campo, o número
+   * chega à ficha indistinguível do que alguém tirou com fita.
+   */
+  test('prints where the number came from, next to the field', async () => {
+    const fields = await readApplicationFile(
+      'src/modules/fleet/components/VehicleOperationFields.component.tsx',
+    )
+
+    expect(fields).toContain('cargoSuggestionFromVehicle')
+    expect(fields).toContain('cargoSuggestionFromReference')
+    for (const field of [
+      'cargoLengthMeters',
+      'cargoWidthMeters',
+      'cargoHeightMeters',
+      'capacityKilograms',
+    ]) {
+      expect(fields).toContain(`suggestionHint('${field}')`)
+    }
+  })
+
+  /** Catálogo fora do ar é ficha sem sugestão, nunca ficha travada nem erro na tela. */
+  test('treats an unavailable catalogue as no suggestion at all', async () => {
+    const hook = await readApplicationFile('src/modules/fleet/hooks/useVehicleCatalog.hook.ts')
+
+    expect(hook).toContain('return query.data ?? []')
+  })
+})

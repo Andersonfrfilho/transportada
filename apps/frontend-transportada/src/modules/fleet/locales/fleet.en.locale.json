@@ -276,6 +276,8 @@
   "cargoWidthMeters": "Cargo width (m)",
   "cargoHeightMeters": "Cargo height (m)",
   "capacityCubicMetersDerivedHint": "Derived from the cargo length, width and height.",
+  "cargoSuggestionFromVehicle": "Copied from {{plate}}, in this fleet. Check it with a tape before saving.",
+  "cargoSuggestionFromReference": "Typical for the type, not a measurement. Spread within a type reaches twice over — check it with a tape before saving.",
   "ownership": "Ownership",
   "ownershipOption": {
     "aggregate": "Aggregate",

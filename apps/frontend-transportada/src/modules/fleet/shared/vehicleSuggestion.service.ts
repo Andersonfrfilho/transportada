@@ -144,3 +144,37 @@ function hasEveryDimension(
 function toFormMeasure(value: string): string {
   return toTypedMeasure({ scale: VEHICLE_MEASURE_FIELD_SCALE.cargoLengthMeters.form, value })
 }
+
+/** Os quatro campos que a sugestão alcança. Fora daqui, nada é preenchido por palpite. */
+export const VEHICLE_SUGGESTION_FIELDS = [
+  'cargoLengthMeters',
+  'cargoWidthMeters',
+  'cargoHeightMeters',
+  'capacityKilograms',
+] as const
+export type VehicleSuggestionField = (typeof VEHICLE_SUGGESTION_FIELDS)[number]
+
+/**
+ * A sugestão entra **só em campo em branco**, como os padrões de marca ao lado dela: o que o
+ * operador digitou manda, e trocar o tipo depois de medir não apaga a fita de ninguém.
+ *
+ * Campo a campo, e não tudo-ou-nada: quem digitou o comprimento e parou ainda ganha a largura e a
+ * altura sugeridas — e a planta só nasce com as três, então uma medida solta não desenha nada.
+ */
+export function applyVehicleSuggestion(
+  input: Readonly<{
+    state: Readonly<Record<VehicleSuggestionField, string>>
+    suggestion: VehicleSuggestion | null
+  }>,
+): Partial<Record<VehicleSuggestionField, string>> {
+  if (input.suggestion === null) return {}
+
+  const applied: Partial<Record<VehicleSuggestionField, string>> = {}
+  for (const field of VEHICLE_SUGGESTION_FIELDS) {
+    const candidate = input.suggestion[field]
+    if (candidate === '' || input.state[field] !== '') continue
+    applied[field] = candidate
+  }
+
+  return applied
+}
