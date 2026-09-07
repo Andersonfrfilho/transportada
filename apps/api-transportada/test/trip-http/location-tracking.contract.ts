@@ -266,8 +266,19 @@ describe('o teto de idade da viagem (ADR-0056 §2)', () => {
     expect(recorded).toHaveLength(1)
   })
 
-  /* Responde igual a "não consentiu": o celular não pode distinguir os dois. */
-  test('a viagem que nunca saiu responde igual', async () => {
+  /**
+   * ⚠️ **Ausência de data não é idade, e este caso já foi o contrário.** A primeira versão recusava
+   * o ping com `dispatchedAt` nulo, lendo a ausência como "viagem que nunca saiu" — e o teste
+   * afirmava isso. Mas a data vem de `trip_dispatch_snapshots` por `leftJoin` (`trips` **não tem**
+   * `dispatched_at`), então toda viagem sem snapshot perdia o rastro em silêncio: o motorista
+   * mandando posição, o portal do contratante vazio, e nada acusando.
+   *
+   * `checkTrackingWindow` foi corrigida e este teste ficou para trás, vermelho na staging,
+   * afirmando a versão abandonada. Sem data não há o que comparar, e a resposta honesta é deixar
+   * passar — o prazo da ADR-0056 §2 continua cumprido por `resolveTrackingPurgeCutoff`, que corta o
+   * ping velho tenha a viagem fechado ou não.
+   */
+  test('sem data de despacho o ping passa, e quem corta é o expurgo', async () => {
     const { recorded, repository } = buildRepository({
       readCurrentTracking: async () => trackingOf(true, null),
     })
@@ -275,7 +286,7 @@ describe('o teto de idade da viagem (ADR-0056 §2)', () => {
 
     const result = await useCase({ ...ping, now: NOW })
 
-    expect(result.outcome).toBe('ignored')
-    expect(recorded).toEqual([])
+    expect(result.outcome).toBe('recorded')
+    expect(recorded).toHaveLength(1)
   })
 })
