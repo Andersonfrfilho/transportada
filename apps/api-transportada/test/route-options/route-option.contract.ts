@@ -8,7 +8,7 @@ import {
   type RouteOptionInput,
 } from '../../src/toll-booths/domain/route-option.policy.js'
 
-/** Um toco: 3,5 km/l, diesel a R$ 6,20 — os números que a spec 093 usou para medir. */
+/** Um toco: 3,5 km/l, diesel a R$ 6,20 — os números que a spec 094 usou para medir. */
 const VEICULO = { kilometersPerLiter: '3.5000', pricePerLiter: '6.2000' } as const
 
 /**
@@ -20,7 +20,7 @@ const CAMPINAS: readonly RouteOptionInput[] = [
   { distanceMeters: 239_600, durationSeconds: 198 * 60, tollTotal: '93.2000' },
 ]
 
-describe('route options (spec 093 T2)', () => {
+describe('route options (spec 094 T2)', () => {
   it('elege a mais rápida pelo tempo, e não pela distância', () => {
     const ranked = rankRouteOptions({ options: CAMPINAS, vehicle: VEICULO })
 

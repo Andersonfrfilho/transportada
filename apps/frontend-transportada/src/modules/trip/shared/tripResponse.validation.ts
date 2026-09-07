@@ -628,7 +628,7 @@ export function createTripResponseAdapters() {
        * continuam valendo, e é melhor a tela dizer "não calculei" do que esconder o mapa inteiro.
        */
       /**
-       * Spec 093 T1: as alternativas, mais o ranking de `rankRouteOptions` (T2). Opção estranha
+       * Spec 094 T1: as alternativas, mais o ranking de `rankRouteOptions` (T2). Opção estranha
        * zera **só as opções** — a linha, o tempo e o pedágio da principal continuam valendo, e a
        * tela simplesmente deixa de oferecer seletor (o mesmo comportamento de rota única, D2).
        */
@@ -843,7 +843,7 @@ function isGeometryToll(value: unknown): value is RouteGeometryToll {
   )
 }
 
-/** Spec 093 T1: a alternativa de rota, com a mesma forma que a geometria — mais o custo total. */
+/** Spec 094 T1: a alternativa de rota, com a mesma forma que a geometria — mais o custo total. */
 function isGeometryOption(value: unknown): value is RouteGeometryOption {
   if (!isRecord(value)) return false
   const { distanceMeters, durationSeconds, fuelTotal, legs, points, toll, totalCost } = value

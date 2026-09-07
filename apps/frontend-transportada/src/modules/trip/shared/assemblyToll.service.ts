@@ -38,7 +38,7 @@ export function formatTariffMonth(observedOn: string): string {
 }
 
 /**
- * O que o ícone da praça imprime ao lado dele, no mapa (spec 093 D3/T4).
+ * O que o ícone da praça imprime ao lado dele, no mapa (spec 094 D3/T4).
  *
  * ⚠️ **Tarifa desconhecida é "—", nunca "R$ 0,00".** Medido: `0.00` é tarifa **declarada** em 4 das
  * 166 praças — campo não mapeado, não isenção — e `null` é o único vocabulário de "não sei". Zero
@@ -56,7 +56,7 @@ export type RouteTollBoothMarker = Readonly<{
 }>
 
 /**
- * As praças da rota **escolhida**, prontas para o mapa (spec 093 T4) — é a mesma lista que o bloco
+ * As praças da rota **escolhida**, prontas para o mapa (spec 094 T4) — é a mesma lista que o bloco
  * de pedágio abaixo do seletor já lista por nome; aqui cada uma ganha coordenada e o valor por eixo
  * ao lado do ícone.
  */

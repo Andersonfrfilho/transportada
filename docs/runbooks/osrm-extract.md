@@ -144,7 +144,7 @@ O seed é idempotente por `osm_node_id` — rodar duas vezes deixa as mesmas lin
 é a data que **você** informa (`--observed-on`, padrão hoje), não a do arquivo: o extrator não sabe
 quando foi rodado, e reajuste de pedágio é anual.
 
-## Reassar o overlay do radar (spec 093)
+## Reassar o overlay do radar (spec 094)
 
 Mesma regra: o overlay sai do mesmo `.pbf`. Ele carrega `maxspeed`, `maxspeed:hgv` e `direction`, e
 **não** precisa de build remoto para ser conferido — o jar do planetiler se extrai uma vez:

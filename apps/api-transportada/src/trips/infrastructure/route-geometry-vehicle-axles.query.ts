@@ -5,7 +5,7 @@
  * montagem sair com o total certo. `resolveDeclaredVehicleAxles` (T6) é a única política que
  * decide isso — esta consulta só busca a ficha.
  *
- * Spec 093 T1: a mesma ficha também dá o consumo e o preço do combustível — o que
+ * Spec 094 T1: a mesma ficha também dá o consumo e o preço do combustível — o que
  * `rankRouteOptions` (T2) precisa para saber qual alternativa é a mais barata. Uma consulta só,
  * porque as duas coisas vêm da mesma linha de `fleet_vehicles`.
  */
@@ -30,7 +30,7 @@ export type RouteGeometryVehicleContext = Readonly<{
 
 export function createRouteGeometryVehicleAxlesQuery(database: Database): Readonly<{
   /**
-   * O eixo, mais o consumo e o preço do combustível do veículo — spec 093 D1: sem os dois, nenhuma
+   * O eixo, mais o consumo e o preço do combustível do veículo — spec 094 D1: sem os dois, nenhuma
    * opção recebe o rótulo de mais barata, e `readVehicleContext` devolve `NO_FUEL_BASELINE` em vez
    * de inventar um consumo.
    */

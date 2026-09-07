@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 093 T3: o que a montagem imprime por opção de rota. `resolveRouteOptionSummaries` é puro —
+ * Spec 094 T3: o que a montagem imprime por opção de rota. `resolveRouteOptionSummaries` é puro —
  * este é o contrato do cálculo, no molde de `test/trip/assembly-toll.contract.ts`.
  */
 import { describe, expect, it } from 'bun:test'
@@ -60,7 +60,7 @@ const CAMPINAS: readonly RouteGeometryOption[] = [
   }),
 ]
 
-describe('resumo das opções de rota (spec 093 T3)', () => {
+describe('resumo das opções de rota (spec 094 T3)', () => {
   it('converte metro e segundo para quilômetro e minuto, na ordem que a rota chegou', () => {
     const resumo = resolveRouteOptionSummaries({
       cheapestIndex: 0,
@@ -78,7 +78,7 @@ describe('resumo das opções de rota (spec 093 T3)', () => {
 
   /**
    * ⚠️ O caso medido de Campinas: a mesma rota é a mais rápida e a mais barata — e isso é
-   * informação, não bug (spec 093). `isBestOfBoth` existe para a tela imprimir uma marca só.
+   * informação, não bug (spec 094). `isBestOfBoth` existe para a tela imprimir uma marca só.
    */
   it('marca a mesma rota como a melhor nas duas contas quando ela vence as duas', () => {
     const resumo = resolveRouteOptionSummaries({

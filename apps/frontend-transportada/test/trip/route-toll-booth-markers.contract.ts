@@ -1,10 +1,10 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 093 T4: a praça de pedágio **do trajeto** desenhada no mapa da montagem, com o valor por
+ * Spec 094 T4: a praça de pedágio **do trajeto** desenhada no mapa da montagem, com o valor por
  * eixo ao lado do ícone. A camada `cabine-de-pedagio` do basemap (spec 089) continua mostrando
  * toda cabine da região, sem valor — esta é outra, alimentada pela resposta da rota (spec 090 D4)
- * e filtrada pela opção de rota escolhida (spec 093 T3).
+ * e filtrada pela opção de rota escolhida (spec 094 T3).
  */
 import { readFileSync } from 'node:fs'
 
@@ -50,7 +50,7 @@ function toll(booths: RouteGeometryToll['booths']): RouteGeometryToll {
   }
 }
 
-describe('o valor da praça, formatado (spec 093 D3)', () => {
+describe('o valor da praça, formatado (spec 094 D3)', () => {
   it('imprime a tarifa por eixo quando conhecida', () => {
     expect(formatBoothCharge('12.30')).toBe(formatAmount('12.30'))
   })
@@ -71,7 +71,7 @@ describe('o valor da praça, formatado (spec 093 D3)', () => {
   })
 })
 
-describe('as praças do trajeto, com coordenada e rótulo (spec 093 T4)', () => {
+describe('as praças do trajeto, com coordenada e rótulo (spec 094 T4)', () => {
   it('sem pedágio calculado, não há praça nenhuma para desenhar', () => {
     expect(resolveTollBoothMarkers(null)).toEqual([])
   })
@@ -96,7 +96,7 @@ describe('as praças do trajeto, com coordenada e rótulo (spec 093 T4)', () => 
   })
 })
 
-describe('o desenho da praça do trajeto no mapa (spec 093 T4)', () => {
+describe('o desenho da praça do trajeto no mapa (spec 094 T4)', () => {
   const source = readFileSync(COMPONENT, 'utf8')
 
   it('constrói a fonte a partir das praças da opção de rota escolhida, não do basemap', () => {

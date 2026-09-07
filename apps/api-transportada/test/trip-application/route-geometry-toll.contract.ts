@@ -74,7 +74,7 @@ describe('pedágio na resposta da geometria (spec 090 T7)', () => {
   })
 
   /**
-   * Spec 093 T4: a coordenada viaja da praça até a resposta da rota, para o mapa desenhar o ícone
+   * Spec 094 T4: a coordenada viaja da praça até a resposta da rota, para o mapa desenhar o ícone
    * sobre a praça do trajeto — nunca sobre toda cabine da região (D3).
    */
   test('a praça cobrada carrega a própria coordenada', async () => {

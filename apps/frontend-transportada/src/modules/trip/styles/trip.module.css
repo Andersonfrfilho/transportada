@@ -1342,7 +1342,7 @@
   gap: var(--space-1);
 }
 
-/* O seletor de rota alternativa (spec 093 T3), logo abaixo do bloco de pedágio. */
+/* O seletor de rota alternativa (spec 094 T3), logo abaixo do bloco de pedágio. */
 .routeOptions {
   display: flex;
   flex-direction: column;

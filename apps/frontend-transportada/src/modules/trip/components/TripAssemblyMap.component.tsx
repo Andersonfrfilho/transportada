@@ -121,7 +121,7 @@ export function TripAssemblyMap({
   const [hasBasemap, setHasBasemap] = useState(true)
   /**
    * Qual opção de rota está escolhida — sempre a principal (`0`) até o operador escolher outra
-   * (spec 093 T3). A rota principal continua sendo o traço padrão (spec.md D2): a alternativa é
+   * (spec 094 T3). A rota principal continua sendo o traço padrão (spec.md D2): a alternativa é
    * oferta, nunca troca automática.
    */
   const [selectedOptionIndex, setSelectedOptionIndex] = useState(0)
@@ -219,7 +219,7 @@ export function TripAssemblyMap({
    * ⚠️ Trocar de rota/veículo esquece a escolha anterior — o índice de uma resposta não tem
    * relação nenhuma com o índice da próxima. Sem isto, escolher a alternativa e depois trocar o
    * veículo poderia manter selecionada uma posição que agora aponta para outro caminho, ou para
-   * nenhum (spec 093 T3).
+   * nenhum (spec 094 T3).
    */
   useEffect(() => {
     setSelectedOptionIndex(0)
@@ -288,7 +288,7 @@ export function TripAssemblyMap({
    * tela não imprime tempo nenhum — ADR-0044 §5: não se estima o que o OSRM não respondeu.
    */
   /**
-   * As opções que o roteirizador ofereceu (spec 093 T1) — a principal em `[0]`. `hasChoice` vem
+   * As opções que o roteirizador ofereceu (spec 094 T1) — a principal em `[0]`. `hasChoice` vem
    * pronto da API (`rankRouteOptions`, T2): rota única nunca desenha seletor (D2).
    */
   const routeOptions = geometryQuery.data?.options ?? []
@@ -309,7 +309,7 @@ export function TripAssemblyMap({
   const activeOption = routeOptions[boundedOptionIndex] ?? null
   /**
    * ⚠️ A opção escolhida redesenha o traço **e** alimenta o tempo/pedágio impressos acima do
-   * seletor — nunca só a principal (spec 093 T3). Sem opção nenhuma (rota indisponível), a
+   * seletor — nunca só a principal (spec 094 T3). Sem opção nenhuma (rota indisponível), a
    * resposta crua segue valendo: ela já é `{legs: [], points: [], source: 'unavailable', toll:
    * null}`.
    */
@@ -432,7 +432,7 @@ export function TripAssemblyMap({
         </div>
       )}
       {/*
-        Spec 093 T1/T2/T3: a rota mais rápida e a mais barata, com o custo total de cada uma —
+        Spec 094 T1/T2/T3: a rota mais rápida e a mais barata, com o custo total de cada uma —
         logo abaixo do bloco de pedágio da T7. `hasChoice` vem pronto da API: rota única (três de
         quatro medidas) não desenha seletor nenhum, porque ensinaria que existe escolha onde não
         há (D2).
@@ -505,7 +505,7 @@ export function TripAssemblyMap({
           {/*
             ⚠️ Sem `totalCost` não existe rótulo de mais barata — a razão vem de `costGap`, nunca
             inventada. `NO_FUEL_BASELINE` é o veículo sem consumo/preço; `TOLL_UNKNOWN` é pedágio
-            que alguma opção não soube calcular (spec 093 D1).
+            que alguma opção não soube calcular (spec 094 D1).
           */}
           {costGap === null ? null : (
             <p className={styles.hint}>{t(`assemblyMap.routeOptions.gap.${costGap}`)}</p>

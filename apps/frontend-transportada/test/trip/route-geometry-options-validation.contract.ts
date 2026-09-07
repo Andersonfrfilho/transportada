@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 093 T1: a resposta de `/route-geometry` passa a trazer as alternativas e o ranking — este
+ * Spec 094 T1: a resposta de `/route-geometry` passa a trazer as alternativas e o ranking — este
  * contrato guarda que `routeGeometryFromApi` os lê, e que uma opção malformada zera só as opções,
  * nunca a linha ou o pedágio da principal.
  */
@@ -26,7 +26,7 @@ function opcaoBruta(input: { readonly distanceMeters: number; readonly totalCost
   }
 }
 
-describe('leitura das opções de rota (spec 093 T1)', () => {
+describe('leitura das opções de rota (spec 094 T1)', () => {
   it('lê as opções e o ranking quando a resposta os traz', () => {
     const view = routeGeometryFromApi({
       cheapestIndex: 0,
@@ -109,7 +109,7 @@ describe('leitura das opções de rota (spec 093 T1)', () => {
   })
 
   /** Resposta sem os campos novos (contrato antigo) continua sendo lida como "sem escolha". */
-  it('resposta sem os campos da 093 vira ausência de escolha, não erro', () => {
+  it('resposta sem os campos da 094 vira ausência de escolha, não erro', () => {
     const view = routeGeometryFromApi({
       legs: [{ distanceMetres: 106_600, durationSeconds: 5_160 }],
       points: [PONTO, PONTO],

@@ -34,7 +34,7 @@ export type AxleCount = Readonly<{ count: number; source: AxleCountSource }>
  * Uma praça que a rota passou, na ordem de passagem (spec 090 T7/T8).
  *
  * ⚠️ `latitude`/`longitude` existem só para o mapa desenhar o ícone sobre a praça **do trajeto**
- * (spec 093 D3/T4) — nunca para casar a praça pela coordenada, que continua sendo a identidade do
+ * (spec 094 D3/T4) — nunca para casar a praça pela coordenada, que continua sendo a identidade do
  * nó no backend.
  */
 export type RouteGeometryTollBooth = Readonly<{
@@ -64,14 +64,14 @@ export type RouteGeometryToll = Readonly<{
 }>
 
 /**
- * Por que não há rota mais barata — as duas razões são ausência de dado, nunca empate (spec 093
+ * Por que não há rota mais barata — as duas razões são ausência de dado, nunca empate (spec 094
  * D1): o rótulo simplesmente não é atribuído, e a tela diz qual das duas faltou.
  */
 export const ROUTE_COST_GAPS = ['NO_FUEL_BASELINE', 'TOLL_UNKNOWN'] as const
 export type RouteCostGap = (typeof ROUTE_COST_GAPS)[number]
 
 /**
- * Uma alternativa de rota (spec 093 T1) — a mesma forma que os campos de sempre de `RouteGeometry`
+ * Uma alternativa de rota (spec 094 T1) — a mesma forma que os campos de sempre de `RouteGeometry`
  * (`legs`, `points`, `toll`), mais o que só faz sentido comparando opções entre si.
  */
 export type RouteGeometryOption = Readonly<{
@@ -87,14 +87,14 @@ export type RouteGeometryOption = Readonly<{
 
 export type RouteGeometry = Readonly<{
   /** Um por par de paradas consecutivas. Vazio quando a estrada não veio — nunca estimado.
-   *  ⚠️ Sempre os da rota **principal** — ver `options[0]` para as alternativas (spec 093 T1). */
+   *  ⚠️ Sempre os da rota **principal** — ver `options[0]` para as alternativas (spec 094 T1). */
   legs: readonly RouteGeometryLeg[]
   points: readonly Readonly<{ latitude: string; longitude: string }>[]
   /** `null` quando ninguém pediu pedágio (sem veículo escolhido) ou a rota não anotou os nós. */
   toll: null | RouteGeometryToll
   source: RouteGeometrySource
   /**
-   * As rotas que o roteirizador ofereceu, a principal em `[0]` (spec 093 T1). Campo opcional para
+   * As rotas que o roteirizador ofereceu, a principal em `[0]` (spec 094 T1). Campo opcional para
    * não quebrar literal antigo desta tela — ausente é tratado igual a lista vazia.
    */
   options?: readonly RouteGeometryOption[]
