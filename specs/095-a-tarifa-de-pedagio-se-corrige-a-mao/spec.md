@@ -55,6 +55,38 @@ A linha guarda `actor_user_id` e `observed_on` (a data da tarifa que a pessoa es
 do clique). Reajuste de pedágio é anual, e a tela já imprime a data ao lado do valor desde a 090 —
 ela passa a imprimir **de quem** o valor veio quando for ajuste.
 
+### D3 — A praça tem dois preços, e quem decide qual vale é o veículo
+
+Medido em 2026-09-07, na tabela oficial da **Arteris ViaPaulista**:
+
+```
+São Simão · SP-330 km 281   →  manual R$ 10,50   automático (tag) R$ 9,97
+Santa Rita do Passa Quatro  →  manual R$ 10,50   automático (tag) R$ 9,97
+```
+
+⚠️ **Nós usamos o manual, e quase toda transportadora paga com tag.** São ~5% a mais em cada praça,
+sempre para cima e sempre invisível: na rota Ribeirão → Pirassununga isso é R$ 3,18 por caminhão,
+repetido em toda viagem, no número que decide aceitar ou recusar carga.
+
+Três consequências:
+
+1. **O OSM não tem esse campo.** `charge` traz um valor só, que é o manual. A tarifa automática só
+   vem do ajuste da empresa (D1) ou da importação oficial futura.
+2. **É por praça e por concessionária.** A Intervias publica **um** preço nas páginas de trecho; a
+   ViaPaulista publica **dois**. Não existe desconto global de tag para aplicar por cima — inventar
+   um seria trocar um erro conhecido por um palpite.
+3. **Quem paga com tag é o veículo, não a empresa.** Frota mista é o caso normal: o agregado tem a
+   tag dele, o próprio pode não ter. Por isso a marca é do **veículo**
+   (`fleet_vehicles.has_automatic_toll_payment`), não de configuração da empresa.
+
+**A regra, e a direção do erro é escolhida de propósito:** veículo com cobrança automática usa a
+tarifa automática **quando ela é conhecida**; quando não é, cai para a manual **e a tela diz que
+caiu**. Nunca se aplica desconto estimado.
+
+⚠️ A queda para o manual **superestima** o custo, e é assim que tem de ser: num número que decide
+aceitar carga, errar para cima faz recusar uma viagem que pagaria — errar para baixo faz aceitar uma
+que não paga, e o prejuízo já aconteceu quando alguém percebe.
+
 ## O que aparece na tela
 
 Aba nova em `fleet` — ao lado de **Combustível**, que é o painel gêmeo —, guardada por
@@ -73,6 +105,8 @@ com `0.00` sobem primeiro — são o motivo da página existir.
 
 ## Contratos obrigatórios
 
+- Veículo com cobrança automática e praça **sem** tarifa automática conhecida cai para a manual, e a
+  contagem dessas quedas sai na tela — desconto estimado é proibido.
 - `company_toll_booth_charges` **tem `company_id`** e é assertada no `tenant-safety` — ao contrário
   de `toll_booths`, que continua na lista de exceções.
 - O valor efetivo é `ajuste ?? catálogo`, resolvido num lugar só, no molde de `fuel-price.policy.ts`.
