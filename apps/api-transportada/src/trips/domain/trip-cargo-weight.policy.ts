@@ -26,11 +26,6 @@ export type TripCargoWeightDocument = {
 
 export type ResolveTripCargoWeightParams = {
   readonly documents: readonly TripCargoWeightDocument[]
-  /**
-   * O teto da ficha (`fleet_vehicles.capacity_kg`). ⚠️ **Zero é ausência**, como em toda medida da
-   * ficha — não um veículo que não carrega nada.
-   */
-  readonly maxPayloadKg?: string | null
 }
 
 /**
@@ -59,9 +54,15 @@ export type ResolvedTripCargoWeight = {
  * Uma nota estimada torna **o total** estimado, pela mesma razão do volume: quem carrega decide
  * pelo pior caso, e a marca é o que separa "cabe" de "deve caber".
  */
+/**
+ * ⚠️ **Sai sem teto, sempre.** O teto entra por `withPayloadCeiling`, e é ele que os dois
+ * consumidores chamam — o peso e o veículo são lidos em paralelo, e encadeá-los serializaria duas
+ * consultas por nada. Aceitar `maxPayloadKg` aqui também criava uma segunda porta para a mesma
+ * decisão, e era a porta coberta por teste: quem "consertasse" o percentual por ela não mudaria
+ * tela nenhuma.
+ */
 export function resolveTripCargoWeight({
   documents,
-  maxPayloadKg = null,
 }: ResolveTripCargoWeightParams): null | ResolvedTripCargoWeight {
   let total = 0n
   let weighed = 0
@@ -87,17 +88,18 @@ export function resolveTripCargoWeight({
   return {
     documentsWithoutWeight,
     grossWeightKilograms: formatScaledDecimal(total, WEIGHT_SCALE),
+    maxPayloadKg: null,
+    payloadRatio: null,
     source: estimated ? 'estimated' : 'declared',
-    ...resolvePayloadCeiling({ maxPayloadKg, totalScaled: total }),
   }
 }
 
 /**
- * O teto aplicado a uma view **já montada** — é por onde a viagem e a prévia o acrescentam, porque
- * o peso e o veículo são lidos em paralelo e encadeá-los serializaria duas consultas por nada.
+ * O teto aplicado a uma view **já montada** — o **único** caminho, e é por onde a viagem e a prévia
+ * o acrescentam: o peso e o veículo são lidos em paralelo, e encadeá-los serializaria duas consultas
+ * por nada.
  *
- * ⚠️ A conta vive num lugar só (`resolvePayloadCeiling`): dois caminhos para o mesmo percentual é
- * como uma tela passa a discordar da outra sobre o mesmo caminhão.
+ * ⚠️ Ausência (`null` ou zero) devolve a view intacta, com os dois campos nulos — nunca 0% nem 100%.
  */
 export function withPayloadCeiling(
   input: Readonly<{

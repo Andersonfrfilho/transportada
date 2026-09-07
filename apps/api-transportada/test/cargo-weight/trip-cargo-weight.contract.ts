@@ -3,7 +3,10 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { resolveTripCargoWeight } from '../../src/trips/domain/trip-cargo-weight.policy.js'
+import {
+  resolveTripCargoWeight,
+  withPayloadCeiling,
+} from '../../src/trips/domain/trip-cargo-weight.policy.js'
 
 describe('trip cargo weight contract', () => {
   test('soma as notas e diz que o total é declarado', () => {
@@ -103,11 +106,18 @@ describe('trip cargo weight contract', () => {
  * fiscal, e por isso a montagem somava o peso sem comparar com nada.
  */
 describe('trip cargo weight ceiling contract', () => {
+  /**
+   * ⚠️ O teto entra por `withPayloadCeiling`, **e só por ele**: é o caminho que a viagem e a prévia
+   * usam, porque o peso e o veículo são lidos em paralelo. Uma segunda porta em
+   * `resolveTripCargoWeight` seria a porta coberta por teste e chamada por ninguém.
+   */
   test('divide a carga pelo teto da ficha, e diz qual é o teto', () => {
     expect(
-      resolveTripCargoWeight({
-        documents: [{ grossWeightKilograms: '2100.0000', source: 'xml' }],
+      withPayloadCeiling({
         maxPayloadKg: '4200.0000',
+        view: resolveTripCargoWeight({
+          documents: [{ grossWeightKilograms: '2100.0000', source: 'xml' }],
+        }),
       }),
     ).toEqual({
       documentsWithoutWeight: 0,
@@ -126,9 +136,11 @@ describe('trip cargo weight ceiling contract', () => {
   test('sem teto cadastrado não há percentual, e zero é ausência', () => {
     for (const maxPayloadKg of [null, '0.0000']) {
       expect(
-        resolveTripCargoWeight({
-          documents: [{ grossWeightKilograms: '2100.0000', source: 'xml' }],
+        withPayloadCeiling({
           maxPayloadKg,
+          view: resolveTripCargoWeight({
+            documents: [{ grossWeightKilograms: '2100.0000', source: 'xml' }],
+          }),
         }),
       ).toMatchObject({ maxPayloadKg: null, payloadRatio: null })
     }
@@ -137,10 +149,31 @@ describe('trip cargo weight ceiling contract', () => {
   /** Estouro sai como está: acima de 100% é o que o conferente precisa ver, não um número aparado. */
   test('não apara o estouro do teto', () => {
     expect(
-      resolveTripCargoWeight({
-        documents: [{ grossWeightKilograms: '8400.0000', source: 'xml' }],
+      withPayloadCeiling({
         maxPayloadKg: '4200.0000',
+        view: resolveTripCargoWeight({
+          documents: [{ grossWeightKilograms: '8400.0000', source: 'xml' }],
+        }),
       }),
     ).toMatchObject({ payloadRatio: '2.0000' })
+  })
+})
+
+/**
+ * ⚠️ Um caminho só para o teto. `resolveTripCargoWeight` **não aceita** `maxPayloadKg`: aceitar
+ * criava uma segunda porta para a mesma decisão, e era a porta coberta por teste e chamada por
+ * ninguém — quem "consertasse" o percentual por ela não mudaria tela nenhuma.
+ */
+describe('uma porta só para o teto', () => {
+  test('a soma não conhece teto nenhum', () => {
+    const view = resolveTripCargoWeight({
+      documents: [{ grossWeightKilograms: '2100.0000', source: 'xml' }],
+    })
+
+    expect(view).toMatchObject({ maxPayloadKg: null, payloadRatio: null })
+  })
+
+  test('view ausente continua ausente depois do teto', () => {
+    expect(withPayloadCeiling({ maxPayloadKg: '4200.0000', view: null })).toBeNull()
   })
 })
