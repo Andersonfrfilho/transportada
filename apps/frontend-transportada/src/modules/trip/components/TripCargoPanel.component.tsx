@@ -4,6 +4,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { Icon } from '@/components/ui/icon'
+import { CargoVehicle } from '@/components/ui/cargo-vehicle'
 import { ProgressBar } from '@/components/ui/progress'
 import { VEHICLE_TYPE_ICONS } from '@/modules/shared/vehicleTypeIcon.service'
 
@@ -140,6 +141,12 @@ export function TripCargoPanel({
           })}
         </p>
       )}
+      {/*
+        A silhueta do tipo escolhido, com a carga dentro — o mesmo percentual das medidas acima, em
+        forma de caminhão, e na largura toda do painel: é o desenho que dá a escala entre os tipos,
+        e espremido numa coluna ele viraria um glifo.
+      */}
+      <CargoVehicle percent={percent} vehicleType={vehicleType} />
       {originHint === null ? null : <p className={styles.hint}>{originHint}</p>}
       {weightConcentration === null ? null : (
         <p className={styles.hint}>

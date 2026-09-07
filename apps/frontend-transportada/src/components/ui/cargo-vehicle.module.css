@@ -1,0 +1,337 @@
+.vehicle {
+  width: 100%;
+  /**
+   * ⚠️ Altura fixa, largura livre: o `viewBox` é o da carreta, então um VUC ocupa um terço dele e o
+   * resto fica vazio — **de propósito**, é isso que dá a escala entre os tipos. Sem o teto de altura
+   * o desenho cresceria com a largura do painel e viraria um cartaz.
+   */
+  height: var(--space-12);
+  color: var(--color-copper);
+  overflow: hidden;
+}
+
+/**
+ * ⚠️ O contorno é **linha**, como as pranchas de frota que o mercado desenha: o preenchimento
+ * apagaria a carga que está dentro dele, que é justamente o que este desenho existe para mostrar.
+ */
+.cab,
+.body,
+.chassis {
+  fill: none;
+  stroke: color-mix(in srgb, var(--color-slate) 70%, transparent);
+  stroke-width: 1;
+  stroke-linejoin: round;
+}
+
+.chassis {
+  stroke-width: 1.4;
+}
+
+.wheel {
+  fill: none;
+  stroke: color-mix(in srgb, var(--color-slate) 70%, transparent);
+  stroke-width: 1;
+}
+
+.road {
+  stroke: color-mix(in srgb, var(--color-slate) 34%, transparent);
+  stroke-width: 1;
+  animation: cargoRoad var(--road-dash-duration, 0.04s) linear infinite;
+}
+
+.wheelGroup {
+  /**
+   * ⚠️ `transform-box: fill-box` é o que faz o giro **acontecer**: sem ele a origem do `rotate` é o
+   * canto do sistema de coordenadas do SVG inteiro, e a roda descreve uma órbita gigante em vez de
+   * girar no lugar — que na prática some da tela, e é por isso que ela parecia parada.
+   */
+  transform-box: fill-box;
+  transform-origin: center;
+  /** Anti-horário, o sentido de quem anda para a esquerda. O giro acompanha o ritmo da estrada. */
+  animation: cargoWheel var(--wheel-duration, 0.1s) linear infinite reverse;
+}
+
+.hub {
+  fill: none;
+  stroke: color-mix(in srgb, var(--color-slate) 55%, transparent);
+  stroke-width: 0.8;
+}
+
+.spoke {
+  stroke: color-mix(in srgb, var(--color-slate) 45%, transparent);
+  stroke-width: 0.8;
+}
+
+@keyframes cargoWheel {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.post {
+  stroke: color-mix(in srgb, var(--color-slate) 22%, transparent);
+  stroke-width: 1;
+}
+
+.wire {
+  fill: none;
+  stroke: color-mix(in srgb, var(--color-slate) 15%, transparent);
+  stroke-width: 0.6;
+}
+
+/**
+ * O ambiente corre, e o **ritmo é a carga**: vazio o ciclo é curto e o cenário voa; cheio, ele
+ * arrasta. É a única parte da animação que carrega informação.
+ *
+ * ⚠️ Três camadas com múltiplos da mesma duração — é a paralaxe que dá profundidade. Durações
+ * independentes fariam as camadas dessincronizarem da velocidade que a carga define.
+ */
+.scenery {
+  animation: cargoScenery var(--road-duration, 2s) linear infinite;
+}
+
+.sceneryMid {
+  animation: cargoScenery calc(var(--road-duration, 2s) * 2.4) linear infinite;
+}
+
+.sceneryFar {
+  animation: cargoScenery calc(var(--road-duration, 2s) * 6) linear infinite;
+}
+
+.mountain {
+  fill: color-mix(in srgb, var(--color-slate) 9%, transparent);
+  stroke: color-mix(in srgb, var(--color-slate) 16%, transparent);
+  stroke-width: 0.8;
+}
+
+.cloud circle {
+  fill: color-mix(in srgb, var(--color-slate) 11%, transparent);
+}
+
+/**
+ * ⚠️ O céu segue o tema: **estrela no escuro, nuvem no claro**. O tema tem duas portas — o botão
+ * (`data-theme`) e a media query do sistema —, e as duas precisam do mesmo bloco: é o que o
+ * contrato de tema compara.
+ *
+ * O padrão do produto é o escuro, então a estrela aparece por padrão e o claro a troca.
+ */
+.stars {
+  display: block;
+}
+
+.sceneryMid {
+  display: none;
+}
+
+.star {
+  fill: color-mix(in srgb, var(--color-fog) 55%, transparent);
+  animation: cargoStar 3.2s ease-in-out infinite;
+  animation-delay: calc(var(--star-index, 0) * 137ms);
+}
+
+@keyframes cargoStar {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+
+  50% {
+    opacity: 0.9;
+  }
+}
+
+:root[data-theme='light'] .stars {
+  display: none;
+}
+
+:root[data-theme='light'] .sceneryMid {
+  display: block;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) .stars {
+    display: none;
+  }
+
+  :root:not([data-theme='dark']) .sceneryMid {
+    display: block;
+  }
+}
+
+/** O balanço da suspensão: solto no caminhão vazio, assentado no carregado. */
+.rig {
+  /**
+   * O balanço da suspensão: sobe, desce e **pende**. Só o vaivém vertical lê como elevador; é a
+   * inclinação que faz o eixo trabalhar.
+   */
+  transform-box: fill-box;
+  transform-origin: 50% 90%;
+  animation: cargoSway 1.15s ease-in-out infinite;
+}
+
+/**
+ * A carga acompanha o chassi com um atraso — é ela que está solta no baú. O sacolejo de cada caixa
+ * mora no `.box`; aqui é só o conjunto respondendo à suspensão.
+ */
+.cargo {
+  animation: cargoShake 1.15s ease-in-out infinite;
+  animation-delay: 0.09s;
+}
+
+@keyframes cargoShake {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(calc(var(--sway-amplitude, 0.6px) * 0.35));
+  }
+}
+
+/**
+ * A caixa entra pela porta e assenta: o índice escalona a entrada para a carga parecer carregada
+ * uma a uma. Esta animação roda **uma vez** — o que fica em laço é o mundo lá fora, não a carga.
+ */
+.box {
+  fill: currentColor;
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation:
+    cargoBoxIn 0.42s ease-out forwards,
+    cargoBoxShake 1.05s ease-in-out infinite;
+  /** A entrada escalona pelo índice; o sacolejo desencontra a fase pelo mesmo índice. */
+  animation-delay: calc(var(--box-index, 0) * 40ms), calc(var(--box-index, 0) * -37ms);
+}
+
+.vehicleOver .box {
+  color: var(--color-alert);
+}
+
+.glass {
+  fill: color-mix(in srgb, var(--color-slate) 22%, transparent);
+  stroke: color-mix(in srgb, var(--color-slate) 55%, transparent);
+  stroke-width: 0.6;
+}
+
+.pipe {
+  stroke: color-mix(in srgb, var(--color-slate) 60%, transparent);
+  stroke-width: 1.1;
+}
+
+.smoke {
+  fill: color-mix(in srgb, var(--color-slate) 34%, transparent);
+  opacity: 0;
+  /**
+   * ⚠️ `transform-box: fill-box` é o que faz o baforada **subir**. Sem ele o `scale` acontece em
+   * torno da origem `0,0` do SVG, e escalar um círculo que está a 350 unidades da origem o empurra
+   * para baixo e para a direita muito mais do que a translação o levanta — a fumaça descia.
+   */
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: cargoSmoke 1.6s ease-out infinite;
+  animation-delay: calc(var(--puff-index, 0) * 0.5s);
+}
+
+/**
+ * ⚠️ Deslocamento **negativo**: `stroke-dashoffset` positivo empurra o padrão para trás, e a pista
+ * corria contra o cenário. Um período por ciclo (6 + 5) é o que fecha o laço sem salto.
+ */
+@keyframes cargoRoad {
+  to {
+    stroke-dashoffset: -11;
+  }
+}
+
+@keyframes cargoScenery {
+  to {
+    transform: translateX(587px);
+  }
+}
+
+@keyframes cargoSway {
+  0% {
+    transform: translateY(0) rotate(calc(var(--sway-tilt, 0.5deg) * -1));
+  }
+
+  50% {
+    transform: translateY(var(--sway-amplitude, 0.6px)) rotate(var(--sway-tilt, 0.5deg));
+  }
+
+  100% {
+    transform: translateY(0) rotate(calc(var(--sway-tilt, 0.5deg) * -1));
+  }
+}
+
+/**
+ * ⚠️ A entrada anima **só a opacidade**. Ela animava `transform` com `forwards`, e a propriedade
+ * ficava presa nela para sempre — o balanço da caixa não tinha por onde acontecer.
+ */
+@keyframes cargoBoxIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: calc(0.45 + var(--box-tone, 1) * 0.55);
+  }
+}
+
+/**
+ * Cada caixa sacode com a **sua** fase: em uníssono a carga vira um bloco só subindo e descendo.
+ *
+ * ⚠️ **Sutil de propósito.** É carga amarrada num baú, não bagunça saltando: o movimento tem de ser
+ * o suficiente para a carga não parecer pintada, e pouco o bastante para ninguém reparar nele
+ * enquanto lê o número ao lado.
+ */
+@keyframes cargoBoxShake {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+
+  50% {
+    transform: translate(0.1px, -0.35px);
+  }
+}
+
+@keyframes cargoSmoke {
+  0% {
+    opacity: 0.5;
+    transform: translate(0, 0) scale(0.5);
+  }
+
+  100% {
+    opacity: 0;
+    /**
+     * ⚠️ **Sobe**, e o vento a leva um pouco para trás — trás é a direita, porque o veículo aponta
+     * para a esquerda. Ela saía quase na horizontal, e fumaça que não sobe não lê como fumaça.
+     */
+    transform: translate(6px, -22px) scale(2.6);
+  }
+}
+
+/** Quem pediu menos movimento vê o caminhão parado e a carga pronta — nada se perde. */
+@media (prefers-reduced-motion: reduce) {
+  .box {
+    opacity: calc(0.45 + var(--box-tone, 1) * 0.55);
+    animation: none;
+  }
+
+  .road,
+  .cargo,
+  .star,
+  .scenery,
+  .sceneryMid,
+  .sceneryFar,
+  .rig,
+  .smoke,
+  .wheelGroup {
+    animation: none;
+  }
+
+  .smoke {
+    opacity: 0;
+  }
+}

@@ -23,6 +23,11 @@ const DATA_GEOMETRY_PATHS: readonly string[] = [
    * é a promessa do desenho, então ele não pode virar glifo de tamanho fixo.
    */
   'src/components/ui/scale-plan.tsx',
+  /**
+   * Silhueta do veículo com a carga dentro: o contorno muda com o tipo escolhido e a quantidade de
+   * caixas sai da ocupação, em tempo de execução. Não há glifo a declarar antes.
+   */
+  'src/components/ui/cargo-vehicle.tsx',
 ]
 
 function readApplicationFile(filePath: string): Promise<string> {

@@ -383,10 +383,16 @@ export function TripDetail({ linkForm, vehicles, workspace }: TripDetailProps) {
         })}
       />
 
+      {/*
+        ⚠️ O tipo do veículo vem da frota carregada, não da viagem: o corpo do detalhe traz o
+        `vehicleId` e nada mais. Sem ele a silhueta cai no contorno genérico — e quem abre o detalhe
+        de um truck via um desenho de VUC, com a escala errada entre os tipos.
+      */}
       <TripCargoPanel
         cargoWeight={trip.cargoWeight ?? null}
         layout={trip.cargoLayout}
         occupancy={trip.occupancy}
+        vehicleType={vehicles.find((entry) => entry.id === trip.vehicleId)?.vehicleType ?? ''}
       />
 
       <TripRouteMap
