@@ -77,7 +77,21 @@ async function chooseOption(
   input: Readonly<{ name: string; option: string }>,
 ): Promise<void> {
   await page.getByRole('button', { exact: true, name: input.name }).click()
-  await page.getByRole('option', { exact: true, name: input.option }).click()
+
+  /**
+   * ⚠️ **A opção existe antes de estar parada, e clicar nesse intervalo é corrida perdida.** O
+   * painel é renderizado em portal e posicionado por `useFloatingLayer` depois de montado: o
+   * Playwright resolve o `option`, tenta clicar, e recebe "element is not stable" seguido de
+   * "element was detached from the DOM" até estourar os 30s. Ele falhou num run e passou no run
+   * seguinte **do mesmo commit** — é carga do runner decidindo, não o código.
+   *
+   * Esperar o elemento ficar visível dá ao posicionamento o quadro de que ele precisa, e não
+   * esconde defeito: se o painel nunca abrir, o `waitFor` estoura com a causa em vez de um clique
+   * que erra o alvo.
+   */
+  const option = page.getByRole('option', { exact: true, name: input.option })
+  await option.waitFor({ state: 'visible' })
+  await option.click()
 }
 
 test('admin configures freight rules on mobile without horizontal overflow', async ({ page }) => {
