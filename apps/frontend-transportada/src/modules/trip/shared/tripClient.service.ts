@@ -483,7 +483,13 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         }),
         dependencies,
         method: 'POST',
-        path: '/cargo-preview',
+        /**
+         * ⚠️ **Com o prefixo `/trips`**, ao contrário de `/route-geometry` logo abaixo: a rota da
+         * prévia mora em `${API_TRIPS_PATH}/cargo-preview` e a da geometria por pontos é de raiz.
+         * Sem o prefixo o navegador levava 403 no preflight, a requisição falhava, `preview` ficava
+         * `null` — e o painel de carga da montagem simplesmente não renderizava, sem erro na tela.
+         */
+        path: `${TRIPS_PATH}/cargo-preview`,
       })
       return adapters.tripCargoPreviewFromApi(readEnvelopeData(response))
     },

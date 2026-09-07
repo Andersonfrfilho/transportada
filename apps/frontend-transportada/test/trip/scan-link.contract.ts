@@ -1,4 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, test } from 'bun:test'
 
 import { loadFutureModule, NFE_ACCESS_KEY } from './trip.fixture'
@@ -235,5 +237,30 @@ describe('trip scan sequence contract', () => {
       expect(ptBrLocale.detail).toHaveProperty(key)
       expect(englishLocale.detail).toHaveProperty(key)
     }
+  })
+})
+
+/**
+ * ⚠️ O caminho de cada rota, conferido contra o que a API publica. Este par passou meses errado:
+ * o cliente pedia `POST /cargo-preview` na raiz e a rota mora em `/trips/cargo-preview`, então o
+ * navegador levava 403 no preflight, a requisição falhava e `preview` ficava `null` — e o painel de
+ * carga da montagem **não renderizava, sem erro nenhum na tela**. Nenhum teste pegava: o contrato
+ * da API confere o pathname dela, e o do cliente nunca conferiu o que ele monta.
+ *
+ * A geometria por pontos é o contraexemplo que torna o engano fácil: ela **é** de raiz.
+ */
+describe('trip client paths', () => {
+  const source = readFileSync(
+    new URL('src/modules/trip/shared/tripClient.service.ts', APPLICATION_ROOT),
+    'utf8',
+  )
+
+  test('pede a prévia de carga sob /trips, como a API a publica', () => {
+    expect(source).toContain('path: `${TRIPS_PATH}/cargo-preview`')
+    expect(source).not.toContain("path: '/cargo-preview'")
+  })
+
+  test('mantém a geometria por pontos na raiz, que é onde a API a publica', () => {
+    expect(source).toContain("path: '/route-geometry'")
   })
 })
