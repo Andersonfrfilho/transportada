@@ -522,3 +522,27 @@ bun run --cwd apps/frontend-transportada test
 Nenhuma decisão própria além do reaproveitamento descrito acima (extrair `orderStopKeys` de dentro
 de `buildCargoPreviewStops` em vez de duplicar o critério de ordenação) — o briefing já previa essa
 armadilha e pedia exatamente esse reuso.
+
+## Conferência independente da T6B (2026-09-07)
+
+Rodado por esta sessão, sem confiar no relatório:
+
+```
+bun test trip-valuation + cargo-volume + toll-booths → 190 pass, 0 fail
+typecheck + lint + format:check (raiz, as duas apps) → exit 0
+```
+
+Conferido também o que o briefing chamava de armadilha: **um agrupador só**.
+`trip-valuation.query.ts` importa `resolvePreviewStopKeys` de `cargo-preview.policy.ts`, a mesma
+regra que `buildCargoPreviewStops` usa — não há segundo critério.
+
+⚠️ **Armadilha de nome, encontrada na conferência e deixada como está.** O `stopOrder` enviado pelo
+frontend é `quickCreate.cityOrder`, do tipo `AssemblyCityOrder`, manipulado por `moveCity({code})` —
+todo o vocabulário diz **cidade**. E ele carrega **chave de endereço**: `resolveStopOrder` casa por
+`stop.addressKey`, e é o comentário dele que registra isso ("casa por `addressKey`, não por cidade:
+duas paradas no mesmo município teriam a mesma cidade e ordens diferentes").
+
+Se o nome fosse verdade, o agrupamento por endereço do servidor não casaria com nada e a distância
+sairia sobre a ordem de chegada da nota — silenciosamente, porque o resultado continuaria plausível.
+Não renomeei: o alcance é grande e não é desta spec. Fica escrito para quem mexer nisso não concluir
+pelo nome.
