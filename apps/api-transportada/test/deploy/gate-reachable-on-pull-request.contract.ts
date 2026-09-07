@@ -17,6 +17,20 @@ const workflow = readFileSync(
   'utf8',
 )
 
+/**
+ * ⚠️ **As diretivas do job, sem comentário — e isto não é preciosismo.** A primeira versão deste
+ * teste casava o texto do bloco inteiro, e o comentário que *explica* a condição satisfazia a
+ * asserção sobre a condição: apagar o `if:` do gate deixava o teste verde, porque as palavras
+ * continuavam ali, num comentário. Um teste que o próprio comentário satisfaz não guarda nada.
+ *
+ * `jobBlock` também alcança os comentários do job seguinte, que moram antes do nome dele.
+ */
+function jobDirectives(name: string): readonly string[] {
+  return jobBlock(name)
+    .split('\n')
+    .filter((line) => line.startsWith('    ') && !line.trimStart().startsWith('#'))
+}
+
 function jobBlock(name: string): string {
   const from = workflow.indexOf(`\n  ${name}:\n`)
   const rest = workflow.slice(from + 1)
@@ -34,12 +48,22 @@ describe('o gate é alcançável em pull request', () => {
     expect(block).toInclude('always()')
   })
 
-  /** O `gate` pende do `changes`, e é assim que ele herda a alcançabilidade. */
-  test('o gate pende do `changes`, nunca do `target`', () => {
-    const block = jobBlock('gate')
+  /**
+   * ⚠️ **Este teste afirmava a premissa errada, e por isso ficou verde enquanto o gate pulava.**
+   * Ele dizia que o gate "herda a alcançabilidade" do `changes` — e no GitHub Actions isso não
+   * existe: `always()` resgata o job onde está escrito, nunca quem depende dele. Job sem `if:`
+   * cujo ancestral **transitivo** foi pulado é pulado junto. Medido no run 34064539851, que rodou
+   * com o `changes` já corrigido e pulou o gate assim mesmo.
+   *
+   * Agora o que se afirma é a condição que decide, não a forma do bloco.
+   */
+  test('o gate tem condição própria, e ela não depende do `target`', () => {
+    const directives = jobDirectives('gate')
 
-    expect(block).toInclude('needs: changes')
-    expect(block).not.toInclude('target')
+    expect(directives.filter((line) => line.trimStart().startsWith('needs:'))).toEqual([
+      '    needs: changes',
+    ])
+    expect(directives).toContain("    if: always() && needs.changes.result == 'success'")
   })
 
   /**

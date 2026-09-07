@@ -151,6 +151,14 @@ jobs:
 
   gate:
     needs: changes
+    # ⚠️ **`always()` resgata o job onde está escrito, não quem depende dele.** O `changes` ganhou o
+    # dele e mesmo assim o gate continuou pulando em PR: um job sem `if:` cujo ancestral
+    # **transitivo** foi pulado é pulado junto, e o `target` pula em todo PR por desenho. Medido no
+    # run 34064539851, que rodou já com o `changes` corrigido e pulou o gate assim mesmo.
+    #
+    # `needs.changes.result == 'success'` importa: `always()` sozinho faria o gate rodar até quando
+    # a detecção de mudanças falhou, e ele decidiria sobre uma lista de apps que ninguém apurou.
+    if: always() && needs.changes.result == 'success'
     uses: ./.github/workflows/ci.yml
     with:
       apps: ${{ needs.changes.outputs.apps }}
