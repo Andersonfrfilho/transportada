@@ -308,6 +308,13 @@ async function loadMeasuredItems(
         boxVolumeM3: boxVolume,
         boxWidthMm: nfePackageBoxes.widthMm,
         documentId: nfeProducts.documentId,
+        /** Spec 094: as restrições que decidem onde a caixa pode ir. Nulo é "não informado". */
+        isFragile: nfePackageBoxes.isFragile,
+        isStackable: nfePackageBoxes.isStackable,
+        keepUpright: nfePackageBoxes.keepUpright,
+        /** O nome que a planta imprime, e que a linha do excedente usa para nomear o que não coube. */
+        label: nfeProducts.description,
+        maxStackCount: nfePackageBoxes.maxStackCount,
         quantity: nfeProducts.quantity,
         unitsPerBox: nfePackageBoxes.unitsPerBox,
       })
@@ -370,7 +377,13 @@ async function loadMeasuredItems(
       {
         count: countMeasuredBoxes(item),
         heightMm: row.boxHeightMm,
+        /** Spec 094: as restrições viajam com a caixa — nulas até alguém informar. */
+        isFragile: row.isFragile,
+        isStackable: row.isStackable,
+        keepUpright: row.keepUpright,
+        label: row.label,
         lengthMm: row.boxLengthMm,
+        maxStackCount: row.maxStackCount,
         widthMm: row.boxWidthMm,
       },
     ])

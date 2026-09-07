@@ -12,7 +12,19 @@ const MILLIMETRES_PER_METRE = 1000
 export type CargoPlanBox = {
   readonly count: number
   readonly heightMm: number | null
+  /**
+   * Spec 094: as restrições que decidem **onde** a caixa pode ir. `null` é "ninguém informou", nunca
+   * "pode" — e a diferença aparece no desenho, que empilha e marca o arranjo como presumido.
+   *
+   * Opcionais porque a contagem de camadas da 088 não as consulta: ela conta área sobre área, e
+   * exigir os campos ali obrigaria toda chamada antiga a fingir que sabe.
+   */
+  readonly isFragile?: boolean | null
+  readonly isStackable?: boolean | null
+  readonly keepUpright?: boolean | null
+  readonly label?: string
   readonly lengthMm: number | null
+  readonly maxStackCount?: number | null
   readonly widthMm: number | null
 }
 

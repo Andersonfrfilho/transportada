@@ -213,6 +213,32 @@ export type TripOccupancy = Readonly<{
  * Spec 076: a fatia do baú de cada parada. ⚠️ Representação proporcional, **não plano de estiva** —
  * a NF-e não traz dimensão de volume, e não há como dizer onde cada caixa vai.
  */
+export type TripPlacedBox = Readonly<{
+  depthM: number
+  heightM: number
+  isFragile: boolean
+  label: string
+  layer: number
+  /** O porquê daquela posição, em vocabulário fechado — é o que permite discordar do algoritmo. */
+  reasons: readonly string[]
+  source: 'estimated' | 'measured'
+  stopSequence: number
+  widthM: number
+  xM: number
+  yM: number
+}>
+
+export type TripCargoPlacement = Readonly<{
+  layers: readonly Readonly<{
+    boxes: readonly TripPlacedBox[]
+    heightM: number
+    index: number
+  }>[]
+  /** A pior origem manda: uma caixa presumida torna presumido o arranjo inteiro. */
+  source: 'estimated' | 'measured'
+  unplaced: readonly Readonly<{ count: number; label: string; reason: string }>[]
+}>
+
 export type TripCargoLayout = Readonly<{
   /**
    * As fileiras do baú, do fundo para a porta. A parada dona aparece em fileiras **seguidas**, e a
@@ -240,6 +266,11 @@ export type TripCargoLayout = Readonly<{
    * medidas — e aí a tela mantém as fileiras da 085 e não promete metro nenhum.
    */
   bedLengthM: null | string
+  /**
+   * Spec 094: o arranjo camada por camada. `null` sem baú medido — a mesma regra da 088, e pelo
+   * mesmo motivo: sem escala o desenho não pode prometer metro.
+   */
+  placement: TripCargoPlacement | null
   bedWidthM: null | string
   /** Metros de baú vazios entre a carga e a porta. Espelha `freeRows`, agora em metro. */
   freeDepthM: null | string

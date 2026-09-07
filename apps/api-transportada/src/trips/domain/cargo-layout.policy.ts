@@ -9,6 +9,11 @@ import {
   type CargoPlanLayers,
 } from './cargo-plan.policy.js'
 import {
+  resolveCargoPlacement,
+  type CargoPlacement,
+  type PlacementBox,
+} from './cargo-placement.policy.js'
+import {
   divideHalfUp,
   formatScaledDecimal,
   parseScaledDecimal,
@@ -103,6 +108,11 @@ export type CargoLayoutRow = {
 export type ResolvedCargoLayout = {
   /** O comprimento interno do baú, da ficha. `null` sem as três medidas — e aí não há planta. */
   readonly bedLengthM: string | null
+  /**
+   * Spec 094: o arranjo camada por camada. `null` quando o baú não tem medida — a mesma regra da
+   * 088 D2, e pelo mesmo motivo: sem escala o desenho não pode prometer metro.
+   */
+  readonly placement: CargoPlacement | null
   /** A largura interna, que é a outra dimensão da planta vista de cima. Anda junto com a de cima. */
   readonly bedWidthM: string | null
   /** Metros de baú vazios entre a carga e a porta. Espelha `freeRows`, agora em metro. */
@@ -334,6 +344,12 @@ export function resolveCargoLayout(input: {
 
   return {
     bedLengthM: bedKnown ? formatScaledDecimal(bedLength, LENGTH_SCALE) : null,
+    /**
+     * ⚠️ A ordem das paradas aqui é a **de carregamento** (`ordered`), a mesma das fileiras: a
+     * última entrega no fundo. Passar as paradas na ordem de entrega faria a planta desenhar o
+     * inverso do que o painel acima dela mostra, e as duas ficariam brigando na mesma tela.
+     */
+    placement: resolveCargoPlacement({ bed, boxes: toPlacementBoxes(ordered) }),
     bedWidthM:
       bed === null || !bedKnown ? null : formatScaledDecimal(toLength(bed.widthM), LENGTH_SCALE),
     freeDepthM: bedKnown
@@ -355,4 +371,28 @@ export function resolveCargoLayout(input: {
       .filter((stop) => stop.volumeM3 === null)
       .map((stop) => ({ documentCount: stop.documentsWithoutVolume, label: stop.label })),
   }
+}
+
+/**
+ * As caixas de todas as paradas, na ordem de carregamento, prontas para o empacotador.
+ *
+ * ⚠️ A `sequence` da parada viaja junto porque é ela que o desenho colore — a paleta da planta é a
+ * mesma das faixas, e sem a sequência as duas mostrariam cores diferentes para a mesma parada.
+ */
+function toPlacementBoxes(stops: readonly CargoLayoutStop[]): readonly PlacementBox[] {
+  return stops.flatMap((stop) =>
+    (stop.boxes ?? []).map((box) => ({
+      count: box.count,
+      heightMm: box.heightMm,
+      isFragile: box.isFragile ?? null,
+      isStackable: box.isStackable ?? null,
+      keepUpright: box.keepUpright ?? null,
+      label: box.label ?? stop.label,
+      lengthMm: box.lengthMm,
+      maxStackCount: box.maxStackCount ?? null,
+      source: 'measured' as const,
+      stopSequence: stop.sequence,
+      widthMm: box.widthMm,
+    })),
+  )
 }

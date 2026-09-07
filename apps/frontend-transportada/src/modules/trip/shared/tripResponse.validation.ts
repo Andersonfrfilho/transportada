@@ -674,10 +674,32 @@ function isCargoLayout(value: unknown): boolean {
      * Um só preenchido seria uma planta com metade da escala, desenhada mesmo assim.
      */
     isNullableString(value.bedLengthM) &&
+    /**
+     * Spec 094: o arranjo é opcional na resposta — API antiga não o serve, e recusar a resposta
+     * inteira por causa dele apagaria a planta que já funciona.
+     */
+    (value.placement === undefined || value.placement === null || isPlacement(value.placement)) &&
     isNullableString(value.bedWidthM) &&
     isNullableString(value.freeDepthM) &&
     isNullableString(value.overflowDepthM) &&
     Array.isArray(value.stopsWithoutVolume)
+  )
+}
+
+/**
+ * O arranjo camada por camada. Valida a forma, não cada caixa: são até 600, e percorrer todas em
+ * cada resposta custaria mais que desenhá-las.
+ */
+function isPlacement(value: unknown): boolean {
+  if (!isRecord(value)) return false
+
+  return (
+    Array.isArray(value.layers) &&
+    value.layers.every(
+      (layer) => isRecord(layer) && Array.isArray(layer.boxes) && isUnsignedInteger(layer.index),
+    ) &&
+    Array.isArray(value.unplaced) &&
+    isOneOf(value.source, TRIP_OCCUPANCY_SOURCES)
   )
 }
 

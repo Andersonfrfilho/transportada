@@ -34,6 +34,8 @@ const LAYOUT: TripCargoLayout = {
   freeRows: 6,
   occupancyKnown: true,
   orderIsBinding: true,
+  /** Spec 094: sem arranjo é o caso da API antiga, e a planta de faixas continua valendo. */
+  placement: null,
   overflowDepthM: '0.000',
   overflowM3: '0.000000',
   rows: [],
