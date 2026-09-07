@@ -510,8 +510,18 @@
 }
 
 /* O input nativo de arquivo não se estiliza: o botão é quem aparece, e ele o aciona. */
+/**
+ * O input continua escondido, mas **na tabulação**: `display: none` o tirava do fluxo de foco, e
+ * quem navega por teclado não alcançava o seletor de foto — a tela fica idêntica dos dois jeitos,
+ * que é o que torna esse defeito difícil de ver.
+ */
 .hiddenInput {
-  display: none;
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
 }
 
 /* O recorte é sugestão: ele aparece abaixo do avatar, com o que aprovar e o que descartar. */

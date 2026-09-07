@@ -2,6 +2,7 @@
 import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { FileField } from '@/components/ui/file-field'
 import { Icon } from '@/components/ui/icon'
 
 import styles from '../styles/nfeWorkspace.module.css'
@@ -23,13 +24,16 @@ type NfeUploadPanelProps = Readonly<{
 export function NfeUploadPanel(props: NfeUploadPanelProps) {
   const { t } = useTranslation('nfeWorkspace')
   const fileInput = useRef<HTMLInputElement>(null)
+  /** Vários XML de uma vez: a caixa mostra a contagem, porque a lista inteira não cabe na linha. */
+  const selectedNames =
+    props.selectedFiles.length === 0
+      ? ''
+      : props.selectedFiles.length === 1
+        ? (props.selectedFiles[0]?.name ?? '')
+        : t('upload.selectedCount', { count: props.selectedFiles.length })
 
   if (!props.canImport) {
     return null
-  }
-
-  function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
-    props.onFileSelection(Array.from(event.target.files ?? []))
   }
 
   return (
@@ -39,31 +43,20 @@ export function NfeUploadPanel(props: NfeUploadPanelProps) {
         <p>{t('upload.subtitle')}</p>
       </div>
       <div className={styles.actionRow}>
-        <label className={styles.fileField}>
-          <span>{t('upload.files')}</span>
-          <input
-            accept=".xml,.zip,application/xml,application/zip"
-            disabled={!props.canImport || props.uploadPending}
-            key={props.fileInputKey}
-            multiple
-            ref={fileInput}
-            onChange={handleFileChange}
-            type="file"
-          />
-          <button
-            className={styles.fileSelectButton}
-            disabled={props.uploadPending}
-            type="button"
-            onClick={(event) => {
-              event.preventDefault()
-              event.stopPropagation()
-              fileInput.current?.click()
-            }}
-          >
-            <Icon name="upload" />
-            {t('upload.select')}
-          </button>
-        </label>
+        <FileField
+          multiple
+          accept=".xml,.zip,application/xml,application/zip"
+          actionLabel={t('upload.select')}
+          className={styles.fileField}
+          disabled={!props.canImport || props.uploadPending}
+          inputRef={fileInput}
+          key={props.fileInputKey}
+          label={t('upload.files')}
+          placeholder={t('upload.noFileChosen')}
+          {...(selectedNames === '' ? {} : { fileName: selectedNames })}
+          onSelect={() => undefined}
+          onSelectMany={(files) => props.onFileSelection([...files])}
+        />
         <button
           className={styles.primaryAction}
           disabled={!props.canImport || props.uploadPending || props.selectedFiles.length === 0}

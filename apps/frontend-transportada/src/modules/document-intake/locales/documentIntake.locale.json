@@ -33,5 +33,7 @@
   "remarksTitle": "Confira à mão",
   "scanned": "Este PDF é imagem digitalizada, sem texto para ler. O cadastro à mão continua disponível.",
   "title": "Preencher pelo documento",
+  "chooseFile": "Escolher arquivo",
+  "noFileChosen": "Nenhum arquivo escolhido",
   "unknown": "Não reconhecemos este documento. O formulário continua em branco, como sempre foi."
 }

@@ -1,0 +1,74 @@
+.field {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.label {
+  font-size: var(--field-font-size);
+}
+
+.optional {
+  color: var(--color-slate);
+  font-style: normal;
+  margin-inline-start: var(--space-1);
+}
+
+/**
+ * O input nativo continua no fluxo de foco e do leitor de tela — `display: none` o tiraria da
+ * tabulação e o rótulo ficaria sem campo para nomear. O que sai de vista é só o botão do navegador,
+ * que é o que destoa: ele não herda altura, fonte nem cor de token nenhum.
+ */
+.input {
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+.control {
+  align-items: center;
+  background: color-mix(in srgb, var(--color-asphalt) 84%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 32%, transparent);
+  color: var(--color-fog);
+  cursor: pointer;
+  display: flex;
+  font-size: var(--field-font-size);
+  gap: var(--space-3);
+  min-height: var(--control-height);
+  min-width: 0;
+  padding: var(--field-padding);
+}
+
+.field:has(.input:focus-visible) .control {
+  border-color: var(--color-copper);
+  outline: 2px solid var(--color-copper);
+  outline-offset: 2px;
+}
+
+.field:has(.input:disabled) .control {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.action {
+  align-items: center;
+  color: var(--color-copper);
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--space-2);
+}
+
+/** O nome do arquivo é o que cresce: ele trunca para o botão nunca ser empurrado para fora. */
+.fileName {
+  color: var(--color-slate);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fileNameSelected {
+  color: var(--color-fog);
+}

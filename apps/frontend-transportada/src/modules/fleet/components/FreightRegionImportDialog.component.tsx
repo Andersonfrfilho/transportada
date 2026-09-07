@@ -1,9 +1,9 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { ChangeEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { FileField } from '@/components/ui/file-field'
 import { Icon } from '@/components/ui/icon'
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
@@ -26,18 +26,23 @@ type ImportFileFieldProps = Readonly<{
 function ImportFileField({ hint, label, name, onPick }: ImportFileFieldProps) {
   const { t } = useTranslation('fleet')
 
-  function handleChange(event: ChangeEvent<HTMLInputElement>): void {
-    const file = event.target.files?.[0]
+  function handleSelect(file: File | undefined): void {
     if (file === undefined) return
     void onPick(file)
   }
 
   return (
-    <label className={styles.importField}>
-      <span>{label}</span>
-      <input accept=".csv,.txt" onChange={handleChange} type="file" />
+    <div className={styles.importField}>
+      <FileField
+        accept=".csv,.txt"
+        actionLabel={t('regionImport.chooseFile')}
+        label={label}
+        placeholder={t('regionImport.noFileChosen')}
+        {...(name === '' ? {} : { fileName: name })}
+        onSelect={handleSelect}
+      />
       <span className={styles.hint}>{name === '' ? hint : t('regionImport.picked', { name })}</span>
-    </label>
+    </div>
   )
 }
 

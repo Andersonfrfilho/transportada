@@ -33,5 +33,7 @@
   "remarksTitle": "Check by hand",
   "scanned": "This PDF is a scanned image with no text to read. Manual entry is still available.",
   "title": "Fill from the document",
+  "chooseFile": "Choose file",
+  "noFileChosen": "No file chosen",
   "unknown": "We did not recognise this document. The form stays blank, as it always was."
 }

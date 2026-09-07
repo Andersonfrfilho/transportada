@@ -664,6 +664,8 @@
     "failed": "The import did not go through. Check the columns of both files and try again.",
     "hint": "Both files go up together: the routes file says which routes and cities exist, the rates file says what each class is paid. A route missing from the file is deactivated, never deleted.",
     "picked": "Picked: {{name}}",
+    "chooseFile": "Choose file",
+    "noFileChosen": "No file chosen",
     "rates": "Rates file",
     "ratesHint": "One row per route, with one column per vehicle class.",
     "regions": "Routes file",

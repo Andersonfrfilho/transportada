@@ -1,6 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useState, type ChangeEvent, type DragEvent } from 'react'
+import { useState, type DragEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { FileField } from '@/components/ui/file-field'
 
 import { useDocumentIntake } from '../hooks/useDocumentIntake.hook'
 import type { DocumentIntakeResult } from '../shared/documentIntake.service'
@@ -21,9 +23,12 @@ export function DocumentIntakeDropZone({ onApply }: DocumentIntakeDropZoneProps)
   const { t } = useTranslation('documentIntake')
   const intake = useDocumentIntake(onApply)
   const [isDragging, setIsDragging] = useState(false)
+  /** O nome fica no estado porque o arquivo também chega por arrastar, e aí não há input para ler. */
+  const [fileName, setFileName] = useState<string | undefined>(undefined)
 
   function handleFile(file: File | undefined): void {
     if (file === undefined) return
+    setFileName(file.name)
     void intake.read(file)
   }
 
@@ -31,10 +36,6 @@ export function DocumentIntakeDropZone({ onApply }: DocumentIntakeDropZoneProps)
     event.preventDefault()
     setIsDragging(false)
     handleFile(event.dataTransfer.files[0])
-  }
-
-  function handleChange(event: ChangeEvent<HTMLInputElement>): void {
-    handleFile(event.target.files?.[0])
   }
 
   return (
@@ -47,10 +48,15 @@ export function DocumentIntakeDropZone({ onApply }: DocumentIntakeDropZoneProps)
       }}
       onDrop={handleDrop}
     >
-      <label className={styles.fileField}>
-        <span>{t('title')}</span>
-        <input accept={PDF_MEDIA_TYPE} type="file" onChange={handleChange} />
-      </label>
+      <FileField
+        accept={PDF_MEDIA_TYPE}
+        actionLabel={t('chooseFile')}
+        className={styles.fileField}
+        label={t('title')}
+        placeholder={t('noFileChosen')}
+        {...(fileName === undefined ? {} : { fileName })}
+        onSelect={handleFile}
+      />
       <p className={styles.hint}>{t('dropHint')}</p>
       <DocumentIntakeStatus result={intake.result} status={intake.status} />
     </div>

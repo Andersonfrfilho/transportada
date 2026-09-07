@@ -668,6 +668,8 @@
     "failed": "A importação não passou. Confira as colunas dos dois arquivos e tente de novo.",
     "hint": "Os dois arquivos sobem juntos: o de rotas diz quais rotas e cidades existem, o de valores diz quanto cada classe recebe. Rota que não estiver no arquivo é inativada, nunca apagada.",
     "picked": "Escolhido: {{name}}",
+    "chooseFile": "Escolher arquivo",
+    "noFileChosen": "Nenhum arquivo escolhido",
     "rates": "Arquivo de valores",
     "ratesHint": "Uma linha por rota, com uma coluna por classe de veículo.",
     "regions": "Arquivo de rotas",
