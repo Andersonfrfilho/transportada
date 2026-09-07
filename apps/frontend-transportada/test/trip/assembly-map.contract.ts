@@ -8,7 +8,7 @@ import type { MeshFeature } from '@/modules/shared/ibgeMesh.service'
 import { buildAssemblyLegs, totalAssemblyMinutes } from '@/modules/trip/shared/assemblyLeg.service'
 import {
   buildAssemblyMap,
-  resolveMarkerCoordinates,
+  resolveMarkerOffsets,
   ASSEMBLY_MAP_VIEWBOX,
   type AssemblyMapPoint,
 } from '@/modules/trip/shared/assemblyMap.service'
@@ -628,8 +628,14 @@ describe('posição aproximada', () => {
  * diferentes, ambas com posição aproximada (centroide do mesmo município), colapsaram na mesma
  * coordenada. O `Marker` mais recente cobriu o anterior no mesmo pixel: o operador via 2 pinos
  * onde havia 3 paradas, sem nenhum indício de que um estava escondido atrás do outro.
+ *
+ * ⚠️ A primeira correção espalhou em GRAU (dezenas de metros) e não resolveu nada: a montagem
+ * enquadra todas as paradas de uma vez (`fitToStops`), então o zoom cai para caber cidades a
+ * dezenas de km de distância — e dezenas de metros de separação viram menos de um pixel de tela.
+ * O deslocamento certo é em PIXEL, via `Marker.offset`, que o MapLibre aplica no render e por isso
+ * não muda com o zoom.
  */
-describe('coordenada de pinos que colidem no mesmo pixel', () => {
+describe('deslocamento em pixel de pinos que colidem na mesma coordenada', () => {
   const parada = (stopKey: string, latitude: number, longitude: number): AssemblyMapPoint => ({
     cityCode: RIBEIRAO,
     isApproximate: true,
@@ -643,54 +649,61 @@ describe('coordenada de pinos que colidem no mesmo pixel', () => {
     y: 50,
   })
 
-  it('mantém a coordenada original quando nenhum ponto colide', () => {
+  it('não desloca quando nenhum ponto colide', () => {
     const pontos = [parada('a', -21.17, -47.81), parada('b', -21.2, -47.77)]
 
-    const coordenadas = resolveMarkerCoordinates(pontos)
+    const deslocamentos = resolveMarkerOffsets(pontos)
 
-    expect(coordenadas.get('a')).toEqual({ latitude: -21.17, longitude: -47.81 })
-    expect(coordenadas.get('b')).toEqual({ latitude: -21.2, longitude: -47.77 })
+    expect(deslocamentos.get('a')).toEqual([0, 0])
+    expect(deslocamentos.get('b')).toEqual([0, 0])
   })
 
-  it('afasta pontos que caem na mesma coordenada exata, sem sumir com nenhum', () => {
+  it('afasta em pixel pontos que caem na mesma coordenada exata, sem sumir com nenhum', () => {
     const pontos = [
       parada('a', -21.17, -47.81),
       parada('b', -21.17, -47.81),
       parada('c', -21.17, -47.81),
     ]
 
-    const coordenadas = resolveMarkerCoordinates(pontos)
+    const deslocamentos = resolveMarkerOffsets(pontos)
 
-    expect(coordenadas.size).toBe(3)
-    const posicoes = [...coordenadas.values()]
-    /** As três precisam ser distintas — é isso que impede um pino de cobrir o outro. */
-    const chaves = new Set(posicoes.map((p) => `${p.latitude}:${p.longitude}`))
+    expect(deslocamentos.size).toBe(3)
+    const posicoes = [...deslocamentos.values()]
+    /** Os três precisam ser distintos — é isso que impede um pino de cobrir o outro na tela. */
+    const chaves = new Set(posicoes.map(([x, y]) => `${x}:${y}`))
     expect(chaves.size).toBe(3)
+    /** E nenhum é `[0, 0]` — senão ele colidiria de volta com o pino que ficou parado. */
+    for (const [x, y] of posicoes) expect(x !== 0 || y !== 0).toBe(true)
   })
 
-  /** O espalhamento é pequeno de propósito: o aviso "posição aproximada" continua verdadeiro. */
-  it('desloca por dezenas de metros, não quilômetros', () => {
+  /**
+   * O deslocamento é visível (um raio de pinos inteiros), não sub-pixel: era exatamente essa a
+   * diferença entre a correção em grau (invisível no zoom real) e a correção em pixel.
+   */
+  it('desloca por um raio de pixels perceptível, sem depender de zoom', () => {
     const pontos = [parada('a', -21.17, -47.81), parada('b', -21.17, -47.81)]
 
-    const coordenadas = resolveMarkerCoordinates(pontos)
-    const a = coordenadas.get('a')!
-    const b = coordenadas.get('b')!
+    const deslocamentos = resolveMarkerOffsets(pontos)
+    const [ax, ay] = deslocamentos.get('a')!
+    const [bx, by] = deslocamentos.get('b')!
 
-    expect(Math.abs(a.latitude - -21.17)).toBeLessThan(0.01)
-    expect(Math.abs(a.longitude - -47.81)).toBeLessThan(0.01)
-    expect(Math.abs(b.latitude - -21.17)).toBeLessThan(0.01)
-    expect(Math.abs(b.longitude - -47.81)).toBeLessThan(0.01)
+    const distanciaA = Math.hypot(ax, ay)
+    const distanciaB = Math.hypot(bx, by)
+    expect(distanciaA).toBeGreaterThan(8)
+    expect(distanciaB).toBeGreaterThan(8)
+    expect(distanciaA).toBeLessThan(40)
+    expect(distanciaB).toBeLessThan(40)
   })
 
-  it('não mexe em coordenadas que já eram distintas, mesmo em grupo grande', () => {
+  it('não mexe em pontos que já eram distintos, mesmo em grupo grande', () => {
     const pontos = [
       parada('a', -21.17, -47.81),
       parada('b', -21.17, -47.81),
       parada('c', -21.2, -47.77),
     ]
 
-    const coordenadas = resolveMarkerCoordinates(pontos)
+    const deslocamentos = resolveMarkerOffsets(pontos)
 
-    expect(coordenadas.get('c')).toEqual({ latitude: -21.2, longitude: -47.77 })
+    expect(deslocamentos.get('c')).toEqual([0, 0])
   })
 })
