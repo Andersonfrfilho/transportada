@@ -69,3 +69,46 @@ schema → reassar → conferir os metadados e contar as feições → só entã
   está lá para quando for.
 - **O overlay publicado ainda é o antigo.** Este foi reassado localmente para medir; publicar exige o
   build remoto do `map-tiles`, que é passo de deploy e não desta task.
+
+## T2 — A comparação que soma combustível (2026-09-07)
+
+Contrato antes, vermelho por módulo inexistente. Verde depois:
+
+```
+bun test test/route-options.contract.test.ts → 7 pass, 0 fail
+bunx tsc --noEmit → sem erro
+```
+
+### O caso de Campinas, que é o motivo da política existir
+
+Com o toco de referência (3,5 km/l, diesel a R$ 6,20) sobre as duas rotas medidas:
+
+| rota |    km |   pedágio | combustível |     total |
+| ---- | ----: | --------: | ----------: | --------: |
+| 0    | 221,5 | R$ 108,60 |   R$ 392,37 | R$ 500,97 |
+| 1    | 239,6 |  R$ 93,20 |   R$ 424,43 | R$ 517,63 |
+
+```
+mais rápida: 0 | mais barata: 0
+```
+
+**A mesma rota ganha os dois rótulos**, e a que tem uma praça a menos perde por R$ 16,66. É
+exatamente o que a D1 previu: comparar só o pedágio elegeria a rota 1 e chamaria de barata a opção
+mais cara.
+
+### Detalhe de centavo, registrado para ninguém "consertar"
+
+⚠️ `392.3713` contra os `392.3714` da conta direta. A diferença vem do `fuelCost`, que arredonda os
+litros antes de multiplicar pelo preço — helper já usado por toda a valoração da viagem. A primeira
+versão do contrato afirmava o número da minha calculadora e reprovou o código; **quem estava errado
+era o teste**, e ele passou a afirmar o número do produto. Reimplementar a conta aqui daria dois
+combustíveis diferentes no mesmo produto, que é pior que um décimo de milésimo.
+
+### O que a política recusa a fazer
+
+- **Sem consumo ou sem preço não há mais barata** (`NO_FUEL_BASELINE`): estimar o consumo para
+  preencher o rótulo seria inventar o número que decide a escolha.
+- **Pedágio desconhecido em qualquer opção anula a comparação** (`TOLL_UNKNOWN`): desconhecido não
+  vira zero.
+- **Uma opção só não é escolha** (`hasChoice: false`): três de quatro rotas medidas têm caminho
+  único, e um seletor de uma opção ensina que existe escolha onde não existe.
