@@ -50,6 +50,12 @@ export const VALUATION_GAPS = {
   /** Pedágio é lançamento manual e ainda não existe (061 D2). */
   notRecorded: 'NOT_RECORDED',
   /**
+   * O pedágio foi calculado, e **alguma praça do trajeto não declara tarifa**: o total soma só as
+   * conhecidas e portanto subestima. Sem esta lacuna ele se apresentaria como estimativa completa,
+   * e é ele que a margem usa para dizer se a viagem paga. `detail` traz quantas ficaram de fora.
+   */
+  tollPartial: 'TOLL_PARTIAL',
+  /**
    * Spec 086 D2: o destino da viagem não está em `freight_region_cities`. Distinta de
    * `noDriverRate` de propósito — "cadastre ITOBI/SP" e "este motorista não cobre esta zona" pedem
    * ações diferentes, e uma lacuna só faria o operador procurar no lugar errado.

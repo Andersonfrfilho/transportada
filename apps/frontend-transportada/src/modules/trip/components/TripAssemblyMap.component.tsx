@@ -453,11 +453,20 @@ export function TripAssemblyMap({
                   {/* A escolhida leva o visto; as demais são oferta, ainda não escolha feita. */}
                   {index === boundedOptionIndex ? <Icon name="check" /> : <Icon name="target" />}
                   <span>
-                    {t('assemblyMap.routeOptions.option', {
-                      boothCount: summary.boothCount,
-                      distance: summary.distanceKilometres.toFixed(1),
-                      duration: formatDuration(summary.minutes),
-                    })}
+                    {/*
+                      ⚠️ Sem pedágio calculado a linha diz que **não sabe**, nunca "0 praças" —
+                      zero ali seria uma afirmação, na linha em que a rota é escolhida.
+                    */}
+                    {t(
+                      summary.boothCount === null
+                        ? 'assemblyMap.routeOptions.optionWithoutToll'
+                        : 'assemblyMap.routeOptions.option',
+                      {
+                        boothCount: summary.boothCount ?? 0,
+                        distance: summary.distanceKilometres.toFixed(1),
+                        duration: formatDuration(summary.minutes),
+                      },
+                    )}
                   </span>
                   {summary.totalCost === null ? null : (
                     <span>

@@ -777,3 +777,42 @@ Nenhuma mudança de frontend foi necessária para T9: o painel `TripValuationPre
 já renderiza qualquer `TripCostParcel` de forma genérica por `kind`/`gap`/`source` (o rótulo
 `tripFinancials.parcel.toll = "Pedágio"` já existia, alimentado por lançamento manual desde a 061) —
 a parcela calculada aparece pelo mesmo caminho, sem código novo de tela.
+
+## Revisão em contexto separado, e as duas correções (2026-09-07)
+
+`/code-review high` sobre `origin/staging..work/spec-090`, em passe próprio — a regra desta base é
+não auto-aprovar no mesmo contexto que escreveu. Três achados, todos da mesma família: **zero
+fingindo ser medida**, que é justamente o que estas duas specs existem para impedir. Dois corrigidos
+aqui; o terceiro depende de decisão de produto.
+
+### Corrigido — o seletor dizia "0 praças" quando não sabia
+
+`assemblyRouteOptions.service.ts` colapsava `toll === null` em `boothCount: 0`. Numa rota cuja
+anotação de nós não veio, a linha do seletor afirmava "239,6 km · 198 min · **0 praças**" — na única
+superfície que o operador lê para escolher a rota. O `totalCost` já se escondia quando nulo; a
+contagem não.
+
+`boothCount` passou a ser `null | number`, e a linha vira "pedágio não calculado". Zero continua
+sendo impresso quando é **medido** — rota que passou por praça nenhuma —, que é o outro lado da
+mesma distinção.
+
+### Corrigido — a parcela calculada subestimava sem dizer
+
+`resolveTollParcel` devolvia `calculated.total` com `gap: null`, descartando `boothsWithoutCharge`.
+Uma rota com duas praças sem tarifa declarada entrava na conta com o total das conhecidas,
+apresentado como estimativa fechada — e é esse número que a margem usa para dizer se a viagem paga.
+
+Nasceu `VALUATION_GAPS.tollPartial` (`TOLL_PARTIAL`), com `detail` trazendo **quantas** praças
+ficaram de fora, no molde de `CITY_WITHOUT_REGION`. E o rótulo entrou nos dois `tripFinancials.locale.json`
+— sem ele o operador leria a chave crua, que é o defeito já registrado no `CLAUDE.md` para as razões
+de pulo da reconciliação.
+
+### Não corrigido — `0.00` impresso como isenção
+
+`formatBoothCharge` imprime `R$ 0,00` para tarifa declarada zero, e `boothsWithoutCharge` só conta
+nulos. Uma rota pelas duas praças da SP-291 (nós 5219021670 e 5219021671, zero em tudo, nome de praça
+de rodovia) desenha `R$ 0,00` em cada ícone e afirma isenção com confiança.
+
+⚠️ **Isto não é remendo de código, é decisão de produto**: o dado é ambíguo na origem, e resolver
+significa escolher se `0.00` sem `operator` conta como desconhecido — regra que inventa significado
+sobre dado de terceiro. Fica registrado, com os dois nós nomeados para quem for decidir.

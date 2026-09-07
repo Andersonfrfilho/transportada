@@ -194,3 +194,43 @@ describe('o pedágio na conta da viagem (spec 090 T9)', () => {
     expect(world.geometryCalls).toHaveLength(1)
   })
 })
+
+describe('praça sem tarifa na parcela calculada (revisão de 2026-09-07)', () => {
+  /**
+   * ⚠️ O total calculado soma só o que tem tarifa. Com praça desconhecida no meio ele **subestima**,
+   * e sair com `gap: null` o apresenta como estimativa completa — o número que a margem usa para
+   * dizer se a viagem paga. Medido: 3 das 166 praças não declaram tarifa alguma.
+   */
+  it('declara a lacuna quando alguma praça do trajeto não tem tarifa conhecida', async () => {
+    const { result } = run({
+      booths: [praca(10, '10.5000'), { ...praca(20, '0'), chargeCar: null, chargePerAxle: null }],
+      road: {
+        legs: [{ distanceMetres: 1_000, durationSeconds: 60 }],
+        nodeIds: [10, 20],
+        points: POINTS,
+      },
+    })
+
+    const parcela = (await result).costParcels.find((cost) => cost.kind === 'toll')
+
+    expect(parcela?.amount).toBe('21.0000')
+    expect(parcela?.gap).toBe('TOLL_PARTIAL')
+    expect(parcela?.detail).toBe('1')
+  })
+
+  it('não declara lacuna quando toda praça do trajeto tem tarifa', async () => {
+    const { result } = run({
+      booths: [praca(10, '10.5000')],
+      road: {
+        legs: [{ distanceMetres: 1_000, durationSeconds: 60 }],
+        nodeIds: [10],
+        points: POINTS,
+      },
+    })
+
+    const parcela = (await result).costParcels.find((cost) => cost.kind === 'toll')
+
+    expect(parcela?.gap).toBeNull()
+    expect(parcela?.detail).toBeNull()
+  })
+})

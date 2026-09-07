@@ -454,7 +454,8 @@
       "gap": {
         "NO_FUEL_BASELINE": "Sem consumo ou preço de combustível declarado para o veículo, não há como dizer qual rota é mais barata.",
         "TOLL_UNKNOWN": "O pedágio de alguma rota não pôde ser calculado — sem como comparar o custo total entre elas."
-      }
+      },
+      "optionWithoutToll": "{{distance}} km · {{duration}} · pedágio não calculado"
     }
   },
   "quickCreate": {

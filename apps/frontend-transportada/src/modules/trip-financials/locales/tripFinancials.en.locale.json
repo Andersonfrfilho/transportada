@@ -1,14 +1,15 @@
 {
   "gap": {
-    "FEATURE_ABSENT": "module not in use yet",
     "CITY_WITHOUT_REGION": "destination without a registered freight zone",
+    "FEATURE_ABSENT": "module not in use yet",
+    "NOT_RECORDED": "nobody recorded it",
     "NO_DRIVER_RATE": "aggregate route without a rate",
     "NO_FEDERAL_REGIME": "federal regime not declared",
     "NO_FREIGHT_RULE": "invoice without an authorized CT-e",
     "NO_FUEL_BASELINE": "vehicle consumption or fuel price missing",
     "NO_PLANNED_DISTANCE": "route not planned yet",
-    "NOT_RECORDED": "nobody recorded it",
-    "SALARIED_CREW_MEMBER": "a salaried driver is on this trip — cost of the period"
+    "SALARIED_CREW_MEMBER": "a salaried driver is on this trip — cost of the period",
+    "TOLL_PARTIAL": "a toll plaza on the route has no known tariff — the total only sums the others"
   },
   "panel": {
     "amount": "Amount",

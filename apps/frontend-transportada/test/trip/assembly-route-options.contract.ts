@@ -130,3 +130,57 @@ describe('resumo das opções de rota (spec 093 T3)', () => {
     expect(resumo[1]?.totalCost).toBe('517.6340')
   })
 })
+
+describe('opção sem pedágio calculado (revisão de 2026-09-07)', () => {
+  /**
+   * ⚠️ `toll` nulo é **desconhecido**, e colapsá-lo em `0` faz a linha do seletor afirmar que a
+   * alternativa não passa por praça nenhuma — na única superfície que o operador lê para escolher.
+   * O `totalCost` já se escondia quando nulo; a contagem de praças não.
+   */
+  it('não conta zero praça quando o pedágio da opção não pôde ser calculado', () => {
+    const [resumo] = resolveRouteOptionSummaries({
+      cheapestIndex: null,
+      fastestIndex: 0,
+      options: [
+        {
+          distanceMeters: 239_600,
+          durationSeconds: 11_880,
+          fuelTotal: null,
+          legs: [],
+          points: [],
+          toll: null,
+          totalCost: null,
+        },
+      ],
+    })
+
+    expect(resumo?.boothCount).toBeNull()
+  })
+
+  it('conta as praças quando o pedágio foi calculado, inclusive zero medido', () => {
+    const [semPraca] = resolveRouteOptionSummaries({
+      cheapestIndex: 0,
+      fastestIndex: 0,
+      options: [
+        {
+          distanceMeters: 100_000,
+          durationSeconds: 3_600,
+          fuelTotal: '100.0000',
+          legs: [],
+          points: [],
+          toll: {
+            axles: { count: 2, source: 'declared' },
+            booths: [],
+            boothsWithoutCharge: 0,
+            chargePerAxle: '0.0000',
+            tariffObservedOn: null,
+            total: '0.0000',
+          },
+          totalCost: '100.0000',
+        },
+      ],
+    })
+
+    expect(semPraca?.boothCount).toBe(0)
+  })
+})

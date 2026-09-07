@@ -407,7 +407,20 @@ function resolveTollParcel(context: TripValuationContext): TripCostParcel {
   const calculated = context.toll ?? null
   if (calculated === null) return recorded
 
-  return { amount: calculated.total, detail: null, gap: null, kind: 'toll', source: 'estimated' }
+  /**
+   * ⚠️ Praça sem tarifa no trajeto torna o total **incompleto**, e ele precisa dizer isso: quem lê
+   * a margem decide aceitar ou recusar carga, e um número que soma três cancelas de cinco parece
+   * uma estimativa fechada. `detail` nomeia quantas ficaram de fora, no molde de `CITY_WITHOUT_REGION`.
+   */
+  const partial = calculated.boothsWithoutCharge > 0
+
+  return {
+    amount: calculated.total,
+    detail: partial ? String(calculated.boothsWithoutCharge) : null,
+    gap: partial ? VALUATION_GAPS.tollPartial : null,
+    kind: 'toll',
+    source: 'estimated',
+  }
 }
 
 /**

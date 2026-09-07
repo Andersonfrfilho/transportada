@@ -10,7 +10,13 @@
 import type { RouteGeometryOption } from './routeGeometry.service'
 
 export type RouteOptionSummary = Readonly<{
-  boothCount: number
+  /**
+   * ⚠️ `null` quando o pedágio da opção **não pôde ser calculado** — a anotação de nós não veio.
+   * Zero aqui diria "esta rota não passa por praça nenhuma", que é uma afirmação, e ela apareceria
+   * na única linha que o operador lê para escolher a rota. As duas coisas são diferentes desde a
+   * spec 090 D1, e é aqui que a distinção chega à tela.
+   */
+  boothCount: null | number
   distanceKilometres: number
   /** `true` quando esta é, ao mesmo tempo, a mais rápida e a mais barata (spec 093 D1). */
   isBestOfBoth: boolean
@@ -38,7 +44,7 @@ export function resolveRouteOptionSummaries(input: {
     const isCheapest = input.cheapestIndex === index
 
     return {
-      boothCount: option.toll?.booths.length ?? 0,
+      boothCount: option.toll === null ? null : option.toll.booths.length,
       distanceKilometres: option.distanceMeters / METRES_PER_KILOMETRE,
       isBestOfBoth: isFastest && isCheapest,
       isCheapest,
