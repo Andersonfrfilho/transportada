@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { FileField } from '@/components/ui/file-field'
 import { Icon } from '@/components/ui/icon'
 
 import { ProofCrop } from './ProofCrop.component'
@@ -463,17 +464,14 @@ function DeliveryProofSection({ documentId, onProof, proofSettings }: DeliveryPr
           </span>
         ) : null}
         {plan.rendersPhoto || (plan.rendersSignature && !canSign) ? (
-          <label className={styles.proofField}>
-            <span>
-              {t('proof')}
-              {plan.fields.photo === 'required' && !attached.photo ? ' *' : ''}
-            </span>
-            <input
+          <div className={styles.proofField}>
+            <FileField
               accept="image/*"
+              actionLabel={t('choosePhoto')}
               capture="environment"
-              type="file"
-              onChange={(event) => {
-                const file = event.target.files?.[0]
+              label={`${t('proof')}${plan.fields.photo === 'required' && !attached.photo ? ' *' : ''}`}
+              placeholder={t('noPhotoChosen')}
+              onSelect={(file) => {
                 if (file !== undefined) setCropFile(file)
               }}
             />
@@ -482,7 +480,7 @@ function DeliveryProofSection({ documentId, onProof, proofSettings }: DeliveryPr
                 {t('proofFields.requiredField')}
               </span>
             ) : null}
-          </label>
+          </div>
         ) : null}
       </div>
 
@@ -577,21 +575,22 @@ function OccurrenceForm({ onSubmit, stop }: OccurrenceFormProps) {
       </div>
       {/* ⚠️ A rota da ocorrência não aceita anexo: a foto sobe pelo proof da nota associada. */}
       {noteDocument === undefined ? null : (
-        <label className={styles.proofField}>
-          <span>{t('occurrencePhoto')}</span>
-          <input
+        <div className={styles.proofField}>
+          <FileField
+            resetAfterSelect
             accept="image/*"
+            actionLabel={t('choosePhoto')}
             capture="environment"
-            type="file"
-            onChange={(event) => {
-              const file = event.target.files?.[0]
+            label={t('occurrencePhoto')}
+            placeholder={t('noPhotoChosen')}
+            onSelect={(file) => {
               if (file !== undefined) setPhotos((current) => [...current, file])
             }}
           />
           {photos.length === 0 ? null : (
             <span>{t('occurrencePhotoCount', { count: photos.length })}</span>
           )}
-        </label>
+        </div>
       )}
       <Button onClick={() => onSubmit({ description, kind, photos })} type="button">
         <Icon name="save" />

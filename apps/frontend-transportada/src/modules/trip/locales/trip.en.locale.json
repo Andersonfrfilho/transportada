@@ -32,6 +32,7 @@
     "loading": "Loading",
     "dispatched": "Dispatched",
     "in_transit": "In transit",
+    "on_delivery_route": "On delivery route",
     "completed": "Completed",
     "cancelled": "Cancelled"
   },
@@ -273,6 +274,8 @@
     "zoomOut": "Zoom out",
     "recenter": "Recentre the map",
     "legTime": "{{distance}} km · {{duration}} to the next stop",
+    "phoneCopied": "Phone copied",
+    "phoneCopy": "Copy the phone number of {{recipient}}",
     "totalTime": "Route time: {{duration}} — road measured by the router, plus 20 min stopped per delivery.",
     "traceLabel": "Stop order",
     "trace": {
@@ -293,7 +296,15 @@
     "solveFailed": "The router did not answer. The current order still stands.",
     "finish": "Predicted finish {{time}} · {{distance}} km · {{total}} of route.",
     "finishWarning": "⚠️ Falls on {{reasons}} — check whether anyone is working.",
-    "approximate": "⚠️ Approximate position — only the municipality is known; the point is its centre."
+    "approximate": "⚠️ Approximate position — only the municipality is known; the point is its centre.",
+    "noteAmount": "{{amount}}",
+    "noteWeight": "{{weight}} kg",
+    "noteRevenue": "freight {{amount}}",
+    "revenueEstimated": "forecast",
+    "totalAmount": "Invoice value: {{amount}}",
+    "totalWeight": "Total weight: {{weight}} kg",
+    "revenueRule": "by {{rule}}{{percentage}}",
+    "totalFreight": "Forecast freight: {{amount}}"
   },
   "quickCreate": {
     "title": "New trip",
@@ -326,6 +337,9 @@
     "search": "Search invoices",
     "searchTerm": "Search",
     "searchTermPlaceholder": "Issuer, recipient or key",
+    "weightValue": "{{weight}} kg",
+    "weightEstimated": "estimated",
+    "weightEstimatedHint": "Weight computed from the volume count and the company default weight — the invoice declared no mass.",
     "searchResult": "{{count}} invoice found.",
     "searchResult_other": "{{count}} invoices found.",
     "selectAll": "Select all on this page",
@@ -336,7 +350,10 @@
       "number": "Invoice",
       "recipient": "Recipient",
       "address": "Address",
-      "city": "City"
+      "city": "City",
+      "amount": "Amount",
+      "weight": "Weight",
+      "freight": "Freight"
     },
     "selectAllFiltered": "Select all {{count}} from the filter",
     "clearFilteredSelection": "Unselect all {{count}} from the filter"

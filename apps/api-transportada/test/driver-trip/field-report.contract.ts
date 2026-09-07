@@ -270,6 +270,7 @@ describe('deu problema', () => {
       attachmentObjectId: null,
       companyId: COMPANY_ID,
       description: 'Duas horas na fila da doca',
+      distanceMeters: null,
       documentId: null,
       driverId: DRIVER_ID,
       idempotencyKey: key,

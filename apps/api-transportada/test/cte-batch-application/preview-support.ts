@@ -118,6 +118,7 @@ export const SECOND_DOCUMENT: PreviewDocumentFixture = {
 
 const BASE_PROFILE: CteEmissionProfileDetail = {
   cargoInsuranceDeclared: true,
+  municipalServicePolicy: 'allow',
   cfopInternal: '5353',
   cfopInterstate: '6353',
   chargeComponentLabel: 'Frete',

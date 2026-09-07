@@ -17,7 +17,16 @@ function revenue(
   source: TripRevenueLine['source'],
   gap: TripRevenueLine['gap'] = null,
 ): TripRevenueLine {
-  return { amount, gap, nfeDocumentId: null, source, tripDocumentId: `doc-${amount}-${source}` }
+  return {
+    amount,
+    freightRuleId: null,
+    freightRuleName: null,
+    gap,
+    nfeDocumentId: null,
+    percentage: null,
+    source,
+    tripDocumentId: `doc-${amount}-${source}`,
+  }
 }
 
 function cost(amount: string, source: TripCostParcel['source']): TripCostParcel {

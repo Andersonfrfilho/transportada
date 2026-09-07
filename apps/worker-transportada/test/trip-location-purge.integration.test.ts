@@ -113,6 +113,7 @@ describeDatabase('expurgo da coordenada de entrega (integration)', () => {
   test('apaga a coordenada vencida e preserva o evento inteiro', async () => {
     const routine = createTripLocationPurgeRoutine({
       logger: SILENT_LOGGER as never,
+      purgeStalePings: async () => 0,
       now: () => NOW,
       redact: createDrizzleRedactTripLocations(db),
     })
@@ -145,10 +146,20 @@ describeDatabase('expurgo da coordenada de entrega (integration)', () => {
   test('o segundo ciclo não encontra mais nada para apagar', async () => {
     const routine = createTripLocationPurgeRoutine({
       logger: SILENT_LOGGER as never,
+      purgeStalePings: async () => 0,
       now: () => NOW,
       redact: createDrizzleRedactTripLocations(db),
     })
 
-    expect((await routine.run(CONTEXT)).counters).toEqual({ batches: 0, redacted: 0 })
+    /**
+     * ⚠️ `purgedPings` entrou com o teto de idade da 082, e `toEqual` exige igualdade exata: a
+     * chave nova reprovava aqui sem que nada no expurgo estivesse errado. Afirmar os três é o que
+     * mantém o contrato honesto — contador novo tem de aparecer neste teste, não passar despercebido.
+     */
+    expect((await routine.run(CONTEXT)).counters).toEqual({
+      batches: 0,
+      purgedPings: 0,
+      redacted: 0,
+    })
   })
 })

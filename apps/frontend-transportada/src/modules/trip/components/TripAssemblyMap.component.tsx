@@ -6,8 +6,11 @@ import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { CopyButton } from '@/components/ui/copy-button'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
+import { formatAmount, formatWeightKilograms } from '@/modules/shared/decimalAmount.service'
+import { formatStoredPhone } from '@/modules/shared/phone.service'
 import {
   IBGE_MESH_STALE_TIME_MS,
   loadStateMeshFeatures,
@@ -17,6 +20,14 @@ import {
 import { getTripClient } from '../hooks/useTripWorkspace.hook'
 import { useSolverCityOrder } from '../hooks/useSolverCityOrder.hook'
 import { buildAssemblyMap, type AssemblyMapNote } from '../shared/assemblyMap.service'
+import {
+  formatRulePercentage,
+  resolveNoteRevenue,
+  totalAssemblyAmount,
+  totalAssemblyFreight,
+  totalAssemblyWeight,
+  type AssemblyRevenueLine,
+} from '../shared/assemblyNoteFigures.service'
 import { buildStopAddressKey } from '../shared/stopAddressKey.service'
 import { stopColorOf } from '../shared/stopColor.service'
 import {
@@ -47,6 +58,12 @@ type TripAssemblyMapProps = Readonly<{
   onOrderChange: (order: AssemblyCityOrder) => void
   order: AssemblyCityOrder
   selected: readonly AssemblyMapNote[]
+  /**
+   * A receita por nota, vinda da avaliação prevista da viagem. Ela **não** é recalculada aqui: quem
+   * sabe qual regra de frete casa com a nota é a API, e refazer a conta no cliente produziria um
+   * segundo número que discordaria do painel logo abaixo no primeiro mínimo ou máximo cadastrado.
+   */
+  revenueLines?: readonly AssemblyRevenueLine[] | undefined
   /** O veículo escolhido no diálogo. O solver exige um: capacidade muda o roteiro. */
   vehicleId: string
 }>
@@ -88,6 +105,7 @@ export function TripAssemblyMap({
   nearby,
   onOrderChange,
   order,
+  revenueLines,
   selected,
   vehicleId,
 }: TripAssemblyMapProps) {
@@ -250,6 +268,23 @@ export function TripAssemblyMap({
    */
   const legs = buildAssemblyLegs({ geometry: geometryQuery.data ?? null, points: map.points })
   const legOf = (index: number) => legs[index] ?? null
+  const noteById = new Map([...selected, ...nearby].map((note) => [note.id, note]))
+  const revenueOf = (nfeDocumentId: string) =>
+    resolveNoteRevenue({
+      fallback: {
+        amount: noteById.get(nfeDocumentId)?.freightAmount ?? null,
+        ruleName: noteById.get(nfeDocumentId)?.freightRuleName ?? null,
+      },
+      nfeDocumentId,
+      revenueLines: revenueLines ?? [],
+    })
+  /**
+   * Os totais somam as notas **da seleção**, não as do enquadramento: o que está fora da seleção é
+   * desenhado em cinza justamente para dizer que não entra na conta.
+   */
+  const weightTotal = totalAssemblyWeight(selected)
+  const amountTotal = totalAssemblyAmount(selected)
+  const freightTotal = totalAssemblyFreight(selected)
 
   return (
     <section className={styles.panel}>
@@ -278,7 +313,8 @@ export function TripAssemblyMap({
         <p className={styles.hint}>{t('assemblyMap.withoutBasemap')}</p>
       )}
       {legs.length === 0 ? null : (
-        <p className={styles.hint}>
+        <p className={`${styles.hint} ${styles.assemblyTotalTime}`}>
+          <Icon name="clock" />
           {t('assemblyMap.totalTime', { duration: formatDuration(totalAssemblyMinutes(legs)) })}
         </p>
       )}
@@ -311,6 +347,80 @@ export function TripAssemblyMap({
                 {point.notes.map((note) => (
                   <span className={styles.assemblyStopNote} key={note.id}>
                     {describeNote(note)}
+                    {/*
+                      O telefone fica **fora** do texto composto: ele é o único pedaço da linha que
+                      se copia, e enfiá-lo no `join(' · ')` o deixaria sem botão. Só aparece quando
+                      a nota trouxe `<fone>` — o emitente o omite com frequência, e um botão de
+                      copiar apontando para o vazio é ruído em cada linha da lista.
+                    */}
+                    {note.phone === null || note.phone.trim() === '' ? null : (
+                      <span className={styles.assemblyStopPhone}>
+                        {formatStoredPhone(note.phone)}
+                        <CopyButton
+                          copiedLabel={t('assemblyMap.phoneCopied')}
+                          label={t('assemblyMap.phoneCopy', {
+                            recipient: note.recipient ?? point.label,
+                          })}
+                          value={note.phone}
+                          variant="inline"
+                        />
+                      </span>
+                    )}
+                    <span className={styles.assemblyStopFigures}>
+                      {note.totalAmount === null ? null : (
+                        <span>
+                          {t('assemblyMap.noteAmount', {
+                            amount: formatAmount(note.totalAmount),
+                          })}
+                        </span>
+                      )}
+                      {note.cargoGrossWeight === null ? null : (
+                        <span>
+                          {t('assemblyMap.noteWeight', {
+                            weight: formatWeightKilograms(note.cargoGrossWeight),
+                          })}
+                          {note.cargoWeightSource === 'estimated' ? (
+                            <span className={styles.searchEstimateMark}>
+                              {t('quickCreate.weightEstimated')}
+                            </span>
+                          ) : null}
+                        </span>
+                      )}
+                      {/*
+                        ⚠️ A receita **ausente não vira zero**. A avaliação devolve `0` com a razão
+                        da lacuna ao lado — "sem regra de frete para o destino" —, e imprimir esse
+                        zero diria que a nota não rende nada, que é outra afirmação.
+                      */}
+                      {revenueOf(note.id) === null ? null : (
+                        <span className={styles.assemblyStopRevenue}>
+                          {t('assemblyMap.noteRevenue', {
+                            amount: formatAmount(revenueOf(note.id)?.amount ?? '0'),
+                          })}
+                          {revenueOf(note.id)?.isEstimated === true ? (
+                            <span className={styles.searchEstimateMark}>
+                              {t('assemblyMap.revenueEstimated')}
+                            </span>
+                          ) : null}
+                          {/*
+                            ⚠️ É a regra de **frete** que precificou, não o perfil de emissão — neste
+                            caminho o perfil não entra. Sem o nome, duas regras empatadas em
+                            prioridade produzem números diferentes e ninguém consegue dizer qual
+                            respondeu.
+                          */}
+                          {revenueOf(note.id)?.ruleName === null ? null : (
+                            <span className={styles.assemblyStopRule}>
+                              {t('assemblyMap.revenueRule', {
+                                percentage:
+                                  revenueOf(note.id)?.percentage === null
+                                    ? ''
+                                    : ` · ${formatRulePercentage(revenueOf(note.id)?.percentage ?? '0')}`,
+                                rule: revenueOf(note.id)?.ruleName ?? '',
+                              })}
+                            </span>
+                          )}
+                        </span>
+                      )}
+                    </span>
                   </span>
                 ))}
                 {legOf(index) === null ? null : (
@@ -344,6 +454,39 @@ export function TripAssemblyMap({
           </li>
         ))}
       </ul>
+      {weightTotal === null && amountTotal === null ? null : (
+        <p className={`${styles.hint} ${styles.assemblyTotals}`}>
+          {amountTotal === null ? null : (
+            <span>{t('assemblyMap.totalAmount', { amount: formatAmount(amountTotal) })}</span>
+          )}
+          {/*
+            ⚠️ **Uma nota estimada torna o total estimado** — a mesma regra da ocupação do baú.
+            Somar palpite com massa medida dá um número cuja natureza é a do pior componente, e um
+            total sem marca faz quem carrega o caminhão confiar em quilo que ninguém pesou.
+          */}
+          {/*
+            Rotulado à parte de propósito: receita e valor de mercadoria são naturezas diferentes,
+            e uma fileira de números sem rótulo faria as duas parecerem a mesma coisa.
+          */}
+          {freightTotal === null ? null : (
+            <span className={styles.assemblyStopRevenue}>
+              {t('assemblyMap.totalFreight', { amount: formatAmount(freightTotal) })}
+            </span>
+          )}
+          {weightTotal === null ? null : (
+            <span>
+              {t('assemblyMap.totalWeight', {
+                weight: formatWeightKilograms(weightTotal.weight),
+              })}
+              {weightTotal.isEstimated ? (
+                <span className={styles.searchEstimateMark}>
+                  {t('quickCreate.weightEstimated')}
+                </span>
+              ) : null}
+            </span>
+          )}
+        </p>
+      )}
       <div className={styles.assemblyActions}>
         <Button
           disabled={map.points.length < 3}

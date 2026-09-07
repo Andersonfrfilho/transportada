@@ -158,6 +158,7 @@ describe('a viagem no bolso do motorista (spec 057 T017)', () => {
         ...context,
         attachmentObjectId: null,
         description: 'Duas horas na fila da doca',
+        distanceMeters: null,
         documentId: world.documentIds[2] ?? '',
         idempotencyKey: 'ocorrencia-1',
         kind: 'long_wait',

@@ -1,11 +1,13 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { CteMunicipalServicePolicy } from '../../database/cte-emission-profile.schema.js'
 import type { CteEmissionProfileDetail } from '../../cte-profiles/application/cte-emission-profile.port.js'
 import {
   type EmissionProfileCandidate,
   type EmissionProfileResolution,
   resolveEmissionProfile,
+  resolveMunicipalServicePolicy,
 } from '../../cte-profiles/domain/emission-profile-resolution.policy.js'
 import type { CteEmissionGroupingMode } from '../../database/cte-emission-profile.schema.js'
 import { createFreightRuleSnapshot } from '../../freight-calculations/domain/freight-calculation-engine.service.js'
@@ -119,8 +121,21 @@ function resolveDocument({
   readonly params: CteBatchSelectionParams
 }): DocumentOutcome {
   const documentId = document.id
+  /**
+   * ⚠️ O perfil é resolvido **duas vezes** neste caminho, e de propósito: aqui, sem lançar, só para
+   * saber o que ele decidiu sobre serviço municipal — o portão roda antes de a nota ser considerada
+   * cobrável —, e adiante com `resolveEmissionProfile`, que lança porque ali a falta de perfil é
+   * erro de verdade. As duas leem o mesmo catálogo e escolhem o mesmo perfil.
+   */
   const decision = resolveDocumentBlock({
-    document,
+    document: {
+      ...document,
+      municipalServicePolicy: resolveMunicipalServicePolicy({
+        profiles: params.catalog.map(toCandidate),
+        recipientTaxId: document.recipientTaxId,
+        senderTaxId: document.senderTaxId,
+      }),
+    },
     linkedBatchId: batchId,
     linkedNfseInvoiceId: nfseInvoiceId,
   })
@@ -216,11 +231,14 @@ function toProjectionProfile({
   }
 }
 
-function toCandidate(profile: CteEmissionProfileDetail): EmissionProfileCandidate {
+function toCandidate(
+  profile: CteEmissionProfileDetail,
+): EmissionProfileCandidate & { readonly municipalServicePolicy: CteMunicipalServicePolicy } {
   return {
     id: profile.id,
     matchMode: profile.matchMode,
     matchers: profile.matchers,
+    municipalServicePolicy: profile.municipalServicePolicy,
     name: profile.name,
     priority: BigInt(profile.priority),
     status: profile.status,

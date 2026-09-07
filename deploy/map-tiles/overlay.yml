@@ -1,0 +1,29 @@
+# Copyright (c) 2026 Ada Technology. MIT License.
+#
+# Feature 089 (fase 2) — o overlay do radar. O esquema OpenMapTiles do basemap não tem
+# `speed_camera` (medido: 70 radares no OSM da região, zero nas telhas — ver
+# specs/089-o-mapa-mostra-sentido-pedagio-e-radar/evidence.md). Este arquivo é o SEGUNDO
+# `generate-custom`, sobre o MESMO `.osm.pbf` já baixado para o basemap — nunca um segundo
+# download — e produz um SEGUNDO PMTiles (`overlay.pmtiles`), nunca um fork do perfil OpenMapTiles:
+# manter um fork do perfil pronto obrigaria a reassar o basemap inteiro a cada mudança, com o mapa
+# que hoje funciona como risco (decisão em plan.md, T002).
+schema_name: Radares de velocidade
+schema_description: highway=speed_camera do OSM, para o overlay do mapa de rota
+sources:
+  osm:
+    type: osm
+    local_path: /data/area.osm.pbf
+
+layers:
+  # Zoom 11: mesmo patamar em que a camada `poi` do basemap começa a existir (metadados do
+  # PMTiles) — abaixo disso não há o que mostrar num mapa de região.
+  - id: radar
+    features:
+      - source: osm
+        geometry: point
+        min_zoom: 11
+        include_when:
+          highway: speed_camera
+        attributes:
+          - key: class
+            value: speed_camera

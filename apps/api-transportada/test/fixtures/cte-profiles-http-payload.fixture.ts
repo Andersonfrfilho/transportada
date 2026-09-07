@@ -16,6 +16,7 @@ export const CORRELATION_ID = 'cte-profiles-http-correlation'
 
 export const PROFILE_SETTINGS_BODY = {
   cargoInsuranceDeclared: true,
+  municipalServicePolicy: 'allow',
   cfopInternal: '5353',
   cfopInterstate: '6353',
   chargeComponentLabel: 'Frete Spani 4,5',
@@ -111,6 +112,7 @@ export function serializeProfileDetail(profile: CteEmissionProfileDetail): objec
     matchers: profile.matchers.map((matcher) => ({ ...matcher })),
     matchMode: profile.matchMode,
     modal: profile.modal,
+    municipalServicePolicy: profile.municipalServicePolicy,
     name: profile.name,
     observations: profile.observations,
     operationNature: profile.operationNature,

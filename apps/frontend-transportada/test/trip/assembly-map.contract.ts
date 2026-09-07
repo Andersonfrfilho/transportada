@@ -55,7 +55,9 @@ function note(
     latitude: null | string
     locationPrecision: null | string
     longitude: null | string
+    phone: null | string
     postalCode: null | string
+    totalAmount: null | string
   }> = {},
 ) {
   return {
@@ -68,7 +70,13 @@ function note(
     locationPrecision: null,
     longitude: null,
     number: `00000${id}`,
+    phone: null,
     postalCode: '14020000',
+    totalAmount: '1000.0000',
+    freightAmount: null,
+    freightRuleName: null,
+    cargoGrossWeight: null,
+    cargoWeightSource: null,
     recipient: `Cliente ${id}`,
     state: 'SP',
     ...extra,

@@ -16,12 +16,28 @@ import {
   nfeVolumes,
 } from '../../database/nfe.schema.js'
 import { resolveDocumentBlock } from '../../cte-batches/domain/cte-batch-eligibility.policy.js'
+import {
+  cteEmissionProfileMatchers,
+  cteEmissionProfiles,
+} from '../../database/cte-emission-profile.schema.js'
+import type {
+  CteEmissionMatchRole,
+  CteMunicipalServicePolicy,
+} from '../../database/cte-emission-profile.schema.js'
+import { resolveMunicipalServicePolicy } from '../../cte-profiles/domain/emission-profile-resolution.policy.js'
+import type { EmissionProfileCandidate } from '../../cte-profiles/domain/emission-profile-resolution.policy.js'
 import { resolveCargoWeight } from '../domain/cargo-weight.policy.js'
 import { resolveNfseDocumentBlock } from '../domain/nfse-document-block.policy.js'
 import { findTripLinks } from '../../cte-batches/infrastructure/cte-batch-selection.query.js'
 import type { TripDocumentLink } from '../../cte-batches/application/cte-batch-preview.port.js'
 import { storedObjects } from '../../database/storage.schema.js'
 import type { NfeStorageGateway } from '../../storage/infrastructure/nfe-storage-gateway.js'
+import {
+  normalizeFreightRuleFilters,
+  type FreightRuleVersionFilters,
+} from '../../freight-rules/domain/freight-rule-filters.policy.js'
+import { resolveDocumentFreight } from '../domain/document-freight.policy.js'
+import { freightRules, freightRuleVersions } from '../../database/freight.schema.js'
 import { ApiError } from '../../shared/api.error.js'
 import type {
   DownloadNfeDocumentXmlResult,
@@ -57,6 +73,12 @@ type ParticipantDetail = {
   readonly locationPrecision: string | null
   /** O CEP cru, sem máscara: quem imprime decide o traço, e o banco guarda oito dígitos. */
   readonly postalCode: string | null
+  /**
+   * O `<fone>` do endereço, **cru**. O emitente o preenche como quer — com DDD, sem DDD, com
+   * pontuação —, e por isso quem imprime é que decide a máscara: normalizar aqui apagaria a
+   * diferença entre "o telefone não tem DDD" e "o DDD foi jogado fora".
+   */
+  readonly phone: string | null
   readonly city: string | null
   readonly cityCode: string | null
   readonly name: string
@@ -76,6 +98,7 @@ const EMPTY_PARTICIPANT: ParticipantDetail = {
   longitude: null,
   locationPrecision: null,
   postalCode: null,
+  phone: null,
   city: null,
   cityCode: null,
   name: '',
@@ -104,8 +127,38 @@ type DocumentVolumeTotals = {
   readonly quantity: string | null
 }
 
+/**
+ * As regras de frete ativas da empresa, carregadas **uma vez por página**.
+ *
+ * ⚠️ Não é uma consulta por linha: `freight_rules` é tabela de configuração — três linhas nesta
+ * instalação —, e resolver por documento faria N idas ao banco numa página de até mil notas. É o
+ * mesmo padrão do preço de combustível na listagem de veículos.
+ */
+type ActiveFreightRule = {
+  readonly filters: FreightRuleVersionFilters
+  readonly freightRuleId: string
+  readonly maximumAmount: string | null
+  readonly minimumAmount: string | null
+  readonly name: string
+  readonly percentage: string
+  readonly priority: bigint
+  readonly validFrom: Date
+  readonly validUntil: Date | null
+}
+
+/** O perfil, reduzido ao que a listagem precisa para decidir o portão de serviço municipal. */
+type MunicipalPolicyProfile = EmissionProfileCandidate & {
+  readonly municipalServicePolicy: CteMunicipalServicePolicy
+}
+
 type DocumentBlockContext = {
   readonly batchIdByDocumentId: ReadonlyMap<string, string>
+  /**
+   * Os perfis de emissão ativos da empresa. A listagem precisa deles porque o portão de serviço
+   * municipal é escolha do perfil, e é o perfil que casa com o emitente da nota que manda.
+   */
+  readonly emissionProfiles: readonly MunicipalPolicyProfile[]
+  readonly freightRules: readonly ActiveFreightRule[]
   /** Nulo é estimativa desligada nesta empresa; resolvido uma vez por página, nunca por linha. */
   readonly defaultVolumeWeight: string | null
   readonly volumeTotalsByDocumentId: ReadonlyMap<string, DocumentVolumeTotals>
@@ -116,6 +169,8 @@ type DocumentBlockContext = {
 
 const EMPTY_BLOCK_CONTEXT: DocumentBlockContext = {
   batchIdByDocumentId: new Map(),
+  emissionProfiles: [],
+  freightRules: [],
   defaultVolumeWeight: null,
   volumeTotalsByDocumentId: new Map(),
   nfseInvoiceByDocumentId: new Map(),
@@ -380,8 +435,96 @@ export class DrizzleNfeDocumentRepository implements NfeDocumentRepositoryPort {
           { id: row.invoiceId, number: row.providerNumber },
         ]),
       ),
+      emissionProfiles: await this.loadActiveEmissionProfiles(scope.companyId),
+      freightRules: await this.loadActiveFreightRules(scope.companyId),
       tripByDocumentId: new Map(tripLinkRows.map((row) => [row.documentId, row])),
     }
+  }
+
+  /**
+   * As regras ativas da empresa, **uma consulta por página**. `freight_rules` é configuração — três
+   * linhas nesta instalação —, e resolvê-la por documento faria mil idas ao banco numa página de mil
+   * notas. Mesmo padrão do preço de combustível na listagem de veículos.
+   */
+  /**
+   * Os perfis de emissão ativos com os matchers deles, **uma consulta por página** — mesma razão das
+   * regras de frete: perfil é configuração, e resolvê-lo por documento faria mil idas ao banco numa
+   * página de mil notas.
+   */
+  private async loadActiveEmissionProfiles(
+    companyId: string,
+  ): Promise<readonly MunicipalPolicyProfile[]> {
+    const rows = await this.database
+      .select({ profile: cteEmissionProfiles, matcher: cteEmissionProfileMatchers })
+      .from(cteEmissionProfiles)
+      .leftJoin(
+        cteEmissionProfileMatchers,
+        and(
+          eq(cteEmissionProfileMatchers.companyId, cteEmissionProfiles.companyId),
+          eq(cteEmissionProfileMatchers.profileId, cteEmissionProfiles.id),
+        ),
+      )
+      .where(
+        and(eq(cteEmissionProfiles.companyId, companyId), eq(cteEmissionProfiles.status, 'active')),
+      )
+
+    const profileById = new Map<string, (typeof rows)[number]['profile']>()
+    const matchersByProfileId = new Map<
+      string,
+      { matchRole: CteEmissionMatchRole; taxId: string }[]
+    >()
+    for (const row of rows) {
+      profileById.set(row.profile.id, row.profile)
+      if (row.matcher === null) continue
+      const matchers = matchersByProfileId.get(row.profile.id) ?? []
+      matchers.push({ matchRole: row.matcher.matchRole, taxId: row.matcher.taxId })
+      matchersByProfileId.set(row.profile.id, matchers)
+    }
+
+    return [...profileById.values()].map((profile) => ({
+      id: profile.id,
+      matchMode: profile.matchMode,
+      matchers: matchersByProfileId.get(profile.id) ?? [],
+      municipalServicePolicy: profile.municipalServicePolicy,
+      name: profile.name,
+      priority: profile.priority,
+      status: profile.status,
+    }))
+  }
+
+  private async loadActiveFreightRules(companyId: string): Promise<readonly ActiveFreightRule[]> {
+    const rows = await this.database
+      .select({ rule: freightRules, version: freightRuleVersions })
+      .from(freightRuleVersions)
+      .innerJoin(
+        freightRules,
+        and(
+          eq(freightRules.companyId, freightRuleVersions.companyId),
+          eq(freightRules.id, freightRuleVersions.freightRuleId),
+        ),
+      )
+      .where(
+        and(
+          eq(freightRuleVersions.companyId, companyId),
+          eq(freightRules.type, 'percentage_of_invoice_total'),
+          eq(freightRules.status, 'active'),
+          eq(freightRuleVersions.status, 'active'),
+        ),
+      )
+
+    return rows.map((row) => ({
+      filters: normalizeFreightRuleFilters(
+        row.version.filters as Parameters<typeof normalizeFreightRuleFilters>[0],
+      ),
+      freightRuleId: row.rule.id,
+      maximumAmount: row.version.maximumAmount,
+      minimumAmount: row.version.minimumAmount,
+      name: row.rule.name,
+      percentage: row.version.percentage,
+      priority: row.rule.priority,
+      validFrom: row.version.validFrom,
+      validUntil: row.version.validUntil,
+    }))
   }
 
   /**
@@ -436,6 +579,7 @@ export class DrizzleNfeDocumentRepository implements NfeDocumentRepositoryPort {
         district: nfeAddresses.district,
         number: nfeAddresses.number,
         postalCode: nfeAddresses.postalCode,
+        phone: nfeAddresses.phone,
         state: nfeAddresses.state,
         street: nfeAddresses.street,
       })
@@ -479,6 +623,7 @@ export class DrizzleNfeDocumentRepository implements NfeDocumentRepositoryPort {
         longitude: coordinate?.longitude ?? null,
         locationPrecision: coordinate?.precision ?? null,
         postalCode: row.postalCode,
+        phone: row.phone,
         cityCode: row.cityCode,
         name: row.legalName ?? '',
         state: row.state,
@@ -517,10 +662,22 @@ function mapSummary(
   })
   const eligibilityDocument = {
     grossWeight: cargoWeight?.grossWeight ?? null,
+    /**
+     * O portão de serviço municipal é escolha do perfil que rege esta nota — casado pelo CNPJ do
+     * emitente, como a emissão casaria. Nota sem perfil, empate e participante sem CNPJ caem em
+     * `allow`: ninguém escolheu bloquear.
+     */
+    municipalServicePolicy: resolveMunicipalServicePolicy({
+      profiles: blockContext.emissionProfiles,
+      recipientTaxId: recipient.taxId,
+      senderTaxId: emitter.taxId,
+    }),
     recipientCity: recipient.city,
+    recipientCityCode: recipient.cityCode,
     recipientState: recipient.state,
     recipientTaxId: recipient.taxId,
     senderCity: emitter.city,
+    senderCityCode: emitter.cityCode,
     senderState: emitter.state,
     senderTaxId: emitter.taxId,
     status: document.status,
@@ -531,6 +688,14 @@ function mapSummary(
     linkedBatchId: blockContext.batchIdByDocumentId.get(document.id) ?? null,
     linkedNfseInvoiceId: nfseInvoice?.id ?? null,
   }
+  const freight = resolveDocumentFreight({
+    destinationCityCode: recipient.cityCode,
+    destinationState: recipient.state,
+    issuedAt: document.issuedAt,
+    rules: blockContext.freightRules,
+    senderTaxId: emitter.taxId,
+    totalAmount: document.totalValue,
+  })
   const decision = resolveDocumentBlock({ document: eligibilityDocument, ...links })
   const nfseBlockReason = resolveNfseDocumentBlock({ document: eligibilityDocument, ...links })
   const trip = blockContext.tripByDocumentId.get(document.id) ?? null
@@ -553,6 +718,16 @@ function mapSummary(
     recipientAddress: recipient.address,
     recipientCity: recipient.city,
     recipientPostalCode: recipient.postalCode,
+    /**
+     * ⚠️ O frete da listagem é **previsão pela parametrização vigente**, não receita realizada — a
+     * realizada nasce do CT-e emitido. Ele responde a mesma pergunta que a conta da viagem, com a
+     * mesma ordem de preferência entre regras, para as duas telas não discordarem da mesma nota.
+     */
+    freightAmount: freight?.amount ?? null,
+    freightRuleName: freight?.freightRuleName ?? null,
+    cargoGrossWeight: cargoWeight?.grossWeight ?? null,
+    cargoWeightSource: cargoWeight?.source ?? null,
+    recipientPhone: recipient.phone,
     recipientAddressNumber: recipient.addressNumber,
     recipientLatitude: recipient.latitude,
     recipientLongitude: recipient.longitude,

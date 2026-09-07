@@ -16,3 +16,18 @@ export const tripStopEvents = pgTable('trip_stop_events', {
   capturedAt: timestamp('captured_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
 })
+
+/**
+ * ADR-0056 §2: o rastro ao vivo do portal do contratante. Ele já morria com a viagem
+ * (`purgeByTrip`, no fechamento e no cancelamento), e isso bastava enquanto o rastro só existia com
+ * a tela na mão. Com o segundo plano do aplicativo, a viagem que ninguém fechou na sexta acompanha
+ * o motorista no fim de semana inteiro — e é essa a linha que este expurgo apaga.
+ *
+ * ⚠️ Aqui a linha **inteira** cai, ao contrário de `trip_stop_events`, onde só a coordenada é
+ * apagada. A diferença é o que sobra: o evento de parada continua auditável sem a coordenada — quem
+ * chegou, quando entregou —, enquanto um ping sem posição não é nada.
+ */
+export const tripLocationPings = pgTable('trip_location_pings', {
+  id: uuid().primaryKey(),
+  recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull(),
+})

@@ -26,6 +26,7 @@ import type {
   LandingSettingsWriteInput,
 } from '../../src/landing/application/landing-settings.port'
 import { createLandingSettingsUseCase } from '../../src/landing/application/landing-settings.use-case'
+import type { MobileAuthenticationEndpoint } from '../../src/landing/domain/mobile-authentication.policy'
 import {
   createLandingPublicRoutes,
   createLandingSettingsRoutes,
@@ -115,10 +116,13 @@ export function landingRequest(input: {
 }
 
 type CreateFixtureParams = {
+  /** `null` é a instalação que não publica o aplicativo — o padrão, como toda instalação de hoje. */
+  readonly mobileAuthentication?: MobileAuthenticationEndpoint | null
   readonly permissions?: CompanyContext['permissions']
 }
 
 export async function createLandingHttpFixture({
+  mobileAuthentication = null,
   permissions = COMPANY_CONTEXT.permissions,
 }: CreateFixtureParams = {}) {
   const companyGroupRepository = new CompanyGroupRepositoryFixture()
@@ -139,6 +143,7 @@ export async function createLandingHttpFixture({
     companyGroupRepository,
     landingCompanyId: COMPANY_ID,
     landingSettingsRepository,
+    mobileAuthentication,
   })
   const landingLogo = createLandingLogoUseCase({
     companyLogoRepository,

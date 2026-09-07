@@ -48,6 +48,13 @@ export type FleetVehicleInput = {
   readonly brand: string
   readonly capacityCubicMeters: string
   readonly capacityKilograms: string
+  /**
+   * Spec 088 R1: a medida do bau, tirada com fita. Zero e ausencia — `resolveVehicleCapacity` exige
+   * as tres, e duas medidas mais um palpite nao sao um volume.
+   */
+  readonly cargoHeightMeters: string
+  readonly cargoLengthMeters: string
+  readonly cargoWidthMeters: string
   readonly color: string
   readonly fleetNumber: string
   readonly fuelType: FuelProduct

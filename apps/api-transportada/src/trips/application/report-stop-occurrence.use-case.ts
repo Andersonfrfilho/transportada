@@ -38,6 +38,8 @@ export type ReportStopOccurrenceInput = {
   readonly attachmentObjectId: string | null
   readonly companyId: string
   readonly description: string
+  /** ADR-0057 §3: `null` é não aferida, e ela é aceita — distância nunca é porteiro. */
+  readonly distanceMeters: number | null
   readonly documentId: string | null
   readonly driverId: string
   readonly idempotencyKey: string
@@ -98,6 +100,7 @@ export async function reportStopOccurrence(
           attachmentObjectId: input.attachmentObjectId,
           companyId: input.companyId,
           description: input.description,
+          distanceMeters: input.distanceMeters,
           documentId: input.documentId,
           kind: input.kind,
           stopId: input.stopId,

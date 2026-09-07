@@ -44,6 +44,7 @@ describe('cte emission profile schema', () => {
       'icms_rate',
       'icms_base_reduction_rate',
       'cargo_insurance_declared',
+      'municipal_service_policy',
       'version',
       'created_by_user_id',
       'created_at',

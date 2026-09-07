@@ -87,6 +87,16 @@ jobs:
   # apontando para a URL antiga sem nada indicando isso. Para esse caso existe o `force_all`.
   changes:
     needs: [target]
+    # O `target` só resolve o ambiente do deploy, e PR não publica — por isso ele pula ali. Mas
+    # `changes` e `gate` pendurados nele pulavam junto, e **o gate não rodava em PR nenhum**,
+    # contrariando o que o `ci.yml` diz de si mesmo ("roda no PR mirando staging"). Com a proteção
+    # de `main` exigindo `gate / quality` e `gate / integration`, isso virou impasse: a regra pedia
+    # um sinal que o workflow foi desenhado para não emitir ali, e nenhum PR de promoção passava.
+    #
+    # Em PR o ambiente não é necessário: `MARKER_PREFIX` fica vazio e `baseline_of` cai no
+    # `BASELINE`, que já é a base do PR. Os jobs de deploy continuam presos ao `target`, então
+    # nada publica a partir de um PR.
+    if: always() && (github.event_name == 'pull_request' || needs.target.result == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -141,6 +151,14 @@ jobs:
 
   gate:
     needs: changes
+    # ⚠️ **`always()` resgata o job onde está escrito, não quem depende dele.** O `changes` ganhou o
+    # dele e mesmo assim o gate continuou pulando em PR: um job sem `if:` cujo ancestral
+    # **transitivo** foi pulado é pulado junto, e o `target` pula em todo PR por desenho. Medido no
+    # run 34064539851, que rodou já com o `changes` corrigido e pulou o gate assim mesmo.
+    #
+    # `needs.changes.result == 'success'` importa: `always()` sozinho faria o gate rodar até quando
+    # a detecção de mudanças falhou, e ele decidiria sobre uma lista de apps que ninguém apurou.
+    if: always() && needs.changes.result == 'success'
     uses: ./.github/workflows/ci.yml
     with:
       apps: ${{ needs.changes.outputs.apps }}

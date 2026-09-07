@@ -12,7 +12,11 @@ Legenda: 🧠 = exige `opus` mesmo dentro de fase barata · 📍 = roda no `tran
 - **Onde:** `landing/application/landing-settings.use-case.ts`, `landing/presentation/landing.schema.ts`, `config/`
 - **O que:** acrescentar `keycloak: {url, realm, clientId}` a `PublicLandingSettings`, lido do env que
   já configura o realm. Não é tabela: é a mesma instalação para todo mundo.
-- **Contrato antes:** a rota devolve o bloco; env ausente **derruba o boot**, não serve bloco vazio.
+- **Contrato antes:** a rota devolve o bloco; env ausente **omite o campo** (não `null`), e o app
+  recusa a instalação. Derrubar o boot pararia toda API já em produção por causa de um aplicativo
+  que aquela instalação talvez nem use.
+- ⚠️ `url` e `realm` **saem do `KEYCLOAK_ISSUER`**, nunca de variáveis próprias: três configurações
+  para a mesma coisa divergem no primeiro deploy, e a divergência é silenciosa.
 - **Aceite:** `curl` em staging devolve os três campos; `bun run --cwd apps/api-transportada test` verde.
 - **Depende de:** nada. **É a tarefa que destrava a Fase 1.**
 

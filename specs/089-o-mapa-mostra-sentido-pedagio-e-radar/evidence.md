@@ -1,0 +1,330 @@
+# Evidência — 089
+
+## Fase 0 — a medição que decidiu o escopo (2026-09-06)
+
+Alvo: `https://map-tiles-staging.up.railway.app/map-tiles/area.pmtiles` (o mesmo que
+`VITE_MAP_TILES_URL` aponta em desenvolvimento). Verdade de referência: OSM por Overpass,
+`timestamp_osm_base` 2026-09-06T15:51:06Z.
+
+Ferramenta: `pmtiles` (já é dependência do frontend) mais `@mapbox/vector-tile` e `pbf` instalados
+avulsos num diretório de rascunho — **não foram acrescentados ao repositório**. Tornar isto um script
+versionado é parte da T106, que precisa da mesma medição para fechar.
+
+⚠️ Um decodificador de MVT escrito à mão na primeira tentativa devolveu `class` com valores de
+`surface` e `oneway` (`paved`, `bridge`, `1`). O número saía plausível e errado. A troca pelo
+decodificador de referência é o que sustenta os números abaixo — parser próprio de protobuf aqui não
+paga.
+
+### T001 — o que já vem nas telhas
+
+Metadados do PMTiles, camada `transportation`:
+
+```
+fields: access, bicycle, brunnel, class, foot, horse, indoor, layer, level,
+        mtb_scale, official, oneway, ramp, service, subclass, surface, toll
+```
+
+Telha `z14/6016/9178` (bbox `-21.18697,-47.81250,-21.16648,-47.79053`), telha contra OSM do mesmo
+retângulo:
+
+| classe                                                  | telha: feições / com `oneway` | OSM: ways / `oneway=yes` |
+| ------------------------------------------------------- | ----------------------------- | ------------------------ |
+| `minor` ↔ `residential`+`living_street`+`unclassified` | 342 / 340                     | 395 / 326                |
+| `primary` ↔ `primary`+`primary_link`                   | 127 / 125                     | 133 / 121                |
+| `secondary` ↔ `secondary`+`secondary_link`             | 62 / 61                       | 58 / 57                  |
+| `tertiary`                                              | 22 / 21                       | 22 / 20                  |
+| `service`                                               | 25 / 19                       | 119 / 19                 |
+| total                                                   | 586 / 568                     | 808 / 545                |
+
+Região (bbox `-21.60,-48.30` a `-20.80,-47.30`), OSM: **81** ways `toll=yes`, **16** nós
+`barrier=toll_booth`, **70** nós `highway=speed_camera`, zero `highway=toll_gantry`.
+
+Nas 23 telhas z14 que contêm cada um desses 70 radares e 16 cabines, o `poi` traz `gate:329`,
+`lift_gate:36`, `toll_booth:16` — **e nenhuma feição de radar**. `transportation` com o atributo
+`toll` presente: **64** feições.
+
+Conclusão: `oneway`, `toll` e `toll_booth` já estão no arquivo servido; `speed_camera` não existe no
+esquema OpenMapTiles e não sai de ajuste de estilo.
+
+⚠️ **A primeira rodada afirmou "zero pedágio" e estava errada.** Ela amostrou cinco pontos do centro
+e arredores, nenhum sobre praça de pedágio. Ausência num tileset só se afirma escolhendo a telha
+**pela coordenada do dado**.
+
+### T002 — arquivo separado, não perfil customizado
+
+`planetiler generate-custom --schema=` lê um esquema YAML próprio e **não estende** o perfil
+OpenMapTiles. Acrescentar o radar ao basemap exigiria manter um fork do perfil e reassar o dataset a
+cada build, com o mapa que hoje funciona como risco. Decisão: segundo arquivo (`overlay.pmtiles`),
+gerado do mesmo `.osm.pbf`, falhando em separado.
+
+## Fase 1 — pendente
+
+## Fase 2 — pendente
+
+## Fase 1
+
+### T100 — contrato vermelho antes da implementação
+
+`apps/frontend-transportada/test/trip/vector-basemap.contract.ts`: cinco expectativas novas sobre
+três camadas que ainda não existem (`sentido-da-via`, `via-com-pedagio`, `cabine-de-pedagio`), mais
+um teste de invariante de ordem.
+
+```
+$ bun test test/trip.contract.test.ts
+(fail) sentido, pedágio e cabine — o que já vem nas telhas > marca o sentido só onde o atributo existe, sem supor o valor
+(fail) sentido, pedágio e cabine — o que já vem nas telhas > inverte a seta quando oneway = -1
+(fail) sentido, pedágio e cabine — o que já vem nas telhas > só desenha a seta a partir do zoom de conferência de endereço
+(fail) sentido, pedágio e cabine — o que já vem nas telhas > distingue o trecho com pedágio
+(fail) sentido, pedágio e cabine — o que já vem nas telhas > marca a cabine de pedágio
+
+ 372 pass
+ 5 fail
+Ran 377 tests across 1 file.
+```
+
+As cinco falhas são exatamente as camadas que a T102–T104 introduzem — nenhuma falha por engano em
+teste já existente.
+
+O teste de invariante de ordem (`nenhum addLayer do componente usa beforeId`) já passa hoje, contra
+o componente como está: 3 chamadas de `map.addLayer` no `AssemblyVectorMap.component.tsx`, nenhuma
+com `beforeId`. Ele trava a premissa da T105 antes de qualquer código novo — se algum `addLayer`
+futuro ganhar `beforeId`, este teste denuncia antes de a ordem virar bug visual.
+
+### T101 — o glifo da seta cabe na fonte embarcada
+
+Fetch direto de `https://map-tiles-staging.up.railway.app/map-tiles/fonts/Noto%20Sans%20Regular/8448-8703.pbf`
+(bloco de 256 codepoints que cobre U+2190–U+2193, as setas de direção), decodificado com `pbf`
+(`PbfReader`) contra o schema real do glyphs.pbf.
+
+⚠️ **A primeira tentativa de decodificar usou os números de campo errados** (supus
+`name=1, glyphs=2, range=3`) e devolveu zero glifos sem erro — silencioso, não vermelho. A conferência
+byte a byte contra o hexdump revelou o schema real: `name=1, range=2, glyphs=3` dentro de
+`fontstack`, e `id=1, bitmap=2, …` dentro de `glyph`. Fica registrado pela mesma razão do "zero
+pedágio" da Fase 0: decodificador que erra e não avisa produz número plausível e errado.
+
+```
+range: 8448-8703 · total de glifos: 76
+faixa de ids: 8448 - 8693
+tem 8594 (→)? true
+tem 8592 (←)? true
+tem 8593 (↑)? true
+tem 8595 (↓)? true
+```
+
+Decisão: a seta é `text-field: '→'` com `text-rotate` — **não** precisa de `map.addImage`. O caminho
+de imagem gerada em runtime, cogitado no `plan.md` como risco, não é necessário.
+
+### T102–T105 — as três camadas e a ordem
+
+`vectorBasemap.service.ts`: `via-com-pedagio` (após `via-principal`), `sentido-da-via` (após
+`nome-da-via`, glifo `→` com `text-rotate` para o caso `-1`) e `cabine-de-pedagio` (glifo `●`, não
+emoji — `web.md` §9 — logo antes de `numero-da-porta`).
+
+```
+$ bun test test/trip.contract.test.ts
+377 pass
+0 fail
+```
+
+`bun run typecheck` e `bun run lint` limpos.
+
+### T106 — conferência repetida contra staging, com dado real
+
+Harness descartável (fora do commit): instância direta de `MapLibreMap` usando o **mesmo**
+`buildBasemapStyle` exportado, contra `https://map-tiles-staging.up.railway.app/map-tiles/area.pmtiles`
+— o mesmo arquivo da Fase 0. Servido por `bunx vite` numa porta avulsa (53010), fora do
+`launch.json` do worktree principal.
+
+**Rua conhecida (centro de Ribeirão Preto):** `Rua Duque de Caxias` — bounding box da geometria
+tirada da camada `nome-da-via`, cruzada contra `sentido-da-via` no mesmo retângulo:
+
+```
+encontrados: 2 feições
+onewayValues: [1, 1]
+```
+
+Screenshot em zoom 17,5 confirma a seta desenhada e rotacionada ao longo do traço em
+`Rua Amador Bueno`, `Rua Álvares Cabral` e na própria `Rua Duque de Caxias` — a mesma rua da
+consulta programática.
+
+**Cabine de pedágio real (Rodovia Atílio Balbo):** `map.jumpTo` para
+`(-47.9144759, -21.1668441)`, a coordenada exata de uma das 16 cabines medidas na Fase 0:
+
+```
+via-com-pedagio: 8 feições
+cabine-de-pedagio: 2 feições
+```
+
+As duas batem com os dois nós `barrier=toll_booth` do OSM medidos naquele ponto
+(`-21.1668441,-47.9144759` e `-21.1671772,-47.914466`). No centro urbano, na mesma sessão, as duas
+camadas deram **zero** — correto: não há pedágio dentro da cidade.
+
+Harness removido antes do commit (`verify-089.html`/`.tsx`, não versionados); `.claude/launch.json`
+restaurado ao estado original.
+
+## Fase 2
+
+### T200 — contrato vermelho para o serviço de dois arquivos
+
+`api-transportada/test/deploy/map-tiles-server.contract.ts`, no mesmo molde de
+`test/shared/security-headers.contract.ts` do frontend: lê o **texto** de `server.ts`, nunca importa
+(importar sobe `Bun.serve` de verdade e exige o dataset no disco).
+
+```
+$ bun test test/deploy.contract.test.ts
+(fail) declara o caminho do basemap e do overlay do radar
+(fail) o overlay ausente responde 404, não 500 nem corpo vazio silencioso
+(fail) a resposta por faixa de bytes é uma função só, parametrizada pelo arquivo
+
+139 pass
+3 fail
+Ran 142 tests across 1 file.
+```
+
+As três falhas são exatamente o que a T202 introduz; as demais 139 (inclusive "basemap ausente
+derruba o boot" e "caminho desconhecido é 404", que já valiam) continuam verdes.
+
+### T201 — schema do overlay e o segundo generate-custom no Dockerfile
+
+`deploy/map-tiles/overlay.yml` — schema mínimo (`highway=speed_camera` → camada `radar`), `min_zoom:
+11` (mesmo patamar em que `poi` existe no basemap).
+
+`deploy/map-tiles/Dockerfile`: `COPY` do schema **antes** do `RUN`, e um **segundo** invocation do
+`generate-custom` dentro do mesmo `RUN` que já baixou o `.osm.pbf` — antes do `rm` que o apaga.
+`--output=/data/overlay.pmtiles --force`, sem `--download` (as fontes auxiliares do OpenMapTiles —
+contorno de lago, natural earth — não são lidas por este schema mínimo).
+
+⚠️ **Não roda localmente** (a mesma razão do basemap: builder do Railway tem os GB que faltam no
+laptop) — a sintaxe do `generate-custom --output=` foi confirmada contra um exemplo documentado do
+próprio projeto (`--download --force --output=/data/my_pois.pmtiles --schema=/data/my_pois.yml`,
+[planetiler-custommap](https://github.com/onthegomap/planetiler/tree/main/planetiler-custommap)),
+não por execução. A verificação de que o comando realmente produz o arquivo é a T205, contra o build
+publicado.
+
+### T202 — server.ts serve dois arquivos
+
+`resolveTileFile(pathname)` substitui a comparação única contra `TILES_PATH`: devolve `FILE`,
+`OVERLAY_FILE` ou `null`. A checagem de existência do arquivo em runtime é **genérica** (`if
+(!(await file.exists()))`), então cobre o overlay sem duplicar a lógica do basemap — e continua um
+no-op para o basemap, que já passou pela checagem de boot antes.
+
+```
+$ bun test test/deploy.contract.test.ts
+142 pass
+0 fail
+```
+
+⚠️ `deploy/map-tiles/server.ts` não está sob nenhum `tsconfig.json` do monorepo — é um script solto
+para a imagem Docker, fora de `apps/*` (confirmado: nenhum `include` de `apps/*/tsconfig.json`
+alcança `deploy/`, e não há `tsconfig` em `deploy/`). Isso já era assim antes desta spec. Conferido à
+mão com `tsc --noEmit --strict` isolado contra o arquivo: os únicos erros são de lib do Bun sem
+`DOM`/`node` no `--lib` do comando avulso, nenhum aponta para `server.ts`. Não é gate automático —
+fica registrado para quem mexer aqui de novo.
+
+### T203 — segunda fonte no estilo e camada `radar`
+
+`OVERLAY_URL` derivado de `BASEMAP_URL` (troca só o nome do arquivo, nunca a origem — mesmo
+raciocínio de `resolveGlyphsUrl`). `RADAR_SOURCE` sempre declarada no estilo, mesmo sem o arquivo
+existir: a degradação é do tratador de erro do componente, não da ausência da fonte. Camada `radar`
+com glifo `▲` (distinto de `●` da cabine), zoom 11.
+
+### T204 — o overlay ausente não derruba o mapa inteiro
+
+`AssemblyVectorMap.component.tsx`: o tratador de `map.on('error', …)` lê `sourceId` do evento
+(injetado em runtime pelo `setEventedParent` do MapLibre — confirmado contra o código-fonte de
+`maplibre-gl-dev.mjs`, não documentado no `.d.ts`) e retorna cedo quando `sourceId === RADAR_SOURCE`,
+antes do portão que hoje só olha `basemapLoaded.current`.
+
+```
+$ bun run test    # frontend-transportada, script explícito do package.json
+2771 pass
+0 fail
+Ran 2771 tests across 24 files.
+```
+
+`bun run typecheck` e `bun run lint` limpos.
+
+⚠️ `bun test` **puro** (sem o script) varre `test/responsive.smoke.spec.ts`, um arquivo Playwright, e
+falha por conflito de runner — pré-existente, sem relação com esta spec. O gate real do projeto é
+`bun run test`.
+
+### T205 — medição contra o overlay publicado
+
+⚠️ **Duas voltas de infraestrutura antes de chegar aqui, registradas para quem mexer nisto de novo:**
+
+1. O `map-tiles` de **staging** tinha a fonte desconectada do GitHub — um `.railway/railway.ts`
+   já registrava (linhas 556–560) a decisão de consolidar o mapa numa instância só em produção
+   (`map-tiles-production`) e "executá-la" em 04/09/2026, mas o serviço de staging continuava de pé
+   com fonte desatualizada. `railway redeploy --from-source` nele reconstruía sempre o Dockerfile
+   **antigo** (3 passos em `dataset`, 5 em `stage-2`, `sudeste-latest.osm.pbf`).
+2. `map-tiles-production` builda da branch **`main`** (`.railway/railway.ts:41`), e a spec 089 só
+   estava em `staging` — reconstruí-lo também trouxe o Dockerfile antigo, pelo motivo oposto: ele
+   está correto, só não tinha o código ainda. Levá-lo para lá seria merge para produção, decisão de
+   release que não cabia tomar aqui.
+3. `railway service source connect --repo … --branch staging --service map-tiles --environment
+staging` respondeu `ServiceInstance not found` duas vezes, mas **funcionou de qualquer jeito**:
+   dois builds concorrentes nasceram nos segundos seguintes, seguidos por um terceiro
+   (`23dc92da`) que **sim** trouxe o Dockerfile novo (4 passos em `dataset`, 6 em `stage-2`, com
+   `overlay.yml` e o segundo `generate-custom`). Os dois builds anteriores foram substituídos
+   (`REMOVED`) sem deixar o serviço inconsistente.
+4. **Gerar o overlay localmente também falhou**, e não por acaso: o mesmo aviso já escrito no
+   `Dockerfile` ("a geração local morreu, com No space left on device") se confirmou até para o
+   schema mínimo do radar — `Channel not open for writing - cannot extend file to required size`,
+   mmap sobre bind mount do Docker Desktop no Mac. Não é specific do perfil OpenMapTiles completo.
+
+Deployment final: `23dc92da-8c49-4dd3-a42d-d06f7d1be946`, `SUCCESS`, 2026-09-06 18:51. Metadados do
+overlay publicado:
+
+```
+minzoom 0 maxzoom 14
+vector_layers: [{ id: "radar", fields: { class: "String" }, minzoom: 11, maxzoom: 14 }]
+name: "Radares de velocidade"
+planetiler:osm:osmosisreplicationtime: 2026-09-05T20:22:06Z
+```
+
+Medição: as 44 telhas z14 distintas que contêm os 70 radares medidos na Fase 0 (Overpass, OSM),
+decodificadas com `pmtiles` + `@mapbox/vector-tile` + `pbf` — o mesmo par de bibliotecas da Fase 0.
+
+```
+radares no OSM (Fase 0): 70
+telhas z14 distintas conferidas: 44
+feições da camada radar encontradas: 72
+classes: speed_camera:72
+```
+
+72 contra 70 é o padrão esperado de radar perto de borda de telha aparecendo em duas telhas
+vizinhas (o buffer de tile do planetiler, não um defeito do schema) — a mesma ordem de grandeza de
+"342 feições `minor` contra 395 ways" que a Fase 0 já havia registrado para outra camada, na direção
+oposta (lá a telha via menos que a realidade; aqui vê um pouco mais). Nenhuma feição fora de
+`class: speed_camera` apareceu.
+
+### Nota — o `generate-custom` roda localmente, fora do Docker
+
+⚠️ **A limitação "geração local morreu, No space left on device" é do Docker Desktop no Mac, não do
+planetiler em si.** Tentativa anterior nesta mesma evidência (T201/T205) rodou o `generate-custom`
+dentro de um container e bateu em `Channel not open for writing — cannot extend file to required
+size`: mmap sobre bind mount falhando, um problema específico do Docker Desktop.
+
+Rodando o **mesmo jar, nativamente**, fora do container, isso desaparece:
+
+```
+brew install openjdk@21   # o jar exige class file version 65 (Java 21+); Java 18 do sistema recusa
+docker create --name x ghcr.io/onthegomap/planetiler:latest && docker cp x:/app ./app && docker rm x
+java -cp "@$(pwd)/app/resources:$(pwd)/app/classes:$(for j in app/libs/*.jar; do printf '%s:' "$j"; done)" \
+  com.onthegomap.planetiler.Main generate-custom \
+  --schema=overlay.yml --output=overlay.pmtiles --force \
+  --osm_path=area.osm.pbf   # sobrescreve o local_path fixo do schema
+```
+
+51s, 617 KB, contra o mesmo `sudeste-260903.osm.pbf` já usado na Fase 0. Medição repetida —
+**idêntica** à do overlay publicado no Railway:
+
+```
+telhas z14 distintas conferidas: 44
+feições da camada radar encontradas: 72
+```
+
+Vale para quem mexer no `overlay.yml` de novo: não precisa mais de um build no Railway para conferir
+o schema — só do jar extraído uma vez (`docker cp`) e do `.osm.pbf` baixado uma vez. O basemap
+completo (perfil OpenMapTiles) continua exigindo o `--download` das fontes auxiliares e um dataset
+maior; não foi reconferido por este caminho.

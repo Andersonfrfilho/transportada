@@ -95,6 +95,14 @@ export type NfeDocumentListItemContract = Readonly<{
   recipientCityCode: null | string
   /** Spec do mapa da montagem: o CEP do destinatário passou a sair na listagem. */
   recipientPostalCode: null | string
+  /** O `<fone>` do destinatário, cru — a máscara é de quem imprime. */
+  recipientPhone: null | string
+  /** Peso bruto da carga e a origem dele — `estimated` é palpite e a tela precisa dizer isso. */
+  /** Frete previsto e a regra que o produziu — ausentes quando nenhuma regra casa, ou duas casam. */
+  freightAmount: null | string
+  freightRuleName: null | string
+  cargoGrossWeight: null | string
+  cargoWeightSource: 'estimated' | 'xml' | null
   recipientAddressNumber: null | string
   /** ADR-0044: onde a nota para, com a precisão junto — `city` é palpite e tem de aparecer marcado. */
   recipientLatitude: null | string
@@ -232,6 +240,11 @@ export const DOCUMENT_LIST_PAGE = {
       number: '000000011',
       recipientAddress: 'Avenida Logística, 500 - Distrito Industrial',
       recipientPostalCode: '14020000',
+      recipientPhone: '1639771234',
+      freightAmount: '136.8900',
+      freightRuleName: 'Spani',
+      cargoGrossWeight: '108.6700',
+      cargoWeightSource: 'xml' as const,
       recipientAddressNumber: '500',
       recipientLatitude: '-21.1699000',
       recipientLongitude: '-47.8103000',

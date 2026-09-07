@@ -14,6 +14,7 @@ import type {
   CompanyContactsPort,
   CompanySocialLink,
 } from '../../companies/application/company-contacts.port.js'
+import type { MobileAuthenticationEndpoint } from '../domain/mobile-authentication.policy.js'
 import type {
   LandingSettingsRecord,
   LandingSettingsRepositoryPort,
@@ -22,6 +23,12 @@ import type {
 export type PublicLandingSettings = Readonly<{
   accentColor: string | undefined
   brandName: string | undefined
+  /**
+   * Spec 082 T0.1: onde o aplicativo do motorista autentica. `undefined` na instalação que não
+   * publica o aplicativo — a rota omite o campo, e o app recusa a instalação em vez de mostrar uma
+   * tela de entrar que não entra.
+   */
+  mobileAuthentication: MobileAuthenticationEndpoint | undefined
   /**
    * Spec 068: a lista de contatos da empresa, com marca de WhatsApp, e os perfis de rede social.
    * São dados públicos por natureza — é o que o rodapé do site publica —, e o e-mail do sistema lê a
@@ -45,6 +52,8 @@ export type LandingSettingsWriteRequest = Readonly<{
 
 type Dependencies = {
   readonly companyContactsRepository: CompanyContactsPort
+  /** Resolvido uma vez na composição: é ambiente, não muda entre requisições. */
+  readonly mobileAuthentication: MobileAuthenticationEndpoint | null
   readonly companyGroupRepository: CompanyGroupRepositoryPort
   readonly landingSettingsRepository: LandingSettingsRepositoryPort
   /**
@@ -86,6 +95,7 @@ export function createLandingSettingsUseCase(dependencies: Dependencies): Landin
           contacts: [],
           contactEmail: undefined,
           contactPhone: undefined,
+          mobileAuthentication: dependencies.mobileAuthentication ?? undefined,
           sections: {},
           socialLinks: [],
           units: [],
@@ -112,6 +122,7 @@ export function createLandingSettingsUseCase(dependencies: Dependencies): Landin
         contacts: contactSettings.contacts,
         contactEmail: settings?.contactEmail,
         contactPhone: settings?.contactPhone,
+        mobileAuthentication: dependencies.mobileAuthentication ?? undefined,
         sections: settings?.sections ?? {},
         socialLinks: contactSettings.socialLinks,
         units,

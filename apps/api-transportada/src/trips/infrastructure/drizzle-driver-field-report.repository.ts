@@ -22,12 +22,14 @@ import type {
   DriverStopReference,
   FieldReportClaim,
 } from '../application/driver-field-report.port.js'
+import { TRIP_ON_ROAD_STATUSES } from '../domain/trip-state.policy.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
 
 /** As duas fases em que a viagem está na rua. Fora delas o motorista não tem o que reportar. */
-const ACTIVE_TRIP_STATUSES = ['dispatched', 'in_transit'] as const
+/** Reportar acontece na rua, e a rua inclui o trajeto iniciado (ADR-0058). */
+const ACTIVE_TRIP_STATUSES = TRIP_ON_ROAD_STATUSES
 
 /** Nota entregue ou devolvida saiu do eixo do campo — é o que faz a parada poder fechar. */
 const SETTLED_DOCUMENT_STATUSES = ['delivered', 'returned'] as const
@@ -354,6 +356,7 @@ class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactio
         companyId: input.companyId,
         description: input.description,
         kind: input.kind,
+        reportedDistanceMeters: input.distanceMeters,
         stopId: input.stopId,
         tripDocumentId: input.documentId,
       })

@@ -32,6 +32,7 @@
     "loading": "Carregando",
     "dispatched": "Despachada",
     "in_transit": "Em trânsito",
+    "on_delivery_route": "Em rota de entrega",
     "completed": "Concluída",
     "cancelled": "Cancelada"
   },
@@ -294,6 +295,8 @@
     "title": "Carga da viagem"
   },
   "cargoLayout": {
+    "loadOrderOptional": "A ordem sugerida abaixo ajuda, mas este veículo abre pela lateral — dá para alcançar a carga marcada sem descarregar o que está na frente.",
+    "stop": "{{order}}ª a carregar — {{label}}",
     "title": "Mapa de carga do baú",
     "loadOrderHint": "A ordem de carregamento é o inverso da de entrega: a última parada da rota viaja no fundo, e a primeira fica na porta.",
     "bottom": "fundo (última parada)",
@@ -301,9 +304,7 @@
     "slice": "{{order}}º a carregar — {{label}} · {{volume}} m³",
     "overflow": "Passa {{volume}} m³ da capacidade do veículo.",
     "withoutVolume": "Sem cubagem, e por isso fora do mapa: {{stops}}.",
-    "estimated": "As fatias saem da cubagem estimada, não de medida da carga.",
-    "loadOrderOptional": "A ordem sugerida abaixo ajuda, mas este veículo abre pela lateral — dá para alcançar a carga marcada sem descarregar o que está na frente.",
-    "stop": "{{order}}ª a carregar — {{label}}"
+    "estimated": "As fatias saem da cubagem estimada, não de medida da carga."
   },
   "destinationOrigin": {
     "delivery": "Entrega",
@@ -384,6 +385,8 @@
     "zoomOut": "Afastar o mapa",
     "recenter": "Recentrar o mapa",
     "legTime": "{{distance}} km · {{duration}} até a próxima",
+    "phoneCopied": "Telefone copiado",
+    "phoneCopy": "Copiar o telefone de {{recipient}}",
     "totalTime": "Tempo do roteiro: {{duration}} — estrada medida pelo roteirizador, mais 20 min parados por entrega.",
     "traceLabel": "Ordem das paradas",
     "trace": {
@@ -404,7 +407,15 @@
     "solveFailed": "O roteirizador não respondeu. A ordem atual continua valendo.",
     "finish": "Término previsto {{time}} · {{distance}} km · {{total}} de roteiro.",
     "finishWarning": "⚠️ Cai em {{reasons}} — confira se há expediente.",
-    "approximate": "⚠️ Posição aproximada — só o município é conhecido, o ponto é o centro dele."
+    "approximate": "⚠️ Posição aproximada — só o município é conhecido, o ponto é o centro dele.",
+    "noteAmount": "{{amount}}",
+    "noteWeight": "{{weight}} kg",
+    "noteRevenue": "frete {{amount}}",
+    "revenueEstimated": "previsto",
+    "totalAmount": "Valor das notas: {{amount}}",
+    "totalWeight": "Peso total: {{weight}} kg",
+    "revenueRule": "por {{rule}}{{percentage}}",
+    "totalFreight": "Frete previsto: {{amount}}"
   },
   "quickCreate": {
     "title": "Nova viagem",
@@ -437,6 +448,9 @@
     "search": "Buscar notas",
     "searchTerm": "Busca",
     "searchTermPlaceholder": "Emitente, destinatário ou chave",
+    "weightValue": "{{weight}} kg",
+    "weightEstimated": "estimado",
+    "weightEstimatedHint": "Peso calculado a partir da quantidade de volumes e do peso padrão da empresa — a nota não declarou massa.",
     "searchResult": "{{count}} nota encontrada.",
     "searchResult_other": "{{count}} notas encontradas.",
     "selectAll": "Selecionar todas da página",
@@ -447,7 +461,10 @@
       "number": "Nota",
       "recipient": "Destinatário",
       "address": "Endereço",
-      "city": "Cidade"
+      "city": "Cidade",
+      "amount": "Valor",
+      "weight": "Peso",
+      "freight": "Frete"
     },
     "selectAllFiltered": "Selecionar as {{count}} do filtro",
     "clearFilteredSelection": "Desmarcar as {{count}} do filtro"

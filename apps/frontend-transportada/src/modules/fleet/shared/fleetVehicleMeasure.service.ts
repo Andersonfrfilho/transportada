@@ -15,6 +15,9 @@ export const VEHICLE_MEASURE_FIELD_SCALE: Readonly<
 > = {
   capacityCubicMeters: MEASURE_SCALES,
   capacityKilograms: MEASURE_SCALES,
+  cargoHeightMeters: MEASURE_SCALES,
+  cargoLengthMeters: MEASURE_SCALES,
+  cargoWidthMeters: MEASURE_SCALES,
   tareWeightKilograms: MEASURE_SCALES,
 }
 
@@ -23,6 +26,9 @@ export function toVehicleMeasureBody(fields: FleetVehicleMeasureFields): FleetVe
   return {
     capacityCubicMeters: toApiMeasure(fields, 'capacityCubicMeters'),
     capacityKilograms: toApiMeasure(fields, 'capacityKilograms'),
+    cargoHeightMeters: toApiMeasure(fields, 'cargoHeightMeters'),
+    cargoLengthMeters: toApiMeasure(fields, 'cargoLengthMeters'),
+    cargoWidthMeters: toApiMeasure(fields, 'cargoWidthMeters'),
     tareWeightKilograms: toApiMeasure(fields, 'tareWeightKilograms'),
   }
 }
@@ -33,6 +39,9 @@ export function toVehicleMeasureFormState(
   return {
     capacityCubicMeters: toFormMeasure(fields, 'capacityCubicMeters'),
     capacityKilograms: toFormMeasure(fields, 'capacityKilograms'),
+    cargoHeightMeters: toFormMeasure(fields, 'cargoHeightMeters'),
+    cargoLengthMeters: toFormMeasure(fields, 'cargoLengthMeters'),
+    cargoWidthMeters: toFormMeasure(fields, 'cargoWidthMeters'),
     tareWeightKilograms: toFormMeasure(fields, 'tareWeightKilograms'),
   }
 }

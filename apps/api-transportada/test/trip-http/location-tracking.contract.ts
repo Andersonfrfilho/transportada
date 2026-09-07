@@ -29,6 +29,7 @@ function buildRepository(overrides: Partial<TripLocationRepositoryPort> = {}) {
   const recorded: unknown[] = []
   const repository: TripLocationRepositoryPort = {
     purgeByTrip: async () => {},
+    purgeStalePings: async () => 0,
     readCurrentTracking: async () => null,
     readLastPing: async () => null,
     async recordPing(input) {
@@ -41,8 +42,12 @@ function buildRepository(overrides: Partial<TripLocationRepositoryPort> = {}) {
   return { recorded, repository }
 }
 
-function trackingOf(hasConsent: boolean): DriverTrackingState {
-  return { hasConsent, tripId: TRIP_ID }
+/** Despachada agora: dentro da janela do rastro, que é o caso destes contratos. */
+function trackingOf(
+  hasConsent: boolean,
+  dispatchedAt: Date | null = new Date(),
+): DriverTrackingState {
+  return { dispatchedAt, hasConsent, tripId: TRIP_ID }
 }
 
 function buildHandler(routes: ReturnType<typeof createMeLocationRoutes>) {
@@ -228,5 +233,60 @@ describe('o rastro ao vivo do motorista (spec 063 T008)', () => {
       { accepted: true, companyId: COMPANY_ID, driverId: DRIVER_ID },
       { accepted: false, companyId: COMPANY_ID, driverId: DRIVER_ID },
     ])
+  })
+})
+
+describe('o teto de idade da viagem (ADR-0056 §2)', () => {
+  const ping = { companyId: COMPANY_ID, driverId: DRIVER_ID, latitude: '0', longitude: '0' }
+  const NOW = new Date('2026-09-03T18:00:00.000Z')
+  const hoursAgo = (hours: number) => new Date(NOW.getTime() - hours * 3_600_000)
+
+  /* A viagem esquecida aberta na sexta não acompanha o motorista no fim de semana. */
+  test('não grava o ping de viagem aberta há tempo demais', async () => {
+    const { recorded, repository } = buildRepository({
+      readCurrentTracking: async () => trackingOf(true, hoursAgo(48)),
+    })
+    const useCase = createRecordTripLocationUseCase({ repository })
+
+    const result = await useCase({ ...ping, now: NOW })
+
+    expect(result.outcome).toBe('ignored')
+    expect(recorded).toEqual([])
+  })
+
+  test('a viagem do dia continua gravando', async () => {
+    const { recorded, repository } = buildRepository({
+      readCurrentTracking: async () => trackingOf(true, hoursAgo(8)),
+    })
+    const useCase = createRecordTripLocationUseCase({ repository })
+
+    const result = await useCase({ ...ping, now: NOW })
+
+    expect(result.outcome).toBe('recorded')
+    expect(recorded).toHaveLength(1)
+  })
+
+  /**
+   * ⚠️ **Ausência de data não é idade, e este caso já foi o contrário.** A primeira versão recusava
+   * o ping com `dispatchedAt` nulo, lendo a ausência como "viagem que nunca saiu" — e o teste
+   * afirmava isso. Mas a data vem de `trip_dispatch_snapshots` por `leftJoin` (`trips` **não tem**
+   * `dispatched_at`), então toda viagem sem snapshot perdia o rastro em silêncio: o motorista
+   * mandando posição, o portal do contratante vazio, e nada acusando.
+   *
+   * `checkTrackingWindow` foi corrigida e este teste ficou para trás, vermelho na staging,
+   * afirmando a versão abandonada. Sem data não há o que comparar, e a resposta honesta é deixar
+   * passar — o prazo da ADR-0056 §2 continua cumprido por `resolveTrackingPurgeCutoff`, que corta o
+   * ping velho tenha a viagem fechado ou não.
+   */
+  test('sem data de despacho o ping passa, e quem corta é o expurgo', async () => {
+    const { recorded, repository } = buildRepository({
+      readCurrentTracking: async () => trackingOf(true, null),
+    })
+    const useCase = createRecordTripLocationUseCase({ repository })
+
+    const result = await useCase({ ...ping, now: NOW })
+
+    expect(result.outcome).toBe('recorded')
+    expect(recorded).toHaveLength(1)
   })
 })

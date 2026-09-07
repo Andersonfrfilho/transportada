@@ -3,11 +3,16 @@
  */
 import { CNPJ_PATTERN } from '../../shared/tax-id.service.js'
 
+import { resolveServiceScope, SERVICE_SCOPE } from './municipal-service.policy.js'
+import type { CteMunicipalServicePolicy } from '../../database/cte-emission-profile.schema.js'
+
 export const CTE_BATCH_BLOCK_REASON = {
   alreadyLinked: 'CTE_BATCH_DOCUMENT_ALREADY_LINKED',
   duplicated: 'CTE_BATCH_DOCUMENT_DUPLICATED',
   linkedToNfse: 'CTE_BATCH_DOCUMENT_LINKED_TO_NFSE',
   missingMunicipality: 'CTE_BATCH_DOCUMENT_MISSING_MUNICIPALITY',
+  /** Emitente e destinatário no mesmo município: é NFS-e (ISS), não CT-e (ICMS). */
+  municipalService: 'CTE_BATCH_DOCUMENT_MUNICIPAL_SERVICE',
   missingParty: 'CTE_BATCH_DOCUMENT_MISSING_PARTY',
   missingTotal: 'CTE_BATCH_DOCUMENT_MISSING_TOTAL',
   missingWeight: 'CTE_BATCH_DOCUMENT_MISSING_WEIGHT',
@@ -25,6 +30,13 @@ export type CteBatchBlockReason =
  * exigência do CT-e, que o declara em `infQ`, e não da NFS-e, cujo RPS não tem campo de massa.
  */
 export type SharedEligibilityDocument = {
+  /**
+   * O código do IBGE dos dois participantes fiscais. ⚠️ É por ele que a competência é decidida, e
+   * não pelo nome: `RIBEIRAO PRETO`, `Ribeirão Preto` e `RIBEIRÃO PRETO` chegam das notas como
+   * grafias diferentes da mesma cidade.
+   */
+  readonly recipientCityCode: string | null
+  readonly senderCityCode: string | null
   readonly recipientCity: string | null
   readonly recipientState: string | null
   readonly recipientTaxId: string | null
@@ -38,6 +50,12 @@ export type SharedEligibilityDocument = {
 
 export type EligibilityDocument = SharedEligibilityDocument & {
   readonly grossWeight: string | null
+  /**
+   * O que o perfil de emissão que rege esta nota decidiu sobre serviço municipal. É campo
+   * obrigatório e não padrão escondido: nota sem perfil resolvido chega como `allow` **porque quem
+   * a leu decidiu isso**, e não porque a política esqueceu de perguntar.
+   */
+  readonly municipalServicePolicy: CteMunicipalServicePolicy
 }
 
 export type FreightRuleWindow = {
@@ -142,6 +160,24 @@ export function checkSharedEligibility(document: SharedEligibilityDocument): Sha
 export function checkDocumentEligibility(document: EligibilityDocument): DocumentEligibility {
   const shared = checkSharedEligibility(document)
   if (shared.reason !== undefined) return { reason: shared.reason }
+
+  /**
+   * ⚠️ Serviço que começa e termina no mesmo município é **NFS-e, com ISS**, e não CT-e, que é
+   * documento de ICMS — **onde o perfil de emissão disser que é**. O padrão é `allow`, e nele nada
+   * muda: quem separa CT-e de NFS-e continua sendo o operador, pelos dois botões da tela.
+   *
+   * Competência indefinida (código de município ausente de um dos lados) **não bloqueia** nem com o
+   * portão ligado: chutar trocaria uma emissão possivelmente errada por uma emissão impossível.
+   */
+  if (
+    document.municipalServicePolicy === 'block' &&
+    resolveServiceScope({
+      recipientCityCode: document.recipientCityCode,
+      senderCityCode: document.senderCityCode,
+    }) === SERVICE_SCOPE.municipal
+  ) {
+    return { reason: CTE_BATCH_BLOCK_REASON.municipalService }
+  }
 
   if (document.grossWeight === null || !isPositiveAmount(document.grossWeight)) {
     return { reason: CTE_BATCH_BLOCK_REASON.missingWeight }

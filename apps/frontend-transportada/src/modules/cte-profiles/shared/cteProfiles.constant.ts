@@ -19,6 +19,7 @@ export const PROFILE_PAGE_SIZE = 25
 
 export const SETTINGS_KEYS = [
   'cargoInsuranceDeclared',
+  'municipalServicePolicy',
   'cfopInternal',
   'cfopInterstate',
   'chargeComponentLabel',

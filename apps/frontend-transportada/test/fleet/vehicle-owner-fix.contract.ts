@@ -44,9 +44,9 @@ describe('vehicle owner fix contract', () => {
       resolveVehicleOwnerFixField(
         listIncompleteVehicleOwnerFields({
           ...INCOMPLETE_OWNER,
-          ownerName: 'Lazaro Matias Cipriano',
-          ownerRntrc: '054941988',
-          ownerTaxId: '44423659891',
+          ownerName: 'Orlando Pacheco Sintetico',
+          ownerRntrc: '071350284',
+          ownerTaxId: '52914068731',
         }),
       ),
     ).toBe('addressState')

@@ -17,6 +17,14 @@ import type { StyleSpecification } from 'maplibre-gl'
  */
 export const BASEMAP_URL = import.meta.env.VITE_MAP_TILES_URL?.trim() || '/map-tiles/area.pmtiles'
 const SOURCE = 'basemap'
+/**
+ * Feature 089 (fase 2) — o overlay do radar mora **ao lado** do basemap: mesmo serviço, mesma
+ * origem, só o nome do arquivo muda. Derivar de `BASEMAP_URL` em vez de uma segunda variável de
+ * ambiente evita que as duas apontem para servidores diferentes por engano — o mesmo raciocínio de
+ * `resolveGlyphsUrl` para os glifos.
+ */
+export const OVERLAY_URL = BASEMAP_URL.replace(/area\.pmtiles$/u, 'overlay.pmtiles')
+export const RADAR_SOURCE = 'radar-overlay'
 /** A pilha embarcada no serviço de mapa. Trocar o nome aqui sem trocar a imagem apaga todo rótulo. */
 const FONT_STACK = 'Noto Sans Regular'
 
@@ -175,6 +183,13 @@ export function buildBasemapStyle(
      */
     sources: {
       [SOURCE]: { type: 'vector', url: `pmtiles://${BASEMAP_URL}` },
+      /**
+       * ⚠️ Sempre declarada, mesmo em instalação sem o arquivo ainda gerado: a degradação é do
+       * tratador de erro do componente (`RADAR_SOURCE`), não da ausência da fonte no estilo. Uma
+       * fonte condicional exigiria saber de antemão se o arquivo existe, e é exatamente essa
+       * pergunta que o `Range` do serviço responde em runtime, não aqui.
+       */
+      [RADAR_SOURCE]: { type: 'vector', url: `pmtiles://${OVERLAY_URL}` },
     },
     layers: [
       { id: 'terra', type: 'background', paint: { 'background-color': terra } },
@@ -276,6 +291,25 @@ export function buildBasemapStyle(
         },
       },
       /**
+       * ⚠️ Feature 089 — medido nas telhas de Ribeirão: `toll` está presente em 64 de 586 feições
+       * de `transportation` da amostra, sempre sem valor único (o filtro é presença, não
+       * comparação). Tracejado, e não cor nova: no tema `contraste` a classe de via não colore
+       * (ver PALETTE), e ali a distinção do pedágio precisa sobreviver mesmo assim.
+       */
+      {
+        id: 'via-com-pedagio',
+        type: 'line',
+        source: SOURCE,
+        'source-layer': 'transportation',
+        filter: ['has', 'toll'],
+        paint: {
+          'line-color': rodovia,
+          'line-dasharray': [2, 1.5],
+          'line-opacity': 0.9,
+          'line-width': ['interpolate', ['linear'], ['zoom'], 7, 1.2, 11, 2.8, 16, 7],
+        },
+      },
+      /**
        * O nome da via, escrito **ao longo dela** (`symbol-placement: 'line'`). Ele só entra a partir
        * do zoom 13: acima disso o operador está conferindo um endereço, e é aí que o nome da rua
        * responde alguma coisa. Mostrá-lo no zoom de região encheria a tela de texto sobre a rota,
@@ -299,6 +333,40 @@ export function buildBasemapStyle(
           'text-color': rotulo,
           'text-halo-color': terra,
           'text-halo-width': 1.4,
+        },
+      },
+      /**
+       * ⚠️ Feature 089 — `oneway` só assume o valor `1` nesta base (medido: 5165 de 5256 feições
+       * amostradas, zero em `0` ou `-1`), então o filtro é **presença**, não comparação: comparar
+       * contra `1` desenharia a seta hoje e pararia de desenhar no dia em que a telha trouxer `-1`
+       * de verdade, sem ninguém perceber.
+       *
+       * `symbol-placement: 'line'` já alinha o glifo ao sentido do traço; `text-rotate` só entra
+       * para o caso `-1` (não ocorre na base medida, e entra assim mesmo — sem ele, uma via
+       * digitada no sentido contrário desenharia a seta apontando para o lado errado, defeito que
+       * ninguém confere olhando o mapa). Zoom 15: entre o nome da rua (13) e o número da porta
+       * (16), para não competir com o nome.
+       */
+      {
+        id: 'sentido-da-via',
+        type: 'symbol',
+        source: SOURCE,
+        'source-layer': 'transportation',
+        filter: ['has', 'oneway'],
+        minzoom: 15,
+        layout: {
+          'symbol-placement': 'line',
+          'text-field': '→',
+          'text-font': [FONT_STACK],
+          'text-rotate': ['case', ['==', ['get', 'oneway'], -1], 180, 0],
+          'symbol-spacing': 120,
+          'text-size': 12,
+          'text-keep-upright': false,
+        },
+        paint: {
+          'text-color': via,
+          'text-halo-color': terra,
+          'text-halo-width': 1,
         },
       },
       /**
@@ -403,6 +471,61 @@ export function buildBasemapStyle(
           'text-size': 10,
         },
         paint: { 'text-color': agua, 'text-halo-color': terra, 'text-halo-width': 1.2 },
+      },
+      /**
+       * ⚠️ Feature 089 — as 16 cabines de pedágio medidas na região de Ribeirão vêm todas como
+       * `poi`/`subclass: toll_booth`, nunca uma camada própria do esquema. Zoom 11 é o mesmo em que
+       * a camada `poi` começa a existir nas telhas (metadados do PMTiles) — abaixo disso não há o
+       * que desenhar.
+       */
+      {
+        id: 'cabine-de-pedagio',
+        type: 'symbol',
+        source: SOURCE,
+        'source-layer': 'poi',
+        filter: ['==', ['get', 'subclass'], 'toll_booth'],
+        minzoom: 11,
+        layout: {
+          /**
+           * Glifo, não emoji: `web.md` §9 proíbe emoji na UI de produto — aqui o desenho é o
+           * MapLibre em WebGL, sem `currentColor`, sem componente de ícone, e o próprio pino da
+           * parada e o resto deste estilo já resolvem por glifo de texto.
+           */
+          'text-field': '●',
+          'text-font': [FONT_STACK],
+          'text-size': 10,
+          'text-allow-overlap': true,
+        },
+        paint: {
+          /** Mesma cor da via com pedágio (`rodovia`) — pedágio é uma linguagem visual só. */
+          'text-color': rodovia,
+          'text-halo-color': terra,
+          'text-halo-width': 1.4,
+        },
+      },
+      /**
+       * ⚠️ Feature 089 (fase 2) — vem do arquivo separado (`RADAR_SOURCE`), nunca do basemap: o
+       * esquema OpenMapTiles não tem `speed_camera`. Zoom 11, o mesmo patamar em que `poi` existe
+       * no basemap. Glifo **diferente** da cabine de pedágio (▲, não ●) — as duas linguagens
+       * visuais de pedágio e radar não podem se confundir na mesma tela.
+       */
+      {
+        id: 'radar',
+        type: 'symbol',
+        source: RADAR_SOURCE,
+        'source-layer': 'radar',
+        minzoom: 11,
+        layout: {
+          'text-field': '▲',
+          'text-font': [FONT_STACK],
+          'text-size': 9,
+          'text-allow-overlap': true,
+        },
+        paint: {
+          'text-color': troncal,
+          'text-halo-color': terra,
+          'text-halo-width': 1.4,
+        },
       },
       /**
        * ⚠️ O **número da porta** é o que fecha a conferência: a nota traz "Avenida Recife, 289", e é

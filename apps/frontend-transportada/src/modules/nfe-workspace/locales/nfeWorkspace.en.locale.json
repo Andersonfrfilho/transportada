@@ -29,6 +29,8 @@
     "subtitle": "Send XML and ZIP batches without blocking the rest of the operation.",
     "files": "XML or ZIP files",
     "select": "Select files",
+    "noFileChosen": "No file chosen",
+    "selectedCount": "{{count}} files chosen",
     "submit": "Upload batch",
     "pending": "Uploading batch...",
     "success": "Batch uploaded. Processing will appear in the queue.",

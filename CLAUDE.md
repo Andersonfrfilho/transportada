@@ -211,6 +211,49 @@ sintoma hoje, e o caminho de escrita nunca rodou contra nota real; é
 escrita. A população adiantada adianta os **dois** papéis, de propósito: o superconjunto nunca erra
 por falta, e o excedente é grátis porque o degrau que resolve é o do CEP.
 
+**O telefone do cliente já estava no banco, faltava o caminho até a tela.** O `<fone>` de
+`<enderDest>` é importado desde sempre e vive em `nfe_addresses.phone` — com um backfill próprio no
+worker (`nfe-party-contact-backfill.service.ts`) —, e a listagem não o publicava: quem monta a
+viagem precisa ligar para o cliente antes de o caminhão sair e não tinha por onde. Hoje
+`NfeDocumentSummary.recipientPhone` sai na listagem e no detalhe, e a linha da parada no mapa da
+montagem o imprime ao lado de um `CopyButton` em variante `inline`.
+
+⚠️ Ele é do **destinatário**, não do destino físico: é um "quem", e a linha divisória da spec 073
+mantém "quem" no destinatário mesmo quando `<entrega>` manda no lugar da parada. E ele **não entra
+na chave da parada** — duas notas do mesmo endereço com telefones diferentes continuam sendo uma
+parada só.
+
+⚠️ **O servidor serve o cru, e a máscara é de quem imprime.** `formatPhone` (frontend) é a máscara
+de quem **digita** e sempre trata os dois primeiros dígitos como DDD — verdade num campo em
+preenchimento, mentira no `<fone>` da nota, onde `39771234` é telefone local e viraria `(39) 771234`,
+um DDD de Minas num número de Ribeirão Preto. Quem imprime valor guardado usa `formatStoredPhone`,
+que só põe DDD em 10 ou 11 dígitos, quebra 8 e 9 sem DDD, e devolve **intacto** o que não cabe em
+nenhuma das quatro formas. O botão copia o **cru**, não o mascarado: colar num discador não deve
+obrigar ninguém a limpar pontuação. Contratos em `test/shared/stored-phone.contract.ts` e
+`test/trip/assembly-stop-phone.contract.ts` (frontend) e
+`test/nfe-documents/recipient-phone.contract.ts` (API).
+
+⚠️ **O e-mail do destinatário chega em quase toda nota e era descartado na leitura.** Medido em
+2026-09-05 sobre os XMLs arquivados desta base: **2337 de 2372** NF-e trazem `<email>` dentro de
+`<dest>`, 98,5% — em `883649 · MINIMERCADO ABADE LTDA` ele vem literalmente ao lado do `<fone>` que
+já importamos. A raiz era o pacote: `NfeXmlParty` do `@adatechnology/fiscal-provider` não tinha o
+campo, então o valor era lido do XML e jogado fora. Corrigido em
+`Andersonfrfilho/adatechnology-packages#105` (duas linhas: o campo no tipo e a leitura em
+`parseParty`).
+
+⚠️ **Ele é irmão de `<enderDest>`, não filho, e isso decide a tabela.** No layout o telefone mora no
+**endereço** e o e-mail mora na **parte** — então o destino é `nfe_participants`, ao lado de
+`tradeName`, e **não** `nfe_addresses` como o telefone. Repetir o caminho do telefone por analogia
+guardaria o campo na tabela errada, e lê-lo do endereço devolveria `undefined` em toda nota sem erro
+nenhum.
+
+O que falta aqui depois de a versão sair: coluna em `nfe_participants` → persistir na importação →
+preencher as já importadas por `nfe-party-contact-backfill.service.ts` (ele já relê os XMLs para
+`phoneByAddressId` e `tradeNameByParticipantId`; e-mail é `emailByParticipantId`, irmão do segundo) →
+`recipientEmail` na listagem → tela com botão de copiar, igual ao telefone. ⚠️ O bump não é pequeno:
+as duas apps pinam `0.3.0-rc.7` e o `main` do pacote já está em `0.3.0` estável, então o upgrade
+atravessa a estabilização e carrega o que mudou entre as duas linhas.
+
 **A chave de acesso é filtro de listagem, não rota nova.** `GET /nfe-documents?accessKey=` resolve os
 44 caracteres que a câmera leu no identificador que o vínculo pede, dentro do `companyId` do contexto
 — chave de outra empresa é ausência, não 403, e é
@@ -390,6 +433,49 @@ inventado faria alguém parar de carregar, ou continuar. Estouro acima de 100% s
 tela de quem carrega o caminhão. E `VEHICLE_TYPE_ICONS` (frontend) é `Record<VehicleType, IconName>`
 — tipo novo no catálogo **não compila** sem desenho.
 
+**O `?url` do worker do pdf.js é `import` estático, e a diferença só aparece em dev.** Como
+`import()` dinâmico o sufixo é ignorado pelo `vite dev`: o que volta é o módulo do worker
+(`{ WorkerMessageHandler }`), sem `default`. O `workerSrc` recebia `undefined` e o pdf.js lançava
+`Invalid workerSrc type` **antes de olhar o arquivo** — todo upload de documento falhava em
+desenvolvimento, com qualquer PDF, sob a mensagem "confira se é um PDF e tente de novo". No bundle
+construído a forma dinâmica funciona, e é por isso que **nenhum smoke pegava**: eles rodam contra o
+`vite preview`. Medido em 06/09/2026 com um CRLV-e real de 80 kB, que depois da correção entrega
+onze campos. ⚠️ `new URL(…, import.meta.url)` **não serve aqui** — ela não resolve especificador de
+pacote, que é a mesma razão registrada no `AssemblyVectorMap`. Contrato em
+`test/document-intake/pdfjs-worker.contract.ts`, sobre a **forma do import**, que é onde a
+diferença mora.
+
+⚠️ **`VEHICLE_DETAIL_KEYS` é contrato de duas pontas, e quebrar sozinho é silencioso.** O
+`isVehicle` do frontend valida com `hasOnlyKeys` **e** `hasEveryKey`: campo novo na lista com a API
+ainda servindo o corpo antigo faz toda linha ser recusada na validação, e a tabela de frota
+renderiza **vazia** — 200 na rede, nada no console, nenhum erro na tela. Aconteceu ao acrescentar os
+três campos de baú, com a API de desenvolvimento rodando código anterior. Num deploy com API e
+frontend em serviços separados, a janela entre os dois é uma tela de frota vazia para o cliente:
+sobe a API primeiro.
+
+**A escala do baú sai da ficha, e medi-lo apaga o m³ digitado** (spec 088 R1). A ficha do veículo
+nunca pediu as três medidas: as colunas existem desde a 075, `resolveVehicleCapacity` as prefere a
+qualquer outra fonte, e o formulário perguntava só `Capacidade (m³)` — medido em 2026-09-06, **0 de
+8** veículos com dimensão preenchida. Hoje ela pede comprimento, largura e altura, os três
+opcionais, e `cargoLengthMeters`/`cargoWidthMeters`/`cargoHeightMeters` atravessam a rota de escrita
+até `cargo_length_m` e as duas irmãs.
+
+⚠️ **Preenchidas as três, o `capacityCubicMeters` submetido é zero** —
+`resolveSubmittedCapacity` (`fleet/shared/vehicleCargoDimensions.service.ts`), e o campo da tela
+vira somente-leitura mostrando o derivado. Travar o campo sem zerar o envio era o meio caminho que
+não resolve nada: o m³ antigo continuava no banco, invisível enquanto as medidas existissem, e
+voltava a valer sozinho no dia em que alguém as apagasse por troca de implemento — reafirmado por
+ninguém, e justamente o número que a spec diz não merecer confiança. Zero é o vocabulário que o
+resolvedor **já** lê como ausência (nunca como baú de volume zero), então apagar não inventa
+sinalizador novo.
+
+⚠️ A medida **não se herda por marca**: `VEHICLE_BRAND_DEFAULT_FIELDS` copia doze campos entre
+veículos da mesma marca — `capacityCubicMeters` incluído — e as três dimensões ficam de fora de
+propósito, porque o baú é montado por um implementador depois do chassi e o catálogo FIPE devolve só
+marca e modelo. O CRLV também não as traz: ele imprime **peso** (PBT, CMT, tara, lotação), nunca a
+medida interna do compartimento. A fita é o único caminho, e `test/fleet/vehicle-cargo-dimensions.contract.ts`
+tranca as duas metades — o zeramento e a ausência da herança.
+
 **A caixa se mede uma vez, e o cadastro se popula do que roda** (ADR-0062, spec 085). A NF-e não
 traz dimensão nenhuma — medido em 345 XMLs desta base: **345 de 345** sem medida no grupo `<vol>` —,
 então a medida é trabalho humano, e a decisão da 085 é que ela mora em `nfe_package_boxes` **aqui**,
@@ -474,8 +560,71 @@ no mesmo caminhão, mesmo lacre, mesmo minuto. Duas consequências:
   CHECK (zero declararia que a carga não pesa nada). A estimativa entra **por volume**, para a soma
   de `composeCargoQuantities` continuar coerente com o `qVol`, e nota com **algum** volume pesado
   não é tocada. ⚠️ Não confundir com `company_route_optimization_settings.fallback_weight_kilograms`,
-  que é peso **por parada** para o solver. ⚠️ **Nenhuma tela mostra peso hoje**, então não há marca
-  de "estimado" por nota — quem expuser peso em qualquer superfície leva a origem junto.
+  que é peso **por parada** para o solver. ⚠️ **A primeira tela a mostrar peso é a busca de notas do
+  diálogo "Nova viagem"**, e ela leva a origem junto: `NfeDocumentSummary` publica
+  `cargoGrossWeight` **e** `cargoWeightSource`, e a coluna imprime "estimado" ao lado do número
+  quando a origem não é o XML. Os dois campos andam sempre em par — quem expuser peso em qualquer
+  outra superfície leva a origem junto, pela mesma razão da ADR-0044 §1: número plausível sem aviso
+  é o modo de falha. Ausência é `null` nos dois, nunca zero. O valor da nota (`totalAmount`) ganhou
+  coluna na mesma tabela, e o `formatWeightKilograms` de
+  `frontend-transportada/src/modules/shared/decimalAmount.service.ts` é separado do `formatAmount`
+  de propósito: as duas grandezas são `numeric(_, 4)`, e reusar o de dinheiro imprimiria `R$ 108,67`
+  numa coluna de massa sem o tipo acusar nada. Contratos em
+  `test/nfe-documents/cargo-weight-listing.contract.ts` (API) e
+  `test/trip/document-search-columns.contract.ts` (frontend). Medido em 2026-09-05: **344 das 345
+  notas trazem `pesoB`**, e `company_cargo_settings` está vazia — a estimativa não roda hoje.
+
+**O roteirizador passou a ler esse mesmo peso.** Até 2026-09-06 `readStops` e `readPoolStops`
+(`worker-transportada/src/routing/infrastructure/drizzle-route-optimization.repository.ts`) gravavam
+`weightEstimated: true` e `fallback_weight_kilograms` em **toda** parada — a média da empresa decidia
+capacidade enquanto a massa medida estava no banco. Medido em 347 XMLs reais do cliente: **todos**
+trazem `pesoB`, de 13,108 kg a 1.092,000 kg — uma faixa de 83× que um número só não representa.
+
+Hoje a precedência é a de `resolveStopWeight`
+(`worker-transportada/src/routing/domain/stop-weight.policy.ts`), e ela é **a mesma da listagem**:
+`pesoB` declarado → `qVol × company_cargo_settings.default_volume_weight` → ausência. Duas ordens
+diferentes fariam a tela e o roteirizador discordarem sobre a mesma nota.
+
+⚠️ Onde as duas divergem é na ausência: a listagem publica `null` (e a coluna fica vazia), e o solver
+**precisa de um número** — ignorar a nota mandaria carga a mais para um caminhão que ele acredita
+vazio. Ali entra `fallback_weight_kilograms`, que deixou de ser peso **por parada** e passou a ser
+peso **por nota sem medida**; com uma nota só, que era o caso de ontem, o resultado é idêntico.
+
+⚠️ `weightEstimated` é do **pior caso da parada**: uma nota sem massa entre outras medidas marca a
+parada inteira, porque é a marca que o conferente lê antes de aceitar (ADR-0044 §5). O worker ganhou
+cópia por valor de `trip_documents` (em `routing.schema.ts`) e de `company_cargo_settings` (em
+`nfe.schema.ts`) — migration continua sendo da API. Contrato em `test/routing/stop-weight.contract.ts`
+e as duas pontas provadas contra Postgres em `test/route-optimization-trip-weight.integration.test.ts`
+(a parada da viagem, que não tinha cobertura de integração nenhuma) e
+`test/route-optimization-pool.integration.test.ts` (o pool).
+
+**Serviço municipal é escolha do perfil, não premissa do produto** (spec do portão municipal).
+Transporte que começa e termina no mesmo município é NFS-e, com ISS, e não CT-e, que é ICMS — mas
+**medido em produção**: das notas de mesmo município, **0 de 920** tinham CT-e (um portão ligado por
+padrão não barraria nada), e as **62 de 62** NFS-e emitidas eram **intermunicipais** (a leitura
+inversa barraria a operação inteira). Nenhuma das duas descreve a operação, e o produto é genérico
+(ADR-0021): a regra virou dado.
+
+`cte_emission_profiles.municipal_service_policy` é `allow` (padrão, e o comportamento de sempre) ou
+`block`. Em `allow` quem separa CT-e de NFS-e continua sendo o operador, pelos dois botões da tela;
+em `block` a nota de mesmo município é recusada na seleção do lote com
+`CTE_BATCH_DOCUMENT_MUNICIPAL_SERVICE`. A migration `20260906140000_cte_profile_municipal_service_policy`
+é aditiva com default — **nenhuma instalação muda de comportamento ao aplicá-la**.
+
+⚠️ **A comparação é pelo código do IBGE, nunca pelo nome** (`RIBEIRAO PRETO`, `Ribeirão Preto` e
+`RIBEIRÃO PRETO` chegam das notas como três grafias), e são os municípios dos **participantes
+fiscais** — não o destino físico da spec 073: onde o caminhão encosta é roteiro, quem figura no
+documento define a competência do imposto. Código ausente de um dos lados **não barra nem com o
+portão ligado**.
+
+⚠️ **Dois consumidores perguntam qual perfil rege a nota**, e por isso a resposta mora num lugar só:
+`resolveMunicipalServicePolicy` (`cte-profiles/domain/emission-profile-resolution.policy.ts`). Ela
+usa `findEmissionProfile`, que é `resolveEmissionProfile` **sem lançar** — nota sem perfil, empate e
+participante sem CNPJ viram ausência, e ausência vira `allow`. A versão que lança continua sendo a da
+emissão, onde a falta de perfil é erro de verdade; usá-la na listagem derrubaria a tela inteira por
+causa de uma linha. Na seleção do lote o perfil é resolvido **duas vezes** de propósito: o portão
+roda antes de a nota ser considerada cobrável, e as duas leituras escolhem o mesmo perfil do mesmo
+catálogo. Na listagem os perfis ativos são carregados **uma vez por página**, como as regras de frete.
 
 **Cliente da fatura:** é o **tomador do frete**, quem paga — nunca um papel de participante da nota.
 Quem é o tomador está configurado em `cte_emission_profiles.taker` (`0` remetente, `3` destinatário)

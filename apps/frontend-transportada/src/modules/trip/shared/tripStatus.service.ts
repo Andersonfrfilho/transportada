@@ -3,7 +3,12 @@ import type { TripStatus } from './trip.types'
 
 /** ADR-0043 §2 (D2): a partir daqui a carga já está na rua — nenhuma nota entra, nenhuma sai, e a
  * ordem das paradas está congelada no `trip_stop_snapshot`. */
-const DISPATCHED_STATUSES: readonly TripStatus[] = ['dispatched', 'in_transit', 'completed']
+const DISPATCHED_STATUSES: readonly TripStatus[] = [
+  'dispatched',
+  'in_transit',
+  'on_delivery_route',
+  'completed',
+]
 
 export function isTripDispatched(status: TripStatus): boolean {
   return DISPATCHED_STATUSES.includes(status)

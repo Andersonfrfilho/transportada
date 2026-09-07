@@ -42,6 +42,12 @@ const returnSchema = z
 const occurrenceSchema = z
   .object({
     description: z.string().max(OCCURRENCE_DESCRIPTION_MAX_LENGTH).optional(),
+    /**
+     * ADR-0057 §3: metros entre o motorista e a parada, medidos no aparelho. Ausente é **não
+     * aferida** — parada sem coordenada, ou posição que nunca fixou —, e continua sendo aceita:
+     * distância grande é informação para quem decide, nunca porteiro.
+     */
+    distanceMeters: z.int().min(0).nullish(),
     documentId: z.uuid().nullish(),
     kind: z.enum(TRIP_STOP_OCCURRENCE_KINDS),
   })
@@ -100,6 +106,7 @@ export async function parseDocumentReturnRequest(request: Request): Promise<{
 
 export async function parseStopOccurrenceRequest(request: Request): Promise<{
   readonly description: string
+  readonly distanceMeters: number | null
   readonly documentId: string | null
   readonly kind: (typeof TRIP_STOP_OCCURRENCE_KINDS)[number]
 }> {
@@ -107,6 +114,8 @@ export async function parseStopOccurrenceRequest(request: Request): Promise<{
 
   return {
     description: body.description ?? '',
+    /* Ausente e nulo dizem a mesma coisa — não aferida —, e viram o mesmo valor aqui. */
+    distanceMeters: body.distanceMeters ?? null,
     documentId: body.documentId ?? null,
     kind: body.kind,
   }

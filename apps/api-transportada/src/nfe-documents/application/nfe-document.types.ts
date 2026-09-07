@@ -26,6 +26,36 @@ export type NfeDocumentSummary = {
    * diferentes são a mesma linha na tela.
    */
   readonly recipientPostalCode: string | null
+  /**
+   * O telefone do destinatário, **como o emitente o escreveu** — o `<fone>` de `<enderDest>`, que a
+   * importação já guardava em `nfe_addresses` e a listagem não publicava. Quem monta a viagem liga
+   * para o cliente antes de o caminhão sair; sem este campo o número existia no banco e não havia
+   * caminho até a tela.
+   *
+   * ⚠️ Ele é do **destinatário**, não do destino físico: é um "quem", e a linha divisória da
+   * spec 073 mantém "quem" no destinatário mesmo quando `<entrega>` manda no lugar da parada.
+   */
+  readonly recipientPhone: string | null
+  /**
+   * O peso bruto da carga da nota, e **de onde ele veio**. O valor já era resolvido aqui dentro por
+   * `resolveCargoWeight` — para decidir bloqueio de lote de CT-e — e era jogado fora sem chegar a
+   * superfície nenhuma.
+   *
+   * ⚠️ Os dois campos andam **juntos, sempre**: `estimated` é `quantidade de volumes × peso padrão
+   * da empresa`, um palpite, e imprimir o número sem a origem é o modo de falha que a ADR-0044 §1
+   * descreve para a coordenada — número plausível, sem aviso. Ausência é `null` nos dois, nunca
+   * zero: zero declararia que a carga não pesa nada.
+   */
+  /**
+   * O frete previsto pela parametrização vigente, e o nome da regra que o produziu. ⚠️ É previsão,
+   * não receita realizada: a realizada vem do CT-e emitido. Ambos `null` quando nenhuma regra casa
+   * — e também quando **duas** casam igualmente bem, porque escolher uma calado esconderia a
+   * configuração ambígua em vez de mostrá-la.
+   */
+  readonly freightAmount: string | null
+  readonly freightRuleName: string | null
+  readonly cargoGrossWeight: string | null
+  readonly cargoWeightSource: 'estimated' | 'xml' | null
   readonly recipientAddressNumber: string | null
   /**
    * Onde a carga para, quando a cascata já resolveu o endereço (ADR-0044 §3). A precisão vem junto

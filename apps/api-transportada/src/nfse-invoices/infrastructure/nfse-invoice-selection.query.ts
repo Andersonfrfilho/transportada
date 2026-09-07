@@ -21,6 +21,8 @@ export type NfseInvoiceSelectionQuery = {
 type PartyLocation = {
   readonly address: NfsePartyAddress
   readonly city: string | null
+  /** O código do IBGE: é ele que decide a competência, porque o nome tem três grafias. */
+  readonly cityCode: string | null
   readonly legalName: string | null
   readonly state: string | null
   readonly taxId: string | null
@@ -46,6 +48,7 @@ const EMPTY_ADDRESS: NfsePartyAddress = {
 const EMPTY_PARTY: PartyLocation = {
   address: EMPTY_ADDRESS,
   city: null,
+  cityCode: null,
   legalName: null,
   state: null,
   taxId: null,
@@ -112,11 +115,13 @@ export async function findNfseSelectionDocuments(
       number: record.number,
       recipientAddress: recipient.address,
       recipientCity: recipient.city,
+      recipientCityCode: recipient.cityCode,
       recipientLegalName: recipient.legalName,
       recipientState: recipient.state,
       recipientTaxId: recipient.taxId,
       senderAddress: sender.address,
       senderCity: sender.city,
+      senderCityCode: sender.cityCode,
       senderLegalName: sender.legalName,
       senderState: sender.state,
       senderTaxId: sender.taxId,
@@ -135,6 +140,7 @@ async function loadParties(
   const rows = await queryable
     .select({
       city: nfeAddresses.city,
+      cityCode: nfeAddresses.cityCode,
       complement: nfeAddresses.complement,
       district: nfeAddresses.district,
       documentId: nfeParticipants.documentId,
@@ -167,6 +173,7 @@ async function loadParties(
         street: row.street,
       },
       city: row.city,
+      cityCode: row.cityCode,
       legalName: row.legalName,
       state: row.state,
       taxId: row.taxId,

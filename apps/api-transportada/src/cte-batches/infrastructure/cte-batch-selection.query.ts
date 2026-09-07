@@ -32,6 +32,8 @@ export type SelectionQueryable = Database | Transaction
 
 type PartyLocation = {
   readonly city: string | null
+  /** O código do IBGE: é ele que decide a competência, porque o nome tem três grafias. */
+  readonly cityCode: string | null
   readonly state: string | null
   readonly taxId: string | null
 }
@@ -48,7 +50,7 @@ function escapeLike(value: string): string {
   return value.replace(LIKE_WILDCARDS, '\\$&')
 }
 
-const EMPTY_PARTY: PartyLocation = { city: null, state: null, taxId: null }
+const EMPTY_PARTY: PartyLocation = { city: null, cityCode: null, state: null, taxId: null }
 const EMPTY_PARTIES: DocumentParties = { recipient: EMPTY_PARTY, sender: EMPTY_PARTY }
 const SENDER_ROLE = 'emitter'
 const RECIPIENT_ROLE = 'recipient'
@@ -222,9 +224,11 @@ export async function findSelectionDocuments(
       issuedAt: record.issuedAt.toISOString(),
       number: record.number,
       recipientCity: recipient.city,
+      recipientCityCode: recipient.cityCode,
       recipientState: recipient.state,
       recipientTaxId: recipient.taxId,
       senderCity: sender.city,
+      senderCityCode: sender.cityCode,
       senderState: sender.state,
       senderTaxId: sender.taxId,
       series: record.series,
@@ -284,6 +288,7 @@ async function loadParties(
   const rows = await queryable
     .select({
       city: nfeAddresses.city,
+      cityCode: nfeAddresses.cityCode,
       documentId: nfeParticipants.documentId,
       role: nfeParticipants.role,
       state: nfeAddresses.state,
@@ -308,7 +313,12 @@ async function loadParties(
   for (const row of rows) {
     if (row.role !== SENDER_ROLE && row.role !== RECIPIENT_ROLE) continue
     const current = parties.get(row.documentId) ?? EMPTY_PARTIES
-    const party: PartyLocation = { city: row.city, state: row.state, taxId: row.taxId }
+    const party: PartyLocation = {
+      city: row.city,
+      cityCode: row.cityCode,
+      state: row.state,
+      taxId: row.taxId,
+    }
     parties.set(
       row.documentId,
       row.role === SENDER_ROLE ? { ...current, sender: party } : { ...current, recipient: party },

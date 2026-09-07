@@ -29,6 +29,8 @@
     "subtitle": "Envie XMLs e lotes ZIP sem bloquear o restante da operação.",
     "files": "Arquivos XML ou ZIP",
     "select": "Selecionar arquivos",
+    "noFileChosen": "Nenhum arquivo escolhido",
+    "selectedCount": "{{count}} arquivos escolhidos",
     "submit": "Enviar lote",
     "pending": "Enviando lote...",
     "success": "Lote enviado. O processamento aparecerá na fila.",

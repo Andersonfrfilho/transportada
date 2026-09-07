@@ -973,6 +973,53 @@ test('o CCMEI solto na ficha do veículo é recusado com nome, não confundido c
   await expect(page.getByRole('textbox', { name: /^Placa/ })).toHaveValue('')
 })
 
+/**
+ * Spec 088 R1: medido o baú, o m³ deixa de ser digitado. O contrato prova o zeramento na função;
+ * aqui se prova o que só o navegador mostra — o campo recusando a digitação e o derivado mudando a
+ * cada tecla, que é o que o operador vê antes de salvar.
+ */
+test('medidas as três dimensões, a capacidade vira derivada e para de aceitar digitação', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.desktop)
+  await page.addInitScript(() => sessionStorage.setItem('transportada.workspace', 'fleet'))
+  await mockFleetWorkspaceApi({ page, permissions: ['fleet.read', 'fleet.manage'] })
+  await loginAsLocalUser(page)
+
+  await page.getByRole('button', { name: 'Novo veículo' }).click()
+  await expect(page.getByRole('heading', { name: 'Novo veículo' })).toBeVisible()
+
+  const capacity = page.getByRole('textbox', { name: /^Capacidade \(m³\)/ })
+  const length = page.getByRole('textbox', { name: /^Comprimento do baú/ })
+  const width = page.getByRole('textbox', { name: /^Largura do baú/ })
+  const height = page.getByRole('textbox', { name: /^Altura do baú/ })
+
+  /** Sem medida a ficha continua sendo a de antes: quem só sabe o m³ digita o m³. */
+  await expect(capacity).not.toHaveAttribute('readonly', /.*/)
+  await capacity.fill('90,00')
+  await expect(capacity).toHaveValue('90,00')
+
+  await length.fill('8,90')
+  await width.fill('2,50')
+  /** Com duas medidas ainda não há volume — e o digitado não pode sumir antes da terceira. */
+  await expect(capacity).toHaveValue('90,00')
+  await expect(capacity).not.toHaveAttribute('readonly', /.*/)
+
+  await height.fill('2,70')
+  await expect(capacity).toHaveValue('60,08')
+  await expect(capacity).toHaveAttribute('readonly', /.*/)
+  await expect(page.getByText('Calculado a partir do comprimento', { exact: false })).toBeVisible()
+
+  /**
+   * Apagar uma medida devolve o campo a quem digita, com o que ele mesmo acabou de escrever nesta
+   * ficha ainda aberta — rascunho não salvo, não o valor antigo do banco: aquele já foi zerado no
+   * envio anterior, e é por isso que a ficha carregada de um veículo medido volta com o campo vazio.
+   */
+  await height.fill('')
+  await expect(capacity).not.toHaveAttribute('readonly', /.*/)
+  await expect(capacity).toHaveValue('90,00')
+})
+
 test('o operador solta o CRLV e a ficha do veículo chega preenchida e marcada', async ({
   page,
 }) => {

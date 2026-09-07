@@ -590,4 +590,17 @@ cego se o Keycloak passar a ser acessado por mais gente do que hoje.
 
 ## Fechados
 
+### 2026-09-07 — CPF real em fixture versionada
+
+`test/fleet/vehicle-owner-completeness.contract.ts` e `test/fleet/vehicle-owner-fix.contract.ts`
+carregavam nome, CPF e RNTRC do proprietário de um CRLV real — dado de pessoa física commitado,
+contra o §1 do baseline.
+
+Descoberto por acaso: o mesmo trio apareceu na tela de quem subiu aquele documento, e a busca pelo
+nome só achou os dois arquivos de teste. O CPF era o **único** com dígitos verificadores válidos em
+toda a base de teste; os seis do seed local são inválidos de propósito.
+
+Trocado por dado sintético. `test/fleet/synthetic-tax-id.contract.ts` passa a reprovar CPF válido em
+qualquer fixture, com lista fechada de exceções para os canônicos de documentação.
+
 _Nenhum ainda._
