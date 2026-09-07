@@ -90,7 +90,11 @@ export class DrizzleTripLocationRepository implements TripLocationRepositoryPort
           eq(fleetDrivers.id, tripDrivers.driverId),
         ),
       )
-      /* `left`: viagem sem instantâneo é viagem que nunca saiu, e a janela a fecha. */
+      /**
+       * `left`: o instantâneo é a **única** origem de `dispatchedAt` — `trips` não tem a coluna —, e
+       * viagem despachada sem ele existe. Por isso a ausência não fecha a janela: quem a lê devolve
+       * `open`, e o prazo da ADR-0056 §2 fica com o expurgo por idade.
+       */
       .leftJoin(
         tripDispatchSnapshots,
         and(
