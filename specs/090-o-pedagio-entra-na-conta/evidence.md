@@ -546,3 +546,234 @@ Se o nome fosse verdade, o agrupamento por endereço do servidor não casaria co
 sairia sobre a ordem de chegada da nota — silenciosamente, porque o resultado continuaria plausível.
 Não renomeei: o alcance é grande e não é desta spec. Fica escrito para quem mexer nisso não concluir
 pelo nome.
+
+## T7 — O custo na montagem (2026-09-07)
+
+Contrato antes, vermelho por campo inexistente:
+
+```
+bun test ./test/trip-application.contract.test.ts
+(fail) pedágio na resposta da geometria (spec 090 T7) > a data da tarifa é a mais antiga entre as
+  praças cobradas — expect(view.toll?.tariffObservedOn).toBe('2026-06-01'); Received: undefined
+(fail) ... > sem eixo conhecido, o pedágio não é calculado — expect(view.toll).toBeNull();
+  Received: undefined
+(fail) ... > sem nós anotados, o pedágio é desconhecido — nunca zero
+(fail) ... > rota sem praça é zero, com a marca de eixo junto
+ 31 pass, 6 fail, 67 expect() calls
+```
+
+Verde depois:
+
+```
+bun test ./test/trip-application.contract.test.ts
+ 37 pass, 0 fail, 70 expect() calls
+```
+
+### O desenho
+
+`RouteGeometryView` (application) ganhou `toll: RouteGeometryToll | null`, calculado dentro de
+`readRouteGeometry` a partir dos **mesmos** `nodeIds` que a chamada ao OSRM já devolvia (D4) — nunca
+uma segunda rota. `resolveTollRouteCost` (T5) continua sendo o único lugar que soma; o que este use
+case acrescenta é buscar as praças pelo id de nó (`TollBoothRepository.readByNodeIds`, nova) e
+juntar a **data da tarifa**, que a política pura não conhece.
+
+`TollBoothRouteRecord` (novo, em `toll-booth.port.ts`) é `TollBoothRecord & {observedOn}` — a praça
+pronta para a política, mais a data que só a tela precisa. `RouteGeometryToll` (novo, em
+`read-route-geometry.use-case.ts`) é `TollRouteCost & {tariffObservedOn}`.
+
+⚠️ **Decisão não prevista no briefing: `tariffObservedOn` é a mais antiga entre as praças cobradas.**
+A tarifa vem de um seed único hoje, mas o cadastro pode ser reexecutado em datas diferentes por
+praça (T3 é idempotente por `osm_node_id`, e reexecutar atualiza a linha tocada). A leitura
+conservadora — "isto é pelo menos tão velho quanto X" — evita que uma praça recém-atualizada
+esconda que outra, na mesma rota, está com tarifa de meses atrás. `null` quando a rota não passou
+por praça nenhuma: não há tarifa a datar.
+
+`vehicleId` entrou como campo opcional (`nullable().default(null)`) em `routeGeometrySchema` — a
+montagem pede a linha antes de o operador escolher o veículo, e sem ele não há eixo a contar.
+`readByNodeIds` filtra por `where osm_node_id in (...)`, nunca a tabela inteira — os 166 registros
+cabem em memória, mas a regra do D1 é clara sobre nunca variar o padrão de acesso por conveniência.
+
+O eixo é resolvido por `resolveDeclaredVehicleAxles` (nova função em `vehicle-axles.policy.ts`, T6),
+que envolve `resolveVehicleAxles` para o caso em que `vehicleType` vem cru do banco (`VehicleType |
+''`): declarado vence mesmo sem tipo válido (a ficha já contou os eixos), e sem os dois é `null` —
+nunca dois eixos por padrão. Isso evita duplicar a decisão em `route-geometry-vehicle-axles.query.ts`
+(T7, montagem) e em `trip-valuation.query.ts` (T9, prévia), que agora reusam a mesma função.
+
+### Tela
+
+Na `TripAssemblyMap.component.tsx`, imediatamente abaixo de "Tempo do roteiro": total, número de
+praças, valor por eixo, quantidade de eixos, a data da tarifa (`formatTariffMonth`, novo serviço
+puro que converte `'2026-07-01'` em `'julho/2026'` **sem passar por `Date`/fuso** — meia-noite UTC
+de 1º de julho vira 30 de junho às 21h em Brasília, e a tela imprimiria o mês errado) e quantas
+praças estão sem tarifa conhecida (`toll.boothsWithoutCharge`).
+
+⚠️ **A marca de estimado segue o molde exato de `test/trip/occupancy.contract.ts`** — mesma trava:
+`toll.axles.source === 'estimated'` sem segunda condição, e o contrato `assembly-toll.contract.ts`
+reprova o componente se ela sumir atrás de um `&&`.
+
+```
+bun test ./test/trip.contract.test.ts
+ 454 pass, 0 fail, 1157 expect() calls
+```
+
+### Gates
+
+```
+bun run --cwd apps/api-transportada typecheck / lint / test        -- 0 erro, 0 aviso
+bunx prettier --check (arquivos tocados)                            -- ok
+bun run --cwd apps/frontend-transportada typecheck / lint / test    -- 0 erro, 0 aviso
+```
+
+### O que a task decidiu, e não estava explícito no briefing
+
+- **`tariffObservedOn` = mínimo, não o do primeiro registro nem uma data única do seed** — decisão
+  registrada acima.
+- **`GET /trips/:id/route-geometry` também ganhou pedágio**, lendo o `vehicleId` já gravado na
+  viagem (`trips.get`). O briefing citava só a montagem como alvo da tela, mas a spec.md D4 nomeia
+  explicitamente as duas rotas ("o `POST /route-geometry` (e o `/trips/:id/route-geometry`) passam
+  a devolver o custo de pedágio"), e o custo de wiring era o mesmo `readRouteGeometry` já estendido.
+  Nenhuma tela nova consome esse pedágio ainda — fica pronto para quando o detalhe da viagem já
+  criada precisar dele.
+- **Veículo sem `vehicleType` reconhecido e sem `axleCount` declarado não calcula pedágio** (retorna
+  `null`, não dois eixos por padrão). Não é um caso citado no briefing; decidido por analogia com
+  "número plausível sem aviso é pior que ausência" (ADR-0044 §1).
+
+## T8 — As praças na descrição do roteiro (2026-09-07)
+
+Contrato antes, vermelho por texto ausente:
+
+```
+bun test ./test/trip.contract.test.ts
+(fail) as praças do pedágio na descrição do roteiro (spec 090 T8) > lista as praças na ordem de
+  passagem, com nome e operador — expect(source).toInclude('toll.booths.length === 0')
+```
+
+Verde depois:
+
+```
+bun test ./test/trip.contract.test.ts
+ 670 pass, 0 fail, 2337 expect() calls
+```
+
+Praça a praça, na ordem que `toll.booths` já traz (T5 garante a ordem de passagem, não a de
+catálogo), com `{{name}} ({{operator}})`. Praça sem nome ou operador conhecido pela API entra assim
+mesmo, com rótulo próprio (`toll.boothUnnamed` / `toll.operatorUnknown`) — descartá-la esconderia
+que o custo passou por ali. Rota sem praça imprime `assemblyMap.toll.none` ("Sem pedágio no
+trajeto."), nunca uma lista vazia — o mesmo cuidado de D1/D4 contra "sumir é indistinguível de não
+ter sido calculado".
+
+### Gates
+
+Mesmos comandos do T7, rodados de novo depois desta task — sem regressão.
+
+## T9 — O pedágio na conta da viagem (2026-09-07)
+
+Contrato antes, vermelho:
+
+```
+bun test ./test/trip-valuation.contract.test.ts
+(fail) o pedágio na conta da viagem (spec 090 T9) > calcula o pedágio quando ninguém lançou nada
+  { "amount": "0.0000", "gap": "NOT_RECORDED", "source": "missing" }  (esperado: 44.6000/estimated)
+(fail) ... > rota sem praça é zero calculado, nunca a lacuna de lançamento ausente
+ 49 pass, 2 fail, 95 expect() calls
+```
+
+Verde depois:
+
+```
+bun test ./test/trip-valuation.contract.test.ts
+ 51 pass, 0 fail, 95 expect() calls
+```
+
+### A decisão pedida por escrito: lançamento manual vence sempre
+
+`TripCostKind` já tinha `'toll'`, alimentado só por `context.tollTotal` (lançamento manual, gap
+`NOT_RECORDED` quando ausente — 061 D2). A pergunta do briefing: quando existe lançamento **e**
+cálculo, qual vence?
+
+**Decisão: o lançamento manual vence sempre que existir.** `resolveTollParcel` primeiro tenta o
+lançamento (`resolveRecordedParcel`); só quando ele está ausente (`gap !== null`) é que o calculado
+(`context.toll`, vindo da mesma geometria que resolveu a distância) entra, com `source: 'estimated'`
+e `gap: null`.
+
+Razão: `tollTotal` é um **pagamento real já registrado** — alguém lançou o valor que efetivamente
+saiu do caixa, possivelmente com desconto de tag, rota diferente da sugerida, ou pedágio negociado.
+`context.toll` é uma **projeção** sobre o catálogo do OSM para a rota teórica. Deixar a projeção
+sobrescrever um valor pago de verdade é a mesma inversão que a receita já proíbe entre `measured` e
+`estimated` (ADR-0049 §2, e a mesma hierarquia de `resolveRevenueLine` — o CT-e autorizado nunca é
+substituído por uma regra de frete recalculada). Não fiz soma dos dois: somar um pagamento real com
+uma segunda estimativa da mesma coisa contaria o custo em dobro, e é justamente o modo de falha que
+"duas rotas divergindo" (D4) já descreve para o número de km — aqui seria "duas fontes divergindo
+para o mesmo pedágio".
+
+⚠️ **O calculado é sempre `source: 'estimated'`, mesmo quando o eixo é `declared`.** A marca de eixo
+estimado (T7, na tela da montagem) é sobre a **contagem de eixos**; a marca `ValuationSource` desta
+parcela é sobre **o pedágio ser ou não um pagamento conferido** — e mesmo com eixo declarado, o
+valor ainda é uma projeção sobre uma rota que pode não ter sido a percorrida de verdade. As duas
+marcas respondem perguntas diferentes e não se confundem propositalmente.
+
+### O encanamento: uma chamada só, nunca duas
+
+`previewTripValuation` antes rodava `readPreviewContext` (busca o veículo, notas, motoristas) em
+paralelo com `resolvePreviewDistanceMeters` (busca a geometria). Isso não é mais possível: o pedágio
+precisa do **eixo do veículo**, que só se conhece depois de `readPreviewContext` responder. A task
+sacrifica esse paralelismo (uma consulta a mais em série, não uma chamada a mais ao roteirizador) —
+`resolvePreviewRoad` (renomeada de `resolvePreviewDistanceMeters`) chama `readRouteGeometry` **uma
+única vez**, com `axles` e `tollBooths`, e devolve `{distanceMeters, toll}` do mesmo resultado. O
+teste "pega carona na mesma chamada que já buscava a distância, nunca numa segunda" conta as
+chamadas ao `geometry.readRouteGeometry` e afirma `toHaveLength(1)`.
+
+`TripValuationVehicle.axles` é resolvido em `trip-valuation.query.ts` na **mesma seleção** que já
+buscava `fuelType`/`kilometersPerLiter`/`otherCostsPerKilometer` — acrescentei `axleCount` e
+`vehicleType` a essa query, sem uma segunda ida ao banco pela ficha.
+
+### O que ficou fora, por decisão explícita
+
+- **`readTripValuation` (a viagem já criada) não ganhou pedágio calculado.** O briefing citava só
+  `previewTripValuation` ("a prévia da montagem já chama `readRouteGeometry`... o pedágio deve
+  pegar carona nessa mesma chamada"), e a spec.md D4 também nomeia os dois casos separadamente
+  ("a da montagem, aqui, e a da viagem já criada, na conta da viagem (T9)") — mas calcular ali
+  exigiria uma fonte de `nodeIds` para a viagem persistida, que **não existe hoje**: `readContext`
+  soma `trip_stops.distance_from_previous_meters` (persistido em `plan-route`), nunca guarda os
+  nós OSM da rota aceita. Buscar os nós ali significaria uma **segunda** chamada ao roteirizador
+  (a viagem já tem `GET /trips/:id/route-geometry` para o mapa, que é justamente a chamada
+  independente que a D4 nomeia como podendo discordar). Persistir `nodeIds` no momento do
+  `plan-route` para alimentar isso sem segunda chamada é mudança de escopo maior que esta task —
+  fica para uma spec ou task futura, com essa lacuna registrada aqui.
+- `TripValuationContext.toll` e `TripValuationVehicle.axles` são campos **opcionais**
+  (`toll?`, `axles?`) justamente para não obrigar `readContext` (viagem já criada) a preenchê-los —
+  ela continua se comportando exatamente como antes desta task.
+
+### Testes escritos
+
+- `test/trip-valuation/toll-parcel.contract.ts` (novo): calcula quando não há lançamento; lançamento
+  manual vence o calculado mesmo quando o calculado existe; sem lançamento e sem geometria mantém a
+  lacuna de sempre; rota sem praça é zero calculado (nunca a lacuna de lançamento ausente); sem eixo
+  conhecido (nem declarado, nem tipo reconhecido) mantém a lacuna de sempre; uma única chamada ao
+  roteirizador.
+- `test/toll-booths/vehicle-axles.contract.ts`: três casos novos para `resolveDeclaredVehicleAxles`
+  (ficha vence mesmo sem tipo válido; estima pelo tipo quando a ficha está silenciosa; sem eixo
+  declarado e sem tipo válido é ausência).
+- `test/trip-valuation/preview-distance.contract.ts` (T6B, existente): fixture do `run()` ganhou
+  `tollBooths: { readByNodeIds: () => Promise.resolve([]) }` — sem isso o teste não compila contra o
+  novo campo obrigatório de `PreviewTripValuationInput`. Nenhuma asserção mudou: o teste continua
+  provando só a T6B (distância), e sem eixo no fixture de contexto o pedágio desta task não teria
+  como entrar de qualquer forma.
+
+### Gates
+
+```
+bun run --cwd apps/api-transportada typecheck   -- 0 erro
+bun run --cwd apps/api-transportada lint        -- 0 aviso
+bunx prettier --check (arquivos tocados)        -- ok
+bun run --cwd apps/api-transportada test        -- 4541 pass, 23 skip, 0 fail, 16581 expect() (158 arquivos)
+bun run --cwd apps/frontend-transportada test   -- 2877 pass, 0 fail, 15976 expect() (24 arquivos)
+bun run typecheck (raiz, as 6 apps)             -- 0 erro
+bun run lint (raiz, as 6 apps)                  -- 0 aviso
+bun run format:check (raiz)                     -- ok
+```
+
+Nenhuma mudança de frontend foi necessária para T9: o painel `TripValuationPreview.component.tsx`
+já renderiza qualquer `TripCostParcel` de forma genérica por `kind`/`gap`/`source` (o rótulo
+`tripFinancials.parcel.toll = "Pedágio"` já existia, alimentado por lançamento manual desde a 061) —
+a parcela calculada aparece pelo mesmo caminho, sem código novo de tela.
