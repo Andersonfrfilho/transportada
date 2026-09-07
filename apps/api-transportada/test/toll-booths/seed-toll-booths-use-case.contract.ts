@@ -20,7 +20,9 @@ const NOVA_ODESSA: TollBoothSeedRecord = {
   osmNodeId: 33554488n,
 }
 
-function repositoryRecording(batches: TollBoothSeedRecord[][]): TollBoothRepository {
+function repositoryRecording(
+  batches: TollBoothSeedRecord[][],
+): Pick<TollBoothRepository, 'saveMany'> {
   return {
     async saveMany(booths) {
       batches.push([...booths])

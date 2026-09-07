@@ -2,15 +2,48 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { sql } from 'drizzle-orm'
+import { inArray, sql } from 'drizzle-orm'
 
 import { tollBooths } from '../../database/database.schema.js'
-import type { TollBoothRepository, TollBoothSeedRecord } from '../application/toll-booth.port.js'
+import type {
+  TollBoothRepository,
+  TollBoothRouteRecord,
+  TollBoothSeedRecord,
+} from '../application/toll-booth.port.js'
 
 export type TollBoothDatabase = ReturnType<typeof createDrizzleProvider>['db']
 
 export function createDrizzleTollBoothRepository(database: TollBoothDatabase): TollBoothRepository {
   return {
+    /**
+     * Spec 090 T7: **filtra por id de nó, nunca lê a tabela inteira.** `nodeIds` pode trazer
+     * repetição (a mesma rotatória volta a passar pelo mesmo nó) — o `IN` do Postgres já deduplica
+     * a resposta, e é `resolveTollRouteCost` quem decide, por nó, se a praça foi cobrada.
+     */
+    async readByNodeIds(nodeIds): Promise<readonly TollBoothRouteRecord[]> {
+      if (nodeIds.length === 0) return []
+
+      const rows = await database
+        .select({
+          chargeCar: tollBooths.chargeCar,
+          chargePerAxle: tollBooths.chargePerAxle,
+          name: tollBooths.name,
+          observedOn: tollBooths.observedOn,
+          operator: tollBooths.operator,
+          osmNodeId: tollBooths.osmNodeId,
+        })
+        .from(tollBooths)
+        .where(inArray(tollBooths.osmNodeId, nodeIds.map(BigInt)))
+
+      return rows.map((row) => ({
+        chargeCar: row.chargeCar,
+        chargePerAxle: row.chargePerAxle,
+        name: row.name,
+        observedOn: row.observedOn,
+        operator: row.operator,
+        osmNodeId: Number(row.osmNodeId),
+      }))
+    },
     async saveMany(booths) {
       if (booths.length === 0) return 0
 

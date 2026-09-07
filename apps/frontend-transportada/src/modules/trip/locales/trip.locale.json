@@ -433,7 +433,13 @@
     "totalAmount": "Valor das notas: {{amount}}",
     "totalWeight": "Peso total: {{weight}} kg",
     "revenueRule": "por {{rule}}{{percentage}}",
-    "totalFreight": "Frete previsto: {{amount}}"
+    "totalFreight": "Frete previsto: {{amount}}",
+    "toll": {
+      "summary": "Pedágio: {{total}} — {{boothCount}} praças, {{chargePerAxle}} por eixo × {{axleCount}} eixos",
+      "tariff": " · tarifa de {{month}}",
+      "estimated": "· eixo estimado",
+      "withoutCharge": "{{count}} praças sem tarifa conhecida"
+    }
   },
   "quickCreate": {
     "title": "Nova viagem",

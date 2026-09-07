@@ -134,6 +134,11 @@ export const routeGeometrySchema = z
       )
       .min(2)
       .max(MAX_ROUTE_GEOMETRY_POINTS),
+    /**
+     * Spec 090 D2/T7: sem veículo escolhido não há eixo a contar, e o pedágio da resposta é
+     * `null` — a montagem pede a linha antes de o operador escolher o veículo.
+     */
+    vehicleId: z.uuid().nullable().default(null),
   })
   .strict()
 

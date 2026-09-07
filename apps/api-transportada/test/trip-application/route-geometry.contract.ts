@@ -59,7 +59,7 @@ describe('read route geometry (spec 079, geometria do OSRM)', () => {
 
     const view = await readRouteGeometry({ geometry: port, stops: PARADAS })
 
-    expect(view).toEqual({ legs: [], points: [], source: 'unavailable' })
+    expect(view).toEqual({ legs: [], points: [], source: 'unavailable', toll: null })
   })
 
   /** Uma parada só não tem trajeto, e pedi-lo ao OSRM gastaria uma chamada por nada. */

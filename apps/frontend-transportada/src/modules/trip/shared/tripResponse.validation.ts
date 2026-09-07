@@ -12,9 +12,12 @@ import type {
   TripWeightConcentration,
 } from './trip.types'
 import {
+  AXLE_COUNT_SOURCES,
   ROUTE_GEOMETRY_SOURCES,
   type RouteGeometry,
   type RouteGeometryLeg,
+  type RouteGeometryToll,
+  type RouteGeometryTollBooth,
 } from './routeGeometry.service'
 import {
   BATCH_STATUS_RESULT_KEYS,
@@ -593,17 +596,28 @@ export function createTripResponseAdapters() {
     },
     routeGeometryFromApi(input: unknown): RouteGeometry {
       if (!isRecord(input) || !isOneOf(input.source, ROUTE_GEOMETRY_SOURCES)) {
-        return { legs: [], points: [], source: 'unavailable' }
+        return { legs: [], points: [], source: 'unavailable', toll: null }
       }
       const points = Array.isArray(input.points) ? input.points : []
-      if (!points.every(isGeometryPoint)) return { legs: [], points: [], source: 'unavailable' }
+      if (!points.every(isGeometryPoint)) {
+        return { legs: [], points: [], source: 'unavailable', toll: null }
+      }
       /**
        * ⚠️ Trecho estranho zera **só os trechos**, não a linha: a estrada continua desenhável, e o
        * que se perde é o tempo — que some da tela em vez de virar palpite. Devolver `unavailable`
        * aqui apagaria um desenho bom por causa de um número ruim.
        */
       const legs = Array.isArray(input.legs) ? input.legs : []
-      return { legs: legs.every(isGeometryLeg) ? legs : [], points, source: input.source }
+      /**
+       * ⚠️ Pedágio estranho zera **só o pedágio**, pelo mesmo motivo do trecho: a linha e o tempo
+       * continuam valendo, e é melhor a tela dizer "não calculei" do que esconder o mapa inteiro.
+       */
+      return {
+        legs: legs.every(isGeometryLeg) ? legs : [],
+        points,
+        source: input.source,
+        toll: isGeometryToll(input.toll) ? input.toll : null,
+      }
     },
     occurrenceTypesFromApi(input: unknown): readonly OccurrenceType[] {
       if (!Array.isArray(input) || !input.every(isOccurrenceType)) throw invalid()
@@ -769,6 +783,35 @@ function isGeometryLeg(value: unknown): value is RouteGeometryLeg {
     Number.isFinite(value.distanceMetres) &&
     typeof value.durationSeconds === 'number' &&
     Number.isFinite(value.durationSeconds)
+  )
+}
+
+function isGeometryTollBooth(value: unknown): value is RouteGeometryTollBooth {
+  return (
+    isRecord(value) &&
+    isNullableString(value.chargeCar) &&
+    isNullableString(value.chargePerAxle) &&
+    isNullableString(value.name) &&
+    isNullableString(value.operator) &&
+    typeof value.osmNodeId === 'number' &&
+    Number.isFinite(value.osmNodeId)
+  )
+}
+
+/** Spec 090 T7: o pedágio vem na resposta da geometria — validado com o mesmo rigor de qualquer dado. */
+function isGeometryToll(value: unknown): value is RouteGeometryToll {
+  if (!isRecord(value)) return false
+  const { axles, booths, boothsWithoutCharge, chargePerAxle, tariffObservedOn, total } = value
+  return (
+    isRecord(axles) &&
+    typeof axles.count === 'number' &&
+    isOneOf(axles.source, AXLE_COUNT_SOURCES) &&
+    Array.isArray(booths) &&
+    booths.every(isGeometryTollBooth) &&
+    typeof boothsWithoutCharge === 'number' &&
+    isString(chargePerAxle) &&
+    isNullableString(tariffObservedOn) &&
+    isString(total)
   )
 }
 

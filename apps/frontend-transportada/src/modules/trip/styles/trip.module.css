@@ -1335,6 +1335,13 @@
   gap: var(--space-2);
 }
 
+/* O bloco do pedágio (spec 090 T7/T8): resumo, a marca de praça sem tarifa e a lista de praças. */
+.assemblyToll {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
 /*
  * As três grandezas da nota — valor, peso e frete — numa fileira própria abaixo do endereço. Elas
  * não entram no `join(' · ')` da linha porque a linha já é longa e porque cada uma tem marca

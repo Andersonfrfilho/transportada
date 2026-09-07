@@ -102,7 +102,11 @@ export type TripClient = Readonly<{
     }>,
   ) => Promise<TripCargoPreview>
   readPointsRouteGeometry: (
-    input: Readonly<{ points: readonly Readonly<{ latitude: number; longitude: number }>[] }>,
+    input: Readonly<{
+      points: readonly Readonly<{ latitude: number; longitude: number }>[]
+      /** Spec 090 T7: sem veículo escolhido não há eixo a contar — o pedágio vem `null`. */
+      vehicleId: null | string
+    }>,
   ) => Promise<RouteGeometry>
   readTripOccurrences: (input: TripDocumentActionInput) => Promise<readonly TripOccurrence[]>
   listOccurrenceTypes: () => Promise<readonly OccurrenceType[]>
@@ -489,7 +493,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
     },
     async readPointsRouteGeometry(input) {
       const response = await authorizedRequest({
-        body: JSON.stringify({ points: input.points }),
+        body: JSON.stringify({ points: input.points, vehicleId: input.vehicleId }),
         dependencies,
         method: 'POST',
         path: '/route-geometry',

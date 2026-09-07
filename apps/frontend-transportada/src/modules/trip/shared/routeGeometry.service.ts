@@ -24,10 +24,43 @@ export type RouteGeometryLeg = Readonly<{
   durationSeconds: number
 }>
 
+/** De onde saiu a contagem de eixos — declarada na ficha, ou estimada pelo tipo (spec 090 D2). */
+export const AXLE_COUNT_SOURCES = ['declared', 'estimated'] as const
+export type AxleCountSource = (typeof AXLE_COUNT_SOURCES)[number]
+
+export type AxleCount = Readonly<{ count: number; source: AxleCountSource }>
+
+/** Uma praça que a rota passou, na ordem de passagem (spec 090 T7/T8). */
+export type RouteGeometryTollBooth = Readonly<{
+  chargeCar: null | string
+  chargePerAxle: null | string
+  name: null | string
+  operator: null | string
+  osmNodeId: number
+}>
+
+/**
+ * O pedágio da rota, vindo na **mesma** resposta que a geometria (spec 090 D4) — nunca de uma
+ * segunda chamada, que poderia discordar do traço desenhado.
+ */
+export type RouteGeometryToll = Readonly<{
+  axles: AxleCount
+  booths: readonly RouteGeometryTollBooth[]
+  /** Quantas das praças acima não têm tarifa conhecida — o total sozinho seria número crível e
+   *  possivelmente falso (medido: 4 das 166 praças declaram `0.00`, campo não mapeado). */
+  boothsWithoutCharge: number
+  chargePerAxle: string
+  /** A mais antiga entre as praças cobradas; `null` quando a rota não passou por praça nenhuma. */
+  tariffObservedOn: null | string
+  total: string
+}>
+
 export type RouteGeometry = Readonly<{
   /** Um por par de paradas consecutivas. Vazio quando a estrada não veio — nunca estimado. */
   legs: readonly RouteGeometryLeg[]
   points: readonly Readonly<{ latitude: string; longitude: string }>[]
+  /** `null` quando ninguém pediu pedágio (sem veículo escolhido) ou a rota não anotou os nós. */
+  toll: null | RouteGeometryToll
   source: RouteGeometrySource
 }>
 

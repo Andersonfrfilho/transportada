@@ -324,6 +324,7 @@ describe('trechos da montagem', () => {
       { latitude: '-21.20000', longitude: '-47.77000' },
     ],
     source: 'road',
+    toll: null,
   })
 
   it('converte metro e segundo na unidade da tela, sem recalcular nada', () => {
@@ -350,7 +351,7 @@ describe('trechos da montagem', () => {
    */
   it('não estima quando o roteirizador não respondeu', () => {
     const legs = buildAssemblyLegs({
-      geometry: { legs: [], points: [], source: 'unavailable' },
+      geometry: { legs: [], points: [], source: 'unavailable', toll: null },
       points: PONTOS,
     })
 

@@ -4,7 +4,8 @@
 import type { TollBoothRepository, TollBoothSeedRecord } from './toll-booth.port.js'
 
 export type SeedTollBoothsDependencies = Readonly<{
-  repository: TollBoothRepository
+  /** Só grava — spec 090 T7 acrescentou `readByNodeIds` ao repositório, que este caso não usa. */
+  repository: Pick<TollBoothRepository, 'saveMany'>
 }>
 
 export type SeedTollBoothsResult = Readonly<{ saved: number }>

@@ -27,6 +27,7 @@ function road(points: readonly (readonly [number, number])[]): RouteGeometry {
       longitude: String(longitude),
     })),
     source: 'road',
+    toll: null,
   }
 }
 

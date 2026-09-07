@@ -288,9 +288,13 @@ type Dependencies = {
   }
   /** A linha da estrada para pontos que ainda não são viagem — ver `ROUTE_GEOMETRY_PATH`. */
   readonly readRouteGeometry: {
-    execute(input: {
-      readonly points: readonly Readonly<{ latitude: number; longitude: number }>[]
-    }): Promise<RouteGeometryView>
+    execute(
+      input: TenantInput<{
+        readonly points: readonly Readonly<{ latitude: number; longitude: number }>[]
+        /** Spec 090 T7: sem veículo, sem eixo a contar — o pedágio da resposta é `null`. */
+        readonly vehicleId: null | string
+      }>,
+    ): Promise<RouteGeometryView>
   }
   readonly readTripRouteGeometry: {
     execute(input: TenantInput<{ readonly tripId: string }>): Promise<RouteGeometryView>
@@ -898,8 +902,12 @@ export function createTripRoutes(
      * e a tela tem como dizer "esta linha é reta" em vez de anunciar rodovia que não existe.
      */
     defineRoute<RouteGeometryBody>({
-      async handle({ input }): Promise<Response> {
-        const geometry = await dependencies.readRouteGeometry.execute({ points: input.points })
+      async handle({ context, input }): Promise<Response> {
+        const geometry = await dependencies.readRouteGeometry.execute({
+          context: context.scope,
+          points: input.points,
+          vehicleId: input.vehicleId,
+        })
         return jsonResponse({ body: { data: geometry }, status: 200 })
       },
       method: 'POST',

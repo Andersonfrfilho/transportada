@@ -304,7 +304,13 @@
     "totalAmount": "Invoice value: {{amount}}",
     "totalWeight": "Total weight: {{weight}} kg",
     "revenueRule": "by {{rule}}{{percentage}}",
-    "totalFreight": "Forecast freight: {{amount}}"
+    "totalFreight": "Forecast freight: {{amount}}",
+    "toll": {
+      "summary": "Toll: {{total}} — {{boothCount}} booths, {{chargePerAxle}} per axle × {{axleCount}} axles",
+      "tariff": " · tariff from {{month}}",
+      "estimated": "· estimated axle",
+      "withoutCharge": "{{count}} booths without a known tariff"
+    }
   },
   "quickCreate": {
     "title": "New trip",

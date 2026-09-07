@@ -35,6 +35,7 @@ import {
   formatDuration,
   totalAssemblyMinutes,
 } from '../shared/assemblyLeg.service'
+import { formatTariffMonth } from '../shared/assemblyToll.service'
 import {} from '../shared/tileMap.service'
 import { moveCity, proposeCityOrder, type AssemblyCityOrder } from '../shared/assemblyOrder.service'
 import styles from '../styles/trip.module.css'
@@ -190,6 +191,8 @@ export function TripAssemblyMap({
    * abaixo disso não há caminho a pedir.
    */
   const routeKey = map.points.map((point) => `${point.latitude},${point.longitude}`).join(';')
+  /** Sem veículo escolhido não há eixo a contar (spec 090 D2) — a chave muda junto do pedágio. */
+  const tollVehicleId = vehicleId === '' ? null : vehicleId
   const geometryQuery = useQuery({
     enabled: map.points.length >= 2,
     queryFn: () =>
@@ -198,8 +201,9 @@ export function TripAssemblyMap({
           latitude: point.latitude,
           longitude: point.longitude,
         })),
+        vehicleId: tollVehicleId,
       }),
-    queryKey: ['trip-assembly-route-geometry', routeKey] as const,
+    queryKey: ['trip-assembly-route-geometry', routeKey, tollVehicleId] as const,
     /** A estrada entre dois pontos não muda a cada minuto; o mapa não precisa repetir a pergunta. */
     staleTime: 5 * 60 * 1000,
   })
@@ -268,6 +272,12 @@ export function TripAssemblyMap({
    */
   const legs = buildAssemblyLegs({ geometry: geometryQuery.data ?? null, points: map.points })
   const legOf = (index: number) => legs[index] ?? null
+  /**
+   * ⚠️ `null` é "não calculei" (sem veículo, ou o roteirizador não anotou os nós) — nunca "sem
+   * pedágio". Rota sem praça é `toll` preenchido com `total: '0.0000'`, e o bloco abaixo distingue
+   * as duas coisas: sem `toll` ele não aparece; com `toll` zerado ele aparece dizendo isso.
+   */
+  const toll = geometryQuery.data?.toll ?? null
   const noteById = new Map([...selected, ...nearby].map((note) => [note.id, note]))
   const revenueOf = (nfeDocumentId: string) =>
     resolveNoteRevenue({
@@ -317,6 +327,40 @@ export function TripAssemblyMap({
           <Icon name="clock" />
           {t('assemblyMap.totalTime', { duration: formatDuration(totalAssemblyMinutes(legs)) })}
         </p>
+      )}
+      {/*
+        Spec 090 T7/T8: o pedágio vem na mesma resposta que desenhou o traço (D4), imediatamente
+        abaixo do tempo do roteiro. `toll === null` é "não calculei" — sem veículo escolhido, ou o
+        roteirizador não anotou os nós — e o bloco inteiro fica de fora, nunca um zero inventado.
+      */}
+      {toll === null ? null : (
+        <div className={styles.assemblyToll}>
+          <p className={`${styles.hint} ${styles.assemblyTotalTime}`}>
+            <Icon name="invoice" />
+            <span>
+              {t('assemblyMap.toll.summary', {
+                axleCount: toll.axles.count,
+                boothCount: toll.booths.length,
+                chargePerAxle: formatAmount(toll.chargePerAxle),
+                total: formatAmount(toll.total),
+              })}
+              {toll.tariffObservedOn === null
+                ? null
+                : t('assemblyMap.toll.tariff', { month: formatTariffMonth(toll.tariffObservedOn) })}
+              {/*
+                ⚠️ A marca de estimativa não pode ficar atrás de segunda condição — é a mesma
+                trava de `test/trip/occupancy.contract.ts`: um `&&` a mais é o caminho pelo qual
+                ela some sem ninguém notar.
+              */}
+              {toll.axles.source === 'estimated' ? ` ${t('assemblyMap.toll.estimated')}` : null}
+            </span>
+          </p>
+          {toll.boothsWithoutCharge === 0 ? null : (
+            <p className={styles.hint}>
+              {t('assemblyMap.toll.withoutCharge', { count: toll.boothsWithoutCharge })}
+            </p>
+          )}
+        </div>
       )}
       {/*
         ⚠️ `ul` e não `ol`: a numeração é impressa por nós, com a cor da parada, e o marcador do

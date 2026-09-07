@@ -145,6 +145,8 @@ import { createMdfeDocumentDownloadGateway } from './mdfe-manifests/infrastructu
 import { readDeliveryProofs } from './trips/application/read-delivery-proof.use-case.js'
 import { readRouteGeometry } from './trips/application/read-route-geometry.use-case.js'
 import { createOsrmRouteGeometryGateway } from './trips/infrastructure/osrm-route-geometry.gateway.js'
+import { createRouteGeometryVehicleAxlesQuery } from './trips/infrastructure/route-geometry-vehicle-axles.query.js'
+import { createDrizzleTollBoothRepository } from './toll-booths/infrastructure/drizzle-toll-booth.repository.js'
 import { listTripStopCoordinates } from './trips/infrastructure/trip-stop-coordinates.support.js'
 import { createDeliveryProofDownloadGateway } from './trips/infrastructure/delivery-proof-download.gateway.js'
 import { readTripDocumentProducts } from './trips/application/read-trip-document-products.use-case.js'
@@ -1079,6 +1081,8 @@ function createApplicationRoutes({
   const currentDriverTripRepository = new DrizzleCurrentDriverTripRepository(database)
   const tripFiscalReadinessQuery = new DrizzleTripFiscalReadinessQuery(database)
   const tripValuationQuery = new DrizzleTripValuationQuery(database)
+  const routeGeometryVehicleAxlesQuery = createRouteGeometryVehicleAxlesQuery(database)
+  const tollBoothRepository = createDrizzleTollBoothRepository(database)
   const tripFinancialResultRepository = new DrizzleTripFinancialResultRepository(database)
   const financialSummaryQuery = new DrizzleFinancialSummaryQuery(database)
   const tripCostRepository = new DrizzleTripCostRepository(database)
@@ -1902,18 +1906,35 @@ function createApplicationRoutes({
        * que são retas**.
        */
       readRouteGeometry: {
-        execute: (input) =>
-          readRouteGeometry({
+        execute: async (input) => {
+          const axles =
+            input.vehicleId === null
+              ? null
+              : await routeGeometryVehicleAxlesQuery.readVehicleAxles({
+                  companyId: input.context.companyId,
+                  vehicleId: input.vehicleId,
+                })
+
+          return readRouteGeometry({
+            axles,
             geometry:
               routingMatrixUrl === undefined
                 ? { readRouteGeometry: async () => null }
                 : createOsrmRouteGeometryGateway({ baseUrl: routingMatrixUrl }),
             stops: input.points,
-          }),
+            tollBooths: tollBoothRepository,
+          })
+        },
       },
       readTripRouteGeometry: {
-        execute: async (input) =>
-          readRouteGeometry({
+        execute: async (input) => {
+          const trip = await trips.get(input)
+
+          return readRouteGeometry({
+            axles: await routeGeometryVehicleAxlesQuery.readVehicleAxles({
+              companyId: input.context.companyId,
+              vehicleId: trip.vehicleId,
+            }),
             geometry:
               routingMatrixUrl === undefined
                 ? { readRouteGeometry: async () => null }
@@ -1922,7 +1943,9 @@ function createApplicationRoutes({
               companyId: input.context.companyId,
               tripId: input.tripId,
             }),
-          }),
+            tollBooths: tollBoothRepository,
+          })
+        },
       },
       readDeliveryProofs: {
         execute: (input) =>
