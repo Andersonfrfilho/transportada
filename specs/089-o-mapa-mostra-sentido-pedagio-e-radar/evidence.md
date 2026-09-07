@@ -297,3 +297,34 @@ vizinhas (o buffer de tile do planetiler, não um defeito do schema) — a mesma
 "342 feições `minor` contra 395 ways" que a Fase 0 já havia registrado para outra camada, na direção
 oposta (lá a telha via menos que a realidade; aqui vê um pouco mais). Nenhuma feição fora de
 `class: speed_camera` apareceu.
+
+### Nota — o `generate-custom` roda localmente, fora do Docker
+
+⚠️ **A limitação "geração local morreu, No space left on device" é do Docker Desktop no Mac, não do
+planetiler em si.** Tentativa anterior nesta mesma evidência (T201/T205) rodou o `generate-custom`
+dentro de um container e bateu em `Channel not open for writing — cannot extend file to required
+size`: mmap sobre bind mount falhando, um problema específico do Docker Desktop.
+
+Rodando o **mesmo jar, nativamente**, fora do container, isso desaparece:
+
+```
+brew install openjdk@21   # o jar exige class file version 65 (Java 21+); Java 18 do sistema recusa
+docker create --name x ghcr.io/onthegomap/planetiler:latest && docker cp x:/app ./app && docker rm x
+java -cp "@$(pwd)/app/resources:$(pwd)/app/classes:$(for j in app/libs/*.jar; do printf '%s:' "$j"; done)" \
+  com.onthegomap.planetiler.Main generate-custom \
+  --schema=overlay.yml --output=overlay.pmtiles --force \
+  --osm_path=area.osm.pbf   # sobrescreve o local_path fixo do schema
+```
+
+51s, 617 KB, contra o mesmo `sudeste-260903.osm.pbf` já usado na Fase 0. Medição repetida —
+**idêntica** à do overlay publicado no Railway:
+
+```
+telhas z14 distintas conferidas: 44
+feições da camada radar encontradas: 72
+```
+
+Vale para quem mexer no `overlay.yml` de novo: não precisa mais de um build no Railway para conferir
+o schema — só do jar extraído uma vez (`docker cp`) e do `.osm.pbf` baixado uma vez. O basemap
+completo (perfil OpenMapTiles) continua exigindo o `--download` das fontes auxiliares e um dataset
+maior; não foi reconferido por este caminho.
