@@ -4,6 +4,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+  PLACEMENT_REASONS,
   resolveCargoPlacement,
   resolveFallbackBox,
   type PlacementBox,
@@ -186,5 +187,51 @@ describe('caixa presumida (spec 094 P2)', () => {
   test('não inventa caixa sem volume', () => {
     expect(resolveFallbackBox({ measured: MEASURED, volumeM3: 0 })).toBeNull()
     expect(resolveFallbackBox({ measured: MEASURED, volumeM3: null })).toBeNull()
+  })
+})
+
+/**
+ * ⚠️ É o motivo que separa um desenho de uma instrução. Sem ele o operador vê uma arrumação e não
+ * tem como discordar dela — e discordar é o que ele faz melhor que o algoritmo, porque viu a carga.
+ */
+describe('o motivo de cada posição (spec 094 P4)', () => {
+  test('o vocabulário é fechado, e cobre as seis decisões que a planta toma', () => {
+    expect(PLACEMENT_REASONS).toEqual([
+      'lastStopFirst',
+      'fragileOnTop',
+      'notStackable',
+      'keepUpright',
+      'estimatedBox',
+      'axleNotChecked',
+    ])
+  })
+
+  test('toda caixa posicionada carrega ao menos a ordem de entrega', () => {
+    const plan = resolveCargoPlacement({ bed: BED, boxes: [box({})] })
+
+    expect(plan?.layers[0]?.boxes[0]?.reasons).toEqual(['lastStopFirst'])
+  })
+
+  test('a caixa presumida diz que é presumida', () => {
+    const plan = resolveCargoPlacement({
+      bed: BED,
+      boxes: [box({ keepUpright: true, source: 'estimated' })],
+    })
+
+    expect(plan?.layers[0]?.boxes[0]?.reasons).toContain('estimatedBox')
+    expect(plan?.layers[0]?.boxes[0]?.reasons).toContain('keepUpright')
+  })
+
+  /** Motivo que a política não conhece não vira texto livre — ele não existe. */
+  test('não há motivo fora da lista', () => {
+    const plan = resolveCargoPlacement({
+      bed: BED,
+      boxes: [box({ count: 12, isFragile: true, isStackable: false, keepUpright: true })],
+    })
+    const reasons = plan?.layers.flatMap((layer) => layer.boxes.flatMap((entry) => entry.reasons))
+
+    for (const reason of reasons ?? []) {
+      expect(PLACEMENT_REASONS).toContain(reason)
+    }
   })
 })
