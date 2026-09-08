@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { TripDetailContract } from './trip/trip.fixture'
+import { VEHICLE_DETAIL } from './fleet/fleet.fixture'
 import { type Page, type Route } from '@playwright/test'
 
 const CORS_HEADERS = {
@@ -423,4 +424,280 @@ export async function mockTripWorkspaceApi(
     manifestCreations: () => state.manifestCreations,
     mdfeRequirements: () => state.mdfeRequirements,
   }
+}
+
+/**
+ * G005 (spec 096 — cobertura de browser): a montagem de viagem ("Nova viagem") é a **única** tela
+ * que desenha o bloco de pedágio e o seletor de rotas — `TripAssemblyMap.component.tsx` — e até
+ * aqui o dublê nunca alimentava um par de paradas de verdade, então nada disso passava pela CI.
+ *
+ * O veículo e as duas notas escolhidas ficam **fora** de `mockTripWorkspaceApi`: os smokes de MDF-e
+ * e CT-e não precisam de frota nem de nota disponível, e sobrecarregar o mock padrão os obrigaria a
+ * lidar com um veículo que nunca usam. Quem precisa do pedágio chama este registro depois.
+ */
+export const TOLL_VEHICLE_ID = '00000000-0000-4000-8000-000000000701'
+export const TOLL_ACCESS_KEY_ONE = '35260700000000000000570010000000011000000011'
+export const TOLL_ACCESS_KEY_TWO = '35260700000000000000570010000000011000000022'
+
+/**
+ * ⚠️ **Precisão `rooftop` com latitude/longitude é o que dispensa a malha do IBGE.** Sem isto o
+ * ponto do mapa dependeria de `GET .../malhas/estados`, que este smoke não sobe — a nota cairia em
+ * "sem desenho" e nunca haveria duas paradas para pedir geometria.
+ */
+function tollScannedDocument(
+  input: Readonly<{
+    accessKey: string
+    cityCode: string
+    cityName: string
+    id: string
+    latitude: string
+    longitude: string
+    number: string
+    postalCode: string
+  }>,
+) {
+  return {
+    accessKey: input.accessKey,
+    cargoGrossWeight: null,
+    cargoWeightSource: null,
+    emitterName: 'Emitente Sintetico LTDA',
+    freightAmount: null,
+    freightRuleName: null,
+    id: input.id,
+    issuedAt: '2026-08-20T12:00:00.000Z',
+    number: input.number,
+    recipientAddress: 'Rua Sintetica, 100',
+    recipientAddressNumber: '100',
+    recipientCity: input.cityName,
+    recipientCityCode: input.cityCode,
+    recipientLatitude: input.latitude,
+    recipientLocationPrecision: 'rooftop',
+    recipientLongitude: input.longitude,
+    recipientName: `Destinatario ${input.cityName}`,
+    recipientPhone: null,
+    recipientPostalCode: input.postalCode,
+    recipientState: null,
+    series: '1',
+    status: 'authorized',
+    totalAmount: '1000.0000',
+  } as const
+}
+
+const TOLL_DOCUMENT_ONE = tollScannedDocument({
+  accessKey: TOLL_ACCESS_KEY_ONE,
+  cityCode: '3543402',
+  cityName: 'Ribeirão Preto',
+  id: '00000000-0000-4000-8000-000000000711',
+  latitude: '-21.1700',
+  longitude: '-47.8100',
+  number: '11',
+  postalCode: '14010000',
+})
+const TOLL_DOCUMENT_TWO = tollScannedDocument({
+  accessKey: TOLL_ACCESS_KEY_TWO,
+  cityCode: '3526902',
+  cityName: 'Limeira',
+  id: '00000000-0000-4000-8000-000000000712',
+  latitude: '-22.5600',
+  longitude: '-47.4020',
+  number: '22',
+  postalCode: '13480000',
+})
+
+/**
+ * Rota única, sem seletor: três praças, uma sem tarifa conhecida, eixo estimado (spec 090 D2/T7).
+ * `32,80` por eixo × 2 eixos fecha em `65,60` — os números medidos que o plano da G005 pede.
+ */
+export const TOLL_SINGLE_ROUTE_GEOMETRY = {
+  cheapestIndex: null,
+  costGap: null,
+  depot: null,
+  fastestIndex: null,
+  hasChoice: false,
+  legs: [{ distanceMetres: 64000, durationSeconds: 3600 }],
+  options: [],
+  points: [
+    { latitude: '-21.1700', longitude: '-47.8100' },
+    { latitude: '-21.8000', longitude: '-47.6000' },
+    { latitude: '-22.5600', longitude: '-47.4020' },
+  ],
+  source: 'road',
+  toll: {
+    axles: { count: 2, source: 'estimated' },
+    booths: [
+      {
+        chargeCar: '10.9000',
+        chargePerAxle: '16.4000',
+        latitude: '-21.5000',
+        longitude: '-47.7000',
+        name: 'Praça Alfa',
+        operator: 'Operadora Sintetica',
+        osmNodeId: 1001,
+      },
+      {
+        chargeCar: '10.9000',
+        chargePerAxle: '16.4000',
+        latitude: '-21.9000',
+        longitude: '-47.6500',
+        name: 'Praça Beta',
+        operator: 'Operadora Sintetica',
+        osmNodeId: 1002,
+      },
+      {
+        chargeCar: null,
+        chargePerAxle: null,
+        latitude: '-22.2000',
+        longitude: '-47.5000',
+        name: 'Praça Gama',
+        operator: 'Operadora Sintetica',
+        osmNodeId: 1003,
+      },
+    ],
+    boothsFallenBackToManual: 0,
+    boothsWithoutCharge: 1,
+    chargePerAxle: '32.8000',
+    paymentMode: 'manual',
+    tariffObservedOn: '2026-07-01',
+    total: '65.6000',
+  },
+} as const
+
+/**
+ * Duas rotas — spec 096 T1/T2 — e a alternativa **não** anota pedágio: a linha dela precisa dizer
+ * que não foi calculado, nunca "0 praças". A principal cobra com tag, e uma das três praças caiu
+ * para a manual por falta de tarifa automática (spec 095 D3) — R$ 31,74 por eixo × 2 eixos = 63,48.
+ */
+const TOLL_MAIN_OPTION = {
+  distanceMeters: 64000,
+  durationSeconds: 3600,
+  fuelTotal: '120.0000',
+  legs: [{ distanceMetres: 64000, durationSeconds: 3600 }],
+  points: [
+    { latitude: '-21.1700', longitude: '-47.8100' },
+    { latitude: '-21.8000', longitude: '-47.6000' },
+    { latitude: '-22.5600', longitude: '-47.4020' },
+  ],
+  toll: {
+    axles: { count: 2, source: 'declared' },
+    booths: [
+      {
+        chargeCar: '10.5800',
+        chargePerAxle: '10.5800',
+        latitude: '-21.5000',
+        longitude: '-47.7000',
+        name: 'Praça Alfa',
+        operator: 'Operadora Sintetica',
+        osmNodeId: 1001,
+      },
+      {
+        chargeCar: '10.5800',
+        chargePerAxle: '10.5800',
+        latitude: '-21.9000',
+        longitude: '-47.6500',
+        name: 'Praça Beta',
+        operator: 'Operadora Sintetica',
+        osmNodeId: 1002,
+      },
+      {
+        chargeCar: '10.5800',
+        chargePerAxle: '10.5800',
+        latitude: '-22.2000',
+        longitude: '-47.5000',
+        name: 'Praça Gama',
+        operator: 'Operadora Sintetica',
+        osmNodeId: 1003,
+      },
+    ],
+    boothsFallenBackToManual: 1,
+    boothsWithoutCharge: 0,
+    chargePerAxle: '31.7400',
+    paymentMode: 'automatic',
+    tariffObservedOn: '2026-07-01',
+    total: '63.4800',
+  },
+  totalCost: '183.4800',
+} as const
+
+const TOLL_ALTERNATIVE_OPTION = {
+  distanceMeters: 82000,
+  durationSeconds: 4500,
+  fuelTotal: null,
+  legs: [{ distanceMetres: 82000, durationSeconds: 4500 }],
+  points: [
+    { latitude: '-21.1700', longitude: '-47.8100' },
+    { latitude: '-22.0000', longitude: '-47.9000' },
+    { latitude: '-22.5600', longitude: '-47.4020' },
+  ],
+  toll: null,
+  totalCost: null,
+} as const
+
+export const TOLL_ROUTE_CHOICE_GEOMETRY = {
+  cheapestIndex: 0,
+  costGap: null,
+  depot: null,
+  fastestIndex: 0,
+  hasChoice: true,
+  legs: TOLL_MAIN_OPTION.legs,
+  options: [TOLL_MAIN_OPTION, TOLL_ALTERNATIVE_OPTION],
+  points: TOLL_MAIN_OPTION.points,
+  source: 'road',
+  toll: TOLL_MAIN_OPTION.toll,
+} as const
+
+/**
+ * ⚠️ **Registrado por cima do que `mockTripWorkspaceApi` já pôs** — chame depois dele. O Playwright
+ * testa o handler mais recente primeiro, então esta rota vence a frota vazia e a busca de notas
+ * vazia sem precisar mexer no mock padrão dos outros smokes.
+ */
+export async function registerTripQuickCreateTollApi(
+  input: Readonly<{ page: Page; routeGeometry: unknown }>,
+): Promise<void> {
+  const documentsByAccessKey = new Map([
+    [TOLL_ACCESS_KEY_ONE, TOLL_DOCUMENT_ONE],
+    [TOLL_ACCESS_KEY_TWO, TOLL_DOCUMENT_TWO],
+  ])
+
+  await input.page.route(/\/fleet\/vehicles(?:\?.*)?$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, {
+      data: [{ ...VEHICLE_DETAIL, id: TOLL_VEHICLE_ID, plate: 'PED1A23' }],
+      page: { nextCursor: null },
+    })
+  })
+
+  /**
+   * A mesma rota serve dois pedidos: a busca da chave (`accessKey=`) e a listagem paginada que o
+   * modal carrega ao abrir. Sem chave, a resposta é lista vazia — o smoke não exercita a busca.
+   */
+  await input.page.route(/\/nfe-documents(?:\?.*)?$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    const accessKey = new URL(route.request().url()).searchParams.get('accessKey')
+    const document = accessKey === null ? undefined : documentsByAccessKey.get(accessKey)
+    await fulfillJson(route, {
+      data: document === undefined ? [] : [document],
+      page: { nextCursor: null },
+    })
+  })
+
+  /**
+   * `POST /route-geometry`, de raiz — nunca `/trips/:id/route-geometry`. A montagem monta a viagem
+   * antes de ela existir, e por isso não tem id para consultar (`tripClient.readPointsRouteGeometry`).
+   */
+  await input.page.route(
+    (url) => url.pathname === '/route-geometry',
+    async (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        await fulfillOptions(route)
+        return
+      }
+      await fulfillJson(route, { data: input.routeGeometry })
+    },
+  )
 }

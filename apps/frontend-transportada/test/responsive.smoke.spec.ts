@@ -34,7 +34,15 @@ import {
   SECOND_VEHICLE_ID,
 } from './multi-vehicle-smoke.helper'
 import { mockNfeWorkspaceApi } from './nfe-workspace-smoke.helper'
-import { mockTripWorkspaceApi, TRIP_ID as TRIP_SMOKE_TRIP_ID } from './trip-smoke.helper'
+import {
+  mockTripWorkspaceApi,
+  registerTripQuickCreateTollApi,
+  TOLL_ACCESS_KEY_ONE,
+  TOLL_ACCESS_KEY_TWO,
+  TOLL_ROUTE_CHOICE_GEOMETRY,
+  TOLL_SINGLE_ROUTE_GEOMETRY,
+  TRIP_ID as TRIP_SMOKE_TRIP_ID,
+} from './trip-smoke.helper'
 
 const VIEWPORTS = {
   desktop: { height: 900, width: 1280 },
@@ -947,6 +955,124 @@ test('sem trip.manage a viagem não oferece sugerir roteiro', async ({ page }) =
   await expect(page.getByRole('heading', { level: 1, name: 'Detalhe da viagem' })).toBeVisible()
 
   await expect(page.getByRole('button', { name: 'Sugerir roteiro' })).toHaveCount(0)
+})
+
+/**
+ * G005 (spec 096): cobertura de browser para o pedágio (spec 090), o seletor de rotas (spec 096) e
+ * a marca de "estimado" (ADR-0044 §1) — a única tela que os desenha é a montagem de "Nova viagem",
+ * e até aqui o dublê de `route-geometry` sempre devolvia `{points: [], source: 'unavailable'}`, o
+ * que fazia todo este bloco nunca renderizar durante o smoke, mesmo passando verde.
+ *
+ * Rota única: sem tag, três praças (uma sem tarifa conhecida) e eixo estimado por tipo de veículo.
+ */
+test('a montagem de viagem mostra o pedágio calculado, com eixo estimado e sem seletor de rota', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.desktop)
+  await page.addInitScript(() => sessionStorage.setItem('transportada.workspace', 'trip'))
+  const api = await mockTripWorkspaceApi({
+    mode: 'all-authorized',
+    page,
+    permissions: ['fleet.read', 'fleet.manage', 'mdfe.read', 'mdfe.manage', 'trip.manage'],
+  })
+  await registerTripQuickCreateTollApi({ page, routeGeometry: TOLL_SINGLE_ROUTE_GEOMETRY })
+  await loginAsLocalUser(page)
+
+  await expect(page.getByRole('heading', { level: 1, name: 'Viagens' })).toBeVisible()
+  await page.getByRole('button', { name: 'Nova viagem' }).click()
+
+  const dialog = page.getByRole('dialog', { name: 'Nova viagem' })
+  await expect(dialog).toBeVisible()
+
+  const accessKeyField = dialog.getByLabel('Chave de acesso')
+  await accessKeyField.fill(TOLL_ACCESS_KEY_ONE)
+  await accessKeyField.press('Enter')
+  await accessKeyField.fill(TOLL_ACCESS_KEY_TWO)
+  await accessKeyField.press('Enter')
+  await expect(dialog.getByText('2 notas entram na viagem.')).toBeVisible()
+
+  await dialog.getByRole('button', { name: 'Veículo' }).click()
+  await page.getByRole('option', { name: /PED1A23/u }).click()
+
+  /**
+   * Spec 090 T7/T8: total, praças e valor por eixo — nunca antes de veículo e paradas existirem.
+   * ⚠️ String literal, não regex: `getByText` com `RegExp` de bandeira `u` e caractere acentuado
+   * ou `×`/`—` no meio deu zero casamentos aqui mesmo com o texto igual no DOM (`.innerText()`
+   * confirmava a mesma string, e a busca por substring simples achava, contada por `.count()`) —
+   * o texto entra por três nós de texto irmãos (três interpolações JSX seguidas no mesmo `<span>`),
+   * e a variante regex do motor de busca do Playwright não os concatenou; a de string, sim.
+   */
+  await expect(
+    dialog.getByText('Pedágio: R$ 65,60 — 3 praças, R$ 32,80 por eixo × 2 eixos'),
+  ).toBeVisible({ timeout: 15000 })
+  /** ⚠️ A marca de estimativa nunca fica atrás de segunda condição — mesma trava da ocupação. */
+  await expect(dialog.getByText('eixo estimado')).toBeVisible()
+  await expect(dialog.getByText('Base: tarifa manual')).toBeVisible()
+  /** ⚠️ Praça sem tarifa é travessão no mapa (unitário) — aqui a contagem agregada é o que se lê. */
+  await expect(dialog.getByText('1 praças sem tarifa conhecida')).toBeVisible()
+
+  /** Rota única: D2 proíbe o seletor — ofertar escolha onde não há uma ensina o operador errado. */
+  await expect(dialog.getByText('Rotas alternativas')).toHaveCount(0)
+
+  await assertNoHorizontalOverflow(page)
+  expect(api.failures()).toEqual([])
+  await auditAuthenticationStorage(page)
+})
+
+/**
+ * Duas rotas: a principal cobra com tag e uma praça caiu para a manual (spec 095 D3); a alternativa
+ * não anotou pedágio nenhum, e a linha dela tem de dizer isso — nunca "0 praças" (spec 096 D1).
+ */
+test('a montagem de viagem oferece duas rotas, e a sem pedágio calculado não vira zero praças', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.desktop)
+  await page.addInitScript(() => sessionStorage.setItem('transportada.workspace', 'trip'))
+  const api = await mockTripWorkspaceApi({
+    mode: 'all-authorized',
+    page,
+    permissions: ['fleet.read', 'fleet.manage', 'mdfe.read', 'mdfe.manage', 'trip.manage'],
+  })
+  await registerTripQuickCreateTollApi({ page, routeGeometry: TOLL_ROUTE_CHOICE_GEOMETRY })
+  await loginAsLocalUser(page)
+
+  await expect(page.getByRole('heading', { level: 1, name: 'Viagens' })).toBeVisible()
+  await page.getByRole('button', { name: 'Nova viagem' }).click()
+
+  const dialog = page.getByRole('dialog', { name: 'Nova viagem' })
+  await expect(dialog).toBeVisible()
+
+  const accessKeyField = dialog.getByLabel('Chave de acesso')
+  await accessKeyField.fill(TOLL_ACCESS_KEY_ONE)
+  await accessKeyField.press('Enter')
+  await accessKeyField.fill(TOLL_ACCESS_KEY_TWO)
+  await accessKeyField.press('Enter')
+  await expect(dialog.getByText('2 notas entram na viagem.')).toBeVisible()
+
+  await dialog.getByRole('button', { name: 'Veículo' }).click()
+  await page.getByRole('option', { name: /PED1A23/u }).click()
+
+  /** A rota escolhida por padrão é a principal — com tag, e uma praça caiu para a manual. */
+  await expect(
+    dialog.getByText('Pedágio: R$ 63,48 — 3 praças, R$ 31,74 por eixo × 2 eixos'),
+  ).toBeVisible({ timeout: 15000 })
+  await expect(dialog.getByText('eixo estimado')).toHaveCount(0)
+  await expect(dialog.getByText('Base: tag (cobrança automática)')).toBeVisible()
+  await expect(
+    dialog.getByText('1 praças caíram para a manual por falta de tarifa automática'),
+  ).toBeVisible()
+
+  /** Duas rotas: spec 096 D2 manda o seletor aparecer — ele não aparece com uma rota só. */
+  await expect(dialog.getByText('Rotas alternativas')).toBeVisible()
+  await expect(dialog.getByRole('button', { name: /64\.0 km · 1 h · 3 praças/u })).toBeVisible()
+  /** ⚠️ Sem pedágio calculado a linha diz isso — nunca "0 praças", que seria uma afirmação. */
+  await expect(
+    dialog.getByRole('button', { name: /82\.0 km · 1 h 15 min · pedágio não calculado/u }),
+  ).toBeVisible()
+
+  await assertNoHorizontalOverflow(page)
+  expect(api.failures()).toEqual([])
+  await auditAuthenticationStorage(page)
 })
 
 /**
