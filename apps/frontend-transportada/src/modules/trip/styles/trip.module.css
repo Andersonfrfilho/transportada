@@ -1932,3 +1932,52 @@
   margin: var(--space-3) 0 0;
   padding: 0;
 }
+
+/**
+ * A folha do agregado. Na tela ela é a tabela do plano; no papel ela é **o** plano — quem carrega a
+ * van está longe do navegador, e o galpão imprime em laser mono.
+ */
+.cargoPrintSheet {
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+  margin-top: var(--space-3);
+  width: 100%;
+}
+
+.cargoPrintSheet caption {
+  color: var(--color-slate);
+  padding-bottom: var(--space-2);
+  text-align: start;
+}
+
+.cargoPrintSheet th,
+.cargoPrintSheet td {
+  border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 30%, transparent);
+  padding: var(--space-1) var(--space-2);
+  text-align: start;
+}
+
+/**
+ * ⚠️ No papel, **nada depende de cor** e nenhum controle é impresso: botão impresso é tinta gasta, e
+ * o desenho colorido em laser mono vira uma mancha cinza sem paradas distinguíveis. O que carrega a
+ * informação é a tabela — ordem, faixa em metros e contagens.
+ */
+@media print {
+  .cargoPads,
+  .cargoStops,
+  .cargoLayerNav,
+  .cargoDragHint,
+  .cargoStage {
+    display: none;
+  }
+
+  .cargoPrintSheet {
+    break-inside: avoid;
+    color: #000;
+  }
+
+  .cargoPrintSheet th,
+  .cargoPrintSheet td {
+    border-bottom: 1px solid #000;
+  }
+}

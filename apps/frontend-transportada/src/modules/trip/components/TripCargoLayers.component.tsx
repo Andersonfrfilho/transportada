@@ -17,6 +17,7 @@ import {
 } from '../shared/cargoView.service'
 import { stopColorOf } from '../shared/stopColor.service'
 import { isMostlyPresumed, resolveSliceCuts } from '../shared/cargoLegend.service'
+import { buildCargoPrintSummary } from '../shared/cargoPrintSummary.service'
 import { EMPTY_STOP_FOCUS, isStopLit, toggleStopFocus } from '../shared/stopFocus.service'
 import type { TripCargoLayout } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
@@ -165,6 +166,41 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
         )}
       </div>
 
+      {/**
+       * A folha do agregado: ele carrega a van sozinho, longe da tela, e o galpão imprime em laser
+       * mono — nada aqui depende de cor. A ordem é a de **carregamento**, inversa à de entrega.
+       */}
+      <table className={styles.cargoPrintSheet}>
+        <caption>{t('cargoLayers.print.caption')}</caption>
+        <thead>
+          <tr>
+            <th scope="col">{t('cargoLayers.print.order')}</th>
+            <th scope="col">{t('cargoLayers.print.stop')}</th>
+            <th scope="col">{t('cargoLayers.print.span')}</th>
+            <th scope="col">{t('cargoLayers.print.boxes')}</th>
+            <th scope="col">{t('cargoLayers.print.presumed')}</th>
+            <th scope="col">{t('cargoLayers.print.split')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {buildCargoPrintSummary(boxes).map((row, position) => (
+            <tr key={row.stopSequence}>
+              <td>{position + 1}</td>
+              <td>{t('cargoLayers.stop', { sequence: row.stopSequence })}</td>
+              <td>
+                {t('cargoLayers.print.spanValue', {
+                  from: row.fromM.toFixed(2),
+                  to: row.toM.toFixed(2),
+                })}
+              </td>
+              <td>{row.boxes}</td>
+              <td>{row.presumed}</td>
+              <td>{row.split}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
       <div className={styles.cargoStops}>
         {stopSequences.map((stopSequence) => (
           <button
@@ -255,6 +291,10 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
           >
             <Icon name="refresh" />
             {t('cargoLayers.view.reset')}
+          </Button>
+          <Button size="sm" type="button" variant="ghost" onClick={() => globalThis.print()}>
+            <Icon name="document" />
+            {t('cargoLayers.print.action')}
           </Button>
         </div>
       </div>

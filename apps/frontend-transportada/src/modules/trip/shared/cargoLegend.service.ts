@@ -28,7 +28,7 @@ export function resolveSliceCuts(boxes: readonly LegendBox[]): readonly number[]
 const MOSTLY_PRESUMED_SHARE = 0.8
 
 /** A fração da carga que veio do fallback, e não da fita. */
-export function resolvePresumedShare(boxes: readonly LegendBox[]): number {
+function resolvePresumedShare(boxes: readonly LegendBox[]): number {
   if (boxes.length === 0) return 0
 
   return boxes.filter((box) => box.isEstimated).length / boxes.length

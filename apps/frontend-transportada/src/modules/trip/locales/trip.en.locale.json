@@ -599,6 +599,17 @@
       "presumed": "Washed colour: presumed box, derived from volume.",
       "split": "Red outline: split cargo, on top of the inner region."
     },
-    "mostlyPresumed": "Almost no box on this trip has been measured: the drawing shows volume, not the arrangement of boxes that exist."
+    "mostlyPresumed": "Almost no box on this trip has been measured: the drawing shows volume, not the arrangement of boxes that exist.",
+    "print": {
+      "action": "Print map",
+      "boxes": "Boxes",
+      "caption": "Loading order — from the front wall to the door",
+      "order": "#",
+      "presumed": "Presumed",
+      "span": "Bed span",
+      "spanValue": "{{from}} m to {{to}} m",
+      "split": "Split",
+      "stop": "Stop"
+    }
   }
 }

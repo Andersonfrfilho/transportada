@@ -3,11 +3,7 @@ import { readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'bun:test'
 
-import {
-  isMostlyPresumed,
-  resolvePresumedShare,
-  resolveSliceCuts,
-} from '@/modules/trip/shared/cargoLegend.service'
+import { isMostlyPresumed, resolveSliceCuts } from '@/modules/trip/shared/cargoLegend.service'
 import trip from '../../src/modules/trip/locales/trip.locale.json'
 
 const APPLICATION_ROOT = new URL('../..', import.meta.url)
@@ -43,7 +39,6 @@ describe('trip cargo legend contract', () => {
     const mixed = [box({ isEstimated: true }), box({}), box({}), box({}), box({})]
     const almostNone = [box({ isEstimated: true }), box({ isEstimated: true }), box({})]
 
-    expect(resolvePresumedShare(mixed)).toBeCloseTo(0.2)
     expect(isMostlyPresumed(mixed)).toBe(false)
     expect(isMostlyPresumed(almostNone)).toBe(false)
     expect(isMostlyPresumed([box({ isEstimated: true })])).toBe(true)
@@ -52,7 +47,6 @@ describe('trip cargo legend contract', () => {
   /** Carga vazia não é carga presumida: sem caixa nenhuma não há aviso a dar. */
   it('says nothing about an empty bed', () => {
     expect(isMostlyPresumed([])).toBe(false)
-    expect(resolvePresumedShare([])).toBe(0)
   })
 
   /** A legenda nomeia as três marcas do desenho; sem ela o contorno vermelho não quer dizer nada. */

@@ -11,8 +11,7 @@ export type CargoView = Readonly<{
   zoom: number
 }>
 
-export const CARGO_VIEW_PRESETS = ['default', 'rear', 'side', 'top'] as const
-export type CargoViewPreset = (typeof CARGO_VIEW_PRESETS)[number]
+export type CargoViewPreset = 'default' | 'rear' | 'side' | 'top'
 
 export const DEFAULT_CARGO_VIEW: CargoView = {
   angle: { pitchRad: 0.62, yawRad: -0.62 },

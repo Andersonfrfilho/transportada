@@ -724,6 +724,17 @@
       "presumed": "Cor lavada: caixa presumida, derivada do volume.",
       "split": "Contorno vermelho: carga dividida, no topo do lado de dentro."
     },
-    "mostlyPresumed": "Quase nenhuma caixa desta viagem tem medida: o desenho mostra volume, não a arrumação de caixas que existem."
+    "mostlyPresumed": "Quase nenhuma caixa desta viagem tem medida: o desenho mostra volume, não a arrumação de caixas que existem.",
+    "print": {
+      "action": "Imprimir mapa",
+      "boxes": "Caixas",
+      "caption": "Ordem de carregamento — da testeira para a porta",
+      "order": "#",
+      "presumed": "Presumidas",
+      "span": "Faixa do baú",
+      "spanValue": "{{from}} m a {{to}} m",
+      "split": "Divididas",
+      "stop": "Parada"
+    }
   }
 }
