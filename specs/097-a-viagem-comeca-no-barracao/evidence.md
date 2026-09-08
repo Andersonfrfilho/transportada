@@ -205,3 +205,26 @@ typecheck + lint limpos · API 4670 pass · frontend 2985 pass
 existe** — o estilo do módulo mora em `styles/trip.module.css`. E o recorte que verifica a ausência
 de número ia do início de `depotElement` até o fim do arquivo, engolindo `stopElement`, que tem
 número por dever. Os dois reprovavam código correto; corrigidos no teste.
+
+## A volta ao barracão — resolvida pela configuração, não por decisão nova (2026-09-08)
+
+A história estava no plano como "decisão de produto pendente". Não era: **a política já existia e a
+montagem a ignorava.**
+
+Medido no banco desta base: as duas empresas têm `end_policy = 'depot'`, que é o padrão do esquema.
+`resolveRouteEndAddressKey` traduz as três políticas num lugar só — `depot` volta à origem,
+`last_stop` termina na última entrega, `address` usa endereço próprio —, e o contrato cobre as três.
+
+A prova de que a volta entra: a chamada ao roteirizador sai como
+
+```
+[BARRACÃO, ORLÂNDIA, IPUÃ, BARRACÃO]
+```
+
+e o custo previsto da viagem medida passa de **R$ 0,00** (o que a tela mostrava) para **R$ 60,00** de
+pedágio num toco, com 209 km em vez de 48,4.
+
+⚠️ **O que fechou esta história foi ler a configuração, não escolher por ela.** A escolha já tinha
+sido feita por quem configurou — e o defeito era a montagem ter uma política implícita própria
+("começa na primeira entrega e acaba na última"), que ninguém decidiu e que não estava escrita em
+lugar nenhum.
