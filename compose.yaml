@@ -66,6 +66,10 @@ services:
       KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET}
       KEYCLOAK_WORKER_CLIENT_SECRET: ${KEYCLOAK_WORKER_CLIENT_SECRET}
       KEYCLOAK_LOCAL_USER_PASSWORD: ${KEYCLOAK_LOCAL_USER_PASSWORD}
+      # O tema de login lê isto para trocar o ícone da aba fora de produção, como a app faz.
+      # ⚠️ Ausente, o Keycloak deixa o literal `${env.…}` na propriedade e o tema cai em produção —
+      # que é o padrão seguro, e é por isso que o valor é declarado aqui em vez de deduzido.
+      TRANSPORTADA_APP_ENV: ${VITE_APP_ENV}
     ports:
       - '127.0.0.1:${KEYCLOAK_PORT}:8080'
       - '127.0.0.1:${KEYCLOAK_MANAGEMENT_PORT}:9000'

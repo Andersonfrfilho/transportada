@@ -255,6 +255,15 @@ export default defineRailway((ctx) => {
       KEYCLOAK_FRONTEND_ORIGIN: preserve(),
       KEYCLOAK_REALM_DISPLAY_NAME: preserve(),
       RAILWAY_DOCKERFILE_PATH: preserve(),
+      /**
+       * O tema de login lê isto para trocar o ícone da aba fora de produção, como a app faz.
+       *
+       * ⚠️ **Literal, não `preserve()`.** O valor não é segredo e é determinado pelo ambiente, então
+       * deixá-lo no painel só cria o modo de falha que ele existe para evitar: variável esquecida faz
+       * staging se passar por produção. Medido em 2026-09-08 — a variável **não existia** no serviço
+       * `keycloak` de staging, e o tema caía no ícone de produção sem erro nenhum.
+       */
+      TRANSPORTADA_APP_ENV: isProduction ? 'production' : 'staging',
     },
   })
 
