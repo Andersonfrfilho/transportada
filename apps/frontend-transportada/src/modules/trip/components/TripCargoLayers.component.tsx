@@ -16,6 +16,7 @@ import {
   type CargoViewPreset,
 } from '../shared/cargoView.service'
 import { stopColorOf } from '../shared/stopColor.service'
+import { isMostlyPresumed, resolveSliceCuts } from '../shared/cargoLegend.service'
 import { EMPTY_STOP_FOCUS, isStopLit, toggleStopFocus } from '../shared/stopFocus.service'
 import type { TripCargoLayout } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
@@ -74,6 +75,7 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
       isEstimated: box.source === 'estimated',
       isGhost: !isStopLit(focus, box.stopSequence),
       isSplit: box.reasons.includes('splitCargo'),
+      stopSequence: box.stopSequence,
       widthM: box.widthM,
       xM: box.xM,
       yM: box.yM,
@@ -135,6 +137,7 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
           focusLayerZM={zByLayer.get(current.index) ?? 0}
           hasSideDoor={layout.loadingAccess !== 'rear'}
           panX={view.panX}
+          sliceCutsM={resolveSliceCuts(boxes)}
           panY={view.panY}
           zoom={view.zoom}
           onPointerDown={(event: PointerEvent<SVGSVGElement>) => {
@@ -256,6 +259,13 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
         </div>
       </div>
 
+      {/* A legenda das três marcas: sem ela o contorno vermelho da dividida não quer dizer nada. */}
+      <ul className={styles.cargoLegend} role="list">
+        <li>{t('cargoLayers.legend.measured')}</li>
+        <li>{t('cargoLayers.legend.presumed')}</li>
+        <li>{t('cargoLayers.legend.split')}</li>
+      </ul>
+
       {/* A legenda das aberturas em texto: rótulo dentro do desenho sai cortado e atravessa a borda. */}
       <p className={styles.hint}>
         {layout.loadingAccess === 'rear'
@@ -263,7 +273,9 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
           : t('cargoLayers.doorsRearAndSide')}
       </p>
 
-      {placement.source === 'estimated' ? (
+      {isMostlyPresumed(boxes) ? (
+        <p className={styles.hint}>{t('cargoLayers.mostlyPresumed')}</p>
+      ) : placement.source === 'estimated' ? (
         <p className={styles.hint}>{t('cargoLayers.estimated')}</p>
       ) : null}
 

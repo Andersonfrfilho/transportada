@@ -718,6 +718,12 @@
       "side": "Lateral",
       "top": "De cima"
     },
-    "stop": "Parada {{sequence}}"
+    "stop": "Parada {{sequence}}",
+    "legend": {
+      "measured": "Cor cheia: caixa medida com fita.",
+      "presumed": "Cor lavada: caixa presumida, derivada do volume.",
+      "split": "Contorno vermelho: carga dividida, no topo do lado de dentro."
+    },
+    "mostlyPresumed": "Quase nenhuma caixa desta viagem tem medida: o desenho mostra volume, não a arrumação de caixas que existem."
   }
 }

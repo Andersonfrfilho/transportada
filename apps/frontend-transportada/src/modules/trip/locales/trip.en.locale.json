@@ -593,6 +593,12 @@
       "side": "Side",
       "top": "Top"
     },
-    "stop": "Stop {{sequence}}"
+    "stop": "Stop {{sequence}}",
+    "legend": {
+      "measured": "Solid colour: box measured with a tape.",
+      "presumed": "Washed colour: presumed box, derived from volume.",
+      "split": "Red outline: split cargo, on top of the inner region."
+    },
+    "mostlyPresumed": "Almost no box on this trip has been measured: the drawing shows volume, not the arrangement of boxes that exist."
   }
 }

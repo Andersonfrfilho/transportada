@@ -1920,3 +1920,15 @@
   display: inline-block;
   inline-size: var(--space-3);
 }
+
+/** A legenda do desenho: três linhas curtas, porque cada marca só significa alguma coisa nomeada. */
+.cargoLegend {
+  color: var(--color-slate);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--font-size-sm);
+  gap: var(--space-3);
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+}

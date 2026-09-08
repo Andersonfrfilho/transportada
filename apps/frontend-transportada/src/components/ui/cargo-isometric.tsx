@@ -22,6 +22,8 @@ export type IsometricBox = Readonly<{
   isGhost: boolean
   /** Carga que não coube na própria fatia: sai contornada, para não se confundir com a que coube. */
   isSplit: boolean
+  /** A parada a que a caixa pertence — é ela que a fatia separa. */
+  stopSequence: number
   widthM: number
   xM: number
   yM: number
