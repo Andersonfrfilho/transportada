@@ -2,7 +2,7 @@
 import { Map as MapLibreMap, Marker } from 'maplibre-gl'
 import { useEffect, useRef, useState } from 'react'
 
-import { Icon } from '@/components/ui/icon'
+import { ICON_PATHS, Icon } from '@/components/ui/icon'
 import {
   basemapThemeForApp,
   buildBasemapStyle,
@@ -19,6 +19,8 @@ import styles from '../styles/fleet.module.css'
  * um retângulo liso que parece defeito de carregamento e não é. Aproximar mais exige gerar o extrato
  * com mais um nível, não mudar este número.
  */
+const SVG_NAMESPACE = 'http://www.w3.org/2000/svg'
+
 const HOME_ZOOM = 14
 
 /** O MapLibre pinta em canvas e não resolve `var()`: ele precisa do valor já calculado. */
@@ -90,10 +92,31 @@ export function DriverHomeMap({ home, labelOf, latitude, longitude }: DriverHome
       observer.observe(container)
       resizeRef.current = observer
 
+      /**
+       * O alfinete de mapa, na forma que se espera dele. ⚠️ O glifo vem de `ICON_PATHS` — emoji não
+       * entra em produto (`web.md` §9): renderiza diferente em cada sistema, não herda `currentColor`
+       * e não escala com o token. Montado por `createElementNS` porque o marcador do MapLibre é
+       * `HTMLElement`, fora da árvore do React — imperativa é a montagem, não o desenho.
+       */
       const pin = document.createElement('span')
       pin.className = styles.homePin ?? ''
-      pin.style.borderColor = resolveBasemapOutline(readToken, basemapThemeForApp('dark'))
-      new Marker({ element: pin }).setLngLat(center).addTo(map)
+      pin.style.color = readToken('--color-copper')
+      const glyph = document.createElementNS(SVG_NAMESPACE, 'svg')
+      glyph.setAttribute('viewBox', '0 0 24 24')
+      glyph.setAttribute('fill', 'none')
+      glyph.setAttribute('stroke', 'currentColor')
+      glyph.setAttribute('stroke-width', '2')
+      glyph.setAttribute('stroke-linecap', 'round')
+      glyph.setAttribute('stroke-linejoin', 'round')
+      glyph.setAttribute('aria-hidden', 'true')
+      for (const definition of ICON_PATHS['map-pin']) {
+        const path = document.createElementNS(SVG_NAMESPACE, 'path')
+        path.setAttribute('d', definition)
+        glyph.append(path)
+      }
+      pin.append(glyph)
+      /** ⚠️ `anchor: 'bottom'`: a ponta do alfinete é o lugar, não o meio dele. */
+      new Marker({ anchor: 'bottom', element: pin }).setLngLat(center).addTo(map)
     } catch {
       setFailed(true)
     }

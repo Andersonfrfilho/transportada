@@ -56,6 +56,7 @@ export type IconName =
   | 'moon'
   | 'trash'
   | 'truck'
+  | 'map-pin'
   | 'organization'
   | 'vehicle-motorcycle'
   | 'vehicle-car'
@@ -168,6 +169,17 @@ export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
     'M18 6l1.8-1.8',
   ],
   moon: ['M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z'],
+  /**
+   * O alfinete de mapa: a gota com o furo, apoiada no ponto que ela marca.
+   *
+   * ⚠️ Ele existe porque o emoji 📍 **não pode** entrar em produto (`web.md` §9): renderiza
+   * diferente em cada sistema, não herda `currentColor` e não escala com o token de tipografia. A
+   * forma é a mesma; o desenho é nosso, e acompanha cor e tamanho como todo ícone daqui.
+   */
+  'map-pin': [
+    'M12 21s7-5.7 7-11a7 7 0 1 0-14 0c0 5.3 7 11 7 11z',
+    'M12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z',
+  ],
   /**
    * A organização: o prédio da empresa, com anexo, janelas e portão, assentado na linha do chão.
    *

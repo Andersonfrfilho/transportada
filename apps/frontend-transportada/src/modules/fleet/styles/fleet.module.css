@@ -1268,12 +1268,17 @@
 */
 .homePin {
   display: block;
-  width: var(--space-5);
-  height: var(--space-5);
-  border: 2px solid transparent;
-  border-radius: 50%;
-  background: var(--color-copper);
+  width: var(--space-7);
+  height: var(--space-7);
+  /* A cor vem do `color` que o componente define; o glifo a herda por `currentColor`. */
   pointer-events: none;
+}
+
+.homePin svg {
+  width: 100%;
+  height: 100%;
+  /* A gota precisa se destacar sobre rua clara e sobre parque escuro: sombra curta, não contorno. */
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 55%));
 }
 
 .homeNotice {
