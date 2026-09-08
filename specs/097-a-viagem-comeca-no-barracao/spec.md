@@ -58,7 +58,20 @@ cadastrar. Um custo silenciosamente incompleto é o que esta feature existe para
 Ela entra no traçado e na conta, e **não** entra na lista numerada de paradas, não conta em ocupação
 de carga, não gera `trip_stops` e não vira nota. É origem, não destino.
 
-### D4 — O roteiro é do escritório; o motorista pode mudar na rua
+### D4 — O barracão tem marca própria no mapa, nunca o pino de parada
+
+O ponto de partida **não pode usar o pino numerado das entregas**. Ele não é parada, não tem número
+na sequência e não recebe carga — e um pino igual aos outros faz o operador contar quatro entregas
+onde há três, ou procurar a nota da "parada 1" que é o próprio galpão.
+
+A marca é distinta em **forma**, não só em cor: cor sozinha não sobrevive a daltonismo nem a mapa
+impresso, e aqui a diferença é categórica — origem contra destino —, não de grau.
+
+⚠️ Com `end_policy = 'depot'` o barracão aparece **duas vezes no traçado**, começo e fim, e é **o
+mesmo lugar**. Ele é desenhado uma vez só: dois marcadores idênticos sobrepostos sugerem dois pontos
+distintos, e a rota já mostra a volta pela linha.
+
+### D5 — O roteiro é do escritório; o motorista pode mudar na rua
 
 O guia de campo (ADR-0059) leva o motorista até a próxima parada do roteiro despachado, e mudar de
 caminho na rua não replaneja a viagem. O custo previsto é o do roteiro planejado — e continua sendo,
