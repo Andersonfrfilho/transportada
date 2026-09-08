@@ -41,6 +41,13 @@ export type TripCargoPreviewContext = {
   readonly fallbackBoxVolumeM3: number | null
   readonly measuredShapes: readonly MeasuredBoxShape[]
   readonly loadingAccess: LoadingAccess
+  /**
+   * Spec 100: algum motorista escolhido amarra a carga com cinta.
+   *
+   * ⚠️ **O pior caso manda**, como no peso e na cubagem: com dois motoristas, basta um não amarrar
+   * para a planta desenhar a pilha limitada — quem carrega decide pelo que pode dar errado.
+   */
+  readonly securesCargo: boolean
   readonly cargoWeight: TripCargoWeightView | null
   readonly documents: readonly CargoPreviewDocument[]
   readonly occupancy: TripOccupancyView | null
@@ -49,6 +56,8 @@ export type TripCargoPreviewContext = {
 export type TripCargoPreviewPort = {
   readCargoPreviewContext(input: {
     readonly companyId: string
+    /** Os motoristas escolhidos até aqui. Vazio é ninguém escolhido — e ninguém amarra. */
+    readonly driverIds: readonly string[]
     readonly nfeDocumentIds: readonly string[]
     readonly vehicleId: string
   }): Promise<TripCargoPreviewContext>
@@ -56,6 +65,12 @@ export type TripCargoPreviewPort = {
 
 export type PreviewTripCargoInput = {
   readonly companyId: string
+  /**
+   * ⚠️ Vazio é o caso comum no diálogo de montagem: o desenho aparece antes de o motorista ser
+   * escolhido. Ausência é **não amarra**, o limite conservador — e a planta se redesenha quando ele
+   * for escolhido, dizendo por quê.
+   */
+  readonly driverIds: readonly string[]
   readonly nfeDocumentIds: readonly string[]
   readonly repository: TripCargoPreviewPort
   /** A ordem que o operador montou no mapa, por chave de parada. Vazia é ordem de chegada. */
@@ -77,6 +92,7 @@ export type PreviewTripCargoInput = {
 export async function previewTripCargo(input: PreviewTripCargoInput): Promise<TripCargoPreview> {
   const context = await input.repository.readCargoPreviewContext({
     companyId: input.companyId,
+    driverIds: input.driverIds,
     nfeDocumentIds: input.nfeDocumentIds,
     vehicleId: input.vehicleId,
   })
@@ -92,6 +108,8 @@ export async function previewTripCargo(input: PreviewTripCargoInput): Promise<Tr
       measuredShapes: context.measuredShapes,
       /** Spec 098: o mesmo peso que a tela imprime decide se a carga encosta na porta ou centraliza. */
       payloadRatio: context.cargoWeight?.payloadRatio ?? null,
+      /** Spec 100: quem amarra pode empilhar até o teto; ninguém escolhido é ninguém amarrando. */
+      securesCargo: context.securesCargo,
       stops: buildCargoPreviewStops({
         boxesByDocument: context.boxesByDocument,
         documents: context.documents,

@@ -142,6 +142,11 @@ export function resolveCargoPlacement(input: {
   readonly arrangement?: StopArrangement
   readonly loadingAccess?: LoadingAccess
   /**
+   * Spec 100: algum motorista da viagem amarra a carga com cinta. ⚠️ Ausente é **não**, e o padrão é
+   * o que decide: supor cinta desenharia pilha alta para quem não amarra.
+   */
+  readonly securesCargo?: boolean
+  /**
    * Quanto do teto de massa da ficha a carga ocupa — `cargoWeight.payloadRatio`, o mesmo número que
    * o painel imprime. `null` é teto desconhecido, e sem denominador não se afirma nada.
    */
@@ -268,6 +273,7 @@ export function resolveCargoPlacement(input: {
       boxes: own,
       budget: MAX_PLACED_BOXES,
       capM,
+      securesCargo: input.securesCargo === true,
       /** Em faixas a fileira gasta profundidade: sobe-se antes de andar para o fundo (spec 100). */
       stackBeforeRow: lanes,
     })
@@ -338,6 +344,7 @@ export function resolveCargoPlacement(input: {
       bed,
       budget: MAX_PLACED_BOXES - placedCount,
       lanes,
+      securesCargo: input.securesCargo === true,
       leftovers,
       rows,
       unplaced,
@@ -369,7 +376,8 @@ export function resolveCargoPlacement(input: {
  */
 function packUntilItFits(input: {
   readonly bed: Readonly<{ heightM: number; lengthM: number; widthM: number }>
-  /** Repassado à varredura — ver `packSlice`. */
+  /** Repassados à varredura — ver `packSlice`. */
+  readonly securesCargo?: boolean
   readonly stackBeforeRow?: boolean
   readonly boxes: readonly PlacementBox[]
   readonly budget: number
@@ -413,6 +421,7 @@ function packUntilItFits(input: {
       boxes: input.boxes,
       budget: input.budget,
       sliceLengthM: lengthM,
+      ...(input.securesCargo === undefined ? {} : { securesCargo: input.securesCargo }),
       ...(input.stackBeforeRow === undefined ? {} : { stackBeforeRow: input.stackBeforeRow }),
     })
     const overflowed =
@@ -687,6 +696,8 @@ function volumeOf(boxes: readonly PlacementBox[]): number {
  */
 function packSlice(input: {
   readonly bed: Readonly<{ heightM: number; lengthM: number; widthM: number }>
+  /** Spec 100: o motorista declarou que amarra a carga — ver `stableStackHeightM`. */
+  readonly securesCargo?: boolean
   /**
    * Empilhar antes de avançar a fileira (spec 100).
    *
@@ -742,11 +753,10 @@ function packSlice(input: {
       footprintOf(second) - footprintOf(first),
   )
 
-  const support = createSupportMap({
-    heightM: slice.heightM,
-    lengthM: slice.lengthM,
-    widthM: slice.widthM,
-  })
+  const support = createSupportMap(
+    { heightM: slice.heightM, lengthM: slice.lengthM, widthM: slice.widthM },
+    input.stackBeforeRow === true ? 'lineStart' : 'columnEnd',
+  )
   let cursor = { layer: 0, layerBottomM: 0, layerHeightM: 0, rowWidthM: 0, xM: 0, yM: 0 }
   /**
    * Até onde as fileiras podem ir hoje. Com `stackBeforeRow` ela começa fechada e **só cresce quando
@@ -860,7 +870,15 @@ function packSlice(input: {
          * subir 1,20 m numa pilha que a regra limitava a 0,60 m.
          */
         const tooTall =
-          found !== null && found.topM + slot.heightM > stableStackHeightM(slot) + 1e-9
+          found !== null &&
+          found.topM + slot.heightM >
+            stableStackHeightM(slot, input.securesCargo === true) + 1e-9 &&
+          /**
+           * ⚠️ **A esbeltez só rege a coluna livre.** Cercada de carga e parede, a pilha não tem para
+           * onde girar — e recusar altura ali empurraria a carga para o fundo do baú sem ganhar
+           * segurança nenhuma.
+           */
+          !support.isConfined({ slot, topM: found.topM, xM: found.xM, yM: cursor.yM })
         if (found !== null && !tooTall && found.xM + slot.depthM <= slice.lengthM + 1e-9) {
           cursor = { ...cursor, xM: found.xM }
           rest = found
@@ -928,7 +946,22 @@ const MAX_SEAT_ATTEMPTS = 64
  * existe. Sem ele a caixa herda o topo da camada — o máximo do baú inteiro naquele índice — e o que
  * sai é caixa no ar.
  */
-function createSupportMap(bed: Readonly<{ heightM: number; lengthM: number; widthM: number }>): {
+/**
+ * Qual borda da fatia é a **face aberta** — o lado por onde a carga sai.
+ *
+ * ⚠️ **A porta não é parede.** As três paredes do baú e o teto seguram a carga; a porta se abre, e é
+ * exatamente nesse instante que a pilha encostada nela cai — em cima de quem abriu. Contar a porta
+ * como apoio autorizava pilha alta na única face que não segura nada.
+ *
+ * ⚠️ A face muda com o arranjo, porque a varredura muda de eixo: em faixas as fileiras crescem da
+ * porta para dentro (`lineStart`), e em profundidade o bloco termina na porta (`columnEnd`).
+ */
+type OpenFace = 'columnEnd' | 'lineStart'
+
+function createSupportMap(
+  bed: Readonly<{ heightM: number; lengthM: number; widthM: number }>,
+  openFace: OpenFace,
+): {
   readonly seat: (input: {
     heightM: number
     slot: Slot
@@ -936,6 +969,20 @@ function createSupportMap(bed: Readonly<{ heightM: number; lengthM: number; widt
     yM: number
   }) => { readonly topM: number; readonly xM: number } | null
   readonly stamp: (input: { slot: Slot; topM: number; xM: number; yM: number }) => void
+  /**
+   * Se a caixa nesta posição está **presa pelos quatro lados** — parede do baú ou carga vizinha tão
+   * alta quanto a base dela.
+   *
+   * ⚠️ **Pilha confinada não tomba, e é isso que a esbeltez sozinha não sabia.** Tombar é rotacionar
+   * em torno de uma aresta da base, e uma coluna cercada não tem para onde girar: a vizinha bloqueia
+   * antes de o centro de massa passar da aresta. Por isso a trava de esbeltez vale para a coluna
+   * **livre** — a da borda da carga —, e não para a do meio do bloco.
+   *
+   * ⚠️ O critério da vizinha é chegar à **base** da caixa, não ao topo dela. É o que o mapa sabe no
+   * instante da colocação — a vizinha de cima ainda não existe —, e é também o que quem carrega usa:
+   * não se empilha alto na quina solta da carga.
+   */
+  readonly isConfined: (input: { slot: Slot; topM: number; xM: number; yM: number }) => boolean
 } {
   const columns = Math.max(1, Math.ceil(bed.lengthM / HEIGHT_MAP_CELL_M))
   const lines = Math.max(1, Math.ceil(bed.widthM / HEIGHT_MAP_CELL_M))
@@ -1037,6 +1084,35 @@ function createSupportMap(bed: Readonly<{ heightM: number; lengthM: number; widt
 
       return null
     },
+    isConfined: ({ slot, topM: top, xM, yM }) => {
+      const [fromColumn, toColumn] = range(xM, slot.depthM, columns)
+      const [fromLine, toLine] = range(yM, slot.widthM, lines)
+      /** Encostado na parede é apoio: a parede não sai do lugar. */
+      const supportsBefore = (column: number, line: number): boolean => {
+        /** A face aberta nunca apoia: é por ela que a carga sai, e com ela aberta a pilha cai. */
+        if (openFace === 'lineStart' ? line < 0 : column >= columns) return false
+        if (column < 0 || line < 0 || column >= columns || line >= lines) return true
+
+        return (topM[column * lines + line] ?? 0) >= top - 1e-9
+      }
+
+      /** Os quatro lados: à frente, atrás e nas duas laterais da pegada inteira. */
+      const sideBefore = (column: number, line: number): boolean => supportsBefore(column, line)
+      let atras = true
+      let frente = true
+      for (let line = fromLine; line < toLine; line += 1) {
+        atras = atras && sideBefore(fromColumn - 1, line)
+        frente = frente && sideBefore(toColumn, line)
+      }
+      let esquerda = true
+      let direita = true
+      for (let column = fromColumn; column < toColumn; column += 1) {
+        esquerda = esquerda && sideBefore(column, fromLine - 1)
+        direita = direita && sideBefore(column, toLine)
+      }
+
+      return atras && frente && esquerda && direita
+    },
     stamp: ({ slot, topM: top, xM, yM }) => {
       const [fromColumn, toColumn] = range(xM, slot.depthM, columns)
       const [fromLine, toLine] = range(yM, slot.widthM, lines)
@@ -1075,6 +1151,7 @@ function placeSplitCargo(input: {
   readonly budget: number
   /** Spec 100: com faixas não existe "região das paradas posteriores" para onde empurrar a sobra. */
   readonly lanes: boolean
+  readonly securesCargo: boolean
   readonly leftovers: readonly {
     readonly box: PlacementBox
     readonly sliceSizeM: number
@@ -1147,6 +1224,7 @@ function placeSplitCargo(input: {
             columns,
             lanes: input.lanes,
             lines,
+            securesCargo: input.securesCargo,
             sliceSizeM,
             sliceStartM,
             slot,
@@ -1193,6 +1271,7 @@ function findSplitSpot(input: {
   readonly lanes: boolean
   readonly lines: number
   /** A largura da faixa em faixas; o comprimento da fatia em profundidade. */
+  readonly securesCargo: boolean
   readonly sliceSizeM: number
   readonly sliceStartM: number
   readonly slot: Slot
@@ -1259,7 +1338,12 @@ function findSplitSpot(input: {
        * tombar. Sem esta trava a carga dividida furava a esbeltez pelo caminho de trás — medido: uma
        * caixa a 0,90 m numa pilha que a regra limitava a 0,60 m.
        */
-      if (support + input.slot.heightM > stableStackHeightM(input.slot) + 1e-9) continue
+      if (
+        support + input.slot.heightM >
+        stableStackHeightM(input.slot, input.securesCargo) + 1e-9
+      ) {
+        continue
+      }
       if (best === null || support < best.topM) {
         best = { layer, topM: support, xM: Math.max(0, xM), yM }
       }
@@ -1405,7 +1489,14 @@ function resolveStackLimit(box: PlacementBox): number {
  * comum — as duas são a mesma; numa carga mista a ordenação já põe a maior pegada por baixo, então a
  * caixa de cima tem base menor e a conta erra **para o lado seguro**.
  */
-function stableStackHeightM(slot: Slot): number {
+function stableStackHeightM(slot: Slot, securesCargo: boolean): number {
+  /**
+   * ⚠️ **Com a carga amarrada a esbeltez deixa de reger.** A cinta prende a pilha à carroceria, e o
+   * modo de falha passa a ser o esmagamento ou a própria cinta — nenhum dos dois é geometria de
+   * tombamento. O teto vira o do baú, que é o comportamento anterior a esta trava.
+   */
+  if (securesCargo) return Number.POSITIVE_INFINITY
+
   const baseM = Math.min(slot.depthM, slot.widthM)
 
   return baseM > 0 ? baseM * STABLE_STACK_SLENDERNESS : Number.POSITIVE_INFINITY

@@ -102,6 +102,11 @@ export type PreviewTripValuationBody = z.infer<typeof previewTripValuationSchema
  */
 export const previewTripCargoSchema = z
   .object({
+    /**
+     * Spec 100: os motoristas escolhidos até aqui. ⚠️ Vazio é o caso comum — o desenho aparece antes
+     * de o motorista ser escolhido —, e ausência é **não amarra**, o limite conservador.
+     */
+    driverIds: z.array(z.uuid()).max(MAX_LINK_BATCH_DOCUMENTS).default([]),
     nfeDocumentIds: z.array(z.uuid()).min(1).max(MAX_LINK_BATCH_DOCUMENTS),
     stopOrder: z.array(z.string().min(1)).max(MAX_LINK_BATCH_DOCUMENTS).default([]),
     vehicleId: z.uuid(),

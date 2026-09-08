@@ -301,6 +301,11 @@ export function resolveCargoLayout(input: {
    * porta. Ausente é teto desconhecido, e aí nada se afirma.
    */
   readonly payloadRatio?: string | null
+  /**
+   * Spec 100: algum motorista da viagem amarra a carga com cinta. Ausente é **não** — supor cinta
+   * desenharia pilha alta para quem não amarra, e a carga cairia na primeira curva.
+   */
+  readonly securesCargo?: boolean
   readonly stops: readonly CargoLayoutStop[]
 }): ResolvedCargoLayout | null {
   const capacity = toScaled(input.capacityM3)
@@ -460,6 +465,7 @@ export function resolveCargoLayout(input: {
       /** Spec 099: quem abre a lateral inteira não tem porta a que encostar — equilibra sempre. */
       loadingAccess: access,
       payloadRatio: input.payloadRatio ?? null,
+      securesCargo: input.securesCargo === true,
     }),
     bedWidthM:
       bed === null || !bedKnown ? null : formatScaledDecimal(toLength(bed.widthM), LENGTH_SCALE),

@@ -375,6 +375,17 @@ export const fleetDrivers = pgTable(
      * nenhuma, nem a última conhecida de ontem.
      */
     locationSharingConsentAt: timestamp('location_sharing_consent_at', { withTimezone: true }),
+    /**
+     * Spec 100: se este motorista amarra a carga com cinta.
+     *
+     * ⚠️ **`false` por padrão, e o padrão é o que decide.** A planta limita a altura da pilha por
+     * esbeltez — sem cinta ela tomba na primeira curva forte —, e supor cinta por omissão desenharia
+     * pilha alta para quem não amarra. Quem amarra declara.
+     *
+     * ⚠️ Ele mora no motorista, e não no veículo, porque é **prática de quem carrega**, não
+     * equipamento: a mesma van com dois motoristas sai amarrada com um e solta com o outro.
+     */
+    securesCargo: boolean('secures_cargo').notNull().default(false),
     paymentModel: text('payment_model')
       .$type<DriverPaymentModel>()
       .notNull()

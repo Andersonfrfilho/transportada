@@ -1,6 +1,9 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { and, eq, inArray } from 'drizzle-orm'
+
+import { fleetDrivers } from '../../database/fleet.schema.js'
 import type { TripCargoPreviewContext } from '../application/preview-trip-cargo.use-case.js'
 import { buildStopAddressKey } from '../domain/stop-address-key.js'
 import { listDocumentNumbers, listStopAddresses } from './nfe-destination-address.support.js'
@@ -21,11 +24,12 @@ export async function readCargoPreviewContext(
   queryable: TripQueryable,
   input: {
     readonly companyId: string
+    readonly driverIds: readonly string[]
     readonly nfeDocumentIds: readonly string[]
     readonly vehicleId: string
   },
 ): Promise<TripCargoPreviewContext> {
-  const [cargo, cargoWeight, addresses, numbers] = await Promise.all([
+  const [cargo, cargoWeight, addresses, numbers, securesCargo] = await Promise.all([
     loadTripOccupancy(queryable, input),
     loadTripCargoWeight(queryable, {
       companyId: input.companyId,
@@ -39,6 +43,10 @@ export async function readCargoPreviewContext(
       companyId: input.companyId,
       nfeDocumentIds: input.nfeDocumentIds,
     }),
+    everyDriverSecuresCargo(queryable, {
+      companyId: input.companyId,
+      driverIds: input.driverIds,
+    }),
   ])
 
   return {
@@ -48,6 +56,7 @@ export async function readCargoPreviewContext(
     fallbackBoxVolumeM3: cargo.fallbackBoxVolumeM3,
     measuredShapes: cargo.measuredShapes,
     loadingAccess: cargo.loadingAccess,
+    securesCargo,
     /**
      * ⚠️ O teto entra **depois** das duas leituras, nunca encadeando uma na outra: o peso e o
      * veículo são consultados em paralelo, e serializá-los custaria uma ida ao banco por nada.
@@ -68,4 +77,30 @@ export async function readCargoPreviewContext(
     }),
     occupancy: cargo.occupancy,
   }
+}
+
+/**
+ * Se **todos** os motoristas escolhidos amarram a carga.
+ *
+ * ⚠️ **O pior caso manda**, como no peso e na cubagem: basta um não amarrar para a planta desenhar a
+ * pilha limitada. E lista vazia é `false` — no diálogo de montagem o desenho aparece antes de o
+ * motorista ser escolhido, e ausência nunca vira permissão.
+ */
+async function everyDriverSecuresCargo(
+  queryable: TripQueryable,
+  input: { readonly companyId: string; readonly driverIds: readonly string[] },
+): Promise<boolean> {
+  if (input.driverIds.length === 0) return false
+
+  const rows = await queryable
+    .select({ securesCargo: fleetDrivers.securesCargo })
+    .from(fleetDrivers)
+    .where(
+      and(
+        eq(fleetDrivers.companyId, input.companyId),
+        inArray(fleetDrivers.id, [...input.driverIds]),
+      ),
+    )
+
+  return rows.length === input.driverIds.length && rows.every((row) => row.securesCargo)
 }

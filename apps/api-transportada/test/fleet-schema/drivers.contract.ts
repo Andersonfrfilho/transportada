@@ -35,6 +35,8 @@ describe('fleet driver schema', () => {
       'linked_legal_name',
       // ADR-0050 §5: o consentimento do motorista para o rastreamento ao vivo, desligado por padrão
       'location_sharing_consent_at',
+      /** Spec 100: se o motorista amarra a carga — libera a planta a empilhar até o teto do baú. */
+      'secures_cargo',
       /** ADR-0049 §3: como este motorista é pago — o agregado por rota, o da casa por quinzena. */
       'payment_model',
       'fixed_amount',

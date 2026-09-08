@@ -366,6 +366,7 @@ type Dependencies = {
   readonly previewCargo: {
     execute(input: {
       readonly companyId: string
+      readonly driverIds: readonly string[]
       readonly nfeDocumentIds: readonly string[]
       readonly stopOrder: readonly string[]
       readonly vehicleId: string
@@ -694,6 +695,7 @@ export function createTripRoutes(
       readonly nfeDocumentIds: readonly string[]
       readonly stopOrder: readonly string[]
       readonly vehicleId: string
+      readonly driverIds: readonly string[]
     }>({
       async handle({ context, input }): Promise<Response> {
         const preview = await dependencies.previewCargo.execute({

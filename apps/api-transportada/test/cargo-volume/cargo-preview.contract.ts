@@ -163,11 +163,14 @@ describe('a prévia acusa peso concentrado numa parada', () => {
     loadingAccess: 'rear' as const,
     measuredShapes: [],
     occupancy: null,
+    /** Spec 100: ninguém amarra por padrão — a pilha fica limitada por esbeltez. */
+    securesCargo: false,
   }
 
   test('devolve a parada que domina o peso, pela chave da parada', async () => {
     const preview = await previewTripCargo({
       companyId: 'company',
+      driverIds: [],
       nfeDocumentIds: ['a', 'b'],
       repository: {
         readCargoPreviewContext: async () => ({
@@ -206,6 +209,7 @@ describe('a prévia acusa peso concentrado numa parada', () => {
   test('carga equilibrada não acusa nada', async () => {
     const preview = await previewTripCargo({
       companyId: 'company',
+      driverIds: [],
       nfeDocumentIds: ['a', 'b'],
       repository: {
         readCargoPreviewContext: async () => ({
