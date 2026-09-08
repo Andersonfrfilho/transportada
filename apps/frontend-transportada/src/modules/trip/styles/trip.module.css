@@ -1792,6 +1792,35 @@
   justify-content: space-between;
 }
 
+/**
+ * O corte lateral: a planta diz onde a caixa fica, e ele diz quão alto a pilha sobe. É a segunda
+ * metade do par que substitui o 3D — e as duas se conferem com fita, o que um isométrico não
+ * permite.
+ */
+.cargoSideView {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: var(--space-16);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 30%, transparent);
+}
+
+.cargoSideLayer,
+.cargoSideLayerActive {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--space-4);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 22%, transparent);
+  color: var(--color-slate);
+  font-size: 0.75rem;
+}
+
+.cargoSideLayerActive {
+  background: color-mix(in srgb, var(--color-copper) 26%, transparent);
+  color: var(--color-fog);
+}
+
 .cargoUnplaced {
   display: grid;
   gap: var(--space-1);

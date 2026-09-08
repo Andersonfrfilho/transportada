@@ -38,30 +38,20 @@ describe('planta das camadas (spec 094)', () => {
   })
 
   /**
-   * ⚠️ **A pilha inteira aparece, com a camada aberta em foco.** Desenhar só a camada escolhida
-   * tiraria o que a perspectiva tem de melhor — ver como a carga sobe — e deixaria as caixas
-   * flutuando sobre um piso vazio.
+   * ⚠️ O corte lateral é a segunda metade do par que substitui o 3D: a planta diz **onde** a caixa
+   * fica, o corte diz **quão alto** a pilha sobe. As duas se conferem com fita; um isométrico não.
    */
-  it('mostra todas as camadas, destacando a aberta', () => {
-    expect(source).toContain('placement.layers.flatMap')
-    expect(source).toContain('focusLayerZM')
-  })
-
-  /**
-   * ⚠️ As aberturas são ditas em **texto**, fora do desenho: rótulo dentro do quadro sai cortado e
-   * atravessa a borda — foi o que aconteceu com "Porta lateral (direita)" na planta anterior.
-   */
-  it('nomeia as portas em texto, fora do desenho', () => {
-    expect(source).toContain("t('cargoLayers.doorsRearAndSide')")
-    expect(trip.cargoLayers.doorsRearAndSide).toContain('lateral direita')
+  it('desenha o corte lateral ao lado da planta', () => {
+    expect(source).toContain('TripCargoSideView')
+    expect(source).toContain('styles.cargoSideView')
   })
 
   /** A caixa presumida sai hachurada — a diferença entre medido e derivado do volume. */
   it('distingue a caixa presumida da medida', () => {
-    const isometric = readApplicationFile('src/components/ui/cargo-isometric.tsx')
+    const plan = readApplicationFile('src/components/ui/scale-plan.tsx')
 
     expect(source).toContain("isEstimated: box.source === 'estimated'")
-    expect(isometric).toContain("box.isEstimated ? 'url(#cargo-iso-hatch)' : box.color")
+    expect(plan).toContain("cargoBox.isEstimated ? 'url(#scale-plan-hatch)' : cargoBox.color")
   })
 
   /** O que não coube é nomeado, nunca escondido — e cada motivo tem texto próprio. */

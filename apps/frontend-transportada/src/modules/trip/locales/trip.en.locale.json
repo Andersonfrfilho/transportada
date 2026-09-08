@@ -561,7 +561,7 @@
     "previous": "Layer below",
     "next": "Layer above",
     "position": "Layer {{index}} of {{total}}",
-    "planLabel": "Layer {{index}} cargo, in perspective",
+    "planLabel": "Layer {{index}} plan, seen from above",
     "sideLayer": "Layer {{index}}",
     "estimated": "Presumed arrangement: some boxes were derived from volume, or carry a stacking restriction nobody informed.",
     "unplaced": {
@@ -574,7 +574,6 @@
       "tooMany": "{{count}} {{label}} box left the drawing due to a detail cap.",
       "tooMany_other": "{{count}} {{label}} boxes left the drawing due to a detail cap."
     },
-    "doorsRear": "This bed only opens at the rear: the last stop must travel at the far end.",
-    "doorsRearAndSide": "This bed opens at the rear and on the right side: the order helps, it does not bind."
+    "sideDoor": "Side door (right)"
   }
 }

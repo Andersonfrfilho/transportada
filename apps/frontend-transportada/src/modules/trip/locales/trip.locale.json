@@ -686,7 +686,7 @@
     "previous": "Camada abaixo",
     "next": "Camada acima",
     "position": "Camada {{index}} de {{total}}",
-    "planLabel": "Carga da camada {{index}}, vista em perspectiva",
+    "planLabel": "Planta da camada {{index}}, vista de cima",
     "sideLayer": "Camada {{index}}",
     "estimated": "Arranjo presumido: parte das caixas foi derivada do volume, ou tem restrição de empilhamento que ninguém informou.",
     "unplaced": {
@@ -699,7 +699,6 @@
       "tooMany": "{{count}} caixa de {{label}} ficou fora do desenho por limite de detalhe.",
       "tooMany_other": "{{count}} caixas de {{label}} ficaram fora do desenho por limite de detalhe."
     },
-    "doorsRear": "Este baú abre só na traseira: a última parada precisa viajar no fundo.",
-    "doorsRearAndSide": "Este baú abre na traseira e na lateral direita: a ordem ajuda, mas não obriga."
+    "sideDoor": "Porta lateral (direita)"
   }
 }

@@ -28,11 +28,6 @@ const DATA_GEOMETRY_PATHS: readonly string[] = [
    * caixas sai da ocupação, em tempo de execução. Não há glifo a declarar antes.
    */
   'src/components/ui/cargo-vehicle.tsx',
-  /**
-   * Isométrico da carga: cada caixa vira três polígonos projetados a partir da posição em metros,
-   * em tempo de execução. Não há glifo a declarar antes — e a projeção **é** o desenho.
-   */
-  'src/components/ui/cargo-isometric.tsx',
 ]
 
 function readApplicationFile(filePath: string): Promise<string> {
