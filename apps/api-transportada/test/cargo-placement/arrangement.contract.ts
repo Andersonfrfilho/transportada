@@ -1,0 +1,175 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ */
+import { describe, expect, test } from 'bun:test'
+
+import {
+  resolveStopArrangement,
+  type PlacementBox,
+} from '../../src/trips/domain/cargo-placement.policy.js'
+
+/** Fiorino furgão, a viagem real que gerou a spec 100: 1,70 × 1,45 × 1,30 m. */
+const FIORINO = { heightM: '1.300', lengthM: '1.700', widthM: '1.450' } as const
+
+function box(overrides: Partial<PlacementBox>): PlacementBox {
+  return {
+    count: 1,
+    heightMm: 300,
+    isFragile: null,
+    isStackable: null,
+    keepUpright: null,
+    label: 'CAIXA',
+    lengthMm: 400,
+    maxStackCount: null,
+    source: 'measured',
+    stopSequence: 1,
+    widthMm: 300,
+    ...overrides,
+  }
+}
+
+/** Três paradas de volume igual, caixa pequena: cada faixa recebe ~48 cm de 1,45 m. */
+function tresParadas(): readonly PlacementBox[] {
+  return [1, 2, 3].map((stopSequence) => box({ stopSequence }))
+}
+
+/**
+ * ⚠️ **O arranjo é decisão, não coordenada.** Esta política diz apenas se a viagem sai em faixas
+ * paralelas à porta ou em fatias de profundidade; onde cada caixa pousa é do empacotador. Misturar
+ * as duas responsabilidades faria a decisão depender do resultado que ela mesma determina.
+ */
+describe('qual arranjo a viagem usa (spec 100 D2)', () => {
+  /**
+   * Aceite 1. Na viagem da crítica as três paradas cabem lado a lado — e cabendo, é assim que elas
+   * ficam: com fatias em profundidade, duas das três só se alcançam descarregando a da frente.
+   */
+  test('três paradas que cabem lado a lado saem em faixas', () => {
+    expect(
+      resolveStopArrangement({
+        bed: FIORINO,
+        boxes: tresParadas(),
+        payloadRatio: null,
+      }),
+    ).toBe('lanes')
+  })
+
+  /**
+   * Aceite 2. ⚠️ **Sem exceção silenciosa.** Uma parada que não cabe derruba a viagem inteira, e não
+   * só a faixa dela: metade da carga em faixas e metade em profundidade produziria um desenho que
+   * ninguém consegue seguir, e o operador seguiria mesmo assim.
+   */
+  test('uma parada com caixa larga demais derruba a viagem inteira para profundidade', () => {
+    const arranjo = resolveStopArrangement({
+      bed: FIORINO,
+      boxes: [
+        box({ stopSequence: 1 }),
+        box({ stopSequence: 2 }),
+        /** 1,20 m de menor dimensão contra os ~0,48 m que a faixa proporcional dá. */
+        box({ heightMm: 300, lengthMm: 1_200, stopSequence: 3, widthMm: 1_200 }),
+      ],
+      payloadRatio: null,
+    })
+
+    expect(arranjo).toBe('depth')
+  })
+
+  /**
+   * ⚠️ A caixa pode **girar**: quem decide o cabimento é a menor dimensão de planta, não o
+   * comprimento. Cobrar o comprimento recusaria faixa para uma caixa que entra de lado — e o
+   * empacotador já testa as duas orientações em `fitSlot`.
+   */
+  test('a caixa comprida e estreita cabe na faixa, porque ela gira', () => {
+    const arranjo = resolveStopArrangement({
+      bed: FIORINO,
+      boxes: [1, 2, 3].map((stopSequence) => box({ lengthMm: 1_200, stopSequence, widthMm: 300 })),
+      payloadRatio: null,
+    })
+
+    expect(arranjo).toBe('lanes')
+  })
+
+  /**
+   * Aceite 3. Com uma parada os dois arranjos desenham a mesma coisa, e nomear um arranjo que não
+   * muda nada só daria à tela uma distinção sem diferença.
+   */
+  test('uma parada só é sempre profundidade', () => {
+    expect(
+      resolveStopArrangement({
+        bed: FIORINO,
+        boxes: [box({ stopSequence: 1 })],
+        payloadRatio: null,
+      }),
+    ).toBe('depth')
+  })
+
+  /**
+   * Aceite 4. ⚠️ **A física vence o acesso** (spec 099 D3, mantida). Massa concentrada numa faixa
+   * junto da porta alivia o eixo dianteiro do mesmo jeito que a carga colada na traseira, e faixa
+   * não é motivo para desfazer física.
+   */
+  test('acima de metade do teto de massa, o peso derruba as faixas', () => {
+    expect(
+      resolveStopArrangement({
+        bed: FIORINO,
+        boxes: tresParadas(),
+        payloadRatio: '0.6000',
+      }),
+    ).toBe('depth')
+  })
+
+  /** O degrau é em metade exata: `0,5` ainda é faixa, e `0,5001` já não é. */
+  test('a metade exata ainda é faixa', () => {
+    expect(
+      resolveStopArrangement({ bed: FIORINO, boxes: tresParadas(), payloadRatio: '0.5000' }),
+    ).toBe('lanes')
+  })
+
+  /**
+   * Aceite 5. ⚠️ Teto desconhecido **não** afirma peso: ausência de denominador não é motivo para
+   * mudar o arranjo, é a mesma regra que a 099 D3 já escreveu.
+   */
+  test('teto de massa desconhecido não derruba as faixas', () => {
+    expect(resolveStopArrangement({ bed: FIORINO, boxes: tresParadas(), payloadRatio: null })).toBe(
+      'lanes',
+    )
+  })
+
+  /** Sem baú não há faixa: a largura da faixa é fração de uma largura que ninguém mediu. */
+  test('sem as medidas do baú o arranjo é profundidade', () => {
+    expect(resolveStopArrangement({ bed: null, boxes: tresParadas(), payloadRatio: null })).toBe(
+      'depth',
+    )
+  })
+
+  /**
+   * ⚠️ Caixa sem medida não decide arranjo — ela já não entra no desenho (spec 085). Deixá-la pesar
+   * aqui faria uma linha de zeros derrubar as faixas de uma viagem inteira.
+   */
+  test('caixa sem medida não conta para o cabimento', () => {
+    const arranjo = resolveStopArrangement({
+      bed: FIORINO,
+      boxes: [...tresParadas(), box({ heightMm: 0, lengthMm: 0, stopSequence: 3, widthMm: 0 })],
+      payloadRatio: null,
+    })
+
+    expect(arranjo).toBe('lanes')
+  })
+
+  /**
+   * A faixa é proporcional ao **volume** da parada, como a fatia sempre foi: uma parada que leva
+   * quase tudo recebe quase toda a largura, e as vizinhas ficam com faixas estreitas demais.
+   */
+  test('parada dominante estreita as vizinhas e derruba as faixas', () => {
+    const arranjo = resolveStopArrangement({
+      bed: FIORINO,
+      boxes: [
+        box({ count: 60, stopSequence: 1 }),
+        box({ stopSequence: 2 }),
+        box({ stopSequence: 3 }),
+      ],
+      payloadRatio: null,
+    })
+
+    expect(arranjo).toBe('depth')
+  })
+})

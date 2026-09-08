@@ -350,6 +350,82 @@ function shouldBalanceLoad(input: {
   return Number.isFinite(ratio) && ratio > BALANCE_PAYLOAD_RATIO
 }
 
+/**
+ * Em que eixo as paradas se dividem (spec 100 D2).
+ *
+ * `depth` é a fatia de sempre: a parada 1 na porta, a 2 atrás dela, a 3 atrás da 2. `lanes` põe cada
+ * parada numa faixa ao longo da **largura**, e aí todas tocam a porta.
+ *
+ * ⚠️ **O arranjo em profundidade só funciona enquanto nada foge da ordem.** Cliente fechado, recusa
+ * de mercadoria, endereço trocado ou entrega remarcada por telefone são o caso normal, e em qualquer
+ * um deles a carga da parada seguinte está atrás de uma parede de caixas que não vão sair ali.
+ * Medido na viagem que gerou a spec (Fiorino de 1,70 m, três paradas): **duas das três** não eram
+ * alcançáveis pela porta, e as três caberiam lado a lado.
+ *
+ * ⚠️ Esta função decide, e **não posiciona**. Onde cada caixa pousa é do empacotador; misturar as
+ * duas responsabilidades faria a decisão depender do resultado que ela mesma determina.
+ */
+/**
+ * ⚠️ Os dois nomes são do **eixo**, nunca da qualidade do arranjo: `lanes` não é "melhor" e `depth`
+ * não é "pior". Qual dos dois vale sai de `resolveStopArrangement`, e a tela imprime qual foi.
+ */
+export const STOP_ARRANGEMENTS = ['depth', 'lanes'] as const
+export type StopArrangement = (typeof STOP_ARRANGEMENTS)[number]
+
+export function resolveStopArrangement(input: {
+  readonly bed: CargoBedDimensions | null
+  readonly boxes: readonly PlacementBox[]
+  /** O mesmo `cargoWeight.payloadRatio` que o painel imprime. `null` é teto desconhecido. */
+  readonly payloadRatio: string | null
+}): StopArrangement {
+  if (input.bed === null) return 'depth'
+
+  const bedWidthM = Number.parseFloat(input.bed.widthM)
+  if (!Number.isFinite(bedWidthM) || bedWidthM <= 0) return 'depth'
+
+  /**
+   * ⚠️ **A física vence o acesso** (spec 099 D3, mantida). Massa concentrada numa faixa junto da
+   * porta alivia o eixo dianteiro do mesmo jeito que a carga colada na traseira, e faixa não é
+   * motivo para desfazer física. Teto desconhecido **não** afirma peso: sem denominador nada se
+   * afirma, que é a mesma regra da 099.
+   */
+  const ratio = input.payloadRatio === null ? null : Number(input.payloadRatio)
+  if (ratio !== null && Number.isFinite(ratio) && ratio > BALANCE_PAYLOAD_RATIO) return 'depth'
+
+  /** Caixa sem medida já não entra no desenho (spec 085): deixá-la pesar aqui derrubaria a viagem. */
+  const measured = input.boxes.filter(
+    (box) => (box.heightMm ?? 0) > 0 && (box.lengthMm ?? 0) > 0 && (box.widthMm ?? 0) > 0,
+  )
+  const sequences = [...new Set(measured.map((box) => box.stopSequence))]
+  /** Com uma parada os dois arranjos desenham o mesmo — nomear os dois seria distinção sem diferença. */
+  if (sequences.length < 2) return 'depth'
+
+  const totalVolume = volumeOf(measured)
+  if (totalVolume <= 0) return 'depth'
+
+  /**
+   * ⚠️ **Sem exceção silenciosa**: uma parada que não cabe derruba a viagem inteira. Metade da carga
+   * em faixas e metade em profundidade produziria um desenho que ninguém consegue seguir — e o
+   * operador seguiria mesmo assim.
+   */
+  return sequences.every((stopSequence) => {
+    const own = measured.filter((box) => box.stopSequence === stopSequence)
+    const laneWidthM = bedWidthM * (volumeOf(own) / totalVolume)
+    /**
+     * ⚠️ Quem decide o cabimento é a **menor dimensão de planta**, porque a caixa gira: cobrar o
+     * comprimento recusaria faixa para uma caixa que entra de lado, e `fitSlot` já testa as duas
+     * orientações.
+     */
+    const widest = Math.max(
+      ...own.map((box) => Math.min(box.lengthMm ?? 0, box.widthMm ?? 0) / MILLIMETRES_PER_METRE),
+    )
+
+    return widest <= laneWidthM
+  })
+    ? 'lanes'
+    : 'depth'
+}
+
 /** O volume que a carga ocupa de fato, em m³ — é ele que dimensiona a fatia. */
 function volumeOf(boxes: readonly PlacementBox[]): number {
   return boxes.reduce(
