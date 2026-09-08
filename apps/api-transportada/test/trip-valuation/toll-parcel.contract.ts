@@ -235,3 +235,57 @@ describe('praça sem tarifa na parcela calculada (revisão de 2026-09-07)', () =
     expect(parcela?.detail).toBeNull()
   })
 })
+
+describe('a tag chega na conta da viagem (spec 095 D4)', () => {
+  /**
+   * ⚠️ A montagem já usava a tarifa automática desde a D3, e a **parcela que forma a margem**
+   * continuava na manual: duas telas com pedágios diferentes para a mesma viagem. Medido na tabela
+   * oficial da Arteris, na rota de três praças: R$ 65,60 sem tag contra R$ 63,48 com ela.
+   */
+  it('usa a tarifa automática quando o veículo declara cobrança automática', async () => {
+    const { result } = run({
+      booths: [
+        { ...praca(10, '10.5000'), chargePerAxleAutomatic: '9.9700' },
+        { ...praca(20, '10.5000'), chargePerAxleAutomatic: '9.9700' },
+        /** A Intervias publica um preço só: esta cai para a manual, e a queda é contada. */
+        { ...praca(30, '11.8000'), chargePerAxleAutomatic: null },
+      ],
+      context: context({
+        vehicle: {
+          axles: { count: 2, source: 'declared' },
+          hasAutomaticTollPayment: true,
+          kilometersPerLiter: '2.5000',
+          otherCostsPerKilometer: '0.3000',
+        },
+      }),
+      road: {
+        legs: [{ distanceMetres: 1_000, durationSeconds: 60 }],
+        nodeIds: [10, 20, 30],
+        points: POINTS,
+      },
+    })
+
+    const parcela = (await result).costParcels.find((cost) => cost.kind === 'toll')
+
+    expect(parcela?.amount).toBe('63.4800')
+  })
+
+  it('usa a manual quando o veículo não tem cobrança automática', async () => {
+    const { result } = run({
+      booths: [
+        { ...praca(10, '10.5000'), chargePerAxleAutomatic: '9.9700' },
+        { ...praca(20, '10.5000'), chargePerAxleAutomatic: '9.9700' },
+        { ...praca(30, '11.8000'), chargePerAxleAutomatic: null },
+      ],
+      road: {
+        legs: [{ distanceMetres: 1_000, durationSeconds: 60 }],
+        nodeIds: [10, 20, 30],
+        points: POINTS,
+      },
+    })
+
+    const parcela = (await result).costParcels.find((cost) => cost.kind === 'toll')
+
+    expect(parcela?.amount).toBe('65.6000')
+  })
+})

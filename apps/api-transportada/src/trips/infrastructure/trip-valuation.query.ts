@@ -71,6 +71,8 @@ export class DrizzleTripValuationQuery {
       .select({
         axleCount: fleetVehicles.axleCount,
         fuelType: fleetVehicles.fuelType,
+        /** Spec 095 D4: com tag, a parcela usa a tarifa automática — a mesma regra da montagem. */
+        hasAutomaticTollPayment: fleetVehicles.hasAutomaticTollPayment,
         kilometersPerLiter: fleetVehicles.averageConsumption,
         otherCostsPerKilometer: fleetVehicles.otherCostsPerKilometer,
         vehicleType: fleetVehicles.vehicleType,
@@ -103,6 +105,7 @@ export class DrizzleTripValuationQuery {
           axleCount: vehicle.axleCount,
           vehicleType: vehicle.vehicleType,
         }),
+        hasAutomaticTollPayment: vehicle.hasAutomaticTollPayment,
         kilometersPerLiter: vehicle.kilometersPerLiter,
         otherCostsPerKilometer: vehicle.otherCostsPerKilometer,
       },

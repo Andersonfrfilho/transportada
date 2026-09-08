@@ -54,6 +54,12 @@ export type TripValuationVehicle = {
    * quando a ficha não tem eixo declarado nem tipo reconhecido para estimar.
    */
   readonly axles?: AxleCount | null
+  /**
+   * Spec 095 D4: com tag, a parcela usa a tarifa automática da praça quando ela é conhecida — a
+   * mesma regra que a montagem já aplica. Sem isto, mapa e margem mostram pedágios diferentes para
+   * a mesma viagem.
+   */
+  readonly hasAutomaticTollPayment?: boolean
   readonly kilometersPerLiter: null | string
   readonly otherCostsPerKilometer: null | string
 }
@@ -220,6 +226,7 @@ export async function previewTripValuation(
    */
   const road = await resolvePreviewRoad({
     axles: context.vehicle.axles ?? null,
+    hasAutomaticTollPayment: context.vehicle.hasAutomaticTollPayment ?? false,
     companyId: input.companyId,
     depot: input.depot ?? null,
     geometry: input.geometry,
@@ -244,6 +251,7 @@ export async function previewTripValuation(
 async function resolvePreviewRoad(input: {
   readonly axles: AxleCount | null
   readonly companyId: string
+  readonly hasAutomaticTollPayment: boolean
   readonly depot: null | ReadRouteGeometryDepotPort
   readonly geometry: RouteGeometryPort
   readonly nfeDocumentIds: readonly string[]
@@ -260,6 +268,7 @@ async function resolvePreviewRoad(input: {
   const road = await readRouteGeometry({
     axles: input.axles,
     depot: input.depot,
+    hasAutomaticTollPayment: input.hasAutomaticTollPayment,
     geometry: input.geometry,
     stops: points,
     tollBooths: input.tollBooths,

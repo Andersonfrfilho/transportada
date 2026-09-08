@@ -379,3 +379,31 @@ Frontend: `test/trip/assembly-toll.contract.ts` (2 testes novos), mais ajustes d
   `resolveTollRouteCost`/`resolveEffectiveTollBoothCharge` nasceram juntos, não vermelho-depois-verde
   — os gates passaram, o processo não. Registrado pela mesma razão de antes: teste escrito depois
   nasce sabendo o que o código faz.
+
+## D4 — A tag chega na conta da viagem (2026-09-08)
+
+Contrato antes, vermelho conferido (1 fail), verde depois. Os números saem da tabela oficial da
+Arteris, na rota de três praças:
+
+```
+sem tag: (10,50 + 10,50 + 11,80) × 2 = R$ 65,60
+com tag: ( 9,97 +  9,97 + 11,80) × 2 = R$ 63,48   ← a da Intervias cai para a manual
+bun run test (API) → 4672 pass, 0 fail
+```
+
+### ⚠️ O contrato passou antes de a feature funcionar
+
+A primeira versão fiou a marca do contexto do veículo até a política e **o contrato ficou verde** —
+mas o repositório não lia a coluna, então em produção a marca chegaria sempre `false` e a parcela
+continuaria na base manual. Meio conserto que passa no teste, porque o dublê do contrato injeta o
+contexto direto.
+
+Faltava `fleetVehicles.hasAutomaticTollPayment` no `select` de `trip-valuation.query.ts`. Está lá
+agora, e é o tipo de lacuna que só aparece lendo o caminho inteiro do dado — do banco à política.
+
+### O que ficou de fora, e por quê
+
+O segundo bloco de veículo do repositório é o da **viagem já criada** (`readContext`), e ele não
+declara nem eixo: ali o pedágio continua sendo lançamento manual, porque a T11 (congelar o pedágio
+junto com o roteiro) não existe. Acrescentar a marca ali seria campo que ninguém lê. Quando a T11
+chegar, este bloco precisa dos dois — eixo e tag — junto.
