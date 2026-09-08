@@ -40,6 +40,17 @@ export type AxleCount = Readonly<{ count: number; source: AxleCountSource }>
 export type RouteGeometryTollBooth = Readonly<{
   chargeCar: null | string
   chargePerAxle: null | string
+  /**
+   * O que **esta** praça custou por eixo neste veículo — a tarifa da tag quando ele a tem e ela
+   * existe, a manual no resto. ⚠️ É este valor que o extrato imprime, nunca o `chargePerAxle` cru:
+   * com tag o cru é a tarifa que o veículo não pagou, e linhas que não somam o total fazem duvidar
+   * do total. `null` é praça sem tarifa conhecida — nunca zero, que diria cancela franca.
+   */
+  effectiveChargePerAxle: null | string
+  /** Esta praça não tem tarifa de tag e caiu para a manual (spec 095 D3). */
+  fellBackToManual: boolean
+  /** `effectiveChargePerAxle × eixos`, e `null` pela mesma razão. */
+  total: null | string
   latitude: string
   longitude: string
   name: null | string

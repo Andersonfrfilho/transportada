@@ -8,7 +8,9 @@
  * primeiro e engrossa a linha depois.
  */
 import {
+  describeTollBoothCharges,
   resolveTollRouteCost,
+  type TollBoothStatementLine,
   type AxleCount,
   type TollRouteCost,
 } from '../../toll-booths/domain/toll-route-cost.policy.js'
@@ -51,8 +53,14 @@ export type RouteGeometrySource = (typeof ROUTE_GEOMETRY_SOURCES)[number]
  * T5) não conhece data — ela decide só quem passou e quanto custa — e é este use case que junta a
  * data de cada praça cobrada para a tela imprimir ao lado do total.
  */
-export type RouteGeometryToll = TollRouteCost &
+export type RouteGeometryToll = Omit<TollRouteCost, 'booths'> &
   Readonly<{
+    /**
+     * O extrato: praça a praça, com o que cada uma custou **neste** veículo e a marca de quem caiu
+     * para a tarifa manual. Ele é derivado na leitura (`describeTollBoothCharges`) e não entra no
+     * jsonb congelado — o congelado guarda a observação, e a interpretação se recomputa.
+     */
+    booths: readonly TollBoothStatementLine[]
     /**
      * A mais antiga entre as praças cobradas — a leitura conservadora quando o cadastro tem seeds
      * de datas diferentes. `null` quando a rota não passou por praça nenhuma: não há tarifa a datar.
@@ -343,5 +351,13 @@ async function resolveRouteToll(input: {
     .filter((value): value is string => value !== undefined)
     .sort()
 
-  return { ...cost, tariffObservedOn: observedDates[0] ?? null }
+  return {
+    ...cost,
+    booths: describeTollBoothCharges({
+      axles: cost.axles,
+      booths: cost.booths,
+      paymentMode: cost.paymentMode,
+    }),
+    tariffObservedOn: observedDates[0] ?? null,
+  }
 }

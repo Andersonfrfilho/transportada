@@ -34,6 +34,8 @@ import {
   resolveBasemapTollColor,
   type BasemapTheme,
 } from '../shared/vectorBasemap.service'
+import { ICON_PATHS } from '@/components/ui/icon'
+
 import { resolveAssemblyMapBounds } from '../shared/assemblyMapBounds.service'
 import { resolveMarkerOffsets, type AssemblyMapPoint } from '../shared/assemblyMap.service'
 import type { RouteGeometry } from '../shared/routeGeometry.service'
@@ -630,6 +632,30 @@ function depotElement(input: { readonly outline: string }): HTMLElement {
   element.style.background = 'var(--color-copper)'
   element.style.borderColor = input.outline
   element.title = 'Ponto de partida'
+
+  /**
+   * ⚠️ O losango dizia "não é parada" e mais nada — quem olhava o mapa via um quadrado girado e
+   * tinha de adivinhar. O glifo é o **mesmo** do resumo, e vem de `ICON_PATHS` do design system:
+   * dois desenhos para a mesma ideia divergiriam no dia em que alguém mexesse num só.
+   *
+   * ⚠️ Construído por `createElementNS` e não por JSX porque o marcador do MapLibre é `HTMLElement`,
+   * fora da árvore do React. O glifo continua sendo o do design system — o que é imperativo aqui é a
+   * montagem do nó, não o desenho.
+   */
+  const glyph = document.createElementNS(SVG_NAMESPACE, 'svg')
+  glyph.setAttribute('viewBox', '0 0 24 24')
+  glyph.setAttribute('fill', 'none')
+  glyph.setAttribute('stroke', 'currentColor')
+  glyph.setAttribute('stroke-width', '2')
+  glyph.setAttribute('stroke-linecap', 'round')
+  glyph.setAttribute('stroke-linejoin', 'round')
+  glyph.setAttribute('aria-hidden', 'true')
+  for (const definition of ICON_PATHS.warehouse) {
+    const path = document.createElementNS(SVG_NAMESPACE, 'path')
+    path.setAttribute('d', definition)
+    glyph.append(path)
+  }
+  element.append(glyph)
   return element
 }
 
@@ -653,6 +679,8 @@ function stopElement(input: {
   element.textContent = String(input.sequence)
   return element
 }
+
+const SVG_NAMESPACE = 'http://www.w3.org/2000/svg'
 
 /** Cicla claro → escuro → contraste → claro. Um botão diz mais que três disputando o mesmo canto. */
 function nextTheme(current: BasemapTheme): BasemapTheme {

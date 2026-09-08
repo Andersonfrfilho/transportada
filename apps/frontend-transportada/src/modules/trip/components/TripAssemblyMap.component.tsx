@@ -461,18 +461,49 @@ export function TripAssemblyMap({
             onde o custo entrou. Rota sem praça nunca é lista vazia: ela diz que não há pedágio,
             porque sumir é indistinguível de "ninguém calculou".
           */}
-          <p className={styles.hint}>
-            {toll.booths.length === 0
-              ? t('assemblyMap.toll.none')
-              : toll.booths
-                  .map((booth) =>
-                    t('assemblyMap.toll.booth', {
-                      name: booth.name ?? t('assemblyMap.toll.boothUnnamed'),
-                      operator: booth.operator ?? t('assemblyMap.toll.operatorUnknown'),
-                    }),
-                  )
-                  .join(' · ')}
-          </p>
+          {toll.booths.length === 0 ? (
+            <p className={styles.hint}>{t('assemblyMap.toll.none')}</p>
+          ) : (
+            <>
+              {/*
+                ⚠️ O título carrega a **contagem de eixos e de onde ela veio**, e não é enfeite: o
+                mesmo trajeto custa metade num toco e o dobro numa carreta, e sem dizer com quantos
+                eixos a conta foi feita o total não é conferível contra o comprovante da cancela.
+              */}
+              <p className={styles.hint}>
+                {t('assemblyMap.toll.statementTitle', {
+                  axleCount: toll.axles.count,
+                  axleSource: t(`assemblyMap.toll.axleSource.${toll.axles.source}`),
+                })}
+              </p>
+              <ul className={styles.tollStatement}>
+                {toll.booths.map((booth) => (
+                  <li key={booth.osmNodeId}>
+                    <span className={styles.tollStatementBooth}>
+                      {t('assemblyMap.toll.booth', {
+                        name: booth.name ?? t('assemblyMap.toll.boothUnnamed'),
+                        operator: booth.operator ?? t('assemblyMap.toll.operatorUnknown'),
+                      })}
+                    </span>
+                    <span className={styles.tollStatementCharge}>
+                      {booth.effectiveChargePerAxle === null || booth.total === null
+                        ? t('assemblyMap.toll.statementWithoutCharge')
+                        : t('assemblyMap.toll.statementLine', {
+                            axleCount: toll.axles.count,
+                            charge: formatAmount(booth.effectiveChargePerAxle),
+                            total: formatAmount(booth.total),
+                          })}
+                    </span>
+                    {booth.fellBackToManual ? (
+                      <span className={styles.tollStatementNote}>
+                        {t('assemblyMap.toll.statementFellBack')}
+                      </span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
         </div>
       )}
       {/*
@@ -567,7 +598,7 @@ export function TripAssemblyMap({
       */}
       {depotLegOf('outbound') === null ? null : (
         <p className={`${styles.hint} ${styles.assemblyDepotLeg}`}>
-          <Icon name="truck" />
+          <Icon name="warehouse" />
           {t('assemblyMap.depotLeg.outbound', {
             distance: Math.round(depotLegOf('outbound')?.distanceKilometres ?? 0),
             duration: formatDuration(depotLegOf('outbound')?.drivingMinutes ?? 0),
@@ -709,7 +740,7 @@ export function TripAssemblyMap({
       {/* O retorno, quando a política de fim manda voltar ao barracão (`end_policy = depot`). */}
       {depotLegOf('return') === null ? null : (
         <p className={`${styles.hint} ${styles.assemblyDepotLeg}`}>
-          <Icon name="truck" />
+          <Icon name="warehouse" />
           {t('assemblyMap.depotLeg.return', {
             distance: Math.round(depotLegOf('return')?.distanceKilometres ?? 0),
             duration: formatDuration(depotLegOf('return')?.drivingMinutes ?? 0),

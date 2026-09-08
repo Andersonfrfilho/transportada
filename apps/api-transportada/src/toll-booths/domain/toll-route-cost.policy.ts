@@ -153,6 +153,59 @@ export function resolveTollRouteCost(input: ResolveTollRouteCostParams): TollRou
 }
 
 /**
+ * Uma linha do extrato: a praça, o que ela custou **de verdade** neste veículo, e se a tarifa da tag
+ * não existia e o valor caiu para a manual.
+ */
+export type TollBoothStatementLine = TollBoothRecord &
+  Readonly<{
+    /** `null` é praça sem tarifa conhecida — nunca zero, que diria cancela franca. */
+    effectiveChargePerAxle: null | string
+    fellBackToManual: boolean
+    /** `effectiveChargePerAxle × eixos`, ou `null` pela mesma razão. */
+    total: null | string
+  }>
+
+/**
+ * O extrato do pedágio, praça a praça, na ordem da passagem.
+ *
+ * ⚠️ **Isto é interpretação, não observação — e por isso se recomputa na leitura em vez de ser
+ * congelado.** O que a praça cobra nas duas bases já está guardado, e qual das duas vale sai de
+ * `paymentMode`, que também está: derivar aqui faz o extrato de uma viagem antiga sair certo sem
+ * migrar jsonb nenhum. É o mesmo corte de `address-finding.policy.ts`.
+ *
+ * ⚠️ A linha sai do valor **efetivo**, nunca do `chargePerAxle` cru: com tag o cru é a tarifa que o
+ * veículo não pagou, e um extrato cujas linhas não somam o total faz duvidar do total.
+ */
+export function describeTollBoothCharges(input: {
+  readonly axles: AxleCount
+  readonly booths: readonly TollBoothRecord[]
+  readonly paymentMode: TollPaymentMode
+}): readonly TollBoothStatementLine[] {
+  return input.booths.map((booth) => {
+    const charge = resolveBoothCharge({
+      booth,
+      hasAutomaticTollPayment: input.paymentMode === 'automatic',
+    })
+    return {
+      ...booth,
+      effectiveChargePerAxle: charge.value,
+      fellBackToManual: charge.fellBackToManual,
+      total:
+        charge.value === null
+          ? null
+          : formatScaledDecimal(
+              parseScaledDecimal({
+                errorCodePrefix: ERROR_CODE_PREFIX,
+                scale: MONEY_SCALE,
+                value: charge.value,
+              }) * BigInt(input.axles.count),
+              MONEY_SCALE,
+            ),
+    }
+  })
+}
+
+/**
  * ⚠️ **A queda para o manual só conta quando a automática é desconhecida E a manual é conhecida.**
  * Sem tarifa nenhuma nas duas bases a praça é "sem tarifa conhecida" (`boothsWithoutCharge`), não
  * uma queda — não há para onde cair. Nunca se aplica desconto estimado: sem a automática, o valor é

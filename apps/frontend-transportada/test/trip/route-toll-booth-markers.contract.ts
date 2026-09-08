@@ -35,6 +35,9 @@ function praca(input: {
     longitude: input.longitude ?? '-47.8103000',
     name: 'Praça',
     operator: 'Operadora',
+    effectiveChargePerAxle: input.chargePerAxle,
+    fellBackToManual: false,
+    total: input.chargePerAxle,
     osmNodeId: input.osmNodeId ?? 1,
   }
 }

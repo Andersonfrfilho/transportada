@@ -56,6 +56,7 @@ export type IconName =
   | 'moon'
   | 'trash'
   | 'truck'
+  | 'warehouse'
   | 'vehicle-motorcycle'
   | 'vehicle-car'
   | 'vehicle-utility'
@@ -96,7 +97,7 @@ export type IconProps = {
 }
 
 /** Traçados de 24×24, sem preenchimento: a cor vem do botão que hospeda o ícone. */
-const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
+export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   add: ['M12 5v14', 'M5 12h14'],
   /** Afastar o mapa. É o "menos" do par com `add`, e por isso tem o mesmo traço horizontal. */
   minus: ['M5 12h14'],
@@ -167,6 +168,11 @@ const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
     'M18 6l1.8-1.8',
   ],
   moon: ['M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z'],
+  /**
+   * O barracão: telhado, galpão e portão. É de onde o caminhão sai — e por ser um **lugar**, e não
+   * um veículo, ele não pode repetir o glifo de `truck`, que já nomeia a perna rodada.
+   */
+  warehouse: ['M3 10.5 12 4l9 6.5', 'M5 10.5V20h14v-9.5', 'M10 20v-5h4v5'],
   truck: [
     'M3 17V7a1 1 0 0 1 1-1h9v11H3z',
     'M13 10h4l3 3v4h-7z',

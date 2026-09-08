@@ -1192,14 +1192,27 @@
  * sobrevive a daltonismo nem a mapa impresso, e aqui a distinção é categórica — origem contra
  * destino —, não de grau. Ele também não leva número: o barracão não está na sequência de entregas.
  */
+/*
+  O ponto de partida: pastilha redonda com o glifo do barracão dentro. O losango de antes dizia
+  apenas "não é parada"; a forma redonda com desenho diz o que é, e sobrevive ao mapa impresso e ao
+  daltonismo, onde a cor sozinha não sobrevive.
+*/
 .tileDepot {
-  width: var(--space-5);
-  height: var(--space-5);
+  width: var(--space-6);
+  height: var(--space-6);
   border: 2px solid transparent;
-  border-radius: 2px;
-  transform: rotate(45deg);
+  border-radius: 50%;
+  color: var(--color-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   /* Mesma razão do pino: marca, não controle — arrastar o mapa a partir dele não pode agarrar. */
   pointer-events: none;
+}
+
+.tileDepot svg {
+  width: 68%;
+  height: 68%;
 }
 
 /* O traço da ordem cobre o quadro inteiro, acima das telhas e abaixo dos pinos. */
@@ -1258,6 +1271,39 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+}
+
+/*
+  O extrato do pedágio: uma linha por praça, recuada sob o resumo. O recuo é o que faz a lista ser
+  lida como detalhe do total, e não como um segundo total ao lado dele.
+*/
+.tollStatement {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  list-style: none;
+  margin: 0;
+  padding-inline-start: var(--space-4);
+}
+
+.tollStatement li {
+  color: var(--color-slate);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--font-size-sm);
+  gap: var(--space-1) var(--space-2);
+}
+
+.tollStatementBooth {
+  color: var(--color-text);
+}
+
+.tollStatementCharge {
+  font-variant-numeric: tabular-nums;
+}
+
+.tollStatementNote {
+  color: var(--color-amber);
 }
 
 /* O seletor de rota alternativa (spec 096 T3), logo abaixo do bloco de pedágio. */

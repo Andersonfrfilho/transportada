@@ -874,6 +874,9 @@ function isGeometryTollBooth(value: unknown): value is RouteGeometryTollBooth {
     isRecord(value) &&
     isNullableString(value.chargeCar) &&
     isNullableString(value.chargePerAxle) &&
+    isNullableString(value.effectiveChargePerAxle) &&
+    typeof value.fellBackToManual === 'boolean' &&
+    isNullableString(value.total) &&
     isString(value.latitude) &&
     isString(value.longitude) &&
     isNullableString(value.name) &&

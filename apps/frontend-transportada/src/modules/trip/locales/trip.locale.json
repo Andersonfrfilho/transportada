@@ -458,6 +458,14 @@
       "fallenBackToManual": "{{count}} praças caíram para a manual por falta de tarifa automática",
       "none": "Sem pedágio no trajeto.",
       "booth": "{{name}} ({{operator}})",
+      "statementTitle": "Extrato por praça — {{axleCount}} eixos ({{axleSource}})",
+      "axleSource": {
+        "declared": "declarados na ficha do veículo",
+        "estimated": "estimados pelo tipo do veículo"
+      },
+      "statementLine": "{{charge}} por eixo × {{axleCount}} = {{total}}",
+      "statementWithoutCharge": "tarifa não conhecida — fora da soma",
+      "statementFellBack": "sem tarifa de tag, cobrada a manual",
       "boothUnnamed": "praça sem nome",
       "operatorUnknown": "operador desconhecido"
     },
