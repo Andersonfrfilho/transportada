@@ -23,6 +23,9 @@ import { buildCargoStopLabels, formatCargoStopLabel } from '../shared/cargoStopL
 import type { TripCargoLayout, TripStopDetail } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
 
+/** A ficha do veículo, onde as três medidas do baú são preenchidas. */
+const FLEET_HREF = '/fleet'
+
 type TripCargoLayersProps = Readonly<{
   layout: TripCargoLayout | null
   stops?: readonly TripStopDetail[]
@@ -59,8 +62,22 @@ export function TripCargoLayers({ layout, stops = [] }: TripCargoLayersProps) {
   const [focus, setFocus] = useState(EMPTY_STOP_FOCUS)
 
   const placement = layout?.placement ?? null
-  if (layout === null || placement === null || placement.layers.length === 0) return null
-  if (layout.bedLengthM === null || layout.bedWidthM === null) return null
+  if (layout === null) return null
+
+  /**
+   * ⚠️ **Sem as três medidas do baú não há desenho, e dizer isso é o mínimo.** Nomear o campo não
+   * basta: quem lê está montando uma viagem, e voltar à ficha do veículo é um caminho que ele teria
+   * de descobrir sozinho — o atalho é o que separa um aviso de uma instrução. Era a única coisa que
+   * a planta em escala dizia e este painel não dizia, e ela saiu com a 095.
+   */
+  if (layout.bedLengthM === null || layout.bedWidthM === null) {
+    return (
+      <p className={styles.hint}>
+        {t('cargoLayers.missingBed')} <a href={FLEET_HREF}>{t('cargoLayers.missingBedLink')}</a>
+      </p>
+    )
+  }
+  if (placement === null || placement.layers.length === 0) return null
 
   const current = placement.layers[Math.min(index, placement.layers.length - 1)]
   if (current === undefined) return null

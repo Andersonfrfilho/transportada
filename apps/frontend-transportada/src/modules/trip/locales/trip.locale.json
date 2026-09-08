@@ -735,6 +735,8 @@
       "spanValue": "{{from}} m a {{to}} m",
       "split": "Divididas",
       "stop": "Parada"
-    }
+    },
+    "missingBed": "Sem o desenho da carga: este veículo não tem comprimento, largura e altura do baú na ficha.",
+    "missingBedLink": "Abrir a ficha do veículo"
   }
 }

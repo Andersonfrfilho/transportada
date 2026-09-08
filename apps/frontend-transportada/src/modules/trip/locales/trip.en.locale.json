@@ -610,6 +610,8 @@
       "spanValue": "{{from}} m to {{to}} m",
       "split": "Split",
       "stop": "Stop"
-    }
+    },
+    "missingBed": "No cargo drawing: this vehicle has no bed length, width and height on its record.",
+    "missingBedLink": "Open the vehicle record"
   }
 }
