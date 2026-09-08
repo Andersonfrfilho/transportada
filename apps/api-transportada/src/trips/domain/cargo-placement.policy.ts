@@ -161,9 +161,39 @@ export function resolveCargoPlacement(input: {
     return false
   })
 
-  /** Da última parada para a primeira: quem entrega por último viaja no fundo. */
-  const sequences = [...new Set(measured.map((box) => box.stopSequence))].sort(
-    (first, second) => second - first,
+  /**
+   * Em que eixo as paradas se dividem (spec 100). ⚠️ A **mesma** chamada que `resolveCargoLayout`
+   * faz: as duas políticas desenham a mesma viagem, e decidir separado faria a planta mostrar faixas
+   * enquanto a tabela descreve profundidade — as duas plausíveis, uma errada, e nada falhando.
+   */
+  const arrangement = resolveStopArrangement({
+    bed: input.bed,
+    boxes: input.boxes,
+    loadingAccess: input.loadingAccess ?? 'rear',
+    payloadRatio: input.payloadRatio ?? null,
+  })
+  const lanes = arrangement === 'lanes'
+
+  /**
+   * ⚠️ **A faixa é a fatia com o baú girado 90°** (spec 100 D1). Empacotar num baú de comprimento e
+   * largura trocados reusa a varredura inteira, com o mapa de apoio e o crescimento da fatia; o
+   * `x ↔ y` é destrocado ao devolver. `fitSlot` já testa as duas orientações de cada caixa, então a
+   * rotação é fisicamente honesta — uma caixa girada em torno do eixo vertical é a mesma caixa.
+   *
+   * ⚠️ No espaço girado a varredura avança ao longo da **largura real** e quebra fileira ao longo da
+   * **profundidade real**: cada faixa se enche a partir da porta para dentro, sem nenhuma regra nova.
+   */
+  const packBed = lanes ? { ...bed, lengthM: bed.widthM, widthM: bed.lengthM } : bed
+
+  /**
+   * Em profundidade, da última parada para a primeira: quem entrega por último viaja no fundo.
+   *
+   * ⚠️ Em faixas a ordem **inverte**: a primeira entrega fica na faixa mais à mão, que é `y = 0` — o
+   * lado em que o desenho põe a porta lateral. Sem um lado fixo, duas viagens parecidas sairiam
+   * espelhadas e o operador não teria como prever nada.
+   */
+  const sequences = [...new Set(measured.map((box) => box.stopSequence))].sort((first, second) =>
+    lanes ? first - second : second - first,
   )
   const totalVolume = volumeOf(measured)
 
@@ -192,12 +222,15 @@ export function resolveCargoPlacement(input: {
   const slices = sequences.map((stopSequence) => {
     const own = measured.filter((box) => box.stopSequence === stopSequence)
     const share = totalVolume > 0 ? volumeOf(own) / totalVolume : 1 / sequences.length
-    const capM = sequences.length === 1 ? bed.lengthM : bed.lengthM * share
+    const capM = sequences.length === 1 ? packBed.lengthM : packBed.lengthM * share
 
-    return packUntilItFits({ bed, boxes: own, budget: MAX_PLACED_BOXES, capM })
+    return packUntilItFits({ bed: packBed, boxes: own, budget: MAX_PLACED_BOXES, capM })
   })
 
-  const freeM = Math.max(0, bed.lengthM - slices.reduce((total, slice) => total + slice.lengthM, 0))
+  const freeM = Math.max(
+    0,
+    packBed.lengthM - slices.reduce((total, slice) => total + slice.lengthM, 0),
+  )
   const balanced = shouldBalanceLoad({
     loadingAccess: input.loadingAccess ?? 'rear',
     payloadRatio: input.payloadRatio ?? null,
@@ -206,7 +239,12 @@ export function resolveCargoPlacement(input: {
    * O vão que sobra fica **atrás** da carga com carga leve, e **repartido dos dois lados** com carga
    * pesada — ver `shouldBalanceLoad`.
    */
-  let sliceStartM = balanced ? freeM / 2 : freeM
+  /**
+   * ⚠️ **Em faixas o vão sobra do lado oposto à primeira entrega, e não antes dela.** A primeira
+   * faixa começa em zero porque é a que precisa estar à mão; empurrar o bloco para o fim, como a
+   * 099 D2 faz em profundidade, poria justamente ela longe da porta lateral.
+   */
+  let sliceStartM = lanes ? 0 : balanced ? freeM / 2 : freeM
 
   for (const slice of slices) {
     /**
@@ -220,7 +258,27 @@ export function resolveCargoPlacement(input: {
         pushUnplaced(unplaced, { count: 1, label: box.label, reason: 'tooMany' })
         continue
       }
-      rows.push({ ...box, xM: round(sliceStartM + box.xM) })
+      /**
+       * ⚠️ A destroca é do **par inteiro** — posição e encaixe. Trocar só `x` e `y` deixaria a caixa
+       * com a profundidade medida no eixo da largura, e ela atravessaria a parede sem nada falhar.
+       */
+      /**
+       * ⚠️ A profundidade real é **espelhada**: no espaço girado a varredura quebra fileira a partir
+       * de `y' = 0`, e sem o espelho isso vira a testeira do baú — a carga nasceria encostada na
+       * parede do fundo, que é o oposto do que a 099 D2 conquistou. Espelhando, a primeira fileira
+       * de cada faixa encosta na porta.
+       */
+      rows.push(
+        lanes
+          ? {
+              ...box,
+              depthM: box.widthM,
+              widthM: box.depthM,
+              xM: round(bed.lengthM - box.yM - box.widthM),
+              yM: round(sliceStartM + box.xM),
+            }
+          : { ...box, xM: round(sliceStartM + box.xM) },
+      )
       placedCount += 1
     }
     for (const entry of slice.unplaced) pushUnplaced(unplaced, entry)
@@ -375,10 +433,18 @@ export type StopArrangement = (typeof STOP_ARRANGEMENTS)[number]
 export function resolveStopArrangement(input: {
   readonly bed: CargoBedDimensions | null
   readonly boxes: readonly PlacementBox[]
+  /** Ausente assume `rear`, o mais restritivo — e é ele quem mais ganha com a faixa. */
+  readonly loadingAccess?: LoadingAccess
   /** O mesmo `cargoWeight.payloadRatio` que o painel imprime. `null` é teto desconhecido. */
   readonly payloadRatio: string | null
 }): StopArrangement {
   if (input.bed === null) return 'depth'
+  /**
+   * ⚠️ **Carroceria aberta não ganha faixa**, pela mesma razão que ela equilibra sempre (099 D3):
+   * quem abre o comprimento inteiro já tem toda a carga à mão, e não existe "a porta" a que
+   * encostar. Faixa ali não resolveria acesso nenhum e desfaria o equilíbrio de peso.
+   */
+  if (input.loadingAccess === 'open') return 'depth'
 
   const bedWidthM = Number.parseFloat(input.bed.widthM)
   if (!Number.isFinite(bedWidthM) || bedWidthM <= 0) return 'depth'

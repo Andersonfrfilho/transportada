@@ -30,6 +30,23 @@ function box(overrides: Partial<PlacementBox>): PlacementBox {
   }
 }
 
+/**
+ * A caixa que não cabe em faixa nenhuma, e é ela que mantém a viagem em **profundidade** (spec 100
+ * D2). O lado vem por parâmetro porque a faixa é **proporcional ao volume da parada**, e cada caso
+ * desta suíte tem proporções próprias: um lado fixo bloquearia a faixa de uma parada e não a de
+ * outra.
+ *
+ * ⚠️ Ela é **baixa** de propósito — 5 cm. O que bloqueia a faixa é a largura, e o volume precisa ser
+ * desprezível para não mover as proporções que estas afirmações medem.
+ *
+ * ⚠️ Ela existe porque a spec 100 mudou o padrão: viagem de várias paradas com caixa pequena passou
+ * a sair em faixas paralelas à porta. As afirmações desta suíte são sobre **como a profundidade
+ * divide o baú**, e sem fixar o arranjo elas passariam a descrever um desenho que não é o delas.
+ */
+function caixaQueNaoCabeEmFaixa(stopSequence: number, ladoMm: number): PlacementBox {
+  return box({ heightMm: 50, label: 'LARGA', lengthMm: ladoMm, stopSequence, widthMm: ladoMm })
+}
+
 function placed(plan: CargoPlacement | null): readonly PlacedBox[] {
   return plan?.layers.flatMap((layer) => layer.boxes) ?? []
 }
@@ -64,6 +81,7 @@ describe('a fatia por parada (spec 095 G001)', () => {
         box({ count: 12, label: 'P1', stopSequence: 1 }),
         box({ count: 12, label: 'P2', stopSequence: 2 }),
         box({ count: 12, label: 'P3', stopSequence: 3 }),
+        caixaQueNaoCabeEmFaixa(3, 900),
       ],
     })
     const boxes = placed(plan)
@@ -94,6 +112,7 @@ describe('a fatia por parada (spec 095 G001)', () => {
       boxes: [
         box({ count: 60, label: 'P1', stopSequence: 1 }),
         box({ count: 60, label: 'P2', stopSequence: 2 }),
+        caixaQueNaoCabeEmFaixa(1, 1_300),
       ],
     })
     const boxes = placed(plan)
@@ -137,6 +156,7 @@ describe('a fatia por parada (spec 095 G001)', () => {
           stopSequence: 2,
           widthMm: 750,
         }),
+        caixaQueNaoCabeEmFaixa(1, 300),
       ],
     })
     const boxes = placed(plan)
@@ -614,5 +634,106 @@ describe('a gravidade (spec 099)', () => {
 
     expect(boxes).not.toHaveLength(0)
     expect(floating(boxes)).toEqual([])
+  })
+})
+
+/** O mesmo baú da spec 100: Fiorino furgão, 1,70 × 1,45 × 1,30 m. */
+const FIORINO = { heightM: '1.300', lengthM: '1.700', widthM: '1.450' } as const
+
+/** A faixa que a parada ocupa ao longo da **largura** — o eixo que as faixas dividem. */
+function lateral(boxes: readonly PlacedBox[], stopSequence: number): { from: number; to: number } {
+  const own = boxes.filter((entry) => entry.stopSequence === stopSequence)
+  return {
+    from: Math.min(...own.map((entry) => entry.yM)),
+    to: Math.max(...own.map((entry) => entry.yM + entry.widthM)),
+  }
+}
+
+/**
+ * **A carga fica paralela à porta** (spec 100).
+ *
+ * O arranjo em profundidade só funciona enquanto nada foge da ordem: com a parada 2 atrás da 1,
+ * alcançá-la exige descarregar a 1 inteira. Medido na viagem que gerou a spec (Fiorino de 1,70 m,
+ * três paradas): duas das três não eram alcançáveis pela porta, e as três cabiam lado a lado.
+ */
+describe('as faixas paralelas à porta (spec 100)', () => {
+  const TRES_PARADAS = [1, 2, 3].map((stopSequence) =>
+    box({ heightMm: 300, lengthMm: 400, stopSequence, widthMm: 300 }),
+  )
+
+  /**
+   * ⚠️ **Toda parada encosta na porta** — é a definição do arranjo, e o que a crítica pediu. Uma
+   * parada que começasse depois de outra ao longo do comprimento seria o defeito de volta.
+   */
+  test('toda parada tem caixa encostada na porta', () => {
+    const boxes = placed(resolveCargoPlacement({ bed: FIORINO, boxes: TRES_PARADAS }))
+    const portaM = Number.parseFloat(FIORINO.lengthM)
+
+    for (const stopSequence of [1, 2, 3]) {
+      const own = boxes.filter((entry) => entry.stopSequence === stopSequence)
+      expect(own.length).toBeGreaterThan(0)
+      expect(Math.max(...own.map((entry) => entry.xM + entry.depthM))).toBeCloseTo(portaM, 2)
+    }
+  })
+
+  /** As faixas não se cruzam: cada parada tem a sua largura, e nada atravessa. */
+  test('as faixas são contíguas e não se sobrepõem', () => {
+    const boxes = placed(resolveCargoPlacement({ bed: FIORINO, boxes: TRES_PARADAS }))
+
+    expect(lateral(boxes, 1).to).toBeLessThanOrEqual(lateral(boxes, 2).from + 0.001)
+    expect(lateral(boxes, 2).to).toBeLessThanOrEqual(lateral(boxes, 3).from + 0.001)
+  })
+
+  /**
+   * ⚠️ **A primeira entrega fica no lado da porta lateral**, que o desenho põe em `y = 0`. Sem um
+   * lado fixo, duas viagens parecidas sairiam espelhadas e o operador não teria como prever nada.
+   */
+  test('a primeira entrega ocupa a faixa mais à mão', () => {
+    const boxes = placed(resolveCargoPlacement({ bed: FIORINO, boxes: TRES_PARADAS }))
+
+    expect(lateral(boxes, 1).from).toBeCloseTo(0, 3)
+    expect(lateral(boxes, 3).from).toBeGreaterThan(lateral(boxes, 2).from)
+  })
+
+  /** Caixa nenhuma sai do baú depois da destroca de eixos — o erro clássico de girar coordenada. */
+  test('nenhuma caixa atravessa a parede depois da rotação', () => {
+    const boxes = placed(resolveCargoPlacement({ bed: FIORINO, boxes: TRES_PARADAS }))
+    const comprimentoM = Number.parseFloat(FIORINO.lengthM)
+    const larguraM = Number.parseFloat(FIORINO.widthM)
+
+    for (const entry of boxes) {
+      expect(entry.xM).toBeGreaterThanOrEqual(-0.001)
+      expect(entry.xM + entry.depthM).toBeLessThanOrEqual(comprimentoM + 0.001)
+      expect(entry.yM).toBeGreaterThanOrEqual(-0.001)
+      expect(entry.yM + entry.widthM).toBeLessThanOrEqual(larguraM + 0.001)
+    }
+  })
+
+  /**
+   * ⚠️ O arranjo é decidido pela mesma política que a tabela consulta: com uma parada só, o desenho
+   * volta a ser o de profundidade, e a caixa continua encostada na porta.
+   */
+  test('uma parada só continua saindo em profundidade', () => {
+    const boxes = placed(
+      resolveCargoPlacement({
+        bed: FIORINO,
+        boxes: [box({ count: 4, heightMm: 300, lengthMm: 400, stopSequence: 1, widthMm: 300 })],
+      }),
+    )
+
+    expect(boxes.length).toBe(4)
+    expect(Math.max(...boxes.map((entry) => entry.xM + entry.depthM))).toBeCloseTo(1.7, 2)
+  })
+
+  /** A física vence: acima de metade do teto de massa a carga volta a se dividir em profundidade. */
+  test('carga pesada volta ao arranjo em profundidade', () => {
+    const boxes = placed(
+      resolveCargoPlacement({ bed: FIORINO, boxes: TRES_PARADAS, payloadRatio: '0.7000' }),
+    )
+    const primeira = lateral(boxes, 1)
+    const terceira = lateral(boxes, 3)
+
+    /** Em profundidade as três dividem a mesma largura, e é o `x` que as separa. */
+    expect(primeira.from).toBeCloseTo(terceira.from, 3)
   })
 })

@@ -156,6 +156,34 @@ describe('qual arranjo a viagem usa (spec 100 D2)', () => {
   })
 
   /**
+   * ⚠️ **Carroceria aberta não ganha faixa**, e a razão é a mesma que a 099 D3 escreveu para o
+   * equilíbrio: quem abre o comprimento inteiro já tem toda a carga à mão, e não existe "a porta" a
+   * que encostar. Faixa ali não resolve acesso nenhum e só desfaria o equilíbrio de peso.
+   */
+  test('carroceria aberta sai em profundidade, e equilibra como sempre', () => {
+    expect(
+      resolveStopArrangement({
+        bed: FIORINO,
+        boxes: tresParadas(),
+        loadingAccess: 'open',
+        payloadRatio: null,
+      }),
+    ).toBe('depth')
+  })
+
+  /** Baú que abre atrás é o caso que a spec mira: é ali que a parada de trás fica inalcançável. */
+  test('baú que só abre atrás é justamente quem ganha faixa', () => {
+    expect(
+      resolveStopArrangement({
+        bed: FIORINO,
+        boxes: tresParadas(),
+        loadingAccess: 'rear',
+        payloadRatio: null,
+      }),
+    ).toBe('lanes')
+  })
+
+  /**
    * A faixa é proporcional ao **volume** da parada, como a fatia sempre foi: uma parada que leva
    * quase tudo recebe quase toda a largura, e as vizinhas ficam com faixas estreitas demais.
    */
