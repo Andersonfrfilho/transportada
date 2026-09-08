@@ -13,7 +13,6 @@ import { Icon } from '@/components/ui/icon'
  * `.maplibregl-marker` e recorta o canvas; sem ela os pinos escapam do quadro e aparecem por cima
  * dos elementos da página ao aproximar. Foi exatamente o defeito relatado.
  */
-import 'maplibre-gl/dist/maplibre-gl.css'
 /** `?url` faz o Vite resolver o especificador de pacote e servir o arquivo da nossa origem. */
 
 import {

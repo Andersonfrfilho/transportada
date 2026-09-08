@@ -2,6 +2,14 @@
 import { addProtocol, setWorkerUrl, type StyleSpecification } from 'maplibre-gl'
 import { Protocol } from 'pmtiles'
 
+/**
+ * ⚠️ **O CSS do MapLibre vem daqui, não do componente.** Sem ele o contêiner do canvas não recebe
+ * posicionamento, e todo marcador empilha **abaixo** do mapa em vez de flutuar sobre ele — medido, o
+ * pino da casa caía 294px para baixo, a altura exata do canvas. Enquanto só existia um mapa no
+ * produto, o import morava no componente dele e ninguém notava; o segundo mapa herdou a falta.
+ */
+import 'maplibre-gl/dist/maplibre-gl.css'
+
 // eslint-disable-next-line import/no-unresolved -- `?url` é resolvido pelo Vite, não pelo TypeScript
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 
@@ -17,12 +25,19 @@ import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
  * ignorado pelo `vite dev` e o que volta é o módulo, não o caminho — a mesma armadilha do worker do
  * pdf.js, e ela só aparece em desenvolvimento.
  */
-let configured = false
+/**
+ * ⚠️ **Registrado no escopo do módulo, não dentro de uma função.** Com o registro preguiçoso, o
+ * protocolo só existe quando o primeiro mapa monta — e o estilo, que carrega a URL `pmtiles://`, já
+ * foi montado antes disso. O sintoma é cruel: `addProtocol` responde que registrou, e a requisição
+ * mesmo assim sai como esquema desconhecido e morre na CSP, com o canvas preto e nenhum erro na
+ * tela. Quem importa este módulo já ganha o protocolo pronto.
+ */
+setWorkerUrl(maplibreWorkerUrl)
+addProtocol('pmtiles', new Protocol().tile)
+
+/** Mantida para quem quiser ser explícito no ponto de montagem; o registro já aconteceu no import. */
 export function configureVectorBasemap(): void {
-  if (configured) return
-  setWorkerUrl(maplibreWorkerUrl)
-  addProtocol('pmtiles', new Protocol().tile)
-  configured = true
+  /* o import deste módulo é o que prepara o MapLibre */
 }
 
 /**

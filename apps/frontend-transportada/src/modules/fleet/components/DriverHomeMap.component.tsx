@@ -13,7 +13,13 @@ import {
 import type { DriverHomeReport } from '../shared/fleet.types'
 import styles from '../styles/fleet.module.css'
 
-const HOME_ZOOM = 15
+/**
+ * ⚠️ **14 é o teto do arquivo, não uma preferência.** O `area.pmtiles` desta instalação declara
+ * `max_zoom: 14` — medido no cabeçalho —, e pedir 15 devolve o papel do basemap sem nenhuma feição:
+ * um retângulo liso que parece defeito de carregamento e não é. Aproximar mais exige gerar o extrato
+ * com mais um nível, não mudar este número.
+ */
+const HOME_ZOOM = 14
 
 /** O MapLibre pinta em canvas e não resolve `var()`: ele precisa do valor já calculado. */
 function readToken(token: string): string {
@@ -41,6 +47,7 @@ export type DriverHomeMapProps = Readonly<{
 export function DriverHomeMap({ home, labelOf, latitude, longitude }: DriverHomeMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
+  const resizeRef = useRef<ResizeObserver | null>(null)
   const [failed, setFailed] = useState(false)
 
   useEffect(() => {
@@ -59,11 +66,29 @@ export function DriverHomeMap({ home, labelOf, latitude, longitude }: DriverHome
         attributionControl: false,
         center,
         container,
-        interactive: false,
         style: buildBasemapStyle(readToken, basemapThemeForApp('dark')),
         zoom: HOME_ZOOM,
       })
       mapRef.current = map
+
+      /**
+       * ⚠️ **O contêiner pode nascer sem altura.** O formulário do motorista é revelado por clique e
+       * rolado até a vista, e o mapa monta no meio disso: com 0×0 na construção, o MapLibre calcula
+       * que nenhuma telha é necessária e **nunca as pede** — o canvas fica no papel do tema, sem erro
+       * nenhum no console. O observador devolve o tamanho quando ele existe, e o `resize` refaz o
+       * cálculo.
+       */
+      const observer = new ResizeObserver(() => {
+        map.resize()
+        /**
+         * ⚠️ **Recentrar depois do `resize` não é redundante.** O marcador é projetado com o tamanho
+         * que o mapa tinha quando ele entrou — com 0×0, ele foi parar a 19.482px da tela. O `resize`
+         * conserta o canvas; é o `setCenter` que reprojeta o que está em cima dele.
+         */
+        map.setCenter(center)
+      })
+      observer.observe(container)
+      resizeRef.current = observer
 
       const pin = document.createElement('span')
       pin.className = styles.homePin ?? ''
@@ -74,6 +99,8 @@ export function DriverHomeMap({ home, labelOf, latitude, longitude }: DriverHome
     }
 
     return () => {
+      resizeRef.current?.disconnect()
+      resizeRef.current = null
       mapRef.current?.remove()
       mapRef.current = null
     }

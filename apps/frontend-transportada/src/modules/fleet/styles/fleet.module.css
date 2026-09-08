@@ -1252,10 +1252,22 @@
   height: 18rem;
   border-radius: var(--radius-md);
   overflow: hidden;
+  /*
+    ⚠️ O MapLibre posiciona marcador em `absolute` dentro do contêiner. Sem um contexto de
+    posicionamento aqui, o pino resolve contra um ancestral distante e cai fora do mapa — medido,
+    288px abaixo, que é exatamente a altura do canvas.
+  */
+  position: relative;
 }
 
-/* O mesmo círculo do pino da viagem: uma marca, não um controle. */
+/*
+  O mesmo círculo do pino da viagem.
+
+  ⚠️ `display: block` não é enfeite: `span` é inline por padrão, e elemento inline **ignora largura e
+  altura**. Sem isto o pino vira uma caixa de texto de 4px, invisível sobre o mapa — e nada falha.
+*/
 .homePin {
+  display: block;
   width: var(--space-5);
   height: var(--space-5);
   border: 2px solid transparent;
