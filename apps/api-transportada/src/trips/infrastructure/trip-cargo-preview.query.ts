@@ -3,7 +3,7 @@
  */
 import type { TripCargoPreviewContext } from '../application/preview-trip-cargo.use-case.js'
 import { buildStopAddressKey } from '../domain/stop-address-key.js'
-import { listStopAddresses } from './nfe-destination-address.support.js'
+import { listDocumentNumbers, listStopAddresses } from './nfe-destination-address.support.js'
 import { withPayloadCeiling } from '../domain/trip-cargo-weight.policy.js'
 import { loadTripCargoWeight } from './trip-cargo-weight.support.js'
 import { loadTripOccupancy } from './trip-occupancy.support.js'
@@ -25,13 +25,17 @@ export async function readCargoPreviewContext(
     readonly vehicleId: string
   },
 ): Promise<TripCargoPreviewContext> {
-  const [cargo, cargoWeight, addresses] = await Promise.all([
+  const [cargo, cargoWeight, addresses, numbers] = await Promise.all([
     loadTripOccupancy(queryable, input),
     loadTripCargoWeight(queryable, {
       companyId: input.companyId,
       nfeDocumentIds: input.nfeDocumentIds,
     }),
     listStopAddresses(queryable, {
+      companyId: input.companyId,
+      nfeDocumentIds: input.nfeDocumentIds,
+    }),
+    listDocumentNumbers(queryable, {
       companyId: input.companyId,
       nfeDocumentIds: input.nfeDocumentIds,
     }),
@@ -54,8 +58,10 @@ export async function readCargoPreviewContext(
       return {
         addressKey: address === undefined ? null : buildStopAddressKey(address.components),
         /** Nota cujo endereço não resolve ainda precisa de nome: some do desenho sem ele. */
+        clientName: address?.recipientName ?? '',
         label: address?.label ?? nfeDocumentId,
         nfeDocumentId,
+        number: numbers.get(nfeDocumentId) ?? '',
         volumeM3: cargo.volumeByDocument.get(nfeDocumentId) ?? null,
         weightKilograms: cargoWeight.weightByDocument.get(nfeDocumentId) ?? null,
       }

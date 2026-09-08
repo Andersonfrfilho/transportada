@@ -1882,3 +1882,32 @@
     border-bottom: 1px solid #000;
   }
 }
+
+/**
+ * Todas as camadas de uma vez, com o que cada uma tem dentro. O par anterior/próxima obrigava a
+ * percorrer o baú para saber o que havia na de cima — numa pilha de duas ou seis, a lista responde
+ * de relance.
+ */
+.cargoLayerList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+}
+
+.cargoLayerChip {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 35%, transparent);
+  color: var(--color-fog);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  min-height: var(--control-height-compact);
+  padding: var(--space-1) var(--space-3);
+}
+
+.cargoLayerChip[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--color-copper) 18%, transparent);
+  border-color: var(--color-copper);
+}

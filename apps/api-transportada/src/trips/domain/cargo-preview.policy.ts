@@ -7,7 +7,11 @@ import type { CargoPlanBox } from './cargo-plan.policy.js'
 export type CargoPreviewDocument = {
   /** A chave da parada — `buildStopAddressKey`. `null` quando o endereço não normaliza. */
   readonly addressKey: string | null
+  /** Quem recebe — o nome impresso na etiqueta que o separador confere. */
+  readonly clientName?: string
   readonly label: string
+  /** O número da nota, que é por onde ela é procurada. */
+  readonly number?: string
   readonly nfeDocumentId: string
   readonly volumeM3: string | null
   /** Spec 085 G006: o peso da nota, para o alerta de concentração somar por parada. */
@@ -68,7 +72,14 @@ export function buildCargoPreviewStops(input: {
 }): readonly CargoLayoutStop[] {
   const grouped = new Map<
     string,
-    { boxes: CargoPlanBox[]; readonly label: string; missing: number; volumes: string[] }
+    {
+      boxes: CargoPlanBox[]
+      clientName: string
+      readonly label: string
+      missing: number
+      noteNumbers: string[]
+      volumes: string[]
+    }
   >()
 
   for (const document of input.documents) {
@@ -79,10 +90,15 @@ export function buildCargoPreviewStops(input: {
     const key = document.addressKey ?? `documento:${document.nfeDocumentId}`
     const current = grouped.get(key) ?? {
       boxes: [],
+      clientName: '',
       label: document.label,
       missing: 0,
+      noteNumbers: [],
       volumes: [],
     }
+    /** Uma parada agrupa **endereço**: com mais de um cliente no mesmo portão, o primeiro nomeia. */
+    if (current.clientName === '') current.clientName = document.clientName ?? ''
+    if (document.number !== undefined) current.noteNumbers.push(document.number)
     if (document.volumeM3 === null) current.missing += 1
     else current.volumes.push(document.volumeM3)
     current.boxes.push(...(input.boxesByDocument?.get(document.nfeDocumentId) ?? []))
@@ -98,8 +114,10 @@ export function buildCargoPreviewStops(input: {
     return [
       {
         boxes: stop.boxes,
+        clientName: stop.clientName,
         documentsWithoutVolume: stop.missing,
         label: stop.label,
+        noteNumbers: stop.noteNumbers,
         sequence: index + 1,
         /** Zero diria que a parada não ocupa espaço; ausência diz que não se sabe. */
         volumeM3: stop.volumes.length === 0 ? null : sumVolumes(stop.volumes),

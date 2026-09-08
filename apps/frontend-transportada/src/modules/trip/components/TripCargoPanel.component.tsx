@@ -9,8 +9,6 @@ import { ProgressBar } from '@/components/ui/progress'
 import { TripCargoLayers } from './TripCargoLayers.component'
 import type { VehicleType } from '@/modules/shared/vehicleType.constant'
 
-import type { TripStopDetail } from '../shared/trip.types'
-
 import type {
   TripCargoLayout,
   TripCargoWeight,
@@ -24,8 +22,6 @@ type TripCargoPanelProps = {
   layout: TripCargoLayout | null
   occupancy: TripOccupancy | null
   /** O tipo do veículo escolhido, para a cabine ser a dele. Vazio cai no desenho genérico. */
-  /** As paradas da viagem: é delas que saem o número da nota e o nome do cliente do desenho. */
-  stops?: readonly TripStopDetail[]
   vehicleType?: VehicleType | ''
   /** A parada que carrega mais que a própria fatia do peso; o desenho é de volume e não a mostra. */
   weightConcentration?: TripWeightConcentration | null
@@ -75,7 +71,6 @@ export function TripCargoPanel({
   cargoWeight,
   layout,
   occupancy,
-  stops = [],
   vehicleType = '',
   weightConcentration = null,
 }: TripCargoPanelProps) {
@@ -168,7 +163,7 @@ export function TripCargoPanel({
         conviveram enquanto o 3D não existia; com ele, as três diziam a mesma coisa em três
         linguagens, e a fileira e a planta eram as duas que **não** dizem onde a caixa vai.
       */}
-      <TripCargoLayers layout={layout} stops={stops} />
+      <TripCargoLayers layout={layout} />
     </section>
   )
 }

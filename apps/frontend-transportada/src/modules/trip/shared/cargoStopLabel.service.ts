@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { TripStopDetail } from './trip.types'
+import type { TripCargoLayout } from './trip.types'
 
 export type CargoStopLabel = Readonly<{
   /** O nome de quem recebe — a primeira coisa que quem carrega procura. */
@@ -23,22 +23,29 @@ const MAX_LISTED_NOTES = 3
  * do cliente na etiqueta; a ordem é só a posição na fila, e sozinha ela obriga a pessoa a voltar à
  * lista de notas para descobrir de quem é a carga que está na mão dela.
  */
+
+/**
+ * O que identifica uma parada para quem está carregando.
+ *
+ * ⚠️ **"Parada 3" não identifica nada.** O separador procura o número da nota que ele bipou e o nome
+ * do cliente na etiqueta; a ordem é só a posição na fila, e sozinha ela obriga a pessoa a voltar à
+ * lista de notas para descobrir de quem é a carga que está na mão dela.
+ *
+ * ⚠️ A identificação vem **da linha do layout**, não de um segundo agrupamento no cliente: foi o
+ * agrupamento por endereço do servidor que formou a parada, e refazê-lo aqui produziria uma
+ * numeração que poderia discordar do desenho.
+ */
 export function buildCargoStopLabels(
-  stops: readonly TripStopDetail[],
+  rows: TripCargoLayout['rows'],
 ): ReadonlyMap<number, CargoStopLabel> {
   return new Map(
-    stops.map((stop) => [
-      stop.sequence,
+    rows.map((row) => [
+      row.sequence,
       {
-        addressLabel: stop.label,
-        /** Uma parada agrupa endereço, não cliente: com mais de um, o primeiro nomeia e o resto é contado. */
-        clientName: stop.documents[0]?.contact?.name ?? '',
-        noteNumbers: stop.documents.flatMap((document) =>
-          document.nfeNumber === null || document.nfeNumber === undefined
-            ? []
-            : [document.nfeNumber],
-        ),
-        sequence: stop.sequence,
+        addressLabel: row.label,
+        clientName: row.clientName,
+        noteNumbers: row.noteNumbers,
+        sequence: row.sequence,
       },
     ]),
   )

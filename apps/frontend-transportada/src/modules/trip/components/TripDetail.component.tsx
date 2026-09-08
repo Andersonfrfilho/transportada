@@ -392,16 +392,15 @@ export function TripDetail({ linkForm, vehicles, workspace }: TripDetailProps) {
         cargoWeight={trip.cargoWeight ?? null}
         layout={trip.cargoLayout}
         occupancy={trip.occupancy}
-        stops={trip.stops}
         vehicleType={vehicles.find((entry) => entry.id === trip.vehicleId)?.vehicleType ?? ''}
       />
 
       <TripRouteMap
         canCorrect={canManage}
         geometry={workspace.routeGeometryQuery.data ?? null}
+        stops={trip.stops}
         isCorrecting={workspace.correctAddressMutation.isPending}
         onCorrect={(correction) => workspace.correctAddressMutation.mutate(correction)}
-        stops={trip.stops}
       />
 
       {selection.selectedIds.size > 0 ? (

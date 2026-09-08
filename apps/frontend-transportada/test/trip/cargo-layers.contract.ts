@@ -28,13 +28,15 @@ describe('planta das camadas (spec 094)', () => {
   })
 
   /**
-   * Uma camada por vez: todas de uma vez seriam seis plantas empilhadas no celular de quem está no
-   * galpão — e o carregamento é feito uma camada por vez, que é a razão de o desenho ser assim.
+   * ⚠️ **Todas as camadas listadas, com o que cada uma tem dentro.** O par anterior/próxima dizia
+   * "Camada 1 de 2" e obrigava a percorrer o baú para saber o que havia na de cima; numa pilha de
+   * duas ou seis, a lista inteira cabe e responde de relance.
    */
-  it('mostra uma camada por vez, com navegação', () => {
-    expect(source).toContain("t('cargoLayers.position'")
-    expect(source).toContain('setIndex')
-    expect(trip.cargoLayers.position).toContain('{{total}}')
+  it('lista todas as camadas com o conteúdo de cada uma', () => {
+    expect(source).toContain('placement.layers.map')
+    expect(source).toContain("t('cargoLayers.layerSummary'")
+    expect(trip.cargoLayers.layerSummary).toContain('{{boxes}}')
+    expect(trip.cargoLayers.layerSummary).toContain('{{stops}}')
   })
 
   /**

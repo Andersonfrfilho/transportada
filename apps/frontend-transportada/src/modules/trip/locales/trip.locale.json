@@ -677,9 +677,6 @@
   "cargoLayers": {
     "title": "Onde cada caixa cabe",
     "promise": "Este arranjo cabe no baú e respeita a ordem de entrega. Ele não é plano de estiva: a tela ainda não conhece a empilhabilidade de toda caixa, o peso de cada uma nem o limite por eixo.",
-    "previous": "Camada abaixo",
-    "next": "Camada acima",
-    "position": "Camada {{index}} de {{total}}",
     "planLabel": "Carga da camada {{index}}, vista em perspectiva",
     "sideLayer": "Camada {{index}}",
     "estimated": "Arranjo presumido: parte das caixas foi derivada do volume, ou tem restrição de empilhamento que ninguém informou.",
@@ -737,6 +734,8 @@
       "stop": "Parada"
     },
     "missingBed": "Sem o desenho da carga: este veículo não tem comprimento, largura e altura do baú na ficha.",
-    "missingBedLink": "Abrir a ficha do veículo"
+    "missingBedLink": "Abrir a ficha do veículo",
+    "layer": "Camada {{index}}",
+    "layerSummary": " · {{boxes}} caixas · {{stops}} parada(s) · {{height}} m"
   }
 }

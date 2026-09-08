@@ -20,16 +20,13 @@ import { isMostlyPresumed, resolveSliceCuts } from '../shared/cargoLegend.servic
 import { buildCargoPrintSummary } from '../shared/cargoPrintSummary.service'
 import { EMPTY_STOP_FOCUS, isStopLit, toggleStopFocus } from '../shared/stopFocus.service'
 import { buildCargoStopLabels, formatCargoStopLabel } from '../shared/cargoStopLabel.service'
-import type { TripCargoLayout, TripStopDetail } from '../shared/trip.types'
+import type { TripCargoLayout } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
 
 /** A ficha do veículo, onde as três medidas do baú são preenchidas. */
 const FLEET_HREF = '/fleet'
 
-type TripCargoLayersProps = Readonly<{
-  layout: TripCargoLayout | null
-  stops?: readonly TripStopDetail[]
-}>
+type TripCargoLayersProps = Readonly<{ layout: TripCargoLayout | null }>
 
 /**
  * Spec 094: **onde cada caixa cabe**, camada por camada.
@@ -43,7 +40,7 @@ type TripCargoLayersProps = Readonly<{
  * celular de quem está no galpão — e o carregamento é feito uma camada por vez, que é a razão de o
  * desenho ser assim.
  */
-export function TripCargoLayers({ layout, stops = [] }: TripCargoLayersProps) {
+export function TripCargoLayers({ layout }: TripCargoLayersProps) {
   const { t } = useTranslation('trip')
   const [index, setIndex] = useState(0)
   /**
@@ -123,7 +120,7 @@ export function TripCargoLayers({ layout, stops = [] }: TripCargoLayersProps) {
   const cargoTopM = Math.max(...boxes.map((box) => box.zM + box.heightM), 0)
   const drawnHeightM = bedHeightM > 0 ? bedHeightM : cargoTopM
 
-  const stopLabels = buildCargoStopLabels(stops)
+  const stopLabels = buildCargoStopLabels(layout.rows)
   const labelOf = (sequence: number): string =>
     formatCargoStopLabel(stopLabels.get(sequence)) || t('cargoLayers.stop', { sequence })
 
@@ -140,38 +137,37 @@ export function TripCargoLayers({ layout, stops = [] }: TripCargoLayersProps) {
       {/* ⚠️ A linha que diz o que a planta NÃO promete. Fixa, nunca condicional. */}
       <p className={styles.hint}>{t('cargoLayers.promise')}</p>
 
-      <div className={styles.cargoLayerNav}>
-        <Button
-          disabled={index === 0}
-          type="button"
-          variant="ghost"
-          onClick={() => {
-            setIndex((previous) => Math.max(0, previous - 1))
-            setHasChosenLayer(true)
-          }}
-        >
-          <Icon name="chevron-left" />
-          {t('cargoLayers.previous')}
-        </Button>
-        <span>
-          {t('cargoLayers.position', {
-            index: current.index + 1,
-            total: placement.layers.length,
-          })}
-        </span>
-        <Button
-          disabled={index >= placement.layers.length - 1}
-          type="button"
-          variant="ghost"
-          onClick={() => {
-            setIndex((previous) => Math.min(placement.layers.length - 1, previous + 1))
-            setHasChosenLayer(true)
-          }}
-        >
-          {t('cargoLayers.next')}
-          <Icon name="chevron-right" />
-        </Button>
-      </div>
+      {/**
+       * ⚠️ **Todas as camadas de uma vez, com o que cada uma tem dentro.** O par anterior/próxima
+       * mostrava "Camada 1 de 2" e obrigava a percorrer o baú para saber o que havia na de cima —
+       * numa pilha de duas ou seis, a lista inteira cabe e responde de relance. Clicar acende uma;
+       * clicar de novo devolve a pilha inteira sólida.
+       */}
+      <ul className={styles.cargoLayerList} role="list">
+        {placement.layers.map((layer) => {
+          const chosen = hasChosenLayer && layer.index === current.index
+          return (
+            <li key={layer.index}>
+              <button
+                aria-pressed={chosen}
+                className={styles.cargoLayerChip}
+                type="button"
+                onClick={() => {
+                  setIndex(layer.index)
+                  setHasChosenLayer(!chosen || layer.index !== current.index)
+                }}
+              >
+                <strong>{t('cargoLayers.layer', { index: layer.index + 1 })}</strong>
+                {t('cargoLayers.layerSummary', {
+                  boxes: layer.boxes.length,
+                  height: layer.heightM.toFixed(2),
+                  stops: new Set(layer.boxes.map((box) => box.stopSequence)).size,
+                })}
+              </button>
+            </li>
+          )
+        })}
+      </ul>
 
       <div className={styles.cargoStage}>
         <CargoIsometric
@@ -211,59 +207,6 @@ export function TripCargoLayers({ layout, stops = [] }: TripCargoLayersProps) {
             {t('cargoLayers.dragHint')}
           </span>
         )}
-      </div>
-
-      {/**
-       * A folha do agregado: ele carrega a van sozinho, longe da tela, e o galpão imprime em laser
-       * mono — nada aqui depende de cor. A ordem é a de **carregamento**, inversa à de entrega.
-       */}
-      <table className={styles.cargoPrintSheet}>
-        <caption>{t('cargoLayers.print.caption')}</caption>
-        <thead>
-          <tr>
-            <th scope="col">{t('cargoLayers.print.order')}</th>
-            <th scope="col">{t('cargoLayers.print.stop')}</th>
-            <th scope="col">{t('cargoLayers.print.span')}</th>
-            <th scope="col">{t('cargoLayers.print.boxes')}</th>
-            <th scope="col">{t('cargoLayers.print.presumed')}</th>
-            <th scope="col">{t('cargoLayers.print.split')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {buildCargoPrintSummary(boxes).map((row, position) => (
-            <tr key={row.stopSequence}>
-              <td>{position + 1}</td>
-              <td>{labelOf(row.stopSequence)}</td>
-              <td>
-                {t('cargoLayers.print.spanValue', {
-                  from: row.fromM.toFixed(2),
-                  to: row.toM.toFixed(2),
-                })}
-              </td>
-              <td>{row.boxes}</td>
-              <td>{row.presumed}</td>
-              <td>{row.split}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      <div className={styles.cargoStops}>
-        {stopSequences.map((stopSequence) => (
-          <button
-            aria-pressed={focus.has(stopSequence)}
-            className={styles.cargoStopChip}
-            key={stopSequence}
-            type="button"
-            onClick={() => setFocus((previous) => toggleStopFocus(previous, stopSequence))}
-          >
-            <span
-              className={styles.cargoStopDot}
-              style={{ background: stopColorOf(stopSequence) }}
-            />
-            {labelOf(stopSequence)}
-          </button>
-        ))}
       </div>
 
       <div className={styles.cargoPads}>
@@ -347,11 +290,64 @@ export function TripCargoLayers({ layout, stops = [] }: TripCargoLayersProps) {
       </div>
 
       {/* A legenda das três marcas: sem ela o contorno vermelho da dividida não quer dizer nada. */}
+      <div className={styles.cargoStops}>
+        {stopSequences.map((stopSequence) => (
+          <button
+            aria-pressed={focus.has(stopSequence)}
+            className={styles.cargoStopChip}
+            key={stopSequence}
+            type="button"
+            onClick={() => setFocus((previous) => toggleStopFocus(previous, stopSequence))}
+          >
+            <span
+              className={styles.cargoStopDot}
+              style={{ background: stopColorOf(stopSequence) }}
+            />
+            {labelOf(stopSequence)}
+          </button>
+        ))}
+      </div>
+
       <ul className={styles.cargoLegend} role="list">
         <li>{t('cargoLayers.legend.measured')}</li>
         <li>{t('cargoLayers.legend.presumed')}</li>
         <li>{t('cargoLayers.legend.split')}</li>
       </ul>
+
+      {/**
+       * A folha do agregado: ele carrega a van sozinho, longe da tela, e o galpão imprime em laser
+       * mono — nada aqui depende de cor. A ordem é a de **carregamento**, inversa à de entrega.
+       */}
+      <table className={styles.cargoPrintSheet}>
+        <caption>{t('cargoLayers.print.caption')}</caption>
+        <thead>
+          <tr>
+            <th scope="col">{t('cargoLayers.print.order')}</th>
+            <th scope="col">{t('cargoLayers.print.stop')}</th>
+            <th scope="col">{t('cargoLayers.print.span')}</th>
+            <th scope="col">{t('cargoLayers.print.boxes')}</th>
+            <th scope="col">{t('cargoLayers.print.presumed')}</th>
+            <th scope="col">{t('cargoLayers.print.split')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {buildCargoPrintSummary(boxes).map((row, position) => (
+            <tr key={row.stopSequence}>
+              <td>{position + 1}</td>
+              <td>{labelOf(row.stopSequence)}</td>
+              <td>
+                {t('cargoLayers.print.spanValue', {
+                  from: row.fromM.toFixed(2),
+                  to: row.toM.toFixed(2),
+                })}
+              </td>
+              <td>{row.boxes}</td>
+              <td>{row.presumed}</td>
+              <td>{row.split}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
 
       {/* A legenda das aberturas em texto: rótulo dentro do desenho sai cortado e atravessa a borda. */}
       <p className={styles.hint}>

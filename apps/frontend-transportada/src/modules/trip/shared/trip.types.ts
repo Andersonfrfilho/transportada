@@ -253,8 +253,14 @@ export type TripCargoLayout = Readonly<{
    * quebra da carga em blocos da mesma cor é consequência da quantização (spec 085 G001).
    */
   rows: readonly Readonly<{
+    /**
+     * Quem recebe e quais notas. **"Parada 3" não identifica nada**: o separador procura o número
+     * que ele bipou e o nome do cliente na etiqueta, e a ordem é só a posição na fila.
+     */
+    clientName: string
     label: string
     loadOrder: number
+    noteNumbers: readonly string[]
     sequence: number
     /** Se dá para chegar nesta carga sem descarregar o que está na frente (spec 085 G003). */
     sideReachable: boolean

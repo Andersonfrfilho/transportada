@@ -7,33 +7,23 @@ import {
   buildCargoStopLabels,
   formatCargoStopLabel,
 } from '@/modules/trip/shared/cargoStopLabel.service'
-import type { TripStopDetail } from '@/modules/trip/shared/trip.types'
+import type { TripCargoLayout } from '@/modules/trip/shared/trip.types'
 
 const COMPONENT = new URL(
   '../../src/modules/trip/components/TripCargoLayers.component.tsx',
   import.meta.url,
 )
 
-function stop(overrides: Partial<TripStopDetail>): TripStopDetail {
+function row(overrides: Partial<TripCargoLayout['rows'][number]>): TripCargoLayout['rows'][number] {
   return {
-    addressKey: 'k',
-    arrivedAt: null,
-    completedAt: null,
-    deliveryWindowEnd: null,
-    deliveryWindowStart: null,
-    documents: [],
-    id: 'stop-1',
+    clientName: '',
     label: 'AVENIDA 07, 903, ORLANDIA, SP',
+    loadOrder: 1,
+    noteNumbers: [],
     sequence: 1,
+    sideReachable: false,
     ...overrides,
   }
-}
-
-function document(nfeNumber: null | string, name?: string) {
-  return {
-    contact: name === undefined ? null : { contractorName: null, name, phone: null, taxId: '1' },
-    nfeNumber,
-  } as unknown as TripStopDetail['documents'][number]
 }
 
 /**
@@ -44,7 +34,7 @@ function document(nfeNumber: null | string, name?: string) {
 describe('trip cargo stop label contract', () => {
   it('names the stop by note, client and address', () => {
     const labels = buildCargoStopLabels([
-      stop({ documents: [document('883649', 'MINIMERCADO ABADE')], sequence: 2 }),
+      row({ clientName: 'MINIMERCADO ABADE', noteNumbers: ['883649'], sequence: 2 }),
     ])
 
     expect(formatCargoStopLabel(labels.get(2))).toBe(
@@ -52,23 +42,32 @@ describe('trip cargo stop label contract', () => {
     )
   })
 
-  /** A lista é cortada, nunca omitida: uma parada de quarenta notas viraria uma ficha do tamanho da tela. */
+  /**
+   * A lista é cortada, nunca omitida: uma parada com quarenta notas viraria uma ficha do tamanho da
+   * tela, e nenhuma nota some sem que o "+N" diga quantas ficaram.
+   */
   it('counts the notes it could not list', () => {
-    const labels = buildCargoStopLabels([
-      stop({
-        documents: [document('1'), document('2'), document('3'), document('4'), document('5')],
-      }),
-    ])
+    const labels = buildCargoStopLabels([row({ noteNumbers: ['1', '2', '3', '4', '5'] })])
 
     expect(formatCargoStopLabel(labels.get(1))).toContain('1, 2, 3 +2')
   })
 
-  /** Nota sem número e parada sem contato não inventam texto: o que falta simplesmente não aparece. */
+  /** Parada sem nome e sem número não inventa texto: o que falta simplesmente não aparece. */
   it('drops what the stop does not have', () => {
-    const labels = buildCargoStopLabels([stop({ documents: [document(null)] })])
+    const labels = buildCargoStopLabels([row({})])
 
     expect(formatCargoStopLabel(labels.get(1))).toBe('AVENIDA 07, 903, ORLANDIA, SP')
     expect(formatCargoStopLabel(undefined)).toBe('')
+  })
+
+  /**
+   * ⚠️ A identificação vem da **linha do layout**, e não de um segundo agrupamento no cliente: foi o
+   * agrupamento por endereço do servidor que formou a parada.
+   */
+  it('reads the identification from the layout row', () => {
+    const source = readFileSync(COMPONENT, 'utf8')
+
+    expect(source).toContain('buildCargoStopLabels(layout.rows)')
   })
 
   /**
@@ -79,6 +78,5 @@ describe('trip cargo stop label contract', () => {
     const source = readFileSync(COMPONENT, 'utf8')
 
     expect(source).toContain('hasChosenLayer ? { focusLayer: current.index } : {}')
-    expect(source).toContain('setHasChosenLayer(true)')
   })
 })

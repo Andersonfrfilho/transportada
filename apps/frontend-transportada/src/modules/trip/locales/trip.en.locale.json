@@ -552,9 +552,6 @@
   "cargoLayers": {
     "title": "Where each box fits",
     "promise": "This arrangement fits the bed and respects the delivery order. It is not a stowage plan: the screen does not yet know every box stackability, the weight of each one, nor the per-axle limit.",
-    "previous": "Layer below",
-    "next": "Layer above",
-    "position": "Layer {{index}} of {{total}}",
     "planLabel": "Layer {{index}} cargo, in perspective",
     "sideLayer": "Layer {{index}}",
     "estimated": "Presumed arrangement: some boxes were derived from volume, or carry a stacking restriction nobody informed.",
@@ -612,6 +609,8 @@
       "stop": "Stop"
     },
     "missingBed": "No cargo drawing: this vehicle has no bed length, width and height on its record.",
-    "missingBedLink": "Open the vehicle record"
+    "missingBedLink": "Open the vehicle record",
+    "layer": "Layer {{index}}",
+    "layerSummary": " · {{boxes}} boxes · {{stops}} stop(s) · {{height}} m"
   }
 }
