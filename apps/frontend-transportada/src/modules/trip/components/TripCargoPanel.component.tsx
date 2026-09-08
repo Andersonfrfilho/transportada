@@ -4,8 +4,11 @@
 import { useTranslation } from 'react-i18next'
 
 import { Icon } from '@/components/ui/icon'
+import { CargoVehicle } from '@/components/ui/cargo-vehicle'
+import { ProgressBar } from '@/components/ui/progress'
 import { VEHICLE_TYPE_ICONS } from '@/modules/shared/vehicleTypeIcon.service'
 
+import { TripCargoLayers } from './TripCargoLayers.component'
 import { TripCargoPlan } from './TripCargoPlan.component'
 import type { VehicleType } from '@/modules/shared/vehicleType.constant'
 
@@ -102,15 +105,33 @@ export function TripCargoPanel({
       <h3 className={styles.hint} id="trip-cargo-title">
         {t('cargo.title')}
       </h3>
-      <p>
-        <strong>{t('occupancy.ratio', { percent })}</strong>{' '}
-        <span>
-          {t('occupancy.loaded', {
-            capacity: formatVolume(occupancy.capacityM3),
-            loaded: formatVolume(occupancy.loadedM3),
-          })}
-        </span>
-      </p>
+      {/*
+        ⚠️ Spec 093: as **duas** medidas com o mesmo peso visual. O percentual de peso vivia numa
+        linha de rodapé, e as duas dizem coisas diferentes e igualmente decisivas — um baú cheio de
+        papel higiênico está longe do teto de massa, e uma carreta de bebida enche o peso com o baú
+        pela metade. Quem carrega precisa das duas no mesmo golpe de vista.
+      */}
+      <div className={styles.cargoMeasures}>
+        <div className={styles.cargoMeasure}>
+          <span className={styles.cargoMeasureLabel}>{t('occupancy.label')}</span>
+          <span className={styles.cargoMeasureValue}>{t('occupancy.ratio', { percent })}</span>
+          {/*
+            A barra é o mesmo número em forma de comprimento: quem enche o caminhão lê o quanto
+            falta antes de ler o algarismo. Acima do teto ela enche e troca de cor — o percentual ao
+            lado continua dizendo quanto passou.
+          */}
+          <ProgressBar
+            completed={Number.parseFloat(occupancy.loadedM3)}
+            label={t('occupancy.label')}
+            total={Number.parseFloat(occupancy.capacityM3)}
+            valueText={t('occupancy.loaded', {
+              capacity: formatVolume(occupancy.capacityM3),
+              loaded: formatVolume(occupancy.loadedM3),
+            })}
+          />
+        </div>
+        <TripCargoWeightMeasure cargoWeight={cargoWeight} />
+      </div>
       {dimensions === null ? null : (
         <p className={styles.hint}>
           {t('occupancy.dimensions', {
@@ -121,12 +142,18 @@ export function TripCargoPanel({
           })}
         </p>
       )}
+      {/*
+        A silhueta do tipo escolhido, com a carga dentro — o mesmo percentual das medidas acima, em
+        forma de caminhão, e na largura toda do painel: é o desenho que dá a escala entre os tipos,
+        e espremido numa coluna ele viraria um glifo.
+      */}
+      <CargoVehicle percent={percent} vehicleType={vehicleType} />
       {originHint === null ? null : <p className={styles.hint}>{originHint}</p>}
       {weightConcentration === null ? null : (
         <p className={styles.hint}>
           {t('occupancy.weightConcentration', {
             percent: Math.round(weightConcentration.share * PERCENT_SCALE),
-            stop: weightConcentration.stopId,
+            stop: weightConcentration.label,
           })}
         </p>
       )}
@@ -139,12 +166,14 @@ export function TripCargoPanel({
         </p>
       ) : null}
 
-      <TripCargoWeightLines cargoWeight={cargoWeight} />
+      <TripCargoWeightNotes cargoWeight={cargoWeight} />
       <TripCargoDrawing layout={layout} vehicleType={vehicleType} />
       {/* Spec 088: a planta em escala, ao lado do painel de fileiras — as duas, nunca uma no lugar
           da outra. A fileira diz a ordem e a proporção; a planta diz o metro, e só existe com a
           ficha do veículo medida. */}
       <TripCargoPlan layout={layout} />
+      {/* Spec 094: a planta de faixas diz de quem é o espaço; esta diz onde cada caixa cabe. */}
+      <TripCargoLayers layout={layout} />
     </section>
   )
 }
@@ -254,30 +283,68 @@ function TripCargoDrawing({
 }
 
 /**
- * ⚠️ **A marca de estimativa nunca sai do lado do número**, pela mesma razão da ocupação: o peso
- * pode vir de `qVol × padrão da empresa` em vez do `pesoB` do emitente, e um número sem a marca lê
- * como declarado.
+ * A medida de **peso**, irmã da de volume e com a mesma forma: percentual grande quando há teto, e o
+ * número absoluto no lugar dele quando não há.
  *
- * **Não há percentual.** A ficha do veículo não guarda capacidade em massa; um teto inventado para
- * produzir porcentagem é o número que faria alguém parar de carregar, ou continuar.
+ * ⚠️ Ausência é ausência — **nunca 0%, nunca 100%**: veículo sem carga máxima cadastrada com carga
+ * dentro é o caso em que um número inventado faz alguém parar de carregar, ou continuar. E o
+ * estouro sai como está, acima de 100%: é o que o conferente precisa ver.
  */
-function TripCargoWeightLines({ cargoWeight }: { cargoWeight: TripCargoWeight | null }) {
+function TripCargoWeightMeasure({ cargoWeight }: { cargoWeight: TripCargoWeight | null }) {
   const { t } = useTranslation('trip')
   if (cargoWeight === null) return null
 
-  const isWeightEstimated = cargoWeight.source === 'estimated'
+  const weight = weightFormatter.format(Number.parseFloat(cargoWeight.grossWeightKilograms))
+  const payloadPercent =
+    cargoWeight.payloadRatio === null
+      ? null
+      : Math.round(Number.parseFloat(cargoWeight.payloadRatio) * PERCENT_SCALE)
+
+  return (
+    <div className={styles.cargoMeasure}>
+      <span className={styles.cargoMeasureLabel}>{t('cargoWeight.label')}</span>
+      {payloadPercent === null || cargoWeight.maxPayloadKg === null ? (
+        <>
+          <span className={styles.cargoMeasureValueMuted}>
+            {t('cargoWeight.total', { weight })}
+          </span>
+          {/* Sem teto na ficha o percentual não existe, e o aviso diz onde preenchê-lo. */}
+          <span className={styles.cargoMeasureDetail}>{t('cargoWeight.withoutCeiling')}</span>
+        </>
+      ) : (
+        <>
+          <span className={styles.cargoMeasureValue}>
+            {t('cargoWeight.ratio', { percent: payloadPercent })}
+          </span>
+          <ProgressBar
+            completed={Number.parseFloat(cargoWeight.grossWeightKilograms)}
+            label={t('cargoWeight.label')}
+            total={Number.parseFloat(cargoWeight.maxPayloadKg)}
+            valueText={t('cargoWeight.loaded', {
+              capacity: weightFormatter.format(Number.parseFloat(cargoWeight.maxPayloadKg)),
+              weight,
+            })}
+          />
+        </>
+      )}
+    </div>
+  )
+}
+
+/**
+ * ⚠️ **A marca de estimativa nunca sai do lado do número**, pela mesma razão da ocupação: o peso
+ * pode vir de `qVol × padrão da empresa` em vez do `pesoB` do emitente, e um número sem a marca lê
+ * como declarado. Aqui ficam só as ressalvas — o número mora na medida, acima.
+ */
+function TripCargoWeightNotes({ cargoWeight }: { cargoWeight: TripCargoWeight | null }) {
+  const { t } = useTranslation('trip')
+  if (cargoWeight === null) return null
 
   return (
     <>
-      <p>
-        <strong>{t('cargoWeight.title')}</strong>{' '}
-        <span>
-          {t('cargoWeight.total', {
-            weight: weightFormatter.format(Number.parseFloat(cargoWeight.grossWeightKilograms)),
-          })}
-        </span>
-      </p>
-      {isWeightEstimated ? <p className={styles.hint}>{t('cargoWeight.estimated')}</p> : null}
+      {cargoWeight.source === 'estimated' ? (
+        <p className={styles.hint}>{t('cargoWeight.estimated')}</p>
+      ) : null}
       {cargoWeight.documentsWithoutWeight > 0 ? (
         <p className={styles.hint}>
           {t('cargoWeight.withoutWeight', { count: cargoWeight.documentsWithoutWeight })}
@@ -300,7 +367,10 @@ function TripCargoWeightPanel({ cargoWeight }: { cargoWeight: TripCargoWeight | 
       <h3 className={styles.hint} id="trip-cargo-weight-title">
         {t('cargoWeight.title')}
       </h3>
-      <TripCargoWeightLines cargoWeight={cargoWeight} />
+      <div className={styles.cargoMeasures}>
+        <TripCargoWeightMeasure cargoWeight={cargoWeight} />
+      </div>
+      <TripCargoWeightNotes cargoWeight={cargoWeight} />
       {/*
         ⚠️ Spec 088 D7/critério 7: **tipo sem referência não vira exceção silenciosa.** `three_quarter`
         e todo `body_type = '00'` não têm linha em `vehicle_volume_references`, e sem ficha nem m³

@@ -4,6 +4,7 @@
 import type { TripCargoPreviewContext } from '../application/preview-trip-cargo.use-case.js'
 import { buildStopAddressKey } from '../domain/stop-address-key.js'
 import { listStopAddresses } from './nfe-destination-address.support.js'
+import { withPayloadCeiling } from '../domain/trip-cargo-weight.policy.js'
 import { loadTripCargoWeight } from './trip-cargo-weight.support.js'
 import { loadTripOccupancy } from './trip-occupancy.support.js'
 import type { TripQueryable } from './trip-queryable.type.js'
@@ -40,8 +41,14 @@ export async function readCargoPreviewContext(
     bedDimensions: cargo.bedDimensions,
     boxesByDocument: cargo.boxesByDocument,
     capacityM3: cargo.capacityM3,
+    fallbackBoxVolumeM3: cargo.fallbackBoxVolumeM3,
+    measuredShapes: cargo.measuredShapes,
     loadingAccess: cargo.loadingAccess,
-    cargoWeight: cargoWeight.view,
+    /**
+     * ⚠️ O teto entra **depois** das duas leituras, nunca encadeando uma na outra: o peso e o
+     * veículo são consultados em paralelo, e serializá-los custaria uma ida ao banco por nada.
+     */
+    cargoWeight: withPayloadCeiling({ maxPayloadKg: cargo.maxPayloadKg, view: cargoWeight.view }),
     documents: input.nfeDocumentIds.map((nfeDocumentId) => {
       const address = addresses.get(nfeDocumentId)
       return {

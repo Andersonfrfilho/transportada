@@ -93,8 +93,14 @@ describe('fleet tenant safety', () => {
   })
 
   /**
-   * Spec 090 T1: a praça de pedágio é a **terceira** tabela do produto sem `company_id` — tarifa
-   * pública mapeada no OSM, idêntica para toda instalação, sem PII e sem efeito fiscal.
+   * ⚠️ **São quatro tabelas sem `company_id`**, e nenhuma delas é "a terceira" — as duas linhas de
+   * trabalho que este merge juntou chamavam cada uma a sua assim, porque nasceram em paralelo e
+   * nenhuma via a outra. A lista completa é `fuel_price_references`, `energy_tariff_references`,
+   * `vehicle_volume_references` e `toll_booths`. Contar de cabeça foi o que produziu as duas
+   * afirmações erradas; quem acrescentar a quinta conta as asserções deste arquivo.
+   *
+   * Spec 090 T1: a praça de pedágio é tarifa pública mapeada no OSM, idêntica para toda
+   * instalação, sem PII e sem efeito fiscal.
    *
    * ⚠️ Esta asserção é a razão de a exceção ser **declarada**, e não descoberta. Uma tabela nasce
    * sem tenant por decisão ou por esquecimento, e as duas se parecem no diff; o que as separa é
@@ -107,7 +113,7 @@ describe('fleet tenant safety', () => {
 
   /**
    * Spec 095 D1: ao contrário do catálogo acima, o ajuste é decisão de uma transportadora sobre o
-   * valor que ela paga — e por isso TEM `company_id`, e é assertado aqui como âncora ao tenant.
+   * valor que ela paga — e por isso TEM `company_id`, assertado aqui como âncora ao tenant.
    */
   test('anchors the company toll booth charge adjustment to the tenant', () => {
     expect(foreignKeys(companyTollBoothCharges)).toContainEqual({
@@ -121,9 +127,10 @@ describe('fleet tenant safety', () => {
   })
 
   /**
-   * A cubagem de referência por tipo de veículo é a segunda, e estava fora desta lista — a spec 075
-   * a declarou tenant-less no comentário do schema e ninguém a assertou. Contada aqui para as três
-   * exceções caberem num lugar só.
+   * Spec 093: a cubagem de referência é catálogo de mercado — idêntica para toda instalação, sem
+   * PII e sem efeito fiscal. Ela passou tempo sem asserção nenhuma, que é exatamente o
+   * esquecimento que estes testes existem para impedir. Se ganhar `company_id`, vira configuração
+   * por empresa e a spec muda de tamanho.
    */
   test('keeps the volume reference tenant-less on purpose, and unable to reach a company', () => {
     expect(columnNames(vehicleVolumeReferences)).not.toContain('company_id')

@@ -4,6 +4,7 @@
 import { sql } from 'drizzle-orm'
 import {
   bigint,
+  boolean,
   check,
   foreignKey,
   index,
@@ -481,6 +482,21 @@ export const nfePackageBoxes = pgTable(
     widthMm: integer('width_mm'),
     heightMm: integer('height_mm'),
     grossWeightGrams: integer('gross_weight_grams'),
+    /**
+     * Spec 094: como a caixa **pode** ser posicionada. Os quatro são `null` até alguém informar, e
+     * `null` é "não sei" — nunca "pode".
+     *
+     * ⚠️ A diferença importa no desenho: com `is_stackable = null` a planta empilha e **marca o
+     * arranjo como presumido**; com `false` ela não empilha e não marca, porque a restrição é
+     * conhecida. Tratar ausência como permissão apagaria a diferença entre uma carga que alguém
+     * conferiu e uma que ninguém olhou.
+     */
+    isStackable: boolean('is_stackable'),
+    /** Quantas cabem na pilha. `null` com `is_stackable` verdadeiro é "empilha, não sei quantas". */
+    maxStackCount: integer('max_stack_count'),
+    isFragile: boolean('is_fragile'),
+    /** "Este lado para cima": a caixa não pode ser deitada para caber melhor. */
+    keepUpright: boolean('keep_upright'),
     measuredAt: timestamp('measured_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -493,6 +509,14 @@ export const nfePackageBoxes = pgTable(
       table.commercialUnit,
     ),
     check('nfe_package_boxes_units_per_box_check', sql`${table.unitsPerBox} > 0`),
+    /**
+     * Pilha de zero não existe, e pilha declarada em caixa que não empilha é contradição — a
+     * primeira coisa que alguém digita errado num formulário com quatro campos novos.
+     */
+    check(
+      'nfe_package_boxes_stack_check',
+      sql`(${table.maxStackCount} is null or ${table.maxStackCount} > 0) and (${table.maxStackCount} is null or ${table.isStackable} is not false)`,
+    ),
     check(
       'nfe_package_boxes_dimensions_check',
       sql`(${table.lengthMm} is null or (${table.lengthMm} > 0 and ${table.lengthMm} <= 6000)) and (${table.widthMm} is null or (${table.widthMm} > 0 and ${table.widthMm} <= 3000)) and (${table.heightMm} is null or (${table.heightMm} > 0 and ${table.heightMm} <= 3000)) and (${table.grossWeightGrams} is null or (${table.grossWeightGrams} > 0 and ${table.grossWeightGrams} <= 2000000))`,

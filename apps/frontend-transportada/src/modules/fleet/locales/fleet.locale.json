@@ -281,6 +281,8 @@
   "capacityCubicMetersDerivedHint": "Calculado a partir do comprimento, da largura e da altura do baú.",
   "hasAutomaticTollPayment": "Cobrança automática de pedágio (tag)",
   "hasAutomaticTollPaymentHint": "Com a tag, o pedágio usa a tarifa automática da praça quando ela é conhecida. Sem a tarifa automática, a conta cai para a manual.",
+  "cargoSuggestionFromVehicle": "Copiado de {{plate}}, da própria frota. Confira com a fita antes de salvar.",
+  "cargoSuggestionFromReference": "Média do tipo, não medição. A dispersão dentro de um tipo chega ao dobro — confira com a fita antes de salvar.",
   "ownership": "Propriedade",
   "ownershipOption": {
     "aggregate": "Agregado",

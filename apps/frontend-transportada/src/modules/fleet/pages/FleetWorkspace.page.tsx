@@ -25,7 +25,12 @@ import { useEnergySettings } from '../hooks/useEnergySettings.hook'
 import { useFleet } from '../hooks/useFleet.hook'
 import { useFreightRegions } from '../hooks/useFreightRegions.hook'
 import { useFuelPrices } from '../hooks/useFuelPrices.hook'
-import { useVehicleCatalog, type VehicleCatalogController } from '../hooks/useVehicleCatalog.hook'
+import {
+  useVehicleCatalog,
+  useVehicleReferences,
+  type VehicleCatalogController,
+} from '../hooks/useVehicleCatalog.hook'
+import type { VehicleReference } from '../shared/vehicleSuggestion.service'
 import { useVehicleColumns } from '../hooks/useVehicleColumns.hook'
 import { useVehicleTable } from '../hooks/useVehicleTable.hook'
 import type {
@@ -82,6 +87,7 @@ function FleetEditorPanel({
   onClose,
   onEditVehicle,
   vehicleCatalog,
+  vehicleReferences,
   vehicles,
   workspace,
 }: Readonly<{
@@ -91,6 +97,7 @@ function FleetEditorPanel({
   onClose: () => void
   onEditVehicle: (vehicle: FleetVehicleDetail) => void
   vehicleCatalog: VehicleCatalogController
+  vehicleReferences: readonly VehicleReference[]
   vehicles: readonly FleetVehicleDetail[]
   workspace: FleetWorkspace
 }>) {
@@ -109,6 +116,7 @@ function FleetEditorPanel({
         onCreateDriver={(body) => workspace.createDriverMutation.mutateAsync(body)}
         onUpdateDriver={(input) => workspace.updateDriverMutation.mutateAsync(input)}
         onUpdate={(input) => workspace.updateVehicleMutation.mutateAsync(input)}
+        references={vehicleReferences}
         vehicles={vehicles}
       />
     )
@@ -155,6 +163,11 @@ export function FleetWorkspacePage() {
     permissions,
   })
   const vehicleCatalog = useVehicleCatalog({
+    ...(companyId === undefined ? {} : { companyId }),
+    permissions,
+  })
+  /** Spec 093: a medida típica do tipo, para a ficha nascer preenchida em vez de vazia. */
+  const vehicleReferences = useVehicleReferences({
     ...(companyId === undefined ? {} : { companyId }),
     permissions,
   })
@@ -371,6 +384,7 @@ export function FleetWorkspacePage() {
           editor={editor}
           onEditVehicle={(vehicle) => setEditor({ kind: 'vehicle', vehicle })}
           vehicleCatalog={vehicleCatalog}
+          vehicleReferences={vehicleReferences}
           vehicles={vehicles}
           workspace={workspace}
           onClose={() => setEditor(null)}

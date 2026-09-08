@@ -158,7 +158,10 @@ describe('a prévia acusa peso concentrado numa parada', () => {
     boxesByDocument: new Map(),
     capacityM3: '10.000000',
     cargoWeight: null,
+    /** Spec 094: sem caixa medida na empresa, a presumida não tem tamanho — e não é inventada. */
+    fallbackBoxVolumeM3: null,
     loadingAccess: 'rear' as const,
+    measuredShapes: [],
     occupancy: null,
   }
 
@@ -191,7 +194,13 @@ describe('a prévia acusa peso concentrado numa parada', () => {
       vehicleId: 'vehicle',
     })
 
-    expect(preview.weightConcentration).toEqual({ share: 0.8, stopId: 'porta-1' })
+    /** ⚠️ O aviso carrega o **rótulo** da parada: a chave crua (`3534302|14620000|50`) não diz a
+     * ninguém de qual endereço se trata, e é justamente o aviso que pede uma ação. */
+    expect(preview.weightConcentration).toEqual({
+      label: 'A',
+      share: 0.8,
+      stopId: 'porta-1',
+    })
   })
 
   test('carga equilibrada não acusa nada', async () => {

@@ -147,13 +147,18 @@ export type TripStopDetail = {
  * marca junto do número (contrato de tela, T011).
  */
 /**
- * Spec 079: o peso da carga da viagem. **Sem percentual** — a ficha do veículo não guarda
- * capacidade em massa, e um teto inventado para produzir porcentagem é o defeito que a ocupação
- * evita ao devolver `null` sem capacidade conhecida.
+ * Spec 079/093: o peso da carga da viagem, e quanto ele ocupa do teto do veículo.
+ *
+ * ⚠️ O teto é `fleet_vehicles.capacity_kg`, o `capKG` do MDF-e — ele **sempre existiu**, e o que
+ * faltava era alguém lê-lo fora da emissão fiscal. Ausência continua sendo `null` nos dois campos,
+ * nunca 100% nem zero: veículo sem teto cadastrado com carga dentro é o caso em que um número
+ * inventado faz alguém parar de carregar, ou continuar.
  */
 export type TripCargoWeightView = {
   readonly documentsWithoutWeight: number
   readonly grossWeightKilograms: string
+  readonly maxPayloadKg: string | null
+  readonly payloadRatio: string | null
   readonly source: 'declared' | 'estimated'
 }
 

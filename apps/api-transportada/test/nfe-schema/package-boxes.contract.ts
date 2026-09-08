@@ -5,6 +5,7 @@ import { describe, expect, test } from 'bun:test'
 import { getTableConfig } from 'drizzle-orm/pg-core'
 
 import { nfePackageBoxes } from '../../src/database/nfe.schema.js'
+import { checkSqlByName } from '../fiscal-schema/support.js'
 
 const config = getTableConfig(nfePackageBoxes)
 const columnNames = config.columns.map((column) => column.name)
@@ -26,6 +27,15 @@ describe('a caixa de papelão e a medida dela (spec 085 G004)', () => {
       'width_mm',
       'height_mm',
       'gross_weight_grams',
+      /**
+       * Spec 094: as propriedades que decidem **onde** a caixa pode ir. Todas nulas — nulo é
+       * "ninguém informou", nunca "pode": com `is_stackable` nulo a planta empilha e marca o
+       * arranjo como presumido; com `false` ela não empilha e não marca.
+       */
+      'is_stackable',
+      'max_stack_count',
+      'is_fragile',
+      'keep_upright',
       'measured_at',
       'created_at',
       'updated_at',
@@ -85,5 +95,20 @@ describe('a caixa de papelão e a medida dela (spec 085 G004)', () => {
 
     expect(indexNames).toContain('nfe_package_boxes_company_pending_idx')
     expect(indexNames).toContain('nfe_package_boxes_company_gtin_idx')
+  })
+})
+
+/**
+ * ⚠️ Pilha declarada em caixa que não empilha é contradição, e pilha de zero não existe — a primeira
+ * coisa que alguém digita errado num formulário com quatro campos novos.
+ */
+describe('restrições de empilhamento (spec 094)', () => {
+  test('recusa pilha de zero e pilha em caixa que não empilha', () => {
+    expect(checkNames).toContain('nfe_package_boxes_stack_check')
+
+    const sql = checkSqlByName(nfePackageBoxes).nfe_package_boxes_stack_check ?? ''
+
+    expect(sql).toContain('> 0')
+    expect(sql).toContain('is not false')
   })
 })

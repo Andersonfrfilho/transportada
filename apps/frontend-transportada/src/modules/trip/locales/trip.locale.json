@@ -268,14 +268,20 @@
     "dimensions": "Baú de {{length}} × {{width}} × {{height}} m = {{volume}} m³.",
     "partial": "Parcial: parte das caixas usou a medida mediana da empresa.",
     "weightConcentration": "Atenção: {{percent}}% do peso está na parada {{stop}} — o desenho acima é de volume, não de peso.",
-    "capacityUnknown": "Este veículo não tem capacidade cadastrada, e o tipo dele não tem referência de mercado — por isso não há ocupação nem planta do baú. Preencha comprimento, largura e altura do baú na ficha do veículo, em Frota."
+    "capacityUnknown": "Este veículo não tem capacidade cadastrada, e o tipo dele não tem referência de mercado — por isso não há ocupação nem planta do baú. Preencha comprimento, largura e altura do baú na ficha do veículo, em Frota.",
+    "label": "Ocupação do baú"
   },
   "cargoWeight": {
     "title": "Peso da carga",
     "total": "{{weight}} kg",
+    "payload": "{{percent}}% da carga máxima do veículo ({{capacity}} kg).",
     "estimated": "Peso estimado: o emitente não declarou o peso de nenhum volume desta carga, e o cálculo usa o peso por volume configurado.",
     "withoutWeight": "{{count}} nota sem peso não entrou na conta.",
-    "withoutWeight_other": "{{count}} notas sem peso não entraram na conta."
+    "withoutWeight_other": "{{count}} notas sem peso não entraram na conta.",
+    "label": "Peso da carga",
+    "ratio": "{{percent}}% do peso",
+    "loaded": "{{weight}} kg de {{capacity}} kg",
+    "withoutCeiling": "Carga máxima não cadastrada na ficha do veículo — sem ela não há percentual de peso."
   },
   "deliveryProof": {
     "title": "Comprovante da entrega",
@@ -667,5 +673,26 @@
       "photoAlt": "Foto anexada à ocorrência",
       "closePhoto": "Fechar foto"
     }
+  },
+  "cargoLayers": {
+    "title": "Onde cada caixa cabe",
+    "promise": "Este arranjo cabe no baú e respeita a ordem de entrega. Ele não é plano de estiva: a tela ainda não conhece a empilhabilidade de toda caixa, o peso de cada uma nem o limite por eixo.",
+    "previous": "Camada abaixo",
+    "next": "Camada acima",
+    "position": "Camada {{index}} de {{total}}",
+    "planLabel": "Planta da camada {{index}}, vista de cima",
+    "sideLayer": "Camada {{index}}",
+    "estimated": "Arranjo presumido: parte das caixas foi derivada do volume, ou tem restrição de empilhamento que ninguém informou.",
+    "unplaced": {
+      "notMeasured": "{{count}} caixa de {{label}} ficou fora do desenho: ninguém a mediu.",
+      "notMeasured_other": "{{count}} caixas de {{label}} ficaram fora do desenho: ninguém as mediu.",
+      "largerThanBed": "{{count}} caixa de {{label}} não cabe neste baú.",
+      "largerThanBed_other": "{{count}} caixas de {{label}} não cabem neste baú.",
+      "bedFull": "{{count}} caixa de {{label}} não coube: o baú encheu.",
+      "bedFull_other": "{{count}} caixas de {{label}} não couberam: o baú encheu.",
+      "tooMany": "{{count}} caixa de {{label}} ficou fora do desenho por limite de detalhe.",
+      "tooMany_other": "{{count}} caixas de {{label}} ficaram fora do desenho por limite de detalhe."
+    },
+    "sideDoor": "Porta lateral (direita)"
   }
 }

@@ -74,3 +74,32 @@
   font-size: 26px;
   text-anchor: middle;
 }
+
+/**
+ * Spec 094: com caixas desenhadas, a faixa da parada vai para trás e fica fraca — ela diz de quem é
+ * o espaço, e a caixa diz o que ocupa. Com o mesmo peso, a faixa competiria com a carga.
+ */
+.bandsBehind {
+  opacity: 0.18;
+}
+
+.box {
+  stroke: color-mix(in srgb, var(--color-asphalt) 70%, transparent);
+  stroke-width: 1.5;
+}
+
+/** A hachura tira a cor do preenchimento; o contorno a devolve, para a parada continuar legível. */
+.boxEstimatedEdge {
+  fill: none;
+  stroke-width: 2;
+}
+
+/**
+ * A porta lateral: traço grosso e vazado na borda do lado direito. Ela muda o que a ordem de
+ * carregamento significa — com lateral a última parada no fundo é conveniência, sem ela é obrigação.
+ */
+.sideDoor {
+  stroke: var(--color-copper);
+  stroke-width: 5;
+  stroke-linecap: round;
+}

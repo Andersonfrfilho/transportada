@@ -204,6 +204,8 @@ import { DrizzleFleetDriverVehicleRepository } from './fleet/infrastructure/driz
 import { DrizzleFleetDriverRepository } from './fleet/infrastructure/drizzle-fleet-driver.repository'
 import { DrizzleFleetVehicleRepository } from './fleet/infrastructure/drizzle-fleet-vehicle.repository'
 import { createFleetCatalogRoutes } from './fleet/presentation/fleet-catalog.routes'
+import { createVehicleReferenceRoutes } from './fleet/presentation/vehicle-reference.routes'
+import { DrizzleVehicleReferenceRepository } from './fleet/infrastructure/drizzle-vehicle-reference.repository'
 import { createIdentityContactDirectoryGateway } from './fleet/infrastructure/identity-contact-directory.gateway'
 import { createFleetRoutes } from './fleet/presentation/fleet.routes'
 import { createLookupPostalCodeUseCase } from './addresses/application/lookup-postal-code.use-case.js'
@@ -1592,6 +1594,9 @@ function createApplicationRoutes({
       vehicleCatalog: { isAvailable: () => vehicleCatalog !== null },
     }),
     ...createFleetCatalogRoutes({ vehicleCatalog: fleetVehicleCatalog }),
+    ...createVehicleReferenceRoutes({
+      vehicleReferences: new DrizzleVehicleReferenceRepository({ database }),
+    }),
     ...createPostalCodeRoutes({ lookup: lookupPostalCode }),
     ...createAddressReportRoutes({ readReport: readAddressReport }),
     ...createFleetDriverRegionRoutes({

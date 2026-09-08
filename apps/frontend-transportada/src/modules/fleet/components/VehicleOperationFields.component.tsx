@@ -4,6 +4,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { LOADING_ACCESS_KINDS } from '@/modules/shared/loadingAccess.constant'
 
 import { MDFE_BODY_TYPE, type FleetVehicleFormState } from '../shared/fleet.types'
+import type { VehicleSuggestionOrigin } from '../shared/vehicleSuggestion.service'
 import { VEHICLE_MEASURE_FIELD_SCALE } from '../shared/fleetVehicleMeasure.service'
 import {
   deriveCapacityCubicMeters,
@@ -16,14 +17,34 @@ type VehicleOperationFieldsProps = Readonly<{
   documentFields: ReadonlySet<string>
   onChange: (values: Partial<FleetVehicleFormState>) => void
   state: FleetVehicleFormState
+  /** Spec 093: os campos que a sugestão preencheu e que o operador ainda não tocou. */
+  suggestedFields?: ReadonlySet<string>
+  suggestionOrigin?: VehicleSuggestionOrigin | null
 }>
 
 export function VehicleOperationFields({
   documentFields,
   onChange,
   state,
+  suggestedFields = new Set(),
+  suggestionOrigin = null,
 }: VehicleOperationFieldsProps) {
   const { t } = useTranslation('fleet')
+  /**
+   * ⚠️ **A origem viaja junto do número, sempre.** Um valor plausível sem dizer de onde veio é o
+   * modo de falha que a ADR-0044 §1 nomeia — e aqui ele viraria o metro que a planta do baú desenha
+   * para quem vai conferir com fita. O texto da referência leva a faixa observada junto, porque a
+   * dispersão dentro de um tipo chega a 2×.
+   */
+  function suggestionHint(field: string): Readonly<{ hint: string }> | Record<string, never> {
+    if (!suggestedFields.has(field) || suggestionOrigin === null) return {}
+    return {
+      hint:
+        suggestionOrigin.kind === 'vehicle'
+          ? t('cargoSuggestionFromVehicle', { plate: suggestionOrigin.plate })
+          : t('cargoSuggestionFromReference'),
+    }
+  }
   /**
    * Spec 088 R1: medidas as três, o m³ é derivado e o campo digitado sai de cena — dois números que
    * discordam são a divergência que ninguém corrige, e o resolvedor já prefere a medida.
@@ -61,6 +82,7 @@ export function VehicleOperationFields({
           onChange={(tareWeightKilograms) => onChange({ tareWeightKilograms })}
         />
         <FleetMeasureField
+          {...suggestionHint('capacityKilograms')}
           label={t('capacityKilograms')}
           scale={VEHICLE_MEASURE_FIELD_SCALE.capacityKilograms.form}
           value={state.capacityKilograms}
@@ -68,6 +90,7 @@ export function VehicleOperationFields({
         />
         <FleetMeasureField
           optional
+          {...suggestionHint('cargoLengthMeters')}
           label={t('cargoLengthMeters')}
           scale={VEHICLE_MEASURE_FIELD_SCALE.cargoLengthMeters.form}
           value={state.cargoLengthMeters}
@@ -75,6 +98,7 @@ export function VehicleOperationFields({
         />
         <FleetMeasureField
           optional
+          {...suggestionHint('cargoWidthMeters')}
           label={t('cargoWidthMeters')}
           scale={VEHICLE_MEASURE_FIELD_SCALE.cargoWidthMeters.form}
           value={state.cargoWidthMeters}
@@ -82,6 +106,7 @@ export function VehicleOperationFields({
         />
         <FleetMeasureField
           optional
+          {...suggestionHint('cargoHeightMeters')}
           label={t('cargoHeightMeters')}
           scale={VEHICLE_MEASURE_FIELD_SCALE.cargoHeightMeters.form}
           value={state.cargoHeightMeters}

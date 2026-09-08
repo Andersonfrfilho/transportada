@@ -278,6 +278,8 @@
   "capacityCubicMetersDerivedHint": "Derived from the cargo length, width and height.",
   "hasAutomaticTollPayment": "Automatic toll payment (tag)",
   "hasAutomaticTollPaymentHint": "With the tag, tolls use the booth's automatic rate when it is known. Without a known automatic rate, the total falls back to the manual one.",
+  "cargoSuggestionFromVehicle": "Copied from {{plate}}, in this fleet. Check it with a tape before saving.",
+  "cargoSuggestionFromReference": "Typical for the type, not a measurement. Spread within a type reaches twice over — check it with a tape before saving.",
   "ownership": "Ownership",
   "ownershipOption": {
     "aggregate": "Aggregate",

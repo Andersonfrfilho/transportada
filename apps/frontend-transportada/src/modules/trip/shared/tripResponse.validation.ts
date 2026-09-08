@@ -715,10 +715,34 @@ function isCargoLayout(value: unknown): boolean {
      * Um só preenchido seria uma planta com metade da escala, desenhada mesmo assim.
      */
     isNullableString(value.bedLengthM) &&
+    /** API antiga não serve o acesso: sem ele a planta desenha só a traseira, que é o mais restritivo. */
+    (value.loadingAccess === undefined || isString(value.loadingAccess)) &&
+    /**
+     * Spec 094: o arranjo é opcional na resposta — API antiga não o serve, e recusar a resposta
+     * inteira por causa dele apagaria a planta que já funciona.
+     */
+    (value.placement === undefined || value.placement === null || isPlacement(value.placement)) &&
     isNullableString(value.bedWidthM) &&
     isNullableString(value.freeDepthM) &&
     isNullableString(value.overflowDepthM) &&
     Array.isArray(value.stopsWithoutVolume)
+  )
+}
+
+/**
+ * O arranjo camada por camada. Valida a forma, não cada caixa: são até 600, e percorrer todas em
+ * cada resposta custaria mais que desenhá-las.
+ */
+function isPlacement(value: unknown): boolean {
+  if (!isRecord(value)) return false
+
+  return (
+    Array.isArray(value.layers) &&
+    value.layers.every(
+      (layer) => isRecord(layer) && Array.isArray(layer.boxes) && isUnsignedInteger(layer.index),
+    ) &&
+    Array.isArray(value.unplaced) &&
+    isOneOf(value.source, TRIP_OCCUPANCY_SOURCES)
   )
 }
 
@@ -728,6 +752,9 @@ function isCargoWeight(value: unknown): boolean {
   return (
     isUnsignedInteger(value.documentsWithoutWeight) &&
     isString(value.grossWeightKilograms) &&
+    /** Os dois andam juntos: teto sem percentual, ou percentual sem teto, é resposta pela metade. */
+    isNullableString(value.maxPayloadKg) &&
+    isNullableString(value.payloadRatio) &&
     isOneOf(value.source, TRIP_OCCUPANCY_SOURCES)
   )
 }
@@ -740,7 +767,12 @@ function isCargoWeight(value: unknown): boolean {
 const TRIP_OCCUPANCY_SOURCES = ['declared', 'estimated', 'measured', 'partial'] as const
 
 function isWeightConcentration(value: unknown): value is TripWeightConcentration {
-  return isRecord(value) && typeof value.share === 'number' && isString(value.stopId)
+  return (
+    isRecord(value) &&
+    isString(value.label) &&
+    typeof value.share === 'number' &&
+    isString(value.stopId)
+  )
 }
 
 function isOccupancy(value: unknown): boolean {

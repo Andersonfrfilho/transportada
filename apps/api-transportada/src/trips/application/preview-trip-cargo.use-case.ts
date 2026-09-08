@@ -5,6 +5,7 @@ import { formatScaledDecimal, parseScaledDecimal } from '../../shared/decimal.se
 import type { CargoBedDimensions } from '../domain/cargo-layout.policy.js'
 import type { CargoPlanBox } from '../domain/cargo-plan.policy.js'
 import { resolveCargoLayout, type ResolvedCargoLayout } from '../domain/cargo-layout.policy.js'
+import type { MeasuredBoxShape } from '../domain/cargo-placement.policy.js'
 import {
   buildCargoPreviewStops,
   type CargoPreviewDocument,
@@ -36,6 +37,9 @@ export type TripCargoPreviewContext = {
   /** Spec 088 G003: as caixas medidas por nota — a parada as reúne no mesmo agrupamento. */
   readonly boxesByDocument: ReadonlyMap<string, readonly CargoPlanBox[]>
   readonly capacityM3: string | null
+  /** O volume típico de uma caixa da empresa — a mediana das medidas. */
+  readonly fallbackBoxVolumeM3: number | null
+  readonly measuredShapes: readonly MeasuredBoxShape[]
   readonly loadingAccess: LoadingAccess
   readonly cargoWeight: TripCargoWeightView | null
   readonly documents: readonly CargoPreviewDocument[]
@@ -82,7 +86,10 @@ export async function previewTripCargo(input: PreviewTripCargoInput): Promise<Tr
       /** Spec 088 D2: só a ficha desenha planta — a referência de mercado erra por 2× no tipo. */
       bedDimensions: context.bedDimensions,
       capacityM3: context.capacityM3,
+      /** Spec 094: dá tamanho e forma à caixa presumida — sem isso ela fica fora do desenho. */
+      fallbackBoxVolumeM3: context.fallbackBoxVolumeM3,
       loadingAccess: context.loadingAccess,
+      measuredShapes: context.measuredShapes,
       stops: buildCargoPreviewStops({
         boxesByDocument: context.boxesByDocument,
         documents: context.documents,
@@ -100,15 +107,19 @@ export async function previewTripCargo(input: PreviewTripCargoInput): Promise<Tr
  * normaliza vira parada própria, como em `buildCargoPreviewStops` — dois critérios de agrupamento
  * fariam o alerta apontar para uma parada que o desenho não mostra.
  */
-function sumWeightByStop(
-  documents: readonly CargoPreviewDocument[],
-): readonly { readonly stopId: string; readonly weightKilograms: string | null }[] {
+function sumWeightByStop(documents: readonly CargoPreviewDocument[]): readonly {
+  readonly label: string
+  readonly stopId: string
+  readonly weightKilograms: string | null
+}[] {
   /**
    * ⚠️ Soma em `bigint` escalado, não em `number`: `nfe_volumes.gross_weight` é `numeric(_,4)`, e
    * somar em float e voltar por `String()` produz `"0.30000000000000004"` — e notação exponencial
    * em totais grandes, que o próximo leitor da string não reabre.
    */
   const byStop = new Map<string, bigint>()
+  /** O rótulo da parada, para o aviso nomear um endereço em vez da chave que o agrupa. */
+  const labelByStop = new Map<string, string>()
   for (const document of documents) {
     const stopId = document.addressKey ?? `documento:${document.nfeDocumentId}`
     const weight =
@@ -120,8 +131,10 @@ function sumWeightByStop(
             value: document.weightKilograms,
           })
     byStop.set(stopId, (byStop.get(stopId) ?? 0n) + weight)
+    if (!labelByStop.has(stopId)) labelByStop.set(stopId, document.label)
   }
   return [...byStop].map(([stopId, weight]) => ({
+    label: labelByStop.get(stopId) ?? stopId,
     stopId,
     weightKilograms: formatScaledDecimal(weight, WEIGHT_SCALE),
   }))

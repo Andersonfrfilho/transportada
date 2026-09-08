@@ -3,7 +3,10 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { resolveTripCargoWeight } from '../../src/trips/domain/trip-cargo-weight.policy.js'
+import {
+  resolveTripCargoWeight,
+  withPayloadCeiling,
+} from '../../src/trips/domain/trip-cargo-weight.policy.js'
 
 describe('trip cargo weight contract', () => {
   test('soma as notas e diz que o total é declarado', () => {
@@ -14,7 +17,13 @@ describe('trip cargo weight contract', () => {
           { grossWeightKilograms: '41.3300', source: 'xml' },
         ],
       }),
-    ).toEqual({ documentsWithoutWeight: 0, grossWeightKilograms: '150.0000', source: 'declared' })
+    ).toEqual({
+      documentsWithoutWeight: 0,
+      grossWeightKilograms: '150.0000',
+      maxPayloadKg: null,
+      payloadRatio: null,
+      source: 'declared',
+    })
   })
 
   /**
@@ -30,7 +39,13 @@ describe('trip cargo weight contract', () => {
           { grossWeightKilograms: '200.0000', source: 'estimated' },
         ],
       }),
-    ).toEqual({ documentsWithoutWeight: 0, grossWeightKilograms: '308.6700', source: 'estimated' })
+    ).toEqual({
+      documentsWithoutWeight: 0,
+      grossWeightKilograms: '308.6700',
+      maxPayloadKg: null,
+      payloadRatio: null,
+      source: 'estimated',
+    })
   })
 
   /**
@@ -46,7 +61,13 @@ describe('trip cargo weight contract', () => {
           { grossWeightKilograms: '108.6700', source: 'xml' },
         ],
       }),
-    ).toEqual({ documentsWithoutWeight: 0, grossWeightKilograms: '308.6700', source: 'estimated' })
+    ).toEqual({
+      documentsWithoutWeight: 0,
+      grossWeightKilograms: '308.6700',
+      maxPayloadKg: null,
+      payloadRatio: null,
+      source: 'estimated',
+    })
   })
 
   /** Nota sem peso é dita à parte, nunca somada como zero — zero diria que a carga não pesa nada. */
@@ -58,7 +79,13 @@ describe('trip cargo weight contract', () => {
           { grossWeightKilograms: null, source: null },
         ],
       }),
-    ).toEqual({ documentsWithoutWeight: 1, grossWeightKilograms: '108.6700', source: 'declared' })
+    ).toEqual({
+      documentsWithoutWeight: 1,
+      grossWeightKilograms: '108.6700',
+      maxPayloadKg: null,
+      payloadRatio: null,
+      source: 'declared',
+    })
   })
 
   /** Viagem sem nota alguma com peso não tem peso: ausência, não um zero que parece medida. */
@@ -70,5 +97,83 @@ describe('trip cargo weight contract', () => {
 
   test('viagem sem nota não tem peso', () => {
     expect(resolveTripCargoWeight({ documents: [] })).toBeNull()
+  })
+})
+
+/**
+ * Spec 093: o teto que sempre esteve no banco. `fleet_vehicles.capacity_kg` é o `capKG` do MDF-e e
+ * está preenchida em 10 dos 12 veículos desta base — o que faltava era alguém lê-la fora da emissão
+ * fiscal, e por isso a montagem somava o peso sem comparar com nada.
+ */
+describe('trip cargo weight ceiling contract', () => {
+  /**
+   * ⚠️ O teto entra por `withPayloadCeiling`, **e só por ele**: é o caminho que a viagem e a prévia
+   * usam, porque o peso e o veículo são lidos em paralelo. Uma segunda porta em
+   * `resolveTripCargoWeight` seria a porta coberta por teste e chamada por ninguém.
+   */
+  test('divide a carga pelo teto da ficha, e diz qual é o teto', () => {
+    expect(
+      withPayloadCeiling({
+        maxPayloadKg: '4200.0000',
+        view: resolveTripCargoWeight({
+          documents: [{ grossWeightKilograms: '2100.0000', source: 'xml' }],
+        }),
+      }),
+    ).toEqual({
+      documentsWithoutWeight: 0,
+      grossWeightKilograms: '2100.0000',
+      maxPayloadKg: '4200.0000',
+      payloadRatio: '0.5000',
+      source: 'declared',
+    })
+  })
+
+  /**
+   * ⚠️ Ausência é `null`, **nunca 100% nem zero** — a mesma regra da ocupação. Veículo sem carga
+   * cadastrada com carga dentro é justamente o caso em que um número inventado faria alguém parar
+   * de carregar, ou continuar.
+   */
+  test('sem teto cadastrado não há percentual, e zero é ausência', () => {
+    for (const maxPayloadKg of [null, '0.0000']) {
+      expect(
+        withPayloadCeiling({
+          maxPayloadKg,
+          view: resolveTripCargoWeight({
+            documents: [{ grossWeightKilograms: '2100.0000', source: 'xml' }],
+          }),
+        }),
+      ).toMatchObject({ maxPayloadKg: null, payloadRatio: null })
+    }
+  })
+
+  /** Estouro sai como está: acima de 100% é o que o conferente precisa ver, não um número aparado. */
+  test('não apara o estouro do teto', () => {
+    expect(
+      withPayloadCeiling({
+        maxPayloadKg: '4200.0000',
+        view: resolveTripCargoWeight({
+          documents: [{ grossWeightKilograms: '8400.0000', source: 'xml' }],
+        }),
+      }),
+    ).toMatchObject({ payloadRatio: '2.0000' })
+  })
+})
+
+/**
+ * ⚠️ Um caminho só para o teto. `resolveTripCargoWeight` **não aceita** `maxPayloadKg`: aceitar
+ * criava uma segunda porta para a mesma decisão, e era a porta coberta por teste e chamada por
+ * ninguém — quem "consertasse" o percentual por ela não mudaria tela nenhuma.
+ */
+describe('uma porta só para o teto', () => {
+  test('a soma não conhece teto nenhum', () => {
+    const view = resolveTripCargoWeight({
+      documents: [{ grossWeightKilograms: '2100.0000', source: 'xml' }],
+    })
+
+    expect(view).toMatchObject({ maxPayloadKg: null, payloadRatio: null })
+  })
+
+  test('view ausente continua ausente depois do teto', () => {
+    expect(withPayloadCeiling({ maxPayloadKg: '4200.0000', view: null })).toBeNull()
   })
 })

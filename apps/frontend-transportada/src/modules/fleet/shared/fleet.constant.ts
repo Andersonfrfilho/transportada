@@ -7,6 +7,8 @@ export const FLEET_DRIVERS_PATH = '/fleet/drivers'
 export const FLEET_DRIVER_VEHICLE_LINKS_PATH = '/fleet/driver-vehicles'
 export const FLEET_CAPABILITIES_PATH = '/fleet/capabilities'
 export const DRIVER_AVAILABILITY_PATH = `${FLEET_DRIVERS_PATH}/availability`
+/** Spec 093: o catálogo de referência de baú por tipo, que a ficha consulta para sugerir. */
+export const FLEET_VEHICLE_REFERENCES_PATH = '/fleet/vehicle-references'
 export const FLEET_VEHICLE_CATALOG_BRANDS_PATH = '/fleet/vehicle-catalog/brands'
 export const FLEET_VEHICLE_CATALOG_MODELS_PATH = '/fleet/vehicle-catalog/models'
 export const FREIGHT_REGIONS_PATH = '/freight-regions'

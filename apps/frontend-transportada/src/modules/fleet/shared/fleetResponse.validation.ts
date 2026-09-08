@@ -37,6 +37,8 @@ import type {
   FleetVehiclePage,
 } from './fleet.types'
 import { FLEET_VEHICLE_CATALOG_SOURCE } from './fleet.types'
+import { VEHICLE_TYPES } from '@/modules/shared/vehicleType.constant'
+import type { VehicleReference } from './vehicleSuggestion.service'
 import {
   FLEET_ENUMS,
   hasEveryKey,
@@ -302,6 +304,26 @@ function isCatalogOption(value: unknown): boolean {
   return isRecord(value) && isString(value.code) && isString(value.name)
 }
 
+/**
+ * ⚠️ `vehicleType` é validado contra o catálogo **mais a string vazia**, que é o implemento — o tipo
+ * pertence a quem traciona. Recusar o vazio derrubaria a lista inteira por causa das duas linhas de
+ * carreta, e a sugestão sumiria de todos os tipos.
+ *
+ * A carga é `null` quando o mercado não publica: `undefined` seria o campo ausente, e ausência de
+ * campo é resposta de outra versão da API.
+ */
+function isVehicleReference(value: unknown): value is VehicleReference {
+  return (
+    isRecord(value) &&
+    isString(value.bodyType) &&
+    isDecimalString(value.cargoHeightM) &&
+    isDecimalString(value.cargoLengthM) &&
+    isDecimalString(value.cargoWidthM) &&
+    (value.maxPayloadKg === null || isDecimalString(value.maxPayloadKg)) &&
+    (value.vehicleType === '' || isOneOf(value.vehicleType, VEHICLE_TYPES))
+  )
+}
+
 function isCatalogResult(value: unknown): value is FleetVehicleCatalogResult {
   return (
     isRecord(value) &&
@@ -342,6 +364,10 @@ export function createFleetResponseAdapters() {
     },
     catalogResultFromApi(input: unknown): FleetVehicleCatalogResult {
       if (!isCatalogResult(input)) throw invalid()
+      return input
+    },
+    vehicleReferencesFromApi(input: unknown): readonly VehicleReference[] {
+      if (!Array.isArray(input) || !input.every(isVehicleReference)) throw invalid()
       return input
     },
     driverAvailabilityFromApi(input: unknown): FleetDriverAvailability {
