@@ -287,7 +287,14 @@ export function resolveCargoPlacement(input: {
   }
 
   rows.push(
-    ...placeSplitCargo({ bed, budget: MAX_PLACED_BOXES - placedCount, leftovers, rows, unplaced }),
+    ...placeSplitCargo({
+      bed,
+      budget: MAX_PLACED_BOXES - placedCount,
+      lanes,
+      leftovers,
+      rows,
+      unplaced,
+    }),
   )
 
   /**
@@ -835,6 +842,8 @@ const MAX_SPLIT_BOXES = 40
 function placeSplitCargo(input: {
   readonly bed: Readonly<{ heightM: number; lengthM: number; widthM: number }>
   readonly budget: number
+  /** Spec 100: com faixas não existe "região das paradas posteriores" para onde empurrar a sobra. */
+  readonly lanes: boolean
   readonly leftovers: readonly { readonly box: PlacementBox; readonly sliceStartM: number }[]
   readonly rows: readonly PlacedBox[]
   readonly unplaced: UnplacedBox[]
@@ -892,6 +901,23 @@ function placeSplitCargo(input: {
     attempts += 1
     if (placed.length >= input.budget || attempts > MAX_SPLIT_BOXES) {
       pushUnplaced(input.unplaced, { count: 1, label: box.label, reason: 'tooMany' })
+      continue
+    }
+    /**
+     * ⚠️ **Em faixas a sobra não se divide — ela não coube mesmo** (spec 100 G003). Em profundidade
+     * a sobra sobe para a região das paradas entregues depois, mais fundo no baú: ali nada fica por
+     * cima dela e o corredor já está livre quando a vez dela chega. Em faixas essa região não
+     * existe. A faixa vai do chão ao teto e da porta à testeira, e é limitada só na largura — então
+     * a parada que estoura a própria faixa já encheu o baú, e o único lugar que sobra é **em cima da
+     * faixa de outra parada**, que é exatamente o que a fatia veio proibir.
+     *
+     * Medido no baú da spec (Fiorino, três paradas de caixa igual): a partir de 60 caixas colocadas
+     * toda sobra sai como `bedFull`, e `findSplitSpot` não achava lugar nenhum. Deixá-la entrar na
+     * busca era pior que inútil: `sliceStartM` é deslocamento de **largura** em faixas, e a busca o
+     * lia como limite de profundidade — recusava por acaso, não por regra.
+     */
+    if (input.lanes) {
+      pushUnplaced(input.unplaced, { count: 1, label: box.label, reason: 'bedFull' })
       continue
     }
     const slot = fitSlot({ bed: input.bed, box })

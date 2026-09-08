@@ -725,6 +725,70 @@ describe('as faixas paralelas à porta (spec 100)', () => {
     expect(Math.max(...boxes.map((entry) => entry.xM + entry.depthM))).toBeCloseTo(1.7, 2)
   })
 
+  /**
+   * ⚠️ **O vão sobra do lado oposto à primeira entrega, e nunca entre faixas.** Em profundidade a
+   * 099 D2 empurra o bloco para terminar na porta; aqui isso poria justamente a primeira entrega
+   * longe da porta lateral. A primeira faixa começa em zero, e o que sobra fica na lateral oposta.
+   */
+  test('o vão de largura sobra do lado oposto à primeira entrega', () => {
+    const boxes = placed(resolveCargoPlacement({ bed: FIORINO, boxes: TRES_PARADAS }))
+    const larguraM = Number.parseFloat(FIORINO.widthM)
+
+    expect(lateral(boxes, 1).from).toBeCloseTo(0, 3)
+    expect(lateral(boxes, 3).to).toBeLessThan(larguraM)
+  })
+
+  /**
+   * ⚠️ **Em faixas a sobra não se divide — ela não coube mesmo** (spec 100 G003).
+   *
+   * Em profundidade a carga dividida sobe para a região das paradas entregues depois, mais fundo no
+   * baú: nada fica por cima dela e o corredor já está livre quando a vez dela chega. Em faixas essa
+   * região **não existe** — a faixa vai do chão ao teto e da porta à testeira, e é limitada só na
+   * largura, então a parada que estoura a própria faixa já encheu o baú. O único lugar que sobraria
+   * é em cima da faixa de outra parada, que é o que a fatia veio proibir.
+   *
+   * Medido: a partir de 60 caixas colocadas neste baú toda sobra sai como `bedFull`.
+   */
+  test('em faixas a sobra sai como baú cheio, nunca em cima de outra parada', () => {
+    const plan = resolveCargoPlacement({
+      bed: FIORINO,
+      boxes: [1, 2, 3].map((stopSequence) =>
+        box({ count: 40, heightMm: 300, lengthMm: 400, stopSequence, widthMm: 300 }),
+      ),
+    })
+    const boxes = placed(plan)
+
+    /** A carga estoura o baú: sem isto a afirmação abaixo passaria por não haver sobra nenhuma. */
+    expect(plan?.unplaced.some((entry) => entry.reason === 'bedFull')).toBe(true)
+    expect(boxes.filter((entry) => entry.reasons.includes('splitCargo'))).toEqual([])
+  })
+
+  /**
+   * ⚠️ E a faixa continua sendo faixa mesmo com o baú estourando: nenhuma caixa cruza para a largura
+   * de outra parada. É a proibição da 095 G001, no eixo que a 100 escolheu.
+   */
+  test('nem com o baú estourando uma parada invade a faixa de outra', () => {
+    const boxes = placed(
+      resolveCargoPlacement({
+        bed: FIORINO,
+        boxes: [1, 2, 3].map((stopSequence) =>
+          box({ count: 40, heightMm: 300, lengthMm: 400, stopSequence, widthMm: 300 }),
+        ),
+      }),
+    )
+
+    const invadindo = boxes.filter((entry) =>
+      boxes.some(
+        (other) =>
+          other.stopSequence !== entry.stopSequence &&
+          entry.yM < other.yM + other.widthM - 1e-9 &&
+          other.yM < entry.yM + entry.widthM - 1e-9,
+      ),
+    )
+
+    expect(invadindo).toEqual([])
+  })
+
   /** A física vence: acima de metade do teto de massa a carga volta a se dividir em profundidade. */
   test('carga pesada volta ao arranjo em profundidade', () => {
     const boxes = placed(
