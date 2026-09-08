@@ -77,6 +77,35 @@ O guia de campo (ADR-0059) leva o motorista até a próxima parada do roteiro de
 caminho na rua não replaneja a viagem. O custo previsto é o do roteiro planejado — e continua sendo,
 mesmo que o motorista pegue outro caminho.
 
+### D6 — O retorno do agregado é a casa dele, e isso esbarra na ADR-0039
+
+Levantado pelo usuário em 2026-09-08: **o retorno pode ser ao barracão ou à casa do agregado.** Faz
+sentido operacional — o agregado não devolve o caminhão ao galpão, ele vai para casa —, e muda o
+custo: a última perna passa a depender de **quem dirige**, não só da política da empresa.
+
+O modelo hoje não comporta isso. `end_policy` é da **empresa** (`depot` | `last_stop` | `address`),
+e a casa do agregado é do **motorista**. Seria uma política nova, resolvida por viagem, com a
+coordenada vindo de `fleet_drivers`.
+
+⚠️ **E é aí que trava: `fleet_drivers` guarda o endereço residencial, e a ADR-0039 decidiu
+criptografá-lo — decidido _porque_ ninguém o lê.** O `CLAUDE.md` é explícito: _"quem for escrever
+leitor para um desses campos passa a ter de abrir envelope: confira a ADR antes"_. Esta feature seria
+o primeiro leitor, e ela transformaria uma migração barata em uma cara.
+
+Três consequências, e nenhuma é técnica:
+
+1. **Custo de segurança.** Implementar o retorno-para-casa antes da ADR-0039 significa deixar o
+   endereço em claro por mais tempo; implementar depois significa abrir envelope no caminho do
+   roteirizador, que é código quente.
+2. **O endereço de casa vira número de negócio.** A distância da última entrega até a casa do
+   agregado passa a entrar no custo previsto da viagem — e a diferença entre dois agregados vira
+   diferença de margem. Quem mora longe fica mais caro, e isso é decisão de produto, não de código.
+3. **Ele apareceria na tela do escritório.** O marcador do fim da rota seria a casa de uma pessoa,
+   num mapa que o operador vê. Hoje o produto **nunca** desenha residência de motorista.
+
+**Fica registrado e não implementado.** É spec própria, com decisão de produto sobre o item 2 e
+coordenação com a ADR-0039 sobre o item 1 — não é acréscimo a esta.
+
 ## Fora de escopo
 
 - **Barracão por veículo ou por viagem.** A origem é da empresa; frota que sai de mais de um ponto é
