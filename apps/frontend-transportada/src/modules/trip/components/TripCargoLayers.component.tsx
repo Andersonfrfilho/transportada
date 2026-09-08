@@ -19,10 +19,14 @@ import { stopColorOf } from '../shared/stopColor.service'
 import { isMostlyPresumed, resolveSliceCuts } from '../shared/cargoLegend.service'
 import { buildCargoPrintSummary } from '../shared/cargoPrintSummary.service'
 import { EMPTY_STOP_FOCUS, isStopLit, toggleStopFocus } from '../shared/stopFocus.service'
-import type { TripCargoLayout } from '../shared/trip.types'
+import { buildCargoStopLabels, formatCargoStopLabel } from '../shared/cargoStopLabel.service'
+import type { TripCargoLayout, TripStopDetail } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
 
-type TripCargoLayersProps = Readonly<{ layout: TripCargoLayout | null }>
+type TripCargoLayersProps = Readonly<{
+  layout: TripCargoLayout | null
+  stops?: readonly TripStopDetail[]
+}>
 
 /**
  * Spec 094: **onde cada caixa cabe**, camada por camada.
@@ -36,9 +40,15 @@ type TripCargoLayersProps = Readonly<{ layout: TripCargoLayout | null }>
  * celular de quem está no galpão — e o carregamento é feito uma camada por vez, que é a razão de o
  * desenho ser assim.
  */
-export function TripCargoLayers({ layout }: TripCargoLayersProps) {
+export function TripCargoLayers({ layout, stops = [] }: TripCargoLayersProps) {
   const { t } = useTranslation('trip')
   const [index, setIndex] = useState(0)
+  /**
+   * ⚠️ A camada só entra em foco depois que o operador **navega**. Antes disso o desenho é a pilha
+   * inteira, sólida: abrir a tela com as camadas de cima esmaecidas lia como caixa transparente, e
+   * não como "a camada aberta é a de baixo".
+   */
+  const [hasChosenLayer, setHasChosenLayer] = useState(false)
   const [view, setView] = useState(DEFAULT_CARGO_VIEW)
   /**
    * ⚠️ A mãozinha some no **primeiro** arrasto e não volta: ela é a única pista de que o desenho
@@ -96,6 +106,10 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
   const cargoTopM = Math.max(...boxes.map((box) => box.zM + box.heightM), 0)
   const drawnHeightM = bedHeightM > 0 ? bedHeightM : cargoTopM
 
+  const stopLabels = buildCargoStopLabels(stops)
+  const labelOf = (sequence: number): string =>
+    formatCargoStopLabel(stopLabels.get(sequence)) || t('cargoLayers.stop', { sequence })
+
   const stopSequences = [
     ...new Set(placement.layers.flatMap((layer) => layer.boxes.map((box) => box.stopSequence))),
   ].sort((first, second) => first - second)
@@ -114,7 +128,10 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
           disabled={index === 0}
           type="button"
           variant="ghost"
-          onClick={() => setIndex((previous) => Math.max(0, previous - 1))}
+          onClick={() => {
+            setIndex((previous) => Math.max(0, previous - 1))
+            setHasChosenLayer(true)
+          }}
         >
           <Icon name="chevron-left" />
           {t('cargoLayers.previous')}
@@ -129,9 +146,10 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
           disabled={index >= placement.layers.length - 1}
           type="button"
           variant="ghost"
-          onClick={() =>
+          onClick={() => {
             setIndex((previous) => Math.min(placement.layers.length - 1, previous + 1))
-          }
+            setHasChosenLayer(true)
+          }}
         >
           {t('cargoLayers.next')}
           <Icon name="chevron-right" />
@@ -147,7 +165,7 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
           bedWidthM={Number.parseFloat(layout.bedWidthM)}
           boxes={boxes}
           className={styles.cargoCanvas}
-          focusLayer={current.index}
+          {...(hasChosenLayer ? { focusLayer: current.index } : {})}
           hasSideDoor={layout.loadingAccess !== 'rear'}
           panX={view.panX}
           sliceCutsM={sliceCutsM}
@@ -198,7 +216,7 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
           {buildCargoPrintSummary(boxes).map((row, position) => (
             <tr key={row.stopSequence}>
               <td>{position + 1}</td>
-              <td>{t('cargoLayers.stop', { sequence: row.stopSequence })}</td>
+              <td>{labelOf(row.stopSequence)}</td>
               <td>
                 {t('cargoLayers.print.spanValue', {
                   from: row.fromM.toFixed(2),
@@ -226,7 +244,7 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
               className={styles.cargoStopDot}
               style={{ background: stopColorOf(stopSequence) }}
             />
-            {t('cargoLayers.stop', { sequence: stopSequence })}
+            {labelOf(stopSequence)}
           </button>
         ))}
       </div>

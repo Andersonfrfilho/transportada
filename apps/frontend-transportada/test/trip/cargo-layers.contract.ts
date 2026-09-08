@@ -49,7 +49,7 @@ describe('planta das camadas (spec 094)', () => {
      * diferentes, duas camadas de índice igual estão em alturas diferentes, e comparar altura
      * acenderia meia camada.
      */
-    expect(source).toContain('focusLayer={current.index}')
+    expect(source).toContain('focusLayer: current.index')
   })
 
   /**

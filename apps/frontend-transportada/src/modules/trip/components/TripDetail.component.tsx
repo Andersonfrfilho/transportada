@@ -392,6 +392,7 @@ export function TripDetail({ linkForm, vehicles, workspace }: TripDetailProps) {
         cargoWeight={trip.cargoWeight ?? null}
         layout={trip.cargoLayout}
         occupancy={trip.occupancy}
+        stops={trip.stops}
         vehicleType={vehicles.find((entry) => entry.id === trip.vehicleId)?.vehicleType ?? ''}
       />
 
