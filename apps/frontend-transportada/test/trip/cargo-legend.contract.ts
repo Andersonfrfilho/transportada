@@ -8,8 +8,15 @@ import trip from '../../src/modules/trip/locales/trip.locale.json'
 
 const APPLICATION_ROOT = new URL('../..', import.meta.url)
 
-function box(overrides: Partial<{ isEstimated: boolean; stopSequence: number; xM: number }>) {
-  return { isEstimated: false, stopSequence: 1, xM: 0, ...overrides }
+function box(
+  overrides: Partial<{
+    isEstimated: boolean
+    isSplit: boolean
+    stopSequence: number
+    xM: number
+  }>,
+) {
+  return { isEstimated: false, isSplit: false, stopSequence: 1, xM: 0, ...overrides }
 }
 
 /** Spec 095 G007: a tela conta o que sabe e o que presume. */
@@ -24,6 +31,21 @@ describe('trip cargo legend contract', () => {
     ])
 
     expect(cuts).toEqual([2.4, 5])
+  })
+
+  /**
+   * ⚠️ A carga **dividida** fica de fora da conta: ela mora fora da própria fatia, mais funda, e
+   * incluí-la fazia uma parada com uma única sobra empurrar a divisa para dentro da fatia seguinte —
+   * a linha contradizendo justamente a separação que ela existe para mostrar.
+   */
+  it('ignores split cargo when placing the cut', () => {
+    const cuts = resolveSliceCuts([
+      box({ stopSequence: 2, xM: 0 }),
+      box({ isSplit: true, stopSequence: 1, xM: 0.5 }),
+      box({ stopSequence: 1, xM: 3 }),
+    ])
+
+    expect(cuts).toEqual([3])
   })
 
   /** Uma parada só não tem divisa nenhuma: não há o que separar. */

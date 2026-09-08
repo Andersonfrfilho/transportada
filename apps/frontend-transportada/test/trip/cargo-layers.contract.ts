@@ -44,7 +44,12 @@ describe('planta das camadas (spec 094)', () => {
    */
   it('mostra todas as camadas, destacando a aberta', () => {
     expect(source).toContain('placement.layers.flatMap')
-    expect(source).toContain('focusLayerZM')
+    /**
+     * ⚠️ O foco é pelo **índice** da camada, nunca pela altura: com fatias de caixas de alturas
+     * diferentes, duas camadas de índice igual estão em alturas diferentes, e comparar altura
+     * acenderia meia camada.
+     */
+    expect(source).toContain('focusLayer={current.index}')
   })
 
   /**

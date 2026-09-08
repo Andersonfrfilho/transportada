@@ -108,6 +108,13 @@ export type CargoLayoutRow = {
 }
 
 export type ResolvedCargoLayout = {
+  /**
+   * A altura interna do baú, da ficha.
+   *
+   * ⚠️ Ela é o que diz se **cabe mais uma camada**. Sem servi-la, a tela desenhava o contorno na
+   * altura da carga, e o baú aparecia sempre cheio até o teto — a folga de altura nunca aparecia.
+   */
+  readonly bedHeightM: string | null
   /** O comprimento interno do baú, da ficha. `null` sem as três medidas — e aí não há planta. */
   readonly bedLengthM: string | null
   /**
@@ -273,6 +280,7 @@ export function resolveCargoLayout(input: {
    */
   const bed = input.bedDimensions ?? null
   const bedLength = bed === null ? 0n : toLength(bed.lengthM)
+  const bedHeight = bed === null ? 0n : toLength(bed.heightM)
   const section =
     bed === null ? 0n : divideHalfUp(toLength(bed.widthM) * toLength(bed.heightM), LENGTH_FACTOR)
   const bedKnown = bedLength > 0n && section > 0n
@@ -358,6 +366,7 @@ export function resolveCargoLayout(input: {
     .flatMap(({ count, ...row }) => Array.from({ length: count }, () => row))
 
   return {
+    bedHeightM: bedKnown ? formatScaledDecimal(bedHeight, LENGTH_SCALE) : null,
     bedLengthM: bedKnown ? formatScaledDecimal(bedLength, LENGTH_SCALE) : null,
     loadingAccess: access,
     /**

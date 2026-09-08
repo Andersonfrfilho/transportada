@@ -26,6 +26,10 @@ export type CargoPrintRow = Readonly<{
  * chega em quem empilha. E a folha sai em laser mono no galpão, então nada aqui pode depender de
  * cor — a ordem de carregamento, a faixa em metros e as contagens são o que carrega a informação.
  *
+ * ⚠️ **A faixa em metros não conta a carga dividida.** Ela mora fora da própria fatia, mais funda, e
+ * incluí-la fazia a folha imprimir uma faixa que começa dentro da parada seguinte — apontando o
+ * lugar errado na única informação que a folha promete carregar. A sobra aparece na coluna dela.
+ *
  * ⚠️ A ordem da folha é a **ordem de carregamento**, que é o inverso da ordem de entrega: quem
  * empilha começa pela última parada, encostando na testeira. Imprimir na ordem de entrega faria a
  * folha ser lida de baixo para cima.
@@ -46,10 +50,10 @@ export function buildCargoPrintSummary(boxes: readonly PrintableBox[]): readonly
     }
     rows.set(box.stopSequence, {
       boxes: current.boxes + 1,
-      fromM: Math.min(current.fromM, box.xM),
+      fromM: box.isSplit ? current.fromM : Math.min(current.fromM, box.xM),
       presumed: current.presumed + (box.isEstimated ? 1 : 0),
       split: current.split + (box.isSplit ? 1 : 0),
-      toM: Math.max(current.toM, box.xM + box.depthM),
+      toM: box.isSplit ? current.toM : Math.max(current.toM, box.xM + box.depthM),
     })
   }
 

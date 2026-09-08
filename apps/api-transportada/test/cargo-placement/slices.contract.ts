@@ -312,3 +312,88 @@ describe('a carga dividida (spec 095 G003)', () => {
     expect(split.every((entry) => entry.stopSequence !== 2)).toBe(true)
   })
 })
+
+/**
+ * Os defeitos que a revisão da 095 encontrou, e que nenhum contrato pegava.
+ */
+describe('os limites do baú na carga dividida (spec 095)', () => {
+  /**
+   * ⚠️ O mapa de alturas guardava a **altura própria** da caixa em vez do topo absoluto da coluna: o
+   * apoio saía subestimado e a sobra passava pelo portão do teto. Medido antes da correção: caixas
+   * divididas em 2,80 e 3,50 m dentro de um baú de 2,30.
+   */
+  test('nunca põe carga dividida acima do teto do baú', () => {
+    const plan = resolveCargoPlacement({
+      bed: { heightM: '2.300', lengthM: '4.000', widthM: '2.400' },
+      boxes: [
+        box({
+          count: 30,
+          heightMm: 700,
+          label: 'FUNDO',
+          lengthMm: 1100,
+          stopSequence: 2,
+          widthMm: 1100,
+        }),
+        box({
+          count: 6,
+          heightMm: 700,
+          label: 'PORTA',
+          lengthMm: 1100,
+          stopSequence: 1,
+          widthMm: 1100,
+        }),
+      ],
+    })
+
+    for (const entry of placed(plan)) {
+      expect(entry.zM + entry.heightM).toBeLessThanOrEqual(2.3 + 1e-9)
+    }
+  })
+
+  /** A altura de cada caixa vem da política, não de somar camadas fora dela. */
+  test('publica a altura do piso até a base de cada caixa', () => {
+    const plan = resolveCargoPlacement({ bed: BED, boxes: [box({ count: 200 })] })
+    const boxes = placed(plan)
+
+    expect(boxes.filter((entry) => entry.layer === 0).every((entry) => entry.zM === 0)).toBe(true)
+    expect(boxes.some((entry) => entry.zM > 0)).toBe(true)
+  })
+
+  /**
+   * ⚠️ Zero é ausência, não medida — o mesmo vocabulário da ficha do veículo. Uma linha zerada dava
+   * fatia de comprimento zero à parada inteira, e toda caixa dela caía na divisão.
+   */
+  test('trata medida zerada como caixa não medida', () => {
+    const plan = resolveCargoPlacement({
+      bed: BED,
+      boxes: [box({ label: 'ZERADA', lengthMm: 0 }), box({ label: 'BOA', stopSequence: 2 })],
+    })
+
+    expect(plan?.unplaced).toEqual([{ count: 1, label: 'ZERADA', reason: 'notMeasured' }])
+    expect(placed(plan)).toHaveLength(1)
+  })
+
+  /**
+   * ⚠️ O teto da divisão conta **tentativas**, não colocações: contando só o que entrou, a sobra sem
+   * lugar nunca saturava o limite e cada caixa pagava a varredura inteira do baú.
+   */
+  test('não varre o baú inteiro por caixa quando a sobra não tem lugar', () => {
+    const startedAt = performance.now()
+    const plan = resolveCargoPlacement({
+      bed: BED,
+      boxes: Array.from({ length: 12 }, (_, stop) =>
+        box({
+          count: 75,
+          heightMm: 1100,
+          label: `P${String(stop)}`,
+          lengthMm: 1200,
+          stopSequence: stop + 1,
+          widthMm: 1200,
+        }),
+      ),
+    })
+
+    expect(plan).not.toBeNull()
+    expect(performance.now() - startedAt).toBeLessThan(50)
+  })
+})

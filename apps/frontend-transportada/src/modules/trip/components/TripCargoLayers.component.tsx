@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useRef, useState, type PointerEvent } from 'react'
+import { useMemo, useRef, useState, type PointerEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -60,29 +60,41 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
    * camada aberta tiraria justamente o que o 3D tem de melhor — ver a pilha inteira — e deixaria a
    * carga flutuando sobre um piso vazio.
    */
-  const zByLayer = new Map<number, number>()
-  let stacked = 0
-  for (const layer of placement.layers) {
-    zByLayer.set(layer.index, stacked)
-    stacked += layer.heightM
-  }
-
-  const boxes: readonly IsometricBox[] = placement.layers.flatMap((layer) =>
-    layer.boxes.map((box, position) => ({
-      color: stopColorOf(box.stopSequence),
-      depthM: box.depthM,
-      heightM: box.heightM,
-      id: `${String(layer.index)}-${String(position)}`,
-      isEstimated: box.source === 'estimated',
-      isGhost: !isStopLit(focus, box.stopSequence),
-      isSplit: box.reasons.includes('splitCargo'),
-      stopSequence: box.stopSequence,
-      widthM: box.widthM,
-      xM: box.xM,
-      yM: box.yM,
-      zM: zByLayer.get(layer.index) ?? 0,
-    })),
+  /**
+   * ⚠️ Memoizado porque o **arrasto** redesenha a cada evento de ponteiro: sem isto, remontar e
+   * reordenar até 600 caixas acontecia a cada quadro do gesto, na viagem grande.
+   */
+  const boxes: readonly IsometricBox[] = useMemo(
+    () =>
+      placement.layers.flatMap((layer) =>
+        layer.boxes.map((box, position) => ({
+          color: stopColorOf(box.stopSequence),
+          depthM: box.depthM,
+          heightM: box.heightM,
+          id: `${String(layer.index)}-${String(position)}`,
+          isEstimated: box.source === 'estimated',
+          isGhost: !isStopLit(focus, box.stopSequence),
+          isSplit: box.reasons.includes('splitCargo'),
+          layer: box.layer,
+          stopSequence: box.stopSequence,
+          widthM: box.widthM,
+          xM: box.xM,
+          yM: box.yM,
+          zM: box.zM,
+        })),
+      ),
+    [focus, placement.layers],
   )
+
+  /**
+   * ⚠️ O contorno é o **baú**, e a altura dele não pode ser a da carga: somar as camadas desenhava o
+   * baú sempre cheio até o teto, e a folga de altura — a informação que decide se cabe mais uma
+   * camada — nunca aparecia. Sem a medida da ficha, o desenho usa a carga e não promete folga.
+   */
+  const sliceCutsM = useMemo(() => resolveSliceCuts(boxes), [boxes])
+  const bedHeightM = Number.parseFloat(layout.bedHeightM ?? '0')
+  const cargoTopM = Math.max(...boxes.map((box) => box.zM + box.heightM), 0)
+  const drawnHeightM = bedHeightM > 0 ? bedHeightM : cargoTopM
 
   const stopSequences = [
     ...new Set(placement.layers.flatMap((layer) => layer.boxes.map((box) => box.stopSequence))),
@@ -130,15 +142,15 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
         <CargoIsometric
           angle={view.angle}
           ariaLabel={t('cargoLayers.planLabel', { index: current.index + 1 })}
-          bedHeightM={stacked}
+          bedHeightM={drawnHeightM}
           bedLengthM={Number.parseFloat(layout.bedLengthM)}
           bedWidthM={Number.parseFloat(layout.bedWidthM)}
           boxes={boxes}
           className={styles.cargoCanvas}
-          focusLayerZM={zByLayer.get(current.index) ?? 0}
+          focusLayer={current.index}
           hasSideDoor={layout.loadingAccess !== 'rear'}
           panX={view.panX}
-          sliceCutsM={resolveSliceCuts(boxes)}
+          sliceCutsM={sliceCutsM}
           panY={view.panY}
           zoom={view.zoom}
           onPointerDown={(event: PointerEvent<SVGSVGElement>) => {

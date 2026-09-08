@@ -39,6 +39,20 @@ describe('trip cargo print contract', () => {
     expect(rows[0]).toMatchObject({ boxes: 2, fromM: 2, toM: 4 })
   })
 
+  /**
+   * ⚠️ A faixa em metros **não conta a sobra**: ela mora fora da fatia, mais funda, e a folha
+   * imprimiria um começo dentro da parada seguinte — apontando o lugar errado na única informação
+   * que ela promete carregar.
+   */
+  it('leaves split cargo out of the printed span', () => {
+    const rows = buildCargoPrintSummary([
+      box({ isSplit: true, stopSequence: 1, xM: 0.5 }),
+      box({ stopSequence: 1, xM: 3 }),
+    ])
+
+    expect(rows[0]).toMatchObject({ boxes: 2, fromM: 3, split: 1, toM: 3.5 })
+  })
+
   /** As duas contagens que mudam o que a pessoa faz: o que é palpite e o que está fora do lugar. */
   it('counts presumed and split cargo apart', () => {
     const rows = buildCargoPrintSummary([

@@ -28,6 +28,7 @@ function slice(overrides: Partial<TripCargoLayout['slices'][number]>) {
 
 /** Baú de truck: 8,900 × 2,500. Três paradas, 1 m + 2 m + 3 m de carga, 2,9 m livres na porta. */
 const LAYOUT: TripCargoLayout = {
+  bedHeightM: '2.300',
   bedLengthM: '8.900',
   bedWidthM: '2.500',
   freeDepthM: '2.900',

@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { JSX, PointerEvent } from 'react'
+import { useMemo, type JSX, type PointerEvent } from 'react'
 
 import { cn } from '@/lib/utils'
 
@@ -22,6 +22,8 @@ export type IsometricBox = Readonly<{
   isGhost: boolean
   /** Carga que não coube na própria fatia: sai contornada, para não se confundir com a que coube. */
   isSplit: boolean
+  /** A camada em que a caixa está, contada do piso. */
+  layer: number
   /** A parada a que a caixa pertence — é ela que a fatia separa. */
   stopSequence: number
   widthM: number
@@ -44,8 +46,13 @@ export type CargoIsometricProps = Readonly<{
   bedWidthM: number
   boxes: readonly IsometricBox[]
   className?: string | undefined
-  /** A camada em foco: as demais saem esmaecidas, para o olho achar a que está sendo carregada. */
-  focusLayerZM?: number | undefined
+  /**
+   * A camada em foco: as demais saem esmaecidas, para o olho achar a que está sendo carregada.
+   *
+   * ⚠️ Pelo **índice**, nunca pela altura: com fatias de caixas de alturas diferentes, duas camadas
+   * de índice igual estão em alturas diferentes, e comparar altura acenderia meia camada.
+   */
+  focusLayer?: number | undefined
   /** Marca a abertura lateral no contorno — o furgão carrega por ali. */
   hasSideDoor: boolean
   onPointerDown?: ((event: PointerEvent<SVGSVGElement>) => void) | undefined
@@ -133,7 +140,7 @@ export function CargoIsometric({
   bedWidthM,
   boxes,
   className,
-  focusLayerZM,
+  focusLayer,
   hasSideDoor,
   onPointerDown,
   onPointerMove,
@@ -174,10 +181,14 @@ export function CargoIsometric({
    * ⚠️ **Algoritmo do pintor**, na direção de visão atual: a caixa mais ao fundo é desenhada primeiro
    * e a da frente por cima.
    */
-  const ordered = [...boxes].sort(
-    (first, second) =>
-      depthAlongView({ xM: first.xM, yM: first.yM, zM: first.zM }, angle) -
-      depthAlongView({ xM: second.xM, yM: second.yM, zM: second.zM }, angle),
+  const ordered = useMemo(
+    () =>
+      [...boxes].sort(
+        (first, second) =>
+          depthAlongView({ xM: first.xM, yM: first.yM, zM: first.zM }, angle) -
+          depthAlongView({ xM: second.xM, yM: second.yM, zM: second.zM }, angle),
+      ),
+    [angle, boxes],
   )
   const faces = visibleFaces(angle)
 
@@ -213,7 +224,7 @@ export function CargoIsometric({
         <IsometricSolid
           angle={angle}
           box={box}
-          dimmed={focusLayerZM !== undefined && Math.abs(box.zM - focusLayerZM) > 0.001}
+          dimmed={focusLayer !== undefined && box.layer !== focusLayer}
           faces={faces}
           key={box.id}
         />

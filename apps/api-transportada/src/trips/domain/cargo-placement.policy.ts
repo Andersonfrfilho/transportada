@@ -61,6 +61,15 @@ export type PlacedBox = {
   readonly xM: number
   /** Distância da parede lateral. */
   readonly yM: number
+  /**
+   * Altura do piso até a base da caixa.
+   *
+   * ⚠️ **É o desenho que precisa dela, e reconstruí-la fora daqui dá errado.** A tela somava a altura
+   * de cada camada, e a altura de uma camada é o **máximo do baú inteiro** naquele índice: uma fatia
+   * de caixas baixas ao lado de outra de caixas altas desenhava a segunda camada com meio metro de ar
+   * embaixo, num desenho que promete escala.
+   */
+  readonly zM: number
 }
 
 export type UnplacedBox = {
@@ -127,7 +136,13 @@ export function resolveCargoPlacement(input: {
 
   const unplaced: UnplacedBox[] = []
   const measured = input.boxes.filter((box) => {
-    if (box.heightMm !== null && box.lengthMm !== null && box.widthMm !== null) return true
+    /**
+     * ⚠️ Zero é ausência, não medida — o mesmo vocabulário da ficha do veículo. Uma linha com `0`
+     * dava fatia de comprimento zero à parada inteira, e daí toda caixa dela caía na divisão.
+     */
+    if ((box.heightMm ?? 0) > 0 && (box.lengthMm ?? 0) > 0 && (box.widthMm ?? 0) > 0) {
+      return true
+    }
     /** Caixa sem medida não entra: posição de palpite é o que a spec 085 recusou por escrito. */
     unplaced.push({ count: box.count, label: box.label, reason: 'notMeasured' })
     return false
@@ -297,6 +312,7 @@ function packSlice(input: {
         widthM: round(slot.widthM),
         xM: round(input.sliceStartM + cursor.xM),
         yM: round(cursor.yM),
+        zM: round(cursor.layerBottomM),
       })
       cursor = {
         ...cursor,
@@ -350,10 +366,15 @@ function placeSplitCargo(input: {
     Math.min(limit, Math.ceil((fromM + sizeM) / HEIGHT_MAP_CELL_M)),
   ]
 
+  /**
+   * ⚠️ O mapa guarda o **topo absoluto** da coluna, nunca a altura própria da caixa. Carimbar a
+   * altura da caixa fazia o apoio ser subestimado, e a sobra passava pelo portão do teto: medido,
+   * caixas divididas saíam em 2,80 e 3,50 m dentro de um baú de 2,30.
+   */
   const stamp = (entry: {
     depthM: number
-    heightM: number
     layer: number
+    topM: number
     widthM: number
     xM: number
     yM: number
@@ -363,13 +384,13 @@ function placeSplitCargo(input: {
     for (let column = fromColumn; column < toColumn; column += 1) {
       for (let line = fromLine; line < toLine; line += 1) {
         const cell = column * lines + line
-        topM[cell] = Math.max(topM[cell] ?? 0, entry.heightM)
+        topM[cell] = Math.max(topM[cell] ?? 0, entry.topM)
         topLayer[cell] = Math.max(topLayer[cell] ?? -1, entry.layer)
       }
     }
   }
 
-  for (const entry of input.rows) stamp(entry)
+  for (const entry of input.rows) stamp({ ...entry, topM: entry.zM + entry.heightM })
 
   const placed: PlacedBox[] = []
   /** Da parada mais próxima da porta para a mais funda: quem tem menos fundo disponível escolhe antes. */
@@ -377,8 +398,16 @@ function placeSplitCargo(input: {
     (first, second) => first.box.stopSequence - second.box.stopSequence,
   )
 
+  /**
+   * ⚠️ O teto conta **tentativas**, não colocações. Contando só o que entrou, a sobra que não acha
+   * lugar nunca satura o limite e cada caixa paga a varredura inteira do baú: medido, 1817 ms para
+   * 900 caixas volumosas — justamente o caso em que a divisão existe.
+   */
+  let attempts = 0
+
   for (const { box, sliceStartM } of queue) {
-    if (placed.length >= Math.min(input.budget, MAX_SPLIT_BOXES)) {
+    attempts += 1
+    if (placed.length >= input.budget || attempts > MAX_SPLIT_BOXES) {
       pushUnplaced(input.unplaced, { count: 1, label: box.label, reason: 'tooMany' })
       continue
     }
@@ -413,9 +442,10 @@ function placeSplitCargo(input: {
       widthM: round(slot.widthM),
       xM: round(spot.xM),
       yM: round(spot.yM),
+      zM: round(spot.topM),
     }
     placed.push(entry)
-    stamp({ ...entry, heightM: spot.topM + slot.heightM })
+    stamp({ ...entry, topM: spot.topM + slot.heightM })
   }
 
   return placed
@@ -442,7 +472,12 @@ function findSplitSpot(input: {
   readonly xM: number
   readonly yM: number
 } | null {
-  const step = HEIGHT_MAP_CELL_M * 2
+  /**
+   * O passo da busca é grosso de propósito: a sobra pousa **em cima** do que já está lá, então
+   * precisão de centímetro aqui não muda onde ela fica — e a varredura fina custava metade do
+   * orçamento de resposta da tela.
+   */
+  const step = HEIGHT_MAP_CELL_M * 4
 
   for (let xM = input.sliceStartM - input.slot.depthM; xM >= -1e-9; xM -= step) {
     let best: { layer: number; topM: number; xM: number; yM: number } | null = null
