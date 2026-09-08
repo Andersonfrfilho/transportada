@@ -180,6 +180,7 @@ describe('opções de rota (spec 096 T1)', () => {
     expect(view).toEqual({
       cheapestIndex: null,
       costGap: null,
+      depot: null,
       fastestIndex: null,
       hasChoice: false,
       legs: [],

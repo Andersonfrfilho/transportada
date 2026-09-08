@@ -19,6 +19,7 @@ import { buildTripTaxParcels, type CompanyFederalRates } from '../domain/trip-ta
 import { TripNotFoundError } from '../domain/trip.error.js'
 import {
   readRouteGeometry,
+  type ReadRouteGeometryDepotPort,
   type ReadRouteGeometryTollBoothsPort,
   type RouteGeometryToll,
 } from './read-route-geometry.use-case.js'
@@ -168,6 +169,12 @@ export type TripValuationPreviewPort = TripValuationPort & {
 
 export type PreviewTripValuationInput = {
   readonly companyId: string
+  /**
+   * O barracão da empresa (spec 097). A prévia usa a **mesma** rota da montagem, então a perna do
+   * barracão entra na distância dela também — duas contas diferentes sobre a mesma viagem é o
+   * defeito que a 097 existe para acabar. ⚠️ A **carga** não muda: o barracão não ocupa baú (D3).
+   */
+  readonly depot?: null | ReadRouteGeometryDepotPort
   readonly driverIds: readonly string[]
   /** A mesma porta da geometria avulsa do mapa (`/route-geometry`) — spec 090 D3. */
   readonly geometry: RouteGeometryPort
@@ -214,6 +221,7 @@ export async function previewTripValuation(
   const road = await resolvePreviewRoad({
     axles: context.vehicle.axles ?? null,
     companyId: input.companyId,
+    depot: input.depot ?? null,
     geometry: input.geometry,
     nfeDocumentIds: input.nfeDocumentIds,
     repository: input.repository,
@@ -236,6 +244,7 @@ export async function previewTripValuation(
 async function resolvePreviewRoad(input: {
   readonly axles: AxleCount | null
   readonly companyId: string
+  readonly depot: null | ReadRouteGeometryDepotPort
   readonly geometry: RouteGeometryPort
   readonly nfeDocumentIds: readonly string[]
   readonly repository: Pick<TripValuationPreviewPort, 'readPreviewStopCoordinates'>
@@ -250,6 +259,7 @@ async function resolvePreviewRoad(input: {
 
   const road = await readRouteGeometry({
     axles: input.axles,
+    depot: input.depot,
     geometry: input.geometry,
     stops: points,
     tollBooths: input.tollBooths,

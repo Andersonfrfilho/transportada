@@ -18,6 +18,11 @@ import {
   type RouteOptionVehicle,
 } from '../../toll-booths/domain/route-option.policy.js'
 import type { TollBoothRouteRecord } from '../../toll-booths/application/toll-booth.port.js'
+import {
+  planRouteFromDepot,
+  type RouteDepot,
+  type RouteDepotAbsence,
+} from '../domain/route-depot.policy.js'
 import { simplifyRouteGeometry, type RouteGeometryPoint } from '../domain/route-geometry.policy.js'
 import type {
   RouteGeometryLeg,
@@ -71,7 +76,25 @@ export type RouteGeometryOption = Readonly<{
   readonly totalCost: null | string
 }>
 
+/**
+ * A perna do barracão nesta rota (spec 097). `null` no `RouteGeometryView` quando ninguém pediu
+ * barracão nesta chamada — ausência de pedido não é ausência de barracão.
+ */
+export type RouteGeometryDepot = Readonly<{
+  /** Por que a perna ficou de fora. `null` quando ela entrou — e é isto que a tela imprime (D2). */
+  absence: null | RouteDepotAbsence
+  /**
+   * Quantos trechos do começo de `legs` são a saída do barracão, e quantos do fim são o retorno.
+   * ⚠️ Sem estes dois números a tela não tem como pendurar o trecho certo ao pé de cada parada: a
+   * lista numerada é só das entregas (D3), e o total é da rota inteira.
+   */
+  leadingLegs: number
+  trailingLegs: number
+}>
+
 export type RouteGeometryView = {
+  /** A perna do barracão — `null` quando esta chamada não pediu barracão nenhum (spec 097). */
+  readonly depot: null | RouteGeometryDepot
   /**
    * Um trecho por par de paradas consecutivas, **medido na estrada**. Vazio quando a estrada não
    * veio — e aí a tela não mostra tempo nenhum. A ADR-0044 §5 é explícita: sem o roteirizador não se
@@ -106,9 +129,22 @@ export type ReadRouteGeometryTollBoothsPort = {
   readByNodeIds: (nodeIds: readonly number[]) => Promise<readonly TollBoothRouteRecord[]>
 }
 
+/**
+ * De onde o caminhão sai, e onde ele termina (spec 097 D1). A porta devolve a política **já
+ * resolvida em coordenada**, lida da mesma `company_route_optimization_settings` que o solver usa.
+ */
+export type ReadRouteGeometryDepotPort = {
+  readDepot: () => Promise<RouteDepot>
+}
+
 export type ReadRouteGeometryInput = {
   /** Quantos eixos o veículo escolhido tem, e de onde o número veio (spec 090 D2). */
   readonly axles?: AxleCount | null
+  /**
+   * O barracão da empresa. Ausente é "esta chamada não pede a perna do barracão" — e aí a tela não
+   * ganha aviso nenhum, porque ausência de pedido não é ausência de cadastro (spec 097 D2).
+   */
+  readonly depot?: null | ReadRouteGeometryDepotPort
   /**
    * Spec 095 D3: o veículo escolhido paga pedágio com tag? Ausente é `false` — sem saber, a conta
    * fica na base manual de sempre, nunca aplicando um desconto que ninguém confirmou.
@@ -134,6 +170,7 @@ const NO_FUEL_BASELINE: RouteOptionVehicle = { kilometersPerLiter: null, pricePe
 const UNAVAILABLE_VIEW: RouteGeometryView = {
   cheapestIndex: null,
   costGap: null,
+  depot: null,
   fastestIndex: null,
   hasChoice: false,
   legs: [],
@@ -149,10 +186,28 @@ const UNAVAILABLE_VIEW: RouteGeometryView = {
  * reta entre dois pontos atravessa rio, serra e ferrovia sem pedir licença.
  */
 export async function readRouteGeometry(input: ReadRouteGeometryInput): Promise<RouteGeometryView> {
-  if (input.stops.length < 2) return UNAVAILABLE_VIEW
+  /**
+   * ⚠️ O barracão é resolvido **antes** do corte de duas paradas, e a ordem importa: uma entrega só
+   * deixa de ser "menos de duas paradas" quando o barracão é o outro ponto — que é a rota certa.
+   */
+  const plan = planRouteFromDepot({
+    depot: input.depot === undefined || input.depot === null ? null : await input.depot.readDepot(),
+    stops: input.stops,
+  })
 
-  const road = await input.geometry.readRouteGeometry(input.stops)
-  if (road === null) return UNAVAILABLE_VIEW
+  /**
+   * ⚠️ A ausência sobrevive à rota indisponível de propósito: é justamente quando não há traçado
+   * que o operador precisa saber que o barracão também está faltando (D2).
+   */
+  const depot: null | RouteGeometryDepot =
+    input.depot === undefined || input.depot === null
+      ? null
+      : { absence: plan.absence, leadingLegs: plan.leadingLegs, trailingLegs: plan.trailingLegs }
+
+  if (plan.stops.length < 2) return { ...UNAVAILABLE_VIEW, depot }
+
+  const road = await input.geometry.readRouteGeometry(plan.stops)
+  if (road === null) return { ...UNAVAILABLE_VIEW, depot }
 
   /**
    * A principal é sempre `options[0]` (spec 096 D2/spec.md): o roteirizador manda no traço padrão,
@@ -188,11 +243,12 @@ export async function readRouteGeometry(input: ReadRouteGeometryInput): Promise<
   const primary = options[0]
 
   /** `rawRoads` sempre tem ao menos um elemento — `road` — então `primary` nunca falta aqui. */
-  if (primary === undefined) return UNAVAILABLE_VIEW
+  if (primary === undefined) return { ...UNAVAILABLE_VIEW, depot }
 
   return {
     cheapestIndex: ranking.cheapestIndex,
     costGap: ranking.costGap,
+    depot,
     fastestIndex: ranking.fastestIndex,
     hasChoice: ranking.hasChoice,
     legs: primary.legs,

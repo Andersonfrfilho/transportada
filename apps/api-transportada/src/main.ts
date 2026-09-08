@@ -151,6 +151,7 @@ import { createMdfeDocumentDownloadGateway } from './mdfe-manifests/infrastructu
 import { readDeliveryProofs } from './trips/application/read-delivery-proof.use-case.js'
 import { readRouteGeometry } from './trips/application/read-route-geometry.use-case.js'
 import { createOsrmRouteGeometryGateway } from './trips/infrastructure/osrm-route-geometry.gateway.js'
+import { createRouteDepotQuery } from './trips/infrastructure/route-depot.query.js'
 import { createRouteGeometryVehicleAxlesQuery } from './trips/infrastructure/route-geometry-vehicle-axles.query.js'
 import { createDrizzleTollBoothRepository } from './toll-booths/infrastructure/drizzle-toll-booth.repository.js'
 import { listTripStopCoordinates } from './trips/infrastructure/trip-stop-coordinates.support.js'
@@ -1091,6 +1092,11 @@ function createApplicationRoutes({
   const tripFiscalReadinessQuery = new DrizzleTripFiscalReadinessQuery(database)
   const tripValuationQuery = new DrizzleTripValuationQuery(database)
   const routeGeometryVehicleAxlesQuery = createRouteGeometryVehicleAxlesQuery(database)
+  /**
+   * Spec 097: de onde a viagem parte. A porta é montada por empresa nos três chamadores abaixo,
+   * porque `readRouteGeometry` conhece pontos, nunca tenant.
+   */
+  const routeDepotQuery = createRouteDepotQuery(database)
   const tollBoothRepository = createDrizzleTollBoothRepository(database)
   const tripFinancialResultRepository = new DrizzleTripFinancialResultRepository(database)
   const financialSummaryQuery = new DrizzleFinancialSummaryQuery(database)
@@ -1940,6 +1946,9 @@ function createApplicationRoutes({
 
           return readRouteGeometry({
             axles: vehicleContext?.axles ?? null,
+            depot: {
+              readDepot: () => routeDepotQuery.readDepot({ companyId: input.context.companyId }),
+            },
             fuelBaseline: vehicleContext?.fuelBaseline ?? null,
             hasAutomaticTollPayment: vehicleContext?.hasAutomaticTollPayment ?? false,
             geometry:
@@ -1965,6 +1974,10 @@ function createApplicationRoutes({
 
           return readRouteGeometry({
             axles: vehicleContext.axles,
+            /** A viagem já criada parte do mesmo barracão: duas telas, uma conta (spec 097). */
+            depot: {
+              readDepot: () => routeDepotQuery.readDepot({ companyId: input.context.companyId }),
+            },
             fuelBaseline: vehicleContext.fuelBaseline,
             hasAutomaticTollPayment: vehicleContext.hasAutomaticTollPayment,
             geometry:
@@ -2113,6 +2126,8 @@ function createApplicationRoutes({
         execute: (input) =>
           previewTripValuation({
             ...input,
+            /** Spec 097: a prévia parte do mesmo barracão que o mapa da montagem desenha. */
+            depot: { readDepot: () => routeDepotQuery.readDepot({ companyId: input.companyId }) },
             /**
              * A mesma porta e o mesmo caso de uso da geometria da viagem — spec 090 D3. Sem
              * `ROUTING_MATRIX_URL` ela devolve `unavailable`, e a distância continua `null`.

@@ -62,6 +62,7 @@ describe('read route geometry (spec 079, geometria do OSRM)', () => {
     expect(view).toEqual({
       cheapestIndex: null,
       costGap: null,
+      depot: null,
       fastestIndex: null,
       hasChoice: false,
       legs: [],
