@@ -95,7 +95,17 @@ o intervalo de profundidade, passa a imprimir o intervalo de largura.
 planta mostra faixas e a tabela descreve profundidade — as duas plausíveis, uma delas errada, e nada
 falha.
 
-### D6 — O que esta spec não faz
+### D6 — Em faixas a sobra não se divide
+
+A carga dividida da 099 sobe para a região das paradas entregues **depois**, mais fundo no baú. Em
+faixas essa região não existe: a faixa é limitada só na largura, então a parada que estoura a própria
+faixa já encheu o baú, e o único lugar que sobraria é em cima da faixa de outra parada — o que a
+fatia veio proibir. A sobra sai como `bedFull`.
+
+⚠️ Isto **reduziu** a T3, que previa mover a busca de vão para o outro eixo. O ramo foi escrito e
+desfeito: sem sobra possível ele era código morto guardando uma regra que nunca rodaria.
+
+### D7 — O que esta spec não faz
 
 Não confere peso por eixo: `axleNotChecked` continua no vocabulário, e a 098 registra por que
 (`fleet_vehicle_axles` está vazia, e não há referência de entre-eixos por tipo).

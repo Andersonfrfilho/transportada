@@ -52,8 +52,8 @@ describe('empacotamento da carga (spec 094)', () => {
    * pequena passam a sair em faixas paralelas à porta, e esta afirmação — que é sobre a ordem ao
    * longo do comprimento — descreveria um desenho que não é o dela.
    *
-   * ⚠️ Ela é **baixa** de propósito: a faixa é proporcional ao volume da parada, então uma caixa alta
-   * e larga alarga a própria faixa e volta a caber nela.
+   * ⚠️ Ela é **baixa** de propósito: o que bloqueia a faixa é a largura, e o volume precisa ser
+   * desprezível para não mover as proporções que as outras afirmações desta suíte medem.
    */
   test('carrega a última parada no fundo e a primeira na porta', () => {
     const plan = resolveCargoPlacement({
@@ -61,7 +61,7 @@ describe('empacotamento da carga (spec 094)', () => {
       boxes: [
         box({ stopSequence: 1 }),
         box({ stopSequence: 3 }),
-        box({ heightMm: 50, lengthMm: 2_000, stopSequence: 3, widthMm: 2_000 }),
+        box({ heightMm: 50, lengthMm: 2_200, stopSequence: 3, widthMm: 2_200 }),
       ],
     })
 

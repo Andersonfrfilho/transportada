@@ -219,10 +219,39 @@ export function resolveCargoPlacement(input: {
    * ⚠️ Isto **não** confere peso por eixo: concentrar carga sobre o eixo traseiro é decisão de quem
    * carrega, e a planta continua dizendo `axleNotChecked`.
    */
+  /** A largura mínima da faixa: caber a caixa mais larga da parada, girada se for o caso. */
+  function laneWidthOf(own: readonly PlacementBox[]): number {
+    return Math.max(
+      ...own.map((box) => Math.min(box.lengthMm ?? 0, box.widthMm ?? 0) / MILLIMETRES_PER_METRE),
+    )
+  }
+  /** O que sobra da largura depois de todo mundo ter o mínimo — repartido por volume. */
+  const laneSlackM = !lanes
+    ? 0
+    : Math.max(
+        0,
+        packBed.lengthM -
+          sequences.reduce(
+            (total, stopSequence) =>
+              total + laneWidthOf(measured.filter((box) => box.stopSequence === stopSequence)),
+            0,
+          ),
+      )
+
   const slices = sequences.map((stopSequence) => {
     const own = measured.filter((box) => box.stopSequence === stopSequence)
     const share = totalVolume > 0 ? volumeOf(own) / totalVolume : 1 / sequences.length
-    const capM = sequences.length === 1 ? packBed.lengthM : packBed.lengthM * share
+    /**
+     * ⚠️ **Em faixas o mínimo vem primeiro, e só a sobra é proporcional.** A largura que a parada
+     * exige é caber a caixa mais larga dela; repartir a largura por volume dava faixa de 0,28 m a
+     * uma caixa de 0,30 m — e a parada inteira caía na divisão, num baú com espaço sobrando.
+     */
+    const capM =
+      sequences.length === 1
+        ? packBed.lengthM
+        : lanes
+          ? laneWidthOf(own) + laneSlackM * share
+          : packBed.lengthM * share
 
     return packUntilItFits({ bed: packBed, boxes: own, budget: MAX_PLACED_BOXES, capM })
   })
@@ -473,30 +502,36 @@ export function resolveStopArrangement(input: {
   /** Com uma parada os dois arranjos desenham o mesmo — nomear os dois seria distinção sem diferença. */
   if (sequences.length < 2) return 'depth'
 
-  const totalVolume = volumeOf(measured)
-  if (totalVolume <= 0) return 'depth'
+  /**
+   * ⚠️ **A faixa não precisa ser proporcional ao volume — ela vai do chão ao teto e da porta à
+   * testeira.** O que a parada exige da largura é uma coisa só: caber a caixa mais larga dela. A
+   * profundidade e a altura resolvem o resto.
+   *
+   * Medir o cabimento pela fatia proporcional era o defeito que a evidência da spec pegou: na viagem
+   * real da crítica a parada menor levava 19% do volume, ganhava 0,28 m de faixa e tinha caixa de
+   * 0,30 m — a feature não disparava justamente no caso que a motivou.
+   *
+   * ⚠️ Quem decide o cabimento é a **menor dimensão de planta**, porque a caixa gira: cobrar o
+   * comprimento recusaria faixa para uma caixa que entra de lado, e `fitSlot` já testa as duas
+   * orientações.
+   */
+  const needed = sequences.reduce((total, stopSequence) => {
+    const own = measured.filter((box) => box.stopSequence === stopSequence)
+
+    return (
+      total +
+      Math.max(
+        ...own.map((box) => Math.min(box.lengthMm ?? 0, box.widthMm ?? 0) / MILLIMETRES_PER_METRE),
+      )
+    )
+  }, 0)
 
   /**
-   * ⚠️ **Sem exceção silenciosa**: uma parada que não cabe derruba a viagem inteira. Metade da carga
-   * em faixas e metade em profundidade produziria um desenho que ninguém consegue seguir — e o
-   * operador seguiria mesmo assim.
+   * ⚠️ **Sem exceção silenciosa**: as faixas cabem todas ou nenhuma. Metade da carga em faixas e
+   * metade em profundidade produziria um desenho que ninguém consegue seguir — e o operador seguiria
+   * mesmo assim.
    */
-  return sequences.every((stopSequence) => {
-    const own = measured.filter((box) => box.stopSequence === stopSequence)
-    const laneWidthM = bedWidthM * (volumeOf(own) / totalVolume)
-    /**
-     * ⚠️ Quem decide o cabimento é a **menor dimensão de planta**, porque a caixa gira: cobrar o
-     * comprimento recusaria faixa para uma caixa que entra de lado, e `fitSlot` já testa as duas
-     * orientações.
-     */
-    const widest = Math.max(
-      ...own.map((box) => Math.min(box.lengthMm ?? 0, box.widthMm ?? 0) / MILLIMETRES_PER_METRE),
-    )
-
-    return widest <= laneWidthM
-  })
-    ? 'lanes'
-    : 'depth'
+  return needed <= bedWidthM ? 'lanes' : 'depth'
 }
 
 /** O volume que a carga ocupa de fato, em m³ — é ele que dimensiona a fatia. */

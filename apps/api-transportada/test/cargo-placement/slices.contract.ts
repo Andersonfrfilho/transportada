@@ -32,9 +32,9 @@ function box(overrides: Partial<PlacementBox>): PlacementBox {
 
 /**
  * A caixa que não cabe em faixa nenhuma, e é ela que mantém a viagem em **profundidade** (spec 100
- * D2). O lado vem por parâmetro porque a faixa é **proporcional ao volume da parada**, e cada caso
- * desta suíte tem proporções próprias: um lado fixo bloquearia a faixa de uma parada e não a de
- * outra.
+ * D2): as faixas cabem quando a soma das larguras mínimas — a caixa mais larga de cada parada,
+ * girada se for o caso — cabe na largura do baú. Com 2,20 m numa parada, qualquer vizinha estoura os
+ * 2,47 m deste baú.
  *
  * ⚠️ Ela é **baixa** de propósito — 5 cm. O que bloqueia a faixa é a largura, e o volume precisa ser
  * desprezível para não mover as proporções que estas afirmações medem.
@@ -81,7 +81,7 @@ describe('a fatia por parada (spec 095 G001)', () => {
         box({ count: 12, label: 'P1', stopSequence: 1 }),
         box({ count: 12, label: 'P2', stopSequence: 2 }),
         box({ count: 12, label: 'P3', stopSequence: 3 }),
-        caixaQueNaoCabeEmFaixa(3, 900),
+        caixaQueNaoCabeEmFaixa(3, 2_200),
       ],
     })
     const boxes = placed(plan)
@@ -112,7 +112,7 @@ describe('a fatia por parada (spec 095 G001)', () => {
       boxes: [
         box({ count: 60, label: 'P1', stopSequence: 1 }),
         box({ count: 60, label: 'P2', stopSequence: 2 }),
-        caixaQueNaoCabeEmFaixa(1, 1_300),
+        caixaQueNaoCabeEmFaixa(1, 2_200),
       ],
     })
     const boxes = placed(plan)
@@ -156,7 +156,8 @@ describe('a fatia por parada (spec 095 G001)', () => {
           stopSequence: 2,
           widthMm: 750,
         }),
-        caixaQueNaoCabeEmFaixa(1, 300),
+        /** Na parada grande, para não inflar a fatia pequena que esta afirmação compara. */
+        caixaQueNaoCabeEmFaixa(2, 2_300),
       ],
     })
     const boxes = placed(plan)
@@ -270,6 +271,11 @@ describe('a carga dividida (spec 095 G003)', () => {
   const overflowing = {
     bed: BED,
     boxes: [
+      /**
+       * ⚠️ Spec 100: a divisão só existe em profundidade — em faixas a parada que estoura a própria
+       * faixa já encheu o baú. Esta caixa larga mantém a viagem no arranjo que esta suíte descreve.
+       */
+      caixaQueNaoCabeEmFaixa(2, 2_300),
       box({
         count: 2,
         heightMm: 400,

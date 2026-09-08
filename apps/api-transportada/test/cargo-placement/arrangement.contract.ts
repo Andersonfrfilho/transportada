@@ -184,10 +184,13 @@ describe('qual arranjo a viagem usa (spec 100 D2)', () => {
   })
 
   /**
-   * A faixa é proporcional ao **volume** da parada, como a fatia sempre foi: uma parada que leva
-   * quase tudo recebe quase toda a largura, e as vizinhas ficam com faixas estreitas demais.
+   * ⚠️ **A faixa não é proporcional ao volume, e este é o caso que provou isso.** A primeira versão
+   * media o cabimento pela fatia proporcional, e na viagem real da crítica a parada menor levava 19%
+   * do volume, ganhava 0,28 m de faixa e tinha caixa de 0,30 m — a feature não disparava justamente
+   * no caso que a motivou. A faixa vai do chão ao teto e da porta à testeira: o que a parada exige
+   * da largura é caber a caixa mais larga dela, e a profundidade resolve o resto.
    */
-  test('parada dominante estreita as vizinhas e derruba as faixas', () => {
+  test('a parada dominante não estreita a vizinha abaixo da caixa dela', () => {
     const arranjo = resolveStopArrangement({
       bed: FIORINO,
       boxes: [
@@ -195,6 +198,20 @@ describe('qual arranjo a viagem usa (spec 100 D2)', () => {
         box({ stopSequence: 2 }),
         box({ stopSequence: 3 }),
       ],
+      payloadRatio: null,
+    })
+
+    expect(arranjo).toBe('lanes')
+  })
+
+  /**
+   * O que derruba as faixas é a soma dos mínimos não caber na largura: três caixas de 0,60 m pedem
+   * 1,80 m num baú de 1,45 m.
+   */
+  test('faixas cabem todas ou nenhuma, e a soma dos mínimos é quem decide', () => {
+    const arranjo = resolveStopArrangement({
+      bed: FIORINO,
+      boxes: [1, 2, 3].map((stopSequence) => box({ lengthMm: 600, stopSequence, widthMm: 600 })),
       payloadRatio: null,
     })
 
