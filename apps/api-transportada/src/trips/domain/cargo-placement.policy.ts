@@ -394,7 +394,18 @@ function packUntilItFits(input: {
     crossSectionM2 > 0
       ? volumeOf(input.boxes) / crossSectionM2 / ROW_PACKING_EFFICIENCY
       : input.capM
-  let lengthM = Math.min(input.capM, Math.max(floorM, deepestM))
+  /**
+   * ⚠️ **Em faixas a fatia nasce do tamanho da alocação, e não cresce por etapas.** O crescimento
+   * existe para a 099 D1 — a fatia em profundidade mede o que a carga pede, e o que sobra vira vão
+   * na testeira. Em faixas o que sobra da largura não vira vão útil: a faixa seguinte só começa
+   * antes, e a carga desta paga a diferença **em profundidade**, que é o eixo caro.
+   *
+   * E há um efeito de segunda ordem que só apareceu medindo: a orientação da caixa é escolhida
+   * contra a largura da fatia, então crescer por etapas a decidia contra uma largura provisória
+   * menor que a alocada — a caixa entrava deitada e ia uma por fileira onde caberiam duas.
+   */
+  let lengthM =
+    input.stackBeforeRow === true ? input.capM : Math.min(input.capM, Math.max(floorM, deepestM))
 
   for (let attempt = 0; ; attempt += 1) {
     const packed = packSlice({
@@ -703,7 +714,11 @@ function packSlice(input: {
     const stackLimit = resolveStackLimit(box)
 
     for (let unit = 0; unit < box.count; unit += 1) {
-      const slot = fitSlot({ bed: slice, box })
+      const slot = fitSlot({
+        bed: slice,
+        box,
+        deepAxis: input.stackBeforeRow === true ? 'width' : 'depth',
+      })
       if (slot === null) {
         /** Não cabe na fatia: só é "maior que o baú" se não couber nem no baú inteiro. */
         if (fitSlot({ bed: input.bed, box }) === null) {
@@ -1315,6 +1330,16 @@ function rankTopOnly(box: PlacementBox): number {
 function fitSlot(input: {
   readonly bed: Readonly<{ heightM: number; lengthM: number; widthM: number }>
   readonly box: PlacementBox
+  /**
+   * Qual dos dois eixos horizontais do encaixe corre pela **profundidade real do baú** — o eixo caro,
+   * o que afasta a carga da porta. `undefined` mantém o comportamento de sempre: a primeira
+   * orientação que couber.
+   *
+   * ⚠️ Os dois arranjos usam eixos diferentes para a mesma coisa. Em profundidade a varredura marcha
+   * em `x`, então o caro é `depthM`; em faixas ela quebra fileira em `y`, e o caro é `widthM` (o `x`
+   * ali é a largura da faixa). Sem dizer qual é qual, a escolha otimizaria o eixo errado num dos dois.
+   */
+  readonly deepAxis?: 'depth' | 'width'
 }): Slot | null {
   const lengthM = (input.box.lengthMm ?? 0) / MILLIMETRES_PER_METRE
   const widthM = (input.box.widthMm ?? 0) / MILLIMETRES_PER_METRE
@@ -1325,12 +1350,29 @@ function fitSlot(input: {
     { depthM: lengthM, heightM, widthM },
     { depthM: widthM, heightM, widthM: lengthM },
   ]
-
-  return (
-    orientations.find(
-      (slot) => slot.depthM <= input.bed.lengthM && slot.widthM <= input.bed.widthM,
-    ) ?? null
+  const usable = orientations.filter(
+    (slot) => slot.depthM <= input.bed.lengthM && slot.widthM <= input.bed.widthM,
   )
+  const first = usable[0]
+  if (first === undefined) return null
+  if (input.deepAxis === undefined) return first
+
+  /**
+   * ⚠️ **Girar a caixa muda quantas cabem por fileira, e é isso que decide a profundidade.** A
+   * escolha era a primeira orientação que coubesse; numa faixa de 0,60 m uma caixa de 0,40 × 0,30
+   * entrava deitada e ia **uma** por fileira, quando de pé iam duas. Medido na viagem real: 17 caixas
+   * alcançavam 1,50 m da porta, e cabem em 1,20 m.
+   *
+   * O rendimento é **caixas por metro do eixo caro**: quantas entram numa fileira, dividido pelo
+   * quanto essa fileira gasta de profundidade. Empate fica com a primeira, que é a orientação de
+   * sempre — desempatar por outro critério mudaria desenho sem melhorar nada.
+   */
+  const yieldOf = (slot: Slot): number =>
+    input.deepAxis === 'width'
+      ? Math.floor((input.bed.lengthM + 1e-9) / slot.depthM) / slot.widthM
+      : Math.floor((input.bed.widthM + 1e-9) / slot.widthM) / slot.depthM
+
+  return usable.reduce((best, slot) => (yieldOf(slot) > yieldOf(best) + 1e-9 ? slot : best), first)
 }
 
 function resolveReasons(box: PlacementBox): readonly PlacementReason[] {

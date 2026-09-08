@@ -99,18 +99,30 @@ Hoje, em faixas, a fronteira das fileiras só cresce **quando a altura acaba**: 
 junto da porta antes de andar para o fundo. Em profundidade nada muda, e um contrato guarda isso —
 inverter lá empilharia carga com metade do piso vazio ao lado.
 
-⚠️ **A parada 3 continua em 1,50 m, e isso tem um teto conhecido.** `fitSlot` escolhe a primeira
-orientação que cabe, não a que rende mais por faixa: girar a caixa 90° na horizontal poria duas por
-fileira em vez de uma e levaria o alcance a ~1,20 m. É otimização de empacotamento com risco próprio,
-e ficou de fora desta spec por escrito.
+### A orientação da caixa, que valia os 0,30 m restantes
 
-Desempenho depois da mudança: **37 ms** para 3600 caixas em 12 paradas, contra o orçamento de 50 ms
-declarado pela 099.
+`fitSlot` escolhia a **primeira orientação que coubesse**. Numa faixa de 0,60 m uma caixa de
+0,40 × 0,30 entrava deitada e ia **uma** por fileira, quando de pé iam duas — e cada fileira custa
+0,30 m de baú. Hoje a escolha é por **rendimento no eixo caro**: quantas entram numa fileira,
+dividido pelo quanto essa fileira gasta de profundidade.
+
+⚠️ Não é "a menor dimensão": escolher a orientação mais estreita punha uma por fileira e gastava
+**mais** profundidade, que é o oposto do objetivo.
+
+⚠️ **E ela só rendeu depois de a faixa parar de crescer por etapas.** A orientação é decidida contra a
+largura da fatia, e o crescimento da 099 D1 a decidia contra uma largura **provisória**, menor que a
+alocada. Em faixas o crescimento não faz sentido de todo jeito: o que sobra da largura não vira vão
+útil — a faixa seguinte só começa antes —, e a carga desta paga a diferença em profundidade. Com a
+faixa nascendo do tamanho da alocação, os 17 caixas foram de 1,50 m para 1,20 m.
+
+Desempenho depois das duas mudanças: **28,3 ms** para 3600 caixas em 12 paradas, contra o orçamento
+de 50 ms declarado pela 099 — mais rápido que antes, porque a faixa deixou de ser reempacotada a
+cada etapa de crescimento.
 
 ## Gates
 
 ```
-bun run --cwd apps/api-transportada test        4809 pass · 23 skip · 0 fail
+bun run --cwd apps/api-transportada test        4811 pass · 23 skip · 0 fail
 bun run --cwd apps/api-transportada typecheck   limpo
 bun run --cwd apps/api-transportada lint        limpo
 bun run --cwd apps/frontend-transportada test   3057 pass · 0 fail

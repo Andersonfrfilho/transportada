@@ -817,6 +817,55 @@ describe('as faixas paralelas à porta (spec 100)', () => {
   })
 
   /**
+   * ⚠️ **Girar a caixa muda quantas cabem por fileira, e é isso que decide a profundidade.**
+   *
+   * A orientação era a primeira que coubesse. Numa faixa de 0,60 m uma caixa de 0,40 × 0,30 entrava
+   * deitada e ia **uma** por fileira, quando de pé iam duas — e cada fileira custa 0,30 m de baú.
+   * Medido na viagem real: 17 caixas alcançavam 1,50 m da porta, e cabem em 1,20 m.
+   *
+   * ⚠️ O rendimento é **caixas por metro do eixo caro**, não a menor dimensão: escolher a orientação
+   * mais estreita punha uma por fileira e gastava mais profundidade, que é o oposto do objetivo.
+   */
+  test('a caixa é girada para render mais por fileira', () => {
+    const boxes = placed(
+      resolveCargoPlacement({
+        bed: FIORINO,
+        boxes: [
+          box({ count: 4, heightMm: 300, lengthMm: 400, stopSequence: 1, widthMm: 300 }),
+          box({ count: 4, heightMm: 300, lengthMm: 400, stopSequence: 2, widthMm: 300 }),
+          box({ count: 17, heightMm: 300, lengthMm: 400, stopSequence: 3, widthMm: 300 }),
+        ],
+      }),
+    )
+    const daTerceira = boxes.filter((entry) => entry.stopSequence === 3)
+    const alcance = Number.parseFloat(FIORINO.lengthM) - Math.min(...daTerceira.map((e) => e.xM))
+
+    expect(daTerceira.length).toBe(17)
+    expect(alcance).toBeLessThanOrEqual(1.21)
+  })
+
+  /**
+   * ⚠️ **A faixa nasce do tamanho da alocação, e não cresce por etapas.** O crescimento existe para a
+   * fatia em profundidade (099 D1), onde o que sobra vira vão na testeira. Em faixas o que sobra da
+   * largura não vira vão útil — a faixa seguinte só começa antes —, e a carga desta paga a diferença
+   * em profundidade. Pior: crescer por etapas decidia a orientação contra uma largura provisória.
+   */
+  test('a faixa usa a largura que lhe cabe, em vez de economizar largura e gastar fundo', () => {
+    const boxes = placed(
+      resolveCargoPlacement({
+        bed: FIORINO,
+        boxes: [1, 2, 3].map((stopSequence) =>
+          box({ count: 8, heightMm: 300, lengthMm: 400, stopSequence, widthMm: 300 }),
+        ),
+      }),
+    )
+    const larguraOcupada = Math.max(...boxes.map((entry) => entry.yM + entry.widthM))
+
+    /** As três faixas somadas cobrem quase toda a largura útil do baú. */
+    expect(larguraOcupada).toBeGreaterThan(1.1)
+  })
+
+  /**
    * ⚠️ **Em profundidade a ordem continua a de sempre.** Ali a fileira corre pela largura do baú, e
    * avançá-la não afasta ninguém da porta: encher o chão antes de empilhar é o certo, e inverter
    * isso empilharia carga com metade do piso vazio ao lado.
