@@ -5,13 +5,19 @@ import { BRAZIL_STATE } from './fleet.types'
 import { isRecord, isString } from './fleetGuards.validation'
 
 /**
- * Um endereço resolvido por um provedor externo, já no vocabulário do formulário. Sem coordenada:
- * a ADR-0037 tirou o mapa, e com ele a única coisa que consumia latitude e longitude.
+ * Um endereço resolvido por um provedor externo, já no vocabulário do formulário.
+ *
+ * ⚠️ **A coordenada voltou, e não é uma consulta nova.** Ela sempre chegou no GeoJSON do Photon e
+ * era descartada desde que a ADR-0037 tirou o mapa do cadastro — o retorno da viagem (spec 097 D6)
+ * precisa dela, e comprá-la de provedor pago é o que a ADR-0044 recusa. `null` quando o provedor não
+ * mandou par legível: o endereço continua servindo, e o que se perde é só o retorno automático.
  */
 export type AddressSuggestion = Readonly<{
   city: string
   district: string
   label: string
+  latitude: null | string
+  longitude: null | string
   number: string
   postalCode: string
   state: string
@@ -124,11 +130,33 @@ function fromPhotonFeature(feature: unknown): AddressSuggestion | null {
   return buildSuggestion({
     city: readFirstText(properties, ['city', 'town', 'village', 'county']),
     district: readFirstText(properties, ['district', 'suburb']),
+    ...readCoordinate(feature.geometry),
     number: readText(properties, 'housenumber'),
     postalCode: stripPostalCode(readText(properties, 'postcode')),
     state: toStateCode(readText(properties, 'state')),
     street,
   })
+}
+
+/**
+ * ⚠️ **GeoJSON é `[longitude, latitude]`, nesta ordem** — o inverso de como se fala. Trocar as duas
+ * põe a casa de Sertãozinho no Oceano Índico, e o número continua parecendo uma coordenada.
+ *
+ * ⚠️ Meia coordenada não existe: metade ilegível descarta o par inteiro, porque um par pela metade
+ * cairia no meridiano ou no equador. É o mesmo que o CHECK do banco recusa do outro lado.
+ */
+function readCoordinate(geometry: unknown): {
+  readonly latitude: null | string
+  readonly longitude: null | string
+} {
+  const ausente = { latitude: null, longitude: null } as const
+  if (!isRecord(geometry) || !Array.isArray(geometry.coordinates)) return ausente
+
+  const [longitude, latitude] = geometry.coordinates as readonly unknown[]
+  if (typeof longitude !== 'number' || typeof latitude !== 'number') return ausente
+  if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) return ausente
+
+  return { latitude: String(latitude), longitude: String(longitude) }
 }
 
 function toList(payload: unknown, key: string): readonly unknown[] {

@@ -414,6 +414,18 @@ export const fleetDrivers = pgTable(
     district: text().notNull().default(''),
     city: text().notNull().default(''),
     state: text().notNull().default(''),
+    /**
+     * Onde a casa fica, para o retorno da viagem entrar na conta (spec 097 D6).
+     *
+     * ⚠️ Não vem de consulta nossa a provedor pago — a ADR-0044 recusa a escalada em runtime. É a
+     * coordenada que o Photon já devolve na busca textual do próprio formulário do motorista e que
+     * era descartada desde que a ADR-0037 tirou o mapa do cadastro; o que mudou é guardá-la.
+     *
+     * ⚠️ São PII mais precisa que a rua em texto, e entram no envelope da ADR-0039 junto do endereço
+     * residencial quando ela for executada.
+     */
+    homeLatitude: numeric('home_latitude', { precision: 10, scale: 7 }),
+    homeLongitude: numeric('home_longitude', { precision: 10, scale: 7 }),
     linkedPostalCode: text('linked_postal_code').notNull().default(''),
     linkedStreet: text('linked_street').notNull().default(''),
     linkedNumber: text('linked_number').notNull().default(''),
@@ -523,6 +535,15 @@ export const fleetDrivers = pgTable(
     check(
       'fleet_drivers_dates_check',
       sql`(${table.birthDate} is null or ${table.birthDate} >= ${sql.raw(`date '${DRIVER_DATE_FLOOR}'`)}) and (${table.licenseExpiresAt} is null or ${table.licenseExpiresAt} >= ${sql.raw(`date '${DRIVER_DATE_FLOOR}'`)}) and (${table.firstLicenseAt} is null or ${table.firstLicenseAt} >= ${sql.raw(`date '${DRIVER_DATE_FLOOR}'`)})`,
+    ),
+    /**
+     * ⚠️ Meia gravação é proibida: um par pela metade cairia no meridiano de Greenwich ou no equador,
+     * e o mapa desenharia a casa no oceano. A caixa é a do Brasil continental — coordenada trocada de
+     * ordem (o Photon devolve `[lon, lat]`) cai fora dela e é recusada aqui, não descoberta no mapa.
+     */
+    check(
+      'fleet_drivers_home_coordinates_check',
+      sql`(${table.homeLatitude} is null) = (${table.homeLongitude} is null) and (${table.homeLatitude} is null or ${table.homeLatitude} between -34 and 6) and (${table.homeLongitude} is null or ${table.homeLongitude} between -74 and -34)`,
     ),
     check(
       'fleet_drivers_postal_code_check',
