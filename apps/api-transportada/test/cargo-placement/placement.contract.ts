@@ -203,6 +203,7 @@ describe('o motivo de cada posição (spec 094 P4)', () => {
       'keepUpright',
       'estimatedBox',
       'axleNotChecked',
+      'splitCargo',
     ])
   })
 

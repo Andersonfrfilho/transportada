@@ -24,6 +24,7 @@ export const PLACEMENT_REASONS = [
   'keepUpright',
   'estimatedBox',
   'axleNotChecked',
+  'splitCargo',
 ] as const
 export type PlacementReason = (typeof PLACEMENT_REASONS)[number]
 
@@ -91,18 +92,25 @@ type Slot = {
 }
 
 /**
- * Spec 094: **onde cada caixa cabe**, camada por camada.
+ * Spec 094 e 095: **onde cada caixa cabe**, fatia por fatia e camada por camada.
  *
- * A varredura é em fileiras: enche o piso ao longo do comprimento, quebra para a fileira ao lado
- * quando a largura acaba, e sobe para a camada seguinte quando o piso acaba. Não é empacotamento
- * ótimo — isso é NP-difícil, e a diferença não paga o tempo de resposta numa tela de montagem.
+ * O baú é cortado ao longo do comprimento em uma **fatia por parada**, na ordem inversa de entrega:
+ * a última parada encosta na testeira e a primeira fica colada na porta. Dentro da fatia a varredura
+ * é em fileiras — enche o piso, quebra para a fileira ao lado, sobe de camada. Não é empacotamento
+ * ótimo: isso é NP-difícil, e a diferença não paga o tempo de resposta numa tela de montagem.
+ *
+ * ⚠️ **A fatia é proibição, não preferência.** Ordenar por parada fazia a última *tender* ao fundo, e
+ * bastava a fileira virar para duas paradas dividirem a mesma camada — quem abria a porta na
+ * primeira entrega tirava caixa de outra parada de cima. É a restrição LIFO do 3L-CVRP, e ela vale
+ * **sem nenhum dado de empilhamento cadastrado**, que é a situação de hoje.
+ *
+ * ⚠️ **A fatia é dimensionada pelo volume da parada, nunca pela contagem.** Dez caixas pequenas
+ * ocupam menos baú que duas grandes; repartir o comprimento em partes iguais estouraria uma fatia e
+ * deixaria a outra vazia, e o estouro sairia como carga que não cabe num baú com espaço sobrando.
  *
  * ⚠️ **A promessa é "cabe", não "deve ir assim".** A planta respeita o que está informado e declara
  * o que não está: sem peso por eixo ela nunca diz que a carga pode sair, e sem `is_stackable` ela
  * empilha marcando o arranjo como presumido.
- *
- * ⚠️ **A última parada viaja no fundo.** Carga da primeira parada atrás da carga da terceira obriga
- * a descarregar tudo para entregar a primeira.
  */
 export function resolveCargoPlacement(input: {
   readonly bed: CargoBedDimensions | null
@@ -125,86 +133,171 @@ export function resolveCargoPlacement(input: {
     return false
   })
 
-  /**
-   * ⚠️ Frágil e não empilhável vão **por último**, para ficarem na camada de cima. É a única
-   * garantia que uma heurística de camadas consegue dar sem virar empacotamento com restrição.
-   */
-  const ordered = [...measured].sort((first, second) => {
-    const byTop = rankTopOnly(first) - rankTopOnly(second)
-    if (byTop !== 0) return byTop
-    /** Depois, a última parada primeiro: ela viaja no fundo. */
-    return second.stopSequence - first.stopSequence
-  })
+  /** Da última parada para a primeira: quem entrega por último viaja no fundo. */
+  const sequences = [...new Set(measured.map((box) => box.stopSequence))].sort(
+    (first, second) => second - first,
+  )
+  const totalVolume = volumeOf(measured)
 
-  const layers: CargoPlacementLayer[] = []
-  let cursor = { layerBottomM: 0, layerHeightM: 0, rowWidthM: 0, xM: 0, yM: 0 }
-  let current: PlacedBox[] = []
+  const rows: PlacedBox[] = []
+  const leftovers: { readonly box: PlacementBox; readonly sliceStartM: number }[] = []
+  const presumed = measured.some(
+    (box) => box.isStackable === null || box.isFragile === null || box.source === 'estimated',
+  )
   let placedCount = 0
-  let presumed = false
+  let sliceStartM = 0
 
-  const closeLayer = (): void => {
-    if (current.length > 0) {
-      layers.push({ boxes: current, heightM: cursor.layerHeightM, index: layers.length })
-    }
-    current = []
-    cursor = {
-      layerBottomM: cursor.layerBottomM + cursor.layerHeightM,
-      layerHeightM: 0,
-      rowWidthM: 0,
-      xM: 0,
-      yM: 0,
-    }
+  for (const stopSequence of sequences) {
+    const own = measured.filter((box) => box.stopSequence === stopSequence)
+    const share = totalVolume > 0 ? volumeOf(own) / totalVolume : 1 / sequences.length
+    const sliceLengthM = sequences.length === 1 ? bed.lengthM : bed.lengthM * share
+
+    const slice = packSlice({
+      bed,
+      boxes: own,
+      budget: MAX_PLACED_BOXES - placedCount,
+      sliceLengthM,
+      sliceStartM,
+    })
+    rows.push(...slice.boxes)
+    placedCount += slice.boxes.length
+    for (const entry of slice.unplaced) pushUnplaced(unplaced, entry)
+    for (const box of slice.leftovers) leftovers.push({ box, sliceStartM })
+    sliceStartM += sliceLengthM
   }
+
+  rows.push(
+    ...placeSplitCargo({ bed, budget: MAX_PLACED_BOXES - placedCount, leftovers, rows, unplaced }),
+  )
+
+  return { layers: toLayers(rows), source: presumed ? 'estimated' : 'measured', unplaced }
+}
+
+/** O volume que a carga ocupa de fato, em m³ — é ele que dimensiona a fatia. */
+function volumeOf(boxes: readonly PlacementBox[]): number {
+  return boxes.reduce(
+    (total, box) =>
+      total +
+      (box.count * (box.lengthMm ?? 0) * (box.widthMm ?? 0) * (box.heightMm ?? 0)) /
+        MILLIMETRES_PER_METRE ** 3,
+    0,
+  )
+}
+
+/**
+ * A varredura em fileiras **dentro de uma fatia**. Nada aqui enxerga o resto do baú: é isso que
+ * torna a separação entre paradas uma propriedade da estrutura, e não uma ordenação com sorte.
+ */
+function packSlice(input: {
+  readonly bed: Readonly<{ heightM: number; lengthM: number; widthM: number }>
+  readonly boxes: readonly PlacementBox[]
+  readonly budget: number
+  readonly sliceLengthM: number
+  readonly sliceStartM: number
+}): {
+  readonly boxes: readonly PlacedBox[]
+  readonly leftovers: readonly PlacementBox[]
+  readonly unplaced: readonly UnplacedBox[]
+} {
+  const slice = { ...input.bed, lengthM: input.sliceLengthM }
+  const unplaced: UnplacedBox[] = []
+  const placed: PlacedBox[] = []
+  const leftovers: PlacementBox[] = []
+  /** A sobra é candidata a dividir; quem não pode empilhar não sobe em nada e não é candidata. */
+  const spill = (box: PlacementBox): void => {
+    if (resolveStackLimit(box) <= 1) {
+      pushUnplaced(unplaced, { count: 1, label: box.label, reason: 'bedFull' })
+      return
+    }
+    leftovers.push({ ...box, count: 1 })
+  }
+
+  /**
+   * **Frágil no topo de tudo, depois presumida, e a base pela maior pegada.**
+   *
+   * ⚠️ Frágil e não empilhável vão **por último**: é a única garantia que uma heurística de camadas
+   * consegue dar sem virar empacotamento com restrição.
+   *
+   * ⚠️ A **medição precede a pegada**, e não o contrário. Toda caixa presumida herda a mesma caixa
+   * do fallback, então ordenar só por pegada as agrupava numa faixa contígua no meio da fatia — o
+   * tamanho do fallback fica no meio da escala. Com a presumida por cima o agrupamento vira decisão:
+   * o que precisa de fita fica à mão, sem desmontar pilha, e a base fica com o que tem medida.
+   *
+   * ⚠️ A pegada decrescente é o critério de base — caixa grande sob caixa pequena é a pilha que
+   * desaba —, e é o único critério de empilhamento que vale **sem nenhum dado cadastrado**.
+   */
+  const ordered = [...input.boxes].sort(
+    (first, second) =>
+      rankTopOnly(first) - rankTopOnly(second) ||
+      rankPresumed(first) - rankPresumed(second) ||
+      footprintOf(second) - footprintOf(first),
+  )
+
+  let cursor = { layer: 0, layerBottomM: 0, layerHeightM: 0, rowWidthM: 0, xM: 0, yM: 0 }
 
   for (const box of ordered) {
     const stackLimit = resolveStackLimit(box)
-    if (box.isStackable === null || box.isFragile === null) presumed = true
-    if (box.source === 'estimated') presumed = true
 
     for (let unit = 0; unit < box.count; unit += 1) {
-      const slot = fitSlot({ bed, box })
+      const slot = fitSlot({ bed: slice, box })
       if (slot === null) {
-        pushUnplaced(unplaced, { count: 1, label: box.label, reason: 'largerThanBed' })
+        /** Não cabe na fatia: só é "maior que o baú" se não couber nem no baú inteiro. */
+        if (fitSlot({ bed: input.bed, box }) === null) {
+          pushUnplaced(unplaced, {
+            count: box.count - unit,
+            label: box.label,
+            reason: 'largerThanBed',
+          })
+          break
+        }
+        /** Cabe no baú e não na fatia: é divisão de carga, não carga grande demais. */
+        for (let rest = unit; rest < box.count; rest += 1) spill(box)
         break
       }
-      if (placedCount >= MAX_PLACED_BOXES) {
+      if (placed.length >= input.budget) {
         pushUnplaced(unplaced, { count: 1, label: box.label, reason: 'tooMany' })
         continue
       }
-      if (cursor.xM + slot.depthM > bed.lengthM + 1e-9) {
+      if (cursor.xM + slot.depthM > slice.lengthM + 1e-9) {
         cursor = { ...cursor, rowWidthM: 0, xM: 0, yM: cursor.yM + cursor.rowWidthM }
       }
-      if (cursor.yM + slot.widthM > bed.widthM + 1e-9) {
-        closeLayer()
+      if (cursor.yM + slot.widthM > slice.widthM + 1e-9) {
+        cursor = {
+          layer: cursor.layer + 1,
+          layerBottomM: cursor.layerBottomM + cursor.layerHeightM,
+          layerHeightM: 0,
+          rowWidthM: 0,
+          xM: 0,
+          yM: 0,
+        }
       }
       /**
        * ⚠️ O limite de pilha é conferido **depois** de a camada eventualmente fechar. Antes dele, a
        * caixa que provocava o fechamento escapava para a camada de cima — e uma caixa declarada não
        * empilhável acabava empilhada, que é o oposto do que o campo diz.
        */
-      if (layers.length >= stackLimit) {
+      if (cursor.layer >= stackLimit) {
         pushUnplaced(unplaced, { count: 1, label: box.label, reason: 'bedFull' })
         continue
       }
-      if (cursor.layerBottomM + slot.heightM > bed.heightM + 1e-9) {
-        pushUnplaced(unplaced, { count: 1, label: box.label, reason: 'bedFull' })
+      if (cursor.layerBottomM + slot.heightM > slice.heightM + 1e-9) {
+        spill(box)
         continue
       }
 
-      current.push({
+      placed.push({
         depthM: round(slot.depthM),
         heightM: round(slot.heightM),
         isFragile: box.isFragile === true,
         label: box.label,
-        layer: layers.length,
+        layer: cursor.layer,
         reasons: resolveReasons(box),
         source: box.source,
         stopSequence: box.stopSequence,
         widthM: round(slot.widthM),
-        xM: round(cursor.xM),
+        xM: round(input.sliceStartM + cursor.xM),
         yM: round(cursor.yM),
       })
-      placedCount += 1
       cursor = {
         ...cursor,
         layerHeightM: Math.max(cursor.layerHeightM, slot.heightM),
@@ -213,9 +306,198 @@ export function resolveCargoPlacement(input: {
       }
     }
   }
-  closeLayer()
 
-  return { layers, source: presumed ? 'estimated' : 'measured', unplaced }
+  return { boxes: placed, leftovers, unplaced }
+}
+
+/** Lado da célula do mapa de alturas, em metros. Fino o bastante para uma caixa de 20 cm. */
+const HEIGHT_MAP_CELL_M = 0.05
+
+/**
+ * Teto de caixas divididas. A busca de lugar para a sobra varre o baú inteiro por caixa, e passar
+ * de algumas dezenas custa mais que o desenho vale — e uma divisão de centenas de caixas não é um
+ * plano de carregamento, é um caminhão pequeno demais, que a tela já diz de outro jeito.
+ */
+const MAX_SPLIT_BOXES = 40
+
+/**
+ * **A carga que não coube na própria fatia é dividida — e a divisão tem lugar certo.**
+ *
+ * A sobra da parada N sobe para a camada de cima da região das paradas entregues **depois** dela —
+ * mais fundo no baú —, encostada na própria fatia. Ali ela cumpre as três coisas ao mesmo tempo:
+ * nada por cima dela, o corredor até ela já está livre quando a vez dela chega, e ela sai marcada
+ * com `splitCargo` em vez de sumir no meio da pilha.
+ *
+ * ⚠️ O sentido contrário — empurrar a sobra para o lado da porta — é proibido: seria carga de parada
+ * posterior em cima de quem entrega antes, exatamente o problema que a fatia veio resolver. Por isso
+ * a busca só olha `x` **menor** que o começo da fatia da própria parada, e a sobra da última parada
+ * não tem para onde ir.
+ */
+function placeSplitCargo(input: {
+  readonly bed: Readonly<{ heightM: number; lengthM: number; widthM: number }>
+  readonly budget: number
+  readonly leftovers: readonly { readonly box: PlacementBox; readonly sliceStartM: number }[]
+  readonly rows: readonly PlacedBox[]
+  readonly unplaced: UnplacedBox[]
+}): readonly PlacedBox[] {
+  const columns = Math.max(1, Math.ceil(input.bed.lengthM / HEIGHT_MAP_CELL_M))
+  const lines = Math.max(1, Math.ceil(input.bed.widthM / HEIGHT_MAP_CELL_M))
+  const topM = new Float64Array(columns * lines)
+  const topLayer = new Int32Array(columns * lines).fill(-1)
+
+  const cellsOf = (fromM: number, sizeM: number, limit: number): readonly [number, number] => [
+    Math.max(0, Math.floor(fromM / HEIGHT_MAP_CELL_M)),
+    Math.min(limit, Math.ceil((fromM + sizeM) / HEIGHT_MAP_CELL_M)),
+  ]
+
+  const stamp = (entry: {
+    depthM: number
+    heightM: number
+    layer: number
+    widthM: number
+    xM: number
+    yM: number
+  }): void => {
+    const [fromColumn, toColumn] = cellsOf(entry.xM, entry.depthM, columns)
+    const [fromLine, toLine] = cellsOf(entry.yM, entry.widthM, lines)
+    for (let column = fromColumn; column < toColumn; column += 1) {
+      for (let line = fromLine; line < toLine; line += 1) {
+        const cell = column * lines + line
+        topM[cell] = Math.max(topM[cell] ?? 0, entry.heightM)
+        topLayer[cell] = Math.max(topLayer[cell] ?? -1, entry.layer)
+      }
+    }
+  }
+
+  for (const entry of input.rows) stamp(entry)
+
+  const placed: PlacedBox[] = []
+  /** Da parada mais próxima da porta para a mais funda: quem tem menos fundo disponível escolhe antes. */
+  const queue = [...input.leftovers].sort(
+    (first, second) => first.box.stopSequence - second.box.stopSequence,
+  )
+
+  for (const { box, sliceStartM } of queue) {
+    if (placed.length >= Math.min(input.budget, MAX_SPLIT_BOXES)) {
+      pushUnplaced(input.unplaced, { count: 1, label: box.label, reason: 'tooMany' })
+      continue
+    }
+    const slot = fitSlot({ bed: input.bed, box })
+    const spot =
+      slot === null
+        ? null
+        : findSplitSpot({
+            cellsOf,
+            columns,
+            lines,
+            sliceStartM,
+            slot,
+            topLayer,
+            topM,
+            bed: input.bed,
+          })
+    if (slot === null || spot === null) {
+      pushUnplaced(input.unplaced, { count: 1, label: box.label, reason: 'bedFull' })
+      continue
+    }
+
+    const entry: PlacedBox = {
+      depthM: round(slot.depthM),
+      heightM: round(slot.heightM),
+      isFragile: box.isFragile === true,
+      label: box.label,
+      layer: spot.layer,
+      reasons: [...resolveReasons(box), 'splitCargo'],
+      source: box.source,
+      stopSequence: box.stopSequence,
+      widthM: round(slot.widthM),
+      xM: round(spot.xM),
+      yM: round(spot.yM),
+    }
+    placed.push(entry)
+    stamp({ ...entry, heightM: spot.topM + slot.heightM })
+  }
+
+  return placed
+}
+
+/**
+ * O ponto mais raso da região funda que ainda aceita a caixa, encostado na fatia de origem.
+ *
+ * ⚠️ Varre de trás para a frente a partir da própria fatia e **para no primeiro `x` que serve**:
+ * quanto mais perto da fatia de origem, menos a carga de uma parada se espalha pelo baú.
+ */
+function findSplitSpot(input: {
+  readonly bed: Readonly<{ heightM: number; lengthM: number; widthM: number }>
+  readonly cellsOf: (fromM: number, sizeM: number, limit: number) => readonly [number, number]
+  readonly columns: number
+  readonly lines: number
+  readonly sliceStartM: number
+  readonly slot: Slot
+  readonly topLayer: Int32Array
+  readonly topM: Float64Array
+}): {
+  readonly layer: number
+  readonly topM: number
+  readonly xM: number
+  readonly yM: number
+} | null {
+  const step = HEIGHT_MAP_CELL_M * 2
+
+  for (let xM = input.sliceStartM - input.slot.depthM; xM >= -1e-9; xM -= step) {
+    let best: { layer: number; topM: number; xM: number; yM: number } | null = null
+
+    for (let yM = 0; yM + input.slot.widthM <= input.bed.widthM + 1e-9; yM += step) {
+      const [fromColumn, toColumn] = input.cellsOf(
+        Math.max(0, xM),
+        input.slot.depthM,
+        input.columns,
+      )
+      const [fromLine, toLine] = input.cellsOf(yM, input.slot.widthM, input.lines)
+      let support = 0
+      let layer = 0
+      for (let column = fromColumn; column < toColumn; column += 1) {
+        for (let line = fromLine; line < toLine; line += 1) {
+          const cell = column * input.lines + line
+          support = Math.max(support, input.topM[cell] ?? 0)
+          layer = Math.max(layer, (input.topLayer[cell] ?? -1) + 1)
+        }
+      }
+      if (support + input.slot.heightM > input.bed.heightM + 1e-9) continue
+      if (best === null || support < best.topM) {
+        best = { layer, topM: support, xM: Math.max(0, xM), yM }
+      }
+      /** Piso livre é o melhor que existe nesta faixa: não há o que continuar procurando. */
+      if (support === 0) break
+    }
+    if (best !== null) return best
+  }
+
+  return null
+}
+
+/**
+ * As camadas do baú inteiro, montadas a partir das fatias.
+ *
+ * ⚠️ A camada é **do baú**, não da fatia: "camada 1" tem de significar o piso em toda a extensão,
+ * senão a navegação por camada da tela mostraria o piso de uma parada ao lado da segunda pilha de
+ * outra.
+ */
+function toLayers(boxes: readonly PlacedBox[]): readonly CargoPlacementLayer[] {
+  const byIndex = new Map<number, PlacedBox[]>()
+  for (const box of boxes) {
+    const existing = byIndex.get(box.layer)
+    if (existing === undefined) byIndex.set(box.layer, [box])
+    else existing.push(box)
+  }
+
+  return [...byIndex.entries()]
+    .sort(([first], [second]) => first - second)
+    .map(([index, layer]) => ({
+      boxes: layer,
+      heightM: Math.max(...layer.map((box) => box.heightM)),
+      index,
+    }))
 }
 
 /**
@@ -298,6 +580,16 @@ function median(values: readonly number[]): number {
 function resolveStackLimit(box: PlacementBox): number {
   if (box.isStackable === false || box.isFragile === true) return 1
   return box.maxStackCount ?? Number.POSITIVE_INFINITY
+}
+
+/** A presumida entra depois da medida, para a base ficar com a medida de verdade. */
+function rankPresumed(box: PlacementBox): number {
+  return box.source === 'estimated' ? 1 : 0
+}
+
+/** A área que a caixa apoia no piso, em m² — o critério de quem serve de base. */
+function footprintOf(box: PlacementBox): number {
+  return ((box.lengthMm ?? 0) * (box.widthMm ?? 0)) / MILLIMETRES_PER_METRE ** 2
 }
 
 /** Frágil e não empilhável entram por último, para caírem na camada de cima. */
