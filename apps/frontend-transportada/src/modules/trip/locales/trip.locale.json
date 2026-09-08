@@ -717,6 +717,7 @@
       "reset": "Restaurar",
       "side": "Lateral",
       "top": "De cima"
-    }
+    },
+    "stop": "Parada {{sequence}}"
   }
 }

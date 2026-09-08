@@ -84,3 +84,12 @@
 .boxDimmed {
   opacity: 0.28;
 }
+
+/**
+ * ⚠️ A parada apagada é **cinza sólido esmaecido**, nunca contorno tracejado: o tracejado parecia bom
+ * com três caixas e virava uma teia de linhas com trinta — com a carga inteira riscada não dava para
+ * ver nem a parada escolhida nem o resto.
+ */
+.boxGhost {
+  opacity: 0.42;
+}

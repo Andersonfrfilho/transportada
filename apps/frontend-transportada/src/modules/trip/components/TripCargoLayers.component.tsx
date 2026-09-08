@@ -16,6 +16,7 @@ import {
   type CargoViewPreset,
 } from '../shared/cargoView.service'
 import { stopColorOf } from '../shared/stopColor.service'
+import { EMPTY_STOP_FOCUS, isStopLit, toggleStopFocus } from '../shared/stopFocus.service'
 import type { TripCargoLayout } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
 
@@ -43,6 +44,7 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
    */
   const [hasDragged, setHasDragged] = useState(false)
   const dragFrom = useRef<{ x: number; y: number } | null>(null)
+  const [focus, setFocus] = useState(EMPTY_STOP_FOCUS)
 
   const placement = layout?.placement ?? null
   if (layout === null || placement === null || placement.layers.length === 0) return null
@@ -70,6 +72,7 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
       heightM: box.heightM,
       id: `${String(layer.index)}-${String(position)}`,
       isEstimated: box.source === 'estimated',
+      isGhost: !isStopLit(focus, box.stopSequence),
       isSplit: box.reasons.includes('splitCargo'),
       widthM: box.widthM,
       xM: box.xM,
@@ -77,6 +80,10 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
       zM: zByLayer.get(layer.index) ?? 0,
     })),
   )
+
+  const stopSequences = [
+    ...new Set(placement.layers.flatMap((layer) => layer.boxes.map((box) => box.stopSequence))),
+  ].sort((first, second) => first - second)
 
   return (
     <section aria-labelledby="trip-cargo-layers-title" className={styles.panel}>
@@ -153,6 +160,24 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
             {t('cargoLayers.dragHint')}
           </span>
         )}
+      </div>
+
+      <div className={styles.cargoStops}>
+        {stopSequences.map((stopSequence) => (
+          <button
+            aria-pressed={focus.has(stopSequence)}
+            className={styles.cargoStopChip}
+            key={stopSequence}
+            type="button"
+            onClick={() => setFocus((previous) => toggleStopFocus(previous, stopSequence))}
+          >
+            <span
+              className={styles.cargoStopDot}
+              style={{ background: stopColorOf(stopSequence) }}
+            />
+            {t('cargoLayers.stop', { sequence: stopSequence })}
+          </button>
+        ))}
       </div>
 
       <div className={styles.cargoPads}>

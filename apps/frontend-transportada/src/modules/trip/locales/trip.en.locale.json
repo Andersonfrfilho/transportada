@@ -592,6 +592,7 @@
       "reset": "Restore",
       "side": "Side",
       "top": "Top"
-    }
+    },
+    "stop": "Stop {{sequence}}"
   }
 }

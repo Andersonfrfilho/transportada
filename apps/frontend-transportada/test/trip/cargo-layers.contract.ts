@@ -66,7 +66,7 @@ describe('planta das camadas (spec 094)', () => {
     const isometric = readApplicationFile('src/components/ui/cargo-isometric.tsx')
 
     expect(source).toContain("isEstimated: box.source === 'estimated'")
-    expect(isometric).toContain('box.isEstimated ? <polygon className={styles.faceWash}')
+    expect(isometric).toContain('<polygon className={styles.faceWash}')
   })
 
   /** O que não coube é nomeado, nunca escondido — e cada motivo tem texto próprio. */

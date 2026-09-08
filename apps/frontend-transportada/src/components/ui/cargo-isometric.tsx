@@ -14,6 +14,12 @@ export type IsometricBox = Readonly<{
   heightM: number
   id: string
   isEstimated: boolean
+  /**
+   * A parada apagada vira fantasma cinza sólido — nunca sumida, nunca tracejada: a carga dela
+   * continua ocupando o espaço que ocupa, e escondê-la faria a escolhida parecer caber em qualquer
+   * lugar do baú.
+   */
+  isGhost: boolean
   /** Carga que não coube na própria fatia: sai contornada, para não se confundir com a que coube. */
   isSplit: boolean
   widthM: number
@@ -55,6 +61,9 @@ export type CargoIsometricProps = Readonly<{
 const UNITS_PER_METRE = 46
 
 export const DEFAULT_VIEW_ANGLE: ViewAngle = { pitchRad: 0.62, yawRad: -0.62 }
+
+/** O cinza do fantasma vem literal porque `fill` é atributo, não classe — o CSS só o esmaece. */
+const GHOST_FILL = '#5a6b74'
 
 type Point = Readonly<{ x: number; y: number }>
 type SpacePoint = Readonly<{ xM: number; yM: number; zM: number }>
@@ -296,14 +305,25 @@ function IsometricSolid({
 
   const face = (points: readonly Point[], shade: string): JSX.Element => (
     <>
-      <polygon className={shade} fill={box.color} points={toPoints(points)} />
-      {box.isEstimated ? <polygon className={styles.faceWash} points={toPoints(points)} /> : null}
-      {box.isSplit ? <polygon className={styles.faceSplit} points={toPoints(points)} /> : null}
+      <polygon
+        className={shade}
+        fill={box.isGhost ? GHOST_FILL : box.color}
+        points={toPoints(points)}
+      />
+      {box.isEstimated && !box.isGhost ? (
+        <polygon className={styles.faceWash} points={toPoints(points)} />
+      ) : null}
+      {box.isSplit && !box.isGhost ? (
+        <polygon className={styles.faceSplit} points={toPoints(points)} />
+      ) : null}
     </>
   )
 
   return (
-    <g className={cn(styles.box, dimmed && styles.boxDimmed)} data-box-id={box.id}>
+    <g
+      className={cn(styles.box, dimmed && styles.boxDimmed, box.isGhost && styles.boxGhost)}
+      data-box-id={box.id}
+    >
       {face(horizontal, styles.faceTop ?? '')}
       {face(alongX, styles.faceFront ?? '')}
       {face(alongY, styles.faceSide ?? '')}
