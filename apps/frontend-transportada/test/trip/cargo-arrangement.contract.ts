@@ -123,6 +123,20 @@ describe('a tela nomeia o arranjo', () => {
     expect(fonte(CAMADAS)).toContain('cargoLayers.arrangement.weightWon')
   })
 
+  /**
+   * ⚠️ **Quem diz que foi o peso é a API, e a tela não deduz.** Concluir isso de `depth` mais carga
+   * pesada afirmava o mesmo na viagem de uma parada só, na carroceria aberta e quando as faixas não
+   * caberiam de todo jeito — nos três o operador conclui que aliviar a carga devolveria as faixas, e
+   * não devolve. Achado na revisão da spec 100.
+   */
+  it('o aviso sai do motivo publicado, nunca de uma dedução sobre o peso', () => {
+    const source = fonte(CAMADAS)
+
+    expect(source).toContain("layout.stopArrangementReason === 'weight'")
+    expect(source).not.toContain('BALANCE_PAYLOAD_RATIO')
+    expect(source).not.toContain('payloadRatio')
+  })
+
   it('tem texto para os dois arranjos e para a troca por peso', () => {
     const locale = JSON.parse(fonte(LOCALE)) as {
       cargoLayers: {

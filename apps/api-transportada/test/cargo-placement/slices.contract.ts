@@ -745,43 +745,34 @@ describe('as faixas paralelas à porta (spec 100)', () => {
   })
 
   /**
-   * ⚠️ **Em faixas a sobra não se divide — ela não coube mesmo** (spec 100 G003).
+   * ⚠️ **Caber em largura não é caber, e este é o defeito que a revisão pegou.**
    *
-   * Em profundidade a carga dividida sobe para a região das paradas entregues depois, mais fundo no
-   * baú: nada fica por cima dela e o corredor já está livre quando a vez dela chega. Em faixas essa
-   * região **não existe** — a faixa vai do chão ao teto e da porta à testeira, e é limitada só na
-   * largura, então a parada que estoura a própria faixa já encheu o baú. O único lugar que sobraria
-   * é em cima da faixa de outra parada, que é o que a fatia veio proibir.
-   *
-   * Medido: a partir de 60 caixas colocadas neste baú toda sobra sai como `bedFull`.
+   * Duas paradas de uma caixa cada seguram 0,60 m de um baú de 1,45 m — o mínimo delas —, e a parada
+   * dominante fica com 0,85 m, que não comporta o volume dela. Antes do teste de volume o arranjo
+   * saía `lanes` e o empacotador descartava **15 de 57 caixas** como `bedFull` num baú **64% cheio**;
+   * as mesmas 57 cabiam em profundidade. O operador lia "não coube" numa viagem que cabe, na tela em
+   * que ele decide aceitar a carga.
    */
-  test('em faixas a sobra sai como baú cheio, nunca em cima de outra parada', () => {
+  test('carga que cabe é colocada, mesmo quando a faixa a estrangularia', () => {
     const plan = resolveCargoPlacement({
       bed: FIORINO,
-      boxes: [1, 2, 3].map((stopSequence) =>
-        box({ count: 40, heightMm: 300, lengthMm: 400, stopSequence, widthMm: 300 }),
-      ),
+      boxes: [
+        box({ heightMm: 300, lengthMm: 400, stopSequence: 1, widthMm: 300 }),
+        box({ heightMm: 300, lengthMm: 400, stopSequence: 2, widthMm: 300 }),
+        box({ count: 55, heightMm: 300, lengthMm: 400, stopSequence: 3, widthMm: 300 }),
+      ],
     })
-    const boxes = placed(plan)
 
-    /** A carga estoura o baú: sem isto a afirmação abaixo passaria por não haver sobra nenhuma. */
-    expect(plan?.unplaced.some((entry) => entry.reason === 'bedFull')).toBe(true)
-    expect(boxes.filter((entry) => entry.reasons.includes('splitCargo'))).toEqual([])
+    expect(placed(plan).length).toBe(57)
+    expect(plan?.unplaced).toEqual([])
   })
 
   /**
-   * ⚠️ E a faixa continua sendo faixa mesmo com o baú estourando: nenhuma caixa cruza para a largura
-   * de outra parada. É a proibição da 095 G001, no eixo que a 100 escolheu.
+   * ⚠️ A proibição da 095 G001 no eixo que a 100 escolheu: nenhuma caixa cruza para a largura de
+   * outra parada. É o que faz a faixa ser faixa, e não uma tendência.
    */
-  test('nem com o baú estourando uma parada invade a faixa de outra', () => {
-    const boxes = placed(
-      resolveCargoPlacement({
-        bed: FIORINO,
-        boxes: [1, 2, 3].map((stopSequence) =>
-          box({ count: 40, heightMm: 300, lengthMm: 400, stopSequence, widthMm: 300 }),
-        ),
-      }),
-    )
+  test('nenhuma parada invade a largura de outra', () => {
+    const boxes = placed(resolveCargoPlacement({ bed: FIORINO, boxes: TRES_PARADAS }))
 
     const invadindo = boxes.filter((entry) =>
       boxes.some(

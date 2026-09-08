@@ -16,6 +16,7 @@ import {
   type MeasuredBoxShape,
   type PlacementBox,
   type StopArrangement,
+  type StopArrangementReason,
 } from './cargo-placement.policy.js'
 import {
   divideHalfUp,
@@ -169,6 +170,15 @@ export type ResolvedCargoLayout = {
    * (caixa larga demais, ou peso acima de metade do teto) não é adivinhável olhando a planta.
    */
   readonly stopArrangement: StopArrangement
+  /**
+   * Por que este arranjo, e não o outro.
+   *
+   * ⚠️ Ele existe porque **a tela precisa explicar a troca, e não pode deduzi-la**. Deduzir "foi o
+   * peso" de `depth` mais carga pesada afirmava isso também na viagem de uma parada só, na carroceria
+   * aberta e quando as faixas não caberiam de todo jeito — e nesses três o operador conclui que
+   * aliviar a carga devolveria as faixas, e não devolve.
+   */
+  readonly stopArrangementReason: StopArrangementReason
   /** Fileiras vazias entre a carga e a porta. Zero quando não se sabe a capacidade. */
   readonly freeRows: number
   /**
@@ -345,17 +355,23 @@ export function resolveCargoLayout(input: {
    * viagem, e decidir separado produziria uma tela em que a planta mostra faixas enquanto a tabela
    * descreve profundidade — as duas plausíveis, uma errada, e nada falhando.
    */
-  const arrangement = resolveStopArrangement({
+  /**
+   * ⚠️ As caixas são montadas **uma vez** e servem à decisão e ao desenho. Montá-las duas vezes
+   * dobrava um caminho com orçamento de 50 ms declarado (spec 099) e, pior, abria a porta para os
+   * dois lados receberem entradas diferentes.
+   */
+  const placementBoxes = toPlacementBoxes({
+    fallbackVolumeM3: input.fallbackBoxVolumeM3 ?? null,
+    measuredShapes: input.measuredShapes ?? [],
+    stops: ordered,
+  })
+  const decision = resolveStopArrangement({
     bed,
-    boxes: toPlacementBoxes({
-      fallbackVolumeM3: input.fallbackBoxVolumeM3 ?? null,
-      measuredShapes: input.measuredShapes ?? [],
-      stops: ordered,
-    }),
+    boxes: placementBoxes,
     loadingAccess: access,
     payloadRatio: input.payloadRatio ?? null,
   })
-  const lanes = arrangement === 'lanes'
+  const lanes = decision.arrangement === 'lanes'
   /**
    * ⚠️ **Em faixas toda parada é alcançável, inclusive no baú que só abre atrás** — é o ponto inteiro
    * do arranjo. Manter isto preso ao acesso faria a tela dizer que a carga da frente precisa sair
@@ -437,12 +453,10 @@ export function resolveCargoLayout(input: {
      * inverso do que o painel acima dela mostra, e as duas ficariam brigando na mesma tela.
      */
     placement: resolveCargoPlacement({
+      /** ⚠️ A **mesma** decisão da tabela — resolver de novo aqui é como as duas passam a discordar. */
+      arrangement: decision.arrangement,
       bed,
-      boxes: toPlacementBoxes({
-        fallbackVolumeM3: input.fallbackBoxVolumeM3 ?? null,
-        measuredShapes: input.measuredShapes ?? [],
-        stops: ordered,
-      }),
+      boxes: placementBoxes,
       /** Spec 099: quem abre a lateral inteira não tem porta a que encostar — equilibra sempre. */
       loadingAccess: access,
       payloadRatio: input.payloadRatio ?? null,
@@ -462,7 +476,8 @@ export function resolveCargoLayout(input: {
      * terceira entrega alcança a faixa dela sem mexer nas outras duas.
      */
     orderIsBinding: !lanes && access === 'rear',
-    stopArrangement: arrangement,
+    stopArrangement: decision.arrangement,
+    stopArrangementReason: decision.reason,
     overflowM3: formatScaledDecimal(
       occupancyKnown && loaded > capacity ? loaded - capacity : 0n,
       VOLUME_SCALE,

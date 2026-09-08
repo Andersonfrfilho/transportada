@@ -50,7 +50,7 @@ describe('qual arranjo a viagem usa (spec 100 D2)', () => {
         boxes: tresParadas(),
         payloadRatio: null,
       }),
-    ).toBe('lanes')
+    ).toMatchObject({ arrangement: 'lanes' })
   })
 
   /**
@@ -70,7 +70,7 @@ describe('qual arranjo a viagem usa (spec 100 D2)', () => {
       payloadRatio: null,
     })
 
-    expect(arranjo).toBe('depth')
+    expect(arranjo).toMatchObject({ arrangement: 'depth' })
   })
 
   /**
@@ -85,7 +85,7 @@ describe('qual arranjo a viagem usa (spec 100 D2)', () => {
       payloadRatio: null,
     })
 
-    expect(arranjo).toBe('lanes')
+    expect(arranjo).toMatchObject({ arrangement: 'lanes' })
   })
 
   /**
@@ -99,7 +99,7 @@ describe('qual arranjo a viagem usa (spec 100 D2)', () => {
         boxes: [box({ stopSequence: 1 })],
         payloadRatio: null,
       }),
-    ).toBe('depth')
+    ).toMatchObject({ arrangement: 'depth' })
   })
 
   /**
@@ -114,14 +114,14 @@ describe('qual arranjo a viagem usa (spec 100 D2)', () => {
         boxes: tresParadas(),
         payloadRatio: '0.6000',
       }),
-    ).toBe('depth')
+    ).toMatchObject({ arrangement: 'depth' })
   })
 
   /** O degrau é em metade exata: `0,5` ainda é faixa, e `0,5001` já não é. */
   test('a metade exata ainda é faixa', () => {
     expect(
       resolveStopArrangement({ bed: FIORINO, boxes: tresParadas(), payloadRatio: '0.5000' }),
-    ).toBe('lanes')
+    ).toMatchObject({ arrangement: 'lanes' })
   })
 
   /**
@@ -129,16 +129,16 @@ describe('qual arranjo a viagem usa (spec 100 D2)', () => {
    * mudar o arranjo, é a mesma regra que a 099 D3 já escreveu.
    */
   test('teto de massa desconhecido não derruba as faixas', () => {
-    expect(resolveStopArrangement({ bed: FIORINO, boxes: tresParadas(), payloadRatio: null })).toBe(
-      'lanes',
-    )
+    expect(
+      resolveStopArrangement({ bed: FIORINO, boxes: tresParadas(), payloadRatio: null }),
+    ).toMatchObject({ arrangement: 'lanes' })
   })
 
   /** Sem baú não há faixa: a largura da faixa é fração de uma largura que ninguém mediu. */
   test('sem as medidas do baú o arranjo é profundidade', () => {
-    expect(resolveStopArrangement({ bed: null, boxes: tresParadas(), payloadRatio: null })).toBe(
-      'depth',
-    )
+    expect(
+      resolveStopArrangement({ bed: null, boxes: tresParadas(), payloadRatio: null }),
+    ).toMatchObject({ arrangement: 'depth', reason: 'noBed' })
   })
 
   /**
@@ -152,7 +152,7 @@ describe('qual arranjo a viagem usa (spec 100 D2)', () => {
       payloadRatio: null,
     })
 
-    expect(arranjo).toBe('lanes')
+    expect(arranjo).toMatchObject({ arrangement: 'lanes' })
   })
 
   /**
@@ -168,7 +168,7 @@ describe('qual arranjo a viagem usa (spec 100 D2)', () => {
         loadingAccess: 'open',
         payloadRatio: null,
       }),
-    ).toBe('depth')
+    ).toMatchObject({ arrangement: 'depth' })
   })
 
   /** Baú que abre atrás é o caso que a spec mira: é ali que a parada de trás fica inalcançável. */
@@ -180,28 +180,77 @@ describe('qual arranjo a viagem usa (spec 100 D2)', () => {
         loadingAccess: 'rear',
         payloadRatio: null,
       }),
-    ).toBe('lanes')
+    ).toMatchObject({ arrangement: 'lanes' })
   })
 
   /**
-   * ⚠️ **A faixa não é proporcional ao volume, e este é o caso que provou isso.** A primeira versão
-   * media o cabimento pela fatia proporcional, e na viagem real da crítica a parada menor levava 19%
-   * do volume, ganhava 0,28 m de faixa e tinha caixa de 0,30 m — a feature não disparava justamente
-   * no caso que a motivou. A faixa vai do chão ao teto e da porta à testeira: o que a parada exige
-   * da largura é caber a caixa mais larga dela, e a profundidade resolve o resto.
+   * ⚠️ **A faixa não é proporcional ao volume, e a viagem real provou isso.** A primeira versão media
+   * o cabimento pela fatia proporcional, e na crítica a parada menor levava 19% do volume, ganhava
+   * 0,28 m de faixa e tinha caixa de 0,30 m — a feature não disparava justamente no caso que a
+   * motivou. A faixa vai do chão ao teto e da porta à testeira: o que a parada exige da largura é
+   * caber a caixa mais larga dela.
    */
-  test('a parada dominante não estreita a vizinha abaixo da caixa dela', () => {
+  test('a parada menor não derruba as faixas só por ser pequena', () => {
     const arranjo = resolveStopArrangement({
       bed: FIORINO,
       boxes: [
-        box({ count: 60, stopSequence: 1 }),
+        box({ count: 12, stopSequence: 1 }),
         box({ stopSequence: 2 }),
         box({ stopSequence: 3 }),
       ],
       payloadRatio: null,
     })
 
-    expect(arranjo).toBe('lanes')
+    expect(arranjo).toMatchObject({ arrangement: 'lanes', reason: 'fits' })
+  })
+
+  /**
+   * ⚠️ **Caber em largura não é caber, e este é o defeito que a revisão pegou.** Duas paradas de uma
+   * caixa cada seguram 0,60 m de um baú de 1,45 m; a parada dominante fica com 0,85 m, que não
+   * comporta o volume dela. Sem este teste o arranjo saía `lanes` e o empacotador descartava **15 de
+   * 57 caixas** como `bedFull` num baú 64% cheio — as mesmas 57 cabiam em profundidade.
+   */
+  test('a parada dominante estrangulada pelo mínimo das vizinhas derruba as faixas', () => {
+    const arranjo = resolveStopArrangement({
+      bed: FIORINO,
+      boxes: [
+        box({ stopSequence: 1 }),
+        box({ stopSequence: 2 }),
+        box({ count: 55, stopSequence: 3 }),
+      ],
+      payloadRatio: null,
+    })
+
+    expect(arranjo).toMatchObject({ arrangement: 'depth', reason: 'volumeDoesNotFit' })
+  })
+
+  /** E o motivo distingue as causas, que é o que a tela precisa para explicar a troca. */
+  test('cada recusa diz por que recusou', () => {
+    expect(
+      resolveStopArrangement({
+        bed: FIORINO,
+        boxes: tresParadas(),
+        loadingAccess: 'open',
+        payloadRatio: null,
+      }).reason,
+    ).toBe('openBody')
+    expect(
+      resolveStopArrangement({ bed: FIORINO, boxes: tresParadas(), payloadRatio: '0.6000' }).reason,
+    ).toBe('weight')
+    expect(
+      resolveStopArrangement({
+        bed: FIORINO,
+        boxes: [box({ stopSequence: 1 })],
+        payloadRatio: null,
+      }).reason,
+    ).toBe('singleStop')
+    expect(
+      resolveStopArrangement({
+        bed: FIORINO,
+        boxes: [1, 2, 3].map((stopSequence) => box({ lengthMm: 600, stopSequence, widthMm: 600 })),
+        payloadRatio: null,
+      }).reason,
+    ).toBe('tooWide')
   })
 
   /**
@@ -215,6 +264,6 @@ describe('qual arranjo a viagem usa (spec 100 D2)', () => {
       payloadRatio: null,
     })
 
-    expect(arranjo).toBe('depth')
+    expect(arranjo).toMatchObject({ arrangement: 'depth' })
   })
 })

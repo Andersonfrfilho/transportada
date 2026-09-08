@@ -277,6 +277,20 @@ export type TripCargoLayout = Readonly<{
    * comportamento de sempre.
    */
   stopArrangement?: 'depth' | 'lanes'
+  /**
+   * Por que este arranjo, e não o outro. ⚠️ Ele vem da API porque a tela **não pode deduzi-lo**:
+   * concluir "foi o peso" de `depth` mais carga pesada afirmava isso também na viagem de uma parada
+   * só, na carroceria aberta e quando as faixas não caberiam de todo jeito — e nesses três o operador
+   * conclui que aliviar a carga devolveria as faixas, e não devolve.
+   */
+  stopArrangementReason?:
+    | 'fits'
+    | 'noBed'
+    | 'openBody'
+    | 'singleStop'
+    | 'tooWide'
+    | 'volumeDoesNotFit'
+    | 'weight'
   /** Fileiras vazias entre a carga e a porta. Zero quando a capacidade não é conhecida. */
   freeRows: number
   /**

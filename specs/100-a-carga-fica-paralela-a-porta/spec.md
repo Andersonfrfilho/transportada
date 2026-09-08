@@ -84,6 +84,12 @@ viagem de ontem e profundidade na de hoje conclui que o desenho é aleatório.
 ⚠️ `payloadRatio` nulo é teto desconhecido e **não** força profundidade: ausência de denominador não
 é motivo para afirmar peso, é a mesma regra da 099 D3.
 
+### D4b — A tela não deduz o motivo da troca
+
+A API publica `stopArrangementReason`. Deduzir "foi o peso" de `depth` mais carga pesada afirmava o
+mesmo na viagem de uma parada só, na carroceria aberta e quando as faixas não caberiam de todo jeito
+— e nos três o operador conclui que aliviar a carga devolveria as faixas, e não devolve.
+
 ### D5 — A tabela de carregamento acompanha, ou ela mente
 
 `distanceFromDoorM` é zero para toda faixa — é a definição do arranjo. O cabeçalho "da testeira para

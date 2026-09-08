@@ -163,7 +163,7 @@ export function TripCargoPanel({
         conviveram enquanto o 3D não existia; com ele, as três diziam a mesma coisa em três
         linguagens, e a fileira e a planta eram as duas que **não** dizem onde a caixa vai.
       */}
-      <TripCargoLayers layout={layout} payloadRatio={cargoWeight?.payloadRatio ?? null} />
+      <TripCargoLayers layout={layout} />
     </section>
   )
 }

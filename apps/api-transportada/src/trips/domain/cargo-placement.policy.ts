@@ -131,6 +131,15 @@ export function resolveCargoPlacement(input: {
    * segura de `resolveCargoLayout`: supor lateral diria que dá para alcançar o meio de um baú que
    * só abre atrás.
    */
+  /**
+   * O arranjo já decidido por quem chama. ⚠️ Existe para `resolveCargoLayout` decidir **uma vez** e a
+   * tabela e o desenho herdarem a mesma decisão: resolver duas vezes é a porta pela qual as duas
+   * políticas passam a discordar, e nada falha quando isso acontece.
+   *
+   * Ausente, a política resolve o próprio arranjo — é o que mantém `resolveCargoPlacement` utilizável
+   * sozinha, como os contratos a usam.
+   */
+  readonly arrangement?: StopArrangement
   readonly loadingAccess?: LoadingAccess
   /**
    * Quanto do teto de massa da ficha a carga ocupa — `cargoWeight.payloadRatio`, o mesmo número que
@@ -166,12 +175,14 @@ export function resolveCargoPlacement(input: {
    * faz: as duas políticas desenham a mesma viagem, e decidir separado faria a planta mostrar faixas
    * enquanto a tabela descreve profundidade — as duas plausíveis, uma errada, e nada falhando.
    */
-  const arrangement = resolveStopArrangement({
-    bed: input.bed,
-    boxes: input.boxes,
-    loadingAccess: input.loadingAccess ?? 'rear',
-    payloadRatio: input.payloadRatio ?? null,
-  })
+  const arrangement =
+    input.arrangement ??
+    resolveStopArrangement({
+      bed: input.bed,
+      boxes: input.boxes,
+      loadingAccess: input.loadingAccess ?? 'rear',
+      payloadRatio: input.payloadRatio ?? null,
+    }).arrangement
   const lanes = arrangement === 'lanes'
 
   /**
@@ -198,7 +209,11 @@ export function resolveCargoPlacement(input: {
   const totalVolume = volumeOf(measured)
 
   const rows: PlacedBox[] = []
-  const leftovers: { readonly box: PlacementBox; readonly sliceStartM: number }[] = []
+  const leftovers: {
+    readonly box: PlacementBox
+    readonly sliceSizeM: number
+    readonly sliceStartM: number
+  }[] = []
   const presumed = measured.some(
     (box) => box.isStackable === null || box.isFragile === null || box.source === 'estimated',
   )
@@ -219,12 +234,6 @@ export function resolveCargoPlacement(input: {
    * ⚠️ Isto **não** confere peso por eixo: concentrar carga sobre o eixo traseiro é decisão de quem
    * carrega, e a planta continua dizendo `axleNotChecked`.
    */
-  /** A largura mínima da faixa: caber a caixa mais larga da parada, girada se for o caso. */
-  function laneWidthOf(own: readonly PlacementBox[]): number {
-    return Math.max(
-      ...own.map((box) => Math.min(box.lengthMm ?? 0, box.widthMm ?? 0) / MILLIMETRES_PER_METRE),
-    )
-  }
   /** O que sobra da largura depois de todo mundo ter o mínimo — repartido por volume. */
   const laneSlackM = !lanes
     ? 0
@@ -233,7 +242,8 @@ export function resolveCargoPlacement(input: {
         packBed.lengthM -
           sequences.reduce(
             (total, stopSequence) =>
-              total + laneWidthOf(measured.filter((box) => box.stopSequence === stopSequence)),
+              total +
+              minimumLaneWidthOf(measured.filter((box) => box.stopSequence === stopSequence)),
             0,
           ),
       )
@@ -250,7 +260,7 @@ export function resolveCargoPlacement(input: {
       sequences.length === 1
         ? packBed.lengthM
         : lanes
-          ? laneWidthOf(own) + laneSlackM * share
+          ? minimumLaneWidthOf(own) + laneSlackM * share
           : packBed.lengthM * share
 
     return packUntilItFits({ bed: packBed, boxes: own, budget: MAX_PLACED_BOXES, capM })
@@ -311,7 +321,8 @@ export function resolveCargoPlacement(input: {
       placedCount += 1
     }
     for (const entry of slice.unplaced) pushUnplaced(unplaced, entry)
-    for (const box of slice.leftovers) leftovers.push({ box, sliceStartM })
+    for (const box of slice.leftovers)
+      leftovers.push({ box, sliceSizeM: slice.lengthM, sliceStartM })
     sliceStartM += slice.lengthM
   }
 
@@ -466,6 +477,30 @@ function shouldBalanceLoad(input: {
 export const STOP_ARRANGEMENTS = ['depth', 'lanes'] as const
 export type StopArrangement = (typeof STOP_ARRANGEMENTS)[number]
 
+/**
+ * Por que este arranjo, e não o outro.
+ *
+ * ⚠️ Ele existe porque **a tela precisa explicar a troca, e não pode deduzi-la**. Deduzir "foi o
+ * peso" de `depth` mais carga pesada afirmava isso também quando a viagem tem uma parada só, quando
+ * a carroceria é aberta e quando as faixas não caberiam de todo jeito — e nesses três o operador
+ * conclui que aliviar a carga devolveria as faixas, e não devolve.
+ */
+export const STOP_ARRANGEMENT_REASONS = [
+  'fits',
+  'noBed',
+  'openBody',
+  'singleStop',
+  'tooWide',
+  'volumeDoesNotFit',
+  'weight',
+] as const
+export type StopArrangementReason = (typeof STOP_ARRANGEMENT_REASONS)[number]
+
+export type StopArrangementDecision = Readonly<{
+  arrangement: StopArrangement
+  reason: StopArrangementReason
+}>
+
 export function resolveStopArrangement(input: {
   readonly bed: CargoBedDimensions | null
   readonly boxes: readonly PlacementBox[]
@@ -473,17 +508,28 @@ export function resolveStopArrangement(input: {
   readonly loadingAccess?: LoadingAccess
   /** O mesmo `cargoWeight.payloadRatio` que o painel imprime. `null` é teto desconhecido. */
   readonly payloadRatio: string | null
-}): StopArrangement {
-  if (input.bed === null) return 'depth'
+}): StopArrangementDecision {
+  if (input.bed === null) return { arrangement: 'depth', reason: 'noBed' }
   /**
    * ⚠️ **Carroceria aberta não ganha faixa**, pela mesma razão que ela equilibra sempre (099 D3):
    * quem abre o comprimento inteiro já tem toda a carga à mão, e não existe "a porta" a que
    * encostar. Faixa ali não resolveria acesso nenhum e desfaria o equilíbrio de peso.
    */
-  if (input.loadingAccess === 'open') return 'depth'
+  if (input.loadingAccess === 'open') return { arrangement: 'depth', reason: 'openBody' }
 
   const bedWidthM = Number.parseFloat(input.bed.widthM)
-  if (!Number.isFinite(bedWidthM) || bedWidthM <= 0) return 'depth'
+  const bedLengthM = Number.parseFloat(input.bed.lengthM)
+  const bedHeightM = Number.parseFloat(input.bed.heightM)
+  if (
+    !Number.isFinite(bedWidthM) ||
+    bedWidthM <= 0 ||
+    !Number.isFinite(bedLengthM) ||
+    bedLengthM <= 0 ||
+    !Number.isFinite(bedHeightM) ||
+    bedHeightM <= 0
+  ) {
+    return { arrangement: 'depth', reason: 'noBed' }
+  }
 
   /**
    * ⚠️ **A física vence o acesso** (spec 099 D3, mantida). Massa concentrada numa faixa junto da
@@ -492,7 +538,9 @@ export function resolveStopArrangement(input: {
    * afirma, que é a mesma regra da 099.
    */
   const ratio = input.payloadRatio === null ? null : Number(input.payloadRatio)
-  if (ratio !== null && Number.isFinite(ratio) && ratio > BALANCE_PAYLOAD_RATIO) return 'depth'
+  if (ratio !== null && Number.isFinite(ratio) && ratio > BALANCE_PAYLOAD_RATIO) {
+    return { arrangement: 'depth', reason: 'weight' }
+  }
 
   /** Caixa sem medida já não entra no desenho (spec 085): deixá-la pesar aqui derrubaria a viagem. */
   const measured = input.boxes.filter(
@@ -500,38 +548,60 @@ export function resolveStopArrangement(input: {
   )
   const sequences = [...new Set(measured.map((box) => box.stopSequence))]
   /** Com uma parada os dois arranjos desenham o mesmo — nomear os dois seria distinção sem diferença. */
-  if (sequences.length < 2) return 'depth'
+  if (sequences.length < 2) return { arrangement: 'depth', reason: 'singleStop' }
+
+  const byStop = sequences.map((stopSequence) => {
+    const own = measured.filter((box) => box.stopSequence === stopSequence)
+
+    return { minWidthM: minimumLaneWidthOf(own), volumeM3: volumeOf(own) }
+  })
 
   /**
    * ⚠️ **A faixa não precisa ser proporcional ao volume — ela vai do chão ao teto e da porta à
-   * testeira.** O que a parada exige da largura é uma coisa só: caber a caixa mais larga dela. A
-   * profundidade e a altura resolvem o resto.
+   * testeira.** O que a parada exige da largura é caber a caixa mais larga dela; a profundidade e a
+   * altura resolvem o resto.
    *
    * Medir o cabimento pela fatia proporcional era o defeito que a evidência da spec pegou: na viagem
    * real da crítica a parada menor levava 19% do volume, ganhava 0,28 m de faixa e tinha caixa de
    * 0,30 m — a feature não disparava justamente no caso que a motivou.
-   *
-   * ⚠️ Quem decide o cabimento é a **menor dimensão de planta**, porque a caixa gira: cobrar o
-   * comprimento recusaria faixa para uma caixa que entra de lado, e `fitSlot` já testa as duas
-   * orientações.
    */
-  const needed = sequences.reduce((total, stopSequence) => {
-    const own = measured.filter((box) => box.stopSequence === stopSequence)
+  const neededM = byStop.reduce((total, stop) => total + stop.minWidthM, 0)
+  if (neededM > bedWidthM) return { arrangement: 'depth', reason: 'tooWide' }
 
-    return (
-      total +
-      Math.max(
-        ...own.map((box) => Math.min(box.lengthMm ?? 0, box.widthMm ?? 0) / MILLIMETRES_PER_METRE),
-      )
-    )
-  }, 0)
+  /**
+   * ⚠️ **Caber em largura não é caber.** A largura mínima é o que a parada exige para a caixa entrar;
+   * o volume dela ainda precisa caber na faixa que sobrar. Sem este segundo teste, duas paradas de
+   * uma caixa cada seguravam 0,60 m de um baú de 1,45 m e estrangulavam a parada dominante — medido,
+   * 15 de 57 caixas saíam como `bedFull` num baú 64% cheio, e as mesmas 57 cabiam em profundidade.
+   *
+   * O desconto é o **mesmo** `ROW_PACKING_EFFICIENCY` que dimensiona a fatia: nenhuma arrumação real
+   * atinge 100% da seção, e comparar com o volume geométrico prometeria uma faixa que a varredura
+   * não entrega.
+   */
+  const totalVolumeM3 = byStop.reduce((total, stop) => total + stop.volumeM3, 0)
+  const slackM = bedWidthM - neededM
+  const fits = byStop.every((stop) => {
+    const share = totalVolumeM3 > 0 ? stop.volumeM3 / totalVolumeM3 : 1 / byStop.length
+    const laneWidthM = stop.minWidthM + slackM * share
+
+    return stop.volumeM3 <= laneWidthM * bedLengthM * bedHeightM * ROW_PACKING_EFFICIENCY
+  })
 
   /**
    * ⚠️ **Sem exceção silenciosa**: as faixas cabem todas ou nenhuma. Metade da carga em faixas e
    * metade em profundidade produziria um desenho que ninguém consegue seguir — e o operador seguiria
    * mesmo assim.
    */
-  return needed <= bedWidthM ? 'lanes' : 'depth'
+  return fits
+    ? { arrangement: 'lanes', reason: 'fits' }
+    : { arrangement: 'depth', reason: 'volumeDoesNotFit' }
+}
+
+/** A largura mínima da faixa: caber a caixa mais larga da parada, girada se for o caso. */
+function minimumLaneWidthOf(boxes: readonly PlacementBox[]): number {
+  return Math.max(
+    ...boxes.map((box) => Math.min(box.lengthMm ?? 0, box.widthMm ?? 0) / MILLIMETRES_PER_METRE),
+  )
 }
 
 /** O volume que a carga ocupa de fato, em m³ — é ele que dimensiona a fatia. */
@@ -879,7 +949,11 @@ function placeSplitCargo(input: {
   readonly budget: number
   /** Spec 100: com faixas não existe "região das paradas posteriores" para onde empurrar a sobra. */
   readonly lanes: boolean
-  readonly leftovers: readonly { readonly box: PlacementBox; readonly sliceStartM: number }[]
+  readonly leftovers: readonly {
+    readonly box: PlacementBox
+    readonly sliceSizeM: number
+    readonly sliceStartM: number
+  }[]
   readonly rows: readonly PlacedBox[]
   readonly unplaced: UnplacedBox[]
 }): readonly PlacedBox[] {
@@ -932,27 +1006,10 @@ function placeSplitCargo(input: {
    */
   let attempts = 0
 
-  for (const { box, sliceStartM } of queue) {
+  for (const { box, sliceSizeM, sliceStartM } of queue) {
     attempts += 1
     if (placed.length >= input.budget || attempts > MAX_SPLIT_BOXES) {
       pushUnplaced(input.unplaced, { count: 1, label: box.label, reason: 'tooMany' })
-      continue
-    }
-    /**
-     * ⚠️ **Em faixas a sobra não se divide — ela não coube mesmo** (spec 100 G003). Em profundidade
-     * a sobra sobe para a região das paradas entregues depois, mais fundo no baú: ali nada fica por
-     * cima dela e o corredor já está livre quando a vez dela chega. Em faixas essa região não
-     * existe. A faixa vai do chão ao teto e da porta à testeira, e é limitada só na largura — então
-     * a parada que estoura a própria faixa já encheu o baú, e o único lugar que sobra é **em cima da
-     * faixa de outra parada**, que é exatamente o que a fatia veio proibir.
-     *
-     * Medido no baú da spec (Fiorino, três paradas de caixa igual): a partir de 60 caixas colocadas
-     * toda sobra sai como `bedFull`, e `findSplitSpot` não achava lugar nenhum. Deixá-la entrar na
-     * busca era pior que inútil: `sliceStartM` é deslocamento de **largura** em faixas, e a busca o
-     * lia como limite de profundidade — recusava por acaso, não por regra.
-     */
-    if (input.lanes) {
-      pushUnplaced(input.unplaced, { count: 1, label: box.label, reason: 'bedFull' })
       continue
     }
     const slot = fitSlot({ bed: input.bed, box })
@@ -962,7 +1019,9 @@ function placeSplitCargo(input: {
         : findSplitSpot({
             cellsOf,
             columns,
+            lanes: input.lanes,
             lines,
+            sliceSizeM,
             sliceStartM,
             slot,
             topLayer,
@@ -1005,7 +1064,10 @@ function findSplitSpot(input: {
   readonly bed: Readonly<{ heightM: number; lengthM: number; widthM: number }>
   readonly cellsOf: (fromM: number, sizeM: number, limit: number) => readonly [number, number]
   readonly columns: number
+  readonly lanes: boolean
   readonly lines: number
+  /** A largura da faixa em faixas; o comprimento da fatia em profundidade. */
+  readonly sliceSizeM: number
   readonly sliceStartM: number
   readonly slot: Slot
   readonly topLayer: Int32Array
@@ -1023,10 +1085,33 @@ function findSplitSpot(input: {
    */
   const step = HEIGHT_MAP_CELL_M * 4
 
-  for (let xM = input.sliceStartM - input.slot.depthM; xM >= -1e-9; xM -= step) {
+  /**
+   * ⚠️ **Em faixas a sobra fica na própria faixa** (spec 100 G003). Em profundidade ela sobe para a
+   * região das paradas entregues depois, mais fundo no baú: ali nada fica por cima dela e o corredor
+   * já está livre quando a vez dela chega. Em faixas essa região não existe — o mesmo movimento
+   * poria a sobra **em cima da faixa de outra parada**, que é o que a fatia veio proibir.
+   *
+   * Então a busca troca de eixo: `y` fica preso à faixa da parada, e `x` varre do fundo para a porta.
+   * A sobra vai para a parte da própria carga mais longe da porta, que é a menos acessível — e é
+   * dela mesma, então ninguém precisa mexer nela para chegar a outra entrega.
+   *
+   * ⚠️ **Ela não pode ser descartada de saída.** A versão anterior mandava toda sobra em faixas para
+   * `bedFull`, no argumento de que a parada que estoura a própria faixa já encheu o baú. Isso era
+   * verdade quando a faixa era proporcional ao volume, e deixou de ser quando o mínimo passou a ser
+   * reservado por parada — medido: 15 de 57 caixas descartadas num baú 64% cheio.
+   */
+  const firstX = input.lanes ? 0 : input.sliceStartM - input.slot.depthM
+  const stepX = input.lanes ? step : -step
+  const lastX = input.lanes ? input.bed.lengthM - input.slot.depthM : 0
+  const firstY = input.lanes ? input.sliceStartM : 0
+  const lastY = input.lanes
+    ? input.sliceStartM + input.sliceSizeM - input.slot.widthM
+    : input.bed.widthM - input.slot.widthM
+
+  for (let xM = firstX; input.lanes ? xM <= lastX + 1e-9 : xM >= lastX - 1e-9; xM += stepX) {
     let best: { layer: number; topM: number; xM: number; yM: number } | null = null
 
-    for (let yM = 0; yM + input.slot.widthM <= input.bed.widthM + 1e-9; yM += step) {
+    for (let yM = firstY; yM <= lastY + 1e-9; yM += step) {
       const [fromColumn, toColumn] = input.cellsOf(
         Math.max(0, xM),
         input.slot.depthM,

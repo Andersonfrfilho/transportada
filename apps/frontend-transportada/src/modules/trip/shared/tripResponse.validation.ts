@@ -759,6 +759,8 @@ function isCargoLayout(value: unknown): boolean {
     (value.stopArrangement === undefined ||
       value.stopArrangement === 'depth' ||
       value.stopArrangement === 'lanes') &&
+    (value.stopArrangementReason === undefined ||
+      typeof value.stopArrangementReason === 'string') &&
     typeof value.occupancyKnown === 'boolean' &&
     isString(value.overflowM3) &&
     /**

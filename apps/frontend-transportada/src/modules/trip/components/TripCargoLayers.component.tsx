@@ -26,25 +26,8 @@ import styles from '../styles/trip.module.css'
 /** A ficha do veículo, onde as três medidas do baú são preenchidas. */
 const FLEET_HREF = '/fleet'
 
-/**
- * Metade do teto de massa: o degrau em que a física vence o acesso (spec 099 D3 e 100 D4).
- *
- * ⚠️ **Cópia por valor** do `BALANCE_PAYLOAD_RATIO` da API — o bundle não carrega código dela, o
- * mesmo caso de `FUEL_TYPES` e `VEHICLE_TYPES`. Mudou de um lado, mude do outro: aqui ele só decide
- * se o aviso aparece, e lá decide o arranjo, então divergir faz a tela explicar o desenho errado.
- */
-const BALANCE_PAYLOAD_RATIO = 0.5
-
 type TripCargoLayersProps = Readonly<{
   layout: TripCargoLayout | null
-  /**
-   * Spec 100 D4: o mesmo `cargoWeight.payloadRatio` que o painel imprime, para a tela dizer que foi
-   * o **peso** que trocou o arranjo — e não a faixa que não coube.
-   *
-   * ⚠️ Sem ele o aviso some, e a troca fica sem explicação: quem viu faixas ontem e profundidade hoje
-   * conclui que o desenho é aleatório.
-   */
-  payloadRatio?: null | string
 }>
 
 /**
@@ -59,7 +42,7 @@ type TripCargoLayersProps = Readonly<{
  * celular de quem está no galpão — e o carregamento é feito uma camada por vez, que é a razão de o
  * desenho ser assim.
  */
-export function TripCargoLayers({ layout, payloadRatio }: TripCargoLayersProps) {
+export function TripCargoLayers({ layout }: TripCargoLayersProps) {
   const { t } = useTranslation('trip')
   const [index, setIndex] = useState(0)
   /**
@@ -140,14 +123,12 @@ export function TripCargoLayers({ layout, payloadRatio }: TripCargoLayersProps) 
    */
   const arrangement = layout.stopArrangement ?? 'depth'
   /**
-   * Spec 100 D4. A política aplica o peso **antes** do teste de cabimento, então profundidade com o
-   * teto estourado é sempre o peso tendo vencido — não há segunda causa a distinguir aqui.
+   * Spec 100 D4. ⚠️ **Quem diz que foi o peso é a API, não uma dedução daqui.** Concluir isso de
+   * `depth` mais carga pesada afirmava o mesmo na viagem de uma parada só, na carroceria aberta e
+   * quando as faixas não caberiam de todo jeito — e nesses três o operador conclui que aliviar a
+   * carga devolveria as faixas, e não devolve.
    */
-  const weightWonAccess =
-    arrangement === 'depth' &&
-    payloadRatio !== null &&
-    payloadRatio !== undefined &&
-    Number.parseFloat(payloadRatio) > BALANCE_PAYLOAD_RATIO
+  const weightWonAccess = layout.stopArrangementReason === 'weight'
 
   const sliceCutsM = useMemo(() => resolveSliceCuts(boxes, arrangement), [arrangement, boxes])
   const bedHeightM = Number.parseFloat(layout.bedHeightM ?? '0')

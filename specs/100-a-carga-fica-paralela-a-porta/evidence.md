@@ -43,13 +43,46 @@ a sobra é repartida por volume.
 as faixas"_. Ele afirmava o defeito com todas as letras, e passava porque descrevia fielmente o que o
 código fazia. **Contrato sintético confirma a implementação; só o dado real confere a premissa.**
 
+## ⚠️ E o que a revisão de código achou depois disso
+
+A correção acima criou uma regressão que **nenhum contrato pegou**, e ela só apareceu rodando a
+política com números:
+
+|                                                      |               antes da revisão |           depois |
+| ---------------------------------------------------- | -----------------------------: | ---------------: |
+| 57 caixas (2,052 m³) num baú de 3,204 m³ — 64% cheio | **42 colocadas**, 15 `bedFull` | **57 colocadas** |
+| as mesmas 57 em profundidade                         |                   57 colocadas |     57 colocadas |
+
+**Caber em largura não é caber.** Duas paradas de uma caixa cada seguram 0,60 m de um baú de 1,45 m —
+o mínimo delas —, e a parada dominante fica com 0,85 m, que não comporta o volume dela. O arranjo
+saía `lanes` e o empacotador descartava a sobra. O operador lia "não coube" numa viagem que cabe, na
+tela em que ele decide aceitar a carga.
+
+Duas correções, porque eram dois defeitos encadeados:
+
+1. **O teste de cabimento passou a incluir volume**, com o mesmo desconto de eficiência de arrumação
+   que dimensiona a fatia. Caber em largura é o piso, não o critério.
+2. **O atalho que mandava toda sobra em faixas para `bedFull` saiu.** Ele se apoiava em "a parada que
+   estoura a própria faixa já encheu o baú" — verdade com faixa proporcional ao volume, falsa desde
+   que o mínimo passou a ser reservado por parada. A busca voltou, agora presa à faixa da parada.
+
+E um terceiro achado, de honestidade da tela: o aviso "o peso venceu" era **deduzido** de `depth`
+mais carga pesada, e afirmava o mesmo na viagem de uma parada só, na carroceria aberta e quando as
+faixas não caberiam de todo jeito. Hoje a API publica `stopArrangementReason` e a tela imprime o que
+ela diz.
+
+⚠️ **A lição é a mesma da correção anterior, uma volta acima.** O contrato "a parada dominante não
+estreita a vizinha" passava, e passava porque descrevia fielmente o que o código fazia. Contrato
+sintético confirma a implementação; medir com números confere a premissa — e desta vez foi a revisão
+de código, não a evidência, que teve de fazê-lo.
+
 ## Gates
 
 ```
-bun run --cwd apps/api-transportada test        4805 pass · 23 skip · 0 fail
+bun run --cwd apps/api-transportada test        4807 pass · 23 skip · 0 fail
 bun run --cwd apps/api-transportada typecheck   limpo
 bun run --cwd apps/api-transportada lint        limpo
-bun run --cwd apps/frontend-transportada test   3056 pass · 0 fail
+bun run --cwd apps/frontend-transportada test   3057 pass · 0 fail
 bun run --cwd apps/frontend-transportada build  index 853,77 kB (gzip 259,40 kB)
 ```
 
