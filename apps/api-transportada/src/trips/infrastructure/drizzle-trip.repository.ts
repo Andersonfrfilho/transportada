@@ -752,6 +752,8 @@ async function readTripDetail(
     fallbackBoxVolumeM3: cargo.fallbackBoxVolumeM3,
     loadingAccess: cargo.loadingAccess,
     measuredShapes: cargo.measuredShapes,
+    /** Spec 098: o teto de massa já resolvido acima — a planta e o painel leem o mesmo número. */
+    payloadRatio: cargoWeightWithCeiling?.payloadRatio ?? null,
     stops: stops.map((stop) => {
       const volumes = stop.documents.map((document) =>
         document.nfeDocumentId === null

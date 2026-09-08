@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { LoadingAccess } from '../../shared/loading-access.constant.js'
 import type { CargoBedDimensions } from './cargo-layout.policy.js'
 
 const MILLIMETRES_PER_METRE = 1000
@@ -25,6 +26,7 @@ export const PLACEMENT_REASONS = [
   'estimatedBox',
   'axleNotChecked',
   'splitCargo',
+  'weightBalanced',
 ] as const
 export type PlacementReason = (typeof PLACEMENT_REASONS)[number]
 
@@ -124,6 +126,17 @@ type Slot = {
 export function resolveCargoPlacement(input: {
   readonly bed: CargoBedDimensions | null
   readonly boxes: readonly PlacementBox[]
+  /**
+   * Por onde este veículo carrega. Ausente assume `rear`, o **mais restritivo** — a mesma omissão
+   * segura de `resolveCargoLayout`: supor lateral diria que dá para alcançar o meio de um baú que
+   * só abre atrás.
+   */
+  readonly loadingAccess?: LoadingAccess
+  /**
+   * Quanto do teto de massa da ficha a carga ocupa — `cargoWeight.payloadRatio`, o mesmo número que
+   * o painel imprime. `null` é teto desconhecido, e sem denominador não se afirma nada.
+   */
+  readonly payloadRatio?: string | null
 }): CargoPlacement | null {
   if (input.bed === null) return null
 
@@ -160,32 +173,181 @@ export function resolveCargoPlacement(input: {
     (box) => box.isStackable === null || box.isFragile === null || box.source === 'estimated',
   )
   let placedCount = 0
-  let sliceStartM = 0
 
-  for (const stopSequence of sequences) {
+  /**
+   * ⚠️ **A fatia é do tamanho da carga, e a carga encosta na porta.** A fatia já era proporcional ao
+   * volume da parada, mas a proporção era do **baú inteiro**: trinta caixas que cabiam num metro
+   * eram esticadas pelos seis metros do baú, uma fileira rasteira por parada, porque a varredura só
+   * quebra para a fileira ao lado quando o `x` estoura o fim da fatia. Medido na tela de montagem:
+   * três paradas, uma camada, o baú inteiro — e todas caberiam encostadas na porta.
+   *
+   * A proporção de hoje vira **teto**, não medida: cada parada continua com a mesma garantia de
+   * espaço, e o que ela usa é o que a carga dela pede. O que sobra vira vão entre a testeira e a
+   * carga, nunca vão entre paradas — o bloco é deslocado inteiro para terminar na porta, que é por
+   * onde ele sai.
+   *
+   * ⚠️ Isto **não** confere peso por eixo: concentrar carga sobre o eixo traseiro é decisão de quem
+   * carrega, e a planta continua dizendo `axleNotChecked`.
+   */
+  const slices = sequences.map((stopSequence) => {
     const own = measured.filter((box) => box.stopSequence === stopSequence)
     const share = totalVolume > 0 ? volumeOf(own) / totalVolume : 1 / sequences.length
-    const sliceLengthM = sequences.length === 1 ? bed.lengthM : bed.lengthM * share
+    const capM = sequences.length === 1 ? bed.lengthM : bed.lengthM * share
 
-    const slice = packSlice({
-      bed,
-      boxes: own,
-      budget: MAX_PLACED_BOXES - placedCount,
-      sliceLengthM,
-      sliceStartM,
-    })
-    rows.push(...slice.boxes)
-    placedCount += slice.boxes.length
+    return packUntilItFits({ bed, boxes: own, budget: MAX_PLACED_BOXES, capM })
+  })
+
+  const freeM = Math.max(0, bed.lengthM - slices.reduce((total, slice) => total + slice.lengthM, 0))
+  const balanced = shouldBalanceLoad({
+    loadingAccess: input.loadingAccess ?? 'rear',
+    payloadRatio: input.payloadRatio ?? null,
+  })
+  /**
+   * O vão que sobra fica **atrás** da carga com carga leve, e **repartido dos dois lados** com carga
+   * pesada — ver `shouldBalanceLoad`.
+   */
+  let sliceStartM = balanced ? freeM / 2 : freeM
+
+  for (const slice of slices) {
+    /**
+     * ⚠️ **A fatia foi empacotada na origem e é transladada aqui.** Empacotar de novo com o `x` já
+     * deslocado seria repetir a varredura inteira por nada: o arranjo dentro da fatia não depende de
+     * onde a fatia começa. Medido: dimensionar com pacotes descartados e empacotar de novo custava
+     * 64 ms numa viagem de 300 notas, contra 5 ms antes da compactação e 50 ms de orçamento.
+     */
+    for (const box of slice.boxes) {
+      if (placedCount >= MAX_PLACED_BOXES) {
+        pushUnplaced(unplaced, { count: 1, label: box.label, reason: 'tooMany' })
+        continue
+      }
+      rows.push({ ...box, xM: round(sliceStartM + box.xM) })
+      placedCount += 1
+    }
     for (const entry of slice.unplaced) pushUnplaced(unplaced, entry)
     for (const box of slice.leftovers) leftovers.push({ box, sliceStartM })
-    sliceStartM += sliceLengthM
+    sliceStartM += slice.lengthM
   }
 
   rows.push(
     ...placeSplitCargo({ bed, budget: MAX_PLACED_BOXES - placedCount, leftovers, rows, unplaced }),
   )
 
-  return { layers: toLayers(rows), source: presumed ? 'estimated' : 'measured', unplaced }
+  /**
+   * ⚠️ O motivo é carimbado **aqui**, não dentro da varredura: ele é do arranjo inteiro, e não da
+   * caixa. Quem o vê na caixa entende por que ela não está colada na porta como as outras viagens.
+   */
+  const stamped = balanced
+    ? rows.map((row) => ({ ...row, reasons: [...row.reasons, 'weightBalanced' as const] }))
+    : rows
+
+  return { layers: toLayers(stamped), source: presumed ? 'estimated' : 'measured', unplaced }
+}
+
+/**
+ * Empacota a parada crescendo a fatia até ela parar de transbordar — e **devolve o pacote**, não só
+ * a medida.
+ *
+ * ⚠️ **Medir e empacotar são a mesma passagem.** A primeira versão dimensionava com pacotes de teste
+ * jogados fora e empacotava de novo no fim: no melhor caso dois pacotes por parada, no pior nove.
+ * Guardar o último pacote é de graça, e o arranjo dentro da fatia não depende de onde ela começa —
+ * o `x` é transladado depois.
+ *
+ * ⚠️ Crescer é mais barato que errar para menos: fatia curta transforma carga que cabe em
+ * `splitCargo`, que é o aviso que manda o operador desconfiar do desenho.
+ */
+function packUntilItFits(input: {
+  readonly bed: Readonly<{ heightM: number; lengthM: number; widthM: number }>
+  readonly boxes: readonly PlacementBox[]
+  readonly budget: number
+  readonly capM: number
+}): {
+  readonly boxes: readonly PlacedBox[]
+  readonly lengthM: number
+  readonly leftovers: readonly PlacementBox[]
+  readonly unplaced: readonly UnplacedBox[]
+} {
+  const crossSectionM2 = input.bed.widthM * input.bed.heightM
+  const deepestM = input.boxes.reduce((deepest, box) => {
+    const slot = fitSlot({ bed: input.bed, box })
+    return slot === null ? deepest : Math.max(deepest, slot.depthM)
+  }, 0)
+  /**
+   * ⚠️ O ponto de partida é o piso volumétrico dividido pela eficiência típica de uma varredura em
+   * fileiras — **o único número chutado do arquivo**, de propósito e sem consequência: ele é o
+   * palpite inicial de uma busca que confere o resultado, nunca um valor que sai na tela.
+   */
+  const floorM =
+    crossSectionM2 > 0
+      ? volumeOf(input.boxes) / crossSectionM2 / ROW_PACKING_EFFICIENCY
+      : input.capM
+  let lengthM = Math.min(input.capM, Math.max(floorM, deepestM))
+
+  for (let attempt = 0; ; attempt += 1) {
+    const packed = packSlice({
+      bed: input.bed,
+      boxes: input.boxes,
+      budget: input.budget,
+      sliceLengthM: lengthM,
+    })
+    const overflowed =
+      packed.leftovers.length > 0 || packed.unplaced.some((entry) => entry.reason === 'bedFull')
+    const exhausted = attempt + 1 >= SLICE_GROWTH_ATTEMPTS || lengthM >= input.capM - 1e-9
+    if (!overflowed || exhausted) return { ...packed, lengthM }
+
+    lengthM = Math.min(input.capM, lengthM * SLICE_GROWTH_FACTOR)
+  }
+}
+
+/** Quantas vezes a fatia cresce antes de desistir e usar o teto proporcional. */
+const SLICE_GROWTH_ATTEMPTS = 8
+/** O passo do crescimento. Grosso de propósito: o desenho não melhora com precisão de centímetro. */
+const SLICE_GROWTH_FACTOR = 1.35
+/** A fração da seção que uma varredura em fileiras costuma alcançar. Palpite inicial da busca. */
+const ROW_PACKING_EFFICIENCY = 0.7
+
+/**
+ * A partir de quanto do teto de massa a carga deixa de encostar na porta.
+ *
+ * ⚠️ **Não é limite legal por eixo, e não pretende ser.** Carga por eixo pede entre-eixos, posição
+ * do eixo sob o baú e a tara distribuída — nada disso está na ficha, e calcular sem eles produziria
+ * um número plausível e falso, que é o modo de falha que esta base recusa por escrito. O que dá
+ * para afirmar sem inventar dado é **posição longitudinal**: massa pendurada na traseira alivia o
+ * eixo dianteiro e sobrecarrega o traseiro, e isso vale sem saber onde os eixos estão exatamente.
+ *
+ * ⚠️ Por isso `axleNotChecked` **continua** no vocabulário: equilibrar ao longo do comprimento não
+ * é conferir eixo, e trocar um pelo outro faria a tela prometer uma conferência que não houve.
+ */
+const BALANCE_PAYLOAD_RATIO = 0.5
+
+/**
+ * Metade do teto é o ponto de virada, e ele é um degrau, não uma rampa.
+ *
+ * Abaixo dele a descarga manda: a carga encosta na porta, sai pela ordem de entrega e a massa é
+ * leve o bastante para o desequilíbrio caber na tolerância do veículo. Acima, a física manda — o
+ * bloco vai para o meio do baú, mesmo custando alcance na primeira entrega.
+ *
+ * ⚠️ Degrau, e não interpolação, porque o operador precisa **prever** o desenho: "acima da metade a
+ * carga vai para o meio" se explica e se confere; uma posição que desliza a cada caixa acrescentada
+ * não se confere contra nada. A ordem entre paradas não muda em nenhum dos dois lados do degrau.
+ *
+ * ⚠️ Teto desconhecido é `null`, e `null` **não equilibra**: sem denominador não há proporção, e
+ * mover a carga por um palpite seria a invenção que a ausência do teto deveria impedir.
+ */
+function shouldBalanceLoad(input: {
+  readonly loadingAccess: LoadingAccess
+  readonly payloadRatio: string | null
+}): boolean {
+  /**
+   * ⚠️ **Carroceria aberta ou sider equilibra sempre, sem olhar o peso.** Encostar na porta serve
+   * para alcançar a carga, e num veículo que abre o comprimento inteiro não existe "a porta" a que
+   * encostar — toda a carga já está à mão. O vocabulário de `LOADING_ACCESS_KINDS` diz isso na
+   * própria definição de `open`: _"a ordem quase não importa; o que passa a valer é o peso"_.
+   */
+  if (input.loadingAccess === 'open') return true
+  if (input.payloadRatio === null) return false
+  const ratio = Number(input.payloadRatio)
+
+  return Number.isFinite(ratio) && ratio > BALANCE_PAYLOAD_RATIO
 }
 
 /** O volume que a carga ocupa de fato, em m³ — é ele que dimensiona a fatia. */
@@ -208,7 +370,6 @@ function packSlice(input: {
   readonly boxes: readonly PlacementBox[]
   readonly budget: number
   readonly sliceLengthM: number
-  readonly sliceStartM: number
 }): {
   readonly boxes: readonly PlacedBox[]
   readonly leftovers: readonly PlacementBox[]
@@ -248,6 +409,11 @@ function packSlice(input: {
       footprintOf(second) - footprintOf(first),
   )
 
+  const support = createSupportMap({
+    heightM: slice.heightM,
+    lengthM: slice.lengthM,
+    widthM: slice.widthM,
+  })
   let cursor = { layer: 0, layerBottomM: 0, layerHeightM: 0, rowWidthM: 0, xM: 0, yM: 0 }
 
   for (const box of ordered) {
@@ -273,29 +439,67 @@ function packSlice(input: {
         pushUnplaced(unplaced, { count: 1, label: box.label, reason: 'tooMany' })
         continue
       }
-      if (cursor.xM + slot.depthM > slice.lengthM + 1e-9) {
-        cursor = { ...cursor, rowWidthM: 0, xM: 0, yM: cursor.yM + cursor.rowWidthM }
-      }
-      if (cursor.yM + slot.widthM > slice.widthM + 1e-9) {
+      /**
+       * ⚠️ **Procurar lugar é laço, não sequência de guardas.** A versão anterior conferia o apoio
+       * uma vez e, recusando, mandava a caixa para `splitCargo` — e como o cursor não avançava,
+       * **toda** caixa seguinte recusava no mesmo ponto: as fatias cresciam até o teto e a carga
+       * voltava a se espalhar pelo baú. Recusar uma posição tem de significar tentar a próxima.
+       */
+      let rest: { readonly topM: number; readonly xM: number } | null = null
+      let guard = 0
+      /**
+       * ⚠️ **Uma camada varrida inteira sem lugar encerra a busca.** Sem isto o cursor subia de
+       * camada indefinidamente — o limite de pilha é infinito para caixa empilhável — e cada caixa
+       * pagava as 64 tentativas antes de virar sobra. Medido: 58 buscas por caixa e 10,8 milhões de
+       * leituras de perfil, num orçamento de tela de 50 ms.
+       */
+      let barrenLayers = 0
+      while (guard < MAX_SEAT_ATTEMPTS) {
+        guard += 1
+        if (cursor.yM + slot.widthM > slice.widthM + 1e-9) {
+          barrenLayers += 1
+          if (barrenLayers >= 2) break
+          cursor = {
+            layer: cursor.layer + 1,
+            layerBottomM: cursor.layerBottomM + cursor.layerHeightM,
+            layerHeightM: 0,
+            rowWidthM: 0,
+            xM: 0,
+            yM: 0,
+          }
+        }
+        /**
+         * ⚠️ O limite de pilha é conferido **depois** de a camada eventualmente fechar. Antes dele, a
+         * caixa que provocava o fechamento escapava para a camada de cima — e uma caixa declarada não
+         * empilhável acabava empilhada, que é o oposto do que o campo diz.
+         */
+        if (cursor.layer >= stackLimit) break
+
+        const found = support.seat({
+          heightM: slice.heightM,
+          slot,
+          xM: cursor.xM,
+          yM: cursor.yM,
+        })
+        if (found !== null && found.xM + slot.depthM <= slice.lengthM + 1e-9) {
+          cursor = { ...cursor, xM: found.xM }
+          rest = found
+          break
+        }
+        /** Nada nivelado desta fileira em diante: quebra para a fileira ao lado. */
         cursor = {
-          layer: cursor.layer + 1,
-          layerBottomM: cursor.layerBottomM + cursor.layerHeightM,
-          layerHeightM: 0,
+          ...cursor,
           rowWidthM: 0,
           xM: 0,
-          yM: 0,
+          yM: cursor.yM + Math.max(cursor.rowWidthM, slot.widthM),
         }
       }
-      /**
-       * ⚠️ O limite de pilha é conferido **depois** de a camada eventualmente fechar. Antes dele, a
-       * caixa que provocava o fechamento escapava para a camada de cima — e uma caixa declarada não
-       * empilhável acabava empilhada, que é o oposto do que o campo diz.
-       */
-      if (cursor.layer >= stackLimit) {
-        pushUnplaced(unplaced, { count: 1, label: box.label, reason: 'bedFull' })
-        continue
-      }
-      if (cursor.layerBottomM + slot.heightM > slice.heightM + 1e-9) {
+
+      if (rest === null) {
+        if (cursor.layer >= stackLimit) {
+          pushUnplaced(unplaced, { count: 1, label: box.label, reason: 'bedFull' })
+          continue
+        }
         spill(box)
         continue
       }
@@ -310,10 +514,11 @@ function packSlice(input: {
         source: box.source,
         stopSequence: box.stopSequence,
         widthM: round(slot.widthM),
-        xM: round(input.sliceStartM + cursor.xM),
+        xM: round(cursor.xM),
         yM: round(cursor.yM),
-        zM: round(cursor.layerBottomM),
+        zM: round(rest.topM),
       })
+      support.stamp({ slot, topM: rest.topM + slot.heightM, xM: cursor.xM, yM: cursor.yM })
       cursor = {
         ...cursor,
         layerHeightM: Math.max(cursor.layerHeightM, slot.heightM),
@@ -328,6 +533,142 @@ function packSlice(input: {
 
 /** Lado da célula do mapa de alturas, em metros. Fino o bastante para uma caixa de 20 cm. */
 const HEIGHT_MAP_CELL_M = 0.05
+
+/**
+ * Quantas fileiras uma caixa tenta antes de virar sobra. O laço já termina sozinho — sem lugar
+ * nivelado ele sobe de camada até o teto ou o limite de pilha —, e o teto existe para o caso
+ * patológico não custar a tela.
+ */
+const MAX_SEAT_ATTEMPTS = 64
+
+/**
+ * O relevo da fatia: a altura do topo em cada célula do piso.
+ *
+ * A varredura em fileiras decide **x** e **y**; quem decide **z** é este mapa, e é por isso que ele
+ * existe. Sem ele a caixa herda o topo da camada — o máximo do baú inteiro naquele índice — e o que
+ * sai é caixa no ar.
+ */
+function createSupportMap(bed: Readonly<{ heightM: number; lengthM: number; widthM: number }>): {
+  readonly seat: (input: {
+    heightM: number
+    slot: Slot
+    xM: number
+    yM: number
+  }) => { readonly topM: number; readonly xM: number } | null
+  readonly stamp: (input: { slot: Slot; topM: number; xM: number; yM: number }) => void
+} {
+  const columns = Math.max(1, Math.ceil(bed.lengthM / HEIGHT_MAP_CELL_M))
+  const lines = Math.max(1, Math.ceil(bed.widthM / HEIGHT_MAP_CELL_M))
+  const topM = new Float64Array(columns * lines)
+
+  /**
+   * ⚠️ **A folga nas duas pontas não é preciosismo — é o que impede a escada.** `0.6 / 0.05` dá
+   * `11.999999999999998` em binário, então `floor` devolve 11 e duas caixas encostadas passam a
+   * dividir uma célula. Cada uma pousava sobre a anterior, e uma fileira de seis subia degrau a
+   * degrau até o teto do baú. Medido: quatro caixas em escada numa fileira de piso.
+   */
+  /**
+   * ⚠️ **As duas pontas arredondam, e é o arredondamento igual que impede a escada.** Com `floor` na
+   * base e `ceil` no topo, duas caixas encostadas de 33 cm dividiam a célula da fronteira: cada uma
+   * pousava sobre a anterior e a fileira subia degrau a degrau. Arredondando as duas, a fronteira
+   * comum cai na mesma célula para as duas caixas, qualquer que seja o tamanho — e o desenho não
+   * ganha vão de meia célula entre caixas encostadas.
+   */
+  const range = (fromM: number, sizeM: number, limit: number): readonly [number, number] => {
+    const from = Math.max(0, Math.round(fromM / HEIGHT_MAP_CELL_M))
+    return [
+      from,
+      Math.min(limit, Math.max(from + 1, Math.round((fromM + sizeM) / HEIGHT_MAP_CELL_M))),
+    ]
+  }
+
+  return {
+    /**
+     * O primeiro lugar **nivelado** a partir de `xM`, na faixa daquele `y`.
+     *
+     * ⚠️ **Nivelado, não "apoiado o bastante".** A alternativa era exigir uma fração da base
+     * apoiada — meia base, dois terços — e todo número desses é inventado: ninguém mediu a
+     * distribuição de massa dentro da caixa, e é ela que decide se a caixa tomba. Exigir o piso
+     * plano sob a pegada inteira dispensa o parâmetro e resolve as duas coisas de uma vez: não sobra
+     * balanço, e a caixa encosta na quina de quem já está lá em vez de deixar vão.
+     *
+     * ⚠️ **O salto é para a próxima quina, não de célula em célula.** É a mudança de altura que cria
+     * a posição boa; varrer 5 cm por vez custaria o orçamento da tela para chegar no mesmo lugar.
+     */
+    seat: ({ heightM, slot, xM, yM }) => {
+      const [fromLine, toLine] = range(yM, slot.widthM, lines)
+      const depth = Math.max(1, Math.round(slot.depthM / HEIGHT_MAP_CELL_M))
+      const first = Math.max(0, Math.floor(xM / HEIGHT_MAP_CELL_M + 1e-6))
+      const last = columns - depth
+
+      /**
+       * O perfil da faixa — o maior e o menor topo de cada coluna dentro do `y` da caixa — calculado
+       * **sob demanda**.
+       *
+       * ⚠️ Montá-lo inteiro antes de procurar custava a tela: são 148 colunas por 50 linhas a cada
+       * caixa, multiplicadas pelas tentativas de dimensionamento da fatia. Medido: 130 ms numa viagem
+       * de 300 notas, contra o orçamento de 50. O lugar quase sempre aparece nas primeiras colunas.
+       */
+      const ceilingOf = new Float64Array(columns).fill(-1)
+      const floorOf = new Float64Array(columns)
+      const bandAt = (column: number): readonly [number, number] => {
+        if ((ceilingOf[column] ?? -1) >= 0) return [ceilingOf[column] ?? 0, floorOf[column] ?? 0]
+        let highest = 0
+        let lowest = Number.POSITIVE_INFINITY
+        for (let line = fromLine; line < toLine; line += 1) {
+          const value = topM[column * lines + line] ?? 0
+          highest = Math.max(highest, value)
+          lowest = Math.min(lowest, value)
+        }
+        ceilingOf[column] = highest
+        floorOf[column] = lowest === Number.POSITIVE_INFINITY ? 0 : lowest
+        return [highest, floorOf[column] ?? 0]
+      }
+
+      /**
+       * ⚠️ **Uma passagem só, mantendo a corrida de colunas no mesmo nível.** A versão anterior
+       * reconferia, para cada coluna candidata, todas as colunas da pegada — 148 × 24 por caixa, e
+       * 900 caixas custavam 83 ms contra o orçamento de 50. A corrida vê cada coluna uma vez.
+       */
+      let runStart = first
+      let level: number | null = null
+      for (let column = first; column < columns; column += 1) {
+        const [ceiling, floor] = bandAt(column)
+        /** Coluna que não é plana no próprio `y` não serve de base: a corrida recomeça depois dela. */
+        if (Math.abs(ceiling - floor) > 1e-9) {
+          runStart = column + 1
+          level = null
+          continue
+        }
+        if (level === null || Math.abs(ceiling - level) > 1e-9) {
+          runStart = column
+          level = ceiling
+        }
+        if (column - runStart + 1 < depth) continue
+        if (runStart > last) break
+        if (level + slot.heightM > heightM + 1e-9) {
+          runStart = column + 1
+          level = null
+          continue
+        }
+
+        return { topM: level, xM: runStart * HEIGHT_MAP_CELL_M }
+      }
+
+      return null
+    },
+    stamp: ({ slot, topM: top, xM, yM }) => {
+      const [fromColumn, toColumn] = range(xM, slot.depthM, columns)
+      const [fromLine, toLine] = range(yM, slot.widthM, lines)
+      for (let column = fromColumn; column < toColumn; column += 1) {
+        for (let line = fromLine; line < toLine; line += 1) {
+          const cell = column * lines + line
+          topM[cell] = Math.max(topM[cell] ?? 0, top)
+        }
+      }
+    },
+  }
+}
 
 /**
  * Teto de caixas divididas. A busca de lugar para a sobra varre o baú inteiro por caixa, e passar

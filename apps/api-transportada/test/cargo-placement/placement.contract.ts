@@ -31,11 +31,16 @@ function box(overrides: Partial<PlacementBox>): PlacementBox {
 }
 
 describe('empacotamento da carga (spec 094)', () => {
-  test('posiciona a caixa no piso, encostada no fundo', () => {
+  /**
+   * ⚠️ **Encostada na porta, não na testeira.** A fatia é do tamanho da carga: uma caixa sozinha não
+   * é esticada pelos 7,4 m do baú, e o vão sobra atrás dela — que é onde vão sobrar não atrapalha
+   * ninguém na descarga.
+   */
+  test('posiciona a caixa no piso, encostada na porta', () => {
     const plan = resolveCargoPlacement({ bed: BED, boxes: [box({})] })
 
     expect(plan?.layers).toHaveLength(1)
-    expect(plan?.layers[0]?.boxes[0]).toMatchObject({ depthM: 0.6, layer: 0, widthM: 0.4, xM: 0 })
+    expect(plan?.layers[0]?.boxes[0]).toMatchObject({ depthM: 0.6, layer: 0, widthM: 0.4, xM: 6.8 })
   })
 
   /**
@@ -204,6 +209,7 @@ describe('o motivo de cada posição (spec 094 P4)', () => {
       'estimatedBox',
       'axleNotChecked',
       'splitCargo',
+      'weightBalanced',
     ])
   })
 

@@ -72,9 +72,15 @@ describe('a fatia por parada (spec 095 G001)', () => {
     const second = extent(boxes, 2)
     const first = extent(boxes, 1)
 
-    expect(third.from).toBe(0)
     expect(third.to).toBeLessThanOrEqual(second.from + 1e-9)
     expect(second.to).toBeLessThanOrEqual(first.from + 1e-9)
+    /**
+     * ⚠️ O bloco **termina na porta** e as fatias são contíguas entre si: o vão que sobra fica atrás
+     * da última parada, na testeira. Espalhar as três pelos 7,4 m para a primeira encostar na porta
+     * era o defeito — carga que cabia em dois metros ocupava o baú inteiro numa camada rasteira.
+     */
+    expect(first.to).toBeGreaterThan(7.4 - 0.7)
+    expect(third.from).toBeGreaterThan(0)
   })
 
   /**
@@ -395,5 +401,218 @@ describe('os limites do baú na carga dividida (spec 095)', () => {
 
     expect(plan).not.toBeNull()
     expect(performance.now() - startedAt).toBeLessThan(50)
+  })
+})
+
+/**
+ * Spec 098: **acima de metade do teto de massa a carga vai para o meio do baú.**
+ *
+ * ⚠️ Não é conferência de eixo — ela continua não existindo, e `axleNotChecked` continua no
+ * vocabulário. É posição longitudinal: massa pendurada na traseira alivia o eixo dianteiro, e isso
+ * se afirma sem saber onde os eixos estão.
+ */
+describe('o equilíbrio longitudinal (spec 098)', () => {
+  const cargo = [
+    box({ count: 12, label: 'P1', stopSequence: 1 }),
+    box({ count: 12, label: 'P2', stopSequence: 2 }),
+  ]
+
+  const span = (ratio: string | null): { readonly from: number; readonly to: number } => {
+    const boxes = placed(resolveCargoPlacement({ bed: BED, boxes: cargo, payloadRatio: ratio }))
+    return {
+      from: Math.min(...boxes.map((entry) => entry.xM)),
+      to: Math.max(...boxes.map((entry) => entry.xM + entry.depthM)),
+    }
+  }
+
+  test('carga leve encosta na porta, e a descarga manda', () => {
+    expect(span('0.3000').to).toBeCloseTo(7.4, 6)
+  })
+
+  /**
+   * ⚠️ O vão sobra **dos dois lados**, e é isso que centraliza: afirmar só "não encosta na porta"
+   * passaria com a carga colada na testeira, que é o mesmo defeito virado ao contrário.
+   */
+  test('carga pesada centraliza, com folga nas duas pontas', () => {
+    const heavy = span('0.8000')
+
+    expect(heavy.from).toBeGreaterThan(0)
+    expect(heavy.to).toBeLessThan(7.4)
+    expect(heavy.from).toBeCloseTo(7.4 - heavy.to, 6)
+  })
+
+  /** Teto desconhecido não move nada: sem denominador não há proporção que justifique mover. */
+  test('sem teto de massa a carga segue encostada na porta', () => {
+    expect(span(null).to).toBeCloseTo(7.4, 6)
+  })
+
+  test('a carga equilibrada diz por que não está na porta', () => {
+    const boxes = placed(resolveCargoPlacement({ bed: BED, boxes: cargo, payloadRatio: '0.8000' }))
+
+    expect(boxes.every((entry) => entry.reasons.includes('weightBalanced'))).toBe(true)
+  })
+
+  /** ⚠️ Equilibrar não afrouxa a fatia: a ordem de entrega vale nos dois lados do degrau. */
+  test('a ordem entre paradas sobrevive ao equilíbrio', () => {
+    const boxes = placed(resolveCargoPlacement({ bed: BED, boxes: cargo, payloadRatio: '0.8000' }))
+    const second = extent(boxes, 2)
+    const first = extent(boxes, 1)
+
+    expect(second.to).toBeLessThanOrEqual(first.from + 1e-9)
+  })
+})
+
+/**
+ * Spec 099: **por onde o veículo abre decide se existe porta a que encostar.**
+ *
+ * ⚠️ Encostar na porta serve para alcançar a carga. Num sider, que abre o comprimento inteiro, não
+ * há "a porta" — toda a carga já está à mão, e o que sobra para decidir posição é o peso. É o que
+ * `LOADING_ACCESS_KINDS` já dizia na definição de `open`.
+ */
+describe('a posição depende do acesso de carga (spec 099)', () => {
+  const cargo = [
+    box({ count: 12, label: 'P1', stopSequence: 1 }),
+    box({ count: 12, label: 'P2', stopSequence: 2 }),
+  ]
+
+  test('carroceria aberta equilibra mesmo com carga leve', () => {
+    const boxes = placed(
+      resolveCargoPlacement({
+        bed: BED,
+        boxes: cargo,
+        loadingAccess: 'open',
+        payloadRatio: '0.1000',
+      }),
+    )
+    const to = Math.max(...boxes.map((entry) => entry.xM + entry.depthM))
+
+    expect(to).toBeLessThan(7.4)
+  })
+
+  /** ⚠️ Ausente é `rear`, o mais restritivo — supor lateral alcançaria baú que só abre atrás. */
+  test('sem acesso declarado a carga encosta na porta', () => {
+    const boxes = placed(resolveCargoPlacement({ bed: BED, boxes: cargo, payloadRatio: '0.1000' }))
+    const to = Math.max(...boxes.map((entry) => entry.xM + entry.depthM))
+
+    expect(to).toBeCloseTo(7.4, 6)
+  })
+
+  /** A lateral ajuda, mas a ordem ainda vale: `rear_and_side` segue o mesmo degrau de peso. */
+  test('traseira e lateral seguem o degrau de peso, não o acesso', () => {
+    const boxes = placed(
+      resolveCargoPlacement({
+        bed: BED,
+        boxes: cargo,
+        loadingAccess: 'rear_and_side',
+        payloadRatio: '0.1000',
+      }),
+    )
+    const to = Math.max(...boxes.map((entry) => entry.xM + entry.depthM))
+
+    expect(to).toBeCloseTo(7.4, 6)
+  })
+})
+
+/**
+ * Spec 099: **gravidade — nenhuma caixa no ar.**
+ *
+ * ⚠️ A afirmação é sobre a **propriedade**, não sobre posições: percorre o arranjo inteiro e exige
+ * que toda caixa esteja no piso ou tenha, debaixo dela, uma caixa cujo topo é exatamente o seu `z`.
+ * Um teste que conferisse coordenadas conhecidas passaria a mentir na primeira mudança de heurística.
+ */
+describe('a gravidade (spec 099)', () => {
+  const floating = (
+    boxes: readonly ReturnType<typeof placed>[number][],
+  ): readonly ReturnType<typeof placed>[number][] =>
+    boxes.filter(
+      (entry) =>
+        entry.zM > 0 &&
+        !boxes.some(
+          (other) =>
+            other !== entry &&
+            Math.abs(other.zM + other.heightM - entry.zM) < 1e-6 &&
+            other.xM < entry.xM + entry.depthM - 1e-9 &&
+            entry.xM < other.xM + other.depthM - 1e-9 &&
+            other.yM < entry.yM + entry.widthM - 1e-9 &&
+            entry.yM < other.yM + other.widthM - 1e-9,
+        ),
+    )
+
+  /**
+   * ⚠️ **Alturas misturadas é o caso que revelou o defeito.** Com caixas de uma altura só, `z` bate
+   * por coincidência aritmética e o arranjo parece certo — a caixa baixa sobre outra baixa era
+   * erguida até o topo da caixa **alta** vizinha, e ficava com 0,6 m de ar embaixo.
+   */
+  test('nenhuma caixa fica no ar quando as alturas se misturam', () => {
+    const boxes = placed(
+      resolveCargoPlacement({
+        bed: BED,
+        boxes: [
+          box({ count: 6, heightMm: 800, label: 'ALTA', lengthMm: 600, widthMm: 600 }),
+          box({ count: 6, heightMm: 200, label: 'BAIXA', lengthMm: 600, widthMm: 600 }),
+        ],
+      }),
+    )
+
+    expect(boxes).not.toHaveLength(0)
+    expect(floating(boxes)).toEqual([])
+  })
+
+  /**
+   * ⚠️ **Medida que não é múltipla da célula do relevo é o caso que quase escapou.** Toda caixa dos
+   * outros casos mede em múltiplos de 5 cm, e o arranjo saía certo por alinhamento — com 330 mm a
+   * fronteira entre duas caixas encostadas cai no meio de uma célula, que foi como a escada nasceu.
+   */
+  test('nenhuma caixa fica no ar com medida fora da grade do relevo', () => {
+    const boxes = placed(
+      resolveCargoPlacement({
+        bed: BED,
+        boxes: [
+          box({ count: 8, heightMm: 330, label: 'A', lengthMm: 330, widthMm: 330 }),
+          box({ count: 8, heightMm: 170, label: 'B', lengthMm: 330, widthMm: 330 }),
+        ],
+      }),
+    )
+
+    expect(boxes).not.toHaveLength(0)
+    expect(floating(boxes)).toEqual([])
+  })
+
+  /** A mesma propriedade com três paradas e tamanhos diferentes, que é o arranjo de verdade. */
+  test('nenhuma caixa fica no ar com paradas e tamanhos variados', () => {
+    const boxes = placed(
+      resolveCargoPlacement({
+        bed: BED,
+        boxes: [
+          box({
+            count: 9,
+            heightMm: 300,
+            label: 'P1',
+            lengthMm: 400,
+            stopSequence: 1,
+            widthMm: 300,
+          }),
+          box({
+            count: 7,
+            heightMm: 700,
+            label: 'P2',
+            lengthMm: 600,
+            stopSequence: 2,
+            widthMm: 500,
+          }),
+          box({
+            count: 5,
+            heightMm: 200,
+            label: 'P3',
+            lengthMm: 300,
+            stopSequence: 3,
+            widthMm: 800,
+          }),
+        ],
+      }),
+    )
+
+    expect(boxes).not.toHaveLength(0)
+    expect(floating(boxes)).toEqual([])
   })
 })

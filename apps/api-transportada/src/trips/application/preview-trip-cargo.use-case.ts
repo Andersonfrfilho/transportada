@@ -90,6 +90,8 @@ export async function previewTripCargo(input: PreviewTripCargoInput): Promise<Tr
       fallbackBoxVolumeM3: context.fallbackBoxVolumeM3,
       loadingAccess: context.loadingAccess,
       measuredShapes: context.measuredShapes,
+      /** Spec 098: o mesmo peso que a tela imprime decide se a carga encosta na porta ou centraliza. */
+      payloadRatio: context.cargoWeight?.payloadRatio ?? null,
       stops: buildCargoPreviewStops({
         boxesByDocument: context.boxesByDocument,
         documents: context.documents,

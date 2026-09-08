@@ -273,6 +273,12 @@ export function resolveCargoLayout(input: {
   readonly fallbackBoxVolumeM3?: number | null
   /** As formas medidas, de onde sai a **proporção** da caixa presumida. */
   readonly measuredShapes?: readonly MeasuredBoxShape[]
+  /**
+   * Spec 098: quanto do teto de massa a carga ocupa — o `payloadRatio` que o painel já imprime.
+   * Acima de metade do teto a planta equilibra o bloco ao longo do baú em vez de encostá-lo na
+   * porta. Ausente é teto desconhecido, e aí nada se afirma.
+   */
+  readonly payloadRatio?: string | null
   readonly stops: readonly CargoLayoutStop[]
 }): ResolvedCargoLayout | null {
   const capacity = toScaled(input.capacityM3)
@@ -397,6 +403,9 @@ export function resolveCargoLayout(input: {
         measuredShapes: input.measuredShapes ?? [],
         stops: ordered,
       }),
+      /** Spec 099: quem abre a lateral inteira não tem porta a que encostar — equilibra sempre. */
+      loadingAccess: access,
+      payloadRatio: input.payloadRatio ?? null,
     }),
     bedWidthM:
       bed === null || !bedKnown ? null : formatScaledDecimal(toLength(bed.widthM), LENGTH_SCALE),
