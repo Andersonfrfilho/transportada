@@ -23,7 +23,7 @@ import {
   type ReadRouteGeometryTollBoothsPort,
   type RouteGeometryToll,
 } from './read-route-geometry.use-case.js'
-import type { AxleCount } from '../../toll-booths/domain/toll-route-cost.policy.js'
+import type { AxleCount, TollRouteCost } from '../../toll-booths/domain/toll-route-cost.policy.js'
 import type { RouteGeometryPoint } from '../domain/route-geometry.policy.js'
 import type { RouteGeometryPort } from './route-geometry.port.js'
 
@@ -76,11 +76,13 @@ export type TripValuationContext = {
   readonly federalRates?: CompanyFederalRates | null
   readonly fuelPricePerLiter: null | string
   /**
-   * Spec 090 T9: o pedágio calculado pela mesma rota que resolveu `distanceMeters` — `undefined`
-   * fora da prévia. É a **projeção**; `tollTotal` abaixo é o **lançamento real**, e ele vence
-   * sempre que existir (ver `resolveTollParcel`).
+   * Spec 090 T9/T11: a **projeção** de pedágio — calculada pela mesma rota que resolveu
+   * `distanceMeters` na prévia; congelada no momento do planejamento na viagem já criada (T11), e
+   * nunca recalculada aqui, porque parear a rota de hoje com a distância congelada de ontem é a
+   * divergência da D4 dentro do mesmo painel. `tollTotal` abaixo é o **lançamento real**, e ele
+   * vence sempre que existir (ver `resolveTollParcel`). `undefined`/`null` é "sem projeção".
    */
-  readonly toll?: null | RouteGeometryToll
+  readonly toll?: null | TollRouteCost
   /** Pedágio e avulsos lançados na viagem. `null` quando ninguém lançou nada. */
   readonly tollTotal?: null | string
   readonly vehicle: TripValuationVehicle

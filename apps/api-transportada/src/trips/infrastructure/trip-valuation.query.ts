@@ -19,6 +19,7 @@ import {
 import { companyTaxSettings, tripCostEntries } from '../../database/trip-financial.schema.js'
 import { resolveVehicleFreightClass } from '../../shared/vehicle-type.constant.js'
 import { resolveDeclaredVehicleAxles } from '../../toll-booths/domain/vehicle-axles.policy.js'
+import { parseTollRouteCost } from '../../toll-booths/domain/toll-route-cost-snapshot.policy.js'
 import type { FreightVehicleClass } from '../../shared/freight-class.constant.js'
 import type { DriverPaymentModel } from '../../database/fleet.schema.js'
 import type { TripCrewMember } from '../domain/trip-driver-cost.policy.js'
@@ -179,6 +180,7 @@ export class DrizzleTripValuationQuery {
         fuelType: fleetVehicles.fuelType,
         kilometersPerLiter: fleetVehicles.averageConsumption,
         otherCostsPerKilometer: fleetVehicles.otherCostsPerKilometer,
+        plannedToll: trips.plannedToll,
       })
       .from(trips)
       .innerJoin(
@@ -207,6 +209,12 @@ export class DrizzleTripValuationQuery {
       documents,
       federalRates,
       fuelPricePerLiter: fuelPrice,
+      /**
+       * Spec 090 T11: o congelado do momento do planejamento — nunca recalculado aqui (ver o
+       * comentário em `TripValuationContext.toll`). `parseTollRouteCost` é a fronteira: forma
+       * inesperada na coluna `jsonb` vira ausência, e a parcela volta ao lançamento manual.
+       */
+      toll: parseTollRouteCost(trip.plannedToll),
       tollTotal,
       vehicle: {
         kilometersPerLiter: trip.kilometersPerLiter,

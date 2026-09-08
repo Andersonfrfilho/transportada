@@ -112,6 +112,13 @@ export const trips = pgTable(
     requiresMdfeReason: text('requires_mdfe_reason'),
     requiresMdfeActorUserId: uuid('requires_mdfe_actor_user_id'),
     requiresMdfeSetAt: timestamp('requires_mdfe_set_at', { withTimezone: true }),
+    /**
+     * Spec 090 T11: o pedágio congelado no momento em que o roteiro foi planejado — nunca
+     * recalculado na leitura da valoração, que pareia a rota de hoje com a distância de ontem
+     * (D4). `null` é "roteiro nunca planejado com pedágio calculável", nunca zero.
+     */
+    plannedToll: jsonb('planned_toll'),
+    plannedTollFrozenAt: timestamp('planned_toll_frozen_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -140,6 +147,14 @@ export const trips = pgTable(
     ),
     /** O semáforo da lista: filtrar "prontas para manifestar" sem varrer o fiscal da empresa. */
     index('trips_company_fiscal_readiness_idx').on(table.companyId, table.fiscalReadinessState),
+    /**
+     * Meia gravação é o estado que faz o leitor inventar (spec 090 T11): o congelado e a hora do
+     * congelamento nascem e morrem juntos.
+     */
+    check(
+      'trips_planned_toll_check',
+      sql`(${table.plannedToll} is null) = (${table.plannedTollFrozenAt} is null)`,
+    ),
     foreignKey({
       columns: [table.requiresMdfeActorUserId, table.companyId],
       foreignColumns: [userCompanyMemberships.userId, userCompanyMemberships.companyId],

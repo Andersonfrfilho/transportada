@@ -150,9 +150,11 @@ import { createDamdfePdfGateway } from './mdfe-manifests/infrastructure/damdfe-p
 import { createMdfeDocumentDownloadGateway } from './mdfe-manifests/infrastructure/mdfe-document-download.gateway.js'
 import { readDeliveryProofs } from './trips/application/read-delivery-proof.use-case.js'
 import { readRouteGeometry } from './trips/application/read-route-geometry.use-case.js'
+import { freezeTripRouteToll } from './trips/application/freeze-trip-route-toll.use-case.js'
 import { createOsrmRouteGeometryGateway } from './trips/infrastructure/osrm-route-geometry.gateway.js'
 import { createRouteDepotQuery } from './trips/infrastructure/route-depot.query.js'
 import { createRouteGeometryVehicleAxlesQuery } from './trips/infrastructure/route-geometry-vehicle-axles.query.js'
+import { DrizzleTripRouteTollRepository } from './trips/infrastructure/drizzle-trip-route-toll.repository.js'
 import { createDrizzleTollBoothRepository } from './toll-booths/infrastructure/drizzle-toll-booth.repository.js'
 import { listTripStopCoordinates } from './trips/infrastructure/trip-stop-coordinates.support.js'
 import { createDeliveryProofDownloadGateway } from './trips/infrastructure/delivery-proof-download.gateway.js'
@@ -1109,6 +1111,30 @@ function createApplicationRoutes({
   const driverFieldReports = new DrizzleDriverFieldReportUnitOfWork(database)
   const deliveryProofRepository = new DrizzleDeliveryProofRepository(database)
   const deliveryProofSettingsRepository = new DrizzleDeliveryProofSettingsRepository(database)
+  const tripRouteTollRepository = new DrizzleTripRouteTollRepository(database)
+  /**
+   * Spec 090 T11: congela o pedágio na mesma chamada que planeja o roteiro, com o mesmo
+   * roteirizador, catálogo de praças e barracão que `readTripRouteGeometry` já usa para o mapa —
+   * nunca uma segunda rota, que poderia discordar (D4).
+   */
+  const tripRouteTollFreezer = {
+    freeze: (input: { readonly companyId: string; readonly tripId: string }) =>
+      freezeTripRouteToll({
+        companyId: input.companyId,
+        depot: { readDepot: () => routeDepotQuery.readDepot({ companyId: input.companyId }) },
+        geometry:
+          routingMatrixUrl === undefined
+            ? { readRouteGeometry: async () => null }
+            : createOsrmRouteGeometryGateway({ baseUrl: routingMatrixUrl }),
+        repository: tripRouteTollRepository,
+        tollBooths: createCompanyScopedTollBoothGateway({
+          catalog: tollBoothRepository,
+          charges: tollBoothChargeRepository,
+          companyId: input.companyId,
+        }),
+        tripId: input.tripId,
+      }),
+  }
   const tripLifecycle = createTripLifecycleUseCase({
     batchRepository: tripDocumentBatchRepository,
     deliveryAddressOverrideRepository,
@@ -1117,6 +1143,7 @@ function createApplicationRoutes({
     routeRepository: tripRouteRepository,
     stopRepository: tripStopLookupRepository,
     suggestCharges: suggestDeliveryCharges,
+    tollFreezer: tripRouteTollFreezer,
     trackingRepository: tripLocationRepository,
   })
   const cteBatchRepository = new DrizzleCteBatchRepository(database)
