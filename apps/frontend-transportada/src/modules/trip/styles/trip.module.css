@@ -2067,3 +2067,21 @@
   background: color-mix(in srgb, var(--color-copper) 18%, transparent);
   border-color: var(--color-copper);
 }
+
+/** As decisões que moldaram a planta, listadas abaixo dela. */
+.cargoNotes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.cargoNotesList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding-inline-start: var(--space-4);
+  color: var(--color-slate);
+  font-size: var(--font-size-sm);
+  list-style: disc;
+}

@@ -374,6 +374,8 @@
   "driverEmailHint": "Endereço do motorista para o acesso ao aplicativo de entregas. O convite sai por e-mail ou por telefone: um dos dois basta.",
   "driverRntrc": "RNTRC do motorista",
   "driverAnttCategory": "Categoria ANTT",
+  "driverSecuresCargo": "Amarra a carga com cinta",
+  "driverSecuresCargoHelp": "A planta da carga usa isto: sem cinta a pilha para na altura em que ela tombaria numa curva; com cinta ela sobe até o teto do baú.",
   "driverAnttCategoryUnset": "Sem categoria",
   "driverAnttHint": "Registro e categoria da ANTT do motorista. Quando o veículo é dele, é o que vai no grupo de proprietário do MDF-e.",
   "driverPixKeyType": "Tipo da chave Pix",

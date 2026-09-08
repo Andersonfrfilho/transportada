@@ -264,6 +264,12 @@ export const DRIVER_ADDRESS_KEYS = [
 export const DRIVER_BODY_KEYS = [
   'address',
   'anttCategory',
+  /**
+   * Spec 100: amarra a carga com cinta. ⚠️ Como todo campo desta lista, **a API sobe antes do
+   * frontend**: com o corpo antigo `hasEveryKey` recusa toda linha e a tabela de motoristas
+   * renderiza vazia — 200 na rede, nada no console, nenhum erro na tela.
+   */
+  'securesCargo',
   'birthCity',
   'birthDate',
   'birthState',
@@ -299,6 +305,8 @@ export const DRIVER_BODY_KEYS = [
 export const DRIVER_CREATE_BODY_KEYS = [
   'address',
   'anttCategory',
+  /** Spec 100: amarra a carga com cinta — a planta lê isso para decidir a altura da pilha. */
+  'securesCargo',
   'birthCity',
   'birthDate',
   'birthState',

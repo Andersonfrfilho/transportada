@@ -283,6 +283,13 @@ export type TripCargoLayout = Readonly<{
    * só, na carroceria aberta e quando as faixas não caberiam de todo jeito — e nesses três o operador
    * conclui que aliviar a carga devolveria as faixas, e não devolve.
    */
+  /**
+   * Spec 100: por que o desenho ficou assim — as decisões que moldaram esta planta.
+   *
+   * ⚠️ Opcional pela razão de sempre: a API sobe antes do frontend, e recusar o corpo por falta do
+   * campo apagaria o painel de carga inteiro na janela entre os dois deploys.
+   */
+  layoutNotes?: readonly string[]
   stopArrangementReason?:
     | 'fits'
     | 'noBed'

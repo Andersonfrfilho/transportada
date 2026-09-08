@@ -12,6 +12,7 @@ import {
   resolveCargoPlacement,
   resolveFallbackBox,
   resolveStopArrangement,
+  STABLE_STACK_SLENDERNESS,
   type CargoPlacement,
   type MeasuredBoxShape,
   type PlacementBox,
@@ -124,6 +125,24 @@ export type CargoLayoutRow = {
   readonly sideReachable: boolean
 }
 
+/**
+ * As decisões que moldaram a planta, na ordem em que pesam para quem carrega.
+ *
+ * - `stackStability`: a pilha da face aberta parou na esbeltez — sem cinta ela tombaria.
+ * - `stackSecured`: o motorista amarra, e a pilha sobe até o teto do baú.
+ * - `stackConfined`: no meio do bloco a pilha subiu mais, porque cercada ela não tem para onde cair.
+ * - `heightBeforeDepth`: em faixas a carga sobe antes de avançar, para ninguém ir ao fundo do baú.
+ * - `doorIsNotAWall`: a face da porta não conta como apoio — com ela aberta a pilha encostada cai.
+ */
+export const CARGO_LAYOUT_NOTES = [
+  'doorIsNotAWall',
+  'heightBeforeDepth',
+  'stackConfined',
+  'stackSecured',
+  'stackStability',
+] as const
+export type CargoLayoutNote = (typeof CARGO_LAYOUT_NOTES)[number]
+
 export type ResolvedCargoLayout = {
   /**
    * A altura interna do baú, da ficha.
@@ -179,6 +198,18 @@ export type ResolvedCargoLayout = {
    * aliviar a carga devolveria as faixas, e não devolve.
    */
   readonly stopArrangementReason: StopArrangementReason
+  /**
+   * **Por que o desenho ficou assim** — as decisões que moldaram esta planta, em chaves estáveis que
+   * a tela imprime como frases.
+   *
+   * ⚠️ Elas existem porque a planta é uma **instrução**, e instrução sem motivo não se confere. Quem
+   * carrega precisa saber se a pilha parou por estabilidade ou por falta de caixa, e se a carga foi
+   * para o fundo por escolha ou por não caber — senão a única leitura possível é "o sistema decidiu".
+   *
+   * ⚠️ Só entra o que **moldou esta carga**: nota que valeria para toda viagem é ruído, e ruído fixo
+   * deixa de ser lido na terceira vez.
+   */
+  readonly layoutNotes: readonly CargoLayoutNote[]
   /** Fileiras vazias entre a carga e a porta. Zero quando não se sabe a capacidade. */
   readonly freeRows: number
   /**
@@ -448,25 +479,22 @@ export function resolveCargoLayout(input: {
     .sort((first, second) => first.loadOrder - second.loadOrder)
     .flatMap(({ count, ...row }) => Array.from({ length: count }, () => row))
 
+  const placement = resolveCargoPlacement({
+    /** ⚠️ A **mesma** decisão da tabela — resolver de novo aqui é como as duas passam a discordar. */
+    arrangement: decision.arrangement,
+    bed,
+    boxes: placementBoxes,
+    /** Spec 099: quem abre a lateral inteira não tem porta a que encostar — equilibra sempre. */
+    loadingAccess: access,
+    payloadRatio: input.payloadRatio ?? null,
+    securesCargo: input.securesCargo === true,
+  })
+
   return {
     bedHeightM: bedKnown ? formatScaledDecimal(bedHeight, LENGTH_SCALE) : null,
     bedLengthM: bedKnown ? formatScaledDecimal(bedLength, LENGTH_SCALE) : null,
     loadingAccess: access,
-    /**
-     * ⚠️ A ordem das paradas aqui é a **de carregamento** (`ordered`), a mesma das fileiras: a
-     * última entrega no fundo. Passar as paradas na ordem de entrega faria a planta desenhar o
-     * inverso do que o painel acima dela mostra, e as duas ficariam brigando na mesma tela.
-     */
-    placement: resolveCargoPlacement({
-      /** ⚠️ A **mesma** decisão da tabela — resolver de novo aqui é como as duas passam a discordar. */
-      arrangement: decision.arrangement,
-      bed,
-      boxes: placementBoxes,
-      /** Spec 099: quem abre a lateral inteira não tem porta a que encostar — equilibra sempre. */
-      loadingAccess: access,
-      payloadRatio: input.payloadRatio ?? null,
-      securesCargo: input.securesCargo === true,
-    }),
+    placement,
     bedWidthM:
       bed === null || !bedKnown ? null : formatScaledDecimal(toLength(bed.widthM), LENGTH_SCALE),
     freeDepthM: bedKnown
@@ -484,6 +512,11 @@ export function resolveCargoLayout(input: {
     orderIsBinding: !lanes && access === 'rear',
     stopArrangement: decision.arrangement,
     stopArrangementReason: decision.reason,
+    layoutNotes: buildLayoutNotes({
+      lanes,
+      placement,
+      securesCargo: input.securesCargo === true,
+    }),
     overflowM3: formatScaledDecimal(
       occupancyKnown && loaded > capacity ? loaded - capacity : 0n,
       VOLUME_SCALE,
@@ -540,4 +573,39 @@ function toPlacementBoxes(
       }
     }),
   )
+}
+
+/**
+ * As decisões que moldaram esta planta.
+ *
+ * ⚠️ **Só entra o que moldou esta carga.** Nota que valeria para toda viagem é ruído, e ruído fixo
+ * deixa de ser lido na terceira vez — por isso a estabilidade só é dita quando alguma pilha de fato
+ * parou nela, e o confinamento só quando alguma pilha de fato passou dela.
+ */
+function buildLayoutNotes(input: {
+  readonly lanes: boolean
+  readonly placement: CargoPlacement | null
+  readonly securesCargo: boolean
+}): readonly CargoLayoutNote[] {
+  const boxes = input.placement?.layers.flatMap((layer) => layer.boxes) ?? []
+  if (boxes.length === 0) return []
+
+  const notes: CargoLayoutNote[] = []
+  if (input.lanes) notes.push('heightBeforeDepth')
+
+  if (input.securesCargo) {
+    notes.push('stackSecured')
+
+    return notes
+  }
+
+  /** A pilha mais alta e a mais alta **na face aberta**: a diferença entre elas é o confinamento. */
+  const topM = Math.max(...boxes.map((box) => box.zM + box.heightM))
+  const limitM = Math.min(
+    ...boxes.map((box) => Math.min(box.depthM, box.widthM) * STABLE_STACK_SLENDERNESS),
+  )
+  if (topM > limitM + 1e-9) notes.push('stackConfined')
+  notes.push('stackStability', 'doorIsNotAWall')
+
+  return notes
 }

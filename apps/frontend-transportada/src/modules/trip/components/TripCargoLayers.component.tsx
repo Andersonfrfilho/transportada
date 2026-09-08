@@ -375,6 +375,25 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
         </tbody>
       </table>
 
+      {/**
+       * ⚠️ **A planta é uma instrução, e instrução sem motivo não se confere.** Quem carrega precisa
+       * saber se a pilha parou por estabilidade ou por falta de caixa, e se a carga foi para o fundo
+       * por escolha ou por não caber — senão a única leitura possível é "o sistema decidiu".
+       *
+       * ⚠️ Só entram as decisões que moldaram **esta** carga: nota que valeria para toda viagem é
+       * ruído, e ruído fixo deixa de ser lido na terceira vez. Quem escolhe é a API.
+       */}
+      {(layout.layoutNotes ?? []).length === 0 ? null : (
+        <div className={styles.cargoNotes}>
+          <p className={styles.hint}>{t('cargoLayers.notes.title')}</p>
+          <ul className={styles.cargoNotesList} role="list">
+            {(layout.layoutNotes ?? []).map((note) => (
+              <li key={note}>{t(`cargoLayers.notes.${note}`)}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* A legenda das aberturas em texto: rótulo dentro do desenho sai cortado e atravessa a borda. */}
       <p className={styles.hint}>
         {layout.loadingAccess === 'rear'

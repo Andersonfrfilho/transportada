@@ -150,6 +150,8 @@ export function TripQuickCreateDialog({
    * paradas é a que o operador acabou de montar no mapa acima — a prévia não inventa roteiro.
    */
   const cargoPreview = useTripCargoPreview({
+    /** Spec 100: quem amarra a carga muda a altura da pilha, então o desenho depende dele. */
+    driverIds: quickCreate.driverIds,
     nfeDocumentIds: stagedDocumentIds(quickCreate.queue),
     permissions,
     stopOrder: quickCreate.cityOrder,

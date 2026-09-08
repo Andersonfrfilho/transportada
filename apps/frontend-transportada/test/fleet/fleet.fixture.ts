@@ -120,6 +120,7 @@ export type FleetDriverAddressContract = Readonly<{
 export type FleetDriverBodyContract = Readonly<{
   address: FleetDriverAddressContract
   anttCategory: '' | '0' | '1' | '2'
+  securesCargo: false
   birthCity: string
   birthDate: null | string
   birthState: string
@@ -275,6 +276,7 @@ export const DRIVER_ADDRESS = {
 export const DRIVER_BODY = {
   address: DRIVER_ADDRESS,
   anttCategory: '',
+  securesCargo: false,
   birthCity: 'Ribeirão Preto',
   birthDate: '1985-04-12',
   birthState: 'SP',
@@ -306,6 +308,7 @@ export const DRIVER_BODY = {
 export const DRIVER_CREATE_BODY = {
   address: DRIVER_ADDRESS,
   anttCategory: '',
+  securesCargo: false,
   birthCity: 'Ribeirão Preto',
   birthDate: '1985-04-12',
   birthState: 'SP',
@@ -553,6 +556,7 @@ export const DRIVER_DRAFT_BODY = {
   pixKey: '',
   pixKeyType: '',
   rntrc: '',
+  securesCargo: false,
   taxId: '',
 } as const satisfies Omit<FleetDriverBodyContract, 'membershipId'>
 

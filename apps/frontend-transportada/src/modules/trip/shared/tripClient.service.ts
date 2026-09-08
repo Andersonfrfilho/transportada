@@ -96,6 +96,8 @@ export type TripClient = Readonly<{
   /** A carga antes de a viagem existir: notas, veículo e a ordem que o operador montou no mapa. */
   previewCargo: (
     input: Readonly<{
+      /** Spec 100: quem amarra a carga empilha até o teto — o desenho depende de quem dirige. */
+      driverIds: readonly string[]
       nfeDocumentIds: readonly string[]
       stopOrder: readonly string[]
       vehicleId: string
@@ -481,6 +483,7 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
     async previewCargo(input) {
       const response = await authorizedRequest({
         body: JSON.stringify({
+          driverIds: input.driverIds,
           nfeDocumentIds: input.nfeDocumentIds,
           stopOrder: input.stopOrder,
           vehicleId: input.vehicleId,

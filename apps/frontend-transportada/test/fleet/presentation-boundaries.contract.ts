@@ -163,6 +163,7 @@ type FleetVehicleFormState = Record<string, unknown> &
 type FleetDriverFormState = Record<string, unknown> &
   Readonly<{
     anttCategory: string
+    securesCargo: false
     email: string
     linkedLegalName: string
     linkedTaxId: string
@@ -179,6 +180,7 @@ type FleetFormModule = {
   readonly normalizeUnsignedInteger: (value: string) => string
   readonly toDriverBody: (state: FleetDriverFormState) => Readonly<{
     anttCategory: string
+    securesCargo: false
     email: string
     linkedLegalName: string
     linkedTaxId: string

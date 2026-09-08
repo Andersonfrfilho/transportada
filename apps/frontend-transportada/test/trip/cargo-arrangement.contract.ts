@@ -152,3 +152,58 @@ describe('a tela nomeia o arranjo', () => {
     expect(locale.cargoLayers.print.caption.depth).toBeTruthy()
   })
 })
+
+/**
+ * **A planta explica as próprias decisões** (spec 100 D9).
+ *
+ * ⚠️ Ela é uma **instrução**, e instrução sem motivo não se confere. Quem carrega precisa saber se a
+ * pilha parou por estabilidade ou por falta de caixa, e se a carga foi para o fundo por escolha ou
+ * por não caber — senão a única leitura possível é "o sistema decidiu", e aí ou se obedece sem
+ * entender, ou se ignora.
+ */
+describe('por que o desenho ficou assim', () => {
+  it('imprime as decisões que a API publicou, e não uma lista fixa', () => {
+    const source = fonte(CAMADAS)
+
+    expect(source).toContain('layout.layoutNotes')
+    expect(source).toContain('cargoLayers.notes.')
+  })
+
+  /** ⚠️ Nota que valeria para toda viagem é ruído, e ruído fixo deixa de ser lido na terceira vez. */
+  it('não desenha o bloco quando não há decisão a explicar', () => {
+    expect(fonte(CAMADAS)).toContain('(layout.layoutNotes ?? []).length === 0 ? null')
+  })
+
+  it('tem texto para cada decisão que a API sabe publicar', () => {
+    const locale = JSON.parse(fonte(LOCALE)) as {
+      cargoLayers: { notes: Record<string, string> }
+    }
+
+    for (const chave of [
+      'doorIsNotAWall',
+      'heightBeforeDepth',
+      'stackConfined',
+      'stackSecured',
+      'stackStability',
+    ]) {
+      expect(locale.cargoLayers.notes[chave]).toBeTruthy()
+    }
+    expect(locale.cargoLayers.notes.title).toBeTruthy()
+  })
+})
+
+/**
+ * ⚠️ **O motorista muda o desenho, então ele entra na chave da consulta.** Sem isso a planta ficaria
+ * a do motorista anterior — e a diferença é a altura da pilha, que é o que decide se a carga tomba.
+ */
+describe('quem amarra a carga', () => {
+  it('a prévia da carga recebe os motoristas escolhidos', () => {
+    const source = readFileSync(
+      new URL('../../src/modules/trip/hooks/useTripCargoPreview.hook.ts', import.meta.url),
+      'utf8',
+    )
+
+    expect(source).toContain('driverIds: input.driverIds')
+    expect(source).toContain('driverKey')
+  })
+})

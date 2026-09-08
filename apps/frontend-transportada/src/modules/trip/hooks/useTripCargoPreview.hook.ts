@@ -25,6 +25,11 @@ export type TripCargoPreviewController = Readonly<{
  */
 export function useTripCargoPreview(
   input: Readonly<{
+    /**
+     * Spec 100: os motoristas escolhidos. ⚠️ Ele entra na chave porque **muda o desenho**: quem
+     * amarra a carga empilha até o teto, e sem ele a planta ficaria a do motorista anterior.
+     */
+    driverIds: readonly string[]
     nfeDocumentIds: readonly string[]
     permissions: readonly string[]
     stopOrder: readonly string[]
@@ -35,17 +40,19 @@ export function useTripCargoPreview(
   const documentKey = [...input.nfeDocumentIds].sort().join(',')
   /** ⚠️ **Sem `sort`**: aqui a ordem *é* o dado — ordenar a chave esconderia a reordenação. */
   const orderKey = input.stopOrder.join('>')
+  const driverKey = [...input.driverIds].sort().join(',')
 
   const query = useQuery({
     /** Sem nota ou sem veículo a API recusaria: a pergunta só existe com os dois. */
     enabled: canRead && input.nfeDocumentIds.length > 0 && input.vehicleId !== '',
     queryFn: () =>
       getTripClient().previewCargo({
+        driverIds: input.driverIds,
         nfeDocumentIds: input.nfeDocumentIds,
         stopOrder: input.stopOrder,
         vehicleId: input.vehicleId,
       }),
-    queryKey: [TRIP_CARGO_PREVIEW_QUERY_KEY, documentKey, orderKey, input.vehicleId],
+    queryKey: [TRIP_CARGO_PREVIEW_QUERY_KEY, documentKey, orderKey, input.vehicleId, driverKey],
   })
 
   return { canRead, isLoading: query.isLoading, preview: query.data ?? null }

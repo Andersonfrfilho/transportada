@@ -743,6 +743,14 @@
       "presumed": "Cor lavada: caixa presumida, derivada do volume.",
       "split": "Contorno vermelho: carga dividida, no topo do lado de dentro."
     },
+    "notes": {
+      "title": "Por que o desenho ficou assim",
+      "doorIsNotAWall": "A face da porta não conta como apoio: com ela aberta, a pilha encostada nela cai — em cima de quem abriu.",
+      "heightBeforeDepth": "Dentro de cada faixa a carga sobe até o teto antes de avançar para o fundo, para ninguém precisar entrar no baú para alcançar a última caixa.",
+      "stackConfined": "No meio do bloco a pilha subiu mais: cercada de carga e parede, ela não tem para onde tombar.",
+      "stackSecured": "O motorista amarra a carga, então a pilha sobe até o teto do baú — a cinta prende o que a forma sozinha não seguraria.",
+      "stackStability": "Na borda solta da carga a pilha para em três vezes a menor medida da base: acima disso ela tomba numa curva forte."
+    },
     "arrangement": {
       "depth": "As paradas ficam uma atrás da outra, a primeira entrega na porta: para chegar à seguinte é preciso tirar a da frente.",
       "lanes": "Cada parada tem a sua faixa ao longo da largura, e todas encostam na porta — dá para chegar a qualquer uma sem mexer nas outras.",

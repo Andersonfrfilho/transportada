@@ -452,7 +452,7 @@ function packUntilItFits(input: {
  * o arranjo volta a profundidade e a última parada vai a **1,66 m** — pior acesso que antes da spec,
  * em nome de uma segurança que a viagem não usa.
  */
-const STABLE_STACK_SLENDERNESS = 3
+export const STABLE_STACK_SLENDERNESS = 3
 
 /** Quantas vezes a fatia cresce antes de desistir e usar o teto proporcional. */
 const SLICE_GROWTH_ATTEMPTS = 8
@@ -1096,22 +1096,20 @@ function createSupportMap(
         return (topM[column * lines + line] ?? 0) >= top - 1e-9
       }
 
-      /** Os quatro lados: à frente, atrás e nas duas laterais da pegada inteira. */
-      const sideBefore = (column: number, line: number): boolean => supportsBefore(column, line)
-      let atras = true
-      let frente = true
+      /**
+       * Os quatro lados da pegada inteira. ⚠️ **Sai no primeiro vão**: um lado aberto já decide, e
+       * varrer o resto custava o orçamento de resposta da tela num baú cheio.
+       */
       for (let line = fromLine; line < toLine; line += 1) {
-        atras = atras && sideBefore(fromColumn - 1, line)
-        frente = frente && sideBefore(toColumn, line)
+        if (!supportsBefore(fromColumn - 1, line)) return false
+        if (!supportsBefore(toColumn, line)) return false
       }
-      let esquerda = true
-      let direita = true
       for (let column = fromColumn; column < toColumn; column += 1) {
-        esquerda = esquerda && sideBefore(column, fromLine - 1)
-        direita = direita && sideBefore(column, toLine)
+        if (!supportsBefore(column, fromLine - 1)) return false
+        if (!supportsBefore(column, toLine)) return false
       }
 
-      return atras && frente && esquerda && direita
+      return true
     },
     stamp: ({ slot, topM: top, xM, yM }) => {
       const [fromColumn, toColumn] = range(xM, slot.depthM, columns)

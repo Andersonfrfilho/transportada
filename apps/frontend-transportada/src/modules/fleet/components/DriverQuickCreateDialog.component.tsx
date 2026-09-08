@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
 import { PHONE_MASK_LENGTH, formatPhone, stripPhone } from '@/modules/shared/phone.service'
 import { toDisplayPersonName } from '@/modules/shared/personName.service'
@@ -231,6 +232,15 @@ export function DriverQuickCreateDialog({
                 value={form.state.anttCategory}
                 onChange={(anttCategory) => form.patch({ anttCategory })}
               />
+              {/** ⚠️ Ele muda o desenho da carga, não só a ficha — ver `DriverForm`. */}
+              <div className={styles.driverSecuresCargo}>
+                <Checkbox
+                  checked={form.state.securesCargo}
+                  label={t('driverSecuresCargo')}
+                  onChange={(securesCargo) => form.patch({ securesCargo })}
+                />
+                <p className={styles.hint}>{t('driverSecuresCargoHelp')}</p>
+              </div>
               <FleetSelectField<string>
                 clearable
                 label={t('driverPixKeyType')}

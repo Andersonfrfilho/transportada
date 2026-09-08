@@ -297,6 +297,14 @@ export type FleetDriverBody = Readonly<{
   address: FleetDriverAddress
   /** Mesma categoria da ANTT que o proprietário do veículo declara ao MDF-e. */
   anttCategory: '' | MdfeOwnerTaxRegime
+  /**
+   * Spec 100: este motorista amarra a carga com cinta.
+   *
+   * ⚠️ Ele muda a **planta da carga**: com a carga amarrada a pilha sobe até o teto do baú; sem ela a
+   * altura para na esbeltez, porque coluna livre tomba na curva. Falso por padrão — supor cinta
+   * desenharia pilha alta para quem não amarra.
+   */
+  securesCargo: boolean
   /** Naturalidade; a cidade pode existir sem a UF em ficha antiga, e nenhuma exige a outra. */
   birthCity: string
   birthDate: null | string
@@ -492,6 +500,8 @@ export type FleetDriverFormState = Readonly<{
   addressState: string
   addressStreet: string
   anttCategory: string
+  /** Spec 100: amarra a carga com cinta — libera a planta a empilhar até o teto do baú. */
+  securesCargo: boolean
   birthCity: string
   birthDate: string
   birthState: string
