@@ -68,6 +68,7 @@ describe('fleet workspace tabs contract', () => {
         'drivers',
         'fuel',
         'regions',
+        'tolls',
         'vehicles',
       ])
     }

@@ -18,6 +18,7 @@
     "drivers": "Motoristas",
     "applications": "Candidaturas",
     "fuel": "Combustível",
+    "tolls": "Pedágio",
     "regions": "Regiões",
     "documents": "Anexos"
   },
@@ -525,6 +526,31 @@
       "litre": "litro",
       "cubic-metre": "metro cúbico",
       "kilowatt-hour": "quilowatt-hora"
+    }
+  },
+  "tollBoothCharges": {
+    "title": "Tarifa de pedágio",
+    "hint": "O mapa nem sempre traz a tarifa certa: praça sem tarifa nenhuma ou com R$ 0,00 pode ser isenção de verdade ou só um campo que o mapa não preencheu. Ajuste aqui o que a transportadora sabe — a correção vence o mapa, por eixo manual e por eixo automático (tag) de forma independente. Só aparecem as praças que alguma viagem já cruzou.",
+    "empty": "Ainda não passamos por nenhuma praça — assim que uma viagem com roteiro planejado cruzar uma, ela aparece aqui.",
+    "loadError": "Não foi possível carregar as tarifas de pedágio.",
+    "unnamed": "Praça sem nome no mapa",
+    "operator": "Operadora: {{operator}}",
+    "operatorUnknown": "Operadora desconhecida no mapa",
+    "unknown": "desconhecida",
+    "effectiveManual": "Em uso, manual: {{price}} ({{source}}).",
+    "effectiveAutomatic": "Em uso, com tag: {{price}} ({{source}}).",
+    "mapTariff": "Tarifa do mapa: manual {{manual}}, com tag {{automatic}} — observada em {{date}}.",
+    "adjustedBy": "Ajuste registrado em {{date}}.",
+    "manualFieldLabel": "Nova tarifa manual",
+    "automaticFieldLabel": "Nova tarifa com tag",
+    "observedOnFieldLabel": "Data da tarifa",
+    "save": "Salvar ajuste",
+    "clear": "Remover ajuste",
+    "saved": "Ajuste salvo.",
+    "error": "Não foi possível salvar o ajuste. Código: {{code}}.",
+    "source": {
+      "catalog": "do mapa",
+      "manual": "ajustado"
     }
   },
   "energySettings": {

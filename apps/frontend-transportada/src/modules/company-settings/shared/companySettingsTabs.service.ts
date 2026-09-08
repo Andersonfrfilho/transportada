@@ -11,6 +11,7 @@ export const SETTINGS_PANELS = [
   'scheduledDistribution',
   'distributionCursor',
   'fuelPrices',
+  'tollBoothCharges',
   'freightRegions',
   'nfseCredential',
   'nfseProfiles',
@@ -43,6 +44,7 @@ export type SettingsDataSource =
   | 'nfse'
   | 'occurrenceNotifications'
   | 'scheduledDistribution'
+  | 'tollBoothCharges'
 
 export type SettingsDataScope = Readonly<Record<SettingsDataSource, boolean>>
 
@@ -79,6 +81,8 @@ export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPa
   distributionCursor: { module: 'nfe-workspace', source: 'distributionCursor', tab: 'imports' },
   freightRegions: { module: 'fleet', source: 'freightRegions', tab: 'regions' },
   fuelPrices: { module: 'fleet', source: 'fuelPrices', tab: 'fuel' },
+  /** Spec 095 item 4 — o painel gêmeo de combustível: aba própria, ao lado dela. */
+  tollBoothCharges: { module: 'fleet', source: 'tollBoothCharges', tab: 'tolls' },
   /**
    * Spec 079 — o aviso de ocorrência mora **na tela de viagens**, que é onde a ocorrência é
    * registrada e onde ela aparece. Numa tela de configurações genérica, quem liga o aviso estaria
@@ -153,6 +157,7 @@ export function resolveSettingsDataScope(
     nfse: sources.has('nfse'),
     occurrenceNotifications: sources.has('occurrenceNotifications'),
     scheduledDistribution: sources.has('scheduledDistribution'),
+    tollBoothCharges: sources.has('tollBoothCharges'),
   }
 }
 

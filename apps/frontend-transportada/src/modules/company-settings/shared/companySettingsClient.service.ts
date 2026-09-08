@@ -32,6 +32,11 @@ import {
   isScheduledDistributionResponse,
   type ScheduledDistributionStatus,
 } from './scheduledDistribution.validation'
+import {
+  isTollBoothChargeListResponse,
+  isTollBoothChargeResponse,
+  type TollBoothChargeEntry,
+} from './tollBoothCharge.validation'
 import type {
   CertificatePurpose,
   CompanyLogoImage,
@@ -63,6 +68,7 @@ const COMPANY_FUEL_PRICES_PATH = '/company-settings/fuel-prices'
 const COMPANY_ENERGY_PATH = '/company-settings/energy'
 const COMPANY_CARGO_PATH = '/company-settings/cargo'
 const COMPANY_CARGO_VOLUME_PATH = '/company-settings/cargo-volume-factors'
+const COMPANY_TOLL_BOOTH_CHARGES_PATH = '/company-settings/toll-booth-charges'
 const DATA_URL_CHUNK = 8_192
 
 type ClientDependencies = Readonly<{
@@ -91,6 +97,11 @@ export type {
   FuelPriceReference,
   FuelPriceSource,
 } from './fuelPrice.validation'
+export type {
+  TollBoothCatalogTariff,
+  TollBoothChargeEntry,
+  TollBoothChargeSource,
+} from './tollBoothCharge.validation'
 
 export type CompanySettingsClient = Readonly<{
   adjustDistributionCursor: (ultNsu: string) => Promise<DistributionCursor>
@@ -103,6 +114,17 @@ export type CompanySettingsClient = Readonly<{
   clearDefaultVolumeWeight: () => Promise<void>
   clearEnergyDistributor: () => Promise<void>
   clearFuelPrice: (product: FuelProduct) => Promise<void>
+  adjustTollBoothCharge: (
+    input: Readonly<{
+      chargeCar?: string | null
+      chargePerAxle?: string | null
+      chargePerAxleAutomatic?: string | null
+      observedOn: string
+      osmNodeId: number
+    }>,
+  ) => Promise<TollBoothChargeEntry>
+  clearTollBoothCharge: (osmNodeId: number) => Promise<void>
+  getTollBoothCharges: () => Promise<readonly TollBoothChargeEntry[]>
   disableScheduledDistribution: () => Promise<ScheduledDistributionStatus>
   enableScheduledDistribution: () => Promise<ScheduledDistributionStatus>
   getDistributionCursor: () => Promise<DistributionCursor>
@@ -515,6 +537,73 @@ async function clearFuelPrice(
   if (!response.ok) throw requestError(readErrorCode(await response.text()))
 }
 
+async function readTollBoothCharges(
+  dependencies: ClientDependencies,
+): Promise<readonly TollBoothChargeEntry[]> {
+  const response = await getRequest({ dependencies, path: COMPANY_TOLL_BOOTH_CHARGES_PATH })
+  if (!isTollBoothChargeListResponse(response))
+    throw requestError('COMPANY_SETTINGS_RESPONSE_INVALID')
+  return response.data
+}
+
+async function adjustTollBoothCharge(
+  input: Readonly<{
+    chargeCar?: string | null
+    chargePerAxle?: string | null
+    chargePerAxleAutomatic?: string | null
+    dependencies: ClientDependencies
+    observedOn: string
+    osmNodeId: number
+  }>,
+): Promise<TollBoothChargeEntry> {
+  const accessToken = await input.dependencies.getAccessToken()
+  const response = await requestJson({
+    fetch: input.dependencies.fetch,
+    request: new Request(
+      `${input.dependencies.apiBaseUrl}${COMPANY_TOLL_BOOTH_CHARGES_PATH}/${input.osmNodeId}`,
+      {
+        body: JSON.stringify({
+          chargeCar: input.chargeCar ?? null,
+          chargePerAxle: input.chargePerAxle ?? null,
+          chargePerAxleAutomatic: input.chargePerAxleAutomatic ?? null,
+          observedOn: input.observedOn,
+        }),
+        cache: 'no-store',
+        headers: {
+          authorization: `Bearer ${accessToken}`,
+          'content-type': 'application/json',
+        },
+        method: 'PUT',
+      },
+    ),
+  })
+  if (!isTollBoothChargeResponse(response)) throw requestError('COMPANY_SETTINGS_RESPONSE_INVALID')
+  return response.data
+}
+
+/** Como a limpeza do preço, responde 204 sem corpo: pedir JSON viraria sucesso em erro de formato. */
+async function clearTollBoothCharge(
+  input: Readonly<{ dependencies: ClientDependencies; osmNodeId: number }>,
+): Promise<void> {
+  const accessToken = await input.dependencies.getAccessToken()
+  let response: Response
+  try {
+    response = await input.dependencies.fetch(
+      new Request(
+        `${input.dependencies.apiBaseUrl}${COMPANY_TOLL_BOOTH_CHARGES_PATH}/${input.osmNodeId}`,
+        {
+          cache: 'no-store',
+          headers: { authorization: `Bearer ${accessToken}` },
+          method: 'DELETE',
+        },
+      ),
+    )
+  } catch {
+    throw requestError('COMPANY_SETTINGS_NETWORK_ERROR')
+  }
+  if (!response.ok) throw requestError(readErrorCode(await response.text()))
+}
+
 async function readCargoSettings(dependencies: ClientDependencies): Promise<CargoSettings> {
   const response = await getRequest({ dependencies, path: COMPANY_CARGO_PATH })
   if (!isCargoSettingsResponse(response)) throw requestError('COMPANY_SETTINGS_RESPONSE_INVALID')
@@ -674,6 +763,19 @@ export const createCompanySettingsClient: CompanySettingsClientFactory = (depend
   saveCargoVolumeFactor: (input) => saveCargoVolumeFactor({ dependencies, input }),
   clearEnergyDistributor: () => clearEnergyDistributor(dependencies),
   clearFuelPrice: (product) => clearFuelPrice({ dependencies, product }),
+  adjustTollBoothCharge: (input) =>
+    adjustTollBoothCharge({
+      ...(input.chargeCar === undefined ? {} : { chargeCar: input.chargeCar }),
+      ...(input.chargePerAxle === undefined ? {} : { chargePerAxle: input.chargePerAxle }),
+      ...(input.chargePerAxleAutomatic === undefined
+        ? {}
+        : { chargePerAxleAutomatic: input.chargePerAxleAutomatic }),
+      dependencies,
+      observedOn: input.observedOn,
+      osmNodeId: input.osmNodeId,
+    }),
+  clearTollBoothCharge: (osmNodeId) => clearTollBoothCharge({ dependencies, osmNodeId }),
+  getTollBoothCharges: () => readTollBoothCharges(dependencies),
   disableScheduledDistribution: () =>
     requestScheduledDistribution({ dependencies, method: 'DELETE' }),
   enableScheduledDistribution: () => requestScheduledDistribution({ dependencies, method: 'PUT' }),

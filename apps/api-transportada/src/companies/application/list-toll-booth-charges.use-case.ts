@@ -1,13 +1,16 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Lista só as praças que a empresa já corrigiu — nunca o catálogo inteiro (spec 095). O molde é o
- * mesmo de `list-fuel-prices.use-case.ts`, com uma diferença: o combustível sempre responde os seis
- * produtos do catálogo, e aqui não há "todas as praças" para responder sem repetir o achado 3 da
- * revisão da 090 (corrigir praça por onde ninguém passa é trabalho jogado fora).
+ * Lista as praças que a operação já viu — nunca o catálogo inteiro (spec 095 item 4). "Viu" é ter
+ * aparecido no pedágio congelado de alguma viagem (spec 090 T11), lido por `TollBoothSightingPort`.
+ * Corrigir praça por onde ninguém passa é trabalho jogado fora, e é por isso que uma praça
+ * corrigida no passado mas nunca vista some da lista se nenhuma viagem a tiver cruzado ainda — o
+ * ajuste continua no banco, valendo assim que a primeira viagem passar por ela.
  */
+import type { TollBoothSightingPort } from '../../toll-booths/application/toll-booth-sighting.port.js'
 import type { TollBoothRouteRecord } from '../../toll-booths/application/toll-booth.port.js'
 import {
+  orderTollBoothChargesByUnknownFirst,
   resolveEffectiveTollBoothCharge,
   type EffectiveTollBoothCharge,
 } from '../domain/toll-booth-charge.policy.js'
@@ -20,6 +23,7 @@ export type TollBoothCatalogLookupPort = Readonly<{
 export function createListTollBoothChargesUseCase(input: {
   readonly catalog: TollBoothCatalogLookupPort
   readonly charges: TollBoothChargePort
+  readonly sightings: TollBoothSightingPort
 }): {
   readonly execute: (request: {
     readonly companyId: string
@@ -27,22 +31,25 @@ export function createListTollBoothChargesUseCase(input: {
 } {
   return {
     execute: async ({ companyId }) => {
-      const adjustments = await input.charges.loadAdjustments({ companyId })
-      if (adjustments.length === 0) return []
+      const osmNodeIds = await input.sightings.readSeenOsmNodeIds({ companyId })
+      if (osmNodeIds.length === 0) return []
 
-      const catalogEntries = await input.catalog.readByNodeIds(
-        adjustments.map((adjustment) => adjustment.osmNodeId),
-      )
-      const catalogByNode = new Map(catalogEntries.map((entry) => [entry.osmNodeId, entry]))
+      const [catalogEntries, adjustments] = await Promise.all([
+        input.catalog.readByNodeIds(osmNodeIds),
+        input.charges.loadAdjustmentsByNodeIds({ companyId, osmNodeIds }),
+      ])
+      const adjustmentByNode = new Map(adjustments.map((row) => [row.osmNodeId, row]))
 
       const resolved: EffectiveTollBoothCharge[] = []
-      for (const adjustment of adjustments) {
-        const catalog = catalogByNode.get(adjustment.osmNodeId)
-        /** A FK garante a praça no catálogo; a ausência aqui só existiria com dado inconsistente. */
-        if (catalog === undefined) continue
-        resolved.push(resolveEffectiveTollBoothCharge({ adjustment, catalog }))
+      for (const catalog of catalogEntries) {
+        resolved.push(
+          resolveEffectiveTollBoothCharge({
+            adjustment: adjustmentByNode.get(catalog.osmNodeId) ?? null,
+            catalog,
+          }),
+        )
       }
-      return resolved
+      return orderTollBoothChargesByUnknownFirst(resolved)
     },
   }
 }

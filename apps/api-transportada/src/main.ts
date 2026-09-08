@@ -49,6 +49,7 @@ import { createClearTollBoothChargeUseCase } from './companies/application/clear
 import { createListTollBoothChargesUseCase } from './companies/application/list-toll-booth-charges.use-case.js'
 import { DrizzleFuelPriceRepository } from './companies/infrastructure/drizzle-fuel-price.repository.js'
 import { DrizzleTollBoothChargeRepository } from './companies/infrastructure/drizzle-toll-booth-charge.repository.js'
+import { DrizzleTollBoothSightingRepository } from './trips/infrastructure/drizzle-toll-booth-sighting.repository.js'
 import { createFuelPriceRoutes } from './companies/presentation/fuel-price.routes.js'
 import { createTollBoothChargeRoutes } from './companies/presentation/toll-booth-charge.routes.js'
 import { createCompanyScopedTollBoothGateway } from './trips/infrastructure/company-scoped-toll-booth.gateway.js'
@@ -1045,6 +1046,7 @@ function createApplicationRoutes({
   const cargoVolumeFactorRepository = new DrizzleCargoVolumeFactorRepository(database)
   const fuelPriceRepository = new DrizzleFuelPriceRepository(database)
   const tollBoothChargeRepository = new DrizzleTollBoothChargeRepository(database)
+  const tollBoothSightingRepository = new DrizzleTollBoothSightingRepository(database)
   const companyEnergyRepository = new DrizzleCompanyEnergyRepository(database)
   const companyLogoRepository = new DrizzleCompanyLogoRepository(database)
   const companyContactsRepository = new DrizzleCompanyContactsRepository(database)
@@ -1505,6 +1507,7 @@ function createApplicationRoutes({
       list: createListTollBoothChargesUseCase({
         catalog: tollBoothRepository,
         charges: tollBoothChargeRepository,
+        sightings: tollBoothSightingRepository,
       }),
     }),
     ...createCompanyEnergyRoutes({

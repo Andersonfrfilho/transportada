@@ -4,7 +4,9 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+  orderTollBoothChargesByUnknownFirst,
   resolveEffectiveTollBoothCharge,
+  type EffectiveTollBoothCharge,
   type TollBoothCatalogEntry,
   type TollBoothChargeAdjustmentRow,
 } from '../../src/companies/domain/toll-booth-charge.policy.js'
@@ -146,5 +148,50 @@ describe('a automática, terceiro campo independente (spec 095 D3)', () => {
     /** Corrigir só a automática não move os outros dois campos. */
     expect(result.effectiveChargeCar).toBe('10.50')
     expect(result.effectiveChargePerAxle).toBe('10.50')
+  })
+})
+
+describe('order by unknown first (spec 095 item 4)', () => {
+  function effectiveWith(overrides: Partial<TollBoothCatalogEntry>): EffectiveTollBoothCharge {
+    return resolveEffectiveTollBoothCharge({ adjustment: null, catalog: catalog(overrides) })
+  }
+
+  // São o motivo da página existir — sem tarifa antes de 0,00, e 0,00 antes do resto
+  test('unknown, then zero, then the rest', () => {
+    const known = effectiveWith({ chargePerAxle: '10.5000', name: 'Praça C' })
+    const zero = effectiveWith({ chargePerAxle: '0.0000', name: 'Praça B' })
+    const unknown = effectiveWith({ chargePerAxle: null, name: 'Praça A' })
+
+    const result = orderTollBoothChargesByUnknownFirst([known, zero, unknown])
+
+    expect(result.map((entry) => entry.name)).toEqual(['Praça A', 'Praça B', 'Praça C'])
+  })
+
+  test('ties within a group break by name, then by osmNodeId', () => {
+    const first = resolveEffectiveTollBoothCharge({
+      adjustment: null,
+      catalog: catalog({ name: 'Alfa', osmNodeId: 2 }),
+    })
+    const second = resolveEffectiveTollBoothCharge({
+      adjustment: null,
+      catalog: catalog({ name: 'Alfa', osmNodeId: 1 }),
+    })
+    const third = resolveEffectiveTollBoothCharge({
+      adjustment: null,
+      catalog: catalog({ name: 'Beta', osmNodeId: 3 }),
+    })
+
+    const result = orderTollBoothChargesByUnknownFirst([first, third, second])
+
+    expect(result.map((entry) => entry.osmNodeId)).toEqual([1, 2, 3])
+  })
+
+  test('a praça sem nome desempata por osmNodeId, sem quebrar', () => {
+    const withoutName = resolveEffectiveTollBoothCharge({
+      adjustment: null,
+      catalog: catalog({ name: null, osmNodeId: 5 }),
+    })
+
+    expect(() => orderTollBoothChargesByUnknownFirst([withoutName])).not.toThrow()
   })
 })

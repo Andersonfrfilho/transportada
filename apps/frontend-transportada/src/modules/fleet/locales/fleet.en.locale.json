@@ -18,6 +18,7 @@
     "drivers": "Drivers",
     "applications": "Applications",
     "fuel": "Fuel",
+    "tolls": "Toll fare",
     "regions": "Regions",
     "documents": "Attachments"
   },
@@ -521,6 +522,31 @@
       "litre": "litre",
       "cubic-metre": "cubic metre",
       "kilowatt-hour": "kilowatt-hour"
+    }
+  },
+  "tollBoothCharges": {
+    "title": "Toll fare",
+    "hint": "The map does not always carry the right fare: a booth with no fare at all, or with R$ 0.00, can be a real exemption or just a field the map never filled in. Adjust here what the carrier knows — the adjustment wins over the map, manual and tag (automatic) per axle independently. Only booths some trip has already crossed show up here.",
+    "empty": "No booth crossed yet — as soon as a trip with a planned route crosses one, it shows up here.",
+    "loadError": "Could not load toll fares.",
+    "unnamed": "Unnamed booth on the map",
+    "operator": "Operator: {{operator}}",
+    "operatorUnknown": "Unknown operator on the map",
+    "unknown": "unknown",
+    "effectiveManual": "In use, manual: {{price}} ({{source}}).",
+    "effectiveAutomatic": "In use, with tag: {{price}} ({{source}}).",
+    "mapTariff": "Map fare: manual {{manual}}, with tag {{automatic}} — observed on {{date}}.",
+    "adjustedBy": "Adjustment recorded on {{date}}.",
+    "manualFieldLabel": "New manual fare",
+    "automaticFieldLabel": "New tag fare",
+    "observedOnFieldLabel": "Fare date",
+    "save": "Save adjustment",
+    "clear": "Clear adjustment",
+    "saved": "Adjustment saved.",
+    "error": "Could not save the adjustment. Code: {{code}}.",
+    "source": {
+      "catalog": "from the map",
+      "manual": "adjusted"
     }
   },
   "energySettings": {

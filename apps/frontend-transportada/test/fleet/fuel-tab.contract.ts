@@ -30,7 +30,7 @@ describe('fleet fuel price tab contract', () => {
       source: 'fuelPrices',
       tab: 'fuel',
     })
-    expect(settingsTabsOf('fleet')).toEqual(['fuel', 'regions'])
+    expect(settingsTabsOf('fleet')).toEqual(['fuel', 'tolls', 'regions'])
     expect(settingsPanelsOf('fleet', 'fuel')).toEqual(['fuelPrices'])
   })
 
@@ -56,7 +56,7 @@ describe('fleet fuel price tab contract', () => {
 
     expect(page).toContain('SETTINGS_MANAGE_PERMISSION')
     expect(page).toContain('canManageSettings')
-    expect(page).toContain('...(canManageSettings ? [fuelTab] : [])')
+    expect(page).toContain('...(canManageSettings ? [fuelTab, tollTab] : [])')
   })
 
   /**

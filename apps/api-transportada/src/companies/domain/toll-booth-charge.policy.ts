@@ -96,3 +96,33 @@ export function resolveEffectiveTollBoothCharge(input: {
 function sourceOf(adjusted: null | string): TollBoothChargeSource {
   return adjusted === null ? 'catalog' : 'manual'
 }
+
+const ZERO_CHARGE = '0.0000'
+
+/**
+ * Spec 095 item 4: as praças sem tarifa conhecida primeiro, depois as com `0.00` — são o motivo da
+ * página existir —, e o resto por último. Dentro de cada grupo, por nome, para a lista não pular de
+ * ordem a cada leitura; sem nome, o `osmNodeId` desempata.
+ *
+ * ⚠️ Quem decide o grupo é `effectiveChargePerAxle` — a base manual, que é a que decide custo hoje
+ * (D4 da spec 095 ainda não fez a automática entrar na conta da viagem).
+ */
+export function orderTollBoothChargesByUnknownFirst(
+  charges: readonly EffectiveTollBoothCharge[],
+): readonly EffectiveTollBoothCharge[] {
+  return [...charges].sort((left, right) => {
+    const priorityDelta = priorityOf(left) - priorityOf(right)
+    if (priorityDelta !== 0) return priorityDelta
+
+    const nameDelta = (left.name ?? '').localeCompare(right.name ?? '')
+    if (nameDelta !== 0) return nameDelta
+
+    return left.osmNodeId - right.osmNodeId
+  })
+}
+
+function priorityOf(charge: EffectiveTollBoothCharge): number {
+  if (charge.effectiveChargePerAxle === null) return 0
+  if (charge.effectiveChargePerAxle === ZERO_CHARGE) return 1
+  return 2
+}

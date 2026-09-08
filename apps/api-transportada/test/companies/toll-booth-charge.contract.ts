@@ -17,7 +17,9 @@ import {
 } from '../fixtures/toll-booth-charge-http.fixture'
 
 describe('GET /company-settings/toll-booth-charges HTTP contract', () => {
-  test('answers only the praças already corrected by the company, with catalog and effective values', async () => {
+  // O uso da rota mudou na spec 095 item 4 (praça vista, não só corrigida); a fiação HTTP em si
+  // é indiferente a isso — quem decide o que "list" devolve é o use case, testado à parte.
+  test('answers what the list use case resolves, with catalog and effective values', async () => {
     const fixture = await createTollBoothChargeHttpFixture()
 
     const response = await fixture.handle(listChargesRequest({ origin: FRONTEND_ORIGIN }))
@@ -54,7 +56,7 @@ describe('GET /company-settings/toll-booth-charges HTTP contract', () => {
   })
 
   // Corrigir praça por onde ninguém passa é trabalho jogado fora (spec 095) — nunca as 166 do catálogo
-  test('answers empty when the company has never corrected any toll booth', async () => {
+  test('answers empty when the company has never seen any toll booth', async () => {
     const fixture = await createTollBoothChargeHttpFixture({ adjustments: [] })
 
     const response = await fixture.handle(listChargesRequest())
