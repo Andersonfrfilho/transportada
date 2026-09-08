@@ -1193,26 +1193,34 @@
  * destino —, não de grau. Ele também não leva número: o barracão não está na sequência de entregas.
  */
 /*
-  O ponto de partida: pastilha redonda com o glifo do barracão dentro. O losango de antes dizia
-  apenas "não é parada"; a forma redonda com desenho diz o que é, e sobrevive ao mapa impresso e ao
-  daltonismo, onde a cor sozinha não sobrevive.
+  O ponto de partida: o **mesmo círculo** da parada, com o glifo da organização no lugar do número.
+  O losango de antes dizia apenas "não é parada"; o círculo com desenho diz o que é, e sobrevive ao
+  mapa impresso e ao daltonismo, onde a cor sozinha não sobrevive.
+
+  ⚠️ A geometria não se repete aqui: o elemento carrega `.tilePin` junto, e esta classe só declara o
+  que difere. Repetir tamanho e borda faria os dois divergirem no dia em que alguém mexesse num só,
+  e a diferença apareceria como dois círculos de tamanhos diferentes no mesmo mapa.
 */
-.tileDepot {
-  width: var(--space-6);
-  height: var(--space-6);
-  border: 2px solid transparent;
-  border-radius: 50%;
-  color: var(--color-surface);
+/*
+  A ficha do barracão, logo abaixo da perna: quem é a empresa, onde ela fica e o telefone. Recuada
+  como o extrato do pedágio, pela mesma razão — ela é detalhe da linha acima, não um bloco irmão.
+*/
+.assemblyDepotCard {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  /* Mesma razão do pino: marca, não controle — arrastar o mapa a partir dele não pode agarrar. */
-  pointer-events: none;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-inline-start: var(--space-4);
+}
+
+.assemblyDepotCardTitle {
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  margin: 0;
 }
 
 .tileDepot svg {
-  width: 68%;
-  height: 68%;
+  width: 62%;
+  height: 62%;
 }
 
 /* O traço da ordem cobre o quadro inteiro, acima das telhas e abaixo dos pinos. */

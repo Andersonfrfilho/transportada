@@ -45,7 +45,12 @@ function run(input: { readonly depot?: null | RouteDepot; readonly road: RouteGe
       companyId: COMPANY_ID,
       ...(input.depot === undefined || input.depot === null
         ? {}
-        : { depot: { readDepot: async () => input.depot as RouteDepot } }),
+        : {
+            depot: {
+              readDepot: async () => input.depot as RouteDepot,
+              readDescription: async () => null,
+            },
+          }),
       driverIds: [],
       geometry: {
         readRouteGeometry: (points) => {

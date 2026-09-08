@@ -79,7 +79,7 @@ function portaDeVerdade() {
 }
 
 function barracao(depot: RouteDepot) {
-  return { readDepot: async () => depot }
+  return { readDescription: async () => null, readDepot: async () => depot }
 }
 
 const TRES_TRECHOS: readonly RouteGeometryLeg[] = [
@@ -102,6 +102,7 @@ describe('a perna do barracão na geometria da montagem (spec 097)', () => {
     expect(view.source).toBe('road')
     expect(view.depot).toEqual({
       absence: null,
+      description: null,
       leadingLegs: 1,
       /** ⚠️ A origem publicada é a **mesma** que entrou no traçado — é com ela que o mapa marca. */
       origin: { latitude: '-21.17670', longitude: '-47.82080' },
@@ -172,7 +173,13 @@ describe('a perna do barracão na geometria da montagem (spec 097)', () => {
 
       expect(calls[0]).toEqual(PARADAS)
       expect(view.source).toBe('road')
-      expect(view.depot).toEqual({ absence: reason, leadingLegs: 0, origin: null, trailingLegs: 0 })
+      expect(view.depot).toEqual({
+        absence: reason,
+        description: null,
+        leadingLegs: 0,
+        origin: null,
+        trailingLegs: 0,
+      })
     }
   })
 
@@ -190,6 +197,7 @@ describe('a perna do barracão na geometria da montagem (spec 097)', () => {
     expect(view.source).toBe('unavailable')
     expect(view.depot).toEqual({
       absence: 'not_configured',
+      description: null,
       leadingLegs: 0,
       origin: null,
       trailingLegs: 0,

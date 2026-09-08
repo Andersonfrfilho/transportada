@@ -56,7 +56,7 @@ export type IconName =
   | 'moon'
   | 'trash'
   | 'truck'
-  | 'warehouse'
+  | 'organization'
   | 'vehicle-motorcycle'
   | 'vehicle-car'
   | 'vehicle-utility'
@@ -169,10 +169,20 @@ export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   ],
   moon: ['M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z'],
   /**
-   * O barracão: telhado, galpão e portão. É de onde o caminhão sai — e por ser um **lugar**, e não
-   * um veículo, ele não pode repetir o glifo de `truck`, que já nomeia a perna rodada.
+   * A organização: o prédio da empresa, com anexo, janelas e portão, assentado na linha do chão.
+   *
+   * ⚠️ Ele nomeia um **lugar**, e por isso não repete o glifo de `truck`, que já nomeia a perna
+   * rodada — o mesmo desenho para a origem e para o percurso apagaria a diferença entre os dois na
+   * única linha em que ela importa.
    */
-  warehouse: ['M3 10.5 12 4l9 6.5', 'M5 10.5V20h14v-9.5', 'M10 20v-5h4v5'],
+  organization: [
+    'M4 21V5.6a.6.6 0 0 1 .6-.6h8.8a.6.6 0 0 1 .6.6V21',
+    'M14 21V11h5.4a.6.6 0 0 1 .6.6V21',
+    'M7.4 8.6h3.2',
+    'M7.4 12.4h3.2',
+    'M7.6 21v-4.4h2.8V21',
+    'M3 21h18',
+  ],
   truck: [
     'M3 17V7a1 1 0 0 1 1-1h9v11H3z',
     'M13 10h4l3 3v4h-7z',

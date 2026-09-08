@@ -484,6 +484,9 @@
     },
     "depotLeg": {
       "outbound": "Saída do barracão até a 1ª entrega: {{distance}} km · {{duration}}",
+      "description": "{{name}} · {{address}}",
+      "descriptionPhone": "Telefone: {{phone}}",
+      "descriptionNote": "Endereço cadastrado da empresa.",
       "return": "Retorno da última entrega ao barracão: {{distance}} km · {{duration}}"
     }
   },

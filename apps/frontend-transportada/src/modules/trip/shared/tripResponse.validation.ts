@@ -18,6 +18,7 @@ import {
   ROUTE_GEOMETRY_SOURCES,
   TOLL_PAYMENT_MODES,
   type RouteGeometry,
+  type DepotDescription,
   type RouteGeometryDepot,
   type RouteGeometryLeg,
   type RouteGeometryOption,
@@ -145,9 +146,28 @@ function isGeometryDepot(value: unknown): value is RouteGeometryDepot {
   return (
     isRecord(value) &&
     (value.absence === null || isOneOf(value.absence, ROUTE_DEPOT_ABSENCES)) &&
+    /**
+     * ⚠️ Tolerante à ausência, como o `origin` ao lado — e ao contrário do extrato de pedágio, onde
+     * o campo é obrigatório. A diferença é deliberada: a perna do barracão já funcionava sem a
+     * descrição, e exigi-la faria uma API anterior derrubar o bloco inteiro em vez de mostrá-lo sem
+     * a linha nova. Quem lê usa `?? null`.
+     */
+    (value.description === null ||
+      value.description === undefined ||
+      isDepotDescription(value.description)) &&
     typeof value.leadingLegs === 'number' &&
     (value.origin === null || value.origin === undefined || isCoordinate(value.origin)) &&
     typeof value.trailingLegs === 'number'
+  )
+}
+
+function isDepotDescription(value: unknown): value is DepotDescription {
+  return (
+    isRecord(value) &&
+    isString(value.address) &&
+    isString(value.legalName) &&
+    isNullableString(value.phone) &&
+    isString(value.tradeName)
   )
 }
 

@@ -340,6 +340,13 @@ export function TripAssemblyMap({
   }
 
   const depotLegs = buildAssemblyDepotLegs({ geometry: activeGeometry, points: map.points })
+  /**
+   * ⚠️ Sai de `geometryQuery.data`, como a `absence` logo abaixo — **nunca** de `activeGeometry`: a
+   * ficha é da empresa e não muda com a opção de rota escolhida, e pendurá-la na opção a faria
+   * piscar a cada troca no seletor.
+   */
+  const depotDescription = geometryQuery.data?.depot?.description ?? null
+
   const depotAbsence = geometryQuery.data?.depot?.absence ?? null
   const legOf = (index: number) => legs[index] ?? null
   /**
@@ -598,12 +605,45 @@ export function TripAssemblyMap({
       */}
       {depotLegOf('outbound') === null ? null : (
         <p className={`${styles.hint} ${styles.assemblyDepotLeg}`}>
-          <Icon name="warehouse" />
+          <Icon name="organization" />
           {t('assemblyMap.depotLeg.outbound', {
             distance: Math.round(depotLegOf('outbound')?.distanceKilometres ?? 0),
             duration: formatDuration(depotLegOf('outbound')?.drivingMinutes ?? 0),
           })}
         </p>
+      )}
+      {/*
+        Quem é o barracão. A perna dizia 61 km e não dizia de onde — e quem monta a viagem precisa
+        do endereço e do telefone antes de o caminhão sair.
+
+        ⚠️ O rótulo diz **endereço cadastrado da empresa**, e não "o barracão fica aqui": a origem do
+        roteirizador é uma chave com coordenada e nenhum endereço escrito, então afirmar a rua do
+        galpão seria dizer algo que ninguém verificou. Quem cadastrou uma origem diferente da sede
+        leria uma mentira plausível.
+      */}
+      {depotDescription === null ? null : (
+        <div className={styles.assemblyDepotCard}>
+          <p className={styles.assemblyDepotCardTitle}>
+            {t('assemblyMap.depotLeg.description', {
+              address: depotDescription.address,
+              name: depotDescription.tradeName,
+            })}
+          </p>
+          {depotDescription.phone === null ? null : (
+            <p className={styles.hint}>
+              {t('assemblyMap.depotLeg.descriptionPhone', {
+                phone: formatStoredPhone(depotDescription.phone),
+              })}
+              <CopyButton
+                copiedLabel={t('assemblyMap.phoneCopied')}
+                label={t('assemblyMap.phoneCopy', { recipient: depotDescription.tradeName })}
+                value={depotDescription.phone}
+                variant="inline"
+              />
+            </p>
+          )}
+          <p className={styles.hint}>{t('assemblyMap.depotLeg.descriptionNote')}</p>
+        </div>
       )}
       <ul className={styles.assemblyOrder}>
         {map.points.map((point, index) => (
@@ -740,7 +780,7 @@ export function TripAssemblyMap({
       {/* O retorno, quando a política de fim manda voltar ao barracão (`end_policy = depot`). */}
       {depotLegOf('return') === null ? null : (
         <p className={`${styles.hint} ${styles.assemblyDepotLeg}`}>
-          <Icon name="warehouse" />
+          <Icon name="organization" />
           {t('assemblyMap.depotLeg.return', {
             distance: Math.round(depotLegOf('return')?.distanceKilometres ?? 0),
             duration: formatDuration(depotLegOf('return')?.drivingMinutes ?? 0),

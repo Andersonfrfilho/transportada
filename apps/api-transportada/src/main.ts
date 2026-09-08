@@ -1123,7 +1123,10 @@ function createApplicationRoutes({
     freeze: (input: { readonly companyId: string; readonly tripId: string }) =>
       freezeTripRouteToll({
         companyId: input.companyId,
-        depot: { readDepot: () => routeDepotQuery.readDepot({ companyId: input.companyId }) },
+        depot: {
+          readDepot: () => routeDepotQuery.readDepot({ companyId: input.companyId }),
+          readDescription: () => routeDepotQuery.readDescription({ companyId: input.companyId }),
+        },
         geometry:
           routingMatrixUrl === undefined
             ? { readRouteGeometry: async () => null }
@@ -1978,6 +1981,8 @@ function createApplicationRoutes({
             axles: vehicleContext?.axles ?? null,
             depot: {
               readDepot: () => routeDepotQuery.readDepot({ companyId: input.context.companyId }),
+              readDescription: () =>
+                routeDepotQuery.readDescription({ companyId: input.context.companyId }),
             },
             fuelBaseline: vehicleContext?.fuelBaseline ?? null,
             hasAutomaticTollPayment: vehicleContext?.hasAutomaticTollPayment ?? false,
@@ -2007,6 +2012,8 @@ function createApplicationRoutes({
             /** A viagem já criada parte do mesmo barracão: duas telas, uma conta (spec 097). */
             depot: {
               readDepot: () => routeDepotQuery.readDepot({ companyId: input.context.companyId }),
+              readDescription: () =>
+                routeDepotQuery.readDescription({ companyId: input.context.companyId }),
             },
             fuelBaseline: vehicleContext.fuelBaseline,
             hasAutomaticTollPayment: vehicleContext.hasAutomaticTollPayment,
@@ -2157,7 +2164,11 @@ function createApplicationRoutes({
           previewTripValuation({
             ...input,
             /** Spec 097: a prévia parte do mesmo barracão que o mapa da montagem desenha. */
-            depot: { readDepot: () => routeDepotQuery.readDepot({ companyId: input.companyId }) },
+            depot: {
+              readDepot: () => routeDepotQuery.readDepot({ companyId: input.companyId }),
+              readDescription: () =>
+                routeDepotQuery.readDescription({ companyId: input.companyId }),
+            },
             /**
              * A mesma porta e o mesmo caso de uso da geometria da viagem — spec 090 D3. Sem
              * `ROUTING_MATRIX_URL` ela devolve `unavailable`, e a distância continua `null`.

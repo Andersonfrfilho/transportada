@@ -25,6 +25,7 @@ import {
   type RouteDepot,
   type RouteDepotAbsence,
 } from '../domain/route-depot.policy.js'
+import type { DepotDescription } from '../domain/depot-description.policy.js'
 import { simplifyRouteGeometry, type RouteGeometryPoint } from '../domain/route-geometry.policy.js'
 import type {
   RouteGeometryLeg,
@@ -92,6 +93,12 @@ export type RouteGeometryDepot = Readonly<{
   /** Por que a perna ficou de fora. `null` quando ela entrou — e é isto que a tela imprime (D2). */
   absence: null | RouteDepotAbsence
   /**
+   * Quem é o barracão: a empresa, o endereço dela e o telefone. ⚠️ É o endereço **da empresa**, não
+   * uma leitura do ponto de partida — a origem do roteirizador é uma chave com coordenada e nenhum
+   * endereço escrito, e descobrir a rua a partir dela seria geocodificação reversa (ADR-0044).
+   */
+  description: null | DepotDescription
+  /**
    * Quantos trechos do começo de `legs` são a saída do barracão, e quantos do fim são o retorno.
    * ⚠️ Sem estes dois números a tela não tem como pendurar o trecho certo ao pé de cada parada: a
    * lista numerada é só das entregas (D3), e o total é da rota inteira.
@@ -149,6 +156,8 @@ export type ReadRouteGeometryTollBoothsPort = {
  */
 export type ReadRouteGeometryDepotPort = {
   readDepot: () => Promise<RouteDepot>
+  /** Quem é a empresa — para a linha da perna dizer de onde o caminhão sai (spec 097). */
+  readDescription: () => Promise<DepotDescription | null>
 }
 
 export type ReadRouteGeometryInput = {
@@ -218,6 +227,7 @@ export async function readRouteGeometry(input: ReadRouteGeometryInput): Promise<
       ? null
       : {
           absence: plan.absence,
+          description: await input.depot.readDescription(),
           leadingLegs: plan.leadingLegs,
           origin:
             plan.origin === null

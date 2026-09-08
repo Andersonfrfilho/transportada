@@ -628,7 +628,7 @@ export function AssemblyVectorMap({
  */
 function depotElement(input: { readonly outline: string }): HTMLElement {
   const element = document.createElement('span')
-  element.className = styles.tileDepot ?? ''
+  element.className = `${styles.tilePin ?? ''} ${styles.tileDepot ?? ''}`
   element.style.background = 'var(--color-copper)'
   element.style.borderColor = input.outline
   element.title = 'Ponto de partida'
@@ -650,7 +650,7 @@ function depotElement(input: { readonly outline: string }): HTMLElement {
   glyph.setAttribute('stroke-linecap', 'round')
   glyph.setAttribute('stroke-linejoin', 'round')
   glyph.setAttribute('aria-hidden', 'true')
-  for (const definition of ICON_PATHS.warehouse) {
+  for (const definition of ICON_PATHS.organization) {
     const path = document.createElementNS(SVG_NAMESPACE, 'path')
     path.setAttribute('d', definition)
     glyph.append(path)

@@ -116,8 +116,25 @@ export type RouteDepotAbsence = (typeof ROUTE_DEPOT_ABSENCES)[number]
  * A perna do barracão nesta rota. `leadingLegs`/`trailingLegs` dizem quantos trechos de `legs` são
  * dela — ⚠️ sem esses dois números a tela casaria trecho com a parada errada, ou descartaria todos.
  */
+/**
+ * Quem é o barracão, para a perna dizer de onde o caminhão sai.
+ *
+ * ⚠️ É o endereço **da empresa**, não uma leitura do ponto de partida: a origem do roteirizador é
+ * uma chave com coordenada e nenhum endereço escrito, e descobrir a rua a partir dela seria
+ * geocodificação reversa (ADR-0044). Por isso a tela nomeia a empresa em vez de afirmar a rua do
+ * galpão — quem cadastrou uma origem diferente da sede leria uma mentira plausível.
+ */
+export type DepotDescription = Readonly<{
+  address: string
+  legalName: string
+  /** `null` quando a empresa não cadastrou telefone: a linha some, nunca vira traço. */
+  phone: null | string
+  tradeName: string
+}>
+
 export type RouteGeometryDepot = Readonly<{
   absence: null | RouteDepotAbsence
+  description: null | DepotDescription
   leadingLegs: number
   /**
    * Spec 097 D4: onde o barracão está, para o mapa marcá-lo com **forma própria** — nunca o pino
