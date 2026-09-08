@@ -94,7 +94,29 @@ export type RouteGeometryOption = Readonly<{
   totalCost: null | string
 }>
 
+/**
+ * Spec 097: por que a perna do barracão ficou de fora. As duas razões são separadas porque o
+ * remédio é diferente — uma pede cadastro do endereço, a outra pede que a geocodificação o alcance.
+ */
+export const ROUTE_DEPOT_ABSENCES = ['not_configured', 'not_geocoded'] as const
+export type RouteDepotAbsence = (typeof ROUTE_DEPOT_ABSENCES)[number]
+
+/**
+ * A perna do barracão nesta rota. `leadingLegs`/`trailingLegs` dizem quantos trechos de `legs` são
+ * dela — ⚠️ sem esses dois números a tela casaria trecho com a parada errada, ou descartaria todos.
+ */
+export type RouteGeometryDepot = Readonly<{
+  absence: null | RouteDepotAbsence
+  leadingLegs: number
+  trailingLegs: number
+}>
+
 export type RouteGeometry = Readonly<{
+  /**
+   * Spec 097: a perna do barracão. Ausente ou `null` é "esta rota não pediu barracão" — distinto
+   * de "pediu e não achou", que vem com `absence` preenchida e é o que a tela anuncia (D2).
+   */
+  depot?: null | RouteGeometryDepot
   /** Um por par de paradas consecutivas. Vazio quando a estrada não veio — nunca estimado.
    *  ⚠️ Sempre os da rota **principal** — ver `options[0]` para as alternativas (spec 096 T1). */
   legs: readonly RouteGeometryLeg[]

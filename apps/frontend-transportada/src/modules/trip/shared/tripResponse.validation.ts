@@ -14,9 +14,11 @@ import type {
 import {
   AXLE_COUNT_SOURCES,
   ROUTE_COST_GAPS,
+  ROUTE_DEPOT_ABSENCES,
   ROUTE_GEOMETRY_SOURCES,
   TOLL_PAYMENT_MODES,
   type RouteGeometry,
+  type RouteGeometryDepot,
   type RouteGeometryLeg,
   type RouteGeometryOption,
   type RouteGeometryToll,
@@ -119,6 +121,7 @@ function invalid(): Error {
 const UNAVAILABLE_ROUTE_GEOMETRY: RouteGeometry = {
   cheapestIndex: null,
   costGap: null,
+  depot: null,
   fastestIndex: null,
   hasChoice: false,
   legs: [],
@@ -126,6 +129,20 @@ const UNAVAILABLE_ROUTE_GEOMETRY: RouteGeometry = {
   points: [],
   source: 'unavailable',
   toll: null,
+}
+
+/**
+ * Spec 097: a perna do barracão. ⚠️ Corpo malformado vira `null` — "ninguém pediu barracão" —, e
+ * não uma ausência anunciada: inventar aviso a partir de resposta quebrada mandaria o operador
+ * cadastrar um barracão que já existe.
+ */
+function isGeometryDepot(value: unknown): value is RouteGeometryDepot {
+  return (
+    isRecord(value) &&
+    (value.absence === null || isOneOf(value.absence, ROUTE_DEPOT_ABSENCES)) &&
+    typeof value.leadingLegs === 'number' &&
+    typeof value.trailingLegs === 'number'
+  )
 }
 
 function isStringArray(value: unknown): value is readonly string[] {
@@ -636,6 +653,7 @@ export function createTripResponseAdapters() {
       const options = Array.isArray(input.options) ? input.options : []
       return {
         cheapestIndex: isNullableNumber(input.cheapestIndex) ? input.cheapestIndex : null,
+        depot: isGeometryDepot(input.depot) ? input.depot : null,
         costGap: isOneOf(input.costGap, ROUTE_COST_GAPS) ? input.costGap : null,
         fastestIndex: isNullableNumber(input.fastestIndex) ? input.fastestIndex : null,
         hasChoice: input.hasChoice === true,

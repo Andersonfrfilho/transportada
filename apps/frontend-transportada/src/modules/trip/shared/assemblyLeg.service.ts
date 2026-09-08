@@ -34,13 +34,39 @@ const METRES_PER_KILOMETRE = 1000
 const SECONDS_PER_MINUTE = 60
 
 /**
- * Um trecho por par de paradas consecutivas — e nenhum antes da primeira: não se sabe de onde o
- * caminhão sai. A origem é o galpão, que esta tela não conhece.
+ * A saída do barracão e a volta para ele (spec 097). ⚠️ **Não é `AssemblyLeg`**: ela não liga duas
+ * entregas, não tem cidade de origem e não carrega tempo parado — o barracão não é uma entrega, e
+ * pendurar os 20 min de descarga nele inflaria o roteiro por um serviço que ninguém presta ali.
+ */
+export type AssemblyDepotLeg = Readonly<{
+  distanceKilometres: number
+  drivingMinutes: number
+  kind: 'outbound' | 'return'
+}>
+
+/**
+ * Quantos trechos da resposta são do barracão, nas duas pontas. Zero quando a rota não pediu
+ * barracão, e zero quando pediu e não achou coordenada (D2) — nos dois casos `legs` é a de sempre.
+ */
+function depotOffsets(geometry: RouteGeometry): Readonly<{ leading: number; trailing: number }> {
+  const depot = geometry.depot ?? null
+  if (depot === null) return { leading: 0, trailing: 0 }
+
+  return { leading: depot.leadingLegs, trailing: depot.trailingLegs }
+}
+
+/**
+ * Um trecho por par de paradas consecutivas.
  *
- * ⚠️ Lista vazia quando a estrada não veio, e **também** quando a contagem não bate com as paradas.
- * O roteirizador devolve um trecho por par enviado; contagem diferente é resposta que não casa com o
- * pedido, e casar trecho com parada errada põe o tempo de um caminho ao pé de outro — plausível e
- * errado, que é exatamente o que esta função existe para não fazer.
+ * ⚠️ **A contagem esperada cresce com a perna do barracão** (spec 097). O roteirizador devolve um
+ * trecho por par **enviado**, e desde a 097 quem envia põe o barracão na frente e, conforme a
+ * política configurada, o retorno no fim. Comparar com `paradas - 1` como antes fazia a contagem
+ * nunca bater, e esta função — que descarta tudo quando ela não bate — apagava **todos** os tempos
+ * por parada de uma vez, sem erro nenhum na tela.
+ *
+ * O descarte em si continua: contagem diferente da esperada é resposta que não casa com o pedido, e
+ * casar trecho com parada errada põe o tempo de um caminho ao pé de outro — plausível e errado, que
+ * é exatamente o que esta função existe para não fazer.
  */
 export function buildAssemblyLegs(input: {
   readonly geometry: RouteGeometry | null
@@ -48,13 +74,16 @@ export function buildAssemblyLegs(input: {
 }): readonly AssemblyLeg[] {
   const { geometry, points } = input
   if (geometry === null || geometry.source !== 'road') return []
-  if (geometry.legs.length !== Math.max(points.length - 1, 0)) return []
+
+  const { leading, trailing } = depotOffsets(geometry)
+  const between = Math.max(points.length - 1, 0)
+  if (geometry.legs.length !== leading + between + trailing) return []
 
   const legs: AssemblyLeg[] = []
   for (let index = 1; index < points.length; index += 1) {
     const from = points[index - 1]
     const to = points[index]
-    const measured = geometry.legs[index - 1]
+    const measured = geometry.legs[leading + index - 1]
     if (from === undefined || to === undefined || measured === undefined) return []
 
     const drivingMinutes = Math.round(measured.durationSeconds / SECONDS_PER_MINUTE)
@@ -69,9 +98,55 @@ export function buildAssemblyLegs(input: {
   return legs
 }
 
-/** O total do roteiro, para a tela dizer se a viagem cabe no turno. */
-export function totalAssemblyMinutes(legs: readonly AssemblyLeg[]): number {
-  return legs.reduce((total, leg) => total + leg.minutes, 0)
+/**
+ * Os trechos do barracão desta rota, na ordem em que o caminhão os roda (spec 097). Lista vazia
+ * quando não há barracão na conta — e é ela que faz o total voltar a ser o de antes da 097 quando
+ * a coordenada falta, sem nenhuma condição extra do lado de quem chama.
+ */
+export function buildAssemblyDepotLegs(input: {
+  readonly geometry: RouteGeometry | null
+  readonly points: readonly AssemblyMapPoint[]
+}): readonly AssemblyDepotLeg[] {
+  const { geometry, points } = input
+  if (geometry === null || geometry.source !== 'road') return []
+
+  const { leading, trailing } = depotOffsets(geometry)
+  const between = Math.max(points.length - 1, 0)
+  if (geometry.legs.length !== leading + between + trailing) return []
+
+  const kinds = [
+    ...(leading === 0 ? [] : [{ index: 0, kind: 'outbound' as const }]),
+    ...(trailing === 0 ? [] : [{ index: geometry.legs.length - 1, kind: 'return' as const }]),
+  ]
+
+  return kinds.flatMap(({ index, kind }) => {
+    const measured = geometry.legs[index]
+    if (measured === undefined) return []
+
+    return [
+      {
+        distanceKilometres: measured.distanceMetres / METRES_PER_KILOMETRE,
+        drivingMinutes: Math.round(measured.durationSeconds / SECONDS_PER_MINUTE),
+        kind,
+      },
+    ]
+  })
+}
+
+/**
+ * O total do roteiro, para a tela dizer se a viagem cabe no turno.
+ *
+ * ⚠️ Os trechos do barracão entram **só com o rodar** (spec 097): o tempo parado é da entrega, e o
+ * barracão é origem, não destino (D3). Era este número que dizia 40 min numa viagem de 86.
+ */
+export function totalAssemblyMinutes(
+  legs: readonly AssemblyLeg[],
+  depotLegs: readonly AssemblyDepotLeg[] = [],
+): number {
+  return (
+    legs.reduce((total, leg) => total + leg.minutes, 0) +
+    depotLegs.reduce((total, leg) => total + leg.drivingMinutes, 0)
+  )
 }
 
 /** "1 h 25 min" lê melhor que "85 min" a partir de uma hora, e igual abaixo dela. */

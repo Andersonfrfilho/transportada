@@ -31,6 +31,7 @@ import {
 import { buildStopAddressKey } from '../shared/stopAddressKey.service'
 import { stopColorOf } from '../shared/stopColor.service'
 import {
+  buildAssemblyDepotLegs,
   buildAssemblyLegs,
   formatDuration,
   totalAssemblyMinutes,
@@ -317,12 +318,24 @@ export function TripAssemblyMap({
     activeOption === null
       ? (geometryQuery.data ?? null)
       : {
+          /**
+           * ⚠️ A alternativa percorre as **mesmas** paradas enviadas, barracão incluído (spec 097):
+           * sem carregar `depot` aqui, a contagem de trechos dela não bateria com a das paradas e
+           * a tela perderia todos os tempos por parada ao trocar de rota.
+           */
+          depot: geometryQuery.data?.depot ?? null,
           legs: activeOption.legs,
           points: activeOption.points,
           source: 'road' as const,
           toll: activeOption.toll,
         }
   const legs = buildAssemblyLegs({ geometry: activeGeometry, points: map.points })
+  /**
+   * Spec 097: os trechos do barracão ficam **fora** de `legs` — a lista numerada é só das entregas
+   * (D3) — e entram no total do roteiro, que é a conta que decide aceitar a carga.
+   */
+  const depotLegs = buildAssemblyDepotLegs({ geometry: activeGeometry, points: map.points })
+  const depotAbsence = geometryQuery.data?.depot?.absence ?? null
   const legOf = (index: number) => legs[index] ?? null
   /**
    * ⚠️ `null` é "não calculei" (sem veículo, ou o roteirizador não anotou os nós) — nunca "sem
@@ -377,7 +390,22 @@ export function TripAssemblyMap({
       {legs.length === 0 ? null : (
         <p className={`${styles.hint} ${styles.assemblyTotalTime}`}>
           <Icon name="clock" />
-          {t('assemblyMap.totalTime', { duration: formatDuration(totalAssemblyMinutes(legs)) })}
+          {t('assemblyMap.totalTime', {
+            duration: formatDuration(totalAssemblyMinutes(legs, depotLegs)),
+          })}
+        </p>
+      )}
+      {/*
+        Spec 097 D2: barracão sem endereço cadastrado ou sem geocodificação **não** vira ponto
+        inventado — e a tela é obrigada a dizer que a perna inicial ficou de fora. A razão vem
+        pronta de `geometry.depot.absence` — não é a tela que decide, é a API que já mandou
+        nomeada. Um custo silenciosamente incompleto, sempre para baixo, é o defeito que esta
+        feature existe para acabar; o aviso some sozinho no dia em que a coordenada existir.
+      */}
+      {depotAbsence === null ? null : (
+        <p className={`${styles.hint} ${styles.assemblyTotalTime}`}>
+          <Icon name="alert" />
+          <span>{t(`assemblyMap.depot.absence.${depotAbsence}`)}</span>
         </p>
       )}
       {/*

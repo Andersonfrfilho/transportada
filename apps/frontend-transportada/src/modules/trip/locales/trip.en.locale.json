@@ -305,6 +305,12 @@
     "totalWeight": "Total weight: {{weight}} kg",
     "revenueRule": "by {{rule}}{{percentage}}",
     "totalFreight": "Forecast freight: {{amount}}",
+    "depot": {
+      "absence": {
+        "not_configured": "The depot leg is out of this estimate: no origin address is registered in the company route settings. Distance, time, fuel and tolls below start at the first delivery.",
+        "not_geocoded": "The depot leg is out of this estimate: the origin address is registered but has no coordinate yet. Distance, time, fuel and tolls below start at the first delivery."
+      }
+    },
     "toll": {
       "summary": "Toll: {{total}} — {{boothCount}} booths, {{chargePerAxle}} per axle × {{axleCount}} axles",
       "tariff": " · tariff from {{month}}",

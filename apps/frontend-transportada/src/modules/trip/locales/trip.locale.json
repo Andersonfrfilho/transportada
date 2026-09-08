@@ -440,6 +440,12 @@
     "totalWeight": "Peso total: {{weight}} kg",
     "revenueRule": "por {{rule}}{{percentage}}",
     "totalFreight": "Frete previsto: {{amount}}",
+    "depot": {
+      "absence": {
+        "not_configured": "\u26a0\ufe0f A sa\u00edda do barrac\u00e3o n\u00e3o est\u00e1 nesta conta: nenhum endere\u00e7o de origem foi cadastrado na configura\u00e7\u00e3o de roteiriza\u00e7\u00e3o da empresa. A dist\u00e2ncia, o tempo, o combust\u00edvel e o ped\u00e1gio abaixo come\u00e7am na primeira entrega.",
+        "not_geocoded": "\u26a0\ufe0f A sa\u00edda do barrac\u00e3o n\u00e3o est\u00e1 nesta conta: o endere\u00e7o de origem est\u00e1 cadastrado, mas ainda n\u00e3o tem coordenada. A dist\u00e2ncia, o tempo, o combust\u00edvel e o ped\u00e1gio abaixo come\u00e7am na primeira entrega."
+      }
+    },
     "toll": {
       "summary": "Pedágio: {{total}} — {{boothCount}} praças, {{chargePerAxle}} por eixo × {{axleCount}} eixos",
       "tariff": " · tarifa de {{month}}",
