@@ -67,6 +67,7 @@ export type FleetVehicleBodyContract = FleetVehicleCostFieldsContract &
     color: string
     fleetNumber: string
     fuelType: FleetVehicleFuelProductContract
+    hasAutomaticTollPayment: boolean
     model: string
     modelYear: number
     owner: FleetVehicleOwnerContract | null
@@ -213,6 +214,7 @@ export const VEHICLE_BODY = {
   color: 'branca',
   fleetNumber: '101',
   fuelType: 'diesel-s10',
+  hasAutomaticTollPayment: false,
   model: 'Modelo Sintetico',
   modelYear: 2020,
   monthlyInstallmentAmount: '2000.0000',
@@ -478,6 +480,7 @@ export const VEHICLE_DRAFT_BODY = {
   color: '',
   fleetNumber: '',
   fuelType: 'diesel-s10',
+  hasAutomaticTollPayment: false,
   model: '',
   modelYear: 0,
   owner: null,

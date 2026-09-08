@@ -45,6 +45,8 @@ describe('fleet vehicle schema', () => {
       /** Spec 085: por onde a carga entra e sai — semeado do `body_type`, depois disso da ficha. */
       'loading_access',
       'axle_count',
+      /** Spec 095 D3: quem paga com tag é o veículo, não a empresa — frota mista é o caso normal. */
+      'has_automatic_toll_payment',
       'vehicle_type',
       'state',
       'ownership',

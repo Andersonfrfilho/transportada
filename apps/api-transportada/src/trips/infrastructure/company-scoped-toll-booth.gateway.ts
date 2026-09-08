@@ -38,6 +38,7 @@ export function createCompanyScopedTollBoothGateway(input: {
           ...record,
           chargeCar: effective.effectiveChargeCar,
           chargePerAxle: effective.effectiveChargePerAxle,
+          chargePerAxleAutomatic: effective.effectiveChargePerAxleAutomatic,
         }
       })
     },

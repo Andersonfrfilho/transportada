@@ -15,6 +15,7 @@ function catalog(overrides: Partial<TollBoothCatalogEntry> = {}): TollBoothCatal
   return {
     chargeCar: '10.50',
     chargePerAxle: '10.50',
+    chargePerAxleAutomatic: null,
     name: 'Praça SP-330',
     observedOn: '2026-06-01',
     operator: 'CCR',
@@ -30,6 +31,7 @@ function adjustment(
     actorUserId: 'user-1',
     chargeCar: '12.00',
     chargePerAxle: '12.00',
+    chargePerAxleAutomatic: null,
     observedOn: '2026-09-01',
     osmNodeId: 123,
     updatedAt: UPDATED_AT,
@@ -85,6 +87,7 @@ describe('effective toll booth charge policy contract (spec 095 D1)', () => {
     expect(result.catalog).toEqual({
       chargeCar: '10.50',
       chargePerAxle: '10.50',
+      chargePerAxleAutomatic: null,
       observedOn: '2026-06-01',
     })
   })
@@ -117,5 +120,31 @@ describe('origem por campo (conferência de 2026-09-07)', () => {
 
     expect(result.chargeCarSource).toBe('catalog')
     expect(result.chargePerAxleSource).toBe('catalog')
+  })
+})
+
+describe('a automática, terceiro campo independente (spec 095 D3)', () => {
+  test('o OSM nunca declara a automática — sem ajuste, ela é sempre desconhecida', () => {
+    const result = resolveEffectiveTollBoothCharge({ adjustment: null, catalog: catalog() })
+
+    expect(result.effectiveChargePerAxleAutomatic).toBeNull()
+    expect(result.chargePerAxleAutomaticSource).toBe('catalog')
+  })
+
+  test('o ajuste da empresa é quem informa a automática', () => {
+    const result = resolveEffectiveTollBoothCharge({
+      adjustment: adjustment({
+        chargeCar: null,
+        chargePerAxle: null,
+        chargePerAxleAutomatic: '9.97',
+      }),
+      catalog: catalog(),
+    })
+
+    expect(result.effectiveChargePerAxleAutomatic).toBe('9.97')
+    expect(result.chargePerAxleAutomaticSource).toBe('manual')
+    /** Corrigir só a automática não move os outros dois campos. */
+    expect(result.effectiveChargeCar).toBe('10.50')
+    expect(result.effectiveChargePerAxle).toBe('10.50')
   })
 })

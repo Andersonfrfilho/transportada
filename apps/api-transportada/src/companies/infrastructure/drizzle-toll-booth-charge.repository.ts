@@ -50,6 +50,7 @@ export class DrizzleTollBoothChargeRepository implements TollBoothChargePort {
         actorUserId: input.actorUserId,
         chargeCar: input.chargeCar,
         chargePerAxle: input.chargePerAxle,
+        chargePerAxleAutomatic: input.chargePerAxleAutomatic,
         companyId: input.companyId,
         observedOn: input.observedOn,
         osmNodeId: BigInt(input.osmNodeId),
@@ -59,6 +60,7 @@ export class DrizzleTollBoothChargeRepository implements TollBoothChargePort {
           actorUserId: input.actorUserId,
           chargeCar: input.chargeCar,
           chargePerAxle: input.chargePerAxle,
+          chargePerAxleAutomatic: input.chargePerAxleAutomatic,
           observedOn: input.observedOn,
           updatedAt: sql`now()`,
         },
@@ -82,6 +84,7 @@ export class DrizzleTollBoothChargeRepository implements TollBoothChargePort {
       actorUserId: companyTollBoothCharges.actorUserId,
       chargeCar: companyTollBoothCharges.chargeCar,
       chargePerAxle: companyTollBoothCharges.chargePerAxle,
+      chargePerAxleAutomatic: companyTollBoothCharges.chargePerAxleAutomatic,
       observedOn: companyTollBoothCharges.observedOn,
       osmNodeId: companyTollBoothCharges.osmNodeId,
       updatedAt: companyTollBoothCharges.updatedAt,
@@ -93,6 +96,7 @@ function toRow(row: {
   readonly actorUserId: string
   readonly chargeCar: string | null
   readonly chargePerAxle: string | null
+  readonly chargePerAxleAutomatic: string | null
   readonly observedOn: string
   readonly osmNodeId: bigint
   readonly updatedAt: Date
@@ -101,6 +105,7 @@ function toRow(row: {
     actorUserId: row.actorUserId,
     chargeCar: row.chargeCar,
     chargePerAxle: row.chargePerAxle,
+    chargePerAxleAutomatic: row.chargePerAxleAutomatic,
     observedOn: row.observedOn,
     osmNodeId: Number(row.osmNodeId),
     updatedAt: row.updatedAt,

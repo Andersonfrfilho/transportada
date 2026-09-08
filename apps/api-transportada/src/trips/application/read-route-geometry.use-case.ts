@@ -110,6 +110,11 @@ export type ReadRouteGeometryInput = {
   /** Quantos eixos o veículo escolhido tem, e de onde o número veio (spec 090 D2). */
   readonly axles?: AxleCount | null
   /**
+   * Spec 095 D3: o veículo escolhido paga pedágio com tag? Ausente é `false` — sem saber, a conta
+   * fica na base manual de sempre, nunca aplicando um desconto que ninguém confirmou.
+   */
+  readonly hasAutomaticTollPayment?: boolean
+  /**
    * O consumo e o preço do combustível do veículo escolhido (spec 094 D1/T2). Ausente é "não sei
    * comparar" — a mesma coisa que declarar os dois campos `null`: sem eles nenhuma opção recebe o
    * rótulo de mais barata, e a razão sai em `costGap`.
@@ -158,6 +163,7 @@ export async function readRouteGeometry(input: ReadRouteGeometryInput): Promise<
     rawRoads.map((raw) =>
       resolveOption({
         axles: input.axles ?? null,
+        hasAutomaticTollPayment: input.hasAutomaticTollPayment ?? false,
         road: raw,
         tollBooths: input.tollBooths ?? null,
       }),
@@ -204,6 +210,7 @@ export async function readRouteGeometry(input: ReadRouteGeometryInput): Promise<
  */
 async function resolveOption(input: {
   readonly axles: AxleCount | null
+  readonly hasAutomaticTollPayment: boolean
   readonly road: RouteGeometryRoad
   readonly tollBooths: null | ReadRouteGeometryTollBoothsPort
 }): Promise<
@@ -227,6 +234,7 @@ async function resolveOption(input: {
     })),
     toll: await resolveRouteToll({
       axles: input.axles,
+      hasAutomaticTollPayment: input.hasAutomaticTollPayment,
       nodeIds: input.road.nodeIds,
       tollBooths: input.tollBooths,
     }),
@@ -240,6 +248,7 @@ async function resolveOption(input: {
  */
 async function resolveRouteToll(input: {
   readonly axles: AxleCount | null
+  readonly hasAutomaticTollPayment: boolean
   readonly nodeIds: null | readonly number[]
   readonly tollBooths: null | ReadRouteGeometryTollBoothsPort
 }): Promise<null | RouteGeometryToll> {
@@ -248,7 +257,12 @@ async function resolveRouteToll(input: {
   const records = input.nodeIds === null ? [] : await input.tollBooths.readByNodeIds(input.nodeIds)
   const observedOnByNode = new Map(records.map((record) => [record.osmNodeId, record.observedOn]))
 
-  const cost = resolveTollRouteCost({ axles: input.axles, booths: records, nodeIds: input.nodeIds })
+  const cost = resolveTollRouteCost({
+    axles: input.axles,
+    booths: records,
+    hasAutomaticTollPayment: input.hasAutomaticTollPayment,
+    nodeIds: input.nodeIds,
+  })
   if (cost === null) return null
 
   const observedDates = cost.booths

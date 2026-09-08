@@ -37,6 +37,7 @@ function praca(osmNodeId: number, chargePerAxle: string, observedOn: string): To
   return {
     chargeCar: chargePerAxle,
     chargePerAxle,
+    chargePerAxleAutomatic: null,
     latitude: '-21.9000000',
     longitude: '-47.5000000',
     name: `Praça ${osmNodeId}`,

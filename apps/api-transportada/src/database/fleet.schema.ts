@@ -5,6 +5,7 @@ import { sql } from 'drizzle-orm'
 import { LOADING_ACCESS_KINDS, type LoadingAccess } from '../shared/loading-access.constant.js'
 import {
   bigint,
+  boolean,
   check,
   date,
   foreignKey,
@@ -181,6 +182,12 @@ export const fleetVehicles = pgTable(
     /** Spec 085: por onde a carga entra e sai. Semeado do `body_type`, depois disso e da ficha. */
     loadingAccess: text('loading_access').$type<LoadingAccess>().notNull().default('rear'),
     axleCount: integer('axle_count').notNull().default(0),
+    /**
+     * Spec 095 D3: quem paga com tag é o veículo, não a empresa — frota mista é o caso normal.
+     * Com a tag e a tarifa automática da praça conhecida, é ela que entra na conta; sem a tarifa
+     * automática, cai para a manual e a queda é contada (nunca um desconto estimado).
+     */
+    hasAutomaticTollPayment: boolean('has_automatic_toll_payment').notNull().default(false),
     // O que o operador escolhe; `tipoRodado` e classe de frete saem dele por derivação
     vehicleType: varchar('vehicle_type', { length: VEHICLE_TYPE_MAX_LENGTH })
       .$type<VehicleType | ''>()

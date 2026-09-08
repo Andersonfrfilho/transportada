@@ -50,6 +50,11 @@ export const companyTollBoothCharges = pgTable(
       }),
     chargePerAxle: numeric('charge_per_axle', { precision: 19, scale: 4 }),
     chargeCar: numeric('charge_car', { precision: 19, scale: 4 }),
+    /**
+     * Spec 095 D3: a tarifa de quem paga com tag, independente das duas acima — corrigir só a
+     * automática (o OSM não tem esse campo) e deixar a manual vinda do mapa é o caso comum.
+     */
+    chargePerAxleAutomatic: numeric('charge_per_axle_automatic', { precision: 19, scale: 4 }),
     /** A data da tarifa que a pessoa está registrando — nunca a do clique (spec 095 D2). */
     observedOn: date('observed_on').notNull(),
     actorUserId: uuid('actor_user_id').notNull(),
@@ -69,10 +74,14 @@ export const companyTollBoothCharges = pgTable(
       'company_toll_booth_charges_charge_car_check',
       sql`${table.chargeCar} is null or ${table.chargeCar} >= 0`,
     ),
+    check(
+      'company_toll_booth_charges_charge_per_axle_automatic_check',
+      sql`${table.chargePerAxleAutomatic} is null or ${table.chargePerAxleAutomatic} >= 0`,
+    ),
     /** Ajuste sem valor nenhum não corrige coisa alguma — seria linha gravada e trabalho jogado fora. */
     check(
       'company_toll_booth_charges_charge_presence_check',
-      sql`${table.chargePerAxle} is not null or ${table.chargeCar} is not null`,
+      sql`${table.chargePerAxle} is not null or ${table.chargeCar} is not null or ${table.chargePerAxleAutomatic} is not null`,
     ),
   ],
 )

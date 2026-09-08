@@ -407,6 +407,17 @@ export function TripAssemblyMap({
               {toll.axles.source === 'estimated' ? ` ${t('assemblyMap.toll.estimated')}` : null}
             </span>
           </p>
+          {/*
+            Spec 095 D3: a base (tag ou manual) e, quando com tag, quantas praças caíram para a
+            manual por falta de tarifa automática — um total menor sem esse aviso seria a mentira
+            que a 090 inteira combate (mesma trava do `boothsWithoutCharge` abaixo).
+          */}
+          <p className={styles.hint}>{t(`assemblyMap.toll.paymentMode.${toll.paymentMode}`)}</p>
+          {toll.paymentMode !== 'automatic' || toll.boothsFallenBackToManual === 0 ? null : (
+            <p className={styles.hint}>
+              {t('assemblyMap.toll.fallenBackToManual', { count: toll.boothsFallenBackToManual })}
+            </p>
+          )}
           {toll.boothsWithoutCharge === 0 ? null : (
             <p className={styles.hint}>
               {t('assemblyMap.toll.withoutCharge', { count: toll.boothsWithoutCharge })}

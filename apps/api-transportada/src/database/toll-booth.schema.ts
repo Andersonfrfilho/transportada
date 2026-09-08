@@ -49,6 +49,12 @@ export const tollBooths = pgTable(
     chargePerAxle: numeric('charge_per_axle', { precision: 19, scale: 4 }),
     /** A parcela `motorcar`, para o veículo leve da frota. */
     chargeCar: numeric('charge_car', { precision: 19, scale: 4 }),
+    /**
+     * Spec 095 D3: a tarifa de quem paga com tag — sempre menor, nunca publicada pelo OSM. Nasce
+     * nula e só passa a existir por ajuste da empresa (`company_toll_booth_charges`) ou, um dia,
+     * por curadoria oficial; o extrator de `charge` continua gravando só a manual.
+     */
+    chargePerAxleAutomatic: numeric('charge_per_axle_automatic', { precision: 19, scale: 4 }),
     /** A data do extract de onde a tarifa veio, e é ela que a tela imprime. */
     observedOn: date('observed_on').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -66,6 +72,10 @@ export const tollBooths = pgTable(
     check(
       'toll_booths_charge_car_check',
       sql`${table.chargeCar} is null or ${table.chargeCar} >= 0`,
+    ),
+    check(
+      'toll_booths_charge_per_axle_automatic_check',
+      sql`${table.chargePerAxleAutomatic} is null or ${table.chargePerAxleAutomatic} >= 0`,
     ),
   ],
 )

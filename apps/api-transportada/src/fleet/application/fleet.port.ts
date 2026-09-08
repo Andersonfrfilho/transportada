@@ -58,6 +58,12 @@ export type FleetVehicleInput = {
   readonly color: string
   readonly fleetNumber: string
   readonly fuelType: FuelProduct
+  /**
+   * Spec 095 D3: com a tag e a tarifa automática da praça conhecida, é ela que entra na conta do
+   * pedágio — sem a automática, cai para a manual (e a queda é contada, nunca um desconto
+   * estimado). Frota mista é o caso normal: quem paga com tag é o veículo, não a empresa.
+   */
+  readonly hasAutomaticTollPayment: boolean
   readonly model: string
   readonly modelYear: number
   readonly monthlyInstallmentAmount: string

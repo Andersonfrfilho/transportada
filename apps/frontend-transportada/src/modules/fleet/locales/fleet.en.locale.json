@@ -276,6 +276,8 @@
   "cargoWidthMeters": "Cargo width (m)",
   "cargoHeightMeters": "Cargo height (m)",
   "capacityCubicMetersDerivedHint": "Derived from the cargo length, width and height.",
+  "hasAutomaticTollPayment": "Automatic toll payment (tag)",
+  "hasAutomaticTollPaymentHint": "With the tag, tolls use the booth's automatic rate when it is known. Without a known automatic rate, the total falls back to the manual one.",
   "ownership": "Ownership",
   "ownershipOption": {
     "aggregate": "Aggregate",

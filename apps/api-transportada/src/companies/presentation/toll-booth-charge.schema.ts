@@ -12,14 +12,22 @@ const adjustTollBoothChargeBodySchema = z
   .object({
     chargeCar: z.string().regex(MONEY_DECIMAL).nullish(),
     chargePerAxle: z.string().regex(MONEY_DECIMAL).nullish(),
+    /** Spec 095 D3: a tarifa de tag, independente das duas acima — o OSM não a declara. */
+    chargePerAxleAutomatic: z.string().regex(MONEY_DECIMAL).nullish(),
     observedOn: z.iso.date(),
   })
   .strict()
-  /** No mínimo um campo corrige algo — os dois nulos gravariam trabalho jogado fora (spec 095). */
-  .refine((body) => (body.chargeCar ?? null) !== null || (body.chargePerAxle ?? null) !== null, {
-    message: 'inform chargePerAxle or chargeCar',
-    path: ['chargePerAxle'],
-  })
+  /** No mínimo um campo corrige algo — os três nulos gravariam trabalho jogado fora (spec 095). */
+  .refine(
+    (body) =>
+      (body.chargeCar ?? null) !== null ||
+      (body.chargePerAxle ?? null) !== null ||
+      (body.chargePerAxleAutomatic ?? null) !== null,
+    {
+      message: 'inform chargePerAxle, chargeCar or chargePerAxleAutomatic',
+      path: ['chargePerAxle'],
+    },
+  )
 
 /**
  * `osm_node_id` é numérico e sem limite de dígitos declarado no catálogo — id malformado é pedido
@@ -35,11 +43,13 @@ export function parseOsmNodeId(value: string): number {
 export function parseAdjustTollBoothChargeBody(request: Request): Promise<{
   readonly chargeCar: null | string
   readonly chargePerAxle: null | string
+  readonly chargePerAxleAutomatic: null | string
   readonly observedOn: string
 }> {
   return parseBody(adjustTollBoothChargeBodySchema, request).then((body) => ({
     chargeCar: body.chargeCar ?? null,
     chargePerAxle: body.chargePerAxle ?? null,
+    chargePerAxleAutomatic: body.chargePerAxleAutomatic ?? null,
     observedOn: body.observedOn,
   }))
 }

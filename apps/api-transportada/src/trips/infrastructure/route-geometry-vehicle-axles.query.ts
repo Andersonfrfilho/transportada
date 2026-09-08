@@ -22,10 +22,13 @@ import type { RouteOptionVehicle } from '../../toll-booths/domain/route-option.p
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
 const NO_FUEL_BASELINE: RouteOptionVehicle = { kilometersPerLiter: null, pricePerLiter: null }
+const NO_AUTOMATIC_TOLL_PAYMENT = false
 
 export type RouteGeometryVehicleContext = Readonly<{
   axles: AxleCount | null
   fuelBaseline: RouteOptionVehicle
+  /** Spec 095 D3: se o veículo paga pedágio com tag — sem veículo escolhido, é sempre `false`. */
+  hasAutomaticTollPayment: boolean
 }>
 
 export function createRouteGeometryVehicleAxlesQuery(database: Database): Readonly<{
@@ -45,6 +48,7 @@ export function createRouteGeometryVehicleAxlesQuery(database: Database): Readon
         .select({
           axleCount: fleetVehicles.axleCount,
           fuelType: fleetVehicles.fuelType,
+          hasAutomaticTollPayment: fleetVehicles.hasAutomaticTollPayment,
           kilometersPerLiter: fleetVehicles.averageConsumption,
           vehicleType: fleetVehicles.vehicleType,
         })
@@ -53,7 +57,13 @@ export function createRouteGeometryVehicleAxlesQuery(database: Database): Readon
           and(eq(fleetVehicles.companyId, input.companyId), eq(fleetVehicles.id, input.vehicleId)),
         )
         .limit(1)
-      if (vehicle === undefined) return { axles: null, fuelBaseline: NO_FUEL_BASELINE }
+      if (vehicle === undefined) {
+        return {
+          axles: null,
+          fuelBaseline: NO_FUEL_BASELINE,
+          hasAutomaticTollPayment: NO_AUTOMATIC_TOLL_PAYMENT,
+        }
+      }
 
       const pricePerLiter = await readFuelPrice(database, {
         companyId: input.companyId,
@@ -66,6 +76,7 @@ export function createRouteGeometryVehicleAxlesQuery(database: Database): Readon
           vehicle.kilometersPerLiter === null || pricePerLiter === null
             ? NO_FUEL_BASELINE
             : { kilometersPerLiter: vehicle.kilometersPerLiter, pricePerLiter },
+        hasAutomaticTollPayment: vehicle.hasAutomaticTollPayment,
       }
     },
   }

@@ -1936,6 +1936,7 @@ function createApplicationRoutes({
           return readRouteGeometry({
             axles: vehicleContext?.axles ?? null,
             fuelBaseline: vehicleContext?.fuelBaseline ?? null,
+            hasAutomaticTollPayment: vehicleContext?.hasAutomaticTollPayment ?? false,
             geometry:
               routingMatrixUrl === undefined
                 ? { readRouteGeometry: async () => null }
@@ -1960,6 +1961,7 @@ function createApplicationRoutes({
           return readRouteGeometry({
             axles: vehicleContext.axles,
             fuelBaseline: vehicleContext.fuelBaseline,
+            hasAutomaticTollPayment: vehicleContext.hasAutomaticTollPayment,
             geometry:
               routingMatrixUrl === undefined
                 ? { readRouteGeometry: async () => null }

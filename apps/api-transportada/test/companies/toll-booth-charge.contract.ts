@@ -27,11 +27,18 @@ describe('GET /company-settings/toll-booth-charges HTTP contract', () => {
       data: [
         {
           actorUserId: ACTOR_USER_ID,
-          catalog: { chargeCar: '10.50', chargePerAxle: '10.50', observedOn: '2026-06-01' },
+          catalog: {
+            chargeCar: '10.50',
+            chargePerAxle: '10.50',
+            chargePerAxleAutomatic: null,
+            observedOn: '2026-06-01',
+          },
           chargeCarSource: 'manual',
           chargePerAxleSource: 'manual',
+          chargePerAxleAutomaticSource: 'catalog',
           effectiveChargeCar: '11.00',
           effectiveChargePerAxle: '11.00',
+          effectiveChargePerAxleAutomatic: null,
           name: 'Praça SP-330',
           observedOn: '2026-08-01',
           operator: 'CCR',
@@ -71,12 +78,19 @@ describe('PUT /company-settings/toll-booth-charges/{osmNodeId} HTTP contract', (
     expect(await response.json()).toEqual({
       data: {
         actorUserId: ACTOR_USER_ID,
-        catalog: { chargeCar: null, chargePerAxle: null, observedOn: '2026-06-01' },
+        catalog: {
+          chargeCar: null,
+          chargePerAxle: null,
+          chargePerAxleAutomatic: null,
+          observedOn: '2026-06-01',
+        },
         /** ⚠️ Só o por eixo foi corrigido; o de carro segue sendo o do mapa (que aqui não sabe). */
         chargeCarSource: 'catalog',
         chargePerAxleSource: 'manual',
+        chargePerAxleAutomaticSource: 'catalog',
         effectiveChargeCar: null,
         effectiveChargePerAxle: '9.9000',
+        effectiveChargePerAxleAutomatic: null,
         name: 'Praça SP-291',
         observedOn: '2026-09-07',
         operator: null,
@@ -90,6 +104,7 @@ describe('PUT /company-settings/toll-booth-charges/{osmNodeId} HTTP contract', (
         actorUserId: ACTOR_USER_ID,
         chargeCar: null,
         chargePerAxle: '9.9000',
+        chargePerAxleAutomatic: null,
         companyId: COMPANY_ID,
         observedOn: '2026-09-07',
         osmNodeId: 222,
@@ -97,8 +112,28 @@ describe('PUT /company-settings/toll-booth-charges/{osmNodeId} HTTP contract', (
     ])
   })
 
-  // Ajuste sem nenhum dos dois campos não corrige nada — seria trabalho jogado fora
-  test('refuses a body with neither chargePerAxle nor chargeCar', async () => {
+  /** Spec 095 D3: a automática é campo próprio — corrigi-la sozinha é o caso comum (frota com tag). */
+  test('records a correction to only the automatic charge', async () => {
+    const fixture = await createTollBoothChargeHttpFixture()
+
+    const response = await fixture.handle(
+      adjustChargeRequest({
+        body: { chargePerAxleAutomatic: '9.9700', observedOn: '2026-09-07' },
+        osmNodeId: '222',
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as { data: Record<string, unknown> }
+    expect(body.data.chargePerAxleAutomaticSource).toBe('manual')
+    expect(body.data.effectiveChargePerAxleAutomatic).toBe('9.9700')
+    /** Só a automática foi enviada; o mapa continua sem manual nem carro para esta praça. */
+    expect(body.data.chargePerAxleSource).toBe('catalog')
+    expect(body.data.effectiveChargePerAxle).toBeNull()
+  })
+
+  // Ajuste sem nenhum dos três campos não corrige nada — seria trabalho jogado fora
+  test('refuses a body with neither chargePerAxle, chargeCar nor chargePerAxleAutomatic', async () => {
     const fixture = await createTollBoothChargeHttpFixture()
 
     const response = await fixture.handle(

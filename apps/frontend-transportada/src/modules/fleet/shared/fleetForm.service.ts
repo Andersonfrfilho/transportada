@@ -62,6 +62,7 @@ export const EMPTY_VEHICLE_FORM: FleetVehicleFormState = {
   color: '',
   fleetNumber: '',
   fuelType: DEFAULT_FUEL_PRODUCT,
+  hasAutomaticTollPayment: false,
   model: '',
   modelYear: '0',
   monthlyInstallmentAmount: '',
@@ -173,6 +174,7 @@ export function toVehicleFormState(vehicle: FleetVehicleDetail): FleetVehicleFor
     color: toVehicleColor(vehicle.color),
     fleetNumber: vehicle.fleetNumber,
     fuelType: vehicle.fuelType,
+    hasAutomaticTollPayment: vehicle.hasAutomaticTollPayment,
     model: vehicle.model,
     modelYear: String(vehicle.modelYear),
     ownerName: vehicle.owner?.name ?? '',
@@ -311,6 +313,7 @@ export function toVehicleBody(state: FleetVehicleFormState): FleetVehicleBody {
     color: state.color,
     fleetNumber: state.fleetNumber,
     fuelType: state.fuelType,
+    hasAutomaticTollPayment: state.hasAutomaticTollPayment,
     model: state.model,
     modelYear: Number(normalizeUnsignedInteger(state.modelYear)),
     owner: isOwn

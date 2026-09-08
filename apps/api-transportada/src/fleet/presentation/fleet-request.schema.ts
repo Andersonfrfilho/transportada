@@ -140,6 +140,8 @@ const vehicleFieldsSchema = z.object({
   color: z.literal('').or(z.enum(VEHICLE_COLORS)),
   fleetNumber: z.string().trim().max(VEHICLE_FLEET_NUMBER_MAX_LENGTH),
   fuelType: z.enum(FUEL_PRODUCTS_TUPLE),
+  /** Spec 095 D3: default `false` — sem marcar, o pedágio segue sempre pela tarifa manual. */
+  hasAutomaticTollPayment: z.boolean().default(false),
   model: z.string().trim().max(VEHICLE_MODEL_MAX_LENGTH),
   modelYear: optionalRangedInteger(MODEL_YEAR_MIN, MODEL_YEAR_MAX),
   monthlyInstallmentAmount: z.string().regex(MONEY_DECIMAL),

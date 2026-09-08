@@ -16,6 +16,7 @@ function catalogRecord(overrides: Partial<TollBoothRouteRecord> = {}): TollBooth
   return {
     chargeCar: '10.50',
     chargePerAxle: '10.50',
+    chargePerAxleAutomatic: null,
     latitude: '-21.1699500',
     longitude: '-47.8099400',
     name: 'Praça SP-330',
@@ -38,6 +39,7 @@ function fakeCharges(
     readonly actorUserId: string
     readonly chargeCar: null | string
     readonly chargePerAxle: null | string
+    readonly chargePerAxleAutomatic: null | string
     readonly observedOn: string
     readonly osmNodeId: number
     readonly updatedAt: Date
@@ -60,6 +62,7 @@ describe('company-scoped toll booth gateway (spec 095 D1)', () => {
           actorUserId: 'user-1',
           chargeCar: null,
           chargePerAxle: '12.00',
+          chargePerAxleAutomatic: null,
           observedOn: '2026-09-01',
           osmNodeId: 111,
           updatedAt: new Date('2026-09-01T00:00:00.000Z'),
@@ -94,6 +97,7 @@ describe('company-scoped toll booth gateway (spec 095 D1)', () => {
           actorUserId: 'user-1',
           chargeCar: '0.0000',
           chargePerAxle: '0.0000',
+          chargePerAxleAutomatic: null,
           observedOn: '2026-09-01',
           osmNodeId: 111,
           updatedAt: new Date('2026-09-01T00:00:00.000Z'),
@@ -106,5 +110,29 @@ describe('company-scoped toll booth gateway (spec 095 D1)', () => {
 
     expect(result[0]?.chargeCar).toBe('0.0000')
     expect(result[0]?.chargePerAxle).toBe('0.0000')
+  })
+
+  /** Spec 095 D3: a automática também vence o catálogo, por campo — como carro e por eixo. */
+  test('the manual adjustment can correct the automatic charge too', async () => {
+    const gateway = createCompanyScopedTollBoothGateway({
+      catalog: fakeCatalog([catalogRecord({ chargePerAxleAutomatic: null })]),
+      charges: fakeCharges([
+        {
+          actorUserId: 'user-1',
+          chargeCar: null,
+          chargePerAxle: null,
+          chargePerAxleAutomatic: '9.97',
+          observedOn: '2026-09-01',
+          osmNodeId: 111,
+          updatedAt: new Date('2026-09-01T00:00:00.000Z'),
+        },
+      ]),
+      companyId: COMPANY_ID,
+    })
+
+    const result = await gateway.readByNodeIds([111])
+
+    expect(result[0]?.chargePerAxleAutomatic).toBe('9.97')
+    expect(result[0]?.chargePerAxle).toBe('10.50')
   })
 })

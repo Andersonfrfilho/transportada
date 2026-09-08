@@ -209,6 +209,8 @@ export type FleetVehicleBody = FleetVehicleCostFields &
     color: string
     fleetNumber: string
     fuelType: FuelProduct
+    /** Spec 095 D3: com a tag, o pedágio usa a automática da praça quando ela é conhecida. */
+    hasAutomaticTollPayment: boolean
     model: string
     modelYear: number
     owner: FleetVehicleOwner | null
@@ -429,6 +431,7 @@ export type FleetVehicleFormState = FleetVehicleCostFields &
     color: '' | VehicleColor
     fleetNumber: string
     fuelType: FuelProduct
+    hasAutomaticTollPayment: boolean
     model: string
     modelYear: string
     ownerName: string

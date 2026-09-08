@@ -231,3 +231,151 @@ rota é preguiçoso e nem `trips` nem `route_suggestions` gravam id de nó. As t
 seção acima; a recomendação desta sessão é a terceira (adiar a aba até a curadoria oficial
 ANTT/ARTESP), porque com tarifa oficial a página deixa de ser sobre consertar o OSM e passa a ser
 sobre contrato e desconto — que é o que o mercado realmente ajusta à mão.
+
+## D3
+
+D3 (a praça tem dois preços, e quem decide qual vale é o veículo) implementada de ponta a ponta:
+esquema, política pura, rotas de ajuste, plumbing do roteiro e tela da montagem.
+
+### 1. O veículo declara cobrança automática
+
+`fleet_vehicles.has_automatic_toll_payment` — `boolean not null default false`, na migration
+`20260907200000_toll_automatic_payment` (mão, sem `db:generate` — o snapshot está defasado, como
+avisado no briefing). Coluna inserida logo depois de `axle_count`, junto ao `vehicle_type`, porque a
+decisão de eixo e a de pagamento moram no mesmo bloco lógico do formulário.
+
+Na ficha da frota, `VehicleOperationFields.component.tsx` ganhou um `@/components/ui/checkbox` com
+texto de ajuda (`hasAutomaticTollPaymentHint`) dizendo o que a marca muda. `hasAutomaticTollPayment`
+entrou em `FleetVehicleFormState`/`FleetVehicleBody` (frontend) e `FleetVehicleInput`/`FleetVehicle`
+(API), com `VEHICLE_BODY_KEYS`/`VEHICLE_FORM_KEYS`/`VEHICLE_DETAIL_KEYS` e o serializer de
+`fleet.routes.ts` atualizados — o mesmo ponto de falha silenciosa que o CLAUDE.md documenta para
+`VEHICLE_DETAIL_KEYS` (campo na lista sem o serializer publicá-lo esvazia a tabela sem erro nenhum).
+
+⚠️ **Decisão não escrita no briefing:** o rascunho do formulário (`localStorage`) guarda só `string`
+por contrato (`WriteInput<TField>` de `formDraft.service.ts`), e `hasAutomaticTollPayment` é o
+primeiro campo booleano da ficha do veículo. Em vez de reescrever o mecanismo genérico de rascunho
+para aceitar tipos mistos, criei `VEHICLE_DRAFT_FORM_KEYS` (`VEHICLE_FORM_KEYS` menos o booleano) só
+para `readFormDraft`/`writeFormDraft` — o campo continua validado por `VEHICLE_FORM_KEYS` em
+`createVehicleDraft`, só não sobrevive a um F5 no meio do cadastro de veículo novo (mesmo
+comportamento de qualquer campo que ainda não existisse quando o rascunho foi salvo).
+
+### 2. A praça ganha a tarifa automática
+
+`toll_booths.charge_per_axle_automatic` e `company_toll_booth_charges.charge_per_axle_automatic`,
+ambas `numeric(19,4)` anuláveis, na mesma migration. O CHECK de presença de
+`company_toll_booth_charges` passou a aceitar **qualquer um dos três** campos preenchido — corrigir
+só a automática (o caso comum: frota com tag) não pode exigir inventar um valor de carro ou de eixo
+manual que ninguém tem.
+
+⚠️ **`toll_booths.charge_per_axle_automatic` nunca é escrita por `saveMany`** — nem no insert, nem no
+`onConflictDoUpdate`. O extrator do OSM não tem esse campo (confirmado no `spec.md`), e deixá-la fora
+do `set:` do upsert significa que reexecutar o seed **não zera** um valor que uma curadoria oficial
+futura venha a gravar ali diretamente. Isso não estava pedido, mas segue a mesma cautela que a 090
+já tinha com `saveMany` sendo idempotente por `osm_node_id`.
+
+A resolução por campo (`resolveEffectiveTollBoothCharge`, D1) ganhou a terceira origem
+independente: `chargePerAxleAutomaticSource` e `effectiveChargePerAxleAutomatic`, no mesmo molde de
+`chargeCarSource`/`chargePerAxleSource` — corrigir a automática não move os outros dois campos.
+`PUT /company-settings/toll-booth-charges/{osmNodeId}` aceita `chargePerAxleAutomatic` no corpo, com
+o mesmo regex de decimal e a mesma regra "ao menos um campo preenchido" (agora sobre três, não dois).
+
+### 3. A escolha do preço, e a direção do erro
+
+`resolveTollRouteCost` (`toll-booths/domain/toll-route-cost.policy.ts`) passou a receber
+`hasAutomaticTollPayment: boolean`, obrigatório na política pura (só dois chamadores: o contrato de
+teste e `read-route-geometry.use-case.ts`) e devolve dois campos novos:
+
+- `paymentMode: 'automatic' | 'manual'` — eco do que foi pedido, para a tela dizer a base sempre.
+- `boothsFallenBackToManual: number` — só conta quando a automática é desconhecida **e** a manual é
+  conhecida (há para onde cair); sem tarifa nenhuma nas duas bases é `boothsWithoutCharge`, nunca uma
+  queda — as duas contagens não se sobrepõem.
+
+Testado com o dado real do briefing (São Simão e Santa Rita do Passa Quatro com automática `9.97`,
+Pirassununga só com manual `11.80`, toco de 2 eixos): sem tag, `R$ 65,60` manual; com tag,
+`R$ 63,48` e uma queda contada — os dois números batem com o cálculo do enunciado.
+
+`ReadRouteGeometryInput.hasAutomaticTollPayment` é **opcional**, ao contrário da política pura —
+ausente é `false` (a mesma base manual de sempre), para não obrigar `read-trip-valuation.use-case.ts`
+(que também chama `readRouteGeometry` para a prévia da viagem) a saber sobre pagamento automático
+antes de eu decidir threading até lá. Ver "o que ficou de fora" abaixo.
+
+`route-geometry-vehicle-axles.query.ts` ganhou `hasAutomaticTollPayment` em
+`RouteGeometryVehicleContext`, lido de `fleetVehicles.hasAutomaticTollPayment` (`false` quando não há
+veículo escolhido). `main.ts` propaga o campo nos dois pontos de wiring
+(`readRouteGeometry`/`readTripRouteGeometry`).
+
+`company-scoped-toll-booth.gateway.ts` (que já substituía `chargeCar`/`chargePerAxle` do catálogo
+pelo ajuste da empresa, D1) passou a substituir também `chargePerAxleAutomatic` — sem isso o veículo
+com tag nunca veria a automática que a empresa cadastrou, só a que (nunca) vem do OSM.
+
+Nunca se aplica desconto estimado: sem tag, a automática da praça é ignorada por completo mesmo
+quando conhecida (testado). Não existe percentual global de tag.
+
+### 4. A tela
+
+No bloco de pedágio da `TripAssemblyMap.component.tsx`, logo abaixo do resumo de sempre: uma linha
+fixa dizendo a base (`assemblyMap.toll.paymentMode.automatic`/`.manual`) e, só quando a base é
+automática e há queda, uma segunda linha com a contagem
+(`assemblyMap.toll.fallenBackToManual`) — no mesmo padrão de `boothsWithoutCharge`: um total menor
+sem esse aviso seria a mentira que a 090 inteira combate. `RouteGeometryToll` (frontend) e o guard de
+validação (`isGeometryToll`) ganharam os dois campos novos.
+
+### Gates rodados (evidência real)
+
+```
+$ cd apps/api-transportada && bun run typecheck   # limpo
+$ cd apps/api-transportada && bun run lint        # limpo
+$ cd apps/api-transportada && bun run test
+ 4589 pass, 23 skip, 0 fail, 16717 expect() calls — Ran 4612 tests across 159 files.
+$ make migration-test
+ 91 pass, 0 fail, 1101 expect() calls — Ran 91 tests across 8 files.
+$ cd apps/frontend-transportada && bun run typecheck   # limpo
+$ cd apps/frontend-transportada && bun run lint        # limpo
+$ cd apps/frontend-transportada && bun run test
+ 2904 pass, 0 fail, 16049 expect() calls — Ran 2904 tests across 24 files.
+$ bun run format:check   # limpo (raiz, todas as apps)
+$ bun run build          # api, worker, cron e as três frontend apps — todas OK
+```
+
+Suítes tocadas ou criadas nesta task (API): `test/toll-booths/toll-route-cost.contract.ts` (5 testes
+novos, D3, com o dado real do briefing), `test/companies/toll-booth-charge-policy.contract.ts` (2
+testes novos), `test/companies/toll-booth-charge.contract.ts` (1 teste novo, PUT só na automática),
+`test/toll-booths/company-scoped-toll-booth-gateway.contract.ts` (1 teste novo), mais os ajustes de
+fixture obrigatórios em `test/trip-application/route-geometry-toll.contract.ts`,
+`test/trip-application/route-geometry-options.contract.ts`, `test/trip-valuation/toll-parcel.contract.ts`,
+`test/fixtures/toll-booth-charge-http.fixture.ts`, `test/fleet-schema/vehicles.contract.ts`,
+`test/fleet-schema/toll-booth-charges.contract.ts`, `test/fleet-infrastructure/vehicle-mapper.contract.ts`,
+`test/integration/fleet-vehicle-repository.integration.ts`, `src/database/local-trip-seed.constant.ts`
+(nenhum arquivo novo — todos já constavam da lista explícita do `package.json`).
+
+Frontend: `test/trip/assembly-toll.contract.ts` (2 testes novos), mais ajustes de fixture em
+`test/fleet/fleet.fixture.ts`, `test/trip/assembly-route-options.contract.ts`,
+`test/trip/route-toll-booth-markers.contract.ts` (nenhum arquivo novo).
+
+### O que decidi sozinho, e não estava escrito no briefing
+
+- **Uma migration só, tocando as três tabelas** (`fleet_vehicles`, `toll_booths`,
+  `company_toll_booth_charges`) — o mesmo padrão de `20260903182455_delivery_proof_settings`
+  (3 tabelas numa migration só), porque as três mudanças são a mesma decisão de produto (D3) vista
+  de três ângulos, não três decisões independentes.
+- **`hasAutomaticTollPayment` opcional em `ReadRouteGeometryInput`**, não obrigatório como na
+  política pura — para não propagar a mudança até `read-trip-valuation.use-case.ts` sem decisão
+  explícita (ver abaixo).
+- **`VEHICLE_DRAFT_FORM_KEYS`** para separar o rascunho de formulário (só string) da validação de
+  chaves conhecidas (`VEHICLE_FORM_KEYS`, que aceita o booleano) — descrito na seção 1.
+- **`chargePerAxleAutomatic` fora do `set:` do `onConflictDoUpdate` de `saveMany`** — descrito na
+  seção 2.
+
+### O que ficou de fora, de propósito
+
+- **`read-trip-valuation.use-case.ts` (o pedágio da fatura/prévia da viagem) não sabe sobre
+  `hasAutomaticTollPayment`.** Ele chama `readRouteGeometry` sem o campo, que por ser opcional
+  assume `false` — a valuation da viagem sempre usa a base manual, mesmo para um veículo com tag. O
+  briefing citava só `resolveTollRouteCost` e o bloco de pedágio da montagem
+  (`TripAssemblyMap.component.tsx`); estender à valuation exigiria decidir se o custo _previsto_ da
+  viagem deve refletir o desconto de tag (provavelmente sim, mas é uma pergunta de produto sobre o
+  que a fatura registra, não só threading de parâmetro) — fica para quem revisar decidir.
+- **Desvio de processo, declarado como o executor da D1/D2 fez:** a implementação e os testes de
+  `resolveTollRouteCost`/`resolveEffectiveTollBoothCharge` nasceram juntos, não vermelho-depois-verde
+  — os gates passaram, o processo não. Registrado pela mesma razão de antes: teste escrito depois
+  nasce sabendo o que o código faz.

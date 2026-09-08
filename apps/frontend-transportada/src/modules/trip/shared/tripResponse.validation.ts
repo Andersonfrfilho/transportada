@@ -15,6 +15,7 @@ import {
   AXLE_COUNT_SOURCES,
   ROUTE_COST_GAPS,
   ROUTE_GEOMETRY_SOURCES,
+  TOLL_PAYMENT_MODES,
   type RouteGeometry,
   type RouteGeometryLeg,
   type RouteGeometryOption,
@@ -829,15 +830,26 @@ function isGeometryTollBooth(value: unknown): value is RouteGeometryTollBooth {
 /** Spec 090 T7: o pedágio vem na resposta da geometria — validado com o mesmo rigor de qualquer dado. */
 function isGeometryToll(value: unknown): value is RouteGeometryToll {
   if (!isRecord(value)) return false
-  const { axles, booths, boothsWithoutCharge, chargePerAxle, tariffObservedOn, total } = value
+  const {
+    axles,
+    booths,
+    boothsFallenBackToManual,
+    boothsWithoutCharge,
+    chargePerAxle,
+    paymentMode,
+    tariffObservedOn,
+    total,
+  } = value
   return (
     isRecord(axles) &&
     typeof axles.count === 'number' &&
     isOneOf(axles.source, AXLE_COUNT_SOURCES) &&
     Array.isArray(booths) &&
     booths.every(isGeometryTollBooth) &&
+    typeof boothsFallenBackToManual === 'number' &&
     typeof boothsWithoutCharge === 'number' &&
     isString(chargePerAxle) &&
+    isOneOf(paymentMode, TOLL_PAYMENT_MODES) &&
     isNullableString(tariffObservedOn) &&
     isString(total)
   )

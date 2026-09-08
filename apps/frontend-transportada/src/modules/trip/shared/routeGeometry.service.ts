@@ -47,6 +47,10 @@ export type RouteGeometryTollBooth = Readonly<{
   osmNodeId: number
 }>
 
+/** Se o veículo paga com tag ou não — a base que decide qual tarifa de cada praça vale (spec 095 D3). */
+export const TOLL_PAYMENT_MODES = ['automatic', 'manual'] as const
+export type TollPaymentMode = (typeof TOLL_PAYMENT_MODES)[number]
+
 /**
  * O pedágio da rota, vindo na **mesma** resposta que a geometria (spec 090 D4) — nunca de uma
  * segunda chamada, que poderia discordar do traço desenhado.
@@ -57,7 +61,12 @@ export type RouteGeometryToll = Readonly<{
   /** Quantas das praças acima não têm tarifa conhecida — o total sozinho seria número crível e
    *  possivelmente falso (medido: 4 das 166 praças declaram `0.00`, campo não mapeado). */
   boothsWithoutCharge: number
+  /** Quantas praças caíram para a manual por falta de tarifa automática (spec 095 D3) — só
+   *  existe quando `paymentMode` é `automatic`. Nunca se aplica desconto estimado. */
+  boothsFallenBackToManual: number
   chargePerAxle: string
+  /** Se o veículo paga com tag — a base que a tela mostra ao lado do total. */
+  paymentMode: TollPaymentMode
   /** A mais antiga entre as praças cobradas; `null` quando a rota não passou por praça nenhuma. */
   tariffObservedOn: null | string
   total: string

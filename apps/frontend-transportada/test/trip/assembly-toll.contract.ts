@@ -59,6 +59,26 @@ describe('pedágio na montagem (spec 090 T7)', () => {
   })
 })
 
+describe('a base do pedágio e a queda para a manual (spec 095 D3)', () => {
+  const source = readFileSync(COMPONENT, 'utf8')
+
+  it('diz sempre a base — tag ou manual', () => {
+    expect(source).toInclude('assemblyMap.toll.paymentMode.${toll.paymentMode}')
+    expect(trip.assemblyMap.toll.paymentMode.automatic).toBeString()
+    expect(trip.assemblyMap.toll.paymentMode.manual).toBeString()
+  })
+
+  /**
+   * ⚠️ Um total menor sem esse aviso seria a mentira que a 090 inteira combate — a mesma razão
+   * de `boothsWithoutCharge` acima.
+   */
+  it('conta quantas praças caíram para a manual, só quando a base é automática', () => {
+    expect(source).toInclude('toll.boothsFallenBackToManual')
+    expect(source).toInclude("toll.paymentMode !== 'automatic'")
+    expect(trip.assemblyMap.toll.fallenBackToManual).toInclude('{{count}}')
+  })
+})
+
 describe('a data da tarifa (spec 090 T7)', () => {
   it('converte a data do extract em mês por extenso, sem passar por fuso', () => {
     expect(formatTariffMonth('2026-07-01')).toBe('julho/2026')

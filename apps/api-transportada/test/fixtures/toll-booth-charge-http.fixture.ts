@@ -33,6 +33,7 @@ export const CATALOG: readonly TollBoothCatalogEntry[] = [
   {
     chargeCar: '10.50',
     chargePerAxle: '10.50',
+    chargePerAxleAutomatic: null,
     name: 'Praça SP-330',
     observedOn: '2026-06-01',
     operator: 'CCR',
@@ -41,6 +42,7 @@ export const CATALOG: readonly TollBoothCatalogEntry[] = [
   {
     chargeCar: null,
     chargePerAxle: null,
+    chargePerAxleAutomatic: null,
     name: 'Praça SP-291',
     observedOn: '2026-06-01',
     operator: null,
@@ -53,6 +55,7 @@ export const ADJUSTMENTS: readonly TollBoothChargeAdjustmentRow[] = [
     actorUserId: ACTOR_USER_ID,
     chargeCar: '11.00',
     chargePerAxle: '11.00',
+    chargePerAxleAutomatic: null,
     observedOn: '2026-08-01',
     osmNodeId: 111,
     updatedAt: UPDATED_AT,
@@ -63,6 +66,7 @@ type AdjustCall = {
   readonly actorUserId: string
   readonly chargeCar: null | string
   readonly chargePerAxle: null | string
+  readonly chargePerAxleAutomatic: null | string
   readonly companyId: string
   readonly observedOn: string
   readonly osmNodeId: number
@@ -118,6 +122,7 @@ export async function createTollBoothChargeHttpFixture({
           actorUserId: call.actorUserId,
           chargeCar: call.chargeCar,
           chargePerAxle: call.chargePerAxle,
+          chargePerAxleAutomatic: call.chargePerAxleAutomatic,
           observedOn: call.observedOn,
           osmNodeId: call.osmNodeId,
           updatedAt: UPDATED_AT,

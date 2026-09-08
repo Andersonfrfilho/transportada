@@ -10,6 +10,8 @@
 export type TollBoothCatalogEntry = Readonly<{
   chargeCar: null | string
   chargePerAxle: null | string
+  /** Spec 095 D3: a tarifa de tag — o OSM não a declara, e nasce nula até um ajuste a informar. */
+  chargePerAxleAutomatic: null | string
   name: null | string
   observedOn: string
   operator: null | string
@@ -20,6 +22,7 @@ export type TollBoothChargeAdjustmentRow = Readonly<{
   actorUserId: string
   chargeCar: null | string
   chargePerAxle: null | string
+  chargePerAxleAutomatic: null | string
   observedOn: string
   osmNodeId: number
   updatedAt: Date
@@ -32,6 +35,7 @@ export type EffectiveTollBoothCharge = Readonly<{
   catalog: Readonly<{
     chargeCar: null | string
     chargePerAxle: null | string
+    chargePerAxleAutomatic: null | string
     observedOn: string
   }>
   /**
@@ -42,8 +46,10 @@ export type EffectiveTollBoothCharge = Readonly<{
    */
   chargeCarSource: TollBoothChargeSource
   chargePerAxleSource: TollBoothChargeSource
+  chargePerAxleAutomaticSource: TollBoothChargeSource
   effectiveChargeCar: null | string
   effectiveChargePerAxle: null | string
+  effectiveChargePerAxleAutomatic: null | string
   name: null | string
   observedOn: string
   operator: null | string
@@ -67,12 +73,16 @@ export function resolveEffectiveTollBoothCharge(input: {
     catalog: {
       chargeCar: catalog.chargeCar,
       chargePerAxle: catalog.chargePerAxle,
+      chargePerAxleAutomatic: catalog.chargePerAxleAutomatic,
       observedOn: catalog.observedOn,
     },
     chargeCarSource: sourceOf(adjustment?.chargeCar ?? null),
     chargePerAxleSource: sourceOf(adjustment?.chargePerAxle ?? null),
+    chargePerAxleAutomaticSource: sourceOf(adjustment?.chargePerAxleAutomatic ?? null),
     effectiveChargeCar: adjustment?.chargeCar ?? catalog.chargeCar,
     effectiveChargePerAxle: adjustment?.chargePerAxle ?? catalog.chargePerAxle,
+    effectiveChargePerAxleAutomatic:
+      adjustment?.chargePerAxleAutomatic ?? catalog.chargePerAxleAutomatic,
     name: catalog.name,
     observedOn: adjustment?.observedOn ?? catalog.observedOn,
     operator: catalog.operator,

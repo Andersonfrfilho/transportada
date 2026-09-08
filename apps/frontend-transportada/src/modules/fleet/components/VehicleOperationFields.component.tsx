@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
+import { Checkbox } from '@/components/ui/checkbox'
 import { LOADING_ACCESS_KINDS } from '@/modules/shared/loadingAccess.constant'
 
 import { MDFE_BODY_TYPE, type FleetVehicleFormState } from '../shared/fleet.types'
@@ -94,6 +95,18 @@ export function VehicleOperationFields({
           value={isCapacityDerived ? derivedCapacity : state.capacityCubicMeters}
           onChange={(capacityCubicMeters) => onChange({ capacityCubicMeters })}
         />
+      </div>
+      {/*
+        Spec 095 D3: quem paga com tag é o veículo, não a empresa — frota mista é o caso normal. Com
+        a tag e a tarifa automática da praça conhecida, ela vence a manual na conta do pedágio.
+      */}
+      <div className={styles.fieldGroup}>
+        <Checkbox
+          checked={state.hasAutomaticTollPayment}
+          label={t('hasAutomaticTollPayment')}
+          onChange={(hasAutomaticTollPayment) => onChange({ hasAutomaticTollPayment })}
+        />
+        <small className={styles.fieldHint}>{t('hasAutomaticTollPaymentHint')}</small>
       </div>
     </fieldset>
   )

@@ -439,6 +439,11 @@
       "tariff": " · tarifa de {{month}}",
       "estimated": "· eixo estimado",
       "withoutCharge": "{{count}} praças sem tarifa conhecida",
+      "paymentMode": {
+        "automatic": "Base: tag (cobrança automática)",
+        "manual": "Base: tarifa manual"
+      },
+      "fallenBackToManual": "{{count}} praças caíram para a manual por falta de tarifa automática",
       "none": "Sem pedágio no trajeto.",
       "booth": "{{name}} ({{operator}})",
       "boothUnnamed": "praça sem nome",

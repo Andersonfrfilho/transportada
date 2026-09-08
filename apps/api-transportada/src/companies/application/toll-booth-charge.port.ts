@@ -7,6 +7,7 @@ export type SaveTollBoothChargeAdjustment = Readonly<{
   actorUserId: string
   chargeCar: null | string
   chargePerAxle: null | string
+  chargePerAxleAutomatic: null | string
   companyId: string
   observedOn: string
   osmNodeId: number

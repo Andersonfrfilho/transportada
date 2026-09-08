@@ -23,6 +23,7 @@ describe('company toll booth charge schema (spec 095)', () => {
       'osm_node_id',
       'charge_per_axle',
       'charge_car',
+      'charge_per_axle_automatic',
       'observed_on',
       'actor_user_id',
       'created_at',
@@ -59,6 +60,7 @@ describe('company toll booth charge schema (spec 095)', () => {
 
     expect(checks.company_toll_booth_charges_charge_per_axle_check).toContain('>= 0')
     expect(checks.company_toll_booth_charges_charge_car_check).toContain('>= 0')
+    expect(checks.company_toll_booth_charges_charge_per_axle_automatic_check).toContain('>= 0')
     expect(checks.company_toll_booth_charges_charge_presence_check).toContain('is not null')
   })
 })

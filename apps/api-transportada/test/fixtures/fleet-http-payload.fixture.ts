@@ -40,6 +40,7 @@ export const CREATE_VEHICLE_BODY = {
   color: '',
   fleetNumber: '',
   fuelType: 'diesel-s10',
+  hasAutomaticTollPayment: false,
   model: '',
   modelYear: 0,
   monthlyInstallmentAmount: '0.0000',

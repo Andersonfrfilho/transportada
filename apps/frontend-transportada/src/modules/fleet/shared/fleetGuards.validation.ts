@@ -29,6 +29,10 @@ export function isNullableString(value: unknown): value is null | string {
   return value === null || isString(value)
 }
 
+export function isBoolean(value: unknown): value is boolean {
+  return typeof value === 'boolean'
+}
+
 export function isUnsignedIntegerString(value: unknown): value is string {
   return isString(value) && UNSIGNED_INTEGER_PATTERN.test(value)
 }

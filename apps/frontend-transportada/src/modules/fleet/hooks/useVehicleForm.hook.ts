@@ -8,7 +8,7 @@ import {
   writeFormDraft,
 } from '@/modules/shared/formDraft.service'
 
-import { VEHICLE_FORM_KEYS } from '../shared/fleet.constant'
+import { VEHICLE_DRAFT_FORM_KEYS } from '../shared/fleet.constant'
 
 import type {
   FleetVehicleBody,
@@ -54,7 +54,7 @@ export function useVehicleForm(input: UseVehicleFormInput): VehicleFormControlle
     input.vehicle === undefined
       ? createVehicleDraft(
           readFormDraft({
-            fields: VEHICLE_FORM_KEYS,
+            fields: VEHICLE_DRAFT_FORM_KEYS,
             storage,
             storageKey: VEHICLE_DRAFT_STORAGE_KEY,
           }),
@@ -95,7 +95,7 @@ export function useVehicleForm(input: UseVehicleFormInput): VehicleFormControlle
       const corrected = { ...resolved, ...resolveSecondaryFuelDefaults(resolved) }
       writeFormDraft({
         draft: corrected,
-        fields: VEHICLE_FORM_KEYS,
+        fields: VEHICLE_DRAFT_FORM_KEYS,
         storage,
         storageKey: VEHICLE_DRAFT_STORAGE_KEY,
       })

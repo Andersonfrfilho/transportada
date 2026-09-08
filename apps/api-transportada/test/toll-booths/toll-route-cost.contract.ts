@@ -12,10 +12,15 @@ import {
 
 const POLICY_SOURCE = 'src/toll-booths/domain/toll-route-cost.policy.ts'
 
-function praca(osmNodeId: number, chargePerAxle: null | string): TollBoothRecord {
+function praca(
+  osmNodeId: number,
+  chargePerAxle: null | string,
+  chargePerAxleAutomatic: null | string = null,
+): TollBoothRecord {
   return {
     chargeCar: chargePerAxle,
     chargePerAxle,
+    chargePerAxleAutomatic,
     latitude: '-21.1775000',
     longitude: '-47.8103000',
     name: `Praça ${osmNodeId}`,
@@ -31,6 +36,7 @@ describe('toll route cost (spec 090 T5)', () => {
     const cost = resolveTollRouteCost({
       axles: AXLES,
       booths: [praca(10, '10.50'), praca(20, '12.30'), praca(99, '99.90')],
+      hasAutomaticTollPayment: false,
       nodeIds: [1, 10, 5, 20, 7],
     })
 
@@ -44,6 +50,7 @@ describe('toll route cost (spec 090 T5)', () => {
     const cost = resolveTollRouteCost({
       axles: AXLES,
       booths: [praca(10, '1.00'), praca(20, '2.00')],
+      hasAutomaticTollPayment: false,
       nodeIds: [20, 10],
     })
 
@@ -60,6 +67,7 @@ describe('toll route cost (spec 090 T5)', () => {
     const cost = resolveTollRouteCost({
       axles: AXLES,
       booths: [praca(10, '10.00')],
+      hasAutomaticTollPayment: false,
       nodeIds: [10, 11, 12, 10],
     })
 
@@ -74,6 +82,7 @@ describe('toll route cost (spec 090 T5)', () => {
     const cost = resolveTollRouteCost({
       axles: AXLES,
       booths: [praca(10, '1.00')],
+      hasAutomaticTollPayment: false,
       nodeIds: [1, 2],
     })
 
@@ -87,7 +96,12 @@ describe('toll route cost (spec 090 T5)', () => {
   /** E esta é a segunda: sem os nós não há o que cruzar, e zero seria mentira plausível. */
   it('returns absence when the route did not report its nodes', () => {
     expect(
-      resolveTollRouteCost({ axles: AXLES, booths: [praca(10, '1.00')], nodeIds: null }),
+      resolveTollRouteCost({
+        axles: AXLES,
+        booths: [praca(10, '1.00')],
+        hasAutomaticTollPayment: false,
+        nodeIds: null,
+      }),
     ).toBeNull()
   })
 
@@ -100,6 +114,7 @@ describe('toll route cost (spec 090 T5)', () => {
     const cost = resolveTollRouteCost({
       axles: AXLES,
       booths: [praca(10, '10.00'), praca(20, null)],
+      hasAutomaticTollPayment: false,
       nodeIds: [10, 20],
     })
 
@@ -112,6 +127,7 @@ describe('toll route cost (spec 090 T5)', () => {
     const cost = resolveTollRouteCost({
       axles: { count: 5, source: 'estimated' },
       booths: [praca(10, '32.80')],
+      hasAutomaticTollPayment: false,
       nodeIds: [10],
     })
 
@@ -136,5 +152,71 @@ describe('toll route cost (spec 090 T5)', () => {
     for (const forbidden of ['.latitude', '.longitude', 'Math.sqrt', 'Math.hypot', 'haversine']) {
       expect(source).not.toContain(forbidden)
     }
+  })
+})
+
+/**
+ * Dado real, medido em 2026-09-07 na tabela oficial da Arteris ViaPaulista: São Simão e Santa Rita
+ * do Passa Quatro publicam manual R$ 10,50 e automático (tag) R$ 9,97; Pirassununga é da Intervias,
+ * que publica um preço só (R$ 11,80) — sem automática.
+ */
+describe('toll route cost with the vehicle payment mode (spec 095 D3)', () => {
+  const TOCO_AXLES = { count: 2, source: 'declared' } as const
+
+  it('sem tag, usa sempre a manual', () => {
+    const cost = resolveTollRouteCost({
+      axles: TOCO_AXLES,
+      booths: [praca(1, '10.50', '9.97'), praca(2, '10.50', '9.97'), praca(3, '11.80', null)],
+      hasAutomaticTollPayment: false,
+      nodeIds: [1, 2, 3],
+    })
+
+    expect(cost?.paymentMode).toBe('manual')
+    expect(cost?.chargePerAxle).toBe('32.8000')
+    expect(cost?.total).toBe('65.6000')
+    expect(cost?.boothsFallenBackToManual).toBe(0)
+  })
+
+  it('com tag, usa a automática quando ela é conhecida e cai para a manual quando não é — contando a queda', () => {
+    const cost = resolveTollRouteCost({
+      axles: TOCO_AXLES,
+      booths: [praca(1, '10.50', '9.97'), praca(2, '10.50', '9.97'), praca(3, '11.80', null)],
+      hasAutomaticTollPayment: true,
+      nodeIds: [1, 2, 3],
+    })
+
+    expect(cost?.paymentMode).toBe('automatic')
+    expect(cost?.chargePerAxle).toBe('31.7400')
+    expect(cost?.total).toBe('63.4800')
+    expect(cost?.boothsFallenBackToManual).toBe(1)
+  })
+
+  /**
+   * ⚠️ Sem automática e sem manual não há para onde cair — é "sem tarifa conhecida"
+   * (`boothsWithoutCharge`), não uma queda. As duas contagens não podem se sobrepor.
+   */
+  it('sem tarifa nenhuma nas duas bases, conta como desconhecida, nunca como queda', () => {
+    const cost = resolveTollRouteCost({
+      axles: TOCO_AXLES,
+      booths: [praca(1, null, null)],
+      hasAutomaticTollPayment: true,
+      nodeIds: [1],
+    })
+
+    expect(cost?.boothsWithoutCharge).toBe(1)
+    expect(cost?.boothsFallenBackToManual).toBe(0)
+    expect(cost?.chargePerAxle).toBe('0.0000')
+  })
+
+  /** Nunca se aplica desconto estimado — sem tag, a automática da praça não muda o valor cobrado. */
+  it('sem tag, a automática da praça é ignorada por completo', () => {
+    const cost = resolveTollRouteCost({
+      axles: TOCO_AXLES,
+      booths: [praca(1, '10.50', '1.00')],
+      hasAutomaticTollPayment: false,
+      nodeIds: [1],
+    })
+
+    expect(cost?.chargePerAxle).toBe('10.5000')
   })
 })

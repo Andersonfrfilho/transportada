@@ -43,8 +43,10 @@ function toll(booths: RouteGeometryToll['booths']): RouteGeometryToll {
   return {
     axles: { count: 2, source: 'declared' },
     booths,
+    boothsFallenBackToManual: 0,
     boothsWithoutCharge: booths.filter((booth) => booth.chargePerAxle === null).length,
     chargePerAxle: '0.0000',
+    paymentMode: 'manual',
     tariffObservedOn: null,
     total: '0.0000',
   }

@@ -310,6 +310,11 @@
       "tariff": " · tariff from {{month}}",
       "estimated": "· estimated axle",
       "withoutCharge": "{{count}} booths without a known tariff",
+      "paymentMode": {
+        "automatic": "Base: tag (automatic charge)",
+        "manual": "Base: manual tariff"
+      },
+      "fallenBackToManual": "{{count}} booths fell back to the manual tariff for lack of a known automatic one",
       "none": "No toll on this route.",
       "booth": "{{name}} ({{operator}})",
       "boothUnnamed": "unnamed booth",

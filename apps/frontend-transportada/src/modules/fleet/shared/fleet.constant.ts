@@ -177,6 +177,7 @@ export const VEHICLE_BODY_KEYS = [
   'color',
   'fleetNumber',
   'fuelType',
+  'hasAutomaticTollPayment',
   'model',
   'modelYear',
   'owner',
@@ -219,6 +220,7 @@ export const VEHICLE_FORM_KEYS = [
   'color',
   'fleetNumber',
   'fuelType',
+  'hasAutomaticTollPayment',
   'model',
   'modelYear',
   'ownerName',
@@ -235,6 +237,15 @@ export const VEHICLE_FORM_KEYS = [
   'tareWeightKilograms',
   'vehicleType',
 ] as const
+
+/**
+ * Só os campos de texto: o rascunho do formulário guarda `string` no `localStorage`, e
+ * `hasAutomaticTollPayment` é o único booleano da ficha do veículo — fora daqui, nunca perdido do
+ * `VEHICLE_FORM_KEYS` que valida as chaves conhecidas do rascunho.
+ */
+export const VEHICLE_DRAFT_FORM_KEYS = VEHICLE_FORM_KEYS.filter(
+  (key) => key !== 'hasAutomaticTollPayment',
+)
 
 export const FLEET_CAPABILITY_KEYS = ['vehicleCatalog'] as const
 

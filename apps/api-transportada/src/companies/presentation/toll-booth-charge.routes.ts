@@ -20,6 +20,7 @@ const NO_STORE_HEADERS = { 'cache-control': 'no-store', 'content-type': JSON_CON
 type AdjustInput = {
   readonly chargeCar: null | string
   readonly chargePerAxle: null | string
+  readonly chargePerAxleAutomatic: null | string
   readonly observedOn: string
   readonly osmNodeId: number
 }
@@ -62,6 +63,7 @@ export function createTollBoothChargeRoutes(
           actorUserId: context.identity.userId,
           chargeCar: input.chargeCar,
           chargePerAxle: input.chargePerAxle,
+          chargePerAxleAutomatic: input.chargePerAxleAutomatic,
           companyId: context.scope.companyId,
           observedOn: input.observedOn,
           osmNodeId: input.osmNodeId,
@@ -103,12 +105,14 @@ function serializeTollBoothCharge(charge: EffectiveTollBoothCharge): Record<stri
     catalog: charge.catalog,
     effectiveChargeCar: charge.effectiveChargeCar,
     effectiveChargePerAxle: charge.effectiveChargePerAxle,
+    effectiveChargePerAxleAutomatic: charge.effectiveChargePerAxleAutomatic,
     name: charge.name,
     observedOn: charge.observedOn,
     operator: charge.operator,
     osmNodeId: charge.osmNodeId,
     chargeCarSource: charge.chargeCarSource,
     chargePerAxleSource: charge.chargePerAxleSource,
+    chargePerAxleAutomaticSource: charge.chargePerAxleAutomaticSource,
     source: charge.source,
     updatedAt: charge.updatedAt?.toISOString() ?? null,
   }

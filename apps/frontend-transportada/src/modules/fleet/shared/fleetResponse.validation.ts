@@ -41,6 +41,7 @@ import {
   FLEET_ENUMS,
   hasEveryKey,
   hasOnlyKeys,
+  isBoolean,
   isDecimalString,
   isNullableDecimalString,
   isNullableString,
@@ -169,6 +170,7 @@ function isVehicle(value: unknown): value is FleetVehicleDetail {
     isString(value.fleetNumber) &&
     (value.fuelPrice === null || isFuelPrice(value.fuelPrice)) &&
     isOneOf(value.fuelType, FLEET_ENUMS.fuelType) &&
+    isBoolean(value.hasAutomaticTollPayment) &&
     isString(value.id) &&
     isString(value.model) &&
     isUnsignedIntegerNumber(value.modelYear) &&
