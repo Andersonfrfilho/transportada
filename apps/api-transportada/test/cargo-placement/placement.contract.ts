@@ -30,7 +30,7 @@ function box(overrides: Partial<PlacementBox>): PlacementBox {
   }
 }
 
-describe('empacotamento da carga (spec 096)', () => {
+describe('empacotamento da carga (spec 094)', () => {
   test('posiciona a caixa no piso, encostada no fundo', () => {
     const plan = resolveCargoPlacement({ bed: BED, boxes: [box({})] })
 
@@ -145,7 +145,7 @@ describe('empacotamento da carga (spec 096)', () => {
  * A caixa presumida: sem medida, o desenho ainda posiciona — derivando uma caixa do volume
  * estimado, na proporção da que a empresa já mediu.
  */
-describe('caixa presumida (spec 096 P2)', () => {
+describe('caixa presumida (spec 094 P2)', () => {
   /** As cinco caixas medidas desta base: 0,0163 a 0,0300 m³, mediana 0,0210. */
   const MEASURED = [
     { heightMm: 250, lengthMm: 400, widthMm: 300 },
@@ -194,7 +194,7 @@ describe('caixa presumida (spec 096 P2)', () => {
  * ⚠️ É o motivo que separa um desenho de uma instrução. Sem ele o operador vê uma arrumação e não
  * tem como discordar dela — e discordar é o que ele faz melhor que o algoritmo, porque viu a carga.
  */
-describe('o motivo de cada posição (spec 096 P4)', () => {
+describe('o motivo de cada posição (spec 094 P4)', () => {
   test('o vocabulário é fechado, e cobre as seis decisões que a planta toma', () => {
     expect(PLACEMENT_REASONS).toEqual([
       'lastStopFirst',
@@ -241,7 +241,7 @@ describe('o motivo de cada posição (spec 096 P4)', () => {
  * carga, que roda a cada clique na montagem. Uma viagem grande travando a tela é o tipo de coisa
  * que só aparece em produção quando não é medida antes.
  */
-describe('desempenho do empacotador (spec 096 RF-NF)', () => {
+describe('desempenho do empacotador (spec 094 RF-NF)', () => {
   test('uma viagem de 300 notas cabe em 50 ms', () => {
     /** Três caixas por nota, o que esta base tem de mediana — 900 caixas ao todo. */
     const boxes = Array.from({ length: 900 }, (_, index) =>

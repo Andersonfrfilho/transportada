@@ -483,7 +483,7 @@ export const nfePackageBoxes = pgTable(
     heightMm: integer('height_mm'),
     grossWeightGrams: integer('gross_weight_grams'),
     /**
-     * Spec 096: como a caixa **pode** ser posicionada. Os quatro são `null` até alguém informar, e
+     * Spec 094: como a caixa **pode** ser posicionada. Os quatro são `null` até alguém informar, e
      * `null` é "não sei" — nunca "pode".
      *
      * ⚠️ A diferença importa no desenho: com `is_stackable = null` a planta empilha e **marca o

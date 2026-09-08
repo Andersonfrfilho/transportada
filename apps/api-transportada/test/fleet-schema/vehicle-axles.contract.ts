@@ -7,7 +7,7 @@ import { getTableConfig } from 'drizzle-orm/pg-core'
 import { fleetVehicleAxles } from '../../src/database/database.schema.js'
 import { columnNames, foreignKeys, uniqueColumnsByName } from '../fiscal-schema/support.js'
 
-describe('eixos do veículo (spec 096)', () => {
+describe('eixos do veículo (spec 094)', () => {
   /**
    * ⚠️ **Tabela, não coluna.** Um `max_axle_load_kg` único responderia "o veículo aguenta X por
    * eixo" e não responde a pergunta que interessa — *este* arranjo sobrecarrega *qual* eixo. Para

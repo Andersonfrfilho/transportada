@@ -117,7 +117,7 @@ export type ResolvedCargoLayout = {
    */
   readonly loadingAccess: LoadingAccess
   /**
-   * Spec 096: o arranjo camada por camada. `null` quando o baú não tem medida — a mesma regra da
+   * Spec 094: o arranjo camada por camada. `null` quando o baú não tem medida — a mesma regra da
    * 088 D2, e pelo mesmo motivo: sem escala o desenho não pode prometer metro.
    */
   readonly placement: CargoPlacement | null
@@ -246,7 +246,7 @@ export function resolveCargoLayout(input: {
    */
   readonly loadingAccess?: LoadingAccess
   /**
-   * Spec 096: o volume típico de uma caixa da empresa, para a presumida ter tamanho. Sem ele a
+   * Spec 094: o volume típico de uma caixa da empresa, para a presumida ter tamanho. Sem ele a
    * caixa não medida continua fora do desenho — e nomeada, que é melhor que inventada.
    */
   readonly fallbackBoxVolumeM3?: number | null

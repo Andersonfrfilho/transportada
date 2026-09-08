@@ -86,7 +86,7 @@ export async function previewTripCargo(input: PreviewTripCargoInput): Promise<Tr
       /** Spec 088 D2: só a ficha desenha planta — a referência de mercado erra por 2× no tipo. */
       bedDimensions: context.bedDimensions,
       capacityM3: context.capacityM3,
-      /** Spec 096: dá tamanho e forma à caixa presumida — sem isso ela fica fora do desenho. */
+      /** Spec 094: dá tamanho e forma à caixa presumida — sem isso ela fica fora do desenho. */
       fallbackBoxVolumeM3: context.fallbackBoxVolumeM3,
       loadingAccess: context.loadingAccess,
       measuredShapes: context.measuredShapes,

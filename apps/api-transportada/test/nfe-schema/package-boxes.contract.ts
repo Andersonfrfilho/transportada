@@ -28,7 +28,7 @@ describe('a caixa de papelão e a medida dela (spec 085 G004)', () => {
       'height_mm',
       'gross_weight_grams',
       /**
-       * Spec 096: as propriedades que decidem **onde** a caixa pode ir. Todas nulas — nulo é
+       * Spec 094: as propriedades que decidem **onde** a caixa pode ir. Todas nulas — nulo é
        * "ninguém informou", nunca "pode": com `is_stackable` nulo a planta empilha e marca o
        * arranjo como presumido; com `false` ela não empilha e não marca.
        */
@@ -102,7 +102,7 @@ describe('a caixa de papelão e a medida dela (spec 085 G004)', () => {
  * ⚠️ Pilha declarada em caixa que não empilha é contradição, e pilha de zero não existe — a primeira
  * coisa que alguém digita errado num formulário com quatro campos novos.
  */
-describe('restrições de empilhamento (spec 096)', () => {
+describe('restrições de empilhamento (spec 094)', () => {
   test('recusa pilha de zero e pilha em caixa que não empilha', () => {
     expect(checkNames).toContain('nfe_package_boxes_stack_check')
 

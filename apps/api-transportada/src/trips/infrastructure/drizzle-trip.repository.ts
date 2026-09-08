@@ -746,7 +746,7 @@ async function readTripDetail(
     /** Spec 088 D2: a medida vem da ficha, e não da ocupação — que é nula sem cubagem nenhuma. */
     bedDimensions: cargo.bedDimensions,
     capacityM3: cargo.capacityM3,
-    /** Spec 096: o detalhe da viagem desenha a mesma planta da prévia — e pela mesma caixa. */
+    /** Spec 094: o detalhe da viagem desenha a mesma planta da prévia — e pela mesma caixa. */
     fallbackBoxVolumeM3: cargo.fallbackBoxVolumeM3,
     loadingAccess: cargo.loadingAccess,
     measuredShapes: cargo.measuredShapes,

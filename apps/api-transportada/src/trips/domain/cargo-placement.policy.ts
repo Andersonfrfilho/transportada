@@ -91,7 +91,7 @@ type Slot = {
 }
 
 /**
- * Spec 096: **onde cada caixa cabe**, camada por camada.
+ * Spec 094: **onde cada caixa cabe**, camada por camada.
  *
  * A varredura é em fileiras: enche o piso ao longo do comprimento, quebra para a fileira ao lado
  * quando a largura acaba, e sobe para a camada seguinte quando o piso acaba. Não é empacotamento

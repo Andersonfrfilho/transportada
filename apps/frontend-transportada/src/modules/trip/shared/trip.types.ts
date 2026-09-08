@@ -269,7 +269,7 @@ export type TripCargoLayout = Readonly<{
   /** Por onde a carga entra — a planta marca a porta lateral na borda do lado direito. */
   loadingAccess: 'open' | 'rear' | 'rear_and_side'
   /**
-   * Spec 096: o arranjo camada por camada. `null` sem baú medido — a mesma regra da 088, e pelo
+   * Spec 094: o arranjo camada por camada. `null` sem baú medido — a mesma regra da 088, e pelo
    * mesmo motivo: sem escala o desenho não pode prometer metro.
    */
   placement: TripCargoPlacement | null
