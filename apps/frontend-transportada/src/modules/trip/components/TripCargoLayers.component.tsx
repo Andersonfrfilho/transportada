@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
-import { ScalePlan, type ScalePlanBox } from '@/components/ui/scale-plan'
+import { CargoIsometric, type IsometricBox } from '@/components/ui/cargo-isometric'
 
 import { stopColorOf } from '../shared/stopColor.service'
 import type { TripCargoLayout } from '../shared/trip.types'
@@ -35,16 +35,31 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
   const current = placement.layers[Math.min(index, placement.layers.length - 1)]
   if (current === undefined) return null
 
-  const boxes: readonly ScalePlanBox[] = current.boxes.map((box, position) => ({
-    color: stopColorOf(box.stopSequence),
-    depthM: box.depthM,
-    id: `${String(current.index)}-${String(position)}`,
-    isEstimated: box.source === 'estimated',
-    label: '',
-    widthM: box.widthM,
-    xM: box.xM,
-    yM: box.yM,
-  }))
+  /**
+   * ⚠️ **Todas as camadas no desenho**, com a escolhida em foco e as outras esmaecidas. Desenhar só a
+   * camada aberta tiraria justamente o que o 3D tem de melhor — ver a pilha inteira — e deixaria a
+   * carga flutuando sobre um piso vazio.
+   */
+  const zByLayer = new Map<number, number>()
+  let stacked = 0
+  for (const layer of placement.layers) {
+    zByLayer.set(layer.index, stacked)
+    stacked += layer.heightM
+  }
+
+  const boxes: readonly IsometricBox[] = placement.layers.flatMap((layer) =>
+    layer.boxes.map((box, position) => ({
+      color: stopColorOf(box.stopSequence),
+      depthM: box.depthM,
+      heightM: box.heightM,
+      id: `${String(layer.index)}-${String(position)}`,
+      isEstimated: box.source === 'estimated',
+      widthM: box.widthM,
+      xM: box.xM,
+      yM: box.yM,
+      zM: zByLayer.get(layer.index) ?? 0,
+    })),
+  )
 
   return (
     <section aria-labelledby="trip-cargo-layers-title" className={styles.panel}>
@@ -84,18 +99,22 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
         </Button>
       </div>
 
-      <ScalePlan
+      <CargoIsometric
         ariaLabel={t('cargoLayers.planLabel', { index: current.index + 1 })}
-        bands={[]}
+        bedHeightM={stacked}
+        bedLengthM={Number.parseFloat(layout.bedLengthM)}
+        bedWidthM={Number.parseFloat(layout.bedWidthM)}
         boxes={boxes}
-        doorLabel={t('cargoPlan.door')}
-        {...(layout.loadingAccess === 'rear' ? {} : { sideDoorLabel: t('cargoLayers.sideDoor') })}
-        lengthM={Number.parseFloat(layout.bedLengthM)}
-        widthM={Number.parseFloat(layout.bedWidthM)}
+        focusLayerZM={zByLayer.get(current.index) ?? 0}
+        hasSideDoor={layout.loadingAccess !== 'rear'}
       />
 
-      {/* O corte lateral: a planta diz onde a caixa fica, e ele diz como a pilha sobe. */}
-      <TripCargoSideView layers={placement.layers} selected={current.index} />
+      {/* A legenda das aberturas em texto: rótulo dentro do desenho sai cortado e atravessa a borda. */}
+      <p className={styles.hint}>
+        {layout.loadingAccess === 'rear'
+          ? t('cargoLayers.doorsRear')
+          : t('cargoLayers.doorsRearAndSide')}
+      </p>
 
       {placement.source === 'estimated' ? (
         <p className={styles.hint}>{t('cargoLayers.estimated')}</p>
@@ -114,38 +133,5 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
         </ul>
       )}
     </section>
-  )
-}
-
-/**
- * O baú de lado, com as camadas empilhadas e a atual destacada. É a segunda metade do par que
- * substitui o 3D: a planta diz **onde**, o corte diz **quão alto** — e as duas se conferem com fita,
- * o que uma projeção isométrica não permite.
- */
-function TripCargoSideView({
-  layers,
-  selected,
-}: Readonly<{
-  layers: TripCargoLayout['placement'] extends null
-    ? never
-    : readonly { heightM: number; index: number }[]
-  selected: number
-}>) {
-  const { t } = useTranslation('trip')
-  const total = layers.reduce((sum, layer) => sum + layer.heightM, 0)
-  if (total <= 0) return null
-
-  return (
-    <div aria-hidden="true" className={styles.cargoSideView}>
-      {[...layers].reverse().map((layer) => (
-        <div
-          className={layer.index === selected ? styles.cargoSideLayerActive : styles.cargoSideLayer}
-          key={layer.index}
-          style={{ height: `${String((layer.heightM / total) * 100)}%` }}
-        >
-          {t('cargoLayers.sideLayer', { index: layer.index + 1 })}
-        </div>
-      ))}
-    </div>
   )
 }
