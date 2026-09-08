@@ -88,6 +88,8 @@ export function createFleetDriversUseCase(dependencies: {
    * configurou provedor" — e aí o cadastro segue igual, sem coordenada.
    */
   readonly homeGeocoder?: DriverHomeGeocoderPort
+  /** Só para registrar a falha da busca da casa — o resto do caso de uso não loga (o Router loga). */
+  readonly logger?: Readonly<{ warn: (message: string, meta?: Record<string, unknown>) => void }>
   readonly repository: FleetDriverRepositoryPort
 }): FleetDriversUseCase {
   const { account, contacts, repository } = dependencies
@@ -107,8 +109,17 @@ export function createFleetDriversUseCase(dependencies: {
     if (dependencies.homeGeocoder === undefined) return
     try {
       await dependencies.homeGeocoder.fill(input)
-    } catch {
-      /* a ficha está gravada; a coordenada nasce no próximo salvamento */
+    } catch (error) {
+      /**
+       * ⚠️ **Engolir sem registrar foi um erro de projeto, e ele custou uma sessão de diagnóstico.**
+       * O `catch` protege o cadastro — isso está certo —, mas sem log a falha não existe para
+       * ninguém: a ficha fica sem coordenada, o operador não vê nada, e quem for investigar não tem
+       * por onde começar. `warn` é o nível de "inesperado mas recuperável" do `nodejs.md`.
+       */
+      dependencies.logger?.warn('driver_home_geocoding_failed', {
+        driverId: input.driverId,
+        reason: error instanceof Error ? error.message : 'unknown',
+      })
     }
   }
 

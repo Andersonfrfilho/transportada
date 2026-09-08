@@ -1427,6 +1427,7 @@ function createApplicationRoutes({
     account: inviteCompanyUser,
     contacts: createIdentityContactDirectoryGateway({ identity: identityAccessGateway }),
     ...(driverHomeGeocoder === undefined ? {} : { homeGeocoder: driverHomeGeocoder }),
+    logger,
     repository: fleetDriverRepository,
   })
   const listCompanyUsers = createListCompanyUsersUseCase({ repository: companyUserRepository })
