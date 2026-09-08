@@ -103,8 +103,50 @@ Três consequências, e nenhuma é técnica:
 3. **Ele apareceria na tela do escritório.** O marcador do fim da rota seria a casa de uma pessoa,
    num mapa que o operador vê. Hoje o produto **nunca** desenha residência de motorista.
 
-**Fica registrado e não implementado.** É spec própria, com decisão de produto sobre o item 2 e
-coordenação com a ADR-0039 sobre o item 1 — não é acréscimo a esta.
+### D6.1 — As decisões saíram, e o bloqueio mudou de lugar (2026-09-08)
+
+O usuário decidiu, por escrito, os três pontos que estavam abertos:
+
+1. **O retorno padrão é a casa do motorista**, com o endereço da empresa como reserva quando ele não
+   tiver endereço cadastrado.
+2. **A rua dele é impressa** na linha do retorno, junto da distância — a pergunta foi feita com as
+   duas alternativas (distância sem a rua, ou com ela) e a resposta foi _"distância com a rua dele"_.
+   Isso aceita, deliberadamente, o item 3 acima: a casa de uma pessoa passa a aparecer na tela de
+   quem monta a viagem, incluindo o papel `separator`.
+3. **A tensão com a ADR-0039 fica aceita**: esta feature é o primeiro leitor do endereço residencial,
+   e a migração de criptografia deixa de ser barata. Quem executar a 0039 passa a ter de abrir
+   envelope no caminho do roteirizador.
+
+⚠️ **Com as decisões tomadas, o que trava deixou de ser produto e passou a ser dado — e está
+medido.** A casa do motorista **não tem como virar coordenada hoje**:
+
+- `fleet_drivers` guarda rua, número, cidade, UF e CEP — os **6 de 6** motoristas desta base têm os
+  cinco preenchidos. O que falta não é cadastro.
+- A parada resolve coordenada por `geocoded_addresses.address_key`, e a chave é
+  `(city_code, postal_code, number)`. ⚠️ **`fleet_drivers` não guarda o código IBGE do município** —
+  guarda o nome —, e `municipality_centroids` é chaveada por **código**, não por nome. Não há
+  tradução nome→código dentro da API; quem a faz é a BrasilAPI, no navegador.
+- Quem escreve `geocoded_addresses` é o worker, durante a roteirização. A tela da montagem **lê**
+  essa tabela de forma síncrona: sem alguém geocodificar a casa antes, o retorno não tem para onde ir.
+- Escalar para provedor pago em runtime para resolver isso é o que a ADR-0044 recusa, e o contrato
+  `paid-provider-never-called.contract.ts` guarda.
+
+**O que a implementação exige, nesta ordem:**
+
+1. `end_policy` ganha o valor `driver`, com migration aditiva — e o _default_ da coluna muda, sem
+   reescrever linha existente (instalação em produção não muda de comportamento ao aplicar).
+2. `fleet_drivers` ganha o código IBGE do município, ou a API ganha a tradução nome+UF→código. Sem um
+   dos dois, não há chave de endereço.
+3. A casa do motorista entra na população de `geocoded_addresses` — o molde é
+   `geocoding-backfill`, no worker.
+4. `readDepot` passa a receber o motorista da viagem: a política de fim deixa de ser resolvida só
+   pelo `companyId`.
+5. A tela imprime a rua no retorno, e o marcador do fim vira a casa — **com a mesma marca de posição
+   aproximada** enquanto a precisão for de município.
+
+**Fica registrado e não implementado.** As decisões de produto estão fechadas; o que falta é
+encanamento de dado com migration e uma rodada no worker, e isso é spec própria — não é acréscimo a
+esta.
 
 ## Fora de escopo
 
