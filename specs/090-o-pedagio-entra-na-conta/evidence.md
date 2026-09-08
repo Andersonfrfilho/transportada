@@ -816,3 +816,116 @@ de rodovia) desenha `R$ 0,00` em cada ícone e afirma isenção com confiança.
 ⚠️ **Isto não é remendo de código, é decisão de produto**: o dado é ambíguo na origem, e resolver
 significa escolher se `0.00` sem `operator` conta como desconhecido — regra que inventa significado
 sobre dado de terceiro. Fica registrado, com os dois nós nomeados para quem for decidir.
+
+## T11
+
+A viagem já criada não tinha pedágio nenhum: `readTripValuation` só recebia `context.toll` na
+prévia (T9), e a leitura de rota já planejada mostrava sempre o lançamento manual ou o gap
+`notRecorded`. Chamar o roteirizador de novo ali pareia a rota de hoje com a `planned_distance`
+congelada de ontem — a mesma divergência da D4 dentro do painel. A saída é congelar o pedágio **no
+mesmo instante** em que o roteiro é planejado, junto com o próprio roteiro.
+
+### Vermelho antes da implementação
+
+Os três arquivos de contrato abaixo foram escritos contra o código de antes desta task e falhavam
+por motivos distintos, todos esperados:
+
+- `test/toll-booths/toll-route-cost-snapshot.contract.ts` — `parseTollRouteCost` não existia
+  (`Cannot find module '../../src/toll-booths/domain/toll-route-cost-snapshot.policy.js'`).
+- `test/trip-application/freeze-trip-route-toll.contract.ts` — `freezeTripRouteToll` não existia
+  pelo mesmo motivo.
+- `test/trips/plan-route-toll-freeze.contract.ts` — `planTripRoute` não aceitava `tollFreezer`
+  (erro de tipo: propriedade inexistente no input).
+- `test/trip-valuation/frozen-toll-parcel.contract.ts` — compilava (o campo `toll` já existia no
+  tipo, opcional), mas a primeira asserção falhava: sem a leitura do congelado na infra, o teste
+  passado por `readTripValuation` com `context.toll` preenchido já provava a política pura
+  corretamente (ela não distingue prévia de viagem criada), então este arquivo serviu para **fixar o
+  contrato do tipo** (`TollRouteCost` em vez de `RouteGeometryToll`) antes de tocar na consulta.
+
+### Desenho implementado
+
+- **Migration `20260907210000_trip_planned_toll`**: `trips.planned_toll` (`jsonb`, anulável) e
+  `trips.planned_toll_frozen_at` (`timestamptz`, anulável), com
+  `trips_planned_toll_check: (planned_toll is null) = (planned_toll_frozen_at is null)` — meia
+  gravação é o estado que faz o leitor inventar. Aditiva, sem `DROP`; rollback remove os dois campos
+  e a constraint, e falha se a linha do journal não existir (mesmo molde das migrations vizinhas da
+  090/095).
+- **`toll-route-cost-snapshot.policy.ts`** (novo): `parseTollRouteCost` é o único portão de leitura
+  do `jsonb` — valida eixo, praças, os dois booleanos de queda/ausência, modo de pagamento e total
+  campo a campo; qualquer forma inesperada (chave faltando, tipo errado, enum fora do catálogo)
+  devolve `null`, nunca um objeto meio preenchido.
+- **`freeze-trip-route-toll.use-case.ts`** (novo): lê o veículo (eixo + `hasAutomaticTollPayment`) e
+  as coordenadas das paradas da viagem, chama `readRouteGeometry` — a **mesma** função que a prévia e
+  o mapa da viagem já usam, com o mesmo barracão e catálogo de praças — e grava o que voltou em
+  `road.toll`, sem `tariffObservedOn` (data de leitura fresca do catálogo, não parte da decisão
+  congelada). Sem veículo (viagem sumiu entre o gate e aqui) é no-op: não apaga o que já existia.
+- **`plan-trip-route.use-case.ts`**: ganhou `tollFreezer?: PlanTripRouteTollFreezer` opcional.
+  Chamado em **toda** chamada que não é bloqueada — tanto quando a transição é `applied`
+  (draft → route_planned) quanto quando é `unchanged` (replanejar uma viagem já em `route_planned`,
+  por exemplo depois de reordenar parada). Chamada `blocked` (viagem despachada, cancelada, sem
+  roteiro) nunca chega ao freezer — e por isso despachar nunca recongela. Sem `tollFreezer` injetado,
+  o comportamento é bit a bit o de antes da task (os cinco testes de `plan-and-dispatch.contract.ts`
+  continuam verdes sem tocar).
+- **`drizzle-trip-route-toll.repository.ts`** (novo): a metade de infra do freezer — reusa
+  `listTripStopCoordinates` (já existia para o mapa) e `resolveDeclaredVehicleAxles` (T6), e grava
+  `planned_toll`/`planned_toll_frozen_at` juntos, sempre os dois `null` ou os dois preenchidos.
+- **`trip-lifecycle.use-case.ts`** e **`main.ts`**: `tollFreezer` entrou como dependência opcional de
+  `createTripLifecycleUseCase`, e a instância de produção reusa o mesmo roteirizador OSRM, catálogo
+  de praças e barracão que `readTripRouteGeometry` já monta para o mapa da viagem — nenhuma segunda
+  configuração, nenhum segundo caminho até o OSRM.
+- **`read-trip-valuation.use-case.ts`**: `TripValuationContext.toll` deixou de ser
+  `RouteGeometryToll` (que carrega `tariffObservedOn`) e passou a ser `TollRouteCost` — o tipo que a
+  prévia e o congelado têm em comum. `resolveTollParcel` não mudou uma linha: ela já tratava
+  `context.toll` como projeção que perde para o lançamento manual, e essa regra vale igual para os
+  dois casos.
+- **`trip-valuation.query.ts`**: `readContext` (a viagem já criada) passou a selecionar
+  `trips.plannedToll` e devolvê-lo como `toll: parseTollRouteCost(trip.plannedToll)` — a mesma
+  fronteira de leitura que qualquer outro payload congelado do produto atravessa.
+
+### Por que o congelamento roda em toda chamada não bloqueada, e não só na primeira
+
+`checkPlanRoute` (spec 056/ADR-0043) só transiciona `draft → route_planned`; chamar de novo com o
+status já adiante fica `unchanged`. Se o freezer só rodasse em `applied`, reordenar parada depois do
+planejamento inicial (que não regride o status, e por isso nunca dispara `applied` de novo) deixaria
+o pedágio congelado desatualizado para sempre em relação ao roteiro real — o oposto do que a task
+pede ("replanejar a rota regrava o congelado"). Rodar em ambos os desfechos não-bloqueados resolve
+isso sem reabrir a porta de não-retorno do despacho, porque `dispatch` nunca passa por
+`planTripRoute`.
+
+### Aceite
+
+- Viagem com roteiro planejado e veículo de 2 eixos na rota de três praças da spec (10,9333 +
+  10,9333 + 10,9334 = 32,8000 por eixo × 2 eixos): parcela de **R$ 65,60**, sem tag, vinda do
+  congelado — provado em `freeze-trip-route-toll.contract.ts` e em `frozen-toll-parcel.contract.ts`
+  (o `readTripValuation` não chama roteirizador nenhum: o teste usa um port falso que só devolve o
+  que está gravado).
+- Lançamento manual presente vence o congelado — `frozen-toll-parcel.contract.ts`, "lançamento
+  manual vence o congelado, mesmo com os dois presentes".
+- `planned_toll` com forma inesperada volta ao gap de lançamento manual sem quebrar —
+  `toll-route-cost-snapshot.contract.ts` cobre campo faltando, enum fora do catálogo e booth com
+  forma errada, todos devolvendo `null`.
+- `make migration-test` verde (abaixo).
+
+### Gates
+
+```
+make migration-test                             -- ok (91 pass, 0 fail, contra Postgres descartável)
+bun run --cwd apps/api-transportada typecheck   -- 0 erro
+bun run --cwd apps/api-transportada lint        -- 0 aviso
+bunx prettier --check .                         -- ok
+bun run --cwd apps/api-transportada test        -- 4670 pass, 23 skip, 0 fail, 16939 expect() (159 arquivos)
+```
+
+### Divergências desta implementação
+
+- A task previa "guardar o custo (ou os nós que o produziram)". Optei por guardar o **custo já
+  resolvido** (`TollRouteCost`), não os nós: os nós exigiriam recruzar o catálogo de praças na
+  leitura — que pode mudar de tarifa entre o planejamento e a consulta — reintroduzindo exatamente a
+  divergência que a task quer fechar (rota de hoje x decisão de ontem, agora na tarifa em vez da
+  geometria). O custo resolvido é a decisão em si, congelada por inteiro.
+- Não escrevi teste de integração contra Postgres para `DrizzleTripRouteTollRepository` — a
+  cobertura de banco desta task é a migration (`make migration-test`); o comportamento de leitura e
+  escrita do repositório é fino o bastante (dois `select`/`update` já exercitados em repositórios
+  irmãos do módulo) para a cobertura de contrato pura em `freeze-trip-route-toll.contract.ts` bastar,
+  e não há teste de integração pré-existente para `DrizzleTripRouteRepository` (o repositório irmão
+  que este acompanha) que pedisse o mesmo molde aqui.
