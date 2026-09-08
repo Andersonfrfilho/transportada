@@ -213,19 +213,33 @@ export function AssemblyVectorMap({
     if (container === null) return
 
     configureWorker()
-    const map = new MapLibreMap({
-      /** Sem atribuição automática: ela é nossa, e já está impressa ao lado do mapa. */
-      attributionControl: false,
-      center: [-47.81, -21.17],
-      container,
-      /**
-       * ⚠️ **Zero, e não o padrão de 300 ms.** O cross-fade do MapLibre redesenha o quadro inteiro
-       * enquanto o tile novo entra, e arrastar o mapa vira um piscar contínuo da tela toda.
-       */
-      fadeDuration: 0,
-      style: buildBasemapStyle(readToken, theme),
-      zoom: 8,
-    })
+    /**
+     * ⚠️ **Sem WebGL2 o construtor lança na hora, não num evento** — e um `throw` síncrono dentro
+     * de `useEffect` sobe cru pelo React: sem um Error Boundary aqui, ele derruba a árvore inteira
+     * (o diálogo inteiro, não só o mapa), que é exatamente o que a ADR-0044 §6 proíbe para o
+     * arquivo `.pmtiles` ausente. Navegador sem aceleração de vídeo (medido: Chromium headless sem
+     * flag de WebGL por software) é o mesmo "sem como desenhar o mapa" — cai para a lista.
+     */
+    let map: MapLibreMap
+    try {
+      map = new MapLibreMap({
+        /** Sem atribuição automática: ela é nossa, e já está impressa ao lado do mapa. */
+        attributionControl: false,
+        center: [-47.81, -21.17],
+        container,
+        /**
+         * ⚠️ **Zero, e não o padrão de 300 ms.** O cross-fade do MapLibre redesenha o quadro inteiro
+         * enquanto o tile novo entra, e arrastar o mapa vira um piscar contínuo da tela toda.
+         */
+        fadeDuration: 0,
+        style: buildBasemapStyle(readToken, theme),
+        zoom: 8,
+      })
+    } catch (error) {
+      if (import.meta.env.DEV) console.error('[basemap]', error)
+      onBasemapMissing()
+      return
+    }
     mapRef.current = map
     map.on('load', () => {
       basemapLoaded.current = true
