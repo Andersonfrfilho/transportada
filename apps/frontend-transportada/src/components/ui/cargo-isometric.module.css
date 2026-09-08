@@ -1,0 +1,63 @@
+.root {
+  width: 100%;
+  height: auto;
+  max-height: 22rem;
+}
+
+/** O piso é uma sombra fraca: ele situa a carga sem competir com ela. */
+.floor {
+  fill: color-mix(in srgb, var(--color-slate) 12%, transparent);
+  stroke: color-mix(in srgb, var(--color-slate) 26%, transparent);
+  stroke-width: 1;
+}
+
+/** O contorno do baú é a referência de tamanho, e por isso vem por cima da carga. */
+.bedEdge {
+  fill: none;
+  stroke: color-mix(in srgb, var(--color-slate) 55%, transparent);
+  stroke-width: 1.4;
+}
+
+.rearDoor {
+  fill: color-mix(in srgb, var(--color-copper) 8%, transparent);
+  stroke: var(--color-copper);
+  stroke-width: 1.6;
+}
+
+.sideDoor {
+  fill: color-mix(in srgb, var(--color-copper) 10%, transparent);
+  stroke: var(--color-copper);
+  stroke-dasharray: 5 4;
+  stroke-width: 1.6;
+}
+
+/**
+ * ⚠️ **O sombreado é o que faz o olho ler volume.** Três faces com o mesmo tom viram um mosaico de
+ * losangos, e o desenho deixa de parecer tridimensional — que é a única razão de ele existir.
+ */
+.faceTop {
+  stroke: color-mix(in srgb, var(--color-asphalt) 55%, transparent);
+  stroke-width: 0.8;
+}
+
+.faceFront {
+  stroke: color-mix(in srgb, var(--color-asphalt) 55%, transparent);
+  stroke-width: 0.8;
+  filter: brightness(0.78);
+}
+
+.faceSide {
+  stroke: color-mix(in srgb, var(--color-asphalt) 55%, transparent);
+  stroke-width: 0.8;
+  filter: brightness(0.6);
+}
+
+.hatch {
+  stroke: color-mix(in srgb, var(--color-slate) 70%, transparent);
+  stroke-width: 2;
+}
+
+/** A camada fora de foco não some: ela continua situando a que está sendo carregada. */
+.boxDimmed {
+  opacity: 0.28;
+}
