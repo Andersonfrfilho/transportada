@@ -54,6 +54,7 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
       heightM: box.heightM,
       id: `${String(layer.index)}-${String(position)}`,
       isEstimated: box.source === 'estimated',
+      isSplit: box.reasons.includes('splitCargo'),
       widthM: box.widthM,
       xM: box.xM,
       yM: box.yM,

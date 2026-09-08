@@ -56,12 +56,17 @@ describe('planta das camadas (spec 094)', () => {
     expect(trip.cargoLayers.doorsRearAndSide).toContain('lateral direita')
   })
 
-  /** A caixa presumida sai hachurada — a diferença entre medido e derivado do volume. */
+  /**
+   * A caixa presumida sai na **mesma cor, lavada** — a diferença entre medido e derivado do volume.
+   *
+   * ⚠️ Nunca hachura: o risco diagonal cruza as arestas e lê como rachadura na quina, e o padrão SVG
+   * tem fundo transparente, o que deixava a caixa presumida vazada — 60% da carga sem cor nenhuma.
+   */
   it('distingue a caixa presumida da medida', () => {
     const isometric = readApplicationFile('src/components/ui/cargo-isometric.tsx')
 
     expect(source).toContain("isEstimated: box.source === 'estimated'")
-    expect(isometric).toContain("box.isEstimated ? 'url(#cargo-iso-hatch)' : box.color")
+    expect(isometric).toContain('box.isEstimated ? <polygon className={styles.faceWash}')
   })
 
   /** O que não coube é nomeado, nunca escondido — e cada motivo tem texto próprio. */

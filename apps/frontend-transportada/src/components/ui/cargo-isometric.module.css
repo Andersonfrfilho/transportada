@@ -52,9 +52,32 @@
   filter: brightness(0.6);
 }
 
-.hatch {
+/**
+ * ⚠️ A caixa presumida é a **mesma cor, lavada**, e a lavagem é uma camada por cima do sólido — nunca
+ * hachura. O risco diagonal cruza as arestas e lê como rachadura na quina da caixa, e um padrão SVG
+ * tem fundo transparente: usá-lo como preenchimento deixava a caixa vazada.
+ */
+.faceWash {
+  fill: var(--color-fog);
+  opacity: 0.3;
+  stroke: none;
+}
+
+/** A carga dividida é contornada: sem a marca, ela é indistinguível da que coube na própria fatia. */
+.faceSplit {
+  fill: none;
+  stroke: var(--color-alert);
+  stroke-dasharray: 5 4;
+  stroke-width: 1.6;
+}
+
+/** A divisa entre as fatias das paradas: onde a carga de uma acaba e a da seguinte começa. */
+.sliceCut {
+  fill: none;
+  opacity: 0.5;
   stroke: color-mix(in srgb, var(--color-slate) 70%, transparent);
-  stroke-width: 2;
+  stroke-dasharray: 4 6;
+  stroke-width: 1;
 }
 
 /** A camada fora de foco não some: ela continua situando a que está sendo carregada. */
