@@ -584,6 +584,15 @@ que existe e passaria de 40%, fazendo o alerta disparar em toda viagem de duas p
 ruído que se aprende a ignorar. Viagem de uma parada não acusa nada: ali a concentração é 100% por
 definição e não há o que fazer com o aviso.
 
+**Como as caixas são organizadas no baú está documentado por extenso em
+`docs/domain/cargo-placement.md`** — o arranjo em faixas ou em profundidade, a varredura que sobe
+antes de andar para o fundo, a orientação por rendimento, o teto de esbeltez da pilha e o
+confinamento, a face da porta que não é parede, e as frases que a planta imprime explicando as
+próprias decisões. Cada regra de lá veio de um defeito medido, com o número ao lado. ⚠️ Mexer no
+empacotador sem ler aquele arquivo é refazer uma das correções que já custaram duas rodadas —
+inclusive a lição de método: contrato sintético confirma a implementação, só rodar com números
+confere a premissa.
+
 **A fileira virou metro, e a escala sai da ficha — de mais lugar nenhum** (spec 088). A fileira da
 085 é proporção: ela não diz se a carga da terceira parada ocupa meio metro ou dois metros e meio de
 baú. `resolveCargoLayout` passou a devolver `depthM` e `distanceFromDoorM` por faixa, mais
