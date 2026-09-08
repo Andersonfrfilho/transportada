@@ -34,6 +34,7 @@ import {
   resolveBasemapTollColor,
   type BasemapTheme,
 } from '../shared/vectorBasemap.service'
+import { resolveAssemblyMapBounds } from '../shared/assemblyMapBounds.service'
 import { resolveMarkerOffsets, type AssemblyMapPoint } from '../shared/assemblyMap.service'
 import type { RouteGeometry } from '../shared/routeGeometry.service'
 import styles from '../styles/trip.module.css'
@@ -441,8 +442,14 @@ export function AssemblyVectorMap({
       void nearbySource.setData(nearbyData)
     }
 
-    fitToStops(map, points)
-  }, [isReady, nearby, points, stopColor, theme])
+    fitToTrip(map, points, geometry)
+    /**
+     * ⚠️ `geometry` entra nas dependências porque o quadro depende dela: a rota e o barracão chegam
+     * **depois** da primeira pintura, e sem isto o enquadramento ficaria o das paradas para sempre —
+     * exatamente o defeito que `fitToTrip` veio corrigir. Trocar de opção no seletor também reenquadra,
+     * que é o certo: a alternativa tem outra extensão.
+     */
+  }, [geometry, isReady, nearby, points, stopColor, theme])
 
   /**
    * As praças do **trajeto** — a opção de rota escolhida, nunca a principal a força (spec 096 D3):
@@ -567,12 +574,12 @@ export function AssemblyVectorMap({
         >
           <Icon name="minus" />
         </Button>
-        {/* Recentrar é a saída de quem se perdeu arrastando — devolve o enquadramento das paradas. */}
+        {/* Recentrar é a saída de quem se perdeu arrastando — devolve o enquadramento da viagem. */}
         <Button
           aria-label={t('assemblyMap.recenter')}
           onClick={() => {
             const map = mapRef.current
-            if (map !== null) fitToStops(map, points)
+            if (map !== null) fitToTrip(map, points, geometry)
           }}
           size="sm"
           type="button"
@@ -653,10 +660,24 @@ function nextTheme(current: BasemapTheme): BasemapTheme {
   return BASEMAP_THEMES[(index + 1) % BASEMAP_THEMES.length] ?? 'claro'
 }
 
-/** O enquadramento das paradas, usado na montagem e no botão de recentrar — a mesma conta. */
-function fitToStops(map: MapLibreMap, points: readonly AssemblyMapPoint[]): void {
-  if (points.length === 0) return
-  const bounds = new LngLatBounds()
-  for (const point of points) bounds.extend([point.longitude, point.latitude])
+/**
+ * O enquadramento da viagem, usado na montagem e no botão de recentrar — a mesma conta.
+ *
+ * ⚠️ Ele enquadra **tudo que a viagem desenha**: as paradas, o barracão e o traçado. Antes saía só
+ * das paradas, e o ponto de partida ficava fora da tela. Quem decide o envelope é
+ * `resolveAssemblyMapBounds`, que é onde essa fronteira está escrita e coberta por contrato.
+ */
+function fitToTrip(
+  map: MapLibreMap,
+  points: readonly AssemblyMapPoint[],
+  geometry: null | RouteGeometry,
+): void {
+  const box = resolveAssemblyMapBounds({
+    depotOrigin: geometry?.depot?.origin ?? null,
+    routePoints: geometry?.points ?? [],
+    stops: points,
+  })
+  if (box === null) return
+  const bounds = new LngLatBounds([box.west, box.south], [box.east, box.north])
   map.fitBounds(bounds, { duration: 0, maxZoom: 14, padding: 48 })
 }
