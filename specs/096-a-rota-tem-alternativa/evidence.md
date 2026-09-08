@@ -360,3 +360,133 @@ o vocabulário existente.
   Ela derrubava `vector-basemap.contract.ts` (que varre o arquivo inteiro): o comentário citava a
   prop por nome para explicar a regra, e o próprio nome bastava para reprovar o teste que confere a
   ausência dela em qualquer lugar do arquivo. Reescrito sem citar o nome literal da prop.
+
+## Cobertura de browser (G005, 2026-09-08)
+
+**O problema:** o dublê de `route-geometry` do smoke (`apps/frontend-transportada/test/trip-smoke.helper.ts`)
+sempre devolvia `{points: [], source: 'unavailable'}` para `GET /trips/:id/route-geometry` — e
+nenhum dublê existia para `POST /route-geometry` (de raiz), o endpoint que
+`TripAssemblyMap.component.tsx` usa **antes** de a viagem existir. Como o bloco de pedágio, o
+seletor de rotas e a marca de "estimado" só existem dentro desse componente, e ele só aparece com
+duas paradas de verdade (`map.points.length >= 2`), a entrega inteira do pedágio passava pelo smoke
+sem nunca renderizar — a linha do baseline abaixo prova isso.
+
+**Achado ao abrir de verdade: o mapa derrubava o diálogo inteiro sem WebGL2.** Ao montar o cenário
+com duas notas resolvidas (para gerar as duas paradas), o Playwright entrou em loop de "element was
+detached from the DOM, retrying" por 30s tentando clicar no seletor de veículo — o diálogo inteiro
+sumia e voltava. A causa: `new MapLibreMap(...)` em `AssemblyVectorMap.component.tsx` lança **na
+hora**, de forma síncrona, quando o navegador não tem WebGL2 (medido: Chromium headless do
+Playwright, sem flag de software rendering) — e esse `throw` dentro do `useEffect`, sem Error
+Boundary nenhum ao redor, sobe cru pelo React e derruba a árvore inteira montada acima, não só o
+mapa. É exatamente o que a ADR-0044 §6 proíbe para o `.pmtiles` ausente, só que por uma porta que
+ninguém tinha testado: o construtor do MapLibre, não o evento `error` dele. Corrigido com um
+`try/catch` ao redor da construção — no catch, mesmo tratamento do `.pmtiles` ausente
+(`onBasemapMissing()`, log em dev) — em
+`apps/frontend-transportada/src/modules/trip/components/AssemblyVectorMap.component.tsx`. Sem essa
+correção, qualquer navegador sem aceleração de vídeo (headless de CI, VM sem GPU, browser antigo)
+crashava o diálogo de "Nova viagem" inteiro, não só perdia o desenho do mapa.
+
+⚠️ **`getByText` com `RegExp` de bandeira `u` não achou o texto do pedágio, mesmo ele existindo no
+DOM.** O texto entra por três interpolações JSX seguidas dentro do mesmo `<span>` (resumo + tarifa +
+marca de estimativa), que o React renderiza como três nós de texto irmãos. `dialog.getByText(regex)`
+devolvia zero elementos (`.count()` confirmou), enquanto `dialog.getByText('mesmo texto como
+string')` e `dialog.innerText()` confirmavam a mesma string presente — não era timing (testado com
+timeout de 45s, sem sucesso). Os testes usam **string literal**, não regex, para o texto do resumo
+de pedágio; `getByRole('button', {name: /regex/})` (nome acessível, caminho diferente do `getByText`)
+continuou funcionando normalmente para as linhas do seletor de rotas.
+
+**O que foi acrescentado**, tudo em `apps/frontend-transportada/test/trip-smoke.helper.ts`
+(exportado) e exercido em `apps/frontend-transportada/test/responsive.smoke.spec.ts`:
+
+- `registerTripQuickCreateTollApi` — registrado **depois** de `mockTripWorkspaceApi` (o Playwright
+  testa o handler mais recente primeiro), sobrepõe `/fleet/vehicles` (um veículo de tração),
+  `/nfe-documents` (resolve por `accessKey`, vazio sem ela) e intercepta `POST /route-geometry` de
+  raiz por predicado de `pathname` — nunca por regex, para não colidir com o `GET
+/trips/:id/route-geometry` que já tem dublê próprio.
+- `TOLL_SINGLE_ROUTE_GEOMETRY` — rota única (`hasChoice: false`), três praças, uma sem tarifa
+  conhecida, eixo estimado, sem tag: R$ 32,80 por eixo × 2 eixos = R$ 65,60.
+- `TOLL_ROUTE_CHOICE_GEOMETRY` — duas opções (`hasChoice: true`): a principal cobra com tag e uma
+  das três praças caiu para a manual (R$ 31,74 por eixo × 2 eixos = R$ 63,48); a alternativa não
+  anotou pedágio (`toll: null`).
+- Dois documentos sintéticos com `recipientLocationPrecision: 'rooftop'` e coordenada própria — isso
+  dispensa a malha do IBGE (`GET .../malhas/estados`, sem dublê neste smoke) para gerar duas paradas
+  de verdade: `toCoordinate` em `assemblyMap.service.ts` resolve a coordenada direto da nota quando a
+  precisão é de endereço, sem passar pelo centroide do município.
+
+Dois testes novos em `responsive.smoke.spec.ts`, ambos abrindo "Nova viagem", bipando as duas chaves
+e escolhendo o veículo:
+
+1. `a montagem de viagem mostra o pedágio calculado, com eixo estimado e sem seletor de rota` — bloco
+   de pedágio com total, praças, valor por eixo, eixos, data da tarifa; marca "eixo estimado";
+   contagem de praças sem tarifa conhecida; seletor **ausente** (rota única).
+2. `a montagem de viagem oferece duas rotas, e a sem pedágio calculado não vira zero praças` —
+   seletor **presente** com duas opções; a rota escolhida mostra tag + fallback para manual; a
+   alternativa sem pedágio mostra "pedágio não calculado" na própria linha, nunca "0 praças".
+
+### O que não foi coberto, e por quê
+
+- **O marcador do barracão (spec 097 D4, losango) e a etiqueta de valor por praça no próprio mapa**
+  (`formatBoothCharge` dentro de `AssemblyVectorMap`) só existem **dentro** do canvas do MapLibre, e
+  o mapa só desenha depois que o `.pmtiles` (`/maps/area.pmtiles`) carrega — arquivo que este
+  ambiente de smoke não tem e não gera. Sem ele, `hasBasemap` sempre cai para `false` e a tela usa o
+  modo texto (`assemblyMap.withoutBasemap`), que é o que os dois testes acima de fato exercitam.
+  Servir um `.pmtiles` sintético só para o teste está fora do orçamento desta tarefa — a forma
+  binária do formato exigiria escrever um gerador próprio. A cobertura que existe para os dois é
+  **por texto de fonte**: `test/trip/assembly-depot-marker.contract.ts` (a forma própria do losango
+  e o CSS `.tileDepot`) e `test/trip/route-toll-booth-markers.contract.ts` /
+  `test/trip/assembly-toll.contract.ts` (o travessão nunca `R$ 0,00`, testado em
+  `formatBoothCharge` isoladamente). O que os dois smokes novos cobrem da mesma regra é a metade
+  agregada, alcançável sem mapa: a contagem de "praças sem tarifa conhecida" no bloco de texto.
+
+### Antes e depois — `bun run smoke`
+
+Comando (a partir de `apps/frontend-transportada`):
+
+```
+PLAYWRIGHT_FRONTEND_PORT=53010 PLAYWRIGHT_API_PORT=53001 \
+PLAYWRIGHT_REUSE_EXISTING_FRONTEND_SERVER=false PLAYWRIGHT_REUSE_EXISTING_API_SERVER=true \
+bun run smoke
+```
+
+**Antes** (`git stash` não usado — conferido lendo o arquivo antes da mudança): 48 testes, 48
+passed.
+
+**Depois**: 50 testes — os 48 de antes mais os dois novos — **47 passed**, com as duas novas
+(`a montagem de viagem mostra o pedágio calculado…` e `a montagem de viagem oferece duas rotas…`)
+entre os que passam. Os **3 que falham são anteriores a esta tarefa e não relacionados a ela**:
+`GET /fleet/vehicle-references` sem dublê em `test/fleet-smoke.helper.ts`
+(`net::ERR_FAILED`), atingido por três testes de CRLV/anexo de veículo que não tocam viagem nem
+pedágio. ⚠️ Este worktree está sendo usado **em paralelo** por outra sessão trabalhando numa história
+diferente da 090 (pedágio-cobrança, `toll-booth-charge`, com dezenas de arquivos modificados/novos em
+`api-transportada` e em `fleet`/`company-settings` do frontend — confirmado por `git status`, nenhum
+deles tocado por este trabalho): a falha de `vehicle-references` é provavelmente efeito colateral de
+uma tela em obra dessa outra sessão (`FleetWorkspace.page.tsx` chegou a mostrar erro de lint por
+import/variável não usada num instante, e limpo no seguinte) — nunca algo que a G005 introduziu ou
+deveria consertar. Saída resumida da execução mais recente:
+
+```
+✓  36 a montagem de viagem mostra o pedágio calculado, com eixo estimado e sem seletor de rota (779ms)
+✓  37 a montagem de viagem oferece duas rotas, e a sem pedágio calculado não vira zero praças (767ms)
+...
+✘  39 o operador solta o CRLV e a ficha do veículo chega preenchida e marcada  (pré-existente)
+✘  45 o operador revisa o anexo vendo onde ele discorda da ficha…             (pré-existente)
+✘  46 aprovar o anexo muda o estado na tela…                                  (pré-existente)
+47 passed (49.6s)
+```
+
+### Gates
+
+- `bun run typecheck` (raiz) — limpo.
+- `bun run lint` (raiz) — limpo no instante em que os três arquivos desta tarefa foram conferidos;
+  `bunx eslint test/trip-smoke.helper.ts test/responsive.smoke.spec.ts
+src/modules/trip/components/AssemblyVectorMap.component.tsx --max-warnings=0` isolado (mais
+  confiável, dado o parágrafo acima sobre a sessão concorrente) também limpo.
+- `bun run format:check` (raiz) — limpo.
+
+### Arquivos tocados
+
+- `apps/frontend-transportada/src/modules/trip/components/AssemblyVectorMap.component.tsx` — o
+  `try/catch` em volta de `new MapLibreMap(...)`.
+- `apps/frontend-transportada/test/trip-smoke.helper.ts` — `registerTripQuickCreateTollApi`,
+  `TOLL_SINGLE_ROUTE_GEOMETRY`, `TOLL_ROUTE_CHOICE_GEOMETRY`, os dois documentos sintéticos.
+- `apps/frontend-transportada/test/responsive.smoke.spec.ts` — os dois testes novos.
