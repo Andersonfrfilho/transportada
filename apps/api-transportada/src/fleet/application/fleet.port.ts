@@ -136,6 +136,14 @@ export type FleetDriverAddress = {
 export type FleetDriverInput = {
   readonly address: FleetDriverAddress
   /**
+   * Spec 100: este motorista amarra a carga com cinta.
+   *
+   * ⚠️ Ele muda a **planta da carga**, não só a ficha: com a carga amarrada a pilha sobe até o teto
+   * do baú; sem ela a altura para na esbeltez, porque coluna livre tomba na curva. `false` por
+   * padrão — supor cinta desenharia pilha alta para quem não amarra.
+   */
+  readonly securesCargo: boolean
+  /**
    * A coordenada da casa **corrigida à mão** no mapa da ficha (spec 097 D6).
    *
    * ⚠️ Ausente é "não mexeram nela", e não "apague": a ficha é salva inteira a cada edição, e um

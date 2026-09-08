@@ -94,6 +94,7 @@ export const DRIVER_FIELDS = {
   address: EMPTY_DRIVER_ADDRESS,
   linkedAddress: EMPTY_DRIVER_ADDRESS,
   anttCategory: '',
+  securesCargo: false,
   birthCity: 'Ribeirao Preto',
   birthDate: null,
   birthState: 'SP',

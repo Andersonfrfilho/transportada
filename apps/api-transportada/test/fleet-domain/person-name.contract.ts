@@ -92,6 +92,7 @@ const EMPTY_ADDRESS = {
 } as const
 
 const DRIVER_INPUT: FleetDriverInput = {
+  securesCargo: false,
   address: EMPTY_ADDRESS,
   linkedAddress: EMPTY_ADDRESS,
   anttCategory: '',

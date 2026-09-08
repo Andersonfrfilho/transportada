@@ -190,6 +190,7 @@ export function mapDriver(record: DriverRecord): FleetDriver {
     homeLatitude: record.homeLatitude,
     homeLongitude: record.homeLongitude,
     anttCategory: record.anttCategory,
+    securesCargo: record.securesCargo,
     licenseCategory: record.licenseCategory,
     birthCity: record.birthCity,
     birthDate: record.birthDate,
@@ -238,6 +239,7 @@ export function toDriverColumns(
 ): Omit<typeof fleetDrivers.$inferInsert, 'companyId' | 'status' | 'version'> {
   return {
     anttCategory: driver.anttCategory,
+    securesCargo: driver.securesCargo,
     licenseCategory: driver.licenseCategory,
     birthCity: driver.birthCity,
     birthDate: driver.birthDate,

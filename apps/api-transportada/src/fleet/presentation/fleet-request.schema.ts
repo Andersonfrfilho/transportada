@@ -191,6 +191,11 @@ const homeCoordinateSchema = z
 const driverFieldsSchema = z.object({
   address: driverAddressSchema,
   anttCategory: z.literal('').or(z.enum(MDFE_OWNER_TAX_REGIMES)),
+  /**
+   * Spec 100: o motorista amarra a carga com cinta. ⚠️ `default(false)` e não opcional na leitura:
+   * ausência é **não amarra**, e supor cinta desenharia pilha alta para quem não amarra.
+   */
+  securesCargo: z.boolean().default(false),
   licenseCategory: z.literal('').or(z.enum(LICENSE_CATEGORIES)),
   // Teto no Zod, e não em CHECK: `current_date` é função volátil e quebraria o restore do dump
   birthCity: z.string().trim().max(DRIVER_CITY_MAX_LENGTH),
