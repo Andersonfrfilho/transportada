@@ -24,7 +24,7 @@ export type ScalePlanBand = Readonly<{
 }>
 
 /**
- * Spec 094: uma caixa **posicionada** dentro do baú, vista de cima. É o que a faixa não diz — a
+ * Spec 096: uma caixa **posicionada** dentro do baú, vista de cima. É o que a faixa não diz — a
  * faixa reserva espaço para a parada, a caixa ocupa um lugar.
  */
 export type ScalePlanBox = Readonly<{

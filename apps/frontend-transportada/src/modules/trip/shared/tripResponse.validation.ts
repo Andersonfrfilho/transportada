@@ -629,7 +629,7 @@ export function createTripResponseAdapters() {
        * continuam valendo, e é melhor a tela dizer "não calculei" do que esconder o mapa inteiro.
        */
       /**
-       * Spec 094 T1: as alternativas, mais o ranking de `rankRouteOptions` (T2). Opção estranha
+       * Spec 096 T1: as alternativas, mais o ranking de `rankRouteOptions` (T2). Opção estranha
        * zera **só as opções** — a linha, o tempo e o pedágio da principal continuam valendo, e a
        * tela simplesmente deixa de oferecer seletor (o mesmo comportamento de rota única, D2).
        */
@@ -718,7 +718,7 @@ function isCargoLayout(value: unknown): boolean {
     /** API antiga não serve o acesso: sem ele a planta desenha só a traseira, que é o mais restritivo. */
     (value.loadingAccess === undefined || isString(value.loadingAccess)) &&
     /**
-     * Spec 094: o arranjo é opcional na resposta — API antiga não o serve, e recusar a resposta
+     * Spec 096: o arranjo é opcional na resposta — API antiga não o serve, e recusar a resposta
      * inteira por causa dele apagaria a planta que já funciona.
      */
     (value.placement === undefined || value.placement === null || isPlacement(value.placement)) &&
@@ -887,7 +887,7 @@ function isGeometryToll(value: unknown): value is RouteGeometryToll {
   )
 }
 
-/** Spec 094 T1: a alternativa de rota, com a mesma forma que a geometria — mais o custo total. */
+/** Spec 096 T1: a alternativa de rota, com a mesma forma que a geometria — mais o custo total. */
 function isGeometryOption(value: unknown): value is RouteGeometryOption {
   if (!isRecord(value)) return false
   const { distanceMeters, durationSeconds, fuelTotal, legs, points, toll, totalCost } = value

@@ -34,7 +34,7 @@ export type AxleCount = Readonly<{
 /**
  * A praça como o catálogo a guarda. Tarifa `null` é **desconhecida**, nunca gratuita.
  *
- * ⚠️ `latitude`/`longitude` viajam junto **só para o mapa desenhar o ícone** (spec 094 D3) — quem
+ * ⚠️ `latitude`/`longitude` viajam junto **só para o mapa desenhar o ícone** (spec 096 D3) — quem
  * decide se a praça foi cobrada continua sendo a identidade do nó, nunca a coordenada (ver o
  * cabeçalho deste arquivo).
  *

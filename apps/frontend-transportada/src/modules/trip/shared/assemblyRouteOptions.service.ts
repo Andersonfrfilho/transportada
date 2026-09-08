@@ -1,10 +1,10 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * O que a montagem imprime por opção de rota (spec 094 T3) — puro, para o contrato provar o
+ * O que a montagem imprime por opção de rota (spec 096 T3) — puro, para o contrato provar o
  * cálculo sem montar o componente inteiro.
  *
- * ⚠️ **Rota única não é escolha** (spec 094 D2). O chamador só monta esta lista quando
+ * ⚠️ **Rota única não é escolha** (spec 096 D2). O chamador só monta esta lista quando
  * `hasChoice` é `true` — aqui apenas o formato de cada linha é resolvido.
  */
 import type { RouteGeometryOption } from './routeGeometry.service'
@@ -18,7 +18,7 @@ export type RouteOptionSummary = Readonly<{
    */
   boothCount: null | number
   distanceKilometres: number
-  /** `true` quando esta é, ao mesmo tempo, a mais rápida e a mais barata (spec 094 D1). */
+  /** `true` quando esta é, ao mesmo tempo, a mais rápida e a mais barata (spec 096 D1). */
   isBestOfBoth: boolean
   isCheapest: boolean
   isFastest: boolean
@@ -32,7 +32,7 @@ const METRES_PER_KILOMETRE = 1000
 /**
  * Uma linha por opção, na mesma ordem que a rota chegou — a principal primeiro. `isBestOfBoth`
  * existe para a tela **não** imprimir duas marcas redundantes quando a mesma rota vence os dois
- * critérios: é informação, não defeito (spec 094, caso medido de Campinas).
+ * critérios: é informação, não defeito (spec 096, caso medido de Campinas).
  */
 export function resolveRouteOptionSummaries(input: {
   readonly cheapestIndex: null | number

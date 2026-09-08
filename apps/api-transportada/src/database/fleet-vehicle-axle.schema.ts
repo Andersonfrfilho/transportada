@@ -18,7 +18,7 @@ import { companies } from './identity.schema.js'
 import { fleetVehicles } from './fleet.schema.js'
 
 /**
- * Spec 094: os eixos do veículo, com **posição e limite**. É o que a balança cobra, e é a única
+ * Spec 096: os eixos do veículo, com **posição e limite**. É o que a balança cobra, e é a única
  * coisa no produto que transforma "a carga cabe" em "a carga pode sair assim".
  *
  * ⚠️ **Tabela, não coluna.** Um `max_axle_load_kg` único responderia "o veículo aguenta X por eixo"

@@ -198,7 +198,7 @@ describe('o overlay do radar — segundo arquivo, mesma origem', () => {
   })
 
   /**
-   * Feature 094 T5 — a velocidade permitida ao lado do triângulo.
+   * Feature 096 T5 — a velocidade permitida ao lado do triângulo.
    *
    * ⚠️ **`maxspeed:hgv` vence `maxspeed`.** Em rodovia brasileira o limite do caminhão é menor que o
    * do carro, e quem lê este mapa opera frota: imprimir o limite do carro seria o número errado para

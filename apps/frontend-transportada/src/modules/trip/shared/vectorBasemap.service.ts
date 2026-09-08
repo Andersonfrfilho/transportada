@@ -142,7 +142,7 @@ export function resolveBasemapOutline(
 
 /**
  * A cor da linguagem visual de pedágio (`cabine-de-pedagio`, `via-com-pedagio`), para a praça
- * desenhada em tempo de execução (spec 094 T4) usar o mesmo tom do resto do mapa, e não uma cor
+ * desenhada em tempo de execução (spec 096 T4) usar o mesmo tom do resto do mapa, e não uma cor
  * própria que competiria com o vocabulário que já existe.
  */
 export function resolveBasemapTollColor(
@@ -541,7 +541,7 @@ export function buildBasemapStyle(
         minzoom: 11,
         layout: {
           /**
-           * Feature 094 T5 — a velocidade permitida ao lado do triângulo.
+           * Feature 096 T5 — a velocidade permitida ao lado do triângulo.
            *
            * ⚠️ **`maxspeed:hgv` vence quando existir.** Em rodovia brasileira o limite do caminhão é
            * menor que o do carro, e quem lê este mapa opera frota: mostrar o limite do carro seria

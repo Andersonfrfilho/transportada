@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 094 T1: o OSRM passa a ser pedido com `alternatives=true`, e a rota principal continua
+ * Spec 096 T1: o OSRM passa a ser pedido com `alternatives=true`, e a rota principal continua
  * sendo a primeira — a alternativa é oferta, nunca troca automática.
  */
 import { readFileSync } from 'node:fs'
@@ -37,7 +37,7 @@ function route(nodes: readonly number[], distance: number, duration: number) {
   }
 }
 
-describe('route geometry alternatives (spec 094 T1)', () => {
+describe('route geometry alternatives (spec 096 T1)', () => {
   it('asks OSRM for alternative routes', () => {
     const source = readFileSync(new URL(`../../${GATEWAY_SOURCE}`, import.meta.url), 'utf8')
     expect(source).toContain('alternatives=true')

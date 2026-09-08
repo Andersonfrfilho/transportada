@@ -172,7 +172,7 @@ export function TripCargoPanel({
           da outra. A fileira diz a ordem e a proporção; a planta diz o metro, e só existe com a
           ficha do veículo medida. */}
       <TripCargoPlan layout={layout} />
-      {/* Spec 094: a planta de faixas diz de quem é o espaço; esta diz onde cada caixa cabe. */}
+      {/* Spec 096: a planta de faixas diz de quem é o espaço; esta diz onde cada caixa cabe. */}
       <TripCargoLayers layout={layout} />
     </section>
   )

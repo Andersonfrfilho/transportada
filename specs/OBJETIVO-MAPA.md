@@ -52,7 +52,7 @@ dentro da conta. Hoje, depois da 089b:
 | **089a** | o que o mapa ainda não conta (diagnóstico)          | ✅ concluída — é a medição acima                 |
 | **089b** | o mapa mostra sentido, pedágio e radar              | ✅ concluída — 13 tasks, `evidence.md` fechado   |
 | **090**  | o pedágio entra na conta                            | ✅ executada — 19 commits, `evidence.md` fechado |
-| **094**  | a rota tem alternativa, e o radar mostra velocidade | ✅ executada — nasceu do uso, não deste plano    |
+| **096**  | a rota tem alternativa, e o radar mostra velocidade | ✅ executada — nasceu do uso, não deste plano    |
 | **095**  | a tarifa de pedágio se corrige à mão                | escrita, não executada                           |
 | **096**  | restrição de caminhão: perfil + cadastro            | não escrita                                      |
 | **097**  | velocidade da via na tela da rota                   | não escrita                                      |
@@ -87,7 +87,7 @@ isso inteiro. O que sobrou de ordem é por decisão pendente, não por dependên
 ```
 089b ✅ ── overlay.pmtiles + generate-custom + segunda fonte no estilo
               │
-              └─▶ 097 velocidade da via (o radar já saiu na 094)
+              └─▶ 097 velocidade da via (o radar já saiu na 096)
 
 090 pedágio  ── independente hoje: é conta, não desenho
 

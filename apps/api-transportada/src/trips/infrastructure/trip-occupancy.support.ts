@@ -65,7 +65,7 @@ export async function loadTripOccupancy(
   readonly bedDimensions: CargoBedDimensions | null
   readonly capacityM3: string | null
   /**
-   * Spec 094: o volume típico de uma caixa da empresa e as formas medidas — é deles que a caixa
+   * Spec 096: o volume típico de uma caixa da empresa e as formas medidas — é deles que a caixa
    * presumida tira tamanho e proporção. Sem eles ela não é desenhada, e sim nomeada.
    */
   readonly fallbackBoxVolumeM3: number | null
@@ -299,7 +299,7 @@ async function loadMeasuredItems(
   readonly boxesByDocument: ReadonlyMap<string, readonly CargoPlanBox[]>
   readonly itemsByDocument: ReadonlyMap<string, readonly MeasuredCargoItem[]>
   /**
-   * Spec 094: as formas das caixas que a empresa mediu. É delas que sai a **proporção** da caixa
+   * Spec 096: as formas das caixas que a empresa mediu. É delas que sai a **proporção** da caixa
    * presumida — proporção, não cubo: um cubo de 0,021 m³ empilha diferente de uma caixa de
    * 38 × 26 × 21, e a planta é justamente sobre como as peças se arrumam no piso.
    */
@@ -334,7 +334,7 @@ async function loadMeasuredItems(
         boxVolumeM3: boxVolume,
         boxWidthMm: nfePackageBoxes.widthMm,
         documentId: nfeProducts.documentId,
-        /** Spec 094: as restrições que decidem onde a caixa pode ir. Nulo é "não informado". */
+        /** Spec 096: as restrições que decidem onde a caixa pode ir. Nulo é "não informado". */
         isFragile: nfePackageBoxes.isFragile,
         isStackable: nfePackageBoxes.isStackable,
         keepUpright: nfePackageBoxes.keepUpright,
@@ -408,7 +408,7 @@ async function loadMeasuredItems(
       {
         count: countMeasuredBoxes(item),
         heightMm: row.boxHeightMm,
-        /** Spec 094: as restrições viajam com a caixa — nulas até alguém informar. */
+        /** Spec 096: as restrições viajam com a caixa — nulas até alguém informar. */
         isFragile: row.isFragile,
         isStackable: row.isStackable,
         keepUpright: row.keepUpright,

@@ -56,7 +56,7 @@ export type RouteGeometryToll = TollRouteCost &
   }>
 
 /**
- * Uma alternativa da rota, pronta para o mapa (spec 094 T1) — a mesma forma que os campos de
+ * Uma alternativa da rota, pronta para o mapa (spec 096 T1) — a mesma forma que os campos de
  * sempre de `RouteGeometryView` (`legs`, `points`, `toll`), mais o que só faz sentido comparando
  * opções entre si.
  */
@@ -77,8 +77,8 @@ export type RouteGeometryView = {
    * veio — e aí a tela não mostra tempo nenhum. A ADR-0044 §5 é explícita: sem o roteirizador não se
    * estima, porque número plausível e errado é pior que número nenhum.
    *
-   * ⚠️ **Sempre os da rota principal** — a primeira que o OSRM devolveu (spec 094 D2/spec.md: a
-   * alternativa é oferta, nunca troca automática). Quem já lia este campo antes da 094 continua
+   * ⚠️ **Sempre os da rota principal** — a primeira que o OSRM devolveu (spec 096 D2/spec.md: a
+   * alternativa é oferta, nunca troca automática). Quem já lia este campo antes da 096 continua
    * lendo a mesma coisa.
    */
   readonly legs: readonly RouteGeometryLeg[]
@@ -93,7 +93,7 @@ export type RouteGeometryView = {
   readonly options: readonly RouteGeometryOption[]
   /** Índice em `options` da rota mais barata — `null` quando `costGap` diz por que não há uma. */
   readonly cheapestIndex: null | number
-  /** Por que não há mais barata: ausência de dado, nunca empate (spec 094 D1). */
+  /** Por que não há mais barata: ausência de dado, nunca empate (spec 096 D1). */
   readonly costGap: null | RouteCostGap
   /** Índice em `options` da rota mais rápida. `null` só quando não há rota nenhuma. */
   readonly fastestIndex: null | number
@@ -115,7 +115,7 @@ export type ReadRouteGeometryInput = {
    */
   readonly hasAutomaticTollPayment?: boolean
   /**
-   * O consumo e o preço do combustível do veículo escolhido (spec 094 D1/T2). Ausente é "não sei
+   * O consumo e o preço do combustível do veículo escolhido (spec 096 D1/T2). Ausente é "não sei
    * comparar" — a mesma coisa que declarar os dois campos `null`: sem eles nenhuma opção recebe o
    * rótulo de mais barata, e a razão sai em `costGap`.
    */
@@ -155,7 +155,7 @@ export async function readRouteGeometry(input: ReadRouteGeometryInput): Promise<
   if (road === null) return UNAVAILABLE_VIEW
 
   /**
-   * A principal é sempre `options[0]` (spec 094 D2/spec.md): o roteirizador manda no traço padrão,
+   * A principal é sempre `options[0]` (spec 096 D2/spec.md): o roteirizador manda no traço padrão,
    * a alternativa é oferta ao lado dele.
    */
   const rawRoads = [road, ...(road.alternatives ?? [])]
@@ -206,7 +206,7 @@ export async function readRouteGeometry(input: ReadRouteGeometryInput): Promise<
 /**
  * ⚠️ A simplificação é do **desenho**, e os trechos passam intactos por ela. Jogar fora ponto para
  * caber no pixel não pode encurtar a distância que o operador lê — o traço é aproximação, o número
- * não é. Cada opção desenha o próprio traço, com o próprio pedágio (spec 094 D3).
+ * não é. Cada opção desenha o próprio traço, com o próprio pedágio (spec 096 D3).
  */
 async function resolveOption(input: {
   readonly axles: AxleCount | null

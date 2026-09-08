@@ -60,7 +60,7 @@ export function createOsrmRouteGeometryGateway(input: {
         /**
          * ⚠️ **Alternativa malformada não derruba a rota principal** — ela só fica de fora. A
          * exigência estrita continua valendo para a primária, que é o traço que a tela desenha por
-         * padrão (spec 094 D2/spec.md).
+         * padrão (spec 096 D2/spec.md).
          */
         const alternatives = routes
           .slice(1)

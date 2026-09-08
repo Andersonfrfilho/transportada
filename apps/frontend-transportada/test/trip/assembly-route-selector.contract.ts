@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 094 T3: o seletor de rota alternativa na montagem, abaixo do bloco de pedágio da T7. No
+ * Spec 096 T3: o seletor de rota alternativa na montagem, abaixo do bloco de pedágio da T7. No
  * molde de `test/trip/assembly-toll.contract.ts` — contrato de tela, por texto de fonte.
  */
 import { readFileSync } from 'node:fs'
@@ -13,7 +13,7 @@ const COMPONENT = new URL(
   import.meta.url,
 )
 
-describe('seletor de rota alternativa (spec 094 T3)', () => {
+describe('seletor de rota alternativa (spec 096 T3)', () => {
   const source = readFileSync(COMPONENT, 'utf8')
 
   /** Rota única não é escolha (D2) — o seletor só é montado quando `hasChoice` é `true`. */

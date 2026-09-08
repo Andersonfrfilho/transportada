@@ -1,4 +1,4 @@
-# Evidência — 094
+# Evidência — 096
 
 ## T5 — O radar com a velocidade permitida (2026-09-07)
 
@@ -163,7 +163,7 @@ saber que a 093 existe; só quem lê `.options`/`.hasChoice` percebe a mudança.
 ### Vínculo com o combustível: uma consulta só por veículo
 
 `route-geometry-vehicle-axles.query.ts` passou a devolver `{axles, fuelBaseline}` numa única
-consulta (`readVehicleContext`) — o eixo (090 T6/T7) e o consumo/preço do combustível (094 D1) vêm
+consulta (`readVehicleContext`) — o eixo (090 T6/T7) e o consumo/preço do combustível (096 D1) vêm
 da mesma linha de `fleet_vehicles`, e o preço do combustível é o mesmo `companyFuelPrices` que
 `trip-valuation.query.ts` já lia para o custo previsto da viagem, para as duas contas nunca
 divergirem sobre o preço do litro. Sem consumo ou sem preço, `fuelBaseline` é `{kilometersPerLiter:
@@ -224,7 +224,7 @@ Campinas), para a tela não empilhar "mais rápida" e "mais barata" dizendo a me
 `costGap`/`fastestIndex`/`hasChoice` em `routeGeometryFromApi` — sem isso a T1 do backend chegaria
 pronta e o frontend simplesmente descartaria os campos novos ao montar `RouteGeometry`, porque o
 adaptador reconstrói o objeto campo a campo. Uma opção malformada zera **só as opções** (a mesma
-regra do trecho/pedágio malformado que já existia), e resposta sem os campos da 094 (contrato
+regra do trecho/pedágio malformado que já existia), e resposta sem os campos da 096 (contrato
 anterior) é lida como "sem escolha" — nunca erro.
 
 ### Ícone: convenção do módulo, não do briefing
@@ -315,7 +315,7 @@ campos, como string — a mesma forma que o resto da API publica coordenada geog
 `resolveTollBoothMarkers` (`trip/shared/assemblyToll.service.ts`) é pura: recebe
 `RouteGeometryToll | null` e devolve `{latitude, longitude, label}[]`, com `formatBoothCharge` ao
 lado decidindo o rótulo. `AssemblyVectorMap` já recebia `geometry` como a opção **ativa**
-(`activeGeometry` — T3, spec 094), então a nova camada lê `geometry?.toll` no mesmo `useEffect`
+(`activeGeometry` — T3, spec 096), então a nova camada lê `geometry?.toll` no mesmo `useEffect`
 que reage a `[geometry, isReady, theme]`: trocar de opção no seletor redesenha o traço, o bloco de
 texto acima e as praças no mapa, todos da mesma resposta.
 

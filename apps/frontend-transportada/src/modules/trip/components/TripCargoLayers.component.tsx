@@ -13,7 +13,7 @@ import styles from '../styles/trip.module.css'
 type TripCargoLayersProps = Readonly<{ layout: TripCargoLayout | null }>
 
 /**
- * Spec 094: **onde cada caixa cabe**, camada por camada.
+ * Spec 096: **onde cada caixa cabe**, camada por camada.
  *
  * ⚠️ A promessa é **"cabe"**, nunca "deve ir assim" — e a tela diz isso numa linha fixa. Faltam
  * empilhabilidade informada em toda caixa, peso por caixa e peso por eixo; sem eles o desenho mostra

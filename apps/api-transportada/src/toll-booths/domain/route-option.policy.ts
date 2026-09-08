@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Qual das rotas é a mais rápida e qual é a mais barata (spec 094 D1).
+ * Qual das rotas é a mais rápida e qual é a mais barata (spec 096 D1).
  *
  * ⚠️ **"Mais barata" é o custo total — pedágio mais combustível —, nunca só o pedágio.** Medido em
  * 2026-09-07, Ribeirão Preto → Campinas: a alternativa tem uma praça a menos e economiza R$ 15,40,

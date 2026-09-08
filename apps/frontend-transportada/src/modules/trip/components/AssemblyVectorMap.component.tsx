@@ -63,7 +63,7 @@ type RouteCollection = {
 }
 const NEARBY_SOURCE = 'fora-da-selecao'
 /**
- * Spec 094 T4 — as praças do **trajeto**, alimentadas pela resposta da rota (spec 090 D4), nunca
+ * Spec 096 T4 — as praças do **trajeto**, alimentadas pela resposta da rota (spec 090 D4), nunca
  * pela camada `cabine-de-pedagio` do basemap: aquela é toda cabine da região, sem valor.
  */
 const TOLL_BOOTH_SOURCE = 'pracas-do-trajeto'
@@ -414,7 +414,7 @@ export function AssemblyVectorMap({
   }, [isReady, nearby, points, stopColor, theme])
 
   /**
-   * As praças do **trajeto** — a opção de rota escolhida, nunca a principal a força (spec 094 D3):
+   * As praças do **trajeto** — a opção de rota escolhida, nunca a principal a força (spec 096 D3):
    * `geometry` já é a opção ativa (`activeGeometry` em `TripAssemblyMap`), então trocar de opção no
    * seletor da T3 redesenha o traço **e** estas praças juntos.
    *

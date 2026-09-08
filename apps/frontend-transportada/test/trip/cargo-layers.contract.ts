@@ -11,7 +11,7 @@ function readApplicationFile(filePath: string): string {
   return readFileSync(new URL(filePath, APPLICATION_ROOT), 'utf8')
 }
 
-describe('planta das camadas (spec 094)', () => {
+describe('planta das camadas (spec 096)', () => {
   const source = readApplicationFile('src/modules/trip/components/TripCargoLayers.component.tsx')
 
   /**

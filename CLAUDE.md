@@ -826,7 +826,7 @@ ontem — a mesma divergência da D4 dentro de um painel só. O caminho é conge
 roteiro, como `trip_dispatch_snapshots` faz. Até lá, a conta da viagem mostra o lançamento manual, e
 **o manual sempre vence o calculado**: ele é pagamento registrado, o outro é projeção.
 
-**A rota mais barata pode ser a que tem mais pedágio** (spec 094). `alternatives=true` funciona no
+**A rota mais barata pode ser a que tem mais pedágio** (spec 096). `alternatives=true` funciona no
 OSRM em MLD, mas só **uma de quatro** rotas medidas ofereceu segunda opção. Onde ofereceu — Ribeirão
 Preto → Campinas — a alternativa economiza R$ 15,40 de pedágio e roda 18,1 km a mais, que num toco a
 3,5 km/l custam ~R$ 32: ela é **~R$ 16 mais cara**. Por isso `rankRouteOptions`

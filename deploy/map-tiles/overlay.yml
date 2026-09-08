@@ -27,7 +27,7 @@ layers:
         attributes:
           - key: class
             value: speed_camera
-          # Feature 094 T5 — a velocidade permitida ao lado do ícone.
+          # Feature 096 T5 — a velocidade permitida ao lado do ícone.
           #
           # Medido em 2026-09-07 no `ribeirao.osm.pbf`: 527 radares, **438 com `maxspeed`** (83%) —
           # 40 (110×), 60 (108×), 110 (61×), 50 (52×). Os 89 sem a tag entram **sem número**: um

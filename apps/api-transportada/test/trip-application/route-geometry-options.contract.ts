@@ -1,8 +1,8 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 094 T1: a resposta da rota passa a carregar as alternativas — cada uma com trechos, nós,
- * pedágio e o ranking de `rankRouteOptions` (spec 094 T2) — sem quebrar quem lê hoje `.legs`,
+ * Spec 096 T1: a resposta da rota passa a carregar as alternativas — cada uma com trechos, nós,
+ * pedágio e o ranking de `rankRouteOptions` (spec 096 T2) — sem quebrar quem lê hoje `.legs`,
  * `.points`, `.toll` e `.source` (RouteGeometryView já é consumida pelo mapa e pelo detalhe).
  */
 import { describe, expect, test } from 'bun:test'
@@ -47,14 +47,14 @@ function praca(osmNodeId: number, chargePerAxle: string, observedOn: string): To
   }
 }
 
-/** Um toco: 3,5 km/l, diesel a R$ 6,20 — os números que a spec 094 usou para medir. */
+/** Um toco: 3,5 km/l, diesel a R$ 6,20 — os números que a spec 096 usou para medir. */
 const TOCO = { kilometersPerLiter: '3.5000', pricePerLiter: '6.2000' } as const
 
 function tollBooths(booths: readonly TollBoothRouteRecord[]) {
   return { readByNodeIds: async () => booths }
 }
 
-describe('opções de rota (spec 094 T1)', () => {
+describe('opções de rota (spec 096 T1)', () => {
   test('rota única não publica alternativa, e o ranking diz que não há escolha', async () => {
     const geometry = {
       readRouteGeometry: async (): Promise<RouteGeometryRoad> => ({
@@ -102,7 +102,7 @@ describe('opções de rota (spec 094 T1)', () => {
   /**
    * ⚠️ O caso medido de Campinas: a alternativa tem uma praça a menos e economiza pedágio, mas
    * roda mais e o combustível a mais custa mais do que o pedágio economizado — ela não vira
-   * "mais barata" (spec 094 D1). Cada opção soma o **próprio** pedágio (D3), pelos **próprios**
+   * "mais barata" (spec 096 D1). Cada opção soma o **próprio** pedágio (D3), pelos **próprios**
    * nós.
    */
   test('cada opção soma o próprio pedágio, e a mais barata não é a de menor pedágio', async () => {
