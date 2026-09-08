@@ -27,15 +27,16 @@ export type VehicleSuggestionOrigin =
   | Readonly<{ kind: 'vehicle'; plate: string }>
 
 /**
- * ⚠️ Os furgões brasileiros saem de fábrica com **porta lateral direita** — Sprinter, Master, Ducato
- * e Fiorino. Cadastrá-los como "só traseira" faz a planta tratar a ordem de carregamento como
- * obrigação, e quem carrega descarrega meia carga para alcançar o que dava pela lateral.
+ * ⚠️ **O tipo não semeia porta lateral, e isto é medido, não estético.** A Fiorino e a Kangoo são o
+ * mesmo `utility` na ficha e só uma delas tem a porta — semear pelo tipo acerta metade das vezes e
+ * erra a outra metade em silêncio, com a planta tratando a lateral como caminho de carregamento que
+ * não existe. Quem carrega então descarrega meia carga para alcançar pela traseira o que a tela
+ * prometeu pela lateral.
  *
- * ⚠️ É **sugestão, não dedução**: a mesma Sprinter existe sem a porta, e o campo continua sendo da
- * ficha. A sugestão preenche campo em branco e o operador corrige — a mesma regra da medida do baú.
+ * A porta continua vindo da ficha — declarada pelo operador, ou herdada de um veículo idêntico já
+ * cadastrado (`fromMeasuredVehicle`), que é observação e não palpite. É a mesma regra que a API já
+ * afirmava do outro lado: baú fechado nasce `rear`, **nunca** `rear_and_side`.
  */
-const SIDE_DOOR_TYPES: readonly (VehicleType | '')[] = ['van', 'utility']
-
 export type VehicleSuggestion = Readonly<{
   capacityKilograms: string
   cargoHeightMeters: string
@@ -82,20 +83,10 @@ export function resolveVehicleSuggestion(
   if (reference !== null) return reference
 
   /**
-   * ⚠️ **A porta não depende do catálogo.** Tipo sem linha em `vehicle_volume_references` não tem
-   * medida sugerida — mas continua sendo um furgão, e a porta lateral é do formato dele. Antes, a
-   * ausência de referência matava as duas sugestões juntas.
+   * Sem referência de medida e sem veículo idêntico medido, não há o que sugerir. O acesso de
+   * carregamento **não** preenche esta lacuna sozinho: ele deixou de ser derivado do tipo.
    */
-  if (!SIDE_DOOR_TYPES.includes(input.vehicleType)) return null
-
-  return {
-    capacityKilograms: '',
-    cargoHeightMeters: '',
-    cargoLengthMeters: '',
-    cargoWidthMeters: '',
-    loadingAccess: 'rear_and_side',
-    origin: { kind: 'reference' },
-  }
+  return null
 }
 
 function fromMeasuredVehicle(
@@ -155,7 +146,7 @@ function fromReference(
 
   return {
     capacityKilograms: reference.maxPayloadKg === null ? '' : toFormMeasure(reference.maxPayloadKg),
-    loadingAccess: SIDE_DOOR_TYPES.includes(input.vehicleType) ? 'rear_and_side' : '',
+    loadingAccess: '',
     cargoHeightMeters: toFormMeasure(reference.cargoHeightM),
     cargoLengthMeters: toFormMeasure(reference.cargoLengthM),
     cargoWidthMeters: toFormMeasure(reference.cargoWidthM),

@@ -190,9 +190,10 @@ export const LOCAL_TRIP_SEED_VEHICLES: readonly FleetVehicleInput[] = [
     /** Sem tag por padrão: a base manual superestima, e é a direção segura (spec 095 D3). */
     hasAutomaticTollPayment: false,
     /**
-     * ⚠️ Furgão brasileiro sai de fábrica com porta lateral **direita**: a Sprinter, a Master,
-     * a Ducato e a Fiorino. Cadastrá-lo como `rear` faz a planta tratar a ordem de carregamento
-     * como obrigação — e quem carrega descarrega meia carga para alcançar o que dava pela lateral.
+     * A Sprinter sai com porta lateral direita, e a ficha o declara — **a ficha**, não o tipo: a
+     * Fiorino logo abaixo é `utility` como a Kangoo e não tem a porta. Cadastrar um furgão que a
+     * tem como `rear` faz a planta tratar a ordem de carregamento como obrigação, e quem carrega
+     * descarrega meia carga para alcançar o que dava pela lateral.
      */
     loadingAccess: 'rear_and_side',
     brand: 'MERCEDES-BENZ',
@@ -230,11 +231,12 @@ export const LOCAL_TRIP_SEED_VEHICLES: readonly FleetVehicleInput[] = [
     /** Sem tag por padrão: a base manual superestima, e é a direção segura (spec 095 D3). */
     hasAutomaticTollPayment: false,
     /**
-     * ⚠️ Furgão brasileiro sai de fábrica com porta lateral **direita**: a Sprinter, a Master,
-     * a Ducato e a Fiorino. Cadastrá-lo como `rear` faz a planta tratar a ordem de carregamento
-     * como obrigação — e quem carrega descarrega meia carga para alcançar o que dava pela lateral.
+     * ⚠️ **A Fiorino furgão não tem porta lateral**, e é justamente por isso que ela está aqui: o
+     * catálogo a chama de `utility`, igual à Kangoo, que tem. O tipo não decide a porta — quem
+     * decide é a ficha, e uma base de bancada em que todo furgão abre pela lateral esconderia o
+     * caso que a planta precisa desenhar direito.
      */
-    loadingAccess: 'rear_and_side',
+    loadingAccess: 'rear',
     brand: 'FIAT',
     capacityCubicMeters: '0.000',
     capacityKilograms: '650.000',

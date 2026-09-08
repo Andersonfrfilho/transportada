@@ -334,15 +334,13 @@ describe('Vehicle form patch composition', () => {
 })
 
 /**
- * ⚠️ Furgão brasileiro sai de fábrica com porta lateral direita — Sprinter, Master, Ducato, Fiorino.
- * Cadastrá-lo como "só traseira" faz a planta tratar a ordem de carregamento como **obrigação**, e
- * quem carrega descarrega meia carga para alcançar o que dava pela lateral.
- *
- * É **sugestão, não dedução**: a mesma Sprinter existe sem a porta, e o campo continua sendo da
- * ficha — a sugestão preenche campo em branco e o operador corrige.
+ * ⚠️ **O tipo não semeia porta lateral.** Fiorino e Kangoo são o mesmo `utility` na ficha e só uma
+ * delas tem a porta: semear pelo tipo acerta metade das vezes e erra a outra metade em silêncio,
+ * com a planta tratando a lateral como caminho de carregamento que não existe. A porta vem da ficha
+ * — declarada, ou herdada de um veículo idêntico já medido, que é observação e não palpite.
  */
-describe('porta lateral do furgão', () => {
-  test('sugere acesso lateral para van e utilitário', () => {
+describe('porta lateral não vem do tipo', () => {
+  test('nem van nem utilitário ganham acesso lateral por tipo', () => {
     for (const vehicleType of ['van', 'utility'] as const) {
       const suggestion = resolveVehicleSuggestion({
         brand: '',
@@ -352,11 +350,11 @@ describe('porta lateral do furgão', () => {
         vehicleType,
       })
 
-      expect(suggestion?.loadingAccess).toBe('rear_and_side')
+      expect(suggestion?.loadingAccess ?? '').toBe('')
     }
   })
 
-  /** Caminhão não ganha porta que ele não tem: baú de toco e truck abre atrás. */
+  /** Caminhão também não ganha porta que ele não tem: baú de toco e truck abre atrás. */
   test('não sugere acesso lateral para os pesados', () => {
     const suggestion = resolveVehicleSuggestion({
       brand: '',
@@ -367,5 +365,21 @@ describe('porta lateral do furgão', () => {
     })
 
     expect(suggestion?.loadingAccess ?? '').toBe('')
+  })
+
+  /**
+   * ⚠️ Tipo sem linha no catálogo deixou de devolver sugestão só para carimbar a porta: sem medida
+   * e sem veículo idêntico medido, não há o que sugerir.
+   */
+  test('tipo sem referência não devolve sugestão nenhuma', () => {
+    const suggestion = resolveVehicleSuggestion({
+      brand: '',
+      model: '',
+      references: [],
+      vehicles: [],
+      vehicleType: 'utility',
+    })
+
+    expect(suggestion).toBeNull()
   })
 })
