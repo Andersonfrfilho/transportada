@@ -64,7 +64,7 @@ describe('a perna do barracão na montagem (spec 097)', () => {
   it('mantém um trecho por par de paradas quando o barracão abre a rota', () => {
     const legs = buildAssemblyLegs({
       geometry: geometria({
-        depot: { absence: null, leadingLegs: 1, trailingLegs: 0 },
+        depot: { absence: null, leadingLegs: 1, origin: null, trailingLegs: 0 },
         legs: [TRECHO_BARRACAO, TRECHO_ENTREGAS],
       }),
       points: PARADAS,
@@ -77,7 +77,7 @@ describe('a perna do barracão na montagem (spec 097)', () => {
   it('também casa quando a rota volta ao barracão no fim', () => {
     const legs = buildAssemblyLegs({
       geometry: geometria({
-        depot: { absence: null, leadingLegs: 1, trailingLegs: 1 },
+        depot: { absence: null, leadingLegs: 1, origin: null, trailingLegs: 1 },
         legs: [TRECHO_BARRACAO, TRECHO_ENTREGAS, TRECHO_RETORNO],
       }),
       points: PARADAS,
@@ -100,7 +100,7 @@ describe('a perna do barracão na montagem (spec 097)', () => {
     expect(
       buildAssemblyLegs({
         geometry: geometria({
-          depot: { absence: null, leadingLegs: 1, trailingLegs: 0 },
+          depot: { absence: null, leadingLegs: 1, origin: null, trailingLegs: 0 },
           legs: [TRECHO_ENTREGAS],
         }),
         points: PARADAS,
@@ -111,7 +111,7 @@ describe('a perna do barracão na montagem (spec 097)', () => {
   it('separa os trechos do barracão dos trechos entre entregas', () => {
     const depotLegs = buildAssemblyDepotLegs({
       geometry: geometria({
-        depot: { absence: null, leadingLegs: 1, trailingLegs: 1 },
+        depot: { absence: null, leadingLegs: 1, origin: null, trailingLegs: 1 },
         legs: [TRECHO_BARRACAO, TRECHO_ENTREGAS, TRECHO_RETORNO],
       }),
       points: PARADAS,
@@ -128,7 +128,7 @@ describe('a perna do barracão na montagem (spec 097)', () => {
    */
   it('o total do roteiro inclui o rodar da perna do barracão', () => {
     const geometry = geometria({
-      depot: { absence: null, leadingLegs: 1, trailingLegs: 0 },
+      depot: { absence: null, leadingLegs: 1, origin: null, trailingLegs: 0 },
       legs: [TRECHO_BARRACAO, TRECHO_ENTREGAS],
     })
     const legs = buildAssemblyLegs({ geometry, points: PARADAS })
@@ -144,7 +144,7 @@ describe('a perna do barracão na montagem (spec 097)', () => {
     expect(
       buildAssemblyDepotLegs({
         geometry: geometria({
-          depot: { absence: 'not_configured', leadingLegs: 0, trailingLegs: 0 },
+          depot: { absence: 'not_configured', leadingLegs: 0, origin: null, trailingLegs: 0 },
           legs: [TRECHO_ENTREGAS],
         }),
         points: PARADAS,

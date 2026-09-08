@@ -129,3 +129,40 @@ describe('o fim da rota sai da configuração, nunca de constante (spec 097 D1)'
     ).toBeNull()
   })
 })
+
+describe('a coordenada do barracão chega a quem desenha (spec 097 D4)', () => {
+  /**
+   * ⚠️ O plano publicava só a **contagem** de pernas, e com ela não se desenha marcador nenhum. A
+   * tela precisa saber **onde** o barracão está para diferenciá-lo do pino de parada — e a mesma
+   * coordenada que entrou no traçado é a que tem de sair, nunca uma segunda leitura.
+   */
+  it('publica a origem usada, para o mapa marcar o ponto de partida', () => {
+    const plano = planRouteFromDepot({
+      depot: {
+        end: { latitude: -21.1767, longitude: -47.8208 },
+        origin: { latitude: -21.1767, longitude: -47.8208 },
+        status: 'resolved',
+      },
+      stops: [
+        { latitude: -20.7194, longitude: -47.8869 },
+        { latitude: -20.4386, longitude: -48.0186 },
+      ],
+    })
+
+    expect(plano.origin).toEqual({ latitude: -21.1767, longitude: -47.8208 })
+    expect(plano.leadingLegs).toBe(1)
+  })
+
+  /** Sem barracão resolvido não há origem a publicar — e `null` é o que a tela lê como ausência. */
+  it('não inventa origem quando o barracão não foi resolvido', () => {
+    const plano = planRouteFromDepot({
+      depot: { reason: 'not_configured', status: 'absent' },
+      stops: [
+        { latitude: -20.7194, longitude: -47.8869 },
+        { latitude: -20.4386, longitude: -48.0186 },
+      ],
+    })
+
+    expect(plano.origin).toBeNull()
+  })
+})

@@ -108,6 +108,11 @@ export type RouteDepotAbsence = (typeof ROUTE_DEPOT_ABSENCES)[number]
 export type RouteGeometryDepot = Readonly<{
   absence: null | RouteDepotAbsence
   leadingLegs: number
+  /**
+   * Spec 097 D4: onde o barracão está, para o mapa marcá-lo com **forma própria** — nunca o pino
+   * numerado das entregas. `null` quando a perna não entrou.
+   */
+  origin: null | Readonly<{ latitude: string; longitude: string }>
   trailingLegs: number
 }>
 

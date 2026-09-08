@@ -1284,6 +1284,23 @@
   pointer-events: none;
 }
 
+/**
+ * Spec 097 D4: o ponto de partida.
+ *
+ * ⚠️ **Losango, e não o círculo das paradas.** A diferença é de FORMA, não de cor: cor sozinha não
+ * sobrevive a daltonismo nem a mapa impresso, e aqui a distinção é categórica — origem contra
+ * destino —, não de grau. Ele também não leva número: o barracão não está na sequência de entregas.
+ */
+.tileDepot {
+  width: var(--space-5);
+  height: var(--space-5);
+  border: 2px solid transparent;
+  border-radius: 2px;
+  transform: rotate(45deg);
+  /* Mesma razão do pino: marca, não controle — arrastar o mapa a partir dele não pode agarrar. */
+  pointer-events: none;
+}
+
 /* O traço da ordem cobre o quadro inteiro, acima das telhas e abaixo dos pinos. */
 .tileTrace {
   position: absolute;

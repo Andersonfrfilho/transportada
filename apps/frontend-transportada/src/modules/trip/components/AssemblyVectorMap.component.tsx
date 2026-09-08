@@ -353,6 +353,12 @@ export function AssemblyVectorMap({
     map.once('style.load', aoTerminar)
   }, [chosenTheme, theme])
 
+  /**
+   * Spec 097 D4: onde o barracão está. Sai da mesma resposta que desenhou o traçado — pedir a
+   * coordenada por outro caminho abriria a porta para marcar um ponto e rotear por outro.
+   */
+  const depotOrigin = geometry?.depot?.origin ?? null
+
   /** A parada é marcador de DOM: são poucas, e assim herdam o mesmo CSS da bolinha da lista. */
   useEffect(() => {
     const map = mapRef.current
@@ -374,6 +380,17 @@ export function AssemblyVectorMap({
           offset: (markerOffsets.get(point.stopKey) ?? [0, 0]) as [number, number],
         })
           .setLngLat([point.longitude, point.latitude])
+          .addTo(map),
+      )
+    }
+
+    /**
+     * Spec 097 D4: o barracão, marcado **uma vez** — ele abre e fecha o traçado, e é o mesmo lugar.
+     */
+    if (depotOrigin !== null) {
+      markersRef.current.push(
+        new Marker({ element: depotElement({ outline: resolveBasemapOutline(readToken, theme) }) })
+          .setLngLat([Number(depotOrigin.longitude), Number(depotOrigin.latitude)])
           .addTo(map),
       )
     }
@@ -578,6 +595,23 @@ export function AssemblyVectorMap({
  * O que **precisa** vir daqui é a cor: o tom da parada casa o pino com a bolinha da lista, e o anel
  * casa o pino com o papel do tema do mapa. Nenhum dos dois é conhecido pela folha de estilo.
  */
+/**
+ * O ponto de partida (spec 097 D4). Sem número e com forma própria: ele não é parada, não está na
+ * sequência de entregas e não recebe carga.
+ *
+ * ⚠️ Com `end_policy = 'depot'` o barracão é o primeiro **e** o último ponto do traçado, e é o mesmo
+ * lugar — por isso quem chama desenha **um** marcador. Dois idênticos sobrepostos sugeririam dois
+ * pontos distintos, e a volta já está dita pela linha.
+ */
+function depotElement(input: { readonly outline: string }): HTMLElement {
+  const element = document.createElement('span')
+  element.className = styles.tileDepot ?? ''
+  element.style.background = 'var(--color-copper)'
+  element.style.borderColor = input.outline
+  element.title = 'Ponto de partida'
+  return element
+}
+
 function stopElement(input: {
   readonly approximate: boolean
   readonly color: string

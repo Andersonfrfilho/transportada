@@ -100,7 +100,13 @@ describe('a perna do barracão na geometria da montagem (spec 097)', () => {
 
     expect(calls[0]).toEqual([BARRACAO, ORLANDIA, IPUA, BARRACAO])
     expect(view.source).toBe('road')
-    expect(view.depot).toEqual({ absence: null, leadingLegs: 1, trailingLegs: 1 })
+    expect(view.depot).toEqual({
+      absence: null,
+      leadingLegs: 1,
+      /** ⚠️ A origem publicada é a **mesma** que entrou no traçado — é com ela que o mapa marca. */
+      origin: { latitude: '-21.17670', longitude: '-47.82080' },
+      trailingLegs: 1,
+    })
   })
 
   /**
@@ -166,7 +172,7 @@ describe('a perna do barracão na geometria da montagem (spec 097)', () => {
 
       expect(calls[0]).toEqual(PARADAS)
       expect(view.source).toBe('road')
-      expect(view.depot).toEqual({ absence: reason, leadingLegs: 0, trailingLegs: 0 })
+      expect(view.depot).toEqual({ absence: reason, leadingLegs: 0, origin: null, trailingLegs: 0 })
     }
   })
 
@@ -182,7 +188,12 @@ describe('a perna do barracão na geometria da montagem (spec 097)', () => {
     })
 
     expect(view.source).toBe('unavailable')
-    expect(view.depot).toEqual({ absence: 'not_configured', leadingLegs: 0, trailingLegs: 0 })
+    expect(view.depot).toEqual({
+      absence: 'not_configured',
+      leadingLegs: 0,
+      origin: null,
+      trailingLegs: 0,
+    })
   })
 
   /** Uma entrega só deixa de ser "menos de duas paradas" quando o barracão entra na conta. */

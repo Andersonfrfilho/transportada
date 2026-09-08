@@ -173,3 +173,35 @@ maior parte da tela — de um trabalho anterior nesta mesma spec. Esta sessão c
 contra os testes, corrigiu o que ainda faltava (o texto-fonte `geometry.depot` no componente, a
 formatação) e mediu o resultado contra o OSRM real e o banco local, em vez de reescrever o que já
 estava correto.
+
+## D4 — O marcador do barracão (2026-09-08)
+
+Requisito acrescentado pelo usuário depois de ver a tela: _"o ícone de partida deve ser diferente"_.
+
+Contrato antes, vermelho conferido (2 fail), verde depois:
+
+```
+bun test test/trip.contract.test.ts → 514 tests, 0 fail
+typecheck + lint limpos · API 4670 pass · frontend 2985 pass
+```
+
+### O que a implementação decidiu
+
+- **Losango, não círculo.** A diferença é de **forma**: cor sozinha não sobrevive a daltonismo nem a
+  mapa impresso, e a distinção aqui é categórica — origem contra destino —, não de grau.
+- **Sem número.** O barracão não está na sequência de entregas, e o contrato reprova `sequence`
+  dentro de `depotElement`.
+- ⚠️ **Marcado uma vez só.** Com `end_policy = 'depot'` ele é o primeiro **e** o último ponto do
+  traçado, e é o mesmo lugar; dois marcadores sobrepostos sugeririam dois pontos distintos, e a volta
+  já está dita pela linha.
+- **A coordenada sai da mesma resposta que desenhou o traçado.** O plano publicava só a contagem de
+  pernas, e com ela não se marca nada; agora `RouteDepotPlan.origin` viaja até a tela. Buscá-la por
+  outro caminho abriria a porta para marcar um ponto e rotear por outro — a divergência que a 090 D4
+  fechou do lado do pedágio.
+
+### Dois erros meus, no contrato e não no código
+
+⚠️ A primeira versão do contrato apontava para `components/assemblyVectorMap.module.css`, **que não
+existe** — o estilo do módulo mora em `styles/trip.module.css`. E o recorte que verifica a ausência
+de número ia do início de `depotElement` até o fim do arquivo, engolindo `stopElement`, que tem
+número por dever. Os dois reprovavam código correto; corrigidos no teste.

@@ -136,11 +136,17 @@ const UNAVAILABLE_ROUTE_GEOMETRY: RouteGeometry = {
  * não uma ausência anunciada: inventar aviso a partir de resposta quebrada mandaria o operador
  * cadastrar um barracão que já existe.
  */
+/** ⚠️ A coordenada vem como texto, na mesma forma dos pontos do traçado — nunca número. */
+function isCoordinate(value: unknown): value is Readonly<{ latitude: string; longitude: string }> {
+  return isRecord(value) && isString(value.latitude) && isString(value.longitude)
+}
+
 function isGeometryDepot(value: unknown): value is RouteGeometryDepot {
   return (
     isRecord(value) &&
     (value.absence === null || isOneOf(value.absence, ROUTE_DEPOT_ABSENCES)) &&
     typeof value.leadingLegs === 'number' &&
+    (value.origin === null || value.origin === undefined || isCoordinate(value.origin)) &&
     typeof value.trailingLegs === 'number'
   )
 }

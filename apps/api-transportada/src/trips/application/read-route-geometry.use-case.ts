@@ -89,6 +89,12 @@ export type RouteGeometryDepot = Readonly<{
    * lista numerada é só das entregas (D3), e o total é da rota inteira.
    */
   leadingLegs: number
+  /**
+   * Onde o barracão está, para o mapa marcá-lo com forma própria (D4) — `null` quando a perna não
+   * entrou. ⚠️ Sai como texto, na mesma escala dos pontos do traçado: o resto da resposta usa texto
+   * decimal, e um número solto aqui obrigaria a tela a tratar duas formas para a mesma grandeza.
+   */
+  origin: null | Readonly<{ latitude: string; longitude: string }>
   trailingLegs: number
 }>
 
@@ -202,7 +208,18 @@ export async function readRouteGeometry(input: ReadRouteGeometryInput): Promise<
   const depot: null | RouteGeometryDepot =
     input.depot === undefined || input.depot === null
       ? null
-      : { absence: plan.absence, leadingLegs: plan.leadingLegs, trailingLegs: plan.trailingLegs }
+      : {
+          absence: plan.absence,
+          leadingLegs: plan.leadingLegs,
+          origin:
+            plan.origin === null
+              ? null
+              : {
+                  latitude: plan.origin.latitude.toFixed(COORDINATE_SCALE),
+                  longitude: plan.origin.longitude.toFixed(COORDINATE_SCALE),
+                },
+          trailingLegs: plan.trailingLegs,
+        }
 
   if (plan.stops.length < 2) return { ...UNAVAILABLE_VIEW, depot }
 

@@ -50,12 +50,18 @@ export type RouteDepotPlan = Readonly<{
   absence: null | RouteDepotAbsence
   /** Quantos trechos do começo de `legs` são a saída do barracão: 0 ou 1. */
   leadingLegs: number
+  /**
+   * Onde o barracão está — a **mesma** coordenada que entrou no traçado, publicada para o mapa
+   * marcar o ponto de partida com forma própria (D4). `null` quando a perna não entrou: sem
+   * barracão resolvido não há origem, e inventar uma é o que a D2 proíbe.
+   */
+  origin: null | RouteGeometryPoint
   stops: readonly RouteGeometryPoint[]
   /** Quantos trechos do fim de `legs` são o retorno ao ponto de término: 0 ou 1. */
   trailingLegs: number
 }>
 
-const WITHOUT_DEPOT = { leadingLegs: 0, trailingLegs: 0 } as const
+const WITHOUT_DEPOT = { leadingLegs: 0, origin: null, trailingLegs: 0 } as const
 
 /**
  * A lista de pontos que vai ao roteirizador, com o barracão na frente e o retorno no fim quando a
@@ -83,6 +89,7 @@ export function planRouteFromDepot(input: {
   return {
     absence: null,
     leadingLegs: 1,
+    origin: depot.origin,
     stops: [depot.origin, ...stops, ...(depot.end === null ? [] : [depot.end])],
     trailingLegs: depot.end === null ? 0 : 1,
   }
