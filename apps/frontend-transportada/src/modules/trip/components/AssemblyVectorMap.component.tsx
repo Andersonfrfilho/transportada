@@ -406,7 +406,13 @@ export function AssemblyVectorMap({
      */
     if (depotOrigin !== null) {
       markersRef.current.push(
-        new Marker({ element: depotElement({ outline: resolveBasemapOutline(readToken, theme) }) })
+        new Marker({
+          element: depotElement({
+            /** O trecho que parte do barracão leva à parada 1: a cor dele é a cor dela. */
+            color: stopColor(1),
+            outline: resolveBasemapOutline(readToken, theme),
+          }),
+        })
           .setLngLat([Number(depotOrigin.longitude), Number(depotOrigin.latitude)])
           .addTo(map),
       )
@@ -626,10 +632,16 @@ export function AssemblyVectorMap({
  * lugar — por isso quem chama desenha **um** marcador. Dois idênticos sobrepostos sugeririam dois
  * pontos distintos, e a volta já está dita pela linha.
  */
-function depotElement(input: { readonly outline: string }): HTMLElement {
+function depotElement(input: { readonly color: string; readonly outline: string }): HTMLElement {
   const element = document.createElement('span')
   element.className = `${styles.tilePin ?? ''} ${styles.tileDepot ?? ''}`
-  element.style.background = 'var(--color-copper)'
+  /**
+   * ⚠️ **A cor é a do traço que sai daqui**, não uma cor própria: o marcador é o começo da linha
+   * desenhada, e o cobre de antes o fazia parecer um ponto alheio ao roteiro. Quem separa origem de
+   * entrega continua sendo a **forma** — glifo, sem número —, que é o que o contrato do marcador
+   * cobra e o que sobrevive ao mapa impresso e ao daltonismo.
+   */
+  element.style.background = input.color
   element.style.borderColor = input.outline
   element.title = 'Ponto de partida'
 
