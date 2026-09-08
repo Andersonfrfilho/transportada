@@ -733,6 +733,8 @@ async function readTripDetail(
   }
 
   const stops = stopRecords.map((row) => ({
+    /** Quem recebe: o nome que a nota dá a ele, e é ele que está na etiqueta que o separador confere. */
+    clientName: addressOf(row.stop.id)?.recipientName ?? '',
     documents: documentsByStopId.get(row.stop.id) ?? [],
     label: labelOf(row.stop.id, row.stop.label),
     sequence: Number(row.stop.sequence),
@@ -764,8 +766,15 @@ async function readTripDetail(
             ? []
             : [...(cargo.boxesByDocument.get(document.nfeDocumentId) ?? [])],
         ),
+        clientName: stop.clientName,
         documentsWithoutVolume: volumes.length - known.length,
         label: stop.label,
+        /** É por este número que a nota é procurada — "Parada 3" não identifica nada. */
+        noteNumbers: stop.documents.flatMap((document) =>
+          document.nfeNumber === null || document.nfeNumber === undefined
+            ? []
+            : [document.nfeNumber],
+        ),
         sequence: stop.sequence,
         volumeM3: known.length === 0 ? null : sumVolumes(known),
       }

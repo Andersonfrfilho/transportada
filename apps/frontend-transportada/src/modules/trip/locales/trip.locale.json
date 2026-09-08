@@ -683,10 +683,7 @@
   "cargoLayers": {
     "title": "Onde cada caixa cabe",
     "promise": "Este arranjo cabe no baú e respeita a ordem de entrega. Ele não é plano de estiva: a tela ainda não conhece a empilhabilidade de toda caixa, o peso de cada uma nem o limite por eixo.",
-    "previous": "Camada abaixo",
-    "next": "Camada acima",
-    "position": "Camada {{index}} de {{total}}",
-    "planLabel": "Planta da camada {{index}}, vista de cima",
+    "planLabel": "Carga da camada {{index}}, vista em perspectiva",
     "sideLayer": "Camada {{index}}",
     "estimated": "Arranjo presumido: parte das caixas foi derivada do volume, ou tem restrição de empilhamento que ninguém informou.",
     "unplaced": {
@@ -699,6 +696,52 @@
       "tooMany": "{{count}} caixa de {{label}} ficou fora do desenho por limite de detalhe.",
       "tooMany_other": "{{count}} caixas de {{label}} ficaram fora do desenho por limite de detalhe."
     },
-    "sideDoor": "Porta lateral (direita)"
+    "doorsRear": "Este baú abre só na traseira: a última parada precisa viajar no fundo.",
+    "doorsRearAndSide": "Este baú abre na traseira e na lateral direita: a ordem ajuda, mas não obriga.",
+    "dragHint": "arraste para girar",
+    "rotate": "Girar",
+    "rotateTo": {
+      "down": "Inclinar para baixo",
+      "left": "Girar para a esquerda",
+      "right": "Girar para a direita",
+      "up": "Inclinar para cima"
+    },
+    "pan": "Mover",
+    "panTo": {
+      "down": "Mover para baixo",
+      "left": "Mover para a esquerda",
+      "right": "Mover para a direita",
+      "up": "Mover para cima"
+    },
+    "zoomIn": "Aproximar",
+    "zoomOut": "Afastar",
+    "view": {
+      "rear": "Traseira",
+      "reset": "Restaurar",
+      "side": "Lateral",
+      "top": "De cima"
+    },
+    "stop": "Parada {{sequence}}",
+    "legend": {
+      "measured": "Cor cheia: caixa medida com fita.",
+      "presumed": "Cor lavada: caixa presumida, derivada do volume.",
+      "split": "Contorno vermelho: carga dividida, no topo do lado de dentro."
+    },
+    "mostlyPresumed": "Quase nenhuma caixa desta viagem tem medida: o desenho mostra volume, não a arrumação de caixas que existem.",
+    "print": {
+      "action": "Imprimir mapa",
+      "boxes": "Caixas",
+      "caption": "Ordem de carregamento — da testeira para a porta",
+      "order": "#",
+      "presumed": "Presumidas",
+      "span": "Faixa do baú",
+      "spanValue": "{{from}} m a {{to}} m",
+      "split": "Divididas",
+      "stop": "Parada"
+    },
+    "missingBed": "Sem o desenho da carga: este veículo não tem comprimento, largura e altura do baú na ficha.",
+    "missingBedLink": "Abrir a ficha do veículo",
+    "layer": "Camada {{index}}",
+    "layerSummary": " · {{boxes}} caixas · {{stops}} parada(s) · {{height}} m"
   }
 }

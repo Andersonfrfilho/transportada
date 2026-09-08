@@ -1536,3 +1536,32 @@ footer {
     box-shadow: 0 0 0 var(--space-2) color-mix(in srgb, var(--color-ready) 0%, transparent);
   }
 }
+
+/**
+ * **O que se imprime é a região marcada, não a tela inteira.**
+ *
+ * ⚠️ `window.print()` manda a **página** para a impressora, e a tela da viagem tem cabeçalho, menu,
+ * abas, mapa de rota e a lista de notas. O botão "Imprimir mapa" produzia seis páginas em que o mapa
+ * era um pedaço da terceira. Com a região marcada, sai só ela.
+ *
+ * ⚠️ É `visibility`, e não `display`: `display: none` num ancestral zera a caixa do `<svg>` de dentro,
+ * e o desenho sairia em branco. Escondido por visibilidade, ele mantém o tamanho que tinha.
+ */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  [data-print-region],
+  [data-print-region] * {
+    visibility: visible;
+  }
+
+  [data-print-region] {
+    inset-block-start: 0;
+    inset-inline-start: 0;
+    padding: 0;
+    position: absolute;
+    width: 100%;
+  }
+}

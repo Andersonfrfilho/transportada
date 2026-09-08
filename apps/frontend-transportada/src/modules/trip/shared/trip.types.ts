@@ -226,6 +226,14 @@ export type TripPlacedBox = Readonly<{
   widthM: number
   xM: number
   yM: number
+  /**
+   * Altura do piso até a base da caixa, servida pela política.
+   *
+   * ⚠️ A tela reconstruía isto somando a altura das camadas, e a altura de uma camada é o máximo do
+   * baú inteiro naquele índice: uma fatia de caixas baixas ao lado de outra de caixas altas desenhava
+   * a segunda camada com meio metro de ar embaixo, num desenho que promete escala.
+   */
+  zM: number
 }>
 
 export type TripCargoPlacement = Readonly<{
@@ -245,8 +253,14 @@ export type TripCargoLayout = Readonly<{
    * quebra da carga em blocos da mesma cor é consequência da quantização (spec 085 G001).
    */
   rows: readonly Readonly<{
+    /**
+     * Quem recebe e quais notas. **"Parada 3" não identifica nada**: o separador procura o número
+     * que ele bipou e o nome do cliente na etiqueta, e a ordem é só a posição na fila.
+     */
+    clientName: string
     label: string
     loadOrder: number
+    noteNumbers: readonly string[]
     sequence: number
     /** Se dá para chegar nesta carga sem descarregar o que está na frente (spec 085 G003). */
     sideReachable: boolean
@@ -265,6 +279,8 @@ export type TripCargoLayout = Readonly<{
    * Spec 088: o comprimento e a largura internos do baú, da ficha do veículo. `null` sem as três
    * medidas — e aí a tela mantém as fileiras da 085 e não promete metro nenhum.
    */
+  /** A altura interna do baú, da ficha — é ela que diz se cabe mais uma camada. */
+  bedHeightM: null | string
   bedLengthM: null | string
   /** Por onde a carga entra — a planta marca a porta lateral na borda do lado direito. */
   loadingAccess: 'open' | 'rear' | 'rear_and_side'

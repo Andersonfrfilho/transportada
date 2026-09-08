@@ -1023,103 +1023,11 @@
 }
 
 /* Spec 076: o bau em escala, fatiado por parada. A largura de cada fatia e a proporcao do volume. */
-/**
- * O baú visto de lado, com a cabine à esquerda: a fatia colada nela é a **última** parada da rota,
- * que viaja no fundo. Desenho com caixas de CSS, não SVG — `<svg>` cru é proibido fora do design
- * system, e a forma aqui é retângulo, não ilustração.
- */
-.truck {
-  display: flex;
-  align-items: flex-end;
-  gap: var(--space-1);
-  margin-block: var(--space-2);
-}
-
-.truckCab {
-  position: relative;
-  flex: 0 0 var(--space-8);
-  height: var(--space-6);
-  border: 1px solid var(--color-slate);
-  border-radius: var(--space-1) var(--space-2) 0 0;
-  background: color-mix(in srgb, var(--color-asphalt) 70%, transparent);
-}
-
-.truckWheel {
-  position: absolute;
-  bottom: calc(var(--space-1) * -1);
-  left: var(--space-2);
-  width: var(--space-3);
-  height: var(--space-3);
-  border: 1px solid var(--color-slate);
-  border-radius: 50%;
-  background: var(--color-asphalt);
-}
 
 /**
  * A fileira é a unidade do desenho (spec 085 D2): quantizar tira a falsa precisão de "37,2% do
  * baú" e faz a quebra de uma parada em blocos sair sozinha, sem regra escolhendo quando partir.
  */
-/** A silhueta preenche a cabine e herda a cor do painel, como todo ícone do design system. */
-.truckSilhouette {
-  width: 100%;
-  height: 100%;
-  color: var(--color-slate);
-}
-
-/**
- * A fileira alcançável pela lateral ganha um traço na borda de baixo — **não** cor nova: a cor já
- * é da parada, e uma segunda paleta sobre a mesma fileira diria duas coisas ao mesmo tempo.
- */
-.cargoRowSide {
-  border-bottom: 3px solid var(--color-copper);
-}
-
-.cargoRow,
-.cargoRowSide,
-.cargoRowFree {
-  flex: 1 1 0;
-  position: relative;
-  min-width: 0;
-  border-right: 1px solid var(--color-graphite);
-}
-
-.cargoRowFree {
-  background: repeating-linear-gradient(
-    45deg,
-    transparent,
-    transparent var(--space-1),
-    color-mix(in srgb, var(--color-slate) 22%, transparent) var(--space-1),
-    color-mix(in srgb, var(--color-slate) 22%, transparent) var(--space-2)
-  );
-}
-
-.cargoRowOrder {
-  position: absolute;
-  inset-block-start: 50%;
-  inset-inline-start: var(--space-1);
-  color: var(--color-asphalt);
-  font-size: 0.7rem;
-  font-weight: 700;
-  transform: translateY(-50%);
-}
-
-.truckEnds {
-  display: flex;
-  justify-content: space-between;
-  color: var(--color-slate);
-  font-size: 0.7rem;
-}
-
-.cargoBox {
-  position: relative;
-  flex: 1;
-  display: flex;
-  overflow: hidden;
-  border: 1px solid var(--color-slate);
-  border-radius: var(--radius-sm, 0.25rem);
-  height: var(--space-8);
-  margin-block: var(--space-2);
-}
 
 .cargoSlice {
   transition: flex-grow 240ms ease;
@@ -1140,13 +1048,6 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-}
-
-.cargoSwatch {
-  width: var(--space-3);
-  height: var(--space-3);
-  border-radius: 2px;
-  flex-shrink: 0;
 }
 
 .cargoOverflow {
@@ -1792,35 +1693,6 @@
   justify-content: space-between;
 }
 
-/**
- * O corte lateral: a planta diz onde a caixa fica, e ele diz quão alto a pilha sobe. É a segunda
- * metade do par que substitui o 3D — e as duas se conferem com fita, o que um isométrico não
- * permite.
- */
-.cargoSideView {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  height: var(--space-16);
-  border: 1px solid color-mix(in srgb, var(--color-slate) 30%, transparent);
-}
-
-.cargoSideLayer,
-.cargoSideLayerActive {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: var(--space-4);
-  border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 22%, transparent);
-  color: var(--color-slate);
-  font-size: 0.75rem;
-}
-
-.cargoSideLayerActive {
-  background: color-mix(in srgb, var(--color-copper) 26%, transparent);
-  color: var(--color-fog);
-}
-
 .cargoUnplaced {
   display: grid;
   gap: var(--space-1);
@@ -1829,4 +1701,245 @@
   color: var(--color-slate);
   font-size: 0.8rem;
   list-style: none;
+}
+
+/** O palco do desenho: a mãozinha se posiciona sobre ele, e o arrasto não rola a página. */
+.cargoStage {
+  position: relative;
+}
+
+.cargoCanvas {
+  cursor: grab;
+  touch-action: none;
+}
+
+.cargoCanvas:active {
+  cursor: grabbing;
+}
+
+/**
+ * ⚠️ A mãozinha é a única pista de que o desenho gira, e por isso ela se move — quem não tenta, não
+ * descobre. Sob `prefers-reduced-motion` ela fica parada e continua dizendo a mesma coisa.
+ */
+.cargoDragHint {
+  align-items: center;
+  background: color-mix(in srgb, var(--color-asphalt) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  border-radius: 999px;
+  color: var(--color-copper);
+  display: flex;
+  font-size: var(--font-size-sm);
+  gap: var(--space-2);
+  left: 50%;
+  padding: var(--space-1) var(--space-3);
+  pointer-events: none;
+  position: absolute;
+  top: var(--space-2);
+  transform: translateX(-50%);
+}
+
+.cargoDragHint svg {
+  animation: cargo-drag-nudge 1.8s ease-in-out infinite;
+}
+
+@keyframes cargo-drag-nudge {
+  0%,
+  100% {
+    transform: translateX(-3px);
+  }
+
+  50% {
+    transform: translateX(3px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cargoDragHint svg {
+    animation: none;
+  }
+}
+
+/**
+ * A botoeira existe porque arrastar é descoberta, e no toque o arrasto ainda disputa com a rolagem
+ * da página. O alvo de toque sai do token de controle, como todo botão do produto.
+ */
+.cargoPads {
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-top: var(--space-3);
+}
+
+.cargoPad {
+  display: grid;
+  gap: 2px;
+  grid-template-areas:
+    '. up .'
+    'left . right'
+    '. down .';
+  grid-template-columns: repeat(3, var(--control-height-compact));
+}
+
+.cargoPad button {
+  min-height: var(--control-height-compact);
+}
+
+.cargoPadUp {
+  grid-area: up;
+}
+
+.cargoPadDown {
+  grid-area: down;
+}
+
+.cargoPadLeft {
+  grid-area: left;
+}
+
+.cargoPadRight {
+  grid-area: right;
+}
+
+.cargoViewActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/** As paradas como fichas: clicar acende só ela, clicar de novo devolve o baú inteiro. */
+.cargoStops {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.cargoStopChip {
+  align-items: center;
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 35%, transparent);
+  color: var(--color-fog);
+  cursor: pointer;
+  display: flex;
+  font-size: var(--font-size-sm);
+  gap: var(--space-2);
+  min-height: var(--control-height-compact);
+  padding: var(--space-1) var(--space-3);
+}
+
+.cargoStopChip[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--color-copper) 18%, transparent);
+  border-color: var(--color-copper);
+}
+
+.cargoStopDot {
+  block-size: var(--space-3);
+  display: inline-block;
+  inline-size: var(--space-3);
+}
+
+/** A legenda do desenho: três linhas curtas, porque cada marca só significa alguma coisa nomeada. */
+.cargoLegend {
+  color: var(--color-slate);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--font-size-sm);
+  gap: var(--space-3);
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+}
+
+/**
+ * A folha do agregado. Na tela ela é a tabela do plano; no papel ela é **o** plano — quem carrega a
+ * van está longe do navegador, e o galpão imprime em laser mono.
+ */
+.cargoPrintSheet {
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+  margin-top: var(--space-3);
+  width: 100%;
+}
+
+.cargoPrintSheet caption {
+  color: var(--color-slate);
+  padding-bottom: var(--space-2);
+  text-align: start;
+}
+
+.cargoPrintSheet th,
+.cargoPrintSheet td {
+  border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 30%, transparent);
+  padding: var(--space-1) var(--space-2);
+  text-align: start;
+}
+
+/**
+ * ⚠️ No papel, **nada depende de cor** e nenhum controle é impresso: botão impresso é tinta gasta, e
+ * o desenho colorido em laser mono vira uma mancha cinza sem paradas distinguíveis. O que carrega a
+ * informação é a tabela — ordem, faixa em metros e contagens.
+ */
+@media print {
+  /**
+   * ⚠️ **O desenho vai para o papel**, e antes ele não ia: eu o escondia porque em laser mono as
+   * cores viram cinza. Mas é ele o "mapa" que o botão promete — quem carrega quer ver a arrumação,
+   * e o ângulo impresso é o que o operador deixou na tela. As cores são forçadas a sair
+   * (`print-color-adjust`) para o cinza de cada parada ao menos se distinguir do vizinho, e quem
+   * carrega a informação sem depender de cor continua sendo a tabela abaixo.
+   */
+  .cargoPads,
+  .cargoStops,
+  .cargoLayerList,
+  .cargoDragHint {
+    display: none;
+  }
+
+  .cargoStage {
+    break-inside: avoid;
+  }
+
+  .cargoCanvas {
+    max-height: 12cm;
+    print-color-adjust: exact;
+  }
+
+  .cargoPrintSheet {
+    break-inside: avoid;
+    color: #000;
+  }
+
+  .cargoPrintSheet th,
+  .cargoPrintSheet td {
+    border-bottom: 1px solid #000;
+  }
+}
+
+/**
+ * Todas as camadas de uma vez, com o que cada uma tem dentro. O par anterior/próxima obrigava a
+ * percorrer o baú para saber o que havia na de cima — numa pilha de duas ou seis, a lista responde
+ * de relance.
+ */
+.cargoLayerList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+}
+
+.cargoLayerChip {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 35%, transparent);
+  color: var(--color-fog);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  min-height: var(--control-height-compact);
+  padding: var(--space-1) var(--space-3);
+}
+
+.cargoLayerChip[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--color-copper) 18%, transparent);
+  border-color: var(--color-copper);
 }

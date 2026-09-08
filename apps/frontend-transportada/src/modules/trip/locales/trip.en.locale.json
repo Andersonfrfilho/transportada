@@ -558,10 +558,7 @@
   "cargoLayers": {
     "title": "Where each box fits",
     "promise": "This arrangement fits the bed and respects the delivery order. It is not a stowage plan: the screen does not yet know every box stackability, the weight of each one, nor the per-axle limit.",
-    "previous": "Layer below",
-    "next": "Layer above",
-    "position": "Layer {{index}} of {{total}}",
-    "planLabel": "Layer {{index}} plan, seen from above",
+    "planLabel": "Layer {{index}} cargo, in perspective",
     "sideLayer": "Layer {{index}}",
     "estimated": "Presumed arrangement: some boxes were derived from volume, or carry a stacking restriction nobody informed.",
     "unplaced": {
@@ -574,6 +571,52 @@
       "tooMany": "{{count}} {{label}} box left the drawing due to a detail cap.",
       "tooMany_other": "{{count}} {{label}} boxes left the drawing due to a detail cap."
     },
-    "sideDoor": "Side door (right)"
+    "doorsRear": "This bed only opens at the rear: the last stop must travel at the far end.",
+    "doorsRearAndSide": "This bed opens at the rear and on the right side: the order helps, it does not bind.",
+    "dragHint": "drag to turn",
+    "rotate": "Turn",
+    "rotateTo": {
+      "down": "Tilt down",
+      "left": "Turn left",
+      "right": "Turn right",
+      "up": "Tilt up"
+    },
+    "pan": "Move",
+    "panTo": {
+      "down": "Move down",
+      "left": "Move left",
+      "right": "Move right",
+      "up": "Move up"
+    },
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "view": {
+      "rear": "Rear",
+      "reset": "Restore",
+      "side": "Side",
+      "top": "Top"
+    },
+    "stop": "Stop {{sequence}}",
+    "legend": {
+      "measured": "Solid colour: box measured with a tape.",
+      "presumed": "Washed colour: presumed box, derived from volume.",
+      "split": "Red outline: split cargo, on top of the inner region."
+    },
+    "mostlyPresumed": "Almost no box on this trip has been measured: the drawing shows volume, not the arrangement of boxes that exist.",
+    "print": {
+      "action": "Print map",
+      "boxes": "Boxes",
+      "caption": "Loading order — from the front wall to the door",
+      "order": "#",
+      "presumed": "Presumed",
+      "span": "Bed span",
+      "spanValue": "{{from}} m to {{to}} m",
+      "split": "Split",
+      "stop": "Stop"
+    },
+    "missingBed": "No cargo drawing: this vehicle has no bed length, width and height on its record.",
+    "missingBedLink": "Open the vehicle record",
+    "layer": "Layer {{index}}",
+    "layerSummary": " · {{boxes}} boxes · {{stops}} stop(s) · {{height}} m"
   }
 }

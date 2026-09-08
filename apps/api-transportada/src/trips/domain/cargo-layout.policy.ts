@@ -32,6 +32,10 @@ const LENGTH_FACTOR = 10n ** LENGTH_SCALE
 const VOLUME_TO_LENGTH_FACTOR = 10n ** (VOLUME_SCALE - LENGTH_SCALE)
 
 export type CargoLayoutStop = {
+  /** Quem recebe a carga desta parada — o nome que está na etiqueta. */
+  readonly clientName?: string
+  /** As notas desta parada, na ordem em que entraram. */
+  readonly noteNumbers?: readonly string[]
   /**
    * Spec 088 G003: as caixas desta parada, para a faixa contar camadas. Viajam **com a parada** e
    * não num mapa ao lado, porque é o agrupamento por endereço que as reuniu — um segundo mapa
@@ -97,6 +101,16 @@ export type CargoLayoutSlice = {
  * escolhendo quando partir.
  */
 export type CargoLayoutRow = {
+  /**
+   * Quem recebe, e quais notas. **"Parada 3" não identifica nada**: o separador procura o número da
+   * nota que ele bipou e o nome do cliente na etiqueta, e a ordem é só a posição na fila.
+   *
+   * ⚠️ Eles viajam **com a parada**, pela mesma razão das caixas: é o agrupamento por endereço que
+   * as reuniu, e um segundo mapa chaveado pela sequência precisaria refazer esse agrupamento e
+   * poderia discordar dele.
+   */
+  readonly clientName: string
+  readonly noteNumbers: readonly string[]
   readonly label: string
   readonly loadOrder: number
   readonly sequence: number
@@ -108,6 +122,13 @@ export type CargoLayoutRow = {
 }
 
 export type ResolvedCargoLayout = {
+  /**
+   * A altura interna do baú, da ficha.
+   *
+   * ⚠️ Ela é o que diz se **cabe mais uma camada**. Sem servi-la, a tela desenhava o contorno na
+   * altura da carga, e o baú aparecia sempre cheio até o teto — a folga de altura nunca aparecia.
+   */
+  readonly bedHeightM: string | null
   /** O comprimento interno do baú, da ficha. `null` sem as três medidas — e aí não há planta. */
   readonly bedLengthM: string | null
   /**
@@ -273,6 +294,7 @@ export function resolveCargoLayout(input: {
    */
   const bed = input.bedDimensions ?? null
   const bedLength = bed === null ? 0n : toLength(bed.lengthM)
+  const bedHeight = bed === null ? 0n : toLength(bed.heightM)
   const section =
     bed === null ? 0n : divideHalfUp(toLength(bed.widthM) * toLength(bed.heightM), LENGTH_FACTOR)
   const bedKnown = bedLength > 0n && section > 0n
@@ -348,9 +370,11 @@ export function resolveCargoLayout(input: {
   /** Do fundo para a porta: `loadOrder` 1 primeiro, que é a última entrega. */
   const rows = ordered
     .map((stop, index) => ({
+      clientName: stop.clientName ?? '',
       count: perStop[index] ?? 0,
       label: stop.label,
       loadOrder: ordered.length - index,
+      noteNumbers: stop.noteNumbers ?? [],
       sequence: stop.sequence,
       sideReachable,
     }))
@@ -358,6 +382,7 @@ export function resolveCargoLayout(input: {
     .flatMap(({ count, ...row }) => Array.from({ length: count }, () => row))
 
   return {
+    bedHeightM: bedKnown ? formatScaledDecimal(bedHeight, LENGTH_SCALE) : null,
     bedLengthM: bedKnown ? formatScaledDecimal(bedLength, LENGTH_SCALE) : null,
     loadingAccess: access,
     /**

@@ -28,30 +28,52 @@ describe('planta das camadas (spec 094)', () => {
   })
 
   /**
-   * Uma camada por vez: todas de uma vez seriam seis plantas empilhadas no celular de quem está no
-   * galpão — e o carregamento é feito uma camada por vez, que é a razão de o desenho ser assim.
+   * ⚠️ **Todas as camadas listadas, com o que cada uma tem dentro.** O par anterior/próxima dizia
+   * "Camada 1 de 2" e obrigava a percorrer o baú para saber o que havia na de cima; numa pilha de
+   * duas ou seis, a lista inteira cabe e responde de relance.
    */
-  it('mostra uma camada por vez, com navegação', () => {
-    expect(source).toContain("t('cargoLayers.position'")
-    expect(source).toContain('setIndex')
-    expect(trip.cargoLayers.position).toContain('{{total}}')
+  it('lista todas as camadas com o conteúdo de cada uma', () => {
+    expect(source).toContain('placement.layers.map')
+    expect(source).toContain("t('cargoLayers.layerSummary'")
+    expect(trip.cargoLayers.layerSummary).toContain('{{boxes}}')
+    expect(trip.cargoLayers.layerSummary).toContain('{{stops}}')
   })
 
   /**
-   * ⚠️ O corte lateral é a segunda metade do par que substitui o 3D: a planta diz **onde** a caixa
-   * fica, o corte diz **quão alto** a pilha sobe. As duas se conferem com fita; um isométrico não.
+   * ⚠️ **A pilha inteira aparece, com a camada aberta em foco.** Desenhar só a camada escolhida
+   * tiraria o que a perspectiva tem de melhor — ver como a carga sobe — e deixaria as caixas
+   * flutuando sobre um piso vazio.
    */
-  it('desenha o corte lateral ao lado da planta', () => {
-    expect(source).toContain('TripCargoSideView')
-    expect(source).toContain('styles.cargoSideView')
+  it('mostra todas as camadas, destacando a aberta', () => {
+    expect(source).toContain('placement.layers.flatMap')
+    /**
+     * ⚠️ O foco é pelo **índice** da camada, nunca pela altura: com fatias de caixas de alturas
+     * diferentes, duas camadas de índice igual estão em alturas diferentes, e comparar altura
+     * acenderia meia camada.
+     */
+    expect(source).toContain('focusLayer: current.index')
   })
 
-  /** A caixa presumida sai hachurada — a diferença entre medido e derivado do volume. */
+  /**
+   * ⚠️ As aberturas são ditas em **texto**, fora do desenho: rótulo dentro do quadro sai cortado e
+   * atravessa a borda — foi o que aconteceu com "Porta lateral (direita)" na planta anterior.
+   */
+  it('nomeia as portas em texto, fora do desenho', () => {
+    expect(source).toContain("t('cargoLayers.doorsRearAndSide')")
+    expect(trip.cargoLayers.doorsRearAndSide).toContain('lateral direita')
+  })
+
+  /**
+   * A caixa presumida sai na **mesma cor, lavada** — a diferença entre medido e derivado do volume.
+   *
+   * ⚠️ Nunca hachura: o risco diagonal cruza as arestas e lê como rachadura na quina, e o padrão SVG
+   * tem fundo transparente, o que deixava a caixa presumida vazada — 60% da carga sem cor nenhuma.
+   */
   it('distingue a caixa presumida da medida', () => {
-    const plan = readApplicationFile('src/components/ui/scale-plan.tsx')
+    const isometric = readApplicationFile('src/components/ui/cargo-isometric.tsx')
 
     expect(source).toContain("isEstimated: box.source === 'estimated'")
-    expect(plan).toContain("cargoBox.isEstimated ? 'url(#scale-plan-hatch)' : cargoBox.color")
+    expect(isometric).toContain('<polygon className={styles.faceWash}')
   })
 
   /** O que não coube é nomeado, nunca escondido — e cada motivo tem texto próprio. */

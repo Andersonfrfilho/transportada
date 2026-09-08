@@ -398,9 +398,9 @@ export function TripDetail({ linkForm, vehicles, workspace }: TripDetailProps) {
       <TripRouteMap
         canCorrect={canManage}
         geometry={workspace.routeGeometryQuery.data ?? null}
+        stops={trip.stops}
         isCorrecting={workspace.correctAddressMutation.isPending}
         onCorrect={(correction) => workspace.correctAddressMutation.mutate(correction)}
-        stops={trip.stops}
       />
 
       {selection.selectedIds.size > 0 ? (
