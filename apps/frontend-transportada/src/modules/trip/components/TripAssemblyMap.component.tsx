@@ -334,6 +334,11 @@ export function TripAssemblyMap({
    * Spec 097: os trechos do barracão ficam **fora** de `legs` — a lista numerada é só das entregas
    * (D3) — e entram no total do roteiro, que é a conta que decide aceitar a carga.
    */
+  /** A perna do barracão por tipo — `null` quando ela não entrou na rota (spec 097 D2). */
+  function depotLegOf(kind: 'outbound' | 'return') {
+    return depotLegs.find((leg) => leg.kind === kind) ?? null
+  }
+
   const depotLegs = buildAssemblyDepotLegs({ geometry: activeGeometry, points: map.points })
   const depotAbsence = geometryQuery.data?.depot?.absence ?? null
   const legOf = (index: number) => legs[index] ?? null
@@ -555,6 +560,20 @@ export function TripAssemblyMap({
         ⚠️ `ul` e não `ol`: a numeração é impressa por nós, com a cor da parada, e o marcador do
         navegador se somava a ela ao copiar o texto — "1. 1. RIBEIRAO PRETO" na área de transferência.
       */}
+      {/*
+        Spec 097: a saída do barracão. ⚠️ Sem ela na lista, o total da rota não fecha com o que a
+        tela mostra — medido: 3 h 54 min de total contra 53 km de pernas visíveis —, e o operador lê
+        como erro de cálculo o que é a conta ficando certa.
+      */}
+      {depotLegOf('outbound') === null ? null : (
+        <p className={`${styles.hint} ${styles.assemblyDepotLeg}`}>
+          <Icon name="truck" />
+          {t('assemblyMap.depotLeg.outbound', {
+            distance: Math.round(depotLegOf('outbound')?.distanceKilometres ?? 0),
+            duration: formatDuration(depotLegOf('outbound')?.drivingMinutes ?? 0),
+          })}
+        </p>
+      )}
       <ul className={styles.assemblyOrder}>
         {map.points.map((point, index) => (
           <li key={point.stopKey}>
@@ -660,7 +679,7 @@ export function TripAssemblyMap({
                   <span className={styles.assemblyStopLeg}>
                     {t('assemblyMap.legTime', {
                       distance: Math.round(legOf(index)?.distanceKilometres ?? 0),
-                      duration: formatDuration(legOf(index)?.minutes ?? 0),
+                      duration: formatDuration(legOf(index)?.drivingMinutes ?? 0),
                     })}
                   </span>
                 )}
@@ -687,6 +706,16 @@ export function TripAssemblyMap({
           </li>
         ))}
       </ul>
+      {/* O retorno, quando a política de fim manda voltar ao barracão (`end_policy = depot`). */}
+      {depotLegOf('return') === null ? null : (
+        <p className={`${styles.hint} ${styles.assemblyDepotLeg}`}>
+          <Icon name="truck" />
+          {t('assemblyMap.depotLeg.return', {
+            distance: Math.round(depotLegOf('return')?.distanceKilometres ?? 0),
+            duration: formatDuration(depotLegOf('return')?.drivingMinutes ?? 0),
+          })}
+        </p>
+      )}
       {weightTotal === null && amountTotal === null ? null : (
         <p className={`${styles.hint} ${styles.assemblyTotals}`}>
           {amountTotal === null ? null : (

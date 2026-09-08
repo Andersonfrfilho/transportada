@@ -325,6 +325,10 @@
       "booth": "{{name}} ({{operator}})",
       "boothUnnamed": "unnamed booth",
       "operatorUnknown": "unknown operator"
+    },
+    "depotLeg": {
+      "outbound": "Depot to first delivery: {{distance}} km · {{duration}}",
+      "return": "Last delivery back to depot: {{distance}} km · {{duration}}"
     }
   },
   "quickCreate": {

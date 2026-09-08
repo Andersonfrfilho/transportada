@@ -442,8 +442,8 @@
     "totalFreight": "Frete previsto: {{amount}}",
     "depot": {
       "absence": {
-        "not_configured": "\u26a0\ufe0f A sa\u00edda do barrac\u00e3o n\u00e3o est\u00e1 nesta conta: nenhum endere\u00e7o de origem foi cadastrado na configura\u00e7\u00e3o de roteiriza\u00e7\u00e3o da empresa. A dist\u00e2ncia, o tempo, o combust\u00edvel e o ped\u00e1gio abaixo come\u00e7am na primeira entrega.",
-        "not_geocoded": "\u26a0\ufe0f A sa\u00edda do barrac\u00e3o n\u00e3o est\u00e1 nesta conta: o endere\u00e7o de origem est\u00e1 cadastrado, mas ainda n\u00e3o tem coordenada. A dist\u00e2ncia, o tempo, o combust\u00edvel e o ped\u00e1gio abaixo come\u00e7am na primeira entrega."
+        "not_configured": "⚠️ A saída do barracão não está nesta conta: nenhum endereço de origem foi cadastrado na configuração de roteirização da empresa. A distância, o tempo, o combustível e o pedágio abaixo começam na primeira entrega.",
+        "not_geocoded": "⚠️ A saída do barracão não está nesta conta: o endereço de origem está cadastrado, mas ainda não tem coordenada. A distância, o tempo, o combustível e o pedágio abaixo começam na primeira entrega."
       }
     },
     "toll": {
@@ -473,6 +473,10 @@
         "TOLL_UNKNOWN": "O pedágio de alguma rota não pôde ser calculado — sem como comparar o custo total entre elas."
       },
       "optionWithoutToll": "{{distance}} km · {{duration}} · pedágio não calculado"
+    },
+    "depotLeg": {
+      "outbound": "Saída do barracão até a 1ª entrega: {{distance}} km · {{duration}}",
+      "return": "Retorno da última entrega ao barracão: {{distance}} km · {{duration}}"
     }
   },
   "quickCreate": {
