@@ -407,3 +407,42 @@ O segundo bloco de veículo do repositório é o da **viagem já criada** (`read
 declara nem eixo: ali o pedágio continua sendo lançamento manual, porque a T11 (congelar o pedágio
 junto com o roteiro) não existe. Acrescentar a marca ali seria campo que ninguém lê. Quando a T11
 chegar, este bloco precisa dos dois — eixo e tag — junto.
+
+## Item 4 — a aba (2026-09-08)
+
+```
+API      → 4719 pass, 0 fail
+frontend → 3014 pass, 0 fail
+typecheck + lint limpos
+```
+
+### A lista saiu do `planned_toll`, e por isso as três saídas anteriores caíram
+
+A evidência acima registrava três caminhos possíveis para responder _"quais praças a operação já
+encontrou"_, porque **nada no produto guardava isso**: tabela de observação nova, listar as 166 do
+catálogo, ou adiar até a curadoria oficial.
+
+A T11 da spec 090 tornou as três desnecessárias sem querer. Ela congela o pedágio no roteiro
+(`trips.planned_toll`) **incluindo as praças percorridas, com `osmNodeId`** — então a pergunta passou
+a ter resposta no banco, de graça.
+
+⚠️ **O efeito colateral só existiu porque a T11 guardou a decisão, não só o número.** Se o congelado
+tivesse apenas `R$ 65,60`, esta task continuaria travada. Vale como regra: congelar o **porquê** ao
+lado do **quanto** é o que faz o dado servir a uma pergunta que ninguém fez ainda.
+
+`extractSeenTollBoothNodeIds` é pura e reusa `parseTollRouteCost` como fronteira — forma inesperada
+do jsonb já era ausência, e continua sendo, sem um segundo validador ao lado.
+
+### A limitação que a tela é obrigada a dizer
+
+⚠️ Só aparece praça de viagem cujo roteiro foi planejado **depois** da T11. Base sem viagem planejada
+mostra lista vazia — e vazio aqui é _"ainda não passamos por nenhuma"_, **nunca** _"não há praças a
+corrigir"_. Sem essa frase, a tela vazia parece defeito, que é o modo de falha que esta spec inteira
+combate.
+
+### ⚠️ O que este commit não teve
+
+Esta task foi **interrompida no meio** para uma junção urgente com o modelo 3D, e retomada depois. Os
+gates rodaram no fim e passaram, mas o ciclo vermelho-verde por task não foi conduzido do começo ao
+fim por uma sessão só — parte dos testes já existia quando os gates rodaram. Fica registrado porque
+um teste escrito junto do código concorda com ele por construção.
