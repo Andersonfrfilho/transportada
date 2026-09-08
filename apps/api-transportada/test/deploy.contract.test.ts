@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import './deploy/backup.contract.js'
+import './deploy/migrations-are-applied.contract.js'
 import './deploy/bucket-mirror.contract.js'
 import './deploy/dockerfile-workspace.contract.js'
 import './deploy/frontend-origins.contract.js'
