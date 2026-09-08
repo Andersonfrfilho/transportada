@@ -15,12 +15,15 @@ import {
   type ReadRouteGeometryTollBoothsPort,
   type RouteGeometryToll,
 } from './read-route-geometry.use-case.js'
+import type { TollMultiplier } from '../../toll-booths/domain/toll-category.policy.js'
 import type { AxleCount, TollRouteCost } from '../../toll-booths/domain/toll-route-cost.policy.js'
 import type { RouteGeometryPoint } from '../domain/route-geometry.policy.js'
 import type { RouteGeometryPort } from './route-geometry.port.js'
 
 export type FreezeTripRouteTollVehicleContext = {
   readonly axles: AxleCount | null
+  /** A categoria do veículo — anda junto de `axles`, e é ela que multiplica a tarifa base. */
+  readonly multiplier: TollMultiplier | null
   readonly hasAutomaticTollPayment: boolean
 }
 
@@ -59,6 +62,7 @@ export async function freezeTripRouteToll(input: FreezeTripRouteTollInput): Prom
 
   const road = await readRouteGeometry({
     axles: vehicle.axles,
+    multiplier: vehicle.multiplier,
     depot: input.depot ?? null,
     geometry: input.geometry,
     hasAutomaticTollPayment: vehicle.hasAutomaticTollPayment,
@@ -86,6 +90,8 @@ function toFrozenToll(toll: null | RouteGeometryToll): null | TollRouteCost {
     boothsFallenBackToManual: toll.boothsFallenBackToManual,
     boothsWithoutCharge: toll.boothsWithoutCharge,
     chargePerAxle: toll.chargePerAxle,
+    /** ⚠️ O multiplicador entra no congelado: sem ele o total gravado fica sem a conta que o gerou. */
+    multiplier: toll.multiplier,
     paymentMode: toll.paymentMode,
     total: toll.total,
   }

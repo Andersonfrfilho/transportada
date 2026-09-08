@@ -38,7 +38,8 @@ const SEM_TARIFA = {
   osmNodeId: 333,
 } as const
 
-const TRES_EIXOS = { count: 3, source: 'declared' } as const
+/** Truck de três eixos, rodagem dupla: multiplicador 3 — a conta que não mudou. */
+const TRES_EIXOS_DUPLA = { denominator: 1, numerator: 3 } as const
 
 describe('extrato do pedágio, praça a praça (spec 090 T8)', () => {
   /**
@@ -48,7 +49,7 @@ describe('extrato do pedágio, praça a praça (spec 090 T8)', () => {
    */
   test('multiplica o valor efetivo pelos eixos, praça a praça', () => {
     const linhas = describeTollBoothCharges({
-      axles: TRES_EIXOS,
+      multiplier: TRES_EIXOS_DUPLA,
       booths: [COM_AS_DUAS, SO_MANUAL],
       paymentMode: 'automatic',
     })
@@ -60,7 +61,7 @@ describe('extrato do pedágio, praça a praça (spec 090 T8)', () => {
   /** Sem tag manda a manual, e nenhuma praça cai — não havia de onde cair. */
   test('sem tag, o efetivo é a tarifa manual e nada cai', () => {
     const linhas = describeTollBoothCharges({
-      axles: TRES_EIXOS,
+      multiplier: TRES_EIXOS_DUPLA,
       booths: [COM_AS_DUAS],
       paymentMode: 'manual',
     })
@@ -76,7 +77,7 @@ describe('extrato do pedágio, praça a praça (spec 090 T8)', () => {
    */
   test('marca na linha a praça que caiu para a manual', () => {
     const linhas = describeTollBoothCharges({
-      axles: TRES_EIXOS,
+      multiplier: TRES_EIXOS_DUPLA,
       booths: [COM_AS_DUAS, SO_MANUAL],
       paymentMode: 'automatic',
     })
@@ -91,7 +92,7 @@ describe('extrato do pedágio, praça a praça (spec 090 T8)', () => {
    */
   test('praça sem tarifa conhecida é ausência, nunca zero', () => {
     const linhas = describeTollBoothCharges({
-      axles: TRES_EIXOS,
+      multiplier: TRES_EIXOS_DUPLA,
       booths: [SEM_TARIFA],
       paymentMode: 'manual',
     })
@@ -104,7 +105,7 @@ describe('extrato do pedágio, praça a praça (spec 090 T8)', () => {
   /** A ordem é a da passagem: o extrato é lido junto com o traçado, de cima para baixo. */
   test('preserva a ordem em que a rota passa', () => {
     const linhas = describeTollBoothCharges({
-      axles: TRES_EIXOS,
+      multiplier: TRES_EIXOS_DUPLA,
       booths: [SO_MANUAL, COM_AS_DUAS],
       paymentMode: 'manual',
     })

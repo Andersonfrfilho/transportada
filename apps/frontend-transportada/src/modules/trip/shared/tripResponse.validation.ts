@@ -927,6 +927,7 @@ function isGeometryToll(value: unknown): value is RouteGeometryToll {
     booths.every(isGeometryTollBooth) &&
     typeof boothsFallenBackToManual === 'number' &&
     typeof boothsWithoutCharge === 'number' &&
+    isString(value.multiplierLabel) &&
     isString(chargePerAxle) &&
     isOneOf(paymentMode, TOLL_PAYMENT_MODES) &&
     isNullableString(tariffObservedOn) &&

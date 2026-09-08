@@ -43,6 +43,13 @@ export function parseTollRouteCost(value: unknown): TollRouteCost | null {
   return {
     axles,
     booths,
+    /**
+     * ⚠️ **Congelado antes da categoria não é recomputado.** Valor sem `multiplier` foi somado com o
+     * multiplicador antigo — a contagem de eixos —, e é esse número que está gravado em `total`.
+     * Devolver a fração de hoje faria o rótulo contradizer o total ao lado dele, no único lugar do
+     * produto que existe para dizer por que a viagem custou o que custou.
+     */
+    multiplier: parseMultiplier(record.multiplier) ?? { denominator: 1, numerator: axles.count },
     boothsFallenBackToManual,
     boothsWithoutCharge,
     chargePerAxle,
@@ -58,6 +65,15 @@ function parseAxleCount(value: unknown): TollRouteCost['axles'] | null {
   if (typeof record.source !== 'string' || !AXLE_COUNT_SOURCE_SET.has(record.source)) return null
 
   return { count: record.count, source: record.source as TollRouteCost['axles']['source'] }
+}
+
+function parseMultiplier(value: unknown): null | { denominator: number; numerator: number } {
+  if (typeof value !== 'object' || value === null) return null
+  const record = value as Record<string, unknown>
+  if (typeof record.denominator !== 'number' || record.denominator <= 0) return null
+  if (typeof record.numerator !== 'number') return null
+
+  return { denominator: record.denominator, numerator: record.numerator }
 }
 
 function parseBooths(value: unknown): readonly TollBoothRecord[] | null {

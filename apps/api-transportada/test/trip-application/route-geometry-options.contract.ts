@@ -88,6 +88,8 @@ describe('opções de rota (spec 096 T1)', () => {
 
     const view = await readRouteGeometry({
       axles: { count: 2, source: 'declared' },
+      /** Rodagem dupla: multiplicador = eixos. */
+      multiplier: { denominator: 1, numerator: 2 },
       fuelBaseline: TOCO,
       geometry,
       stops: PARADAS,
@@ -120,6 +122,8 @@ describe('opções de rota (spec 096 T1)', () => {
     const calls: (readonly number[])[] = []
     const view = await readRouteGeometry({
       axles: { count: 2, source: 'declared' },
+      /** Rodagem dupla: multiplicador = eixos. */
+      multiplier: { denominator: 1, numerator: 2 },
       fuelBaseline: TOCO,
       geometry,
       stops: PARADAS,
@@ -163,6 +167,8 @@ describe('opções de rota (spec 096 T1)', () => {
 
     const view = await readRouteGeometry({
       axles: { count: 2, source: 'declared' },
+      /** Rodagem dupla: multiplicador = eixos. */
+      multiplier: { denominator: 1, numerator: 2 },
       geometry,
       stops: PARADAS,
       tollBooths: tollBooths([praca(10, '5.0000', '2026-07-01')]),

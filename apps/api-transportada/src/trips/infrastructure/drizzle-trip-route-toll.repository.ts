@@ -8,6 +8,7 @@ import { and, eq, sql } from 'drizzle-orm'
 
 import { fleetVehicles } from '../../database/fleet.schema.js'
 import { trips } from '../../database/trip.schema.js'
+import { resolveDeclaredTollMultiplier } from '../../toll-booths/domain/toll-category.policy.js'
 import { resolveDeclaredVehicleAxles } from '../../toll-booths/domain/vehicle-axles.policy.js'
 import type { TollRouteCost } from '../../toll-booths/domain/toll-route-cost.policy.js'
 import type {
@@ -42,6 +43,8 @@ export class DrizzleTripRouteTollRepository implements FreezeTripRouteTollPort {
 
     return {
       axles: resolveDeclaredVehicleAxles(row),
+      /** A categoria sai do mesmo `row` que os eixos: as duas descrevem o mesmo veículo. */
+      multiplier: resolveDeclaredTollMultiplier(row),
       hasAutomaticTollPayment: row.hasAutomaticTollPayment,
     }
   }

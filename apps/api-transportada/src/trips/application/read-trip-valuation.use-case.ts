@@ -14,6 +14,7 @@ import {
   type TripRevenueLine,
   type TripValuation,
 } from '../domain/trip-valuation.policy.js'
+import type { TollMultiplier } from '../../toll-booths/domain/toll-category.policy.js'
 import { buildTripDriverCost, type TripCrewMember } from '../domain/trip-driver-cost.policy.js'
 import { buildTripTaxParcels, type CompanyFederalRates } from '../domain/trip-tax.policy.js'
 import { TripNotFoundError } from '../domain/trip.error.js'
@@ -54,6 +55,12 @@ export type TripValuationVehicle = {
    * quando a ficha não tem eixo declarado nem tipo reconhecido para estimar.
    */
   readonly axles?: AxleCount | null
+  /**
+   * Spec 090: quanto da tarifa base a cancela cobra deste veículo — a **categoria**, não a contagem
+   * de eixos. Ela viaja junto de `axles` porque as duas saem do mesmo veículo: separá-las deixaria
+   * a margem somar com um multiplicador e o mapa com outro, para a mesma viagem.
+   */
+  readonly multiplier?: TollMultiplier | null
   /**
    * Spec 095 D4: com tag, a parcela usa a tarifa automática da praça quando ela é conhecida — a
    * mesma regra que a montagem já aplica. Sem isto, mapa e margem mostram pedágios diferentes para
@@ -228,6 +235,7 @@ export async function previewTripValuation(
    */
   const road = await resolvePreviewRoad({
     axles: context.vehicle.axles ?? null,
+    multiplier: context.vehicle.multiplier ?? null,
     hasAutomaticTollPayment: context.vehicle.hasAutomaticTollPayment ?? false,
     companyId: input.companyId,
     depot: input.depot ?? null,
@@ -252,6 +260,7 @@ export async function previewTripValuation(
  */
 async function resolvePreviewRoad(input: {
   readonly axles: AxleCount | null
+  readonly multiplier: TollMultiplier | null
   readonly companyId: string
   readonly hasAutomaticTollPayment: boolean
   readonly depot: null | ReadRouteGeometryDepotPort
@@ -269,6 +278,7 @@ async function resolvePreviewRoad(input: {
 
   const road = await readRouteGeometry({
     axles: input.axles,
+    multiplier: input.multiplier,
     depot: input.depot,
     hasAutomaticTollPayment: input.hasAutomaticTollPayment,
     geometry: input.geometry,

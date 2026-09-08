@@ -15,6 +15,10 @@ import { and, eq } from 'drizzle-orm'
 import { companyFuelPrices } from '../../database/company-fuel-prices.schema.js'
 import { fleetVehicles } from '../../database/fleet.schema.js'
 import { FUEL_PRODUCTS, type FuelProduct } from '../../shared/fuel.constant.js'
+import {
+  resolveDeclaredTollMultiplier,
+  type TollMultiplier,
+} from '../../toll-booths/domain/toll-category.policy.js'
 import { resolveDeclaredVehicleAxles } from '../../toll-booths/domain/vehicle-axles.policy.js'
 import type { AxleCount } from '../../toll-booths/domain/toll-route-cost.policy.js'
 import type { RouteOptionVehicle } from '../../toll-booths/domain/route-option.policy.js'
@@ -26,6 +30,12 @@ const NO_AUTOMATIC_TOLL_PAYMENT = false
 
 export type RouteGeometryVehicleContext = Readonly<{
   axles: AxleCount | null
+  /**
+   * Quanto da tarifa base a cancela cobra deste veículo — a **categoria**, não a contagem de eixos.
+   * Sai do mesmo `row` que os eixos, e é `null` exatamente quando eles são: as duas descrevem o
+   * mesmo veículo, e separá-las deixaria a conta e o rótulo discordarem.
+   */
+  multiplier: TollMultiplier | null
   fuelBaseline: RouteOptionVehicle
   /** Spec 095 D3: se o veículo paga pedágio com tag — sem veículo escolhido, é sempre `false`. */
   hasAutomaticTollPayment: boolean
@@ -60,6 +70,7 @@ export function createRouteGeometryVehicleAxlesQuery(database: Database): Readon
       if (vehicle === undefined) {
         return {
           axles: null,
+          multiplier: null,
           fuelBaseline: NO_FUEL_BASELINE,
           hasAutomaticTollPayment: NO_AUTOMATIC_TOLL_PAYMENT,
         }
@@ -72,6 +83,7 @@ export function createRouteGeometryVehicleAxlesQuery(database: Database): Readon
 
       return {
         axles: resolveDeclaredVehicleAxles(vehicle),
+        multiplier: resolveDeclaredTollMultiplier(vehicle),
         fuelBaseline:
           vehicle.kilometersPerLiter === null || pricePerLiter === null
             ? NO_FUEL_BASELINE

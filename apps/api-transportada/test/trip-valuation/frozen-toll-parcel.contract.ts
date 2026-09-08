@@ -20,6 +20,8 @@ const TRIP_ID = '00000000-0000-4000-8000-000000000b01'
 function frozenToll(overrides: Partial<TollRouteCost> = {}): TollRouteCost {
   return {
     axles: { count: 2, source: 'declared' },
+    /** Toco: dois eixos de rodagem dupla, Categoria 2 — multiplicador 2. */
+    multiplier: { denominator: 1, numerator: 2 },
     booths: [],
     boothsFallenBackToManual: 0,
     boothsWithoutCharge: 0,

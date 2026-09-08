@@ -18,6 +18,7 @@ import {
 } from '../../database/freight-region.schema.js'
 import { companyTaxSettings, tripCostEntries } from '../../database/trip-financial.schema.js'
 import { resolveVehicleFreightClass } from '../../shared/vehicle-type.constant.js'
+import { resolveDeclaredTollMultiplier } from '../../toll-booths/domain/toll-category.policy.js'
 import { resolveDeclaredVehicleAxles } from '../../toll-booths/domain/vehicle-axles.policy.js'
 import { parseTollRouteCost } from '../../toll-booths/domain/toll-route-cost-snapshot.policy.js'
 import type { FreightVehicleClass } from '../../shared/freight-class.constant.js'
@@ -103,6 +104,11 @@ export class DrizzleTripValuationQuery {
       vehicle: {
         /** Spec 090 T9: mesma seleção do combustível — não paga uma segunda consulta pela ficha. */
         axles: resolveDeclaredVehicleAxles({
+          axleCount: vehicle.axleCount,
+          vehicleType: vehicle.vehicleType,
+        }),
+        /** A categoria sai da mesma ficha que os eixos: as duas descrevem o mesmo veículo. */
+        multiplier: resolveDeclaredTollMultiplier({
           axleCount: vehicle.axleCount,
           vehicleType: vehicle.vehicleType,
         }),

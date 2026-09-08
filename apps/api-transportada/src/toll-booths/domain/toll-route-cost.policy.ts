@@ -15,6 +15,7 @@ import {
   MONEY_SCALE,
   parseScaledDecimal,
 } from '../../shared/decimal.service.js'
+import type { TollMultiplier } from './toll-category.policy.js'
 
 const ERROR_CODE_PREFIX = 'TOLL_ROUTE_COST'
 
@@ -60,6 +61,12 @@ export type TollPaymentMode = (typeof TOLL_PAYMENT_MODES)[number]
 
 export type TollRouteCost = Readonly<{
   axles: AxleCount
+  /**
+   * Quanto da tarifa base a cancela cobra deste veículo — a **categoria**, não a contagem de eixos.
+   * A tela imprime este número: sem ele, "R$ 38,40 por eixo × 2 eixos" continuaria explicando uma
+   * conta que a cancela não faz.
+   */
+  multiplier: TollMultiplier
   /** Na ordem em que o caminhão passa, para quem confere saber **por onde** o custo entrou. */
   booths: readonly TollBoothRecord[]
   /**
@@ -93,6 +100,12 @@ export type ResolveTollRouteCostParams = {
   readonly booths: readonly TollBoothRecord[]
   /** Spec 095 D3: quem decide qual das duas tarifas da praça vale é o veículo, não a empresa. */
   readonly hasAutomaticTollPayment: boolean
+  /**
+   * ⚠️ **Quanto da tarifa base esta cancela cobra deste veículo** — a categoria, não a contagem de
+   * eixos. Quem resolve é `resolveTollMultiplier`, onde a tabela oficial está escrita; aqui só se
+   * multiplica, para esta política seguir sem saber o que é um furgão.
+   */
+  readonly multiplier: TollMultiplier
   /** `null` quando o roteirizador não anotou os nós — e aí não há o que cruzar. */
   readonly nodeIds: null | readonly number[]
 }
@@ -148,7 +161,8 @@ export function resolveTollRouteCost(input: ResolveTollRouteCostParams): TollRou
     boothsWithoutCharge,
     chargePerAxle: formatScaledDecimal(chargePerAxle, MONEY_SCALE),
     paymentMode: input.hasAutomaticTollPayment ? 'automatic' : 'manual',
-    total: formatScaledDecimal(chargePerAxle * BigInt(input.axles.count), MONEY_SCALE),
+    multiplier: input.multiplier,
+    total: formatScaledDecimal(applyMultiplier(chargePerAxle, input.multiplier), MONEY_SCALE),
   }
 }
 
@@ -177,8 +191,8 @@ export type TollBoothStatementLine = TollBoothRecord &
  * veículo não pagou, e um extrato cujas linhas não somam o total faz duvidar do total.
  */
 export function describeTollBoothCharges(input: {
-  readonly axles: AxleCount
   readonly booths: readonly TollBoothRecord[]
+  readonly multiplier: TollMultiplier
   readonly paymentMode: TollPaymentMode
 }): readonly TollBoothStatementLine[] {
   return input.booths.map((booth) => {
@@ -194,11 +208,14 @@ export function describeTollBoothCharges(input: {
         charge.value === null
           ? null
           : formatScaledDecimal(
-              parseScaledDecimal({
-                errorCodePrefix: ERROR_CODE_PREFIX,
-                scale: MONEY_SCALE,
-                value: charge.value,
-              }) * BigInt(input.axles.count),
+              applyMultiplier(
+                parseScaledDecimal({
+                  errorCodePrefix: ERROR_CODE_PREFIX,
+                  scale: MONEY_SCALE,
+                  value: charge.value,
+                }),
+                input.multiplier,
+              ),
               MONEY_SCALE,
             ),
     }
@@ -222,4 +239,16 @@ function resolveBoothCharge(input: {
     return { fellBackToManual: false, value: input.booth.chargePerAxleAutomatic }
   }
   return { fellBackToManual: input.booth.chargePerAxle !== null, value: input.booth.chargePerAxle }
+}
+
+/**
+ * ⚠️ **Meio centavo arredonda para cima**, e a escolha é declarada: a fração só aparece quando o
+ * multiplicador é 0,5 ou 1,5, e arredondar para baixo faria a tela prometer menos do que a cancela
+ * cobra — o erro na direção que faz aceitar carga que não paga. Divisão inteira, nunca `number`:
+ * ponto flutuante não entra em conta de dinheiro.
+ */
+function applyMultiplier(value: bigint, multiplier: TollMultiplier): bigint {
+  const scaled = value * BigInt(multiplier.numerator)
+  const denominator = BigInt(multiplier.denominator)
+  return (scaled + denominator / 2n) / denominator
 }

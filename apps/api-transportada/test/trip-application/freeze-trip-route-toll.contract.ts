@@ -73,7 +73,12 @@ function createGeometryPort(nodeIds: null | readonly number[]) {
 describe('congelamento do pedágio no planejamento (spec 090 T11)', () => {
   test('congela o total certo — veículo de 2 eixos, três praças, sem tag', async () => {
     const repository = createFakeRepository({
-      vehicle: { axles: { count: 2, source: 'declared' }, hasAutomaticTollPayment: false },
+      vehicle: {
+        axles: { count: 2, source: 'declared' },
+        /** Toco: dois eixos de rodagem dupla, Categoria 2 — multiplicador 2. */
+        multiplier: { denominator: 1, numerator: 2 },
+        hasAutomaticTollPayment: false,
+      },
     })
 
     await freezeTripRouteToll({
@@ -93,7 +98,12 @@ describe('congelamento do pedágio no planejamento (spec 090 T11)', () => {
 
   test('não carrega a data de observação — ela não faz parte da decisão congelada', async () => {
     const repository = createFakeRepository({
-      vehicle: { axles: { count: 2, source: 'declared' }, hasAutomaticTollPayment: false },
+      vehicle: {
+        axles: { count: 2, source: 'declared' },
+        /** Toco: dois eixos de rodagem dupla, Categoria 2 — multiplicador 2. */
+        multiplier: { denominator: 1, numerator: 2 },
+        hasAutomaticTollPayment: false,
+      },
     })
 
     await freezeTripRouteToll({
@@ -110,7 +120,12 @@ describe('congelamento do pedágio no planejamento (spec 090 T11)', () => {
 
   test('sem geometria disponível, grava null — nunca inventa um total', async () => {
     const repository = createFakeRepository({
-      vehicle: { axles: { count: 2, source: 'declared' }, hasAutomaticTollPayment: false },
+      vehicle: {
+        axles: { count: 2, source: 'declared' },
+        /** Toco: dois eixos de rodagem dupla, Categoria 2 — multiplicador 2. */
+        multiplier: { denominator: 1, numerator: 2 },
+        hasAutomaticTollPayment: false,
+      },
     })
 
     await freezeTripRouteToll({
@@ -127,7 +142,12 @@ describe('congelamento do pedágio no planejamento (spec 090 T11)', () => {
   test('viagem sem menos de duas paradas também grava null, e regrava sobre o que já existia', async () => {
     const repository = createFakeRepository({
       stops: [STOPS[0] as RouteGeometryPoint],
-      vehicle: { axles: { count: 2, source: 'declared' }, hasAutomaticTollPayment: false },
+      vehicle: {
+        axles: { count: 2, source: 'declared' },
+        /** Toco: dois eixos de rodagem dupla, Categoria 2 — multiplicador 2. */
+        multiplier: { denominator: 1, numerator: 2 },
+        hasAutomaticTollPayment: false,
+      },
     })
 
     await freezeTripRouteToll({

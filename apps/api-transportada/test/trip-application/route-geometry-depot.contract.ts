@@ -139,12 +139,16 @@ describe('a perna do barracão na geometria da montagem (spec 097)', () => {
 
     const semBarracao = await readRouteGeometry({
       axles: { count: 3, source: 'declared' } as const,
+      /** Truck: três eixos de rodagem dupla, Categoria 4 — multiplicador 3. */
+      multiplier: { denominator: 1, numerator: 3 } as const,
       geometry: porta(estrada({ legs: TRES_TRECHOS.slice(0, 1), nodeIds: [] })).port,
       stops: PARADAS,
       tollBooths,
     })
     const comBarracao = await readRouteGeometry({
       axles: { count: 3, source: 'declared' } as const,
+      /** Truck: três eixos de rodagem dupla, Categoria 4 — multiplicador 3. */
+      multiplier: { denominator: 1, numerator: 3 } as const,
       depot: barracao({ end: null, origin: BARRACAO, status: 'resolved' }),
       geometry: porta(estrada({ legs: TRES_TRECHOS.slice(0, 2), nodeIds: [NO_DA_PRACA] })).port,
       stops: PARADAS,

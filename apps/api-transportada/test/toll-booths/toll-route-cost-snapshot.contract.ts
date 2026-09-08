@@ -26,6 +26,8 @@ function praca(osmNodeId: number, chargePerAxle: string): TollBoothRecord {
 function validCost(): TollRouteCost {
   const cost = resolveTollRouteCost({
     axles: { count: 2, source: 'declared' },
+    /** Toco: dois eixos de rodagem dupla, Categoria 2 — multiplicador 2. */
+    multiplier: { denominator: 1, numerator: 2 },
     booths: [praca(1, '32.80')],
     hasAutomaticTollPayment: false,
     nodeIds: [1],

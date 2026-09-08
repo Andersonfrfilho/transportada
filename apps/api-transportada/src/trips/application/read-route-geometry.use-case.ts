@@ -25,6 +25,10 @@ import {
   type RouteDepot,
   type RouteDepotAbsence,
 } from '../domain/route-depot.policy.js'
+import {
+  formatTollMultiplier,
+  type TollMultiplier,
+} from '../../toll-booths/domain/toll-category.policy.js'
 import type { DepotDescription } from '../domain/depot-description.policy.js'
 import { simplifyRouteGeometry, type RouteGeometryPoint } from '../domain/route-geometry.policy.js'
 import type {
@@ -62,6 +66,14 @@ export type RouteGeometryToll = Omit<TollRouteCost, 'booths'> &
      * jsonb congelado — o congelado guarda a observação, e a interpretação se recomputa.
      */
     booths: readonly TollBoothStatementLine[]
+    /**
+     * A fração já como rótulo (`1`, `1,5`, `3`), ao lado do par que a gerou.
+     *
+     * ⚠️ Os dois convivem de propósito: o **par** é o que se congela, porque é a conta; o **rótulo**
+     * é o que a tela imprime, e derivá-lo no frontend obrigaria a reescrever ali a regra de formatar
+     * meia tarifa — cópia por valor de uma coisa que ninguém confere de olho.
+     */
+    multiplierLabel: string
     /**
      * A mais antiga entre as praças cobradas — a leitura conservadora quando o cadastro tem seeds
      * de datas diferentes. `null` quando a rota não passou por praça nenhuma: não há tarifa a datar.
@@ -164,6 +176,11 @@ export type ReadRouteGeometryInput = {
   /** Quantos eixos o veículo escolhido tem, e de onde o número veio (spec 090 D2). */
   readonly axles?: AxleCount | null
   /**
+   * Quanto da tarifa base a cancela cobra deste veículo — a **categoria**, não a contagem de eixos.
+   * Ausente é "sem veículo escolhido", e aí não há pedágio a calcular.
+   */
+  readonly multiplier?: TollMultiplier | null
+  /**
    * O barracão da empresa. Ausente é "esta chamada não pede a perna do barracão" — e aí a tela não
    * ganha aviso nenhum, porque ausência de pedido não é ausência de cadastro (spec 097 D2).
    */
@@ -254,6 +271,7 @@ export async function readRouteGeometry(input: ReadRouteGeometryInput): Promise<
       resolveOption({
         axles: input.axles ?? null,
         hasAutomaticTollPayment: input.hasAutomaticTollPayment ?? false,
+        multiplier: input.multiplier ?? null,
         road: raw,
         tollBooths: input.tollBooths ?? null,
       }),
@@ -301,6 +319,7 @@ export async function readRouteGeometry(input: ReadRouteGeometryInput): Promise<
  */
 async function resolveOption(input: {
   readonly axles: AxleCount | null
+  readonly multiplier: TollMultiplier | null
   readonly hasAutomaticTollPayment: boolean
   readonly road: RouteGeometryRoad
   readonly tollBooths: null | ReadRouteGeometryTollBoothsPort
@@ -325,6 +344,7 @@ async function resolveOption(input: {
     })),
     toll: await resolveRouteToll({
       axles: input.axles,
+      multiplier: input.multiplier,
       hasAutomaticTollPayment: input.hasAutomaticTollPayment,
       nodeIds: input.road.nodeIds,
       tollBooths: input.tollBooths,
@@ -339,11 +359,12 @@ async function resolveOption(input: {
  */
 async function resolveRouteToll(input: {
   readonly axles: AxleCount | null
+  readonly multiplier: TollMultiplier | null
   readonly hasAutomaticTollPayment: boolean
   readonly nodeIds: null | readonly number[]
   readonly tollBooths: null | ReadRouteGeometryTollBoothsPort
 }): Promise<null | RouteGeometryToll> {
-  if (input.axles === null || input.tollBooths === null) return null
+  if (input.axles === null || input.multiplier === null || input.tollBooths === null) return null
 
   const records = input.nodeIds === null ? [] : await input.tollBooths.readByNodeIds(input.nodeIds)
   const observedOnByNode = new Map(records.map((record) => [record.osmNodeId, record.observedOn]))
@@ -352,6 +373,7 @@ async function resolveRouteToll(input: {
     axles: input.axles,
     booths: records,
     hasAutomaticTollPayment: input.hasAutomaticTollPayment,
+    multiplier: input.multiplier,
     nodeIds: input.nodeIds,
   })
   if (cost === null) return null
@@ -363,9 +385,11 @@ async function resolveRouteToll(input: {
 
   return {
     ...cost,
+    /** A fração vira rótulo aqui: a tela imprime `1`, `1,5`, `3` — nunca um par de inteiros. */
+    multiplierLabel: formatTollMultiplier(cost.multiplier),
     booths: describeTollBoothCharges({
-      axles: cost.axles,
       booths: cost.booths,
+      multiplier: cost.multiplier,
       paymentMode: cost.paymentMode,
     }),
     tariffObservedOn: observedDates[0] ?? null,

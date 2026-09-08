@@ -431,9 +431,9 @@ export function TripAssemblyMap({
             <Icon name="invoice" />
             <span>
               {t('assemblyMap.toll.summary', {
-                axleCount: toll.axles.count,
                 boothCount: toll.booths.length,
                 chargePerAxle: formatAmount(toll.chargePerAxle),
+                multiplier: toll.multiplierLabel,
                 total: formatAmount(toll.total),
               })}
               {toll.tariffObservedOn === null
@@ -481,6 +481,7 @@ export function TripAssemblyMap({
                 {t('assemblyMap.toll.statementTitle', {
                   axleCount: toll.axles.count,
                   axleSource: t(`assemblyMap.toll.axleSource.${toll.axles.source}`),
+                  multiplier: toll.multiplierLabel,
                 })}
               </p>
               <ul className={styles.tollStatement}>
@@ -496,8 +497,8 @@ export function TripAssemblyMap({
                       {booth.effectiveChargePerAxle === null || booth.total === null
                         ? t('assemblyMap.toll.statementWithoutCharge')
                         : t('assemblyMap.toll.statementLine', {
-                            axleCount: toll.axles.count,
                             charge: formatAmount(booth.effectiveChargePerAxle),
+                            multiplier: toll.multiplierLabel,
                             total: formatAmount(booth.total),
                           })}
                     </span>

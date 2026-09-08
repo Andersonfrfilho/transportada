@@ -68,6 +68,12 @@ export type TollPaymentMode = (typeof TOLL_PAYMENT_MODES)[number]
  */
 export type RouteGeometryToll = Readonly<{
   axles: AxleCount
+  /**
+   * Quanto da tarifa base a cancela cobra deste veículo — a **categoria**, não a contagem de eixos.
+   * ⚠️ Furgão de dois eixos paga 1×, e caminhão de dois eixos paga 2×: é a rodagem que decide, e
+   * imprimir "× 2 eixos" para os dois explicava uma conta que a cancela não faz.
+   */
+  multiplierLabel: string
   booths: readonly RouteGeometryTollBooth[]
   /** Quantas das praças acima não têm tarifa conhecida — o total sozinho seria número crível e
    *  possivelmente falso (medido: 4 das 166 praças declaram `0.00`, campo não mapeado). */

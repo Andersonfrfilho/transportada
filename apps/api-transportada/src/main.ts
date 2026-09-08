@@ -1979,6 +1979,7 @@ function createApplicationRoutes({
 
           return readRouteGeometry({
             axles: vehicleContext?.axles ?? null,
+            multiplier: vehicleContext?.multiplier ?? null,
             depot: {
               readDepot: () => routeDepotQuery.readDepot({ companyId: input.context.companyId }),
               readDescription: () =>
@@ -2009,6 +2010,7 @@ function createApplicationRoutes({
 
           return readRouteGeometry({
             axles: vehicleContext.axles,
+            multiplier: vehicleContext.multiplier,
             /** A viagem já criada parte do mesmo barracão: duas telas, uma conta (spec 097). */
             depot: {
               readDepot: () => routeDepotQuery.readDepot({ companyId: input.context.companyId }),

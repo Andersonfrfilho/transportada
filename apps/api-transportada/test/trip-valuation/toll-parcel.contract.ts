@@ -36,6 +36,8 @@ function context(overrides: Partial<TripValuationContext> = {}): TripValuationCo
     tollTotal: null,
     vehicle: {
       axles: { count: 2, source: 'declared' },
+      /** Rodagem dupla: multiplicador = eixos. */
+      multiplier: { denominator: 1, numerator: 2 },
       kilometersPerLiter: '2.5000',
       otherCostsPerKilometer: '0.3000',
     },
@@ -253,6 +255,8 @@ describe('a tag chega na conta da viagem (spec 095 D4)', () => {
       context: context({
         vehicle: {
           axles: { count: 2, source: 'declared' },
+          /** Rodagem dupla: multiplicador = eixos. */
+          multiplier: { denominator: 1, numerator: 2 },
           hasAutomaticTollPayment: true,
           kilometersPerLiter: '2.5000',
           otherCostsPerKilometer: '0.3000',

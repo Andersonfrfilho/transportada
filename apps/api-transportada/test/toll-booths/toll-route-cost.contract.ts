@@ -30,11 +30,14 @@ function praca(
 }
 
 const AXLES = { count: 3, source: 'declared' } as const
+/** Truck de três eixos, rodagem dupla: multiplicador 3 — a conta que a categoria não muda. */
+const MULTIPLICADOR = { denominator: 1, numerator: 3 } as const
 
 describe('toll route cost (spec 090 T5)', () => {
   it('sums the booths the route actually passed, by node identity', () => {
     const cost = resolveTollRouteCost({
       axles: AXLES,
+      multiplier: MULTIPLICADOR,
       booths: [praca(10, '10.50'), praca(20, '12.30'), praca(99, '99.90')],
       hasAutomaticTollPayment: false,
       nodeIds: [1, 10, 5, 20, 7],
@@ -49,6 +52,7 @@ describe('toll route cost (spec 090 T5)', () => {
   it('keeps the booths in the order the truck passes them, not in catalogue order', () => {
     const cost = resolveTollRouteCost({
       axles: AXLES,
+      multiplier: MULTIPLICADOR,
       booths: [praca(10, '1.00'), praca(20, '2.00')],
       hasAutomaticTollPayment: false,
       nodeIds: [20, 10],
@@ -66,6 +70,7 @@ describe('toll route cost (spec 090 T5)', () => {
   it('charges a booth once per route, even when the route revisits its node', () => {
     const cost = resolveTollRouteCost({
       axles: AXLES,
+      multiplier: MULTIPLICADOR,
       booths: [praca(10, '10.00')],
       hasAutomaticTollPayment: false,
       nodeIds: [10, 11, 12, 10],
@@ -81,6 +86,7 @@ describe('toll route cost (spec 090 T5)', () => {
   it('returns zero with a known origin when the route passes no booth', () => {
     const cost = resolveTollRouteCost({
       axles: AXLES,
+      multiplier: MULTIPLICADOR,
       booths: [praca(10, '1.00')],
       hasAutomaticTollPayment: false,
       nodeIds: [1, 2],
@@ -98,6 +104,7 @@ describe('toll route cost (spec 090 T5)', () => {
     expect(
       resolveTollRouteCost({
         axles: AXLES,
+        multiplier: MULTIPLICADOR,
         booths: [praca(10, '1.00')],
         hasAutomaticTollPayment: false,
         nodeIds: null,
@@ -113,6 +120,7 @@ describe('toll route cost (spec 090 T5)', () => {
   it('counts the booths whose tariff nobody knows, instead of treating them as free', () => {
     const cost = resolveTollRouteCost({
       axles: AXLES,
+      multiplier: MULTIPLICADOR,
       booths: [praca(10, '10.00'), praca(20, null)],
       hasAutomaticTollPayment: false,
       nodeIds: [10, 20],
@@ -125,6 +133,8 @@ describe('toll route cost (spec 090 T5)', () => {
 
   it('multiplies by the axles it was given, and says where the count came from', () => {
     const cost = resolveTollRouteCost({
+      /** Cavalo mecânico: cinco eixos de rodagem dupla, Categoria 7 — multiplicador 5. */
+      multiplier: { denominator: 1, numerator: 5 },
       axles: { count: 5, source: 'estimated' },
       booths: [praca(10, '32.80')],
       hasAutomaticTollPayment: false,
@@ -162,9 +172,12 @@ describe('toll route cost (spec 090 T5)', () => {
  */
 describe('toll route cost with the vehicle payment mode (spec 095 D3)', () => {
   const TOCO_AXLES = { count: 2, source: 'declared' } as const
+  /** Toco: dois eixos de rodagem dupla, Categoria 2 — multiplicador 2. */
+  const TOCO_MULTIPLICADOR = { denominator: 1, numerator: 2 } as const
 
   it('sem tag, usa sempre a manual', () => {
     const cost = resolveTollRouteCost({
+      multiplier: TOCO_MULTIPLICADOR,
       axles: TOCO_AXLES,
       booths: [praca(1, '10.50', '9.97'), praca(2, '10.50', '9.97'), praca(3, '11.80', null)],
       hasAutomaticTollPayment: false,
@@ -179,6 +192,7 @@ describe('toll route cost with the vehicle payment mode (spec 095 D3)', () => {
 
   it('com tag, usa a automática quando ela é conhecida e cai para a manual quando não é — contando a queda', () => {
     const cost = resolveTollRouteCost({
+      multiplier: TOCO_MULTIPLICADOR,
       axles: TOCO_AXLES,
       booths: [praca(1, '10.50', '9.97'), praca(2, '10.50', '9.97'), praca(3, '11.80', null)],
       hasAutomaticTollPayment: true,
@@ -197,6 +211,7 @@ describe('toll route cost with the vehicle payment mode (spec 095 D3)', () => {
    */
   it('sem tarifa nenhuma nas duas bases, conta como desconhecida, nunca como queda', () => {
     const cost = resolveTollRouteCost({
+      multiplier: TOCO_MULTIPLICADOR,
       axles: TOCO_AXLES,
       booths: [praca(1, null, null)],
       hasAutomaticTollPayment: true,
@@ -211,6 +226,7 @@ describe('toll route cost with the vehicle payment mode (spec 095 D3)', () => {
   /** Nunca se aplica desconto estimado — sem tag, a automática da praça não muda o valor cobrado. */
   it('sem tag, a automática da praça é ignorada por completo', () => {
     const cost = resolveTollRouteCost({
+      multiplier: TOCO_MULTIPLICADOR,
       axles: TOCO_AXLES,
       booths: [praca(1, '10.50', '1.00')],
       hasAutomaticTollPayment: false,

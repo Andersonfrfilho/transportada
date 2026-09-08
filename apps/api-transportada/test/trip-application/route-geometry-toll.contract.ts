@@ -65,6 +65,8 @@ describe('pedágio na resposta da geometria (spec 090 T7)', () => {
 
     const view = await readRouteGeometry({
       axles: { count: 2, source: 'declared' },
+      /** Rodagem dupla: multiplicador = eixos. */
+      multiplier: { denominator: 1, numerator: 2 },
       geometry: geometryPort,
       stops: PARADAS,
       tollBooths,
@@ -86,6 +88,8 @@ describe('pedágio na resposta da geometria (spec 090 T7)', () => {
 
     const view = await readRouteGeometry({
       axles: { count: 2, source: 'declared' },
+      /** Rodagem dupla: multiplicador = eixos. */
+      multiplier: { denominator: 1, numerator: 2 },
       geometry: geometryPort,
       stops: PARADAS,
       tollBooths,
@@ -104,6 +108,8 @@ describe('pedágio na resposta da geometria (spec 090 T7)', () => {
 
     const view = await readRouteGeometry({
       axles: { count: 2, source: 'declared' },
+      /** Rodagem dupla: multiplicador = eixos. */
+      multiplier: { denominator: 1, numerator: 2 },
       geometry: geometryPort,
       stops: PARADAS,
       tollBooths,
@@ -126,6 +132,8 @@ describe('pedágio na resposta da geometria (spec 090 T7)', () => {
 
     const view = await readRouteGeometry({
       axles: { count: 2, source: 'declared' },
+      /** Rodagem dupla: multiplicador = eixos. */
+      multiplier: { denominator: 1, numerator: 2 },
       geometry: geometryPort,
       stops: PARADAS,
       tollBooths,
@@ -140,6 +148,8 @@ describe('pedágio na resposta da geometria (spec 090 T7)', () => {
 
     const view = await readRouteGeometry({
       axles: { count: 5, source: 'estimated' },
+      /** Rodagem dupla: multiplicador = eixos. */
+      multiplier: { denominator: 1, numerator: 5 },
       geometry: geometryPort,
       stops: PARADAS,
       tollBooths,
