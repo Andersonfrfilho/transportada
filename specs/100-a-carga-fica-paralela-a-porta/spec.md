@@ -101,6 +101,17 @@ o intervalo de profundidade, passa a imprimir o intervalo de largura.
 planta mostra faixas e a tabela descreve profundidade — as duas plausíveis, uma delas errada, e nada
 falha.
 
+### D5b — A pilha tem teto de estabilidade, e ele é geométrico
+
+Sem `max_stack_count` cadastrado o limite era infinito. A altura da pilha não passa de **três vezes**
+a menor dimensão da base — 0,33 g de inclinação equivalente, que cobre frenagem normal e curva forte.
+
+⚠️ **A massa não entra, e é física.** Ela cancela na condição de tombamento; o peso importaria pela
+distribuição e pelo esmagamento, e `gross_weight_grams` existe em **4 de 663** caixas desta base.
+
+⚠️ **2:1 foi medido e recusado**: derruba o arranjo para profundidade e leva a última parada a 1,66 m
+— pior acesso que antes desta spec.
+
 ### D6 — Em faixas a sobra não se divide
 
 A carga dividida da 099 sobe para a região das paradas entregues **depois**, mais fundo no baú. Em

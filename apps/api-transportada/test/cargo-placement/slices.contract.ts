@@ -117,8 +117,15 @@ describe('a fatia por parada (spec 095 G001)', () => {
     })
     const boxes = placed(plan)
 
-    const overlapping = boxes.filter((entry) =>
-      boxes.some(
+    /**
+     * ⚠️ A **sobra** fica de fora, e sempre esteve: a carga dividida sobe para a região das paradas
+     * entregues depois, por decisão da 095 G003, e sai marcada em vermelho no desenho. Ela só passou
+     * a aparecer neste caso quando a esbeltez limitou a pilha (spec 100 G008) e mais carga transbordou
+     * da própria fatia.
+     */
+    const inteiras = boxes.filter((entry) => !entry.reasons.includes('splitCargo'))
+    const overlapping = inteiras.filter((entry) =>
+      inteiras.some(
         (other) =>
           other.stopSequence !== entry.stopSequence &&
           entry.xM < other.xM + other.depthM - 1e-9 &&
@@ -748,10 +755,14 @@ describe('as faixas paralelas à porta (spec 100)', () => {
    * ⚠️ **Caber em largura não é caber, e este é o defeito que a revisão pegou.**
    *
    * Duas paradas de uma caixa cada seguram 0,60 m de um baú de 1,45 m — o mínimo delas —, e a parada
-   * dominante fica com 0,85 m, que não comporta o volume dela. Antes do teste de volume o arranjo
+   * dominante fica com uma faixa que não comporta o volume dela. Antes do teste de volume o arranjo
    * saía `lanes` e o empacotador descartava **15 de 57 caixas** como `bedFull` num baú **64% cheio**;
    * as mesmas 57 cabiam em profundidade. O operador lia "não coube" numa viagem que cabe, na tela em
    * que ele decide aceitar a carga.
+   *
+   * ⚠️ A contagem caiu de 57 para 32 quando a esbeltez limitou a pilha (spec 100 G008): com altura
+   * útil de 0,90 m num baú de 1,30 m, 57 caixas deixaram de caber **de verdade**, e o contrato
+   * passaria a afirmar o contrário do que mede.
    */
   test('carga que cabe é colocada, mesmo quando a faixa a estrangularia', () => {
     const plan = resolveCargoPlacement({
@@ -759,11 +770,11 @@ describe('as faixas paralelas à porta (spec 100)', () => {
       boxes: [
         box({ heightMm: 300, lengthMm: 400, stopSequence: 1, widthMm: 300 }),
         box({ heightMm: 300, lengthMm: 400, stopSequence: 2, widthMm: 300 }),
-        box({ count: 55, heightMm: 300, lengthMm: 400, stopSequence: 3, widthMm: 300 }),
+        box({ count: 30, heightMm: 300, lengthMm: 400, stopSequence: 3, widthMm: 300 }),
       ],
     })
 
-    expect(placed(plan).length).toBe(57)
+    expect(placed(plan).length).toBe(32)
     expect(plan?.unplaced).toEqual([])
   })
 
@@ -885,6 +896,54 @@ describe('as faixas paralelas à porta (spec 100)', () => {
 
     /** As quatro cabem lado a lado na largura, sem ninguém subir. */
     expect(daParada1.every((entry) => entry.zM === 0)).toBe(true)
+  })
+
+  /**
+   * ⚠️ **A pilha tem teto de estabilidade, e ele é geométrico** (spec 100 G008).
+   *
+   * Sem `max_stack_count` cadastrado o limite era infinito e a varredura subia até o teto do baú.
+   * Numa prateleira isso passa; num veículo em movimento não — a pilha tomba quando a inclinação
+   * equivalente passa de `tan⁻¹(base ÷ altura)`, e a 3:1 isso é 0,33 g, o que uma curva forte faz.
+   *
+   * ⚠️ **A massa não entra, e é física, não simplificação:** ela cancela nos dois lados da condição de
+   * tombamento. Medido nesta base, `gross_weight_grams` existe em **4 de 663** caixas — uma regra de
+   * peso não rodaria em 99,4% das cargas.
+   */
+  test('a pilha não passa de três vezes a menor dimensão da base', () => {
+    const boxes = placed(
+      resolveCargoPlacement({
+        bed: FIORINO,
+        boxes: [1, 2].map((stopSequence) =>
+          box({ count: 12, heightMm: 300, lengthMm: 400, stopSequence, widthMm: 300 }),
+        ),
+      }),
+    )
+    const topo = Math.max(...boxes.map((entry) => entry.zM + entry.heightM))
+
+    /** Base de 0,30 m × 3 = 0,90 m, e o baú tem 1,30 m de altura livre. */
+    expect(topo).toBeLessThanOrEqual(0.91)
+    /** E ela de fato empilha: a trava é teto, não proibição. */
+    expect(topo).toBeGreaterThan(0.3)
+  })
+
+  /**
+   * ⚠️ **A caixa baixa e larga sobe mais, e a alta e estreita sobe menos** — é a mesma regra, e é o
+   * que a distingue de um número fixo de camadas. Quatro caixas de 10 cm são 40 cm de pilha e não
+   * preocupam ninguém; quatro de 40 cm são 1,60 m e preocupam.
+   */
+  test('o teto acompanha a forma da caixa, não a contagem', () => {
+    const rasa = placed(
+      resolveCargoPlacement({
+        bed: FIORINO,
+        boxes: [1, 2].map((stopSequence) =>
+          box({ count: 12, heightMm: 100, lengthMm: 400, stopSequence, widthMm: 300 }),
+        ),
+      }),
+    )
+    const camadasRasas = new Set(rasa.map((entry) => entry.zM)).size
+
+    /** Base 0,30 m → teto 0,90 m; com caixa de 0,10 m isso são nove camadas, não três. */
+    expect(camadasRasas).toBeGreaterThan(3)
   })
 
   /** A física vence: acima de metade do teto de massa a carga volta a se dividir em profundidade. */

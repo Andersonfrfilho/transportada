@@ -424,6 +424,27 @@ function packUntilItFits(input: {
   }
 }
 
+/**
+ * Quantas vezes a altura da pilha pode passar da menor dimensão da base antes de ela tombar.
+ *
+ * ⚠️ **Constante operacional declarada, não medida** — como o tempo parado por entrega. A pilha tomba
+ * quando a inclinação equivalente passa de `tan⁻¹(base ÷ altura)`: a 3:1 isso é 18,4°, ou **0,33 g**,
+ * que cobre frenagem normal e curva forte. Frenagem de emergência passa disso, e nenhuma razão
+ * praticável cobre os 0,6 g dela sem esvaziar o baú.
+ *
+ * ⚠️ **A massa não entra, e isso é física, não simplificação.** Ela cancela nos dois lados da
+ * condição de tombamento — coluna pesada e leve de mesma forma tombam no mesmo ângulo —, e cancela
+ * também no deslizamento. O peso importaria pela **distribuição** (caixa pesada em cima sobe o centro
+ * de massa) e pelo **esmagamento**, que é o que `max_stack_count` declara. Medido nesta base:
+ * `gross_weight_grams` existe em **4 de 663** caixas, então uma regra de peso não rodaria em 99,4%
+ * das cargas — a lacuna que a ADR-0044 §5 proíbe.
+ *
+ * ⚠️ Medido em 2:1: a altura útil cai para menos da metade do baú, a carga deixa de caber em faixas,
+ * o arranjo volta a profundidade e a última parada vai a **1,66 m** — pior acesso que antes da spec,
+ * em nome de uma segurança que a viagem não usa.
+ */
+const STABLE_STACK_SLENDERNESS = 3
+
 /** Quantas vezes a fatia cresce antes de desistir e usar o teto proporcional. */
 const SLICE_GROWTH_ATTEMPTS = 8
 /** O passo do crescimento. Grosso de propósito: o desenho não melhora com precisão de centímetro. */
@@ -574,7 +595,17 @@ export function resolveStopArrangement(input: {
   const byStop = sequences.map((stopSequence) => {
     const own = measured.filter((box) => box.stopSequence === stopSequence)
 
-    return { minWidthM: minimumLaneWidthOf(own), volumeM3: volumeOf(own) }
+    return {
+      minWidthM: minimumLaneWidthOf(own),
+      /**
+       * ⚠️ **A altura útil não é a do baú.** A esbeltez limita a pilha, e uma caixa de 0,30 m com
+       * base de 0,30 m só sobe 0,60 m num baú de 1,30 m — menos da metade. Medir o cabimento pela
+       * altura do baú prometia faixa que a varredura não entrega, e a carga voltava a sair como
+       * `bedFull`.
+       */
+      usableHeightM: Math.min(bedHeightM, usableStackHeightOf(own)),
+      volumeM3: volumeOf(own),
+    }
   })
 
   /**
@@ -605,7 +636,7 @@ export function resolveStopArrangement(input: {
     const share = totalVolumeM3 > 0 ? stop.volumeM3 / totalVolumeM3 : 1 / byStop.length
     const laneWidthM = stop.minWidthM + slackM * share
 
-    return stop.volumeM3 <= laneWidthM * bedLengthM * bedHeightM * ROW_PACKING_EFFICIENCY
+    return stop.volumeM3 <= laneWidthM * bedLengthM * stop.usableHeightM * ROW_PACKING_EFFICIENCY
   })
 
   /**
@@ -616,6 +647,20 @@ export function resolveStopArrangement(input: {
   return fits
     ? { arrangement: 'lanes', reason: 'fits' }
     : { arrangement: 'depth', reason: 'volumeDoesNotFit' }
+}
+
+/**
+ * Até que altura a carga desta parada sobe sem tombar — o melhor caso entre as caixas dela, porque a
+ * varredura escolhe a orientação e põe a de maior pegada por baixo.
+ */
+function usableStackHeightOf(boxes: readonly PlacementBox[]): number {
+  return Math.max(
+    ...boxes.map(
+      (box) =>
+        (Math.min(box.lengthMm ?? 0, box.widthMm ?? 0) / MILLIMETRES_PER_METRE) *
+        STABLE_STACK_SLENDERNESS,
+    ),
+  )
 }
 
 /** A largura mínima da faixa: caber a caixa mais larga da parada, girada se for o caso. */
@@ -788,7 +833,19 @@ function packSlice(input: {
          * caixa que provocava o fechamento escapava para a camada de cima — e uma caixa declarada não
          * empilhável acabava empilhada, que é o oposto do que o campo diz.
          */
-        if (cursor.layer >= stackLimit) break
+        if (cursor.layer >= stackLimit) {
+          /**
+           * ⚠️ **Atingir o teto da pilha é razão para andar para o fundo, não para desistir.** Com a
+           * esbeltez limitando a altura, este passa a ser o caminho comum em faixas: sem ele a carga
+           * virava `bedFull` com o baú vazio à frente dela — medido, 23 de 31 caixas.
+           */
+          if (input.stackBeforeRow !== true || rowFrontierM >= slice.widthM - 1e-9) break
+
+          rowFrontierM = Math.min(slice.widthM, rowFrontierM + slot.widthM)
+          barrenLayers = 0
+          cursor = { layer: 0, layerBottomM: 0, layerHeightM: 0, rowWidthM: 0, xM: 0, yM: 0 }
+          continue
+        }
 
         const found = support.seat({
           heightM: slice.heightM,
@@ -796,7 +853,15 @@ function packSlice(input: {
           xM: cursor.xM,
           yM: cursor.yM,
         })
-        if (found !== null && found.xM + slot.depthM <= slice.lengthM + 1e-9) {
+        /**
+         * ⚠️ **A esbeltez é conferida na altura do assento, não no contador de camadas.** O contador
+         * é do cursor e zera quando a fronteira avança; o mapa de apoio, não — ele continua
+         * empilhando sobre o que já está lá. Medido: com a trava só no contador a carga voltou a
+         * subir 1,20 m numa pilha que a regra limitava a 0,60 m.
+         */
+        const tooTall =
+          found !== null && found.topM + slot.heightM > stableStackHeightM(slot) + 1e-9
+        if (found !== null && !tooTall && found.xM + slot.depthM <= slice.lengthM + 1e-9) {
           cursor = { ...cursor, xM: found.xM }
           rest = found
           break
@@ -1189,6 +1254,12 @@ function findSplitSpot(input: {
         }
       }
       if (support + input.slot.heightM > input.bed.heightM + 1e-9) continue
+      /**
+       * ⚠️ A sobra sobe **em cima** do que já está lá, e por isso ela é justamente quem mais arrisca
+       * tombar. Sem esta trava a carga dividida furava a esbeltez pelo caminho de trás — medido: uma
+       * caixa a 0,90 m numa pilha que a regra limitava a 0,60 m.
+       */
+      if (support + input.slot.heightM > stableStackHeightM(input.slot) + 1e-9) continue
       if (best === null || support < best.topM) {
         best = { layer, topM: support, xM: Math.max(0, xM), yM }
       }
@@ -1302,9 +1373,42 @@ function median(values: readonly number[]): number {
  * Quantas camadas esta caixa aceita ter **abaixo** dela. Zero é "só o piso": não empilhável e frágil
  * ficam por cima, e sem informação a caixa empilha à vontade — marcando o arranjo como presumido.
  */
+/**
+ * **Quantas caixas iguais podem subir uma sobre a outra sem a pilha tombar na estrada.**
+ *
+ * ⚠️ **Sem `max_stack_count` cadastrado o limite era infinito**, e a varredura subia até o teto do
+ * baú. Numa prateleira isso é aceitável; num veículo em movimento não — frenagem, curva e lombada
+ * derrubam pilha alta e estreita, e a carga que cai machuca alguém antes de estragar.
+ *
+ * A trava é a **esbeltez**: a altura da pilha não passa de `STABLE_STACK_SLENDERNESS` vezes a menor
+ * dimensão da base. É a regra de bolso de carga não amarrada, e o produto não sabe se há cinta —
+ * então assume que não há, que é a leitura conservadora de sempre.
+ *
+ * ⚠️ **A conta é de altura, não de contagem.** Quatro caixas de 10 cm são 40 cm de pilha e não
+ * preocupam ninguém; quatro de 40 cm são 1,60 m e preocupam. Contar caixas trataria as duas igual.
+ *
+ * ⚠️ `max_stack_count` declarado **não dispensa** a esbeltez, e vice-versa: o campo fala do que a
+ * caixa aguenta de peso em cima (esmagamento), e a esbeltez fala de a pilha ficar de pé. São coisas
+ * diferentes, e valem as duas — esta função responde pela primeira, e `stableStackHeightM` pela
+ * segunda, conferida no assento.
+ */
 function resolveStackLimit(box: PlacementBox): number {
   if (box.isStackable === false || box.isFragile === true) return 1
+
   return box.maxStackCount ?? Number.POSITIVE_INFINITY
+}
+
+/**
+ * Até que altura, do piso, a pilha desta caixa fica de pé.
+ *
+ * ⚠️ A base usada é a **da própria caixa**, não a da que está embaixo. Numa carga uniforme — o caso
+ * comum — as duas são a mesma; numa carga mista a ordenação já põe a maior pegada por baixo, então a
+ * caixa de cima tem base menor e a conta erra **para o lado seguro**.
+ */
+function stableStackHeightM(slot: Slot): number {
+  const baseM = Math.min(slot.depthM, slot.widthM)
+
+  return baseM > 0 ? baseM * STABLE_STACK_SLENDERNESS : Number.POSITIVE_INFINITY
 }
 
 /** A presumida entra depois da medida, para a base ficar com a medida de verdade. */

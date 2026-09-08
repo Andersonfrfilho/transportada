@@ -119,10 +119,53 @@ Desempenho depois das duas mudanças: **28,3 ms** para 3600 caixas em 12 paradas
 de 50 ms declarado pela 099 — mais rápido que antes, porque a faixa deixou de ser reempacotada a
 cada etapa de crescimento.
 
+## ⚠️ E a pilha, que subia sem teto
+
+Com o acesso resolvido, o usuário apontou o que a altura custava: _"ao levarmos muito a carga ela
+pode balançar e cair"_. Sem `max_stack_count` cadastrado o limite era **infinito**, e a varredura
+subia até o teto do baú — numa prateleira isso passa, num veículo em movimento não.
+
+A trava é a **esbeltez**: a altura da pilha não passa de três vezes a menor dimensão da base. A pilha
+tomba quando a inclinação equivalente passa de `tan⁻¹(base ÷ altura)`, e a 3:1 isso é 18,4°, ou
+**0,33 g** — frenagem normal e curva forte.
+
+Medido na viagem real, escolhendo a razão:
+
+| esbeltez    | pilha             | resiste a |    colocadas | alcance por parada       |
+| ----------- | ----------------- | --------: | -----------: | ------------------------ |
+| 2:1         | 2 caixas · 0,60 m |    0,50 g |     30 de 31 | 0,33 / 0,73 / **1,66 m** |
+| **3:1**     | 3 caixas · 0,90 m |    0,33 g | **31 de 31** | 0,60 / 0,90 / 1,20 m     |
+| 4:1 (antes) | 4 caixas · 1,20 m |    0,25 g |     31 de 31 | 0,60 / 0,60 / 1,20 m     |
+
+⚠️ **O 2:1 se sabota.** A altura útil cai para menos da metade do baú, a carga deixa de caber em
+faixas, o arranjo volta a profundidade e a última parada vai a **1,66 m** — pior acesso que antes da
+spec inteira, em nome de uma segurança que a viagem não usa. E uma caixa fica de fora num baú 35%
+cheio, que é a tela dizendo "não coube" a quem tem espaço sobrando.
+
+### ⚠️ Por que o peso não entra
+
+A massa **cancela** nos dois lados da condição de tombamento: coluna pesada e leve de mesma forma
+tombam no mesmo ângulo, e no deslizamento o atrito e a inércia crescem juntos. O peso importaria pela
+**distribuição** (caixa pesada em cima sobe o centro de massa) e pelo **esmagamento**, que é o que
+`max_stack_count` declara e continua valendo por cima da esbeltez.
+
+E o dado decide sozinho: `gross_weight_grams` existe em **4 de 663** caixas desta base — uma regra de
+peso não rodaria em 99,4% das cargas, e seria a lacuna que a ADR-0044 §5 proíbe.
+
+### Três lugares, porque a pilha sobe por três caminhos
+
+A trava precisou ser conferida na **altura do assento**, não no contador de camadas do cursor: ele
+zera quando a fronteira avança, e o mapa de apoio não — com a trava só no contador a carga voltou a
+subir 1,20 m numa pilha limitada a 0,60 m. E a **carga dividida** furava por trás, com busca própria:
+medido, uma caixa a 0,90 m. Por fim, o teste de cabimento das faixas passou a usar a altura **útil**,
+não a do baú, senão ele prometia faixa que a varredura não entrega.
+
+Desempenho: **25,4 ms** para 3600 caixas em 12 paradas.
+
 ## Gates
 
 ```
-bun run --cwd apps/api-transportada test        4811 pass · 23 skip · 0 fail
+bun run --cwd apps/api-transportada test        4813 pass · 23 skip · 0 fail
 bun run --cwd apps/api-transportada typecheck   limpo
 bun run --cwd apps/api-transportada lint        limpo
 bun run --cwd apps/frontend-transportada test   3057 pass · 0 fail
