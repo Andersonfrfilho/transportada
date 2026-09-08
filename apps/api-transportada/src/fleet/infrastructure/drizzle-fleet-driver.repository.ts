@@ -2,9 +2,11 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, desc, eq, ilike, lt, ne, or } from 'drizzle-orm'
+import { and, desc, eq, ilike, lt, ne, or, sql, type SQL } from 'drizzle-orm'
+import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 
 import { fleetDrivers, userCompanyMemberships } from '../../database/database.schema.js'
+import type { DriverHomeState } from '../domain/driver-home-geocoding.policy.js'
 import type { FleetDriverStatus } from '../../database/fleet.schema.js'
 import { violatedUniqueConstraint } from '../../database/postgres-error.support.js'
 import type {
@@ -156,6 +158,51 @@ export class DrizzleFleetDriverRepository implements FleetDriverRepositoryPort {
     }
   }
 
+  /** A ficha, só com o que a busca da casa precisa — nunca o registro inteiro. */
+  public async readHome(input: {
+    readonly companyId: string
+    readonly driverId: string
+  }): Promise<DriverHomeState | null> {
+    const [row] = await this.database
+      .select({
+        city: fleetDrivers.city,
+        geocodedAt: fleetDrivers.homeGeocodedAt,
+        latitude: fleetDrivers.homeLatitude,
+        longitude: fleetDrivers.homeLongitude,
+        number: fleetDrivers.number,
+        postalCode: fleetDrivers.postalCode,
+        state: fleetDrivers.state,
+        street: fleetDrivers.street,
+      })
+      .from(fleetDrivers)
+      .where(and(eq(fleetDrivers.companyId, input.companyId), eq(fleetDrivers.id, input.driverId)))
+      .limit(1)
+    return row ?? null
+  }
+
+  /**
+   * ⚠️ A marca é carimbada **sempre**, com ou sem coordenada: é ela que diz "já procurei", e sem o
+   * carimbo o motorista que o provedor não acha seria procurado de novo a cada salvamento.
+   *
+   * ⚠️ Não mexe em `version`: a busca é enriquecimento nosso, não edição do operador, e subir a
+   * versão faria a tela aberta ao lado receber conflito de concorrência por um campo que ela nem
+   * mostra.
+   */
+  public async writeHome(input: {
+    readonly companyId: string
+    readonly coordinate: { readonly latitude: string; readonly longitude: string } | null
+    readonly driverId: string
+  }): Promise<void> {
+    await this.database
+      .update(fleetDrivers)
+      .set({
+        homeGeocodedAt: new Date(),
+        homeLatitude: input.coordinate?.latitude ?? null,
+        homeLongitude: input.coordinate?.longitude ?? null,
+      })
+      .where(and(eq(fleetDrivers.companyId, input.companyId), eq(fleetDrivers.id, input.driverId)))
+  }
+
   public async update(input: {
     readonly companyId: string
     readonly driver: FleetDriverInput
@@ -168,6 +215,18 @@ export class DrizzleFleetDriverRepository implements FleetDriverRepositoryPort {
         .update(fleetDrivers)
         .set({
           ...toDriverColumns(input.driver),
+          /**
+           * ⚠️ **Endereço editado zera a coordenada e a marca de busca.** Sem isto, corrigir a rua
+           * do motorista deixaria o par gravado apontando para a casa antiga — e a marca de "já
+           * procurei" impediria a busca de acontecer de novo, para sempre. A rota de retorno
+           * terminaria num endereço que ninguém mais mora, sem nada na tela denunciando.
+           *
+           * A comparação é `is distinct from` sobre os cinco campos que formam o lugar; o
+           * complemento fica de fora de propósito — apartamento não muda a coordenada da porta.
+           */
+          homeGeocodedAt: clearOnAddressChange(fleetDrivers.homeGeocodedAt, input.driver),
+          homeLatitude: clearOnAddressChange(fleetDrivers.homeLatitude, input.driver),
+          homeLongitude: clearOnAddressChange(fleetDrivers.homeLongitude, input.driver),
           status: input.status,
           updatedAt: new Date(),
           version: BigInt(input.expectedVersion) + 1n,
@@ -196,4 +255,22 @@ async function runGuarded<TResult>(operation: () => Promise<TResult>): Promise<T
     if (constraint === LICENSE_NUMBER_CONSTRAINT) throw new FleetDriverLicenseNumberTakenError()
     throw error
   }
+}
+
+/**
+ * Zera o campo quando o endereço mudou, e o preserva quando não mudou.
+ *
+ * ⚠️ Em `UPDATE` do Postgres, a coluna citada à direita ainda é o **valor antigo** — é isso que
+ * permite comparar o gravado com o que está entrando sem uma leitura a mais. Fazer a comparação em
+ * TypeScript exigiria ler a ficha antes de escrevê-la, e entre a leitura e a escrita cabe outra
+ * atualização.
+ *
+ * O complemento fica de fora dos cinco campos de propósito: apartamento não muda a coordenada da
+ * porta, e zerar por causa dele mandaria buscar de novo à toa.
+ */
+function clearOnAddressChange<TColumn extends AnyPgColumn>(
+  column: TColumn,
+  driver: FleetDriverInput,
+): SQL {
+  return sql`case when (${fleetDrivers.postalCode}, ${fleetDrivers.street}, ${fleetDrivers.number}, ${fleetDrivers.city}, ${fleetDrivers.state}) is distinct from (${driver.address.postalCode}, ${driver.address.street}, ${driver.address.number}, ${driver.address.city}, ${driver.address.state}) then null else ${column} end`
 }

@@ -48,6 +48,11 @@ export type ApiEnvironment = {
   /** Endereço público do postback de NFS-e; ausente mantém a rota anônima de callback fora do ar. */
   /** Endereço público desta instalação. Ausente, a foto de perfil não vira atributo no realm. */
   readonly apiPublicUrl: string | undefined
+  /**
+   * O Photon, para a coordenada da casa do motorista (spec 097 D6). Ausente é "esta instalação não
+   * preenche coordenada": o cadastro segue igual, e o retorno da viagem cai no endereço da empresa.
+   */
+  readonly driverAddressLookupUrl: string | undefined
   readonly nfseCallbackBaseUrl: string | undefined
   /** Segredo do recibo de entrega; ausente, a rota de webhook do módulo não é publicada. */
   readonly notificationWebhookSecret: string | undefined

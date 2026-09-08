@@ -63,6 +63,7 @@ const tenantContext = new TenantContextService({
 const server = startApiServer({
   config: {
     apiPublicUrl: undefined,
+    driverAddressLookupUrl: undefined,
     appEnv: 'test',
     bootstrapToken: undefined,
     companyId: undefined,

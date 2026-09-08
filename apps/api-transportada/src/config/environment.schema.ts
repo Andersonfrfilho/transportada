@@ -130,6 +130,21 @@ const environmentSchema = z.object({
   // Terceiro degrau da busca de CEP: só é consultado quando o banco da instalação não soube o
   // endereço inteiro. Vazio desliga aquele provedor — os dois vazios deixam a escada terminar em
   // casa, e o operador digita. Nenhum dos dois pede token: BrasilAPI e ViaCEP são públicos.
+  /**
+   * O Photon, para achar a coordenada da casa do motorista uma vez por ficha (spec 097 D6).
+   *
+   * ⚠️ Ausente é "esta instalação não preenche coordenada" — e o cadastro segue igual, sem ela.
+   * Serviço que não existe não pode derrubar salvamento de motorista.
+   */
+  DRIVER_ADDRESS_LOOKUP_URL: z
+    .string()
+    .url()
+    .optional()
+    .refine(
+      (value) =>
+        value === undefined || value.startsWith('https://') || value.startsWith('http://localhost'),
+      { message: 'DRIVER_ADDRESS_LOOKUP_URL must be an HTTPS URL or an HTTP localhost URL' },
+    ),
   POSTAL_CODE_BRASIL_API_URL: z
     .string()
     .trim()
@@ -262,6 +277,7 @@ export function parseEnvironment(environment: Record<string, string | undefined>
         ? undefined
         : { queuePrefix: parsed.QUEUE_PREFIX, url: parsed.RABBITMQ_URL },
     apiPublicUrl: parsed.API_PUBLIC_URL,
+    driverAddressLookupUrl: parsed.DRIVER_ADDRESS_LOOKUP_URL,
     nfseCallbackBaseUrl: parsed.NFSE_CALLBACK_BASE_URL,
     notificationWebhookSecret: parsed.NOTIFICATION_WEBHOOK_SECRET,
     turnstileSecretKey: parsed.TURNSTILE_SECRET_KEY,

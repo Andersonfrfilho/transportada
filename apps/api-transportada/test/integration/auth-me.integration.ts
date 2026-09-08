@@ -81,6 +81,7 @@ describe('GET /auth/me PostgreSQL isolation', () => {
         server = startApiServer({
           config: {
             apiPublicUrl: undefined,
+            driverAddressLookupUrl: undefined,
             appEnv: 'test',
             bootstrapToken: undefined,
             companyId: undefined,

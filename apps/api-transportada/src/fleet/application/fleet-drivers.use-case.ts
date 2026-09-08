@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { DriverHomeGeocoderPort } from './driver-home-geocoder.port.js'
 import type { FleetDriverStatus } from '../../database/fleet.schema.js'
 import type { ContactChannel } from '../../database/identity-user-profile.schema.js'
 import {
@@ -82,9 +83,34 @@ function resolveInvitationContact(driver: { readonly email: string; readonly pho
 export function createFleetDriversUseCase(dependencies: {
   readonly account: FleetDriverAccountPort
   readonly contacts: FleetDriverContactDirectoryPort
+  /**
+   * Preenche a coordenada da casa depois de gravar a ficha. Ausente é "esta instalação não
+   * configurou provedor" — e aí o cadastro segue igual, sem coordenada.
+   */
+  readonly homeGeocoder?: DriverHomeGeocoderPort
   readonly repository: FleetDriverRepositoryPort
 }): FleetDriversUseCase {
   const { account, contacts, repository } = dependencies
+
+  /**
+   * ⚠️ **A busca não pode derrubar o cadastro.** Ela roda depois de a ficha estar gravada, e um
+   * timeout do provedor devolveria erro ao operador por uma ação que deu certo — o mesmo `catch` de
+   * fallback gracioso do congelamento de pedágio (`code-standart.md` §7).
+   *
+   * O preço é a ficha ficar sem coordenada até o próximo salvamento, e ausência de coordenada já é
+   * caso tratado: o retorno cai no endereço da empresa.
+   */
+  async function fillHomeCoordinate(input: {
+    readonly companyId: string
+    readonly driverId: string
+  }): Promise<void> {
+    if (dependencies.homeGeocoder === undefined) return
+    try {
+      await dependencies.homeGeocoder.fill(input)
+    } catch {
+      /* a ficha está gravada; a coordenada nasce no próximo salvamento */
+    }
+  }
 
   /** Campo em branco é ausência, não colisão: nem todo motorista tem CNH ou e-mail cadastrado. */
   async function resolveAvailability(
@@ -147,7 +173,12 @@ export function createFleetDriversUseCase(dependencies: {
         name: input.driver.name,
         roles: [input.profile],
       })
-      return repository.create({ companyId, driver: { ...input.driver, membershipId } })
+      const created = await repository.create({
+        companyId,
+        driver: { ...input.driver, membershipId },
+      })
+      await fillHomeCoordinate({ companyId, driverId: created.id })
+      return created
     },
 
     async list(input) {
@@ -169,7 +200,10 @@ export function createFleetDriversUseCase(dependencies: {
         expectedVersion: input.expectedVersion,
         status: input.status,
       })
-      if (updated !== null) return updated
+      if (updated !== null) {
+        await fillHomeCoordinate({ companyId, driverId: input.driverId })
+        return updated
+      }
 
       const current = await repository.findById({ companyId, driverId: input.driverId })
       if (current === null) throw new FleetDriverNotFoundError()

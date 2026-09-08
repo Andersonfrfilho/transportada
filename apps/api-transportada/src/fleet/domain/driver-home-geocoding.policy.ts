@@ -24,6 +24,41 @@ export type DriverHomeState = Readonly<{
 export const DRIVER_HOME_GEOCODING_SKIPS = ['already_searched', 'address_incomplete'] as const
 export type DriverHomeGeocodingSkip = (typeof DRIVER_HOME_GEOCODING_SKIPS)[number]
 
+/** Os campos do endereço que a busca precisa, nos nomes que a tela imprime. */
+export const DRIVER_HOME_FIELDS = ['street', 'number', 'city', 'state', 'postalCode'] as const
+export type DriverHomeField = (typeof DRIVER_HOME_FIELDS)[number]
+
+/**
+ * Em que pé está a coordenada da casa — é isto que a tela transforma em aviso.
+ *
+ * ⚠️ As quatro saídas são distintas de propósito, porque o remédio de cada uma é distinto:
+ * `pending` espera o próximo salvamento, `resolved` não pede nada, `incomplete` pede **cadastro** (e
+ * diz quais campos), e `not_found` pede **conferência do endereço** — o provedor procurou e não
+ * achou, ou achou em outra cidade. Colapsá-las num "sem coordenada" mandaria o operador procurar o
+ * que não está faltando.
+ */
+export const DRIVER_HOME_STATUSES = ['pending', 'resolved', 'incomplete', 'not_found'] as const
+export type DriverHomeStatus = (typeof DRIVER_HOME_STATUSES)[number]
+
+export type DriverHomeReport = Readonly<{
+  /** Vazio fora de `incomplete`: só ali há campo a preencher. */
+  missing: readonly DriverHomeField[]
+  status: DriverHomeStatus
+}>
+
+/**
+ * ⚠️ **`not_found` não lista campo nenhum**, e isso é deliberado: o endereço está completo, e o que
+ * falhou foi o casamento. Listar campos ali mandaria alguém preencher o que já está preenchido.
+ */
+export function describeDriverHome(home: DriverHomeState): DriverHomeReport {
+  if (home.latitude !== null) return { missing: [], status: 'resolved' }
+
+  const missing = DRIVER_HOME_FIELDS.filter((field) => home[field].trim() === '')
+  if (missing.length > 0) return { missing, status: 'incomplete' }
+
+  return { missing: [], status: home.geocodedAt === null ? 'pending' : 'not_found' }
+}
+
 export type DriverHomeGeocodingPlan =
   | Readonly<{ action: 'search'; term: string }>
   | Readonly<{ action: 'skip'; reason: DriverHomeGeocodingSkip }>

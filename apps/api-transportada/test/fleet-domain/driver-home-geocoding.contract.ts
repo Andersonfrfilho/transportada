@@ -4,6 +4,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+  describeDriverHome,
   planDriverHomeGeocoding,
   type DriverHomeState,
 } from '../../src/fleet/domain/driver-home-geocoding.policy.js'
@@ -83,5 +84,46 @@ describe('quando procurar a coordenada da casa do motorista (spec 097 D6)', () =
       action: 'search',
       term: 'Rua Antônio Fagundes, Sertãozinho, SP, 14170480',
     })
+  })
+})
+
+describe('o aviso de coordenada faltando na ficha do motorista', () => {
+  test('coordenada gravada não pede nada', () => {
+    expect(
+      describeDriverHome({
+        ...CASA,
+        geocodedAt: new Date(),
+        latitude: '-21.13',
+        longitude: '-47.99',
+      }),
+    ).toEqual({ missing: [], status: 'resolved' })
+  })
+
+  /**
+   * ⚠️ O aviso nomeia **os campos** que faltam. "Endereço incompleto" sozinho manda o operador
+   * abrir a ficha e conferir cinco campos para descobrir qual é.
+   */
+  test('endereço incompleto lista os campos que faltam', () => {
+    expect(describeDriverHome({ ...CASA, city: '', street: '  ' })).toEqual({
+      missing: ['street', 'city'],
+      status: 'incomplete',
+    })
+  })
+
+  /**
+   * ⚠️ **`not_found` não lista campo nenhum.** O endereço está completo — o que falhou foi o
+   * casamento no provedor, e listar campos ali mandaria alguém preencher o que já está preenchido.
+   * O remédio é conferir o endereço, não completá-lo.
+   */
+  test('procurou e não achou não lista campo, porque não falta campo', () => {
+    expect(describeDriverHome({ ...CASA, geocodedAt: new Date('2026-09-08T12:00:00Z') })).toEqual({
+      missing: [],
+      status: 'not_found',
+    })
+  })
+
+  /** Ninguém procurou ainda: não é falha, é fila — o próximo salvamento resolve. */
+  test('ficha nunca procurada fica pendente, não em falta', () => {
+    expect(describeDriverHome(CASA)).toEqual({ missing: [], status: 'pending' })
   })
 })

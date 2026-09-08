@@ -198,6 +198,8 @@ import { createCteExportSelection } from './cte-issuance/infrastructure/cte-expo
 import { DrizzleCteIssuanceRepository } from './cte-issuance/infrastructure/drizzle-cte-issuance.repository'
 import { createCteIssuanceRoutes } from './cte-issuance/presentation/cte-issuance.routes'
 import { createFleetDriverVehiclesUseCase } from './fleet/application/fleet-driver-vehicles.use-case'
+import { createDriverHomeGeocoder } from './fleet/application/driver-home-geocoder.port.js'
+import { createPhotonDriverHomeGateway } from './fleet/infrastructure/photon-driver-home.gateway.js'
 import { createFleetDriversUseCase } from './fleet/application/fleet-drivers.use-case'
 import type { FleetVehicleCatalogPort } from './fleet/application/fleet-vehicle-catalog.port'
 import { createFleetVehiclesUseCase } from './fleet/application/fleet-vehicles.use-case'
@@ -1410,9 +1412,21 @@ function createApplicationRoutes({
     repository: companyUserRepository,
   })
   // Depois do convite: cadastrar motorista abre o usuário dele, então a frota depende da identidade
+  /**
+   * A coordenada da casa do motorista, uma vez por ficha (spec 097 D6). Sem `driverAddressLookupUrl`
+   * a dependência nem existe — e o cadastro segue igual, porque o `homeGeocoder` é opcional.
+   */
+  const driverHomeGeocoder =
+    environment.driverAddressLookupUrl === undefined
+      ? undefined
+      : createDriverHomeGeocoder({
+          provider: createPhotonDriverHomeGateway({ baseUrl: environment.driverAddressLookupUrl }),
+          repository: fleetDriverRepository,
+        })
   const fleetDrivers = createFleetDriversUseCase({
     account: inviteCompanyUser,
     contacts: createIdentityContactDirectoryGateway({ identity: identityAccessGateway }),
+    ...(driverHomeGeocoder === undefined ? {} : { homeGeocoder: driverHomeGeocoder }),
     repository: fleetDriverRepository,
   })
   const listCompanyUsers = createListCompanyUsersUseCase({ repository: companyUserRepository })
