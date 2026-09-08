@@ -38,6 +38,15 @@ pedágio. O produto tem **duas verdades sobre a mesma viagem**, e a que o operad
 A rota desenhada parte do barracão e termina conforme `endPolicy` (`depot` por padrão), que é o que o
 solver já faz. Uma segunda regra aqui recriaria a divergência que este defeito é.
 
+⚠️ **E isso já decide a volta, sem decisão nova.** Medido nesta base em 2026-09-08: as duas empresas
+têm `end_policy = 'depot'`, que é também o padrão do esquema. A política configurada **já diz** que a
+rota termina no barracão — então o roteiro real é _barracão → paradas → barracão_, e o custo previsto
+é o de **ida e volta**: na viagem medida, 209 km e **R$ 60,00** de pedágio num toco, contra os R$ 0,00
+que a tela mostra hoje.
+
+Quem quiser terminar na última parada muda `end_policy` para `last_stop` — a configuração existe, e a
+montagem passa a respeitá-la junto com o solver. O que não pode é a montagem ter uma política própria.
+
 ### D2 — Sem coordenada do barracão, a perna não existe e a tela diz isso
 
 Barracão sem endereço cadastrado ou sem geocodificação **não vira ponto inventado**. A rota volta a
