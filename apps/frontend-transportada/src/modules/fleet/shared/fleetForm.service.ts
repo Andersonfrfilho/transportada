@@ -90,6 +90,9 @@ const EMPTY_DRIVER_FORM: FleetDriverFormState = {
   addressDistrict: '',
   addressNumber: '',
   addressPostalCode: '',
+  homeLatitude: null,
+  homeLongitude: null,
+  homeMoved: false,
   addressState: '',
   addressStreet: '',
   anttCategory: '',
@@ -208,6 +211,10 @@ export function toDriverFormState(driver: FleetDriverDetail): FleetDriverFormSta
      * mostra `14020-210` — duas grafias do mesmo dado na mesma tela.
      */
     addressPostalCode: formatPostalCode(driver.address.postalCode),
+    homeLatitude: driver.homeLatitude,
+    homeLongitude: driver.homeLongitude,
+    /** Só o que o operador mover nesta sessão vai no corpo — o resto já está gravado. */
+    homeMoved: false,
     addressState: driver.address.state,
     addressStreet: driver.address.street,
     anttCategory: driver.anttCategory,
@@ -376,6 +383,14 @@ function toIdentityDocumentIssuer(value: string): '' | IdentityDocumentIssuer {
 /** O vínculo fica de fora: quem o reenvia na edição é a ficha carregada, não o formulário. */
 export function toDriverBody(state: FleetDriverFormState): Omit<FleetDriverBody, 'membershipId'> {
   return {
+    /**
+     * ⚠️ **Só vai no corpo o que o operador moveu nesta sessão.** Reenviar a coordenada gravada a
+     * cada salvamento faria toda edição de telefone carimbar a ficha como correção manual — e a
+     * marca de "corrigido à mão" é o que impede a busca automática de rodar de novo.
+     */
+    ...(state.homeMoved && state.homeLatitude !== null && state.homeLongitude !== null
+      ? { homeCoordinate: { latitude: state.homeLatitude, longitude: state.homeLongitude } }
+      : {}),
     address: {
       city: state.addressCity,
       complement: state.addressComplement,

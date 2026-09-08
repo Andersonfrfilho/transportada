@@ -54,8 +54,15 @@ export function DriverAddressFields({
         <DriverHomeMap
           home={home.report}
           labelOf={(key, values) => t(key, values ?? {})}
-          latitude={home.latitude}
-          longitude={home.longitude}
+          latitude={state.homeLatitude}
+          longitude={state.homeLongitude}
+          onMove={(coordinate) => {
+            onChange({
+              homeLatitude: coordinate?.latitude ?? null,
+              homeLongitude: coordinate?.longitude ?? null,
+              homeMoved: coordinate !== null,
+            })
+          }}
         />
       )}
       <div className={styles.fieldGrid}>

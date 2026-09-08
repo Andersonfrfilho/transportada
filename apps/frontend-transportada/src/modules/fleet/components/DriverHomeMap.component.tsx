@@ -2,6 +2,7 @@
 import { Map as MapLibreMap, Marker } from 'maplibre-gl'
 import { useEffect, useRef, useState } from 'react'
 
+import { Button } from '@/components/ui/button'
 import { ICON_PATHS, Icon } from '@/components/ui/icon'
 import {
   basemapThemeForApp,
@@ -33,7 +34,18 @@ export type DriverHomeMapProps = Readonly<{
   labelOf: (key: string, values?: Record<string, string>) => string
   latitude: null | string
   longitude: null | string
+  /** Chamado quando o operador move o alfinete — a ficha grava no `Salvar` que já existe. */
+  onMove?: (coordinate: null | Readonly<{ latitude: string; longitude: string }>) => void
 }>
+
+/**
+ * O passo das setas: ~11 metros por clique, no zoom em que o mapa abre.
+ *
+ * ⚠️ Ele é **fino de propósito.** O alfinete já está na rua certa — o que se corrige aqui é o lado
+ * da via, o número vizinho, o fundo de lote. Um passo grosso transformaria a correção em outra
+ * busca, e para mudar de bairro existe o campo de endereço.
+ */
+const MOVE_STEP_DEGREES = 0.0001
 
 /**
  * Onde a casa do motorista fica, desenhada por nós.
@@ -46,19 +58,29 @@ export type DriverHomeMapProps = Readonly<{
  * "Rua Sete de Setembro, 990, Pontal" em Guarulhos, a 250 km — número plausível, cidade errada. O
  * portão de cidade recusa o caso óbvio; o mapa é o que deixa o operador ver o resto.
  */
-export function DriverHomeMap({ home, labelOf, latitude, longitude }: DriverHomeMapProps) {
+export function DriverHomeMap({ home, labelOf, latitude, longitude, onMove }: DriverHomeMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const resizeRef = useRef<ResizeObserver | null>(null)
+  const markerRef = useRef<Marker | null>(null)
+  /**
+   * ⚠️ A coordenada **da montagem**, congelada: o mapa é construído uma vez. Reconstruí-lo a cada
+   * clique de seta piscaria a tela e jogaria fora o zoom que o operador escolheu.
+   */
+  const initialRef = useRef<null | [number, number]>(null)
+  if (initialRef.current === null && latitude !== null && longitude !== null) {
+    initialRef.current = [Number(longitude), Number(latitude)]
+  }
+  const initial = initialRef.current
   const [failed, setFailed] = useState(false)
 
   useEffect(() => {
     const container = containerRef.current
-    if (container === null || latitude === null || longitude === null) return
+    if (container === null || initial === null) return
 
     /** ⚠️ Sem isto o `pmtiles://` vira esquema próprio e a CSP bloqueia: canvas preto, sem erro na tela. */
     configureVectorBasemap()
-    const center: [number, number] = [Number(longitude), Number(latitude)]
+    const center = initial
     /**
      * ⚠️ O `try` existe porque o WebGL2 falta em ambiente sem GPU — inclusive no navegador de teste.
      * Sem ele, o construtor derruba a ficha inteira do motorista por causa de um mapa.
@@ -116,7 +138,14 @@ export function DriverHomeMap({ home, labelOf, latitude, longitude }: DriverHome
       }
       pin.append(glyph)
       /** ⚠️ `anchor: 'bottom'`: a ponta do alfinete é o lugar, não o meio dele. */
-      new Marker({ anchor: 'bottom', element: pin }).setLngLat(center).addTo(map)
+      const marker = new Marker({ anchor: 'bottom', draggable: onMove !== undefined, element: pin })
+        .setLngLat(center)
+        .addTo(map)
+      markerRef.current = marker
+      marker.on('dragend', () => {
+        const moved = marker.getLngLat()
+        onMove?.({ latitude: moved.lat.toFixed(7), longitude: moved.lng.toFixed(7) })
+      })
     } catch {
       setFailed(true)
     }
@@ -127,6 +156,19 @@ export function DriverHomeMap({ home, labelOf, latitude, longitude }: DriverHome
       mapRef.current?.remove()
       mapRef.current = null
     }
+    /**
+     * ⚠️ As dependências **não** incluem a coordenada movida de propósito: remontar o mapa a cada
+     * clique de seta piscaria a tela inteira e perderia o zoom que o operador escolheu. Quem move o
+     * alfinete depois da montagem é o efeito abaixo.
+     */
+  }, [initial, onMove])
+
+  /** Move o alfinete e acompanha com a câmera, sem refazer o mapa. */
+  useEffect(() => {
+    if (latitude === null || longitude === null) return
+    const next: [number, number] = [Number(longitude), Number(latitude)]
+    markerRef.current?.setLngLat(next)
+    mapRef.current?.easeTo({ center: next, duration: 200 })
   }, [latitude, longitude])
 
   /**
@@ -153,6 +195,19 @@ export function DriverHomeMap({ home, labelOf, latitude, longitude }: DriverHome
     )
   }
 
+  /**
+   * As setas movem o alfinete em passo fino. ⚠️ Elas existem **além** do arraste porque arrastar com
+   * precisão exige mouse e pulso firme: no toque, e para quem ajusta um lote de fichas, o clique
+   * repetível é o que funciona. Mesmo motivo do `dnd-kit` no lugar do `draggable` nativo na viagem.
+   */
+  function nudge(deltaLatitude: number, deltaLongitude: number): void {
+    if (onMove === undefined || latitude === null || longitude === null) return
+    onMove({
+      latitude: (Number(latitude) + deltaLatitude).toFixed(7),
+      longitude: (Number(longitude) + deltaLongitude).toFixed(7),
+    })
+  }
+
   return (
     <div className={styles.homeMap}>
       <div className={styles.homeMapCanvas} ref={containerRef} />
@@ -160,6 +215,57 @@ export function DriverHomeMap({ home, labelOf, latitude, longitude }: DriverHome
         <Icon name="alert" />
         <span>{labelOf('driverHome.confirm')}</span>
       </p>
+      {onMove === undefined ? null : (
+        <div className={styles.homeMove}>
+          <p className={styles.hint}>{labelOf('driverHome.move.hint')}</p>
+          <div className={styles.homeMoveButtons}>
+            <Button
+              aria-label={labelOf('driverHome.move.north')}
+              onClick={() => {
+                nudge(MOVE_STEP_DEGREES, 0)
+              }}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              <Icon name="arrow-up" />
+            </Button>
+            <Button
+              aria-label={labelOf('driverHome.move.west')}
+              onClick={() => {
+                nudge(0, -MOVE_STEP_DEGREES)
+              }}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              <Icon name="chevron-left" />
+            </Button>
+            <Button
+              aria-label={labelOf('driverHome.move.east')}
+              onClick={() => {
+                nudge(0, MOVE_STEP_DEGREES)
+              }}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              <Icon name="chevron-right" />
+            </Button>
+            <Button
+              aria-label={labelOf('driverHome.move.south')}
+              onClick={() => {
+                nudge(-MOVE_STEP_DEGREES, 0)
+              }}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              <Icon name="arrow-down" />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

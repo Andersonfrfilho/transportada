@@ -136,6 +136,17 @@ export type FleetDriverAddress = {
 export type FleetDriverInput = {
   readonly address: FleetDriverAddress
   /**
+   * A coordenada da casa **corrigida à mão** no mapa da ficha (spec 097 D6).
+   *
+   * ⚠️ Ausente é "não mexeram nela", e não "apague": a ficha é salva inteira a cada edição, e um
+   * `undefined` lido como ordem de apagar destruiria a coordenada da busca automática toda vez que
+   * alguém corrigisse o telefone.
+   *
+   * ⚠️ Quando vem preenchida, ela **vence** a limpeza por mudança de endereço e carimba a marca de
+   * busca: correção humana é a palavra final, e não se procura de novo o que alguém já apontou.
+   */
+  readonly homeCoordinate?: Readonly<{ latitude: string; longitude: string }> | null
+  /**
    * Endereço da empresa do agregado — o do CNPJ de `linkedTaxId`, não o de quem dirige. Mesma
    * forma do residencial, e igualmente parcial. Endereço de pessoa jurídica é dado cadastral
    * público: ele fica em claro, fora do envelope da ADR-0039.

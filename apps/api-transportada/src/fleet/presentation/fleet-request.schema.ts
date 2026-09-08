@@ -170,6 +170,24 @@ const driverAddressSchema = z
   })
   .strict()
 
+/**
+ * A coordenada da casa corrigida à mão no mapa da ficha (spec 097 D6).
+ *
+ * ⚠️ A caixa é a do Brasil continental, a mesma do CHECK do banco: coordenada trocada de ordem cai
+ * fora dela e é recusada **na fronteira**, não descoberta no mapa. Meia coordenada não existe — o
+ * objeto tem as duas metades ou não vem.
+ */
+const homeCoordinateSchema = z
+  .object({
+    latitude: z.coerce.number().min(-34).max(6),
+    longitude: z.coerce.number().min(-74).max(-34),
+  })
+  .strict()
+  .transform((value) => ({
+    latitude: value.latitude.toFixed(7),
+    longitude: value.longitude.toFixed(7),
+  }))
+
 const driverFieldsSchema = z.object({
   address: driverAddressSchema,
   anttCategory: z.literal('').or(z.enum(MDFE_OWNER_TAX_REGIMES)),
@@ -255,6 +273,14 @@ export const replaceDriverVehiclesSchema = z
 export const updateDriverSchema = driverFieldsSchema
   .extend({
     expectedVersion: z.string().regex(POSITIVE_BIGINT),
+    /**
+     * ⚠️ Só na atualização, e não na criação: o mapa que permite mover o alfinete só existe numa
+     * ficha que já foi salva e procurada. Aceitá-la na criação seria oferecer a correção de uma
+     * coordenada que ainda não existe.
+     *
+     * Ausente é "não mexeram nela" — a ficha é salva inteira, e omissão não pode apagar o gravado.
+     */
+    homeCoordinate: homeCoordinateSchema.nullish(),
     status: z.enum(FLEET_DRIVER_STATUSES),
   })
   .strict()

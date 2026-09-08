@@ -1293,3 +1293,25 @@
 .homeWarning {
   color: var(--color-amber);
 }
+
+/* As setas de ajuste do alfinete, em cruz — a disposição diz para onde cada uma move. */
+.homeMove {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.homeMoveButtons {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  gap: var(--space-1);
+  justify-content: start;
+}
+
+.homeMoveButtons > *:nth-child(1) {
+  grid-column: 2;
+}
+
+.homeMoveButtons > *:nth-child(4) {
+  grid-column: 2;
+}

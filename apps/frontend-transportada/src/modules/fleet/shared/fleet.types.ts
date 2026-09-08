@@ -292,6 +292,8 @@ export type FleetDriverAddress = Readonly<{
 }>
 
 export type FleetDriverBody = Readonly<{
+  /** A coordenada corrigida à mão; ausente é "não mexeram nela" (spec 097 D6). */
+  homeCoordinate?: Readonly<{ latitude: string; longitude: string }>
   address: FleetDriverAddress
   /** Mesma categoria da ANTT que o proprietário do veículo declara ao MDF-e. */
   anttCategory: '' | MdfeOwnerTaxRegime
@@ -480,6 +482,13 @@ export type FleetDriverFormState = Readonly<{
   addressDistrict: string
   addressNumber: string
   addressPostalCode: string
+  /**
+   * A coordenada da casa, como a tela a mostra — movida pelo alfinete ou vinda da busca. Só é
+   * enviada quando o operador a move: omissão é silêncio, nunca ordem de apagar.
+   */
+  homeLatitude: null | string
+  homeLongitude: null | string
+  homeMoved: boolean
   addressState: string
   addressStreet: string
   anttCategory: string

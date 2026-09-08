@@ -224,9 +224,22 @@ export class DrizzleFleetDriverRepository implements FleetDriverRepositoryPort {
            * A comparação é `is distinct from` sobre os cinco campos que formam o lugar; o
            * complemento fica de fora de propósito — apartamento não muda a coordenada da porta.
            */
-          homeGeocodedAt: clearOnAddressChange(fleetDrivers.homeGeocodedAt, input.driver),
-          homeLatitude: clearOnAddressChange(fleetDrivers.homeLatitude, input.driver),
-          homeLongitude: clearOnAddressChange(fleetDrivers.homeLongitude, input.driver),
+          /**
+           * ⚠️ **A correção à mão vem depois da limpeza, e é isso que a faz vencer.** Quem moveu o
+           * alfinete acabou de olhar o mapa; a limpeza por endereço mudado existe para o caso em que
+           * ninguém olhou. A marca é carimbada junto: não se procura de novo o que alguém apontou.
+           */
+          ...(input.driver.homeCoordinate === undefined || input.driver.homeCoordinate === null
+            ? {
+                homeGeocodedAt: clearOnAddressChange(fleetDrivers.homeGeocodedAt, input.driver),
+                homeLatitude: clearOnAddressChange(fleetDrivers.homeLatitude, input.driver),
+                homeLongitude: clearOnAddressChange(fleetDrivers.homeLongitude, input.driver),
+              }
+            : {
+                homeGeocodedAt: new Date(),
+                homeLatitude: input.driver.homeCoordinate.latitude,
+                homeLongitude: input.driver.homeCoordinate.longitude,
+              }),
           status: input.status,
           updatedAt: new Date(),
           version: BigInt(input.expectedVersion) + 1n,
