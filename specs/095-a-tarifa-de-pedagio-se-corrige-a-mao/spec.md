@@ -96,6 +96,23 @@ calculada), não as 166 do catálogo: corrigir praça por onde ninguém passa é
 Cada linha: nome, operador, tarifa do mapa, campo de ajuste, data. As **sem tarifa conhecida** e as
 com `0.00` sobem primeiro — são o motivo da página existir.
 
+### D4 — A conta da viagem ainda usa a base manual (lacuna aberta pela D3)
+
+A D3 fez a **montagem** usar a tarifa automática quando o veículo tem tag. A parcela de custo de
+`read-trip-valuation.use-case.ts` — a que forma a **margem da viagem** — continua na base manual.
+
+⚠️ Duas telas mostram pedágios diferentes para a mesma viagem, e isso precisa fechar. A diferença
+medida é de R$ 2,12 na rota Ribeirão → Pirassununga com toco.
+
+Fica publicado assim de propósito, e a razão é a mesma da D3: **a base manual superestima**, e a
+parcela que superestima é a que entra na margem. Errar para cima faz recusar viagem que pagaria;
+errar para baixo faz aceitar a que não paga. Das duas inconsistências possíveis, esta é a menos cara
+— mas continua sendo inconsistência, e não deve sobreviver a mais de uma rodada.
+
+- **Depende de:** D3.
+- **Custo:** passar `hasAutomaticTollPayment` do contexto do veículo, que a valoração já lê, até
+  `resolveTollRouteCost`. É encanamento, não decisão nova.
+
 ## Fora de escopo
 
 - **Importar ANTT/ARTESP** (a outra metade, acima).
