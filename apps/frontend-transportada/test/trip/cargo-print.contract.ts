@@ -78,4 +78,36 @@ describe('trip cargo print contract', () => {
     expect(css).toContain('.cargoPads')
     expect(trip.cargoLayers.print).toBeDefined()
   })
+
+  /**
+   * ⚠️ **O botão imprime o mapa, não a tela.** `window.print()` manda a página inteira — cabeçalho,
+   * menu, abas, mapa de rota e lista de notas —, e o mapa saía como um pedaço da terceira folha.
+   */
+  it('prints the marked region, not the whole screen', () => {
+    const component = readFileSync(
+      new URL('src/modules/trip/components/TripCargoLayers.component.tsx', APPLICATION_ROOT),
+      'utf8',
+    )
+    const global = readFileSync(new URL('src/styles/index.css', APPLICATION_ROOT), 'utf8')
+
+    expect(component).toContain('data-print-region')
+    expect(global).toContain('[data-print-region]')
+    /**
+     * ⚠️ Por **visibilidade**, nunca por `display`: `display: none` num ancestral zera a caixa do
+     * `<svg>` de dentro, e o desenho sairia em branco no papel.
+     */
+    expect(global).toContain('visibility: hidden')
+  })
+
+  /** E o desenho vai junto: é ele o "mapa" que o botão promete. */
+  it('keeps the drawing on paper', () => {
+    const css = readFileSync(
+      new URL('src/modules/trip/styles/trip.module.css', APPLICATION_ROOT),
+      'utf8',
+    )
+    const printBlock = css.slice(css.lastIndexOf('@media print'))
+
+    expect(printBlock).not.toContain('.cargoStage {\n    display: none')
+    expect(printBlock).toContain('print-color-adjust: exact')
+  })
 })

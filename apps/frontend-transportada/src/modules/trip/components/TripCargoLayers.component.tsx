@@ -129,7 +129,7 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
   ].sort((first, second) => first - second)
 
   return (
-    <section aria-labelledby="trip-cargo-layers-title" className={styles.panel}>
+    <section aria-labelledby="trip-cargo-layers-title" className={styles.panel} data-print-region>
       <h3 className={styles.hint} id="trip-cargo-layers-title">
         {t('cargoLayers.title')}
       </h3>

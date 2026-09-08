@@ -1864,12 +1864,27 @@
  * informação é a tabela — ordem, faixa em metros e contagens.
  */
 @media print {
+  /**
+   * ⚠️ **O desenho vai para o papel**, e antes ele não ia: eu o escondia porque em laser mono as
+   * cores viram cinza. Mas é ele o "mapa" que o botão promete — quem carrega quer ver a arrumação,
+   * e o ângulo impresso é o que o operador deixou na tela. As cores são forçadas a sair
+   * (`print-color-adjust`) para o cinza de cada parada ao menos se distinguir do vizinho, e quem
+   * carrega a informação sem depender de cor continua sendo a tabela abaixo.
+   */
   .cargoPads,
   .cargoStops,
-  .cargoLayerNav,
-  .cargoDragHint,
-  .cargoStage {
+  .cargoLayerList,
+  .cargoDragHint {
     display: none;
+  }
+
+  .cargoStage {
+    break-inside: avoid;
+  }
+
+  .cargoCanvas {
+    max-height: 12cm;
+    print-color-adjust: exact;
   }
 
   .cargoPrintSheet {
