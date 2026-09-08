@@ -6,6 +6,7 @@ import type {
   fleetVehicles,
   MdfeOwnerTaxRegime,
 } from '../../database/fleet.schema.js'
+import { describeDriverHome } from '../domain/driver-home-geocoding.policy.js'
 import type { EffectiveFuelPrice } from '../../companies/domain/fuel-price.policy.js'
 import { MEASURE_SCALE, formatDecimalAtScale } from '../../shared/decimal.service.js'
 import type { FuelProduct } from '../../shared/fuel.constant.js'
@@ -171,6 +172,23 @@ export function mapDriver(record: DriverRecord): FleetDriver {
       state: record.state,
       street: record.street,
     },
+    /**
+     * Onde a casa fica, e por que ela pode não ter coordenada (spec 097 D6). A interpretação é
+     * recomputada na leitura — o banco guarda a observação (o par e a marca de "já procurei"), e o
+     * estado sai de `describeDriverHome`.
+     */
+    home: describeDriverHome({
+      city: record.city,
+      geocodedAt: record.homeGeocodedAt,
+      latitude: record.homeLatitude,
+      longitude: record.homeLongitude,
+      number: record.number,
+      postalCode: record.postalCode,
+      state: record.state,
+      street: record.street,
+    }),
+    homeLatitude: record.homeLatitude,
+    homeLongitude: record.homeLongitude,
     anttCategory: record.anttCategory,
     licenseCategory: record.licenseCategory,
     birthCity: record.birthCity,

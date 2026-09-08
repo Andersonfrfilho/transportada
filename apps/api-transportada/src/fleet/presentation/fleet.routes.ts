@@ -287,6 +287,13 @@ function serializeDriver(driver: FleetDriver): object {
     email: driver.email,
     fatherName: driver.fatherName,
     firstLicenseAt: driver.firstLicenseAt,
+    /**
+     * Spec 097 D6: onde a casa fica e por que ela pode não ter coordenada. A tela desenha o mapa
+     * quando há par, e o aviso com os campos que faltam quando não há.
+     */
+    home: driver.home,
+    homeLatitude: driver.homeLatitude,
+    homeLongitude: driver.homeLongitude,
     id: driver.id,
     identityDocument: driver.identityDocument,
     identityDocumentIssuer: driver.identityDocumentIssuer,

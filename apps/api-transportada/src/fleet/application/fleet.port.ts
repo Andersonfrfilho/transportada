@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { DriverHomeReport } from '../domain/driver-home-geocoding.policy.js'
 import type { LoadingAccess } from '../../shared/loading-access.constant.js'
 import type {
   FleetDriverStatus,
@@ -181,6 +182,14 @@ export type FleetDriverInput = {
 
 export type FleetDriver = FleetDriverInput & {
   readonly createdAt: string
+  /**
+   * Onde a casa fica, e por que ela pode não ter coordenada (spec 097 D6) — é isto que a tela
+   * transforma em mapa ou em aviso. A interpretação é recomputada na leitura; o banco guarda a
+   * observação (o par e a marca de "já procurei").
+   */
+  readonly home: DriverHomeReport
+  readonly homeLatitude: null | string
+  readonly homeLongitude: null | string
   readonly id: string
   readonly status: FleetDriverStatus
   readonly updatedAt: string

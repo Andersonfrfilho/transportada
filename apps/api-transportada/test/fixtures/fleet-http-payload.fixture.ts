@@ -203,6 +203,10 @@ export const OTHER_COSTS_ONLY_VEHICLE: FleetVehicle = {
 export const DRIVER: FleetDriver = {
   ...DRIVER_INPUT,
   createdAt: '2026-07-28T12:00:00.000Z',
+  /** Ficha sem endereço: o aviso nomeia os campos, e é o estado normal de quem nasce em branco. */
+  home: { missing: ['street', 'number', 'city', 'state', 'postalCode'], status: 'incomplete' },
+  homeLatitude: null,
+  homeLongitude: null,
   id: DRIVER_ID,
   status: 'active',
   updatedAt: '2026-07-28T12:00:00.000Z',
