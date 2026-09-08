@@ -426,6 +426,14 @@ export const fleetDrivers = pgTable(
      */
     homeLatitude: numeric('home_latitude', { precision: 10, scale: 7 }),
     homeLongitude: numeric('home_longitude', { precision: 10, scale: 7 }),
+    /**
+     * Quando alguém **procurou** a coordenada — distinto de tê-la achado.
+     *
+     * ⚠️ Sem esta marca, o motorista cujo endereço o provedor não encontra dispararia uma busca
+     * externa a cada leitura, para sempre, e nada falharia para denunciar: só sairia uma chamada a
+     * mais por página. A coordenada diz que achou; esta coluna diz que procurou.
+     */
+    homeGeocodedAt: timestamp('home_geocoded_at', { withTimezone: true }),
     linkedPostalCode: text('linked_postal_code').notNull().default(''),
     linkedStreet: text('linked_street').notNull().default(''),
     linkedNumber: text('linked_number').notNull().default(''),

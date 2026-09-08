@@ -30,6 +30,7 @@ const RECORD: DriverRecord = {
   complement: '',
   locationSharingConsentAt: null,
   createdAt: TIMESTAMP,
+  homeGeocodedAt: null,
   homeLatitude: null,
   homeLongitude: null,
   district: '',
@@ -79,6 +80,7 @@ const RECORD: DriverRecord = {
 const EMPTY_ADDRESS = {
   city: '',
   complement: '',
+  homeGeocodedAt: null,
   homeLatitude: null,
   homeLongitude: null,
   district: '',
