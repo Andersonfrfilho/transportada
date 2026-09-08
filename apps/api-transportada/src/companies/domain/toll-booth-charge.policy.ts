@@ -39,17 +39,17 @@ export type EffectiveTollBoothCharge = Readonly<{
     observedOn: string
   }>
   /**
-   * ⚠️ **A origem é por campo, não por linha.** Um ajuste que corrige só a tarifa de carro deixa o
-   * valor por eixo vindo do mapa — e é o por eixo que decide o custo do caminhão. Uma origem só
-   * para os dois mentiria sobre um deles, na página que existe justamente para dizer de onde cada
-   * número veio.
-   */
-  /**
    * ⚠️ `false` quando o catálogo não conhece mais esta praça — o nó saiu do OSM num extract novo,
    * mas a empresa já passou por ela e corrigiu a tarifa. A linha fica, porque ajuste é trabalho de
    * gente e não some por decisão de um mapa de terceiro; a tela diz que o mapa não a conhece.
    */
   catalogKnown: boolean
+  /**
+   * ⚠️ **A origem é por campo, não por linha.** Um ajuste que corrige só a tarifa de carro deixa o
+   * valor por eixo vindo do mapa — e é o por eixo que decide o custo do caminhão. Uma origem só
+   * para os dois mentiria sobre um deles, na página que existe justamente para dizer de onde cada
+   * número veio.
+   */
   chargeCarSource: TollBoothChargeSource
   chargePerAxleSource: TollBoothChargeSource
   chargePerAxleAutomaticSource: TollBoothChargeSource
