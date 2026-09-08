@@ -44,6 +44,12 @@ export type EffectiveTollBoothCharge = Readonly<{
    * para os dois mentiria sobre um deles, na página que existe justamente para dizer de onde cada
    * número veio.
    */
+  /**
+   * ⚠️ `false` quando o catálogo não conhece mais esta praça — o nó saiu do OSM num extract novo,
+   * mas a empresa já passou por ela e corrigiu a tarifa. A linha fica, porque ajuste é trabalho de
+   * gente e não some por decisão de um mapa de terceiro; a tela diz que o mapa não a conhece.
+   */
+  catalogKnown: boolean
   chargeCarSource: TollBoothChargeSource
   chargePerAxleSource: TollBoothChargeSource
   chargePerAxleAutomaticSource: TollBoothChargeSource
@@ -70,6 +76,7 @@ export function resolveEffectiveTollBoothCharge(input: {
 
   return {
     actorUserId: adjustment?.actorUserId ?? null,
+    catalogKnown: true,
     catalog: {
       chargeCar: catalog.chargeCar,
       chargePerAxle: catalog.chargePerAxle,

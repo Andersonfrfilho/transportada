@@ -106,3 +106,29 @@ describe('congelamento acoplado ao planejamento (spec 090 T11)', () => {
     expect(result.tripStatus).toBe('route_planned')
   })
 })
+
+describe('o congelamento não derruba o planejamento (revisão de 2026-09-08)', () => {
+  /**
+   * ⚠️ O congelamento roda **depois** de `markRoutePlanned`: a viagem já está `route_planned` quando
+   * ele começa. Sem guarda, um erro dele — timeout, CHECK de `planned_toll`, conexão caída — sobe e
+   * o operador recebe falha numa ação **que deu certo**. No caso persistente ele nunca vê sucesso,
+   * mesmo com a viagem planejada no banco.
+   *
+   * Efeito secundário não pode derrubar o primário: é o `catch` de fallback gracioso que o
+   * `code-standart.md` §7 admite, e o único caso em que ele se aplica aqui.
+   */
+  test('devolve o roteiro planejado mesmo quando o congelamento falha', async () => {
+    const repository = createPort({ hasRoute: true, tripStatus: 'draft' })
+
+    const result = await planTripRoute({
+      companyId: COMPANY_ID,
+      repository,
+      tollFreezer: {
+        freeze: () => Promise.reject(new Error('planned_toll indisponível')),
+      },
+      tripId: TRIP_ID,
+    })
+
+    expect(result.tripStatus).toBe('route_planned')
+  })
+})

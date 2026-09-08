@@ -74,8 +74,22 @@ export async function planTripRoute(input: PlanTripRouteInput): Promise<PlanTrip
       ? state.tripStatus
       : await input.repository.markRoutePlanned(input)
 
+  /**
+   * ⚠️ **O congelamento não pode derrubar o planejamento.** Ele roda depois de `markRoutePlanned`,
+   * com a viagem já em `route_planned`: um erro aqui devolveria falha ao operador para uma ação que
+   * deu certo — e, se persistente, ele nunca veria sucesso. É o `catch` de fallback gracioso do
+   * `code-standart.md` §7, não captura para logar e relançar.
+   *
+   * O preço é o pedágio ficar sem congelar até o próximo replanejamento — e ausência de congelado
+   * já é caso tratado: a parcela volta ao lançamento manual e a tela diz que ninguém lançou. É
+   * subestimar dizendo que subestima, que é a direção segura desta linha de trabalho.
+   */
   if (input.tollFreezer !== undefined) {
-    await input.tollFreezer.freeze({ companyId: input.companyId, tripId: input.tripId })
+    try {
+      await input.tollFreezer.freeze({ companyId: input.companyId, tripId: input.tripId })
+    } catch {
+      /* o roteiro está planejado; o pedágio congela no próximo replanejamento */
+    }
   }
 
   return { tripStatus }

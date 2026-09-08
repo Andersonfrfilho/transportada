@@ -127,3 +127,43 @@ describe('list toll booth charges use case (spec 095 item 4)', () => {
     expect(await useCase.execute({ companyId: COMPANY_ID })).toEqual([])
   })
 })
+
+describe('praça que saiu do catálogo (revisão de 2026-09-08)', () => {
+  /**
+   * ⚠️ A lista era montada a partir do catálogo, e praça vista em viagem mas **ausente do catálogo
+   * atual** sumia da tela levando junto o ajuste que a transportadora fez à mão — gravado,
+   * invisível e inalcançável. Acontece quando o runbook recarrega `toll_booths` de um extract em que
+   * o nó foi removido do OSM.
+   *
+   * Ajuste é trabalho de gente, e não some por decisão de um mapa de terceiro.
+   */
+  test('mantém na lista a praça ajustada que o catálogo não conhece mais', async () => {
+    const useCase = createListTollBoothChargesUseCase({
+      catalog: { readByNodeIds: async () => [] },
+      charges: {
+        clearAdjustment: async () => {},
+        loadAdjustments: async () => [],
+        loadAdjustmentsByNodeIds: async (): Promise<readonly TollBoothChargeAdjustmentRow[]> => [
+          {
+            actorUserId: 'user-1',
+            chargeCar: null,
+            chargePerAxle: '12.3000',
+            chargePerAxleAutomatic: null,
+            observedOn: '2026-08-01',
+            osmNodeId: 5_219_021_670,
+            updatedAt: new Date('2026-08-01T12:00:00.000Z'),
+          },
+        ],
+        saveAdjustment: async () => {},
+      },
+      sightings: { readSeenOsmNodeIds: async () => [5_219_021_670] },
+    })
+
+    const linhas = await useCase.execute({ companyId: COMPANY_ID })
+
+    expect(linhas).toHaveLength(1)
+    expect(linhas[0]?.osmNodeId).toBe(5_219_021_670)
+    expect(linhas[0]?.effectiveChargePerAxle).toBe('12.3000')
+    expect(linhas[0]?.catalogKnown).toBe(false)
+  })
+})
