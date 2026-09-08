@@ -1,0 +1,140 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ */
+import { readFileSync } from 'node:fs'
+
+import { describe, expect, it } from 'bun:test'
+
+import { buildCargoPrintSummary } from '@/modules/trip/shared/cargoPrintSummary.service'
+import { resolveSliceCuts } from '@/modules/trip/shared/cargoLegend.service'
+
+const CAMADAS = 'src/modules/trip/components/TripCargoLayers.component.tsx'
+const LOCALE = 'src/modules/trip/locales/trip.locale.json'
+
+function fonte(caminho: string): string {
+  return readFileSync(new URL(`../../${caminho}`, import.meta.url), 'utf8')
+}
+
+function caixa(overrides: Record<string, unknown>) {
+  return {
+    depthM: 0.4,
+    isEstimated: false,
+    isSplit: false,
+    stopSequence: 1,
+    widthM: 0.3,
+    xM: 0,
+    yM: 0,
+    ...overrides,
+  }
+}
+
+/**
+ * **A tabela impressa acompanha o eixo do arranjo** (spec 100 D5).
+ *
+ * ⚠️ O cabeçalho "da testeira para a porta" e a coluna "Faixa do baú" descrevem **profundidade**.
+ * Com as paradas lado a lado eles passam a mentir: a faixa é de largura, e nenhuma parada está atrás
+ * de outra. O galpão imprime esta folha em laser mono e carrega o caminhão por ela.
+ */
+describe('a folha de carregamento em faixas', () => {
+  const EM_FAIXAS = [
+    caixa({ stopSequence: 1, yM: 0 }),
+    caixa({ stopSequence: 2, yM: 0.5 }),
+    caixa({ stopSequence: 3, yM: 1 }),
+  ]
+
+  it('mede a faixa na largura, e não na profundidade', () => {
+    const linhas = buildCargoPrintSummary(EM_FAIXAS, 'lanes')
+
+    expect(linhas.map((linha) => linha.fromM)).toEqual([0, 0.5, 1])
+    expect(linhas.map((linha) => linha.toM)).toEqual([0.3, 0.8, 1.3])
+  })
+
+  /**
+   * ⚠️ **A ordem da folha inverte com o eixo.** Em profundidade ela é a de carregamento — a última
+   * entrega primeiro, porque vai ao fundo. Em faixas quem carrega começa pela faixa mais à mão, que
+   * é a da primeira entrega.
+   */
+  it('lista da primeira entrega para a última', () => {
+    expect(buildCargoPrintSummary(EM_FAIXAS, 'lanes').map((linha) => linha.stopSequence)).toEqual([
+      1, 2, 3,
+    ])
+  })
+
+  /** Em profundidade nada muda: a última entrega continua encabeçando a folha. */
+  it('em profundidade continua da última entrega para a primeira', () => {
+    const linhas = buildCargoPrintSummary(
+      [
+        caixa({ stopSequence: 1, xM: 1 }),
+        caixa({ stopSequence: 2, xM: 0.5 }),
+        caixa({ stopSequence: 3, xM: 0 }),
+      ],
+      'depth',
+    )
+
+    expect(linhas.map((linha) => linha.stopSequence)).toEqual([3, 2, 1])
+    expect(linhas[0]?.fromM).toBe(0)
+  })
+})
+
+/**
+ * ⚠️ **A divisa entre paradas muda de eixo com o arranjo.** Em faixas ela é um plano ao longo do
+ * comprimento; desenhá-la no eixo antigo cortaria a carga de todas as paradas de uma vez, sugerindo
+ * uma separação que o arranjo não tem.
+ */
+describe('a divisa desenhada', () => {
+  const CAIXAS = [
+    caixa({ stopSequence: 1, xM: 0, yM: 0 }),
+    caixa({ stopSequence: 2, xM: 0, yM: 0.5 }),
+  ]
+
+  it('em faixas a divisa é medida na largura', () => {
+    expect(resolveSliceCuts(CAIXAS, 'lanes')).toEqual([0.5])
+  })
+
+  /** Em profundidade nada muda: as duas paradas no mesmo `x` não têm divisa nenhuma. */
+  it('em profundidade a divisa continua na profundidade', () => {
+    expect(resolveSliceCuts(CAIXAS, 'depth')).toEqual([])
+  })
+
+  it('a planta recebe o eixo da divisa junto com o desenho', () => {
+    expect(fonte(CAMADAS)).toContain('sliceCutsAcrossWidth')
+  })
+})
+
+/**
+ * ⚠️ **A tela diz qual arranjo desenhou.** Sem isso, quem viu faixas numa viagem e profundidade na
+ * seguinte conclui que o desenho é aleatório — e o corte entre os dois (caixa larga demais, ou peso
+ * acima de metade do teto) não é adivinhável olhando a planta.
+ */
+describe('a tela nomeia o arranjo', () => {
+  it('imprime o arranjo e troca o cabeçalho da folha com ele', () => {
+    const source = fonte(CAMADAS)
+
+    expect(source).toContain('stopArrangement')
+    expect(source).toContain('cargoLayers.arrangement.')
+    expect(source).toContain('cargoLayers.print.caption.')
+  })
+
+  /**
+   * ⚠️ **A troca por peso é anunciada** (spec 100 D4). O peso venceu o acesso, e sem dizer isso a
+   * tela deixa a impressão de que a faixa simplesmente não coube.
+   */
+  it('avisa quando foi o peso que trocou o arranjo', () => {
+    expect(fonte(CAMADAS)).toContain('cargoLayers.arrangement.weightWon')
+  })
+
+  it('tem texto para os dois arranjos e para a troca por peso', () => {
+    const locale = JSON.parse(fonte(LOCALE)) as {
+      cargoLayers: {
+        arrangement: Record<string, string>
+        print: { caption: Record<string, string> }
+      }
+    }
+
+    expect(locale.cargoLayers.arrangement.lanes).toBeTruthy()
+    expect(locale.cargoLayers.arrangement.depth).toBeTruthy()
+    expect(locale.cargoLayers.arrangement.weightWon).toBeTruthy()
+    expect(locale.cargoLayers.print.caption.lanes).toBeTruthy()
+    expect(locale.cargoLayers.print.caption.depth).toBeTruthy()
+  })
+})

@@ -164,3 +164,128 @@ describe('profundidade da faixa no baú (spec 088)', () => {
     expect(resolveBedDimensions(null)).toBeNull()
   })
 })
+
+/** As três medidas do Fiorino da spec 100, e um baú de truck onde a faixa não cabe. */
+const FIORINO = { heightM: '1.300', lengthM: '1.700', widthM: '1.450' }
+const TRUCK = { heightM: '2.300', lengthM: '7.400', widthM: '2.470' }
+
+function caixa(overrides: Record<string, unknown>) {
+  return {
+    count: 1,
+    grossWeightGrams: null,
+    heightMm: 300,
+    isFragile: null,
+    isStackable: null,
+    keepUpright: null,
+    label: 'CAIXA',
+    lengthMm: 400,
+    maxStackCount: null,
+    widthMm: 300,
+    ...overrides,
+  }
+}
+
+function paradasComCaixa(input: { readonly caixas: readonly ReturnType<typeof caixa>[] }) {
+  return [1, 2, 3].map((sequence) => ({
+    boxes: input.caixas,
+    documentsWithoutVolume: 0,
+    label: `Parada ${String(sequence)}`,
+    sequence,
+    volumeM3: '0.200000',
+  }))
+}
+
+/**
+ * **A tabela e a planta desenham a mesma viagem** (spec 100 D5, aceite 8).
+ *
+ * ⚠️ Este é o contrato que impede as duas políticas de divergirem. Elas são separadas —
+ * `resolveCargoLayout` monta a tabela e `resolveCargoPlacement` monta o desenho — e nada nas duas
+ * falha quando discordam: a tela mostra faixas e a tabela descreve profundidade, as duas
+ * plausíveis, uma errada, e o operador segue uma delas.
+ */
+describe('o arranjo publicado (spec 100)', () => {
+  test('três paradas que cabem lado a lado saem em faixas, e todas encostam na porta', () => {
+    const layout = resolveCargoLayout({
+      bedDimensions: FIORINO,
+      capacityM3: '3.200000',
+      stops: paradasComCaixa({ caixas: [caixa({})] }),
+    })
+
+    expect(layout?.stopArrangement).toBe('lanes')
+    expect(layout?.slices.map((slice) => slice.distanceFromDoorM)).toEqual([
+      '0.000',
+      '0.000',
+      '0.000',
+    ])
+  })
+
+  /**
+   * ⚠️ **A ordem deixa de obrigar em faixas, inclusive no baú que só abre atrás.** É o ponto inteiro
+   * do arranjo: quem quiser a terceira entrega alcança a faixa dela sem mexer nas outras duas. Manter
+   * `orderIsBinding` preso ao acesso faria a tela exigir uma ordem que o desenho não impõe.
+   */
+  test('em faixas a ordem não obriga, mesmo em baú que só abre atrás', () => {
+    const layout = resolveCargoLayout({
+      bedDimensions: FIORINO,
+      capacityM3: '3.200000',
+      loadingAccess: 'rear',
+      stops: paradasComCaixa({ caixas: [caixa({})] }),
+    })
+
+    expect(layout?.orderIsBinding).toBe(false)
+    expect(layout?.rows.every((row) => row.sideReachable)).toBe(true)
+  })
+
+  /** Caixa que não cabe na faixa devolve a viagem à profundidade, e a distância volta a existir. */
+  test('caixa larga demais devolve a viagem à profundidade', () => {
+    const layout = resolveCargoLayout({
+      bedDimensions: TRUCK,
+      capacityM3: '42.000000',
+      loadingAccess: 'rear',
+      stops: paradasComCaixa({
+        caixas: [caixa({}), caixa({ heightMm: 50, lengthMm: 1_300, widthMm: 1_300 })],
+      }),
+    })
+
+    expect(layout?.stopArrangement).toBe('depth')
+    expect(layout?.orderIsBinding).toBe(true)
+    expect(new Set(layout?.slices.map((slice) => slice.distanceFromDoorM)).size).toBe(3)
+  })
+
+  /** A física vence: acima de metade do teto de massa a tabela volta a descrever profundidade. */
+  test('carga pesada devolve a tabela à profundidade', () => {
+    const layout = resolveCargoLayout({
+      bedDimensions: FIORINO,
+      capacityM3: '3.200000',
+      payloadRatio: '0.8000',
+      stops: paradasComCaixa({ caixas: [caixa({})] }),
+    })
+
+    expect(layout?.stopArrangement).toBe('depth')
+  })
+
+  /**
+   * ⚠️ **O aceite 8**: a tabela e o desenho saem da mesma decisão. Se um dia alguém resolver o
+   * arranjo duas vezes, é aqui que aparece — e não na tela do operador.
+   */
+  test('a planta e a tabela concordam sobre o arranjo, em toda combinação', () => {
+    const casos = [
+      { bedDimensions: FIORINO, capacityM3: '3.200000', payloadRatio: null },
+      { bedDimensions: FIORINO, capacityM3: '3.200000', payloadRatio: '0.9000' },
+      { bedDimensions: TRUCK, capacityM3: '42.000000', payloadRatio: null },
+    ] as const
+
+    for (const caso of casos) {
+      const layout = resolveCargoLayout({
+        ...caso,
+        stops: paradasComCaixa({ caixas: [caixa({})] }),
+      })
+      const desenho = layout?.placement?.layers.flatMap((layer) => layer.boxes) ?? []
+      /** Em faixas as paradas se separam no `y`; em profundidade, no `x`. */
+      const separaNoY = new Set(desenho.map((box) => box.yM)).size > 1
+      const separaNoX = new Set(desenho.map((box) => box.xM)).size > 1
+
+      expect(layout?.stopArrangement === 'lanes' ? separaNoY : separaNoX).toBe(true)
+    }
+  })
+})

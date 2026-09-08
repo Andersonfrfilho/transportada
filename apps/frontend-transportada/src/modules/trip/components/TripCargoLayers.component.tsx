@@ -26,7 +26,26 @@ import styles from '../styles/trip.module.css'
 /** A ficha do veículo, onde as três medidas do baú são preenchidas. */
 const FLEET_HREF = '/fleet'
 
-type TripCargoLayersProps = Readonly<{ layout: TripCargoLayout | null }>
+/**
+ * Metade do teto de massa: o degrau em que a física vence o acesso (spec 099 D3 e 100 D4).
+ *
+ * ⚠️ **Cópia por valor** do `BALANCE_PAYLOAD_RATIO` da API — o bundle não carrega código dela, o
+ * mesmo caso de `FUEL_TYPES` e `VEHICLE_TYPES`. Mudou de um lado, mude do outro: aqui ele só decide
+ * se o aviso aparece, e lá decide o arranjo, então divergir faz a tela explicar o desenho errado.
+ */
+const BALANCE_PAYLOAD_RATIO = 0.5
+
+type TripCargoLayersProps = Readonly<{
+  layout: TripCargoLayout | null
+  /**
+   * Spec 100 D4: o mesmo `cargoWeight.payloadRatio` que o painel imprime, para a tela dizer que foi
+   * o **peso** que trocou o arranjo — e não a faixa que não coube.
+   *
+   * ⚠️ Sem ele o aviso some, e a troca fica sem explicação: quem viu faixas ontem e profundidade hoje
+   * conclui que o desenho é aleatório.
+   */
+  payloadRatio?: null | string
+}>
 
 /**
  * Spec 094: **onde cada caixa cabe**, camada por camada.
@@ -40,7 +59,7 @@ type TripCargoLayersProps = Readonly<{ layout: TripCargoLayout | null }>
  * celular de quem está no galpão — e o carregamento é feito uma camada por vez, que é a razão de o
  * desenho ser assim.
  */
-export function TripCargoLayers({ layout }: TripCargoLayersProps) {
+export function TripCargoLayers({ layout, payloadRatio }: TripCargoLayersProps) {
   const { t } = useTranslation('trip')
   const [index, setIndex] = useState(0)
   /**
@@ -115,7 +134,22 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
    * baú sempre cheio até o teto, e a folga de altura — a informação que decide se cabe mais uma
    * camada — nunca aparecia. Sem a medida da ficha, o desenho usa a carga e não promete folga.
    */
-  const sliceCutsM = useMemo(() => resolveSliceCuts(boxes), [boxes])
+  /**
+   * ⚠️ Ausente é `depth`, o comportamento de sempre: uma API que ainda não publica o arranjo não pode
+   * fazer a folha de carregamento inverter a ordem sozinha.
+   */
+  const arrangement = layout.stopArrangement ?? 'depth'
+  /**
+   * Spec 100 D4. A política aplica o peso **antes** do teste de cabimento, então profundidade com o
+   * teto estourado é sempre o peso tendo vencido — não há segunda causa a distinguir aqui.
+   */
+  const weightWonAccess =
+    arrangement === 'depth' &&
+    payloadRatio !== null &&
+    payloadRatio !== undefined &&
+    Number.parseFloat(payloadRatio) > BALANCE_PAYLOAD_RATIO
+
+  const sliceCutsM = useMemo(() => resolveSliceCuts(boxes, arrangement), [arrangement, boxes])
   const bedHeightM = Number.parseFloat(layout.bedHeightM ?? '0')
   const cargoTopM = Math.max(...boxes.map((box) => box.zM + box.heightM), 0)
   const drawnHeightM = bedHeightM > 0 ? bedHeightM : cargoTopM
@@ -180,6 +214,7 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
           className={styles.cargoCanvas}
           {...(hasChosenLayer ? { focusLayer: current.index } : {})}
           hasSideDoor={layout.loadingAccess !== 'rear'}
+          sliceCutsAcrossWidth={arrangement === 'lanes'}
           panX={view.panX}
           sliceCutsM={sliceCutsM}
           panY={view.panY}
@@ -308,6 +343,16 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
         ))}
       </div>
 
+      {/**
+       * ⚠️ **A tela diz qual arranjo desenhou** (spec 100 D5). O corte entre os dois — caixa larga
+       * demais para a faixa, ou peso acima de metade do teto — não é adivinhável olhando a planta, e
+       * sem a linha o desenho parece mudar sozinho de uma viagem para a outra.
+       */}
+      <p className={styles.hint}>{t(`cargoLayers.arrangement.${arrangement}`)}</p>
+      {weightWonAccess ? (
+        <p className={styles.hint}>{t('cargoLayers.arrangement.weightWon')}</p>
+      ) : null}
+
       <ul className={styles.cargoLegend} role="list">
         <li>{t('cargoLayers.legend.measured')}</li>
         <li>{t('cargoLayers.legend.presumed')}</li>
@@ -319,19 +364,19 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
        * mono — nada aqui depende de cor. A ordem é a de **carregamento**, inversa à de entrega.
        */}
       <table className={styles.cargoPrintSheet}>
-        <caption>{t('cargoLayers.print.caption')}</caption>
+        <caption>{t(`cargoLayers.print.caption.${arrangement}`)}</caption>
         <thead>
           <tr>
             <th scope="col">{t('cargoLayers.print.order')}</th>
             <th scope="col">{t('cargoLayers.print.stop')}</th>
-            <th scope="col">{t('cargoLayers.print.span')}</th>
+            <th scope="col">{t(`cargoLayers.print.span.${arrangement}`)}</th>
             <th scope="col">{t('cargoLayers.print.boxes')}</th>
             <th scope="col">{t('cargoLayers.print.presumed')}</th>
             <th scope="col">{t('cargoLayers.print.split')}</th>
           </tr>
         </thead>
         <tbody>
-          {buildCargoPrintSummary(boxes).map((row, position) => (
+          {buildCargoPrintSummary(boxes, arrangement).map((row, position) => (
             <tr key={row.stopSequence}>
               <td>{position + 1}</td>
               <td>{labelOf(row.stopSequence)}</td>

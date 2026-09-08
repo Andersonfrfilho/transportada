@@ -752,6 +752,13 @@ function isCargoLayout(value: unknown): boolean {
     ) &&
     isUnsignedInteger(value.freeRows) &&
     typeof value.orderIsBinding === 'boolean' &&
+    /**
+     * ⚠️ Tolerante à **ausência**, não ao lixo (spec 100): a API sobe antes do frontend, e recusar o
+     * corpo por falta do campo apagaria o painel de carga inteiro na janela entre os dois deploys.
+     */
+    (value.stopArrangement === undefined ||
+      value.stopArrangement === 'depth' ||
+      value.stopArrangement === 'lanes') &&
     typeof value.occupancyKnown === 'boolean' &&
     isString(value.overflowM3) &&
     /**

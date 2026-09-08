@@ -14,9 +14,11 @@ function box(
     isSplit: boolean
     stopSequence: number
     xM: number
+    yM: number
   }>,
 ) {
-  return { isEstimated: false, isSplit: false, stopSequence: 1, xM: 0, ...overrides }
+  /** `yM` só é lido em faixas; esta suíte é toda de profundidade (spec 100). */
+  return { isEstimated: false, isSplit: false, stopSequence: 1, xM: 0, yM: 0, ...overrides }
 }
 
 /** Spec 095 G007: a tela conta o que sabe e o que presume. */

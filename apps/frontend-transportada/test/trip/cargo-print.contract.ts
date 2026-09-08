@@ -9,7 +9,17 @@ import trip from '../../src/modules/trip/locales/trip.locale.json'
 const APPLICATION_ROOT = new URL('../..', import.meta.url)
 
 function box(overrides: Partial<Parameters<typeof buildCargoPrintSummary>[0][number]>) {
-  return { depthM: 0.5, isEstimated: false, isSplit: false, stopSequence: 1, xM: 0, ...overrides }
+  return {
+    depthM: 0.5,
+    isEstimated: false,
+    isSplit: false,
+    stopSequence: 1,
+    /** A largura e o `y` só são lidos em faixas; esta suíte é toda de profundidade. */
+    widthM: 0.4,
+    xM: 0,
+    yM: 0,
+    ...overrides,
+  }
 }
 
 /** Spec 095 G008: a folha que o agregado leva para dentro da van. */

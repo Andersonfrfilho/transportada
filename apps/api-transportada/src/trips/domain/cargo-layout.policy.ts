@@ -11,9 +11,11 @@ import {
 import {
   resolveCargoPlacement,
   resolveFallbackBox,
+  resolveStopArrangement,
   type CargoPlacement,
   type MeasuredBoxShape,
   type PlacementBox,
+  type StopArrangement,
 } from './cargo-placement.policy.js'
 import {
   divideHalfUp,
@@ -157,6 +159,16 @@ export type ResolvedCargoLayout = {
    * senão o conferente lê uma exigência onde há uma sugestão.
    */
   readonly orderIsBinding: boolean
+  /**
+   * Em que eixo as paradas se dividem (spec 100). `depth` é a fatia de sempre — uma parada atrás da
+   * outra a partir da porta; `lanes` põe cada parada numa faixa ao longo da largura, e aí todas
+   * encostam na porta.
+   *
+   * ⚠️ Ele existe **para a tela dizer qual dos dois desenhou**. Sem isso, quem viu faixas numa
+   * viagem e profundidade na seguinte conclui que o desenho é aleatório — e o corte entre os dois
+   * (caixa larga demais, ou peso acima de metade do teto) não é adivinhável olhando a planta.
+   */
+  readonly stopArrangement: StopArrangement
   /** Fileiras vazias entre a carga e a porta. Zero quando não se sabe a capacidade. */
   readonly freeRows: number
   /**
@@ -327,6 +339,30 @@ export function resolveCargoLayout(input: {
     return offset
   }
 
+  const access = input.loadingAccess ?? 'rear'
+  /**
+   * ⚠️ **A mesma chamada que a planta faz** (spec 100 D5). As duas políticas desenham a mesma
+   * viagem, e decidir separado produziria uma tela em que a planta mostra faixas enquanto a tabela
+   * descreve profundidade — as duas plausíveis, uma errada, e nada falhando.
+   */
+  const arrangement = resolveStopArrangement({
+    bed,
+    boxes: toPlacementBoxes({
+      fallbackVolumeM3: input.fallbackBoxVolumeM3 ?? null,
+      measuredShapes: input.measuredShapes ?? [],
+      stops: ordered,
+    }),
+    loadingAccess: access,
+    payloadRatio: input.payloadRatio ?? null,
+  })
+  const lanes = arrangement === 'lanes'
+  /**
+   * ⚠️ **Em faixas toda parada é alcançável, inclusive no baú que só abre atrás** — é o ponto inteiro
+   * do arranjo. Manter isto preso ao acesso faria a tela dizer que a carga da frente precisa sair
+   * primeiro, ao lado de um desenho mostrando que não.
+   */
+  const sideReachable = lanes || access !== 'rear'
+
   const slices = !occupancyKnown
     ? []
     : ordered.map((stop, index) => {
@@ -339,9 +375,16 @@ export function resolveCargoLayout(input: {
         const depthM = bedKnown ? formatScaledDecimal(depth, LENGTH_SCALE) : null
         return {
           depthM,
-          distanceFromDoorM: bedKnown
-            ? formatScaledDecimal(bedLength - backOffsetOf(loadOrder) - depth, LENGTH_SCALE)
-            : null,
+          /**
+           * ⚠️ **Em faixas a distância é zero para toda parada** — é a definição do arranjo, não um
+           * caso de borda: todas encostam na porta. Manter o cálculo de profundidade aqui imprimiria
+           * um intervalo que o desenho não tem.
+           */
+          distanceFromDoorM: !bedKnown
+            ? null
+            : lanes
+              ? formatScaledDecimal(0n, LENGTH_SCALE)
+              : formatScaledDecimal(bedLength - backOffsetOf(loadOrder) - depth, LENGTH_SCALE),
           boxesToMeasure: countBoxesToMeasure(stop.boxes ?? []),
           label: stop.label,
           layers: resolveCargoPlanLayers({
@@ -369,9 +412,6 @@ export function resolveCargoLayout(input: {
     ordered.map((stop) => toScaled(stop.volumeM3)),
     cargoRows,
   )
-
-  const access = input.loadingAccess ?? 'rear'
-  const sideReachable = access !== 'rear'
 
   /** Do fundo para a porta: `loadOrder` 1 primeiro, que é a última entrega. */
   const rows = ordered
@@ -417,7 +457,12 @@ export function resolveCargoLayout(input: {
     overflowDepthM: bedKnown
       ? formatScaledDecimal(loadedDepth > bedLength ? loadedDepth - bedLength : 0n, LENGTH_SCALE)
       : null,
-    orderIsBinding: access === 'rear',
+    /**
+     * ⚠️ Em faixas a ordem **deixa de obrigar**, inclusive no baú que só abre atrás: quem quiser a
+     * terceira entrega alcança a faixa dela sem mexer nas outras duas.
+     */
+    orderIsBinding: !lanes && access === 'rear',
+    stopArrangement: arrangement,
     overflowM3: formatScaledDecimal(
       occupancyKnown && loaded > capacity ? loaded - capacity : 0n,
       VOLUME_SCALE,

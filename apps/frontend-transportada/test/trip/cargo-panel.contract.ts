@@ -53,8 +53,15 @@ describe('a carga da viagem num painel só (spec 080 T011/T012)', () => {
    * inverso do que o operador tem de fazer com o caminhão vazio na frente dele.
    */
   it('desenha na ordem de carregamento, não na de entrega', () => {
-    expect(trip.cargoLayers.print.caption).toInclude('testeira')
-    expect(trip.cargoLayers.print.caption).toInclude('porta')
+    /**
+     * ⚠️ Spec 100: o cabeçalho passou a ter um por arranjo. Em profundidade ele continua dizendo
+     * "da testeira", que é o que esta afirmação mede; em faixas nenhuma parada fica atrás de outra
+     * e a palavra deixaria de ser verdade.
+     */
+    expect(trip.cargoLayers.print.caption.depth).toInclude('testeira')
+    expect(trip.cargoLayers.print.caption.depth).toInclude('porta')
+    /** E em faixas o cabeçalho diz o que muda: todas na porta, nenhuma atrás de outra. */
+    expect(trip.cargoLayers.print.caption.lanes).toInclude('porta')
   })
 
   /**

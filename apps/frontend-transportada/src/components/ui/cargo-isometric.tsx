@@ -61,8 +61,17 @@ export type CargoIsometricProps = Readonly<{
   /** Deslocamento do enquadramento, em frações da caixa de visão. */
   panX?: number | undefined
   panY?: number | undefined
-  /** Divisas entre as fatias das paradas, em metros do fundo. */
+  /**
+   * Divisas entre as fatias das paradas — em metros do fundo em profundidade, e em metros da parede
+   * lateral em faixas (spec 100).
+   */
   sliceCutsM?: readonly number[] | undefined
+  /**
+   * ⚠️ Em faixas a divisa é um plano **ao longo do comprimento**, não atravessando o baú. Desenhá-la
+   * no eixo antigo cortaria a carga de todas as paradas de uma vez, sugerindo uma separação que o
+   * arranjo não tem.
+   */
+  sliceCutsAcrossWidth?: boolean | undefined
   zoom?: number | undefined
 }>
 
@@ -147,6 +156,7 @@ export function CargoIsometric({
   onPointerUp,
   panX = 0,
   panY = 0,
+  sliceCutsAcrossWidth = false,
   sliceCutsM,
   zoom = 1,
 }: CargoIsometricProps): JSX.Element {
@@ -211,12 +221,21 @@ export function CargoIsometric({
         <polygon
           className={styles.sliceCut}
           key={cutM}
-          points={toPoints([
-            at(cutM, 0, 0),
-            at(cutM, bedWidthM, 0),
-            at(cutM, bedWidthM, bedHeightM),
-            at(cutM, 0, bedHeightM),
-          ])}
+          points={toPoints(
+            sliceCutsAcrossWidth
+              ? [
+                  at(0, cutM, 0),
+                  at(bedLengthM, cutM, 0),
+                  at(bedLengthM, cutM, bedHeightM),
+                  at(0, cutM, bedHeightM),
+                ]
+              : [
+                  at(cutM, 0, 0),
+                  at(cutM, bedWidthM, 0),
+                  at(cutM, bedWidthM, bedHeightM),
+                  at(cutM, 0, bedHeightM),
+                ],
+          )}
         />
       ))}
 

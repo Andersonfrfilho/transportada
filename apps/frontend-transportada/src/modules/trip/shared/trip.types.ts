@@ -267,6 +267,16 @@ export type TripCargoLayout = Readonly<{
   }>[]
   /** `true` quando a ordem é obrigação, não conveniência — veículo que abre só atrás. */
   orderIsBinding: boolean
+  /**
+   * Spec 100: em que eixo as paradas se dividem. `depth` é a fatia de sempre — uma parada atrás da
+   * outra a partir da porta; `lanes` põe cada parada numa faixa ao longo da largura, e aí todas
+   * encostam na porta.
+   *
+   * ⚠️ Opcional de propósito: a API sobe antes do frontend, e recusar o corpo por falta do campo
+   * apagaria o painel de carga inteiro na janela entre os dois deploys. Ausente é `depth`, que é o
+   * comportamento de sempre.
+   */
+  stopArrangement?: 'depth' | 'lanes'
   /** Fileiras vazias entre a carga e a porta. Zero quando a capacidade não é conhecida. */
   freeRows: number
   /**

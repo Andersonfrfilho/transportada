@@ -7,6 +7,8 @@ type LegendBox = Readonly<{
   isSplit: boolean
   stopSequence: number
   xM: number
+  /** Só lido em faixas, onde a divisa entre paradas é medida na largura (spec 100). */
+  yM: number
 }>
 
 /**
@@ -21,11 +23,16 @@ type LegendBox = Readonly<{
  * mais funda; incluí-la fazia uma parada com uma única sobra empurrar a divisa para dentro da fatia
  * da parada seguinte — a linha desenhada contradizendo justamente a separação que ela mostra.
  */
-export function resolveSliceCuts(boxes: readonly LegendBox[]): readonly number[] {
+export function resolveSliceCuts(
+  boxes: readonly LegendBox[],
+  /** Spec 100: em faixas a divisa é medida na **largura**, e o eixo antigo não separa nada. */
+  arrangement: 'depth' | 'lanes' = 'depth',
+): readonly number[] {
   const startByStop = new Map<number, number>()
   for (const box of boxes) {
     if (box.isSplit) continue
-    startByStop.set(box.stopSequence, Math.min(startByStop.get(box.stopSequence) ?? box.xM, box.xM))
+    const start = arrangement === 'lanes' ? box.yM : box.xM
+    startByStop.set(box.stopSequence, Math.min(startByStop.get(box.stopSequence) ?? start, start))
   }
 
   return [...new Set(startByStop.values())].filter((start) => start > 0).sort((a, b) => a - b)
