@@ -569,6 +569,29 @@
       "tooMany_other": "{{count}} {{label}} boxes left the drawing due to a detail cap."
     },
     "doorsRear": "This bed only opens at the rear: the last stop must travel at the far end.",
-    "doorsRearAndSide": "This bed opens at the rear and on the right side: the order helps, it does not bind."
+    "doorsRearAndSide": "This bed opens at the rear and on the right side: the order helps, it does not bind.",
+    "dragHint": "drag to turn",
+    "rotate": "Turn",
+    "rotateTo": {
+      "down": "Tilt down",
+      "left": "Turn left",
+      "right": "Turn right",
+      "up": "Tilt up"
+    },
+    "pan": "Move",
+    "panTo": {
+      "down": "Move down",
+      "left": "Move left",
+      "right": "Move right",
+      "up": "Move up"
+    },
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "view": {
+      "rear": "Rear",
+      "reset": "Restore",
+      "side": "Side",
+      "top": "Top"
+    }
   }
 }

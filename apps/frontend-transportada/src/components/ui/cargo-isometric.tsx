@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { JSX } from 'react'
+import type { JSX, PointerEvent } from 'react'
 
 import { cn } from '@/lib/utils'
 
@@ -40,8 +40,15 @@ export type CargoIsometricProps = Readonly<{
   focusLayerZM?: number | undefined
   /** Marca a abertura lateral no contorno — o furgão carrega por ali. */
   hasSideDoor: boolean
+  onPointerDown?: ((event: PointerEvent<SVGSVGElement>) => void) | undefined
+  onPointerMove?: ((event: PointerEvent<SVGSVGElement>) => void) | undefined
+  onPointerUp?: ((event: PointerEvent<SVGSVGElement>) => void) | undefined
+  /** Deslocamento do enquadramento, em frações da caixa de visão. */
+  panX?: number | undefined
+  panY?: number | undefined
   /** Divisas entre as fatias das paradas, em metros do fundo. */
   sliceCutsM?: readonly number[] | undefined
+  zoom?: number | undefined
 }>
 
 /** Escala do desenho: unidades do `viewBox` por metro. */
@@ -117,7 +124,13 @@ export function CargoIsometric({
   className,
   focusLayerZM,
   hasSideDoor,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
+  panX = 0,
+  panY = 0,
   sliceCutsM,
+  zoom = 1,
 }: CargoIsometricProps): JSX.Element {
   const at = (xM: number, yM: number, zM: number): Point => projectIsometric({ xM, yM, zM }, angle)
   const corners = [
@@ -136,6 +149,17 @@ export function CargoIsometric({
   const maxY = Math.max(...corners.map((corner) => corner.y)) + 12
 
   /**
+   * ⚠️ O zoom cresce a caixa de visão **em torno do centro**. Aplicá-lo na origem faria o desenho
+   * fugir para o canto a cada clique: a caixa cresce, e é o centro dela que tem de ficar parado.
+   */
+  const rawWidth = maxX - minX
+  const rawHeight = maxY - minY
+  const width = rawWidth / zoom
+  const height = rawHeight / zoom
+  const centreX = (minX + maxX) / 2 - panX * rawWidth * 0.12
+  const centreY = (minY + maxY) / 2 - panY * rawHeight * 0.12
+
+  /**
    * ⚠️ **Algoritmo do pintor**, na direção de visão atual: a caixa mais ao fundo é desenhada primeiro
    * e a da frente por cima.
    */
@@ -151,7 +175,10 @@ export function CargoIsometric({
       aria-label={ariaLabel}
       className={cn(styles.root, className)}
       role="img"
-      viewBox={`${String(minX)} ${String(minY)} ${String(maxX - minX)} ${String(maxY - minY)}`}
+      viewBox={`${String(centreX - width / 2)} ${String(centreY - height / 2)} ${String(width)} ${String(height)}`}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
     >
       <polygon
         className={styles.floor}

@@ -1784,3 +1784,107 @@
   font-size: 0.8rem;
   list-style: none;
 }
+
+/** O palco do desenho: a mãozinha se posiciona sobre ele, e o arrasto não rola a página. */
+.cargoStage {
+  position: relative;
+}
+
+.cargoCanvas {
+  cursor: grab;
+  touch-action: none;
+}
+
+.cargoCanvas:active {
+  cursor: grabbing;
+}
+
+/**
+ * ⚠️ A mãozinha é a única pista de que o desenho gira, e por isso ela se move — quem não tenta, não
+ * descobre. Sob `prefers-reduced-motion` ela fica parada e continua dizendo a mesma coisa.
+ */
+.cargoDragHint {
+  align-items: center;
+  background: color-mix(in srgb, var(--color-asphalt) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  border-radius: 999px;
+  color: var(--color-copper);
+  display: flex;
+  font-size: var(--font-size-sm);
+  gap: var(--space-2);
+  left: 50%;
+  padding: var(--space-1) var(--space-3);
+  pointer-events: none;
+  position: absolute;
+  top: var(--space-2);
+  transform: translateX(-50%);
+}
+
+.cargoDragHint svg {
+  animation: cargo-drag-nudge 1.8s ease-in-out infinite;
+}
+
+@keyframes cargo-drag-nudge {
+  0%,
+  100% {
+    transform: translateX(-3px);
+  }
+
+  50% {
+    transform: translateX(3px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cargoDragHint svg {
+    animation: none;
+  }
+}
+
+/**
+ * A botoeira existe porque arrastar é descoberta, e no toque o arrasto ainda disputa com a rolagem
+ * da página. O alvo de toque sai do token de controle, como todo botão do produto.
+ */
+.cargoPads {
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-top: var(--space-3);
+}
+
+.cargoPad {
+  display: grid;
+  gap: 2px;
+  grid-template-areas:
+    '. up .'
+    'left . right'
+    '. down .';
+  grid-template-columns: repeat(3, var(--control-height-compact));
+}
+
+.cargoPad button {
+  min-height: var(--control-height-compact);
+}
+
+.cargoPadUp {
+  grid-area: up;
+}
+
+.cargoPadDown {
+  grid-area: down;
+}
+
+.cargoPadLeft {
+  grid-area: left;
+}
+
+.cargoPadRight {
+  grid-area: right;
+}
+
+.cargoViewActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

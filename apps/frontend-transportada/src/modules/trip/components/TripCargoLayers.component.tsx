@@ -1,11 +1,20 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useState } from 'react'
+import { useRef, useState, type PointerEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 import { CargoIsometric, type IsometricBox } from '@/components/ui/cargo-isometric'
 
+import {
+  applyViewPreset,
+  DEFAULT_CARGO_VIEW,
+  dragView,
+  panViewBy,
+  rotateView,
+  zoomViewBy,
+  type CargoViewPreset,
+} from '../shared/cargoView.service'
 import { stopColorOf } from '../shared/stopColor.service'
 import type { TripCargoLayout } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
@@ -27,6 +36,13 @@ type TripCargoLayersProps = Readonly<{ layout: TripCargoLayout | null }>
 export function TripCargoLayers({ layout }: TripCargoLayersProps) {
   const { t } = useTranslation('trip')
   const [index, setIndex] = useState(0)
+  const [view, setView] = useState(DEFAULT_CARGO_VIEW)
+  /**
+   * ⚠️ A mãozinha some no **primeiro** arrasto e não volta: ela é a única pista de que o desenho
+   * gira, e repeti-la toda visita seria avisar quem já sabe.
+   */
+  const [hasDragged, setHasDragged] = useState(false)
+  const dragFrom = useRef<{ x: number; y: number } | null>(null)
 
   const placement = layout?.placement ?? null
   if (layout === null || placement === null || placement.layers.length === 0) return null
@@ -100,15 +116,120 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
         </Button>
       </div>
 
-      <CargoIsometric
-        ariaLabel={t('cargoLayers.planLabel', { index: current.index + 1 })}
-        bedHeightM={stacked}
-        bedLengthM={Number.parseFloat(layout.bedLengthM)}
-        bedWidthM={Number.parseFloat(layout.bedWidthM)}
-        boxes={boxes}
-        focusLayerZM={zByLayer.get(current.index) ?? 0}
-        hasSideDoor={layout.loadingAccess !== 'rear'}
-      />
+      <div className={styles.cargoStage}>
+        <CargoIsometric
+          angle={view.angle}
+          ariaLabel={t('cargoLayers.planLabel', { index: current.index + 1 })}
+          bedHeightM={stacked}
+          bedLengthM={Number.parseFloat(layout.bedLengthM)}
+          bedWidthM={Number.parseFloat(layout.bedWidthM)}
+          boxes={boxes}
+          className={styles.cargoCanvas}
+          focusLayerZM={zByLayer.get(current.index) ?? 0}
+          hasSideDoor={layout.loadingAccess !== 'rear'}
+          panX={view.panX}
+          panY={view.panY}
+          zoom={view.zoom}
+          onPointerDown={(event: PointerEvent<SVGSVGElement>) => {
+            dragFrom.current = { x: event.clientX, y: event.clientY }
+            event.currentTarget.setPointerCapture(event.pointerId)
+          }}
+          onPointerMove={(event: PointerEvent<SVGSVGElement>) => {
+            const from = dragFrom.current
+            if (from === null) return
+            setView((previous) =>
+              dragView(previous, { x: event.clientX - from.x, y: event.clientY - from.y }),
+            )
+            dragFrom.current = { x: event.clientX, y: event.clientY }
+            setHasDragged(true)
+          }}
+          onPointerUp={() => {
+            dragFrom.current = null
+          }}
+        />
+        {hasDragged ? null : (
+          <span className={styles.cargoDragHint}>
+            <Icon aria-hidden name="grip" />
+            {t('cargoLayers.dragHint')}
+          </span>
+        )}
+      </div>
+
+      <div className={styles.cargoPads}>
+        <div className={styles.cargoPad} role="group" aria-label={t('cargoLayers.rotate')}>
+          {(['up', 'left', 'right', 'down'] as const).map((direction) => (
+            <Button
+              aria-label={t(`cargoLayers.rotateTo.${direction}`)}
+              className={styles[`cargoPad${capitalise(direction)}`]}
+              key={direction}
+              size="sm"
+              type="button"
+              variant="ghost"
+              onClick={() => setView((previous) => rotateView(previous, direction))}
+            >
+              <Icon name={ARROW_ICONS[direction]} />
+            </Button>
+          ))}
+        </div>
+
+        <div className={styles.cargoPad} role="group" aria-label={t('cargoLayers.pan')}>
+          {(['up', 'left', 'right', 'down'] as const).map((direction) => (
+            <Button
+              aria-label={t(`cargoLayers.panTo.${direction}`)}
+              className={styles[`cargoPad${capitalise(direction)}`]}
+              key={direction}
+              size="sm"
+              type="button"
+              variant="ghost"
+              onClick={() => setView((previous) => panViewBy(previous, direction))}
+            >
+              <Icon name={ARROW_ICONS[direction]} />
+            </Button>
+          ))}
+        </div>
+
+        <div className={styles.cargoViewActions}>
+          <Button
+            aria-label={t('cargoLayers.zoomOut')}
+            size="sm"
+            type="button"
+            variant="ghost"
+            onClick={() => setView((previous) => zoomViewBy(previous, -1))}
+          >
+            <Icon name="minus" />
+          </Button>
+          <Button
+            aria-label={t('cargoLayers.zoomIn')}
+            size="sm"
+            type="button"
+            variant="ghost"
+            onClick={() => setView((previous) => zoomViewBy(previous, 1))}
+          >
+            <Icon name="add" />
+          </Button>
+          {(['rear', 'side', 'top'] as const).map((preset: CargoViewPreset) => (
+            <Button
+              key={preset}
+              size="sm"
+              type="button"
+              variant="ghost"
+              onClick={() => setView((previous) => applyViewPreset(previous, preset))}
+            >
+              <Icon name={PRESET_ICONS[preset]} />
+              {t(`cargoLayers.view.${preset}`)}
+            </Button>
+          ))}
+          <Button
+            size="sm"
+            type="button"
+            variant="ghost"
+            onClick={() => setView(DEFAULT_CARGO_VIEW)}
+          >
+            <Icon name="refresh" />
+            {t('cargoLayers.view.reset')}
+          </Button>
+        </div>
+      </div>
 
       {/* A legenda das aberturas em texto: rótulo dentro do desenho sai cortado e atravessa a borda. */}
       <p className={styles.hint}>
@@ -135,4 +256,24 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
       )}
     </section>
   )
+}
+
+/** As setas da botoeira: o mesmo ícone para girar e para mover, porque o gesto é o mesmo. */
+const ARROW_ICONS = {
+  down: 'chevron-down',
+  left: 'chevron-left',
+  right: 'chevron-right',
+  up: 'chevron-up',
+} as const
+
+/** Cada atalho de vista com o seu ícone: numa fileira de botões, o olho acha o símbolo antes da palavra. */
+const PRESET_ICONS = {
+  default: 'refresh',
+  rear: 'page-last',
+  side: 'truck',
+  top: 'arrow-down',
+} as const
+
+function capitalise(value: string): string {
+  return `${value.slice(0, 1).toUpperCase()}${value.slice(1)}`
 }
