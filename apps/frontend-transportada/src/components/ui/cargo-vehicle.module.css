@@ -1,19 +1,26 @@
 .vehicle {
   width: 100%;
   /**
-   * ⚠️ Altura fixa, largura livre: o `viewBox` é o da carreta, então um VUC ocupa um terço dele e o
-   * resto fica vazio — **de propósito**, é isso que dá a escala entre os tipos. Sem o teto de altura
-   * o desenho cresceria com a largura do painel e viraria um cartaz.
+   * ⚠️ **A altura acompanha a largura, e é a proporção do `viewBox` que a define.** Com altura fixa
+   * o `slice` só tinha como cobrir a largura ampliando o desenho, e — ancorado em `YMax` — o corte
+   * saía por cima: em painel largo a carreta perdia o teto do baú, que é justamente a parte que diz
+   * se a carga cabe. Medido: 3rem contra os ~3,6rem que a proporção pede a 760px de painel.
+   *
+   * O teto continua existindo (`max-height`), pelo motivo de sempre: sem ele o desenho cresceria com
+   * a largura do painel e viraria cartaz. Ele é derivado da escala (`--space-16` × 1,5 = 6rem) e
+   * cobre a largura máxima do produto (`--layout-max-width`, 78rem): acima dela o corte volta, e o
+   * que se perde ali é céu.
+   *
+   * ⚠️ Largura livre com `viewBox` da carreta continua sendo de propósito: um VUC ocupa um terço
+   * dele e o resto fica vazio, e é isso que dá a escala entre os tipos.
    */
-  height: var(--space-12);
+  aspect-ratio: 587 / 44;
+  height: auto;
+  max-height: calc(var(--space-16) * 1.5);
   color: var(--color-copper);
   overflow: hidden;
 }
 
-/**
- * ⚠️ O contorno é **linha**, como as pranchas de frota que o mercado desenha: o preenchimento
- * apagaria a carga que está dentro dele, que é justamente o que este desenho existe para mostrar.
- */
 .cab,
 .body,
 .chassis {
