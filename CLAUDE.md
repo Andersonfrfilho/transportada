@@ -621,6 +621,53 @@ acontece (`buildCargoPreviewStops` e o repositório da viagem) — nunca num map
 refazer o agrupamento e poderia discordar dele. Medido: 15 de 345 notas têm todas as linhas casadas a
 caixa medida, e é esse o denominador da camada.
 
+**A fatia é do tamanho da carga, e a carga encosta na porta** (spec 099). A fatia por parada de
+`cargo-placement.policy.ts` era proporcional ao **baú inteiro** — as fatias somavam sempre o
+comprimento todo por menor que fosse a carga —, e a varredura em fileiras só quebra para a fileira ao
+lado quando o `x` estoura o fim da fatia: com fatia de 2,5 m e caixa de 30 cm ela nunca quebrava.
+Medido na tela com 30 caixas em três paradas num baú de 7,4 m: uma fileira rasteira de **7,40 m** que
+cabia em **0,90 m** encostada na porta. Hoje a proporção é **teto**, `sizeSlice` mede o que a carga
+pede (piso volumétrico crescendo 1,35× até parar de transbordar) e o bloco é deslocado para terminar
+na porta — o vão sobra na testeira, nunca entre paradas.
+
+⚠️ **Acima de metade de `capacity_kg` a física vence a descarga**: `shouldBalanceLoad` põe o bloco no
+meio do baú, com folga nas duas pontas, e carimba `weightBalanced` em toda caixa. Degrau e não rampa,
+porque o operador precisa **prever** o desenho — posição que desliza a cada caixa não se confere
+contra nada. `payloadRatio` nulo é ausência de denominador e **não equilibra**: mover carga por
+palpite seria a invenção que a ausência do teto deveria impedir.
+
+⚠️ **A caixa pousa no que está embaixo dela, e isso é absoluto.** O `z` vinha de `layerBottomM`, o
+topo da **camada inteira** — caixa baixa sobre caixa baixa era erguida até o topo da caixa **alta**
+vizinha (medido: 2 de 12 flutuando 0,6 m). Hoje a fatia mantém um relevo por célula e o `z` é o maior
+da pegada. ⚠️ A conversão para célula leva **folga nas duas pontas**: `0.6 / 0.05` dá
+`11.999999999999998`, e sem a folga duas caixas encostadas dividem uma célula, cada uma pousa sobre a
+anterior e a fileira sobe em **escada** até o teto — defeito pior que o que a regra veio consertar.
+⚠️ **Sem balanço: a caixa só senta onde o apoio é plano sob a pegada inteira** — nível, não fração de
+base apoiada, porque todo percentual aqui seria inventado (ninguém mediu a massa dentro da caixa).
+Resolve balanço e vão de uma vez: ela encosta na quina de quem já está lá. ⚠️ Recusar posição
+**significa tentar a próxima** — a versão que mandava para `splitCargo` sem avançar o cursor fazia
+toda caixa seguinte recusar no mesmo ponto e a carga voltava a se espalhar. ⚠️ E o laço **desiste**:
+camada varrida inteira sem lugar encerra a busca, senão o cursor sobe de camada sem fim (o limite de
+pilha é infinito para caixa empilhável) — medido, 58 buscas por caixa. ⚠️ Dimensionar a fatia e
+empacotar são **a mesma passagem**: pacotes de teste descartados custavam 64 ms contra o teto de 50
+da 094; hoje são 9,7 ms com 3600 caixas.
+
+⚠️ **Por onde o veículo abre decide se existe porta a que encostar.** `loadingAccess` existia na
+ficha e no layout, e o empacotador não o lia: hoje `open` (carroceria aberta ou sider) **equilibra
+sempre**, sem olhar o peso — quem abre o comprimento inteiro já tem toda a carga à mão, e o
+vocabulário de `LOADING_ACCESS_KINDS` já dizia isso na definição de `open`. `rear` e `rear_and_side`
+encostam na porta e seguem o degrau de peso; ausente é `rear`, o mais restritivo. ⚠️ A **fatia** por
+parada continua valendo nos três — a 095 a fez proibição, não preferência.
+
+⚠️ **Nada disso confere eixo, e `axleNotChecked` continua no vocabulário.** Carga por eixo pede
+entre-eixos, posição do eixo sob o baú e a **tara repartida** — `tare_weight_kg` é um número só, e o
+CG da tara ninguém publica. Medido em ficha de fabricante: o entre-eixos do **mesmo modelo** (Atego 1719) varia de 3,571 a 5,409 m, então referência por tipo erraria por metros e a spec 098 a recusou —
+a geometria só pode vir da ficha do veículo, e `fleet_vehicle_axles` (criada pela 094) está **vazia**.
+⚠️ A norma é a **Res. CONTRAN 882/2021** (a 210/2006 está revogada pelo Art. 64, I), e o Art. 50 §1º
+fiscaliza veículo até 50 t **só pelo PBT** — que é toda esta frota. A tolerância de 5%/12,5% do
+Art. 50 **nunca** entra na conta mostrada a quem carrega (§3º), e o Art. 49 §3º não admite tolerância
+alguma na fiscalização pelo peso **declarado em CT-e ou MDF-e**.
+
 ⚠️ O `<svg>` da planta mora em `src/components/ui/scale-plan.tsx`, não no módulo: `<svg>` cru é
 proibido fora do design system, e ele entrou em `DATA_GEOMETRY_PATHS` ao lado de `vector-map` e
 `barcode` — a geometria sai das medidas em tempo de execução. `buildScalePlanViewBox` é função pura
@@ -1510,6 +1557,21 @@ ambiente. Quem decide é
 esquecida no painel não pode fazer a instalação do cliente pedir desculpas. Build de dev (`vite dev`)
 cai em `local` sem configurar nada. Contrato em `test/shared/deployment-environment.contract.ts`,
 que também guarda o `ARG VITE_APP_ENV` do `Dockerfile` — sem ele o valor não entra no bundle.
+
+**O tema de login também troca o ícone fora de produção.** Ele era a única tela do produto que não
+avisava o ambiente — a app troca o `<link rel=icon>` em tempo de execução e o tema seguia com a marca
+de produção em toda instalação. O tema lê `appEnvironment=${env.TRANSPORTADA_APP_ENV}` no
+`theme.properties` (o `compose.yaml` passa `VITE_APP_ENV`), e o `template.ftl` compara com `local` e
+`staging`. ⚠️ **Ausente deixa o literal `${env.…}` no valor** — medido em container de sonda —, então
+a propriedade nunca fica vazia e um `<#if>` que testasse conteúdo acenderia o 🚧 na instalação do
+cliente; por isso a comparação é com lista fechada. ⚠️ **`?seq_contains` sobre sequência literal é
+recusado** pelo FreeMarker do Keycloak: a condição sai sempre falsa, sem erro nenhum. Medido nos
+cinco casos (`local`, `staging`, `production`, ausente, valor desconhecido).
+
+⚠️ **Em staging a variável não existia** — medido no painel do Railway em 2026-09-08 —, e por isso ela
+é **literal** em `.railway/railway.ts` (`isProduction ? 'production' : 'staging'`), não `preserve()`:
+o valor não é segredo, é determinado pelo ambiente, e deixá-lo no painel só recria o modo de falha que
+ele existe para evitar. ⚠️ O arquivo só vale depois de `railway config apply`.
 
 A tela de login **não é desta app**: é o tema Keycloak em `deploy/keycloak/theme/`, montado pelo
 `compose.yaml` e copiado pelo `deploy/keycloak/Dockerfile` — o mesmo diretório nos dois caminhos.
