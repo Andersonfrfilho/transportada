@@ -1393,11 +1393,79 @@
   padding: 0;
 }
 
+/**
+ * ⚠️ **O traço vive na linha, não na lista.** Um único pseudo-elemento no `ul` teria de adivinhar
+ * onde o primeiro e o último disco estão, e a lista mistura alturas — barracão com endereço,
+ * praça com uma linha, parada com seis notas. Cada linha desenha o seu pedaço, do topo ao pé da
+ * própria caixa, e o traço fecha sozinho.
+ */
 .assemblyOrder li {
   align-items: start;
   display: grid;
   gap: var(--space-2);
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr auto auto auto;
+  position: relative;
+}
+
+.assemblyOrder li::before {
+  background: color-mix(in srgb, var(--color-slate) 45%, transparent);
+  content: '';
+  /** Centralizado no disco: metade de `--space-6`, menos meia espessura do traço. */
+  inset-block: 0;
+  inset-inline-start: calc(var(--space-6) / 2 - 1px);
+  position: absolute;
+  width: 2px;
+}
+
+/** A ponta não continua para lugar nenhum: o traço começa no primeiro disco e para no último. */
+.assemblyOrder li:first-child::before {
+  inset-block-start: calc(var(--space-6) / 2);
+}
+
+.assemblyOrder li:last-child::before {
+  inset-block-end: calc(100% - var(--space-6) / 2);
+}
+
+/** Linha com um disco só: barracão e praça não têm prioridade nem remoção para ordenar. */
+.assemblyMilestone {
+  grid-template-columns: 1fr;
+}
+
+/**
+ * O disco do barracão e o da praça: **mesma medida** da bolinha da parada, forma diferente. É a
+ * forma que diz "isto não é entrega" — não a cor, que sobrevive ao daltonismo e ao mapa impresso.
+ * O glifo é o mesmo que o marcador do mapa usa, pela mesma razão de sempre: dois desenhos para a
+ * mesma ideia divergem no dia em que alguém mexe num só.
+ */
+/**
+ * ⚠️ **Disco cheio, como o da parada** — contorno vazado some no fundo escuro, que é o mesmo
+ * `--color-asphalt` que o preenchimento usava: o círculo do barracão nascia sem preenchimento
+ * nenhum, e o da praça pior ainda, porque `--color-amber` **não existe** em token nenhum e a cor do
+ * traço caía para a herdada.
+ *
+ * O barracão leva o cobre — a mesma cor do traço que sai dele no mapa (spec 097 D4), que é o que
+ * casa o disco da lista com o marcador. A praça leva o ardósia: neutra de propósito, para não
+ * disputar com os seis tons das paradas nem se passar por uma delas.
+ */
+.assemblyBulletDepot {
+  background: var(--color-copper);
+  color: var(--color-ink-on-accent);
+}
+
+.assemblyBulletToll {
+  background: var(--color-slate);
+  color: var(--color-ink-on-accent);
+}
+
+.assemblyBulletDepot svg,
+.assemblyBulletToll svg {
+  width: 60%;
+  height: 60%;
+}
+
+.assemblyTollBooth {
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
 }
 
 .assemblyStop {
@@ -1409,6 +1477,8 @@
 
 /* O mesmo disco do pino, na mesma cor: é o que casa a linha da lista com o ponto no mapa. */
 .assemblyBullet {
+  /** Acima do traço: o disco é opaco e é ele que interrompe a linha. */
+  position: relative;
   display: grid;
   place-items: center;
   width: var(--space-6);

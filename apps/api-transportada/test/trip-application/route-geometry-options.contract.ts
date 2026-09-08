@@ -60,6 +60,7 @@ describe('opções de rota (spec 096 T1)', () => {
       readRouteGeometry: async (): Promise<RouteGeometryRoad> => ({
         legs: [{ distanceMetres: 106_600, durationSeconds: 5_160 }],
         nodeIds: [1, 2, 3],
+        nodeIdsByLeg: [[1, 2, 3]],
         points: ESTRADA_PRINCIPAL,
       }),
     }
@@ -78,10 +79,16 @@ describe('opções de rota (spec 096 T1)', () => {
     const geometry = {
       readRouteGeometry: async (): Promise<RouteGeometryRoad> => ({
         alternatives: [
-          { legs: TRECHO_ALTERNATIVA, nodeIds: [30, 40], points: ESTRADA_ALTERNATIVA },
+          {
+            legs: TRECHO_ALTERNATIVA,
+            nodeIds: [30, 40],
+            nodeIdsByLeg: [[30, 40]],
+            points: ESTRADA_ALTERNATIVA,
+          },
         ],
         legs: TRECHO_PRINCIPAL,
         nodeIds: [10, 20],
+        nodeIdsByLeg: [[10, 20]],
         points: ESTRADA_PRINCIPAL,
       }),
     }
@@ -111,10 +118,16 @@ describe('opções de rota (spec 096 T1)', () => {
     const geometry = {
       readRouteGeometry: async (): Promise<RouteGeometryRoad> => ({
         alternatives: [
-          { legs: TRECHO_ALTERNATIVA, nodeIds: [30, 40], points: ESTRADA_ALTERNATIVA },
+          {
+            legs: TRECHO_ALTERNATIVA,
+            nodeIds: [30, 40],
+            nodeIdsByLeg: [[30, 40]],
+            points: ESTRADA_ALTERNATIVA,
+          },
         ],
         legs: TRECHO_PRINCIPAL,
         nodeIds: [10, 20],
+        nodeIdsByLeg: [[10, 20]],
         points: ESTRADA_PRINCIPAL,
       }),
     }
@@ -157,10 +170,16 @@ describe('opções de rota (spec 096 T1)', () => {
     const geometry = {
       readRouteGeometry: async (): Promise<RouteGeometryRoad> => ({
         alternatives: [
-          { legs: TRECHO_ALTERNATIVA, nodeIds: [30, 40], points: ESTRADA_ALTERNATIVA },
+          {
+            legs: TRECHO_ALTERNATIVA,
+            nodeIds: [30, 40],
+            nodeIdsByLeg: [[30, 40]],
+            points: ESTRADA_ALTERNATIVA,
+          },
         ],
         legs: TRECHO_PRINCIPAL,
         nodeIds: [10, 20],
+        nodeIdsByLeg: [[10, 20]],
         points: ESTRADA_PRINCIPAL,
       }),
     }

@@ -53,6 +53,19 @@ export type RouteGeometryTollBooth = Readonly<{
   total: null | string
   latitude: string
   longitude: string
+  /**
+   * Em que trecho da rota o caminhão cruza esta praça — `0` é o primeiro trecho enviado ao
+   * roteirizador, barracão incluído. É o índice que põe a praça entre as paradas certas na lista.
+   *
+   * ⚠️ Sai da anotação de nós do OSRM, **agrupada por trecho** — nunca de casar a coordenada da
+   * praça com a polilinha: a polilinha publicada é simplificada, e num roteiro que fecha no barracão
+   * a ida e a volta correm sobre a mesma rodovia. Duas cancelas gêmeas ("sentido Norte" e "sentido
+   * Sul") caíam as duas no mesmo trecho, e a volta ficava sem pedágio nenhum.
+   *
+   * ⚠️ `null`/ausente é desconhecimento — API que ainda não publica o campo, ou rota sem anotação —
+   * e a tela cai no extrato de sempre em vez de pendurar a praça num trecho por palpite.
+   */
+  legIndex?: null | number
   name: null | string
   operator: null | string
   osmNodeId: number

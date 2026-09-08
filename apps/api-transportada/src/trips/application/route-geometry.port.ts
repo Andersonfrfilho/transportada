@@ -29,6 +29,15 @@ export type RouteGeometryRoad = Readonly<{
    * o modo de falha silencioso desta feature.
    */
   nodeIds: readonly number[] | null
+  /**
+   * Os mesmos nós, **agrupados por trecho** — um grupo por par de pontos enviados. É a única coisa
+   * capaz de dizer em que perna da viagem cada praça cai: a lista achatada acima perde o limite, e
+   * num roteiro que fecha no barracão o par de cancelas gêmeas (a mesma praça nos dois sentidos)
+   * aparecia inteiro antes da primeira entrega.
+   *
+   * ⚠️ `null` pela mesma razão do `nodeIds`, e sempre junto dele: um sem o outro seria meia verdade.
+   */
+  nodeIdsByLeg: readonly (readonly number[])[] | null
   points: readonly RouteGeometryPoint[]
   /**
    * As demais rotas que o OSRM ofereceu para o **mesmo** par de paradas, na ordem em que ele as

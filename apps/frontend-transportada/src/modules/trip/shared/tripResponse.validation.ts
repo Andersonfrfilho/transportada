@@ -902,7 +902,15 @@ function isGeometryTollBooth(value: unknown): value is RouteGeometryTollBooth {
     isNullableString(value.name) &&
     isNullableString(value.operator) &&
     typeof value.osmNodeId === 'number' &&
-    Number.isFinite(value.osmNodeId)
+    Number.isFinite(value.osmNodeId) &&
+    /**
+     * ⚠️ Tolerante à **ausência**, não ao lixo: API antiga não manda o campo, e recusar a praça
+     * inteira por causa dele apagaria o pedágio da tela durante a janela entre subir a API e subir
+     * o frontend. Presente, tem de ser inteiro.
+     */
+    (value.legIndex === undefined ||
+      value.legIndex === null ||
+      (typeof value.legIndex === 'number' && Number.isInteger(value.legIndex)))
   )
 }
 

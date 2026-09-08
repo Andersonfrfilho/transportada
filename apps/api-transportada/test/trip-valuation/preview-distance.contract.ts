@@ -72,6 +72,7 @@ describe('a prévia lê a distância que o mapa desenhou (spec 090 D3)', () => {
       road: {
         legs: [{ distanceMetres: 106_600, durationSeconds: 5_160 }],
         nodeIds: [1, 2, 3],
+        nodeIdsByLeg: [[1, 2, 3]],
         points: [],
       },
     })
@@ -116,6 +117,7 @@ describe('a prévia lê a distância que o mapa desenhou (spec 090 D3)', () => {
           { distanceMetres: 20_000, durationSeconds: 1_000 },
         ],
         nodeIds: null,
+        nodeIdsByLeg: null,
         points: [],
       },
     })

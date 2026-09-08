@@ -66,7 +66,13 @@ function createFakeRepository(input: {
 
 function createGeometryPort(nodeIds: null | readonly number[]) {
   return {
-    readRouteGeometry: async () => ({ legs: TRECHOS, nodeIds, points: ESTRADA }) as const,
+    readRouteGeometry: async () =>
+      ({
+        legs: TRECHOS,
+        nodeIds,
+        nodeIdsByLeg: nodeIds === null ? null : [nodeIds],
+        points: ESTRADA,
+      }) as const,
   }
 }
 

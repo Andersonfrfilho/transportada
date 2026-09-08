@@ -59,6 +59,13 @@ type TripAssemblyMapProps = Readonly<{
   /** As notas que o filtro alcança e a seleção deixou de fora — o que faltou, em cinza claro. */
   nearby: readonly AssemblyMapNote[]
   onOrderChange: (order: AssemblyCityOrder) => void
+  /**
+   * Tirar a parada inteira da viagem — todas as notas que param naquele endereço, pelos ids delas.
+   *
+   * ⚠️ Opcional porque quem hospeda o mapa nem sempre é dono da fila: sem o callback o botão não é
+   * desenhado, em vez de aparecer inerte. Botão que não faz nada é pior que botão ausente.
+   */
+  onStopRemove?: ((noteIds: readonly string[]) => void) | undefined
   order: AssemblyCityOrder
   selected: readonly AssemblyMapNote[]
   /**
@@ -107,6 +114,7 @@ function formatFinishTime(iso: string): string {
 export function TripAssemblyMap({
   nearby,
   onOrderChange,
+  onStopRemove,
   order,
   revenueLines,
   selected,
@@ -340,6 +348,56 @@ export function TripAssemblyMap({
   }
 
   const depotLegs = buildAssemblyDepotLegs({ geometry: activeGeometry, points: map.points })
+  /**
+   * As praças na sequência, e não num extrato no pé da tela: quem monta a viagem lê o custo entre a
+   * parada que o gera e a seguinte. ⚠️ O trecho é `leading + índice da parada` — o `0` é o do
+   * barracão quando ele entrou, e é por isso que a conta parte dele em vez de partir da parada.
+   */
+  const leadingLegCount = depotLegOf('outbound') === null ? 0 : 1
+  /**
+   * As praças de um trecho, como linhas da própria sequência.
+   *
+   * ⚠️ O disco delas é **próprio** — cor de aviso e glifo de cancela, sem número: a praça não é
+   * parada, não recebe carga e não entra na numeração das entregas. A mesma distinção por forma que
+   * o barracão faz, pela mesma razão.
+   *
+   * ⚠️ O valor sai de `effectiveChargePerAxle`, nunca do `chargePerAxle` cru: com tag o cru é a
+   * tarifa que o veículo não pagou, e linha que não soma o total faz duvidar do total. Praça sem
+   * tarifa conhecida diz isso por extenso — **nunca** zero, que anunciaria cancela franca.
+   */
+  function tollRows(legIndex: number) {
+    if (toll === null) return []
+
+    return toll.booths
+      .filter((booth) => (booth.legIndex ?? null) === legIndex)
+      .map((booth) => (
+        <li className={styles.assemblyMilestone} key={`toll-${String(booth.osmNodeId)}`}>
+          <div className={styles.assemblyStop}>
+            <span className={`${styles.assemblyBullet} ${styles.assemblyBulletToll}`}>
+              <Icon name="invoice" />
+            </span>
+            <div className={styles.assemblyStopBody}>
+              <span className={styles.assemblyTollBooth}>
+                {t('assemblyMap.toll.booth', {
+                  name: booth.name ?? t('assemblyMap.toll.boothUnnamed'),
+                  operator: booth.operator ?? t('assemblyMap.toll.operatorUnknown'),
+                })}
+              </span>
+              <span className={styles.assemblyStopLeg}>
+                {booth.effectiveChargePerAxle === null || booth.total === null
+                  ? t('assemblyMap.toll.statementWithoutCharge')
+                  : t('assemblyMap.toll.statementLine', {
+                      charge: formatAmount(booth.effectiveChargePerAxle),
+                      multiplier: toll.multiplierLabel,
+                      total: formatAmount(booth.total),
+                    })}
+                {booth.fellBackToManual ? ` · ${t('assemblyMap.toll.statementFellBack')}` : null}
+              </span>
+            </div>
+          </div>
+        </li>
+      ))
+  }
   /**
    * ⚠️ Sai de `geometryQuery.data`, como a `absence` logo abaixo — **nunca** de `activeGeometry`: a
    * ficha é da empresa e não muda com a opção de rota escolhida, e pendurá-la na opção a faria
@@ -600,54 +658,72 @@ export function TripAssemblyMap({
         navegador se somava a ela ao copiar o texto — "1. 1. RIBEIRAO PRETO" na área de transferência.
       */}
       {/*
-        Spec 097: a saída do barracão. ⚠️ Sem ela na lista, o total da rota não fecha com o que a
-        tela mostra — medido: 3 h 54 min de total contra 53 km de pernas visíveis —, e o operador lê
-        como erro de cálculo o que é a conta ficando certa.
-      */}
-      {depotLegOf('outbound') === null ? null : (
-        <p className={`${styles.hint} ${styles.assemblyDepotLeg}`}>
-          <Icon name="organization" />
-          {t('assemblyMap.depotLeg.outbound', {
-            distance: Math.round(depotLegOf('outbound')?.distanceKilometres ?? 0),
-            duration: formatDuration(depotLegOf('outbound')?.drivingMinutes ?? 0),
-          })}
-        </p>
-      )}
-      {/*
-        Quem é o barracão. A perna dizia 61 km e não dizia de onde — e quem monta a viagem precisa
-        do endereço e do telefone antes de o caminhão sair.
+        Spec 097: a saída do barracão, agora **dentro** da sequência e não numa linha solta antes
+        dela. Sem ela na lista o total da rota não fechava com o que a tela mostrava — medido: 3 h
+        54 min de total contra 53 km de pernas visíveis —, e o operador lia como erro de cálculo o
+        que era a conta ficando certa.
 
-        ⚠️ O rótulo diz **endereço cadastrado da empresa**, e não "o barracão fica aqui": a origem do
-        roteirizador é uma chave com coordenada e nenhum endereço escrito, então afirmar a rua do
-        galpão seria dizer algo que ninguém verificou. Quem cadastrou uma origem diferente da sede
-        leria uma mentira plausível.
+        ⚠️ O barracão ganha o **mesmo disco** das paradas, com o glifo da organização no lugar do
+        número — exatamente como o marcador do mapa (spec 097 D4). O que o separa da entrega
+        continua sendo a forma, nunca a cor: ele não está na sequência de entregas e não recebe
+        carga.
       */}
-      {depotDescription === null ? null : (
-        <div className={styles.assemblyDepotCard}>
-          <p className={styles.assemblyDepotCardTitle}>
-            {t('assemblyMap.depotLeg.description', {
-              address: depotDescription.address,
-              name: depotDescription.tradeName,
-            })}
-          </p>
-          {depotDescription.phone === null ? null : (
-            <p className={styles.hint}>
-              {t('assemblyMap.depotLeg.descriptionPhone', {
-                phone: formatStoredPhone(depotDescription.phone),
-              })}
-              <CopyButton
-                copiedLabel={t('assemblyMap.phoneCopied')}
-                label={t('assemblyMap.phoneCopy', { recipient: depotDescription.tradeName })}
-                value={depotDescription.phone}
-                variant="inline"
-              />
-            </p>
-          )}
-          <p className={styles.hint}>{t('assemblyMap.depotLeg.descriptionNote')}</p>
-        </div>
-      )}
       <ul className={styles.assemblyOrder}>
-        {map.points.map((point, index) => (
+        {depotLegOf('outbound') === null ? null : (
+          <li className={styles.assemblyMilestone}>
+            <div className={styles.assemblyStop}>
+              <span className={`${styles.assemblyBullet} ${styles.assemblyBulletDepot}`}>
+                <Icon name="organization" />
+              </span>
+              <div className={styles.assemblyStopBody}>
+                {/*
+                  Quem é o barracão. A perna dizia 61 km e não dizia de onde — e quem monta a viagem
+                  precisa do endereço e do telefone antes de o caminhão sair.
+
+                  ⚠️ O rótulo diz **endereço cadastrado da empresa**, e não "o barracão fica aqui":
+                  a origem do roteirizador é uma chave com coordenada e nenhum endereço escrito,
+                  então afirmar a rua do galpão seria dizer algo que ninguém verificou. Quem
+                  cadastrou uma origem diferente da sede leria uma mentira plausível.
+                */}
+                {depotDescription === null ? null : (
+                  <>
+                    <span className={styles.assemblyStopCity}>
+                      {t('assemblyMap.depotLeg.description', {
+                        address: depotDescription.address,
+                        name: depotDescription.tradeName,
+                      })}
+                    </span>
+                    {depotDescription.phone === null ? null : (
+                      <span className={styles.assemblyStopPhone}>
+                        {t('assemblyMap.depotLeg.descriptionPhone', {
+                          phone: formatStoredPhone(depotDescription.phone),
+                        })}
+                        <CopyButton
+                          copiedLabel={t('assemblyMap.phoneCopied')}
+                          label={t('assemblyMap.phoneCopy', {
+                            recipient: depotDescription.tradeName,
+                          })}
+                          value={depotDescription.phone}
+                          variant="inline"
+                        />
+                      </span>
+                    )}
+                    <span className={styles.hint}>{t('assemblyMap.depotLeg.descriptionNote')}</span>
+                  </>
+                )}
+                <span className={styles.assemblyStopLeg}>
+                  {t('assemblyMap.depotLeg.outbound', {
+                    distance: Math.round(depotLegOf('outbound')?.distanceKilometres ?? 0),
+                    duration: formatDuration(depotLegOf('outbound')?.drivingMinutes ?? 0),
+                  })}
+                </span>
+              </div>
+            </div>
+          </li>
+        )}
+        {/* Sem barracão de saída o trecho `0` é entre paradas, e ele sai depois da primeira. */}
+        {leadingLegCount === 0 ? null : tollRows(0)}
+        {map.points.flatMap((point, index) => [
           <li key={point.stopKey}>
             <div className={styles.assemblyStop}>
               <span
@@ -775,19 +851,52 @@ export function TripAssemblyMap({
             >
               <Icon name="chevron-down" />
             </Button>
+            {/*
+              ⚠️ Tirar a parada tira **todas as notas** que param nela — a parada é o endereço, e
+              deixar uma nota para trás recriaria a mesma parada na linha seguinte, com o operador
+              achando que o clique não pegou. Sem `onStopRemove` o botão não é desenhado: quem
+              hospeda o mapa nem sempre é dono da fila.
+            */}
+            {onStopRemove === undefined ? null : (
+              <Button
+                aria-label={t('assemblyMap.removeStop', { label: point.label })}
+                onClick={() => onStopRemove(point.notes.map((note) => note.id))}
+                size="sm"
+                variant="ghost"
+              >
+                <Icon name="trash" />
+              </Button>
+            )}
+          </li>,
+          ...tollRows(leadingLegCount + index),
+        ])}
+        {/* O retorno, quando a política de fim manda voltar ao barracão (`end_policy = depot`). */}
+        {depotLegOf('return') === null ? null : (
+          <li className={styles.assemblyMilestone}>
+            <div className={styles.assemblyStop}>
+              <span className={`${styles.assemblyBullet} ${styles.assemblyBulletDepot}`}>
+                <Icon name="organization" />
+              </span>
+              <div className={styles.assemblyStopBody}>
+                {depotDescription === null ? null : (
+                  <span className={styles.assemblyStopCity}>
+                    {t('assemblyMap.depotLeg.description', {
+                      address: depotDescription.address,
+                      name: depotDescription.tradeName,
+                    })}
+                  </span>
+                )}
+                <span className={styles.assemblyStopLeg}>
+                  {t('assemblyMap.depotLeg.return', {
+                    distance: Math.round(depotLegOf('return')?.distanceKilometres ?? 0),
+                    duration: formatDuration(depotLegOf('return')?.drivingMinutes ?? 0),
+                  })}
+                </span>
+              </div>
+            </div>
           </li>
-        ))}
+        )}
       </ul>
-      {/* O retorno, quando a política de fim manda voltar ao barracão (`end_policy = depot`). */}
-      {depotLegOf('return') === null ? null : (
-        <p className={`${styles.hint} ${styles.assemblyDepotLeg}`}>
-          <Icon name="organization" />
-          {t('assemblyMap.depotLeg.return', {
-            distance: Math.round(depotLegOf('return')?.distanceKilometres ?? 0),
-            duration: formatDuration(depotLegOf('return')?.drivingMinutes ?? 0),
-          })}
-        </p>
-      )}
       {weightTotal === null && amountTotal === null ? null : (
         <p className={`${styles.hint} ${styles.assemblyTotals}`}>
           {amountTotal === null ? null : (

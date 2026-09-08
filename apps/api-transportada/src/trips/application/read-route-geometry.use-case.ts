@@ -58,6 +58,19 @@ export type RouteGeometrySource = (typeof ROUTE_GEOMETRY_SOURCES)[number]
  * T5) não conhece data — ela decide só quem passou e quanto custa — e é este use case que junta a
  * data de cada praça cobrada para a tela imprimir ao lado do total.
  */
+/**
+ * A linha do extrato, mais **em que trecho da rota** ela é cruzada — o que põe a praça entre as duas
+ * paradas certas na sequência da montagem.
+ *
+ * ⚠️ Isto não é da política pura do pedágio: ela decide quem passou e quanto custa, e não conhece
+ * roteiro. O trecho vem da anotação de nós do OSRM, agrupada por perna, e é este use case que junta
+ * as duas coisas — o mesmo corte que já faz com a data da tarifa.
+ *
+ * ⚠️ `null` é desconhecimento: rota sem anotação de nós. A tela deixa a praça fora da sequência e a
+ * mostra só no extrato completo, em vez de pendurá-la num trecho por palpite.
+ */
+export type TollBoothRouteLine = TollBoothStatementLine & Readonly<{ legIndex: null | number }>
+
 export type RouteGeometryToll = Omit<TollRouteCost, 'booths'> &
   Readonly<{
     /**
@@ -65,7 +78,7 @@ export type RouteGeometryToll = Omit<TollRouteCost, 'booths'> &
      * para a tarifa manual. Ele é derivado na leitura (`describeTollBoothCharges`) e não entra no
      * jsonb congelado — o congelado guarda a observação, e a interpretação se recomputa.
      */
-    booths: readonly TollBoothStatementLine[]
+    booths: readonly TollBoothRouteLine[]
     /**
      * A fração já como rótulo (`1`, `1,5`, `3`), ao lado do par que a gerou.
      *
@@ -347,6 +360,7 @@ async function resolveOption(input: {
       multiplier: input.multiplier,
       hasAutomaticTollPayment: input.hasAutomaticTollPayment,
       nodeIds: input.road.nodeIds,
+      nodeIdsByLeg: input.road.nodeIdsByLeg,
       tollBooths: input.tollBooths,
     }),
   }
@@ -362,11 +376,25 @@ async function resolveRouteToll(input: {
   readonly multiplier: TollMultiplier | null
   readonly hasAutomaticTollPayment: boolean
   readonly nodeIds: null | readonly number[]
+  /** Os mesmos nós por trecho — é deles que sai em que perna da viagem cada praça cai. */
+  readonly nodeIdsByLeg: null | readonly (readonly number[])[]
   readonly tollBooths: null | ReadRouteGeometryTollBoothsPort
 }): Promise<null | RouteGeometryToll> {
   if (input.axles === null || input.multiplier === null || input.tollBooths === null) return null
 
   const records = input.nodeIds === null ? [] : await input.tollBooths.readByNodeIds(input.nodeIds)
+  /**
+   * Em que trecho cada nó é cruzado. ⚠️ **O primeiro cruzamento vence**: um nó que reaparece é alça
+   * de trevo ou retorno de rotatória — medido, 27 nós com 65 ocorrências extras numa rota de 89 km —,
+   * e a cobrança já é uma por rota. Quem faz o par de cancelas gêmeas cair em pernas diferentes é
+   * elas serem **nós diferentes**, um por sentido, não a repetição do mesmo.
+   */
+  const legIndexByNode = new Map<number, number>()
+  for (const [legIndex, nodeIds] of (input.nodeIdsByLeg ?? []).entries()) {
+    for (const nodeId of nodeIds) {
+      if (!legIndexByNode.has(nodeId)) legIndexByNode.set(nodeId, legIndex)
+    }
+  }
   const observedOnByNode = new Map(records.map((record) => [record.osmNodeId, record.observedOn]))
 
   const cost = resolveTollRouteCost({
@@ -391,7 +419,7 @@ async function resolveRouteToll(input: {
       booths: cost.booths,
       multiplier: cost.multiplier,
       paymentMode: cost.paymentMode,
-    }),
+    }).map((booth) => ({ ...booth, legIndex: legIndexByNode.get(booth.osmNodeId) ?? null })),
     tariffObservedOn: observedDates[0] ?? null,
   }
 }

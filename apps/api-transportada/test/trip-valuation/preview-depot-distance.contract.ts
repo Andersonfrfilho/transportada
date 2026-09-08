@@ -75,6 +75,7 @@ function run(input: { readonly depot?: null | RouteDepot; readonly road: RouteGe
 const SO_AS_PARADAS: RouteGeometryRoad = {
   legs: [{ distanceMetres: 48_300, durationSeconds: 2_340 }],
   nodeIds: null,
+  nodeIdsByLeg: null,
   points: [],
 }
 
@@ -85,6 +86,7 @@ const COM_O_BARRACAO: RouteGeometryRoad = {
     { distanceMetres: 48_300, durationSeconds: 2_340 },
   ],
   nodeIds: null,
+  nodeIdsByLeg: null,
   points: [],
 }
 

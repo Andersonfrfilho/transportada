@@ -93,11 +93,23 @@ function toRoad(route: OsrmRoute | undefined, expectedLegs: number): RouteGeomet
   const legs = toLegs(route?.legs)
   if (legs === null || legs.length !== expectedLegs) return null
 
-  return { legs, nodeIds: toNodeIds(route?.legs), points: roadPoints }
+  const nodeIdsByLeg = toNodeIdsByLeg(route?.legs)
+
+  return {
+    legs,
+    nodeIds: nodeIdsByLeg === null ? null : nodeIdsByLeg.flat(),
+    nodeIdsByLeg,
+    points: roadPoints,
+  }
 }
 
 /**
- * Os nós percorridos, colados na ordem dos trechos (spec 090 D1).
+ * Os nós percorridos, **um grupo por trecho** e na ordem em que o caminhão os cruza (spec 090 D1).
+ *
+ * ⚠️ Achatá-los numa lista só, como esta função fazia, jogava fora a única informação capaz de dizer
+ * em que perna da viagem cada praça cai — e num roteiro que volta ao barracão o par de cancelas
+ * gêmeas (a mesma praça nos dois sentidos) aparecia inteiro antes da primeira entrega. A lista
+ * achatada continua sendo publicada, derivada desta.
  *
  * ⚠️ **O OSRM repete o nó da parada** no fim de um trecho e no começo do seguinte. Concatenar cru
  * faria a praça que cai exatamente ali ser cobrada **duas vezes** — número plausível, maior que o
@@ -107,10 +119,17 @@ function toRoad(route: OsrmRoute | undefined, expectedLegs: number): RouteGeomet
  * "o resto não tem praça", e a conta sairia menor que a verdade sem avisar ninguém. Meia lista é
  * pior que lista nenhuma, porque parece completa.
  */
-function toNodeIds(value: unknown): readonly number[] | null {
+function toNodeIdsByLeg(value: unknown): readonly (readonly number[])[] | null {
   if (!Array.isArray(value)) return null
 
-  const nodeIds: number[] = []
+  const byLeg: (readonly number[])[] = []
+  /**
+   * ⚠️ A deduplicação atravessa o limite do trecho, e é por isso que ela mora fora do laço: o nó da
+   * parada fecha um trecho e abre o seguinte, e sem isto a praça que cai exatamente ali seria cobrada
+   * duas vezes. O nó repartido fica com o trecho **anterior** — é por ele que o caminhão chegou.
+   */
+  let previous: number | undefined
+
   for (const entry of value) {
     if (typeof entry !== 'object' || entry === null) return null
     const { annotation } = entry as Record<string, unknown>
@@ -118,14 +137,17 @@ function toNodeIds(value: unknown): readonly number[] | null {
     const { nodes } = annotation as Record<string, unknown>
     if (!Array.isArray(nodes)) return null
 
+    const nodeIds: number[] = []
     for (const node of nodes) {
       if (typeof node !== 'number' || !Number.isSafeInteger(node) || node <= 0) return null
-      if (nodeIds.at(-1) === node) continue
+      if (previous === node) continue
+      previous = node
       nodeIds.push(node)
     }
+    byLeg.push(nodeIds)
   }
 
-  return nodeIds
+  return byLeg
 }
 
 /** O GeoJSON vem `[longitude, latitude]` — trocar a ordem põe a viagem no oceano. */

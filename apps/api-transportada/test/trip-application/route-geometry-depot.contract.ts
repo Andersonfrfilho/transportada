@@ -47,6 +47,7 @@ function estrada(input: {
   return {
     legs: input.legs,
     nodeIds: input.nodeIds ?? null,
+    nodeIdsByLeg: input.nodeIds === undefined || input.nodeIds === null ? null : [input.nodeIds],
     points: [BARRACAO, ORLANDIA, IPUA],
   }
 }
@@ -73,6 +74,7 @@ function portaDeVerdade() {
         durationSeconds: 600 * (index + 1),
       })),
       nodeIds: null,
+      nodeIdsByLeg: null,
       points: [...points],
     }),
   }

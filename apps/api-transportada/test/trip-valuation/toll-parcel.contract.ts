@@ -105,6 +105,7 @@ describe('o pedágio na conta da viagem (spec 090 T9)', () => {
       road: {
         legs: [{ distanceMetres: 106_600, durationSeconds: 5_160 }],
         nodeIds: [10, 20],
+        nodeIdsByLeg: [[10, 20]],
         points: [],
       },
     })
@@ -123,6 +124,7 @@ describe('o pedágio na conta da viagem (spec 090 T9)', () => {
       road: {
         legs: [{ distanceMetres: 106_600, durationSeconds: 5_160 }],
         nodeIds: [10],
+        nodeIdsByLeg: [[10]],
         points: [],
       },
     })
@@ -151,6 +153,7 @@ describe('o pedágio na conta da viagem (spec 090 T9)', () => {
       road: {
         legs: [{ distanceMetres: 50_000, durationSeconds: 3_000 }],
         nodeIds: [1, 2],
+        nodeIdsByLeg: [[1, 2]],
         points: [],
       },
     })
@@ -170,6 +173,7 @@ describe('o pedágio na conta da viagem (spec 090 T9)', () => {
       road: {
         legs: [{ distanceMetres: 106_600, durationSeconds: 5_160 }],
         nodeIds: [10],
+        nodeIdsByLeg: [[10]],
         points: [],
       },
     })
@@ -189,6 +193,7 @@ describe('o pedágio na conta da viagem (spec 090 T9)', () => {
       road: {
         legs: [{ distanceMetres: 106_600, durationSeconds: 5_160 }],
         nodeIds: [10],
+        nodeIdsByLeg: [[10]],
         points: [],
       },
     })
@@ -210,6 +215,7 @@ describe('praça sem tarifa na parcela calculada (revisão de 2026-09-07)', () =
       road: {
         legs: [{ distanceMetres: 1_000, durationSeconds: 60 }],
         nodeIds: [10, 20],
+        nodeIdsByLeg: [[10, 20]],
         points: POINTS,
       },
     })
@@ -227,6 +233,7 @@ describe('praça sem tarifa na parcela calculada (revisão de 2026-09-07)', () =
       road: {
         legs: [{ distanceMetres: 1_000, durationSeconds: 60 }],
         nodeIds: [10],
+        nodeIdsByLeg: [[10]],
         points: POINTS,
       },
     })
@@ -265,6 +272,7 @@ describe('a tag chega na conta da viagem (spec 095 D4)', () => {
       road: {
         legs: [{ distanceMetres: 1_000, durationSeconds: 60 }],
         nodeIds: [10, 20, 30],
+        nodeIdsByLeg: [[10, 20, 30]],
         points: POINTS,
       },
     })
@@ -284,6 +292,7 @@ describe('a tag chega na conta da viagem (spec 095 D4)', () => {
       road: {
         legs: [{ distanceMetres: 1_000, durationSeconds: 60 }],
         nodeIds: [10, 20, 30],
+        nodeIdsByLeg: [[10, 20, 30]],
         points: POINTS,
       },
     })

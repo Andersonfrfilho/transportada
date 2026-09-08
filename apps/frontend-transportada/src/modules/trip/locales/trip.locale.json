@@ -395,6 +395,7 @@
   "assemblyMap": {
     "empty": "Sem cidade para desenhar ainda — bipe ou selecione uma nota.",
     "moveDown": "Descer {{label}}",
+    "removeStop": "Tirar {{label}} da viagem",
     "moveUp": "Subir {{label}}",
     "nearby": "Perto e fora da seleção: {{cities}}.",
     "nearbyLabel": "Fora da seleção: {{label}}",

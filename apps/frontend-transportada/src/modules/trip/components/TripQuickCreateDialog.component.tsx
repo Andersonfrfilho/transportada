@@ -313,6 +313,18 @@ export function TripQuickCreateDialog({
         <TripAssemblyMap
           nearby={nearbyNotes}
           onOrderChange={quickCreate.setCityOrder}
+          /**
+           * ⚠️ A parada é um endereço, e a fila é de **chaves de acesso**: a tradução de id de nota
+           * para chave acontece aqui, uma vez, sobre a mesma lista que alimentou o mapa. Nota que
+           * não está mais na fila é ignorada em vez de virar erro — o operador pode remover a mesma
+           * parada duas vezes com o clique repetido, e a segunda vez não tem o que desfazer.
+           */
+          onStopRemove={(noteIds) => {
+            const removing = new Set(noteIds)
+            for (const document of quickCreate.stagedDocuments) {
+              if (removing.has(document.id)) quickCreate.removeEntry(document.accessKey)
+            }
+          }}
           order={quickCreate.cityOrder}
           revenueLines={valuationPreview.valuation?.revenueLines}
           selected={selectedNotes}
