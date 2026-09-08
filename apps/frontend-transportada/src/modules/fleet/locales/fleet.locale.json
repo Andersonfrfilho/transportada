@@ -450,6 +450,22 @@
   "driverPersonalHint": "Nacionalidade, naturalidade, filiação, documento de identidade e local de emissão da CNH ficam registrados na ficha para consulta — nenhum documento fiscal os transmite hoje.",
   "driverLinkedAddressLegend": "Endereço da empresa do agregado",
   "driverLinkedAddressHint": "Endereço do CNPJ vinculado. Comece pelo CEP: com ele o endereço vem preenchido e sobra digitar o número.",
+  "driverHome": {
+    "resolved": "O ponto no mapa é onde entendemos que o motorista mora.",
+    "confirm": "Confira se o ponto bate com o endereço. Ele sai de uma busca automática, e rua de nome comum pode casar na cidade errada.",
+    "pending": "⚠️ Sem coordenada ainda: ela é buscada ao salvar a ficha.",
+    "not_found": "⚠️ Não achamos este endereço no mapa. Confira rua, número e CEP — o endereço está completo, então o que falhou foi o casamento.",
+    "incomplete": "⚠️ Sem coordenada: o endereço está incompleto.",
+    "unavailable": "⚠️ O mapa não pôde ser desenhado neste navegador. A coordenada está gravada.",
+    "missingFields": "Falta preencher: {{fields}}.",
+    "field": {
+      "street": "logradouro",
+      "number": "número",
+      "city": "cidade",
+      "state": "UF",
+      "postalCode": "CEP"
+    }
+  },
   "driverAddressLegend": "Endereço do motorista",
   "driverAddressHint": "Comece pelo CEP: com ele o endereço vem preenchido e sobra digitar o número. Sem CEP em mãos, busque pelo endereço no campo ao lado e escolha na lista.",
   "driverAddressPostalCode": "CEP",

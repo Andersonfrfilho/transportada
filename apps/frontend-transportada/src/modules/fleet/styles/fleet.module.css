@@ -1234,3 +1234,45 @@
   padding: var(--field-padding);
   font-size: var(--field-font-size);
 }
+
+/*
+  O mapa da casa do motorista (spec 097 D6). Altura fixa e sem interação: ele é conferência, não
+  navegação — quem precisa navegar abre o mapa da viagem.
+*/
+.homeMap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.homeMapCanvas {
+  /* ⚠️ Altura em `rem`, não na escala de espaçamento: `--space-16` dava 64px, e num mapa de rua
+     isso é um retângulo onde não se reconhece nada. Aqui o número é a altura do desenho, não um
+     espaçamento entre coisas. */
+  height: 18rem;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+/* O mesmo círculo do pino da viagem: uma marca, não um controle. */
+.homePin {
+  width: var(--space-5);
+  height: var(--space-5);
+  border: 2px solid transparent;
+  border-radius: 50%;
+  background: var(--color-copper);
+  pointer-events: none;
+}
+
+.homeNotice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  color: var(--color-slate);
+  font-size: var(--font-size-sm);
+  margin: 0;
+}
+
+.homeWarning {
+  color: var(--color-amber);
+}

@@ -1,5 +1,29 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { StyleSpecification } from 'maplibre-gl'
+import { addProtocol, setWorkerUrl, type StyleSpecification } from 'maplibre-gl'
+import { Protocol } from 'pmtiles'
+
+// eslint-disable-next-line import/no-unresolved -- `?url` é resolvido pelo Vite, não pelo TypeScript
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
+
+/**
+ * Prepara o MapLibre uma vez por página: o worker e o protocolo `pmtiles`.
+ *
+ * ⚠️ **Sem `addProtocol`, o navegador trata `pmtiles://…` como esquema próprio e a CSP bloqueia** —
+ * mesmo com a origem declarada em `connect-src`. O mapa sobe, o canvas fica preto, e o console
+ * acusa violação de CSP numa URL que ninguém escreveu assim. Foi o que aconteceu ao desenhar o
+ * segundo mapa do produto sem passar por aqui.
+ *
+ * ⚠️ `maplibreWorkerUrl` é `import` **estático** de propósito: como `import()` dinâmico o `?url` é
+ * ignorado pelo `vite dev` e o que volta é o módulo, não o caminho — a mesma armadilha do worker do
+ * pdf.js, e ela só aparece em desenvolvimento.
+ */
+let configured = false
+export function configureVectorBasemap(): void {
+  if (configured) return
+  setWorkerUrl(maplibreWorkerUrl)
+  addProtocol('pmtiles', new Protocol().tile)
+  configured = true
+}
 
 /**
  * O mapa de rua deste produto (ADR-0044 §6): **um arquivo PMTiles servido do nosso domínio**, lido

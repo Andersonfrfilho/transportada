@@ -100,6 +100,9 @@ describe('placeholder linked document contract', () => {
       linkedTaxId: '00000000000000',
       motherName: '',
       nationality: '',
+      home: { missing: [], status: 'pending' as const },
+      homeLatitude: null,
+      homeLongitude: null,
     }
 
     expect(toVehicleOwnerFields(driver).ownerTaxId).toBe(driver.taxId)

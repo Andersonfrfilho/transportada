@@ -264,7 +264,20 @@ export function DriverForm({
       </fieldset>
       <DriverLinkedAddressFields lookup={linkedAddress} state={form.state} onChange={form.patch} />
       <DriverPersonalFields state={form.state} onChange={form.patch} />
-      <DriverAddressFields lookup={addressLookup} state={form.state} onChange={form.patch} />
+      <DriverAddressFields
+        {...(driver === undefined
+          ? {}
+          : {
+              home: {
+                latitude: driver.homeLatitude,
+                longitude: driver.homeLongitude,
+                report: driver.home,
+              },
+            })}
+        lookup={addressLookup}
+        state={form.state}
+        onChange={form.patch}
+      />
       <DriverVehicleLinkField
         onChange={form.setVehicles}
         options={vehicles.options}

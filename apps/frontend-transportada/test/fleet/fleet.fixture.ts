@@ -155,6 +155,14 @@ export type FleetDriverCreateBodyContract = Omit<FleetDriverBodyContract, 'membe
 export type FleetDriverDetailContract = FleetDriverBodyContract &
   Readonly<{
     createdAt: string
+    /**
+     * ⚠️ Spec 097 D6. Este contrato é a **redeclaração** do corpo que a API serve — ele existe para
+     * a divergência aparecer aqui, e não numa tabela de motoristas que renderiza vazia com 200 na
+     * rede. Campo novo na API entra também aqui.
+     */
+    home: Readonly<{ missing: readonly string[]; status: string }>
+    homeLatitude: null | string
+    homeLongitude: null | string
     id: string
     status: 'active' | 'inactive'
     updatedAt: string
@@ -412,6 +420,10 @@ export const FLEX_VEHICLE_DETAIL = {
 export const DRIVER_DETAIL = {
   ...DRIVER_BODY,
   createdAt: '2026-07-28T12:00:00.000Z',
+  /** Spec 097 D6: ficha já procurada e achada — é o caso em que a tela desenha o mapa. */
+  home: { missing: [], status: 'resolved' },
+  homeLatitude: '-21.1834475',
+  homeLongitude: '-47.8034145',
   id: DRIVER_ID,
   membershipId: MEMBERSHIP_ID,
   status: 'active',

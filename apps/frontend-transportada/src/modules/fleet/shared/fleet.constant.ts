@@ -375,6 +375,14 @@ export const DRIVER_FORM_KEYS = [
 export const DRIVER_DETAIL_KEYS = [
   ...DRIVER_BODY_KEYS,
   'createdAt',
+  /**
+   * ⚠️ Spec 097 D6. Como todo campo desta lista, **a API sobe antes do frontend**: com o corpo
+   * antigo, `hasEveryKey` recusa toda linha e a tabela de motoristas renderiza vazia — 200 na rede,
+   * nada no console, nenhum erro na tela. É o mesmo defeito de `VEHICLE_DETAIL_KEYS`.
+   */
+  'home',
+  'homeLatitude',
+  'homeLongitude',
   'id',
   'status',
   'updatedAt',

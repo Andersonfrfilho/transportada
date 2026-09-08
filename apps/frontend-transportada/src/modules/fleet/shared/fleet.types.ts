@@ -353,9 +353,33 @@ export type FleetDriverProfile = (typeof FLEET_DRIVER_PROFILES)[number]
 export type FleetDriverCreateBody = Omit<FleetDriverBody, 'membershipId'> &
   Readonly<{ profile: FleetDriverProfile }>
 
+/** Os campos do endereço que a busca da coordenada precisa, nos nomes que a tela imprime. */
+export const DRIVER_HOME_FIELDS = ['street', 'number', 'city', 'state', 'postalCode'] as const
+export type DriverHomeField = (typeof DRIVER_HOME_FIELDS)[number]
+
+/**
+ * Em que pé está a coordenada da casa — cópia por valor do catálogo da API, como `FUEL_TYPES` e
+ * `VEHICLE_TYPES`: o bundle não carrega código da API. Mudou de um lado, mude do outro.
+ *
+ * ⚠️ Os quatro estados existem porque o remédio de cada um é distinto: `incomplete` pede cadastro e
+ * **nomeia os campos**, `not_found` pede conferência do endereço já preenchido, `pending` só espera
+ * o próximo salvamento, e `resolved` não pede nada.
+ */
+export const DRIVER_HOME_STATUSES = ['pending', 'resolved', 'incomplete', 'not_found'] as const
+export type DriverHomeStatus = (typeof DRIVER_HOME_STATUSES)[number]
+
+export type DriverHomeReport = Readonly<{
+  missing: readonly DriverHomeField[]
+  status: DriverHomeStatus
+}>
+
 export type FleetDriverDetail = FleetDriverBody &
   Readonly<{
     createdAt: string
+    /** Spec 097 D6: onde a casa fica, e por que ela pode não ter coordenada. */
+    home: DriverHomeReport
+    homeLatitude: null | string
+    homeLongitude: null | string
     id: string
     status: FleetDriverStatus
     updatedAt: string

@@ -11,7 +11,7 @@ import {
   RADAR_SOURCE,
   buildBasemapStyle,
   resolveBasemapOutline,
-} from '@/modules/trip/shared/vectorBasemap.service'
+} from '@/modules/shared/vectorBasemap.service'
 
 /** A validação é da **forma** do estilo; a paleta real é resolvida no documento, que aqui não há. */
 const resolveToken = (token: string): string => `#${token.length.toString(16).padStart(6, '0')}`

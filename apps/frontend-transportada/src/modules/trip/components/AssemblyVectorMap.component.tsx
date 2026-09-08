@@ -2,15 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import {
-  LngLatBounds,
-  Map as MapLibreMap,
-  Marker,
-  addProtocol,
-  type GeoJSONSource,
-  setWorkerUrl,
-} from 'maplibre-gl'
-import { Protocol } from 'pmtiles'
+import { LngLatBounds, Map as MapLibreMap, Marker, type GeoJSONSource } from 'maplibre-gl'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -23,17 +15,17 @@ import { Icon } from '@/components/ui/icon'
  */
 import 'maplibre-gl/dist/maplibre-gl.css'
 /** `?url` faz o Vite resolver o especificador de pacote e servir o arquivo da nossa origem. */
-import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 
 import {
   BASEMAP_THEMES,
   RADAR_SOURCE,
   buildBasemapStyle,
+  configureVectorBasemap,
   resolveBasemapBackground,
   resolveBasemapOutline,
   resolveBasemapTollColor,
   type BasemapTheme,
-} from '../shared/vectorBasemap.service'
+} from '@/modules/shared/vectorBasemap.service'
 import { ICON_PATHS } from '@/components/ui/icon'
 
 import { resolveAssemblyMapBounds } from '../shared/assemblyMapBounds.service'
@@ -99,13 +91,6 @@ function readStoredTheme(): BasemapTheme | null {
  * cima: nada falha em voz alta, e a tela parece só "não ter mapa". O Vite só reescreve `new URL`
  * para caminho **relativo**; para especificador de pacote quem resolve é o `import`.
  */
-let workerConfigured = false
-function configureWorker(): void {
-  if (workerConfigured) return
-  setWorkerUrl(maplibreWorkerUrl)
-  addProtocol('pmtiles', new Protocol().tile)
-  workerConfigured = true
-}
 
 /**
  * O mapa de rua do painel de montagem (ADR-0044 §6). O fundo é o nosso PMTiles; os pinos e a linha
@@ -215,7 +200,7 @@ export function AssemblyVectorMap({
     const container = containerRef.current
     if (container === null) return
 
-    configureWorker()
+    configureVectorBasemap()
     /**
      * ⚠️ **Sem WebGL2 o construtor lança na hora, não num evento** — e um `throw` síncrono dentro
      * de `useEffect` sobe cru pelo React: sem um Error Boundary aqui, ele derruba a árvore inteira
