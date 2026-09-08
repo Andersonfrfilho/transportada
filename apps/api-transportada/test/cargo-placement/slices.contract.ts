@@ -786,6 +786,58 @@ describe('as faixas paralelas à porta (spec 100)', () => {
     expect(invadindo).toEqual([])
   })
 
+  /**
+   * ⚠️ **Em faixas sobe-se antes de andar para o fundo** (spec 100 G007), e é aqui que a feature
+   * entrega o que promete: acesso pela porta não vale nada se a carga da parada corre baú adentro.
+   *
+   * A varredura enche fileiras e só sobe de camada quando elas acabam. Em profundidade a fileira
+   * corre pela **largura**, que é de graça. Em faixas ela corre pela **profundidade real**, e cada
+   * fileira nova empurra a carga um passo para dentro — medido na viagem real: seis caixas de 0,30 m
+   * numa faixa de 0,40 m saíam deitadas no chão até **1,50 m** da porta, com uma só empilhada, num
+   * baú de 1,30 m que comporta quatro camadas.
+   */
+  test('a carga sobe até o teto antes de avançar para o fundo', () => {
+    const boxes = placed(
+      resolveCargoPlacement({
+        bed: FIORINO,
+        boxes: [
+          box({ count: 6, heightMm: 300, lengthMm: 400, stopSequence: 1, widthMm: 300 }),
+          box({ count: 6, heightMm: 300, lengthMm: 400, stopSequence: 2, widthMm: 300 }),
+        ],
+      }),
+    )
+    const portaM = Number.parseFloat(FIORINO.lengthM)
+    const alcance = portaM - Math.min(...boxes.map((entry) => entry.xM))
+
+    expect(boxes.length).toBe(12)
+    /** Seis caixas em quatro camadas cabem em duas faixas de 0,30 m. */
+    expect(alcance).toBeLessThanOrEqual(0.61)
+    /** E elas de fato empilham: uma carga rasteira teria uma camada só. */
+    expect(new Set(boxes.map((entry) => entry.zM)).size).toBeGreaterThan(1)
+  })
+
+  /**
+   * ⚠️ **Em profundidade a ordem continua a de sempre.** Ali a fileira corre pela largura do baú, e
+   * avançá-la não afasta ninguém da porta: encher o chão antes de empilhar é o certo, e inverter
+   * isso empilharia carga com metade do piso vazio ao lado.
+   */
+  test('em profundidade a fileira continua enchendo o chão primeiro', () => {
+    const boxes = placed(
+      resolveCargoPlacement({
+        bed: BED,
+        boxes: [
+          box({ count: 4, stopSequence: 1 }),
+          caixaQueNaoCabeEmFaixa(2, 2_300),
+          box({ count: 4, stopSequence: 2 }),
+        ],
+      }),
+    )
+    const daParada1 = boxes.filter((entry) => entry.stopSequence === 1)
+
+    /** As quatro cabem lado a lado na largura, sem ninguém subir. */
+    expect(daParada1.every((entry) => entry.zM === 0)).toBe(true)
+  })
+
   /** A física vence: acima de metade do teto de massa a carga volta a se dividir em profundidade. */
   test('carga pesada volta ao arranjo em profundidade', () => {
     const boxes = placed(

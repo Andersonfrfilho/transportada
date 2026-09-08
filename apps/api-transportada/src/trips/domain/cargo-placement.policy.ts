@@ -263,7 +263,14 @@ export function resolveCargoPlacement(input: {
           ? minimumLaneWidthOf(own) + laneSlackM * share
           : packBed.lengthM * share
 
-    return packUntilItFits({ bed: packBed, boxes: own, budget: MAX_PLACED_BOXES, capM })
+    return packUntilItFits({
+      bed: packBed,
+      boxes: own,
+      budget: MAX_PLACED_BOXES,
+      capM,
+      /** Em faixas a fileira gasta profundidade: sobe-se antes de andar para o fundo (spec 100). */
+      stackBeforeRow: lanes,
+    })
   })
 
   const freeM = Math.max(
@@ -362,6 +369,8 @@ export function resolveCargoPlacement(input: {
  */
 function packUntilItFits(input: {
   readonly bed: Readonly<{ heightM: number; lengthM: number; widthM: number }>
+  /** Repassado à varredura — ver `packSlice`. */
+  readonly stackBeforeRow?: boolean
   readonly boxes: readonly PlacementBox[]
   readonly budget: number
   readonly capM: number
@@ -393,6 +402,7 @@ function packUntilItFits(input: {
       boxes: input.boxes,
       budget: input.budget,
       sliceLengthM: lengthM,
+      ...(input.stackBeforeRow === undefined ? {} : { stackBeforeRow: input.stackBeforeRow }),
     })
     const overflowed =
       packed.leftovers.length > 0 || packed.unplaced.some((entry) => entry.reason === 'bedFull')
@@ -621,6 +631,19 @@ function volumeOf(boxes: readonly PlacementBox[]): number {
  */
 function packSlice(input: {
   readonly bed: Readonly<{ heightM: number; lengthM: number; widthM: number }>
+  /**
+   * Empilhar antes de avançar a fileira (spec 100).
+   *
+   * ⚠️ **Depende do que a fileira gasta.** Em profundidade a fileira corre pela **largura** do baú,
+   * que é de graça: avançá-la não afasta ninguém da porta, e encher o chão primeiro é o certo. Em
+   * faixas a fileira corre pela **profundidade real** — cada fileira nova empurra a carga um passo
+   * para dentro —, e ali a ordem se inverte: sobe-se até o teto antes de andar para o fundo.
+   *
+   * Medido na viagem real, faixa de 0,40 m com 6 caixas de 0,30 m num baú de 1,30 m de altura:
+   * cinco caixas deitadas no chão marchando até **1,50 m** da porta e uma só empilhada, quando as
+   * seis cabem em **0,60 m** usando as quatro camadas que o baú tem.
+   */
+  readonly stackBeforeRow?: boolean
   readonly boxes: readonly PlacementBox[]
   readonly budget: number
   readonly sliceLengthM: number
@@ -669,6 +692,12 @@ function packSlice(input: {
     widthM: slice.widthM,
   })
   let cursor = { layer: 0, layerBottomM: 0, layerHeightM: 0, rowWidthM: 0, xM: 0, yM: 0 }
+  /**
+   * Até onde as fileiras podem ir hoje. Com `stackBeforeRow` ela começa fechada e **só cresce quando
+   * a altura acaba** — é o que faz a carga subir junto da porta em vez de se deitar até o fundo.
+   * Sem ele a fronteira é a fatia inteira desde o começo, que é o comportamento de sempre.
+   */
+  let rowFrontierM = input.stackBeforeRow === true ? 0 : slice.widthM
 
   for (const box of ordered) {
     const stackLimit = resolveStackLimit(box)
@@ -708,11 +737,28 @@ function packSlice(input: {
        * leituras de perfil, num orçamento de tela de 50 ms.
        */
       let barrenLayers = 0
+      /** A primeira caixa abre a fronteira; ela nunca encolhe, e nunca passa da fatia. */
+      if (rowFrontierM < slot.widthM) {
+        rowFrontierM = Math.min(slice.widthM, slot.widthM)
+      }
+
       while (guard < MAX_SEAT_ATTEMPTS) {
         guard += 1
-        if (cursor.yM + slot.widthM > slice.widthM + 1e-9) {
+        if (cursor.yM + slot.widthM > rowFrontierM + 1e-9) {
           barrenLayers += 1
-          if (barrenLayers >= 2) break
+          if (barrenLayers >= 2) {
+            /**
+             * ⚠️ **A altura desta faixa acabou — só então a carga anda para o fundo.** Sem este
+             * passo a fronteira travava e a caixa virava sobra com o baú vazio na frente dela; com
+             * ele, a faixa seguinte recomeça do chão, e é aí que a carga avança um passo.
+             */
+            if (rowFrontierM >= slice.widthM - 1e-9) break
+
+            rowFrontierM = Math.min(slice.widthM, rowFrontierM + slot.widthM)
+            barrenLayers = 0
+            cursor = { layer: 0, layerBottomM: 0, layerHeightM: 0, rowWidthM: 0, xM: 0, yM: 0 }
+            continue
+          }
           cursor = {
             layer: cursor.layer + 1,
             layerBottomM: cursor.layerBottomM + cursor.layerHeightM,

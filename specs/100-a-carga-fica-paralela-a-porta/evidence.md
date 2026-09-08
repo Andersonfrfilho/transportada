@@ -76,10 +76,41 @@ estreita a vizinha" passava, e passava porque descrevia fielmente o que o códig
 sintético confirma a implementação; medir com números confere a premissa — e desta vez foi a revisão
 de código, não a evidência, que teve de fazê-lo.
 
+## ⚠️ E o que o usuário achou olhando a tela, que a medição anterior não olhava
+
+As três paradas ficaram acessíveis pela porta, e mesmo assim ele apontou: _"poderiam agrupar mais
+próximo à porta em vez da pessoa precisar ir até o fundo do baú"_.
+
+Medido, e era pior do que a crítica dizia — **até a parada de seis caixas obrigava a ir a 1,50 m**:
+
+| parada | caixas | alcance antes | alcance depois |
+| -----: | -----: | ------------: | -------------: |
+|      1 |      6 |        1,50 m |     **0,60 m** |
+|      2 |      8 |        1,50 m |     **0,60 m** |
+|      3 |     17 |        1,50 m |         1,50 m |
+
+A causa é a varredura, não o arranjo: ela enche **fileiras** e só sobe de camada quando as fileiras
+acabam. Em profundidade a fileira corre pela **largura**, que é de graça — avançá-la não afasta
+ninguém da porta. Em faixas ela corre pela **profundidade real**, e cada fileira nova empurra a carga
+um passo para dentro. Seis caixas de 0,30 m numa faixa de 0,40 m saíam cinco deitadas no chão e **uma
+só empilhada**, num baú de 1,30 m que comporta quatro camadas.
+
+Hoje, em faixas, a fronteira das fileiras só cresce **quando a altura acaba**: sobe-se até o teto
+junto da porta antes de andar para o fundo. Em profundidade nada muda, e um contrato guarda isso —
+inverter lá empilharia carga com metade do piso vazio ao lado.
+
+⚠️ **A parada 3 continua em 1,50 m, e isso tem um teto conhecido.** `fitSlot` escolhe a primeira
+orientação que cabe, não a que rende mais por faixa: girar a caixa 90° na horizontal poria duas por
+fileira em vez de uma e levaria o alcance a ~1,20 m. É otimização de empacotamento com risco próprio,
+e ficou de fora desta spec por escrito.
+
+Desempenho depois da mudança: **37 ms** para 3600 caixas em 12 paradas, contra o orçamento de 50 ms
+declarado pela 099.
+
 ## Gates
 
 ```
-bun run --cwd apps/api-transportada test        4807 pass · 23 skip · 0 fail
+bun run --cwd apps/api-transportada test        4809 pass · 23 skip · 0 fail
 bun run --cwd apps/api-transportada typecheck   limpo
 bun run --cwd apps/api-transportada lint        limpo
 bun run --cwd apps/frontend-transportada test   3057 pass · 0 fail
