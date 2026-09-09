@@ -2629,3 +2629,28 @@
   border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
   background: color-mix(in srgb, var(--color-asphalt) 42%, transparent);
 }
+
+/* Spec 110 D6: a proposta alterada diz que os números abaixo ainda são do traçado anterior. */
+.proposalEditedBanner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  color: var(--color-fog);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  background: color-mix(in srgb, var(--color-copper) 8%, transparent);
+}
+
+.proposalEditedBanner span {
+  flex: 1 1 20rem;
+}
+
+/* A parada tirada continua desenhada: nada é destruído antes do recálculo. */
+.timelineRemoved {
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  text-decoration: line-through;
+}

@@ -19,6 +19,9 @@ import styles from '../styles/trip.module.css'
 
 type TripProposalDetailProps = Readonly<{
   endLabel: null | string
+  onRemoveStop: (nfeDocumentIds: readonly string[]) => void
+  onUndoRemoveStop: (nfeDocumentIds: readonly string[]) => void
+  pendingRemovals: ReadonlySet<string>
   endPolicy: RouteEndPolicy
   originLabel: null | string
   permissions: readonly string[]
@@ -37,6 +40,9 @@ type TripProposalDetailProps = Readonly<{
 export function TripProposalDetail({
   endLabel,
   endPolicy,
+  onRemoveStop,
+  onUndoRemoveStop,
+  pendingRemovals,
   originLabel,
   permissions,
   valuation,
@@ -79,6 +85,8 @@ export function TripProposalDetail({
       <section>
         <h4 className={styles.hint}>{t('proposal.routeTitle')}</h4>
         <TripRouteTimeline
+          onRemoveStop={onRemoveStop}
+          onUndoRemoveStop={onUndoRemoveStop}
           input={{
             /**
              * ⚠️ Vazio, e **não é esquecimento**: a sugestão não persiste os `nodeIds` das praças
@@ -90,6 +98,7 @@ export function TripProposalDetail({
             endLabel,
             endPolicy,
             originLabel,
+            removedDocumentIds: pendingRemovals,
             returnLeg: null,
             stops: view.stops.map((stop) => ({
               distanceFromPreviousMeters: stop.distanceFromPreviousMeters,
@@ -98,6 +107,7 @@ export function TripProposalDetail({
               estimatedArrivalAt: stop.estimatedArrivalAt,
               excludedFromOptimization: stop.excludedFromOptimization,
               label: stop.label,
+              nfeDocumentIds: stop.nfeDocumentIds,
             })),
           }}
         />

@@ -323,9 +323,41 @@ ficha do veículo lia o efetivo (spec 100).
 
 - **Pedágio por perna e alternativas de rota na sugestão** — spec própria. Sem ela, D4b degrada com
   `TOLL_NOT_AVAILABLE_IN_SUGGESTION`, que é o comportamento de hoje e já está correto.
+- **Fixar parada em veículo no solver** — spec própria. Sem ela, "mover destino para outro caminhão"
+  não existe: o recálculo desfaria o movimento sem avisar.
 
-## Dúvidas
+## Dúvidas fechadas
 
-- `[NEEDS CLARIFICATION: "mover destino para outro caminhão" recalcula os DOIS caminhões
-automaticamente, ou marca os dois como alterados e espera o operador recalcular?]` — o preview
-  assume a segunda, coerente com a D6, mas isso deixa duas viagens em estado alterado com um clique.
+### A dúvida do movimento, respondida — e a descoberta que ela trouxe
+
+**A pergunta era:** mover um destino para outro caminhão recalcula os dois automaticamente, ou marca
+os dois como alterados e espera o operador?
+
+**Resposta: marca e espera**, e o argumento é medido. O solver leva ~14 s em 305 paradas (spec 104),
+e recalcular a cada arrasto dispararia duas corridas por gesto — a tela ficaria inutilizável. Editar
+é intenção; recalcular é ato.
+
+⚠️ **Mas ao desenhar isso apareceu um problema que a spec não previu, e ele muda o escopo da D6.**
+
+O aceite parte dos **grupos do servidor** (`readGroups`), não do que o cliente desenhou. Uma edição
+que só existe no cliente seria **ignorada pelo aceite** — o operador veria uma distribuição e
+receberia outra. Então toda edição precisa passar por uma proposta nova. E aí:
+
+| Ação                          | Recalcular honra? | Por quê                                                                      |
+| ----------------------------- | ----------------- | ---------------------------------------------------------------------------- |
+| **Remover destino**           | ✅                | Tira as notas do maço; a proposta nova nasce sem elas                        |
+| **Adicionar destino**         | ➖                | Já é o **"Alterar o pedido"**: ele reabre o formulário com a escolha intacta |
+| **Mover para outro caminhão** | ❌                | O solver **redistribui livremente** e desfaz o movimento                     |
+
+Mover exige **fixar a parada no veículo** — entrada nova no solver, no worker, com spec própria.
+Oferecer o botão sem isso seria oferecer um gesto que o recálculo desfaz calado, e isso é pior que
+não oferecer.
+
+⚠️ E **adicionar** não precisa de botão próprio: a parada que sobrou **já está no maço** — o solver
+é que não a cobriu. Recalcular sem mudar nada devolveria a mesma sobra. Quem acrescenta nota de fora
+é o **"Alterar o pedido"**, que reabre o formulário com a escolha intacta; um segundo caminho para o
+mesmo fim seria duas portas que divergem no dia em que uma delas ganhar um filtro.
+
+**Consequência para a D6:** esta feature entrega **remover destino**, com a marcação e o recálculo
+que ela exige; mover fica registrado como dependência, e adicionar é o "Alterar o pedido". E o recálculo é **da proposta**, não de um caminhão: mexer no maço muda a
+distribuição inteira, e um botão "recalcular este caminhão" prometeria um recorte que não existe.

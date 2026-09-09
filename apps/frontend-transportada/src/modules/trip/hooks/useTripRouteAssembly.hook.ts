@@ -99,8 +99,15 @@ export function useTripRouteAssembly(
   /** Spec 110 D5: a seleção nasce inteira — o caso comum é aceitar tudo. */
   const [selectedVehicleIds, setSelectedVehicleIds] = useState<ReadonlySet<string>>(new Set())
   const [openVehicleId, setOpenVehicleId] = useState<null | string>(null)
-  /** Spec 110 D6: a viagem alterada não pode ser aceita antes de recalcular. */
-  const [editedVehicleIds, setEditedVehicleIds] = useState<ReadonlySet<string>>(new Set())
+  /**
+   * Spec 110 D6: as notas que o operador tirou do roteiro e que **ainda não saíram** — nada é
+   * destruído antes do recálculo, e é por isso que "Desfazer" existe.
+   *
+   * ⚠️ A marcação vale para a **proposta inteira**, não para um caminhão: tirar uma parada muda o
+   * maço, e o maço decide a distribuição toda. Um botão "recalcular este caminhão" prometeria um
+   * recorte que o solver não faz.
+   */
+  const [pendingRemovals, setPendingRemovals] = useState<ReadonlySet<string>>(new Set())
   const [pool, setPool] = useState<readonly TripCandidateDocument[]>([])
 
   const documentsQuery = useQuery({
@@ -160,7 +167,13 @@ export function useTripRouteAssembly(
   const proposeMutation = useMutation({
     mutationFn: async (): Promise<MultiVehicleProposal> => {
       const client = getTripClient()
-      const nfeDocumentIds = selection.eligible.map((document) => document.id)
+      /**
+       * ⚠️ **O recálculo é o que honra a remoção.** Editar só no cliente seria ignorado pelo aceite,
+       * que parte dos grupos do servidor — o operador veria uma distribuição e receberia outra.
+       */
+      const nfeDocumentIds = selection.eligible
+        .filter((document) => !pendingRemovals.has(document.id))
+        .map((document) => document.id)
 
       /**
        * ⚠️ Cada veículo vai com **o motorista dele**, não com a lista inteira de motoristas. O
@@ -190,6 +203,8 @@ export function useTripRouteAssembly(
        */
       setSelectedVehicleIds(new Set(vehicleIdsOf(result)))
       setOpenVehicleId(vehicleIdsOf(result)[0] ?? null)
+      /** A proposta nova já nasce sem o que foi removido: a marcação cumpriu o papel dela. */
+      setPendingRemovals(new Set())
     },
   })
 
@@ -221,7 +236,7 @@ export function useTripRouteAssembly(
       setProposal(null)
       setSelectedVehicleIds(new Set())
       setOpenVehicleId(null)
-      setEditedVehicleIds(new Set())
+      setPendingRemovals(new Set())
       setIsOpen(false)
       setDraft(EMPTY_TRIP_ROUTE_ASSEMBLY)
       setPool([])
@@ -252,7 +267,17 @@ export function useTripRouteAssembly(
     proposeMutation,
     acceptMutation,
     proposal,
-    editedVehicleIds,
+    /** ⚠️ Enquanto houver remoção pendente o aceite é recusado: o que está na tela não é o que sairia. */
+    isProposalEdited: pendingRemovals.size > 0,
+    pendingRemovals,
+    markStopRemoved: (nfeDocumentIds: readonly string[]) =>
+      setPendingRemovals((current) => new Set([...current, ...nfeDocumentIds])),
+    undoStopRemoval: (nfeDocumentIds: readonly string[]) =>
+      setPendingRemovals((current) => {
+        const next = new Set(current)
+        for (const id of nfeDocumentIds) next.delete(id)
+        return next
+      }),
     openVehicleId,
     selectedVehicleIds,
     setSelectedVehicleIds,

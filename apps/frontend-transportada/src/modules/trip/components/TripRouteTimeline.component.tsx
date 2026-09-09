@@ -1,6 +1,9 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/ui/button'
+import { Icon } from '@/components/ui/icon'
+import { Tooltip } from '@/components/ui/tooltip'
 import {
   formatDistance,
   formatDuration,
@@ -11,7 +14,15 @@ import type { BuildRouteTimelineInput, RouteTimelineEvent } from '../shared/rout
 import { buildRouteTimeline } from '../shared/routeTimeline.service'
 import styles from '../styles/trip.module.css'
 
-type TripRouteTimelineProps = Readonly<{ input: BuildRouteTimelineInput }>
+type TripRouteTimelineProps = Readonly<{
+  input: BuildRouteTimelineInput
+  /**
+   * ⚠️ **Ausente = sem botão**, o mesmo padrão de `onStopRemove` no mapa: quem hospeda a linha do
+   * tempo nem sempre é dono do roteiro. Na viagem já criada tirar parada é outra operação.
+   */
+  onRemoveStop?: ((nfeDocumentIds: readonly string[]) => void) | undefined
+  onUndoRemoveStop?: ((nfeDocumentIds: readonly string[]) => void) | undefined
+}>
 
 /**
  * Spec 110 D4: **o dia em ordem** — base, entregas e as praças de pedágio no trecho de cada uma.
@@ -19,7 +30,11 @@ type TripRouteTimelineProps = Readonly<{ input: BuildRouteTimelineInput }>
  * ⚠️ A praça é desenhada na **perna**, entre a distância e a parada seguinte: pendurá-la na parada
  * diria que ela é da entrega, e a mesma praça serve duas entregas quando a perna é a mesma.
  */
-export function TripRouteTimeline({ input }: TripRouteTimelineProps) {
+export function TripRouteTimeline({
+  input,
+  onRemoveStop,
+  onUndoRemoveStop,
+}: TripRouteTimelineProps) {
   const events = buildRouteTimeline(input)
 
   if (events.length === 0) return null
@@ -27,13 +42,26 @@ export function TripRouteTimeline({ input }: TripRouteTimelineProps) {
   return (
     <ol className={styles.timeline}>
       {events.map((event, index) => (
-        <TimelineRow event={event} key={`${event.of}-${String(index)}`} />
+        <TimelineRow
+          event={event}
+          key={`${event.of}-${String(index)}`}
+          onRemoveStop={onRemoveStop}
+          onUndoRemoveStop={onUndoRemoveStop}
+        />
       ))}
     </ol>
   )
 }
 
-function TimelineRow({ event }: Readonly<{ event: RouteTimelineEvent }>) {
+function TimelineRow({
+  event,
+  onRemoveStop,
+  onUndoRemoveStop,
+}: Readonly<{
+  event: RouteTimelineEvent
+  onRemoveStop?: ((nfeDocumentIds: readonly string[]) => void) | undefined
+  onUndoRemoveStop?: ((nfeDocumentIds: readonly string[]) => void) | undefined
+}>) {
   const { t } = useTranslation('trip')
 
   if (event.of === 'origin' || event.of === 'end') {
@@ -94,23 +122,53 @@ function TimelineRow({ event }: Readonly<{ event: RouteTimelineEvent }>) {
   }
 
   if (event.of === 'stop') {
+    const documentIds = event.nfeDocumentIds
+
     return (
       <li className={styles.timelineRow}>
         <span className={styles.timelineRail}>
           <span className={styles.timelineDot}>{event.sequence}</span>
         </span>
         <span className={styles.timelineBody}>
-          <span>
+          <span className={event.removed ? styles.timelineRemoved : undefined}>
             {event.label}
             <span className={styles.timelineMeta}>
               {' · '}
-              {t('timeline.notes', { count: event.documentCount })}
+              {event.removed
+                ? t('proposal.removedStop', { count: event.documentCount })
+                : t('timeline.notes', { count: event.documentCount })}
             </span>
             {/* ADR-0044 §5: centroide de município é palpite de quilômetros, e vai marcado. */}
-            {event.approximate ? (
+            {event.approximate && !event.removed ? (
               <span className={styles.timelineApproximate}>{t('timeline.approximate')}</span>
             ) : null}
           </span>
+          {/* Ação em menu, nunca edição em linha — a mesma regra do desvio de endereço (D9 da 056). */}
+          {event.removed && onUndoRemoveStop !== undefined ? (
+            <Button
+              onClick={() => onUndoRemoveStop(documentIds)}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              {/* web.md §9: toda ação da viagem leva ícone — desfazer é a volta ao estado anterior. */}
+              <Icon name="refresh" />
+              {t('proposal.undoRemoveStop')}
+            </Button>
+          ) : null}
+          {!event.removed && onRemoveStop !== undefined ? (
+            <Tooltip label={t('proposal.removeStop', { label: event.label })}>
+              <Button
+                aria-label={t('proposal.removeStop', { label: event.label })}
+                onClick={() => onRemoveStop(documentIds)}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                <Icon name="trash" />
+              </Button>
+            </Tooltip>
+          ) : null}
         </span>
       </li>
     )

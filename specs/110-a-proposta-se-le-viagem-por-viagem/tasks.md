@@ -101,12 +101,14 @@ Uma task por vez. Teste de contrato **antes** da implementação. Task só fecha
 
 > 🤖 Modelo: `sonnet` (T027 é 🧠 — a dúvida aberta da spec decide o comportamento)
 
-- [ ] **T027** 🧠 Fecha a `[NEEDS CLARIFICATION]` da spec: mover destino recalcula os dois caminhões
-      ou marca os dois como alterados — decisão registrada na spec antes de codar
-- [ ] **T028** Ações por destino (mover, remover com desfazer) e adicionar destino, com o seletor das
-      sobras — contrato
-- [ ] **T029** Faixa "roteiro alterado" + etiqueta na linha; **o aceite é recusado** enquanto ela
-      existir — contrato
+- [x] **T027** 🧠 `[NEEDS CLARIFICATION]` **fechada**: marca e espera, porque o solver leva ~14 s em
+      305 paradas e recalcular a cada gesto tornaria a tela inutilizável. ⚠️ E a análise trouxe um
+      achado que muda o escopo: o aceite parte dos **grupos do servidor**, então edição só no cliente
+      seria ignorada — **mover** exige fixar parada em veículo no solver, e vira dependência
+- [ ] **T028** **Remover** destino (com desfazer) e **adicionar** destino do seletor das sobras — as
+      duas mexem no maço, e a proposta nova as honra — contrato
+- [ ] **T029** Faixa "proposta alterada" + etiqueta nas linhas; **o aceite é recusado** enquanto ela
+      existir, e o botão recalcula **a proposta**, não um caminhão — contrato
 
 ## Fase 7b — A criação manual herda o que a proposta ganhou
 

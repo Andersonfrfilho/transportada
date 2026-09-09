@@ -136,11 +136,12 @@ export function TripRouteAssemblyDialog({
             </div>
 
             <TripProposalList
-              editedVehicleIds={assembly.editedVehicleIds}
+              isEdited={assembly.isProposalEdited}
               isAccepting={assembly.acceptMutation.isPending}
               onAccept={(vehicleIds) => assembly.acceptMutation.mutate(vehicleIds)}
               onDiscard={assembly.discardProposal}
               onDiscardVehicle={assembly.discardVehicle}
+              isRecalculating={assembly.proposeMutation.isPending}
               onRecalculate={() => assembly.proposeMutation.mutate()}
               onSelectionChange={assembly.setSelectedVehicleIds}
               onToggleOpen={assembly.toggleOpenVehicle}
@@ -148,6 +149,9 @@ export function TripRouteAssemblyDialog({
               renderDetail={(view) => (
                 <TripProposalDetail
                   endLabel={null}
+                  onRemoveStop={assembly.markStopRemoved}
+                  onUndoRemoveStop={assembly.undoStopRemoval}
+                  pendingRemovals={assembly.pendingRemovals}
                   endPolicy={proposal.suggestion.endPolicy}
                   originLabel={null}
                   permissions={permissions}

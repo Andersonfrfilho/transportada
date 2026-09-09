@@ -19,6 +19,7 @@ const STOPS: readonly RouteTimelineStop[] = [
     estimatedArrivalAt: '2026-09-10T11:40:00.000Z',
     excludedFromOptimization: false,
     label: 'Ribeirão Preto',
+    nfeDocumentIds: ['doc-1'],
   },
   {
     distanceFromPreviousMeters: 24_100,
@@ -27,6 +28,7 @@ const STOPS: readonly RouteTimelineStop[] = [
     estimatedArrivalAt: '2026-09-10T13:05:00.000Z',
     excludedFromOptimization: false,
     label: 'Sertãozinho',
+    nfeDocumentIds: ['doc-2'],
   },
 ]
 
@@ -46,6 +48,7 @@ describe('route timeline contract', () => {
       driverPayment: null,
       endLabel: 'Base · Ribeirão Preto',
       endPolicy: 'depot',
+      removedDocumentIds: new Set(),
       originLabel: 'Base · Ribeirão Preto',
       returnLeg: { distanceMeters: 42_800, durationSeconds: 3_060 },
       stops: STOPS,
@@ -64,6 +67,7 @@ describe('route timeline contract', () => {
       driverPayment: null,
       endLabel: 'Base · Ribeirão Preto',
       endPolicy: 'depot',
+      removedDocumentIds: new Set(),
       originLabel: 'Base · Ribeirão Preto',
       returnLeg: { distanceMeters: 42_800, durationSeconds: 3_060 },
       stops: STOPS,
@@ -89,6 +93,7 @@ describe('route timeline contract', () => {
       driverPayment: null,
       endLabel: null,
       endPolicy: 'last_stop',
+      removedDocumentIds: new Set(),
       originLabel: 'Base · Ribeirão Preto',
       returnLeg: null,
       stops: STOPS,
@@ -103,6 +108,7 @@ describe('route timeline contract', () => {
       driverPayment: null,
       endLabel: 'Casa do motorista · Americana',
       endPolicy: 'address',
+      removedDocumentIds: new Set(),
       originLabel: 'Base · Ribeirão Preto',
       returnLeg: { distanceMeters: 19_600, durationSeconds: 1_560 },
       stops: STOPS,
@@ -128,6 +134,7 @@ describe('route timeline contract', () => {
       },
       endLabel: 'Base · Ribeirão Preto',
       endPolicy: 'depot',
+      removedDocumentIds: new Set(),
       originLabel: 'Base · Ribeirão Preto',
       returnLeg: { distanceMeters: 42_800, durationSeconds: 3_060 },
       stops: STOPS,
@@ -152,6 +159,7 @@ describe('route timeline contract', () => {
       driverPayment: null,
       endLabel: null,
       endPolicy: 'last_stop',
+      removedDocumentIds: new Set(),
       originLabel: null,
       returnLeg: null,
       stops: [{ ...STOPS[0]!, excludedFromOptimization: true }],
@@ -162,7 +170,9 @@ describe('route timeline contract', () => {
       arrivalAt: '2026-09-10T11:40:00.000Z',
       documentCount: 5,
       label: 'Ribeirão Preto',
+      nfeDocumentIds: ['doc-1'],
       of: 'stop',
+      removed: false,
       sequence: 1,
     })
   })
@@ -174,12 +184,38 @@ describe('route timeline contract', () => {
       driverPayment: null,
       endLabel: null,
       endPolicy: 'last_stop',
+      removedDocumentIds: new Set(),
       originLabel: null,
       returnLeg: null,
       stops: STOPS,
     })
 
     expect(kinds(timeline)).toEqual(['stop', 'leg', 'stop', 'openEnd'])
+  })
+
+  /**
+   * ⚠️ Spec 110 D6: a parada tirada sai **riscada**, não sumida — nada é destruído antes do
+   * recálculo, e o desfazer precisa dela na tela. E só sai riscada quando **todas** as notas dela
+   * estão marcadas: meia parada não sai do roteiro.
+   */
+  test('a parada tirada fica riscada; meia parada não sai', () => {
+    const timeline = buildRouteTimeline({
+      booths: [],
+      driverPayment: null,
+      endLabel: null,
+      endPolicy: 'last_stop',
+      originLabel: null,
+      removedDocumentIds: new Set(['doc-1']),
+      returnLeg: null,
+      stops: [
+        { ...STOPS[0]!, nfeDocumentIds: ['doc-1'] },
+        { ...STOPS[1]!, nfeDocumentIds: ['doc-1', 'doc-9'] },
+      ],
+    })
+    const stops = timeline.filter((event) => event.of === 'stop')
+
+    expect(stops[0]).toMatchObject({ removed: true })
+    expect(stops[1]).toMatchObject({ removed: false })
   })
 
   test('sem parada não há dia nenhum', () => {
@@ -189,6 +225,7 @@ describe('route timeline contract', () => {
         driverPayment: null,
         endLabel: 'Base',
         endPolicy: 'depot',
+        removedDocumentIds: new Set(),
         originLabel: 'Base',
         returnLeg: null,
         stops: [],

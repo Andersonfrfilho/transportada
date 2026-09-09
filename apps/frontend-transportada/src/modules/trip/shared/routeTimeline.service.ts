@@ -21,6 +21,8 @@ export type RouteTimelineStop = Readonly<{
   /** ADR-0044 §5: precisão de município sai da otimização, e a marca acompanha até a tela. */
   excludedFromOptimization: boolean
   label: string
+  /** Spec 110 D6: as notas da parada — é por elas que "tirar do roteiro" acontece. */
+  nfeDocumentIds: readonly string[]
 }>
 
 /**
@@ -64,7 +66,10 @@ export type RouteTimelineEvent =
       arrivalAt: null | string
       documentCount: number
       label: string
+      nfeDocumentIds: readonly string[]
       of: 'stop'
+      /** ⚠️ Riscada, **não sumida**: nada é destruído antes do recálculo, e o desfazer precisa dela. */
+      removed: boolean
       sequence: number
     }>
   | Readonly<{
@@ -83,6 +88,8 @@ export type BuildRouteTimelineInput = Readonly<{
   endLabel: null | string
   endPolicy: RouteEndPolicy
   originLabel: null | string
+  /** As notas que o operador tirou e que ainda não saíram — a parada delas sai riscada. */
+  removedDocumentIds: ReadonlySet<string>
   returnLeg: null | RouteTimelineLeg
   stops: readonly RouteTimelineStop[]
 }>
@@ -128,7 +135,12 @@ export function buildRouteTimeline(input: BuildRouteTimelineInput): readonly Rou
       arrivalAt: stop.estimatedArrivalAt,
       documentCount: stop.documentCount,
       label: stop.label,
+      nfeDocumentIds: stop.nfeDocumentIds,
       of: 'stop',
+      /** Tirada quando **todas** as notas dela estão marcadas: meia parada não sai do roteiro. */
+      removed:
+        stop.nfeDocumentIds.length > 0 &&
+        stop.nfeDocumentIds.every((id) => input.removedDocumentIds.has(id)),
       sequence: index + 1,
     })
   })

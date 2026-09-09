@@ -22,12 +22,18 @@ import { TripProposalRow } from './TripProposalRow.component'
 import styles from '../styles/trip.module.css'
 
 type TripProposalListProps = Readonly<{
-  editedVehicleIds: ReadonlySet<string>
+  /** ⚠️ Da proposta inteira, não de um caminhão: tirar uma parada muda o maço, e o maço decide tudo. */
+  isEdited: boolean
   isAccepting: boolean
+  isRecalculating: boolean
   onAccept: (vehicleIds: readonly string[]) => void
   onDiscard: () => void
   onDiscardVehicle: (vehicleId: string) => void
-  onRecalculate: (vehicleId: string) => void
+  /**
+   * ⚠️ **Da proposta, não de um caminhão.** Tirar uma parada muda o maço, e o maço decide a
+   * distribuição inteira: prometer um recorte por veículo seria prometer o que o solver não faz.
+   */
+  onRecalculate: () => void
   onSelectionChange: (selected: ReadonlySet<string>) => void
   onToggleOpen: (vehicleId: string) => void
   openVehicleId: null | string
@@ -43,8 +49,9 @@ type TripProposalListProps = Readonly<{
  * ajuda a tomá-la. Desmarcar a viagem com a conta incompleta tira a marca junto com ela.
  */
 export function TripProposalList({
-  editedVehicleIds,
   isAccepting,
+  isEdited,
+  isRecalculating,
   onAccept,
   onDiscard,
   onDiscardVehicle,
@@ -146,13 +153,13 @@ export function TripProposalList({
         {views.map((view, index) => (
           <TripProposalRow
             index={index}
-            isEdited={editedVehicleIds.has(view.vehicleId)}
+            isEdited={isEdited}
             isOpen={openVehicleId === view.vehicleId}
             isSelected={selected.has(view.vehicleId)}
             key={view.vehicleId}
             onAccept={() => onAccept([view.vehicleId])}
             onDiscard={() => onDiscardVehicle(view.vehicleId)}
-            onRecalculate={() => onRecalculate(view.vehicleId)}
+            onRecalculate={onRecalculate}
             onToggleOpen={() => onToggleOpen(view.vehicleId)}
             onToggleSelected={() =>
               onSelectionChange(toggleProposalSelection({ selected, vehicleId: view.vehicleId }))
@@ -166,8 +173,12 @@ export function TripProposalList({
 
       <div className={styles.proposalFooter}>
         <div className={styles.proposalFooterActions}>
+          {/*
+            ⚠️ **O aceite é recusado enquanto houver remoção pendente.** O que está na tela não é o
+            que sairia: o aceite parte dos grupos do servidor, e eles ainda não sabem da remoção.
+          */}
           <Button
-            disabled={isAccepting || summary.selectedCount === 0}
+            disabled={isAccepting || isEdited || summary.selectedCount === 0}
             onClick={() => onAccept([...selected])}
             size="sm"
             type="button"
@@ -186,6 +197,22 @@ export function TripProposalList({
             {t('proposal.discard')}
           </Button>
         </div>
+        {isEdited ? (
+          <p className={styles.proposalEditedBanner} role="status">
+            <Icon aria-hidden="true" name="alert" />
+            <span>{t('proposal.editedBanner')}</span>
+            <Button
+              disabled={isRecalculating}
+              onClick={() => onRecalculate()}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              <Icon name="refresh" />
+              {t('proposal.recalculateProposal')}
+            </Button>
+          </p>
+        ) : null}
         {/* O que acontece com o resto, dito antes do clique: nada é criado para elas. */}
         <p className={styles.hint}>
           {summary.releasedTrips === 0
