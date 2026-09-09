@@ -73,6 +73,18 @@ describe('o custo do motorista (spec 061 T003)', () => {
 
     expect(parcel).toEqual({
       amount: '1086.0000',
+      /**
+       * ⚠️ Spec 110 D7: a base sai do **primeiro pago por rota**, e é o suficiente — a zona é da
+       * viagem, não do condutor: todos os agregados foram pagos pela mesma, porque ela é decidida
+       * pelo destino mais distante do roteiro (spec 086 D1).
+       */
+      basis: {
+        of: 'driver',
+        paymentModel: 'route_table',
+        regionCity: null,
+        regionCode: null,
+        vehicleClass: '',
+      },
       detail: null,
       gap: null,
       kind: 'driver',
@@ -88,6 +100,17 @@ describe('o custo do motorista (spec 061 T003)', () => {
     expect(buildTripDriverCost([SALARIED])).toEqual({
       detail: null,
       amount: '0.0000',
+      /**
+       * ⚠️ Spec 110 D7: o zero vem com a base que o explica. Sem ela a tela imprime "R$ 0,00" para
+       * um custo que existe — só que ele é do período, não da viagem (ADR-0049 §3).
+       */
+      basis: {
+        of: 'driver',
+        paymentModel: 'fixed',
+        regionCity: null,
+        regionCode: null,
+        vehicleClass: '',
+      },
       gap: null,
       kind: 'driver',
       source: 'period',
