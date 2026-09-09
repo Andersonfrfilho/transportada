@@ -21,6 +21,7 @@ import type {
 } from '../application/multi-vehicle-suggestion.repository.js'
 import { MultiVehicleSuggestionWriteFailedError } from '../domain/routing.error.js'
 import { createDrizzleRouteSuggestionRepository } from './drizzle-route-suggestion.repository.js'
+import { buildSuggestionVehicleRoadWhere } from './suggestion-vehicle-road.query.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -160,6 +161,51 @@ export function createDrizzleMultiVehicleSuggestionRepository(
      * determinismo prometido no RNF morria aqui, depois de o solver tê-lo respeitado. Foi o teste de
      * integração que pegou — em oito execuções isoladas ele passou, e falhou na primeira sob carga.
      */
+    async readSuggestionStatus({ companyId, suggestionId }) {
+      const [row] = await database
+        .select({ status: routeSuggestions.status })
+        .from(routeSuggestions)
+        .where(
+          and(eq(routeSuggestions.companyId, companyId), eq(routeSuggestions.id, suggestionId)),
+        )
+        .limit(1)
+
+      return row?.status ?? null
+    },
+
+    /**
+     * Spec 101 D1: a linha aqui é a **parada**, sem junção às notas — `readGroups` devolve uma
+     * linha por (parada × nota) e somar as pernas ali multiplicaria a distância pelo número de
+     * notas da parada.
+     */
+    async readVehicleRoads({ companyId, suggestionId }) {
+      const rows = await database
+        .select({
+          distanceFromPreviousMeters: routeSuggestionStops.distanceFromPreviousMeters,
+          durationFromPreviousSeconds: routeSuggestionStops.durationFromPreviousSeconds,
+          vehicleId: routeSuggestionStops.vehicleId,
+        })
+        .from(routeSuggestionStops)
+        .where(buildSuggestionVehicleRoadWhere({ companyId, suggestionId }))
+        .orderBy(routeSuggestionStops.sequence)
+
+      const byVehicle = new Map<
+        string,
+        { distanceFromPreviousMeters: number | null; durationFromPreviousSeconds: number | null }[]
+      >()
+      for (const row of rows) {
+        if (row.vehicleId === null) continue
+        const stops = byVehicle.get(row.vehicleId) ?? []
+        stops.push({
+          distanceFromPreviousMeters: row.distanceFromPreviousMeters,
+          durationFromPreviousSeconds: row.durationFromPreviousSeconds,
+        })
+        byVehicle.set(row.vehicleId, stops)
+      }
+
+      return [...byVehicle].map(([vehicleId, stops]) => ({ stops, vehicleId }))
+    },
+
     async readGroups({ companyId, suggestionId }) {
       const rows = await database
         .select({

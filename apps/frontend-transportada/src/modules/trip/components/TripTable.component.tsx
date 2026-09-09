@@ -1,7 +1,9 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { CopyButton } from '@/components/ui/copy-button'
 import { Icon } from '@/components/ui/icon'
 import { Tooltip } from '@/components/ui/tooltip'
@@ -16,6 +18,8 @@ import { toDisplayPersonName } from '@/modules/shared/personName.service'
 import { describeBoundVehicle } from '../shared/driverBoundVehicles.service'
 import type { TripTableController } from '../hooks/useTripTable.hook'
 import type { Trip, TripStatus } from '../shared/trip.types'
+import { isCancellable } from '../shared/tripSelection.service'
+import { TripCancelDialog } from './TripCancelDialog.component'
 import { TRIP_COLUMN_KEYS, type TripColumnKey } from '../shared/tripTable.service'
 import styles from '../styles/trip.module.css'
 
@@ -26,6 +30,13 @@ type TripTableProps = Readonly<{
    */
   vehicles: readonly FleetVehicleDetail[]
   table: TripTableController
+  /**
+   * Spec 102: sem `trip.manage` **não há coluna de seleção** — não é caixa desabilitada, que já
+   * diria que existe uma ação do outro lado.
+   */
+  canCancel: boolean
+  isCancelling: boolean
+  onCancelSelected: () => void
 }>
 
 function statusClassName(status: TripStatus): string {
@@ -39,8 +50,15 @@ function formatMoment(value: string): string {
   return Number.isNaN(moment.getTime()) ? value : moment.toLocaleString()
 }
 
-export function TripTable({ table, vehicles }: TripTableProps) {
+export function TripTable({
+  canCancel,
+  isCancelling,
+  onCancelSelected,
+  table,
+  vehicles,
+}: TripTableProps) {
   const { t } = useTranslation('trip')
+  const [confirming, setConfirming] = useState(false)
   const { t: tFleet } = useTranslation('fleet')
   const vehicleById = new Map(vehicles.map((vehicle) => [vehicle.id, vehicle]))
 
@@ -180,6 +198,16 @@ export function TripTable({ table, vehicles }: TripTableProps) {
         <table className={styles.dataTable}>
           <thead>
             <tr>
+              {canCancel ? (
+                <th scope="col">
+                  <Checkbox
+                    aria-label={t('selection.selectAll')}
+                    checked={table.selectAllState === 'all'}
+                    indeterminate={table.selectAllState === 'some'}
+                    onChange={table.toggleSelectAll}
+                  />
+                </th>
+              ) : null}
               {TRIP_COLUMN_KEYS.map((column) => (
                 <th key={column} scope="col">
                   <button
@@ -201,6 +229,18 @@ export function TripTable({ table, vehicles }: TripTableProps) {
           <tbody>
             {table.visibleItems.map((trip) => (
               <tr key={trip.id}>
+                {canCancel ? (
+                  <td>
+                    {/* Concluída e cancelada não têm caixa: oferecer o que dá 409 é atrito puro. */}
+                    {isCancellable(trip) ? (
+                      <Checkbox
+                        aria-label={t('selection.selectTrip', { vehicle: vehicleLabel(trip) })}
+                        checked={table.selectedIds.includes(trip.id)}
+                        onChange={() => table.toggleSelection(trip.id)}
+                      />
+                    ) : null}
+                  </td>
+                ) : null}
                 {TRIP_COLUMN_KEYS.map((column) => (
                   <td key={column}>{renderCell(trip, column)}</td>
                 ))}
@@ -226,6 +266,33 @@ export function TripTable({ table, vehicles }: TripTableProps) {
       </div>
 
       {table.visibleItems.length === 0 ? <p className={styles.hint}>{t('empty')}</p> : null}
+
+      {/* Spec 102: a barra só existe com seleção — barra vazia permanente é ruído. */}
+      {canCancel && table.cancellableSelection.length > 0 ? (
+        <div className={styles.bulkBar} role="group" aria-label={t('selection.barLabel')}>
+          <p>{t('selection.count', { count: table.cancellableSelection.length })}</p>
+          <Button onClick={() => setConfirming(true)} size="sm" type="button" variant="secondary">
+            <Icon name="remove" />
+            {t('selection.cancelTrips')}
+          </Button>
+          <Button onClick={table.clearSelection} size="sm" type="button" variant="ghost">
+            <Icon name="close" />
+            {t('selection.clear')}
+          </Button>
+        </div>
+      ) : null}
+
+      <TripCancelDialog
+        isCancelling={isCancelling}
+        isOpen={confirming}
+        onClose={() => setConfirming(false)}
+        onConfirm={() => {
+          setConfirming(false)
+          onCancelSelected()
+        }}
+        trips={table.cancellableSelection}
+        vehicleLabelOf={vehicleLabel}
+      />
 
       <div className={styles.toolbar}>
         <Button

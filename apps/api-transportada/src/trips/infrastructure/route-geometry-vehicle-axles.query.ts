@@ -12,9 +12,8 @@
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, eq } from 'drizzle-orm'
 
-import { companyFuelPrices } from '../../database/company-fuel-prices.schema.js'
 import { fleetVehicles } from '../../database/fleet.schema.js'
-import { FUEL_PRODUCTS, type FuelProduct } from '../../shared/fuel.constant.js'
+import { readEffectiveFuelPrice, toFuelProduct } from './effective-fuel-price.query.js'
 import {
   resolveDeclaredTollMultiplier,
   type TollMultiplier,
@@ -76,7 +75,7 @@ export function createRouteGeometryVehicleAxlesQuery(database: Database): Readon
         }
       }
 
-      const pricePerLiter = await readFuelPrice(database, {
+      const pricePerLiter = await readEffectiveFuelPrice(database, {
         companyId: input.companyId,
         product: toFuelProduct(vehicle.fuelType),
       })
@@ -92,33 +91,4 @@ export function createRouteGeometryVehicleAxlesQuery(database: Database): Readon
       }
     },
   }
-}
-
-/**
- * O mesmo ajuste da empresa que `read-trip-valuation.use-case.ts` lê para o custo previsto da
- * viagem — sem ele, ninguém declarou preço para este combustível, e não há o que comparar.
- */
-async function readFuelPrice(
-  database: Database,
-  input: { readonly companyId: string; readonly product: FuelProduct | null },
-): Promise<null | string> {
-  if (input.product === null) return null
-
-  const [row] = await database
-    .select({ pricePerUnit: companyFuelPrices.pricePerUnit })
-    .from(companyFuelPrices)
-    .where(
-      and(
-        eq(companyFuelPrices.companyId, input.companyId),
-        eq(companyFuelPrices.product, input.product),
-      ),
-    )
-    .limit(1)
-
-  return row?.pricePerUnit ?? null
-}
-
-/** O cadastro guarda o combustível como texto livre do catálogo; fora dele não há preço a buscar. */
-function toFuelProduct(value: null | string): FuelProduct | null {
-  return FUEL_PRODUCTS.includes(value as FuelProduct) ? (value as FuelProduct) : null
 }

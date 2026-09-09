@@ -5,6 +5,7 @@ import { describe, expect, test } from 'bun:test'
 
 import type {
   MultiVehicleSuggestionGroup,
+  MultiVehicleSuggestionRoad,
   MultiVehicleSuggestionRepository,
 } from '../../src/routing/application/multi-vehicle-suggestion.repository.js'
 import {
@@ -86,6 +87,7 @@ function suggestion(overrides: Partial<RouteSuggestionRecord> = {}): RouteSugges
 function buildFixture(
   input: {
     readonly groups?: readonly MultiVehicleSuggestionGroup[]
+    readonly vehicleRoads?: readonly MultiVehicleSuggestionRoad[]
     readonly stored?: RouteSuggestionRecord | null
     readonly unavailableDocuments?: readonly string[]
     readonly unavailableDrivers?: readonly string[]
@@ -111,6 +113,8 @@ function buildFixture(
     findUnavailableDriverIds: async () => input.unavailableDrivers ?? [],
     findUnavailableVehicleIds: async () => input.unavailableVehicles ?? [],
     readGroups: async () => input.groups ?? [],
+    readSuggestionStatus: async () => 'ready',
+    readVehicleRoads: async () => input.vehicleRoads ?? [],
   }
 
   const suggestions: RouteSuggestionRepository = {

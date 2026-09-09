@@ -17,6 +17,8 @@ import {
   type DriverVehicleLink,
   type VehicleDriverPair,
 } from '../shared/multiVehiclePairing.service'
+import { useSuggestionValuation } from '../queries/useSuggestionValuation.query'
+import type { SuggestionValuation } from '../shared/suggestionValuation.service'
 import { getRouteSuggestionClient } from './useRouteSuggestion.hook'
 
 /** Mesmo ritmo do painel da viagem: o worker resolve, e a tela pergunta de novo. */
@@ -45,6 +47,15 @@ export type MultiVehicleSuggestionController = Readonly<{
   setSelectedDriverIds: (driverIds: readonly string[]) => void
   setSelectedVehicleIds: (vehicleIds: readonly string[]) => void
   suggestion: RouteSuggestion | null
+  /** Spec 101: a conta por viagem proposta e o relatório do conjunto. */
+  valuation: SuggestionValuationController
+}>
+
+export type SuggestionValuationController = Readonly<{
+  /** Sem `trip.financials` a seção **não existe** — nem moldura, nem "—". */
+  canRead: boolean
+  isLoading: boolean
+  valuation: SuggestionValuation | null
 }>
 
 /**
@@ -161,6 +172,17 @@ export function useMultiVehicleSuggestion(input: {
     }
   }, [suggestion])
 
+  /**
+   * Spec 101: só depois de `ready`. Perguntar enquanto o solver roda devolveria `409` a cada poll
+   * do diálogo — a sugestão sem parada não tem conta a fazer.
+   */
+  const valuation = useSuggestionValuation({
+    client: resolveClient(),
+    isReady: suggestion?.status === 'ready',
+    permissions: input.permissions,
+    suggestionId: suggestion?.id ?? null,
+  })
+
   return {
     accept,
     accepted,
@@ -183,6 +205,7 @@ export function useMultiVehicleSuggestion(input: {
     setSelectedVehicleIds: (vehicleIds) =>
       setPairs((current) => selectVehicles({ links, pairs: current, vehicleIds })),
     suggestion,
+    valuation,
   }
 }
 

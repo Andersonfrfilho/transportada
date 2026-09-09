@@ -281,6 +281,8 @@ import { createRouteSuggestionRoutes } from './routing/presentation/route-sugges
 import { createMultiVehicleSuggestionRoutes } from './routing/presentation/multi-vehicle-suggestion.routes'
 import { createMultiVehicleSuggestionUseCase } from './routing/application/multi-vehicle-suggestion.use-case'
 import { createDrizzleMultiVehicleSuggestionRepository } from './routing/infrastructure/drizzle-multi-vehicle-suggestion.repository'
+import { readSuggestionValuation } from './routing/application/read-suggestion-valuation.use-case'
+import { createSuggestionValuationAdapter } from './routing/infrastructure/suggestion-valuation.adapter'
 import { createTripComposer } from './routing/infrastructure/trip-composer.adapter'
 import { listTripStops } from './trips/application/list-trip-stops.use-case'
 import { createRouteSuggestionUseCase } from './routing/application/route-suggestion.use-case'
@@ -1599,6 +1601,23 @@ function createApplicationRoutes({
               reorder: (input) => tripLifecycle.reorderStops.execute(input),
             }),
           }),
+          /**
+           * Spec 101: a conta da sugestão. ⚠️ **Nenhuma porta de geometria entra aqui** — a
+           * distância sai das paradas que o solver já escolheu (D1), e passar o roteirizador para
+           * este caminho é justamente o que a spec proíbe.
+           */
+          readSuggestionValuation: (query) =>
+            readSuggestionValuation({
+              ...query,
+              repository: createSuggestionValuationAdapter({
+                multiVehicle: createDrizzleMultiVehicleSuggestionRepository(database),
+                valuation: {
+                  findApplicableRule: (rule) => applicableFreightRuleQuery.findApplicableRule(rule),
+                  readContext: (trip) => tripValuationQuery.readContext(trip),
+                  readPreviewContext: (preview) => tripValuationQuery.readPreviewContext(preview),
+                },
+              }),
+            }),
         })),
     ...createLandingSettingsRoutes({ landingSettings }),
     ...createAggregateApplicationRoutes({ aggregateApplications }),

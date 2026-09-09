@@ -127,5 +127,26 @@
     "refined": "Address corrected to {{precision}}.",
     "quotaExceeded": "Too many corrections this hour. Try later or set the pin by hand.",
     "failed": "Could not check right now — set the pin by hand."
+  },
+  "valuation": {
+    "cost": "Cost",
+    "loading": "Loading the numbers",
+    "margin": "Margin",
+    "revenue": "Revenue",
+    "road": "Route",
+    "roadUnknown": "distance not computed"
+  },
+  "report": {
+    "cost": "Projected cost",
+    "deliveries_one": "{{count}} delivery",
+    "deliveries_other": "{{count}} deliveries",
+    "distance": "Distance",
+    "duration": "Combined time",
+    "incomplete": "The total is incomplete:",
+    "loading": "Loading the report",
+    "margin": "Projected profit",
+    "revenue": "Projected revenue",
+    "title": "Distribution report",
+    "unknown": "not computed"
   }
 }

@@ -6,8 +6,11 @@
     "NO_DRIVER_RATE": "rota do agregado sem valor cadastrado",
     "NO_FEDERAL_REGIME": "regime federal não declarado",
     "NO_FREIGHT_RULE": "nota ainda sem CT-e autorizado",
-    "NO_FUEL_BASELINE": "consumo do veículo ou preço do combustível sem cadastro",
+    "NO_FUEL_BASELINE": "consumo médio do veículo não produz conta",
+    "NO_FUEL_CONSUMPTION": "veículo sem consumo médio na ficha",
+    "NO_FUEL_PRICE": "sem preço para o combustível deste veículo",
     "NO_PLANNED_DISTANCE": "roteiro ainda não calculado",
+    "TOLL_NOT_AVAILABLE_IN_SUGGESTION": "pedágio só é calculado depois da viagem criada",
     "SALARIED_CREW_MEMBER": "há motorista assalariado nesta viagem — custo do período",
     "TOLL_PARTIAL": "praça sem tarifa conhecida no trajeto — o total soma só as demais"
   },

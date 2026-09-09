@@ -8,7 +8,6 @@ import {
   basemapThemeForApp,
   buildBasemapStyle,
   configureVectorBasemap,
-  resolveBasemapOutline,
 } from '@/modules/shared/vectorBasemap.service'
 
 import type { DriverHomeReport } from '../shared/fleet.types'

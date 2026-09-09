@@ -19,18 +19,32 @@ import type {
   MultiVehicleSuggestionUseCase,
 } from '../application/multi-vehicle-suggestion.port.js'
 import type { RouteSuggestion } from '../application/route-suggestion.port.js'
+import type { SuggestionValuation } from '../application/read-suggestion-valuation.use-case.js'
 import { createMultiVehicleSuggestionSchema } from './route-suggestion-request.schema.js'
 
 const MULTI_VEHICLE_PATH = '/route-suggestions/multi-vehicle'
 const MULTI_VEHICLE_SUGGESTION_PATH = '/route-suggestions/:suggestionId'
 const MULTI_VEHICLE_ACCEPT_PATH = `${MULTI_VEHICLE_SUGGESTION_PATH}/accept`
 const MULTI_VEHICLE_REJECT_PATH = `${MULTI_VEHICLE_SUGGESTION_PATH}/reject`
+const MULTI_VEHICLE_VALUATION_PATH = `${MULTI_VEHICLE_SUGGESTION_PATH}/valuation`
 
 /** A mesma permissão da sugestão de viagem: pedir roteiro é escrever viagem, aqui e lá. */
 const TRIP_MANAGE_POLICY = { permission: 'trip.manage', scope: 'company' } as const
 const TRIP_READ_POLICY = { permission: 'fleet.read', scope: 'company' } as const
+/**
+ * Spec 101: dinheiro tem permissão própria. Quem monta o roteiro (`trip.manage`) não ganha de
+ * carona a margem da operação — é a mesma separação que o painel da viagem já faz.
+ */
+const TRIP_FINANCIALS_POLICY = { permission: 'trip.financials', scope: 'company' } as const
 
-type Dependencies = Readonly<{ multiVehicleSuggestions: MultiVehicleSuggestionUseCase }>
+type Dependencies = Readonly<{
+  multiVehicleSuggestions: MultiVehicleSuggestionUseCase
+  /** Spec 101: a conta por viagem proposta, mais o relatório do conjunto. */
+  readSuggestionValuation: (input: {
+    readonly companyId: string
+    readonly suggestionId: string
+  }) => Promise<SuggestionValuation>
+}>
 
 export function createMultiVehicleSuggestionRoutes(dependencies: Dependencies) {
   return [
@@ -104,6 +118,22 @@ export function createMultiVehicleSuggestionRoutes(dependencies: Dependencies) {
     }),
     defineRoute<{ readonly suggestionId: string }>({
       async handle({ context, input }): Promise<Response> {
+        const valuation = await dependencies.readSuggestionValuation({
+          companyId: context.scope.companyId,
+          suggestionId: input.suggestionId,
+        })
+
+        return jsonResponse({ body: { data: serializeValuation(valuation) }, status: 200 })
+      },
+      method: 'GET',
+      parse: ({ pathParameters }) => ({
+        suggestionId: parseUuidPathIdentifier(pathParameters.suggestionId ?? ''),
+      }),
+      pathname: MULTI_VEHICLE_VALUATION_PATH,
+      policy: TRIP_FINANCIALS_POLICY,
+    }),
+    defineRoute<{ readonly suggestionId: string }>({
+      async handle({ context, input }): Promise<Response> {
         const suggestion = await dependencies.multiVehicleSuggestions.reject({
           context: context.scope,
           suggestionId: input.suggestionId,
@@ -150,6 +180,33 @@ function serializeAccepted(accepted: AcceptedMultiVehicleSuggestion): object {
       stopCount: trip.stopCount,
       tripId: trip.tripId,
       vehicleId: trip.vehicleId,
+    })),
+  }
+}
+
+/**
+ * ⚠️ A conta por veículo viaja **inteira** — as parcelas com a lacuna de cada uma —, e não só o
+ * total: é a lacuna que diz o que cadastrar, e um total sem elas seria um número sem instrução.
+ */
+function serializeValuation(valuation: SuggestionValuation): object {
+  return {
+    report: {
+      gaps: valuation.report.gaps,
+      hasGaps: valuation.report.hasGaps,
+      totalCost: valuation.report.totalCost,
+      totalDistanceMeters: valuation.report.totalDistanceMeters,
+      totalDurationSeconds: valuation.report.totalDurationSeconds,
+      totalMargin: valuation.report.totalMargin,
+      totalRevenue: valuation.report.totalRevenue,
+    },
+    vehicles: valuation.vehicles.map((vehicle) => ({
+      distanceMeters: vehicle.distanceMeters,
+      documentCount: vehicle.documentCount,
+      driverId: vehicle.driverId,
+      durationSeconds: vehicle.durationSeconds,
+      stopCount: vehicle.stopCount,
+      valuation: vehicle.valuation,
+      vehicleId: vehicle.vehicleId,
     })),
   }
 }

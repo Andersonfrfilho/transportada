@@ -3,6 +3,7 @@
  */
 import type { MultiVehicleSuggestionPair } from './multi-vehicle-suggestion.port.js'
 import type { RouteSuggestionAssumptions } from './route-suggestion.port.js'
+import type { RouteSuggestionStatus } from '../../database/route-suggestion.schema.js'
 import type { RouteSuggestionRecord } from './route-suggestion.repository.js'
 
 export type MultiVehicleSuggestionGroup = Readonly<{
@@ -11,6 +12,18 @@ export type MultiVehicleSuggestionGroup = Readonly<{
   driverId: string | null
   /** Na ordem que o solver propôs — é ela que vira a ordem das paradas da viagem criada. */
   orderedAddressKeys: readonly string[]
+  vehicleId: string
+}>
+
+/**
+ * Spec 101: as pernas de um veículo, na ordem das paradas. É o que `sumVehicleRoad` soma para dar
+ * distância e duração da viagem proposta — sem tocar no roteirizador (D1).
+ */
+export type MultiVehicleSuggestionRoad = Readonly<{
+  stops: readonly Readonly<{
+    distanceFromPreviousMeters: number | null
+    durationFromPreviousSeconds: number | null
+  }>[]
   vehicleId: string
 }>
 
@@ -47,4 +60,24 @@ export type MultiVehicleSuggestionRepository = Readonly<{
     readonly companyId: string
     readonly suggestionId: string
   }) => Promise<readonly MultiVehicleSuggestionGroup[]>
+  /**
+   * Spec 101: o estado da sugestão **desta empresa**. `null` é ausência — sugestão de outra empresa
+   * responde igual a sugestão inexistente, porque dizer "existe, mas não é sua" já entrega que ela
+   * existe.
+   */
+  readSuggestionStatus: (input: {
+    readonly companyId: string
+    readonly suggestionId: string
+  }) => Promise<null | RouteSuggestionStatus>
+  /**
+   * Spec 101: as pernas por veículo, para a conta da sugestão.
+   *
+   * ⚠️ Consulta **própria**, e não uma coluna a mais em `readGroups`: aquela devolve uma linha por
+   * (parada × nota), então uma parada com três notas apareceria três vezes e a soma triplicaria a
+   * distância. Aqui a linha é a parada, e não há o que deduplicar.
+   */
+  readVehicleRoads: (input: {
+    readonly companyId: string
+    readonly suggestionId: string
+  }) => Promise<readonly MultiVehicleSuggestionRoad[]>
 }>

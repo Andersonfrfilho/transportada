@@ -2085,3 +2085,16 @@
   font-size: var(--font-size-sm);
   list-style: disc;
 }
+
+/* Spec 102: a barra de ação em massa da tabela de viagens. */
+.bulkBar {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-block: var(--space-2);
+}
+
+.bulkBar p {
+  margin: 0;
+}

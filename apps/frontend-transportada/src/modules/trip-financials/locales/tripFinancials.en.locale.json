@@ -6,8 +6,11 @@
     "NO_DRIVER_RATE": "aggregate route without a rate",
     "NO_FEDERAL_REGIME": "federal regime not declared",
     "NO_FREIGHT_RULE": "invoice without an authorized CT-e",
-    "NO_FUEL_BASELINE": "vehicle consumption or fuel price missing",
+    "NO_FUEL_BASELINE": "vehicle average consumption yields no cost",
+    "NO_FUEL_CONSUMPTION": "vehicle has no average consumption on file",
+    "NO_FUEL_PRICE": "no price for this vehicle's fuel",
     "NO_PLANNED_DISTANCE": "route not planned yet",
+    "TOLL_NOT_AVAILABLE_IN_SUGGESTION": "toll is only computed once the trip exists",
     "SALARIED_CREW_MEMBER": "a salaried driver is on this trip — cost of the period",
     "TOLL_PARTIAL": "a toll plaza on the route has no known tariff — the total only sums the others"
   },

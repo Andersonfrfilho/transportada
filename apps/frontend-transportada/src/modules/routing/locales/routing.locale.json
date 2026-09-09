@@ -130,5 +130,26 @@
     "refined": "Endereço corrigido para {{precision}}.",
     "quotaExceeded": "Muitas correções nesta hora. Tente mais tarde ou ajuste o ponto à mão.",
     "failed": "Não foi possível consultar agora — ajuste o ponto à mão."
+  },
+  "valuation": {
+    "cost": "Custo",
+    "loading": "Carregando a conta",
+    "margin": "Margem",
+    "revenue": "Receita",
+    "road": "Percurso",
+    "roadUnknown": "distância não calculada"
+  },
+  "report": {
+    "cost": "Gasto previsto",
+    "deliveries_one": "{{count}} entrega",
+    "deliveries_other": "{{count}} entregas",
+    "distance": "Distância",
+    "duration": "Tempo somado",
+    "incomplete": "O total está incompleto:",
+    "loading": "Carregando o relatório",
+    "margin": "Lucro previsto",
+    "revenue": "Receita prevista",
+    "title": "Relatório da distribuição",
+    "unknown": "não calculado"
   }
 }

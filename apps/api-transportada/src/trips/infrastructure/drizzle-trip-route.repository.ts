@@ -20,6 +20,7 @@ import type {
 } from '../application/dispatch-trip.use-case.js'
 import { listUnscheduledStops } from '../../delivery-clients/infrastructure/unscheduled-stop.query.js'
 import type { CancelTripPort } from '../application/cancel-trip.use-case.js'
+import { buildCancelReleaseWhere } from './cancel-release.query.js'
 import type { PlanTripRoutePort, TripRouteState } from '../application/plan-trip-route.use-case.js'
 import type {
   ReorderTripStopsPort,
@@ -106,16 +107,43 @@ export class DrizzleTripRouteRepository
     return record?.status ?? null
   }
 
+  /**
+   * Spec 102: cancelar **devolve a carga**. Até esta spec, este método só trocava `trips.status`, e
+   * quem decide se uma nota está disponível olha `released_at` — nunca o status da viagem. Cancelar
+   * prendia a carga para sempre, e nada na tela dizia por quê.
+   *
+   * ⚠️ **Na mesma transação, e nesta ordem.** Uma falha entre as duas escritas deixaria a viagem
+   * cancelada com a carga presa — exatamente o defeito que esta spec corrige.
+   *
+   * ⚠️ **`stop_id` NÃO é zerado aqui**, ao contrário de `releaseTripDocument`. Lá a nota sai de uma
+   * viagem que continua viva, e a parada precisa ser reconciliada (apagada se esvaziou); aqui a
+   * viagem inteira morre, ninguém vai reordenar parada dela, e manter a referência preserva o
+   * roteiro como ele foi planejado. Zerar produziria o pior dos dois: paradas vazias na tela e
+   * notas todas no balde "Sem parada".
+   */
   public async markCancelled(input: {
     readonly companyId: string
     readonly tripId: string
   }): Promise<TripStatus> {
-    const [updated] = await this.database
-      .update(trips)
-      .set({ status: 'cancelled', updatedAt: sql`now()` })
-      .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
-      .returning({ status: trips.status })
-    return updated?.status ?? 'cancelled'
+    return this.database.transaction(async (transaction) => {
+      /**
+       * ⚠️ A linha **permanece**, com `released_at` — é a única prova de que aquela nota chegou a
+       * ser carregada nesta viagem, e é o que atende "deixe no histórico da nota". Apagá-la
+       * destruiria o histórico enquanto todo teste de disponibilidade continuaria passando.
+       */
+      await transaction
+        .update(tripDocuments)
+        .set({ releasedAt: sql`now()`, updatedAt: sql`now()` })
+        .where(buildCancelReleaseWhere(input))
+
+      const [updated] = await transaction
+        .update(trips)
+        .set({ status: 'cancelled', updatedAt: sql`now()` })
+        .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+        .returning({ status: trips.status })
+
+      return updated?.status ?? 'cancelled'
+    })
   }
 
   public async readStopOrderPreconditions(input: {

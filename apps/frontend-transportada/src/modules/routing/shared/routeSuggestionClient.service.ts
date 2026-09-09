@@ -1,6 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { RouteSuggestion } from './routeSuggestion.types'
 import { toRouteSuggestion } from './routeSuggestionResponse.validation'
+import type { SuggestionValuation } from './suggestionValuation.service'
+import { toSuggestionValuation } from './suggestionValuationResponse.validation'
 
 const TRIPS_PATH = '/trips'
 const GEOCODED_ADDRESSES_PATH = '/geocoded-addresses'
@@ -56,6 +58,14 @@ export type RouteSuggestionClient = Readonly<{
     }>,
   ) => Promise<RouteSuggestion>
   readMultiVehicle: (input: Readonly<{ suggestionId: string }>) => Promise<RouteSuggestion>
+  /**
+   * Spec 101: a conta por viagem proposta e o relatório do conjunto. Corpo malformado vira
+   * **ausência**, não exceção — a conta é apoio, e derrubar o diálogo por causa dela trocaria o
+   * problema de lugar.
+   */
+  readMultiVehicleValuation: (
+    input: Readonly<{ suggestionId: string }>,
+  ) => Promise<SuggestionValuation | null>
   rejectMultiVehicle: (input: Readonly<{ suggestionId: string }>) => Promise<RouteSuggestion>
   correctAddress: (
     input: Readonly<{ addressKey: string; latitude: string; longitude: string }>,
@@ -113,6 +123,16 @@ export function createRouteSuggestionClient(
           dependencies,
           method: 'POST',
           path: `${MULTI_VEHICLE_PATH}/multi-vehicle`,
+        }),
+      )
+    },
+
+    async readMultiVehicleValuation(input) {
+      return toSuggestionValuation(
+        await request({
+          dependencies,
+          method: 'GET',
+          path: `${MULTI_VEHICLE_PATH}/${input.suggestionId}/valuation`,
         }),
       )
     },

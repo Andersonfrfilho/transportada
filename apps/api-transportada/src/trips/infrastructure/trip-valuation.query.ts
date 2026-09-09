@@ -4,8 +4,8 @@
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { aliasedTable, and, eq, inArray, sql, sum } from 'drizzle-orm'
 
-import { companyFuelPrices } from '../../database/company-fuel-prices.schema.js'
-import { FUEL_PRODUCTS, type FuelProduct } from '../../shared/fuel.constant.js'
+import type { FuelProduct } from '../../shared/fuel.constant.js'
+import { readEffectiveFuelPrice, toFuelProduct } from './effective-fuel-price.query.js'
 import { cteBatchItemCharges, cteBatchItems } from '../../database/cte-batch.schema.js'
 import { cteFiscalDocuments, cteIssuancePayloads } from '../../database/cte-issuance.schema.js'
 import { deliveryCharges } from '../../database/delivery-client.schema.js'
@@ -683,23 +683,11 @@ export class DrizzleTripValuationQuery {
     return row ?? null
   }
 
-  private async readFuelPrice(input: {
+  private readFuelPrice(input: {
     readonly companyId: string
     readonly product: FuelProduct | null
   }): Promise<null | string> {
-    if (input.product === null) return null
-    const [row] = await this.database
-      .select({ pricePerUnit: companyFuelPrices.pricePerUnit })
-      .from(companyFuelPrices)
-      .where(
-        and(
-          eq(companyFuelPrices.companyId, input.companyId),
-          eq(companyFuelPrices.product, input.product),
-        ),
-      )
-      .limit(1)
-
-    return row?.pricePerUnit ?? null
+    return readEffectiveFuelPrice(this.database, input)
   }
 
   /**
@@ -906,9 +894,4 @@ export class DrizzleTripValuationQuery {
 
     return new Map(rows.map((row) => [row.nfeDocumentId, row.amount]))
   }
-}
-
-/** O cadastro guarda o combustível como texto livre do catálogo; fora dele não há preço a buscar. */
-function toFuelProduct(value: null | string): FuelProduct | null {
-  return FUEL_PRODUCTS.includes(value as FuelProduct) ? (value as FuelProduct) : null
 }

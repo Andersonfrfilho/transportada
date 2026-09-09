@@ -437,8 +437,11 @@
       "NO_DRIVER_RATE": "no rate registered for the aggregate route",
       "NO_FEDERAL_REGIME": "federal regime not declared",
       "NO_FREIGHT_RULE": "no freight rule for the destination",
-      "NO_FUEL_BASELINE": "vehicle consumption or fuel price not registered",
+      "NO_FUEL_BASELINE": "vehicle average consumption yields no cost",
+      "NO_FUEL_CONSUMPTION": "vehicle has no average consumption on file",
+      "NO_FUEL_PRICE": "no price for this vehicle's fuel",
       "NO_PLANNED_DISTANCE": "route not calculated yet — fuel comes after",
+      "TOLL_NOT_AVAILABLE_IN_SUGGESTION": "toll is only computed once the trip exists",
       "SALARIED_CREW_MEMBER": "salaried driver on board — a period cost, not a trip cost",
       "TOLL_PARTIAL": "a toll plaza on the route has no known tariff — the total only sums the others"
     },
@@ -622,5 +625,24 @@
     "missingBedLink": "Open the vehicle record",
     "layer": "Layer {{index}}",
     "layerSummary": " · {{boxes}} boxes · {{stops}} stop(s) · {{height}} m"
+  },
+  "selection": {
+    "barLabel": "Bulk actions",
+    "cancelTrips": "Cancel selected",
+    "clear": "Clear selection",
+    "count_one": "{{count}} trip selected",
+    "count_other": "{{count}} trips selected",
+    "selectAll": "Select every cancellable trip on this page",
+    "selectTrip": "Select the trip for vehicle {{vehicle}}"
+  },
+  "cancelDialog": {
+    "cancelling": "Cancelling…",
+    "close": "Close",
+    "confirm": "Cancel trips",
+    "keep": "Keep",
+    "irreversible": "The cargo returns to the pool and can be linked to another trip. The link to this trip stays recorded as history, and cancelling cannot be undone.",
+    "subtitle": "The trip stays on record, marked Cancelled.",
+    "title_one": "Cancel {{count}} trip?",
+    "title_other": "Cancel {{count}} trips?"
   }
 }

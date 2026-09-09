@@ -305,3 +305,65 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Spec 101: a conta da viagem proposta, ao lado das paradas dela. */
+.vehicleValuation {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+}
+
+.vehicleValuation > div {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: space-between;
+}
+
+.vehicleValuation dt,
+.vehicleValuation dd {
+  margin: 0;
+}
+
+.vehicleValuationGap dd {
+  color: var(--color-text-muted);
+  text-align: right;
+}
+
+.negative {
+  color: var(--color-danger);
+}
+
+/* Spec 101: o relatório do conjunto, acima das viagens propostas. */
+.report {
+  display: grid;
+  gap: var(--space-2);
+  margin-block: var(--space-3);
+}
+
+.reportTotals {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  margin: 0;
+}
+
+.reportTotals dt {
+  color: var(--color-text-muted);
+}
+
+.reportTotals dd {
+  margin: 0;
+}
+
+.reportIncomplete {
+  color: var(--color-alert);
+  margin: 0;
+}
+
+.reportDeliveries {
+  display: grid;
+  gap: var(--space-1);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}

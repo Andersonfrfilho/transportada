@@ -28,10 +28,13 @@ function photon(coordinates: unknown): unknown {
 
 async function buscar(payload: unknown) {
   return searchAddress({
-    fetch: (async () =>
-      new Response(JSON.stringify(payload), {
-        headers: { 'content-type': 'application/json' },
-      })) as unknown as typeof fetch,
+    /** `Promise.resolve` e não `async`: a forma precisa devolver promessa, mas não há o que esperar. */
+    fetch: (() =>
+      Promise.resolve(
+        new Response(JSON.stringify(payload), {
+          headers: { 'content-type': 'application/json' },
+        }),
+      )) as unknown as typeof fetch,
     signal: new AbortController().signal,
     term: 'Rua Antônio Fagundes',
   })

@@ -154,7 +154,25 @@ describe('a viagem diz quanto rende antes de qualquer emissão', () => {
     const valuation = await run({ context: context({ fuelPricePerLiter: null }) }).result
     const fuel = valuation.costParcels.find((parcel) => parcel.kind === 'fuel')
 
-    expect(fuel).toMatchObject({ gap: VALUATION_GAPS.noFuelBaseline, source: 'missing' })
+    expect(fuel).toMatchObject({ gap: VALUATION_GAPS.noFuelPrice, source: 'missing' })
+  })
+
+  /**
+   * ⚠️ As duas ausências se cadastram em telas diferentes — a ficha do veículo e a aba Combustível
+   * da frota. Uma lacuna só mandava o operador conferir as duas para descobrir qual faltava.
+   */
+  it('consumo ausente e preço ausente são lacunas diferentes', async () => {
+    const semConsumo = await run({
+      context: context({ vehicle: { kilometersPerLiter: null, otherCostsPerKilometer: '0.3000' } }),
+    }).result
+    const semPreco = await run({ context: context({ fuelPricePerLiter: null }) }).result
+
+    expect(semConsumo.costParcels.find((parcel) => parcel.kind === 'fuel')?.gap).toBe(
+      VALUATION_GAPS.noFuelConsumption,
+    )
+    expect(semPreco.costParcels.find((parcel) => parcel.kind === 'fuel')?.gap).toBe(
+      VALUATION_GAPS.noFuelPrice,
+    )
   })
 
   /**

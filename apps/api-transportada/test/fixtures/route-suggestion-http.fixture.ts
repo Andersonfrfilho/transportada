@@ -169,6 +169,19 @@ export async function createMultiVehicleHttpFixture(params: FixtureParams = {}):
   const poolSuggestion: RouteSuggestion = { ...QUEUED_SUGGESTION, tripId: null }
 
   const routes = createMultiVehicleSuggestionRoutes({
+    /** Spec 101: a fixture cobre as rotas de sugestão; a conta tem contrato próprio. */
+    readSuggestionValuation: async () => ({
+      report: {
+        gaps: [],
+        hasGaps: false,
+        totalCost: '0.0000',
+        totalDistanceMeters: null,
+        totalDurationSeconds: null,
+        totalMargin: '0.0000',
+        totalRevenue: '0.0000',
+      },
+      vehicles: [],
+    }),
     multiVehicleSuggestions: {
       async accept(input) {
         acceptCalls.push(structuredClone(input) as unknown as Call)

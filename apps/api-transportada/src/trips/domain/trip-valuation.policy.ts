@@ -43,12 +43,35 @@ export const VALUATION_GAPS = {
   noFederalRegime: 'NO_FEDERAL_REGIME',
   /** Nenhuma regra de frete casa com a nota: sem parâmetro não há receita prevista. */
   noFreightRule: 'NO_FREIGHT_RULE',
-  /** O veículo não declara consumo médio, ou a empresa não tem preço para o combustível dele. */
+  /**
+   * ⚠️ Fica só para o consumo declarado que **não produz conta** — zero, ou valor que não parseia.
+   * Ausência de consumo e ausência de preço têm lacuna própria: elas se cadastram em telas
+   * diferentes (a ficha do veículo e a aba Combustível da frota), e uma lacuna só mandava o
+   * operador procurar nas duas.
+   */
   noFuelBaseline: 'NO_FUEL_BASELINE',
+  /** O veículo não declara consumo médio — cadastra-se na ficha dele, em `fleet_vehicles`. */
+  noFuelConsumption: 'NO_FUEL_CONSUMPTION',
+  /**
+   * Não há preço para o combustível deste veículo: nem ajuste da empresa, nem tarifa da ANEEL, nem
+   * referência da ANP para a UF do perfil fiscal. Empresa sem UF cadastrada cai aqui, e a rotina
+   * `fuel.price.pull` que ainda não rodou também.
+   */
+  noFuelPrice: 'NO_FUEL_PRICE',
   /** O roteiro ainda não foi calculado, então não há quilometragem para multiplicar. */
   noPlannedDistance: 'NO_PLANNED_DISTANCE',
   /** Pedágio é lançamento manual e ainda não existe (061 D2). */
   notRecorded: 'NOT_RECORDED',
+  /**
+   * Spec 101 D2: **a sugestão não sabe o pedágio, e não é falta de lançamento.** O cálculo precisa
+   * dos `nodeIds` que o OSRM devolve em `annotations=nodes` (spec 090), e a sugestão não os
+   * persiste. Distinta de `notRecorded` de propósito: ali o operador **pode** lançar, e dizer
+   * "ninguém lançou" numa tela sem viagem o mandaria procurar um botão que não existe.
+   *
+   * ⚠️ Zero seria pior que as duas: diria que o trajeto não tem pedágio, e numa distribuição pelo
+   * interior de SP ele costuma ser a segunda maior parcela.
+   */
+  tollNotAvailableInSuggestion: 'TOLL_NOT_AVAILABLE_IN_SUGGESTION',
   /**
    * O pedágio foi calculado, e **alguma praça do trajeto não declara tarifa**: o total soma só as
    * conhecidas e portanto subestima. Sem esta lacuna ele se apresentaria como estimativa completa,

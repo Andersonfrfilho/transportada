@@ -842,6 +842,23 @@ PII e sem efeito fiscal. `test/fleet-schema/tenant-safety.contract.ts` a lista c
 declarada — se ela sumir da lista, o contrato passa a cobrar o tenant. A leitura do preço dentro da
 listagem de veículos é **uma por empresa**, resolvida antes do `map` da página, nunca por linha.
 
+⚠️ **A conta da viagem lê esse mesmo preço efetivo, e não lia.** `trip-valuation.query.ts` e
+`route-geometry-vehicle-axles.query.ts` consultavam **só** `company_fuel_prices`, o ajuste manual —
+então numa instalação que deixa a ANP responder, que é o ponto da ADR-0033, a parcela de combustível
+saía `missing` em **toda** viagem, com o preço publicado no banco e impresso na tela de frota ao
+lado. O mesmo veículo tinha dois R$/km, e só o pior aparecia na margem. Hoje as duas passam por
+`trips/infrastructure/effective-fuel-price.query.ts`, que reusa `resolveEffectiveFuelPrice` e o
+repositório de preços — não é cópia por valor: as duas apps são a mesma, e dentro de uma app se
+importa.
+
+⚠️ **Consumo ausente e preço ausente são lacunas diferentes** (`NO_FUEL_CONSUMPTION` e
+`NO_FUEL_PRICE`). Elas se cadastram em telas diferentes — a ficha do veículo e a aba Combustível da
+frota —, e a lacuna única de antes ("consumo do veículo ou preço do combustível sem cadastro")
+mandava o operador conferir as duas para descobrir qual faltava. `NO_FUEL_BASELINE` fica só para o
+consumo declarado que **não produz conta** (zero, ou valor que não parseia).
+`test/trip-financials/valuation-gap-labels.contract.ts` (frontend) lê `VALUATION_GAPS` do fonte da
+API e reprova lacuna nova sem rótulo nas duas telas e nos dois idiomas.
+
 **O pedágio da rota é calculado, não lançado à mão** (spec 090, ADR pendente). `toll_booths` é a
 **terceira** tabela sem `company_id`, ao lado de `fuel_price_references` e `vehicle_volume_references`:
 tarifa pública mapeada no OSM, carregada do mesmo `.osm.pbf` que alimenta o OSRM por
@@ -1635,6 +1652,43 @@ para quem dirige** — nada do trabalho de campo chega até ele. O corpo da rota
 é nulo e legítimo — distribuir na véspera, antes da escala, era o único comportamento possível antes
 disto —, e o mesmo motorista em dois pares é `409`: seriam duas viagens simultâneas dele no PWA. O
 aceite **não reconfere** o motorista; suspenso entre o pedido e o aceite, a viagem nasce com ele.
+
+**A distribuição proposta diz quanto rende, e a distância não é pedida de novo** (spec 101).
+`GET /route-suggestions/:id/valuation` (`trip.financials`, escopo `company` — dinheiro tem permissão
+própria: quem monta o roteiro não ganha a margem de carona) devolve uma conta **por viagem
+proposta** mais o relatório do conjunto. Até ela, a tela em que o operador escolhe entre distribuir
+a carga de um jeito ou de outro mostrava só contagem de paradas — era a única tela do produto que
+não dizia qual dos jeitos paga.
+
+⚠️ **A distância sai das paradas que o solver já escolheu, nunca de uma segunda consulta ao OSRM.**
+Reusar `POST /trips/valuation-preview` N vezes seria o caminho curto e está errado: o solver
+escolheu um trajeto, e outra consulta pode devolver outro — a tela desenharia um roteiro e cobraria
+outro, os dois plausíveis. É a spec 090 D4 (_"o pedágio viaja na resposta da rota"_) um nível acima.
+A guarda é **estrutural, não só um teste**: `SuggestionValuationPort`
+(`routing/application/suggestion-valuation.port.ts`) **não expõe geometria nenhuma**, então chamar o
+roteirizador ali exige alargar a interface, e isso aparece em revisão em vez de se esconder numa
+linha do use case. `sumVehicleRoad` soma as pernas; parada sem perna anterior é o normal (a primeira,
+e a excluída da otimização), mas veículo sem **nenhuma** perna conhecida é distância `null` — nunca
+zero, que desceria o combustível a nada.
+
+⚠️ **O pedágio não entra, e diz que não entrou.** Ele precisa dos `nodeIds` de `annotations=nodes`
+(spec 090), e a sugestão não os persiste. A parcela sai como `TOLL_NOT_AVAILABLE_IN_SUGGESTION`,
+distinta de `NOT_RECORDED` de propósito: na viagem o operador **pode** lançar, e dizer "ninguém
+lançou" numa tela sem viagem o manda procurar um botão que não existe. Quem for persistir os
+`nodeIds` fecha isso — é spec própria, porque mexe na **escrita** do solver.
+
+⚠️ **A conta é uma só em todo o produto.** `buildValuationFromContext`
+(`trips/application/read-trip-valuation.use-case.ts`) é o seam público que a viagem, a prévia da
+montagem e a sugestão compartilham. Uma segunda implementação da margem divergiria **calada** — foi
+exatamente assim que o preço do combustível passou a ler só o ajuste manual enquanto a ficha do
+veículo lia o efetivo (spec 100).
+
+⚠️ **Tempo total é a soma das durações, não o máximo**: são caminhões em paralelo, e a pergunta é
+quanto custa operar o conjunto, não quando o último chega. Uma lacuna de qualquer veículo torna o
+conjunto incompleto, e `test/suggestion-valuation/report.contract.ts` (frontend) reprova o
+componente se o lucro aparecer sem a marca — inclusive se ela ficar escondida atrás de uma segunda
+condição. ⚠️ O guard do corpo é `hasExactKeys` nas duas formas: **a API sobe antes do frontend**,
+senão o painel some com 200 na rede e nada no console, o mesmo defeito de `VEHICLE_DETAIL_KEYS`.
 
 ⚠️ **O preenchimento é vínculo único, nunca dedução.** `multiVehiclePairing.service.ts` (frontend)
 preenche o outro lado do par só quando `fleet_driver_vehicle_assignments` tem **um** — que é o caso

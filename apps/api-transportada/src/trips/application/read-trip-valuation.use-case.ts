@@ -92,6 +92,11 @@ export type TripValuationContext = {
   readonly toll?: null | TollRouteCost
   /** Pedágio e avulsos lançados na viagem. `null` quando ninguém lançou nada. */
   readonly tollTotal?: null | string
+  /**
+   * Spec 101 D2: **por que** não há projeção de pedágio, quando a razão não é "ninguém lançou".
+   * Hoje só a sugestão multi-veículo a preenche. Ausente é o comportamento de sempre.
+   */
+  readonly tollUnavailableReason?: 'suggestion'
   readonly vehicle: TripValuationVehicle
 }
 
@@ -150,7 +155,7 @@ export async function readTripValuation(input: ReadTripValuationInput): Promise<
   const context = await input.repository.readContext(input)
   if (context === null) throw new TripNotFoundError()
 
-  return valuationOf({
+  return buildValuationFromContext({
     companyId: input.companyId,
     context,
     repository: input.repository,
@@ -246,7 +251,7 @@ export async function previewTripValuation(
     tollBooths: input.tollBooths,
   })
 
-  return valuationOf({
+  return buildValuationFromContext({
     companyId: input.companyId,
     context: { ...context, distanceMeters: road.distanceMeters, toll: road.toll },
     repository: input.repository,
@@ -293,7 +298,20 @@ async function resolvePreviewRoad(input: {
   }
 }
 
-async function valuationOf(input: {
+/**
+ * A conta em si, a partir de um contexto **já resolvido** — receita por nota, parcelas de custo,
+ * imposto sobre a receita apurada.
+ *
+ * ⚠️ **Exportada de propósito, e é a única conta de margem do produto.** Quem monta o contexto varia
+ * — a viagem existente soma `trip_stops`, a prévia vai ao roteirizador, e a sugestão multi-veículo
+ * (spec 101 D1) soma as paradas que o solver já escolheu —, mas a conta é uma só. Uma segunda
+ * implementação da margem divergiria **calada**: foi exatamente assim que o preço do combustível
+ * passou meses lendo só o ajuste manual enquanto a ficha do veículo lia o efetivo (spec 100).
+ *
+ * Quem chamar isto é responsável por `context.distanceMeters` e `context.toll`: ausência é `null`,
+ * e a política já a traduz em lacuna nomeada. Nunca zero.
+ */
+export async function buildValuationFromContext(input: {
   readonly companyId: string
   readonly context: TripValuationContext
   readonly repository: TripValuationPort
@@ -436,7 +454,24 @@ function resolveTollParcel(context: TripValuationContext): TripCostParcel {
   if (recorded.gap === null) return recorded
 
   const calculated = context.toll ?? null
-  if (calculated === null) return recorded
+  if (calculated === null) {
+    /**
+     * ⚠️ Sem projeção, a causa importa: na viagem é falta de lançamento (acionável), e na sugestão
+     * é falta de dado para calcular (não acionável ali). Colapsá-las mandaria o operador procurar
+     * um botão de lançar pedágio numa tela onde viagem nenhuma existe.
+     */
+    if (context.tollUnavailableReason === 'suggestion') {
+      return {
+        amount: ZERO,
+        detail: null,
+        gap: VALUATION_GAPS.tollNotAvailableInSuggestion,
+        kind: 'toll',
+        source: 'missing',
+      }
+    }
+
+    return recorded
+  }
 
   /**
    * ⚠️ Praça sem tarifa no trajeto torna o total **incompleto**, e ele precisa dizer isso: quem lê
@@ -486,11 +521,26 @@ function resolveFuelParcel(input: {
   }
   const consumption = context.vehicle.kilometersPerLiter
   const price = context.fuelPricePerLiter
-  if (consumption === null || price === null) {
+  /**
+   * ⚠️ As duas ausências são lacunas distintas porque se resolvem em telas distintas: o consumo é
+   * campo da ficha do veículo e o preço é a aba Combustível da frota. Uma lacuna só — "consumo do
+   * veículo ou preço do combustível" — obrigava o operador a conferir as duas para descobrir qual
+   * faltava, e a conta continuava sem combustível enquanto ele procurava.
+   */
+  if (consumption === null) {
     return {
       amount: ZERO,
       detail: null,
-      gap: VALUATION_GAPS.noFuelBaseline,
+      gap: VALUATION_GAPS.noFuelConsumption,
+      kind: 'fuel',
+      source: 'missing',
+    }
+  }
+  if (price === null) {
+    return {
+      amount: ZERO,
+      detail: null,
+      gap: VALUATION_GAPS.noFuelPrice,
       kind: 'fuel',
       source: 'missing',
     }

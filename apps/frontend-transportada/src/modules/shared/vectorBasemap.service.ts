@@ -10,7 +10,7 @@ import { Protocol } from 'pmtiles'
  */
 import 'maplibre-gl/dist/maplibre-gl.css'
 
-// eslint-disable-next-line import/no-unresolved -- `?url` é resolvido pelo Vite, não pelo TypeScript
+/** ⚠️ `?url` é resolvido pelo **Vite**, não pelo TypeScript — daí o `@ts-expect-error` abaixo. */
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 
 /**

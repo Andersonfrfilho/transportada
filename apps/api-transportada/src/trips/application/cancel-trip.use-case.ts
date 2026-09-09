@@ -42,6 +42,13 @@ export async function cancelTrip(input: CancelTripInput): Promise<CancelTripResu
   }
   if (transition.outcome === 'unchanged') return { tripStatus }
 
-  const nextStatus = await input.repository.markCancelled(input)
+  /**
+   * ⚠️ Só o que a porta declara: passar o `input` inteiro entregava o **próprio repositório** para
+   * dentro da persistência — inócuo hoje, e exatamente o tipo de objeto que acaba num log.
+   */
+  const nextStatus = await input.repository.markCancelled({
+    companyId: input.companyId,
+    tripId: input.tripId,
+  })
   return { tripStatus: nextStatus }
 }

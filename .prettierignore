@@ -5,6 +5,10 @@ PROJECT.MD
 .history
 .omc
 .omo
+# Worktrees de sessão do Claude Code: já ignorados pelo git (.git/info/exclude), e são cópias
+# de outra árvore — formatá-las é policiar código que não é deste checkout, e o `make check` do
+# repositório reprovava por 103 arquivos que ninguém desta branch escreveu.
+.claude/worktrees
 # Gerado pelo drizzle-kit a cada migration — formatar produz churn e um diff de milhares de linhas
 apps/*/drizzle/*/snapshot.json
 apps/*/drizzle*/meta

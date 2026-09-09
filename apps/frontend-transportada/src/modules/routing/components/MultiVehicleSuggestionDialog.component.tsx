@@ -17,6 +17,8 @@ import {
   UNASSIGNED_GROUP,
 } from '../shared/multiVehicleSuggestion.service'
 import styles from '../styles/routing.module.css'
+import { SuggestionValuationReport } from './SuggestionValuationReport.component'
+import { SuggestionVehicleValuation } from './SuggestionVehicleValuation.component'
 
 type MultiVehicleSuggestionDialogProps = Readonly<{
   dialog: MultiVehicleSuggestionController
@@ -178,6 +180,15 @@ export function MultiVehicleSuggestionDialog({
           <p role="status">{t(`status.${dialog.suggestion.status}`)}</p>
         )}
 
+        {/* Spec 101: o conjunto antes dos veículos — a decisão é sobre a distribuição inteira. */}
+        {groups.length > 0 && dialog.accepted === null && dialog.valuation.canRead && (
+          <SuggestionValuationReport
+            isLoading={dialog.valuation.isLoading}
+            valuation={dialog.valuation.valuation}
+            vehicleLabels={vehicleLabels}
+          />
+        )}
+
         {groups.length > 0 && dialog.accepted === null && (
           <div className={styles.multiVehicleGroups}>
             {groups.map((group) => (
@@ -197,6 +208,17 @@ export function MultiVehicleSuggestionDialog({
                       })}
                 </h3>
                 <p>{t('multiVehicle.stopCount', { count: group.stops.length })}</p>
+                {/* Spec 101: quanto esta viagem proposta rende — a decisão que a tela pede. */}
+                {dialog.valuation.canRead && group.vehicleId !== UNASSIGNED_GROUP && (
+                  <SuggestionVehicleValuation
+                    isLoading={dialog.valuation.isLoading}
+                    valuation={
+                      dialog.valuation.valuation?.vehicles.find(
+                        (entry) => entry.vehicleId === group.vehicleId,
+                      ) ?? null
+                    }
+                  />
+                )}
                 <ol className={styles.multiVehicleStops}>
                   {group.stops.map((stop) => (
                     <li key={`${group.vehicleId}-${stop.sequence}`}>{stop.label}</li>

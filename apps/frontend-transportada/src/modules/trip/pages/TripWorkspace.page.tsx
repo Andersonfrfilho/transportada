@@ -28,6 +28,7 @@ import {
 } from '../queries/useDeliveryProofSettings.query'
 import { TripTable } from '../components/TripTable.component'
 import { useTripQuickCreate } from '../hooks/useTripQuickCreate.hook'
+import { TRIP_LIST_QUERY_KEY } from '../shared/trip.constant'
 import { useTripRouteAssembly } from '../hooks/useTripRouteAssembly.hook'
 import { useTripTable } from '../hooks/useTripTable.hook'
 import { useTripWorkspace } from '../hooks/useTripWorkspace.hook'
@@ -194,6 +195,23 @@ export function TripWorkspacePage() {
       .filter((vehicle) => vehicle.status === 'active' && vehicle.role === 'traction')
       .map((vehicle) => vehicle.id),
   })
+  /**
+   * Spec 102: cancelar as marcadas, **uma por uma e em sequência**. `Promise.all` mandaria N
+   * escritas concorrentes sobre o mesmo tenant, e a primeira falha esconderia quais das outras
+   * chegaram a acontecer — aqui a lista para na falha, e o que já foi cancelado está cancelado.
+   */
+  const cancelSelectedMutation = useMutation({
+    mutationFn: async () => {
+      for (const trip of table.cancellableSelection) {
+        await workspace.controller.cancelTrip({ tripId: trip.id })
+      }
+    },
+    onSuccess: () => {
+      table.clearSelection()
+      void queryClient.invalidateQueries({ queryKey: TRIP_LIST_QUERY_KEY })
+    },
+  })
+
   const assembly = useTripRouteAssembly({
     canManageTrips: workspace.controller.canManageTrips,
     /**
@@ -349,7 +367,13 @@ export function TripWorkspacePage() {
               ) : null}
 
               {table.tripsQuery.isLoading ? null : (
-                <TripTable table={table} vehicles={fleet.viewModel.vehicles ?? []} />
+                <TripTable
+                  canCancel={workspace.controller.canManageTrips}
+                  isCancelling={cancelSelectedMutation.isPending}
+                  onCancelSelected={() => cancelSelectedMutation.mutate()}
+                  table={table}
+                  vehicles={fleet.viewModel.vehicles ?? []}
+                />
               )}
             </>
           )}

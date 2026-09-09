@@ -597,8 +597,11 @@
       "NO_DRIVER_RATE": "rota do agregado sem valor cadastrado",
       "NO_FEDERAL_REGIME": "regime federal não declarado",
       "NO_FREIGHT_RULE": "sem regra de frete para o destino",
-      "NO_FUEL_BASELINE": "consumo do veículo ou preço do combustível sem cadastro",
+      "NO_FUEL_BASELINE": "consumo médio do veículo não produz conta",
+      "NO_FUEL_CONSUMPTION": "veículo sem consumo médio na ficha",
+      "NO_FUEL_PRICE": "sem preço para o combustível deste veículo",
       "NO_PLANNED_DISTANCE": "roteiro ainda não calculado — o combustível entra depois",
+      "TOLL_NOT_AVAILABLE_IN_SUGGESTION": "pedágio só é calculado depois da viagem criada",
       "SALARIED_CREW_MEMBER": "há motorista assalariado — custo do período, não da viagem",
       "TOLL_PARTIAL": "praça sem tarifa conhecida no trajeto — o total soma só as demais"
     },
@@ -778,5 +781,24 @@
     "missingBedLink": "Abrir a ficha do veículo",
     "layer": "Camada {{index}}",
     "layerSummary": " · {{boxes}} caixas · {{stops}} parada(s) · {{height}} m"
+  },
+  "selection": {
+    "barLabel": "Ações em massa",
+    "cancelTrips": "Cancelar selecionadas",
+    "clear": "Limpar seleção",
+    "count_one": "{{count}} viagem selecionada",
+    "count_other": "{{count}} viagens selecionadas",
+    "selectAll": "Selecionar todas as viagens canceláveis da página",
+    "selectTrip": "Selecionar a viagem do veículo {{vehicle}}"
+  },
+  "cancelDialog": {
+    "cancelling": "Cancelando…",
+    "close": "Fechar",
+    "confirm": "Cancelar viagens",
+    "keep": "Manter",
+    "irreversible": "A carga volta ao pool e pode ser vinculada a outra viagem. O vínculo com esta viagem fica gravado como histórico, e cancelar não pode ser desfeito.",
+    "subtitle": "A viagem continua no registro, com a situação Cancelada.",
+    "title_one": "Cancelar {{count}} viagem?",
+    "title_other": "Cancelar {{count}} viagens?"
   }
 }
