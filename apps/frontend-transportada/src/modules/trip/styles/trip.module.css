@@ -2121,3 +2121,38 @@
 .bulkCount {
   font-weight: 600;
 }
+
+/* Spec 107: a sobra da roteirização — a frase resume, o expandido permite agir. */
+.leftovers {
+  border: 1px solid color-mix(in srgb, var(--color-alert) 40%, transparent);
+  display: grid;
+  gap: var(--space-2);
+  margin-block: var(--space-2);
+  padding: var(--space-2);
+}
+
+.leftoversHead {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: space-between;
+}
+
+.leftoversHead p {
+  margin: 0;
+}
+
+.leftoversDetail {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.leftoversDetail dt {
+  color: var(--color-text-muted);
+}
+
+.leftoversDetail dd {
+  margin: 0;
+}

@@ -21,7 +21,12 @@ import {
 import { loadAvailableTripDocuments } from '../shared/availableTripDocuments.service'
 import { ROUTE_ASSEMBLY_TIMEOUT_CODE } from '../shared/routeAssemblyFailure.service'
 import { TRIP_QUERY_KEY } from '../shared/trip.constant'
-import type { AcceptedMultiVehicleTrip, TripCandidateDocument } from '../shared/trip.types'
+import type {
+  AcceptedMultiVehicleTrip,
+  MultiVehicleLeftoverStop,
+  SkippedMultiVehicleDocument,
+  TripCandidateDocument,
+} from '../shared/trip.types'
 import {
   EMPTY_TRIP_ROUTE_ASSEMBLY,
   validateRouteAssembly,
@@ -33,6 +38,13 @@ const SUGGESTION_POLL_MS = 2_000
 const SUGGESTION_POLL_CAP = 60
 
 export type TripRouteAssemblyOutcome = Readonly<{
+  /**
+   * Spec 107: as notas que o aceite pulou por já estarem vivas em outra viagem, e as paradas que
+   * ficaram sem veículo. ⚠️ Sugestão que devolve quarenta paradas e cala sobre doze **parece
+   * completa** — o operador aceita e descobre a carga esquecida no dia seguinte.
+   */
+  leftoverStops: readonly MultiVehicleLeftoverStop[]
+  skippedDocuments: readonly SkippedMultiVehicleDocument[]
   trips: readonly AcceptedMultiVehicleTrip[]
 }>
 
@@ -148,7 +160,12 @@ export function useTripRouteAssembly(
       })
       await waitForSuggestion(suggestion.id)
       const accepted = await client.acceptMultiVehicleSuggestion({ suggestionId: suggestion.id })
-      return { trips: accepted.trips }
+
+      return {
+        leftoverStops: accepted.leftoverStops,
+        skippedDocuments: accepted.skippedDocuments,
+        trips: accepted.trips,
+      }
     },
     onSuccess: (result) => {
       setOutcome(result)

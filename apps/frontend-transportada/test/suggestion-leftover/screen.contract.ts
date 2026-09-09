@@ -1,0 +1,81 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+import { readFileSync } from 'node:fs'
+
+import { describe, expect, test } from 'bun:test'
+
+import trip from '@/modules/trip/locales/trip.locale.json'
+import tripEn from '@/modules/trip/locales/trip.en.locale.json'
+
+const PANEL = new URL(
+  '../../src/modules/trip/components/TripRouteAssemblyLeftovers.component.tsx',
+  import.meta.url,
+)
+const PAGE = new URL('../../src/modules/trip/pages/TripWorkspace.page.tsx', import.meta.url)
+
+/**
+ * Contrato **de tela**, e ele existe porque o defeito que previne não aparece em teste de domínio: a
+ * API devolvia a sobra desde a spec 106 e a tela simplesmente não a lia. As notas sumiam da proposta
+ * sem explicação nenhuma, e o roteiro **parecia completo**.
+ */
+describe('a sobra aparece na tela (spec 107)', () => {
+  const source = readFileSync(PANEL, 'utf8')
+
+  test('imprime o resumo e o expandido', () => {
+    expect(source).toInclude("t('routeAssembly.leftovers.summary'")
+    /** O rótulo do botão é ternário (mostrar/ocultar), então a chave aparece sem o `t(` colado. */
+    expect(source).toInclude('routeAssembly.leftovers.show')
+    expect(source).toInclude('routeAssembly.leftovers.hide')
+  })
+
+  /** As três causas pedem ações diferentes: cadastrar zona, corrigir endereço, ou nada. */
+  test('separa as três causas', () => {
+    expect(source).toInclude('routeAssembly.leftovers.notCovered')
+    expect(source).toInclude('routeAssembly.leftovers.imprecise')
+    expect(source).toInclude('routeAssembly.leftovers.alreadyLinked')
+  })
+
+  /**
+   * ⚠️ O painel some **só** quando não há nada a dizer. Uma segunda condição — permissão, aba,
+   * tamanho de tela — é o caminho pelo qual a sobra desaparece sem ninguém notar, e o roteiro volta
+   * a parecer completo.
+   */
+  test('só some quando não há sobra nenhuma', () => {
+    const guard = source.slice(source.indexOf('const total ='), source.indexOf('return ('))
+
+    expect(guard).toInclude('if (total === 0) return null')
+    expect(guard).not.toInclude('&&')
+  })
+
+  test('está montado na tela de viagens', () => {
+    expect(readFileSync(PAGE, 'utf8')).toInclude('TripRouteAssemblyLeftovers')
+  })
+
+  test('tem rótulo nos dois idiomas', () => {
+    for (const dictionary of [trip, tripEn]) {
+      /** Desce pelo JSON sem prometer forma que o arquivo pode não ter — molde do gap-labels. */
+      const routeAssembly = (dictionary as unknown as Record<string, unknown>).routeAssembly
+      const leftovers =
+        typeof routeAssembly === 'object' && routeAssembly !== null
+          ? ((routeAssembly as Record<string, unknown>).leftovers as
+              | Record<string, unknown>
+              | undefined)
+          : undefined
+
+      for (const key of [
+        'alreadyLinked_one',
+        'alreadyLinked_other',
+        'hide',
+        'imprecise_one',
+        'imprecise_other',
+        'notCovered_one',
+        'notCovered_other',
+        'show',
+        'summary_one',
+        'summary_other',
+        'title',
+      ]) {
+        expect(leftovers?.[key], `falta leftovers.${key}`).toBeTruthy()
+      }
+    }
+  })
+})

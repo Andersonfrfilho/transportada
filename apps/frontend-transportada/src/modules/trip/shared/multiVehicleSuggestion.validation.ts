@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { resolveLeftoverStops } from '@/modules/routing/shared/suggestionLeftover.service'
 import { TRIP_ERROR } from './trip.constant'
 import type {
   AcceptedMultiVehicleSuggestion,
@@ -58,7 +59,45 @@ export function acceptedMultiVehicleSuggestionFromApi(
   if (!isRecord(payload) || !Array.isArray(payload.trips)) {
     throw new Error(TRIP_ERROR.RESPONSE_INVALID)
   }
+  /**
+   * ⚠️ Campo ausente é resposta anterior à spec 107: lista vazia, nunca erro. A tela some com o
+   * aviso, e é o comportamento de antes — nunca uma tela quebrada durante o deploy.
+   */
+  const skipped = Array.isArray(payload.skippedDocuments) ? payload.skippedDocuments : []
+  const stops =
+    isRecord(payload.suggestion) && Array.isArray(payload.suggestion.stops)
+      ? payload.suggestion.stops
+      : []
+
   return {
+    /**
+     * ⚠️ A regra mora em `routing/shared/suggestionLeftover.service.ts`, **uma vez**. Reimplementá-la
+     * aqui produziria duas definições de "sobra" que divergiriam no dia em que uma terceira causa
+     * aparecesse — e `trip` já importa de `routing` em três outros lugares.
+     */
+    leftoverStops: resolveLeftoverStops(
+      stops.flatMap((stop) =>
+        isRecord(stop)
+          ? [
+              {
+                excludedFromOptimization: stop.excludedFromOptimization === true,
+                label: typeof stop.label === 'string' ? stop.label : '',
+                vehicleId: typeof stop.vehicleId === 'string' ? stop.vehicleId : null,
+              },
+            ]
+          : [],
+      ),
+    ),
+    skippedDocuments: skipped.flatMap((entry) =>
+      isRecord(entry) && typeof entry.nfeDocumentId === 'string'
+        ? [
+            {
+              nfeDocumentId: entry.nfeDocumentId,
+              reason: typeof entry.reason === 'string' ? entry.reason : 'already_linked',
+            },
+          ]
+        : [],
+    ),
     suggestion: multiVehicleSuggestionFromApi(payload.suggestion),
     trips: payload.trips.map(acceptedTripFromApi),
   }

@@ -687,7 +687,24 @@ export type AcceptedMultiVehicleTrip = Readonly<{
   vehicleId: string
 }>
 
+/** Spec 107 D1: a nota que o aceite pulou por já estar viva em outra viagem. */
+export type SkippedMultiVehicleDocument = Readonly<{
+  nfeDocumentId: string
+  reason: string
+}>
+
+/**
+ * Spec 107: a parada que não entrou em viagem nenhuma. ⚠️ Sugestão que devolve quarenta paradas e
+ * cala sobre doze **parece completa** — o operador aceita e descobre a carga esquecida depois.
+ */
+export type MultiVehicleLeftoverStop = Readonly<{
+  excludedFromOptimization: boolean
+  label: string
+}>
+
 export type AcceptedMultiVehicleSuggestion = Readonly<{
+  leftoverStops: readonly MultiVehicleLeftoverStop[]
+  skippedDocuments: readonly SkippedMultiVehicleDocument[]
   suggestion: MultiVehicleSuggestion
   trips: readonly AcceptedMultiVehicleTrip[]
 }>

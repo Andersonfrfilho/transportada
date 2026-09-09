@@ -19,6 +19,7 @@ import { resolveSettingsDataScope } from '@/modules/company-settings/shared/comp
 
 import { TripDeliveryProofSettingsPanel } from '../components/TripDeliveryProofSettingsPanel.component'
 import { TripOccurrenceNotifications } from '../components/TripOccurrenceNotifications.component'
+import { TripRouteAssemblyLeftovers } from '../components/TripRouteAssemblyLeftovers.component'
 import { TripRouteAssemblyDialog } from '../components/TripRouteAssemblyDialog.component'
 import {
   useDeliveryProofOverridesQuery,
@@ -330,9 +331,13 @@ export function TripWorkspacePage() {
                 formulário trazia de volta — sucesso com cara de falha.
               */}
               {assembly.outcome === null ? null : (
-                <p className={styles.hint} role="status">
-                  {t('routeAssembly.outcomeAutomatic', { count: assembly.outcome.trips.length })}
-                </p>
+                <>
+                  <p className={styles.hint} role="status">
+                    {t('routeAssembly.outcomeAutomatic', { count: assembly.outcome.trips.length })}
+                  </p>
+                  {/* Spec 107: o que não entrou em viagem nenhuma, com o motivo de cada um. */}
+                  <TripRouteAssemblyLeftovers outcome={assembly.outcome} />
+                </>
               )}
 
               <TripRouteAssemblyDialog

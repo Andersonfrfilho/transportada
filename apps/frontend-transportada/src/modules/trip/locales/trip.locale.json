@@ -582,7 +582,20 @@
     "allDrivers": "Todos ({{count}})",
     "clearDrivers": "Nenhum",
     "allVehicles": "Todos ({{count}})",
-    "clearVehicles": "Nenhum"
+    "clearVehicles": "Nenhum",
+    "leftovers": {
+      "title": "O que ficou de fora",
+      "summary_one": "1 item ficou de fora do roteiro.",
+      "summary_other": "{{count}} itens ficaram de fora do roteiro.",
+      "show": "Ver quais",
+      "hide": "Ocultar",
+      "notCovered_one": "1 parada sem motorista que cubra a região",
+      "notCovered_other": "{{count}} paradas sem motorista que cubra a região",
+      "imprecise_one": "1 parada com endereço impreciso demais para roteirizar",
+      "imprecise_other": "{{count}} paradas com endereço impreciso demais para roteirizar",
+      "alreadyLinked_one": "1 nota já vinculada a outra entrega",
+      "alreadyLinked_other": "{{count}} notas já vinculadas a outras entregas"
+    }
   },
   "valuation": {
     "title": "O que esta viagem rende e custa",

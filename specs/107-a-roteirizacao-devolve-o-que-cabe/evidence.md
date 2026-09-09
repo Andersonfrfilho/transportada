@@ -48,8 +48,36 @@ make check   exit 0
 api          4852 tests · 0 fail
 ```
 
+## A sobra na tela (segunda leva)
+
+O usuário confirmou o que eu tinha marcado como incerto: **a sobra não aparecia**. A API a devolvia
+desde a spec 106 e a tela simplesmente não a lia — as notas sumiam da proposta sem explicação, e o
+roteiro **parecia completo**.
+
+`TripRouteAssemblyLeftovers` imprime a frase e abre a lista, separada por causa:
+
+| causa                             | ação que ela pede                               |
+| --------------------------------- | ----------------------------------------------- |
+| sem motorista que cubra a região  | cadastrar cobertura, ou ofertar outro motorista |
+| endereço impreciso demais         | corrigir o endereço da nota                     |
+| nota já vinculada a outra entrega | nenhuma — ela já está em rota                   |
+
+⚠️ `test/suggestion-leftover/screen.contract.ts` afirma que o painel some **só** quando não há nada a
+dizer: uma segunda condição — permissão, aba, tamanho de tela — é o caminho pelo qual a sobra
+desaparece de novo, e o roteiro volta a parecer completo.
+
+## Um defeito meu, corrigido antes do commit
+
+Criei o serviço em `routing/shared/suggestionLeftover.service.ts` **e** reimplementei a mesma lógica
+dentro do adaptador de `trip`. Duas definições de "sobra": uma testada e sem consumidor, outra em
+produção e sem teste — exatamente o par que diverge no dia em que uma terceira causa aparecer.
+
+Colapsado numa só. O adaptador importa de `routing`, o que `trip` já faz em três outros lugares, e a
+assinatura pede a **forma mínima** (`CoverableSuggestionStop`) em vez do tipo completo — senão o
+adaptador, que lê corpo cru da API, teria de construir campos que não usa.
+
 ## O que falta (D3)
 
-A segunda onda, com a frase e o expandido. O desenho está decidido na spec — plano é **leitura**,
-não registro; "quando terminar" é **frase**, não gatilho; e não reserva nota. Falta implementar, mais
-o botão de continuação, que é o ganho real de operação.
+A segunda onda: a frase _"não couberam 56 — o RTD5J78 termina por volta das 14h e cobre 40 delas"_,
+e o botão de continuação. O desenho está decidido na spec — plano é **leitura**, não registro;
+"quando terminar" é **frase**, não gatilho; e não reserva nota.
