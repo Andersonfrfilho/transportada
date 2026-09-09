@@ -541,7 +541,9 @@
       "freight": "Frete"
     },
     "selectAllFiltered": "Selecionar as {{count}} do filtro",
-    "clearFilteredSelection": "Desmarcar as {{count}} do filtro"
+    "clearFilteredSelection": "Desmarcar as {{count}} do filtro",
+    "hiddenBySelection_one": "{{count}} nota marcada está fora do filtro atual e não entra na viagem.",
+    "hiddenBySelection_other": "{{count}} notas marcadas estão fora do filtro atual e não entram na viagem."
   },
   "routeAssembly": {
     "title": "Montar roteiro pela busca de notas",

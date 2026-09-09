@@ -114,6 +114,16 @@ export function TripDocumentSearch({
         ) : null}
       </div>
 
+      {/*
+        ⚠️ Spec 103: marcação que o filtro escondeu não sai — mas o operador precisa saber que ela
+        existe, senão ele estreita o filtro, vê o número cair e conclui que perdeu a seleção.
+      */}
+      {table.selectionHiddenByFilter > 0 ? (
+        <p className={styles.hint} role="status">
+          {t('quickCreate.hiddenBySelection', { count: table.selectionHiddenByFilter })}
+        </p>
+      ) : null}
+
       {isOpen ? (
         <>
           <label className={styles.scanField}>

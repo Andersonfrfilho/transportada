@@ -21,6 +21,12 @@ import type {
 const WEIGHT_PENALTY_MICROS_PER_KILOGRAM = 10_000_000
 const WINDOW_PENALTY_MICROS_PER_SECOND = 100_000
 const DUTY_PENALTY_MICROS_PER_SECOND = 200_000
+/**
+ * Spec 104 D3: uma parada a mais custa como ~1 tonelada de excesso — cara o bastante para o solver
+ * preferir abrir outro veículo, barata o bastante para não vencer uma violação de peso, que é a
+ * restrição física de verdade.
+ */
+const STOP_COUNT_PENALTY_MICROS = 10_000_000
 /** Par inalcançável não é rota cara: é rota que não existe, e tem de perder de qualquer alternativa. */
 const UNREACHABLE_PENALTY_MICROS = 1_000_000_000_000
 
@@ -114,6 +120,25 @@ export function evaluateRoute(input: {
   if (overweight > 0) {
     penaltyMicros += overweight * WEIGHT_PENALTY_MICROS_PER_KILOGRAM
     violations.push({ amount: overweight, kind: 'weight', stopIndex: null, vehicleId: vehicle.id })
+  }
+
+  /**
+   * Spec 104 D3: **o fitness é a soma dos custos, e soma é indiferente à distribuição** — concentrar
+   * paradas próximas num veículo até a reduz. Foi assim que uma viagem levou 207 notas e outra 8.
+   * O teto é o único termo do objetivo que sabe que uma viagem pode ser grande demais.
+   */
+  const stopCap = input.problem.maxStopsPerRoute
+  if (stopCap !== null) {
+    const excessStops = input.stopIndexes.length - stopCap
+    if (excessStops > 0) {
+      penaltyMicros += excessStops * STOP_COUNT_PENALTY_MICROS
+      violations.push({
+        amount: excessStops,
+        kind: 'stop_count',
+        stopIndex: null,
+        vehicleId: vehicle.id,
+      })
+    }
   }
 
   const dutyViolation = evaluateDuty({

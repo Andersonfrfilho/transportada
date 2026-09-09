@@ -381,7 +381,9 @@
       "freight": "Freight"
     },
     "selectAllFiltered": "Select all {{count}} from the filter",
-    "clearFilteredSelection": "Unselect all {{count}} from the filter"
+    "clearFilteredSelection": "Unselect all {{count}} from the filter",
+    "hiddenBySelection_one": "{{count}} selected invoice is outside the current filter and will not be included.",
+    "hiddenBySelection_other": "{{count}} selected invoices are outside the current filter and will not be included."
   },
   "routeAssembly": {
     "title": "Build a route from the invoice search",

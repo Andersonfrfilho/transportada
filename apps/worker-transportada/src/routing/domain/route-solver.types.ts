@@ -30,6 +30,17 @@ export type RouteProblem = Readonly<{
   timeBudgetMilliseconds: number
   /** Gerações sem melhora que encerram antes do orçamento. */
   stagnationLimit: number
+  /**
+   * Spec 104 D3: teto **operacional** de paradas numa rota — quantas entregas cabem num dia de
+   * trabalho. `null` desliga, como toda restrição deste solver.
+   *
+   * ⚠️ Teto absoluto, nunca fatia igualitária (`total ÷ veículos`): a fatia obrigaria a usar a frota
+   * inteira, e 20 notas com 6 caminhões dariam teto 4 — espalhando carga que cabia num veículo só.
+   *
+   * ⚠️ Não substitui `maxDutySeconds`, que é a restrição correta. Ele é a rede para quando ela é
+   * `null`, que é o caso da maior parte das instalações hoje.
+   */
+  maxStopsPerRoute: number | null
   duty: RouteDutyLimits | null
 }>
 
@@ -63,7 +74,7 @@ export type RouteDutyLimits = Readonly<{
 }>
 
 export type RouteViolation = Readonly<{
-  kind: 'delivery_window' | 'duty_time' | 'unreachable' | 'weight'
+  kind: 'delivery_window' | 'duty_time' | 'stop_count' | 'unreachable' | 'weight'
   /** Quanto falta: quilos acima da capacidade, segundos fora da janela. Número, nunca "estourou". */
   amount: number
   stopIndex: number | null
@@ -90,4 +101,18 @@ export type RouteSolution = Readonly<{
   /** O orçamento cortou antes da convergência; o melhor encontrado veio mesmo assim. */
   truncated: boolean
   generations: number
+  /**
+   * Spec 104 D2: **quanto do resultado é otimização, e quanto é a semente gulosa.**
+   *
+   * Medido: acima de 200 paradas o GA completa **zero** gerações no orçamento padrão, e o que sai é
+   * o vizinho-mais-próximo com 2-opt parcial. Apresentar isso como sugestão otimizada é a mentira
+   * que este campo fecha — o operador aceitou um roteiro de 150 horas achando que alguém o calculou.
+   */
+  optimizationQuality: OptimizationQuality
 }>
+
+/**
+ * `optimized` parou por estagnação (convergiu); `partial` evoluiu e o relógio cortou; `greedy` não
+ * teve geração nenhuma — é a semente, não uma solução.
+ */
+export type OptimizationQuality = 'greedy' | 'optimized' | 'partial'

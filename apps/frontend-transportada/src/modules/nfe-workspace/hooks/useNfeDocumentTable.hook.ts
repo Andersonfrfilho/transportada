@@ -1,6 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useEffect, useMemo, useRef, useState } from 'react'
 
+import {
+  countSelectionHiddenByFilter,
+  scopeSelectionToFilter,
+} from '../shared/documentSelectionScope.service'
 import type { NfeDocumentListItem } from '../shared/nfeWorkspaceClient.service'
 
 export type DocumentStatus = NfeDocumentListItem['status']
@@ -324,6 +328,8 @@ export type UseNfeDocumentTableResult = Readonly<{
   searchTerm: string
   selectedCount: number
   selectedIds: ReadonlySet<string>
+  /** Spec 103: quantas marcações o filtro está escondendo. Zero na esmagadora maioria das vezes. */
+  selectionHiddenByFilter: number
   setAmountOperator: (operator: AmountOperator) => void
   setAmountValue: (value: string) => void
   setDateRange: (from: string, to: string) => void
@@ -881,6 +887,20 @@ export function useNfeDocumentTable({
   const rangeStart = totalFiltered === 0 ? 0 : pageStart + 1
   const rangeEnd = Math.min(pageStart + pageSize, totalFiltered)
 
+  /**
+   * Spec 103: **o que o filtro esconde não sai.** A seleção é podada por derivação — o `Set` bruto
+   * continua no estado, então limpar o filtro devolve a escolha de quem só queria olhar outra faixa,
+   * mas nada que a tela não mostra chega a quem despacha.
+   */
+  const scopedSelectedIds = scopeSelectionToFilter({
+    filteredIds: sorted.map((document) => document.id),
+    selectedIds,
+  })
+  const selectionHiddenByFilter = countSelectionHiddenByFilter({
+    filteredIds: sorted.map((document) => document.id),
+    selectedIds,
+  })
+
   const selectablePageItems = pageItems.filter((item) => !isDocumentBlocked(item))
   const selectedOnPage = selectablePageItems.filter((item) => selectedIds.has(item.id)).length
   const allSelected =
@@ -1127,7 +1147,7 @@ export function useNfeDocumentTable({
   }
 
   function visibleSelected(): readonly NfeDocumentListItem[] {
-    return filtered.filter((item) => selectedIds.has(item.id))
+    return filtered.filter((item) => scopedSelectedIds.has(item.id))
   }
 
   function setPage(next: number): void {
@@ -1169,8 +1189,10 @@ export function useNfeDocumentTable({
     saveAdvancedFilter,
     savedConditionCount,
     searchTerm,
-    selectedCount: selectedIds.size,
-    selectedIds,
+    selectedCount: scopedSelectedIds.size,
+    selectedIds: scopedSelectedIds,
+    /** Quantas marcações o filtro está escondendo — a tela avisa em vez de deixar descobrir depois. */
+    selectionHiddenByFilter,
     setAmountOperator,
     setAmountValue,
     setDateRange,

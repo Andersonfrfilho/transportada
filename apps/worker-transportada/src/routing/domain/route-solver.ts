@@ -8,6 +8,7 @@ import {
 } from './local-search.js'
 import { evaluateRoute, routeFitness } from './route-fitness.policy.js'
 import type {
+  OptimizationQuality,
   RouteAssignment,
   RouteProblem,
   RouteSolution,
@@ -46,14 +47,16 @@ export function solveRoute(problem: RouteProblem, now: () => number = Date.now):
   }
 
   const random = createSeededRandom(problem.seed)
-  let population = buildInitialPopulation({ problem, random, stopIndexes })
+  /** D1: o mesmo relógio que corta o laço de gerações corta o 2-opt lá dentro. */
+  const shouldStop = (): boolean => now() >= deadline
+  let population = buildInitialPopulation({ problem, random, shouldStop, stopIndexes })
   let best = population[0] ?? stopIndexes
   let bestFitness = totalFitness(problem, best)
   let generations = 0
   let stagnant = 0
 
   while (stagnant < problem.stagnationLimit && now() < deadline) {
-    population = evolve({ population, problem, random })
+    population = evolve({ population, problem, random, shouldStop })
     generations += 1
 
     const challenger = population[0]
@@ -87,6 +90,7 @@ export function solveRoute(problem: RouteProblem, now: () => number = Date.now):
  * existe justamente para pegar isso — começar acima dele é como não perder.
  */
 function buildInitialPopulation(input: {
+  readonly shouldStop: () => boolean
   readonly problem: RouteProblem
   readonly random: () => number
   readonly stopIndexes: readonly number[]
@@ -99,11 +103,15 @@ function buildInitialPopulation(input: {
     }),
   })
 
-  const population: Chromosome[] = [refine(input.problem, greedy)]
+  const population: Chromosome[] = [refine(input.problem, greedy, input.shouldStop)]
   while (population.length < POPULATION_SIZE) {
     const shuffled = shuffle(input.stopIndexes, input.random)
     population.push(
-      refine(input.problem, splitAcrossVehicles({ problem: input.problem, stopIndexes: shuffled })),
+      refine(
+        input.problem,
+        splitAcrossVehicles({ problem: input.problem, stopIndexes: shuffled }),
+        input.shouldStop,
+      ),
     )
   }
 
@@ -111,6 +119,7 @@ function buildInitialPopulation(input: {
 }
 
 function evolve(input: {
+  readonly shouldStop: () => boolean
   readonly population: readonly Chromosome[]
   readonly problem: RouteProblem
   readonly random: () => number
@@ -123,7 +132,7 @@ function evolve(input: {
     const parentB = selectByTournament(input)
     const child = orderCrossover({ parentA, parentB, random: input.random })
     const mutated = input.random() < MUTATION_RATE ? swapMutate(child, input.random) : child
-    next.push(refine(input.problem, mutated))
+    next.push(refine(input.problem, mutated, input.shouldStop))
   }
 
   return sortByFitness(input.problem, next)
@@ -207,13 +216,36 @@ function swapMutate(chromosome: Chromosome, random: () => number): Chromosome {
 }
 
 /** A hibridização: cada rota do cromossomo é polida por `2-opt` antes de o indivíduo ser avaliado. */
-function refine(problem: RouteProblem, chromosome: Chromosome): Chromosome {
+function refine(
+  problem: RouteProblem,
+  chromosome: Chromosome,
+  shouldStop: () => boolean = () => false,
+): Chromosome {
   const routes = splitChromosome(chromosome, problem.vehicles.length)
   const refined = routes.map((stopIndexes, vehicleIndex) =>
-    improveWithTwoOpt({ problem, stopIndexes, vehicleIndex }),
+    improveWithTwoOpt({ problem, shouldStop, stopIndexes, vehicleIndex }),
   )
 
   return joinChromosome(refined)
+}
+
+/**
+ * Spec 104 D2: **zero geração é a semente gulosa, não uma solução.** Medido: acima de 200 paradas o
+ * GA não completa uma geração no orçamento padrão, e o que sai é o vizinho-mais-próximo com 2-opt
+ * parcial — apresentado, até esta spec, como sugestão otimizada.
+ *
+ * ⚠️ A instância trivial (0 ou 1 parada) sai `optimized`, e está certo: não há o que otimizar, e
+ * chamar de gulosa uma resposta exata seria o erro simétrico.
+ */
+function resolveOptimizationQuality(input: {
+  readonly generations: number
+  readonly problem: RouteProblem
+  readonly truncated: boolean
+}): OptimizationQuality {
+  if (input.problem.stops.length <= 1) return 'optimized'
+  if (input.generations === 0) return 'greedy'
+
+  return input.truncated ? 'partial' : 'optimized'
 }
 
 function splitAcrossVehicles(input: {
@@ -346,6 +378,7 @@ function buildSolution(input: {
   return {
     assignments,
     generations: input.generations,
+    optimizationQuality: resolveOptimizationQuality(input),
     totalCostMicros,
     totalDistanceMeters,
     totalDurationSeconds,

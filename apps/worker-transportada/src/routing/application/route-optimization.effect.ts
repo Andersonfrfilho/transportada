@@ -18,6 +18,8 @@ export type RouteOptimizationContext = Readonly<{
   dayStartEpochSeconds: number
   depot: RouteOptimizationPoint | null
   duty: RouteProblem['duty']
+  /** Spec 104 D3: `null` desliga; hoje nenhuma origem o preenche (ver o comentário no uso). */
+  maxStopsPerRoute?: number | null
   end: RouteOptimizationPoint | null
   seed: number
   solverTimeBudgetSeconds: number
@@ -138,6 +140,12 @@ export async function runRouteOptimization(input: {
     distancesMeters: matrix.distancesMeters,
     durationsSeconds: matrix.durationsSeconds,
     duty: context.duty,
+    /**
+     * Spec 104 D3: teto **operacional** de paradas numa rota. `null` até a empresa poder declará-lo
+     * — acrescentá-lo como padrão silencioso mudaria o roteiro de toda instalação sem ninguém pedir,
+     * e um número escolhido aqui seria palpite com aparência de regra.
+     */
+    maxStopsPerRoute: context.maxStopsPerRoute ?? null,
     endIndex: context.end === null ? null : points.length - 1,
     seed: context.seed,
     stagnationLimit: 40,

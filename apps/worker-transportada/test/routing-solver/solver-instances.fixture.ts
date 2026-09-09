@@ -23,6 +23,7 @@ export function buildEuclideanProblem(input: {
   readonly demands?: readonly number[]
   readonly duty?: RouteProblem['duty']
   readonly endIndex?: number | null
+  readonly maxStopsPerRoute?: number | null
   readonly points: readonly Point[]
   readonly seed?: number
   readonly serviceTimeSeconds?: number
@@ -59,6 +60,7 @@ export function buildEuclideanProblem(input: {
     distancesMeters,
     durationsSeconds,
     duty: input.duty ?? null,
+    maxStopsPerRoute: input.maxStopsPerRoute ?? null,
     endIndex: input.endIndex === undefined ? 0 : input.endIndex,
     seed: input.seed ?? 42,
     stagnationLimit: input.stagnationLimit ?? 40,

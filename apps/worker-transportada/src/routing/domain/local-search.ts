@@ -30,13 +30,25 @@ export function createSeededRandom(seed: number): () => number {
  * A avaliação é a completa, com penalidade: um trecho que encurta o caminho e estoura a janela não é
  * melhoria, e um `2-opt` que só olhasse distância a aceitaria.
  */
+const NEVER_STOP = (): boolean => false
+
 export function improveWithTwoOpt(input: {
   readonly maxPasses?: number
   readonly problem: RouteProblem
+  /**
+   * Spec 104 D1: **o orçamento é conferido aqui, onde o tempo é gasto.** Conferi-lo só entre
+   * gerações fazia 30 s declarados virarem 183 s medidos — uma única passada de 2-opt com 345
+   * paradas leva minutos, e o laço de fora não tinha como saber disso.
+   *
+   * Interrompido, devolve **a melhor rota já conhecida**: `best` é sempre uma permutação completa,
+   * nunca um estado intermediário.
+   */
+  readonly shouldStop?: () => boolean
   readonly stopIndexes: readonly number[]
   readonly vehicleIndex: number
 }): readonly number[] {
   const maxPasses = input.maxPasses ?? 4
+  const shouldStop = input.shouldStop ?? NEVER_STOP
   let best: readonly number[] = [...input.stopIndexes]
   let bestFitness = fitnessOf(input.problem, best, input.vehicleIndex)
 
@@ -44,6 +56,12 @@ export function improveWithTwoOpt(input: {
     let improvedThisPass = false
 
     for (let start = 0; start < best.length - 1; start += 1) {
+      /**
+       * ⚠️ A conferência é no laço **externo** dos candidatos, não no interno: o relógio custa, e
+       * consultá-lo a cada par de índices pagaria o custo O(n²) vezes por passada.
+       */
+      if (shouldStop()) return best
+
       for (let end = start + 1; end < best.length; end += 1) {
         const candidate = reverseSegment(best, start, end)
         const candidateFitness = fitnessOf(input.problem, candidate, input.vehicleIndex)
