@@ -6,6 +6,7 @@ import {
   MultiVehicleSuggestionDriverRepeatedError,
   MultiVehicleSuggestionDriverUnavailableError,
   MultiVehicleSuggestionEmptyError,
+  MultiVehicleSuggestionVehicleNotInProposalError,
   MultiVehicleSuggestionVehicleUnavailableError,
   RouteSuggestionNotDecidableError,
   RouteSuggestionNotFoundError,
@@ -16,7 +17,10 @@ import type {
   MultiVehicleScope,
   MultiVehicleSuggestionUseCase,
 } from './multi-vehicle-suggestion.port.js'
-import type { MultiVehicleSuggestionRepository } from './multi-vehicle-suggestion.repository.js'
+import type {
+  MultiVehicleSuggestionGroup,
+  MultiVehicleSuggestionRepository,
+} from './multi-vehicle-suggestion.repository.js'
 import type { RouteOptimizationQueue } from './route-suggestion.use-case.js'
 import type { RouteSuggestionAssumptions } from './route-suggestion.port.js'
 import type { RouteSuggestionRepository } from './route-suggestion.repository.js'
@@ -110,12 +114,19 @@ export function createMultiVehicleSuggestionUseCase(
   }
 
   return {
-    async accept({ context, suggestionId }) {
+    async accept({ context, suggestionId, vehicleIds }) {
       const found = await readReady({ companyId: context.companyId, suggestionId })
-      const groups = await dependencies.multiVehicle.readGroups({
+      const proposed = await dependencies.multiVehicle.readGroups({
         companyId: context.companyId,
         suggestionId,
       })
+
+      /**
+       * Spec 110 D5a: **a recusa vem antes da reivindicação.** Um veículo que esta distribuição
+       * nunca propôs é pedido malformado, e consumir a sugestão por causa dele queimaria uma
+       * proposta boa — o operador perderia as quatro viagens por causa de um id errado.
+       */
+      const groups = resolveAcceptedGroups({ proposed, vehicleIds })
 
       /**
        * Spec 107 D2: **a sugestão é reivindicada antes de qualquer viagem nascer.**
@@ -301,4 +312,26 @@ export function createMultiVehicleSuggestionUseCase(
       return decided
     },
   }
+}
+
+/**
+ * Quais grupos entram no aceite. Ausente é **todos**, que é o comportamento anterior à spec 110.
+ *
+ * ⚠️ A ordem da proposta é preservada: ela é a ordem em que os veículos foram ofertados, e é ela que
+ * faz a mesma semente distribuir igual (spec 058 P2).
+ */
+function resolveAcceptedGroups(
+  input: Readonly<{
+    proposed: readonly MultiVehicleSuggestionGroup[]
+    vehicleIds: readonly string[] | undefined
+  }>,
+): readonly MultiVehicleSuggestionGroup[] {
+  if (input.vehicleIds === undefined) return input.proposed
+
+  const proposedIds = new Set(input.proposed.map((group) => group.vehicleId))
+  const unknown = input.vehicleIds.filter((vehicleId) => !proposedIds.has(vehicleId))
+  if (unknown.length > 0) throw new MultiVehicleSuggestionVehicleNotInProposalError(unknown)
+
+  const accepted = new Set(input.vehicleIds)
+  return input.proposed.filter((group) => accepted.has(group.vehicleId))
 }

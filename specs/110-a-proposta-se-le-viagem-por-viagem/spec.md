@@ -272,8 +272,11 @@ ficha do veículo lia o efetivo (spec 100).
 - **RF8** — Ações por destino (mover, remover) e adicionar destino; a viagem alterada exibe a faixa
   e a etiqueta até ser recalculada.
 - **RF9** — O razão da D7, em componente compartilhado com a criação manual.
-- **RF10** — O adaptador de `MultiVehicleProposal` passa a carregar `estimatedArrivalAt`,
-  `distanceFromPreviousMeters`, `durationFromPreviousSeconds` e `geocodingPrecision` por parada.
+- **RF10** — O adaptador de `MultiVehicleProposal` passa a carregar `sequence`,
+  `estimatedArrivalAt`, `distanceFromPreviousMeters`, `durationFromPreviousSeconds` e
+  `geocodingPrecision` por parada. ⚠️ **A API não muda**: medido em 2026-09-09, `serializeSuggestion`
+  já devolve a parada inteira e é o `coverableStopsFromApi` que lê quatro campos de doze — então esta
+  RF não tem janela de deploy.
 
 ## Requisitos não funcionais
 

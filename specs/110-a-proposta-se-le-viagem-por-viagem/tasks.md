@@ -133,6 +133,11 @@ diferentes**, que é o defeito que o `web.md` §14 chama de divergência — pio
 - [ ] **T030** Responsivo: 375px, 768px e 1280px; alvo de toque de 44px nas ações — evidência visual
 - [ ] **T031** Esqueletos com a forma do conteúdo em todo carregamento novo
       (`docs/frontend/loading.md`) — contrato de skeleton
+- [ ] **T032b** 🧠 **Verificação no navegador, com seeds**: subir a stack (`make dev`), semear com
+      `db:seed:local`, e conferir na tela que a proposta e a criação manual têm os componentes do
+      preview — lista expansiva, linha do tempo com praça no trecho, razão de uma coluna, faixa do
+      veículo, planta 3D. ⚠️ Exigência acrescentada pelo usuário na condição do `/goal`: a feature
+      não fecha com contrato verde só; ela fecha com a tela conferida — evidência com captura
 - [ ] **T032** `make check` + `bun run smoke` verdes — evidência colada em `evidence.md`
 - [ ] **T033** Atualiza `CLAUDE.md` com o que mudou de lugar e por quê (regra inquebrável §14 do
       `code-standart.md`)

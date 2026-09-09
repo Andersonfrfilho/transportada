@@ -99,6 +99,24 @@ export class MultiVehicleSuggestionDocumentUnavailableError extends ApiError {
   }
 }
 
+/**
+ * Spec 110 D5a: o aceite parcial nomeia os veículos que entram, e um id de fora da proposta é
+ * recusado **antes** de qualquer viagem nascer.
+ *
+ * ⚠️ `400` e não `409`: não é conflito de estado, é pedido malformado — o cliente mandou um veículo
+ * que esta distribuição nunca propôs, e repetir o mesmo pedido nunca vai funcionar.
+ */
+export class MultiVehicleSuggestionVehicleNotInProposalError extends ApiError {
+  public constructor(vehicleIds: readonly string[]) {
+    super({
+      code: 'ROUTE_SUGGESTION_VEHICLE_NOT_IN_PROPOSAL',
+      details: vehicleIds.map((vehicleId) => ({ field: 'vehicleIds', message: vehicleId })),
+      message: 'One or more vehicles are not part of this proposal',
+      status: 400,
+    })
+  }
+}
+
 /** Veículo que não é de tração não puxa carga: implemento sozinho não é uma viagem. */
 export class MultiVehicleSuggestionVehicleUnavailableError extends ApiError {
   public constructor(vehicleIds: readonly string[]) {

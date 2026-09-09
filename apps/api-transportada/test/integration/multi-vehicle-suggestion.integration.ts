@@ -203,6 +203,65 @@ describe('o aceite da multi-veículo contra Postgres (spec 058 P2)', () => {
     })
   })
 
+  /**
+   * Spec 110 D5a: **aceitar parte, contra o banco.** O contrato de aplicação prova o filtro; só o
+   * Postgres prova que a nota do veículo não marcado continua **livre** — que é a frase que a tela
+   * promete ao operador ("as notas voltam para o maço").
+   */
+  testWithPostgres('aceita um dos dois veículos e deixa a carga do outro livre', async () => {
+    await withSharedDatabase(async (database) => {
+      const world = await seedSuggestion(database)
+      const useCase = buildUseCase(database)
+      const chosen = world.vehicles[1]?.vehicleId ?? ''
+
+      const accepted = await useCase.accept({
+        context: world.context,
+        suggestionId: world.suggestionId,
+        vehicleIds: [chosen],
+      })
+
+      expect(accepted.trips).toHaveLength(1)
+      expect(accepted.trips[0]?.vehicleId).toBe(chosen)
+      expect(await countTrips(database, world.companyId)).toBe(1)
+
+      /**
+       * ⚠️ O que não foi aceito **não tem vínculo nenhum**: as notas do outro caminhão continuam
+       * como estavam, disponíveis para a próxima montagem. Nada a desfazer, porque nada foi feito.
+       */
+      const linked = await database.db
+        .select({ nfeDocumentId: tripDocuments.nfeDocumentId })
+        .from(tripDocuments)
+        .where(eq(tripDocuments.companyId, world.companyId))
+
+      expect(linked.length).toBe(accepted.trips[0]?.documentCount ?? 0)
+      expect(linked.length).toBeLessThan(world.documentIds.length)
+    })
+  })
+
+  testWithPostgres('veículo fora da proposta não consome a sugestão', async () => {
+    await withSharedDatabase(async (database) => {
+      const world = await seedSuggestion(database)
+      const useCase = buildUseCase(database)
+
+      await expect(
+        useCase.accept({
+          context: world.context,
+          suggestionId: world.suggestionId,
+          vehicleIds: [crypto.randomUUID()],
+        }),
+      ).rejects.toThrow()
+
+      expect(await countTrips(database, world.companyId)).toBe(0)
+
+      /** A proposta continua boa: o aceite inteiro ainda funciona depois do id errado. */
+      const accepted = await useCase.accept({
+        context: world.context,
+        suggestionId: world.suggestionId,
+      })
+      expect(accepted.trips).toHaveLength(2)
+    })
+  })
+
   /** Decidida uma vez, decidida para sempre: o segundo clique não cria a segunda leva de viagens. */
   testWithPostgres('o segundo aceite não cria viagem de novo', async () => {
     await withSharedDatabase(async (database) => {

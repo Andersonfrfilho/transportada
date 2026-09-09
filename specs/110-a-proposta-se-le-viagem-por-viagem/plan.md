@@ -24,7 +24,11 @@ parcial (RF6) e o adaptador da proposta (RF10).
 - `src/routing/presentation/*.routes.ts` · `*.schema.ts` — `vehicleIds` opcional no corpo do aceite.
 - `src/routing/application/accept-multi-vehicle-suggestion.use-case.ts` — filtra os veículos aceitos
   antes de criar; a reivindicação atômica da 107 D2 **não muda**.
-- `src/routing/presentation/` — a leitura da proposta publica os campos da RF10 por parada.
+  ⚠️ **Correção medida em 2026-09-09, ao começar a G002:** a API **já publica** a parada inteira.
+  `serializeSuggestion` devolve `suggestion.stops` sem recorte, e `RouteSuggestionStop` no
+  `route-suggestion.port.ts` já tem `estimatedArrivalAt`, `distanceFromPreviousMeters`,
+  `durationFromPreviousSeconds` e `geocodingPrecision`. A perda é **inteiramente** do
+  `coverableStopsFromApi` no frontend, que lê quatro campos de doze. A RF10 é frontend, não API.
 
 ### frontend-transportada
 
@@ -66,11 +70,11 @@ POST /route-suggestions/:id/accept
   400:  ROUTE_SUGGESTION_VEHICLE_NOT_IN_PROPOSAL
 ```
 
-`GET /route-suggestions/:id/proposal` passa a devolver, por parada:
-`estimatedArrivalAt`, `distanceFromPreviousMeters`, `durationFromPreviousSeconds`,
-`geocodingPrecision`. ⚠️ O guard do frontend é `hasExactKeys`: **a API sobe primeiro**, senão a
-proposta é recusada na validação e o painel some com 200 na rede e nada no console — o mesmo defeito
-de `VEHICLE_DETAIL_KEYS`.
+A leitura da proposta **não muda**: ela já devolve a parada completa. O que muda é o adaptador
+`coverableStopsFromApi`, que passa a ler os quatro campos que já chegam.
+
+⚠️ Consequência boa: **não há janela de deploy** entre API e frontend para a RF10 — o bundle novo lê
+um corpo que a API já serve hoje. A ordem "API primeiro" vale só para o `vehicleIds` do aceite.
 
 ## Dados, migration e rollback
 

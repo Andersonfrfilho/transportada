@@ -22,6 +22,7 @@ import {
   MultiVehicleSuggestionDriverRepeatedError,
   MultiVehicleSuggestionDriverUnavailableError,
   MultiVehicleSuggestionEmptyError,
+  MultiVehicleSuggestionVehicleNotInProposalError,
   MultiVehicleSuggestionVehicleUnavailableError,
   RouteSuggestionNotDecidableError,
   RouteSuggestionNotFoundError,
@@ -645,5 +646,126 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
     expect(accepted.trips.map((trip) => trip.vehicleId)).toEqual([SECOND_VEHICLE, FIRST_VEHICLE])
     /** Sem endereço proposto não há o que reordenar — e chamar a reordenação com lista vazia é recusa. */
     expect(fixture.calls.reorder).toEqual([])
+  })
+
+  /**
+   * Spec 110 D5: **aceitar parte é a decisão que a tela existe para apoiar.** Uma viagem com o
+   * caminhão errado obrigava a descartar as quatro e refazer o pedido inteiro.
+   */
+  test('aceita só os veículos marcados, e não cria nada para os outros', async () => {
+    const fixture = buildFixture({
+      groups: [
+        {
+          documentIds: [FIRST_DOCUMENT],
+          driverId: null,
+          estimatedArrivalByAddressKey: new Map(),
+          orderedAddressKeys: ['3543402|14020000|100'],
+          vehicleId: FIRST_VEHICLE,
+        },
+        {
+          documentIds: [SECOND_DOCUMENT],
+          driverId: null,
+          estimatedArrivalByAddressKey: new Map(),
+          orderedAddressKeys: ['3543402|14020000|200'],
+          vehicleId: SECOND_VEHICLE,
+        },
+      ],
+    })
+
+    const accepted = await fixture.useCase.accept({
+      context: CONTEXT,
+      suggestionId: SUGGESTION_ID,
+      vehicleIds: [SECOND_VEHICLE],
+    })
+
+    expect(accepted.trips.map((trip) => trip.vehicleId)).toEqual([SECOND_VEHICLE])
+    /** ⚠️ A nota do veículo não marcado **não é vinculada**: ela volta ao maço porque nunca saiu. */
+    expect(fixture.calls.link).toHaveLength(1)
+    expect(fixture.calls.plan).toHaveLength(1)
+  })
+
+  /**
+   * ⚠️ A reivindicação atômica da spec 107 D2 **não muda com o aceite parcial**: a sugestão é
+   * consumida de uma vez. Manter `ready` para aceitar o resto depois seria descrever, na segunda
+   * metade, uma distribuição que o maço já não tem — é a mesma razão pela qual `stale` existe.
+   */
+  test('aceite parcial consome a sugestão: repetir é recusado', async () => {
+    const fixture = buildFixture({
+      groups: [
+        {
+          documentIds: [FIRST_DOCUMENT],
+          driverId: null,
+          estimatedArrivalByAddressKey: new Map(),
+          orderedAddressKeys: ['3543402|14020000|100'],
+          vehicleId: FIRST_VEHICLE,
+        },
+      ],
+    })
+
+    await fixture.useCase.accept({
+      context: CONTEXT,
+      suggestionId: SUGGESTION_ID,
+      vehicleIds: [FIRST_VEHICLE],
+    })
+
+    expect(fixture.calls.decide).toEqual([
+      {
+        companyId: COMPANY_ID,
+        decidedByUserId: USER_ID,
+        status: 'accepted',
+        suggestionId: SUGGESTION_ID,
+      },
+    ])
+  })
+
+  test('veículo fora da proposta é recusado antes de qualquer viagem nascer', async () => {
+    const fixture = buildFixture({
+      groups: [
+        {
+          documentIds: [FIRST_DOCUMENT],
+          driverId: null,
+          estimatedArrivalByAddressKey: new Map(),
+          orderedAddressKeys: ['3543402|14020000|100'],
+          vehicleId: FIRST_VEHICLE,
+        },
+      ],
+    })
+
+    await expect(
+      fixture.useCase.accept({
+        context: CONTEXT,
+        suggestionId: SUGGESTION_ID,
+        vehicleIds: [SECOND_VEHICLE],
+      }),
+    ).rejects.toBeInstanceOf(MultiVehicleSuggestionVehicleNotInProposalError)
+
+    expect(fixture.calls.decide).toEqual([])
+    expect(fixture.calls.link).toEqual([])
+  })
+
+  /** Ausente é "todos": o corpo sem `vehicleIds` é o comportamento de sempre, e não muda. */
+  test('sem vehicleIds, aceita a proposta inteira', async () => {
+    const fixture = buildFixture({
+      groups: [
+        {
+          documentIds: [FIRST_DOCUMENT],
+          driverId: null,
+          estimatedArrivalByAddressKey: new Map(),
+          orderedAddressKeys: ['3543402|14020000|100'],
+          vehicleId: FIRST_VEHICLE,
+        },
+        {
+          documentIds: [SECOND_DOCUMENT],
+          driverId: null,
+          estimatedArrivalByAddressKey: new Map(),
+          orderedAddressKeys: ['3543402|14020000|200'],
+          vehicleId: SECOND_VEHICLE,
+        },
+      ],
+    })
+
+    const accepted = await fixture.useCase.accept({ context: CONTEXT, suggestionId: SUGGESTION_ID })
+
+    expect(accepted.trips).toHaveLength(2)
   })
 })

@@ -85,3 +85,16 @@ export type CreateRouteSuggestionBody = z.infer<typeof createRouteSuggestionSche
 export type CreateMultiVehicleSuggestionBody = z.infer<typeof createMultiVehicleSuggestionSchema>
 export type RejectRouteSuggestionBody = z.infer<typeof rejectRouteSuggestionSchema>
 export type CorrectGeocodedAddressBody = z.infer<typeof correctGeocodedAddressSchema>
+
+/**
+ * Spec 110 D5a: **aceitar parte da distribuição.** Corpo ausente é a proposta inteira, que é o
+ * aceite de sempre — nenhum cliente antigo precisa mudar.
+ *
+ * ⚠️ `min(1)` quando a lista vem: aceitar com lista vazia seria pedir para criar nada e consumir a
+ * sugestão do mesmo jeito, que é a pior das duas leituras possíveis.
+ */
+export const acceptMultiVehicleSuggestionSchema = z
+  .object({
+    vehicleIds: z.array(z.uuid()).min(1).max(MAX_VEHICLES_PER_SUGGESTION).optional(),
+  })
+  .strict()

@@ -5,7 +5,7 @@
  * pertence a viagem nenhuma — ela existe justamente antes de as viagens existirem, e pendurá-la numa
  * viagem obrigaria a inventar uma para poder pedir a sugestão que decide quantas criar.
  */
-import { parseUuidPathIdentifier } from '../../http/request-parsing.service.js'
+import { parseOptionalBody, parseUuidPathIdentifier } from '../../http/request-parsing.service.js'
 import { defineRoute } from '../../http/router.service.js'
 import { HTTP_ERROR, JSON_CONTENT_TYPE } from '../../shared/api.constant.js'
 import { ApiError } from '../../shared/api.error.js'
@@ -20,7 +20,10 @@ import type {
 } from '../application/multi-vehicle-suggestion.port.js'
 import type { RouteSuggestion } from '../application/route-suggestion.port.js'
 import type { SuggestionValuation } from '../application/read-suggestion-valuation.use-case.js'
-import { createMultiVehicleSuggestionSchema } from './route-suggestion-request.schema.js'
+import {
+  acceptMultiVehicleSuggestionSchema,
+  createMultiVehicleSuggestionSchema,
+} from './route-suggestion-request.schema.js'
 
 const MULTI_VEHICLE_PATH = '/route-suggestions/multi-vehicle'
 const MULTI_VEHICLE_SUGGESTION_PATH = '/route-suggestions/:suggestionId'
@@ -100,19 +103,32 @@ export function createMultiVehicleSuggestionRoutes(dependencies: Dependencies) {
       pathname: MULTI_VEHICLE_SUGGESTION_PATH,
       policy: TRIP_READ_POLICY,
     }),
-    defineRoute<{ readonly suggestionId: string }>({
+    defineRoute<{
+      readonly suggestionId: string
+      readonly vehicleIds?: readonly string[]
+    }>({
       async handle({ context, input }): Promise<Response> {
         const accepted = await dependencies.multiVehicleSuggestions.accept({
           context: context.scope,
           suggestionId: input.suggestionId,
+          ...(input.vehicleIds === undefined ? {} : { vehicleIds: input.vehicleIds }),
         })
 
         return jsonResponse({ body: { data: serializeAccepted(accepted) }, status: 200 })
       },
       method: 'POST',
-      parse: ({ pathParameters }) => ({
-        suggestionId: parseUuidPathIdentifier(pathParameters.suggestionId ?? ''),
-      }),
+      /**
+       * Spec 110 D5a: corpo **opcional**. Sem `content-type` o aceite é o de sempre — a proposta
+       * inteira —, e é isso que mantém o cliente anterior a esta spec funcionando sem mudar nada.
+       */
+      async parse({ pathParameters, request }) {
+        const body = await parseOptionalBody(acceptMultiVehicleSuggestionSchema, request)
+
+        return {
+          suggestionId: parseUuidPathIdentifier(pathParameters.suggestionId ?? ''),
+          ...(body.vehicleIds === undefined ? {} : { vehicleIds: body.vehicleIds }),
+        }
+      },
       pathname: MULTI_VEHICLE_ACCEPT_PATH,
       policy: TRIP_MANAGE_POLICY,
     }),

@@ -78,8 +78,12 @@ export type TripClient = Readonly<{
   cancelTrip: (input: Readonly<{ tripId: string }>) => Promise<CancelTripResult>
   closeTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
   createTrip: (input: CreateTripBody) => Promise<TripDetail>
+  /**
+   * Spec 110 D5a: `vehicleIds` ausente aceita a proposta inteira — o corpo de sempre. Com a lista,
+   * só os marcados viram viagem, e o que sobra volta ao maço porque nunca saiu dele.
+   */
   acceptMultiVehicleSuggestion: (
-    input: Readonly<{ suggestionId: string }>,
+    input: Readonly<{ suggestionId: string; vehicleIds?: readonly string[] }>,
   ) => Promise<AcceptedMultiVehicleSuggestion>
   createMultiVehicleSuggestion: (
     input: CreateMultiVehicleSuggestionInput,
@@ -313,6 +317,14 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
     },
     async acceptMultiVehicleSuggestion(input) {
       const response = await authorizedRequest({
+        /**
+         * ⚠️ Sem seleção o corpo **não é enviado**: a rota lê corpo opcional pela ausência de
+         * `content-type`, e mandar `{}` faria toda instalação anterior a esta spec passar por um
+         * caminho novo sem precisar.
+         */
+        ...(input.vehicleIds === undefined
+          ? {}
+          : { body: JSON.stringify({ vehicleIds: input.vehicleIds }) }),
         dependencies,
         method: 'POST',
         path: `${ROUTE_SUGGESTIONS_PATH}/${input.suggestionId}/accept`,

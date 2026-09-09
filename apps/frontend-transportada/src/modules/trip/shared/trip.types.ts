@@ -726,8 +726,25 @@ export type MultiVehicleLeftoverStop = LeftoverStop
  * ⚠️ Neste ponto o banco tem a **sugestão**, nunca viagem: nem rascunho, nem vínculo de nota. Quem
  * cria é o aceite.
  */
+/**
+ * Spec 110: a parada proposta **como a API a manda** — `CoverableSuggestionStop` mais o que a linha
+ * do tempo precisa para desenhar o dia.
+ *
+ * ⚠️ Ela **estende** a forma mínima em vez de substituí-la: `resolveLeftoverStops` pede só quatro
+ * campos de propósito, e alargar a assinatura dele o obrigaria a construir campos que não usa.
+ */
+export type ProposalStop = CoverableSuggestionStop &
+  Readonly<{
+    distanceFromPreviousMeters: null | number
+    durationFromPreviousSeconds: null | number
+    estimatedArrivalAt: null | string
+    /** ADR-0044 §5: `city` é centroide de município, e a marca acompanha a parada até a tela. */
+    geocodingPrecision: null | string
+    sequence: number
+  }>
+
 export type MultiVehicleProposal = Readonly<{
-  stops: readonly CoverableSuggestionStop[]
+  stops: readonly ProposalStop[]
   suggestion: MultiVehicleSuggestion
 }>
 

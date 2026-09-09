@@ -1,8 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import {
-  resolveLeftoverStops,
-  type CoverableSuggestionStop,
-} from '@/modules/routing/shared/suggestionLeftover.service'
+import { resolveLeftoverStops } from '@/modules/routing/shared/suggestionLeftover.service'
 import { TRIP_ERROR } from './trip.constant'
 import type {
   AcceptedMultiVehicleSuggestion,
@@ -10,6 +7,7 @@ import type {
   MultiVehicleProposal,
   MultiVehicleSuggestion,
   MultiVehicleSuggestionStatus,
+  ProposalStop,
 } from './trip.types'
 import { isBoolean, isRecord, isString } from './tripGuards.validation'
 
@@ -64,18 +62,31 @@ function acceptedTripFromApi(payload: unknown): AcceptedMultiVehicleTrip {
  * pela leitura da proposta **e** pelo aceite — duas formas para a mesma linha divergiriam no dia em
  * que a API acrescentasse um campo.
  */
-export function coverableStopsFromApi(payload: unknown): readonly CoverableSuggestionStop[] {
+export function coverableStopsFromApi(payload: unknown): readonly ProposalStop[] {
   const stops = isRecord(payload) && Array.isArray(payload.stops) ? payload.stops : []
 
   return stops.flatMap((stop) =>
     isRecord(stop)
       ? [
           {
+            /**
+             * ⚠️ Spec 110: **a API sempre mandou os cinco de baixo, e este mapa lia quatro campos de
+             * doze.** `serializeSuggestion` devolve `suggestion.stops` sem recorte; era aqui que a
+             * ETA e a quilometragem da perna morriam, uma linha antes de virarem tela.
+             *
+             * Ausência é `null`, nunca zero: perna desenhada como `0 km` diria que a parada é na
+             * porta da anterior — e a primeira do dia não tem perna anterior nenhuma.
+             */
+            distanceFromPreviousMeters: readOptionalNumber(stop.distanceFromPreviousMeters),
+            durationFromPreviousSeconds: readOptionalNumber(stop.durationFromPreviousSeconds),
+            estimatedArrivalAt: isString(stop.estimatedArrivalAt) ? stop.estimatedArrivalAt : null,
             excludedFromOptimization: stop.excludedFromOptimization === true,
+            geocodingPrecision: isString(stop.geocodingPrecision) ? stop.geocodingPrecision : null,
             label: typeof stop.label === 'string' ? stop.label : '',
             nfeDocumentIds: Array.isArray(stop.nfeDocumentIds)
               ? stop.nfeDocumentIds.filter((id): id is string => typeof id === 'string')
               : [],
+            sequence: readOptionalNumber(stop.sequence) ?? 0,
             vehicleId: typeof stop.vehicleId === 'string' ? stop.vehicleId : null,
           },
         ]

@@ -70,8 +70,18 @@ export type AcceptedMultiVehicleSuggestion = Readonly<{
  * Daí a única diferença de desenho que importa: o aceite aqui **cria**. E como criar viagem, vincular
  * nota e ordenar parada já são casos de uso da 056, ele os chama — não reimplementa nenhum (D4).
  */
+/**
+ * Spec 110 D5a: **aceitar parte.** `vehicleIds` ausente é a proposta inteira — o corpo de sempre.
+ *
+ * ⚠️ O que não é aceito **não vira nada**: as notas voltam ao maço porque nunca saíram dele. Manter
+ * a sugestão `ready` para aceitar o resto depois foi recusado — entre os dois aceites o maço muda, e
+ * a segunda metade descreveria uma distribuição que já não existe.
+ */
+export type AcceptMultiVehicleSuggestionInput = ReadMultiVehicleSuggestionInput &
+  Readonly<{ vehicleIds?: readonly string[] }>
+
 export type MultiVehicleSuggestionUseCase = Readonly<{
-  accept: (input: ReadMultiVehicleSuggestionInput) => Promise<AcceptedMultiVehicleSuggestion>
+  accept: (input: AcceptMultiVehicleSuggestionInput) => Promise<AcceptedMultiVehicleSuggestion>
   create: (input: CreateMultiVehicleSuggestionInput) => Promise<RouteSuggestion>
   read: (input: ReadMultiVehicleSuggestionInput) => Promise<RouteSuggestion>
   reject: (input: ReadMultiVehicleSuggestionInput) => Promise<RouteSuggestion>
