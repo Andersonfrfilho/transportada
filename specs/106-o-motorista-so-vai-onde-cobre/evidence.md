@@ -77,15 +77,31 @@ cadastro — **uma por execução**, nunca por parada.
 Seis contratos novos: fallback sem cadastro, zona acumulativa, família diferente, cidade solta fora
 da zona, cidade fora da tabela virando sobra, e o casamento pela dobra do acento.
 
-## ⚠️ O elo final continua aberto
+## A costura (terceira leva) — e o teste que faltava
 
-`servableStopIndexes` **ainda chega `null`**. Tudo o que ele precisa existe e está testado — política,
-tradução, schema, consultas, `driverId`, cidade e UF na parada —, e falta **uma costura**: o efeito
-de otimização chamar `readDriverCoverage` + `readRegionCityCodes` e passar o resultado por
-`resolveServableStops` para cada veículo.
+O elo estava aberto e **nenhum teste acusava**: política, tradução, schema e consultas passavam
+sozinhos, e `servableStopIndexes` chegava `null` ao solver. A proibição existia e não restringia
+nada. A prova era literal — `grep` por chamador das três funções devolvia **zero**, e o veículo
+recebia `servableStopIndexes: null` fixo em duas linhas.
 
-Parei aqui de propósito, num ponto verde, em vez de emendar a costura no fim de uma sessão longa: ela
-mexe no caminho que roda para toda sugestão em produção, e merece começar descansada.
+`test/driver-coverage/wiring.contract.ts` é o contrato dessa costura, e ele existe justamente porque
+peça verde isolada não prova corrente ligada.
+
+**A costura mora no efeito, não no repositório**: o índice da parada só existe lá. ⚠️
+`index: offset + 1`, porque `points[0]` é o depósito — errar o deslocamento restringiria o veículo à
+parada errada, calado.
+
+O repositório passou a ler o cadastro em **duas consultas por execução**, e só quando há motorista
+pareado: a sugestão da véspera, sem escala, não paga por elas.
+
+## Verificação de que a corrente fechou
+
+```
+grep readDriverCoverage|readRegionCityCodes|resolveServableStops  → 4 chamadores
+servableStopIndexes fixo no efeito                                → virou resolveServableStops(...)
+worker  bun run test                                              → 969 pass / 0 fail
+make check                                                        → exit 0
+```
 
 ## Um susto que vale registrar
 

@@ -6,3 +6,4 @@
 import './driver-coverage/coverage.contract.js'
 import './driver-coverage/policy-parity.contract.js'
 import './driver-coverage/servable.contract.js'
+import './driver-coverage/wiring.contract.js'

@@ -172,8 +172,26 @@ export function createDrizzleRouteOptimizationRepository(
 
       const depot = await readPoint({ addressKey: settings.originAddressKey, database })
 
+      /**
+       * Spec 106: o cadastro de cobertura. Duas consultas por execução, e só quando há motorista
+       * pareado — a sugestão da véspera, sem escala, não paga por elas.
+       */
+      const driverIds = [
+        ...new Set(
+          vehicles.flatMap((vehicle) => (vehicle.driverId === null ? [] : [vehicle.driverId])),
+        ),
+      ]
+      const [driverCoverage, regionCodeByCityKey] = await Promise.all([
+        readDriverCoverage({ companyId: job.companyId, database, driverIds }),
+        driverIds.length === 0
+          ? new Map<string, string>()
+          : readRegionCityCodes({ companyId: job.companyId, database }),
+      ])
+
       return {
         companyId: job.companyId,
+        driverCoverage,
+        regionCodeByCityKey,
         /**
          * A janela da parada é absoluta no banco e relativa no solver. A meia-noite UTC do dia da
          * sugestão é a origem: qualquer outra escolha faria a mesma viagem produzir janelas
@@ -515,8 +533,9 @@ async function readVehicles(input: {
     capacityKilograms: Number(row.capacityKilograms),
     /**
      * Spec 106: a viagem já existe e o motorista dela também — a cobertura de região é resolvida na
-     * montagem, não aqui. `null` mantém o comportamento de sempre neste caminho.
+     * montagem, não aqui. `null` nos dois mantém o comportamento de sempre neste caminho.
      */
+    driverId: null,
     servableStopIndexes: null,
     /**
      * O custo por metro em micros: o solver soma milhares de vezes, e somar decimal em ponto

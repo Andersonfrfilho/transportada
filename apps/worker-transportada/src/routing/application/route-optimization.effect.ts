@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { resolveServableStops, type DriverCoverageEntry } from '../domain/servable-stops.policy.js'
 import type {
   RouteProblem,
   RouteSolution,
@@ -18,13 +19,24 @@ export type RouteOptimizationContext = Readonly<{
   dayStartEpochSeconds: number
   depot: RouteOptimizationPoint | null
   duty: RouteProblem['duty']
+  /**
+   * Spec 106: o cadastro de cobertura por motorista. **Motorista ausente do mapa serve tudo** — a
+   * regra de fallback: quem não declarou não restringiu.
+   */
+  driverCoverage?: ReadonlyMap<string, readonly DriverCoverageEntry[]> | undefined
+  /** Cidade dobrada + UF → código da zona, de `freight_region_cities`. */
+  regionCodeByCityKey?: ReadonlyMap<string, string> | undefined
   /** Spec 104 D3: `null` desliga; hoje nenhuma origem o preenche (ver o comentário no uso). */
   maxStopsPerRoute?: number | null
   end: RouteOptimizationPoint | null
   seed: number
   solverTimeBudgetSeconds: number
   stops: readonly RouteOptimizationStop[]
-  vehicles: readonly RouteVehicleInput[]
+  /**
+   * Spec 106: o veículo do contexto carrega **quem dirige**, que o do solver não precisa conhecer —
+   * a cobertura é resolvida aqui e chega ao solver já como conjunto de índices.
+   */
+  vehicles: readonly (RouteVehicleInput & Readonly<{ driverId?: string | null }>)[]
 }>
 
 export type RouteOptimizationPoint = Readonly<{
@@ -162,7 +174,25 @@ export async function runRouteOptimization(input: {
       }),
     ),
     timeBudgetMilliseconds: context.solverTimeBudgetSeconds * MILLISECONDS_PER_SECOND,
-    vehicles: context.vehicles,
+    /**
+     * Spec 106: **a costura.** O índice da parada só existe aqui — o repositório lê o cadastro, e é
+     * este ponto que sabe qual parada virou qual índice na matriz.
+     *
+     * ⚠️ `index: offset + 1` porque `points[0]` é o depósito, a mesma conta de `stops` acima. Errar
+     * o deslocamento aqui restringiria o veículo à parada errada, calado.
+     */
+    vehicles: context.vehicles.map((vehicle) => ({
+      ...vehicle,
+      servableStopIndexes: resolveServableStops({
+        coverage: context.driverCoverage?.get(vehicle.driverId ?? '') ?? [],
+        regionCodeByCityKey: context.regionCodeByCityKey ?? new Map(),
+        stops: optimizable.map((stop, offset) => ({
+          city: stop.city,
+          index: offset + 1,
+          state: stop.state,
+        })),
+      }),
+    })),
   }
 
   const solution = ports.solve(problem)
