@@ -20,10 +20,11 @@ import {
 
 import { loadAvailableTripDocuments } from '../shared/availableTripDocuments.service'
 import { ROUTE_ASSEMBLY_TIMEOUT_CODE } from '../shared/routeAssemblyFailure.service'
-import { TRIP_QUERY_KEY } from '../shared/trip.constant'
+import { TRIP_ERROR, TRIP_QUERY_KEY } from '../shared/trip.constant'
 import type {
   AcceptedMultiVehicleTrip,
   MultiVehicleLeftoverStop,
+  MultiVehicleProposal,
   SkippedMultiVehicleDocument,
   TripCandidateDocument,
 } from '../shared/trip.types'
@@ -33,6 +34,7 @@ import {
   type TripRouteAssemblyDraft,
 } from '../shared/tripRouteAssembly.service'
 import { getTripClient } from './useTripWorkspace.hook'
+import { getRouteSuggestionClient } from '@/modules/routing/hooks/useRouteSuggestion.hook'
 
 const SUGGESTION_POLL_MS = 2_000
 const SUGGESTION_POLL_CAP = 60
@@ -52,12 +54,16 @@ export type TripRouteAssemblyOutcome = Readonly<{
  * O automático espera o solver, que roda no worker: a criação responde `202` e a sugestão só fica
  * `ready` depois. Sem o teto de tentativas, um solver que morre deixa a tela girando para sempre.
  */
-async function waitForSuggestion(suggestionId: string): Promise<void> {
+async function waitForSuggestion(suggestionId: string): Promise<MultiVehicleProposal> {
   const client = getTripClient()
 
   for (let attempt = 0; attempt < SUGGESTION_POLL_CAP; attempt += 1) {
     const suggestion = await client.readMultiVehicleSuggestion({ suggestionId })
-    if (suggestion.status === 'ready') return
+    /**
+     * Spec 108: pronta, a proposta é **relida com as paradas** — o poll olha só o estado, e é a
+     * releitura que alimenta a tela de revisão. Duas chamadas, e não uma pesada por tentativa.
+     */
+    if (suggestion.status === 'ready') return client.readMultiVehicleProposal({ suggestionId })
     /**
      * `stale` é a nota que entrou depois da proposta ficar pronta: ela descreve uma viagem que não
      * existe mais, e esperar por ela seria esperar para sempre.
@@ -87,6 +93,8 @@ export function useTripRouteAssembly(
   const queryClient = useQueryClient()
   const [draft, setDraft] = useState<TripRouteAssemblyDraft>(EMPTY_TRIP_ROUTE_ASSEMBLY)
   const [outcome, setOutcome] = useState<null | TripRouteAssemblyOutcome>(null)
+  /** Spec 108: a proposta em revisão. Enquanto ela existe, **nada foi criado**. */
+  const [proposal, setProposal] = useState<null | MultiVehicleProposal>(null)
   const [isOpen, setIsOpen] = useState(false)
   const [pool, setPool] = useState<readonly TripCandidateDocument[]>([])
 
@@ -138,8 +146,14 @@ export function useTripRouteAssembly(
     selection,
   })
 
-  const assembleMutation = useMutation({
-    mutationFn: async (): Promise<TripRouteAssemblyOutcome> => {
+  /**
+   * Spec 108: **propor não cria nada.** O que nasce aqui é a sugestão — paradas propostas —, e a
+   * viagem só existe depois do aceite. Até 09/09/2026 o mesmo clique fazia as duas coisas: o
+   * operador lia "5 viagens criadas pela recomendação" sem nunca ter visto o que ia aceitar, e
+   * desfazer era cancelar cinco viagens uma a uma.
+   */
+  const proposeMutation = useMutation({
+    mutationFn: async (): Promise<MultiVehicleProposal> => {
       const client = getTripClient()
       const nfeDocumentIds = selection.eligible.map((document) => document.id)
 
@@ -158,8 +172,23 @@ export function useTripRouteAssembly(
           })),
         ),
       })
-      await waitForSuggestion(suggestion.id)
-      const accepted = await client.acceptMultiVehicleSuggestion({ suggestionId: suggestion.id })
+      return waitForSuggestion(suggestion.id)
+    },
+    onSuccess: (result) => {
+      setProposal(result)
+      setIsOpen(false)
+    },
+  })
+
+  /**
+   * Spec 108: o aceite é **o único** caminho que escreve viagem, e ele parte de uma proposta que o
+   * operador já viu na tela.
+   */
+  const acceptMutation = useMutation({
+    mutationFn: async (): Promise<TripRouteAssemblyOutcome> => {
+      const suggestionId = proposal?.suggestion.id
+      if (suggestionId === undefined) throw new Error(TRIP_ERROR.RESPONSE_INVALID)
+      const accepted = await getTripClient().acceptMultiVehicleSuggestion({ suggestionId })
 
       return {
         leftoverStops: accepted.leftoverStops,
@@ -169,9 +198,9 @@ export function useTripRouteAssembly(
     },
     onSuccess: (result) => {
       setOutcome(result)
+      setProposal(null)
       setDraft(EMPTY_TRIP_ROUTE_ASSEMBLY)
       setPool([])
-      setIsOpen(false)
       void invalidateMutationEffect({ effect: MUTATION_EFFECT.nfeDocumentLink, queryClient })
       void queryClient.invalidateQueries({ queryKey: [TRIP_QUERY_KEY] })
       input.onCreated(result.trips)
@@ -196,7 +225,24 @@ export function useTripRouteAssembly(
       setOutcome(null)
       setIsOpen(true)
     },
-    assembleMutation,
+    proposeMutation,
+    acceptMutation,
+    proposal,
+    /**
+     * Spec 108: descartar avisa a API (`reject`) e volta o operador ao formulário com a escolha
+     * dele intacta. ⚠️ A recusa remota é **melhor esforço**: falhar ali não pode prender a tela
+     * numa proposta que o operador já rejeitou — a sugestão fica `ready` e ninguém a aceita.
+     */
+    discardProposal: () => {
+      const suggestionId = proposal?.suggestion.id
+      if (suggestionId !== undefined) {
+        void getRouteSuggestionClient()
+          .rejectMultiVehicle({ suggestionId })
+          .catch(() => undefined)
+      }
+      setProposal(null)
+      setIsOpen(true)
+    },
     bindings,
     availableDocuments: documentsQuery.data ?? [],
     documentsQuery,

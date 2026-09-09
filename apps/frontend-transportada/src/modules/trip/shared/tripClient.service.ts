@@ -8,11 +8,13 @@ import {
 } from './trip.constant'
 import {
   acceptedMultiVehicleSuggestionFromApi,
+  multiVehicleProposalFromApi,
   multiVehicleSuggestionFromApi,
 } from './multiVehicleSuggestion.validation'
 import type {
   AcceptedMultiVehicleSuggestion,
   CreateMultiVehicleSuggestionInput,
+  MultiVehicleProposal,
   MultiVehicleSuggestion,
   TripCandidateDocumentPage,
   BatchStatusInput,
@@ -85,6 +87,13 @@ export type TripClient = Readonly<{
   readMultiVehicleSuggestion: (
     input: Readonly<{ suggestionId: string }>,
   ) => Promise<MultiVehicleSuggestion>
+  /**
+   * Spec 108: a mesma rota da leitura, **com as paradas** — é o que a prévia mostra antes de existir
+   * viagem nenhuma. A leitura sem paradas continua servindo ao poll, que só olha o estado.
+   */
+  readMultiVehicleProposal: (
+    input: Readonly<{ suggestionId: string }>,
+  ) => Promise<MultiVehicleProposal>
   listNfeDocuments: (
     input: Readonly<{ cursor: null | string; limit: number; signal?: AbortSignal }>,
   ) => Promise<TripCandidateDocumentPage>
@@ -321,6 +330,14 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: `${ROUTE_SUGGESTIONS_PATH}/multi-vehicle`,
       })
       return multiVehicleSuggestionFromApi(readEnvelopeData(response))
+    },
+    async readMultiVehicleProposal(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${ROUTE_SUGGESTIONS_PATH}/${input.suggestionId}`,
+      })
+      return multiVehicleProposalFromApi(readEnvelopeData(response))
     },
     async readMultiVehicleSuggestion(input) {
       const response = await authorizedRequest({

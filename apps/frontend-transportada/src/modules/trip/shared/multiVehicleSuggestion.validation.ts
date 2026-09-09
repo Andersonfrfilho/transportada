@@ -1,9 +1,13 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { resolveLeftoverStops } from '@/modules/routing/shared/suggestionLeftover.service'
+import {
+  resolveLeftoverStops,
+  type CoverableSuggestionStop,
+} from '@/modules/routing/shared/suggestionLeftover.service'
 import { TRIP_ERROR } from './trip.constant'
 import type {
   AcceptedMultiVehicleSuggestion,
   AcceptedMultiVehicleTrip,
+  MultiVehicleProposal,
   MultiVehicleSuggestion,
   MultiVehicleSuggestionStatus,
 } from './trip.types'
@@ -55,6 +59,41 @@ function acceptedTripFromApi(payload: unknown): AcceptedMultiVehicleTrip {
   }
 }
 
+/**
+ * Spec 108: as paradas propostas, na forma mínima que a cobertura e a proposta leem. Ela é usada
+ * pela leitura da proposta **e** pelo aceite — duas formas para a mesma linha divergiriam no dia em
+ * que a API acrescentasse um campo.
+ */
+export function coverableStopsFromApi(payload: unknown): readonly CoverableSuggestionStop[] {
+  const stops = isRecord(payload) && Array.isArray(payload.stops) ? payload.stops : []
+
+  return stops.flatMap((stop) =>
+    isRecord(stop)
+      ? [
+          {
+            excludedFromOptimization: stop.excludedFromOptimization === true,
+            label: typeof stop.label === 'string' ? stop.label : '',
+            nfeDocumentIds: Array.isArray(stop.nfeDocumentIds)
+              ? stop.nfeDocumentIds.filter((id): id is string => typeof id === 'string')
+              : [],
+            vehicleId: typeof stop.vehicleId === 'string' ? stop.vehicleId : null,
+          },
+        ]
+      : [],
+  )
+}
+
+/**
+ * Spec 108: a proposta como ela chega da leitura — sugestão **mais** paradas. A leitura anterior
+ * descartava as paradas, e era por isso que a tela não tinha o que mostrar antes do aceite.
+ */
+export function multiVehicleProposalFromApi(payload: unknown): MultiVehicleProposal {
+  return {
+    stops: coverableStopsFromApi(payload),
+    suggestion: multiVehicleSuggestionFromApi(payload),
+  }
+}
+
 export function acceptedMultiVehicleSuggestionFromApi(
   payload: unknown,
 ): AcceptedMultiVehicleSuggestion {
@@ -66,33 +105,13 @@ export function acceptedMultiVehicleSuggestionFromApi(
    * aviso, e é o comportamento de antes — nunca uma tela quebrada durante o deploy.
    */
   const skipped = Array.isArray(payload.skippedDocuments) ? payload.skippedDocuments : []
-  const stops =
-    isRecord(payload.suggestion) && Array.isArray(payload.suggestion.stops)
-      ? payload.suggestion.stops
-      : []
-
   return {
     /**
      * ⚠️ A regra mora em `routing/shared/suggestionLeftover.service.ts`, **uma vez**. Reimplementá-la
      * aqui produziria duas definições de "sobra" que divergiriam no dia em que uma terceira causa
      * aparecesse — e `trip` já importa de `routing` em três outros lugares.
      */
-    leftoverStops: resolveLeftoverStops(
-      stops.flatMap((stop) =>
-        isRecord(stop)
-          ? [
-              {
-                excludedFromOptimization: stop.excludedFromOptimization === true,
-                label: typeof stop.label === 'string' ? stop.label : '',
-                nfeDocumentIds: Array.isArray(stop.nfeDocumentIds)
-                  ? stop.nfeDocumentIds.filter((id): id is string => typeof id === 'string')
-                  : [],
-                vehicleId: typeof stop.vehicleId === 'string' ? stop.vehicleId : null,
-              },
-            ]
-          : [],
-      ),
-    ),
+    leftoverStops: resolveLeftoverStops(coverableStopsFromApi(payload.suggestion)),
     skippedDocuments: skipped.flatMap((entry) =>
       isRecord(entry) && typeof entry.nfeDocumentId === 'string'
         ? [

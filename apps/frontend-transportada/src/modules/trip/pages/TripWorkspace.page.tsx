@@ -8,6 +8,8 @@ import { Icon } from '@/components/ui/icon'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { createBrowserWorkspaceNavigator } from '@/modules/shared/workspaceNavigation.service'
 import { useFleet } from '@/modules/fleet/hooks/useFleet.hook'
+import { getRouteSuggestionClient } from '@/modules/routing/hooks/useRouteSuggestion.hook'
+import { useSuggestionValuation } from '@/modules/routing/queries/useSuggestionValuation.query'
 import { useAuthMeQuery } from '@/modules/identity/queries/useAuthMe.query'
 
 import { TripQuickCreateDialog } from '../components/TripQuickCreateDialog.component'
@@ -20,6 +22,7 @@ import { resolveSettingsDataScope } from '@/modules/company-settings/shared/comp
 import { TripDeliveryProofSettingsPanel } from '../components/TripDeliveryProofSettingsPanel.component'
 import { TripOccurrenceNotifications } from '../components/TripOccurrenceNotifications.component'
 import { TripRouteAssemblyLeftovers } from '../components/TripRouteAssemblyLeftovers.component'
+import { TripRouteAssemblyProposal } from '../components/TripRouteAssemblyProposal.component'
 import { TripRouteAssemblyDialog } from '../components/TripRouteAssemblyDialog.component'
 import {
   useDeliveryProofOverridesQuery,
@@ -241,6 +244,18 @@ export function TripWorkspacePage() {
       .map((vehicle) => vehicle.id),
   })
 
+  /**
+   * Spec 108: a conta da proposta (spec 101), que até aqui não tinha quem a chamasse — os
+   * componentes existiam e não estavam montados em lugar nenhum. ⚠️ Sem `trip.financials` o painel
+   * continua inteiro; some só o dinheiro.
+   */
+  const suggestionValuation = useSuggestionValuation({
+    client: getRouteSuggestionClient(),
+    isReady: assembly.proposal !== null,
+    permissions,
+    suggestionId: assembly.proposal?.suggestion.id ?? null,
+  })
+
   const isForbidden = companyId === undefined || !workspace.controller.canReadTrips
   const feedbackKey = resolveTripFeedbackKey(workspace.createMutation.error)
 
@@ -338,6 +353,23 @@ export function TripWorkspacePage() {
                 mensagem dentro dele aparecia cercada dos avisos de campo vazio que a limpeza do
                 formulário trazia de volta — sucesso com cara de falha.
               */}
+              {/*
+                Spec 108: a proposta fica **na lista**, no mesmo lugar do resultado — o diálogo que
+                a pediu fecha, e mostrar a revisão dentro dele a cercaria dos avisos de campo vazio
+                que a limpeza do formulário traz de volta.
+              */}
+              {assembly.proposal === null ? null : (
+                <TripRouteAssemblyProposal
+                  isAccepting={assembly.acceptMutation.isPending}
+                  isValuationLoading={suggestionValuation.isLoading}
+                  onAccept={() => assembly.acceptMutation.mutate()}
+                  onDiscard={assembly.discardProposal}
+                  plateByVehicleId={plateByVehicleId}
+                  proposal={assembly.proposal}
+                  valuation={suggestionValuation.valuation}
+                />
+              )}
+
               {assembly.outcome === null ? null : (
                 <>
                   <p className={styles.hint} role="status">

@@ -1,6 +1,9 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 
-import type { LeftoverStop } from '@/modules/routing/shared/suggestionLeftover.service'
+import type {
+  CoverableSuggestionStop,
+  LeftoverStop,
+} from '@/modules/routing/shared/suggestionLeftover.service'
 /**
  * ADR-0043 §1: `open`/`closed` migraram para os estados da viagem (`open → draft`,
  * `closed → completed`). ADR-0058 acrescentou `on_delivery_route`, a viagem na estrada.
@@ -715,6 +718,18 @@ export type SkippedMultiVehicleDocument = Readonly<{
  * de "sobra" que divergiriam na primeira causa nova.
  */
 export type MultiVehicleLeftoverStop = LeftoverStop
+
+/**
+ * Spec 108: **a proposta que o operador revê antes de qualquer viagem existir.** É a sugestão com as
+ * paradas dela — o que o solver distribuiu, o que sobrou e para qual caminhão cada parada foi.
+ *
+ * ⚠️ Neste ponto o banco tem a **sugestão**, nunca viagem: nem rascunho, nem vínculo de nota. Quem
+ * cria é o aceite.
+ */
+export type MultiVehicleProposal = Readonly<{
+  stops: readonly CoverableSuggestionStop[]
+  suggestion: MultiVehicleSuggestion
+}>
 
 export type AcceptedMultiVehicleSuggestion = Readonly<{
   leftoverStops: readonly MultiVehicleLeftoverStop[]
