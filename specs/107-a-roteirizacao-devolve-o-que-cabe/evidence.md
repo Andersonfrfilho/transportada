@@ -76,8 +76,37 @@ Colapsado numa só. O adaptador importa de `routing`, o que `trip` já faz em tr
 assinatura pede a **forma mínima** (`CoverableSuggestionStop`) em vez do tipo completo — senão o
 adaptador, que lê corpo cru da API, teria de construir campos que não usa.
 
-## O que falta (D3)
+## D3 — o botão de continuação (terceira leva)
 
-A segunda onda: a frase _"não couberam 56 — o RTD5J78 termina por volta das 14h e cobre 40 delas"_,
-e o botão de continuação. O desenho está decidido na spec — plano é **leitura**, não registro;
-"quando terminar" é **frase**, não gatilho; e não reserva nota.
+**A hora não existe, e a medição é o que decidiu o escopo.**
+
+|                                               |   preenchido |
+| --------------------------------------------- | -----------: |
+| `trip_stops.estimated_arrival_at`             | **0 de 869** |
+| `route_suggestion_stops.estimated_arrival_at` |   873 de 950 |
+
+O ETA é calculado na **sugestão** e nunca levado para a **viagem**. Não existe hora de término de
+viagem em lugar nenhum do sistema — a frase _"o RTD5J78 termina por volta das 14h"_ não tinha de onde
+sair, e inventá-la seria o número plausível sem aviso que este código recusa em todo lugar.
+
+Então esta leva entrega o que é verdadeiro **e** o que rende mais: **o botão de continuação.**
+
+- A sugestão passou a serializar `nfeDocumentIds` por parada — sem eles a sobra é uma lista de nomes
+  de cidade que o operador refiltraria à mão, que é o passo em que 345 notas viraram sete viagens.
+- `collectRetryableDocumentIds` devolve **só** a sobra sem cobertura. ⚠️ A parada de endereço
+  impreciso não fica melhor numa segunda montagem, e reoferecê-la convidaria o operador a repetir o
+  mesmo pedido esperando resultado diferente.
+- `retryWith` **filtra o pool disponível** em vez de confiar nos ids: a nota pode ter entrado numa
+  viagem entre o aceite e o clique, e reofertá-la produziria o `already_linked` que a D1 acabou de
+  aprender a pular.
+
+⚠️ E o tipo da sobra virou **alias** do de `routing` — eu tinha declarado uma cópia em `trip`, com os
+mesmos campos menos a causa. Duas definições de "sobra" que divergiriam na primeira causa nova.
+
+## O que falta
+
+**A hora.** Levar `estimated_arrival_at` das paradas da sugestão para as da viagem no aceite, e expor
+o término na listagem. ⚠️ Ela precisa vir marcada como **estimativa do planejamento**: o ETA congela
+no momento em que a rota foi planejada e envelhece — às 14h ele ainda diz o que achava às 7h.
+
+Com ela, a frase fica completa. Sem ela, o painel diz o que sabe.
