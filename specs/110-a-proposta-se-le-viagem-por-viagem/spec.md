@@ -332,6 +332,31 @@ ficha do veículo lia o efetivo (spec 100).
       razão e a mesma faixa de veículo.
 - [ ] `make check` verde; evidência por task em `evidence.md`.
 
+## Descoberto ao verificar no navegador
+
+### ⚠️ O produto tem **DUAS portas para a mesma decisão**, e esta feature refez uma
+
+A smoke do navegador atravessa um diálogo que eu não tinha visto: o teste _"a distribuição
+multi-veículo vai da seleção de notas às viagens criadas"_ passa por
+`routing/MultiVehicleSuggestionDialog`, aberto pela **tabela de notas** com "Sugerir viagens" — e
+não pelo "Montar roteiro" da tela de viagens, que é o que a spec 110 reconstruiu.
+
+| Porta                      | Componente                             | O que tem                                                          |
+| -------------------------- | -------------------------------------- | ------------------------------------------------------------------ |
+| Notas → "Sugerir viagens"  | `routing/MultiVehicleSuggestionDialog` | Grupos por veículo, conta por veículo, aceitar tudo                |
+| Viagens → "Montar roteiro" | `trip/TripRouteAssemblyDialog`         | Tudo isso **mais** seleção parcial, edição, razão e linha do tempo |
+
+⚠️ **Isto não é a divergência que a D8 previa — é uma terceira, maior.** A D8 tratava de duas telas
+que montam viagem por caminhos diferentes (proposta e criação manual); esta é a **mesma
+distribuição multi-veículo** com duas caras e capacidades diferentes, e o operador que entrar pela
+tabela de notas não terá aceite parcial nem edição.
+
+**O que fazer com isso é decisão de produto, não desta spec:** convergir as duas para o mesmo
+componente, ou remover uma das portas. As duas saídas são defensáveis — a porta da tabela de notas
+é o caminho natural de quem acabou de filtrar as notas, e a de viagens é a de quem já sabe que vai
+montar. Fica registrado, com contrato (`test/trip/multi-vehicle-entry-points.contract.ts`) que torna
+a divergência visível na suíte em vez de deixá-la na memória de quem passou por aqui.
+
 ## Dependências
 
 - **Pedágio por perna e alternativas de rota na sugestão** — spec própria. Sem ela, D4b degrada com
