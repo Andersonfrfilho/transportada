@@ -172,6 +172,11 @@ async function parseRequiredBody(
  */
 function serializeAccepted(accepted: AcceptedMultiVehicleSuggestion): object {
   return {
+    /**
+     * Spec 107 D1: as notas que ficaram de fora, **nomeadas**. Vazio é o normal; não-vazio é o que a
+     * tela abre numa lista — "56 notas" sem quais manda o operador procurar numa tela de 345.
+     */
+    skippedDocuments: accepted.skippedDocuments,
     suggestion: serializeSuggestion(accepted.suggestion),
     trips: accepted.trips.map((trip) => ({
       documentCount: trip.documentCount,

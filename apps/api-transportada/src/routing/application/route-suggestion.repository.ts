@@ -57,6 +57,11 @@ export type RouteSuggestionRepository = Readonly<{
    * mudou. Quem chama transforma isso no erro certo — o repositório não decide status HTTP.
    */
   decide: (input: DecideRouteSuggestionRecord) => Promise<RouteSuggestionRecord | null>
+  /**
+   * Spec 107 D2: devolve a sugestão reivindicada para `ready`. É a escrita compensatória do aceite —
+   * quem reivindica antes de criar precisa saber desfazer a reivindicação, e só ela.
+   */
+  release: (input: { readonly companyId: string; readonly suggestionId: string }) => Promise<void>
   find: (input: {
     readonly companyId: string
     readonly suggestionId: string

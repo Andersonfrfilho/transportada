@@ -12,6 +12,7 @@ import {
 } from '../domain/routing.error.js'
 import type {
   AcceptedMultiVehicleTrip,
+  SkippedMultiVehicleDocument,
   MultiVehicleScope,
   MultiVehicleSuggestionUseCase,
 } from './multi-vehicle-suggestion.port.js'
@@ -31,11 +32,16 @@ export type TripComposer = Readonly<{
     readonly driverId: string | null
     readonly vehicleId: string
   }) => Promise<{ readonly tripId: string }>
+  /**
+   * Spec 107 D1: devolve `false` quando a nota **já está viva em outra viagem**, em vez de lançar.
+   * Um vínculo recusado não pode derrubar um aceite que já criou cinco viagens corretas — foi o que
+   * aconteceu em 2026-09-09, e o operador leu um código de suporte no lugar do roteiro pronto.
+   */
   linkDocument: (input: {
     readonly context: MultiVehicleScope
     readonly nfeDocumentId: string
     readonly tripId: string
-  }) => Promise<void>
+  }) => Promise<boolean>
   planRoute: (input: {
     readonly context: MultiVehicleScope
     readonly tripId: string
@@ -85,42 +91,17 @@ export function createMultiVehicleSuggestionUseCase(
       })
 
       /**
-       * As viagens nascem **antes** de a sugestão virar `accepted`, como no aceite de viagem única:
-       * se a criação falhar no meio, a sugestão continua `ready` e o operador tenta de novo. O
-       * contrário deixaria uma sugestão marcada como aceita com metade das viagens criadas.
+       * Spec 107 D2: **a sugestão é reivindicada antes de qualquer viagem nascer.**
+       *
+       * ⚠️ A ordem era a inversa, de propósito — criar primeiro deixava a sugestão `ready` quando a
+       * criação falhava no meio, e o operador repetia. Mas `accept` gastava **onze segundos**
+       * criando viagens entre ler `ready` e marcar `accepted`, e dois pedidos nessa janela passavam
+       * os dois: medido em 2026-09-09, o segundo criou uma viagem órfã e morreu ao vincular uma nota
+       * que o primeiro acabara de vincular.
+       *
+       * `decide` já era condicional (`where status = 'ready'`); faltava chamá-lo cedo. A retomada
+       * que a ordem antiga protegia é preservada pela **escrita compensatória** do `catch`.
        */
-      const trips: AcceptedMultiVehicleTrip[] = []
-      for (const group of groups) {
-        const { tripId } = await dependencies.trips.createTrip({
-          context,
-          driverId: group.driverId,
-          vehicleId: group.vehicleId,
-        })
-
-        for (const nfeDocumentId of group.documentIds) {
-          await dependencies.trips.linkDocument({ context, nfeDocumentId, tripId })
-        }
-
-        if (group.orderedAddressKeys.length > 0) {
-          await dependencies.trips.reorderStops({
-            context,
-            orderedAddressKeys: group.orderedAddressKeys,
-            tripId,
-          })
-        }
-
-        /** A viagem sai daqui em `route_planned`: é o que a spec promete ao operador (RF-5). */
-        await dependencies.trips.planRoute({ context, tripId })
-
-        trips.push({
-          documentCount: group.documentIds.length,
-          driverId: group.driverId,
-          stopCount: group.orderedAddressKeys.length,
-          tripId,
-          vehicleId: group.vehicleId,
-        })
-      }
-
       const decided = await dependencies.suggestions.decide({
         companyId: context.companyId,
         decidedByUserId: context.userId,
@@ -129,7 +110,54 @@ export function createMultiVehicleSuggestionUseCase(
       })
       if (decided === null) throw new RouteSuggestionNotDecidableError()
 
-      return { suggestion: { ...decided, stops: found.stops }, trips }
+      const trips: AcceptedMultiVehicleTrip[] = []
+      const skippedDocuments: SkippedMultiVehicleDocument[] = []
+      try {
+        for (const group of groups) {
+          const { tripId } = await dependencies.trips.createTrip({
+            context,
+            driverId: group.driverId,
+            vehicleId: group.vehicleId,
+          })
+
+          let linkedCount = 0
+          for (const nfeDocumentId of group.documentIds) {
+            const linked = await dependencies.trips.linkDocument({ context, nfeDocumentId, tripId })
+            if (linked) linkedCount += 1
+            else skippedDocuments.push({ nfeDocumentId, reason: 'already_linked' })
+          }
+
+          if (group.orderedAddressKeys.length > 0) {
+            await dependencies.trips.reorderStops({
+              context,
+              orderedAddressKeys: group.orderedAddressKeys,
+              tripId,
+            })
+          }
+
+          /** A viagem sai daqui em `route_planned`: é o que a spec promete ao operador (RF-5). */
+          await dependencies.trips.planRoute({ context, tripId })
+
+          trips.push({
+            documentCount: linkedCount,
+            driverId: group.driverId,
+            stopCount: group.orderedAddressKeys.length,
+            tripId,
+            vehicleId: group.vehicleId,
+          })
+        }
+      } catch (cause) {
+        /**
+         * ⚠️ A escrita compensatória: devolve a sugestão para `ready`, e o operador repete — é a
+         * propriedade que a ordem antiga protegia. Ela **não** desfaz as viagens já criadas:
+         * apagá-las seria destruir trabalho que pode estar correto, e a lista de viagens mostra o
+         * que nasceu.
+         */
+        await dependencies.suggestions.release({ companyId: context.companyId, suggestionId })
+        throw cause
+      }
+
+      return { skippedDocuments, suggestion: { ...decided, stops: found.stops }, trips }
     },
 
     async create(input) {

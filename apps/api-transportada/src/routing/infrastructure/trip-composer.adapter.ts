@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { TripDocumentAlreadyLinkedError } from '../../trips/domain/trip.error.js'
 import type { TripStopSummary } from '../../trips/application/list-trip-stops.use-case.js'
 import type { MultiVehicleScope } from '../application/multi-vehicle-suggestion.port.js'
 import type { TripComposer } from '../application/multi-vehicle-suggestion.use-case.js'
@@ -59,8 +60,20 @@ export function createTripComposer(dependencies: TripComposerDependencies): Trip
       return { tripId: created.id }
     },
 
+    /**
+     * Spec 107 D1: nota já viva em outra viagem devolve `false` em vez de derrubar o aceite. É o
+     * único erro engolido aqui, e de propósito — qualquer outro sobe, porque só este significa
+     * "alguém chegou antes", e não "algo quebrou".
+     */
     async linkDocument({ context, nfeDocumentId, tripId }) {
-      await dependencies.link({ context, freightCalculationId: null, nfeDocumentId, tripId })
+      try {
+        await dependencies.link({ context, freightCalculationId: null, nfeDocumentId, tripId })
+
+        return true
+      } catch (cause) {
+        if (cause instanceof TripDocumentAlreadyLinkedError) return false
+        throw cause
+      }
     },
 
     async planRoute({ context, tripId }) {

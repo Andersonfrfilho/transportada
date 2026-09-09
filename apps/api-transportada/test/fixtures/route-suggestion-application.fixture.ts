@@ -118,6 +118,7 @@ export function buildDependencies(params: FixtureParams = {}): RouteSuggestionFi
         created.push(input)
         return { ...QUEUED_RECORD, seed: input.seed, assumptions: input.assumptions }
       },
+      release: async () => undefined,
       async decide(input) {
         if (params.decideReturnsNull === true) return null
         decided.push(input)

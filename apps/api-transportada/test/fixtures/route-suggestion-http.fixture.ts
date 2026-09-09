@@ -187,6 +187,7 @@ export async function createMultiVehicleHttpFixture(params: FixtureParams = {}):
         acceptCalls.push(structuredClone(input) as unknown as Call)
         if (params.acceptError) throw params.acceptError
         return {
+          skippedDocuments: [],
           suggestion: { ...poolSuggestion, status: 'accepted' as const },
           trips: [
             {

@@ -109,6 +109,24 @@ export function createDrizzleRouteSuggestionRepository(
       return row === undefined ? null : toRecord({ row, stops: [] })
     },
 
+    /**
+     * Spec 107 D2: só desfaz o que **esta** reivindicação fez — `where status = 'accepted'`. Sem a
+     * condição, uma compensação atrasada devolveria para `ready` uma sugestão que outro pedido já
+     * tinha aceitado legitimamente.
+     */
+    async release({ companyId, suggestionId }) {
+      await database
+        .update(routeSuggestions)
+        .set({ decidedAt: null, decidedByUserId: null, status: 'ready', updatedAt: sql`now()` })
+        .where(
+          and(
+            eq(routeSuggestions.companyId, companyId),
+            eq(routeSuggestions.id, suggestionId),
+            eq(routeSuggestions.status, 'accepted'),
+          ),
+        )
+    },
+
     async readSettings(companyId) {
       const [row] = await database
         .select()

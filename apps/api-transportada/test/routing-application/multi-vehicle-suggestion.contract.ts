@@ -86,6 +86,10 @@ function suggestion(overrides: Partial<RouteSuggestionRecord> = {}): RouteSugges
 
 function buildFixture(
   input: {
+    /** Spec 107 D1: as notas que o vínculo recusa por já estarem vivas em outra viagem. */
+    readonly alreadyLinkedDocumentIds?: readonly string[]
+    /** Spec 107 D2: simula a reivindicação perdida para outro pedido concorrente. */
+    readonly claimFails?: boolean
     readonly groups?: readonly MultiVehicleSuggestionGroup[]
     readonly vehicleRoads?: readonly MultiVehicleSuggestionRoad[]
     readonly stored?: RouteSuggestionRecord | null
@@ -119,8 +123,13 @@ function buildFixture(
 
   const suggestions: RouteSuggestionRepository = {
     create: async () => suggestion(),
+    /** Spec 107 D2: a compensação do aceite — devolve a sugestão reivindicada para `ready`. */
+    release: async () => undefined,
     async decide(record) {
       calls.decide?.push(record)
+      /** Spec 107 D2: `null` é "outro pedido chegou antes" — o `where status = 'ready'` não casou. */
+      if (input.claimFails === true) return null
+
       return suggestion({ decidedAt: '2026-08-27T11:00:00.000Z', status: record.status })
     },
     find: async () => (input.stored === undefined ? suggestion() : input.stored),
@@ -136,6 +145,9 @@ function buildFixture(
     },
     async linkDocument(record) {
       calls.link?.push(record)
+
+      /** Spec 107 D1: `false` é "já vinculada" — o aceite pula e nomeia, em vez de derrubar tudo. */
+      return input.alreadyLinkedDocumentIds?.includes(record.nfeDocumentId) !== true
     },
     async planRoute(record) {
       calls.plan?.push(record)
@@ -385,7 +397,11 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
     expect(fixture.calls.link).toHaveLength(2)
     expect(fixture.calls.reorder).toHaveLength(2)
     expect(fixture.calls.plan).toHaveLength(2)
-    /** A sugestão vira `accepted` **depois** das viagens: falha no meio deixa `ready` para repetir. */
+    /**
+     * ⚠️ Spec 107 D2: a sugestão é reivindicada **antes** das viagens — a ordem inversa deixava dois
+     * aceites concorrentes passarem os dois pela janela de onze segundos. A retomada que a ordem
+     * antiga protegia vive agora na escrita compensatória (`release`).
+     */
     expect(fixture.calls.decide).toEqual([
       {
         companyId: COMPANY_ID,
@@ -394,6 +410,62 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
         suggestionId: SUGGESTION_ID,
       },
     ])
+  })
+
+  /**
+   * ⚠️ Spec 107 D1: o aceite de 345 notas terminou em `TRIP_DOCUMENT_ALREADY_LINKED` com **cinco
+   * viagens já criadas e corretas**, e o operador leu um código de suporte no lugar do roteiro
+   * pronto. Nota já viva em outra viagem é **pulada e nomeada** — a diferença entre "o roteiro
+   * falhou" e "o roteiro saiu, e estas ficaram de fora porque já estão em rota".
+   */
+  test('pula a nota já vinculada e a devolve nomeada', async () => {
+    const fixture = buildFixture({
+      alreadyLinkedDocumentIds: [SECOND_DOCUMENT],
+      groups: [
+        {
+          documentIds: [FIRST_DOCUMENT, SECOND_DOCUMENT],
+          driverId: null,
+          orderedAddressKeys: ['chave-1'],
+          vehicleId: FIRST_VEHICLE,
+        },
+      ],
+      stored: suggestion({ status: 'ready' }),
+    })
+
+    const accepted = await fixture.useCase.accept({ context: CONTEXT, suggestionId: SUGGESTION_ID })
+
+    expect(accepted.skippedDocuments).toEqual([
+      { nfeDocumentId: SECOND_DOCUMENT, reason: 'already_linked' },
+    ])
+    /** ⚠️ A contagem é do que **ficou**, não do que foi tentado: senão a tela mentiria o total. */
+    expect(accepted.trips[0]?.documentCount).toBe(1)
+  })
+
+  /**
+   * ⚠️ Spec 107 D2: `decide` é condicional (`where status = 'ready'`) e passou a ser chamado
+   * **primeiro**. Antes ele rodava depois de onze segundos criando viagens, e dois pedidos nessa
+   * janela passavam os dois — medido: o segundo criou uma viagem órfã e morreu ao vincular.
+   */
+  test('o aceite que perde a reivindicação não cria viagem nenhuma', async () => {
+    const fixture = buildFixture({
+      claimFails: true,
+      groups: [
+        {
+          documentIds: [FIRST_DOCUMENT],
+          driverId: null,
+          orderedAddressKeys: ['chave-1'],
+          vehicleId: FIRST_VEHICLE,
+        },
+      ],
+      stored: suggestion({ status: 'ready' }),
+    })
+
+    await expect(
+      fixture.useCase.accept({ context: CONTEXT, suggestionId: SUGGESTION_ID }),
+    ).rejects.toBeInstanceOf(RouteSuggestionNotDecidableError)
+
+    /** ⚠️ **Zero viagens.** Era daqui que nascia a órfã com zero notas do aceite duplicado. */
+    expect(fixture.calls.trip).toEqual([])
   })
 
   /**

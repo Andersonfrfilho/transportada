@@ -41,7 +41,17 @@ export type AcceptedMultiVehicleTrip = Readonly<{
   vehicleId: string
 }>
 
+/**
+ * Spec 107 D1: a nota que ficou de fora, **nomeada**. Vazio é o normal; não-vazio é o que a tela
+ * abre numa lista, porque "56 notas" sem quais manda o operador procurar numa tela de 345.
+ */
+export type SkippedMultiVehicleDocument = Readonly<{
+  nfeDocumentId: string
+  reason: 'already_linked'
+}>
+
 export type AcceptedMultiVehicleSuggestion = Readonly<{
+  skippedDocuments: readonly SkippedMultiVehicleDocument[]
   suggestion: RouteSuggestion
   trips: readonly AcceptedMultiVehicleTrip[]
 }>
