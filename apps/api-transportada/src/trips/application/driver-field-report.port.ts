@@ -18,6 +18,8 @@ export type ReportedLocation = {
 
 export type DriverStopReference = {
   readonly arrivedAt: Date | null
+  /** Spec 109 D3: o que o plano dizia para **esta** parada — é dela que o atraso é medido. */
+  readonly estimatedArrivalAt: Date | null
   readonly tripId: string
   readonly tripStatus: string
 }
@@ -69,6 +71,18 @@ export type DriverFieldReportTransactionPort = {
     readonly at: Date
     readonly companyId: string
     readonly stopId: string
+  }): Promise<void>
+  /**
+   * Spec 109 D3: desloca as paradas que **ainda não aconteceram** pelo atraso desta chegada.
+   *
+   * ⚠️ O recorte é `arrived_at is null`, não "sequência maior": o motorista pula parada e volta, e
+   * pela sequência a parada saltada ficaria eternamente com a hora de antes do atraso.
+   */
+  shiftPendingStops(input: {
+    readonly at: Date
+    readonly companyId: string
+    readonly shiftMilliseconds: number
+    readonly tripId: string
   }): Promise<void>
   markTripInTransit(input: { readonly companyId: string; readonly tripId: string }): Promise<void>
   markDocumentDelivered(input: {

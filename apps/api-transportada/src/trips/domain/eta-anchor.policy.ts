@@ -3,27 +3,32 @@
  */
 
 /**
- * Spec 109 D2: **o roteiro é planejado para uma hora de saída, e o caminhão sai noutra.**
+ * Spec 109 D2/D3: **o roteiro é planejado para um relógio, e o dia acontece noutro.**
  *
- * A premissa do planejamento é `company_route_optimization_settings.departure_time_seconds` (08:00);
- * a saída real é o clique do motorista no app. Sem reancorar, uma saída às 09:30 deixa toda a viagem
- * anunciando horas de 08:00 — plausíveis, e erradas por uma hora e meia, que é justamente o tipo de
- * número que este produto recusa (ADR-0044 §1).
+ * A mesma conta serve aos dois momentos em que o campo contradiz o plano, e é de propósito que ela
+ * seja uma só — duas definições de "atraso" divergiriam no primeiro caso de borda:
  *
- * ⚠️ **Deslocar, não recalcular.** A ordem das paradas foi conferida no galpão e o motorista carregou
- * o caminhão nela; reordenar na saída entregaria a ele um roteiro diferente do que foi carregado. O
- * deslocamento preserva o ritmo aprovado e diz a verdade sobre o relógio.
+ * - **na saída**: o previsto é a hora de partida suposta, o real é o clique do motorista;
+ * - **em cada chegada**: o previsto é o ETA daquela parada, o real é o "cheguei".
+ *
+ * Sem reancorar, uma saída às 09:30 deixa a viagem inteira anunciando horas de 08:00, e uma entrega
+ * que demorou quarenta minutos a mais deixa o resto do dia adiantado — números plausíveis e errados,
+ * que é o que este produto recusa (ADR-0044 §1).
+ *
+ * ⚠️ **Deslocar, não recalcular.** A ordem foi conferida no galpão e o caminhão foi carregado nela;
+ * reordenar no meio do dia entregaria ao motorista um roteiro diferente do que está no baú.
  */
 export function resolveEtaShiftMilliseconds(input: {
-  /** A saída a que os ETAs de hoje estão ancorados; `null` é viagem sem ETA nenhum. */
-  readonly anchoredDepartureAt: Date | null
-  readonly departedAt: Date
+  /** O que o plano dizia: a partida suposta, ou o ETA da parada. `null` é ausência de plano. */
+  readonly plannedAt: Date | null
+  /** O que aconteceu: a saída, ou a chegada. */
+  readonly reportedAt: Date
 }): number {
   /**
-   * ⚠️ Sem âncora **não se desloca**: viagem planejada antes desta spec, ou montada à mão, não tem
-   * hora de saída suposta — e deslocar por uma âncora inventada erraria mais que não deslocar.
+   * ⚠️ Sem previsão **não se desloca**: viagem planejada antes desta spec, parada sem ETA, roteiro
+   * montado à mão. Deslocar por uma âncora inventada erraria mais que não deslocar.
    */
-  if (input.anchoredDepartureAt === null) return 0
+  if (input.plannedAt === null) return 0
 
-  return input.departedAt.getTime() - input.anchoredDepartureAt.getTime()
+  return input.reportedAt.getTime() - input.plannedAt.getTime()
 }

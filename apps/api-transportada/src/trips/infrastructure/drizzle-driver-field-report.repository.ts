@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, eq, inArray, isNull, notInArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, isNull, notInArray, sql } from 'drizzle-orm'
 
 import {
   tripDocuments,
@@ -119,6 +119,8 @@ class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactio
     const [record] = await this.transaction
       .select({
         arrivedAt: tripStops.arrivedAt,
+        /** Spec 109 D3: o previsto desta parada — o atraso da chegada é medido contra ele. */
+        estimatedArrivalAt: tripStops.estimatedArrivalAt,
         tripId: tripStops.tripId,
         tripStatus: trips.status,
       })
@@ -204,6 +206,42 @@ class DrizzleDriverFieldReportTransaction implements DriverFieldReportTransactio
           isNull(tripStops.arrivedAt),
         ),
       )
+  }
+
+  /**
+   * Spec 109 D3: desloca as paradas que **ainda não aconteceram**.
+   *
+   * ⚠️ O recorte é `arrived_at is null` e não a sequência: o motorista pula parada e volta, e pela
+   * sequência a saltada ficaria com a hora de antes do atraso para sempre. A parada que acabou de
+   * ser marcada já tem `arrived_at`, então ela fica de fora por construção — e é o certo: o real
+   * dela é a hora da chegada, não uma previsão corrigida.
+   */
+  public async shiftPendingStops(input: {
+    readonly at: Date
+    readonly companyId: string
+    readonly shiftMilliseconds: number
+    readonly tripId: string
+  }): Promise<void> {
+    await this.transaction
+      .update(tripStops)
+      .set({
+        estimatedArrivalAt: sql`${tripStops.estimatedArrivalAt} + make_interval(secs => ${input.shiftMilliseconds / 1_000})`,
+        updatedAt: input.at,
+      })
+      .where(
+        and(
+          eq(tripStops.companyId, input.companyId),
+          eq(tripStops.tripId, input.tripId),
+          isNull(tripStops.arrivedAt),
+          isNotNull(tripStops.estimatedArrivalAt),
+        ),
+      )
+
+    /** A hora envelhece a partir daqui: o carimbo é renovado junto (spec 107 D3). */
+    await this.transaction
+      .update(trips)
+      .set({ estimatedArrivalFrozenAt: input.at })
+      .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
   }
 
   public async markTripInTransit(input: {

@@ -326,8 +326,8 @@ async function shiftEstimatedArrivals(
 
   const departedAt = new Date()
   const shiftMilliseconds = resolveEtaShiftMilliseconds({
-    anchoredDepartureAt: trip?.etaDepartureAt ?? null,
-    departedAt,
+    plannedAt: trip?.etaDepartureAt ?? null,
+    reportedAt: departedAt,
   })
   if (shiftMilliseconds === 0) return
 
