@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { buildNeighbourhood, type RouteNeighbourhood } from './neighbourhood.js'
 import {
   buildNearestNeighbourRoute,
   createSeededRandom,
@@ -49,14 +50,25 @@ export function solveRoute(problem: RouteProblem, now: () => number = Date.now):
   const random = createSeededRandom(problem.seed)
   /** D1: o mesmo relógio que corta o laço de gerações corta o 2-opt lá dentro. */
   const shouldStop = (): boolean => now() >= deadline
-  let population = buildInitialPopulation({ problem, random, shouldStop, stopIndexes })
+  /**
+   * Spec 105: construída **uma vez** — com 40 indivíduos por geração, montá-la no laço custaria
+   * mais que o 2-opt que ela veio acelerar.
+   */
+  const neighbourhood = buildNeighbourhood({ problem, stopIndexes })
+  let population = buildInitialPopulation({
+    neighbourhood,
+    problem,
+    random,
+    shouldStop,
+    stopIndexes,
+  })
   let best = population[0] ?? stopIndexes
   let bestFitness = totalFitness(problem, best)
   let generations = 0
   let stagnant = 0
 
   while (stagnant < problem.stagnationLimit && now() < deadline) {
-    population = evolve({ population, problem, random, shouldStop })
+    population = evolve({ neighbourhood, population, problem, random, shouldStop })
     generations += 1
 
     const challenger = population[0]
@@ -90,6 +102,7 @@ export function solveRoute(problem: RouteProblem, now: () => number = Date.now):
  * existe justamente para pegar isso — começar acima dele é como não perder.
  */
 function buildInitialPopulation(input: {
+  readonly neighbourhood: RouteNeighbourhood
   readonly shouldStop: () => boolean
   readonly problem: RouteProblem
   readonly random: () => number
@@ -103,7 +116,9 @@ function buildInitialPopulation(input: {
     }),
   })
 
-  const population: Chromosome[] = [refine(input.problem, greedy, input.shouldStop)]
+  const population: Chromosome[] = [
+    refine(input.problem, greedy, input.shouldStop, input.neighbourhood),
+  ]
   while (population.length < POPULATION_SIZE) {
     const shuffled = shuffle(input.stopIndexes, input.random)
     population.push(
@@ -111,6 +126,7 @@ function buildInitialPopulation(input: {
         input.problem,
         splitAcrossVehicles({ problem: input.problem, stopIndexes: shuffled }),
         input.shouldStop,
+        input.neighbourhood,
       ),
     )
   }
@@ -119,6 +135,7 @@ function buildInitialPopulation(input: {
 }
 
 function evolve(input: {
+  readonly neighbourhood: RouteNeighbourhood
   readonly shouldStop: () => boolean
   readonly population: readonly Chromosome[]
   readonly problem: RouteProblem
@@ -132,7 +149,7 @@ function evolve(input: {
     const parentB = selectByTournament(input)
     const child = orderCrossover({ parentA, parentB, random: input.random })
     const mutated = input.random() < MUTATION_RATE ? swapMutate(child, input.random) : child
-    next.push(refine(input.problem, mutated, input.shouldStop))
+    next.push(refine(input.problem, mutated, input.shouldStop, input.neighbourhood))
   }
 
   return sortByFitness(input.problem, next)
@@ -220,10 +237,11 @@ function refine(
   problem: RouteProblem,
   chromosome: Chromosome,
   shouldStop: () => boolean = () => false,
+  neighbourhood?: RouteNeighbourhood,
 ): Chromosome {
   const routes = splitChromosome(chromosome, problem.vehicles.length)
   const refined = routes.map((stopIndexes, vehicleIndex) =>
-    improveWithTwoOpt({ problem, shouldStop, stopIndexes, vehicleIndex }),
+    improveWithTwoOpt({ neighbourhood, problem, shouldStop, stopIndexes, vehicleIndex }),
   )
 
   return joinChromosome(refined)

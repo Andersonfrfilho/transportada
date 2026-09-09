@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { evaluateRoute, routeFitness } from './route-fitness.policy.js'
+import type { RouteNeighbourhood } from './neighbourhood.js'
 import type { RouteProblem } from './route-solver.types.js'
 
 /**
@@ -32,6 +33,75 @@ export function createSeededRandom(seed: number): () => number {
  */
 const NEVER_STOP = (): boolean => false
 
+/**
+ * Os fins de segmento que vale tentar a partir de `start`. Sem vizinhança, todos — o 2-opt clássico.
+ * Com vizinhança, só os que ligam a parada de `start` a uma das K mais próximas dela.
+ */
+function candidateEnds(input: {
+  readonly best: readonly number[]
+  readonly neighbourhood: RouteNeighbourhood | undefined
+  readonly start: number
+}): readonly number[] {
+  const { best, neighbourhood, start } = input
+  if (neighbourhood === undefined) {
+    return Array.from({ length: best.length - start - 1 }, (_value, offset) => start + offset + 1)
+  }
+
+  const anchor = best[start]
+  if (anchor === undefined) return []
+  const near = new Set(neighbourhood.get(anchor) ?? [])
+
+  const ends: number[] = []
+  for (let end = start + 1; end < best.length; end += 1) {
+    const candidate = best[end]
+    if (candidate !== undefined && near.has(candidate)) ends.push(end)
+  }
+
+  return ends
+}
+
+/**
+ * A variação de distância do movimento 2-opt, em O(1): saem as arestas `(a,b)` e `(c,d)`, entram
+ * `(a,c)` e `(b,d)`. Negativo é melhoria.
+ *
+ * ⚠️ Aresta desconhecida (`null` na matriz) devolve `-1` — "vale avaliar": recusar aqui esconderia
+ * do 2-opt exatamente o movimento que pode tirar a rota de um trecho inalcançável, e quem decide
+ * sobre inalcançável é a avaliação completa, que tem a penalidade para isso.
+ */
+function distanceDelta(input: {
+  readonly best: readonly number[]
+  readonly end: number
+  readonly problem: RouteProblem
+  readonly start: number
+}): number {
+  const { best, end, problem, start } = input
+  const before = start === 0 ? problem.depotIndex : best[start - 1]
+  const first = best[start]
+  const last = best[end]
+  const after = end + 1 < best.length ? best[end + 1] : readTail(problem)
+
+  if (before === undefined || first === undefined || last === undefined || after === undefined) {
+    return -1
+  }
+
+  const removed = edge(problem, before, first) + edge(problem, last, after)
+  const added = edge(problem, before, last) + edge(problem, first, after)
+  /** ⚠️ `NaN` é aresta desconhecida, e `NaN >= 0` é `false` — sem esta guarda o filtro deixaria
+   * passar tudo, silenciosamente, e o ganho de desempenho sumiria sem nenhum teste acusar. */
+  if (Number.isNaN(removed) || Number.isNaN(added)) return -1
+
+  return added - removed
+}
+
+function edge(problem: RouteProblem, from: number, to: number): number {
+  return problem.distancesMeters[from]?.[to] ?? Number.NaN
+}
+
+/** O fim da rota: o ponto de retorno quando existe, senão o próprio depósito. */
+function readTail(problem: RouteProblem): number {
+  return problem.endIndex ?? problem.depotIndex
+}
+
 export function improveWithTwoOpt(input: {
   readonly maxPasses?: number
   readonly problem: RouteProblem
@@ -43,6 +113,11 @@ export function improveWithTwoOpt(input: {
    * Interrompido, devolve **a melhor rota já conhecida**: `best` é sempre uma permutação completa,
    * nunca um estado intermediário.
    */
+  /**
+   * Spec 105: a vizinhança granular. Ausente, o comportamento é o clássico — todos os pares —, que
+   * é o que as instâncias pequenas dos testes de referência esperam.
+   */
+  readonly neighbourhood?: RouteNeighbourhood | undefined
   readonly shouldStop?: () => boolean
   readonly stopIndexes: readonly number[]
   readonly vehicleIndex: number
@@ -62,7 +137,19 @@ export function improveWithTwoOpt(input: {
        */
       if (shouldStop()) return best
 
-      for (let end = start + 1; end < best.length; end += 1) {
+      for (const end of candidateEnds({ best, neighbourhood: input.neighbourhood, start })) {
+        /**
+         * ⚠️ **Filtro por delta de distância antes da avaliação completa.** Trocar as arestas
+         * `(a,b)` e `(c,d)` por `(a,c)` e `(b,d)` tem delta calculável em O(1); a avaliação
+         * completa é O(n) e é o que fazia cada passada custar O(n³).
+         *
+         * O filtro é **conservador de propósito**: ele só descarta movimento que nem encurta o
+         * caminho. Janela de tempo e jornada não são decomponíveis em O(1) — reverter um trecho
+         * muda a hora de chegada de tudo o que vem depois —, então quem aceita continua sendo a
+         * avaliação completa. O delta escolhe **quem vale avaliar**, nunca quem entra.
+         */
+        if (distanceDelta({ best, end, problem: input.problem, start }) >= 0) continue
+
         const candidate = reverseSegment(best, start, end)
         const candidateFitness = fitnessOf(input.problem, candidate, input.vehicleIndex)
         if (candidateFitness < bestFitness) {
