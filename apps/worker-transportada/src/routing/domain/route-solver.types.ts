@@ -57,6 +57,18 @@ export type RouteStopInput = Readonly<{
 export type RouteVehicleInput = Readonly<{
   id: string
   capacityKilograms: number
+  /**
+   * Spec 106: os índices de parada que este veículo **pode** servir — a cobertura do motorista dele,
+   * já resolvida fora do solver. `null` é ausência de restrição, e é o caso do veículo sem motorista
+   * pareado (ADR-0055: distribuir na véspera, antes da escala, é uso normal).
+   *
+   * ⚠️ Conjunto **vazio** é o oposto de `null`: o veículo não serve nada.
+   *
+   * ⚠️ Chega como conjunto de índices, e não como código de zona, de propósito: o solver é puro e
+   * não conhece família de região nem zona acumulativa. Quem traduz é o repositório, com
+   * `coversRegion` — a mesma política que a tabela de frete usa.
+   */
+  servableStopIndexes: ReadonlySet<number> | null
   /** Custo por quilômetro, em centavos por metro para caber em inteiro — dinheiro não é float. */
   costPerMeterMicros: number
 }>
@@ -74,7 +86,13 @@ export type RouteDutyLimits = Readonly<{
 }>
 
 export type RouteViolation = Readonly<{
-  kind: 'delivery_window' | 'duty_time' | 'stop_count' | 'unreachable' | 'weight'
+  kind:
+    | 'delivery_window'
+    | 'duty_time'
+    | 'region_not_covered'
+    | 'stop_count'
+    | 'unreachable'
+    | 'weight'
   /** Quanto falta: quilos acima da capacidade, segundos fora da janela. Número, nunca "estourou". */
   amount: number
   stopIndex: number | null

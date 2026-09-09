@@ -42,7 +42,14 @@ function buildContext(overrides: Partial<RouteOptimizationContext> = {}): RouteO
     seed: 42,
     solverTimeBudgetSeconds: 1,
     stops: [buildStop({ stopId: 'a' }), buildStop({ stopId: 'b' }), buildStop({ stopId: 'c' })],
-    vehicles: [{ capacityKilograms: 10_000, costPerMeterMicros: 1, id: 'vehicle-1' }],
+    vehicles: [
+      {
+        servableStopIndexes: null,
+        capacityKilograms: 10_000,
+        costPerMeterMicros: 1,
+        id: 'vehicle-1',
+      },
+    ],
     ...overrides,
   }
 }

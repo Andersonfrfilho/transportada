@@ -501,6 +501,11 @@ async function readVehicles(input: {
   return rows.map((row) => ({
     capacityKilograms: Number(row.capacityKilograms),
     /**
+     * Spec 106: a viagem já existe e o motorista dela também — a cobertura de região é resolvida na
+     * montagem, não aqui. `null` mantém o comportamento de sempre neste caminho.
+     */
+    servableStopIndexes: null,
+    /**
      * O custo por metro em micros: o solver soma milhares de vezes, e somar decimal em ponto
      * flutuante acumula erro que muda a ordem escolhida. Inteiro não acumula.
      */
@@ -587,6 +592,11 @@ async function readPoolVehicles(input: {
       (Number(row.otherCostsPerKilometer) / METRES_PER_KILOMETRE) * MICROS_PER_UNIT,
     ),
     id: row.id,
+    /**
+     * Spec 106: preenchido pelo efeito, que é quem conhece as paradas — aqui só se lê o veículo, e
+     * a cobertura é uma relação entre motorista e parada.
+     */
+    servableStopIndexes: null,
   }))
 }
 

@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { canServe } from './coverage.js'
 import type {
   RouteAssignment,
   RouteDutyLimits,
@@ -27,6 +28,11 @@ const DUTY_PENALTY_MICROS_PER_SECOND = 200_000
  * restrição física de verdade.
  */
 const STOP_COUNT_PENALTY_MICROS = 10_000_000
+/**
+ * Spec 106: região não é restrição frouxa. A penalidade é da ordem do par inalcançável, porque
+ * mandar o motorista para fora da zona dele é roteiro que a operação recusa, não roteiro caro.
+ */
+const REGION_PENALTY_MICROS = 1_000_000_000_000
 /** Par inalcançável não é rota cara: é rota que não existe, e tem de perder de qualquer alternativa. */
 const UNREACHABLE_PENALTY_MICROS = 1_000_000_000_000
 
@@ -88,6 +94,21 @@ export function evaluateRoute(input: {
     }
 
     loadKilograms += stop.weightKilograms
+
+    /**
+     * Spec 106 D2: **a rede.** A proibição é imposta pelo reparo, no cromossomo — aqui ela só é
+     * conferida. Se um operador genético novo violar a cobertura, a violação aparece com nome em vez
+     * de sair calada, e a penalidade a torna economicamente impossível de escolher.
+     */
+    if (!canServe(vehicle, stopIndex)) {
+      penaltyMicros += REGION_PENALTY_MICROS
+      violations.push({
+        amount: 1,
+        kind: 'region_not_covered',
+        stopIndex,
+        vehicleId: vehicle.id,
+      })
+    }
 
     const lateness = latenessSeconds(stop, durationSeconds)
     if (lateness > 0) {
