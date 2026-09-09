@@ -258,6 +258,8 @@ function buildUseCase(database: TestDatabase) {
       link: (input) => tripUseCase.linkDocument(input),
       listStops: async (input) =>
         (await listTripStops({ ...input, repository: stopRepository })).stops,
+      /** Spec 107 D3: a integração não confere ETA; o contrato de unidade faz isso. */
+      writeEstimatedArrivals: async () => undefined,
       planRoute: (input) => lifecycle.planRoute.execute(input),
       reorder: (input) => lifecycle.reorderStops.execute(input),
     }),

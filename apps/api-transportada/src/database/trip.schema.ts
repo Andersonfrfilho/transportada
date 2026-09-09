@@ -119,6 +119,12 @@ export const trips = pgTable(
      */
     plannedToll: jsonb('planned_toll'),
     plannedTollFrozenAt: timestamp('planned_toll_frozen_at', { withTimezone: true }),
+    /**
+     * Spec 107 D3: quando o ETA das paradas foi calculado. ⚠️ **A hora envelhece, e esta coluna
+     * existe para dizer isso** — o ETA congela no planejamento, e às 14h ainda diz o que achava às
+     * 7h. Sem o carimbo, a tela mostraria uma hora que parece previsão de agora.
+     */
+    estimatedArrivalFrozenAt: timestamp('estimated_arrival_frozen_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

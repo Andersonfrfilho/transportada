@@ -100,6 +100,7 @@ function buildFixture(
 ) {
   const calls: Record<string, unknown[]> = {
     create: [],
+    arrivals: [],
     decide: [],
     link: [],
     plan: [],
@@ -148,6 +149,10 @@ function buildFixture(
 
       /** Spec 107 D1: `false` é "já vinculada" — o aceite pula e nomeia, em vez de derrubar tudo. */
       return input.alreadyLinkedDocumentIds?.includes(record.nfeDocumentId) !== true
+    },
+    /** Spec 107 D3: o duplo registra a chamada — o contrato afirma que ela acontece. */
+    async applyEstimatedArrivals(record) {
+      calls.arrivals?.push(record)
     },
     async planRoute(record) {
       calls.plan?.push(record)
@@ -302,12 +307,14 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
         {
           documentIds: [FIRST_DOCUMENT],
           driverId: FIRST_DRIVER,
+          estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: [],
           vehicleId: FIRST_VEHICLE,
         },
         {
           documentIds: [SECOND_DOCUMENT],
           driverId: null,
+          estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: [],
           vehicleId: SECOND_VEHICLE,
         },
@@ -364,12 +371,14 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
         {
           documentIds: [FIRST_DOCUMENT],
           driverId: null,
+          estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: ['3543402|14020000|100'],
           vehicleId: FIRST_VEHICLE,
         },
         {
           documentIds: [SECOND_DOCUMENT],
           driverId: null,
+          estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: ['3543402|14020000|200'],
           vehicleId: SECOND_VEHICLE,
         },
@@ -425,6 +434,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
         {
           documentIds: [FIRST_DOCUMENT, SECOND_DOCUMENT],
           driverId: null,
+          estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: ['chave-1'],
           vehicleId: FIRST_VEHICLE,
         },
@@ -453,6 +463,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
         {
           documentIds: [FIRST_DOCUMENT],
           driverId: null,
+          estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: ['chave-1'],
           vehicleId: FIRST_VEHICLE,
         },
@@ -466,6 +477,34 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
 
     /** ⚠️ **Zero viagens.** Era daqui que nascia a órfã com zero notas do aceite duplicado. */
     expect(fixture.calls.trip).toEqual([])
+  })
+
+  /**
+   * ⚠️ Spec 107 D3: **o ETA morria na sugestão.** Medido em 2026-09-09: `route_suggestion_stops`
+   * tinha 873 de 950 paradas com hora estimada e `trip_stops` tinha **0 de 869** — não existia hora
+   * de término de viagem em lugar nenhum do sistema, e a frase "o RTD5J78 termina por volta das 14h"
+   * não tinha de onde sair.
+   */
+  test('leva para a viagem o ETA que o planejamento calculou', async () => {
+    const arrivals = new Map([['chave-1', '2026-09-09T17:00:00.000Z']])
+    const fixture = buildFixture({
+      groups: [
+        {
+          documentIds: [FIRST_DOCUMENT],
+          driverId: null,
+          estimatedArrivalByAddressKey: arrivals,
+          orderedAddressKeys: ['chave-1'],
+          vehicleId: FIRST_VEHICLE,
+        },
+      ],
+      stored: suggestion({ status: 'ready' }),
+    })
+
+    await fixture.useCase.accept({ context: CONTEXT, suggestionId: SUGGESTION_ID })
+
+    expect(fixture.calls.arrivals).toEqual([
+      { context: CONTEXT, estimatedArrivalByAddressKey: arrivals, tripId: 'trip-1' },
+    ])
   })
 
   /**
@@ -519,12 +558,14 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
         {
           documentIds: [SECOND_DOCUMENT],
           driverId: null,
+          estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: [],
           vehicleId: SECOND_VEHICLE,
         },
         {
           documentIds: [FIRST_DOCUMENT],
           driverId: null,
+          estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: [],
           vehicleId: FIRST_VEHICLE,
         },

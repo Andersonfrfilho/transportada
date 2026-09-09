@@ -211,6 +211,8 @@ export function createDrizzleMultiVehicleSuggestionRepository(
         .select({
           addressKey: routeSuggestionStops.addressKey,
           driverId: routeSuggestionVehicles.driverId,
+          /** Spec 107 D3: a hora que o planejamento calculou — o aceite a leva para a viagem. */
+          estimatedArrivalAt: routeSuggestionStops.estimatedArrivalAt,
           nfeDocumentId: routeSuggestionStopDocuments.nfeDocumentId,
           position: routeSuggestionVehicles.position,
           sequence: routeSuggestionStops.sequence,
@@ -243,14 +245,23 @@ export function createDrizzleMultiVehicleSuggestionRepository(
 
       const groups = new Map<
         string,
-        { addressKeys: string[]; documentIds: string[]; driverId: string | null }
+        {
+          addressKeys: string[]
+          arrivals: Map<string, string>
+          documentIds: string[]
+          driverId: string | null
+        }
       >()
       for (const row of rows) {
         if (row.vehicleId === null) continue
         const group = groups.get(row.vehicleId) ?? {
           addressKeys: [],
+          arrivals: new Map<string, string>(),
           documentIds: [],
           driverId: row.driverId,
+        }
+        if (row.estimatedArrivalAt !== null) {
+          group.arrivals.set(row.addressKey, row.estimatedArrivalAt.toISOString())
         }
         /** A mesma parada volta uma vez por nota: a ordem é por parada, não por linha. */
         if (group.addressKeys.at(-1) !== row.addressKey) group.addressKeys.push(row.addressKey)
@@ -263,6 +274,7 @@ export function createDrizzleMultiVehicleSuggestionRepository(
         result.push({
           documentIds: group.documentIds,
           driverId: group.driverId,
+          estimatedArrivalByAddressKey: group.arrivals,
           orderedAddressKeys: group.addressKeys,
           vehicleId,
         })

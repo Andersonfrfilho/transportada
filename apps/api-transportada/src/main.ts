@@ -1599,6 +1599,13 @@ function createApplicationRoutes({
                 (await listTripStops({ ...input, repository: tripStopLookupRepository })).stops,
               planRoute: (input) => tripLifecycle.planRoute.execute(input),
               reorder: (input) => tripLifecycle.reorderStops.execute(input),
+              /** Spec 107 D3: o ETA da sugestão vira o ETA da viagem, com o carimbo do momento. */
+              writeEstimatedArrivals: (input) =>
+                tripRouteRepository.writeEstimatedArrivals({
+                  arrivals: input.arrivals,
+                  companyId: input.context.companyId,
+                  tripId: input.tripId,
+                }),
             }),
           }),
           /**

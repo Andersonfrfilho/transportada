@@ -121,6 +121,41 @@ export class DrizzleTripRouteRepository
    * roteiro como ele foi planejado. Zerar produziria o pior dos dois: paradas vazias na tela e
    * notas todas no balde "Sem parada".
    */
+  /**
+   * Spec 107 D3: grava o ETA que o planejamento calculou e **carimba quando**, na mesma transação.
+   *
+   * ⚠️ O valor sem o carimbo é uma hora sem idade. O ETA congela no instante do planejamento e
+   * envelhece — às 14h ele ainda diz o que achava às 7h —, e é `estimated_arrival_frozen_at` que
+   * permite à tela dizer isso em vez de mostrar uma previsão que parece de agora.
+   */
+  public async writeEstimatedArrivals(input: {
+    readonly arrivals: readonly { readonly estimatedArrivalAt: string; readonly stopId: string }[]
+    readonly companyId: string
+    readonly tripId: string
+  }): Promise<void> {
+    if (input.arrivals.length === 0) return
+
+    await this.database.transaction(async (transaction) => {
+      for (const arrival of input.arrivals) {
+        await transaction
+          .update(tripStops)
+          .set({ estimatedArrivalAt: new Date(arrival.estimatedArrivalAt) })
+          .where(
+            and(
+              eq(tripStops.companyId, input.companyId),
+              eq(tripStops.tripId, input.tripId),
+              eq(tripStops.id, arrival.stopId),
+            ),
+          )
+      }
+
+      await transaction
+        .update(trips)
+        .set({ estimatedArrivalFrozenAt: sql`now()` })
+        .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+    })
+  }
+
   public async markCancelled(input: {
     readonly companyId: string
     readonly tripId: string

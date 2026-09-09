@@ -32,6 +32,7 @@ function port(
     readonly groups?: readonly {
       documentIds: readonly string[]
       driverId: null | string
+      estimatedArrivalByAddressKey: ReadonlyMap<string, string>
       orderedAddressKeys: readonly string[]
       vehicleId: string
     }[]
@@ -49,7 +50,13 @@ function port(
   const port: SuggestionValuationPort = {
     readGroups: async () =>
       overrides.groups ?? [
-        { documentIds: [DOCUMENT_A], driverId: null, orderedAddressKeys: [], vehicleId: VEHICLE_A },
+        {
+          documentIds: [DOCUMENT_A],
+          driverId: null,
+          estimatedArrivalByAddressKey: new Map(),
+          orderedAddressKeys: [],
+          vehicleId: VEHICLE_A,
+        },
       ],
     readPreviewContext: async (input) => {
       contexts.push({ distanceMeters: null, vehicleId: input.vehicleId })
@@ -107,10 +114,17 @@ describe('readSuggestionValuation (spec 101)', () => {
   it('devolve uma entrada por veículo, com as notas dele', async () => {
     const { port: repository } = port({
       groups: [
-        { documentIds: [DOCUMENT_A], driverId: null, orderedAddressKeys: [], vehicleId: VEHICLE_A },
+        {
+          documentIds: [DOCUMENT_A],
+          driverId: null,
+          estimatedArrivalByAddressKey: new Map(),
+          orderedAddressKeys: [],
+          vehicleId: VEHICLE_A,
+        },
         {
           documentIds: [DOCUMENT_B, DOCUMENT_A],
           driverId: null,
+          estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: [],
           vehicleId: VEHICLE_B,
         },

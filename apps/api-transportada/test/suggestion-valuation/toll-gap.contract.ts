@@ -73,7 +73,13 @@ describe('pedágio na sugestão (spec 101 D2)', () => {
     let seen: unknown = 'nao chamado'
     const repository: SuggestionValuationPort = {
       readGroups: async () => [
-        { documentIds: [], driverId: null, orderedAddressKeys: [], vehicleId: VEHICLE_A },
+        {
+          documentIds: [],
+          driverId: null,
+          estimatedArrivalByAddressKey: new Map(),
+          orderedAddressKeys: [],
+          vehicleId: VEHICLE_A,
+        },
       ],
       readPreviewContext: async () => ({
         distanceMeters: null,

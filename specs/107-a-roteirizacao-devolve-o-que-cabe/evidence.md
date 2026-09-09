@@ -103,10 +103,38 @@ Então esta leva entrega o que é verdadeiro **e** o que rende mais: **o botão 
 ⚠️ E o tipo da sobra virou **alias** do de `routing` — eu tinha declarado uma cópia em `trip`, com os
 mesmos campos menos a causa. Duas definições de "sobra" que divergiriam na primeira causa nova.
 
+## A hora (quarta leva)
+
+O ETA passou a ser levado da sugestão para a viagem no aceite, e **carimbado**.
+
+`readGroups` colhe a hora por endereço, `applyEstimatedArrivals` a grava casando pela mesma chave de
+endereço que `reorderStops` usa — a parada nasce da reconciliação e o id dela não existe na sugestão.
+
+⚠️ **A chamada vem depois de `reorderStops`**, e não antes: a parada só existe depois do vínculo, e o
+casamento por endereço precisa dela gravada.
+
+⚠️ **A hora envelhece, e a coluna existe para dizer isso.**
+`trips.estimated_arrival_frozen_at` (migration `20260909180000_trip_estimated_arrival_frozen`) guarda
+o instante do planejamento. O ETA congela ali: às 14h ele ainda diz o que achava às 7h. Sem o
+carimbo, a tela mostraria uma hora que parece previsão de agora — o número plausível sem aviso.
+
+Segue o molde de `planned_toll` / `planned_toll_frozen_at`, com uma diferença: **sem CHECK**, porque
+o par atravessa duas tabelas — o valor vive em `trip_stops` e o carimbo na viagem, que é onde o
+planejamento acontece.
+
+Escrita **numa transação**: valor sem carimbo é hora sem idade.
+
+### Um susto de ferramenta
+
+`prettier --write src test drizzle` reformatou **50 snapshots** gerados pelo drizzle-kit — churn que
+o `.prettierignore` existe para evitar (`apps/*/drizzle/*/snapshot.json`). Revertidos por
+`git checkout -- drizzle/`, com a migration nova preservada porque ela ainda não estava rastreada.
+
+Lição: `--write` num diretório inteiro ignora o `.prettierignore` do repositório quando o caminho é
+passado explicitamente.
+
 ## O que falta
 
-**A hora.** Levar `estimated_arrival_at` das paradas da sugestão para as da viagem no aceite, e expor
-o término na listagem. ⚠️ Ela precisa vir marcada como **estimativa do planejamento**: o ETA congela
-no momento em que a rota foi planejada e envelhece — às 14h ele ainda diz o que achava às 7h.
-
-Com ela, a frase fica completa. Sem ela, o painel diz o que sabe.
+**A tela.** A hora existe no banco e não é lida por ninguém: falta expor o término na listagem de
+viagens e montar a frase _"o RTD5J78 termina por volta das 14h e cobre 40 delas"_ no painel de sobra
+— com a marca de estimativa do planejamento ao lado, que é o que o carimbo permite.

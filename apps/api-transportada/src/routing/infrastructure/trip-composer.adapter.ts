@@ -28,6 +28,15 @@ export type TripComposerDependencies = Readonly<{
     readonly companyId: string
     readonly tripId: string
   }) => Promise<readonly TripStopSummary[]>
+  /**
+   * Spec 107 D3: grava o ETA nas paradas e **carimba quando** ele foi calculado, na mesma
+   * transação — o valor sem o carimbo é uma hora sem idade, e a hora envelhece.
+   */
+  writeEstimatedArrivals: (input: {
+    readonly arrivals: readonly { readonly estimatedArrivalAt: string; readonly stopId: string }[]
+    readonly context: MultiVehicleScope
+    readonly tripId: string
+  }) => Promise<void>
   planRoute: (input: {
     readonly context: MultiVehicleScope
     readonly tripId: string
@@ -89,6 +98,27 @@ export function createTripComposer(dependencies: TripComposerDependencies): Trip
      * endereço de destinatário, e nesse caso ela cai no balde "sem parada" da viagem — recusar o
      * aceite inteiro por causa dela desfaria as outras trinta e nove entregas já vinculadas.
      */
+    /**
+     * Spec 107 D3: grava o ETA que a sugestão calculou, casando por **endereço** — a mesma chave que
+     * `reorderStops` usa, porque a parada nasce da reconciliação e o id dela não existe na sugestão.
+     *
+     * ⚠️ Endereço proposto que não virou parada é **ignorado**, como na reordenação: a nota pode ter
+     * chegado sem endereço de destinatário, e recusar por causa dela desfaria as outras entregas.
+     */
+    async applyEstimatedArrivals({ context, estimatedArrivalByAddressKey, tripId }) {
+      if (estimatedArrivalByAddressKey.size === 0) return
+
+      const stops = await dependencies.listStops({ companyId: context.companyId, tripId })
+      const arrivals = stops.flatMap((stop) => {
+        const arrival = estimatedArrivalByAddressKey.get(stop.addressKey)
+
+        return arrival === undefined ? [] : [{ estimatedArrivalAt: arrival, stopId: stop.id }]
+      })
+      if (arrivals.length === 0) return
+
+      await dependencies.writeEstimatedArrivals({ arrivals, context, tripId })
+    },
+
     async reorderStops({ context, orderedAddressKeys, tripId }) {
       const stops = await dependencies.listStops({ companyId: context.companyId, tripId })
       const byAddressKey = new Map(stops.map((stop) => [stop.addressKey, stop.id]))

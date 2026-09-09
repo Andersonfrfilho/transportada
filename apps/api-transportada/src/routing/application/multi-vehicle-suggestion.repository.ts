@@ -12,6 +12,12 @@ export type MultiVehicleSuggestionGroup = Readonly<{
   driverId: string | null
   /** Na ordem que o solver propôs — é ela que vira a ordem das paradas da viagem criada. */
   orderedAddressKeys: readonly string[]
+  /**
+   * Spec 107 D3: a hora estimada de chegada em cada endereço, do planejamento. É o que o aceite
+   * carrega para a viagem — sem isso o ETA morre na sugestão, e não há hora de término em lugar
+   * nenhum do sistema.
+   */
+  estimatedArrivalByAddressKey: ReadonlyMap<string, string>
   vehicleId: string
 }>
 

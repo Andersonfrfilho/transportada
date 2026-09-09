@@ -47,6 +47,16 @@ export type TripComposer = Readonly<{
     readonly tripId: string
   }) => Promise<void>
   /** As paradas nascem da reconciliação; aqui só se diz em que ordem elas ficam. */
+  /**
+   * Spec 107 D3: grava na viagem o ETA que a sugestão calculou, e **carimba quando** ele foi
+   * calculado. ⚠️ A hora envelhece: sem o carimbo a tela mostraria uma previsão de 7h como se fosse
+   * de agora.
+   */
+  applyEstimatedArrivals: (input: {
+    readonly context: MultiVehicleScope
+    readonly estimatedArrivalByAddressKey: ReadonlyMap<string, string>
+    readonly tripId: string
+  }) => Promise<void>
   reorderStops: (input: {
     readonly context: MultiVehicleScope
     readonly orderedAddressKeys: readonly string[]
@@ -137,6 +147,16 @@ export function createMultiVehicleSuggestionUseCase(
 
           /** A viagem sai daqui em `route_planned`: é o que a spec promete ao operador (RF-5). */
           await dependencies.trips.planRoute({ context, tripId })
+
+          /**
+           * ⚠️ **Depois de `reorderStops`**: a parada só existe pela reconciliação do vínculo, e o
+           * casamento por endereço precisa dela gravada. Antes disso não há o que carimbar.
+           */
+          await dependencies.trips.applyEstimatedArrivals({
+            context,
+            estimatedArrivalByAddressKey: group.estimatedArrivalByAddressKey,
+            tripId,
+          })
 
           trips.push({
             documentCount: linkedCount,
