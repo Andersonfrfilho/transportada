@@ -12,6 +12,10 @@ const PANEL = new URL(
   import.meta.url,
 )
 const PAGE = new URL('../../src/modules/trip/pages/TripWorkspace.page.tsx', import.meta.url)
+const DIALOG = new URL(
+  '../../src/modules/trip/components/TripRouteAssemblyDialog.component.tsx',
+  import.meta.url,
+)
 
 /**
  * Contrato **de tela**, e ele existe porque o defeito que previne não aparece em teste de domínio:
@@ -72,11 +76,21 @@ describe('a proposta é revista antes de virar viagem (spec 108)', () => {
     expect(panel).toInclude('routeAssembly.proposal.nothingCreated')
   })
 
-  test('está montada na tela de viagens, com a conta ligada', () => {
+  /**
+   * ⚠️ **Spec 110 D1 reverte o lugar, não a decisão.** A 108 exigia que a proposta estivesse montada
+   * com a conta ligada, e ela estava — na tela de viagens, porque era onde o resultado do aceite
+   * aparecia. Só que o diálogo que a pediu fechava antes dela: quem escolheu 132 notas, 5 motoristas
+   * e 5 veículos perdia de vista o pedido que gerou aquilo.
+   *
+   * O que a 108 protege continua protegido: a proposta é revista **antes** de virar viagem, e a
+   * conta vive junto dela. O que mudou é que as duas coisas agora moram no diálogo.
+   */
+  test('está montada no diálogo que a pediu, com a conta ligada', () => {
+    const dialog = readFileSync(DIALOG, 'utf8')
     const page = readFileSync(PAGE, 'utf8')
 
-    expect(page).toInclude('TripRouteAssemblyProposal')
-    expect(page).toInclude('useSuggestionValuation')
+    expect(dialog).toInclude('useSuggestionValuation')
+    expect(page).not.toInclude('TripRouteAssemblyProposal')
   })
 
   test('tem rótulo nos dois idiomas', () => {

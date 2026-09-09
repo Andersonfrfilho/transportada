@@ -2617,3 +2617,15 @@
   flex-wrap: wrap;
   gap: var(--space-2);
 }
+
+/* Spec 110 D1: o pedido recolhido, para a lista nascer no topo em vez de duas telas abaixo. */
+.proposalRecap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 42%, transparent);
+}

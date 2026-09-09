@@ -548,6 +548,7 @@
     "alreadyOnTrip_other": "{{count}} are already on another trip and stay out.",
     "boundByDriver": "{{count}} vehicle came with the driver and only leaves the trip if the driver does.",
     "boundByDriver_other": "{{count}} vehicles came with the drivers and only leave the trip if they do.",
+    "changeRequest": "Change the request",
     "clearDrivers": "None",
     "clearVehicles": "None",
     "drivers": "Drivers",
@@ -602,6 +603,7 @@
       "title": "Route proposal",
       "unknownPlate": "Vehicle without plate"
     },
+    "recap": "{{notes}} notes in the pool · {{drivers}} drivers · {{vehicles}} vehicles",
     "selection": "{{count}} invoice in the pool",
     "selection_other": "{{count}} invoices in the pool",
     "submit": "Propose route",

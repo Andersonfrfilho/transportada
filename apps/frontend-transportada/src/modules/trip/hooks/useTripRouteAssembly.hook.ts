@@ -96,6 +96,11 @@ export function useTripRouteAssembly(
   /** Spec 108: a proposta em revisão. Enquanto ela existe, **nada foi criado**. */
   const [proposal, setProposal] = useState<null | MultiVehicleProposal>(null)
   const [isOpen, setIsOpen] = useState(false)
+  /** Spec 110 D5: a seleção nasce inteira — o caso comum é aceitar tudo. */
+  const [selectedVehicleIds, setSelectedVehicleIds] = useState<ReadonlySet<string>>(new Set())
+  const [openVehicleId, setOpenVehicleId] = useState<null | string>(null)
+  /** Spec 110 D6: a viagem alterada não pode ser aceita antes de recalcular. */
+  const [editedVehicleIds, setEditedVehicleIds] = useState<ReadonlySet<string>>(new Set())
   const [pool, setPool] = useState<readonly TripCandidateDocument[]>([])
 
   const documentsQuery = useQuery({
@@ -176,7 +181,15 @@ export function useTripRouteAssembly(
     },
     onSuccess: (result) => {
       setProposal(result)
-      setIsOpen(false)
+      /**
+       * ⚠️ Spec 110 D1: **o diálogo NÃO fecha aqui.** Ele fechava, e a revisão aparecia na tela de
+       * viagens — quem passou dois minutos escolhendo notas, motoristas e veículos perdia de vista o
+       * pedido que gerou aquilo. O comentário antigo dizia que a revisão dentro do diálogo ficaria
+       * cercada dos avisos de campo vazio: a premissa estava certa e a conclusão não, porque o
+       * formulário **recolhe** quando a proposta chega, e não há campo vazio para avisar sobre.
+       */
+      setSelectedVehicleIds(new Set(vehicleIdsOf(result)))
+      setOpenVehicleId(vehicleIdsOf(result)[0] ?? null)
     },
   })
 
@@ -185,10 +198,17 @@ export function useTripRouteAssembly(
    * operador já viu na tela.
    */
   const acceptMutation = useMutation({
-    mutationFn: async (): Promise<TripRouteAssemblyOutcome> => {
+    mutationFn: async (vehicleIds?: readonly string[]): Promise<TripRouteAssemblyOutcome> => {
       const suggestionId = proposal?.suggestion.id
       if (suggestionId === undefined) throw new Error(TRIP_ERROR.RESPONSE_INVALID)
-      const accepted = await getTripClient().acceptMultiVehicleSuggestion({ suggestionId })
+      /**
+       * Spec 110 D5a: sem lista, a proposta inteira — o aceite de sempre. Com ela, só os marcados
+       * viram viagem, e o que sobra volta ao maço porque nunca saiu dele.
+       */
+      const accepted = await getTripClient().acceptMultiVehicleSuggestion({
+        suggestionId,
+        ...(vehicleIds === undefined ? {} : { vehicleIds }),
+      })
 
       return {
         leftoverStops: accepted.leftoverStops,
@@ -199,6 +219,10 @@ export function useTripRouteAssembly(
     onSuccess: (result) => {
       setOutcome(result)
       setProposal(null)
+      setSelectedVehicleIds(new Set())
+      setOpenVehicleId(null)
+      setEditedVehicleIds(new Set())
+      setIsOpen(false)
       setDraft(EMPTY_TRIP_ROUTE_ASSEMBLY)
       setPool([])
       void invalidateMutationEffect({ effect: MUTATION_EFFECT.nfeDocumentLink, queryClient })
@@ -228,6 +252,22 @@ export function useTripRouteAssembly(
     proposeMutation,
     acceptMutation,
     proposal,
+    editedVehicleIds,
+    openVehicleId,
+    selectedVehicleIds,
+    setSelectedVehicleIds,
+    toggleOpenVehicle: (vehicleId: string) =>
+      setOpenVehicleId((current) => (current === vehicleId ? null : vehicleId)),
+    /**
+     * Descartar uma viagem da proposta é **desmarcá-la**: ela continua desenhada, e o operador vê o
+     * que deixou de fora. Sumir com a linha esconderia a decisão que ele acabou de tomar.
+     */
+    discardVehicle: (vehicleId: string) =>
+      setSelectedVehicleIds((current) => {
+        const next = new Set(current)
+        next.delete(vehicleId)
+        return next
+      }),
     /**
      * Spec 108: descartar avisa a API (`reject`) e volta o operador ao formulário com a escolha
      * dele intacta. ⚠️ A recusa remota é **melhor esforço**: falhar ali não pode prender a tela
@@ -263,3 +303,10 @@ export function useTripRouteAssembly(
 }
 
 export type TripRouteAssemblyController = ReturnType<typeof useTripRouteAssembly>
+
+/** Os veículos que a proposta distribuiu, na ordem em que as paradas os nomeiam. */
+function vehicleIdsOf(proposal: MultiVehicleProposal): readonly string[] {
+  return [
+    ...new Set(proposal.stops.flatMap((stop) => (stop.vehicleId === null ? [] : [stop.vehicleId]))),
+  ]
+}

@@ -681,6 +681,7 @@
     "alreadyOnTrip_other": "{{count}} já estão em outra viagem e ficam de fora.",
     "boundByDriver": "{{count}} veículo veio junto com o motorista e sai da viagem só se ele sair.",
     "boundByDriver_other": "{{count}} veículos vieram junto com os motoristas e saem da viagem só se eles saírem.",
+    "changeRequest": "Alterar o pedido",
     "clearDrivers": "Nenhum",
     "clearVehicles": "Nenhum",
     "drivers": "Motoristas",
@@ -735,6 +736,7 @@
       "title": "Proposta de roteiro",
       "unknownPlate": "Veículo sem placa"
     },
+    "recap": "{{notes}} notas no maço · {{drivers}} motoristas · {{vehicles}} veículos",
     "selection": "{{count}} nota no lote",
     "selection_other": "{{count}} notas no lote",
     "submit": "Propor roteiro",
