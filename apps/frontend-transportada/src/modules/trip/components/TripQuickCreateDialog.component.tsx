@@ -18,6 +18,8 @@ import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 import { useTripCargoPreview } from '../hooks/useTripCargoPreview.hook'
 import { useTripValuationPreview } from '@/modules/trip-financials/hooks/useTripValuationPreview.hook'
 
+import { VehicleIdentityBand } from '@/modules/fleet/components/VehicleIdentityBand.component'
+
 import { TripAssemblyMap } from './TripAssemblyMap.component'
 import { TripCargoPanel } from './TripCargoPanel.component'
 import { TripDocumentSearch } from './TripDocumentSearch.component'
@@ -149,6 +151,7 @@ export function TripQuickCreateDialog({
    * A carga desenhada **antes de a viagem existir**: cabe no baú, e em que ordem entra. A ordem das
    * paradas é a que o operador acabou de montar no mapa acima — a prévia não inventa roteiro.
    */
+  const selectedVehicle = vehicles.find((vehicle) => vehicle.id === quickCreate.vehicleId)
   const cargoPreview = useTripCargoPreview({
     /** Spec 100: quem amarra a carga muda a altura da pilha, então o desenho depende dele. */
     driverIds: quickCreate.driverIds,
@@ -312,6 +315,28 @@ export function TripQuickCreateDialog({
           </label>
         </div>
 
+        {/*
+          Spec 110 D8: **a mesma faixa da proposta.** Quem monta a viagem à mão também precisa ver
+          qual caminhão é aquele antes de olhar o mapa — e duas faixas com a mesma informação e
+          caras diferentes é a divergência que o `web.md` §14 reprova.
+        */}
+        {selectedVehicle === undefined ? null : (
+          <VehicleIdentityBand
+            facts={[
+              {
+                label: t('proposal.deliveries'),
+                value: String(selectedNotes.length),
+              },
+            ]}
+            label={[selectedVehicle.brand, selectedVehicle.model]
+              .filter((part) => part !== '')
+              .join(' ')}
+            plate={selectedVehicle.plate}
+            specification={describeSelectedVehicle(selectedVehicle)}
+            vehicleType={selectedVehicle.vehicleType}
+          />
+        )}
+
         <TripAssemblyMap
           nearby={nearbyNotes}
           onOrderChange={quickCreate.setCityOrder}
@@ -418,4 +443,23 @@ function toAssemblyNote(document: ScannedNfeDocument) {
     recipient: document.recipientName,
     state: document.recipientState,
   }
+}
+
+/**
+ * A ficha em uma linha: baú, capacidade e teto de massa. Campo ausente **some**, nunca vira "—".
+ *
+ * ⚠️ Cópia da mesma leitura que a proposta faz. Ela é pequena e local de propósito: subir isso para
+ * a faixa a obrigaria a conhecer `FleetVehicleDetail`, e ela existe para desenhar, não para saber
+ * de onde o texto veio.
+ */
+function describeSelectedVehicle(vehicle: FleetVehicleDetail): null | string {
+  const parts: string[] = []
+  const { cargoHeightMeters, cargoLengthMeters, cargoWidthMeters } = vehicle
+  if (cargoLengthMeters !== null && cargoWidthMeters !== null && cargoHeightMeters !== null) {
+    parts.push(`${cargoLengthMeters} × ${cargoWidthMeters} × ${cargoHeightMeters} m`)
+  }
+  if (vehicle.capacityCubicMeters !== null) parts.push(`${vehicle.capacityCubicMeters} m³`)
+  if (vehicle.capacityKilograms !== null) parts.push(`${vehicle.capacityKilograms} kg`)
+
+  return parts.length === 0 ? null : parts.join(' · ')
 }

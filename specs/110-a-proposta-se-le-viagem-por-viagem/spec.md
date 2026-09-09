@@ -245,8 +245,21 @@ A tela de criar viagem já tem mais coisa do que parecia. **O que ela já faz e 
 | --------------- | --------------------------------------------------------- | ------------------------------------------------- |
 | Conta           | `TripValuationPreview`: 3 totais + parcelas sem derivação | O razão da D7, mesmo componente                   |
 | Rótulo do custo | "Custo", neutro                                           | **"Despesas"**, em `--color-alert`                |
-| Pedágio         | Extrato separado, abaixo do mapa                          | Cada praça no trecho dela, na sequência (D4b)     |
+| Pedágio         | ✅ **Já põe cada praça no trecho dela** (`legIndex`)      | É a proposta que ainda não pode — ver abaixo      |
 | Veículo         | Só um `Select`                                            | A faixa da D3, com ícone do tipo e medidas do baú |
+
+⚠️ **Corrigido ao implementar, e a correção inverte o item.** Eu afirmei que o pedágio por trecho
+não existia na criação manual, tendo lido o tipo até a linha anterior à que responde: o
+`RouteGeometryTollBooth` **tem** `legIndex`, vindo da anotação de nós do OSRM **agrupada por
+trecho**, e `TripAssemblyMap` já filtra as praças por perna (`tollRows(legIndex)`).
+
+Então a convergência aqui é **ao contrário do que a tabela dizia**: quem tem o pedágio na sequência
+é a criação manual, e quem não tem é a proposta — porque a sugestão não persiste os `nodeIds`
+(D4b). O que se leva de lá para cá é o **desenho**; o dado ainda falta do lado da proposta.
+
+⚠️ O comentário do próprio tipo explica por que a coordenada não serve: a polilinha publicada é
+simplificada, e num roteiro que fecha no barracão a ida e a volta correm sobre a mesma rodovia — as
+duas cancelas gêmeas caíam no mesmo trecho, e a volta ficava sem pedágio nenhum.
 
 ⚠️ **A tela existente manda sobre a preferência** (`web.md` §14): o razão e a faixa nascem em
 componentes compartilhados, consumidos pelas duas telas. Duas implementações da mesma conta
