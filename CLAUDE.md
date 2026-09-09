@@ -180,6 +180,44 @@ o problema). Desvio de endereço (D9, `delivery_address_overrides`, também appe
 menu, nunca edição em linha, e guarda **duas** identidades por vínculo: `requestedBy` (texto livre —
 quem pediu o desvio quase nunca é usuário do sistema) e `actorUserId` (membership — quem executou).
 
+**Cancelar devolve a carga, e o vínculo liberado não é vínculo** (spec 102). `markCancelled` só
+trocava `trips.status`; quem decide se uma nota está disponível olha `released_at`, **nunca** o
+status da viagem. Cancelar prendia a carga para sempre, e cancelar de novo não resolvia — o caso de
+uso é idempotente e devolve `unchanged` sem escrever. Hoje ele marca `released_at` nas notas ainda
+vinculadas **na mesma transação** do status.
+
+⚠️ **Liberar é marcar, nunca apagar.** A linha de `trip_documents` permanece — é a única prova de
+que aquela nota chegou a ser carregada naquela viagem, e é o histórico que o produto promete.
+`test/cancel-releases-cargo/persistence.contract.ts` lê o fonte e reprova se um `.delete(` aparecer
+ali. E **`stop_id` não é zerado**, ao contrário de `releaseTripDocument`: lá a nota sai de uma viagem
+viva e a parada precisa ser reconciliada; aqui a viagem inteira morre, e manter a referência preserva
+o roteiro como foi planejado — zerar daria paradas vazias na tela e todas as notas no balde "Sem
+parada". Nota **entregue** não volta ao pool: ela chegou ao destino.
+
+⚠️ **`findTripLinks` não filtrava `released_at`, e esse é o defeito que não se deduz de lugar
+nenhum.** Ela é a consulta que diz à listagem de notas se a nota está em viagem
+(`cte-batches/infrastructure/cte-batch-selection.query.ts`), e devolvia o vínculo mais recente —
+liberado ou não. O cancelamento fazia a parte dele no banco, e a tela continuava recebendo `tripId`
+preenchido; a montagem de roteiro, que filtra `document.tripId === null`, descartava a nota como "já
+em viagem". Medido em 2026-09-08: **324 vínculos liberados ainda visíveis**, e o operador sem
+conseguir selecionar nota nenhuma depois de cancelar as viagens. O filtro virou
+`buildActiveTripLinkFilters`, no mesmo molde de `buildActiveNfseLinkFilters` — que fica **dez linhas
+abaixo no mesmo arquivo** e sempre filtrou `cancelled_at is null` pelo mesmo motivo. Era a de viagem
+que estava fora do padrão. Contrato em `test/cancel-releases-cargo/trip-link.contract.ts`.
+
+⚠️ A migration `20260908220000_cancelled_trips_release_cargo` solta a carga das viagens **já**
+canceladas, e o `rollback.sql` **não a desfaz** — nada distingue a linha que ela tocou da que já
+tinha sido liberada à mão, e desfazer por carimbo apagaria a hora real de liberações legítimas.
+
+⚠️ A tabela de viagens tem seleção em massa e cancelamento em lote, com a barra no **cabeçalho** —
+embaixo da tabela ela ficava fora da vista com doze linhas na tela. `completed` e `cancelled` não
+recebem caixa (oferecer o que dá `409` é atrito), e a marcação de viagem que sai da página é
+descartada: paginação por cursor troca o conjunto, e manter id invisível faria o operador cancelar o
+que não está vendo. Os cancelamentos vão **em sequência**, nunca em `Promise.all` — a primeira falha
+esconderia quais dos outros aconteceram. ⚠️ `cancelled` tem cor **própria** (`--color-copper`): ela
+dividia o verde com `completed`, e são estados opostos — a viagem que deu certo e a que não
+aconteceu.
+
 **A nota tem dois endereços de destino, e só um deles diz onde o caminhão para** (spec 073).
 `<enderDest>` é onde o cliente está cadastrado; `<entrega>` é onde a carga tem de ser deixada, e o
 emitente só o emite quando os dois divergem. O importador grava os dois desde a spec 013

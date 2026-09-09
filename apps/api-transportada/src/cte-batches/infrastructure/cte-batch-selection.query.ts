@@ -138,16 +138,33 @@ export async function findTripLinks(
       trips,
       and(eq(trips.companyId, tripDocuments.companyId), eq(trips.id, tripDocuments.tripId)),
     )
-    .where(
-      and(
-        eq(tripDocuments.companyId, companyId),
-        or(
-          inArray(tripDocuments.nfeDocumentId, [...documentIds]),
-          inArray(freightCalculations.nfeDocumentId, [...documentIds]),
-        ),
-      ),
-    )
+    .where(and(...buildActiveTripLinkFilters({ companyId, documentIds })))
     .orderBy(documentId, desc(tripDocuments.createdAt))
+}
+
+/**
+ * Spec 102: **o vínculo liberado não é vínculo.**
+ *
+ * ⚠️ Até esta spec faltava `released_at is null` aqui, e a consequência só aparecia depois de
+ * cancelar: a nota solta continuava chegando à listagem com `tripId` preenchido, e a montagem de
+ * roteiro a descartava como "já em viagem". Medido na base local: 324 vínculos liberados ainda
+ * visíveis, e o operador sem conseguir selecionar nota nenhuma.
+ *
+ * A irmã `buildActiveNfseLinkFilters`, logo abaixo, sempre filtrou `cancelled_at is null` pelo
+ * mesmo motivo — era esta que estava fora do padrão.
+ */
+export function buildActiveTripLinkFilters({
+  companyId,
+  documentIds,
+}: CteBatchPreviewQuery): readonly SQL[] {
+  return [
+    eq(tripDocuments.companyId, companyId),
+    isNull(tripDocuments.releasedAt),
+    or(
+      inArray(tripDocuments.nfeDocumentId, [...documentIds]),
+      inArray(freightCalculations.nfeDocumentId, [...documentIds]),
+    ),
+  ] as const as readonly SQL[]
 }
 
 /**

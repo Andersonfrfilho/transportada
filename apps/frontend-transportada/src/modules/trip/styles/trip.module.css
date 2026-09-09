@@ -205,6 +205,21 @@
   color: var(--color-ready);
 }
 
+/*
+ * ⚠️ Cancelada **não** é verde. Ela dividia a classe com `completed`, e as duas coisas são
+ * opostas: uma é a viagem que deu certo, a outra é a que não aconteceu. Verde ao lado de
+ * "Cancelada" faz o olho ler sucesso e passar reto — numa lista de doze linhas é o bastante para
+ * ninguém notar a viagem morta.
+ *
+ * Âmbar (`--color-copper`) e não vermelho (`--color-alert`): cancelar é ação legítima do operador,
+ * incidente e não falha do sistema (ADR-0043 §1). O vermelho deste produto é de erro, e gastá-lo
+ * aqui o desvaloriza para quando importa de verdade.
+ */
+.statusCancelled {
+  border-color: color-mix(in srgb, var(--color-copper) 65%, transparent);
+  color: var(--color-copper);
+}
+
 /* Nota cancelada/denegada avisa sem bloquear: a viagem continua e o MDF-e segue emissível. */
 .warningRow {
   background: color-mix(in srgb, var(--color-alert) 12%, transparent);
@@ -2086,15 +2101,23 @@
   list-style: disc;
 }
 
-/* Spec 102: a barra de ação em massa da tabela de viagens. */
+/*
+ * Spec 102: a barra de ação em massa vive no **cabeçalho** da tabela, ao lado da contagem da
+ * página — é onde o operador já está olhando quando termina de marcar as linhas. Embaixo da tabela
+ * ela ficava fora da vista com doze linhas na tela.
+ */
 .bulkBar {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
-  margin-block: var(--space-2);
 }
 
 .bulkBar p {
   margin: 0;
+}
+
+/* A contagem selecionada pesa mais que a da página: é ela que diz o que a ação vai atingir. */
+.bulkCount {
+  font-weight: 600;
 }

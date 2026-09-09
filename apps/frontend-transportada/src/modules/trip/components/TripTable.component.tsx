@@ -39,10 +39,15 @@ type TripTableProps = Readonly<{
   onCancelSelected: () => void
 }>
 
+/**
+ * ⚠️ `completed` e `cancelled` dividiam a mesma classe verde, e são estados **opostos**: uma viagem
+ * que deu certo e uma que não aconteceu. Cada uma tem a sua cor.
+ */
 function statusClassName(status: TripStatus): string {
-  return status === 'completed' || status === 'cancelled'
-    ? `${styles.statusBadge} ${styles.statusReady}`
-    : `${styles.statusBadge}`
+  if (status === 'completed') return `${styles.statusBadge} ${styles.statusReady}`
+  if (status === 'cancelled') return `${styles.statusBadge} ${styles.statusCancelled}`
+
+  return `${styles.statusBadge}`
 }
 
 function formatMoment(value: string): string {
@@ -191,7 +196,27 @@ export function TripTable({
     <section className={styles.panel} aria-labelledby="trip-table-title">
       <div className={styles.panelHead}>
         <h2 id="trip-table-title">{t('tripsTitle')}</h2>
+        {/*
+          A contagem da página **não some** quando há seleção: "12 selecionadas" sem o total ao lado
+          não diz de quantas. As duas convivem, e a seleção é que ganha destaque.
+        */}
         <p className={styles.counter}>{t('resultCounter', { shown: table.visibleItems.length })}</p>
+        {/* Spec 102: a barra só existe com seleção — barra vazia permanente é ruído. */}
+        {canCancel && table.cancellableSelection.length > 0 ? (
+          <div className={styles.bulkBar} role="group" aria-label={t('selection.barLabel')}>
+            <p className={styles.bulkCount}>
+              {t('selection.count', { count: table.cancellableSelection.length })}
+            </p>
+            <Button onClick={() => setConfirming(true)} size="sm" type="button" variant="secondary">
+              <Icon name="remove" />
+              {t('selection.cancelTrips')}
+            </Button>
+            <Button onClick={table.clearSelection} size="sm" type="button" variant="ghost">
+              <Icon name="close" />
+              {t('selection.clear')}
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       <div className={styles.tableScroll}>
@@ -201,7 +226,7 @@ export function TripTable({
               {canCancel ? (
                 <th scope="col">
                   <Checkbox
-                    aria-label={t('selection.selectAll')}
+                    ariaLabel={t('selection.selectAll')}
                     checked={table.selectAllState === 'all'}
                     indeterminate={table.selectAllState === 'some'}
                     onChange={table.toggleSelectAll}
@@ -234,7 +259,7 @@ export function TripTable({
                     {/* Concluída e cancelada não têm caixa: oferecer o que dá 409 é atrito puro. */}
                     {isCancellable(trip) ? (
                       <Checkbox
-                        aria-label={t('selection.selectTrip', { vehicle: vehicleLabel(trip) })}
+                        ariaLabel={t('selection.selectTrip', { vehicle: vehicleLabel(trip) })}
                         checked={table.selectedIds.includes(trip.id)}
                         onChange={() => table.toggleSelection(trip.id)}
                       />
@@ -266,21 +291,6 @@ export function TripTable({
       </div>
 
       {table.visibleItems.length === 0 ? <p className={styles.hint}>{t('empty')}</p> : null}
-
-      {/* Spec 102: a barra só existe com seleção — barra vazia permanente é ruído. */}
-      {canCancel && table.cancellableSelection.length > 0 ? (
-        <div className={styles.bulkBar} role="group" aria-label={t('selection.barLabel')}>
-          <p>{t('selection.count', { count: table.cancellableSelection.length })}</p>
-          <Button onClick={() => setConfirming(true)} size="sm" type="button" variant="secondary">
-            <Icon name="remove" />
-            {t('selection.cancelTrips')}
-          </Button>
-          <Button onClick={table.clearSelection} size="sm" type="button" variant="ghost">
-            <Icon name="close" />
-            {t('selection.clear')}
-          </Button>
-        </div>
-      ) : null}
 
       <TripCancelDialog
         isCancelling={isCancelling}

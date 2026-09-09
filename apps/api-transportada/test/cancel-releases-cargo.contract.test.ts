@@ -5,3 +5,4 @@
  */
 import './cancel-releases-cargo/use-case.contract.js'
 import './cancel-releases-cargo/persistence.contract.js'
+import './cancel-releases-cargo/trip-link.contract.js'

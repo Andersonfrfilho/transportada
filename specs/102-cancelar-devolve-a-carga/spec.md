@@ -24,6 +24,29 @@ na tela diz por quê.
 **Resultado esperado:** cancelar libera as notas ainda vinculadas, elas voltam a ser selecionáveis, e
 a viagem cancelada continua no registro.
 
+## D0 — O segundo buraco, achado só ao testar
+
+⚠️ **Corrigir `markCancelled` não bastou, e a spec original não sabia disso.** Depois de cancelar as
+viagens com o código novo, o operador **continuou sem conseguir selecionar as notas**.
+
+A causa é uma consulta que a spec não tinha olhado: `findTripLinks`
+(`cte-batches/infrastructure/cte-batch-selection.query.ts`), que diz à listagem de notas se a nota
+está em viagem, **não filtrava `released_at`**. Ela devolvia o vínculo mais recente da nota,
+liberado ou não. O cancelamento fazia a parte dele no banco — a nota estava solta —, e a tela
+continuava recebendo `tripId` preenchido; a montagem de roteiro, que filtra `document.tripId ===
+null`, a descartava como "já em viagem".
+
+Medido em 2026-09-08, depois da migration: **0 notas presas** e **324 vínculos liberados ainda
+visíveis**. O dado estava certo e a leitura estava errada.
+
+A irmã `buildActiveNfseLinkFilters` fica **dez linhas abaixo no mesmo arquivo** e sempre filtrou
+`cancelled_at is null` pelo mesmo motivo — era a de viagem que estava fora do padrão. O filtro virou
+`buildActiveTripLinkFilters`, no mesmo molde.
+
+**Lição de método:** a spec verificou a **escrita** (o cancelamento solta) e não a **leitura** (quem
+pergunta se a nota está livre). Toda spec que muda o que um campo significa precisa varrer os
+leitores dele, não só o escritor — `released_at` tinha dois, e um deles não sabia da regra.
+
 ## D1 — Liberar é marcar, nunca apagar
 
 A linha de `trip_documents` **permanece**, com `released_at` preenchido e `stop_id` nulo — o mesmo
@@ -95,7 +118,8 @@ vira uma viagem nova. Aceitável porque cancelar já é terminal, mas o texto do
 1. Cancelar libera as notas ainda vinculadas, na mesma transação do status.
 2. A linha de `trip_documents` **permanece**, com `released_at` — contrato que falha se ela sumir.
 3. Nota entregue **não** é liberada.
-4. A nota liberada volta a ser oferecida pela sugestão e pelo vínculo manual.
+4. A nota liberada volta a ser oferecida pela sugestão e pelo vínculo manual — e **some da
+   listagem como "em viagem"**, que é o que a D0 corrige.
 5. A tabela de viagens tem seleção em massa e ação de cancelar; `completed` não é oferecida.
 6. O diálogo diz que a carga volta ao pool e que o vínculo vira histórico.
 
