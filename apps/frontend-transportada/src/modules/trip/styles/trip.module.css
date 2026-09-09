@@ -1056,7 +1056,7 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: var(--font-size-sm);
+  font-size: 0.8rem;
 }
 
 .cargoLegend li {
@@ -1067,7 +1067,7 @@
 
 .cargoOverflow {
   color: var(--color-alert);
-  font-size: var(--font-size-sm);
+  font-size: 0.8rem;
 }
 
 /* RNF4: quem pediu para nao ter animacao nao tem. */
@@ -1090,7 +1090,7 @@
 /* Valor e data acompanham o número sem competir com ele: é referência, não o nome da nota. */
 .stopDocumentMeta {
   color: var(--color-slate);
-  font-size: var(--font-size-sm);
+  font-size: 0.8rem;
   white-space: nowrap;
 }
 
@@ -1099,7 +1099,7 @@
   list-style: none;
   margin: 0;
   padding: 0;
-  font-size: var(--font-size-sm);
+  font-size: 0.8rem;
 }
 
 /* O formulário de ocorrência quebra naturalmente no celular do galpão (web.md §10). */
@@ -1150,7 +1150,7 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   font-family: inherit;
-  font-size: var(--font-size-sm);
+  font-size: 0.8rem;
   margin: 0;
 }
 
@@ -1228,8 +1228,8 @@
 }
 
 .assemblyDepotCardTitle {
-  color: var(--color-text);
-  font-size: var(--font-size-sm);
+  color: var(--color-fog);
+  font-size: 0.8rem;
   margin: 0;
 }
 
@@ -1313,12 +1313,12 @@
   color: var(--color-slate);
   display: flex;
   flex-wrap: wrap;
-  font-size: var(--font-size-sm);
+  font-size: 0.8rem;
   gap: var(--space-1) var(--space-2);
 }
 
 .tollStatementBooth {
-  color: var(--color-text);
+  color: var(--color-fog);
 }
 
 .tollStatementCharge {
@@ -1326,7 +1326,7 @@
 }
 
 .tollStatementNote {
-  color: var(--color-amber);
+  color: var(--color-copper);
 }
 
 /* O seletor de rota alternativa (spec 096 T3), logo abaixo do bloco de pedágio. */
@@ -1479,8 +1479,8 @@
 }
 
 .assemblyTollBooth {
-  color: var(--color-text);
-  font-size: var(--font-size-sm);
+  color: var(--color-fog);
+  font-size: 0.8rem;
 }
 
 .assemblyStop {
@@ -1867,7 +1867,7 @@
   border-radius: 999px;
   color: var(--color-copper);
   display: flex;
-  font-size: var(--font-size-sm);
+  font-size: 0.8rem;
   gap: var(--space-2);
   left: 50%;
   padding: var(--space-1) var(--space-3);
@@ -1961,7 +1961,7 @@
   color: var(--color-fog);
   cursor: pointer;
   display: flex;
-  font-size: var(--font-size-sm);
+  font-size: 0.8rem;
   gap: var(--space-2);
   min-height: var(--control-height-compact);
   padding: var(--space-1) var(--space-3);
@@ -1983,7 +1983,7 @@
   color: var(--color-slate);
   display: flex;
   flex-wrap: wrap;
-  font-size: var(--font-size-sm);
+  font-size: 0.8rem;
   gap: var(--space-3);
   list-style: none;
   margin: var(--space-3) 0 0;
@@ -1996,7 +1996,7 @@
  */
 .cargoPrintSheet {
   border-collapse: collapse;
-  font-size: var(--font-size-sm);
+  font-size: 0.8rem;
   margin-top: var(--space-3);
   width: 100%;
 }
@@ -2073,7 +2073,7 @@
   border: 1px solid color-mix(in srgb, var(--color-slate) 35%, transparent);
   color: var(--color-fog);
   cursor: pointer;
-  font-size: var(--font-size-sm);
+  font-size: 0.8rem;
   min-height: var(--control-height-compact);
   padding: var(--space-1) var(--space-3);
 }
@@ -2097,7 +2097,7 @@
   margin: 0;
   padding-inline-start: var(--space-4);
   color: var(--color-slate);
-  font-size: var(--font-size-sm);
+  font-size: 0.8rem;
   list-style: disc;
 }
 
@@ -2144,8 +2144,7 @@
 }
 
 .proposal {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
   display: grid;
   gap: var(--space-4);
   padding: var(--space-4);
@@ -2186,8 +2185,7 @@
 }
 
 .proposalCard {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
   display: grid;
   gap: var(--space-2);
   padding: var(--space-3);
@@ -2198,12 +2196,12 @@
 }
 
 .proposalCardCounts {
-  color: var(--color-text-muted);
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
   margin: 0;
 }
 
 .proposalCardStops ol {
-  color: var(--color-text-muted);
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
   display: grid;
   gap: var(--space-1);
   margin: var(--space-2) 0 0;
@@ -2217,7 +2215,7 @@
 }
 
 .leftoversSecondWave {
-  color: var(--color-text-muted);
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
   margin: 0;
 }
 
@@ -2228,7 +2226,7 @@
 }
 
 .leftoversDetail dt {
-  color: var(--color-text-muted);
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
 }
 
 .leftoversDetail dd {

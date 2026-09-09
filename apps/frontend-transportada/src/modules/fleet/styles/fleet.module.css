@@ -1250,7 +1250,6 @@
      isso é um retângulo onde não se reconhece nada. Aqui o número é a altura do desenho, não um
      espaçamento entre coisas. */
   height: 18rem;
-  border-radius: var(--radius-md);
   overflow: hidden;
   /*
     ⚠️ O MapLibre posiciona marcador em `absolute` dentro do contêiner. Sem um contexto de
@@ -1286,12 +1285,12 @@
   align-items: flex-start;
   gap: var(--space-2);
   color: var(--color-slate);
-  font-size: var(--font-size-sm);
+  font-size: 0.8rem;
   margin: 0;
 }
 
 .homeWarning {
-  color: var(--color-amber);
+  color: var(--color-copper);
 }
 
 /* As setas de ajuste do alfinete, em cruz — a disposição diz para onde cada uma move. */

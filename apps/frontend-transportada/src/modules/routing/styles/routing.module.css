@@ -299,8 +299,8 @@
 }
 
 .multiVehiclePairVehicle {
-  color: var(--color-text);
-  font-size: var(--font-size-sm);
+  color: var(--color-fog);
+  font-size: 0.8rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -325,12 +325,12 @@
 }
 
 .vehicleValuationGap dd {
-  color: var(--color-text-muted);
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
   text-align: right;
 }
 
 .negative {
-  color: var(--color-danger);
+  color: var(--color-alert);
 }
 
 /* Spec 101: o relatório do conjunto, acima das viagens propostas. */
@@ -348,7 +348,7 @@
 }
 
 .reportTotals dt {
-  color: var(--color-text-muted);
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
 }
 
 .reportTotals dd {
