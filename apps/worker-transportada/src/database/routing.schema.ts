@@ -99,6 +99,8 @@ export const companyRouteOptimizationSettings = pgTable('company_route_optimizat
   companyId: uuid('company_id').primaryKey(),
   /** Spec 058 P2: o fuso da operação, em nome IANA — a janela do cliente é hora local. */
   timezone: text().notNull(),
+  /** Spec 109: a hora em que a frota sai, em segundos desde a meia-noite local. */
+  departureTimeSeconds: bigint('departure_time_seconds', { mode: 'number' }).notNull(),
   originAddressKey: text('origin_address_key').notNull(),
   endPolicy: text('end_policy').notNull(),
   endAddressKey: text('end_address_key').notNull(),

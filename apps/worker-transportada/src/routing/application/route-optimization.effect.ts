@@ -15,8 +15,16 @@ import type {
  */
 export type RouteOptimizationContext = Readonly<{
   companyId: string
-  /** Segundos a partir do início da jornada; a janela da parada é relativa a ele. */
-  dayStartEpochSeconds: number
+  /**
+   * Spec 109: **o instante em que a frota sai**, e a origem do relógio do solver — a janela da
+   * parada é relativa a ele.
+   *
+   * ⚠️ Era a meia-noite **UTC**, que em Brasília são 21h do dia anterior: toda rota partia à noite e
+   * as chegadas caíam de madrugada (medido em 2026-09-09: cinco viagens terminando entre 03:04 e
+   * 07:03). A hora de saída é cadastro (`company_route_optimization_settings.departure_time_seconds`),
+   * porque a operação que sai às 5h existe e não é a mesma que sai às 8h.
+   */
+  departureEpochSeconds: number
   depot: RouteOptimizationPoint | null
   duty: RouteProblem['duty']
   /**
@@ -242,7 +250,7 @@ function toOrderedStops(input: {
 
   const ordered: OptimizedStop[] = []
   let sequence = 0
-  let clockSeconds = input.context.dayStartEpochSeconds
+  let clockSeconds = input.context.departureEpochSeconds
 
   for (const assignment of input.solution.assignments) {
     /**
@@ -272,7 +280,7 @@ function toOrderedStops(input: {
       if (stop.windowStartSeconds !== null) {
         clockSeconds = Math.max(
           clockSeconds,
-          input.context.dayStartEpochSeconds + stop.windowStartSeconds,
+          input.context.departureEpochSeconds + stop.windowStartSeconds,
         )
       }
 

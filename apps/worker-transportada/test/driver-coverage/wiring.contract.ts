@@ -45,7 +45,7 @@ describe('a cobertura chega ao solver (spec 106)', () => {
     await runRouteOptimization({
       context: {
         companyId: COMPANY_ID,
-        dayStartEpochSeconds: 0,
+        departureEpochSeconds: 0,
         depot: { addressKey: 'depot', latitude: '-21.0', longitude: '-47.0' },
         driverCoverage: coverage.driverCoverage,
         duty: null,

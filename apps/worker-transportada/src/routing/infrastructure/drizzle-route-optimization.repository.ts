@@ -64,6 +64,8 @@ const SECONDS_PER_DAY = 86_400
 /** O mesmo padrão que a API aplica a empresa sem configuração — as duas leem a mesma ausência. */
 const DEFAULT_SETTINGS = {
   defaultServiceTimeSeconds: 600,
+  /** Spec 109: 08:00 local — a hora em que a operação abre. Empresa sem linha sai no padrão. */
+  departureTimeSeconds: 28_800,
   endAddressKey: '',
   endPolicy: 'depot',
   fallbackWeightKilograms: '0.00',
@@ -129,6 +131,17 @@ export function createDrizzleRouteOptimizationRepository(
        * mesma origem, senão a parada abriria às 8h de um dia e o percurso contaria a partir de outro.
        */
       const dayStartSeconds = startOfUtcDaySeconds(new Date())
+      /**
+       * Spec 109: **a origem do relógio é a partida, não a meia-noite.** A meia-noite UTC são 21h
+       * de Brasília do dia anterior: toda rota partia à noite e as chegadas caíam de madrugada
+       * (medido em 2026-09-09: cinco viagens terminando entre 03:04 e 07:03).
+       *
+       * A hora de saída é local, e o mesmo deslocamento que converte a janela do cliente a converte.
+       */
+      const departureEpochSeconds =
+        dayStartSeconds +
+        settings.departureTimeSeconds +
+        utcOffsetSeconds({ date: toUtcDate(dayStartSeconds), timezone: settings.timezone })
 
       /**
        * Spec 058 P2: **as duas origens do problema.** Sugestão de viagem lê as paradas que já
@@ -143,6 +156,7 @@ export function createDrizzleRouteOptimizationRepository(
               database,
               date: toUtcDate(dayStartSeconds),
               dayStartSeconds,
+              departureTimeSeconds: settings.departureTimeSeconds,
               timezone: settings.timezone,
               defaultServiceTimeSeconds: settings.defaultServiceTimeSeconds,
               defaultVolumeWeight,
@@ -152,6 +166,7 @@ export function createDrizzleRouteOptimizationRepository(
           : await readStops({
               companyId: job.companyId,
               database,
+              departureEpochSeconds,
               defaultServiceTimeSeconds: settings.defaultServiceTimeSeconds,
               defaultVolumeWeight,
               fallbackWeightKilograms: settings.fallbackWeightKilograms,
@@ -193,11 +208,11 @@ export function createDrizzleRouteOptimizationRepository(
         driverCoverage,
         regionCodeByCityKey,
         /**
-         * A janela da parada é absoluta no banco e relativa no solver. A meia-noite UTC do dia da
-         * sugestão é a origem: qualquer outra escolha faria a mesma viagem produzir janelas
-         * diferentes conforme a hora em que alguém apertou o botão.
+         * A janela da parada é absoluta no banco e relativa no solver, e a origem das duas é a
+         * **partida do dia da sugestão** — nunca o instante do clique, que faria a mesma viagem
+         * produzir janelas diferentes conforme a hora em que alguém apertou o botão.
          */
-        dayStartEpochSeconds: dayStartSeconds,
+        departureEpochSeconds,
         depot,
         duty: {
           breakEverySeconds: settings.breakEverySeconds,
@@ -352,6 +367,7 @@ async function readSettings(input: {
       ? {}
       : {
           defaultServiceTimeSeconds: row.defaultServiceTimeSeconds,
+          departureTimeSeconds: row.departureTimeSeconds,
           endAddressKey: row.endAddressKey,
           endPolicy: row.endPolicy,
           fallbackWeightKilograms: row.fallbackWeightKilograms,
@@ -422,6 +438,8 @@ async function readStops(input: {
   readonly database: RouteOptimizationDatabase
   readonly defaultServiceTimeSeconds: number
   readonly defaultVolumeWeight: string | null
+  /** Spec 109: a partida — a origem do relógio, e ela chega pronta em vez de ser relida aqui. */
+  readonly departureEpochSeconds: number
   readonly fallbackWeightKilograms: string
   readonly tripId: string
 }): Promise<readonly RouteOptimizationStop[]> {
@@ -469,8 +487,6 @@ async function readStops(input: {
     documentsByStop.set(link.stopId, current)
   }
 
-  const dayStart = startOfUtcDaySeconds(new Date())
-
   return rows.map((row) => {
     const weight = resolveStopWeight({
       defaultWeightPerVolume: input.defaultVolumeWeight,
@@ -504,8 +520,8 @@ async function readStops(input: {
       state: '',
       weightEstimated: weight.estimated,
       weightKilograms: weight.weightKilograms,
-      windowEndSeconds: toRelativeSeconds(row.deliveryWindowEnd, dayStart),
-      windowStartSeconds: toRelativeSeconds(row.deliveryWindowStart, dayStart),
+      windowEndSeconds: toRelativeSeconds(row.deliveryWindowEnd, input.departureEpochSeconds),
+      windowStartSeconds: toRelativeSeconds(row.deliveryWindowStart, input.departureEpochSeconds),
     }
   })
 }
@@ -733,6 +749,8 @@ async function readPoolStops(input: {
   readonly database: RouteOptimizationDatabase
   readonly date: string
   readonly dayStartSeconds: number
+  /** Spec 109: a hora de saída, local — é dela que a janela do cliente passa a ser medida. */
+  readonly departureTimeSeconds: number
   readonly defaultServiceTimeSeconds: number
   readonly defaultVolumeWeight: string | null
   readonly fallbackWeightKilograms: string
@@ -872,7 +890,11 @@ async function readPoolStops(input: {
   return [...grouped.entries()].map(([addressKey, group]) => {
     const point = byKey.get(addressKey)
     const window = resolvePoolWindow({
-      offsetSeconds: utcOffsetSeconds({ date: input.date, timezone: input.timezone }),
+      /**
+       * Spec 109: a janela é relativa à **partida**, e as duas são hora local — o deslocamento de
+       * fuso se cancela na subtração. "Abre às 8h e saímos às 8h" é zero, em qualquer fuso.
+       */
+      offsetSeconds: -input.departureTimeSeconds,
       taxIds: [...group.taxIds],
       windows,
     })

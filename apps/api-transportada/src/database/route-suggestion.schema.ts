@@ -237,6 +237,14 @@ export const companyRouteOptimizationSettings = pgTable(
      * dele. Quem converte é `Intl`, com a data da sugestão.
      */
     timezone: text().notNull().default('America/Sao_Paulo'),
+    /**
+     * Spec 109: **a hora em que a frota sai**, em segundos desde a meia-noite local. O relógio do
+     * solver conta a partir da meia-noite UTC, e sem ela toda rota partia às 21h de Brasília — as
+     * chegadas caíam de madrugada (medido: cinco viagens terminando entre 03:04 e 07:03).
+     */
+    departureTimeSeconds: bigint('departure_time_seconds', { mode: 'number' })
+      .notNull()
+      .default(28_800),
     originAddressKey: text('origin_address_key').notNull().default(''),
     endPolicy: text('end_policy').$type<RouteEndPolicy>().notNull().default('depot'),
     endAddressKey: text('end_address_key').notNull().default(''),
@@ -280,6 +288,10 @@ export const companyRouteOptimizationSettings = pgTable(
     check(
       'company_route_optimization_settings_end_address_check',
       sql`(${table.endPolicy} = 'address') = (length(${table.endAddressKey}) > 0)`,
+    ),
+    check(
+      'company_route_optimization_settings_departure_check',
+      sql`${table.departureTimeSeconds} between 0 and 86399`,
     ),
     check(
       'company_route_optimization_settings_budget_check',

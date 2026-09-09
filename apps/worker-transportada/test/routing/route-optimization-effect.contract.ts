@@ -37,7 +37,7 @@ function buildStop(
 function buildContext(overrides: Partial<RouteOptimizationContext> = {}): RouteOptimizationContext {
   return {
     companyId: 'company-1',
-    dayStartEpochSeconds: 0,
+    departureEpochSeconds: 0,
     depot: DEPOT,
     duty: null,
     end: null,
@@ -199,6 +199,25 @@ describe('route optimization effect (ADR-0044 §7)', () => {
   })
 
   /**
+   * ⚠️ Spec 109: **a rota parte da partida, não da meia-noite.** O relógio contava a partir da
+   * meia-noite UTC — 21h de Brasília —, e as chegadas caíam de madrugada: medido em 2026-09-09,
+   * cinco viagens propostas terminando às 03:04, 05:21, 07:03, 12:33 e 21:03.
+   */
+  test('a primeira chegada é depois da partida, nunca antes', async () => {
+    const departureEpochSeconds = 1_757_419_200 + 11 * 3_600
+    const context = buildContext({ departureEpochSeconds })
+
+    const outcome = await runRouteOptimization({ context, ports: buildPorts() })
+
+    for (const stop of outcome.orderedStops) {
+      expect(stop.estimatedArrivalAt).not.toBeNull()
+      expect((stop.estimatedArrivalAt as Date).getTime() / 1_000).toBeGreaterThanOrEqual(
+        departureEpochSeconds,
+      )
+    }
+  })
+
+  /**
    * A ETA publicada tem de contar a **espera** pela abertura da janela, que é o que o fitness já
    * conta. Enquanto ela não contava, o custo escolhia a rota somando o tempo parado no portão e a
    * tela mostrava chegada às 5h da manhã — duas respostas para a mesma pergunta.
@@ -216,7 +235,7 @@ describe('route optimization effect (ADR-0044 §7)', () => {
     const first = outcome.orderedStops.find((stop) => stop.stopId === 'stop-1')
     expect(first?.estimatedArrivalAt).not.toBeNull()
     expect((first?.estimatedArrivalAt as Date).getTime() / 1_000).toBeGreaterThanOrEqual(
-      context.dayStartEpochSeconds + 11 * 3_600,
+      context.departureEpochSeconds + 11 * 3_600,
     )
   })
 })
