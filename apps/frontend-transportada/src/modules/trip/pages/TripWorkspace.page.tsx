@@ -336,7 +336,10 @@ export function TripWorkspacePage() {
                     {t('routeAssembly.outcomeAutomatic', { count: assembly.outcome.trips.length })}
                   </p>
                   {/* Spec 107: o que não entrou em viagem nenhuma, com o motivo de cada um. */}
-                  <TripRouteAssemblyLeftovers outcome={assembly.outcome} />
+                  <TripRouteAssemblyLeftovers
+                    onRetry={assembly.retryWith}
+                    outcome={assembly.outcome}
+                  />
                 </>
               )}
 

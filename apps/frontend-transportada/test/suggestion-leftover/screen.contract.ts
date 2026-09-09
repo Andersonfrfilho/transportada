@@ -46,6 +46,17 @@ describe('a sobra aparece na tela (spec 107)', () => {
     expect(guard).not.toInclude('&&')
   })
 
+  /**
+   * ⚠️ Spec 107 D3: o botão só aparece com nota que **vale** tentar de novo. A parada de endereço
+   * impreciso não fica melhor numa segunda montagem, e oferecê-lo ali convidaria o operador a
+   * repetir o mesmo pedido esperando resultado diferente.
+   */
+  test('oferece continuar só quando há nota reaproveitável', () => {
+    expect(source).toInclude('collectRetryableDocumentIds')
+    expect(source).toInclude('retryable.length === 0 ? null')
+    expect(source).toInclude("t('routeAssembly.leftovers.retry'")
+  })
+
   test('está montado na tela de viagens', () => {
     expect(readFileSync(PAGE, 'utf8')).toInclude('TripRouteAssemblyLeftovers')
   })
@@ -69,6 +80,8 @@ describe('a sobra aparece na tela (spec 107)', () => {
         'imprecise_other',
         'notCovered_one',
         'notCovered_other',
+        'retry_one',
+        'retry_other',
         'show',
         'summary_one',
         'summary_other',

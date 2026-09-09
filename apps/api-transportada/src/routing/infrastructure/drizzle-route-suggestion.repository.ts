@@ -6,6 +6,7 @@ import { and, eq, sql } from 'drizzle-orm'
 
 import {
   companyRouteOptimizationSettings,
+  routeSuggestionStopDocuments,
   routeSuggestionStops,
   routeSuggestions,
 } from '../../database/database.schema.js'
@@ -84,7 +85,16 @@ export function createDrizzleRouteSuggestionRepository(
         )
         .orderBy(routeSuggestionStops.sequence)
 
-      return toRecord({ row, stops })
+      /**
+       * Spec 107 D3: as notas de cada parada. É o que o botão de continuação precisa — sem elas, a
+       * sobra é uma lista de nomes de cidade que o operador teria de refiltrar à mão, que é
+       * exatamente o passo em que a seleção deu errado (spec 103).
+       *
+       * Uma consulta para todas as paradas, nunca uma por parada.
+       */
+      const documentsByStop = await readStopDocuments({ companyId, database, suggestionId })
+
+      return toRecord({ documentsByStop, row, stops })
     },
 
     /**
@@ -159,7 +169,43 @@ export function createDrizzleRouteSuggestionRepository(
 type SuggestionRow = typeof routeSuggestions.$inferSelect
 type StopRow = typeof routeSuggestionStops.$inferSelect
 
+async function readStopDocuments(input: {
+  readonly companyId: string
+  readonly database: RouteSuggestionDatabase
+  readonly suggestionId: string
+}): Promise<ReadonlyMap<string, readonly string[]>> {
+  const rows = await input.database
+    .select({
+      nfeDocumentId: routeSuggestionStopDocuments.nfeDocumentId,
+      stopId: routeSuggestionStopDocuments.suggestionStopId,
+    })
+    .from(routeSuggestionStopDocuments)
+    .innerJoin(
+      routeSuggestionStops,
+      and(
+        eq(routeSuggestionStops.companyId, routeSuggestionStopDocuments.companyId),
+        eq(routeSuggestionStops.id, routeSuggestionStopDocuments.suggestionStopId),
+      ),
+    )
+    .where(
+      and(
+        eq(routeSuggestionStopDocuments.companyId, input.companyId),
+        eq(routeSuggestionStops.suggestionId, input.suggestionId),
+      ),
+    )
+
+  const byStop = new Map<string, string[]>()
+  for (const row of rows) {
+    const current = byStop.get(row.stopId) ?? []
+    current.push(row.nfeDocumentId)
+    byStop.set(row.stopId, current)
+  }
+
+  return byStop
+}
+
 function toRecord(input: {
+  readonly documentsByStop?: ReadonlyMap<string, readonly string[]>
   readonly row: SuggestionRow
   readonly stops: readonly StopRow[]
 }): RouteSuggestionRecord {
@@ -179,7 +225,7 @@ function toRecord(input: {
     id: input.row.id,
     seed: input.row.seed,
     status: input.row.status,
-    stops: input.stops.map(toStopRecord),
+    stops: input.stops.map((stop) => toStopRecord(stop, input.documentsByStop?.get(stop.id) ?? [])),
     tripId: input.row.tripId,
     truncated: input.row.truncated,
     updatedAt: input.row.updatedAt.toISOString(),
@@ -187,9 +233,14 @@ function toRecord(input: {
   }
 }
 
-function toStopRecord(row: StopRow): RouteSuggestionStopRecord {
+function toStopRecord(
+  row: StopRow,
+  documentIds: readonly string[] = [],
+): RouteSuggestionStopRecord {
   return {
     addressKey: row.addressKey,
+    /** Spec 107 D3: as notas desta parada — o que o botão de continuação seleciona de volta. */
+    nfeDocumentIds: documentIds,
     distanceFromPreviousMeters: row.distanceFromPreviousMeters,
     durationFromPreviousSeconds: row.durationFromPreviousSeconds,
     estimatedArrivalAt: row.estimatedArrivalAt?.toISOString() ?? null,

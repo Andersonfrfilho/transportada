@@ -1,32 +1,20 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { describe, expect, it } from 'bun:test'
 
-import type { RouteSuggestionStop } from '@/modules/routing/shared/routeSuggestion.types'
 import {
+  collectRetryableDocumentIds,
   countLeftoverByReason,
   LEFTOVER_REASON,
   resolveLeftoverStops,
+  type CoverableSuggestionStop,
 } from '@/modules/routing/shared/suggestionLeftover.service'
 
-function stop(overrides: Partial<RouteSuggestionStop>): RouteSuggestionStop {
+function stop(overrides: Partial<CoverableSuggestionStop>): CoverableSuggestionStop {
   return {
-    addressKey: 'chave',
-    distanceFromPreviousMeters: null,
-    durationFromPreviousSeconds: null,
-    estimatedArrivalAt: null,
     excludedFromOptimization: false,
-    geocodingPrecision: null,
     label: 'Parada',
-    latitude: null,
-    longitude: null,
-    sequence: 1,
-    serviceTimeSampleSize: null,
-    serviceTimeSeconds: null,
-    serviceTimeSource: null,
-    stopId: null,
+    nfeDocumentIds: [],
     vehicleId: 'vehicle-1',
-    violations: [],
-    weightEstimated: false,
     ...overrides,
   }
 }
@@ -43,7 +31,12 @@ describe('a sobra da roteirização (spec 107)', () => {
     ])
 
     expect(leftovers).toEqual([
-      { excludedFromOptimization: false, label: 'Orlândia', reason: LEFTOVER_REASON.notCovered },
+      {
+        excludedFromOptimization: false,
+        label: 'Orlândia',
+        nfeDocumentIds: [],
+        reason: LEFTOVER_REASON.notCovered,
+      },
     ])
   })
 
@@ -66,12 +59,62 @@ describe('a sobra da roteirização (spec 107)', () => {
 
   it('conta por causa, para a frase', () => {
     const counts = countLeftoverByReason([
-      { excludedFromOptimization: false, label: 'a', reason: LEFTOVER_REASON.notCovered },
-      { excludedFromOptimization: false, label: 'b', reason: LEFTOVER_REASON.notCovered },
-      { excludedFromOptimization: true, label: 'c', reason: LEFTOVER_REASON.imprecise },
+      {
+        excludedFromOptimization: false,
+        label: 'a',
+        nfeDocumentIds: [],
+        reason: LEFTOVER_REASON.notCovered,
+      },
+      {
+        excludedFromOptimization: false,
+        label: 'b',
+        nfeDocumentIds: [],
+        reason: LEFTOVER_REASON.notCovered,
+      },
+      {
+        excludedFromOptimization: true,
+        label: 'c',
+        nfeDocumentIds: [],
+        reason: LEFTOVER_REASON.imprecise,
+      },
     ])
 
     expect(counts.get(LEFTOVER_REASON.notCovered)).toBe(2)
     expect(counts.get(LEFTOVER_REASON.imprecise)).toBe(1)
+  })
+})
+
+describe('as notas que voltam para a seleção (spec 107 D3)', () => {
+  /**
+   * ⚠️ Só a sobra **sem cobertura** volta. A parada excluída por endereço impreciso não fica melhor
+   * numa segunda montagem — reoferecê-la faria o operador repetir o mesmo pedido esperando resultado
+   * diferente.
+   */
+  it('devolve só as notas das paradas sem cobertura', () => {
+    const leftovers = resolveLeftoverStops([
+      stop({ label: 'Ipuã', nfeDocumentIds: ['a', 'b'], vehicleId: null }),
+      stop({
+        excludedFromOptimization: true,
+        label: 'Sem CEP',
+        nfeDocumentIds: ['c'],
+        vehicleId: null,
+      }),
+    ])
+
+    expect(collectRetryableDocumentIds(leftovers)).toEqual(['a', 'b'])
+  })
+
+  /** A mesma nota em duas paradas volta uma vez: a seleção é um conjunto. */
+  it('não repete nota', () => {
+    const leftovers = resolveLeftoverStops([
+      stop({ label: 'Ipuã', nfeDocumentIds: ['a'], vehicleId: null }),
+      stop({ label: 'Orlândia', nfeDocumentIds: ['a', 'b'], vehicleId: null }),
+    ])
+
+    expect(collectRetryableDocumentIds(leftovers)).toEqual(['a', 'b'])
+  })
+
+  it('sem sobra sem cobertura, nada volta', () => {
+    expect(collectRetryableDocumentIds([])).toEqual([])
   })
 })

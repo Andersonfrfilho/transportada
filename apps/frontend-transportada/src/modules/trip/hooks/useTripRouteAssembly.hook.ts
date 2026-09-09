@@ -185,6 +185,17 @@ export function useTripRouteAssembly(
     close: () => setIsOpen(false),
     isOpen,
     open: () => setIsOpen(true),
+    /**
+     * Spec 107 D3: reabre a montagem já com as notas que sobraram. ⚠️ Ela **filtra o pool
+     * disponível** em vez de confiar nos ids: a nota pode ter entrado numa viagem entre o aceite e o
+     * clique, e reofertá-la produziria o `already_linked` que a D1 acabou de aprender a pular.
+     */
+    retryWith: (nfeDocumentIds: readonly string[]) => {
+      const wanted = new Set(nfeDocumentIds)
+      setPool((documentsQuery.data ?? []).filter((entry) => wanted.has(entry.id)))
+      setOutcome(null)
+      setIsOpen(true)
+    },
     assembleMutation,
     bindings,
     availableDocuments: documentsQuery.data ?? [],

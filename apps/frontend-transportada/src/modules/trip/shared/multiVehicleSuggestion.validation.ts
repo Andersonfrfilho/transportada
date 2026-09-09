@@ -82,6 +82,9 @@ export function acceptedMultiVehicleSuggestionFromApi(
               {
                 excludedFromOptimization: stop.excludedFromOptimization === true,
                 label: typeof stop.label === 'string' ? stop.label : '',
+                nfeDocumentIds: Array.isArray(stop.nfeDocumentIds)
+                  ? stop.nfeDocumentIds.filter((id): id is string => typeof id === 'string')
+                  : [],
                 vehicleId: typeof stop.vehicleId === 'string' ? stop.vehicleId : null,
               },
             ]

@@ -23,6 +23,12 @@ export type RouteSuggestionAssumptions = Readonly<{
 
 export type RouteSuggestionStop = Readonly<{
   addressKey: string
+  /**
+   * Spec 107 D3: as notas que caem nesta parada. É o que o botão de continuação seleciona de volta —
+   * sem elas, a sobra é uma lista de nomes de cidade que o operador refiltraria à mão, que é
+   * exatamente o passo em que a seleção deu errado (spec 103).
+   */
+  nfeDocumentIds: readonly string[]
   distanceFromPreviousMeters: number | null
   durationFromPreviousSeconds: number | null
   estimatedArrivalAt: string | null

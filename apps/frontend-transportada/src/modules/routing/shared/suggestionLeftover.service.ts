@@ -14,6 +14,7 @@
 export type CoverableSuggestionStop = Readonly<{
   excludedFromOptimization: boolean
   label: string
+  nfeDocumentIds: readonly string[]
   vehicleId: string | null
 }>
 
@@ -33,6 +34,7 @@ export type LeftoverReason = (typeof LEFTOVER_REASON)[keyof typeof LEFTOVER_REAS
 export type LeftoverStop = Readonly<{
   excludedFromOptimization: boolean
   label: string
+  nfeDocumentIds: readonly string[]
   reason: LeftoverReason
 }>
 
@@ -49,6 +51,7 @@ export function resolveLeftoverStops(
     .map((stop) => ({
       excludedFromOptimization: stop.excludedFromOptimization,
       label: stop.label,
+      nfeDocumentIds: stop.nfeDocumentIds,
       reason: stop.excludedFromOptimization
         ? LEFTOVER_REASON.imprecise
         : LEFTOVER_REASON.notCovered,
@@ -60,6 +63,22 @@ export function resolveLeftoverStops(
  * operador procurar numa tela de 345 — que é exatamente o passo em que ele errou o filtro e
  * despachou 345 achando que eram 21 (spec 103).
  */
+/**
+ * As notas de toda a sobra, sem repetição — o que o botão de continuação devolve à seleção.
+ *
+ * ⚠️ Só as paradas **sem cobertura**: a excluída por endereço impreciso não fica melhor numa segunda
+ * montagem, e reoferecê-la faria o operador repetir o mesmo pedido esperando resultado diferente.
+ */
+export function collectRetryableDocumentIds(leftovers: readonly LeftoverStop[]): readonly string[] {
+  return [
+    ...new Set(
+      leftovers
+        .filter((stop) => stop.reason === LEFTOVER_REASON.notCovered)
+        .flatMap((stop) => stop.nfeDocumentIds),
+    ),
+  ]
+}
+
 export function countLeftoverByReason(
   leftovers: readonly LeftoverStop[],
 ): ReadonlyMap<LeftoverReason, number> {

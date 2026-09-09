@@ -424,17 +424,19 @@
     "allVehicles": "All ({{count}})",
     "clearVehicles": "None",
     "leftovers": {
-      "title": "Left out of the route",
-      "summary_one": "1 item was left out of the route.",
-      "summary_other": "{{count}} items were left out of the route.",
-      "show": "See which",
+      "alreadyLinked_one": "1 invoice already linked to another delivery",
+      "alreadyLinked_other": "{{count}} invoices already linked to other deliveries",
       "hide": "Hide",
-      "notCovered_one": "1 stop with no driver covering the region",
-      "notCovered_other": "{{count}} stops with no driver covering the region",
       "imprecise_one": "1 stop whose address is too imprecise to route",
       "imprecise_other": "{{count}} stops whose addresses are too imprecise to route",
-      "alreadyLinked_one": "1 invoice already linked to another delivery",
-      "alreadyLinked_other": "{{count}} invoices already linked to other deliveries"
+      "notCovered_one": "1 stop with no driver covering the region",
+      "notCovered_other": "{{count}} stops with no driver covering the region",
+      "retry_one": "Build a route with the leftover invoice",
+      "retry_other": "Build a route with the {{count}} leftovers",
+      "show": "See which",
+      "summary_one": "1 item was left out of the route.",
+      "summary_other": "{{count}} items were left out of the route.",
+      "title": "Left out of the route"
     }
   },
   "valuation": {

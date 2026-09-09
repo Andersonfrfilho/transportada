@@ -57,6 +57,7 @@ function buildStopRecord(
   overrides: Readonly<{ sequence: number; stopId: string | null }>,
 ): RouteSuggestionRecord['stops'][number] {
   return {
+    nfeDocumentIds: [],
     addressKey: `3550308|0131010${overrides.sequence}|1000`,
     distanceFromPreviousMeters: 2_400,
     durationFromPreviousSeconds: 420,

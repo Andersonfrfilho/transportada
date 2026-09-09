@@ -1,4 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+
+import type { LeftoverStop } from '@/modules/routing/shared/suggestionLeftover.service'
 /**
  * ADR-0043 §1: `open`/`closed` migraram para os estados da viagem (`open → draft`,
  * `closed → completed`). ADR-0058 acrescentou `on_delivery_route`, a viagem na estrada.
@@ -697,10 +699,12 @@ export type SkippedMultiVehicleDocument = Readonly<{
  * Spec 107: a parada que não entrou em viagem nenhuma. ⚠️ Sugestão que devolve quarenta paradas e
  * cala sobre doze **parece completa** — o operador aceita e descobre a carga esquecida depois.
  */
-export type MultiVehicleLeftoverStop = Readonly<{
-  excludedFromOptimization: boolean
-  label: string
-}>
+/**
+ * ⚠️ A causa (`reason`) vem junto: a regra que a decide mora em
+ * `routing/shared/suggestionLeftover.service.ts`, e reimplementá-la aqui produziria duas definições
+ * de "sobra" que divergiriam na primeira causa nova.
+ */
+export type MultiVehicleLeftoverStop = LeftoverStop
 
 export type AcceptedMultiVehicleSuggestion = Readonly<{
   leftoverStops: readonly MultiVehicleLeftoverStop[]
