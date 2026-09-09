@@ -1,0 +1,201 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+import { useTranslation } from 'react-i18next'
+
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Icon } from '@/components/ui/icon'
+import { Tooltip } from '@/components/ui/tooltip'
+import {
+  formatDistance,
+  formatDuration,
+} from '@/modules/routing/shared/suggestionValuation.service'
+import { formatAmount, formatWeightKilograms } from '@/modules/shared/decimalAmount.service'
+import { VEHICLE_TYPE_ICONS } from '@/modules/shared/vehicleTypeIcon.service'
+import { formatMargin, isNegative } from '@/modules/trip-financials/shared/financialView.service'
+
+import { stopColorTokenOf } from '../shared/stopColor.service'
+import type { ProposalVehicleView } from '../shared/proposalView.service'
+import styles from '../styles/trip.module.css'
+
+type TripProposalRowProps = Readonly<{
+  children: React.ReactNode
+  index: number
+  isEdited: boolean
+  isOpen: boolean
+  isSelected: boolean
+  onAccept: () => void
+  onDiscard: () => void
+  onRecalculate: () => void
+  onToggleOpen: () => void
+  onToggleSelected: () => void
+  view: ProposalVehicleView
+}>
+
+/**
+ * Spec 110 D2: **a linha decide sozinha.** Motorista no título, veículo e regiões nos subtítulos, e
+ * os seis números à direita — na ordem em que a conta se lê: receita, despesas, lucro.
+ */
+export function TripProposalRow({
+  children,
+  index,
+  isEdited,
+  isOpen,
+  isSelected,
+  onAccept,
+  onDiscard,
+  onRecalculate,
+  onToggleOpen,
+  onToggleSelected,
+  view,
+}: TripProposalRowProps) {
+  const { t } = useTranslation('trip')
+  const color = `var(${stopColorTokenOf(index + 1)})`
+  const marginTone = view.hasGaps
+    ? styles.proposalWarn
+    : isNegative(view.totalMargin)
+      ? styles.negative
+      : styles.proposalProfit
+
+  return (
+    <li className={`${styles.proposalRow} ${isOpen ? styles.proposalRowOpen : ''}`}>
+      {/*
+        ⚠️ A caixa fica **fora do gatilho**: botão dentro de botão não existe, e marcar uma viagem
+        para aceitar não pode abrir um detalhe de trinta linhas.
+      */}
+      <span className={styles.proposalCheck}>
+        <Checkbox
+          ariaLabel={t('proposal.selectTrip', { driver: view.driverName ?? view.plate ?? '' })}
+          checked={isSelected}
+          onChange={onToggleSelected}
+        />
+      </span>
+
+      <button className={styles.proposalTrigger} onClick={onToggleOpen} type="button">
+        <Icon name={isOpen ? 'chevron-down' : 'chevron-right'} />
+        <span className={styles.proposalIdentity}>
+          <span className={styles.proposalHeadline}>
+            {/*
+              ⚠️ Um elemento, dois fatos: a **cor** é a identidade da viagem — a mesma do traço no
+              mapa e das fatias do baú — e o **desenho** é o tipo do caminhão. Dois elementos lado a
+              lado diriam a mesma coisa em dobro, e o ponto colorido sozinho não diz que veículo é.
+            */}
+            <span className={styles.proposalMark} style={{ borderColor: color, color }}>
+              {view.vehicleType === '' ? null : (
+                <Icon name={VEHICLE_TYPE_ICONS[view.vehicleType]} />
+              )}
+            </span>
+            <strong>{view.driverName ?? t('proposal.withoutDriver')}</strong>
+            {view.plate === null ? null : (
+              <span className={styles.proposalPlate}>{view.plate}</span>
+            )}
+            {view.vehicleLabel === null ? null : (
+              <span className={styles.proposalVehicle}>{view.vehicleLabel}</span>
+            )}
+            {isEdited ? (
+              <span className={styles.proposalEdited}>{t('proposal.edited')}</span>
+            ) : null}
+          </span>
+          <span className={styles.proposalCities}>
+            <Icon name="map-pin" />
+            {view.cities.join(' · ')}
+          </span>
+        </span>
+
+        <span className={styles.proposalMetrics}>
+          <Metric label={t('proposal.deliveries')} value={String(view.deliveries)} />
+          <Metric
+            label={t('proposal.weight')}
+            note={view.weightEstimated ? t('proposal.weightEstimated') : null}
+            value={
+              view.weightKilograms === null
+                ? t('proposal.unknown')
+                : formatWeightKilograms(view.weightKilograms)
+            }
+          />
+          <Metric label={t('proposal.revenue')} value={formatAmount(view.totalRevenue)} />
+          {/* Despesas em vermelho, lucro em verde: os dois se distinguem antes do rótulo. */}
+          <Metric
+            label={t('proposal.expenses')}
+            note={view.hasGaps ? t('proposal.missingParcels') : null}
+            tone={styles.proposalExpenses}
+            value={formatAmount(view.totalCost)}
+          />
+          <Metric
+            label={t('proposal.margin')}
+            note={
+              view.hasGaps
+                ? t('proposal.incomplete')
+                : (formatMargin(view.marginPercentage) ?? null)
+            }
+            tone={marginTone}
+            value={formatAmount(view.totalMargin)}
+          />
+          <Metric
+            label={t('proposal.time')}
+            note={formatDistance(view.distanceMeters)}
+            value={formatDuration(view.durationSeconds) ?? t('proposal.unknown')}
+          />
+        </span>
+      </button>
+
+      {/*
+        ⚠️ O espaço dos **três** botões fica reservado mesmo quando só dois aparecem: o de recalcular
+        só existe na linha alterada, e sem a reserva as métricas das linhas vizinhas dançam
+        horizontalmente quando ele entra.
+      */}
+      <span className={styles.proposalActions}>
+        {isEdited ? (
+          <Tooltip label={t('proposal.recalculate')}>
+            <Button
+              aria-label={t('proposal.recalculate')}
+              onClick={onRecalculate}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              <Icon name="refresh" />
+            </Button>
+          </Tooltip>
+        ) : null}
+        <Tooltip label={t('proposal.acceptOne')}>
+          <Button aria-label={t('proposal.acceptOne')} onClick={onAccept} size="sm" type="button">
+            <Icon name="check" />
+          </Button>
+        </Tooltip>
+        <Tooltip label={t('proposal.discardOne', { count: view.deliveries })}>
+          <Button
+            aria-label={t('proposal.discardOne', { count: view.deliveries })}
+            onClick={onDiscard}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Icon name="close" />
+          </Button>
+        </Tooltip>
+      </span>
+
+      {isOpen ? <div className={styles.proposalDetail}>{children}</div> : null}
+    </li>
+  )
+}
+
+function Metric({
+  label,
+  note = null,
+  tone,
+  value,
+}: Readonly<{
+  label: string
+  note?: null | string
+  tone?: string | undefined
+  value: string
+}>) {
+  return (
+    <span className={styles.proposalMetric}>
+      <span className={styles.proposalMetricLabel}>{label}</span>
+      <span className={tone === undefined ? undefined : tone}>{value}</span>
+      {note === null ? null : <span className={styles.proposalMetricNote}>{note}</span>}
+    </span>
+  )
+}

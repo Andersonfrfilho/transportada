@@ -1,4 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import { compareScaledAmounts, sumScaledAmounts } from '@/modules/shared/decimalAmount.service'
+
 import type {
   TripValuation,
   TripValuationCostParcel,
@@ -45,27 +47,6 @@ export type ValuationLedger = Readonly<{
   totalRevenue: string
 }>
 
-/**
- * Soma em centavos inteiros: `Number` sobre decimal de dinheiro acumula erro binário, e a soma das
- * parcelas tem de bater com o total que a API já mandou — divergir por um centavo na tela é pior do
- * que não mostrar o detalhe.
- */
-function toCents(amount: string): bigint {
-  const [whole = '0', fraction = ''] = amount.trim().split('.')
-  const cents = `${fraction}00`.slice(0, 2)
-  const magnitude = BigInt(`${whole.replace('-', '')}${cents}`)
-
-  return whole.startsWith('-') ? -magnitude : magnitude
-}
-
-function formatCents(total: bigint): string {
-  const negative = total < 0n
-  const absolute = negative ? -total : total
-  const cents = (absolute % 100n).toString().padStart(2, '0')
-
-  return `${negative ? '-' : ''}${(absolute / 100n).toString()}.${cents}`
-}
-
 function toLine(parcel: TripValuationCostParcel): ValuationLedgerLine {
   return {
     amount: parcel.gap === null ? parcel.amount : null,
@@ -88,8 +69,11 @@ function byWeight(first: ValuationLedgerLine, second: ValuationLedgerLine): numb
   if (first.amount === null) return 1
   if (second.amount === null) return -1
 
-  const difference = toCents(second.amount) - toCents(first.amount)
-  return difference === 0n ? 0 : Number(difference > 0n) * 2 - 1
+  /**
+   * ⚠️ `compareScaledAmounts`, não comparação de string: `'9.0000'` viria antes de `'43.1316'`, e a
+   * lista sairia ordenada por texto — que é a ordem errada com a cara de certa.
+   */
+  return compareScaledAmounts(second.amount, first.amount)
 }
 
 export function buildValuationLedger(valuation: null | TripValuation): null | ValuationLedger {
@@ -98,16 +82,15 @@ export function buildValuationLedger(valuation: null | TripValuation): null | Va
   const lines = valuation.costParcels.map(toLine)
   const operating = lines.filter((line) => !TAX_KINDS.includes(line.kind)).sort(byWeight)
   const taxes = lines.filter((line) => TAX_KINDS.includes(line.kind)).sort(byWeight)
-  const sum = [...operating, ...taxes].reduce(
-    (total, line) => (line.amount === null ? total : total + toCents(line.amount)),
-    0n,
+  const sum = sumScaledAmounts(
+    [...operating, ...taxes].flatMap((line) => (line.amount === null ? [] : [line.amount])),
   )
 
   return {
     hasGaps: valuation.hasGaps,
     marginPercentage: valuation.marginPercentage,
     operating,
-    sum: formatCents(sum),
+    sum,
     taxes,
     totalCost: valuation.totalCost,
     totalMargin: valuation.totalMargin,
