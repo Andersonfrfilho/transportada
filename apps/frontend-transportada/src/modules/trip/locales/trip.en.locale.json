@@ -1,196 +1,297 @@
 {
-  "kicker": "Non-fiscal operation",
-  "title": "Trips",
-  "intro": "Organize trips without a CT-e: link a vehicle, drivers, and the fiscal notes carried.",
-  "loading": "Loading trips",
-  "error": "Could not load trips",
-  "empty": "No trip found",
-  "forbidden": "Your current access does not allow you to view trips",
-  "dateRange": {
-    "placeholder": "Select the period",
-    "clear": "Clear period",
-    "previousMonth": "Previous month",
-    "nextMonth": "Next month"
-  },
-  "resultCounter": "{{shown}} trip(s) on this page",
-  "tripsTitle": "Trips",
-  "filters": {
-    "title": "Filters",
-    "all": "All",
-    "clear": "Clear filters",
-    "active": "{{count}} active filter(s)",
-    "status": "Status",
-    "vehicleId": "Vehicle",
-    "driverId": "Driver",
-    "createdRange": "Created range",
-    "removeFilter": "Remove the {{field}} filter"
-  },
-  "status": {
-    "draft": "Draft",
-    "route_planned": "Route planned",
-    "separating": "Separating",
-    "loading": "Loading",
-    "dispatched": "Dispatched",
-    "in_transit": "In transit",
-    "on_delivery_route": "On delivery route",
-    "completed": "Completed",
-    "cancelled": "Cancelled"
-  },
-  "separationStatus": {
-    "pending": "Pending",
-    "separated": "Separated",
-    "loaded": "Loaded",
-    "delivered": "Delivered",
-    "returned": "Returned"
-  },
-  "stops": {
-    "empty": "No stop on this trip yet",
-    "unassigned": "No stop",
-    "documentCount": "{{count}} document",
-    "documentCount_other": "{{count}} documents",
-    "reorderHandle": "Drag to reorder stop {{label}}",
-    "selectAll": "Select every document at stop {{label}}",
-    "selectDocument": "Select document {{document}}",
-    "selectionCount": "{{count}} document selected",
-    "selectionCount_other": "{{count}} documents selected",
-    "selectionClear": "Clear selection",
-    "progressLabel": "Trip separation progress",
-    "processCount": "{{reached}} of {{total}}",
-    "processReturned": "{{count}} invoice(s) returned — outside the flow",
-    "arrivedAt": "Arrived at {{time}}",
-    "completedAt": "Completed at {{time}}"
-  },
-  "deliveryOverride": {
-    "menuAction": "Redirect delivery",
-    "title": "Redirect delivery",
-    "subtitle": "New address for document {{document}} — not an edit, a recorded action.",
-    "postalCode": "Postal code",
-    "number": "Number",
-    "cityCode": "City code (IBGE)",
-    "newLabel": "Readable address",
-    "requestedBy": "Who requested the detour",
-    "requestedByHint": "Free text — the customer who called, the salesperson, the recipient. Almost never a system user.",
-    "reason": "Reason",
-    "submit": "Record detour",
-    "historyTitle": "Detour history",
-    "historyEmpty": "No detour recorded for this document",
-    "historyEntry": "From \"{{from}}\" to \"{{to}}\"",
-    "historyRequestedBy": "Requested by {{name}}"
-  },
-  "columns": {
-    "vehicleId": "Vehicle",
-    "status": "Status",
-    "createdAt": "Created at",
-    "updatedAt": "Updated at",
-    "cargoValue": "Cargo value",
-    "revenue": "Revenue"
-  },
-  "sort": {
-    "asc": "sorted ascending",
-    "desc": "sorted descending",
-    "none": "not sorted"
-  },
   "actions": {
+    "backToList": "Back to trips",
+    "close": "Close trip",
+    "create": "Create trip",
+    "deliver": "Mark delivered",
+    "issueMdfe": "Issue MDF-e",
+    "linkDocument": "Link",
+    "load": "Load",
+    "release": "Unlink",
+    "resetCreation": "Clear draft",
+    "return": "Return",
+    "separate": "Separate",
     "title": "Actions",
     "view": "View",
-    "viewTrip": "Open the trip for {{vehicle}}",
-    "create": "Create trip",
-    "resetCreation": "Clear draft",
-    "deliver": "Mark delivered",
-    "separate": "Separate",
-    "load": "Load",
-    "return": "Return",
-    "release": "Unlink",
-    "linkDocument": "Link",
-    "close": "Close trip",
-    "backToList": "Back to trips",
-    "issueMdfe": "Issue MDF-e"
+    "viewTrip": "Open the trip for {{vehicle}}"
   },
-  "stateActions": {
-    "title": "Trip actions",
-    "batchSeparate": "Separate {{count}} document(s)",
-    "batchLoad": "Load {{count}} document(s)",
-    "batchReturn": "Return {{count}} document(s)",
-    "generateCteSelection": "Issue CT-e for {{count}} selected invoice(s)",
-    "planRoute": "Plan route",
-    "dispatch": "Dispatch",
-    "cancel": "Cancel trip",
-    "returnTitle": "Return document",
-    "returnSubtitle": "Document {{document}} — the reason goes into the trip's audit trail.",
-    "returnReasonLabel": "Return reason",
-    "returnSubmit": "Confirm return",
-    "forceTitle": "Dispatch with pending documents",
-    "forceSubtitle": "These documents were never loaded. Dispatching anyway returns them to the pool.",
-    "forceReasonLabel": "Reason",
-    "forceSubmit": "Dispatch anyway"
+  "assemblyMap": {
+    "approximate": "⚠️ Approximate position — only the municipality is known; the point is its centre.",
+    "basemapLabel": "City boundary",
+    "depot": {
+      "absence": {
+        "not_configured": "The depot leg is out of this estimate: no origin address is registered in the company route settings. Distance, time, fuel and tolls below start at the first delivery.",
+        "not_geocoded": "The depot leg is out of this estimate: the origin address is registered but has no coordinate yet. Distance, time, fuel and tolls below start at the first delivery."
+      }
+    },
+    "depotLeg": {
+      "outbound": "Depot to first delivery: {{distance}} km · {{duration}}",
+      "return": "Last delivery back to depot: {{distance}} km · {{duration}}"
+    },
+    "empty": "No city to draw yet — scan or select a note.",
+    "finish": "Predicted finish {{time}} · {{distance}} km · {{total}} of route.",
+    "finishWarning": "⚠️ Falls on {{reasons}} — check whether anyone is working.",
+    "legTime": "{{distance}} km · {{duration}} to the next stop",
+    "loading": "Loading the assembly map",
+    "moveDown": "Move {{label}} down",
+    "moveUp": "Move {{label}} up",
+    "nearby": "Nearby and left out: {{cities}}.",
+    "nearbyLabel": "Outside the selection: {{label}}",
+    "nearbyMore": "Nearby and left out: {{cities}} and {{count}} more cities.",
+    "noteAmount": "{{amount}}",
+    "noteRevenue": "freight {{amount}}",
+    "noteWeight": "{{weight}} kg",
+    "phoneCopied": "Phone copied",
+    "phoneCopy": "Copy the phone number of {{recipient}}",
+    "propose": "Propose order",
+    "proposeHint": "The proposal links cities by straight-line proximity. Road distance comes from the router once the trip exists.",
+    "recenter": "Recentre the map",
+    "revenueEstimated": "forecast",
+    "revenueRule": "by {{rule}}{{percentage}}",
+    "solve": "Best route",
+    "solveFailed": "The router did not answer. The current order still stands.",
+    "solveNeedsVehicle": "The best route uses the router — pick the vehicle, since its capacity changes the path.",
+    "solving": "Solving…",
+    "stopLabel": "Stop {{sequence}}: {{label}}",
+    "theme": "Switch the map to {{theme}}",
+    "themes": {
+      "claro": "light",
+      "contraste": "high contrast",
+      "escuro": "dark"
+    },
+    "title": "Assembly map",
+    "toll": {
+      "booth": "{{name}} ({{operator}})",
+      "boothUnnamed": "unnamed booth",
+      "estimated": "· estimated axle",
+      "fallenBackToManual": "{{count}} booths fell back to the manual tariff for lack of a known automatic one",
+      "none": "No toll on this route.",
+      "operatorUnknown": "unknown operator",
+      "paymentMode": {
+        "automatic": "Base: tag (automatic charge)",
+        "manual": "Base: manual tariff"
+      },
+      "summary": "Toll: {{total}} — {{boothCount}} booths, {{chargePerAxle}} per axle × {{axleCount}} axles",
+      "tariff": " · tariff from {{month}}",
+      "withoutCharge": "{{count}} booths without a known tariff"
+    },
+    "totalAmount": "Invoice value: {{amount}}",
+    "totalFreight": "Forecast freight: {{amount}}",
+    "totalTime": "Route time: {{duration}} — road measured by the router, plus 20 min stopped per delivery.",
+    "totalWeight": "Total weight: {{weight}} kg",
+    "trace": {
+      "road": "The line is the road the router returned.",
+      "straight": "The line is straight between stops — the router has not answered for this leg."
+    },
+    "traceLabel": "Stop order",
+    "unmapped": "No shape in the IBGE mesh: {{cities}}.",
+    "withoutBasemap": "Street map unavailable — points and order are still valid",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out"
   },
-  "mdfeGate": {
-    "title": "Pending CT-e",
-    "subtitle": "These documents do not have an authorized CT-e yet — issue each one before issuing the trip's MDF-e.",
-    "documentColumn": "Document",
-    "fiscalStatusColumn": "Fiscal status",
-    "goToCteEmission": "Go issue CT-e",
-    "close": "Close"
+  "cancelDialog": {
+    "cancelling": "Cancelling…",
+    "close": "Close",
+    "confirm": "Cancel trips",
+    "irreversible": "The cargo returns to the pool and can be linked to another trip. The link to this trip stays recorded as history, and cancelling cannot be undone.",
+    "keep": "Keep",
+    "subtitle": "The trip stays on record, marked Cancelled.",
+    "title_one": "Cancel {{count}} trip?",
+    "title_other": "Cancel {{count}} trips?"
   },
-  "pagination": {
-    "previous": "Previous page",
-    "next": "Next page"
+  "cargoLayers": {
+    "doorsRear": "This bed only opens at the rear: the last stop must travel at the far end.",
+    "doorsRearAndSide": "This bed opens at the rear and on the right side: the order helps, it does not bind.",
+    "dragHint": "drag to turn",
+    "estimated": "Presumed arrangement: some boxes were derived from volume, or carry a stacking restriction nobody informed.",
+    "layer": "Layer {{index}}",
+    "layerSummary": " · {{boxes}} boxes · {{stops}} stop(s) · {{height}} m",
+    "legend": {
+      "measured": "Solid colour: box measured with a tape.",
+      "presumed": "Washed colour: presumed box, derived from volume.",
+      "split": "Red outline: split cargo, on top of the inner region."
+    },
+    "missingBed": "No cargo drawing: this vehicle has no bed length, width and height on its record.",
+    "missingBedLink": "Open the vehicle record",
+    "mostlyPresumed": "Almost no box on this trip has been measured: the drawing shows volume, not the arrangement of boxes that exist.",
+    "pan": "Move",
+    "panTo": {
+      "down": "Move down",
+      "left": "Move left",
+      "right": "Move right",
+      "up": "Move up"
+    },
+    "planLabel": "Layer {{index}} cargo, in perspective",
+    "print": {
+      "action": "Print map",
+      "boxes": "Boxes",
+      "caption": "Loading order — from the front wall to the door",
+      "order": "#",
+      "presumed": "Presumed",
+      "span": "Bed span",
+      "spanValue": "{{from}} m to {{to}} m",
+      "split": "Split",
+      "stop": "Stop"
+    },
+    "promise": "This arrangement fits the bed and respects the delivery order. It is not a stowage plan: the screen does not yet know every box stackability, the weight of each one, nor the per-axle limit.",
+    "rotate": "Turn",
+    "rotateTo": {
+      "down": "Tilt down",
+      "left": "Turn left",
+      "right": "Turn right",
+      "up": "Tilt up"
+    },
+    "sideLayer": "Layer {{index}}",
+    "stop": "Stop {{sequence}}",
+    "title": "Where each box fits",
+    "unplaced": {
+      "bedFull": "{{count}} {{label}} box did not fit: the bed is full.",
+      "bedFull_other": "{{count}} {{label}} boxes did not fit: the bed is full.",
+      "largerThanBed": "{{count}} {{label}} box does not fit this bed.",
+      "largerThanBed_other": "{{count}} {{label}} boxes do not fit this bed.",
+      "notMeasured": "{{count}} {{label}} box left the drawing: nobody measured it.",
+      "notMeasured_other": "{{count}} {{label}} boxes left the drawing: nobody measured them.",
+      "tooMany": "{{count}} {{label}} box left the drawing due to a detail cap.",
+      "tooMany_other": "{{count}} {{label}} boxes left the drawing due to a detail cap."
+    },
+    "view": {
+      "rear": "Rear",
+      "reset": "Restore",
+      "side": "Side",
+      "top": "Top"
+    },
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out"
+  },
+  "cargoPlan": {
+    "ariaLabel": "Bed plan to scale: {{length}} m long by {{width}} m wide",
+    "band": "{{label}}: takes {{depth}} m of bed, starting {{distance}} m from the door.",
+    "bandThroughDoor": "{{label}}: takes {{depth}} m of bed and runs {{distance}} m out past the door.",
+    "door": "Door",
+    "layers": "{{perLayer}} boxes per layer, in {{layers}} layers.",
+    "missingBed": "Without the bed measurement the screen promises no metres — the rows above are proportion, not position.",
+    "missingBedField": "Fill in the bed length, width and height on the vehicle sheet, under Fleet.",
+    "missingBedLink": "Open the vehicle sheet",
+    "overflow": "The load runs {{metres}} m past the door — the excess is hatched, outside the bed.",
+    "reserved": "Each band is the space the volume of that delivery reserves in the bed, not where the boxes go: the split runs along the length, from the back wall to the door.",
+    "sideReachable": "This vehicle opens from the side: the order helps unloading, but does not bind.",
+    "title": "Bed plan, seen from above",
+    "unmeasuredBoxes": "{{count}} box on this trip has not been measured, so its band shows no layers.",
+    "unmeasuredBoxesLink": "Open the measuring queue",
+    "unmeasuredBoxes_other": "{{count}} boxes on this trip have not been measured, so their bands show no layers."
+  },
+  "columns": {
+    "cargoValue": "Cargo value",
+    "createdAt": "Created at",
+    "revenue": "Revenue",
+    "status": "Status",
+    "updatedAt": "Updated at",
+    "vehicleId": "Vehicle"
   },
   "creation": {
+    "drivers": "Drivers",
+    "driversClearAll": "Remove all",
+    "driversEmpty": "Register an active driver in the fleet before creating the trip.",
+    "driversNoMatch": "No driver found",
+    "driversPlaceholder": "Pick drivers",
+    "driversRemove": "Remove this driver",
+    "driversSearch": "Search by name",
+    "driversSummary": "{{count}} driver picked",
+    "driversSummary_other": "{{count}} drivers picked",
+    "pending": "Creating trip…",
+    "readOnly": "Your current access does not allow you to create trips.",
     "title": "New trip",
     "vehicle": "Vehicle",
     "vehiclePlaceholder": "Select the vehicle",
-    "vehicleSearch": "Search by plate, brand or model",
-    "drivers": "Drivers",
-    "driversEmpty": "Register an active driver in the fleet before creating the trip.",
-    "driversPlaceholder": "Pick drivers",
-    "driversSearch": "Search by name",
-    "driversNoMatch": "No driver found",
-    "driversSummary": "{{count}} driver picked",
-    "driversSummary_other": "{{count}} drivers picked",
-    "driversRemove": "Remove this driver",
-    "driversClearAll": "Remove all",
-    "readOnly": "Your current access does not allow you to create trips.",
-    "pending": "Creating trip…"
+    "vehicleSearch": "Search by plate, brand or model"
   },
-  "formIssue": {
-    "vehicleRequired": "Select the trip vehicle.",
-    "driverRequired": "Select at least one driver."
+  "dateRange": {
+    "clear": "Clear period",
+    "nextMonth": "Next month",
+    "placeholder": "Select the period",
+    "previousMonth": "Previous month"
+  },
+  "deliveryOverride": {
+    "cityCode": "City code (IBGE)",
+    "historyEmpty": "No detour recorded for this document",
+    "historyEntry": "From \"{{from}}\" to \"{{to}}\"",
+    "historyRequestedBy": "Requested by {{name}}",
+    "historyTitle": "Detour history",
+    "menuAction": "Redirect delivery",
+    "newLabel": "Readable address",
+    "number": "Number",
+    "postalCode": "Postal code",
+    "reason": "Reason",
+    "requestedBy": "Who requested the detour",
+    "requestedByHint": "Free text — the customer who called, the salesperson, the recipient. Almost never a system user.",
+    "submit": "Record detour",
+    "subtitle": "New address for document {{document}} — not an edit, a recorded action.",
+    "title": "Redirect delivery"
+  },
+  "deliveryProofSettings": {
+    "error": "Could not load or save the delivery proof configuration.",
+    "fields": {
+      "photo": "Photo",
+      "receiverDocument": "Receiver document",
+      "receiverName": "Receiver name",
+      "signature": "Signature"
+    },
+    "hint": "What the driver must collect on delivery. Without a saved configuration the factory default applies: document off, everything else offered.",
+    "modes": {
+      "off": "Off",
+      "optional": "Optional",
+      "required": "Required"
+    },
+    "overrides": {
+      "add": "Add exception",
+      "empty": "No exceptions registered.",
+      "hint": "An exception keyed by the recipient tax id replaces the general configuration entirely.",
+      "remove": "Remove",
+      "taxId": "Recipient CNPJ or CPF",
+      "title": "Exceptions by recipient"
+    },
+    "save": "Save configuration",
+    "title": "Delivery proof"
+  },
+  "destinationOrigin": {
+    "delivery": "Delivery",
+    "deliveryHint": "The address came from the note’s delivery field, not from the recipient’s registration"
   },
   "detail": {
-    "title": "Trip detail",
-    "vehicle": "Vehicle: {{vehicleId}}",
-    "drivers": "Drivers",
-    "documentColumn": "Document",
-    "fiscalStatusColumn": "Fiscal status",
     "deliveredColumn": "Delivery",
-    "pending": "Pending",
+    "documentColumn": "Document",
     "documentsEmpty": "No document linked to this trip",
+    "drivers": "Drivers",
+    "fiscalStatusColumn": "Fiscal status",
+    "fiscalWarning": "Invalid fiscal document — check its status before proceeding",
     "linkDocumentTitle": "Link document",
     "linkMode": "Reference type",
-    "linkModeNfe": "Fiscal note (NF-e)",
     "linkModeFreight": "Freight calculation",
+    "linkModeNfe": "Fiscal note (NF-e)",
     "linkValue": "Identifier or key",
     "linkValueHint": "Type the note identifier or the 44-character key printed under the barcode.",
+    "pending": "Pending",
     "scan": "Scan with the camera",
-    "scanTitle": "Note reading",
     "scanClose": "Close the reader",
-    "scanStarting": "Opening the camera…",
-    "scanReading": "Point the camera at the note code",
     "scanDenied": "Camera permission denied — type the note key.",
-    "scanUnavailable": "Camera unavailable on this device — type the note key.",
-    "fiscalWarning": "Invalid fiscal document — check its status before proceeding",
-    "scanQueueTitle": "Notes read",
+    "scanQueueClear": "Clear reads",
     "scanQueueKeyColumn": "Access key",
-    "scanQueueStatusColumn": "Status",
-    "scanQueueResolving": "Looking the note up…",
-    "scanQueueLinking": "Linking to the trip…",
     "scanQueueLinked": "Linked",
-    "scanQueueClear": "Clear reads"
+    "scanQueueLinking": "Linking to the trip…",
+    "scanQueueResolving": "Looking the note up…",
+    "scanQueueStatusColumn": "Status",
+    "scanQueueTitle": "Notes read",
+    "scanReading": "Point the camera at the note code",
+    "scanStarting": "Opening the camera…",
+    "scanTitle": "Note reading",
+    "scanUnavailable": "Camera unavailable on this device — type the note key.",
+    "title": "Trip detail",
+    "vehicle": "Vehicle: {{vehicleId}}"
   },
+  "empty": "No trip found",
+  "error": "Could not load trips",
   "feedback": {
     "closed": "This trip is already closed.",
-    "stateTransitionNotAllowed": "This action is no longer allowed in the trip's current state.",
     "documentAlreadyDelivered": "This document was already marked as delivered.",
     "documentAlreadyLinked": "This document is already linked to a trip.",
     "documentNotFound": "Document not found on this trip.",
@@ -199,15 +300,27 @@
     "driverDuplicated": "This driver is already on the trip.",
     "driverNotAvailable": "Driver not available for the trip.",
     "driverNotFound": "Driver not found.",
-    "readOnly": "Your current access does not allow this action.",
     "hasUnloadedDocuments": "This trip has documents that were never loaded.",
     "notFound": "Trip not found.",
+    "readOnly": "Your current access does not allow this action.",
     "requestFailed": "Could not reach the API.",
     "responseInvalid": "The API responded in an unexpected format.",
     "scannedDocumentNotFound": "No note with this access key in this company.",
+    "stateTransitionNotAllowed": "This action is no longer allowed in the trip's current state.",
     "stopSetMismatch": "The stop list no longer matches the trip's current stops — reload the page.",
     "vehicleNotAvailable": "Vehicle not available for the trip.",
     "vehicleNotFound": "Vehicle not found."
+  },
+  "filters": {
+    "active": "{{count}} active filter(s)",
+    "all": "All",
+    "clear": "Clear filters",
+    "createdRange": "Created range",
+    "driverId": "Driver",
+    "removeFilter": "Remove the {{field}} filter",
+    "status": "Status",
+    "title": "Filters",
+    "vehicleId": "Vehicle"
   },
   "fiscalStatus": {
     "authorized": "Authorized",
@@ -217,174 +330,181 @@
     "snapshotted": "Snapshotted",
     "unsigned": "Unsigned"
   },
-  "readiness": {
-    "title": "Fiscal readiness",
-    "count": "{{ready}} of {{total}} invoices ready",
-    "state": {
-      "incomplete": "Some invoice has no authorized CT-e. Issuing now would declare a document that does not exist.",
-      "ready": "Every invoice has an authorized CT-e. The trip can be manifested.",
-      "manifested": "A manifest was issued for this trip.",
-      "divergent": "A CT-e changed after the manifest. Check before moving on — cancelling an MDF-e is your call."
-    },
-    "reason": {
-      "no_cte": "no CT-e",
-      "cte_in_progress": "CT-e in progress",
-      "cte_rejected": "CT-e rejected",
-      "cte_cancelled": "CT-e cancelled"
-    },
-    "generateCteBatch_one": "Issue CT-e for this trip ({{count}} invoice)",
-    "generateCteBatch_other": "Issue CT-e for this trip ({{count}} invoices)",
-    "generateCteBatchHint": "This brings forward the batch the contractor would authorise. Billing still reaches these CT-e."
+  "forbidden": "Your current access does not allow you to view trips",
+  "formIssue": {
+    "driverRequired": "Select at least one driver.",
+    "vehicleRequired": "Select the trip vehicle."
   },
-  "requirement": {
-    "derived": {
-      "required": "This trip requires an MDF-e — it carries CT-e notes.",
-      "notRequired": "This trip requires no MDF-e: no CT-e note to declare."
-    },
-    "forced": {
-      "required": "MDF-e required by operator decision.",
-      "notRequired": "MDF-e waived by operator decision."
-    },
-    "dispense": "Waive MDF-e",
-    "require": "Require MDF-e",
-    "reset": "Back to automatic",
-    "hint": "Waiving a trip that carries CT-e notes requires a reason, and it stays on the trail.",
-    "dispenseTitle": "Waive the MDF-e for this trip",
-    "dispenseSubtitle": "This trip carries CT-e notes. Travelling without a manifest means fines and roadside seizure — the reason is recorded.",
-    "dispenseReasonLabel": "Reason for waiving"
+  "intro": "Organize trips without a CT-e: link a vehicle, drivers, and the fiscal notes carried.",
+  "kicker": "Non-fiscal operation",
+  "loading": "Loading trips",
+  "mdfeGate": {
+    "close": "Close",
+    "documentColumn": "Document",
+    "fiscalStatusColumn": "Fiscal status",
+    "goToCteEmission": "Go issue CT-e",
+    "subtitle": "These documents do not have an authorized CT-e yet — issue each one before issuing the trip's MDF-e.",
+    "title": "Pending CT-e"
   },
-  "destinationOrigin": {
-    "delivery": "Delivery",
-    "deliveryHint": "The address came from the note’s delivery field, not from the recipient’s registration"
+  "occurrence": {
+    "editTemplates": "Edit email templates",
+    "emailTemplate": "Email template",
+    "emailTemplateNone": "No email",
+    "legacyTemplate": "{{subject}} — own template (legacy)"
   },
-  "assemblyMap": {
-    "empty": "No city to draw yet — scan or select a note.",
-    "moveDown": "Move {{label}} down",
-    "moveUp": "Move {{label}} up",
-    "nearby": "Nearby and left out: {{cities}}.",
-    "nearbyLabel": "Outside the selection: {{label}}",
-    "propose": "Propose order",
-    "proposeHint": "The proposal links cities by straight-line proximity. Road distance comes from the router once the trip exists.",
-    "stopLabel": "Stop {{sequence}}: {{label}}",
-    "title": "Assembly map",
-    "unmapped": "No shape in the IBGE mesh: {{cities}}.",
-    "nearbyMore": "Nearby and left out: {{cities}} and {{count}} more cities.",
-    "basemapLabel": "City boundary",
-    "zoomIn": "Zoom in",
-    "zoomOut": "Zoom out",
-    "recenter": "Recentre the map",
-    "legTime": "{{distance}} km · {{duration}} to the next stop",
-    "phoneCopied": "Phone copied",
-    "phoneCopy": "Copy the phone number of {{recipient}}",
-    "totalTime": "Route time: {{duration}} — road measured by the router, plus 20 min stopped per delivery.",
-    "traceLabel": "Stop order",
-    "trace": {
-      "road": "The line is the road the router returned.",
-      "straight": "The line is straight between stops — the router has not answered for this leg."
+  "occurrenceFeed": {
+    "columns": {
+      "createdAt": "Time",
+      "driverName": "Driver",
+      "invoice": "Invoice",
+      "notified": "Notice",
+      "stage": "Group",
+      "stopLabel": "Stop",
+      "typeName": "Type",
+      "vehiclePlate": "Plate"
     },
-    "withoutBasemap": "Street map unavailable — points and order are still valid",
-    "theme": "Switch the map to {{theme}}",
-    "themes": {
-      "claro": "light",
-      "contraste": "high contrast",
-      "escuro": "dark"
+    "columnsMenu": {
+      "moveDown": "Move down",
+      "moveUp": "Move up",
+      "title": "Columns"
     },
-    "loading": "Loading the assembly map",
-    "solve": "Best route",
-    "solving": "Solving…",
-    "solveNeedsVehicle": "The best route uses the router — pick the vehicle, since its capacity changes the path.",
-    "solveFailed": "The router did not answer. The current order still stands.",
-    "finish": "Predicted finish {{time}} · {{distance}} km · {{total}} of route.",
-    "finishWarning": "⚠️ Falls on {{reasons}} — check whether anyone is working.",
-    "approximate": "⚠️ Approximate position — only the municipality is known; the point is its centre.",
-    "noteAmount": "{{amount}}",
-    "noteWeight": "{{weight}} kg",
-    "noteRevenue": "freight {{amount}}",
-    "revenueEstimated": "forecast",
-    "totalAmount": "Invoice value: {{amount}}",
-    "totalWeight": "Total weight: {{weight}} kg",
-    "revenueRule": "by {{rule}}{{percentage}}",
-    "totalFreight": "Forecast freight: {{amount}}",
-    "depot": {
-      "absence": {
-        "not_configured": "The depot leg is out of this estimate: no origin address is registered in the company route settings. Distance, time, fuel and tolls below start at the first delivery.",
-        "not_geocoded": "The depot leg is out of this estimate: the origin address is registered but has no coordinate yet. Distance, time, fuel and tolls below start at the first delivery."
-      }
+    "detail": {
+      "close": "Close",
+      "closePhoto": "Close photo",
+      "noDescription": "No description recorded.",
+      "open": "Details",
+      "photoAlt": "Photo attached to the occurrence",
+      "title": "Detail"
     },
-    "toll": {
-      "summary": "Toll: {{total}} — {{boothCount}} booths, {{chargePerAxle}} per axle × {{axleCount}} axles",
-      "tariff": " · tariff from {{month}}",
-      "estimated": "· estimated axle",
-      "withoutCharge": "{{count}} booths without a known tariff",
-      "paymentMode": {
-        "automatic": "Base: tag (automatic charge)",
-        "manual": "Base: manual tariff"
-      },
-      "fallenBackToManual": "{{count}} booths fell back to the manual tariff for lack of a known automatic one",
-      "none": "No toll on this route.",
-      "booth": "{{name}} ({{operator}})",
-      "boothUnnamed": "unnamed booth",
-      "operatorUnknown": "unknown operator"
+    "empty": "No occurrence found for the applied filter.",
+    "filters": {
+      "createdRange": "Period",
+      "plates": "Plates",
+      "platesPlaceholder": "Comma-separated plates",
+      "removeStage": "Remove group",
+      "stage": "Group",
+      "stageEmpty": "No group found",
+      "stageSearch": "Search group",
+      "stageSummary": "{{count}} selected",
+      "title": "Filters",
+      "types": "Types",
+      "typesPlaceholder": "Comma-separated names"
     },
-    "depotLeg": {
-      "outbound": "Depot to first delivery: {{distance}} km · {{duration}}",
-      "return": "Last delivery back to depot: {{distance}} km · {{duration}}"
-    }
+    "intro": "Everything that happened to the company trips' documents and stops, in a single list.",
+    "kicker": "Operations",
+    "kind": {
+      "appointment_required": "Appointment required",
+      "dock_closed": "Dock closed",
+      "long_wait": "Long wait",
+      "other": "Other",
+      "unexpected_charge": "Unexpected charge"
+    },
+    "loadMore": "Load more",
+    "loadingMore": "Loading…",
+    "notified": "Notice sent",
+    "stage": {
+      "delivery": "Delivery",
+      "separation": "Separation",
+      "stop": "Stop"
+    },
+    "tableTitle": "Recorded occurrences",
+    "title": "Occurrences"
+  },
+  "pagination": {
+    "next": "Next page",
+    "previous": "Previous page"
   },
   "quickCreate": {
-    "title": "New trip",
-    "intro": "Scan or type the access key of the invoices leaving together. Only invoices not already on a trip come in.",
     "accessKey": "Access key",
     "accessKeyPlaceholder": "44 characters printed under the barcode",
     "add": "Add",
-    "scan": "Scan with the camera",
-    "close": "Close",
     "cancel": "Cancel",
-    "submit": "Create trip",
-    "remove": "Remove this invoice",
+    "clearFilteredSelection": "Unselect all {{count}} from the filter",
+    "close": "Close",
+    "columns": {
+      "address": "Address",
+      "amount": "Amount",
+      "city": "City",
+      "freight": "Freight",
+      "number": "Invoice",
+      "recipient": "Recipient",
+      "weight": "Weight"
+    },
     "empty": "No invoice scanned yet.",
-    "resolving": "Looking the invoice up…",
-    "staged": "Ready to join",
-    "stagedCount": "{{count}} invoice joins the trip.",
-    "stagedCount_other": "{{count}} invoices join the trip.",
     "failed": "Could not create the trip. Check the invoices and try again.",
+    "hiddenBySelection_one": "{{count}} selected invoice is outside the current filter and will not be included.",
+    "hiddenBySelection_other": "{{count}} selected invoices are outside the current filter and will not be included.",
+    "intro": "Scan or type the access key of the invoices leaving together. Only invoices not already on a trip come in.",
+    "issue": {
+      "driverRequired": "Select at least one driver.",
+      "noDocument": "Scan at least one available invoice.",
+      "vehicleRequired": "Select the trip vehicle."
+    },
     "refusal": {
       "alreadyOnTrip": "Already on another trip",
       "lookupFailed": "Could not look it up",
       "notAuthorized": "Not authorised at SEFAZ",
       "notFound": "Not found in this company"
     },
-    "issue": {
-      "noDocument": "Scan at least one available invoice.",
-      "driverRequired": "Select at least one driver.",
-      "vehicleRequired": "Select the trip vehicle."
-    },
+    "remove": "Remove this invoice",
+    "resolving": "Looking the invoice up…",
+    "scan": "Scan with the camera",
     "search": "Search invoices",
-    "searchTerm": "Search",
-    "searchTermPlaceholder": "Issuer, recipient or key",
-    "weightValue": "{{weight}} kg",
-    "weightEstimated": "estimated",
-    "weightEstimatedHint": "Weight computed from the volume count and the company default weight — the invoice declared no mass.",
     "searchResult": "{{count}} invoice found.",
     "searchResult_other": "{{count}} invoices found.",
+    "searchTerm": "Search",
+    "searchTermPlaceholder": "Issuer, recipient or key",
     "selectAll": "Select all on this page",
+    "selectAllFiltered": "Select all {{count}} from the filter",
+    "stageFiltered": "Add all {{count}} from the filter",
     "stageSelected": "Add {{count}} invoice",
     "stageSelected_other": "Add {{count}} invoices",
-    "stageFiltered": "Add all {{count}} from the filter",
-    "columns": {
-      "number": "Invoice",
-      "recipient": "Recipient",
-      "address": "Address",
-      "city": "City",
-      "amount": "Amount",
-      "weight": "Weight",
-      "freight": "Freight"
-    },
-    "selectAllFiltered": "Select all {{count}} from the filter",
-    "clearFilteredSelection": "Unselect all {{count}} from the filter",
-    "hiddenBySelection_one": "{{count}} selected invoice is outside the current filter and will not be included.",
-    "hiddenBySelection_other": "{{count}} selected invoices are outside the current filter and will not be included."
+    "staged": "Ready to join",
+    "stagedCount": "{{count}} invoice joins the trip.",
+    "stagedCount_other": "{{count}} invoices join the trip.",
+    "submit": "Create trip",
+    "title": "New trip",
+    "weightEstimated": "estimated",
+    "weightEstimatedHint": "Weight computed from the volume count and the company default weight — the invoice declared no mass.",
+    "weightValue": "{{weight}} kg"
   },
+  "readiness": {
+    "count": "{{ready}} of {{total}} invoices ready",
+    "generateCteBatchHint": "This brings forward the batch the contractor would authorise. Billing still reaches these CT-e.",
+    "generateCteBatch_one": "Issue CT-e for this trip ({{count}} invoice)",
+    "generateCteBatch_other": "Issue CT-e for this trip ({{count}} invoices)",
+    "reason": {
+      "cte_cancelled": "CT-e cancelled",
+      "cte_in_progress": "CT-e in progress",
+      "cte_rejected": "CT-e rejected",
+      "no_cte": "no CT-e"
+    },
+    "state": {
+      "divergent": "A CT-e changed after the manifest. Check before moving on — cancelling an MDF-e is your call.",
+      "incomplete": "Some invoice has no authorized CT-e. Issuing now would declare a document that does not exist.",
+      "manifested": "A manifest was issued for this trip.",
+      "ready": "Every invoice has an authorized CT-e. The trip can be manifested."
+    },
+    "title": "Fiscal readiness"
+  },
+  "requirement": {
+    "derived": {
+      "notRequired": "This trip requires no MDF-e: no CT-e note to declare.",
+      "required": "This trip requires an MDF-e — it carries CT-e notes."
+    },
+    "dispense": "Waive MDF-e",
+    "dispenseReasonLabel": "Reason for waiving",
+    "dispenseSubtitle": "This trip carries CT-e notes. Travelling without a manifest means fines and roadside seizure — the reason is recorded.",
+    "dispenseTitle": "Waive the MDF-e for this trip",
+    "forced": {
+      "notRequired": "MDF-e waived by operator decision.",
+      "required": "MDF-e required by operator decision."
+    },
+    "hint": "Waiving a trip that carries CT-e notes requires a reason, and it stays on the trail.",
+    "require": "Require MDF-e",
+    "reset": "Back to automatic"
+  },
+  "resultCounter": "{{shown}} trip(s) on this page",
   "routeAssembly": {
     "allDrivers": "All ({{count}})",
     "allVehicles": "All ({{count}})",
@@ -396,16 +516,16 @@
     "clearVehicles": "None",
     "drivers": "Drivers",
     "failure": {
-      "timeout": "The router did not answer in time. The request is still queued and will run once the service is back — follow the trips instead of asking again, because a second request routes the same invoices twice.",
-      "stale": "The invoices changed while the route was being built. Search again and ask once more.",
       "network": "Could not reach the server. Check the connection and try again.",
+      "stale": "The invoices changed while the route was being built. Search again and ask once more.",
+      "timeout": "The router did not answer in time. The request is still queued and will run once the service is back — follow the trips instead of asking again, because a second request routes the same invoices twice.",
       "unknown": "Could not build the route. Give this code to support: {{code}}."
     },
     "intro": "Search the invoices leaving together with the same filters as the invoice list, then pick the fleet. The router splits the load across the vehicles and creates one trip for each.",
     "issue": {
       "driverRequired": "Select at least one driver.",
-      "vehicleRequired": "Select at least one vehicle.",
-      "noDocument": "Add at least one available invoice from the search."
+      "noDocument": "Add at least one available invoice from the search.",
+      "vehicleRequired": "Select at least one vehicle."
     },
     "leftovers": {
       "alreadyLinked_one": "1 invoice already linked to another delivery",
@@ -459,14 +579,100 @@
     "vehiclesSummary": "{{count}} vehicle chosen",
     "vehiclesSummary_other": "{{count}} vehicles chosen"
   },
+  "selection": {
+    "barLabel": "Bulk actions",
+    "cancelTrips": "Cancel selected",
+    "clear": "Clear selection",
+    "count_one": "{{count}} trip selected",
+    "count_other": "{{count}} trips selected",
+    "selectAll": "Select every cancellable trip on this page",
+    "selectTrip": "Select the trip for vehicle {{vehicle}}"
+  },
+  "separationStatus": {
+    "delivered": "Delivered",
+    "loaded": "Loaded",
+    "pending": "Pending",
+    "returned": "Returned",
+    "separated": "Separated"
+  },
+  "sort": {
+    "asc": "sorted ascending",
+    "desc": "sorted descending",
+    "none": "not sorted"
+  },
+  "stateActions": {
+    "batchLoad": "Load {{count}} document(s)",
+    "batchReturn": "Return {{count}} document(s)",
+    "batchSeparate": "Separate {{count}} document(s)",
+    "cancel": "Cancel trip",
+    "dispatch": "Dispatch",
+    "forceReasonLabel": "Reason",
+    "forceSubmit": "Dispatch anyway",
+    "forceSubtitle": "These documents were never loaded. Dispatching anyway returns them to the pool.",
+    "forceTitle": "Dispatch with pending documents",
+    "generateCteSelection": "Issue CT-e for {{count}} selected invoice(s)",
+    "planRoute": "Plan route",
+    "returnReasonLabel": "Return reason",
+    "returnSubmit": "Confirm return",
+    "returnSubtitle": "Document {{document}} — the reason goes into the trip's audit trail.",
+    "returnTitle": "Return document",
+    "title": "Trip actions"
+  },
+  "status": {
+    "cancelled": "Cancelled",
+    "completed": "Completed",
+    "dispatched": "Dispatched",
+    "draft": "Draft",
+    "in_transit": "In transit",
+    "loading": "Loading",
+    "on_delivery_route": "On delivery route",
+    "route_planned": "Route planned",
+    "separating": "Separating"
+  },
+  "stops": {
+    "arrivedAt": "Arrived at {{time}}",
+    "completedAt": "Completed at {{time}}",
+    "documentCount": "{{count}} document",
+    "documentCount_other": "{{count}} documents",
+    "empty": "No stop on this trip yet",
+    "processCount": "{{reached}} of {{total}}",
+    "processReturned": "{{count}} invoice(s) returned — outside the flow",
+    "progressLabel": "Trip separation progress",
+    "reorderHandle": "Drag to reorder stop {{label}}",
+    "selectAll": "Select every document at stop {{label}}",
+    "selectDocument": "Select document {{document}}",
+    "selectionClear": "Clear selection",
+    "selectionCount": "{{count}} document selected",
+    "selectionCount_other": "{{count}} documents selected",
+    "unassigned": "No stop"
+  },
+  "table": {
+    "copyPlate": "Copy plate {{plate}}",
+    "noAmount": "—",
+    "plateCopied": "Plate copied",
+    "revenueEstimated": "forecast",
+    "revenueMissing": "no rule",
+    "withoutDriver": "No driver"
+  },
+  "timeline": {
+    "approximate": "approximate",
+    "driverPayment": "Driver / aggregate",
+    "driverZone": {
+      "fixed": "in-house driver · period cost",
+      "route_table": "zone {{zone}} ({{city}}) · {{vehicleClass}} · once for the trip"
+    },
+    "legUnknown": "distance not calculated",
+    "notes": "{{count}} notes",
+    "notes_one": "1 note",
+    "openEnd": "Ends at the last delivery — the company policy does not bring the truck back",
+    "return": "return",
+    "tollUnknown": "tariff unknown"
+  },
+  "title": "Trips",
+  "tripsTitle": "Trips",
   "valuation": {
-    "title": "What this trip earns and costs",
-    "revenue": "Expected revenue",
     "cost": "Expected cost",
-    "margin": "Margin",
-    "loading": "Working out the numbers…",
     "empty": "Pick the invoices and the vehicle to see the numbers.",
-    "gaps": "Still missing: {{reasons}}.",
     "gap": {
       "CITY_WITHOUT_REGION": "destination without a registered freight zone",
       "FEATURE_ABSENT": "module not in use yet",
@@ -478,208 +684,16 @@
       "NO_FUEL_CONSUMPTION": "vehicle has no average consumption on file",
       "NO_FUEL_PRICE": "no price for this vehicle's fuel",
       "NO_PLANNED_DISTANCE": "route not calculated yet — fuel comes after",
-      "TOLL_NOT_AVAILABLE_IN_SUGGESTION": "toll is only computed once the trip exists",
       "SALARIED_CREW_MEMBER": "salaried driver on board — a period cost, not a trip cost",
+      "TOLL_NOT_AVAILABLE_IN_SUGGESTION": "toll is only computed once the trip exists",
       "TOLL_PARTIAL": "a toll plaza on the route has no known tariff — the total only sums the others"
     },
+    "gaps": "Still missing: {{reasons}}.",
+    "loading": "Working out the numbers…",
+    "margin": "Margin",
     "operating": "Operating cost",
-    "taxes": "Tax on the freight"
-  },
-  "table": {
-    "copyPlate": "Copy plate {{plate}}",
-    "plateCopied": "Plate copied",
-    "withoutDriver": "No driver",
-    "noAmount": "—",
-    "revenueMissing": "no rule",
-    "revenueEstimated": "forecast"
-  },
-  "deliveryProofSettings": {
-    "title": "Delivery proof",
-    "hint": "What the driver must collect on delivery. Without a saved configuration the factory default applies: document off, everything else offered.",
-    "error": "Could not load or save the delivery proof configuration.",
-    "save": "Save configuration",
-    "fields": {
-      "receiverName": "Receiver name",
-      "receiverDocument": "Receiver document",
-      "signature": "Signature",
-      "photo": "Photo"
-    },
-    "modes": {
-      "required": "Required",
-      "optional": "Optional",
-      "off": "Off"
-    },
-    "overrides": {
-      "title": "Exceptions by recipient",
-      "hint": "An exception keyed by the recipient tax id replaces the general configuration entirely.",
-      "empty": "No exceptions registered.",
-      "taxId": "Recipient CNPJ or CPF",
-      "add": "Add exception",
-      "remove": "Remove"
-    }
-  },
-  "occurrence": {
-    "emailTemplate": "Email template",
-    "emailTemplateNone": "No email",
-    "legacyTemplate": "{{subject}} — own template (legacy)",
-    "editTemplates": "Edit email templates"
-  },
-  "occurrenceFeed": {
-    "kicker": "Operations",
-    "title": "Occurrences",
-    "intro": "Everything that happened to the company trips' documents and stops, in a single list.",
-    "tableTitle": "Recorded occurrences",
-    "empty": "No occurrence found for the applied filter.",
-    "loadMore": "Load more",
-    "loadingMore": "Loading…",
-    "notified": "Notice sent",
-    "columns": {
-      "createdAt": "Time",
-      "stage": "Group",
-      "typeName": "Type",
-      "vehiclePlate": "Plate",
-      "driverName": "Driver",
-      "stopLabel": "Stop",
-      "invoice": "Invoice",
-      "notified": "Notice"
-    },
-    "columnsMenu": {
-      "title": "Columns",
-      "moveUp": "Move up",
-      "moveDown": "Move down"
-    },
-    "stage": {
-      "separation": "Separation",
-      "delivery": "Delivery",
-      "stop": "Stop"
-    },
-    "kind": {
-      "unexpected_charge": "Unexpected charge",
-      "long_wait": "Long wait",
-      "dock_closed": "Dock closed",
-      "appointment_required": "Appointment required",
-      "other": "Other"
-    },
-    "filters": {
-      "title": "Filters",
-      "stage": "Group",
-      "stageEmpty": "No group found",
-      "stageSearch": "Search group",
-      "stageSummary": "{{count}} selected",
-      "removeStage": "Remove group",
-      "types": "Types",
-      "typesPlaceholder": "Comma-separated names",
-      "plates": "Plates",
-      "platesPlaceholder": "Comma-separated plates",
-      "createdRange": "Period"
-    },
-    "detail": {
-      "title": "Detail",
-      "open": "Details",
-      "close": "Close",
-      "noDescription": "No description recorded.",
-      "photoAlt": "Photo attached to the occurrence",
-      "closePhoto": "Close photo"
-    }
-  },
-  "cargoPlan": {
-    "title": "Bed plan, seen from above",
-    "ariaLabel": "Bed plan to scale: {{length}} m long by {{width}} m wide",
-    "door": "Door",
-    "reserved": "Each band is the space the volume of that delivery reserves in the bed, not where the boxes go: the split runs along the length, from the back wall to the door.",
-    "band": "{{label}}: takes {{depth}} m of bed, starting {{distance}} m from the door.",
-    "bandThroughDoor": "{{label}}: takes {{depth}} m of bed and runs {{distance}} m out past the door.",
-    "layers": "{{perLayer}} boxes per layer, in {{layers}} layers.",
-    "overflow": "The load runs {{metres}} m past the door — the excess is hatched, outside the bed.",
-    "unmeasuredBoxes": "{{count}} box on this trip has not been measured, so its band shows no layers.",
-    "unmeasuredBoxes_other": "{{count}} boxes on this trip have not been measured, so their bands show no layers.",
-    "unmeasuredBoxesLink": "Open the measuring queue",
-    "sideReachable": "This vehicle opens from the side: the order helps unloading, but does not bind.",
-    "missingBed": "Without the bed measurement the screen promises no metres — the rows above are proportion, not position.",
-    "missingBedField": "Fill in the bed length, width and height on the vehicle sheet, under Fleet.",
-    "missingBedLink": "Open the vehicle sheet"
-  },
-  "cargoLayers": {
-    "title": "Where each box fits",
-    "promise": "This arrangement fits the bed and respects the delivery order. It is not a stowage plan: the screen does not yet know every box stackability, the weight of each one, nor the per-axle limit.",
-    "planLabel": "Layer {{index}} cargo, in perspective",
-    "sideLayer": "Layer {{index}}",
-    "estimated": "Presumed arrangement: some boxes were derived from volume, or carry a stacking restriction nobody informed.",
-    "unplaced": {
-      "notMeasured": "{{count}} {{label}} box left the drawing: nobody measured it.",
-      "notMeasured_other": "{{count}} {{label}} boxes left the drawing: nobody measured them.",
-      "largerThanBed": "{{count}} {{label}} box does not fit this bed.",
-      "largerThanBed_other": "{{count}} {{label}} boxes do not fit this bed.",
-      "bedFull": "{{count}} {{label}} box did not fit: the bed is full.",
-      "bedFull_other": "{{count}} {{label}} boxes did not fit: the bed is full.",
-      "tooMany": "{{count}} {{label}} box left the drawing due to a detail cap.",
-      "tooMany_other": "{{count}} {{label}} boxes left the drawing due to a detail cap."
-    },
-    "doorsRear": "This bed only opens at the rear: the last stop must travel at the far end.",
-    "doorsRearAndSide": "This bed opens at the rear and on the right side: the order helps, it does not bind.",
-    "dragHint": "drag to turn",
-    "rotate": "Turn",
-    "rotateTo": {
-      "down": "Tilt down",
-      "left": "Turn left",
-      "right": "Turn right",
-      "up": "Tilt up"
-    },
-    "pan": "Move",
-    "panTo": {
-      "down": "Move down",
-      "left": "Move left",
-      "right": "Move right",
-      "up": "Move up"
-    },
-    "zoomIn": "Zoom in",
-    "zoomOut": "Zoom out",
-    "view": {
-      "rear": "Rear",
-      "reset": "Restore",
-      "side": "Side",
-      "top": "Top"
-    },
-    "stop": "Stop {{sequence}}",
-    "legend": {
-      "measured": "Solid colour: box measured with a tape.",
-      "presumed": "Washed colour: presumed box, derived from volume.",
-      "split": "Red outline: split cargo, on top of the inner region."
-    },
-    "mostlyPresumed": "Almost no box on this trip has been measured: the drawing shows volume, not the arrangement of boxes that exist.",
-    "print": {
-      "action": "Print map",
-      "boxes": "Boxes",
-      "caption": "Loading order — from the front wall to the door",
-      "order": "#",
-      "presumed": "Presumed",
-      "span": "Bed span",
-      "spanValue": "{{from}} m to {{to}} m",
-      "split": "Split",
-      "stop": "Stop"
-    },
-    "missingBed": "No cargo drawing: this vehicle has no bed length, width and height on its record.",
-    "missingBedLink": "Open the vehicle record",
-    "layer": "Layer {{index}}",
-    "layerSummary": " · {{boxes}} boxes · {{stops}} stop(s) · {{height}} m"
-  },
-  "selection": {
-    "barLabel": "Bulk actions",
-    "cancelTrips": "Cancel selected",
-    "clear": "Clear selection",
-    "count_one": "{{count}} trip selected",
-    "count_other": "{{count}} trips selected",
-    "selectAll": "Select every cancellable trip on this page",
-    "selectTrip": "Select the trip for vehicle {{vehicle}}"
-  },
-  "cancelDialog": {
-    "cancelling": "Cancelling…",
-    "close": "Close",
-    "confirm": "Cancel trips",
-    "keep": "Keep",
-    "irreversible": "The cargo returns to the pool and can be linked to another trip. The link to this trip stays recorded as history, and cancelling cannot be undone.",
-    "subtitle": "The trip stays on record, marked Cancelled.",
-    "title_one": "Cancel {{count}} trip?",
-    "title_other": "Cancel {{count}} trips?"
+    "revenue": "Expected revenue",
+    "taxes": "Tax on the freight",
+    "title": "What this trip earns and costs"
   }
 }

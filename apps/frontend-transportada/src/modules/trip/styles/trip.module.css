@@ -2232,3 +2232,145 @@
 .leftoversDetail dd {
   margin: 0;
 }
+
+/**
+ * Spec 110 D4: a linha do tempo do dia. O trilho corre por trás de tudo; a marca de cada evento o
+ * atravessa. Parada é número, praça é quadrado, base é losango vazado, pagamento é `R$`.
+ */
+.timeline {
+  display: grid;
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.timelineRow {
+  display: grid;
+  gap: var(--space-2);
+  align-items: stretch;
+  grid-template-columns: var(--space-6) 1fr;
+}
+
+.timelineRail {
+  position: relative;
+  display: flex;
+  min-height: var(--space-5);
+  align-items: center;
+  justify-content: center;
+}
+
+.timelineRail::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: color-mix(in srgb, var(--color-slate) 28%, transparent);
+  content: '';
+}
+
+.timelineBody {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 3px 0;
+  font-size: 0.8rem;
+}
+
+.timelineMeta {
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.timelineDot {
+  position: relative;
+  display: grid;
+  width: var(--space-5);
+  height: var(--space-5);
+  place-items: center;
+  color: var(--color-ink-on-accent);
+  font-family: var(--font-utility);
+  font-size: 0.62rem;
+  font-weight: 700;
+  background: var(--color-copper);
+}
+
+.timelineBase {
+  position: relative;
+  width: var(--space-3);
+  height: var(--space-3);
+  border: 2px solid var(--color-copper);
+  background: var(--color-asphalt);
+}
+
+.timelineOpenEnd {
+  position: relative;
+  width: var(--space-3);
+  height: var(--space-3);
+  border: 2px dashed color-mix(in srgb, var(--color-slate) 60%, transparent);
+  border-radius: 50%;
+  background: var(--color-graphite);
+}
+
+.timelineToll,
+.timelineTollUnknown {
+  position: relative;
+  display: grid;
+  width: var(--space-4);
+  height: var(--space-4);
+  place-items: center;
+  font-family: var(--font-utility);
+  font-size: 0.6rem;
+  font-weight: 700;
+}
+
+.timelineToll {
+  color: var(--color-ink-on-accent);
+  background: var(--color-copper);
+}
+
+/* Tarifa não conhecida é vazada: ela ocupa o lugar sem afirmar um valor que ninguém tem. */
+.timelineTollUnknown {
+  border: 1px solid var(--color-copper);
+  color: var(--color-copper);
+  background: var(--color-graphite);
+}
+
+.timelineBooth {
+  font-size: 0.76rem;
+}
+
+.timelineGap {
+  color: var(--color-copper);
+}
+
+.timelineApproximate {
+  margin-left: var(--space-2);
+  padding: 1px 6px;
+  border: 1px solid color-mix(in srgb, var(--color-copper) 50%, transparent);
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.6rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.timelinePayment {
+  margin-top: var(--space-1);
+}
+
+.timelinePaymentMark {
+  position: relative;
+  display: grid;
+  width: var(--space-5);
+  height: var(--space-5);
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--color-copper) 60%, transparent);
+  color: var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.52rem;
+  font-weight: 700;
+  background: var(--color-graphite);
+}
