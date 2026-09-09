@@ -118,8 +118,37 @@ export type TripRevenueLine = {
   readonly tripDocumentId: string
 }
 
+/**
+ * Spec 110 D7: **de onde o número veio**, em valores crus — nunca em texto composto.
+ *
+ * ⚠️ A API não escreve a frase. `184,2 km ÷ 2,8 km/l × R$ 6,29` é apresentação, e compor isso aqui
+ * mandaria a tela imprimir uma string que ela não pode traduzir, formatar por locale nem quebrar em
+ * duas linhas. O que sobe é o insumo; a frase é de quem imprime.
+ *
+ * ⚠️ E só existe para as duas parcelas **derivadas**. Pedágio é soma de tarifas e taxa de entrega é
+ * lançamento: nas duas o número já é a explicação de si mesmo.
+ */
+export type TripCostParcelBasis =
+  | Readonly<{
+      kilometersPerLiter: string
+      /** O que o trajeto queima, já calculado: a tela não repete a divisão da API. */
+      litres: string
+      of: 'fuel'
+      pricePerLiter: string
+    }>
+  | Readonly<{
+      of: 'driver'
+      paymentModel: string
+      /** A cidade que decidiu a zona — o destino mais distante (spec 086 D1). */
+      regionCity: null | string
+      regionCode: null | string
+      vehicleClass: string
+    }>
+
 export type TripCostParcel = {
   readonly amount: string
+  /** Spec 110: os insumos da parcela derivada. `null` onde o número não vem de conta nossa. */
+  readonly basis?: null | TripCostParcelBasis
   /**
    * O que a lacuna precisa nomear para virar ação — hoje a cidade a cadastrar
    * (`CITY_WITHOUT_REGION`). Genérico de propósito: é a lacuna que decide o que o texto significa, e
@@ -203,16 +232,37 @@ export function fuelCost(input: {
   readonly kilometersPerLiter: string
   readonly pricePerLiter: string
 }): null | string {
+  const litresScaled = fuelLitresScaled(input)
+  if (litresScaled === null) return null
+
+  return formatScaledDecimal(
+    divideHalfUp(litresScaled * parseMoney(input.pricePerLiter), scaleFactor()),
+    MONEY_SCALE,
+  )
+}
+
+/**
+ * Os litros que o trajeto queima. ⚠️ **Extraído para não haver duas divisões**: a tela imprime os
+ * litros ao lado do total (spec 110 D7), e recalculá-los noutro lugar produziria um número que
+ * discorda do custo por arredondamento — em conta de dinheiro isso aparece.
+ */
+export function fuelLitres(input: {
+  readonly distanceMeters: number
+  readonly kilometersPerLiter: string
+}): null | string {
+  const litresScaled = fuelLitresScaled(input)
+  return litresScaled === null ? null : formatScaledDecimal(litresScaled, MONEY_SCALE)
+}
+
+function fuelLitresScaled(input: {
+  readonly distanceMeters: number
+  readonly kilometersPerLiter: string
+}): bigint | null {
   const consumption = parseMoney(input.kilometersPerLiter)
   if (consumption <= 0n) return null
 
   const meters = BigInt(Math.round(input.distanceMeters))
-  const litersScaled = divideHalfUp(meters * scaleFactor() * scaleFactor(), consumption * 1000n)
-
-  return formatScaledDecimal(
-    divideHalfUp(litersScaled * parseMoney(input.pricePerLiter), scaleFactor()),
-    MONEY_SCALE,
-  )
+  return divideHalfUp(meters * scaleFactor() * scaleFactor(), consumption * 1000n)
 }
 
 /**

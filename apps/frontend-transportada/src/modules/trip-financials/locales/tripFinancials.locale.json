@@ -10,21 +10,35 @@
     "NO_FUEL_CONSUMPTION": "veículo sem consumo médio na ficha",
     "NO_FUEL_PRICE": "sem preço para o combustível deste veículo",
     "NO_PLANNED_DISTANCE": "roteiro ainda não calculado",
-    "TOLL_NOT_AVAILABLE_IN_SUGGESTION": "pedágio só é calculado depois da viagem criada",
     "SALARIED_CREW_MEMBER": "há motorista assalariado nesta viagem — custo do período",
+    "TOLL_NOT_AVAILABLE_IN_SUGGESTION": "pedágio só é calculado depois da viagem criada",
     "TOLL_PARTIAL": "praça sem tarifa conhecida no trajeto — o total soma só as demais"
+  },
+  "ledger": {
+    "driverBasis": {
+      "fixed": "Motorista da casa: o custo é do período, e não é da viagem",
+      "route_table": "Zona {{zone}} ({{city}}) · {{vehicleClass}} · uma vez pela viagem, pela zona do destino mais distante"
+    },
+    "expenses": "Despesas",
+    "fuelBasis": "{{consumption}} km/l × {{price}} por litro · {{litres}} litros no trajeto",
+    "incomplete": "Conta incompleta: o total sai menor do que a viagem custa, e as parcelas sem valor continuam na lista com o motivo no lugar do número.",
+    "margin": "Lucro",
+    "operating": "O que a operação custa",
+    "revenue": "Receita do frete",
+    "taxNote": "Imposto desce da receita, não é gasto de rodar — por isso ele não se mistura com a operação acima.",
+    "taxes": "O que o imposto leva"
   },
   "panel": {
     "amount": "Valor",
     "cost": "Custo",
+    "expectedCost": "Custo previsto",
+    "expectedGaps": "Falta parâmetro para {{reasons}} — o total sai menor do que a viagem custa.",
+    "expectedMargin": "Margem prevista",
+    "expectedRevenue": "Ganho previsto",
     "frozenAt": "Congelado em {{date}} · versão {{version}}",
     "loading": "Carregando a conta da viagem…",
     "net": "Resultado",
     "notFrozen": "A conta é congelada quando a viagem fecha. Enquanto ela está aberta, o que existe é a avaliação prevista.",
-    "expectedRevenue": "Ganho previsto",
-    "expectedCost": "Custo previsto",
-    "expectedMargin": "Margem prevista",
-    "expectedGaps": "Falta parâmetro para {{reasons}} — o total sai menor do que a viagem custa.",
     "operationalNote": "Margem operacional: desconta o imposto sobre o frete, não folha nem resultado contábil.",
     "parcel": "Parcela",
     "partialRevenue": "Receita de {{measured}} de {{expected}} notas — o número não é final.",
@@ -80,7 +94,7 @@
     "pickPeriod": "Escolha o período para ver o acumulado.",
     "subtitle": "O acumulado dos resultados congelados. Uma viagem isolada não decide nada; o que decide é o mês.",
     "title": "Resultados",
-    "trips": "Viagens",
-    "to": "Até"
+    "to": "Até",
+    "trips": "Viagens"
   }
 }

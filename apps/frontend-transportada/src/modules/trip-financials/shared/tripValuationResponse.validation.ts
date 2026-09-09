@@ -1,5 +1,9 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { TripValuation, ValuationSource } from './tripValuation.service'
+import type {
+  TripValuation,
+  TripValuationCostParcelBasis,
+  ValuationSource,
+} from './tripValuation.service'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -41,6 +45,8 @@ export function toTripValuation(envelope: unknown): TripValuation | null {
   return {
     costParcels: costParcels.filter(isRecord).map((parcel) => ({
       amount: readText(parcel.amount),
+      /** Resposta anterior à 110 não traz base: a linha sai sem derivação, nunca quebrada. */
+      basis: readBasis(parcel.basis),
       /** Resposta anterior à 086 não traz o campo: ausência é `null`, nunca "undefined" na tela. */
       detail: typeof parcel.detail === 'string' && parcel.detail !== '' ? parcel.detail : null,
       gap: readGap(parcel.gap),
@@ -66,4 +72,33 @@ export function toTripValuation(envelope: unknown): TripValuation | null {
     totalMargin: readText(payload.totalMargin),
     totalRevenue: readText(payload.totalRevenue),
   }
+}
+
+/**
+ * ⚠️ A base é lida **por forma**, não por confiança: `of` decide quais campos existem, e um corpo
+ * que não declara nenhuma das duas formas vira ausência. A tela então imprime só o total, que é o
+ * comportamento anterior a esta spec.
+ */
+function readBasis(value: unknown): null | TripValuationCostParcelBasis {
+  if (!isRecord(value)) return null
+
+  if (value.of === 'fuel') {
+    return {
+      kilometersPerLiter: readText(value.kilometersPerLiter),
+      litres: readText(value.litres),
+      of: 'fuel',
+      pricePerLiter: readText(value.pricePerLiter),
+    }
+  }
+  if (value.of === 'driver') {
+    return {
+      of: 'driver',
+      paymentModel: readText(value.paymentModel),
+      regionCity: typeof value.regionCity === 'string' ? value.regionCity : null,
+      regionCode: typeof value.regionCode === 'string' ? value.regionCode : null,
+      vehicleClass: readText(value.vehicleClass),
+    }
+  }
+
+  return null
 }

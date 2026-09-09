@@ -9,6 +9,7 @@ import {
   buildTripValuation,
   costOverDistance,
   fuelCost,
+  fuelLitres,
   VALUATION_GAPS,
   type TripCostParcel,
   type TripRevenueLine,
@@ -557,7 +558,20 @@ function resolveFuelParcel(input: {
     }
   }
 
-  return { amount, detail: null, gap: null, kind: 'fuel', source: 'estimated' }
+  return {
+    amount,
+    /** Spec 110 D7: os insumos sobem crus; a frase que a tela imprime é dela. */
+    basis: {
+      kilometersPerLiter: consumption,
+      litres: fuelLitres({ distanceMeters, kilometersPerLiter: consumption }) ?? ZERO,
+      of: 'fuel',
+      pricePerLiter: price,
+    },
+    detail: null,
+    gap: null,
+    kind: 'fuel',
+    source: 'estimated',
+  }
 }
 
 function resolveOtherPerKilometer(input: {

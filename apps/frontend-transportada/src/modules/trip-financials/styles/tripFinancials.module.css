@@ -96,3 +96,91 @@
 .recalculate > * {
   min-height: 2.75rem;
 }
+
+/**
+ * Spec 110 D7: o razão de uma coluna. A largura sai de `min()` porque `max-width` é proibido em
+ * `src/**/
+*.css` (web.md §10) — e a coluna precisa parar de crescer,
+senão o rótulo e o valor ficam * a meia tela um do outro e ninguém lê a linha inteira. */ .ledger {
+  display: grid;
+  gap: 0;
+  width: min(100%, 46rem);
+  margin: 0;
+}
+
+.ledgerRow {
+  display: flex;
+  gap: var(--space-4);
+  align-items: baseline;
+  justify-content: space-between;
+  padding: var(--space-1) 0;
+  font-size: 0.85rem;
+}
+
+.ledgerRow dt {
+  color: var(--color-fog);
+}
+
+.ledgerRow dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ledgerGroup {
+  margin: var(--space-3) 0 var(--space-1);
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* A derivação: por que aquele número é aquele número. */
+.ledgerDetail {
+  margin: 0 0 var(--space-1);
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
+/* A parcela sem valor fica na lista: o motivo ocupa o lugar do número. */
+.ledgerGap {
+  color: var(--color-copper);
+  font-size: 0.8rem;
+}
+
+.ledgerRevenue {
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+}
+
+.ledgerRevenue dd {
+  font-size: 1.05rem;
+}
+
+.ledgerTotal {
+  margin-top: var(--space-1);
+  padding-top: var(--space-2);
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
+  font-size: 0.95rem;
+}
+
+/* Despesa sai em vermelho e lucro em verde: os dois se distinguem antes do rótulo ser lido. */
+.ledgerExpenses {
+  color: var(--color-alert);
+  font-weight: 600;
+}
+
+.ledgerProfit {
+  color: var(--color-ready);
+  font-weight: 600;
+}
+
+.ledgerIncomplete {
+  margin: var(--space-2) 0 0;
+  color: var(--color-copper);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}

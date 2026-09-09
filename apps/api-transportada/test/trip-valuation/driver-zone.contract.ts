@@ -38,7 +38,7 @@ describe('trip driver zone policy', () => {
         coverage: COVERS_FAMILY_1,
         stops: [stop('BARRINHA', 1), stop('COLINA', 2)],
       }),
-    ).toEqual({ regionId: 'r-1003' })
+    ).toEqual({ regionCity: 'COLINA', regionCode: '1.003', regionId: 'r-1003' })
   })
 
   /**
@@ -59,7 +59,7 @@ describe('trip driver zone policy', () => {
     })
 
     expect(backward).toEqual(forward)
-    expect(backward).toEqual({ regionId: 'r-1003' })
+    expect(backward).toEqual({ regionCity: 'COLINA', regionCode: '1.003', regionId: 'r-1003' })
   })
 
   /** A grafia da nota não pode decidir se a cidade tem zona (T1). */
@@ -70,7 +70,7 @@ describe('trip driver zone policy', () => {
         coverage: [{ city: '', code: '2.000', regionId: 'r-2000', scope: 'region', state: '' }],
         stops: [stop('SAO CARLOS', 1)],
       }),
-    ).toEqual({ regionId: 'r-2000' })
+    ).toEqual({ regionCity: 'SÃO CARLOS', regionCode: '2.000', regionId: 'r-2000' })
   })
 
   /** Uma parada sem endereço resolvível não derruba a viagem: a anterior responde. */
@@ -81,7 +81,7 @@ describe('trip driver zone policy', () => {
         coverage: COVERS_FAMILY_1,
         stops: [stop('COLINA', 1), { city: null, sequence: 2, state: null }],
       }),
-    ).toEqual({ regionId: 'r-1003' })
+    ).toEqual({ regionCity: 'COLINA', regionCode: '1.003', regionId: 'r-1003' })
   })
 
   /** D2: cidade fora da tabela é sinal com nome, nunca palpite. */
@@ -113,7 +113,7 @@ describe('trip driver zone policy', () => {
         coverage: COVERS_FAMILY_1,
         stops: [stop('BARRINHA', 1)],
       }),
-    ).toEqual({ regionId: 'r-1001' })
+    ).toEqual({ regionCity: 'BARRINHA', regionCode: '1.001', regionId: 'r-1001' })
   })
 
   /** Cobertura por cidade vale para aquela cidade, não para a zona inteira. */
@@ -124,7 +124,7 @@ describe('trip driver zone policy', () => {
 
     expect(
       resolveTripDriverZone({ catalog: CATALOG, coverage, stops: [stop('BARRINHA', 1)] }),
-    ).toEqual({ regionId: 'r-1001' })
+    ).toEqual({ regionCity: 'BARRINHA', regionCode: '1.001', regionId: 'r-1001' })
     expect(
       resolveTripDriverZone({ catalog: CATALOG, coverage, stops: [stop('COLINA', 1)] }),
     ).toEqual({ gap: 'NO_DRIVER_RATE' })
@@ -141,7 +141,7 @@ describe('trip driver zone policy', () => {
         coverage: COVERS_FAMILY_1,
         stops: [stop('COLINA'), stop('BARRINHA')],
       }),
-    ).toEqual({ regionId: 'r-1003' })
+    ).toEqual({ regionCity: 'COLINA', regionCode: '1.003', regionId: 'r-1003' })
   })
 
   /** Famílias diferentes sem ordem não se desempatam sozinhas. */

@@ -11,6 +11,7 @@ const RESPONSE = {
     costParcels: [
       {
         amount: '0.0000',
+        basis: null,
         detail: 'ITOBI/SP',
         gap: 'CITY_WITHOUT_REGION',
         kind: 'driver',
@@ -55,15 +56,22 @@ describe('the gap detail crosses the boundary (spec 086)', () => {
     expect(legacy?.costParcels[0]?.detail).toBeNull()
   })
 
+  /**
+   * ⚠️ Spec 110 D8: a conta mudou de casa — quem imprime a lacuna agora é o razão compartilhado,
+   * usado pela criação manual **e** pela proposta multi-veículo. O que a spec 086 afirma não mudou:
+   * "cadastre ITOBI/SP" é acionável e "sem preço" não é, e por isso o detalhe fica **ao lado** do
+   * motivo, na mesma linha.
+   */
   test('the screen prints the detail next to the gap', () => {
     const source = readFileSync(
       new URL(
-        '../../src/modules/trip/components/TripValuationPreview.component.tsx',
+        '../../src/modules/trip-financials/components/ValuationLedger.component.tsx',
         import.meta.url,
       ),
       'utf8',
     )
 
-    expect(source).toInclude('parcel.detail')
+    expect(source).toInclude('line.detail')
+    expect(source).toInclude('gap.${line.gap}')
   })
 })

@@ -35,7 +35,14 @@ export type DriverZoneCoverage = {
 export type TripDriverZone =
   | { readonly cityToRegister: string; readonly gap: ValuationGap }
   | { readonly gap: ValuationGap }
-  | { readonly regionId: string }
+  /**
+   * Spec 110 D7: o **código** da zona e a **cidade que a decidiu** viajam junto do id.
+   *
+   * ⚠️ Sem os dois, a tela imprime "R$ 1.480,00" e nada mais — e o operador não tem como saber que
+   * quem pagou aquele preço foi Jaboticabal, o destino mais distante. O id da zona é chave de banco:
+   * ele não diz nada a ninguém.
+   */
+  | { readonly regionCity: string; readonly regionCode: string; readonly regionId: string }
 
 export type ResolveTripDriverZoneParams = {
   readonly catalog: readonly RegionCityEntry[]
@@ -83,7 +90,11 @@ export function resolveTripDriverZone(input: ResolveTripDriverZoneParams): TripD
   }
 
   return isCovered({ coverage: input.coverage, destination })
-    ? { regionId: destination.regionId }
+    ? {
+        regionCity: destination.city,
+        regionCode: destination.code,
+        regionId: destination.regionId,
+      }
     : { gap: VALUATION_GAPS.noDriverRate }
 }
 

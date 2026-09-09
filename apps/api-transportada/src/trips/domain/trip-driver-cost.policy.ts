@@ -28,6 +28,15 @@ export type TripCrewMember = {
    * que é o que sempre foi.
    */
   readonly routeGap?: null | ValuationGap
+  /**
+   * Spec 110 D7: **a zona que pagou, por extenso.** O id da zona é chave de banco e não diz nada a
+   * ninguém; o código impresso (`1.002`) e a cidade que o decidiu — o destino mais distante — são o
+   * que transforma "R$ 1.480,00" em algo conferível.
+   */
+  readonly regionCity?: null | string
+  readonly regionCode?: null | string
+  /** A coluna da tabela de preço: a mesma classe que `resolveVehicleFreightClass` devolve. */
+  readonly vehicleClass?: string
 }
 
 /**
@@ -54,7 +63,21 @@ export function buildTripDriverCost(crew: readonly TripCrewMember[]): TripCostPa
   }
   if (paidByRoute.length === 0) {
     /** Só assalariado: o custo é do período, e a viagem diz isso em vez de fingir que é zero. */
-    return { amount: ZERO, detail: null, gap: null, kind: 'driver', source: 'period' }
+    return {
+      amount: ZERO,
+      /** O zero aqui não é ausência: é salário, e ele não é da viagem (ADR-0049 §3). */
+      basis: {
+        of: 'driver',
+        paymentModel: 'fixed',
+        regionCity: null,
+        regionCode: null,
+        vehicleClass: '',
+      },
+      detail: null,
+      gap: null,
+      kind: 'driver',
+      source: 'period',
+    }
   }
 
   const withoutAmount = paidByRoute.filter((member) => member.routeAmount === null)
@@ -85,8 +108,22 @@ export function buildTripDriverCost(crew: readonly TripCrewMember[]): TripCostPa
     0n,
   )
 
+  /**
+   * ⚠️ A base sai do **primeiro pago por rota**, e é o suficiente: a zona é da viagem, não do
+   * condutor — todos os agregados desta viagem foram pagos pela mesma zona, porque ela é decidida
+   * pelo destino mais distante do roteiro (spec 086 D1).
+   */
+  const [reference] = paidByRoute
+
   return {
     amount: formatScaledDecimal(total, MONEY_SCALE),
+    basis: {
+      of: 'driver',
+      paymentModel: 'route_table',
+      regionCity: reference?.regionCity ?? null,
+      regionCode: reference?.regionCode ?? null,
+      vehicleClass: reference?.vehicleClass ?? '',
+    },
     detail: null,
     /**
      * Há salário fora da conta, e a viagem carrega isso como lacuna — não para bloquear o número,

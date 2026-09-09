@@ -10,21 +10,35 @@
     "NO_FUEL_CONSUMPTION": "vehicle has no average consumption on file",
     "NO_FUEL_PRICE": "no price for this vehicle's fuel",
     "NO_PLANNED_DISTANCE": "route not planned yet",
-    "TOLL_NOT_AVAILABLE_IN_SUGGESTION": "toll is only computed once the trip exists",
     "SALARIED_CREW_MEMBER": "a salaried driver is on this trip — cost of the period",
+    "TOLL_NOT_AVAILABLE_IN_SUGGESTION": "toll is only computed once the trip exists",
     "TOLL_PARTIAL": "a toll plaza on the route has no known tariff — the total only sums the others"
+  },
+  "ledger": {
+    "driverBasis": {
+      "fixed": "In-house driver: the cost belongs to the period, not to the trip",
+      "route_table": "Zone {{zone}} ({{city}}) · {{vehicleClass}} · paid once for the trip, by the farthest destination zone"
+    },
+    "expenses": "Expenses",
+    "fuelBasis": "{{consumption}} km/l × {{price}} per litre · {{litres}} litres on the route",
+    "incomplete": "Incomplete account: the total is lower than the trip costs, and the parcels without a value stay in the list with the reason in place of the number.",
+    "margin": "Profit",
+    "operating": "What the operation costs",
+    "revenue": "Freight revenue",
+    "taxNote": "Tax comes off revenue — it is not a cost of driving, so it does not mix with the operation above.",
+    "taxes": "What tax takes"
   },
   "panel": {
     "amount": "Amount",
     "cost": "Cost",
+    "expectedCost": "Expected cost",
+    "expectedGaps": "Missing parameters for {{reasons}} — the total is lower than the trip costs.",
+    "expectedMargin": "Expected margin",
+    "expectedRevenue": "Expected revenue",
     "frozenAt": "Frozen on {{date}} · version {{version}}",
     "loading": "Loading the trip account…",
     "net": "Result",
     "notFrozen": "The account is frozen when the trip closes. While it is open, what exists is the forecast.",
-    "expectedRevenue": "Expected revenue",
-    "expectedCost": "Expected cost",
-    "expectedMargin": "Expected margin",
-    "expectedGaps": "Missing parameters for {{reasons}} — the total is lower than the trip costs.",
     "operationalNote": "Operational margin: it deducts freight taxes, not payroll or accounting results.",
     "parcel": "Parcel",
     "partialRevenue": "Revenue from {{measured}} of {{expected}} invoices — this is not final.",
@@ -80,7 +94,7 @@
     "pickPeriod": "Pick a period to see the totals.",
     "subtitle": "The totals of the frozen results. One trip decides nothing; the month does.",
     "title": "Results",
-    "trips": "Trips",
-    "to": "To"
+    "to": "To",
+    "trips": "Trips"
   }
 }

@@ -433,8 +433,12 @@ export class DrizzleTripValuationQuery {
         cityToRegister: null,
         driverId: driver.driverId,
         paymentModel: driver.paymentModel,
+        /** Spec 110 D7: a zona que pagou sobe junto do preço — id de banco não explica nada. */
+        regionCity: zone.regionCity,
+        regionCode: zone.regionCode,
         routeAmount: rates.get(zone.regionId) ?? null,
         routeGap: null,
+        vehicleClass: input.freightClass,
       }
     })
   }
