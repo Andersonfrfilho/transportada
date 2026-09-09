@@ -1739,6 +1739,45 @@ motorista cujo caminhão já está na lista **substitui** o par em vez de descar
 uma requisição por motorista escolhido —, e o **separador a alcança**, por decisão registrada em
 `test/separator-role.contract.test.ts`.
 
+**O roteirizador tem teto, e ele diz quando não otimizou** (specs 104 e 105, adendo da ADR-0044).
+Medido em 2026-09-09: 305 paradas produziram **6.655 km e 150 horas** em sete viagens, uma com 207
+notas. Três causas, nenhuma delas o GA.
+
+⚠️ **O `2-opt` era O(n³) por passada** — todos os pares, avaliação completa em cada candidato. Acima
+de 200 paradas o GA completava **zero gerações** e devolvia a semente gulosa vestida de sugestão. A
+correção é vizinhança granular (K=20, `routing/domain/neighbourhood.ts`) mais filtro por delta de
+distância. Medido: 305 paradas de 0 para 121 gerações, de 123 s para 14 s, rotas 6,5% mais curtas.
+⚠️ O delta **decide quem vale avaliar, nunca quem entra**: janela de tempo e jornada não são
+decomponíveis em O(1), e quem aceita continua sendo a avaliação completa.
+
+⚠️ **O orçamento era piso.** O relógio só era conferido entre gerações e o custo está dentro de uma:
+30 s viravam 183 s. Hoje o `2-opt` o consulta no laço **externo** dos candidatos — no interno pagaria
+O(n²) consultas por passada.
+
+⚠️ **`optimizationQuality`** (`optimized` · `partial` · `greedy`) sai na solução: zero geração é a
+semente, e não pode se apresentar como otimizada. **A API ainda não publica o campo**, então a marca
+não chega à tela — elo aberto da 104.
+
+⚠️ **`maxStopsPerRoute` existe e nasce `null`.** O fitness é a **soma** dos custos, e soma é
+indiferente à distribuição — concentrar paradas próximas num veículo até a reduz, e 207 × 8 era o
+ótimo do que pedimos. É teto **absoluto**, nunca fatia igualitária: a fatia obrigaria a usar a frota
+inteira, e 20 notas com 6 caminhões dariam teto 4. Nenhuma origem o preenche — um padrão silencioso
+mudaria o roteiro de toda instalação sem ninguém pedir.
+
+⚠️ **Dez mil paradas numa instância só continua fora de alcance**, e a primeira parede não é o
+solver: 10⁸ células × 2 métricas × 8 bytes = **1,6 GB** de matriz. O caminho é decomposição por
+região — `freight_regions` já mapeia cidade → zona —, e é spec própria. Comparação com HGS,
+OR-Tools, VROOM e PyVRP em `docs/routing/algorithm-review.md`.
+
+**O filtro decide o que sai da tela de notas** (spec 103). `useNfeDocumentTable` não podava
+`selectedIds` contra o filtro: o operador marcava um conjunto amplo, estreitava para 21, lia "21
+notas encontradas" e despachava **345**. A poda é **derivação**
+(`nfe-workspace/shared/documentSelectionScope.service.ts`), nunca apagamento — podar por efeito
+reentraria a cada render, e apagar o estado faria quem só queria olhar outra faixa perder a escolha.
+⚠️ A poda é contra o **filtro**, nunca contra a página: seleção entre páginas do mesmo filtro é
+legítima. E a marcação escondida é **dita** (`countSelectionHiddenByFilter`), senão o número cai
+sozinho e o operador conclui que perdeu a seleção.
+
 ⚠️ A chave de parada do pool (`worker-transportada/src/routing/domain/pool-address-key.ts`) é
 **cópia por valor** de `api-transportada/src/trips/domain/stop-address-key.ts`, com contrato que
 compara os dois arquivos linha a linha: se divergirem, a parada que o worker propõe e a parada que o

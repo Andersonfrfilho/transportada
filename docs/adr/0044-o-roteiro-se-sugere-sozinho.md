@@ -113,6 +113,36 @@ parada só, e é pior que OR-Tools em quase tudo.** Daí duas travas:
    teste falha. Sem esse teste ninguém descobre que a sugestão piorou — ela continua parecendo uma
    sugestão.
 
+### Adendo de 2026-09-09 (specs 104 e 105): o memético estava certo, a busca local estava errada
+
+As duas travas acima seguem valendo — e faltava uma terceira, que só apareceu quando alguém rodou um
+lote grande de verdade. **Medido:** 305 paradas produziram 6.655 km e 150 horas, repartidas em sete
+viagens, uma com 207 notas.
+
+Três causas, e nenhuma era o GA:
+
+1. **O `2-opt` era O(n³) por passada** — varria todos os pares e fazia avaliação completa em cada
+   candidato. Acima de 200 paradas o GA completava **zero gerações**, e o que saía era a semente
+   gulosa vestida de sugestão otimizada. A correção é padrão desde Toth & Vigo (2003): **vizinhança
+   granular** (K=20 mais próximas) mais **filtro por delta de distância** antes da avaliação completa.
+   305 paradas passaram de zero a 121 gerações, de 123 s a 14 s, com rotas 6,5% mais curtas.
+2. **O orçamento era piso, não teto.** O relógio só era conferido entre gerações, e o custo está
+   dentro de uma. 30 s declarados viravam 183 s medidos. Hoje o `2-opt` consulta o relógio no laço
+   externo dos candidatos.
+3. **O fitness é a soma dos custos, e soma é indiferente à distribuição** — concentrar paradas
+   próximas num veículo até a reduz. 207 × 8 era o ótimo do que pedimos. Entrou `maxStopsPerRoute`
+   como penalidade explícita; ele nasce `null`, porque um padrão silencioso mudaria o roteiro de toda
+   instalação sem ninguém pedir.
+
+E a solução passou a declarar `optimizationQuality` (`optimized` · `partial` · `greedy`): resultado
+que não teve geração nenhuma **não pode se apresentar como otimizado**. É a mesma regra da ocupação
+estimada (spec 075) e da origem do peso (§5 desta ADR).
+
+⚠️ **O teto continua existindo, e mudou de lugar.** 500 e 1.000 paradas agora completam, mas saem
+`partial`. Dez mil numa instância só esbarra na **matriz** antes do solver — 10⁸ células × 2 métricas
+× 8 bytes = 1,6 GB — e no regime das _XL instances_, onde o estado da arte opera em horas. O caminho
+é decomposição por região (`freight_regions` já existe), e é spec própria.
+
 **O fitness é dinheiro, não quilômetro.** O sistema já sabe `other_costs_per_kilometer`, consumo médio
 (inclusive dois tanques, spec 051) e preço de combustível por empresa. Roteirizar por km em frota
 mista otimiza a coisa errada: o caminhão que bebe o dobro deve andar menos.
