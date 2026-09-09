@@ -98,10 +98,11 @@
 }
 
 /**
- * Spec 110 D7: o razão de uma coluna. A largura sai de `min()` porque `max-width` é proibido em
- * `src/**/
-*.css` (web.md §10) — e a coluna precisa parar de crescer,
-senão o rótulo e o valor ficam * a meia tela um do outro e ninguém lê a linha inteira. */ .ledger {
+ * Spec 110 D7: o razão de uma coluna. A largura sai de `min()` porque `max-width` é proibido nas
+ * folhas do app (web.md §10) — e a coluna precisa parar de crescer, senão o rótulo e o valor ficam
+ * a meia tela um do outro e ninguém lê a linha inteira.
+ */
+.ledger {
   display: grid;
   gap: 0;
   width: min(100%, 46rem);

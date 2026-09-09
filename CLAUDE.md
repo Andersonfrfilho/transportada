@@ -1663,6 +1663,51 @@ bundle nomeia mas nunca busca, hoje só o link do rodapé).
 Envs: `VITE_API_URL`, `VITE_APP_ENV`, `VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_REALM`,
 `VITE_KEYCLOAK_CLIENT_ID`.
 
+**A proposta se revisa dentro do diálogo que a pediu, viagem por viagem** (spec 110). Ela era
+renderizada em `TripWorkspace.page.tsx`, entre os botões e a tabela, e o diálogo fechava **antes** de
+ela aparecer — quem escolheu 132 notas, 5 motoristas e 5 veículos perdia de vista o pedido que gerou
+aquilo. Hoje o diálogo fica aberto e o formulário recolhe numa faixa com "Alterar o pedido"; ele
+fecha no aceite. Cada viagem proposta é uma linha expansível: marca do veículo (cor da viagem na
+borda, `VEHICLE_TYPE_ICONS` dentro), motorista, placa, cidades, e seis números em **grade de largura
+fixa** — `flex` fazia `R$ 541,85` não cair embaixo de `R$ 1.211,97`, e número que não alinha não se
+compara.
+
+⚠️ **Os totais da barra são do que está MARCADO.** `POST /route-suggestions/:id/accept` passou a
+aceitar `vehicleIds` (ausente = a proposta inteira, o corpo de sempre), e o aceite parcial
+**consome** a sugestão: manter `ready` para aceitar o resto depois descreveria, na segunda metade,
+uma distribuição que o maço já não tem. A recusa de veículo fora da proposta vem **antes** da
+reivindicação da spec 107 D2 — consumir a sugestão por um id errado queimaria uma proposta boa.
+
+⚠️ **Três campos que a API sempre mandou e o adaptador descartava**: a parada inteira
+(`estimatedArrivalAt`, `distanceFromPreviousMeters`, `durationFromPreviousSeconds`,
+`geocodingPrecision` — `coverableStopsFromApi` lia 4 de 12) e o `endPolicy`, que vem em
+`assumptions`. Nenhum dos dois precisou de mudança de API, e por isso não têm janela de deploy.
+
+⚠️ **Tirar destino é marcação, não destruição.** A parada fica **riscada com "Desfazer"** e o aceite
+é recusado até o recálculo — que é **da proposta**, não de um caminhão, porque mexer no maço muda a
+distribuição inteira. **Mover destino para outro caminhão não existe**: o solver redistribui e
+desfaria o movimento; ele exige fixar parada em veículo, que é spec própria. E "adicionar" é o
+próprio "Alterar o pedido".
+
+⚠️ **A conta mora num lugar só.** `ValuationLedger` (`trip-financials`) é o razão de uma coluna com a
+derivação de cada custo na linha de baixo — combustível traz consumo, preço e litros; motorista traz
+a zona, a cidade que a decidiu e a classe. A API sobe os insumos **crus** (`TripCostParcelBasis`), e
+a frase é composta na tela, que é quem traduz e formata. `valuationSteps.service.ts` saiu:
+`TripValuationPreview` virou só permissão, esqueleto e vazio. `VehicleIdentityBand` (`fleet`) segue a
+mesma regra, e `test/trip/manual-creation-convergence.contract.ts` reprova a segunda implementação —
+ela **compila igual**, e só aparece quando os dois números discordam.
+
+⚠️ **O pedágio por trecho existe na criação manual e não na proposta.** `RouteGeometryTollBooth` tem
+`legIndex` (anotação de nós do OSRM agrupada por trecho) e `TripAssemblyMap` já filtra com
+`tollRows(legIndex)`; a sugestão **não persiste os `nodeIds`**, então a linha do tempo da proposta vai
+sem praça nenhuma, de propósito. Casar por coordenada é o que a spec 090 recusa: a polilinha é
+simplificada, e as cancelas gêmeas dos dois sentidos cairiam no mesmo trecho.
+
+⚠️ **`var(--x)` sem definição apaga a declaração inteira**, sem erro e sem console. Medido em
+2026-09-09: **59 declarações descartadas em 5 arquivos**, com onze tokens fantasmas — o painel da
+proposta renderizava sem borda e o relatório de endereços da spec 084 é quase todo construído sobre
+eles. `test/design-system/css-tokens.contract.ts` varre por glob: folha nova entra sozinha.
+
 **A sugestão de roteiro tem duas portas, e a segunda não parte de viagem** (spec 058 P2). A de
 sempre é `POST /trips/:id/route-suggestions`: a viagem existe, as paradas existem, e o solver só
 reordena. A outra é **`POST /route-suggestions/multi-vehicle`**, fora da árvore `/trips/:id` de

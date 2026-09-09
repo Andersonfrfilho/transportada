@@ -2382,7 +2382,8 @@
 .proposalRow {
   display: grid;
   align-items: start;
-  grid-template-columns: auto 1fr auto;
+  /** No celular a fileira empilha: caixa + gatilho em cima, ações embaixo, na largura toda. */
+  grid-template-columns: auto 1fr;
   border: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
   background: color-mix(in srgb, var(--color-asphalt) 42%, transparent);
 }
@@ -2479,7 +2480,19 @@
 .proposalMetrics {
   display: grid;
   align-items: start;
-  grid-template-columns: repeat(6, minmax(0, 7.5rem));
+  gap: var(--space-1) var(--space-3);
+  /**
+   * ⚠️ Seis colunas de 7,5rem somam 45rem e **estouram os 375px** do celular — e scroll horizontal
+   * é proibido (web.md §10). A grade cresce por ponto de quebra: três no celular, seis no desktop,
+   * e a largura fixa (que é o que faz os números se alinharem entre as linhas) vale onde há espaço.
+   */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (min-width: 64rem) {
+  .proposalMetrics {
+    grid-template-columns: repeat(6, minmax(0, 7.5rem));
+  }
 }
 
 .proposalMetric {
@@ -2524,8 +2537,22 @@
   align-items: center;
   align-self: start;
   justify-content: flex-end;
-  width: calc(3 * var(--control-height-compact) + 2 * var(--space-1) + var(--space-4));
-  padding: var(--space-3) var(--space-4) var(--space-3) 0;
+  padding: 0 var(--space-4) var(--space-3);
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 64rem) {
+  .proposalActions {
+    width: calc(3 * var(--control-height-compact) + 2 * var(--space-1) + var(--space-4));
+    padding: var(--space-3) var(--space-4) var(--space-3) 0;
+    grid-column: auto;
+  }
+}
+
+@media (min-width: 64rem) {
+  .proposalRow {
+    grid-template-columns: auto 1fr auto;
+  }
 }
 
 .proposalDetail {

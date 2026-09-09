@@ -158,11 +158,24 @@ function describeVehicle(vehicle: FleetVehicleDetail | undefined): null | string
   if (vehicle === undefined) return null
   const parts: string[] = []
   const { cargoHeightMeters, cargoLengthMeters, cargoWidthMeters } = vehicle
-  if (cargoLengthMeters !== null && cargoWidthMeters !== null && cargoHeightMeters !== null) {
+  if (
+    hasMeasure(cargoLengthMeters) &&
+    hasMeasure(cargoWidthMeters) &&
+    hasMeasure(cargoHeightMeters)
+  ) {
     parts.push(`${cargoLengthMeters} × ${cargoWidthMeters} × ${cargoHeightMeters} m`)
   }
-  if (vehicle.capacityCubicMeters !== null) parts.push(`${vehicle.capacityCubicMeters} m³`)
-  if (vehicle.capacityKilograms !== null) parts.push(`${vehicle.capacityKilograms} kg`)
+  if (hasMeasure(vehicle.capacityCubicMeters)) parts.push(`${vehicle.capacityCubicMeters} m³`)
+  if (hasMeasure(vehicle.capacityKilograms)) parts.push(`${vehicle.capacityKilograms} kg`)
 
   return parts.length === 0 ? null : parts.join(' · ')
+}
+
+/**
+ * ⚠️ **Zero é ausência, nunca medida.** A spec 088 é explícita: baú de volume zero não existe, e
+ * `0.00` é o vocabulário que o resolvedor de capacidade já lê como "ninguém mediu". Imprimir
+ * `0.00 × 0.00 × 0.00 m` seria afirmar uma ficha que ninguém preencheu.
+ */
+function hasMeasure(value: null | string): boolean {
+  return value !== null && Number.parseFloat(value) > 0
 }
