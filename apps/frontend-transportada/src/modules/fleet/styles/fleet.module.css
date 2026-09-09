@@ -1325,3 +1325,86 @@
   flex-direction: column;
   gap: var(--space-1);
 }
+
+/**
+ * Spec 110 D3: a faixa de identidade do veículo — o caminhão na frente, antes de qualquer número.
+ * Compartilhada pela proposta multi-veículo e pela criação manual (D8).
+ */
+.identityBand {
+  display: grid;
+  gap: var(--space-4);
+  align-items: center;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 28%, transparent);
+  background: color-mix(in srgb, var(--color-asphalt) 50%, transparent);
+}
+
+.identityMark {
+  display: inline-grid;
+  width: var(--space-12);
+  height: var(--space-12);
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--color-copper) 35%, transparent);
+  color: var(--color-copper);
+  background: color-mix(in srgb, var(--color-copper) 8%, transparent);
+}
+
+.identityFacts {
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+}
+
+.identityTitle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  font-size: 0.95rem;
+}
+
+.identityPlate {
+  font-family: var(--font-utility);
+  font-size: 0.82rem;
+  letter-spacing: 0.06em;
+}
+
+.identitySpecification {
+  margin: 0;
+  color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.identityChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.identityChip {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: baseline;
+}
+
+.identityChip dt {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.6rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.identityChip dd {
+  margin: 0;
+}
+
+.identityChipNote {
+  color: var(--color-copper);
+  font-size: 0.72rem;
+}

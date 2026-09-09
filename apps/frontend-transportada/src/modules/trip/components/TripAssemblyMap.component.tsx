@@ -58,7 +58,12 @@ const MAP_HEIGHT = '18rem'
 type TripAssemblyMapProps = Readonly<{
   /** As notas que o filtro alcança e a seleção deixou de fora — o que faltou, em cinza claro. */
   nearby: readonly AssemblyMapNote[]
-  onOrderChange: (order: AssemblyCityOrder) => void
+  /**
+   * ⚠️ **Opcional pelo mesmo motivo de `onStopRemove`**: quem hospeda o mapa nem sempre é dono da
+   * ordem. Na proposta multi-veículo quem ordenou foi o roteirizador, e oferecer setas que reordenam
+   * sem recalcular seria oferecer um controle que produz um roteiro que a conta ao lado não descreve.
+   */
+  onOrderChange?: ((order: AssemblyCityOrder) => void) | undefined
   /**
    * Tirar a parada inteira da viagem — todas as notas que param naquele endereço, pelos ids delas.
    *
@@ -833,24 +838,32 @@ export function TripAssemblyMap({
                 )}
               </div>
             </div>
-            <Button
-              aria-label={t('assemblyMap.moveUp', { label: point.label })}
-              disabled={index === 0}
-              onClick={() => onOrderChange(moveCity({ code: point.stopKey, direction: -1, order }))}
-              size="sm"
-              variant="ghost"
-            >
-              <Icon name="chevron-up" />
-            </Button>
-            <Button
-              aria-label={t('assemblyMap.moveDown', { label: point.label })}
-              disabled={index === map.points.length - 1}
-              onClick={() => onOrderChange(moveCity({ code: point.stopKey, direction: 1, order }))}
-              size="sm"
-              variant="ghost"
-            >
-              <Icon name="chevron-down" />
-            </Button>
+            {onOrderChange === undefined ? null : (
+              <>
+                <Button
+                  aria-label={t('assemblyMap.moveUp', { label: point.label })}
+                  disabled={index === 0}
+                  onClick={() =>
+                    onOrderChange(moveCity({ code: point.stopKey, direction: -1, order }))
+                  }
+                  size="sm"
+                  variant="ghost"
+                >
+                  <Icon name="chevron-up" />
+                </Button>
+                <Button
+                  aria-label={t('assemblyMap.moveDown', { label: point.label })}
+                  disabled={index === map.points.length - 1}
+                  onClick={() =>
+                    onOrderChange(moveCity({ code: point.stopKey, direction: 1, order }))
+                  }
+                  size="sm"
+                  variant="ghost"
+                >
+                  <Icon name="chevron-down" />
+                </Button>
+              </>
+            )}
             {/*
               ⚠️ Tirar a parada tira **todas as notas** que param nela — a parada é o endereço, e
               deixar uma nota para trás recriaria a mesma parada na linha seguinte, com o operador
@@ -932,8 +945,8 @@ export function TripAssemblyMap({
       )}
       <div className={styles.assemblyActions}>
         <Button
-          disabled={map.points.length < 3}
-          onClick={() => onOrderChange(proposeCityOrder({ order, points: map.points }))}
+          disabled={map.points.length < 3 || onOrderChange === undefined}
+          onClick={() => onOrderChange?.(proposeCityOrder({ order, points: map.points }))}
           type="button"
           variant="secondary"
         >

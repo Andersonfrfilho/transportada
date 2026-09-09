@@ -1,4 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
+import type { RouteEndPolicy } from './routeTimeline.service'
 import { resolveLeftoverStops } from '@/modules/routing/shared/suggestionLeftover.service'
 import { TRIP_ERROR } from './trip.constant'
 import type {
@@ -33,7 +34,11 @@ function readStatus(value: unknown): MultiVehicleSuggestionStatus {
 
 export function multiVehicleSuggestionFromApi(payload: unknown): MultiVehicleSuggestion {
   if (!isRecord(payload) || !isString(payload.id)) throw new Error(TRIP_ERROR.RESPONSE_INVALID)
+  const assumptions = isRecord(payload.assumptions) ? payload.assumptions : {}
+
   return {
+    /** Corpo sem `assumptions` cai em `depot`, que é o padrão da coluna no banco. */
+    endPolicy: readEndPolicy(assumptions.endPolicy),
     errorCode: isString(payload.errorCode) ? payload.errorCode : null,
     estimatedDistanceMeters: readOptionalNumber(payload.estimatedDistanceMeters),
     estimatedDurationSeconds: readOptionalNumber(payload.estimatedDurationSeconds),
@@ -136,4 +141,10 @@ export function acceptedMultiVehicleSuggestionFromApi(
     suggestion: multiVehicleSuggestionFromApi(payload.suggestion),
     trips: payload.trips.map(acceptedTripFromApi),
   }
+}
+
+const END_POLICIES: readonly RouteEndPolicy[] = ['address', 'depot', 'last_stop']
+
+function readEndPolicy(value: unknown): RouteEndPolicy {
+  return END_POLICIES.find((candidate) => candidate === value) ?? 'depot'
 }

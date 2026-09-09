@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 
+import type { RouteEndPolicy } from './routeTimeline.service'
 import type {
   CoverableSuggestionStop,
   LeftoverStop,
@@ -685,6 +686,13 @@ export type MultiVehicleSuggestionStatus =
   | 'stale'
 
 export type MultiVehicleSuggestion = Readonly<{
+  /**
+   * Spec 110 D4a: a política de fim da rota, que decide se o caminhão volta e para onde.
+   *
+   * ⚠️ Ela sempre veio em `assumptions` e o adaptador a descartava — o mesmo defeito da parada: a
+   * API manda, o cliente joga fora uma linha antes de virar tela.
+   */
+  endPolicy: RouteEndPolicy
   errorCode: null | string
   estimatedDistanceMeters: null | number
   estimatedDurationSeconds: null | number
