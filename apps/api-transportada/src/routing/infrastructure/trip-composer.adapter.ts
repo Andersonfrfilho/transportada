@@ -35,6 +35,8 @@ export type TripComposerDependencies = Readonly<{
   writeEstimatedArrivals: (input: {
     readonly arrivals: readonly { readonly estimatedArrivalAt: string; readonly stopId: string }[]
     readonly context: MultiVehicleScope
+    /** Spec 109 D2: a âncora do ETA — a saída sob a qual estas horas foram calculadas. */
+    readonly plannedDepartureAt: string | null
     readonly tripId: string
   }) => Promise<void>
   planRoute: (input: {
@@ -105,7 +107,12 @@ export function createTripComposer(dependencies: TripComposerDependencies): Trip
      * ⚠️ Endereço proposto que não virou parada é **ignorado**, como na reordenação: a nota pode ter
      * chegado sem endereço de destinatário, e recusar por causa dela desfaria as outras entregas.
      */
-    async applyEstimatedArrivals({ context, estimatedArrivalByAddressKey, tripId }) {
+    async applyEstimatedArrivals({
+      context,
+      estimatedArrivalByAddressKey,
+      plannedDepartureAt,
+      tripId,
+    }) {
       if (estimatedArrivalByAddressKey.size === 0) return
 
       const stops = await dependencies.listStops({ companyId: context.companyId, tripId })
@@ -116,7 +123,7 @@ export function createTripComposer(dependencies: TripComposerDependencies): Trip
       })
       if (arrivals.length === 0) return
 
-      await dependencies.writeEstimatedArrivals({ arrivals, context, tripId })
+      await dependencies.writeEstimatedArrivals({ arrivals, context, plannedDepartureAt, tripId })
     },
 
     async reorderStops({ context, orderedAddressKeys, tripId }) {

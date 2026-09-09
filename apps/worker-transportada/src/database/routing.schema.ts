@@ -64,6 +64,8 @@ export const routeSuggestions = pgTable('route_suggestions', {
   seed: bigint({ mode: 'number' }).notNull(),
   assumptions: jsonb().notNull(),
   estimatedCostAmount: numeric('estimated_cost_amount', { precision: 19, scale: 4 }),
+  /** Spec 109 D2: a saída suposta pelo solver — a âncora que o despacho usa para reancorar o ETA. */
+  plannedDepartureAt: timestamp('planned_departure_at', { withTimezone: true }),
   estimatedDistanceMeters: bigint('estimated_distance_meters', { mode: 'number' }),
   estimatedDurationSeconds: bigint('estimated_duration_seconds', { mode: 'number' }),
   solverMetrics: jsonb('solver_metrics'),

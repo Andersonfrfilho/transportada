@@ -32,6 +32,7 @@ export const QUEUED_RECORD: RouteSuggestionRecord = {
   estimatedDistanceMeters: null,
   estimatedDurationSeconds: null,
   id: SUGGESTION_ID,
+  plannedDepartureAt: null,
   seed: 12_345,
   status: 'queued',
   stops: [],

@@ -1604,6 +1604,7 @@ function createApplicationRoutes({
                 tripRouteRepository.writeEstimatedArrivals({
                   arrivals: input.arrivals,
                   companyId: input.context.companyId,
+                  plannedDepartureAt: input.plannedDepartureAt,
                   tripId: input.tripId,
                 }),
             }),

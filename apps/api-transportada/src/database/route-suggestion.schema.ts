@@ -78,6 +78,11 @@ export const routeSuggestions = pgTable(
      */
     assumptions: jsonb().notNull(),
     estimatedCostAmount: numeric('estimated_cost_amount', { precision: 19, scale: 4 }),
+    /**
+     * Spec 109 D2: a saída suposta pelo solver — a premissa sob a qual o operador aceitou o roteiro.
+     * Ela **não muda**: quem se move com a saída real é `trips.eta_departure_at`.
+     */
+    plannedDepartureAt: timestamp('planned_departure_at', { withTimezone: true }),
     estimatedDistanceMeters: bigint('estimated_distance_meters', { mode: 'number' }),
     estimatedDurationSeconds: bigint('estimated_duration_seconds', { mode: 'number' }),
     /** Métricas do solver: gerações, melhor fitness, tempo gasto — a conversa sobre qualidade. */

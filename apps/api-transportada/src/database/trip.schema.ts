@@ -125,6 +125,12 @@ export const trips = pgTable(
      * 7h. Sem o carimbo, a tela mostraria uma hora que parece previsão de agora.
      */
     estimatedArrivalFrozenAt: timestamp('estimated_arrival_frozen_at', { withTimezone: true }),
+    /**
+     * Spec 109 D2: **a saída a que os ETAs das paradas estão ancorados.** Nasce com a premissa do
+     * planejamento e é reescrita pelo despacho com a saída real — é isso que torna o deslocamento
+     * idempotente, porque despachar de novo passa a ter diferença zero.
+     */
+    etaDepartureAt: timestamp('eta_departure_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

@@ -29,6 +29,7 @@ import {
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000001'
 const USER_ID = '00000000-0000-4000-8000-000000000002'
+const PLANNED_DEPARTURE = '2026-09-10T11:00:00.000Z'
 const SUGGESTION_ID = '00000000-0000-4000-8000-000000000003'
 const FIRST_VEHICLE = '00000000-0000-4000-8000-000000000010'
 const SECOND_VEHICLE = '00000000-0000-4000-8000-000000000011'
@@ -73,6 +74,7 @@ function suggestion(overrides: Partial<RouteSuggestionRecord> = {}): RouteSugges
     estimatedDistanceMeters: null,
     estimatedDurationSeconds: null,
     id: SUGGESTION_ID,
+    plannedDepartureAt: null,
     seed: 7,
     status: 'ready',
     stops: [],
@@ -499,13 +501,22 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
           vehicleId: FIRST_VEHICLE,
         },
       ],
-      stored: suggestion({ status: 'ready' }),
+      stored: suggestion({ plannedDepartureAt: PLANNED_DEPARTURE, status: 'ready' }),
     })
 
     await fixture.useCase.accept({ context: CONTEXT, suggestionId: SUGGESTION_ID })
 
+    /**
+     * ⚠️ Spec 109 D2: **a saída suposta viaja junto.** Sem ela a viagem nasce sem âncora, e o
+     * despacho não tem de que medir o atraso — as horas ficam eternamente ancoradas nas 8h.
+     */
     expect(fixture.calls.arrivals).toEqual([
-      { context: CONTEXT, estimatedArrivalByAddressKey: arrivals, tripId: 'trip-1' },
+      {
+        context: CONTEXT,
+        estimatedArrivalByAddressKey: arrivals,
+        plannedDepartureAt: PLANNED_DEPARTURE,
+        tripId: 'trip-1',
+      },
     ])
   })
 

@@ -3,7 +3,7 @@
  */
 import { createHash } from 'node:crypto'
 
-import { and, asc, eq, inArray, isNull, ne, notInArray, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, isNull, ne, notInArray, sql } from 'drizzle-orm'
 
 import {
   tripDispatchSnapshots,
@@ -21,6 +21,7 @@ import type {
 import { listUnscheduledStops } from '../../delivery-clients/infrastructure/unscheduled-stop.query.js'
 import type { CancelTripPort } from '../application/cancel-trip.use-case.js'
 import { buildCancelReleaseWhere } from './cancel-release.query.js'
+import { resolveEtaShiftMilliseconds } from '../domain/eta-anchor.policy.js'
 import type { PlanTripRoutePort, TripRouteState } from '../application/plan-trip-route.use-case.js'
 import type {
   ReorderTripStopsPort,
@@ -131,6 +132,11 @@ export class DrizzleTripRouteRepository
   public async writeEstimatedArrivals(input: {
     readonly arrivals: readonly { readonly estimatedArrivalAt: string; readonly stopId: string }[]
     readonly companyId: string
+    /**
+     * Spec 109 D2: a saída suposta pelo planejamento — a âncora do ETA. `null` é sugestão anterior a
+     * esta spec: as horas ficam, e o despacho não as desloca por âncora inventada.
+     */
+    readonly plannedDepartureAt: string | null
     readonly tripId: string
   }): Promise<void> {
     if (input.arrivals.length === 0) return
@@ -151,7 +157,11 @@ export class DrizzleTripRouteRepository
 
       await transaction
         .update(trips)
-        .set({ estimatedArrivalFrozenAt: sql`now()` })
+        .set({
+          estimatedArrivalFrozenAt: sql`now()`,
+          etaDepartureAt:
+            input.plannedDepartureAt === null ? null : new Date(input.plannedDepartureAt),
+        })
         .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
     })
   }
@@ -279,6 +289,15 @@ async function dispatch(
     tripId: input.tripId,
   })
 
+  /**
+   * Spec 109 D2: **o roteiro foi planejado para uma hora de saída, e o caminhão sai noutra.** Aqui,
+   * no clique de quem sai, o ETA de cada parada anda o mesmo tanto que a saída atrasou.
+   *
+   * ⚠️ Deslocar, não recalcular: a ordem foi conferida no galpão e o caminhão foi carregado nela.
+   * ⚠️ Na mesma transação do congelamento do roteiro — o snapshot e as horas descrevem a mesma saída.
+   */
+  await shiftEstimatedArrivals(transaction, input)
+
   const [updated] = await transaction
     .update(trips)
     .set({ status: 'dispatched', updatedAt: sql`now()` })
@@ -286,6 +305,49 @@ async function dispatch(
     .returning({ status: trips.status })
 
   return { tripStatus: updated?.status ?? 'dispatched' }
+}
+
+/**
+ * ⚠️ **A âncora é reescrita com a saída real**, e é isso que torna o deslocamento idempotente:
+ * despachar de novo passa a ter diferença zero, sem depender de o chamador lembrar disso.
+ *
+ * ⚠️ Viagem sem âncora — planejada antes desta spec, ou montada à mão — não desloca nada: deslocar
+ * por uma âncora inventada erraria mais que não deslocar (`eta-anchor.policy.ts`).
+ */
+async function shiftEstimatedArrivals(
+  transaction: TripTransaction,
+  input: { readonly companyId: string; readonly tripId: string },
+): Promise<void> {
+  const [trip] = await transaction
+    .select({ etaDepartureAt: trips.etaDepartureAt })
+    .from(trips)
+    .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+    .limit(1)
+
+  const departedAt = new Date()
+  const shiftMilliseconds = resolveEtaShiftMilliseconds({
+    anchoredDepartureAt: trip?.etaDepartureAt ?? null,
+    departedAt,
+  })
+  if (shiftMilliseconds === 0) return
+
+  await transaction
+    .update(tripStops)
+    .set({
+      estimatedArrivalAt: sql`${tripStops.estimatedArrivalAt} + make_interval(secs => ${shiftMilliseconds / 1_000})`,
+    })
+    .where(
+      and(
+        eq(tripStops.companyId, input.companyId),
+        eq(tripStops.tripId, input.tripId),
+        isNotNull(tripStops.estimatedArrivalAt),
+      ),
+    )
+
+  await transaction
+    .update(trips)
+    .set({ estimatedArrivalFrozenAt: departedAt, etaDepartureAt: departedAt })
+    .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
 }
 
 async function releaseUnloadedDocuments(

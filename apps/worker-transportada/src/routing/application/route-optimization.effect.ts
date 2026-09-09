@@ -89,6 +89,11 @@ export type RouteOptimizationPorts = Readonly<{
 
 export type RouteOptimizationOutcome = Readonly<{
   estimatedCostAmount: string
+  /**
+   * Spec 109 D2: **a saída sob a qual este roteiro foi proposto.** Ela viaja com a sugestão porque é
+   * a premissa que o operador aceitou — e é dela que o despacho mede o atraso para reancorar o ETA.
+   */
+  plannedDepartureAt: Date
   estimatedDistanceMeters: number
   estimatedDurationSeconds: number
   orderedStops: readonly OptimizedStop[]
@@ -144,6 +149,7 @@ export async function runRouteOptimization(input: {
     return {
       estimatedCostAmount: '0.0000',
       estimatedDistanceMeters: 0,
+      plannedDepartureAt: toDepartureDate(context),
       estimatedDurationSeconds: 0,
       orderedStops: excluded.map((stop, offset) => toExcludedStop({ offset, stop })),
       solverMetrics: { generations: 0 },
@@ -208,6 +214,7 @@ export async function runRouteOptimization(input: {
   return {
     estimatedCostAmount: toMoney(solution.totalCostMicros),
     estimatedDistanceMeters: solution.totalDistanceMeters,
+    plannedDepartureAt: toDepartureDate(context),
     estimatedDurationSeconds: solution.totalDurationSeconds,
     orderedStops: [
       ...toOrderedStops({
@@ -306,6 +313,11 @@ function toOrderedStops(input: {
   }
 
   return ordered
+}
+
+/** Spec 109 D2: a saída suposta, como instante — a mesma origem que o relógio do solver usou. */
+function toDepartureDate(context: RouteOptimizationContext): Date {
+  return new Date(context.departureEpochSeconds * MILLISECONDS_PER_SECOND)
 }
 
 /** `null` quando o par é inalcançável — e a violação já foi registrada pelo solver. */

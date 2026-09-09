@@ -223,6 +223,7 @@ function toRecord(input: {
     estimatedDistanceMeters: input.row.estimatedDistanceMeters,
     estimatedDurationSeconds: input.row.estimatedDurationSeconds,
     id: input.row.id,
+    plannedDepartureAt: input.row.plannedDepartureAt?.toISOString() ?? null,
     seed: input.row.seed,
     status: input.row.status,
     stops: input.stops.map((stop) => toStopRecord(stop, input.documentsByStop?.get(stop.id) ?? [])),

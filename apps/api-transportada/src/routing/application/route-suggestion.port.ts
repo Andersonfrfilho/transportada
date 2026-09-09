@@ -60,6 +60,11 @@ export type RouteSuggestion = Readonly<{
   estimatedDistanceMeters: number | null
   estimatedDurationSeconds: number | null
   id: string
+  /**
+   * Spec 109 D2: a saída suposta pelo solver — a premissa sob a qual o operador aceita, e a âncora
+   * que o aceite leva para a viagem. `null` é sugestão anterior a esta spec.
+   */
+  plannedDepartureAt: string | null
   seed: number
   status: RouteSuggestionStatus
   stops: readonly RouteSuggestionStop[]

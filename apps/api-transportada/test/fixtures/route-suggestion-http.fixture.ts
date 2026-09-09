@@ -40,6 +40,7 @@ export const QUEUED_SUGGESTION: RouteSuggestion = {
   estimatedDistanceMeters: null,
   estimatedDurationSeconds: null,
   id: SUGGESTION_ID,
+  plannedDepartureAt: null,
   seed: 12_345,
   status: 'queued',
   stops: [],

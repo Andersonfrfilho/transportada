@@ -55,6 +55,8 @@ export type TripComposer = Readonly<{
   applyEstimatedArrivals: (input: {
     readonly context: MultiVehicleScope
     readonly estimatedArrivalByAddressKey: ReadonlyMap<string, string>
+    /** Spec 109 D2: a saída suposta, que vira a âncora do ETA na viagem. */
+    readonly plannedDepartureAt: string | null
     readonly tripId: string
   }) => Promise<void>
   reorderStops: (input: {
@@ -170,6 +172,7 @@ export function createMultiVehicleSuggestionUseCase(
           await dependencies.trips.applyEstimatedArrivals({
             context,
             estimatedArrivalByAddressKey: group.estimatedArrivalByAddressKey,
+            plannedDepartureAt: found.plannedDepartureAt,
             tripId,
           })
 

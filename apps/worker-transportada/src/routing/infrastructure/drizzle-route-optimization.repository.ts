@@ -302,6 +302,8 @@ export function createDrizzleRouteOptimizationRepository(
             estimatedCostAmount: outcome.estimatedCostAmount,
             estimatedDistanceMeters: outcome.estimatedDistanceMeters,
             estimatedDurationSeconds: outcome.estimatedDurationSeconds,
+            /** Spec 109 D2: a premissa sob a qual o operador aceita — e a âncora do ETA. */
+            plannedDepartureAt: outcome.plannedDepartureAt,
             solverMetrics: outcome.solverMetrics,
             status: 'ready',
             truncated: outcome.truncated,
