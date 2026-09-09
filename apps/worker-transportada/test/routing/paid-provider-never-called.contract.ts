@@ -19,12 +19,14 @@ import type { RouteOptimizationStop } from '../../src/routing/application/route-
  */
 function collidingStops(): readonly RouteOptimizationStop[] {
   const base = {
+    city: '',
     documentIds: [],
     excludedFromOptimization: true,
     label: 'Cliente',
     latitude: '0',
     longitude: '0',
     serviceTimeSeconds: 600,
+    state: '',
     weightEstimated: false,
     weightKilograms: 10,
     windowEndSeconds: null,

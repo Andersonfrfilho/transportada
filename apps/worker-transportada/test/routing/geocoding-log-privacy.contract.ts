@@ -36,6 +36,7 @@ function recordingLogger(lines: string[]): WorkerLogger {
 function stop(): RouteOptimizationStop {
   return {
     addressKey: `3550308|${POSTAL_CODE}|${NUMBER}`,
+    city: '',
     documentIds: [],
     excludedFromOptimization: true,
     label: 'Cliente',
@@ -43,6 +44,7 @@ function stop(): RouteOptimizationStop {
     longitude: '0',
     serviceTimeSeconds: 600,
     stopId: 'stop-1',
+    state: '',
     weightEstimated: false,
     weightKilograms: 10,
     windowEndSeconds: null,

@@ -34,7 +34,14 @@ import {
   PHYSICAL_DESTINATION_ORIGINS,
 } from '../domain/physical-destination.policy.js'
 import { resolveDeliveryWindow } from '../domain/delivery-window.policy.js'
+import {
+  fleetDriverRegions,
+  freightRegionCities,
+  freightRegions,
+} from '../../database/freight-region.schema.js'
 import { buildStopAddressKey } from '../domain/pool-address-key.js'
+import { buildRegionCityKey } from '../domain/region-coverage.policy.js'
+import type { DriverCoverageEntry } from '../domain/servable-stops.policy.js'
 import { resolveStopWeight } from '../domain/stop-weight.policy.js'
 import type { StopWeightDocument } from '../domain/stop-weight.policy.js'
 import type {
@@ -471,6 +478,12 @@ async function readStops(input: {
        * saindo daqui, e ela é do **pior caso** — uma nota sem massa entre outras torna a parada
        * estimativa, e o conferente precisa saber disso antes de aceitar.
        */
+      /**
+       * ⚠️ Spec 106: a viagem já existe e o motorista dela também — a cobertura é conferida na
+       * montagem, não aqui. Cidade e UF vazias mantêm este caminho sem restrição.
+       */
+      city: '',
+      state: '',
       weightEstimated: weight.estimated,
       weightKilograms: weight.weightKilograms,
       windowEndSeconds: toRelativeSeconds(row.deliveryWindowEnd, dayStart),
@@ -567,6 +580,8 @@ async function readPoolVehicles(input: {
   const rows = await input.database
     .select({
       capacityKilograms: fleetVehicles.capacityKilograms,
+      /** Spec 106: quem dirige decide onde o veículo pode ir. Nulo é sem restrição (ADR-0055). */
+      driverId: routeSuggestionVehicles.driverId,
       id: fleetVehicles.id,
       otherCostsPerKilometer: fleetVehicles.otherCostsPerKilometer,
     })
@@ -591,6 +606,7 @@ async function readPoolVehicles(input: {
     costPerMeterMicros: Math.round(
       (Number(row.otherCostsPerKilometer) / METRES_PER_KILOMETRE) * MICROS_PER_UNIT,
     ),
+    driverId: row.driverId,
     id: row.id,
     /**
      * Spec 106: preenchido pelo efeito, que é quem conhece as paradas — aqui só se lê o veículo, e
@@ -598,6 +614,94 @@ async function readPoolVehicles(input: {
      */
     servableStopIndexes: null,
   }))
+}
+
+/** ⚠️ Zona inativada pela reimportação não cobre nada: ela saiu da tabela do cliente. */
+const ACTIVE_REGION_STATUS = 'active'
+
+/**
+ * Spec 106: o cadastro de cobertura, **uma consulta por execução**.
+ *
+ * ⚠️ Motorista **sem linha** não aparece no mapa, e o chamador traduz ausência em "serve tudo" — a
+ * regra de fallback: quem não declarou não restringiu.
+ */
+export async function readDriverCoverage(input: {
+  readonly companyId: string
+  readonly database: RouteOptimizationDatabase
+  readonly driverIds: readonly string[]
+}): Promise<ReadonlyMap<string, readonly DriverCoverageEntry[]>> {
+  const byDriver = new Map<string, DriverCoverageEntry[]>()
+  if (input.driverIds.length === 0) return byDriver
+
+  const rows = await input.database
+    .select({
+      city: fleetDriverRegions.city,
+      driverId: fleetDriverRegions.driverId,
+      regionCode: freightRegions.code,
+      scope: fleetDriverRegions.scope,
+      state: fleetDriverRegions.state,
+    })
+    .from(fleetDriverRegions)
+    .innerJoin(
+      freightRegions,
+      and(
+        eq(freightRegions.companyId, fleetDriverRegions.companyId),
+        eq(freightRegions.id, fleetDriverRegions.regionId),
+      ),
+    )
+    .where(
+      and(
+        eq(fleetDriverRegions.companyId, input.companyId),
+        inArray(fleetDriverRegions.driverId, [...input.driverIds]),
+      ),
+    )
+
+  for (const row of rows) {
+    const entries = byDriver.get(row.driverId) ?? []
+    entries.push({
+      city: row.city,
+      regionCode: row.regionCode,
+      scope: row.scope === 'city' ? 'city' : 'region',
+      state: row.state,
+    })
+    byDriver.set(row.driverId, entries)
+  }
+
+  return byDriver
+}
+
+/**
+ * Spec 106: cidade dobrada + UF → código da zona. Uma consulta por execução, nunca por parada — um
+ * pool de trezentas notas viraria trezentas idas ao banco na rotina mais pesada do worker.
+ */
+export async function readRegionCityCodes(input: {
+  readonly companyId: string
+  readonly database: RouteOptimizationDatabase
+}): Promise<ReadonlyMap<string, string>> {
+  const rows = await input.database
+    .select({
+      city: freightRegionCities.city,
+      code: freightRegions.code,
+      state: freightRegionCities.state,
+    })
+    .from(freightRegionCities)
+    .innerJoin(
+      freightRegions,
+      and(
+        eq(freightRegions.companyId, freightRegionCities.companyId),
+        eq(freightRegions.id, freightRegionCities.regionId),
+      ),
+    )
+    .where(
+      and(
+        eq(freightRegionCities.companyId, input.companyId),
+        eq(freightRegions.status, ACTIVE_REGION_STATUS),
+      ),
+    )
+
+  return new Map(
+    rows.map((row) => [buildRegionCityKey({ city: row.city, state: row.state }), row.code]),
+  )
 }
 
 /**
@@ -626,6 +730,8 @@ async function readPoolStops(input: {
       /** Spec 060: o cliente de entrega é resolvido pelo documento do destinatário. */
       recipientTaxId: nfeParticipants.taxId,
       role: nfeParticipants.role,
+      /** Spec 106: a UF fecha a chave de casamento da cidade com a tabela de regiões. */
+      state: nfeAddresses.state,
     })
     .from(routeSuggestionDocuments)
     .innerJoin(
@@ -687,7 +793,13 @@ async function readPoolStops(input: {
 
   const grouped = new Map<
     string,
-    { city: string | null; cityCode: string | null; documentIds: string[]; taxIds: Set<string> }
+    {
+      city: string | null
+      cityCode: string | null
+      documentIds: string[]
+      state: string | null
+      taxIds: Set<string>
+    }
   >()
   for (const { address: row, recipientTaxId } of destinations.values()) {
     const addressKey = buildStopAddressKey(row)
@@ -699,6 +811,7 @@ async function readPoolStops(input: {
       grouped.set(addressKey, {
         city: row.city,
         cityCode: row.cityCode,
+        state: row.state,
         documentIds: [row.nfeDocumentId],
         taxIds: new Set(recipientTaxId === null ? [] : [recipientTaxId]),
       })
@@ -770,6 +883,9 @@ async function readPoolStops(input: {
        * viagem usa, porque é o mesmo agrupamento. A marca segue viajando junto, e a tela a mostra
        * antes do aceite (ADR-0044 §5).
        */
+      /** Spec 106: cidade e UF viajam com a parada — é como a cobertura do motorista casa com ela. */
+      city: group.city ?? '',
+      state: group.state ?? '',
       weightEstimated: weight.estimated,
       weightKilograms: weight.weightKilograms,
       windowEndSeconds: window.endSeconds,

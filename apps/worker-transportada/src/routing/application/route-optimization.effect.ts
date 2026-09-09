@@ -39,6 +39,8 @@ export type RouteOptimizationStop = RouteOptimizationPoint &
      * Spec 058 P2: as notas que caem nesta parada. Vazio na sugestão de viagem — lá a nota já está
      * vinculada, e a parada tem `stopId`. Aqui é o contrário: parada proposta, sem viagem ainda.
      */
+    /** Spec 106: a cidade e a UF da parada, que é como a cobertura do motorista casa com ela. */
+    city: string
     documentIds: readonly string[]
     /** ADR-0044 §5: `city` não entra na otimização — vai marcada, no fim, esperando o humano. */
     excludedFromOptimization: boolean
@@ -46,6 +48,7 @@ export type RouteOptimizationStop = RouteOptimizationPoint &
     serviceTimeSeconds: number
     /** Nulo na multi-veículo: a parada ainda não existe, e é o aceite que a cria. */
     stopId: string | null
+    state: string
     weightEstimated: boolean
     weightKilograms: number
     windowEndSeconds: number | null

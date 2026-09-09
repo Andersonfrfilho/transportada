@@ -18,12 +18,14 @@ function buildStop(
 ): RouteOptimizationStop {
   return {
     addressKey: `key-${overrides.stopId}`,
+    city: '',
     documentIds: [],
     excludedFromOptimization: false,
     label: `Parada ${overrides.stopId}`,
     latitude: '-23.5613090',
     longitude: '-46.6564870',
     serviceTimeSeconds: 300,
+    state: '',
     weightEstimated: false,
     weightKilograms: 100,
     windowEndSeconds: null,

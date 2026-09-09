@@ -13,6 +13,7 @@ import type { RouteOptimizationStop } from '../../src/routing/application/route-
 function stop(overrides: Partial<RouteOptimizationStop> = {}): RouteOptimizationStop {
   return {
     addressKey: '3550308|01310100|1000',
+    city: '',
     documentIds: [],
     excludedFromOptimization: true,
     label: 'Cliente',
@@ -20,6 +21,7 @@ function stop(overrides: Partial<RouteOptimizationStop> = {}): RouteOptimization
     longitude: '0',
     serviceTimeSeconds: 600,
     stopId: 'stop-1',
+    state: '',
     weightEstimated: false,
     weightKilograms: 10,
     windowEndSeconds: null,

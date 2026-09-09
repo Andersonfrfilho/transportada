@@ -56,9 +56,39 @@ sobra do restrito cabe no veículo livre.
 - **O reparo também roda no `buildSolution`**, não só no `refine`: a instância trivial entra por outro
   caminho, e uma solução final que ignora a proibição a tornaria mentira onde ela é lida.
 
-## O que falta para isto valer em produção
+## A tradução do cadastro (segunda leva)
 
-⚠️ **`servableStopIndexes` chega `null` dos dois repositórios.** A infraestrutura do solver está
-pronta e testada, mas **ninguém a preenche ainda**: falta traduzir `fleet_driver_regions` +
-`coversRegion` em conjunto de índices no efeito de otimização. Sem isso a proibição existe e não
-restringe nada — e é o próximo passo desta spec.
+`resolveServableStops` (`routing/domain/servable-stops.policy.ts`) traduz o cadastro em conjunto
+servível, com **a regra de fallback decidida pelo usuário**: motorista **sem região cadastrada serve
+tudo** (`null`). Instalação que nunca configurou região continua funcionando igual a hoje — conjunto
+vazio ali faria o roteirizador parar de propor viagem sem ninguém entender por quê.
+
+A política de zona virou **cópia por valor** no worker
+(`routing/domain/region-coverage.policy.ts`), com uma diferença deliberada: código malformado devolve
+`null` em vez de lançar. Aqui é leitura de dado já gravado, e derrubar a roteirização inteira por uma
+linha velha de importação seria trocar roteiro imperfeito por roteiro nenhum.
+`test/driver-coverage/policy-parity.contract.ts` compara **comportamento**, não texto — comparar
+linha a linha proibiria justamente essa diferença.
+
+Mais: schema das três tabelas copiado para o worker (padrão dos outros quatorze), `driverId` na
+leitura da frota da sugestão, cidade e UF viajando com a parada do pool, e as duas consultas de
+cadastro — **uma por execução**, nunca por parada.
+
+Seis contratos novos: fallback sem cadastro, zona acumulativa, família diferente, cidade solta fora
+da zona, cidade fora da tabela virando sobra, e o casamento pela dobra do acento.
+
+## ⚠️ O elo final continua aberto
+
+`servableStopIndexes` **ainda chega `null`**. Tudo o que ele precisa existe e está testado — política,
+tradução, schema, consultas, `driverId`, cidade e UF na parada —, e falta **uma costura**: o efeito
+de otimização chamar `readDriverCoverage` + `readRegionCityCodes` e passar o resultado por
+`resolveServableStops` para cada veículo.
+
+Parei aqui de propósito, num ponto verde, em vez de emendar a costura no fim de uma sessão longa: ela
+mexe no caminho que roda para toda sugestão em produção, e merece começar descansada.
+
+## Um susto que vale registrar
+
+Um `git checkout --` para desfazer um regex que foi longe demais no repositório levou junto as duas
+consultas já escritas. Refazer custou uma rodada. A lição é sobre a ferramenta, não sobre o código:
+regex amplo em arquivo de 900 linhas não se desfaz com `checkout` sem perder o trabalho bom junto.
