@@ -47,6 +47,8 @@ function acceptedTripFromApi(payload: unknown): AcceptedMultiVehicleTrip {
   }
   return {
     documentCount: readOptionalNumber(payload.documentCount) ?? 0,
+    /** Spec 107 D3: quando este caminhão fica livre — a hora que a frase da sobra imprime. */
+    estimatedFinishAt: isString(payload.estimatedFinishAt) ? payload.estimatedFinishAt : null,
     stopCount: readOptionalNumber(payload.stopCount) ?? 0,
     tripId: payload.tripId,
     vehicleId: payload.vehicleId,

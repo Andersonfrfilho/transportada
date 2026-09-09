@@ -391,6 +391,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
       {
         documentCount: 1,
         driverId: null,
+        estimatedFinishAt: null,
         stopCount: 1,
         tripId: 'trip-1',
         vehicleId: FIRST_VEHICLE,
@@ -398,6 +399,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
       {
         documentCount: 1,
         driverId: null,
+        estimatedFinishAt: null,
         stopCount: 1,
         tripId: 'trip-2',
         vehicleId: SECOND_VEHICLE,
@@ -505,6 +507,61 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
     expect(fixture.calls.arrivals).toEqual([
       { context: CONTEXT, estimatedArrivalByAddressKey: arrivals, tripId: 'trip-1' },
     ])
+  })
+
+  /**
+   * ⚠️ Spec 107 D3: **o término é o ETA da última parada**, e ele sai do mesmo mapa que acabou de
+   * ser gravado — não de uma segunda leitura do banco. É o que a frase da sobra imprime ("o RTD5J78
+   * termina por volta das 14h"), e é a única metade dela que existe sem consultar cobertura.
+   *
+   * O maior, nunca o último da ordem de inserção: `Map` preserva ordem de escrita, e a ordem de
+   * escrita é a das paradas propostas, que a reordenação pode não seguir.
+   */
+  test('o término da viagem é o ETA mais tardio entre as paradas dela', async () => {
+    const fixture = buildFixture({
+      groups: [
+        {
+          documentIds: [FIRST_DOCUMENT],
+          driverId: null,
+          estimatedArrivalByAddressKey: new Map([
+            ['chave-2', '2026-09-09T17:00:00.000Z'],
+            ['chave-1', '2026-09-09T19:30:00.000Z'],
+            ['chave-3', '2026-09-09T12:00:00.000Z'],
+          ]),
+          orderedAddressKeys: ['chave-1', 'chave-2', 'chave-3'],
+          vehicleId: FIRST_VEHICLE,
+        },
+      ],
+      stored: suggestion({ status: 'ready' }),
+    })
+
+    const accepted = await fixture.useCase.accept({ context: CONTEXT, suggestionId: SUGGESTION_ID })
+
+    expect(accepted.trips[0]?.estimatedFinishAt).toBe('2026-09-09T19:30:00.000Z')
+  })
+
+  /**
+   * ⚠️ Ausência é `null`, **nunca a hora de agora**: o planejamento sem ETA é o caso em que a tela
+   * tem de calar, e uma hora inventada ali diria ao operador que o caminhão volta às sete quando
+   * ninguém sabe se ele volta.
+   */
+  test('planejamento sem ETA nenhum não inventa término', async () => {
+    const fixture = buildFixture({
+      groups: [
+        {
+          documentIds: [FIRST_DOCUMENT],
+          driverId: null,
+          estimatedArrivalByAddressKey: new Map(),
+          orderedAddressKeys: ['chave-1'],
+          vehicleId: FIRST_VEHICLE,
+        },
+      ],
+      stored: suggestion({ status: 'ready' }),
+    })
+
+    const accepted = await fixture.useCase.accept({ context: CONTEXT, suggestionId: SUGGESTION_ID })
+
+    expect(accepted.trips[0]?.estimatedFinishAt).toBe(null)
   })
 
   /**

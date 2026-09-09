@@ -36,6 +36,12 @@ export type AcceptedMultiVehicleTrip = Readonly<{
   documentCount: number
   /** Quem dirige esta viagem, ou `null` quando o par não trouxe motorista. */
   driverId: string | null
+  /**
+   * Spec 107 D3: **quando este caminhão fica livre** — o ETA mais tardio das paradas que o
+   * planejamento acabou de gravar. É o que a frase da sobra imprime, e `null` quando o planejamento
+   * não calculou hora nenhuma: hora inventada ali é pior que silêncio.
+   */
+  estimatedFinishAt: string | null
   stopCount: number
   tripId: string
   vehicleId: string

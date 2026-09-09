@@ -66,6 +66,14 @@ export type Trip = Readonly<{
    */
   driverNames: readonly string[]
   createdAt: string
+  /**
+   * Spec 107 D3: quando o ETA das paradas foi calculado. ⚠️ Anda **em par** com `estimatedFinishAt`
+   * — hora sem carimbo é previsão sem idade, e a tela imprimiria uma estimativa de ontem como se
+   * fosse de agora.
+   */
+  estimatedArrivalFrozenAt?: null | string
+  /** Spec 107 D3: o ETA mais tardio das paradas — quando este caminhão fica livre. */
+  estimatedFinishAt?: null | string
   id: string
   /** Spec 065 D4c: `null` é "derive da classificação das notas", não "não precisa". */
   requiresMdfe: boolean | null
@@ -684,6 +692,8 @@ export type MultiVehicleSuggestion = Readonly<{
 
 export type AcceptedMultiVehicleTrip = Readonly<{
   documentCount: number
+  /** Spec 107 D3: o ETA mais tardio das paradas desta viagem — quando o caminhão fica livre. */
+  estimatedFinishAt: null | string
   stopCount: number
   tripId: string
   vehicleId: string

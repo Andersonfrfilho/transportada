@@ -82,6 +82,9 @@ export type TripDetailContract = TripContract &
       revenueTotal: string
     }> | null
     documents: readonly TripDocumentDetailContract[]
+    /** Spec 107 D3: os dois andam em par — hora sem carimbo é previsão sem idade. */
+    estimatedArrivalFrozenAt: null | string
+    estimatedFinishAt: null | string
     drivers: readonly Readonly<{
       /** Contato nasce opcional (spec 078 D2): API anterior serve o motorista sem ele. */
       driverEmail?: string
@@ -181,6 +184,9 @@ export const TRIP_DETAIL = {
   ],
   cargoLayout: null,
   cargoWeight: null,
+  /** Spec 107 D3: os dois andam em par — hora sem carimbo é previsão sem idade. */
+  estimatedArrivalFrozenAt: null,
+  estimatedFinishAt: null,
   occupancy: null,
   stops: [],
 } as const satisfies TripDetailContract

@@ -2143,6 +2143,11 @@
   margin: 0;
 }
 
+.leftoversSecondWave {
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
 .leftoversDetail {
   display: grid;
   gap: var(--space-2);

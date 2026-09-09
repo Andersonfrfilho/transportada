@@ -57,6 +57,27 @@ describe('a sobra aparece na tela (spec 107)', () => {
     expect(source).toInclude("t('routeAssembly.leftovers.retry'")
   })
 
+  /**
+   * ⚠️ Spec 107 D3: a hora é **estimativa do planejamento**, e a frase tem de dizer isso ao lado —
+   * hora sem a marca é promessa, e o operador espera um caminhão que pode não chegar (ADR-0044 §1).
+   */
+  test('a segunda onda diz a hora e que ela é estimativa', () => {
+    expect(source).toInclude('resolveFreeingVehicles')
+    expect(source).toInclude('routeAssembly.leftovers.secondWave')
+    expect(source).toInclude('routeAssembly.leftovers.secondWaveUnknownPlate')
+
+    for (const dictionary of [trip, tripEn]) {
+      const leftovers = (dictionary as unknown as Record<string, Record<string, unknown>>)
+        .routeAssembly?.leftovers as Record<string, string> | undefined
+
+      expect(leftovers?.secondWave ?? '').toInclude('{{time}}')
+      expect(leftovers?.secondWave ?? '').toInclude('{{plate}}')
+      /** A marca de estimativa é do texto, e sem ela a frase vira promessa. */
+      expect((leftovers?.secondWave ?? '').toLowerCase()).toMatch(/estimativa|estimate/)
+      expect((leftovers?.secondWaveUnknownPlate ?? '').toLowerCase()).toMatch(/estimativa|estimate/)
+    }
+  })
+
   test('está montado na tela de viagens', () => {
     expect(readFileSync(PAGE, 'utf8')).toInclude('TripRouteAssemblyLeftovers')
   })
@@ -80,12 +101,17 @@ describe('a sobra aparece na tela (spec 107)', () => {
         'imprecise_other',
         'notCovered_one',
         'notCovered_other',
+        'freeing_one',
+        'freeing_other',
         'retry_one',
         'retry_other',
         'show',
+        'secondWave',
+        'secondWaveUnknownPlate',
         'summary_one',
         'summary_other',
         'title',
+        'unknownPlate',
       ]) {
         expect(leftovers?.[key], `falta leftovers.${key}`).toBeTruthy()
       }

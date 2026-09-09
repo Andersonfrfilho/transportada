@@ -586,6 +586,8 @@
     "leftovers": {
       "alreadyLinked_one": "1 nota já vinculada a outra entrega",
       "alreadyLinked_other": "{{count}} notas já vinculadas a outras entregas",
+      "freeing_one": "{{count}} veículo fica livre",
+      "freeing_other": "{{count}} veículos ficam livres",
       "hide": "Ocultar",
       "imprecise_one": "1 parada com endereço impreciso demais para roteirizar",
       "imprecise_other": "{{count}} paradas com endereço impreciso demais para roteirizar",
@@ -593,10 +595,13 @@
       "notCovered_other": "{{count}} paradas sem motorista que cubra a região",
       "retry_one": "Montar roteiro com a nota que sobrou",
       "retry_other": "Montar roteiro com as {{count}} que sobraram",
+      "secondWave": "O {{plate}} termina por volta das {{time}} — estimativa do planejamento.",
+      "secondWaveUnknownPlate": "Um veículo termina por volta das {{time}} — estimativa do planejamento.",
       "show": "Ver quais",
       "summary_one": "1 item ficou de fora do roteiro.",
       "summary_other": "{{count}} itens ficaram de fora do roteiro.",
-      "title": "O que ficou de fora"
+      "title": "O que ficou de fora",
+      "unknownPlate": "sem placa"
     }
   },
   "valuation": {

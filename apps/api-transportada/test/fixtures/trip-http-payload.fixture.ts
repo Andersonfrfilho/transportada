@@ -118,6 +118,9 @@ export const CREATE_TRIP_MDFE_MANIFEST_BODY = {} as const
 export const TRIP: Trip = {
   amounts: null,
   driverNames: [],
+  /** Spec 107 D3: os dois andam em par — hora sem carimbo é previsão sem idade. */
+  estimatedArrivalFrozenAt: null,
+  estimatedFinishAt: null,
   companyId: COMPANY_ID,
   createdAt: '2026-08-04T12:00:00.000Z',
   id: TRIP_ID,

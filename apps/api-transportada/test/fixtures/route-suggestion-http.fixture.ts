@@ -193,6 +193,7 @@ export async function createMultiVehicleHttpFixture(params: FixtureParams = {}):
             {
               documentCount: 2,
               driverId: 'driver-1',
+              estimatedFinishAt: '2026-09-09T17:00:00.000Z',
               stopCount: 1,
               tripId: 'trip-1',
               vehicleId: 'vehicle-1',

@@ -74,6 +74,21 @@ export type MultiVehicleSuggestionDependencies = Readonly<{
 
 const MAX_SEED = 2_147_483_647
 
+/**
+ * Spec 107 D3: o término é a **maior** hora entre as paradas, não a última do mapa — `Map` preserva
+ * a ordem de escrita, que é a das paradas propostas, e a reordenação pode não segui-la.
+ *
+ * ⚠️ Mapa vazio é `null`, nunca agora: planejamento sem ETA é o caso em que a tela cala.
+ */
+function resolveFinishAt(estimatedArrivalByAddressKey: ReadonlyMap<string, string>): string | null {
+  let latest: string | null = null
+  for (const arrival of estimatedArrivalByAddressKey.values()) {
+    if (latest === null || arrival > latest) latest = arrival
+  }
+
+  return latest
+}
+
 export function createMultiVehicleSuggestionUseCase(
   dependencies: MultiVehicleSuggestionDependencies,
 ): MultiVehicleSuggestionUseCase {
@@ -161,6 +176,7 @@ export function createMultiVehicleSuggestionUseCase(
           trips.push({
             documentCount: linkedCount,
             driverId: group.driverId,
+            estimatedFinishAt: resolveFinishAt(group.estimatedArrivalByAddressKey),
             stopCount: group.orderedAddressKeys.length,
             tripId,
             vehicleId: group.vehicleId,

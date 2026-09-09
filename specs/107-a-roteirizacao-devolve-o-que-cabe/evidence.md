@@ -133,8 +133,41 @@ o `.prettierignore` existe para evitar (`apps/*/drizzle/*/snapshot.json`). Rever
 Lição: `--write` num diretório inteiro ignora o `.prettierignore` do repositório quando o caminho é
 passado explicitamente.
 
+## A tela lê a hora (2026-09-09)
+
+O término chega à tela por **dois** caminhos, e eles servem a perguntas diferentes:
+
+1. **No aceite**, `AcceptedMultiVehicleTrip.estimatedFinishAt` — o ETA mais tardio das paradas que
+   acabaram de ser gravadas, calculado do mesmo mapa, sem uma segunda leitura do banco. É o que o
+   painel de sobra imprime na hora: _"O RTD5J78 termina por volta das 14h — estimativa do
+   planejamento."_
+2. **Na listagem de viagens**, `estimatedFinishAt` (de `max(trip_stops.estimated_arrival_at)`) ao
+   lado de `estimatedArrivalFrozenAt`. Os dois andam em par: hora sem carimbo é previsão sem idade.
+
+⚠️ **O maior, nunca o último do mapa.** `Map` preserva a ordem de escrita, que é a das paradas
+propostas — e a reordenação pode não segui-la. Mapa vazio é `null`, nunca agora: planejamento sem ETA
+é o caso em que a tela cala.
+
+⚠️ **O primeiro a ficar livre é o que a frase nomeia**, e a ordem em que as viagens nasceram é a dos
+veículos ofertados — sem relação com quem termina antes. `resolveFreeingVehicles`
+(`routing/shared/suggestionSecondWave.service.ts`) ordena pelo término; placa desconhecida **não
+some** da lista, sai sem nome (frota ainda carregando não pode apagar a única linha que diz a hora).
+
+⚠️ **A chave nova quase apagou a tabela de viagens.** `isTrip` valida por lista de permitidas
+(`hasKeys`), então as duas chaves novas servidas pela API reprovariam **toda** viagem: 200 na rede,
+nada no console, tabela vazia — o mesmo defeito de `VEHICLE_DETAIL_KEYS`. Elas entraram em
+`TRIP_OPTIONAL_KEYS` junto com a mudança da API, e **a API sobe primeiro**.
+
 ## O que falta
 
-**A tela.** A hora existe no banco e não é lida por ninguém: falta expor o término na listagem de
-viagens e montar a frase _"o RTD5J78 termina por volta das 14h e cobre 40 delas"_ no painel de sobra
-— com a marca de estimativa do planejamento ao lado, que é o que o carimbo permite.
+**A segunda metade da frase: _"e cobre 40 delas"_.** Quantas das notas que sobraram cada caminhão
+cobriria depende da cobertura por região de quem dirige — decidida no solver
+(`servableStopIndexes`, spec 106) e **não publicada por parada descartada**. Estimá-la no frontend
+por proximidade seria adivinhar justamente o que a 106 mediu. Publicá-la é trabalho do worker:
+gravar, por parada sem veículo, quais veículos ofertados a serviriam.
+
+⚠️ **Achado de gate, não do trabalho:** `desempenho do empacotador (spec 094 RF-NF) > uma viagem de
+300 notas cabe em 50 ms` é **intermitente** nesta máquina — 3 falhas em 5 execuções, entre 50,7 e
+64,0 ms, com o código do empacotador intocado por esta spec. O teto de 50 ms é critério de aceite da
+094; subi-lo é decisão de produto, não conserto de gate, e por isso fica registrado em vez de
+alterado.

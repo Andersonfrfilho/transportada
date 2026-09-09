@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 
 import { collectRetryableDocumentIds } from '@/modules/routing/shared/suggestionLeftover.service'
+import { resolveFreeingVehicles } from '@/modules/routing/shared/suggestionSecondWave.service'
 
 import type { TripRouteAssemblyOutcome } from '../hooks/useTripRouteAssembly.hook'
 import styles from '../styles/trip.module.css'
@@ -18,6 +19,11 @@ type TripRouteAssemblyLeftoversProps = Readonly<{
    */
   onRetry: (nfeDocumentIds: readonly string[]) => void
   outcome: TripRouteAssemblyOutcome
+  /**
+   * Spec 107 D3: a placa de quem fica livre. ⚠️ Frota ainda carregando é mapa vazio, e a linha sai
+   * sem placa em vez de sumir — a hora é a informação, e ela existe sem o nome do caminhão.
+   */
+  plateByVehicleId: ReadonlyMap<string, string>
 }>
 
 /**
@@ -30,7 +36,11 @@ type TripRouteAssemblyLeftoversProps = Readonly<{
  * 345, que é exatamente o passo em que ele errou o filtro e despachou 345 achando que eram 21
  * (spec 103).
  */
-export function TripRouteAssemblyLeftovers({ onRetry, outcome }: TripRouteAssemblyLeftoversProps) {
+export function TripRouteAssemblyLeftovers({
+  onRetry,
+  outcome,
+  plateByVehicleId,
+}: TripRouteAssemblyLeftoversProps) {
   const { t } = useTranslation('trip')
   const [isExpanded, setIsExpanded] = useState(false)
 
@@ -38,6 +48,12 @@ export function TripRouteAssemblyLeftovers({ onRetry, outcome }: TripRouteAssemb
   const imprecise = outcome.leftoverStops.filter((stop) => stop.excludedFromOptimization)
   const total = outcome.leftoverStops.length + outcome.skippedDocuments.length
   const retryable = collectRetryableDocumentIds(outcome.leftoverStops)
+  /**
+   * Spec 107 D3: **a segunda onda.** O primeiro a ficar livre é o que interessa — a ordem em que as
+   * viagens nasceram é a dos veículos ofertados, e não tem relação com quem termina antes.
+   */
+  const freeing = resolveFreeingVehicles({ plateByVehicleId, trips: outcome.trips })
+  const first = freeing[0]
 
   if (total === 0) return null
 
@@ -67,6 +83,23 @@ export function TripRouteAssemblyLeftovers({ onRetry, outcome }: TripRouteAssemb
         )}
       </div>
 
+      {/*
+        ⚠️ **A hora é estimativa do planejamento, e a frase diz isso.** Ela foi calculada no aceite,
+        a partir do ETA das paradas, e envelhece — número plausível sem aviso é o modo de falha da
+        ADR-0044 §1. ⚠️ Falta a outra metade da frase da spec ("e cobre 40 delas"): a cobertura por
+        região das paradas descartadas não é publicada pelo solver, e estimá-la aqui seria adivinhar.
+      */}
+      {first === undefined ? null : (
+        <p className={styles.leftoversSecondWave}>
+          {t(
+            first.plate === null
+              ? 'routeAssembly.leftovers.secondWaveUnknownPlate'
+              : 'routeAssembly.leftovers.secondWave',
+            { plate: first.plate ?? '', time: formatTime(first.estimatedFinishAt) },
+          )}
+        </p>
+      )}
+
       {isExpanded ? (
         <dl className={styles.leftoversDetail}>
           {notCovered.length === 0 ? null : (
@@ -79,6 +112,21 @@ export function TripRouteAssemblyLeftovers({ onRetry, outcome }: TripRouteAssemb
             <div>
               <dt>{t('routeAssembly.leftovers.imprecise', { count: imprecise.length })}</dt>
               <dd>{imprecise.map((stop) => stop.label).join(' · ')}</dd>
+            </div>
+          )}
+          {freeing.length < 2 ? null : (
+            <div>
+              <dt>{t('routeAssembly.leftovers.freeing', { count: freeing.length })}</dt>
+              <dd>
+                {freeing
+                  .map(
+                    (entry) =>
+                      `${entry.plate ?? t('routeAssembly.leftovers.unknownPlate')} · ${formatTime(
+                        entry.estimatedFinishAt,
+                      )}`,
+                  )
+                  .join(' · ')}
+              </dd>
             </div>
           )}
           {outcome.skippedDocuments.length === 0 ? null : (
@@ -95,4 +143,9 @@ export function TripRouteAssemblyLeftovers({ onRetry, outcome }: TripRouteAssemb
       ) : null}
     </section>
   )
+}
+
+/** A hora local de quem lê — o mesmo molde da lista de paradas da viagem. */
+function formatTime(value: string): string {
+  return new Date(value).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 }

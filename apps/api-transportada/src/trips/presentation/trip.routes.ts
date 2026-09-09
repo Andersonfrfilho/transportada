@@ -1261,6 +1261,9 @@ function serializeTrip(trip: Trip): object {
     status: trip.status,
     updatedAt: trip.updatedAt,
     driverNames: trip.driverNames,
+    /** Spec 107 D3: os dois juntos, sempre — hora sem carimbo é previsão sem idade. */
+    estimatedArrivalFrozenAt: trip.estimatedArrivalFrozenAt ?? null,
+    estimatedFinishAt: trip.estimatedFinishAt ?? null,
     vehicleId: trip.vehicleId,
   }
 }

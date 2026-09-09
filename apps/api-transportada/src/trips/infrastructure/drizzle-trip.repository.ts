@@ -372,11 +372,22 @@ export class DrizzleTripRepository implements TripRepositoryPort {
      * dirige**, e o `vehicleId` sozinho manda o operador abrir viagem por viagem para descobrir.
      */
     const driversByTrip = await this.loadTripDriverNames(page.map((record) => record.id))
+    /**
+     * Spec 107 D3: quando esta viagem termina — a última chegada estimada do roteiro. Uma consulta
+     * para a página inteira, como a dos motoristas.
+     */
+    const finishByTrip = await this.loadTripFinishTimes(page.map((record) => record.id))
 
     return {
       items: page.map((record) => ({
         ...mapTrip(record),
         driverNames: driversByTrip.get(record.id) ?? [],
+        /**
+         * ⚠️ Os dois andam **em par**, sempre: a hora sem o carimbo é uma previsão sem idade, e a
+         * tela mostraria o que o planejamento achava às 7h como se fosse de agora.
+         */
+        estimatedArrivalFrozenAt: record.estimatedArrivalFrozenAt?.toISOString() ?? null,
+        estimatedFinishAt: finishByTrip.get(record.id) ?? null,
       })),
       nextCursor,
     }
@@ -386,6 +397,32 @@ export class DrizzleTripRepository implements TripRepositoryPort {
    * Só o nome, e na ordem em que a viagem os pareou (`position`): a listagem nomeia quem dirige, e
    * CPF e contato são da ficha — trazê-los para uma tabela de varredura seria PII sem consumidor.
    */
+  /**
+   * A **última** chegada estimada de cada viagem: é a hora em que o motorista fica livre.
+   *
+   * ⚠️ `max` e não a parada de maior sequência: parada sem ETA devolveria `null` e derrubaria a
+   * conta inteira, e a última nem sempre é a que tem a hora.
+   */
+  private async loadTripFinishTimes(tripIds: readonly string[]): Promise<Map<string, string>> {
+    const byTrip = new Map<string, string>()
+    if (tripIds.length === 0) return byTrip
+
+    const rows = await this.database
+      .select({
+        finishAt: sql<Date | null>`max(${tripStops.estimatedArrivalAt})`.as('finish_at'),
+        tripId: tripStops.tripId,
+      })
+      .from(tripStops)
+      .where(inArray(tripStops.tripId, [...tripIds]))
+      .groupBy(tripStops.tripId)
+
+    for (const row of rows) {
+      if (row.finishAt !== null) byTrip.set(row.tripId, new Date(row.finishAt).toISOString())
+    }
+
+    return byTrip
+  }
+
   private async loadTripDriverNames(
     tripIds: readonly string[],
   ): Promise<Map<string, readonly string[]>> {

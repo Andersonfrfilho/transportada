@@ -132,7 +132,16 @@ export const TRIP_STOP_KEYS = [
 export const TRIP_DETAIL_KEYS = [...TRIP_KEYS, 'documents', 'drivers', 'stops'] as const
 
 /** Spec 078 D2: `amounts` nasce opcional — bundle novo com API antiga tem o campo ausente. */
-export const TRIP_OPTIONAL_KEYS = ['amounts'] as const
+/**
+ * ⚠️ Spec 107 D3: os dois nascem opcionais como todo campo novo (spec 078 D2) — mas estar **na
+ * lista** não é opcional: a validação recusa a viagem inteira por chave desconhecida, e a tabela de
+ * viagens renderizaria vazia com 200 na rede e nada no console (o defeito de `VEHICLE_DETAIL_KEYS`).
+ */
+export const TRIP_OPTIONAL_KEYS = [
+  'amounts',
+  'estimatedArrivalFrozenAt',
+  'estimatedFinishAt',
+] as const
 
 export const TRIP_AMOUNTS_KEYS = ['documentsTotal', 'revenueSource', 'revenueTotal'] as const
 

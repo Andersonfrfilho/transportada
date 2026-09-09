@@ -133,6 +133,9 @@ function tripDetail(mode: DocumentsMode): TripDetailContract {
     ...BASE_TRIP,
     amounts: null,
     documents,
+    /** Spec 107 D3: os dois andam em par — hora sem carimbo é previsão sem idade. */
+    estimatedArrivalFrozenAt: null,
+    estimatedFinishAt: null,
     drivers: [
       { driverId: DRIVER_ID, driverName: 'Jose da Silva', driverTaxId: '12345678901', position: 1 },
     ],

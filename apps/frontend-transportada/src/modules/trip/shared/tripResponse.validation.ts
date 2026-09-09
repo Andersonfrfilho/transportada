@@ -194,7 +194,14 @@ function isTrip(value: unknown): value is Trip {
     return false
   }
 
-  return isTripFields(value) && isAbsentOrTripAmounts((value as { amounts?: unknown }).amounts)
+  const optional = value as { estimatedArrivalFrozenAt?: unknown; estimatedFinishAt?: unknown }
+
+  return (
+    isTripFields(value) &&
+    isAbsentOrTripAmounts((value as { amounts?: unknown }).amounts) &&
+    isAbsentOrNullableString(optional.estimatedArrivalFrozenAt) &&
+    isAbsentOrNullableString(optional.estimatedFinishAt)
+  )
 }
 
 /**

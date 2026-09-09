@@ -60,6 +60,15 @@ export type Trip = {
    * existe, e a tela precisa poder dizer isso em vez de deixar a célula muda.
    */
   readonly driverNames: readonly string[]
+  /**
+   * Spec 107 D3: quando esta viagem termina, pela última chegada estimada do roteiro. `null` até o
+   * roteiro ser planejado.
+   *
+   * ⚠️ Anda **em par** com `estimatedArrivalFrozenAt`: a hora sem o carimbo é previsão sem idade, e
+   * a tela mostraria o que o planejamento achava às 7h como se fosse de agora.
+   */
+  readonly estimatedFinishAt?: string | null
+  readonly estimatedArrivalFrozenAt?: string | null
   readonly companyId: string
   readonly createdAt: string
   readonly id: string

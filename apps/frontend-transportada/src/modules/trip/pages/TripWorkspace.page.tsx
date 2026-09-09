@@ -181,6 +181,14 @@ export function TripWorkspacePage() {
   const table = useTripTable({ canReadTrips: workspace.controller.canReadTrips, ...tenant })
   const fleet = useFleet(tenant)
   /**
+   * Spec 107 D3: a placa de quem fica livre, para a frase da sobra nomear o caminhão. A frota já é
+   * consultada aqui para os seletores da montagem — uma segunda consulta só para a placa seria
+   * varrer a mesma lista duas vezes.
+   */
+  const plateByVehicleId = new Map(
+    (fleet.viewModel.vehicles ?? []).map((vehicle) => [vehicle.id, vehicle.plate]),
+  )
+  /**
    * A viagem criada abre no detalhe: quem acabou de bipar dez notas quer conferir o roteiro, e
    * deixá-lo na lista o obrigaria a procurar a linha que ele mesmo acabou de criar.
    */
@@ -339,6 +347,7 @@ export function TripWorkspacePage() {
                   <TripRouteAssemblyLeftovers
                     onRetry={assembly.retryWith}
                     outcome={assembly.outcome}
+                    plateByVehicleId={plateByVehicleId}
                   />
                 </>
               )}

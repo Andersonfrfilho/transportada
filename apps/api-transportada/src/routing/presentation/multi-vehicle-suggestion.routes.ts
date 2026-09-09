@@ -182,6 +182,8 @@ function serializeAccepted(accepted: AcceptedMultiVehicleSuggestion): object {
       documentCount: trip.documentCount,
       /** RF-6: quem ficou com o quê, sem uma segunda consulta à viagem recém-criada. */
       driverId: trip.driverId,
+      /** Spec 107 D3: quando este caminhão fica livre — o que a frase da sobra imprime. */
+      estimatedFinishAt: trip.estimatedFinishAt,
       stopCount: trip.stopCount,
       tripId: trip.tripId,
       vehicleId: trip.vehicleId,
