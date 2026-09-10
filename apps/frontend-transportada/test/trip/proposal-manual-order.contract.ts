@@ -49,6 +49,52 @@ describe('ordem escolhida à mão na proposta', () => {
     expect(detail).toContain('manualOrder === null')
   })
 
+  /**
+   * ⚠️ **A regra vale na tela inteira, não só no razão.** A linha recolhida e a barra de totais
+   * imprimiam a receita sem cor e o prejuízo em laranja (`.negative` deste módulo é cobre), enquanto
+   * o razão logo abaixo pintava o mesmo prejuízo de vermelho: um número, duas cores, uma tela.
+   */
+  it('linha e barra pintam receita de verde e prejuízo de vermelho', () => {
+    const css = readSource('src/modules/trip/styles/trip.module.css')
+    const revenue = css.slice(css.indexOf('.proposalRevenue {'))
+    expect(revenue.slice(0, revenue.indexOf('}'))).toContain('var(--color-ready)')
+
+    for (const path of [
+      'src/modules/trip/components/TripProposalRow.component.tsx',
+      'src/modules/trip/components/TripProposalList.component.tsx',
+    ]) {
+      const source = readSource(path)
+      expect(source).toContain('styles.proposalRevenue')
+      expect(source).not.toContain('styles.negative')
+    }
+  })
+
+  /**
+   * ⚠️ **A proposta tem duas portas, e a regra vale nas duas.** A segunda abre pela tabela de Notas
+   * (`MultiVehicleSuggestionAction` → `MultiVehicleSuggestionDialog`) e imprimia receita, despesa e
+   * lucro positivo sem cor nenhuma — só o prejuízo tinha tom.
+   */
+  it('a porta da tabela de Notas segue a mesma regra de cor', () => {
+    const css = readSource('src/modules/routing/styles/routing.module.css')
+    const rule = (name: string): string => {
+      const start = css.slice(css.indexOf(`.${name} {`))
+      return start.slice(0, start.indexOf('}'))
+    }
+    expect(rule('revenue')).toContain('var(--color-ready)')
+    expect(rule('expense')).toContain('var(--color-alert)')
+    expect(rule('profit')).toContain('var(--color-ready)')
+
+    for (const path of [
+      'src/modules/routing/components/SuggestionValuationReport.component.tsx',
+      'src/modules/routing/components/SuggestionVehicleValuation.component.tsx',
+    ]) {
+      const source = readSource(path)
+      expect(source).toContain('className={styles.revenue}')
+      expect(source).toContain('className={styles.expense}')
+      expect(source).toContain('styles.negative : styles.profit')
+    }
+  })
+
   /** Verde é o que entra, vermelho é o que sai — a receita era a única total sem cor. */
   it('a receita é verde', () => {
     const css = readSource('src/modules/trip-financials/styles/tripFinancials.module.css')

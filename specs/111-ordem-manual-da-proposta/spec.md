@@ -34,7 +34,16 @@ a cada troca. Três defeitos medidos estavam no caminho:
   ordem nova e os imprime.
 - **D5 — A ordem é por caminhão**, ao contrário da remoção de parada: ela não muda o maço nem a
   distribuição, então não trava o aceite nem pede recálculo da proposta. Nova proposta e aceite a zeram.
-- **D6 — Receita em verde.** Despesa já era vermelha e lucro verde; a receita era o único total sem cor.
+- **D6 — Verde é o que entra, vermelho é o que sai, na tela inteira.** No razão a receita era o único
+  total sem cor. Na linha recolhida e na barra de totais também — e ali o prejuízo saía **laranja**
+  (`.negative` do `trip.module.css` é cobre) enquanto o razão logo abaixo pintava o mesmo prejuízo de
+  vermelho: um número, duas cores, uma tela. O `.negative` global não foi tocado (outras telas o usam);
+  na linha e na barra o prejuízo passou ao vermelho da despesa.
+- **D7 — A proposta tem duas portas, e a regra vale nas duas.** A segunda abre pela tabela de Notas
+  (`MultiVehicleSuggestionAction` → `MultiVehicleSuggestionDialog`) e imprimia receita, despesa e lucro
+  positivo sem cor nenhuma. `SuggestionValuationReport` e `SuggestionVehicleValuation` ganharam as
+  classes `revenue`, `expense` e `profit`. Receita ausente fica sem cor: verde afirmaria um valor que
+  ninguém calculou.
 
 ## Fora do escopo, e o porquê
 

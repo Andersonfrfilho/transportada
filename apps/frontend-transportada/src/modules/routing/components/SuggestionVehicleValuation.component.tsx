@@ -49,15 +49,17 @@ export function SuggestionVehicleValuation({
     <dl className={styles.vehicleValuation}>
       <div>
         <dt>{t('valuation.revenue')}</dt>
-        <dd>{formatAmount(valuation.valuation.totalRevenue)}</dd>
+        <dd className={styles.revenue}>{formatAmount(valuation.valuation.totalRevenue)}</dd>
       </div>
       <div>
         <dt>{t('valuation.cost')}</dt>
-        <dd>{formatAmount(valuation.valuation.totalCost)}</dd>
+        <dd className={styles.expense}>{formatAmount(valuation.valuation.totalCost)}</dd>
       </div>
       <div>
         <dt>{t('valuation.margin')}</dt>
-        <dd className={isNegative(valuation.valuation.totalMargin) ? styles.negative : undefined}>
+        <dd
+          className={isNegative(valuation.valuation.totalMargin) ? styles.negative : styles.profit}
+        >
           {formatAmount(valuation.valuation.totalMargin)}
           {margin === null ? '' : ` · ${margin}`}
         </dd>

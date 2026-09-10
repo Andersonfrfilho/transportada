@@ -57,15 +57,15 @@ export function SuggestionValuationReport({
       <dl className={styles.reportTotals}>
         <div>
           <dt>{t('report.revenue')}</dt>
-          <dd>{formatAmount(report.totalRevenue)}</dd>
+          <dd className={styles.revenue}>{formatAmount(report.totalRevenue)}</dd>
         </div>
         <div>
           <dt>{t('report.cost')}</dt>
-          <dd>{formatAmount(report.totalCost)}</dd>
+          <dd className={styles.expense}>{formatAmount(report.totalCost)}</dd>
         </div>
         <div>
           <dt>{t('report.margin')}</dt>
-          <dd className={isNegative(report.totalMargin) ? styles.negative : undefined}>
+          <dd className={isNegative(report.totalMargin) ? styles.negative : styles.profit}>
             {formatAmount(report.totalMargin)}
           </dd>
         </div>

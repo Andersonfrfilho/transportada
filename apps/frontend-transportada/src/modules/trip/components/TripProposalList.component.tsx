@@ -164,7 +164,12 @@ export function TripProposalList({
         </div>
 
         <dl className={styles.proposalTotals}>
-          <Total label={t('proposal.totalRevenue')} value={money(summary.totalRevenue)} />
+          <Total
+            label={t('proposal.totalRevenue')}
+            /** Ausente fica sem cor: verde afirmaria uma receita que ninguém calculou. */
+            tone={summary.totalRevenue === null ? undefined : styles.proposalRevenue}
+            value={money(summary.totalRevenue)}
+          />
           <Total
             label={t('proposal.totalExpenses')}
             tone={summary.totalCost === null ? undefined : styles.proposalExpenses}
@@ -176,7 +181,8 @@ export function TripProposalList({
               summary.hasGaps
                 ? styles.proposalWarn
                 : isNegative(summary.totalMargin ?? '0.00')
-                  ? styles.negative
+                  ? /** Prejuízo é dinheiro saindo: o vermelho da despesa, como no razão. */
+                    styles.proposalExpenses
                   : styles.proposalProfit
             }
             value={money(summary.totalMargin)}

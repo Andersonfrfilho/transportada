@@ -1694,6 +1694,13 @@ chave desconhecida é ignorada (o degrau `cidade:` da tela), parada de **outro**
 da reivindicação. Ordem trocada nasce **sem horário previsto**: ele é gravado casado por endereço, na
 ordem do solver. ⚠️ O corpo é `.strict()`: **a API sobe antes do front**.
 
+⚠️ **Verde é o que entra, vermelho é o que sai — nas duas portas da proposta.** Receita e lucro em
+`--color-ready`, despesa e prejuízo em `--color-alert`, no razão, na linha recolhida, na barra de
+totais e na porta da tabela de Notas (`SuggestionValuationReport`, `SuggestionVehicleValuation`). ⚠️ O
+`.negative` do `trip.module.css` é **cobre**, não vermelho, e é usado por outras telas: quem pintar
+prejuízo na proposta usa `proposalExpenses`, nunca ele — foi assim que o mesmo prejuízo saía laranja
+na linha e vermelho no razão, na mesma tela.
+
 ⚠️ **Tirar destino é marcação, não destruição.** A parada fica **riscada com "Desfazer"** e o aceite
 é recusado até o recálculo — que é **da proposta**, não de um caminhão, porque mexer no maço muda a
 distribuição inteira. **Mover destino para outro caminhão não existe**: o solver redistribui e

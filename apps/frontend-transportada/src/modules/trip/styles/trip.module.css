@@ -2597,6 +2597,14 @@
   color: var(--color-ready);
 }
 
+/**
+ * ⚠️ **Verde é o que entra, vermelho é o que sai.** A receita era o único dos três totais sem cor —
+ * entre uma despesa vermelha e um lucro verde —, e o olho lia a conta pela metade.
+ */
+.proposalRevenue {
+  color: var(--color-ready);
+}
+
 .proposalWarn {
   color: var(--color-copper);
 }

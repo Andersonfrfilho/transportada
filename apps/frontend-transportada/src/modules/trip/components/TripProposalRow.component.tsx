@@ -58,7 +58,8 @@ export function TripProposalRow({
   const marginTone = view.hasGaps
     ? styles.proposalWarn
     : isNegative(view.totalMargin ?? '0.00')
-      ? styles.negative
+      ? /** Prejuízo é dinheiro saindo: o vermelho da despesa, como no razão logo abaixo. */
+        styles.proposalExpenses
       : styles.proposalProfit
 
   return (
@@ -138,7 +139,12 @@ export function TripProposalRow({
             }
           />
           {/* ⚠️ Sem conta, `—`: `R$ 0,00` diria que a viagem não rende nada e não custa nada. */}
-          <Metric label={t('proposal.revenue')} value={money(view.totalRevenue, t)} />
+          <Metric
+            label={t('proposal.revenue')}
+            /** Ausente fica sem cor: verde afirmaria uma receita que ninguém calculou. */
+            tone={view.totalRevenue === null ? undefined : styles.proposalRevenue}
+            value={money(view.totalRevenue, t)}
+          />
           {/* Despesas em vermelho, lucro em verde: os dois se distinguem antes do rótulo. */}
           <Metric
             label={t('proposal.expenses')}

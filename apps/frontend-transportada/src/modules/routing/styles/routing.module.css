@@ -333,6 +333,26 @@
   color: var(--color-alert);
 }
 
+/**
+ * ⚠️ **Verde é o que entra, vermelho é o que sai** — a mesma regra do razão e da proposta. Esta
+ * tela abre pela tabela de Notas, e imprimia receita, despesa e lucro sem cor nenhuma: só o
+ * prejuízo tinha tom, e o olho não separava o que a viagem rende do que ela custa.
+ */
+.revenue {
+  color: var(--color-ready);
+  font-weight: 600;
+}
+
+.expense {
+  color: var(--color-alert);
+  font-weight: 600;
+}
+
+.profit {
+  color: var(--color-ready);
+  font-weight: 600;
+}
+
 /* Spec 101: o relatório do conjunto, acima das viagens propostas. */
 .report {
   display: grid;
