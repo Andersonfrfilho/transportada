@@ -180,6 +180,31 @@ describe('ordem escolhida à mão na proposta', () => {
     expect(rule.slice(0, rule.indexOf('}'))).toContain('grid-template-columns: 1fr auto;')
   })
 
+  /** O select de mover tem a altura das setas e da lixeira — era mais alto, visto na tela. */
+  it('o select de mover é compacto como os botões ao lado', () => {
+    const map = readSource('src/modules/trip/components/TripAssemblyMap.component.tsx')
+    const select = map.slice(map.indexOf("ariaLabel={t('assemblyMap.moveToVehicle'"))
+    expect(select.slice(0, select.indexOf('/>'))).toMatch(/^\s+compact$/mu)
+  })
+
+  /**
+   * ⚠️ **Carregar antes é entregar depois** no baú que abre só atrás. A seta da ficha de carga mexe
+   * na mesma ordem de rascunho das setas do mapa, e recalcula no mesmo "Salvar alterações".
+   */
+  it('as fichas de carga mudam a ordem de carregamento pelo rascunho', () => {
+    const detail = readSource('src/modules/trip/components/TripProposalDetail.component.tsx')
+    const layers = readSource('src/modules/trip/components/TripCargoLayers.component.tsx')
+    expect(detail).toContain("arrangement === 'lanes' ? direction : direction === -1 ? 1 : -1")
+    expect(detail).toContain(
+      'handleOrderChange(moveCity({ code: key, direction: deliveryDirection, order: displayOrder }))',
+    )
+    expect(detail).toContain('onLoadingMove={handleLoadingMove}')
+    expect(layers).toContain('onLoadingMove === undefined || facts === undefined ? null : (')
+    /** A ordem de carregamento é selo, não linha cinza no meio da ficha. */
+    expect(layers).toContain('styles.cargoStopLoadingBadge')
+    expect(layers).not.toContain("<span>{t('cargoLayers.chip.loading'")
+  })
+
   it('o rótulo do caminhão de destino diz a unidade', () => {
     const pt = readSource('src/modules/trip/locales/trip.locale.json')
     expect(pt).toContain('fica com {{load}} kg de {{ceiling}} kg')

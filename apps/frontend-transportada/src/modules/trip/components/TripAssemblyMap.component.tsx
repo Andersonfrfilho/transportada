@@ -947,6 +947,8 @@ export function TripAssemblyMap({
               resolveMoveTargets(point).length === 0 ? null : (
                 <Select
                   ariaLabel={t('assemblyMap.moveToVehicle', { label: point.label })}
+                  /** A altura dos botões `sm` ao lado — os dois saem de `--field-height-compact`. */
+                  compact
                   onChange={(vehicleId) =>
                     onStopMove(
                       point.notes.map((note) => note.id),

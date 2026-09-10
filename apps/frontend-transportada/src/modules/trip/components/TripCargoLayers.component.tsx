@@ -28,6 +28,11 @@ const FLEET_HREF = '/fleet'
 
 type TripCargoLayersProps = Readonly<{
   layout: TripCargoLayout | null
+  /**
+   * Muda a parada de posição na **ordem de carregamento** (`-1` carrega antes, `1` depois). Ausente,
+   * a ficha é só leitura — é o caso da viagem já criada.
+   */
+  onLoadingMove?: ((stopSequence: number, direction: -1 | 1) => void) | undefined
 }>
 
 /**
@@ -42,7 +47,7 @@ type TripCargoLayersProps = Readonly<{
  * celular de quem está no galpão — e o carregamento é feito uma camada por vez, que é a razão de o
  * desenho ser assim.
  */
-export function TripCargoLayers({ layout }: TripCargoLayersProps) {
+export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps) {
   const { t } = useTranslation('trip')
   const [index, setIndex] = useState(0)
   /**
@@ -348,49 +353,82 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
       {/* A legenda das três marcas: sem ela o contorno vermelho da dividida não quer dizer nada. */}
       <div className={styles.cargoStops}>
         {stopChips.map(({ facts, sequence }) => (
-          <button
-            aria-pressed={focus.has(sequence)}
-            className={styles.cargoStopChip}
-            key={sequence}
-            type="button"
-            onClick={() => setFocus((previous) => toggleStopFocus(previous, sequence))}
-          >
-            <span className={styles.cargoStopDot} style={{ background: stopColorOf(sequence) }} />
-            {/*
+          <div className={styles.cargoStopItem} key={sequence}>
+            <button
+              aria-pressed={focus.has(sequence)}
+              className={styles.cargoStopChip}
+              type="button"
+              onClick={() => setFocus((previous) => toggleStopFocus(previous, sequence))}
+            >
+              <span className={styles.cargoStopDot} style={{ background: stopColorOf(sequence) }} />
+              {/*
               ⚠️ **O número da entrega vive com a cor.** A ficha dizia só o cliente e o endereço, e
               a folha ao lado dizia só o número — quem estava no barracão casava as duas listas por
               nome de mercado para saber que caixa era de qual parada.
             */}
-            <span className={styles.cargoStopOrder}>{sequence}</span>
-            <span className={styles.cargoStopBody}>
-              <span>{labelOf(sequence)}</span>
+              <span className={styles.cargoStopOrder}>{sequence}</span>
+              {/*
+              ⚠️ **A ordem de carregamento é o número que o galpão procura.** Ela era uma linha cinza
+              pequena no meio da ficha; quem carrega lê a ficha de longe, com a caixa na mão.
+            */}
               {facts === undefined ? null : (
-                <span className={styles.cargoStopFacts}>
-                  <span>{t('cargoLayers.chip.loading', { position: facts.loadingPosition })}</span>
-                  <span>
-                    {t('cargoLayers.print.spanValue', {
-                      from: facts.fromM.toFixed(2),
-                      to: facts.toM.toFixed(2),
-                    })}
-                  </span>
-                  <span>{t('cargoLayers.chip.counts', { boxes: facts.boxes })}</span>
-                  {/*
+                <span className={styles.cargoStopLoadingBadge}>
+                  {t('cargoLayers.chip.loadingBadge', { position: facts.loadingPosition })}
+                </span>
+              )}
+              <span className={styles.cargoStopBody}>
+                <span>{labelOf(sequence)}</span>
+                {facts === undefined ? null : (
+                  <span className={styles.cargoStopFacts}>
+                    <span>
+                      {t('cargoLayers.print.spanValue', {
+                        from: facts.fromM.toFixed(2),
+                        to: facts.toM.toFixed(2),
+                      })}
+                    </span>
+                    <span>{t('cargoLayers.chip.counts', { boxes: facts.boxes })}</span>
+                    {/*
                     ⚠️ Presumida e dividida só aparecem quando existem: zero delas é o caso normal,
                     e imprimir "0 divididas" em toda ficha faz o aviso deixar de ser lido justamente
                     na parada em que ele importa.
                   */}
-                  {facts.presumed === 0 ? null : (
-                    <span>{t('cargoLayers.chip.presumed', { count: facts.presumed })}</span>
-                  )}
-                  {facts.split === 0 ? null : (
-                    <span className={styles.cargoStopSplit}>
-                      {t('cargoLayers.chip.split', { count: facts.split })}
-                    </span>
-                  )}
-                </span>
-              )}
-            </span>
-          </button>
+                    {facts.presumed === 0 ? null : (
+                      <span>{t('cargoLayers.chip.presumed', { count: facts.presumed })}</span>
+                    )}
+                    {facts.split === 0 ? null : (
+                      <span className={styles.cargoStopSplit}>
+                        {t('cargoLayers.chip.split', { count: facts.split })}
+                      </span>
+                    )}
+                  </span>
+                )}
+              </span>
+            </button>
+            {onLoadingMove === undefined || facts === undefined ? null : (
+              <span className={styles.cargoStopMoves}>
+                <Button
+                  aria-label={t('cargoLayers.chip.loadEarlier', { label: labelOf(sequence) })}
+                  disabled={facts.loadingPosition === 1}
+                  onClick={() => onLoadingMove(sequence, -1)}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  <Icon name="chevron-up" />
+                </Button>
+                <Button
+                  aria-label={t('cargoLayers.chip.loadLater', { label: labelOf(sequence) })}
+                  disabled={facts.loadingPosition === chipFacts.size}
+                  onClick={() => onLoadingMove(sequence, 1)}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  <Icon name="chevron-down" />
+                </Button>
+              </span>
+            )}
+          </div>
         ))}
       </div>
 

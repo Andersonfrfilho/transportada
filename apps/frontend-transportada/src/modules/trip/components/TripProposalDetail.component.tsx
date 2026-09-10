@@ -17,7 +17,7 @@ import { useTripValuationPreview } from '@/modules/trip-financials/hooks/useTrip
 import { useTripCargoPreview } from '../hooks/useTripCargoPreview.hook'
 import { toAssemblyMapNote } from '../shared/assemblyMapNote.service'
 import type { AssemblyMapPoint } from '../shared/assemblyMap.service'
-import { isSameOrder, reconcileCityOrder } from '../shared/assemblyOrder.service'
+import { isSameOrder, moveCity, reconcileCityOrder } from '../shared/assemblyOrder.service'
 import { sumStopWeight, type MoveTarget } from '../shared/proposalStopMove.service'
 import { buildProposalStopOrder, type ProposalVehicleView } from '../shared/proposalView.service'
 import type { TripCandidateDocument } from '../shared/trip.types'
@@ -174,6 +174,22 @@ export function TripProposalDetail({
     }))
   }
 
+  /**
+   * Seta da ficha de carga: muda a posição de **carregamento**, que é a ordem de entrega vista do
+   * outro lado. ⚠️ No baú que abre só atrás (arranjo em profundidade) carregar **antes** é entregar
+   * **depois** — a primeira caixa a entrar vai ao fundo. Em faixas as duas ordens andam juntas.
+   *
+   * O número da ficha é a posição na ordem **medida** (`stopOrder`, a que a prévia de carga recebeu);
+   * a troca entra no rascunho, como as setas do mapa, e só "Salvar alterações" refaz o desenho.
+   */
+  function handleLoadingMove(stopSequence: number, direction: -1 | 1): void {
+    const key = stopOrder[stopSequence - 1]
+    if (key === undefined) return
+    const arrangement = cargo.preview?.cargoLayout?.stopArrangement ?? 'depth'
+    const deliveryDirection = arrangement === 'lanes' ? direction : direction === -1 ? 1 : -1
+    handleOrderChange(moveCity({ code: key, direction: deliveryDirection, order: displayOrder }))
+  }
+
   function handleOrderChange(order: readonly string[]): void {
     /** Voltar à ordem salva não é rascunho: a faixa de "não salva" se apaga, e nada precisa ser medido. */
     if (isSameOrder(order, stopOrder)) onDiscardOrder()
@@ -252,6 +268,7 @@ export function TripProposalDetail({
           cargoWeight={cargoWeight}
           layout={cargo.preview?.cargoLayout ?? null}
           occupancy={occupancy}
+          onLoadingMove={handleLoadingMove}
           vehicleType={view.vehicleType}
           weightConcentration={cargo.preview?.weightConcentration ?? null}
         />

@@ -21,6 +21,8 @@ type TripCargoPanelProps = {
   cargoWeight: TripCargoWeight | null
   layout: TripCargoLayout | null
   occupancy: TripOccupancy | null
+  /** Setas de ordem de carregamento nas fichas. Ausente, o painel é só leitura (viagem criada). */
+  onLoadingMove?: ((stopSequence: number, direction: -1 | 1) => void) | undefined
   /** O tipo do veículo escolhido, para a cabine ser a dele. Vazio cai no desenho genérico. */
   vehicleType?: VehicleType | ''
   /** A parada que carrega mais que a própria fatia do peso; o desenho é de volume e não a mostra. */
@@ -71,6 +73,7 @@ export function TripCargoPanel({
   cargoWeight,
   layout,
   occupancy,
+  onLoadingMove,
   vehicleType = '',
   weightConcentration = null,
 }: TripCargoPanelProps) {
@@ -163,7 +166,7 @@ export function TripCargoPanel({
         conviveram enquanto o 3D não existia; com ele, as três diziam a mesma coisa em três
         linguagens, e a fileira e a planta eram as duas que **não** dizem onde a caixa vai.
       */}
-      <TripCargoLayers layout={layout} />
+      <TripCargoLayers layout={layout} onLoadingMove={onLoadingMove} />
     </section>
   )
 }

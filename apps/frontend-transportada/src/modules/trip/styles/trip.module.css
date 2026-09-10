@@ -2031,6 +2031,34 @@
   margin-top: var(--space-1);
 }
 
+/** A ficha e as setas de carregamento dela, sempre lado a lado. */
+.cargoStopItem {
+  align-items: stretch;
+  display: flex;
+  gap: var(--space-1);
+}
+
+.cargoStopMoves {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  justify-content: center;
+}
+
+/**
+ * ⚠️ **A ordem de carregamento é o número que o galpão procura**, e era uma linha cinza pequena no
+ * meio da ficha. Selo em negrito, no tom da carga, ao lado do número da entrega.
+ */
+.cargoStopLoadingBadge {
+  background: color-mix(in srgb, var(--color-copper) 22%, transparent);
+  border: 1px solid var(--color-copper);
+  font-family: var(--font-utility);
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0 var(--space-2);
+  white-space: nowrap;
+}
+
 /** O corpo da ficha: o endereço em cima, os números da carga embaixo. */
 .cargoStopBody {
   display: flex;

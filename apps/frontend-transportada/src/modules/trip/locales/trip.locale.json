@@ -141,7 +141,10 @@
     "bedFromReference": "A escala vem do catálogo do tipo de veículo, não da ficha: as medidas do baú deste caminhão não foram preenchidas, e o mesmo tipo varia até o dobro.",
     "chip": {
       "counts": "{{boxes}} caixas",
+      "loadEarlier": "Carregar {{label}} antes",
+      "loadLater": "Carregar {{label}} depois",
       "loading": "carregar em {{position}}º",
+      "loadingBadge": "{{position}}º a carregar",
       "presumed": "{{count}} presumidas",
       "split": "{{count}} divididas"
     },
