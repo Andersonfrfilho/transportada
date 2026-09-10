@@ -743,19 +743,7 @@
     "outcomeAutomatic_other": "{{count}} viagens criadas pela recomendação.",
     "pending": "Roteirizando…",
     "proposal": {
-      "accept_one": "Aceitar e criar {{count}} viagem",
-      "accept_other": "Aceitar e criar {{count}} viagens",
-      "deliveries_one": "{{count}} entrega",
-      "deliveries_other": "{{count}} entregas",
-      "discard": "Descartar proposta",
-      "nothingCreated": "Nada foi criado ainda — nenhuma viagem existe até você aceitar.",
-      "showStops": "Ver paradas",
-      "stops_one": "{{count}} parada",
-      "stops_other": "{{count}} paradas",
-      "summary_one": "{{count}} viagem proposta",
-      "summary_other": "{{count}} viagens propostas",
-      "title": "Proposta de roteiro",
-      "unknownPlate": "Veículo sem placa"
+      "title": "Proposta de roteiro"
     },
     "recap": "{{notes}} notas no maço · {{drivers}} motoristas · {{vehicles}} veículos",
     "selection": "{{count}} nota no lote",

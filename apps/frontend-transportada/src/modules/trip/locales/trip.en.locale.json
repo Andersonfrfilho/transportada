@@ -610,19 +610,7 @@
     "outcomeAutomatic_other": "{{count}} trips created from the recommendation.",
     "pending": "Routing…",
     "proposal": {
-      "accept_one": "Accept and create {{count}} trip",
-      "accept_other": "Accept and create {{count}} trips",
-      "deliveries_one": "{{count}} delivery",
-      "deliveries_other": "{{count}} deliveries",
-      "discard": "Discard proposal",
-      "nothingCreated": "Nothing has been created yet — no trip exists until you accept.",
-      "showStops": "Show stops",
-      "stops_one": "{{count}} stop",
-      "stops_other": "{{count}} stops",
-      "summary_one": "{{count}} proposed trip",
-      "summary_other": "{{count}} proposed trips",
-      "title": "Route proposal",
-      "unknownPlate": "Vehicle without plate"
+      "title": "Route proposal"
     },
     "recap": "{{notes}} notes in the pool · {{drivers}} drivers · {{vehicles}} vehicles",
     "selection": "{{count}} invoice in the pool",
