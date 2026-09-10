@@ -38,6 +38,18 @@ export type ProposalVehicleView = Readonly<{
   vehicleId: string
   vehicleLabel: null | string
   vehicleType: '' | VehicleType
+  /**
+   * ⚠️ **O teto de massa do veículo, e o quanto a carga proposta o ocupa.**
+   *
+   * Medido em 2026-09-09 na distribuição real: quatro dos cinco caminhões nasceram acima do teto —
+   * a Fiorino de 650 kg com 4.307 kg (663%) —, e a linha oferecia "aceitar" sem dizer nada. O aviso
+   * existia escondido dentro do expandido, um veículo por vez. Peso declarado em MDF-e **não admite
+   * tolerância** (Res. CONTRAN 882/2021, Art. 49 §3º): a viagem que nasce estourada nasce ilegal.
+   *
+   * `null` nos dois é ausência de teto ou de massa conhecida — **nunca 0%, nunca 100%** (spec 093).
+   */
+  maxPayloadKilograms: null | string
+  payloadRatio: null | number
   /** `null` quando nenhuma nota do veículo declara massa — ausência, nunca zero (ADR-0052). */
   weightKilograms: null | string
   /** ⚠️ **Uma nota estimada marca o veículo inteiro**: é a marca que o conferente lê antes de aceitar. */
@@ -54,7 +66,13 @@ export function buildProposalVehicleViews(
     valuation: null | SuggestionValuation
     vehicleById: ReadonlyMap<
       string,
-      Readonly<{ label: string; plate: string; type: '' | VehicleType }>
+      Readonly<{
+        /** ⚠️ `null` é ficha sem teto declarado; zero na ficha já é ausência (spec 088). */
+        capacityKilograms: null | string
+        label: string
+        plate: string
+        type: '' | VehicleType
+      }>
     >
   }>,
 ): readonly ProposalVehicleView[] {
@@ -83,6 +101,9 @@ export function buildProposalVehicleViews(
         : [weight.cargoGrossWeight],
     )
 
+    const weightKilograms = declared.length === 0 ? null : sumScaledAmounts(declared)
+    const maxPayloadKilograms = readCeiling(vehicle?.capacityKilograms ?? null)
+
     return {
       /** As cidades **na ordem do roteiro**, sem repetir: elas são o subtítulo da linha. */
       cities: [...new Set(group.stops.map((stop) => stop.label).filter((label) => label !== ''))],
@@ -97,6 +118,8 @@ export function buildProposalVehicleViews(
       durationSeconds: entry?.durationSeconds ?? null,
       hasGaps: entry?.valuation.hasGaps ?? false,
       marginPercentage: entry?.valuation.marginPercentage ?? null,
+      maxPayloadKilograms,
+      payloadRatio: resolvePayloadRatio({ maxPayloadKilograms, weightKilograms }),
       plate: vehicle?.plate ?? null,
       stops: group.stops,
       totalCost: entry?.valuation.totalCost ?? null,
@@ -106,9 +129,50 @@ export function buildProposalVehicleViews(
       vehicleLabel: vehicle?.label ?? null,
       vehicleType: vehicle?.type ?? '',
       weightEstimated: weights.some((weight) => weight?.cargoWeightSource === 'estimated'),
-      weightKilograms: declared.length === 0 ? null : sumScaledAmounts(declared),
+      weightKilograms,
     }
   })
+}
+
+/**
+ * ⚠️ **Zero na ficha é ausência de medida, nunca teto de zero quilo** — é o mesmo vocabulário que
+ * o resolvedor de capacidade lê (spec 088). Ficha sem teto vira `null`, e a linha não desenha
+ * percentual nenhum em vez de afirmar que a carga cabe.
+ */
+function readCeiling(value: null | string): null | string {
+  if (value === null) return null
+  const parsed = Number.parseFloat(value)
+
+  return Number.isFinite(parsed) && parsed > 0 ? value : null
+}
+
+/**
+ * A fração do teto que a carga proposta ocupa. **O estouro sai como está** (spec 093): 663% é o
+ * número que diz ao operador que aquele caminhão não leva a carga, e aparar em 100% esconderia
+ * justamente o tamanho do problema.
+ */
+function resolvePayloadRatio(
+  input: Readonly<{ maxPayloadKilograms: null | string; weightKilograms: null | string }>,
+): null | number {
+  if (input.maxPayloadKilograms === null || input.weightKilograms === null) return null
+  const ceiling = Number.parseFloat(input.maxPayloadKilograms)
+  const load = Number.parseFloat(input.weightKilograms)
+  if (!Number.isFinite(ceiling) || !Number.isFinite(load) || ceiling <= 0) return null
+
+  return load / ceiling
+}
+
+/** Acima do teto é violação, não aperto: o peso declarado em MDF-e não admite tolerância. */
+export function isOverPayload(view: ProposalVehicleView): boolean {
+  return view.payloadRatio !== null && view.payloadRatio > 1
+}
+
+/** Quantas viagens **marcadas** nascem acima do teto — é o que o aceite precisa dizer antes. */
+export function countOverPayload(
+  views: readonly ProposalVehicleView[],
+  selected: ReadonlySet<string>,
+): number {
+  return views.filter((view) => selected.has(view.vehicleId) && isOverPayload(view)).length
 }
 
 function resolveDriverName(

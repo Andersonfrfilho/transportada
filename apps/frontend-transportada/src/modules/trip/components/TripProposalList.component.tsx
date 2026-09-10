@@ -12,7 +12,7 @@ import {
 import { formatAmount } from '@/modules/shared/decimalAmount.service'
 import { isNegative } from '@/modules/trip-financials/shared/financialView.service'
 
-import type { ProposalVehicleView } from '../shared/proposalView.service'
+import { countOverPayload, type ProposalVehicleView } from '../shared/proposalView.service'
 import {
   summarizeProposalSelection,
   toggleAllProposalSelection,
@@ -82,6 +82,15 @@ export function TripProposalList({
   const money = (value: null | string): string =>
     value === null ? t('proposal.unknown') : formatAmount(value)
 
+  /**
+   * ⚠️ **O aceite não pode ser calado sobre o teto de peso.** Medido: quatro das cinco viagens
+   * propostas nasceram acima da capacidade do caminhão, e a barra oferecia "Aceitar e criar as 5
+   * viagens" sem uma palavra. Fiscalização pelo peso **declarado** em CT-e ou MDF-e não admite
+   * tolerância (Res. CONTRAN 882/2021, Art. 49 §3º) — e o aviso não bloqueia: quem decide despachar
+   * é o operador, como a ADR-0044 §4 já decidiu para a violação dentro do solver.
+   */
+  const overPayload = countOverPayload(views, selected)
+
   const acceptLabel =
     summary.selectedCount === 0
       ? t('proposal.acceptNone')
@@ -102,6 +111,11 @@ export function TripProposalList({
               onSelectionChange(toggleAllProposalSelection({ selected, vehicles: views }))
             }
           />
+          {overPayload === 0 ? null : (
+            <p className={styles.alert} role="alert">
+              {t('proposal.overPayloadWarning', { count: overPayload })}
+            </p>
+          )}
           <p className={styles.hint}>
             {t('proposal.headline', {
               deliveries: summary.deliveries,

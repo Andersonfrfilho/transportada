@@ -59,6 +59,8 @@ export function TripRouteAssemblyDialog({
     vehicles.map((vehicle) => [
       vehicle.id,
       {
+        /** Spec 093: o teto de massa da ficha — é ele que diz se a carga proposta cabe. */
+        capacityKilograms: vehicle.capacityKilograms,
         label: [vehicle.brand, vehicle.model].filter((part) => part !== '').join(' '),
         plate: vehicle.plate,
         type: vehicle.vehicleType,

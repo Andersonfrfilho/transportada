@@ -14,7 +14,11 @@ import { VEHICLE_TYPE_ICONS } from '@/modules/shared/vehicleTypeIcon.service'
 import { formatMargin, isNegative } from '@/modules/trip-financials/shared/financialView.service'
 
 import { stopColorTokenOf } from '../shared/stopColor.service'
-import { summarizeProposalCities, type ProposalVehicleView } from '../shared/proposalView.service'
+import {
+  isOverPayload,
+  summarizeProposalCities,
+  type ProposalVehicleView,
+} from '../shared/proposalView.service'
 import styles from '../styles/trip.module.css'
 
 type TripProposalRowProps = Readonly<{
@@ -105,9 +109,26 @@ export function TripProposalRow({
 
         <span className={styles.proposalMetrics}>
           <Metric label={t('proposal.deliveries')} value={String(view.deliveries)} />
+          {/*
+            ⚠️ **O peso acima do teto sai em vermelho, na linha fechada.** Medido em 2026-09-09: a
+            Fiorino de 650 kg nasceu com 4.307 kg — 663% —, e a única marca disso vivia dentro do
+            expandido, um veículo por vez. O peso declarado em MDF-e não admite tolerância
+            (Res. CONTRAN 882/2021, Art. 49 §3º): quem aceita precisa ver antes de clicar.
+          */}
           <Metric
             label={t('proposal.weight')}
-            note={view.weightEstimated ? t('proposal.weightEstimated') : null}
+            note={
+              isOverPayload(view)
+                ? t('proposal.overPayload', {
+                    ceiling: formatWeightKilograms(view.maxPayloadKilograms ?? '0'),
+                    percentage: Math.round((view.payloadRatio ?? 0) * 100),
+                  })
+                : view.weightEstimated
+                  ? t('proposal.weightEstimated')
+                  : null
+            }
+            noteTone={isOverPayload(view) ? styles.proposalExpenses : undefined}
+            tone={isOverPayload(view) ? styles.proposalExpenses : undefined}
             value={
               view.weightKilograms === null
                 ? t('proposal.unknown')
@@ -188,11 +209,14 @@ export function TripProposalRow({
 function Metric({
   label,
   note = null,
+  noteTone,
   tone,
   value,
 }: Readonly<{
   label: string
   note?: null | string
+  /** A nota herda o tom quando ela é a violação, não o rodapé do número. */
+  noteTone?: string | undefined
   tone?: string | undefined
   value: string
 }>) {
@@ -200,7 +224,9 @@ function Metric({
     <span className={styles.proposalMetric}>
       <span className={styles.proposalMetricLabel}>{label}</span>
       <span className={tone === undefined ? undefined : tone}>{value}</span>
-      {note === null ? null : <span className={styles.proposalMetricNote}>{note}</span>}
+      {note === null ? null : (
+        <span className={`${styles.proposalMetricNote} ${noteTone ?? ''}`.trim()}>{note}</span>
+      )}
     </span>
   )
 }

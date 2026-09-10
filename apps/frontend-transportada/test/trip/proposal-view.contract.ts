@@ -2,8 +2,11 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   buildProposalVehicleViews,
+  countOverPayload,
+  isOverPayload,
   PROPOSAL_CITY_LIMIT,
   summarizeProposalCities,
+  type ProposalVehicleView,
 } from '@/modules/trip/shared/proposalView.service'
 import type { ProposalStop } from '@/modules/trip/shared/trip.types'
 
@@ -146,5 +149,102 @@ describe('proposal view contract', () => {
     })
 
     expect(view?.driverName).toBe('Marcos Pereira')
+  })
+  /**
+   * ⚠️ **A carga que não cabe é dita na linha fechada.** Medido em 2026-09-09, na distribuição
+   * real: quatro dos cinco caminhões nasceram acima do teto — a Fiorino de 650 kg com 4.307,57 kg,
+   * 663% — e a única marca disso vivia dentro do expandido, um veículo por vez. Peso declarado em
+   * MDF-e não admite tolerância (Res. CONTRAN 882/2021, Art. 49 §3º).
+   */
+  test('a viagem acima do teto de peso é acusada, e o estouro sai como está', () => {
+    const [view] = buildProposalVehicleViews({
+      documentsById: new Map([
+        ['doc-1', { cargoGrossWeight: '4307.5700', cargoWeightSource: 'xml' as const }],
+      ]),
+      driverIdByVehicleId: new Map(),
+      driverNameById: new Map(),
+      stops: [STOP({})],
+      valuation: null,
+      vehicleById: new Map([
+        [
+          'v-1',
+          {
+            capacityKilograms: '650.00',
+            label: 'Fiat Fiorino',
+            plate: 'RTF7L01',
+            type: 'utility' as const,
+          },
+        ],
+      ]),
+    })
+
+    expect(view?.maxPayloadKilograms).toBe('650.00')
+    expect(Math.round((view?.payloadRatio ?? 0) * 100)).toBe(663)
+    expect(isOverPayload(view as ProposalVehicleView)).toBe(true)
+  })
+
+  /** ⚠️ Zero na ficha é ausência de medida, nunca teto de zero quilo (spec 088). */
+  test('ficha sem teto não vira percentual nenhum', () => {
+    const [view] = buildProposalVehicleViews({
+      documentsById: new Map([
+        ['doc-1', { cargoGrossWeight: '1000.0000', cargoWeightSource: 'xml' as const }],
+      ]),
+      driverIdByVehicleId: new Map(),
+      driverNameById: new Map(),
+      stops: [STOP({})],
+      valuation: null,
+      vehicleById: new Map([
+        [
+          'v-1',
+          {
+            capacityKilograms: '0.00',
+            label: 'Sem ficha',
+            plate: 'AAA0A00',
+            type: 'truck' as const,
+          },
+        ],
+      ]),
+    })
+
+    expect(view?.maxPayloadKilograms).toBeNull()
+    expect(view?.payloadRatio).toBeNull()
+    expect(isOverPayload(view as ProposalVehicleView)).toBe(false)
+  })
+
+  /** O aviso do aceite conta **as marcadas**: desmarcar a viagem estourada tira o aviso com ela. */
+  test('o aviso do aceite conta só as viagens marcadas', () => {
+    const views = buildProposalVehicleViews({
+      documentsById: new Map([
+        ['doc-1', { cargoGrossWeight: '4307.5700', cargoWeightSource: 'xml' as const }],
+        ['doc-2', { cargoGrossWeight: '100.0000', cargoWeightSource: 'xml' as const }],
+      ]),
+      driverIdByVehicleId: new Map(),
+      driverNameById: new Map(),
+      stops: [STOP({}), STOP({ nfeDocumentIds: ['doc-2'], sequence: 2, vehicleId: 'v-2' })],
+      valuation: null,
+      vehicleById: new Map([
+        [
+          'v-1',
+          {
+            capacityKilograms: '650.00',
+            label: 'Fiat Fiorino',
+            plate: 'RTF7L01',
+            type: 'utility' as const,
+          },
+        ],
+        [
+          'v-2',
+          {
+            capacityKilograms: '4200.00',
+            label: 'Accelo',
+            plate: 'RTD5J78',
+            type: 'three_quarter' as const,
+          },
+        ],
+      ]),
+    })
+
+    expect(countOverPayload(views, new Set(['v-1', 'v-2']))).toBe(1)
+    expect(countOverPayload(views, new Set(['v-2']))).toBe(0)
   })
 })
