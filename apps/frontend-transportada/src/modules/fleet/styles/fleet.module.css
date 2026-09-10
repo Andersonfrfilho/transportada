@@ -1364,12 +1364,6 @@
   font-size: 0.95rem;
 }
 
-.identityPlate {
-  font-family: var(--font-utility);
-  font-size: 0.82rem;
-  letter-spacing: 0.06em;
-}
-
 .identitySpecification {
   margin: 0;
   color: color-mix(in srgb, var(--color-slate) 90%, white 10%);

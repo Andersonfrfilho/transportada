@@ -212,6 +212,16 @@ describe('ordem escolhida à mão na proposta', () => {
     expect(layers).not.toContain("<span>{t('cargoLayers.chip.loading'")
   })
 
+  /**
+   * A faixa da viagem aberta desenha a **placa**, como a ficha do veículo — ela era texto solto.
+   * Pedido do operador em 2026-09-10.
+   */
+  it('a viagem aberta mostra a placa desenhada', () => {
+    const band = readSource('src/modules/fleet/components/VehicleIdentityBand.component.tsx')
+    expect(band).toContain('<PlateThumbnail plate={plate} />')
+    expect(band).not.toContain('styles.identityPlate')
+  })
+
   it('o rótulo do caminhão de destino diz a unidade', () => {
     const pt = readSource('src/modules/trip/locales/trip.locale.json')
     expect(pt).toContain('fica com {{load}} kg de {{ceiling}} kg')

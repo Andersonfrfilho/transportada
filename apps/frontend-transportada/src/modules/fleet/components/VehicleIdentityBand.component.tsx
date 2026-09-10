@@ -5,6 +5,7 @@ import { Icon } from '@/components/ui/icon'
 import { VEHICLE_TYPE_ICONS } from '@/modules/shared/vehicleTypeIcon.service'
 import type { VehicleType } from '@/modules/shared/vehicleType.constant'
 
+import { PlateThumbnail } from './PlateThumbnail.component'
 import styles from '../styles/fleet.module.css'
 
 export type VehicleIdentityFact = Readonly<{ label: string; note?: null | string; value: string }>
@@ -52,7 +53,7 @@ export function VehicleIdentityBand({
       <div className={styles.identityFacts}>
         <div className={styles.identityTitle}>
           <strong>{label ?? t('identityBand.withoutModel')}</strong>
-          {plate === null ? null : <span className={styles.identityPlate}>{plate}</span>}
+          {plate === null ? null : <PlateThumbnail plate={plate} />}
         </div>
         {specification === null ? null : (
           <p className={styles.identitySpecification}>{specification}</p>
