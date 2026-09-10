@@ -2038,11 +2038,11 @@
   gap: var(--space-1);
 }
 
+/** Setas de carregamento lado a lado, como as do mapa — o operador pediu, e as duas telas batem. */
 .cargoStopMoves {
+  align-items: center;
   display: flex;
-  flex-direction: column;
   gap: var(--space-1);
-  justify-content: center;
 }
 
 /**
