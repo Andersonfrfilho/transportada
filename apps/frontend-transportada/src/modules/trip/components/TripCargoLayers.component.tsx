@@ -226,36 +226,52 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
       </div>
 
       <div className={styles.cargoPads}>
-        <div className={styles.cargoPad} role="group" aria-label={t('cargoLayers.rotate')}>
-          {(['up', 'left', 'right', 'down'] as const).map((direction) => (
-            <Button
-              aria-label={t(`cargoLayers.rotateTo.${direction}`)}
-              className={styles[`cargoPad${capitalise(direction)}`]}
-              key={direction}
-              size="sm"
-              type="button"
-              variant="ghost"
-              onClick={() => setView((previous) => rotateView(previous, direction))}
-            >
-              <Icon name={ARROW_ICONS[direction]} />
-            </Button>
-          ))}
+        {/*
+          ⚠️ **O rótulo é visível, não só acessível.** Os dois teclados de setas eram idênticos na
+          tela — um gira, o outro move —, e o nome existia apenas no `aria-label`: quem enxerga
+          tinha de clicar para descobrir qual era qual. O texto entra `aria-hidden` porque o grupo
+          já se anuncia pelo nome.
+        */}
+        <div className={styles.cargoPadGroup}>
+          <span aria-hidden className={styles.cargoPadLabel}>
+            {t('cargoLayers.rotate')}
+          </span>
+          <div className={styles.cargoPad} role="group" aria-label={t('cargoLayers.rotate')}>
+            {(['up', 'left', 'right', 'down'] as const).map((direction) => (
+              <Button
+                aria-label={t(`cargoLayers.rotateTo.${direction}`)}
+                className={styles[`cargoPad${capitalise(direction)}`]}
+                key={direction}
+                size="sm"
+                type="button"
+                variant="ghost"
+                onClick={() => setView((previous) => rotateView(previous, direction))}
+              >
+                <Icon name={ARROW_ICONS[direction]} />
+              </Button>
+            ))}
+          </div>
         </div>
 
-        <div className={styles.cargoPad} role="group" aria-label={t('cargoLayers.pan')}>
-          {(['up', 'left', 'right', 'down'] as const).map((direction) => (
-            <Button
-              aria-label={t(`cargoLayers.panTo.${direction}`)}
-              className={styles[`cargoPad${capitalise(direction)}`]}
-              key={direction}
-              size="sm"
-              type="button"
-              variant="ghost"
-              onClick={() => setView((previous) => panViewBy(previous, direction))}
-            >
-              <Icon name={ARROW_ICONS[direction]} />
-            </Button>
-          ))}
+        <div className={styles.cargoPadGroup}>
+          <span aria-hidden className={styles.cargoPadLabel}>
+            {t('cargoLayers.pan')}
+          </span>
+          <div className={styles.cargoPad} role="group" aria-label={t('cargoLayers.pan')}>
+            {(['up', 'left', 'right', 'down'] as const).map((direction) => (
+              <Button
+                aria-label={t(`cargoLayers.panTo.${direction}`)}
+                className={styles[`cargoPad${capitalise(direction)}`]}
+                key={direction}
+                size="sm"
+                type="button"
+                variant="ghost"
+                onClick={() => setView((previous) => panViewBy(previous, direction))}
+              >
+                <Icon name={ARROW_ICONS[direction]} />
+              </Button>
+            ))}
+          </div>
         </div>
 
         <div className={styles.cargoViewActions}>
@@ -267,6 +283,7 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
             onClick={() => setView((previous) => zoomViewBy(previous, -1))}
           >
             <Icon name="minus" />
+            {t('cargoLayers.zoomOut')}
           </Button>
           <Button
             aria-label={t('cargoLayers.zoomIn')}
@@ -276,6 +293,7 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
             onClick={() => setView((previous) => zoomViewBy(previous, 1))}
           >
             <Icon name="add" />
+            {t('cargoLayers.zoomIn')}
           </Button>
           {(['rear', 'side', 'top'] as const).map((preset: CargoViewPreset) => (
             <Button

@@ -523,7 +523,7 @@ export function AssemblyVectorMap({
           coordinates: leg.points.map((point) => [point.x, point.y]),
         },
         properties: {
-          color: resolveStopColor(leg.toSequence, document.documentElement),
+          color: resolveStopColor(leg.toSequence),
           dashed: leg.dashed,
         },
       })),

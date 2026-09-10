@@ -1910,6 +1910,21 @@
   margin-top: var(--space-3);
 }
 
+/** O teclado de setas com o nome do que ele faz — sem isso os dois são iguais na tela. */
+.cargoPadGroup {
+  display: grid;
+  gap: var(--space-1);
+  justify-items: center;
+}
+
+.cargoPadLabel {
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .cargoPad {
   display: grid;
   gap: 2px;

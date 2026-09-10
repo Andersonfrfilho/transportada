@@ -5,7 +5,7 @@ import { describe, expect, it } from 'bun:test'
 
 import { resolveRouteLegs } from '../../src/modules/trip/shared/routeGeometry.service'
 import type { RouteGeometry } from '../../src/modules/trip/shared/routeGeometry.service'
-import { stopColorOf, stopColorTokenOf } from '../../src/modules/trip/shared/stopColor.service'
+import { stopColorOf } from '../../src/modules/trip/shared/stopColor.service'
 
 const VECTOR_MAP = new URL('../../src/components/ui/vector-map.tsx', import.meta.url)
 const ASSEMBLY = new URL(
@@ -46,11 +46,27 @@ describe('o traço do roteiro usa a paleta da listagem, um trecho por parada', (
     expect(layer).toContain("'line-color': ['get', 'color']")
   })
 
-  it('numera a paleta a partir da parada 1 e dá a volta depois da sexta', () => {
-    expect(stopColorTokenOf(1)).toBe('--color-cargo-stop-1')
-    expect(stopColorTokenOf(6)).toBe('--color-cargo-stop-6')
-    expect(stopColorTokenOf(7)).toBe('--color-cargo-stop-1')
-    expect(stopColorOf(2)).toBe('var(--color-cargo-stop-2)')
+  /**
+   * ⚠️ **Nenhuma parada repete a cor de outra.** A paleta tinha seis tons e dava a volta na sétima;
+   * medido na tela em 2026-09-09, uma viagem de 24 paradas pintava quatro de verde e a legenda
+   * deixava de dizer quem é quem. Doze tokens adiariam o problema para a parada treze — por isso a
+   * cor é **calculada**, e o contrato cobra a unicidade, não a tabela.
+   */
+  it('dá uma cor diferente para cada parada, em qualquer quantidade', () => {
+    for (const total of [6, 12, 24, 60]) {
+      const cores = new Set(
+        Array.from({ length: total }, (_unused, index) => stopColorOf(index + 1)),
+      )
+
+      expect(cores.size).toBe(total)
+    }
+  })
+
+  /** A numeração começa em 1: quem tem índice de array converte na chamada, nunca aqui. */
+  it('numera a paleta a partir da parada 1', () => {
+    expect(stopColorOf(1)).toBe(stopColorOf(1))
+    expect(stopColorOf(1)).not.toBe(stopColorOf(2))
+    expect(stopColorOf(1)).toMatch(/^#[0-9a-f]{6}$/u)
   })
 
   /**

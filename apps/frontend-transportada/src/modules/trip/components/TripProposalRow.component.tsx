@@ -13,7 +13,7 @@ import { formatAmount, formatWeightKilograms } from '@/modules/shared/decimalAmo
 import { VEHICLE_TYPE_ICONS } from '@/modules/shared/vehicleTypeIcon.service'
 import { formatMargin, isNegative } from '@/modules/trip-financials/shared/financialView.service'
 
-import { stopColorTokenOf } from '../shared/stopColor.service'
+import { stopColorOf } from '../shared/stopColor.service'
 import {
   isOverPayload,
   summarizeProposalCities,
@@ -53,7 +53,7 @@ export function TripProposalRow({
   view,
 }: TripProposalRowProps) {
   const { t } = useTranslation('trip')
-  const color = `var(${stopColorTokenOf(index + 1)})`
+  const color = stopColorOf(index + 1)
   const cities = summarizeProposalCities(view.cities)
   const marginTone = view.hasGaps
     ? styles.proposalWarn
