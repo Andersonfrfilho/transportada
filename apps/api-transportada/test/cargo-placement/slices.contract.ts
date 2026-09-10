@@ -937,12 +937,18 @@ describe('as faixas paralelas à porta (spec 100)', () => {
    * avançá-la não afasta ninguém da porta: encher o chão antes de empilhar é o certo, e inverter
    * isso empilharia carga com metade do piso vazio ao lado.
    */
+  /**
+   * ⚠️ Spec 118: a caixa era de 0,60 × 0,40 m. O prato da parada 2 vai até a porta, e a entrega 1 só
+   * senta sobre ele ao alcance da mão (`DELIVERY_REACH_M`) — na largura do prato cabem três caixas de
+   * 0,60 m, e a quarta subia em vez de ir para o fundo, fora da mão. Com 0,50 × 0,40 as quatro cabem na
+   * largura ao alcance, e o que o contrato afirma volta a ser só a ordem da varredura.
+   */
   test('em profundidade a fileira continua enchendo o chão primeiro', () => {
     const boxes = placed(
       resolveCargoPlacement({
         bed: BED,
         boxes: [
-          box({ count: 4, stopSequence: 1 }),
+          box({ count: 4, lengthMm: 500, stopSequence: 1 }),
           caixaQueNaoCabeEmFaixa(2, 2_300),
           box({ count: 4, stopSequence: 2 }),
         ],

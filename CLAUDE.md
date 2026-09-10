@@ -656,6 +656,15 @@ presumidas da parada, deslocava a fileira e fazia pirâmide de novo; hoje ela pr
 cuja folga até o teto é menor que a caixa dominante (`createDeadSpaceTracker`). Atego 1282 → 1347; as
 70 que sobram são a escada da porta, que não se afrouxa (contratos em `dead-space.contract.ts`).
 
+**A planta aguenta a descarga, entrega por entrega** (spec 118). `test/cargo-placement/unloading-simulation.ts`
+tira as entregas na ordem e confere apoio de toda caixa que fica e acesso de pé no piso (corredor e mão de
+0,6 m, `ACCESS_CORRIDOR_M`/`DELIVERY_REACH_M`). ⚠️ **A borda da faixa não é parede**: a grade e as faixas
+contavam a vizinha, que sai antes, como apoio — 116 de 252 caixas sem apoio na Sprinter e 127 de 500 no
+Accelo. ⚠️ Em profundidade a caixa só senta com a face ao alcance da mão a partir da frente do piso das
+entregas posteriores (`isOutOfReach`), e o rendimento da orientação conta células. Custo medido: Daily
+481 → 441, Atego 1347 → 1190; a grade não vence mais nas quatro viagens reais. O vocabulário de
+`STOP_ARRANGEMENTS` não mudou — o frontend não precisa subir.
+
 **Como as caixas são organizadas no baú está documentado por extenso em
 `docs/domain/cargo-placement.md`** — o arranjo em faixas ou em profundidade, a varredura que sobe
 antes de andar para o fundo, a orientação por rendimento, o teto de esbeltez da pilha e o

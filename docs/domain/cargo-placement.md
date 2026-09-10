@@ -2,7 +2,7 @@
 
 Referência viva do empacotador — `apps/api-transportada/src/trips/domain/cargo-placement.policy.ts`
 e `cargo-layout.policy.ts`. Cada regra aqui veio de um defeito **medido**, e o número ao lado é o
-número que a medição deu. Specs de origem: 085, 088, 094, 095, 099, 100, 113, 114, 115, 116 e 117.
+número que a medição deu. Specs de origem: 085, 088, 094, 095, 099, 100, 113, 114, 115, 116, 117 e 118.
 
 ## O que o desenho promete, e o que ele não promete
 
@@ -302,6 +302,51 @@ fixas, 111 caixas fora de 1396 num baú de 7,40 m.
 
 ⚠️ **Limite do modelo, não da física:** com célula de 5 cm a caixa de 0,261 m ocupa 0,30 m e entram 8
 na largura em vez de 9. Resolver pede empacotar em coordenada contínua, spec própria.
+
+---
+
+## A descarga, entrega por entrega (spec 118)
+
+A planta tem de aguentar a **descarga**, não só o carregamento. `test/cargo-placement/unloading-simulation.ts`
+tira a primeira entrega, depois a segunda, e confere duas coisas, em geometria real de 1 cm, independente
+do mapa de 5 cm do empacotador:
+
+- **Estabilidade:** no passo logo antes da entrega dela, toda caixa tem apoio em todas as faces (parede ou
+  caixa presente dentro de `3b/√10`, trecho sem contato menor que uma célula tolerado), ou não passa de
+  três vezes a base acima da contenção. A porta nunca apoia.
+- **Acesso:** a entrega sai inteira por quem fica **de pé no piso** livre ligado à porta, num corredor de
+  `ACCESS_CORRIDOR_M` = 0,6 m, alcançando `DELIVERY_REACH_M` = 0,6 m à frente do corpo — as duas
+  constantes são declaradas, não medidas —, sempre a caixa sem nada em cima.
+
+Medido em `f126792f`, nas quatro viagens de 2026-09-10: a grade deixava **116 de 252** caixas sem apoio
+na Sprinter e **127 de 500** no Accelo (38 já com a carga cheia), com corredores de 0,1 a 0,3 m; a
+profundidade aguentava, mas **490** caixas do Atego e 65 da Daily só saíam subindo na carga.
+
+⚠️ **A borda da faixa não é parede.** Na grade e nas faixas da spec 100 a faixa era empacotada como um baú
+à parte, e a vizinha — que sai antes — segurava a pilha. Hoje a borda que encosta em outra faixa é face
+aberta (`OpenSides`), e nenhuma faixa da grade é mais estreita que o corredor. A grade continua existindo
+e continua precisando colocar o que a profundidade coloca: nas quatro viagens ela não vence mais
+(Sprinter 164 contra 252, Accelo 395 contra 500).
+
+⚠️ **Em profundidade a estabilidade da descarga vem de graça**: cada caixa é conferida quando só existem as
+entregas iguais ou posteriores, e as anteriores só tiram apoio depois. O que faltava era **alcance**: a
+entrega mais cedo subia no degrau das posteriores, lá no alto e no fundo. Hoje a caixa só senta com a face
+a no máximo 0,6 m da frente do piso das entregas posteriores, medida no trecho de 0,6 m de largura mais
+raso que encosta nela (`isOutOfReach`) — num bolso estreito a pessoa para na boca dele.
+
+⚠️ **O rendimento da orientação é contado em células.** Pela medida real a presumida ia com 0,371 m ao longo
+do comprimento no Atego; em células as duas orientações dão 20 caixas por metro, e a fileira de 0,30 m põe
+o terceiro degrau da porta a 0,60 m — ao alcance. Sem isso: 1008 caixas; com isso: 1190.
+
+É a construção por paredes (George & Robinson, 1980): o bloco enche a largura, sobe e só então avança, e os
+formatos de seção — parede inteira, meia largura, meia altura com a mais cedo em cima — saem da varredura.
+
+⚠️ **O custo, dito:** a Daily cai de 481 para 441 caixas (paradas 1–3 fora) e o Atego de 1347 para 1190
+(paradas 1, 3–5 e 7–16 fora); Sprinter e Accelo entram inteiras. É a décima camada, que fica a 0,90 m da
+frente e só a entrega ao alcance enche. Com a carga amarrada o Atego vai a 1412 de 1417 com as mesmas
+regras de acesso. Recusados, com número: alcance de 0,75 m (1089) e 0,9 m (1096, e o acesso piora);
+preferir a orientação cujo degrau inteiro cabe na mão (+13 caixas na Daily, e 23 e 30 caixas sem apoio na
+Sprinter e no Accelo); adiar o cubo sem espaço morto (conserta uma densidade e estoura outra).
 
 ---
 

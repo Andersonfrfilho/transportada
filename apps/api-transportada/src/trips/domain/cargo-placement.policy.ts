@@ -203,6 +203,8 @@ function placeCargo(input: {
   readonly arrangement?: StopArrangement
   /** Spec 115: as faixas da grade, quando quem decidiu o arranjo já as escolheu. */
   readonly laneCount?: number
+  /** Spec 118: quando esta chamada empacota uma faixa da grade, as bordas que são outra faixa. */
+  readonly openLaneSides?: OpenSides
   readonly loadingAccess?: LoadingAccess
   /**
    * Spec 100: algum motorista da viagem amarra a carga com cinta. ⚠️ Ausente é **não**, e o padrão é
@@ -331,7 +333,11 @@ function placeCargo(input: {
    * dezenas de paradas pequenas com uma ou duas caixas de fundo cada — toda pilha livre, cortada pela
    * esbeltez em 0,75 m, e 38 de 85 paradas fora do desenho num baú 30% cheio.
    */
-  if (!lanes && sequences.length > 1) {
+  /**
+   * ⚠️ A faixa da grade com uma parada só também vai para o bloco (spec 118): é ele que sabe que a borda
+   * da faixa é outra faixa, e a fatia de parada única trataria a vizinha como parede.
+   */
+  if (!lanes && (sequences.length > 1 || input.openLaneSides !== undefined)) {
     return placeDeliveryBlock({
       balanced: shouldBalanceLoad({
         loadingAccess: input.loadingAccess ?? 'rear',
@@ -339,6 +345,7 @@ function placeCargo(input: {
       }),
       bed,
       boxes: measured,
+      ...(input.openLaneSides === undefined ? {} : { openSides: input.openLaneSides }),
       presumed,
       securesCargo: input.securesCargo === true,
       unplaced,
@@ -358,7 +365,7 @@ function placeCargo(input: {
           ),
       )
 
-  const slices = sequences.map((stopSequence) => {
+  const slices = sequences.map((stopSequence, index) => {
     const own = measured.filter((box) => box.stopSequence === stopSequence)
     const share = totalVolume > 0 ? volumeOf(own) / totalVolume : 1 / sequences.length
     /**
@@ -381,6 +388,12 @@ function placeCargo(input: {
       securesCargo: input.securesCargo === true,
       /** Em faixas a fileira gasta profundidade: sobe-se antes de andar para o fundo (spec 100). */
       stackBeforeRow: lanes,
+      /**
+       * ⚠️ Spec 118: a faixa vizinha não é parede — a da entrega anterior sai antes, e a pilha que
+       * encostava nela ficava solta (medido na Fiorino da spec 100: 2 caixas sem apoio). Só a primeira
+       * faixa encosta na parede; o vão de largura sobra depois da última.
+       */
+      ...(lanes ? { openSides: { columnEnd: true, columnStart: index > 0 } } : {}),
     })
   })
 
@@ -479,6 +492,7 @@ function packUntilItFits(input: {
   /** Repassados à varredura — ver `packSlice`. */
   readonly securesCargo?: boolean
   readonly stackBeforeRow?: boolean
+  readonly openSides?: OpenSides
   readonly boxes: readonly PlacementBox[]
   readonly budget: number
   readonly capM: number
@@ -523,6 +537,7 @@ function packUntilItFits(input: {
       sliceLengthM: lengthM,
       ...(input.securesCargo === undefined ? {} : { securesCargo: input.securesCargo }),
       ...(input.stackBeforeRow === undefined ? {} : { stackBeforeRow: input.stackBeforeRow }),
+      ...(input.openSides === undefined ? {} : { openSides: input.openSides }),
     })
     const overflowed =
       packed.leftovers.length > 0 || packed.unplaced.some((entry) => entry.reason === 'bedFull')
@@ -560,6 +575,32 @@ const SLICE_GROWTH_ATTEMPTS = 8
 const SLICE_GROWTH_FACTOR = 1.35
 /** A fração da seção que uma varredura em fileiras costuma alcançar. Palpite inicial da busca. */
 const ROW_PACKING_EFFICIENCY = 0.7
+
+/**
+ * Até onde a mão de quem descarrega chega à frente do corpo, de pé no piso (spec 118).
+ *
+ * ⚠️ **Constante operacional declarada, não medida** — como a esbeltez. A entrega mais cedo pode subir em
+ * cima de uma mais tardia (spec 114 D4), mas só até onde se pega a caixa sem subir na carga: medido nas
+ * quatro viagens de 2026-09-10, sem este teto 490 caixas do Atego e 65 da Daily ficavam em cima das
+ * entregas seguintes, fundo demais para a mão — a entrega 1 da Daily a 0,91 m da porta e 1,26 m do chão.
+ */
+export const DELIVERY_REACH_M = 0.6
+
+/**
+ * O corredor mais estreito em que uma pessoa entra de lado para buscar a carga do fundo (spec 118).
+ *
+ * ⚠️ É a largura mínima da faixa da grade: esvaziada a primeira entrega da faixa, é por ela que se anda
+ * até a seguinte. Medido na Sprinter de 1,78 m, três faixas davam 0,59 m.
+ */
+export const ACCESS_CORRIDOR_M = 0.6
+
+/**
+ * Quais bordas laterais da fatia **não** são parede — a faixa da grade encosta na vizinha, e a vizinha
+ * sai antes (spec 118).
+ */
+type OpenSides = Readonly<{ columnEnd: boolean; columnStart: boolean }>
+
+const CLOSED_SIDES: OpenSides = { columnEnd: false, columnStart: false }
 
 /**
  * A partir de quanto do teto de massa a carga deixa de encostar na porta.
@@ -831,6 +872,8 @@ function packSlice(input: {
   readonly deliveryOrder?: boolean
   /** Por onde a carga sai; ausente segue o arranjo (`lineStart` em faixas, `columnEnd` em fatia). */
   readonly openFace?: OpenFace
+  /** Spec 118: as bordas laterais que são outra faixa, e não parede. */
+  readonly openSides?: OpenSides
   readonly boxes: readonly PlacementBox[]
   readonly budget: number
   readonly sliceLengthM: number
@@ -877,6 +920,7 @@ function packSlice(input: {
   const support = createSupportMap(
     { heightM: slice.heightM, lengthM: slice.lengthM, widthM: slice.widthM },
     input.openFace ?? (input.stackBeforeRow === true ? 'lineStart' : 'columnEnd'),
+    input.openSides ?? CLOSED_SIDES,
   )
   let cursor = { layer: 0, layerBottomM: 0, layerHeightM: 0, rowWidthM: 0, xM: 0, yM: 0 }
   /**
@@ -976,7 +1020,9 @@ function packSlice(input: {
            * carga primeiro. Medido: 1 par em RTC-4H67 e 1 em RTD-5J78, 4 cm de sobreposição com caixas
            * de 20 e 21 cm de altura.
            */
-          (input.deliveryOrder !== true || !support.isShadowed({ slot, topM, xM, yM }))
+          (input.deliveryOrder !== true ||
+            (!support.isShadowed({ slot, topM, xM, yM }) &&
+              !support.isOutOfReach({ slot, topM, xM, yM })))
 
       const dead = deadSpace.find({ accept: acceptSeat, frontierM: rowFrontierM, slot, support })
       if (dead !== null) {
@@ -1216,6 +1262,7 @@ type OpenFace = 'columnEnd' | 'lineEnd' | 'lineStart'
 function createSupportMap(
   bed: Readonly<{ heightM: number; lengthM: number; widthM: number }>,
   openFace: OpenFace,
+  openSides: OpenSides = CLOSED_SIDES,
 ): {
   readonly seat: (input: {
     /** Recusa de quem chama — a busca segue para o próximo lugar nivelado da fileira. */
@@ -1250,12 +1297,20 @@ function createSupportMap(
    * não se empilha alto na quina solta da carga.
    */
   readonly isConfined: (input: { slot: Slot; topM: number; xM: number; yM: number }) => boolean
+  /**
+   * Se a caixa, sentada fora do piso, fica funda demais para a mão de quem descarrega (spec 118): mais
+   * de `DELIVERY_REACH_M` atrás da frente do piso das paradas já carregadas.
+   */
+  readonly isOutOfReach: (input: { slot: Slot; topM: number; xM: number; yM: number }) => boolean
 } {
   const columns = Math.max(1, Math.ceil(bed.lengthM / HEIGHT_MAP_CELL_M))
   const lines = Math.max(1, Math.ceil(bed.widthM / HEIGHT_MAP_CELL_M))
   const topM = new Float64Array(columns * lines)
   /** `freezeLater`: o maior topo das paradas já carregadas entre cada célula e a face aberta. */
   const laterFrontM = new Float64Array(columns * lines)
+  /** Até onde, na direção da face aberta, cada coluna tem caixa no piso — e o congelado das posteriores. */
+  const floorEndM = new Float64Array(columns)
+  const laterFloorEndM = new Float64Array(columns)
 
   /**
    * ⚠️ **A folga nas duas pontas não é preciosismo — é o que impede a escada.** `0.6 / 0.05` dá
@@ -1357,6 +1412,7 @@ function createSupportMap(
       return null
     },
     freezeLater: () => {
+      laterFloorEndM.set(floorEndM)
       /** O maior topo daqui até a face aberta, por coluna — uma passagem de trás para a frente. */
       for (let column = 0; column < columns; column += 1) {
         let highest = 0
@@ -1375,6 +1431,37 @@ function createSupportMap(
       }
       return false
     },
+    /**
+     * ⚠️ **Quem descarrega fica de pé no piso** (spec 118). Esvaziadas as entregas anteriores, o piso
+     * livre termina onde começa a carga das posteriores; a caixa desta entrega que subiu em cima dela só
+     * sai se a face dela, do lado da porta, estiver ao alcance da mão a partir dali. No piso ela sempre
+     * sai — a pessoa anda à medida que a entrega esvazia.
+     */
+    /**
+     * ⚠️ A pessoa só chega perto onde cabe o corpo dela: a frente é a do trecho de largura
+     * `ACCESS_CORRIDOR_M` mais raso que encosta na caixa, nunca a da coluna da própria caixa — num
+     * bolso estreito entre cargas posteriores ela para na boca do bolso. Vale também para a caixa no
+     * piso, que é quem fica no fundo do bolso.
+     */
+    isOutOfReach: ({ slot, xM, yM }) => {
+      const [fromColumn, toColumn] = range(xM, slot.depthM, columns)
+      const window = Math.min(
+        columns,
+        Math.max(1, Math.round(ACCESS_CORRIDOR_M / HEIGHT_MAP_CELL_M)),
+      )
+      let standingM = Number.POSITIVE_INFINITY
+      const lastStart = Math.min(columns - window, toColumn - 1)
+      for (let start = Math.max(0, fromColumn - window + 1); start <= lastStart; start += 1) {
+        let deepestM = 0
+        for (let column = start; column < start + window; column += 1) {
+          deepestM = Math.max(deepestM, laterFloorEndM[column] ?? 0)
+        }
+        standingM = Math.min(standingM, deepestM)
+      }
+      if (standingM === Number.POSITIVE_INFINITY) return false
+
+      return standingM - (yM + slot.widthM) > DELIVERY_REACH_M + 1e-9
+    },
     isConfined: ({ slot, topM: top, xM, yM }) => {
       const [fromColumn, toColumn] = range(xM, slot.depthM, columns)
       const [fromLine, toLine] = range(yM, slot.widthM, lines)
@@ -1388,6 +1475,14 @@ function createSupportMap(
               ? line >= lines
               : column >= columns
         if (isOpen) return false
+        /**
+         * ⚠️ **A borda da faixa da grade não é parede** (spec 118). A vizinha segura a pilha só enquanto
+         * está lá, e ela sai antes: contá-la como parede era a premissa que a descarga derrubava — 116
+         * de 252 caixas sem apoio na Sprinter e 127 de 500 no Accelo.
+         */
+        if ((column < 0 && openSides.columnStart) || (column >= columns && openSides.columnEnd)) {
+          return false
+        }
         if (column < 0 || line < 0 || column >= columns || line >= lines) return true
 
         return (topM[column * lines + line] ?? 0) >= top - 1e-9
@@ -1460,7 +1555,9 @@ function createSupportMap(
     stamp: ({ slot, topM: top, xM, yM }) => {
       const [fromColumn, toColumn] = range(xM, slot.depthM, columns)
       const [fromLine, toLine] = range(yM, slot.widthM, lines)
+      const onFloor = top - slot.heightM <= 1e-9
       for (let column = fromColumn; column < toColumn; column += 1) {
+        if (onFloor) floorEndM[column] = Math.max(floorEndM[column] ?? 0, yM + slot.widthM)
         for (let line = fromLine; line < toLine; line += 1) {
           const cell = column * lines + line
           topM[cell] = Math.max(topM[cell] ?? 0, top)
@@ -2061,10 +2158,20 @@ function fitSlot(input: {
    * quanto essa fileira gasta de profundidade. Empate fica com a primeira, que é a orientação de
    * sempre — desempatar por outro critério mudaria desenho sem melhorar nada.
    */
+  /**
+   * ⚠️ **Spec 118: o rendimento é contado em células, que é como a varredura empacota.** A caixa
+   * ocupa células inteiras (spec 114), então 0,261 m vale 0,30 e 0,371 vale 0,40. Pela medida real a
+   * presumida ia com 0,371 m ao longo do comprimento no Atego (24,3 contra 23,0 caixas por metro) —
+   * em células as duas dão 20 —, e a fileira de 0,40 m punha o terceiro degrau da porta a 0,80 m,
+   * fora da mão: medido, 1008 caixas desenhadas contra 1188 com a fileira de 0,30 m.
+   */
+  const cellSizeOf = (sizeM: number): number => toCellEnd(sizeM) * HEIGHT_MAP_CELL_M
+  const acrossOf = (spanM: number, sizeM: number): number =>
+    Math.floor((spanM - sizeM + 1e-9) / cellSizeOf(sizeM)) + 1
   const yieldOf = (slot: Slot): number =>
     input.deepAxis === 'width'
-      ? Math.floor((input.bed.lengthM + 1e-9) / slot.depthM) / slot.widthM
-      : Math.floor((input.bed.widthM + 1e-9) / slot.widthM) / slot.depthM
+      ? acrossOf(input.bed.lengthM, slot.depthM) / cellSizeOf(slot.widthM)
+      : acrossOf(input.bed.widthM, slot.widthM) / cellSizeOf(slot.depthM)
 
   return usable.reduce((best, slot) => (yieldOf(slot) > yieldOf(best) + 1e-9 ? slot : best), first)
 }
@@ -2140,6 +2247,8 @@ export function resolveGridLanes(
 
   const most = Math.min(
     Math.floor(input.bedWidthM / widestM),
+    /** Spec 118: esvaziada a primeira entrega, a faixa é o corredor por onde se busca a seguinte. */
+    Math.floor(input.bedWidthM / ACCESS_CORRIDOR_M + 1e-9),
     sequences.length - 1,
     input.maxLanes ?? Number.POSITIVE_INFINITY,
   )
@@ -2260,6 +2369,7 @@ function placeDeliveryBlock(input: {
   readonly bed: Readonly<{ heightM: number; lengthM: number; widthM: number }>
   readonly boxes: readonly PlacementBox[]
   readonly presumed: boolean
+  readonly openSides?: OpenSides
   readonly securesCargo: boolean
   readonly unplaced: readonly UnplacedBox[]
 }): CargoPlacement {
@@ -2274,6 +2384,7 @@ function placeDeliveryBlock(input: {
     budget: Number.POSITIVE_INFINITY,
     deliveryOrder: true,
     openFace: 'lineEnd',
+    ...(input.openSides === undefined ? {} : { openSides: input.openSides }),
     securesCargo: input.securesCargo,
     sliceLengthM: rotated.lengthM,
     stackBeforeRow: true,
@@ -2343,10 +2454,19 @@ function placeGrid(
   for (let lane = 0; lane < input.grid.laneCount; lane += 1) {
     const own = input.boxes.filter((box) => input.grid.laneOf.get(box.stopSequence) === lane)
     if (own.length === 0) continue
+    const packedWidthM = packedLaneWidthM(own, input.grid.laneWidthM)
     const lanePlacement = placeCargo({
       arrangement: 'depth',
-      bed: { ...input.bed, widthM: packedLaneWidthM(own, input.grid.laneWidthM).toFixed(3) },
+      bed: { ...input.bed, widthM: packedWidthM.toFixed(3) },
       boxes: own,
+      /**
+       * Só a borda que encosta na parede do baú é parede. A da última faixa, com folga até a parede, é
+       * vão — e vão mais largo que o giro da pilha não segura nada.
+       */
+      openLaneSides: {
+        columnEnd: lane < input.grid.laneCount - 1 || packedWidthM < input.grid.laneWidthM - 1e-9,
+        columnStart: lane > 0,
+      },
       ...(input.loadingAccess === undefined ? {} : { loadingAccess: input.loadingAccess }),
       ...(input.payloadRatio === undefined ? {} : { payloadRatio: input.payloadRatio }),
       ...(input.securesCargo === undefined ? {} : { securesCargo: input.securesCargo }),

@@ -190,6 +190,12 @@ describe('cargas reais de tamanhos misturados (spec 115)', () => {
    * indo para o espaço onde a presumida não cabe: 1347 de 1417, e sobre a planta final só desligar a
    * esbeltez da porta colocaria mais caixa (73, todas a menos de 1,3 m dela). O que sobra é a escada da
    * porta: 7 + 4 + 1 camadas a menos, de 8 caixas cada.
+   *
+   * ⚠️ Spec 118: o piso desceu de 1340 caixas e 4 paradas para 1185 e 14, e a razão é a descarga. Sem a
+   * regra do alcance as entregas 1 a 60 subiam em cima das posteriores e **490 caixas** só saíam
+   * subindo na carga. Com a entrega mais cedo presa ao alcance da mão, o degrau da porta de cada
+   * entrega não é mais enchido pelas seguintes lá no alto: medido, 1190 de 1417 caixas e as paradas
+   * 1, 3–5 e 7–16 fora. O que sai continua sendo só das primeiras entregas.
    */
   test('o Atego de 85 paradas desenha quase tudo, e só as primeiras entregas ficam fora', () => {
     const plan = place(ATEGO)
@@ -197,12 +203,10 @@ describe('cargas reais de tamanhos misturados (spec 115)', () => {
     const missing = [...new Set(ATEGO.rows.map(([stop]) => stop))].filter(
       (stop) => !drawnStops.has(stop),
     )
-    const outside = plan.unplaced.reduce((total, entry) => total + entry.count, 0)
 
-    expect(drawnOf(plan).length).toBeGreaterThanOrEqual(1340)
-    expect(outside).toBeLessThanOrEqual((7 + 4 + 1) * 8)
-    expect(missing.length).toBeLessThanOrEqual(4)
-    for (const stop of missing) expect(stop).toBeLessThanOrEqual(5)
+    expect(drawnOf(plan).length).toBeGreaterThanOrEqual(1185)
+    expect(missing.length).toBeLessThanOrEqual(14)
+    for (const stop of missing) expect(stop).toBeLessThanOrEqual(16)
   })
 
   test('o Atego de 1417 caixas cabe no orçamento de 50 ms', () => {
