@@ -22,7 +22,7 @@ describe('ordem escolhida à mão na proposta', () => {
 
   /** A salva à mão vence; sem ela, a do roteirizador. É essa que carga, conta e rota medem. */
   it('carga, conta e rota medem a ordem salva', () => {
-    expect(detail).toContain('const stopOrder = manualOrder ?? proposedOrder')
+    expect(detail).toContain('reconcileCityOrder({ cityCodes: proposedOrder, order: manualOrder })')
     expect(detail.match(/^\s+stopOrder,$/gmu)?.length).toBe(2)
     expect(detail).toContain('measuredOrder={stopOrder}')
   })
@@ -37,8 +37,8 @@ describe('ordem escolhida à mão na proposta', () => {
     expect(detail).toContain('order={displayOrder}')
     /** O rascunho nunca chega às duas prévias: elas recebem a ordem salva, e mais nada. */
     expect(detail).not.toMatch(/stopOrder: displayOrder|stopOrder: draftOrder/u)
-    expect(detail).toContain('onClick={onSaveOrder}')
-    expect(hook).toContain('saveVehicleOrder: (vehicleId: string) =>')
+    expect(detail).toContain('onClick={onSaveEdits}')
+    expect(hook).toContain('saveEdits: () =>')
   })
 
   /**
@@ -60,8 +60,10 @@ describe('ordem escolhida à mão na proposta', () => {
   /** Rascunho aberto trava o aceite: a viagem nasceria numa ordem que ninguém viu medida. */
   it('o aceite espera o rascunho ser salvo ou descartado', () => {
     const list = readSource('src/modules/trip/components/TripProposalList.component.tsx')
-    expect(list).toContain('isAccepting || isEdited || hasUnsavedOrder')
-    expect(hook).toContain('hasUnsavedOrder: draftOrderByVehicle.size > 0')
+    expect(list).toContain('isAccepting || isEdited || hasUnsavedEdits')
+    expect(hook).toContain(
+      'hasUnsavedEdits: draftOrderByVehicle.size > 0 || draftStopMoves.size > 0',
+    )
   })
 
   /**
@@ -69,14 +71,19 @@ describe('ordem escolhida à mão na proposta', () => {
    * só apareceria com o caminhão na estrada.
    */
   it('o aceite leva a ordem escolhida', () => {
-    expect(hook).toContain('stopOrderByVehicle: [...orderByVehicle]')
+    expect(hook).toContain('{ stopOrderByVehicle: acceptedOrders }')
     expect(client).toContain('{ stopOrderByVehicle: input.stopOrderByVehicle }')
   })
 
   /** Nova proposta e aceite zeram a ordem e o rascunho: descreviam caminhões que não existem mais. */
   it('a ordem morre com a proposta que a gerou', () => {
+    /**
+     * Só os dois zeramentos — nova proposta e aceite — mandam a ordem e os movimentos **salvos** de
+     * volta a vazio. O rascunho também é limpo por "Salvar" e "Descartar", então contá-lo aqui mediria
+     * os botões, não a regra.
+     */
     expect(hook.match(/setOrderByVehicle\(new Map\(\)\)/gu)?.length).toBe(2)
-    expect(hook.match(/setDraftOrderByVehicle\(new Map\(\)\)/gu)?.length).toBe(2)
+    expect(hook.match(/setStopMoves\(new Map\(\)\)/gu)?.length).toBe(2)
   })
 
   /**

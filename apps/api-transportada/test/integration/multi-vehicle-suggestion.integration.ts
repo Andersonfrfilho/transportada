@@ -547,3 +547,48 @@ async function withSharedDatabase(
   if (shared === undefined) throw new Error('A PostgreSQL test URL is required')
   await operation(shared.database)
 }
+
+/**
+ * Spec 112: **mover parada contra o banco.** O contrato de aplicação prova a regra com um
+ * repositório de mentira, que devolve o mapeamento nota→parada que o teste escreveu. Só o Postgres
+ * prova que `readGroups` o devolve de verdade — a junção a `route_suggestion_stop_documents` que o
+ * agrupamento jogava fora.
+ */
+describe('mover parada entre caminhões no aceite, contra Postgres (spec 112)', () => {
+  testWithPostgres(
+    'a parada vai com as duas notas dela, e o caminhão vazio não vira viagem',
+    async () => {
+      await withSharedDatabase(async (database) => {
+        const world = await seedSuggestion(database)
+        const useCase = buildUseCase(database)
+        const destination = world.vehicles[1]?.vehicleId ?? ''
+
+        const accepted = await useCase.accept({
+          context: world.context,
+          stopOrderByVehicle: [
+            { orderedAddressKeys: [SECOND_ADDRESS_KEY, FIRST_ADDRESS_KEY], vehicleId: destination },
+          ],
+          suggestionId: world.suggestionId,
+        })
+
+        /** O primeiro caminhão perdeu a única parada que tinha: não há viagem vazia para ele. */
+        expect(accepted.trips.map((trip) => trip.vehicleId)).toEqual([destination])
+        const [trip] = accepted.trips
+        expect(trip?.documentCount).toBe(3)
+        expect(trip?.stopCount).toBe(2)
+
+        const linked = await database.db
+          .select({ nfeDocumentId: tripDocuments.nfeDocumentId })
+          .from(tripDocuments)
+          .where(
+            and(
+              eq(tripDocuments.companyId, world.companyId),
+              eq(tripDocuments.tripId, trip?.tripId ?? ''),
+            ),
+          )
+        /** As duas notas da parada que mudou de caminhão foram junto — e a nota de sempre ficou. */
+        expect(linked.map((row) => row.nfeDocumentId).sort()).toEqual([...world.documentIds].sort())
+      })
+    },
+  )
+})

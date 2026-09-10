@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { CopyButton } from '@/components/ui/copy-button'
 import { Icon } from '@/components/ui/icon'
+import { Select, type SelectOption } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { formatAmount, formatWeightKilograms } from '@/modules/shared/decimalAmount.service'
 import { formatStoredPhone } from '@/modules/shared/phone.service'
@@ -19,7 +20,11 @@ import {
 
 import { getTripClient } from '../hooks/useTripWorkspace.hook'
 import { useSolverCityOrder } from '../hooks/useSolverCityOrder.hook'
-import { buildAssemblyMap, type AssemblyMapNote } from '../shared/assemblyMap.service'
+import {
+  buildAssemblyMap,
+  type AssemblyMapNote,
+  type AssemblyMapPoint,
+} from '../shared/assemblyMap.service'
 import {
   formatRulePercentage,
   resolveNoteRevenue,
@@ -92,6 +97,14 @@ type TripAssemblyMapProps = Readonly<{
    * divergem o OSRM não é chamado. Cada troca de ordem era uma chamada nova ao roteirizador.
    */
   measuredOrder?: AssemblyCityOrder | undefined
+  /**
+   * Pausa a rota enquanto a lista mostra um rascunho que ninguém salvou (spec 112) — um movimento
+   * muda o **conjunto** de paradas, e `measuredOrder` só cobre a ordem.
+   */
+  isMeasurementPaused?: boolean | undefined
+  /** Para onde a parada pode ir. Sem isto, ou com a lista vazia, o select não é desenhado. */
+  resolveMoveTargets?: ((point: AssemblyMapPoint) => readonly SelectOption[]) | undefined
+  onStopMove?: ((noteIds: readonly string[], vehicleId: string) => void) | undefined
   order: AssemblyCityOrder
   selected: readonly AssemblyMapNote[]
   /**
@@ -138,13 +151,16 @@ function formatFinishTime(iso: string): string {
  * ao lado dela diz isso.
  */
 export function TripAssemblyMap({
+  isMeasurementPaused,
   measuredOrder,
   nearby,
   onOrderChange,
+  onStopMove,
   onStopRemove,
   onStopUndoRemove,
   order,
   removedNoteIds,
+  resolveMoveTargets,
   revenueLines,
   selected,
   vehicleId,
@@ -250,14 +266,14 @@ export function TripAssemblyMap({
   const measuredPoints =
     measuredOrder === undefined ? map.points : orderPointsByKey(map.points, measuredOrder)
   /** A lista está num rascunho que a rota não mede — tudo que vem da rota descreveria a ordem antiga. */
-  const isDraft = map.points.some(
-    (point, index) => point.stopKey !== measuredPoints[index]?.stopKey,
-  )
+  const isDraft =
+    isMeasurementPaused === true ||
+    map.points.some((point, index) => point.stopKey !== measuredPoints[index]?.stopKey)
   const routeKey = measuredPoints.map((point) => `${point.latitude},${point.longitude}`).join(';')
   /** Sem veículo escolhido não há eixo a contar (spec 090 D2) — a chave muda junto do pedágio. */
   const tollVehicleId = vehicleId === '' ? null : vehicleId
   const geometryQuery = useQuery({
-    enabled: measuredPoints.length >= 2,
+    enabled: measuredPoints.length >= 2 && !isDraft,
     queryFn: () =>
       getTripClient().readPointsRouteGeometry({
         points: measuredPoints.map((point) => ({
@@ -912,6 +928,27 @@ export function TripAssemblyMap({
                   <Icon name="chevron-down" />
                 </Button>
               </>
+            )}
+            {/*
+              Spec 112: jogar a parada para outro caminhão da proposta. Só aparece com opção — o
+              caminhão com sobra de peso para ela —, e nunca na parada marcada para sair.
+            */}
+            {onStopMove === undefined ||
+            resolveMoveTargets === undefined ||
+            isRemoved(point) ||
+            resolveMoveTargets(point).length === 0 ? null : (
+              <Select
+                ariaLabel={t('assemblyMap.moveToVehicle', { label: point.label })}
+                onChange={(vehicleId) =>
+                  onStopMove(
+                    point.notes.map((note) => note.id),
+                    vehicleId,
+                  )
+                }
+                options={resolveMoveTargets(point)}
+                placeholder={t('assemblyMap.moveToVehiclePlaceholder')}
+                value=""
+              />
             )}
             {/*
               ⚠️ Tirar a parada tira **todas as notas** que param nela — a parada é o endereço, e

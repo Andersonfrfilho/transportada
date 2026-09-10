@@ -33,6 +33,11 @@ import {
   validateRouteAssembly,
   type TripRouteAssemblyDraft,
 } from '../shared/tripRouteAssembly.service'
+import {
+  applyStopMoves,
+  resolveAcceptedStopOrders,
+  resolveMovedVehicleIds,
+} from '../shared/proposalStopMove.service'
 import { getTripClient } from './useTripWorkspace.hook'
 import { getRouteSuggestionClient } from '@/modules/routing/hooks/useRouteSuggestion.hook'
 
@@ -129,6 +134,12 @@ export function useTripRouteAssembly(
   const [draftOrderByVehicle, setDraftOrderByVehicle] = useState<
     ReadonlyMap<string, readonly string[]>
   >(new Map())
+  /**
+   * Spec 112: nota → caminhão de destino, salvos e em rascunho. O rascunho só muda a tela; salvar o
+   * torna o que as medições e o aceite usam — como a ordem.
+   */
+  const [stopMoves, setStopMoves] = useState<ReadonlyMap<string, string>>(new Map())
+  const [draftStopMoves, setDraftStopMoves] = useState<ReadonlyMap<string, string>>(new Map())
   const [pool, setPool] = useState<readonly TripCandidateDocument[]>([])
 
   const documentsQuery = useQuery({
@@ -228,6 +239,8 @@ export function useTripRouteAssembly(
       setPendingRemovals(new Set())
       setOrderByVehicle(new Map())
       setDraftOrderByVehicle(new Map())
+      setStopMoves(new Map())
+      setDraftStopMoves(new Map())
     },
   })
 
@@ -235,6 +248,34 @@ export function useTripRouteAssembly(
    * Spec 108: o aceite é **o único** caminho que escreve viagem, e ele parte de uma proposta que o
    * operador já viu na tela.
    */
+  /** As paradas como o operador as deixou, rascunho incluído: é o que a tela desenha. */
+  const displayStops =
+    proposal === null
+      ? null
+      : applyStopMoves(proposal.stops, new Map([...stopMoves, ...draftStopMoves]))
+  /**
+   * O que o aceite leva: os movimentos e as ordens **salvos**. Rascunho aberto trava o aceite, então
+   * no clique os dois conjuntos são o mesmo — mas é daqui que o corpo sai.
+   */
+  const acceptedOrders =
+    proposal === null
+      ? []
+      : resolveAcceptedStopOrders({
+          addressById: new Map(
+            pool.map((document) => [
+              document.id,
+              {
+                cityCode: document.recipientCityCode,
+                number: document.recipientAddressNumber,
+                postalCode: document.recipientPostalCode,
+              },
+            ]),
+          ),
+          manualOrderByVehicle: orderByVehicle,
+          moves: stopMoves,
+          stops: proposal.stops,
+        })
+
   const acceptMutation = useMutation({
     mutationFn: async (vehicleIds?: readonly string[]): Promise<TripRouteAssemblyOutcome> => {
       const suggestionId = proposal?.suggestion.id
@@ -250,14 +291,7 @@ export function useTripRouteAssembly(
          * ⚠️ **Sem isto as setas mentem**: a viagem nasceria com a ordem do roteirizador. Só vai o
          * caminhão que alguém reordenou — os outros seguem a do solver, com o horário previsto.
          */
-        ...(orderByVehicle.size === 0
-          ? {}
-          : {
-              stopOrderByVehicle: [...orderByVehicle].map(([vehicleId, orderedAddressKeys]) => ({
-                orderedAddressKeys,
-                vehicleId,
-              })),
-            }),
+        ...(acceptedOrders.length === 0 ? {} : { stopOrderByVehicle: acceptedOrders }),
       })
 
       return {
@@ -274,6 +308,8 @@ export function useTripRouteAssembly(
       setPendingRemovals(new Set())
       setOrderByVehicle(new Map())
       setDraftOrderByVehicle(new Map())
+      setStopMoves(new Map())
+      setDraftStopMoves(new Map())
       setIsOpen(false)
       setDraft(EMPTY_TRIP_ROUTE_ASSEMBLY)
       setPool([])
@@ -309,17 +345,40 @@ export function useTripRouteAssembly(
     pendingRemovals,
     orderByVehicle,
     draftOrderByVehicle,
-    /** ⚠️ Rascunho não salvo trava o aceite: a viagem nasceria numa ordem que ninguém viu medida. */
-    hasUnsavedOrder: draftOrderByVehicle.size > 0,
+    displayStops,
+    /** Caminhões com movimento em rascunho: eles pausam as três medições até alguém salvar. */
+    draftMovedVehicleIds:
+      proposal === null
+        ? new Set<string>()
+        : resolveMovedVehicleIds(proposal.stops, draftStopMoves),
+    /** Caminhões alterados e salvos: a conta do roteirizador deixou de descrevê-los. */
+    staleValuationVehicleIds: new Set([
+      ...orderByVehicle.keys(),
+      ...(proposal === null ? [] : resolveMovedVehicleIds(proposal.stops, stopMoves)),
+    ]),
+    /** ⚠️ Rascunho não salvo trava o aceite: a viagem nasceria como ninguém a viu medida. */
+    hasUnsavedEdits: draftOrderByVehicle.size > 0 || draftStopMoves.size > 0,
     setVehicleOrderDraft: (vehicleId: string, order: readonly string[]) =>
       setDraftOrderByVehicle((current) => new Map([...current, [vehicleId, order]])),
     discardVehicleOrderDraft: (vehicleId: string) =>
       setDraftOrderByVehicle((current) => withoutVehicle(current, vehicleId)),
-    saveVehicleOrder: (vehicleId: string) => {
-      const draft = draftOrderByVehicle.get(vehicleId)
-      if (draft === undefined) return
-      setOrderByVehicle((current) => new Map([...current, [vehicleId, draft]]))
-      setDraftOrderByVehicle((current) => withoutVehicle(current, vehicleId))
+    moveStopDraft: (nfeDocumentIds: readonly string[], vehicleId: string) =>
+      setDraftStopMoves(
+        (current) => new Map([...current, ...nfeDocumentIds.map((id) => [id, vehicleId] as const)]),
+      ),
+    /**
+     * ⚠️ **Um salvar só, para ordem e movimento.** Um movimento mexe em dois caminhões, e um salvar por
+     * caminhão deixaria um salvo e o outro não — o aceite levaria meia mudança.
+     */
+    saveEdits: () => {
+      setOrderByVehicle((current) => new Map([...current, ...draftOrderByVehicle]))
+      setStopMoves((current) => new Map([...current, ...draftStopMoves]))
+      setDraftOrderByVehicle(new Map())
+      setDraftStopMoves(new Map())
+    },
+    discardEdits: () => {
+      setDraftOrderByVehicle(new Map())
+      setDraftStopMoves(new Map())
     },
     markStopRemoved: (nfeDocumentIds: readonly string[]) =>
       setPendingRemovals((current) => new Set([...current, ...nfeDocumentIds])),

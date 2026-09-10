@@ -18,7 +18,7 @@ describe('proposal edit contract', () => {
     const source = await readSource('src/modules/trip/components/TripProposalList.component.tsx')
 
     expect(source).toContain(
-      'disabled={isAccepting || isEdited || hasUnsavedOrder || summary.selectedCount === 0}',
+      'disabled={isAccepting || isEdited || hasUnsavedEdits || summary.selectedCount === 0}',
     )
   })
 

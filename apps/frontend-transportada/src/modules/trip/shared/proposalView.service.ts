@@ -97,6 +97,12 @@ export function buildProposalVehicleViews(
     /** O par veículo→motorista que a montagem enviou: é ele que decide quem dirige. */
     driverIdByVehicleId: ReadonlyMap<string, string>
     driverNameById: ReadonlyMap<string, string>
+    /**
+     * Caminhões alterados à mão e salvos (ordem ou movimento, spec 111/112). ⚠️ A conta que o
+     * roteirizador fez para eles descreve outra carga ou outro caminho: dinheiro, tempo e distância
+     * viram ausência, nunca o número antigo com cara de atual.
+     */
+    staleValuationVehicleIds?: ReadonlySet<string>
     stops: readonly ProposalStop[]
     valuation: null | SuggestionValuation
     vehicleById: ReadonlyMap<
@@ -128,7 +134,10 @@ export function buildProposalVehicleViews(
 
   return [...grouped.entries()].map(([vehicleId, group]) => {
     const vehicle = input.vehicleById.get(vehicleId)
-    const entry = valuationByVehicle.get(vehicleId)
+    const entry =
+      input.staleValuationVehicleIds?.has(vehicleId) === true
+        ? undefined
+        : valuationByVehicle.get(vehicleId)
     const weights = [...group.documentIds].map((documentId) => input.documentsById.get(documentId))
     const declared = weights.flatMap((weight) =>
       weight?.cargoGrossWeight === null || weight?.cargoGrossWeight === undefined

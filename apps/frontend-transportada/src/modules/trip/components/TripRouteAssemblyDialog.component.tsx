@@ -10,6 +10,7 @@ import { useSuggestionValuation } from '@/modules/routing/queries/useSuggestionV
 import { useModalDialog } from '@/modules/shared/useModalDialog.hook'
 
 import type { TripRouteAssemblyController } from '../hooks/useTripRouteAssembly.hook'
+import { resolveMoveTargets } from '../shared/proposalStopMove.service'
 import { buildProposalVehicleViews } from '../shared/proposalView.service'
 import { TripProposalDetail } from './TripProposalDetail.component'
 import { TripProposalList } from './TripProposalList.component'
@@ -83,7 +84,9 @@ export function TripRouteAssemblyDialog({
           /** ⚠️ Quem dirige sai do **par** que a montagem enviou, não da conta (spec 110 D2). */
           driverIdByVehicleId: assembly.driverIdByVehicleId,
           driverNameById: new Map(drivers.map((driver) => [driver.id, driver.name])),
-          stops: proposal.stops,
+          staleValuationVehicleIds: assembly.staleValuationVehicleIds,
+          /** As paradas com os movimentos aplicados: é por elas que cada linha se agrupa. */
+          stops: assembly.displayStops ?? proposal.stops,
           valuation: suggestionValuation.valuation,
           vehicleById,
         })
@@ -140,7 +143,7 @@ export function TripRouteAssemblyDialog({
             </div>
 
             <TripProposalList
-              hasUnsavedOrder={assembly.hasUnsavedOrder}
+              hasUnsavedEdits={assembly.hasUnsavedEdits}
               isEdited={assembly.isProposalEdited}
               isAccepting={assembly.acceptMutation.isPending}
               onAccept={(vehicleIds) => assembly.acceptMutation.mutate(vehicleIds)}
@@ -155,13 +158,23 @@ export function TripRouteAssemblyDialog({
                 <TripProposalDetail
                   documents={assembly.pool}
                   draftOrder={assembly.draftOrderByVehicle.get(view.vehicleId) ?? null}
+                  hasDraftMove={assembly.draftMovedVehicleIds.has(view.vehicleId)}
                   manualOrder={assembly.orderByVehicle.get(view.vehicleId) ?? null}
+                  moveTargetsFor={(stopWeightKilograms) =>
+                    resolveMoveTargets({
+                      fromVehicleId: view.vehicleId,
+                      stopWeightKilograms,
+                      views,
+                    })
+                  }
+                  onDiscardEdits={assembly.discardEdits}
                   onDiscardOrder={() => assembly.discardVehicleOrderDraft(view.vehicleId)}
                   onDraftOrderChange={(order) =>
                     assembly.setVehicleOrderDraft(view.vehicleId, order)
                   }
+                  onMoveStop={assembly.moveStopDraft}
                   onRemoveStop={assembly.markStopRemoved}
-                  onSaveOrder={() => assembly.saveVehicleOrder(view.vehicleId)}
+                  onSaveEdits={assembly.saveEdits}
                   onUndoRemoveStop={assembly.undoStopRemoval}
                   pendingRemovals={assembly.pendingRemovals}
                   permissions={permissions}

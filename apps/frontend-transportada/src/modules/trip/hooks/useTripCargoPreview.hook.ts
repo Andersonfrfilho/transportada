@@ -30,6 +30,12 @@ export function useTripCargoPreview(
      * amarra a carga empilha até o teto, e sem ele a planta ficaria a do motorista anterior.
      */
     driverIds: readonly string[]
+    /**
+     * ⚠️ Pausa a consulta e segura o **último número medido** enquanto há rascunho aberto na tela
+     * (specs 111/112): cada toque de seta ou movimento ia ao servidor, e o operador só queria ver o
+     * número depois de salvar.
+     */
+    isPaused?: boolean
     nfeDocumentIds: readonly string[]
     permissions: readonly string[]
     stopOrder: readonly string[]
@@ -44,7 +50,11 @@ export function useTripCargoPreview(
 
   const query = useQuery({
     /** Sem nota ou sem veículo a API recusaria: a pergunta só existe com os dois. */
-    enabled: canRead && input.nfeDocumentIds.length > 0 && input.vehicleId !== '',
+    enabled:
+      input.isPaused !== true &&
+      canRead &&
+      input.nfeDocumentIds.length > 0 &&
+      input.vehicleId !== '',
     queryFn: () =>
       getTripClient().previewCargo({
         driverIds: input.driverIds,
@@ -52,6 +62,7 @@ export function useTripCargoPreview(
         stopOrder: input.stopOrder,
         vehicleId: input.vehicleId,
       }),
+    placeholderData: (previous) => (input.isPaused === true ? previous : undefined),
     queryKey: [TRIP_CARGO_PREVIEW_QUERY_KEY, documentKey, orderKey, input.vehicleId, driverKey],
   })
 

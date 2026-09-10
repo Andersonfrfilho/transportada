@@ -1688,11 +1688,17 @@ reivindicação da spec 107 D2 — consumir a sugestão por um id errado queimar
 `assumptions`. Nenhum dos dois precisou de mudança de API, e por isso não têm janela de deploy.
 
 ⚠️ **A ordem se troca à mão, e o aceite a leva** (spec 111, reverte a D6). As setas ao lado da lixeira
-reordenam por caminhão; mapa, planta de carga e conta leem a mesma `stopOrder` e recalculam juntos. O
+trocam a parada de lugar **na tela**, e só "Salvar alterações" mede: carga, conta e rota **pausam**
+enquanto há rascunho (seguram o último número medido) e o aceite fica travado — na primeira versão
+cada toque ia três vezes ao servidor, duas ao OSRM. O
 aceite recebe `stopOrderByVehicle` com a regra de `orderStopKeys` — parada não mencionada vai ao fim,
 chave desconhecida é ignorada (o degrau `cidade:` da tela), parada de **outro** caminhão é
 **movimento** — ela vai com as notas dela (spec 112) —, e a mesma parada na ordem de dois caminhões
-é 400 antes da reivindicação. Ordem trocada nasce **sem horário previsto**: ele é gravado casado por endereço, na
+é 400 antes da reivindicação. Um select por parada joga
+a parada em outro caminhão com **sobra de peso** na ficha — peso, não cubagem: cubagem só é calculada
+para o caminhão aberto. O movimento é rascunho como a ordem, identificado pela **nota** (o id vem do
+servidor; a chave é recalculada na tela), e o caminhão alterado e salvo mostra dinheiro, tempo e
+distância como ausência na linha recolhida: a conta do roteirizador descreve outra carga. Ordem trocada nasce **sem horário previsto**: ele é gravado casado por endereço, na
 ordem do solver. ⚠️ O corpo é `.strict()`: **a API sobe antes do front**.
 
 ⚠️ **Verde é o que entra, vermelho é o que sai — nas duas portas da proposta.** Receita e lucro em
