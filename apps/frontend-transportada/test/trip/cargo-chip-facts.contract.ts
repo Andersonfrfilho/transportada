@@ -79,6 +79,26 @@ describe('fichas de parada do plano de carga', () => {
     expect(trip.cargoLayers.chip.deliveryOrder).toContain('ordem de entrega')
   })
 
+  /**
+   * Spec 113: a grade chega do servidor como `grid`. ⚠️ A validação recusava tudo que não fosse
+   * `depth` ou `lanes`, e uma recusa ali apaga o painel inteiro com 200 na rede.
+   */
+  it('aceita a grade, sem corte atravessado e sem o aviso de peso', () => {
+    const read = (path: string) => readFileSync(new URL(path, APPLICATION_ROOT), 'utf8')
+    expect(read('src/modules/trip/shared/tripResponse.validation.ts')).toContain(
+      "value.stopArrangement === 'grid' ||",
+    )
+    expect(read('src/modules/trip/shared/cargoLegend.service.ts')).toContain(
+      "if (arrangement === 'grid') return []",
+    )
+    expect(read('src/modules/trip/components/TripCargoLayers.component.tsx')).toContain(
+      "layout.stopArrangementReason === 'weight' && arrangement === 'depth'",
+    )
+    expect(trip.cargoLayers.arrangement.grid).toBeTruthy()
+    expect(trip.cargoLayers.print.caption.grid).toBeTruthy()
+    expect(trip.cargoLayers.print.span.grid).toBeTruthy()
+  })
+
   it('lista todas as paradas, e a fora do desenho diz que está fora', () => {
     const component = readFileSync(
       new URL('src/modules/trip/components/TripCargoLayers.component.tsx', APPLICATION_ROOT),

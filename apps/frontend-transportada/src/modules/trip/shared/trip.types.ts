@@ -296,7 +296,7 @@ export type TripCargoLayout = Readonly<{
    * apagaria o painel de carga inteiro na janela entre os dois deploys. Ausente é `depth`, que é o
    * comportamento de sempre.
    */
-  stopArrangement?: 'depth' | 'lanes'
+  stopArrangement?: 'depth' | 'grid' | 'lanes'
   /**
    * Por que este arranjo, e não o outro. ⚠️ Ele vem da API porque a tela **não pode deduzi-lo**:
    * concluir "foi o peso" de `depth` mais carga pesada afirmava isso também na viagem de uma parada

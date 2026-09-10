@@ -26,8 +26,13 @@ type LegendBox = Readonly<{
 export function resolveSliceCuts(
   boxes: readonly LegendBox[],
   /** Spec 100: em faixas a divisa é medida na **largura**, e o eixo antigo não separa nada. */
-  arrangement: 'depth' | 'lanes' = 'depth',
+  arrangement: 'depth' | 'grid' | 'lanes' = 'depth',
 ): readonly number[] {
+  /**
+   * ⚠️ Na grade (spec 113) não há corte atravessando o baú: paradas diferentes ocupam o mesmo `x` em
+   * faixas diferentes, e uma linha de lado a lado cortaria a carga de uma faixa no meio.
+   */
+  if (arrangement === 'grid') return []
   const startByStop = new Map<number, number>()
   for (const box of boxes) {
     if (box.isSplit) continue

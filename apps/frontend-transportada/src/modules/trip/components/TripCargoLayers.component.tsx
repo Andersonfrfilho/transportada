@@ -137,7 +137,8 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
    * quando as faixas não caberiam de todo jeito — e nesses três o operador conclui que aliviar a
    * carga devolveria as faixas, e não devolve.
    */
-  const weightWonAccess = layout.stopArrangementReason === 'weight'
+  /** Na grade o peso não venceu o acesso: ela equilibra dentro de cada faixa (spec 113). */
+  const weightWonAccess = layout.stopArrangementReason === 'weight' && arrangement === 'depth'
 
   const sliceCutsM = useMemo(() => resolveSliceCuts(boxes, arrangement), [arrangement, boxes])
   const bedHeightM = Number.parseFloat(layout.bedHeightM ?? '0')

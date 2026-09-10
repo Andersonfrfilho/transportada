@@ -187,7 +187,27 @@ export function resolveCargoPlacement(input: {
       boxes: input.boxes,
       loadingAccess: input.loadingAccess ?? 'rear',
       payloadRatio: input.payloadRatio ?? null,
+      ...(input.securesCargo === undefined ? {} : { securesCargo: input.securesCargo }),
     }).arrangement
+  if (arrangement === 'grid') {
+    const grid = resolveGridLanes({
+      bedHeightM: bed.heightM,
+      bedLengthM: bed.lengthM,
+      bedWidthM: bed.widthM,
+      boxes: measured,
+    })
+    if (grid !== null) {
+      return placeGrid({
+        bed: input.bed,
+        boxes: measured,
+        grid,
+        loadingAccess: input.loadingAccess,
+        payloadRatio: input.payloadRatio,
+        securesCargo: input.securesCargo,
+        unplaced,
+      })
+    }
+  }
   const lanes = arrangement === 'lanes'
 
   /**
@@ -412,8 +432,14 @@ function packUntilItFits(input: {
    * contra a largura da fatia, então crescer por etapas a decidia contra uma largura provisória
    * menor que a alocada — a caixa entrava deitada e ia uma por fileira onde caberiam duas.
    */
-  let lengthM =
-    input.stackBeforeRow === true ? input.capM : Math.min(input.capM, Math.max(floorM, deepestM))
+  /**
+   * ⚠️ **A fatia nunca é mais curta que a caixa mais funda da parada.** A proporção por volume dava a
+   * uma parada de três caixas 6% do baú — 0,35 m para uma caixa de 0,40 m —, e nenhuma caixa dela
+   * entrava na própria fatia: a parada inteira sumia do desenho como `bedFull` num baú 30% cheio.
+   * Em faixas o teto é largura, e o mínimo dela já é a caixa mais larga (`minimumLaneWidthOf`).
+   */
+  const capM = input.stackBeforeRow === true ? input.capM : Math.max(input.capM, deepestM)
+  let lengthM = input.stackBeforeRow === true ? capM : Math.min(capM, Math.max(floorM, deepestM))
 
   for (let attempt = 0; ; attempt += 1) {
     const packed = packSlice({
@@ -426,10 +452,10 @@ function packUntilItFits(input: {
     })
     const overflowed =
       packed.leftovers.length > 0 || packed.unplaced.some((entry) => entry.reason === 'bedFull')
-    const exhausted = attempt + 1 >= SLICE_GROWTH_ATTEMPTS || lengthM >= input.capM - 1e-9
+    const exhausted = attempt + 1 >= SLICE_GROWTH_ATTEMPTS || lengthM >= capM - 1e-9
     if (!overflowed || exhausted) return { ...packed, lengthM }
 
-    lengthM = Math.min(input.capM, lengthM * SLICE_GROWTH_FACTOR)
+    lengthM = Math.min(capM, lengthM * SLICE_GROWTH_FACTOR)
   }
 }
 
@@ -525,7 +551,7 @@ function shouldBalanceLoad(input: {
  * ⚠️ Os dois nomes são do **eixo**, nunca da qualidade do arranjo: `lanes` não é "melhor" e `depth`
  * não é "pior". Qual dos dois vale sai de `resolveStopArrangement`, e a tela imprime qual foi.
  */
-export const STOP_ARRANGEMENTS = ['depth', 'lanes'] as const
+export const STOP_ARRANGEMENTS = ['depth', 'grid', 'lanes'] as const
 export type StopArrangement = (typeof STOP_ARRANGEMENTS)[number]
 
 /**
@@ -559,8 +585,11 @@ export function resolveStopArrangement(input: {
   readonly loadingAccess?: LoadingAccess
   /** O mesmo `cargoWeight.payloadRatio` que o painel imprime. `null` é teto desconhecido. */
   readonly payloadRatio: string | null
+  /** Repassado à comparação da grade com a profundidade — a amarração muda quanto cada uma empilha. */
+  readonly securesCargo?: boolean
 }): StopArrangementDecision {
   if (input.bed === null) return { arrangement: 'depth', reason: 'noBed' }
+  const bedInput = input.bed
   /**
    * ⚠️ **Carroceria aberta não ganha faixa**, pela mesma razão que ela equilibra sempre (099 D3):
    * quem abre o comprimento inteiro já tem toda a carga à mão, e não existe "a porta" a que
@@ -590,7 +619,13 @@ export function resolveStopArrangement(input: {
    */
   const ratio = input.payloadRatio === null ? null : Number(input.payloadRatio)
   if (ratio !== null && Number.isFinite(ratio) && ratio > BALANCE_PAYLOAD_RATIO) {
-    return { arrangement: 'depth', reason: 'weight' }
+    /**
+     * ⚠️ **Spec 113: acima de metade do teto a grade ainda serve.** A faixa de uma parada só encosta
+     * a carga toda na porta, e é isso que a física recusa. Na grade cada faixa é empacotada em
+     * profundidade e **equilibra dentro dela** (`shouldBalanceLoad`), então o peso fica espalhado no
+     * comprimento como na profundidade — e as primeiras entregas continuam lado a lado.
+     */
+    return gridOrDepth({ ...input, bed: bedInput, reason: 'weight' })
   }
 
   /** Caixa sem medida já não entra no desenho (spec 085): deixá-la pesar aqui derrubaria a viagem. */
@@ -627,7 +662,9 @@ export function resolveStopArrangement(input: {
    * 0,30 m — a feature não disparava justamente no caso que a motivou.
    */
   const neededM = byStop.reduce((total, stop) => total + stop.minWidthM, 0)
-  if (neededM > bedWidthM) return { arrangement: 'depth', reason: 'tooWide' }
+  if (neededM > bedWidthM) {
+    return gridOrDepth({ ...input, bed: bedInput, reason: 'tooWide' })
+  }
 
   /**
    * ⚠️ **Caber em largura não é caber.** A largura mínima é o que a parada exige para a caixa entrar;
@@ -655,7 +692,7 @@ export function resolveStopArrangement(input: {
    */
   return fits
     ? { arrangement: 'lanes', reason: 'fits' }
-    : { arrangement: 'depth', reason: 'volumeDoesNotFit' }
+    : gridOrDepth({ ...input, bed: bedInput, reason: 'volumeDoesNotFit' })
 }
 
 /**
@@ -1590,4 +1627,189 @@ function pushUnplaced(list: UnplacedBox[], entry: UnplacedBox): void {
 
 function round(value: number): number {
   return Math.round(value * 1000) / 1000
+}
+
+/** Como a grade reparte a largura: quantas faixas, e em qual delas cada parada viaja. */
+export type GridLanes = Readonly<{
+  laneCount: number
+  laneOf: ReadonlyMap<number, number>
+  laneWidthM: number
+}>
+
+/**
+ * A grade da spec 113: faixas lado a lado, cada uma com uma **fila** de paradas.
+ *
+ * ⚠️ **Por que ela existe.** A faixa da spec 100 é uma parada por faixa, e é tudo ou nada: com 24
+ * paradas num baú de 2,08 m sobrariam 9 cm por faixa. A viagem caía em profundidade, onde cada parada
+ * recebe um pedaço do comprimento proporcional ao volume, sem piso — medido em 2026-09-10: pedaços de
+ * 4 a 22 cm contra caixas de 25 a 40 cm, e **16 de 24 paradas fora do desenho** com o baú em 50%. Na
+ * grade cada faixa tem o comprimento inteiro e só uma parte das paradas.
+ *
+ * As paradas entram **em rodízio pela ordem de entrega**: as primeiras K — uma por faixa — ficam todas
+ * na porta, e se a primeira der problema a segunda está ao lado, não atrás. Sai o maior K em que a
+ * caixa mais larga ainda cabe na faixa e o volume de cada faixa cabe nela. ⚠️ Só vale com **mais
+ * paradas que faixas**: com uma parada por faixa isto é a faixa da spec 100, que tem regra própria.
+ */
+export function resolveGridLanes(
+  input: Readonly<{
+    bedHeightM: number
+    bedLengthM: number
+    bedWidthM: number
+    boxes: readonly PlacementBox[]
+  }>,
+): GridLanes | null {
+  const measured = input.boxes.filter(
+    (box) => (box.heightMm ?? 0) > 0 && (box.lengthMm ?? 0) > 0 && (box.widthMm ?? 0) > 0,
+  )
+  const sequences = [...new Set(measured.map((box) => box.stopSequence))].sort(
+    (first, second) => first - second,
+  )
+  if (sequences.length < 2) return null
+  const widestM = Math.max(
+    ...sequences.map((stopSequence) =>
+      minimumLaneWidthOf(measured.filter((box) => box.stopSequence === stopSequence)),
+    ),
+  )
+  if (!(widestM > 0)) return null
+
+  const most = Math.min(Math.floor(input.bedWidthM / widestM), sequences.length - 1)
+  for (let laneCount = most; laneCount >= 2; laneCount -= 1) {
+    const laneWidthM = input.bedWidthM / laneCount
+    const laneOf = new Map(
+      sequences.map((stopSequence, index) => [stopSequence, index % laneCount]),
+    )
+    const fits = Array.from({ length: laneCount }, (_, lane) => lane).every((lane) => {
+      const own = measured.filter((box) => laneOf.get(box.stopSequence) === lane)
+      /**
+       * ⚠️ **A pilha da grade é confinada**: as paredes da faixa — o baú ou a faixa vizinha — seguram
+       * os dois lados, e "pilha confinada não tomba" (`docs/domain/cargo-placement.md`, Passo 4). A
+       * altura sem confinamento (três vezes a base) recusava toda grade: 24 paradas de caixas de
+       * 30 cm pediam 0,93 m por faixa contra 0,90 m de teto. Quem decide caixa por caixa continua
+       * sendo o empacotador de cada faixa.
+       */
+      return (
+        volumeOf(own) <= laneWidthM * input.bedLengthM * input.bedHeightM * ROW_PACKING_EFFICIENCY
+      )
+    })
+    if (fits) return { laneCount, laneOf, laneWidthM }
+  }
+  return null
+}
+
+/**
+ * Grade quando ela **coloca pelo menos o que a profundidade coloca**; senão a profundidade de sempre,
+ * com o mesmo motivo da recusa das faixas.
+ *
+ * ⚠️ **O teste de volume sozinho prometia grade que a varredura não entregava.** Três paradas numa
+ * Fiorino — duas de uma caixa e uma de trinta — cabiam em volume nas duas faixas, e a grade colocava
+ * 28 das 32 caixas que a profundidade colocava. Trocar acesso por caixa fora do desenho é o defeito
+ * que a spec 113 veio consertar, então a decisão empacota os dois e compara.
+ */
+function gridOrDepth(
+  input: Readonly<{
+    bed: CargoBedDimensions
+    boxes: readonly PlacementBox[]
+    loadingAccess?: LoadingAccess
+    payloadRatio: string | null
+    reason: StopArrangementReason
+    securesCargo?: boolean
+  }>,
+): StopArrangementDecision {
+  const depth: StopArrangementDecision = { arrangement: 'depth', reason: input.reason }
+  const measured = input.boxes.filter(
+    (box) => (box.heightMm ?? 0) > 0 && (box.lengthMm ?? 0) > 0 && (box.widthMm ?? 0) > 0,
+  )
+  const grid = resolveGridLanes({
+    bedHeightM: Number.parseFloat(input.bed.heightM),
+    bedLengthM: Number.parseFloat(input.bed.lengthM),
+    bedWidthM: Number.parseFloat(input.bed.widthM),
+    boxes: measured,
+  })
+  if (grid === null) return depth
+
+  const context = {
+    bed: input.bed,
+    ...(input.loadingAccess === undefined ? {} : { loadingAccess: input.loadingAccess }),
+    payloadRatio: input.payloadRatio,
+    ...(input.securesCargo === undefined ? {} : { securesCargo: input.securesCargo }),
+  }
+  const gridPlaced = countPlaced(
+    placeGrid({
+      ...context,
+      boxes: measured,
+      grid,
+      loadingAccess: input.loadingAccess,
+      securesCargo: input.securesCargo,
+      unplaced: [],
+    }),
+  )
+  const depthPlaced = countPlaced(
+    resolveCargoPlacement({ ...context, arrangement: 'depth', boxes: measured }),
+  )
+
+  return gridPlaced >= depthPlaced ? { arrangement: 'grid', reason: input.reason } : depth
+}
+
+function countPlaced(placement: CargoPlacement | null): number {
+  return (placement?.layers ?? []).reduce((total, layer) => total + layer.boxes.length, 0)
+}
+
+/**
+ * A largura que as caixas da faixa **ocupam de verdade**: o maior múltiplo da largura mínima delas.
+ *
+ * ⚠️ **A sobra da faixa não é piso, é o vão que tira o confinamento.** Com a faixa de 0,347 m e a
+ * caixa de 0,30 m, os 4,7 cm de folga deixavam a pilha sem parede de um lado, e a esbeltez a travava
+ * em 0,75 m num baú de 2,20 m. Medido: uma faixa a 41% do volume recusava 23 de 56 caixas como
+ * `bedFull`. A folga continua no desenho, entre as faixas — é espaço onde nenhuma caixa cabe.
+ */
+function packedLaneWidthM(boxes: readonly PlacementBox[], laneWidthM: number): number {
+  const unitM = minimumLaneWidthOf(boxes)
+  if (!(unitM > 0) || unitM >= laneWidthM) return laneWidthM
+
+  return Math.floor(laneWidthM / unitM + 1e-9) * unitM
+}
+
+/**
+ * Empacota cada faixa da grade como um baú mais estreito, **em profundidade**, e as põe lado a lado.
+ *
+ * ⚠️ Nenhuma regra nova: dentro da faixa valem todas as do `docs/domain/cargo-placement.md` — pouso,
+ * tombamento, fatia do tamanho da carga, a carga encostada na porta ou equilibrada acima de metade do
+ * teto. A faixa só muda a largura do baú que cada fila enxerga.
+ */
+function placeGrid(
+  input: Readonly<{
+    bed: NonNullable<Parameters<typeof resolveCargoPlacement>[0]['bed']>
+    boxes: readonly PlacementBox[]
+    grid: GridLanes
+    loadingAccess: LoadingAccess | undefined
+    payloadRatio: string | null | undefined
+    securesCargo: boolean | undefined
+    unplaced: readonly UnplacedBox[]
+  }>,
+): CargoPlacement {
+  const placed: PlacedBox[] = []
+  const unplaced: UnplacedBox[] = [...input.unplaced]
+  let estimated = false
+
+  for (let lane = 0; lane < input.grid.laneCount; lane += 1) {
+    const own = input.boxes.filter((box) => input.grid.laneOf.get(box.stopSequence) === lane)
+    if (own.length === 0) continue
+    const lanePlacement = resolveCargoPlacement({
+      arrangement: 'depth',
+      bed: { ...input.bed, widthM: packedLaneWidthM(own, input.grid.laneWidthM).toFixed(3) },
+      boxes: own,
+      ...(input.loadingAccess === undefined ? {} : { loadingAccess: input.loadingAccess }),
+      ...(input.payloadRatio === undefined ? {} : { payloadRatio: input.payloadRatio }),
+      ...(input.securesCargo === undefined ? {} : { securesCargo: input.securesCargo }),
+    })
+    if (lanePlacement === null) continue
+    if (lanePlacement.source === 'estimated') estimated = true
+    const offsetM = input.grid.laneWidthM * lane
+    for (const layer of lanePlacement.layers) {
+      for (const box of layer.boxes) placed.push({ ...box, yM: round(box.yM + offsetM) })
+    }
+    unplaced.push(...lanePlacement.unplaced)
+  }
+
+  return { layers: toLayers(placed), source: estimated ? 'estimated' : 'measured', unplaced }
 }

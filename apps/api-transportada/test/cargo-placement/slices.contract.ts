@@ -277,8 +277,13 @@ describe('a ordem dentro da fatia (spec 095 G002)', () => {
  */
 describe('a carga dividida (spec 095 G003)', () => {
   /**
-   * Fatia estreita para a parada 1: duas peças de 3 m num trecho de pouco mais de 1 m. Elas cabem no
-   * baú e não na própria fatia — que é a definição de carga a dividir.
+   * Fatia estreita para a parada 1: doze peças de 3 m. Elas cabem no baú e não na própria fatia — que
+   * é a definição de carga a dividir.
+   *
+   * ⚠️ **Spec 113: eram duas peças, e a sobra vinha do defeito.** A fatia não tinha piso, e duas
+   * peças de 3 m ganhavam pouco mais de 1 m — nenhuma caixa entrava na própria fatia. Hoje a fatia
+   * nunca é mais curta que a caixa mais funda dela, e a sobra só existe por quantidade, que é o caso
+   * que a divisão veio atender.
    */
   const overflowing = {
     bed: BED,
@@ -289,7 +294,7 @@ describe('a carga dividida (spec 095 G003)', () => {
        */
       caixaQueNaoCabeEmFaixa(2, 2_300),
       box({
-        count: 2,
+        count: 12,
         heightMm: 400,
         label: 'COMPRIDA',
         lengthMm: 3000,

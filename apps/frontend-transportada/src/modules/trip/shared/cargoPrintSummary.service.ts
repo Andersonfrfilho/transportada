@@ -3,7 +3,8 @@
  */
 
 /** Em que eixo as paradas se dividem — cópia por valor do vocabulário da API (spec 100). */
-export type StopArrangement = 'depth' | 'lanes'
+/** `grid` (spec 113) é lida como profundidade: dentro de cada faixa a ordem é a de sempre. */
+export type StopArrangement = 'depth' | 'grid' | 'lanes'
 
 type PrintableBox = Readonly<{
   isEstimated: boolean

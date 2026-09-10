@@ -622,6 +622,14 @@ que existe e passaria de 40%, fazendo o alerta disparar em toda viagem de duas p
 ruído que se aprende a ignorar. Viagem de uma parada não acusa nada: ali a concentração é 100% por
 definição e não há o que fazer com o aviso.
 
+**A grade põe várias entregas na porta ao mesmo tempo** (spec 113). Quando faixa por parada não cabe
+— muitas paradas, ou peso acima de metade do teto —, `resolveStopArrangement` tenta `grid` antes de
+`depth`: K faixas, as K primeiras entregas lado a lado na porta e as seguintes atrás delas, cada faixa
+empacotada em profundidade. ⚠️ **A grade só vale se colocar o que a profundidade coloca** — a decisão
+empacota os dois —, e a fatia de cada parada **nunca é mais curta que a caixa mais funda dela**: sem
+esse piso, parada pequena sumia inteira do desenho num baú 30% cheio. ⚠️ `STOP_ARRANGEMENTS` é
+validado com lista fechada no frontend: **o frontend sobe junto ou antes**, senão o painel some.
+
 **Como as caixas são organizadas no baú está documentado por extenso em
 `docs/domain/cargo-placement.md`** — o arranjo em faixas ou em profundidade, a varredura que sobe
 antes de andar para o fundo, a orientação por rendimento, o teto de esbeltez da pilha e o

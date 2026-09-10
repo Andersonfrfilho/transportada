@@ -765,6 +765,7 @@ function isCargoLayout(value: unknown): boolean {
      */
     (value.stopArrangement === undefined ||
       value.stopArrangement === 'depth' ||
+      value.stopArrangement === 'grid' ||
       value.stopArrangement === 'lanes') &&
     (value.stopArrangementReason === undefined ||
       typeof value.stopArrangementReason === 'string') &&

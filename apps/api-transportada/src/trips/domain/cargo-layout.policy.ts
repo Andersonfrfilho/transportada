@@ -423,6 +423,7 @@ export function resolveCargoLayout(input: {
     boxes: placementBoxes,
     loadingAccess: access,
     payloadRatio: input.payloadRatio ?? null,
+    ...(input.securesCargo === undefined ? {} : { securesCargo: input.securesCargo }),
   })
   const lanes = decision.arrangement === 'lanes'
   /**

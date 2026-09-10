@@ -112,6 +112,12 @@ describe('qual arranjo a viagem usa (spec 100 D2)', () => {
    * junto da porta alivia o eixo dianteiro do mesmo jeito que a carga colada na traseira, e faixa
    * não é motivo para desfazer física.
    */
+  /**
+   * ⚠️ **Spec 113: as faixas caem, e a grade entra no lugar da profundidade.** A física que a 099 D3
+   * protege é a da carga encostada na porta; a grade equilibra **dentro de cada faixa**, então o peso
+   * fica espalhado no comprimento como na profundidade — e as primeiras entregas continuam lado a
+   * lado. O motivo continua sendo o peso, para a tela dizer por que as faixas caíram.
+   */
   test('acima de metade do teto de massa, o peso derruba as faixas', () => {
     expect(
       resolveStopArrangement({
@@ -119,7 +125,7 @@ describe('qual arranjo a viagem usa (spec 100 D2)', () => {
         boxes: tresParadas(),
         payloadRatio: '0.6000',
       }),
-    ).toMatchObject({ arrangement: 'depth' })
+    ).toMatchObject({ arrangement: 'grid', reason: 'weight' })
   })
 
   /** O degrau é em metade exata: `0,5` ainda é faixa, e `0,5001` já não é. */
@@ -269,6 +275,11 @@ describe('qual arranjo a viagem usa (spec 100 D2)', () => {
       payloadRatio: null,
     })
 
-    expect(arranjo).toMatchObject({ arrangement: 'depth' })
+    /**
+     * ⚠️ Spec 113: continua sendo tudo ou nada **para as faixas** — nenhuma parada ganha faixa própria
+     * enquanto outra fica em profundidade. O que mudou é o que entra no lugar: a grade, que não é meia
+     * faixa, e sim a mesma regra em toda faixa.
+     */
+    expect(arranjo).toMatchObject({ arrangement: 'grid', reason: 'tooWide' })
   })
 })

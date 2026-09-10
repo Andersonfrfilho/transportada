@@ -266,7 +266,10 @@ describe('o arranjo publicado (spec 100)', () => {
     expect(new Set(layout?.slices.map((slice) => slice.distanceFromDoorM)).size).toBe(3)
   })
 
-  /** A física vence: acima de metade do teto de massa a tabela volta a descrever profundidade. */
+  /**
+   * Acima de metade do teto de massa as faixas caem. ⚠️ Spec 113: a tabela passa a descrever a
+   * **grade**, que equilibra dentro de cada faixa — a física da 099 D3 continua valendo.
+   */
   test('carga pesada devolve a tabela à profundidade', () => {
     const layout = resolveCargoLayout({
       bedDimensions: FIORINO,
@@ -275,7 +278,7 @@ describe('o arranjo publicado (spec 100)', () => {
       stops: paradasComCaixa({ caixas: [caixa({})] }),
     })
 
-    expect(layout?.stopArrangement).toBe('depth')
+    expect(layout?.stopArrangement).toBe('grid')
   })
 
   /**

@@ -14,12 +14,13 @@ isso numa linha fixa, e o painel de decisões (abaixo) explica o que moldou aque
 
 ## Passo 1 — Em que eixo as paradas se dividem
 
-`resolveStopArrangement` devolve `depth` ou `lanes`, **e o motivo**.
+`resolveStopArrangement` devolve `depth`, `grid` ou `lanes`, **e o motivo**.
 
-| arranjo | como fica                                                                 | quando                     |
-| ------- | ------------------------------------------------------------------------- | -------------------------- |
-| `depth` | uma parada atrás da outra a partir da porta                               | quando as faixas não cabem |
-| `lanes` | cada parada numa faixa ao longo da largura, **todas encostando na porta** | quando cabem               |
+| arranjo | como fica                                                                           | quando                                                         |
+| ------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `lanes` | cada parada numa faixa ao longo da largura, **todas encostando na porta**           | quando cabem                                                   |
+| `grid`  | K faixas; as K primeiras entregas na porta, lado a lado, e as seguintes atrás delas | faixas não cabem, e a grade coloca o que a profundidade coloca |
+| `depth` | uma parada atrás da outra a partir da porta                                         | quando nem faixas nem grade servem                             |
 
 Faixas cabem quando **as duas** valem:
 
@@ -45,8 +46,27 @@ profundidade produz um desenho que ninguém consegue seguir — e o operador seg
 ⚠️ **Carroceria aberta não ganha faixa**, pela mesma razão que ela equilibra sempre: quem abre o
 comprimento inteiro já tem toda a carga à mão, e não existe "a porta" a que encostar.
 
-⚠️ **Acima de metade do teto de massa a física vence**: a carga volta a profundidade e ao meio do
-baú. Teto desconhecido **não** afirma peso.
+⚠️ **Acima de metade do teto de massa a física vence**: as faixas caem, e a carga vai para a grade
+ou para a profundidade — as duas equilibram no comprimento. Teto desconhecido **não** afirma peso.
+
+### A grade (spec 113)
+
+Com faixa por parada impossível — muitas paradas, ou peso —, a profundidade punha a entrega 2 atrás da
+1 e a 3 atrás da 2: se a 1 ou a 2 dessem problema, tirava-se duas cargas para chegar à terceira. A
+grade divide a largura em **K faixas** (K de `floor(largura ÷ faixa mínima)` até 2) e distribui as
+paradas em rodízio: as K primeiras ficam **na porta, lado a lado**, e a parada K+1 fica atrás da 1,
+na mesma faixa. Dentro de cada faixa valem todas as regras deste arquivo — a faixa é um baú mais
+estreito, empacotado em profundidade.
+
+⚠️ **A faixa é aparada à largura que as caixas ocupam** (`packedLaneWidthM`). Com 0,347 m de faixa e
+caixa de 0,30 m, os 4,7 cm de folga deixavam a pilha sem parede de um lado, e a esbeltez a travava em
+0,75 m num baú de 2,20 m. A folga continua no desenho, entre as faixas.
+
+⚠️ **A grade só vale se colocar pelo menos o que a profundidade coloca** (`gridOrDepth`). O teste de
+volume prometia grade que a varredura não entregava: numa Fiorino com duas paradas de uma caixa e uma
+de trinta, a grade colocava 28 das 32 caixas. A decisão empacota os dois arranjos e compara — trocar
+acesso por caixa fora do desenho é o defeito que a grade veio consertar. Medido: 18,6 ms com 24
+paradas e 407 caixas, contra o orçamento de 50 ms.
 
 ---
 
@@ -143,6 +163,13 @@ antes da spec 100 inteira.
 ---
 
 ## Passo 6 — A carga que não coube na própria fatia
+
+⚠️ **A fatia nunca é mais curta que a caixa mais funda da parada** (spec 113). A proporção por volume
+não tinha piso: uma parada de três caixas levava 6% de um baú de 5,32 m — 0,35 m para uma caixa de
+0,40 m —, nenhuma caixa dela entrava na própria fatia, e a parada inteira sumia do desenho como
+`bedFull` num baú **30% cheio**. Medido em 24 paradas: de 2 paradas fora do desenho para zero, e de
+249 caixas, 249 colocadas. A divisão abaixo continua existindo — por **quantidade**, que é o caso que
+ela veio atender.
 
 - **Em profundidade:** sobe para a região das paradas entregues **depois**, mais fundo no baú, e sai
   marcada `splitCargo` (contorno vermelho). Ali nada fica por cima dela e o corredor já está livre
