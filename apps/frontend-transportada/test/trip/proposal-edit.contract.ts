@@ -17,7 +17,9 @@ describe('proposal edit contract', () => {
   test('o aceite é recusado enquanto a proposta estiver alterada', async () => {
     const source = await readSource('src/modules/trip/components/TripProposalList.component.tsx')
 
-    expect(source).toContain('disabled={isAccepting || isEdited || summary.selectedCount === 0}')
+    expect(source).toContain(
+      'disabled={isAccepting || isEdited || hasUnsavedOrder || summary.selectedCount === 0}',
+    )
   })
 
   /**

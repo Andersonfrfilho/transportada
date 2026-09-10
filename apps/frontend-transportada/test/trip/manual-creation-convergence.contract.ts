@@ -111,7 +111,7 @@ describe('manual creation convergence contract', () => {
   test('a proposta reordena, e a conta é a prévia da mesma ordem', async () => {
     const proposal = await readSource(PROPOSAL)
 
-    expect(proposal).toContain('onOrderChange={onOrderChange}')
+    expect(proposal).toContain('onOrderChange={handleOrderChange}')
     expect(proposal).toContain('useTripValuationPreview({')
     expect(proposal).toContain('<TripValuationPreview preview={valuationPreview} />')
     /** A conta da sugestão, medida na matriz sem nós, não volta para o expandido. */

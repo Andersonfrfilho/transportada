@@ -44,6 +44,7 @@ import {
   moveCity,
   proposeCityOrder,
   type AssemblyCityOrder,
+  orderPointsByKey,
 } from '../shared/assemblyOrder.service'
 import styles from '../styles/trip.module.css'
 
@@ -84,6 +85,13 @@ type TripAssemblyMapProps = Readonly<{
   onStopUndoRemove?: ((noteIds: readonly string[]) => void) | undefined
   /** As notas marcadas para sair. A parada é riscada quando **todas** as dela estão aqui. */
   removedNoteIds?: ReadonlySet<string> | undefined
+  /**
+   * A ordem em que a rota é **medida**. Ausente é a própria `order` — o mapa mede o que desenha.
+   *
+   * ⚠️ Existe para o rascunho das setas: a lista segue `order`, a rota segue esta, e enquanto as duas
+   * divergem o OSRM não é chamado. Cada troca de ordem era uma chamada nova ao roteirizador.
+   */
+  measuredOrder?: AssemblyCityOrder | undefined
   order: AssemblyCityOrder
   selected: readonly AssemblyMapNote[]
   /**
@@ -130,6 +138,7 @@ function formatFinishTime(iso: string): string {
  * ao lado dela diz isso.
  */
 export function TripAssemblyMap({
+  measuredOrder,
   nearby,
   onOrderChange,
   onStopRemove,
@@ -231,18 +240,27 @@ export function TripAssemblyMap({
    * já estava escrito no mapa da viagem, e que eu não segui.
    */
   /**
-   * ⚠️ A chave da consulta é a **ordem das paradas**, não a viagem: reordenar muda o caminho, e uma
-   * chave por seleção devolveria a estrada da ordem anterior. Só liga com duas paradas ou mais —
+   * ⚠️ A chave da consulta é a **ordem medida das paradas**, não a viagem: reordenar muda o caminho,
+   * e uma chave por seleção devolveria a estrada da ordem anterior. Só liga com duas paradas ou mais —
    * abaixo disso não há caminho a pedir.
+   *
+   * ⚠️ Medida, não desenhada: com `measuredOrder` o rascunho das setas reordena a lista sem mudar a
+   * chave, e o OSRM só é chamado de novo quando alguém salva a ordem.
    */
-  const routeKey = map.points.map((point) => `${point.latitude},${point.longitude}`).join(';')
+  const measuredPoints =
+    measuredOrder === undefined ? map.points : orderPointsByKey(map.points, measuredOrder)
+  /** A lista está num rascunho que a rota não mede — tudo que vem da rota descreveria a ordem antiga. */
+  const isDraft = map.points.some(
+    (point, index) => point.stopKey !== measuredPoints[index]?.stopKey,
+  )
+  const routeKey = measuredPoints.map((point) => `${point.latitude},${point.longitude}`).join(';')
   /** Sem veículo escolhido não há eixo a contar (spec 090 D2) — a chave muda junto do pedágio. */
   const tollVehicleId = vehicleId === '' ? null : vehicleId
   const geometryQuery = useQuery({
-    enabled: map.points.length >= 2,
+    enabled: measuredPoints.length >= 2,
     queryFn: () =>
       getTripClient().readPointsRouteGeometry({
-        points: map.points.map((point) => ({
+        points: measuredPoints.map((point) => ({
           latitude: point.latitude,
           longitude: point.longitude,
         })),
@@ -329,8 +347,9 @@ export function TripAssemblyMap({
    * As opções que o roteirizador ofereceu (spec 096 T1) — a principal em `[0]`. `hasChoice` vem
    * pronto da API (`rankRouteOptions`, T2): rota única nunca desenha seletor (D2).
    */
-  const routeOptions = geometryQuery.data?.options ?? []
-  const hasRouteChoice = geometryQuery.data?.hasChoice ?? false
+  /** As alternativas são da ordem medida: durante o rascunho elas escolheriam entre caminhos antigos. */
+  const routeOptions = isDraft ? [] : (geometryQuery.data?.options ?? [])
+  const hasRouteChoice = isDraft ? false : (geometryQuery.data?.hasChoice ?? false)
   const cheapestIndex = geometryQuery.data?.cheapestIndex ?? null
   const fastestIndex = geometryQuery.data?.fastestIndex ?? null
   const costGap = geometryQuery.data?.costGap ?? null
@@ -351,7 +370,7 @@ export function TripAssemblyMap({
    * resposta crua segue valendo: ela já é `{legs: [], points: [], source: 'unavailable', toll:
    * null}`.
    */
-  const activeGeometry =
+  const measuredGeometry =
     activeOption === null
       ? (geometryQuery.data ?? null)
       : {
@@ -366,6 +385,12 @@ export function TripAssemblyMap({
           source: 'road' as const,
           toll: activeOption.toll,
         }
+  /**
+   * ⚠️ **Durante o rascunho a rota não existe.** Pernas, pedágio por trecho e traço são da ordem
+   * medida, e desenhados sobre a lista reordenada apontariam a praça errada no trecho errado. Some
+   * tudo junto, e volta medido quando alguém salva.
+   */
+  const activeGeometry = isDraft ? null : measuredGeometry
   const legs = buildAssemblyLegs({ geometry: activeGeometry, points: map.points })
   /**
    * Spec 097: os trechos do barracão ficam **fora** de `legs` — a lista numerada é só das entregas

@@ -45,6 +45,16 @@ a cada troca. Três defeitos medidos estavam no caminho:
   classes `revenue`, `expense` e `profit`. Receita ausente fica sem cor: verde afirmaria um valor que
   ninguém calculou.
 
+- **D8 — As setas não vão ao servidor; quem mede é "Salvar ordem".** Na primeira versão cada toque
+  refazia três consultas — a conta, a carreta e a rota do mapa, as duas últimas no OSRM —, e descer uma
+  parada dez posições gastava trinta chamadas para mostrar números que o operador só queria ver no
+  fim. Hoje o toque troca a parada de lugar com a vizinha **na tela**; "Salvar ordem" mede uma vez.
+  Enquanto o rascunho está aberto: a faixa diz que pedágio, tempo e carreta são da ordem anterior; o
+  mapa desenha o rascunho e **mede a ordem salva** (`measuredOrder`), sem pernas, pedágio por trecho
+  nem traço, que apontariam a praça errada no trecho errado; e o aceite fica **travado** — a viagem
+  nasceria numa ordem que ninguém viu medida. Voltar à ordem salva apaga o rascunho sozinho. Na
+  criação manual nada muda: ela não passa `measuredOrder` e segue medindo a cada toque.
+
 ## Fora do escopo, e o porquê
 
 - **As linhas recolhidas e a barra de totais continuam na conta da sugestão**, sem pedágio. Levá-las à

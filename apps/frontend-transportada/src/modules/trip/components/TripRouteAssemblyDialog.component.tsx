@@ -140,6 +140,7 @@ export function TripRouteAssemblyDialog({
             </div>
 
             <TripProposalList
+              hasUnsavedOrder={assembly.hasUnsavedOrder}
               isEdited={assembly.isProposalEdited}
               isAccepting={assembly.acceptMutation.isPending}
               onAccept={(vehicleIds) => assembly.acceptMutation.mutate(vehicleIds)}
@@ -153,9 +154,14 @@ export function TripRouteAssemblyDialog({
               renderDetail={(view) => (
                 <TripProposalDetail
                   documents={assembly.pool}
+                  draftOrder={assembly.draftOrderByVehicle.get(view.vehicleId) ?? null}
                   manualOrder={assembly.orderByVehicle.get(view.vehicleId) ?? null}
-                  onOrderChange={(order) => assembly.setVehicleOrder(view.vehicleId, order)}
+                  onDiscardOrder={() => assembly.discardVehicleOrderDraft(view.vehicleId)}
+                  onDraftOrderChange={(order) =>
+                    assembly.setVehicleOrderDraft(view.vehicleId, order)
+                  }
                   onRemoveStop={assembly.markStopRemoved}
+                  onSaveOrder={() => assembly.saveVehicleOrder(view.vehicleId)}
                   onUndoRemoveStop={assembly.undoStopRemoval}
                   pendingRemovals={assembly.pendingRemovals}
                   permissions={permissions}

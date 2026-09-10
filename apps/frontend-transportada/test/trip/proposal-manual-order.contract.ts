@@ -20,11 +20,48 @@ describe('ordem escolhida à mão na proposta', () => {
   const hook = readSource('src/modules/trip/hooks/useTripRouteAssembly.hook.ts')
   const client = readSource('src/modules/trip/shared/tripClient.service.ts')
 
-  /** A escolhida à mão vence; sem ela, a do roteirizador. Uma ordem só para mapa, carga e conta. */
-  it('uma ordem só alimenta mapa, carga e conta', () => {
+  /** A salva à mão vence; sem ela, a do roteirizador. É essa que carga, conta e rota medem. */
+  it('carga, conta e rota medem a ordem salva', () => {
     expect(detail).toContain('const stopOrder = manualOrder ?? proposedOrder')
-    expect(detail).toContain('order={stopOrder}')
     expect(detail.match(/^\s+stopOrder,$/gmu)?.length).toBe(2)
+    expect(detail).toContain('measuredOrder={stopOrder}')
+  })
+
+  /**
+   * ⚠️ **As setas não vão ao servidor.** Cada troca refazia três consultas — a conta, a carreta e a
+   * rota do mapa, as duas últimas no OSRM. O rascunho só reordena a lista; quem mede é "Salvar
+   * ordem", uma vez.
+   */
+  it('as setas mexem no rascunho, e só salvar mede', () => {
+    expect(detail).toContain('const displayOrder = draftOrder ?? stopOrder')
+    expect(detail).toContain('order={displayOrder}')
+    /** O rascunho nunca chega às duas prévias: elas recebem a ordem salva, e mais nada. */
+    expect(detail).not.toMatch(/stopOrder: displayOrder|stopOrder: draftOrder/u)
+    expect(detail).toContain('onClick={onSaveOrder}')
+    expect(hook).toContain('saveVehicleOrder: (vehicleId: string) =>')
+  })
+
+  /**
+   * ⚠️ **O mapa pedia a rota na ordem da tela.** A chave da consulta era montada das coordenadas na
+   * ordem dos pontos desenhados, e toda troca de seta virava uma chamada nova ao OSRM. Hoje ele mede
+   * `measuredOrder` e desenha `order`; enquanto divergem, nada que venha da rota aparece.
+   */
+  it('o mapa desenha o rascunho sem remedir a rota', () => {
+    const map = readSource('src/modules/trip/components/TripAssemblyMap.component.tsx')
+    expect(map).toContain('measuredOrder?: AssemblyCityOrder | undefined')
+    expect(map).toContain('const routeKey = measuredPoints.map(')
+    expect(map).toContain('points: measuredPoints.map(')
+    expect(map).toContain('const activeGeometry = isDraft ? null : measuredGeometry')
+    expect(map).toContain('const routeOptions = isDraft ? [] :')
+    /** A chave nunca mais sai da ordem desenhada. */
+    expect(map).not.toContain('const routeKey = map.points.map(')
+  })
+
+  /** Rascunho aberto trava o aceite: a viagem nasceria numa ordem que ninguém viu medida. */
+  it('o aceite espera o rascunho ser salvo ou descartado', () => {
+    const list = readSource('src/modules/trip/components/TripProposalList.component.tsx')
+    expect(list).toContain('isAccepting || isEdited || hasUnsavedOrder')
+    expect(hook).toContain('hasUnsavedOrder: draftOrderByVehicle.size > 0')
   })
 
   /**
@@ -36,9 +73,10 @@ describe('ordem escolhida à mão na proposta', () => {
     expect(client).toContain('{ stopOrderByVehicle: input.stopOrderByVehicle }')
   })
 
-  /** Nova proposta e aceite zeram a ordem: ela descrevia caminhões que não existem mais. */
+  /** Nova proposta e aceite zeram a ordem e o rascunho: descreviam caminhões que não existem mais. */
   it('a ordem morre com a proposta que a gerou', () => {
     expect(hook.match(/setOrderByVehicle\(new Map\(\)\)/gu)?.length).toBe(2)
+    expect(hook.match(/setDraftOrderByVehicle\(new Map\(\)\)/gu)?.length).toBe(2)
   })
 
   /**

@@ -118,6 +118,17 @@ export function useTripRouteAssembly(
   const [orderByVehicle, setOrderByVehicle] = useState<ReadonlyMap<string, readonly string[]>>(
     new Map(),
   )
+  /**
+   * A ordem que as setas estão montando e que **ainda não foi salva**.
+   *
+   * ⚠️ **As setas não vão ao servidor.** Cada troca de ordem refazia três consultas — a conta, a
+   * carreta e a rota do mapa, as duas últimas no OSRM —, e descer uma parada dez posições gastava
+   * trinta chamadas para mostrar números que o operador só queria ver no fim. O rascunho troca de
+   * lugar na tela; quem mede é "Salvar ordem", uma vez.
+   */
+  const [draftOrderByVehicle, setDraftOrderByVehicle] = useState<
+    ReadonlyMap<string, readonly string[]>
+  >(new Map())
   const [pool, setPool] = useState<readonly TripCandidateDocument[]>([])
 
   const documentsQuery = useQuery({
@@ -216,6 +227,7 @@ export function useTripRouteAssembly(
       /** A proposta nova já nasce sem o que foi removido: a marcação cumpriu o papel dela. */
       setPendingRemovals(new Set())
       setOrderByVehicle(new Map())
+      setDraftOrderByVehicle(new Map())
     },
   })
 
@@ -261,6 +273,7 @@ export function useTripRouteAssembly(
       setOpenVehicleId(null)
       setPendingRemovals(new Set())
       setOrderByVehicle(new Map())
+      setDraftOrderByVehicle(new Map())
       setIsOpen(false)
       setDraft(EMPTY_TRIP_ROUTE_ASSEMBLY)
       setPool([])
@@ -295,8 +308,19 @@ export function useTripRouteAssembly(
     isProposalEdited: pendingRemovals.size > 0,
     pendingRemovals,
     orderByVehicle,
-    setVehicleOrder: (vehicleId: string, order: readonly string[]) =>
-      setOrderByVehicle((current) => new Map([...current, [vehicleId, order]])),
+    draftOrderByVehicle,
+    /** ⚠️ Rascunho não salvo trava o aceite: a viagem nasceria numa ordem que ninguém viu medida. */
+    hasUnsavedOrder: draftOrderByVehicle.size > 0,
+    setVehicleOrderDraft: (vehicleId: string, order: readonly string[]) =>
+      setDraftOrderByVehicle((current) => new Map([...current, [vehicleId, order]])),
+    discardVehicleOrderDraft: (vehicleId: string) =>
+      setDraftOrderByVehicle((current) => withoutVehicle(current, vehicleId)),
+    saveVehicleOrder: (vehicleId: string) => {
+      const draft = draftOrderByVehicle.get(vehicleId)
+      if (draft === undefined) return
+      setOrderByVehicle((current) => new Map([...current, [vehicleId, draft]]))
+      setDraftOrderByVehicle((current) => withoutVehicle(current, vehicleId))
+    },
     markStopRemoved: (nfeDocumentIds: readonly string[]) =>
       setPendingRemovals((current) => new Set([...current, ...nfeDocumentIds])),
     undoStopRemoval: (nfeDocumentIds: readonly string[]) =>
@@ -372,4 +396,13 @@ function vehicleIdsOf(proposal: MultiVehicleProposal): readonly string[] {
   return [
     ...new Set(proposal.stops.flatMap((stop) => (stop.vehicleId === null ? [] : [stop.vehicleId]))),
   ]
+}
+
+function withoutVehicle(
+  orders: ReadonlyMap<string, readonly string[]>,
+  vehicleId: string,
+): ReadonlyMap<string, readonly string[]> {
+  const next = new Map(orders)
+  next.delete(vehicleId)
+  return next
 }

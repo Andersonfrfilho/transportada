@@ -34,6 +34,11 @@ type TripProposalListProps = Readonly<{
   isEdited: boolean
   isAccepting: boolean
   isRecalculating: boolean
+  /**
+   * ⚠️ Há ordem de parada trocada nas setas e ainda não salva. O aceite fica travado: a viagem
+   * nasceria numa ordem que ninguém viu medida — nem o pedágio, nem o tempo, nem a carreta.
+   */
+  hasUnsavedOrder: boolean
   onAccept: (vehicleIds: readonly string[]) => void
   onDiscard: () => void
   onDiscardVehicle: (vehicleId: string) => void
@@ -59,6 +64,7 @@ type TripProposalListProps = Readonly<{
  * ajuda a tomá-la. Desmarcar a viagem com a conta incompleta tira a marca junto com ela.
  */
 export function TripProposalList({
+  hasUnsavedOrder,
   isAccepting,
   isEdited,
   isRecalculating,
@@ -234,7 +240,7 @@ export function TripProposalList({
             que sairia: o aceite parte dos grupos do servidor, e eles ainda não sabem da remoção.
           */}
           <Button
-            disabled={isAccepting || isEdited || summary.selectedCount === 0}
+            disabled={isAccepting || isEdited || hasUnsavedOrder || summary.selectedCount === 0}
             onClick={() => onAccept([...selected])}
             size="sm"
             type="button"
@@ -267,6 +273,12 @@ export function TripProposalList({
               <Icon name="refresh" />
               {t('proposal.recalculateProposal')}
             </Button>
+          </p>
+        ) : null}
+        {hasUnsavedOrder ? (
+          <p className={styles.proposalEditedBanner} role="status">
+            <Icon aria-hidden="true" name="alert" />
+            <span>{t('proposal.unsavedOrderBanner')}</span>
           </p>
         ) : null}
         {/* O que acontece com o resto, dito antes do clique: nada é criado para elas. */}

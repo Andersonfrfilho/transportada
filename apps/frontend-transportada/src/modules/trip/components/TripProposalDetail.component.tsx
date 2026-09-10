@@ -1,6 +1,8 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/ui/button'
+import { Icon } from '@/components/ui/icon'
 import { VehicleIdentityBand } from '@/modules/fleet/components/VehicleIdentityBand.component'
 import type { FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
 import {
@@ -12,6 +14,7 @@ import { useTripValuationPreview } from '@/modules/trip-financials/hooks/useTrip
 
 import { useTripCargoPreview } from '../hooks/useTripCargoPreview.hook'
 import { toAssemblyMapNote } from '../shared/assemblyMapNote.service'
+import { isSameOrder } from '../shared/assemblyOrder.service'
 import { buildProposalStopOrder, type ProposalVehicleView } from '../shared/proposalView.service'
 import type { TripCandidateDocument } from '../shared/trip.types'
 import { TripAssemblyMap } from './TripAssemblyMap.component'
@@ -26,10 +29,14 @@ type TripProposalDetailProps = Readonly<{
    * sabe onde o caminhão encosta é a nota, que a tela já carregou para montar o pedido.
    */
   documents: readonly TripCandidateDocument[]
-  /** A ordem escolhida à mão para esta viagem. `null` é ninguém mexeu, e vale a do roteirizador. */
+  /** A ordem que as setas estão montando e ninguém salvou. `null` é nenhum rascunho aberto. */
+  draftOrder: null | readonly string[]
+  /** A ordem salva à mão. `null` é ninguém salvou, e vale a do roteirizador. */
   manualOrder: null | readonly string[]
-  onOrderChange: (order: readonly string[]) => void
+  onDiscardOrder: () => void
+  onDraftOrderChange: (order: readonly string[]) => void
   onRemoveStop: (nfeDocumentIds: readonly string[]) => void
+  onSaveOrder: () => void
   onUndoRemoveStop: (nfeDocumentIds: readonly string[]) => void
   pendingRemovals: ReadonlySet<string>
   permissions: readonly string[]
@@ -47,9 +54,12 @@ type TripProposalDetailProps = Readonly<{
  */
 export function TripProposalDetail({
   documents,
+  draftOrder,
   manualOrder,
-  onOrderChange,
+  onDiscardOrder,
+  onDraftOrderChange,
   onRemoveStop,
+  onSaveOrder,
   onUndoRemoveStop,
   pendingRemovals,
   permissions,
@@ -78,8 +88,13 @@ export function TripProposalDetail({
     ),
     stops: view.stops,
   })
-  /** A escolhida à mão vence; sem ela, a do roteirizador. É esta que o mapa, a carga e a conta leem. */
+  /** A salva à mão vence; sem ela, a do roteirizador. É esta que a carga, a conta e a rota medem. */
   const stopOrder = manualOrder ?? proposedOrder
+  /**
+   * O que a lista mostra: o rascunho, quando há. ⚠️ Ele **não** vai às prévias — carreta e conta
+   * seguem a ordem salva até "Salvar ordem", e o mapa desenha o rascunho sem remedir a rota.
+   */
+  const displayOrder = draftOrder ?? stopOrder
   const cargo = useTripCargoPreview({
     driverIds: valuation?.driverId === null || valuation === null ? [] : [valuation.driverId],
     nfeDocumentIds: documentIds,
@@ -115,6 +130,12 @@ export function TripProposalDetail({
   const occupancy = cargo.preview?.occupancy ?? null
   const cargoWeight = cargo.preview?.cargoWeight ?? null
 
+  function handleOrderChange(order: readonly string[]): void {
+    /** Voltar à ordem salva não é rascunho: a faixa de "não salva" se apaga, e nada precisa ser medido. */
+    if (isSameOrder(order, stopOrder)) onDiscardOrder()
+    else onDraftOrderChange(order)
+  }
+
   return (
     <>
       <VehicleIdentityBand
@@ -144,19 +165,33 @@ export function TripProposalDetail({
       />
 
       {/*
-        ⚠️ **As setas reordenam e recalculam.** A D6 da spec 110 as recusou porque a conta ao lado
-        era a do roteirizador e não acompanharia a ordem nova. Hoje a conta é a prévia desta viagem,
-        alimentada pela mesma `stopOrder` do mapa e da carga: reordenar mede o caminho novo, o
-        pedágio dele e a arrumação do baú. Remover parada continua sendo outra coisa — ela muda o
-        maço, e o aceite fica travado até o recálculo da proposta.
+        ⚠️ **As setas trocam de lugar na tela; quem mede é "Salvar ordem".** Cada troca refazia três
+        consultas — a conta, a carreta e a rota do mapa, as duas últimas no OSRM. Hoje o rascunho só
+        reordena a lista, e salvar mede uma vez: o caminho novo, o pedágio dele e a arrumação do baú.
+        Remover parada continua sendo outra coisa — ela muda o maço, e pede o recálculo da proposta.
       */}
+      {draftOrder === null ? null : (
+        <p className={styles.proposalEditedBanner} role="status">
+          <Icon aria-hidden="true" name="alert" />
+          <span>{t('proposal.orderDraftNotice')}</span>
+          <Button onClick={onSaveOrder} size="sm" type="button" variant="secondary">
+            <Icon name="refresh" />
+            {t('proposal.saveOrder')}
+          </Button>
+          <Button onClick={onDiscardOrder} size="sm" type="button" variant="ghost">
+            <Icon name="close" />
+            {t('proposal.discardOrder')}
+          </Button>
+        </p>
+      )}
       {mapNotes.length === 0 ? null : (
         <TripAssemblyMap
+          measuredOrder={stopOrder}
           nearby={[]}
-          onOrderChange={onOrderChange}
+          onOrderChange={handleOrderChange}
           onStopRemove={onRemoveStop}
           onStopUndoRemove={onUndoRemoveStop}
-          order={stopOrder}
+          order={displayOrder}
           /** Spec 110 D6: a parada marcada fica **riscada com "Desfazer"**, nunca some. */
           removedNoteIds={pendingRemovals}
           revenueLines={valuationPreview.valuation?.revenueLines}

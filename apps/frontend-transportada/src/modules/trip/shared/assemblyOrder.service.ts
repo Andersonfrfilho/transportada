@@ -149,3 +149,29 @@ export function resolveStopOrder(input: {
 function isBlank(value: string): boolean {
   return value.trim() === ''
 }
+
+/**
+ * Duas ordens são a mesma quando têm as mesmas chaves nas mesmas posições.
+ *
+ * ⚠️ Voltar à ordem salva **não é rascunho**: sem esta conta, descer e subir a mesma parada deixaria
+ * a faixa de "ordem não salva" acesa — e o aceite travado — sobre uma ordem que já foi medida.
+ */
+export function isSameOrder(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((key, index) => key === right[index])
+}
+
+/**
+ * Os pontos do mapa na ordem dada, pela chave de parada. Ponto que a ordem não menciona vai para o
+ * fim, na ordem em que estava — a mesma regra de `orderStopKeys` na API.
+ *
+ * ⚠️ Existe para o mapa **medir uma ordem e desenhar outra**: o rascunho das setas reordena a lista,
+ * e a rota continua sendo pedida na ordem salva até alguém salvar.
+ */
+export function orderPointsByKey<TPoint extends Readonly<{ stopKey: string }>>(
+  points: readonly TPoint[],
+  order: AssemblyCityOrder,
+): readonly TPoint[] {
+  const rank = new Map(order.map((key, index) => [key, index]))
+  const rankOf = (point: TPoint): number => rank.get(point.stopKey) ?? Number.MAX_SAFE_INTEGER
+  return [...points].sort((left, right) => rankOf(left) - rankOf(right))
+}
