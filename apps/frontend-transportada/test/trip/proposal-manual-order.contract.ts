@@ -202,6 +202,8 @@ describe('ordem escolhida à mão na proposta', () => {
     expect(layers).toContain('onLoadingMove === undefined || facts === undefined ? null : (')
     /** A ordem de carregamento é selo, não linha cinza no meio da ficha. */
     expect(layers).toContain('styles.cargoStopLoadingBadge')
+    /** As fichas saem na ordem de carregamento — é a leitura de quem enche o baú. */
+    expect(layers).toMatch(/first\.facts\?\.loadingPosition \?\? Number\.MAX_SAFE_INTEGER/u)
     /** As duas setas lado a lado, como as do mapa. */
     const css = readSource('src/modules/trip/styles/trip.module.css')
     const moves = css.slice(css.indexOf('.cargoStopMoves {'))

@@ -156,6 +156,15 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
   ]
     .sort((first, second) => first - second)
     .map((sequence) => ({ facts: chipFacts.get(sequence), sequence }))
+    /**
+     * ⚠️ **Na ordem em que se carrega**, não na de entrega: quem está no galpão lê a lista de cima para
+     * baixo enquanto enche o baú. Ficha sem posição (parada fora do desenho) vai para o fim.
+     */
+    .sort(
+      (first, second) =>
+        (first.facts?.loadingPosition ?? Number.MAX_SAFE_INTEGER) -
+        (second.facts?.loadingPosition ?? Number.MAX_SAFE_INTEGER),
+    )
 
   return (
     <section aria-labelledby="trip-cargo-layers-title" className={styles.panel} data-print-region>
