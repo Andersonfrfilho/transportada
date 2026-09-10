@@ -1,3 +1,5 @@
+| tom por nota e a trava contra a cor de outra parada | `frontend/src/modules/trip/shared/noteTone.service.ts` |
+
 # Como as caixas são organizadas no baú
 
 Referência viva do empacotador — `apps/api-transportada/src/trips/domain/cargo-placement.policy.ts`
@@ -369,6 +371,20 @@ parou nela, e o confinamento só quando alguma de fato passou dela.
 
 ⚠️ A planta é uma **instrução**, e instrução sem motivo não se confere: sem essas frases a única
 leitura possível é "o sistema decidiu", e aí ou se obedece sem entender, ou se ignora.
+
+## A nota de cada caixa (spec 119)
+
+`PlacedBox` carrega `documentId` e `documentNumber` — a nota de onde a caixa veio, carimbada por
+`stampCargoNote` onde as caixas viram da parada. `null` é "não se sabe", nunca uma nota inventada.
+
+⚠️ **A nota é carona, nunca critério.** Nenhuma comparação, chave de formato (`shapeKey`) ou
+ordenação do empacotador lê os dois campos; ele só os copia para a caixa colocada. Conferido nas
+quatro viagens reais de 2026-09-10: coordenadas idênticas com e sem nota
+(`test/cargo-placement/note-identity.contract.ts` confere o mesmo nas duas cargas do fixture).
+
+A tela usa a nota para dar um **tom por nota dentro da cor da parada** e para acender só as caixas
+de uma nota. A marca de presumida é o contorno pontilhado — não mais a lavagem, que clareava
+justamente o que agora distingue a nota.
 
 ---
 

@@ -45,6 +45,12 @@ export type UnplacedReason = (typeof UNPLACED_REASONS)[number]
 
 export type PlacementBox = {
   readonly count: number
+  /**
+   * Spec 119: a nota de origem, só de carona. ⚠️ Nenhuma comparação, chave de formato ou ordenação
+   * pode ler estes dois campos — é isso que garante que a nota não move caixa nenhuma.
+   */
+  readonly documentId?: string | null
+  readonly documentNumber?: string | null
   readonly heightMm: number | null
   /** `null` é "ninguém informou", nunca "pode": o nulo empilha e marca o arranjo como presumido. */
   readonly isFragile: boolean | null
@@ -60,6 +66,9 @@ export type PlacementBox = {
 
 export type PlacedBox = {
   readonly depthM: number
+  /** Spec 119: a nota de origem (`nfe_documents.id`) e o número impresso; `null` quando não se sabe. */
+  readonly documentId: string | null
+  readonly documentNumber: string | null
   readonly heightM: number
   readonly isFragile: boolean
   readonly label: string
@@ -1035,6 +1044,8 @@ function packSlice(input: {
           reasons: resolveReasons(box),
           source: box.source,
           stopSequence: box.stopSequence,
+          documentId: box.documentId ?? null,
+          documentNumber: box.documentNumber ?? null,
           widthM: round(slot.widthM),
           xM: round(dead.xM),
           yM: round(dead.yM),
@@ -1160,6 +1171,8 @@ function packSlice(input: {
         reasons: resolveReasons(box),
         source: box.source,
         stopSequence: box.stopSequence,
+        documentId: box.documentId ?? null,
+        documentNumber: box.documentNumber ?? null,
         widthM: round(slot.widthM),
         xM: round(cursor.xM),
         yM: round(cursor.yM),
@@ -1686,6 +1699,8 @@ function placeSplitCargo(input: {
       reasons: [...resolveReasons(box), 'splitCargo'],
       source: box.source,
       stopSequence: box.stopSequence,
+      documentId: box.documentId ?? null,
+      documentNumber: box.documentNumber ?? null,
       widthM: round(slot.widthM),
       xM: round(spot.xM),
       yM: round(spot.yM),

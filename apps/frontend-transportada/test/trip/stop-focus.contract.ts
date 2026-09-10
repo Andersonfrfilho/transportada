@@ -59,7 +59,7 @@ describe('trip stop focus contract', () => {
     )
     const css = readApplicationFile('src/components/ui/cargo-isometric.module.css')
 
-    expect(component).toContain('isStopLit(focus, box.stopSequence)')
+    expect(component).toContain('isBoxLit(focus, box)')
     expect(component).toContain('aria-pressed')
     expect(css).toContain('.boxGhost')
     expect(css).not.toContain('stroke-dasharray: 3')

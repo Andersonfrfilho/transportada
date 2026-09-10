@@ -62,6 +62,7 @@ import { loadTripCargoWeight } from './trip-cargo-weight.support.js'
 import { withPayloadCeiling } from '../domain/trip-cargo-weight.policy.js'
 import { loadTripOccupancy } from './trip-occupancy.support.js'
 import { resolveCargoLayout, sumVolumes } from '../domain/cargo-layout.policy.js'
+import { stampCargoNote } from '../domain/cargo-plan.policy.js'
 import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
 
@@ -803,7 +804,12 @@ async function readTripDetail(
         boxes: stop.documents.flatMap((document) =>
           document.nfeDocumentId === null
             ? []
-            : [...(cargo.boxesByDocument.get(document.nfeDocumentId) ?? [])],
+            : /** Spec 119: a caixa leva a nota — é por ela que a tela dá um tom por nota. */
+              stampCargoNote({
+                boxes: cargo.boxesByDocument.get(document.nfeDocumentId) ?? [],
+                documentId: document.nfeDocumentId,
+                documentNumber: document.nfeNumber ?? null,
+              }),
         ),
         clientName: stop.clientName,
         documentsWithoutVolume: volumes.length - known.length,

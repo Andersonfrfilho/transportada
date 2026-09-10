@@ -26,6 +26,11 @@ export type IsometricBox = Readonly<{
   layer: number
   /** A parada a que a caixa pertence — é ela que a fatia separa. */
   stopSequence: number
+  /**
+   * Spec 119: o tom da nota dentro da cor da parada — `0` é a própria cor. Quem escolhe é
+   * `noteTone.service.ts`; aqui ele só vira a classe que mistura.
+   */
+  tone: number
   widthM: number
   xM: number
   yM: number
@@ -289,9 +294,12 @@ export function CargoIsometric({
  * cada uma com um tom. É o sombreado que faz o olho ler volume; sem ele o isométrico vira um mosaico
  * de losangos.
  *
- * ⚠️ Toda face é preenchida com **cor sólida**, e a presumida recebe uma **lavagem** por cima — a
- * mesma cor, mais clara. Hachura não serve: o risco diagonal cruza as arestas e lê como rachadura na
- * quina, e um padrão SVG tem fundo transparente, o que deixava a caixa vazada.
+ * ⚠️ Toda face é preenchida com **cor sólida**: a da parada, no tom da nota (spec 119). A cor chega
+ * pelo `color` do grupo e a face pinta `currentColor` — é assim que a classe de tom a mistura com um
+ * token sem hexadecimal nenhum. A presumida é marcada pelo **contorno pontilhado**, não pelo tom:
+ * a lavagem de antes clareava justamente o que hoje distingue a nota. Hachura continua recusada: o
+ * risco diagonal cruza as arestas e lê como rachadura na quina, e um padrão SVG tem fundo
+ * transparente, o que deixava a caixa vazada.
  */
 function IsometricSolid({
   angle,
@@ -338,13 +346,14 @@ function IsometricSolid({
   const face = (points: readonly Point[], shade: string): JSX.Element => (
     <>
       <polygon
-        className={shade}
-        fill={box.isGhost ? GHOST_FILL : box.color}
+        className={cn(
+          shade,
+          !box.isGhost && toneClassOf(box.tone),
+          box.isEstimated && !box.isGhost && styles.facePresumed,
+        )}
+        fill="currentColor"
         points={toPoints(points)}
       />
-      {box.isEstimated && !box.isGhost ? (
-        <polygon className={styles.faceWash} points={toPoints(points)} />
-      ) : null}
       {box.isSplit && !box.isGhost ? (
         <polygon className={styles.faceSplit} points={toPoints(points)} />
       ) : null}
@@ -354,6 +363,7 @@ function IsometricSolid({
   return (
     <g
       className={cn(styles.box, dimmed && styles.boxDimmed, box.isGhost && styles.boxGhost)}
+      color={box.isGhost ? GHOST_FILL : box.color}
       data-box-id={box.id}
     >
       {face(horizontal, styles.faceTop ?? '')}
@@ -361,6 +371,29 @@ function IsometricSolid({
       {face(alongY, styles.faceSide ?? '')}
     </g>
   )
+}
+
+/**
+ * A amostra do tom de uma nota, para a lista da ficha. Mora aqui para usar as **mesmas** classes de
+ * tom das faces: a amostra e a caixa desenhada nunca discordam.
+ */
+export function CargoToneSwatch({
+  className,
+  color,
+  tone,
+}: Readonly<{ className?: string | undefined; color: string; tone: number }>): JSX.Element {
+  return (
+    <span
+      aria-hidden
+      className={cn(styles.swatch, toneClassOf(tone), className)}
+      style={{ color }}
+    />
+  )
+}
+
+/** A classe que mistura o tom; o tom `0` é a própria cor, sem classe. */
+function toneClassOf(tone: number): string | undefined {
+  return tone <= 0 ? undefined : styles[`noteTone${String(tone)}`]
 }
 
 function toPoints(points: readonly (Point | undefined)[]): string {

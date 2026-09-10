@@ -581,6 +581,8 @@ function toPlacementBoxes(
       return {
         count: box.count,
         heightMm: shape.heightMm,
+        documentId: box.documentId ?? null,
+        documentNumber: box.documentNumber ?? null,
         isFragile: box.isFragile ?? null,
         isStackable: box.isStackable ?? null,
         keepUpright: box.keepUpright ?? null,

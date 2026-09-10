@@ -151,6 +151,12 @@
       "presumed": "{{count}} presumidas",
       "split": "{{count}} divididas"
     },
+    "invoice": {
+      "listLabel": "Notas de {{label}}",
+      "number": "NF {{number}}",
+      "toggle": "Acender só as caixas da {{label}}",
+      "withoutNumber": "Nota sem número"
+    },
     "doorsRear": "Este baú abre só na traseira: a última parada precisa viajar no fundo.",
     "doorsRearAndSide": "Este baú abre na traseira e na lateral direita: a ordem ajuda, mas não obriga.",
     "dragHint": "arraste para girar",
@@ -159,7 +165,8 @@
     "layerSummary": " · {{boxes}} caixas · {{stops}} parada(s) · {{height}} m",
     "legend": {
       "measured": "Cor cheia: caixa medida com fita.",
-      "presumed": "Cor lavada: caixa presumida, derivada do volume.",
+      "notes": "Tons da mesma cor: notas diferentes da mesma entrega — toque na nota, na ficha da entrega, para acender só as caixas dela.",
+      "presumed": "Contorno pontilhado: caixa presumida, derivada do volume.",
       "split": "Contorno vermelho: carga dividida, no topo do lado de dentro."
     },
     "missingBed": "Sem o desenho da carga: este veículo não tem comprimento, largura e altura do baú na ficha.",

@@ -73,7 +73,9 @@ describe('planta das camadas (spec 094)', () => {
     const isometric = readApplicationFile('src/components/ui/cargo-isometric.tsx')
 
     expect(source).toContain("isEstimated: box.source === 'estimated'")
-    expect(isometric).toContain('<polygon className={styles.faceWash}')
+    /** Spec 119: a presumida é o contorno pontilhado — a lavagem clareava o tom da nota. */
+    expect(isometric).toContain('styles.facePresumed')
+    expect(isometric).not.toContain('faceWash')
   })
 
   /** O que não coube é nomeado, nunca escondido — e cada motivo tem texto próprio. */

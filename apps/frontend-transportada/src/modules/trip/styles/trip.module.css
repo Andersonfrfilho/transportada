@@ -2093,6 +2093,41 @@
   color: var(--color-copper);
 }
 
+/** Spec 119: a ficha da entrega e, logo abaixo, as notas que ela carrega. */
+.cargoStopGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/** Recuada sob a ficha: a nota é parte da entrega, não uma entrega ao lado dela. */
+.cargoNoteList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 var(--space-6);
+}
+
+.cargoNoteChip {
+  align-items: center;
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--color-slate) 35%, transparent);
+  color: var(--color-fog);
+  cursor: pointer;
+  display: flex;
+  font-size: 0.75rem;
+  gap: var(--space-2);
+  min-height: var(--control-height-compact);
+  padding: 0 var(--space-2);
+}
+
+.cargoNoteChip[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--color-copper) 18%, transparent);
+  border-color: var(--color-copper);
+}
+
 /** A legenda do desenho: três linhas curtas, porque cada marca só significa alguma coisa nomeada. */
 .cargoLegend {
   color: var(--color-slate);

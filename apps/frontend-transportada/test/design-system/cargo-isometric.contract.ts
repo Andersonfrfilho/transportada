@@ -74,7 +74,7 @@ describe('design system cargo isometric contract', () => {
   })
 
   /**
-   * ⚠️ A caixa presumida é a **mesma cor, lavada** — nunca hachura. O risco diagonal cruza as arestas
+   * ⚠️ A caixa presumida é marcada pelo **contorno pontilhado** (spec 119) — nunca hachura. O risco diagonal cruza as arestas
    * e lê como rachadura na quina, e com o dado de hoje ele cobriria quase toda a carga: a tela
    * inteira ficava riscada. E um padrão SVG tem fundo transparente, então usá-lo como preenchimento
    * deixava a caixa **vazada**.
@@ -83,6 +83,7 @@ describe('design system cargo isometric contract', () => {
     const source = await readApplicationFile('src/components/ui/cargo-isometric.tsx')
 
     expect(source).not.toContain('pattern')
-    expect(source).toContain('faceWash')
+    expect(source).not.toContain('faceWash')
+    expect(source).toContain('facePresumed')
   })
 })

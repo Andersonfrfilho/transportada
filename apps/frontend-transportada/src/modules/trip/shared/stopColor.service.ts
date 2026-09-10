@@ -116,7 +116,12 @@ function buildCandidates(): readonly Readonly<{ hex: string; lab: readonly numbe
   return built
 }
 
-function labDistance(first: readonly number[], second: readonly number[]): number {
+/** A cor em CIELab — exportada para a trava dos tons de nota (spec 119) medir no mesmo espaço. */
+export function hexToLab(hex: string): readonly number[] {
+  return toLab(toChannels(hex))
+}
+
+export function labDistance(first: readonly number[], second: readonly number[]): number {
   return Math.hypot(...first.map((value, index) => value - (second[index] ?? 0)))
 }
 

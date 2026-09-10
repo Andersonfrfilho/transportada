@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { sumVolumes, type CargoLayoutStop } from './cargo-layout.policy.js'
-import type { CargoPlanBox } from './cargo-plan.policy.js'
+import { stampCargoNote, type CargoPlanBox } from './cargo-plan.policy.js'
 
 export type CargoPreviewDocument = {
   /** A chave da parada — `buildStopAddressKey`. `null` quando o endereço não normaliza. */
@@ -101,7 +101,14 @@ export function buildCargoPreviewStops(input: {
     if (document.number !== undefined) current.noteNumbers.push(document.number)
     if (document.volumeM3 === null) current.missing += 1
     else current.volumes.push(document.volumeM3)
-    current.boxes.push(...(input.boxesByDocument?.get(document.nfeDocumentId) ?? []))
+    /** Spec 119: a caixa leva a nota de onde veio — é aqui que ela vira caixa da parada. */
+    current.boxes.push(
+      ...stampCargoNote({
+        boxes: input.boxesByDocument?.get(document.nfeDocumentId) ?? [],
+        documentId: document.nfeDocumentId,
+        documentNumber: document.number ?? null,
+      }),
+    )
     grouped.set(key, current)
   }
 

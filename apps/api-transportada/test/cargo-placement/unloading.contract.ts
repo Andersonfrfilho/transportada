@@ -113,13 +113,18 @@ function place(load: RealLoad): CargoPlacement {
 
 /** Uma planta montada à mão, caixa por caixa, para afirmar o que a simulação reprova e aprova. */
 function handBuilt(
-  boxes: readonly Omit<PlacedBox, 'isFragile' | 'label' | 'layer' | 'reasons' | 'source'>[],
+  boxes: readonly Omit<
+    PlacedBox,
+    'documentId' | 'documentNumber' | 'isFragile' | 'label' | 'layer' | 'reasons' | 'source'
+  >[],
 ): CargoPlacement {
   return {
     layers: [
       {
         boxes: boxes.map((box) => ({
           ...box,
+          documentId: null,
+          documentNumber: null,
           isFragile: false,
           label: `P${String(box.stopSequence)}`,
           layer: Math.round(box.zM / box.heightM),

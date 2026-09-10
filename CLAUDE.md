@@ -665,6 +665,20 @@ entregas posteriores (`isOutOfReach`), e o rendimento da orientação conta cél
 481 → 441, Atego 1347 → 1190; a grade não vence mais nas quatro viagens reais. O vocabulário de
 `STOP_ARRANGEMENTS` não mudou — o frontend não precisa subir.
 
+**Cada caixa sabe de que nota veio, e a nota tem tom próprio** (spec 119). `PlacedBox` publica
+`documentId` (`nfe_documents.id`) e `documentNumber` (o número impresso), carimbados por
+`stampCargoNote` onde as caixas viram da parada — `buildCargoPreviewStops` e o repositório da viagem
+—, e `null` quando a nota não é conhecida. ⚠️ **A nota é carona, nunca critério**: o empacotador só
+copia os dois campos, e as quatro viagens reais saem com as mesmas coordenadas com e sem nota. No
+desenho a cor segue sendo da parada e cada nota ganha um tom dela (`noteTone.service.ts`: a cor
+misturada a `--color-fog`/`--color-asphalt` por `color-mix`, escolhido pela posição do id entre os
+ids da parada). ⚠️ **Tom que ficaria mais perto de outra parada desenhada não é oferecido** — medido: a
+paleta das paradas é densa em CIELab, e mistura fixa nenhuma distingue as notas e fica longe de todas
+as paradas a partir de ~8 paradas; na viagem grande notas da mesma parada podem repetir tom, e acender
+a nota na ficha da entrega é o caminho inequívoco. A presumida deixou de ser o tom claro: é o
+**contorno pontilhado**. O frontend lê os dois campos como opcionais e `isPlacement` não percorre as
+chaves da caixa — **qualquer ordem de deploy funciona**.
+
 **Como as caixas são organizadas no baú está documentado por extenso em
 `docs/domain/cargo-placement.md`** — o arranjo em faixas ou em profundidade, a varredura que sobe
 antes de andar para o fundo, a orientação por rendimento, o teto de esbeltez da pilha e o

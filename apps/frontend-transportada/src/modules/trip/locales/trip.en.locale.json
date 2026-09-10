@@ -116,6 +116,12 @@
       "presumed": "{{count}} presumed",
       "split": "{{count}} split"
     },
+    "invoice": {
+      "listLabel": "Invoices of {{label}}",
+      "number": "Invoice {{number}}",
+      "toggle": "Light only the boxes of {{label}}",
+      "withoutNumber": "Invoice without number"
+    },
     "doorsRear": "This bed only opens at the rear: the last stop must travel at the far end.",
     "doorsRearAndSide": "This bed opens at the rear and on the right side: the order helps, it does not bind.",
     "dragHint": "drag to turn",
@@ -124,7 +130,8 @@
     "layerSummary": " · {{boxes}} boxes · {{stops}} stop(s) · {{height}} m",
     "legend": {
       "measured": "Solid colour: box measured with a tape.",
-      "presumed": "Washed colour: presumed box, derived from volume.",
+      "notes": "Shades of one colour: different invoices of the same delivery — tap the invoice on the delivery card to light only its boxes.",
+      "presumed": "Dotted outline: presumed box, derived from volume.",
       "split": "Red outline: split cargo, on top of the inner region."
     },
     "missingBed": "No cargo drawing: this vehicle has no bed length, width and height on its record.",

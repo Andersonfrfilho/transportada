@@ -11,6 +11,12 @@ const MILLIMETRES_PER_METRE = 1000
  */
 export type CargoPlanBox = {
   readonly count: number
+  /**
+   * Spec 119: a nota de onde a caixa veio (`nfe_documents.id`) e o número impresso dela. Carona da
+   * caixa até o desenho, nunca critério de posição — ausente é "não se sabe", e sai `null`.
+   */
+  readonly documentId?: string | null
+  readonly documentNumber?: string | null
   readonly heightMm: number | null
   /**
    * Spec 094: as restrições que decidem **onde** a caixa pode ir. `null` é "ninguém informou", nunca
@@ -108,4 +114,20 @@ function isMeasuredBox(box: CargoPlanBox): box is MeasuredCargoPlanBox {
 /** Metro com milímetro (`8.900`) para o milímetro inteiro que a caixa medida usa. */
 function toMillimetres(value: string): number {
   return Math.round(Number(value) * MILLIMETRES_PER_METRE)
+}
+
+/**
+ * Spec 119: as caixas de uma nota, carimbadas com ela. Chamado onde as caixas viram **da parada** —
+ * a prévia e o detalhe da viagem —, para os dois caminhos carimbarem pela mesma regra.
+ */
+export function stampCargoNote(input: {
+  readonly boxes: readonly CargoPlanBox[]
+  readonly documentId: string
+  readonly documentNumber: string | null
+}): CargoPlanBox[] {
+  return input.boxes.map((box) => ({
+    ...box,
+    documentId: input.documentId,
+    documentNumber: input.documentNumber,
+  }))
 }

@@ -235,6 +235,12 @@ export type TripOccupancy = Readonly<{
  */
 export type TripPlacedBox = Readonly<{
   depthM: number
+  /**
+   * Spec 119: a nota de origem e o número impresso dela. Opcionais: API anterior à 119 não os serve,
+   * e aí toda caixa sai no tom da parada, sem a lista de notas.
+   */
+  documentId?: string | null | undefined
+  documentNumber?: string | null | undefined
   heightM: number
   isFragile: boolean
   label: string
