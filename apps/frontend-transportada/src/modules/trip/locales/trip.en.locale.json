@@ -443,7 +443,7 @@
     "margin": "Profit",
     "missingParcels": "missing parcels",
     "moreCities": "{{count}} more",
-    "moveTargetLabel": "{{vehicle}} — would carry {{load}} of {{ceiling}}",
+    "moveTargetLabel": "{{vehicle}} — would carry {{load}} kg of {{ceiling}} kg",
     "nothingCreated": "Nothing has been created yet — no trip, no note link",
     "orderDraftNotice": "Changes not saved yet: toll, time and cargo below are for the previous version.",
     "overPayload": "over the ceiling: {{percentage}}% of {{ceiling}} kg",

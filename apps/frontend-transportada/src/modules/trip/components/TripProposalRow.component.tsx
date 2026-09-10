@@ -55,12 +55,14 @@ export function TripProposalRow({
   const { t } = useTranslation('trip')
   const color = stopColorOf(index + 1)
   const cities = summarizeProposalCities(view.cities)
-  const marginTone = view.hasGaps
-    ? styles.proposalWarn
-    : isNegative(view.totalMargin ?? '0.00')
-      ? /** Prejuízo é dinheiro saindo: o vermelho da despesa, como no razão logo abaixo. */
-        styles.proposalExpenses
-      : styles.proposalProfit
+  /**
+   * ⚠️ **Lucro é verde e prejuízo é vermelho, com ou sem conta incompleta** — como no razão logo
+   * abaixo. O tom cobre de "incompleto" pintava o mesmo lucro de duas cores na mesma tela; o aviso de
+   * parcela em falta é o texto da própria linha, não a cor do número.
+   */
+  const marginTone = isNegative(view.totalMargin ?? '0.00')
+    ? styles.proposalExpenses
+    : styles.proposalProfit
 
   return (
     <li className={`${styles.proposalRow} ${isOpen ? styles.proposalRowOpen : ''}`}>

@@ -140,6 +140,36 @@ describe('ordem escolhida à mão na proposta', () => {
     }
   })
 
+  /**
+   * ⚠️ **Um lucro, uma cor.** A linha e a barra pintavam o lucro de cobre quando a conta tinha lacuna,
+   * e o razão logo abaixo pintava o mesmo lucro de verde. O aviso de incompleto é texto.
+   */
+  it('lucro é verde com ou sem lacuna, e o aviso de incompleto é texto', () => {
+    const row = readSource('src/modules/trip/components/TripProposalRow.component.tsx')
+    const list = readSource('src/modules/trip/components/TripProposalList.component.tsx')
+    const css = readSource('src/modules/trip/styles/trip.module.css')
+    for (const source of [row, list, css]) expect(source).not.toContain('proposalWarn')
+    expect(list).toContain("note={summary.hasGaps ? t('proposal.missingParcels') : null}")
+  })
+
+  /**
+   * ⚠️ **A lixeira mora ao lado das setas.** A linha era um grid de quatro colunas, uma por botão, e
+   * o select de mover virou o quinto filho — a lixeira caiu numa linha própria. Medido na tela em
+   * 2026-09-10, na proposta real.
+   */
+  it('setas, mover e lixeira ficam num grupo só', () => {
+    const map = readSource('src/modules/trip/components/TripAssemblyMap.component.tsx')
+    const css = readSource('src/modules/trip/styles/trip.module.css')
+    expect(map).toContain('<div className={styles.assemblyStopActions}>')
+    const rule = css.slice(css.indexOf('.assemblyOrder li {'))
+    expect(rule.slice(0, rule.indexOf('}'))).toContain('grid-template-columns: 1fr auto;')
+  })
+
+  it('o rótulo do caminhão de destino diz a unidade', () => {
+    const pt = readSource('src/modules/trip/locales/trip.locale.json')
+    expect(pt).toContain('fica com {{load}} kg de {{ceiling}} kg')
+  })
+
   /** Verde é o que entra, vermelho é o que sai — a receita era a única total sem cor. */
   it('a receita é verde', () => {
     const css = readSource('src/modules/trip-financials/styles/tripFinancials.module.css')

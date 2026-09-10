@@ -903,78 +903,85 @@ export function TripAssemblyMap({
                 )}
               </div>
             </div>
-            {onOrderChange === undefined ? null : (
-              <>
-                <Button
-                  aria-label={t('assemblyMap.moveUp', { label: point.label })}
-                  disabled={index === 0}
-                  onClick={() =>
-                    onOrderChange(moveCity({ code: point.stopKey, direction: -1, order }))
-                  }
-                  size="sm"
-                  variant="ghost"
-                >
-                  <Icon name="chevron-up" />
-                </Button>
-                <Button
-                  aria-label={t('assemblyMap.moveDown', { label: point.label })}
-                  disabled={index === map.points.length - 1}
-                  onClick={() =>
-                    onOrderChange(moveCity({ code: point.stopKey, direction: 1, order }))
-                  }
-                  size="sm"
-                  variant="ghost"
-                >
-                  <Icon name="chevron-down" />
-                </Button>
-              </>
-            )}
             {/*
+              ⚠️ **Os botões são um grupo só.** A linha é um grid de conteúdo + ações, e cada botão
+              solto ocupava uma coluna fixa: quando o select de mover entrou, a lixeira virou o
+              quinto filho de um grid de quatro colunas e caiu numa linha própria, longe das setas.
+            */}
+            <div className={styles.assemblyStopActions}>
+              {onOrderChange === undefined ? null : (
+                <>
+                  <Button
+                    aria-label={t('assemblyMap.moveUp', { label: point.label })}
+                    disabled={index === 0}
+                    onClick={() =>
+                      onOrderChange(moveCity({ code: point.stopKey, direction: -1, order }))
+                    }
+                    size="sm"
+                    variant="ghost"
+                  >
+                    <Icon name="chevron-up" />
+                  </Button>
+                  <Button
+                    aria-label={t('assemblyMap.moveDown', { label: point.label })}
+                    disabled={index === map.points.length - 1}
+                    onClick={() =>
+                      onOrderChange(moveCity({ code: point.stopKey, direction: 1, order }))
+                    }
+                    size="sm"
+                    variant="ghost"
+                  >
+                    <Icon name="chevron-down" />
+                  </Button>
+                </>
+              )}
+              {/*
               Spec 112: jogar a parada para outro caminhão da proposta. Só aparece com opção — o
               caminhão com sobra de peso para ela —, e nunca na parada marcada para sair.
             */}
-            {onStopMove === undefined ||
-            resolveMoveTargets === undefined ||
-            isRemoved(point) ||
-            resolveMoveTargets(point).length === 0 ? null : (
-              <Select
-                ariaLabel={t('assemblyMap.moveToVehicle', { label: point.label })}
-                onChange={(vehicleId) =>
-                  onStopMove(
-                    point.notes.map((note) => note.id),
-                    vehicleId,
-                  )
-                }
-                options={resolveMoveTargets(point)}
-                placeholder={t('assemblyMap.moveToVehiclePlaceholder')}
-                value=""
-              />
-            )}
-            {/*
+              {onStopMove === undefined ||
+              resolveMoveTargets === undefined ||
+              isRemoved(point) ||
+              resolveMoveTargets(point).length === 0 ? null : (
+                <Select
+                  ariaLabel={t('assemblyMap.moveToVehicle', { label: point.label })}
+                  onChange={(vehicleId) =>
+                    onStopMove(
+                      point.notes.map((note) => note.id),
+                      vehicleId,
+                    )
+                  }
+                  options={resolveMoveTargets(point)}
+                  placeholder={t('assemblyMap.moveToVehiclePlaceholder')}
+                  value=""
+                />
+              )}
+              {/*
               ⚠️ Tirar a parada tira **todas as notas** que param nela — a parada é o endereço, e
               deixar uma nota para trás recriaria a mesma parada na linha seguinte, com o operador
               achando que o clique não pegou. Sem `onStopRemove` o botão não é desenhado: quem
               hospeda o mapa nem sempre é dono da fila.
             */}
-            {isRemoved(point) && onStopUndoRemove !== undefined ? (
-              <Button
-                onClick={() => onStopUndoRemove(point.notes.map((note) => note.id))}
-                size="sm"
-                variant="ghost"
-              >
-                <Icon name="refresh" />
-                {t('assemblyMap.undoRemoveStop')}
-              </Button>
-            ) : onStopRemove === undefined ? null : (
-              <Button
-                aria-label={t('assemblyMap.removeStop', { label: point.label })}
-                onClick={() => onStopRemove(point.notes.map((note) => note.id))}
-                size="sm"
-                variant="ghost"
-              >
-                <Icon name="trash" />
-              </Button>
-            )}
+              {isRemoved(point) && onStopUndoRemove !== undefined ? (
+                <Button
+                  onClick={() => onStopUndoRemove(point.notes.map((note) => note.id))}
+                  size="sm"
+                  variant="ghost"
+                >
+                  <Icon name="refresh" />
+                  {t('assemblyMap.undoRemoveStop')}
+                </Button>
+              ) : onStopRemove === undefined ? null : (
+                <Button
+                  aria-label={t('assemblyMap.removeStop', { label: point.label })}
+                  onClick={() => onStopRemove(point.notes.map((note) => note.id))}
+                  size="sm"
+                  variant="ghost"
+                >
+                  <Icon name="trash" />
+                </Button>
+              )}
+            </div>
           </li>,
           ...tollRows(leadingLegCount + index),
         ])}

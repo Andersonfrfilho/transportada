@@ -183,13 +183,13 @@ export function TripProposalList({
           />
           <Total
             label={t('proposal.totalMargin')}
+            /** O aviso de conta incompleta é texto, como na linha — nunca a cor do lucro. */
+            note={summary.hasGaps ? t('proposal.missingParcels') : null}
             tone={
-              summary.hasGaps
-                ? styles.proposalWarn
-                : isNegative(summary.totalMargin ?? '0.00')
-                  ? /** Prejuízo é dinheiro saindo: o vermelho da despesa, como no razão. */
-                    styles.proposalExpenses
-                  : styles.proposalProfit
+              /** Lucro verde, prejuízo vermelho — com ou sem conta incompleta, como no razão. */
+              isNegative(summary.totalMargin ?? '0.00')
+                ? styles.proposalExpenses
+                : styles.proposalProfit
             }
             value={money(summary.totalMargin)}
           />
@@ -297,13 +297,15 @@ export function TripProposalList({
 
 function Total({
   label,
+  note = null,
   tone,
   value,
-}: Readonly<{ label: string; tone?: string | undefined; value: string }>) {
+}: Readonly<{ label: string; note?: null | string; tone?: string | undefined; value: string }>) {
   return (
     <div className={styles.proposalTotal}>
       <span>{label}</span>
       <span className={tone === undefined ? undefined : tone}>{value}</span>
+      {note === null ? null : <span className={styles.proposalMetricNote}>{note}</span>}
     </div>
   )
 }
