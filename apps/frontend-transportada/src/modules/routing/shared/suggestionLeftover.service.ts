@@ -14,6 +14,11 @@
 export type CoverableSuggestionStop = Readonly<{
   excludedFromOptimization: boolean
   label: string
+  /**
+   * A razão **como a API a manda**. Nula é parada distribuída — e é também a sugestão anterior à
+   * coluna, que continua sendo derivada como sempre foi.
+   */
+  leftoverReason?: null | string
   nfeDocumentIds: readonly string[]
   vehicleId: string | null
 }>
@@ -27,6 +32,13 @@ export const LEFTOVER_REASON = {
   imprecise: 'imprecise_location',
   /** Nenhum motorista ofertado cobre a região dela (spec 106). */
   notCovered: 'not_covered',
+  /**
+   * A carga passou do teto do caminhão e ficou para a próxima viagem (`capacity-trim.ts`).
+   *
+   * ⚠️ Ela **não** é falta de cobertura, e confundir as duas manda o operador cadastrar região para
+   * resolver tonelagem. Medido em 2026-09-09: 37,5 t de carga para 27,9 t de frota.
+   */
+  overCapacity: 'over_capacity',
 } as const
 
 export type LeftoverReason = (typeof LEFTOVER_REASON)[keyof typeof LEFTOVER_REASON]
@@ -52,11 +64,27 @@ export function resolveLeftoverStops(
       excludedFromOptimization: stop.excludedFromOptimization,
       label: stop.label,
       nfeDocumentIds: stop.nfeDocumentIds,
-      reason: stop.excludedFromOptimization
-        ? LEFTOVER_REASON.imprecise
-        : LEFTOVER_REASON.notCovered,
+      reason: readReason(stop),
     }))
 }
+
+/**
+ * ⚠️ **A razão que a API manda vence a derivada.** A derivação existia porque só havia duas causas e
+ * as duas eram dedutíveis; com a terceira — carga acima do teto — ela deixou de ser: as três chegam
+ * com `vehicleId` nulo, e adivinhar rotularia a tonelagem como falta de cobertura.
+ */
+function readReason(stop: CoverableSuggestionStop): LeftoverReason {
+  const declared = REASONS.find((reason) => reason === stop.leftoverReason)
+  if (declared !== undefined) return declared
+
+  return stop.excludedFromOptimization ? LEFTOVER_REASON.imprecise : LEFTOVER_REASON.notCovered
+}
+
+const REASONS: readonly LeftoverReason[] = [
+  LEFTOVER_REASON.imprecise,
+  LEFTOVER_REASON.notCovered,
+  LEFTOVER_REASON.overCapacity,
+]
 
 /**
  * O resumo que a frase imprime. ⚠️ Ele **não substitui** a lista: "56 notas" sem quais manda o

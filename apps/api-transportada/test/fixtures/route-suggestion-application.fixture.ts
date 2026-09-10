@@ -64,6 +64,7 @@ function buildStopRecord(
     durationFromPreviousSeconds: 420,
     estimatedArrivalAt: '2026-08-26T13:00:00.000Z',
     excludedFromOptimization: false,
+    leftoverReason: null,
     geocodingPrecision: 'rooftop',
     label: `Parada ${overrides.sequence}`,
     sequence: overrides.sequence,

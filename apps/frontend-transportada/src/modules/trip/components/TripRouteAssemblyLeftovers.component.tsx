@@ -5,7 +5,10 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
 
-import { collectRetryableDocumentIds } from '@/modules/routing/shared/suggestionLeftover.service'
+import {
+  collectRetryableDocumentIds,
+  LEFTOVER_REASON,
+} from '@/modules/routing/shared/suggestionLeftover.service'
 import { resolveFreeingVehicles } from '@/modules/routing/shared/suggestionSecondWave.service'
 
 import type { TripRouteAssemblyOutcome } from '../hooks/useTripRouteAssembly.hook'
@@ -44,8 +47,20 @@ export function TripRouteAssemblyLeftovers({
   const { t } = useTranslation('trip')
   const [isExpanded, setIsExpanded] = useState(false)
 
-  const notCovered = outcome.leftoverStops.filter((stop) => !stop.excludedFromOptimization)
-  const imprecise = outcome.leftoverStops.filter((stop) => stop.excludedFromOptimization)
+  /**
+   * ⚠️ **A razão vem da sobra, não de `excludedFromOptimization`.** Derivar do sinalizador só
+   * funcionava com duas causas; com a terceira — carga acima do teto do caminhão — ele rotularia
+   * tonelagem como falta de cobertura, e mandaria o operador cadastrar região para resolver peso.
+   */
+  const notCovered = outcome.leftoverStops.filter(
+    (stop) => stop.reason === LEFTOVER_REASON.notCovered,
+  )
+  const imprecise = outcome.leftoverStops.filter(
+    (stop) => stop.reason === LEFTOVER_REASON.imprecise,
+  )
+  const overCapacity = outcome.leftoverStops.filter(
+    (stop) => stop.reason === LEFTOVER_REASON.overCapacity,
+  )
   const total = outcome.leftoverStops.length + outcome.skippedDocuments.length
   const retryable = collectRetryableDocumentIds(outcome.leftoverStops)
   /**
@@ -106,6 +121,12 @@ export function TripRouteAssemblyLeftovers({
             <div>
               <dt>{t('routeAssembly.leftovers.notCovered', { count: notCovered.length })}</dt>
               <dd>{notCovered.map((stop) => stop.label).join(' · ')}</dd>
+            </div>
+          )}
+          {overCapacity.length === 0 ? null : (
+            <div>
+              <dt>{t('routeAssembly.leftovers.overCapacity', { count: overCapacity.length })}</dt>
+              <dd>{overCapacity.map((stop) => stop.label).join(' · ')}</dd>
             </div>
           )}
           {imprecise.length === 0 ? null : (

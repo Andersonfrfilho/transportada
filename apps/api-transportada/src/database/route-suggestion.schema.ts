@@ -25,6 +25,18 @@ import { nfeDocuments } from './nfe.schema.js'
 import { trips } from './trip.schema.js'
 
 /**
+ * Por que a parada ficou fora da distribuição. São três causas com **ações diferentes** — cadastrar
+ * o endereço, cadastrar cobertura, ou mandar outro caminhão —, e juntá-las num "não coube" mandaria
+ * o operador procurar no lugar errado.
+ */
+export const SUGGESTION_LEFTOVER_REASONS = [
+  'imprecise_location',
+  'not_covered',
+  'over_capacity',
+] as const
+export type SuggestionLeftoverReason = (typeof SUGGESTION_LEFTOVER_REASONS)[number]
+
+/**
  * ADR-0044 §5 e §7: a sugestão nasce `queued`, o worker a resolve, e o humano decide. `stale` é o
  * que acontece quando uma nota entra depois da sugestão pronta — a proposta descreve uma viagem que
  * não existe mais, e reaproveitá-la seria propor o roteiro errado com cara de certo.
@@ -165,6 +177,12 @@ export const routeSuggestionStops = pgTable(
     /** ADR-0044 §5: `city` fica fora da otimização — vai marcada, no fim, esperando o humano. */
     geocodingPrecision: text('geocoding_precision').$type<GeocodingPrecision>(),
     excludedFromOptimization: boolean('excluded_from_optimization').notNull().default(false),
+    /**
+     * Por que a parada ficou **sem veículo**. Nulo é parada distribuída — e também é o passado:
+     * sugestão anterior a esta coluna não registrou razão, e a tela continua derivando as duas
+     * causas antigas como sempre derivou.
+     */
+    leftoverReason: text('leftover_reason').$type<SuggestionLeftoverReason>(),
     estimatedArrivalAt: timestamp('estimated_arrival_at', { withTimezone: true }),
     distanceFromPreviousMeters: bigint('distance_from_previous_meters', { mode: 'number' }),
     durationFromPreviousSeconds: bigint('duration_from_previous_seconds', { mode: 'number' }),
@@ -203,6 +221,10 @@ export const routeSuggestionStops = pgTable(
     index('route_suggestion_stops_company_suggestion_idx').on(table.companyId, table.suggestionId),
     check('route_suggestion_stops_sequence_check', sql`${table.sequence} >= 1`),
     check('route_suggestion_stops_address_key_check', sql`length(${table.addressKey}) > 0`),
+    check(
+      'route_suggestion_stops_leftover_reason_check',
+      sql`${table.leftoverReason} is null or ${table.leftoverReason} in (${sql.raw(inList(SUGGESTION_LEFTOVER_REASONS))})`,
+    ),
     check(
       'route_suggestion_stops_precision_check',
       sql`${table.geocodingPrecision} is null or ${table.geocodingPrecision} in (${sql.raw(inList(GEOCODING_PRECISIONS))})`,

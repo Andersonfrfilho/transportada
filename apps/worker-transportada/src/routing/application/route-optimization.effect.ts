@@ -112,6 +112,14 @@ export type OptimizedStop = Readonly<{
   sequence: number
   serviceTimeSeconds: number
   stopId: string | null
+  /**
+   * Por que a parada ficou **sem veículo**. Nulo é parada distribuída.
+   *
+   * ⚠️ As três causas pedem ações diferentes — cadastrar o endereço, cadastrar cobertura, ou mandar
+   * outro caminhão. Sem a razão viajando, a tela derivava "sem motorista que cubra a região" para
+   * qualquer sobra, e mandaria o operador cadastrar cobertura para resolver tonelagem.
+   */
+  leftoverReason: 'imprecise_location' | 'not_covered' | 'over_capacity' | null
   /** Qual veículo serve a parada — nulo quando a sugestão é de uma viagem só, ou quando ela ficou de fora. */
   vehicleId: string | null
   violations: RouteSolution['violations']
@@ -224,8 +232,22 @@ export async function runRouteOptimization(input: {
         optimizable,
         solution,
       }),
+      /**
+       * ⚠️ **A parada que o solver não distribuiu precisa ser gravada, ou a carga some da tela.**
+       * `toOrderedStops` percorre as rotas; sem esta linha, a nota aparada por capacidade não
+       * viraria nem viagem nem sobra — desapareceria do maço em silêncio, que é o modo de falha que
+       * a spec 107 existe para impedir.
+       */
+      ...toLeftoverStops({
+        offset: countAssigned(solution),
+        optimizable,
+        solution,
+      }),
       ...excluded.map((stop, offset) =>
-        toExcludedStop({ offset: countAssigned(solution) + offset, stop }),
+        toExcludedStop({
+          offset: countAssigned(solution) + solution.unassignedStopIndexes.length + offset,
+          stop,
+        }),
       ),
     ],
     solverMetrics: { generations: solution.generations },
@@ -296,6 +318,8 @@ function toOrderedStops(input: {
         distanceFromPreviousMeters,
         durationFromPreviousSeconds,
         estimatedArrivalAt: new Date(clockSeconds * MILLISECONDS_PER_SECOND),
+        /** Parada distribuída não é sobra: a razão é nula porque ela **tem** veículo. */
+        leftoverReason: null,
         excludedFromOptimization: false,
         label: stop.label,
         sequence,
@@ -329,6 +353,46 @@ function readLeg(
   return matrix[from]?.[to] ?? null
 }
 
+/**
+ * As paradas que o solver deixou sem veículo — hoje, a carga que passou do teto do caminhão e ficou
+ * para a próxima viagem (`capacity-trim.ts`).
+ *
+ * ⚠️ Elas entram **depois** das distribuídas e **antes** das excluídas por endereço, e a `sequence`
+ * é contínua porque ela é a chave que casa a parada com as notas dela na gravação.
+ */
+function toLeftoverStops(input: {
+  readonly offset: number
+  readonly optimizable: readonly RouteOptimizationStop[]
+  readonly solution: RouteSolution
+}): readonly OptimizedStop[] {
+  return input.solution.unassignedStopIndexes.flatMap((stopIndex, offset) => {
+    /** `index: offset + 1` na montagem do problema: o depósito é o zero, e aqui se desfaz a conta. */
+    const stop = input.optimizable[stopIndex - 1]
+    if (stop === undefined) return []
+
+    return [
+      {
+        addressKey: stop.addressKey,
+        distanceFromPreviousMeters: null,
+        documentIds: stop.documentIds,
+        durationFromPreviousSeconds: null,
+        /** Sem ETA: ela não entrou na conta, e um horário aqui seria número inventado. */
+        estimatedArrivalAt: null,
+        /** Ela **entrou** na otimização; o que a tirou foi o teto do caminhão, não o endereço. */
+        excludedFromOptimization: false,
+        label: stop.label,
+        leftoverReason: 'over_capacity' as const,
+        sequence: input.offset + offset + 1,
+        serviceTimeSeconds: stop.serviceTimeSeconds,
+        stopId: stop.stopId,
+        vehicleId: null,
+        violations: [],
+        weightEstimated: stop.weightEstimated,
+      },
+    ]
+  })
+}
+
 function toExcludedStop(input: {
   readonly offset: number
   readonly stop: RouteOptimizationStop
@@ -341,6 +405,8 @@ function toExcludedStop(input: {
     estimatedArrivalAt: null,
     excludedFromOptimization: true,
     label: input.stop.label,
+    /** ADR-0044 §5: coordenada em precisão de município sai antes da matriz, e a razão é essa. */
+    leftoverReason: 'imprecise_location' as const,
     sequence: input.offset + 1,
     documentIds: input.stop.documentIds,
     serviceTimeSeconds: input.stop.serviceTimeSeconds,

@@ -87,6 +87,8 @@ export const routeSuggestionStops = pgTable('route_suggestion_stops', {
   label: text().notNull(),
   geocodingPrecision: text('geocoding_precision'),
   excludedFromOptimization: boolean('excluded_from_optimization').notNull(),
+  /** Por que a parada ficou sem veículo. ⚠️ Cópia por valor da API — migration continua sendo de lá. */
+  leftoverReason: text('leftover_reason'),
   estimatedArrivalAt: timestamp('estimated_arrival_at', { withTimezone: true }),
   distanceFromPreviousMeters: bigint('distance_from_previous_meters', { mode: 'number' }),
   durationFromPreviousSeconds: bigint('duration_from_previous_seconds', { mode: 'number' }),

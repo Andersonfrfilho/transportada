@@ -248,6 +248,8 @@ function toStopRecord(
     excludedFromOptimization: row.excludedFromOptimization,
     geocodingPrecision: row.geocodingPrecision,
     label: row.label,
+    /** Por que ficou sem veículo. Nulo é parada distribuída — e também é sugestão antiga. */
+    leftoverReason: row.leftoverReason,
     sequence: Number(row.sequence),
     serviceTimeSampleSize: row.serviceTimeSampleSize,
     serviceTimeSeconds: row.serviceTimeSeconds,

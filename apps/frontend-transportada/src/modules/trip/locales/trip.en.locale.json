@@ -584,6 +584,8 @@
       "imprecise_other": "{{count}} stops whose addresses are too imprecise to route",
       "notCovered_one": "1 stop with no driver covering the region",
       "notCovered_other": "{{count}} stops with no driver covering the region",
+      "overCapacity_one": "1 stop above the vehicle payload ceiling — left for the next trip",
+      "overCapacity_other": "{{count}} stops above the vehicle payload ceiling — left for the next trip",
       "retry_one": "Build a route with the leftover invoice",
       "retry_other": "Build a route with the {{count}} leftovers",
       "secondWave": "{{plate}} finishes around {{time}} — planning estimate.",

@@ -263,6 +263,7 @@ export function createDrizzleRouteOptimizationRepository(
                 estimatedArrivalAt: stop.estimatedArrivalAt,
                 excludedFromOptimization: stop.excludedFromOptimization,
                 label: stop.label,
+                leftoverReason: stop.leftoverReason,
                 sequence: BigInt(stop.sequence),
                 serviceTimeSeconds: stop.serviceTimeSeconds,
                 serviceTimeSource: 'default',

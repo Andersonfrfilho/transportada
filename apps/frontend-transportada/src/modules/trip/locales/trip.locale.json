@@ -717,6 +717,8 @@
       "imprecise_other": "{{count}} paradas com endereço impreciso demais para roteirizar",
       "notCovered_one": "1 parada sem motorista que cubra a região",
       "notCovered_other": "{{count}} paradas sem motorista que cubra a região",
+      "overCapacity_one": "1 parada acima do teto de peso do caminhão — fica para a próxima viagem",
+      "overCapacity_other": "{{count}} paradas acima do teto de peso do caminhão — ficam para a próxima viagem",
       "retry_one": "Montar roteiro com a nota que sobrou",
       "retry_other": "Montar roteiro com as {{count}} que sobraram",
       "secondWave": "O {{plate}} termina por volta das {{time}} — estimativa do planejamento.",

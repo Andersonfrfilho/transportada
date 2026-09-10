@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { GeocodingPrecision, GeocodingSource } from '../../database/geocoding.schema.js'
+import type { SuggestionLeftoverReason } from '../../database/route-suggestion.schema.js'
 import type {
   RouteSuggestionStatus,
   ServiceTimeSource,
@@ -36,6 +37,11 @@ export type RouteSuggestionStop = Readonly<{
   excludedFromOptimization: boolean
   geocodingPrecision: GeocodingPrecision | null
   label: string
+  /**
+   * Por que a parada ficou **sem veículo** — endereço impreciso, sem cobertura, ou carga acima do
+   * teto do caminhão. Nulo é parada distribuída, e é também a sugestão anterior à coluna.
+   */
+  leftoverReason: SuggestionLeftoverReason | null
   sequence: number
   serviceTimeSampleSize: number | null
   serviceTimeSeconds: number | null

@@ -88,6 +88,8 @@ export function coverableStopsFromApi(payload: unknown): readonly ProposalStop[]
             excludedFromOptimization: stop.excludedFromOptimization === true,
             geocodingPrecision: isString(stop.geocodingPrecision) ? stop.geocodingPrecision : null,
             label: typeof stop.label === 'string' ? stop.label : '',
+            /** A razão da sobra, como a API a manda. Ausente é sugestão anterior à coluna. */
+            leftoverReason: isString(stop.leftoverReason) ? stop.leftoverReason : null,
             nfeDocumentIds: Array.isArray(stop.nfeDocumentIds)
               ? stop.nfeDocumentIds.filter((id): id is string => typeof id === 'string')
               : [],
