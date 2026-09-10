@@ -173,6 +173,7 @@
         "depth": "Ordem de carregamento — da testeira para a porta",
         "lanes": "Ordem de carregamento — faixa por faixa, todas na porta"
       },
+      "delivery": "Entrega",
       "order": "#",
       "presumed": "Presumidas",
       "span": {

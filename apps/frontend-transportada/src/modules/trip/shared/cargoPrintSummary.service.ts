@@ -54,7 +54,15 @@ export function buildCargoPrintSummary(
   const lanes = arrangement === 'lanes'
   const rows = new Map<
     number,
-    { boxes: number; fromM: number; presumed: number; split: number; toM: number }
+    {
+      boxes: number
+      fromM: number
+      presumed: number
+      split: number
+      splitFromM: number
+      splitToM: number
+      toM: number
+    }
   >()
 
   for (const box of boxes) {
@@ -63,22 +71,39 @@ export function buildCargoPrintSummary(
       fromM: Number.POSITIVE_INFINITY,
       presumed: 0,
       split: 0,
+      splitFromM: Number.POSITIVE_INFINITY,
+      splitToM: 0,
       toM: 0,
     }
+    const start = lanes ? box.yM : box.xM
+    const end = lanes ? box.yM + box.widthM : box.xM + box.depthM
     rows.set(box.stopSequence, {
       boxes: current.boxes + 1,
-      fromM: box.isSplit ? current.fromM : Math.min(current.fromM, lanes ? box.yM : box.xM),
+      fromM: box.isSplit ? current.fromM : Math.min(current.fromM, start),
       presumed: current.presumed + (box.isEstimated ? 1 : 0),
       split: current.split + (box.isSplit ? 1 : 0),
-      toM: box.isSplit
-        ? current.toM
-        : Math.max(current.toM, lanes ? box.yM + box.widthM : box.xM + box.depthM),
+      /**
+       * ⚠️ **A dividida também tem lugar, e é o único que resta quando não sobra inteira.** A faixa
+       * ignorava a caixa dividida de propósito — ela viaja no topo do lado de dentro e não define a
+       * faixa da parada —, e com **todas** divididas o acumulador ficava no infinito com que nasceu:
+       * a folha imprimia `Infinity m a 0.00 m`. Medido na tela em 2026-09-10, parada 9 de 9, com 23
+       * caixas e as 23 divididas.
+       */
+      splitFromM: box.isSplit ? Math.min(current.splitFromM, start) : current.splitFromM,
+      splitToM: box.isSplit ? Math.max(current.splitToM, end) : current.splitToM,
+      toM: box.isSplit ? current.toM : Math.max(current.toM, end),
     })
   }
 
   return (
     [...rows.entries()]
-      .map(([stopSequence, row]) => ({ ...row, stopSequence }))
+      .map(([stopSequence, row]) => ({
+        ...row,
+        ...(Number.isFinite(row.fromM) ? {} : { fromM: row.splitFromM, toM: row.splitToM }),
+        stopSequence,
+      }))
+      /** Sem caixa nenhuma com lugar — nem inteira, nem dividida — a faixa é ausência, não zero. */
+      .filter((row) => Number.isFinite(row.fromM))
       /**
        * ⚠️ **A ordem inverte com o eixo.** Em profundidade a folha é a de carregamento — a última
        * entrega primeiro, porque ela vai ao fundo. Em faixas quem carrega começa pela faixa mais à

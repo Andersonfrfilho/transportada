@@ -350,6 +350,12 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
               className={styles.cargoStopDot}
               style={{ background: stopColorOf(stopSequence) }}
             />
+            {/*
+              ⚠️ **O número da entrega vive com a cor.** A legenda dizia só o cliente e o endereço,
+              e a folha de carregamento ao lado dizia só o número — quem estava no barracão tinha de
+              casar as duas listas por nome de mercado para saber que caixa era de qual parada.
+            */}
+            <span className={styles.cargoStopOrder}>{stopSequence}</span>
             {labelOf(stopSequence)}
           </button>
         ))}
@@ -379,7 +385,14 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
         <caption>{t(`cargoLayers.print.caption.${arrangement}`)}</caption>
         <thead>
           <tr>
+            {/*
+              ⚠️ **São dois números, e eles não coincidem.** Quem carrega segue a ordem de
+              carregamento; quem dirige segue a de entrega — e em profundidade uma é o inverso da
+              outra, porque a última entrega entra primeiro e vai ao fundo. Uma coluna só obrigava a
+              cabeça a fazer a inversão a cada linha, no barracão, com a carga na mão.
+            */}
             <th scope="col">{t('cargoLayers.print.order')}</th>
+            <th scope="col">{t('cargoLayers.print.delivery')}</th>
             <th scope="col">{t('cargoLayers.print.stop')}</th>
             <th scope="col">{t(`cargoLayers.print.span.${arrangement}`)}</th>
             <th scope="col">{t('cargoLayers.print.boxes')}</th>
@@ -390,7 +403,8 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
         <tbody>
           {buildCargoPrintSummary(boxes, arrangement).map((row, position) => (
             <tr key={row.stopSequence}>
-              <td>{position + 1}</td>
+              <td className={styles.cargoOrderCell}>{position + 1}</td>
+              <td className={styles.cargoOrderCell}>{row.stopSequence}</td>
               <td>{labelOf(row.stopSequence)}</td>
               <td>
                 {t('cargoLayers.print.spanValue', {

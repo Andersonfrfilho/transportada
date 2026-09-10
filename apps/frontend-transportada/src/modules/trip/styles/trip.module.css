@@ -1917,6 +1917,23 @@
 }
 
 /** O teclado de setas com o nome do que ele faz — sem isso os dois são iguais na tela. */
+/** O número lido de relance no barracão: tabular, para as linhas se alinharem. */
+/** O número da entrega dentro da ficha da parada — o mesmo que a folha de carregamento imprime. */
+.cargoStopOrder {
+  background: color-mix(in srgb, var(--color-slate) 22%, transparent);
+  font-family: var(--font-utility);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  padding: 0 var(--space-1);
+}
+
+.cargoOrderCell {
+  font-family: var(--font-utility);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  text-align: center;
+}
+
 .cargoPadGroup {
   display: grid;
   gap: var(--space-1);

@@ -109,6 +109,53 @@ describe('trip cargo print contract', () => {
     expect(global).toContain('visibility: hidden')
   })
 
+  /**
+   * ⚠️ **Parada com TODAS as caixas divididas imprimia `Infinity m a 0.00 m`.** A faixa em metros
+   * ignora a caixa dividida de propósito — ela viaja no topo, fora da fatia —, e sem nenhuma
+   * inteira o acumulador ficava no infinito com que nasce. Medido na tela em 2026-09-10: parada 9
+   * de 9, 23 caixas, as 23 divididas.
+   */
+  it('falls back to the split boxes when no whole box has a place', () => {
+    const rows = buildCargoPrintSummary([
+      box({ isSplit: true, stopSequence: 9, xM: 2 }),
+      box({ isSplit: true, stopSequence: 9, xM: 3 }),
+    ])
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.fromM).toBe(2)
+    expect(rows[0]?.toM).toBe(3.5)
+    expect(Number.isFinite(rows[0]?.fromM ?? Number.POSITIVE_INFINITY)).toBe(true)
+  })
+
+  /** A inteira continua mandando: a dividida é o que resta, nunca o que vence. */
+  it('keeps the whole box range when there is one', () => {
+    const rows = buildCargoPrintSummary([
+      box({ stopSequence: 4, xM: 1 }),
+      box({ isSplit: true, stopSequence: 4, xM: 6 }),
+    ])
+
+    expect(rows[0]?.fromM).toBe(1)
+    expect(rows[0]?.toM).toBe(1.5)
+  })
+
+  /**
+   * ⚠️ **São dois números, e eles não coincidem.** Quem carrega segue a ordem de carregamento; quem
+   * dirige segue a de entrega. A folha imprimia só a primeira, e ligar a caixa à parada exigia
+   * casar as duas listas por nome de mercado.
+   */
+  it('prints the delivery number beside the loading order', () => {
+    const component = readFileSync(
+      new URL('src/modules/trip/components/TripCargoLayers.component.tsx', APPLICATION_ROOT),
+      'utf8',
+    )
+
+    expect(component).toContain("t('cargoLayers.print.delivery')")
+    expect(component).toContain('{row.stopSequence}')
+    expect(trip.cargoLayers.print.delivery).toBeTruthy()
+    /** E a legenda de cor carrega o mesmo número, senão as duas listas seguem sem elo visível. */
+    expect(component).toContain('styles.cargoStopOrder')
+  })
+
   /** E o desenho vai junto: é ele o "mapa" que o botão promete. */
   it('keeps the drawing on paper', () => {
     const css = readFileSync(
