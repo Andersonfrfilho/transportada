@@ -432,14 +432,8 @@ function packUntilItFits(input: {
    * contra a largura da fatia, então crescer por etapas a decidia contra uma largura provisória
    * menor que a alocada — a caixa entrava deitada e ia uma por fileira onde caberiam duas.
    */
-  /**
-   * ⚠️ **A fatia nunca é mais curta que a caixa mais funda da parada.** A proporção por volume dava a
-   * uma parada de três caixas 6% do baú — 0,35 m para uma caixa de 0,40 m —, e nenhuma caixa dela
-   * entrava na própria fatia: a parada inteira sumia do desenho como `bedFull` num baú 30% cheio.
-   * Em faixas o teto é largura, e o mínimo dela já é a caixa mais larga (`minimumLaneWidthOf`).
-   */
-  const capM = input.stackBeforeRow === true ? input.capM : Math.max(input.capM, deepestM)
-  let lengthM = input.stackBeforeRow === true ? capM : Math.min(capM, Math.max(floorM, deepestM))
+  let lengthM =
+    input.stackBeforeRow === true ? input.capM : Math.min(input.capM, Math.max(floorM, deepestM))
 
   for (let attempt = 0; ; attempt += 1) {
     const packed = packSlice({
@@ -452,10 +446,10 @@ function packUntilItFits(input: {
     })
     const overflowed =
       packed.leftovers.length > 0 || packed.unplaced.some((entry) => entry.reason === 'bedFull')
-    const exhausted = attempt + 1 >= SLICE_GROWTH_ATTEMPTS || lengthM >= capM - 1e-9
+    const exhausted = attempt + 1 >= SLICE_GROWTH_ATTEMPTS || lengthM >= input.capM - 1e-9
     if (!overflowed || exhausted) return { ...packed, lengthM }
 
-    lengthM = Math.min(capM, lengthM * SLICE_GROWTH_FACTOR)
+    lengthM = Math.min(input.capM, lengthM * SLICE_GROWTH_FACTOR)
   }
 }
 
@@ -1162,13 +1156,6 @@ function createSupportMap(
 }
 
 /**
- * Teto de caixas divididas. A busca de lugar para a sobra varre o baú inteiro por caixa, e passar
- * de algumas dezenas custa mais que o desenho vale — e uma divisão de centenas de caixas não é um
- * plano de carregamento, é um caminhão pequeno demais, que a tela já diz de outro jeito.
- */
-const MAX_SPLIT_BOXES = 40
-
-/**
  * **A carga que não coube na própria fatia é dividida — e a divisão tem lugar certo.**
  *
  * A sobra da parada N sobe para a camada de cima da região das paradas entregues **depois** dela —
@@ -1238,21 +1225,26 @@ function placeSplitCargo(input: {
   )
 
   /**
-   * ⚠️ O teto conta **tentativas**, não colocações. Contando só o que entrou, a sobra que não acha
-   * lugar nunca satura o limite e cada caixa paga a varredura inteira do baú: medido, 1817 ms para
-   * 900 caixas volumosas — justamente o caso em que a divisão existe.
+   * ⚠️ **A busca que falhou não se repete para o mesmo formato da mesma parada.** O mapa de alturas só
+   * cresce, então o lugar que não existia para uma caixa não passa a existir para a gêmea dela — e é
+   * isso que protege o orçamento que antes era um teto de 40 tentativas **para o caminhão inteiro**:
+   * esgotado o teto, toda sobra seguinte saía `tooMany`, e paradas inteiras sumiam do desenho como
+   * "limite de detalhe" (medido: 44 de 85 paradas num Atego).
    */
-  let attempts = 0
+  const failed = new Set<string>()
 
   for (const { box, sliceSizeM, sliceStartM } of queue) {
-    attempts += 1
-    if (placed.length >= input.budget || attempts > MAX_SPLIT_BOXES) {
+    if (placed.length >= input.budget) {
       pushUnplaced(input.unplaced, { count: 1, label: box.label, reason: 'tooMany' })
       continue
     }
     const slot = fitSlot({ bed: input.bed, box })
-    const spot =
+    const shapeKey =
       slot === null
+        ? ''
+        : `${box.stopSequence}|${slot.depthM}|${slot.widthM}|${slot.heightM}|${sliceStartM}`
+    const spot =
+      slot === null || failed.has(shapeKey)
         ? null
         : findSplitSpot({
             cellsOf,
@@ -1268,6 +1260,7 @@ function placeSplitCargo(input: {
             bed: input.bed,
           })
     if (slot === null || spot === null) {
+      failed.add(shapeKey)
       pushUnplaced(input.unplaced, { count: 1, label: box.label, reason: 'bedFull' })
       continue
     }

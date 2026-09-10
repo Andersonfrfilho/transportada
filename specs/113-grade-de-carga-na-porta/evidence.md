@@ -15,6 +15,22 @@ pilha livre para em 0,75 m num baú de 2,20 m. Nenhuma parada some mais inteira 
 Faixa isolada da grade (0,347 m, caixa de 0,30 m): antes do aparamento a pilha parava em 0,75 m e 23
 de 56 caixas saíam `bedFull` com a faixa a 41% do volume.
 
+## Reversão do piso da fatia (2026-09-10)
+
+O piso publicado em `3bcb9e8b` fazia as fatias somarem mais que o baú. Medido com `resolveCargoPlacement`
+(caixas de 400 × 300 × 250 mm, `payloadRatio` 0,9):
+
+| paradas | ocupação | fim da carga com piso | fim da carga sem piso | paradas fora do desenho sem piso |
+| ------- | -------- | --------------------- | --------------------- | -------------------------------- |
+| 24      | 30%      | 9,53 m                | 5,27 m                | 2                                |
+| 24      | 60%      | 9,55 m                | 5,11 m                | 5                                |
+| 85      | 30%      | 33,90 m               | 5,20 m                | 38                               |
+| 85      | 60%      | 33,90 m               | 5,26 m                | 38                               |
+
+Baú de 5,32 m. Sem piso nenhuma caixa se sobrepõe e nenhuma sai do baú; as paradas fora do desenho
+são `bedFull`, não mais `tooMany`. Na tela, antes da reversão, o Atego com 85 paradas tinha 44 inteiras
+fora por "limite de detalhe".
+
 Gates:
 
 - `bun test ./test/cargo-volume.contract.test.ts` — 206 pass, 0 fail

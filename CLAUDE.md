@@ -626,8 +626,11 @@ definição e não há o que fazer com o aviso.
 — muitas paradas, ou peso acima de metade do teto —, `resolveStopArrangement` tenta `grid` antes de
 `depth`: K faixas, as K primeiras entregas lado a lado na porta e as seguintes atrás delas, cada faixa
 empacotada em profundidade. ⚠️ **A grade só vale se colocar o que a profundidade coloca** — a decisão
-empacota os dois —, e a fatia de cada parada **nunca é mais curta que a caixa mais funda dela**: sem
-esse piso, parada pequena sumia inteira do desenho num baú 30% cheio. ⚠️ `STOP_ARRANGEMENTS` é
+empacota os dois. ⚠️ **As fatias somam no máximo o comprimento do baú.** Um piso por parada ("a fatia
+nunca é mais curta que a caixa mais funda") foi publicado e revertido no mesmo dia: com 85 paradas a
+carga ia até 33,9 m num baú de 5,32 m, sobreposta e para fora. A sobra de parada pequena **sobe em
+cima** das paradas entregues depois (Passo 6), e a busca dela não tem mais teto global de 40
+tentativas — era esse teto que fazia paradas inteiras sumirem como "limite de detalhe". ⚠️ `STOP_ARRANGEMENTS` é
 validado com lista fechada no frontend: **o frontend sobe junto ou antes**, senão o painel some.
 
 **Como as caixas são organizadas no baú está documentado por extenso em

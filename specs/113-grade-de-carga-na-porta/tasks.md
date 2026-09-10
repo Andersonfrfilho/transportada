@@ -8,7 +8,7 @@
 | T2  | `grid` em `STOP_ARRANGEMENTS`, `resolveGridLanes` e `placeGrid`                         | T1      | idem + `bun run typecheck`                      | feita  |
 | T3  | Faixa aparada à largura das caixas (`packedLaneWidthM`) — a folga tirava o confinamento | T2      | medição de faixa isolada                        | feita  |
 | T4  | Grade só quando coloca o que a profundidade coloca (`gridOrDepth` empacota os dois)     | T2      | contrato `carga que cabe é colocada`            | feita  |
-| T5  | Piso da fatia na caixa mais funda da parada — parada inteira sumia do desenho           | —       | medição com 24 paradas                          | feita  |
+| T5  | ~~Piso da fatia~~ **revertido**: fatias passavam do baú; divisão sem teto global        | —       | extensão da carga ≤ comprimento do baú          | feita  |
 | T6  | Frontend aceita `grid` (tipos, validação, legenda, chips, textos)                       | T2      | testes do módulo `trip`                         | feita  |
 | T7  | `docs/domain/cargo-placement.md` e `CLAUDE.md`                                          | T2–T5   | leitura                                         | feita  |
 

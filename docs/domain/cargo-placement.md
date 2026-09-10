@@ -164,12 +164,23 @@ antes da spec 100 inteira.
 
 ## Passo 6 — A carga que não coube na própria fatia
 
-⚠️ **A fatia nunca é mais curta que a caixa mais funda da parada** (spec 113). A proporção por volume
-não tinha piso: uma parada de três caixas levava 6% de um baú de 5,32 m — 0,35 m para uma caixa de
-0,40 m —, nenhuma caixa dela entrava na própria fatia, e a parada inteira sumia do desenho como
-`bedFull` num baú **30% cheio**. Medido em 24 paradas: de 2 paradas fora do desenho para zero, e de
-249 caixas, 249 colocadas. A divisão abaixo continua existindo — por **quantidade**, que é o caso que
-ela veio atender.
+⚠️ **As fatias somam no máximo o comprimento do baú, e a parada pequena vai para cima — não para o
+lado.** A spec 113 pôs um piso na fatia (nunca mais curta que a caixa mais funda da parada) e o
+reverteu no mesmo dia: cada parada pequena ganhava um trecho próprio do comprimento, e as fatias
+passavam da testeira — medido, **9,5 m** de carga com 24 paradas e **33,9 m** com 85, num baú de
+5,32 m, desenhada sobreposta e para fora. Parada cuja fatia é mais curta que a caixa dela manda a
+caixa inteira para a divisão abaixo.
+
+⚠️ **A busca da divisão não tem teto global.** Eram 40 tentativas **para o caminhão inteiro**:
+esgotadas, toda sobra seguinte saía `tooMany`, e paradas inteiras sumiam como "limite de detalhe"
+(medido na tela: 44 de 85 paradas num Atego). Hoje ela memoriza o formato que já falhou para aquela
+parada — o mapa de alturas só cresce, então o lugar que não existia para uma caixa não existe para a
+gêmea dela —, e o custo que o teto protegia continua protegido.
+
+⚠️ **Aberto:** com dezenas de paradas pequenas cada fatia tem uma ou duas caixas de fundo, toda pilha
+fica livre e a esbeltez as corta em 0,75 m — medido, 38 de 85 paradas `bedFull` com o baú a 30%.
+Agrupar entregas consecutivas num bloco só, a mais tardia por baixo, contraria a proibição da 095 e
+precisa de decisão escrita.
 
 - **Em profundidade:** sobe para a região das paradas entregues **depois**, mais fundo no baú, e sai
   marcada `splitCargo` (contorno vermelho). Ali nada fica por cima dela e o corredor já está livre
