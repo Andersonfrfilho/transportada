@@ -136,6 +136,12 @@
       "weightWon": "⚠️ Faixas caberiam nesta carga, mas o peso passou de metade do teto do veículo: com a carga concentrada num lado da porta o eixo dianteiro alivia. A estabilidade venceu o acesso."
     },
     "bedFromReference": "A escala vem do catálogo do tipo de veículo, não da ficha: as medidas do baú deste caminhão não foram preenchidas, e o mesmo tipo varia até o dobro.",
+    "chip": {
+      "counts": "{{boxes}} caixas",
+      "loading": "carregar em {{position}}º",
+      "presumed": "{{count}} presumidas",
+      "split": "{{count}} divididas"
+    },
     "doorsRear": "Este baú abre só na traseira: a última parada precisa viajar no fundo.",
     "doorsRearAndSide": "Este baú abre na traseira e na lateral direita: a ordem ajuda, mas não obriga.",
     "dragHint": "arraste para girar",

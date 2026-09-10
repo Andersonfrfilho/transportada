@@ -17,7 +17,7 @@ import {
 } from '../shared/cargoView.service'
 import { stopColorOf } from '../shared/stopColor.service'
 import { isMostlyPresumed, resolveSliceCuts } from '../shared/cargoLegend.service'
-import { buildCargoPrintSummary } from '../shared/cargoPrintSummary.service'
+import { buildCargoChipFacts, buildCargoPrintSummary } from '../shared/cargoPrintSummary.service'
 import { EMPTY_STOP_FOCUS, isStopLit, toggleStopFocus } from '../shared/stopFocus.service'
 import { buildCargoStopLabels, formatCargoStopLabel } from '../shared/cargoStopLabel.service'
 import type { TripCargoLayout } from '../shared/trip.types'
@@ -139,9 +139,18 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
   const labelOf = (sequence: number): string =>
     formatCargoStopLabel(stopLabels.get(sequence)) || t('cargoLayers.stop', { sequence })
 
-  const stopSequences = [
+  /**
+   * ⚠️ **Uma lista só na tela.** A ficha dizia cliente e endereço e a tabela ao lado dizia a ordem
+   * de carregamento, a faixa e as contagens — casar as duas era trabalho de quem estava com a carga
+   * na mão. A tabela continua, escondida na tela e impressa no papel: lá não há cor nem clique.
+   */
+  const chipFacts = buildCargoChipFacts(boxes, arrangement)
+
+  const stopChips = [
     ...new Set(placement.layers.flatMap((layer) => layer.boxes.map((box) => box.stopSequence))),
-  ].sort((first, second) => first - second)
+  ]
+    .sort((first, second) => first - second)
+    .map((sequence) => ({ facts: chipFacts.get(sequence), sequence }))
 
   return (
     <section aria-labelledby="trip-cargo-layers-title" className={styles.panel} data-print-region>
@@ -338,25 +347,49 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
 
       {/* A legenda das três marcas: sem ela o contorno vermelho da dividida não quer dizer nada. */}
       <div className={styles.cargoStops}>
-        {stopSequences.map((stopSequence) => (
+        {stopChips.map(({ facts, sequence }) => (
           <button
-            aria-pressed={focus.has(stopSequence)}
+            aria-pressed={focus.has(sequence)}
             className={styles.cargoStopChip}
-            key={stopSequence}
+            key={sequence}
             type="button"
-            onClick={() => setFocus((previous) => toggleStopFocus(previous, stopSequence))}
+            onClick={() => setFocus((previous) => toggleStopFocus(previous, sequence))}
           >
-            <span
-              className={styles.cargoStopDot}
-              style={{ background: stopColorOf(stopSequence) }}
-            />
+            <span className={styles.cargoStopDot} style={{ background: stopColorOf(sequence) }} />
             {/*
-              ⚠️ **O número da entrega vive com a cor.** A legenda dizia só o cliente e o endereço,
-              e a folha de carregamento ao lado dizia só o número — quem estava no barracão tinha de
-              casar as duas listas por nome de mercado para saber que caixa era de qual parada.
+              ⚠️ **O número da entrega vive com a cor.** A ficha dizia só o cliente e o endereço, e
+              a folha ao lado dizia só o número — quem estava no barracão casava as duas listas por
+              nome de mercado para saber que caixa era de qual parada.
             */}
-            <span className={styles.cargoStopOrder}>{stopSequence}</span>
-            {labelOf(stopSequence)}
+            <span className={styles.cargoStopOrder}>{sequence}</span>
+            <span className={styles.cargoStopBody}>
+              <span>{labelOf(sequence)}</span>
+              {facts === undefined ? null : (
+                <span className={styles.cargoStopFacts}>
+                  <span>{t('cargoLayers.chip.loading', { position: facts.loadingPosition })}</span>
+                  <span>
+                    {t('cargoLayers.print.spanValue', {
+                      from: facts.fromM.toFixed(2),
+                      to: facts.toM.toFixed(2),
+                    })}
+                  </span>
+                  <span>{t('cargoLayers.chip.counts', { boxes: facts.boxes })}</span>
+                  {/*
+                    ⚠️ Presumida e dividida só aparecem quando existem: zero delas é o caso normal,
+                    e imprimir "0 divididas" em toda ficha faz o aviso deixar de ser lido justamente
+                    na parada em que ele importa.
+                  */}
+                  {facts.presumed === 0 ? null : (
+                    <span>{t('cargoLayers.chip.presumed', { count: facts.presumed })}</span>
+                  )}
+                  {facts.split === 0 ? null : (
+                    <span className={styles.cargoStopSplit}>
+                      {t('cargoLayers.chip.split', { count: facts.split })}
+                    </span>
+                  )}
+                </span>
+              )}
+            </span>
           </button>
         ))}
       </div>

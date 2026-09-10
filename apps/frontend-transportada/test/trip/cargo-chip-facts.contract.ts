@@ -1,0 +1,83 @@
+/* Copyright (c) 2026 Ada Technology. MIT License. */
+import { readFileSync } from 'node:fs'
+
+import { describe, expect, it } from 'bun:test'
+
+import { buildCargoChipFacts } from '@/modules/trip/shared/cargoPrintSummary.service'
+import trip from '../../src/modules/trip/locales/trip.locale.json'
+import tripEn from '../../src/modules/trip/locales/trip.en.locale.json'
+
+const APPLICATION_ROOT = new URL('../..', import.meta.url)
+
+function box(overrides: Partial<Parameters<typeof buildCargoChipFacts>[0][number]>) {
+  return {
+    depthM: 0.5,
+    isEstimated: false,
+    isSplit: false,
+    stopSequence: 1,
+    widthM: 0.4,
+    xM: 0,
+    yM: 0,
+    ...overrides,
+  }
+}
+
+/**
+ * Uma lista só na tela.
+ *
+ * ⚠️ **Eram duas, e ninguém as ligava.** A ficha colorida dizia cliente e endereço; a tabela ao
+ * lado dizia a ordem de carregamento, a faixa do baú e as contagens. Quem estava no barracão casava
+ * as duas por nome de mercado — e a tabela existe para o **papel**, onde não há cor nem clique.
+ */
+describe('fichas de parada do plano de carga', () => {
+  const boxes = [
+    box({ stopSequence: 1, xM: 0 }),
+    box({ isEstimated: true, stopSequence: 3, xM: 2 }),
+    box({ isSplit: true, stopSequence: 3, xM: 9 }),
+    box({ stopSequence: 2, xM: 1 }),
+  ]
+
+  it('dá a cada parada a ordem de carregamento dela', () => {
+    const facts = buildCargoChipFacts(boxes)
+
+    /** Em profundidade a última entrega carrega primeiro: ela vai ao fundo. */
+    expect(facts.get(3)?.loadingPosition).toBe(1)
+    expect(facts.get(1)?.loadingPosition).toBe(3)
+  })
+
+  it('carrega a faixa e as contagens que a tabela imprime', () => {
+    const facts = buildCargoChipFacts(boxes)
+
+    expect(facts.get(3)).toMatchObject({ boxes: 2, presumed: 1, split: 1 })
+    expect(facts.get(3)?.fromM).toBe(2)
+    expect(facts.get(1)).toMatchObject({ boxes: 1, presumed: 0, split: 0 })
+  })
+
+  /** A ficha e a folha saem da **mesma** conta: duas contas divergiriam caladas. */
+  it('nasce do mesmo resumo que a folha impressa', () => {
+    const source = readFileSync(
+      new URL('src/modules/trip/shared/cargoPrintSummary.service.ts', APPLICATION_ROOT),
+      'utf8',
+    )
+
+    expect(source).toContain('buildCargoPrintSummary(boxes, arrangement)')
+  })
+
+  it('põe os números na ficha e deixa a tabela para o papel', () => {
+    const component = readFileSync(
+      new URL('src/modules/trip/components/TripCargoLayers.component.tsx', APPLICATION_ROOT),
+      'utf8',
+    )
+    const css = readFileSync(
+      new URL('src/modules/trip/styles/trip.module.css', APPLICATION_ROOT),
+      'utf8',
+    )
+
+    expect(component).toContain('buildCargoChipFacts')
+    /** A folha continua existindo — ela é o que o agregado leva para dentro da van. */
+    expect(component).toContain('cargoPrintSheet')
+    expect(css).toContain('.cargoPrintSheet')
+    expect(trip.cargoLayers.chip.loading).toBeTruthy()
+    expect(tripEn.cargoLayers.chip.loading).toBeTruthy()
+  })
+})

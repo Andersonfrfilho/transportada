@@ -114,3 +114,43 @@ export function buildCargoPrintSummary(
       )
   )
 }
+
+export type CargoChipFacts = Readonly<{
+  boxes: number
+  fromM: number
+  loadingPosition: number
+  presumed: number
+  split: number
+  toM: number
+}>
+
+/**
+ * Os mesmos números da folha, chaveados pela parada — para a ficha colorida da tela.
+ *
+ * ⚠️ **Eram duas listas, e nada as ligava.** A ficha dizia cliente e endereço, a tabela ao lado
+ * dizia ordem de carregamento, faixa e contagens, e quem estava no barracão casava as duas por
+ * nome de mercado. A tabela **fica** — ela é a folha que o agregado leva para dentro da van, em
+ * laser mono, onde não há cor nem clique —, mas na tela a informação mora num lugar só.
+ *
+ * ⚠️ E ela sai de `buildCargoPrintSummary`, nunca de uma segunda conta ao lado: duas contas do
+ * mesmo número divergem caladas, e aqui a divergência seria entre o que a tela manda carregar e o
+ * que o papel manda carregar, com a carga na mão.
+ */
+export function buildCargoChipFacts(
+  boxes: readonly PrintableBox[],
+  arrangement: StopArrangement = 'depth',
+): ReadonlyMap<number, CargoChipFacts> {
+  return new Map(
+    buildCargoPrintSummary(boxes, arrangement).map((row, position) => [
+      row.stopSequence,
+      {
+        boxes: row.boxes,
+        fromM: row.fromM,
+        loadingPosition: position + 1,
+        presumed: row.presumed,
+        split: row.split,
+        toM: row.toM,
+      },
+    ]),
+  )
+}
