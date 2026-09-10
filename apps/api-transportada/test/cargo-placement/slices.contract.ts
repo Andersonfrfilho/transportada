@@ -11,7 +11,12 @@ import {
 } from '../../src/trips/domain/cargo-placement.policy.js'
 
 /** Baú de truck medido: 7,40 × 2,47 × 2,30 m — o mesmo da frota de teste. */
-const BED = { heightM: '2.300', lengthM: '7.400', widthM: '2.470' } as const
+const BED = {
+  heightM: '2.300',
+  lengthM: '7.400',
+  source: 'measured' as const,
+  widthM: '2.470',
+} as const
 
 function box(overrides: Partial<PlacementBox>): PlacementBox {
   return {
@@ -363,7 +368,7 @@ describe('os limites do baú na carga dividida (spec 095)', () => {
    */
   test('nunca põe carga dividida acima do teto do baú', () => {
     const plan = resolveCargoPlacement({
-      bed: { heightM: '2.300', lengthM: '4.000', widthM: '2.400' },
+      bed: { heightM: '2.300', lengthM: '4.000', source: 'measured' as const, widthM: '2.400' },
       boxes: [
         box({
           count: 30,
@@ -651,7 +656,12 @@ describe('a gravidade (spec 099)', () => {
 })
 
 /** O mesmo baú da spec 100: Fiorino furgão, 1,70 × 1,45 × 1,30 m. */
-const FIORINO = { heightM: '1.300', lengthM: '1.700', widthM: '1.450' } as const
+const FIORINO = {
+  heightM: '1.300',
+  lengthM: '1.700',
+  source: 'measured' as const,
+  widthM: '1.450',
+} as const
 
 /** A faixa que a parada ocupa ao longo da **largura** — o eixo que as faixas dividem. */
 function lateral(boxes: readonly PlacedBox[], stopSequence: number): { from: number; to: number } {

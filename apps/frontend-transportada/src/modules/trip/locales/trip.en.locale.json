@@ -101,6 +101,7 @@
     "title_other": "Cancel {{count}} trips?"
   },
   "cargoLayers": {
+    "bedFromReference": "The scale comes from the vehicle type catalogue, not from the fiche: this truck has no bed measurements, and the same type varies by up to double.",
     "doorsRear": "This bed only opens at the rear: the last stop must travel at the far end.",
     "doorsRearAndSide": "This bed opens at the rear and on the right side: the order helps, it does not bind.",
     "dragHint": "drag to turn",

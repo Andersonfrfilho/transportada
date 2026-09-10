@@ -11,7 +11,12 @@ import {
 } from '../../src/trips/domain/cargo-placement.policy.js'
 
 /** Baú de truck medido: 7,40 × 2,47 × 2,30 m — o mesmo da frota de teste. */
-const BED = { heightM: '2.300', lengthM: '7.400', widthM: '2.470' } as const
+const BED = {
+  heightM: '2.300',
+  lengthM: '7.400',
+  source: 'measured' as const,
+  widthM: '2.470',
+} as const
 
 function box(overrides: Partial<PlacementBox>): PlacementBox {
   return {

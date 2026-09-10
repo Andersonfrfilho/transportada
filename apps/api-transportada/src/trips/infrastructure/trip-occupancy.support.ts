@@ -139,7 +139,7 @@ export async function loadTripOccupancy(
   })
   if (capacity === null) {
     return {
-      bedDimensions: toBedDimensions(vehicle),
+      bedDimensions: toBedDimensions(vehicle, reference),
       boxesByDocument: new Map(),
       capacityM3: null,
       fallbackBoxVolumeM3: null,
@@ -211,7 +211,7 @@ export async function loadTripOccupancy(
   const occupancy = resolveTripOccupancy({ capacityM3: capacity.capacityM3, documents })
   if (occupancy === null) {
     return {
-      bedDimensions: toBedDimensions(vehicle),
+      bedDimensions: toBedDimensions(vehicle, reference),
       boxesByDocument: measured.boxesByDocument,
       capacityM3: capacity.capacityM3,
       fallbackBoxVolumeM3: toNumber(measured.medianM3),
@@ -224,7 +224,7 @@ export async function loadTripOccupancy(
   }
 
   return {
-    bedDimensions: toBedDimensions(vehicle),
+    bedDimensions: toBedDimensions(vehicle, reference),
     boxesByDocument: measured.boxesByDocument,
     capacityM3: capacity.capacityM3,
     fallbackBoxVolumeM3: toNumber(measured.medianM3),
@@ -246,18 +246,38 @@ export async function loadTripOccupancy(
  * As três medidas da ficha, ou nada. Medida pela metade não desenha planta pela metade: duas
  * medidas e um palpite não descrevem um baú, e a escala é a única coisa que o desenho promete.
  */
-function toBedDimensions(vehicle: Dimensions): CargoBedDimensions | null {
+/**
+ * A escala do baú: **a ficha primeiro, o catálogo do tipo depois** — e a origem viaja junto.
+ *
+ * ⚠️ Zero na ficha é ausência de medida, nunca baú de volume zero (spec 088). E o catálogo só entra
+ * marcado: sem a marca, o palpite de mercado se apresentaria como fita na mão de quem carrega.
+ */
+function toBedDimensions(
+  vehicle: Dimensions,
+  reference?: Dimensions | undefined,
+): CargoBedDimensions | null {
+  const measured = fromDimensions(vehicle, 'measured')
+  if (measured !== null) return measured
+
+  return reference === undefined ? null : fromDimensions(reference, 'reference')
+}
+
+function fromDimensions(
+  dimensions: Dimensions,
+  source: 'measured' | 'reference',
+): CargoBedDimensions | null {
   const [height, length, width] = [
-    Number(vehicle.cargoHeightM),
-    Number(vehicle.cargoLengthM),
-    Number(vehicle.cargoWidthM),
+    Number(dimensions.cargoHeightM),
+    Number(dimensions.cargoLengthM),
+    Number(dimensions.cargoWidthM),
   ]
   if (!(height > 0) || !(length > 0) || !(width > 0)) return null
 
   return {
-    heightM: vehicle.cargoHeightM,
-    lengthM: vehicle.cargoLengthM,
-    widthM: vehicle.cargoWidthM,
+    heightM: dimensions.cargoHeightM,
+    lengthM: dimensions.cargoLengthM,
+    source,
+    widthM: dimensions.cargoWidthM,
   }
 }
 

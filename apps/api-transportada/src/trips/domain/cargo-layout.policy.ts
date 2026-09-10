@@ -59,6 +59,12 @@ export type CargoLayoutStop = {
 export type CargoBedDimensions = {
   readonly heightM: string
   readonly lengthM: string
+  /**
+   * De onde a escala veio. ⚠️ `reference` é o catálogo do tipo, e ele **precisa** chegar à tela:
+   * a dispersão dentro de um tipo chega a 2× — um VUC existe de 13 e de 26 m³ —, e o desenho diz
+   * "encoste a 4,20 m da porta". Sem a marca, o palpite se apresenta como medida.
+   */
+  readonly source: 'measured' | 'reference'
   readonly widthM: string
 }
 
@@ -151,6 +157,11 @@ export type ResolvedCargoLayout = {
    * altura da carga, e o baú aparecia sempre cheio até o teto — a folga de altura nunca aparecia.
    */
   readonly bedHeightM: string | null
+  /**
+   * De onde saiu a escala do desenho. ⚠️ `reference` é o catálogo do tipo, e a tela é **obrigada**
+   * a dizer isso: o desenho promete metro, e metro de catálogo não é metro de fita.
+   */
+  readonly bedSource: 'measured' | 'reference' | null
   /** O comprimento interno do baú, da ficha. `null` sem as três medidas — e aí não há planta. */
   readonly bedLengthM: string | null
   /**
@@ -279,12 +290,18 @@ function toLength(value: string): bigint {
 }
 
 /**
- * Spec 088 D2: **a escala sai da ficha, e sem ficha não há planta.**
+ * De onde sai a escala da planta.
  *
- * ⚠️ `capacityDimensions` chega preenchida também no degrau `reference`, porque a ocupação aceita o
- * palpite de mercado como piso de m³. A planta não aceita: a dispersão dentro de um tipo chega a 2×
- * — um VUC existe de 13 e de 26 m³ —, e ali o erro deixa de ser uma porcentagem e vira metro na
- * tela de quem vai conferir com fita. Este filtro é o único lugar onde essa linha é traçada.
+ * ⚠️ **A spec 088 D2 recusava o catálogo aqui, e a decisão mudou** — por pedido explícito de quem
+ * opera, depois de a frota real mostrar o custo da recusa: o veículo sem baú medido ficava **sem
+ * planta nenhuma**, e quem carrega perdia o desenho inteiro por causa de três campos que ninguém
+ * preencheu. Medido em 2026-09-10: 1 dos 6 caminhões da distribuição, e o primeiro da lista.
+ *
+ * O argumento da 088 continua verdadeiro e por isso **nada dele foi apagado**: a dispersão dentro
+ * de um tipo chega a 2×, e o desenho diz "encoste a 4,20 m da porta". O que muda é o remédio — em
+ * vez de esconder o desenho, ele sai com a **origem colada nele**, e a tela é obrigada a dizer que
+ * a escala é de catálogo. Número plausível sem aviso é o modo de falha da ADR-0044 §1; com aviso,
+ * é informação.
  */
 export function resolveBedDimensions(
   occupancy: {
@@ -292,7 +309,7 @@ export function resolveBedDimensions(
     readonly capacitySource: 'declared' | 'measured' | 'reference'
   } | null,
 ): CargoBedDimensions | null {
-  if (occupancy === null || occupancy.capacitySource !== 'measured') return null
+  if (occupancy === null) return null
 
   return occupancy.capacityDimensions
 }
@@ -492,6 +509,7 @@ export function resolveCargoLayout(input: {
 
   return {
     bedHeightM: bedKnown ? formatScaledDecimal(bedHeight, LENGTH_SCALE) : null,
+    bedSource: bedKnown ? (input.bedDimensions?.source ?? null) : null,
     bedLengthM: bedKnown ? formatScaledDecimal(bedLength, LENGTH_SCALE) : null,
     loadingAccess: access,
     placement,

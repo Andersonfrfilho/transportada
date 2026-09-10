@@ -9,7 +9,7 @@ import {
 } from '../../src/trips/domain/cargo-layout.policy.js'
 
 /** Baú de truck medido com fita: 8,900 × 2,500 × 2,400 = 53,400 m³. */
-const BAU = { heightM: '2.400', lengthM: '8.900', widthM: '2.500' }
+const BAU = { heightM: '2.400', lengthM: '8.900', source: 'measured' as const, widthM: '2.500' }
 /** Uma faixa de 1 m de profundidade neste baú são 2,5 × 2,4 = 6,000 m³. */
 const CAPACIDADE = { bedDimensions: BAU, capacityM3: '53.400000' }
 
@@ -153,21 +153,35 @@ describe('profundidade da faixa no baú (spec 088)', () => {
     expect(layout?.stopsWithoutVolume).toHaveLength(2)
   })
 
-  test('a referência de mercado alimenta a ocupação e nunca a planta', () => {
+  /**
+   * ⚠️ **A 088 D2 recusava o catálogo como escala, e a decisão mudou** — por pedido de quem opera,
+   * depois de a frota real mostrar o custo: o veículo sem baú medido ficava sem planta nenhuma, e
+   * quem carrega perdia o desenho inteiro por três campos que ninguém preencheu.
+   *
+   * O argumento da 088 não foi apagado: a dispersão dentro de um tipo chega a 2×. O que mudou é o
+   * remédio — em vez de esconder, o desenho sai com a **origem colada nele**, e a tela é obrigada a
+   * dizer que a escala é de catálogo. Este contrato guarda a marca, que é o que torna a mudança
+   * honesta; sem ela, o palpite volta a se apresentar como fita.
+   */
+  test('o catálogo alimenta a planta, e a origem vai junto', () => {
     const daFicha = { capacityDimensions: BAU, capacitySource: 'measured' } as const
-    const daReferencia = { capacityDimensions: BAU, capacitySource: 'reference' } as const
+    const daReferencia = {
+      capacityDimensions: { ...BAU, source: 'reference' as const },
+      capacitySource: 'reference',
+    } as const
     const digitado = { capacityDimensions: null, capacitySource: 'declared' } as const
 
-    expect(resolveBedDimensions(daFicha)).toEqual(BAU)
-    expect(resolveBedDimensions(daReferencia)).toBeNull()
+    expect(resolveBedDimensions(daFicha)?.source).toBe('measured')
+    expect(resolveBedDimensions(daReferencia)?.source).toBe('reference')
+    /** Digitado é m³ sem medida: não há três dimensões, e desenho nenhum sai daí. */
     expect(resolveBedDimensions(digitado)).toBeNull()
     expect(resolveBedDimensions(null)).toBeNull()
   })
 })
 
 /** As três medidas do Fiorino da spec 100, e um baú de truck onde a faixa não cabe. */
-const FIORINO = { heightM: '1.300', lengthM: '1.700', widthM: '1.450' }
-const TRUCK = { heightM: '2.300', lengthM: '7.400', widthM: '2.470' }
+const FIORINO = { heightM: '1.300', lengthM: '1.700', source: 'measured' as const, widthM: '1.450' }
+const TRUCK = { heightM: '2.300', lengthM: '7.400', source: 'measured' as const, widthM: '2.470' }
 
 function caixa(overrides: Record<string, unknown>) {
   return {

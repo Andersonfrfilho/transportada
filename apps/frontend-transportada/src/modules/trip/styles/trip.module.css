@@ -221,6 +221,12 @@
 }
 
 /* Nota cancelada/denegada avisa sem bloquear: a viagem continua e o MDF-e segue emissível. */
+/** O aviso que acompanha um número de origem fraca — cobre, como a marca de estimativa. */
+.warning {
+  color: var(--color-copper);
+  margin: 0 0 var(--space-2);
+}
+
 .warningRow {
   background: color-mix(in srgb, var(--color-alert) 12%, transparent);
 }

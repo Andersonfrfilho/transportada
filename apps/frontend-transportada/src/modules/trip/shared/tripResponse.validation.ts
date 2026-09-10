@@ -778,6 +778,7 @@ function isCargoLayout(value: unknown): boolean {
      * Um só preenchido seria uma planta com metade da escala, desenhada mesmo assim.
      */
     isNullableString(value.bedLengthM) &&
+    isNullableString(value.bedSource) &&
     /** API antiga não serve o acesso: sem ele a planta desenha só a traseira, que é o mais restritivo. */
     (value.loadingAccess === undefined || isString(value.loadingAccess)) &&
     /**

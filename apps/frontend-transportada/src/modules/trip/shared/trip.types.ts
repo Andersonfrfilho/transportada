@@ -333,6 +333,12 @@ export type TripCargoLayout = Readonly<{
   /** A altura interna do baú, da ficha — é ela que diz se cabe mais uma camada. */
   bedHeightM: null | string
   bedLengthM: null | string
+  /**
+   * De onde saiu a escala. ⚠️ `reference` é o catálogo do tipo, e a tela **diz isso**: o desenho
+   * promete metro, e metro de catálogo não é metro de fita (a dispersão dentro de um tipo chega a
+   * 2×). Sem a marca, o palpite se apresentaria como medida.
+   */
+  bedSource: 'measured' | 'reference' | null
   /** Por onde a carga entra — a planta marca a porta lateral na borda do lado direito. */
   loadingAccess: 'open' | 'rear' | 'rear_and_side'
   /**

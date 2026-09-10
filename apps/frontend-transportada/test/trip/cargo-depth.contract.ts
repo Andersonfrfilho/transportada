@@ -19,6 +19,7 @@ const SLICE = {
 
 const LAYOUT = {
   bedLengthM: '8.900',
+  bedSource: 'measured',
   bedWidthM: '2.500',
   freeDepthM: '2.900',
   freeRows: 6,
@@ -68,6 +69,7 @@ describe('a profundidade da faixa chega do servidor (spec 088)', () => {
   it('aceita o baú sem medida e mantém as fileiras', () => {
     const layout = readLayout({
       bedLengthM: null,
+      bedSource: null,
       bedWidthM: null,
       freeDepthM: null,
       overflowDepthM: null,

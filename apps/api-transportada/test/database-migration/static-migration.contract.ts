@@ -231,6 +231,7 @@ describe('Drizzle migrations', () => {
       '20260909200000_route_optimization_departure_time',
       '20260909210000_trip_eta_departure_anchor',
       '20260910090000_route_suggestion_leftover_reason',
+      '20260910120000_vehicle_reference_every_type',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')

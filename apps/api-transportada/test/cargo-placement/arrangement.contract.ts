@@ -9,7 +9,12 @@ import {
 } from '../../src/trips/domain/cargo-placement.policy.js'
 
 /** Fiorino furgão, a viagem real que gerou a spec 100: 1,70 × 1,45 × 1,30 m. */
-const FIORINO = { heightM: '1.300', lengthM: '1.700', widthM: '1.450' } as const
+const FIORINO = {
+  heightM: '1.300',
+  lengthM: '1.700',
+  source: 'measured' as const,
+  widthM: '1.450',
+} as const
 
 function box(overrides: Partial<PlacementBox>): PlacementBox {
   return {

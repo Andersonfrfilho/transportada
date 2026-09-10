@@ -10,7 +10,7 @@ import {
 } from '../../src/trips/domain/cargo-plan.policy.js'
 
 /** Baú de truck medido com fita: 8,900 × 2,500 × 2,400. */
-const BAU = { heightM: '2.400', lengthM: '8.900', widthM: '2.500' }
+const BAU = { heightM: '2.400', lengthM: '8.900', source: 'measured' as const, widthM: '2.500' }
 /** Caixa de 50 × 40 × 30 cm: pegada de 0,20 m², e sete delas empilham nos 2,4 m de altura. */
 const CAIXA = { count: 40, heightMm: 300, lengthMm: 500, widthMm: 400 }
 
