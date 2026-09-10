@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { canServe, partitionByCoverage, repairCoverage } from './coverage.js'
+import { trimRoutesToCapacity } from './capacity-trim.js'
 import { buildNeighbourhood, type RouteNeighbourhood } from './neighbourhood.js'
 import {
   buildNearestNeighbourRoute,
@@ -415,10 +416,17 @@ function buildSolution(input: {
    * instância trivial (uma parada só) e o atalho de cobertura vazia entram por outro caminho — e uma
    * solução final que ignora a proibição a tornaria mentira exatamente onde ela é lida.
    */
-  const routes = repairCoverage({
+  const covered = repairCoverage({
     problem: input.problem,
     routes: splitChromosome(input.chromosome, input.problem.vehicles.length),
   })
+  /**
+   * ⚠️ **O que passa do teto do caminhão fica para a próxima viagem** — e o corte vem **antes** da
+   * avaliação, senão distância, duração e custo descreveriam a rota de antes do corte, que é a
+   * mesma divergência que a spec 090 D4 proíbe entre o traço e o preço.
+   */
+  const trimmed = trimRoutesToCapacity({ problem: input.problem, routes: covered })
+  const routes = trimmed.routes
   const assignments: RouteAssignment[] = []
   const violations: RouteViolation[] = []
   let totalCostMicros = 0
@@ -440,6 +448,22 @@ function buildSolution(input: {
    * ADR-0044 §5: carga que excede todos os veículos devolve o que cabe e **lista o que sobrou**, em
    * vez de estourar o peso em silêncio. Sobra aqui é parada que nenhuma rota recebeu.
    */
+  /**
+   * ⚠️ **A violação de peso continua saindo, e em quilos** (ADR-0044 §9) — o que mudou é o que ela
+   * conta: antes era o excesso que o caminhão levaria a mais, agora é o que ficou para a próxima
+   * viagem. Calar isso porque a rota agora "cabe" esconderia justamente a frota insuficiente.
+   */
+  for (const trim of trimmed.trimmedByVehicle) {
+    const vehicle = input.problem.vehicles[trim.vehicleIndex]
+    if (vehicle === undefined) continue
+    violations.push({
+      amount: trim.kilograms,
+      kind: 'weight',
+      stopIndex: null,
+      vehicleId: vehicle.id,
+    })
+  }
+
   const assigned = new Set(assignments.flatMap((assignment) => assignment.stopIndexes))
   const unassignedStopIndexes = input.problem.stops
     .map((stop) => stop.index)
