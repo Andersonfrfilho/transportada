@@ -2,7 +2,7 @@
 
 Referência viva do empacotador — `apps/api-transportada/src/trips/domain/cargo-placement.policy.ts`
 e `cargo-layout.policy.ts`. Cada regra aqui veio de um defeito **medido**, e o número ao lado é o
-número que a medição deu. Specs de origem: 085, 088, 094, 095, 099 e 100.
+número que a medição deu. Specs de origem: 085, 088, 094, 095, 099, 100, 113, 114 e 115.
 
 ## O que o desenho promete, e o que ele não promete
 
@@ -67,6 +67,13 @@ volume prometia grade que a varredura não entregava: numa Fiorino com duas para
 de trinta, a grade colocava 28 das 32 caixas. A decisão empacota os dois arranjos e compara — trocar
 acesso por caixa fora do desenho é o defeito que a grade veio consertar. Medido: 18,6 ms com 24
 paradas e 407 caixas, contra o orçamento de 50 ms.
+
+⚠️ **A grade mais estreita que o volume admite não é a que coloca mais** (spec 115). O rodízio junta
+uma parada grande e outra pequena na mesma faixa por acaso, e com seis faixas de uma caixa de largura
+a mais cheia estourava. Medido no Accelo de 24 paradas: 494 de 500 caixas com seis faixas, 473 com
+cinco, 456 com quatro — e **500 de 500 com três**. A decisão experimenta K decrescente e fica com a
+maior que coloca tudo (nenhuma colocando, a que coloca mais; empate com a de mais faixas), e o
+`laneCount` viaja na decisão até o empacotador — recalcular devolveria a grade que deixava caixa fora.
 
 ---
 
@@ -140,6 +147,20 @@ em faixas as fileiras crescem da porta para dentro, em profundidade o bloco term
 zera quando a fronteira avança; o mapa de apoio, não. Com a trava só no contador a carga voltou a
 subir 1,20 m numa pilha limitada a 0,60 m. E a **carga dividida** tem busca própria e furava por
 trás — medido, uma caixa a 0,90 m.
+
+⚠️ **A alavanca conta de onde a contenção termina, não do piso** (spec 115). Tombar é girar em
+torno da aresta onde a pilha deixa de ser segurada: se a vizinha a segura até 0,63 m, o que tomba é o
+trecho acima disso, e é **esse** trecho que não passa de três vezes a base. A regra só conhecia os
+dois extremos — livre desde o piso, ou presa na base da caixa —, e cada fileira podia subir **uma
+caixa** acima da vizinha do lado da porta: a carga descia em escada por **2,9 m** de um baú de 5,32 m
+(RTD-5J78) e 1,9 m de 4,20 m (RTC-4H67), com 49 e 52 caixas `bedFull` a 38% e 55%. Com a contenção
+medida pela altura da vizinha, as duas entram inteiras. A porta continua não sendo parede: a fileira
+encostada nela segue presa a três vezes a base contados do piso (`isStandingUp`).
+
+⚠️ **Recusar um assento é tentar o próximo da mesma fileira** (spec 115). A esbeltez, o comprimento e
+a sombra (Passo 6) eram conferidos depois de `seat` devolver o **primeiro** lugar nivelado; recusado,
+a fileira inteira era pulada com lugar bom mais adiante nela. Hoje as recusas entram em `seat` como
+`accept`, e a corrida desliza uma célula.
 
 ⚠️ **A massa não entra, e é física, não simplificação.** Ela cancela nos dois lados da condição de
 tombamento, e cancela também no deslizamento. O peso importaria pela **distribuição** (caixa pesada
@@ -218,8 +239,29 @@ para 451 caixas desenhadas, de 1,47 m para 2,14 m de pilha e de 383 para **zero*
 caixa é colocada; sem colocação nova não surge lugar novo, e a gêmea da caixa recusada varria o baú
 inteiro para descobrir isso (3600 caixas iguais num baú cheio: 67 ms contra 50 de orçamento).
 
-⚠️ **Aberto:** na mesma carga real ainda saem 12 de 463 caixas `bedFull` com o baú a 38% do volume —
-com tamanhos misturados o topo não fica plano em toda a pegada, e a regra do assento nivelado recusa.
+⚠️ **A entrega mais cedo não senta atrás de uma mais tardia mais alta que a base dela** (spec 115).
+Subir para uma fileira do fundo é o bloco se enchendo, e é legítimo; mas com tamanhos misturados a
+caixa da parada 9 sentava a 0,63 m atrás de uma da parada 10 cujo topo ia a 0,67 m — 4 cm de parede
+entre ela e a porta. Medido: 1 par em RTC-4H67 e 1 em RTD-5J78. A cada troca de parada o relevo das
+paradas já carregadas é congelado como "o maior topo daqui até a porta" (`freezeLater`), e o assento
+recusa o lugar em que ele passa da base (`isShadowed`).
+
+⚠️ **O teto é de desenho, nunca de empacotamento** (spec 115). `MAX_PLACED_BOXES` = 600 era o
+orçamento da varredura, e a varredura vai da última entrega para a primeira: a 601ª caixa em diante
+eram as primeiras entregas, e o bloco sem elas era deslocado até a porta — desenhando entregas
+tardias onde as primeiras deviam estar. Medido no Atego de 85 paradas: 689 caixas `tooMany` e **46
+paradas fora do desenho**. Hoje toda caixa é empacotada (6000 caixas em 40 ms) e só o desenho é aparado
+em `MAX_DRAWN_BOXES` = 1500 — o redesenho custa ~0,064 ms por caixa (451 caixas em 29 ms ao girar a
+vista). Acima do teto sai primeiro a caixa mais alta, nunca a que sustenta outra desenhada nem a
+última de uma parada: tirar pela ordem apagava paradas, e tirar do meio deixava caixa no ar.
+
+⚠️ **A célula de 5 cm foi medida contra 2,5, 2 e 1 cm, e fica** (spec 115). A menor arredonda menos a
+caixa presumida, mas coloca menos: 500 → 362 caixas no Accelo e 982 → 765 no Atego, e a 1 cm o tempo
+vai a 61 ms.
+
+⚠️ **Aberto:** o Atego de 85 paradas coloca 982 de 1417 caixas a 48% do volume, 435 `bedFull`. A célula
+arredonda a caixa presumida de 0,371 × 0,261 m para 0,40 × 0,30 m — 78% da área de piso —, e dez
+caixas de 0,21 m deixam 0,20 m do teto sem uso.
 
 ---
 

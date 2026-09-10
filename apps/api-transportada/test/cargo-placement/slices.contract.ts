@@ -515,13 +515,34 @@ describe('o equilíbrio longitudinal (spec 098)', () => {
     expect(boxes.every((entry) => entry.reasons.includes('weightBalanced'))).toBe(true)
   })
 
-  /** ⚠️ Equilibrar não afrouxa a fatia: a ordem de entrega vale nos dois lados do degrau. */
+  /**
+   * ⚠️ Equilibrar não afrouxa a ordem de entrega: ela vale nos dois lados do degrau.
+   *
+   * ⚠️ **Spec 115 reescreveu esta afirmação.** Ela exigia a parada 2 inteira atrás da 1 no
+   * comprimento — a fatia da 095, que a 114 D4 reduziu ao que ela protegia: a entrega mais cedo
+   * **pode** subir em cima da mais tardia, que é como ela sai primeiro. Passava por acaso, enquanto a
+   * pilha parava uma caixa acima da vizinha; com a contenção medida pela altura da vizinha (115), a
+   * parada 1 sobe sobre a 2 e a afirmação antiga reprovava o desenho certo. O que continua proibido é
+   * o contrário, e é isso que se afirma aqui.
+   */
   test('a ordem entre paradas sobrevive ao equilíbrio', () => {
     const boxes = placed(resolveCargoPlacement({ bed: BED, boxes: cargo, payloadRatio: '0.8000' }))
-    const second = extent(boxes, 2)
-    const first = extent(boxes, 1)
+    const cross = (fromA: number, sizeA: number, fromB: number, sizeB: number): boolean =>
+      fromA < fromB + sizeB - 1e-6 && fromB < fromA + sizeA - 1e-6
+    const blocking = boxes.filter((later) =>
+      boxes.some(
+        (earlier) =>
+          earlier.stopSequence < later.stopSequence &&
+          cross(later.yM, later.widthM, earlier.yM, earlier.widthM) &&
+          ((cross(later.xM, later.depthM, earlier.xM, earlier.depthM) &&
+            later.zM >= earlier.zM + earlier.heightM - 1e-6) ||
+            (cross(later.zM, later.heightM, earlier.zM, earlier.heightM) &&
+              later.xM >= earlier.xM + earlier.depthM - 1e-6)),
+      ),
+    )
 
-    expect(second.to).toBeLessThanOrEqual(first.from + 1e-9)
+    expect(new Set(boxes.map((entry) => entry.stopSequence))).toEqual(new Set([1, 2]))
+    expect(blocking).toEqual([])
   })
 })
 

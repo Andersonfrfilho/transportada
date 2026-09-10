@@ -500,6 +500,8 @@ export function resolveCargoLayout(input: {
   const placement = resolveCargoPlacement({
     /** ⚠️ A **mesma** decisão da tabela — resolver de novo aqui é como as duas passam a discordar. */
     arrangement: decision.arrangement,
+    /** Spec 115: as faixas que a decisão empacotou — recalcular devolveria a grade que deixava caixa fora. */
+    ...(decision.laneCount === undefined ? {} : { laneCount: decision.laneCount }),
     bed,
     boxes: placementBoxes,
     /** Spec 099: quem abre a lateral inteira não tem porta a que encostar — equilibra sempre. */

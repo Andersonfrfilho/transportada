@@ -6,10 +6,19 @@ import type { CargoBedDimensions } from './cargo-layout.policy.js'
 
 const MILLIMETRES_PER_METRE = 1000
 /**
- * Teto de caixas desenhadas. Uma viagem de 300 notas pode ter milhares, e o desenho não fica melhor
- * com duas mil — fica lento e ilegível. O excedente é dito, como tudo que não entra.
+ * Teto de caixas **desenhadas** — nunca de caixas empacotadas. O excedente é dito, como tudo que não
+ * entra.
+ *
+ * ⚠️ **Spec 115: o teto cortava o empacotamento, e o corte caía nas primeiras entregas.** A carga é
+ * empacotada da última entrega para a primeira, então a 601ª caixa em diante eram justamente as que
+ * saem primeiro — e o bloco sem elas era deslocado até a porta, desenhando entregas tardias onde as
+ * primeiras deviam estar. Medido no Atego de 85 paradas: 817 caixas e 48 paradas fora por "limite de
+ * detalhe". Hoje toda caixa é empacotada (6000 caixas em 40 ms) e só o desenho é aparado.
+ *
+ * O número é o custo do redesenho: medido na tela, 451 caixas redesenham em 29 ms ao girar a vista
+ * (~0,064 ms por caixa), então 1500 ficam perto de 100 ms — o limite de um gesto que ainda responde.
  */
-const MAX_PLACED_BOXES = 600
+export const MAX_DRAWN_BOXES = 1500
 
 /**
  * O porquê de cada caixa estar onde está. **Vocabulário fechado**: motivo que a política não conhece
@@ -123,7 +132,59 @@ type Slot = {
  * o que não está: sem peso por eixo ela nunca diz que a carga pode sair, e sem `is_stackable` ela
  * empilha marcando o arranjo como presumido.
  */
-export function resolveCargoPlacement(input: {
+export function resolveCargoPlacement(
+  input: Parameters<typeof placeCargo>[0],
+): CargoPlacement | null {
+  const placement = placeCargo(input)
+
+  return placement === null ? null : trimForDrawing(placement)
+}
+
+/**
+ * O desenho aparado ao teto (spec 115): sai primeiro a caixa **mais alta**, e nunca a que sustenta
+ * outra ainda desenhada nem a última de uma parada.
+ *
+ * ⚠️ Por cima e não pela ordem de carregamento: tirar pela ordem apagava paradas inteiras, e tirar do
+ * meio deixava caixa desenhada no ar, sobre um vão que no baú está ocupado.
+ */
+function trimForDrawing(placement: CargoPlacement): CargoPlacement {
+  const boxes = placement.layers.flatMap((layer) => layer.boxes)
+  if (boxes.length <= MAX_DRAWN_BOXES) return placement
+
+  const perStop = new Map<number, number>()
+  const byBaseMm = new Map<number, PlacedBox[]>()
+  for (const box of boxes) {
+    perStop.set(box.stopSequence, (perStop.get(box.stopSequence) ?? 0) + 1)
+    const baseMm = Math.round(box.zM * MILLIMETRES_PER_METRE)
+    byBaseMm.set(baseMm, [...(byBaseMm.get(baseMm) ?? []), box])
+  }
+  const kept = new Set(boxes)
+  const unplaced = [...placement.unplaced]
+  const tallestFirst = [...boxes].sort(
+    (first, second) => second.zM + second.heightM - (first.zM + first.heightM),
+  )
+  for (const box of tallestFirst) {
+    if (kept.size <= MAX_DRAWN_BOXES) break
+    if ((perStop.get(box.stopSequence) ?? 0) <= 1) continue
+    const above = byBaseMm.get(Math.round((box.zM + box.heightM) * MILLIMETRES_PER_METRE)) ?? []
+    const carries = above.some(
+      (other) =>
+        kept.has(other) &&
+        other.xM < box.xM + box.depthM - 1e-6 &&
+        box.xM < other.xM + other.depthM - 1e-6 &&
+        other.yM < box.yM + box.widthM - 1e-6 &&
+        box.yM < other.yM + other.widthM - 1e-6,
+    )
+    if (carries) continue
+    kept.delete(box)
+    perStop.set(box.stopSequence, (perStop.get(box.stopSequence) ?? 0) - 1)
+    pushUnplaced(unplaced, { count: 1, label: box.label, reason: 'tooMany' })
+  }
+
+  return { ...placement, layers: toLayers(boxes.filter((box) => kept.has(box))), unplaced }
+}
+
+function placeCargo(input: {
   readonly bed: CargoBedDimensions | null
   readonly boxes: readonly PlacementBox[]
   /**
@@ -140,6 +201,8 @@ export function resolveCargoPlacement(input: {
    * sozinha, como os contratos a usam.
    */
   readonly arrangement?: StopArrangement
+  /** Spec 115: as faixas da grade, quando quem decidiu o arranjo já as escolheu. */
+  readonly laneCount?: number
   readonly loadingAccess?: LoadingAccess
   /**
    * Spec 100: algum motorista da viagem amarra a carga com cinta. ⚠️ Ausente é **não**, e o padrão é
@@ -180,21 +243,25 @@ export function resolveCargoPlacement(input: {
    * faz: as duas políticas desenham a mesma viagem, e decidir separado faria a planta mostrar faixas
    * enquanto a tabela descreve profundidade — as duas plausíveis, uma errada, e nada falhando.
    */
-  const arrangement =
-    input.arrangement ??
-    resolveStopArrangement({
-      bed: input.bed,
-      boxes: input.boxes,
-      loadingAccess: input.loadingAccess ?? 'rear',
-      payloadRatio: input.payloadRatio ?? null,
-      ...(input.securesCargo === undefined ? {} : { securesCargo: input.securesCargo }),
-    }).arrangement
+  const decided =
+    input.arrangement === undefined
+      ? resolveStopArrangement({
+          bed: input.bed,
+          boxes: input.boxes,
+          loadingAccess: input.loadingAccess ?? 'rear',
+          payloadRatio: input.payloadRatio ?? null,
+          ...(input.securesCargo === undefined ? {} : { securesCargo: input.securesCargo }),
+        })
+      : null
+  const arrangement = input.arrangement ?? decided?.arrangement ?? 'depth'
+  const laneCount = input.laneCount ?? decided?.laneCount
   if (arrangement === 'grid') {
     const grid = resolveGridLanes({
       bedHeightM: bed.heightM,
       bedLengthM: bed.lengthM,
       bedWidthM: bed.widthM,
       boxes: measured,
+      ...(laneCount === undefined ? {} : { maxLanes: laneCount }),
     })
     if (grid !== null) {
       return placeGrid({
@@ -242,7 +309,6 @@ export function resolveCargoPlacement(input: {
   const presumed = measured.some(
     (box) => box.isStackable === null || box.isFragile === null || box.source === 'estimated',
   )
-  let placedCount = 0
 
   /**
    * ⚠️ **A fatia é do tamanho da carga, e a carga encosta na porta.** A fatia já era proporcional ao
@@ -310,7 +376,7 @@ export function resolveCargoPlacement(input: {
     return packUntilItFits({
       bed: packBed,
       boxes: own,
-      budget: MAX_PLACED_BOXES,
+      budget: Number.POSITIVE_INFINITY,
       capM,
       securesCargo: input.securesCargo === true,
       /** Em faixas a fileira gasta profundidade: sobe-se antes de andar para o fundo (spec 100). */
@@ -345,10 +411,6 @@ export function resolveCargoPlacement(input: {
      * 64 ms numa viagem de 300 notas, contra 5 ms antes da compactação e 50 ms de orçamento.
      */
     for (const box of slice.boxes) {
-      if (placedCount >= MAX_PLACED_BOXES) {
-        pushUnplaced(unplaced, { count: 1, label: box.label, reason: 'tooMany' })
-        continue
-      }
       /**
        * ⚠️ A destroca é do **par inteiro** — posição e encaixe. Trocar só `x` e `y` deixaria a caixa
        * com a profundidade medida no eixo da largura, e ela atravessaria a parede sem nada falhar.
@@ -370,7 +432,6 @@ export function resolveCargoPlacement(input: {
             }
           : { ...box, xM: round(sliceStartM + box.xM) },
       )
-      placedCount += 1
     }
     for (const entry of slice.unplaced) pushUnplaced(unplaced, entry)
     for (const box of slice.leftovers)
@@ -381,7 +442,7 @@ export function resolveCargoPlacement(input: {
   rows.push(
     ...placeSplitCargo({
       bed,
-      budget: MAX_PLACED_BOXES - placedCount,
+      budget: Number.POSITIVE_INFINITY,
       lanes,
       securesCargo: input.securesCargo === true,
       leftovers,
@@ -588,6 +649,11 @@ export type StopArrangementReason = (typeof STOP_ARRANGEMENT_REASONS)[number]
 
 export type StopArrangementDecision = Readonly<{
   arrangement: StopArrangement
+  /**
+   * Spec 115: as faixas da grade que a decisão empacotou — ausente fora da grade. Quem desenha usa
+   * este número, e não recalcula: recalcular devolveria a maior grade, que é a que deixava caixa fora.
+   */
+  laneCount?: number
   reason: StopArrangementReason
 }>
 
@@ -829,8 +895,13 @@ function packSlice(input: {
    */
   const failedAt = new Map<string, number>()
 
+  let frozenStop: number | null = null
   for (const box of ordered) {
     const stackLimit = resolveStackLimit(box)
+    if (input.deliveryOrder === true && box.stopSequence !== frozenStop) {
+      support.freezeLater()
+      frozenStop = box.stopSequence
+    }
 
     for (let unit = 0; unit < box.count; unit += 1) {
       const slot = fitSlot({
@@ -922,29 +993,48 @@ function packSlice(input: {
           continue
         }
 
+        const rowYM = cursor.yM
+        /**
+         * ⚠️ **Recusar um assento é tentar o próximo da mesma fileira, não abandonar a fileira.** As
+         * três recusas abaixo eram conferidas depois de `seat` devolver o **primeiro** lugar nivelado:
+         * se ele era alto demais, a fileira inteira era pulada — com lugar bom mais adiante nela. Com
+         * tamanhos misturados o primeiro lugar nivelado costuma ser o topo de uma pilha solta, e a
+         * carga saía `bedFull` com o baú a 38% (spec 115).
+         */
         const found = support.seat({
+          accept: ({ topM, xM }) =>
+            xM + slot.depthM <= slice.lengthM + 1e-9 &&
+            /**
+             * ⚠️ **A esbeltez é conferida na altura do assento, não no contador de camadas.** O
+             * contador é do cursor e zera quando a fronteira avança; o mapa de apoio, não — ele
+             * continua empilhando sobre o que já está lá. Medido: com a trava só no contador a carga
+             * voltou a subir 1,20 m numa pilha que a regra limitava a 0,60 m.
+             *
+             * ⚠️ **A esbeltez só rege a coluna livre.** Cercada de carga e parede, a pilha não tem
+             * para onde girar — e recusar altura ali empurraria a carga para o fundo do baú sem
+             * ganhar segurança nenhuma.
+             */
+            isStandingUp({
+              isRestrainedUpTo: (restraintM) =>
+                support.isConfined({ slot, topM: restraintM, xM, yM: rowYM }),
+              securesCargo: input.securesCargo === true,
+              slot,
+              topM,
+            }) &&
+            /**
+             * ⚠️ **Spec 115: a entrega mais cedo não senta atrás de uma mais tardia mais alta que a
+             * base dela.** Subir para uma fileira do fundo é legítimo — é o bloco se enchendo —, mas
+             * se entre ela e a porta houver carga de parada posterior acima do assento, ela só sai
+             * tirando essa carga primeiro. Medido: 1 par em RTC-4H67 e 1 em RTD-5J78, 4 cm de
+             * sobreposição com caixas de 20 e 21 cm de altura.
+             */
+            (input.deliveryOrder !== true || !support.isShadowed({ slot, topM, xM, yM: rowYM })),
           heightM: slice.heightM,
           slot,
           xM: cursor.xM,
           yM: cursor.yM,
         })
-        /**
-         * ⚠️ **A esbeltez é conferida na altura do assento, não no contador de camadas.** O contador
-         * é do cursor e zera quando a fronteira avança; o mapa de apoio, não — ele continua
-         * empilhando sobre o que já está lá. Medido: com a trava só no contador a carga voltou a
-         * subir 1,20 m numa pilha que a regra limitava a 0,60 m.
-         */
-        const tooTall =
-          found !== null &&
-          found.topM + slot.heightM >
-            stableStackHeightM(slot, input.securesCargo === true) + 1e-9 &&
-          /**
-           * ⚠️ **A esbeltez só rege a coluna livre.** Cercada de carga e parede, a pilha não tem para
-           * onde girar — e recusar altura ali empurraria a carga para o fundo do baú sem ganhar
-           * segurança nenhuma.
-           */
-          !support.isConfined({ slot, topM: found.topM, xM: found.xM, yM: cursor.yM })
-        if (found !== null && !tooTall && found.xM + slot.depthM <= slice.lengthM + 1e-9) {
+        if (found !== null) {
           cursor = { ...cursor, xM: found.xM }
           rest = found
           break
@@ -1087,11 +1177,23 @@ function createSupportMap(
   openFace: OpenFace,
 ): {
   readonly seat: (input: {
+    /** Recusa de quem chama — a busca segue para o próximo lugar nivelado da fileira. */
+    accept?: (candidate: { readonly topM: number; readonly xM: number }) => boolean
     heightM: number
     slot: Slot
     xM: number
     yM: number
   }) => { readonly topM: number; readonly xM: number } | null
+  /**
+   * Congela o relevo das paradas **já carregadas** — as de entrega mais tardia (spec 115). Chamado a
+   * cada troca de parada no bloco por ordem de entrega.
+   */
+  readonly freezeLater: () => void
+  /**
+   * Se, entre a caixa e a face aberta, há carga de parada mais tardia acima da base dela — carga que
+   * teria de sair antes para esta passar.
+   */
+  readonly isShadowed: (input: { slot: Slot; topM: number; xM: number; yM: number }) => boolean
   readonly stamp: (input: { slot: Slot; topM: number; xM: number; yM: number }) => void
   /**
    * Se a caixa nesta posição está **presa pelos quatro lados** — parede do baú ou carga vizinha tão
@@ -1111,6 +1213,8 @@ function createSupportMap(
   const columns = Math.max(1, Math.ceil(bed.lengthM / HEIGHT_MAP_CELL_M))
   const lines = Math.max(1, Math.ceil(bed.widthM / HEIGHT_MAP_CELL_M))
   const topM = new Float64Array(columns * lines)
+  /** `freezeLater`: o maior topo das paradas já carregadas entre cada célula e a face aberta. */
+  const laterFrontM = new Float64Array(columns * lines)
 
   /**
    * ⚠️ **A folga nas duas pontas não é preciosismo — é o que impede a escada.** `0.6 / 0.05` dá
@@ -1143,7 +1247,7 @@ function createSupportMap(
      * ⚠️ **O salto é para a próxima quina, não de célula em célula.** É a mudança de altura que cria
      * a posição boa; varrer 5 cm por vez custaria o orçamento da tela para chegar no mesmo lugar.
      */
-    seat: ({ heightM, slot, xM, yM }) => {
+    seat: ({ accept, heightM, slot, xM, yM }) => {
       const [fromLine, toLine] = range(yM, slot.widthM, lines)
       const depth = Math.max(1, toCellEnd(slot.depthM))
       const first = Math.max(0, toCellEnd(xM))
@@ -1199,11 +1303,36 @@ function createSupportMap(
           level = null
           continue
         }
+        const candidate = { topM: level, xM: runStart * HEIGHT_MAP_CELL_M }
+        /** Recusado, o lugar seguinte é a mesma corrida uma célula adiante — nunca a fileira seguinte. */
+        if (accept !== undefined && !accept(candidate)) {
+          runStart += 1
+          continue
+        }
 
-        return { topM: level, xM: runStart * HEIGHT_MAP_CELL_M }
+        return candidate
       }
 
       return null
+    },
+    freezeLater: () => {
+      /** O maior topo daqui até a face aberta, por coluna — uma passagem de trás para a frente. */
+      for (let column = 0; column < columns; column += 1) {
+        let highest = 0
+        for (let line = lines - 1; line >= 0; line -= 1) {
+          highest = Math.max(highest, topM[column * lines + line] ?? 0)
+          laterFrontM[column * lines + line] = highest
+        }
+      }
+    },
+    isShadowed: ({ slot, topM: base, xM, yM }) => {
+      const [fromColumn, toColumn] = range(xM, slot.depthM, columns)
+      const [, toLine] = range(yM, slot.widthM, lines)
+      if (toLine >= lines) return false
+      for (let column = fromColumn; column < toColumn; column += 1) {
+        if ((laterFrontM[column * lines + toLine] ?? 0) > base + 1e-9) return true
+      }
+      return false
     },
     isConfined: ({ slot, topM: top, xM, yM }) => {
       const [fromColumn, toColumn] = range(xM, slot.depthM, columns)
@@ -1626,6 +1755,34 @@ function stableStackHeightM(slot: Slot, securesCargo: boolean): number {
   return baseM > 0 ? baseM * STABLE_STACK_SLENDERNESS : Number.POSITIVE_INFINITY
 }
 
+/**
+ * Se a caixa, sentada em `topM`, deixa a pilha de pé.
+ *
+ * ⚠️ **A alavanca da coluna livre conta de onde a contenção termina, não do piso** (spec 115). Tombar
+ * é girar em torno da aresta onde a pilha deixa de ser segurada: se a vizinha a segura até 0,63 m, o
+ * que tomba é o trecho acima disso — e é **esse** trecho que não passa de três vezes a base. A regra
+ * anterior só conhecia os dois extremos (livre desde o piso, ou presa na base da caixa), e cada
+ * fileira podia subir **uma caixa** acima da vizinha do lado da porta: a carga descia em escada por
+ * 2,9 m de um baú de 5,32 m (RTD-5J78, 24 paradas), e 49 caixas saíam `bedFull` com o baú a 38%.
+ *
+ * ⚠️ A porta continua não sendo parede: a face aberta nunca segura nada (`isConfined`), então a
+ * fileira encostada nela segue presa aos três vezes a base contados do piso.
+ */
+function isStandingUp(input: {
+  /** Se os quatro lados da pegada estão segurados — parede ou carga — pelo menos até essa altura. */
+  readonly isRestrainedUpTo: (restraintM: number) => boolean
+  readonly securesCargo: boolean
+  readonly slot: Slot
+  readonly topM: number
+}): boolean {
+  const freeHeightM = stableStackHeightM(input.slot, input.securesCargo)
+  const stackTopM = input.topM + input.slot.heightM
+  if (stackTopM <= freeHeightM + 1e-9) return true
+
+  /** Presa na base, ela não tem para onde girar; presa mais abaixo, só o trecho de cima gira. */
+  return input.isRestrainedUpTo(Math.max(0, Math.min(input.topM, stackTopM - freeHeightM)))
+}
+
 /** A presumida entra depois da medida, para a base ficar com a medida de verdade. */
 function rankPresumed(box: PlacementBox): number {
   return box.source === 'estimated' ? 1 : 0
@@ -1745,6 +1902,8 @@ export function resolveGridLanes(
     bedLengthM: number
     bedWidthM: number
     boxes: readonly PlacementBox[]
+    /** Spec 115: não passar de tantas faixas — é como a decisão experimenta grades mais largas. */
+    maxLanes?: number
   }>,
 ): GridLanes | null {
   const measured = input.boxes.filter(
@@ -1761,7 +1920,11 @@ export function resolveGridLanes(
   )
   if (!(widestM > 0)) return null
 
-  const most = Math.min(Math.floor(input.bedWidthM / widestM), sequences.length - 1)
+  const most = Math.min(
+    Math.floor(input.bedWidthM / widestM),
+    sequences.length - 1,
+    input.maxLanes ?? Number.POSITIVE_INFINITY,
+  )
   for (let laneCount = most; laneCount >= 2; laneCount -= 1) {
     const laneWidthM = input.bedWidthM / laneCount
     const laneOf = new Map(
@@ -1808,35 +1971,55 @@ function gridOrDepth(
   const measured = input.boxes.filter(
     (box) => (box.heightMm ?? 0) > 0 && (box.lengthMm ?? 0) > 0 && (box.widthMm ?? 0) > 0,
   )
-  const grid = resolveGridLanes({
+  const dimensions = {
     bedHeightM: Number.parseFloat(input.bed.heightM),
     bedLengthM: Number.parseFloat(input.bed.lengthM),
     bedWidthM: Number.parseFloat(input.bed.widthM),
     boxes: measured,
-  })
-  if (grid === null) return depth
-
+  }
   const context = {
     bed: input.bed,
     ...(input.loadingAccess === undefined ? {} : { loadingAccess: input.loadingAccess }),
     payloadRatio: input.payloadRatio,
     ...(input.securesCargo === undefined ? {} : { securesCargo: input.securesCargo }),
   }
-  const gridPlaced = countPlaced(
-    placeGrid({
-      ...context,
-      boxes: measured,
-      grid,
-      loadingAccess: input.loadingAccess,
-      securesCargo: input.securesCargo,
-      unplaced: [],
-    }),
-  )
-  const depthPlaced = countPlaced(
-    resolveCargoPlacement({ ...context, arrangement: 'depth', boxes: measured }),
-  )
+  const requested = measured.reduce((total, box) => total + box.count, 0)
 
-  return gridPlaced >= depthPlaced ? { arrangement: 'grid', reason: input.reason } : depth
+  /**
+   * ⚠️ **Spec 115: a grade mais estreita que o volume admite não é a que coloca mais.** O rodízio põe
+   * uma parada grande e outra pequena na mesma faixa por acaso, e com seis faixas de uma caixa de
+   * largura a mais cheia estourava: medido no Accelo de 24 paradas, 494 de 500 caixas com seis
+   * faixas, 473 com cinco, 456 com quatro — e 500 de 500 com três. Com menos faixas cada uma soma mais
+   * paradas, e o acaso se dilui. Fica a maior grade que coloca tudo; nenhuma colocando, a que coloca
+   * mais — o empate fica com a de mais faixas, que é a de mais entregas na porta.
+   */
+  let best: { readonly laneCount: number; readonly placed: number } | null = null
+  for (
+    let grid = resolveGridLanes(dimensions);
+    grid !== null;
+    grid =
+      grid.laneCount > 2 ? resolveGridLanes({ ...dimensions, maxLanes: grid.laneCount - 1 }) : null
+  ) {
+    const placed = countPlaced(
+      placeGrid({
+        ...context,
+        boxes: measured,
+        grid,
+        loadingAccess: input.loadingAccess,
+        securesCargo: input.securesCargo,
+        unplaced: [],
+      }),
+    )
+    if (best === null || placed > best.placed) best = { laneCount: grid.laneCount, placed }
+    if (placed >= requested) break
+  }
+  if (best === null) return depth
+
+  const depthPlaced = countPlaced(placeCargo({ ...context, arrangement: 'depth', boxes: measured }))
+
+  return best.placed >= depthPlaced
+    ? { arrangement: 'grid', laneCount: best.laneCount, reason: input.reason }
+    : depth
 }
 
 function countPlaced(placement: CargoPlacement | null): number {
@@ -1870,7 +2053,7 @@ function placeDeliveryBlock(input: {
   const packed = packSlice({
     bed: rotated,
     boxes: input.boxes,
-    budget: MAX_PLACED_BOXES,
+    budget: Number.POSITIVE_INFINITY,
     deliveryOrder: true,
     openFace: 'lineEnd',
     securesCargo: input.securesCargo,
@@ -1942,7 +2125,7 @@ function placeGrid(
   for (let lane = 0; lane < input.grid.laneCount; lane += 1) {
     const own = input.boxes.filter((box) => input.grid.laneOf.get(box.stopSequence) === lane)
     if (own.length === 0) continue
-    const lanePlacement = resolveCargoPlacement({
+    const lanePlacement = placeCargo({
       arrangement: 'depth',
       bed: { ...input.bed, widthM: packedLaneWidthM(own, input.grid.laneWidthM).toFixed(3) },
       boxes: own,

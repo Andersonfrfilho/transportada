@@ -641,6 +641,14 @@ cedo **pode** ficar em cima de uma mais tardia; o proibido é o contrário, ou a
 porta (`test/cargo-placement/delivery-block.contract.ts`). Sem fatia não há carga dividida em
 profundidade — ela continua só em faixas.
 
+**A carga inteira no baú** (spec 115). Três correções medidas em quatro viagens reais: a esbeltez rege
+o trecho **acima da contenção** (a carga descia em escada por 2,9 m até a porta), a grade fica com a
+maior quantidade de faixas **que coloca tudo** (`laneCount` viaja na decisão), e ⚠️ **o teto é de
+desenho, nunca de empacotamento** — `MAX_DRAWN_BOXES` = 1500; o antigo 600 cortava as primeiras
+entregas e sumia com 46 paradas do Atego. A entrega mais cedo também não senta atrás de carga mais
+tardia mais alta que a base dela (`isShadowed`). Contrato sobre as cargas reais anonimizadas em
+`test/cargo-placement/real-mixed-cargo.contract.ts`.
+
 **Como as caixas são organizadas no baú está documentado por extenso em
 `docs/domain/cargo-placement.md`** — o arranjo em faixas ou em profundidade, a varredura que sobe
 antes de andar para o fundo, a orientação por rendimento, o teto de esbeltez da pilha e o

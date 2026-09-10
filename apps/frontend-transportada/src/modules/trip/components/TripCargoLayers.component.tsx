@@ -97,7 +97,8 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
    */
   /**
    * ⚠️ Memoizado porque o **arrasto** redesenha a cada evento de ponteiro: sem isto, remontar e
-   * reordenar até 600 caixas acontecia a cada quadro do gesto, na viagem grande.
+   * reordenar até 1500 caixas (`MAX_DRAWN_BOXES` da API) acontecia a cada quadro do gesto, na viagem
+   * grande. Medido: 451 caixas redesenham em ~29 ms ao girar a vista.
    */
   const boxes: readonly IsometricBox[] = useMemo(
     () =>

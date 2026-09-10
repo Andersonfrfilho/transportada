@@ -41,7 +41,8 @@ function placedStops(boxes: readonly PlacementBox[], payloadRatio: string | null
 describe('a grade de carga (spec 113)', () => {
   test('vinte e quatro paradas que não cabem em faixas saem em grade', () => {
     const decision = resolveStopArrangement({ bed: BED, boxes: TWENTY_FOUR, payloadRatio: null })
-    expect(decision).toEqual({ arrangement: 'grid', reason: 'tooWide' })
+    /** Spec 115: a decisão passou a levar as faixas que empacotou (`laneCount`) — daí o `toMatchObject`. */
+    expect(decision).toMatchObject({ arrangement: 'grid', reason: 'tooWide' })
 
     const grid = resolveGridLanes({
       bedHeightM: 2.2,
@@ -56,7 +57,7 @@ describe('a grade de carga (spec 113)', () => {
   /** A grade equilibra dentro de cada faixa: o peso acima de metade do teto não a derruba. */
   test('acima de metade do teto a viagem grande continua em grade', () => {
     const decision = resolveStopArrangement({ bed: BED, boxes: TWENTY_FOUR, payloadRatio: '0.58' })
-    expect(decision).toEqual({ arrangement: 'grid', reason: 'weight' })
+    expect(decision).toMatchObject({ arrangement: 'grid', reason: 'weight' })
   })
 
   /** ⚠️ O ponto da spec: com o baú tendo espaço, nenhuma parada fica fora do desenho. */
