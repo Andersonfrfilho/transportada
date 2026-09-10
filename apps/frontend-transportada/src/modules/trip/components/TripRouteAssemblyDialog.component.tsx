@@ -166,6 +166,8 @@ export function TripRouteAssemblyDialog({
                 />
               )}
               selected={assembly.selectedVehicleIds}
+              /** ⚠️ As paradas **cruas**, com as sem veículo: são elas que dizem o que ficou de fora. */
+              stops={proposal.stops}
               views={views}
             />
           </>

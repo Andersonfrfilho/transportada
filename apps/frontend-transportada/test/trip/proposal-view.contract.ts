@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 
+import { resolveLeftoverStops } from '@/modules/routing/shared/suggestionLeftover.service'
+
 import {
   buildProposalVehicleViews,
   countOverPayload,
@@ -246,5 +248,45 @@ describe('proposal view contract', () => {
 
     expect(countOverPayload(views, new Set(['v-1', 'v-2']))).toBe(1)
     expect(countOverPayload(views, new Set(['v-2']))).toBe(0)
+  })
+  /**
+   * ⚠️ **A proposta conta o que ficou de fora dela.** Medido em 2026-09-09, depois do corte por
+   * capacidade: 345 notas escolhidas, "180 entregas" anunciadas, e 165 caladas — 148 que não
+   * couberam na frota e 17 de endereço impreciso. Sugestão que devolve parte e não conta o resto
+   * **parece completa**, e o operador descobre a carga esquecida no dia seguinte (spec 107).
+   */
+  test('a sobra é contada por razão, em notas', () => {
+    const leftovers = resolveLeftoverStops([
+      { excludedFromOptimization: false, label: 'FRANCA', nfeDocumentIds: ['a'], vehicleId: 'v-1' },
+      {
+        excludedFromOptimization: false,
+        label: 'BATATAIS',
+        leftoverReason: 'over_capacity',
+        nfeDocumentIds: ['b', 'c'],
+        vehicleId: null,
+      },
+      {
+        excludedFromOptimization: true,
+        label: 'ITOBI',
+        leftoverReason: 'imprecise_location',
+        nfeDocumentIds: ['d'],
+        vehicleId: null,
+      },
+    ])
+
+    expect(leftovers.map((stop) => stop.reason)).toEqual(['over_capacity', 'imprecise_location'])
+  })
+
+  /**
+   * ⚠️ **A razão declarada vence a derivada.** Sem isso, a carga que não coube seria rotulada "sem
+   * motorista que cubra a região" — e o operador cadastraria cobertura para resolver tonelagem.
+   */
+  test('sem razão declarada a derivação antiga continua valendo', () => {
+    const leftovers = resolveLeftoverStops([
+      { excludedFromOptimization: false, label: 'X', nfeDocumentIds: ['a'], vehicleId: null },
+      { excludedFromOptimization: true, label: 'Y', nfeDocumentIds: ['b'], vehicleId: null },
+    ])
+
+    expect(leftovers.map((stop) => stop.reason)).toEqual(['not_covered', 'imprecise_location'])
   })
 })

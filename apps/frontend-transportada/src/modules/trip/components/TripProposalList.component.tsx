@@ -12,6 +12,14 @@ import {
 import { formatAmount } from '@/modules/shared/decimalAmount.service'
 import { isNegative } from '@/modules/trip-financials/shared/financialView.service'
 
+import {
+  LEFTOVER_REASON,
+  resolveLeftoverStops,
+  type CoverableSuggestionStop,
+  type LeftoverReason,
+  type LeftoverStop,
+} from '@/modules/routing/shared/suggestionLeftover.service'
+
 import { countOverPayload, type ProposalVehicleView } from '../shared/proposalView.service'
 import {
   summarizeProposalSelection,
@@ -39,6 +47,8 @@ type TripProposalListProps = Readonly<{
   openVehicleId: null | string
   renderDetail: (view: ProposalVehicleView) => ReactNode
   selected: ReadonlySet<string>
+  /** ⚠️ **Todas** as paradas da proposta, inclusive as sem veículo: são elas a sobra. */
+  stops: readonly CoverableSuggestionStop[]
   views: readonly ProposalVehicleView[]
 }>
 
@@ -61,6 +71,7 @@ export function TripProposalList({
   openVehicleId,
   renderDetail,
   selected,
+  stops,
   views,
 }: TripProposalListProps) {
   const { t } = useTranslation('trip')
@@ -90,6 +101,21 @@ export function TripProposalList({
    * é o operador, como a ADR-0044 §4 já decidiu para a violação dentro do solver.
    */
   const overPayload = countOverPayload(views, selected)
+  /**
+   * ⚠️ **A proposta precisa dizer o que ficou de fora dela.** Medido em 2026-09-09, depois do corte
+   * por capacidade: o operador escolheu 345 notas, a barra anunciou "5 de 5 viagens · 180 entregas"
+   * e calou sobre 165 — 148 que não coubem na frota e 17 de endereço impreciso demais para
+   * roteirizar. Sugestão que devolve parte e não conta o resto **parece completa**, que é o modo de
+   * falha que a spec 107 nomeia: o operador aceita e descobre a carga esquecida no dia seguinte.
+   *
+   * O painel de sobra existia só **depois** do aceite, e ali já é tarde: as viagens estão criadas.
+   */
+  const leftovers = resolveLeftoverStops(stops)
+  const leftoverByReason = [
+    { count: countStops(leftovers, LEFTOVER_REASON.overCapacity), key: 'overCapacity' },
+    { count: countStops(leftovers, LEFTOVER_REASON.notCovered), key: 'notCovered' },
+    { count: countStops(leftovers, LEFTOVER_REASON.imprecise), key: 'imprecise' },
+  ].filter((entry) => entry.count > 0)
 
   const acceptLabel =
     summary.selectedCount === 0
@@ -111,6 +137,13 @@ export function TripProposalList({
               onSelectionChange(toggleAllProposalSelection({ selected, vehicles: views }))
             }
           />
+          {leftoverByReason.length === 0 ? null : (
+            <p className={styles.hint} role="status">
+              {leftoverByReason
+                .map((entry) => t(`routeAssembly.leftovers.${entry.key}`, { count: entry.count }))
+                .join(' · ')}
+            </p>
+          )}
           {overPayload === 0 ? null : (
             <p className={styles.alert} role="alert">
               {t('proposal.overPayloadWarning', { count: overPayload })}
@@ -255,4 +288,11 @@ function Total({
       <span className={tone === undefined ? undefined : tone}>{value}</span>
     </div>
   )
+}
+
+/** As **notas** da sobra, não as paradas: é a nota que o operador escolheu, e é ela que ele conta. */
+function countStops(stops: readonly LeftoverStop[], reason: LeftoverReason): number {
+  return stops
+    .filter((stop) => stop.reason === reason)
+    .reduce((total, stop) => total + stop.nfeDocumentIds.length, 0)
 }
