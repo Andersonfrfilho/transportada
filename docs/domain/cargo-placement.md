@@ -2,7 +2,7 @@
 
 Referência viva do empacotador — `apps/api-transportada/src/trips/domain/cargo-placement.policy.ts`
 e `cargo-layout.policy.ts`. Cada regra aqui veio de um defeito **medido**, e o número ao lado é o
-número que a medição deu. Specs de origem: 085, 088, 094, 095, 099, 100, 113, 114 e 115.
+número que a medição deu. Specs de origem: 085, 088, 094, 095, 099, 100, 113, 114, 115 e 116.
 
 ## O que o desenho promete, e o que ele não promete
 
@@ -157,6 +157,16 @@ caixa** acima da vizinha do lado da porta: a carga descia em escada por **2,9 m*
 medida pela altura da vizinha, as duas entram inteiras. A porta continua não sendo parede: a fileira
 encostada nela segue presa a três vezes a base contados do piso (`isStandingUp`).
 
+⚠️ **Vão mais estreito que o giro da pilha é apoio** (spec 116). A pilha tomba girando em torno da
+aresta de baixo; se a parede ou a carga do outro lado de um vão está mais perto do que o topo anda até
+o centro de massa passar da aresta, ela encosta antes de cair. O trecho que tomba tem pelo menos três
+vezes a base (senão a esbeltez nem é consultada), e para `h = 3b` o topo anda `3b/√10` — 0,95 da base.
+Esse é o vão que ainda segura (`braceGapOf`), medido da face **real** da caixa: pela célula
+arredondada a régua aceitava 27 cm de vão para uma base de 26,1 cm. Só a célula vizinha contava, e a
+caixa presumida de 0,261 m deixa 7 cm até a parede lateral do Atego — a coluna da parede era solta, e
+cada fileira subia em pirâmide, **8, 8, 8, 7, 7, 7, 6, 6, 6, 5** caixas por camada. Com a regra: 1089
+→ **1282** caixas, e a porta segue não sendo parede — o caminho que chega à face aberta não apoia.
+
 ⚠️ **Recusar um assento é tentar o próximo da mesma fileira** (spec 115). A esbeltez, o comprimento e
 a sombra (Passo 6) eram conferidos depois de `seat` devolver o **primeiro** lugar nivelado; recusado,
 a fileira inteira era pulada com lugar bom mais adiante nela. Hoje as recusas entram em `seat` como
@@ -259,9 +269,23 @@ vista). Acima do teto sai primeiro a caixa mais alta, nunca a que sustenta outra
 caixa presumida, mas coloca menos: 500 → 362 caixas no Accelo e 982 → 765 no Atego, e a 1 cm o tempo
 vai a 61 ms.
 
-⚠️ **Aberto:** o Atego de 85 paradas coloca 982 de 1417 caixas a 48% do volume, 435 `bedFull`. A célula
-arredonda a caixa presumida de 0,371 × 0,261 m para 0,40 × 0,30 m — 78% da área de piso —, e dez
-caixas de 0,21 m deixam 0,20 m do teto sem uso.
+⚠️ **A busca de lugar vai até a porta** (spec 116). O teto de tentativas por caixa era 64 fileiras
+para qualquer baú, e num baú de 7,40 m a varredura recomeça da testeira a cada fronteira nova e passa
+por quase 150 fileiras de célula. A busca desistia antes de chegar ao lugar livre perto da porta, e a
+memória de formato recusava as gêmeas sem procurar: medido no Atego de 85 paradas, **4** buscas
+esgotadas derrubaram **431** caixas — nenhuma recusa era de baú cheio. Hoje o teto é
+`SEAT_ATTEMPTS_PER_ROW` (4) vezes as fileiras de célula da fatia, e a busca termina sozinha antes
+disso (camada varrida sem lugar ou fronteira no fim do baú).
+
+⚠️ **Célula menor, de novo, não é o caminho** (spec 116). Com as duas correções desta spec a célula
+passou a mudar o resultado do Atego de forma **caótica** — 1417 caixas com 2,5, 3,0 e 3,3 cm, 1076 com
+3,1 e 1043 com 2,8 —, e o RTC-4H67 cai de 481 para 438 em três delas. Escolher célula por carga é
+sobreajuste; ela fica em 5 cm, e o que o arredondamento custava era a pirâmide do Passo 4, não a área.
+
+⚠️ **Aberto:** o Atego de 85 paradas coloca **1282 de 1417** caixas a 62% do volume, 135 `bedFull`, e
+as sete paradas fora (1, 3, 4, 5, 7, 8 e 9) são as primeiras entregas. Duas perdas medidas: a fileira
+da porta sobe só três camadas (a porta não é parede, e é física), e no meio do bloco as caixas medidas
+de outro tamanho criam fileiras deslocadas meia caixa, cujo topo deixa de ser plano para a presumida.
 
 ---
 

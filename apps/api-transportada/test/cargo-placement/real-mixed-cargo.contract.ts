@@ -177,6 +177,25 @@ describe('cargas reais de tamanhos misturados (spec 115)', () => {
     expect(drawnOf(plan).length).toBeGreaterThan(600)
   })
 
+  /**
+   * ⚠️ Spec 116: 435 caixas saíam `bedFull` com o baú a 48%, e 24 paradas (13–16, 21–40) sumiam do
+   * desenho. Duas causas medidas: a busca de lugar desistia depois de 64 fileiras — num baú de 7,40 m
+   * ela recomeça da testeira a cada fronteira nova — e a memória de formato recusava as 431 gêmeas sem
+   * procurar; e o vão de 7 cm até a parede lateral contava como face solta. Medido depois: 1282 de 1417
+   * caixas, e o que ainda sai é das primeiras entregas, na porta, onde a pilha só sobe três vezes a base.
+   */
+  test('o Atego de 85 paradas desenha quase tudo, e só as primeiras entregas ficam fora', () => {
+    const plan = place(ATEGO)
+    const drawnStops = new Set(drawnOf(plan).map((box) => box.stopSequence))
+    const missing = [...new Set(ATEGO.rows.map(([stop]) => stop))].filter(
+      (stop) => !drawnStops.has(stop),
+    )
+
+    expect(drawnOf(plan).length).toBeGreaterThanOrEqual(1250)
+    expect(missing.length).toBeLessThanOrEqual(8)
+    for (const stop of missing) expect(stop).toBeLessThanOrEqual(10)
+  })
+
   test('o Atego de 1417 caixas cabe no orçamento de 50 ms', () => {
     place(ATEGO)
     const startedAt = performance.now()

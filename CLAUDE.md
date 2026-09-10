@@ -647,7 +647,10 @@ maior quantidade de faixas **que coloca tudo** (`laneCount` viaja na decisão), 
 desenho, nunca de empacotamento** — `MAX_DRAWN_BOXES` = 1500; o antigo 600 cortava as primeiras
 entregas e sumia com 46 paradas do Atego. A entrega mais cedo também não senta atrás de carga mais
 tardia mais alta que a base dela (`isShadowed`). Contrato sobre as cargas reais anonimizadas em
-`test/cargo-placement/real-mixed-cargo.contract.ts`.
+`test/cargo-placement/real-mixed-cargo.contract.ts`. ⚠️ Spec 116: o teto de tentativas por caixa
+cresce com as fileiras do baú (64 fixas desistiam antes da porta, e a memória de formato derrubava as
+gêmeas — 431 caixas no Atego), e **vão mais estreito que o giro da pilha (`3b/√10`) é apoio** — o de
+7 cm até a parede lateral travava cada fileira em pirâmide. Atego: 982 → 1282 de 1417.
 
 **Como as caixas são organizadas no baú está documentado por extenso em
 `docs/domain/cargo-placement.md`** — o arranjo em faixas ou em profundidade, a varredura que sobe

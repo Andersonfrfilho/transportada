@@ -894,6 +894,17 @@ function packSlice(input: {
    * 67 ms contra 50 de orçamento.
    */
   const failedAt = new Map<string, number>()
+  /**
+   * ⚠️ **Spec 116: o teto de tentativas cresce com as fileiras que a fatia tem.** Eram 64 para
+   * qualquer baú, e cada fileira visitada gasta uma: num baú de 7,40 m a varredura recomeça da
+   * testeira a cada fronteira nova e passa por quase 150 fileiras de célula. A busca desistia antes
+   * de chegar ao lugar livre perto da porta, e a memória de formato (`failedAt`) recusava as gêmeas
+   * sem procurar — medido no Atego de 85 paradas: 4 buscas esgotadas derrubaram **431** caixas.
+   */
+  const seatAttempts = Math.max(
+    MAX_SEAT_ATTEMPTS,
+    SEAT_ATTEMPTS_PER_ROW * Math.ceil(slice.widthM / HEIGHT_MAP_CELL_M),
+  )
 
   let frozenStop: number | null = null
   for (const box of ordered) {
@@ -935,7 +946,7 @@ function packSlice(input: {
        */
       let rest: { readonly topM: number; readonly xM: number } | null = null
       const shapeKey = `${slot.depthM}|${slot.widthM}|${slot.heightM}`
-      let guard = failedAt.get(shapeKey) === placed.length ? MAX_SEAT_ATTEMPTS : 0
+      let guard = failedAt.get(shapeKey) === placed.length ? seatAttempts : 0
       /**
        * ⚠️ **Uma camada varrida inteira sem lugar encerra a busca.** Sem isto o cursor subia de
        * camada indefinidamente — o limite de pilha é infinito para caixa empilhável — e cada caixa
@@ -948,7 +959,7 @@ function packSlice(input: {
         rowFrontierM = Math.min(slice.widthM, slot.widthM)
       }
 
-      while (guard < MAX_SEAT_ATTEMPTS) {
+      while (guard < seatAttempts) {
         guard += 1
         if (cursor.yM + slot.widthM > rowFrontierM + 1e-9) {
           barrenLayers += 1
@@ -1153,6 +1164,9 @@ const HEIGHT_MAP_CELL_M = 0.05
  */
 const MAX_SEAT_ATTEMPTS = 64
 
+/** Fileiras de célula que cada caixa pode visitar, por fileira da fatia — ver `seatAttempts`. */
+const SEAT_ATTEMPTS_PER_ROW = 4
+
 /**
  * O relevo da fatia: a altura do topo em cada célula do piso.
  *
@@ -1353,16 +1367,65 @@ function createSupportMap(
       }
 
       /**
-       * Os quatro lados da pegada inteira. ⚠️ **Sai no primeiro vão**: um lado aberto já decide, e
-       * varrer o resto custava o orçamento de resposta da tela num baú cheio.
+       * Os quatro lados da pegada inteira. ⚠️ **Sai no primeiro lado solto**: um lado aberto já decide,
+       * e varrer o resto custava o orçamento de resposta da tela num baú cheio.
+       *
+       * ⚠️ **Spec 116: vão mais estreito que o giro da pilha é apoio.** A pilha tomba girando em torno
+       * da aresta de baixo; se a parede ou a carga do outro lado está mais perto do que o topo anda até
+       * o centro de massa passar da aresta, ela encosta antes e não cai. Só a célula vizinha contava, e
+       * a caixa presumida de 0,261 m deixava 7 cm até a parede lateral do Atego: a fileira inteira subia
+       * em pirâmide (8, 8, 8, 7, 7, 7, 6, 6, 6, 5 caixas por camada), com a coluna da parede tratada como
+       * solta. O vão é medido da face **real** da caixa, não da célula arredondada — com a célula a
+       * régua aceitaria 27 cm de vão para uma base de 26,1 cm. A porta continua não sendo parede: o
+       * caminho que chega à face aberta não apoia nada.
        */
+      const catchGapM = braceGapOf(slot)
+      /**
+       * O primeiro apoio numa direção: a célula vizinha, ou — atravessando um vão mais estreito que
+       * `catchGapM`, medido da face **real** da caixa — a carga ou a parede do outro lado dele.
+       */
+      const bracedToward = (input: {
+        readonly column: number
+        readonly faceM: number
+        readonly line: number
+        readonly stepColumn: number
+        readonly stepLine: number
+      }): boolean => {
+        let { column, line } = input
+        for (let step = 0; ; step += 1) {
+          if (step > 0) {
+            const nearM =
+              input.stepColumn > 0
+                ? Math.min(column * HEIGHT_MAP_CELL_M, bed.lengthM)
+                : input.stepColumn < 0
+                  ? Math.max(0, (column + 1) * HEIGHT_MAP_CELL_M)
+                  : input.stepLine > 0
+                    ? Math.min(line * HEIGHT_MAP_CELL_M, bed.widthM)
+                    : Math.max(0, (line + 1) * HEIGHT_MAP_CELL_M)
+            if (Math.abs(nearM - input.faceM) >= catchGapM - 1e-9) return false
+          }
+          if (supportsBefore(column, line)) return true
+          if (column < 0 || line < 0 || column >= columns || line >= lines) return false
+          column += input.stepColumn
+          line += input.stepLine
+        }
+      }
+      const endM = xM + slot.depthM
+      const sideM = yM + slot.widthM
       for (let line = fromLine; line < toLine; line += 1) {
-        if (!supportsBefore(fromColumn - 1, line)) return false
-        if (!supportsBefore(toColumn, line)) return false
+        const back = { column: fromColumn - 1, faceM: xM, line, stepColumn: -1, stepLine: 0 }
+        if (!bracedToward(back)) return false
+        if (!bracedToward({ column: toColumn, faceM: endM, line, stepColumn: 1, stepLine: 0 })) {
+          return false
+        }
       }
       for (let column = fromColumn; column < toColumn; column += 1) {
-        if (!supportsBefore(column, fromLine - 1)) return false
-        if (!supportsBefore(column, toLine)) return false
+        if (!bracedToward({ column, faceM: yM, line: fromLine - 1, stepColumn: 0, stepLine: -1 })) {
+          return false
+        }
+        if (!bracedToward({ column, faceM: sideM, line: toLine, stepColumn: 0, stepLine: 1 })) {
+          return false
+        }
       }
 
       return true
@@ -1753,6 +1816,21 @@ function stableStackHeightM(slot: Slot, securesCargo: boolean): number {
   const baseM = Math.min(slot.depthM, slot.widthM)
 
   return baseM > 0 ? baseM * STABLE_STACK_SLENDERNESS : Number.POSITIVE_INFINITY
+}
+
+/**
+ * O vão mais largo que a parede ou a carga vizinha ainda seguram (spec 116).
+ *
+ * A coluna que tomba é o trecho acima da contenção, e `isStandingUp` só a consulta quando esse trecho
+ * passa de três vezes a base — então a altura dela é pelo menos `3b`. Girando em torno da aresta de
+ * baixo, o topo anda `h·b/√(h²+b²)` até o centro de massa passar da aresta, e isso cresce com `h`: o
+ * pior caso é `h = 3b`, que dá `3b/√10` ≈ 0,95 da base. Vão menor que isso encosta antes de tombar.
+ * Nenhum número novo — é a mesma esbeltez do Passo 4, lida do outro lado do vão.
+ */
+function braceGapOf(slot: Slot): number {
+  const baseM = Math.min(slot.depthM, slot.widthM)
+
+  return (baseM * STABLE_STACK_SLENDERNESS) / Math.hypot(STABLE_STACK_SLENDERNESS, 1)
 }
 
 /**
