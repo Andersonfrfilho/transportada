@@ -150,6 +150,7 @@ export function TripRouteAssemblyDialog({
               openVehicleId={assembly.openVehicleId}
               renderDetail={(view) => (
                 <TripProposalDetail
+                  documents={assembly.pool}
                   endLabel={null}
                   onRemoveStop={assembly.markStopRemoved}
                   onUndoRemoveStop={assembly.undoStopRemoval}

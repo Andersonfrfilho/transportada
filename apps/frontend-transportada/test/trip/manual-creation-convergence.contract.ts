@@ -68,4 +68,39 @@ describe('manual creation convergence contract', () => {
     expect(proposal).toContain('booths: []')
     expect(proposal).toContain('spec 090 T11')
   })
+  /**
+   * ⚠️ **O mapa é da tela de criar viagem, e agora é das duas** (D3). Sem ele o expandido dizia
+   * "SAO JOAQUIM DA BARRA · 1 nota" e mais nada — medido em 2026-09-09 na distribuição real: 24
+   * paradas, nenhuma com endereço, cliente ou telefone, que é o que a linha da parada do mapa
+   * imprime. O maço já estava carregado na tela; faltava o caminho até aqui.
+   */
+  test('as duas telas desenham o mesmo mapa da montagem', async () => {
+    const [manual, proposal] = await Promise.all([readSource(MANUAL), readSource(PROPOSAL)])
+
+    expect(manual).toContain('<TripAssemblyMap')
+    expect(proposal).toContain('<TripAssemblyMap')
+  })
+
+  /**
+   * ⚠️ **Um mapeador só de nota para ponto.** A cópia compila igual e diverge calada — a tela que
+   * ficar com a versão velha some com o telefone do destinatário sem ninguém perceber.
+   */
+  test('as duas telas montam o ponto do mapa pelo mesmo mapeador', async () => {
+    const [manual, proposal] = await Promise.all([readSource(MANUAL), readSource(PROPOSAL)])
+
+    for (const source of [manual, proposal]) {
+      expect(source).toContain('toAssemblyMapNote')
+      expect(source).not.toContain('function toAssemblyNote(')
+    }
+  })
+
+  /**
+   * ⚠️ **A proposta não oferece reordenar.** Quem ordenou foi o roteirizador, e setas que reordenam
+   * sem recalcular dariam um roteiro que a conta ao lado não descreve (D6).
+   */
+  test('a proposta não oferece reordenar a parada no mapa', async () => {
+    const proposal = await readSource(PROPOSAL)
+
+    expect(proposal.includes('onOrderChange=')).toBe(false)
+  })
 })

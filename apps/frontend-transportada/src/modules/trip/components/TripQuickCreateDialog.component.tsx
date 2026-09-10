@@ -20,6 +20,7 @@ import { useTripValuationPreview } from '@/modules/trip-financials/hooks/useTrip
 
 import { VehicleIdentityBand } from '@/modules/fleet/components/VehicleIdentityBand.component'
 
+import { toAssemblyMapNote } from '../shared/assemblyMapNote.service'
 import { TripAssemblyMap } from './TripAssemblyMap.component'
 import { TripCargoPanel } from './TripCargoPanel.component'
 import { TripDocumentSearch } from './TripDocumentSearch.component'
@@ -138,13 +139,13 @@ export function TripQuickCreateDialog({
   )
   /** A conta acompanha a escolha: muda a nota, o motorista ou o veículo, e o número acompanha. */
   const selectedNotes = useMemo(
-    () => quickCreate.stagedDocuments.map(toAssemblyNote),
+    () => quickCreate.stagedDocuments.map(toAssemblyMapNote),
     [quickCreate.stagedDocuments],
   )
   /** A nota já em fila não é "o que faltou": o mapa a desenha como parada, não como ausência. */
   const nearbyNotes = useMemo(() => {
     const staged = new Set(quickCreate.stagedDocuments.map((document) => document.id))
-    return filteredDocuments.filter((document) => !staged.has(document.id)).map(toAssemblyNote)
+    return filteredDocuments.filter((document) => !staged.has(document.id)).map(toAssemblyMapNote)
   }, [filteredDocuments, quickCreate.stagedDocuments])
 
   /**
@@ -418,32 +419,6 @@ export function TripQuickCreateDialog({
 }
 
 /** O recorte que o mapa da montagem lê da nota: onde ela para, e o que identifica a parada. */
-function toAssemblyNote(document: ScannedNfeDocument) {
-  return {
-    address: document.recipientAddress,
-    /**
-     * ⚠️ `addressNumber` é o número do **endereço**, e `number` é o número da **nota**. Trocar os
-     * dois faria a chave da parada nascer do número fiscal, e cada nota viraria uma parada própria.
-     */
-    addressNumber: document.recipientAddressNumber,
-    city: document.recipientCity,
-    cityCode: document.recipientCityCode,
-    id: document.id,
-    latitude: document.recipientLatitude,
-    locationPrecision: document.recipientLocationPrecision,
-    longitude: document.recipientLongitude,
-    number: document.number,
-    phone: document.recipientPhone,
-    totalAmount: document.totalAmount,
-    freightAmount: document.freightAmount,
-    freightRuleName: document.freightRuleName,
-    cargoGrossWeight: document.cargoGrossWeight,
-    cargoWeightSource: document.cargoWeightSource,
-    postalCode: document.recipientPostalCode,
-    recipient: document.recipientName,
-    state: document.recipientState,
-  }
-}
 
 /**
  * A ficha em uma linha: baú, capacidade e teto de massa. Campo ausente **some**, nunca vira "—".

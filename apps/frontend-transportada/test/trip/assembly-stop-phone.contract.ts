@@ -7,7 +7,7 @@ import { buildStopAddressKey } from '../../src/modules/trip/shared/stopAddressKe
 
 const APPLICATION_ROOT = new URL('../..', import.meta.url)
 const ASSEMBLY_MAP_PATH = 'src/modules/trip/components/TripAssemblyMap.component.tsx'
-const QUICK_CREATE_PATH = 'src/modules/trip/components/TripQuickCreateDialog.component.tsx'
+const MAP_NOTE_PATH = 'src/modules/trip/shared/assemblyMapNote.service.ts'
 const WORKSPACE_CLIENT_PATH = 'src/modules/nfe-workspace/shared/nfeWorkspaceClient.service.ts'
 
 function readSource(filePath: string): string {
@@ -31,7 +31,7 @@ describe('telefone do destinatário na parada da montagem', () => {
   })
 
   test('o recorte que o mapa lê da nota carrega o telefone', () => {
-    expect(readSource(QUICK_CREATE_PATH)).toContain('phone: document.recipientPhone,')
+    expect(readSource(MAP_NOTE_PATH)).toContain('phone: document.recipientPhone,')
   })
 
   test('a parada imprime o telefone pelo formatador de valor guardado, não pela máscara de digitação', () => {

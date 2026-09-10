@@ -11,13 +11,22 @@ import type { SuggestionVehicleValuation } from '@/modules/routing/shared/sugges
 import { ValuationLedger } from '@/modules/trip-financials/components/ValuationLedger.component'
 
 import { useTripCargoPreview } from '../hooks/useTripCargoPreview.hook'
+import { toAssemblyMapNote } from '../shared/assemblyMapNote.service'
 import type { ProposalVehicleView } from '../shared/proposalView.service'
 import type { RouteEndPolicy, RouteTimelineDriverPayment } from '../shared/routeTimeline.service'
+import type { TripCandidateDocument } from '../shared/trip.types'
+import { TripAssemblyMap } from './TripAssemblyMap.component'
 import { TripCargoPanel } from './TripCargoPanel.component'
 import { TripRouteTimeline } from './TripRouteTimeline.component'
 import styles from '../styles/trip.module.css'
 
 type TripProposalDetailProps = Readonly<{
+  /**
+   * O maço que gerou a proposta. ⚠️ Ele é a **única** fonte de endereço, destinatário e telefone
+   * aqui: a parada que a API manda tem `label` (a cidade) e os ids das notas, e nada mais — quem
+   * sabe onde o caminhão encosta é a nota, que a tela já carregou para montar o pedido.
+   */
+  documents: readonly TripCandidateDocument[]
   endLabel: null | string
   onRemoveStop: (nfeDocumentIds: readonly string[]) => void
   onUndoRemoveStop: (nfeDocumentIds: readonly string[]) => void
@@ -38,6 +47,7 @@ type TripProposalDetailProps = Readonly<{
  * planta isométrica 3D. O que esta spec faz é montá-los por viagem proposta.
  */
 export function TripProposalDetail({
+  documents,
   endLabel,
   endPolicy,
   onRemoveStop,
@@ -57,6 +67,17 @@ export function TripProposalDetail({
     permissions,
     stopOrder: view.cities,
     vehicleId: view.vehicleId,
+  })
+
+  /**
+   * ⚠️ **As notas desta viagem, na ordem do roteiro.** Sem elas o expandido mostrava cidade e
+   * contagem — "SAO JOAQUIM DA BARRA · 1 nota" —, e quem confere a viagem não tinha endereço,
+   * cliente nem telefone: exatamente o que o mapa da criação manual imprime ao lado de cada parada.
+   */
+  const documentById = new Map(documents.map((document) => [document.id, document]))
+  const mapNotes = documentIds.flatMap((id) => {
+    const document = documentById.get(id)
+    return document === undefined ? [] : [toAssemblyMapNote(document)]
   })
 
   const occupancy = cargo.preview?.occupancy ?? null
@@ -81,6 +102,22 @@ export function TripProposalDetail({
         specification={describeVehicle(vehicle)}
         vehicleType={view.vehicleType}
       />
+
+      {/*
+        ⚠️ **Sem `onOrderChange`**: quem ordenou foi o roteirizador, e oferecer setas que reordenam
+        sem recalcular daria um roteiro que a conta ao lado não descreve (spec 110 D6). Remover
+        parada continua existindo — ela é marcação, e o aceite fica travado até o recálculo.
+      */}
+      {mapNotes.length === 0 ? null : (
+        <TripAssemblyMap
+          nearby={[]}
+          onStopRemove={onRemoveStop}
+          order={view.cities}
+          revenueLines={valuation?.valuation.revenueLines}
+          selected={mapNotes}
+          vehicleId={view.vehicleId}
+        />
+      )}
 
       <section>
         <h4 className={styles.hint}>{t('proposal.routeTitle')}</h4>
