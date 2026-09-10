@@ -152,6 +152,19 @@ export function TripCargoLayers({ layout }: TripCargoLayersProps) {
       {/* ⚠️ A linha que diz o que a planta NÃO promete. Fixa, nunca condicional. */}
       <p className={styles.hint}>{t('cargoLayers.promise')}</p>
 
+      {/*
+        ⚠️ **O desenho promete metro, e este metro é de catálogo.** A escala veio da referência do
+        tipo porque a ficha deste veículo não tem as três medidas — e a dispersão dentro de um tipo
+        chega a 2×. Sem esta linha, o palpite se apresentaria como fita na mão de quem carrega, que
+        é o modo de falha da ADR-0044 §1.
+      */}
+      {layout.bedSource !== 'reference' ? null : (
+        <p className={styles.warning} role="status">
+          {t('cargoLayers.bedFromReference')}{' '}
+          <a href={FLEET_HREF}>{t('cargoLayers.missingBedLink')}</a>
+        </p>
+      )}
+
       {/**
        * ⚠️ **Todas as camadas de uma vez, com o que cada uma tem dentro.** O par anterior/próxima
        * mostrava "Camada 1 de 2" e obrigava a percorrer o baú para saber o que havia na de cima —

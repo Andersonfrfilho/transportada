@@ -96,4 +96,18 @@ describe('a profundidade da faixa chega do servidor (spec 088)', () => {
   it('recusa o comprimento do baú fora do formato', () => {
     expect(() => readLayout({ bedLengthM: 8.9 })).toThrow()
   })
+  /**
+   * ⚠️ **A escala de catálogo é dita na tela.** A spec 088 D2 escondia a planta inteira quando a
+   * ficha não tinha as três medidas; hoje ela desenha com a referência do tipo — e é esta linha que
+   * torna a troca honesta. A dispersão dentro de um tipo chega a 2×, e o desenho diz "encoste a
+   * 4,20 m da porta": sem o aviso, o palpite se apresenta como fita.
+   */
+  it('a planta com escala de catálogo avisa, e a medida não avisa', async () => {
+    const source = await Bun.file(
+      new URL('../../src/modules/trip/components/TripCargoLayers.component.tsx', import.meta.url),
+    ).text()
+
+    expect(source).toContain("layout.bedSource !== 'reference' ? null : (")
+    expect(source).toContain("t('cargoLayers.bedFromReference')")
+  })
 })
