@@ -62,11 +62,16 @@ describe('manual creation convergence contract', () => {
   })
 
   /** E a proposta diz, no próprio fonte, por que a lista dela vai vazia. */
-  test('a proposta declara por que ainda não tem praça por trecho', async () => {
-    const proposal = await readSource(PROPOSAL)
+  /**
+   * ⚠️ **As duas telas põem a praça no mesmo lugar** — dentro da lista do mapa, no trecho em que ela
+   * acontece —, porque é o mesmo componente. O que continua sem pedágio é a **conta** da sugestão
+   * (`TOLL_NOT_AVAILABLE_IN_SUGGESTION`): ela precisa dos `nodeIds` que o solver não persiste, e
+   * dizer "ninguém lançou" numa tela sem viagem mandaria procurar um botão que não existe.
+   */
+  test('a praça no trecho dela vale para as duas telas, pelo mesmo mapa', async () => {
+    const map = await readSource('src/modules/trip/components/TripAssemblyMap.component.tsx')
 
-    expect(proposal).toContain('booths: []')
-    expect(proposal).toContain('spec 090 T11')
+    expect(map).toContain('tollRows')
   })
   /**
    * ⚠️ **O mapa é da tela de criar viagem, e agora é das duas** (D3). Sem ele o expandido dizia

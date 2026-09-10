@@ -18,7 +18,14 @@ describe('proposal detail contract', () => {
     expect(source).toContain('useTripCargoPreview')
     expect(source).toContain('<TripCargoPanel')
     expect(source).toContain('<ValuationLedger')
-    expect(source).toContain('<TripRouteTimeline')
+    /**
+     * ⚠️ **Uma lista só do dia.** O expandido teve duas — o mapa da montagem e uma linha do tempo
+     * própria —, e elas contavam a mesma sequência: o operador lia "SAO JOAQUIM DA BARRA · 1 nota"
+     * na segunda depois de ler o cliente, o endereço, o valor e o peso na primeira. Ficou a rica,
+     * que é a da criação manual (D3/D8); a marcação de remoção com "Desfazer" (D6) foi para ela.
+     */
+    expect(source).toContain('<TripAssemblyMap')
+    expect(source).not.toContain('<TripRouteTimeline')
     expect(source).toContain('<VehicleIdentityBand')
   })
 
@@ -33,15 +40,18 @@ describe('proposal detail contract', () => {
   })
 
   /**
-   * ⚠️ A sugestão não persiste os `nodeIds` das praças (spec 090 T11): o pedágio por trecho ainda
-   * não existe aqui, e a linha do tempo **não inventa praça nenhuma**. Este contrato existe para o
-   * dia em que ele existir — a lista vazia é uma decisão, não um esquecimento.
+   * ⚠️ **A praça aparece no trecho dela, e a tarifa junto** — e não por um segundo cálculo: quem as
+   * traz é o mapa, na **mesma** chamada que devolve o traço (spec 090 D4). Duas consultas para o
+   * mesmo trajeto podem devolver caminhos diferentes, e aí a tela desenha um e cobra outro.
+   *
+   * A limitação da spec 090 T11 continua valendo onde ela sempre valeu: na **conta** da sugestão,
+   * que sai com `TOLL_NOT_AVAILABLE_IN_SUGGESTION` porque o solver não persiste os `nodeIds`.
    */
-  test('sem os nós da rota, a linha do tempo não inventa praça', async () => {
-    const source = await readSource('src/modules/trip/components/TripProposalDetail.component.tsx')
+  test('a praça vem com a rota, nunca de uma segunda consulta', async () => {
+    const source = await readSource('src/modules/trip/components/TripAssemblyMap.component.tsx')
 
-    expect(source).toContain('booths: []')
-    expect(source).toContain('spec 090 T11')
+    expect(source).toContain('tollRows')
+    expect(source).not.toContain('readTollCost(')
   })
 
   /**

@@ -110,6 +110,7 @@
       "straight": "A linha é reta entre as paradas — o roteirizador ainda não respondeu por este trecho."
     },
     "traceLabel": "Ordem das paradas",
+    "undoRemoveStop": "Desfazer",
     "unmapped": "Sem desenho na malha do IBGE: {{cities}}.",
     "withoutBasemap": "Mapa de rua indisponível — os pontos e a ordem continuam válidos",
     "zoomIn": "Aproximar o mapa",

@@ -1,6 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 
-import type { RouteEndPolicy } from './routeTimeline.service'
 import type {
   CoverableSuggestionStop,
   LeftoverStop,
@@ -11,6 +10,13 @@ import type {
  *
  * ⚠️ Cópia por valor de `TRIP_STATUSES` da API — o bundle não carrega código de lá.
  */
+/**
+ * Onde o dia termina. ⚠️ Só `resolveRouteEndAddressKey` interpreta isto — a tela **imprime** a
+ * política, nunca decide por ela (spec 110 D4a).
+ */
+export const ROUTE_END_POLICIES = ['address', 'depot', 'last_stop'] as const
+export type RouteEndPolicy = (typeof ROUTE_END_POLICIES)[number]
+
 export const TRIP_STATUS = [
   'cancelled',
   'completed',

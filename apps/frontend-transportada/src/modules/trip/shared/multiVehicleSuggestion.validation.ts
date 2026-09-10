@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import type { RouteEndPolicy } from './routeTimeline.service'
+import type { RouteEndPolicy } from './trip.types'
 import { resolveLeftoverStops } from '@/modules/routing/shared/suggestionLeftover.service'
 import { TRIP_ERROR } from './trip.constant'
 import type {

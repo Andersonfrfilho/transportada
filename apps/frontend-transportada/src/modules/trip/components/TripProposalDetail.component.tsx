@@ -13,11 +13,9 @@ import { ValuationLedger } from '@/modules/trip-financials/components/ValuationL
 import { useTripCargoPreview } from '../hooks/useTripCargoPreview.hook'
 import { toAssemblyMapNote } from '../shared/assemblyMapNote.service'
 import type { ProposalVehicleView } from '../shared/proposalView.service'
-import type { RouteEndPolicy, RouteTimelineDriverPayment } from '../shared/routeTimeline.service'
 import type { TripCandidateDocument } from '../shared/trip.types'
 import { TripAssemblyMap } from './TripAssemblyMap.component'
 import { TripCargoPanel } from './TripCargoPanel.component'
-import { TripRouteTimeline } from './TripRouteTimeline.component'
 import styles from '../styles/trip.module.css'
 
 type TripProposalDetailProps = Readonly<{
@@ -27,12 +25,9 @@ type TripProposalDetailProps = Readonly<{
    * sabe onde o caminhão encosta é a nota, que a tela já carregou para montar o pedido.
    */
   documents: readonly TripCandidateDocument[]
-  endLabel: null | string
   onRemoveStop: (nfeDocumentIds: readonly string[]) => void
   onUndoRemoveStop: (nfeDocumentIds: readonly string[]) => void
   pendingRemovals: ReadonlySet<string>
-  endPolicy: RouteEndPolicy
-  originLabel: null | string
   permissions: readonly string[]
   valuation: null | SuggestionVehicleValuation
   vehicle: FleetVehicleDetail | undefined
@@ -48,12 +43,9 @@ type TripProposalDetailProps = Readonly<{
  */
 export function TripProposalDetail({
   documents,
-  endLabel,
-  endPolicy,
   onRemoveStop,
   onUndoRemoveStop,
   pendingRemovals,
-  originLabel,
   permissions,
   valuation,
   vehicle,
@@ -112,43 +104,15 @@ export function TripProposalDetail({
         <TripAssemblyMap
           nearby={[]}
           onStopRemove={onRemoveStop}
+          onStopUndoRemove={onUndoRemoveStop}
           order={view.cities}
+          /** Spec 110 D6: a parada marcada fica **riscada com "Desfazer"**, nunca some. */
+          removedNoteIds={pendingRemovals}
           revenueLines={valuation?.valuation.revenueLines}
           selected={mapNotes}
           vehicleId={view.vehicleId}
         />
       )}
-
-      <section>
-        <h4 className={styles.hint}>{t('proposal.routeTitle')}</h4>
-        <TripRouteTimeline
-          onRemoveStop={onRemoveStop}
-          onUndoRemoveStop={onUndoRemoveStop}
-          input={{
-            /**
-             * ⚠️ Vazio, e **não é esquecimento**: a sugestão não persiste os `nodeIds` das praças
-             * (spec 090 T11), então o pedágio por trecho ainda não existe aqui. A linha do tempo
-             * mostra o dia sem inventar praça nenhuma.
-             */
-            booths: [],
-            driverPayment: resolveDriverPayment(valuation),
-            endLabel,
-            endPolicy,
-            originLabel,
-            removedDocumentIds: pendingRemovals,
-            returnLeg: null,
-            stops: view.stops.map((stop) => ({
-              distanceFromPreviousMeters: stop.distanceFromPreviousMeters,
-              documentCount: stop.nfeDocumentIds.length,
-              durationFromPreviousSeconds: stop.durationFromPreviousSeconds,
-              estimatedArrivalAt: stop.estimatedArrivalAt,
-              excludedFromOptimization: stop.excludedFromOptimization,
-              label: stop.label,
-              nfeDocumentIds: stop.nfeDocumentIds,
-            })),
-          }}
-        />
-      </section>
 
       {occupancy === null && cargoWeight === null ? null : (
         <TripCargoPanel
@@ -166,28 +130,6 @@ export function TripProposalDetail({
       </section>
     </>
   )
-}
-
-/**
- * ⚠️ O pagamento do agregado sai da **base** da parcela, não de um cálculo daqui: quem sabe qual
- * zona pagou é a API, e refazer a escolha no cliente produziria um segundo número.
- */
-function resolveDriverPayment(
-  valuation: null | SuggestionVehicleValuation,
-): null | RouteTimelineDriverPayment {
-  const parcel = valuation?.valuation.costParcels.find((entry) => entry.kind === 'driver')
-  const basis = parcel?.basis
-  if (parcel === undefined || basis === undefined || basis === null || basis.of !== 'driver') {
-    return null
-  }
-
-  return {
-    amount: parcel.gap === null ? parcel.amount : null,
-    paymentModel: basis.paymentModel,
-    regionCity: basis.regionCity,
-    regionCode: basis.regionCode,
-    vehicleClass: basis.vehicleClass,
-  }
 }
 
 /** A ficha em uma linha: baú, capacidade e porta. Campo ausente **some**, nunca vira "—". */

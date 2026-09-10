@@ -42,10 +42,10 @@ describe('proposal edit contract', () => {
 
   /** Riscada, não sumida: nada é destruído antes do recálculo, e o desfazer precisa dela na tela. */
   test('a parada tirada continua desenhada, com desfazer', async () => {
-    const source = await readSource('src/modules/trip/components/TripRouteTimeline.component.tsx')
+    const source = await readSource('src/modules/trip/components/TripAssemblyMap.component.tsx')
 
-    expect(source).toContain('styles.timelineRemoved')
-    expect(source).toContain("t('proposal.undoRemoveStop')")
+    expect(source).toContain('removedNoteIds')
+    expect(source).toContain("t('assemblyMap.undoRemoveStop')")
   })
 
   /**
@@ -54,8 +54,8 @@ describe('proposal edit contract', () => {
    * própria. Este contrato existe para o botão não aparecer antes disso.
    */
   test('mover destino não é oferecido enquanto o solver não fixar parada', async () => {
-    const timeline = await readSource('src/modules/trip/components/TripRouteTimeline.component.tsx')
+    const map = await readSource('src/modules/trip/components/TripAssemblyMap.component.tsx')
 
-    expect(timeline).not.toContain('onMoveStop')
+    expect(map).not.toContain('onMoveStop')
   })
 })

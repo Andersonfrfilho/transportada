@@ -71,6 +71,14 @@ type TripAssemblyMapProps = Readonly<{
    * desenhado, em vez de aparecer inerte. Botão que não faz nada é pior que botão ausente.
    */
   onStopRemove?: ((noteIds: readonly string[]) => void) | undefined
+  /**
+   * Spec 110 D6: **tirar destino é marcação, não destruição.** A parada fica riscada com "Desfazer"
+   * até o recálculo — o aceite parte dos grupos do servidor, e eles não sabem da remoção. Sem o
+   * callback a parada some da tela, e sumir é o que a decisão da spec recusa.
+   */
+  onStopUndoRemove?: ((noteIds: readonly string[]) => void) | undefined
+  /** As notas marcadas para sair. A parada é riscada quando **todas** as dela estão aqui. */
+  removedNoteIds?: ReadonlySet<string> | undefined
   order: AssemblyCityOrder
   selected: readonly AssemblyMapNote[]
   /**
@@ -120,11 +128,22 @@ export function TripAssemblyMap({
   nearby,
   onOrderChange,
   onStopRemove,
+  onStopUndoRemove,
   order,
+  removedNoteIds,
   revenueLines,
   selected,
   vehicleId,
 }: TripAssemblyMapProps) {
+  /**
+   * ⚠️ A parada só é **riscada** quando todas as notas dela estão marcadas — a mesma regra da linha
+   * do tempo: deixar uma nota para trás recriaria a mesma parada, e o operador leria como se o
+   * clique não tivesse pego.
+   */
+  const isRemoved = (point: { readonly notes: readonly { readonly id: string }[] }): boolean =>
+    removedNoteIds !== undefined &&
+    point.notes.length > 0 &&
+    point.notes.every((note) => removedNoteIds.has(note.id))
   const { t } = useTranslation('trip')
   /**
    * ⚠️ O fundo de rua é o `.pmtiles` **nosso** (ADR-0044 §6), e enquanto ele não for gerado do
@@ -870,7 +889,16 @@ export function TripAssemblyMap({
               achando que o clique não pegou. Sem `onStopRemove` o botão não é desenhado: quem
               hospeda o mapa nem sempre é dono da fila.
             */}
-            {onStopRemove === undefined ? null : (
+            {isRemoved(point) && onStopUndoRemove !== undefined ? (
+              <Button
+                onClick={() => onStopUndoRemove(point.notes.map((note) => note.id))}
+                size="sm"
+                variant="ghost"
+              >
+                <Icon name="refresh" />
+                {t('assemblyMap.undoRemoveStop')}
+              </Button>
+            ) : onStopRemove === undefined ? null : (
               <Button
                 aria-label={t('assemblyMap.removeStop', { label: point.label })}
                 onClick={() => onStopRemove(point.notes.map((note) => note.id))}

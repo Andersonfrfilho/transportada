@@ -153,12 +153,9 @@ export function TripRouteAssemblyDialog({
               renderDetail={(view) => (
                 <TripProposalDetail
                   documents={assembly.pool}
-                  endLabel={null}
                   onRemoveStop={assembly.markStopRemoved}
                   onUndoRemoveStop={assembly.undoStopRemoval}
                   pendingRemovals={assembly.pendingRemovals}
-                  endPolicy={proposal.suggestion.endPolicy}
-                  originLabel={null}
                   permissions={permissions}
                   valuation={valuationByVehicle.get(view.vehicleId) ?? null}
                   vehicle={vehicles.find((vehicle) => vehicle.id === view.vehicleId)}

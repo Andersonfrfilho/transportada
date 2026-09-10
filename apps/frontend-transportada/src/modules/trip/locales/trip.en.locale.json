@@ -84,6 +84,7 @@
       "straight": "The line is straight between stops — the router has not answered for this leg."
     },
     "traceLabel": "Stop order",
+    "undoRemoveStop": "Undo",
     "unmapped": "No shape in the IBGE mesh: {{cities}}.",
     "withoutBasemap": "Street map unavailable — points and order are still valid",
     "zoomIn": "Zoom in",
