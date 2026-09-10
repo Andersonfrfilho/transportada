@@ -382,4 +382,22 @@ describe('porta lateral não vem do tipo', () => {
 
     expect(suggestion).toBeNull()
   })
+  /**
+   * ⚠️ **Ficha existente sem baú medido também recebe a sugestão.** A spec 093 a deu só ao veículo
+   * novo, e por isso o `RTD-5J78` — cadastrado antes dela, com `0,000 × 0,000 × 0,000` — era o único
+   * da frota sem planta de carga: a tela dizia o que faltava, e a ficha nunca receberia nada.
+   * Cadastro anterior à sugestão não é decisão de ninguém, é a data em que a ficha foi criada.
+   *
+   * ⚠️ A 088 D2 segue de pé: isso preenche a **ficha**, marcada como catálogo, e a planta continua
+   * desenhando só o que alguém salvou.
+   */
+  test('a ficha antiga sem baú recebe a sugestão; a medida não é sobrescrita', async () => {
+    const source = await Bun.file(
+      new URL('../../src/modules/fleet/hooks/useVehicleForm.hook.ts', import.meta.url),
+    ).text()
+
+    expect(source).toContain('isSuggestionEnabled(vehicle)')
+    expect(source).toContain('hasMeasuredBed')
+    expect(source).not.toContain('suggestionEnabled: vehicle === undefined')
+  })
 })

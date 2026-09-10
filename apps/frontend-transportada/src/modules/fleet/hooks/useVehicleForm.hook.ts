@@ -98,7 +98,7 @@ export function useVehicleForm(input: UseVehicleFormInput): VehicleFormControlle
     const composed = composeVehicleFormPatch({
       previous: state,
       references,
-      suggestionEnabled: vehicle === undefined,
+      suggestionEnabled: isSuggestionEnabled(vehicle),
       values,
       vehicles,
     })
@@ -111,7 +111,7 @@ export function useVehicleForm(input: UseVehicleFormInput): VehicleFormControlle
       const draft = composeVehicleFormPatch({
         previous,
         references,
-        suggestionEnabled: vehicle === undefined,
+        suggestionEnabled: isSuggestionEnabled(vehicle),
         values,
         vehicles,
       }).state
@@ -191,4 +191,30 @@ function forgetTouched(
   const next = new Set(previous)
   for (const key of touched) next.delete(key)
   return next
+}
+
+/**
+ * Quem recebe a sugestão do catálogo.
+ *
+ * ⚠️ **Ficha existente sem baú medido também recebe** — e não só o veículo novo, como a spec 093
+ * fez. Medido em 2026-09-09: o `RTD-5J78` estava com `0,000 × 0,000 × 0,000` desde antes daquela
+ * spec, e por isso era o único da frota sem planta de carga; a tela dizia o que faltava e o operador
+ * teria de medir com fita para uma tela que ele já esperava ver. Cadastro anterior à sugestão não é
+ * decisão de ninguém — é a data em que a ficha foi criada.
+ *
+ * ⚠️ **A 088 D2 continua de pé**: a referência não alimenta a planta por baixo. Ela entra na ficha
+ * marcada como catálogo, e só passa a valer quando alguém **salva** — a partir daí é o que a ficha
+ * afirma, não um palpite escondido atrás de um desenho em escala.
+ */
+function isSuggestionEnabled(vehicle: FleetVehicleDetail | undefined): boolean {
+  if (vehicle === undefined) return true
+
+  return !hasMeasuredBed(vehicle)
+}
+
+/** Zero é ausência de medida, nunca baú de volume zero (spec 088). */
+function hasMeasuredBed(vehicle: FleetVehicleDetail): boolean {
+  return [vehicle.cargoLengthMeters, vehicle.cargoWidthMeters, vehicle.cargoHeightMeters].every(
+    (value) => value !== null && Number.parseFloat(value) > 0,
+  )
 }
