@@ -108,6 +108,7 @@
     "totalTime": "Tempo do roteiro: {{duration}} — estrada medida pelo roteirizador, mais 20 min parados por entrega.",
     "totalWeight": "Peso total: {{weight}} kg",
     "trace": {
+      "draft": "Ordem alterada: a estrada some até você salvar — só então o roteirizador traça o caminho novo.",
       "road": "A linha é a estrada que o roteirizador devolveu.",
       "straight": "A linha é reta entre as paradas — o roteirizador ainda não respondeu por este trecho."
     },

@@ -37,6 +37,12 @@ import { resolveTollBoothMarkers } from '../shared/assemblyToll.service'
 
 type AssemblyVectorMapProps = Readonly<{
   geometry: RouteGeometry | null
+  /**
+   * ⚠️ Não desenha linha nenhuma — só os pinos. Serve ao rascunho de ordem (spec 111 D8): sem a
+   * geometria, `resolveRouteLegs` liga as paradas em **reta tracejada**, e reta sobre uma ordem que
+   * ninguém mediu parece um caminho que não existe.
+   */
+  hideRoute?: boolean | undefined
   nearby: readonly AssemblyMapPoint[]
   onBasemapMissing: () => void
   points: readonly AssemblyMapPoint[]
@@ -106,6 +112,7 @@ function readToken(token: string): string {
 
 export function AssemblyVectorMap({
   geometry,
+  hideRoute,
   nearby,
   onBasemapMissing,
   points,
@@ -505,15 +512,18 @@ export function AssemblyVectorMap({
      * perdia no meio deles. A cor vem da mesma paleta da listagem, que é o que a pessoa está lendo
      * ao lado do mapa.
      */
-    const legs = resolveRouteLegs({
-      geometry,
-      /** Aqui não há projeção: o MapLibre recebe grau, e o corte por proximidade é no próprio grau. */
-      project: (point: { readonly latitude: number; readonly longitude: number }) => ({
-        x: point.longitude,
-        y: point.latitude,
-      }),
-      stops: points.map((point) => ({ x: point.longitude, y: point.latitude })),
-    })
+    const legs =
+      hideRoute === true
+        ? []
+        : resolveRouteLegs({
+            geometry,
+            /** Aqui não há projeção: o MapLibre recebe grau, e o corte por proximidade é no próprio grau. */
+            project: (point: { readonly latitude: number; readonly longitude: number }) => ({
+              x: point.longitude,
+              y: point.latitude,
+            }),
+            stops: points.map((point) => ({ x: point.longitude, y: point.latitude })),
+          })
     const data = {
       type: 'FeatureCollection' as const,
       features: legs.map((leg) => ({
@@ -542,7 +552,7 @@ export function AssemblyVectorMap({
 
     routeRef.current = { dashArray, data }
     applyRoute(map)
-  }, [applyRoute, geometry, isReady, points, theme])
+  }, [applyRoute, geometry, hideRoute, isReady, points, theme])
 
   return (
     <div className={styles.vectorMap}>

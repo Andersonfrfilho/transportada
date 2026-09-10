@@ -157,6 +157,21 @@ describe('ordem escolhida à mão na proposta', () => {
    * o select de mover virou o quinto filho — a lixeira caiu numa linha própria. Medido na tela em
    * 2026-09-10, na proposta real.
    */
+  /**
+   * ⚠️ **Rascunho não desenha reta.** Sem geometria o mapa liga as paradas em reta tracejada — o
+   * fallback de "a estrada ainda não veio". Sobre uma ordem que ninguém mediu isso parecia um caminho;
+   * o operador reordenava e via traços retos cruzando a cidade. Visto na tela em 2026-09-10.
+   */
+  it('durante o rascunho o mapa mostra só os pinos', () => {
+    const map = readSource('src/modules/trip/components/TripAssemblyMap.component.tsx')
+    const vector = readSource('src/modules/trip/components/AssemblyVectorMap.component.tsx')
+    expect(map).toContain('hideRoute={isDraft}')
+    expect(map).toMatch(/isDraft\s+\?\s+'assemblyMap\.trace\.draft'/u)
+    expect(vector).toMatch(
+      /const legs =\s+hideRoute === true\s+\?\s+\[\]\s+:\s+resolveRouteLegs\(/u,
+    )
+  })
+
   it('setas, mover e lixeira ficam num grupo só', () => {
     const map = readSource('src/modules/trip/components/TripAssemblyMap.component.tsx')
     const css = readSource('src/modules/trip/styles/trip.module.css')

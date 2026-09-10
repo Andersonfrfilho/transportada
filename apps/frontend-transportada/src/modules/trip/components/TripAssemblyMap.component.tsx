@@ -514,6 +514,8 @@ export function TripAssemblyMap({
         >
           <AssemblyVectorMap
             geometry={activeGeometry}
+            /** Rascunho sem medida: só pinos. A reta tracejada pareceria um caminho. */
+            hideRoute={isDraft}
             nearby={map.nearby}
             onBasemapMissing={() => setHasBasemap(false)}
             points={map.points}
@@ -1102,9 +1104,11 @@ export function TripAssemblyMap({
       {map.points.length < 2 ? null : (
         <p className={styles.hint}>
           {t(
-            activeGeometry?.source === 'road'
-              ? 'assemblyMap.trace.road'
-              : 'assemblyMap.trace.straight',
+            isDraft
+              ? 'assemblyMap.trace.draft'
+              : activeGeometry?.source === 'road'
+                ? 'assemblyMap.trace.road'
+                : 'assemblyMap.trace.straight',
           )}
         </p>
       )}

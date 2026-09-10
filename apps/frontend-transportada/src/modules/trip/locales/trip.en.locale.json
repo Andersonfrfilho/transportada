@@ -82,6 +82,7 @@
     "totalTime": "Route time: {{duration}} — road measured by the router, plus 20 min stopped per delivery.",
     "totalWeight": "Total weight: {{weight}} kg",
     "trace": {
+      "draft": "Order changed: the road is hidden until you save — only then is the new path traced.",
       "road": "The line is the road the router returned.",
       "straight": "The line is straight between stops — the router has not answered for this leg."
     },
