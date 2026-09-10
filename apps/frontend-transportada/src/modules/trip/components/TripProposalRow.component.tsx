@@ -14,7 +14,7 @@ import { VEHICLE_TYPE_ICONS } from '@/modules/shared/vehicleTypeIcon.service'
 import { formatMargin, isNegative } from '@/modules/trip-financials/shared/financialView.service'
 
 import { stopColorTokenOf } from '../shared/stopColor.service'
-import type { ProposalVehicleView } from '../shared/proposalView.service'
+import { summarizeProposalCities, type ProposalVehicleView } from '../shared/proposalView.service'
 import styles from '../styles/trip.module.css'
 
 type TripProposalRowProps = Readonly<{
@@ -50,9 +50,10 @@ export function TripProposalRow({
 }: TripProposalRowProps) {
   const { t } = useTranslation('trip')
   const color = `var(${stopColorTokenOf(index + 1)})`
+  const cities = summarizeProposalCities(view.cities)
   const marginTone = view.hasGaps
     ? styles.proposalWarn
-    : isNegative(view.totalMargin)
+    : isNegative(view.totalMargin ?? '0.00')
       ? styles.negative
       : styles.proposalProfit
 
@@ -97,7 +98,8 @@ export function TripProposalRow({
           </span>
           <span className={styles.proposalCities}>
             <Icon name="map-pin" />
-            {view.cities.join(' · ')}
+            {cities.shown.join(' · ')}
+            {cities.hidden === 0 ? '' : ` · ${t('proposal.moreCities', { count: cities.hidden })}`}
           </span>
         </span>
 
@@ -109,16 +111,19 @@ export function TripProposalRow({
             value={
               view.weightKilograms === null
                 ? t('proposal.unknown')
-                : formatWeightKilograms(view.weightKilograms)
+                : t('proposal.weightValue', {
+                    weight: formatWeightKilograms(view.weightKilograms),
+                  })
             }
           />
-          <Metric label={t('proposal.revenue')} value={formatAmount(view.totalRevenue)} />
+          {/* ⚠️ Sem conta, `—`: `R$ 0,00` diria que a viagem não rende nada e não custa nada. */}
+          <Metric label={t('proposal.revenue')} value={money(view.totalRevenue, t)} />
           {/* Despesas em vermelho, lucro em verde: os dois se distinguem antes do rótulo. */}
           <Metric
             label={t('proposal.expenses')}
             note={view.hasGaps ? t('proposal.missingParcels') : null}
-            tone={styles.proposalExpenses}
-            value={formatAmount(view.totalCost)}
+            tone={view.totalCost === null ? undefined : styles.proposalExpenses}
+            value={money(view.totalCost, t)}
           />
           <Metric
             label={t('proposal.margin')}
@@ -127,8 +132,8 @@ export function TripProposalRow({
                 ? t('proposal.incomplete')
                 : (formatMargin(view.marginPercentage) ?? null)
             }
-            tone={marginTone}
-            value={formatAmount(view.totalMargin)}
+            tone={view.totalMargin === null ? undefined : marginTone}
+            value={money(view.totalMargin, t)}
           />
           <Metric
             label={t('proposal.time')}
@@ -198,4 +203,9 @@ function Metric({
       {note === null ? null : <span className={styles.proposalMetricNote}>{note}</span>}
     </span>
   )
+}
+
+/** Ausência de conta é dita, nunca desenhada como zero — a regra que atravessa este produto. */
+function money(value: null | string, translate: (key: string) => string): string {
+  return value === null ? translate('proposal.unknown') : formatAmount(value)
 }

@@ -208,6 +208,8 @@ type MockPermissions = readonly (
   | 'invoices.read'
   /** Spec 058 P2: a distribuição multi-veículo lê a frota e escreve viagem. */
   | 'fleet.read'
+  /** Spec 110: a conta da proposta tem permissão própria — sem ela some só o dinheiro. */
+  | 'trip.financials'
   | 'settings.manage'
   | 'trip.manage'
 )[]

@@ -26,10 +26,15 @@ export type ProposalVehicleView = Readonly<{
   hasGaps: boolean
   plate: null | string
   stops: readonly ProposalStop[]
-  totalCost: string
-  totalMargin: string
+  /**
+   * ⚠️ **`null` é a conta que não veio, nunca zero.** Sem `trip.financials` — ou com a consulta em
+   * erro — `R$ 0,00` afirmaria que a viagem não rende nada e não custa nada, que é o número que faz
+   * alguém aceitar a distribuição errada. É a mesma regra da ocupação e do peso: ausência é dita.
+   */
+  totalCost: null | string
+  totalMargin: null | string
   marginPercentage: null | string
-  totalRevenue: string
+  totalRevenue: null | string
   vehicleId: string
   vehicleLabel: null | string
   vehicleType: '' | VehicleType
@@ -39,11 +44,11 @@ export type ProposalVehicleView = Readonly<{
   weightEstimated: boolean
 }>
 
-const ZERO = '0.00'
-
 export function buildProposalVehicleViews(
   input: Readonly<{
     documentsById: ReadonlyMap<string, ProposalDocumentWeight>
+    /** O par veículo→motorista que a montagem enviou: é ele que decide quem dirige. */
+    driverIdByVehicleId: ReadonlyMap<string, string>
     driverNameById: ReadonlyMap<string, string>
     stops: readonly ProposalStop[]
     valuation: null | SuggestionValuation
@@ -83,18 +88,20 @@ export function buildProposalVehicleViews(
       cities: [...new Set(group.stops.map((stop) => stop.label).filter((label) => label !== ''))],
       deliveries: group.documentIds.size,
       distanceMeters: entry?.distanceMeters ?? null,
-      driverName:
-        entry?.driverId === undefined || entry.driverId === null
-          ? null
-          : (input.driverNameById.get(entry.driverId) ?? null),
+      driverName: resolveDriverName({
+        driverIdByVehicleId: input.driverIdByVehicleId,
+        driverNameById: input.driverNameById,
+        fallbackDriverId: entry?.driverId ?? null,
+        vehicleId,
+      }),
       durationSeconds: entry?.durationSeconds ?? null,
       hasGaps: entry?.valuation.hasGaps ?? false,
       marginPercentage: entry?.valuation.marginPercentage ?? null,
       plate: vehicle?.plate ?? null,
       stops: group.stops,
-      totalCost: entry?.valuation.totalCost ?? ZERO,
-      totalMargin: entry?.valuation.totalMargin ?? ZERO,
-      totalRevenue: entry?.valuation.totalRevenue ?? ZERO,
+      totalCost: entry?.valuation.totalCost ?? null,
+      totalMargin: entry?.valuation.totalMargin ?? null,
+      totalRevenue: entry?.valuation.totalRevenue ?? null,
       vehicleId,
       vehicleLabel: vehicle?.label ?? null,
       vehicleType: vehicle?.type ?? '',
@@ -102,4 +109,35 @@ export function buildProposalVehicleViews(
       weightKilograms: declared.length === 0 ? null : sumScaledAmounts(declared),
     }
   })
+}
+
+function resolveDriverName(
+  input: Readonly<{
+    driverIdByVehicleId: ReadonlyMap<string, string>
+    driverNameById: ReadonlyMap<string, string>
+    /** A conta também sabe o motorista; ela é a segunda opinião, não a primeira. */
+    fallbackDriverId: null | string
+    vehicleId: string
+  }>,
+): null | string {
+  const driverId = input.driverIdByVehicleId.get(input.vehicleId) ?? input.fallbackDriverId
+  return driverId === null ? null : (input.driverNameById.get(driverId) ?? null)
+}
+
+/**
+ * ⚠️ **Acima de quatro cidades, o resto vira contagem** (D2).
+ *
+ * Sem o corte a linha de uma viagem com dezessete destinos ocupa três alturas de texto, empurra as
+ * seis colunas de número para fora do alinhamento e a comparação entre viagens — que é a tela
+ * inteira — deixa de existir. Medido em produção: um caminhão com 45 entregas cobria 17 cidades.
+ */
+export const PROPOSAL_CITY_LIMIT = 4
+
+export function summarizeProposalCities(
+  cities: readonly string[],
+): Readonly<{ hidden: number; shown: readonly string[] }> {
+  return {
+    hidden: Math.max(0, cities.length - PROPOSAL_CITY_LIMIT),
+    shown: cities.slice(0, PROPOSAL_CITY_LIMIT),
+  }
 }

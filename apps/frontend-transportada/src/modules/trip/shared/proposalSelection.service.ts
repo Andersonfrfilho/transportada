@@ -18,9 +18,10 @@ export type ProposalSelectionVehicle = Readonly<{
   hasGaps: boolean
   /** `null` é praça sem tarifa conhecida — e ela contamina o total, nunca entra como zero. */
   tollAmount: null | string
-  totalCost: string
-  totalMargin: string
-  totalRevenue: string
+  /** ⚠️ `null` é a conta que não veio — e ela contamina o total, nunca entra como zero. */
+  totalCost: null | string
+  totalMargin: null | string
+  totalRevenue: null | string
   vehicleId: string
 }>
 
@@ -33,12 +34,12 @@ export type ProposalSelectionSummary = Readonly<{
   releasedDeliveries: number
   releasedTrips: number
   selectedCount: number
-  totalCost: string
+  totalCost: null | string
   totalCount: number
   totalDistanceMeters: null | number
   totalDurationSeconds: null | number
-  totalMargin: string
-  totalRevenue: string
+  totalMargin: null | string
+  totalRevenue: null | string
   totalToll: null | string
 }>
 
@@ -53,6 +54,21 @@ function sumOrUnknown(values: readonly (null | number)[]): null | number {
   return values.some((value) => value === null)
     ? null
     : values.reduce<number>((total, value) => total + (value ?? 0), 0)
+}
+
+/**
+ * ⚠️ **Uma parcela desconhecida torna o total desconhecido**, e nada marcado também: somar o que se
+ * sabe daria um número menor com cara de completo, e `R$ 0,00` diria que a distribuição não custa
+ * nada. É a mesma regra da rodagem, e a mesma do peso estimado (ADR-0052).
+ */
+function sumOrAbsent(values: readonly (null | string)[]): null | string {
+  /**
+   * ⚠️ Nada marcado soma **zero**, e viagem com conta ausente torna o total ausente. As duas coisas
+   * são diferentes: a primeira é o que o operador escolheu, a segunda é o que ninguém sabe — e
+   * somar como se a ausente fosse zero apresentaria um total menor que o real.
+   */
+  if (values.some((value) => value === null)) return null
+  return sumScaledAmounts(values.flatMap((value) => (value === null ? [] : [value])))
 }
 
 export function summarizeProposalSelection(
@@ -74,15 +90,13 @@ export function summarizeProposalSelection(
     releasedDeliveries: left.reduce((total, vehicle) => total + vehicle.deliveries, 0),
     releasedTrips: left.length,
     selectedCount: chosen.length,
-    totalCost: sumScaledAmounts(chosen.map((vehicle) => vehicle.totalCost)),
+    totalCost: sumOrAbsent(chosen.map((vehicle) => vehicle.totalCost)),
     totalCount: input.vehicles.length,
     totalDistanceMeters: sumOrUnknown(chosen.map((vehicle) => vehicle.distanceMeters)),
     totalDurationSeconds: sumOrUnknown(chosen.map((vehicle) => vehicle.durationSeconds)),
-    totalMargin: sumScaledAmounts(chosen.map((vehicle) => vehicle.totalMargin)),
-    totalRevenue: sumScaledAmounts(chosen.map((vehicle) => vehicle.totalRevenue)),
-    totalToll: tolls.some((amount) => amount === null)
-      ? null
-      : sumScaledAmounts(tolls.flatMap((amount) => (amount === null ? [] : [amount]))),
+    totalMargin: sumOrAbsent(chosen.map((vehicle) => vehicle.totalMargin)),
+    totalRevenue: sumOrAbsent(chosen.map((vehicle) => vehicle.totalRevenue)),
+    totalToll: sumOrAbsent(tolls),
   }
 }
 

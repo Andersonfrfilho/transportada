@@ -78,6 +78,8 @@ export function TripRouteAssemblyDialog({
               },
             ]),
           ),
+          /** ⚠️ Quem dirige sai do **par** que a montagem enviou, não da conta (spec 110 D2). */
+          driverIdByVehicleId: assembly.driverIdByVehicleId,
           driverNameById: new Map(drivers.map((driver) => [driver.id, driver.name])),
           stops: proposal.stops,
           valuation: suggestionValuation.valuation,

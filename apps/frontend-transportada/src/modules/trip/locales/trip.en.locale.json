@@ -430,6 +430,7 @@
     "incomplete": "incomplete account",
     "margin": "Profit",
     "missingParcels": "missing parcels",
+    "moreCities": "{{count}} more",
     "nothingCreated": "Nothing has been created yet — no trip, no note link",
     "recalculate": "Recalculate this truck's route",
     "recalculateProposal": "Recalculate the proposal",
@@ -453,6 +454,7 @@
     "unknown": "—",
     "weight": "Weight",
     "weightEstimated": "estimated weight",
+    "weightValue": "{{weight}} kg",
     "withoutDriver": "No driver"
   },
   "quickCreate": {

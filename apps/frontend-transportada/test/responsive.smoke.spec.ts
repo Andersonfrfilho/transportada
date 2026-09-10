@@ -30,6 +30,7 @@ import {
   FIRST_VEHICLE_ID,
   AGGREGATE_DRIVER_ID,
   mockMultiVehicleApi,
+  registerSuggestionValuationMock,
   STAFF_DRIVER_ID,
   SECOND_VEHICLE_ID,
 } from './multi-vehicle-smoke.helper'
@@ -1469,6 +1470,104 @@ test('a distribuição multi-veículo vai da seleção de notas às viagens cria
   /** O atalho leva à viagem criada: sem ele o operador procuraria numa lista qual nasceu do clique. */
   await dialog.getByRole('button', { name: 'Abrir viagem' }).click()
   await expect.poll(() => new URL(page.url()).pathname).toBe(`/trips/${CREATED_TRIP_ID}`)
+})
+
+/**
+ * Spec 110: **a revisão da proposta, na tela em que ela foi pedida.**
+ *
+ * ⚠️ A smoke multi-veículo que já existia atravessa a **outra porta** — o diálogo do módulo
+ * `routing`, aberto pela tabela de notas. A tela de "Montar roteiro", que é a que esta feature
+ * reconstruiu, não tinha cobertura de navegador nenhuma: foi o snapshot de uma falha que revelou a
+ * faixa do veículo imprimindo `0.00 × 0.00 × 0.00 m`, não um teste.
+ */
+test('a proposta se revisa dentro do diálogo de montar roteiro, viagem por viagem', async ({
+  page,
+}) => {
+  await page.setViewportSize(VIEWPORTS.desktop)
+  await page.addInitScript(() => sessionStorage.setItem('transportada.workspace', 'trip'))
+  await mockTripWorkspaceApi({
+    mode: 'all-authorized',
+    page,
+    permissions: ['fleet.read', 'trip.manage', 'trip.financials', 'invoices.read'],
+  })
+  /** As notas disponíveis vêm da listagem de NF-e — é o mesmo carregador dos dois modais. */
+  await mockNfeWorkspaceApi({
+    documentCount: 2,
+    page,
+    permissions: ['fleet.read', 'trip.manage', 'trip.financials', 'invoices.read'],
+  })
+  /** Registrado **depois**: a frota do mock de viagem é vazia, e aqui precisamos de veículo. */
+  const routing = await mockMultiVehicleApi(page)
+  await registerSuggestionValuationMock(page)
+  await loginAsLocalUser(page)
+
+  await page.getByRole('button', { name: 'Montar roteiro' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Montar roteiro' })
+  await expect(dialog).toBeVisible()
+
+  /**
+   * ⚠️ Escopado ao **diálogo**: a tabela de viagens atrás dele também tem caixas que casam com
+   * `/Selecionar/`, e a `.first()` da página pegava uma coberta pelo overlay — nunca estabiliza.
+   */
+  await dialog.getByRole('button', { name: 'Buscar notas' }).click()
+  await dialog.getByRole('checkbox', { name: 'Selecionar todas da página' }).check()
+  await dialog.getByRole('button', { name: 'Veículos', exact: true }).click()
+  await page.getByRole('option', { name: /ABC1D23/u }).click()
+  await dialog.getByRole('button', { name: 'Veículos', exact: true }).click()
+
+  await dialog.getByRole('button', { name: 'Montar roteiro pela busca de notas' }).click()
+
+  /**
+   * ⚠️ **O diálogo NÃO fecha.** Ele fechava, e a revisão aparecia na tela de viagens — quem acabou
+   * de escolher notas, motoristas e veículos perdia de vista o pedido que gerou aquilo.
+   */
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Alterar o pedido' })).toBeVisible()
+
+  /** A afirmação da spec 108 continua: nada foi criado até o aceite. */
+  await expect(dialog.getByText(/Nada foi criado ainda/u)).toBeVisible()
+
+  /** Os seis números do título, na ordem em que a conta se lê. */
+  for (const label of ['Entregas', 'Peso', 'Receita', 'Despesas', 'Lucro', 'Tempo']) {
+    await expect(dialog.getByText(label, { exact: true }).first()).toBeVisible()
+  }
+
+  /** As três ações por viagem são só de ícone, e por isso carregam rótulo acessível. */
+  await expect(
+    dialog.getByRole('button', { name: 'Aceitar só esta viagem e criá-la agora' }),
+  ).toBeVisible()
+  await expect(dialog.getByRole('button', { name: /Descartar esta viagem/u })).toBeVisible()
+
+  /** Desmarcar muda o rótulo do aceite e diz o que volta para o maço. */
+  await dialog
+    .getByRole('checkbox', { name: /Aceitar a viagem/u })
+    .first()
+    .uncheck()
+  await expect(dialog.getByRole('button', { name: 'Nenhuma viagem marcada' })).toBeDisabled()
+  await expect(dialog.getByText(/voltam para o maço/u)).toBeVisible()
+  await dialog
+    .getByRole('checkbox', { name: /Aceitar a viagem/u })
+    .first()
+    .check()
+
+  /** O expandido: faixa do veículo, o dia em ordem e o razão com a derivação. */
+  await dialog
+    .getByRole('button', { name: /ABC1D23/u })
+    .first()
+    .click()
+  await expect(dialog.getByText('Roteiro proposto')).toBeVisible()
+  await expect(dialog.getByText('Conta prevista')).toBeVisible()
+  await expect(dialog.getByText(/zona 1\.002/u)).toBeVisible()
+  await expect(dialog.getByText(/2,8000 km\/l|2\.8000 km\/l/u)).toBeVisible()
+
+  /**
+   * ⚠️ **Zero é ausência, nunca medida** (spec 088): a ficha do dublê não tem baú medido, e a faixa
+   * não pode imprimir `0.00 × 0.00 × 0.00 m`. Foi este o defeito que só o snapshot pegou.
+   */
+  await expect(dialog.getByText(/0\.00 × 0\.00 × 0\.00/u)).toHaveCount(0)
+
+  expect(routing.acceptRequests()).toBe(0)
+  await auditAuthenticationStorage(page)
 })
 
 /**

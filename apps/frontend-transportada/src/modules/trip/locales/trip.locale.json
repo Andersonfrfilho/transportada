@@ -563,6 +563,7 @@
     "incomplete": "conta incompleta",
     "margin": "Lucro",
     "missingParcels": "parcelas em falta",
+    "moreCities": "mais {{count}}",
     "nothingCreated": "Nada foi criado ainda — nenhuma viagem, nenhum vínculo de nota",
     "recalculate": "Recalcular o roteiro deste caminhão",
     "recalculateProposal": "Recalcular a proposta",
@@ -586,6 +587,7 @@
     "unknown": "—",
     "weight": "Peso",
     "weightEstimated": "peso estimado",
+    "weightValue": "{{weight}} kg",
     "withoutDriver": "Sem motorista"
   },
   "quickCreate": {

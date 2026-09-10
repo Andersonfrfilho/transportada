@@ -278,6 +278,17 @@ export function useTripRouteAssembly(
         for (const id of nfeDocumentIds) next.delete(id)
         return next
       }),
+    /**
+     * O par veículo→motorista tal como a proposta o enviou. ⚠️ Ele é a **fonte** de quem dirige na
+     * linha da proposta: ler isso da conta fazia toda viagem dizer "Sem motorista" sem
+     * `trip.financials`, numa distribuição em que o operador acabara de escolher seis motoristas.
+     */
+    driverIdByVehicleId: new Map(
+      effectiveVehicleIds.flatMap((vehicleId) => {
+        const driverId = resolveSoleDriverOfVehicle({ links, vehicleId })
+        return driverId === null ? [] : [[vehicleId, driverId] as const]
+      }),
+    ),
     openVehicleId,
     selectedVehicleIds,
     setSelectedVehicleIds,

@@ -219,3 +219,79 @@ export async function mockMultiVehicleApi(page: Page): Promise<MultiVehicleMockS
     readRequests: () => state.readRequests,
   }
 }
+
+/**
+ * Spec 110: a conta da proposta, **com a base** de cada parcela derivada.
+ *
+ * ⚠️ Sem ela o razão desenha só os totais, e a derivação — que é o ponto da D7 — nunca passa pela
+ * CI. É a base que transforma "R$ 1.480,00" em "zona 1.002 (JABOTICABAL) · toco".
+ */
+export async function registerSuggestionValuationMock(page: Page): Promise<void> {
+  await page.route(/\/route-suggestions\/[0-9a-f-]{36}\/valuation$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, {
+      data: {
+        report: {
+          gaps: [],
+          hasGaps: false,
+          totalCost: '3108.03',
+          totalDistanceMeters: 184_200,
+          totalDurationSeconds: 22_800,
+          totalMargin: '1211.97',
+          totalRevenue: '4320.00',
+        },
+        vehicles: [
+          {
+            distanceMeters: 184_200,
+            documentCount: 1,
+            driverId: AGGREGATE_DRIVER_ID,
+            durationSeconds: 22_800,
+            stopCount: 1,
+            valuation: {
+              costParcels: [
+                {
+                  amount: '1480.00',
+                  basis: {
+                    of: 'driver',
+                    paymentModel: 'route_table',
+                    regionCity: 'JABOTICABAL',
+                    regionCode: '1.002',
+                    vehicleClass: 'toco',
+                  },
+                  detail: null,
+                  gap: null,
+                  kind: 'driver',
+                  source: 'measured',
+                },
+                {
+                  amount: '413.79',
+                  basis: {
+                    kilometersPerLiter: '2.8000',
+                    litres: '65.7857',
+                    of: 'fuel',
+                    pricePerLiter: '6.2900',
+                  },
+                  detail: null,
+                  gap: null,
+                  kind: 'fuel',
+                  source: 'estimated',
+                },
+              ],
+              hasGaps: false,
+              marginPercentage: '0.2805',
+              revenueLines: [],
+              revenueSource: 'estimated',
+              totalCost: '1893.79',
+              totalMargin: '1211.97',
+              totalRevenue: '4320.00',
+            },
+            vehicleId: FIRST_VEHICLE_ID,
+          },
+        ],
+      },
+    })
+  })
+}

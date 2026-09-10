@@ -79,6 +79,9 @@ export function TripProposalList({
     })),
   })
 
+  const money = (value: null | string): string =>
+    value === null ? t('proposal.unknown') : formatAmount(value)
+
   const acceptLabel =
     summary.selectedCount === 0
       ? t('proposal.acceptNone')
@@ -114,22 +117,22 @@ export function TripProposalList({
         </div>
 
         <dl className={styles.proposalTotals}>
-          <Total label={t('proposal.totalRevenue')} value={formatAmount(summary.totalRevenue)} />
+          <Total label={t('proposal.totalRevenue')} value={money(summary.totalRevenue)} />
           <Total
             label={t('proposal.totalExpenses')}
-            tone={styles.proposalExpenses}
-            value={formatAmount(summary.totalCost)}
+            tone={summary.totalCost === null ? undefined : styles.proposalExpenses}
+            value={money(summary.totalCost)}
           />
           <Total
             label={t('proposal.totalMargin')}
             tone={
               summary.hasGaps
                 ? styles.proposalWarn
-                : isNegative(summary.totalMargin)
+                : isNegative(summary.totalMargin ?? '0.00')
                   ? styles.negative
                   : styles.proposalProfit
             }
-            value={formatAmount(summary.totalMargin)}
+            value={money(summary.totalMargin)}
           />
           <Total
             label={t('proposal.totalToll')}
