@@ -78,7 +78,19 @@ export type AcceptedMultiVehicleSuggestion = Readonly<{
  * a segunda metade descreveria uma distribuição que já não existe.
  */
 export type AcceptMultiVehicleSuggestionInput = ReadMultiVehicleSuggestionInput &
-  Readonly<{ vehicleIds?: readonly string[] }>
+  Readonly<{
+    /**
+     * A ordem escolhida à mão, por veículo. Ausente é a ordem do solver.
+     *
+     * ⚠️ **Sem isto as setas da proposta mentem**: o operador reordena, a carreta e o pedágio
+     * recalculam na tela, e a viagem nascia com a ordem de `route_suggestion_stops.sequence`.
+     */
+    stopOrderByVehicle?: readonly Readonly<{
+      orderedAddressKeys: readonly string[]
+      vehicleId: string
+    }>[]
+    vehicleIds?: readonly string[]
+  }>
 
 export type MultiVehicleSuggestionUseCase = Readonly<{
   accept: (input: AcceptMultiVehicleSuggestionInput) => Promise<AcceptedMultiVehicleSuggestion>

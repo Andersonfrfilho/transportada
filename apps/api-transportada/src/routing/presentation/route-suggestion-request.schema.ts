@@ -95,6 +95,28 @@ export type CorrectGeocodedAddressBody = z.infer<typeof correctGeocodedAddressSc
  */
 export const acceptMultiVehicleSuggestionSchema = z
   .object({
+    /**
+     * A ordem escolhida à mão nas setas da proposta, por veículo, em chave de parada.
+     *
+     * ⚠️ Ausente é a ordem do solver — o corpo de sempre, e nenhum cliente antigo muda. E o mesmo
+     * veículo duas vezes é recusado: qual das duas listas vale seria um palpite do servidor.
+     */
+    stopOrderByVehicle: z
+      .array(
+        z
+          .object({
+            orderedAddressKeys: z.array(z.string().min(1)).min(1).max(MAX_STOPS_PER_SUGGESTION),
+            vehicleId: z.uuid(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(MAX_VEHICLES_PER_SUGGESTION)
+      .refine(
+        (entries) => new Set(entries.map((entry) => entry.vehicleId)).size === entries.length,
+        { message: 'Each vehicle may appear only once' },
+      )
+      .optional(),
     vehicleIds: z.array(z.uuid()).min(1).max(MAX_VEHICLES_PER_SUGGESTION).optional(),
   })
   .strict()

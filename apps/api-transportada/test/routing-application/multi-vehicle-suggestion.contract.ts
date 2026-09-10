@@ -22,6 +22,7 @@ import {
   MultiVehicleSuggestionDriverRepeatedError,
   MultiVehicleSuggestionDriverUnavailableError,
   MultiVehicleSuggestionEmptyError,
+  MultiVehicleSuggestionStopNotInVehicleError,
   MultiVehicleSuggestionVehicleNotInProposalError,
   MultiVehicleSuggestionVehicleUnavailableError,
   RouteSuggestionNotDecidableError,
@@ -767,5 +768,176 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
     const accepted = await fixture.useCase.accept({ context: CONTEXT, suggestionId: SUGGESTION_ID })
 
     expect(accepted.trips).toHaveLength(2)
+  })
+
+  /**
+   * A ordem escolhida à mão, nas setas da proposta.
+   *
+   * ⚠️ **Sem isto as setas mentem.** O operador reordena, a carreta e o pedágio recalculam na tela,
+   * e o aceite criava a viagem com a ordem do solver — lida de `route_suggestion_stops.sequence` e
+   * de mais lugar nenhum. A diferença só aparecia no dia seguinte, com o caminhão na estrada.
+   */
+  describe('ordem escolhida à mão', () => {
+    const A = '3543402|14020000|100'
+    const B = '3543402|14020000|200'
+    const C = '3543402|14020000|300'
+    const OTHER_TRUCK = '3543402|14020000|900'
+
+    function fixtureWithThreeStops() {
+      return buildFixture({
+        groups: [
+          {
+            documentIds: [FIRST_DOCUMENT],
+            driverId: null,
+            estimatedArrivalByAddressKey: new Map([
+              [A, '2026-09-10T11:00:00.000Z'],
+              [B, '2026-09-10T11:30:00.000Z'],
+              [C, '2026-09-10T12:00:00.000Z'],
+            ]),
+            orderedAddressKeys: [A, B, C],
+            vehicleId: FIRST_VEHICLE,
+          },
+          {
+            documentIds: [SECOND_DOCUMENT],
+            driverId: null,
+            estimatedArrivalByAddressKey: new Map([[OTHER_TRUCK, '2026-09-10T11:00:00.000Z']]),
+            orderedAddressKeys: [OTHER_TRUCK],
+            vehicleId: SECOND_VEHICLE,
+          },
+        ],
+      })
+    }
+
+    function reorderOf(fixture: ReturnType<typeof fixtureWithThreeStops>, index: number) {
+      return (fixture.calls.reorder?.[index] as { orderedAddressKeys: readonly string[] })
+        .orderedAddressKeys
+    }
+
+    test('leva a ordem escolhida para a viagem criada', async () => {
+      const fixture = fixtureWithThreeStops()
+
+      await fixture.useCase.accept({
+        context: CONTEXT,
+        stopOrderByVehicle: [{ orderedAddressKeys: [C, A, B], vehicleId: FIRST_VEHICLE }],
+        suggestionId: SUGGESTION_ID,
+      })
+
+      expect(reorderOf(fixture, 0)).toEqual([C, A, B])
+      /** O caminhão que ninguém reordenou continua com a ordem do solver. */
+      expect(reorderOf(fixture, 1)).toEqual([OTHER_TRUCK])
+    })
+
+    /**
+     * ⚠️ Parada que a ordem não menciona **vai para o fim, na ordem do solver** — nunca some. É a
+     * mesma regra de `orderStopKeys`, que monta a planta de carga: o aceite tem de criar o caminhão
+     * que o operador acabou de ver desenhado, e duas regras diferentes criariam outro.
+     */
+    test('parada que a ordem não menciona vai para o fim', async () => {
+      const fixture = fixtureWithThreeStops()
+
+      await fixture.useCase.accept({
+        context: CONTEXT,
+        stopOrderByVehicle: [{ orderedAddressKeys: [C], vehicleId: FIRST_VEHICLE }],
+        suggestionId: SUGGESTION_ID,
+      })
+
+      expect(reorderOf(fixture, 0)).toEqual([C, A, B])
+    })
+
+    /**
+     * ⚠️ Chave que a proposta inteira não conhece é **ignorada**, não recusada: é o degrau
+     * `cidade:` da tela, que existe para o endereço sem CEP utilizável e não casa com a chave da API.
+     * A planta de carga já a trata assim — ela cai no fim —, e recusar aqui travaria o aceite de
+     * todo caminhão com um endereço ruim.
+     */
+    test('ignora a chave que a proposta não conhece', async () => {
+      const fixture = fixtureWithThreeStops()
+
+      await fixture.useCase.accept({
+        context: CONTEXT,
+        stopOrderByVehicle: [
+          { orderedAddressKeys: ['cidade:3543402', B], vehicleId: FIRST_VEHICLE },
+        ],
+        suggestionId: SUGGESTION_ID,
+      })
+
+      expect(reorderOf(fixture, 0)).toEqual([B, A, C])
+    })
+
+    /**
+     * ⚠️ **Mover parada para outro caminhão não existe** (spec 110): o solver redistribui e desfaria
+     * o movimento. Uma chave de outro veículo desta proposta é pedido malformado, e a recusa vem
+     * **antes** da reivindicação — consumir a sugestão por causa dela queimaria uma proposta boa.
+     */
+    test('recusa parada de outro caminhão, sem consumir a proposta', async () => {
+      const fixture = fixtureWithThreeStops()
+
+      await expect(
+        fixture.useCase.accept({
+          context: CONTEXT,
+          stopOrderByVehicle: [{ orderedAddressKeys: [OTHER_TRUCK, A], vehicleId: FIRST_VEHICLE }],
+          suggestionId: SUGGESTION_ID,
+        }),
+      ).rejects.toBeInstanceOf(MultiVehicleSuggestionStopNotInVehicleError)
+
+      expect(fixture.calls.decide).toEqual([])
+      expect(fixture.calls.link).toEqual([])
+    })
+
+    test('recusa ordem de veículo que a proposta não tem', async () => {
+      const fixture = fixtureWithThreeStops()
+
+      await expect(
+        fixture.useCase.accept({
+          context: CONTEXT,
+          stopOrderByVehicle: [
+            { orderedAddressKeys: [A], vehicleId: '00000000-0000-4000-8000-00000000dead' },
+          ],
+          suggestionId: SUGGESTION_ID,
+        }),
+      ).rejects.toBeInstanceOf(MultiVehicleSuggestionVehicleNotInProposalError)
+
+      expect(fixture.calls.decide).toEqual([])
+    })
+
+    /**
+     * ⚠️ **O horário previsto é da ordem do solver**, gravado casado por endereço — não por posição.
+     * Com a ordem trocada à mão ele passaria a dizer que o caminhão chega na terceira parada antes da
+     * primeira. Campo vazio é o vocabulário da casa: horário plausível descrevendo outra ordem é o
+     * número sem aviso que a ADR-0044 §1 proíbe.
+     */
+    test('ordem trocada à mão não carrega o horário do solver', async () => {
+      const fixture = fixtureWithThreeStops()
+
+      const accepted = await fixture.useCase.accept({
+        context: CONTEXT,
+        stopOrderByVehicle: [{ orderedAddressKeys: [C, A, B], vehicleId: FIRST_VEHICLE }],
+        suggestionId: SUGGESTION_ID,
+      })
+
+      const arrivals = fixture.calls.arrivals as {
+        estimatedArrivalByAddressKey: ReadonlyMap<string, string>
+      }[]
+      expect(arrivals[0]?.estimatedArrivalByAddressKey.size).toBe(0)
+      expect(accepted.trips[0]?.estimatedFinishAt).toBeNull()
+      /** O outro caminhão não foi tocado, e o horário dele continua valendo. */
+      expect(arrivals[1]?.estimatedArrivalByAddressKey.size).toBe(1)
+    })
+
+    /** Mandar a ordem que o solver já tinha não é trocar nada — o horário continua verdadeiro. */
+    test('a ordem do solver reenviada não apaga o horário', async () => {
+      const fixture = fixtureWithThreeStops()
+
+      await fixture.useCase.accept({
+        context: CONTEXT,
+        stopOrderByVehicle: [{ orderedAddressKeys: [A, B, C], vehicleId: FIRST_VEHICLE }],
+        suggestionId: SUGGESTION_ID,
+      })
+
+      const arrivals = fixture.calls.arrivals as {
+        estimatedArrivalByAddressKey: ReadonlyMap<string, string>
+      }[]
+      expect(arrivals[0]?.estimatedArrivalByAddressKey.size).toBe(3)
+    })
   })
 })

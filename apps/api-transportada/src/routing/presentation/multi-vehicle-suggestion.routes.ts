@@ -104,6 +104,10 @@ export function createMultiVehicleSuggestionRoutes(dependencies: Dependencies) {
       policy: TRIP_READ_POLICY,
     }),
     defineRoute<{
+      readonly stopOrderByVehicle?: readonly Readonly<{
+        orderedAddressKeys: readonly string[]
+        vehicleId: string
+      }>[]
       readonly suggestionId: string
       readonly vehicleIds?: readonly string[]
     }>({
@@ -111,6 +115,9 @@ export function createMultiVehicleSuggestionRoutes(dependencies: Dependencies) {
         const accepted = await dependencies.multiVehicleSuggestions.accept({
           context: context.scope,
           suggestionId: input.suggestionId,
+          ...(input.stopOrderByVehicle === undefined
+            ? {}
+            : { stopOrderByVehicle: input.stopOrderByVehicle }),
           ...(input.vehicleIds === undefined ? {} : { vehicleIds: input.vehicleIds }),
         })
 
@@ -126,6 +133,9 @@ export function createMultiVehicleSuggestionRoutes(dependencies: Dependencies) {
 
         return {
           suggestionId: parseUuidPathIdentifier(pathParameters.suggestionId ?? ''),
+          ...(body.stopOrderByVehicle === undefined
+            ? {}
+            : { stopOrderByVehicle: body.stopOrderByVehicle }),
           ...(body.vehicleIds === undefined ? {} : { vehicleIds: body.vehicleIds }),
         }
       },

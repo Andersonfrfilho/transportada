@@ -117,6 +117,24 @@ export class MultiVehicleSuggestionVehicleNotInProposalError extends ApiError {
   }
 }
 
+/**
+ * A ordem escolhida à mão trouxe uma parada de **outro** caminhão desta proposta.
+ *
+ * ⚠️ Mover parada entre caminhões não existe (spec 110): o solver redistribui e desfaria o
+ * movimento. E o detalhe carrega o **veículo**, nunca a chave da parada — ela é CEP e número, e
+ * endereço não vai para log (`security.md` §1).
+ */
+export class MultiVehicleSuggestionStopNotInVehicleError extends ApiError {
+  public constructor(vehicleId: string) {
+    super({
+      code: 'ROUTE_SUGGESTION_STOP_NOT_IN_VEHICLE',
+      details: [{ field: 'stopOrderByVehicle', message: vehicleId }],
+      message: 'The chosen order names a stop that belongs to another vehicle of this proposal',
+      status: 400,
+    })
+  }
+}
+
 /** Veículo que não é de tração não puxa carga: implemento sozinho não é uma viagem. */
 export class MultiVehicleSuggestionVehicleUnavailableError extends ApiError {
   public constructor(vehicleIds: readonly string[]) {

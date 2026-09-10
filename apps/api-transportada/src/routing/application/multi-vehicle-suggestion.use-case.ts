@@ -6,6 +6,7 @@ import {
   MultiVehicleSuggestionDriverRepeatedError,
   MultiVehicleSuggestionDriverUnavailableError,
   MultiVehicleSuggestionEmptyError,
+  MultiVehicleSuggestionStopNotInVehicleError,
   MultiVehicleSuggestionVehicleNotInProposalError,
   MultiVehicleSuggestionVehicleUnavailableError,
   RouteSuggestionNotDecidableError,
@@ -114,7 +115,7 @@ export function createMultiVehicleSuggestionUseCase(
   }
 
   return {
-    async accept({ context, suggestionId, vehicleIds }) {
+    async accept({ context, stopOrderByVehicle, suggestionId, vehicleIds }) {
       const found = await readReady({ companyId: context.companyId, suggestionId })
       const proposed = await dependencies.multiVehicle.readGroups({
         companyId: context.companyId,
@@ -126,7 +127,7 @@ export function createMultiVehicleSuggestionUseCase(
        * nunca propôs é pedido malformado, e consumir a sugestão por causa dele queimaria uma
        * proposta boa — o operador perderia as quatro viagens por causa de um id errado.
        */
-      const groups = resolveAcceptedGroups({ proposed, vehicleIds })
+      const groups = resolveAcceptedGroups({ proposed, stopOrderByVehicle, vehicleIds })
 
       /**
        * Spec 107 D2: **a sugestão é reivindicada antes de qualquer viagem nascer.**
@@ -152,6 +153,14 @@ export function createMultiVehicleSuggestionUseCase(
       const skippedDocuments: SkippedMultiVehicleDocument[] = []
       try {
         for (const group of groups) {
+          /**
+           * ⚠️ **O horário previsto é da ordem do solver**, gravado casado por endereço. Com a ordem
+           * trocada à mão ele diria que o caminhão chega na terceira parada antes da primeira — e
+           * campo vazio é o vocabulário da casa, nunca um horário plausível descrevendo outra ordem.
+           */
+          const arrivals = group.isManualOrder
+            ? new Map<string, string>()
+            : group.estimatedArrivalByAddressKey
           const { tripId } = await dependencies.trips.createTrip({
             context,
             driverId: group.driverId,
@@ -182,7 +191,7 @@ export function createMultiVehicleSuggestionUseCase(
            */
           await dependencies.trips.applyEstimatedArrivals({
             context,
-            estimatedArrivalByAddressKey: group.estimatedArrivalByAddressKey,
+            estimatedArrivalByAddressKey: arrivals,
             plannedDepartureAt: found.plannedDepartureAt,
             tripId,
           })
@@ -190,7 +199,7 @@ export function createMultiVehicleSuggestionUseCase(
           trips.push({
             documentCount: linkedCount,
             driverId: group.driverId,
-            estimatedFinishAt: resolveFinishAt(group.estimatedArrivalByAddressKey),
+            estimatedFinishAt: resolveFinishAt(arrivals),
             stopCount: group.orderedAddressKeys.length,
             tripId,
             vehicleId: group.vehicleId,
@@ -320,18 +329,78 @@ export function createMultiVehicleSuggestionUseCase(
  * ⚠️ A ordem da proposta é preservada: ela é a ordem em que os veículos foram ofertados, e é ela que
  * faz a mesma semente distribuir igual (spec 058 P2).
  */
+type StopOrderEntry = Readonly<{ orderedAddressKeys: readonly string[]; vehicleId: string }>
+
+/** O grupo como o aceite o cria: a ordem final, e se ela deixou de ser a do solver. */
+type AcceptedGroup = MultiVehicleSuggestionGroup & Readonly<{ isManualOrder: boolean }>
+
+/**
+ * Quais veículos viram viagem, e em que ordem cada um para.
+ *
+ * ⚠️ **Toda recusa acontece aqui, antes da reivindicação** (spec 107 D2): veículo fora da proposta
+ * e parada de outro caminhão são pedido malformado, e consumir a sugestão por causa deles queimaria
+ * uma proposta boa.
+ */
 function resolveAcceptedGroups(
   input: Readonly<{
     proposed: readonly MultiVehicleSuggestionGroup[]
+    stopOrderByVehicle: readonly StopOrderEntry[] | undefined
     vehicleIds: readonly string[] | undefined
   }>,
-): readonly MultiVehicleSuggestionGroup[] {
-  if (input.vehicleIds === undefined) return input.proposed
-
+): readonly AcceptedGroup[] {
   const proposedIds = new Set(input.proposed.map((group) => group.vehicleId))
-  const unknown = input.vehicleIds.filter((vehicleId) => !proposedIds.has(vehicleId))
+  const named = [
+    ...(input.vehicleIds ?? []),
+    ...(input.stopOrderByVehicle ?? []).map((entry) => entry.vehicleId),
+  ]
+  const unknown = [...new Set(named.filter((vehicleId) => !proposedIds.has(vehicleId)))]
   if (unknown.length > 0) throw new MultiVehicleSuggestionVehicleNotInProposalError(unknown)
 
-  const accepted = new Set(input.vehicleIds)
-  return input.proposed.filter((group) => accepted.has(group.vehicleId))
+  const accepted = input.vehicleIds === undefined ? proposedIds : new Set(input.vehicleIds)
+  const chosenByVehicle = new Map(
+    (input.stopOrderByVehicle ?? []).map((entry) => [entry.vehicleId, entry.orderedAddressKeys]),
+  )
+  const proposalKeys = new Set(input.proposed.flatMap((group) => group.orderedAddressKeys))
+
+  return input.proposed
+    .filter((group) => accepted.has(group.vehicleId))
+    .map((group) => {
+      const chosen = chosenByVehicle.get(group.vehicleId)
+      if (chosen === undefined) return { ...group, isManualOrder: false }
+
+      const orderedAddressKeys = applyChosenOrder({ chosen, group, proposalKeys })
+      return {
+        ...group,
+        isManualOrder: !isSameOrder(orderedAddressKeys, group.orderedAddressKeys),
+        orderedAddressKeys,
+      }
+    })
+}
+
+/**
+ * A ordem escolhida sobre as paradas do veículo.
+ *
+ * ⚠️ É a mesma regra de `orderStopKeys`, que monta a planta de carga: parada que a ordem não
+ * menciona **vai para o fim, na ordem do solver**, e chave que a proposta inteira não conhece é
+ * ignorada — é o degrau `cidade:` da tela, para o endereço sem CEP utilizável. O aceite tem de
+ * criar o caminhão que o operador acabou de ver desenhado; duas regras criariam outro.
+ */
+function applyChosenOrder(
+  input: Readonly<{
+    chosen: readonly string[]
+    group: MultiVehicleSuggestionGroup
+    proposalKeys: ReadonlySet<string>
+  }>,
+): readonly string[] {
+  const own = new Set(input.group.orderedAddressKeys)
+  const foreign = input.chosen.some((key) => !own.has(key) && input.proposalKeys.has(key))
+  if (foreign) throw new MultiVehicleSuggestionStopNotInVehicleError(input.group.vehicleId)
+
+  const picked = [...new Set(input.chosen.filter((key) => own.has(key)))]
+  const pickedSet = new Set(picked)
+  return [...picked, ...input.group.orderedAddressKeys.filter((key) => !pickedSet.has(key))]
+}
+
+function isSameOrder(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((key, index) => key === right[index])
 }
