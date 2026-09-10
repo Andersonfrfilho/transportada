@@ -10,10 +10,11 @@ import {
 
 import { loadAvailableTripDocuments } from '../shared/availableTripDocuments.service'
 import { TRIP_QUERY_KEY } from '../shared/trip.constant'
-import { buildStopAddressKey } from '../shared/stopAddressKey.service'
+
 import {
   moveCity,
   reconcileCityOrder,
+  resolveStopKey,
   resolveStopOrder,
   type AssemblyCityOrder,
 } from '../shared/assemblyOrder.service'
@@ -135,13 +136,13 @@ export function useTripQuickCreate(
   useEffect(() => {
     setCityOrder((current) =>
       reconcileCityOrder({
-        cityCodes: staged.flatMap((document) => [
-          buildStopAddressKey({
+        cityCodes: staged.map((document) =>
+          resolveStopKey({
             cityCode: document.recipientCityCode,
             number: document.recipientAddressNumber,
             postalCode: document.recipientPostalCode,
-          }) ?? `cidade:${document.recipientCityCode ?? ''}`,
-        ]),
+          }),
+        ),
         order: current,
       }),
     )

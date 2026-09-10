@@ -3,6 +3,8 @@ import { sumScaledAmounts } from '@/modules/shared/decimalAmount.service'
 import type { VehicleType } from '@/modules/shared/vehicleType.constant'
 import type { SuggestionValuation } from '@/modules/routing/shared/suggestionValuation.service'
 
+import { resolveStopKey } from './assemblyOrder.service'
+import type { StopAddressComponents } from './stopAddressKey.service'
 import type { ProposalStop } from './trip.types'
 
 /**
@@ -55,6 +57,39 @@ export type ProposalVehicleView = Readonly<{
   /** ⚠️ **Uma nota estimada marca o veículo inteiro**: é a marca que o conferente lê antes de aceitar. */
   weightEstimated: boolean
 }>
+
+/**
+ * A ordem das paradas da viagem proposta, na chave que o resto do produto entende.
+ *
+ * ⚠️ **Chave de parada, nunca rótulo.** A proposta entregava `view.cities` ao mapa e à prévia de
+ * carga — `"FRANCA"` —, e os dois ranqueiam por `cidade|CEP|número`. Rótulo não casa com chave
+ * nenhuma: tudo empatava em `MAX_SAFE_INTEGER`, o `sort` estável deixava as paradas na ordem em
+ * que as **notas** chegaram, e a planta desenhava um baú carregado por um critério que não era o
+ * roteiro. É a mesma armadilha que o comentário de `TripAssemblyMap` já descrevia por extenso.
+ */
+export function buildProposalStopOrder(
+  input: Readonly<{
+    documentsById: ReadonlyMap<string, StopAddressComponents>
+    stops: readonly Readonly<{ nfeDocumentIds: readonly string[] }>[]
+  }>,
+): readonly string[] {
+  const order: string[] = []
+  const known = new Set<string>()
+
+  for (const stop of input.stops) {
+    for (const documentId of stop.nfeDocumentIds) {
+      const components = input.documentsById.get(documentId)
+      if (components === undefined) continue
+      const key = resolveStopKey(components)
+      /** ⚠️ Chave repetida trava `moveCity`: ele acha a primeira e devolve na posição da segunda. */
+      if (known.has(key)) continue
+      known.add(key)
+      order.push(key)
+    }
+  }
+
+  return order
+}
 
 export function buildProposalVehicleViews(
   input: Readonly<{

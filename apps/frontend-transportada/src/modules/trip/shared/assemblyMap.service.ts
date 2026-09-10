@@ -1,7 +1,7 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { MeshFeature } from '@/modules/shared/ibgeMesh.service'
 
-import { buildStopAddressKey } from './stopAddressKey.service'
+import { resolveStopKey } from './assemblyOrder.service'
 
 /**
  * O mapa de quem está **montando** a viagem, e não o do roteiro pronto.
@@ -263,12 +263,11 @@ function groupByStop(
 ): readonly StopGroup[] {
   const groups = new Map<string, AssemblyMapNote[]>()
   for (const note of notes) {
-    const key =
-      buildStopAddressKey({
-        cityCode: note.cityCode,
-        number: note.addressNumber,
-        postalCode: note.postalCode,
-      }) ?? `cidade:${note.cityCode ?? ''}`
+    const key = resolveStopKey({
+      cityCode: note.cityCode,
+      number: note.addressNumber,
+      postalCode: note.postalCode,
+    })
     groups.set(key, [...(groups.get(key) ?? []), note])
   }
 

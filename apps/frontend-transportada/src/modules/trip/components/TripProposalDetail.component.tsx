@@ -12,7 +12,7 @@ import { ValuationLedger } from '@/modules/trip-financials/components/ValuationL
 
 import { useTripCargoPreview } from '../hooks/useTripCargoPreview.hook'
 import { toAssemblyMapNote } from '../shared/assemblyMapNote.service'
-import type { ProposalVehicleView } from '../shared/proposalView.service'
+import { buildProposalStopOrder, type ProposalVehicleView } from '../shared/proposalView.service'
 import type { TripCandidateDocument } from '../shared/trip.types'
 import { TripAssemblyMap } from './TripAssemblyMap.component'
 import { TripCargoPanel } from './TripCargoPanel.component'
@@ -53,11 +53,30 @@ export function TripProposalDetail({
 }: TripProposalDetailProps) {
   const { t } = useTranslation('trip')
   const documentIds = [...new Set(view.stops.flatMap((stop) => stop.nfeDocumentIds))]
+  const documentById = new Map(documents.map((document) => [document.id, document]))
+  /**
+   * ⚠️ **A ordem do roteiro, em chave de parada.** Ela alimenta o mapa e a prévia de carga, e os
+   * dois ranqueiam por `cidade|CEP|número`. Enquanto isto era `view.cities` — rótulo —, nada casava
+   * e a planta desenhava o baú na ordem em que as notas chegaram.
+   */
+  const stopOrder = buildProposalStopOrder({
+    documentsById: new Map(
+      documents.map((document) => [
+        document.id,
+        {
+          cityCode: document.recipientCityCode,
+          number: document.recipientAddressNumber,
+          postalCode: document.recipientPostalCode,
+        },
+      ]),
+    ),
+    stops: view.stops,
+  })
   const cargo = useTripCargoPreview({
     driverIds: valuation?.driverId === null || valuation === null ? [] : [valuation.driverId],
     nfeDocumentIds: documentIds,
     permissions,
-    stopOrder: view.cities,
+    stopOrder,
     vehicleId: view.vehicleId,
   })
 
@@ -66,7 +85,6 @@ export function TripProposalDetail({
    * contagem — "SAO JOAQUIM DA BARRA · 1 nota" —, e quem confere a viagem não tinha endereço,
    * cliente nem telefone: exatamente o que o mapa da criação manual imprime ao lado de cada parada.
    */
-  const documentById = new Map(documents.map((document) => [document.id, document]))
   const mapNotes = documentIds.flatMap((id) => {
     const document = documentById.get(id)
     return document === undefined ? [] : [toAssemblyMapNote(document)]
@@ -105,7 +123,7 @@ export function TripProposalDetail({
           nearby={[]}
           onStopRemove={onRemoveStop}
           onStopUndoRemove={onUndoRemoveStop}
-          order={view.cities}
+          order={stopOrder}
           /** Spec 110 D6: a parada marcada fica **riscada com "Desfazer"**, nunca some. */
           removedNoteIds={pendingRemovals}
           revenueLines={valuation?.valuation.revenueLines}

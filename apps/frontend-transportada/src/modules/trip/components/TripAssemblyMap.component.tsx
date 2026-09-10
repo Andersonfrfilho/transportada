@@ -28,7 +28,7 @@ import {
   totalAssemblyWeight,
   type AssemblyRevenueLine,
 } from '../shared/assemblyNoteFigures.service'
-import { buildStopAddressKey } from '../shared/stopAddressKey.service'
+
 import { stopColorOf } from '../shared/stopColor.service'
 import {
   buildAssemblyDepotLegs,
@@ -39,7 +39,12 @@ import {
 import { formatTariffMonth } from '../shared/assemblyToll.service'
 import { resolveRouteOptionSummaries } from '../shared/assemblyRouteOptions.service'
 import {} from '../shared/tileMap.service'
-import { moveCity, proposeCityOrder, type AssemblyCityOrder } from '../shared/assemblyOrder.service'
+import {
+  resolveStopKey,
+  moveCity,
+  proposeCityOrder,
+  type AssemblyCityOrder,
+} from '../shared/assemblyOrder.service'
 import styles from '../styles/trip.module.css'
 
 /**
@@ -187,7 +192,7 @@ export function TripAssemblyMap({
    * A ordem manda no desenho: a parada é numerada pela posição que o operador deu a ela.
    *
    * ⚠️ **O ranque é por chave de parada, não por código de cidade.** `AssemblyCityOrder` mente no
-   * nome: quem a alimenta é `reconcileCityOrder`, com `buildStopAddressKey(...)` — ela guarda
+   * nome: quem a alimenta é `reconcileCityOrder`, com `resolveStopKey(...)` — ela guarda
    * `cidade|CEP|número`. Consultá-la por `cityCode` nunca casa, todo item cai no
    * `MAX_SAFE_INTEGER`, e o `sort` vira no-op **silencioso**: os botões de subir e descer mudavam
    * a ordem de verdade e a lista não se mexia, sem erro nenhum. A mesma chave que o vínculo cria é
@@ -197,11 +202,11 @@ export function TripAssemblyMap({
     const rank = new Map(order.map((key, index) => [key, index]))
     const rankOf = (note: AssemblyMapNote) =>
       rank.get(
-        buildStopAddressKey({
+        resolveStopKey({
           cityCode: note.cityCode,
           number: note.addressNumber,
           postalCode: note.postalCode,
-        }) ?? `cidade:${note.cityCode ?? ''}`,
+        }),
       ) ?? Number.MAX_SAFE_INTEGER
     return [...selected].sort((left, right) => rankOf(left) - rankOf(right))
   }, [order, selected])
