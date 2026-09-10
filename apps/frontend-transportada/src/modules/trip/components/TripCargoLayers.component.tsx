@@ -17,7 +17,11 @@ import {
 } from '../shared/cargoView.service'
 import { stopColorOf } from '../shared/stopColor.service'
 import { isMostlyPresumed, resolveSliceCuts } from '../shared/cargoLegend.service'
-import { buildCargoChipFacts, buildCargoPrintSummary } from '../shared/cargoPrintSummary.service'
+import {
+  buildCargoChipFacts,
+  buildCargoPrintSummary,
+  resolveLoadingPosition,
+} from '../shared/cargoPrintSummary.service'
 import { EMPTY_STOP_FOCUS, isStopLit, toggleStopFocus } from '../shared/stopFocus.service'
 import { buildCargoStopLabels, formatCargoStopLabel } from '../shared/cargoStopLabel.service'
 import type { TripCargoLayout } from '../shared/trip.types'
@@ -149,22 +153,23 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
    * de carregamento, a faixa e as contagens — casar as duas era trabalho de quem estava com a carga
    * na mão. A tabela continua, escondida na tela e impressa no papel: lá não há cor nem clique.
    */
-  const chipFacts = buildCargoChipFacts(boxes, arrangement)
+  const totalStops = layout.rows.length
+  const chipFacts = buildCargoChipFacts(boxes, arrangement, totalStops)
 
-  const stopChips = [
-    ...new Set(placement.layers.flatMap((layer) => layer.boxes.map((box) => box.stopSequence))),
-  ]
-    .sort((first, second) => first - second)
-    .map((sequence) => ({ facts: chipFacts.get(sequence), sequence }))
-    /**
-     * ⚠️ **Na ordem em que se carrega**, não na de entrega: quem está no galpão lê a lista de cima para
-     * baixo enquanto enche o baú. Ficha sem posição (parada fora do desenho) vai para o fim.
-     */
-    .sort(
-      (first, second) =>
-        (first.facts?.loadingPosition ?? Number.MAX_SAFE_INTEGER) -
-        (second.facts?.loadingPosition ?? Number.MAX_SAFE_INTEGER),
-    )
+  /**
+   * ⚠️ **Todas as paradas, não só as desenhadas.** A lista saía das caixas que o desenho posicionou:
+   * 37 entregas viravam 7 fichas, e a ordem de carregamento era contada entre as 7. Parada fora do
+   * desenho continua na lista — ela também entra no baú, e a posição dela é a da ordem de entrega.
+   *
+   * ⚠️ **Na ordem em que se carrega**: quem está no galpão lê de cima para baixo enquanto enche o baú.
+   */
+  const stopChips = layout.rows
+    .map((row) => ({
+      facts: chipFacts.get(row.sequence),
+      loading: resolveLoadingPosition({ arrangement, stopSequence: row.sequence, totalStops }),
+      sequence: row.sequence,
+    }))
+    .sort((first, second) => first.loading - second.loading)
 
   return (
     <section aria-labelledby="trip-cargo-layers-title" className={styles.panel} data-print-region>
@@ -361,7 +366,7 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
 
       {/* A legenda das três marcas: sem ela o contorno vermelho da dividida não quer dizer nada. */}
       <div className={styles.cargoStops}>
-        {stopChips.map(({ facts, sequence }) => (
+        {stopChips.map(({ facts, loading, sequence }) => (
           <div className={styles.cargoStopItem} key={sequence}>
             <button
               aria-pressed={focus.has(sequence)}
@@ -380,13 +385,15 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
               ⚠️ **A ordem de carregamento é o número que o galpão procura.** Ela era uma linha cinza
               pequena no meio da ficha; quem carrega lê a ficha de longe, com a caixa na mão.
             */}
-              {facts === undefined ? null : (
-                <span className={styles.cargoStopLoadingBadge}>
-                  {t('cargoLayers.chip.loadingBadge', { position: facts.loadingPosition })}
-                </span>
-              )}
               <span className={styles.cargoStopBody}>
+                {/* A descrição ao lado do número da entrega — é assim que o operador lê a parada. */}
                 <span>{labelOf(sequence)}</span>
+                <span className={styles.cargoStopFacts}>
+                  <span className={styles.cargoStopLoadingBadge}>
+                    {t('cargoLayers.chip.loadingBadge', { position: loading })}
+                  </span>
+                  {facts === undefined ? <span>{t('cargoLayers.chip.notDrawn')}</span> : null}
+                </span>
                 {facts === undefined ? null : (
                   <span className={styles.cargoStopFacts}>
                     <span>
@@ -413,11 +420,11 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
                 )}
               </span>
             </button>
-            {onLoadingMove === undefined || facts === undefined ? null : (
+            {onLoadingMove === undefined ? null : (
               <span className={styles.cargoStopMoves}>
                 <Button
                   aria-label={t('cargoLayers.chip.loadEarlier', { label: labelOf(sequence) })}
-                  disabled={facts.loadingPosition === 1}
+                  disabled={loading === 1}
                   onClick={() => onLoadingMove(sequence, -1)}
                   size="sm"
                   type="button"
@@ -427,7 +434,7 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
                 </Button>
                 <Button
                   aria-label={t('cargoLayers.chip.loadLater', { label: labelOf(sequence) })}
-                  disabled={facts.loadingPosition === chipFacts.size}
+                  disabled={loading === totalStops}
                   onClick={() => onLoadingMove(sequence, 1)}
                   size="sm"
                   type="button"
@@ -481,9 +488,15 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
           </tr>
         </thead>
         <tbody>
-          {buildCargoPrintSummary(boxes, arrangement).map((row, position) => (
+          {buildCargoPrintSummary(boxes, arrangement).map((row) => (
             <tr key={row.stopSequence}>
-              <td className={styles.cargoOrderCell}>{position + 1}</td>
+              <td className={styles.cargoOrderCell}>
+                {resolveLoadingPosition({
+                  arrangement,
+                  stopSequence: row.stopSequence,
+                  totalStops,
+                })}
+              </td>
               <td className={styles.cargoOrderCell}>{row.stopSequence}</td>
               <td>{labelOf(row.stopSequence)}</td>
               <td>

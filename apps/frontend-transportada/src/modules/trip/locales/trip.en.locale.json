@@ -111,6 +111,7 @@
       "loadLater": "Load {{label}} later",
       "loading": "load {{position}} of the run",
       "loadingBadge": "load {{position}}",
+      "notDrawn": "not in the drawing — did not fit the arrangement shown",
       "presumed": "{{count}} presumed",
       "split": "{{count}} split"
     },

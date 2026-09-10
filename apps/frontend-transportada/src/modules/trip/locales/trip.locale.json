@@ -145,6 +145,7 @@
       "loadLater": "Carregar {{label}} depois",
       "loading": "carregar em {{position}}º",
       "loadingBadge": "{{position}}º a carregar",
+      "notDrawn": "fora do desenho — não coube na arrumação mostrada",
       "presumed": "{{count}} presumidas",
       "split": "{{count}} divididas"
     },

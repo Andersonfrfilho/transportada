@@ -3,7 +3,10 @@ import { readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'bun:test'
 
-import { buildCargoChipFacts } from '@/modules/trip/shared/cargoPrintSummary.service'
+import {
+  buildCargoChipFacts,
+  resolveLoadingPosition,
+} from '@/modules/trip/shared/cargoPrintSummary.service'
 import trip from '../../src/modules/trip/locales/trip.locale.json'
 import tripEn from '../../src/modules/trip/locales/trip.en.locale.json'
 
@@ -43,6 +46,30 @@ describe('fichas de parada do plano de carga', () => {
     /** Em profundidade a última entrega carrega primeiro: ela vai ao fundo. */
     expect(facts.get(3)?.loadingPosition).toBe(1)
     expect(facts.get(1)?.loadingPosition).toBe(3)
+  })
+
+  /**
+   * ⚠️ **A posição de carregamento é da viagem inteira.** Com 37 entregas e 7 desenhadas, a entrega
+   * 25 aparecia como "1º a carregar"; quem entra primeiro é a 37ª. Visto na tela em 2026-09-10.
+   */
+  it('conta a posição de carregamento entre todas as paradas, não só as desenhadas', () => {
+    const facts = buildCargoChipFacts([box({ stopSequence: 25, xM: 0 })], 'depth', 37)
+    expect(facts.get(25)?.loadingPosition).toBe(13)
+    expect(resolveLoadingPosition({ arrangement: 'depth', stopSequence: 37, totalStops: 37 })).toBe(
+      1,
+    )
+    expect(resolveLoadingPosition({ arrangement: 'lanes', stopSequence: 2, totalStops: 37 })).toBe(
+      2,
+    )
+  })
+
+  it('lista todas as paradas, e a fora do desenho diz que está fora', () => {
+    const component = readFileSync(
+      new URL('src/modules/trip/components/TripCargoLayers.component.tsx', APPLICATION_ROOT),
+      'utf8',
+    )
+    expect(component).toContain('const stopChips = layout.rows')
+    expect(component).toContain("t('cargoLayers.chip.notDrawn')")
   })
 
   it('carrega a faixa e as contagens que a tabela imprime', () => {

@@ -139,18 +139,41 @@ export type CargoChipFacts = Readonly<{
 export function buildCargoChipFacts(
   boxes: readonly PrintableBox[],
   arrangement: StopArrangement = 'depth',
+  /** Quantas paradas a viagem tem — **todas**, não só as que o desenho conseguiu posicionar. */
+  totalStops: number = Math.max(0, ...boxes.map((box) => box.stopSequence)),
 ): ReadonlyMap<number, CargoChipFacts> {
   return new Map(
-    buildCargoPrintSummary(boxes, arrangement).map((row, position) => [
+    buildCargoPrintSummary(boxes, arrangement).map((row) => [
       row.stopSequence,
       {
         boxes: row.boxes,
         fromM: row.fromM,
-        loadingPosition: position + 1,
+        loadingPosition: resolveLoadingPosition({
+          arrangement,
+          stopSequence: row.stopSequence,
+          totalStops,
+        }),
         presumed: row.presumed,
         split: row.split,
         toM: row.toM,
       },
     ]),
   )
+}
+
+/**
+ * Em que posição a parada entra no baú.
+ *
+ * ⚠️ **Sai da ordem de entrega de TODAS as paradas, nunca das que o desenho posicionou.** A versão
+ * anterior numerava só as desenhadas: numa viagem de 37 entregas com 7 no desenho, a entrega 25
+ * aparecia como "1º a carregar" — e quem entra primeiro é a última entrega, a 37ª. Visto na tela em
+ * 2026-09-10. Em profundidade a última entrega vai ao fundo e carrega primeiro; em faixas a ordem de
+ * carregamento é a própria ordem de entrega.
+ */
+export function resolveLoadingPosition(
+  input: Readonly<{ arrangement: StopArrangement; stopSequence: number; totalStops: number }>,
+): number {
+  return input.arrangement === 'lanes'
+    ? input.stopSequence
+    : input.totalStops - input.stopSequence + 1
 }
