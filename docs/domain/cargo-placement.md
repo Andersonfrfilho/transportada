@@ -16,11 +16,11 @@ isso numa linha fixa, e o painel de decisões (abaixo) explica o que moldou aque
 
 `resolveStopArrangement` devolve `depth`, `grid` ou `lanes`, **e o motivo**.
 
-| arranjo | como fica                                                                           | quando                                                         |
-| ------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| `lanes` | cada parada numa faixa ao longo da largura, **todas encostando na porta**           | quando cabem                                                   |
-| `grid`  | K faixas; as K primeiras entregas na porta, lado a lado, e as seguintes atrás delas | faixas não cabem, e a grade coloca o que a profundidade coloca |
-| `depth` | uma parada atrás da outra a partir da porta                                         | quando nem faixas nem grade servem                             |
+| arranjo | como fica                                                                                                                   | quando                                                         |
+| ------- | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `lanes` | cada parada numa faixa ao longo da largura, **todas encostando na porta**                                                   | quando cabem                                                   |
+| `grid`  | K faixas; as K primeiras entregas na porta, lado a lado, e as seguintes atrás delas                                         | faixas não cabem, e a grade coloca o que a profundidade coloca |
+| `depth` | **um bloco só** (spec 114): a última entrega na testeira, cada entrega seguinte ao lado ou em cima da anterior, até a porta | quando nem faixas nem grade servem                             |
 
 Faixas cabem quando **as duas** valem:
 
@@ -177,10 +177,28 @@ esgotadas, toda sobra seguinte saía `tooMany`, e paradas inteiras sumiam como "
 parada — o mapa de alturas só cresce, então o lugar que não existia para uma caixa não existe para a
 gêmea dela —, e o custo que o teto protegia continua protegido.
 
-⚠️ **Aberto:** com dezenas de paradas pequenas cada fatia tem uma ou duas caixas de fundo, toda pilha
-fica livre e a esbeltez as corta em 0,75 m — medido, 38 de 85 paradas `bedFull` com o baú a 30%.
-Agrupar entregas consecutivas num bloco só, a mais tardia por baixo, contraria a proibição da 095 e
-precisa de decisão escrita.
+⚠️ **Spec 114: em profundidade não há mais fatia por parada — a carga é um bloco só.** Com dezenas de
+paradas pequenas cada fatia isolada tinha uma ou duas caixas de fundo, toda pilha ficava livre e a
+esbeltez a cortava em 0,75 m: medido, 38 de 85 paradas fora do desenho num baú 30% cheio. Hoje a
+varredura é a das faixas — sobe até o teto antes de avançar —, com o baú girado e sem espelho: a
+última entrega começa na testeira e cada entrega seguinte continua de onde a anterior parou, ao lado
+ou **em cima** dela. O bloco é deslocado depois para terminar na porta (ou centralizado acima de
+metade do teto de massa). Medido nas mesmas 85 paradas: 237 de 237 caixas, nenhuma parada fora, pilha
+até 2,0 m, tudo dentro do baú.
+
+⚠️ **A proibição da 095 foi reduzida ao que ela protegia.** Entrega mais cedo **pode** ficar em cima
+de uma mais tardia — é assim que ela sai primeiro. O que continua proibido é o contrário: entrega mais
+tardia em cima de uma mais cedo, ou entre ela e a porta. É isso que `delivery-block.contract.ts`
+afirma, e é a mesma afirmação que substituiu "cada parada ocupa uma faixa própria".
+
+⚠️ **Sem fatia não há carga dividida em profundidade**: o que não cabe no bloco não cabe no baú
+(`bedFull`). A divisão abaixo continua valendo em faixas.
+
+⚠️ **A fileira seguinte começa na próxima borda de carga, se ela vier antes do passo.** Andar sempre o
+tamanho da caixa só testava múltiplos dela: uma peça de 3 m atrás de 3,2 m de carga era tentada em
+3 m e em 6 m, e saía `bedFull` com 4,2 m livres. As bordas ficam numa lista ordenada com busca
+binária — varrer as caixas colocadas a cada fileira recusada levava uma viagem de 300 notas a 100 ms,
+contra 50 de orçamento.
 
 - **Em profundidade:** sobe para a região das paradas entregues **depois**, mais fundo no baú, e sai
   marcada `splitCargo` (contorno vermelho). Ali nada fica por cima dela e o corredor já está livre

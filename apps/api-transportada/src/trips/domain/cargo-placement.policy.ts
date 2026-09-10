@@ -260,6 +260,25 @@ export function resolveCargoPlacement(input: {
    * carrega, e a planta continua dizendo `axleNotChecked`.
    */
   /** O que sobra da largura depois de todo mundo ter o mínimo — repartido por volume. */
+  /**
+   * ⚠️ **Spec 114: em profundidade a carga é um bloco só.** A fatia isolada por parada da 095 deixava
+   * dezenas de paradas pequenas com uma ou duas caixas de fundo cada — toda pilha livre, cortada pela
+   * esbeltez em 0,75 m, e 38 de 85 paradas fora do desenho num baú 30% cheio.
+   */
+  if (!lanes && sequences.length > 1) {
+    return placeDeliveryBlock({
+      balanced: shouldBalanceLoad({
+        loadingAccess: input.loadingAccess ?? 'rear',
+        payloadRatio: input.payloadRatio ?? null,
+      }),
+      bed,
+      boxes: measured,
+      presumed,
+      securesCargo: input.securesCargo === true,
+      unplaced,
+    })
+  }
+
   const laneSlackM = !lanes
     ? 0
     : Math.max(
@@ -742,6 +761,10 @@ function packSlice(input: {
    * seis cabem em **0,60 m** usando as quatro camadas que o baú tem.
    */
   readonly stackBeforeRow?: boolean
+  /** Spec 114: a última entrega primeiro — ela vai para o fundo e para baixo. */
+  readonly deliveryOrder?: boolean
+  /** Por onde a carga sai; ausente segue o arranjo (`lineStart` em faixas, `columnEnd` em fatia). */
+  readonly openFace?: OpenFace
   readonly boxes: readonly PlacementBox[]
   readonly budget: number
   readonly sliceLengthM: number
@@ -779,6 +802,7 @@ function packSlice(input: {
    */
   const ordered = [...input.boxes].sort(
     (first, second) =>
+      (input.deliveryOrder === true ? second.stopSequence - first.stopSequence : 0) ||
       rankTopOnly(first) - rankTopOnly(second) ||
       rankPresumed(first) - rankPresumed(second) ||
       footprintOf(second) - footprintOf(first),
@@ -786,7 +810,7 @@ function packSlice(input: {
 
   const support = createSupportMap(
     { heightM: slice.heightM, lengthM: slice.lengthM, widthM: slice.widthM },
-    input.stackBeforeRow === true ? 'lineStart' : 'columnEnd',
+    input.openFace ?? (input.stackBeforeRow === true ? 'lineStart' : 'columnEnd'),
   )
   let cursor = { layer: 0, layerBottomM: 0, layerHeightM: 0, rowWidthM: 0, xM: 0, yM: 0 }
   /**
@@ -795,6 +819,8 @@ function packSlice(input: {
    * Sem ele a fronteira é a fatia inteira desde o começo, que é o comportamento de sempre.
    */
   let rowFrontierM = input.stackBeforeRow === true ? 0 : slice.widthM
+  /** Onde as fileiras já colocadas terminam, em ordem — ver `findNextEdge`. */
+  const rowEnds: number[] = []
 
   for (const box of ordered) {
     const stackLimit = resolveStackLimit(box)
@@ -915,12 +941,22 @@ function packSlice(input: {
           rest = found
           break
         }
-        /** Nada nivelado desta fileira em diante: quebra para a fileira ao lado. */
+        /**
+         * Nada nivelado desta fileira em diante: quebra para a fileira ao lado.
+         *
+         * ⚠️ **A fileira seguinte começa na próxima borda de carga, se ela vier antes do passo.** Andar
+         * sempre o tamanho da caixa só testa múltiplos dela: uma peça de 3 m atrás de 3,2 m de carga
+         * era tentada em 3 m — esbarrando nos 20 cm finais — e em 6 m, fora do baú, e saía `bedFull`
+         * com 4,2 m livres (spec 114). É o mesmo salto para a próxima quina que `seat` faz no outro
+         * eixo.
+         */
+        const stepEndM = cursor.yM + Math.max(cursor.rowWidthM, slot.widthM)
+        const nextEdgeM = findNextEdge(rowEnds, cursor.yM)
         cursor = {
           ...cursor,
           rowWidthM: 0,
           xM: 0,
-          yM: cursor.yM + Math.max(cursor.rowWidthM, slot.widthM),
+          yM: nextEdgeM === null ? stepEndM : Math.min(stepEndM, nextEdgeM),
         }
       }
 
@@ -948,6 +984,7 @@ function packSlice(input: {
         zM: round(rest.topM),
       })
       support.stamp({ slot, topM: rest.topM + slot.heightM, xM: cursor.xM, yM: cursor.yM })
+      insertEdge(rowEnds, round(cursor.yM + slot.widthM))
       cursor = {
         ...cursor,
         layerHeightM: Math.max(cursor.layerHeightM, slot.heightM),
@@ -958,6 +995,34 @@ function packSlice(input: {
   }
 
   return { boxes: placed, leftovers, unplaced }
+}
+
+/**
+ * Guarda a borda em ordem, sem repetir. ⚠️ Lista ordenada e busca binária, e não varrer as caixas
+ * colocadas: a varredura a cada fileira recusada dobrava o tempo de uma viagem de 300 notas (100 ms
+ * contra 50 de orçamento).
+ */
+function insertEdge(edges: number[], edgeM: number): void {
+  let low = 0
+  let high = edges.length
+  while (low < high) {
+    const middle = (low + high) >> 1
+    if ((edges[middle] ?? 0) < edgeM) low = middle + 1
+    else high = middle
+  }
+  if (edges[low] !== edgeM) edges.splice(low, 0, edgeM)
+}
+
+/** A primeira borda depois de `fromM`, ou `null` quando não há carga à frente. */
+function findNextEdge(edges: readonly number[], fromM: number): null | number {
+  let low = 0
+  let high = edges.length
+  while (low < high) {
+    const middle = (low + high) >> 1
+    if ((edges[middle] ?? 0) <= fromM + 1e-9) low = middle + 1
+    else high = middle
+  }
+  return edges[low] ?? null
 }
 
 /** Lado da célula do mapa de alturas, em metros. Fino o bastante para uma caixa de 20 cm. */
@@ -987,7 +1052,7 @@ const MAX_SEAT_ATTEMPTS = 64
  * ⚠️ A face muda com o arranjo, porque a varredura muda de eixo: em faixas as fileiras crescem da
  * porta para dentro (`lineStart`), e em profundidade o bloco termina na porta (`columnEnd`).
  */
-type OpenFace = 'columnEnd' | 'lineStart'
+type OpenFace = 'columnEnd' | 'lineEnd' | 'lineStart'
 
 function createSupportMap(
   bed: Readonly<{ heightM: number; lengthM: number; widthM: number }>,
@@ -1121,7 +1186,13 @@ function createSupportMap(
       /** Encostado na parede é apoio: a parede não sai do lugar. */
       const supportsBefore = (column: number, line: number): boolean => {
         /** A face aberta nunca apoia: é por ela que a carga sai, e com ela aberta a pilha cai. */
-        if (openFace === 'lineStart' ? line < 0 : column >= columns) return false
+        const isOpen =
+          openFace === 'lineStart'
+            ? line < 0
+            : openFace === 'lineEnd'
+              ? line >= lines
+              : column >= columns
+        if (isOpen) return false
         if (column < 0 || line < 0 || column >= columns || line >= lines) return true
 
         return (topM[column * lines + line] ?? 0) >= top - 1e-9
@@ -1745,6 +1816,61 @@ function gridOrDepth(
 
 function countPlaced(placement: CargoPlacement | null): number {
   return (placement?.layers ?? []).reduce((total, layer) => total + layer.boxes.length, 0)
+}
+
+/**
+ * **O baú é enchido como um bloco, da testeira para a porta, pela ordem de entrega** (spec 114).
+ *
+ * A varredura é a das faixas — sobe até o teto antes de avançar —, com o baú girado e **sem espelho**:
+ * a última entrega começa na testeira e cada entrega seguinte continua de onde a anterior parou, ao
+ * lado ou em cima dela. Assim a mais cedo nunca fica embaixo nem atrás de uma mais tardia, e as pilhas
+ * se apoiam umas nas outras em vez de ficarem soltas.
+ *
+ * ⚠️ O bloco é deslocado **depois** para terminar na porta (099 D2), ou centralizado acima de metade do
+ * teto de massa (099 D3): o vão sobra na testeira, nunca entre entregas.
+ */
+function placeDeliveryBlock(input: {
+  readonly balanced: boolean
+  readonly bed: Readonly<{ heightM: number; lengthM: number; widthM: number }>
+  readonly boxes: readonly PlacementBox[]
+  readonly presumed: boolean
+  readonly securesCargo: boolean
+  readonly unplaced: readonly UnplacedBox[]
+}): CargoPlacement {
+  const rotated = {
+    heightM: input.bed.heightM,
+    lengthM: input.bed.widthM,
+    widthM: input.bed.lengthM,
+  }
+  const packed = packSlice({
+    bed: rotated,
+    boxes: input.boxes,
+    budget: MAX_PLACED_BOXES,
+    deliveryOrder: true,
+    openFace: 'lineEnd',
+    securesCargo: input.securesCargo,
+    sliceLengthM: rotated.lengthM,
+    stackBeforeRow: true,
+  })
+  const unplaced: UnplacedBox[] = [...input.unplaced, ...packed.unplaced]
+  /** Sem fatia não há para onde dividir: o que não coube no bloco não coube no baú. */
+  for (const box of packed.leftovers) {
+    pushUnplaced(unplaced, { count: 1, label: box.label, reason: 'bedFull' })
+  }
+
+  const blockEndM = packed.boxes.reduce((end, box) => Math.max(end, box.yM + box.widthM), 0)
+  const freeM = Math.max(0, input.bed.lengthM - blockEndM)
+  const shiftM = input.balanced ? freeM / 2 : freeM
+  const rows = packed.boxes.map((box) => ({
+    ...box,
+    depthM: box.widthM,
+    reasons: input.balanced ? [...box.reasons, 'weightBalanced' as const] : box.reasons,
+    widthM: box.depthM,
+    xM: round(shiftM + box.yM),
+    yM: round(box.xM),
+  }))
+
+  return { layers: toLayers(rows), source: input.presumed ? 'estimated' : 'measured', unplaced }
 }
 
 /**

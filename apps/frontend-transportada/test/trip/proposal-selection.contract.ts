@@ -20,7 +20,6 @@ const VEHICLES: readonly ProposalSelectionVehicle[] = [
     distanceMeters: 184_200,
     durationSeconds: 22_800,
     hasGaps: false,
-    tollAmount: '312.80',
     totalCost: '3108.03',
     totalMargin: '1211.97',
     totalRevenue: '4320.00',
@@ -31,7 +30,6 @@ const VEHICLES: readonly ProposalSelectionVehicle[] = [
     distanceMeters: 71_800,
     durationSeconds: 11_400,
     hasGaps: true,
-    tollAmount: '148.20',
     totalCost: '488.23',
     totalMargin: '1491.77',
     totalRevenue: '1980.00',
@@ -50,7 +48,6 @@ describe('proposal selection contract', () => {
     expect(summary.deliveries).toBe(19)
     expect(summary.totalRevenue).toBe('6300.00')
     expect(summary.totalCost).toBe('3596.26')
-    expect(summary.totalToll).toBe('461.00')
     expect(summary.allSelected).toBe(true)
     expect(summary.indeterminate).toBe(false)
   })
@@ -106,7 +103,6 @@ describe('proposal selection contract', () => {
           distanceMeters: null,
           durationSeconds: null,
           hasGaps: false,
-          tollAmount: null,
           totalCost: '100.00',
           totalMargin: '50.00',
           totalRevenue: '150.00',
@@ -117,8 +113,6 @@ describe('proposal selection contract', () => {
 
     expect(summary.totalDistanceMeters).toBeNull()
     expect(summary.totalDurationSeconds).toBeNull()
-    /** ⚠️ E o pedágio some junto: praça sem tarifa somada como zero seria um total mais barato. */
-    expect(summary.totalToll).toBeNull()
   })
 
   test('marcar e desmarcar uma viagem', () => {

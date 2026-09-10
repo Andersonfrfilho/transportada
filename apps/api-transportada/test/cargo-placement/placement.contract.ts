@@ -70,13 +70,29 @@ describe('empacotamento da carga (spec 094)', () => {
       ],
     })
 
-    const boxes = plan?.layers[0]?.boxes ?? []
-    const first = boxes[0]
-    const last = boxes[boxes.length - 1]
+    const boxes = plan?.layers.flatMap((layer) => layer.boxes) ?? []
 
-    expect(first?.stopSequence).toBe(3)
-    expect(last?.stopSequence).toBe(1)
-    expect(first?.xM).toBeLessThanOrEqual(last?.xM ?? 0)
+    /**
+     * ⚠️ **Spec 114 D4**: a fatia isolada por parada da 095 caiu — em profundidade a carga é um bloco
+     * só, pela ordem de entrega. O que continua proibido é a entrega **mais tardia** ficar em cima de
+     * uma mais cedo, ou entre ela e a porta.
+     */
+    const violam = boxes.filter((later) =>
+      boxes.some(
+        (earlier) =>
+          earlier.stopSequence < later.stopSequence &&
+          later.yM < earlier.yM + earlier.widthM - 1e-9 &&
+          earlier.yM < later.yM + later.widthM - 1e-9 &&
+          ((later.xM < earlier.xM + earlier.depthM - 1e-9 &&
+            earlier.xM < later.xM + later.depthM - 1e-9 &&
+            later.zM >= earlier.zM + earlier.heightM - 1e-9) ||
+            (later.zM < earlier.zM + earlier.heightM - 1e-9 &&
+              earlier.zM < later.zM + later.heightM - 1e-9 &&
+              later.xM >= earlier.xM + earlier.depthM - 1e-9)),
+      ),
+    )
+
+    expect(violam).toEqual([])
   })
 
   /**

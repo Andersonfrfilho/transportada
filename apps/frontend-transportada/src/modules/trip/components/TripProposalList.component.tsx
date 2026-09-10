@@ -88,7 +88,6 @@ export function TripProposalList({
       distanceMeters: view.distanceMeters,
       durationSeconds: view.durationSeconds,
       hasGaps: view.hasGaps,
-      tollAmount: null,
       totalCost: view.totalCost,
       totalMargin: view.totalMargin,
       totalRevenue: view.totalRevenue,
@@ -192,12 +191,6 @@ export function TripProposalList({
                 : styles.proposalProfit
             }
             value={money(summary.totalMargin)}
-          />
-          <Total
-            label={t('proposal.totalToll')}
-            value={
-              summary.totalToll === null ? t('proposal.unknown') : formatAmount(summary.totalToll)
-            }
           />
           <Total
             label={t('proposal.totalDistance')}

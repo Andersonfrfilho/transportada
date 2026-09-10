@@ -298,11 +298,27 @@ describe('o arranjo publicado (spec 100)', () => {
         stops: paradasComCaixa({ caixas: [caixa({})] }),
       })
       const desenho = layout?.placement?.layers.flatMap((layer) => layer.boxes) ?? []
-      /** Em faixas as paradas se separam no `y`; em profundidade, no `x`. */
-      const separaNoY = new Set(desenho.map((box) => box.yM)).size > 1
-      const separaNoX = new Set(desenho.map((box) => box.xM)).size > 1
+      /**
+       * Em faixas toda parada encosta na porta; em profundidade (spec 114) a entrega mais cedo nunca
+       * fica atrás de uma mais tardia. ⚠️ Com poucas caixas o bloco também as põe lado a lado na
+       * largura — por isso a afirmação é a da descarga, e não o eixo que as separa.
+       */
+      const porta = Math.max(...desenho.map((box) => box.xM + box.depthM))
+      const concorda =
+        layout?.stopArrangement === 'lanes'
+          ? desenho.every((box) => Math.abs(box.xM + box.depthM - porta) < 1e-6 || box.zM > 0)
+          : desenho.every(
+              (later) =>
+                !desenho.some(
+                  (earlier) =>
+                    earlier.stopSequence < later.stopSequence &&
+                    later.xM >= earlier.xM + earlier.depthM - 1e-9 &&
+                    later.yM < earlier.yM + earlier.widthM - 1e-9 &&
+                    earlier.yM < later.yM + later.widthM - 1e-9,
+                ),
+            )
 
-      expect(layout?.stopArrangement === 'lanes' ? separaNoY : separaNoX).toBe(true)
+      expect(concorda).toBe(true)
     }
   })
 })

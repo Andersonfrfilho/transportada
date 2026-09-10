@@ -633,6 +633,14 @@ cima** das paradas entregues depois (Passo 6), e a busca dela não tem mais teto
 tentativas — era esse teto que fazia paradas inteiras sumirem como "limite de detalhe". ⚠️ `STOP_ARRANGEMENTS` é
 validado com lista fechada no frontend: **o frontend sobe junto ou antes**, senão o painel some.
 
+**Em profundidade a carga é um bloco só, pela ordem de entrega** (spec 114). A fatia isolada por
+parada da 095 deixava dezenas de paradas pequenas com pilha solta, cortada pela esbeltez em 0,75 m —
+38 de 85 paradas fora do desenho num baú 30% cheio. Hoje a última entrega começa na testeira, cada
+entrega seguinte continua ao lado ou em cima da anterior, e o bloco termina na porta. ⚠️ Entrega mais
+cedo **pode** ficar em cima de uma mais tardia; o proibido é o contrário, ou a tardia entre a cedo e a
+porta (`test/cargo-placement/delivery-block.contract.ts`). Sem fatia não há carga dividida em
+profundidade — ela continua só em faixas.
+
 **Como as caixas são organizadas no baú está documentado por extenso em
 `docs/domain/cargo-placement.md`** — o arranjo em faixas ou em profundidade, a varredura que sobe
 antes de andar para o fundo, a orientação por rendimento, o teto de esbeltez da pilha e o

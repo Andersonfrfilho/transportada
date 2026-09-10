@@ -16,8 +16,6 @@ export type ProposalSelectionVehicle = Readonly<{
   distanceMeters: null | number
   durationSeconds: null | number
   hasGaps: boolean
-  /** `null` é praça sem tarifa conhecida — e ela contamina o total, nunca entra como zero. */
-  tollAmount: null | string
   /** ⚠️ `null` é a conta que não veio — e ela contamina o total, nunca entra como zero. */
   totalCost: null | string
   totalMargin: null | string
@@ -40,7 +38,6 @@ export type ProposalSelectionSummary = Readonly<{
   totalDurationSeconds: null | number
   totalMargin: null | string
   totalRevenue: null | string
-  totalToll: null | string
 }>
 
 /**
@@ -79,7 +76,6 @@ export function summarizeProposalSelection(
 ): ProposalSelectionSummary {
   const chosen = input.vehicles.filter((vehicle) => input.selected.has(vehicle.vehicleId))
   const left = input.vehicles.filter((vehicle) => !input.selected.has(vehicle.vehicleId))
-  const tolls = chosen.map((vehicle) => vehicle.tollAmount)
 
   return {
     allSelected: chosen.length > 0 && chosen.length === input.vehicles.length,
@@ -96,7 +92,6 @@ export function summarizeProposalSelection(
     totalDurationSeconds: sumOrUnknown(chosen.map((vehicle) => vehicle.durationSeconds)),
     totalMargin: sumOrAbsent(chosen.map((vehicle) => vehicle.totalMargin)),
     totalRevenue: sumOrAbsent(chosen.map((vehicle) => vehicle.totalRevenue)),
-    totalToll: sumOrAbsent(tolls),
   }
 }
 

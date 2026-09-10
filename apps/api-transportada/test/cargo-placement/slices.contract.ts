@@ -91,19 +91,34 @@ describe('a fatia por parada (spec 095 G001)', () => {
     })
     const boxes = placed(plan)
 
-    const third = extent(boxes, 3)
-    const second = extent(boxes, 2)
-    const first = extent(boxes, 1)
+    /**
+     * ⚠️ **Spec 114 D4**: a fatia isolada por parada da 095 caiu — em profundidade a carga é um bloco
+     * só, pela ordem de entrega. O que continua proibido é a entrega **mais tardia** ficar em cima de
+     * uma mais cedo, ou entre ela e a porta.
+     */
+    const violam = boxes.filter((later) =>
+      boxes.some(
+        (earlier) =>
+          earlier.stopSequence < later.stopSequence &&
+          later.yM < earlier.yM + earlier.widthM - 1e-9 &&
+          earlier.yM < later.yM + later.widthM - 1e-9 &&
+          ((later.xM < earlier.xM + earlier.depthM - 1e-9 &&
+            earlier.xM < later.xM + later.depthM - 1e-9 &&
+            later.zM >= earlier.zM + earlier.heightM - 1e-9) ||
+            (later.zM < earlier.zM + earlier.heightM - 1e-9 &&
+              earlier.zM < later.zM + later.heightM - 1e-9 &&
+              later.xM >= earlier.xM + earlier.depthM - 1e-9)),
+      ),
+    )
 
-    expect(third.to).toBeLessThanOrEqual(second.from + 1e-9)
-    expect(second.to).toBeLessThanOrEqual(first.from + 1e-9)
+    expect(violam).toEqual([])
     /**
      * ⚠️ O bloco **termina na porta** e as fatias são contíguas entre si: o vão que sobra fica atrás
      * da última parada, na testeira. Espalhar as três pelos 7,4 m para a primeira encostar na porta
      * era o defeito — carga que cabia em dois metros ocupava o baú inteiro numa camada rasteira.
      */
-    expect(first.to).toBeGreaterThan(7.4 - 0.7)
-    expect(third.from).toBeGreaterThan(0)
+    expect(Math.max(...boxes.map((entry) => entry.xM + entry.depthM))).toBeCloseTo(7.4, 2)
+    expect(Math.min(...boxes.map((entry) => entry.xM))).toBeGreaterThan(0)
   })
 
   /**
@@ -128,17 +143,27 @@ describe('a fatia por parada (spec 095 G001)', () => {
      * a aparecer neste caso quando a esbeltez limitou a pilha (spec 100 G008) e mais carga transbordou
      * da própria fatia.
      */
-    const inteiras = boxes.filter((entry) => !entry.reasons.includes('splitCargo'))
-    const overlapping = inteiras.filter((entry) =>
-      inteiras.some(
-        (other) =>
-          other.stopSequence !== entry.stopSequence &&
-          entry.xM < other.xM + other.depthM - 1e-9 &&
-          other.xM < entry.xM + entry.depthM - 1e-9,
+    /**
+     * ⚠️ **Spec 114 D4**: a fatia isolada por parada da 095 caiu — em profundidade a carga é um bloco
+     * só, pela ordem de entrega. O que continua proibido é a entrega **mais tardia** ficar em cima de
+     * uma mais cedo, ou entre ela e a porta.
+     */
+    const violam = boxes.filter((later) =>
+      boxes.some(
+        (earlier) =>
+          earlier.stopSequence < later.stopSequence &&
+          later.yM < earlier.yM + earlier.widthM - 1e-9 &&
+          earlier.yM < later.yM + later.widthM - 1e-9 &&
+          ((later.xM < earlier.xM + earlier.depthM - 1e-9 &&
+            earlier.xM < later.xM + later.depthM - 1e-9 &&
+            later.zM >= earlier.zM + earlier.heightM - 1e-9) ||
+            (later.zM < earlier.zM + earlier.heightM - 1e-9 &&
+              earlier.zM < later.zM + later.heightM - 1e-9 &&
+              later.xM >= earlier.xM + earlier.depthM - 1e-9)),
       ),
     )
 
-    expect(overlapping).toEqual([])
+    expect(violam).toEqual([])
   })
 
   /**
@@ -307,17 +332,17 @@ describe('a carga dividida (spec 095 G003)', () => {
     ],
   } as const
 
-  test('marca a sobra e a coloca mais funda que a própria fatia', () => {
-    const boxes = placed(resolveCargoPlacement(overflowing))
-    const split = boxes.filter((entry) => entry.reasons.includes('splitCargo'))
-    const own = boxes.filter(
-      (entry) => entry.stopSequence === 1 && !entry.reasons.includes('splitCargo'),
-    )
+  /**
+   * ⚠️ **Spec 114 D5**: em profundidade não há mais fatia, então não há sobra para dividir — as duas
+   * peças de 3 m que não cabiam na fatia estreita da parada 1 entram no bloco. A divisão continua
+   * valendo em faixas, e as afirmações abaixo sobre ela seguem de pé.
+   */
+  test('em profundidade a peça comprida entra no bloco, sem carga dividida', () => {
+    const plan = resolveCargoPlacement(overflowing)
+    const boxes = placed(plan)
 
-    expect(split.length).toBeGreaterThan(0)
-    expect(Math.max(...split.map((entry) => entry.xM))).toBeLessThan(
-      Math.min(...own.map((entry) => entry.xM)),
-    )
+    expect(boxes.filter((entry) => entry.reasons.includes('splitCargo'))).toEqual([])
+    expect(boxes.filter((entry) => entry.label === 'COMPRIDA').length).toBe(2)
   })
 
   /** Nada por cima dela: a sobra é a última coisa a entrar naquela coluna. */
@@ -904,8 +929,12 @@ describe('as faixas paralelas à porta (spec 100)', () => {
     )
     const daParada1 = boxes.filter((entry) => entry.stopSequence === 1)
 
-    /** As quatro cabem lado a lado na largura, sem ninguém subir. */
-    expect(daParada1.every((entry) => entry.zM === 0)).toBe(true)
+    /**
+     * As quatro cabem lado a lado na largura, sem uma subir na outra. ⚠️ Spec 114: elas podem estar
+     * **em cima** da parada 2, que é entregue depois — por isso a afirmação é de uma camada só, e não
+     * de chão.
+     */
+    expect(new Set(daParada1.map((entry) => entry.zM)).size).toBe(1)
   })
 
   /**
@@ -961,10 +990,12 @@ describe('as faixas paralelas à porta (spec 100)', () => {
     const boxes = placed(
       resolveCargoPlacement({ bed: FIORINO, boxes: TRES_PARADAS, payloadRatio: '0.7000' }),
     )
-    const primeira = lateral(boxes, 1)
-    const terceira = lateral(boxes, 3)
-
-    /** Em profundidade as três dividem a mesma largura, e é o `x` que as separa. */
-    expect(primeira.from).toBeCloseTo(terceira.from, 3)
+    /**
+     * ⚠️ Spec 114: com poucas caixas o bloco põe as entregas lado a lado na largura, então a largura já
+     * não distingue o arranjo. O que o peso muda — e que faixa nenhuma faz — é o equilíbrio no
+     * comprimento, carimbado em toda caixa.
+     */
+    expect(boxes.length).toBeGreaterThan(0)
+    expect(boxes.every((entry) => entry.reasons.includes('weightBalanced'))).toBe(true)
   })
 })
