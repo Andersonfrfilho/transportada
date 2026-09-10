@@ -31,6 +31,7 @@ function port(
   overrides: {
     readonly groups?: readonly {
       documentIds: readonly string[]
+      documentIdsByAddressKey: ReadonlyMap<string, readonly string[]>
       driverId: null | string
       estimatedArrivalByAddressKey: ReadonlyMap<string, string>
       orderedAddressKeys: readonly string[]
@@ -52,6 +53,7 @@ function port(
       overrides.groups ?? [
         {
           documentIds: [DOCUMENT_A],
+          documentIdsByAddressKey: new Map(),
           driverId: null,
           estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: [],
@@ -116,6 +118,7 @@ describe('readSuggestionValuation (spec 101)', () => {
       groups: [
         {
           documentIds: [DOCUMENT_A],
+          documentIdsByAddressKey: new Map(),
           driverId: null,
           estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: [],
@@ -123,6 +126,7 @@ describe('readSuggestionValuation (spec 101)', () => {
         },
         {
           documentIds: [DOCUMENT_B, DOCUMENT_A],
+          documentIdsByAddressKey: new Map(),
           driverId: null,
           estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: [],

@@ -248,6 +248,7 @@ export function createDrizzleMultiVehicleSuggestionRepository(
         {
           addressKeys: string[]
           arrivals: Map<string, string>
+          byAddress: Map<string, string[]>
           documentIds: string[]
           driverId: string | null
         }
@@ -257,6 +258,7 @@ export function createDrizzleMultiVehicleSuggestionRepository(
         const group = groups.get(row.vehicleId) ?? {
           addressKeys: [],
           arrivals: new Map<string, string>(),
+          byAddress: new Map<string, string[]>(),
           documentIds: [],
           driverId: row.driverId,
         }
@@ -265,7 +267,17 @@ export function createDrizzleMultiVehicleSuggestionRepository(
         }
         /** A mesma parada volta uma vez por nota: a ordem é por parada, não por linha. */
         if (group.addressKeys.at(-1) !== row.addressKey) group.addressKeys.push(row.addressKey)
-        if (row.nfeDocumentId !== null) group.documentIds.push(row.nfeDocumentId)
+        if (row.nfeDocumentId !== null) {
+          group.documentIds.push(row.nfeDocumentId)
+          /**
+           * Spec 112: a nota fica sabendo de qual parada ela é. A linha já trazia isso — a junção a
+           * `route_suggestion_stop_documents` é por parada —, e o agrupamento o jogava fora.
+           */
+          group.byAddress.set(row.addressKey, [
+            ...(group.byAddress.get(row.addressKey) ?? []),
+            row.nfeDocumentId,
+          ])
+        }
         groups.set(row.vehicleId, group)
       }
 
@@ -273,6 +285,7 @@ export function createDrizzleMultiVehicleSuggestionRepository(
       for (const [vehicleId, group] of groups) {
         result.push({
           documentIds: group.documentIds,
+          documentIdsByAddressKey: group.byAddress,
           driverId: group.driverId,
           estimatedArrivalByAddressKey: group.arrivals,
           orderedAddressKeys: group.addressKeys,

@@ -6,7 +6,7 @@ import {
   MultiVehicleSuggestionDriverRepeatedError,
   MultiVehicleSuggestionDriverUnavailableError,
   MultiVehicleSuggestionEmptyError,
-  MultiVehicleSuggestionStopNotInVehicleError,
+  MultiVehicleSuggestionStopClaimedTwiceError,
   MultiVehicleSuggestionVehicleNotInProposalError,
   MultiVehicleSuggestionVehicleUnavailableError,
   RouteSuggestionNotDecidableError,
@@ -331,15 +331,15 @@ export function createMultiVehicleSuggestionUseCase(
  */
 type StopOrderEntry = Readonly<{ orderedAddressKeys: readonly string[]; vehicleId: string }>
 
-/** O grupo como o aceite o cria: a ordem final, e se ela deixou de ser a do solver. */
+/** O grupo como o aceite o cria: as paradas finais, e se a ordem deixou de ser a do solver. */
 type AcceptedGroup = MultiVehicleSuggestionGroup & Readonly<{ isManualOrder: boolean }>
 
 /**
- * Quais veículos viram viagem, e em que ordem cada um para.
+ * Quais veículos viram viagem, com que paradas, e em que ordem cada um para.
  *
  * ⚠️ **Toda recusa acontece aqui, antes da reivindicação** (spec 107 D2): veículo fora da proposta
- * e parada de outro caminhão são pedido malformado, e consumir a sugestão por causa deles queimaria
- * uma proposta boa.
+ * e parada reivindicada por dois caminhões são pedido malformado, e consumir a sugestão por causa
+ * deles queimaria uma proposta boa.
  */
 function resolveAcceptedGroups(
   input: Readonly<{
@@ -360,45 +360,104 @@ function resolveAcceptedGroups(
   const chosenByVehicle = new Map(
     (input.stopOrderByVehicle ?? []).map((entry) => [entry.vehicleId, entry.orderedAddressKeys]),
   )
-  const proposalKeys = new Set(input.proposed.flatMap((group) => group.orderedAddressKeys))
+  const groupByVehicle = new Map(input.proposed.map((group) => [group.vehicleId, group]))
+  const ownerByKey = new Map(
+    input.proposed.flatMap((group) =>
+      group.orderedAddressKeys.map((key) => [key, group.vehicleId]),
+    ),
+  )
+  const movedTo = resolveMoves({ chosenByVehicle, ownerByKey })
 
   return input.proposed
     .filter((group) => accepted.has(group.vehicleId))
-    .map((group) => {
-      const chosen = chosenByVehicle.get(group.vehicleId)
-      if (chosen === undefined) return { ...group, isManualOrder: false }
-
-      const orderedAddressKeys = applyChosenOrder({ chosen, group, proposalKeys })
-      return {
-        ...group,
-        isManualOrder: !isSameOrder(orderedAddressKeys, group.orderedAddressKeys),
-        orderedAddressKeys,
-      }
+    .flatMap((group) => {
+      const resolved = resolveGroup({
+        chosen: chosenByVehicle.get(group.vehicleId) ?? [],
+        group,
+        groupByVehicle,
+        movedTo,
+        ownerByKey,
+      })
+      return resolved === null ? [] : [resolved]
     })
 }
 
 /**
- * A ordem escolhida sobre as paradas do veículo.
+ * As paradas que mudam de caminhão: chave → caminhão de destino.
+ *
+ * ⚠️ Spec 112 D3: **chave de outro caminhão na ordem de um veículo é movimento.** A spec 111 a
+ * recusava, porque a 110 dizia que o solver desfaria o movimento — e desde a 111 o aceite não roda o
+ * solver. Chave que a proposta não conhece segue ignorada (é o degrau `cidade:` da tela), e a mesma
+ * chave na ordem de dois caminhões é recusada: qual deles fica com ela seria palpite.
+ */
+function resolveMoves(
+  input: Readonly<{
+    chosenByVehicle: ReadonlyMap<string, readonly string[]>
+    ownerByKey: ReadonlyMap<string, string>
+  }>,
+): ReadonlyMap<string, string> {
+  const claimedBy = new Map<string, string>()
+  for (const [vehicleId, keys] of input.chosenByVehicle) {
+    for (const key of new Set(keys)) {
+      if (!input.ownerByKey.has(key)) continue
+      const previous = claimedBy.get(key)
+      if (previous !== undefined && previous !== vehicleId) {
+        throw new MultiVehicleSuggestionStopClaimedTwiceError([previous, vehicleId])
+      }
+      claimedBy.set(key, vehicleId)
+    }
+  }
+  return new Map(
+    [...claimedBy].filter(([key, vehicleId]) => input.ownerByKey.get(key) !== vehicleId),
+  )
+}
+
+/**
+ * O caminhão depois dos movimentos: as paradas que ficam, as que chegam, e a ordem escolhida.
  *
  * ⚠️ É a mesma regra de `orderStopKeys`, que monta a planta de carga: parada que a ordem não
- * menciona **vai para o fim, na ordem do solver**, e chave que a proposta inteira não conhece é
- * ignorada — é o degrau `cidade:` da tela, para o endereço sem CEP utilizável. O aceite tem de
- * criar o caminhão que o operador acabou de ver desenhado; duas regras criariam outro.
+ * menciona **vai para o fim, na ordem do solver**. O aceite tem de criar o caminhão que o operador
+ * acabou de ver desenhado; duas regras criariam outro.
+ *
+ * ⚠️ A parada que chega traz **as notas dela**, lidas do grupo de origem. Caminhão que não ganhou
+ * nem perdeu parada segue com a lista de notas de sempre — nada a reescrever.
  */
-function applyChosenOrder(
+function resolveGroup(
   input: Readonly<{
     chosen: readonly string[]
     group: MultiVehicleSuggestionGroup
-    proposalKeys: ReadonlySet<string>
+    groupByVehicle: ReadonlyMap<string, MultiVehicleSuggestionGroup>
+    movedTo: ReadonlyMap<string, string>
+    ownerByKey: ReadonlyMap<string, string>
   }>,
-): readonly string[] {
-  const own = new Set(input.group.orderedAddressKeys)
-  const foreign = input.chosen.some((key) => !own.has(key) && input.proposalKeys.has(key))
-  if (foreign) throw new MultiVehicleSuggestionStopNotInVehicleError(input.group.vehicleId)
-
-  const picked = [...new Set(input.chosen.filter((key) => own.has(key)))]
+): AcceptedGroup | null {
+  const { group } = input
+  const staying = group.orderedAddressKeys.filter((key) => !input.movedTo.has(key))
+  const arriving = new Set(
+    [...input.movedTo].filter(([, vehicleId]) => vehicleId === group.vehicleId).map(([key]) => key),
+  )
+  const available = new Set([...staying, ...arriving])
+  const picked = [...new Set(input.chosen.filter((key) => available.has(key)))]
   const pickedSet = new Set(picked)
-  return [...picked, ...input.group.orderedAddressKeys.filter((key) => !pickedSet.has(key))]
+  const orderedAddressKeys = [...picked, ...staying.filter((key) => !pickedSet.has(key))]
+  /**
+   * Caminhão que **perdeu** todas as paradas para outros não vira viagem vazia. ⚠️ Só esse: grupo que
+   * nunca teve chave de parada continua criando a viagem, como sempre criou — o aceite anterior
+   * tratava esse caso de propósito, e contratos dependem dele.
+   */
+  if (group.orderedAddressKeys.length > 0 && orderedAddressKeys.length === 0) return null
+
+  const changedStops = arriving.size > 0 || staying.length !== group.orderedAddressKeys.length
+  const documentsOf = (key: string): readonly string[] =>
+    input.groupByVehicle.get(input.ownerByKey.get(key) ?? '')?.documentIdsByAddressKey.get(key) ??
+    []
+
+  return {
+    ...group,
+    documentIds: changedStops ? orderedAddressKeys.flatMap(documentsOf) : group.documentIds,
+    isManualOrder: changedStops || !isSameOrder(orderedAddressKeys, group.orderedAddressKeys),
+    orderedAddressKeys,
+  }
 }
 
 function isSameOrder(left: readonly string[], right: readonly string[]): boolean {

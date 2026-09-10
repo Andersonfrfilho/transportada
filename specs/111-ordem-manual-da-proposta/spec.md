@@ -26,7 +26,8 @@ a cada troca. Três defeitos medidos estavam no caminho:
 - **D3 — O aceite leva a ordem.** `stopOrderByVehicle` opcional no corpo. A regra é a de
   `orderStopKeys`, que monta a planta: parada não mencionada vai ao fim na ordem do solver; chave que a
   proposta não conhece é ignorada (é o degrau `cidade:`); parada de **outro** caminhão é 400
-  (`ROUTE_SUGGESTION_STOP_NOT_IN_VEHICLE`) — mover entre caminhões não existe. Toda recusa vem antes da
+  (`ROUTE_SUGGESTION_STOP_NOT_IN_VEHICLE`) — mover entre caminhões não existe. ⚠️ **Revogado pela spec 112**: hoje
+  é movimento, e a parada vai com as notas dela. Toda recusa vem antes da
   reivindicação (spec 107 D2).
 - **D4 — Ordem trocada à mão nasce sem horário previsto.** O horário é gravado casado por endereço, na
   ordem do solver, e descreveria outra ordem. A ordem do solver reenviada tal e qual não conta como

@@ -75,6 +75,7 @@ describe('pedágio na sugestão (spec 101 D2)', () => {
       readGroups: async () => [
         {
           documentIds: [],
+          documentIdsByAddressKey: new Map(),
           driverId: null,
           estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: [],

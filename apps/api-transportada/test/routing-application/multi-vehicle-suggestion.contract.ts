@@ -22,7 +22,7 @@ import {
   MultiVehicleSuggestionDriverRepeatedError,
   MultiVehicleSuggestionDriverUnavailableError,
   MultiVehicleSuggestionEmptyError,
-  MultiVehicleSuggestionStopNotInVehicleError,
+  MultiVehicleSuggestionStopClaimedTwiceError,
   MultiVehicleSuggestionVehicleNotInProposalError,
   MultiVehicleSuggestionVehicleUnavailableError,
   RouteSuggestionNotDecidableError,
@@ -310,6 +310,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
       groups: [
         {
           documentIds: [FIRST_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
           driverId: FIRST_DRIVER,
           estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: [],
@@ -317,6 +318,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
         },
         {
           documentIds: [SECOND_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
           driverId: null,
           estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: [],
@@ -374,6 +376,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
       groups: [
         {
           documentIds: [FIRST_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
           driverId: null,
           estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: ['3543402|14020000|100'],
@@ -381,6 +384,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
         },
         {
           documentIds: [SECOND_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
           driverId: null,
           estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: ['3543402|14020000|200'],
@@ -439,6 +443,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
       groups: [
         {
           documentIds: [FIRST_DOCUMENT, SECOND_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
           driverId: null,
           estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: ['chave-1'],
@@ -468,6 +473,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
       groups: [
         {
           documentIds: [FIRST_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
           driverId: null,
           estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: ['chave-1'],
@@ -497,6 +503,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
       groups: [
         {
           documentIds: [FIRST_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
           driverId: null,
           estimatedArrivalByAddressKey: arrivals,
           orderedAddressKeys: ['chave-1'],
@@ -535,6 +542,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
       groups: [
         {
           documentIds: [FIRST_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
           driverId: null,
           estimatedArrivalByAddressKey: new Map([
             ['chave-2', '2026-09-09T17:00:00.000Z'],
@@ -563,6 +571,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
       groups: [
         {
           documentIds: [FIRST_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
           driverId: null,
           estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: ['chave-1'],
@@ -627,6 +636,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
       groups: [
         {
           documentIds: [SECOND_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
           driverId: null,
           estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: [],
@@ -634,6 +644,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
         },
         {
           documentIds: [FIRST_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
           driverId: null,
           estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: [],
@@ -658,6 +669,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
       groups: [
         {
           documentIds: [FIRST_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
           driverId: null,
           estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: ['3543402|14020000|100'],
@@ -665,6 +677,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
         },
         {
           documentIds: [SECOND_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
           driverId: null,
           estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: ['3543402|14020000|200'],
@@ -695,6 +708,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
       groups: [
         {
           documentIds: [FIRST_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
           driverId: null,
           estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: ['3543402|14020000|100'],
@@ -724,6 +738,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
       groups: [
         {
           documentIds: [FIRST_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
           driverId: null,
           estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: ['3543402|14020000|100'],
@@ -750,6 +765,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
       groups: [
         {
           documentIds: [FIRST_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
           driverId: null,
           estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: ['3543402|14020000|100'],
@@ -757,6 +773,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
         },
         {
           documentIds: [SECOND_DOCUMENT],
+          documentIdsByAddressKey: new Map(),
           driverId: null,
           estimatedArrivalByAddressKey: new Map(),
           orderedAddressKeys: ['3543402|14020000|200'],
@@ -788,6 +805,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
         groups: [
           {
             documentIds: [FIRST_DOCUMENT],
+            documentIdsByAddressKey: new Map(),
             driverId: null,
             estimatedArrivalByAddressKey: new Map([
               [A, '2026-09-10T11:00:00.000Z'],
@@ -799,6 +817,7 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
           },
           {
             documentIds: [SECOND_DOCUMENT],
+            documentIdsByAddressKey: new Map(),
             driverId: null,
             estimatedArrivalByAddressKey: new Map([[OTHER_TRUCK, '2026-09-10T11:00:00.000Z']]),
             orderedAddressKeys: [OTHER_TRUCK],
@@ -869,19 +888,116 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
      * o movimento. Uma chave de outro veículo desta proposta é pedido malformado, e a recusa vem
      * **antes** da reivindicação — consumir a sugestão por causa dela queimaria uma proposta boa.
      */
-    test('recusa parada de outro caminhão, sem consumir a proposta', async () => {
-      const fixture = fixtureWithThreeStops()
+    /** Um caminhão com uma nota por parada, para dar para ver qual nota foi para onde. */
+    function fixtureWithMovableStops() {
+      return buildFixture({
+        groups: [
+          {
+            documentIds: ['nota-a', 'nota-b', 'nota-c'],
+            documentIdsByAddressKey: new Map([
+              [A, ['nota-a']],
+              [B, ['nota-b']],
+              [C, ['nota-c']],
+            ]),
+            driverId: null,
+            estimatedArrivalByAddressKey: new Map([[A, '2026-09-10T11:00:00.000Z']]),
+            orderedAddressKeys: [A, B, C],
+            vehicleId: FIRST_VEHICLE,
+          },
+          {
+            documentIds: ['nota-outro'],
+            documentIdsByAddressKey: new Map([[OTHER_TRUCK, ['nota-outro']]]),
+            driverId: null,
+            estimatedArrivalByAddressKey: new Map([[OTHER_TRUCK, '2026-09-10T11:00:00.000Z']]),
+            orderedAddressKeys: [OTHER_TRUCK],
+            vehicleId: SECOND_VEHICLE,
+          },
+        ],
+      })
+    }
+
+    function linkedTo(fixture: ReturnType<typeof fixtureWithMovableStops>, tripIndex: number) {
+      const reorders = fixture.calls.reorder as { tripId: string }[]
+      const tripId = reorders[tripIndex]?.tripId
+      return (fixture.calls.link as { nfeDocumentId: string; tripId: string }[])
+        .filter((call) => call.tripId === tripId)
+        .map((call) => call.nfeDocumentId)
+    }
+
+    /**
+     * Spec 112 D3: **chave de outro caminhão na ordem de um veículo é movimento.** A 111 a recusava,
+     * porque a 110 dizia que o solver desfaria o movimento — e desde a 111 o aceite não roda o solver.
+     *
+     * ⚠️ A parada vai **com as notas dela**. Mover só a chave criaria a parada no caminhão novo e
+     * vincularia as notas ao antigo, e a reconciliação por endereço recriaria a parada lá.
+     */
+    test('move a parada e as notas dela para o outro caminhão', async () => {
+      const fixture = fixtureWithMovableStops()
+
+      await fixture.useCase.accept({
+        context: CONTEXT,
+        stopOrderByVehicle: [{ orderedAddressKeys: [OTHER_TRUCK, A], vehicleId: SECOND_VEHICLE }],
+        suggestionId: SUGGESTION_ID,
+      })
+
+      expect(reorderOf(fixture, 0)).toEqual([B, C])
+      expect(linkedTo(fixture, 0)).toEqual(['nota-b', 'nota-c'])
+      expect(reorderOf(fixture, 1)).toEqual([OTHER_TRUCK, A])
+      expect(linkedTo(fixture, 1)).toEqual(['nota-outro', 'nota-a'])
+    })
+
+    /** Os dois caminhões mudaram de ordem: o horário do solver descreveria outro dia nos dois. */
+    test('os dois caminhões do movimento nascem sem horário previsto', async () => {
+      const fixture = fixtureWithMovableStops()
+
+      await fixture.useCase.accept({
+        context: CONTEXT,
+        stopOrderByVehicle: [{ orderedAddressKeys: [OTHER_TRUCK, A], vehicleId: SECOND_VEHICLE }],
+        suggestionId: SUGGESTION_ID,
+      })
+
+      const arrivals = fixture.calls.arrivals as {
+        estimatedArrivalByAddressKey: ReadonlyMap<string, string>
+      }[]
+      expect(arrivals.map((call) => call.estimatedArrivalByAddressKey.size)).toEqual([0, 0])
+    })
+
+    /**
+     * ⚠️ A mesma parada em dois caminhões é pedido malformado: qual deles fica com ela seria palpite
+     * do servidor. A recusa vem **antes** da reivindicação (spec 107 D2).
+     */
+    test('recusa a mesma parada reivindicada por dois caminhões, sem consumir a proposta', async () => {
+      const fixture = fixtureWithMovableStops()
 
       await expect(
         fixture.useCase.accept({
           context: CONTEXT,
-          stopOrderByVehicle: [{ orderedAddressKeys: [OTHER_TRUCK, A], vehicleId: FIRST_VEHICLE }],
+          stopOrderByVehicle: [
+            { orderedAddressKeys: [A, B], vehicleId: FIRST_VEHICLE },
+            { orderedAddressKeys: [OTHER_TRUCK, A], vehicleId: SECOND_VEHICLE },
+          ],
           suggestionId: SUGGESTION_ID,
         }),
-      ).rejects.toBeInstanceOf(MultiVehicleSuggestionStopNotInVehicleError)
+      ).rejects.toBeInstanceOf(MultiVehicleSuggestionStopClaimedTwiceError)
 
       expect(fixture.calls.decide).toEqual([])
       expect(fixture.calls.link).toEqual([])
+    })
+
+    /** Caminhão que ficou sem parada nenhuma não vira viagem vazia: não há o que ele carregue. */
+    test('caminhão que perdeu todas as paradas não vira viagem', async () => {
+      const fixture = fixtureWithMovableStops()
+
+      const accepted = await fixture.useCase.accept({
+        context: CONTEXT,
+        stopOrderByVehicle: [
+          { orderedAddressKeys: [OTHER_TRUCK, A, B, C], vehicleId: SECOND_VEHICLE },
+        ],
+        suggestionId: SUGGESTION_ID,
+      })
+
+      expect(accepted.trips.map((trip) => trip.vehicleId)).toEqual([SECOND_VEHICLE])
+      expect(linkedTo(fixture, 0)).toEqual(['nota-outro', 'nota-a', 'nota-b', 'nota-c'])
     })
 
     test('recusa ordem de veículo que a proposta não tem', async () => {

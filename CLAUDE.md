@@ -1690,8 +1690,9 @@ reivindicação da spec 107 D2 — consumir a sugestão por um id errado queimar
 ⚠️ **A ordem se troca à mão, e o aceite a leva** (spec 111, reverte a D6). As setas ao lado da lixeira
 reordenam por caminhão; mapa, planta de carga e conta leem a mesma `stopOrder` e recalculam juntos. O
 aceite recebe `stopOrderByVehicle` com a regra de `orderStopKeys` — parada não mencionada vai ao fim,
-chave desconhecida é ignorada (o degrau `cidade:` da tela), parada de **outro** caminhão é 400 antes
-da reivindicação. Ordem trocada nasce **sem horário previsto**: ele é gravado casado por endereço, na
+chave desconhecida é ignorada (o degrau `cidade:` da tela), parada de **outro** caminhão é
+**movimento** — ela vai com as notas dela (spec 112) —, e a mesma parada na ordem de dois caminhões
+é 400 antes da reivindicação. Ordem trocada nasce **sem horário previsto**: ele é gravado casado por endereço, na
 ordem do solver. ⚠️ O corpo é `.strict()`: **a API sobe antes do front**.
 
 ⚠️ **Verde é o que entra, vermelho é o que sai — nas duas portas da proposta.** Receita e lucro em

@@ -8,6 +8,12 @@ import type { RouteSuggestionRecord } from './route-suggestion.repository.js'
 
 export type MultiVehicleSuggestionGroup = Readonly<{
   documentIds: readonly string[]
+  /**
+   * Spec 112: as notas de cada parada. O aceite move a parada **com as notas dela** para outro
+   * caminhão — mover só a chave vincularia as notas ao caminhão antigo, e a reconciliação por
+   * endereço recriaria a parada lá.
+   */
+  documentIdsByAddressKey: ReadonlyMap<string, readonly string[]>
   /** O motorista escolhido para este veículo, ou `null` quando o par não trouxe nenhum. */
   driverId: string | null
   /** Na ordem que o solver propôs — é ela que vira a ordem das paradas da viagem criada. */
