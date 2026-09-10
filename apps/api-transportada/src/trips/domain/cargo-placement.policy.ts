@@ -821,6 +821,13 @@ function packSlice(input: {
   let rowFrontierM = input.stackBeforeRow === true ? 0 : slice.widthM
   /** Onde as fileiras já colocadas terminam, em ordem — ver `findNextEdge`. */
   const rowEnds: number[] = []
+  /**
+   * ⚠️ **O formato que acabou de falhar falha de novo enquanto nada entrar.** O mapa de alturas só muda
+   * quando uma caixa é colocada, então sem colocação nova não surge lugar novo — e a gêmea da caixa
+   * recusada varria o baú inteiro para descobrir isso. Medido: 3600 caixas iguais num baú cheio,
+   * 67 ms contra 50 de orçamento.
+   */
+  const failedAt = new Map<string, number>()
 
   for (const box of ordered) {
     const stackLimit = resolveStackLimit(box)
@@ -856,7 +863,8 @@ function packSlice(input: {
        * voltava a se espalhar pelo baú. Recusar uma posição tem de significar tentar a próxima.
        */
       let rest: { readonly topM: number; readonly xM: number } | null = null
-      let guard = 0
+      const shapeKey = `${slot.depthM}|${slot.widthM}|${slot.heightM}`
+      let guard = failedAt.get(shapeKey) === placed.length ? MAX_SEAT_ATTEMPTS : 0
       /**
        * ⚠️ **Uma camada varrida inteira sem lugar encerra a busca.** Sem isto o cursor subia de
        * camada indefinidamente — o limite de pilha é infinito para caixa empilhável — e cada caixa
@@ -956,11 +964,12 @@ function packSlice(input: {
           ...cursor,
           rowWidthM: 0,
           xM: 0,
-          yM: nextEdgeM === null ? stepEndM : Math.min(stepEndM, nextEdgeM),
+          yM: snapToCell(nextEdgeM === null ? stepEndM : Math.min(stepEndM, nextEdgeM)),
         }
       }
 
       if (rest === null) {
+        failedAt.set(shapeKey, placed.length)
         if (cursor.layer >= stackLimit) {
           pushUnplaced(unplaced, { count: 1, label: box.label, reason: 'bedFull' })
           continue
@@ -984,7 +993,7 @@ function packSlice(input: {
         zM: round(rest.topM),
       })
       support.stamp({ slot, topM: rest.topM + slot.heightM, xM: cursor.xM, yM: cursor.yM })
-      insertEdge(rowEnds, round(cursor.yM + slot.widthM))
+      insertEdge(rowEnds, snapToCell(cursor.yM + slot.widthM))
       cursor = {
         ...cursor,
         layerHeightM: Math.max(cursor.layerHeightM, slot.heightM),
@@ -1023,6 +1032,25 @@ function findNextEdge(edges: readonly number[], fromM: number): null | number {
     else high = middle
   }
   return edges[low] ?? null
+}
+
+/**
+ * Quantas células a medida ocupa, contando a última **parcial** como inteira.
+ *
+ * ⚠️ **A caixa ocupa células inteiras, e a posição é sempre uma borda de célula.** Arredondar as duas
+ * pontas para o mais próximo fazia a caixa de 0,26 m ser carimbada como 0,25 e a vizinha sentar em
+ * 0,25 — as duas se cruzando 1 cm. Com a caixa de 0,371 m eram 2,1 cm por caixa: medido numa carga
+ * real de 24 paradas, 383 pares de caixas atravessando uma a outra (132 já antes da spec 114). Ocupar
+ * a célula parcial inteira custa até 5 cm por caixa, e duas caixas encostadas nunca dividem célula —
+ * que é também o que impede a escada.
+ */
+function toCellEnd(sizeM: number): number {
+  return Math.ceil(sizeM / HEIGHT_MAP_CELL_M - 1e-6)
+}
+
+/** A próxima borda de célula a partir de `valueM` — nunca antes dele. */
+function snapToCell(valueM: number): number {
+  return round(toCellEnd(valueM) * HEIGHT_MAP_CELL_M)
 }
 
 /** Lado da célula do mapa de alturas, em metros. Fino o bastante para uma caixa de 20 cm. */
@@ -1099,10 +1127,7 @@ function createSupportMap(
    */
   const range = (fromM: number, sizeM: number, limit: number): readonly [number, number] => {
     const from = Math.max(0, Math.round(fromM / HEIGHT_MAP_CELL_M))
-    return [
-      from,
-      Math.min(limit, Math.max(from + 1, Math.round((fromM + sizeM) / HEIGHT_MAP_CELL_M))),
-    ]
+    return [from, Math.min(limit, Math.max(from + 1, toCellEnd(fromM + sizeM)))]
   }
 
   return {
@@ -1120,8 +1145,8 @@ function createSupportMap(
      */
     seat: ({ heightM, slot, xM, yM }) => {
       const [fromLine, toLine] = range(yM, slot.widthM, lines)
-      const depth = Math.max(1, Math.round(slot.depthM / HEIGHT_MAP_CELL_M))
-      const first = Math.max(0, Math.floor(xM / HEIGHT_MAP_CELL_M + 1e-6))
+      const depth = Math.max(1, toCellEnd(slot.depthM))
+      const first = Math.max(0, toCellEnd(xM))
       const last = columns - depth
 
       /**
@@ -1860,7 +1885,11 @@ function placeDeliveryBlock(input: {
 
   const blockEndM = packed.boxes.reduce((end, box) => Math.max(end, box.yM + box.widthM), 0)
   const freeM = Math.max(0, input.bed.lengthM - blockEndM)
-  const shiftM = input.balanced ? freeM / 2 : freeM
+  /**
+   * ⚠️ Arredondado **uma vez**, antes de somar: arredondar `deslocamento + posição` caixa a caixa fazia
+   * duas vizinhas encostadas discordarem na terceira casa e se cruzarem 1 mm.
+   */
+  const shiftM = round(input.balanced ? freeM / 2 : freeM)
   const rows = packed.boxes.map((box) => ({
     ...box,
     depthM: box.widthM,

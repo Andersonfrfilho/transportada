@@ -20,6 +20,19 @@ fileira, 61 de 63 com as duas peças `bedFull`; depois, 63 de 63.
 Tempo no caminho da tela (`resolveCargoLayout`, 24 paradas presumidas): 9,5 ms com 249 caixas, 12,5 ms
 com 407 e 8,3 ms com 568 — contra o orçamento de 50 ms.
 
+## Carga real — RTD-5J78, 24 paradas (2026-09-10)
+
+Reprodução com as contagens por parada lidas da tela, caixas presumidas de 0,371 × 0,261 × 0,21 m e
+uma caixa medida por parada, baú de referência 5,32 × 2,08 × 2,20 m, `payloadRatio` 0,61.
+
+| código                        | caixas     | paradas fora | pilha  | caixas se cruzando | tempo |
+| ----------------------------- | ---------- | ------------ | ------ | ------------------ | ----- |
+| fatia por parada (`2e7189dd`) | 231 de 463 | 0            | 0,67 m | 132 pares          | 14 ms |
+| bloco, grade de 5 cm antiga   | 372 de 463 | 2 (1 e 3)    | 1,47 m | 383 pares          | 26 ms |
+| bloco, células inteiras       | 451 de 463 | **0**        | 2,14 m | **0**              | 15 ms |
+
+Na tela, antes desta rodada, as paradas 3, 2 e 1 — as primeiras entregas — saíam fora do desenho.
+
 Gates:
 
 - `bun test ./test/cargo-volume.contract.test.ts` — 212 pass, 0 fail (inclui o contrato de 50 ms)

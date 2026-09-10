@@ -206,6 +206,21 @@ contra 50 de orçamento.
 - **Em faixas:** fica presa **à própria faixa**, na parte mais longe da porta. Não existe "região das
   paradas posteriores": o mesmo movimento poria a sobra em cima da faixa de outra parada.
 
+⚠️ **A caixa ocupa células inteiras do mapa de alturas, e a posição é sempre uma borda de célula**
+(spec 114). Arredondar as duas pontas para a célula mais próxima carimbava a caixa de 0,26 m como
+0,25 e deixava a vizinha sentar em 0,25 — as duas se cruzando. Medido numa carga real de 24 paradas
+com caixas presumidas de 0,371 × 0,261 m: **383 pares de caixas atravessando uma a outra** (132 já
+antes do bloco). Hoje a pegada conta a célula parcial como inteira — até 5 cm por caixa —, duas caixas
+encostadas nunca dividem célula, e o topo de fileiras iguais fica plano: a mesma carga passou de 372
+para 451 caixas desenhadas, de 1,47 m para 2,14 m de pilha e de 383 para **zero** cruzamentos.
+
+⚠️ **O formato que acabou de falhar falha de novo enquanto nada entrar.** O mapa só muda quando uma
+caixa é colocada; sem colocação nova não surge lugar novo, e a gêmea da caixa recusada varria o baú
+inteiro para descobrir isso (3600 caixas iguais num baú cheio: 67 ms contra 50 de orçamento).
+
+⚠️ **Aberto:** na mesma carga real ainda saem 12 de 463 caixas `bedFull` com o baú a 38% do volume —
+com tamanhos misturados o topo não fica plano em toda a pegada, e a regra do assento nivelado recusa.
+
 ---
 
 ## Passo 7 — A planta explica as próprias decisões

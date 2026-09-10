@@ -10,3 +10,5 @@
 | T4  | Fileira seguinte na próxima borda de carga, com lista ordenada e busca binária                | T2      | peça de 3 m entra; contrato de 50 ms            | feita  |
 | T5  | Sete contratos da 095/100 reescritos para a propriedade de descarga, com a razão no teste     | T2      | 212 pass                                        | feita  |
 | T6  | `docs/domain/cargo-placement.md` e `CLAUDE.md`                                                | T2–T5   | leitura                                         | feita  |
+| T7  | Célula inteira no mapa de alturas: posição na borda, pegada arredondada para cima             | T2      | carga real: zero cruzamentos                    | feita  |
+| T8  | Memória do formato que falhou, para caber no orçamento de 50 ms                               | T7      | contrato de 50 ms                               | feita  |
