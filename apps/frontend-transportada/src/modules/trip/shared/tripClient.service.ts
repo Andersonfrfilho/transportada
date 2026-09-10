@@ -83,7 +83,15 @@ export type TripClient = Readonly<{
    * só os marcados viram viagem, e o que sobra volta ao maço porque nunca saiu dele.
    */
   acceptMultiVehicleSuggestion: (
-    input: Readonly<{ suggestionId: string; vehicleIds?: readonly string[] }>,
+    input: Readonly<{
+      /** A ordem escolhida à mão, por veículo. Ausente é a ordem do roteirizador. */
+      stopOrderByVehicle?: readonly Readonly<{
+        orderedAddressKeys: readonly string[]
+        vehicleId: string
+      }>[]
+      suggestionId: string
+      vehicleIds?: readonly string[]
+    }>,
   ) => Promise<AcceptedMultiVehicleSuggestion>
   createMultiVehicleSuggestion: (
     input: CreateMultiVehicleSuggestionInput,
@@ -318,13 +326,20 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
     async acceptMultiVehicleSuggestion(input) {
       const response = await authorizedRequest({
         /**
-         * ⚠️ Sem seleção o corpo **não é enviado**: a rota lê corpo opcional pela ausência de
-         * `content-type`, e mandar `{}` faria toda instalação anterior a esta spec passar por um
-         * caminho novo sem precisar.
+         * ⚠️ Sem seleção e sem ordem o corpo **não é enviado**: a rota lê corpo opcional pela
+         * ausência de `content-type`, e mandar `{}` faria toda instalação anterior a esta spec
+         * passar por um caminho novo sem precisar.
          */
-        ...(input.vehicleIds === undefined
+        ...(input.vehicleIds === undefined && input.stopOrderByVehicle === undefined
           ? {}
-          : { body: JSON.stringify({ vehicleIds: input.vehicleIds }) }),
+          : {
+              body: JSON.stringify({
+                ...(input.stopOrderByVehicle === undefined
+                  ? {}
+                  : { stopOrderByVehicle: input.stopOrderByVehicle }),
+                ...(input.vehicleIds === undefined ? {} : { vehicleIds: input.vehicleIds }),
+              }),
+            }),
         dependencies,
         method: 'POST',
         path: `${ROUTE_SUGGESTIONS_PATH}/${input.suggestionId}/accept`,

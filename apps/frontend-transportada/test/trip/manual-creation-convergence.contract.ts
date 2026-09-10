@@ -32,7 +32,11 @@ describe('manual creation convergence contract', () => {
     ])
 
     expect(preview).toContain('ValuationLedger')
-    expect(proposal).toContain('ValuationLedger')
+    /**
+     * ⚠️ A proposta não usa só o mesmo razão: usa o mesmo **invólucro** — permissão, esqueleto e
+     * vazio incluídos (spec 111 D2). É a convergência inteira, não só a do componente de baixo.
+     */
+    expect(proposal).toContain('<TripValuationPreview')
   })
 
   /** ⚠️ Nenhuma das duas tem componente próprio de conta ou de faixa. */
@@ -100,12 +104,17 @@ describe('manual creation convergence contract', () => {
   })
 
   /**
-   * ⚠️ **A proposta não oferece reordenar.** Quem ordenou foi o roteirizador, e setas que reordenam
-   * sem recalcular dariam um roteiro que a conta ao lado não descreve (D6).
+   * ⚠️ **A proposta reordena, e a conta acompanha.** A D6 recusava as setas porque a conta ao lado
+   * era a do roteirizador. Hoje o expandido converge com a criação manual por inteiro: a mesma
+   * prévia de conta, alimentada pela mesma ordem que o mapa e a carga leem.
    */
-  test('a proposta não oferece reordenar a parada no mapa', async () => {
+  test('a proposta reordena, e a conta é a prévia da mesma ordem', async () => {
     const proposal = await readSource(PROPOSAL)
 
-    expect(proposal.includes('onOrderChange=')).toBe(false)
+    expect(proposal).toContain('onOrderChange={onOrderChange}')
+    expect(proposal).toContain('useTripValuationPreview({')
+    expect(proposal).toContain('<TripValuationPreview preview={valuationPreview} />')
+    /** A conta da sugestão, medida na matriz sem nós, não volta para o expandido. */
+    expect(proposal).not.toContain('valuation?.valuation ?? null')
   })
 })

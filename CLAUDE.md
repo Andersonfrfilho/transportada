@@ -931,11 +931,15 @@ valor sem a marca. ⚠️ A referência é **constante**, não tabela: dez linha
 do código não pagam migration, seed e exceção de isolamento. E `toco` é caminhão de **dois** eixos —
 o `truck` é que tem três; nas três praças medidas isso é R$ 65,60, não R$ 98,40.
 
-⚠️ **A viagem já criada ainda não carrega o pedágio dela** (T11 aberta). Ela persiste
-`planned_distance` e nenhum nó, então calcular agora parearia a rota de hoje com a distância de
-ontem — a mesma divergência da D4 dentro de um painel só. O caminho é congelar o pedágio junto com o
-roteiro, como `trip_dispatch_snapshots` faz. Até lá, a conta da viagem mostra o lançamento manual, e
-**o manual sempre vence o calculado**: ele é pagamento registrado, o outro é projeção.
+⚠️ **A viagem criada carrega o pedágio dela, congelado no planejamento.** `planTripRoute` chama
+`tollFreezer.freeze`, que pede a rota ao OSRM com nós e grava `trips.planned_toll` e
+`planned_toll_frozen_at` — inclusive no caminho do aceite da proposta, e de novo a cada reordenar e
+planejar. Medido em 2026-09-10: **16 de 32** viagens com pedágio congelado (a `3b2858a1`, RTD-5J78,
+R$ 38,40 em 3 praças). Uma nota antiga dizia o contrário (T11) e estava errada. Quando o congelamento
+**não** produz nada — OSRM ausente, falha engolida no `catch` de `plan-trip-route.use-case.ts`, eixo
+desconhecido, viagem anterior à regra —, a conta cai em `NOT_RECORDED`, indistinguível de "ninguém
+lançou"; dar a cada causa a sua lacuna é trabalho aberto. **O manual sempre vence o calculado**: ele é
+pagamento registrado, o outro é projeção.
 
 **A rota mais barata pode ser a que tem mais pedágio** (spec 096). `alternatives=true` funciona no
 OSRM em MLD, mas só **uma de quatro** rotas medidas ofereceu segunda opção. Onde ofereceu — Ribeirão
@@ -1683,6 +1687,13 @@ reivindicação da spec 107 D2 — consumir a sugestão por um id errado queimar
 `geocodingPrecision` — `coverableStopsFromApi` lia 4 de 12) e o `endPolicy`, que vem em
 `assumptions`. Nenhum dos dois precisou de mudança de API, e por isso não têm janela de deploy.
 
+⚠️ **A ordem se troca à mão, e o aceite a leva** (spec 111, reverte a D6). As setas ao lado da lixeira
+reordenam por caminhão; mapa, planta de carga e conta leem a mesma `stopOrder` e recalculam juntos. O
+aceite recebe `stopOrderByVehicle` com a regra de `orderStopKeys` — parada não mencionada vai ao fim,
+chave desconhecida é ignorada (o degrau `cidade:` da tela), parada de **outro** caminhão é 400 antes
+da reivindicação. Ordem trocada nasce **sem horário previsto**: ele é gravado casado por endereço, na
+ordem do solver. ⚠️ O corpo é `.strict()`: **a API sobe antes do front**.
+
 ⚠️ **Tirar destino é marcação, não destruição.** A parada fica **riscada com "Desfazer"** e o aceite
 é recusado até o recálculo — que é **da proposta**, não de um caminhão, porque mexer no maço muda a
 distribuição inteira. **Mover destino para outro caminhão não existe**: o solver redistribui e
@@ -1697,11 +1708,14 @@ a frase é composta na tela, que é quem traduz e formata. `valuationSteps.servi
 mesma regra, e `test/trip/manual-creation-convergence.contract.ts` reprova a segunda implementação —
 ela **compila igual**, e só aparece quando os dois números discordam.
 
-⚠️ **O pedágio por trecho existe na criação manual e não na proposta.** `RouteGeometryTollBooth` tem
-`legIndex` (anotação de nós do OSRM agrupada por trecho) e `TripAssemblyMap` já filtra com
-`tollRows(legIndex)`; a sugestão **não persiste os `nodeIds`**, então a linha do tempo da proposta vai
-sem praça nenhuma, de propósito. Casar por coordenada é o que a spec 090 recusa: a polilinha é
-simplificada, e as cancelas gêmeas dos dois sentidos cairiam no mesmo trecho.
+⚠️ **O pedágio da proposta vem do mapa, não da sugestão** (spec 111). O expandido de cada viagem
+proposta desenha `TripAssemblyMap`, que pede a rota ao OSRM com nós e imprime as praças por trecho — e
+a conta ao lado é `useTripValuationPreview`, que tira distância **e** pedágio dessa mesma chamada. Antes
+o razão era a conta da sugestão, medida na matriz do solver: o `/table` do OSRM **não tem nós**, então
+o mapa imprimia R$ 71,40 e o razão logo abaixo dizia "pedágio só é calculado depois da viagem criada".
+⚠️ As **linhas recolhidas e a barra de totais** ainda leem a conta da sugestão, sem pedágio — até
+irem à prévia, linha recolhida e expandido podem discordar em pedágio e distância. Pedágio na sugestão
+em si exige `/route?annotations=nodes` por veículo no worker, e é spec própria.
 
 ⚠️ **`var(--x)` sem definição apaga a declaração inteira**, sem erro e sem console. Medido em
 2026-09-09: **59 declarações descartadas em 5 arquivos**, com onze tokens fantasmas — o painel da

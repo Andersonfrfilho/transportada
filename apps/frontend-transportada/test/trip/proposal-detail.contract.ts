@@ -17,7 +17,11 @@ describe('proposal detail contract', () => {
 
     expect(source).toContain('useTripCargoPreview')
     expect(source).toContain('<TripCargoPanel')
-    expect(source).toContain('<ValuationLedger')
+    /**
+     * A conta entra por `TripValuationPreview` — o **mesmo** componente da criação manual, que
+     * renderiza o `ValuationLedger` por dentro (spec 111 D2). Uma conta própria aqui divergiria calada.
+     */
+    expect(source).toContain('<TripValuationPreview')
     /**
      * ⚠️ **Uma lista só do dia.** O expandido teve duas — o mapa da montagem e uma linha do tempo
      * própria —, e elas contavam a mesma sequência: o operador lia "SAO JOAQUIM DA BARRA · 1 nota"

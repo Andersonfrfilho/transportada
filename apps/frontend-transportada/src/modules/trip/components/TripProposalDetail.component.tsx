@@ -8,13 +8,14 @@ import {
   formatDuration,
 } from '@/modules/routing/shared/suggestionValuation.service'
 import type { SuggestionVehicleValuation } from '@/modules/routing/shared/suggestionValuation.service'
-import { ValuationLedger } from '@/modules/trip-financials/components/ValuationLedger.component'
+import { useTripValuationPreview } from '@/modules/trip-financials/hooks/useTripValuationPreview.hook'
 
 import { useTripCargoPreview } from '../hooks/useTripCargoPreview.hook'
 import { toAssemblyMapNote } from '../shared/assemblyMapNote.service'
 import { buildProposalStopOrder, type ProposalVehicleView } from '../shared/proposalView.service'
 import type { TripCandidateDocument } from '../shared/trip.types'
 import { TripAssemblyMap } from './TripAssemblyMap.component'
+import { TripValuationPreview } from './TripValuationPreview.component'
 import { TripCargoPanel } from './TripCargoPanel.component'
 import styles from '../styles/trip.module.css'
 
@@ -25,6 +26,9 @@ type TripProposalDetailProps = Readonly<{
    * sabe onde o caminhão encosta é a nota, que a tela já carregou para montar o pedido.
    */
   documents: readonly TripCandidateDocument[]
+  /** A ordem escolhida à mão para esta viagem. `null` é ninguém mexeu, e vale a do roteirizador. */
+  manualOrder: null | readonly string[]
+  onOrderChange: (order: readonly string[]) => void
   onRemoveStop: (nfeDocumentIds: readonly string[]) => void
   onUndoRemoveStop: (nfeDocumentIds: readonly string[]) => void
   pendingRemovals: ReadonlySet<string>
@@ -43,6 +47,8 @@ type TripProposalDetailProps = Readonly<{
  */
 export function TripProposalDetail({
   documents,
+  manualOrder,
+  onOrderChange,
   onRemoveStop,
   onUndoRemoveStop,
   pendingRemovals,
@@ -59,7 +65,7 @@ export function TripProposalDetail({
    * dois ranqueiam por `cidade|CEP|número`. Enquanto isto era `view.cities` — rótulo —, nada casava
    * e a planta desenhava o baú na ordem em que as notas chegaram.
    */
-  const stopOrder = buildProposalStopOrder({
+  const proposedOrder = buildProposalStopOrder({
     documentsById: new Map(
       documents.map((document) => [
         document.id,
@@ -72,8 +78,24 @@ export function TripProposalDetail({
     ),
     stops: view.stops,
   })
+  /** A escolhida à mão vence; sem ela, a do roteirizador. É esta que o mapa, a carga e a conta leem. */
+  const stopOrder = manualOrder ?? proposedOrder
   const cargo = useTripCargoPreview({
     driverIds: valuation?.driverId === null || valuation === null ? [] : [valuation.driverId],
+    nfeDocumentIds: documentIds,
+    permissions,
+    stopOrder,
+    vehicleId: view.vehicleId,
+  })
+
+  /**
+   * ⚠️ **A conta desta viagem sai da mesma rota que o mapa desenha** — a prévia da criação manual,
+   * alimentada pela mesma ordem. Ela era a conta da sugestão, medida na matriz do solver: sem os
+   * nós do OSRM, e por isso sem pedágio, enquanto o mapa logo acima já imprimia o pedágio da rota.
+   * Duas contas na mesma tela, e só a de baixo mentia. Reordenar recalcula as duas juntas.
+   */
+  const valuationPreview = useTripValuationPreview({
+    driverIds: valuation === null || valuation.driverId === null ? [] : [valuation.driverId],
     nfeDocumentIds: documentIds,
     permissions,
     stopOrder,
@@ -98,14 +120,22 @@ export function TripProposalDetail({
       <VehicleIdentityBand
         facts={[
           { label: t('proposal.deliveries'), value: String(view.deliveries) },
-          {
-            label: t('proposal.time'),
-            value: formatDuration(view.durationSeconds) ?? t('proposal.unknown'),
-          },
-          {
-            label: t('proposal.totalDistance'),
-            value: formatDistance(view.distanceMeters) ?? t('proposal.unknown'),
-          },
+          /**
+           * ⚠️ Tempo e rodagem são **do roteirizador**, na ordem dele. Com a ordem trocada à mão eles
+           * descreveriam outro caminho — saem daqui, e o mapa abaixo mede a ordem nova e os imprime.
+           */
+          ...(manualOrder === null
+            ? [
+                {
+                  label: t('proposal.time'),
+                  value: formatDuration(view.durationSeconds) ?? t('proposal.unknown'),
+                },
+                {
+                  label: t('proposal.totalDistance'),
+                  value: formatDistance(view.distanceMeters) ?? t('proposal.unknown'),
+                },
+              ]
+            : []),
         ]}
         label={view.vehicleLabel}
         plate={view.plate}
@@ -114,19 +144,22 @@ export function TripProposalDetail({
       />
 
       {/*
-        ⚠️ **Sem `onOrderChange`**: quem ordenou foi o roteirizador, e oferecer setas que reordenam
-        sem recalcular daria um roteiro que a conta ao lado não descreve (spec 110 D6). Remover
-        parada continua existindo — ela é marcação, e o aceite fica travado até o recálculo.
+        ⚠️ **As setas reordenam e recalculam.** A D6 da spec 110 as recusou porque a conta ao lado
+        era a do roteirizador e não acompanharia a ordem nova. Hoje a conta é a prévia desta viagem,
+        alimentada pela mesma `stopOrder` do mapa e da carga: reordenar mede o caminho novo, o
+        pedágio dele e a arrumação do baú. Remover parada continua sendo outra coisa — ela muda o
+        maço, e o aceite fica travado até o recálculo da proposta.
       */}
       {mapNotes.length === 0 ? null : (
         <TripAssemblyMap
           nearby={[]}
+          onOrderChange={onOrderChange}
           onStopRemove={onRemoveStop}
           onStopUndoRemove={onUndoRemoveStop}
           order={stopOrder}
           /** Spec 110 D6: a parada marcada fica **riscada com "Desfazer"**, nunca some. */
           removedNoteIds={pendingRemovals}
-          revenueLines={valuation?.valuation.revenueLines}
+          revenueLines={valuationPreview.valuation?.revenueLines}
           selected={mapNotes}
           vehicleId={view.vehicleId}
         />
@@ -144,7 +177,7 @@ export function TripProposalDetail({
 
       <section>
         <h4 className={styles.hint}>{t('proposal.accountTitle')}</h4>
-        <ValuationLedger valuation={valuation?.valuation ?? null} />
+        <TripValuationPreview preview={valuationPreview} />
       </section>
     </>
   )

@@ -108,6 +108,16 @@ export function useTripRouteAssembly(
    * recorte que o solver não faz.
    */
   const [pendingRemovals, setPendingRemovals] = useState<ReadonlySet<string>>(new Set())
+  /**
+   * A ordem escolhida à mão nas setas, por veículo. Veículo ausente é a ordem do roteirizador.
+   *
+   * ⚠️ Ela é **por caminhão**, ao contrário da remoção: mexer na ordem de um não muda o maço nem a
+   * distribuição, só o caminho daquele caminhão — e por isso ela não trava o aceite nem pede
+   * recálculo da proposta. Quem recalcula é a prévia daquela viagem, que já recebe a ordem.
+   */
+  const [orderByVehicle, setOrderByVehicle] = useState<ReadonlyMap<string, readonly string[]>>(
+    new Map(),
+  )
   const [pool, setPool] = useState<readonly TripCandidateDocument[]>([])
 
   const documentsQuery = useQuery({
@@ -205,6 +215,7 @@ export function useTripRouteAssembly(
       setOpenVehicleId(vehicleIdsOf(result)[0] ?? null)
       /** A proposta nova já nasce sem o que foi removido: a marcação cumpriu o papel dela. */
       setPendingRemovals(new Set())
+      setOrderByVehicle(new Map())
     },
   })
 
@@ -223,6 +234,18 @@ export function useTripRouteAssembly(
       const accepted = await getTripClient().acceptMultiVehicleSuggestion({
         suggestionId,
         ...(vehicleIds === undefined ? {} : { vehicleIds }),
+        /**
+         * ⚠️ **Sem isto as setas mentem**: a viagem nasceria com a ordem do roteirizador. Só vai o
+         * caminhão que alguém reordenou — os outros seguem a do solver, com o horário previsto.
+         */
+        ...(orderByVehicle.size === 0
+          ? {}
+          : {
+              stopOrderByVehicle: [...orderByVehicle].map(([vehicleId, orderedAddressKeys]) => ({
+                orderedAddressKeys,
+                vehicleId,
+              })),
+            }),
       })
 
       return {
@@ -237,6 +260,7 @@ export function useTripRouteAssembly(
       setSelectedVehicleIds(new Set())
       setOpenVehicleId(null)
       setPendingRemovals(new Set())
+      setOrderByVehicle(new Map())
       setIsOpen(false)
       setDraft(EMPTY_TRIP_ROUTE_ASSEMBLY)
       setPool([])
@@ -270,6 +294,9 @@ export function useTripRouteAssembly(
     /** ⚠️ Enquanto houver remoção pendente o aceite é recusado: o que está na tela não é o que sairia. */
     isProposalEdited: pendingRemovals.size > 0,
     pendingRemovals,
+    orderByVehicle,
+    setVehicleOrder: (vehicleId: string, order: readonly string[]) =>
+      setOrderByVehicle((current) => new Map([...current, [vehicleId, order]])),
     markStopRemoved: (nfeDocumentIds: readonly string[]) =>
       setPendingRemovals((current) => new Set([...current, ...nfeDocumentIds])),
     undoStopRemoval: (nfeDocumentIds: readonly string[]) =>

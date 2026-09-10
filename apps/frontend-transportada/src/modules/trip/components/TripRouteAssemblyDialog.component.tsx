@@ -153,6 +153,8 @@ export function TripRouteAssemblyDialog({
               renderDetail={(view) => (
                 <TripProposalDetail
                   documents={assembly.pool}
+                  manualOrder={assembly.orderByVehicle.get(view.vehicleId) ?? null}
+                  onOrderChange={(order) => assembly.setVehicleOrder(view.vehicleId, order)}
                   onRemoveStop={assembly.markStopRemoved}
                   onUndoRemoveStop={assembly.undoStopRemoval}
                   pendingRemovals={assembly.pendingRemovals}

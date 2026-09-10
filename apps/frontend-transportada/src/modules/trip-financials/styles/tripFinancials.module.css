@@ -157,8 +157,14 @@
   border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);
 }
 
+/**
+ * ⚠️ **Verde é o que entra, vermelho é o que sai.** A receita era a única linha de total sem cor,
+ * entre uma despesa vermelha e um lucro verde — e o olho lia a conta pela metade.
+ */
 .ledgerRevenue dd {
+  color: var(--color-ready);
   font-size: 1.05rem;
+  font-weight: 600;
 }
 
 .ledgerTotal {
