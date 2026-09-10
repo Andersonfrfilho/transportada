@@ -905,6 +905,8 @@ function packSlice(input: {
     MAX_SEAT_ATTEMPTS,
     SEAT_ATTEMPTS_PER_ROW * Math.ceil(slice.widthM / HEIGHT_MAP_CELL_M),
   )
+  const deepAxis = input.stackBeforeRow === true ? 'width' : 'depth'
+  const deadSpace = createDeadSpaceTracker({ boxes: input.boxes, deepAxis, slice })
 
   let frozenStop: number | null = null
   for (const box of ordered) {
@@ -915,11 +917,7 @@ function packSlice(input: {
     }
 
     for (let unit = 0; unit < box.count; unit += 1) {
-      const slot = fitSlot({
-        bed: slice,
-        box,
-        deepAxis: input.stackBeforeRow === true ? 'width' : 'depth',
-      })
+      const slot = fitSlot({ bed: slice, box, deepAxis })
       if (slot === null) {
         /** Não cabe na fatia: só é "maior que o baú" se não couber nem no baú inteiro. */
         if (fitSlot({ bed: input.bed, box }) === null) {
@@ -946,6 +944,60 @@ function packSlice(input: {
        */
       let rest: { readonly topM: number; readonly xM: number } | null = null
       const shapeKey = `${slot.depthM}|${slot.widthM}|${slot.heightM}`
+      /**
+       * O assento que as duas buscas aceitam — a do espaço morto e a da fileira. Uma regra só: a caixa
+       * pequena não ganha exceção nenhuma por ir para cima.
+       */
+      const acceptSeat =
+        (yM: number) =>
+        ({ topM, xM }: { readonly topM: number; readonly xM: number }): boolean =>
+          xM + slot.depthM <= slice.lengthM + 1e-9 &&
+          /**
+           * ⚠️ **A esbeltez é conferida na altura do assento, não no contador de camadas.** O
+           * contador é do cursor e zera quando a fronteira avança; o mapa de apoio, não — ele
+           * continua empilhando sobre o que já está lá. Medido: com a trava só no contador a carga
+           * voltou a subir 1,20 m numa pilha que a regra limitava a 0,60 m.
+           *
+           * ⚠️ **A esbeltez só rege a coluna livre.** Cercada de carga e parede, a pilha não tem para
+           * onde girar — e recusar altura ali empurraria a carga para o fundo do baú sem ganhar
+           * segurança nenhuma.
+           */
+          isStandingUp({
+            isRestrainedUpTo: (restraintM) =>
+              support.isConfined({ slot, topM: restraintM, xM, yM }),
+            securesCargo: input.securesCargo === true,
+            slot,
+            topM,
+          }) &&
+          /**
+           * ⚠️ **Spec 115: a entrega mais cedo não senta atrás de uma mais tardia mais alta que a base
+           * dela.** Subir para uma fileira do fundo é legítimo — é o bloco se enchendo —, mas se entre
+           * ela e a porta houver carga de parada posterior acima do assento, ela só sai tirando essa
+           * carga primeiro. Medido: 1 par em RTC-4H67 e 1 em RTD-5J78, 4 cm de sobreposição com caixas
+           * de 20 e 21 cm de altura.
+           */
+          (input.deliveryOrder !== true || !support.isShadowed({ slot, topM, xM, yM }))
+
+      const dead = deadSpace.find({ accept: acceptSeat, frontierM: rowFrontierM, slot, support })
+      if (dead !== null) {
+        placed.push({
+          depthM: round(slot.depthM),
+          heightM: round(slot.heightM),
+          isFragile: box.isFragile === true,
+          label: box.label,
+          layer: cursor.layer,
+          reasons: resolveReasons(box),
+          source: box.source,
+          stopSequence: box.stopSequence,
+          widthM: round(slot.widthM),
+          xM: round(dead.xM),
+          yM: round(dead.yM),
+          zM: round(dead.topM),
+        })
+        support.stamp({ slot, topM: dead.topM + slot.heightM, xM: dead.xM, yM: dead.yM })
+        deadSpace.noteStamp(dead.topM + slot.heightM)
+        continue
+      }
       let guard = failedAt.get(shapeKey) === placed.length ? seatAttempts : 0
       /**
        * ⚠️ **Uma camada varrida inteira sem lugar encerra a busca.** Sem isto o cursor subia de
@@ -1013,33 +1065,7 @@ function packSlice(input: {
          * carga saía `bedFull` com o baú a 38% (spec 115).
          */
         const found = support.seat({
-          accept: ({ topM, xM }) =>
-            xM + slot.depthM <= slice.lengthM + 1e-9 &&
-            /**
-             * ⚠️ **A esbeltez é conferida na altura do assento, não no contador de camadas.** O
-             * contador é do cursor e zera quando a fronteira avança; o mapa de apoio, não — ele
-             * continua empilhando sobre o que já está lá. Medido: com a trava só no contador a carga
-             * voltou a subir 1,20 m numa pilha que a regra limitava a 0,60 m.
-             *
-             * ⚠️ **A esbeltez só rege a coluna livre.** Cercada de carga e parede, a pilha não tem
-             * para onde girar — e recusar altura ali empurraria a carga para o fundo do baú sem
-             * ganhar segurança nenhuma.
-             */
-            isStandingUp({
-              isRestrainedUpTo: (restraintM) =>
-                support.isConfined({ slot, topM: restraintM, xM, yM: rowYM }),
-              securesCargo: input.securesCargo === true,
-              slot,
-              topM,
-            }) &&
-            /**
-             * ⚠️ **Spec 115: a entrega mais cedo não senta atrás de uma mais tardia mais alta que a
-             * base dela.** Subir para uma fileira do fundo é legítimo — é o bloco se enchendo —, mas
-             * se entre ela e a porta houver carga de parada posterior acima do assento, ela só sai
-             * tirando essa carga primeiro. Medido: 1 par em RTC-4H67 e 1 em RTD-5J78, 4 cm de
-             * sobreposição com caixas de 20 e 21 cm de altura.
-             */
-            (input.deliveryOrder !== true || !support.isShadowed({ slot, topM, xM, yM: rowYM })),
+          accept: acceptSeat(rowYM),
           heightM: slice.heightM,
           slot,
           xM: cursor.xM,
@@ -1094,6 +1120,7 @@ function packSlice(input: {
         zM: round(rest.topM),
       })
       support.stamp({ slot, topM: rest.topM + slot.heightM, xM: cursor.xM, yM: cursor.yM })
+      deadSpace.noteStamp(rest.topM + slot.heightM)
       insertEdge(rowEnds, snapToCell(cursor.yM + slot.widthM))
       cursor = {
         ...cursor,
@@ -1831,6 +1858,119 @@ function braceGapOf(slot: Slot): number {
   const baseM = Math.min(slot.depthM, slot.widthM)
 
   return (baseM * STABLE_STACK_SLENDERNESS) / Math.hypot(STABLE_STACK_SLENDERNESS, 1)
+}
+
+type SupportMap = ReturnType<typeof createSupportMap>
+
+type SeatCandidate = { readonly topM: number; readonly xM: number }
+
+/**
+ * **A caixa pequena vai para onde a caixa da carga não cabe** (spec 117).
+ *
+ * ⚠️ Uma caixa medida de 10 cm entrava antes das presumidas da própria parada — a medida precede a
+ * pegada (095 G002) — e sentava no meio da fileira. As presumidas seguintes andavam 10 cm para o lado,
+ * a chaminé que sobrava tirava o apoio da fileira de trás naquela coluna, e cada camada acima perdia
+ * uma caixa: a pirâmide 8, 8, 8, 8, 7, 7, 7, 6, 6 voltava no meio do bloco. Medido no Atego de 85
+ * paradas: 65 das 135 caixas fora eram isso, e 17 cubos entre as presumidas das mesmas paradas
+ * derrubavam 251 delas.
+ *
+ * Quem carrega faz o óbvio: a caixa pequena vai **em cima da pilha que já chegou ao teto útil**, na
+ * folga que a caixa da carga não usa. É isso que esta busca procura antes da comum — um assento cuja
+ * folga até o teto fique menor que a altura da caixa dominante. Nenhuma regra afrouxa: o assento
+ * passa pela mesma esbeltez, sombra e fim do baú que a busca comum confere.
+ *
+ * ⚠️ **Pequena é pegada em células menor que a da dominante**, não metro: a caixa de 0,36 × 0,26 m
+ * ocupa as mesmas células da presumida de 0,371 × 0,261 e é tratada como ela. A dominante é a forma
+ * com mais caixas na fatia.
+ *
+ * ⚠️ O mapa só cresce, então a busca que falhou para uma forma falha de novo até algum topo novo entrar
+ * na faixa onde espaço morto pode surgir — é a mesma memória de `failedAt`, com a versão do mapa no
+ * lugar da contagem de caixas.
+ */
+function createDeadSpaceTracker(input: {
+  readonly boxes: readonly PlacementBox[]
+  readonly deepAxis: 'depth' | 'width'
+  readonly slice: Readonly<{ heightM: number; lengthM: number; widthM: number }>
+}): {
+  readonly find: (search: {
+    readonly accept: (yM: number) => (candidate: SeatCandidate) => boolean
+    readonly frontierM: number
+    readonly slot: Slot
+    readonly support: SupportMap
+  }) => (SeatCandidate & { readonly yM: number }) | null
+  readonly noteStamp: (topM: number) => void
+} {
+  const dominant = resolveDominantSlot(input)
+  const cellAreaOf = (slot: Slot): number => toCellEnd(slot.depthM) * toCellEnd(slot.widthM)
+  const isSmall = (slot: Slot): boolean =>
+    dominant !== null && cellAreaOf(slot) < cellAreaOf(dominant)
+  /**
+   * Abaixo desta altura, carimbar não cria espaço morto nem apoio para ele: o assento precisa de topo
+   * acima de `H − dominante − caixa`, e o apoio da coluna livre, de vizinha acima de três bases abaixo
+   * do topo dela.
+   */
+  const reachM = input.boxes.reduce((highest, box) => {
+    const slot = fitSlot({ bed: input.slice, box, deepAxis: input.deepAxis })
+    if (slot === null || !isSmall(slot)) return highest
+    return Math.max(highest, slot.heightM + stableStackHeightM(slot, false))
+  }, 0)
+  const bandFloorM = input.slice.heightM - (dominant?.heightM ?? 0) - reachM
+  const failedAt = new Map<string, number>()
+  let version = 0
+  let highestTopM = 0
+
+  return {
+    find: ({ accept, frontierM, slot, support }) => {
+      if (dominant === null || !isSmall(slot)) return null
+      if (highestTopM + slot.heightM <= input.slice.heightM - dominant.heightM + 1e-9) return null
+      const key = `${slot.depthM}|${slot.widthM}|${slot.heightM}`
+      if (failedAt.get(key) === version) return null
+
+      for (let yM = 0; yM + slot.widthM <= frontierM + 1e-9; yM = round(yM + HEIGHT_MAP_CELL_M)) {
+        const acceptRow = accept(yM)
+        const found = support.seat({
+          accept: (candidate) =>
+            input.slice.heightM - (candidate.topM + slot.heightM) < dominant.heightM - 1e-9 &&
+            acceptRow(candidate),
+          heightM: input.slice.heightM,
+          slot,
+          xM: 0,
+          yM,
+        })
+        if (found !== null) return { ...found, yM }
+      }
+      failedAt.set(key, version)
+
+      return null
+    },
+    noteStamp: (topM) => {
+      highestTopM = Math.max(highestTopM, topM)
+      if (topM > bandFloorM + 1e-9) version += 1
+    },
+  }
+}
+
+/** A forma com mais caixas na fatia, no encaixe que a varredura usaria. */
+function resolveDominantSlot(input: {
+  readonly boxes: readonly PlacementBox[]
+  readonly deepAxis: 'depth' | 'width'
+  readonly slice: Readonly<{ heightM: number; lengthM: number; widthM: number }>
+}): Slot | null {
+  const totals = new Map<string, { readonly box: PlacementBox; count: number }>()
+  for (const box of input.boxes) {
+    const key = `${String(box.lengthMm)}|${String(box.widthMm)}|${String(box.heightMm)}`
+    const entry = totals.get(key)
+    if (entry === undefined) totals.set(key, { box, count: box.count })
+    else entry.count += box.count
+  }
+  const dominant = [...totals.values()].reduce<{ box: PlacementBox; count: number } | null>(
+    (best, entry) => (best === null || entry.count > best.count ? entry : best),
+    null,
+  )
+
+  return dominant === null
+    ? null
+    : fitSlot({ bed: input.slice, box: dominant.box, deepAxis: input.deepAxis })
 }
 
 /**

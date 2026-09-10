@@ -2,7 +2,7 @@
 
 Referência viva do empacotador — `apps/api-transportada/src/trips/domain/cargo-placement.policy.ts`
 e `cargo-layout.policy.ts`. Cada regra aqui veio de um defeito **medido**, e o número ao lado é o
-número que a medição deu. Specs de origem: 085, 088, 094, 095, 099, 100, 113, 114, 115 e 116.
+número que a medição deu. Specs de origem: 085, 088, 094, 095, 099, 100, 113, 114, 115, 116 e 117.
 
 ## O que o desenho promete, e o que ele não promete
 
@@ -282,10 +282,26 @@ passou a mudar o resultado do Atego de forma **caótica** — 1417 caixas com 2,
 3,1 e 1043 com 2,8 —, e o RTC-4H67 cai de 481 para 438 em três delas. Escolher célula por carga é
 sobreajuste; ela fica em 5 cm, e o que o arredondamento custava era a pirâmide do Passo 4, não a área.
 
-⚠️ **Aberto:** o Atego de 85 paradas coloca **1282 de 1417** caixas a 62% do volume, 135 `bedFull`, e
-as sete paradas fora (1, 3, 4, 5, 7, 8 e 9) são as primeiras entregas. Duas perdas medidas: a fileira
-da porta sobe só três camadas (a porta não é parede, e é física), e no meio do bloco as caixas medidas
-de outro tamanho criam fileiras deslocadas meia caixa, cujo topo deixa de ser plano para a presumida.
+⚠️ **A caixa pequena vai para onde a caixa da carga não cabe** (spec 117). Uma caixa medida de 10 cm
+entrava antes das presumidas da própria parada, sentava no meio da fileira e empurrava as seguintes
+10 cm para o lado; a chaminé que sobrava tirava o apoio da fileira de trás e a pirâmide voltava no
+meio do bloco (8, 8, 8, 8, 7, 7, 7, 6, 6, 2). Medido sobre a planta final do Atego: nenhuma regra
+recusava lugar no meio — era topo não nivelado. Sintético nas mesmas 85 paradas: 1344 presumidas
+sozinhas, **1093** com um cubo a cada cinco paradas. Hoje a caixa de pegada em células menor que a da
+forma dominante procura primeiro um assento cuja folga até o teto seja menor que a altura da dominante
+(`createDeadSpaceTracker`), com as mesmas regras de assento. Atego: 1282 → **1347** de 1417; cubos a
+cada cinco: 1093 → 1300. Reordenar a medida pequena para depois das presumidas, apoiar a face por
+qualquer contato e rebaixar o salto de borda a segunda passada foram medidos e recusados (pioram ou não
+generalizam).
+
+⚠️ **O que sobra no Atego é a escada da porta, e ela não se afrouxa.** Sobre a planta final, só
+desligar a esbeltez colocaria mais caixa: 73, todas a menos de 1,3 m da porta. A fileira encostada
+nela sobe 3 camadas, a seguinte 6, a terceira 9 — 7 + 4 + 1 camadas de 8 caixas = 96 lugares.
+Contratos em `test/cargo-placement/dead-space.contract.ts`, incluindo o do teto de tentativas: com 64
+fixas, 111 caixas fora de 1396 num baú de 7,40 m.
+
+⚠️ **Limite do modelo, não da física:** com célula de 5 cm a caixa de 0,261 m ocupa 0,30 m e entram 8
+na largura em vez de 9. Resolver pede empacotar em coordenada contínua, spec própria.
 
 ---
 

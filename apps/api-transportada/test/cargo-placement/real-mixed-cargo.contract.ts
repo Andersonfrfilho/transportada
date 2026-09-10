@@ -183,6 +183,13 @@ describe('cargas reais de tamanhos misturados (spec 115)', () => {
    * ela recomeça da testeira a cada fronteira nova — e a memória de formato recusava as 431 gêmeas sem
    * procurar; e o vão de 7 cm até a parede lateral contava como face solta. Medido depois: 1282 de 1417
    * caixas, e o que ainda sai é das primeiras entregas, na porta, onde a pilha só sobe três vezes a base.
+   *
+   * ⚠️ Spec 117: o piso subiu de 1250 caixas e 8 paradas fora para o que a porta explica. Das 135 que
+   * saíam, 65 eram desarrumação — caixa medida pequena sentando no meio da fileira e deslocando as
+   * presumidas meia caixa, que tirava o apoio das colunas de trás e fazia pirâmide. Com a caixa pequena
+   * indo para o espaço onde a presumida não cabe: 1347 de 1417, e sobre a planta final só desligar a
+   * esbeltez da porta colocaria mais caixa (73, todas a menos de 1,3 m dela). O que sobra é a escada da
+   * porta: 7 + 4 + 1 camadas a menos, de 8 caixas cada.
    */
   test('o Atego de 85 paradas desenha quase tudo, e só as primeiras entregas ficam fora', () => {
     const plan = place(ATEGO)
@@ -190,10 +197,12 @@ describe('cargas reais de tamanhos misturados (spec 115)', () => {
     const missing = [...new Set(ATEGO.rows.map(([stop]) => stop))].filter(
       (stop) => !drawnStops.has(stop),
     )
+    const outside = plan.unplaced.reduce((total, entry) => total + entry.count, 0)
 
-    expect(drawnOf(plan).length).toBeGreaterThanOrEqual(1250)
-    expect(missing.length).toBeLessThanOrEqual(8)
-    for (const stop of missing) expect(stop).toBeLessThanOrEqual(10)
+    expect(drawnOf(plan).length).toBeGreaterThanOrEqual(1340)
+    expect(outside).toBeLessThanOrEqual((7 + 4 + 1) * 8)
+    expect(missing.length).toBeLessThanOrEqual(4)
+    for (const stop of missing) expect(stop).toBeLessThanOrEqual(5)
   })
 
   test('o Atego de 1417 caixas cabe no orçamento de 50 ms', () => {

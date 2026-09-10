@@ -650,7 +650,11 @@ tardia mais alta que a base dela (`isShadowed`). Contrato sobre as cargas reais 
 `test/cargo-placement/real-mixed-cargo.contract.ts`. ⚠️ Spec 116: o teto de tentativas por caixa
 cresce com as fileiras do baú (64 fixas desistiam antes da porta, e a memória de formato derrubava as
 gêmeas — 431 caixas no Atego), e **vão mais estreito que o giro da pilha (`3b/√10`) é apoio** — o de
-7 cm até a parede lateral travava cada fileira em pirâmide. Atego: 982 → 1282 de 1417.
+7 cm até a parede lateral travava cada fileira em pirâmide. Atego: 982 → 1282 de 1417. ⚠️ Spec 117:
+**a caixa pequena vai para onde a caixa da carga não cabe** — a medida de 10 cm entrava antes das
+presumidas da parada, deslocava a fileira e fazia pirâmide de novo; hoje ela procura primeiro o topo
+cuja folga até o teto é menor que a caixa dominante (`createDeadSpaceTracker`). Atego 1282 → 1347; as
+70 que sobram são a escada da porta, que não se afrouxa (contratos em `dead-space.contract.ts`).
 
 **Como as caixas são organizadas no baú está documentado por extenso em
 `docs/domain/cargo-placement.md`** — o arranjo em faixas ou em profundidade, a varredura que sobe
