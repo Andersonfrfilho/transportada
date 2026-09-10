@@ -63,6 +63,22 @@ describe('fichas de parada do plano de carga', () => {
     )
   })
 
+  /** Uma ficha por linha, e o número diz o que é. Pedido do operador em 2026-09-10. */
+  it('uma ficha por linha, com "N · ordem de entrega"', () => {
+    const component = readFileSync(
+      new URL('src/modules/trip/components/TripCargoLayers.component.tsx', APPLICATION_ROOT),
+      'utf8',
+    )
+    const css = readFileSync(
+      new URL('src/modules/trip/styles/trip.module.css', APPLICATION_ROOT),
+      'utf8',
+    )
+    const rule = css.slice(css.indexOf('.cargoStops {'))
+    expect(rule.slice(0, rule.indexOf('}'))).toContain('flex-direction: column')
+    expect(component).toContain("t('cargoLayers.chip.deliveryOrder', { sequence })")
+    expect(trip.cargoLayers.chip.deliveryOrder).toContain('ordem de entrega')
+  })
+
   it('lista todas as paradas, e a fora do desenho diz que está fora', () => {
     const component = readFileSync(
       new URL('src/modules/trip/components/TripCargoLayers.component.tsx', APPLICATION_ROOT),

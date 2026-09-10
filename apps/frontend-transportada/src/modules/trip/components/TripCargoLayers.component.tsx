@@ -380,7 +380,9 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
               a folha ao lado dizia só o número — quem estava no barracão casava as duas listas por
               nome de mercado para saber que caixa era de qual parada.
             */}
-              <span className={styles.cargoStopOrder}>{sequence}</span>
+              <span className={styles.cargoStopOrder}>
+                {t('cargoLayers.chip.deliveryOrder', { sequence })}
+              </span>
               {/*
               ⚠️ **A ordem de carregamento é o número que o galpão procura.** Ela era uma linha cinza
               pequena no meio da ficha; quem carrega lê a ficha de longe, com a caixa na mão.

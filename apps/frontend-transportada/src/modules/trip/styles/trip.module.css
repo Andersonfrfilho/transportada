@@ -1998,9 +1998,13 @@
 }
 
 /** As paradas como fichas: clicar acende só ela, clicar de novo devolve o baú inteiro. */
+/**
+ * Uma ficha por linha, na ordem de carregamento. ⚠️ Com `flex-wrap` as fichas curtas se juntavam na
+ * mesma linha, e a lista deixava de ser lida de cima para baixo — que é como o galpão a usa.
+ */
 .cargoStops {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: var(--space-2);
   margin-top: var(--space-3);
 }

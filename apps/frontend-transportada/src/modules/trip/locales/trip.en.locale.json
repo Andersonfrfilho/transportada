@@ -107,11 +107,12 @@
     "bedFromReference": "The scale comes from the vehicle type catalogue, not from the fiche: this truck has no bed measurements, and the same type varies by up to double.",
     "chip": {
       "counts": "{{boxes}} boxes",
+      "deliveryOrder": "{{sequence}} · delivery order",
       "loadEarlier": "Load {{label}} earlier",
       "loadLater": "Load {{label}} later",
       "loading": "load {{position}} of the run",
       "loadingBadge": "load {{position}}",
-      "notDrawn": "not in the drawing — did not fit the arrangement shown",
+      "notDrawn": "not in the drawing — the reason is in the list below it",
       "presumed": "{{count}} presumed",
       "split": "{{count}} split"
     },
