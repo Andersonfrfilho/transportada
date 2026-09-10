@@ -74,8 +74,19 @@ const DOCUMENT_PAGE = {
   page: { nextCursor: null },
 } as const
 
+/**
+ * ⚠️ `freeDocuments` existe porque a montagem de roteiro **só oferece nota livre**
+ * (`loadAvailableTripDocuments` filtra `tripId === null`). O molde daqui sai com `tripId`
+ * preenchido de propósito — é a afirmação da spec 065 D4b, de que nota que saiu numa viagem
+ * continua entrando no lote —, e reusá-lo cru no diálogo de montar roteiro dava tabela vazia com
+ * 200 na rede: a caixa "selecionar todas" existia e não marcava nada.
+ */
 function buildDocumentPage(
-  input: Readonly<{ blockedDocumentCount: number; documentCount: number }>,
+  input: Readonly<{
+    blockedDocumentCount: number
+    documentCount: number
+    freeDocuments: boolean
+  }>,
 ): unknown {
   const template = DOCUMENT_PAGE.data[0]
   return {
@@ -86,6 +97,7 @@ function buildDocumentPage(
       nfseBlockReason: index < input.blockedDocumentCount ? MISSING_WEIGHT_REASON : null,
       id: `${template.id.slice(0, -3)}${String(index).padStart(3, '0')}`,
       number: String(index + 1),
+      ...(input.freeDocuments ? { tripId: null, tripStatus: null } : {}),
     })),
     page: { nextCursor: null },
   }
@@ -298,6 +310,7 @@ async function registerNfeMocks(
   input: Readonly<{
     blockedDocumentCount: number
     documentCount: number
+    freeDocuments: boolean
     page: Page
     state: MockState
   }>,
@@ -340,6 +353,7 @@ async function registerNfeMocks(
   const documentPage = buildDocumentPage({
     blockedDocumentCount: input.blockedDocumentCount,
     documentCount: input.documentCount,
+    freeDocuments: input.freeDocuments,
   })
   await input.page.route(/\/nfe-documents(?:\?.*)?$/, async (route) => {
     await fulfillJson(route, documentPage)
@@ -384,6 +398,8 @@ export async function mockNfeWorkspaceApi(
   input: Readonly<{
     blockedDocumentCount?: number
     documentCount?: number
+    /** As notas saem livres de viagem — é o que a montagem de roteiro consegue oferecer. */
+    freeDocuments?: boolean
     page: Page
     permissions: MockPermissions
   }>,
@@ -418,6 +434,7 @@ export async function mockNfeWorkspaceApi(
     registerNfeMocks({
       blockedDocumentCount: input.blockedDocumentCount ?? 0,
       documentCount: input.documentCount ?? 1,
+      freeDocuments: input.freeDocuments ?? false,
       page: input.page,
       state,
     }),

@@ -1493,6 +1493,8 @@ test('a proposta se revisa dentro do diálogo de montar roteiro, viagem por viag
   /** As notas disponíveis vêm da listagem de NF-e — é o mesmo carregador dos dois modais. */
   await mockNfeWorkspaceApi({
     documentCount: 2,
+    /** ⚠️ Sem isso as notas chegam já em viagem, e a montagem — que só oferece nota livre — abre vazia. */
+    freeDocuments: true,
     page,
     permissions: ['fleet.read', 'trip.manage', 'trip.financials', 'invoices.read'],
   })
@@ -1511,11 +1513,14 @@ test('a proposta se revisa dentro do diálogo de montar roteiro, viagem por viag
    */
   await dialog.getByRole('button', { name: 'Buscar notas' }).click()
   await dialog.getByRole('checkbox', { name: 'Selecionar todas da página' }).check()
+  await dialog.getByRole('button', { name: 'Motoristas', exact: true }).click()
+  await page.getByRole('option', { name: /Motorista da Casa/u }).click()
+  await dialog.getByRole('button', { name: 'Motoristas', exact: true }).click()
   await dialog.getByRole('button', { name: 'Veículos', exact: true }).click()
   await page.getByRole('option', { name: /ABC1D23/u }).click()
   await dialog.getByRole('button', { name: 'Veículos', exact: true }).click()
 
-  await dialog.getByRole('button', { name: 'Montar roteiro pela busca de notas' }).click()
+  await dialog.getByRole('button', { name: 'Propor roteiro' }).click()
 
   /**
    * ⚠️ **O diálogo NÃO fecha.** Ele fechava, e a revisão aparecia na tela de viagens — quem acabou
@@ -1534,31 +1539,34 @@ test('a proposta se revisa dentro do diálogo de montar roteiro, viagem por viag
 
   /** As três ações por viagem são só de ícone, e por isso carregam rótulo acessível. */
   await expect(
-    dialog.getByRole('button', { name: 'Aceitar só esta viagem e criá-la agora' }),
+    dialog.getByRole('button', { name: 'Aceitar só esta viagem e criá-la agora' }).first(),
   ).toBeVisible()
-  await expect(dialog.getByRole('button', { name: /Descartar esta viagem/u })).toBeVisible()
+  await expect(dialog.getByRole('button', { name: /Descartar esta viagem/u }).first()).toBeVisible()
 
-  /** Desmarcar muda o rótulo do aceite e diz o que volta para o maço. */
-  await dialog
-    .getByRole('checkbox', { name: /Aceitar a viagem/u })
-    .first()
-    .uncheck()
-  await expect(dialog.getByRole('button', { name: 'Nenhuma viagem marcada' })).toBeDisabled()
-  await expect(dialog.getByText(/voltam para o maço/u)).toBeVisible()
-  await dialog
-    .getByRole('checkbox', { name: /Aceitar a viagem/u })
-    .first()
-    .check()
-
-  /** O expandido: faixa do veículo, o dia em ordem e o razão com a derivação. */
-  await dialog
-    .getByRole('button', { name: /ABC1D23/u })
-    .first()
-    .click()
+  /**
+   * O expandido: faixa do veículo, o dia em ordem e o razão com a derivação. ⚠️ **A primeira viagem
+   * já nasce aberta** — chegar numa lista toda fechada obrigaria um clique antes de qualquer
+   * leitura —, então o clique aqui **fecha**, e é assim que ele se prova.
+   */
+  const trigger = dialog.getByRole('button', { name: /ABC1D23/u }).first()
+  await expect(dialog.getByText('Roteiro proposto')).toBeVisible()
+  await trigger.click()
+  await expect(dialog.getByText('Roteiro proposto')).toHaveCount(0)
+  await trigger.click()
   await expect(dialog.getByText('Roteiro proposto')).toBeVisible()
   await expect(dialog.getByText('Conta prevista')).toBeVisible()
   await expect(dialog.getByText(/zona 1\.002/u)).toBeVisible()
   await expect(dialog.getByText(/2,8000 km\/l|2\.8000 km\/l/u)).toBeVisible()
+
+  /**
+   * Desmarcar muda o rótulo do aceite e diz o que volta para o maço. ⚠️ A frase da sobra só existe
+   * com **parte** marcada: com nada marcado nada é criado, e o botão diz isso sozinho.
+   */
+  const tripChecks = dialog.getByRole('checkbox', { name: /Aceitar a viagem/u })
+  await tripChecks.first().uncheck()
+  await expect(dialog.getByText(/voltam para o maço/u)).toBeVisible()
+  for (const check of await tripChecks.all()) await check.uncheck()
+  await expect(dialog.getByRole('button', { name: 'Nenhuma viagem marcada' })).toBeDisabled()
 
   /**
    * ⚠️ **Zero é ausência, nunca medida** (spec 088): a ficha do dublê não tem baú medido, e a faixa
