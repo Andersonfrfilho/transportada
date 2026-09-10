@@ -290,9 +290,13 @@ function Total({
   )
 }
 
-/** As **notas** da sobra, não as paradas: é a nota que o operador escolheu, e é ela que ele conta. */
+/**
+ * As **paradas** da sobra, porque é o que o rótulo diz.
+ *
+ * ⚠️ O painel de depois do aceite usa as mesmas chaves contando paradas, e imprimir notas aqui daria
+ * dois números diferentes sob a mesma frase — hoje eles coincidem (uma nota por parada nesta base),
+ * e o dia em que divergirem seria o dia em que ninguém saberia qual dos dois é o certo.
+ */
 function countStops(stops: readonly LeftoverStop[], reason: LeftoverReason): number {
-  return stops
-    .filter((stop) => stop.reason === reason)
-    .reduce((total, stop) => total + stop.nfeDocumentIds.length, 0)
+  return stops.filter((stop) => stop.reason === reason).length
 }
