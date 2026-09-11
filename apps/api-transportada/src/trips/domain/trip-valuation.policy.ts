@@ -101,13 +101,20 @@ export const VALUATION_GAPS = {
    */
   driverRateMissingForClass: 'DRIVER_RATE_MISSING_FOR_CLASS',
   /**
-   * Spec 124: o motorista não cobre a zona do destino, **e a tabela tem preço** para aquela zona e
-   * aquela classe. A parcela conta esse preço como `estimated` e o aviso manda acrescentar a zona na
-   * ficha dele — o preço da célula é o que a transportadora paga pela rota; o que falta é só alguém
-   * afirmar que aquele motorista roda ali. `detail` traz a zona, a classe e, com dois condutores, o
-   * nome de quem não cobre.
+   * Spec 124, com a semântica da 127: o motorista não cobre a zona do destino, e o preço é o da
+   * tabela para `(zona, classe)`. É **lembrete**, não marca de estimado: a parcela sai `measured`
+   * — a célula é o que a transportadora paga pela rota, coberta ou não —, e o aviso só pede para
+   * acrescentar a zona na ficha, que serve ao roteiro. O código não foi renomeado porque resultados
+   * congelados e os rótulos das duas telas já o carregam. `detail` traz a zona, a classe e, com dois
+   * condutores, o nome de quem não cobre.
    */
   driverZonePricedFromTable: 'DRIVER_ZONE_PRICED_FROM_TABLE',
+  /**
+   * Spec 127: duas ou mais rotas casam com o mesmo número máximo de cidades da viagem. O cálculo não
+   * escolhe calado — seria o defeito de ordem da 086 com outra roupa. `detail` nomeia as zonas
+   * empatadas (`1.003 (FRANCA) | 7.001 (FRANCA)`), para o operador decidir.
+   */
+  driverRouteAmbiguous: 'DRIVER_ROUTE_AMBIGUOUS',
   /**
    * Spec 125: nenhum perfil de emissão rege a nota — nenhum casa, dois empatam, ou falta CNPJ a um
    * participante. É o `null` de `findEmissionProfile`, e nos três o conserto é a aba de perfis de

@@ -7,6 +7,7 @@ import {
   MONEY_SCALE,
   parseScaledDecimal,
 } from '../../shared/decimal.service.js'
+import type { ZoneLabel } from './trip-driver-zone.policy.js'
 import { VALUATION_GAPS, type TripCostParcel, type ValuationGap } from './trip-valuation.policy.js'
 
 /**
@@ -34,10 +35,10 @@ export type TripCrewMember = {
    */
   readonly routeGap?: null | ValuationGap
   /**
-   * Spec 124: `estimated` quando o preço veio da tabela para uma zona que a ficha do motorista não
-   * cobre. Ausente é `measured` — a zona está na ficha, e o preço é o que ela afirma.
+   * Spec 127: as zonas empatadas quando a causa é `DRIVER_ROUTE_AMBIGUOUS` — é o que o detalhe
+   * nomeia, para o operador decidir qual rota a viagem fez.
    */
-  readonly routeSource?: 'estimated' | 'measured'
+  readonly tiedZones?: readonly ZoneLabel[]
   /**
    * Spec 110 D7: **a zona que pagou, por extenso.** O id da zona é chave de banco e não diz nada a
    * ninguém; o código impresso (`1.002`) e a cidade que o decidiu — o destino mais distante — são o
@@ -127,10 +128,13 @@ export function buildTripDriverCost(crew: readonly TripCrewMember[]): TripCostPa
    */
   const [reference] = paidByRoute
   /**
-   * Spec 124 D3: um condutor com preço **da tabela** (zona fora da ficha dele) torna a parcela
-   * estimada, e o aviso nomeia a célula — e, com mais de um condutor, quem não cobre.
+   * Spec 124 D3, com a semântica da 127: um condutor sem a zona na ficha acende o lembrete, e ele
+   * nomeia a célula — e, com mais de um condutor, quem não cobre. A origem continua `measured`: o
+   * preço é o da tabela para a zona escolhida, e a ficha não o muda.
    */
-  const estimated = paidByRoute.find((member) => member.routeSource === 'estimated')
+  const uncovered = paidByRoute.find(
+    (member) => member.routeGap === VALUATION_GAPS.driverZonePricedFromTable,
+  )
 
   return {
     amount: formatScaledDecimal(total, MONEY_SCALE),
@@ -142,9 +146,9 @@ export function buildTripDriverCost(crew: readonly TripCrewMember[]): TripCostPa
       vehicleClass: reference?.vehicleClass ?? '',
     },
     detail:
-      estimated === undefined
+      uncovered === undefined
         ? null
-        : buildRateDetail({ member: estimated, namesDriver: crew.length > 1 }),
+        : buildRateDetail({ member: uncovered, namesDriver: crew.length > 1 }),
     /**
      * Há salário fora da conta, e a viagem carrega isso como lacuna — não para bloquear o número,
      * mas para a tela poder dizer "e mais um motorista da casa, que é custo do período".
@@ -153,13 +157,13 @@ export function buildTripDriverCost(crew: readonly TripCrewMember[]): TripCostPa
      * lacuna.
      */
     gap:
-      estimated !== undefined
+      uncovered !== undefined
         ? VALUATION_GAPS.driverZonePricedFromTable
         : salaried.length > 0
           ? VALUATION_GAPS.salariedCrewMember
           : null,
     kind: 'driver',
-    source: estimated === undefined ? 'measured' : 'estimated',
+    source: 'measured',
   }
 }
 
@@ -206,6 +210,11 @@ function buildRateDetail(input: {
   if (member === null) return null
 
   const parts: string[] = []
+  /** Spec 127: no empate não há zona decidida — as empatadas são a informação que resolve. */
+  const tiedZones = member.tiedZones ?? []
+  if (tiedZones.length > 0) {
+    parts.push(tiedZones.map((zone) => `${zone.code} (${zone.city})`).join(TIED_ZONES_SEPARATOR))
+  }
   const regionCode = (member.regionCode ?? '').trim()
   if (regionCode !== '') {
     const regionCity = (member.regionCity ?? '').trim()
@@ -229,4 +238,6 @@ function buildRateDetail(input: {
 const ZERO = '0.0000'
 /** O mesmo separador do `ledger.driverBasis`: a tela já lê zona · classe assim na parcela medida. */
 const DETAIL_SEPARATOR = ' · '
+/** Entre zonas empatadas: o `·` já separa zona de classe, e reusá-lo tornaria a leitura ambígua. */
+const TIED_ZONES_SEPARATOR = ' | '
 const ERROR_CODE_PREFIX = 'TRIP_DRIVER_COST'

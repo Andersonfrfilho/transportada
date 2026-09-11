@@ -48,7 +48,7 @@ function valuation(): TripValuation {
         detail: '3.000 (CAJURU) · vuc',
         gap: 'DRIVER_ZONE_PRICED_FROM_TABLE',
         kind: 'driver',
-        source: 'estimated',
+        source: 'measured',
       },
       {
         amount: '0.0000',
@@ -83,7 +83,8 @@ describe('valuation ledger advisory (spec 124)', () => {
     expect(driver?.amount).toBe('621.0000')
     expect(driver?.isAdvisory).toBe(true)
     expect(driver?.gap).toBe('DRIVER_ZONE_PRICED_FROM_TABLE')
-    expect(driver?.isEstimated).toBe(true)
+    /** Spec 127: a ficha do motorista não muda a origem — o preço da tabela é medido, e o aviso fica. */
+    expect(driver?.isEstimated).toBe(false)
   })
 
   test('a real gap still takes the place of the number', () => {

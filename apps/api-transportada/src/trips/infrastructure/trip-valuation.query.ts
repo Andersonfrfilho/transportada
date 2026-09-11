@@ -435,8 +435,8 @@ export class DrizzleTripValuationQuery {
     }))
 
     /**
-     * Spec 124: a zona **recusada** também tem o preço pedido. A célula `(zona, classe)` é o que a
-     * transportadora paga pela rota, coberta ou não; o que falta à recusada é só a linha na ficha.
+     * Spec 127: o preço é da zona escolhida pelas cidades da viagem, coberta ou não pela ficha do
+     * motorista — a cobertura serve ao roteiro, e aqui só acende o lembrete.
      */
     const rates = await this.readRatesByRegion({
       companyId: input.companyId,
@@ -445,37 +445,18 @@ export class DrizzleTripValuationQuery {
     })
 
     return zones.map(({ driver, zone }) => {
-      if ('gap' in zone && 'regionId' in zone) {
-        const tablePrice = rates.get(zone.regionId) ?? null
-
-        /**
-         * Com preço na tabela, a parcela conta o valor como **estimado** e avisa para acrescentar a
-         * zona na ficha. Sem preço nem na tabela, a lacuna da 123 continua — nada é inventado.
-         */
-        return {
-          cityToRegister: null,
-          driverId: driver.driverId,
-          driverName: driver.driverName,
-          paymentModel: driver.paymentModel,
-          regionCity: zone.regionCity,
-          regionCode: zone.regionCode,
-          routeAmount: tablePrice,
-          routeGap: tablePrice === null ? zone.gap : VALUATION_GAPS.driverZonePricedFromTable,
-          ...(tablePrice === null ? {} : { routeSource: 'estimated' as const }),
-          vehicleClass: input.freightClass,
-        }
-      }
       if (!('regionId' in zone)) {
         return {
           cityToRegister: 'cityToRegister' in zone ? zone.cityToRegister : null,
           driverId: driver.driverId,
           driverName: driver.driverName,
           paymentModel: driver.paymentModel,
-          /** A zona recusada é tratada acima (spec 124); aqui não houve zona decidida. */
           regionCity: null,
           regionCode: null,
           routeAmount: null,
           routeGap: zone.gap,
+          /** Spec 127: no empate, as zonas empatadas são o que o operador precisa ler. */
+          tiedZones: 'tiedZones' in zone ? zone.tiedZones : [],
           vehicleClass: input.freightClass,
         }
       }
@@ -498,7 +479,10 @@ export class DrizzleTripValuationQuery {
          */
         routeGap:
           routeAmount !== null
-            ? null
+            ? /** Spec 127: lembrete de ficha, sem mudar o número nem a origem dele. */
+              zone.isCoveredByDriver
+              ? null
+              : VALUATION_GAPS.driverZonePricedFromTable
             : input.freightClass === ''
               ? VALUATION_GAPS.noDriverRate
               : VALUATION_GAPS.driverRateMissingForClass,

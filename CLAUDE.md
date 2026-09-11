@@ -1028,7 +1028,24 @@ total subestima. No frontend `ADVISORY_GAPS` é cópia por valor (contrato
 mostrar o valor **e** o aviso na mesma linha, e a imprimir "estimado" ao lado de toda parcela
 `estimated`. Cobrir a zona na ficha faz o mesmo preço sair `measured`, sem aviso. Medido em
 2026-09-10: 13 das 20 viagens com tripulação saíram de ausente para estimado, +R$ 9.577,24 de custo
-de motorista.
+de motorista. ⚠️ **A 127 mudou a semântica:** a parcela sai `measured` coberta ou não, e
+`DRIVER_ZONE_PRICED_FROM_TABLE` virou só lembrete (código mantido por causa do congelado).
+
+**A rota do agregado é a que casa com mais cidades da viagem** (spec 127). `resolveTripDriverZone`
+montava o catálogo como `Map<cidade, linha>`, e a cidade em duas rotas — legítimo, a unicidade é
+`(company_id, region_id, city, state)` — era sobrescrita pela última linha do Postgres. Hoje o
+catálogo é **lista por cidade**; cada cidade distinta da viagem vota em toda rota (família de
+`parseRegionCode`) em que aparece, vence a de mais cidades, e a faixa é a mais alta alcançada dentro
+dela. Empate real é `DRIVER_ROUTE_AMBIGUOUS` com as zonas no `detail`
+(`1.003 (FRANCA) | 7.001 (FRANCA)`) — nunca escolha calada, e a ordem do roteiro **não** desempata.
+⚠️ **A cobertura do motorista não decide preço nem origem** — decisão do usuário: ela serve ao
+roteiro. O preço é o da tabela para `(zona, classe)`, `measured`; sem ficha, acende o lembrete
+`DRIVER_ZONE_PRICED_FROM_TABLE`; sem preço, `DRIVER_RATE_MISSING_FOR_CLASS`.
+`DRIVER_ZONE_NOT_COVERED` não é mais produzido e fica só por causa do congelado. Medido em
+2026-09-10: 10 cidades da planilha em mais de uma rota (o SQL cru acha 6 — acento), 16 das 32
+viagens mudam de zona, 6 empatam (uma delas só RIBEIRÃO PRETO, que está na matriz 0.001 e na 1.001),
+e o custo de motorista das 20 com tripulação vai de R$ 10.717,24 para R$ 6.874,24. Contrato em
+`test/trip-valuation/driver-route-vote.contract.ts`, que embaralha o catálogo em toda rotação.
 
 **O ICMS se projeta pelo perfil de emissão até o CT-e existir** (spec 125). A parcela `icms` só
 existia com CT-e autorizado — na montagem, na prévia e na proposta ela nunca existia. Hoje

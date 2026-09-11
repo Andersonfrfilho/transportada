@@ -49,11 +49,11 @@ function member(overrides: Partial<TripCrewMember>): TripCrewMember {
 
 describe('the driver rate gap names the spreadsheet cell (spec 123)', () => {
   /**
-   * D1: **as duas faltas se distinguem sem consulta nova.** A zona casou e o motorista não a cobre
-   * — isso se resolve na ficha dele. A política já tinha a zona na mão quando recusou a cobertura;
-   * ela só a jogava fora.
+   * D1, reescrito pela 127: a zona continua viajando com código e cidade, mas o motorista que não a
+   * cobre **não** a recusa mais — a cobertura serve ao roteiro, e aqui só vira o lembrete
+   * `isCoveredByDriver: false`. Sem preço na tabela, a lacuna é a da célula, não a da ficha.
    */
-  test('an uncovered destination reports the zone it refused', () => {
+  test('an uncovered destination keeps the zone, with the reminder', () => {
     expect(
       resolveTripDriverZone({
         catalog: CATALOG,
@@ -61,7 +61,7 @@ describe('the driver rate gap names the spreadsheet cell (spec 123)', () => {
         stops: [{ city: 'CAJURU', sequence: 1, state: 'SP' }],
       }),
     ).toEqual({
-      gap: VALUATION_GAPS.driverZoneNotCovered,
+      isCoveredByDriver: false,
       regionCity: 'CAJURU',
       regionCode: '3.000',
       regionId: 'r-3000',
@@ -130,7 +130,7 @@ describe('the driver rate gap names the spreadsheet cell (spec 123)', () => {
         driverName: 'eurides dias fontes',
         regionCity: 'CAJURU',
         regionCode: '3.000',
-        routeGap: VALUATION_GAPS.driverZoneNotCovered,
+        routeGap: VALUATION_GAPS.driverRateMissingForClass,
         vehicleClass: 'three_quarter',
       }),
       member({ driverId: 'd-2', driverName: 'cleiton marques de sá', routeAmount: '570.0000' }),
