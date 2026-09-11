@@ -362,6 +362,28 @@ entregas reais com carga colorida e ficha sem cor.
 
 ---
 
+## Apoio de 80%, escora pelo lado, e a pegada fora do padrão (spec 135)
+
+- **O degrau escorava a pilha.** A caixa mais larga embaixo dela passa da face e chega à altura da
+  contenção: no mapa era vizinha. Com o juiz corrigido, a linha `ce0a2d08` tinha 10, 58, 99 e 26 caixas
+  sem apoio nas quatro viagens. Hoje: 0.
+- **Nivelado custava 319 caixas.** Com a escora corrigida e o piso plano obrigatório, o Atego caiu de
+  1335 para 1016. Com 80% da base apoiada, 1417.
+- **As bordas reais fragmentam pegada misturada, e a grade de 5 cm escondia isso.** A presumida de
+  0,371 × 0,261 e a medida de 0,40 × 0,30 viravam a mesma célula de 0,40 × 0,30. Com a medida exata, o
+  sintético de 85 paradas foi de 26 fora (`ce0a2d08`) a 195 (bordas reais) e 236 (com os 80%). Medido
+  trocando só a caixa medida: 371 × 261 × 250 dá **0** fora, 400 × 300 × 210 dá 292 — é a pegada, não a
+  altura. A prateleira da caixa fora do padrão (3,9 cm de balanço sobre o piso) cegava uma coluna
+  inteira da fileira de baixo, e o vão de 0,34 m que sobrava não recebia presumida nenhuma.
+- **Recusado, com número** (sintético · Atego recomendado): medida depois das presumidas (226 · 1355);
+  fora do padrão só nivelada (231 · 1280); preferir a parede (318 · 1292); preferir a face da porta
+  alinhada (238 · 1386); pilha própria das medidas (236 · 1385); nenhum balanço sobre vão onde cabe
+  caixa (334 · 908); nenhum balanço sobre o piso para toda caixa (295 · 949). Ficou a combinação das
+  duas metades que sozinhas davam 213: espaço morto **e** balanço só sobre carga — 163 · 1320.
+- **O tempo não mudou resultado.** Recusa antecipada longe da mão, memória dos começos de coluna,
+  complemento agrupado por entrega: assinatura das 99 cargas idêntica, e o Atego de 1,43× para 0,97× o
+  tempo da linha `ce0a2d08` medida na mesma rodada — a memória dos começos de coluna foi quase tudo.
+
 ## Lição de método, que custou duas correções
 
 **Contrato sintético confirma a implementação; só rodar com números confere a premissa.**

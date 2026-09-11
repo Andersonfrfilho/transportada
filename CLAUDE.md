@@ -673,6 +673,18 @@ Accelo** (a fileira do fundo, afastada da testeira pelo deslocamento para a port
 (abaixo). A conferência "exata face a face" do scratchpad (Atego 84) foi recusada caso a caso em
 `specs/133-juiz-sem-autoapoio/evidence.md`.
 
+**Apoio de 80%, escora só pelo lado, e bordas reais** (spec 135). O relevo nasce das bordas das caixas
+em milímetro (`cargo-edge-grid.ts`) — não há mais célula de 5 cm. A caixa senta com **80% da base
+apoiada** (`MIN_SUPPORTED_BASE_FRACTION`, conta exata em `isBaseSupported`), e ⚠️ **escora é encosto
+pelo lado**: a caixa embaixo dela no plano sustenta e nunca escora, e o encosto conta a partir de 1 cm
+(`MIN_BRACE_CONTACT_M`; no juiz também `MIN_BRACE_HEIGHT_M`, contrato `brace-rule.contract.ts`). Na
+linha `ce0a2d08` o degrau escorava 10/58/99/26 caixas das quatro viagens; hoje 0. ⚠️ **A pegada fora do
+padrão da carga vai ao espaço morto e só balança sobre carga** (`isOffPattern`, `onlyOverLoad`): com as
+bordas reais a 0,40 × 0,30 entre presumidas de 0,371 × 0,261 tirava a carga de fase, e o sintético de 85
+paradas ia a 236 fora (teto 216; 26 na grade de 5 cm). Hoje 163. Atego real 1417/1417 (1320 no
+recomendado, contra 1239 publicado). ⚠️ O teto de 50 ms está no fio: na forma do contrato a própria
+`ce0a2d08` passa dele com a carga da máquina acima de 6.
+
 **Cada caixa sabe de que nota veio, e a nota tem tom próprio** (spec 119). `PlacedBox` publica
 `documentId` (`nfe_documents.id`) e `documentNumber` (o número impresso), carimbados por
 `stampCargoNote` onde as caixas viram da parada — `buildCargoPreviewStops` e o repositório da viagem

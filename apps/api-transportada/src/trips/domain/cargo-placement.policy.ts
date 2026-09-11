@@ -3,6 +3,36 @@
  */
 import type { LoadingAccess } from '../../shared/loading-access.constant.js'
 import type { CargoBedDimensions } from './cargo-layout.policy.js'
+import {
+  createEdgeGrid,
+  EDGE_TOLERANCE_M,
+  type EdgeExtent,
+  type EdgeGrid,
+  isBaseSupported,
+  toMillimetreEdge,
+  toMillimetreSize,
+} from './cargo-edge-grid.js'
+
+/**
+ * **A base apoiada mínima** (spec 135): a fração da área da base que tem de estar sobre topo à altura
+ * do assento — decisão do usuário, em porcentagem e não em centímetros. Uma folga de 1 cm é 96% de
+ * apoio numa caixa de 26 cm e 99% numa de 1 m: a mesma régua para caixas de tamanhos diferentes
+ * mede coisas diferentes.
+ *
+ * ⚠️ É o critério de apoio parcial da literatura de carregamento de contêiner (Junqueira, Morabito e
+ * Yamashita, 2012; revisão de Bortfeldt e Wäscher, 2013): uma fração mínima da base sobre as caixas de
+ * baixo. Qualquer fração acima de metade põe o centro da base dentro do contorno do apoio — sem isso
+ * haveria uma reta pelo centro com todo o apoio de um lado, e ele seria no máximo metade —, então a
+ * caixa de massa uniforme não gira sobre a borda. O valor exato é escolha, não física medida: ninguém
+ * mediu a massa dentro da caixa, e o número foi escolhido por medição nas viagens reais.
+ */
+export const MIN_SUPPORTED_BASE_FRACTION = 0.8
+
+/**
+ * **A escora mais estreita que conta** (spec 132): a caixa de baixo que passa 1 mm da face da de cima
+ * não escora nada. É a mesma régua do juiz da descarga (`MIN_BRACE_CONTACT_M`).
+ */
+const MIN_BRACE_CONTACT_M = 0.01
 
 const MILLIMETRES_PER_METRE = 1000
 
@@ -177,8 +207,9 @@ export function resolveCargoPlacement(
 /**
  * Spec 120: quantos pedaços cada nota tem no desenho — ver `CargoPlacement.splitNotes`.
  *
- * ⚠️ O vão tolerado é o da célula: a caixa ocupa células inteiras (spec 114), então duas presumidas de
- * 0,261 m encostadas ficam a 3,9 cm uma da outra no desenho — e continuam encostadas no baú.
+ * ⚠️ O vão tolerado é `NOTE_TOUCH_GAP_M`: até a spec 132 a caixa ocupava células inteiras de 5 cm, e
+ * duas presumidas de 0,261 m encostadas ficavam a 3,9 cm uma da outra no desenho. Com a medida exata
+ * elas encostam de fato, e a folga ficou como leitura — vão menor que ela não parte a nota em dois.
  */
 export function resolveSplitNotes(boxes: readonly PlacedBox[]): readonly NotePieces[] {
   const byNote = new Map<string, PlacedBox[]>()
@@ -225,7 +256,7 @@ type BoxExtent = Readonly<{
   zM: number
 }>
 
-/** Contato de face: encostadas num eixo (vão menor que a célula; no vertical, pousada) e sobrepostas nos outros dois. */
+/** Contato de face: encostadas num eixo (vão menor que `NOTE_TOUCH_GAP_M`; no vertical, pousada) e sobrepostas nos outros dois. */
 function areTouching(first: BoxExtent, second: BoxExtent): boolean {
   const axes = [
     [first.xM, first.depthM, second.xM, second.depthM],
@@ -235,7 +266,7 @@ function areTouching(first: BoxExtent, second: BoxExtent): boolean {
   return axes.some((axis, index) => {
     const [fromA, sizeA, fromB, sizeB] = axis
     const gap = Math.max(fromB - (fromA + sizeA), fromA - (fromB + sizeB))
-    const tolerance = index === 2 ? 1e-3 : HEIGHT_MAP_CELL_M - 1e-6
+    const tolerance = index === 2 ? 1e-3 : NOTE_TOUCH_GAP_M - EDGE_TOLERANCE_M
     if (gap < -1e-6 || gap > tolerance) return false
     return axes.every((other, otherIndex) => {
       if (otherIndex === index) return true
@@ -249,6 +280,9 @@ function areTouching(first: BoxExtent, second: BoxExtent): boolean {
 
 /** A sobreposição mínima que faz de duas caixas vizinhas de face — menos que isso é quina. */
 const NOTE_CONTACT_OVERLAP_M = 0.01
+
+/** O vão que a leitura das notas ainda chama de contato de face — era a célula de 5 cm (spec 135). */
+const NOTE_TOUCH_GAP_M = 0.05
 
 function placeCargo(input: {
   readonly bed: CargoBedDimensions | null
@@ -1087,7 +1121,7 @@ function packSlice(input: {
    */
   const seatAttempts = Math.max(
     MAX_SEAT_ATTEMPTS,
-    SEAT_ATTEMPTS_PER_ROW * Math.ceil(slice.widthM / HEIGHT_MAP_CELL_M),
+    SEAT_ATTEMPTS_PER_ROW * Math.ceil(slice.widthM / SEAT_BUDGET_STEP_M),
   )
   /**
    * Spec 120: quem pousa em quem, para o complemento nunca prender uma caixa recomendada da própria
@@ -1095,10 +1129,7 @@ function packSlice(input: {
    */
   const occupancy =
     input.complement === true
-      ? createOccupancyGrid({
-          columns: Math.max(1, Math.ceil(slice.lengthM / HEIGHT_MAP_CELL_M)),
-          lines: Math.max(1, Math.ceil(slice.widthM / HEIGHT_MAP_CELL_M)),
-        })
+      ? createOccupancyGrid({ lengthM: slice.lengthM, widthM: slice.widthM })
       : null
   const record = (entry: PlacedBox, isComplement: boolean): void => {
     placed.push(entry)
@@ -1146,6 +1177,8 @@ function packSlice(input: {
        */
       let rest: { readonly topM: number; readonly xM: number } | null = null
       const shapeKey = `${slot.depthM}|${slot.widthM}|${slot.heightM}`
+      /** Spec 135: a pegada fora do padrão só balança sobre carga — ver `onlyOverLoad` em `seat`. */
+      const onlyOverLoad = deadSpace.isOffPattern(slot)
       /**
        * O assento que as duas buscas aceitam — a do espaço morto e a da fileira. Uma regra só: a caixa
        * pequena não ganha exceção nenhuma por ir para cima.
@@ -1164,7 +1197,8 @@ function packSlice(input: {
       const reachRows: number[] = []
       const isStandingAt = (at: { slot: Slot; topM: number; xM: number; yM: number }): boolean =>
         isStandingUp({
-          isRestrainedUpTo: (restraintM) => support.isConfined({ ...at, topM: restraintM }),
+          isRestrainedUpTo: (restraintM) =>
+            support.isConfined({ ...at, baseM: at.topM, topM: restraintM }),
           securesCargo: input.securesCargo === true,
           slot,
           topM: at.topM,
@@ -1174,7 +1208,7 @@ function packSlice(input: {
        * o alcance são uma leitura cada. O conjunto aceito é o mesmo — só a ordem mudou.
        */
       const acceptSeat =
-        (yM: number) =>
+        (yM: number, shadowChecked = false) =>
         ({ topM, xM }: { readonly topM: number; readonly xM: number }): boolean => {
           const at = { slot, topM, xM, yM }
           if (xM + slot.depthM > slice.lengthM + 1e-9) return false
@@ -1198,7 +1232,8 @@ function packSlice(input: {
            * carga primeiro. Medido: 1 par em RTC-4H67 e 1 em RTD-5J78, 4 cm de sobreposição com caixas
            * de 20 e 21 cm de altura.
            */
-          if (support.isShadowed(at)) return false
+          /** Onde `seat` já recusou a sombra (`rejectShadowed`), ela não é conferida de novo. */
+          if (!shadowChecked && support.isShadowed(at)) return false
           if (!support.isOutOfReach(at)) return isStandingAt(at)
           if (occupancy === null) return false
           /** Longe da mão: não é lugar recomendado, mas pode ser o do complemento (`reachFallback`). */
@@ -1246,6 +1281,8 @@ function packSlice(input: {
           const found = support.seat({
             accept: accept(yM),
             heightM: slice.heightM,
+            onlyOverLoad,
+            rejectShadowed: input.deliveryOrder === true,
             slot,
             xM: 0,
             yM,
@@ -1268,8 +1305,8 @@ function packSlice(input: {
         pending.at === placed.length &&
         pending.stopSequence === box.stopSequence
       ) {
-        const nearRows = rowsAround({ around: pending.fallback, slice, slot })
-        const nearSeat = firstSeatIn(nearRows, acceptSeat)
+        const nearRows = rowsAround({ around: pending.fallback, slice, slot, support })
+        const nearSeat = firstSeatIn(nearRows, (yM) => acceptSeat(yM, true))
         if (nearSeat !== null) {
           placeAt(nearSeat, false)
           continue
@@ -1299,7 +1336,13 @@ function packSlice(input: {
         }
       }
 
-      const dead = deadSpace.find({ accept: acceptSeat, frontierM: rowFrontierM, slot, support })
+      const dead = deadSpace.find({
+        accept: acceptSeat,
+        frontierM: rowFrontierM,
+        onlyOverLoad,
+        slot,
+        support,
+      })
       if (dead !== null) {
         record(
           {
@@ -1390,9 +1433,25 @@ function packSlice(input: {
          * tamanhos misturados o primeiro lugar nivelado costuma ser o topo de uma pilha solta, e a
          * carga saía `bedFull` com o baú a 38% (spec 115).
          */
+        /**
+         * ⚠️ **Longe da mão, com o lugar do complemento já guardado e a fileira já anotada, `acceptSeat`
+         * recusa sem fazer nada** — e a base apoiada, que é a conta cara, era feita antes dela. Medido no
+         * Atego: 57 mil dos 81 mil assentos que chegavam a `acceptSeat` eram esse caso.
+         */
+        const rejectEarly =
+          input.deliveryOrder === true
+            ? (xM: number): boolean =>
+                (occupancy === null ||
+                  ((reachFallback as SeatCandidate | null) !== null &&
+                    reachRows.at(-1) === rowYM)) &&
+                support.isOutOfReach({ slot, topM: 0, xM, yM: rowYM })
+            : undefined
         const found = support.seat({
-          accept: acceptSeat(rowYM),
+          accept: acceptSeat(rowYM, true),
           heightM: slice.heightM,
+          ...(rejectEarly === undefined ? {} : { rejectEarly }),
+          onlyOverLoad,
+          rejectShadowed: input.deliveryOrder === true,
           slot,
           xM: cursor.xM,
           yM: cursor.yM,
@@ -1417,7 +1476,7 @@ function packSlice(input: {
           ...cursor,
           rowWidthM: 0,
           xM: 0,
-          yM: snapToCell(nextEdgeM === null ? stepEndM : Math.min(stepEndM, nextEdgeM)),
+          yM: toMillimetreEdge(nextEdgeM === null ? stepEndM : Math.min(stepEndM, nextEdgeM)),
         }
       }
 
@@ -1465,7 +1524,7 @@ function packSlice(input: {
       )
       support.stamp({ slot, topM: rest.topM + slot.heightM, xM: cursor.xM, yM: cursor.yM })
       deadSpace.noteStamp(rest.topM + slot.heightM)
-      insertEdge(rowEnds, snapToCell(cursor.yM + slot.widthM))
+      insertEdge(rowEnds, toMillimetreEdge(cursor.yM + slot.widthM))
       cursor = {
         ...cursor,
         layerHeightM: Math.max(cursor.layerHeightM, slot.heightM),
@@ -1492,19 +1551,15 @@ function rowsAround(input: {
   readonly around: PlacedBox
   readonly slice: Readonly<{ widthM: number }>
   readonly slot: Slot
+  readonly support: SupportMap
 }): readonly number[] {
   const reachM = braceGapOf(input.slot)
-  const fromLine = Math.max(
-    0,
-    Math.floor((input.around.yM - input.slot.widthM - reachM) / HEIGHT_MAP_CELL_M),
-  )
-  const toLine = Math.min(
-    Math.ceil(input.slice.widthM / HEIGHT_MAP_CELL_M),
-    Math.ceil((input.around.yM + input.around.widthM + reachM) / HEIGHT_MAP_CELL_M),
-  )
-  return Array.from({ length: Math.max(0, toLine - fromLine + 1) }, (_, index) =>
-    round((fromLine + index) * HEIGHT_MAP_CELL_M),
-  )
+  /** Spec 132: as bordas reais em volta dela, dos dois lados — ver `SupportMap.rows`. */
+  return input.support.rows({
+    fromM: input.around.yM - input.slot.widthM - reachM,
+    toM: Math.min(input.slice.widthM, input.around.yM + input.around.widthM + reachM),
+    widthM: input.slot.widthM,
+  })
 }
 
 /**
@@ -1536,44 +1591,24 @@ function findNextEdge(edges: readonly number[], fromM: number): null | number {
 }
 
 /**
- * Quantas células a medida ocupa, contando a última **parcial** como inteira.
- *
- * ⚠️ **A caixa ocupa células inteiras, e a posição é sempre uma borda de célula.** Arredondar as duas
- * pontas para o mais próximo fazia a caixa de 0,26 m ser carimbada como 0,25 e a vizinha sentar em
- * 0,25 — as duas se cruzando 1 cm. Com a caixa de 0,371 m eram 2,1 cm por caixa: medido numa carga
- * real de 24 paradas, 383 pares de caixas atravessando uma a outra (132 já antes da spec 114). Ocupar
- * a célula parcial inteira custa até 5 cm por caixa, e duas caixas encostadas nunca dividem célula —
- * que é também o que impede a escada.
- */
-function toCellEnd(sizeM: number): number {
-  return Math.ceil(sizeM / HEIGHT_MAP_CELL_M - 1e-6)
-}
-
-/** A próxima borda de célula a partir de `valueM` — nunca antes dele. */
-function snapToCell(valueM: number): number {
-  return round(toCellEnd(valueM) * HEIGHT_MAP_CELL_M)
-}
-
-/** Lado da célula do mapa de alturas, em metros. Fino o bastante para uma caixa de 20 cm. */
-const HEIGHT_MAP_CELL_M = 0.05
-
-/**
  * Quantas fileiras uma caixa tenta antes de virar sobra. O laço já termina sozinho — sem lugar
  * nivelado ele sobe de camada até o teto ou o limite de pilha —, e o teto existe para o caso
  * patológico não custar a tela.
  */
 const MAX_SEAT_ATTEMPTS = 64
 
-/** Fileiras de célula que cada caixa pode visitar, por fileira da fatia — ver `seatAttempts`. */
+/** Fileiras que cada caixa pode visitar, por passo de orçamento da fatia — ver `seatAttempts`. */
 const SEAT_ATTEMPTS_PER_ROW = 4
 
 /**
- * O relevo da fatia: a altura do topo em cada célula do piso.
+ * O passo de **orçamento** da busca de lugar, em metros — não é geometria (spec 132).
  *
- * A varredura em fileiras decide **x** e **y**; quem decide **z** é este mapa, e é por isso que ele
- * existe. Sem ele a caixa herda o topo da camada — o máximo do baú inteiro naquele índice — e o que
- * sai é caixa no ar.
+ * ⚠️ Ele só diz quantas tentativas a caixa ganha por metro de fatia: é o mesmo teto que a spec 116
+ * mediu com a célula de 5 cm, e mantê-lo impede que a troca de geometria mude, de carona, quando a
+ * busca desiste. Posição e pegada de caixa não passam por ele.
  */
+const SEAT_BUDGET_STEP_M = 0.05
+
 /**
  * Qual borda da fatia é a **face aberta** — o lado por onde a carga sai.
  *
@@ -1586,6 +1621,58 @@ const SEAT_ATTEMPTS_PER_ROW = 4
  */
 type OpenFace = 'columnEnd' | 'lineEnd' | 'lineStart'
 
+/** Um dos quatro lados da pegada, na conferência da contenção — ver `isConfined`. */
+type BraceSide = Readonly<{ forward: boolean; holds: boolean; isColumn: boolean }>
+
+/** Os intervalos de coluna e de linha por pegada, guardados até a grade ganhar borda nova. */
+function createSpanMemo(grid: EdgeGrid): {
+  readonly clear: () => void
+  readonly columns: (fromM: number, sizeM: number) => readonly [number, number]
+  readonly lines: (fromM: number, sizeM: number) => readonly [number, number]
+} {
+  const columns = new Map<number, Map<number, readonly [number, number]>>()
+  const lines = new Map<number, Map<number, readonly [number, number]>>()
+  const lookup = (
+    memo: Map<number, Map<number, readonly [number, number]>>,
+    resolve: (fromM: number, sizeM: number) => readonly [number, number],
+    fromM: number,
+    sizeM: number,
+  ): readonly [number, number] => {
+    let bySize = memo.get(fromM)
+    if (bySize === undefined) {
+      bySize = new Map()
+      memo.set(fromM, bySize)
+    }
+    let span = bySize.get(sizeM)
+    if (span === undefined) {
+      span = resolve(fromM, sizeM)
+      bySize.set(sizeM, span)
+    }
+    return span
+  }
+
+  return {
+    clear: () => {
+      columns.clear()
+      lines.clear()
+    },
+    columns: (fromM, sizeM) => lookup(columns, grid.columnsOf, fromM, sizeM),
+    lines: (fromM, sizeM) => lookup(lines, grid.linesOf, fromM, sizeM),
+  }
+}
+
+/**
+ * O relevo da fatia: a altura do topo em cada célula do piso.
+ *
+ * A varredura em fileiras decide **x** e **y**; quem decide **z** é este mapa, e é por isso que ele
+ * existe. Sem ele a caixa herda o topo da camada — o máximo do baú inteiro naquele índice — e o que
+ * sai é caixa no ar.
+ *
+ * ⚠️ **Spec 132: as células nascem das bordas das caixas** (`createEdgeGrid`). A grade de 5 cm
+ * obrigava a caixa a ocupar células inteiras — a de 0,261 m reservava 0,30 — e a caixa de cima podia
+ * pousar sobre a célula que a de baixo ocupava só em parte: medido, 56 caixas do Atego com até 4,9 cm
+ * de balanço na medida real. Com as bordas reais, nivelado quer dizer nivelado na medida da caixa.
+ */
 function createSupportMap(
   bed: Readonly<{ heightM: number; lengthM: number; widthM: number }>,
   openFace: OpenFace,
@@ -1597,9 +1684,34 @@ function createSupportMap(
    * nenhuma pilha carimbada precisou da testeira.
    */
   readonly headboardSlackM: () => number
+  /** Acrescenta as bordas de uma caixa sem mudar relevo nenhum — os lugares junto dela passam a existir. */
+  readonly addEdges: (extent: EdgeExtent) => void
+  /** Onde uma caixa de largura `widthM` pode começar em `y`, entre `fromM` e `toM`, em ordem. */
+  readonly rows: (input: {
+    readonly fromM: number
+    readonly toM: number
+    readonly widthM: number
+  }) => readonly number[]
   readonly seat: (input: {
     /** Recusa de quem chama — a busca segue para o próximo lugar nivelado da fileira. */
     accept?: (candidate: { readonly topM: number; readonly xM: number }) => boolean
+    /**
+     * Recusar a sombra da carga posterior (`isShadowed`) **aqui dentro**, antes da base apoiada: ela é o
+     * maior de uma linha sob as colunas da pegada, e a janela que já dá o assento dá também ela. Quem
+     * pede isto não precisa conferir a sombra em `accept`.
+     */
+    rejectShadowed?: boolean
+    /**
+     * Recusa que não depende do assento nem do apoio — conferida antes da base apoiada. Só pode dizer
+     * "não" onde `accept` diria "não" sem efeito colateral nenhum; o conjunto aceito não muda.
+     */
+    rejectEarly?: (xM: number) => boolean
+    /**
+     * Spec 135: fora do piso, nenhuma parte da pegada fica sobre o piso nu — o balanço só passa por cima
+     * de carga. Para a pegada fora do padrão (`isOffPattern`): a prateleira dela sobre o piso escondia o
+     * vão embaixo, que o relevo conta como cheio, e a fileira seguinte perdia uma coluna inteira.
+     */
+    onlyOverLoad?: boolean
     heightM: number
     slot: Slot
     xM: number
@@ -1629,21 +1741,46 @@ function createSupportMap(
    * instante da colocação — a vizinha de cima ainda não existe —, e é também o que quem carrega usa:
    * não se empilha alto na quina solta da carga.
    */
-  readonly isConfined: (input: { slot: Slot; topM: number; xM: number; yM: number }) => boolean
+  readonly isConfined: (input: {
+    /** Spec 135: onde a caixa pousa — sem ela a pilha dela embaixo não é reconhecida. */
+    baseM?: number
+    slot: Slot
+    topM: number
+    xM: number
+    yM: number
+  }) => boolean
   /**
    * Se a caixa, sentada fora do piso, fica funda demais para a mão de quem descarrega (spec 118): mais
    * de `DELIVERY_REACH_M` atrás da frente do piso das paradas já carregadas.
    */
   readonly isOutOfReach: (input: { slot: Slot; topM: number; xM: number; yM: number }) => boolean
 } {
-  const columns = Math.max(1, Math.ceil(bed.lengthM / HEIGHT_MAP_CELL_M))
-  const lines = Math.max(1, Math.ceil(bed.widthM / HEIGHT_MAP_CELL_M))
-  const topM = new Float64Array(columns * lines)
+  const grid = createEdgeGrid({
+    cellLayers: 3,
+    columnLayers: 2,
+    lengthM: bed.lengthM,
+    widthM: bed.widthM,
+  })
+  const { xs, ys } = grid
+  /** O topo de cada célula. */
+  const topM = grid.cells[0] ?? []
   /** `freezeLater`: o maior topo das paradas já carregadas entre cada célula e a face aberta. */
-  const laterFrontM = new Float64Array(columns * lines)
+  const laterFrontM = grid.cells[1] ?? []
   /** Até onde, na direção da face aberta, cada coluna tem caixa no piso — e o congelado das posteriores. */
-  const floorEndM = new Float64Array(columns)
-  const laterFloorEndM = new Float64Array(columns)
+  const floorEndM = grid.columns[0] ?? []
+  const laterFloorEndM = grid.columns[1] ?? []
+  const topAt = (column: number, line: number): number => topM[column]?.[line] ?? 0
+  /**
+   * Spec 135: quem forma o topo de cada célula — índice em `stamped` mais um, `0` no piso. É o que separa a
+   * escora de verdade do degrau: a caixa embaixo da candidata (a pilha dela) nunca a escora pelo lado.
+   */
+  const ownerOf = grid.cells[2] ?? []
+  const stamped: {
+    readonly fromXM: number
+    readonly fromYM: number
+    readonly toXM: number
+    readonly toYM: number
+  }[] = []
   let headboardSlackM = Number.POSITIVE_INFINITY
   /**
    * A folga de cada posição conferida desde o último carimbo. ⚠️ Só a posição carimbada entra em
@@ -1654,25 +1791,155 @@ function createSupportMap(
   const positionKey = (xM: number, yM: number): string => `${String(xM)}|${String(yM)}`
 
   /**
-   * ⚠️ **A folga nas duas pontas não é preciosismo — é o que impede a escada.** `0.6 / 0.05` dá
-   * `11.999999999999998` em binário, então `floor` devolve 11 e duas caixas encostadas passam a
-   * dividir uma célula. Cada uma pousava sobre a anterior, e uma fileira de seis subia degrau a
-   * degrau até o teto do baú. Medido: quatro caixas em escada numa fileira de piso.
+   * Onde a pessoa para, por trecho de caixa (`x|profundidade`) — só muda quando o piso das posteriores
+   * é congelado de novo: partir coluna copia valor, e carimbar mexe só no piso desta entrega.
    */
+  const standingCache = new Map<number, Map<number, number>>()
+  /** A linha de cada face, até a próxima borda nova partir as linhas. */
+  const shadowLineByFace = new Map<number, number>()
   /**
-   * ⚠️ **As duas pontas arredondam, e é o arredondamento igual que impede a escada.** Com `floor` na
-   * base e `ceil` no topo, duas caixas encostadas de 33 cm dividiam a célula da fronteira: cada uma
-   * pousava sobre a anterior e a fileira subia degrau a degrau. Arredondando as duas, a fronteira
-   * comum cai na mesma célula para as duas caixas, qualquer que seja o tamanho — e o desenho não
-   * ganha vão de meia célula entre caixas encostadas.
+   * As colunas e as linhas de cada pegada, até a próxima borda nova: a esbeltez pergunta pela mesma
+   * pegada muitas vezes entre dois carimbos (medido no Atego: as duas buscas binárias eram 5%).
    */
-  const range = (fromM: number, sizeM: number, limit: number): readonly [number, number] => {
-    const from = Math.max(0, Math.round(fromM / HEIGHT_MAP_CELL_M))
-    return [from, Math.min(limit, Math.max(from + 1, toCellEnd(fromM + sizeM)))]
+  const spanMemo = createSpanMemo(grid)
+
+  /** O mais fundo que o piso das posteriores chega nas colunas que o trecho `[fromM, toM)` toca. */
+  const deepestFloorIn = (fromM: number, toM: number): number => {
+    let deepestM = 0
+    for (let column = grid.columnAt(fromM); column < xs.length - 1; column += 1) {
+      if ((xs[column] ?? 0) >= toM - EDGE_TOLERANCE_M) break
+      if ((xs[column + 1] ?? 0) <= fromM + EDGE_TOLERANCE_M) continue
+      deepestM = Math.max(deepestM, laterFloorEndM[column] ?? 0)
+    }
+    return deepestM
+  }
+
+  /**
+   * A face aberta nunca apoia: é por ela que a carga sai, e com ela aberta a pilha cai.
+   *
+   * ⚠️ **A borda da faixa da grade não é parede** (spec 118). A vizinha segura a pilha só enquanto
+   * está lá, e ela sai antes: contá-la como parede era a premissa que a descarga derrubava — 116
+   * de 252 caixas sem apoio na Sprinter e 127 de 500 no Accelo.
+   */
+  const braceSides: Readonly<
+    Record<'columnEnd' | 'columnStart' | 'lineEnd' | 'lineStart', BraceSide>
+  > = {
+    columnEnd: {
+      forward: true,
+      holds: openFace !== 'columnEnd' && !openSides.columnEnd,
+      isColumn: true,
+    },
+    columnStart: { forward: false, holds: !openSides.columnStart, isColumn: true },
+    lineEnd: { forward: true, holds: openFace !== 'lineEnd', isColumn: false },
+    lineStart: { forward: false, holds: openFace !== 'lineStart', isColumn: false },
+  }
+  /**
+   * ⚠️ **A conferência em curso mora aqui, e não em cada chamada.** `isConfined` é chamada dezenas de
+   * milhares de vezes por cálculo, e montar a cada vez as funções e os objetos dela era um quarto do tempo
+   * do Atego. Nada disto sobrevive entre duas chamadas: `isConfined` preenche tudo antes de usar.
+   */
+  const brace = {
+    baseM: undefined as number | undefined,
+    catchGapM: 0,
+    fromXM: 0,
+    fromYM: 0,
+    slackM: Number.POSITIVE_INFINITY,
+    toXM: 0,
+    toYM: 0,
+    topM: 0,
+  }
+  /**
+   * ⚠️ **Spec 134: a testeira escora, e quanto o bloco ainda pode andar é anotado.** Em profundidade o
+   * bloco é empacotado encostado nela e deslocado depois; a escora só vale se o vão final — o
+   * deslocamento mais o vão que a caixa já tem — continuar mais estreito que o giro da pilha.
+   */
+  const leansOnHeadboard = (faceM: number): boolean => {
+    if (faceM >= brace.catchGapM - 1e-9) return false
+    brace.slackM = Math.min(brace.slackM, brace.catchGapM - faceM)
+    return true
+  }
+  /**
+   * ⚠️ **Spec 135: a caixa de baixo não escora a de cima pelo lado** — decisão do usuário. A caixa
+   * mais larga embaixo da candidata (o degrau) passa da face dela, e no mapa era "carga tão alta
+   * quanto a restrição": a pilha se escorava nela mesma. Ela sustenta por baixo; escora é quem
+   * encosta na face com altura ao lado. Medido na linha publicada (`ce0a2d08`): 10, 58, 99 e 26
+   * caixas das quatro viagens reais escoradas só no próprio degrau.
+   */
+  const isOwnStack = (height: number, owner: number | undefined): boolean => {
+    if (brace.baseM === undefined || height > brace.baseM + 1e-9) return false
+    const under = owner === undefined ? undefined : stamped[owner - 1]
+    return (
+      under !== undefined &&
+      under.fromXM < brace.toXM - EDGE_TOLERANCE_M &&
+      brace.fromXM < under.toXM - EDGE_TOLERANCE_M &&
+      under.fromYM < brace.toYM - EDGE_TOLERANCE_M &&
+      brace.fromYM < under.toYM - EDGE_TOLERANCE_M
+    )
+  }
+  /**
+   * O primeiro apoio numa direção, andando de célula em célula a partir da face real: a carga tão
+   * alta quanto a restrição, ou a parede — atravessando só vão mais estreito que o giro da pilha.
+   *
+   * ⚠️ A primeira célula pode ser a da própria pegada, quando a face cai no meio dela: o trecho
+   * além da face tem a altura em que a caixa pousa, e é carga tão alta quanto a base dela.
+   */
+  const bracedToward = (side: BraceSide, across: number, faceM: number): boolean => {
+    const edges = side.isColumn ? xs : ys
+    const count = edges.length - 1
+    const wallM = side.forward ? (edges[count] ?? 0) : 0
+    let index = side.forward
+      ? faceM >= wallM - EDGE_TOLERANCE_M
+        ? count
+        : side.isColumn
+          ? grid.columnAt(faceM + EDGE_TOLERANCE_M)
+          : grid.lineAt(faceM + EDGE_TOLERANCE_M)
+      : faceM <= EDGE_TOLERANCE_M
+        ? -1
+        : side.isColumn
+          ? grid.columnBefore(faceM)
+          : grid.lineBefore(faceM)
+    /**
+     * ⚠️ **Spec 132: escora mais estreita que a folga de apoio não escora.** A caixa de baixo que
+     * passa 1 mm da face da de cima é carga "à altura da restrição" no mapa, e contava como vizinha:
+     * medido, 27 caixas do Atego e 6 do Accelo sem apoio na descarga, todas escoradas numa lâmina de
+     * 1 mm. Com a célula de 5 cm a menor saliência era a célula, e o defeito não aparecia. É a mesma
+     * régua do juiz da descarga (`MIN_BRACE_CONTACT_M`).
+     */
+    let braceFromM: number | null = null
+    for (;;) {
+      const outside = index < 0 || index >= count
+      const nearM = outside
+        ? wallM
+        : side.forward
+          ? Math.max(edges[index] ?? 0, faceM)
+          : Math.min(edges[index + 1] ?? 0, faceM)
+      if (braceFromM === null && Math.abs(nearM - faceM) >= brace.catchGapM - 1e-9) return false
+      if (outside) {
+        return openFace === 'lineEnd' && !side.forward && !side.isColumn
+          ? leansOnHeadboard(faceM)
+          : side.holds
+      }
+      const farM = side.forward ? (edges[index + 1] ?? 0) : (edges[index] ?? 0)
+      const height = side.isColumn ? topAt(index, across) : topAt(across, index)
+      const owner = side.isColumn ? ownerOf[index]?.[across] : ownerOf[across]?.[index]
+      if (height >= brace.topM - 1e-9 && !isOwnStack(height, owner)) {
+        braceFromM ??= nearM
+        if (Math.abs(farM - braceFromM) >= MIN_BRACE_CONTACT_M - EDGE_TOLERANCE_M) return true
+      } else {
+        braceFromM = null
+      }
+      index += side.forward ? 1 : -1
+    }
   }
 
   return {
     headboardSlackM: () => headboardSlackM,
+    addEdges: (extent) => {
+      shadowLineByFace.clear()
+      spanMemo.clear()
+      grid.splitAt(extent)
+    },
+    rows: ({ fromM, toM, widthM }) => grid.rowsFor({ fromM, sizeM: widthM, toM }),
     /**
      * O primeiro lugar **nivelado** a partir de `xM`, na faixa daquele `y`.
      *
@@ -1682,71 +1949,122 @@ function createSupportMap(
      * plano sob a pegada inteira dispensa o parâmetro e resolve as duas coisas de uma vez: não sobra
      * balanço, e a caixa encosta na quina de quem já está lá em vez de deixar vão.
      *
-     * ⚠️ **O salto é para a próxima quina, não de célula em célula.** É a mudança de altura que cria
-     * a posição boa; varrer 5 cm por vez custaria o orçamento da tela para chegar no mesmo lugar.
+     * ⚠️ **Spec 132: os lugares tentados são as bordas, dos dois lados.** A caixa começa numa borda
+     * (`b`) ou termina nela (`b − profundidade`) — os pontos extremos do eixo (Crainic, Perboli e
+     * Tadei, 2008). Entre dois deles o relevo sob a caixa não muda, então nenhum lugar nivelado fica
+     * de fora; a grade de 5 cm tentava o mesmo lugar a cada célula e só achava os múltiplos dela.
      */
-    seat: ({ accept, heightM, slot, xM, yM }) => {
-      const [fromLine, toLine] = range(yM, slot.widthM, lines)
-      const depth = Math.max(1, toCellEnd(slot.depthM))
-      const first = Math.max(0, toCellEnd(xM))
-      const last = columns - depth
-
-      /**
-       * O perfil da faixa — o maior e o menor topo de cada coluna dentro do `y` da caixa — calculado
-       * **sob demanda**.
-       *
-       * ⚠️ Montá-lo inteiro antes de procurar custava a tela: são 148 colunas por 50 linhas a cada
-       * caixa, multiplicadas pelas tentativas de dimensionamento da fatia. Medido: 130 ms numa viagem
-       * de 300 notas, contra o orçamento de 50. O lugar quase sempre aparece nas primeiras colunas.
-       */
-      const ceilingOf = new Float64Array(columns).fill(-1)
-      const floorOf = new Float64Array(columns)
-      const bandAt = (column: number): readonly [number, number] => {
-        if ((ceilingOf[column] ?? -1) >= 0) return [ceilingOf[column] ?? 0, floorOf[column] ?? 0]
+    seat: ({ accept, heightM, onlyOverLoad, rejectEarly, rejectShadowed, slot, xM, yM }) => {
+      const [fromLine, toLine] = grid.linesOf(yM, slot.widthM)
+      /** O maior e o menor topo de cada coluna na faixa da caixa, sob demanda. */
+      const bandHigh = new Float64Array(xs.length)
+      const bandLow = new Float64Array(xs.length)
+      const known = new Uint8Array(xs.length)
+      const bandOf = (column: number): void => {
+        if (known[column] === 1) return
+        const values = topM[column] ?? []
         let highest = 0
         let lowest = Number.POSITIVE_INFINITY
         for (let line = fromLine; line < toLine; line += 1) {
-          const value = topM[column * lines + line] ?? 0
+          const value = values[line] ?? 0
           highest = Math.max(highest, value)
           lowest = Math.min(lowest, value)
         }
-        ceilingOf[column] = highest
-        floorOf[column] = lowest === Number.POSITIVE_INFINITY ? 0 : lowest
-        return [highest, floorOf[column] ?? 0]
+        bandHigh[column] = highest
+        bandLow[column] = lowest === Number.POSITIVE_INFINITY ? 0 : lowest
+        known[column] = 1
       }
 
       /**
-       * ⚠️ **Uma passagem só, mantendo a corrida de colunas no mesmo nível.** A versão anterior
-       * reconferia, para cada coluna candidata, todas as colunas da pegada — 148 × 24 por caixa, e
-       * 900 caixas custavam 83 ms contra o orçamento de 50. A corrida vê cada coluna uma vez.
+       * ⚠️ **Os lugares tentados andam só para a frente**, então as colunas sob a pegada formam uma janela
+       * que só avança: o maior e o menor topo saem de duas filas monótonas, e as pontas da janela de
+       * dois ponteiros — sem busca binária nem laço sobre a pegada a cada lugar. É a mesma conta de
+       * `columnsOf`, em ordem; medido no Atego, a busca e o laço eram um quarto do tempo do cálculo.
        */
-      let runStart = first
-      let level: number | null = null
-      for (let column = first; column < columns; column += 1) {
-        const [ceiling, floor] = bandAt(column)
-        /** Coluna que não é plana no próprio `y` não serve de base: a corrida recomeça depois dela. */
-        if (Math.abs(ceiling - floor) > 1e-9) {
-          runStart = column + 1
-          level = null
+      const columnCount = xs.length - 1
+      const faceM = yM + slot.widthM
+      /** A linha da face do lado da porta, quando a sombra é conferida aqui; `-1` quando não há. */
+      const shadowLine =
+        rejectShadowed === true && faceM < bed.widthM - EDGE_TOLERANCE_M ? grid.lineAt(faceM) : -1
+      const shadows: number[] = []
+      let shadowsHead = 0
+      const shadowOf = (column: number): number =>
+        shadowLine < 0 ? 0 : (laterFrontM[column]?.[shadowLine] ?? 0)
+      const highest: number[] = []
+      const lowestColumns: number[] = []
+      let highestHead = 0
+      let lowestHead = 0
+      let first = 0
+      let edgeEnd = 0
+      let pushed = 0
+      for (const x of grid.columnStartsFor({ fromM: xM, sizeM: slot.depthM })) {
+        while (first + 1 < columnCount && (xs[first + 1] ?? 0) <= x + EDGE_TOLERANCE_M) first += 1
+        const toM = x + slot.depthM
+        while (edgeEnd < xs.length && (xs[edgeEnd] ?? 0) < toM - EDGE_TOLERANCE_M) edgeEnd += 1
+        const end = Math.min(columnCount, Math.max(first + 1, edgeEnd))
+        for (; pushed < end; pushed += 1) {
+          bandOf(pushed)
+          const high = bandHigh[pushed] ?? 0
+          const low = bandLow[pushed] ?? 0
+          while (
+            highest.length > highestHead &&
+            (bandHigh[highest[highest.length - 1] ?? 0] ?? 0) <= high
+          ) {
+            highest.pop()
+          }
+          highest.push(pushed)
+          while (
+            lowestColumns.length > lowestHead &&
+            (bandLow[lowestColumns[lowestColumns.length - 1] ?? 0] ?? 0) >= low
+          ) {
+            lowestColumns.pop()
+          }
+          lowestColumns.push(pushed)
+          if (shadowLine >= 0) {
+            const shade = shadowOf(pushed)
+            while (
+              shadows.length > shadowsHead &&
+              shadowOf(shadows[shadows.length - 1] ?? 0) <= shade
+            ) {
+              shadows.pop()
+            }
+            shadows.push(pushed)
+          }
+        }
+        while ((highest[highestHead] ?? 0) < first) highestHead += 1
+        while ((lowestColumns[lowestHead] ?? 0) < first) lowestHead += 1
+        while (shadowLine >= 0 && (shadows[shadowsHead] ?? 0) < first) shadowsHead += 1
+        /** O `z` é o topo mais alto sob a pegada inteira: a caixa pousa no que está embaixo dela. */
+        const level = bandHigh[highest[highestHead] ?? 0] ?? 0
+        const lowest = bandLow[lowestColumns[lowestHead] ?? 0] ?? 0
+        if (level + slot.heightM > heightM + 1e-9) continue
+        if (shadowLine >= 0 && shadowOf(shadows[shadowsHead] ?? 0) > level + 1e-9) continue
+        if (rejectEarly !== undefined && rejectEarly(x)) continue
+        if (onlyOverLoad === true && level > 1e-9 && lowest <= 1e-9) continue
+        /**
+         * ⚠️ **Apoiada, na fração dita** (`MIN_SUPPORTED_BASE_FRACTION`): sob a pegada nada passa do
+         * assento, e a área que chega a ele é pelo menos a fração mínima da base.
+         */
+        if (
+          lowest < level - 1e-9 &&
+          !isBaseSupported({
+            columnHigh: bandHigh,
+            columnLow: bandLow,
+            depthM: slot.depthM,
+            grid,
+            layer: topM,
+            levelM: level,
+            minFraction: MIN_SUPPORTED_BASE_FRACTION,
+            span: { end, first, fromLine, toLine },
+            widthM: slot.widthM,
+            xM: x,
+            yM,
+          })
+        ) {
           continue
         }
-        if (level === null || Math.abs(ceiling - level) > 1e-9) {
-          runStart = column
-          level = ceiling
-        }
-        if (column - runStart + 1 < depth) continue
-        if (runStart > last) break
-        if (level + slot.heightM > heightM + 1e-9) {
-          runStart = column + 1
-          level = null
-          continue
-        }
-        const candidate = { topM: level, xM: runStart * HEIGHT_MAP_CELL_M }
-        /** Recusado, o lugar seguinte é a mesma corrida uma célula adiante — nunca a fileira seguinte. */
-        if (accept !== undefined && !accept(candidate)) {
-          runStart += 1
-          continue
-        }
+        const candidate = { topM: level, xM: x }
+        if (accept !== undefined && !accept(candidate)) continue
 
         return candidate
       }
@@ -1754,22 +2072,38 @@ function createSupportMap(
       return null
     },
     freezeLater: () => {
-      laterFloorEndM.set(floorEndM)
+      standingCache.clear()
+      for (let column = 0; column < floorEndM.length; column += 1) {
+        laterFloorEndM[column] = floorEndM[column] ?? 0
+      }
       /** O maior topo daqui até a face aberta, por coluna — uma passagem de trás para a frente. */
-      for (let column = 0; column < columns; column += 1) {
+      for (let column = 0; column < topM.length; column += 1) {
+        const tops = topM[column] ?? []
+        const fronts = laterFrontM[column] ?? []
         let highest = 0
-        for (let line = lines - 1; line >= 0; line -= 1) {
-          highest = Math.max(highest, topM[column * lines + line] ?? 0)
-          laterFrontM[column * lines + line] = highest
+        for (let line = tops.length - 1; line >= 0; line -= 1) {
+          highest = Math.max(highest, tops[line] ?? 0)
+          fronts[line] = highest
         }
       }
     },
     isShadowed: ({ slot, topM: base, xM, yM }) => {
-      const [fromColumn, toColumn] = range(xM, slot.depthM, columns)
-      const [, toLine] = range(yM, slot.widthM, lines)
-      if (toLine >= lines) return false
-      for (let column = fromColumn; column < toColumn; column += 1) {
-        if ((laterFrontM[column * lines + toLine] ?? 0) > base + 1e-9) return true
+      const faceM = yM + slot.widthM
+      if (faceM >= bed.widthM - EDGE_TOLERANCE_M) return false
+      /**
+       * ⚠️ Uma busca só: a coluna do começo, e dali até a borda do fim — é `columnsOf` sem a segunda
+       * busca. A linha da face é guardada até a grade mudar (medido: 13% do cálculo do Atego).
+       */
+      let line = shadowLineByFace.get(faceM)
+      if (line === undefined) {
+        line = grid.lineAt(faceM)
+        shadowLineByFace.set(faceM, line)
+      }
+      const toM = xM + slot.depthM - EDGE_TOLERANCE_M
+      const columnCount = xs.length - 1
+      for (let column = grid.columnAt(xM); column < columnCount; column += 1) {
+        if ((laterFrontM[column]?.[line] ?? 0) > base + 1e-9) return true
+        if ((xs[column + 1] ?? 0) >= toM) break
       }
       return false
     },
@@ -1784,131 +2118,96 @@ function createSupportMap(
      * `ACCESS_CORRIDOR_M` mais raso que encosta na caixa, nunca a da coluna da própria caixa — num
      * bolso estreito entre cargas posteriores ela para na boca do bolso. Vale também para a caixa no
      * piso, que é quem fica no fundo do bolso.
+     *
+     * ⚠️ Spec 132: o trecho corre em metro, não em célula. O mais fundo de um trecho só muda quando uma
+     * das pontas dele passa por uma borda de coluna, então basta medir o trecho encostado em cada borda
+     * — pelos dois lados — e nas duas pontas do intervalo em que ele ainda toca a caixa.
      */
     isOutOfReach: ({ slot, xM, yM }) => {
-      const [fromColumn, toColumn] = range(xM, slot.depthM, columns)
-      const window = Math.min(
-        columns,
-        Math.max(1, Math.round(ACCESS_CORRIDOR_M / HEIGHT_MAP_CELL_M)),
-      )
-      let standingM = Number.POSITIVE_INFINITY
-      const lastStart = Math.min(columns - window, toColumn - 1)
-      for (let start = Math.max(0, fromColumn - window + 1); start <= lastStart; start += 1) {
-        let deepestM = 0
-        for (let column = start; column < start + window; column += 1) {
-          deepestM = Math.max(deepestM, laterFloorEndM[column] ?? 0)
-        }
-        standingM = Math.min(standingM, deepestM)
+      /** A chave é o próprio número: montar texto por consulta custava 10% do cálculo do Atego. */
+      let byDepth = standingCache.get(xM)
+      if (byDepth === undefined) {
+        byDepth = new Map<number, number>()
+        standingCache.set(xM, byDepth)
       }
+      const known = byDepth.get(slot.depthM)
+      if (known !== undefined) {
+        return (
+          known !== Number.POSITIVE_INFINITY && known - (yM + slot.widthM) > DELIVERY_REACH_M + 1e-9
+        )
+      }
+      const corridorM = ACCESS_CORRIDOR_M
+      let standingM = Number.POSITIVE_INFINITY
+      if (bed.lengthM <= corridorM + EDGE_TOLERANCE_M) {
+        standingM = deepestFloorIn(0, bed.lengthM)
+      } else {
+        /** O trecho tem de tocar a caixa por mais que a tolerância: encostar na quina não é tocar. */
+        const touchM = 2 * EDGE_TOLERANCE_M
+        const lowM = Math.max(0, xM - corridorM + touchM)
+        const highM = Math.min(bed.lengthM - corridorM, xM + slot.depthM - touchM)
+        const measure = (startM: number): void => {
+          if (startM < lowM - EDGE_TOLERANCE_M || startM > highM + EDGE_TOLERANCE_M) return
+          const clampedM = Math.min(highM, Math.max(lowM, startM))
+          standingM = Math.min(standingM, deepestFloorIn(clampedM, clampedM + corridorM))
+        }
+        measure(lowM)
+        measure(highM)
+        for (let index = grid.columnEdgeFrom(lowM); index < xs.length; index += 1) {
+          const edgeM = xs[index] ?? 0
+          if (edgeM > highM + corridorM + EDGE_TOLERANCE_M) break
+          measure(edgeM)
+          measure(edgeM - corridorM)
+        }
+      }
+      byDepth.set(slot.depthM, standingM)
       if (standingM === Number.POSITIVE_INFINITY) return false
 
       return standingM - (yM + slot.widthM) > DELIVERY_REACH_M + 1e-9
     },
-    isConfined: ({ slot, topM: top, xM, yM }) => {
-      const [fromColumn, toColumn] = range(xM, slot.depthM, columns)
-      const [fromLine, toLine] = range(yM, slot.widthM, lines)
-      /** Encostado na parede é apoio: a parede não sai do lugar. */
-      const supportsBefore = (column: number, line: number): boolean => {
-        /** A face aberta nunca apoia: é por ela que a carga sai, e com ela aberta a pilha cai. */
-        const isOpen =
-          openFace === 'lineStart'
-            ? line < 0
-            : openFace === 'lineEnd'
-              ? line >= lines
-              : column >= columns
-        if (isOpen) return false
-        /**
-         * ⚠️ **A borda da faixa da grade não é parede** (spec 118). A vizinha segura a pilha só enquanto
-         * está lá, e ela sai antes: contá-la como parede era a premissa que a descarga derrubava — 116
-         * de 252 caixas sem apoio na Sprinter e 127 de 500 no Accelo.
-         */
-        if ((column < 0 && openSides.columnStart) || (column >= columns && openSides.columnEnd)) {
-          return false
-        }
-        if (column < 0 || line < 0 || column >= columns || line >= lines) return true
-
-        return (topM[column * lines + line] ?? 0) >= top - 1e-9
-      }
-
+    isConfined: ({ baseM, slot, topM: top, xM, yM }) => {
+      const [fromColumn, toColumn] = spanMemo.columns(xM, slot.depthM)
+      const [fromLine, toLine] = spanMemo.lines(yM, slot.widthM)
       /**
-       * Os quatro lados da pegada inteira. ⚠️ **Sai no primeiro lado solto**: um lado aberto já decide,
-       * e varrer o resto custava o orçamento de resposta da tela num baú cheio.
-       *
        * ⚠️ **Spec 116: vão mais estreito que o giro da pilha é apoio.** A pilha tomba girando em torno
        * da aresta de baixo; se a parede ou a carga do outro lado está mais perto do que o topo anda até
        * o centro de massa passar da aresta, ela encosta antes e não cai. Só a célula vizinha contava, e
        * a caixa presumida de 0,261 m deixava 7 cm até a parede lateral do Atego: a fileira inteira subia
        * em pirâmide (8, 8, 8, 7, 7, 7, 6, 6, 6, 5 caixas por camada), com a coluna da parede tratada como
-       * solta. O vão é medido da face **real** da caixa, não da célula arredondada — com a célula a
-       * régua aceitaria 27 cm de vão para uma base de 26,1 cm. A porta continua não sendo parede: o
-       * caminho que chega à face aberta não apoia nada.
+       * solta. O vão é medido da face **real** da caixa. A porta continua não sendo parede: o caminho que
+       * chega à face aberta não apoia nada.
        */
-      const catchGapM = braceGapOf(slot)
+      brace.baseM = baseM
+      brace.catchGapM = braceGapOf(slot)
       /** A folga das escoras na testeira desta posição — só vale se ela sair confinada. */
-      let slackM = Number.POSITIVE_INFINITY
+      brace.slackM = Number.POSITIVE_INFINITY
+      brace.topM = top
+      brace.fromXM = xM
+      brace.fromYM = yM
+      brace.toXM = xM + slot.depthM
+      brace.toYM = yM + slot.widthM
       /**
-       * ⚠️ **Spec 134: a testeira escora, e quanto o bloco ainda pode andar é anotado.** Em profundidade o
-       * bloco é empacotado encostado nela e deslocado depois; a escora só vale se o vão final — o
-       * deslocamento mais o vão que a caixa já tem — continuar mais estreito que o giro da pilha.
+       * Os quatro lados da pegada inteira. ⚠️ **Sai no primeiro lado solto**: um lado aberto já decide,
+       * e varrer o resto custava o orçamento de resposta da tela num baú cheio.
+       *
+       * ⚠️ **O lado que mais recusa vai primeiro** — todos precisam segurar, então a ordem não muda a
+       * resposta, só quanto se anda até ela. Medido no Atego: o lado da testeira para a porta na
+       * direção das colunas recusa 20 mil vezes, o oposto 11 mil, os dois das linhas 6 mil e mil.
        */
-      const leansOnHeadboard = (faceM: number): boolean => {
-        if (faceM >= catchGapM - 1e-9) return false
-        slackM = Math.min(slackM, catchGapM - faceM)
-        return true
-      }
-      /**
-       * O primeiro apoio numa direção: a célula vizinha, ou — atravessando um vão mais estreito que
-       * `catchGapM`, medido da face **real** da caixa — a carga ou a parede do outro lado dele.
-       */
-      const bracedToward = (input: {
-        readonly column: number
-        readonly faceM: number
-        readonly line: number
-        readonly stepColumn: number
-        readonly stepLine: number
-      }): boolean => {
-        let { column, line } = input
-        for (let step = 0; ; step += 1) {
-          if (openFace === 'lineEnd' && input.stepLine < 0 && line < 0) {
-            return leansOnHeadboard(input.faceM)
-          }
-          if (step > 0) {
-            const nearM =
-              input.stepColumn > 0
-                ? Math.min(column * HEIGHT_MAP_CELL_M, bed.lengthM)
-                : input.stepColumn < 0
-                  ? Math.max(0, (column + 1) * HEIGHT_MAP_CELL_M)
-                  : input.stepLine > 0
-                    ? Math.min(line * HEIGHT_MAP_CELL_M, bed.widthM)
-                    : Math.max(0, (line + 1) * HEIGHT_MAP_CELL_M)
-            if (Math.abs(nearM - input.faceM) >= catchGapM - 1e-9) return false
-          }
-          if (supportsBefore(column, line)) return true
-          if (column < 0 || line < 0 || column >= columns || line >= lines) return false
-          column += input.stepColumn
-          line += input.stepLine
-        }
-      }
-      const endM = xM + slot.depthM
-      const sideM = yM + slot.widthM
       for (let line = fromLine; line < toLine; line += 1) {
-        const back = { column: fromColumn - 1, faceM: xM, line, stepColumn: -1, stepLine: 0 }
-        if (!bracedToward(back)) return false
-        if (!bracedToward({ column: toColumn, faceM: endM, line, stepColumn: 1, stepLine: 0 })) {
-          return false
-        }
+        if (!bracedToward(braceSides.columnEnd, line, brace.toXM)) return false
+      }
+      for (let line = fromLine; line < toLine; line += 1) {
+        if (!bracedToward(braceSides.columnStart, line, xM)) return false
       }
       for (let column = fromColumn; column < toColumn; column += 1) {
-        if (!bracedToward({ column, faceM: yM, line: fromLine - 1, stepColumn: 0, stepLine: -1 })) {
-          return false
-        }
-        if (!bracedToward({ column, faceM: sideM, line: toLine, stepColumn: 0, stepLine: 1 })) {
-          return false
-        }
+        if (!bracedToward(braceSides.lineEnd, column, brace.toYM)) return false
       }
-      if (slackM !== Number.POSITIVE_INFINITY) {
+      for (let column = fromColumn; column < toColumn; column += 1) {
+        if (!bracedToward(braceSides.lineStart, column, yM)) return false
+      }
+      if (brace.slackM !== Number.POSITIVE_INFINITY) {
         const key = positionKey(xM, yM)
-        pendingSlackM.set(key, Math.min(pendingSlackM.get(key) ?? slackM, slackM))
+        pendingSlackM.set(key, Math.min(pendingSlackM.get(key) ?? brace.slackM, brace.slackM))
       }
 
       return true
@@ -1922,14 +2221,21 @@ function createSupportMap(
         )
         pendingSlackM.clear()
       }
-      const [fromColumn, toColumn] = range(xM, slot.depthM, columns)
-      const [fromLine, toLine] = range(yM, slot.widthM, lines)
+      shadowLineByFace.clear()
+      spanMemo.clear()
+      grid.splitAt({ depthM: slot.depthM, widthM: slot.widthM, xM, yM })
+      const [fromColumn, toColumn] = grid.columnsOf(xM, slot.depthM)
+      const [fromLine, toLine] = grid.linesOf(yM, slot.widthM)
+      const owner = stamped.length
+      stamped.push({ fromXM: xM, fromYM: yM, toXM: xM + slot.depthM, toYM: yM + slot.widthM })
       const onFloor = top - slot.heightM <= 1e-9
       for (let column = fromColumn; column < toColumn; column += 1) {
         if (onFloor) floorEndM[column] = Math.max(floorEndM[column] ?? 0, yM + slot.widthM)
+        const tops = topM[column] ?? []
+        const owners = ownerOf[column] ?? []
         for (let line = fromLine; line < toLine; line += 1) {
-          const cell = column * lines + line
-          topM[cell] = Math.max(topM[cell] ?? 0, top)
+          if (top >= (tops[line] ?? 0) - 1e-9) owners[line] = owner + 1
+          tops[line] = Math.max(tops[line] ?? 0, top)
         }
       }
     },
@@ -1963,15 +2269,20 @@ function placeSplitCargo(input: {
   readonly rows: readonly PlacedBox[]
   readonly unplaced: UnplacedBox[]
 }): readonly PlacedBox[] {
-  const columns = Math.max(1, Math.ceil(input.bed.lengthM / HEIGHT_MAP_CELL_M))
-  const lines = Math.max(1, Math.ceil(input.bed.widthM / HEIGHT_MAP_CELL_M))
-  const topM = new Float64Array(columns * lines)
-  const topLayer = new Int32Array(columns * lines).fill(-1)
-
-  const cellsOf = (fromM: number, sizeM: number, limit: number): readonly [number, number] => [
-    Math.max(0, Math.floor(fromM / HEIGHT_MAP_CELL_M)),
-    Math.min(limit, Math.ceil((fromM + sizeM) / HEIGHT_MAP_CELL_M)),
-  ]
+  /**
+   * ⚠️ Spec 132: o mesmo mapa de bordas reais da varredura. A grade de 5 cm aqui ampliava a pegada das
+   * duas pontas (`floor` no começo, `ceil` no fim) — conservador contra cruzamento, mas era a caixa
+   * reservando mais piso do que mede.
+   */
+  const grid = createEdgeGrid({
+    cellLayers: 2,
+    columnLayers: 0,
+    lengthM: input.bed.lengthM,
+    widthM: input.bed.widthM,
+  })
+  /** O topo absoluto de cada célula, e a camada de cima dela mais um (`0` é piso livre). */
+  const topM = grid.cells[0] ?? []
+  const nextLayer = grid.cells[1] ?? []
 
   /**
    * ⚠️ O mapa guarda o **topo absoluto** da coluna, nunca a altura própria da caixa. Carimbar a
@@ -1986,13 +2297,15 @@ function placeSplitCargo(input: {
     xM: number
     yM: number
   }): void => {
-    const [fromColumn, toColumn] = cellsOf(entry.xM, entry.depthM, columns)
-    const [fromLine, toLine] = cellsOf(entry.yM, entry.widthM, lines)
+    grid.splitAt(entry)
+    const [fromColumn, toColumn] = grid.columnsOf(entry.xM, entry.depthM)
+    const [fromLine, toLine] = grid.linesOf(entry.yM, entry.widthM)
     for (let column = fromColumn; column < toColumn; column += 1) {
+      const tops = topM[column] ?? []
+      const layers = nextLayer[column] ?? []
       for (let line = fromLine; line < toLine; line += 1) {
-        const cell = column * lines + line
-        topM[cell] = Math.max(topM[cell] ?? 0, entry.topM)
-        topLayer[cell] = Math.max(topLayer[cell] ?? -1, entry.layer)
+        tops[line] = Math.max(tops[line] ?? 0, entry.topM)
+        layers[line] = Math.max(layers[line] ?? 0, entry.layer + 1)
       }
     }
   }
@@ -2028,15 +2341,13 @@ function placeSplitCargo(input: {
       slot === null || failed.has(shapeKey)
         ? null
         : findSplitSpot({
-            cellsOf,
-            columns,
+            grid,
             lanes: input.lanes,
-            lines,
+            nextLayer,
             securesCargo: input.securesCargo,
             sliceSizeM,
             sliceStartM,
             slot,
-            topLayer,
             topM,
             bed: input.bed,
           })
@@ -2077,30 +2388,21 @@ function placeSplitCargo(input: {
  */
 function findSplitSpot(input: {
   readonly bed: Readonly<{ heightM: number; lengthM: number; widthM: number }>
-  readonly cellsOf: (fromM: number, sizeM: number, limit: number) => readonly [number, number]
-  readonly columns: number
+  readonly grid: EdgeGrid
   readonly lanes: boolean
-  readonly lines: number
-  /** A largura da faixa em faixas; o comprimento da fatia em profundidade. */
+  readonly nextLayer: readonly (readonly number[])[]
   readonly securesCargo: boolean
+  /** A largura da faixa em faixas; o comprimento da fatia em profundidade. */
   readonly sliceSizeM: number
   readonly sliceStartM: number
   readonly slot: Slot
-  readonly topLayer: Int32Array
-  readonly topM: Float64Array
+  readonly topM: readonly (readonly number[])[]
 }): {
   readonly layer: number
   readonly topM: number
   readonly xM: number
   readonly yM: number
 } | null {
-  /**
-   * O passo da busca é grosso de propósito: a sobra pousa **em cima** do que já está lá, então
-   * precisão de centímetro aqui não muda onde ela fica — e a varredura fina custava metade do
-   * orçamento de resposta da tela.
-   */
-  const step = HEIGHT_MAP_CELL_M * 4
-
   /**
    * ⚠️ **Em faixas a sobra fica na própria faixa** (spec 100 G003). Em profundidade ela sobe para a
    * região das paradas entregues depois, mais fundo no baú: ali nada fica por cima dela e o corredor
@@ -2115,48 +2417,51 @@ function findSplitSpot(input: {
    * `bedFull`, no argumento de que a parada que estoura a própria faixa já encheu o baú. Isso era
    * verdade quando a faixa era proporcional ao volume, e deixou de ser quando o mínimo passou a ser
    * reservado por parada — medido: 15 de 57 caixas descartadas num baú 64% cheio.
+   *
+   * ⚠️ Spec 132: os lugares tentados são as bordas reais da carga, dos dois lados (`columnStartsFor`,
+   * `rowsFor`), no lugar do passo fixo de 20 cm — a sobra pousa em cima do que já está lá, e é na
+   * borda do que já está lá que o relevo muda.
    */
-  const firstX = input.lanes ? 0 : input.sliceStartM - input.slot.depthM
-  const stepX = input.lanes ? step : -step
-  const lastX = input.lanes ? input.bed.lengthM - input.slot.depthM : 0
-  const firstY = input.lanes ? input.sliceStartM : 0
-  const lastY = input.lanes
-    ? input.sliceStartM + input.sliceSizeM - input.slot.widthM
-    : input.bed.widthM - input.slot.widthM
+  const { grid, slot } = input
+  const reachable = grid.columnStartsFor({ fromM: 0, sizeM: slot.depthM })
+  const xCandidates = input.lanes
+    ? reachable
+    : reachable.filter((xM) => xM <= input.sliceStartM - slot.depthM + EDGE_TOLERANCE_M).reverse()
+  const yCandidates = input.lanes
+    ? grid.rowsFor({
+        fromM: input.sliceStartM,
+        sizeM: slot.widthM,
+        toM: input.sliceStartM + input.sliceSizeM - slot.widthM,
+      })
+    : grid.rowsFor({ fromM: 0, sizeM: slot.widthM, toM: input.bed.widthM - slot.widthM })
 
-  for (let xM = firstX; input.lanes ? xM <= lastX + 1e-9 : xM >= lastX - 1e-9; xM += stepX) {
+  for (const xM of xCandidates) {
     let best: { layer: number; topM: number; xM: number; yM: number } | null = null
+    const [fromColumn, toColumn] = grid.columnsOf(xM, slot.depthM)
 
-    for (let yM = firstY; yM <= lastY + 1e-9; yM += step) {
-      const [fromColumn, toColumn] = input.cellsOf(
-        Math.max(0, xM),
-        input.slot.depthM,
-        input.columns,
-      )
-      const [fromLine, toLine] = input.cellsOf(yM, input.slot.widthM, input.lines)
+    for (const yM of yCandidates) {
+      const [fromLine, toLine] = grid.linesOf(yM, slot.widthM)
       let support = 0
       let layer = 0
       for (let column = fromColumn; column < toColumn; column += 1) {
+        const tops = input.topM[column] ?? []
+        const layers = input.nextLayer[column] ?? []
         for (let line = fromLine; line < toLine; line += 1) {
-          const cell = column * input.lines + line
-          support = Math.max(support, input.topM[cell] ?? 0)
-          layer = Math.max(layer, (input.topLayer[cell] ?? -1) + 1)
+          support = Math.max(support, tops[line] ?? 0)
+          layer = Math.max(layer, layers[line] ?? 0)
         }
       }
-      if (support + input.slot.heightM > input.bed.heightM + 1e-9) continue
+      if (support + slot.heightM > input.bed.heightM + 1e-9) continue
       /**
        * ⚠️ A sobra sobe **em cima** do que já está lá, e por isso ela é justamente quem mais arrisca
        * tombar. Sem esta trava a carga dividida furava a esbeltez pelo caminho de trás — medido: uma
        * caixa a 0,90 m numa pilha que a regra limitava a 0,60 m.
        */
-      if (
-        support + input.slot.heightM >
-        stableStackHeightM(input.slot, input.securesCargo) + 1e-9
-      ) {
+      if (support + slot.heightM > stableStackHeightM(slot, input.securesCargo) + 1e-9) {
         continue
       }
       if (best === null || support < best.topM) {
-        best = { layer, topM: support, xM: Math.max(0, xM), yM }
+        best = { layer, topM: support, xM, yM }
       }
       /** Piso livre é o melhor que existe nesta faixa: não há o que continuar procurando. */
       if (support === 0) break
@@ -2347,9 +2652,10 @@ type SeatCandidate = { readonly topM: number; readonly xM: number }
  * folga até o teto fique menor que a altura da caixa dominante. Nenhuma regra afrouxa: o assento
  * passa pela mesma esbeltez, sombra e fim do baú que a busca comum confere.
  *
- * ⚠️ **Pequena é pegada em células menor que a da dominante**, não metro: a caixa de 0,36 × 0,26 m
- * ocupa as mesmas células da presumida de 0,371 × 0,261 e é tratada como ela. A dominante é a forma
- * com mais caixas na fatia.
+ * ⚠️ **Pequena é pegada em classes de 5 cm menor que a da dominante**, não metro: a caixa de
+ * 0,36 × 0,26 m cai nas mesmas classes da presumida de 0,371 × 0,261 e é tratada como ela. A classe é
+ * só isto — quem é pequena —, e desde a spec 132 nenhuma caixa ocupa a classe: posição e pegada são a
+ * medida real. A dominante é a forma com mais caixas na fatia.
  *
  * ⚠️ O mapa só cresce, então a busca que falhou para uma forma falha de novo até algum topo novo entrar
  * na faixa onde espaço morto pode surgir — é a mesma memória de `failedAt`, com a versão do mapa no
@@ -2359,11 +2665,17 @@ type DeadSpaceTracker = {
   readonly find: (search: {
     readonly accept: (yM: number) => (candidate: SeatCandidate) => boolean
     readonly frontierM: number
+    readonly onlyOverLoad: boolean
     readonly slot: Slot
     readonly support: SupportMap
   }) => (SeatCandidate & { readonly yM: number }) | null
-  /** Se a pegada em células é menor que a da forma dominante — ver `rankSmallLast`. */
+  /**
+   * Se a pegada em células é menor que a da forma dominante, ou fora do padrão dela — ver `rankSmallLast`
+   * e `isOffPattern`.
+   */
   readonly isSmall: (slot: Slot) => boolean
+  /** Se a pegada no plano não é a da forma dominante, em nenhuma das duas medidas — spec 135. */
+  readonly isOffPattern: (slot: Slot) => boolean
   readonly noteStamp: (topM: number) => void
 }
 
@@ -2373,9 +2685,26 @@ function createDeadSpaceTracker(input: {
   readonly slice: Readonly<{ heightM: number; lengthM: number; widthM: number }>
 }): DeadSpaceTracker {
   const dominant = resolveDominantSlot(input)
-  const cellAreaOf = (slot: Slot): number => toCellEnd(slot.depthM) * toCellEnd(slot.widthM)
+  const cellAreaOf = (slot: Slot): number => sizeClassOf(slot.depthM) * sizeClassOf(slot.widthM)
+  const isOffPattern = (slot: Slot): boolean =>
+    dominant !== null &&
+    (Math.abs(slot.depthM - dominant.depthM) > EDGE_TOLERANCE_M ||
+      Math.abs(slot.widthM - dominant.widthM) > EDGE_TOLERANCE_M)
+  /**
+   * ⚠️ **Spec 135: a pegada fora do padrão também é "pequena".** Com as bordas reais (spec 132) a caixa
+   * de 0,40 × 0,30 no meio das presumidas de 0,371 × 0,261 abria fileira fora de fase: as de trás andavam
+   * 3,9 cm, sobrava vão de 0,34 m onde nenhuma presumida cabe, e as pilhas vizinhas perdiam a contenção.
+   * A grade de 5 cm escondia isso — as duas viravam 0,40 × 0,30. Medido no Atego sintético de 85 paradas
+   * (`dead-space.contract.ts`): 236 caixas fora contra 26 na linha `ce0a2d08`. Depois das grandes da
+   * própria entrega e no espaço morto, ela não tira ninguém de fase.
+   *
+   * ⚠️ Só a que **não é maior** que a dominante: a pegada maior é base (095 G002), e mandá-la para o topo
+   * poria a caixa de 0,80 × 0,60 em cima das de 0,30 × 0,30.
+   */
   const isSmall = (slot: Slot): boolean =>
-    dominant !== null && cellAreaOf(slot) < cellAreaOf(dominant)
+    dominant !== null &&
+    (cellAreaOf(slot) < cellAreaOf(dominant) ||
+      (isOffPattern(slot) && cellAreaOf(slot) <= cellAreaOf(dominant)))
   /**
    * Abaixo desta altura, carimbar não cria espaço morto nem apoio para ele: o assento precisa de topo
    * acima de `H − dominante − caixa`, e o apoio da coluna livre, de vizinha acima de três bases abaixo
@@ -2394,18 +2723,26 @@ function createDeadSpaceTracker(input: {
   let highestTopM = 0
 
   type Search = Parameters<DeadSpaceTracker['find']>[0]
-  const findInBand = ({ accept, frontierM, slot, support }: Search, dominantSlot: Slot) => {
+  const findInBand = (
+    { accept, frontierM, onlyOverLoad, slot, support }: Search,
+    dominantSlot: Slot,
+  ) => {
     if (highestTopM + slot.heightM <= input.slice.heightM - dominantSlot.heightM + 1e-9) return null
     const key = `${slot.depthM}|${slot.widthM}|${slot.heightM}`
     if (failedAt.get(key) === version) return null
 
-    for (let yM = 0; yM + slot.widthM <= frontierM + 1e-9; yM = round(yM + HEIGHT_MAP_CELL_M)) {
+    for (const yM of support.rows({
+      fromM: 0,
+      toM: frontierM - slot.widthM,
+      widthM: slot.widthM,
+    })) {
       const acceptRow = accept(yM)
       const found = support.seat({
         accept: (candidate) =>
           input.slice.heightM - (candidate.topM + slot.heightM) < dominantSlot.heightM - 1e-9 &&
           acceptRow(candidate),
         heightM: input.slice.heightM,
+        onlyOverLoad,
         slot,
         xM: 0,
         yM,
@@ -2428,7 +2765,7 @@ function createDeadSpaceTracker(input: {
    * esbeltez e fim do baú. Empate fica com o **primeiro** achado (mais longe da porta, depois o menor
    * `x`): desempatar pelo mais perto da porta, ou pela parede, devolvia exatamente os 185 de antes.
    */
-  const findHighest = ({ accept, frontierM, slot, support }: Search) => {
+  const findHighest = ({ accept, frontierM, onlyOverLoad, slot, support }: Search) => {
     const key = `${slot.depthM}|${slot.widthM}|${slot.heightM}`
     if (highestFailedAt.get(key) === stamps) return null
     let best: (SeatCandidate & { readonly yM: number }) | null = null
@@ -2441,9 +2778,13 @@ function createDeadSpaceTracker(input: {
      */
     const leansOnHeadboard = (yM: number, topM: number): boolean =>
       input.deepAxis === 'width' &&
-      yM < HEIGHT_MAP_CELL_M - 1e-9 &&
+      yM < EDGE_TOLERANCE_M &&
       topM + slot.heightM > stableStackHeightM(slot, false) + 1e-9
-    for (let yM = 0; yM + slot.widthM <= frontierM + 1e-9; yM = round(yM + HEIGHT_MAP_CELL_M)) {
+    for (const yM of support.rows({
+      fromM: 0,
+      toM: frontierM - slot.widthM,
+      widthM: slot.widthM,
+    })) {
       const acceptRow = accept(yM)
       support.seat({
         accept: (candidate) => {
@@ -2454,6 +2795,7 @@ function createDeadSpaceTracker(input: {
           return false
         },
         heightM: input.slice.heightM,
+        onlyOverLoad,
         slot,
         xM: 0,
         yM,
@@ -2470,6 +2812,7 @@ function createDeadSpaceTracker(input: {
 
       return findInBand(search, dominant) ?? findHighest(search)
     },
+    isOffPattern,
     isSmall,
     noteStamp: (topM) => {
       stamps += 1
@@ -2477,6 +2820,18 @@ function createDeadSpaceTracker(input: {
       if (topM > bandFloorM + 1e-9) version += 1
     },
   }
+}
+
+/**
+ * A classe de tamanho de uma medida, em passos de 5 cm — só para dizer quem é **pequena** (spec 117).
+ *
+ * ⚠️ Spec 132: era a célula do mapa de alturas, e a caixa ocupava a célula inteira. A célula saiu da
+ * geometria; a classe ficou para o critério da 117 não mudar de carona — medido lá com ela.
+ */
+const SIZE_CLASS_M = 0.05
+
+function sizeClassOf(sizeM: number): number {
+  return Math.ceil(sizeM / SIZE_CLASS_M - EDGE_TOLERANCE_M)
 }
 
 /** A forma com mais caixas na fatia, no encaixe que a varredura usaria. */
@@ -2564,8 +2919,9 @@ function fitSlot(input: {
    */
   readonly deepAxis?: 'depth' | 'width'
 }): Slot | null {
-  const lengthM = (input.box.lengthMm ?? 0) / MILLIMETRES_PER_METRE
-  const widthM = (input.box.widthMm ?? 0) / MILLIMETRES_PER_METRE
+  /** Spec 132: a pegada é a medida em milímetro inteiro — ver `toMillimetreSize`. */
+  const lengthM = toMillimetreSize((input.box.lengthMm ?? 0) / MILLIMETRES_PER_METRE)
+  const widthM = toMillimetreSize((input.box.widthMm ?? 0) / MILLIMETRES_PER_METRE)
   const heightM = (input.box.heightMm ?? 0) / MILLIMETRES_PER_METRE
   if (heightM > input.bed.heightM) return null
 
@@ -2597,7 +2953,7 @@ function fitSlot(input: {
    * em células as duas dão 20 —, e a fileira de 0,40 m punha o terceiro degrau da porta a 0,80 m,
    * fora da mão: medido, 1008 caixas desenhadas contra 1188 com a fileira de 0,30 m.
    */
-  const cellSizeOf = (sizeM: number): number => toCellEnd(sizeM) * HEIGHT_MAP_CELL_M
+  const cellSizeOf = (sizeM: number): number => Math.ceil(sizeM / 0.05 - 1e-6) * 0.05
   const acrossOf = (spanM: number, sizeM: number): number =>
     Math.floor((spanM - sizeM + 1e-9) / cellSizeOf(sizeM)) + 1
   const yieldOf = (slot: Slot): number =>
@@ -2950,10 +3306,8 @@ function placeComplement(input: {
     return { boxes: [], headboardSlackM: Number.POSITIVE_INFINITY, rejected: [] }
   }
   const { bed } = input
-  const columns = Math.max(1, Math.ceil(bed.lengthM / HEIGHT_MAP_CELL_M))
-  const lines = Math.max(1, Math.ceil(bed.widthM / HEIGHT_MAP_CELL_M))
   const support = createSupportMap(bed, 'lineEnd', input.openSides)
-  const occupancy = createOccupancyGrid({ columns, lines })
+  const occupancy = createOccupancyGrid({ lengthM: bed.lengthM, widthM: bed.widthM })
   const noteBoxes = new Map<string, BoxExtent[]>()
   const noteOf = (documentId: string | null | undefined): BoxExtent[] =>
     documentId === null || documentId === undefined ? [] : (noteBoxes.get(documentId) ?? [])
@@ -2962,6 +3316,8 @@ function placeComplement(input: {
     noteBoxes.set(documentId, [...noteOf(documentId), box])
   }
   for (const box of input.placed) {
+    /** Spec 132: as bordas de toda a carga viram lugar tentado — o relevo segue só o das posteriores. */
+    support.addEdges(box)
     occupancy.stamp({ box, isComplement: false })
     addToNote(box.documentId, box)
   }
@@ -2971,16 +3327,17 @@ function placeComplement(input: {
   const sequences = [
     ...new Set([...input.placed, ...input.overflow].map((box) => box.stopSequence)),
   ].sort((first, second) => second - first)
+  /** Por entrega, uma vez: filtrar a carga inteira a cada entrega era 2% do cálculo do Atego. */
+  const overflowByStop = groupByStop(input.overflow)
+  const placedByStop = groupByStop(input.placed)
   for (const stopSequence of sequences) {
-    const own = input.overflow.filter((box) => box.stopSequence === stopSequence)
+    const own = overflowByStop.get(stopSequence) ?? []
     /**
      * O relevo congelado é o das entregas posteriores — as que já estão lá quando esta carrega —, e só
      * serve para dizer se a caixa também passou da mão. Congelar custa o baú inteiro; só onde há fila.
      */
     if (own.length > 0) support.freezeLater()
-    for (const box of input.placed) {
-      if (box.stopSequence === stopSequence) support.stamp(toSupportStamp(box))
-    }
+    for (const box of placedByStop.get(stopSequence) ?? []) support.stamp(toSupportStamp(box))
     if (own.length === 0) continue
     /** O mapa só cresce: o formato que falhou falha de novo enquanto nada entrar (a mesma memória da varredura). */
     const failedAt = new Map<string, number>()
@@ -2993,7 +3350,6 @@ function placeComplement(input: {
           : findComplementSeat({
               bed,
               failedAt,
-              lines,
               note: noteOf(box.documentId),
               noteKey: box.documentId ?? '',
               occupancy,
@@ -3033,6 +3389,19 @@ function placeComplement(input: {
   return { boxes, headboardSlackM: support.headboardSlackM(), rejected }
 }
 
+/** As caixas de cada entrega, na ordem em que vieram. */
+function groupByStop<TBox extends { readonly stopSequence: number }>(
+  boxes: readonly TBox[],
+): ReadonlyMap<number, readonly TBox[]> {
+  const byStop = new Map<number, TBox[]>()
+  for (const box of boxes) {
+    const list = byStop.get(box.stopSequence)
+    if (list === undefined) byStop.set(box.stopSequence, [box])
+    else list.push(box)
+  }
+  return byStop
+}
+
 /** O motivo que a caixa carrega: a ordem que ela fura, e o alcance quando ela também passou dele. */
 function complementReasonsOf(seat: { readonly outOfReach: boolean }): readonly PlacementReason[] {
   return seat.outOfReach ? ['outOfReach', 'needsRehandling'] : ['needsRehandling']
@@ -3065,7 +3434,6 @@ type ComplementSeat = Readonly<{ outOfReach: boolean; topM: number; xM: number; 
 function findComplementSeat(input: {
   readonly bed: Readonly<{ heightM: number; lengthM: number; widthM: number }>
   readonly failedAt: Map<string, number>
-  readonly lines: number
   readonly note: readonly BoxExtent[]
   readonly noteKey: string
   readonly occupancy: OccupancyGrid
@@ -3084,7 +3452,8 @@ function findComplementSeat(input: {
         return (
           input.occupancy.isRestable({ ...at, stopSequence: input.stopSequence }) &&
           isStandingUp({
-            isRestrainedUpTo: (restraintM) => support.isConfined({ ...at, topM: restraintM }),
+            isRestrainedUpTo: (restraintM) =>
+              support.isConfined({ ...at, baseM: at.topM, topM: restraintM }),
             securesCargo: input.securesCargo,
             slot,
             topM,
@@ -3093,7 +3462,6 @@ function findComplementSeat(input: {
       },
     bed: input.bed,
     failedAt: input.failedAt,
-    lines: input.lines,
     note: input.note,
     noteKey: input.noteKey,
     slot,
@@ -3122,7 +3490,6 @@ function scanRelaxedSeat(input: {
   readonly accept: (yM: number) => (candidate: SeatCandidate) => boolean
   readonly bed: Readonly<{ heightM: number; lengthM: number; widthM: number }>
   readonly failedAt: Map<string, number>
-  readonly lines: number
   readonly note: readonly BoxExtent[]
   readonly noteKey: string
   readonly slot: Slot
@@ -3131,42 +3498,43 @@ function scanRelaxedSeat(input: {
 }): (SeatCandidate & { readonly yM: number }) | null {
   const { slot } = input
   const shapeKey = `${String(slot.depthM)}|${String(slot.widthM)}|${String(slot.heightM)}`
-  const slotLines = toCellEnd(slot.widthM)
-  const lastLine = input.lines - slotLines
-  const noteFrom = Math.min(
-    ...input.note.map((box) => cellSpanOf(box.yM, box.widthM, input.lines)[0]),
-  )
-  const noteTo = Math.max(
-    ...input.note.map((box) => cellSpanOf(box.yM, box.widthM, input.lines)[1]),
-  )
+  /** Spec 132: as bordas reais da carga, dos dois lados — ver `SupportMap.rows`. */
+  const allRows = input.support.rows({
+    fromM: 0,
+    toM: input.bed.widthM - slot.widthM,
+    widthM: slot.widthM,
+  })
+  /** Da porta para a testeira: o `y` maior primeiro. */
+  const descending = (fromM: number, toM: number): readonly number[] =>
+    allRows.filter((yM) => yM >= fromM - EDGE_TOLERANCE_M && yM <= toM + EDGE_TOLERANCE_M).reverse()
+  const noteFrom = Math.min(...input.note.map((box) => box.yM))
+  const noteTo = Math.max(...input.note.map((box) => box.yM + box.widthM))
   const passes =
     input.note.length > 0
       ? ([
           {
-            from: Math.min(lastLine, noteTo),
             key: `${input.noteKey}`,
-            to: noteFrom - slotLines,
+            rows: descending(noteFrom - slot.widthM, noteTo),
             touching: true,
           },
-          { from: lastLine, key: '', to: 0, touching: false },
+          { key: '', rows: allRows.toReversed(), touching: false },
         ] as const)
-      : ([{ from: lastLine, key: '', to: 0, touching: false }] as const)
+      : ([{ key: '', rows: allRows.toReversed(), touching: false }] as const)
 
   for (const pass of passes) {
     const key = `${pass.key}|${shapeKey}`
     if (input.failedAt.get(key) === input.version) continue
-    for (let line = pass.from; line >= Math.max(0, pass.to); line -= 1) {
-      const yM = round(line * HEIGHT_MAP_CELL_M)
-      if (yM + slot.widthM > input.bed.widthM + 1e-9) continue
+    for (const yM of pass.rows) {
       const acceptRow = input.accept(yM)
       const found = input.support.seat({
+        /** O encosto na nota é a conferência barata, e vai antes da esbeltez. */
         accept: (candidate) =>
           candidate.xM + slot.depthM <= input.bed.lengthM + 1e-9 &&
-          acceptRow(candidate) &&
           (!pass.touching ||
             input.note.some((other) =>
               areTouching(toExtent({ slot, topM: candidate.topM, xM: candidate.xM, yM }), other),
-            )),
+            )) &&
+          acceptRow(candidate),
         heightM: input.bed.heightM,
         slot,
         xM: 0,
@@ -3196,12 +3564,6 @@ function toExtent(input: {
   }
 }
 
-/** O intervalo de células que a medida ocupa — o mesmo arredondamento do mapa de apoio. */
-function cellSpanOf(fromM: number, sizeM: number, limit: number): readonly [number, number] {
-  const from = Math.max(0, Math.round(fromM / HEIGHT_MAP_CELL_M))
-  return [from, Math.min(limit, Math.max(from + 1, toCellEnd(fromM + sizeM)))]
-}
-
 type OccupancyGrid = ReturnType<typeof createOccupancyGrid>
 
 /**
@@ -3212,7 +3574,7 @@ type OccupancyGrid = ReturnType<typeof createOccupancyGrid>
  * ⚠️ A pilha é maciça: toda caixa pousa nivelada sobre a pegada inteira, então o topo de cada célula diz
  * tudo o que há embaixo dele.
  */
-function createOccupancyGrid(input: { readonly columns: number; readonly lines: number }): {
+function createOccupancyGrid(input: { readonly lengthM: number; readonly widthM: number }): {
   readonly isRestable: (at: {
     readonly slot: Slot
     readonly stopSequence: number
@@ -3222,10 +3584,16 @@ function createOccupancyGrid(input: { readonly columns: number; readonly lines: 
   }) => boolean
   readonly stamp: (entry: { readonly box: PlacedBox; readonly isComplement: boolean }) => void
 } {
-  const { columns, lines } = input
-  const topM = new Float64Array(columns * lines)
-  const ownerSequence = new Int32Array(columns * lines)
-  const ownerIsComplement = new Uint8Array(columns * lines)
+  /** Spec 132: as mesmas bordas reais do mapa de apoio — ver `createEdgeGrid`. */
+  const grid = createEdgeGrid({
+    cellLayers: 3,
+    columnLayers: 0,
+    lengthM: input.lengthM,
+    widthM: input.widthM,
+  })
+  const topM = grid.cells[0] ?? []
+  const ownerSequence = grid.cells[1] ?? []
+  const ownerIsComplement = grid.cells[2] ?? []
 
   return {
     /**
@@ -3234,31 +3602,53 @@ function createOccupancyGrid(input: { readonly columns: number; readonly lines: 
      * só sai depois dela, e ela é justamente a que a mão não alcança.
      */
     isRestable: ({ slot, stopSequence, topM: base, xM, yM }) => {
-      const [fromColumn, toColumn] = cellSpanOf(xM, slot.depthM, columns)
-      const [fromLine, toLine] = cellSpanOf(yM, slot.widthM, lines)
+      const [fromColumn, toColumn] = grid.columnsOf(xM, slot.depthM)
+      const [fromLine, toLine] = grid.linesOf(yM, slot.widthM)
+      let lowest = Number.POSITIVE_INFINITY
       for (let column = fromColumn; column < toColumn; column += 1) {
         for (let line = fromLine; line < toLine; line += 1) {
-          const cell = column * lines + line
-          if (Math.abs((topM[cell] ?? 0) - base) > 1e-9) return false
-          if (base <= 1e-9) continue
-          if (ownerIsComplement[cell] !== 1 && (ownerSequence[cell] ?? 0) <= stopSequence) {
+          const top = topM[column]?.[line] ?? 0
+          if (top > base + 1e-9) return false
+          lowest = Math.min(lowest, top)
+          if (base <= 1e-9 || top < base - 1e-9) continue
+          if (
+            (ownerIsComplement[column]?.[line] ?? 0) !== 1 &&
+            (ownerSequence[column]?.[line] ?? 0) <= stopSequence
+          ) {
             return false
           }
         }
       }
-      return true
+      /** Spec 135: a mesma base apoiada mínima do assento da varredura. */
+      return (
+        lowest >= base - 1e-9 ||
+        isBaseSupported({
+          depthM: slot.depthM,
+          grid,
+          layer: topM,
+          levelM: base,
+          minFraction: MIN_SUPPORTED_BASE_FRACTION,
+          span: { end: toColumn, first: fromColumn, fromLine, toLine },
+          widthM: slot.widthM,
+          xM,
+          yM,
+        })
+      )
     },
     stamp: ({ box, isComplement }) => {
-      const [fromColumn, toColumn] = cellSpanOf(box.xM, box.depthM, columns)
-      const [fromLine, toLine] = cellSpanOf(box.yM, box.widthM, lines)
+      grid.splitAt(box)
+      const [fromColumn, toColumn] = grid.columnsOf(box.xM, box.depthM)
+      const [fromLine, toLine] = grid.linesOf(box.yM, box.widthM)
       const top = box.zM + box.heightM
       for (let column = fromColumn; column < toColumn; column += 1) {
+        const tops = topM[column] ?? []
+        const owners = ownerSequence[column] ?? []
+        const kinds = ownerIsComplement[column] ?? []
         for (let line = fromLine; line < toLine; line += 1) {
-          const cell = column * lines + line
-          if (top <= (topM[cell] ?? 0) + 1e-9) continue
-          topM[cell] = top
-          ownerSequence[cell] = box.stopSequence
-          ownerIsComplement[cell] = isComplement ? 1 : 0
+          if (top <= (tops[line] ?? 0) + 1e-9) continue
+          tops[line] = top
+          owners[line] = box.stopSequence
+          kinds[line] = isComplement ? 1 : 0
         }
       }
     },

@@ -146,11 +146,13 @@ pelo quanto essa fileira gasta do eixo caro. Não é "a menor dimensão".
 O eixo caro é parâmetro, porque os dois arranjos marcham em eixos diferentes: em profundidade é
 `depthM`, em faixas é `widthM`. O rendimento é contado **em células**, não na medida real.
 
-### O mapa de alturas, em células de 5 cm
+### O mapa de alturas, com as bordas reais das caixas
 
-A fatia mantém um **relevo por célula** de 5 cm. A caixa ocupa **células inteiras** — a pegada conta a
-célula parcial como inteira, até 5 cm por caixa —, e a posição é sempre uma borda de célula. A
-conversão para célula leva folga nas duas pontas, porque `0.6 / 0.05` dá `11.999999999999998`.
+A fatia mantém um **relevo** cujas colunas e linhas **nascem das bordas das caixas**
+(`cargo-edge-grid.ts`, spec 132): cada caixa carimbada acrescenta as quatro bordas dela, em milímetro
+inteiro, e a altura é uniforme dentro de cada célula por construção. A caixa ocupa a medida dela — não
+há mais célula de 5 cm, e a presumida de 0,261 m reserva 0,261 m. Toda comparação de borda passa pela
+tolerância única `EDGE_TOLERANCE_M` (1e-6 m).
 
 O `z` da caixa é **o maior relevo sob a pegada dela**: ela pousa no que está embaixo dela, nunca no
 topo da camada.
@@ -159,7 +161,10 @@ topo da camada.
 
 Um lugar é aceito quando **todas** valem:
 
-- **Nivelado**: o apoio é plano sob a pegada inteira — nível, não fração de base apoiada.
+- **Apoiada em 80% da base** (`MIN_SUPPORTED_BASE_FRACTION`, spec 135): nada sob a pegada passa do
+  assento, e a área que chega a ele é pelo menos 80% da base — conta exata sobre as bordas
+  (`isBaseSupported`). A pegada **fora do padrão** da carga só balança sobre carga, nunca sobre o piso
+  nu (`onlyOverLoad`).
 - **Dentro da esbeltez** (§ 6).
 - **Sem sombra** (`isShadowed`): a entrega mais cedo não senta atrás de uma mais tardia mais alta que
   a base dela. A cada troca de entrega o relevo do que já está carregado é congelado como "o maior
@@ -192,6 +197,10 @@ Spec 130 — duas regras de lugar, nenhuma de física:
 - Nessa busca **a testeira não é parede para a caixa pequena que precisa de escora**: o bloco é deslocado
   para a porta depois de empacotado, e o vão que sobra lá passa do giro de uma pilha de base 10 cm.
 
+Spec 135 — **a pegada fora do padrão também é "pequena"**: a caixa cuja pegada não é a da forma dominante
+(e não é maior que ela em células) segue as mesmas duas regras. No meio das presumidas ela abria fileira
+fora de fase — a de 0,40 × 0,30 entre as de 0,371 × 0,261 —, e as pilhas vizinhas perdiam a contenção.
+
 ---
 
 ## 6. Passo 4 — Até onde a pilha sobe
@@ -213,6 +222,9 @@ Três precisões que decidem o desenho:
   0,63 m, o que tomba é o trecho acima disso, e é esse trecho que não passa de três vezes a base.
 - **Vão mais estreito que o giro da pilha é apoio** (`braceGapOf`). Para `h = 3b` o topo anda `3b/√10`
   — 0,95 da base —, e esse é o vão que ainda segura, medido da face **real** da caixa.
+- **Escora é encosto pelo lado** (spec 135, decisão do usuário). A caixa embaixo da pilha no plano
+  sustenta e **nunca escora**, mesmo mais larga que ela; o trecho encostado conta a partir de
+  `MIN_BRACE_CONTACT_M` = 1 cm.
 
 A trava é conferida **na altura do assento**, nunca num contador de camadas. E `max_stack_count`
 continua valendo por cima da esbeltez: ele declara esmagamento, que é outra coisa.
@@ -294,7 +306,7 @@ Só o que nem assim cabe segue `bedFull`.
 
 A planta tem de aguentar a **descarga**, não só o carregamento.
 `api-transportada/test/cargo-placement/unloading-simulation.ts` tira a primeira entrega, depois a
-segunda, e confere duas coisas **independente do mapa de 5 cm** do empacotador:
+segunda, e confere duas coisas **independente do mapa de alturas** do empacotador:
 
 - **Estabilidade**: no passo logo antes da entrega dela, toda caixa tem apoio em todas as faces (parede
   ou caixa presente dentro de `3b/√10`, trecho sem contato menor que 5 cm tolerado), ou não passa de
@@ -302,7 +314,9 @@ segunda, e confere duas coisas **independente do mapa de 5 cm** do empacotador:
   **bordas reais** das caixas, sem grade, com uma tolerância de contato só (`CONTACT_TOLERANCE_M` =
   1e-6 m): a caixa **nunca** é vizinha dela mesma, a caixa inteira em cima dela não a escora, e o vazio
   não escora ninguém. A vizinha pode começar antes da face (camada de baixo deslocada) — o que conta é
-  ocupar o lado de fora até a contenção.
+  ocupar o lado de fora até a contenção. ⚠️ Spec 135: **a caixa embaixo dela no plano não escora**, e a
+  vizinha precisa encostar pelo menos 1 cm na face (`MIN_BRACE_CONTACT_M`) e subir ao lado dela pelo
+  menos 1 cm (`MIN_BRACE_HEIGHT_M`). Contrato em `brace-rule.contract.ts`.
 - **Acesso**: a entrega sai inteira por quem fica **de pé no piso** livre ligado à porta, num corredor
   de `ACCESS_CORRIDOR_M` = 0,6 m, alcançando `DELIVERY_REACH_M` = 0,6 m à frente do corpo, sempre a
   caixa sem nada em cima.
@@ -395,6 +409,9 @@ saíram. Desenho lento é defeito do desenho, nunca motivo para esconder carga. 
 verticais é cor calculada — o `filter: brightness` era pintado face a face).
 
 Medições recentes: 9,7 ms com 3600 caixas em 12 entregas; 18,6 ms com 24 entregas e 407 caixas.
+Atego real de 1417 caixas (spec 135): 34,7–36,7 ms de mínimo, igual à linha `ce0a2d08` na mesma rodada.
+⚠️ Na forma do contrato — processo novo, um aquecimento, uma medida — as duas passam de 50 ms com a carga
+do sistema acima de 6; o teto está no fio nesta máquina.
 
 ---
 

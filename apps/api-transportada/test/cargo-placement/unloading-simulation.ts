@@ -189,6 +189,14 @@ function braceSpanOf(
   if (other === box) return null
   if (other.zM + other.heightM < input.restraintM - CONTACT_TOLERANCE_M) return null
   if (other.zM >= box.zM + box.heightM - CONTACT_TOLERANCE_M) return null
+  /**
+   * ⚠️ Spec 135 (decisão do usuário): a caixa de baixo não escora a de cima pelo lado. A que está
+   * embaixo dela no plano é a pilha dela — o degrau de uma caixa mais larga embaixo sustenta, não escora.
+   */
+  if (isUnderneath(box, other)) return null
+  if (Math.min(box.zM + box.heightM, other.zM + other.heightM) - other.zM < MIN_BRACE_HEIGHT_M) {
+    return null
+  }
 
   const acrossFromM = face.alongDepth ? other.yM : other.xM
   const acrossToM = acrossFromM + (face.alongDepth ? other.widthM : other.depthM)
@@ -206,7 +214,28 @@ function braceSpanOf(
     (face.alongDepth ? other.xM : other.yM) + (face.alongDepth ? other.depthM : other.widthM),
   )
 
-  return alongToM > alongFromM + CONTACT_TOLERANCE_M ? [alongFromM, alongToM] : null
+  return alongToM - alongFromM >= MIN_BRACE_CONTACT_M - CONTACT_TOLERANCE_M
+    ? [alongFromM, alongToM]
+    : null
+}
+
+/**
+ * Spec 135: o menor trecho de face encostado que conta como escora, e a menor altura da vizinha ao lado
+ * da caixa. Medido na linha `ce0a2d08`: os dois, a 1 cm, não mudam nenhuma contagem das quatro viagens —
+ * existem para a quina e a lâmina não passarem por escora.
+ */
+const MIN_BRACE_CONTACT_M = 0.01
+const MIN_BRACE_HEIGHT_M = 0.01
+
+/** Embaixo da caixa, dividindo pegada com ela no plano: é a pilha dela. */
+function isUnderneath(box: PlacedBox, other: PlacedBox): boolean {
+  return (
+    other.zM + other.heightM <= box.zM + CONTACT_TOLERANCE_M &&
+    other.xM < box.xM + box.depthM - CONTACT_TOLERANCE_M &&
+    box.xM < other.xM + other.depthM - CONTACT_TOLERANCE_M &&
+    other.yM < box.yM + box.widthM - CONTACT_TOLERANCE_M &&
+    box.yM < other.yM + other.widthM - CONTACT_TOLERANCE_M
+  )
 }
 
 /**
