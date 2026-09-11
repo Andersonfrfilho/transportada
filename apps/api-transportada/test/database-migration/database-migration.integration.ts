@@ -31,6 +31,7 @@ import {
   CONTRACTOR_PORTAL_TABLES,
   MULTI_VEHICLE_SUGGESTION_TABLES,
   WHATSAPP_CHANNEL_TABLES,
+  WHATSAPP_PHONE_TABLES,
   TRIP_FINANCIAL_TABLES,
   TRIP_TABLES,
   listMigrationDirectories,
@@ -77,6 +78,7 @@ describe('Drizzle migration integration', () => {
             ...CONTRACTOR_PORTAL_TABLES,
             ...MULTI_VEHICLE_SUGGESTION_TABLES,
             ...WHATSAPP_CHANNEL_TABLES,
+            ...WHATSAPP_PHONE_TABLES,
           ].toSorted(),
         )
         expect(await readMigrationNames(database)).toEqual(migrationDirectories)
@@ -128,6 +130,7 @@ describe('Drizzle migration integration', () => {
             ...CONTRACTOR_PORTAL_TABLES,
             ...MULTI_VEHICLE_SUGGESTION_TABLES,
             ...WHATSAPP_CHANNEL_TABLES,
+            ...WHATSAPP_PHONE_TABLES,
           ].toSorted(),
         )
         expect(await readMigrationNames(database)).toEqual(migrationDirectories)

@@ -227,3 +227,93 @@ Gates:
   `bun test ./test/cargo-volume.contract.test.ts` → 303 pass · 0 fail
 - `bun run --cwd apps/worker-transportada test` → 1002 pass · 0 fail
 - `make check` → exit 0 (API 5074 pass, worker 1002 pass, frontend 3316 pass)
+
+## T003 — o vínculo e o pedido de verificação (2026-09-11)
+
+Só dados: duas tabelas, schema Drizzle, repositório, porta, erro tipado e cópia no worker. Casos de
+uso, rotas e a verificação ficam para T004/T005.
+
+### SQL essencial (`drizzle/20260911231025_whatsapp_phone_binding/migration.sql`)
+
+```sql
+CREATE TABLE "user_whatsapp_phones" (
+  "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  "user_id" uuid NOT NULL CONSTRAINT "user_whatsapp_phones_user_id_unique" UNIQUE,
+  "phone" text NOT NULL,
+  "verified_at" timestamp with time zone,
+  "created_at" / "updated_at" timestamptz DEFAULT now() NOT NULL,
+  CONSTRAINT "user_whatsapp_phones_phone_check" CHECK ("phone" ~ '^55[1-9][0-9]{9,10}$')
+);
+CREATE TABLE "whatsapp_phone_verification_requests" (
+  "id" uuid PK, "company_id" uuid NOT NULL, "user_id" uuid NOT NULL, "phone" text NOT NULL,
+  "code_hash" text NOT NULL, "attempt_count" integer DEFAULT 0 NOT NULL,
+  "expires_at" timestamptz NOT NULL, "consumed_at" timestamptz, "created_at" timestamptz,
+  CHECK ("phone" ~ '^55[1-9][0-9]{9,10}$'), CHECK ("code_hash" ~ '^[0-9a-f]{64}$'),
+  CHECK ("attempt_count" between 0 and 5), CHECK ("expires_at" > "created_at")
+);
+CREATE UNIQUE INDEX "user_whatsapp_phones_phone_verified_unique"
+  ON "user_whatsapp_phones" ("phone") WHERE "verified_at" is not null;
+CREATE UNIQUE INDEX "whatsapp_phone_verification_requests_company_id_user_id_live_unique"
+  ON ... ("company_id","user_id") WHERE "consumed_at" is null;
+CREATE INDEX "whatsapp_phone_verification_requests_company_id_phone_live_idx"
+  ON ... ("company_id","phone") WHERE "consumed_at" is null;
+-- FKs: user_id → identity_users ON DELETE CASCADE;
+--      company_id → companies RESTRICT;
+--      (user_id, company_id) → user_company_memberships(user_id, company_id) RESTRICT
+```
+
+`rollback.sql` ao lado derruba só as duas tabelas e apaga a linha do diário por nome **e** hash,
+com `ROW_COUNT <> 1` abortando.
+
+### Decisões
+
+- **O padrão do CHECK sai da policy da T002.** `WHATSAPP_PHONE_PATTERN` passou a ser exportado de
+  `whatsapp-phone.policy.ts` e o schema o lê por `.source`, como `TAX_ID_PATTERN` em
+  `aggregate-application.schema.ts`. A mudança foi feita **nas duas cópias** (API e worker), de
+  forma idêntica, porque `worker-transportada/test/whatsapp-phone/parity.contract.ts` exige os dois
+  arquivos byte a byte iguais; mudar só o da API reprovaria a paridade.
+- **O teto 5 é constante** (`whatsapp-phone-verification.constant.ts`), lido pelo CHECK e pelo
+  `WHERE` de `incrementAttempt`, para o contador nunca passar do que o banco aceita.
+- **A membership tem `unique(user_id, company_id)`**, então a FK composta do molde de
+  `password_reset_requests` coube sem ajuste.
+- **Sem unique em `code_hash`** (plan § Dados item 3), e o contrato de schema afirma a ausência.
+- **`findLiveRequestByCompanyAndPhone` devolve lista**, mais recente primeiro: dois usuários da
+  mesma empresa podem ter declarado o mesmo número, e quem desempata é o código (T004).
+- **A colisão é decidida pelo índice parcial, não por leitura prévia**: `saveVerified` faz upsert por
+  `user_id` e traduz o `23505` de `user_whatsapp_phones_phone_verified_unique` em
+  `WhatsAppPhoneTakenError` (`WHATSAPP_PHONE_TAKEN`, 409), no padrão `ApiError` de
+  `company-user.error.ts`. O repositório não tem `DomainError`/`codes.ts` central; segui o vigente.
+- **O SQL gerado vinha com deriva de migrations escritas à mão** (pedágio, eixos, colunas de viagem
+  já aplicadas): foi recortado para só as duas tabelas. O `snapshot.json` ficou inteiro, porque ele
+  descreve o schema resultante.
+- **FK do usuário com nome explícito**: sem ele o kit emite `_fkey` e o Drizzle reporta `_fk`, e o
+  contrato conferiria um nome que não existe no banco.
+- **`apps/api-transportada/Dockerfile` ganhou `COPY src/whatsapp-commands/domain`**: o pre-deploy
+  (migrations + seed) importa `database.schema.ts`, que agora importa o padrão canônico e a constante
+  de lá; sem a linha, `pre-deploy.contract.ts` reprova (e a imagem quebraria no pre-deploy).
+
+### Vermelho → verde
+
+- Vermelho: `bun test ./test/whatsapp-phone-schema.contract.test.ts` → 0 pass · 1 fail (módulo
+  `user-whatsapp-phone.schema.ts` inexistente).
+- Primeira `make migration-test` → 89 pass · 2 fail: lista explícita de migrations em
+  `static-migration.contract.ts` e o grafo do pre-deploy sem `src/whatsapp-commands/domain`.
+  Corrigidos os dois (lista + Dockerfile).
+- Verde: contrato de schema + tenant-safety → 16 pass · 0 fail.
+
+### Gates
+
+- `bun run typecheck` → 0 erros (seis apps)
+- `bun run --cwd apps/api-transportada db:check` → "Everything's fine"
+- `make migration-test` → 91 pass · 0 fail (aplica, desfaz com os rollbacks e reaplica, com as duas
+  tabelas em `WHATSAPP_PHONE_TABLES`)
+- `test/integration/whatsapp-phone-repository.integration.ts` contra Postgres → 4 pass · 0 fail
+  (mesmo número verificado para dois usuários → `WhatsAppPhoneTakenError`; declarado não colide;
+  troca e desvínculo; pedido fecha o anterior e não sai da empresa)
+- `make check` → format, lint, typecheck verdes; API 5089 pass · 1 fail — só a flaky conhecida "o
+  Atego de 1417 caixas cabe no orçamento de 50 ms" (167 ms). Isolada e sozinha,
+  `bun test ./test/cargo-volume.contract.test.ts` → 303 pass · 0 fail (rodada em paralelo com as
+  suítes do worker e do frontend ela falhou de novo, 302/1: é carga de CPU, não código).
+- Como o `make check` para na primeira falha, o restante foi rodado à parte: worker 1002 pass ·
+  cron 94 pass · frontend 3316 pass · frontend-client 18 pass · frontend-landing 107 pass, todos
+  0 fail; `bun run build` → exit 0.

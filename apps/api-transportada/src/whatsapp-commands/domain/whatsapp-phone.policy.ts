@@ -6,7 +6,7 @@
  */
 
 const BRAZIL_COUNTRY_CODE = '55'
-const WHATSAPP_PHONE_PATTERN = /^55[1-9][0-9]{9,10}$/
+export const WHATSAPP_PHONE_PATTERN = /^55[1-9][0-9]{9,10}$/
 const TYPED_PHONE_PATTERN = /^\+?[0-9\s().-]+$/
 const NON_DIGIT_PATTERN = /\D/g
 const LOCAL_PHONE_LENGTHS: ReadonlySet<number> = new Set([10, 11])

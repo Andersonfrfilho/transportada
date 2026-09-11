@@ -28,7 +28,7 @@ ficha.
       `src/whatsapp-commands/domain/whatsapp-phone.policy.ts`, mais **cópia por valor** no worker com
       contrato de paridade; `maskPhone` (`****1234`) **no módulo de logging**, porque não existe hoje —
       contrato vermelho antes: com/sem 55, `+55`, máscara, 10/11/12/13 dígitos, lixo
-- [ ] **T003** 🧠 Migrations `user_whatsapp_phones` e `whatsapp_phone_verification_requests`
+- [x] **T003** 🧠 Migrations `user_whatsapp_phones` e `whatsapp_phone_verification_requests`
       (`plan.md` § Dados), schema, repositório e cópia no worker; rollback ao lado —
       `make migration-test` + `tenant-safety.contract.ts`
 - [ ] **T005** 🧠 Extrair `resolveCompanyForUser({ userId, companyId, channel })` de
