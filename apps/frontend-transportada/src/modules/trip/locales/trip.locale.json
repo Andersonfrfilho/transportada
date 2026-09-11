@@ -167,10 +167,11 @@
     "layerSummary": " · {{boxes}} caixas · {{stops}} parada(s) · {{height}} m",
     "legend": {
       "measured": "Cor cheia: caixa medida com fita.",
-      "notes": "Tons da mesma cor: notas diferentes da mesma entrega — toque na nota, na ficha da entrega, para acender só as caixas dela.",
+      "notes": "Uma cor por nota: cada nota fiscal tem a cor dela no baú — toque na nota, na ficha da entrega, para acender só as caixas dela.",
       "presumed": "Contorno pontilhado: caixa presumida, derivada do volume.",
       "split": "Contorno vermelho: carga dividida, no topo do lado de dentro.",
-      "complement": "Contorno tracejado cor de cobre: caixa do complemento, fora do mapa recomendado — traço mais grosso quando ela também fura a ordem de descarga."
+      "complement": "Contorno tracejado cor de cobre: caixa do complemento, fora do mapa recomendado — traço mais grosso quando ela também fura a ordem de descarga.",
+      "reusedColors": "{{count}} notas repetem a cor de outra: a viagem tem mais notas do que cores na lista."
     },
     "missingBed": "Sem o desenho da carga: este veículo não tem comprimento, largura e altura do baú na ficha.",
     "missingBedLink": "Abrir a ficha do veículo",

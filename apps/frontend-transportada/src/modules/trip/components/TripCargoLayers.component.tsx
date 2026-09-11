@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
-import { CargoIsometric, CargoToneSwatch, type IsometricBox } from '@/components/ui/cargo-isometric'
+import { CargoIsometric, CargoNoteSwatch, type IsometricBox } from '@/components/ui/cargo-isometric'
 
 import {
   applyViewPreset,
@@ -32,10 +32,11 @@ import {
 } from '../shared/stopFocus.service'
 import {
   buildStopNotes,
-  noteToneOf,
-  resolveNoteTones,
+  countNotesSharingColor,
+  noteColorOf,
+  resolveNoteColors,
   resolveSplitPieces,
-} from '../shared/noteTone.service'
+} from '../shared/noteColor.service'
 import { buildCargoStopLabels, formatCargoStopLabel } from '../shared/cargoStopLabel.service'
 import type { TripCargoLayout } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
@@ -114,14 +115,18 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
    * grande. Medido: 451 caixas redesenham em ~29 ms ao girar a vista.
    */
   /**
-   * Spec 119: o tom de cada nota e a lista da ficha, decididos **uma vez por planta** — não mudam ao
+   * Spec 121: a cor de cada nota e a lista da ficha, decididas **uma vez por planta** — não mudam ao
    * girar a vista nem ao acender uma parada, então ficam fora da memória que o foco invalida.
    */
-  const { stopNotes, tones } = useMemo(() => {
+  const { notesSharingColor, stopNotes, noteColors } = useMemo(() => {
     const placed = placement.layers.flatMap((layer) => layer.boxes)
-    const resolved = resolveNoteTones(placed)
+    const resolved = resolveNoteColors(placed)
     const splitPieces = resolveSplitPieces(placement.splitNotes)
-    return { stopNotes: buildStopNotes(placed, resolved, splitPieces), tones: resolved }
+    return {
+      noteColors: resolved,
+      notesSharingColor: countNotesSharingColor(resolved),
+      stopNotes: buildStopNotes(placed, resolved, splitPieces),
+    }
   }, [placement.layers, placement.splitNotes])
 
   /**
@@ -137,7 +142,11 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
     () =>
       placement.layers.flatMap((layer) =>
         layer.boxes.map((box, position) => ({
-          color: stopColorOf(box.stopSequence),
+          /**
+           * Spec 121: **a caixa é da cor da NOTA.** Caixa sem nota carimbada volta à cor da parada —
+           * `documentId` nulo é "não se sabe" (spec 119), e a cor da parada é o que se sabe dela.
+           */
+          color: noteColorOf(noteColors, box, stopColorOf(box.stopSequence)),
           complement: resolveCargoComplement(box),
           depthM: box.depthM,
           heightM: box.heightM,
@@ -147,15 +156,13 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
           isSplit: box.reasons.includes('splitCargo'),
           layer: box.layer,
           stopSequence: box.stopSequence,
-          /** ⚠️ Só a nota decide o tom: a origem da caixa é o contorno pontilhado, não a cor. */
-          tone: noteToneOf(tones, box),
           widthM: box.widthM,
           xM: box.xM,
           yM: box.yM,
           zM: box.zM,
         })),
       ),
-    [focus, placement.layers, tones],
+    [focus, noteColors, placement.layers],
   )
 
   /**
@@ -426,8 +433,6 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
       <div className={styles.cargoStops}>
         {stopChips.map(({ facts, loading, sequence }) => {
           const notesOfStop = stopNotes.get(sequence) ?? []
-          /** Nota única dividida: a lista abaixo não desenha para uma nota só (spec 119). */
-          const singleSplitPieces = notesOfStop.length === 1 ? notesOfStop[0]?.pieces : undefined
 
           return (
             <div className={styles.cargoStopGroup} key={sequence}>
@@ -438,10 +443,14 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
                   type="button"
                   onClick={() => setFocus((previous) => toggleCargoStopFocus(previous, sequence))}
                 >
-                  <span
-                    className={styles.cargoStopDot}
-                    style={{ background: stopColorOf(sequence) }}
-                  />
+                  {/*
+              ⚠️ **Spec 121: o disco de cor da parada saiu daqui.** Com a carga pintada pela nota, a
+              parada deixou de ser um bloco de uma cor só, e um disco de cor ao lado do rótulo
+              afirmaria uma cor que o baú não tem em lugar nenhum. O que identifica a parada agora é
+              o número da entrega abaixo, a lista de notas dela (cada uma com a cor que está no
+              desenho), a divisa entre fatias e o destaque ao clicar. `stopColorOf` continua servindo
+              o mapa, o traço do roteiro e a lista de paradas, que não desenham carga.
+            */}
                   {/*
               ⚠️ **O número da entrega vive com a cor.** A ficha dizia só o cliente e o endereço, e
               a folha ao lado dizia só o número — quem estava no barracão casava as duas listas por
@@ -520,10 +529,16 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
                 )}
               </div>
               {/*
-            Spec 119: as notas da entrega, cada uma no tom que ela tem no desenho. Com uma nota só
-            acender a nota é acender a parada, e a lista seria repetição.
+            Spec 121: as notas da entrega, cada uma na **cor** que ela tem no desenho.
+
+            ⚠️ **A lista vale também para a parada de uma nota só**, ao contrário da 119, que a
+            escondia porque ali acender a nota era acender a parada. Com a cor saindo da nota, a
+            ficha é o único lugar em que a cor desenhada é nomeada: escondê-la deixava a parada de
+            uma nota — a maioria das reais — com carga colorida e ficha sem cor nenhuma. O aviso de
+            nota dividida (spec 120) volta para dentro da lista pelo mesmo motivo, e o caso especial
+            que ele exigia deixou de existir.
           */}
-              {notesOfStop.length < 2 ? null : (
+              {notesOfStop.length === 0 ? null : (
                 <ul
                   aria-label={t('cargoLayers.invoice.listLabel', { label: labelOf(sequence) })}
                   className={styles.cargoNoteList}
@@ -545,7 +560,7 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
                             setFocus((previous) => toggleNoteFocus(previous, note.documentId))
                           }
                         >
-                          <CargoToneSwatch color={stopColorOf(sequence)} tone={note.tone} />
+                          <CargoNoteSwatch color={note.color} />
                           <span>{noteLabel}</span>
                           <span className={styles.cargoStopFacts}>
                             {t('cargoLayers.chip.counts', { boxes: note.boxes })}
@@ -561,16 +576,6 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
                     )
                   })}
                 </ul>
-              )}
-              {/*
-              ⚠️ **Parada de uma nota só não ganha lista** (spec 119): acender a nota é acender a
-              parada. Se essa nota única foi dividida, o aviso precisa de um lugar próprio — senão
-              ele fica preso dentro de uma lista que a tela nunca desenha.
-            */}
-              {singleSplitPieces === undefined ? null : (
-                <p className={styles.hint}>
-                  {t('cargoLayers.invoice.splitPieces', { pieces: singleSplitPieces })}
-                </p>
               )}
             </div>
           )
@@ -593,6 +598,15 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
         <li>{t('cargoLayers.legend.notes')}</li>
         <li>{t('cargoLayers.legend.split')}</li>
         <li>{t('cargoLayers.legend.complement')}</li>
+        {/*
+          ⚠️ **Spec 121: cor repetida é dita, nunca calada.** A lista de cores tem 128 itens e a
+          viagem real mais cheia tem 94 notas, então esta linha não aparece hoje; se a viagem passar
+          disso, duas notas com a mesma cor sem aviso fazem a cor deixar de identificar e ninguém
+          descobre — foi o defeito que a paleta de paradas já pagou uma vez.
+        */}
+        {notesSharingColor === 0 ? null : (
+          <li>{t('cargoLayers.legend.reusedColors', { count: notesSharingColor })}</li>
+        )}
       </ul>
 
       {/**

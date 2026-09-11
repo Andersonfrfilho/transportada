@@ -35,11 +35,6 @@ export type IsometricBox = Readonly<{
   layer: number
   /** A parada a que a caixa pertence — é ela que a fatia separa. */
   stopSequence: number
-  /**
-   * Spec 119: o tom da nota dentro da cor da parada — `0` é a própria cor. Quem escolhe é
-   * `noteTone.service.ts`; aqui ele só vira a classe que mistura.
-   */
-  tone: number
   widthM: number
   xM: number
   yM: number
@@ -360,11 +355,7 @@ function IsometricSolid({
   const face = (points: readonly Point[], shade: string): JSX.Element => (
     <>
       <polygon
-        className={cn(
-          shade,
-          !box.isGhost && toneClassOf(box.tone),
-          box.isEstimated && !box.isGhost && styles.facePresumed,
-        )}
+        className={cn(shade, box.isEstimated && !box.isGhost && styles.facePresumed)}
         fill="currentColor"
         points={toPoints(points)}
       />
@@ -398,26 +389,15 @@ function IsometricSolid({
 }
 
 /**
- * A amostra do tom de uma nota, para a lista da ficha. Mora aqui para usar as **mesmas** classes de
- * tom das faces: a amostra e a caixa desenhada nunca discordam.
+ * A amostra da cor de uma nota, para a lista da ficha (spec 121). Mora aqui, ao lado do desenho,
+ * porque a amostra e a face da caixa recebem a **mesma string de cor** — em lugares separados, a
+ * amostra podia pintar por um caminho e a caixa por outro, e a ficha diria uma cor que o baú não tem.
  */
-export function CargoToneSwatch({
+export function CargoNoteSwatch({
   className,
   color,
-  tone,
-}: Readonly<{ className?: string | undefined; color: string; tone: number }>): JSX.Element {
-  return (
-    <span
-      aria-hidden
-      className={cn(styles.swatch, toneClassOf(tone), className)}
-      style={{ color }}
-    />
-  )
-}
-
-/** A classe que mistura o tom; o tom `0` é a própria cor, sem classe. */
-function toneClassOf(tone: number): string | undefined {
-  return tone <= 0 ? undefined : styles[`noteTone${String(tone)}`]
+}: Readonly<{ className?: string | undefined; color: string }>): JSX.Element {
+  return <span aria-hidden className={cn(styles.swatch, className)} style={{ color }} />
 }
 
 function toPoints(points: readonly (Point | undefined)[]): string {

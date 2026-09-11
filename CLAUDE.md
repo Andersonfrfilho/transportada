@@ -670,9 +670,8 @@ entregas posteriores (`isOutOfReach`), e o rendimento da orientação conta cél
 `stampCargoNote` onde as caixas viram da parada — `buildCargoPreviewStops` e o repositório da viagem
 —, e `null` quando a nota não é conhecida. ⚠️ **A nota é carona, nunca critério**: o empacotador só
 copia os dois campos, e as quatro viagens reais saem com as mesmas coordenadas com e sem nota. No
-desenho a cor segue sendo da parada e cada nota ganha um tom dela (`noteTone.service.ts`: a cor
-misturada a `--color-fog`/`--color-asphalt` por `color-mix`, escolhido pela posição do id entre os
-ids da parada).
+desenho a nota decide a cor da caixa — o tom dentro da cor da parada que esta spec criou foi
+substituído pela cor própria da spec 121, abaixo.
 
 **Se tem espaço, a carga entra — e o desenho diz por onde ela entrou** (spec 120). A planta tem duas
 camadas: o **mapa recomendado**, que é a varredura de sempre com todas as regras (118 inclusive), e o
@@ -688,21 +687,48 @@ que o empacotador pré-118 usaria. ⚠️ O mapa recomendado **não lê a nota**
 quem procura lugar encostado na própria nota é só o complemento, e `splitNotes` publica as notas
 divididas com quantos pedaços — pedaço é componente conexo por contato de face, com a folga de uma
 célula. ⚠️ **Qualquer ordem de deploy funciona**: os dois motivos novos entram num `reasons` que o
-frontend não valida por lista fechada, e `splitNotes` é lido como opcional. ⚠️ **Tom que ficaria mais perto de outra parada desenhada não é oferecido** — medido: a
-paleta das paradas é densa em CIELab, e mistura fixa nenhuma distingue as notas e fica longe de todas
-as paradas a partir de ~8 paradas; na viagem grande notas da mesma parada podem repetir tom, e acender
-a nota na ficha da entrega é o caminho inequívoco. A presumida deixou de ser o tom claro: é o
-**contorno pontilhado**. O frontend lê os dois campos como opcionais e `isPlacement` não percorre as
-chaves da caixa — **qualquer ordem de deploy funciona**.
+frontend não valida por lista fechada, e `splitNotes` é lido como opcional. A presumida deixou de ser
+o tom claro: é o **contorno pontilhado**. O frontend lê os dois campos como opcionais e `isPlacement`
+não percorre as chaves da caixa — **qualquer ordem de deploy funciona**.
 
-**Como as caixas são organizadas no baú está documentado por extenso em
-`docs/domain/cargo-placement.md`** — o arranjo em faixas ou em profundidade, a varredura que sobe
-antes de andar para o fundo, a orientação por rendimento, o teto de esbeltez da pilha e o
-confinamento, a face da porta que não é parede, e as frases que a planta imprime explicando as
-próprias decisões. Cada regra de lá veio de um defeito medido, com o número ao lado. ⚠️ Mexer no
-empacotador sem ler aquele arquivo é refazer uma das correções que já custaram duas rodadas —
-inclusive a lição de método: contrato sintético confirma a implementação, só rodar com números
-confere a premissa.
+**A carga segue a cor da nota, e a parada se lê sem cor** (spec 121). A caixa é pintada pela **nota**
+(`documentId`), não mais por um tom da cor da parada: `NOTE_COLORS`
+(`trip/shared/noteColor.service.ts`) é uma lista de **128** cores ordenada das mais diferentes para as
+menos — ponto mais distante em CIELab, como a paleta de paradas —, e a nota recebe a posição do id
+dela entre os ids do desenho, ordenados. Viagem pequena usa só o topo, que é a parte bem separada.
+⚠️ **A ordenação é por id, não por parada**: reordenar a proposta (spec 111) é um clique de seta, e
+uma cor por posição de parada repintaria o baú inteiro a cada um. ⚠️ **Nenhuma coordenada mudou** —
+esta spec não toca o empacotador; ela é cor e documentação.
+
+⚠️ **A cor de nota não pode ser a cor de parada, e evitá-la custou separação.** `TripAssemblyMap` e
+`TripCargoPanel` ficam **na mesma tela** na proposta e no diálogo de criação, e gerar a paleta só
+contra o `MAP_SURFACE` devolvia **exatamente** a sequência de `stopColorOf`. A geração é semeada
+também com as 96 primeiras cores de parada (a maior viagem real tem 85), com grade de candidatos mais
+densa (2° de matiz, cinco saturações) para pagar a conta. Medido com 128 cores: sem semear, ΔE 9,28 e
+**identidade** com as paradas; semeando na grade antiga, 6,61 — abaixo dos 6,2 que a 119 mediu como "a
+mesma cor"; com a grade densa, **8,09**, e 8,21 até a cor de parada mais próxima. Contraste 3,09 no
+tema escuro e 2,84 no claro, com a paleta **não redeclarada por tema**.
+
+⚠️ **Acabando a lista, a nota 129 repete a cor da nota 1 e a tela diz quantas repetiram** — repetir
+calado faz a cor deixar de identificar sem ninguém perceber. Nenhuma viagem real chega lá: medido em
+2026-09-10, 22 · 27 · 30 · **94** notas nas quatro.
+
+⚠️ **O disco de cor da parada saiu da ficha da carga**: ele afirmaria uma cor que o baú não tem. A
+parada é identificada pelo número da entrega, pela **lista das notas dela** — que passou a ser
+desenhada também para a parada de uma nota só, ao contrário da 119, porque é o único lugar em que a
+cor desenhada é nomeada —, pela divisa entre fatias e pelo destaque ao clicar. `stopColorOf` continua
+servindo a lista de paradas, o mapa e o disco da parada, que não desenham carga. Contrato em
+`test/trip/note-color.contract.ts`, que substituiu `note-tone.contract.ts` com a razão escrita nele.
+
+**Como as caixas são organizadas no baú está documentado por extenso em dois arquivos irmãos**
+(spec 121): `docs/domain/cargo-placement.md` é **o algoritmo como ele é hoje**, de ponta a ponta —
+entrada, arranjo em faixas/grade/profundidade, a fatia, a varredura com o mapa de alturas em células
+de 5 cm, o assento nivelado, a esbeltez e a contenção, o alcance da mão, o complemento, a simulação
+da descarga, e o vocabulário completo de `reasons`, `layoutNotes` e `splitNotes`. E
+`docs/domain/cargo-placement-defects.md` é **por que cada regra é assim**: o defeito medido que a
+produziu, com o número ao lado, e o que foi tentado e recusado. ⚠️ Mexer no empacotador sem ler o
+segundo é refazer uma das correções que já custaram duas rodadas — inclusive a lição de método:
+contrato sintético confirma a implementação, só rodar com números confere a premissa.
 
 **A fileira virou metro, e a escala sai da ficha — de mais lugar nenhum** (spec 088). A fileira da
 085 é proporção: ela não diz se a carga da terceira parada ocupa meio metro ou dois metros e meio de
