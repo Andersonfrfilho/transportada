@@ -9,6 +9,7 @@ import {
   type PlacementBox,
 } from '../../src/trips/domain/cargo-placement.policy.js'
 import { ATEGO_85_STOPS } from '../fixtures/real-mixed-cargo.fixture.js'
+import { simulateUnloading } from './unloading-simulation.js'
 
 /**
  * Spec 117: **a caixa pequena vai para onde a caixa da carga não cabe**, e **a busca de lugar vai até
@@ -106,50 +107,107 @@ describe('a caixa pequena vai para onde a caixa da carga não cabe (spec 117)', 
    * sozinha: 185 contra 170. A conta é sobre o **mapa recomendado** (`complement: false`): o cubo mexe na
    * arrumação dele, e é ela que esta regra protege; o complemento só ocupa o que sobra.
    *
-   * ⚠️ **O limite mudou de uma coluna para uma coluna e uma caixa por cubo** (17 × 11 = 187), e a razão é
-   * a regra do alcance da 118: nenhum espaço morto fica ao alcance da mão — medido, 0 de 17 cubos acharam
-   * um —, então o cubo sempre senta na fileira. Além da coluna que ele ocupa, a fileira ao lado dele
-   * perde a caixa do topo (185 = 17 × 10,9). Adiar o cubo para depois das presumidas consertava esta
-   * densidade e estourava a de dez (109 contra 80) — recusado na 118.
+   * ⚠️ **Spec 130: o limite volta a uma coluna por cubo** (17 × 10 = 170). A 120 o tinha afrouxado para
+   * uma coluna e uma caixa (187) porque, sob a regra do alcance da 118, nenhum espaço morto fica ao
+   * alcance — medido, 0 de 17 cubos acharam um, e os 4100 assentos do espaço morto foram recusados
+   * **todos** pela mão, nenhum pela sombra nem pela esbeltez. O cubo sentava no primeiro lugar nivelado
+   * da fileira e empurrava a vizinha. Afrouxar o limite escondia isso; o conserto são duas regras de
+   * lugar, nenhuma de física: a caixa pequena entra **depois** das grandes da própria entrega, e sem
+   * espaço morto ao alcance vai para o **assento ao alcance mais alto**. Medido: 185 → 53. As três
+   * densidades são cobradas em separado — a 118 recusou adiar o cubo porque consertava esta e estourava
+   * a de dez (109 contra 80); com o assento mais alto a de dez fica em 46.
    */
-  test('um cubo de 10 cm não custa mais que a coluna em que entra e a caixa do topo ao lado', () => {
-    const stops = presumedAtegoStops()
-    const presumedAlone = drawnOf(
-      resolveCargoPlacement({
-        bed: ATEGO_BED,
-        boxes: stops.map(([stop, count]) => presumedOf(stop, count)),
-        complement: false,
-        payloadRatio: '0.9897',
-      }),
-    ).length
-    const cubeStops = stops.filter(([stop]) => stop % CUBE_EVERY_STOPS === 0)
-    const drawnMixed = drawnOf(
-      resolveCargoPlacement({
-        bed: ATEGO_BED,
-        boxes: [
-          ...stops.map(([stop, count]) => presumedOf(stop, count)),
-          ...cubeStops.map(([stop]) =>
-            box({
-              count: 1,
-              heightMm: 100,
-              lengthMm: 100,
-              source: 'measured',
-              stopSequence: stop,
-              widthMm: 100,
-            }),
-          ),
-        ],
-        complement: false,
-        payloadRatio: '0.9897',
-      }),
-    )
+  test.each([3, CUBE_EVERY_STOPS, 10])(
+    'um cubo de 10 cm a cada %i paradas não custa mais que a coluna em que entra',
+    (every) => {
+      expect(costOfCubes(every)).toBeLessThanOrEqual(
+        presumedAtegoStops().filter(([stop]) => stop % every === 0).length * BOXES_PER_COLUMN,
+      )
+    },
+  )
 
-    expect(drawnMixed.filter((entry) => entry.source === 'measured').length).toBe(cubeStops.length)
-    expect(
-      presumedAlone - drawnMixed.filter((entry) => entry.source === 'estimated').length,
-    ).toBeLessThanOrEqual(cubeStops.length * (BOXES_PER_COLUMN + 1))
-  })
+  /**
+   * ⚠️ Spec 130: subir o cubo não pode custar apoio. O primeiro assento mais alto que a busca achou para
+   * o cubo da última entrega era o topo da própria pilha, a 0,63 m, encostado na testeira — e o bloco é
+   * deslocado para a porta depois de empacotado: o vão de 0,119 m que sobra lá passa do giro da pilha
+   * de base 10 cm, e a simulação o achava sem apoio no último passo da descarga.
+   */
+  test.each([3, CUBE_EVERY_STOPS, 10])(
+    'com um cubo a cada %i paradas, toda caixa fica de pé em cada passo da descarga',
+    (every) => {
+      const plan = placeWithCubes(every)
+      const report = simulateUnloading(plan, { heightM: 2.3, lengthM: 7.4, widthM: 2.47 })
+
+      expect(report.unsupported).toEqual([])
+      expect(report.stuck).toEqual([])
+    },
+  )
 })
+
+function placeWithCubes(every: number): CargoPlacement {
+  const stops = presumedAtegoStops()
+  const plan = resolveCargoPlacement({
+    bed: ATEGO_BED,
+    boxes: [
+      ...stops.map(([stop, count]) => presumedOf(stop, count)),
+      ...stops
+        .filter(([stop]) => stop % every === 0)
+        .map(([stop]) =>
+          box({
+            count: 1,
+            heightMm: 100,
+            lengthMm: 100,
+            source: 'measured',
+            stopSequence: stop,
+            widthMm: 100,
+          }),
+        ),
+    ],
+    complement: false,
+    payloadRatio: '0.9897',
+  })
+  if (plan === null) throw new Error('o Atego tem baú medido')
+
+  return plan
+}
+
+/** Quantas presumidas o mapa recomendado perde com um cubo medido de 10 cm a cada `every` paradas. */
+function costOfCubes(every: number): number {
+  const stops = presumedAtegoStops()
+  const presumedAlone = drawnOf(
+    resolveCargoPlacement({
+      bed: ATEGO_BED,
+      boxes: stops.map(([stop, count]) => presumedOf(stop, count)),
+      complement: false,
+      payloadRatio: '0.9897',
+    }),
+  ).length
+  const cubeStops = stops.filter(([stop]) => stop % every === 0)
+  const drawnMixed = drawnOf(
+    resolveCargoPlacement({
+      bed: ATEGO_BED,
+      boxes: [
+        ...stops.map(([stop, count]) => presumedOf(stop, count)),
+        ...cubeStops.map(([stop]) =>
+          box({
+            count: 1,
+            heightMm: 100,
+            lengthMm: 100,
+            source: 'measured',
+            stopSequence: stop,
+            widthMm: 100,
+          }),
+        ),
+      ],
+      complement: false,
+      payloadRatio: '0.9897',
+    }),
+  )
+
+  /** Todo cubo entra no mapa recomendado: mandá-lo para fora não é conserto, é esconder o custo. */
+  expect(drawnMixed.filter((entry) => entry.source === 'measured').length).toBe(cubeStops.length)
+  return presumedAlone - drawnMixed.filter((entry) => entry.source === 'estimated').length
+}
 
 describe('a busca de lugar vai até a porta (spec 116, contrato da spec 117)', () => {
   /**

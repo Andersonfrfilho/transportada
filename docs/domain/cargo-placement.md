@@ -182,6 +182,16 @@ até o teto seja menor que a altura da dominante (`createDeadSpaceTracker`), com
 assento. Sem isso ela senta no meio da fileira, empurra as seguintes para o lado e a chaminé que sobra
 tira o apoio da fileira de trás.
 
+Spec 130 — duas regras de lugar, nenhuma de física:
+
+- **A caixa pequena entra depois das grandes da própria entrega** (`rankSmallLast`). Antes delas o único
+  topo que ela acha é o das entregas posteriores, onde a entrega dela ainda vai crescer.
+- **Sem espaço morto ao alcance, o assento ao alcance mais alto.** Com a mão da 118 o espaço morto quase
+  nunca está ao alcance; o topo mais alto é o lugar que a carga menos usaria depois. Empate fica com o
+  primeiro achado — o mais longe da porta. Quem aceita é a mesma `accept` da varredura.
+- Nessa busca **a testeira não é parede para a caixa pequena que precisa de escora**: o bloco é deslocado
+  para a porta depois de empacotado, e o vão que sobra lá passa do giro de uma pilha de base 10 cm.
+
 ---
 
 ## 6. Passo 4 — Até onde a pilha sobe

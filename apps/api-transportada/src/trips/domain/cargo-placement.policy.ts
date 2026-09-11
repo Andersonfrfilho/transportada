@@ -1083,10 +1083,27 @@ function packSlice(input: {
    * ⚠️ A pegada decrescente é o critério de base — caixa grande sob caixa pequena é a pilha que
    * desaba —, e é o único critério de empilhamento que vale **sem nenhum dado cadastrado**.
    */
+  const deepAxis = input.stackBeforeRow === true ? 'width' : 'depth'
+  const deadSpace = createDeadSpaceTracker({ boxes: input.boxes, deepAxis, slice })
+  /**
+   * ⚠️ **Spec 130: a caixa pequena entra depois das grandes da própria entrega.** Antes delas, o único
+   * topo que ela acha é o das entregas posteriores, onde a entrega dela ainda vai crescer; depois delas,
+   * acha o topo da própria pilha. A 118 mediu adiar sozinho e recusou — conserta um cubo a cada cinco
+   * paradas e estoura um a cada dez (109 contra 80) —; junto do assento ao alcance mais alto
+   * (`createDeadSpaceTracker`), as três densidades caem: 217/185/79 → 100/53/46.
+   */
+  const smallLast = new Map(
+    input.boxes.map((box) => {
+      const slot = fitSlot({ bed: slice, box, deepAxis })
+      return [box, slot !== null && deadSpace.isSmall(slot) ? 1 : 0] as const
+    }),
+  )
+  const rankSmallLast = (box: PlacementBox): number => smallLast.get(box) ?? 0
   const ordered = [...input.boxes].sort(
     (first, second) =>
       (input.deliveryOrder === true ? second.stopSequence - first.stopSequence : 0) ||
       rankTopOnly(first) - rankTopOnly(second) ||
+      rankSmallLast(first) - rankSmallLast(second) ||
       rankPresumed(first) - rankPresumed(second) ||
       footprintOf(second) - footprintOf(first),
   )
@@ -1123,8 +1140,6 @@ function packSlice(input: {
     MAX_SEAT_ATTEMPTS,
     SEAT_ATTEMPTS_PER_ROW * Math.ceil(slice.widthM / HEIGHT_MAP_CELL_M),
   )
-  const deepAxis = input.stackBeforeRow === true ? 'width' : 'depth'
-  const deadSpace = createDeadSpaceTracker({ boxes: input.boxes, deepAxis, slice })
   /**
    * Spec 120: quem pousa em quem, para o complemento nunca prender uma caixa recomendada da própria
    * entrega embaixo dele.
@@ -2343,19 +2358,23 @@ type SeatCandidate = { readonly topM: number; readonly xM: number }
  * na faixa onde espaço morto pode surgir — é a mesma memória de `failedAt`, com a versão do mapa no
  * lugar da contagem de caixas.
  */
-function createDeadSpaceTracker(input: {
-  readonly boxes: readonly PlacementBox[]
-  readonly deepAxis: 'depth' | 'width'
-  readonly slice: Readonly<{ heightM: number; lengthM: number; widthM: number }>
-}): {
+type DeadSpaceTracker = {
   readonly find: (search: {
     readonly accept: (yM: number) => (candidate: SeatCandidate) => boolean
     readonly frontierM: number
     readonly slot: Slot
     readonly support: SupportMap
   }) => (SeatCandidate & { readonly yM: number }) | null
+  /** Se a pegada em células é menor que a da forma dominante — ver `rankSmallLast`. */
+  readonly isSmall: (slot: Slot) => boolean
   readonly noteStamp: (topM: number) => void
-} {
+}
+
+function createDeadSpaceTracker(input: {
+  readonly boxes: readonly PlacementBox[]
+  readonly deepAxis: 'depth' | 'width'
+  readonly slice: Readonly<{ heightM: number; lengthM: number; widthM: number }>
+}): DeadSpaceTracker {
   const dominant = resolveDominantSlot(input)
   const cellAreaOf = (slot: Slot): number => toCellEnd(slot.depthM) * toCellEnd(slot.widthM)
   const isSmall = (slot: Slot): boolean =>
@@ -2372,34 +2391,91 @@ function createDeadSpaceTracker(input: {
   }, 0)
   const bandFloorM = input.slice.heightM - (dominant?.heightM ?? 0) - reachM
   const failedAt = new Map<string, number>()
+  const highestFailedAt = new Map<string, number>()
   let version = 0
+  let stamps = 0
   let highestTopM = 0
 
+  type Search = Parameters<DeadSpaceTracker['find']>[0]
+  const findInBand = ({ accept, frontierM, slot, support }: Search, dominantSlot: Slot) => {
+    if (highestTopM + slot.heightM <= input.slice.heightM - dominantSlot.heightM + 1e-9) return null
+    const key = `${slot.depthM}|${slot.widthM}|${slot.heightM}`
+    if (failedAt.get(key) === version) return null
+
+    for (let yM = 0; yM + slot.widthM <= frontierM + 1e-9; yM = round(yM + HEIGHT_MAP_CELL_M)) {
+      const acceptRow = accept(yM)
+      const found = support.seat({
+        accept: (candidate) =>
+          input.slice.heightM - (candidate.topM + slot.heightM) < dominantSlot.heightM - 1e-9 &&
+          acceptRow(candidate),
+        heightM: input.slice.heightM,
+        slot,
+        xM: 0,
+        yM,
+      })
+      if (found !== null) return { ...found, yM }
+    }
+    failedAt.set(key, version)
+
+    return null
+  }
+  /**
+   * ⚠️ **Spec 130: sem espaço morto ao alcance, o assento ao alcance mais alto.** Com a regra da mão da
+   * 118 o espaço morto quase nunca fica ao alcance — medido no Atego de 85 paradas com um cubo a cada
+   * cinco: 0 de 17 cubos acharam um, e os 4100 assentos da faixa foram recusados **todos** pela mão. O
+   * cubo caía no primeiro lugar nivelado da fileira, no meio de onde a carga ainda ia crescer, e custava
+   * 185 presumidas. O topo mais alto ao alcance é o lugar que a carga da entrega menos usaria depois:
+   * 185 → 114, e com a caixa pequena depois das grandes (`rankSmallLast`), 53.
+   *
+   * ⚠️ Nenhuma regra afrouxa: quem aceita continua sendo a mesma `accept` da varredura — alcance, sombra,
+   * esbeltez e fim do baú. Empate fica com o **primeiro** achado (mais longe da porta, depois o menor
+   * `x`): desempatar pelo mais perto da porta, ou pela parede, devolvia exatamente os 185 de antes.
+   */
+  const findHighest = ({ accept, frontierM, slot, support }: Search) => {
+    const key = `${slot.depthM}|${slot.widthM}|${slot.heightM}`
+    if (highestFailedAt.get(key) === stamps) return null
+    let best: (SeatCandidate & { readonly yM: number }) | null = null
+    /**
+     * ⚠️ **Em profundidade a testeira não é parede para a caixa pequena.** O bloco é empacotado encostado
+     * nela e depois deslocado para a porta (ou para o meio, com peso): o vão que sobra lá mede a folga do
+     * baú, e passa do giro da pilha de base 10 cm (`braceGapOf`, 9,5 cm). Medido: o cubo da última
+     * entrega sentado a 0,63 m no topo da própria pilha, escorado só na testeira, ficava sem apoio na
+     * descarga com o vão de 0,119 m. A presumida (giro de 0,25 m) não sente o mesmo vão.
+     */
+    const leansOnHeadboard = (yM: number, topM: number): boolean =>
+      input.deepAxis === 'width' &&
+      yM < HEIGHT_MAP_CELL_M - 1e-9 &&
+      topM + slot.heightM > stableStackHeightM(slot, false) + 1e-9
+    for (let yM = 0; yM + slot.widthM <= frontierM + 1e-9; yM = round(yM + HEIGHT_MAP_CELL_M)) {
+      const acceptRow = accept(yM)
+      support.seat({
+        accept: (candidate) => {
+          if (leansOnHeadboard(yM, candidate.topM)) return false
+          if ((best === null || candidate.topM > best.topM + 1e-9) && acceptRow(candidate)) {
+            best = { ...candidate, yM }
+          }
+          return false
+        },
+        heightM: input.slice.heightM,
+        slot,
+        xM: 0,
+        yM,
+      })
+    }
+    if (best === null) highestFailedAt.set(key, stamps)
+
+    return best as (SeatCandidate & { readonly yM: number }) | null
+  }
+
   return {
-    find: ({ accept, frontierM, slot, support }) => {
-      if (dominant === null || !isSmall(slot)) return null
-      if (highestTopM + slot.heightM <= input.slice.heightM - dominant.heightM + 1e-9) return null
-      const key = `${slot.depthM}|${slot.widthM}|${slot.heightM}`
-      if (failedAt.get(key) === version) return null
+    find: (search) => {
+      if (dominant === null || !isSmall(search.slot)) return null
 
-      for (let yM = 0; yM + slot.widthM <= frontierM + 1e-9; yM = round(yM + HEIGHT_MAP_CELL_M)) {
-        const acceptRow = accept(yM)
-        const found = support.seat({
-          accept: (candidate) =>
-            input.slice.heightM - (candidate.topM + slot.heightM) < dominant.heightM - 1e-9 &&
-            acceptRow(candidate),
-          heightM: input.slice.heightM,
-          slot,
-          xM: 0,
-          yM,
-        })
-        if (found !== null) return { ...found, yM }
-      }
-      failedAt.set(key, version)
-
-      return null
+      return findInBand(search, dominant) ?? findHighest(search)
     },
+    isSmall,
     noteStamp: (topM) => {
+      stamps += 1
       highestTopM = Math.max(highestTopM, topM)
       if (topM > bandFloorM + 1e-9) version += 1
     },

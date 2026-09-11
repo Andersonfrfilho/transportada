@@ -148,6 +148,29 @@ do bloco (8, 8, 8, 8, 7, 7, 7, 6, 6, 2). Sintético nas mesmas 85 entregas: 1344
 **1093** com um cubo a cada cinco entregas. Depois — Atego: 1282 → **1347** de 1417; cubos a cada
 cinco: 1093 → 1300.
 
+**O espaço morto nunca está ao alcance, e o limite tinha sido afrouxado em vez de consertado** (spec
+130). Com a mão da 118 o cubo voltou a custar 185 presumidas (um a cada cinco entregas, contra 170 de uma
+coluna por cubo), e a 120 subiu o limite para 187. Medido: dos 17 cubos, 11 procuraram espaço morto e
+**4100 assentos** da faixa foram recusados — **todos** pela mão, nenhum pela sombra nem pela esbeltez; o
+cubo sentava no primeiro lugar nivelado da fileira e as perdas caíam nas entregas 12–23 (`bedFull`).
+Tentado, com o custo por densidade (a cada 3 / 5 / 10 entregas, mapa recomendado):
+
+| variante                                                  | custo                       | resultado                                           |
+| --------------------------------------------------------- | --------------------------- | --------------------------------------------------- |
+| antes                                                     | 217 / 185 / 79              | —                                                   |
+| adiar a pequena para depois das grandes da entrega        | 267 / 165 / 109             | recusado sozinho (a de dez estoura 80, como na 118) |
+| espaço morto fora da mão vira complemento na hora         | 194 / 20 / 14 (recomendado) | recusado: afrouxa a mão da 118 para 13–14 cubos     |
+| assento ao alcance mais alto                              | 114 / 114 / 61              | bom, mas ainda ~6,7 por cubo                        |
+| mais alto, empate pelo mais perto da porta ou pela parede | 217 / 185 / 79              | idêntico a antes                                    |
+| **adiar + assento mais alto**                             | **100 / 53 / 46**           | **adotado**                                         |
+
+A primeira versão adotada deixou **uma caixa sem apoio** na simulação da descarga: o cubo da última
+entrega subia no topo da própria pilha, a 0,63 m, escorado só na testeira — e o bloco é deslocado depois
+de empacotado, deixando ali um vão de 0,119 m, mais largo que o giro de uma pilha de base 10 cm (9,5 cm).
+A busca do mais alto passou a não contar a testeira como parede para a caixa que precisa de escora.
+Nas viagens reais: Atego 1190 → **1239** recomendadas (1269 → 1332 com o complemento, `bedFull` 148 → 85),
+Daily 443 → 445, Sprinter e Accelo iguais; nenhuma invariante quebrada; Atego 28,7 → 32,5 ms.
+
 ### A célula de 5 cm, medida duas vezes e mantida
 
 **Contra 2,5, 2 e 1 cm** (spec 115): a menor arredonda menos a caixa presumida, mas **coloca menos** —
