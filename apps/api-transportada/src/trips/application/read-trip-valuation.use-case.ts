@@ -18,6 +18,10 @@ import {
 import type { TollMultiplier } from '../../toll-booths/domain/toll-category.policy.js'
 import { buildTripDriverCost, type TripCrewMember } from '../domain/trip-driver-cost.policy.js'
 import { buildTripTaxParcels, type CompanyFederalRates } from '../domain/trip-tax.policy.js'
+import {
+  resolveDocumentIcms,
+  type IcmsEmissionProfile,
+} from '../domain/trip-icms-projection.policy.js'
 import { TripNotFoundError } from '../domain/trip.error.js'
 import {
   readRouteGeometry,
@@ -45,6 +49,11 @@ export type TripValuationDocument = {
   readonly measuredAmount: null | string
   readonly nfeDocumentId: null | string
   readonly nfeTotalAmount: null | string
+  /**
+   * Spec 125: o CNPJ do destinatário, porque o perfil de emissão casa pelos **dois** participantes
+   * — é assim que a projeção do ICMS escolhe o mesmo perfil que a emissão vai usar.
+   */
+  readonly recipientTaxId?: null | string
   readonly senderTaxId: null | string
   readonly tripDocumentId: string
 }
@@ -80,6 +89,11 @@ export type TripValuationContext = {
   /** Metros do roteiro aceito; `null` quando ninguém calculou rota ainda. */
   readonly distanceMeters: null | number
   readonly documents: readonly TripValuationDocument[]
+  /**
+   * Spec 125: os perfis ativos de emissão, uma leitura por conta. É deles que sai a projeção do
+   * ICMS enquanto a nota não tem CT-e; ausente é "nenhum perfil", e a parcela diz isso por nota.
+   */
+  readonly emissionProfiles?: readonly IcmsEmissionProfile[]
   /** `null` quando a empresa não declarou regime federal: PIS/COFINS fica `missing`. */
   readonly federalRates?: CompanyFederalRates | null
   readonly fuelPricePerLiter: null | string
@@ -319,20 +333,38 @@ export async function buildValuationFromContext(input: {
 }): Promise<TripValuation> {
   const { context } = input
 
-  const revenueLines = await Promise.all(
-    context.documents.map((document) =>
-      resolveRevenueLine({ companyId: input.companyId, document, repository: input.repository }),
-    ),
+  /** A nota e a receita dela andam juntas: é a receita **da nota** que é base do ICMS dela. */
+  const priced = await Promise.all(
+    context.documents.map(async (document) => ({
+      document,
+      revenue: await resolveRevenueLine({
+        companyId: input.companyId,
+        document,
+        repository: input.repository,
+      }),
+    })),
   )
+  const revenueLines = priced.map((entry) => entry.revenue)
 
   const valuation = buildTripValuation({ costParcels: buildCostParcels(context), revenueLines })
 
   /**
    * O imposto entra **depois** da receita apurada, porque os federais incidem sobre ela. Ele não é
    * custo de operação — desce da receita —, e a tela separa as duas naturezas.
+   *
+   * Spec 125: o ICMS de cada nota é o do CT-e autorizado ou, antes dele, a projeção pelo perfil que
+   * rege a nota — pela mesma regra de base do CT-e.
    */
   const taxParcels = buildTripTaxParcels({
-    documents: context.documents.map((document) => ({ icmsAmount: document.icmsAmount ?? null })),
+    documents: priced.map(({ document, revenue }) => ({
+      icms: resolveDocumentIcms({
+        measuredIcms: document.icmsAmount ?? null,
+        profiles: context.emissionProfiles ?? [],
+        recipientTaxId: document.recipientTaxId ?? null,
+        revenue,
+        senderTaxId: document.senderTaxId,
+      }),
+    })),
     federalRates: context.federalRates ?? null,
     revenueAmount: valuation.totalRevenue,
   })

@@ -1030,6 +1030,21 @@ mostrar o valor **e** o aviso na mesma linha, e a imprimir "estimado" ao lado de
 2026-09-10: 13 das 20 viagens com tripulação saíram de ausente para estimado, +R$ 9.577,24 de custo
 de motorista.
 
+**O ICMS se projeta pelo perfil de emissão até o CT-e existir** (spec 125). A parcela `icms` só
+existia com CT-e autorizado — na montagem, na prévia e na proposta ela nunca existia. Hoje
+`resolveDocumentIcms` (`trips/domain/trip-icms-projection.policy.ts`) resolve **por nota**: CT-e
+autorizado vence (`measured`); sem ele, o perfil que `findEmissionProfile` escolhe (o mesmo seam sem
+lançar de `resolveMunicipalServicePolicy`, pelos CNPJs do remetente **e** do destinatário) projeta
+sobre a receita **da nota** (`estimated`). ⚠️ **A regra de base é uma só:** `computeIcms`
+(`cte-issuance/domain/cte-icms.policy.ts`) foi extraída de `composeIcms`, que hoje só a mapeia para o
+XML — redução de base, arredondamento em duas casas e CST 90 sem alíquota não podem ter segunda
+implementação. Isento (`40`/`41`/`51`, `90` sem alíquota) é **zero declarado** com o CST no `basis`
+(`of: 'icms'`); CST `60` é ausência (`ICMS_CST_UNSUPPORTED`), porque o builder recusa emiti-lo; nenhum
+perfil, empate ou participante sem CNPJ é `NO_EMISSION_PROFILE`; sem receita, `NO_FREIGHT_RULE`. A
+parcela soma medido + projetado com o pior caso da origem, e `detail` é `ausentes/total`. Os dois
+leitores de contexto carregam os perfis ativos uma vez (`readIcmsProfiles`). Medido em 2026-09-10:
+1308 de 1308 vínculos projetados, todos a 0,00 porque o único perfil ativo é CST 90 sem alíquota.
+
 **O pedágio da rota é calculado, não lançado à mão** (spec 090, ADR pendente). `toll_booths` é a
 **terceira** tabela sem `company_id`, ao lado de `fuel_price_references` e `vehicle_volume_references`:
 tarifa pública mapeada no OSM, carregada do mesmo `.osm.pbf` que alimenta o OSRM por

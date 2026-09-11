@@ -2,6 +2,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { formatAmount } from '@/modules/shared/decimalAmount.service'
+import { fractionToPercentage } from '@/modules/shared/fractionPercentage.service'
 
 import { formatMargin, isNegative } from '../shared/financialView.service'
 import type { TripValuation } from '../shared/tripValuation.service'
@@ -112,12 +113,18 @@ function LedgerLine({ line }: Readonly<{ line: ValuationLedgerLine }>) {
                 litres: basis.litres,
                 price: formatAmount(basis.pricePerLiter),
               })
-            : t(`ledger.driverBasis.${basis.paymentModel}`, {
-                city: basis.regionCity ?? '',
-                defaultValue: '',
-                vehicleClass: basis.vehicleClass,
-                zone: basis.regionCode ?? '',
-              })}
+            : basis.of === 'icms'
+              ? t('ledger.icmsBasis', {
+                  cst: basis.cst,
+                  rate: formatMargin(fractionToPercentage(basis.rate)),
+                  reduction: formatMargin(fractionToPercentage(basis.baseReductionRate)),
+                })
+              : t(`ledger.driverBasis.${basis.paymentModel}`, {
+                  city: basis.regionCity ?? '',
+                  defaultValue: '',
+                  vehicleClass: basis.vehicleClass,
+                  zone: basis.regionCode ?? '',
+                })}
         </p>
       )}
       {/* Spec 124: o aviso vem abaixo do número — ele diz o que cadastrar, não que falta valor. */}

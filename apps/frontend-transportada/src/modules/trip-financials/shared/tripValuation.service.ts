@@ -35,6 +35,13 @@ export type TripValuationCostParcelBasis =
       regionCode: null | string
       vehicleClass: string
     }>
+  /** Spec 125: o ICMS projetado pelo perfil de emissão — CST e frações (não percentuais). */
+  | Readonly<{
+      baseReductionRate: string
+      cst: string
+      of: 'icms'
+      rate: string
+    }>
 
 export type TripValuationCostParcel = Readonly<{
   amount: string

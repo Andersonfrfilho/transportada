@@ -108,6 +108,17 @@ export const VALUATION_GAPS = {
    * nome de quem não cobre.
    */
   driverZonePricedFromTable: 'DRIVER_ZONE_PRICED_FROM_TABLE',
+  /**
+   * Spec 125: nenhum perfil de emissão rege a nota — nenhum casa, dois empatam, ou falta CNPJ a um
+   * participante. É o `null` de `findEmissionProfile`, e nos três o conserto é a aba de perfis de
+   * emissão: sem perfil não há CST nem alíquota para projetar o ICMS.
+   */
+  noEmissionProfile: 'NO_EMISSION_PROFILE',
+  /**
+   * Spec 125: o perfil que rege a nota usa CST 60 (ICMS cobrado por substituição), que o builder do
+   * CT-e recusa emitir. A projeção não inventa o que a emissão não faria.
+   */
+  icmsCstUnsupported: 'ICMS_CST_UNSUPPORTED',
 } as const
 
 export type ValuationGap = (typeof VALUATION_GAPS)[keyof typeof VALUATION_GAPS]
@@ -181,6 +192,17 @@ export type TripCostParcelBasis =
       regionCity: null | string
       regionCode: null | string
       vehicleClass: string
+    }>
+  /**
+   * Spec 125: o ICMS **projetado** pelo perfil de emissão — o CST e as duas frações que o CT-e vai
+   * usar. Só existe quando toda nota foi projetada pelo mesmo CST e alíquotas: com perfis
+   * diferentes não há uma frase só que explique a soma.
+   */
+  | Readonly<{
+      baseReductionRate: string
+      cst: string
+      of: 'icms'
+      rate: string
     }>
 
 export type TripCostParcel = {

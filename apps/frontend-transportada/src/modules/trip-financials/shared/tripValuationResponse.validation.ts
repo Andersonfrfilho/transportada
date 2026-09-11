@@ -99,6 +99,14 @@ function readBasis(value: unknown): null | TripValuationCostParcelBasis {
       vehicleClass: readText(value.vehicleClass),
     }
   }
+  if (value.of === 'icms') {
+    return {
+      baseReductionRate: readText(value.baseReductionRate),
+      cst: readText(value.cst),
+      of: 'icms',
+      rate: readText(value.rate),
+    }
+  }
 
   return null
 }

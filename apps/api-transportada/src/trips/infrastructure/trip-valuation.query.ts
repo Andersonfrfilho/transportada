@@ -8,6 +8,12 @@ import type { FuelProduct } from '../../shared/fuel.constant.js'
 import { readEffectiveFuelPrice, toFuelProduct } from './effective-fuel-price.query.js'
 import { cteBatchItemCharges, cteBatchItems } from '../../database/cte-batch.schema.js'
 import { cteFiscalDocuments, cteIssuancePayloads } from '../../database/cte-issuance.schema.js'
+import {
+  cteEmissionProfileMatchers,
+  cteEmissionProfiles,
+  type CteEmissionMatchRole,
+} from '../../database/cte-emission-profile.schema.js'
+import type { IcmsEmissionProfile } from '../domain/trip-icms-projection.policy.js'
 import { deliveryCharges } from '../../database/delivery-client.schema.js'
 import { fleetDrivers, fleetVehicles } from '../../database/fleet.schema.js'
 import {
@@ -87,11 +93,12 @@ export class DrizzleTripValuationQuery {
       .limit(1)
     if (vehicle === undefined) return null
 
-    const [fuelPrice, documents, crew, federalRates] = await Promise.all([
+    const [fuelPrice, documents, crew, federalRates, profiles] = await Promise.all([
       this.readFuelPrice({ companyId: input.companyId, product: toFuelProduct(vehicle.fuelType) }),
       this.readPreviewDocuments(input),
       this.readPreviewCrew(input),
       this.readFederalRates({ companyId: input.companyId }),
+      this.readIcmsProfiles(input.companyId),
     ])
 
     return {
@@ -99,6 +106,8 @@ export class DrizzleTripValuationQuery {
       deliveryChargesTotal: null,
       distanceMeters: null,
       documents,
+      /** Spec 125: sem CT-e na prévia, o ICMS de toda nota é a projeção pelo perfil. */
+      emissionProfiles: profiles,
       federalRates,
       fuelPricePerLiter: fuelPrice,
       tollTotal: null,
@@ -198,22 +207,33 @@ export class DrizzleTripValuationQuery {
       .limit(1)
     if (trip === undefined) return null
 
-    const [distance, fuelPrice, documents, crew, tollTotal, deliveryChargesTotal, federalRates] =
-      await Promise.all([
-        this.readPlannedDistance(input),
-        this.readFuelPrice({ companyId: input.companyId, product: toFuelProduct(trip.fuelType) }),
-        this.readDocuments(input),
-        this.readCrew(input),
-        this.readTollTotal(input),
-        this.readDeliveryChargesTotal(input),
-        this.readFederalRates({ companyId: input.companyId }),
-      ])
+    const [
+      distance,
+      fuelPrice,
+      documents,
+      crew,
+      tollTotal,
+      deliveryChargesTotal,
+      federalRates,
+      profiles,
+    ] = await Promise.all([
+      this.readPlannedDistance(input),
+      this.readFuelPrice({ companyId: input.companyId, product: toFuelProduct(trip.fuelType) }),
+      this.readDocuments(input),
+      this.readCrew(input),
+      this.readTollTotal(input),
+      this.readDeliveryChargesTotal(input),
+      this.readFederalRates({ companyId: input.companyId }),
+      this.readIcmsProfiles(input.companyId),
+    ])
 
     return {
       crew,
       deliveryChargesTotal,
       distanceMeters: distance,
       documents,
+      /** Spec 125: nota com CT-e usa o documento; as outras, a projeção pelo perfil. */
+      emissionProfiles: profiles,
       federalRates,
       fuelPricePerLiter: fuelPrice,
       /**
@@ -548,6 +568,7 @@ export class DrizzleTripValuationQuery {
         issuedAt: nfeDocuments.issuedAt,
         nfeDocumentId: nfeDocuments.id,
         nfeTotalAmount: nfeDocuments.totalValue,
+        recipientTaxId: recipientParticipant.taxId,
         senderTaxId: emitterParticipant.taxId,
       })
       .from(nfeDocuments)
@@ -589,6 +610,7 @@ export class DrizzleTripValuationQuery {
       measuredAmount: null,
       nfeDocumentId: row.nfeDocumentId,
       nfeTotalAmount: row.nfeTotalAmount,
+      recipientTaxId: row.recipientTaxId,
       senderTaxId: row.senderTaxId,
       tripDocumentId: row.nfeDocumentId,
     }))
@@ -726,6 +748,52 @@ export class DrizzleTripValuationQuery {
     return row?.total ?? null
   }
 
+  /**
+   * Spec 125: os perfis **ativos** de emissão com os matchers e o que decide o ICMS — uma consulta
+   * por conta. Perfil é configuração (poucas linhas por empresa), e a escolha por nota acontece em
+   * memória por `findEmissionProfile`, a mesma que a listagem de notas usa.
+   */
+  private async readIcmsProfiles(companyId: string): Promise<readonly IcmsEmissionProfile[]> {
+    const rows = await this.database
+      .select({ matcher: cteEmissionProfileMatchers, profile: cteEmissionProfiles })
+      .from(cteEmissionProfiles)
+      .leftJoin(
+        cteEmissionProfileMatchers,
+        and(
+          eq(cteEmissionProfileMatchers.companyId, cteEmissionProfiles.companyId),
+          eq(cteEmissionProfileMatchers.profileId, cteEmissionProfiles.id),
+        ),
+      )
+      .where(
+        and(eq(cteEmissionProfiles.companyId, companyId), eq(cteEmissionProfiles.status, 'active')),
+      )
+
+    const profileById = new Map<string, (typeof rows)[number]['profile']>()
+    const matchersByProfile = new Map<
+      string,
+      { matchRole: CteEmissionMatchRole; taxId: string }[]
+    >()
+    for (const row of rows) {
+      profileById.set(row.profile.id, row.profile)
+      if (row.matcher === null) continue
+      const matchers = matchersByProfile.get(row.profile.id) ?? []
+      matchers.push({ matchRole: row.matcher.matchRole, taxId: row.matcher.taxId })
+      matchersByProfile.set(row.profile.id, matchers)
+    }
+
+    return [...profileById.values()].map((profile) => ({
+      icmsBaseReductionRate: profile.icmsBaseReductionRate,
+      icmsCst: profile.icmsCst,
+      icmsRate: profile.icmsRate,
+      id: profile.id,
+      matchMode: profile.matchMode,
+      matchers: matchersByProfile.get(profile.id) ?? [],
+      name: profile.name,
+      priority: profile.priority,
+      status: profile.status,
+    }))
+  }
+
   /** `null` quando a empresa não declarou regime: PIS/COFINS fica `missing` (ADR-0049 §4). */
   private async readFederalRates(input: {
     readonly companyId: string
@@ -829,6 +897,7 @@ export class DrizzleTripValuationQuery {
         measuredAmount: sql<null | string>`(${measuredAmount})`.as('measured_amount'),
         nfeDocumentId: nfeDocuments.id,
         nfeTotalAmount: nfeDocuments.totalValue,
+        recipientTaxId: recipientParticipant.taxId,
         senderTaxId: emitterParticipant.taxId,
         tripDocumentId: tripDocuments.id,
       })
@@ -899,6 +968,7 @@ export class DrizzleTripValuationQuery {
       measuredAmount: row.measuredAmount,
       nfeDocumentId: row.nfeDocumentId,
       nfeTotalAmount: row.nfeTotalAmount,
+      recipientTaxId: row.recipientTaxId,
       senderTaxId: row.senderTaxId,
       tripDocumentId: row.tripDocumentId,
     }))

@@ -914,6 +914,8 @@
       "DRIVER_RATE_MISSING_FOR_CLASS": "zona sem preço para a classe do veículo — confira a aba Regiões",
       "DRIVER_ZONE_NOT_COVERED": "motorista não cobre a zona do destino — ajuste a ficha dele",
       "DRIVER_ZONE_PRICED_FROM_TABLE": "preço da tabela: o motorista não tem esta zona — adicione-a na ficha dele",
+      "ICMS_CST_UNSUPPORTED": "o perfil de emissão usa CST 60, que o produto não emite",
+      "NO_EMISSION_PROFILE": "nenhum perfil de emissão rege a nota (nenhum casa, ou dois empatam) — confira os perfis de CT-e",
       "FEATURE_ABSENT": "módulo ainda não usado",
       "NOT_RECORDED": "ninguém lançou",
       "NO_DRIVER_RATE": "rota do agregado sem valor cadastrado",
