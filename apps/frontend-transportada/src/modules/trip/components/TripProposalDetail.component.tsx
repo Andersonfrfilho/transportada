@@ -7,6 +7,7 @@ import type { SelectOption } from '@/components/ui/select'
 import { VehicleIdentityBand } from '@/modules/fleet/components/VehicleIdentityBand.component'
 import type { FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
 import {
+  buildDurationUnitLabels,
   formatDistance,
   formatDuration,
 } from '@/modules/routing/shared/suggestionValuation.service'
@@ -82,6 +83,8 @@ export function TripProposalDetail({
   view,
 }: TripProposalDetailProps) {
   const { t } = useTranslation('trip')
+  const { t: tRouting } = useTranslation('routing')
+  const durationUnits = buildDurationUnitLabels(tRouting)
   const documentIds = [...new Set(view.stops.flatMap((stop) => stop.nfeDocumentIds))]
   const documentById = new Map(documents.map((document) => [document.id, document]))
   /**
@@ -209,7 +212,8 @@ export function TripProposalDetail({
             ? [
                 {
                   label: t('proposal.time'),
-                  value: formatDuration(view.durationSeconds) ?? t('proposal.unknown'),
+                  value:
+                    formatDuration(view.durationSeconds, durationUnits) ?? t('proposal.unknown'),
                 },
                 {
                   label: t('proposal.totalDistance'),

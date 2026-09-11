@@ -146,12 +146,28 @@ describe('permissão da conta da sugestão', () => {
   })
 })
 
+const DURATION_UNITS = { days: 'd', hours: 'h', minutes: 'min' }
+
 describe('formatação', () => {
-  it('duração vira jornada legível', () => {
-    expect(formatDuration(3_600)).toBe('1h00')
-    expect(formatDuration(5_400)).toBe('1h30')
-    expect(formatDuration(600)).toBe('10min')
-    expect(formatDuration(null)).toBe(null)
+  /**
+   * Spec 138: uma viagem de muitas paradas passa de 24h com frequência, e "29h47" não lê como
+   * jornada. Unidade zerada no meio é omitida ("2 d 3 min", nunca "2 d 0 h 3 min"), e a duração
+   * zero preserva a saída de sempre — não vale criar uma segunda forma só para "nada".
+   */
+  it('duração vira dias, horas e minutos — sem parte zerada no meio', () => {
+    expect(formatDuration(107_220, DURATION_UNITS)).toBe('1 d 5 h 47 min')
+    expect(formatDuration(347 * 60, DURATION_UNITS)).toBe('5 h 47 min')
+    expect(formatDuration(0, DURATION_UNITS)).toBe('0min')
+    expect(formatDuration(48 * 3_600, DURATION_UNITS)).toBe('2 d')
+    expect(formatDuration(null, DURATION_UNITS)).toBe(null)
+  })
+
+  it('duração sem dias nem horas ainda mostra minutos', () => {
+    expect(formatDuration(600, DURATION_UNITS)).toBe('10 min')
+  })
+
+  it('duração com dias e minutos, sem horas, omite a hora zerada', () => {
+    expect(formatDuration(2 * 24 * 3_600 + 3 * 60, DURATION_UNITS)).toBe('2 d 3 min')
   })
 
   it('distância vira quilômetro', () => {

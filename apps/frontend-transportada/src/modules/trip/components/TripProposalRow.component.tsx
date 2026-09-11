@@ -6,6 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
 import { Tooltip } from '@/components/ui/tooltip'
 import {
+  buildDurationUnitLabels,
   formatDistance,
   formatDuration,
 } from '@/modules/routing/shared/suggestionValuation.service'
@@ -53,6 +54,8 @@ export function TripProposalRow({
   view,
 }: TripProposalRowProps) {
   const { t } = useTranslation('trip')
+  const { t: tRouting } = useTranslation('routing')
+  const durationUnits = buildDurationUnitLabels(tRouting)
   const color = stopColorOf(index + 1)
   const cities = summarizeProposalCities(view.cities)
   /**
@@ -167,7 +170,7 @@ export function TripProposalRow({
           <Metric
             label={t('proposal.time')}
             note={formatDistance(view.distanceMeters)}
-            value={formatDuration(view.durationSeconds) ?? t('proposal.unknown')}
+            value={formatDuration(view.durationSeconds, durationUnits) ?? t('proposal.unknown')}
           />
         </span>
       </button>
@@ -231,7 +234,7 @@ function Metric({
   return (
     <span className={styles.proposalMetric}>
       <span className={styles.proposalMetricLabel}>{label}</span>
-      <span className={tone === undefined ? undefined : tone}>{value}</span>
+      <span className={`${styles.proposalMetricValue} ${tone ?? ''}`.trim()}>{value}</span>
       {note === null ? null : (
         <span className={`${styles.proposalMetricNote} ${noteTone ?? ''}`.trim()}>{note}</span>
       )}

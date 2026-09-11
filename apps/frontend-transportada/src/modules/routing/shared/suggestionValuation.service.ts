@@ -63,14 +63,56 @@ export const SUGGESTION_VEHICLE_VALUATION_KEYS = [
   'vehicleId',
 ] as const
 
-/** Segundos em horas e minutos — o operador raciocina em jornada, não em segundos. */
-export function formatDuration(seconds: null | number): null | string {
+const MINUTES_PER_HOUR = 60
+const MINUTES_PER_DAY = 24 * MINUTES_PER_HOUR
+
+export type DurationUnitLabels = Readonly<{
+  days: string
+  hours: string
+  minutes: string
+}>
+
+/**
+ * Rótulos de dia/hora/minuto, traduzidos por quem chama — `formatDuration` é usado tanto pelo
+ * módulo `trip` (TEMPO por viagem, JORNADA SOMADA da proposta) quanto pelo `routing`
+ * (`SuggestionVehicleValuation`, `SuggestionValuationReport`), e as duas pontas já leem o
+ * namespace `routing` (o `t: tRouting`/`t` que os componentes já chamam) — este helper só evita
+ * remontar o objeto de rótulos em cada callsite.
+ */
+export function buildDurationUnitLabels(translate: (key: string) => string): DurationUnitLabels {
+  return {
+    days: translate('duration.days'),
+    hours: translate('duration.hours'),
+    minutes: translate('duration.minutes'),
+  }
+}
+
+/**
+ * Segundos em dias, horas e minutos — o operador raciocina em jornada, não em segundos, e uma
+ * viagem de muitas paradas passa de 24h com frequência (spec 138: medido "29h47" ilegível numa
+ * fileira de números).
+ *
+ * Unidade zerada **no meio** é omitida ("2 d 3 min", nunca "2 d 0 h 3 min") — é a leitura mais
+ * curta sem perder precisão, e a regra escolhida entre as duas que a spec 138 levantou. Duração
+ * zero preserva a saída de sempre (`"0min"`, sem espaço): criar uma segunda forma só para "nada"
+ * não ganha nada em clareza.
+ */
+export function formatDuration(seconds: null | number, units: DurationUnitLabels): null | string {
   if (seconds === null) return null
   const totalMinutes = Math.round(seconds / 60)
-  const hours = Math.floor(totalMinutes / 60)
-  const minutes = totalMinutes % 60
+  if (totalMinutes === 0) return '0min'
 
-  return hours === 0 ? `${minutes}min` : `${hours}h${String(minutes).padStart(2, '0')}`
+  const days = Math.floor(totalMinutes / MINUTES_PER_DAY)
+  const hours = Math.floor((totalMinutes % MINUTES_PER_DAY) / MINUTES_PER_HOUR)
+  const minutes = totalMinutes % MINUTES_PER_HOUR
+
+  return [
+    days > 0 ? `${days} ${units.days}` : null,
+    hours > 0 ? `${hours} ${units.hours}` : null,
+    minutes > 0 ? `${minutes} ${units.minutes}` : null,
+  ]
+    .filter((part): part is string => part !== null)
+    .join(' ')
 }
 
 /** Metros em quilômetros, uma casa. `null` continua `null` — a tela é que decide o que dizer. */

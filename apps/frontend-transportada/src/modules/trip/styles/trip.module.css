@@ -2479,6 +2479,15 @@
   background: color-mix(in srgb, var(--color-asphalt) 62%, transparent);
 }
 
+/**
+ * Spec 138: o realce cobre o cartão **inteiro** — caixa de seleção, identidade, números e ações —,
+ * nunca só o gatilho. `:hover` no `<li>` tem mais especificidade que a classe sozinha e por isso
+ * vence tanto o fundo de base quanto o de `.proposalRowOpen`, aberto ou não.
+ */
+.proposalRow:hover {
+  background: color-mix(in srgb, var(--color-copper) 6%, transparent);
+}
+
 .proposalCheck {
   display: flex;
   align-items: center;
@@ -2490,9 +2499,16 @@
  * do produto, e uma classe de módulo com `display` diferente a venceria por especificidade — é o que
  * `test/design-system/button.contract.ts` reprova, e com razão.
  */
+/**
+ * ⚠️ `flex-wrap: wrap`: identidade e números disputam a mesma fileira, e sem quebra os dois se
+ * espremem até o texto perder espaço para respirar e vazar por cima um do outro (spec 138 — medido
+ * entre 40rem e 64rem, onde a grade de números ainda não ganhou largura fixa). Com quebra, a grade
+ * desce para a fileira de baixo sozinha quando não sobra `min-width` para os dois lado a lado.
+ */
 .proposalTrigger {
   display: flex;
-  gap: var(--space-4);
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
   align-items: center;
   padding: var(--space-3) var(--space-2) var(--space-3) var(--space-3);
   border: 0;
@@ -2503,14 +2519,10 @@
   cursor: pointer;
 }
 
-.proposalTrigger:hover {
-  background: color-mix(in srgb, var(--color-copper) 6%, transparent);
-}
-
 .proposalIdentity {
   display: grid;
-  min-width: 0;
-  flex: 1 1 auto;
+  min-width: 12rem;
+  flex: 1 1 16rem;
   gap: var(--space-1);
 }
 
@@ -2562,21 +2574,38 @@
  * ⚠️ Grade de largura fixa, **não** `flex` com `gap`: com flex cada linha se ajusta ao próprio
  * conteúdo e `R$ 541,85` não cai embaixo de `R$ 1.211,97`. Número que não alinha não se compara, e
  * comparar é o que esta tela faz.
+ *
+ * ⚠️ `flex: 1 1 100%` dentro de `.proposalTrigger` (que quebra linha): a grade some para a fileira
+ * de baixo, inteira, sempre que não sobra espaço ao lado da identidade — nunca disputa a largura
+ * com ela até os dois espremerem a ponto de o número vazar por cima do vizinho (spec 138, medido
+ * entre 40rem e 64rem, onde a grade ainda não tinha largura própria). A partir de 64rem a fileira
+ * já é larga o bastante para os dois lado a lado, e a grade volta a ocupar só o que precisa.
  */
 .proposalMetrics {
   display: grid;
   align-items: start;
   gap: var(--space-1) var(--space-3);
+  flex: 1 1 100%;
+  min-width: 15rem;
   /**
    * ⚠️ Seis colunas de 7,5rem somam 45rem e **estouram os 375px** do celular — e scroll horizontal
-   * é proibido (web.md §10). A grade cresce por ponto de quebra: três no celular, seis no desktop,
-   * e a largura fixa (que é o que faz os números se alinharem entre as linhas) vale onde há espaço.
+   * é proibido (web.md §10). A grade reflui em três degraus — dois no celular pequeno, três a
+   * partir de 40rem, seis a partir de 64rem —, e a largura fixa (que é o que faz os números se
+   * alinharem entre as linhas) só entra onde sobra espaço de verdade.
    */
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (min-width: 40rem) {
+  .proposalMetrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 @media (min-width: 64rem) {
   .proposalMetrics {
+    flex: 0 0 auto;
+    min-width: 0;
     grid-template-columns: repeat(6, minmax(0, 7.5rem));
   }
 }
@@ -2594,6 +2623,16 @@
   font-size: 0.62rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+/**
+ * ⚠️ Sem `nowrap` o valor quebra no meio da unidade ("2.580,601" numa linha, "kg" na de baixo) ou,
+ * numa coluna espremida a quase zero, deixa de respeitar a borda da célula e invade a vizinha —
+ * "R$ 836,58R$ 1.151,90" colados foi exatamente esse segundo caso (spec 138). A coluna agora sempre
+ * tem largura suficiente (grade acima) para o valor caber sem cortar.
+ */
+.proposalMetricValue {
+  white-space: nowrap;
 }
 
 .proposalMetricNote {
@@ -2620,6 +2659,11 @@
 /**
  * ⚠️ O espaço dos **três** botões fica reservado sempre: o de recalcular só aparece na linha
  * alterada, e sem a reserva as métricas das linhas vizinhas dançam quando ele entra.
+ *
+ * Spec 138: abaixo de 64rem as ações eram uma fileira solta no canto, desligada do resto do
+ * cartão — o fundo de hover parava antes dela e ela não alinhava com nada. Hoje é uma **faixa de
+ * rodapé**, com a mesma borda superior do detalhe expandido (`.proposalDetail`) e o mesmo recuo
+ * horizontal do gatilho, para ler como parte do cartão e não como um apêndice.
  */
 .proposalActions {
   display: flex;
@@ -2628,14 +2672,20 @@
   align-items: center;
   align-self: start;
   justify-content: flex-end;
-  padding: 0 var(--space-4) var(--space-3);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+  border-top: 1px solid color-mix(in srgb, var(--color-slate) 14%, transparent);
   grid-column: 1 / -1;
 }
 
+/**
+ * ⚠️ A partir de 64rem elas ficam **ao lado** da grade de números, na terceira coluna do cartão
+ * (`.proposalRow` abaixo) — não mais embaixo, e por isso a borda de rodapé sai.
+ */
 @media (min-width: 64rem) {
   .proposalActions {
     width: calc(3 * var(--control-height-compact) + 2 * var(--space-1) + var(--space-4));
     padding: var(--space-3) var(--space-4) var(--space-3) 0;
+    border-top: none;
     grid-column: auto;
   }
 }

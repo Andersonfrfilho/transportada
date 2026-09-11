@@ -10,6 +10,7 @@ import {
 } from '@/modules/trip-financials/shared/tripCostParcelDetail.service'
 
 import {
+  buildDurationUnitLabels,
   formatDistance,
   formatDuration,
   type SuggestionVehicleValuation as VehicleValuation,
@@ -47,7 +48,7 @@ export function SuggestionVehicleValuation({
 
   const margin = formatMargin(valuation.valuation.marginPercentage)
   const distance = formatDistance(valuation.distanceMeters)
-  const duration = formatDuration(valuation.durationSeconds)
+  const duration = formatDuration(valuation.durationSeconds, buildDurationUnitLabels(t))
 
   return (
     <dl className={styles.vehicleValuation}>

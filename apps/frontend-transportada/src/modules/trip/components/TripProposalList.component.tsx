@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Icon } from '@/components/ui/icon'
 import {
+  buildDurationUnitLabels,
   formatDistance,
   formatDuration,
 } from '@/modules/routing/shared/suggestionValuation.service'
@@ -81,6 +82,8 @@ export function TripProposalList({
   views,
 }: TripProposalListProps) {
   const { t } = useTranslation('trip')
+  const { t: tRouting } = useTranslation('routing')
+  const durationUnits = buildDurationUnitLabels(tRouting)
   const summary = summarizeProposalSelection({
     selected,
     vehicles: views.map((view) => ({
@@ -198,7 +201,9 @@ export function TripProposalList({
           />
           <Total
             label={t('proposal.totalDuration')}
-            value={formatDuration(summary.totalDurationSeconds) ?? t('proposal.unknown')}
+            value={
+              formatDuration(summary.totalDurationSeconds, durationUnits) ?? t('proposal.unknown')
+            }
           />
         </dl>
         <p className={styles.hint}>{t('proposal.selectionNote')}</p>
@@ -297,7 +302,7 @@ function Total({
   return (
     <div className={styles.proposalTotal}>
       <span>{label}</span>
-      <span className={tone === undefined ? undefined : tone}>{value}</span>
+      <span className={`${styles.proposalMetricValue} ${tone ?? ''}`.trim()}>{value}</span>
       {note === null ? null : <span className={styles.proposalMetricNote}>{note}</span>}
     </div>
   )

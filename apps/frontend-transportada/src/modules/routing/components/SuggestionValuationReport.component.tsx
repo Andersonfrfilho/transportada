@@ -6,6 +6,7 @@ import { formatAmount } from '@/modules/shared/decimalAmount.service'
 import { isNegative } from '@/modules/trip-financials/shared/financialView.service'
 
 import {
+  buildDurationUnitLabels,
   formatDistance,
   formatDuration,
   type SuggestionValuation,
@@ -48,7 +49,7 @@ export function SuggestionValuationReport({
 
   const { report, vehicles } = valuation
   const distance = formatDistance(report.totalDistanceMeters)
-  const duration = formatDuration(report.totalDurationSeconds)
+  const duration = formatDuration(report.totalDurationSeconds, buildDurationUnitLabels(t))
 
   return (
     <section aria-label={t('report.title')} className={styles.report}>

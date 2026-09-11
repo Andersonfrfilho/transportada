@@ -60,4 +60,75 @@ describe('proposal actions contract', () => {
     expect(rule).toContain('display: grid')
     expect(rule).toContain('grid-template-columns: repeat(6, minmax(0, 7.5rem))')
   })
+
+  /**
+   * Spec 138: entre 40rem e 64rem a identidade e a grade disputavam a mesma fileira sem quebra —
+   * o número vazava por cima do vizinho ("R$ 836,58R$ 1.151,90" colados) e "2.580,601 kg" quebrava
+   * no meio da unidade. A grade agora tem `gap` de token, valor com `nowrap`, e desce inteira para
+   * a fileira de baixo (nunca disputa espaço espremendo) quando não cabe ao lado da identidade.
+   */
+  test('a grade reflui por quebra de linha, nunca por espremer a coluna', async () => {
+    const stylesheet = await readSource('src/modules/trip/styles/trip.module.css')
+    const trigger = stylesheet.slice(
+      stylesheet.indexOf('.proposalTrigger {'),
+      stylesheet.indexOf('.proposalIdentity {'),
+    )
+    expect(trigger).toContain('flex-wrap: wrap')
+
+    const metricsRule = stylesheet.slice(
+      stylesheet.indexOf('.proposalMetrics {'),
+      stylesheet.indexOf('.proposalMetric {'),
+    )
+    expect(metricsRule).toContain('flex: 1 1 100%')
+    expect(metricsRule).toMatch(/gap: var\(--space-\d+\) var\(--space-\d+\)/)
+    expect(metricsRule).toContain('grid-template-columns: repeat(2, minmax(0, 1fr))')
+    expect(metricsRule).toContain('grid-template-columns: repeat(3, minmax(0, 1fr))')
+
+    const valueRule = stylesheet.slice(stylesheet.indexOf('.proposalMetricValue {'))
+    expect(valueRule).toContain('white-space: nowrap')
+  })
+
+  /** Nenhum breakpoint deste bloco usa `max-width` — só os quatro `min-width` permitidos. */
+  test('a grade e as ações nunca usam max-width', async () => {
+    const stylesheet = await readSource('src/modules/trip/styles/trip.module.css')
+    const block = stylesheet.slice(
+      stylesheet.indexOf('.proposalMetrics {'),
+      stylesheet.indexOf('.proposalDetail {'),
+    )
+    expect(block).not.toMatch(/max-width/)
+  })
+
+  /**
+   * Spec 138: o realce de hover parava antes da caixa de seleção e antes da fileira de botões — o
+   * fundo cobria só o gatilho (`.proposalTrigger:hover`). Hoje ele é do cartão inteiro
+   * (`.proposalRow:hover`), e nenhum filho declara hover próprio que o esconderia.
+   */
+  test('o hover cobre o cartão inteiro, não só o gatilho', async () => {
+    const stylesheet = await readSource('src/modules/trip/styles/trip.module.css')
+
+    expect(stylesheet).toContain('.proposalRow:hover {')
+    expect(stylesheet).not.toContain('.proposalTrigger:hover {')
+  })
+
+  /**
+   * Botões e caixa de seleção continuam **dentro** do `<li>` do cartão — nunca um irmão fora dele
+   * — para o hover do cartão os alcançar e para eles seguirem clicáveis com o teclado.
+   */
+  test('as ações continuam dentro do contêiner do cartão', async () => {
+    const source = await readSource('src/modules/trip/components/TripProposalRow.component.tsx')
+    const card = source.slice(source.indexOf('<li '), source.lastIndexOf('</li>'))
+
+    expect(card).toContain('className={styles.proposalActions}')
+    expect(card).toContain('className={styles.proposalCheck}')
+    expect(card.indexOf('proposalActions')).toBeGreaterThan(card.indexOf('proposalTrigger'))
+  })
+
+  /** As três ações seguem vindo do design system: ícone, botão e dica — nenhum HTML cru. */
+  test('as ações usam os componentes do design system', async () => {
+    const source = await readSource('src/modules/trip/components/TripProposalRow.component.tsx')
+
+    expect(source).toContain("import { Button } from '@/components/ui/button'")
+    expect(source).toContain("import { Icon } from '@/components/ui/icon'")
+    expect(source).toContain("import { Tooltip } from '@/components/ui/tooltip'")
+  })
 })

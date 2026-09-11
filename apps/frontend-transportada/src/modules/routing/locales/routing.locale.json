@@ -1,4 +1,9 @@
 {
+  "duration": {
+    "days": "d",
+    "hours": "h",
+    "minutes": "min"
+  },
   "panel": {
     "title": "Roteiro sugerido",
     "distance": "Distância",
