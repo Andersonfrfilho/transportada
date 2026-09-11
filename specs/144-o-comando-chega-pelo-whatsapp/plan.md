@@ -88,7 +88,7 @@ billing_invoice`), `document_id`, com unique `(request_id, document_kind, docume
 
 O rollback fica ao lado de cada migration e derruba só as colunas e tabelas novas. As cópias no
 worker (`src/database/`) dos schemas lidos ali: `whatsapp-command`, `cte-emission-profile` (se ainda
-não houver) e `login-identifier`.
+não houver) e `user-whatsapp-phone` (o resumo da liquidação sai para o número vinculado).
 
 ## Segurança e tenant
 
