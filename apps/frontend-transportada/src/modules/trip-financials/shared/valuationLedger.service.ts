@@ -26,12 +26,23 @@ import type {
  */
 const TAX_KINDS: readonly string[] = ['icms', 'pis_cofins']
 
+/**
+ * Spec 122: **o risco segue a LACUNA, nunca a parcela.** `delivery_charges` cai em `FEATURE_ABSENT`
+ * hoje porque o módulo de taxas de entrega ainda não foi construído — o usuário pediu risco em vez
+ * do rótulo neutro "módulo ainda não usado", que soava como cadastro esquecido em vez de recurso
+ * inexistente. Se `FEATURE_ABSENT` um dia nomear outra parcela ainda não construída, ela herda o
+ * mesmo risco sem precisar de código novo; nenhuma outra lacuna muda de aparência.
+ */
+export const STRUCK_THROUGH_GAPS: readonly string[] = ['FEATURE_ABSENT']
+
 export type ValuationLedgerLine = Readonly<{
   /** `null` **quando há lacuna**: ali o motivo ocupa o lugar do número, e zero seria mentira. */
   amount: null | string
   basis: null | TripValuationCostParcelBasis
   detail: null | string
   gap: null | string
+  /** Spec 122: `true` só quando `gap` está em `STRUCK_THROUGH_GAPS` — a tela risca a linha. */
+  isGapStruckThrough: boolean
   kind: string
 }>
 
@@ -53,6 +64,7 @@ function toLine(parcel: TripValuationCostParcel): ValuationLedgerLine {
     basis: parcel.basis,
     detail: parcel.detail,
     gap: parcel.gap,
+    isGapStruckThrough: parcel.gap !== null && STRUCK_THROUGH_GAPS.includes(parcel.gap),
     kind: parcel.kind,
   }
 }

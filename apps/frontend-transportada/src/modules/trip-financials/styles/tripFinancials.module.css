@@ -152,6 +152,16 @@
   font-size: 0.8rem;
 }
 
+/**
+ * Spec 122: risco visual para a lacuna `FEATURE_ABSENT` — o recurso não existe no produto ainda,
+ * e não é um cadastro esquecido. O texto continua no lugar (o leitor de tela lê a mesma frase);
+ * o risco é só o reforço visual de que a linha não é acionável hoje.
+ */
+.ledgerGapAbsent {
+  text-decoration: line-through;
+  text-decoration-color: var(--color-copper);
+}
+
 .ledgerRevenue {
   padding-bottom: var(--space-2);
   border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);

@@ -86,7 +86,13 @@ function LedgerLine({ line }: Readonly<{ line: ValuationLedgerLine }>) {
         {line.gap === null ? (
           <dd>{formatAmount(line.amount ?? '0.00')}</dd>
         ) : (
-          <dd className={styles.ledgerGap}>
+          <dd
+            className={
+              line.isGapStruckThrough
+                ? `${styles.ledgerGap} ${styles.ledgerGapAbsent}`
+                : styles.ledgerGap
+            }
+          >
             {t(`gap.${line.gap}`, { defaultValue: line.gap })}
             {line.detail === null ? '' : ` — ${line.detail}`}
           </dd>
