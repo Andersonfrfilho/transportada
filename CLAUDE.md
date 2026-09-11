@@ -669,9 +669,8 @@ entregas posteriores (`isOutOfReach`), e o rendimento da orientação conta cél
 própria caixa** — carimbo pelo centro da célula de 1 cm e sonda a 0,5 mm da face. Hoje o apoio sai das
 bordas reais (tolerância única `CONTACT_TOLERANCE_M` = 1e-6 m): a caixa não é vizinha dela mesma, a de
 cima não a escora, o vazio não escora. Em `85cbb5fc` isso acha **15 caixas soltas na Sprinter e 15 no
-Accelo** (a fileira do fundo, afastada da testeira pelo deslocamento para a porta), registradas por placa
-em `test/cargo-placement/known-unsupported.ts`: o contrato cobra não piorar até a spec 134 zerá-las. A
-conferência "exata face a face" do scratchpad (Atego 84) foi recusada caso a caso em
+Accelo** (a fileira do fundo, afastada da testeira pelo deslocamento para a porta). A spec 134 as zerou
+(abaixo). A conferência "exata face a face" do scratchpad (Atego 84) foi recusada caso a caso em
 `specs/133-juiz-sem-autoapoio/evidence.md`.
 
 **Cada caixa sabe de que nota veio, e a nota tem tom próprio** (spec 119). `PlacedBox` publica
@@ -783,7 +782,12 @@ lado quando o `x` estoura o fim da fatia: com fatia de 2,5 m e caixa de 30 cm el
 Medido na tela com 30 caixas em três paradas num baú de 7,4 m: uma fileira rasteira de **7,40 m** que
 cabia em **0,90 m** encostada na porta. Hoje a proporção é **teto**, `sizeSlice` mede o que a carga
 pede (piso volumétrico crescendo 1,35× até parar de transbordar) e o bloco é deslocado para terminar
-na porta — o vão sobra na testeira, nunca entre paradas.
+na porta — o vão sobra na testeira, nunca entre paradas. ⚠️ **Spec 134 revê isso onde a testeira
+escora:** o deslocamento (para a porta ou para o meio) para na folga que mantém a pilha escorada nela,
+com 1 cm de sobra (`HEADBOARD_BRACE_MARGIN_M`), e a carga fica **encostada na cabeceira**, com o vão do
+lado da porta — deslocada além do giro, a fileira do fundo ficava solta (15 caixas na Sprinter e 15 no
+Accelo reais). Sem pilha escorada na testeira, a carga termina na porta como antes. Contrato em
+`test/cargo-placement/headboard-brace.contract.ts`.
 
 ⚠️ **Acima de metade de `capacity_kg` a física vence a descarga**: `shouldBalanceLoad` põe o bloco no
 meio do baú, com folga nas duas pontas, e carimba `weightBalanced` em toda caixa. Degrau e não rampa,

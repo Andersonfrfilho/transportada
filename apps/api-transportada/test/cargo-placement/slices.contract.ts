@@ -493,15 +493,20 @@ describe('o equilíbrio longitudinal (spec 098)', () => {
   })
 
   /**
-   * ⚠️ O vão sobra **dos dois lados**, e é isso que centraliza: afirmar só "não encosta na porta"
-   * passaria com a carga colada na testeira, que é o mesmo defeito virado ao contrário.
+   * ⚠️ **Spec 134 reescreveu esta afirmação.** Ela exigia a carga pesada no meio, com o mesmo vão nas
+   * duas pontas, e chamava a carga colada na testeira de "o mesmo defeito virado ao contrário". Não é: a
+   * pilha alta da última entrega se escora na testeira, e levá-la ao meio a deixava solta — medido, 15
+   * caixas na Sprinter e 15 no Accelo reais, que o juiz antigo não via (spec 133). Decisão do usuário:
+   * o bloco não anda além da folga que mantém a escora, com 1 cm de sobra — carga encostada na
+   * cabeceira também é a amarração que não corre na freada. O que continua proibido é a carga pesada ir
+   * para a porta.
    */
-  test('carga pesada centraliza, com folga nas duas pontas', () => {
+  test('carga pesada não vai para a porta, e fica dentro da escora da testeira', () => {
     const heavy = span('0.8000')
 
     expect(heavy.from).toBeGreaterThan(0)
     expect(heavy.to).toBeLessThan(7.4)
-    expect(heavy.from).toBeCloseTo(7.4 - heavy.to, 6)
+    expect(heavy.from).toBeLessThan((0.4 * 3) / Math.hypot(3, 1) - 0.01 + 1e-6)
   })
 
   /** Teto desconhecido não move nada: sem denominador não há proporção que justifique mover. */

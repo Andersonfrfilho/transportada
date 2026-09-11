@@ -99,10 +99,20 @@ describe('um bloco só, pela ordem de entrega (spec 114)', () => {
     expect(tallest).toBeGreaterThan(0.3 * 3 + EPSILON)
   })
 
-  test('carga leve termina na porta', () => {
+  /**
+   * ⚠️ **Spec 134 reescreveu esta afirmação.** Ela era "carga leve termina na porta" (099 D2): o bloco,
+   * empacotado encostado na testeira, era deslocado até a porta. A pilha alta da última entrega se
+   * escora na testeira, e o deslocamento a deixava solta — medido, 15 caixas na Sprinter e 15 no Accelo
+   * reais (spec 133). Com a testeira escorando, a carga fica encostada na cabeceira, dentro do giro da
+   * pilha com 1 cm de sobra, e o vão sobra do lado da porta. Onde a testeira não escora nada a 099
+   * continua: `headboard-brace.contract.ts`.
+   */
+  test('carga leve que se escora na testeira fica encostada na cabeceira', () => {
     const boxes = placedOf(MANY_SMALL)
-    const doorEnd = Math.max(...boxes.map((entry) => entry.xM + entry.depthM))
+    const headboardEnd = Math.min(...boxes.map((entry) => entry.xM))
+    const catchGapM = (0.3 * 3) / Math.hypot(3, 1)
 
-    expect(doorEnd).toBeCloseTo(5.32, 2)
+    expect(headboardEnd).toBeLessThanOrEqual(catchGapM - 0.01 + EPSILON)
+    expect(Math.max(...boxes.map((entry) => entry.xM + entry.depthM))).toBeLessThan(5.32)
   })
 })

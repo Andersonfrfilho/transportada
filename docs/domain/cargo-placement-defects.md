@@ -228,6 +228,15 @@ precisa **prever** o desenho — posição que desliza a cada caixa não se conf
 `payloadRatio` nulo é ausência de denominador e **não equilibra**: mover carga por palpite seria a
 invenção que a ausência do teto deveria impedir.
 
+**O deslocamento soltava a escora da testeira** (spec 134, revê a 099 D2). O bloco é empacotado com a
+testeira contando como parede e deslocado depois; a fileira do fundo ficava a 0,315 m (Sprinter) e
+0,474 m (Accelo) dela, contra giro de 0,248 m — **15 + 15 caixas sem apoio** nas viagens reais, 24 de 32
+variações com 6 a 36. Hoje o deslocamento para na folga que mantém a escora, com 1 cm de sobra, e a carga
+fica encostada na cabeceira: 0 sem apoio em todas, com as mesmas caixas desenhadas. **Recusado, com
+número:** reempacotar com a testeira à distância do deslocamento — criou degrau na porta do Accelo, 14
+caixas expostas até 1,26 m, porque a contenção da 115 conta como escora a célula da caixa embaixo da
+própria pilha (a fraqueza que a spec 135 trata).
+
 **Por onde o veículo abre decide se existe porta a que encostar** (spec 099). `loadingAccess` existia na
 ficha e no layout, e o empacotador não o lia: hoje `open` equilibra sempre, sem olhar o peso — quem abre
 o comprimento inteiro já tem toda a carga à mão. A **fatia** por entrega continua valendo nos três: a
@@ -266,7 +275,8 @@ face a face" acusava mais (Atego 84, Accelo 156) e foi **recusada**, com caso: e
 sozinha atravessasse a altura da contenção (a vizinha na mesma camada, sentada na pilha dela, não
 contava) e ignorava a vizinha que começa antes da face (camada de baixo deslocada 5 cm). Relaxadas as
 duas exigências, ela devolve exatamente o conjunto do juiz corrigido. As violações ficaram registradas
-por placa em `known-unsupported.ts`, e o contrato cobra não piorar até a spec 134.
+por placa em `known-unsupported.ts`, com o contrato cobrando não piorar, até a spec 134 zerá-las e apagar
+o arquivo.
 
 **O que sobra no Atego é a escada da porta, e ela não se afrouxa.** Sobre a planta final, só desligar a
 esbeltez colocaria mais caixa: 73, todas a menos de 1,3 m da porta. A fileira encostada nela sobe 3

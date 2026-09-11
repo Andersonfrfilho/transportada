@@ -19,7 +19,6 @@ import {
   SPRINTER_24_STOPS,
   type RealCargoRow,
 } from '../fixtures/real-mixed-cargo.fixture.js'
-import { knownUnsupportedOf } from './known-unsupported.js'
 import { simulateUnloading, type UnloadingBed } from './unloading-simulation.js'
 
 /**
@@ -224,11 +223,7 @@ describe('o mapa recomendado e o complemento (spec 120)', () => {
       const recommended = onlyRecommended(place(load))
       const boxes = drawnOf(recommended)
 
-      const report = simulateUnloading(recommended, bedOf(load))
-
-      expect(report.stuck).toEqual([])
-      /** ⚠️ Spec 133: não piorar a linha de base do juiz corrigido até a spec 134 zerá-la. */
-      expect(report.unsupported.length).toBeLessThanOrEqual(knownUnsupportedOf(load.name))
+      expect(simulateUnloading(recommended, bedOf(load))).toEqual({ stuck: [], unsupported: [] })
       expect(boxes.flatMap((box) => boxes.filter((other) => breaksOrder(box, other)))).toEqual([])
     })
 
@@ -236,9 +231,7 @@ describe('o mapa recomendado e o complemento (spec 120)', () => {
       const plan = place(load)
 
       expect(physicalBreaks(plan, bedOf(load))).toEqual({ crossing: 0, floating: 0, outside: 0 })
-      expect(simulateUnloading(plan, bedOf(load)).unsupported.length).toBeLessThanOrEqual(
-        knownUnsupportedOf(load.name),
-      )
+      expect(simulateUnloading(plan, bedOf(load)).unsupported).toEqual([])
     })
 
     /**

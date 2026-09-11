@@ -18,7 +18,6 @@ import {
   SPRINTER_24_STOPS,
   type RealCargoRow,
 } from '../fixtures/real-mixed-cargo.fixture.js'
-import { knownUnsupportedOf } from './known-unsupported.js'
 import { simulateUnloading, type UnloadingBed } from './unloading-simulation.js'
 
 /**
@@ -314,13 +313,16 @@ describe('a descarga entrega por entrega (spec 118)', () => {
 
   for (const load of REAL_LOADS) {
     /**
-     * ⚠️ Spec 133: com o juiz corrigido a Sprinter e o Accelo têm a fileira do fundo solta (15 e 15) —
-     * a linha de base registrada em `known-unsupported.ts`. Até a spec 134 o contrato cobra não piorar.
+     * ⚠️ Spec 133/134: com o juiz corrigido a Sprinter e o Accelo tinham a fileira do fundo solta (15 e
+     * 15), afastada da testeira pelo deslocamento para a porta. A 134 encosta a carga na cabeceira, e a
+     * afirmação volta a ser zero.
      */
-    test(`${load.name}: nenhuma caixa perde apoio além da linha de base da spec 133`, () => {
+    test(`${load.name}: nenhuma caixa perde apoio enquanto as entregas anteriores saem`, () => {
       const unsupported = simulateUnloading(place(load), bedOf(load)).unsupported
 
-      expect(unsupported.length).toBeLessThanOrEqual(knownUnsupportedOf(load.name))
+      expect(
+        unsupported.map(({ box, step }) => `P${String(box.stopSequence)} passo ${String(step)}`),
+      ).toEqual([])
     })
 
     /**

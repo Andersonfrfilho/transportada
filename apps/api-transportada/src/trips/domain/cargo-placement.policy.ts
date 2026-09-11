@@ -993,6 +993,8 @@ function packSlice(input: {
   readonly sliceLengthM: number
 }): {
   readonly boxes: readonly PlacedBox[]
+  /** Spec 134: quanto o bloco pode andar sem soltar a escora da testeira — ver `createSupportMap`. */
+  readonly headboardSlackM: number
   readonly leftovers: readonly PlacementBox[]
   /**
    * Spec 120: cada caixa que saiu `bedFull` ou virou sobra, uma por unidade — é a fila do complemento.
@@ -1473,7 +1475,13 @@ function packSlice(input: {
     }
   }
 
-  return { boxes: placed, leftovers, overflow, unplaced }
+  return {
+    boxes: placed,
+    headboardSlackM: support.headboardSlackM(),
+    leftovers,
+    overflow,
+    unplaced,
+  }
 }
 
 /**
@@ -1583,6 +1591,12 @@ function createSupportMap(
   openFace: OpenFace,
   openSides: OpenSides = CLOSED_SIDES,
 ): {
+  /**
+   * Spec 134: a menor folga entre o giro de uma pilha escorada na testeira e o vão que ela já tem — quanto
+   * o bloco ainda pode andar para a porta sem que alguma escora deixe de encostar. Infinita quando
+   * nenhuma pilha carimbada precisou da testeira.
+   */
+  readonly headboardSlackM: () => number
   readonly seat: (input: {
     /** Recusa de quem chama — a busca segue para o próximo lugar nivelado da fileira. */
     accept?: (candidate: { readonly topM: number; readonly xM: number }) => boolean
@@ -1630,6 +1644,14 @@ function createSupportMap(
   /** Até onde, na direção da face aberta, cada coluna tem caixa no piso — e o congelado das posteriores. */
   const floorEndM = new Float64Array(columns)
   const laterFloorEndM = new Float64Array(columns)
+  let headboardSlackM = Number.POSITIVE_INFINITY
+  /**
+   * A folga de cada posição conferida desde o último carimbo. ⚠️ Só a posição carimbada entra em
+   * `headboardSlackM`: o candidato recusado por outra regra também passa pela contenção, e contá-lo
+   * prenderia na cabeceira um bloco sem nenhuma pilha escorada de fato.
+   */
+  const pendingSlackM = new Map<string, number>()
+  const positionKey = (xM: number, yM: number): string => `${String(xM)}|${String(yM)}`
 
   /**
    * ⚠️ **A folga nas duas pontas não é preciosismo — é o que impede a escada.** `0.6 / 0.05` dá
@@ -1650,6 +1672,7 @@ function createSupportMap(
   }
 
   return {
+    headboardSlackM: () => headboardSlackM,
     /**
      * O primeiro lugar **nivelado** a partir de `xM`, na faixa daquele `y`.
      *
@@ -1821,6 +1844,18 @@ function createSupportMap(
        * caminho que chega à face aberta não apoia nada.
        */
       const catchGapM = braceGapOf(slot)
+      /** A folga das escoras na testeira desta posição — só vale se ela sair confinada. */
+      let slackM = Number.POSITIVE_INFINITY
+      /**
+       * ⚠️ **Spec 134: a testeira escora, e quanto o bloco ainda pode andar é anotado.** Em profundidade o
+       * bloco é empacotado encostado nela e deslocado depois; a escora só vale se o vão final — o
+       * deslocamento mais o vão que a caixa já tem — continuar mais estreito que o giro da pilha.
+       */
+      const leansOnHeadboard = (faceM: number): boolean => {
+        if (faceM >= catchGapM - 1e-9) return false
+        slackM = Math.min(slackM, catchGapM - faceM)
+        return true
+      }
       /**
        * O primeiro apoio numa direção: a célula vizinha, ou — atravessando um vão mais estreito que
        * `catchGapM`, medido da face **real** da caixa — a carga ou a parede do outro lado dele.
@@ -1834,6 +1869,9 @@ function createSupportMap(
       }): boolean => {
         let { column, line } = input
         for (let step = 0; ; step += 1) {
+          if (openFace === 'lineEnd' && input.stepLine < 0 && line < 0) {
+            return leansOnHeadboard(input.faceM)
+          }
           if (step > 0) {
             const nearM =
               input.stepColumn > 0
@@ -1868,10 +1906,22 @@ function createSupportMap(
           return false
         }
       }
+      if (slackM !== Number.POSITIVE_INFINITY) {
+        const key = positionKey(xM, yM)
+        pendingSlackM.set(key, Math.min(pendingSlackM.get(key) ?? slackM, slackM))
+      }
 
       return true
     },
     stamp: ({ slot, topM: top, xM, yM }) => {
+      if (pendingSlackM.size > 0) {
+        /** Posição sem conferência própria: na dúvida, a menor folga pendente — nunca solta escora. */
+        headboardSlackM = Math.min(
+          headboardSlackM,
+          pendingSlackM.get(positionKey(xM, yM)) ?? Math.min(...pendingSlackM.values()),
+        )
+        pendingSlackM.clear()
+      }
       const [fromColumn, toColumn] = range(xM, slot.depthM, columns)
       const [fromLine, toLine] = range(yM, slot.widthM, lines)
       const onFloor = top - slot.heightM <= 1e-9
@@ -2777,8 +2827,12 @@ let lastDepthPacking: {
  * lado ou em cima dela. Assim a mais cedo nunca fica embaixo nem atrás de uma mais tardia, e as pilhas
  * se apoiam umas nas outras em vez de ficarem soltas.
  *
- * ⚠️ O bloco é deslocado **depois** para terminar na porta (099 D2), ou centralizado acima de metade do
- * teto de massa (099 D3): o vão sobra na testeira, nunca entre entregas.
+ * ⚠️ O bloco é deslocado **depois** para a porta (099 D2), ou para o meio acima de metade do teto de
+ * massa (099 D3) — **nunca além da folga que mantém a escora da testeira** (spec 134, que revê a D2).
+ * Empacotar trata a testeira como parede, e a pilha alta da última entrega se escora nela; deslocada
+ * além do giro, ela fica solta — medido, 15 caixas na Sprinter e 15 no Accelo reais. Com a testeira
+ * escorando, a carga fica encostada na cabeceira (é também a amarração: carga na cabeceira não corre
+ * na freada) e o vão sobra do lado da porta; sem pilha escorada nela, a 099 vale como sempre.
  */
 function placeDeliveryBlock(input: {
   readonly balanced: boolean
@@ -2820,7 +2874,7 @@ function placeDeliveryBlock(input: {
         placed: packed.boxes,
         securesCargo: input.securesCargo,
       })
-    : { boxes: [], rejected: packed.overflow }
+    : { boxes: [], headboardSlackM: Number.POSITIVE_INFINITY, rejected: packed.overflow }
   const unplaced: UnplacedBox[] = [
     ...input.unplaced,
     ...packed.unplaced.filter((entry) => entry.reason !== 'bedFull'),
@@ -2836,7 +2890,12 @@ function placeDeliveryBlock(input: {
    * ⚠️ Arredondado **uma vez**, antes de somar: arredondar `deslocamento + posição` caixa a caixa fazia
    * duas vizinhas encostadas discordarem na terceira casa e se cruzarem 1 mm.
    */
-  const shiftM = round(input.balanced ? freeM / 2 : freeM)
+  const shiftM = round(
+    Math.min(
+      input.balanced ? freeM / 2 : freeM,
+      headboardShiftCapOf(Math.min(packed.headboardSlackM, complement.headboardSlackM)),
+    ),
+  )
   const rows = drawn.map((box) => ({
     ...box,
     depthM: box.widthM,
@@ -2847,6 +2906,18 @@ function placeDeliveryBlock(input: {
   }))
 
   return { layers: toLayers(rows), source: input.presumed ? 'estimated' : 'measured', unplaced }
+}
+
+/**
+ * Spec 134: **a escora da testeira fica com 1 cm de sobra.** A folga é a conta exata do mapa de apoio;
+ * andar até o último milímetro dela deixaria a pilha a um arredondamento de ficar solta.
+ */
+const HEADBOARD_BRACE_MARGIN_M = 0.01
+
+/** Quanto o bloco pode andar para a porta sem soltar a escora da testeira, em milímetro inteiro. */
+function headboardShiftCapOf(headboardSlackM: number): number {
+  if (headboardSlackM === Number.POSITIVE_INFINITY) return Number.POSITIVE_INFINITY
+  return Math.max(0, Math.floor((headboardSlackM - HEADBOARD_BRACE_MARGIN_M) * 1000 + 1e-6) / 1000)
 }
 
 /**
@@ -2870,8 +2941,14 @@ function placeComplement(input: {
   readonly overflow: readonly PlacementBox[]
   readonly placed: readonly PlacedBox[]
   readonly securesCargo: boolean
-}): { readonly boxes: readonly PlacedBox[]; readonly rejected: readonly PlacementBox[] } {
-  if (input.overflow.length === 0) return { boxes: [], rejected: [] }
+}): {
+  readonly boxes: readonly PlacedBox[]
+  readonly headboardSlackM: number
+  readonly rejected: readonly PlacementBox[]
+} {
+  if (input.overflow.length === 0) {
+    return { boxes: [], headboardSlackM: Number.POSITIVE_INFINITY, rejected: [] }
+  }
   const { bed } = input
   const columns = Math.max(1, Math.ceil(bed.lengthM / HEIGHT_MAP_CELL_M))
   const lines = Math.max(1, Math.ceil(bed.widthM / HEIGHT_MAP_CELL_M))
@@ -2953,7 +3030,7 @@ function placeComplement(input: {
     }
   }
 
-  return { boxes, rejected }
+  return { boxes, headboardSlackM: support.headboardSlackM(), rejected }
 }
 
 /** O motivo que a caixa carrega: a ordem que ela fura, e o alcance quando ela também passou dele. */

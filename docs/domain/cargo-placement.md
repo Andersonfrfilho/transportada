@@ -224,13 +224,21 @@ tombamento e também no deslizamento.
 
 ## 7. Passo 5 — Onde o vão sobra, e o equilíbrio de peso
 
-- **Em profundidade**: o bloco é deslocado para **terminar na porta**, e o vão fica na testeira.
+- **Em profundidade**: o bloco é deslocado para **terminar na porta**, e o vão fica na testeira —
+  **nunca além da folga que mantém a escora da testeira** (spec 134, que revê a 099 D2). Empacotar
+  trata a testeira como parede, e a pilha alta da última entrega se escora nela. O mapa de apoio anota,
+  para cada caixa carimbada que precisou dela, quanto o bloco ainda pode andar sem que o vão passe do
+  giro (`3b/√10`); o deslocamento para ali, com 1 cm de sobra (`HEADBOARD_BRACE_MARGIN_M`). Com a
+  testeira escorando, a carga fica **encostada na cabeceira** — é também a amarração: carga na
+  cabeceira não corre na freada — e o vão sobra do lado da porta. Sem pilha escorada nela, a carga
+  termina na porta como sempre.
 - **Em faixas**: a primeira faixa começa em zero — é a que precisa estar à mão — e o vão sobra na
   lateral oposta.
 
 **Acima de metade de `capacity_kg` a física vence a descarga** (`shouldBalanceLoad`): o bloco vai para
 o meio do baú, com folga nas duas pontas, e toda caixa recebe `weightBalanced`. Degrau e não rampa,
-porque o operador precisa **prever** o desenho.
+porque o operador precisa **prever** o desenho. ⚠️ O teto da escora (spec 134) vale aqui também: com a
+testeira escorando, o bloco anda para o meio só até a folga dela, e continua `weightBalanced`.
 
 **Carroceria aberta equilibra sempre**, sem olhar o peso: quem abre o comprimento inteiro já tem toda
 a carga à mão, e não existe "a porta" a que encostar.
