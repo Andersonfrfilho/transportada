@@ -4,7 +4,6 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
-  MAX_DRAWN_BOXES,
   PLACEMENT_REASONS,
   resolveCargoPlacement,
   resolveFallbackBox,
@@ -305,18 +304,15 @@ describe('desempenho do empacotador (spec 094 RF-NF)', () => {
   })
 
   /**
-   * ⚠️ O teto de caixas desenhadas existe porque o redesenho custa por caixa. O excedente é **dito**,
-   * como tudo que não entra.
-   *
-   * ⚠️ **Spec 115 reescreveu esta afirmação**: ela dizia "no máximo 600", e o 600 cortava o
-   * **empacotamento** — as caixas fora eram as primeiras entregas, e o Atego de 85 paradas perdia 48
-   * paradas por limite de detalhe. O teto hoje é de desenho (`MAX_DRAWN_BOXES`), medido pelo custo do
-   * redesenho, e o que ele apara nunca apaga uma parada (`real-mixed-cargo.contract.ts`).
+   * ⚠️ **Spec 131 reescreveu esta afirmação.** Ela cobrava um teto de caixas desenhadas
+   * (`MAX_DRAWN_BOXES` = 1500, nascido na 115 para aparar o redesenho) e o excedente saindo `tooMany`.
+   * A decisão agora é que carga no baú nunca some do desenho: 2000 caixas de 20 cm cabem neste baú, e
+   * todas voltam desenhadas — nenhuma "por limite de detalhe".
    */
-  test('para de desenhar no teto e nomeia o excedente', () => {
+  test('desenha toda caixa que cabe, sem teto de desenho', () => {
     /**
-     * Caixa pequena de propósito: com a de 60 × 40 × 40 o **baú** enche em 360 e o teto de desenho
-     * nunca é alcançado — o teste passaria sem exercitar nada.
+     * Caixa pequena de propósito: com a de 60 × 40 × 40 o **baú** enche em 360 e o antigo teto de
+     * desenho nunca era alcançado — o teste passaria sem exercitar nada.
      */
     const boxes = Array.from({ length: 500 }, () =>
       box({ count: 4, heightMm: 200, lengthMm: 200, widthMm: 200 }),
@@ -324,7 +320,7 @@ describe('desempenho do empacotador (spec 094 RF-NF)', () => {
     const plan = resolveCargoPlacement({ bed: BED, boxes })
     const placed = plan?.layers.reduce((total, layer) => total + layer.boxes.length, 0) ?? 0
 
-    expect(placed).toBeLessThanOrEqual(MAX_DRAWN_BOXES)
-    expect(plan?.unplaced.some((entry) => entry.reason === 'tooMany')).toBe(true)
+    expect(plan?.unplaced.filter((entry) => entry.reason === 'tooMany')).toEqual([])
+    expect(placed).toBe(2000)
   })
 })

@@ -199,17 +199,13 @@ export function CargoIsometric({
   /**
    * ⚠️ **Algoritmo do pintor**, na direção de visão atual: a caixa mais ao fundo é desenhada primeiro
    * e a da frente por cima.
+   *
+   * ⚠️ **Spec 131: a geometria é projetada uma vez por ângulo, e a profundidade uma vez por caixa.**
+   * O comparador refazia a trigonometria de duas caixas a cada comparação — n·log n vezes — e cada
+   * caixa virava um componente com três closures. Sem teto de desenho (6000 caixas medidas), era esse
+   * o custo que passava de 100 ms ao girar a vista.
    */
-  const ordered = useMemo(
-    () =>
-      [...boxes].sort(
-        (first, second) =>
-          depthAlongView({ xM: first.xM, yM: first.yM, zM: first.zM }, angle) -
-          depthAlongView({ xM: second.xM, yM: second.yM, zM: second.zM }, angle),
-      ),
-    [angle, boxes],
-  )
-  const faces = visibleFaces(angle)
+  const solids = useMemo(() => projectSolids(boxes, angle), [angle, boxes])
 
   return (
     <svg
@@ -248,13 +244,11 @@ export function CargoIsometric({
         />
       ))}
 
-      {ordered.map((box) => (
+      {solids.map((solid) => (
         <IsometricSolid
-          angle={angle}
-          box={box}
-          dimmed={focusLayer !== undefined && box.layer !== focusLayer}
-          faces={faces}
-          key={box.id}
+          dimmed={focusLayer !== undefined && solid.box.layer !== focusLayer}
+          key={solid.box.id}
+          solid={solid}
         />
       ))}
 
@@ -293,17 +287,99 @@ export function CargoIsometric({
   )
 }
 
+type ProjectedSolid = Readonly<{
+  box: IsometricBox
+  /** Os três tons da face, já calculados: topo, frente (`alongX`) e lado (`alongY`). */
+  fills: readonly [string, string, string]
+  /** Os pontos de cada face visível, já como o atributo `points` do SVG. */
+  points: readonly [string, string, string]
+}>
+
+/** Quanto cada face vertical escurece: frente e lado, para o olho ler volume. */
+const FRONT_SHADE = 0.78
+const SIDE_SHADE = 0.6
+
+/**
+ * Escurece uma cor `#rrggbb` pelo fator. Pura e exportada: é o que substituiu o `filter: brightness`
+ * do CSS, e ela se confere sem DOM.
+ *
+ * ⚠️ **Spec 131: o `filter` era pintado polígono a polígono**, e com toda caixa desenhada isso eram
+ * 12 000 filtros por quadro. A cor escura calculada uma vez por cor tem o mesmo tom e custo zero no
+ * navegador. Cor que não é `#rrggbb` volta intacta — nunca inventada.
+ */
+export function shadeHexColor(color: string, factor: number): string {
+  if (!/^#[0-9a-f]{6}$/iu.test(color)) return color
+  const channel = (offset: number): string =>
+    Math.round(Number.parseInt(color.slice(offset, offset + 2), 16) * factor)
+      .toString(16)
+      .padStart(2, '0')
+
+  return `#${channel(1)}${channel(3)}${channel(5)}`
+}
+
+/**
+ * Projeta toda a carga para um ângulo e a devolve na ordem do pintor. Pura e exportada: a promessa
+ * de que **toda caixa recebida é desenhada** (spec 131) se confere aqui, sem DOM.
+ */
+export function projectSolids(
+  boxes: readonly IsometricBox[],
+  angle: ViewAngle,
+): readonly ProjectedSolid[] {
+  const faces = visibleFaces(angle)
+  const cosYaw = Math.cos(angle.yawRad)
+  const sinYaw = Math.sin(angle.yawRad)
+  const sinPitch = Math.sin(angle.pitchRad)
+  const cosPitch = Math.cos(angle.pitchRad)
+  const shades = new Map<string, readonly [string, string, string]>()
+  const shadeOf = (color: string): readonly [string, string, string] => {
+    const known = shades.get(color)
+    if (known !== undefined) return known
+    const made = [
+      color,
+      shadeHexColor(color, FRONT_SHADE),
+      shadeHexColor(color, SIDE_SHADE),
+    ] as const
+    shades.set(color, made)
+    return made
+  }
+
+  const withDepth = boxes.map((box) => {
+    const at = (dx: number, dy: number, dz: number): string => {
+      const xM = box.xM + dx
+      const yM = box.yM + dy
+      const zM = box.zM + dz
+      const x = (xM * cosYaw - yM * sinYaw) * UNITS_PER_METRE
+      const y = ((xM * sinYaw + yM * cosYaw) * sinPitch - zM * cosPitch) * UNITS_PER_METRE
+      return `${String(x)},${String(y)}`
+    }
+    const height = faces.z === 'top' ? box.heightM : 0
+    const depth = faces.x === 'far' ? box.depthM : 0
+    const width = faces.y === 'far' ? box.widthM : 0
+    const horizontal = `${at(0, 0, height)} ${at(box.depthM, 0, height)} ${at(box.depthM, box.widthM, height)} ${at(0, box.widthM, height)}`
+    const alongX = `${at(depth, 0, 0)} ${at(depth, box.widthM, 0)} ${at(depth, box.widthM, box.heightM)} ${at(depth, 0, box.heightM)}`
+    const alongY = `${at(0, width, 0)} ${at(box.depthM, width, 0)} ${at(box.depthM, width, box.heightM)} ${at(0, width, box.heightM)}`
+    const [top, front, side] = shadeOf(box.isGhost ? GHOST_FILL : box.color)
+
+    return {
+      depth: (box.xM * sinYaw + box.yM * cosYaw) * cosPitch + box.zM * sinPitch,
+      solid: { box, fills: [top, front, side], points: [horizontal, alongX, alongY] } as const,
+    }
+  })
+  withDepth.sort((first, second) => first.depth - second.depth)
+
+  return withDepth.map((entry) => entry.solid)
+}
+
 /**
  * Uma caixa: as **três faces voltadas para quem olha** — a horizontal e uma de cada par vertical —,
  * cada uma com um tom. É o sombreado que faz o olho ler volume; sem ele o isométrico vira um mosaico
  * de losangos.
  *
- * ⚠️ Toda face é preenchida com **cor sólida**: a da parada, no tom da nota (spec 119). A cor chega
- * pelo `color` do grupo e a face pinta `currentColor` — é assim que a classe de tom a mistura com um
- * token sem hexadecimal nenhum. A presumida é marcada pelo **contorno pontilhado**, não pelo tom:
- * a lavagem de antes clareava justamente o que hoje distingue a nota. Hachura continua recusada: o
- * risco diagonal cruza as arestas e lê como rachadura na quina, e um padrão SVG tem fundo
- * transparente, o que deixava a caixa vazada.
+ * ⚠️ Toda face é preenchida com **cor sólida**: a da nota (spec 121), escurecida nas faces verticais
+ * por `shadeHexColor` (spec 131 — antes um `filter` de CSS). A presumida é marcada pelo **contorno
+ * pontilhado**, não pelo tom: a lavagem de antes clareava justamente o que hoje distingue a nota.
+ * Hachura continua recusada: o risco diagonal cruza as arestas e lê como rachadura na quina, e um
+ * padrão SVG tem fundo transparente, o que deixava a caixa vazada.
  *
  * Spec 120: `complement` soma uma terceira marca, própria — tracejado longo cor de cobre, mais
  * grosso quando o motivo é `needsRehandling`. Ela convive com `isSplit` (contorno vermelho) e com o
@@ -311,80 +387,54 @@ export function CargoIsometric({
  * de um ao mesmo tempo.
  */
 function IsometricSolid({
-  angle,
-  box,
   dimmed,
-  faces,
-}: Readonly<{
-  angle: ViewAngle
-  box: IsometricBox
-  dimmed: boolean
-  faces: VisibleFaces
-}>): JSX.Element {
-  const at = (dx: number, dy: number, dz: number): Point =>
-    projectIsometric({ xM: box.xM + dx, yM: box.yM + dy, zM: box.zM + dz }, angle)
-
-  const horizontal =
-    faces.z === 'top'
-      ? [
-          at(0, 0, box.heightM),
-          at(box.depthM, 0, box.heightM),
-          at(box.depthM, box.widthM, box.heightM),
-          at(0, box.widthM, box.heightM),
-        ]
-      : [at(0, 0, 0), at(box.depthM, 0, 0), at(box.depthM, box.widthM, 0), at(0, box.widthM, 0)]
-  const alongX =
-    faces.x === 'far'
-      ? [
-          at(box.depthM, 0, 0),
-          at(box.depthM, box.widthM, 0),
-          at(box.depthM, box.widthM, box.heightM),
-          at(box.depthM, 0, box.heightM),
-        ]
-      : [at(0, 0, 0), at(0, box.widthM, 0), at(0, box.widthM, box.heightM), at(0, 0, box.heightM)]
-  const alongY =
-    faces.y === 'far'
-      ? [
-          at(0, box.widthM, 0),
-          at(box.depthM, box.widthM, 0),
-          at(box.depthM, box.widthM, box.heightM),
-          at(0, box.widthM, box.heightM),
-        ]
-      : [at(0, 0, 0), at(box.depthM, 0, 0), at(box.depthM, 0, box.heightM), at(0, 0, box.heightM)]
-
-  const face = (points: readonly Point[], shade: string): JSX.Element => (
-    <>
-      <polygon
-        className={cn(shade, box.isEstimated && !box.isGhost && styles.facePresumed)}
-        fill="currentColor"
-        points={toPoints(points)}
-      />
-      {box.isSplit && !box.isGhost ? (
-        <polygon className={styles.faceSplit} points={toPoints(points)} />
-      ) : null}
-      {box.complement !== null && !box.isGhost ? (
-        <polygon
-          className={
-            box.complement === 'needsRehandling'
-              ? styles.faceComplementStrong
-              : styles.faceComplement
-          }
-          points={toPoints(points)}
-        />
-      ) : null}
-    </>
-  )
+  solid,
+}: Readonly<{ dimmed: boolean; solid: ProjectedSolid }>): JSX.Element {
+  const { box } = solid
+  const shades = [styles.faceTop, styles.faceFront, styles.faceSide]
+  const complementClass =
+    box.complement === 'needsRehandling' ? styles.faceComplementStrong : styles.faceComplement
 
   return (
     <g
       className={cn(styles.box, dimmed && styles.boxDimmed, box.isGhost && styles.boxGhost)}
-      color={box.isGhost ? GHOST_FILL : box.color}
       data-box-id={box.id}
     >
-      {face(horizontal, styles.faceTop ?? '')}
-      {face(alongX, styles.faceFront ?? '')}
-      {face(alongY, styles.faceSide ?? '')}
+      {solid.points.map((points, index) => (
+        <FaceGroup
+          complementClass={box.complement !== null && !box.isGhost ? complementClass : undefined}
+          fill={solid.fills[index] ?? box.color}
+          key={index}
+          points={points}
+          presumedClass={cn(shades[index], box.isEstimated && !box.isGhost && styles.facePresumed)}
+          splitClass={box.isSplit && !box.isGhost ? styles.faceSplit : undefined}
+        />
+      ))}
     </g>
+  )
+}
+
+function FaceGroup({
+  complementClass,
+  fill,
+  points,
+  presumedClass,
+  splitClass,
+}: Readonly<{
+  complementClass: string | undefined
+  fill: string
+  points: string
+  presumedClass: string
+  splitClass: string | undefined
+}>): JSX.Element {
+  return (
+    <>
+      <polygon className={presumedClass} fill={fill} points={points} />
+      {splitClass === undefined ? null : <polygon className={splitClass} points={points} />}
+      {complementClass === undefined ? null : (
+        <polygon className={complementClass} points={points} />
+      )}
+    </>
   )
 }
 

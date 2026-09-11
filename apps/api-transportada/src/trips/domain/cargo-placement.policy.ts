@@ -5,20 +5,6 @@ import type { LoadingAccess } from '../../shared/loading-access.constant.js'
 import type { CargoBedDimensions } from './cargo-layout.policy.js'
 
 const MILLIMETRES_PER_METRE = 1000
-/**
- * Teto de caixas **desenhadas** — nunca de caixas empacotadas. O excedente é dito, como tudo que não
- * entra.
- *
- * ⚠️ **Spec 115: o teto cortava o empacotamento, e o corte caía nas primeiras entregas.** A carga é
- * empacotada da última entrega para a primeira, então a 601ª caixa em diante eram justamente as que
- * saem primeiro — e o bloco sem elas era deslocado até a porta, desenhando entregas tardias onde as
- * primeiras deviam estar. Medido no Atego de 85 paradas: 817 caixas e 48 paradas fora por "limite de
- * detalhe". Hoje toda caixa é empacotada (6000 caixas em 40 ms) e só o desenho é aparado.
- *
- * O número é o custo do redesenho: medido na tela, 451 caixas redesenham em 29 ms ao girar a vista
- * (~0,064 ms por caixa), então 1500 ficam perto de 100 ms — o limite de um gesto que ainda responde.
- */
-export const MAX_DRAWN_BOXES = 1500
 
 /**
  * O porquê de cada caixa estar onde está. **Vocabulário fechado**: motivo que a política não conhece
@@ -175,11 +161,16 @@ export function resolveCargoPlacement(
 ): CargoPlacement | null {
   const placement = placeCargo(input)
   if (placement === null) return null
-  const drawn = trimForDrawing(placement)
 
+  /**
+   * ⚠️ **Spec 131: toda caixa empacotada vai para o desenho.** Até aqui um teto de 1500 aparava a
+   * planta pela caixa mais alta, e a tela avisava "fora do desenho por limite de detalhe" — carga que
+   * está no baú, escondida porque o SVG ficava lento. Desenho lento é defeito do desenho, e é lá que se
+   * corrige (`components/ui/cargo-isometric.tsx`); esconder carga nunca é a correção.
+   */
   return {
-    ...drawn,
-    splitNotes: resolveSplitNotes(drawn.layers.flatMap((layer) => layer.boxes)),
+    ...placement,
+    splitNotes: resolveSplitNotes(placement.layers.flatMap((layer) => layer.boxes)),
   }
 }
 
@@ -258,50 +249,6 @@ function areTouching(first: BoxExtent, second: BoxExtent): boolean {
 
 /** A sobreposição mínima que faz de duas caixas vizinhas de face — menos que isso é quina. */
 const NOTE_CONTACT_OVERLAP_M = 0.01
-
-/**
- * O desenho aparado ao teto (spec 115): sai primeiro a caixa **mais alta**, e nunca a que sustenta
- * outra ainda desenhada nem a última de uma parada.
- *
- * ⚠️ Por cima e não pela ordem de carregamento: tirar pela ordem apagava paradas inteiras, e tirar do
- * meio deixava caixa desenhada no ar, sobre um vão que no baú está ocupado.
- */
-function trimForDrawing(placement: CargoPlacement): CargoPlacement {
-  const boxes = placement.layers.flatMap((layer) => layer.boxes)
-  if (boxes.length <= MAX_DRAWN_BOXES) return placement
-
-  const perStop = new Map<number, number>()
-  const byBaseMm = new Map<number, PlacedBox[]>()
-  for (const box of boxes) {
-    perStop.set(box.stopSequence, (perStop.get(box.stopSequence) ?? 0) + 1)
-    const baseMm = Math.round(box.zM * MILLIMETRES_PER_METRE)
-    byBaseMm.set(baseMm, [...(byBaseMm.get(baseMm) ?? []), box])
-  }
-  const kept = new Set(boxes)
-  const unplaced = [...placement.unplaced]
-  const tallestFirst = [...boxes].sort(
-    (first, second) => second.zM + second.heightM - (first.zM + first.heightM),
-  )
-  for (const box of tallestFirst) {
-    if (kept.size <= MAX_DRAWN_BOXES) break
-    if ((perStop.get(box.stopSequence) ?? 0) <= 1) continue
-    const above = byBaseMm.get(Math.round((box.zM + box.heightM) * MILLIMETRES_PER_METRE)) ?? []
-    const carries = above.some(
-      (other) =>
-        kept.has(other) &&
-        other.xM < box.xM + box.depthM - 1e-6 &&
-        box.xM < other.xM + other.depthM - 1e-6 &&
-        other.yM < box.yM + box.widthM - 1e-6 &&
-        box.yM < other.yM + other.widthM - 1e-6,
-    )
-    if (carries) continue
-    kept.delete(box)
-    perStop.set(box.stopSequence, (perStop.get(box.stopSequence) ?? 0) - 1)
-    pushUnplaced(unplaced, { count: 1, label: box.label, reason: 'tooMany' })
-  }
-
-  return { ...placement, layers: toLayers(boxes.filter((box) => kept.has(box))), unplaced }
-}
 
 function placeCargo(input: {
   readonly bed: CargoBedDimensions | null

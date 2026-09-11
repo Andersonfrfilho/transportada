@@ -110,9 +110,9 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
    * carga flutuando sobre um piso vazio.
    */
   /**
-   * ⚠️ Memoizado porque o **arrasto** redesenha a cada evento de ponteiro: sem isto, remontar e
-   * reordenar até 1500 caixas (`MAX_DRAWN_BOXES` da API) acontecia a cada quadro do gesto, na viagem
-   * grande. Medido: 451 caixas redesenham em ~29 ms ao girar a vista.
+   * ⚠️ Memoizado porque o **arrasto** redesenha a cada evento de ponteiro: sem isto, remontar a lista
+   * acontecia a cada quadro do gesto. **Não há teto de caixas desenhadas** (spec 131): toda caixa
+   * empacotada chega aqui, e o custo do redesenho é resolvido em `cargo-isometric.tsx`.
    */
   /**
    * Spec 121: a cor de cada nota e a lista da ficha, decididas **uma vez por planta** — não mudam ao

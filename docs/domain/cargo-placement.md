@@ -376,9 +376,12 @@ do próprio arquivo.
 
 ## 13. Desempenho
 
-O orçamento é **50 ms**. Toda caixa é empacotada (6000 caixas em 40 ms) e só o **desenho** é aparado em
-`MAX_DRAWN_BOXES` = 1500 — o redesenho custa ~0,064 ms por caixa. Acima do teto sai primeiro a caixa
-mais alta, nunca a que sustenta outra desenhada nem a última de uma entrega.
+O orçamento do empacotamento é **50 ms**. **Não há teto de desenho** (spec 131): toda caixa
+empacotada vai para a planta que a tela recebe — `MAX_DRAWN_BOXES` e a poda pela caixa mais alta
+saíram. Desenho lento é defeito do desenho, nunca motivo para esconder carga. O orçamento do desenho é
+**≤ 100 ms para redesenhar ao girar a vista com 6000 caixas**, e é cumprido por `projectSolids`
+(geometria uma vez por ângulo, profundidade uma vez por caixa) e por `shadeHexColor` (o tom das faces
+verticais é cor calculada — o `filter: brightness` era pintado face a face).
 
 Medições recentes: 9,7 ms com 3600 caixas em 12 entregas; 18,6 ms com 24 entregas e 407 caixas.
 

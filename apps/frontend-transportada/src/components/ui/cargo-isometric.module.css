@@ -43,13 +43,11 @@
 .faceFront {
   stroke: color-mix(in srgb, var(--color-asphalt) 55%, transparent);
   stroke-width: 0.8;
-  filter: brightness(0.78);
 }
 
 .faceSide {
   stroke: color-mix(in srgb, var(--color-asphalt) 55%, transparent);
   stroke-width: 0.8;
-  filter: brightness(0.6);
 }
 
 /**

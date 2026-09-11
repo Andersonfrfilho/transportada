@@ -295,6 +295,13 @@ redesenho custa ~0,064 ms por caixa (451 caixas em 29 ms ao girar a vista). Acim
 caixa mais alta, **nunca** a que sustenta outra desenhada nem a última de uma entrega: tirar pela ordem
 apagava entregas, e tirar do meio deixava caixa no ar.
 
+**Spec 131: o teto de desenho também saiu.** Decisão do usuário: carga no baú não some do desenho. Medido
+no navegador com o componente real, redesenho ao girar a vista (mediana / pico): 1500 caixas 25 / 44 ms,
+3000 caixas 41,7 / 51,9 ms, 6000 caixas **100 / 131 ms** — acima do orçamento. As duas causas eram do
+desenho: o comparador do pintor refazia a trigonometria de duas caixas a cada comparação, e cada face
+vertical carregava um `filter: brightness`, pintado polígono a polígono. Com a projeção uma vez por
+ângulo e o tom calculado, 6000 caixas giram em 69,5 / 91,7 ms.
+
 ---
 
 ## A cor do desenho

@@ -644,8 +644,10 @@ profundidade — ela continua só em faixas.
 **A carga inteira no baú** (spec 115). Três correções medidas em quatro viagens reais: a esbeltez rege
 o trecho **acima da contenção** (a carga descia em escada por 2,9 m até a porta), a grade fica com a
 maior quantidade de faixas **que coloca tudo** (`laneCount` viaja na decisão), e ⚠️ **o teto é de
-desenho, nunca de empacotamento** — `MAX_DRAWN_BOXES` = 1500; o antigo 600 cortava as primeiras
-entregas e sumia com 46 paradas do Atego. A entrega mais cedo também não senta atrás de carga mais
+desenho, nunca de empacotamento** — o antigo 600 cortava as primeiras entregas e sumia com 46
+paradas do Atego. ⚠️ Spec 131: **nem de desenho** — `MAX_DRAWN_BOXES` saiu, toda caixa empacotada é
+desenhada, e o redesenho de 6000 caixas cabe em 100 ms (`projectSolids` + `shadeHexColor` em
+`components/ui/cargo-isometric.tsx`, sem `filter` no CSS). A entrega mais cedo também não senta atrás de carga mais
 tardia mais alta que a base dela (`isShadowed`). Contrato sobre as cargas reais anonimizadas em
 `test/cargo-placement/real-mixed-cargo.contract.ts`. ⚠️ Spec 116: o teto de tentativas por caixa
 cresce com as fileiras do baú (64 fixas desistiam antes da porta, e a memória de formato derrubava as

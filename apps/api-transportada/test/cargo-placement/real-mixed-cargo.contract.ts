@@ -4,7 +4,6 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
-  MAX_DRAWN_BOXES,
   resolveCargoPlacement,
   STABLE_STACK_SLENDERNESS,
   type CargoPlacement,
@@ -253,18 +252,22 @@ describe('cargas reais de tamanhos misturados (spec 115)', () => {
   })
 
   /**
-   * ⚠️ Acima do teto de desenho sai primeiro a caixa de cima: tirar pela ordem de carregamento
-   * apagava paradas inteiras, e tirar do meio deixaria caixa desenhada sobre um vão.
+   * ⚠️ **Spec 131 reescreveu esta afirmação.** Ela dizia que o teto de desenho (1500 caixas) aparava
+   * pela caixa de cima sem apagar parada — e cobrava `tooMany`. O usuário decidiu que não há teto: o
+   * que o empacotador pôs no baú vai inteiro para o desenho, e desenho lento é defeito do desenho. As
+   * 2040 caixas passam do antigo teto, e nenhuma pode sair por "limite de detalhe".
    */
-  test('o teto de desenho nunca apaga uma parada nem deixa caixa no ar', () => {
+  test('o desenho leva toda caixa empacotada, sem parada sumida nem caixa no ar', () => {
     const boxes = Array.from({ length: 85 }, (_, index) => ({
       ...toBoxes([[index + 1, 24, 150, 150, 150, 1]])[0],
     })) as PlacementBox[]
     const plan = resolveCargoPlacement({ bed: ATEGO.bed, boxes, payloadRatio: null })
     const drawn = plan === null ? [] : drawnOf(plan)
+    const left = plan?.unplaced.reduce((total, entry) => total + entry.count, 0) ?? 0
 
-    expect(drawn.length).toBeLessThanOrEqual(MAX_DRAWN_BOXES)
-    expect(plan?.unplaced.some((entry) => entry.reason === 'tooMany')).toBe(true)
+    expect(plan?.unplaced.filter((entry) => entry.reason === 'tooMany')).toEqual([])
+    expect(drawn.length + left).toBe(85 * 24)
+    expect(drawn.length).toBeGreaterThan(1500)
     expect(new Set(drawn.map((box) => box.stopSequence)).size).toBe(85)
     expect(
       drawn.filter((box) => Math.abs(box.zM - supportUnder(box, drawn)) > SEAT_TOLERANCE_M),
