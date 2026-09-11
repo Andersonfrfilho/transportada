@@ -95,17 +95,39 @@ por `findEmissionProfile`, que não lança. Ele ganha:
 - `nfse_emission_profile_id`: obrigatório quando `output_document = 'nfse'` e nulo caso contrário.
   A regra fica no CHECK do banco.
 
-A classificação de cada nota tem quatro saídas: `cte`, `nfse`, `blocked` (motivo de
-`checkDocumentEligibility` / `checkSharedEligibility`) e `no_profile`. **Nota sem perfil não cai em
-CT-e por padrão**: ela aparece na volumetria como sem perfil e não é emitida. Escolher o documento
-fiscal por omissão é inventar regra.
+A classificação de cada nota tem quatro saídas: `cte`, `nfse`, `blocked` e `no_profile`. **Nota sem
+perfil não cai em CT-e por padrão**: ela aparece na volumetria como sem perfil e não é emitida.
+Escolher o documento fiscal por omissão é inventar regra.
 
-⚠️ `municipal_service_policy = 'block'` continua valendo e **vence**: a nota do mesmo município num
-perfil `cte` com portão ligado sai como `blocked`, não é desviada para NFS-e. Desviar sozinho seria
-uma segunda regra fiscal escondida dentro da primeira.
+**A classificação deriva dos vereditos que a listagem já calcula, e não refaz a elegibilidade**
+(revisão do critic, 2026-09-11): perfil `cte` → `blocked` com o `cteBlockReason` de
+`resolveDocumentBlock` (que inclui vínculo, peso e portão municipal), senão `cte`; perfil `nfse` →
+`blocked` com o `nfseBlockReason` de `resolveNfseDocumentBlock` (parte compartilhada, sem peso),
+senão `nfse`. Os motivos são os que já existem (`ALREADY_LINKED`, `LINKED_TO_NFSE`, `NOT_AUTHORIZED`,
+`SUMMARY_ONLY`, `MISSING_TOTAL`, `MISSING_PARTY`, `MISSING_MUNICIPALITY`, e só no ramo `cte`
+`MUNICIPAL_SERVICE` e `MISSING_WEIGHT`), mais dois novos:
 
-A classificação é um serviço puro de domínio, usado **também pelo painel**. Assim a volumetria do
-bot e a tela nunca discordam sobre a mesma nota.
+- `CTE_BATCH_DOCUMENT_OUTPUT_NFSE` — a nota que o perfil manda para NFS-e **também é recusada na
+  seleção do lote de CT-e e no `cteBlockReason` da listagem**. Sem isso a tela mostraria "vai para
+  NFS-e" e o botão de CT-e continuaria aceitando a nota, que é a regra fiscal escondida no sentido
+  inverso. Com o padrão `cte`, nenhuma instalação muda.
+- `CTE_PROFILE_NFSE_PROFILE_NOT_ACTIVE` — a FK impede apontar para perfil de outra empresa, não para
+  um perfil `draft`/`inactive`.
+
+`no_profile` carrega o motivo, porque o `null` de `findEmissionProfile` junta situações que o
+operador precisa distinguir: `unmatched` (nenhum perfil casa), `ambiguous` (empate de prioridade) e
+`not_cnpj` (emitente ou destinatário pessoa física). **Perfil `match_mode='manual'` nunca
+classifica** — a tela o alcança por escolha explícita, o bot não.
+
+Em `nfse`, **taker, regra de frete, CFOP e ICMS do perfil de CT-e não se aplicam**: vale o perfil
+NFS-e apontado, que tem `taker` e `freight_rule_id` próprios. O formulário esconde esses campos.
+
+⚠️ `municipal_service_policy = 'block'` continua valendo e **vence** no ramo `cte`: a nota do mesmo
+município sai como `blocked`, não é desviada para NFS-e. Com `output_document='nfse'` o portão não
+tem efeito, e um CHECK proíbe a combinação para ninguém achar que ligou um portão que não faz nada.
+
+A classificação é função pura em `cte-profiles/domain/document-output.policy.ts`, usada **pelo bot e
+pela listagem**, e o contrato de paridade roda os dois consumidores sobre as mesmas notas.
 
 ### D4 — A seleção de notas é por critério oferecido pelo bot
 
@@ -129,25 +151,50 @@ Entre a prévia e o toque em ✅ Confirmar a base pode mudar: uma nota entra em 
 chega. A prévia é **congelada** num pedido (`whatsapp_command_requests`) com a lista de notas, a
 classificação e um `preview_sha256`. O botão de confirmação carrega o id do pedido.
 
+- O hash cobre **o que o usuário viu**, não só os ids: JSON canônico de `[documentId, classificação,
+profileId, nfseProfileId?, takerTaxId, valor calculado]` ordenado por documento, mais `period`,
+  `dueDate` e a versão de cada perfil usado. Mudar a regra de frete entre a prévia e o toque produz
+  o mesmo conjunto de ids e outro valor — e emitir um número que ninguém viu é o que isto impede.
 - Confirmar recalcula a classificação. Se o hash mudou, o bot **não emite**: mostra a volumetria nova
   e pede nova confirmação.
 - Confirmar duas vezes, que acontece com rede ruim, converge: a chave de idempotência dos casos de uso
-  sai do id do pedido, nunca do id da mensagem.
+  sai do id do pedido, nunca do id da mensagem. Tudo o que entra na digital de idempotência dos
+  use-cases (`name` do lote, `period` da NFS-e) sai **só** do pedido congelado, senão a repetição
+  vira conflito.
 - O pedido expira em 15 minutos. Botão de pedido vencido responde "Prévia expirada" e oferece refazer.
 
-### D6 — A emissão é assíncrona, e a fatura espera a autorização
+### D6 — A emissão é assíncrona, e a fatura de CT-e espera a autorização
 
-1. Na confirmação saem, na mesma transação do pedido, **um lote de CT-e por perfil** e **uma NFS-e por
-   (perfil de NFS-e, tomador)**, pelos casos de uso que já existem. O `period` da NFS-e é perguntado
-   antes da confirmação, com botão "Pular", e em branco é omitido como na tela.
-2. O bot responde na hora: "Enviado. Aviso quando a SEFAZ e a prefeitura responderem."
-3. Quando **todos** os documentos do pedido chegam a estado final (autorizado ou rejeitado), o worker
-   gera **uma fatura por tomador** só com os autorizados e manda o resumo: autorizados, rejeitados com
-   o motivo e as faturas criadas.
-4. Documento rejeitado **não trava a fatura dos outros**, e fica listado para o painel resolver. O bot
-   não reprocessa.
+Revista em 2026-09-11 depois da revisão do critic, que reprovou a primeira versão por três premissas
+falsas: cada use-case abre a própria transação; criar lote não emite; e o faturamento só conhece CT-e.
 
-⚠️ Quem assina a fatura é quem confirmou: `actor_user_id` do pedido, e nunca um usuário de sistema.
+1. **Na prévia** o bot pergunta o **vencimento da fatura** (7, 15 ou 30 dias) e o `period` da NFS-e
+   (com "Pular"; em branco é omitido como na tela). Os dois ficam congelados no pedido.
+2. **Na confirmação não há transação única.** O pedido passa a `confirming` numa transação curta, com
+   o **diário de passos** (uma linha por grupo), e cada grupo é executado em sequência pelos casos de
+   uso que já existem, com a chave de idempotência derivada do pedido: CT-e é **criar o lote e
+   emiti-lo** (`create` → `issue`, que já faz o submit), um lote por perfil; NFS-e é uma por
+   (perfil de NFS-e, tomador). Um grupo que falha fica `failed` com o código e não derruba os outros.
+   Pedido parado em `confirming` é retomado pelo mesmo caminho — a idempotência faz a repetição
+   convergir.
+3. O bot responde na hora: "Enviado. Aviso quando a SEFAZ e a prefeitura responderem."
+4. **Estado final** é declarado numa policy: sucesso é `authorized`; falha é `rejected`, `failed`,
+   `cancelled` ou `discarded`; o resto é pendente, inclusive `reconciliation_required`. Quando todos
+   os documentos do pedido chegam a estado final, ou depois de 2 horas, o pedido é liquidado.
+5. **A fatura é só de CT-e** — decisão do usuário, 2026-09-11. Uma por tomador, só com os CT-e
+   autorizados, com o vencimento congelado. A NFS-e aparece no resumo como "autorizada, sem fatura":
+   o faturamento de hoje só conhece CT-e (`billing_invoice_items.cte_document_id not null`), e
+   faturar NFS-e é mudança de modelo com spec própria.
+6. O resumo diz autorizados, rejeitados com o motivo, pendentes que passaram das 2 horas e as faturas
+   criadas. Documento rejeitado **não trava a fatura dos outros**; o bot não reprocessa.
+
+⚠️ **A fatura sai em nome de quem confirmou, por procuração.** Quem detecta a liquidação é o worker,
+e o worker não fatura (faturamento é da API, e apps não importam código uma da outra). Ele chama uma
+rota da API com token de máquina — papel `automation`, permissão nova `whatsapp.settle`, o molde do
+`mdfe-auto-issue` —, e a API fatura com `actor_user_id` do pedido **depois de revalidar** que aquela
+membership ainda está ativa e ainda tem a permissão de faturar. Sem a revalidação, um usuário
+suspenso entre a confirmação e a liquidação faturaria por procuração. Agir em nome do usuário é
+conceito novo no produto, e ganha ADR.
 
 ### D7 — Estado da entrega e ocorrência por menu, sobre a viagem certa
 
@@ -181,7 +228,9 @@ Texto digitado fora do menu recebe `fallbackMessage`; depois de duas vezes, o bo
 - **RF4** Classificação CT-e × NFS-e × bloqueada × sem perfil pelo perfil (D3), compartilhada com o
   painel.
 - **RF5** Seleção por critério, com volumetria e confirmação congelada (D4, D5).
-- **RF6** Emissão, espera pela autorização, fatura e resumo de volta (D6).
+- **RF6** Emissão por diário de passos (criar e emitir o lote de CT-e; NFS-e por perfil e tomador),
+  liquidação quando tudo chega a estado final ou em 2 horas, **fatura só de CT-e** por procuração
+  revalidada, e resumo de volta ao número (D6).
 - **RF7** Estado da entrega e ocorrência por menu, com os portões atuais (D7).
 - **RF8** Todo grafo é republicável de forma versionada a partir do código (`conversation-flow.md` §1),
   validando o tamanho dos títulos na publicação.
@@ -194,8 +243,10 @@ Texto digitado fora do menu recebe `fallbackMessage`; depois de duas vezes, o bo
    peso: 1201, 1233)"_. O mesmo conjunto no painel classifica igual (contrato de paridade).
 4. Nota que entra em outro lote entre a prévia e a confirmação faz a confirmação pedir nova prévia.
 5. Dois toques em ✅ Confirmar produzem um lote só.
-6. Com 38 CT-e autorizados e 1 rejeitado, sai a fatura dos 38, e o resumo nomeia o rejeitado com o
-   motivo da SEFAZ.
+6. Com 38 CT-e autorizados e 1 rejeitado, sai a fatura dos 38 por tomador, em nome de quem
+   confirmou e com o vencimento escolhido na prévia; o resumo nomeia o rejeitado com o motivo da
+   SEFAZ e lista a NFS-e como "autorizada, sem fatura". Com a membership de quem confirmou suspensa
+   antes da liquidação, **nenhuma fatura sai** e o resumo diz por quê.
 7. O motorista entrega a nota pelo WhatsApp e o PWA mostra a mesma nota entregue. O evento gravado é
    o mesmo, com a mesma idempotência.
 8. Nenhum título de opção passa do teto, e toda escolha com ≤3 opções sai como botão com emoji.

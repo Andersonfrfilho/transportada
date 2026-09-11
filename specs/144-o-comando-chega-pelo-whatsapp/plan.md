@@ -58,8 +58,14 @@ companyNumber, expiresAt }` para a tela mostrar. A confirmação **não é rota 
 - `GET/PUT /company-settings/cte-profiles/:id` passam a aceitar `outputDocument` e
   `nfseEmissionProfileId`.
 - `GET /nfe-documents` ganha `documentOutput` por linha (paridade com o bot).
-- Evento de outbox novo: `transportada.whatsapp.command.settled`, com o payload **só com
-  referência** (`requestId`).
+- `POST /whatsapp-command-requests/:id/settlement` — **só para o worker**: token de máquina, papel
+  `automation`, permissão nova `whatsapp.settle` (molde de `mdfe-auto-issue`). A API revalida a
+  membership de `actor_user_id`, fatura os CT-e autorizados por tomador em nome dele e marca o
+  pedido `settled`/`settled_partial`. Idempotente pela chave `whatsapp:${requestId}:billing:${takerTaxId}`
+  e pelo `where status='dispatched'`.
+- Rotina nova `whatsapp.command.settle` no registro de `job-run.v1` do worker (a cada 5 min): varre
+  pedidos `dispatched` e `confirming` parados. Varredura e não evento, porque a NFS-e só muda de
+  estado pelo `nfse.status.pull`.
 
 Nenhuma rota pública nova além do webhook que já existe.
 
@@ -81,8 +87,12 @@ Migrations aditivas, com default. Nenhuma instalação muda de comportamento só
    **Sem** unique de `code_hash`: com 6 dígitos só há um milhão de códigos, e lá ele existe porque a
    rota é anônima. Aqui a busca é pelo pedido vivo do número que enviou.
 4. `whatsapp_command_requests`: `id`, `company_id`, `actor_user_id`, `membership_id`, `kind`,
-   `selection` jsonb (só ids), `classification` jsonb, `preview_sha256`, `status`
-   (`previewed · confirmed · settled · expired · superseded`), `expires_at`, `period`, timestamps.
+   `selection` jsonb (só ids), `classification` jsonb, `preview_sha256`, `due_date`, `period`,
+   `grouping_mode`, `status` (`previewed → confirming → dispatched → settled | settled_partial`,
+   mais `expired` e `superseded`), `expires_at`, `confirmed_at`, `settled_at`,
+   `settlement_outcome`, `last_error_code`, timestamps. `confirming` é o estado de trabalho em curso:
+   é ele que permite retomar uma confirmação que caiu no meio (revisão do critic, 2026-09-11 — os
+   use-cases de lote, emissão e NFS-e abrem cada um a própria transação, e não há transação única).
 5. `whatsapp_command_documents`: `request_id`, `document_kind` (`cte_batch · nfse_invoice ·
 billing_invoice`), `document_id`, com unique `(request_id, document_kind, document_id)`.
 
