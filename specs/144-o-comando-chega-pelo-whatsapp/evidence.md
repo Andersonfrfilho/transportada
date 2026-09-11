@@ -317,3 +317,66 @@ com `ROW_COUNT <> 1` abortando.
 - Como o `make check` para na primeira falha, o restante foi rodado à parte: worker 1002 pass ·
   cron 94 pass · frontend 3316 pass · frontend-client 18 pass · frontend-landing 107 pass, todos
   0 fail; `bun run build` → exit 0.
+
+## T005 — quem fala é quem tem membership (2026-09-11)
+
+`TenantContextService.resolveCompanyForUser` e `resolveWhatsAppActor`. Nenhuma rota, nenhum webhook
+(T006).
+
+### Forma
+
+- `AuthenticatedIdentity` ganhou `channel?: AuthenticationChannel` (`'whatsapp'`), **opcional**: o
+  token HTTP segue sem o campo, e nenhum consumidor que monta identidade precisou mudar. Na identidade
+  de canal `issuer` é o próprio canal, `companyIdClaim` é a empresa do canal e
+  `subject`/`externalIdentityId` ficam vazios — não há token. `platformAdmin` e `serviceAccount` são
+  sempre `false`.
+- `resolveCompanyForUser({ userId, companyId, channel })` devolve
+  `AuthenticatedContext<CompanyContext> | null`, congelado como o do HTTP. Recusa é `null`, não 403:
+  no canal ela é fluxo esperado.
+- **A delegação é pelo núcleo, não pelo método público.** `resolveCompany` e `resolveCompanyForUser`
+  chamam o mesmo `resolveCompanyScope` privado (`findActiveByUserAndCompany` +
+  `resolveCompanyPermissions`); `resolveCompany` embrulha o escopo com a identidade **do JWT**, que é
+  o que o caminho HTTP sempre devolveu. Chamar o método público e trocar a identidade depois seria o
+  mesmo resultado com um objeto jogado fora.
+- `resolveWhatsAppActor` devolve `{status:'authorized', context}` | `{status:'denied', reason}`, com
+  `reason ∈ unknown_phone · unverified_or_expired · no_membership · suspended` — para log, nunca para
+  o número. Erro de infraestrutura propaga.
+
+### Decisões
+
+- **Nono dígito na busca.** O repositório casa exato; o caso de uso procura pela forma recebida **e**
+  pela alternativa (13 dígitos com `9` na posição 4 → sem ele; 12 dígitos → com `9` inserido), a
+  mesma equivalência de `isSameWhatsAppPhone`, em `Promise.all`. A forma recebida vence quando as
+  duas existem. Inserir o `9` em qualquer número de 12 dígitos (inclusive fixo) é coerente com a
+  política da T002, que já trata os dois como o mesmo número; como o vínculo é gravado como a Meta o
+  vê (D1), a alternativa é rede de segurança, não o caminho comum.
+- **90 dias inclusivo** (`WHATSAPP_PHONE_VERIFICATION_VALIDITY_DAYS`): exatamente 90 dias vale, 1 ms
+  depois não. Vencido nem chega a ler membership.
+- **Duas leituras só no caminho de recusa**, para a razão do log: `hasUnverifiedBindingByPhone`
+  (porta de telefone) separa número desconhecido de declarado-sem-verificação, e
+  `DrizzleMembershipRepository.findStanding` separa `absent` de `suspended` (membership existe, mas
+  ela ou a empresa está desativada). `MembershipStanding` mora em `identity/…/tenant-context.port.ts`
+  para `identity` não depender de `whatsapp-commands`. `MembershipRepositoryPort` **não** mudou — os
+  fakes de `tenant-context`, `cors` e `auth-me` seguem intocados; `findStanding` é porta à parte.
+- Telefone que não canonicaliza é `unknown_phone` e não toca o banco.
+
+### Vermelho → verde
+
+- Vermelho: `bun test ./test/whatsapp-commands.contract.test.ts` → 0 pass · 1 fail (módulo
+  `resolve-whatsapp-actor.use-case.ts` inexistente).
+- Verde: mesma suíte + `tenant-context`, `service-account`, `auth-me`, `cors`, `http` → 175 pass · 0
+  fail, **sem editar nenhum contrato existente**. A paridade HTTP × canal está em
+  `resolve-whatsapp-actor.contract.ts` ("o escopo é o mesmo que o HTTP monta"), e o caminho HTTP
+  continua coberto por `test/tenant-context.contract.test.ts` (imutabilidade, 403 único, service
+  account, claim vence o pedido) e `test/service-account.contract.test.ts`.
+
+### Gates
+
+- `bun run typecheck` → 0 erros (seis apps)
+- `make check` → format, lint, typecheck verdes; API 5104 pass · 1 fail — só a flaky conhecida "o
+  Atego de 1417 caixas cabe no orçamento de 50 ms" (360 ms, load average ~12). Isolada:
+  primeira rodada 302/1, segunda `bun test ./test/cargo-volume.contract.test.ts` → 303 pass · 0 fail.
+- Como o `make check` para na primeira falha, o restante à parte: worker 1002 · cron 94 · frontend
+  3316 · frontend-client 18 · frontend-landing 107, todos 0 fail; `bun run build` → exit 0.
+- Sem integração contra Postgres para `findStanding` e `hasUnverifiedBindingByPhone` (duas consultas
+  de uma linha, só no caminho de recusa); cobrir junto do webhook na T006.

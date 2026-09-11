@@ -87,6 +87,16 @@ export class DrizzleWhatsAppPhoneRepository implements WhatsAppPhoneRepositoryPo
     return { userId: row.userId, verifiedAt: row.verifiedAt }
   }
 
+  public async hasUnverifiedBindingByPhone(input: { readonly phone: string }): Promise<boolean> {
+    const [row] = await this.database
+      .select({ userId: userWhatsAppPhones.userId })
+      .from(userWhatsAppPhones)
+      .where(and(eq(userWhatsAppPhones.phone, input.phone), isNull(userWhatsAppPhones.verifiedAt)))
+      .limit(1)
+
+    return row !== undefined
+  }
+
   public async findByUserId(input: {
     readonly userId: string
   }): Promise<WhatsAppPhoneBinding | undefined> {

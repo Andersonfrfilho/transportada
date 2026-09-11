@@ -5,17 +5,23 @@ import { z } from 'zod'
 
 import { HTTP_ERROR } from '../../shared/api.constant'
 import { ApiError } from '../../shared/api.error'
-import type { AuthenticatedIdentity } from '../domain/authenticated-identity'
+import type { AuthenticatedIdentity, AuthenticationChannel } from '../domain/authenticated-identity'
 import { resolveCompanyPermissions } from '../domain/authorization.policy'
 import type {
   AuthenticatedContext,
   CompanyContext,
   PlatformContext,
 } from '../domain/tenant-context'
-import type { MembershipRepositoryPort } from './tenant-context.port'
+import type { MembershipLookup, MembershipRepositoryPort } from './tenant-context.port'
 
 type TenantContextServiceParams = {
   readonly repository: MembershipRepositoryPort
+}
+
+export type ResolveCompanyForUserParams = {
+  readonly channel: AuthenticationChannel
+  readonly companyId: string
+  readonly userId: string
 }
 
 export class TenantContextService {
@@ -49,16 +55,46 @@ export class TenantContextService {
       throw forbidden()
     }
 
-    const membership = await this.repository.findActiveByUserAndCompany({
-      companyId,
-      userId: identity.userId,
-    })
-    if (membership === null) {
+    const scope = await this.resolveCompanyScope({ companyId, userId: identity.userId })
+    if (scope === null) {
       throw forbidden()
     }
 
-    const scope = Object.freeze({
-      companyId,
+    return Object.freeze({ identity: snapshotIdentity(identity), scope })
+  }
+
+  /**
+   * Spec 144 T005: a mesma membership ativa + empresa ativa + permissões do caminho HTTP, para uma
+   * identidade que chegou por canal. Recusa é `null`, não 403: no canal ela é fluxo esperado, e quem
+   * decide a resposta é o chamador.
+   */
+  public async resolveCompanyForUser({
+    channel,
+    companyId,
+    userId,
+  }: ResolveCompanyForUserParams): Promise<AuthenticatedContext<CompanyContext> | null> {
+    const scope = await this.resolveCompanyScope({ companyId, userId })
+    if (scope === null) return null
+
+    const identity = Object.freeze({
+      channel,
+      companyIdClaim: companyId,
+      externalIdentityId: '',
+      issuer: channel,
+      platformAdmin: false,
+      serviceAccount: false,
+      subject: '',
+      userId,
+    })
+    return Object.freeze({ identity, scope })
+  }
+
+  private async resolveCompanyScope(lookup: MembershipLookup): Promise<CompanyContext | null> {
+    const membership = await this.repository.findActiveByUserAndCompany(lookup)
+    if (membership === null) return null
+
+    return Object.freeze({
+      companyId: lookup.companyId,
       kind: 'company' as const,
       membershipId: membership.membershipId,
       permissions: resolveCompanyPermissions({
@@ -66,10 +102,8 @@ export class TenantContextService {
         roles: membership.roles,
       }),
       roles: Object.freeze([...membership.roles]),
-      userId: identity.userId,
+      userId: lookup.userId,
     })
-
-    return Object.freeze({ identity: snapshotIdentity(identity), scope })
   }
 
   public resolvePlatform(identity: AuthenticatedIdentity): AuthenticatedContext<PlatformContext> {

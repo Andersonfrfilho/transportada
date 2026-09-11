@@ -37,6 +37,8 @@ export type WhatsAppPhoneRepositoryPort = {
   readonly findVerifiedByPhone: (input: {
     readonly phone: string
   }) => Promise<VerifiedWhatsAppPhone | undefined>
+  /** Número declarado e ainda sem verificação: só separa `unknown_phone` de `unverified_or_expired` no log. */
+  readonly hasUnverifiedBindingByPhone: (input: { readonly phone: string }) => Promise<boolean>
   readonly findByUserId: (input: {
     readonly userId: string
   }) => Promise<WhatsAppPhoneBinding | undefined>

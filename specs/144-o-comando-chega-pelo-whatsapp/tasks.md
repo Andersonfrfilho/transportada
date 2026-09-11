@@ -31,7 +31,7 @@ ficha.
 - [x] **T003** 🧠 Migrations `user_whatsapp_phones` e `whatsapp_phone_verification_requests`
       (`plan.md` § Dados), schema, repositório e cópia no worker; rollback ao lado —
       `make migration-test` + `tenant-safety.contract.ts`
-- [ ] **T005** 🧠 Extrair `resolveCompanyForUser({ userId, companyId, channel })` de
+- [x] **T005** 🧠 Extrair `resolveCompanyForUser({ userId, companyId, channel })` de
       `TenantContextService` (reusa `findActiveByUserAndCompany` + `resolveCompanyPermissions`;
       `resolveCompany` passa a delegar) e montar `resolveWhatsAppActor`: número verificado e dentro
       dos 90 dias → usuário → membership ativa na empresa do canal → `AuthenticatedContext`. Os quatro
