@@ -163,3 +163,67 @@ ajustes foram incorporados à spec, ao plano e às tasks no mesmo commit desta s
 Achado fora do escopo, registrado como task separada: `toMetaRecipient`
 (`worker-transportada/src/whatsapp/infrastructure/whatsapp-code-sender.gateway.ts:100-102`) envia
 sem o `55`, então o convite por WhatsApp da 062 T005 sai sem código de país.
+
+## T002 — canonicalização do telefone (2026-09-11)
+
+Arquivos:
+
+- `apps/api-transportada/src/whatsapp-commands/domain/whatsapp-phone.policy.ts` — `toWhatsAppPhone`,
+  `isSameWhatsAppPhone`
+- `apps/worker-transportada/src/whatsapp/domain/whatsapp-phone.policy.ts` — cópia por valor, byte a
+  byte
+- `apps/api-transportada/src/logging/phone-mask.policy.ts` — `maskPhone`
+- Contratos: `api-transportada/test/whatsapp-commands/whatsapp-phone.contract.ts`
+  (`test/whatsapp-commands.contract.test.ts`), `api-transportada/test/logging/phone-mask.contract.ts`
+  (`test/logging-redaction.contract.test.ts`), `worker-transportada/test/whatsapp-phone/whatsapp-phone.contract.ts`
+  (mesma tabela) e `worker-transportada/test/whatsapp-phone/parity.contract.ts` (os dois arquivos da
+  política idênticos), entrada `test/whatsapp-phone.contract.test.ts`. Os três entrypoints entraram na
+  lista explícita de `test` dos `package.json`.
+
+Vermelho, antes da implementação:
+
+```text
+api:    error: Cannot find module '../../src/logging/phone-mask.policy.js' … 0 pass · 2 fail · 2 errors
+worker: error: Cannot find module '../../src/whatsapp/domain/whatsapp-phone.policy.js' … 0 pass · 1 fail · 1 error
+```
+
+Verde depois: API 31 pass (2 arquivos), worker 28 pass (1 arquivo).
+
+Decisões de borda:
+
+- **Comprimento decide, não o prefixo.** 10/11 dígitos é número local e ganha `55` — inclusive DDD 55
+  (RS): `55999991234` vira `5555999991234`. 12/13 dígitos já têm país e só passam se casarem
+  `^55[1-9][0-9]{9,10}$`.
+- **Só grafia de telefone é aceita**: dígitos, espaço, `(`, `)`, `-`, `.` e `+` inicial. Letra no meio
+  é recusa, não limpeza — `16a99991234` não vira telefone.
+- **Nono dígito**: `isSameWhatsAppPhone` retira o `9` só do canônico de 13 dígitos com `9` logo
+  depois do DDD; `5516899991234` × `551699991234` não casam. Entrada inválida nunca casa, nem com ela
+  mesma.
+- `maskPhone` descarta tudo que não é dígito e mostra `****` + os quatro últimos; menos de quatro
+  dígitos é `****`.
+
+| entrada                                       | `toWhatsAppPhone` |
+| --------------------------------------------- | ----------------- |
+| `16999991234`                                 | `5516999991234`   |
+| `1633334444`                                  | `551633334444`    |
+| `5516999991234`                               | `5516999991234`   |
+| `551633334444`                                | `551633334444`    |
+| `+55 16 99999-1234`                           | `5516999991234`   |
+| `(16) 99999-1234`                             | `5516999991234`   |
+| `16 3333 4444`                                | `551633334444`    |
+| `55999991234`                                 | `5555999991234`   |
+| `5533334444`                                  | `555533334444`    |
+| `5555999991234`                               | `5555999991234`   |
+| `''`, `'   '`, `abc`, `16a99991234`           | `undefined`       |
+| `01699991234`, `5501699991234` (DDD 0)        | `undefined`       |
+| `123`, `999991234`, `55123`, `55016999991234` | `undefined`       |
+| `441633334444`, `4416999991234` (outro país)  | `undefined`       |
+
+Gates:
+
+- `bun run typecheck` → 0 erros
+- `bun run --cwd apps/api-transportada test` → 5073 pass · 1 fail (a flaky conhecida: "o Atego de 1417
+  caixas cabe no orçamento de 50 ms", 144 ms sob CPU concorrente); isolada,
+  `bun test ./test/cargo-volume.contract.test.ts` → 303 pass · 0 fail
+- `bun run --cwd apps/worker-transportada test` → 1002 pass · 0 fail
+- `make check` → exit 0 (API 5074 pass, worker 1002 pass, frontend 3316 pass)

@@ -23,7 +23,7 @@ Desenho validado pelo architect em 2026-09-11, **com ajustes A1–A7** (`evidenc
 principal: o vínculo **não** vai para `login_identifiers`, que é projeção apagada a cada gravação da
 ficha.
 
-- [ ] **T002** 🧠 `toWhatsAppPhone(raw)` (canônico `55`+DDD+número ou `undefined`) e
+- [x] **T002** 🧠 `toWhatsAppPhone(raw)` (canônico `55`+DDD+número ou `undefined`) e
       `isSameWhatsAppPhone(a, b)` (equivalência do nono dígito) em
       `src/whatsapp-commands/domain/whatsapp-phone.policy.ts`, mais **cópia por valor** no worker com
       contrato de paridade; `maskPhone` (`****1234`) **no módulo de logging**, porque não existe hoje —
