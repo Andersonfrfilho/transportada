@@ -81,18 +81,24 @@ describe('cargo placement note identity contract (spec 119)', () => {
     }
   })
 
-  test('moves no box when the notes are present', () => {
+  /**
+   * ⚠️ Spec 120: a nota continua carona **no mapa recomendado** — nenhuma caixa dele muda de lugar por
+   * causa dela. O complemento que fura a ordem é o único que lê a nota, e só para escolher, entre lugares
+   * que ele já aceitaria, o encostado nas caixas da mesma nota: ali a nota pode mudar a posição.
+   */
+  test('moves no recommended box when the notes are present', () => {
     for (const [rows, bed] of [
       [ACCELO_24_STOPS, ACCELO_BED],
       [ATEGO_85_STOPS, ATEGO_BED],
     ] as const) {
       const withNotes = placedOf(rows, true, bed)
       const without = placedOf(rows, false, bed)
+      const recommendedOf = (plan: typeof withNotes) =>
+        plan.layers.map((layer) =>
+          layer.boxes.filter((box) => !box.reasons.includes('needsRehandling')).map(positionOf),
+        )
 
-      expect(withNotes.layers.map((layer) => layer.boxes.map(positionOf))).toEqual(
-        without.layers.map((layer) => layer.boxes.map(positionOf)),
-      )
-      expect(withNotes.unplaced).toEqual(without.unplaced)
+      expect(recommendedOf(withNotes)).toEqual(recommendedOf(without))
       expect(withNotes.source).toBe(without.source)
     }
   })

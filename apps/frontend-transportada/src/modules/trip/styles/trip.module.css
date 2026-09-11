@@ -2093,6 +2093,11 @@
   color: var(--color-copper);
 }
 
+/** Spec 120: o complemento é aviso da mesma família — mesma cor da dividida ao lado dela na ficha. */
+.cargoStopComplement {
+  color: var(--color-copper);
+}
+
 /** Spec 119: a ficha da entrega e, logo abaixo, as notas que ela carrega. */
 .cargoStopGroup {
   display: flex;

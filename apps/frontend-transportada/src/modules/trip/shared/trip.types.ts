@@ -245,7 +245,13 @@ export type TripPlacedBox = Readonly<{
   isFragile: boolean
   label: string
   layer: number
-  /** O porquê daquela posição, em vocabulário fechado — é o que permite discordar do algoritmo. */
+  /**
+   * O porquê daquela posição, em vocabulário fechado — é o que permite discordar do algoritmo.
+   *
+   * Spec 120: `outOfReach` (funda demais para a mão de quem descarrega de pé no piso) e
+   * `needsRehandling` (fura a ordem de descarga) marcam a caixa como "do complemento" — entrou fora
+   * do mapa recomendado. `resolveCargoComplement` (`cargoComplement.service.ts`) é quem lê os dois.
+   */
   reasons: readonly string[]
   source: 'estimated' | 'measured'
   stopSequence: number
@@ -270,6 +276,15 @@ export type TripCargoPlacement = Readonly<{
   }>[]
   /** A pior origem manda: uma caixa presumida torna presumido o arranjo inteiro. */
   source: 'estimated' | 'measured'
+  /**
+   * Spec 120: as notas que o desenho dividiu em mais de um pedaço — pedaço é componente conexo de
+   * caixas da nota por contato de face. Nota inteira não aparece nesta lista.
+   *
+   * ⚠️ Opcional pela razão de sempre: a API sobe antes do frontend, e ausência é lista vazia, nunca
+   * "ninguém dividiu nada" virando exceção. `resolveSplitPieces` (`noteTone.service.ts`) lê o campo
+   * de forma tolerante — item malformado é ignorado, nunca derruba a planta inteira.
+   */
+  splitNotes?: readonly Readonly<{ documentId: string; pieces: number }>[]
   unplaced: readonly Readonly<{ count: number; label: string; reason: string }>[]
 }>
 

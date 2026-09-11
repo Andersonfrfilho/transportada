@@ -127,6 +127,14 @@ function countBreaks(plan: CargoPlacement, bed: RealLoad['bed']): Record<string,
     }
     for (const later of boxes) {
       if (later.stopSequence <= box.stopSequence) continue
+      /**
+       * ⚠️ Spec 120: a caixa do complemento marcada `needsRehandling` fura a ordem **por definição** — é o
+       * último degrau, e ela diz isso na própria caixa. A ordem continua valendo para todo o resto,
+       * inclusive para quem só passou do alcance da mão (`complement.contract.ts`).
+       */
+      if (box.reasons.includes('needsRehandling') || later.reasons.includes('needsRehandling')) {
+        continue
+      }
       if (sharesFootprint(box, later) && later.zM >= box.zM + box.heightM - EPSILON) {
         breaks.laterAbove += 1
       }

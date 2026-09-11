@@ -114,11 +114,13 @@
       "loadingBadge": "load {{position}}",
       "notDrawn": "not in the drawing — the reason is in the list below it",
       "presumed": "{{count}} presumed",
-      "split": "{{count}} split"
+      "split": "{{count}} split",
+      "complement": "{{count}} in the complement"
     },
     "invoice": {
       "listLabel": "Invoices of {{label}}",
       "number": "Invoice {{number}}",
+      "splitPieces": "Split into {{pieces}} pieces",
       "toggle": "Light only the boxes of {{label}}",
       "withoutNumber": "Invoice without number"
     },
@@ -132,7 +134,8 @@
       "measured": "Solid colour: box measured with a tape.",
       "notes": "Shades of one colour: different invoices of the same delivery — tap the invoice on the delivery card to light only its boxes.",
       "presumed": "Dotted outline: presumed box, derived from volume.",
-      "split": "Red outline: split cargo, on top of the inner region."
+      "split": "Red outline: split cargo, on top of the inner region.",
+      "complement": "Copper dashed outline: complement box, outside the recommended map — a thicker line when it also breaks the unloading order."
     },
     "missingBed": "No cargo drawing: this vehicle has no bed length, width and height on its record.",
     "missingBedLink": "Open the vehicle record",
@@ -155,9 +158,16 @@
       "span": "Bed span",
       "spanValue": "{{from}} m to {{to}} m",
       "split": "Split",
+      "complement": "Complement",
       "stop": "Stop"
     },
     "promise": "This arrangement fits the bed and respects the delivery order. It is not a stowage plan: the screen does not yet know every box stackability, the weight of each one, nor the per-axle limit.",
+    "summary": {
+      "long": "{{recommended}} in the recommended map + {{complement}} in the complement, out of {{requested}} box",
+      "long_other": "{{recommended}} in the recommended map + {{complement}} in the complement, out of {{requested}} boxes",
+      "short": "{{recommended}} of {{requested}} box in the recommended map",
+      "short_other": "{{recommended}} of {{requested}} boxes in the recommended map"
+    },
     "rotate": "Turn",
     "rotateTo": {
       "down": "Tilt down",

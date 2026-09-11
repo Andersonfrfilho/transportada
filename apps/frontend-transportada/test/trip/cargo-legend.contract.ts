@@ -56,6 +56,20 @@ describe('trip cargo legend contract', () => {
   })
 
   /**
+   * Spec 120: a caixa do complemento mora fora da própria fatia, mais funda, pela mesma razão que
+   * a dividida — incluí-la empurraria a divisa para dentro da fatia seguinte.
+   */
+  it('ignores complement cargo when placing the cut', () => {
+    const cuts = resolveSliceCuts([
+      { ...box({ stopSequence: 2, xM: 0 }), complement: null },
+      { ...box({ stopSequence: 1, xM: 0.5 }), complement: 'outOfReach' as const },
+      box({ stopSequence: 1, xM: 3 }),
+    ])
+
+    expect(cuts).toEqual([3])
+  })
+
+  /**
    * ⚠️ Com quase toda a carga presumida o desenho segue útil como volume e é enganoso como
    * arrumação — hoje 15 de 345 notas têm todas as linhas casadas a caixa medida.
    */

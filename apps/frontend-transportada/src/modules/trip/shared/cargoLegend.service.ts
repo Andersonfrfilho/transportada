@@ -3,6 +3,8 @@
  */
 
 type LegendBox = Readonly<{
+  /** Spec 120: caixa do complemento — mesma exclusão da divisa que a dividida já tinha. */
+  complement?: 'needsRehandling' | 'outOfReach' | null
   isEstimated: boolean
   isSplit: boolean
   stopSequence: number
@@ -22,6 +24,10 @@ type LegendBox = Readonly<{
  * ⚠️ **A carga dividida fica de fora da conta.** Ela é colocada de propósito fora da própria fatia,
  * mais funda; incluí-la fazia uma parada com uma única sobra empurrar a divisa para dentro da fatia
  * da parada seguinte — a linha desenhada contradizendo justamente a separação que ela mostra.
+ *
+ * ⚠️ **A caixa do complemento fica de fora pela mesma razão** (spec 120): ela também mora fora do
+ * mapa recomendado, mais funda, e entrar na conta empurraria a divisa para dentro do que na verdade
+ * é fatia seguinte.
  */
 export function resolveSliceCuts(
   boxes: readonly LegendBox[],
@@ -35,7 +41,7 @@ export function resolveSliceCuts(
   if (arrangement === 'grid') return []
   const startByStop = new Map<number, number>()
   for (const box of boxes) {
-    if (box.isSplit) continue
+    if (box.isSplit || box.complement != null) continue
     const start = arrangement === 'lanes' ? box.yM : box.xM
     startByStop.set(box.stopSequence, Math.min(startByStop.get(box.stopSequence) ?? start, start))
   }

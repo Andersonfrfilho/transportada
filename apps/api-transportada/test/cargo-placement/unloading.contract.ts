@@ -5,6 +5,7 @@ import { describe, expect, test } from 'bun:test'
 
 import type { LoadingAccess } from '../../src/shared/loading-access.constant.js'
 import {
+  isComplementBox,
   resolveCargoPlacement,
   type CargoPlacement,
   type PlacedBox,
@@ -274,8 +275,22 @@ describe('a descarga entrega por entrega (spec 118)', () => {
       ).toEqual([])
     })
 
-    test(`${load.name}: toda entrega sai de pé no piso, sem corredor estreito`, () => {
-      expect(simulateUnloading(place(load), bedOf(load)).stuck).toEqual([])
+    /**
+     * ⚠️ Spec 120: a afirmação vale para o **mapa recomendado**. A caixa do complemento é, por definição,
+     * a que passou da mão (`outOfReach`) ou fura a ordem (`needsRehandling`) — ela trava na simulação e
+     * diz isso na própria caixa. Que ela não prenda caixa recomendada é `complement.contract.ts`.
+     */
+    test(`${load.name}: toda entrega do mapa recomendado sai de pé no piso, sem corredor estreito`, () => {
+      const plan = place(load)
+      const recommended = {
+        ...plan,
+        layers: plan.layers.map((layer) => ({
+          ...layer,
+          boxes: layer.boxes.filter((box) => !isComplementBox(box)),
+        })),
+      }
+
+      expect(simulateUnloading(recommended, bedOf(load)).stuck).toEqual([])
     })
   }
 })

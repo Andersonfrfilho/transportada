@@ -10,6 +10,7 @@ import {
   NOTE_TONES,
   noteToneOf,
   resolveNoteTones,
+  resolveSplitPieces,
 } from '@/modules/trip/shared/noteTone.service'
 import { hexToLab, labDistance, stopColorOf } from '@/modules/trip/shared/stopColor.service'
 import {
@@ -182,6 +183,79 @@ describe('trip cargo note tone contract', () => {
     expect(notes.map((note) => note.documentNumber)).toEqual(['120', '900'])
     expect(notes.map((note) => note.boxes)).toEqual([2, 1])
     expect(notes[0]?.tone).toBe(noteToneOf(tones, box(1, 'a')))
+  })
+
+  /**
+   * Spec 120: `placement.splitNotes` é opcional e a leitura é tolerante — item malformado é
+   * ignorado, nunca derruba a planta inteira.
+   */
+  describe('resolveSplitPieces', () => {
+    it('reads documentId and pieces from valid entries', () => {
+      const pieces = resolveSplitPieces([
+        { documentId: 'a', pieces: 3 },
+        { documentId: 'b', pieces: 2 },
+      ])
+
+      expect(pieces.get('a')).toBe(3)
+      expect(pieces.get('b')).toBe(2)
+    })
+
+    it('treats an absent field as an empty list, never an error', () => {
+      expect(resolveSplitPieces(undefined).size).toBe(0)
+    })
+
+    /** ⚠️ Item malformado é ignorado — não derruba os outros, nem a planta inteira. */
+    it('drops a malformed entry without throwing', () => {
+      const pieces = resolveSplitPieces([
+        { documentId: 'a', pieces: 3 },
+        { documentId: 'b' },
+        { pieces: 4 },
+        'not-an-object',
+        { documentId: 'c', pieces: 'two' },
+        null,
+      ])
+
+      expect([...pieces.entries()]).toEqual([['a', 3]])
+    })
+
+    /** Um pedaço só não é "dividida" — a nota inteira não entra na conta. */
+    it('ignores an entry whose pieces is not greater than one', () => {
+      expect(resolveSplitPieces([{ documentId: 'a', pieces: 1 }]).size).toBe(0)
+    })
+
+    it('is not fooled by a value that is not an array at all', () => {
+      expect(resolveSplitPieces('not-an-array').size).toBe(0)
+      expect(resolveSplitPieces(null).size).toBe(0)
+    })
+  })
+
+  /** As notas divididas ganham a contagem de pedaços; as demais não ganham o campo. */
+  it('carries the split pieces into the note list, only for the notes that were split', () => {
+    const boxes = [box(1, 'a', '100'), box(1, 'b', '200')]
+    const notes = buildStopNotes(
+      boxes,
+      resolveNoteTones(boxes),
+      resolveSplitPieces([{ documentId: 'a', pieces: 3 }]),
+    ).get(1)
+
+    expect(notes?.find((note) => note.documentId === 'a')?.pieces).toBe(3)
+    expect(notes?.find((note) => note.documentId === 'b')?.pieces).toBeUndefined()
+  })
+
+  /**
+   * ⚠️ **Parada de uma nota só não ganha lista** (spec 119), e por isso o aviso da nota dividida
+   * precisa de um lugar próprio — senão ele fica preso dentro de uma lista que a tela nunca abre.
+   */
+  it('shows the split notice for a single-note stop, which never renders the note list', () => {
+    const component = readApplicationFile(
+      'src/modules/trip/components/TripCargoLayers.component.tsx',
+    )
+
+    expect(component).toContain('singleSplitPieces === undefined ? null')
+    expect(component).toContain("t('cargoLayers.invoice.splitPieces'")
+    for (const locale of [trip, tripEn]) {
+      expect(locale.cargoLayers.invoice.splitPieces).toContain('{{pieces}}')
+    }
   })
 
   /** A ficha usa botão com `aria-pressed` e os textos novos existem nos dois idiomas. */

@@ -149,11 +149,13 @@
       "loadingBadge": "{{position}}º a carregar",
       "notDrawn": "fora do desenho — o motivo está na lista abaixo do desenho",
       "presumed": "{{count}} presumidas",
-      "split": "{{count}} divididas"
+      "split": "{{count}} divididas",
+      "complement": "{{count}} do complemento"
     },
     "invoice": {
       "listLabel": "Notas de {{label}}",
       "number": "NF {{number}}",
+      "splitPieces": "Dividida em {{pieces}} pedaços",
       "toggle": "Acender só as caixas da {{label}}",
       "withoutNumber": "Nota sem número"
     },
@@ -167,7 +169,8 @@
       "measured": "Cor cheia: caixa medida com fita.",
       "notes": "Tons da mesma cor: notas diferentes da mesma entrega — toque na nota, na ficha da entrega, para acender só as caixas dela.",
       "presumed": "Contorno pontilhado: caixa presumida, derivada do volume.",
-      "split": "Contorno vermelho: carga dividida, no topo do lado de dentro."
+      "split": "Contorno vermelho: carga dividida, no topo do lado de dentro.",
+      "complement": "Contorno tracejado cor de cobre: caixa do complemento, fora do mapa recomendado — traço mais grosso quando ela também fura a ordem de descarga."
     },
     "missingBed": "Sem o desenho da carga: este veículo não tem comprimento, largura e altura do baú na ficha.",
     "missingBedLink": "Abrir a ficha do veículo",
@@ -206,9 +209,16 @@
       },
       "spanValue": "{{from}} m a {{to}} m",
       "split": "Divididas",
+      "complement": "Complemento",
       "stop": "Parada"
     },
     "promise": "Este arranjo cabe no baú e respeita a ordem de entrega. Ele não é plano de estiva: a tela ainda não conhece a empilhabilidade de toda caixa, o peso de cada uma nem o limite por eixo.",
+    "summary": {
+      "long": "{{recommended}} no mapa recomendado + {{complement}} no complemento, de {{requested}} caixa",
+      "long_other": "{{recommended}} no mapa recomendado + {{complement}} no complemento, de {{requested}} caixas",
+      "short": "{{recommended}} de {{requested}} caixa no mapa recomendado",
+      "short_other": "{{recommended}} de {{requested}} caixas no mapa recomendado"
+    },
     "rotate": "Girar",
     "rotateTo": {
       "down": "Inclinar para baixo",

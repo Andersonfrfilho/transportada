@@ -4,7 +4,8 @@
 
 Referência viva do empacotador — `apps/api-transportada/src/trips/domain/cargo-placement.policy.ts`
 e `cargo-layout.policy.ts`. Cada regra aqui veio de um defeito **medido**, e o número ao lado é o
-número que a medição deu. Specs de origem: 085, 088, 094, 095, 099, 100, 113, 114, 115, 116, 117 e 118.
+número que a medição deu. Specs de origem: 085, 088, 094, 095, 099, 100, 113, 114, 115, 116, 117, 118,
+119 e 120.
 
 ## O que o desenho promete, e o que ele não promete
 
@@ -385,6 +386,59 @@ quatro viagens reais de 2026-09-10: coordenadas idênticas com e sem nota
 A tela usa a nota para dar um **tom por nota dentro da cor da parada** e para acender só as caixas
 de uma nota. A marca de presumida é o contorno pontilhado — não mais a lavagem, que clareava
 justamente o que agora distingue a nota.
+
+---
+
+## O complemento: se tem espaço, a carga entra (spec 120)
+
+O desenho tem **duas camadas**. O **mapa recomendado** é tudo o que está acima, a 118 inclusive. O que
+ele não coloca tenta o **complemento**, que afrouxa só conveniência, nesta ordem:
+
+| marca             | o que foi afrouxado                                                                       |
+| ----------------- | ----------------------------------------------------------------------------------------- |
+| `outOfReach`      | a mão de quem descarrega: a caixa fica a mais de 0,6 m da frente do piso                  |
+| `needsRehandling` | a ordem de descarga: alguém remaneja carga para chegar nela, ou nela para chegar em outra |
+
+⚠️ **Nada de física se afrouxa**: dentro do baú, sem cruzar ninguém, nada no ar, pilha de pé no
+carregamento, `weightBalanced`, e pilha de pé **em cada passo da descarga**. Isso sai por construção: o
+complemento roda na mesma ordem do recomendado — da última entrega para a primeira — e a caixa da
+entrega `k` só pousa e só se escora em caixa que ainda está no baú na vez dela (entregas `≥ k`). E ela
+**nunca pousa em cima de caixa recomendada da própria entrega**: a de baixo ficaria presa até alguém
+alcançar a de cima, e é o acesso da 118 que isso quebraria. Só o que nem assim cabe segue `bedFull`.
+
+⚠️ **O alcance é tentado na hora; a ordem, no fim.** O primeiro lugar recusado **só** pela mão fica
+guardado durante a varredura (`reachFallback`) e recebe a caixa se a varredura terminar sem lugar
+recomendado — é o lugar que o empacotador anterior à 118 escolheria, com o baú contendo só as entregas
+posteriores. Tentar isso no fim não funciona e foi medido: no fim as entregas anteriores já estão no
+baú, e das 227 caixas que sobravam no Atego só 78 achavam lugar; na hora, 53 entram por alcance e as
+demais pela ordem. A ordem, ao contrário, só pode ser afrouxada no fim, sobre o que sobrou.
+
+⚠️ **O complemento não rouba lugar do recomendado**: o que é fundo demais para a mão da entrega `k` é
+mais fundo ainda para as anteriores, cuja frente de piso está mais perto da porta. E a decisão do
+arranjo (`gridOrDepth`) compara só o que é recomendado.
+
+⚠️ **O que fica fora não cabe de pé.** Medido em 2026-09-10: Daily 481 de 481, Sprinter 252, Accelo 500,
+Atego 1269 de 1417 (1190 recomendadas + 79 do complemento). As 148 do Atego só entram desligando a
+esbeltez no complemento — 1388 caixas com **74 sem apoio**. Os 1347 de antes da 118 eram outra arrumação
+inteira, com as entregas mais cedo empilhadas fora da mão; o complemento não desfaz o mapa recomendado
+para recuperá-la.
+
+### A nota junta
+
+A caixa do complemento procura **primeiro** um lugar encostado nas caixas da mesma nota (só nas fileiras
+onde ela está) e só depois qualquer lugar, da porta para a testeira. O mapa recomendado **não lê a
+nota** — a 119 D2 continua valendo para ele: as caixas de uma nota já chegam contíguas e a ordenação é
+estável. ⚠️ Agrupar por nota **na ordenação do recomendado** foi medido e recusado: tira caixa do
+recomendado (Atego 1190 → 1185 com nota por bloco, 1162 com nota por linha) para ganhar quatro pedaços.
+
+`splitNotes` publica as notas que o desenho dividiu, com quantos pedaços. **Pedaço** é componente conexo
+por **contato de face**: encostadas num eixo — vão menor que uma célula (5 cm) na horizontal, pousada na
+vertical — e sobrepostas mais de 1 cm nos outros dois. ⚠️ A tolerância é a célula porque a caixa ocupa
+células inteiras (spec 114): duas presumidas de 0,261 m encostadas ficam a 3,9 cm no desenho.
+
+⚠️ **A divisão que sobra é quase toda da parada, não da nota**: a carga sobe em parede e a entrega
+continua na parede seguinte; os dois trechos só se tocam se a segunda subir à altura da primeira. Com
+uma nota por parada — 90% das paradas reais — nota dividida é parada dividida.
 
 ---
 

@@ -139,6 +139,53 @@ describe('trip cargo print contract', () => {
   })
 
   /**
+   * Spec 120: a caixa do complemento mora fora da própria fatia, pela mesma razão que a dividida —
+   * ela também não é o que se confere com a fita naquela faixa.
+   */
+  it('leaves complement cargo out of the printed span, counted in its own column', () => {
+    const rows = buildCargoPrintSummary([
+      { ...box({ stopSequence: 1, xM: 0.5 }), complement: 'outOfReach' as const },
+      box({ stopSequence: 1, xM: 3 }),
+    ])
+
+    expect(rows[0]).toMatchObject({ boxes: 2, complement: 1, fromM: 3, toM: 3.5 })
+  })
+
+  /** `needsRehandling` também exclui a caixa da faixa — os dois motivos moram no complemento. */
+  it('excludes needsRehandling from the span just like outOfReach', () => {
+    const rows = buildCargoPrintSummary([
+      { ...box({ stopSequence: 1, xM: 0.5 }), complement: 'needsRehandling' as const },
+      box({ stopSequence: 1, xM: 3 }),
+    ])
+
+    expect(rows[0]).toMatchObject({ complement: 1, fromM: 3, toM: 3.5 })
+  })
+
+  /**
+   * ⚠️ **Parada só com caixa do complemento imprimia `Infinity m a 0.00 m`** — mesmo defeito que a
+   * parada toda dividida, e a mesma correção: sem nenhuma caixa dentro da própria fatia, a excluída
+   * é o que resta.
+   */
+  it('falls back to the complement boxes when no box has a place inside its own slice', () => {
+    const rows = buildCargoPrintSummary([
+      { ...box({ stopSequence: 9, xM: 2 }), complement: 'outOfReach' as const },
+      { ...box({ stopSequence: 9, xM: 3 }), complement: 'needsRehandling' as const },
+    ])
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.fromM).toBe(2)
+    expect(rows[0]?.toM).toBe(3.5)
+    expect(Number.isFinite(rows[0]?.fromM ?? Number.POSITIVE_INFINITY)).toBe(true)
+  })
+
+  /** Nenhuma caixa do complemento é o caso normal: a coluna nova sai zerada, não ausente. */
+  it('counts zero complement when nothing came from it', () => {
+    const rows = buildCargoPrintSummary([box({}), box({ isSplit: true, xM: 2 })])
+
+    expect(rows[0]).toMatchObject({ complement: 0 })
+  })
+
+  /**
    * ⚠️ **São dois números, e eles não coincidem.** Quem carrega segue a ordem de carregamento; quem
    * dirige segue a de entrega. A folha imprimia só a primeira, e ligar a caixa à parada exigia
    * casar as duas listas por nome de mercado.

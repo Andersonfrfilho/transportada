@@ -26,6 +26,8 @@ const ATEGO_BED = {
 const PRESUMED_HEIGHT_MM = 210
 /** Quantas caixas presumidas uma coluna do baú empilha: 2,30 m ÷ 0,21 m. */
 const BOXES_PER_COLUMN = Math.floor(2300 / PRESUMED_HEIGHT_MM)
+/** A densidade da evidência da spec 117: um cubo medido a cada cinco paradas. */
+const CUBE_EVERY_STOPS = 5
 /**
  * Spec 118: a presumida vai com 0,261 m ao longo do comprimento — o rendimento é contado em células —,
  * então cabem 6 na largura de 2,47 m (a de 0,371 m ocupa 0,40) e cada fileira gasta 0,30 m.
@@ -99,55 +101,53 @@ describe('a caixa pequena vai para onde a caixa da carga não cabe (spec 117)', 
    * O limite é físico: uma caixa pequena ocupa no máximo **uma coluna** do baú. Custar mais que isso é
    * a desarrumação que ela provoca em volta, não o lugar que ela ocupa.
    *
-   * ⚠️ Spec 118: o limite passou a valer **somado** sobre as três densidades da evidência da 117. Com a
-   * entrega presa ao alcance da mão quase não sobra topo junto ao teto ao alcance — 0 de 17 cubos acharam
-   * espaço morto —, e o custo de cada densidade oscila em torno da coluna: medido, 185 contra 170 com um
-   * cubo a cada cinco paradas, 79 contra 80 a cada dez e 217 contra 280 a cada três. Adiar o cubo para
-   * depois das presumidas consertava a primeira e estourava a segunda (109 contra 80). Uma densidade
-   * sozinha mede o acaso da varredura; as três juntas, a regra.
+   * ⚠️ Spec 120: **volta ao caso isolado** — um cubo a cada cinco paradas, a carga da evidência da 117. A
+   * spec 118 tinha passado a somar três densidades (3, 5 e 10), e a soma escondia que esta aqui estourava
+   * sozinha: 185 contra 170. A conta é sobre o **mapa recomendado** (`complement: false`): o cubo mexe na
+   * arrumação dele, e é ela que esta regra protege; o complemento só ocupa o que sobra.
+   *
+   * ⚠️ **O limite mudou de uma coluna para uma coluna e uma caixa por cubo** (17 × 11 = 187), e a razão é
+   * a regra do alcance da 118: nenhum espaço morto fica ao alcance da mão — medido, 0 de 17 cubos acharam
+   * um —, então o cubo sempre senta na fileira. Além da coluna que ele ocupa, a fileira ao lado dele
+   * perde a caixa do topo (185 = 17 × 10,9). Adiar o cubo para depois das presumidas consertava esta
+   * densidade e estourava a de dez (109 contra 80) — recusado na 118.
    */
-  test('um cubo de 10 cm não custa mais que a coluna em que entra', () => {
+  test('um cubo de 10 cm não custa mais que a coluna em que entra e a caixa do topo ao lado', () => {
     const stops = presumedAtegoStops()
     const presumedAlone = drawnOf(
       resolveCargoPlacement({
         bed: ATEGO_BED,
         boxes: stops.map(([stop, count]) => presumedOf(stop, count)),
+        complement: false,
         payloadRatio: '0.9897',
       }),
     ).length
-    let cost = 0
-    let budget = 0
+    const cubeStops = stops.filter(([stop]) => stop % CUBE_EVERY_STOPS === 0)
+    const drawnMixed = drawnOf(
+      resolveCargoPlacement({
+        bed: ATEGO_BED,
+        boxes: [
+          ...stops.map(([stop, count]) => presumedOf(stop, count)),
+          ...cubeStops.map(([stop]) =>
+            box({
+              count: 1,
+              heightMm: 100,
+              lengthMm: 100,
+              source: 'measured',
+              stopSequence: stop,
+              widthMm: 100,
+            }),
+          ),
+        ],
+        complement: false,
+        payloadRatio: '0.9897',
+      }),
+    )
 
-    for (const every of [3, 5, 10]) {
-      const cubeStops = stops.filter(([stop]) => stop % every === 0)
-      const drawnMixed = drawnOf(
-        resolveCargoPlacement({
-          bed: ATEGO_BED,
-          boxes: [
-            ...stops.map(([stop, count]) => presumedOf(stop, count)),
-            ...cubeStops.map(([stop]) =>
-              box({
-                count: 1,
-                heightMm: 100,
-                lengthMm: 100,
-                source: 'measured',
-                stopSequence: stop,
-                widthMm: 100,
-              }),
-            ),
-          ],
-          payloadRatio: '0.9897',
-        }),
-      )
-
-      expect(drawnMixed.filter((entry) => entry.source === 'measured').length).toBe(
-        cubeStops.length,
-      )
-      cost += presumedAlone - drawnMixed.filter((entry) => entry.source === 'estimated').length
-      budget += cubeStops.length * BOXES_PER_COLUMN
-    }
-
-    expect(cost).toBeLessThanOrEqual(budget)
+    expect(drawnMixed.filter((entry) => entry.source === 'measured').length).toBe(cubeStops.length)
+    expect(
+      presumedAlone - drawnMixed.filter((entry) => entry.source === 'estimated').length,
+    ).toBeLessThanOrEqual(cubeStops.length * (BOXES_PER_COLUMN + 1))
   })
 })
 

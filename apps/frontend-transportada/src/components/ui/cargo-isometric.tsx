@@ -7,9 +7,18 @@ import { cn } from '@/lib/utils'
 
 import styles from './cargo-isometric.module.css'
 
+/**
+ * Spec 120: `null` é "do mapa recomendado" — sem marca nenhuma. `outOfReach`/`needsRehandling` vêm
+ * de `resolveCargoComplement` (`modules/trip/shared/cargoComplement.service.ts`), já reduzidos ao
+ * motivo mais forte antes de chegar aqui: o componente de UI não decide qual dos dois pesa mais, só
+ * pinta o que já foi decidido — o mesmo motivo pelo qual ele não importa tipo de módulo de domínio.
+ */
+export type IsometricBoxComplement = 'needsRehandling' | 'outOfReach' | null
+
 /** Uma caixa no espaço do baú, em metros: `xM` do fundo, `yM` da parede, `zM` do piso. */
 export type IsometricBox = Readonly<{
   color: string
+  complement: IsometricBoxComplement
   depthM: number
   heightM: number
   id: string
@@ -300,6 +309,11 @@ export function CargoIsometric({
  * a lavagem de antes clareava justamente o que hoje distingue a nota. Hachura continua recusada: o
  * risco diagonal cruza as arestas e lê como rachadura na quina, e um padrão SVG tem fundo
  * transparente, o que deixava a caixa vazada.
+ *
+ * Spec 120: `complement` soma uma terceira marca, própria — tracejado longo cor de cobre, mais
+ * grosso quando o motivo é `needsRehandling`. Ela convive com `isSplit` (contorno vermelho) e com o
+ * contorno pontilhado da presumida: são três traços independentes, e uma caixa pode carregar mais
+ * de um ao mesmo tempo.
  */
 function IsometricSolid({
   angle,
@@ -356,6 +370,16 @@ function IsometricSolid({
       />
       {box.isSplit && !box.isGhost ? (
         <polygon className={styles.faceSplit} points={toPoints(points)} />
+      ) : null}
+      {box.complement !== null && !box.isGhost ? (
+        <polygon
+          className={
+            box.complement === 'needsRehandling'
+              ? styles.faceComplementStrong
+              : styles.faceComplement
+          }
+          points={toPoints(points)}
+        />
       ) : null}
     </>
   )

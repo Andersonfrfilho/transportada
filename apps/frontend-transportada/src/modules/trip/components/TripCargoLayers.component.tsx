@@ -16,9 +16,11 @@ import {
   type CargoViewPreset,
 } from '../shared/cargoView.service'
 import { stopColorOf } from '../shared/stopColor.service'
+import { resolveCargoComplement } from '../shared/cargoComplement.service'
 import { isMostlyPresumed, resolveSliceCuts } from '../shared/cargoLegend.service'
 import {
   buildCargoChipFacts,
+  buildCargoComplementSummary,
   buildCargoPrintSummary,
   resolveLoadingPosition,
 } from '../shared/cargoPrintSummary.service'
@@ -28,7 +30,12 @@ import {
   toggleCargoStopFocus,
   toggleNoteFocus,
 } from '../shared/stopFocus.service'
-import { buildStopNotes, noteToneOf, resolveNoteTones } from '../shared/noteTone.service'
+import {
+  buildStopNotes,
+  noteToneOf,
+  resolveNoteTones,
+  resolveSplitPieces,
+} from '../shared/noteTone.service'
 import { buildCargoStopLabels, formatCargoStopLabel } from '../shared/cargoStopLabel.service'
 import type { TripCargoLayout } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
@@ -113,14 +120,25 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
   const { stopNotes, tones } = useMemo(() => {
     const placed = placement.layers.flatMap((layer) => layer.boxes)
     const resolved = resolveNoteTones(placed)
-    return { stopNotes: buildStopNotes(placed, resolved), tones: resolved }
-  }, [placement.layers])
+    const splitPieces = resolveSplitPieces(placement.splitNotes)
+    return { stopNotes: buildStopNotes(placed, resolved, splitPieces), tones: resolved }
+  }, [placement.layers, placement.splitNotes])
+
+  /**
+   * Spec 120: quantas caixas vieram do mapa recomendado e quantas do complemento, mais o que a
+   * viagem pediu ao todo — a mesma conta usada no resumo do topo e na coluna nova da folha impressa.
+   */
+  const complementSummary = buildCargoComplementSummary(
+    placement.layers.flatMap((layer) => layer.boxes),
+    placement.unplaced,
+  )
 
   const boxes: readonly IsometricBox[] = useMemo(
     () =>
       placement.layers.flatMap((layer) =>
         layer.boxes.map((box, position) => ({
           color: stopColorOf(box.stopSequence),
+          complement: resolveCargoComplement(box),
           depthM: box.depthM,
           heightM: box.heightM,
           id: `${String(layer.index)}-${String(position)}`,
@@ -199,6 +217,26 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
 
       {/* ⚠️ A linha que diz o que a planta NÃO promete. Fixa, nunca condicional. */}
       <p className={styles.hint}>{t('cargoLayers.promise')}</p>
+
+      {/*
+        Spec 120: quanto do pedido está no mapa recomendado e quanto está no complemento — a mesma
+        pergunta que "cabe?" não respondia sozinha. Sem complemento a forma é curta: dizer "0 no
+        complemento" faria o aviso deixar de ser lido justamente quando ele importa.
+      */}
+      <p className={styles.hint}>
+        {complementSummary.complement === 0
+          ? t('cargoLayers.summary.short', {
+              count: complementSummary.requested,
+              recommended: complementSummary.recommended,
+              requested: complementSummary.requested,
+            })
+          : t('cargoLayers.summary.long', {
+              complement: complementSummary.complement,
+              count: complementSummary.requested,
+              recommended: complementSummary.recommended,
+              requested: complementSummary.requested,
+            })}
+      </p>
 
       {/*
         ⚠️ **O desenho promete metro, e este metro é de catálogo.** A escala veio da referência do
@@ -386,130 +424,157 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
 
       {/* A legenda das três marcas: sem ela o contorno vermelho da dividida não quer dizer nada. */}
       <div className={styles.cargoStops}>
-        {stopChips.map(({ facts, loading, sequence }) => (
-          <div className={styles.cargoStopGroup} key={sequence}>
-            <div className={styles.cargoStopItem}>
-              <button
-                aria-pressed={focus.stops.has(sequence)}
-                className={styles.cargoStopChip}
-                type="button"
-                onClick={() => setFocus((previous) => toggleCargoStopFocus(previous, sequence))}
-              >
-                <span
-                  className={styles.cargoStopDot}
-                  style={{ background: stopColorOf(sequence) }}
-                />
-                {/*
+        {stopChips.map(({ facts, loading, sequence }) => {
+          const notesOfStop = stopNotes.get(sequence) ?? []
+          /** Nota única dividida: a lista abaixo não desenha para uma nota só (spec 119). */
+          const singleSplitPieces = notesOfStop.length === 1 ? notesOfStop[0]?.pieces : undefined
+
+          return (
+            <div className={styles.cargoStopGroup} key={sequence}>
+              <div className={styles.cargoStopItem}>
+                <button
+                  aria-pressed={focus.stops.has(sequence)}
+                  className={styles.cargoStopChip}
+                  type="button"
+                  onClick={() => setFocus((previous) => toggleCargoStopFocus(previous, sequence))}
+                >
+                  <span
+                    className={styles.cargoStopDot}
+                    style={{ background: stopColorOf(sequence) }}
+                  />
+                  {/*
               ⚠️ **O número da entrega vive com a cor.** A ficha dizia só o cliente e o endereço, e
               a folha ao lado dizia só o número — quem estava no barracão casava as duas listas por
               nome de mercado para saber que caixa era de qual parada.
             */}
-                <span className={styles.cargoStopOrder}>
-                  {t('cargoLayers.chip.deliveryOrder', { sequence })}
-                </span>
-                {/*
+                  <span className={styles.cargoStopOrder}>
+                    {t('cargoLayers.chip.deliveryOrder', { sequence })}
+                  </span>
+                  {/*
               ⚠️ **A ordem de carregamento é o número que o galpão procura.** Ela era uma linha cinza
               pequena no meio da ficha; quem carrega lê a ficha de longe, com a caixa na mão.
             */}
-                <span className={styles.cargoStopBody}>
-                  {/* A descrição ao lado do número da entrega — é assim que o operador lê a parada. */}
-                  <span>{labelOf(sequence)}</span>
-                  <span className={styles.cargoStopFacts}>
-                    <span className={styles.cargoStopLoadingBadge}>
-                      {t('cargoLayers.chip.loadingBadge', { position: loading })}
-                    </span>
-                    {facts === undefined ? <span>{t('cargoLayers.chip.notDrawn')}</span> : null}
-                  </span>
-                  {facts === undefined ? null : (
+                  <span className={styles.cargoStopBody}>
+                    {/* A descrição ao lado do número da entrega — é assim que o operador lê a parada. */}
+                    <span>{labelOf(sequence)}</span>
                     <span className={styles.cargoStopFacts}>
-                      <span>
-                        {t('cargoLayers.print.spanValue', {
-                          from: facts.fromM.toFixed(2),
-                          to: facts.toM.toFixed(2),
-                        })}
+                      <span className={styles.cargoStopLoadingBadge}>
+                        {t('cargoLayers.chip.loadingBadge', { position: loading })}
                       </span>
-                      <span>{t('cargoLayers.chip.counts', { boxes: facts.boxes })}</span>
-                      {/*
+                      {facts === undefined ? <span>{t('cargoLayers.chip.notDrawn')}</span> : null}
+                    </span>
+                    {facts === undefined ? null : (
+                      <span className={styles.cargoStopFacts}>
+                        <span>
+                          {t('cargoLayers.print.spanValue', {
+                            from: facts.fromM.toFixed(2),
+                            to: facts.toM.toFixed(2),
+                          })}
+                        </span>
+                        <span>{t('cargoLayers.chip.counts', { boxes: facts.boxes })}</span>
+                        {/*
                     ⚠️ Presumida e dividida só aparecem quando existem: zero delas é o caso normal,
                     e imprimir "0 divididas" em toda ficha faz o aviso deixar de ser lido justamente
                     na parada em que ele importa.
                   */}
-                      {facts.presumed === 0 ? null : (
-                        <span>{t('cargoLayers.chip.presumed', { count: facts.presumed })}</span>
-                      )}
-                      {facts.split === 0 ? null : (
-                        <span className={styles.cargoStopSplit}>
-                          {t('cargoLayers.chip.split', { count: facts.split })}
-                        </span>
-                      )}
-                    </span>
-                  )}
-                </span>
-              </button>
-              {onLoadingMove === undefined ? null : (
-                <span className={styles.cargoStopMoves}>
-                  <Button
-                    aria-label={t('cargoLayers.chip.loadEarlier', { label: labelOf(sequence) })}
-                    disabled={loading === 1}
-                    onClick={() => onLoadingMove(sequence, -1)}
-                    size="sm"
-                    type="button"
-                    variant="ghost"
-                  >
-                    <Icon name="chevron-up" />
-                  </Button>
-                  <Button
-                    aria-label={t('cargoLayers.chip.loadLater', { label: labelOf(sequence) })}
-                    disabled={loading === totalStops}
-                    onClick={() => onLoadingMove(sequence, 1)}
-                    size="sm"
-                    type="button"
-                    variant="ghost"
-                  >
-                    <Icon name="chevron-down" />
-                  </Button>
-                </span>
-              )}
-            </div>
-            {/*
+                        {facts.presumed === 0 ? null : (
+                          <span>{t('cargoLayers.chip.presumed', { count: facts.presumed })}</span>
+                        )}
+                        {facts.split === 0 ? null : (
+                          <span className={styles.cargoStopSplit}>
+                            {t('cargoLayers.chip.split', { count: facts.split })}
+                          </span>
+                        )}
+                        {facts.complement === 0 ? null : (
+                          <span className={styles.cargoStopComplement}>
+                            {t('cargoLayers.chip.complement', { count: facts.complement })}
+                          </span>
+                        )}
+                      </span>
+                    )}
+                  </span>
+                </button>
+                {onLoadingMove === undefined ? null : (
+                  <span className={styles.cargoStopMoves}>
+                    <Button
+                      aria-label={t('cargoLayers.chip.loadEarlier', { label: labelOf(sequence) })}
+                      disabled={loading === 1}
+                      onClick={() => onLoadingMove(sequence, -1)}
+                      size="sm"
+                      type="button"
+                      variant="ghost"
+                    >
+                      <Icon name="chevron-up" />
+                    </Button>
+                    <Button
+                      aria-label={t('cargoLayers.chip.loadLater', { label: labelOf(sequence) })}
+                      disabled={loading === totalStops}
+                      onClick={() => onLoadingMove(sequence, 1)}
+                      size="sm"
+                      type="button"
+                      variant="ghost"
+                    >
+                      <Icon name="chevron-down" />
+                    </Button>
+                  </span>
+                )}
+              </div>
+              {/*
             Spec 119: as notas da entrega, cada uma no tom que ela tem no desenho. Com uma nota só
             acender a nota é acender a parada, e a lista seria repetição.
           */}
-            {(stopNotes.get(sequence) ?? []).length < 2 ? null : (
-              <ul
-                aria-label={t('cargoLayers.invoice.listLabel', { label: labelOf(sequence) })}
-                className={styles.cargoNoteList}
-                role="list"
-              >
-                {(stopNotes.get(sequence) ?? []).map((note) => {
-                  const noteLabel =
-                    note.documentNumber === null
-                      ? t('cargoLayers.invoice.withoutNumber')
-                      : t('cargoLayers.invoice.number', { number: note.documentNumber })
-                  return (
-                    <li key={note.documentId}>
-                      <button
-                        aria-label={t('cargoLayers.invoice.toggle', { label: noteLabel })}
-                        aria-pressed={focus.notes.has(note.documentId)}
-                        className={styles.cargoNoteChip}
-                        type="button"
-                        onClick={() =>
-                          setFocus((previous) => toggleNoteFocus(previous, note.documentId))
-                        }
-                      >
-                        <CargoToneSwatch color={stopColorOf(sequence)} tone={note.tone} />
-                        <span>{noteLabel}</span>
-                        <span className={styles.cargoStopFacts}>
-                          {t('cargoLayers.chip.counts', { boxes: note.boxes })}
-                        </span>
-                      </button>
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-          </div>
-        ))}
+              {notesOfStop.length < 2 ? null : (
+                <ul
+                  aria-label={t('cargoLayers.invoice.listLabel', { label: labelOf(sequence) })}
+                  className={styles.cargoNoteList}
+                  role="list"
+                >
+                  {notesOfStop.map((note) => {
+                    const noteLabel =
+                      note.documentNumber === null
+                        ? t('cargoLayers.invoice.withoutNumber')
+                        : t('cargoLayers.invoice.number', { number: note.documentNumber })
+                    return (
+                      <li key={note.documentId}>
+                        <button
+                          aria-label={t('cargoLayers.invoice.toggle', { label: noteLabel })}
+                          aria-pressed={focus.notes.has(note.documentId)}
+                          className={styles.cargoNoteChip}
+                          type="button"
+                          onClick={() =>
+                            setFocus((previous) => toggleNoteFocus(previous, note.documentId))
+                          }
+                        >
+                          <CargoToneSwatch color={stopColorOf(sequence)} tone={note.tone} />
+                          <span>{noteLabel}</span>
+                          <span className={styles.cargoStopFacts}>
+                            {t('cargoLayers.chip.counts', { boxes: note.boxes })}
+                            {/* Spec 120: a nota que o desenho separou em mais de um pedaço. */}
+                            {note.pieces === undefined ? null : (
+                              <span className={styles.cargoStopComplement}>
+                                {t('cargoLayers.invoice.splitPieces', { pieces: note.pieces })}
+                              </span>
+                            )}
+                          </span>
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+              {/*
+              ⚠️ **Parada de uma nota só não ganha lista** (spec 119): acender a nota é acender a
+              parada. Se essa nota única foi dividida, o aviso precisa de um lugar próprio — senão
+              ele fica preso dentro de uma lista que a tela nunca desenha.
+            */}
+              {singleSplitPieces === undefined ? null : (
+                <p className={styles.hint}>
+                  {t('cargoLayers.invoice.splitPieces', { pieces: singleSplitPieces })}
+                </p>
+              )}
+            </div>
+          )
+        })}
       </div>
 
       {/**
@@ -527,6 +592,7 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
         <li>{t('cargoLayers.legend.presumed')}</li>
         <li>{t('cargoLayers.legend.notes')}</li>
         <li>{t('cargoLayers.legend.split')}</li>
+        <li>{t('cargoLayers.legend.complement')}</li>
       </ul>
 
       {/**
@@ -550,6 +616,7 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
             <th scope="col">{t('cargoLayers.print.boxes')}</th>
             <th scope="col">{t('cargoLayers.print.presumed')}</th>
             <th scope="col">{t('cargoLayers.print.split')}</th>
+            <th scope="col">{t('cargoLayers.print.complement')}</th>
           </tr>
         </thead>
         <tbody>
@@ -573,6 +640,7 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
               <td>{row.boxes}</td>
               <td>{row.presumed}</td>
               <td>{row.split}</td>
+              <td>{row.complement}</td>
             </tr>
           ))}
         </tbody>

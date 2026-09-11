@@ -107,6 +107,26 @@
   stroke-width: 1.6;
 }
 
+/**
+ * Spec 120: a caixa do complemento — entrou fora do mapa recomendado. Cor de cobre (o mesmo aviso
+ * da referência de catálogo e da carroceria fechada) e tracejado mais longo que o vermelho da
+ * dividida, para as duas marcas não se lerem como a mesma coisa numa caixa que carrega as duas.
+ */
+.faceComplement {
+  fill: none;
+  stroke: var(--color-copper);
+  stroke-dasharray: 8 3;
+  stroke-width: 1.6;
+}
+
+/** A caixa que também fura a ordem de descarga: mesmo traço, mais grosso — o aviso mais grave. */
+.faceComplementStrong {
+  fill: none;
+  stroke: var(--color-copper);
+  stroke-dasharray: 8 3;
+  stroke-width: 2.6;
+}
+
 /** A divisa entre as fatias das paradas: onde a carga de uma acaba e a da seguinte começa. */
 .sliceCut {
   fill: none;

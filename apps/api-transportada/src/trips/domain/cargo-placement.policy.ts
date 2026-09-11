@@ -36,8 +36,27 @@ export const PLACEMENT_REASONS = [
   'axleNotChecked',
   'splitCargo',
   'weightBalanced',
+  'outOfReach',
+  'needsRehandling',
 ] as const
 export type PlacementReason = (typeof PLACEMENT_REASONS)[number]
+
+/**
+ * Spec 120: **o complemento** — a caixa que o mapa recomendado não colocou e que entrou no espaço livre
+ * afrouxando uma regra de conveniência, do mais leve ao mais pesado. `outOfReach` é funda demais para a
+ * mão de quem fica de pé no piso; `needsRehandling` fura a ordem de descarga, e alguém mexe em outra
+ * entrega para chegar nela (ou nela para chegar em outra).
+ *
+ * ⚠️ Nenhum dos dois afrouxa física: dentro do baú, nada atravessando nada, nada no ar, pilha de pé no
+ * carregamento **e** na descarga — a caixa do complemento só se apoia em entrega que sai depois dela.
+ */
+export const COMPLEMENT_REASONS = ['outOfReach', 'needsRehandling'] as const
+export type ComplementReason = (typeof COMPLEMENT_REASONS)[number]
+
+/** Se a caixa entrou pelo complemento, e não pelo mapa recomendado. */
+export function isComplementBox(box: Readonly<{ reasons: readonly PlacementReason[] }>): boolean {
+  return box.reasons.some((reason) => reason === 'outOfReach' || reason === 'needsRehandling')
+}
 
 /** Por que uma caixa ficou de fora. Nomear é obrigatório — sumir com ela, nunca. */
 export const UNPLACED_REASONS = ['notMeasured', 'largerThanBed', 'bedFull', 'tooMany'] as const
@@ -111,8 +130,18 @@ export type CargoPlacement = {
    * ninguém informou — torna presumido o arranjo inteiro. Quem carrega decide pelo pior caso.
    */
   readonly source: 'measured' | 'estimated'
+  /**
+   * Spec 120: as notas que o desenho dividiu, com quantos pedaços cada uma tem. **Pedaço** é um grupo de
+   * caixas da mesma nota ligadas por contato de face — encostadas numa face, com vão menor que uma célula
+   * do mapa de alturas (5 cm) e sobreposição nos outros dois eixos. Nota inteira não entra na lista.
+   *
+   * ⚠️ Opcional no tipo porque só `resolveCargoPlacement` a monta, sobre o que o desenho de fato mostra.
+   */
+  readonly splitNotes?: readonly NotePieces[]
   readonly unplaced: readonly UnplacedBox[]
 }
+
+export type NotePieces = Readonly<{ documentId: string; pieces: number }>
 
 type Slot = {
   readonly depthM: number
@@ -145,9 +174,90 @@ export function resolveCargoPlacement(
   input: Parameters<typeof placeCargo>[0],
 ): CargoPlacement | null {
   const placement = placeCargo(input)
+  if (placement === null) return null
+  const drawn = trimForDrawing(placement)
 
-  return placement === null ? null : trimForDrawing(placement)
+  return {
+    ...drawn,
+    splitNotes: resolveSplitNotes(drawn.layers.flatMap((layer) => layer.boxes)),
+  }
 }
+
+/**
+ * Spec 120: quantos pedaços cada nota tem no desenho — ver `CargoPlacement.splitNotes`.
+ *
+ * ⚠️ O vão tolerado é o da célula: a caixa ocupa células inteiras (spec 114), então duas presumidas de
+ * 0,261 m encostadas ficam a 3,9 cm uma da outra no desenho — e continuam encostadas no baú.
+ */
+export function resolveSplitNotes(boxes: readonly PlacedBox[]): readonly NotePieces[] {
+  const byNote = new Map<string, PlacedBox[]>()
+  for (const box of boxes) {
+    if (box.documentId === null) continue
+    byNote.set(box.documentId, [...(byNote.get(box.documentId) ?? []), box])
+  }
+  const split: NotePieces[] = []
+  for (const [documentId, own] of byNote) {
+    const pieces = countPieces(own)
+    if (pieces > 1) split.push({ documentId, pieces })
+  }
+
+  return split.sort((first, second) => (first.documentId < second.documentId ? -1 : 1))
+}
+
+function countPieces(boxes: readonly PlacedBox[]): number {
+  const parent = boxes.map((_, index) => index)
+  const find = (index: number): number => {
+    let root = index
+    while (parent[root] !== root) root = parent[root] ?? root
+    parent[index] = root
+    return root
+  }
+  for (let first = 0; first < boxes.length; first += 1) {
+    for (let second = first + 1; second < boxes.length; second += 1) {
+      const a = boxes[first]
+      const b = boxes[second]
+      if (a !== undefined && b !== undefined && areTouching(a, b)) {
+        parent[find(first)] = find(second)
+      }
+    }
+  }
+
+  return new Set(boxes.map((_, index) => find(index))).size
+}
+
+type BoxExtent = Readonly<{
+  depthM: number
+  heightM: number
+  widthM: number
+  xM: number
+  yM: number
+  zM: number
+}>
+
+/** Contato de face: encostadas num eixo (vão menor que a célula; no vertical, pousada) e sobrepostas nos outros dois. */
+function areTouching(first: BoxExtent, second: BoxExtent): boolean {
+  const axes = [
+    [first.xM, first.depthM, second.xM, second.depthM],
+    [first.yM, first.widthM, second.yM, second.widthM],
+    [first.zM, first.heightM, second.zM, second.heightM],
+  ] as const
+  return axes.some((axis, index) => {
+    const [fromA, sizeA, fromB, sizeB] = axis
+    const gap = Math.max(fromB - (fromA + sizeA), fromA - (fromB + sizeB))
+    const tolerance = index === 2 ? 1e-3 : HEIGHT_MAP_CELL_M - 1e-6
+    if (gap < -1e-6 || gap > tolerance) return false
+    return axes.every((other, otherIndex) => {
+      if (otherIndex === index) return true
+      const [fromC, sizeC, fromD, sizeD] = other
+      return (
+        Math.min(fromC + sizeC, fromD + sizeD) - Math.max(fromC, fromD) > NOTE_CONTACT_OVERLAP_M
+      )
+    })
+  })
+}
+
+/** A sobreposição mínima que faz de duas caixas vizinhas de face — menos que isso é quina. */
+const NOTE_CONTACT_OVERLAP_M = 0.01
 
 /**
  * O desenho aparado ao teto (spec 115): sai primeiro a caixa **mais alta**, e nunca a que sustenta
@@ -225,9 +335,50 @@ function placeCargo(input: {
    * o painel imprime. `null` é teto desconhecido, e sem denominador não se afirma nada.
    */
   readonly payloadRatio?: string | null
+  /**
+   * Spec 120: se o que o mapa recomendado não colocou tenta o complemento. Ausente é **sim**; a decisão
+   * do arranjo passa `false`, porque ela compara os mapas recomendados — o complemento não pode mudar
+   * qual arranjo vale.
+   */
+  readonly complement?: boolean
 }): CargoPlacement | null {
   if (input.bed === null) return null
+  const reusable =
+    input.arrangement === 'depth' &&
+    input.laneCount === undefined &&
+    input.openLaneSides === undefined
+  const previous = lastDepthPacking
+  if (
+    reusable &&
+    previous !== null &&
+    previous.bed === input.bed &&
+    previous.boxes === input.boxes &&
+    previous.complement === (input.complement !== false) &&
+    previous.loadingAccess === (input.loadingAccess ?? 'rear') &&
+    previous.payloadRatio === (input.payloadRatio ?? null) &&
+    previous.securesCargo === (input.securesCargo === true)
+  ) {
+    return previous.placement
+  }
+  const placement = placeCargoOnce({ ...input, bed: input.bed })
+  if (reusable) {
+    lastDepthPacking = {
+      bed: input.bed,
+      boxes: input.boxes,
+      complement: input.complement !== false,
+      loadingAccess: input.loadingAccess ?? 'rear',
+      payloadRatio: input.payloadRatio ?? null,
+      placement,
+      securesCargo: input.securesCargo === true,
+    }
+  }
 
+  return placement
+}
+
+function placeCargoOnce(
+  input: Parameters<typeof placeCargo>[0] & { readonly bed: CargoBedDimensions },
+): CargoPlacement | null {
   const bed = {
     heightM: Number.parseFloat(input.bed.heightM),
     lengthM: Number.parseFloat(input.bed.lengthM),
@@ -278,6 +429,7 @@ function placeCargo(input: {
       return placeGrid({
         bed: input.bed,
         boxes: measured,
+        complement: input.complement !== false,
         grid,
         loadingAccess: input.loadingAccess,
         payloadRatio: input.payloadRatio,
@@ -354,6 +506,7 @@ function placeCargo(input: {
       }),
       bed,
       boxes: measured,
+      complement: input.complement !== false,
       ...(input.openLaneSides === undefined ? {} : { openSides: input.openLaneSides }),
       presumed,
       securesCargo: input.securesCargo === true,
@@ -883,20 +1036,32 @@ function packSlice(input: {
   readonly openFace?: OpenFace
   /** Spec 118: as bordas laterais que são outra faixa, e não parede. */
   readonly openSides?: OpenSides
+  /**
+   * Spec 120: a caixa que o mapa recomendado recusa tenta, **na hora**, o lugar fundo demais para a mão —
+   * ver `placeComplement`. Só no bloco por ordem de entrega.
+   */
+  readonly complement?: boolean
   readonly boxes: readonly PlacementBox[]
   readonly budget: number
   readonly sliceLengthM: number
 }): {
   readonly boxes: readonly PlacedBox[]
   readonly leftovers: readonly PlacementBox[]
+  /**
+   * Spec 120: cada caixa que saiu `bedFull` ou virou sobra, uma por unidade — é a fila do complemento.
+   * O `unplaced` guarda só rótulo e contagem, e com isso não se coloca caixa nenhuma.
+   */
+  readonly overflow: readonly PlacementBox[]
   readonly unplaced: readonly UnplacedBox[]
 } {
   const slice = { ...input.bed, lengthM: input.sliceLengthM }
   const unplaced: UnplacedBox[] = []
   const placed: PlacedBox[] = []
   const leftovers: PlacementBox[] = []
+  const overflow: PlacementBox[] = []
   /** A sobra é candidata a dividir; quem não pode empilhar não sobe em nada e não é candidata. */
   const spill = (box: PlacementBox): void => {
+    overflow.push({ ...box, count: 1 })
     if (resolveStackLimit(box) <= 1) {
       pushUnplaced(unplaced, { count: 1, label: box.label, reason: 'bedFull' })
       return
@@ -960,6 +1125,26 @@ function packSlice(input: {
   )
   const deepAxis = input.stackBeforeRow === true ? 'width' : 'depth'
   const deadSpace = createDeadSpaceTracker({ boxes: input.boxes, deepAxis, slice })
+  /**
+   * Spec 120: quem pousa em quem, para o complemento nunca prender uma caixa recomendada da própria
+   * entrega embaixo dele.
+   */
+  const occupancy =
+    input.complement === true
+      ? createOccupancyGrid({
+          columns: Math.max(1, Math.ceil(slice.lengthM / HEIGHT_MAP_CELL_M)),
+          lines: Math.max(1, Math.ceil(slice.widthM / HEIGHT_MAP_CELL_M)),
+        })
+      : null
+  const record = (entry: PlacedBox, isComplement: boolean): void => {
+    placed.push(entry)
+    occupancy?.stamp({ box: entry, isComplement })
+  }
+  /** A última caixa que foi para longe da mão, por formato — ver o uso. */
+  const pendingReach = new Map<
+    string,
+    Readonly<{ at: number; fallback: PlacedBox; rows: readonly number[]; stopSequence: number }>
+  >()
 
   let frozenStop: number | null = null
   for (const box of ordered) {
@@ -1001,27 +1186,47 @@ function packSlice(input: {
        * O assento que as duas buscas aceitam — a do espaço morto e a da fileira. Uma regra só: a caixa
        * pequena não ganha exceção nenhuma por ir para cima.
        */
+      /**
+       * ⚠️ **Spec 120: o primeiro lugar recusado só pela mão fica guardado.** Se a varredura terminar sem
+       * lugar recomendado, a caixa vai para ele — é o lugar que a varredura sem a regra da spec 118
+       * escolheria, com o mapa só com as entregas `≥ k`. Tentar no fim, com as entregas anteriores já no
+       * baú, recuperava 78 das 227 caixas do Atego: a caixa da entrega `k` não pode pousar nem se escorar
+       * em quem sai antes dela, e o topo das paredes já estava fechado. Não rouba lugar do recomendado: o
+       * que é fundo demais para a entrega `k` é mais fundo ainda para as anteriores, cuja frente de piso
+       * fica mais perto da porta.
+       */
+      let reachFallback: (SeatCandidate & { readonly yM: number }) | null = null
+      /** As fileiras em que apareceu lugar recusado só pela mão — a gêmea procura nelas primeiro. */
+      const reachRows: number[] = []
+      const isStandingAt = (at: { slot: Slot; topM: number; xM: number; yM: number }): boolean =>
+        isStandingUp({
+          isRestrainedUpTo: (restraintM) => support.isConfined({ ...at, topM: restraintM }),
+          securesCargo: input.securesCargo === true,
+          slot,
+          topM: at.topM,
+        })
+      /**
+       * ⚠️ **As condições baratas vêm antes da esbeltez**, que varre os quatro lados da pegada: a sombra e
+       * o alcance são uma leitura cada. O conjunto aceito é o mesmo — só a ordem mudou.
+       */
       const acceptSeat =
         (yM: number) =>
-        ({ topM, xM }: { readonly topM: number; readonly xM: number }): boolean =>
-          xM + slot.depthM <= slice.lengthM + 1e-9 &&
-          /**
-           * ⚠️ **A esbeltez é conferida na altura do assento, não no contador de camadas.** O
-           * contador é do cursor e zera quando a fronteira avança; o mapa de apoio, não — ele
-           * continua empilhando sobre o que já está lá. Medido: com a trava só no contador a carga
-           * voltou a subir 1,20 m numa pilha que a regra limitava a 0,60 m.
-           *
-           * ⚠️ **A esbeltez só rege a coluna livre.** Cercada de carga e parede, a pilha não tem para
-           * onde girar — e recusar altura ali empurraria a carga para o fundo do baú sem ganhar
-           * segurança nenhuma.
-           */
-          isStandingUp({
-            isRestrainedUpTo: (restraintM) =>
-              support.isConfined({ slot, topM: restraintM, xM, yM }),
-            securesCargo: input.securesCargo === true,
-            slot,
-            topM,
-          }) &&
+        ({ topM, xM }: { readonly topM: number; readonly xM: number }): boolean => {
+          const at = { slot, topM, xM, yM }
+          if (xM + slot.depthM > slice.lengthM + 1e-9) return false
+          if (input.deliveryOrder !== true) {
+            /**
+             * ⚠️ **A esbeltez é conferida na altura do assento, não no contador de camadas.** O
+             * contador é do cursor e zera quando a fronteira avança; o mapa de apoio, não — ele
+             * continua empilhando sobre o que já está lá. Medido: com a trava só no contador a carga
+             * voltou a subir 1,20 m numa pilha que a regra limitava a 0,60 m.
+             *
+             * ⚠️ **A esbeltez só rege a coluna livre.** Cercada de carga e parede, a pilha não tem
+             * para onde girar — e recusar altura ali empurraria a carga para o fundo do baú sem
+             * ganhar segurança nenhuma.
+             */
+            return isStandingAt(at)
+          }
           /**
            * ⚠️ **Spec 115: a entrega mais cedo não senta atrás de uma mais tardia mais alta que a base
            * dela.** Subir para uma fileira do fundo é legítimo — é o bloco se enchendo —, mas se entre
@@ -1029,28 +1234,128 @@ function packSlice(input: {
            * carga primeiro. Medido: 1 par em RTC-4H67 e 1 em RTD-5J78, 4 cm de sobreposição com caixas
            * de 20 e 21 cm de altura.
            */
-          (input.deliveryOrder !== true ||
-            (!support.isShadowed({ slot, topM, xM, yM }) &&
-              !support.isOutOfReach({ slot, topM, xM, yM })))
-
-      const dead = deadSpace.find({ accept: acceptSeat, frontierM: rowFrontierM, slot, support })
-      if (dead !== null) {
-        placed.push({
+          if (support.isShadowed(at)) return false
+          if (!support.isOutOfReach(at)) return isStandingAt(at)
+          if (occupancy === null) return false
+          /** Longe da mão: não é lugar recomendado, mas pode ser o do complemento (`reachFallback`). */
+          if (reachRows.at(-1) !== yM) reachRows.push(yM)
+          if (
+            reachFallback === null &&
+            occupancy.isRestable({ ...at, stopSequence: box.stopSequence }) &&
+            isStandingAt(at)
+          ) {
+            reachFallback = { topM, xM, yM }
+          }
+          return false
+        }
+      const placeAt = (
+        seat: SeatCandidate & { readonly yM: number },
+        isComplement: boolean,
+      ): PlacedBox => {
+        const entry: PlacedBox = {
           depthM: round(slot.depthM),
+          documentId: box.documentId ?? null,
+          documentNumber: box.documentNumber ?? null,
           heightM: round(slot.heightM),
           isFragile: box.isFragile === true,
           label: box.label,
           layer: cursor.layer,
-          reasons: resolveReasons(box),
+          reasons: isComplement ? [...resolveReasons(box), 'outOfReach'] : resolveReasons(box),
           source: box.source,
           stopSequence: box.stopSequence,
-          documentId: box.documentId ?? null,
-          documentNumber: box.documentNumber ?? null,
           widthM: round(slot.widthM),
-          xM: round(dead.xM),
-          yM: round(dead.yM),
-          zM: round(dead.topM),
+          xM: round(seat.xM),
+          yM: round(seat.yM),
+          zM: round(seat.topM),
+        }
+        record(entry, isComplement)
+        support.stamp({ slot, topM: seat.topM + slot.heightM, xM: seat.xM, yM: seat.yM })
+        deadSpace.noteStamp(seat.topM + slot.heightM)
+        return entry
+      }
+      const firstSeatIn = (
+        rows: readonly number[],
+        accept: (yM: number) => (candidate: SeatCandidate) => boolean,
+      ): (SeatCandidate & { readonly yM: number }) | null => {
+        for (const yM of rows) {
+          if (yM + slot.widthM > slice.widthM + 1e-9) continue
+          const found = support.seat({
+            accept: accept(yM),
+            heightM: slice.heightM,
+            slot,
+            xM: 0,
+            yM,
+          })
+          if (found !== null) return { ...found, yM }
+        }
+        return null
+      }
+
+      /**
+       * ⚠️ **Spec 120: a gêmea da caixa que foi para longe da mão não varre o baú de novo.** O mapa só
+       * mudou pela caixa que acabou de entrar: lugar recomendado novo só pode nascer em volta dela (topo
+       * dela, ou a vizinha que ela passou a escorar), e lugar fundo novo, também ali ou nas fileiras onde a
+       * varredura anterior já tinha achado um. Medido no Atego de 1417 caixas: refazer a varredura inteira
+       * a cada caixa custava 18 ms dos 50 do orçamento.
+       */
+      const pending = occupancy === null ? undefined : pendingReach.get(shapeKey)
+      if (
+        pending !== undefined &&
+        pending.at === placed.length &&
+        pending.stopSequence === box.stopSequence
+      ) {
+        const nearRows = rowsAround({ around: pending.fallback, slice, slot })
+        const nearSeat = firstSeatIn(nearRows, acceptSeat)
+        if (nearSeat !== null) {
+          placeAt(nearSeat, false)
+          continue
+        }
+        const rows = [...new Set([...pending.rows, ...nearRows])].sort(
+          (first, second) => first - second,
+        )
+        const reachSeat = firstSeatIn(rows, (yM) => ({ topM, xM }) => {
+          const at = { slot, topM, xM, yM }
+          return (
+            xM + slot.depthM <= slice.lengthM + 1e-9 &&
+            !support.isShadowed(at) &&
+            support.isOutOfReach(at) &&
+            occupancy?.isRestable({ ...at, stopSequence: box.stopSequence }) === true &&
+            isStandingAt(at)
+          )
         })
+        if (reachSeat !== null) {
+          const entry = placeAt(reachSeat, true)
+          pendingReach.set(shapeKey, {
+            at: placed.length,
+            fallback: entry,
+            rows,
+            stopSequence: box.stopSequence,
+          })
+          continue
+        }
+      }
+
+      const dead = deadSpace.find({ accept: acceptSeat, frontierM: rowFrontierM, slot, support })
+      if (dead !== null) {
+        record(
+          {
+            depthM: round(slot.depthM),
+            heightM: round(slot.heightM),
+            isFragile: box.isFragile === true,
+            label: box.label,
+            layer: cursor.layer,
+            reasons: resolveReasons(box),
+            source: box.source,
+            stopSequence: box.stopSequence,
+            documentId: box.documentId ?? null,
+            documentNumber: box.documentNumber ?? null,
+            widthM: round(slot.widthM),
+            xM: round(dead.xM),
+            yM: round(dead.yM),
+            zM: round(dead.topM),
+          },
+          false,
+        )
         support.stamp({ slot, topM: dead.topM + slot.heightM, xM: dead.xM, yM: dead.yM })
         deadSpace.noteStamp(dead.topM + slot.heightM)
         continue
@@ -1154,7 +1459,20 @@ function packSlice(input: {
 
       if (rest === null) {
         failedAt.set(shapeKey, placed.length)
+        /** Atribuído dentro do `accept`: o fluxo de controle do TypeScript não enxerga, daí o `as`. */
+        const fallback = reachFallback as (SeatCandidate & { readonly yM: number }) | null
+        if (fallback !== null) {
+          const entry = placeAt(fallback, true)
+          pendingReach.set(shapeKey, {
+            at: placed.length,
+            fallback: entry,
+            rows: [...reachRows],
+            stopSequence: box.stopSequence,
+          })
+          continue
+        }
         if (cursor.layer >= stackLimit) {
+          overflow.push({ ...box, count: 1 })
           pushUnplaced(unplaced, { count: 1, label: box.label, reason: 'bedFull' })
           continue
         }
@@ -1162,22 +1480,25 @@ function packSlice(input: {
         continue
       }
 
-      placed.push({
-        depthM: round(slot.depthM),
-        heightM: round(slot.heightM),
-        isFragile: box.isFragile === true,
-        label: box.label,
-        layer: cursor.layer,
-        reasons: resolveReasons(box),
-        source: box.source,
-        stopSequence: box.stopSequence,
-        documentId: box.documentId ?? null,
-        documentNumber: box.documentNumber ?? null,
-        widthM: round(slot.widthM),
-        xM: round(cursor.xM),
-        yM: round(cursor.yM),
-        zM: round(rest.topM),
-      })
+      record(
+        {
+          depthM: round(slot.depthM),
+          heightM: round(slot.heightM),
+          isFragile: box.isFragile === true,
+          label: box.label,
+          layer: cursor.layer,
+          reasons: resolveReasons(box),
+          source: box.source,
+          stopSequence: box.stopSequence,
+          documentId: box.documentId ?? null,
+          documentNumber: box.documentNumber ?? null,
+          widthM: round(slot.widthM),
+          xM: round(cursor.xM),
+          yM: round(cursor.yM),
+          zM: round(rest.topM),
+        },
+        false,
+      )
       support.stamp({ slot, topM: rest.topM + slot.heightM, xM: cursor.xM, yM: cursor.yM })
       deadSpace.noteStamp(rest.topM + slot.heightM)
       insertEdge(rowEnds, snapToCell(cursor.yM + slot.widthM))
@@ -1190,7 +1511,30 @@ function packSlice(input: {
     }
   }
 
-  return { boxes: placed, leftovers, unplaced }
+  return { boxes: placed, leftovers, overflow, unplaced }
+}
+
+/**
+ * As fileiras em que a caixa `slot` pode ter ganho lugar por causa de `around`: em cima dela, ou a
+ * vizinha que ela passou a escorar — até o vão que ainda segura o giro da pilha (`braceGapOf`).
+ */
+function rowsAround(input: {
+  readonly around: PlacedBox
+  readonly slice: Readonly<{ widthM: number }>
+  readonly slot: Slot
+}): readonly number[] {
+  const reachM = braceGapOf(input.slot)
+  const fromLine = Math.max(
+    0,
+    Math.floor((input.around.yM - input.slot.widthM - reachM) / HEIGHT_MAP_CELL_M),
+  )
+  const toLine = Math.min(
+    Math.ceil(input.slice.widthM / HEIGHT_MAP_CELL_M),
+    Math.ceil((input.around.yM + input.around.widthM + reachM) / HEIGHT_MAP_CELL_M),
+  )
+  return Array.from({ length: Math.max(0, toLine - fromLine + 1) }, (_, index) =>
+    round((fromLine + index) * HEIGHT_MAP_CELL_M),
+  )
 }
 
 /**
@@ -2346,6 +2690,7 @@ function gridOrDepth(
       placeGrid({
         ...context,
         boxes: measured,
+        complement: false,
         grid,
         loadingAccess: input.loadingAccess,
         securesCargo: input.securesCargo,
@@ -2357,7 +2702,15 @@ function gridOrDepth(
   }
   if (best === null) return depth
 
-  const depthPlaced = countPlaced(placeCargo({ ...context, arrangement: 'depth', boxes: measured }))
+  /**
+   * Spec 120: a comparação é entre **mapas recomendados** — o complemento não escolhe arranjo, e as
+   * caixas dele não entram na conta. A profundidade é empacotada com o complemento, e com as caixas de
+   * entrada originais, para que o desenho final reuse este pacote (`lastDepthPacking`) em vez de refazê-lo:
+   * medido no Atego de 1417 caixas, empacotar a profundidade duas vezes estourava os 50 ms.
+   */
+  const depthPlaced = countRecommended(
+    placeCargo({ ...context, arrangement: 'depth', boxes: input.boxes }),
+  )
 
   return best.placed >= depthPlaced
     ? { arrangement: 'grid', laneCount: best.laneCount, reason: input.reason }
@@ -2367,6 +2720,31 @@ function gridOrDepth(
 function countPlaced(placement: CargoPlacement | null): number {
   return (placement?.layers ?? []).reduce((total, layer) => total + layer.boxes.length, 0)
 }
+
+function countRecommended(placement: CargoPlacement | null): number {
+  return (placement?.layers ?? []).reduce(
+    (total, layer) => total + layer.boxes.filter((box) => !isComplementBox(box)).length,
+    0,
+  )
+}
+
+/**
+ * O último pacote em profundidade, pela identidade da entrada (spec 120). `resolveCargoLayout` decide o
+ * arranjo e depois desenha com as mesmas caixas: sem isto o bloco inteiro era empacotado duas vezes.
+ *
+ * ⚠️ A chave é a **identidade** do arranjo de caixas e do baú, mais os escalares: a entrada é imutável
+ * (`readonly` de ponta a ponta), e uma entrada nova é sempre outro objeto. Um item só — é a repetição
+ * dentro de uma chamada que se quer evitar, não um cache entre requisições.
+ */
+let lastDepthPacking: {
+  readonly bed: CargoBedDimensions
+  readonly boxes: readonly PlacementBox[]
+  readonly complement: boolean
+  readonly loadingAccess: LoadingAccess
+  readonly payloadRatio: string | null
+  readonly placement: CargoPlacement | null
+  readonly securesCargo: boolean
+} | null = null
 
 /**
  * **O baú é enchido como um bloco, da testeira para a porta, pela ordem de entrega** (spec 114).
@@ -2383,6 +2761,7 @@ function placeDeliveryBlock(input: {
   readonly balanced: boolean
   readonly bed: Readonly<{ heightM: number; lengthM: number; widthM: number }>
   readonly boxes: readonly PlacementBox[]
+  readonly complement: boolean
   readonly presumed: boolean
   readonly openSides?: OpenSides
   readonly securesCargo: boolean
@@ -2397,6 +2776,7 @@ function placeDeliveryBlock(input: {
     bed: rotated,
     boxes: input.boxes,
     budget: Number.POSITIVE_INFINITY,
+    complement: input.complement,
     deliveryOrder: true,
     openFace: 'lineEnd',
     ...(input.openSides === undefined ? {} : { openSides: input.openSides }),
@@ -2404,20 +2784,37 @@ function placeDeliveryBlock(input: {
     sliceLengthM: rotated.lengthM,
     stackBeforeRow: true,
   })
-  const unplaced: UnplacedBox[] = [...input.unplaced, ...packed.unplaced]
-  /** Sem fatia não há para onde dividir: o que não coube no bloco não coube no baú. */
-  for (const box of packed.leftovers) {
+  /**
+   * Spec 120: o que o mapa recomendado não colocou tenta o espaço livre, afrouxando só conveniência —
+   * ver `placeComplement`. Sem fatia não há para onde dividir: o que nem o complemento coloca não
+   * coube no baú.
+   */
+  const complement = input.complement
+    ? placeComplement({
+        bed: rotated,
+        openSides: input.openSides ?? CLOSED_SIDES,
+        overflow: packed.overflow,
+        placed: packed.boxes,
+        securesCargo: input.securesCargo,
+      })
+    : { boxes: [], rejected: packed.overflow }
+  const unplaced: UnplacedBox[] = [
+    ...input.unplaced,
+    ...packed.unplaced.filter((entry) => entry.reason !== 'bedFull'),
+  ]
+  for (const box of complement.rejected) {
     pushUnplaced(unplaced, { count: 1, label: box.label, reason: 'bedFull' })
   }
+  const drawn = [...packed.boxes, ...complement.boxes]
 
-  const blockEndM = packed.boxes.reduce((end, box) => Math.max(end, box.yM + box.widthM), 0)
+  const blockEndM = drawn.reduce((end, box) => Math.max(end, box.yM + box.widthM), 0)
   const freeM = Math.max(0, input.bed.lengthM - blockEndM)
   /**
    * ⚠️ Arredondado **uma vez**, antes de somar: arredondar `deslocamento + posição` caixa a caixa fazia
    * duas vizinhas encostadas discordarem na terceira casa e se cruzarem 1 mm.
    */
   const shiftM = round(input.balanced ? freeM / 2 : freeM)
-  const rows = packed.boxes.map((box) => ({
+  const rows = drawn.map((box) => ({
     ...box,
     depthM: box.widthM,
     reasons: input.balanced ? [...box.reasons, 'weightBalanced' as const] : box.reasons,
@@ -2427,6 +2824,345 @@ function placeDeliveryBlock(input: {
   }))
 
   return { layers: toLayers(rows), source: input.presumed ? 'estimated' : 'measured', unplaced }
+}
+
+/**
+ * **O complemento que fura a ordem** (spec 120): o último degrau. O que nem o mapa recomendado nem o
+ * lugar fundo demais para a mão (`reachFallback`, tentado na varredura) colocaram entra no espaço livre
+ * que sobrou, marcado `needsRehandling`.
+ *
+ * ⚠️ **Quem sobra no mapa recomendado sobra por conveniência, não por física.** Medido nas quatro viagens
+ * de 2026-09-10: a Daily deixava 40 caixas `bedFull` com o baú a 57%, e o Atego 227 a 58% — a décima
+ * camada fica funda demais para a mão (spec 118), e só a entrega ao alcance a enchia. "Se tem espaço,
+ * a carga entra", pediu o usuário, e o desenho diz que a caixa entrou por fora da recomendação.
+ *
+ * ⚠️ Roda **na mesma ordem do mapa recomendado** — da última entrega para a primeira —, e é isso que
+ * garante a descarga: a caixa da entrega `k` só se apoia e só se escora em caixa que ainda está no baú
+ * quando a vez dela chega (entregas `≥ k`), e nunca pousa em cima de caixa da própria entrega do mapa
+ * recomendado, que ficaria presa embaixo dela. Ninguém perde apoio por causa dela.
+ */
+function placeComplement(input: {
+  readonly bed: Readonly<{ heightM: number; lengthM: number; widthM: number }>
+  readonly openSides: OpenSides
+  readonly overflow: readonly PlacementBox[]
+  readonly placed: readonly PlacedBox[]
+  readonly securesCargo: boolean
+}): { readonly boxes: readonly PlacedBox[]; readonly rejected: readonly PlacementBox[] } {
+  if (input.overflow.length === 0) return { boxes: [], rejected: [] }
+  const { bed } = input
+  const columns = Math.max(1, Math.ceil(bed.lengthM / HEIGHT_MAP_CELL_M))
+  const lines = Math.max(1, Math.ceil(bed.widthM / HEIGHT_MAP_CELL_M))
+  const support = createSupportMap(bed, 'lineEnd', input.openSides)
+  const occupancy = createOccupancyGrid({ columns, lines })
+  const noteBoxes = new Map<string, BoxExtent[]>()
+  const noteOf = (documentId: string | null | undefined): BoxExtent[] =>
+    documentId === null || documentId === undefined ? [] : (noteBoxes.get(documentId) ?? [])
+  const addToNote = (documentId: string | null | undefined, box: BoxExtent): void => {
+    if (documentId === null || documentId === undefined) return
+    noteBoxes.set(documentId, [...noteOf(documentId), box])
+  }
+  for (const box of input.placed) {
+    occupancy.stamp({ box, isComplement: false })
+    addToNote(box.documentId, box)
+  }
+
+  const boxes: PlacedBox[] = []
+  const rejected: PlacementBox[] = []
+  const sequences = [
+    ...new Set([...input.placed, ...input.overflow].map((box) => box.stopSequence)),
+  ].sort((first, second) => second - first)
+  for (const stopSequence of sequences) {
+    const own = input.overflow.filter((box) => box.stopSequence === stopSequence)
+    /**
+     * O relevo congelado é o das entregas posteriores — as que já estão lá quando esta carrega —, e só
+     * serve para dizer se a caixa também passou da mão. Congelar custa o baú inteiro; só onde há fila.
+     */
+    if (own.length > 0) support.freezeLater()
+    for (const box of input.placed) {
+      if (box.stopSequence === stopSequence) support.stamp(toSupportStamp(box))
+    }
+    if (own.length === 0) continue
+    /** O mapa só cresce: o formato que falhou falha de novo enquanto nada entrar (a mesma memória da varredura). */
+    const failedAt = new Map<string, number>()
+
+    for (const box of own) {
+      const slot = fitSlot({ bed, box, deepAxis: 'width' })
+      const seat =
+        slot === null
+          ? null
+          : findComplementSeat({
+              bed,
+              failedAt,
+              lines,
+              note: noteOf(box.documentId),
+              noteKey: box.documentId ?? '',
+              occupancy,
+              securesCargo: input.securesCargo,
+              slot,
+              stamps: boxes.length,
+              stopSequence,
+              support,
+            })
+      if (slot === null || seat === null) {
+        rejected.push(box)
+        continue
+      }
+      const placedBox: PlacedBox = {
+        depthM: round(slot.depthM),
+        documentId: box.documentId ?? null,
+        documentNumber: box.documentNumber ?? null,
+        heightM: round(slot.heightM),
+        isFragile: box.isFragile === true,
+        label: box.label,
+        layer: Math.round(seat.topM / slot.heightM),
+        reasons: [...resolveReasons(box), ...complementReasonsOf(seat)],
+        source: box.source,
+        stopSequence: box.stopSequence,
+        widthM: round(slot.widthM),
+        xM: round(seat.xM),
+        yM: round(seat.yM),
+        zM: round(seat.topM),
+      }
+      boxes.push(placedBox)
+      support.stamp(toSupportStamp(placedBox))
+      occupancy.stamp({ box: placedBox, isComplement: true })
+      addToNote(box.documentId, placedBox)
+    }
+  }
+
+  return { boxes, rejected }
+}
+
+/** O motivo que a caixa carrega: a ordem que ela fura, e o alcance quando ela também passou dele. */
+function complementReasonsOf(seat: { readonly outOfReach: boolean }): readonly PlacementReason[] {
+  return seat.outOfReach ? ['outOfReach', 'needsRehandling'] : ['needsRehandling']
+}
+
+function toSupportStamp(box: PlacedBox): {
+  readonly slot: Slot
+  readonly topM: number
+  readonly xM: number
+  readonly yM: number
+} {
+  return {
+    slot: { depthM: box.depthM, heightM: box.heightM, widthM: box.widthM },
+    topM: box.zM + box.heightM,
+    xM: box.xM,
+    yM: box.yM,
+  }
+}
+
+type ComplementSeat = Readonly<{ outOfReach: boolean; topM: number; xM: number; yM: number }>
+
+/**
+ * O lugar do complemento que fura a ordem: primeiro encostado na própria nota, depois o mais perto da
+ * porta.
+ *
+ * ⚠️ **Só a ordem, e não o alcance, é tentada aqui.** O alcance já foi tentado na varredura, na hora
+ * certa (`reachFallback`); no fim, com as entregas anteriores no baú, ele não achou lugar nenhum nas
+ * quatro viagens medidas — e varrer o baú mais uma vez por caixa custava o orçamento da tela.
+ */
+function findComplementSeat(input: {
+  readonly bed: Readonly<{ heightM: number; lengthM: number; widthM: number }>
+  readonly failedAt: Map<string, number>
+  readonly lines: number
+  readonly note: readonly BoxExtent[]
+  readonly noteKey: string
+  readonly occupancy: OccupancyGrid
+  readonly securesCargo: boolean
+  readonly slot: Slot
+  readonly stamps: number
+  readonly stopSequence: number
+  readonly support: SupportMap
+}): ComplementSeat | null {
+  const { slot, support } = input
+  const found = scanRelaxedSeat({
+    accept:
+      (yM) =>
+      ({ topM, xM }) => {
+        const at = { slot, topM, xM, yM }
+        return (
+          input.occupancy.isRestable({ ...at, stopSequence: input.stopSequence }) &&
+          isStandingUp({
+            isRestrainedUpTo: (restraintM) => support.isConfined({ ...at, topM: restraintM }),
+            securesCargo: input.securesCargo,
+            slot,
+            topM,
+          })
+        )
+      },
+    bed: input.bed,
+    failedAt: input.failedAt,
+    lines: input.lines,
+    note: input.note,
+    noteKey: input.noteKey,
+    slot,
+    support,
+    version: input.stamps,
+  })
+
+  return found === null
+    ? null
+    : {
+        outOfReach: support.isOutOfReach({ slot, topM: found.topM, xM: found.xM, yM: found.yM }),
+        topM: found.topM,
+        xM: found.xM,
+        yM: found.yM,
+      }
+}
+
+/**
+ * A busca de lugar do complemento, fileira por fileira **da porta para a testeira**, primeiro encostada
+ * na própria nota e depois em qualquer lugar.
+ *
+ * ⚠️ Encostada na nota procura só nas fileiras onde a nota está: fora delas não há contato possível, e
+ * varrer o baú inteiro duas vezes por caixa custava o orçamento da tela.
+ */
+function scanRelaxedSeat(input: {
+  readonly accept: (yM: number) => (candidate: SeatCandidate) => boolean
+  readonly bed: Readonly<{ heightM: number; lengthM: number; widthM: number }>
+  readonly failedAt: Map<string, number>
+  readonly lines: number
+  readonly note: readonly BoxExtent[]
+  readonly noteKey: string
+  readonly slot: Slot
+  readonly support: SupportMap
+  readonly version: number
+}): (SeatCandidate & { readonly yM: number }) | null {
+  const { slot } = input
+  const shapeKey = `${String(slot.depthM)}|${String(slot.widthM)}|${String(slot.heightM)}`
+  const slotLines = toCellEnd(slot.widthM)
+  const lastLine = input.lines - slotLines
+  const noteFrom = Math.min(
+    ...input.note.map((box) => cellSpanOf(box.yM, box.widthM, input.lines)[0]),
+  )
+  const noteTo = Math.max(
+    ...input.note.map((box) => cellSpanOf(box.yM, box.widthM, input.lines)[1]),
+  )
+  const passes =
+    input.note.length > 0
+      ? ([
+          {
+            from: Math.min(lastLine, noteTo),
+            key: `${input.noteKey}`,
+            to: noteFrom - slotLines,
+            touching: true,
+          },
+          { from: lastLine, key: '', to: 0, touching: false },
+        ] as const)
+      : ([{ from: lastLine, key: '', to: 0, touching: false }] as const)
+
+  for (const pass of passes) {
+    const key = `${pass.key}|${shapeKey}`
+    if (input.failedAt.get(key) === input.version) continue
+    for (let line = pass.from; line >= Math.max(0, pass.to); line -= 1) {
+      const yM = round(line * HEIGHT_MAP_CELL_M)
+      if (yM + slot.widthM > input.bed.widthM + 1e-9) continue
+      const acceptRow = input.accept(yM)
+      const found = input.support.seat({
+        accept: (candidate) =>
+          candidate.xM + slot.depthM <= input.bed.lengthM + 1e-9 &&
+          acceptRow(candidate) &&
+          (!pass.touching ||
+            input.note.some((other) =>
+              areTouching(toExtent({ slot, topM: candidate.topM, xM: candidate.xM, yM }), other),
+            )),
+        heightM: input.bed.heightM,
+        slot,
+        xM: 0,
+        yM,
+      })
+      if (found !== null) return { ...found, yM }
+    }
+    input.failedAt.set(key, input.version)
+  }
+
+  return null
+}
+
+function toExtent(input: {
+  readonly slot: Slot
+  readonly topM: number
+  readonly xM: number
+  readonly yM: number
+}): BoxExtent {
+  return {
+    depthM: input.slot.depthM,
+    heightM: input.slot.heightM,
+    widthM: input.slot.widthM,
+    xM: input.xM,
+    yM: input.yM,
+    zM: input.topM,
+  }
+}
+
+/** O intervalo de células que a medida ocupa — o mesmo arredondamento do mapa de apoio. */
+function cellSpanOf(fromM: number, sizeM: number, limit: number): readonly [number, number] {
+  const from = Math.max(0, Math.round(fromM / HEIGHT_MAP_CELL_M))
+  return [from, Math.min(limit, Math.max(from + 1, toCellEnd(fromM + sizeM)))]
+}
+
+type OccupancyGrid = ReturnType<typeof createOccupancyGrid>
+
+/**
+ * O baú inteiro, com **todas** as entregas — é ele que diz se o lugar está livre. O mapa de apoio do
+ * complemento só enxerga as entregas que ficam no baú até a vez da caixa, e sozinho deixaria a caixa
+ * atravessar uma entrega anterior.
+ *
+ * ⚠️ A pilha é maciça: toda caixa pousa nivelada sobre a pegada inteira, então o topo de cada célula diz
+ * tudo o que há embaixo dele.
+ */
+function createOccupancyGrid(input: { readonly columns: number; readonly lines: number }): {
+  readonly isRestable: (at: {
+    readonly slot: Slot
+    readonly stopSequence: number
+    readonly topM: number
+    readonly xM: number
+    readonly yM: number
+  }) => boolean
+  readonly stamp: (entry: { readonly box: PlacedBox; readonly isComplement: boolean }) => void
+} {
+  const { columns, lines } = input
+  const topM = new Float64Array(columns * lines)
+  const ownerSequence = new Int32Array(columns * lines)
+  const ownerIsComplement = new Uint8Array(columns * lines)
+
+  return {
+    /**
+     * Livre acima do assento e pousado em quem sai **depois**: caixa do complemento da mesma entrega, ou
+     * de entrega posterior. Em cima da caixa recomendada da própria entrega ela a prenderia — a de baixo
+     * só sai depois dela, e ela é justamente a que a mão não alcança.
+     */
+    isRestable: ({ slot, stopSequence, topM: base, xM, yM }) => {
+      const [fromColumn, toColumn] = cellSpanOf(xM, slot.depthM, columns)
+      const [fromLine, toLine] = cellSpanOf(yM, slot.widthM, lines)
+      for (let column = fromColumn; column < toColumn; column += 1) {
+        for (let line = fromLine; line < toLine; line += 1) {
+          const cell = column * lines + line
+          if (Math.abs((topM[cell] ?? 0) - base) > 1e-9) return false
+          if (base <= 1e-9) continue
+          if (ownerIsComplement[cell] !== 1 && (ownerSequence[cell] ?? 0) <= stopSequence) {
+            return false
+          }
+        }
+      }
+      return true
+    },
+    stamp: ({ box, isComplement }) => {
+      const [fromColumn, toColumn] = cellSpanOf(box.xM, box.depthM, columns)
+      const [fromLine, toLine] = cellSpanOf(box.yM, box.widthM, lines)
+      const top = box.zM + box.heightM
+      for (let column = fromColumn; column < toColumn; column += 1) {
+        for (let line = fromLine; line < toLine; line += 1) {
+          const cell = column * lines + line
+          if (top <= (topM[cell] ?? 0) + 1e-9) continue
+          topM[cell] = top
+          ownerSequence[cell] = box.stopSequence
+          ownerIsComplement[cell] = isComplement ? 1 : 0
+        }
+      }
+    },
+  }
 }
 
 /**
@@ -2455,6 +3191,8 @@ function placeGrid(
   input: Readonly<{
     bed: NonNullable<Parameters<typeof resolveCargoPlacement>[0]['bed']>
     boxes: readonly PlacementBox[]
+    /** Spec 120: cada faixa tenta o complemento dentro dela — ver `placeCargo`. */
+    complement: boolean
     grid: GridLanes
     loadingAccess: LoadingAccess | undefined
     payloadRatio: string | null | undefined
@@ -2474,6 +3212,7 @@ function placeGrid(
       arrangement: 'depth',
       bed: { ...input.bed, widthM: packedWidthM.toFixed(3) },
       boxes: own,
+      complement: input.complement,
       /**
        * Só a borda que encosta na parede do baú é parede. A da última faixa, com folga até a parede, é
        * vão — e vão mais largo que o giro da pilha não segura nada.

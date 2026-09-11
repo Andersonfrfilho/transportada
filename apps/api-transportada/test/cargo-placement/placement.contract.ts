@@ -234,7 +234,12 @@ describe('caixa presumida (spec 094 P2)', () => {
  * tem como discordar dela — e discordar é o que ele faz melhor que o algoritmo, porque viu a carga.
  */
 describe('o motivo de cada posição (spec 094 P4)', () => {
-  test('o vocabulário é fechado, e cobre as seis decisões que a planta toma', () => {
+  /**
+   * ⚠️ Spec 120: o vocabulário ganhou os dois motivos do complemento — a caixa que entrou fora do mapa
+   * recomendado diz qual regra de conveniência afrouxou (a mão, ou a ordem de descarga). Continua
+   * fechado: motivo que a política não conhece não vira texto livre.
+   */
+  test('o vocabulário é fechado, e cobre as decisões que a planta toma', () => {
     expect(PLACEMENT_REASONS).toEqual([
       'lastStopFirst',
       'fragileOnTop',
@@ -244,6 +249,8 @@ describe('o motivo de cada posição (spec 094 P4)', () => {
       'axleNotChecked',
       'splitCargo',
       'weightBalanced',
+      'outOfReach',
+      'needsRehandling',
     ])
   })
 

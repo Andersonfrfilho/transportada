@@ -36,8 +36,38 @@ export type StopNote = Readonly<{
   boxes: number
   documentId: string
   documentNumber: string | null
+  /** Spec 120: quantos pedaços a nota virou no desenho. Ausente é "não foi dividida". */
+  pieces?: number
   tone: number
 }>
+
+type RawSplitNote = Readonly<{ documentId: string; pieces: number }>
+
+/**
+ * Spec 120: as notas que o desenho dividiu em mais de um pedaço, lidas de `placement.splitNotes`.
+ *
+ * ⚠️ **Leitura tolerante, nunca validação.** A API antiga não manda o campo — `undefined` é lista
+ * vazia — e um item malformado não pode derrubar a planta inteira por causa de uma nota que a ficha
+ * nem chegaria a marcar sozinha: o item ruim é só ignorado.
+ */
+export function resolveSplitPieces(splitNotes: unknown): ReadonlyMap<string, number> {
+  const pieces = new Map<string, number>()
+  if (!Array.isArray(splitNotes)) return pieces
+  for (const entry of splitNotes) {
+    const candidate = entry as Partial<RawSplitNote> | null
+    if (
+      typeof candidate === 'object' &&
+      candidate !== null &&
+      typeof candidate.documentId === 'string' &&
+      typeof candidate.pieces === 'number' &&
+      Number.isInteger(candidate.pieces) &&
+      candidate.pieces > 1
+    ) {
+      pieces.set(candidate.documentId, candidate.pieces)
+    }
+  }
+  return pieces
+}
 
 /** A cor que `color-mix(in srgb, cor N%, token)` produz — a mesma conta, canal a canal. */
 export function mixNoteTone(
@@ -110,6 +140,8 @@ export function noteToneOf(tones: NoteTones, box: NoteBox): number {
 export function buildStopNotes(
   boxes: readonly (NoteBox & Readonly<{ documentNumber?: string | null | undefined }>)[],
   tones: NoteTones = resolveNoteTones(boxes),
+  /** Spec 120: quantos pedaços cada nota dividida virou — ausente da nota é "não dividida". */
+  splitPieces: ReadonlyMap<string, number> = new Map(),
 ): ReadonlyMap<number, readonly StopNote[]> {
   const byStop = new Map<number, Map<string, { boxes: number; documentNumber: string | null }>>()
   for (const box of boxes) {
@@ -130,12 +162,16 @@ export function buildStopNotes(
     [...byStop].map(([sequence, notes]) => [
       sequence,
       [...notes]
-        .map(([documentId, note]) => ({
-          boxes: note.boxes,
-          documentId,
-          documentNumber: note.documentNumber,
-          tone: tones.get(documentId) ?? 0,
-        }))
+        .map(([documentId, note]) => {
+          const pieces = splitPieces.get(documentId)
+          return {
+            boxes: note.boxes,
+            documentId,
+            documentNumber: note.documentNumber,
+            ...(pieces === undefined ? {} : { pieces }),
+            tone: tones.get(documentId) ?? 0,
+          }
+        })
         .sort(compareNotes),
     ]),
   )

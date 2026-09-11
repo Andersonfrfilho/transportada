@@ -1,12 +1,15 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { resolveCargoComplement } from './cargoComplement.service'
 
 /** Em que eixo as paradas se dividem — cópia por valor do vocabulário da API (spec 100). */
 /** `grid` (spec 113) é lida como profundidade: dentro de cada faixa a ordem é a de sempre. */
 export type StopArrangement = 'depth' | 'grid' | 'lanes'
 
 type PrintableBox = Readonly<{
+  /** Spec 120: caixa do complemento — mesma exclusão de faixa que a dividida já tinha. */
+  complement?: 'needsRehandling' | 'outOfReach' | null
   isEstimated: boolean
   isSplit: boolean
   stopSequence: number
@@ -19,6 +22,8 @@ type PrintableBox = Readonly<{
 
 export type CargoPrintRow = Readonly<{
   boxes: number
+  /** Spec 120: quantas caixas desta parada vieram do complemento — o que "N divididas" já fazia. */
+  complement: number
   fromM: number
   presumed: number
   split: number
@@ -33,9 +38,10 @@ export type CargoPrintRow = Readonly<{
  * chega em quem empilha. E a folha sai em laser mono no galpão, então nada aqui pode depender de
  * cor — a ordem de carregamento, a faixa em metros e as contagens são o que carrega a informação.
  *
- * ⚠️ **A faixa em metros não conta a carga dividida.** Ela mora fora da própria fatia, mais funda, e
- * incluí-la fazia a folha imprimir uma faixa que começa dentro da parada seguinte — apontando o
- * lugar errado na única informação que a folha promete carregar. A sobra aparece na coluna dela.
+ * ⚠️ **A faixa em metros não conta a carga dividida, nem a caixa do complemento (spec 120).** As
+ * duas moram fora da própria fatia, mais fundas, e incluí-las fazia a folha imprimir uma faixa que
+ * começa dentro da parada seguinte — apontando o lugar errado na única informação que a folha
+ * promete carregar. As duas aparecem em coluna própria.
  *
  * ⚠️ A ordem da folha é a **ordem de carregamento**, que é o inverso da ordem de entrega: quem
  * empilha começa pela última parada, encostando na testeira. Imprimir na ordem de entrega faria a
@@ -57,11 +63,12 @@ export function buildCargoPrintSummary(
     number,
     {
       boxes: number
+      complement: number
+      excludedFromM: number
+      excludedToM: number
       fromM: number
       presumed: number
       split: number
-      splitFromM: number
-      splitToM: number
       toM: number
     }
   >()
@@ -69,30 +76,37 @@ export function buildCargoPrintSummary(
   for (const box of boxes) {
     const current = rows.get(box.stopSequence) ?? {
       boxes: 0,
+      complement: 0,
+      excludedFromM: Number.POSITIVE_INFINITY,
+      excludedToM: 0,
       fromM: Number.POSITIVE_INFINITY,
       presumed: 0,
       split: 0,
-      splitFromM: Number.POSITIVE_INFINITY,
-      splitToM: 0,
       toM: 0,
     }
+    const isComplement = (box.complement ?? null) !== null
+    /**
+     * ⚠️ **A dividida e a do complemento moram fora da própria fatia**, as duas mais fundas que o
+     * resto da parada — a fatia dela promete só o que está dentro dela.
+     */
+    const excluded = box.isSplit || isComplement
     const start = lanes ? box.yM : box.xM
     const end = lanes ? box.yM + box.widthM : box.xM + box.depthM
     rows.set(box.stopSequence, {
       boxes: current.boxes + 1,
-      fromM: box.isSplit ? current.fromM : Math.min(current.fromM, start),
+      complement: current.complement + (isComplement ? 1 : 0),
+      /**
+       * ⚠️ **A excluída também tem lugar, e é o único que resta quando não sobra nenhuma dentro da
+       * fatia.** Sem essa reserva, com **todas** as caixas da parada divididas ou no complemento o
+       * acumulador ficava no infinito com que nasceu: a folha imprimia `Infinity m a 0.00 m`. Medido
+       * na tela em 2026-09-10, parada 9 de 9, com 23 caixas e as 23 divididas.
+       */
+      excludedFromM: excluded ? Math.min(current.excludedFromM, start) : current.excludedFromM,
+      excludedToM: excluded ? Math.max(current.excludedToM, end) : current.excludedToM,
+      fromM: excluded ? current.fromM : Math.min(current.fromM, start),
       presumed: current.presumed + (box.isEstimated ? 1 : 0),
       split: current.split + (box.isSplit ? 1 : 0),
-      /**
-       * ⚠️ **A dividida também tem lugar, e é o único que resta quando não sobra inteira.** A faixa
-       * ignorava a caixa dividida de propósito — ela viaja no topo do lado de dentro e não define a
-       * faixa da parada —, e com **todas** divididas o acumulador ficava no infinito com que nasceu:
-       * a folha imprimia `Infinity m a 0.00 m`. Medido na tela em 2026-09-10, parada 9 de 9, com 23
-       * caixas e as 23 divididas.
-       */
-      splitFromM: box.isSplit ? Math.min(current.splitFromM, start) : current.splitFromM,
-      splitToM: box.isSplit ? Math.max(current.splitToM, end) : current.splitToM,
-      toM: box.isSplit ? current.toM : Math.max(current.toM, end),
+      toM: excluded ? current.toM : Math.max(current.toM, end),
     })
   }
 
@@ -100,10 +114,10 @@ export function buildCargoPrintSummary(
     [...rows.entries()]
       .map(([stopSequence, row]) => ({
         ...row,
-        ...(Number.isFinite(row.fromM) ? {} : { fromM: row.splitFromM, toM: row.splitToM }),
+        ...(Number.isFinite(row.fromM) ? {} : { fromM: row.excludedFromM, toM: row.excludedToM }),
         stopSequence,
       }))
-      /** Sem caixa nenhuma com lugar — nem inteira, nem dividida — a faixa é ausência, não zero. */
+      /** Sem caixa nenhuma com lugar — nem inteira, nem excluída — a faixa é ausência, não zero. */
       .filter((row) => Number.isFinite(row.fromM))
       /**
        * ⚠️ **A ordem inverte com o eixo.** Em profundidade a folha é a de carregamento — a última
@@ -116,8 +130,49 @@ export function buildCargoPrintSummary(
   )
 }
 
+export type CargoComplementSummary = Readonly<{
+  complement: number
+  needsRehandling: number
+  outOfReach: number
+  recommended: number
+  requested: number
+}>
+
+/**
+ * Spec 120: quantas caixas do desenho vieram do mapa recomendado e quantas vieram do complemento —
+ * mais quanto a viagem pediu ao todo, somando o que nem chegou a ser desenhado (`unplaced`).
+ *
+ * ⚠️ **`requested` soma as desenhadas com as de `unplaced`.** Sem essa soma o operador leria "23 no
+ * mapa recomendado" sem saber que a viagem pediu 40 — e as 17 que faltam ficariam escondidas atrás
+ * de uma lista separada que ele pode nem abrir.
+ */
+export function buildCargoComplementSummary(
+  boxes: readonly Readonly<{ reasons: readonly string[] }>[],
+  unplaced: readonly Readonly<{ count: number }>[] = [],
+): CargoComplementSummary {
+  let needsRehandling = 0
+  let outOfReach = 0
+  for (const box of boxes) {
+    const kind = resolveCargoComplement(box)
+    if (kind === 'needsRehandling') needsRehandling += 1
+    else if (kind === 'outOfReach') outOfReach += 1
+  }
+  const complement = needsRehandling + outOfReach
+  const unplacedCount = unplaced.reduce((total, entry) => total + entry.count, 0)
+
+  return {
+    complement,
+    needsRehandling,
+    outOfReach,
+    recommended: boxes.length - complement,
+    requested: boxes.length + unplacedCount,
+  }
+}
+
 export type CargoChipFacts = Readonly<{
   boxes: number
+  /** Spec 120: quantas caixas desta parada vieram do complemento. */
+  complement: number
   fromM: number
   loadingPosition: number
   presumed: number
@@ -148,6 +203,7 @@ export function buildCargoChipFacts(
       row.stopSequence,
       {
         boxes: row.boxes,
+        complement: row.complement,
         fromM: row.fromM,
         loadingPosition: resolveLoadingPosition({
           arrangement,

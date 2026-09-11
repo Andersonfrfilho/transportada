@@ -672,7 +672,23 @@ entregas posteriores (`isOutOfReach`), e o rendimento da orientação conta cél
 copia os dois campos, e as quatro viagens reais saem com as mesmas coordenadas com e sem nota. No
 desenho a cor segue sendo da parada e cada nota ganha um tom dela (`noteTone.service.ts`: a cor
 misturada a `--color-fog`/`--color-asphalt` por `color-mix`, escolhido pela posição do id entre os
-ids da parada). ⚠️ **Tom que ficaria mais perto de outra parada desenhada não é oferecido** — medido: a
+ids da parada).
+
+**Se tem espaço, a carga entra — e o desenho diz por onde ela entrou** (spec 120). A planta tem duas
+camadas: o **mapa recomendado**, que é a varredura de sempre com todas as regras (118 inclusive), e o
+**complemento**, que põe no espaço livre o que sobrou afrouxando só conveniência — `outOfReach` (funda
+demais para a mão) e, por último, `needsRehandling` (fura a ordem de descarga). ⚠️ **Física não
+afrouxa**: dentro do baú, sem cruzar ninguém, nada no ar, pilha de pé no carregamento **e em cada passo
+da descarga** — a caixa do complemento só pousa e só se escora em entrega que sai depois dela, e nunca
+em cima de caixa recomendada da própria entrega, que ficaria presa embaixo. Medido: Daily 441 → 481 de
+481, Atego 1190 → 1269 de 1417 (as 148 que ficam só entram derrubando a pilha: sem esbeltez seriam 1388,
+com 74 sem apoio). ⚠️ **O alcance é tentado na hora, a ordem no fim**: no fim as entregas anteriores já
+estão no baú e a caixa não pode se apoiar nelas — 78 de 227 contra as 53 que a varredura coloca no lugar
+que o empacotador pré-118 usaria. ⚠️ O mapa recomendado **não lê a nota** (a 119 D2 vale para ele);
+quem procura lugar encostado na própria nota é só o complemento, e `splitNotes` publica as notas
+divididas com quantos pedaços — pedaço é componente conexo por contato de face, com a folga de uma
+célula. ⚠️ **Qualquer ordem de deploy funciona**: os dois motivos novos entram num `reasons` que o
+frontend não valida por lista fechada, e `splitNotes` é lido como opcional. ⚠️ **Tom que ficaria mais perto de outra parada desenhada não é oferecido** — medido: a
 paleta das paradas é densa em CIELab, e mistura fixa nenhuma distingue as notas e fica longe de todas
 as paradas a partir de ~8 paradas; na viagem grande notas da mesma parada podem repetir tom, e acender
 a nota na ficha da entrega é o caminho inequívoco. A presumida deixou de ser o tom claro: é o

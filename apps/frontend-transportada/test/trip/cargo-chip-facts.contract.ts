@@ -116,6 +116,17 @@ describe('fichas de parada do plano de carga', () => {
     expect(facts.get(1)).toMatchObject({ boxes: 1, presumed: 0, split: 0 })
   })
 
+  /** Spec 120: a contagem do complemento por parada, ao lado da presumida e da dividida. */
+  it('carrega a contagem do complemento', () => {
+    const facts = buildCargoChipFacts([
+      ...boxes,
+      { ...box({ stopSequence: 3, xM: 5 }), complement: 'outOfReach' as const },
+    ])
+
+    expect(facts.get(3)).toMatchObject({ complement: 1 })
+    expect(facts.get(1)).toMatchObject({ complement: 0 })
+  })
+
   /** A ficha e a folha saem da **mesma** conta: duas contas divergiriam caladas. */
   it('nasce do mesmo resumo que a folha impressa', () => {
     const source = readFileSync(
