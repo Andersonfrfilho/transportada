@@ -1047,6 +1047,23 @@ viagens mudam de zona, 6 empatam (uma delas só RIBEIRÃO PRETO, que está na ma
 e o custo de motorista das 20 com tripulação vai de R$ 10.717,24 para R$ 6.874,24. Contrato em
 `test/trip-valuation/driver-route-vote.contract.ts`, que embaralha o catálogo em toda rotação.
 
+**Empate de rota usa o maior valor, e a matriz só vale sozinha** (spec 128, decisões do usuário).
+Rotas empatadas no número de cidades não deixam mais a parcela sem valor: `resolveTripDriverZone`
+devolve as faixas empatadas (a mais alta de cada rota) com `regionId`, a consulta as precifica na
+mesma leitura de `readRatesByRegion`, e `chooseTiedZone` (`trips/domain/trip-driver-tie.policy.ts`)
+fica com o **maior** `driver_amount` da classe — comparado em inteiro escalado, e com o maior valor
+também empatado caindo no **menor código de zona**, nunca na ordem das linhas. A parcela sai
+`measured` com o aviso `DRIVER_ROUTE_TIE_HIGHEST_RATE`, que está em `ADVISORY_GAPS` (não marca a conta
+incompleta) e vence o lembrete de ficha; o detalhe é
+`4 cidades · 1.003 (FRANCA) R$ 480,00 | 2.001 (SÃO CARLOS) R$ 747,50 · vuc`. Faixa sem preço sai
+`sem preço`; nenhuma com preço é `DRIVER_RATE_MISSING_FOR_CLASS` nomeando as zonas.
+⚠️ `DRIVER_ROUTE_AMBIGUOUS` **não é mais produzido** e fica no vocabulário e nos rótulos por causa do
+congelado. ⚠️ **A matriz só vale sozinha:** a família `HEAD_OFFICE_FAMILY` (`0`, pelo código — nunca
+pelo nome da cidade) sai da votação quando qualquer outra rota casa com cidade da viagem; era ela que
+fazia a viagem só para a cidade-sede empatar por construção (`157f1822`: 0.001 × 1.001). Medido em
+2026-09-11: 5 viagens com motorista mudaram, 15 idênticas, custo de motorista das 20 de R$ 6.874,24
+para R$ 10.573,13. Contrato em `test/trip-valuation/driver-route-tie.contract.ts`.
+
 **O ICMS se projeta pelo perfil de emissão até o CT-e existir** (spec 125). A parcela `icms` só
 existia com CT-e autorizado — na montagem, na prévia e na proposta ela nunca existia. Hoje
 `resolveDocumentIcms` (`trips/domain/trip-icms-projection.policy.ts`) resolve **por nota**: CT-e

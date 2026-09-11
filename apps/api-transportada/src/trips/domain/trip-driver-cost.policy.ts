@@ -3,6 +3,7 @@
  */
 import type { DriverPaymentModel } from '../../database/fleet.schema.js'
 import {
+  formatFiscalMoney,
   formatScaledDecimal,
   MONEY_SCALE,
   parseScaledDecimal,
@@ -35,9 +36,10 @@ export type TripCrewMember = {
    */
   readonly routeGap?: null | ValuationGap
   /**
-   * Spec 127: as zonas empatadas quando a causa é `DRIVER_ROUTE_AMBIGUOUS` — é o que o detalhe
-   * nomeia, para o operador decidir qual rota a viagem fez.
+   * Spec 128: no empate de rotas, quantas cidades cada rota empatada casou e as faixas empatadas com
+   * o preço de cada uma — é o que o detalhe nomeia para explicar por que aquele valor foi usado.
    */
+  readonly tiedCityCount?: number
   readonly tiedZones?: readonly ZoneLabel[]
   /**
    * Spec 110 D7: **a zona que pagou, por extenso.** O id da zona é chave de banco e não diz nada a
@@ -135,6 +137,14 @@ export function buildTripDriverCost(crew: readonly TripCrewMember[]): TripCostPa
   const uncovered = paidByRoute.find(
     (member) => member.routeGap === VALUATION_GAPS.driverZonePricedFromTable,
   )
+  /**
+   * Spec 128: o aviso de empate vence o lembrete de ficha — a parcela tem uma lacuna só, e é o empate
+   * que explica **o número**; a ficha não o muda.
+   */
+  const tied = paidByRoute.find(
+    (member) => member.routeGap === VALUATION_GAPS.driverRouteTieHighestRate,
+  )
+  const advised = tied ?? uncovered
 
   return {
     amount: formatScaledDecimal(total, MONEY_SCALE),
@@ -146,9 +156,9 @@ export function buildTripDriverCost(crew: readonly TripCrewMember[]): TripCostPa
       vehicleClass: reference?.vehicleClass ?? '',
     },
     detail:
-      uncovered === undefined
+      advised === undefined
         ? null
-        : buildRateDetail({ member: uncovered, namesDriver: crew.length > 1 }),
+        : buildRateDetail({ member: advised, namesDriver: crew.length > 1 }),
     /**
      * Há salário fora da conta, e a viagem carrega isso como lacuna — não para bloquear o número,
      * mas para a tela poder dizer "e mais um motorista da casa, que é custo do período".
@@ -157,8 +167,8 @@ export function buildTripDriverCost(crew: readonly TripCrewMember[]): TripCostPa
      * lacuna.
      */
     gap:
-      uncovered !== undefined
-        ? VALUATION_GAPS.driverZonePricedFromTable
+      advised !== undefined
+        ? (advised.routeGap ?? null)
         : salaried.length > 0
           ? VALUATION_GAPS.salariedCrewMember
           : null,
@@ -210,12 +220,18 @@ function buildRateDetail(input: {
   if (member === null) return null
 
   const parts: string[] = []
-  /** Spec 127: no empate não há zona decidida — as empatadas são a informação que resolve. */
+  /**
+   * Spec 128: no empate, quantas cidades empataram e cada faixa com o preço dela. A zona escolhida
+   * está dentro da lista, então ela não se repete como linha à parte — só a coluna vem depois.
+   */
   const tiedZones = member.tiedZones ?? []
   if (tiedZones.length > 0) {
-    parts.push(tiedZones.map((zone) => `${zone.code} (${zone.city})`).join(TIED_ZONES_SEPARATOR))
+    if (member.tiedCityCount !== undefined) parts.push(formatCityCount(member.tiedCityCount))
+    parts.push(tiedZones.map(formatTiedZone).join(TIED_ZONES_SEPARATOR))
+    const tiedClass = (member.vehicleClass ?? '').trim()
+    if (tiedClass !== '') parts.push(tiedClass)
   }
-  const regionCode = (member.regionCode ?? '').trim()
+  const regionCode = tiedZones.length > 0 ? '' : (member.regionCode ?? '').trim()
   if (regionCode !== '') {
     const regionCity = (member.regionCity ?? '').trim()
     parts.push(regionCity === '' ? regionCode : `${regionCode} (${regionCity})`)
@@ -235,6 +251,27 @@ function buildRateDetail(input: {
   return parts.length === 0 ? null : parts.join(DETAIL_SEPARATOR)
 }
 
+/** `1.003 (FRANCA) R$ 570,00`, ou `sem preço` quando a célula da classe está vazia. */
+function formatTiedZone(zone: ZoneLabel): string {
+  const price =
+    zone.amount === undefined || zone.amount === null ? NO_PRICE : formatBrl(zone.amount)
+
+  return `${zone.code} (${zone.city}) ${price}`
+}
+
+/** Preço de tabela em reais: duas casas, arredondado, milhar com ponto e centavo com vírgula. */
+function formatBrl(amount: string): string {
+  const [integer = '0', cents = '00'] = formatFiscalMoney(amount).split('.')
+  const grouped = integer.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+
+  return `R$ ${grouped},${cents}`
+}
+
+function formatCityCount(count: number): string {
+  return `${count} ${count === 1 ? 'cidade' : 'cidades'}`
+}
+
+const NO_PRICE = 'sem preço'
 const ZERO = '0.0000'
 /** O mesmo separador do `ledger.driverBasis`: a tela já lê zona · classe assim na parcela medida. */
 const DETAIL_SEPARATOR = ' · '

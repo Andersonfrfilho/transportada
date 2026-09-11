@@ -121,14 +121,19 @@ describe('the route that matches more trip cities wins (spec 127)', () => {
     }
   })
 
-  /** Empate real não se escolhe calado: a lacuna nomeia as zonas empatadas, código e cidade. */
-  test('a real tie is a gap that names the tied zones', () => {
+  /**
+   * Empate real não se escolhe pela ordem: as zonas empatadas saem nomeadas, código e cidade.
+   * Reescrito pela 128 — deixou de ser lacuna sem valor; a política devolve as faixas com id e
+   * cobertura, e a consulta fica com a de maior preço (`driver-route-tie.contract.ts`).
+   */
+  test('a real tie names the tied zones, in every catalog order', () => {
     for (const result of resolveInEveryOrder({ stops: [stop('FRANCA', 1)] })) {
       expect(result).toEqual({
-        gap: VALUATION_GAPS.driverRouteAmbiguous,
+        cityCount: 1,
+        gap: VALUATION_GAPS.driverRouteTieHighestRate,
         tiedZones: [
-          { city: 'FRANCA', code: '1.003' },
-          { city: 'FRANCA', code: '7.001' },
+          { city: 'FRANCA', code: '1.003', isCoveredByDriver: false, regionId: 'r-1003' },
+          { city: 'FRANCA', code: '7.001', isCoveredByDriver: false, regionId: 'r-7001' },
         ],
       })
     }
@@ -143,10 +148,11 @@ describe('the route that matches more trip cities wins (spec 127)', () => {
         stops: [stop('SERTÃOZINHO', 1), stop('ITUVERAVA', 2)],
       }),
     ).toEqual({
-      gap: VALUATION_GAPS.driverRouteAmbiguous,
+      cityCount: 1,
+      gap: VALUATION_GAPS.driverRouteTieHighestRate,
       tiedZones: [
-        { city: 'SERTÃOZINHO', code: '1.001' },
-        { city: 'ITUVERAVA', code: '7.002' },
+        { city: 'SERTÃOZINHO', code: '1.001', isCoveredByDriver: false, regionId: 'r-1001' },
+        { city: 'ITUVERAVA', code: '7.002', isCoveredByDriver: false, regionId: 'r-7002' },
       ],
     })
   })
@@ -208,24 +214,32 @@ describe('the driver parcel under the vote (spec 127)', () => {
     expect(covered.gap).toBeNull()
   })
 
-  test('a tie leaves the parcel without value, naming the tied zones', () => {
+  /**
+   * Reescrito pela 128: o empate só deixa a parcela sem valor quando **nenhuma** faixa empatada tem
+   * preço — e aí a lacuna é a da célula vazia (123), nomeando as zonas. Com preço, ela sai com o
+   * maior valor e o aviso (`driver-route-tie.contract.ts`).
+   */
+  test('a tie without any priced band leaves the parcel without value, naming the tied zones', () => {
     const parcel = buildTripDriverCost([
       member({
         regionCity: null,
         regionCode: null,
         routeAmount: null,
-        routeGap: VALUATION_GAPS.driverRouteAmbiguous,
+        routeGap: VALUATION_GAPS.driverRateMissingForClass,
+        tiedCityCount: 1,
         tiedZones: [
-          { city: 'FRANCA', code: '1.003' },
-          { city: 'FRANCA', code: '7.001' },
+          { amount: null, city: 'FRANCA', code: '1.003' },
+          { amount: null, city: 'FRANCA', code: '7.001' },
         ],
       }),
     ])
 
     expect(parcel.source).toBe('missing')
     expect(parcel.amount).toBe('0.0000')
-    expect(parcel.gap).toBe(VALUATION_GAPS.driverRouteAmbiguous)
-    expect(parcel.detail).toBe('1.003 (FRANCA) | 7.001 (FRANCA)')
+    expect(parcel.gap).toBe(VALUATION_GAPS.driverRateMissingForClass)
+    expect(parcel.detail).toBe(
+      '1 cidade · 1.003 (FRANCA) sem preço | 7.001 (FRANCA) sem preço · toco',
+    )
   })
 })
 

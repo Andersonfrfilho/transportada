@@ -4,6 +4,7 @@
 import {
   coversRegion,
   foldRegionCity,
+  HEAD_OFFICE_FAMILY,
   parseRegionCode,
 } from '../../freight-regions/domain/region-coverage.policy.js'
 import { VALUATION_GAPS, type ValuationGap } from './trip-valuation.policy.js'
@@ -32,14 +33,36 @@ export type DriverZoneCoverage = {
   readonly state: string
 }
 
-/** Spec 127: uma zona nomeada como a 123 nomeia — código impresso e a cidade que a alcançou. */
-export type ZoneLabel = { readonly city: string; readonly code: string }
+/**
+ * Spec 127: uma zona nomeada como a 123 nomeia — código impresso e a cidade que a alcançou. Spec
+ * 128: no empate ela leva o preço da tabela para a classe, e `null` é faixa sem preço.
+ */
+export type ZoneLabel = {
+  readonly amount?: null | string
+  readonly city: string
+  readonly code: string
+}
+
+/** Spec 128: a faixa mais alta de uma rota empatada — o id é o que a consulta de preço precisa. */
+export type TiedZone = {
+  readonly city: string
+  readonly code: string
+  readonly isCoveredByDriver: boolean
+  readonly regionId: string
+}
 
 export type TripDriverZone =
   | { readonly cityToRegister: string; readonly gap: ValuationGap }
   | { readonly gap: ValuationGap }
-  /** Spec 127: duas ou mais rotas empataram na contagem — o operador decide, o cálculo não. */
-  | { readonly gap: ValuationGap; readonly tiedZones: readonly ZoneLabel[] }
+  /**
+   * Spec 128: duas ou mais rotas empataram em `cityCount` cidades. A política não conhece preço — a
+   * consulta precifica `tiedZones` e `chooseTiedZone` fica com o maior valor.
+   */
+  | {
+      readonly cityCount: number
+      readonly gap: ValuationGap
+      readonly tiedZones: readonly TiedZone[]
+    }
   /**
    * Spec 110 D7: o **código** da zona e a **cidade que a decidiu** viajam junto do id — o id é chave
    * de banco e não diz nada a ninguém.
@@ -74,12 +97,18 @@ export type ResolveTripDriverZoneParams = {
  *
  * - `{ regionId, isCoveredByDriver }` — a zona decidida;
  * - `{ gap: CITY_WITHOUT_REGION, cityToRegister }` — nenhuma parada está na tabela;
- * - `{ gap: DRIVER_ROUTE_AMBIGUOUS, tiedZones }` — empate real, com as zonas nomeadas;
+ * - `{ gap: DRIVER_ROUTE_TIE_HIGHEST_RATE, cityCount, tiedZones }` — empate real (spec 128: a
+ *   consulta precifica as faixas empatadas e usa a de maior valor);
  * - `{ gap: NO_DRIVER_RATE }` — nenhuma parada tem cidade, e não há nada a nomear.
+ *
+ * Spec 128 D2 — **a matriz só vale sozinha.** A família da matriz (`HEAD_OFFICE_FAMILY`, pelo
+ * código, nunca pelo nome da cidade — ADR-0021) só é escolhida quando nenhuma outra rota casa com
+ * cidade da viagem. Com ela votando, a viagem só para a cidade-sede empatava por construção (a sede
+ * também está na primeira faixa de uma rota).
  */
 export function resolveTripDriverZone(input: ResolveTripDriverZoneParams): TripDriverZone {
   const catalog = groupCatalogByCity(input.catalog)
-  const votes = collectRouteVotes({ catalog, stops: input.stops })
+  const votes = withoutHeadOfficeWhenRoutesMatch(collectRouteVotes({ catalog, stops: input.stops }))
 
   if (votes.size === 0) {
     const unmatched = lastUnmatchedCity(input.stops)
@@ -93,11 +122,17 @@ export function resolveTripDriverZone(input: ResolveTripDriverZoneParams): TripD
   const winners = [...votes.values()].filter((vote) => vote.cities.size === topCount)
   if (winners.length > 1) {
     return {
-      gap: VALUATION_GAPS.driverRouteAmbiguous,
+      cityCount: topCount,
+      gap: VALUATION_GAPS.driverRouteTieHighestRate,
       tiedZones: winners
         .map(highestBand)
         .sort(byZoneCode)
-        .map((band) => ({ city: band.entry.city, code: band.entry.code })),
+        .map((band) => ({
+          city: band.entry.city,
+          code: band.entry.code,
+          isCoveredByDriver: isCovered({ coverage: input.coverage, destination: band.entry }),
+          regionId: band.entry.regionId,
+        })),
     }
   }
 
@@ -153,6 +188,16 @@ function collectRouteVotes(input: {
   }
 
   return votes
+}
+
+/** Spec 128 D2: a matriz não disputa voto com rota nenhuma — ela só existe sozinha. */
+function withoutHeadOfficeWhenRoutesMatch(
+  votes: ReadonlyMap<string, RouteVote>,
+): ReadonlyMap<string, RouteVote> {
+  const routes = [...votes.values()].filter((vote) => vote.family !== HEAD_OFFICE_FAMILY)
+  if (routes.length === 0) return votes
+
+  return new Map(routes.map((vote) => [vote.family, vote]))
 }
 
 /**

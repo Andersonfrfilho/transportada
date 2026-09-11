@@ -5,6 +5,7 @@
     "DRIVER_ZONE_NOT_COVERED": "motorista não cobre a zona do destino — ajuste a ficha dele",
     "DRIVER_ZONE_PRICED_FROM_TABLE": "preço da tabela: o motorista não tem esta zona — adicione-a na ficha dele",
     "DRIVER_ROUTE_AMBIGUOUS": "rotas empatadas: as cidades da viagem casam igualmente com mais de uma rota da tabela — escolha qual vale",
+    "DRIVER_ROUTE_TIE_HIGHEST_RATE": "rotas empatadas no número de cidades da viagem — usado o maior valor entre as faixas que couberam",
     "ICMS_CST_UNSUPPORTED": "o perfil de emissão usa CST 60, que o produto não emite",
     "NO_EMISSION_PROFILE": "nenhum perfil de emissão rege a nota (nenhum casa, ou dois empatam) — confira os perfis de CT-e",
     "FEATURE_ABSENT": "módulo ainda não usado",

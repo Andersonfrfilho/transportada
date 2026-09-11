@@ -71,7 +71,11 @@ function valuation(): TripValuation {
 
 describe('valuation ledger advisory (spec 124)', () => {
   test('the advisory list is a copy by value of the API one', () => {
-    expect(apiAdvisoryGaps()).toEqual(['DRIVER_ZONE_PRICED_FROM_TABLE'])
+    /** Spec 128: o empate de rotas com o maior valor também é aviso — o número está completo. */
+    expect(apiAdvisoryGaps()).toEqual([
+      'DRIVER_ZONE_PRICED_FROM_TABLE',
+      'DRIVER_ROUTE_TIE_HIGHEST_RATE',
+    ])
     expect([...ADVISORY_GAPS]).toEqual([...apiAdvisoryGaps()])
   })
 

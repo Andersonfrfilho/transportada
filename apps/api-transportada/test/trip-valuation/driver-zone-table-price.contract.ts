@@ -156,9 +156,15 @@ describe('uncovered zone priced from the table (spec 124, semantics of 127)', ()
     expect(valuation.totalCost).toBe('450.0000')
   })
 
-  /** `TOLL_PARTIAL` subestima de verdade — ele não é aviso, e continua marcando a conta. */
-  test('only the table-priced zone is advisory', () => {
-    expect(ADVISORY_GAPS).toEqual([VALUATION_GAPS.driverZonePricedFromTable])
+  /**
+   * `TOLL_PARTIAL` subestima de verdade — ele não é aviso, e continua marcando a conta. Reescrito
+   * pela 128: o empate de rotas com o maior valor também é aviso (o número é o da tabela, completo).
+   */
+  test('only the table-priced zone and the priced route tie are advisory', () => {
+    expect(ADVISORY_GAPS).toEqual([
+      VALUATION_GAPS.driverZonePricedFromTable,
+      VALUATION_GAPS.driverRouteTieHighestRate,
+    ])
   })
 
   /** A consulta acende o lembrete pela cobertura, e só por ela — sem trocar a origem do valor. */

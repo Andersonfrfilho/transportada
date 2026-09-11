@@ -110,11 +110,18 @@ export const VALUATION_GAPS = {
    */
   driverZonePricedFromTable: 'DRIVER_ZONE_PRICED_FROM_TABLE',
   /**
-   * Spec 127: duas ou mais rotas casam com o mesmo número máximo de cidades da viagem. O cálculo não
-   * escolhe calado — seria o defeito de ordem da 086 com outra roupa. `detail` nomeia as zonas
-   * empatadas (`1.003 (FRANCA) | 7.001 (FRANCA)`), para o operador decidir.
+   * Spec 127: duas ou mais rotas empataram e a parcela ficava sem valor. **Não é mais produzido**
+   * desde a 128 — fica no vocabulário porque resultado congelado ainda o carrega, e sem ele (e sem o
+   * rótulo) a tela imprimiria a chave crua.
    */
   driverRouteAmbiguous: 'DRIVER_ROUTE_AMBIGUOUS',
+  /**
+   * Spec 128: rotas empatadas no número de cidades, e a parcela usou **o maior preço** entre as
+   * faixas empatadas para a classe do veículo (decisão do usuário). É aviso: o valor é da tabela,
+   * `measured`, e conta no total. `detail` diz quantas cidades empataram e cada faixa com o preço
+   * dela — `3 cidades · 1.003 (FRANCA) R$ 570,00 | 2.001 (SÃO CARLOS) R$ 480,00 · toco`.
+   */
+  driverRouteTieHighestRate: 'DRIVER_ROUTE_TIE_HIGHEST_RATE',
   /**
    * Spec 125: nenhum perfil de emissão rege a nota — nenhum casa, dois empatam, ou falta CNPJ a um
    * participante. É o `null` de `findEmissionProfile`, e nos três o conserto é a aba de perfis de
@@ -138,7 +145,10 @@ export type ValuationGap = (typeof VALUATION_GAPS)[keyof typeof VALUATION_GAPS]
  * ⚠️ `TOLL_PARTIAL` **não** entra aqui, embora também tenha valor: lá o total subestima (praça sem
  * tarifa fica de fora), e isso é incompleto de verdade.
  */
-export const ADVISORY_GAPS: readonly ValuationGap[] = [VALUATION_GAPS.driverZonePricedFromTable]
+export const ADVISORY_GAPS: readonly ValuationGap[] = [
+  VALUATION_GAPS.driverZonePricedFromTable,
+  VALUATION_GAPS.driverRouteTieHighestRate,
+]
 
 export function isAdvisoryGap(gap: null | ValuationGap): boolean {
   return gap !== null && ADVISORY_GAPS.includes(gap)

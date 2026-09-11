@@ -35,8 +35,10 @@ import {
   resolveTripDriverZone,
   type DriverZoneCoverage,
   type RegionCityEntry,
+  type TiedZone,
   type TripZoneStop,
 } from '../domain/trip-driver-zone.policy.js'
+import { chooseTiedZone } from '../domain/trip-driver-tie.policy.js'
 import { listStopAddresses } from './nfe-destination-address.support.js'
 import type { CompanyFederalRates } from '../domain/trip-tax.policy.js'
 import { resolvePreviewStopKeys } from '../domain/cargo-preview.policy.js'
@@ -441,10 +443,25 @@ export class DrizzleTripValuationQuery {
     const rates = await this.readRatesByRegion({
       companyId: input.companyId,
       freightClass: input.freightClass,
-      regionIds: zones.flatMap((entry) => ('regionId' in entry.zone ? [entry.zone.regionId] : [])),
+      /** Spec 128: no empate, toda faixa empatada é precificada — o maior valor decide. */
+      regionIds: zones.flatMap((entry) =>
+        'regionId' in entry.zone
+          ? [entry.zone.regionId]
+          : 'tiedZones' in entry.zone
+            ? entry.zone.tiedZones.map((tied) => tied.regionId)
+            : [],
+      ),
     })
 
     return zones.map(({ driver, zone }) => {
+      if ('tiedZones' in zone) {
+        return this.priceTiedCrewMember({
+          driver,
+          freightClass: input.freightClass,
+          rates,
+          zone,
+        })
+      }
       if (!('regionId' in zone)) {
         return {
           cityToRegister: 'cityToRegister' in zone ? zone.cityToRegister : null,
@@ -455,8 +472,6 @@ export class DrizzleTripValuationQuery {
           regionCode: null,
           routeAmount: null,
           routeGap: zone.gap,
-          /** Spec 127: no empate, as zonas empatadas são o que o operador precisa ler. */
-          tiedZones: 'tiedZones' in zone ? zone.tiedZones : [],
           vehicleClass: input.freightClass,
         }
       }
@@ -489,6 +504,45 @@ export class DrizzleTripValuationQuery {
         vehicleClass: input.freightClass,
       }
     })
+  }
+
+  /**
+   * Spec 128 D1: rotas empatadas → **o maior preço** entre as faixas empatadas, com aviso que nomeia
+   * cada faixa e o preço dela. Nenhuma com preço é a lacuna da 123 (célula vazia), nomeando as
+   * zonas; veículo sem coluna na planilha continua `NO_DRIVER_RATE`.
+   */
+  private priceTiedCrewMember(input: {
+    readonly driver: {
+      readonly driverId: string
+      readonly driverName: null | string
+      readonly paymentModel: DriverPaymentModel
+    }
+    readonly freightClass: '' | FreightVehicleClass
+    readonly rates: ReadonlyMap<string, string>
+    readonly zone: { readonly cityCount: number; readonly tiedZones: readonly TiedZone[] }
+  }): TripCrewMember {
+    const { chosen, zones } = chooseTiedZone({
+      rates: input.rates,
+      tiedZones: input.zone.tiedZones,
+    })
+    const missingGap =
+      input.freightClass === ''
+        ? VALUATION_GAPS.noDriverRate
+        : VALUATION_GAPS.driverRateMissingForClass
+
+    return {
+      cityToRegister: null,
+      driverId: input.driver.driverId,
+      driverName: input.driver.driverName,
+      paymentModel: input.driver.paymentModel,
+      regionCity: chosen?.city ?? null,
+      regionCode: chosen?.code ?? null,
+      routeAmount: chosen?.amount ?? null,
+      routeGap: chosen === null ? missingGap : VALUATION_GAPS.driverRouteTieHighestRate,
+      tiedCityCount: input.zone.cityCount,
+      tiedZones: zones.map((zone) => ({ amount: zone.amount, city: zone.city, code: zone.code })),
+      vehicleClass: input.freightClass,
+    }
   }
 
   /** Espelha `readCrew`, mas parte dos ids do formulário — a viagem ainda não tem `trip_drivers`. */

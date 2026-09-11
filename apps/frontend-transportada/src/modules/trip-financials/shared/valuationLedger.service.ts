@@ -40,7 +40,10 @@ export const STRUCK_THROUGH_GAPS: readonly string[] = ['FEATURE_ABSENT']
  * fonte por `test/trip-financials/valuation-ledger-advisory.contract.ts`. A linha tem valor que conta
  * no total; esconder o número seria a tela somar o que não imprime.
  */
-export const ADVISORY_GAPS: readonly string[] = ['DRIVER_ZONE_PRICED_FROM_TABLE']
+export const ADVISORY_GAPS: readonly string[] = [
+  'DRIVER_ZONE_PRICED_FROM_TABLE',
+  'DRIVER_ROUTE_TIE_HIGHEST_RATE',
+]
 
 export type ValuationLedgerLine = Readonly<{
   /**

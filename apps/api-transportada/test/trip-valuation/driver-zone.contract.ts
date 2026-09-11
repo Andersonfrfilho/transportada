@@ -187,11 +187,11 @@ describe('trip driver zone policy', () => {
   })
 
   /**
-   * Reescrito pela 127 (era `NO_DRIVER_RATE` seco). Famílias diferentes com o mesmo número de
-   * cidades continuam não se desempatando sozinhas, mas agora a lacuna **nomeia** as zonas
-   * empatadas — "sem valor" não dizia ao operador entre quais rotas ele tinha de escolher.
+   * Reescrito pela 127 (era `NO_DRIVER_RATE` seco) e de novo pela 128: o empate continua nomeando as
+   * zonas, mas deixou de ser lacuna — a política devolve as faixas empatadas com o id e a cobertura
+   * de cada uma, para a consulta precificá-las e ficar com o maior valor (decisão do usuário).
    */
-  test('two families with the same count is a named tie, never a number', () => {
+  test('two families with the same count is a named tie, priced by the query', () => {
     expect(
       resolveTripDriverZone({
         catalog: CATALOG,
@@ -202,10 +202,11 @@ describe('trip driver zone policy', () => {
         stops: [stop('COLINA'), stop('SÃO CARLOS')],
       }),
     ).toEqual({
-      gap: 'DRIVER_ROUTE_AMBIGUOUS',
+      cityCount: 1,
+      gap: 'DRIVER_ROUTE_TIE_HIGHEST_RATE',
       tiedZones: [
-        { city: 'COLINA', code: '1.003' },
-        { city: 'SÃO CARLOS', code: '2.000' },
+        { city: 'COLINA', code: '1.003', isCoveredByDriver: true, regionId: 'r-1003' },
+        { city: 'SÃO CARLOS', code: '2.000', isCoveredByDriver: true, regionId: 'r-2000' },
       ],
     })
   })

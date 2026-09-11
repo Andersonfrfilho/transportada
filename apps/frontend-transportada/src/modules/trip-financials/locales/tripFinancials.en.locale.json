@@ -5,6 +5,7 @@
     "DRIVER_ZONE_NOT_COVERED": "the driver does not cover the destination zone — fix it on the driver record",
     "DRIVER_ZONE_PRICED_FROM_TABLE": "table price: the driver does not have this zone — add it to the driver record",
     "DRIVER_ROUTE_AMBIGUOUS": "tied routes: the trip cities match more than one route of the table equally — choose which one applies",
+    "DRIVER_ROUTE_TIE_HIGHEST_RATE": "routes tied on the number of trip cities — the highest price among the matching bands was used",
     "ICMS_CST_UNSUPPORTED": "the emission profile uses CST 60, which the product does not issue",
     "NO_EMISSION_PROFILE": "no emission profile governs the invoice (none matches, or two tie) — check the CT-e profiles",
     "FEATURE_ABSENT": "module not in use yet",
