@@ -11,6 +11,7 @@ import {
   SSE_CONTENT_TYPE,
 } from '../shared/api.constant'
 import { ApiError } from '../shared/api.error'
+import { runInRequestScope } from '../shared/request-scope.service'
 import type { ApiLogger, RequestTimeoutPort } from '../shared/api.types'
 import { applyCorsHeaders, handleCorsPreflight } from './cors.service'
 import type { HttpRouter } from './router.service'
@@ -130,12 +131,14 @@ async function executeRequest({
       request,
       resolveAllowedMethods: () => dependencies.router.allowedMethods(metadata.pathname),
     }) ??
-    (await dependencies.router.handle({
-      correlationId,
-      method: metadata.method,
-      pathname: metadata.pathname,
-      request,
-    }))
+    (await runInRequestScope({ signal: request.signal }, () =>
+      dependencies.router.handle({
+        correlationId,
+        method: metadata.method,
+        pathname: metadata.pathname,
+        request,
+      }),
+    ))
   assertRequestActive(request.signal)
   // `server.timeout()` vale por requisição e vence o `idleTimeout` do `Bun.serve`: sem soltar a
   // rédea aqui, o stream morreria nos mesmos 10 segundos da requisição comum.

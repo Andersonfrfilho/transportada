@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
+import { createDatabaseProvider } from './database/database-client.service.js'
 import { createLogger } from '@adatechnology/logger'
 import { createRabbitMqProvider } from '@adatechnology/rabbitmq-provider'
 import { createSecretEnvelopeProvider } from '@adatechnology/secret-envelope'
@@ -510,7 +510,7 @@ export function bootstrap(): Bun.Server<undefined> {
     },
   })
   const identityGateway = createKeycloakAccessTokenVerifier(config.keycloak)
-  const database = createDrizzleProvider({ connection: config.databaseUrl })
+  const database = createDatabaseProvider({ pool: config.databasePool, url: config.databaseUrl })
   const authentication = new AuthenticationService({
     repository: new DrizzleExternalIdentityRepository(database.db),
     verifier: identityGateway,

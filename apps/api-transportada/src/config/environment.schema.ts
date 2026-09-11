@@ -3,6 +3,8 @@
  */
 import { z } from 'zod'
 
+import { DATABASE_POOL_DEFAULTS } from '../database/database-pool.constant'
+import { REQUEST_TIMEOUT_SECONDS } from '../shared/api.constant'
 import type { ApiEnvironment } from '../shared/api.types'
 import { parseCryptographicConfiguration } from './cryptographic-configuration.schema'
 
@@ -51,6 +53,24 @@ const environmentSchema = z.object({
         message: 'DATABASE_URL must use PostgreSQL',
       },
     ),
+  /**
+   * Spec 137: o pool e os tempos do banco são explícitos. Sem eles o Bun SQL espera conexão para
+   * sempre (`idleTimeout: 0`), e o pedido morria nos 10 s do `server.timeout` sem resposta nem log.
+   */
+  DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(100).default(DATABASE_POOL_DEFAULTS.max),
+  DATABASE_CONNECT_TIMEOUT_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(30)
+    .default(DATABASE_POOL_DEFAULTS.connectTimeoutSeconds),
+  // Abaixo dos 10 s da requisição: acima dele o socket fecha antes de o 503 ter chance de sair.
+  DATABASE_QUERY_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(100)
+    .max(REQUEST_TIMEOUT_SECONDS * 1000 - 1000)
+    .default(DATABASE_POOL_DEFAULTS.queryTimeoutMs),
   // Lista separada por vírgula: painel e landing são origens diferentes e as duas precisam de CORS.
   // Cada uma valida sozinha — uma origem torta na lista não pode abrir a porta pras outras.
   FRONTEND_ORIGIN: z
@@ -254,6 +274,11 @@ export function parseEnvironment(environment: Record<string, string | undefined>
     companyId: parsed.PROVISION_COMPANY_ID,
     cryptography,
     databaseUrl: parsed.DATABASE_URL,
+    databasePool: {
+      connectTimeoutSeconds: parsed.DATABASE_CONNECT_TIMEOUT_SECONDS,
+      max: parsed.DATABASE_POOL_MAX,
+      queryTimeoutMs: parsed.DATABASE_QUERY_TIMEOUT_MS,
+    },
     emailDelivery:
       parsed.EMAIL_FROM === undefined || parsed.SMTP_URL === undefined
         ? undefined

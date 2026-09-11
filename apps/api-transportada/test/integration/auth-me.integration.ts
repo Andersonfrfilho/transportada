@@ -87,6 +87,7 @@ describe('GET /auth/me PostgreSQL isolation', () => {
             companyId: undefined,
             cryptography: CRYPTOGRAPHIC_CONFIGURATION,
             databaseUrl: disposableUrl.toString(),
+            databasePool: { connectTimeoutSeconds: 5, max: 10, queryTimeoutMs: 8000 },
             emailDelivery: undefined,
             frontendOrigins: ['http://localhost:53000'],
             keycloak: {

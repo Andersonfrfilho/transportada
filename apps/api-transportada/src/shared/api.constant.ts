@@ -199,4 +199,10 @@ export const HTTP_ERROR = {
     message: 'Too many requests',
     status: 429,
   },
+  /** Spec 137: o banco não entregou conexão nem consulta no prazo. */
+  databaseUnavailable: {
+    code: 'DATABASE_UNAVAILABLE',
+    message: 'Database unavailable',
+    status: 503,
+  },
 } as const

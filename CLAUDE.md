@@ -1318,6 +1318,26 @@ gravaria uma extração de campos todos nulos como se fosse leitura feita.
 versionadas em `drizzle/`. `bun run db:generate --name x` · `db:check` · `db:migrate` · `db:seed:local`.
 O startup **não** roda migrations; rollback é manual, ao lado da migration.
 
+**O banco falha rápido, e diz por quê** (spec 137). A API não usa mais `createDrizzleProvider`
+direto: `src/database/database-client.service.ts` monta o Bun SQL com pool e prazos explícitos
+(`DATABASE_POOL_MAX` 10, `DATABASE_CONNECT_TIMEOUT_SECONDS` 5, `DATABASE_QUERY_TIMEOUT_MS` 8000 —
+abaixo dos 10 s de `REQUEST_TIMEOUT_SECONDS`) e entrega ao drizzle um cliente guardado: consulta que
+passa do prazo (a espera por conexão conta dentro dele) vira **503 `DATABASE_UNAVAILABLE`** com log
+`database_unavailable` e `reason`, e o mesmo prazo vai ao servidor como `statement_timeout`. Antes, o
+Bun esperava conexão para sempre e o pedido morria nos 10 s do `server.timeout` **sem resposta e sem
+log** — foi o incidente de 11/09/2026. `/health/ready` dá 2 s a cada dependência e responde 503.
+
+⚠️ **`prepare: false` é a correção da causa, não enfeite.** Com as instruções preparadas do Bun SQL
+1.3.14, 35 `loadTripOccupancy` concorrentes deixavam consultas sem resolver para sempre (3 de 3), com
+o Postgres vendo as conexões ociosas; sem elas, 15 de 15 terminaram até 150 concorrentes. Religar
+exige medir de novo numa versão nova do Bun. ⚠️ **O `idleTimeout` do Bun não é prazo de espera por
+conexão**, embora a documentação diga que é: medido, ele recusou uma consulta que já rodava. ⚠️ O
+`cancel()` do Bun só tira da fila o que ainda não saiu; consulta em execução só para no
+`statement_timeout`. O pedido abortado solta quem espera na hora (`AsyncLocalStorage` em
+`shared/request-scope.service.ts`, aberto pelo `request-handler`), e **consulta disparada fora desse
+escopo não é cancelada pelo aborto**. Contratos em `test/database-availability.contract.test.ts` e
+`test/integration/database-availability.integration.ts`.
+
 ## worker-transportada
 
 RabbitMQ via `@adatechnology/rabbitmq-provider` — **sem BullMQ/Redis**. Topologias em

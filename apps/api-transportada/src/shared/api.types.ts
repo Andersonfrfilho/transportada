@@ -7,6 +7,16 @@ import type { CryptographicConfiguration } from '../config/cryptographic-configu
 import type { CompanyRole, FiscalEnvironment } from '../database/database.schema'
 import type { CompanyPermission } from '../identity/domain/authorization.policy'
 
+export type DatabasePoolConfiguration = {
+  readonly connectTimeoutSeconds: number
+  readonly max: number
+  /**
+   * Prazo da consulta **incluindo a espera por conexão livre**: prazo do lado do cliente, que
+   * cancela a consulta ainda na fila, e `statement_timeout` no servidor para a que já roda.
+   */
+  readonly queryTimeoutMs: number
+}
+
 export type ApiEnvironment = {
   readonly appEnv: string
   /** Token do primeiro acesso (ADR-0022); ausente é rota morta, nunca rota aberta. */
@@ -15,6 +25,8 @@ export type ApiEnvironment = {
   readonly companyId: string | undefined
   readonly cryptography: CryptographicConfiguration
   readonly databaseUrl: string
+  /** Spec 137: pool e tempos explícitos do Bun SQL; ver `database/database-client.service.ts`. */
+  readonly databasePool: DatabasePoolConfiguration
   /** Remetente compartilhado com o worker; ausente deixa o canal de e-mail sem driver. */
   readonly emailDelivery:
     | {
