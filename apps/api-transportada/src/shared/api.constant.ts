@@ -39,6 +39,8 @@ export const API_COMPANY_SETTINGS_FUEL_PRICES_PATH = '/company-settings/fuel-pri
 /** Spec 095: o ajuste manual da tarifa de pedágio, por praça do catálogo do OSM. */
 export const API_COMPANY_SETTINGS_TOLL_BOOTH_CHARGES_PATH = '/company-settings/toll-booth-charges'
 export const API_COMPANY_SETTINGS_ENERGY_PATH = '/company-settings/energy'
+/** Spec 126: regime federal e alíquotas de PIS/COFINS da empresa (`company_tax_settings`). */
+export const API_COMPANY_SETTINGS_FEDERAL_TAXES_PATH = '/company-settings/federal-taxes'
 export const API_DIGITAL_CERTIFICATES_PATH = '/digital-certificates'
 export const API_FREIGHT_RULES_PATH = '/freight-rules'
 export const API_FREIGHT_CALCULATIONS_PATH = '/freight-calculations'

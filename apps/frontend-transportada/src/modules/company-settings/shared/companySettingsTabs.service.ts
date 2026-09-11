@@ -17,6 +17,7 @@ export const SETTINGS_PANELS = [
   'nfseProfiles',
   'occurrenceNotifications',
   'deliveryProof',
+  'federalTaxes',
 ] as const
 
 export type SettingsPanel = (typeof SETTINGS_PANELS)[number]
@@ -38,6 +39,7 @@ export type SettingsDataSource =
   | 'companySettings'
   | 'deliveryProofSettings'
   | 'distributionCursor'
+  | 'federalTaxes'
   | 'freightRegions'
   | 'fuelPrices'
   | 'landing'
@@ -109,6 +111,11 @@ export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPa
     tab: 'imports',
   },
   settingsForm: { module: 'company-settings', source: 'companySettings', tab: 'company' },
+  /**
+   * Spec 126 — o regime federal e o PIS/COFINS moram em Configurações, numa aba própria: o dado é
+   * da empresa inteira e fica ao lado do CRT, que é de onde a sugestão sai.
+   */
+  federalTaxes: { module: 'company-settings', source: 'federalTaxes', tab: 'taxes' },
 }
 
 export function settingsPanelsOf(
@@ -151,6 +158,7 @@ export function resolveSettingsDataScope(
     companySettings: module === 'company-settings' || sources.has('companySettings'),
     deliveryProofSettings: sources.has('deliveryProofSettings'),
     distributionCursor: sources.has('distributionCursor'),
+    federalTaxes: sources.has('federalTaxes'),
     freightRegions: sources.has('freightRegions'),
     fuelPrices: sources.has('fuelPrices'),
     landing: sources.has('landing'),
@@ -161,7 +169,7 @@ export function resolveSettingsDataScope(
   }
 }
 
-export const COMPANY_SETTINGS_TAB_IDS = ['company', 'site', 'certificates'] as const
+export const COMPANY_SETTINGS_TAB_IDS = ['company', 'site', 'certificates', 'taxes'] as const
 
 export type CompanySettingsTabId = (typeof COMPANY_SETTINGS_TAB_IDS)[number]
 

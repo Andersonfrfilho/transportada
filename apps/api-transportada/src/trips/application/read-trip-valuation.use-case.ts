@@ -367,6 +367,7 @@ export async function buildValuationFromContext(input: {
     })),
     federalRates: context.federalRates ?? null,
     revenueAmount: valuation.totalRevenue,
+    revenueSource: valuation.revenueSource,
   })
 
   return buildTripValuation({

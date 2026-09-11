@@ -1550,7 +1550,17 @@ a tela liga a consulta com `enabled: canManageSettings && settingsScope.<source>
 aba aberta —, então abrir a aba busca o cadastro que já existe em vez de mostrar formulário em branco.
 Contrato em `test/company-settings/tabs.contract.ts`.
 
-- `company-settings` ficou com **Empresa** e **Certificados**, só.
+- `company-settings` tem **Empresa**, **Site**, **Certificados** e **Tributos** (spec 126).
+- **Tributos** é o regime federal e o PIS/COFINS (`federalTaxes`, aba `taxes`), servido por
+  `GET`/`PUT`/`DELETE /company-settings/federal-taxes` (`settings.manage`, escopo `company`, trilha
+  em `audit_logs`). A tela mostra **percentual** e grava **fração** — a conversão é textual em
+  `shared/fractionPercentage.service.ts`, e a API recusa alíquota acima de `0.2`
+  (`COMPANY_FEDERAL_TAX_RATE_OUT_OF_RANGE`) justamente para pegar `0.65` digitado no lugar de
+  `0.0065`. A sugestão sai do CRT (`1`/`2` → Simples, zero, dentro do DAS; `3` → Presumido
+  0,65%/3,00% ou Real 1,65%/7,60% nominais), a origem fica impressa ao lado do campo, e digitar apaga
+  a marca. Simples com alíquota ≠ 0 é recusado (`COMPANY_FEDERAL_TAX_SIMPLE_NOT_ZERO`). Na conta, o
+  federal segue a origem da receita: sobre receita prevista sai `estimated`. ⚠️ A CBS (LC 214/2025)
+  substitui PIS/COFINS a partir de 2027 — a troca é spec própria.
 - A busca automática de notas (opt-in + cursor) mora na aba **Remota** de `nfe-workspace`, guardada
   por `settings.manage`; sem a permissão a aba continua visível com o cartão somente-leitura, porque
   ali é informação de operação. Contrato em `test/nfe-workspace/distribution-settings.contract.ts`.

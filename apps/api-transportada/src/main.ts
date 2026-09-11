@@ -62,6 +62,13 @@ import { createAdjustDistributionCursorUseCase } from './companies/application/a
 import { createGetDistributionCursorUseCase } from './companies/application/get-distribution-cursor.use-case.js'
 import { DrizzleDistributionCursorRepository } from './companies/infrastructure/drizzle-distribution-cursor.repository.js'
 import { createDistributionCursorRoutes } from './companies/presentation/distribution-cursor.routes.js'
+import {
+  createClearFederalTaxSettingsUseCase,
+  createGetFederalTaxSettingsUseCase,
+  createSetFederalTaxSettingsUseCase,
+} from './companies/application/federal-tax-settings.use-case.js'
+import { DrizzleFederalTaxSettingsRepository } from './companies/infrastructure/drizzle-federal-tax-settings.repository.js'
+import { createFederalTaxSettingsRoutes } from './companies/presentation/federal-tax-settings.routes.js'
 import { DrizzleCompanyFiscalEnvironmentRepository } from './companies/infrastructure/drizzle-company-fiscal-environment.repository.js'
 import { DrizzleScheduledDistributionRepository } from './companies/infrastructure/drizzle-scheduled-distribution.repository.js'
 import { DrizzleScheduledDistributionStatusRepository } from './companies/infrastructure/drizzle-scheduled-distribution-status.repository.js'
@@ -1046,6 +1053,7 @@ function createApplicationRoutes({
   const settingsRepository = new DrizzleCompanySettingsRepository(database)
   const scheduledDistributionRepository = new DrizzleScheduledDistributionRepository(database)
   const distributionCursorRepository = new DrizzleDistributionCursorRepository(database)
+  const federalTaxSettingsRepository = new DrizzleFederalTaxSettingsRepository(database)
   const cargoSettingsRepository = new DrizzleCargoSettingsRepository(database)
   const cargoVolumeFactorRepository = new DrizzleCargoVolumeFactorRepository(database)
   const fuelPriceRepository = new DrizzleFuelPriceRepository(database)
@@ -1542,6 +1550,11 @@ function createApplicationRoutes({
         repository: distributionCursorRepository,
       }),
       getStatus: createGetDistributionCursorUseCase({ repository: distributionCursorRepository }),
+    }),
+    ...createFederalTaxSettingsRoutes({
+      clear: createClearFederalTaxSettingsUseCase({ settings: federalTaxSettingsRepository }),
+      get: createGetFederalTaxSettingsUseCase({ settings: federalTaxSettingsRepository }),
+      set: createSetFederalTaxSettingsUseCase({ settings: federalTaxSettingsRepository }),
     }),
     ...createCompanyLogoRoutes({
       companyLogo: createCompanyLogoUseCase({ repository: companyLogoRepository }),

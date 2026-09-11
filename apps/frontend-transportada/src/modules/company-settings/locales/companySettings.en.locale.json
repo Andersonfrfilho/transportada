@@ -4,7 +4,33 @@
   "tabs": {
     "company": "Company",
     "site": "Site",
-    "certificates": "Certificates"
+    "certificates": "Certificates",
+    "taxes": "Taxes"
+  },
+  "federalTaxes": {
+    "kicker": "PIS and COFINS",
+    "title": "Federal regime",
+    "hint": "The trip valuation deducts PIS and COFINS from revenue at these rates. The suggestion comes from the CRT and the law; confirm with the accountant before saving.",
+    "regimeLabel": "Federal regime",
+    "regimePlaceholder": "Choose the regime",
+    "regime": {
+      "presumed": "Presumed profit (cumulative)",
+      "real": "Actual profit (non-cumulative)",
+      "simple": "Simples Nacional"
+    },
+    "pisLabel": "PIS (%)",
+    "cofinsLabel": "COFINS (%)",
+    "origin": {
+      "stored": "stored",
+      "suggested": "suggested by law",
+      "typed": "typed"
+    },
+    "simpleNote": "Under Simples Nacional, PIS and COFINS are paid inside the DAS: there is no separate rate to deduct from the trip margin.",
+    "realNote": "Under actual profit the suggested rates are the nominal ones (1.65% and 7.60%). Non-cumulative credits lower the effective rate — the accountant adjusts it.",
+    "save": "Save regime",
+    "clear": "Back to undeclared",
+    "saved": "Federal regime saved.",
+    "error": "Could not save the federal regime ({{code}})."
   },
   "landing": {
     "title": "Site settings",

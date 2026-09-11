@@ -15,6 +15,7 @@ import {
   type TripCostParcel,
   type TripCostParcelBasis,
   type ValuationGap,
+  type ValuationSource,
 } from './trip-valuation.policy.js'
 
 const ERROR_CODE_PREFIX = 'TRIP_TAX'
@@ -44,6 +45,11 @@ export type BuildTripTaxParcelsParams = {
   readonly federalRates: CompanyFederalRates | null
   /** A receita já apurada, que é a base dos federais. */
   readonly revenueAmount: string
+  /**
+   * Spec 126 regra 6: a origem da receita. A alíquota é afirmada, mas sobre receita **prevista** o
+   * federal ainda é projeção. Ausente é o comportamento de antes (`measured`).
+   */
+  readonly revenueSource?: ValuationSource
 }
 
 /**
@@ -163,10 +169,13 @@ function buildFederalParcel(input: BuildTripTaxParcelsParams): TripCostParcel {
     gap: null,
     kind: 'pis_cofins',
     /**
-     * `measured` porque a alíquota é cadastro do contador, não palpite nosso — e a base é a receita
-     * já apurada dos documentos. O que seria estimativa é assumir o regime, e isso não acontece.
+     * A alíquota é cadastro do contador, não palpite nosso — assumir o regime não acontece. Mas a
+     * base segue a receita: sobre receita prevista (antes do CT-e) o número é projeção (spec 126).
      */
-    source: 'measured',
+    source:
+      input.revenueSource === undefined || input.revenueSource === 'measured'
+        ? 'measured'
+        : 'estimated',
   }
 }
 
