@@ -14,6 +14,10 @@ três apps seguem na 0.1.0, `runMetaWhatsAppMigrations(db)` inalterado), e o for
 da 0.2.x/0.3.0 fica registrado abaixo como **dívida do pacote** — corrigi-la é changeset em
 `adatechnology-packages`, com aprovação própria, e não bloqueia nada aqui.
 
+**Prova depois do revert (6cdb98e6):** `make migration-test` contra Postgres descartável real —
+**91 pass · 0 fail** (1101 `expect()`, 8 arquivos, 108,9 s). As 4 falhas da tentativa somem com a
+volta à 0.1.0, o que confirma que eram do formato de migration do pacote e de nada mais.
+
 O relato abaixo é o do upgrade tentado, preservado porque é o que justifica não subir.
 
 ### Versões escolhidas e por quê
