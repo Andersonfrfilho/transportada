@@ -665,7 +665,14 @@ contavam a vizinha, que sai antes, como apoio — 116 de 252 caixas sem apoio na
 Accelo. ⚠️ Em profundidade a caixa só senta com a face ao alcance da mão a partir da frente do piso das
 entregas posteriores (`isOutOfReach`), e o rendimento da orientação conta células. Custo medido: Daily
 481 → 441, Atego 1347 → 1190; a grade não vence mais nas quatro viagens reais. O vocabulário de
-`STOP_ARRANGEMENTS` não mudou — o frontend não precisa subir.
+`STOP_ARRANGEMENTS` não mudou — o frontend não precisa subir. ⚠️ **Spec 133: o juiz se escorava na
+própria caixa** — carimbo pelo centro da célula de 1 cm e sonda a 0,5 mm da face. Hoje o apoio sai das
+bordas reais (tolerância única `CONTACT_TOLERANCE_M` = 1e-6 m): a caixa não é vizinha dela mesma, a de
+cima não a escora, o vazio não escora. Em `85cbb5fc` isso acha **15 caixas soltas na Sprinter e 15 no
+Accelo** (a fileira do fundo, afastada da testeira pelo deslocamento para a porta), registradas por placa
+em `test/cargo-placement/known-unsupported.ts`: o contrato cobra não piorar até a spec 134 zerá-las. A
+conferência "exata face a face" do scratchpad (Atego 84) foi recusada caso a caso em
+`specs/133-juiz-sem-autoapoio/evidence.md`.
 
 **Cada caixa sabe de que nota veio, e a nota tem tom próprio** (spec 119). `PlacedBox` publica
 `documentId` (`nfe_documents.id`) e `documentNumber` (o número impresso), carimbados por

@@ -13,9 +13,9 @@ import {
  * Spec 118: **a descarga simulada entrega por entrega**, sobre a planta pronta — a primeira entrega sai,
  * depois a segunda, e assim até a última.
  *
- * ⚠️ É uma conferência **independente do empacotador**: geometria real em grade de 1 cm, sem o mapa de
- * alturas de 5 cm que decidiu as posições. Reusar o mapa do empacotador mediria a implementação contra
- * ela mesma.
+ * ⚠️ É uma conferência **independente do empacotador**: a estabilidade sai das bordas reais das caixas,
+ * sem grade (spec 133), e o acesso de uma grade de 5 cm própria — nunca o mapa de alturas que decidiu as
+ * posições. Reusar o mapa do empacotador mediria a implementação contra ela mesma.
  *
  * Duas perguntas, as duas do usuário:
  *
@@ -36,7 +36,11 @@ export const ARM_REACH_M = DELIVERY_REACH_M
 
 /** Trecho de face sem contato mais curto que isto não é eixo de tombamento — a célula do empacotador. */
 const UNBRACED_RUN_TOLERANCE_M = 0.05
-const STABILITY_CELL_M = 0.01
+/**
+ * Spec 133: **a tolerância de contato, uma só e declarada.** Duas faces a menos disto se tocam; nada
+ * mais é arredondado. A estabilidade é conferida pelas bordas reais das caixas, sem grade.
+ */
+const CONTACT_TOLERANCE_M = 1e-6
 const ACCESS_CELL_M = 0.05
 const EPSILON = 1e-6
 
@@ -75,116 +79,134 @@ function findUnsupportedBoxes(
   boxes: readonly PlacedBox[],
   bed: UnloadingBed,
 ): readonly UnsupportedBox[] {
-  const columns = Math.ceil(bed.lengthM / STABILITY_CELL_M)
-  const lines = Math.ceil(bed.widthM / STABILITY_CELL_M)
-  const topM = new Float64Array(columns * lines)
-  const stamp = (box: PlacedBox): void => {
-    const fromColumn = Math.max(0, Math.ceil(box.xM / STABILITY_CELL_M - 0.5 - 1e-9))
-    const toColumn = Math.min(
-      columns - 1,
-      Math.floor((box.xM + box.depthM) / STABILITY_CELL_M - 0.5 + 1e-9),
-    )
-    const fromLine = Math.max(0, Math.ceil(box.yM / STABILITY_CELL_M - 0.5 - 1e-9))
-    const toLine = Math.min(
-      lines - 1,
-      Math.floor((box.yM + box.widthM) / STABILITY_CELL_M - 0.5 + 1e-9),
-    )
-    for (let column = fromColumn; column <= toColumn; column += 1) {
-      for (let line = fromLine; line <= toLine; line += 1) {
-        const cell = column * lines + line
-        topM[cell] = Math.max(topM[cell] ?? 0, box.zM + box.heightM)
-      }
-    }
-  }
-  const heightAt = (xM: number, yM: number): number | null => {
-    if (yM < 0 || yM >= bed.widthM || xM < 0) return Number.POSITIVE_INFINITY
-    if (xM >= bed.lengthM) return null
-    const column = Math.min(columns - 1, Math.floor(xM / STABILITY_CELL_M))
-    const line = Math.min(lines - 1, Math.floor(yM / STABILITY_CELL_M))
-    return topM[column * lines + line] ?? 0
-  }
-
   const unsupported: UnsupportedBox[] = []
+  const present: PlacedBox[] = []
   const sequences = [...new Set(boxes.map((box) => box.stopSequence))].sort(
     (first, second) => second - first,
   )
   for (const stopSequence of sequences) {
     const own = boxes.filter((box) => box.stopSequence === stopSequence)
-    for (const box of own) stamp(box)
+    present.push(...own)
     for (const box of own) {
-      if (!isBraced(box, heightAt)) unsupported.push({ box, step: stopSequence - 1 })
+      if (!isBraced({ bed, box, present })) unsupported.push({ box, step: stopSequence - 1 })
     }
   }
 
   return unsupported
 }
 
-type Face = Readonly<{ alongDepth: boolean; faceM: number; sign: 1 | -1 }>
+/** Uma face da caixa: o eixo em que ela corre, onde fica, para que lado olha e se a parede está no vão. */
+type Face = Readonly<{ againstWall: boolean; alongDepth: boolean; faceM: number; sign: 1 | -1 }>
 
-function isBraced(box: PlacedBox, heightAt: (xM: number, yM: number) => number | null): boolean {
+type Span = readonly [number, number]
+
+function isBraced(
+  input: Readonly<{ bed: UnloadingBed; box: PlacedBox; present: readonly PlacedBox[] }>,
+): boolean {
+  const { bed, box } = input
   const baseM = Math.min(box.depthM, box.widthM)
   const stackTopM = box.zM + box.heightM
   if (stackTopM <= baseM * STABLE_STACK_SLENDERNESS + EPSILON) return true
 
   const restraintM = Math.max(0, Math.min(box.zM, stackTopM - baseM * STABLE_STACK_SLENDERNESS))
   const catchGapM = (baseM * STABLE_STACK_SLENDERNESS) / Math.hypot(STABLE_STACK_SLENDERNESS, 1)
+  /** A testeira e as laterais apoiam dentro do vão; a porta nunca. */
   const faces: readonly Face[] = [
-    { alongDepth: false, faceM: box.xM + box.depthM, sign: 1 },
-    { alongDepth: false, faceM: box.xM, sign: -1 },
-    { alongDepth: true, faceM: box.yM + box.widthM, sign: 1 },
-    { alongDepth: true, faceM: box.yM, sign: -1 },
+    { againstWall: false, alongDepth: false, faceM: box.xM + box.depthM, sign: 1 },
+    {
+      againstWall: box.xM < catchGapM - CONTACT_TOLERANCE_M,
+      alongDepth: false,
+      faceM: box.xM,
+      sign: -1,
+    },
+    {
+      againstWall: bed.widthM - (box.yM + box.widthM) < catchGapM - CONTACT_TOLERANCE_M,
+      alongDepth: true,
+      faceM: box.yM + box.widthM,
+      sign: 1,
+    },
+    {
+      againstWall: box.yM < catchGapM - CONTACT_TOLERANCE_M,
+      alongDepth: true,
+      faceM: box.yM,
+      sign: -1,
+    },
   ]
 
-  return faces.every((face) => isFaceBraced({ box, catchGapM, face, heightAt, restraintM }))
+  return faces.every(
+    (face) => face.againstWall || isFaceBraced({ ...input, catchGapM, face, restraintM }),
+  )
 }
 
+/**
+ * A face é escorada se nenhum trecho dela sem contato chega a `UNBRACED_RUN_TOLERANCE_M`. O trecho
+ * coberto por cada vizinha é o intervalo exato em que ela encosta — nada é amostrado.
+ */
 function isFaceBraced(
   input: Readonly<{
     box: PlacedBox
     catchGapM: number
     face: Face
-    heightAt: (xM: number, yM: number) => number | null
+    present: readonly PlacedBox[]
     restraintM: number
   }>,
 ): boolean {
   const { box, face } = input
   const fromM = face.alongDepth ? box.xM : box.yM
-  const sizeM = face.alongDepth ? box.depthM : box.widthM
-  const samples = Math.max(1, Math.round(sizeM / STABILITY_CELL_M))
-  let unbracedM = 0
-  for (let sample = 0; sample < samples; sample += 1) {
-    const alongM = fromM + (sample + 0.5) * (sizeM / samples)
-    if (isPointBraced({ ...input, alongM })) {
-      unbracedM = 0
-      continue
-    }
-    unbracedM += sizeM / samples
-    if (unbracedM >= UNBRACED_RUN_TOLERANCE_M - 1e-9) return false
+  const toM = fromM + (face.alongDepth ? box.depthM : box.widthM)
+  const spans = input.present
+    .map((other) => braceSpanOf({ ...input, fromM, other, toM }))
+    .filter((span): span is Span => span !== null)
+    .sort((first, second) => first[0] - second[0])
+
+  let coveredToM = fromM
+  for (const [spanFromM, spanToM] of spans) {
+    if (spanFromM - coveredToM >= UNBRACED_RUN_TOLERANCE_M - CONTACT_TOLERANCE_M) return false
+    coveredToM = Math.max(coveredToM, spanToM)
   }
 
-  return true
+  return toM - coveredToM < UNBRACED_RUN_TOLERANCE_M - CONTACT_TOLERANCE_M
 }
 
-function isPointBraced(
+/**
+ * O trecho da face que uma caixa presente escora: ela ocupa o lado de fora da face, dentro do vão, e
+ * sobe até a contenção. ⚠️ **A própria caixa nunca**, nem a que está inteira em cima dela — a que ela
+ * carrega não a segura. A vizinha pode começar antes da face (camada de baixo deslocada): o que conta é
+ * ocupar o lado de fora, não onde ela começa.
+ */
+function braceSpanOf(
   input: Readonly<{
-    alongM: number
+    box: PlacedBox
     catchGapM: number
     face: Face
-    heightAt: (xM: number, yM: number) => number | null
+    fromM: number
+    other: PlacedBox
     restraintM: number
+    toM: number
   }>,
-): boolean {
-  for (let offsetM = 0.0005; offsetM < input.catchGapM - 1e-9; offsetM += STABILITY_CELL_M / 2) {
-    const acrossM = input.face.faceM + input.face.sign * offsetM
-    const height = input.face.alongDepth
-      ? input.heightAt(input.alongM, acrossM)
-      : input.heightAt(acrossM, input.alongM)
-    /** A porta: nunca apoia, e o que está além dela não existe. */
-    if (height === null) return false
-    if (height >= input.restraintM - 1e-9) return true
-  }
+): Span | null {
+  const { box, face, other } = input
+  if (other === box) return null
+  if (other.zM + other.heightM < input.restraintM - CONTACT_TOLERANCE_M) return null
+  if (other.zM >= box.zM + box.heightM - CONTACT_TOLERANCE_M) return null
 
-  return false
+  const acrossFromM = face.alongDepth ? other.yM : other.xM
+  const acrossToM = acrossFromM + (face.alongDepth ? other.widthM : other.depthM)
+  const reachesOut =
+    face.sign > 0
+      ? acrossToM > face.faceM + CONTACT_TOLERANCE_M &&
+        acrossFromM < face.faceM + input.catchGapM - CONTACT_TOLERANCE_M
+      : acrossFromM < face.faceM - CONTACT_TOLERANCE_M &&
+        acrossToM > face.faceM - input.catchGapM + CONTACT_TOLERANCE_M
+  if (!reachesOut) return null
+
+  const alongFromM = Math.max(input.fromM, face.alongDepth ? other.xM : other.yM)
+  const alongToM = Math.min(
+    input.toM,
+    (face.alongDepth ? other.xM : other.yM) + (face.alongDepth ? other.depthM : other.widthM),
+  )
+
+  return alongToM > alongFromM + CONTACT_TOLERANCE_M ? [alongFromM, alongToM] : null
 }
 
 /**

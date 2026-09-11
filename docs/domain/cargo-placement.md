@@ -286,12 +286,15 @@ Só o que nem assim cabe segue `bedFull`.
 
 A planta tem de aguentar a **descarga**, não só o carregamento.
 `api-transportada/test/cargo-placement/unloading-simulation.ts` tira a primeira entrega, depois a
-segunda, e confere duas coisas em geometria real de 1 cm, **independente do mapa de 5 cm** do
-empacotador:
+segunda, e confere duas coisas **independente do mapa de 5 cm** do empacotador:
 
 - **Estabilidade**: no passo logo antes da entrega dela, toda caixa tem apoio em todas as faces (parede
-  ou caixa presente dentro de `3b/√10`, trecho sem contato menor que uma célula tolerado), ou não passa
-  de três vezes a base acima da contenção. A porta nunca apoia.
+  ou caixa presente dentro de `3b/√10`, trecho sem contato menor que 5 cm tolerado), ou não passa de
+  três vezes a base acima da contenção. A porta nunca apoia. ⚠️ Desde a spec 133 o apoio é medido pelas
+  **bordas reais** das caixas, sem grade, com uma tolerância de contato só (`CONTACT_TOLERANCE_M` =
+  1e-6 m): a caixa **nunca** é vizinha dela mesma, a caixa inteira em cima dela não a escora, e o vazio
+  não escora ninguém. A vizinha pode começar antes da face (camada de baixo deslocada) — o que conta é
+  ocupar o lado de fora até a contenção.
 - **Acesso**: a entrega sai inteira por quem fica **de pé no piso** livre ligado à porta, num corredor
   de `ACCESS_CORRIDOR_M` = 0,6 m, alcançando `DELIVERY_REACH_M` = 0,6 m à frente do corpo, sempre a
   caixa sem nada em cima.

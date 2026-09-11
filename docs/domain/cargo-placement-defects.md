@@ -256,6 +256,18 @@ Accelo 395 contra 500).
 a orientação cujo degrau inteiro cabe na mão (+13 caixas na Daily, e 23 e 30 caixas sem apoio na Sprinter
 e no Accelo); adiar o cubo sem espaço morto (conserta uma densidade e estoura outra).
 
+**O juiz se escorava na própria caixa** (spec 133). A simulação carimbava a caixa pelo centro da
+célula de 1 cm e sondava a primeira vez a 0,5 mm da face: com a face depois do centro da célula, a sonda
+caía na célula da própria caixa. Em `85cbb5fc` ela dizia zero caixas sem apoio; pelas bordas reais são
+**15 na Sprinter e 15 no Accelo** — a fileira do fundo, que o deslocamento para a porta afasta da
+testeira (0,315 e 0,474 m, contra giro de 0,248 m). Nas 32 variações da carga, 24 têm de 6 a 36 caixas
+soltas, e 10 delas o juiz antigo dava como zero conforme o milímetro da face. Uma conferência "exata
+face a face" acusava mais (Atego 84, Accelo 156) e foi **recusada**, com caso: ela exigia que uma caixa
+sozinha atravessasse a altura da contenção (a vizinha na mesma camada, sentada na pilha dela, não
+contava) e ignorava a vizinha que começa antes da face (camada de baixo deslocada 5 cm). Relaxadas as
+duas exigências, ela devolve exatamente o conjunto do juiz corrigido. As violações ficaram registradas
+por placa em `known-unsupported.ts`, e o contrato cobra não piorar até a spec 134.
+
 **O que sobra no Atego é a escada da porta, e ela não se afrouxa.** Sobre a planta final, só desligar a
 esbeltez colocaria mais caixa: 73, todas a menos de 1,3 m da porta. A fileira encostada nela sobe 3
 camadas, a seguinte 6, a terceira 9 — 7 + 4 + 1 camadas de 8 caixas = 96 lugares.
