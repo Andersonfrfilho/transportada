@@ -5,7 +5,6 @@ import { readFile } from 'node:fs/promises'
 
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { runMetaWhatsAppMigrations } from '@adatechnology/meta-whatsapp-module'
-import { migrate } from 'drizzle-orm/bun-sql/migrator'
 
 export const META_WHATSAPP_SCHEMA = 'meta_whatsapp'
 
@@ -40,13 +39,11 @@ export async function runMetaWhatsAppSchemaMigrations({
 
   try {
     /**
-     * A partir da 0.2.0-rc.22 a assinatura passou a receber `{ db, migrate }`, igual ao
-     * `notification-module` e ao `user-module` — o pacote deixou de escolher o migrator sozinho.
+     * ⚠️ Assinatura diferente da do `notification-module`: a versão publicada deste pacote recebe a
+     * conexão direto e escolhe o migrator dela, em vez de receber o `migrate` por injeção. Não é
+     * lugar de uniformizar — mudar isso é changeset no pacote.
      */
-    await runMetaWhatsAppMigrations({
-      db: provider.db as never,
-      migrate: migrate as never,
-    })
+    await runMetaWhatsAppMigrations(provider.db as never)
   } finally {
     await provider.close()
   }

@@ -9,10 +9,11 @@ que sobe.
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] **T001** Subir `@adatechnology/meta-whatsapp-module` (+ `-contracts`, `-provider`) para a linha
-      0.2.0 e adaptar `meta-whatsapp-migration.service.ts:46` a `{ db, migrate }` —
-      `apps/api-transportada/package.json`, `src/database/meta-whatsapp-migration.service.ts` —
-      `make check` verde e `make migration-test` verde, sem mudança de comportamento
+- [x] **T001** ~~Subir `meta-whatsapp-*` para a linha 0.2.0~~ → **fica na 0.1.0**. A 0.2.x/0.3.0
+      publica migrations no formato por journal, que o `drizzle-orm` 1.0.0-rc.4 recusa; e a 0.1.0 já
+      expõe tudo o que esta spec usa (`registerFlowAction`, `FlowActionHandler`,
+      `MetaWhatsAppHooks.onMessageReceived`, `FlowInterpreter`, `sendInteractiveList`/`Buttons`).
+      Upgrade vira dívida no pacote, fora desta spec — ver `evidence.md` § T001
 
 ## Fase 1 — Quem fala (D1, D2)
 

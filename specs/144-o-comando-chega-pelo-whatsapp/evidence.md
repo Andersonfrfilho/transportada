@@ -2,7 +2,19 @@
 
 ## T001 — Subir os pacotes WhatsApp (data 2026-09-11)
 
-### Status: BLOQUEADO — não fechado. Ver "Achado bloqueante" abaixo.
+### Status: FECHADA por decisão — o upgrade foi revertido, a instalação fica na 0.1.0
+
+**Decisão (2026-09-11):** o upgrade não é pré-requisito desta spec. Conferido por `npm pack` das três
+0.1.0 e leitura dos `.d.ts`: `meta-whatsapp-module@0.1.0` já exporta `FlowInterpreter` e
+`registerFlowAction(kind, handler: FlowActionHandler)` (`dist/index.d.ts:1093,1224`), aceita
+`hooks?: MetaWhatsAppHooks` na fábrica (`:1141,1198`), e `meta-whatsapp-contracts@0.1.0` declara
+`MetaWhatsAppHooks.onMessageReceived(message, session) => Promise<MessageHo…>` (`:2047`). O
+provider 0.1.0 já tem `sendInteractiveList` e `sendInteractiveButtons`. O bump foi revertido (as
+três apps seguem na 0.1.0, `runMetaWhatsAppMigrations(db)` inalterado), e o formato de migration
+da 0.2.x/0.3.0 fica registrado abaixo como **dívida do pacote** — corrigi-la é changeset em
+`adatechnology-packages`, com aprovação própria, e não bloqueia nada aqui.
+
+O relato abaixo é o do upgrade tentado, preservado porque é o que justifica não subir.
 
 ### Versões escolhidas e por quê
 
