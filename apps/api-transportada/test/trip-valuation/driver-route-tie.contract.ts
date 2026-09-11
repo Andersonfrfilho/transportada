@@ -160,20 +160,37 @@ function member(overrides: Partial<TripCrewMember>): TripCrewMember {
   }
 }
 
-describe('the driver parcel of a tie (spec 128)', () => {
-  test('the parcel carries the value, as measured, with an advisory that names every band', () => {
+describe('the driver parcel of a tie (spec 128, dado cru desde a 129)', () => {
+  /**
+   * Spec 129: a API não compõe mais a frase — `basis.tie` sai **cru** (código, cidade, decimal em
+   * string ou ausência), e `detail` só carrega o nome do condutor (com mais de um na tripulação).
+   * A moeda formatada e a palavra "cidades"/"sem preço" são de quem lê a tela.
+   */
+  test('the parcel carries the value, as measured, with the tie raw in basis', () => {
     const parcel = buildTripDriverCost([member({ regionCity: 'FRANCA', regionCode: '1.003' })])
 
     expect(parcel.amount).toBe('570.0000')
     expect(parcel.source).toBe('measured')
     expect(parcel.gap).toBe(VALUATION_GAPS.driverRouteTieHighestRate)
-    expect(parcel.detail).toBe(
-      '3 cidades · 1.003 (FRANCA) R$ 570,00 | 2.001 (SÃO CARLOS) R$ 480,00 · toco',
-    )
-    expect(parcel.basis).toMatchObject({ regionCity: 'FRANCA', regionCode: '1.003' })
+    /** Um condutor só: o nome seria ruído, e a lista de faixas mora só em `basis.tie`. */
+    expect(parcel.detail).toBeNull()
+    expect(parcel.basis).toEqual({
+      of: 'driver',
+      paymentModel: 'route_table',
+      regionCity: 'FRANCA',
+      regionCode: '1.003',
+      tie: {
+        cityCount: 3,
+        zones: [
+          { amount: '570.0000', city: 'FRANCA', code: '1.003' },
+          { amount: '480.0000', city: 'SÃO CARLOS', code: '2.001' },
+        ],
+      },
+      vehicleClass: 'toco',
+    })
   })
 
-  test('a tied band without price is named as such', () => {
+  test('a tied band without price stays as raw null amount, never a composed word', () => {
     const parcel = buildTripDriverCost([
       member({
         routeAmount: '480.0000',
@@ -185,13 +202,20 @@ describe('the driver parcel of a tie (spec 128)', () => {
     ])
 
     expect(parcel.amount).toBe('480.0000')
-    expect(parcel.detail).toBe(
-      '3 cidades · 1.003 (FRANCA) sem preço | 2.001 (SÃO CARLOS) R$ 480,00 · toco',
-    )
+    expect(parcel.detail).toBeNull()
+    expect(parcel.basis).toMatchObject({
+      tie: {
+        cityCount: 3,
+        zones: [
+          { amount: null, city: 'FRANCA', code: '1.003' },
+          { amount: '480.0000', city: 'SÃO CARLOS', code: '2.001' },
+        ],
+      },
+    })
   })
 
-  /** Nenhuma faixa com preço: a lacuna da 123, nomeando as zonas — nunca um número inventado. */
-  test('no tied band priced leaves the parcel missing with the class gap, naming the zones', () => {
+  /** Nenhuma faixa com preço: a lacuna da 123, com as zonas cruas em `basis.tie` — nunca um texto. */
+  test('no tied band priced leaves the parcel missing with the class gap, zones raw in basis', () => {
     const parcel = buildTripDriverCost([
       member({
         regionCity: null,
@@ -207,9 +231,36 @@ describe('the driver parcel of a tie (spec 128)', () => {
 
     expect(parcel.source).toBe('missing')
     expect(parcel.gap).toBe(VALUATION_GAPS.driverRateMissingForClass)
-    expect(parcel.detail).toBe(
-      '3 cidades · 1.003 (FRANCA) sem preço | 2.001 (SÃO CARLOS) sem preço · toco',
-    )
+    expect(parcel.detail).toBeNull()
+    expect(parcel.basis).toEqual({
+      of: 'driver',
+      paymentModel: 'route_table',
+      regionCity: null,
+      regionCode: null,
+      tie: {
+        cityCount: 3,
+        zones: [
+          { amount: null, city: 'FRANCA', code: '1.003' },
+          { amount: null, city: 'SÃO CARLOS', code: '2.001' },
+        ],
+      },
+      vehicleClass: 'toco',
+    })
+  })
+
+  /** Com mais de um condutor, o único pedaço que sobra em `detail` é o nome de quem é a lacuna. */
+  test('with more than one driver, detail names only who the tie gap belongs to', () => {
+    const parcel = buildTripDriverCost([
+      member({
+        driverId: 'd-1',
+        driverName: 'eurides dias fontes',
+        regionCity: 'FRANCA',
+        regionCode: '1.003',
+      }),
+      { ...member({ driverId: 'd-2', routeAmount: '100.0000' }), routeGap: null },
+    ])
+
+    expect(parcel.detail).toBe('eurides dias fontes')
   })
 
   /** Aviso, não lacuna: o total conta o valor, e a conta não é marcada incompleta. */
@@ -326,5 +377,36 @@ describe('the crew query prices the tied bands (spec 128)', () => {
   test('the tied region ids are priced, and the choice is the domain one', () => {
     expect(query).toContain('chooseTiedZone')
     expect(query).toContain('VALUATION_GAPS.driverRouteTieHighestRate')
+  })
+})
+
+/**
+ * Spec 129 — **a API não compõe frase nem moeda para o empate.** `basis.tie` sai cru
+ * (`buildTieBasis`) e `detail` carrega no máximo o nome do condutor (`tieDriverNameDetail`); a
+ * palavra "cidade(s)", "sem preço" e o formato de reais são de quem lê a tela — cópia por valor em
+ * `tripCostParcelDetail.service.ts` do frontend.
+ */
+describe('the domain stays raw — no composed word or currency (spec 129)', () => {
+  const policy = readFileSync(
+    new URL('../../src/trips/domain/trip-driver-cost.policy.ts', import.meta.url),
+    'utf8',
+  )
+
+  test('no currency literal and no pluralized word ships in the domain', () => {
+    /** Fora de comentário: código-fonte não formata moeda nem escreve "sem preço"/"N cidades". */
+    const code = policy
+      .split('\n')
+      .filter((line) => !line.trim().startsWith('*') && !line.trim().startsWith('/**'))
+      .join('\n')
+
+    expect(code).not.toContain('R$')
+    expect(code).not.toContain('sem preço')
+    expect(code).not.toMatch(/cidade(s)?['"`]/i)
+    expect(policy).not.toContain('formatFiscalMoney')
+  })
+
+  test('the tie raw data lives in basis, not in a composed detail', () => {
+    expect(policy).toContain('buildTieBasis')
+    expect(policy).toContain('tieDriverNameDetail')
   })
 })

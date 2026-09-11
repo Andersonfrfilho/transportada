@@ -29,6 +29,7 @@ describe('a causa da lacuna do agregado (spec 086)', () => {
       ]),
     ).toEqual({
       amount: '0.0000',
+      basis: null,
       detail: 'ITOBI/SP',
       gap: 'CITY_WITHOUT_REGION',
       kind: 'driver',
@@ -83,6 +84,7 @@ describe('o custo do motorista (spec 061 T003)', () => {
         paymentModel: 'route_table',
         regionCity: null,
         regionCode: null,
+        tie: null,
         vehicleClass: '',
       },
       detail: null,
@@ -109,6 +111,7 @@ describe('o custo do motorista (spec 061 T003)', () => {
         paymentModel: 'fixed',
         regionCity: null,
         regionCode: null,
+        tie: null,
         vehicleClass: '',
       },
       gap: null,
@@ -138,6 +141,7 @@ describe('o custo do motorista (spec 061 T003)', () => {
 
     expect(parcel).toEqual({
       amount: '0.0000',
+      basis: null,
       detail: null,
       gap: 'NO_DRIVER_RATE',
       kind: 'driver',

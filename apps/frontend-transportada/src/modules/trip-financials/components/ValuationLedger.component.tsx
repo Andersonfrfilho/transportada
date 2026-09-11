@@ -5,6 +5,7 @@ import { formatAmount } from '@/modules/shared/decimalAmount.service'
 import { fractionToPercentage } from '@/modules/shared/fractionPercentage.service'
 
 import { formatMargin, isNegative } from '../shared/financialView.service'
+import { composeCostParcelDetail, type Translate } from '../shared/tripCostParcelDetail.service'
 import type { TripValuation } from '../shared/tripValuation.service'
 import { buildValuationLedger, type ValuationLedgerLine } from '../shared/valuationLedger.service'
 import styles from '../styles/tripFinancials.module.css'
@@ -79,6 +80,11 @@ export function ValuationLedger({ valuation }: ValuationLedgerProps) {
 function LedgerLine({ line }: Readonly<{ line: ValuationLedgerLine }>) {
   const { t } = useTranslation('tripFinancials')
   const basis = line.basis
+  /**
+   * Spec 129: `basis.tie` (empate de rota) é dado cru — a frase e a moeda são compostas aqui, no
+   * mesmo serviço que a proposta usa, para as duas telas nunca discordarem.
+   */
+  const detail = composeCostParcelDetail({ basis, detail: line.detail, t: t as Translate })
 
   return (
     <>
@@ -101,7 +107,7 @@ function LedgerLine({ line }: Readonly<{ line: ValuationLedgerLine }>) {
             }
           >
             {t(`gap.${line.gap}`, { defaultValue: line.gap })}
-            {line.detail === null ? '' : ` — ${line.detail}`}
+            {detail === null ? '' : ` — ${detail}`}
           </dd>
         )}
       </div>
@@ -131,7 +137,7 @@ function LedgerLine({ line }: Readonly<{ line: ValuationLedgerLine }>) {
       {line.isAdvisory ? (
         <p className={styles.ledgerAdvisory}>
           {t(`gap.${line.gap ?? ''}`, { defaultValue: line.gap ?? '' })}
-          {line.detail === null ? '' : ` — ${line.detail}`}
+          {detail === null ? '' : ` — ${detail}`}
         </p>
       ) : null}
     </>

@@ -208,6 +208,15 @@ export type TripCostParcelBasis =
       /** A cidade que decidiu a zona — o destino mais distante (spec 086 D1). */
       regionCity: null | string
       regionCode: null | string
+      /**
+       * Spec 129: **cru** — quantas cidades empataram e cada faixa empatada com o preço dela (ou
+       * ausência). A frase e a moeda são de quem lê a tela, no molde do resto desta `basis`; `null`
+       * fora do empate. `amount` é decimal em string, sem formatação.
+       */
+      tie?: null | Readonly<{
+        cityCount: number
+        zones: readonly Readonly<{ amount: null | string; city: string; code: string }>[]
+      }>
       vehicleClass: string
     }>
   /**

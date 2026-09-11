@@ -96,6 +96,7 @@ function readBasis(value: unknown): null | TripValuationCostParcelBasis {
       paymentModel: readText(value.paymentModel),
       regionCity: typeof value.regionCity === 'string' ? value.regionCity : null,
       regionCode: typeof value.regionCode === 'string' ? value.regionCode : null,
+      tie: readTie(value.tie),
       vehicleClass: readText(value.vehicleClass),
     }
   }
@@ -109,4 +110,32 @@ function readBasis(value: unknown): null | TripValuationCostParcelBasis {
   }
 
   return null
+}
+
+/**
+ * Spec 129: `basis.tie` é opcional e cru — API anterior a esta spec não o manda, e vira ausência,
+ * não quebra. Faixa malformada é descartada em vez de invalidar as outras: uma célula ruim não
+ * pode apagar a lista inteira.
+ */
+function readTie(
+  value: unknown,
+): NonNullable<Extract<TripValuationCostParcelBasis, { readonly of: 'driver' }>['tie']> | null {
+  if (!isRecord(value)) return null
+  if (typeof value.cityCount !== 'number') return null
+  if (!Array.isArray(value.zones)) return null
+
+  const zones = value.zones.flatMap((zone) => {
+    if (!isRecord(zone)) return []
+    if (typeof zone.city !== 'string' || typeof zone.code !== 'string') return []
+
+    return [
+      {
+        amount: typeof zone.amount === 'string' ? zone.amount : null,
+        city: zone.city,
+        code: zone.code,
+      },
+    ]
+  })
+
+  return { cityCount: value.cityCount, zones }
 }

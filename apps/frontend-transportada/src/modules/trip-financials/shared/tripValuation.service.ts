@@ -33,6 +33,15 @@ export type TripValuationCostParcelBasis =
       paymentModel: string
       regionCity: null | string
       regionCode: null | string
+      /**
+       * Spec 129: **cru** — quantas cidades empataram e cada faixa empatada com o preço dela (ou
+       * ausência). Cópia por valor de `TripCostParcelBasis['tie']` da API; a moeda e a frase são
+       * compostas na tela (`composeCostParcelDetail`), nunca aqui.
+       */
+      tie?: null | Readonly<{
+        cityCount: number
+        zones: readonly Readonly<{ amount: null | string; city: string; code: string }>[]
+      }>
       vehicleClass: string
     }>
   /** Spec 125: o ICMS projetado pelo perfil de emissão — CST e frações (não percentuais). */

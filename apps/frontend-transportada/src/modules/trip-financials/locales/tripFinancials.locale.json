@@ -34,7 +34,10 @@
     "operating": "O que a operação custa",
     "revenue": "Receita do frete",
     "taxNote": "Imposto desce da receita, não é gasto de rodar — por isso ele não se mistura com a operação acima.",
-    "taxes": "O que o imposto leva"
+    "taxes": "O que o imposto leva",
+    "tieCityCount_one": "{{count}} cidade",
+    "tieCityCount_other": "{{count}} cidades",
+    "tieNoPrice": "sem preço"
   },
   "panel": {
     "amount": "Valor",

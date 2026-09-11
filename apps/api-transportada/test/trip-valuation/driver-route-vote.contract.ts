@@ -218,6 +218,9 @@ describe('the driver parcel under the vote (spec 127)', () => {
    * Reescrito pela 128: o empate só deixa a parcela sem valor quando **nenhuma** faixa empatada tem
    * preço — e aí a lacuna é a da célula vazia (123), nomeando as zonas. Com preço, ela sai com o
    * maior valor e o aviso (`driver-route-tie.contract.ts`).
+   *
+   * Spec 129: as zonas nomeadas saem **cruas** em `basis.tie` — a frase e a palavra "cidade" são da
+   * tela (`tripCostParcelDetail.service.ts` do frontend), nunca do domínio.
    */
   test('a tie without any priced band leaves the parcel without value, naming the tied zones', () => {
     const parcel = buildTripDriverCost([
@@ -237,9 +240,21 @@ describe('the driver parcel under the vote (spec 127)', () => {
     expect(parcel.source).toBe('missing')
     expect(parcel.amount).toBe('0.0000')
     expect(parcel.gap).toBe(VALUATION_GAPS.driverRateMissingForClass)
-    expect(parcel.detail).toBe(
-      '1 cidade · 1.003 (FRANCA) sem preço | 7.001 (FRANCA) sem preço · toco',
-    )
+    expect(parcel.detail).toBeNull()
+    expect(parcel.basis).toEqual({
+      of: 'driver',
+      paymentModel: 'route_table',
+      regionCity: null,
+      regionCode: null,
+      tie: {
+        cityCount: 1,
+        zones: [
+          { amount: null, city: 'FRANCA', code: '1.003' },
+          { amount: null, city: 'FRANCA', code: '7.001' },
+        ],
+      },
+      vehicleClass: 'toco',
+    })
   })
 })
 

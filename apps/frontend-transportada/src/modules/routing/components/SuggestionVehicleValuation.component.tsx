@@ -4,6 +4,10 @@ import { useTranslation } from 'react-i18next'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 import { formatAmount } from '@/modules/shared/decimalAmount.service'
 import { formatMargin, isNegative } from '@/modules/trip-financials/shared/financialView.service'
+import {
+  composeCostParcelDetail,
+  type Translate,
+} from '@/modules/trip-financials/shared/tripCostParcelDetail.service'
 
 import {
   formatDistance,
@@ -74,15 +78,27 @@ export function SuggestionVehicleValuation({
       </div>
       {valuation.valuation.costParcels
         .filter((parcel) => parcel.gap !== null)
-        .map((parcel) => (
-          <div className={styles.vehicleValuationGap} key={parcel.kind}>
-            <dt>{tFinanceiro(`parcel.${parcel.kind}`, parcel.kind)}</dt>
-            <dd>
-              {tFinanceiro(`gap.${parcel.gap}`, { defaultValue: parcel.gap ?? '' })}
-              {parcel.detail === null ? '' : ` — ${parcel.detail}`}
-            </dd>
-          </div>
-        ))}
+        .map((parcel) => {
+          /**
+           * Spec 129: mesma composição do razão da viagem — `basis.tie` cru, frase e moeda daqui,
+           * nunca da API. Duas implementações da mesma frase divergiriam caladas.
+           */
+          const detail = composeCostParcelDetail({
+            basis: parcel.basis,
+            detail: parcel.detail,
+            t: tFinanceiro as Translate,
+          })
+
+          return (
+            <div className={styles.vehicleValuationGap} key={parcel.kind}>
+              <dt>{tFinanceiro(`parcel.${parcel.kind}`, parcel.kind)}</dt>
+              <dd>
+                {tFinanceiro(`gap.${parcel.gap}`, { defaultValue: parcel.gap ?? '' })}
+                {detail === null ? '' : ` — ${detail}`}
+              </dd>
+            </div>
+          )
+        })}
     </dl>
   )
 }

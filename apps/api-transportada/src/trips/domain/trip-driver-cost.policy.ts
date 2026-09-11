@@ -3,13 +3,18 @@
  */
 import type { DriverPaymentModel } from '../../database/fleet.schema.js'
 import {
-  formatFiscalMoney,
   formatScaledDecimal,
   MONEY_SCALE,
   parseScaledDecimal,
 } from '../../shared/decimal.service.js'
 import type { ZoneLabel } from './trip-driver-zone.policy.js'
 import { VALUATION_GAPS, type TripCostParcel, type ValuationGap } from './trip-valuation.policy.js'
+
+/** Spec 129: o cru do empate que a `basis.tie` do custo de motorista carrega — sem texto composto. */
+type DriverTieBasis = Readonly<{
+  cityCount: number
+  zones: readonly Readonly<{ amount: null | string; city: string; code: string }>[]
+}>
 
 /**
  * ADR-0049 §3: **os dois modelos convivem na mesma frota.** O que o cálculo precisa saber de cada
@@ -84,6 +89,7 @@ export function buildTripDriverCost(crew: readonly TripCrewMember[]): TripCostPa
         paymentModel: 'fixed',
         regionCity: null,
         regionCode: null,
+        tie: null,
         vehicleClass: '',
       },
       detail: null,
@@ -153,12 +159,19 @@ export function buildTripDriverCost(crew: readonly TripCrewMember[]): TripCostPa
       paymentModel: 'route_table',
       regionCity: reference?.regionCity ?? null,
       regionCode: reference?.regionCode ?? null,
+      /**
+       * Spec 129: dado cru do empate — a tela compõe a frase e formata a moeda, no molde de
+       * `ledger.driverBasis`. `tied` é o condutor que carrega a lacuna de empate, não `reference`.
+       */
+      tie: buildTieBasis(tied),
       vehicleClass: reference?.vehicleClass ?? '',
     },
     detail:
       advised === undefined
         ? null
-        : buildRateDetail({ member: advised, namesDriver: crew.length > 1 }),
+        : tied !== undefined
+          ? tieDriverNameDetail({ member: tied, namesDriver: crew.length > 1 })
+          : buildRateDetail({ member: advised, namesDriver: crew.length > 1 }),
     /**
      * Há salário fora da conta, e a viagem carrega isso como lacuna — não para bloquear o número,
      * mas para a tela poder dizer "e mais um motorista da casa, que é custo do período".
@@ -192,10 +205,27 @@ function missing(input: {
 }): TripCostParcel {
   const { member } = input
   const cityToRegister = member?.cityToRegister ?? null
+  const tie = cityToRegister === null ? buildTieBasis(member ?? undefined) : null
 
   return {
     amount: ZERO,
-    detail: cityToRegister ?? buildRateDetail(input),
+    /**
+     * Spec 129: sem faixa empatada precificada não há zona escolhida (`chosen` é `null` no
+     * domínio) — `regionCity`/`regionCode` saem vazios, e é o `tie` cru que sobra para a tela
+     * nomear as faixas. Cidade a cadastrar não tem zona nenhuma: não há `basis` para ela.
+     */
+    basis:
+      tie === null
+        ? null
+        : {
+            of: 'driver',
+            paymentModel: member?.paymentModel ?? 'route_table',
+            regionCity: null,
+            regionCode: null,
+            tie,
+            vehicleClass: member?.vehicleClass ?? '',
+          },
+    detail: cityToRegister ?? (tie !== null ? tieDriverNameDetail(input) : buildRateDetail(input)),
     gap: member?.routeGap ?? VALUATION_GAPS.noDriverRate,
     kind: 'driver',
     source: 'missing',
@@ -204,13 +234,53 @@ function missing(input: {
 
 /** Tem algo a nomear além da frase seca — é o que faz este condutor valer a pena relatar. */
 function hasDetail(member: TripCrewMember): boolean {
-  return buildRateDetail({ member, namesDriver: true }) !== null
+  return (
+    buildRateDetail({ member, namesDriver: true }) !== null || (member.tiedZones?.length ?? 0) > 0
+  )
+}
+
+/**
+ * Spec 129: **cru** — quantas cidades empataram e cada faixa com o preço dela (ou ausência), como
+ * o domínio devolveu. A frase, a moeda e o "sem preço" são de quem lê a tela; aqui não se compõe
+ * texto nenhum. `undefined`/sem faixas é ausência de empate.
+ */
+function buildTieBasis(member: undefined | TripCrewMember): null | DriverTieBasis {
+  const tiedZones = member?.tiedZones ?? []
+  if (tiedZones.length === 0) return null
+
+  return {
+    cityCount: member?.tiedCityCount ?? tiedZones.length,
+    zones: tiedZones.map((zone) => ({
+      amount: zone.amount ?? null,
+      city: zone.city,
+      code: zone.code,
+    })),
+  }
+}
+
+/**
+ * Spec 129: no empate, o único pedaço de `detail` que sobra é **quem** — o nome do condutor, só
+ * com mais de um na tripulação. Zona, faixas e classe viajam em `basis.tie`, nunca aqui.
+ */
+function tieDriverNameDetail(input: {
+  readonly member: null | TripCrewMember
+  readonly namesDriver: boolean
+}): null | string {
+  const { member } = input
+  if (member === null) return null
+
+  const driverName = input.namesDriver ? (member.driverName ?? '').trim() : ''
+  return driverName === '' ? null : driverName
 }
 
 /**
  * ⚠️ **Nada é inventado: cada pedaço só entra se o cálculo o conhece.** Cavalo mecânico não tem
  * coluna na planilha (`resolveVehicleFreightClass` manda `''`), e aí a classe some do texto em vez
  * de virar um rótulo que ninguém decidiu.
+ *
+ * Spec 129: o empate **não** passa mais por aqui — ele tem `detail` e `basis.tie` próprios
+ * (`tieDriverNameDetail`, `buildTieBasis`), porque a lista de faixas precisa da moeda formatada
+ * pela tela, e este texto é cru desde a 123.
  */
 function buildRateDetail(input: {
   readonly member: null | TripCrewMember
@@ -220,18 +290,7 @@ function buildRateDetail(input: {
   if (member === null) return null
 
   const parts: string[] = []
-  /**
-   * Spec 128: no empate, quantas cidades empataram e cada faixa com o preço dela. A zona escolhida
-   * está dentro da lista, então ela não se repete como linha à parte — só a coluna vem depois.
-   */
-  const tiedZones = member.tiedZones ?? []
-  if (tiedZones.length > 0) {
-    if (member.tiedCityCount !== undefined) parts.push(formatCityCount(member.tiedCityCount))
-    parts.push(tiedZones.map(formatTiedZone).join(TIED_ZONES_SEPARATOR))
-    const tiedClass = (member.vehicleClass ?? '').trim()
-    if (tiedClass !== '') parts.push(tiedClass)
-  }
-  const regionCode = tiedZones.length > 0 ? '' : (member.regionCode ?? '').trim()
+  const regionCode = (member.regionCode ?? '').trim()
   if (regionCode !== '') {
     const regionCity = (member.regionCity ?? '').trim()
     parts.push(regionCity === '' ? regionCode : `${regionCode} (${regionCity})`)
@@ -251,30 +310,7 @@ function buildRateDetail(input: {
   return parts.length === 0 ? null : parts.join(DETAIL_SEPARATOR)
 }
 
-/** `1.003 (FRANCA) R$ 570,00`, ou `sem preço` quando a célula da classe está vazia. */
-function formatTiedZone(zone: ZoneLabel): string {
-  const price =
-    zone.amount === undefined || zone.amount === null ? NO_PRICE : formatBrl(zone.amount)
-
-  return `${zone.code} (${zone.city}) ${price}`
-}
-
-/** Preço de tabela em reais: duas casas, arredondado, milhar com ponto e centavo com vírgula. */
-function formatBrl(amount: string): string {
-  const [integer = '0', cents = '00'] = formatFiscalMoney(amount).split('.')
-  const grouped = integer.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-
-  return `R$ ${grouped},${cents}`
-}
-
-function formatCityCount(count: number): string {
-  return `${count} ${count === 1 ? 'cidade' : 'cidades'}`
-}
-
-const NO_PRICE = 'sem preço'
 const ZERO = '0.0000'
 /** O mesmo separador do `ledger.driverBasis`: a tela já lê zona · classe assim na parcela medida. */
 const DETAIL_SEPARATOR = ' · '
-/** Entre zonas empatadas: o `·` já separa zona de classe, e reusá-lo tornaria a leitura ambígua. */
-const TIED_ZONES_SEPARATOR = ' | '
 const ERROR_CODE_PREFIX = 'TRIP_DRIVER_COST'

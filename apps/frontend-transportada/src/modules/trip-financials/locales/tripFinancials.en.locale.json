@@ -34,7 +34,10 @@
     "operating": "What the operation costs",
     "revenue": "Freight revenue",
     "taxNote": "Tax comes off revenue — it is not a cost of driving, so it does not mix with the operation above.",
-    "taxes": "What tax takes"
+    "taxes": "What tax takes",
+    "tieCityCount_one": "{{count}} city",
+    "tieCityCount_other": "{{count}} cities",
+    "tieNoPrice": "no price"
   },
   "panel": {
     "amount": "Amount",
