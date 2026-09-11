@@ -49,9 +49,12 @@ consumida pelo `whatsapp-commands` **e** pela listagem de notas. Um lugar só.
 
 ## Contratos/API/eventos
 
-- `POST /me/whatsapp-phone/verification` → envia código (template da 062 T005). `204` invariável.
-- `POST /me/whatsapp-phone/verification/confirm` → `{ code }`. `204`, ou `400` com código estável.
+- `POST /me/whatsapp-phone/verification` → `{ phone }`: abre o pedido e devolve `{ code,
+companyNumber, expiresAt }` para a tela mostrar. A confirmação **não é rota HTTP**: é a mensagem
+  que o usuário manda do próprio WhatsApp, e a primeira `FlowAction` do despachante a confere contra
+  o `from` (verificação de entrada, A3). Nenhum template sai.
 - `DELETE /me/whatsapp-phone` → desvincula.
+- `DELETE /company-users/:id/whatsapp-phone` (`users.manage`) → só desvincula, nunca verifica.
 - `GET/PUT /company-settings/cte-profiles/:id` passam a aceitar `outputDocument` e
   `nfseEmissionProfileId`.
 - `GET /nfe-documents` ganha `documentOutput` por linha (paridade com o bot).
@@ -67,15 +70,20 @@ Migrations aditivas, com default. Nenhuma instalação muda de comportamento só
 1. `cte_emission_profiles`: `output_document text not null default 'cte'` com CHECK;
    `nfse_emission_profile_id uuid null` com FK composta `(company_id, id)`; CHECK de coerência
    (`nfse` ⇔ id presente).
-2. `login_identifiers`: `verified_at timestamptz null`, mais índice único parcial
-   `(value) where kind = 'phone' and verified_at is not null` — **global na instalação**, conferido
-   em staging em 2026-09-11: a tabela não tem `company_id` (o usuário é da instalação, a empresa é
-   da membership) e cada instalação é uma transportadora (ADR-0021). Verificado passa a exigir
-   `is_whatsapp` por CHECK.
-3. `whatsapp_command_requests`: `id`, `company_id`, `actor_user_id`, `membership_id`, `kind`,
+2. **`user_whatsapp_phones`** (nova, e `login_identifiers` **não é tocada**, porque é projeção
+   reconstruída por delete + insert, não única e não canônica). Colunas: `id`, `user_id` (FK para
+   `identity_users`, cascade), `phone` com CHECK `^55[1-9][0-9]{9,10}$`, `verified_at`, timestamps.
+   Constraints: `unique(user_id)` e unique parcial `(phone) where verified_at is not null`, global na
+   instalação (ADR-0021).
+3. **`whatsapp_phone_verification_requests`**, no molde de `password_reset_requests`: `company_id`,
+   `user_id`, `phone` canônico declarado, `code_hash`, `attempt_count`, `expires_at` (10 min),
+   `consumed_at`. FK composta para a membership e pedido vivo único por `(company_id, user_id)`.
+   **Sem** unique de `code_hash`: com 6 dígitos só há um milhão de códigos, e lá ele existe porque a
+   rota é anônima. Aqui a busca é pelo pedido vivo do número que enviou.
+4. `whatsapp_command_requests`: `id`, `company_id`, `actor_user_id`, `membership_id`, `kind`,
    `selection` jsonb (só ids), `classification` jsonb, `preview_sha256`, `status`
    (`previewed · confirmed · settled · expired · superseded`), `expires_at`, `period`, timestamps.
-4. `whatsapp_command_documents`: `request_id`, `document_kind` (`cte_batch · nfse_invoice ·
+5. `whatsapp_command_documents`: `request_id`, `document_kind` (`cte_batch · nfse_invoice ·
 billing_invoice`), `document_id`, com unique `(request_id, document_kind, document_id)`.
 
 O rollback fica ao lado de cada migration e derruba só as colunas e tabelas novas. As cópias no

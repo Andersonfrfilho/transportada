@@ -44,21 +44,40 @@ autorização. **Quem é o dono do número é trabalho nosso**, e é a parte cr�
 
 ### D1 — O telefone só vira credencial depois de verificado, e é único na instalação
 
-`login_identifiers` já tem `kind='phone'`, `is_whatsapp` e `source='whatsapp'`, mas a unicidade é
-`(user_id, kind, value)`: **o mesmo telefone pode estar em dois usuários**. Se essa colisão
-aparecer numa mensagem que emite documento fiscal, a ação vai para uma conta que ninguém escolheu.
+`login_identifiers` tem `kind='phone'` e `is_whatsapp`, mas **não serve de credencial**, por três
+razões conferidas no código (revisão de arquitetura de 2026-09-11):
 
-- O número só opera depois de **verificado por código** enviado pelo template de código que a 062
-  T005 já usa. Declarar o número no cadastro não basta.
-- Unicidade parcial e **global na instalação**: um número verificado pertence a **um usuário só**.
-  `login_identifiers` não tem `company_id` — o usuário é da instalação, e cada instalação é uma
-  transportadora (ADR-0021). A empresa vem do `phone_number_id` do canal, e a membership ativa do
-  usuário **nessa** empresa é o que autoriza.
-- Canonicalização única: E.164 sem `+` (`5516…`). O banco guarda sem o `55` e a Meta manda com; a
-  conversão fica numa função só, com contrato.
-- Número desconhecido, não verificado ou de membership suspensa recebe **uma resposta neutra** ("Este
-  número não está habilitado. Fale com o administrador.") e nenhum menu. A resposta é igual nos três
-  casos, pela mesma razão do `204` invariável da recuperação de senha.
+- é **projeção**: `rebuildLoginIdentifiers` apaga e reinsere as linhas `source='profile'` a cada
+  gravação da ficha, e um `verified_at` ali some na próxima edição do cadastro, sem erro;
+- **não é única por desenho** (`(user_id, kind, value)`; o schema documenta telefone compartilhado):
+  o mesmo número pode estar em dois usuários;
+- **não é canônica**: o convite e o backfill de 31/08 gravam o contato cru, com máscara.
+
+Por isso o vínculo de WhatsApp é **tabela própria**, `user_whatsapp_phones`, e `login_identifiers`
+fica intocada, com o login por telefone igual.
+
+- **Verificação de entrada.** O painel mostra um código de uso único, e o usuário o **envia do próprio
+  WhatsApp** para o número da empresa. A confirmação exige as duas coisas: o `from` que a Meta assina
+  é o número declarado, **e** o código confere. Isso prova a posse da conta de WhatsApp, e não só do
+  chip; dispensa template pago e aprovado; e grava o número exatamente como a Meta o vê, sem a
+  dúvida do nono dígito. Sem casar o `from`, quem chutasse códigos vincularia o próprio número à conta
+  de outra pessoa.
+- Unicidade parcial e **global na instalação**: um número verificado pertence a **um usuário só**, e
+  um usuário tem um número. O usuário é da instalação, e cada instalação é uma transportadora
+  (ADR-0021). A empresa vem do `phone_number_id` do canal, e a membership ativa do usuário **nessa**
+  empresa é o que autoriza.
+- Canonicalização única: `55` + DDD + número (`^55[1-9][0-9]{9,10}$`), gravada canônica desde o
+  primeiro dia, numa função só, com contrato. O caminho validado do cadastro guarda sem o `55`, e a
+  Meta manda com.
+- **O vínculo envelhece.** A verificação vale 90 dias. Depois disso o número volta a ser tratado como
+  não verificado, porque a operadora recicla chip, e o novo dono herdaria a conta. Suspender a membership
+  em todas as empresas desfaz o vínculo. O admin (`users.manage`) **só desfaz**, nunca verifica.
+  Verificar, desfazer e colidir ficam registrados em `audit_logs`.
+- Os quatro casos de recusa (número desconhecido, número não verificado ou vencido, sem membership
+  ativa na empresa do canal, membership ou empresa suspensa) recebem **a mesma resposta neutra**
+  ("Este número não está habilitado. Fale com o administrador."), no máximo **uma vez por janela**
+  por número, e nenhum menu. É a mesma razão do `204` invariável da recuperação de senha, e a
+  resposta repetida a cada mensagem viraria custo e laço.
 
 ### D2 — A permissão é a da membership, conferida a cada ação
 
@@ -155,7 +174,9 @@ Texto digitado fora do menu recebe `fallbackMessage`; depois de duas vezes, o bo
 
 - **RF1** Webhook → despachante: toda mensagem de número habilitado entra no interpretador de fluxo
   pelo hook `onMessageReceived`, e cada ação é um `registerFlowAction`.
-- **RF2** Verificação do número por código, unicidade por empresa e resposta neutra (D1).
+- **RF2** Vínculo em `user_whatsapp_phones`, verificação de entrada (código enviado do próprio
+  WhatsApp, com o `from` casado), unicidade global na instalação, validade de 90 dias e resposta
+  neutra única para os quatro casos de recusa (D1).
 - **RF3** Menu raiz montado pelas permissões da membership (D2).
 - **RF4** Classificação CT-e × NFS-e × bloqueada × sem perfil pelo perfil (D3), compartilhada com o
   painel.
@@ -190,7 +211,9 @@ Texto digitado fora do menu recebe `fallbackMessage`; depois de duas vezes, o bo
 
 ## Riscos conhecidos
 
-- ⚠️ **Não existe rate limit nesta API** (`docs/SECURITY.md`). O webhook é público e cada ação emite
+- ⚠️ **O limitador desta API é em memória e opt-in por rota** (`http/rate-limiter.service.ts`,
+  `router.service.ts:175,279-293`): o despachante o reusa para o teto por número, mas o achado
+  global de `docs/SECURITY.md` continua valendo para as rotas autenticadas. O webhook é público e cada ação emite
   documento com custo externo. Esta spec acrescenta um teto por número e por janela **no despachante**,
   e isso não substitui o limitador global.
 - ⚠️ **Upgrade do módulo.** O transportada está na 0.1.0; a 0.2.0-rc.22 muda

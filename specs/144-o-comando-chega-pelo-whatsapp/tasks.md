@@ -19,18 +19,27 @@ que sobe.
 
 > 🤖 Modelo: `opus` 🧠 — o telefone vira credencial
 
-- [ ] **T002** 🧠 Contrato vermelho da canonicalização E.164 e de `maskPhone` —
-      `test/whatsapp-commands/whatsapp-phone.contract.ts` + entrypoint + `package.json`
-- [ ] **T003** 🧠 Migration `verified_at` + índice único parcial **global** em `login_identifiers`
-      (`value` onde `kind='phone'` e verificado — a tabela não tem `company_id`), com rollback — `drizzle/`, `src/database/login-identifier.schema.ts`
-      — `make migration-test`
-- [ ] **T004** 🧠 Verificação por código: rotas `/me/whatsapp-phone/*`, código de uso único com
-      digest e `timingSafeEqual`, envio pelo template da 062 T005 —
-      `src/whatsapp-commands/{application,presentation}/` — contrato de 204 invariável, expiração e
-      5 tentativas
-- [ ] **T005** 🧠 `resolveWhatsAppActor`: telefone verificado → membership ativa → permissões, com
-      resposta neutra única para os quatro casos de recusa — `application/resolve-whatsapp-actor.use-case.ts`
-      — contrato dos quatro casos + `tenant-safety.contract.ts`
+Desenho validado pelo architect em 2026-09-11, **com ajustes A1–A7** (`evidence.md` § Fase 1). O
+principal: o vínculo **não** vai para `login_identifiers`, que é projeção apagada a cada gravação da
+ficha.
+
+- [ ] **T002** 🧠 `toWhatsAppPhone(raw)` (canônico `55`+DDD+número ou `undefined`) e
+      `isSameWhatsAppPhone(a, b)` (equivalência do nono dígito) em
+      `src/whatsapp-commands/domain/whatsapp-phone.policy.ts`, mais **cópia por valor** no worker com
+      contrato de paridade; `maskPhone` (`****1234`) **no módulo de logging**, porque não existe hoje —
+      contrato vermelho antes: com/sem 55, `+55`, máscara, 10/11/12/13 dígitos, lixo
+- [ ] **T003** 🧠 Migrations `user_whatsapp_phones` e `whatsapp_phone_verification_requests`
+      (`plan.md` § Dados), schema, repositório e cópia no worker; rollback ao lado —
+      `make migration-test` + `tenant-safety.contract.ts`
+- [ ] **T005** 🧠 Extrair `resolveCompanyForUser({ userId, companyId, channel })` de
+      `TenantContextService` (reusa `findActiveByUserAndCompany` + `resolveCompanyPermissions`;
+      `resolveCompany` passa a delegar) e montar `resolveWhatsAppActor`: número verificado e dentro
+      dos 90 dias → usuário → membership ativa na empresa do canal → `AuthenticatedContext`. Os quatro
+      casos de recusa têm a mesma saída — contrato dos quatro casos + os contratos atuais de
+      `tenant-context` verdes
+
+A T004 (verificação) passa a ser **de entrada** (A3) e depende do despachante, então foi para a
+Fase 2, logo depois da T006.
 
 ## Fase 2 — O despachante e o menu
 
@@ -40,6 +49,13 @@ que sobe.
       ator, roda `flows.interpreter`, envia `fallbackMessage`, handoff na segunda recusa, teto de
       30/10 min por número — `application/whatsapp-command-driver.service.ts`,
       `src/whatsapp/application/meta-whatsapp-module.resolver.ts` — integração com Graph API fake
+- [ ] **T004** 🧠 Verificação de entrada, primeira `FlowAction` do despachante: o painel pede o
+      código (`POST /me/whatsapp-phone/verification`, autenticado, devolve código e número da
+      empresa), e a mensagem que o traz confirma **só** se o `from` casar com o número declarado;
+      comparação `timingSafeEqual` sobre digest, 10 min, 5 tentativas;
+      `DELETE /me/whatsapp-phone` e `DELETE /company-users/:id/whatsapp-phone` (`users.manage`, só
+      desfaz); trilha em `audit_logs` — contrato do `from` divergente, do código vencido e da colisão
+      com número já verificado por outro usuário (mesmo 400 genérico)
 - [ ] **T007** Política de menu (botão ≤3 com emoji, lista 4–10, paginação >10, teto de 20/24
       caracteres) e validação na publicação do grafo — `domain/whatsapp-menu.policy.ts` — contrato
 - [ ] **T008** Grafo em código + comando de republicação versionada; o menu raiz é filtrado por
@@ -99,7 +115,7 @@ concluída apenas após registrar evidência.
 ## Ordem
 
 ```
-T001 ─> T002 ─> T003 ─> T004 ─> T005 ─> T006 ─> T007 ─> T008 ─┬─> T009 ─> T010 ─> T011 ─> T012 ─> T013 ─> T014 ─┐
+T001 ─> T002 ─> T003 ─> T005 ─> T006 ─> T004 ─> T007 ─> T008 ─┬─> T009 ─> T010 ─> T011 ─> T012 ─> T013 ─> T014 ─┐
                                                               └─> T015 ─> T016 ──────────────────────────────────┴─> T017 ─> T018 ─> T019
 ```
 

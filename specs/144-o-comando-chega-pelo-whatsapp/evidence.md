@@ -144,3 +144,22 @@ o resto da suíte, não uma regressão determinística. `git diff --stat` desta 
 `apps/api-transportada/package.json`, `apps/worker-transportada/package.json`,
 `apps/api-transportada/src/database/meta-whatsapp-migration.service.ts` e `bun.lock` — nada em
 `cargo-placement`.
+
+## Fase 1 — validação do architect antes da T003 (2026-09-11)
+
+**Veredito: APROVADO COM AJUSTES.** O D1 e o D2 se sustentam; a T003 como estava escrita não. Os
+ajustes foram incorporados à spec, ao plano e às tasks no mesmo commit desta seção.
+
+| ajuste | o que muda                                                                                                  | por quê (evidência)                                                                                                                                                              |
+| ------ | ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A1     | vínculo em `user_whatsapp_phones`, não em `login_identifiers`                                               | `rebuildLoginIdentifiers` faz delete + insert das linhas `source='profile'` (`drizzle-company-user.repository.ts:120-163`), e o `verified_at` sumiria na próxima edição da ficha |
+| A2     | `whatsapp_phone_verification_requests` no molde de `password_reset_requests`, **sem** unique de `code_hash` | 6 dígitos são um milhão de códigos; o unique global só existe lá porque a rota é anônima                                                                                         |
+| A3     | verificação **de entrada**, com o `from` casado; T004 vai para depois da T006                               | prova a posse do WhatsApp, dispensa template pago e o nono dígito                                                                                                                |
+| A4     | `toWhatsAppPhone` + `isSameWhatsAppPhone`, cópia por valor no worker; `maskPhone` criado no logging         | `maskPhone` não existia (grep vazio na API e no worker)                                                                                                                          |
+| A5     | `resolveCompanyForUser` extraído de `TenantContextService`                                                  | `resolveCompany` lê a empresa do JWT (`tenant-context.service.ts:41-72`); `resolveCompanyPermissions` já é pura (`authorization.policy.ts:138`)                                  |
+| A6     | validade de 90 dias, admin só desfaz, trilha em `audit_logs`                                                | número reciclado pela operadora é o risco mais sério do D1                                                                                                                       |
+| A7     | texto corrigido                                                                                             | `source='whatsapp'` não existe (CHECK `in ('profile','manual')`); os casos de recusa são **quatro**; o limitador existe, em memória e opt-in                                     |
+
+Achado fora do escopo, registrado como task separada: `toMetaRecipient`
+(`worker-transportada/src/whatsapp/infrastructure/whatsapp-code-sender.gateway.ts:100-102`) envia
+sem o `55`, então o convite por WhatsApp da 062 T005 sai sem código de país.
