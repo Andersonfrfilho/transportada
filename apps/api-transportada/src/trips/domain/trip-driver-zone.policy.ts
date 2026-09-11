@@ -39,8 +39,16 @@ export type TripDriverZone =
    * Spec 123: **a zona que foi recusada.** A política tinha o destino casado na mão no instante em
    * que negou a cobertura, e jogava fora — a tela recebia "rota do agregado sem valor cadastrado" e
    * o operador não tinha como saber qual linha da ficha do motorista cadastrar.
+   *
+   * Spec 124: o **id** vai junto, porque a consulta passou a pedir à tabela o preço da zona recusada
+   * — é ele que vira estimativa com aviso quando a célula existe.
    */
-  | { readonly gap: ValuationGap; readonly regionCity: string; readonly regionCode: string }
+  | {
+      readonly gap: ValuationGap
+      readonly regionCity: string
+      readonly regionCode: string
+      readonly regionId: string
+    }
   /**
    * Spec 110 D7: o **código** da zona e a **cidade que a decidiu** viajam junto do id.
    *
@@ -107,6 +115,7 @@ export function resolveTripDriverZone(input: ResolveTripDriverZoneParams): TripD
         gap: VALUATION_GAPS.driverZoneNotCovered,
         regionCity: destination.city,
         regionCode: destination.code,
+        regionId: destination.regionId,
       }
 }
 

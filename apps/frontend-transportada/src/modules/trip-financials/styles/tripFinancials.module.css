@@ -162,6 +162,24 @@
   text-decoration-color: var(--color-copper);
 }
 
+/* Spec 124: projeção sai marcada ao lado do número — ela conta no total, mas não é apuração. */
+.ledgerEstimated {
+  margin-right: var(--space-2);
+  color: var(--color-slate);
+  font-family: var(--font-utility);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Spec 124: o aviso é a ação a fazer, logo abaixo do número que continua valendo. */
+.ledgerAdvisory {
+  margin: 0 0 var(--space-1);
+  color: var(--color-copper);
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
 .ledgerRevenue {
   padding-bottom: var(--space-2);
   border-bottom: 1px solid color-mix(in srgb, var(--color-slate) 18%, transparent);

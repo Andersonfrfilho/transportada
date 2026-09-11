@@ -35,12 +35,26 @@ const TAX_KINDS: readonly string[] = ['icms', 'pis_cofins']
  */
 export const STRUCK_THROUGH_GAPS: readonly string[] = ['FEATURE_ABSENT']
 
+/**
+ * Spec 124: **aviso, não lacuna** — cópia por valor de `ADVISORY_GAPS` da API, conferida contra o
+ * fonte por `test/trip-financials/valuation-ledger-advisory.contract.ts`. A linha tem valor que conta
+ * no total; esconder o número seria a tela somar o que não imprime.
+ */
+export const ADVISORY_GAPS: readonly string[] = ['DRIVER_ZONE_PRICED_FROM_TABLE']
+
 export type ValuationLedgerLine = Readonly<{
-  /** `null` **quando há lacuna**: ali o motivo ocupa o lugar do número, e zero seria mentira. */
+  /**
+   * `null` **quando há lacuna**: ali o motivo ocupa o lugar do número, e zero seria mentira. A
+   * exceção é o aviso (spec 124), cujo número conta no total e fica visível ao lado do motivo.
+   */
   amount: null | string
   basis: null | TripValuationCostParcelBasis
   detail: null | string
   gap: null | string
+  /** Spec 124: a lacuna é aviso — o valor aparece, e o motivo vem logo abaixo dele. */
+  isAdvisory: boolean
+  /** Projeção, não apuração: a tela imprime a marca de estimado ao lado do número. */
+  isEstimated: boolean
   /** Spec 122: `true` só quando `gap` está em `STRUCK_THROUGH_GAPS` — a tela risca a linha. */
   isGapStruckThrough: boolean
   kind: string
@@ -59,11 +73,16 @@ export type ValuationLedger = Readonly<{
 }>
 
 function toLine(parcel: TripValuationCostParcel): ValuationLedgerLine {
+  const isAdvisory = parcel.gap !== null && ADVISORY_GAPS.includes(parcel.gap)
+  const showsAmount = parcel.gap === null || isAdvisory
+
   return {
-    amount: parcel.gap === null ? parcel.amount : null,
+    amount: showsAmount ? parcel.amount : null,
     basis: parcel.basis,
     detail: parcel.detail,
     gap: parcel.gap,
+    isAdvisory,
+    isEstimated: showsAmount && parcel.source === 'estimated',
     isGapStruckThrough: parcel.gap !== null && STRUCK_THROUGH_GAPS.includes(parcel.gap),
     kind: parcel.kind,
   }

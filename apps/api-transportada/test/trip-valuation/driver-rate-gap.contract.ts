@@ -64,6 +64,7 @@ describe('the driver rate gap names the spreadsheet cell (spec 123)', () => {
       gap: VALUATION_GAPS.driverZoneNotCovered,
       regionCity: 'CAJURU',
       regionCode: '3.000',
+      regionId: 'r-3000',
     })
   })
 

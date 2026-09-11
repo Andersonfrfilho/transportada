@@ -1016,6 +1016,20 @@ nomear zona e classe, 4 seguem secas (nenhuma parada com cidade), **0 valores al
 em `test/trip-valuation/driver-rate-gap.contract.ts`; a ordem de deploy é indiferente (o `t()` cai no
 `defaultValue`).
 
+**Motorista sem a zona: a conta usa o preço da tabela, e avisa** (spec 124). Quando a zona do
+destino existe, o motorista não a cobre e `freight_region_driver_rates` **tem** preço para
+`(zona, classe)`, a parcela `driver` conta esse preço como `estimated`, com a lacuna-aviso
+`DRIVER_ZONE_PRICED_FROM_TABLE` e o mesmo detalhe da 123. Sem preço nem na tabela, continua
+`DRIVER_ZONE_NOT_COVERED` ausente. ⚠️ **Aviso não é lacuna:** `ADVISORY_GAPS`
+(`trip-valuation.policy.ts`) lista as lacunas cujo número está completo, e `hasGaps` as ignora — o
+total conta o valor, e a marca de estimado diz que é projeção. `TOLL_PARTIAL` **não** é aviso: lá o
+total subestima. No frontend `ADVISORY_GAPS` é cópia por valor (contrato
+`test/trip-financials/valuation-ledger-advisory.contract.ts` lê o fonte da API), e o razão passou a
+mostrar o valor **e** o aviso na mesma linha, e a imprimir "estimado" ao lado de toda parcela
+`estimated`. Cobrir a zona na ficha faz o mesmo preço sair `measured`, sem aviso. Medido em
+2026-09-10: 13 das 20 viagens com tripulação saíram de ausente para estimado, +R$ 9.577,24 de custo
+de motorista.
+
 **O pedágio da rota é calculado, não lançado à mão** (spec 090, ADR pendente). `toll_booths` é a
 **terceira** tabela sem `company_id`, ao lado de `fuel_price_references` e `vehicle_volume_references`:
 tarifa pública mapeada no OSM, carregada do mesmo `.osm.pbf` que alimenta o OSRM por

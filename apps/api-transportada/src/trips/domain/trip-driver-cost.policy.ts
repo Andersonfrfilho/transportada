@@ -34,6 +34,11 @@ export type TripCrewMember = {
    */
   readonly routeGap?: null | ValuationGap
   /**
+   * Spec 124: `estimated` quando o preço veio da tabela para uma zona que a ficha do motorista não
+   * cobre. Ausente é `measured` — a zona está na ficha, e o preço é o que ela afirma.
+   */
+  readonly routeSource?: 'estimated' | 'measured'
+  /**
    * Spec 110 D7: **a zona que pagou, por extenso.** O id da zona é chave de banco e não diz nada a
    * ninguém; o código impresso (`1.002`) e a cidade que o decidiu — o destino mais distante — são o
    * que transforma "R$ 1.480,00" em algo conferível.
@@ -121,6 +126,11 @@ export function buildTripDriverCost(crew: readonly TripCrewMember[]): TripCostPa
    * pelo destino mais distante do roteiro (spec 086 D1).
    */
   const [reference] = paidByRoute
+  /**
+   * Spec 124 D3: um condutor com preço **da tabela** (zona fora da ficha dele) torna a parcela
+   * estimada, e o aviso nomeia a célula — e, com mais de um condutor, quem não cobre.
+   */
+  const estimated = paidByRoute.find((member) => member.routeSource === 'estimated')
 
   return {
     amount: formatScaledDecimal(total, MONEY_SCALE),
@@ -131,14 +141,25 @@ export function buildTripDriverCost(crew: readonly TripCrewMember[]): TripCostPa
       regionCode: reference?.regionCode ?? null,
       vehicleClass: reference?.vehicleClass ?? '',
     },
-    detail: null,
+    detail:
+      estimated === undefined
+        ? null
+        : buildRateDetail({ member: estimated, namesDriver: crew.length > 1 }),
     /**
      * Há salário fora da conta, e a viagem carrega isso como lacuna — não para bloquear o número,
      * mas para a tela poder dizer "e mais um motorista da casa, que é custo do período".
+     *
+     * Spec 124 D4: o aviso de zona fora da ficha vence — ele é acionável, e a parcela só tem uma
+     * lacuna.
      */
-    gap: salaried.length > 0 ? VALUATION_GAPS.salariedCrewMember : null,
+    gap:
+      estimated !== undefined
+        ? VALUATION_GAPS.driverZonePricedFromTable
+        : salaried.length > 0
+          ? VALUATION_GAPS.salariedCrewMember
+          : null,
     kind: 'driver',
-    source: 'measured',
+    source: estimated === undefined ? 'measured' : 'estimated',
   }
 }
 

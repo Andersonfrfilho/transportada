@@ -414,6 +414,10 @@ export class DrizzleTripValuationQuery {
       }),
     }))
 
+    /**
+     * Spec 124: a zona **recusada** também tem o preço pedido. A célula `(zona, classe)` é o que a
+     * transportadora paga pela rota, coberta ou não; o que falta à recusada é só a linha na ficha.
+     */
     const rates = await this.readRatesByRegion({
       companyId: input.companyId,
       freightClass: input.freightClass,
@@ -421,15 +425,35 @@ export class DrizzleTripValuationQuery {
     })
 
     return zones.map(({ driver, zone }) => {
+      if ('gap' in zone && 'regionId' in zone) {
+        const tablePrice = rates.get(zone.regionId) ?? null
+
+        /**
+         * Com preço na tabela, a parcela conta o valor como **estimado** e avisa para acrescentar a
+         * zona na ficha. Sem preço nem na tabela, a lacuna da 123 continua — nada é inventado.
+         */
+        return {
+          cityToRegister: null,
+          driverId: driver.driverId,
+          driverName: driver.driverName,
+          paymentModel: driver.paymentModel,
+          regionCity: zone.regionCity,
+          regionCode: zone.regionCode,
+          routeAmount: tablePrice,
+          routeGap: tablePrice === null ? zone.gap : VALUATION_GAPS.driverZonePricedFromTable,
+          ...(tablePrice === null ? {} : { routeSource: 'estimated' as const }),
+          vehicleClass: input.freightClass,
+        }
+      }
       if (!('regionId' in zone)) {
         return {
           cityToRegister: 'cityToRegister' in zone ? zone.cityToRegister : null,
           driverId: driver.driverId,
           driverName: driver.driverName,
           paymentModel: driver.paymentModel,
-          /** Spec 123: a zona recusada sobe junto da lacuna — ela é a linha da ficha a cadastrar. */
-          regionCity: 'regionCity' in zone ? zone.regionCity : null,
-          regionCode: 'regionCode' in zone ? zone.regionCode : null,
+          /** A zona recusada é tratada acima (spec 124); aqui não houve zona decidida. */
+          regionCity: null,
+          regionCode: null,
           routeAmount: null,
           routeGap: zone.gap,
           vehicleClass: input.freightClass,

@@ -115,6 +115,8 @@ describe('valuation ledger contract', () => {
       basis: null,
       detail: null,
       gap: 'NO_FUEL_CONSUMPTION',
+      isAdvisory: false,
+      isEstimated: false,
       isGapStruckThrough: false,
       kind: 'fuel',
     })

@@ -100,9 +100,31 @@ export const VALUATION_GAPS = {
    * célula para preencher, e a lacuna honesta continua sendo `noDriverRate`.
    */
   driverRateMissingForClass: 'DRIVER_RATE_MISSING_FOR_CLASS',
+  /**
+   * Spec 124: o motorista não cobre a zona do destino, **e a tabela tem preço** para aquela zona e
+   * aquela classe. A parcela conta esse preço como `estimated` e o aviso manda acrescentar a zona na
+   * ficha dele — o preço da célula é o que a transportadora paga pela rota; o que falta é só alguém
+   * afirmar que aquele motorista roda ali. `detail` traz a zona, a classe e, com dois condutores, o
+   * nome de quem não cobre.
+   */
+  driverZonePricedFromTable: 'DRIVER_ZONE_PRICED_FROM_TABLE',
 } as const
 
 export type ValuationGap = (typeof VALUATION_GAPS)[keyof typeof VALUATION_GAPS]
+
+/**
+ * Spec 124 D2: **aviso, não lacuna.** A parcela tem valor completo e o número conta no total — o que
+ * falta é um cadastro que não muda o número. Por isso `hasGaps` o ignora: marcar a conta como
+ * incompleta mandaria o operador procurar um buraco que não existe.
+ *
+ * ⚠️ `TOLL_PARTIAL` **não** entra aqui, embora também tenha valor: lá o total subestima (praça sem
+ * tarifa fica de fora), e isso é incompleto de verdade.
+ */
+export const ADVISORY_GAPS: readonly ValuationGap[] = [VALUATION_GAPS.driverZonePricedFromTable]
+
+export function isAdvisoryGap(gap: null | ValuationGap): boolean {
+  return gap !== null && ADVISORY_GAPS.includes(gap)
+}
 
 export const TRIP_COST_KINDS = [
   'driver',
@@ -207,7 +229,7 @@ export function buildTripValuation(input: BuildTripValuationParams): TripValuati
     costParcels: input.costParcels,
     hasGaps:
       input.revenueLines.some((line) => line.gap !== null) ||
-      input.costParcels.some((parcel) => parcel.gap !== null),
+      input.costParcels.some((parcel) => parcel.gap !== null && !isAdvisoryGap(parcel.gap)),
     marginPercentage:
       totalRevenue === 0n
         ? null

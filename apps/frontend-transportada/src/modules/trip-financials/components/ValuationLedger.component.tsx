@@ -83,8 +83,14 @@ function LedgerLine({ line }: Readonly<{ line: ValuationLedgerLine }>) {
     <>
       <div className={styles.ledgerRow}>
         <dt>{t(`parcel.${line.kind}`, line.kind)}</dt>
-        {line.gap === null ? (
-          <dd>{formatAmount(line.amount ?? '0.00')}</dd>
+        {line.gap === null || line.isAdvisory ? (
+          <dd>
+            {/* Projeção sai marcada: o número conta no total, e não se confunde com apuração. */}
+            {line.isEstimated ? (
+              <span className={styles.ledgerEstimated}>{t('source.estimated')}</span>
+            ) : null}
+            {formatAmount(line.amount ?? '0.00')}
+          </dd>
         ) : (
           <dd
             className={
@@ -114,6 +120,13 @@ function LedgerLine({ line }: Readonly<{ line: ValuationLedgerLine }>) {
               })}
         </p>
       )}
+      {/* Spec 124: o aviso vem abaixo do número — ele diz o que cadastrar, não que falta valor. */}
+      {line.isAdvisory ? (
+        <p className={styles.ledgerAdvisory}>
+          {t(`gap.${line.gap ?? ''}`, { defaultValue: line.gap ?? '' })}
+          {line.detail === null ? '' : ` — ${line.detail}`}
+        </p>
+      ) : null}
     </>
   )
 }
