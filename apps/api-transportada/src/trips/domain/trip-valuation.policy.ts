@@ -84,6 +84,22 @@ export const VALUATION_GAPS = {
    * ações diferentes, e uma lacuna só faria o operador procurar no lugar errado.
    */
   cityWithoutRegion: 'CITY_WITHOUT_REGION',
+  /**
+   * Spec 123: a zona do destino existe e **este motorista não a cobre**. A correção é a ficha dele
+   * (`fleet_driver_regions`), não a planilha — e é por isso que ela não pode dividir uma lacuna com
+   * `driverRateMissingForClass`, que se resolve na aba Regiões. `detail` traz a zona recusada.
+   */
+  driverZoneNotCovered: 'DRIVER_ZONE_NOT_COVERED',
+  /**
+   * Spec 123: a zona existe, o motorista a cobre, e **a célula de preço daquela classe está
+   * vazia** — célula zerada na planilha não vira linha (ADR-0038), então ausência aqui é ausência
+   * de preço para aquela coluna. Medido em 2026-09-10 na base real: a coluna `utility` está vazia
+   * nas 25 zonas que têm algum preço, e a `driver` daquela viagem saía sem dizer qual.
+   *
+   * ⚠️ Veículo **sem coluna** na planilha (moto, carro, cavalo mecânico) não cai aqui: ali não há
+   * célula para preencher, e a lacuna honesta continua sendo `noDriverRate`.
+   */
+  driverRateMissingForClass: 'DRIVER_RATE_MISSING_FOR_CLASS',
 } as const
 
 export type ValuationGap = (typeof VALUATION_GAPS)[keyof typeof VALUATION_GAPS]

@@ -996,6 +996,26 @@ consumo declarado que **não produz conta** (zero, ou valor que não parseia).
 `test/trip-financials/valuation-gap-labels.contract.ts` (frontend) lê `VALUATION_GAPS` do fonte da
 API e reprova lacuna nova sem rótulo nas duas telas e nos dois idiomas.
 
+⚠️ **A lacuna do agregado passou a dizer qual célula da planilha falta** (spec 123). `NO_DRIVER_RATE`
+saía com `detail: null` — "rota do agregado sem valor cadastrado" numa tabela de **29 zonas × 6
+colunas** é mandar conferir 174 células. O cálculo já sabia: `resolveTripDriverZone` tinha o destino
+casado na mão quando negou a cobertura e o descartava, e `resolveCrew` não passava adiante a classe
+nem o motorista. Hoje o detalhe é dado cru — `3.000 (CAJURU) · vuc · adalberto rocha` — com o mesmo
+separador `·` de `ledger.driverBasis`, e a frase continua no `*.locale.json`.
+
+⚠️ **São duas faltas, e elas se cadastram em telas diferentes:** `DRIVER_ZONE_NOT_COVERED` (a zona
+existe, o motorista não a cobre — ficha do motorista) e `DRIVER_RATE_MISSING_FOR_CLASS` (a zona
+existe, ele cobre, e a célula daquela classe está vazia — aba Regiões). ⚠️ Veículo **sem coluna** na
+planilha (moto, carro, cavalo mecânico, onde `resolveVehicleFreightClass` manda `''`) **não** cai na
+segunda: ali não há célula para preencher, e a lacuna honesta continua sendo `NO_DRIVER_RATE`.
+⚠️ **A coluna só aparece acompanhada da linha** — `three_quarter` sozinho diria que o problema é a
+classe quando o problema é não ter havido destino; e **o nome do motorista só entra com mais de um
+condutor**, senão é ruído. Medido em 2026-09-10: 20 viagens com tripulação, 8 lacunas passam a
+nomear zona e classe, 4 seguem secas (nenhuma parada com cidade), **0 valores alterados** — a coluna
+`utility` está vazia nas 25 zonas que têm algum preço, e é ela o caso real da célula vazia. Contrato
+em `test/trip-valuation/driver-rate-gap.contract.ts`; a ordem de deploy é indiferente (o `t()` cai no
+`defaultValue`).
+
 **O pedágio da rota é calculado, não lançado à mão** (spec 090, ADR pendente). `toll_booths` é a
 **terceira** tabela sem `company_id`, ao lado de `fuel_price_references` e `vehicle_volume_references`:
 tarifa pública mapeada no OSM, carregada do mesmo `.osm.pbf` que alimenta o OSRM por

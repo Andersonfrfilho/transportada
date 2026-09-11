@@ -20,6 +20,11 @@ export type TripCrewMember = {
   /** A cidade que a lacuna nomeia, quando a causa é `CITY_WITHOUT_REGION`. */
   readonly cityToRegister?: null | string
   readonly driverId: string
+  /**
+   * Spec 123: **de quem é a lacuna.** Com dois agregados na mesma viagem, a parcela relata um só —
+   * e sem o nome o operador confere a ficha do outro. Ausente é ausência: o detalhe encolhe.
+   */
+  readonly driverName?: null | string
   readonly paymentModel: DriverPaymentModel
   readonly routeAmount: null | string
   /**
@@ -59,7 +64,7 @@ export function buildTripDriverCost(crew: readonly TripCrewMember[]): TripCostPa
   const salaried = crew.filter((member) => member.paymentModel === 'fixed')
 
   if (crew.length === 0) {
-    return missing({ cityToRegister: null, routeGap: null })
+    return missing({ member: null, namesDriver: false })
   }
   if (paidByRoute.length === 0) {
     /** Só assalariado: o custo é do período, e a viagem diz isso em vez de fingir que é zero. */
@@ -89,12 +94,14 @@ export function buildTripDriverCost(crew: readonly TripCrewMember[]): TripCostPa
     const named = withoutAmount.find(
       (member) => member.routeGap === VALUATION_GAPS.cityWithoutRegion,
     )
-    const chosen = named ?? withoutAmount[0]
+    /**
+     * Spec 123: sem cidade a cadastrar, vence quem **tem o que dizer**. Relatar o primeiro da lista
+     * quando o segundo conhece zona e classe devolveria a frase seca com a informação a um índice
+     * de distância.
+     */
+    const chosen = named ?? withoutAmount.find(hasDetail) ?? withoutAmount[0]
 
-    return missing({
-      cityToRegister: chosen?.cityToRegister ?? null,
-      routeGap: chosen?.routeGap ?? null,
-    })
+    return missing({ member: chosen ?? null, namesDriver: crew.length > 1 })
   }
 
   const total = paidByRoute.reduce(
@@ -135,18 +142,70 @@ export function buildTripDriverCost(crew: readonly TripCrewMember[]): TripCostPa
   }
 }
 
+/**
+ * Spec 123: **a lacuna nomeia a linha e a coluna da planilha.** `detail` sai como dado cru, no
+ * mesmo molde do `ledger.driverBasis` que a tela já imprime para a parcela medida
+ * (`1.002 (RIBEIRÃO PRETO) · toco`) — a frase traduzida é do `*.locale.json`, e o que atravessa a
+ * fronteira são os pedaços.
+ *
+ * ⚠️ A cidade a cadastrar sai **sozinha**: ali não há zona (é justamente o que falta), e pôr uma ao
+ * lado seria contradizer a própria lacuna.
+ */
 function missing(input: {
-  readonly cityToRegister: null | string
-  readonly routeGap: null | ValuationGap
+  readonly member: null | TripCrewMember
+  readonly namesDriver: boolean
 }): TripCostParcel {
+  const { member } = input
+  const cityToRegister = member?.cityToRegister ?? null
+
   return {
     amount: ZERO,
-    detail: input.cityToRegister ?? null,
-    gap: input.routeGap ?? VALUATION_GAPS.noDriverRate,
+    detail: cityToRegister ?? buildRateDetail(input),
+    gap: member?.routeGap ?? VALUATION_GAPS.noDriverRate,
     kind: 'driver',
     source: 'missing',
   }
 }
 
+/** Tem algo a nomear além da frase seca — é o que faz este condutor valer a pena relatar. */
+function hasDetail(member: TripCrewMember): boolean {
+  return buildRateDetail({ member, namesDriver: true }) !== null
+}
+
+/**
+ * ⚠️ **Nada é inventado: cada pedaço só entra se o cálculo o conhece.** Cavalo mecânico não tem
+ * coluna na planilha (`resolveVehicleFreightClass` manda `''`), e aí a classe some do texto em vez
+ * de virar um rótulo que ninguém decidiu.
+ */
+function buildRateDetail(input: {
+  readonly member: null | TripCrewMember
+  readonly namesDriver: boolean
+}): null | string {
+  const { member } = input
+  if (member === null) return null
+
+  const parts: string[] = []
+  const regionCode = (member.regionCode ?? '').trim()
+  if (regionCode !== '') {
+    const regionCity = (member.regionCity ?? '').trim()
+    parts.push(regionCity === '' ? regionCode : `${regionCode} (${regionCity})`)
+
+    /**
+     * ⚠️ **A coluna só aparece acompanhada da linha.** Sem zona decidida, "toco" sozinho diz que o
+     * problema é a classe do veículo — e o problema é que não houve destino que resolvesse zona
+     * nenhuma. Uma coordenada só não localiza célula em planilha.
+     */
+    const vehicleClass = (member.vehicleClass ?? '').trim()
+    if (vehicleClass !== '') parts.push(vehicleClass)
+  }
+
+  const driverName = input.namesDriver ? (member.driverName ?? '').trim() : ''
+  if (driverName !== '') parts.push(driverName)
+
+  return parts.length === 0 ? null : parts.join(DETAIL_SEPARATOR)
+}
+
 const ZERO = '0.0000'
+/** O mesmo separador do `ledger.driverBasis`: a tela já lê zona · classe assim na parcela medida. */
+const DETAIL_SEPARATOR = ' · '
 const ERROR_CODE_PREFIX = 'TRIP_DRIVER_COST'

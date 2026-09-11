@@ -102,7 +102,8 @@ describe('trip driver zone policy', () => {
         coverage: [{ city: '', code: '1.001', regionId: 'r-1001', scope: 'region', state: '' }],
         stops: [stop('COLINA', 1)],
       }),
-    ).toEqual({ gap: 'NO_DRIVER_RATE' })
+      /** Spec 123: a zona recusada viaja junto — é ela que se cadastra na ficha do motorista. */
+    ).toEqual({ gap: 'DRIVER_ZONE_NOT_COVERED', regionCity: 'COLINA', regionCode: '1.003' })
   })
 
   /** A cobertura é acumulativa: quem cobre a 1.003 cobre a 1.001 — e paga o preço da 1.001. */
@@ -127,7 +128,7 @@ describe('trip driver zone policy', () => {
     ).toEqual({ regionCity: 'BARRINHA', regionCode: '1.001', regionId: 'r-1001' })
     expect(
       resolveTripDriverZone({ catalog: CATALOG, coverage, stops: [stop('COLINA', 1)] }),
-    ).toEqual({ gap: 'NO_DRIVER_RATE' })
+    ).toEqual({ gap: 'DRIVER_ZONE_NOT_COVERED', regionCity: 'COLINA', regionCode: '1.003' })
   })
 
   /**

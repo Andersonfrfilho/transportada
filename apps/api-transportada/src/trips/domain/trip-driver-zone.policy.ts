@@ -36,6 +36,12 @@ export type TripDriverZone =
   | { readonly cityToRegister: string; readonly gap: ValuationGap }
   | { readonly gap: ValuationGap }
   /**
+   * Spec 123: **a zona que foi recusada.** A política tinha o destino casado na mão no instante em
+   * que negou a cobertura, e jogava fora — a tela recebia "rota do agregado sem valor cadastrado" e
+   * o operador não tinha como saber qual linha da ficha do motorista cadastrar.
+   */
+  | { readonly gap: ValuationGap; readonly regionCity: string; readonly regionCode: string }
+  /**
    * Spec 110 D7: o **código** da zona e a **cidade que a decidiu** viajam junto do id.
    *
    * ⚠️ Sem os dois, a tela imprime "R$ 1.480,00" e nada mais — e o operador não tem como saber que
@@ -69,7 +75,9 @@ export type ResolveTripDriverZoneParams = {
  *   1.003 e entregar na 1.001 paga a 1.001, que é a estrada que ele de fato andou;
  * - `{ gap: CITY_WITHOUT_REGION, cityToRegister }` — o destino não está na tabela. A cidade sai por
  *   nome porque "cadastre ITOBI/SP" é acionável e "sem preço" não é;
- * - `{ gap: NO_DRIVER_RATE }` — a zona existe e o motorista não a cobre, ou não há como decidir.
+ * - `{ gap: DRIVER_ZONE_NOT_COVERED, regionCode, regionCity }` — a zona existe e o motorista não a
+ *   cobre. A zona viaja junto porque é ela que se cadastra na ficha dele (spec 123);
+ * - `{ gap: NO_DRIVER_RATE }` — não há como decidir a zona, e aí não há nada que nomear.
  */
 export function resolveTripDriverZone(input: ResolveTripDriverZoneParams): TripDriverZone {
   const catalog = new Map(input.catalog.map((entry) => [cityKey(entry), entry]))
@@ -95,7 +103,11 @@ export function resolveTripDriverZone(input: ResolveTripDriverZoneParams): TripD
         regionCode: destination.code,
         regionId: destination.regionId,
       }
-    : { gap: VALUATION_GAPS.noDriverRate }
+    : {
+        gap: VALUATION_GAPS.driverZoneNotCovered,
+        regionCity: destination.city,
+        regionCode: destination.code,
+      }
 }
 
 type ResolvedStop = { readonly entry: RegionCityEntry; readonly stop: TripZoneStop }

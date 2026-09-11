@@ -1,6 +1,8 @@
 {
   "gap": {
     "CITY_WITHOUT_REGION": "destination without a registered freight zone",
+    "DRIVER_RATE_MISSING_FOR_CLASS": "the zone has no price for this vehicle class — check the Regions tab",
+    "DRIVER_ZONE_NOT_COVERED": "the driver does not cover the destination zone — fix it on the driver record",
     "FEATURE_ABSENT": "module not in use yet",
     "NOT_RECORDED": "nobody recorded it",
     "NO_DRIVER_RATE": "aggregate route without a rate",

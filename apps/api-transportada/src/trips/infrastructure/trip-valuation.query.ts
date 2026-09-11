@@ -24,6 +24,7 @@ import { parseTollRouteCost } from '../../toll-booths/domain/toll-route-cost-sna
 import type { FreightVehicleClass } from '../../shared/freight-class.constant.js'
 import type { DriverPaymentModel } from '../../database/fleet.schema.js'
 import type { TripCrewMember } from '../domain/trip-driver-cost.policy.js'
+import { VALUATION_GAPS } from '../domain/trip-valuation.policy.js'
 import {
   resolveTripDriverZone,
   type DriverZoneCoverage,
@@ -388,6 +389,7 @@ export class DrizzleTripValuationQuery {
     readonly companyId: string
     readonly drivers: readonly {
       readonly driverId: string
+      readonly driverName: null | string
       readonly paymentModel: DriverPaymentModel
     }[]
     readonly freightClass: '' | FreightVehicleClass
@@ -423,21 +425,39 @@ export class DrizzleTripValuationQuery {
         return {
           cityToRegister: 'cityToRegister' in zone ? zone.cityToRegister : null,
           driverId: driver.driverId,
+          driverName: driver.driverName,
           paymentModel: driver.paymentModel,
+          /** Spec 123: a zona recusada sobe junto da lacuna — ela é a linha da ficha a cadastrar. */
+          regionCity: 'regionCity' in zone ? zone.regionCity : null,
+          regionCode: 'regionCode' in zone ? zone.regionCode : null,
           routeAmount: null,
           routeGap: zone.gap,
+          vehicleClass: input.freightClass,
         }
       }
+
+      const routeAmount = rates.get(zone.regionId) ?? null
 
       return {
         cityToRegister: null,
         driverId: driver.driverId,
+        driverName: driver.driverName,
         paymentModel: driver.paymentModel,
         /** Spec 110 D7: a zona que pagou sobe junto do preço — id de banco não explica nada. */
         regionCity: zone.regionCity,
         regionCode: zone.regionCode,
-        routeAmount: rates.get(zone.regionId) ?? null,
-        routeGap: null,
+        routeAmount,
+        /**
+         * Spec 123: a zona casou e o preço não veio. Com coluna na planilha isso é **célula
+         * vazia**, e se resolve reimportando a tabela; sem coluna (cavalo mecânico, moto, carro)
+         * não há célula para preencher, e a lacuna honesta continua sendo a genérica.
+         */
+        routeGap:
+          routeAmount !== null
+            ? null
+            : input.freightClass === ''
+              ? VALUATION_GAPS.noDriverRate
+              : VALUATION_GAPS.driverRateMissingForClass,
         vehicleClass: input.freightClass,
       }
     })
@@ -455,7 +475,11 @@ export class DrizzleTripValuationQuery {
     const [vehicle, drivers] = await Promise.all([
       this.readVehicleFreightClass({ companyId: input.companyId, vehicleId: input.vehicleId }),
       this.database
-        .select({ driverId: fleetDrivers.id, paymentModel: fleetDrivers.paymentModel })
+        .select({
+          driverId: fleetDrivers.id,
+          driverName: fleetDrivers.name,
+          paymentModel: fleetDrivers.paymentModel,
+        })
         .from(fleetDrivers)
         .where(
           and(
@@ -562,7 +586,11 @@ export class DrizzleTripValuationQuery {
 
     const [drivers, sequenceByDocument] = await Promise.all([
       this.database
-        .select({ driverId: fleetDrivers.id, paymentModel: fleetDrivers.paymentModel })
+        .select({
+          driverId: fleetDrivers.id,
+          driverName: fleetDrivers.name,
+          paymentModel: fleetDrivers.paymentModel,
+        })
         .from(tripDrivers)
         .innerJoin(
           fleetDrivers,
