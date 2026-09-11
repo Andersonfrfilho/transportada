@@ -222,7 +222,17 @@ describe('a busca de lugar vai até a porta (spec 116, contrato da spec 117)', (
    * fora de 1396 contra o teto de 72 + 144. E esta carga deixou de separar o teto fixo de 64 tentativas
    * (150 fora, contra 149): quem guarda a spec 116 agora é o Accelo real de 24 paradas, que com 64
    * fixas cai de 500 para 477 caixas (`real-mixed-cargo.contract.ts`).
+   *
+   * ⚠️ **Spec 142: o teto de 216 contava 14 escoras que não existiam.** A linha anterior (`b50a3952`)
+   * deixava 163 caixas fora desta carga, e 14 das caixas desenhadas se escoravam, **no momento em que
+   * eram carregadas**, só no balanço de uma caixa que começava acima delas — prateleira sobre vão, que
+   * a regra do juiz não aceita como escora. O juiz da descarga não as acusava porque confere a planta
+   * pronta, e a carga posta depois ao lado as confinava. Com a vizinha escorando só quando sobe ao lado
+   * (`alongsideTopAt`), a mesma carga deixa **280** fora, e nenhuma escora de prateleira. O teto passa a
+   * ser o número medido: é o custo da regra, não folga — a spec 143 é quem o leva a zero.
    */
+  const LEDGE_BRACE_COST_BOXES = 280 - (DOOR_STAIRCASE_BOXES + UNREACHABLE_TOP_BOXES)
+
   test('num baú de 7,40 m com 85 paradas, o que fica fora cabe na escada da porta', () => {
     const boxes = Array.from({ length: 85 }, (_, index) => index + 1).flatMap((stop) => [
       presumedOf(stop, 16),
@@ -244,6 +254,8 @@ describe('a busca de lugar vai até a porta (spec 116, contrato da spec 117)', (
 
     expect(requested).toBeLessThan(1500)
     expect(plan?.unplaced.filter((entry) => entry.reason === 'tooMany')).toEqual([])
-    expect(unplacedOf(plan)).toBeLessThanOrEqual(DOOR_STAIRCASE_BOXES + UNREACHABLE_TOP_BOXES)
+    expect(unplacedOf(plan)).toBeLessThanOrEqual(
+      DOOR_STAIRCASE_BOXES + UNREACHABLE_TOP_BOXES + LEDGE_BRACE_COST_BOXES,
+    )
   })
 })

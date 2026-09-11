@@ -685,6 +685,15 @@ paradas ia a 236 fora (teto 216; 26 na grade de 5 cm). Hoje 163. Atego real 1417
 recomendado, contra 1239 publicado). ⚠️ O teto de 50 ms está no fio: na forma do contrato a própria
 `ce0a2d08` passa dele com a carga da máquina acima de 6.
 
+⚠️ **Spec 142: a vizinha só escora se sobe ao lado da caixa.** O topo da célula podia ser o balanço de
+uma caixa apoiada em 80% da base que começa **acima** da escorada, com vão embaixo — prateleira, não
+parede (29 de 144 cargas mistas do banco da 139 com caixa sem apoio no juiz). Cada célula guarda a
+própria pilha (`stackHeadOf`, lista persistente) e a escora é a caixa mais alta que começa abaixo do
+topo da candidata menos 1 cm (`alongsideTopAt`). As quatro viagens e o Atego da fixture ficam
+idênticos; o sintético de 85 paradas vai de 163 a 280 fora — 14 caixas daquela planta se escoravam
+numa prateleira **na hora de carregar**, e o juiz, que confere a planta pronta, não as via. Contrato em
+`brace-rises-alongside.contract.ts`.
+
 **Cada caixa sabe de que nota veio, e a nota tem tom próprio** (spec 119). `PlacedBox` publica
 `documentId` (`nfe_documents.id`) e `documentNumber` (o número impresso), carimbados por
 `stampCargoNote` onde as caixas viram da parada — `buildCargoPreviewStops` e o repositório da viagem

@@ -1764,18 +1764,37 @@ function createSupportMap(
   const { xs, ys } = grid
   /** O topo de cada célula. */
   const topM = grid.cells[0] ?? []
+  /**
+   * ⚠️ **Spec 142: a pilha de cada célula, de cima para baixo.** O topo sozinho não distingue parede de
+   * prateleira: ele pode ser o balanço de uma caixa apoiada em 80% da base (spec 135) que começa acima
+   * da caixa escorada, com vão embaixo. A célula guarda o nó da caixa mais alta (mais um; `0` vazia), e
+   * cada nó aponta para o de baixo — lista persistente: partir a célula copia o número e as duas
+   * metades dividem a cauda. Toda caixa pousa acima de tudo o que já está na pegada, então a pilha
+   * cresce só pelo topo e os intervalos descem em ordem.
+   */
+  const stackHeadOf = grid.cells[2] ?? []
+  const nodeBaseM: number[] = []
+  const nodeTopM: number[] = []
+  const nodeOwner: number[] = []
+  const nodeBelow: number[] = []
+  /** Quem responde pela escora na célula: a caixa mais alta que começa abaixo do topo da candidata. */
+  let alongsideOwner = 0
+  const alongsideTopAt = (column: number, line: number): number => {
+    let node = stackHeadOf[column]?.[line] ?? 0
+    while (node > 0 && (nodeBaseM[node - 1] ?? 0) >= brace.boxTopM - MIN_BRACE_CONTACT_M + 1e-9) {
+      node = nodeBelow[node - 1] ?? 0
+    }
+    alongsideOwner = node > 0 ? (nodeOwner[node - 1] ?? 0) : 0
+    return node > 0 ? (nodeTopM[node - 1] ?? 0) : 0
+  }
   /** `freezeLater`: o maior topo das paradas já carregadas entre cada célula e a face aberta. */
   const laterFrontM = grid.cells[1] ?? []
   /** Até onde, na direção da face aberta, cada coluna tem caixa no piso — e o congelado das posteriores. */
   const floorEndM = grid.columns[0] ?? []
   const laterFloorEndM = grid.columns[1] ?? []
-  const topAt = (column: number, line: number): number => topM[column]?.[line] ?? 0
-  /**
-   * Spec 135: quem forma o topo de cada célula — índice em `stamped` mais um, `0` no piso. É o que separa a
-   * escora de verdade do degrau: a caixa embaixo da candidata (a pilha dela) nunca a escora pelo lado.
-   */
-  const ownerOf = grid.cells[2] ?? []
   const stamped: {
+    /** Spec 142: onde a caixa pousa — é o que diz se ela sobe ao lado de quem ela escoraria. */
+    readonly baseM: number
     readonly fromXM: number
     readonly fromYM: number
     readonly toXM: number
@@ -1840,6 +1859,8 @@ function createSupportMap(
    */
   const brace = {
     baseM: undefined as number | undefined,
+    /** Spec 142: o topo da candidata — a vizinha só escora se começa abaixo dele. */
+    boxTopM: Number.POSITIVE_INFINITY,
     catchGapM: 0,
     fromXM: 0,
     fromYM: 0,
@@ -1920,8 +1941,15 @@ function createSupportMap(
           : side.holds
       }
       const farM = side.forward ? (edges[index + 1] ?? 0) : (edges[index] ?? 0)
-      const height = side.isColumn ? topAt(index, across) : topAt(across, index)
-      const owner = side.isColumn ? ownerOf[index]?.[across] : ownerOf[across]?.[index]
+      /**
+       * ⚠️ **Spec 142: a vizinha escora só se sobe ao lado da candidata** — a regra do juiz da descarga.
+       * A dona do topo vale quando começa abaixo do topo da candidata (com a altura mínima de contato);
+       * senão ela é prateleira sobre vão, acima da caixa, e quem responde é a altura maciça da célula.
+       * Medido em `ccc09130`: 29 de 144 cargas mistas do banco com caixa sem apoio no juiz, todas por
+       * isto; no Atego real, a presumida da entrega 54 escorada numa caixa que começava 21 cm acima dela.
+       */
+      const height = side.isColumn ? alongsideTopAt(index, across) : alongsideTopAt(across, index)
+      const owner = alongsideOwner
       if (height >= brace.topM - 1e-9 && !isOwnStack(height, owner)) {
         braceFromM ??= nearM
         if (Math.abs(farM - braceFromM) >= MIN_BRACE_CONTACT_M - EDGE_TOLERANCE_M) return true
@@ -2177,6 +2205,7 @@ function createSupportMap(
        * chega à face aberta não apoia nada.
        */
       brace.baseM = baseM
+      brace.boxTopM = baseM === undefined ? Number.POSITIVE_INFINITY : baseM + slot.heightM
       brace.catchGapM = braceGapOf(slot)
       /** A folga das escoras na testeira desta posição — só vale se ela sair confinada. */
       brace.slackM = Number.POSITIVE_INFINITY
@@ -2227,15 +2256,26 @@ function createSupportMap(
       const [fromColumn, toColumn] = grid.columnsOf(xM, slot.depthM)
       const [fromLine, toLine] = grid.linesOf(yM, slot.widthM)
       const owner = stamped.length
-      stamped.push({ fromXM: xM, fromYM: yM, toXM: xM + slot.depthM, toYM: yM + slot.widthM })
-      const onFloor = top - slot.heightM <= 1e-9
+      const baseM = top - slot.heightM
+      stamped.push({
+        baseM,
+        fromXM: xM,
+        fromYM: yM,
+        toXM: xM + slot.depthM,
+        toYM: yM + slot.widthM,
+      })
+      const onFloor = baseM <= 1e-9
       for (let column = fromColumn; column < toColumn; column += 1) {
         if (onFloor) floorEndM[column] = Math.max(floorEndM[column] ?? 0, yM + slot.widthM)
         const tops = topM[column] ?? []
-        const owners = ownerOf[column] ?? []
+        const heads = stackHeadOf[column] ?? []
         for (let line = fromLine; line < toLine; line += 1) {
-          if (top >= (tops[line] ?? 0) - 1e-9) owners[line] = owner + 1
           tops[line] = Math.max(tops[line] ?? 0, top)
+          nodeBaseM.push(baseM)
+          nodeTopM.push(top)
+          nodeOwner.push(owner + 1)
+          nodeBelow.push(heads[line] ?? 0)
+          heads[line] = nodeBaseM.length
         }
       }
     },

@@ -384,6 +384,23 @@ entregas reais com carga colorida e ficha sem cor.
   complemento agrupado por entrega: assinatura das 99 cargas idêntica, e o Atego de 1,43× para 0,97× o
   tempo da linha `ce0a2d08` medida na mesma rodada — a memória dos começos de coluna foi quase tudo.
 
+## A escora que era prateleira (spec 142)
+
+- **A escora lia só o topo de cada ponto do baú.** Com 80% da base apoiada (spec 135) uma caixa pode
+  balançar sobre vão, e o topo da célula passa a ser a face de cima desse balanço — que pode começar
+  **acima** da caixa que ela supostamente escora. Rastreado na entrega 54 do Atego real: a escora
+  começava 21 cm acima do topo da escorada. Medido em `ccc09130`: 29 de 144 cargas mistas do banco da
+  spec 139 com caixa sem apoio no juiz, e na proposta real toda medida 5 no Atego e 1 no Accelo.
+- **A primeira correção, "altura maciça desde o piso", era estrita demais.** Recusava toda caixa que
+  sobe ao lado mas pousa em balanço, e custava 89 caixas no Atego real (1056 → 967), 60 no Atego da
+  fixture antiga (1417 → 1357, com três paradas fora) e 162 no sintético de 85 paradas (163 → 325), sem
+  ganho de física nenhum. A regra certa é a do juiz: vale a caixa mais alta **que começa abaixo** do
+  topo da candidata, e cada célula guarda a pilha inteira para achá-la. Com ela as quatro viagens e o
+  Atego da fixture ficam idênticos a `b50a3952`.
+- **O custo que fica é de física.** O sintético de 85 paradas vai de 163 a 280 fora. Instrumentado na
+  linha anterior: 14 caixas daquela planta se escoravam, **na hora de carregar**, só numa prateleira;
+  o juiz não as acusava porque confere a planta pronta, e a carga posta depois ao lado as confinava.
+
 ## Lição de método, que custou duas correções
 
 **Contrato sintético confirma a implementação; só rodar com números confere a premissa.**

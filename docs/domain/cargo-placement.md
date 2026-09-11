@@ -225,6 +225,11 @@ Três precisões que decidem o desenho:
 - **Escora é encosto pelo lado** (spec 135, decisão do usuário). A caixa embaixo da pilha no plano
   sustenta e **nunca escora**, mesmo mais larga que ela; o trecho encostado conta a partir de
   `MIN_BRACE_CONTACT_M` = 1 cm.
+- **A vizinha só escora se sobe ao lado da caixa** (spec 142). Cada célula guarda a própria pilha, de
+  cima para baixo (`stackHeadOf`, lista persistente que a divisão da célula compartilha), e a escora é
+  a caixa mais alta que **começa abaixo do topo da candidata** menos 1 cm (`alongsideTopAt`). O topo da
+  célula sozinho podia ser o balanço de uma caixa apoiada em 80% da base, começando acima da escorada
+  com vão embaixo — prateleira, não parede.
 
 A trava é conferida **na altura do assento**, nunca num contador de camadas. E `max_stack_count`
 continua valendo por cima da esbeltez: ele declara esmagamento, que é outra coisa.
