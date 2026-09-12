@@ -192,6 +192,8 @@
       "largerThanBed_other": "{{count}} {{label}} boxes do not fit this bed.",
       "notMeasured": "{{count}} {{label}} box left the drawing: nobody measured it.",
       "notMeasured_other": "{{count}} {{label}} boxes left the drawing: nobody measured them.",
+      "time_budget": "{{count}} {{label}} box left the drawing: the packing time budget ran out.",
+      "time_budget_other": "{{count}} {{label}} boxes left the drawing: the packing time budget ran out.",
       "tooMany": "{{count}} {{label}} box left the drawing due to a detail cap.",
       "tooMany_other": "{{count}} {{label}} boxes left the drawing due to a detail cap."
     },

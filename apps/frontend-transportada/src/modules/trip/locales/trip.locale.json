@@ -243,6 +243,8 @@
       "largerThanBed_other": "{{count}} caixas de {{label}} não cabem neste baú.",
       "notMeasured": "{{count}} caixa de {{label}} ficou fora do desenho: ninguém a mediu.",
       "notMeasured_other": "{{count}} caixas de {{label}} ficaram fora do desenho: ninguém as mediu.",
+      "time_budget": "{{count}} caixa de {{label}} ficou fora do desenho: o tempo de cálculo acabou.",
+      "time_budget_other": "{{count}} caixas de {{label}} ficaram fora do desenho: o tempo de cálculo acabou.",
       "tooMany": "{{count}} caixa de {{label}} ficou fora do desenho por limite de detalhe.",
       "tooMany_other": "{{count}} caixas de {{label}} ficaram fora do desenho por limite de detalhe."
     },

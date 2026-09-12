@@ -81,7 +81,7 @@ describe('planta das camadas (spec 094)', () => {
   /** O que não coube é nomeado, nunca escondido — e cada motivo tem texto próprio. */
   it('nomeia o que ficou de fora, por motivo', () => {
     expect(source).toContain('placement.unplaced.map')
-    for (const reason of ['notMeasured', 'largerThanBed', 'bedFull', 'tooMany']) {
+    for (const reason of ['notMeasured', 'largerThanBed', 'bedFull', 'tooMany', 'time_budget']) {
       expect(trip.cargoLayers.unplaced).toHaveProperty(reason)
     }
   })

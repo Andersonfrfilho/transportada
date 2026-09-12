@@ -30,7 +30,7 @@ cargo-layout.policy,cargo-edge-grid,cargo-plan.policy}.ts` + `shared/decimal.ser
       suítes `test/cargo-placement/*.contract.ts` para lá; API passa a importar o pacote; testes
       finos de re-export no app confirmam a superfície (G002). **Pausa e pergunta ao usuário antes
       de publicar** o pacote em qualquer registro além do link local de desenvolvimento.
-- [ ] T2 — Parâmetro `deadline` threaded por `resolveStopArrangement → placeCargo →
+- [x] T2 — Parâmetro `deadline` threaded por `resolveStopArrangement → placeCargo →
 packUntilItFits (:633) → packSlice (:997)`, no pacote; motivo novo `time_budget` em
       `unplaced` quando vence (D9); contrato `budget.contract.ts` **vermelho antes** do código
       (G003). Nenhuma regra física muda (apoio 80%, escora, célula 5 cm, `STABLE_STACK_SLENDERNESS`

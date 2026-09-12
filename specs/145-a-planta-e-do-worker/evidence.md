@@ -150,6 +150,43 @@ importa código-fonte de outra".
   **aguarda o usuário**.
 - Spec 146 (escora parcial 80 %) agora tem alvo: o pacote, não a app.
 
+### T2 — `deadline` + `time_budget` no pacote · 2026-09-12
+
+Commit `5d627fc` em `feat/cargo-placement` (worktree `adatechnology-packages-wt/cargo-placement`), sem push.
+Executor `sonnet`; contrato vermelho antes do código.
+
+- Assinatura pública: `resolveCargoLayout` / `resolveCargoPlacement` / `resolveStopArrangement` aceitam
+  `deadline?: number` (epoch ms) e `now?: () => number` (relógio injetável, padrão `Date.now`). Campos
+  planos, não aninhados, para não colidir com o `budget: number` (contagem) que `packUntilItFits` e
+  `packSlice` já tinham.
+- Onde o prazo é checado: dentro de `packSlice`, uma vez por unidade de caixa. Vencido o prazo, as
+  caixas ainda não visitadas voltam em `unplaced` com `reason: 'time_budget'`; a contagem total é
+  preservada. `packUntilItFits` não refaz a fatia quando o prazo estourou (não apaga o que já coube).
+- `resolveStopArrangement` aceita os campos mas **não** os repassa ao `gridOrDepth`: a decisão de
+  arranjo é determinística com ou sem prazo.
+- Cache de `placeCargo` ignorado sempre que há `deadline` (resultado truncado não pode ser reaproveitado).
+- `UNPLACED_REASONS = ['notMeasured','largerThanBed','bedFull','tooMany','time_budget']`.
+- Nenhuma regra física mudou: apoio 80 %, escora, célula de 5 cm, slenderness intactos (D6/G013).
+- Vermelho (só os dois `.policy.ts` em stash): 3 fail / 1 pass — `time_budget` ausente de
+  `UNPLACED_REASONS`; prazo vencido colocou 4 caixas em vez de 0; prazo no meio da varredura não teve
+  efeito. Verde: `bun test ./test/cargo-placement.contract.test.ts` → **182 pass, 0 fail**
+  (178 + 4); script `test` do pacote (contrato + integração) → 183 pass; `check`, `build`, `format:check` limpos.
+- Arquivos: `src/cargo-placement.policy.ts`, `src/cargo-layout.policy.ts`,
+  `test/cargo-placement/budget.contract.ts` (novo), `test/cargo-placement.contract.test.ts`, `README.md`
+  (seção "Orçamento de tempo"), `.changeset/cargo-placement-time-budget.md` (minor).
+
+Lado da app (este commit): o link `link:@adatechnology/cargo-placement` resolve para o `dist` do worktree
+do pacote e ele já carrega `time_budget` (rebuild feito no commit do pacote). Não há mapa exaustivo de
+motivos na API nem no frontend (`TripCargoLayers` monta a chave `cargoLayers.unplaced.${reason}` em
+tempo de execução), então a única superfície que precisava acompanhar é o texto:
+
+- `trip.locale.json` / `trip.en.locale.json`: `cargoLayers.unplaced.time_budget` e `time_budget_other`
+  ("o tempo de cálculo acabou" / "the packing time budget ran out").
+- `test/trip/cargo-layers.contract.ts`: a lista de motivos que exige texto próprio ganha `time_budget`.
+- Gates: `bunx tsc --noEmit` na API e no frontend limpos; `bun test ./test/cargo-volume.contract.test.ts`
+  → **161 pass, 0 fail**; `bun test ./test/trip.contract.test.ts` (frontend) → **738 pass, 0 fail**;
+  prettier limpo nos arquivos tocados.
+
 ## Fase 2 — Schema e pedido de layout (T3–T6)
 
 ## Fase 3 — Worker (T7–T9)
