@@ -189,6 +189,48 @@ tempo de execução), então a única superfície que precisava acompanhar é o 
 
 ## Fase 2 — Schema e pedido de layout (T3–T6)
 
+### T3 🧠 — `trip_cargo_layouts`: schema, migration e espelho do worker · 2026-09-12
+
+Rodou em sessão (modelo da sessão é da faixa `opus`). Contrato vermelho antes do schema.
+
+- `apps/api-transportada/src/database/trip-cargo-layout.schema.ts` (novo): tabela `trip_cargo_layouts`
+  com `id` uuid, `company_id` (FK `companies.id`, restrict/cascade), `trip_id` nulo (prévia sem viagem)
+  com FK composta `(company_id, trip_id) → trips(company_id, id)` cascade/cascade, `status` text +
+  check em `CARGO_LAYOUT_STATUSES = ['queued','running','ready','failed']` (sem pgEnum, padrão da casa),
+  `input_hash`, `policy_version`, `input` jsonb, `layout` jsonb nulo, `error_code` text default `''`,
+  `attempt` bigint, `duration_ms` bigint nulo, `computed_at`, `created_at`, `updated_at`.
+  Invariantes no banco: `layout_check` (`status = 'ready'` ⇔ `layout is not null`), `error_code_check`
+  (`status = 'failed'` ⇔ `length(error_code) > 0`), `counters_check` (`attempt >= 0`, `duration_ms` nulo ou
+  ≥ 0), unique `(company_id, input_hash)` (D6: um cálculo por entrada por empresa), índice
+  `(company_id, trip_id)` para a leitura de D10. Exportado no barril `database.schema.ts`.
+- `drizzle/20260912190000_trip_cargo_layouts/migration.sql` + `rollback.sql` (aditiva, D5/D11; rollback
+  manual derruba a tabela porque o dado é derivado e o worker recalcula). Entrada adicionada à lista
+  explícita de `test/database-migration/static-migration.contract.ts`.
+- `apps/worker-transportada/src/database/trip-cargo-layout.schema.ts` (novo): cópia por valor das 14
+  colunas, sem constraints (quem faz migration é a API), como `routing.schema.ts` já faz.
+- Contratos novos:
+  - API `test/trip-schema/cargo-layout.contract.ts` (no agregador `trip-schema.contract.test.ts`): PK uuid,
+    timestamps UTC, obrigatórios, tipos jsonb, os 4 checks, unique, as 2 FKs, o índice.
+  - Worker `test/cargo-layout/schema-parity.contract.ts` (entrypoint `cargo-layout-schema.contract.test.ts`,
+    adicionado ao script `test` do `package.json`): cada linha de coluna do worker existe textualmente na
+    API (comparação com `trim`, a API recua um nível a mais por causa do terceiro argumento) e
+    `getTableConfig` confirma nome e colunas que o worker escreve.
+- Vermelho: API `trip-schema` → 0 pass, 1 fail, 1 error (`Cannot find module trip-cargo-layout.schema.js`);
+  worker idem. Verde: `bun test ./test/trip-schema.contract.test.ts` → **55 pass, 0 fail**;
+  `bun test ./test/database-migration.contract.test.ts` → **51 pass, 0 fail**;
+  `bun test ./test/test-registry.contract.test.ts` → 3 pass; worker
+  `bun test ./test/cargo-layout-schema.contract.test.ts` → **2 pass, 0 fail**; `bun run typecheck` (raiz,
+  as 3 apps) limpo; eslint e prettier limpos nos arquivos tocados.
+- Prova da migration num Postgres descartável (`scratch_t3`, 2026-09-12 17:44 UTC, banco apagado depois):
+
+Sonda da migration em banco descartável `scratch_t3` (container `transportada-local-postgres-1`, 2026-09-12 17:44 UTC), com `companies`/`trips` mínimas e journal do drizzle simulado:
+
+- `migration.sql` aplicou limpo (CREATE TABLE + 2 FKs + índice).
+- Inserts válidos: planta com viagem, planta de prévia sem `trip_id`, transição `ready` com `layout`, transição `failed` com `error_code`.
+- Rejeitados pelo banco (6/6): `ready` sem `layout` (layout_check); `failed` sem `error_code` (error_code_check); `status = 'stale'`; `(company_id, input_hash)` duplicado; `attempt = -1` (counters_check); `company_id` inexistente (FK companies).
+- `DELETE FROM trips` levou a planta da viagem em cascata e preservou a da prévia (1 linha restante).
+- `rollback.sql`: journal ficou com 0 linhas e `to_regclass('trip_cargo_layouts')` voltou nulo.
+
 ## Fase 3 — Worker (T7–T9)
 
 ## Fase 4 — Leitura da API (T10, T11)

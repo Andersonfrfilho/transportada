@@ -40,7 +40,7 @@ packUntilItFits (:633) → packSlice (:997)`, no pacote; motivo novo `time_budge
 
 > 🤖 Modelo: `opus` (T3) · `sonnet` (T4–T6)
 
-- [ ] T3 🧠 — `trip-cargo-layout.schema.ts` + migration: tabela `trip_cargo_layouts` com os campos
+- [x] T3 🧠 — `trip-cargo-layout.schema.ts` + migration: tabela `trip_cargo_layouts` com os campos
       e constraints da D5 (PK uuid, `trip_id` opcional com FK composta `(company_id, trip_id)`,
       `CHECK` de `status` sem `pgEnum`, `unique(company_id, input_hash)`, índice `(company_id,
 trip_id)`); mirror em `apps/worker-transportada/src/database/`. Contrato de schema cobre as
