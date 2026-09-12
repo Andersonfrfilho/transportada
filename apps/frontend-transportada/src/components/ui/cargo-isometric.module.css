@@ -107,6 +107,26 @@
   stroke-width: 1.5;
 }
 
+/**
+ * A amostra da legenda (spec 122): mesma escala em todas as marcas, para o quadrado ficar do
+ * tamanho de uma letra ao lado do texto que ele explica.
+ */
+.legendSample {
+  block-size: 1.25rem;
+  flex: none;
+  inline-size: 1.25rem;
+}
+
+.legendSampleFill {
+  fill: var(--color-slate);
+  stroke: none;
+}
+
+/** Sob o contorno, a mesma cor da carga medida — esmaecida para o traço de cima ler primeiro. */
+.legendSampleFillFaint {
+  opacity: 0.35;
+}
+
 /** A divisa entre as fatias das paradas: onde a carga de uma acaba e a da seguinte começa. */
 .sliceCut {
   fill: none;

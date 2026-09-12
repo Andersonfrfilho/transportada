@@ -450,6 +450,59 @@ export function CargoNoteSwatch({
   return <span aria-hidden className={cn(styles.swatch, className)} style={{ color }} />
 }
 
+export type CargoLegendMark = 'complement' | 'complementStrong' | 'measured' | 'presumed' | 'split'
+
+/** O quadrado da amostra é 8 de 10 unidades do `viewBox`, com 1 unidade de margem em cada lado. */
+const LEGEND_SAMPLE_VIEW_BOX = '0 0 10 10'
+
+/**
+ * A amostra de cada marca do baú (spec 122), para a legenda ficar ao lado do desenho que ela
+ * explica. **As mesmas classes do módulo CSS das faces reais** — nunca uma cor reinventada aqui —
+ * porque a amostra existe para prometer "é este traço que você vê lá em cima", e uma segunda
+ * definição de cor ou traço diverge da primeira sem avisar.
+ */
+export function CargoLegendSample({ mark }: Readonly<{ mark: CargoLegendMark }>): JSX.Element {
+  if (mark === 'measured') {
+    return (
+      <svg
+        aria-hidden="true"
+        className={styles.legendSample}
+        focusable="false"
+        viewBox={LEGEND_SAMPLE_VIEW_BOX}
+      >
+        <rect className={styles.legendSampleFill} height={8} width={8} x={1} y={1} />
+      </svg>
+    )
+  }
+
+  const outlineClass =
+    mark === 'presumed'
+      ? cn(styles.faceFront, styles.facePresumed)
+      : mark === 'split'
+        ? styles.faceSplit
+        : mark === 'complement'
+          ? styles.faceComplement
+          : styles.faceComplementStrong
+
+  return (
+    <svg
+      aria-hidden="true"
+      className={styles.legendSample}
+      focusable="false"
+      viewBox={LEGEND_SAMPLE_VIEW_BOX}
+    >
+      <rect
+        className={cn(styles.legendSampleFill, styles.legendSampleFillFaint)}
+        height={8}
+        width={8}
+        x={1}
+        y={1}
+      />
+      <rect className={outlineClass} height={8} width={8} x={1} y={1} />
+    </svg>
+  )
+}
+
 function toPoints(points: readonly (Point | undefined)[]): string {
   return points
     .flatMap((point) => (point === undefined ? [] : [`${String(point.x)},${String(point.y)}`]))

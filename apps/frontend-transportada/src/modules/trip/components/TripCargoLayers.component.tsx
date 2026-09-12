@@ -4,7 +4,12 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
-import { CargoIsometric, CargoNoteSwatch, type IsometricBox } from '@/components/ui/cargo-isometric'
+import {
+  CargoIsometric,
+  CargoLegendSample,
+  CargoNoteSwatch,
+  type IsometricBox,
+} from '@/components/ui/cargo-isometric'
 
 import {
   applyViewPreset,
@@ -429,7 +434,40 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
         </div>
       </div>
 
-      {/* A legenda das três marcas: sem ela o contorno vermelho da dividida não quer dizer nada. */}
+      {/* A legenda das marcas, ao lado do desenho: sem ela o contorno vermelho não quer dizer nada. */}
+      <ul className={styles.cargoLegend} role="list">
+        <li>
+          <CargoLegendSample mark="measured" />
+          {t('cargoLayers.legend.measured')}
+        </li>
+        <li>
+          <CargoLegendSample mark="presumed" />
+          {t('cargoLayers.legend.presumed')}
+        </li>
+        <li>{t('cargoLayers.legend.notes')}</li>
+        <li>
+          <CargoLegendSample mark="split" />
+          {t('cargoLayers.legend.split')}
+        </li>
+        <li>
+          <CargoLegendSample mark="complement" />
+          {t('cargoLayers.legend.complement')}
+        </li>
+        <li>
+          <CargoLegendSample mark="complementStrong" />
+          {t('cargoLayers.legend.complementStrong')}
+        </li>
+        {/*
+          ⚠️ **Spec 121: cor repetida é dita, nunca calada.** A lista de cores tem 128 itens e a
+          viagem real mais cheia tem 94 notas, então esta linha não aparece hoje; se a viagem passar
+          disso, duas notas com a mesma cor sem aviso fazem a cor deixar de identificar e ninguém
+          descobre — foi o defeito que a paleta de paradas já pagou uma vez.
+        */}
+        {notesSharingColor === 0 ? null : (
+          <li>{t('cargoLayers.legend.reusedColors', { count: notesSharingColor })}</li>
+        )}
+      </ul>
+
       <div className={styles.cargoStops}>
         {stopChips.map(({ facts, loading, sequence }) => {
           const notesOfStop = stopNotes.get(sequence) ?? []
@@ -591,23 +629,6 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
       {weightWonAccess ? (
         <p className={styles.hint}>{t('cargoLayers.arrangement.weightWon')}</p>
       ) : null}
-
-      <ul className={styles.cargoLegend} role="list">
-        <li>{t('cargoLayers.legend.measured')}</li>
-        <li>{t('cargoLayers.legend.presumed')}</li>
-        <li>{t('cargoLayers.legend.notes')}</li>
-        <li>{t('cargoLayers.legend.split')}</li>
-        <li>{t('cargoLayers.legend.complement')}</li>
-        {/*
-          ⚠️ **Spec 121: cor repetida é dita, nunca calada.** A lista de cores tem 128 itens e a
-          viagem real mais cheia tem 94 notas, então esta linha não aparece hoje; se a viagem passar
-          disso, duas notas com a mesma cor sem aviso fazem a cor deixar de identificar e ninguém
-          descobre — foi o defeito que a paleta de paradas já pagou uma vez.
-        */}
-        {notesSharingColor === 0 ? null : (
-          <li>{t('cargoLayers.legend.reusedColors', { count: notesSharingColor })}</li>
-        )}
-      </ul>
 
       {/**
        * A folha do agregado: ele carrega a van sozinho, longe da tela, e o galpão imprime em laser

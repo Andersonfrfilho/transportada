@@ -5,8 +5,13 @@ import { describe, expect, it } from 'bun:test'
 
 import { isMostlyPresumed, resolveSliceCuts } from '@/modules/trip/shared/cargoLegend.service'
 import trip from '../../src/modules/trip/locales/trip.locale.json'
+import tripEn from '../../src/modules/trip/locales/trip.en.locale.json'
 
 const APPLICATION_ROOT = new URL('../..', import.meta.url)
+
+function readApplicationFile(filePath: string): string {
+  return readFileSync(new URL(filePath, APPLICATION_ROOT), 'utf8')
+}
 
 function box(
   overrides: Partial<{
@@ -99,5 +104,36 @@ describe('trip cargo legend contract', () => {
     expect(source).toContain("t('cargoLayers.legend.split')")
     expect(trip.cargoLayers.legend.split).toContain('dividida')
     expect(trip.cargoLayers.mostlyPresumed).toContain('medida')
+  })
+
+  /**
+   * Spec 122: a legenda mora ao lado do desenho, com uma amostra por marca — sem ela o usuário não
+   * mapeia "contorno tracejado cor de cobre" para o que vê na carroceria.
+   */
+  it('places the legend beside the drawing, with one sample per mark', () => {
+    const component = readApplicationFile(
+      'src/modules/trip/components/TripCargoLayers.component.tsx',
+    )
+    const sample = readApplicationFile('src/components/ui/cargo-isometric.tsx')
+
+    const legendIndex = component.indexOf('<ul className={styles.cargoLegend}')
+    const stopsIndex = component.indexOf('styles.cargoStops')
+    expect(legendIndex).toBeGreaterThan(-1)
+    expect(stopsIndex).toBeGreaterThan(-1)
+    expect(legendIndex).toBeLessThan(stopsIndex)
+
+    expect(component).toContain('CargoLegendSample')
+    for (const mark of ['measured', 'presumed', 'split', 'complement', 'complementStrong']) {
+      expect(component).toContain(`<CargoLegendSample mark="${mark}" />`)
+    }
+
+    expect(component).toContain("t('cargoLayers.legend.complementStrong')")
+    expect(trip.cargoLayers.legend.complementStrong).toBeTruthy()
+    expect(tripEn.cargoLayers.legend.complementStrong).toBeTruthy()
+
+    expect(sample).toContain('styles.facePresumed')
+    expect(sample).toContain('styles.faceSplit')
+    expect(sample).toContain('styles.faceComplement')
+    expect(sample).toContain('styles.faceComplementStrong')
   })
 })
