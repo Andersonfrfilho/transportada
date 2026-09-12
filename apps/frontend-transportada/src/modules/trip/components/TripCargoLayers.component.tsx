@@ -178,7 +178,10 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
           label:
             box.documentId === null || box.documentId === undefined
               ? t('cargoLayers.box.toggleWithoutNote', { stop: box.stopSequence })
-              : t('cargoLayers.box.toggle', { note: box.documentId, stop: box.stopSequence }),
+              : t('cargoLayers.box.toggle', {
+                  note: box.documentNumber ?? t('cargoLayers.invoice.withoutNumber'),
+                  stop: box.stopSequence,
+                }),
           layer: box.layer,
           stopSequence: box.stopSequence,
           widthM: box.widthM,
