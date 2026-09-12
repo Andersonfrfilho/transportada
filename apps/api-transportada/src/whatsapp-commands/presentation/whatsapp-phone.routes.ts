@@ -8,6 +8,7 @@ import {
   API_ME_WHATSAPP_PHONE_PATH,
   JSON_CONTENT_TYPE,
 } from '../../shared/api.constant.js'
+import type { ReadWhatsAppPhoneState } from '../application/read-whatsapp-phone-state.use-case.js'
 import type { RequestWhatsAppPhoneVerification } from '../application/request-whatsapp-phone-verification.use-case.js'
 import type { UnbindWhatsAppPhoneUseCase } from '../application/unbind-whatsapp-phone.use-case.js'
 import { WHATSAPP_PHONE_VERIFICATION_REQUEST_LIMIT } from '../domain/whatsapp-phone-verification.constant.js'
@@ -21,6 +22,7 @@ const USERS_MANAGE_POLICY = { permission: 'users.manage', scope: 'company' } as 
 const NO_STORE = 'no-store'
 
 type Dependencies = {
+  readonly readState: ReadWhatsAppPhoneState
   readonly requestVerification: RequestWhatsAppPhoneVerification
   readonly unbind: UnbindWhatsAppPhoneUseCase
 }
@@ -33,6 +35,36 @@ export function createWhatsAppPhoneRoutes(
   dependencies: Dependencies,
 ): readonly ReturnType<typeof defineRoute>[] {
   return [
+    defineRoute<Record<string, never>>({
+      async handle({ context }): Promise<Response> {
+        const state = await dependencies.readState({
+          companyId: context.scope.companyId,
+          userId: context.scope.userId,
+        })
+        return new Response(
+          JSON.stringify({
+            data: {
+              expiresAt: state.expiresAt?.toISOString(),
+              pendingRequest:
+                state.pendingRequest === undefined
+                  ? undefined
+                  : { expiresAt: state.pendingRequest.expiresAt.toISOString() },
+              phone: state.phone,
+              status: state.status,
+              verifiedAt: state.verifiedAt?.toISOString(),
+            },
+          }),
+          {
+            headers: { 'cache-control': NO_STORE, 'content-type': JSON_CONTENT_TYPE },
+            status: 200,
+          },
+        )
+      },
+      method: 'GET',
+      parse: () => ({}),
+      pathname: API_ME_WHATSAPP_PHONE_PATH,
+      policy: MEMBERSHIP_POLICY,
+    }),
     defineRoute<{ readonly phone: string }>({
       async handle({ context, input }): Promise<Response> {
         const result = await dependencies.requestVerification({

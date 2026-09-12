@@ -152,7 +152,7 @@ status='previewed' and preview_sha256=$hash and expires_at>now() returning` + li
 
 > 🤖 Modelo: `sonnet`; revisão final `opus`
 
-- [ ] **T017** Passo 0 no backend: `GET /me/whatsapp-phone` (status `none|pending|verified|expired`,
+- [x] **T017** Passo 0 no backend: `GET /me/whatsapp-phone` (status `none|pending|verified|expired`,
       número mascarado, pedido pendente **sem** o código, `no-store`), na allowlist da política de
       membership travada pela T005b — medido em 2026-09-12 que a T004 não a criou e a tela não teria
       de onde ler o estado. Depois, a tela "WhatsApp" no perfil do usuário (verificar e desvincular o

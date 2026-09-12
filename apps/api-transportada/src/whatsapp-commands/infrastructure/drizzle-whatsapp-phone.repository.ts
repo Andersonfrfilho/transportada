@@ -366,6 +366,20 @@ export class DrizzleWhatsAppPhoneRepository implements WhatsAppPhoneRepositoryPo
     return rows.map((row) => ({ ...row, consumedAt: row.consumedAt ?? undefined }))
   }
 
+  public async findLiveRequestByUserId(input: {
+    readonly companyId: string
+    readonly userId: string
+  }): Promise<WhatsAppPhoneVerificationRequest | undefined> {
+    const [row] = await this.database
+      .select(REQUEST_COLUMNS)
+      .from(requests)
+      .where(and(...buildLiveRequestByUserFilters(input)))
+      .orderBy(desc(requests.createdAt))
+      .limit(1)
+
+    return row === undefined ? undefined : { ...row, consumedAt: row.consumedAt ?? undefined }
+  }
+
   /** O teto vai no `WHERE` para o contador nunca passar do limite que o CHECK conhece. */
   public async incrementAttempt(input: {
     readonly companyId: string

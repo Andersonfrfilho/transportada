@@ -1,0 +1,104 @@
+.panel {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.field {
+  display: grid;
+  gap: var(--space-2);
+  font-size: 0.85rem;
+}
+
+.field input {
+  height: var(--field-height);
+  padding: var(--field-padding);
+  font-size: var(--field-font-size);
+  color: var(--color-fog);
+  background: var(--color-asphalt);
+  border: 1px solid color-mix(in srgb, var(--color-fog) 20%, transparent);
+}
+
+.codeCard {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  text-align: center;
+  background: var(--color-asphalt);
+}
+
+.code {
+  margin: 0;
+  font-family: var(--font-utility);
+  font-size: 2rem;
+  letter-spacing: 0.3em;
+}
+
+.companyNumberRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
+.linkedRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.feedback {
+  margin: 0;
+  color: var(--color-copper);
+}
+
+.overlay {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: color-mix(in srgb, var(--color-asphalt) 78%, transparent);
+}
+
+.dialog {
+  display: grid;
+  gap: var(--space-5);
+  width: 100%;
+  height: 100%;
+  max-height: 100vh;
+  padding: var(--space-5);
+  overflow-y: auto;
+  color: var(--color-fog);
+  background: var(--color-graphite);
+  box-shadow: 0 1.5rem 3rem color-mix(in srgb, var(--color-asphalt) 55%, transparent);
+}
+
+.dialogHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+@media (min-width: 40rem) {
+  .overlay {
+    padding: var(--space-4);
+  }
+
+  .dialog {
+    width: min(28rem, 100%);
+    height: auto;
+    max-height: 92vh;
+    border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  }
+}

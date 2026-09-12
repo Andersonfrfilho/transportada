@@ -18,6 +18,7 @@ import type {
   CompanyContext,
   PlatformContext,
 } from '../../src/identity/domain/tenant-context.js'
+import { createReadWhatsAppPhoneStateUseCase } from '../../src/whatsapp-commands/application/read-whatsapp-phone-state.use-case.js'
 import { createRequestWhatsAppPhoneVerificationUseCase } from '../../src/whatsapp-commands/application/request-whatsapp-phone-verification.use-case.js'
 import { createUnbindWhatsAppPhoneUseCase } from '../../src/whatsapp-commands/application/unbind-whatsapp-phone.use-case.js'
 import { createWhatsAppPhoneRoutes } from '../../src/whatsapp-commands/presentation/whatsapp-phone.routes.js'
@@ -77,6 +78,10 @@ function createScenario(
     companyNumber: options.companyNumber ?? '551633334444',
   })
   const routes = createWhatsAppPhoneRoutes({
+    readState: createReadWhatsAppPhoneStateUseCase({
+      clock: () => NOW,
+      repository: fake.repository,
+    }),
     requestVerification: createRequestWhatsAppPhoneVerificationUseCase({
       clock: () => NOW,
       repository: fake.repository,
@@ -214,6 +219,97 @@ describe('quem não é pessoa não pede código (spec 144 T005b)', () => {
   }
 })
 
+describe('GET /me/whatsapp-phone (spec 144 T017 Passo 0)', () => {
+  test('sem vínculo e sem pedido é status none, sem phone e sem pendingRequest', async () => {
+    const scenario = createScenario()
+
+    const response = await scenario.handle({ method: 'GET', path: '/me/whatsapp-phone' })
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    const { data } = await readJson(response)
+    expect(data?.status).toBe('none')
+    expect(data?.phone).toBeUndefined()
+    expect(data?.verifiedAt).toBeUndefined()
+    expect(data?.pendingRequest).toBeUndefined()
+  })
+
+  test('com pedido vivo é status pending, com o vencimento e sem o código', async () => {
+    const scenario = createScenario()
+    await scenario.handle({
+      body: { phone: PHONE },
+      method: 'POST',
+      path: '/me/whatsapp-phone/verification',
+    })
+
+    const response = await scenario.handle({ method: 'GET', path: '/me/whatsapp-phone' })
+
+    const { data } = await readJson(response)
+    expect(data?.status).toBe('pending')
+    expect(data?.pendingRequest).toEqual({ expiresAt: '2026-09-11T12:10:00.000Z' })
+    expect(JSON.stringify(data)).not.toMatch(/\d{6}/)
+  })
+
+  test('vínculo verificado dentro da validade é status verified, com o número mascarado', async () => {
+    const scenario = createScenario()
+    await scenario.repository.saveVerified({ phone: PHONE, userId: USER_ID, verifiedAt: NOW })
+
+    const response = await scenario.handle({ method: 'GET', path: '/me/whatsapp-phone' })
+
+    const { data } = await readJson(response)
+    expect(data).toMatchObject({
+      expiresAt: '2026-12-10T12:00:00.000Z',
+      phone: '****1234',
+      status: 'verified',
+      verifiedAt: '2026-09-11T12:00:00.000Z',
+    })
+  })
+
+  test('vínculo verificado há mais de 90 dias é status expired', async () => {
+    const scenario = createScenario()
+    const verifiedAt = new Date('2026-01-01T00:00:00.000Z')
+    await scenario.repository.saveVerified({ phone: PHONE, userId: USER_ID, verifiedAt })
+
+    const response = await scenario.handle({ method: 'GET', path: '/me/whatsapp-phone' })
+
+    expect((await readJson(response)).data?.status).toBe('expired')
+  })
+
+  test('pedido vivo de outra empresa não aparece', async () => {
+    const scenario = createScenario()
+    await scenario.repository.openVerificationRequest({
+      codeHash: 'hash',
+      companyId: '00000000-0000-4000-8000-000000000099',
+      expiresAt: new Date('2026-09-11T13:00:00.000Z'),
+      id: '00000000-0000-4000-8000-000000000098',
+      phone: PHONE,
+      userId: USER_ID,
+    })
+
+    const response = await scenario.handle({ method: 'GET', path: '/me/whatsapp-phone' })
+
+    const { data } = await readJson(response)
+    expect(data?.status).toBe('none')
+    expect(data?.pendingRequest).toBeUndefined()
+  })
+
+  const forbiddenIdentities: readonly (readonly [string, IdentityOverride])[] = [
+    ['token de service account', { serviceAccount: true }],
+    ['administrador de plataforma', { platformAdmin: true }],
+    ['contexto que já veio do canal', { channel: 'whatsapp' }],
+  ]
+
+  for (const [label, identity] of forbiddenIdentities) {
+    test(`${label} recebe 403`, async () => {
+      const scenario = createScenario({ identity, permissions: ['mdfe.auto-issue'] })
+
+      const response = await scenario.handle({ method: 'GET', path: '/me/whatsapp-phone' })
+
+      expect(response.status).toBe(403)
+    })
+  }
+})
+
 describe('DELETE do vínculo (spec 144 T004)', () => {
   test('DELETE /me/whatsapp-phone é 204 e idempotente', async () => {
     const scenario = createScenario()
@@ -286,6 +382,7 @@ describe('DELETE do vínculo (spec 144 T004)', () => {
     expect(signatures).toEqual([
       'DELETE /company-users/:id/whatsapp-phone',
       'DELETE /me/whatsapp-phone',
+      'GET /me/whatsapp-phone',
       'POST /me/whatsapp-phone/verification',
     ])
   })

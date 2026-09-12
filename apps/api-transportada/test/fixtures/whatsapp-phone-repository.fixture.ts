@@ -152,6 +152,28 @@ export function createWhatsAppPhoneRepositoryFake(
           userId: request.userId,
         }))
     },
+    async findLiveRequestByUserId({ companyId, userId }) {
+      const live = requests
+        .filter(
+          (request) =>
+            request.companyId === companyId &&
+            request.userId === userId &&
+            request.consumedAt === undefined,
+        )
+        .sort((first, second) => second.createdOrder - first.createdOrder)[0]
+      if (live === undefined) return undefined
+
+      return {
+        attemptCount: live.attemptCount,
+        codeHash: live.codeHash,
+        companyId: live.companyId,
+        consumedAt: live.consumedAt,
+        expiresAt: live.expiresAt,
+        id: live.id,
+        phone: live.phone,
+        userId: live.userId,
+      }
+    },
     async findUserDisplayName({ userId }) {
       return options.displayNames?.[userId]
     },

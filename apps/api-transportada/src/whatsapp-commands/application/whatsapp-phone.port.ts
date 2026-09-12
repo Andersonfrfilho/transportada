@@ -97,6 +97,11 @@ export type WhatsAppPhoneRepositoryPort = {
     readonly companyId: string
     readonly phone: string
   }) => Promise<readonly WhatsAppPhoneVerificationRequest[]>
+  /** O pedido vivo da própria pessoa nesta empresa — no máximo um, por `openVerificationRequest`. */
+  readonly findLiveRequestByUserId: (input: {
+    readonly companyId: string
+    readonly userId: string
+  }) => Promise<WhatsAppPhoneVerificationRequest | undefined>
   readonly incrementAttempt: (input: {
     readonly companyId: string
     readonly requestId: string

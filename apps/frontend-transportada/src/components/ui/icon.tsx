@@ -39,6 +39,7 @@ export type IconName =
   | 'link'
   | 'logout'
   | 'menu'
+  | 'message'
   | 'page-first'
   | 'page-last'
   | 'page-next'
@@ -144,6 +145,8 @@ export const ICON_PATHS: Readonly<Record<IconName, readonly string[]>> = {
   ],
   logout: ['M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3', 'M10 16l4-4-4-4', 'M14 12H4'],
   menu: ['M4 7h16', 'M4 12h16', 'M4 17h16'],
+  /** Balão de conversa, com a ponta que aponta para quem fala: o vínculo de WhatsApp do perfil. */
+  message: ['M4 5h16v11H9l-4 4v-4H4V5z'],
   'page-first': ['M17 6l-6 6 6 6', 'M7 6v12'],
   'page-last': ['M7 6l6 6-6 6', 'M17 6v12'],
   'page-next': ['M10 6l6 6-6 6'],

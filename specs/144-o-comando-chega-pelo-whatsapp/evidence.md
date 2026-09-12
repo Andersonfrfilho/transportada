@@ -2046,3 +2046,98 @@ escreveria:
 
   A primeira rodada reprovou os dois contratos de paridade de permissão do frontend, e a
   permissão entrou ali. A flaky conhecida de `cargo-volume.contract.test.ts` não disparou.
+
+## T017 — o número se vincula pela tela (2026-09-11)
+
+### Passo 0 — `GET /me/whatsapp-phone`, medido faltando em 2026-09-12
+
+A T004 criou `POST .../verification`, `DELETE /me/whatsapp-phone` e
+`DELETE /company-users/:id/whatsapp-phone`, e nenhuma leitura — a tela não tinha de onde saber o
+estado do vínculo sem inventar um quinto caminho. `read-whatsapp-phone-state.use-case.ts`
+(`whatsapp-commands/application/`) resolve `status` por cima de duas leituras paralelas
+(`findByUserId` + `findLiveRequestByUserId`, o segundo método novo no
+`WhatsAppPhoneRepositoryPort`, implementado no repositório Drizzle e na fixture em memória):
+`verified`/`expired` decidido por `verifiedAt + WHATSAPP_PHONE_VERIFICATION_VALIDITY_MS` contra o
+relógio injetado, `pending` quando há pedido vivo **desta empresa**, `none` senão. O código nunca
+atravessa esta função — só `pendingRequest.expiresAt` sai, nunca `codeHash` nem o próprio código —,
+e o número sempre volta por `maskPhone`.
+
+A rota entrou em `whatsapp-phone.routes.ts` como quarta rota do arquivo, mesma
+`{membership: 'active', scope: 'company'}` das irmãs, `cache-control: no-store`. A allowlist da
+T005b (`membership-policy-lock.contract.ts`) e a lista de assinaturas de
+`phone-verification-routes.contract.ts` passaram a citar `GET /me/whatsapp-phone` por extenso — é
+essa lista fechada que teria reprovado a rota se ela tivesse nascido em outro caminho.
+
+Contratos novos em `phone-verification-routes.contract.ts`: os quatro status (`none` sem pedido,
+`pending` com `pendingRequest.expiresAt` e sem 6 dígitos no corpo — conferido por regex sobre o
+JSON inteiro —, `verified` com o número mascarado e a validade de 90 dias, `expired` com
+`verifiedAt` de mais de 90 dias atrás), pedido vivo de **outra empresa** não aparece (gravado direto
+via `openVerificationRequest` com `companyId` diferente), e os três casos de 403 (service account,
+admin de plataforma, contexto de canal) — mesmo molde do `POST`. `bun test test/whatsapp-commands.contract.test.ts`
+→ **374 pass · 0 fail**. Integração contra Postgres real
+(`bun --env-file=../../.env.test test --timeout 120000 ./test/integration/whatsapp-phone-verification.integration.ts ./test/integration/whatsapp-phone-repository.integration.ts`)
+→ **11 pass · 0 fail**. `bun run typecheck` da API → limpo. `bun test` da API inteira → **5493 pass
+· 23 skip · 0 fail**.
+
+### A tela — um hook, um client, dois lugares
+
+`identity/shared/whatsappPhone.{types,constant,validation}.ts` + `whatsappPhoneClient.service.ts`
+(mesmo molde de `passwordResetClient.service.ts`/`companyUsersClient.service.ts`: factory +
+`authorizedRequest` com `Authorization: Bearer`, erro por `payload.error.code`) +
+`whatsappPhoneViewModel.service.ts` (função pura, sem DOM) + `hooks/useWhatsAppPhone.hook.ts`
+(`useQuery` do `GET`, duas `useMutation` para gerar código e desvincular, invalidando a mesma chave).
+
+`resolveWhatsAppPhoneViewModel` é o que decide os cinco estados da tela a partir de três entradas
+(`generatedCode`, `isChannelMissing`, `state` do servidor) — nunca o componente por `if` solto:
+**código gerado** vence qualquer status do servidor (a API fecha o pedido anterior ao abrir um
+novo, então o código que acabou de sair da tela é sempre a verdade mais recente, mesmo que o `GET`
+ainda não tenha sido refeito), depois **vinculado** (`verified`), depois **vencido** (`expired`),
+depois **canal sem número** (409 da última tentativa de gerar), e por fim **sem vínculo**. O código
+nunca fica em cache da consulta — só no resultado da mutação —, e `useCountdown` (já existente,
+`onComplete`) limpa o código gerado sozinho quando os 10 minutos passam, sem esperar o usuário
+reabrir a tela.
+
+`WhatsAppPhonePanel.component.tsx` é só declarativo (o padrão do módulo: sem `zod`, sem router,
+TanStack Query, type guard em `*.validation.ts`) e aparece em dois lugares com o mesmo componente,
+como pedido — nenhuma segunda implementação:
+
+- **Painel**: botão só de ícone (`message`, ícone novo — não existia `whatsapp` nem `message` no
+  catálogo; entrou em `ICON_PATHS`/`IconName` seguindo `docs/frontend/icons.md`) na fileira do
+  cabeçalho de `main.tsx`, ao lado do sino, com `Tooltip` + `aria-label` (nunca `title` sozinho) e
+  `useModalDialog` (`WhatsAppPhoneDialog.component.tsx`, fullscreen no celular e diálogo centrado a
+  partir de `40rem`, mesmo molde de `userAdministration.module.css`).
+- **Motorista**: `profileCard` "WhatsApp" novo em `DriverProfile.page.tsx`, entre a fila de envio e
+  o "Sair" — locale `profile.whatsappTitle` nos dois idiomas de `driverTrip`.
+
+`409 WHATSAPP_CHANNEL_NUMBER_MISSING` vira aviso inline sob o campo de telefone (a empresa ainda não
+configurou o canal); a máscara de digitação é `formatPhone` já existente; o campo manda
+`stripPhone(phone)` — dígito puro, a mesma regra de "o corpo leva dígito, a máscara é da tela" que
+`company-user-contact-fields.contract.ts` já cobre para CPF/telefone. Desvincular é ação destrutiva
+com ícone (`trash`) e confirmação em duas etapas, sem diálogo modal próprio (o painel já está dentro
+de um, no caso do cabeçalho; no perfil do motorista é inline). Todo texto em
+`identity.locale.json`/`identity.en.locale.json` (chave `whatsappPhone`, acentuado — a varredura de
+`locale-accents.contract.ts` já cobre o módulo automaticamente).
+
+### Contratos do frontend (sem DOM) e design system
+
+`test/identity/whatsapp-phone.contract.ts` (entrada em `test/identity.contract.test.ts`, já na
+lista explícita do `package.json`): `toWhatsAppPhoneState`/`toWhatsAppPhoneVerification` (os quatro
+status, pedido pendente sem o código, corpo incompleto e status desconhecido caem em
+`RESPONSE_INVALID`) e os cinco estados de `resolveWhatsAppPhoneViewModel` — sem vínculo, código
+gerado (vence sobre o status do servidor), vinculado, vencido, canal sem número, mais o caso de
+carregamento vencendo tudo. `bun test test/identity.contract.test.ts` → **197 pass · 0 fail**.
+
+Gates do frontend: `bun run typecheck` limpo; `bun run lint` limpo; `bun test`
+(suite inteira, 29 arquivos, inclusive `design-system.contract.test.ts` e
+`driver-trip.contract.test.ts`) → **3341 pass · 0 fail**; `bun run check` (lint + typecheck + test +
+build) → **exit 0**, as seis telas novas (ícone, painel, diálogo) não estouraram o teto de precache
+do PWA (`index` em 895,82 kB, dentro do que a divisão por `lazy()` já reservava).
+
+### Conferência visual — não subiu
+
+A porta 53001 (API) já estava ocupada por outra sessão ativa nesta mesma máquina (não este
+worktree) quando a task chegou à etapa de verificação visual — `curl` contra
+`http://localhost:53001/health` respondeu 401 de um processo alheio. Subir `make dev` aqui
+disputaria a mesma porta fixa e arriscaria derrubar a sessão da outra árvore. Por instrução
+explícita da task ("se não subir no ambiente, registre e siga com os contratos"), a conferência de
+375px/1280px não foi feita — a evidência desta task é só a de testes e build acima.

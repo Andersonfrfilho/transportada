@@ -21,6 +21,7 @@ import { appliedMigrations } from '../fixtures/health.fixture.js'
 
 const MEMBERSHIP_POLICY_ALLOWLIST = [
   'DELETE /me/whatsapp-phone',
+  'GET /me/whatsapp-phone',
   'POST /me/whatsapp-phone/verification',
 ] as const
 
@@ -89,6 +90,9 @@ describe('a política de membership fica presa a /me/ (spec 144 T005b M2)', () =
 
   test('as rotas com a política são exatamente as da allowlist', () => {
     const routes = createWhatsAppPhoneRoutes({
+      readState: async () => {
+        throw new Error('não chamado')
+      },
       requestVerification: async () => {
         throw new Error('não chamado')
       },

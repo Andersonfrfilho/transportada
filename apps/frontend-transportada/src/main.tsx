@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Icon } from '@/components/ui/icon'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Tooltip } from '@/components/ui/tooltip'
 import { getDeploymentEnvironment } from '@/modules/shared/deploymentEnvironment.service'
 import { applyColorTheme, readStoredColorTheme } from '@/modules/shared/colorTheme.service'
 import { useColorTheme } from '@/modules/shared/useColorTheme.hook'
@@ -29,6 +30,7 @@ import { LoginIdentifierPage } from '@/modules/identity/pages/LoginIdentifier.pa
 import { PasswordResetPage } from '@/modules/identity/pages/PasswordReset.page'
 import { useAuthMeQuery, type FiscalEnvironment } from '@/modules/identity/queries/useAuthMe.query'
 import { useCompanyUserPicture } from '@/modules/identity/hooks/useCompanyUserPicture.hook'
+import { WhatsAppPhoneDialog } from '@/modules/identity/components/WhatsAppPhoneDialog.component'
 import {
   getKeycloakAuthProvider,
   initializeKeycloakAuth,
@@ -488,6 +490,7 @@ function ApplicationShell(): ReactNode {
    * atualiza assim que o envio termina.
    */
   const [hasCopiedEmail, setHasCopiedEmail] = useState(false)
+  const [isWhatsAppPhoneDialogOpen, setIsWhatsAppPhoneDialogOpen] = useState(false)
 
   /** A área de transferência falha em contexto sem permissão: o ✓ só aparece se o valor foi mesmo. */
   async function copyEmail(email: string | undefined): Promise<void> {
@@ -655,6 +658,19 @@ function ApplicationShell(): ReactNode {
                     })
                   }
                 />
+                <Tooltip label="WhatsApp">
+                  <Button
+                    aria-label="WhatsApp"
+                    className="application-whatsapp-phone-button"
+                    onClick={() => setIsWhatsAppPhoneDialogOpen(true)}
+                    size="sm"
+                    title="WhatsApp"
+                    type="button"
+                    variant="ghost"
+                  >
+                    <Icon name="message" />
+                  </Button>
+                </Tooltip>
                 <span className="application-user-avatar" aria-hidden="true">
                   {headerPicture.objectUrl !== null ? (
                     <img className="application-user-photo" src={headerPicture.objectUrl} alt="" />
@@ -703,6 +719,10 @@ function ApplicationShell(): ReactNode {
             </CardContent>
           </Card>
         </header>
+        <WhatsAppPhoneDialog
+          isOpen={isWhatsAppPhoneDialogOpen}
+          onClose={() => setIsWhatsAppPhoneDialogOpen(false)}
+        />
         {sessionExpired ? (
           <div className="application-session-banner" role="alert">
             <span>Sua sessão expirou. Entre novamente para continuar de onde parou.</span>
