@@ -2513,23 +2513,35 @@ function findSplitSpot(input: {
 }
 
 /**
+ * A tolerância de agrupamento por altura: `zM` já sai arredondado ao milímetro (`round`), então 1 mm
+ * absorve o ruído de ponto flutuante sem juntar camadas que a régua real distingue.
+ */
+const LAYER_ELEVATION_TOLERANCE_M = 1e-3
+
+/**
  * As camadas do baú inteiro, montadas a partir das fatias.
  *
  * ⚠️ A camada é **do baú**, não da fatia: "camada 1" tem de significar o piso em toda a extensão,
  * senão a navegação por camada da tela mostraria o piso de uma parada ao lado da segunda pilha de
  * outra.
+ *
+ * ⚠️ **A camada é pela altura real (`zM`), não pelo contador da busca (`box.layer`).** `box.layer`
+ * é quantas vezes a varredura subiu tentando lugar nesta fatia — reinicia por faixa e por fatia, e
+ * cresce mesmo quando a tentativa não vira caixa. Agrupar por ele é o que desenhava "camada 97" /
+ * "138" / "195" na tela em vez de 0, 1, 2.
  */
-function toLayers(boxes: readonly PlacedBox[]): readonly CargoPlacementLayer[] {
-  const byIndex = new Map<number, PlacedBox[]>()
+export function toLayers(boxes: readonly PlacedBox[]): readonly CargoPlacementLayer[] {
+  const byElevationMm = new Map<number, PlacedBox[]>()
   for (const box of boxes) {
-    const existing = byIndex.get(box.layer)
-    if (existing === undefined) byIndex.set(box.layer, [box])
+    const elevationMm = Math.round(box.zM / LAYER_ELEVATION_TOLERANCE_M)
+    const existing = byElevationMm.get(elevationMm)
+    if (existing === undefined) byElevationMm.set(elevationMm, [box])
     else existing.push(box)
   }
 
-  return [...byIndex.entries()]
+  return [...byElevationMm.entries()]
     .sort(([first], [second]) => first - second)
-    .map(([index, layer]) => ({
+    .map(([, layer], index) => ({
       boxes: layer,
       heightM: Math.max(...layer.map((box) => box.heightM)),
       index,

@@ -254,7 +254,13 @@ describe('a ordem dentro da fatia (spec 095 G002)', () => {
     )
   })
 
-  /** A base é a caixa larga: nenhuma camada carrega pegada maior que a de baixo. */
+  /**
+   * A base é a caixa larga: nenhuma caixa carrega pegada maior que a de baixo **na mesma pilha**.
+   *
+   * ⚠️ A checagem é **por coluna** (`xM`, `yM`), não por camada do baú inteiro: GRANDE e PEQUENA
+   * ocupam faixas lado a lado, cada uma na sua altura — comparar pegada por índice de camada global
+   * misturava pilhas sem relação (a PEQUENA do piso ao lado da GRANDE já na terceira camada).
+   */
   test('nunca põe pegada maior sobre pegada menor', () => {
     const plan = resolveCargoPlacement({
       bed: BED,
@@ -263,17 +269,27 @@ describe('a ordem dentro da fatia (spec 095 G002)', () => {
         box({ count: 30, label: 'GRANDE', lengthMm: 800, widthMm: 600 }),
       ],
     })
-    const layers = plan?.layers ?? []
+    const boxes = placed(plan)
     const footprint = (entry: PlacedBox): number => entry.depthM * entry.widthM
 
-    for (let index = 1; index < layers.length; index += 1) {
-      const below = layers[index - 1]?.boxes ?? []
-      const above = layers[index]?.boxes ?? []
-      expect(Math.max(...above.map(footprint))).toBeLessThanOrEqual(
-        Math.min(...below.map(footprint)) + 1e-9,
-      )
+    const byColumn = new Map<string, PlacedBox[]>()
+    for (const entry of boxes) {
+      const key = `${entry.xM},${entry.yM}`
+      const existing = byColumn.get(key)
+      if (existing === undefined) byColumn.set(key, [entry])
+      else existing.push(entry)
     }
-    expect(layers.length).toBeGreaterThan(1)
+
+    for (const column of byColumn.values()) {
+      const stacked = [...column].sort((first, second) => first.zM - second.zM)
+      for (let index = 1; index < stacked.length; index += 1) {
+        expect(footprint(stacked[index] as PlacedBox)).toBeLessThanOrEqual(
+          footprint(stacked[index - 1] as PlacedBox) + 1e-9,
+        )
+      }
+    }
+    expect(byColumn.size).toBeGreaterThan(0)
+    expect(plan?.layers.length ?? 0).toBeGreaterThan(1)
   })
 
   /** A frágil continua acima da presumida: quem não pode receber peso é o topo de tudo. */
