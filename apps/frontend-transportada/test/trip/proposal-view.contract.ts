@@ -40,8 +40,27 @@ describe('proposal view contract', () => {
       vehicleById: new Map(),
     })
 
-    expect(view?.deliveries).toBe(2)
+    expect(view?.documentCount).toBe(2)
+    expect(view?.stopCount).toBe(2)
     expect(view?.cities).toEqual(['Ribeirão Preto', 'Sertãozinho'])
+  })
+
+  /** ⚠️ A parada é o endereço, e cada nota é uma delas: nota e parada contam separado. */
+  test('paradas e notas contam separado quando uma parada recebe mais de uma nota', () => {
+    const [view] = buildProposalVehicleViews({
+      documentsById: new Map(),
+      driverIdByVehicleId: new Map(),
+      driverNameById: new Map(),
+      stops: [
+        STOP({ nfeDocumentIds: ['doc-1', 'doc-2'] }),
+        STOP({ label: 'Sertãozinho', nfeDocumentIds: ['doc-3'], sequence: 2 }),
+      ],
+      valuation: null,
+      vehicleById: new Map(),
+    })
+
+    expect(view?.stopCount).toBe(2)
+    expect(view?.documentCount).toBe(3)
   })
 
   /** Parada sem veículo é sobra, e sobra tem painel próprio — contá-la a faria parecer distribuída. */

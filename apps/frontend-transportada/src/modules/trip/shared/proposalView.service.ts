@@ -21,12 +21,15 @@ export type ProposalDocumentWeight = Readonly<{
 
 export type ProposalVehicleView = Readonly<{
   cities: readonly string[]
-  deliveries: number
   distanceMeters: null | number
+  /** Notas fiscais distintas — uma nota em duas paradas do mesmo caminhão conta uma vez só. */
+  documentCount: number
   driverName: null | string
   durationSeconds: null | number
   hasGaps: boolean
   plate: null | string
+  /** Endereços distintos do roteiro — notas do mesmo endereço são uma parada só (ADR-0043 §3). */
+  stopCount: number
   stops: readonly ProposalStop[]
   /**
    * ⚠️ **`null` é a conta que não veio, nunca zero.** Sem `trip.financials` — ou com a consulta em
@@ -151,8 +154,8 @@ export function buildProposalVehicleViews(
     return {
       /** As cidades **na ordem do roteiro**, sem repetir: elas são o subtítulo da linha. */
       cities: [...new Set(group.stops.map((stop) => stop.label).filter((label) => label !== ''))],
-      deliveries: group.documentIds.size,
       distanceMeters: entry?.distanceMeters ?? null,
+      documentCount: group.documentIds.size,
       driverName: resolveDriverName({
         driverIdByVehicleId: input.driverIdByVehicleId,
         driverNameById: input.driverNameById,
@@ -165,6 +168,7 @@ export function buildProposalVehicleViews(
       maxPayloadKilograms,
       payloadRatio: resolvePayloadRatio({ maxPayloadKilograms, weightKilograms }),
       plate: vehicle?.plate ?? null,
+      stopCount: group.stops.length,
       stops: group.stops,
       totalCost: entry?.valuation.totalCost ?? null,
       totalMargin: entry?.valuation.totalMargin ?? null,

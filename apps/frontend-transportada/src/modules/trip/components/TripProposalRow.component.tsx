@@ -114,7 +114,10 @@ export function TripProposalRow({
         </span>
 
         <span className={styles.proposalMetrics}>
-          <Metric label={t('proposal.deliveries')} value={String(view.deliveries)} />
+          <Metric
+            label={t('proposal.stopsAndNotes')}
+            value={`${t('proposal.stopCount', { count: view.stopCount })} · ${t('proposal.documentCount', { count: view.documentCount })}`}
+          />
           {/*
             ⚠️ **O peso acima do teto sai em vermelho, na linha fechada.** Medido em 2026-09-09: a
             Fiorino de 650 kg nasceu com 4.307 kg — 663% —, e a única marca disso vivia dentro do
@@ -199,9 +202,9 @@ export function TripProposalRow({
             <Icon name="check" />
           </Button>
         </Tooltip>
-        <Tooltip label={t('proposal.discardOne', { count: view.deliveries })}>
+        <Tooltip label={t('proposal.discardOne', { count: view.documentCount })}>
           <Button
-            aria-label={t('proposal.discardOne', { count: view.deliveries })}
+            aria-label={t('proposal.discardOne', { count: view.documentCount })}
             onClick={onDiscard}
             size="sm"
             type="button"

@@ -87,7 +87,7 @@ export function TripProposalList({
   const summary = summarizeProposalSelection({
     selected,
     vehicles: views.map((view) => ({
-      deliveries: view.deliveries,
+      deliveries: view.documentCount,
       distanceMeters: view.distanceMeters,
       durationSeconds: view.durationSeconds,
       hasGaps: view.hasGaps,

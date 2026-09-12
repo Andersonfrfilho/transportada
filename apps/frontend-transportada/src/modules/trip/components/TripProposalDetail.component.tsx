@@ -203,7 +203,10 @@ export function TripProposalDetail({
     <>
       <VehicleIdentityBand
         facts={[
-          { label: t('proposal.deliveries'), value: String(view.deliveries) },
+          {
+            label: t('proposal.stopsAndNotes'),
+            value: `${t('proposal.stopCount', { count: view.stopCount })} · ${t('proposal.documentCount', { count: view.documentCount })}`,
+          },
           /**
            * ⚠️ Tempo e rodagem são **do roteirizador**, na ordem dele. Com a ordem trocada à mão eles
            * descreveriam outro caminho — saem daqui, e o mapa abaixo mede a ordem nova e os imprime.

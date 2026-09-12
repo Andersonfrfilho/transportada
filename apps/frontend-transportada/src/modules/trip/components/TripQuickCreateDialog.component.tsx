@@ -325,8 +325,8 @@ export function TripQuickCreateDialog({
           <VehicleIdentityBand
             facts={[
               {
-                label: t('proposal.deliveries'),
-                value: String(selectedNotes.length),
+                label: t('proposal.stopsAndNotes'),
+                value: `${t('proposal.stopCount', { count: quickCreate.cityOrder.length })} · ${t('proposal.documentCount', { count: selectedNotes.length })}`,
               },
             ]}
             label={[selectedVehicle.brand, selectedVehicle.model]
