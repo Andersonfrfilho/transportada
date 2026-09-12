@@ -8,6 +8,7 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import {
   createWhatsAppCodeSender,
   WhatsAppChannelNotConfiguredError,
+  WhatsAppRecipientInvalidError,
 } from '../../src/whatsapp/infrastructure/whatsapp-code-sender.gateway.js'
 
 const originalFetch = globalThis.fetch
@@ -126,5 +127,65 @@ describe('o remetente de código por WhatsApp (spec 062 T005)', () => {
     await sender.send({ address: '5516999991234', body: 'x', code: '1', companyId: COMPANY_ID })
 
     expect(graph.calls[0]?.url).toContain('/v23.0/5551234/')
+  })
+})
+
+/**
+ * O cadastro guarda o telefone com 10 ou 11 dígitos, sem o `55`, e o convite pode gravar o contato
+ * como foi digitado. A Meta quer o número com país: sem ele, `16999991234` sai para outro lugar.
+ */
+describe('o destinatário do código ganha o país (spec 062 T005)', () => {
+  const CANONICAL_RECIPIENTS: ReadonlyArray<readonly [string, string, string]> = [
+    ['fixo sem país, 10 dígitos', '1633334444', '551633334444'],
+    ['celular sem país, 11 dígitos', '16999991234', '5516999991234'],
+    ['fixo que já vem com 55, 12 dígitos', '551633334444', '551633334444'],
+    ['celular que já vem com 55, 13 dígitos', '5516999991234', '5516999991234'],
+    ['+55 com máscara', '+55 (16) 99999-1234', '5516999991234'],
+    ['máscara sem país', '(16) 99999-1234', '5516999991234'],
+  ]
+
+  for (const [label, address, recipient] of CANONICAL_RECIPIENTS) {
+    test(`${label}: ${JSON.stringify(address)} sai como ${recipient}`, async () => {
+      const graph = stubGraphApi()
+      const { sender } = buildSender({ credential: CREDENTIAL })
+
+      await sender.send({ address, body: 'x', code: '1', companyId: COMPANY_ID })
+
+      expect(graph.calls[0]?.body).toMatchObject({ to: recipient })
+    })
+  }
+
+  const REJECTED_RECIPIENTS: ReadonlyArray<readonly [string, string]> = [
+    ['vazio', ''],
+    ['só espaço', '   '],
+    ['lixo', 'abc'],
+    ['curto demais', '123'],
+    ['outro país', '441633334444'],
+  ]
+
+  for (const [label, address] of REJECTED_RECIPIENTS) {
+    test(`${label}: ${JSON.stringify(address)} é recusado sem enviar nem abrir o segredo`, async () => {
+      const graph = stubGraphApi()
+      const { opened, sender } = buildSender({ credential: CREDENTIAL })
+
+      await expect(
+        sender.send({ address, body: 'x', code: '1', companyId: COMPANY_ID }),
+      ).rejects.toBeInstanceOf(WhatsAppRecipientInvalidError)
+      expect(graph.calls).toHaveLength(0)
+      expect(opened).toHaveLength(0)
+    })
+  }
+
+  /** O endereço é PII (`security.md` §1): a recusa nomeia a empresa, nunca o número. */
+  test('a recusa não carrega o endereço na mensagem', async () => {
+    stubGraphApi()
+    const { sender } = buildSender({ credential: CREDENTIAL })
+
+    const failure = await sender
+      .send({ address: '16a99991234', body: 'x', code: '1', companyId: COMPANY_ID })
+      .catch((error: unknown) => error)
+
+    expect(failure).toBeInstanceOf(WhatsAppRecipientInvalidError)
+    expect(String((failure as Error).message)).not.toContain('99991234')
   })
 })
