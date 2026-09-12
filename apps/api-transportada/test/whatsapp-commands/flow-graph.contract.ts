@@ -50,16 +50,31 @@ describe('WHATSAPP_ROOT_FLOW_GRAPH', () => {
     }
   })
 
+  /**
+   * Spec 144 T015: "minha_viagem" deixou de ser terminal — o ramo do motorista está implementado.
+   * Os outros dois (emissão fiscal T012/T013, operador T016) continuam "Em breve.".
+   */
   test('todo ramo ainda sem ação termina num nó terminal explícito ("Em breve.")', () => {
     const rootNode = WHATSAPP_ROOT_FLOW_GRAPH.nodes[WHATSAPP_ROOT_FLOW_GRAPH.startNodeId]
     const next = rootNode?.next
     if (next === undefined || typeof next === 'string') throw new Error('menu sem next.byAnswer')
 
-    for (const targetId of Object.values(next.byAnswer)) {
+    for (const [optionId, targetId] of Object.entries(next.byAnswer)) {
+      if (optionId === 'minha_viagem') continue
       const target = WHATSAPP_ROOT_FLOW_GRAPH.nodes[targetId]
       expect(target?.type).toBe('action')
       expect(target?.directMessage).toContain('chegando')
     }
+  })
+
+  test('"minha_viagem" aponta para a FlowAction que consulta a viagem ativa (T015)', () => {
+    const rootNode = WHATSAPP_ROOT_FLOW_GRAPH.nodes[WHATSAPP_ROOT_FLOW_GRAPH.startNodeId]
+    const next = rootNode?.next
+    if (next === undefined || typeof next === 'string') throw new Error('menu sem next.byAnswer')
+
+    const target = WHATSAPP_ROOT_FLOW_GRAPH.nodes[next.byAnswer.minha_viagem ?? '']
+    expect(target?.type).toBe('action')
+    expect(target?.directMessage).toBeUndefined()
   })
 
   test('nenhum nó fica sem saída — action termina por si, os demais têm next', () => {

@@ -912,3 +912,99 @@ escolha, todo nó com saída.
   arquivo tocado por T008 aparece no motivo da falha, e a contagem de todo o resto (5233
   pass · 23 skip · 1 fail, sempre o mesmo teste) é estável entre as rodadas. Registrado, não
   consertado, como pedido.
+
+## T015 — o motorista entrega pelo WhatsApp (2026-09-11)
+
+### O que existe
+
+- `src/whatsapp-commands/domain/whatsapp-driver-flow.constant.ts` — ids de nó, `actionKind`, chaves
+  de `context` (todas opacas: `tripId`, `documentId`, marcador de passo, página, motivo) e as
+  traduções pt-BR de `TripTransitionBlock` e dos cinco motivos de devolução.
+- `src/whatsapp-commands/application/register-driver-flow-actions.ts` — `createDriverWhatsAppFlowActions`,
+  as oito `FlowAction`s do ramo "Minha viagem": `currentTrip` (`trip.read`) e sete de escrita
+  (`trip.report`) — lista de notas, roteador de nota, roteador de devolução, lista de tipos de
+  ocorrência, roteador de tipo, prompt e roteador de observação.
+- `src/whatsapp-commands/infrastructure/whatsapp-flow-graph.constant.ts` — `minha_viagem` deixou de
+  apontar para `minha_viagem_em_breve` (removido) e passa a apontar para `driver_current_trip`;
+  `buildDriverTripFlowNodes()` acrescenta os 13 nós do ramo aos outros dois ("emitir_documentos" e
+  "viagens_armazem", intactos).
+- `src/main.ts` — `driverWhatsAppFlowActions` composto com as MESMAS dependências que
+  `createMeTripRoutes` já injeta (`findCurrentDriverTrip`, `reportDocumentDelivery`/
+  `reportDocumentReturn`, `registerDriverOccurrence`, `resolveDriverId`), passado a
+  `createWhatsAppCommandHookFactory({flowActions: ...})` no lugar do `[]` da T006.
+
+### Correção de premissa: qual função a rota do PWA chama
+
+O prompt desta task apontava `transitionTripDocument` (`transition-trip-document.use-case.ts`) como
+"o que `POST /me/trips/current/documents/:documentId/{deliver,return}` chama". **Medido, não é**:
+`me-trip.routes.ts` chama `dependencies.reportDelivery`/`reportReturn`, compostas em `main.ts` como
+`reportDocumentDelivery`/`reportDocumentReturn` (`report-document-delivery.use-case.ts`) — a função
+que já existia para o motorista, com idempotência por status **e** o encadeamento de fechar parada
+e viagem (`completeStopIfSettled`/`completeTripIfSettled`), que `transitionTripDocument` não faz.
+`transitionTripDocument` é a função genérica usada pelo **escritório**
+(`trip.routes.ts`/`tripDocumentActionRoute`, `trip.manage`) — um caminho diferente, não o do
+motorista. As `FlowAction`s de T015 chamam `reportDocumentDelivery`/`reportDocumentReturn` — a mesma
+função, os mesmos efeitos, nenhum caminho novo.
+
+### Como a lista dinâmica evita PII no `context`
+
+Não existe campo em `FlowNodeData` para opções dinâmicas por sessão — só `node.options`, estático,
+validado na publicação. O padrão adotado (`action → entrada_choice → action` "roteador"): o nó de
+ação busca os dados e manda a mensagem ela mesma, direto por `channel.sendInteractiveList` (nunca por
+`context`, que é jsonb persistido) — o título "número · destinatário" nunca toca o banco de sessão.
+O nó `entrada_choice` que sucede não tem opções estáticas (`isChoiceNode` falso pelo tipo), então a
+resposta — o `id` da linha tocada, que é o `documentId`/`occurrenceTypeId` cru — é capturada sem
+validação de oferta; o roteador que segue valida re-consultando o domínio (`findReachableDocument`,
+`findOccurrenceType`), a mesma defesa que o PWA já tem. `parseMenuPageNavigation` (T007) decide se a
+captura é `__more__`/`__back__` (reencaminha para o nó de ação, que refaz a busca e a página) ou uma
+resposta real.
+
+⚠️ **Efeito colateral aceito, não corrigido**: como `ChannelAdapterInterface` desta instalação é a
+0.1.0 (sem `sendInteractiveButtons` — o mesmo achado que já levou `meta-whatsapp-message-sender.gateway.ts`
+a usar o provedor de botões separado), toda lista dinâmica sai como **lista**, nunca como botão,
+mesmo quando `planChoiceMessage` classificaria ≤3 opções como botão. E como o nó `entrada_choice`
+não tem opções, `renderNode` (T006/T007, `whatsapp-flow-step.service.ts`) sempre manda uma segunda
+mensagem — o `question` do nó (`"Toque numa nota da lista acima."` etc.) — depois da lista da
+`FlowAction`. Duas mensagens por passo dinâmico, de propósito: era a alternativa a estender o
+`context` persistido com título/PII para poupar uma mensagem.
+
+### Idempotência e portão recusado
+
+`reportDocumentDelivery`/`reportDocumentReturn` já resolvem `checkTripDocumentTransition` antes de
+gravar: repetir a mesma transição devolve `alreadySettled: true` sem gravar evento novo — a
+`FlowAction` traduz isso para "Já estava registrada." O 409 `STATE_TRANSITION_NOT_ALLOWED`
+(`TripStateTransitionNotAllowedError`) vira a tradução pt-BR de `TRIP_TRANSITION_BLOCK` em
+`DRIVER_TRANSITION_BLOCK_MESSAGES`; nota inalcançável (`TripDocumentNotReachableError`) vira "Essa
+nota não está mais disponível na sua viagem." Nenhum erro cru chega ao motorista.
+
+### Fora do escopo (spec § Fora do escopo)
+
+Mídia enviada pelo motorista (foto de canhoto) não é tratada por nenhuma `FlowAction` — o
+despachante (T006) só extrai `text`/`interactive`; uma mensagem de mídia captura texto vazio e cai
+no fallback do nó atual. Ficou fora de propósito: adicionar aqui um "a prova com foto é pelo app"
+exigiria uma `FlowAction` nova só para reconhecer mídia fora de contexto, e a spec já resolve isso
+implicitamente (o motorista nunca vê essa opção oferecida).
+
+### Gates
+
+- `bunx tsc --noEmit` (API) → limpo.
+- `bun run lint` (API) → limpo (removido import não usado em `driver-flow-actions.contract.ts`).
+- `bun test ./test/whatsapp-commands.contract.test.ts` → 185 pass · 0 fail (as 20 novas de
+  `driver-flow-actions.contract.ts`, mais o ajuste em `flow-graph.contract.ts` — "minha_viagem" saiu
+  do grupo "ainda sem ação" e ganhou teste próprio).
+- `bun run test` (API, 166 arquivos) → 5253 pass · 23 skip · 1 fail — o mesmo `cargo-volume`
+  (orçamento de 50 ms) já registrado em T005b/T007/T008; nenhum arquivo desta task no motivo.
+- `bun --env-file=../../.env.test test --timeout 120000 ./test/integration/whatsapp-driver-flow-actions.integration.ts`
+  → 1 pass · 0 fail — AC7: webhook assinado real → "oi" → menu em botões → "🚚 Minha viagem" → menu
+  da viagem em botões → "📦 Entregar" → lista dinâmica com a nota certa → toque na nota →
+  "Entrega registrada. ✅" → `trip_documents.separation_status = 'delivered'` e `trip_stop_events`
+  com uma linha `kind: 'delivered'` (o mesmo evento que `reportDocumentDelivery` grava para o PWA) →
+  a viagem (uma parada, uma nota) fecha sozinha (`status: 'completed'`, spec 056 D1) e some de
+  `findCurrentDriverTrip`.
+- `bun --env-file=../../.env.test test --timeout 120000` (suíte de integração completa, 48
+  arquivos, incluindo a nova) → 231 pass · 4 skip · 2 fail — as mesmas 2 falhas de
+  `cte-archive-gateway.integration.ts` (MinIO fora do ar) já registradas antes desta task.
+- `make check` → format:check, lint e typecheck verdes nas seis apps; `test` da API para no mesmo
+  `cargo-volume` (57 ms medidos nesta rodada) — registrado, não consertado, como nas tasks
+  anteriores. `bun run build` (chamado separadamente, já que `make check` interrompe no primeiro
+  script que falha) → as seis apps constroem sem erro.

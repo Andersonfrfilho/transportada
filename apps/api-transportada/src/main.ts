@@ -143,6 +143,7 @@ import { createMetaWhatsAppModuleResolver } from './whatsapp/application/meta-wh
 import { createDrizzleWebhookNonceStore } from './whatsapp/infrastructure/drizzle-webhook-nonce.store.js'
 import { createRateLimiter } from './http/rate-limiter.service.js'
 import { FlowGraphRepository } from '@adatechnology/meta-whatsapp-module'
+import { createDriverWhatsAppFlowActions } from './whatsapp-commands/application/register-driver-flow-actions.js'
 import { createResolveWhatsAppActorUseCase } from './whatsapp-commands/application/resolve-whatsapp-actor.use-case.js'
 import { createModuleWhatsAppFlowGraphProvider } from './whatsapp-commands/application/whatsapp-flow-graph.service.js'
 import { WHATSAPP_ROOT_FLOW_GRAPH_KEY } from './whatsapp-commands/infrastructure/whatsapp-flow-graph.constant.js'
@@ -619,6 +620,35 @@ export function bootstrap(): Bun.Server<undefined> {
     repository: new DrizzleMembershipRepository(database.db),
   })
   /**
+   * Spec 144 T015 — as mesmas dependências compostas de `createMeTripRoutes` (`resolveDriverId`,
+   * `reportDocumentDelivery`/`reportDocumentReturn`, `registerDriverOccurrence`), montadas aqui
+   * também porque o hook do WhatsApp (abaixo) nasce antes das instâncias de `me-trip` mais adiante
+   * neste arquivo. Nenhum caminho paralelo: o motorista pelo WhatsApp grava pelo mesmo repositório.
+   */
+  const whatsappDriverTripRepository = new DrizzleCurrentDriverTripRepository(database.db)
+  const whatsappDriverFieldReports = new DrizzleDriverFieldReportUnitOfWork(database.db)
+  const driverWhatsAppFlowActions = createDriverWhatsAppFlowActions({
+    findCurrentTrip: (input) =>
+      findCurrentDriverTrip({ ...input, repository: whatsappDriverTripRepository }),
+    listOccurrenceTypes: (input) =>
+      listOccurrenceTypes(database.db, { companyId: input.companyId }),
+    registerOccurrence: (input) =>
+      registerDriverOccurrence({
+        ...input,
+        repository: {
+          findOccurrenceType: (query) => findOccurrenceType(database.db, query),
+          findReachableDocument: (query) => findDriverReachableDocument(database.db, query),
+          listDocumentProducts: (query) => listDocumentProducts(database.db, query),
+          saveOccurrence: (query) => saveTripOccurrence(database.db, query),
+        },
+      }),
+    reportDelivery: (input) =>
+      reportDocumentDelivery({ ...input, now: new Date(), unitOfWork: whatsappDriverFieldReports }),
+    reportReturn: (input) =>
+      reportDocumentReturn({ ...input, now: new Date(), unitOfWork: whatsappDriverFieldReports }),
+    resolveDriverId: (input) => whatsappDriverTripRepository.findDriverIdByMembership(input),
+  })
+  /**
    * Spec 144 T006 — o despachante das mensagens recebidas. O teto por número é um só para a
    * instalação: a instância do módulo é refeita quando o token muda, e o teto não pode zerar junto.
    */
@@ -627,7 +657,7 @@ export function bootstrap(): Bun.Server<undefined> {
     authorization: new AuthorizationService(),
     baseUrl: config.whatsapp.baseUrl,
     clock: () => new Date(),
-    flowActions: [],
+    flowActions: driverWhatsAppFlowActions,
     /**
      * Spec 144 T008 — lê a versão publicada (a linha viva do módulo, a que `create`/`save`
      * escrevem), nunca o grafo em código direto: o comando de republicação é o único que decide
