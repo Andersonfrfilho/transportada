@@ -413,10 +413,16 @@ export function resolveCargoLayout(input: {
    * dobrava um caminho com orçamento de 50 ms declarado (spec 099) e, pior, abria a porta para os
    * dois lados receberem entradas diferentes.
    */
+  /**
+   * ⚠️ **Toda parada entrega caixa ao empacotador, com ou sem cubagem por nota.** A fatia e a fileira
+   * são sobre o volume da nota e ficam só com `ordered`; a caixa não — ela existe pela quantidade do
+   * produto, e a parada sem `nfe_volumes` e sem caixa medida ainda tem caixas. Montá-las só de
+   * `ordered` sumia com elas: nem desenhadas, nem em `unplaced` — o que a spec 085 proíbe por escrito.
+   */
   const placementBoxes = toPlacementBoxes({
     fallbackVolumeM3: input.fallbackBoxVolumeM3 ?? null,
     measuredShapes: input.measuredShapes ?? [],
-    stops: ordered,
+    stops: [...input.stops].sort((first, second) => first.sequence - second.sequence),
   })
   const decision = resolveStopArrangement({
     bed,
