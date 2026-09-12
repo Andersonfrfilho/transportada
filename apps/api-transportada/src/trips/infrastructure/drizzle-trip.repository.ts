@@ -614,6 +614,7 @@ async function readTripDetail(
       driver: tripDrivers,
       driverEmail: fleetDrivers.email,
       driverPhone: fleetDrivers.phone,
+      driverSecuresCargo: fleetDrivers.securesCargo,
     })
     .from(tripDrivers)
     .leftJoin(
@@ -792,6 +793,13 @@ async function readTripDetail(
     measuredShapes: cargo.measuredShapes,
     /** Spec 098: o teto de massa já resolvido acima — a planta e o painel leem o mesmo número. */
     payloadRatio: cargoWeightWithCeiling?.payloadRatio ?? null,
+    /**
+     * Spec 100: a **mesma** regra da prévia (`everyDriverSecuresCargo`): todo motorista da viagem
+     * amarra, e ficha apagada é ninguém amarrando. Sem isto a prévia empilhava até o teto e o detalhe
+     * da viagem gravada, supondo cinta nenhuma, devolvia as mesmas caixas como `bedFull`.
+     */
+    securesCargo:
+      driverRecords.length > 0 && driverRecords.every((row) => row.driverSecuresCargo === true),
     stops: stops.map((stop) => {
       const volumes = stop.documents.map((document) =>
         document.nfeDocumentId === null
