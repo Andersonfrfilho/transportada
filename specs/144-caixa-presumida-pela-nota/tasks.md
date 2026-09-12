@@ -25,7 +25,7 @@
       caixas sem ficha, nos dois caminhos (prévia e detalhe).
 - [x] T5 — `toPlacementBoxes` com a precedência D1 (G003) + caso em `cargo-layout.contract.ts`;
       T3 verde.
-- [ ] T6 — G006: rodar os contratos de placement existentes (viagens reais e Atego da fixture) e
+- [x] T6 — G006: rodar os contratos de placement existentes (viagens reais e Atego da fixture) e
       registrar caixas colocadas antes/depois em `evidence.md`.
 
 ## Fase 3 — Lista do que falta medir (`sonnet`)

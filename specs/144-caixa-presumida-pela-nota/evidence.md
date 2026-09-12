@@ -127,8 +127,57 @@ resíduo da nota, não mais com a mediana da empresa.
 
 ## 3. G006 — caixas colocadas antes/depois nas viagens reais (T6)
 
-| viagem | antes | depois |
-| ------ | ----- | ------ |
+Rodei um script descartável (fora do repo) que monta `CargoLayoutStop`/`CargoPlanBox` a partir das
+duas cargas reais de `test/fixtures/real-mixed-cargo.fixture.ts` (`ACCELO_24_STOPS`,
+`ATEGO_85_STOPS` — as mesmas que `test/cargo-placement/real-mixed-cargo.contract.ts` usa, spec 115)
+e chama `resolveCargoLayout` (`src/trips/domain/cargo-layout.policy.ts`), o mesmo caminho que
+`loadTripOccupancy` usa em produção. Caixa com `medida = 1` entra com as três dimensões (medida);
+caixa com `medida = 0` entra **sem** dimensão nenhuma (`heightMm`/`lengthMm`/`widthMm: null`) e
+**sem** `estimatedVolumeM3` — a fixture não carrega nota nem resíduo, só a dimensão que a busca por
+etiqueta mediu ou presumiu por fita —, então toda caixa sem ficha cai na mediana da empresa
+(`fallbackBoxVolumeM3` = 0,371 × 0,261 × 0,21 m³, a mesma caixa presumida que a spec 115 documenta),
+nunca no ramo novo de D1. Comparei **antes** (`8a611288`, fim da Fase 1, antes de T4/T5 — ainda sem
+`estimatedVolumeM3`/`productCode` em `CargoPlanBox`) contra **depois** (HEAD `09f97166`), num
+worktree `git worktree add` detached em `8a611288`, `node_modules` por symlink (sem instalar nada),
+removido ao final (`git worktree remove --force` + `git worktree prune`).
+
+| fixture             | total caixas | colocadas | unplaced | sem 3 dimensões | m³ desenhado | antes = depois |
+| ------------------- | ------------ | --------- | -------- | --------------- | ------------ | -------------- |
+| Accelo (24 paradas) | 500          | 500       | 0        | 489             | 10.1766      | sim            |
+| Atego (85 paradas)  | 1417         | 1417      | 0        | 1384            | 28.7631      | sim            |
+
+Os cinco números (total, colocadas, unplaced, sem-3-dimensões, m³ desenhado) saíram **idênticos**
+byte a byte nas duas rodadas, para as duas cargas — como a D6 promete. A razão é a que T5 deixou
+escrita em `toPlacementBoxes`: o ramo do resíduo da nota só dispara quando `box.estimatedVolumeM3`
+não é `null`, e nenhuma caixa desta fixture carrega esse campo (ela não tem nota nem resíduo,
+só dimensão medida ou ausente) — então as duas versões do código executam exatamente o mesmo
+`companyFallback` para toda caixa sem ficha, e a única diferença possível entre os commits (a
+precedência nova de D1) nunca chega a ser lida.
+
+⚠️ Os números de "colocadas"/`unplaced` aqui **não replicam** as asserções de
+`real-mixed-cargo.contract.ts` (que espera até 232 caixas de fora no Atego): esse contrato chama
+`resolveCargoPlacement` direto, com as dimensões já resolvidas na própria fixture. Aqui a entrada
+passa por `resolveCargoLayout`, que decide o arranjo (`resolveStopArrangement`) a partir do
+`payloadRatio` e monta a mediana da empresa a partir de um `measuredShapes` diferente (só as caixas
+com `medida = 1`) — outra decisão de arranjo, outro empacotamento. Não é o alvo de G006: o alvo é a
+igualdade **entre os dois commits sob a mesma entrada**, que se confirmou.
+
+Rodei também os contratos de placement direto (evidência independente, mesma fixture, sem passar
+por `resolveCargoLayout`), nos dois commits:
+
+```
+# HEAD 09f97166 — bun test ./test/cargo-volume.contract.test.ts
+ 326 pass · 0 fail · 19609 expect() calls
+
+# 8a611288 — bun test ./test/cargo-placement/real-mixed-cargo.contract.ts
+ 6 pass · 1 fail · 56 expect() calls
+ (fail) "o Atego de 1417 caixas cabe no orçamento de 50 ms" — 235.70ms, pré-existente e intermitente
+ (as 6 asserções de propriedade e contagem de caixas — inclusive as que fixam ≥1185 colocadas e
+ ≤14 paradas fora — passaram sem mudança)
+```
+
+Nenhuma asserção de posição, contagem ou propriedade mudou de resultado entre os dois commits — o
+único fail é o de desempenho já registrado na seção 1, intermitente nos dois lados.
 
 ## 4. Lista do que falta medir (T7, T8)
 
