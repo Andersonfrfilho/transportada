@@ -11,6 +11,7 @@ import type {
   ResolveWhatsAppActorParams,
   ResolveWhatsAppActorResult,
 } from '../application/resolve-whatsapp-actor.use-case.js'
+import type { VerifyWhatsAppPhone } from '../application/verify-whatsapp-phone.use-case.js'
 import {
   createWhatsAppCommandDriver,
   type WhatsAppMessageHandler,
@@ -43,6 +44,7 @@ export type CreateWhatsAppCommandHookFactoryParams = {
   readonly logger: ApiLogger
   readonly rateLimiter: RateLimiter
   readonly resolveActor: (params: ResolveWhatsAppActorParams) => Promise<ResolveWhatsAppActorResult>
+  readonly verifyPhone?: VerifyWhatsAppPhone
 }
 
 /**
@@ -77,6 +79,7 @@ export function createWhatsAppCommandHookFactory(
       resolveActor: params.resolveActor,
       sender: createMetaWhatsAppMessageSender({ buttons, channel: module.channel }),
       sessions: module.conversations.repository,
+      ...(params.verifyPhone === undefined ? {} : { verifyPhone: params.verifyPhone }),
     })
   }
 }

@@ -153,6 +153,10 @@ import {
   createWhatsAppCommandHookFactory,
   type WhatsAppCommandHookFactory,
 } from './whatsapp-commands/infrastructure/whatsapp-command-hook.factory.js'
+import { createRequestWhatsAppPhoneVerificationUseCase } from './whatsapp-commands/application/request-whatsapp-phone-verification.use-case.js'
+import { createUnbindWhatsAppPhoneUseCase } from './whatsapp-commands/application/unbind-whatsapp-phone.use-case.js'
+import { createVerifyWhatsAppPhoneUseCase } from './whatsapp-commands/application/verify-whatsapp-phone.use-case.js'
+import { createWhatsAppPhoneRoutes } from './whatsapp-commands/presentation/whatsapp-phone.routes.js'
 import { createNfseCallbackRoutes } from './nfse-callbacks/presentation/nfse-callbacks.routes.js'
 import { createBillingUseCase } from './billing/application/billing.use-case'
 import { createInvoiceDocumentUseCase } from './billing/application/invoice-document.use-case'
@@ -636,6 +640,9 @@ export function bootstrap(): Bun.Server<undefined> {
       memberships: new DrizzleMembershipRepository(database.db),
       phones: new DrizzleWhatsAppPhoneRepository(database.db),
       tenantContext,
+    }),
+    verifyPhone: createVerifyWhatsAppPhoneUseCase({
+      repository: new DrizzleWhatsAppPhoneRepository(database.db),
     }),
   })
   // Ausente qualquer um dos dois, a conta do agregado não é montada: `tenancy.mode: 'single'` exige
@@ -1516,6 +1523,7 @@ function createApplicationRoutes({
   const changeCompanyUserStatus = createChangeCompanyUserStatusUseCase({
     identityGateway: identityAccessGateway,
     repository: companyUserRepository,
+    whatsappPhones: new DrizzleWhatsAppPhoneRepository(database),
   })
   const replaceCompanyUserRoles = createReplaceCompanyUserRolesUseCase({
     repository: companyUserRepository,
@@ -1852,6 +1860,16 @@ function createApplicationRoutes({
       recordLocation: (input) => recordTripLocation(input),
       resolveDriverId: (input) => currentDriverTripRepository.findDriverIdByMembership(input),
       setConsent: (input) => tripLocationRepository.setConsent(input),
+    }),
+    ...createWhatsAppPhoneRoutes({
+      requestVerification: createRequestWhatsAppPhoneVerificationUseCase({
+        clock: () => new Date(),
+        repository: new DrizzleWhatsAppPhoneRepository(database),
+      }),
+      unbind: createUnbindWhatsAppPhoneUseCase({
+        memberships: new DrizzleMembershipRepository(database),
+        repository: new DrizzleWhatsAppPhoneRepository(database),
+      }),
     }),
     ...createDeliveryProofSettingsRoutes({
       listOverrides: (input) => deliveryProofSettingsRepository.listOverrides(input),

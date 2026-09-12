@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { AuthenticatedContext, CompanyContext } from '../../identity/domain/tenant-context.js'
+import { buildWhatsAppPhoneCandidates } from '../domain/whatsapp-phone-candidates.policy.js'
 import { WHATSAPP_PHONE_VERIFICATION_VALIDITY_DAYS } from '../domain/whatsapp-phone-verification.constant.js'
 import { toWhatsAppPhone } from '../domain/whatsapp-phone.policy.js'
 import type {
@@ -13,10 +14,6 @@ import type { VerifiedWhatsAppPhone } from './whatsapp-phone.port.js'
 
 const DAY_MS = 86_400_000
 const VALIDITY_MS = WHATSAPP_PHONE_VERIFICATION_VALIDITY_DAYS * DAY_MS
-const MOBILE_WITH_NINTH_DIGIT_LENGTH = 13
-const MOBILE_WITHOUT_NINTH_DIGIT_LENGTH = 12
-const NINTH_DIGIT_POSITION = 4
-const NINTH_DIGIT = '9'
 
 /** Para log e métrica, nunca para o número: as quatro recusas recebem a mesma resposta (D1). */
 export type WhatsAppActorDenialReason =
@@ -56,7 +53,7 @@ export function createResolveWhatsAppActorUseCase({
     const phone = toWhatsAppPhone(fromPhone)
     if (phone === undefined) return deny('unknown_phone')
 
-    const candidates = buildPhoneCandidates(phone)
+    const candidates = buildWhatsAppPhoneCandidates(phone)
     const verified = await findFirstVerified({ candidates, phones })
     if (verified === undefined) {
       const declared = await Promise.all(
@@ -79,26 +76,6 @@ export function createResolveWhatsAppActorUseCase({
 
 function deny(reason: WhatsAppActorDenialReason): ResolveWhatsAppActorResult {
   return { reason, status: 'denied' }
-}
-
-/**
- * O repositório casa exato, e a Meta às vezes entrega o celular sem o nono dígito: procura-se pela
- * forma recebida e pela outra, a mesma equivalência de `isSameWhatsAppPhone`. A recebida vem primeiro.
- */
-function buildPhoneCandidates(phone: string): readonly string[] {
-  if (
-    phone.length === MOBILE_WITH_NINTH_DIGIT_LENGTH &&
-    phone[NINTH_DIGIT_POSITION] === NINTH_DIGIT
-  ) {
-    return [phone, phone.slice(0, NINTH_DIGIT_POSITION) + phone.slice(NINTH_DIGIT_POSITION + 1)]
-  }
-  if (phone.length === MOBILE_WITHOUT_NINTH_DIGIT_LENGTH) {
-    return [
-      phone,
-      phone.slice(0, NINTH_DIGIT_POSITION) + NINTH_DIGIT + phone.slice(NINTH_DIGIT_POSITION),
-    ]
-  }
-  return [phone]
 }
 
 async function findFirstVerified(input: {

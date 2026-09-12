@@ -234,7 +234,22 @@ export type PlatformAuthorizationPolicy = {
   readonly scope: 'platform'
 }
 
-export type RouteAuthorizationPolicy = CompanyAuthorizationPolicy | PlatformAuthorizationPolicy
+/**
+ * Rota da própria pessoa que serve a qualquer papel (spec 144: o número de WhatsApp). A membership
+ * ativa já foi exigida pelo tenant-context antes de a política ser lida; aqui só se recusa o escopo
+ * de plataforma. Não é carona: a rota só alcança dado do próprio usuário.
+ */
+export type MembershipAuthorizationPolicy = {
+  readonly membership: 'active'
+  /** Nenhuma permissão: quem lê `policy.permission` numa lista de rotas recebe `undefined`. */
+  readonly permission?: never
+  readonly scope: 'company'
+}
+
+export type RouteAuthorizationPolicy =
+  | CompanyAuthorizationPolicy
+  | MembershipAuthorizationPolicy
+  | PlatformAuthorizationPolicy
 
 export type CompanyPermissionSources = {
   /** Concedidas por grupo da empresa ou direto à pessoa. Nome fora do catálogo é ignorado. */

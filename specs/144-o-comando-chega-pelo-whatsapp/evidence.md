@@ -529,3 +529,100 @@ no mesmo worktree, e o pre-commit (lint-staged) do agente da T006 chegou a colá
 ele refez o próprio commit local (`0fdc758c`, mesmo tree, só com o `[x]` da T006) e deixou a
 reescrita na árvore para ser commitada aqui. Lição para as próximas tasks: **documento de spec só
 se edita com o worktree parado**.
+
+## T004 — o número se prova pela mensagem (2026-09-11)
+
+O painel pede o código e a mensagem que chega **daquele** número o confirma. Nenhuma rota verifica.
+
+### Forma
+
+- `POST /me/whatsapp-phone/verification` → `{ phone }` (Zod estrito; `toWhatsAppPhone`; inválido →
+  **400 `WHATSAPP_PHONE_INVALID`**). Responde **201** `{ data: { code, companyNumber, expiresAt } }`
+  com `cache-control: no-store`. O código sai de `crypto.randomInt(10⁶)` com zero à esquerda, e só o
+  `sha256` hex é gravado (`openVerificationRequest`, que fecha o pedido vivo anterior na mesma
+  transação). `companyNumber` é o `display_phone_number` do canal **ativo** da empresa; canal
+  ausente, desativado ou com número vazio → **409 `WHATSAPP_CHANNEL_NUMBER_MISSING`**, sem abrir
+  pedido.
+- **Pré-passo no despachante**, e não FlowAction, porque ele roda antes de existir ator: com o ator
+  recusado e o texto casando `^\s*(\d{6})\s*$`, `verifyPhone` busca os pedidos vivos da empresa do
+  canal **pelo `from`** (as duas grafias do nono dígito, `buildWhatsAppPhoneCandidates`, extraído da
+  T005 para o domínio), descarta vencido (`expires_at <= now`) e esgotado (5), e compara o digest com
+  `timingSafeEqual` contra **todos** os pedidos, sem parar no primeiro. Erro → `incrementAttempt` em
+  todos os pedidos vivos daquele número. Acerto → `completeVerification`, uma transação: fecha o
+  pedido (`stale` se outra mensagem fechou antes) → upsert do vínculo verificado, **como a Meta
+  entrega o número** (D1) → `audit_logs`. Depois disso "✅ Número verificado.", a posição é limpa e
+  o menu raiz é renderizado.
+- Número verificado de outra pessoa → o `23505` do índice parcial vira `WhatsAppPhoneTakenError`, a
+  transação desfaz, e `closeRequestAfterCollision` mata o pedido e grava a colisão (`result='denied'`)
+  noutra transação. Na conversa, **qualquer** recusa (`invalid_phone · no_live_request ·
+code_mismatch · phone_taken · stale`) é a resposta neutra única da T006, no máximo 1× por 24 h por
+  número. A razão fica só no log `whatsapp.phone.verification_rejected`.
+- `DELETE /me/whatsapp-phone` e `DELETE /company-users/:id/whatsapp-phone` (`users.manage`) → **204**
+  e idempotentes: `unbindWithAudit` apaga e grava a trilha na mesma transação, e sem vínculo não há
+  nem erro nem trilha. O administrador só alcança quem tem membership (qualquer situação) na empresa
+  dele (`findStanding !== 'absent'`); fora disso, **404 `COMPANY_USER_NOT_FOUND`**.
+- Trilha: `entity_type='user_whatsapp_phone'`, `entity_id`/`target_id` = usuário, `permission=
+'whatsapp.phone'`, ações `whatsapp_phone.{verified,verification_collision,unbound}`,
+  `correlation_id` = `wamid` da mensagem (ou o id de correlação da rota), e `metadata.phone`
+  **mascarado** por `maskPhone`. O ator da verificação é o próprio usuário; no desvínculo pelo
+  administrador, o administrador.
+
+### Decisões
+
+- **"Qualquer membership ativa" virou política própria.** `authorize` recusava política `undefined`,
+  e nenhuma permissão do catálogo cobre todos os papéis: o motorista tem só `trip.read`/`trip.report`,
+  e o contratante, `deliveries.track`/`charges.decide`. `MembershipAuthorizationPolicy`
+  (`{ membership: 'active', scope: 'company' }`, com `permission?: never`) passa qualquer contexto de
+  empresa e recusa o de plataforma. A membership ativa já foi exigida pelo `tenant-context`. O
+  `permission?: never` existe para os contratos que leem `route.policy?.permission` de listas de
+  rota (`me-routes`, `aggregate-attachment-review`) seguirem compilando sem edição. Criar uma
+  permissão nova teria mexido no catálogo e nos contratos de papel inteiros por uma rota que só toca
+  dado do próprio usuário.
+- **Canal desativado também é 409.** Canal com `status='disabled'` não recebe mensagem, e o código
+  não teria para onde ir. Isso vai além do texto do pedido (inexistente ou número vazio) e é da mesma
+  natureza.
+- **Suspensão.** `change-company-user-status` passou a desfazer o vínculo quando a suspensão tira a
+  **última** membership ativa (o mesmo `shouldDisableIdentity` que desabilita no Keycloak), depois de
+  gravar o status. Com outra empresa ativa, o número segue valendo lá. Esse desvínculo **não grava
+  trilha**, porque o caso de uso não recebe o ator e a própria suspensão também não é auditada hoje.
+  ⚠️ **Remover** a membership (`remove-company-user-membership`) não desfaz o vínculo. Isso fica
+  para a T018, junto da auditoria da suspensão. O ator continua recusado sem membership ativa
+  (`no_membership`), então não há acesso indevido, só credencial órfã.
+- **Sem gerador OpenAPI.** Não existe nenhum no repositório (grep vazio em `src/`; só menções em
+  `docs/`). As rotas ficam documentadas aqui e no contrato de rotas.
+- `package.json` de `test:integration` estava com dois caminhos colados sem espaço, desde a T006
+  (`whatsapp-command-driver.integration.ts./test/integration/delivery-charge-…`). Separei os dois
+  junto com a entrada nova.
+- ⚠️ O `CLAUDE.md` da raiz **não** foi atualizado (§14 pede isso em rota nova), porque esta task
+  só pode editar a própria linha do `tasks.md` e acrescentar ao `evidence.md`. Fica para quem
+  fechar a spec.
+
+### Vermelho → verde
+
+- Vermelho: `bun test ./test/whatsapp-commands.contract.test.ts` → 0 pass · 1 fail (módulo
+  `request-whatsapp-phone-verification.use-case.ts` inexistente).
+- Primeiro verde parcial: 88 pass · 4 fail, os quatro de erro HTTP. O harness chamava `router.handle`,
+  que lança o `ApiError`; passou a usar `createRequestHandler`, como a fixture de identidade.
+- Verde: `whatsapp-commands` 92 pass · 0 fail (26 novos: pedido, digest, `from` divergente, nono
+  dígito, vencido, 5 tentativas, dois usuários no mesmo número, colisão com trilha, outra empresa,
+  desvínculo idempotente, admin 404, 5 do despachante com varredura de log sem telefone e sem código,
+  e 10 de rota e política). Com `user-administration-application` (2 novos de suspensão) → 174 pass.
+- Integração `test/integration/whatsapp-phone-verification.integration.ts` com Postgres real e
+  Graph API local → 4 pass. Rota → código → webhook assinado com o código → "✅ Número verificado." +
+  menu → `resolveWhatsAppActor` **autoriza** o usuário, e a trilha tem uma linha, com o telefone
+  mascarado. Também: `from` divergente (neutra, sem vínculo e sem trilha), colisão (pedido morto,
+  trilha `denied`, vínculo do dono intacto) e `DELETE /me` duplo (uma trilha). Junto das vizinhas
+  (`whatsapp-command-driver`, `whatsapp-phone-repository`, `tenant-context`) → 14 pass · 0 fail, com
+  `bun --env-file=../../.env.test test --timeout 120000` (o `.env` é link na raiz e o Bun não o lê de
+  `apps/api-transportada`; sem a flag os 13 casos pulam).
+
+### Gates
+
+- `bun run typecheck` → 0 erros (seis apps). `bun run lint` → verde. `prettier --check` → verde.
+- `make check` → exit 2, **só** pela flaky conhecida: format, lint e typecheck verdes; API 5156 pass
+  · 1 fail ("o Atego de 1417 caixas cabe no orçamento de 50 ms", 142 ms). Rodando antes a suíte da API
+  sozinha, 5153 · 4 fail, todos de orçamento de tempo de carga (spec 094, 115 e 118).
+  `bun test ./test/cargo-volume.contract.test.ts` isolado → 300 pass · 3 fail, os mesmos orçamentos,
+  com load average de 40 (19 sessões). Nenhum arquivo de carga está neste diff.
+- À parte, porque o `make check` para na primeira falha: worker 1002 · cron 94 · frontend 3316 ·
+  frontend-client 18 · frontend-landing 107, todos 0 fail; `bun run build` → exit 0.

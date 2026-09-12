@@ -20,6 +20,7 @@ export class AuthorizationService {
     if (policy === undefined || context.scope.kind !== policy.scope) {
       throw forbidden()
     }
+    if ('membership' in policy) return
 
     if (
       policy.scope === 'company' &&

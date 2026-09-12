@@ -29,6 +29,10 @@ type ChangeCompanyUserStatusDependencies = {
     | 'listActiveMembershipCompanyIds'
     | 'setMembershipStatus'
   >
+  /** Estrutural, para `identity` não depender de `whatsapp-commands`. */
+  readonly whatsappPhones: {
+    unbindByUserId(input: { readonly userId: string }): Promise<void>
+  }
 }
 
 export type ChangeCompanyUserStatusInput = {
@@ -51,6 +55,7 @@ export type ChangeCompanyUserStatusUseCase = {
 export function createChangeCompanyUserStatusUseCase({
   identityGateway,
   repository,
+  whatsappPhones,
 }: ChangeCompanyUserStatusDependencies): ChangeCompanyUserStatusUseCase {
   return {
     async execute({ context, status, userId }) {
@@ -71,9 +76,11 @@ export function createChangeCompanyUserStatusUseCase({
       }
 
       const activeMembershipCompanyIds = await repository.listActiveMembershipCompanyIds({ userId })
-      if (
-        shouldDisableIdentity({ activeMembershipCompanyIds, leavingCompanyId: context.companyId })
-      ) {
+      const isLeavingLastCompany = shouldDisableIdentity({
+        activeMembershipCompanyIds,
+        leavingCompanyId: context.companyId,
+      })
+      if (isLeavingLastCompany) {
         await identityGateway.setEnabled({ enabled: false, userId: subject })
       }
 
@@ -82,6 +89,8 @@ export function createChangeCompanyUserStatusUseCase({
         status: membershipStatus,
         userId,
       })
+      /** Spec 144: o número verificado é credencial; sem empresa ativa nenhuma, ele cai junto. */
+      if (isLeavingLastCompany) await whatsappPhones.unbindByUserId({ userId })
       return toCompanyUserView({ ...existing, membershipStatus })
     },
   }

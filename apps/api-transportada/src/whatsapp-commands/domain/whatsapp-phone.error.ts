@@ -17,3 +17,26 @@ export class WhatsAppPhoneTakenError extends ApiError {
     this.name = 'WhatsAppPhoneTakenError'
   }
 }
+
+export class WhatsAppPhoneInvalidError extends ApiError {
+  public constructor() {
+    super({
+      code: 'WHATSAPP_PHONE_INVALID',
+      message: 'WhatsApp phone is invalid.',
+      status: 400,
+    })
+    this.name = 'WhatsAppPhoneInvalidError'
+  }
+}
+
+/** Sem número para onde mandar, o código não teria uso: o painel orienta a configurar o canal. */
+export class WhatsAppChannelNumberMissingError extends ApiError {
+  public constructor() {
+    super({
+      code: 'WHATSAPP_CHANNEL_NUMBER_MISSING',
+      message: 'The company WhatsApp channel has no display phone number.',
+      status: 409,
+    })
+    this.name = 'WhatsAppChannelNumberMissingError'
+  }
+}

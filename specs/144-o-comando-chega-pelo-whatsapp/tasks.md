@@ -49,7 +49,7 @@ Fase 2, logo depois da T006.
       ator, roda `flows.interpreter`, envia `fallbackMessage`, handoff na segunda recusa, teto de
       30/10 min por número — `application/whatsapp-command-driver.service.ts`,
       `src/whatsapp/application/meta-whatsapp-module.resolver.ts` — integração com Graph API fake
-- [ ] **T004** 🧠 Verificação de entrada, primeira `FlowAction` do despachante: o painel pede o
+- [x] **T004** 🧠 Verificação de entrada, primeira `FlowAction` do despachante: o painel pede o
       código (`POST /me/whatsapp-phone/verification`, autenticado, devolve código e número da
       empresa), e a mensagem que o traz confirma **só** se o `from` casar com o número declarado;
       comparação `timingSafeEqual` sobre digest, 10 min, 5 tentativas;

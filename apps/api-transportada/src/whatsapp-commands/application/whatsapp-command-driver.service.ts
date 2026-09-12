@@ -1,6 +1,8 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { randomUUID } from 'node:crypto'
+
 import type {
   ChannelAdapterInterface,
   FlowGraphData,
@@ -27,7 +29,9 @@ import {
   WHATSAPP_INVALID_ATTEMPTS_BEFORE_HANDOFF,
   WHATSAPP_INVALID_ATTEMPTS_CONTEXT_KEY,
   WHATSAPP_MAX_CROSS_FLOW_HOPS,
+  WHATSAPP_PHONE_VERIFIED_REPLY,
 } from '../domain/whatsapp-command.constant.js'
+import { WHATSAPP_PHONE_VERIFICATION_CODE_MESSAGE_PATTERN } from '../domain/whatsapp-phone-verification.constant.js'
 import {
   type WhatsAppCommandDenialReason,
   WhatsAppCommandDeniedError,
@@ -37,6 +41,7 @@ import type {
   ResolveWhatsAppActorParams,
   ResolveWhatsAppActorResult,
 } from './resolve-whatsapp-actor.use-case.js'
+import type { VerifyWhatsAppPhone } from './verify-whatsapp-phone.use-case.js'
 import type { WhatsAppChoiceRenderer } from './whatsapp-choice-renderer.service.js'
 import type {
   WhatsAppCommandSessionPort,
@@ -66,6 +71,8 @@ export type WhatsAppCommandDriverDependencies = {
   readonly resolveActor: (params: ResolveWhatsAppActorParams) => Promise<ResolveWhatsAppActorResult>
   readonly sender: WhatsAppMessageSenderPort
   readonly sessions: WhatsAppCommandSessionPort
+  /** Ausente, o número não vinculado só recebe a recusa neutra — como antes da T004. */
+  readonly verifyPhone?: VerifyWhatsAppPhone
 }
 
 const HANDLED: MessageHookOutcome = { outcome: 'handled' }
@@ -122,6 +129,11 @@ async function dispatch(turn: WhatsAppCommandTurn): Promise<MessageHookOutcome> 
     now: deps.clock(),
   })
   if (actor.status === 'denied') {
+    const code = readVerificationCode(turn.message)
+    if (code !== undefined && deps.verifyPhone !== undefined) {
+      await verifyEntry({ code, turn, verifyPhone: deps.verifyPhone })
+      return HANDLED
+    }
     await denyTurn({ reason: actor.reason, turn })
     return HANDLED
   }
@@ -241,12 +253,56 @@ async function handOff(input: {
   await turn.deps.sender.sendText({ body: WHATSAPP_HANDOFF_REPLY, to: turn.phone })
 }
 
+/**
+ * T004 — o número ainda não vinculado que manda só o código. A verificação roda **antes** do menu
+ * porque é ela que cria o ator; o `from` é o que prova a posse. Qualquer recusa é a mesma resposta
+ * neutra: "código errado" daria ao número um oráculo.
+ */
+async function verifyEntry(input: {
+  readonly code: string
+  readonly turn: WhatsAppCommandTurn
+  readonly verifyPhone: VerifyWhatsAppPhone
+}): Promise<void> {
+  const { turn } = input
+  const { companyId } = turn.session
+  const result = await input.verifyPhone({
+    code: input.code,
+    companyId,
+    correlationId: turn.message.id ?? randomUUID(),
+    fromPhone: turn.phone,
+    now: turn.deps.clock(),
+  })
+  if (result.status === 'rejected') {
+    turn.deps.logger.warn(WHATSAPP_COMMAND_LOG.phoneVerificationRejected, {
+      companyId,
+      phone: turn.maskedPhone,
+      reason: result.reason,
+    })
+    await sendDeniedReply(turn)
+    return
+  }
+
+  turn.deps.logger.info(WHATSAPP_COMMAND_LOG.phoneVerified, { companyId, phone: turn.maskedPhone })
+  await turn.deps.sender.sendText({ body: WHATSAPP_PHONE_VERIFIED_REPLY, to: turn.phone })
+  await clearWhatsAppFlowPosition({ context: {}, turn })
+  await advanceConversation(turn)
+}
+
+function readVerificationCode(message: WhatsAppCommandTurn['message']): string | undefined {
+  const body = message.text?.body
+  if (body === undefined) return undefined
+  return WHATSAPP_PHONE_VERIFICATION_CODE_MESSAGE_PATTERN.exec(body)?.[1]
+}
+
 async function denyTurn(input: {
   readonly reason: WhatsAppCommandDenialReason
   readonly turn: WhatsAppCommandTurn
 }): Promise<void> {
-  const { turn } = input
   logDenied(input)
+  await sendDeniedReply(input.turn)
+}
+
+async function sendDeniedReply(turn: WhatsAppCommandTurn): Promise<void> {
   const reply = turn.deps.rateLimiter.consume({
     key: `denied-reply:${buildLimitKey(turn)}`,
     policy: WHATSAPP_DENIED_REPLY_LIMIT,

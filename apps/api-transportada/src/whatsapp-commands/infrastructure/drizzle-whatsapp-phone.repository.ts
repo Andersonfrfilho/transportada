@@ -5,21 +5,72 @@ import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, desc, eq, isNotNull, isNull, sql, type SQL } from 'drizzle-orm'
 
 import {
+  auditLogs,
   userWhatsAppPhones,
   whatsAppPhoneVerificationRequests,
+  whatsappChannels,
 } from '../../database/database.schema.js'
 import { violatedUniqueConstraint } from '../../database/postgres-error.support.js'
+import { maskPhone } from '../../logging/phone-mask.policy.js'
 import type {
+  CompleteWhatsAppPhoneVerificationInput,
   OpenWhatsAppPhoneVerificationInput,
   VerifiedWhatsAppPhone,
+  WhatsAppPhoneAuditInput,
   WhatsAppPhoneBinding,
   WhatsAppPhoneRepositoryPort,
   WhatsAppPhoneVerificationRequest,
 } from '../application/whatsapp-phone.port.js'
-import { WHATSAPP_PHONE_VERIFICATION_MAX_ATTEMPTS } from '../domain/whatsapp-phone-verification.constant.js'
+import {
+  WHATSAPP_PHONE_AUDIT,
+  WHATSAPP_PHONE_VERIFICATION_MAX_ATTEMPTS,
+} from '../domain/whatsapp-phone-verification.constant.js'
 import { WhatsAppPhoneTakenError } from '../domain/whatsapp-phone.error.js'
 
 type WhatsAppPhoneDatabase = ReturnType<typeof createDrizzleProvider>['db']
+type WhatsAppPhoneWriter = Pick<WhatsAppPhoneDatabase, 'insert'>
+
+/** A trilha nunca leva o número cru (`security.md` §1): só a máscara, para quem lê reconhecer. */
+function buildAuditRow(input: {
+  readonly action: string
+  readonly audit: WhatsAppPhoneAuditInput
+  readonly phone: string
+  readonly result: 'allowed' | 'denied'
+  readonly userId: string
+}) {
+  return {
+    action: input.action,
+    actorUserId: input.audit.actorUserId,
+    companyId: input.audit.companyId,
+    correlationId: input.audit.correlationId,
+    entityId: input.userId,
+    entityType: WHATSAPP_PHONE_AUDIT.entityType,
+    metadata: { phone: maskPhone(input.phone) },
+    permission: WHATSAPP_PHONE_AUDIT.permission,
+    result: input.result,
+    targetId: input.userId,
+    targetType: WHATSAPP_PHONE_AUDIT.targetType,
+  }
+}
+
+async function upsertVerified(
+  writer: WhatsAppPhoneWriter,
+  input: { readonly phone: string; readonly userId: string; readonly verifiedAt: Date },
+): Promise<void> {
+  await writer
+    .insert(userWhatsAppPhones)
+    .values({ phone: input.phone, userId: input.userId, verifiedAt: input.verifiedAt })
+    .onConflictDoUpdate({
+      set: { phone: input.phone, updatedAt: new Date(), verifiedAt: input.verifiedAt },
+      target: userWhatsAppPhones.userId,
+    })
+}
+
+function translateTaken(error: unknown): unknown {
+  return violatedUniqueConstraint(error) === VERIFIED_PHONE_UNIQUE
+    ? new WhatsAppPhoneTakenError()
+    : error
+}
 
 const VERIFIED_PHONE_UNIQUE = 'user_whatsapp_phones_phone_verified_unique'
 
@@ -119,20 +170,10 @@ export class DrizzleWhatsAppPhoneRepository implements WhatsAppPhoneRepositoryPo
     readonly userId: string
     readonly verifiedAt: Date
   }): Promise<void> {
-    const updatedAt = new Date()
     try {
-      await this.database
-        .insert(userWhatsAppPhones)
-        .values({ phone: input.phone, userId: input.userId, verifiedAt: input.verifiedAt })
-        .onConflictDoUpdate({
-          set: { phone: input.phone, updatedAt, verifiedAt: input.verifiedAt },
-          target: userWhatsAppPhones.userId,
-        })
+      await upsertVerified(this.database, input)
     } catch (error) {
-      if (violatedUniqueConstraint(error) === VERIFIED_PHONE_UNIQUE) {
-        throw new WhatsAppPhoneTakenError()
-      }
-      throw error
+      throw translateTaken(error)
     }
   }
 
@@ -140,6 +181,100 @@ export class DrizzleWhatsAppPhoneRepository implements WhatsAppPhoneRepositoryPo
     await this.database
       .delete(userWhatsAppPhones)
       .where(eq(userWhatsAppPhones.userId, input.userId))
+  }
+
+  public async findCompanyNumber(input: {
+    readonly companyId: string
+  }): Promise<string | undefined> {
+    const [row] = await this.database
+      .select({ displayPhoneNumber: whatsappChannels.displayPhoneNumber })
+      .from(whatsappChannels)
+      .where(
+        and(eq(whatsappChannels.companyId, input.companyId), eq(whatsappChannels.status, 'active')),
+      )
+      .limit(1)
+
+    return row === undefined || row.displayPhoneNumber === '' ? undefined : row.displayPhoneNumber
+  }
+
+  /** Fechar primeiro: se outra mensagem já fechou o pedido, nada é gravado (`stale`). */
+  public async completeVerification(
+    input: CompleteWhatsAppPhoneVerificationInput,
+  ): Promise<'stale' | 'verified'> {
+    try {
+      return await this.database.transaction(async (transaction) => {
+        const [closed] = await transaction
+          .update(requests)
+          .set({ consumedAt: input.verifiedAt })
+          .where(
+            and(
+              ...buildRequestWriteFilters({
+                companyId: input.audit.companyId,
+                requestId: input.requestId,
+              }),
+            ),
+          )
+          .returning({ id: requests.id })
+        if (closed === undefined) return 'stale'
+
+        await upsertVerified(transaction, input)
+        await transaction
+          .insert(auditLogs)
+          .values(
+            buildAuditRow({ ...input, action: WHATSAPP_PHONE_AUDIT.verified, result: 'allowed' }),
+          )
+        return 'verified'
+      })
+    } catch (error) {
+      throw translateTaken(error)
+    }
+  }
+
+  public async closeRequestAfterCollision(
+    input: CompleteWhatsAppPhoneVerificationInput,
+  ): Promise<void> {
+    await this.database.transaction(async (transaction) => {
+      await transaction
+        .update(requests)
+        .set({ consumedAt: input.verifiedAt })
+        .where(
+          and(
+            ...buildRequestWriteFilters({
+              companyId: input.audit.companyId,
+              requestId: input.requestId,
+            }),
+          ),
+        )
+      await transaction
+        .insert(auditLogs)
+        .values(
+          buildAuditRow({ ...input, action: WHATSAPP_PHONE_AUDIT.collision, result: 'denied' }),
+        )
+    })
+  }
+
+  public async unbindWithAudit(input: {
+    readonly audit: WhatsAppPhoneAuditInput
+    readonly userId: string
+  }): Promise<boolean> {
+    return this.database.transaction(async (transaction) => {
+      const [removed] = await transaction
+        .delete(userWhatsAppPhones)
+        .where(eq(userWhatsAppPhones.userId, input.userId))
+        .returning({ phone: userWhatsAppPhones.phone })
+      if (removed === undefined) return false
+
+      await transaction.insert(auditLogs).values(
+        buildAuditRow({
+          action: WHATSAPP_PHONE_AUDIT.unbound,
+          audit: input.audit,
+          phone: removed.phone,
+          result: 'allowed',
+          userId: input.userId,
+        }),
+      )
+      return true
+    })
   }
 
   /** `consumed_at` aqui significa *fechado*: é a coluna que o índice de pedido vivo observa. */
