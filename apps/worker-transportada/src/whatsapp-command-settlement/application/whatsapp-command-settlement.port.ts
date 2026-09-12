@@ -37,9 +37,15 @@ export type WhatsAppCommandSettlementApiPort = Readonly<{
   }): Promise<SettlementApiResult>
 }>
 
-/** O número vinculado e verificado de quem confirmou; `undefined` quando ele se desvinculou. */
+/**
+ * O número vinculado e verificado de quem confirmou; `undefined` quando ele se desvinculou ou a
+ * verificação é anterior a `verifiedSince` (T014b: chip reciclado não recebe o resumo).
+ */
 export type SettlementRecipientPort = Readonly<{
-  findVerifiedPhone(input: { readonly userId: string }): Promise<string | undefined>
+  findVerifiedPhone(input: {
+    readonly userId: string
+    readonly verifiedSince: Date
+  }): Promise<string | undefined>
 }>
 
 /** Texto livre, sem template: só entrega dentro da janela de 24 h da Meta. */

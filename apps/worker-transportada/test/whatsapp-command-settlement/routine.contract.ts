@@ -50,6 +50,10 @@ function createScenario(options: {
   readonly apiFailsFor?: readonly string[]
   readonly candidates: readonly SettlementCandidate[]
   readonly phone?: string | undefined
+  readonly recipients?: (input: {
+    readonly userId: string
+    readonly verifiedSince: Date
+  }) => Promise<string | undefined>
   readonly result?: SettlementApiResult
   readonly sendFails?: boolean
 }) {
@@ -78,7 +82,8 @@ function createScenario(options: {
     },
     now: () => NOW,
     recipients: {
-      async findVerifiedPhone() {
+      async findVerifiedPhone(input) {
+        if (options.recipients !== undefined) return options.recipients(input)
         return 'phone' in options ? options.phone : PHONE
       },
     },
@@ -163,6 +168,61 @@ describe('rotina whatsapp.command.settle (spec 144 T014)', () => {
     expect(scenario.sent).toEqual([])
     expect(result.counters.summariesWithoutPhone).toBe(1)
     expect(result.outcome).toBe('succeeded')
+  })
+
+  /** T014b (M2): o número tem de ter sido verificado há no máximo 90 dias (spec 144 D1). */
+  test('pede o número verificado dentro da validade de 90 dias', async () => {
+    const asked: unknown[] = []
+    const scenario = createScenario({
+      candidates: [candidate('final')],
+      recipients: async (input) => {
+        asked.push(input)
+        return PHONE
+      },
+      result: { message: SUMMARY, outcome: 'settled' },
+    })
+
+    await scenario.routine.run(context())
+
+    expect(asked).toEqual([
+      { userId: ACTOR, verifiedSince: new Date(NOW.getTime() - 90 * 86_400_000) },
+    ])
+  })
+
+  test('número com verificação vencida: o resumo não sai, conta, e o log não leva o telefone', async () => {
+    const verifiedAt = new Date(NOW.getTime() - 91 * 86_400_000)
+    const scenario = createScenario({
+      candidates: [candidate('final')],
+      recipients: async (input) => (verifiedAt >= input.verifiedSince ? PHONE : undefined),
+      result: { message: SUMMARY, outcome: 'settled' },
+    })
+
+    const result = await scenario.routine.run(context())
+
+    expect(scenario.sent).toEqual([])
+    expect(result.counters.summariesWithoutPhone).toBe(1)
+    const logged = JSON.stringify(scenario.logs)
+    expect(logged).toContain('whatsapp_command_settlement_summary_without_phone')
+    expect(logged).not.toContain(PHONE)
+    expect(logged).not.toContain(SUMMARY)
+  })
+
+  test('a API sem resumo (ator sem acesso): nada é enviado e o número nem é procurado', async () => {
+    let asked = 0
+    const scenario = createScenario({
+      candidates: [candidate('final')],
+      recipients: async () => {
+        asked += 1
+        return PHONE
+      },
+      result: { message: undefined, outcome: 'settled' },
+    })
+
+    const result = await scenario.routine.run(context())
+
+    expect(scenario.sent).toEqual([])
+    expect(asked).toBe(0)
+    expect(result.counters.summariesWithoutPhone).toBe(0)
   })
 
   /** Janela de 24 h fechada: não se força template, fica registrado e a rotina segue. */

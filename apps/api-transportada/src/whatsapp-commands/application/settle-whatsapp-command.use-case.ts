@@ -12,6 +12,7 @@
  * mesmo participante da nota — `0` é o emitente, `3` o destinatário.
  */
 import type { CreateBillingInvoiceInput } from '../../billing/application/billing.use-case.js'
+import { SERVICE_COMPANY_ROLES } from '../../database/identity.schema.js'
 import type { WhatsAppCommandSettlementCode } from '../../database/whatsapp-command.schema.js'
 import type { AuthorizationService } from '../../identity/application/authorization.service.js'
 import type { AuthenticatedContext, CompanyContext } from '../../identity/domain/tenant-context.js'
@@ -89,7 +90,8 @@ export type SettleWhatsAppCommandOutcome =
   | Readonly<{ kind: 'resumed'; result: ConfirmDocumentSelectionOutcome['kind'] }>
   | Readonly<{
       kind: 'settled'
-      message: string
+      /** Ausente quando o ator perdeu o acesso: o resumo não sai para ele (T014b). */
+      message: string | undefined
       settlementOutcome: WhatsAppCommandSettlementCode
       status: WhatsAppCommandSettlementOutcome
     }>
@@ -157,10 +159,7 @@ async function resumeStuck(
   })
   if (verdict !== 'resume') return { kind: 'waiting' }
 
-  const actor = await deps.resolveActor({
-    companyId: request.companyId,
-    userId: request.actorUserId,
-  })
+  const actor = await resolveHumanActor(deps, request)
   const metadata = logMetadata(input)
   if (actor === null) {
     safeLogInfo({ logger: deps.logger, message: 'whatsapp.command.resume_denied', metadata })
@@ -254,12 +253,25 @@ function describeFailedSteps(
   }))
 }
 
-/** Pelo mesmo `authorize` do router: ativa, na empresa do pedido, e ainda com `billing.create`. */
-async function revalidateActor(deps: Deps, request: WhatsAppCommandRequest): Promise<boolean> {
+/**
+ * T014b (B2): o ator é sempre gente. Papel de serviço é recusa, como no canal
+ * (`resolve-whatsapp-actor.use-case.ts`) — defesa para a linha que um dia nascer do serviço.
+ */
+async function resolveHumanActor(
+  deps: Deps,
+  request: WhatsAppCommandRequest,
+): Promise<AuthenticatedContext<CompanyContext> | null> {
   const actor = await deps.resolveActor({
     companyId: request.companyId,
     userId: request.actorUserId,
   })
+  if (actor === null) return null
+  return actor.scope.roles.some((role) => SERVICE_COMPANY_ROLES.includes(role)) ? null : actor
+}
+
+/** Pelo mesmo `authorize` do router: ativa, na empresa do pedido, e ainda com `billing.create`. */
+async function revalidateActor(deps: Deps, request: WhatsAppCommandRequest): Promise<boolean> {
+  const actor = await resolveHumanActor(deps, request)
   if (actor === null) return false
   try {
     deps.authorization.authorize(actor, BILLING_CREATE_POLICY)
@@ -418,6 +430,13 @@ async function finish(
       status,
     },
   })
+  /**
+   * T014b (M2): quem perdeu o acesso não recebe o que o pedido produziu — nem lista de documentos,
+   * nem número de nota, nem motivo da SEFAZ, nem final de tomador. O desfecho já está gravado.
+   */
+  if (settlementOutcome === 'actor_not_authorized') {
+    return { kind: 'settled', message: undefined, settlementOutcome, status }
+  }
   const message = buildWhatsAppCommandSettlementSummary({
     billingFailures: billing.failures,
     ctes: snapshot.ctes,

@@ -2173,3 +2173,143 @@ Conferido antes de desenhar a T014b (`git grep` no HEAD): `mdfe.auto-issue` e `w
 concedidos **só** ao papel `automation` (`authorization.policy.ts:230`). Nenhum seed, migration ou
 realm os dá a pessoa, então nenhum papel humano de hoje depende deles. A exposição está só no
 caminho de concessão por grupo ou avulsa.
+
+## T014b — as correções da revisão da Fase 3 (2026-09-12)
+
+Cada achado começou com o contrato que reprovava o comportamento de antes. Antes de editar, conferi
+os `arquivo:linha` da revisão contra o HEAD (`83a3d583`, depois da T017). `authorization.policy.ts`
+(`:230`, `:278-303`), `user-administration.schema.ts` (`:99,107,144`) e
+`permissionGroups.constant.ts` (`:20`, `:35`) estavam onde a revisão disse. O `resolveActor` da
+liquidação estava em `main.ts:809`, uma linha abaixo.
+
+**Antes de mudar, procurei linha gravada com as duas permissões.**
+
+- `git grep` em `*.sql`, `realm/` e seeds: nenhuma ocorrência.
+- Banco de desenvolvimento (`.env`): `company_group_permissions` e `membership_permissions` têm
+  **0** linhas com `mdfe.auto-issue` ou `whatsapp.settle`.
+- Banco de teste (`.env.test`): as tabelas não existem fora de uma rodada, porque a integração migra
+  a base dela.
+
+Nada foi apagado. A defesa em `resolveCompanyPermissions` é o que neutraliza uma linha que apareça.
+
+### M1 — permissão de máquina não se concede a pessoa
+
+**Vermelho.** `authorization.contract.test.ts` e `role-permissions.contract.ts` não carregavam:
+`SERVICE_ONLY_PERMISSIONS` e `isGrantablePermission` não existiam. No frontend,
+`permission-matrix.contract.ts` → **1 fail** ("não oferece permissão de máquina para conceder").
+
+**Correção.**
+
+- `authorization.policy.ts` ganhou `SERVICE_ONLY_PERMISSIONS = ['mdfe.auto-issue',
+'whatsapp.settle'] as const` e `isGrantablePermission`, que é `isCompanyPermission` fora dessa
+  lista.
+- `resolveCompanyPermissions` passou a filtrar `granted` por `isGrantablePermission`. Só o papel
+  (`automation`) entrega as duas.
+- `companyPermissionSchema` (grupo e concessão avulsa) virou `superRefine`:
+  - nome fora do catálogo continua saindo como "Unknown permission.";
+  - permissão de serviço sai como "Permission is reserved for service accounts.";
+  - as duas respondem 400 `INVALID_REQUEST`, com um `details[]` por índice recusado, todos de uma
+    vez.
+- `list-role-permissions` serve como catálogo só o que é concedível. A linha do papel `automation`
+  na matriz continua listando as duas, só leitura.
+- Frontend: `whatsapp.settle` saiu do grupo `billing` e `mdfe.auto-issue` saiu do grupo `mdfe` em
+  `PERMISSION_GROUPS`.
+- O contrato de paridade do frontend passou a ler `SERVICE_ONLY_PERMISSIONS` da fonte da API e a
+  tirá-las do catálogo pelo mesmo critério. Ele agora **exige** que nenhuma das duas esteja
+  agrupada: o critério ficou mais estrito, não mais frouxo.
+
+**Verde.**
+
+- O grupo recusa as duas, com `details` em `permissions.1` e `permissions.2`.
+- A concessão avulsa recusa cada uma.
+- `granted: ['mdfe.auto-issue', 'whatsapp.settle', 'billing.read']` com o papel `viewer` resolve
+  sem as duas e com `billing.read`.
+- `automation` continua com as duas.
+- Nenhum papel de gente concede nenhuma delas.
+- `tenant-context.contract.test.ts` (o serviço segue com as duas) e
+  `separator-role.contract.test.ts` continuam verdes.
+
+⚠️ Com o catálogo sem as duas, a matriz de papéis da tela não desenha linha para elas. A coluna do
+`automation` fica vazia, embora a API continue servindo as duas em `roles[]`. Nenhum contrato pede
+essa linha. Se a tela precisar mostrá-la, ela sai de `roles[]`, só leitura.
+
+### M2 — o resumo não sai para quem não pode mais recebê-lo
+
+**Vermelho.**
+
+- API, `settle-whatsapp-command.contract.ts`: ator suspenso e ator sem `billing.create` recebiam o
+  resumo, com lista de documentos, número de nota, motivo da SEFAZ e final de tomador → **2 fail**.
+- Worker, `routine.contract.ts`: a validade de 90 dias não era pedida à fonte, e o número vencido
+  recebia o resumo → **2 fail**.
+- Worker, `whatsapp-phone/parity.contract.ts`: a cópia da constante não existia → falha de carga.
+
+**Correção na API.**
+
+- `finish` devolve `message: undefined` quando o desfecho é `actor_not_authorized`, que também é o
+  caso de `resolveActor` devolver `null`. O desfecho continua gravado por `markSettled` antes disso.
+- `describeBilling` perdeu o ramo `actor_not_authorized`, que ficou sem caminho que o alcance.
+- A rota omite a chave `message` quando ela não existe, e o gateway do worker já lê isso como
+  `undefined`.
+
+**Correção no worker.**
+
+- `WHATSAPP_PHONE_VERIFICATION_VALIDITY_DAYS`/`_MS` são **cópia por valor** em
+  `src/whatsapp/domain/whatsapp-phone-verification.constant.ts`.
+- A paridade é conferida em `test/whatsapp-phone/parity.contract.ts`, que casa a declaração no texto
+  da fonte da API.
+- A rotina pede `findVerifiedPhone({ userId, verifiedSince: now − 90 dias })`.
+- O repositório exige `verified_at >= verifiedSince`.
+- Número vencido não recebe o resumo: ele conta em `summariesWithoutPhone` e é logado como
+  `whatsapp_command_settlement_summary_without_phone`, só com ids opacos.
+
+**Verde.**
+
+- Ator sem `billing.create` e ator suspenso: `settled_partial` / `actor_not_authorized`, **sem
+  `message`**.
+- API sem `message`: o worker não envia e nem procura o número.
+- Número verificado há 91 dias: não envia, conta, e o log não carrega telefone nem resumo.
+- O corte pedido é exatamente `NOW − 90 × 86 400 000 ms`.
+- Caminho feliz inalterado.
+
+### B2 — o ator da liquidação é sempre gente
+
+**Vermelho.** Um ator de papel `automation` com `billing.create` faturava, e na retomada era
+aceito → **2 fail** em `settle-whatsapp-command.contract.ts`.
+
+**Correção.** A recusa está no caso de uso (`resolveHumanActor`), não no `main.ts`. Ela embrulha o
+`deps.resolveActor` nos dois caminhos, a revalidação e a retomada, e recusa papel de
+`SERVICE_COMPANY_ROLES`, como `resolve-whatsapp-actor.use-case.ts` já fazia. Assim a defesa vale
+para qualquer composição do caso de uso e pode ser provada por contrato. O composition root continua
+passando `tenantContext.resolveCompanyForUser`.
+
+**Verde.** Papel de serviço dá `actor_not_authorized` sem fatura e sem resumo, e a retomada volta
+`resume_denied` sem chamar `resume`.
+
+### Integração
+
+- API (`bun --env-file=../../.env.test test --timeout 120000
+./test/integration/whatsapp-command-settlement.integration.ts`) → **2 pass · 0 fail**. O AC6
+  continua igual. Na revalidação, o resumo agora é **ausente**.
+- Worker (`test/whatsapp-command-settlement.integration.test.ts`), contra a base provisionada e
+  migrada como no `make worker-integration` → **2 pass · 0 fail**, três rodadas seguidas.
+  - O repositório devolve o número com corte em `now − 90 dias` e `undefined` com corte depois da
+    verificação.
+  - A primeira rodada falhou por um empate **anterior** a esta task: dois pedidos com
+    `confirmedMinutesAgo: 10` desempatavam pelo id, que é UUID sorteado. Um deles passou a 9 minutos.
+    A ordenação de produção (`confirmed_at`, `id`) não mudou.
+
+### Gates (primeiro plano)
+
+- `bun run typecheck`: a primeira rodada acusou o `includes` sobre a tupla congelada no contrato
+  novo, que virou `Set<string>`. Depois disso, limpo.
+- Contratos focados:
+  - API (autorização, administração de usuário, WhatsApp, tenant-context, separador) → **508 pass ·
+    0 fail**;
+  - worker (telefone e liquidação) → **53 pass · 0 fail**;
+  - frontend (matriz) → **8 pass · 0 fail**.
+- `make check` → **exit 0**:
+  - format, lint e typecheck verdes;
+  - API **5504**, worker **1030**, cron **94**, frontend **3342**, frontend-client **18** e
+    frontend-landing **107**, todos com 0 fail;
+  - as seis apps constroem.
+  - A flaky de `cargo-volume` não disparou.

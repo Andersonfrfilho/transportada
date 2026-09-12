@@ -21,15 +21,27 @@ const POLICY_PATH = new URL(
 /** `companies.manage` é reservada e sem consumidor (ADR-0021): a API não a serve, e a tela não a mostra. */
 const PLATFORM_PERMISSION = 'companies.manage'
 
+/**
+ * Spec 144 T014b: permissão de máquina não se concede a pessoa, e a API não a serve no catálogo. O
+ * mesmo critério vale aqui — lido da mesma constante, para as duas listas não divergirem.
+ */
+async function readServiceOnlyPermissions(): Promise<readonly string[]> {
+  const source = await readFile(POLICY_PATH, 'utf8')
+  const start = source.indexOf('export const SERVICE_ONLY_PERMISSIONS')
+  const declaration = source.slice(start, source.indexOf('] as const', start))
+  return [...declaration.matchAll(/'([a-z.-]+)'/gu)].map((match) => match[1] ?? '')
+}
+
 async function readApiPermissions(): Promise<readonly string[]> {
   const source = await readFile(POLICY_PATH, 'utf8')
   const catalog = source.slice(
     source.indexOf('TRANSPORTADA_PERMISSIONS'),
     source.indexOf('export type TransportadaPermission'),
   )
+  const serviceOnly = new Set(await readServiceOnlyPermissions())
   return [...catalog.matchAll(/'([a-z.-]+)',/gu)]
     .map((match) => match[1] ?? '')
-    .filter((permission) => permission !== PLATFORM_PERMISSION)
+    .filter((permission) => permission !== PLATFORM_PERMISSION && !serviceOnly.has(permission))
 }
 
 /**
@@ -105,6 +117,19 @@ describe('paridade com o catálogo da API', () => {
         permission,
       })
       expect(locale.users.permission[permission]?.label ?? '').not.toBe('')
+    }
+  })
+
+  test('não oferece permissão de máquina para conceder', async () => {
+    const serviceOnly = await readServiceOnlyPermissions()
+    const grouped = new Set<string>(PERMISSION_GROUPS.flatMap((group) => [...group.permissions]))
+
+    expect(serviceOnly).toEqual(['mdfe.auto-issue', 'whatsapp.settle'])
+    for (const permission of serviceOnly) {
+      expect({ grouped: grouped.has(permission), permission }).toEqual({
+        grouped: false,
+        permission,
+      })
     }
   })
 

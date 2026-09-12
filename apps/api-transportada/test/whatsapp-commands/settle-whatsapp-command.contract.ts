@@ -116,7 +116,7 @@ const DEFAULT_NFSE: readonly SettlementNfseInvoice[] = [
 ]
 
 type ScenarioOptions = {
-  readonly actor?: 'active' | 'no_billing' | 'suspended'
+  readonly actor?: 'active' | 'no_billing' | 'service' | 'suspended'
   readonly billingError?: ApiError
   readonly confirmedMinutesAgo?: number
   readonly ctes?: readonly SettlementCteDocument[]
@@ -143,7 +143,10 @@ function journalStep(
   }
 }
 
-function actorContext(permissions: readonly CompanyPermission[]) {
+function actorContext(
+  permissions: readonly CompanyPermission[],
+  roles: readonly string[] = ['company-admin'],
+) {
   return {
     identity: {
       channel: 'whatsapp' as const,
@@ -160,7 +163,7 @@ function actorContext(permissions: readonly CompanyPermission[]) {
       kind: 'company' as const,
       membershipId: MEMBERSHIP_ID,
       permissions: new Set(permissions),
-      roles: ['company-admin'] as const,
+      roles,
       userId: ACTOR_ID,
     },
   } as unknown as AuthenticatedContext<CompanyContext>
@@ -247,6 +250,8 @@ function createScenario(options: ScenarioOptions = {}) {
     async resolveActor(input) {
       resolvedActors.push(input)
       if (options.actor === 'suspended') return null
+      // O serviço com a permissão de faturar: só o papel o denuncia.
+      if (options.actor === 'service') return actorContext(BILLING_PERMISSIONS, ['automation'])
       return actorContext(
         options.actor === 'no_billing'
           ? BILLING_PERMISSIONS.filter((permission) => permission !== 'billing.create')
@@ -332,7 +337,11 @@ describe('liquidação do pedido (spec 144 T014, AC6)', () => {
     expect(scenario.resolvedActors).toEqual([{ companyId: COMPANY_ID, userId: ACTOR_ID }])
   })
 
-  test('ator suspenso antes da liquidação: nenhuma fatura, e o resumo diz por quê', async () => {
+  /**
+   * T014b (M2): quem perdeu o acesso não recebe resumo — nem lista de documentos, nem número de
+   * nota, nem motivo da SEFAZ, nem final de tomador. O desfecho continua gravado.
+   */
+  test('ator suspenso antes da liquidação: nenhuma fatura, desfecho gravado e nenhum resumo', async () => {
     const scenario = createScenario({ actor: 'suspended' })
 
     const outcome = await scenario.settle(settleInput)
@@ -342,17 +351,40 @@ describe('liquidação do pedido (spec 144 T014, AC6)', () => {
     expect(scenario.state.request.status).toBe('settled_partial')
     expect(scenario.state.request.settlementOutcome).toBe('actor_not_authorized')
     if (outcome.kind !== 'settled') throw new Error(`esperava settled, veio ${outcome.kind}`)
-    expect(outcome.message).toContain('Nenhuma fatura foi criada')
-    expect(outcome.message).toContain('3 CT-e autorizados')
+    expect(outcome.settlementOutcome).toBe('actor_not_authorized')
+    expect(outcome.message).toBeUndefined()
   })
 
-  test('ator ativo que perdeu a permissão de faturar: nenhuma fatura', async () => {
+  test('ator ativo que perdeu a permissão de faturar: nenhuma fatura e nenhum resumo', async () => {
     const scenario = createScenario({ actor: 'no_billing' })
 
-    await scenario.settle(settleInput)
+    const outcome = await scenario.settle(settleInput)
 
     expect(scenario.billed).toEqual([])
     expect(scenario.state.request.settlementOutcome).toBe('actor_not_authorized')
+    if (outcome.kind !== 'settled') throw new Error(`esperava settled, veio ${outcome.kind}`)
+    expect(outcome.message).toBeUndefined()
+  })
+
+  /** T014b (B2): o ator da liquidação é sempre gente; papel de serviço é recusa, como no canal. */
+  test('ator com papel de serviço é recusado: nenhuma fatura e nenhum resumo', async () => {
+    const scenario = createScenario({ actor: 'service' })
+
+    const outcome = await scenario.settle(settleInput)
+
+    expect(scenario.billed).toEqual([])
+    expect(scenario.state.request.settlementOutcome).toBe('actor_not_authorized')
+    if (outcome.kind !== 'settled') throw new Error(`esperava settled, veio ${outcome.kind}`)
+    expect(outcome.message).toBeUndefined()
+  })
+
+  test('retomada com ator de papel de serviço é negada', async () => {
+    const scenario = createScenario({ actor: 'service', status: 'confirming' })
+
+    const outcome = await scenario.settle(settleInput)
+
+    expect(outcome).toEqual({ kind: 'resume_denied' })
+    expect(scenario.resumed).toEqual([])
   })
 
   test('CT-e cancelado é final e não fatura', async () => {

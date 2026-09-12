@@ -95,10 +95,8 @@ function describeNfse(invoices: readonly SettlementNfseInvoice[]): string[] {
   return lines
 }
 
+/** `actor_not_authorized` não chega aqui: quem perdeu o acesso não recebe resumo (T014b). */
 function describeBilling(input: SettlementSummaryInput): string[] {
-  if (input.settlementOutcome === 'actor_not_authorized') {
-    return ['⚠️ Nenhuma fatura foi criada: seu acesso não permite mais faturar nesta empresa.']
-  }
   const dueDate = input.dueDate === undefined ? '' : `, vencimento ${formatDay(input.dueDate)}`
   return [
     ...input.invoices.map(

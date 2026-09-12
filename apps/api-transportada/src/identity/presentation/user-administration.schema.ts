@@ -12,7 +12,7 @@ import {
   type Paging,
 } from '../../http/request-parsing.service.js'
 import { COMPANY_USER_API_STATUSES } from '../application/change-company-user-status.use-case.js'
-import { isCompanyPermission } from '../domain/authorization.policy.js'
+import { isCompanyPermission, isGrantablePermission } from '../domain/authorization.policy.js'
 import {
   COMPANY_USER_PASSWORD_MAX_LENGTH,
   COMPANY_USER_PASSWORD_MIN_LENGTH,
@@ -94,10 +94,17 @@ export type RevealCompanyUsersBody = z.infer<typeof revealCompanyUsersSchema>
 
 /**
  * O nome da permissão é validado contra o catálogo — a coluna não tem CHECK, e é aqui que o nome
- * inventado para. Papel continua no `enum` do catálogo fechado.
+ * inventado para. Papel continua no `enum` do catálogo fechado. Permissão de serviço existe no
+ * catálogo e mesmo assim para aqui (spec 144 T014b): ela é só do papel `automation`.
  */
-const companyPermissionSchema = z.string().refine(isCompanyPermission, {
-  message: 'Unknown permission.',
+const companyPermissionSchema = z.string().superRefine((value, context) => {
+  if (!isCompanyPermission(value)) {
+    context.addIssue({ code: 'custom', message: 'Unknown permission.' })
+    return
+  }
+  if (!isGrantablePermission(value)) {
+    context.addIssue({ code: 'custom', message: 'Permission is reserved for service accounts.' })
+  }
 })
 
 export const saveCompanyGroupSchema = z

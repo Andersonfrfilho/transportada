@@ -4,6 +4,7 @@
 import { COMPANY_ROLES, type CompanyRole } from '../../database/identity.schema.js'
 import {
   COMPANY_ROLE_PERMISSIONS,
+  isGrantablePermission,
   TRANSPORTADA_PERMISSIONS,
   type CompanyPermission,
 } from '../domain/authorization.policy.js'
@@ -24,13 +25,15 @@ export type ListRolePermissionsUseCase = {
  * de copiá-la para o frontend, é o que impede as duas de divergirem na primeira permissão nova.
  *
  * `companies.manage` fica de fora: ela é reservada e sem consumidor (ADR-0021, instalação
- * dedicada), e listá-la prometeria um poder que nenhum papel desta instalação tem.
+ * dedicada), e listá-la prometeria um poder que nenhum papel desta instalação tem. As permissões de
+ * serviço também (spec 144 T014b): este catálogo é o que a tela oferece para conceder, e elas não se
+ * concedem a pessoa — continuam visíveis, só leitura, na linha do papel `automation`.
  */
 export function createListRolePermissionsUseCase(): ListRolePermissionsUseCase {
   return {
     execute: () => ({
-      permissions: TRANSPORTADA_PERMISSIONS.filter(
-        (permission): permission is CompanyPermission => permission !== 'companies.manage',
+      permissions: TRANSPORTADA_PERMISSIONS.filter((permission): permission is CompanyPermission =>
+        isGrantablePermission(permission),
       ),
       roles: COMPANY_ROLES.map((role) => ({
         permissions: [...(COMPANY_ROLE_PERMISSIONS[role] ?? [])],

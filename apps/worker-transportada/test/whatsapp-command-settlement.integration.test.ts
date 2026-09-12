@@ -93,7 +93,8 @@ describeDatabase('liquidação dos pedidos de WhatsApp (integration)', () => {
     `)
     await insertRequest({ confirmedMinutesAgo: 10, id: ids.failedFinal, status: 'dispatched' })
     await insertStep({ kind: 'cte_batch', requestId: ids.failedFinal, status: 'failed' })
-    await insertRequest({ confirmedMinutesAgo: 10, id: ids.pendingFresh, status: 'dispatched' })
+    // Nove, não dez: empatado com o de cima, a ordem cairia no id, que é UUID sorteado.
+    await insertRequest({ confirmedMinutesAgo: 9, id: ids.pendingFresh, status: 'dispatched' })
     await insertStep({ kind: 'nfse_invoice', requestId: ids.pendingFresh, status: 'pending' })
     await insertRequest({ confirmedMinutesAgo: 180, id: ids.pendingOld, status: 'dispatched' })
     await insertStep({ kind: 'nfse_invoice', requestId: ids.pendingOld, status: 'pending' })
@@ -125,7 +126,13 @@ describeDatabase('liquidação dos pedidos de WhatsApp (integration)', () => {
       [ids.failedFinal, 'dispatched', ['failure']],
       [ids.pendingFresh, 'dispatched', ['pending']],
     ])
-    expect(await repository.findVerifiedPhone({ userId })).toBe(phone)
+    const verifiedSince = new Date(now.getTime() - 90 * 86_400_000)
+    expect(await repository.findVerifiedPhone({ userId, verifiedSince })).toBe(phone)
+    // T014b (M2): verificação anterior ao corte é número vencido, e o resumo não sai para ele.
+    const afterVerification = new Date(now.getTime() + MINUTE_MS)
+    expect(
+      await repository.findVerifiedPhone({ userId, verifiedSince: afterVerification }),
+    ).toBeUndefined()
   })
 
   test('a rotina chama a API com os pedidos certos e entrega o resumo ao número verificado', async () => {

@@ -233,8 +233,8 @@ describe('a liquidação fatura em nome de quem confirmou (spec 144 T014, AC6)',
         'actor_not_authorized',
       ])
       expect(await countRows(db, world.companyId)).toBe(0)
-      expect(outcome.message).toContain('Nenhuma fatura foi criada')
-      expect(outcome.message).toContain('3 CT-e autorizados')
+      // T014b (M2): quem perdeu o acesso não recebe resumo; o desfecho fica gravado.
+      expect(outcome.message).toBeUndefined()
       const [request] = await db
         .select()
         .from(whatsAppCommandRequests)

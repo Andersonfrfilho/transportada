@@ -7,7 +7,7 @@
  * linha de outra.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, asc, desc, eq, inArray, isNotNull, lt, or, type SQL } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNotNull, lt, or, type SQL } from 'drizzle-orm'
 
 import {
   cteBatchItems,
@@ -106,12 +106,19 @@ export class DrizzleSettlementCandidateRepository
     }))
   }
 
-  async findVerifiedPhone(input: { readonly userId: string }): Promise<string | undefined> {
+  async findVerifiedPhone(input: {
+    readonly userId: string
+    readonly verifiedSince: Date
+  }): Promise<string | undefined> {
     const [row] = await this.#database
       .select({ phone: userWhatsAppPhones.phone })
       .from(userWhatsAppPhones)
       .where(
-        and(eq(userWhatsAppPhones.userId, input.userId), isNotNull(userWhatsAppPhones.verifiedAt)),
+        and(
+          eq(userWhatsAppPhones.userId, input.userId),
+          isNotNull(userWhatsAppPhones.verifiedAt),
+          gte(userWhatsAppPhones.verifiedAt, input.verifiedSince),
+        ),
       )
       .limit(1)
     return row?.phone

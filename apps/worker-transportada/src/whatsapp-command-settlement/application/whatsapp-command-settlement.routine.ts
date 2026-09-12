@@ -8,6 +8,7 @@ import type {
 } from '../../job-run/application/job-routine.port.js'
 import { safeLogError, safeLogInfo } from '../../logging/safe-logger.service.js'
 import type { WorkerLogger } from '../../shared/worker.types.js'
+import { WHATSAPP_PHONE_VERIFICATION_VALIDITY_MS } from '../../whatsapp/domain/whatsapp-phone-verification.constant.js'
 import {
   decideWhatsAppCommandSettlement,
   WHATSAPP_COMMAND_STUCK_CONFIRMING_MILLISECONDS,
@@ -147,11 +148,21 @@ async function deliverSummary(input: {
   readonly counters: Counters
   readonly dependencies: WhatsAppCommandSettlementRoutineDependencies
   readonly message: string
+  readonly now: Date
 }): Promise<void> {
   const { candidate, counters, dependencies } = input
-  const to = await dependencies.recipients.findVerifiedPhone({ userId: candidate.actorUserId })
+  // T014b (M2): a mesma régua da API para aceitar o remetente — chip reciclado não recebe o resumo.
+  const to = await dependencies.recipients.findVerifiedPhone({
+    userId: candidate.actorUserId,
+    verifiedSince: new Date(input.now.getTime() - WHATSAPP_PHONE_VERIFICATION_VALIDITY_MS),
+  })
   if (to === undefined) {
     counters.summariesWithoutPhone += 1
+    safeLogInfo({
+      logger: dependencies.logger,
+      message: 'whatsapp_command_settlement_summary_without_phone',
+      metadata: candidateMetadata(input),
+    })
     return
   }
   try {

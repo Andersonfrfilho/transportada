@@ -273,7 +273,8 @@ export type CompanyPermissionSources = {
  * pessoa entrando com o que ainda existe.
  *
  * `companies.manage` nunca entra, venha de onde vier: ela é de plataforma, e conceder por grupo
- * seria o caminho mais silencioso para alguém alcançar o que a instalação dedicada não tem.
+ * seria o caminho mais silencioso para alguém alcançar o que a instalação dedicada não tem. Pela
+ * mesma razão a permissão de serviço só chega pelo papel, nunca por `granted`.
  */
 export function resolveCompanyPermissions(
   input: CompanyPermissionSources | readonly CompanyRole[],
@@ -288,7 +289,7 @@ export function resolveCompanyPermissions(
     }
   }
   for (const permission of sources.granted ?? []) {
-    if (isCompanyPermission(permission)) granted.add(permission)
+    if (isGrantablePermission(permission)) granted.add(permission)
   }
 
   const ordered = TRANSPORTADA_PERMISSIONS.filter(
@@ -300,6 +301,18 @@ export function resolveCompanyPermissions(
 
 export function isCompanyPermission(value: string): value is CompanyPermission {
   return value !== 'companies.manage' && TRANSPORTADA_PERMISSIONS.some((entry) => entry === value)
+}
+
+/**
+ * Spec 144 T014b: permissão de **máquina** — só o papel de serviço (`automation`) a recebe. Grupo e
+ * concessão avulsa a recusam na escrita, e a linha já gravada é ignorada na resolução: quem tem
+ * `groups.manage` não concede a si mesmo a liquidação de pedido alheio nem a emissão de MDF-e.
+ */
+export const SERVICE_ONLY_PERMISSIONS = ['mdfe.auto-issue', 'whatsapp.settle'] as const
+
+/** O que grupo e concessão avulsa podem dar: permissão da empresa, e não de serviço. */
+export function isGrantablePermission(value: string): value is CompanyPermission {
+  return isCompanyPermission(value) && !SERVICE_ONLY_PERMISSIONS.some((entry) => entry === value)
 }
 
 function createReadonlySet<TValue>(values: readonly TValue[]): ReadonlySet<TValue> {

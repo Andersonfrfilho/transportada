@@ -55,7 +55,8 @@ function toResponseBody(outcome: SettleWhatsAppCommandOutcome): Readonly<Record<
   switch (outcome.kind) {
     case 'settled':
       return {
-        message: outcome.message,
+        // Sem resumo para quem perdeu o acesso: a chave some, e o worker não envia nada (T014b).
+        ...(outcome.message === undefined ? {} : { message: outcome.message }),
         outcome: outcome.kind,
         settlementOutcome: outcome.settlementOutcome,
         status: outcome.status,
