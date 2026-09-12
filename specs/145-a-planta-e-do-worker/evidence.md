@@ -231,6 +231,40 @@ Sonda da migration em banco descartável `scratch_t3` (container `transportada-l
 - `DELETE FROM trips` levou a planta da viagem em cascata e preservou a da prévia (1 linha restante).
 - `rollback.sql`: journal ficou com 0 linhas e `to_regclass('trip_cargo_layouts')` voltou nulo.
 
+### T4 — hash do retrato da carga · 2026-09-12
+
+Rodou em sessão (modelo da sessão é da faixa `sonnet`). Contrato vermelho antes da implementação.
+
+- `apps/api-transportada/src/shared/canonical-json.service.ts` (novo): `canonicalJson(value: unknown):
+string` — objeto serializa com as chaves ordenadas (recursivo, `undefined` omitido), array preserva a
+  ordem dada.
+- `apps/api-transportada/src/trips/domain/cargo-layout-hash.types.ts` (novo):
+  `BuildCargoLayoutInputParams` (o mesmo objeto que `resolveCargoLayout` já recebe hoje em
+  `drizzle-trip.repository.ts:786-830` e `preview-trip-cargo.use-case.ts:101-119`, mais `policyVersion?`
+  opcional), `CargoLayoutInput`/`CargoLayoutStopInput`/`CargoLayoutBoxInput`/`CargoLayoutBedInput`.
+- `apps/api-transportada/src/trips/domain/cargo-layout-hash.policy.ts` (novo):
+  `buildCargoLayoutInput(params: BuildCargoLayoutInputParams): CargoLayoutInput` e
+  `hashCargoLayoutInput(input: CargoLayoutInput): string` = `sha256(canonicalJson(input))` hex via
+  `node:crypto`.
+- **Campos que entram no hash** (D6): `policyVersion` (padrão `CARGO_LAYOUT_POLICY_VERSION` do
+  pacote), `capacityM3`, `bed { heightM, lengthM, widthM, source }`, `loadingAccess` (padrão `rear` —
+  a mesma omissão de `resolveCargoLayout`), `securesCargo` (padrão `false` — ausente é ninguém
+  amarrando, spec 100), `payloadRatio`, `fallbackBoxVolumeM3`, `measuredShapes`, e por parada — **na
+  ordem em que chegam, que já é a sequência** — `{ sequence, boxes: [{ documentId, dims: { heightMm,
+lengthMm, widthMm }, quantity, measured }] }`. `measured` é derivado (`true` só quando as 3 dimensões
+  não são `null`), a mesma distinção que o pacote faz em `PlacementBox.source`.
+- **Campos que ficam de fora**: `label`, `clientName`, `noteNumbers`, `documentsWithoutVolume`,
+  `volumeM3` (rótulo/derivado, spec explícita), e em cada caixa `documentNumber`, `label`,
+  `productCode`, `estimatedVolumeM3`, `estimateSource`, `isFragile`, `isStackable`, `keepUpright`,
+  `maxStackCount` — não fazem parte da estrutura fixada pela D6 (`documentId, dims, quantity,
+measured`); `documentId` entra porque a própria D6 o lista, mesmo o pacote não o lendo para decidir
+  posição (`PlacementBox`: "nenhuma comparação... pode ler estes campos").
+- Vermelho: `bun test ./test/trip-domain.contract.test.ts` → **0 pass, 1 fail, 1 error**
+  (`Cannot find module '../../src/trips/domain/cargo-layout-hash.policy.js'`).
+- Verde: `bun test ./test/trip-domain.contract.test.ts` → **123 pass, 0 fail** (725 `expect()`);
+  `bun test ./test/test-registry.contract.test.ts` → **3 pass, 0 fail**; `bunx tsc --noEmit` limpo;
+  eslint e prettier limpos nos arquivos tocados.
+
 ## Fase 3 — Worker (T7–T9)
 
 ## Fase 4 — Leitura da API (T10, T11)

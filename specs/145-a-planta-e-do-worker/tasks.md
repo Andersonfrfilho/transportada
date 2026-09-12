@@ -45,7 +45,7 @@ packUntilItFits (:633) → packSlice (:997)`, no pacote; motivo novo `time_budge
       `CHECK` de `status` sem `pgEnum`, `unique(company_id, input_hash)`, índice `(company_id,
 trip_id)`); mirror em `apps/worker-transportada/src/database/`. Contrato de schema cobre as
       constraints (G004).
-- [ ] T4 — `cargo-layout-hash.policy.ts`: `buildCargoLayoutInput` + `hashCargoLayoutInput`
+- [x] T4 — `cargo-layout-hash.policy.ts`: `buildCargoLayoutInput` + `hashCargoLayoutInput`
       (`sha256(canonicalJson(...))`, D6). Contrato: estável sob mudança cosmética
       (label/clientName/noteNumbers); muda com reorder, troca de caixa, troca de baú,
       `loadingAccess`, `securesCargo`, `policyVersion` (G005).
