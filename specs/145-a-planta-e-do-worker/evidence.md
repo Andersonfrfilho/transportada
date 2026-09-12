@@ -355,6 +355,77 @@ attempt_created_idx` (67 caracteres) veio truncado pelo Postgres no aviso da apl
 - **Decisão registrada:** D8 manda a tabela `trip_cargo_layout_outbox`; o tasks.md só cita migrations
   D5/D11 — criada como aditiva, em commit isolado e reversível, para revisão do dono.
 
+### T6 — gatilho eager do plano de carga · 2026-09-12
+
+Rodou em sessão (modelo da sessão é da faixa `sonnet`). Contrato vermelho antes da implementação.
+
+- `apps/api-transportada/src/trips/infrastructure/trip-cargo-layout-input.support.ts` (novo):
+  `readCargoLayoutInputParams(queryable, { companyId, tripId })` — o mesmo retrato de entrada que
+  `readTripDetail` já monta para `resolveCargoLayout`, numa consulta própria e sem duplicar
+  `loadTripOccupancy`/`loadTripCargoWeight`/`withPayloadCeiling`/`stampCargoNote` (reaproveitados tal
+  qual). Devolve `null` quando a viagem não existe. `label`/`documentsWithoutVolume`/`volumeM3` saem
+  como placeholder (`''`/`0`/`null`) — `buildStopInput` (T4) só lê `boxes` e `sequence` de cada
+  `CargoLayoutStop` para o hash, então o restante nunca chega a influenciar o resultado.
+- `apps/api-transportada/src/trips/infrastructure/eager-cargo-layout-request.support.ts` (novo):
+  `createEagerCargoLayoutRequest({ readInput, upsert })` — fábrica injetável (mesmo padrão de T5) que
+  devolve `requestCargoLayoutForTrip(transaction, { companyId, tripId, correlationId? })`: lê o
+  retrato, monta o `CargoLayoutInput` e o hash (T4) e delega ao `upsertCargoLayoutRequest` de T5
+  (G006). `correlationId` ausente gera `crypto.randomUUID()`. Instância real exportada como
+  `requestCargoLayoutForTrip = createEagerCargoLayoutRequest({ readInput:
+readCargoLayoutInputParams, upsert: upsertCargoLayoutRequest })`.
+- `apps/api-transportada/src/trips/infrastructure/drizzle-trip.repository.ts` (editado): chama
+  `requestCargoLayoutForTrip(transaction, { companyId, tripId })` como último passo, dentro da mesma
+  transação, em `create` (sempre — viagem nasce sem parada e ainda assim pede o cálculo),
+  `linkDocument` (sempre — reescrito o trecho final para `let linked = mapTripDocument(record)` +
+  `if` só quando o link resolve destino/parada, substituindo um ternário com `await` inline que
+  comprometia a leitura), `linkDocumentsBatch` (antes do `return` final, nunca antes do `if
+(input.nfeDocumentIds.length === 0) return {...}` — não há mutação nesse caminho) e
+  `releaseDocument` (antes do `return mapTripDocument(released)` final, nunca antes do `return null`
+  de "não achou o que liberar").
+- `apps/api-transportada/src/trips/infrastructure/drizzle-trip-route.repository.ts` (editado):
+  `reorderStops` chama o gatilho como último passo da transação — não tem caminho de no-op.
+- `apps/api-transportada/src/trips/infrastructure/drizzle-delivery-address-override.repository.ts`
+  (editado): `applyOverride` chama o gatilho antes do `return mapOverride(created)` final, usando
+  `input.tripId` (já é parâmetro do método — mais direto que ler de `documentRow`/precondições, sem
+  mudar nenhuma regra de override).
+- Contratos novos:
+  - `test/trip-infrastructure/eager-cargo-layout-request.contract.ts` (agregador
+    `trip-infrastructure.contract.test.ts`): contrato de composição com fakes para `readInput`/
+    `upsert` — mesma entrada produz o mesmo hash; reordenar parada muda o hash (D6); viagem ausente
+    devolve `null` sem chamar o upsert; `correlationId` explícito passa direto; ausente vira uuid v4.
+  - `test/trip-documents/eager-layout-trigger.contract.ts` (agregador
+    `trip-documents.contract.test.ts`): sem banco, `readFileSync` + `extractMethodBody` (mesmo estilo
+    de `apps/worker-transportada/test/cargo-layout/schema-parity.contract.ts`) provam que
+    `requestCargoLayoutForTrip(` aparece dentro de cada um dos 6 métodos (`create`, `linkDocument`,
+    `linkDocumentsBatch`, `releaseDocument` em `DrizzleTripRepository`; `reorderStops` em
+    `DrizzleTripRouteRepository`; `applyOverride` em `DrizzleDeliveryAddressOverrideRepository`).
+- Vermelho: rodado antes de qualquer edição nos seis pontos de chamada — os 6 testes de
+  `eager-layout-trigger.contract.ts` falharam genuinamente (`expect(body).toContain(...)` sem a
+  chamada ainda escrita), com 40 pass no resto da suíte agregada, confirmando que a asserção por
+  fonte não é tautológica.
+- Verde:
+  - `bun test ./test/trip-infrastructure.contract.test.ts ./test/trip-stops.contract.test.ts
+./test/trip-documents.contract.test.ts ./test/trip-application.contract.test.ts
+./test/test-registry.contract.test.ts ./test/trips.contract.test.ts` → **191 pass, 0 fail** (393
+    `expect()`).
+  - `bunx tsc --noEmit` limpo. `bunx eslint` limpo nos 9 arquivos tocados. `bunx prettier --write`
+    nos mesmos 9 arquivos: todos já formatados (`unchanged`) — reexecutado `tsc` + as 6 suítes depois,
+    seguiu limpo e em 191 pass.
+- **Desvio do TDD estrito registrado:** o contrato de composição
+  (`eager-cargo-layout-request.contract.ts`) foi escrito depois de `eager-cargo-layout-request.
+support.ts` já existir de uma passada anterior desta mesma sessão (interrompida por compactação de
+  contexto) — não houve vermelho genuíno para ele, só para os 6 testes de fiação por fonte. Registrado
+  em vez de forjar um vermelho que não aconteceu.
+- **Decisão registrada:** correlationId — `CompanyContext` só carrega `{companyId, userId}`; o
+  gatilho eager gera `crypto.randomUUID()` quando o chamador não passa um — o caminho lazy (T10/T11)
+  passa o correlationId real do request.
+- **Decisão registrada:** `readTripDetail` não foi refatorado para consumir
+  `readCargoLayoutInputParams` — o método já monta contatos/endereços/rótulo junto com o retrato de
+  carga numa única passada, e trocar sua composição interna arriscaria comportamento fora do escopo
+  de D7 sem ganho para esta task; a nova função é a fonte única para o gatilho eager, e a duplicação
+  de leitura (não de lógica — occupancy/weight/ceiling/stamp continuam vindo dos mesmos suportes) fica
+  registrada aqui para quem revisitar.
+
 ## Fase 3 — Worker (T7–T9)
 
 ## Fase 4 — Leitura da API (T10, T11)

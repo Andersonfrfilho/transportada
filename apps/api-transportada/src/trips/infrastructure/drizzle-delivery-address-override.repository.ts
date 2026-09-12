@@ -20,6 +20,7 @@ import { chooseNfeDestinationRow } from '../domain/nfe-destination-choice.policy
 import type { StopAddressComponents } from '../domain/stop-address-key.js'
 import { TripDocumentNotFoundError } from '../domain/trip.error.js'
 import { createTripStopReconciliationPort } from './drizzle-trip-stop-reconciliation.support.js'
+import { requestCargoLayoutForTrip } from './eager-cargo-layout-request.support.js'
 import { resolveNfeDocumentId } from './nfe-destination-address.support.js'
 import type { TripDatabase, TripTransaction } from './trip-queryable.type.js'
 
@@ -200,6 +201,11 @@ export class DrizzleDeliveryAddressOverrideRepository
         })
         .returning()
       if (created === undefined) throw new Error('DELIVERY_ADDRESS_OVERRIDE_FAILED')
+
+      await requestCargoLayoutForTrip(transaction, {
+        companyId: input.companyId,
+        tripId: input.tripId,
+      })
       return mapOverride(created)
     })
   }

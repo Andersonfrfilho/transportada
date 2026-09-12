@@ -52,7 +52,7 @@ trip_id)`); mirror em `apps/worker-transportada/src/database/`. Contrato de sche
 - [x] T5 — `request-cargo-layout.use-case.ts` + `upsertCargoLayoutRequest` no repositório: upsert
       `queued` + linha na outbox `trip_cargo_layout_outbox` na mesma transação; no-op quando já há
       registro `queued`/`running`/`ready` com o mesmo hash (G006).
-- [ ] T6 — Liga o gatilho eager de T5 aos use cases da D7: `trip.use-case.ts:112 create`,
+- [x] T6 — Liga o gatilho eager de T5 aos use cases da D7: `trip.use-case.ts:112 create`,
       `linkDocument`/`releaseDocument`/`linkDocumentsBatch` (`drizzle-trip.repository.ts:240`,
       `link-trip-documents-batch.use-case.ts`), `reorder-trip-stops.use-case.ts`,
       `override-delivery-address.use-case.ts`, `reconcile-trip-stops.use-case.ts`. Estende

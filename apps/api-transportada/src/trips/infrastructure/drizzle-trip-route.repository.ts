@@ -27,6 +27,7 @@ import type {
   ReorderTripStopsPort,
   ReorderTripStopsPreconditions,
 } from '../application/reorder-trip-stops.use-case.js'
+import { requestCargoLayoutForTrip } from './eager-cargo-layout-request.support.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
 
 /** Nota que pode virar `SEM ENDEREÇO`/pendência de rota: viva, mas ainda não chegou a `loaded`. */
@@ -227,6 +228,11 @@ export class DrizzleTripRouteRepository
           .set({ sequence: BigInt(index + 1), updatedAt: sql`now()` })
           .where(and(eq(tripStops.companyId, input.companyId), eq(tripStops.id, stopId)))
       }
+
+      await requestCargoLayoutForTrip(transaction, {
+        companyId: input.companyId,
+        tripId: input.tripId,
+      })
     })
   }
 }

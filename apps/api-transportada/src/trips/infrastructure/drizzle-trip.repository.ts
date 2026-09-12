@@ -59,6 +59,7 @@ import {
   cteAuthorizedExpression,
 } from './trip.query.js'
 import { listDeliveryContacts } from './delivery-proof-read.support.js'
+import { requestCargoLayoutForTrip } from './eager-cargo-layout-request.support.js'
 import { loadTripCargoWeight } from './trip-cargo-weight.support.js'
 import { withPayloadCeiling } from '../domain/trip-cargo-weight.policy.js'
 import { loadTripOccupancy } from './trip-occupancy.support.js'
@@ -120,6 +121,13 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         tripId: created.id,
       })
       if (detail === null) throw new Error('TRIP_CREATE_FAILED')
+
+      // D7: a viagem nasce sem parada, e mesmo assim pede o cálculo — o gatilho lazy (T10/T11)
+      // reconcilia depois se algo mudar antes do worker desenhar a planta.
+      await requestCargoLayoutForTrip(transaction, {
+        companyId: input.companyId,
+        tripId: created.id,
+      })
       return detail
     })
   }
@@ -215,14 +223,21 @@ export class DrizzleTripRepository implements TripRepositoryPort {
       // ⚠️ A origem sobrevive à parada ausente: o CEP que não normaliza deixa a nota `SEM ENDEREÇO`
       // (T007) e a procedência do endereço continua conhecida — é justamente a nota cuja origem
       // mais precisa ser explicada na tela.
-      if (destinationOrigin === null && stopId === null) return mapTripDocument(record)
+      let linked = mapTripDocument(record)
+      if (destinationOrigin !== null || stopId !== null) {
+        const [withStop] = await transaction
+          .update(tripDocuments)
+          .set({ destinationOrigin, stopId })
+          .where(and(eq(tripDocuments.companyId, input.companyId), eq(tripDocuments.id, record.id)))
+          .returning()
+        linked = mapTripDocument(withStop ?? record)
+      }
 
-      const [withStop] = await transaction
-        .update(tripDocuments)
-        .set({ destinationOrigin, stopId })
-        .where(and(eq(tripDocuments.companyId, input.companyId), eq(tripDocuments.id, record.id)))
-        .returning()
-      return mapTripDocument(withStop ?? record)
+      await requestCargoLayoutForTrip(transaction, {
+        companyId: input.companyId,
+        tripId: input.tripId,
+      })
+      return linked
     })
   }
 
@@ -315,6 +330,10 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         .filter((id) => !insertedIds.has(id))
         .map((nfeDocumentId) => ({ nfeDocumentId, reason: 'already_linked' as const }))
 
+      await requestCargoLayoutForTrip(transaction, {
+        companyId: input.companyId,
+        tripId: input.tripId,
+      })
       return { linked, skipped, tripStatus: tripRow.status }
     })
   }
@@ -483,6 +502,10 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         })
       }
 
+      await requestCargoLayoutForTrip(transaction, {
+        companyId: input.companyId,
+        tripId: input.tripId,
+      })
       return mapTripDocument(released)
     })
   }
