@@ -251,6 +251,32 @@ describe('a caixa presumida sai do resíduo da nota (spec 144 D2)', () => {
     })
   })
 
+  /**
+   * Nota em KG/LT/M tem `quantity` fracionária mesmo na linha medida (`unitsPerBox` 1), e
+   * `countMeasuredBoxes` devolve o cru — 12,5. Sem arredondar para cima antes do `BigInt`, a
+   * multiplicação estoura `RangeError: Not an integer`. As 12,5 viram 13 caixas de 0,040.
+   */
+  test('linha medida com quantidade fracionária arredonda para cima antes de virar caixa', () => {
+    expect(
+      resolveDocumentCargoEstimate({
+        items: [
+          { boxVolumeM3: MEASURED_BOX, quantity: '12.5000', unitsPerBox: 1 },
+          { boxVolumeM3: null, quantity: '6.5', unitsPerBox: 1 },
+        ],
+        medianBoxVolumeM3: COMPANY_MEDIAN,
+        volumeFactor: '0.100000',
+        volumeQuantity: '10',
+      }),
+    ).toEqual({
+      estimateSource: 'note',
+      source: 'partial',
+      unmeasuredBoxCount: 7,
+      /** (1,000000 − 13 × 0,040000) ÷ 7 */
+      unmeasuredBoxVolumeM3: '0.068571',
+      volumeM3: '1.000000',
+    })
+  })
+
   /** Resíduo de 0,000002 m³ em cinco caixas arredonda para zero — caixa de zero m³ não vai ao desenho. */
   test('resíduo que arredonda para caixa de zero m³ cai na mediana', () => {
     const almostFull = { boxVolumeM3: '0.099999', quantity: '1', unitsPerBox: 1 }

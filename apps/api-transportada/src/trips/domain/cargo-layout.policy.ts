@@ -15,6 +15,7 @@ import {
   resolveStopArrangement,
   STABLE_STACK_SLENDERNESS,
   type CargoPlacement,
+  type FallbackBox,
   type MeasuredBoxShape,
   type PlacementBox,
   type StopArrangement,
@@ -608,7 +609,8 @@ function collectPendingMeasurements(input: {
 
       if (current === undefined) {
         grouped.set(key, {
-          boxCount: box.count,
+          /** `box.count` pode ser fracionário (D2/D4) — o painel só aceita inteiro. */
+          boxCount: Math.ceil(box.count),
           documentNumber,
           estimateSource:
             box.estimateSource ?? (input.fallbackBoxVolumeM3 !== null ? 'median' : 'none'),
@@ -618,7 +620,7 @@ function collectPendingMeasurements(input: {
           stopLabel: stop.label,
         })
       } else {
-        grouped.set(key, { ...current, boxCount: current.boxCount + box.count })
+        grouped.set(key, { ...current, boxCount: current.boxCount + Math.ceil(box.count) })
       }
     }
   }
@@ -652,6 +654,20 @@ function toPlacementBoxes(
     volumeM3: input.fallbackVolumeM3,
   })
 
+  /**
+   * A caixa presumida pelo resíduo da nota repete o mesmo m³ em toda linha do mesmo produto — sem
+   * memoizar, `resolveShapeRatio` reordena as formas medidas da empresa a cada caixa da fatia.
+   */
+  const fallbackByVolume = new Map<number, FallbackBox | null>()
+  function resolveFallbackBoxForVolume(volumeM3: number): FallbackBox | null {
+    const cached = fallbackByVolume.get(volumeM3)
+    if (cached !== undefined) return cached
+
+    const resolved = resolveFallbackBox({ measured: input.measuredShapes, volumeM3 })
+    fallbackByVolume.set(volumeM3, resolved)
+    return resolved
+  }
+
   return input.stops.flatMap((stop) =>
     (stop.boxes ?? []).map((box) => {
       const measured = box.heightMm !== null && box.lengthMm !== null && box.widthMm !== null
@@ -664,7 +680,7 @@ function toPlacementBoxes(
       const fallback =
         estimatedVolumeM3 === null
           ? companyFallback
-          : resolveFallbackBox({ measured: input.measuredShapes, volumeM3: estimatedVolumeM3 })
+          : resolveFallbackBoxForVolume(estimatedVolumeM3)
       /** Sem medida e sem fallback, a caixa segue sem dimensão e a planta a nomeia como não medida. */
       const shape = measured ? box : (fallback ?? box)
 

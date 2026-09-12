@@ -259,7 +259,7 @@ export async function loadTripOccupancy(
  * assim — é o que a lista do que falta medir (D4) usa para dizer "pela nota", "pela mediana" ou
  * "sem estimativa".
  */
-function stampEstimatedVolume(
+export function stampEstimatedVolume(
   boxesByDocument: ReadonlyMap<string, readonly CargoPlanBox[]>,
   estimates: ReadonlyMap<string, ResolvedDocumentCargoEstimate>,
 ): ReadonlyMap<string, readonly CargoPlanBox[]> {

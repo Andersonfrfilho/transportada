@@ -300,6 +300,42 @@ describe('pendingMeasurements — a lista do que falta medir (spec 144 D4)', () 
     ])
   })
 
+  /** `box.count` fracionário (D2) não pode sair como fração — o frontend rejeita `boxCount` não inteiro. */
+  test('caixa sem ficha com contagem fracionária arredonda para cima', () => {
+    const stops: CargoLayoutStop[] = [
+      {
+        boxes: [
+          {
+            ...UNMEASURED_BOX,
+            count: 6.5,
+            documentNumber: '111',
+            estimateSource: 'note',
+            label: 'Caneta',
+            productCode: 'P1',
+          },
+        ],
+        documentsWithoutVolume: 0,
+        label: 'Barrinha',
+        sequence: 1,
+        volumeM3: '1.000000',
+      },
+    ]
+    const layout = resolveCargoLayout({ ...CAPACIDADE, stops })
+
+    expect(layout?.pendingMeasurements).toEqual([
+      {
+        boxCount: 7,
+        documentNumber: '111',
+        estimateSource: 'note',
+        label: 'Caneta',
+        productCode: 'P1',
+        sequence: 1,
+        stopLabel: 'Barrinha',
+      },
+    ])
+    expect(Number.isInteger(layout?.pendingMeasurements[0]?.boxCount)).toBe(true)
+  })
+
   test('viagem toda medida devolve lista vazia', () => {
     const stops: CargoLayoutStop[] = [
       {

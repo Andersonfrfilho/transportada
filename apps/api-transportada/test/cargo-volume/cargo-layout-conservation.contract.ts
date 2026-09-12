@@ -4,10 +4,15 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+  countMeasuredBoxes,
+  resolveDocumentCargoEstimate,
+} from '../../src/nfe-documents/domain/cargo-volume.policy.js'
+import {
   resolveCargoLayout,
   type CargoLayoutStop,
   type ResolvedCargoLayout,
 } from '../../src/trips/domain/cargo-layout.policy.js'
+import { stampEstimatedVolume } from '../../src/trips/infrastructure/trip-occupancy.support.js'
 
 const BED = { heightM: '2.200', lengthM: '5.320', source: 'measured' as const, widthM: '2.080' }
 const CAPACITY_M3 = '24.000000'
@@ -160,5 +165,71 @@ describe('a planta conserva as caixas da viagem', () => {
 
     expect(layout?.slices.map((slice) => slice.label)).toEqual(['Barrinha'])
     expect(layout?.stopsWithoutVolume).toEqual([{ documentCount: 1, label: 'Descalvado' }])
+  })
+})
+
+/**
+ * A ponta a ponta da spec 144 (revisão): itens reais da nota → `resolveDocumentCargoEstimate` →
+ * `stampEstimatedVolume` (o mesmo carimbo que `loadTripOccupancy` aplica) → `pendingMeasurements`.
+ * `countMeasuredBoxes` devolve a quantidade fracionária crua quando `unitsPerBox` é 1 — a conta da
+ * lista do que falta medir tem de arredondar para cima em caixas inteiras sem perder nenhuma.
+ */
+describe('estimativa → carimbo → boxCount não perde nem inventa caixa (spec 144 revisão)', () => {
+  test('Σ pendingMeasurements.boxCount é o unmeasuredBoxCount da estimativa', () => {
+    const measuredItem = { boxVolumeM3: '0.040000', quantity: '4', unitsPerBox: 1 }
+    const unmeasuredItem = { boxVolumeM3: null, quantity: '6.5', unitsPerBox: 1 }
+
+    const estimate = resolveDocumentCargoEstimate({
+      items: [measuredItem, unmeasuredItem],
+      medianBoxVolumeM3: null,
+      volumeFactor: '0.100000',
+      volumeQuantity: '10',
+    })
+    expect(estimate.estimateSource).toBe('note')
+    expect(estimate.unmeasuredBoxCount).toBe(7)
+
+    const documentId = 'doc-1'
+    const boxesByDocument = new Map([
+      [
+        documentId,
+        [
+          {
+            count: countMeasuredBoxes(measuredItem),
+            heightMm: 300,
+            label: 'Medida',
+            lengthMm: 400,
+            widthMm: 300,
+          },
+          {
+            /** O mesmo valor cru que a busca real grava — 6,5, fracionário. */
+            count: countMeasuredBoxes(unmeasuredItem),
+            heightMm: null,
+            label: 'Sem ficha',
+            lengthMm: null,
+            productCode: 'P1',
+            widthMm: null,
+          },
+        ],
+      ],
+    ])
+    const estimates = new Map([[documentId, estimate]])
+    const stamped = stampEstimatedVolume(boxesByDocument, estimates)
+
+    const stops: CargoLayoutStop[] = [
+      {
+        boxes: stamped.get(documentId) ?? [],
+        documentsWithoutVolume: 0,
+        label: 'Única',
+        sequence: 1,
+        volumeM3: estimate.volumeM3,
+      },
+    ]
+    const layout = resolveCargoLayout({ bedDimensions: BED, capacityM3: CAPACITY_M3, stops })
+
+    const totalPendingBoxCount = (layout?.pendingMeasurements ?? []).reduce(
+      (total, pending) => total + pending.boxCount,
+      0,
+    )
+    expect(totalPendingBoxCount).toBe(estimate.unmeasuredBoxCount)
   })
 })

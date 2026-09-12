@@ -146,6 +146,11 @@ export function countMeasuredBoxes(item: MeasuredCargoItem): number {
   return perBox === 1 ? quantity : Math.ceil(quantity / perBox)
 }
 
+/** `countMeasuredBoxes` devolve `quantity` cru quando `unitsPerBox === 1` — fracionário na nota em KG/LT/M. */
+function countWholeBoxes(item: MeasuredCargoItem): number {
+  return Math.ceil(countMeasuredBoxes(item))
+}
+
 export type ResolveDocumentCargoEstimateParams = {
   readonly items: readonly MeasuredCargoItem[]
   /** A mediana das caixas medidas da empresa — o terceiro degrau, nunca o primeiro. */
@@ -186,11 +191,11 @@ function sumCargoLines(items: readonly MeasuredCargoItem[]): ScaledCargoLines {
   let hasMeasured = false
   for (const item of items) {
     if (item.boxVolumeM3 === null) {
-      unmeasuredCount += Math.ceil(countMeasuredBoxes(item))
+      unmeasuredCount += countWholeBoxes(item)
       continue
     }
     hasMeasured = true
-    measured += toScaled(item.boxVolumeM3) * BigInt(countMeasuredBoxes(item))
+    measured += toScaled(item.boxVolumeM3) * BigInt(countWholeBoxes(item))
   }
 
   return { hasMeasured, measured, unmeasuredCount }
