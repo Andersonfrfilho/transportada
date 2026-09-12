@@ -42,6 +42,7 @@
   "panel": {
     "amount": "Valor",
     "cost": "Custo",
+    "error": "Não foi possível carregar a conta desta viagem.",
     "expectedCost": "Custo previsto",
     "expectedGaps": "Falta parâmetro para {{reasons}} — o total sai menor do que a viagem custa.",
     "expectedMargin": "Margem prevista",
@@ -57,6 +58,7 @@
     "reasonPlaceholder": "CT-e cancelado, taxa lançada depois…",
     "recalculate": "Recalcular",
     "recalculating": "Recalculando…",
+    "retry": "Tentar novamente",
     "revenue": "Receita",
     "source": "Origem",
     "tax": "Imposto",

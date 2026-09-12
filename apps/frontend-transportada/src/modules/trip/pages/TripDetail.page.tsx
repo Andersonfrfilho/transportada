@@ -91,8 +91,10 @@ export function TripDetailPage({ tripId }: TripDetailPageProps) {
           */}
           {financials.canReadFinancials ? (
             <TripFinancialPanel
+              isError={financials.isError}
               isLoading={financials.isLoading}
               onRecalculate={financials.recalculate}
+              onRetry={financials.refetch}
               result={financials.result}
               valuation={financials.valuation}
             />

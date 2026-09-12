@@ -11,8 +11,10 @@ const FINANCIALS_PERMISSION = 'trip.financials'
 
 export type TripFinancialsController = Readonly<{
   canReadFinancials: boolean
+  isError: boolean
   isLoading: boolean
   recalculate: (reason: string) => Promise<void>
+  refetch: () => void
   result: TripFinancialResult | null
   /** A conta prevista, que é o que existe enquanto a viagem está aberta. */
   valuation: TripValuation | null
@@ -55,9 +57,14 @@ export function useTripFinancials(
 
   return {
     canReadFinancials,
+    isError: result.isError || valuation.isError,
     isLoading: result.isLoading || valuation.isLoading,
     async recalculate(reason) {
       await recalculate.mutateAsync(reason)
+    },
+    refetch() {
+      void result.refetch()
+      void valuation.refetch()
     },
     result: result.data ?? null,
     valuation: valuation.data ?? null,
