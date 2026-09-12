@@ -444,6 +444,7 @@ export const nfeVolumes = pgTable(
       'nfe_volumes_values_check',
       sql`${table.ordinal} > 0 and ${table.quantity} >= 0 and ${table.grossWeight} >= 0 and ${table.netWeight} >= 0`,
     ),
+    index('nfe_volumes_company_document_idx').on(table.companyId, table.documentId),
   ],
 )
 
@@ -536,6 +537,9 @@ export const nfePackageBoxes = pgTable(
     index('nfe_package_boxes_company_gtin_idx')
       .on(table.companyId, table.cartonGtin)
       .where(sql`${table.cartonGtin} is not null`),
+    index('nfe_package_boxes_company_measured_idx')
+      .on(table.companyId)
+      .where(sql`${table.measuredAt} is not null`),
   ],
 )
 
@@ -573,6 +577,7 @@ export const nfeProducts = pgTable(
       'nfe_products_values_check',
       sql`${table.ordinal} > 0 and ${table.quantity} >= 0 and ${table.unitValue} >= 0 and ${table.totalValue} >= 0`,
     ),
+    index('nfe_products_company_document_idx').on(table.companyId, table.documentId),
   ],
 )
 

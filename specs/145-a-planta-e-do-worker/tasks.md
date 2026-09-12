@@ -14,7 +14,7 @@
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T0 — `nfe_volumes_company_document_idx`, `nfe_products_company_document_idx` e o índice
+- [x] T0 — `nfe_volumes_company_document_idx`, `nfe_products_company_document_idx` e o índice
       parcial `nfe_package_boxes (company_id) where measured_at is not null` em
       `apps/api-transportada/src/database/nfe.schema.ts`, espelhados no worker; migration aditiva
       (`bun run db:generate`); contrato de schema confere nome e forma (G001); `EXPLAIN`

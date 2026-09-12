@@ -238,6 +238,7 @@ describe('Drizzle migrations', () => {
       '20260912044229_cte_profile_output_document',
       '20260912132407_whatsapp_command_requests',
       '20260912153407_whatsapp_command_settlement',
+      '20260912165331_nfe_company_document_and_measured_indexes',
       '20260913032201_whatsapp_command_settlement_retry',
       '20260913120000_contractor_mail',
       '20260913191809_contractor_mail_message_recipient',
