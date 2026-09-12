@@ -71,10 +71,10 @@ abaixo (`evidence.md` § Fase 3). Decisão do usuário no mesmo dia: **o bot fat
 
 - [ ] **T009** 🧠 Migration em `cte_emission_profiles`: `output_document` (`cte`|`nfse`, padrão `cte`),
       `nfse_emission_profile_id` com FK composta `(company_id, nfse_emission_profile_id) →
-  nfse_emission_profiles(company_id, id)` **on delete restrict**, e três CHECKs —
+nfse_emission_profiles(company_id, id)` **on delete restrict**, e três CHECKs —
       `..._output_document_check`, `..._nfse_profile_check` (`(output_document='nfse') =
-  (nfse_emission_profile_id is not null)`), `..._output_municipal_check` (`output_document='cte'
-  or municipal_service_policy='allow'`); `PUT` recusa apontar para perfil NFS-e não `active`.
+(nfse_emission_profile_id is not null)`), `..._output_municipal_check` (`output_document='cte'
+or municipal_service_policy='allow'`); `PUT` recusa apontar para perfil NFS-e não `active`.
       Formulário do perfil: os dois campos, e em `nfse` **esconde** taker, regra de frete, CFOP e
       ICMS (vale o perfil NFS-e) — `make migration-test`, contrato de schema
 - [ ] **T010** 🧠 `classifyDocumentOutput` em `cte-profiles/domain/document-output.policy.ts`,
@@ -91,7 +91,7 @@ abaixo (`evidence.md` § Fase 3). Decisão do usuário no mesmo dia: **o bot fat
       paridade que roda os dois consumidores sobre as mesmas notas
 - [ ] **T011** 🧠 `whatsapp_command_requests` (+ `due_date`, `period`, `grouping_mode`,
       `confirmed_at`, `settled_at`, `settlement_outcome`, `last_error_code`; status `previewed →
-  confirming → dispatched → settled | settled_partial`, mais `expired` e `superseded`) e
+confirming → dispatched → settled | settled_partial`, mais `expired` e `superseded`) e
       `whatsapp_command_documents` como **diário de passos** (`group_key`, `idempotency_key`,
       `status` `pending|created|issued|failed`, `document_id` nulo até existir; unique
       `(request_id, document_kind, group_key)`), FK composta `(company_id, request_id)`, cópia no
@@ -105,7 +105,7 @@ abaixo (`evidence.md` § Fase 3). Decisão do usuário no mesmo dia: **o bot fat
 - [ ] **T013** 🧠 Confirmação **sem transação única** (cada use-case abre a sua): (1) confere
       `cte.manage`, `cte.submit`, `nfse.issue` pela membership; (2) recalcula o hash — divergiu →
       `superseded` e prévia nova; (3) transação curta `update … set status='confirming' where
-  status='previewed' and preview_sha256=$hash and expires_at>now() returning` + linhas `pending`
+status='previewed' and preview_sha256=$hash and expires_at>now() returning` + linhas `pending`
       do diário; (4) fora de transação, por grupo: CT-e = `cteBatches.create` (chave
       `whatsapp:${requestId}:cte:${profileId}`) → `cteIssuance.issue` (chave `…:cte-issue:…`);
       NFS-e = `nfseInvoices.create` por (perfil NFS-e, tomador) (chave
