@@ -531,7 +531,7 @@ export function CargoLegendSample({ mark }: Readonly<{ mark: CargoLegendMark }>)
         x={1}
         y={1}
       />
-      <rect className={outlineClass} height={8} width={8} x={1} y={1} />
+      <rect className={outlineClass} fill="none" height={8} width={8} x={1} y={1} />
     </svg>
   )
 }
