@@ -29,7 +29,6 @@ import {
   WHATSAPP_INVALID_ATTEMPTS_BEFORE_HANDOFF,
   WHATSAPP_INVALID_ATTEMPTS_CONTEXT_KEY,
   WHATSAPP_MAX_CROSS_FLOW_HOPS,
-  WHATSAPP_PHONE_VERIFIED_REPLY,
 } from '../domain/whatsapp-command.constant.js'
 import { parseMenuPageNavigation } from '../domain/whatsapp-menu.policy.js'
 import { WHATSAPP_PHONE_VERIFICATION_CODE_MESSAGE_PATTERN } from '../domain/whatsapp-phone-verification.constant.js'
@@ -37,7 +36,9 @@ import {
   type WhatsAppCommandDenialReason,
   WhatsAppCommandDeniedError,
 } from '../domain/whatsapp-command.error.js'
+import { toWhatsAppPhoneKey } from '../domain/whatsapp-phone-key.policy.js'
 import { toWhatsAppPhone } from '../domain/whatsapp-phone.policy.js'
+import { buildWhatsAppPhoneVerifiedReply } from '../domain/whatsapp-verified-reply.policy.js'
 import type {
   ResolveWhatsAppActorParams,
   ResolveWhatsAppActorResult,
@@ -292,7 +293,10 @@ async function verifyEntry(input: {
   }
 
   turn.deps.logger.info(WHATSAPP_COMMAND_LOG.phoneVerified, { companyId, phone: turn.maskedPhone })
-  await turn.deps.sender.sendText({ body: WHATSAPP_PHONE_VERIFIED_REPLY, to: turn.phone })
+  await turn.deps.sender.sendText({
+    body: buildWhatsAppPhoneVerifiedReply(result.displayName),
+    to: turn.phone,
+  })
   await clearWhatsAppFlowPosition({ context: {}, turn })
   await advanceConversation(turn)
 }
@@ -332,9 +336,13 @@ function logDenied(input: {
   })
 }
 
-/** A chave casa as duas grafias do nono dígito só na forma canônica; o mapa vive só em memória. */
+/**
+ * T005b M4: a chave é a `phone_key`, sem o nono dígito — a Meta alterna as duas grafias, e com a
+ * forma canônica elas eram dois baldes. O mapa vive só em memória, por processo (`docs/SECURITY.md`).
+ */
 function buildLimitKey(turn: WhatsAppCommandTurn): string {
-  return `${turn.session.companyId}:${toWhatsAppPhone(turn.phone) ?? turn.phone}`
+  const phone = toWhatsAppPhone(turn.phone)
+  return `${turn.session.companyId}:${phone === undefined ? turn.phone : toWhatsAppPhoneKey(phone)}`
 }
 
 function readInvalidAttempts(context: Record<string, unknown>): number {

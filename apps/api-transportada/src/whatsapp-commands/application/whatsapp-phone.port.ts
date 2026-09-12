@@ -52,9 +52,10 @@ export type WhatsAppPhoneRepositoryPort = {
   /** O número de exibição do canal ativo da empresa; ausente ou vazio devolve `undefined`. */
   readonly findCompanyNumber: (input: { readonly companyId: string }) => Promise<string | undefined>
   /**
-   * Fecha o pedido, grava o vínculo verificado e a trilha na mesma transação. `stale` quando o pedido
-   * já foi fechado por outra mensagem; número de outra pessoa lança `WhatsAppPhoneTakenError` e nada
-   * é gravado.
+   * Fecha o pedido, libera o vínculo **vencido** de outra pessoa na mesma chave (`phone_key`, as duas
+   * grafias do nono dígito), grava o vínculo verificado e a trilha — tudo na mesma transação.
+   * `stale` quando o pedido já foi fechado por outra mensagem; número verificado de outra pessoa
+   * dentro da validade lança `WhatsAppPhoneTakenError` e nada é gravado.
    */
   readonly completeVerification: (
     input: CompleteWhatsAppPhoneVerificationInput,
@@ -68,9 +69,12 @@ export type WhatsAppPhoneRepositoryPort = {
     readonly audit: WhatsAppPhoneAuditInput
     readonly userId: string
   }) => Promise<boolean>
+  /** Casa pela chave sem o nono dígito: as duas grafias acham o mesmo dono. */
   readonly findVerifiedByPhone: (input: {
     readonly phone: string
   }) => Promise<VerifiedWhatsAppPhone | undefined>
+  /** O nome de exibição da ficha; sem ficha, `undefined`. Nunca e-mail nem documento. */
+  readonly findUserDisplayName: (input: { readonly userId: string }) => Promise<string | undefined>
   /** Número declarado e ainda sem verificação: só separa `unknown_phone` de `unverified_or_expired` no log. */
   readonly hasUnverifiedBindingByPhone: (input: { readonly phone: string }) => Promise<boolean>
   readonly findByUserId: (input: {

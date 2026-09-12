@@ -1,9 +1,10 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { SERVICE_COMPANY_ROLES } from '../../database/identity.schema.js'
 import type { AuthenticatedContext, CompanyContext } from '../../identity/domain/tenant-context.js'
 import { buildWhatsAppPhoneCandidates } from '../domain/whatsapp-phone-candidates.policy.js'
-import { WHATSAPP_PHONE_VERIFICATION_VALIDITY_DAYS } from '../domain/whatsapp-phone-verification.constant.js'
+import { WHATSAPP_PHONE_VERIFICATION_VALIDITY_MS } from '../domain/whatsapp-phone-verification.constant.js'
 import { toWhatsAppPhone } from '../domain/whatsapp-phone.policy.js'
 import type {
   CompanyContextForUserPort,
@@ -12,14 +13,14 @@ import type {
 } from './whatsapp-actor.port.js'
 import type { VerifiedWhatsAppPhone } from './whatsapp-phone.port.js'
 
-const DAY_MS = 86_400_000
-const VALIDITY_MS = WHATSAPP_PHONE_VERIFICATION_VALIDITY_DAYS * DAY_MS
+const VALIDITY_MS = WHATSAPP_PHONE_VERIFICATION_VALIDITY_MS
 
-/** Para log e métrica, nunca para o número: as quatro recusas recebem a mesma resposta (D1). */
+/** Para log e métrica, nunca para o número: todas as recusas recebem a mesma resposta (D1). */
 export type WhatsAppActorDenialReason =
   | 'unknown_phone'
   | 'unverified_or_expired'
   | 'no_membership'
+  | 'service_account'
   | 'suspended'
 
 export type ResolveWhatsAppActorParams = {
@@ -67,7 +68,13 @@ export function createResolveWhatsAppActorUseCase({
 
     const lookup = { companyId, userId: verified.userId }
     const context = await tenantContext.resolveCompanyForUser({ ...lookup, channel: 'whatsapp' })
-    if (context !== null) return { context, status: 'authorized' }
+    if (context !== null) {
+      /** T005b A1: o vínculo pode ter nascido antes da trava; o papel de serviço é a marca (ADR-0047). */
+      if (context.scope.roles.some((role) => SERVICE_COMPANY_ROLES.includes(role))) {
+        return deny('service_account')
+      }
+      return { context, status: 'authorized' }
+    }
 
     const standing = await memberships.findStanding(lookup)
     return deny(standing === 'suspended' ? 'suspended' : 'no_membership')

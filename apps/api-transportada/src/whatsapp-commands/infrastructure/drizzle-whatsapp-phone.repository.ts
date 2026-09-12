@@ -2,10 +2,11 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, desc, eq, isNotNull, isNull, sql, type SQL } from 'drizzle-orm'
+import { and, desc, eq, isNotNull, isNull, lt, ne, sql, type SQL } from 'drizzle-orm'
 
 import {
   auditLogs,
+  identityUserProfiles,
   userWhatsAppPhones,
   whatsAppPhoneVerificationRequests,
   whatsappChannels,
@@ -21,9 +22,11 @@ import type {
   WhatsAppPhoneRepositoryPort,
   WhatsAppPhoneVerificationRequest,
 } from '../application/whatsapp-phone.port.js'
+import { toWhatsAppPhoneKey } from '../domain/whatsapp-phone-key.policy.js'
 import {
   WHATSAPP_PHONE_AUDIT,
   WHATSAPP_PHONE_VERIFICATION_MAX_ATTEMPTS,
+  WHATSAPP_PHONE_VERIFICATION_VALIDITY_MS,
 } from '../domain/whatsapp-phone-verification.constant.js'
 import { WhatsAppPhoneTakenError } from '../domain/whatsapp-phone.error.js'
 
@@ -53,6 +56,44 @@ function buildAuditRow(input: {
   }
 }
 
+/**
+ * Spec 144 T005b M1: o chip reciclado. O vínculo de outra pessoa na mesma chave (as duas grafias do
+ * nono dígito) que passou da validade deixa de ser credencial **antes** do upsert, na mesma
+ * transação — senão o índice o contaria como dono para sempre e o novo dono nunca entraria.
+ */
+async function releaseExpiredBindings(
+  writer: Pick<WhatsAppPhoneDatabase, 'insert' | 'update'>,
+  input: CompleteWhatsAppPhoneVerificationInput,
+): Promise<void> {
+  const expiredBefore = new Date(
+    input.verifiedAt.getTime() - WHATSAPP_PHONE_VERIFICATION_VALIDITY_MS,
+  )
+  const released = await writer
+    .update(userWhatsAppPhones)
+    .set({ updatedAt: input.verifiedAt, verifiedAt: null })
+    .where(
+      and(
+        eq(userWhatsAppPhones.phoneKey, toWhatsAppPhoneKey(input.phone)),
+        ne(userWhatsAppPhones.userId, input.userId),
+        lt(userWhatsAppPhones.verifiedAt, expiredBefore),
+      ),
+    )
+    .returning({ phone: userWhatsAppPhones.phone, userId: userWhatsAppPhones.userId })
+  if (released.length === 0) return
+
+  await writer.insert(auditLogs).values(
+    released.map((row) =>
+      buildAuditRow({
+        action: WHATSAPP_PHONE_AUDIT.expiredReleased,
+        audit: input.audit,
+        phone: row.phone,
+        result: 'allowed',
+        userId: row.userId,
+      }),
+    ),
+  )
+}
+
 async function upsertVerified(
   writer: WhatsAppPhoneWriter,
   input: { readonly phone: string; readonly userId: string; readonly verifiedAt: Date },
@@ -72,7 +113,7 @@ function translateTaken(error: unknown): unknown {
     : error
 }
 
-const VERIFIED_PHONE_UNIQUE = 'user_whatsapp_phones_phone_verified_unique'
+const VERIFIED_PHONE_UNIQUE = 'user_whatsapp_phones_phone_key_verified_unique'
 
 const requests = whatsAppPhoneVerificationRequests
 
@@ -130,12 +171,27 @@ export class DrizzleWhatsAppPhoneRepository implements WhatsAppPhoneRepositoryPo
       .select({ userId: userWhatsAppPhones.userId, verifiedAt: userWhatsAppPhones.verifiedAt })
       .from(userWhatsAppPhones)
       .where(
-        and(eq(userWhatsAppPhones.phone, input.phone), isNotNull(userWhatsAppPhones.verifiedAt)),
+        and(
+          eq(userWhatsAppPhones.phoneKey, toWhatsAppPhoneKey(input.phone)),
+          isNotNull(userWhatsAppPhones.verifiedAt),
+        ),
       )
       .limit(1)
 
     if (row?.verifiedAt === undefined || row.verifiedAt === null) return undefined
     return { userId: row.userId, verifiedAt: row.verifiedAt }
+  }
+
+  public async findUserDisplayName(input: {
+    readonly userId: string
+  }): Promise<string | undefined> {
+    const [row] = await this.database
+      .select({ name: identityUserProfiles.name })
+      .from(identityUserProfiles)
+      .where(eq(identityUserProfiles.userId, input.userId))
+      .limit(1)
+
+    return row?.name
   }
 
   public async hasUnverifiedBindingByPhone(input: { readonly phone: string }): Promise<boolean> {
@@ -217,6 +273,7 @@ export class DrizzleWhatsAppPhoneRepository implements WhatsAppPhoneRepositoryPo
           .returning({ id: requests.id })
         if (closed === undefined) return 'stale'
 
+        await releaseExpiredBindings(transaction, input)
         await upsertVerified(transaction, input)
         await transaction
           .insert(auditLogs)

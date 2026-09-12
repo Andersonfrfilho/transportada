@@ -29,7 +29,12 @@ export type WhatsAppPhoneVerificationRejection =
   | 'stale'
 
 export type VerifyWhatsAppPhoneResult =
-  | { readonly status: 'verified'; readonly userId: string }
+  | {
+      /** Nome de exibição da conta, para a confirmação dizer para quem o número foi (T005b B2). */
+      readonly displayName?: string
+      readonly status: 'verified'
+      readonly userId: string
+    }
   | { readonly status: 'rejected'; readonly reason: WhatsAppPhoneVerificationRejection }
 
 export type VerifyWhatsAppPhone = (
@@ -42,6 +47,7 @@ type VerifyWhatsAppPhoneDependencies = {
     | 'closeRequestAfterCollision'
     | 'completeVerification'
     | 'findLiveRequestByCompanyAndPhone'
+    | 'findUserDisplayName'
     | 'incrementAttempt'
   >
 }
@@ -92,7 +98,9 @@ async function complete(input: {
   try {
     const outcome = await input.repository.completeVerification(input.completion)
     if (outcome === 'stale') return reject('stale')
-    return { status: 'verified', userId: input.completion.userId }
+    const { userId } = input.completion
+    const displayName = await input.repository.findUserDisplayName({ userId })
+    return { ...(displayName === undefined ? {} : { displayName }), status: 'verified', userId }
   } catch (error) {
     if (!(error instanceof WhatsAppPhoneTakenError)) throw error
     await input.repository.closeRequestAfterCollision(input.completion)

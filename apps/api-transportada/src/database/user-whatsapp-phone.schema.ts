@@ -34,6 +34,13 @@ export const userWhatsAppPhones = pgTable(
     id: uuid().defaultRandom().primaryKey(),
     userId: uuid('user_id').notNull(),
     phone: text().notNull(),
+    /**
+     * Spec 144 T005b B3: `55` + DDD + os oito últimos dígitos — as duas grafias do nono dígito numa
+     * chave só. Mesma conta de `toWhatsAppPhoneKey`, que o limitador do despachante usa.
+     */
+    phoneKey: text('phone_key')
+      .notNull()
+      .generatedAlwaysAs(sql`left("phone", 4) || right("phone", 8)`),
     verifiedAt: timestamp('verified_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -47,9 +54,9 @@ export const userWhatsAppPhones = pgTable(
       .onDelete('cascade')
       .onUpdate('cascade'),
     unique('user_whatsapp_phones_user_id_unique').on(table.userId),
-    /** Declarado não é credencial: só o verificado precisa ser de uma pessoa só. */
-    uniqueIndex('user_whatsapp_phones_phone_verified_unique')
-      .on(table.phone)
+    /** Declarado não é credencial: só o verificado precisa ser de uma pessoa só — nas duas grafias. */
+    uniqueIndex('user_whatsapp_phones_phone_key_verified_unique')
+      .on(table.phoneKey)
       .where(sql`${table.verifiedAt} is not null`),
     check(
       'user_whatsapp_phones_phone_check',

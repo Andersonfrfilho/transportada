@@ -11,9 +11,11 @@ import type {
   WhatsAppPhoneVerificationRequest,
 } from '../../src/whatsapp-commands/application/whatsapp-phone.port.js'
 import { maskPhone } from '../../src/logging/phone-mask.policy.js'
+import { toWhatsAppPhoneKey } from '../../src/whatsapp-commands/domain/whatsapp-phone-key.policy.js'
 import {
   WHATSAPP_PHONE_AUDIT,
   WHATSAPP_PHONE_VERIFICATION_MAX_ATTEMPTS,
+  WHATSAPP_PHONE_VERIFICATION_VALIDITY_MS,
 } from '../../src/whatsapp-commands/domain/whatsapp-phone-verification.constant.js'
 import { WhatsAppPhoneTakenError } from '../../src/whatsapp-commands/domain/whatsapp-phone.error.js'
 
@@ -34,7 +36,10 @@ export type RecordedAudit = {
 export type WhatsAppPhoneBindingRow = { phone: string; verifiedAt: Date | undefined }
 
 export function createWhatsAppPhoneRepositoryFake(
-  options: { readonly companyNumber?: string | undefined } = {},
+  options: {
+    readonly companyNumber?: string | undefined
+    readonly displayNames?: Readonly<Record<string, string>>
+  } = {},
 ) {
   const bindings = new Map<string, WhatsAppPhoneBindingRow>()
   const requests: MutableRequest[] = []
@@ -83,10 +88,25 @@ export function createWhatsAppPhoneRepositoryFake(
     async completeVerification(input) {
       const request = findLive(input)
       if (request === undefined) return 'stale'
-      for (const [userId, binding] of bindings) {
-        if (userId !== input.userId && binding.phone === input.phone && binding.verifiedAt) {
-          throw new WhatsAppPhoneTakenError()
-        }
+      const expiredBefore = input.verifiedAt.getTime() - WHATSAPP_PHONE_VERIFICATION_VALIDITY_MS
+      const sameKey = [...bindings].filter(
+        ([userId, binding]) =>
+          userId !== input.userId &&
+          binding.verifiedAt !== undefined &&
+          toWhatsAppPhoneKey(binding.phone) === toWhatsAppPhoneKey(input.phone),
+      )
+      if (sameKey.some(([, binding]) => (binding.verifiedAt?.getTime() ?? 0) >= expiredBefore)) {
+        throw new WhatsAppPhoneTakenError()
+      }
+      for (const [userId, binding] of sameKey) {
+        binding.verifiedAt = undefined
+        recordAudit({
+          action: WHATSAPP_PHONE_AUDIT.expiredReleased,
+          audit: input.audit,
+          phone: binding.phone,
+          result: 'allowed',
+          userId,
+        })
       }
       request.consumedAt = input.verifiedAt
       bindings.set(input.userId, { phone: input.phone, verifiedAt: input.verifiedAt })
@@ -132,9 +152,15 @@ export function createWhatsAppPhoneRepositoryFake(
           userId: request.userId,
         }))
     },
+    async findUserDisplayName({ userId }) {
+      return options.displayNames?.[userId]
+    },
     async findVerifiedByPhone({ phone }) {
       for (const [userId, binding] of bindings) {
-        if (binding.phone === phone && binding.verifiedAt !== undefined) {
+        if (
+          toWhatsAppPhoneKey(binding.phone) === toWhatsAppPhoneKey(phone) &&
+          binding.verifiedAt !== undefined
+        ) {
           return { userId, verifiedAt: binding.verifiedAt }
         }
       }

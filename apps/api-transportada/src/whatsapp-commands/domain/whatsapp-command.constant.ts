@@ -16,7 +16,7 @@ export const WHATSAPP_DENIED_REPLY = 'Este número não está habilitado. Fale c
 
 export const WHATSAPP_HANDOFF_REPLY = '🙋 Vou chamar uma pessoa.'
 
-export const WHATSAPP_PHONE_VERIFIED_REPLY = '✅ Número verificado.'
+export const WHATSAPP_PHONE_VERIFIED_REPLY = '✅ Número vinculado.'
 
 export const WHATSAPP_DEFAULT_FALLBACK_REPLY = 'Não entendi. Toque numa das opções.'
 

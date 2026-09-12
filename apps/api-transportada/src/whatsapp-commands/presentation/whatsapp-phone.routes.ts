@@ -10,6 +10,7 @@ import {
 } from '../../shared/api.constant.js'
 import type { RequestWhatsAppPhoneVerification } from '../application/request-whatsapp-phone-verification.use-case.js'
 import type { UnbindWhatsAppPhoneUseCase } from '../application/unbind-whatsapp-phone.use-case.js'
+import { WHATSAPP_PHONE_VERIFICATION_REQUEST_LIMIT } from '../domain/whatsapp-phone-verification.constant.js'
 import { parseWhatsAppPhoneVerificationRequest } from './whatsapp-phone.schema.js'
 
 const VERIFICATION_PATH = `${API_ME_WHATSAPP_PHONE_PATH}/verification`
@@ -58,6 +59,7 @@ export function createWhatsAppPhoneRoutes(
       parse: ({ request }) => parseWhatsAppPhoneVerificationRequest(request),
       pathname: VERIFICATION_PATH,
       policy: MEMBERSHIP_POLICY,
+      rateLimit: WHATSAPP_PHONE_VERIFICATION_REQUEST_LIMIT,
     }),
     defineRoute<{ readonly correlationId: string }>({
       async handle({ context, input }): Promise<Response> {

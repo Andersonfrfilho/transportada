@@ -58,7 +58,7 @@ Fase 2, logo depois da T006.
       com número já verificado por outro usuário (mesmo 400 genérico)
 - [x] **T007** Política de menu (botão ≤3 com emoji, lista 4–10, paginação >10, teto de 20/24
       caracteres) e validação na publicação do grafo — `domain/whatsapp-menu.policy.ts` — contrato
-- [ ] **T005b** 🧠 Correções da revisão de segurança de 2026-09-11 (`evidence.md` § Revisão de
+- [x] **T005b** 🧠 Correções da revisão de segurança de 2026-09-11 (`evidence.md` § Revisão de
       segurança), **antes de qualquer FlowAction de negócio**: service account e contexto de canal
       recusados pela `MembershipAuthorizationPolicy` e pelo resolve do ator (A1); contrato que trava
       a política às rotas `/me/*` de uma allowlist por extenso (M2); vínculo vencido libera o número

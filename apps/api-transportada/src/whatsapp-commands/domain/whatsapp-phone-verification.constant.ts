@@ -7,6 +7,14 @@ export const WHATSAPP_PHONE_VERIFICATION_MAX_ATTEMPTS = 5
 
 /** Spec 144 D1: a operadora recicla chip, e o novo dono herdaria a conta. Inclusivo no limite. */
 export const WHATSAPP_PHONE_VERIFICATION_VALIDITY_DAYS = 90
+export const WHATSAPP_PHONE_VERIFICATION_VALIDITY_MS =
+  WHATSAPP_PHONE_VERIFICATION_VALIDITY_DAYS * 86_400_000
+
+/** T005b B4: cinco tentativas valem por pedido; o teto de pedidos é o que impede renovar sem fim. */
+export const WHATSAPP_PHONE_VERIFICATION_REQUEST_LIMIT = {
+  maxRequests: 5,
+  windowMs: 10 * 60_000,
+} as const
 
 /** Janela do código de entrada (plan § Segurança). */
 export const WHATSAPP_PHONE_VERIFICATION_TTL_MS = 10 * 60_000
@@ -21,6 +29,7 @@ export const WHATSAPP_PHONE_VERIFICATION_CODE_MESSAGE_PATTERN = /^\s*(\d{6})\s*$
 export const WHATSAPP_PHONE_AUDIT = {
   collision: 'whatsapp_phone.verification_collision',
   entityType: 'user_whatsapp_phone',
+  expiredReleased: 'whatsapp_phone.expired_released',
   permission: 'whatsapp.phone',
   targetType: 'user',
   unbound: 'whatsapp_phone.unbound',

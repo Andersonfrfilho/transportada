@@ -53,6 +53,8 @@ type RouterRoute<TInput> = {
   readonly pathname: string
   readonly policy?: RouteAuthorizationPolicy
   readonly pathParameterFormat?: PathParameterFormat
+  /** Teto por usuário autenticado, conferido depois da autorização. Ausente, a rota não tem teto. */
+  readonly rateLimit?: RateLimitPolicy
 }
 
 /**
@@ -71,6 +73,7 @@ export type RegisteredRouterRoute = {
   readonly pathname: string
   readonly pathParameterFormat?: PathParameterFormat
   readonly policy?: RouteAuthorizationPolicy
+  readonly rateLimit?: RateLimitPolicy
 }
 
 export type AnonymousRouteParserParams = {
@@ -170,6 +173,7 @@ export function createRouter({
   routes,
   tenantContext,
 }: CreateRouterParams): HttpRouter {
+  assertMembershipRoutesUnderMe(routes)
   const moduleCandidates = toModuleCandidates(moduleRouters)
   const logTemplates = collectLogTemplates({ anonymousRoutes, moduleCandidates, routes })
   const rateLimiter = createRateLimiter()
@@ -187,7 +191,11 @@ export function createRouter({
 
       const anonymousRoute = matchRoute({ method, pathname, routes: anonymousRoutes })
       if (anonymousRoute !== undefined) {
-        assertWithinRateLimit({ rateLimiter, request, route: anonymousRoute.route })
+        assertWithinRateLimit({
+          key: `${anonymousRoute.route.method} ${anonymousRoute.route.pathname} ${resolveClientIp(request)}`,
+          policy: anonymousRoute.route.rateLimit,
+          rateLimiter,
+        })
         return anonymousRoute.route.execute({
           correlationId,
           pathParameters: anonymousRoute.pathParameters,
@@ -220,6 +228,11 @@ export function createRouter({
         request.headers.get(SERVICE_COMPANY_HEADER),
       )
       authorization.authorize(context, matchedRoute.route.policy)
+      assertWithinRateLimit({
+        key: `${matchedRoute.route.method} ${matchedRoute.route.pathname} user:${context.scope.userId}`,
+        policy: matchedRoute.route.rateLimit,
+        rateLimiter,
+      })
       return matchedRoute.route.execute({
         context,
         correlationId,
@@ -253,7 +266,28 @@ export function defineRoute<TInput>(route: RouterRoute<TInput>): RegisteredRoute
     pathname: route.pathname,
     ...(route.pathParameterFormat ? { pathParameterFormat: route.pathParameterFormat } : {}),
     ...(route.policy ? { policy: route.policy } : {}),
+    ...(route.rateLimit ? { rateLimit: route.rateLimit } : {}),
   })
+}
+
+const OWN_DATA_PATH_PREFIX = '/me/'
+
+/**
+ * Spec 144 T005b M2: a política de membership não pede permissão nenhuma, e só é segura enquanto a
+ * rota alcança dado da própria pessoa. Toda rota passa por aqui, então pendurá-la em outro caminho
+ * derruba o boot em vez de abrir uma porta calada.
+ */
+function assertMembershipRoutesUnderMe(routes: readonly RegisteredRouterRoute[]): void {
+  const misplaced = routes.filter(
+    (route) =>
+      route.policy !== undefined &&
+      'membership' in route.policy &&
+      !route.pathname.startsWith(OWN_DATA_PATH_PREFIX),
+  )
+  if (misplaced.length === 0) return
+
+  const signatures = misplaced.map((route) => `${route.method} ${route.pathname}`).join(', ')
+  throw new Error(`membership policy outside ${OWN_DATA_PATH_PREFIX}: ${signatures}`)
 }
 
 export function defineAnonymousRoute<TInput>(
@@ -280,17 +314,16 @@ export function defineAnonymousRoute<TInput>(
  * limite seja seguro, mas porque cada rota tem um volume legítimo diferente (candidatura de
  * agregado não é o mesmo tráfego que o callback de NFS-e da prefeitura) e um teto genérico erraria
  * pra um lado ou pro outro. `429` carrega `Retry-After` para o cliente saber quando tentar de novo.
+ * A rota anônima conta por IP; a autenticada, por usuário — quem chama é quem decide o balde.
  */
 function assertWithinRateLimit(input: {
+  readonly key: string
+  readonly policy: RateLimitPolicy | undefined
   readonly rateLimiter: ReturnType<typeof createRateLimiter>
-  readonly request: Request
-  readonly route: RegisteredAnonymousRoute
 }): void {
-  const { rateLimit } = input.route
-  if (rateLimit === undefined) return
+  if (input.policy === undefined) return
 
-  const key = `${input.route.method} ${input.route.pathname} ${resolveClientIp(input.request)}`
-  const outcome = input.rateLimiter.consume({ key, policy: rateLimit })
+  const outcome = input.rateLimiter.consume({ key: input.key, policy: input.policy })
   if (!outcome.allowed) {
     throw new ApiError({
       ...HTTP_ERROR.tooManyRequests,

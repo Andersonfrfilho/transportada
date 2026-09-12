@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { describe, expect, test } from 'bun:test'
+import type { SQL } from 'drizzle-orm'
 import { getTableConfig, PgDialect } from 'drizzle-orm/pg-core'
 
 import {
@@ -70,6 +71,7 @@ describe('whatsapp phone binding schema', () => {
       'id',
       'user_id',
       'phone',
+      'phone_key',
       'verified_at',
       'created_at',
       'updated_at',
@@ -92,10 +94,41 @@ describe('whatsapp phone binding schema', () => {
     )
   })
 
-  test('makes a verified phone unique in the whole installation, and a pending one not', () => {
-    const name = 'user_whatsapp_phones_phone_verified_unique'
-    expect(findIndex(userWhatsAppPhones, name)?.config.unique).toBe(true)
+  /** T005b B3: `55169XXXXXXXX` e `5516XXXXXXXX` são o mesmo celular, e a Meta entrega os dois. */
+  test('derives the phone key without the ninth digit, as a stored generated column', () => {
+    const column = getTableConfig(userWhatsAppPhones).columns.find(
+      (candidate) => candidate.name === 'phone_key',
+    )
+    const generated = column?.generated?.as
+    const expression = (typeof generated === 'function' ? generated() : generated) as SQL
+
+    expect(column?.generated?.type).toBe('always')
+    expect(dialect.sqlToQuery(expression).sql).toBe('left("phone", 4) || right("phone", 8)')
+  })
+
+  test('the migration stores the key and swaps the index without dropping data', async () => {
+    const migration = await Bun.file(
+      new URL('../../drizzle/20260912014639_whatsapp_phone_key/migration.sql', import.meta.url),
+    ).text()
+
+    expect(migration).toContain(
+      'ADD COLUMN "phone_key" text GENERATED ALWAYS AS (left("phone", 4) || right("phone", 8)) STORED',
+    )
+    expect(migration).toContain('DROP INDEX "user_whatsapp_phones_phone_verified_unique"')
+    expect(migration).not.toMatch(/DROP (COLUMN|TABLE)|DELETE FROM|TRUNCATE/u)
+  })
+
+  test('makes a verified phone key unique in the whole installation, and a pending one not', () => {
+    const name = 'user_whatsapp_phones_phone_key_verified_unique'
+    const index = findIndex(userWhatsAppPhones, name)
+    expect(index?.config.unique).toBe(true)
+    expect(index?.config.columns.map((column) => ('name' in column ? column.name : ''))).toEqual([
+      'phone_key',
+    ])
     expect(indexWhere(userWhatsAppPhones, name)).toContain('"verified_at" is not null')
+    expect(
+      findIndex(userWhatsAppPhones, 'user_whatsapp_phones_phone_verified_unique'),
+    ).toBeUndefined()
   })
 
   test('carries the target, the declared phone, the code hash, the attempts and the validity', () => {

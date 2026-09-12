@@ -57,9 +57,17 @@ function sha256(value: string): string {
   return createHash('sha256').update(value).digest('hex')
 }
 
-function createVerificationScenario(options: { readonly companyNumber?: string } = {}) {
+const DAY_MS = 86_400_000
+
+function createVerificationScenario(
+  options: {
+    readonly companyNumber?: string
+    readonly displayNames?: Readonly<Record<string, string>>
+  } = {},
+) {
   const fake = createWhatsAppPhoneRepositoryFake({
     companyNumber: options.companyNumber ?? COMPANY_NUMBER,
+    displayNames: options.displayNames ?? { [USER_ID]: 'Maria Motorista' },
   })
   let now = NOW
   const requestCode = createRequestWhatsAppPhoneVerificationUseCase({
@@ -147,7 +155,7 @@ describe('a verificação de entrada (spec 144 T004)', () => {
 
     const result = await scenario.verify({ code, fromPhone: PHONE })
 
-    expect(result).toEqual({ status: 'verified', userId: USER_ID })
+    expect(result).toEqual({ displayName: 'Maria Motorista', status: 'verified', userId: USER_ID })
     expect(scenario.bindings.get(USER_ID)).toEqual({ phone: PHONE, verifiedAt: scenario.now() })
     expect(scenario.requests[0]?.consumedAt).toEqual(scenario.now())
     expect(scenario.audits).toEqual([
@@ -189,7 +197,7 @@ describe('a verificação de entrada (spec 144 T004)', () => {
 
     const result = await scenario.verify({ code, fromPhone: PHONE_WITHOUT_NINTH_DIGIT })
 
-    expect(result).toEqual({ status: 'verified', userId: USER_ID })
+    expect(result).toMatchObject({ status: 'verified', userId: USER_ID })
     /** O vínculo fica como a Meta vê o número (D1): é por ele que a próxima mensagem chega. */
     expect(scenario.bindings.get(USER_ID)?.phone).toBe(PHONE_WITHOUT_NINTH_DIGIT)
   })
@@ -267,6 +275,56 @@ describe('a verificação de entrada (spec 144 T004)', () => {
     ])
   })
 
+  /** T005b M1: a D1 promete cobrir o chip reciclado; sem liberar o vencido, o novo dono nunca entra. */
+  test('vínculo vencido há mais de 90 dias libera o número, na grafia equivalente, com trilha', async () => {
+    const scenario = createVerificationScenario()
+    await scenario.repository.saveVerified({
+      phone: PHONE_WITHOUT_NINTH_DIGIT,
+      userId: OTHER_USER_ID,
+      verifiedAt: new Date(NOW.getTime() - 91 * DAY_MS),
+    })
+    const { code } = await scenario.requestCode({
+      companyId: COMPANY_ID,
+      phone: PHONE,
+      userId: USER_ID,
+    })
+
+    const result = await scenario.verify({ code, fromPhone: PHONE })
+
+    expect(result).toMatchObject({ status: 'verified', userId: USER_ID })
+    expect(scenario.bindings.get(OTHER_USER_ID)?.verifiedAt).toBeUndefined()
+    expect(scenario.audits.map((audit) => [audit.action, audit.targetId])).toEqual([
+      [WHATSAPP_PHONE_AUDIT.expiredReleased, OTHER_USER_ID],
+      [WHATSAPP_PHONE_AUDIT.verified, USER_ID],
+    ])
+    expect(scenario.audits[0]).toMatchObject({
+      actorUserId: USER_ID,
+      metadata: { phone: '****1234' },
+      result: 'allowed',
+    })
+    expect(JSON.stringify(scenario.audits)).not.toContain(PHONE_WITHOUT_NINTH_DIGIT)
+  })
+
+  test('dentro dos 90 dias o dono continua dono, e a grafia sem o nono dígito colide', async () => {
+    const scenario = createVerificationScenario()
+    await scenario.repository.saveVerified({
+      phone: PHONE_WITHOUT_NINTH_DIGIT,
+      userId: OTHER_USER_ID,
+      verifiedAt: new Date(NOW.getTime() - 89 * DAY_MS),
+    })
+    const { code } = await scenario.requestCode({
+      companyId: COMPANY_ID,
+      phone: PHONE,
+      userId: USER_ID,
+    })
+
+    const result = await scenario.verify({ code, fromPhone: PHONE })
+
+    expect(result).toEqual({ reason: 'phone_taken', status: 'rejected' })
+    expect(scenario.bindings.get(OTHER_USER_ID)?.verifiedAt).toBeDefined()
+    expect(scenario.bindings.has(USER_ID)).toBe(false)
+  })
+
   test('pedido de outra empresa não verifica nesta', async () => {
     const scenario = createVerificationScenario()
     const { code } = await scenario.requestCode({
@@ -341,8 +399,10 @@ describe('desfazer o vínculo (spec 144 T004)', () => {
 })
 
 describe('o despachante confere o código antes do menu (spec 144 T004)', () => {
-  function createDriverScenario() {
-    const verification = createVerificationScenario()
+  function createDriverScenario(displayNames?: Readonly<Record<string, string>>) {
+    const verification = createVerificationScenario(
+      displayNames === undefined ? {} : { displayNames },
+    )
     const sent: { kind: string; body: string; to: string }[] = []
     const logged: { message: string; meta?: unknown }[] = []
     const verifyCalls: string[] = []
@@ -448,8 +508,9 @@ describe('o despachante confere o código antes do menu (spec 144 T004)', () => 
 
     await scenario.receive(` ${code} `)
 
+    /** T005b B2: quem mandou o código do próprio celular vê para quem o número foi. */
     expect(scenario.sent[0]).toEqual({
-      body: WHATSAPP_PHONE_VERIFIED_REPLY,
+      body: '✅ Número vinculado a *Maria Motorista*.',
       kind: 'text',
       to: PHONE,
     })
@@ -458,6 +519,32 @@ describe('o despachante confere o código antes do menu (spec 144 T004)', () => 
     const serialized = JSON.stringify(scenario.logged)
     expect(serialized).not.toContain(PHONE)
     expect(serialized).not.toContain(code)
+  })
+
+  test('o nome sai sem marcação, e conta sem ficha recebe a confirmação sem nome', async () => {
+    const named = createDriverScenario({ [USER_ID]: ' *Maria_ ~Motorista~ ' })
+    const unnamed = createDriverScenario({})
+    for (const scenario of [named, unnamed]) {
+      const { code } = await scenario.requestCode({
+        companyId: COMPANY_ID,
+        phone: PHONE,
+        userId: USER_ID,
+      })
+      await scenario.receive(code)
+    }
+
+    expect(named.sent[0]?.body).toBe('✅ Número vinculado a *Maria Motorista*.')
+    expect(unnamed.sent[0]?.body).toBe(WHATSAPP_PHONE_VERIFIED_REPLY)
+  })
+
+  /** T005b M4: a Meta alterna as duas grafias; o teto que as separa vale o dobro. */
+  test('a resposta neutra conta as duas grafias do nono dígito como um número só', async () => {
+    const scenario = createDriverScenario()
+
+    await scenario.receive('oi', PHONE)
+    await scenario.receive('oi', PHONE_WITHOUT_NINTH_DIGIT)
+
+    expect(scenario.sent).toEqual([{ body: WHATSAPP_DENIED_REPLY, kind: 'text', to: PHONE }])
   })
 
   test('código errado sai como a mesma resposta neutra, uma vez por dia, sem o código no log', async () => {

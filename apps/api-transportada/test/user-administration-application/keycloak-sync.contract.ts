@@ -22,6 +22,9 @@ import {
   TARGET_USER_ID,
 } from '../fixtures/keycloak-sync.fixture'
 
+const STATUS_CONTEXT = { companyId: COMPANY_ID, userId: '00000000-0000-4000-8000-0000000000a1' }
+const CORRELATION_ID = 'corr-status-change'
+
 describe('sincronização com o Keycloak — convite', () => {
   test('grava nome e a empresa como atributo no usuário criado', async () => {
     const gateway = createIdentityGatewayFake()
@@ -184,7 +187,8 @@ describe('sincronização com o Keycloak — situação do vínculo', () => {
       repository,
       whatsappPhones: createWhatsAppPhonesFake(),
     }).execute({
-      context: { companyId: COMPANY_ID },
+      context: STATUS_CONTEXT,
+      correlationId: CORRELATION_ID,
       status: 'suspended',
       userId: TARGET_USER_ID,
     })
@@ -201,7 +205,8 @@ describe('sincronização com o Keycloak — situação do vínculo', () => {
       repository,
       whatsappPhones: createWhatsAppPhonesFake(),
     }).execute({
-      context: { companyId: COMPANY_ID },
+      context: STATUS_CONTEXT,
+      correlationId: CORRELATION_ID,
       status: 'active',
       userId: TARGET_USER_ID,
     })
@@ -220,7 +225,8 @@ describe('sincronização com o Keycloak — situação do vínculo', () => {
       repository,
       whatsappPhones: createWhatsAppPhonesFake(),
     }).execute({
-      context: { companyId: COMPANY_ID },
+      context: STATUS_CONTEXT,
+      correlationId: CORRELATION_ID,
       status: 'suspended',
       userId: TARGET_USER_ID,
     })
@@ -239,7 +245,8 @@ describe('sincronização com o Keycloak — situação do vínculo', () => {
       whatsappPhones: createWhatsAppPhonesFake(),
     })
     const execution = useCase.execute({
-      context: { companyId: COMPANY_ID },
+      context: STATUS_CONTEXT,
+      correlationId: CORRELATION_ID,
       status: 'suspended',
       userId: TARGET_USER_ID,
     })
@@ -258,7 +265,8 @@ describe('sincronização com o Keycloak — situação do vínculo', () => {
       whatsappPhones: createWhatsAppPhonesFake(),
     })
     const execution = useCase.execute({
-      context: { companyId: COMPANY_ID },
+      context: STATUS_CONTEXT,
+      correlationId: CORRELATION_ID,
       status: 'active',
       userId: TARGET_USER_ID,
     })
@@ -275,9 +283,44 @@ describe('sincronização com o Keycloak — situação do vínculo', () => {
       identityGateway: createIdentityGatewayFake(),
       repository: createCompanyUserRepositoryFake(),
       whatsappPhones,
-    }).execute({ context: { companyId: COMPANY_ID }, status: 'suspended', userId: TARGET_USER_ID })
+    }).execute({
+      context: STATUS_CONTEXT,
+      correlationId: CORRELATION_ID,
+      status: 'suspended',
+      userId: TARGET_USER_ID,
+    })
 
-    expect(whatsappPhones.unbindCalls).toEqual([TARGET_USER_ID])
+    /** T005b M3: a desvinculação por suspensão diz quem suspendeu, sob que pedido. */
+    expect(whatsappPhones.unbindCalls).toEqual([
+      {
+        audit: {
+          actorUserId: STATUS_CONTEXT.userId,
+          companyId: COMPANY_ID,
+          correlationId: CORRELATION_ID,
+        },
+        userId: TARGET_USER_ID,
+      },
+    ])
+  })
+
+  test('falha ao desvincular o número reprova antes de suspender, nunca deixa vínculo calado', async () => {
+    const gateway = createIdentityGatewayFake()
+    const repository = createCompanyUserRepositoryFake()
+
+    const execution = createChangeCompanyUserStatusUseCase({
+      identityGateway: gateway,
+      repository,
+      whatsappPhones: createWhatsAppPhonesFake({ failUnbind: true }),
+    }).execute({
+      context: STATUS_CONTEXT,
+      correlationId: CORRELATION_ID,
+      status: 'suspended',
+      userId: TARGET_USER_ID,
+    })
+
+    await expect(execution).rejects.toThrow('database down')
+    expect(gateway.setEnabledCalls).toEqual([])
+    expect(repository.setMembershipStatusCalls).toEqual([])
   })
 
   test('com vínculo ativo em outra empresa, o número continua valendo lá', async () => {
@@ -289,18 +332,34 @@ describe('sincronização com o Keycloak — situação do vínculo', () => {
         activeMembershipCompanyIds: [COMPANY_ID, ANOTHER_COMPANY_ID],
       }),
       whatsappPhones,
-    }).execute({ context: { companyId: COMPANY_ID }, status: 'suspended', userId: TARGET_USER_ID })
+    }).execute({
+      context: STATUS_CONTEXT,
+      correlationId: CORRELATION_ID,
+      status: 'suspended',
+      userId: TARGET_USER_ID,
+    })
 
     expect(whatsappPhones.unbindCalls).toEqual([])
   })
 })
 
-function createWhatsAppPhonesFake() {
-  const unbindCalls: string[] = []
+type UnbindWithAuditCall = {
+  readonly audit: {
+    readonly actorUserId: string
+    readonly companyId: string
+    readonly correlationId: string
+  }
+  readonly userId: string
+}
+
+function createWhatsAppPhonesFake(options: { readonly failUnbind?: boolean } = {}) {
+  const unbindCalls: UnbindWithAuditCall[] = []
   return {
     unbindCalls,
-    async unbindByUserId({ userId }: { readonly userId: string }) {
-      unbindCalls.push(userId)
+    async unbindWithAudit(input: UnbindWithAuditCall): Promise<boolean> {
+      if (options.failUnbind === true) throw new Error('database down')
+      unbindCalls.push(input)
+      return true
     },
   }
 }

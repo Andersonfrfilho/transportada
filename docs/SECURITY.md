@@ -5,6 +5,35 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 ## Abertos
 
+### 2026-09-11 — o bot do WhatsApp: tetos por processo, código na inbox e o Keycloak desativado
+
+**Onde:** `api-transportada`, `whatsapp-commands` (spec 144, revisão de segurança antecipada; as
+correções de código são a T005b).
+
+**O que é:** três resíduos que a T005b registra em vez de corrigir.
+
+- **M4 — os tetos vivem em memória, por processo.** O teto de mensagens por número (30 em 10 min),
+  a resposta neutra (uma por número a cada 24 h) e o de pedidos de código (5 por usuário em 10 min)
+  são `createRateLimiter`, sem estado compartilhado. Com N réplicas o teto de mensagens vira 30×N e
+  a resposta neutra vira N por 24 h; restart zera tudo. A chave passou a ser a `phone_key` (sem o
+  nono dígito) — as duas grafias da Meta não dobram mais o teto dentro de um processo.
+- **B1 — o código de verificação fica em texto** no log de mensagens do
+  `@adatechnology/meta-whatsapp-module` e na inbox, porque a mensagem que o traz é uma mensagem como
+  outra qualquer. Ele é de uso único, vale dez minutos e só verifica vindo do `from` assinado; o
+  risco é quem lê a inbox ver um código já gasto ou prestes a vencer.
+- **B6 — usuário desativado direto no Keycloak segue ativo pelo bot** até o vínculo vencer (90
+  dias): o contexto do canal é montado pela membership no nosso banco, sem token, e o provedor não é
+  consultado. Suspender pelo produto desfaz o vínculo (com trilha, desde a T005b); desativar só no
+  console do Keycloak, não.
+
+**Mitigação em vigor:** número verificado é credencial só de gente — service account, plataforma e
+contexto de canal são recusados na rota e no resolve (T005b A1); a política de membership não sobe
+fora de `/me/` (M2); o vínculo vencido libera o número (M1).
+
+**Desfecho pendente:** limitador com estado compartilhado (a mesma decisão das rotas anônimas de
+senha e do portal); pedir ao pacote que não persista o corpo da mensagem que é só o código; e
+consultar o `enabled` do provedor, ou sincronizá-lo, antes de aceitar o número.
+
 ### 2026-08-31 — a foto de perfil ganha endereço público, sem login e sem trilha
 
 O atributo `picture` do realm passa a guardar `\${API}/public/company-users/{token}/picture`, uma

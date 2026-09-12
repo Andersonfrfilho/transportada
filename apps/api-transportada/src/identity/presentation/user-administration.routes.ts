@@ -343,9 +343,13 @@ export function createUserAdministrationRoutes(
         return jsonResponse({ body: { data: serializeCompanyUser(companyUser) }, status: 200 })
       },
       method: 'PATCH',
-      async parse({ pathParameters, request }) {
+      async parse({ correlationId, pathParameters, request }) {
         const body = await parseChangeCompanyUserStatusRequest(request)
-        return { status: body.status, userId: parseUuidPathIdentifier(pathParameters.id ?? '') }
+        return {
+          correlationId,
+          status: body.status,
+          userId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+        }
       },
       pathname: USER_STATUS_PATH,
       pathParameterFormat: 'raw',

@@ -218,6 +218,17 @@ describe('resolveWhatsAppActor (spec 144 T005)', () => {
     expect(membershipLookups).toEqual([{ companyId: COMPANY_ID, userId: USER_ID }])
   })
 
+  /** T005b A1: token de serviço vazado não pode ter virado número de WhatsApp antes da correção. */
+  test('vínculo pré-existente de service account é recusado como service_account', async () => {
+    const { resolveActor } = createScenario({
+      membership: { grantedPermissions: [], membershipId: MEMBERSHIP_ID, roles: ['automation'] },
+    })
+
+    const result = await resolveActor({ companyId: COMPANY_ID, fromPhone: PHONE, now: NOW })
+
+    expect(result).toEqual({ reason: 'service_account', status: 'denied' })
+  })
+
   test('erro de infraestrutura propaga, não vira recusa', async () => {
     const resolveActor = createResolveWhatsAppActorUseCase({
       memberships: { findStanding: async () => 'absent' },
