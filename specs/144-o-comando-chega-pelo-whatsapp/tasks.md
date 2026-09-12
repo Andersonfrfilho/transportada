@@ -152,7 +152,11 @@ status='previewed' and preview_sha256=$hash and expires_at>now() returning` + li
 
 > 🤖 Modelo: `sonnet`; revisão final `opus`
 
-- [ ] **T017** Tela "WhatsApp" no perfil do usuário (verificar e desvincular o número) —
+- [ ] **T017** Passo 0 no backend: `GET /me/whatsapp-phone` (status `none|pending|verified|expired`,
+      número mascarado, pedido pendente **sem** o código, `no-store`), na allowlist da política de
+      membership travada pela T005b — medido em 2026-09-12 que a T004 não a criou e a tela não teria
+      de onde ler o estado. Depois, a tela "WhatsApp" no perfil do usuário (verificar e desvincular o
+      número) —
       `frontend-transportada/src/modules/identity/` — contratos de design system existentes verdes
 - [ ] **T018** `docs/SECURITY.md` (teto por número, achado do rate limit redatado), CLAUDE.md (seção
       do módulo), ADR-0063 "O telefone vira credencial só verificado" e ADR-0064 "A fatura sai em nome de quem
