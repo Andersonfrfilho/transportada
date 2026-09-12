@@ -9,9 +9,9 @@
 
 > 🤖 Modelo: `opus`
 
-- [ ] T1 🧠 — Contrato `test/cargo-volume/document-box-estimate.contract.ts` (G001) escrito e
+- [x] T1 🧠 — Contrato `test/cargo-volume/document-box-estimate.contract.ts` (G001) escrito e
       **vermelho**, importado em `test/cargo-volume.contract.test.ts`.
-- [ ] T2 🧠 — `resolveDocumentCargoEstimate` em `cargo-volume.policy.ts` (D2, `bigint` escalado);
+- [x] T2 🧠 — `resolveDocumentCargoEstimate` em `cargo-volume.policy.ts` (D2, `bigint` escalado);
       T1 verde; `resolveMeasuredCargoVolume` intocada e seus chamadores conferidos por grep.
 
 ## Fase 2 — Caixa presumida pela nota até o empacotador (`sonnet`)
