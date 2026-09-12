@@ -22,12 +22,6 @@ export const WHATSAPP_DEFAULT_FALLBACK_REPLY = 'Não entendi. Toque numa das op�
 
 export const WHATSAPP_DEFAULT_PROMPT = 'Escolha uma opção.'
 
-export const WHATSAPP_LIST_BUTTON_LABEL = 'Ver opções'
-
-export const WHATSAPP_BUTTON_OPTION_LIMIT = 3
-
-export const WHATSAPP_LIST_OPTION_LIMIT = 10
-
 export const WHATSAPP_INVALID_ATTEMPTS_CONTEXT_KEY = 'whatsappInvalidAttempts'
 
 export const WHATSAPP_INVALID_ATTEMPTS_BEFORE_HANDOFF = 2

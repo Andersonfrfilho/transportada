@@ -56,7 +56,7 @@ Fase 2, logo depois da T006.
       `DELETE /me/whatsapp-phone` e `DELETE /company-users/:id/whatsapp-phone` (`users.manage`, só
       desfaz); trilha em `audit_logs` — contrato do `from` divergente, do código vencido e da colisão
       com número já verificado por outro usuário (mesmo 400 genérico)
-- [ ] **T007** Política de menu (botão ≤3 com emoji, lista 4–10, paginação >10, teto de 20/24
+- [x] **T007** Política de menu (botão ≤3 com emoji, lista 4–10, paginação >10, teto de 20/24
       caracteres) e validação na publicação do grafo — `domain/whatsapp-menu.policy.ts` — contrato
 - [ ] **T008** Grafo em código + comando de republicação versionada; o menu raiz é filtrado por
       permissão — `infrastructure/whatsapp-flow-graph.seed.ts`, `scripts/` — contrato de

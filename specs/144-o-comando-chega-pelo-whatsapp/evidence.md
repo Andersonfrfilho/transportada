@@ -626,3 +626,109 @@ code_mismatch · phone_taken · stale`) é a resposta neutra única da T006, no 
   com load average de 40 (19 sessões). Nenhum arquivo de carga está neste diff.
 - À parte, porque o `make check` para na primeira falha: worker 1002 · cron 94 · frontend 3316 ·
   frontend-client 18 · frontend-landing 107, todos 0 fail; `bun run build` → exit 0.
+
+## T007 — o menu cabe no canal (2026-09-11)
+
+Política de menu pura (`domain/whatsapp-menu.policy.ts` + `whatsapp-menu.constant.ts` +
+`whatsapp-menu.error.ts`) e o renderizador provisório da T006 (`renderChoice`) trocado pela
+implementação definitiva. O driver da T006 passa a resolver `__more__`/`__back__` antes de validar
+a resposta.
+
+### Números confirmados na doc oficial da Meta
+
+Fonte: `developers.facebook.com/documentation/business-messaging/whatsapp/messages/` — as duas
+páginas de mensagem interativa (`interactive-reply-buttons-messages` e
+`interactive-list-messages`), lidas via `WebFetch` em 2026-09-11.
+
+| limite                             | valor confirmado | onde vive                                                   |
+| ---------------------------------- | ---------------- | ----------------------------------------------------------- |
+| Botões por mensagem                | 3                | `WHATSAPP_CHOICE_LIMIT.buttons`                             |
+| Título do botão                    | 20 caracteres    | `WHATSAPP_CHOICE_LIMIT.buttonTitle`                         |
+| Corpo (botões)                     | 1024 caracteres  | `WHATSAPP_CHOICE_LIMIT.body`                                |
+| Rodapé                             | 60 caracteres    | não usado hoje (sem rodapé no despachante)                  |
+| Id do botão                        | 256 caracteres   | não usado hoje (ids curtos, `[a-z0-9_]+`)                   |
+| Linhas por lista (todas as seções) | 10               | `WHATSAPP_CHOICE_LIMIT.listRows`                            |
+| Seções por lista                   | 10               | não usado hoje (uma seção só)                               |
+| Título da seção                    | 24 caracteres    | `WHATSAPP_CHOICE_LIMIT.sectionTitle` (não usado hoje)       |
+| Título da linha                    | 24 caracteres    | `WHATSAPP_CHOICE_LIMIT.listRowTitle`                        |
+| Descrição da linha                 | 72 caracteres    | `WHATSAPP_CHOICE_LIMIT.listRowDescription` (não usado hoje) |
+| Texto do botão que abre a lista    | 20 caracteres    | `WHATSAPP_CHOICE_LIMIT.listButtonText`                      |
+| Corpo (lista)                      | 4096 caracteres  | ⚠️ divergente do de botões — ver abaixo                     |
+
+⚠️ **O corpo tem dois tetos diferentes por formato, e a constante usa o mais restritivo.** A doc de
+botões diz 1024; a de lista diz 4096. `planChoiceMessage` decide o formato pela contagem de opções
+depois de o corpo já estar escrito, então validar o corpo por um teto único e conservador (1024)
+evita que o mesmo texto passe para lista e falhe se algum dia entrar como botão. Nenhum teste desta
+task exercita o limite de corpo — nenhum corpo do despachante hoje chega perto de 1024 caracteres.
+
+`listRowDescription`, `sectionTitle` e `listButtonText`\* seguem documentados na constante mesmo sem
+consumidor: o `WhatsAppMessageSenderPort.sendList` (porta do despachante) só leva `{id, title}` por
+linha — o `ChannelAdapterInterface.sendInteractiveList` do `@adatechnology/meta-whatsapp-module@0.1.0`
+não expõe descrição nem seção — então `listRowDescription`/`sectionTitle` não têm como ser
+verificados por teste de contrato hoje; ficam prontos para quando a porta ganhar esses campos. \*`listButtonText` **é** usado (`WHATSAPP_LIST_BUTTON_TEXT = 'Ver opções'`, 10 graphemes, dentro do
+teto).
+
+### `planChoiceMessage`
+
+- ≤3 opções → botões; 4–10 → lista sem paginação; acima de 10 depende da origem (`source`):
+  - `'graph'` (nó estático do grafo): **nunca pagina** — lança `WhatsAppMenuPolicyViolationError`
+    (`too_many_options`). `validateFlowGraphForWhatsApp` deveria ter recusado isso na publicação;
+    chegar aqui em runtime é bug, não estado esperado (conversation-flow.md §2: "acima de 10 ❌ não
+    existe — quebrar em dois nós").
+  - `'dynamic'` (lista vinda do banco — viagens, notas, emitentes, tipos de ocorrência, ainda sem
+    consumidor nesta spec): pagina — página 1 com 9 opções + "➡️ Mais" (`__more__:2`); da página 2
+    em diante, "⬅️ Voltar" (`__back__:<página anterior>`) mais até 8 opções e, se sobrar mais,
+    "➡️ Mais" outra vez. Nenhuma página passa de 10 linhas, navegação incluída. Testado com 11, 12 e
+    27 opções (3 e 4 páginas), sem furo e sem repetição de id real.
+  - Título de opção `dynamic` acima do teto trunca com "…", id preservado. Título de opção `graph`
+    acima do teto **lança** — nunca truncado em silêncio (mandado no prompt da task): título grande
+    de nó estático é bug de publicação, e uma mensagem quebrada na Meta é pior que um erro alto aqui.
+  - Quem decide `source` é o renderizador (`renderWhatsAppChoice`), pela contagem: mais de
+    `WHATSAPP_CHOICE_LIMIT.listRows` só pode ter vindo de uma lista dinâmica, porque um nó estático
+    validado nunca passa desse teto — nenhum campo novo em `FlowNodeData` foi necessário.
+
+### `validateFlowGraphForWhatsApp`
+
+Devolve **todas** as violações de um nó, não a primeira (`title_too_long` e `missing_emoji` juntos
+quando os dois valem). Regras: título acima do teto do formato que o nó vai usar (grapheme, via
+`Intl.Segmenter`, não `.length` — emoji com variation selector conta um caractere para quem lê, não
+dois); opção sem emoji **só** em nó de ≤3 (lista não exige, conversation-flow.md §3: "quando o
+texto couber"); id fora de `^[a-z0-9_]+$` (§7); nó de escolha sem `fallbackMessage`; mais de 10
+opções (nó estático nunca pagina); nó sem `next` que não seja `type: 'action'` — ação é terminal por
+si (`directMessage` ou handler registrado), os demais tipos (`menu`, `question`, `condition`,
+`entrada_choice`) precisam de rota de saída, senão a conversa morre calada (conversation-flow.md §5).
+`WHATSAPP_ROOT_FLOW` (o grafo publicado hoje) passa sem violação — contrato próprio.
+
+### `parseMenuPageNavigation` + wiring no despachante
+
+`__more__:N`/`__back__:N` são ids de sistema, nunca de opção autorada — não passam pelo padrão do
+§7 e não contam como resposta inválida (D8 é sobre texto livre, não sobre navegação de página). O
+despachante (`advanceConversation`) checa isso **antes** de `isOfferedOption`: página válida →
+`renderChoicePage` (mesmo nó, página nova, sem chamar `runWhatsAppFlow`, sem persistir posição nem
+contexto, sem contar tentativa); nem uma nem outra → cai no fluxo normal de validação da T006.
+
+### Vermelho → verde
+
+- Vermelho: os dois testes de `command-driver.contract.ts` que hoje exercitam paginação
+  (`__more__`/`__back__`) falhavam antes desta task por módulo/comportamento inexistente
+  (`renderChoice` provisório só cortava nas 10 primeiras, sem navegação).
+- Verde: `bun test ./test/whatsapp-commands.contract.test.ts` → 124 pass · 0 fail (62 do despachante
+  e da política nova, incluindo `whatsapp-menu-policy.contract.ts`; o resto do módulo inalterado).
+- Integração `test/integration/whatsapp-command-driver.integration.ts` (`bun --env-file=../../.env.test
+test --timeout 120000`, a partir de `apps/api-transportada`) → 5 pass · 0 fail — cobre o menu em
+  botões de ponta a ponta com o Graph API fake; nenhum grafo real desta spec ainda tem opção
+  dinâmica, então a paginação em produção segue sem exercício de integração (fica para quando um nó
+  `dynamic` existir, Fase 3+).
+
+### Gates
+
+- `bun run typecheck` → 0 erros. `bunx eslint src/whatsapp-commands test/whatsapp-commands
+test/whatsapp-commands.contract.test.ts` → 0 erros.
+- `make check` → exit 1, **só** pela flaky conhecida e já registrada em T006/T004: API 5188 pass ·
+  1 fail ("o Atego de 1417 caixas cabe no orçamento de 50 ms", 91 ms — orçamento de tempo sob carga
+  de CPU, spec 115), 23 skip, 37400 expect() calls, 166 arquivos; `format:check`, `lint` e
+  `typecheck` das seis apps verdes antes disso. Isolado, `bun test
+./test/cargo-volume.contract.test.ts` → 302 pass · 1 fail, o mesmo orçamento (74–91 ms neste
+  ambiente). Nenhum arquivo de carga está neste diff.
+- À parte, porque o `check` para na primeira falha de teste: `bun run build` (raiz, todas as apps) →
+  exit 0.

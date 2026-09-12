@@ -1,11 +1,8 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import {
-  WHATSAPP_BUTTON_OPTION_LIMIT,
-  WHATSAPP_LIST_BUTTON_LABEL,
-  WHATSAPP_LIST_OPTION_LIMIT,
-} from '../domain/whatsapp-command.constant.js'
+import { WHATSAPP_CHOICE_LIMIT } from '../domain/whatsapp-menu.constant.js'
+import { planChoiceMessage } from '../domain/whatsapp-menu.policy.js'
 import type {
   WhatsAppChoiceOption,
   WhatsAppMessageSenderPort,
@@ -14,30 +11,36 @@ import type {
 export type WhatsAppChoiceRenderer = (input: {
   readonly body: string
   readonly options: readonly WhatsAppChoiceOption[]
+  readonly page?: number
   readonly sender: WhatsAppMessageSenderPort
   readonly to: string
 }) => Promise<void>
 
 /**
- * Provisória e substituível: o despachante recebe o renderizador por dependência, e a T007 entrega
- * a política definitiva (teto de 20/24 caracteres, emoji obrigatório, paginação acima de 10).
- * ⚠️ Até lá, acima de 10 opções só as 10 primeiras são oferecidas.
+ * Spec 144 T007 — traduz `planChoiceMessage` para `sendButtons`/`sendList`. A origem nunca vem de
+ * fora: um nó estático do grafo é validado na publicação e nunca passa de
+ * `WHATSAPP_CHOICE_LIMIT.listRows`; se algo chegar acima disso aqui, só pode ter vindo de uma lista
+ * dinâmica (viagens, notas, emitentes), que é a única que pagina.
  */
 export const renderWhatsAppChoice: WhatsAppChoiceRenderer = async ({
   body,
   options,
+  page,
   sender,
   to,
 }) => {
-  if (options.length <= WHATSAPP_BUTTON_OPTION_LIMIT) {
-    await sender.sendButtons({ body, buttons: options, to })
+  const source = options.length > WHATSAPP_CHOICE_LIMIT.listRows ? 'dynamic' : 'graph'
+  const plan = planChoiceMessage({
+    body,
+    options,
+    source,
+    ...(page === undefined ? {} : { page }),
+  })
+
+  if (plan.kind === 'buttons') {
+    await sender.sendButtons({ body: plan.body, buttons: plan.buttons, to })
     return
   }
 
-  await sender.sendList({
-    body,
-    buttonLabel: WHATSAPP_LIST_BUTTON_LABEL,
-    rows: options.slice(0, WHATSAPP_LIST_OPTION_LIMIT),
-    to,
-  })
+  await sender.sendList({ body: plan.body, buttonLabel: plan.buttonText, rows: plan.rows, to })
 }

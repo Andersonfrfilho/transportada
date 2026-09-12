@@ -137,9 +137,39 @@ async function renderNode(input: {
     return
   }
 
+  await renderChoiceOptions({ body, node, turn })
+}
+
+/**
+ * T007 — reusada pelo despachante para re-renderizar a página de `__more__`/`__back__`: mesmo nó,
+ * mesma pergunta, página diferente. Não passa por `settleFlow`: nem posição nem contexto mudam.
+ */
+export async function renderChoicePage(input: {
+  readonly node: FlowNodeData
+  readonly page: number
+  readonly turn: WhatsAppCommandTurn
+}): Promise<void> {
+  const { node, page, turn } = input
+  const body = node.question ?? node.directMessage ?? WHATSAPP_DEFAULT_PROMPT
+  await renderChoiceOptions({ body, node, page, turn })
+}
+
+async function renderChoiceOptions(input: {
+  readonly body: string
+  readonly node: FlowNodeData
+  readonly page?: number
+  readonly turn: WhatsAppCommandTurn
+}): Promise<void> {
+  const { body, node, page, turn } = input
   const options = (node.options ?? []).map(([id, title]) => ({ id, title }))
   const renderChoice = turn.deps.renderChoice ?? renderWhatsAppChoice
-  await renderChoice({ body, options, sender: turn.deps.sender, to: turn.phone })
+  await renderChoice({
+    body,
+    options,
+    sender: turn.deps.sender,
+    to: turn.phone,
+    ...(page === undefined ? {} : { page }),
+  })
 }
 
 async function abortFlow(input: {

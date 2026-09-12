@@ -31,6 +31,7 @@ import {
   WHATSAPP_MAX_CROSS_FLOW_HOPS,
   WHATSAPP_PHONE_VERIFIED_REPLY,
 } from '../domain/whatsapp-command.constant.js'
+import { parseMenuPageNavigation } from '../domain/whatsapp-menu.policy.js'
 import { WHATSAPP_PHONE_VERIFICATION_CODE_MESSAGE_PATTERN } from '../domain/whatsapp-phone-verification.constant.js'
 import {
   type WhatsAppCommandDenialReason,
@@ -52,6 +53,7 @@ import type {
 } from './whatsapp-command-driver.port.js'
 import {
   clearWhatsAppFlowPosition,
+  renderChoicePage,
   runWhatsAppFlow,
   type WhatsAppCommandTurn,
   withoutInvalidAttempts,
@@ -171,9 +173,16 @@ async function advanceConversation(turn: WhatsAppCommandTurn): Promise<void> {
   }
 
   const answer = extractWhatsAppAnswer(turn.message)
-  if (isChoiceNode(located.node) && !isOfferedOption(located.node, answer)) {
-    await rejectAnswer({ context, node: located.node, turn })
-    return
+  if (isChoiceNode(located.node)) {
+    const page = parseMenuPageNavigation(answer)
+    if (page !== undefined) {
+      await renderChoicePage({ node: located.node, page, turn })
+      return
+    }
+    if (!isOfferedOption(located.node, answer)) {
+      await rejectAnswer({ context, node: located.node, turn })
+      return
+    }
   }
 
   await runWhatsAppFlow({

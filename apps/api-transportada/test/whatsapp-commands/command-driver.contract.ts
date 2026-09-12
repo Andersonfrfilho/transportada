@@ -419,13 +419,66 @@ describe('a escolha renderizada (spec 144 T006, política definitiva na T007)', 
     expect(harness.sent[0]?.kind).toBe('list')
   })
 
-  test('acima de 10 a lista leva as 10 primeiras', async () => {
+  /** T007: acima de 10 pagina — 9 opções + "➡️ Mais" na primeira página, nunca "as 10 primeiras". */
+  test('acima de 10 pagina: a primeira página traz 9 opções e ➡️ Mais', async () => {
     const harness = createHarness({ graph: menuWith(12) })
 
     await harness.onMessageReceived(text('oi'), buildSession())
 
     const [first] = harness.sent
     expect(first?.kind).toBe('list')
-    expect(first?.kind === 'list' ? first.ids : []).toHaveLength(10)
+    expect(first?.kind === 'list' ? first.ids : []).toEqual([
+      'o0',
+      'o1',
+      'o2',
+      'o3',
+      'o4',
+      'o5',
+      'o6',
+      'o7',
+      'o8',
+      '__more__:2',
+    ])
+  })
+
+  test('__more__ avança a página sem contar tentativa inválida nem chamar o interpretador', async () => {
+    const harness = createHarness({ graph: menuWith(12) })
+    await harness.onMessageReceived(text('oi'), buildSession())
+    const storedBeforeMore = harness.storedContexts.length
+
+    await harness.onMessageReceived(button('__more__:2'), buildSession())
+
+    const [, second] = harness.sent
+    expect(second?.kind).toBe('list')
+    expect(second?.kind === 'list' ? second.ids : []).toEqual(['__back__:1', 'o9', 'o10', 'o11'])
+    expect(harness.position.value).toMatchObject({ currentNodeId: 'menu', flowKey: FLOW_KEY })
+    /** Re-render de página não persiste nada: nem posição nova, nem contexto, nem tentativa. */
+    expect(harness.storedContexts).toHaveLength(storedBeforeMore)
+    expect(harness.position.value.context).toEqual({})
+  })
+
+  test('__back__ volta para a página anterior, com o mesmo __more__ estável', async () => {
+    const harness = createHarness({ graph: menuWith(12) })
+    await harness.onMessageReceived(text('oi'), buildSession())
+    await harness.onMessageReceived(button('__more__:2'), buildSession())
+    const storedBeforeBack = harness.storedContexts.length
+
+    await harness.onMessageReceived(button('__back__:1'), buildSession())
+
+    const third = harness.sent.at(-1)
+    expect(third?.kind).toBe('list')
+    expect(third?.kind === 'list' ? third.ids : []).toEqual([
+      'o0',
+      'o1',
+      'o2',
+      'o3',
+      'o4',
+      'o5',
+      'o6',
+      'o7',
+      'o8',
+      '__more__:2',
+    ])
+    expect(harness.storedContexts).toHaveLength(storedBeforeBack)
   })
 })
