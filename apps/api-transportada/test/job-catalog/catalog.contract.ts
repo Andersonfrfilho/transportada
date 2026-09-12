@@ -91,6 +91,12 @@ const CATALOG = [
     job: 'geocoding.refine',
     minimumIntervalSeconds: 3600,
   },
+  {
+    /** Spec 144 T014: a rotina só pergunta à API; a única falha própria é não conseguir perguntar. */
+    failureOutcomes: ['settlement_request_failed'],
+    job: 'whatsapp.command.settle',
+    minimumIntervalSeconds: 300,
+  },
 ] as const
 
 /**
@@ -105,6 +111,7 @@ const SEED_MIGRATIONS = [
   '20260901214952_geocoding_backfill_job',
   '20260902003000_geocoding_backfill_hourly',
   '20260905130000_geocoded_address_paid_refinement',
+  '20260912153407_whatsapp_command_settlement',
 ] as const
 
 describe('job catalog', () => {

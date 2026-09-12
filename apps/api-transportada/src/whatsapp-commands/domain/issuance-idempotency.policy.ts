@@ -40,6 +40,14 @@ export function buildNfseInvoiceIdempotencyKey(input: {
   return `whatsapp:${input.requestId}:nfse:${buildNfseGroupKey(input)}`
 }
 
+/** A fatura da liquidação (T014): uma por tomador, e o tomador sai do grupo congelado na prévia. */
+export function buildBillingInvoiceIdempotencyKey(input: {
+  readonly requestId: string
+  readonly takerTaxId: string
+}): string {
+  return `whatsapp:${input.requestId}:billing:${normalizeTaxId(input.takerTaxId)}`
+}
+
 export class WhatsAppCommandIdempotencyKeyInvalidError extends Error {
   public constructor() {
     super('WHATSAPP_COMMAND_IDEMPOTENCY_KEY_INVALID')

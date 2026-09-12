@@ -167,7 +167,13 @@ describe('pedido de comando do WhatsApp — confirmar é confirmar a prévia mos
         )
 
         expect(
-          await repository.markSettled({ companyId, id: requestId, now, outcome: 'settled' }),
+          await repository.markSettled({
+            companyId,
+            id: requestId,
+            now,
+            outcome: 'settled',
+            settlementOutcome: 'completed',
+          }),
         ).toBe(false)
         const stuck = await repository.listForSettlement({
           companyId,
@@ -182,15 +188,22 @@ describe('pedido de comando do WhatsApp — confirmar é confirmar a prévia mos
             id: requestId,
             now,
             outcome: 'settled_partial',
+            settlementOutcome: 'timed_out',
           }),
         ).toBe(true)
         expect(
-          await repository.markSettled({ companyId, id: requestId, now, outcome: 'settled' }),
+          await repository.markSettled({
+            companyId,
+            id: requestId,
+            now,
+            outcome: 'settled',
+            settlementOutcome: 'completed',
+          }),
         ).toBe(false)
         const settled = await repository.findById({ companyId, id: requestId })
         expect([settled?.status, settled?.settlementOutcome]).toEqual([
           'settled_partial',
-          'settled_partial',
+          'timed_out',
         ])
       })
     },

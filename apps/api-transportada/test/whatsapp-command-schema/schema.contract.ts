@@ -14,6 +14,7 @@ import {
   WHATSAPP_COMMAND_DOCUMENT_STATUSES,
   WHATSAPP_COMMAND_IDEMPOTENCY_KEY_PATTERN,
   WHATSAPP_COMMAND_KINDS,
+  WHATSAPP_COMMAND_SETTLEMENT_OUTCOMES,
   WHATSAPP_COMMAND_STATUSES,
   whatsAppCommandDocuments as directDocuments,
   whatsAppCommandRequests as directRequests,
@@ -173,6 +174,24 @@ describe('whatsapp command request schema', () => {
     )
     expect(checkSql(table, 'whatsapp_command_requests_settled_at_check')).toContain(
       '"settled_at" is not null',
+    )
+  })
+
+  /** Spec 144 T014: o vocabulário de `settlement_outcome` é da liquidação, e o CHECK o fecha. */
+  test('constrains the settlement outcome to the vocabulary of the settlement', () => {
+    expect(WHATSAPP_COMMAND_SETTLEMENT_OUTCOMES).toEqual([
+      'completed',
+      'timed_out',
+      'actor_not_authorized',
+      'billing_failed',
+    ])
+    const settlementCheck = checkSql(
+      whatsAppCommandRequests,
+      'whatsapp_command_requests_settlement_outcome_check',
+    )
+    expect(settlementCheck).toContain('"settlement_outcome" is null')
+    expect(settlementCheck).toContain(
+      "'completed', 'timed_out', 'actor_not_authorized', 'billing_failed'",
     )
   })
 

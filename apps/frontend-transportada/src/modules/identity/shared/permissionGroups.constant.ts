@@ -15,7 +15,10 @@ export const PERMISSION_GROUPS = [
   { key: 'batches', permissions: ['batches.create', 'batches.approve'] },
   { key: 'cte', permissions: ['cte.manage', 'cte.submit', 'cte.issue', 'cte.cancel', 'cte.read'] },
   { key: 'freight', permissions: ['freight.simulate'] },
-  { key: 'billing', permissions: ['billing.create', 'billing.cancel', 'billing.read'] },
+  {
+    key: 'billing',
+    permissions: ['billing.create', 'billing.cancel', 'billing.read', 'whatsapp.settle'],
+  },
   { key: 'fleet', permissions: ['fleet.read', 'fleet.manage'] },
   {
     key: 'trip',

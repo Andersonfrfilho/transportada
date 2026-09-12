@@ -394,6 +394,10 @@
         "label": "Emissão automática de MDF-e",
         "where": "Só do serviço: o gatilho automático, sem tela. Nenhuma pessoa recebe."
       },
+      "whatsapp.settle": {
+        "label": "WhatsApp request settlement",
+        "where": "Service only: bills on behalf of whoever confirmed, no screen. No person receives it."
+      },
       "nfse.read": {
         "label": "Ver NFS-e",
         "where": "Tela Nota de serviço: a listagem e o documento."

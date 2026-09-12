@@ -11,10 +11,12 @@ import {
   whatsAppCommandRequests,
 } from '../../database/database.schema.js'
 import { inList } from '../../database/schema-check.constant.js'
+import type { WhatsAppCommandSettlementCode } from '../../database/whatsapp-command.schema.js'
 import type {
   ClaimWhatsAppCommandInput,
   CreateWhatsAppCommandPreviewInput,
   MarkWhatsAppCommandJournalStepInput,
+  RecordWhatsAppCommandJournalStepInput,
   WhatsAppCommandJournalStep,
   WhatsAppCommandRepositoryPort,
   WhatsAppCommandRequest,
@@ -257,18 +259,43 @@ export class DrizzleWhatsAppCommandRepository implements WhatsAppCommandReposito
     return rows.map(toRequest)
   }
 
+  /** Liquidar grava a fatura no diário; repetir depois de uma queda atualiza a mesma linha. */
+  public async recordJournalStep(input: RecordWhatsAppCommandJournalStepInput): Promise<void> {
+    const values = {
+      documentId: input.documentId ?? null,
+      lastErrorCode: input.errorCode ?? null,
+      status: input.status,
+    }
+    await this.database
+      .insert(documents)
+      .values({
+        ...values,
+        companyId: input.companyId,
+        documentKind: input.documentKind,
+        groupKey: input.groupKey,
+        idempotencyKey: input.idempotencyKey,
+        requestId: input.requestId,
+      })
+      .onConflictDoUpdate({
+        set: { ...values, updatedAt: new Date() },
+        setWhere: eq(documents.companyId, input.companyId),
+        target: [documents.requestId, documents.documentKind, documents.groupKey],
+      })
+  }
+
   /** `where status = 'dispatched'` torna a repetição da liquidação inofensiva. */
   public async markSettled(input: {
     readonly companyId: string
     readonly id: string
     readonly now: Date
     readonly outcome: WhatsAppCommandSettlementOutcome
+    readonly settlementOutcome: WhatsAppCommandSettlementCode
   }): Promise<boolean> {
     const updated = await this.database
       .update(requests)
       .set({
         settledAt: input.now,
-        settlementOutcome: input.outcome,
+        settlementOutcome: input.settlementOutcome,
         status: input.outcome,
         updatedAt: input.now,
       })

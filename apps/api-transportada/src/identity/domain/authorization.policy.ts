@@ -70,6 +70,12 @@ export const TRANSPORTADA_PERMISSIONS = Object.freeze([
    */
   'mdfe.auto-issue',
   /**
+   * Spec 144 T014: a liquidação do pedido de WhatsApp, pela mesma régua da ADR-0047 §4 — uma rota
+   * só, do serviço. Quem fatura é a API em nome de quem confirmou, depois de revalidá-lo; o serviço
+   * não recebe `billing.create`, senão faturaria qualquer CT-e de qualquer empresa.
+   */
+  'whatsapp.settle',
+  /**
    * Spec 085 G005: medir a caixa de papelão é trabalho de galpão, e tem permissão própria.
    * `settings.manage` entregaria de carona o preço do combustível, a tabela de frete e a credencial
    * da prefeitura — quem confere caixa não administra nada disso.
@@ -221,7 +227,7 @@ export const COMPANY_ROLE_PERMISSIONS = Object.freeze({
    * Nada de leitura de nota, de frota ou de faturamento: o worker só precisa pedir o manifesto que
    * a viagem já está pronta para ter.
    */
-  automation: Object.freeze(['mdfe.auto-issue']),
+  automation: Object.freeze(['mdfe.auto-issue', 'whatsapp.settle']),
 } satisfies Readonly<Record<CompanyRole, readonly CompanyPermission[]>>)
 
 export type CompanyAuthorizationPolicy = {

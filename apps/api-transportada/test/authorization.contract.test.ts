@@ -64,6 +64,8 @@ describe('authorization contract', () => {
       'trip.financials',
       // ADR-0047 §4: a permissão do serviço, com escopo de uma rota só
       'mdfe.auto-issue',
+      // Spec 144 T014: a liquidação do WhatsApp, pela mesma régua — uma rota só, do serviço
+      'whatsapp.settle',
       // Spec 085 G005: medir a caixa é galpão, e não sai de carona com `settings.manage`
       'cargo.measure',
       // ADR-0050: a permissão do contratante — acompanhar a entrega das notas dos documentos dele
@@ -172,7 +174,7 @@ describe('authorization contract', () => {
       aggregate: ['trip.read', 'trip.report'],
       separator: ['invoices.read', 'fleet.read', 'trip.read', 'trip.manage', 'cargo.measure'],
       contractor: ['deliveries.track', 'charges.decide'],
-      automation: ['mdfe.auto-issue'],
+      automation: ['mdfe.auto-issue', 'whatsapp.settle'],
     })
   })
 
@@ -324,6 +326,7 @@ describe('authorization contract', () => {
       (permission) =>
         permission !== 'companies.manage' &&
         permission !== 'mdfe.auto-issue' &&
+        permission !== 'whatsapp.settle' &&
         permission !== 'deliveries.track' &&
         permission !== 'charges.decide',
     )

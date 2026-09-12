@@ -1802,3 +1802,247 @@ Os casos de uso reais de lote, emissão e NFS-e rodam contra Postgres. **Nenhuma
   - as seis apps constroem.
 
   A flaky conhecida de `cargo-volume.contract.test.ts` não disparou nesta rodada.
+
+## T014 — a liquidação fatura em nome de quem confirmou (2026-09-11)
+
+O pedido `dispatched` deixou de ficar parado. O worker varre a cada batida, e quando os documentos
+chegam a estado final (ou passam de 2 horas) chama a API com token de máquina. A API recalcula tudo
+pelo banco, **revalida** quem confirmou e fatura os CT-e autorizados, uma fatura por tomador, em nome
+dele. O `confirming` parado há mais de 15 minutos é retomado pelo `resume` da T013, pela mesma rota.
+
+### Arquivos
+
+- API, domínio:
+  - `whatsapp-command-settlement.policy.ts` (pura): estado final de cada documento e veredito do
+    pedido. É cópia por valor no worker, com o corpo idêntico abaixo da marca
+    `// ── corpo compartilhado ──`;
+  - `issuance-idempotency.policy.ts`: `buildBillingInvoiceIdempotencyKey`, ao lado das chaves de CT-e
+    e NFS-e.
+- API, aplicação:
+  - `settle-whatsapp-command.use-case.ts`: a liquidação e a retomada;
+  - `whatsapp-command-settlement.port.ts`: a leitura do estado de cada documento;
+  - `whatsapp-command-settlement-summary.service.ts`: o texto do resumo;
+  - `whatsapp-command.port.ts`: `recordJournalStep`, e `markSettled` passou a receber
+    `settlementOutcome` separado do status.
+- API, infraestrutura: `drizzle-whatsapp-command-settlement.repository.ts`, e o
+  `drizzle-whatsapp-command.repository.ts` com o `recordJournalStep` (upsert pelo unique do diário).
+- API, apresentação: `whatsapp-command-settlement.routes.ts` —
+  `POST /whatsapp-command-requests/:id/settlement`.
+- API, schema: `WHATSAPP_COMMAND_SETTLEMENT_OUTCOMES` e o CHECK de `settlement_outcome`.
+- API, identidade: `whatsapp.settle` no catálogo, concedida só ao papel `automation`.
+- Catálogo de jobs: `whatsapp.command.settle` na API, no worker e no cron.
+- API, `main.ts`: a liquidação é montada no `bootstrap()`, com uma instância própria de
+  `createBillingUseCase` (mesmas dependências da rota) e a rota ao lado de `createApplicationRoutes`.
+- Migration `20260912153407_whatsapp_command_settlement`, aditiva, com `rollback.sql`:
+  - CHECK de `settlement_outcome`;
+  - `whatsapp.command.settle` nos dois CHECKs de job;
+  - a janela de 300 s em `job_schedules`.
+
+  O `db:generate` não trouxe deriva: o SQL gerado era só isso, mais o `INSERT` acrescentado à mão.
+
+- Worker, `src/whatsapp-command-settlement/`:
+  - `domain/` (a cópia da policy);
+  - `application/` (porta e rotina);
+  - `infrastructure/drizzle-settlement-candidate.repository.ts` e
+    `whatsapp-command-settlement-api.gateway.ts` (molde de `automatic-manifest-api.gateway.ts`).
+
+  A rotina entra no registro do `main.ts` só com o crachá do worker declarado.
+
+- Frontend: a permissão nova na allowlist de `useAuthMe.query.ts`, no grupo `billing` e nos dois
+  `identity*.locale.json`. Os contratos de paridade do frontend a cobram; foi o que reprovou a
+  primeira rodada do `make check`.
+
+### Policy de estados
+
+| Status do documento                                                                                                                                           | Estado                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| `authorized`                                                                                                                                                  | sucesso (fatura, se for CT-e) |
+| `rejected`, `failed`, `cancelled`, `discarded`                                                                                                                | falha                         |
+| `reconciliation_required`, `pending`, `in_flight`, `retry_scheduled`, `requested`, `issuing`, `pending_authorization`, `cancellation_requested`, desconhecido | pendente                      |
+
+- Por nota, o status do CT-e é o do documento fiscal quando ele existe (autorizado ou cancelado);
+  senão, o da última tentativa de emissão; senão, `pending`.
+- Um grupo do diário que falhou na confirmação conta como falha. Um grupo `pending` conta como
+  pendente.
+
+| Pedido                                              | Veredito                                           |
+| --------------------------------------------------- | -------------------------------------------------- |
+| `dispatched`, todos finais                          | `settle` → `settled`                               |
+| `dispatched`, pendente e `now − confirmed_at > 2 h` | `settle_partial` → `settled_partial` (`timed_out`) |
+| `dispatched`, pendente dentro das 2 h               | `wait`                                             |
+| `confirming` parado há mais de 15 min               | `resume` (T013)                                    |
+| `confirming` recente, e todo o resto                | `wait`                                             |
+
+O `settlement_outcome` ganhou vocabulário e CHECK:
+
+- `completed` é o único código de `settled`;
+- `timed_out`, `actor_not_authorized` e `billing_failed` são de `settled_partial`, nessa precedência
+  inversa: ator recusado vence falha de fatura, que vence o prazo.
+
+### Permissão e papel
+
+- `whatsapp.settle`, escopo `company`, concedida só ao papel `automation`, que fica com
+  `['mdfe.auto-issue', 'whatsapp.settle']`. Nenhum papel de gente a recebe, e o contrato do usuário
+  do seed local a exclui como exclui `mdfe.auto-issue`.
+- O serviço **não** recebe `billing.create`: quem fatura é a API, em nome do ator.
+- A empresa chega pelo `x-company-id`, validado contra a membership sintética do serviço (ADR-0047
+  §3). O token vem de `config.mdfeAutoIssue`, que é o crachá já validado no boot; o segredo não sai
+  em erro nem em log.
+
+### Decisões
+
+1. **O tomador congelado coincide com o do faturamento, e foi conferido no código, não suposto.**
+   São dois caminhos que resolvem o mesmo `taker` do perfil sobre a mesma coluna:
+   - na prévia, `resolveProfileTakerTaxId` (`drizzle-nfe-document.repository.ts:802`) lê
+     `nfe_participants.tax_id` do papel `emitter` (`0`) ou `recipient` (`3`);
+   - na emissão, `resolveTakerParty` (`cte-receiver-ie.policy.ts:18`) lê o `sender`, que é
+     `SENDER_ROLE = 'emitter'` (`cte-issuance-payload.query.ts:56`), ou o `recipient`, e grava
+     `cte_issuance_payloads.taker_tax_id`, que é o que `buildBillingTakerJoin` lê.
+
+   A integração afirma os dois tomadores no payload antes de liquidar. Por isso não foi preciso
+   parar. Divergência residual (o perfil mudar de `taker` entre a confirmação e a emissão) cairia no
+   `assertSingleCustomer` do faturamento como erro de domínio, e o pedido liquidaria como
+   `billing_failed`, nunca com a fatura errada.
+
+2. **O resumo sai pelo worker, não pela API.** Isto desvia do texto do pedido da task, e segue o
+   plano:
+   - o plano (§ Dados) já pôs a cópia de `user_whatsapp_phones` no worker "porque o resumo da
+     liquidação sai para o número vinculado";
+   - a API não tem remetente por empresa fora do webhook de entrada.
+
+   A API devolve o texto na resposta. O worker lê o número verificado e envia pelo mesmo envio de
+   **texto livre** do código de convite, sem template (`createWhatsAppCodeSender` com template
+   `undefined`).
+
+3. **Revalidação pelo mesmo caminho do canal.** `tenantContext.resolveCompanyForUser` exige
+   membership ativa e empresa ativa. Depois vem o `authorize` de `billing.create`, o mesmo do
+   router. Falhou qualquer um: `settled_partial` com `actor_not_authorized`, nenhuma fatura, nenhum
+   passo no diário, e o resumo diz por quê.
+4. **Retomada serializada pela linha de `job_executions`, provada em contrato:**
+   - o schema da API declara `job_executions_open_unique` sobre `job` com `finished_at` nulo;
+   - a mesma execução entregue duas vezes é reivindicada uma vez só (escrita condicional do lease),
+     e o `resume` corre uma vez.
+
+   O toque em ✅ Confirmar continua **não** retomando.
+
+5. **CT-e que já está numa fatura ativa de outra chave fica de fora** (o painel faturou antes). O que
+   está na fatura da **própria** chave entra: é o replay, e tirá-lo mudaria a digital e viraria
+   conflito de idempotência.
+6. **Recusa do faturamento é passo `failed` no diário**, com o código, e o outro tomador segue. Erro
+   que não é de domínio sobe e o pedido fica `dispatched` para a próxima batida.
+7. **A rota relata em vez de recusar:** aguardar, já liquidado e não achado são `200` com o desfecho.
+   Recusa virava nova tentativa a cada batida sem nada mudar.
+8. **Chave da fatura:** `whatsapp:${requestId}:billing:${takerTaxId}`, com o tomador canonicalizado.
+   O diário grava `billing_invoice` com `group_key` = tomador e `document_id` = fatura.
+
+### ⚠️ Achados datados (2026-09-12)
+
+- **Resumo perdido se a resposta cair.** Se a API liquidar e a resposta HTTP não chegar ao worker, a
+  repetição devolve `already_settled` sem texto, e o resumo não sai. A fatura está certa. Só a
+  mensagem se perde.
+- **Janela de 24 h da Meta.** Texto livre fora da janela é recusado. A recusa é contada
+  (`summariesUndelivered`) e logada só com o nome do erro, **sem** template forçado. Mandar o resumo
+  fora da janela pede um template aprovado próprio.
+- **A D6 diz que "agir em nome do usuário" ganha ADR.** A ADR não foi escrita nesta task.
+- **O catálogo de jobs do frontend já divergia**: não tem `geocoding.refine`, e agora também não tem
+  `whatsapp.command.settle`. Não há contrato de paridade dele com a API, e não mexi.
+- A junção de CT-e do repositório do worker só tem prova por contrato de tenant. A integração do
+  worker cobre diário e NFS-e por `failed`/`pending`; a leitura de CT-e com tentativa e documento
+  fiscal é provada do lado da API, no AC6.
+- O `create` de NFS-e (`nfse-invoice-selection.query.ts:92`) não foi tocado. Na integração a NFS-e
+  entra semeada já `authorized`, com o passo gravado pelo `recordJournalStep`.
+
+### Vermelho → verde
+
+- Vermelho: `bun test ./test/whatsapp-commands.contract.test.ts` → **0 pass · 1 fail · 1 error**
+  (`whatsapp-command-settlement.routes.js` inexistente).
+- Verde: `whatsapp-commands` + `whatsapp-command-schema` → **382 pass · 0 fail**.
+- Worker: `whatsapp-command-settlement.contract.test.ts` + catálogo → **26 pass · 0 fail**.
+- No caminho:
+  - o contrato de catálogo da API cobra o seed de toda rotina, e a migration nova entrou em
+    `SEED_MIGRATIONS`;
+  - o contrato da T011 passou a gravar `settlement_outcome` com o código (`timed_out`), porque o
+    CHECK novo recusaria o status no lugar dele;
+  - o contrato de tenant do `automation` agora espera as duas permissões.
+
+### Contratos
+
+- `whatsapp-command-settlement-policy.contract.ts`: a tabela inteira, com `reconciliation_required`
+  pendente, `cancelled` falha, desconhecido pendente e as duas janelas.
+- `settle-whatsapp-command.contract.ts`:
+  - uma fatura por tomador, com os CT-e autorizados, `context.userId` = ator, vencimento e chave;
+  - ator suspenso e ator sem `billing.create` → nenhuma fatura;
+  - `cancelled` não fatura;
+  - `reconciliation_required` espera dentro das 2 h e sai nomeado depois delas;
+  - repetição e corrida do `markSettled` → `already_settled`;
+  - CT-e de outra chave fica fora, e o da própria chave entra;
+  - recusa do faturamento → `billing_failed`; erro que não é de domínio → segue `dispatched`;
+  - grupo falho no resumo; pedido de outra empresa não é achado;
+  - retomada, espera e `resume_denied`;
+  - **o log não carrega o resumo, número de nota nem documento do tomador**.
+- `settlement-routes.contract.ts`:
+  - nenhum papel além de `automation` concede `whatsapp.settle`;
+  - administrador com tudo o que fatura recebe **403** e nada é chamado;
+  - o token de máquina recebe 200 na empresa do contexto;
+  - id que não é UUID é recusado.
+- Tenant: os cinco filtros do leitor (lote, tentativa, documento fiscal, item de fatura ativo, NFS-e)
+  levam a empresa como primeiro parâmetro. No worker, as três junções da varredura carregam a
+  empresa.
+- Worker:
+  - paridade linha a linha da policy;
+  - rotina: quem é chamado, com que dica, em que empresa; resumo ao número verificado; sem número;
+    Meta recusando; API fora num pedido não impede os outros; parada entre pedidos; log sem resumo,
+    telefone nem motivo;
+  - gateway: bearer, `x-company-id`, token reusado, erro só com status;
+  - serialização.
+
+### Prova do AC6 e da revalidação (`test/integration/whatsapp-command-settlement.integration.ts`)
+
+Prévia, confirmação e emissão são os casos de uso reais. A SEFAZ é simulada escrevendo o que o worker
+escreveria:
+
+- a nota 1238 fica `rejected`, com `539` e `Rejeicao: Duplicidade de CT-e`;
+- as outras 38 ficam `authorized`, com documento fiscal;
+- a NFS-e entra `authorized`.
+
+- **AC6**, 39 notas de tomador `3`: as pares vão ao tomador A e as ímpares ao B.
+  - O payload tem os dois tomadores.
+  - O desfecho é `settled` / `completed`.
+  - Saem **2 faturas**, com as chaves `whatsapp:${id}:billing:44555666000109` e
+    `…:77888999000105`. As duas têm `actor_user_id` = quem confirmou, o `due_date` congelado na
+    prévia, e o cliente = o tomador.
+  - São **38 itens ativos**.
+  - O diário tem dois passos `billing_invoice` `created`, com os ids das faturas.
+  - O resumo traz "38 CT-e autorizados", "NF-e 1238: 539 — Rejeicao: Duplicidade de CT-e",
+    "1 NFS-e autorizada, sem fatura" e "tomador final 0109: 19 CT-e" / "0105: 19 CT-e".
+  - A repetição devolve `already_settled`, com 2 faturas e 38 itens.
+- **Revalidação.** A membership vai a `disabled` antes da liquidação:
+  - o desfecho é `settled_partial` / `actor_not_authorized`;
+  - **nenhuma fatura** sai;
+  - o resumo traz "Nenhuma fatura foi criada" e "3 CT-e autorizados".
+- Resultado: **2 pass · 0 fail · 30 expects**.
+- Worker (`test/whatsapp-command-settlement.integration.test.ts`), contra o banco provisionado e
+  migrado como o `make worker-integration` faz: **2 pass · 0 fail**.
+  - A fonte devolve os `dispatched` e o `confirming` parado, com o estado de cada documento; o
+    `previewed` e o `confirming` recente ficam fora.
+  - A rotina chama a API com `settle_partial` (3 h), `resume` (30 min) e `settle` (grupo falho), na
+    ordem de `confirmed_at`, e entrega o resumo ao número verificado.
+
+### Gates (primeiro plano)
+
+- `bun run typecheck`: limpo na API, no worker e no cron.
+- `bun run lint`: limpo na API, no worker e no cron.
+- `make migration-test` → **92 pass · 0 fail** (migration e rollback em Postgres descartável).
+- `bun --env-file=../../.env.test run test:integration` (API, 54 arquivos) → **245 pass · 4 skip ·
+  2 fail**. As duas falhas são de `cte-archive-gateway`, com "Object storage is unavailable": o
+  MinIO está fora do ar, falha de ambiente já registrada.
+- Integrações da T011 e da T013 isoladas → **9 pass · 0 fail**. `markSettled` e o diário continuam
+  valendo.
+- `make check` → **exit 0**:
+  - format verde;
+  - API **5485 pass · 0 fail**, worker **1026**, cron **94**, frontend **3329**, frontend-client
+    **18**, frontend-landing **107**, todos 0 fail;
+  - as seis apps constroem.
+
+  A primeira rodada reprovou os dois contratos de paridade de permissão do frontend, e a
+  permissão entrou ali. A flaky conhecida de `cargo-volume.contract.test.ts` não disparou.

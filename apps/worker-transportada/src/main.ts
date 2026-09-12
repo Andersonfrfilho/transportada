@@ -183,6 +183,9 @@ import { IDENTITY_DOCUMENT_BACKFILL_JOB } from './identity-document-backfill/dom
 import { createDrizzleLocalDocumentSource } from './identity-document-backfill/infrastructure/drizzle-local-document.repository.js'
 import { createKeycloakRealmGateway } from './identity-document-backfill/infrastructure/keycloak-realm.gateway.js'
 import { createTripLocationPurgeRoutine } from './trip-location-purge/application/trip-location-purge.routine.js'
+import { createWhatsAppCommandSettlementRoutine } from './whatsapp-command-settlement/application/whatsapp-command-settlement.routine.js'
+import { DrizzleSettlementCandidateRepository } from './whatsapp-command-settlement/infrastructure/drizzle-settlement-candidate.repository.js'
+import { createWhatsAppCommandSettlementApiGateway } from './whatsapp-command-settlement/infrastructure/whatsapp-command-settlement-api.gateway.js'
 import { TRIP_LOCATION_PURGE_JOB } from './trip-location-purge/domain/trip-location-purge.constant.js'
 import {
   createDrizzlePurgeStalePings,
@@ -1010,6 +1013,38 @@ export async function startWorkerRuntime(
                   ),
                   wait: (milliseconds) =>
                     new Promise((resolve) => setTimeout(resolve, milliseconds)),
+                }),
+              }),
+          /**
+           * Spec 144 T014: registrada só com o crachá do worker declarado — sem ele a rotina não tem
+           * como pedir a liquidação à API, e a janela pousa em `job_run_routine_missing`. O resumo sai
+           * pelo mesmo envio de texto livre do código de convite, sem template: fora da janela de 24 h
+           * a Meta recusa, e a recusa fica registrada em vez de virar mensagem que ninguém pediu.
+           */
+          ...(config.mdfeAutoIssue === undefined
+            ? {}
+            : {
+                ['whatsapp.command.settle' as const]: createWhatsAppCommandSettlementRoutine({
+                  api: createWhatsAppCommandSettlementApiGateway({
+                    configuration: config.mdfeAutoIssue,
+                  }),
+                  candidates: new DrizzleSettlementCandidateRepository(
+                    database.db as ReturnType<typeof createDrizzleProvider>['db'],
+                  ),
+                  logger,
+                  now: () => new Date(),
+                  recipients: new DrizzleSettlementCandidateRepository(
+                    database.db as ReturnType<typeof createDrizzleProvider>['db'],
+                  ),
+                  sender: {
+                    sendText: ({ body, companyId, to }) =>
+                      buildWhatsAppCodeSender(undefined).send({
+                        address: to,
+                        body,
+                        code: '',
+                        companyId,
+                      }),
+                  },
                 }),
               }),
           [TRIP_LOCATION_PURGE_JOB]: createTripLocationPurgeRoutine({

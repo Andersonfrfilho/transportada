@@ -12,6 +12,13 @@ import {
   buildRequestFilters,
   buildSettlementFilters,
 } from '../../src/whatsapp-commands/infrastructure/drizzle-whatsapp-command.repository.js'
+import {
+  buildSettlementAttemptFilters,
+  buildSettlementBatchItemFilters,
+  buildSettlementFiscalDocumentFilters,
+  buildSettlementInvoiceItemFilters,
+  buildSettlementNfseFilters,
+} from '../../src/whatsapp-commands/infrastructure/drizzle-whatsapp-command-settlement.repository.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000001451'
 const REQUEST_ID = '00000000-0000-4000-8000-000000001452'
@@ -63,6 +70,42 @@ describe('whatsapp command query tenant safety', () => {
 
     expect(query.sql).toContain(`${REQUESTS}."company_id" = $`)
     expect(query.sql).toContain(`${REQUESTS}."confirmed_at" < $`)
+  })
+
+  /** Spec 144 T014: o estado de cada documento é lido pela empresa do pedido, tabela por tabela. */
+  test('reads every settlement document only inside the company of the request', () => {
+    const ids = [REQUEST_ID]
+    const queries: readonly (readonly [string, ReturnType<typeof toQuery>])[] = [
+      [
+        '"cte_batch_items"',
+        toQuery(buildSettlementBatchItemFilters({ batchIds: ids, companyId: COMPANY_ID })),
+      ],
+      [
+        '"cte_issuance_attempts"',
+        toQuery(buildSettlementAttemptFilters({ batchItemIds: ids, companyId: COMPANY_ID })),
+      ],
+      [
+        '"cte_fiscal_documents"',
+        toQuery(buildSettlementFiscalDocumentFilters({ batchItemIds: ids, companyId: COMPANY_ID })),
+      ],
+      [
+        '"billing_invoice_items"',
+        toQuery(buildSettlementInvoiceItemFilters({ companyId: COMPANY_ID, cteDocumentIds: ids })),
+      ],
+      [
+        '"nfse_service_invoices"',
+        toQuery(buildSettlementNfseFilters({ companyId: COMPANY_ID, invoiceIds: ids })),
+      ],
+    ]
+    for (const [table, query] of queries) {
+      expect(query.sql).toContain(`${table}."company_id" = $`)
+      expect(query.params[0]).toBe(COMPANY_ID)
+      expect(query.sql).not.toContain(COMPANY_ID)
+    }
+    const invoiceItems = toQuery(
+      buildSettlementInvoiceItemFilters({ companyId: COMPANY_ID, cteDocumentIds: ids }),
+    )
+    expect(invoiceItems.sql).toContain('"billing_invoice_items"."cancelled_at" is null')
   })
 
   test('never lets a filter reach the database without the company as first parameter', () => {

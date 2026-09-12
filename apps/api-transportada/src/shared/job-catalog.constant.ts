@@ -173,6 +173,16 @@ export const JOB_CATALOG = [
      */
     minimumIntervalSeconds: 3_600,
   },
+  {
+    /**
+     * Spec 144 T014: a liquidação dos pedidos de WhatsApp. A rotina só pergunta à API — quem decide
+     * e fatura é ela —, então a única falha própria é não conseguir perguntar.
+     */
+    failureOutcomes: ['settlement_request_failed'],
+    job: 'whatsapp.command.settle',
+    /** A batida: a NFS-e só muda de estado pelo `nfse.status.pull`, e a liquidação só varre. */
+    minimumIntervalSeconds: JOB_TICK_INTERVAL_SECONDS,
+  },
 ] as const
 
 export type JobCatalogEntry = (typeof JOB_CATALOG)[number]

@@ -123,7 +123,7 @@ status='previewed' and preview_sha256=$hash and expires_at>now() returning` + li
       (a digital de idempotência os inclui); erro de domínio marca o grupo `failed` e segue; (5)
       tudo final → `dispatched`. Pedido parado em `confirming` é retomado pelo mesmo use-case —
       `application/confirm-document-selection.use-case.ts` — integração dos AC4 e AC5 + retomada
-- [ ] **T014** 🧠 Liquidação: policy pura de estado final (`whatsapp-command-settlement.policy.ts`:
+- [x] **T014** 🧠 Liquidação: policy pura de estado final (`whatsapp-command-settlement.policy.ts`:
       sucesso = `authorized`; falha = `rejected|failed|cancelled|discarded`; pendente = o resto,
       inclusive `reconciliation_required`), rotina `whatsapp.command.settle` no registro de
       `job-run.v1` do worker (a cada 5 min; retoma também os `confirming` parados). Todos finais ou 2h

@@ -53,6 +53,18 @@ export const WHATSAPP_COMMAND_DOCUMENT_STATUSES = [
 ] as const
 export type WhatsAppCommandDocumentStatus = (typeof WHATSAPP_COMMAND_DOCUMENT_STATUSES)[number]
 
+/**
+ * Por que o pedido liquidou como liquidou (T014). O status diz só se foi inteiro ou em parte;
+ * `completed` é o único código de `settled`, os outros três são de `settled_partial`.
+ */
+export const WHATSAPP_COMMAND_SETTLEMENT_OUTCOMES = [
+  'completed',
+  'timed_out',
+  'actor_not_authorized',
+  'billing_failed',
+] as const
+export type WhatsAppCommandSettlementCode = (typeof WHATSAPP_COMMAND_SETTLEMENT_OUTCOMES)[number]
+
 /** Mesmo teto do `period` de `POST /nfse-service-invoices` (`MAX_PERIOD_LENGTH`). */
 export const WHATSAPP_COMMAND_PERIOD_MAX_LENGTH = 60
 
@@ -102,7 +114,7 @@ export const whatsAppCommandRequests = pgTable(
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
     settledAt: timestamp('settled_at', { withTimezone: true }),
-    settlementOutcome: text('settlement_outcome'),
+    settlementOutcome: text('settlement_outcome').$type<WhatsAppCommandSettlementCode>(),
     lastErrorCode: text('last_error_code'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -174,6 +186,10 @@ export const whatsAppCommandRequests = pgTable(
     check(
       'whatsapp_command_requests_settled_at_check',
       sql`${table.status} not in (${sql.raw(inList(SETTLED_STATUSES))}) or ${table.settledAt} is not null`,
+    ),
+    check(
+      'whatsapp_command_requests_settlement_outcome_check',
+      sql`${table.settlementOutcome} is null or ${table.settlementOutcome} in (${sql.raw(inList(WHATSAPP_COMMAND_SETTLEMENT_OUTCOMES))})`,
     ),
   ],
 )

@@ -8,6 +8,7 @@ import type {
   WhatsAppCommandDocumentStatus,
   WhatsAppCommandKind,
   WhatsAppCommandSelection,
+  WhatsAppCommandSettlementCode,
   WhatsAppCommandStatus,
 } from '../../database/whatsapp-command.schema.js'
 
@@ -27,7 +28,7 @@ export type WhatsAppCommandRequest = Readonly<{
   previewSha256: string
   selection: WhatsAppCommandSelection
   settledAt: Date | undefined
-  settlementOutcome: string | undefined
+  settlementOutcome: WhatsAppCommandSettlementCode | undefined
   status: WhatsAppCommandStatus
 }>
 
@@ -84,6 +85,18 @@ export type WhatsAppCommandSettlementOutcome = Extract<
   'settled' | 'settled_partial'
 >
 
+/** O passo que a liquidação acrescenta: a fatura de um tomador, com o id dela ou o código da recusa. */
+export type RecordWhatsAppCommandJournalStepInput = Readonly<{
+  companyId: string
+  documentId?: string | undefined
+  documentKind: WhatsAppCommandDocumentKind
+  errorCode?: string | undefined
+  groupKey: string
+  idempotencyKey: string
+  requestId: string
+  status: WhatsAppCommandDocumentStatus
+}>
+
 type RequestReference = Readonly<{ companyId: string; id: string }>
 
 export type WhatsAppCommandRepositoryPort = Readonly<{
@@ -102,12 +115,19 @@ export type WhatsAppCommandRepositoryPort = Readonly<{
     input: Readonly<{ companyId: string; requestId: string }>,
   ): Promise<readonly WhatsAppCommandJournalStep[]>
   markJournalStep(input: MarkWhatsAppCommandJournalStepInput): Promise<boolean>
+  /** Grava ou atualiza o passo pelo unique `(request_id, document_kind, group_key)`. */
+  recordJournalStep(input: RecordWhatsAppCommandJournalStepInput): Promise<void>
   markDispatched(input: RequestReference): Promise<boolean>
   /** Os `dispatched` todos e os `confirming` que pararam antes de `stuckConfirmingBefore`. */
   listForSettlement(
     input: Readonly<{ companyId: string; stuckConfirmingBefore: Date }>,
   ): Promise<readonly WhatsAppCommandRequest[]>
   markSettled(
-    input: RequestReference & Readonly<{ now: Date; outcome: WhatsAppCommandSettlementOutcome }>,
+    input: RequestReference &
+      Readonly<{
+        now: Date
+        outcome: WhatsAppCommandSettlementOutcome
+        settlementOutcome: WhatsAppCommandSettlementCode
+      }>,
   ): Promise<boolean>
 }>

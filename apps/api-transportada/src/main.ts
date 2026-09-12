@@ -164,6 +164,9 @@ import { createUnbindWhatsAppPhoneUseCase } from './whatsapp-commands/applicatio
 import { createVerifyWhatsAppPhoneUseCase } from './whatsapp-commands/application/verify-whatsapp-phone.use-case.js'
 import { createWhatsAppPhoneRoutes } from './whatsapp-commands/presentation/whatsapp-phone.routes.js'
 import { createNfseCallbackRoutes } from './nfse-callbacks/presentation/nfse-callbacks.routes.js'
+import { createSettleWhatsAppCommandUseCase } from './whatsapp-commands/application/settle-whatsapp-command.use-case.js'
+import { DrizzleWhatsAppCommandSettlementRepository } from './whatsapp-commands/infrastructure/drizzle-whatsapp-command-settlement.repository.js'
+import { createWhatsAppCommandSettlementRoutes } from './whatsapp-commands/presentation/whatsapp-command-settlement.routes.js'
 import { createBillingUseCase } from './billing/application/billing.use-case'
 import { createInvoiceDocumentUseCase } from './billing/application/invoice-document.use-case'
 import { DrizzleBillingRepository } from './billing/infrastructure/drizzle-billing.repository'
@@ -787,6 +790,24 @@ export function bootstrap(): Bun.Server<undefined> {
     createNfseInvoice: (input) => whatsappNfseInvoices.create(input),
     issueCteBatch: (input) => whatsappCteIssuance.issue(input),
   })
+  /**
+   * Spec 144 T014 — a liquidação, chamada pelo worker. Fatura pelo **mesmo** caso de uso da rota
+   * `POST /billing-invoices`, em nome de quem confirmou, revalidado pelo mesmo caminho do canal.
+   */
+  const whatsappSettlement = createSettleWhatsAppCommandUseCase({
+    authorization: new AuthorizationService(),
+    billing: createBillingUseCase({
+      clock: { now: () => new Date().toISOString() },
+      fingerprintService: whatsappFingerprints,
+      unitOfWork: new DrizzleBillingRepository(database.db),
+    }),
+    clock: () => new Date(),
+    commands: new DrizzleWhatsAppCommandRepository(database.db),
+    documents: new DrizzleWhatsAppCommandSettlementRepository(database.db),
+    logger,
+    resolveActor: (input) => tenantContext.resolveCompanyForUser({ ...input, channel: 'whatsapp' }),
+    resume: (input) => whatsappSelectionConfirmation.resume(input),
+  })
   const issuanceWhatsAppFlowActions = createIssuanceWhatsAppFlowActions({
     clock: () => new Date(),
     confirmSelection: (input) => whatsappSelectionConfirmation.confirm(input),
@@ -905,23 +926,26 @@ export function bootstrap(): Bun.Server<undefined> {
             },
           ]),
     ],
-    routes: createApplicationRoutes({
-      apiPublicUrl: config.apiPublicUrl,
-      automaticManifestNotifier,
-      database: database.db,
-      notifications,
-      envelopeKeyRing: config.cryptography.envelopeKeyRing,
-      environment: process.env,
-      googleMapsApiKey: config.googleMapsApiKey,
-      messaging: config.messaging,
-      idempotencyHmacKey: config.cryptography.idempotencyHmacKey,
-      keycloak: config.keycloak,
-      logger,
-      postalCodeProviders: config.postalCodeProviders,
-      routingMatrixUrl: config.routingMatrixUrl,
-      routeOptimizationQueue,
-      vehicleCatalog: config.vehicleCatalog,
-    }),
+    routes: [
+      ...createApplicationRoutes({
+        apiPublicUrl: config.apiPublicUrl,
+        automaticManifestNotifier,
+        database: database.db,
+        notifications,
+        envelopeKeyRing: config.cryptography.envelopeKeyRing,
+        environment: process.env,
+        googleMapsApiKey: config.googleMapsApiKey,
+        messaging: config.messaging,
+        idempotencyHmacKey: config.cryptography.idempotencyHmacKey,
+        keycloak: config.keycloak,
+        logger,
+        postalCodeProviders: config.postalCodeProviders,
+        routingMatrixUrl: config.routingMatrixUrl,
+        routeOptimizationQueue,
+        vehicleCatalog: config.vehicleCatalog,
+      }),
+      ...createWhatsAppCommandSettlementRoutes({ settle: whatsappSettlement }),
+    ],
     tenantContext,
   })
   const server = startApiServer({
