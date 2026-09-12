@@ -9,6 +9,10 @@ import {
   type PlacedBox,
   type PlacementBox,
 } from '../../src/trips/domain/cargo-placement.policy.js'
+import {
+  measureMedianRatio,
+  RELATIVE_TIMING_TIMEOUT_MS,
+} from '../fixtures/relative-timing.fixture.js'
 
 /** Baú de truck medido: 7,40 × 2,47 × 2,30 m — o mesmo da frota de teste. */
 const BED = {
@@ -446,25 +450,34 @@ describe('os limites do baú na carga dividida (spec 095)', () => {
    * ⚠️ O teto da divisão conta **tentativas**, não colocações: contando só o que entrou, a sobra sem
    * lugar nunca saturava o limite e cada caixa pagava a varredura inteira do baú.
    */
-  test('não varre o baú inteiro por caixa quando a sobra não tem lugar', () => {
-    const startedAt = performance.now()
-    const plan = resolveCargoPlacement({
-      bed: BED,
-      boxes: Array.from({ length: 12 }, (_, stop) =>
-        box({
-          count: 75,
-          heightMm: 1100,
-          label: `P${String(stop)}`,
-          lengthMm: 1200,
-          stopSequence: stop + 1,
-          widthMm: 1200,
-        }),
-      ),
-    })
+  // Relativo à carga que cabe inteira: antes de 1dee8f44 a razão era 75 a 82, hoje 4,6 a 7,7, e os 50 ms absolutos caíam sob carga.
+  test(
+    'não varre o baú inteiro por caixa quando a sobra não tem lugar',
+    () => {
+      const cargoOf = (count: number): PlacementBox[] =>
+        Array.from({ length: 12 }, (_, stop) =>
+          box({
+            count,
+            heightMm: 1100,
+            label: `P${String(stop)}`,
+            lengthMm: 1200,
+            stopSequence: stop + 1,
+            widthMm: 1200,
+          }),
+        )
+      const overflowing = cargoOf(75)
+      const fitting = cargoOf(2)
 
-    expect(plan).not.toBeNull()
-    expect(performance.now() - startedAt).toBeLessThan(50)
-  })
+      expect(resolveCargoPlacement({ bed: BED, boxes: overflowing })).not.toBeNull()
+      const ratio = measureMedianRatio({
+        baseline: () => resolveCargoPlacement({ bed: BED, boxes: fitting }),
+        target: () => resolveCargoPlacement({ bed: BED, boxes: overflowing }),
+      })
+
+      expect(ratio).toBeLessThan(30)
+    },
+    RELATIVE_TIMING_TIMEOUT_MS,
+  )
 })
 
 /**

@@ -15,6 +15,10 @@ import {
   ATEGO_85_STOPS,
   type RealCargoRow,
 } from '../fixtures/real-mixed-cargo.fixture.js'
+import {
+  measureMedianRatio,
+  RELATIVE_TIMING_TIMEOUT_MS,
+} from '../fixtures/relative-timing.fixture.js'
 
 /**
  * Spec 115: as invariantes da planta conferidas em **duas cargas reais**, com tamanhos misturados — a
@@ -217,25 +221,18 @@ describe('cargas reais de tamanhos misturados (spec 115)', () => {
   })
 
   // Relativo ao Accelo no mesmo processo: sob carga o absoluto do Atego variou 5× (50 ms → 620), a razão só de 2,4 a 2,8.
-  test('o Atego de 1417 caixas custa menos de 4 vezes o Accelo de 24 paradas', () => {
-    const elapsedOf = (load: RealLoad): number => {
-      const startedAt = performance.now()
-      place(load)
-      return performance.now() - startedAt
-    }
-    const medianOf = (values: number[]): number =>
-      values.toSorted((left, right) => left - right)[Math.floor(values.length / 2)] ?? 0
-    place(ATEGO)
-    place(ACCELO)
-    const ategoMs: number[] = []
-    const acceloMs: number[] = []
-    for (let round = 0; round < 5; round += 1) {
-      acceloMs.push(elapsedOf(ACCELO))
-      ategoMs.push(elapsedOf(ATEGO))
-    }
+  test(
+    'o Atego de 1417 caixas custa menos de 4 vezes o Accelo de 24 paradas',
+    () => {
+      const ratio = measureMedianRatio({
+        baseline: () => place(ACCELO),
+        target: () => place(ATEGO),
+      })
 
-    expect(medianOf(ategoMs) / medianOf(acceloMs)).toBeLessThan(4)
-  }, 60_000)
+      expect(ratio).toBeLessThan(4)
+    },
+    RELATIVE_TIMING_TIMEOUT_MS,
+  )
 
   /**
    * ⚠️ A porta continua não sendo parede: a caixa sem nada à frente dela, do lado da porta, só sobe
