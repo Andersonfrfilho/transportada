@@ -253,3 +253,57 @@ reaproveitando `.dataTable`/`.tableScroll` (mesma convenção de `TripOccurrence
 `occurrenceFeed` e `pagination`.
 
 ## 5. Gate (T10)
+
+### `make check`
+
+`rtk proxy make check` — `format:check` e `lint` verdes; `typecheck` verde nas seis apps;
+`test` fecha com **5068 pass, 23 skip, 1 fail** em 5092 testes (163 arquivos, 29,55 s). A única
+falha é a pré-existente: `test/cargo-placement/real-mixed-cargo.contract.ts:224`, "o Atego de 1417
+caixas cabe no orçamento de 50 ms", recebido 74,58 ms. `build` não chega a rodar dentro do `make
+check` porque o `test` sai com código 1 antes — rodado à parte (abaixo) para fechar a evidência.
+
+Repeti só o contrato do Atego mais duas vezes, isolado (`bun test
+./test/cargo-volume.contract.test.ts` em `apps/api-transportada`), para separar ruído de máquina de
+regressão real: 328 pass / 1 fail nas três rodadas, sempre a mesma linha, com 56,30 ms e 63,29 ms —
+dentro da faixa 55–240 ms já registrada como pré-existente em `staging` no cabeçalho deste arquivo.
+Não é da spec 144: nenhuma das mudanças de T1–T9 toca o cronômetro ou o volume do Atego, e o mesmo
+teste já falhava no checkout intocado. Registrado, não mascarado.
+
+### `bun run build` (isolado, raiz)
+
+Verde nas seis apps (`api-transportada`, `worker-transportada`, `cron-transportada`,
+`frontend-transportada`, `frontend-client`, `frontend-landing`) — só o aviso de sempre do Vite sobre
+chunk grande em `frontend-transportada` (`vectorBasemap.service`, 997.95 kB), anterior a esta spec.
+
+### `apps/api-transportada`
+
+- `bun run typecheck` → verde, sem saída de erro.
+- `bun test ./test/cargo-volume.contract.test.ts` → **328 pass, 1 fail** (o Atego, pré-existente,
+  ver acima), 19612 `expect()`.
+
+### `apps/frontend-transportada`
+
+- `bun run typecheck` → verde, sem saída de erro.
+- `bun test ./test/trip.contract.test.ts` → **710 pass, 0 fail**, 17176 `expect()`.
+
+### Commits da spec (`git log --oneline f5663a88^..HEAD`)
+
+```
+c70dc068 docs(cargo): spec 144 — precedência D1 e caixa presumida pela nota (T9)
+5cfb5dc8 feat(frontend): painel de carga lista o que falta medir (spec 144 T8)
+3677d760 feat(trips): a viagem lista o que falta medir (spec 144 T7)
+e800ecca docs(spec): 144 T6 — G006, caixas colocadas antes e depois da D1
+09f97166 feat(trips): toPlacementBoxes respeita a precedência D1 (spec 144 T5)
+2fa8cabc feat(trips): loadTripOccupancy passa a resolver o resíduo por nota (spec 144 T4)
+8a0c28e3 test(trips): estende conservação de caixas com nota sem ficha e qVol (spec 144 T3)
+8a611288 feat(nfe-documents): a caixa sem ficha sai do resíduo da nota (spec 144 T2)
+65415486 test(nfe-documents): contrato da caixa presumida pelo resíduo da nota (spec 144 T1)
+f5663a88 docs(spec): 144 — caixa presumida pelo resíduo da nota e lista do que falta medir
+```
+
+### G007 — veredito
+
+Verde para os critérios da spec 144: nenhuma falha nova, format/lint/typecheck limpos nas seis apps,
+build limpo. A única linha vermelha (`test/cargo-placement/real-mixed-cargo.contract.ts`, Atego 50 ms)
+é a mesma falha intermitente já documentada como pré-existente em `staging` no topo deste arquivo, e
+não conta contra esta spec.

@@ -45,7 +45,7 @@
 
 - [x] T9 — `docs/ai-context/api-transportada.md`, `apps/api-transportada/CLAUDE.md`,
       `docs/domain/cargo-placement.md` se aplicável (G008); `evidence.md` fechado.
-- [ ] T10 — Gate: `bun test ./test/cargo-volume.contract.test.ts`, `bun run typecheck`,
+- [x] T10 — Gate: `bun test ./test/cargo-volume.contract.test.ts`, `bun run typecheck`,
       `make check` (G007). Perf de 50 ms do Atego 1417 é pré-existente: anotar, não mascarar.
 
 ## Prompt de execução
