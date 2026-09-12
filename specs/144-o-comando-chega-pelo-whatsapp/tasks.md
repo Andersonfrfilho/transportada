@@ -99,7 +99,7 @@ or municipal_service_policy='allow'`); `PUT` recusa apontar para perfil NFS-e n�
       SELECT da página, sem N+1). `documentOutput` na listagem; o guard do frontend aceita a
       **ausência** do campo na primeira versão (API sobe primeiro) — contrato de classificação +
       paridade que roda os dois consumidores sobre as mesmas notas
-- [ ] **T011** 🧠 `whatsapp_command_requests` (+ `due_date`, `period`, `grouping_mode`,
+- [x] **T011** 🧠 `whatsapp_command_requests` (+ `due_date`, `period`, `grouping_mode`,
       `confirmed_at`, `settled_at`, `settlement_outcome`, `last_error_code`; status `previewed →
 confirming → dispatched → settled | settled_partial`, mais `expired` e `superseded`) e
       `whatsapp_command_documents` como **diário de passos** (`group_key`, `idempotency_key`,

@@ -1338,3 +1338,118 @@ Os contratos nasceram vermelhos: import ausente e seleção aceitando a nota, `5
 ⚠️ **Fora do escopo, visto no caminho**: `CTE_BATCH_DOCUMENT_MUNICIPAL_SERVICE` não tem rótulo em
 `cteEmission.blockReason` nos dois locales. A tela imprime a chave crua quando o portão municipal
 bloqueia. É anterior a esta task.
+
+## T011 — o pedido e o diário de passos (2026-09-11)
+
+Só dados: duas tabelas, schema Drizzle, porta, repositório e cópia no worker. Prévia, confirmação e
+liquidação ficam para T012–T014.
+
+### SQL essencial (`drizzle/20260912132407_whatsapp_command_requests/migration.sql`)
+
+```sql
+CREATE TABLE "whatsapp_command_requests" (
+  "id" uuid PK, "company_id" uuid NOT NULL, "actor_user_id" uuid NOT NULL,
+  "membership_id" uuid NOT NULL, "kind" text NOT NULL, "selection" jsonb NOT NULL,
+  "classification" jsonb NOT NULL, "preview_sha256" text NOT NULL, "due_date" date,
+  "period" text, "grouping_mode" text, "status" text DEFAULT 'previewed' NOT NULL,
+  "expires_at" timestamptz NOT NULL, "confirmed_at" / "settled_at" timestamptz,
+  "settlement_outcome" text, "last_error_code" text, "created_at" / "updated_at",
+  UNIQUE ("company_id","id"),
+  CHECK kind in ('document_issuance'), CHECK status in (7 estados),
+  CHECK grouping_mode is null or in ('per_invoice','sender_recipient'),
+  CHECK preview_sha256 ~ '^[0-9a-f]{64}$', CHECK period is null or length(period) <= 60,
+  CHECK jsonb_typeof(selection|classification) = 'array', CHECK expires_at > created_at,
+  CHECK confirming/dispatched/settled* ⇒ confirmed_at, CHECK settled* ⇒ settled_at
+);
+CREATE TABLE "whatsapp_command_documents" (
+  "id", "company_id", "request_id", "document_kind", "group_key", "idempotency_key",
+  "status" DEFAULT 'pending', "document_id" uuid, "last_error_code", timestamps,
+  UNIQUE ("request_id","document_kind","group_key"),
+  CHECK idempotency_key ~ '^[A-Za-z0-9._:-]+$' and length between 16 and 256,
+  CHECK status not in ('created','issued') or document_id is not null
+);
+CREATE INDEX ..._company_id_status_idx ON requests ("company_id","status");
+CREATE INDEX ..._in_flight_idx ON requests ("status","confirmed_at")
+  WHERE "status" in ('dispatched', 'confirming');
+-- FKs: documents (company_id, request_id) → requests (company_id, id) CASCADE (request_fk);
+--      requests company_id → companies RESTRICT;
+--      requests (actor_user_id, company_id) → memberships (user_id, company_id) RESTRICT;
+--      requests (membership_id, company_id) → memberships (id, company_id) RESTRICT
+```
+
+`rollback.sql` derruba só as duas tabelas (diário primeiro) e apaga a linha do diário de migrations
+por nome **e** hash (`008024bb…df9e298`), com `ROW_COUNT <> 1` abortando. Aditiva, sem default que
+mude linha existente.
+
+### Decisões
+
+- **A membership coerente com o ator sem tocar em `user_company_memberships`.** Ela tem
+  `unique(user_id, company_id)` e `unique(id, company_id)`, mas não um de três colunas. Em vez de
+  acrescentar um unique na tabela de identidade, são **duas FKs** sobre os uniques existentes (ator
+  na empresa; membership na empresa), e `createPreview` **não recebe** `membershipId`: resolve por
+  `(company_id, actor_user_id)`, que é único, então a membership gravada é a do ator por
+  construção. Sem membership, `createPreview` devolve `undefined` — não há pedido sem vínculo.
+- **O Postgres recusa `{16,256}` numa regex** (`invalid repetition count(s)`: o teto de repetição é
+  255). O CHECK da chave de idempotência virou classe de caracteres `+` com
+  `length(...) between 16 and 256`, que diz o mesmo que o `IDEMPOTENCY_KEY` das rotas. A regex das
+  rotas continua exportada como `WHATSAPP_COMMAND_IDEMPOTENCY_KEY_PATTERN`, para o caso de uso validar
+  antes de gravar, e o contrato de schema afirma as duas formas.
+- **`classification` é lista de `{ documentId, classification: DocumentOutputClassification }`**, com
+  o tipo da T010 importado por `import type`. O pre-deploy conta imports de tipo no grafo, então o
+  `Dockerfile` ganhou `COPY src/cte-profiles/domain` — mesmo remédio da T003.
+- **O diário nasce na mesma transação do `claim`**, e só se o `UPDATE … WHERE status='previewed' and
+preview_sha256=$1 and expires_at>$now RETURNING` pegar a linha. Os passos saem com o mesmo
+  `created_at`, então `listJournal` desempata por `array_position` em `WHATSAPP_COMMAND_DOCUMENT_KINDS`
+  (CT-e → NFS-e → fatura) e por `group_key`: com o `id` aleatório a ordem mudava de uma rodada para
+  a outra.
+- **`listForSettlement` recebe `companyId`** (plan: "todo repositório novo recebe o companyId"), e o
+  parâmetro `now` do pedido saiu: a janela das 2 horas é decisão da policy da T014 sobre os
+  `dispatched`, e o único corte temporal da consulta é `stuckConfirmingBefore`.
+- **`settlement_outcome` sem CHECK**: o vocabulário do resumo é da T014, e `markSettled` hoje grava
+  o próprio estado final (`settled`/`settled_partial`). `markSettled` só vale `where status =
+'dispatched'`, então repetir é inofensivo.
+- **O gerador veio limpo desta vez**: o SQL só com as duas tabelas, sem deriva a recortar; o
+  `snapshot.json` inteiro. ⚠️ Um cabeçalho montado com `head` passou pelo hook do rtk, que reescreveu
+  a saída com um `// ... N more lines` literal — a migration quebrou com `syntax error at or near
+"//"` antes de ser recomposta em Python. Quem montar SQL por shell neste ambiente não use
+  `head`/`cat` para gravar arquivo.
+- **Cópia no worker** (`src/database/whatsapp-command.schema.ts`) só com o que a liquidação lê —
+  pedido: `id`, `company_id`, `actor_user_id`, `due_date`, `status`, `expires_at`, `confirmed_at`;
+  diário: `id`, `company_id`, `request_id`, `document_kind`, `status`, `document_id` — e um contrato
+  próprio que confere os nomes e a ausência de CHECK/FK/unique.
+
+### Vermelho → verde
+
+- Vermelho: `bun test ./test/whatsapp-command-schema.contract.test.ts` → 0 pass · 1 fail (módulo
+  `whatsapp-command.schema.ts` inexistente).
+- Primeira integração → 4 pass · 2 fail (`invalid repetition count(s)` no CHECK). Primeira
+  `make migration-test` → 91 pass · 1 fail (grafo do pre-deploy sem `src/cte-profiles/domain`).
+- Segunda integração → 5 pass · 1 fail: ordem do diário não determinística e `rejects` sobre um
+  builder do Drizzle (thenable, não `Promise`). Corrigidos a ordenação e o teste.
+- Verde: contrato de schema + tenant → 14 pass · 0 fail; cópia do worker → 3 pass · 0 fail.
+
+### Concorrência (prova)
+
+`test/integration/whatsapp-command-repository.integration.ts`, contra Postgres (`.env.test`) → **6
+pass · 0 fail**:
+
+- **oito** `claimForConfirmation` simultâneos sobre o mesmo pedido → exatamente **um** devolve o
+  pedido; o diário tem **duas** linhas `pending` (não dezesseis) e o pedido está `confirming`;
+- hash divergente → `undefined`, pedido segue `previewed` e o diário vazio;
+- `now = expires_at` → não reivindica, e `markExpired` passa a `expired`;
+- outra empresa → nem `findById` nem `claim` alcançam o pedido;
+- `UPDATE … set status='issued'` sem `document_id` → recusado pelo CHECK; `markJournalStep` com o
+  documento grava; `markSettled` antes de `dispatched` → `false`; o `confirming` parado aparece em
+  `listForSettlement`; depois de `markDispatched`, o primeiro `markSettled` vale e o segundo não;
+- ator sem membership → `createPreview` devolve `undefined`; com membership, a gravada é a dele.
+
+### Gates
+
+- `bun run typecheck` → 0 erros; `bun run --cwd apps/api-transportada db:check` → "Everything's
+  fine"
+- `make migration-test` → **92 pass · 0 fail** (aplica, desfaz com os rollbacks e reaplica, com as
+  duas tabelas em `WHATSAPP_COMMAND_TABLES`; migration na lista por extenso de
+  `static-migration.contract.ts`)
+- `make check` → exit 0: format, lint, typecheck; API 5331 pass · worker 1005 · cron 94 · frontend
+  3329 · frontend-client 18 · frontend-landing 107, todos 0 fail; build verde. A flaky conhecida de
+  `cargo-volume.contract.test.ts` não disparou nesta rodada.

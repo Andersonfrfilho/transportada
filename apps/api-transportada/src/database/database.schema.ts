@@ -150,6 +150,7 @@ import {
   whatsAppPhoneVerificationRequests,
 } from './user-whatsapp-phone.schema.js'
 import { whatsappFlowGraphVersions } from './whatsapp-flow-graph-version.schema.js'
+import { whatsAppCommandDocuments, whatsAppCommandRequests } from './whatsapp-command.schema.js'
 import {
   companyTaxSettings,
   tripCostEntries,
@@ -214,6 +215,7 @@ export * from './client-portal.schema.js'
 export * from './whatsapp-channel.schema.js'
 export * from './user-whatsapp-phone.schema.js'
 export * from './whatsapp-flow-graph-version.schema.js'
+export * from './whatsapp-command.schema.js'
 export * from './route-suggestion.schema.js'
 export * from './landing.schema.js'
 export * from './aggregate-application.schema.js'
@@ -345,6 +347,8 @@ export const databaseSchema = {
   userWhatsAppPhones,
   whatsAppPhoneVerificationRequests,
   whatsappFlowGraphVersions,
+  whatsAppCommandRequests,
+  whatsAppCommandDocuments,
   tripFinancialParcels,
   tripFinancialResults,
   tripDocumentEvents,
