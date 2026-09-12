@@ -89,7 +89,7 @@ trip_id)`); mirror em `apps/worker-transportada/src/database/`. Contrato de sche
 
 > 🤖 Modelo: `sonnet` (T7–T8) · `opus` (T9)
 
-- [ ] T7 — Envelope `transportada.trip.cargo-layout.requested` v1 (formato de
+- [x] T7 — Envelope `transportada.trip.cargo-layout.requested` v1 (formato de
       `messaging/aggregate-attachment-envelope.schema.ts`, payload `{ layoutId, inputHash }`);
       topologia principal/retry 30 s ×2/morta no padrão de
       `messaging/route-optimization-topology.ts`. Testes novos entram na lista explícita de

@@ -464,6 +464,44 @@ nada na árvore. Contrato vermelho antes da implementação.
 
 ## Fase 3 — Worker (T7–T9)
 
+### T7 — envelope e topologia do pedido de planta · 2026-09-12
+
+Rodou em `opus`: `sonnet` sem cota até 2026-09-14 09:00. Contrato vermelho antes da implementação.
+
+- `apps/worker-transportada/src/messaging/cargo-layout-envelope.schema.ts` (novo):
+  `CARGO_LAYOUT_EVENT_TYPE.REQUESTED = 'transportada.trip.cargo-layout.requested'` (cópia por valor de
+  `CARGO_LAYOUT_OUTBOX_EVENT_TYPES` da API) e `cargoLayoutEnvelopeV1Schema` no formato de
+  `aggregate-attachment-envelope.schema.ts`: `strictObject` com `eventId, type, version (1),
+occurredAt, companyId, correlationId, payload`; `payload` é `strictObject({ inputHash, layoutId })`
+  — referência, nunca a carga (D8).
+- `apps/worker-transportada/src/messaging/cargo-layout-topology.ts` (novo):
+  `buildCargoLayoutTopology({ queuePrefix })` no padrão exato de `route-optimization-topology.ts` —
+  `${QUEUE_PREFIX}.cargo-layout.v1.{main,retry,dead}.{exchange,queue}` e routing keys
+  `.main/.retry/.dead`, retry `delayMs: 30_000`, `maxRetries: 2`.
+- Contratos novos (entrypoint `test/cargo-layout-messaging.contract.test.ts`, adicionado à lista
+  explícita do `package.json` do worker logo após `cargo-layout-schema.contract.test.ts`):
+  - `test/cargo-layout/envelope.contract.ts`: envelope válido aceito; recusados payload com campo a
+    mais (rótulo de parada — PII), sem `layoutId`, sem `inputHash`, `layoutId` não-uuid, `type` de
+    outro trilho, `version: 2` e campo desconhecido no envelope. Paridade com a API por leitura de
+    fonte (mesmo estilo de `schema-parity.contract.ts`): a lista `CARGO_LAYOUT_OUTBOX_EVENT_TYPES` da
+    API é exatamente `[CARGO_LAYOUT_EVENT_TYPE.REQUESTED]`, e as chaves do `payload` gravado em
+    `cargo-layout-request.support.ts` são as chaves do schema do payload.
+  - `test/cargo-layout/topology.contract.ts`: topologia inteira por `toEqual` (principal, retry TTL
+    30000 ×2, morta, com as routing keys de cada uma); prefixo do ambiente, nunca literal; não divide
+    fila/exchange/retry/morta com a emissão de CT-e nem com a roteirização.
+- Vermelho: `bun test ./test/cargo-layout-messaging.contract.test.ts` → **0 pass, 1 fail, 1 error**
+  (`Cannot find module '../../src/messaging/cargo-layout-topology.js'`), antes de qualquer código de
+  produção.
+- Verde: a mesma suíte → **13 pass, 0 fail** (21 `expect()`); suíte inteira do worker
+  (`bun run test`) → **991 pass, 0 fail** (2736 `expect()`, 79 arquivos). `bunx tsc --noEmit` limpo,
+  `bunx eslint` limpo nos 5 arquivos, `bunx prettier --write` nos 6 arquivos tocados: todos
+  `unchanged`.
+- **Decisões registradas:** nomes de exchange/fila montados por template no builder, no mesmo estilo
+  do arquivo de referência (sem `*.constant.ts` à parte — nenhuma das topologias existentes usa);
+  `inputHash` validado como string não vazia, sem travar o formato sha256-hex que a API produz hoje,
+  para o envelope não acoplar ao algoritmo do hash. Relay (T8), handler/consumidor (T9) e a ligação em
+  `main.ts` ficam fora desta task.
+
 ## Fase 4 — Leitura da API (T10, T11)
 
 ## Fase 5 — Frontend (T12, T13)
