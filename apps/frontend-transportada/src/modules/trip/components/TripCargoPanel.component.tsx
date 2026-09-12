@@ -7,6 +7,7 @@ import { CargoVehicle } from '@/components/ui/cargo-vehicle'
 import { ProgressBar } from '@/components/ui/progress'
 
 import { TripCargoLayers } from './TripCargoLayers.component'
+import { TripPendingMeasurements } from './TripPendingMeasurements.component'
 import type { VehicleType } from '@/modules/shared/vehicleType.constant'
 
 import type {
@@ -160,6 +161,7 @@ export function TripCargoPanel({
         </p>
       ) : null}
 
+      <TripPendingMeasurements measurements={layout?.pendingMeasurements ?? []} />
       <TripCargoWeightNotes cargoWeight={cargoWeight} />
       {/*
         Spec 095: **um desenho só.** A fileira proporcional da 085 e a planta em escala da 088

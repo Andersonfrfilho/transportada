@@ -36,3 +36,10 @@ export function navigateToNfeWorkspace(navigator: WorkspaceNavigator): void {
   navigator.rememberWorkspace(NFE_WORKSPACE)
   navigator.dispatchPopState()
 }
+
+/** Spec 144 (D4): o atalho da lista do que falta medir cai direto na aba de caixas da 085. */
+export function navigateToPackageBoxQueue(navigator: WorkspaceNavigator): void {
+  navigator.pushPath(`${NFE_WORKSPACE_ROUTE}?tab=boxes`)
+  navigator.rememberWorkspace(NFE_WORKSPACE)
+  navigator.dispatchPopState()
+}

@@ -428,6 +428,23 @@
     "tableTitle": "Recorded occurrences",
     "title": "Occurrences"
   },
+  "pendingMeasurement": {
+    "columns": {
+      "boxCount": "Boxes",
+      "document": "Document",
+      "estimateSource": "Estimate source",
+      "product": "Product",
+      "stop": "Stop"
+    },
+    "estimateSource": {
+      "median": "Product median",
+      "none": "No estimate",
+      "note": "Invoice note"
+    },
+    "goToQueue": "Go to measurement queue",
+    "title": "What's left to measure",
+    "unknownProduct": "Unidentified product"
+  },
   "pagination": {
     "next": "Next page",
     "previous": "Previous page"

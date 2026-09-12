@@ -564,6 +564,23 @@
     "tableTitle": "Ocorrências registradas",
     "title": "Ocorrências"
   },
+  "pendingMeasurement": {
+    "columns": {
+      "boxCount": "Caixas",
+      "document": "Documento",
+      "estimateSource": "Origem da medida",
+      "product": "Produto",
+      "stop": "Parada"
+    },
+    "estimateSource": {
+      "median": "Mediana do produto",
+      "none": "Sem estimativa",
+      "note": "Ficha da nota"
+    },
+    "goToQueue": "Ir para a fila de medição",
+    "title": "O que falta medir",
+    "unknownProduct": "Produto sem identificação"
+  },
   "pagination": {
     "next": "Próxima página",
     "previous": "Página anterior"

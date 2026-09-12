@@ -9,6 +9,7 @@ import type {
   TripCargoPreview,
   TripCargoWeight,
   TripOccupancy,
+  TripPendingMeasurement,
   TripWeightConcentration,
 } from './trip.types'
 import {
@@ -790,7 +791,30 @@ function isCargoLayout(value: unknown): boolean {
     isNullableString(value.bedWidthM) &&
     isNullableString(value.freeDepthM) &&
     isNullableString(value.overflowDepthM) &&
-    Array.isArray(value.stopsWithoutVolume)
+    Array.isArray(value.stopsWithoutVolume) &&
+    /**
+     * Spec 144 (D4): a lista do que falta medir é opcional — API antiga não a serve, e recusar a
+     * resposta inteira por causa dela apagaria a planta que já funciona.
+     */
+    (value.pendingMeasurements === undefined ||
+      (Array.isArray(value.pendingMeasurements) &&
+        value.pendingMeasurements.every(isPendingMeasurement)))
+  )
+}
+
+const CARGO_ESTIMATE_SOURCES = ['median', 'none', 'note'] as const
+
+/** Spec 144 (D4): uma linha da lista do que falta medir. */
+function isPendingMeasurement(value: unknown): value is TripPendingMeasurement {
+  return (
+    isRecord(value) &&
+    isUnsignedInteger(value.boxCount) &&
+    isNullableString(value.documentNumber) &&
+    isOneOf(value.estimateSource, CARGO_ESTIMATE_SOURCES) &&
+    isNullableString(value.label) &&
+    isNullableString(value.productCode) &&
+    isUnsignedInteger(value.sequence) &&
+    isString(value.stopLabel)
   )
 }
 

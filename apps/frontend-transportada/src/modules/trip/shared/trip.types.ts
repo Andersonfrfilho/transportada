@@ -288,6 +288,21 @@ export type TripCargoPlacement = Readonly<{
   unplaced: readonly Readonly<{ count: number; label: string; reason: string }>[]
 }>
 
+/**
+ * Spec 144 (D4): uma linha da lista do que falta medir — um produto sem ficha, numa parada.
+ * `label`/`productCode` vêm da caixa; `stopLabel`/`sequence` são da parada, para o conferente
+ * saber **onde** procurar antes de abrir a fila da 085.
+ */
+export type TripPendingMeasurement = Readonly<{
+  boxCount: number
+  documentNumber: null | string
+  estimateSource: 'median' | 'none' | 'note'
+  label: null | string
+  productCode: null | string
+  sequence: number
+  stopLabel: string
+}>
+
 export type TripCargoLayout = Readonly<{
   /**
    * As fileiras do baú, do fundo para a porta. A parada dona aparece em fileiras **seguidas**, e a
@@ -347,6 +362,12 @@ export type TripCargoLayout = Readonly<{
    */
   occupancyKnown: boolean
   overflowM3: string
+  /**
+   * Spec 144 (D4): produtos sem caixa cadastrada, ainda sem medida. Opcional pela razão de sempre —
+   * API antiga não o serve, e recusar o corpo por falta do campo apagaria o painel de carga inteiro
+   * na janela entre os dois deploys.
+   */
+  pendingMeasurements?: readonly TripPendingMeasurement[]
   /**
    * Spec 088: o comprimento e a largura internos do baú, da ficha do veículo. `null` sem as três
    * medidas — e aí a tela mantém as fileiras da 085 e não promete metro nenhum.

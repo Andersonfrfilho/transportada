@@ -218,4 +218,38 @@ Nenhuma asserção de posição, contagem ou propriedade mudou de resultado entr
 `documentNumber` já era carimbado nos dois caminhos (repositório e prévia) via `stampCargoNote` —
 nada a mudar ali.
 
+### Contrato vermelho (T8, antes do código)
+
+`bun test ./test/trip.contract.test.ts` — 6 falhas esperadas em
+`test/trip/pending-measurements.contract.ts` (tipo, validação, painel, componente e locales ainda
+não existem) mais 1 falha em `test/trip/table-and-form.contract.ts`
+(`navigateToPackageBoxQueue` ainda não existe):
+
+```
+704 pass
+6 fail
+17166 expect() calls
+Ran 710 tests across 1 file.
+```
+
+### T8 — verde
+
+- `bunx tsc --noEmit` (frontend) — sem erro.
+- `bunx eslint` nos arquivos tocados — sem erro.
+- `bun test ./test/trip.contract.test.ts` — 710 pass / 0 fail, 17176 expect() calls, sem
+  regressão nos 704 testes que já existiam.
+- `bunx prettier --write` nos arquivos tocados — todos já formatados (unchanged).
+
+Implementado: `TripPendingMeasurement` e o campo opcional `pendingMeasurements` em
+`TripCargoLayout` (`trip.types.ts`); guarda `isPendingMeasurement` + `CARGO_ESTIMATE_SOURCES`
+plugada em `isCargoLayout`, tolerante à ausência do campo — API antiga não quebra
+(`tripResponse.validation.ts`); `navigateToPackageBoxQueue` cai em `${NFE_WORKSPACE_ROUTE}?tab=boxes`
+(`tripNavigation.service.ts`); novo componente `TripPendingMeasurements.component.tsx` — tabela
+reaproveitando `.dataTable`/`.tableScroll` (mesma convenção de `TripOccurrenceTable`) e um botão
+"ir para a fila" que chama `createBrowserWorkspaceNavigator()` inline (mesmo padrão de
+`TripDetail`, sem furar o teto de 5 props de `TripCargoPanel`); renderizado em
+`TripCargoPanel.component.tsx` junto da dica de `documentsWithoutVolume`; chaves
+`pendingMeasurement.*` em `trip.locale.json`/`trip.en.locale.json`, em ordem alfabética entre
+`occurrenceFeed` e `pagination`.
+
 ## 5. Gate (T10)
