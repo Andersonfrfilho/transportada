@@ -143,7 +143,7 @@ status='previewed' and preview_sha256=$hash and expires_at>now() returning` + li
 - [x] **T015** FlowActions do motorista: viagem atual → Entregar / Devolver (motivo em lista) /
       Ocorrência (catálogo `delivery`) pelos use-cases do PWA — `register-driver-flow-actions.ts` —
       E2E do AC7
-- [ ] **T016** FlowActions do operador: viagem em lista → ações que
+- [x] **T016** FlowActions do operador: viagem em lista → ações que
       `checkTripAcceptsDocumentWork` aceita no estado → ocorrência `separation` —
       `register-operator-trip-flow-actions.ts` — contrato estado → ações oferecidas, espelhando
       `test/trip/state-gates.contract.ts`

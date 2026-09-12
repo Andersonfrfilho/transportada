@@ -10,6 +10,12 @@ import {
   DRIVER_FLOW_NODE,
   DRIVER_RETURN_REASON_LABELS,
 } from '../domain/whatsapp-driver-flow.constant.js'
+import {
+  OPERATOR_DISPATCH_CONFIRM_ANSWER,
+  OPERATOR_FLOW_ACTION_KIND,
+  OPERATOR_FLOW_CONTEXT_KEY,
+  OPERATOR_FLOW_NODE,
+} from '../domain/whatsapp-operator-flow.constant.js'
 
 /**
  * Chave estável do grafo raiz do produto. `conversation-flow.md §7`: id sem acento, e é ele que
@@ -25,9 +31,10 @@ export const WHATSAPP_ROOT_FLOW_GRAPH_KEY = 'transportada_root'
  *
  * O menu raiz tem sempre as três opções publicadas: quem esconde a que a membership não alcança é o
  * driver (D2, `whatsapp-root-menu.policy.ts`), nunca o grafo — o grafo é o mesmo para toda empresa.
- * Cada ramo ainda sem ação (emissão fiscal T012/T013, entrega do motorista T015, operador T016)
- * termina num nó terminal explícito: nó sem saída é proibido (`conversation-flow.md §5`), e "Em
- * breve." é honesto sobre o que ainda não existe — melhor do que fingir uma ação que ainda não roda.
+ * O ramo ainda sem ação (emissão fiscal T012/T013) termina num nó terminal explícito: nó sem saída
+ * é proibido (`conversation-flow.md §5`), e "Em breve." é honesto sobre o que ainda não existe —
+ * melhor do que fingir uma ação que ainda não roda. `minha_viagem` (T015) e `viagens_armazem`
+ * (T016) já apontam para os ramos reais do motorista e do operador.
  *
  * A verificação de entrada (T004) não é opção deste menu: ela é pré-passo do despachante, resolvido
  * antes de qualquer grafo (`whatsapp-command-driver.service.ts`).
@@ -48,7 +55,7 @@ export const WHATSAPP_ROOT_FLOW_GRAPH: FlowGraphData = {
         byAnswer: {
           emitir_documentos: 'emitir_documentos_em_breve',
           minha_viagem: DRIVER_FLOW_NODE.currentTrip,
-          viagens_armazem: 'viagens_armazem_em_breve',
+          viagens_armazem: OPERATOR_FLOW_NODE.listTrips,
         },
         default: 'menu',
       },
@@ -60,12 +67,8 @@ export const WHATSAPP_ROOT_FLOW_GRAPH: FlowGraphData = {
       question: 'Olá! O que você quer fazer?',
       type: 'menu',
     },
-    viagens_armazem_em_breve: {
-      directMessage: 'Separar e despachar pelo WhatsApp está chegando. Por enquanto, use o painel.',
-      id: 'viagens_armazem_em_breve',
-      type: 'action',
-    },
     ...buildDriverTripFlowNodes(),
+    ...buildOperatorTripFlowNodes(),
   },
   startNodeId: 'menu',
   version: 1,
@@ -164,6 +167,120 @@ function buildDriverTripFlowNodes(): FlowGraphData['nodes'] {
     [DRIVER_FLOW_NODE.noteRouter]: {
       actionKind: DRIVER_FLOW_ACTION_KIND.completeOccurrence,
       id: DRIVER_FLOW_NODE.noteRouter,
+      type: 'action',
+    },
+  }
+}
+
+/**
+ * Spec 144 T016 — o ramo "Viagens do armazém": lista as viagens ainda no barracão, e o menu de ação
+ * de cada uma é dinâmico (derivado de `resolveOperatorTripActions`, nunca uma lista fixa neste
+ * grafo) — por isso ele também é `action` + `entrada_choice`, como as listas de nota do motorista.
+ * Só a confirmação de despacho é estática de verdade: duas opções fixas, ≤3 então botão com emoji
+ * (`conversation-flow.md §2`).
+ */
+function buildOperatorTripFlowNodes(): FlowGraphData['nodes'] {
+  return {
+    [OPERATOR_FLOW_NODE.listTrips]: {
+      actionKind: OPERATOR_FLOW_ACTION_KIND.listTrips,
+      id: OPERATOR_FLOW_NODE.listTrips,
+      type: 'action',
+    },
+    [OPERATOR_FLOW_NODE.tripEntry]: {
+      contextKey: OPERATOR_FLOW_CONTEXT_KEY.tripAnswer,
+      id: OPERATOR_FLOW_NODE.tripEntry,
+      next: OPERATOR_FLOW_NODE.tripRouter,
+      question: 'Toque numa viagem da lista acima.',
+      type: 'entrada_choice',
+    },
+    [OPERATOR_FLOW_NODE.tripRouter]: {
+      actionKind: OPERATOR_FLOW_ACTION_KIND.tripRouter,
+      id: OPERATOR_FLOW_NODE.tripRouter,
+      type: 'action',
+    },
+    [OPERATOR_FLOW_NODE.tripActionMenu]: {
+      actionKind: OPERATOR_FLOW_ACTION_KIND.tripActionMenu,
+      id: OPERATOR_FLOW_NODE.tripActionMenu,
+      type: 'action',
+    },
+    [OPERATOR_FLOW_NODE.actionEntry]: {
+      contextKey: OPERATOR_FLOW_CONTEXT_KEY.actionAnswer,
+      id: OPERATOR_FLOW_NODE.actionEntry,
+      next: OPERATOR_FLOW_NODE.actionRouter,
+      question: 'Toque numa das opções acima.',
+      type: 'entrada_choice',
+    },
+    [OPERATOR_FLOW_NODE.actionRouter]: {
+      actionKind: OPERATOR_FLOW_ACTION_KIND.actionRouter,
+      id: OPERATOR_FLOW_NODE.actionRouter,
+      type: 'action',
+    },
+    [OPERATOR_FLOW_NODE.listDocuments]: {
+      actionKind: OPERATOR_FLOW_ACTION_KIND.listDocuments,
+      id: OPERATOR_FLOW_NODE.listDocuments,
+      type: 'action',
+    },
+    [OPERATOR_FLOW_NODE.documentEntry]: {
+      contextKey: OPERATOR_FLOW_CONTEXT_KEY.documentAnswer,
+      id: OPERATOR_FLOW_NODE.documentEntry,
+      next: OPERATOR_FLOW_NODE.documentRouter,
+      question: 'Toque na nota da lista acima.',
+      type: 'entrada_choice',
+    },
+    [OPERATOR_FLOW_NODE.documentRouter]: {
+      actionKind: OPERATOR_FLOW_ACTION_KIND.documentRouter,
+      id: OPERATOR_FLOW_NODE.documentRouter,
+      type: 'action',
+    },
+    [OPERATOR_FLOW_NODE.dispatchConfirmMenu]: {
+      contextKey: OPERATOR_FLOW_CONTEXT_KEY.dispatchConfirmAnswer,
+      fallbackMessage: 'Toque numa das opções.',
+      id: OPERATOR_FLOW_NODE.dispatchConfirmMenu,
+      next: OPERATOR_FLOW_NODE.dispatchConfirmRouter,
+      options: [
+        [OPERATOR_DISPATCH_CONFIRM_ANSWER.confirm, '✅ Confirmar'],
+        [OPERATOR_DISPATCH_CONFIRM_ANSWER.cancel, '🔙 Voltar'],
+      ],
+      question: 'Despachar a viagem não pode ser desfeito por aqui. Confirma?',
+      type: 'menu',
+    },
+    [OPERATOR_FLOW_NODE.dispatchConfirmRouter]: {
+      actionKind: OPERATOR_FLOW_ACTION_KIND.dispatchConfirmRouter,
+      id: OPERATOR_FLOW_NODE.dispatchConfirmRouter,
+      type: 'action',
+    },
+    [OPERATOR_FLOW_NODE.listOccurrenceTypes]: {
+      actionKind: OPERATOR_FLOW_ACTION_KIND.listOccurrenceTypes,
+      id: OPERATOR_FLOW_NODE.listOccurrenceTypes,
+      type: 'action',
+    },
+    [OPERATOR_FLOW_NODE.occurrenceTypeEntry]: {
+      contextKey: OPERATOR_FLOW_CONTEXT_KEY.occurrenceTypeAnswer,
+      id: OPERATOR_FLOW_NODE.occurrenceTypeEntry,
+      next: OPERATOR_FLOW_NODE.occurrenceTypeRouter,
+      question: 'Toque no tipo da lista acima.',
+      type: 'entrada_choice',
+    },
+    [OPERATOR_FLOW_NODE.occurrenceTypeRouter]: {
+      actionKind: OPERATOR_FLOW_ACTION_KIND.occurrenceTypeRouter,
+      id: OPERATOR_FLOW_NODE.occurrenceTypeRouter,
+      type: 'action',
+    },
+    [OPERATOR_FLOW_NODE.notePrompt]: {
+      actionKind: OPERATOR_FLOW_ACTION_KIND.notePrompt,
+      id: OPERATOR_FLOW_NODE.notePrompt,
+      type: 'action',
+    },
+    [OPERATOR_FLOW_NODE.noteEntry]: {
+      contextKey: OPERATOR_FLOW_CONTEXT_KEY.noteAnswer,
+      id: OPERATOR_FLOW_NODE.noteEntry,
+      next: OPERATOR_FLOW_NODE.noteRouter,
+      question: 'Digite o texto, ou toque em Pular.',
+      type: 'entrada_choice',
+    },
+    [OPERATOR_FLOW_NODE.noteRouter]: {
+      actionKind: OPERATOR_FLOW_ACTION_KIND.completeOccurrence,
+      id: OPERATOR_FLOW_NODE.noteRouter,
       type: 'action',
     },
   }

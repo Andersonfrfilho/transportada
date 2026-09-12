@@ -144,6 +144,7 @@ import { createDrizzleWebhookNonceStore } from './whatsapp/infrastructure/drizzl
 import { createRateLimiter } from './http/rate-limiter.service.js'
 import { FlowGraphRepository } from '@adatechnology/meta-whatsapp-module'
 import { createDriverWhatsAppFlowActions } from './whatsapp-commands/application/register-driver-flow-actions.js'
+import { createOperatorWhatsAppFlowActions } from './whatsapp-commands/application/register-operator-trip-flow-actions.js'
 import { createResolveWhatsAppActorUseCase } from './whatsapp-commands/application/resolve-whatsapp-actor.use-case.js'
 import { createModuleWhatsAppFlowGraphProvider } from './whatsapp-commands/application/whatsapp-flow-graph.service.js'
 import { WHATSAPP_ROOT_FLOW_GRAPH_KEY } from './whatsapp-commands/infrastructure/whatsapp-flow-graph.constant.js'
@@ -293,6 +294,10 @@ import { attachDeliveryProof } from './trips/application/attach-delivery-proof.u
 import { createDeliveryProofDocumentSecretService } from './trips/application/delivery-proof-document-secret.service'
 import { dispatchDriverTrip } from './trips/application/dispatch-driver-trip.use-case'
 import { dispatchTrip } from './trips/application/dispatch-trip.use-case'
+import { transitionTripDocument } from './trips/application/transition-trip-document.use-case.js'
+import { transitionTripDocumentsBatch } from './trips/application/transition-trip-documents-batch.use-case.js'
+import { listWarehouseTrips } from './trips/application/list-warehouse-trips.use-case.js'
+import { DrizzleWarehouseTripRepository } from './trips/infrastructure/drizzle-warehouse-trip.repository.js'
 import { createDeliveryProofStorage } from './trips/infrastructure/delivery-proof-storage.gateway'
 import { DrizzleDeliveryProofRepository } from './trips/infrastructure/drizzle-delivery-proof.repository'
 import { DrizzleDeliveryProofSettingsRepository } from './trips/infrastructure/drizzle-delivery-proof-settings.repository'
@@ -649,6 +654,79 @@ export function bootstrap(): Bun.Server<undefined> {
     resolveDriverId: (input) => whatsappDriverTripRepository.findDriverIdByMembership(input),
   })
   /**
+   * Spec 144 T016 — as mesmas repositórios que `createTripLifecycleUseCase` (T009/T010) injeta nas
+   * rotas `/trips/:id/documents/:documentId/{separate,load}`, `.../batch-status` e `/dispatch`,
+   * numa segunda instância montada aqui por causa da mesma ordem de construção do T015 acima (o
+   * hook nasce antes de `tripLifecycle`, mais adiante neste arquivo). Nenhum caminho paralelo: as
+   * funções puras (`transitionTripDocument`, `transitionTripDocumentsBatch`, `dispatchTrip`) e as
+   * tabelas são as mesmas do painel.
+   */
+  const whatsappTripDocumentRepository = new DrizzleTripDocumentRepository(database.db)
+  const whatsappTripDocumentBatchRepository = new DrizzleTripDocumentBatchRepository(database.db)
+  const whatsappTripRouteRepository = new DrizzleTripRouteRepository(database.db)
+  const whatsappWarehouseTripRepository = new DrizzleWarehouseTripRepository(database.db)
+  const operatorWhatsAppFlowActions = createOperatorWhatsAppFlowActions({
+    batchTransition: (input) =>
+      transitionTripDocumentsBatch({
+        action: input.action,
+        actorUserId: input.context.userId,
+        companyId: input.context.companyId,
+        documentIds: input.documentIds,
+        repository: whatsappTripDocumentBatchRepository,
+        tripId: input.tripId,
+      }),
+    dispatchTrip: (input) =>
+      dispatchTrip({
+        actorUserId: input.context.userId,
+        companyId: input.context.companyId,
+        repository: whatsappTripRouteRepository,
+        tripId: input.tripId,
+      }),
+    listOccurrenceTypes: (input) =>
+      listOccurrenceTypes(database.db, { companyId: input.companyId }),
+    listWarehouseTrips: (input) =>
+      listWarehouseTrips({
+        companyId: input.companyId,
+        repository: whatsappWarehouseTripRepository,
+      }),
+    loadDocument: (input) =>
+      transitionTripDocument({
+        action: 'load',
+        actorUserId: input.context.userId,
+        companyId: input.context.companyId,
+        documentId: input.documentId,
+        repository: whatsappTripDocumentRepository,
+        tripId: input.tripId,
+      }),
+    registerOccurrence: (input) =>
+      registerTripOccurrence({
+        actorUserId: input.actorUserId,
+        companyId: input.companyId,
+        documentId: input.documentId,
+        note: input.note,
+        occurredOn: new Date().toLocaleDateString('pt-BR'),
+        occurrenceTypeId: input.occurrenceTypeId,
+        productCode: '',
+        repository: {
+          findOccurrenceType: (query) => findOccurrenceType(database.db, query),
+          listDocumentProducts: (query) => listDocumentProducts(database.db, query),
+          listOccurrences: (query) => listTripOccurrences(database.db, query),
+          readTemplateValues: (query) => readOccurrenceTemplateValues(database.db, query),
+          saveOccurrence: (query) => saveTripOccurrence(database.db, query),
+        },
+        tripId: input.tripId,
+      }),
+    separateDocument: (input) =>
+      transitionTripDocument({
+        action: 'separate',
+        actorUserId: input.context.userId,
+        companyId: input.context.companyId,
+        documentId: input.documentId,
+        repository: whatsappTripDocumentRepository,
+        tripId: input.tripId,
+      }),
+  })
+  /**
    * Spec 144 T006 — o despachante das mensagens recebidas. O teto por número é um só para a
    * instalação: a instância do módulo é refeita quando o token muda, e o teto não pode zerar junto.
    */
@@ -657,7 +735,7 @@ export function bootstrap(): Bun.Server<undefined> {
     authorization: new AuthorizationService(),
     baseUrl: config.whatsapp.baseUrl,
     clock: () => new Date(),
-    flowActions: driverWhatsAppFlowActions,
+    flowActions: [...driverWhatsAppFlowActions, ...operatorWhatsAppFlowActions],
     /**
      * Spec 144 T008 — lê a versão publicada (a linha viva do módulo, a que `create`/`save`
      * escrevem), nunca o grafo em código direto: o comando de republicação é o único que decide

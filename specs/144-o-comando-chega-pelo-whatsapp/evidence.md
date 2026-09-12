@@ -1008,3 +1008,137 @@ implicitamente (o motorista nunca vê essa opção oferecida).
   `cargo-volume` (57 ms medidos nesta rodada) — registrado, não consertado, como nas tasks
   anteriores. `bun run build` (chamado separadamente, já que `make check` interrompe no primeiro
   script que falha) → as seis apps constroem sem erro.
+
+## T016 — o armazém opera pela conversa (2026-09-12)
+
+FlowActions do operador, mesmo molde da T015: `register-operator-trip-flow-actions.ts` +
+`whatsapp-operator-flow.constant.ts` (ids de nó, `actionKind`, chaves de contexto), o ramo "Viagens
+do armazém" do grafo (T008) e os contratos (`test/whatsapp-commands/operator-flow-actions.contract.ts`,
+`test/integration/whatsapp-operator-flow-actions.integration.ts`).
+
+### Nenhuma tabela nova — a mesma máquina do painel
+
+`checkTripAcceptsDocumentWork` (`trips/domain/trip-state.policy.ts`) **não era exportada**; a única
+mudança de domínio desta task é acrescentar `export` a ela — nenhuma linha de lógica mudou.
+`resolveOperatorTripActions` (`trips/domain/operator-trip-actions.policy.ts`) é a função pura que o
+menu do WhatsApp consulta, e ela **deriva**, nunca redecide:
+
+```
+separar/carregar/ocorrência ⟺ checkTripAcceptsDocumentWork({action: 'separate', tripStatus}) === null
+despachar ⟺ checkTripTransition({action: 'dispatch', hasRoute, tripStatus}).outcome === 'applied'
+            E nenhuma nota pendente (pending/separated, viva)
+```
+
+Tabela estado → ações oferecidas (o que o contrato prova, espelhando o mesmo corte de
+`state-gates.contract.ts` do frontend — separar/carregar/ocorrência sempre juntos, porque o mesmo
+portão decide os três):
+
+| `tripStatus`                                                    | sem pendência                            | com pendência                 |
+| --------------------------------------------------------------- | ---------------------------------------- | ----------------------------- |
+| `draft`                                                         | nenhuma                                  | nenhuma                       |
+| `route_planned` / `separating` / `loading`                      | separar, carregar, ocorrência, despachar | separar, carregar, ocorrência |
+| `dispatched` / `in_transit` / `on_delivery_route` / `completed` | nenhuma                                  | nenhuma                       |
+| `cancelled`                                                     | nenhuma                                  | nenhuma                       |
+
+⚠️ Sem roteiro planejado (`hasRoute: false`), despachar nunca entra — mesmo sem pendência. E como os
+três estados de barracão só se alcançam depois de `route_planned` (a própria `checkTripAcceptsDocumentWork`
+recusa separar/carregar em `draft` com `TRIP_ROUTE_NOT_PLANNED`), `WarehouseTrip.hasRoute` na
+listagem é sempre `true` por construção — não há consulta extra a fazer para o **menu**. A conferência
+**autoritativa** de verdade continua sendo a real: `dispatchTrip`/`DrizzleTripRouteRepository.readPreconditions`,
+que é quem de fato lê `trip_stops` no `POST /dispatch` — o teste de integração precisou semear uma
+parada real, porque sem ela o despacho de verdade recusa com `TRIP_HAS_NO_ROUTE` mesmo com
+`status = 'route_planned'` gravado à mão.
+
+### As mesmas funções compostas do painel, nunca um caminho paralelo
+
+`separateDocument`/`loadDocument` → `tripLifecycle.separate/load.execute` → `transitionTripDocument`
+com `DrizzleTripDocumentRepository` — a mesma porta de `POST /trips/:id/documents/:documentId/{separate,load}`.
+`batchTransition` → `transitionTripDocumentsBatch` com `DrizzleTripDocumentBatchRepository` — a
+mesma de `POST /trips/:id/documents/batch-status` ("Todas as pendentes"). `dispatchTrip` → a mesma
+`dispatchTrip` (`dispatch-trip.use-case.ts`) com `DrizzleTripRouteRepository`, **sem `force`**: o
+WhatsApp nunca despacha forçado (D7) — nota pendente esconde a opção do menu (acima), e se ainda
+assim a transição for tentada (menu desatualizado numa sessão antiga), `TripHasUnloadedDocumentsError`/
+`TripHasUnscheduledStopsError` viram mensagem "despache pelo painel." em vez de forçar. A ocorrência
+usa `registerTripOccurrence` direto (não o `registerDriverOccurrence` do motorista, que exige
+`driverId` — o operador não é motorista), com `productCode: ''` (nota inteira) e catálogo filtrado
+por `stage: 'separation'`.
+
+⚠️ As instâncias de `DrizzleTripDocumentRepository`/`DrizzleTripDocumentBatchRepository`/
+`DrizzleTripRouteRepository` do WhatsApp são uma **segunda instância** das mesmas classes que
+`tripLifecycle` usa nas rotas do painel — não dá para importar `tripLifecycle` porque ele nasce mais
+adiante em `main.ts` (depois do hook do WhatsApp, pelo mesmo motivo já registrado na T015 com
+`whatsappDriverTripRepository`). Mesma tabela, mesma função pura, segunda instância da classe —
+não um segundo caminho.
+
+### Duas transições sem discriminador — resolvido pelo estado anterior
+
+`transitionTripDocument` devolve `{document, tripStatus}` em `applied` e em `unchanged`, sem
+sinalizador (ao contrário de `reportDocumentDelivery`, que tem `alreadySettled` porque foi desenhada
+para o PWA). O requisito "unchanged → 'Já estava registrada.'" (item 4 da task) é resolvido
+**antes** de chamar a transição: `documentRouter` relê o estado atual da nota
+(`listWarehouseTrips`) e compara contra o alvo da ação — se já está lá, a mensagem é "Já estava
+registrada." mesmo chamando a transição de novo (idempotente, sem gravar evento novo).
+
+### Confirmação de despacho — nó estático, não `FlowAction`
+
+"Despachar é irreversível" (item 3) é um nó `type: 'menu'` **estático** do grafo
+(`dispatchConfirmMenu`), com duas opções fixas ✅ Confirmar/🔙 Voltar — igual ao `returnReasonMenu`
+do motorista, e por isso sai como **botão de verdade** (o interpretador do módulo renderiza `menu`
+com botão nativo quando ≤3 opções; só as listas dinâmicas das `FlowAction`s saem sempre como lista,
+porque a instalação 0.1.0 não tem `sendInteractiveButtons`). "🔙 Voltar" nunca chama `dispatchTrip` —
+provado no contrato com um espião que falha o teste se for chamado.
+
+### Um menu que encadeia — a contagem de mensagens por turno
+
+Como `tripActionMenu` e `listDocuments` são nós `action` (não `menu`), o interpretador os executa
+**na mesma resposta** de quem os aponta como `next` — por isso `documentRouter` (que primeiro manda
+a confirmação por `channel.sendText` e depois retorna `next: tripActionMenu`) produz **três**
+mensagens no mesmo turno: a confirmação, a lista de ações de novo, e o "nudge" de texto do
+`entrada_choice` que sucede. O teste de integração assevera a confirmação em `.at(-3)`, não `.at(-1)`
+— documentado ali para a próxima pessoa não reabrir a mesma investigação.
+
+### Permissão: leitura versus gestão
+
+`listTrips`/`tripRouter` (achar a viagem) usam `fleet.read` — a mesma `TRIP_READ_POLICY` do painel.
+Todo o resto (menu de ações, separar, carregar, despachar, ocorrência) usa `trip.manage`. O papel
+`separator` já tem as duas (CLAUDE.md), então o operador nunca percebe a diferença; ela existe para
+o dia em que outro papel tiver só uma das duas.
+
+### Fora do escopo desta task
+
+Despacho **forçado** (nota pendente + confirmação com motivo) continua exclusivo do painel — a
+CLAUDE.md e o prompt da task são explícitos: ação de exceção fica onde o operador vê a lista
+completa das pendências, não numa lista de WhatsApp. `unscheduledStopIds` (agendamento do cliente,
+spec 060) não entra na decisão do **menu** (não há dado disso em `WarehouseTrip`); se acontecer, a
+tentativa real de despacho ainda recusa e a `FlowAction` traduz para "Há paradas sem agendamento —
+despache pelo painel." — só não impede a oferta do botão de antemão, porque isso exigiria mais uma
+consulta na listagem por um caso raro (nota carregada + parada sem agendamento).
+
+### Gates
+
+- `bunx tsc --noEmit` (API) → limpo.
+- `bun run lint` (API) → limpo.
+- `bun test ./test/whatsapp-commands.contract.test.ts` → 214 pass · 0 fail (as ~30 novas de
+  `operator-flow-actions.contract.ts`, mais o ajuste em `flow-graph.contract.ts` — "viagens_armazem"
+  saiu do grupo "ainda sem ação" e ganhou teste próprio, como "minha_viagem" na T015).
+- `bun run test` (API, 166 arquivos) → 5282 pass · 23 skip · 1 fail — o mesmo `cargo-volume`
+  (orçamento de 50 ms, 50,29 ms medidos nesta rodada em primeiro plano) já registrado em
+  T005b/T007/T008/T015; nenhum arquivo desta task no motivo.
+- `bun --env-file=../../.env.test test --timeout 120000 ./test/integration/whatsapp-operator-flow-actions.integration.ts`
+  (isolado, em primeiro plano) → 1 pass · 0 fail — webhook assinado real → "oi" → "🏭 Viagens do
+  armazém" → lista dinâmica com a viagem certa → menu de ações em lista (separar/carregar/ocorrência,
+  sem despachar — nota pendente) → "📦 Separar" → toque na nota → "Separação registrado. ✅"
+  (`separation_status = 'separated'`) → "📥 Carregar" → toque na nota → "Carregamento
+  registrado. ✅" (`separation_status = 'loaded'`) → "🚚 Despachar" (agora oferecido, sem pendência)
+  → confirmação em botões → "✅ Confirmar" → "Viagem despachada. 🚚" (`trips.status = 'dispatched'`)
+  → a viagem some de `listWarehouseTrips`.
+- `bun --env-file=../../.env.test test:integration` (suíte de integração completa, 49 arquivos,
+  incluindo a nova, em primeiro plano) → 232 pass · 4 skip · 2 fail — as mesmas 2 falhas de
+  `cte-archive-gateway.integration.ts` (MinIO fora do ar) já registradas nas tasks anteriores;
+  nenhuma delas em arquivo desta task.
+- `make check` (raiz, em primeiro plano, timeout 600000 ms) → `format:check`, `lint` e `typecheck`
+  verdes nas seis apps; `test` da API interrompe no mesmo `cargo-volume` (registrado acima) —
+  falha de orçamento por CPU, não desta task. Como `make check` para no primeiro script que falha,
+  `bun run build` foi chamado em separado nas seis apps (`api-transportada`, `worker-transportada`,
+  `cron-transportada`, `frontend-transportada`, `frontend-client`, `frontend-landing`) → todas
+  constroem sem erro.

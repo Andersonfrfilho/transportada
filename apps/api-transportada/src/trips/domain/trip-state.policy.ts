@@ -171,7 +171,11 @@ export function checkTripDocumentTransition({
   return checkDocumentOrigin({ action, documentStatus, target })
 }
 
-function checkTripAcceptsDocumentWork(input: {
+/**
+ * Spec 144 T016: exportada para o menu do operador no WhatsApp derivar quais ações o portão aceita
+ * no estado atual — nunca uma tabela paralela que possa discordar desta.
+ */
+export function checkTripAcceptsDocumentWork(input: {
   readonly action: TripDocumentAction
   readonly tripStatus: TripStatus
 }): TripTransitionBlock | null {

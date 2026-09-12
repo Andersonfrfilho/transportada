@@ -51,8 +51,9 @@ describe('WHATSAPP_ROOT_FLOW_GRAPH', () => {
   })
 
   /**
-   * Spec 144 T015: "minha_viagem" deixou de ser terminal — o ramo do motorista está implementado.
-   * Os outros dois (emissão fiscal T012/T013, operador T016) continuam "Em breve.".
+   * Spec 144 T015/T016: "minha_viagem" e "viagens_armazem" deixaram de ser terminais — os ramos do
+   * motorista e do operador estão implementados. Só a emissão fiscal (T012/T013) continua "Em
+   * breve.".
    */
   test('todo ramo ainda sem ação termina num nó terminal explícito ("Em breve.")', () => {
     const rootNode = WHATSAPP_ROOT_FLOW_GRAPH.nodes[WHATSAPP_ROOT_FLOW_GRAPH.startNodeId]
@@ -60,7 +61,7 @@ describe('WHATSAPP_ROOT_FLOW_GRAPH', () => {
     if (next === undefined || typeof next === 'string') throw new Error('menu sem next.byAnswer')
 
     for (const [optionId, targetId] of Object.entries(next.byAnswer)) {
-      if (optionId === 'minha_viagem') continue
+      if (optionId === 'minha_viagem' || optionId === 'viagens_armazem') continue
       const target = WHATSAPP_ROOT_FLOW_GRAPH.nodes[targetId]
       expect(target?.type).toBe('action')
       expect(target?.directMessage).toContain('chegando')
@@ -73,6 +74,16 @@ describe('WHATSAPP_ROOT_FLOW_GRAPH', () => {
     if (next === undefined || typeof next === 'string') throw new Error('menu sem next.byAnswer')
 
     const target = WHATSAPP_ROOT_FLOW_GRAPH.nodes[next.byAnswer.minha_viagem ?? '']
+    expect(target?.type).toBe('action')
+    expect(target?.directMessage).toBeUndefined()
+  })
+
+  test('"viagens_armazem" aponta para a FlowAction que lista as viagens do barracão (T016)', () => {
+    const rootNode = WHATSAPP_ROOT_FLOW_GRAPH.nodes[WHATSAPP_ROOT_FLOW_GRAPH.startNodeId]
+    const next = rootNode?.next
+    if (next === undefined || typeof next === 'string') throw new Error('menu sem next.byAnswer')
+
+    const target = WHATSAPP_ROOT_FLOW_GRAPH.nodes[next.byAnswer.viagens_armazem ?? '']
     expect(target?.type).toBe('action')
     expect(target?.directMessage).toBeUndefined()
   })
