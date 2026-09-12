@@ -78,6 +78,35 @@ empresa para todo box sem medida — por isso o m³ desenhado (0.14, 10 × 0.036
 empresa) não fecha com o resíduo da nota (0.5). A segunda falha (`o Atego de 1417 caixas cabe no
 orçamento de 50 ms`) é pré-existente, já registrada na seção 1.
 
+### T4 — grade intermediária
+
+`CargoPlanBox` ganhou `estimatedVolumeM3`/`productCode`; `loadMeasuredItems` agora seleciona
+`nfeProducts.code` e carimba `productCode` só na caixa sem ficha; `loadTripOccupancy` trocou o par
+`resolveMeasuredCargoVolume` + `resolveCargoVolume` por uma chamada a `resolveDocumentCargoEstimate`
+por nota, e carimba `estimatedVolumeM3` nas caixas sem ficha (`stampEstimatedVolume`) sempre que
+`estimateSource === 'note'` — o mesmo `boxesByDocument` alimenta a prévia e o detalhe da viagem, sem
+código repetido entre os dois caminhos.
+
+```
+bun run typecheck → sem erros
+bun test ./test/cargo-volume.contract.test.ts
+ 321 pass · 2 fail
+   - T3 (G002) ainda vermelho na asserção de m³ (esperado — toPlacementBoxes só muda em T5)
+   - "o Atego de 1417 caixas cabe no orçamento de 50 ms" — pré-existente
+```
+
+⚠️ **Risco sinalizado pelo arquiteto, conferido**: nota com uma linha medida + `qVol` + **sem**
+mediana da empresa podia trocar de `estimated` para `partial`. Confirmado por leitura do código:
+acontece quando o resíduo é positivo (`resolveDocumentCargoEstimate` retorna `source: 'partial'`
+porque `hasMeasured` é verdadeiro, contra o par antigo que descartava a medida parcial sem mediana e
+caía no total por espécie, `estimated`). Busquei por `'estimated'`/`'partial'`/`medianBoxVolumeM3` em
+todo `test/integration/*.integration.ts` que toca `loadTripOccupancy` (via `drizzle-trip.repository`
+ou `trip-cargo-preview.query`) e em `trip-occupancy.contract.ts`/`cargo-preview.contract.ts` (que só
+exercitam `resolveTripOccupancy`/`previewTripCargo` com dados forjados, nunca `loadTripOccupancy`
+de verdade) — **nenhum teste do repositório afirma o resultado antigo `estimated` nesse cenário
+exato**. Nenhum teste alterado; a troca `partial` é a decisão da spec 144 (D2), não um efeito colateral
+disfarçado.
+
 ### T5 — verde
 
 _(preencher após T5)_

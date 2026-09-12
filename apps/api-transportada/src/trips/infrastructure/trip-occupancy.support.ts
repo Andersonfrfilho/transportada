@@ -3,7 +3,10 @@
  */
 import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm'
 import type { LoadingAccess } from '../../shared/loading-access.constant.js'
-import type { MeasuredCargoItem } from '../../nfe-documents/domain/cargo-volume.policy.js'
+import type {
+  MeasuredCargoItem,
+  ResolvedDocumentCargoEstimate,
+} from '../../nfe-documents/domain/cargo-volume.policy.js'
 
 import { companyCargoVolumeFactors } from '../../database/company-cargo-volume-factor.schema.js'
 import { fleetVehicles } from '../../database/fleet.schema.js'
@@ -18,8 +21,7 @@ import { vehicleVolumeReferences } from '../../database/vehicle-volume-reference
 import {
   countMeasuredBoxes,
   medianBoxVolumeM3,
-  resolveCargoVolume,
-  resolveMeasuredCargoVolume,
+  resolveDocumentCargoEstimate,
 } from '../../nfe-documents/domain/cargo-volume.policy.js'
 import type { CargoBedDimensions } from '../domain/cargo-layout.policy.js'
 import type { CargoPlanBox } from '../domain/cargo-plan.policy.js'
@@ -181,38 +183,46 @@ export async function loadTripOccupancy(
 
   const measured = await loadMeasuredItems(queryable, input)
   const byDocument = new Map(volumes.map((row) => [row.documentId, row]))
-  const documents = input.nfeDocumentIds.map((documentId) => {
-    /**
-     * Spec 085 G006: a caixa medida vence a estimativa por espécie. A estimativa continua sendo a
-     * resposta de quem ainda não mediu nada — ela não sai, ela deixa de ser a única.
-     */
-    const fromBoxes = resolveMeasuredCargoVolume({
-      fallbackBoxVolumeM3: measured.medianM3,
-      items: measured.itemsByDocument.get(documentId) ?? [],
-    })
-    if (fromBoxes !== null) return fromBoxes
+  /**
+   * Spec 144 (D1/D2): uma estimativa por nota, na precedência ficha → resíduo → mediana → ausência.
+   * `resolveDocumentCargoEstimate` já decide tudo isso — o par `resolveMeasuredCargoVolume` +
+   * `resolveCargoVolume` que vivia aqui só cobria ficha e espécie, sem o resíduo no meio.
+   */
+  const estimates = new Map(
+    input.nfeDocumentIds.map((documentId) => {
+      const row = byDocument.get(documentId)
 
-    const row = byDocument.get(documentId)
-    if (row === undefined) return { source: null, volumeM3: null }
-    const resolved = resolveCargoVolume({
-      volumeFactor: factorBySpecies.get(row.species) ?? defaultFactor,
-      volumeQuantity: row.quantity,
-    })
-    return { source: resolved?.source ?? null, volumeM3: resolved?.volumeM3 ?? null }
+      return [
+        documentId,
+        resolveDocumentCargoEstimate({
+          items: measured.itemsByDocument.get(documentId) ?? [],
+          medianBoxVolumeM3: measured.medianM3,
+          volumeFactor:
+            row === undefined ? null : (factorBySpecies.get(row.species) ?? defaultFactor),
+          volumeQuantity: row?.quantity ?? null,
+        }),
+      ] as const
+    }),
+  )
+  const documents = input.nfeDocumentIds.map((documentId) => {
+    const estimate = estimates.get(documentId)
+
+    return { source: estimate?.source ?? null, volumeM3: estimate?.volumeM3 ?? null }
   })
 
   const volumeByDocument = new Map(
-    input.nfeDocumentIds.map((documentId, index) => [
+    input.nfeDocumentIds.map((documentId) => [
       documentId,
-      documents[index]?.volumeM3 ?? null,
+      estimates.get(documentId)?.volumeM3 ?? null,
     ]),
   )
+  const boxesByDocument = stampEstimatedVolume(measured.boxesByDocument, estimates)
 
   const occupancy = resolveTripOccupancy({ capacityM3: capacity.capacityM3, documents })
   if (occupancy === null) {
     return {
       bedDimensions: toBedDimensions(vehicle, reference),
-      boxesByDocument: measured.boxesByDocument,
+      boxesByDocument,
       capacityM3: capacity.capacityM3,
       fallbackBoxVolumeM3: toNumber(measured.medianM3),
       measuredShapes: measured.measuredShapes,
@@ -225,7 +235,7 @@ export async function loadTripOccupancy(
 
   return {
     bedDimensions: toBedDimensions(vehicle, reference),
-    boxesByDocument: measured.boxesByDocument,
+    boxesByDocument,
     capacityM3: capacity.capacityM3,
     fallbackBoxVolumeM3: toNumber(measured.medianM3),
     measuredShapes: measured.measuredShapes,
@@ -240,6 +250,36 @@ export async function loadTripOccupancy(
     },
     volumeByDocument,
   }
+}
+
+/**
+ * Spec 144 (D2): carimba nas caixas sem ficha o m³ do resíduo da nota — só quando o resíduo foi a
+ * origem da estimativa (`estimateSource: 'note'`). Caixa medida nunca é tocada; sem resíduo
+ * (mediana ou ausência) a caixa segue como sempre foi, sem apresentar um número que não veio dela.
+ */
+function stampEstimatedVolume(
+  boxesByDocument: ReadonlyMap<string, readonly CargoPlanBox[]>,
+  estimates: ReadonlyMap<string, ResolvedDocumentCargoEstimate>,
+): ReadonlyMap<string, readonly CargoPlanBox[]> {
+  return new Map(
+    [...boxesByDocument].map(([documentId, boxes]) => {
+      const estimate = estimates.get(documentId)
+      if (estimate?.estimateSource !== 'note' || estimate.unmeasuredBoxVolumeM3 === null) {
+        return [documentId, boxes] as const
+      }
+
+      const estimatedVolumeM3 = Number.parseFloat(estimate.unmeasuredBoxVolumeM3)
+
+      return [
+        documentId,
+        boxes.map((box) =>
+          box.heightMm === null && box.lengthMm === null && box.widthMm === null
+            ? { ...box, estimatedVolumeM3 }
+            : box,
+        ),
+      ] as const
+    }),
+  )
 }
 
 /**
@@ -361,6 +401,8 @@ async function loadMeasuredItems(
       /** O nome que a planta imprime, e que a linha do excedente usa para nomear o que não coube. */
       label: nfeProducts.description,
       maxStackCount: nfePackageBoxes.maxStackCount,
+      /** Spec 144: código do produto, carimbado na caixa sem ficha para a lista do que falta medir. */
+      productCode: nfeProducts.code,
       quantity: nfeProducts.quantity,
       unitsPerBox: nfePackageBoxes.unitsPerBox,
     })
@@ -434,6 +476,8 @@ async function loadMeasuredItems(
         label: row.label,
         lengthMm: row.boxLengthMm,
         maxStackCount: row.maxStackCount,
+        /** Spec 144: só a caixa sem ficha carrega o código — a medida nunca precisou dele. */
+        ...(row.boxHeightMm === null ? { productCode: row.productCode } : {}),
         widthMm: row.boxWidthMm,
       },
     ])

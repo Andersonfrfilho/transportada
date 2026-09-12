@@ -17,6 +17,12 @@ export type CargoPlanBox = {
    */
   readonly documentId?: string | null
   readonly documentNumber?: string | null
+  /**
+   * Spec 144 (D2): volume presumido pelo resíduo da nota, para a caixa que não passou pela ficha de
+   * medição. Presente só quando `heightMm`/`lengthMm`/`widthMm` são `null` — a caixa medida nunca
+   * carrega isso, sua própria dimensão já manda.
+   */
+  readonly estimatedVolumeM3?: number | null
   readonly heightMm: number | null
   /**
    * Spec 094: as restrições que decidem **onde** a caixa pode ir. `null` é "ninguém informou", nunca
@@ -31,6 +37,8 @@ export type CargoPlanBox = {
   readonly label?: string
   readonly lengthMm: number | null
   readonly maxStackCount?: number | null
+  /** Spec 144: código do produto (`nfeProducts.code`) — só carimbado na caixa sem ficha. */
+  readonly productCode?: string | null
   readonly widthMm: number | null
 }
 
