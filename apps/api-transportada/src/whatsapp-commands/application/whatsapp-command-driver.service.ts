@@ -31,6 +31,7 @@ import {
   WHATSAPP_MAX_CROSS_FLOW_HOPS,
 } from '../domain/whatsapp-command.constant.js'
 import { parseMenuPageNavigation } from '../domain/whatsapp-menu.policy.js'
+import { filterWhatsAppRootFlowGraph } from '../domain/whatsapp-root-menu.policy.js'
 import { WHATSAPP_PHONE_VERIFICATION_CODE_MESSAGE_PATTERN } from '../domain/whatsapp-phone-verification.constant.js'
 import {
   type WhatsAppCommandDenialReason,
@@ -142,7 +143,7 @@ async function dispatch(turn: WhatsAppCommandTurn): Promise<MessageHookOutcome> 
   }
 
   try {
-    await advanceConversation(turn)
+    await advanceConversation(turn, actor.context.scope.permissions)
   } catch (error) {
     /** A FlowAction re-resolveu o ator e recusou: mesma saída neutra, e o fluxo termina. */
     if (!(error instanceof WhatsAppCommandDeniedError)) throw error
@@ -152,11 +153,14 @@ async function dispatch(turn: WhatsAppCommandTurn): Promise<MessageHookOutcome> 
   return HANDLED
 }
 
-async function advanceConversation(turn: WhatsAppCommandTurn): Promise<void> {
+async function advanceConversation(
+  turn: WhatsAppCommandTurn,
+  permissions: ReadonlySet<string>,
+): Promise<void> {
   const position = await turn.deps.sessions.getContext(turn.session.companyId, turn.phone)
   const context = position?.context ?? {}
-  const located = await locateNode({ position, turn })
-  const graph = located?.graph ?? (await findRootGraph(turn))
+  const located = await locateNode({ permissions, position, turn })
+  const graph = located?.graph ?? (await findRootGraph(turn, permissions))
   if (graph === undefined) return
 
   if (located === undefined) {
@@ -199,31 +203,51 @@ async function advanceConversation(turn: WhatsAppCommandTurn): Promise<void> {
 }
 
 async function locateNode(input: {
+  readonly permissions: ReadonlySet<string>
   readonly position: WhatsAppSessionPosition | undefined
   readonly turn: WhatsAppCommandTurn
 }): Promise<{ readonly graph: FlowGraphData; readonly node: FlowNodeData } | undefined> {
-  const { position, turn } = input
+  const { permissions, position, turn } = input
   if (position === undefined || position.flowKey === null || position.currentNodeId === null) {
     return undefined
   }
 
-  const graph = await turn.deps.graphs.findGraph({
-    companyId: turn.session.companyId,
-    flowKey: position.flowKey,
-  })
+  const graph = await findFlowGraph({ flowKey: position.flowKey, permissions, turn })
   /** Nó que sumiu numa republicação recomeça do menu, em vez de prender a conversa. */
   const node = graph?.nodes[position.currentNodeId]
   return graph === undefined || node === undefined ? undefined : { graph, node }
 }
 
-async function findRootGraph(turn: WhatsAppCommandTurn): Promise<FlowGraphData | undefined> {
-  const { deps, session } = turn
-  const flowKey = deps.graphs.rootFlowKey
-  const graph = await deps.graphs.findGraph({ companyId: session.companyId, flowKey })
+async function findRootGraph(
+  turn: WhatsAppCommandTurn,
+  permissions: ReadonlySet<string>,
+): Promise<FlowGraphData | undefined> {
+  const graph = await findFlowGraph({ flowKey: turn.deps.graphs.rootFlowKey, permissions, turn })
   if (graph === undefined) {
-    deps.logger.error(WHATSAPP_COMMAND_LOG.flowMissing, { companyId: session.companyId, flowKey })
+    turn.deps.logger.error(WHATSAPP_COMMAND_LOG.flowMissing, {
+      companyId: turn.session.companyId,
+      flowKey: turn.deps.graphs.rootFlowKey,
+    })
   }
   return graph
+}
+
+/**
+ * D2 — "o menu raiz é filtrado por permissão": o grafo publicado tem todas as opções, e é aqui —
+ * único ponto por onde o despachante lê qualquer grafo, tanto para renderizar quanto para validar a
+ * resposta — que a vitrine é recortada pela membership do ator. Resposta a uma opção escondida cai
+ * em `isOfferedOption` como resposta inválida, porque o nó que a checa já saiu filtrado daqui.
+ */
+async function findFlowGraph(input: {
+  readonly flowKey: string
+  readonly permissions: ReadonlySet<string>
+  readonly turn: WhatsAppCommandTurn
+}): Promise<FlowGraphData | undefined> {
+  const { flowKey, permissions, turn } = input
+  const graph = await turn.deps.graphs.findGraph({ companyId: turn.session.companyId, flowKey })
+  if (graph === undefined || graph.key !== turn.deps.graphs.rootFlowKey) return graph
+
+  return filterWhatsAppRootFlowGraph(graph, permissions)
 }
 
 async function rejectAnswer(input: {
@@ -298,7 +322,23 @@ async function verifyEntry(input: {
     to: turn.phone,
   })
   await clearWhatsAppFlowPosition({ context: {}, turn })
-  await advanceConversation(turn)
+
+  /**
+   * D2: o menu que vem a seguir precisa da permissão do ator, e o número acabou de deixar de ser
+   * "denied" — resolver de novo é a mesma conferência que toda `FlowAction` já faz
+   * (`with-authorized-actor.service.ts`), não uma chamada extra por descuido. Se ainda não houver
+   * membership (verificado sem vínculo), a resposta é a mesma neutra de D1 — nenhum menu.
+   */
+  const actor = await turn.deps.resolveActor({
+    companyId,
+    fromPhone: turn.phone,
+    now: turn.deps.clock(),
+  })
+  if (actor.status === 'denied') {
+    await denyTurn({ reason: actor.reason, turn })
+    return
+  }
+  await advanceConversation(turn, actor.context.scope.permissions)
 }
 
 function readVerificationCode(message: WhatsAppCommandTurn['message']): string | undefined {

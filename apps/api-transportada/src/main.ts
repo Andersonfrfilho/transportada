@@ -142,12 +142,10 @@ import { createWhatsAppWebhookRoutes } from './whatsapp/presentation/whatsapp-we
 import { createMetaWhatsAppModuleResolver } from './whatsapp/application/meta-whatsapp-module.resolver.js'
 import { createDrizzleWebhookNonceStore } from './whatsapp/infrastructure/drizzle-webhook-nonce.store.js'
 import { createRateLimiter } from './http/rate-limiter.service.js'
+import { FlowGraphRepository } from '@adatechnology/meta-whatsapp-module'
 import { createResolveWhatsAppActorUseCase } from './whatsapp-commands/application/resolve-whatsapp-actor.use-case.js'
-import { createStaticWhatsAppFlowGraphProvider } from './whatsapp-commands/application/whatsapp-flow-graph.service.js'
-import {
-  WHATSAPP_ROOT_FLOW,
-  WHATSAPP_ROOT_FLOW_KEY,
-} from './whatsapp-commands/domain/whatsapp-root-flow.constant.js'
+import { createModuleWhatsAppFlowGraphProvider } from './whatsapp-commands/application/whatsapp-flow-graph.service.js'
+import { WHATSAPP_ROOT_FLOW_GRAPH_KEY } from './whatsapp-commands/infrastructure/whatsapp-flow-graph.constant.js'
 import { DrizzleWhatsAppPhoneRepository } from './whatsapp-commands/infrastructure/drizzle-whatsapp-phone.repository.js'
 import {
   createWhatsAppCommandHookFactory,
@@ -630,9 +628,14 @@ export function bootstrap(): Bun.Server<undefined> {
     baseUrl: config.whatsapp.baseUrl,
     clock: () => new Date(),
     flowActions: [],
-    graphs: createStaticWhatsAppFlowGraphProvider({
-      graphs: [WHATSAPP_ROOT_FLOW],
-      rootFlowKey: WHATSAPP_ROOT_FLOW_KEY,
+    /**
+     * Spec 144 T008 — lê a versão publicada (a linha viva do módulo, a que `create`/`save`
+     * escrevem), nunca o grafo em código direto: o comando de republicação é o único que decide
+     * quando o código passa a valer para o número real.
+     */
+    graphs: createModuleWhatsAppFlowGraphProvider({
+      repository: new FlowGraphRepository(database.db as never),
+      rootFlowKey: WHATSAPP_ROOT_FLOW_GRAPH_KEY,
     }),
     logger,
     rateLimiter: createRateLimiter(),

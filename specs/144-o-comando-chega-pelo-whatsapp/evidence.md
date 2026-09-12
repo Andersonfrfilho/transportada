@@ -800,3 +800,115 @@ em `origin/staging` nem em `main`, e a tabela não existe no banco local. `rollb
 - `make migration-test` → 91 pass · 0 fail (migration + rollback em Postgres descartável).
 - `make check` → formato, lint e typecheck verdes; para no teste da API pelo mesmo orçamento de
   50 ms do `cargo-volume` (5205 pass · 1 fail).
+
+## T008 — a conversa nasce do código e não se perde (2026-09-11)
+
+### Arquivos
+
+- Grafo definitivo: `whatsapp-commands/infrastructure/whatsapp-flow-graph.constant.ts`
+  (`WHATSAPP_ROOT_FLOW_GRAPH`, chave `transportada_root`) — menu com as três opções de D2
+  (`emitir_documentos`, `minha_viagem`, `viagens_armazem`), cada uma apontando para um nó terminal
+  `type: 'action'` com `directMessage` "… está chegando. Por enquanto, use o painel." (§5: nó sem
+  saída é proibido — `action` termina por si). O grafo provisório da T006
+  (`domain/whatsapp-root-flow.constant.ts`) continua existindo só para os testes do despachante que
+  não montam o publicador; produção não o usa mais.
+- Filtro de permissão (D2): `domain/whatsapp-root-menu.policy.ts` —
+  `WHATSAPP_ROOT_MENU_OPTION_PERMISSIONS` (tabela opção → permissões, qualquer uma basta) e
+  `filterMenuOptionsByPermission`/`filterWhatsAppRootFlowGraph` (funções puras). Fiado no
+  despachante: `whatsapp-command-driver.service.ts` ganhou `findFlowGraph` — o único ponto por onde
+  qualquer grafo raiz é lido (tanto para render quanto para validar a resposta) — que aplica o
+  filtro sempre que `graph.key === deps.graphs.rootFlowKey`. `advanceConversation` passou a receber
+  `permissions: ReadonlySet<string>`, vindas de `actor.context.scope.permissions` (o mesmo ator já
+  resolvido em `dispatch`); `verifyEntry` resolve o ator de novo depois da verificação (D1/D2: sem
+  isso o primeiro menu depois de vincular o número não tinha permissão nenhuma para filtrar).
+- Histórico append-only: `database/whatsapp-flow-graph-version.schema.ts`
+  (`whatsapp_flow_graph_versions`: `id, company_id, flow_key, version, nodes, start_node_id, label,
+published_by, source, created_at`; unique `(company_id, flow_key, version)`), migration
+  `drizzle/20260912021312_whatsapp_flow_graph_versions/` com o mesmo trigger `BEFORE UPDATE OR
+DELETE` de `audit_logs`/`trip_dispatch_snapshots` (`reject_whatsapp_flow_graph_versions_mutation`),
+  `rollback.sql` que recusa apagar histórico com linha gravada. Tabela e migration entraram em
+  `test/database-migration/support.ts` (`WHATSAPP_FLOW_GRAPH_TABLES`),
+  `static-migration.contract.ts` (lista de diretórios + teste do trigger/rollback) e
+  `database-migration.integration.ts` (lista completa pós-migração).
+- Publicador: `application/publish-whatsapp-flow-graph.use-case.ts`
+  (`createPublishWhatsAppFlowGraphUseCase`, `previewWhatsAppFlowGraphPublication`) +
+  `application/whatsapp-flow-graph-publisher.port.ts` (portas `WhatsAppFlowGraphModulePort` —
+  recorte de `FlowGraphRepository` do pacote — e `WhatsAppFlowGraphHistoryPort`) +
+  `infrastructure/drizzle-whatsapp-flow-graph-history.repository.ts` (insert só) +
+  `infrastructure/whatsapp-flow-graph-publisher.factory.ts`
+  (`createDrizzleWhatsAppFlowGraphPublisher`, a fiação transacional real).
+- Comando: `scripts/whatsapp-flow-publish.ts` — `--company <id>` (opcional, `resolveSingleCompany`
+  na ausência) e `--confirm`, no molde de `scripts/address-comparison-batch.ts`.
+- `main.ts`: o `graphs` do `whatsappCommandHook` deixou de ser `createStaticWhatsAppFlowGraphProvider`
+  e passou a `createModuleWhatsAppFlowGraphProvider` sobre `new FlowGraphRepository(database.db)` —
+  o despachante lê a versão **publicada**, nunca o grafo em código direto.
+
+### Forma do grafo raiz
+
+```
+menu (type: menu, options: [emitir_documentos, minha_viagem, viagens_armazem])
+ ├─ emitir_documentos → emitir_documentos_em_breve (type: action, directMessage "…chegando…")
+ ├─ minha_viagem      → minha_viagem_em_breve      (type: action, directMessage "…chegando…")
+ └─ viagens_armazem   → viagens_armazem_em_breve   (type: action, directMessage "…chegando…")
+```
+
+Passa `validateFlowGraphForWhatsApp` sem violação nenhuma (`test/whatsapp-commands/flow-graph.contract.ts`):
+3 opções ≤ teto de botão (3), cada uma com emoji, ids em `^[a-z0-9_]+$`, `fallbackMessage` no nó de
+escolha, todo nó com saída.
+
+### Decisões
+
+1. **A `version` do grafo passado a `save` é ignorada pelo pacote** — medido no `dist/index.js` da
+   `0.1.0`: `save` grava `expectedVersion + 1` sozinho, sem ler `graph.version`. O publicador não
+   inventa número de versão nenhum; só o teto da trava otimista.
+2. **`create` não grava histórico.** Grafo novo não tem "versão atual" para guardar — o histórico
+   nasce só quando o próximo `save` está prestes a substituir alguma coisa. A primeira versão do
+   código escrevia a própria linha criada no histórico também, e isso quebrou o publicador na
+   segunda chamada: a versão 1 recém-criada colidia com a versão 1 que o passo de `save` tentava
+   registrar de novo (unique `(company_id, flow_key, version)`) — achado pelo teste de integração
+   com Postgres real, não pelos fakes. Corrigido removendo o `history.record` do ramo `create`.
+3. **Transação real, não "grave antes e documente a janela".** `FlowGraphRepository` e o repositório
+   de histórico usam a conexão que receberam na construção — então basta construir os dois de novo
+   dentro de `db.transaction(async (tx) => ...)`, atados ao `tx`, para as duas escritas comitarem
+   juntas. Não há janela para documentar: `createDrizzleWhatsAppFlowGraphPublisher` faz isso, e o
+   teste de integração prova create→save→histórico na mesma transação.
+4. **`diffWhatsAppFlowGraphs` não pode comparar por `JSON.stringify` cru.** O `jsonb` do Postgres não
+   promete devolver a mesma ordem de chave em que o objeto foi inserido; o primeiro teste de
+   integração acusava `about`/`menu` como "alterados" depois de um `create` → `get` sem nenhuma
+   mudança real. Trocado por `canonicalStringify` (ordena chaves recursivamente antes de comparar).
+5. **Pré-deploy não semeia.** O `pre-deploy.service.ts` semeia templates de notificação, mas o
+   `PreDeployReport` é conferido por `toEqual` exato em `pre-deploy.contract.ts` — acrescentar um
+   campo novo ali quebraria esses testes por peso de código sem relação com esta task. O caminho
+   "base nasce com conversa publicada" é só o comando (`scripts/whatsapp-flow-publish.ts`); nada
+   semeia no boot da API. Documentado no cabeçalho do script.
+6. **Ator resolvido de novo depois da verificação de telefone.** `verifyEntry` (T004) não tinha
+   permissão nenhuma disponível para filtrar o primeiro menu depois de vincular o número — corrigido
+   chamando `resolveActor` outra vez (mesma filosofia de "confere de novo" do `with-authorized-actor`);
+   sem membership no momento, cai na mesma recusa neutra de D1.
+
+### Gates
+
+- `bun run typecheck` (API) → limpo.
+- `bun run lint` (API) → limpo.
+- `bun test ./test/whatsapp-commands.contract.test.ts` → 165 pass · 0 fail (inclui as quatro suítes
+  novas: `root-menu-permission`, `flow-graph-diff`, `flow-graph`, `publish-flow-graph`).
+- `bun run test` (API, 166 arquivos) → 5234 pass · 23 skip · 0 fail.
+- `make migration-test` → 92 pass · 0 fail (rodado duas vezes nesta task: a primeira pegou
+  `whatsapp_flow_graph_versions` faltando na lista completa de `database-migration.integration.ts`,
+  corrigida em seguida).
+- `bun --env-file=../../.env.test test ./test/integration/whatsapp-flow-graph-publish.integration.ts --timeout 120000`
+  → 2 pass · 0 fail (create→unchanged→updated→histórico, e trigger append-only recusando
+  `UPDATE`/`DELETE`).
+- `bun --env-file=../../.env.test test --timeout 120000` a partir de `apps/api-transportada` (a
+  suíte de integração completa, 47 arquivos) → 230 pass · 4 skip · 2 fail. As 2 falhas são
+  `cte-archive-gateway.integration.ts` ("Object storage is unavailable") — MinIO fora do ar neste
+  ambiente, achado de ambiente já sinalizado antes desta task, sem relação com T008.
+- `make check` (rodado três vezes) → format:check, lint e typecheck sempre verdes; `test` da API
+  para no orçamento de 50 ms do `cargo-volume` (`test/cargo-placement/real-mixed-cargo.contract.ts`,
+  "spec 115") em toda tentativa nesta máquina — 51 ms, 86 ms, 226 ms e 79/94 ms de excesso medidos em
+  execuções sucessivas, inclusive isolando só esse arquivo (`bun test
+./test/cargo-volume.contract.test.ts` → 302 pass · 1 fail dessa vez). É a mesma flakiness de CPU
+  já registrada nas evidências de T005b/T007 — orçamento de tempo, não regressão desta task: nenhum
+  arquivo tocado por T008 aparece no motivo da falha, e a contagem de todo o resto (5233
+  pass · 23 skip · 1 fail, sempre o mesmo teste) é estável entre as rodadas. Registrado, não
+  consertado, como pedido.

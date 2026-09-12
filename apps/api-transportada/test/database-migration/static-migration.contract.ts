@@ -234,6 +234,7 @@ describe('Drizzle migrations', () => {
       '20260910120000_vehicle_reference_every_type',
       '20260911231025_whatsapp_phone_binding',
       '20260912014639_whatsapp_phone_key',
+      '20260912021312_whatsapp_flow_graph_versions',
     ])
 
     const baselineSql = await readMigrationFile(directories[0] ?? '', 'migration.sql')
@@ -1439,6 +1440,50 @@ describe('Drizzle migrations', () => {
     expect(droppedExecutions).toBeGreaterThan(0)
     expect(droppedSchedules).toBeGreaterThan(droppedExecutions)
 
+    expect(rollbackSql).toContain(`"name" = '${directory}'`)
+    expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
+    expect(rollbackSql).toContain('deleted_migrations <> 1')
+    expect(rollbackSql).toMatch(/^--[\s\S]*\bBEGIN;/)
+    expect(rollbackSql.trimEnd()).toEndWith('COMMIT;')
+    expect(rollbackSql).not.toContain('CASCADE')
+  })
+
+  /**
+   * Spec 144 T008 — o histórico da conversa publicada, append-only pelo mesmo padrão de
+   * `audit_logs`/`trip_dispatch_snapshots`: a linha que registra uma versão nunca é alterada nem
+   * apagada, e é o trigger — não convenção de código — que torna isso verdade.
+   */
+  test('versions the whatsapp flow graph history as an append-only table with a guarded rollback', async () => {
+    const directories = await listMigrationDirectories()
+    const directory = directories.find((name) => name.endsWith('_whatsapp_flow_graph_versions'))
+    expect(directory).toBeString()
+
+    const migrationSql = await readMigrationFile(directory ?? '', 'migration.sql')
+    const rollbackSql = await readMigrationFile(directory ?? '', 'rollback.sql')
+    const migrationHash = createHash('sha256').update(migrationSql).digest('hex')
+
+    expect(migrationSql).not.toMatch(DESTRUCTIVE_MIGRATION_PATTERN)
+    expect(migrationSql).toContain('CREATE TABLE "whatsapp_flow_graph_versions"')
+    expect(migrationSql).toContain(
+      'CONSTRAINT "whatsapp_flow_graph_versions_company_flow_version_unique" UNIQUE("company_id","flow_key","version")',
+    )
+    expect(migrationSql).toMatch(
+      /create function\s+"reject_whatsapp_flow_graph_versions_mutation"\s*\(\)/i,
+    )
+    expect(migrationSql).toMatch(
+      /create trigger\s+"whatsapp_flow_graph_versions_append_only_trigger"[\s\S]*before update or delete on "whatsapp_flow_graph_versions"[\s\S]*execute function "reject_whatsapp_flow_graph_versions_mutation"\s*\(\)/i,
+    )
+
+    expect(rollbackSql).toContain('DROP TRIGGER "whatsapp_flow_graph_versions_append_only_trigger"')
+    expect(rollbackSql).toContain('DROP FUNCTION "reject_whatsapp_flow_graph_versions_mutation"()')
+    expect(rollbackSql).toContain('DROP TABLE "whatsapp_flow_graph_versions"')
+    expect(rollbackSql).toContain('Refusing to roll back')
+    const triggerPosition = rollbackSql.indexOf(
+      'DROP TRIGGER "whatsapp_flow_graph_versions_append_only_trigger"',
+    )
+    const dropTablePosition = rollbackSql.indexOf('DROP TABLE "whatsapp_flow_graph_versions"')
+    expect(triggerPosition).toBeGreaterThan(-1)
+    expect(dropTablePosition).toBeGreaterThan(triggerPosition)
     expect(rollbackSql).toContain(`"name" = '${directory}'`)
     expect(rollbackSql).toContain(`"hash" = '${migrationHash}'`)
     expect(rollbackSql).toContain('deleted_migrations <> 1')

@@ -196,6 +196,9 @@ export const WHATSAPP_PHONE_TABLES = [
   'whatsapp_phone_verification_requests',
 ] as const
 
+/** Spec 144 T008: o histórico append-only da conversa publicada. */
+export const WHATSAPP_FLOW_GRAPH_TABLES = ['whatsapp_flow_graph_versions'] as const
+
 /** Spec 063: o vínculo do contratante com o documento e o rastro de posição da viagem. */
 export const CONTRACTOR_PORTAL_TABLES = [
   'contractor_portal_bindings',
@@ -267,6 +270,7 @@ export async function readBusinessTables(database: SQL): Promise<readonly string
     ...MULTI_VEHICLE_SUGGESTION_TABLES,
     ...WHATSAPP_CHANNEL_TABLES,
     ...WHATSAPP_PHONE_TABLES,
+    ...WHATSAPP_FLOW_GRAPH_TABLES,
   ]
   const tables = await database<Array<{ readonly table_name: string }>>`
     select table_name

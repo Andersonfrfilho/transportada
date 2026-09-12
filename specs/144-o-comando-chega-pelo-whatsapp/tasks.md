@@ -67,9 +67,10 @@ Fase 2, logo depois da T006.
       pedidos por 10 min no POST de verificação (B4); resposta de sucesso nomeia a conta (B2);
       `docs/SECURITY.md` com os tetos por processo, o código na inbox e o usuário desativado no
       Keycloak (M4, B1, B6) — um contrato vermelho por achado
-- [ ] **T008** Grafo em código + comando de republicação versionada; o menu raiz é filtrado por
-      permissão — `infrastructure/whatsapp-flow-graph.seed.ts`, `scripts/` — contrato de
-      republicação que sobe versão e não sobrescreve
+- [x] **T008** Grafo em código + comando de republicação versionada; o menu raiz é filtrado por
+      permissão — `infrastructure/whatsapp-flow-graph.constant.ts`,
+      `scripts/whatsapp-flow-publish.ts`, histórico append-only `whatsapp_flow_graph_versions`
+      (`evidence.md` § T008) — contrato de republicação que sobe versão e não sobrescreve
 
 ## Fase 3 — Emissão por seleção (D3–D6)
 
