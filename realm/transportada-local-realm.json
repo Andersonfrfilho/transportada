@@ -89,6 +89,51 @@
       ]
     },
     {
+      "clientId": "transportada-mobile",
+      "name": "TransportAdA local mobile app",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["br.com.adatechnology.transportada://auth"],
+      "webOrigins": [],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "br.com.adatechnology.transportada://auth"
+      },
+      "protocolMappers": [
+        {
+          "name": "transportada-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "included.client.audience": "transportada-api",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "company-id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "access.token.claim": "true",
+            "claim.name": "company_id",
+            "id.token.claim": "false",
+            "jsonType.label": "String",
+            "userinfo.token.claim": "false",
+            "user.attribute": "company_id"
+          }
+        }
+      ]
+    },
+    {
       "clientId": "transportada-api",
       "name": "TransportAdA local API audience",
       "enabled": true,
