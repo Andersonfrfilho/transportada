@@ -32,7 +32,7 @@
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T7 — `pendingMeasurements` em `ResolvedCargoLayout`, `TripCargoLayoutView`, mapper do
+- [x] T7 — `pendingMeasurements` em `ResolvedCargoLayout`, `TripCargoLayoutView`, mapper do
       repositório e resposta da prévia (G004), com contrato antes (`cargo-layout.contract.ts` e
       `cargo-preview.contract.ts`); `documentNumber` carimbado também na prévia.
 - [ ] T8 — Frontend: `trip.types.ts`, `tripResponse.validation.ts` (chave opcional),

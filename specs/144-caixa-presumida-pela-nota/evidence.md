@@ -181,4 +181,41 @@ Nenhuma asserção de posição, contagem ou propriedade mudou de resultado entr
 
 ## 4. Lista do que falta medir (T7, T8)
 
+### Contrato vermelho (T7, antes do código)
+
+`bun test ./test/cargo-volume/cargo-layout.contract.ts ./test/cargo-volume/cargo-preview.contract.ts`
+— 3 falhas esperadas (`pendingMeasurements` ainda não existe):
+
+```
+(fail) pendingMeasurements — a lista do que falta medir (spec 144 D4) > a mesma nota e produto em paradas diferentes viram linhas separadas, ordenadas por caixas
+  Expected: [{...6 caixas Barrinha...}, {...3 caixas Campinas mediana...}, {...2 caixas Campinas nota...}]
+  Received: undefined
+
+(fail) pendingMeasurements — a lista do que falta medir (spec 144 D4) > viagem toda medida devolve lista vazia
+  Expected: []
+  Received: undefined
+
+(fail) a prévia carimba a nota nas caixas pendentes de medição (spec 144 D4) > pendingMeasurements sai com o documentNumber da nota
+  Expected: [{ boxCount: 5, documentNumber: '12345', estimateSource: 'note', label: 'Caneta', productCode: 'P1', sequence: 1, stopLabel: 'A' }]
+  Received: undefined
+
+25 pass / 3 fail, 41 expect() calls, 28 testes.
+```
+
+### T7 — verde
+
+- `bunx tsc --noEmit` — sem erro.
+- `bun test ./test/cargo-volume.contract.test.ts` — 329 pass / 0 fail, 19612 expect() calls.
+- `bun test ./test/trip-application.contract.test.ts` — 60 pass / 0 fail.
+- `bun test ./test/cargo-volume.contract.test.ts ./test/trip-application.contract.test.ts
+./test/trip-infrastructure.contract.test.ts ./test/trip-http.contract.test.ts
+./test/trips.contract.test.ts` — 498 pass / 0 fail, 20010 expect() calls (nem o flake de 50 ms do
+  Atego apareceu nesta rodada).
+
+`estimateSource` carimbado em `CargoPlanBox` por `stampEstimatedVolume` (agora para `note`,
+`median` e `none`, não só `note`); `pendingMeasurements` montado em `resolveCargoLayout` por
+`collectPendingMeasurements`, agrupando por (`sequence`, `documentNumber`, `productCode`).
+`documentNumber` já era carimbado nos dois caminhos (repositório e prévia) via `stampCargoNote` —
+nada a mudar ali.
+
 ## 5. Gate (T10)

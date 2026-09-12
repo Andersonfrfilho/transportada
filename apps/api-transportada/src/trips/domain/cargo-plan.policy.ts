@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { CargoEstimateSource } from '../../nfe-documents/domain/cargo-volume.policy.js'
 import type { CargoBedDimensions } from './cargo-layout.policy.js'
 
 const MILLIMETRES_PER_METRE = 1000
@@ -23,6 +24,12 @@ export type CargoPlanBox = {
    * carrega isso, sua própria dimensão já manda.
    */
   readonly estimatedVolumeM3?: number | null
+  /**
+   * Spec 144 (D4): de onde saiu o tamanho da caixa sem ficha — a mesma procedência de
+   * `resolveDocumentCargoEstimate`, carimbada pelo `stampEstimatedVolume`. A lista do que falta
+   * medir precisa dizer se a caixa foi presumida pela nota, pela mediana, ou nem isso.
+   */
+  readonly estimateSource?: CargoEstimateSource | null
   readonly heightMm: number | null
   /**
    * Spec 094: as restrições que decidem **onde** a caixa pode ir. `null` é "ninguém informou", nunca

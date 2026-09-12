@@ -241,6 +241,73 @@ describe('a prévia acusa peso concentrado numa parada', () => {
 })
 
 /**
+ * G004 (spec 144, D4): a prévia carimba `documentNumber` na caixa sem ficha, pela mesma regra do
+ * detalhe da viagem (`stampCargoNote`) — sem isso a lista do que falta medir sai sem nota na tela
+ * que ainda não existe viagem.
+ */
+describe('a prévia carimba a nota nas caixas pendentes de medição (spec 144 D4)', () => {
+  test('pendingMeasurements sai com o documentNumber da nota', async () => {
+    const preview = await previewTripCargo({
+      companyId: 'company',
+      driverIds: [],
+      nfeDocumentIds: ['a'],
+      repository: {
+        readCargoPreviewContext: async () => ({
+          bedDimensions: null,
+          boxesByDocument: new Map([
+            [
+              'a',
+              [
+                {
+                  count: 5,
+                  estimateSource: 'note' as const,
+                  heightMm: null,
+                  label: 'Caneta',
+                  lengthMm: null,
+                  productCode: 'P1',
+                  widthMm: null,
+                },
+              ],
+            ],
+          ]),
+          capacityM3: '10.000000',
+          cargoWeight: null,
+          fallbackBoxVolumeM3: null,
+          loadingAccess: 'rear' as const,
+          measuredShapes: [],
+          occupancy: null,
+          securesCargo: false,
+          documents: [
+            {
+              addressKey: 'porta-1',
+              label: 'A',
+              nfeDocumentId: 'a',
+              number: '12345',
+              volumeM3: '1.000000',
+              weightKilograms: null,
+            },
+          ],
+        }),
+      },
+      stopOrder: [],
+      vehicleId: 'vehicle',
+    })
+
+    expect(preview.cargoLayout?.pendingMeasurements).toEqual([
+      {
+        boxCount: 5,
+        documentNumber: '12345',
+        estimateSource: 'note',
+        label: 'Caneta',
+        productCode: 'P1',
+        sequence: 1,
+        stopLabel: 'A',
+      },
+    ])
+  })
+})
+
+/**
  * Spec 090 D3: a distância da prévia agrupa e ordena as paradas pela **mesma** regra que
  * `buildCargoPreviewStops` — é o que garante que o mapa e o combustível numeram a mesma parada.
  */

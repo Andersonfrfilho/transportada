@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { CargoEstimateSource } from '../../nfe-documents/domain/cargo-volume.policy.js'
 import type { LoadingAccess } from '../../shared/loading-access.constant.js'
 import {
   countBoxesToMeasure,
@@ -224,6 +225,13 @@ export type ResolvedCargoLayout = {
   /** Fileiras vazias entre a carga e a porta. Zero quando não se sabe a capacidade. */
   readonly freeRows: number
   /**
+   * Spec 144 (D4): uma linha por produto sem ficha, por parada — a mesma nota e produto em duas
+   * paradas não se somam, porque quem mede vai a cada parada com a caixa na mão. Ordenada por
+   * `boxCount` decrescente, a mesma ordem "quem mais vale medir primeiro" da fila da 085. Vazia
+   * quando toda caixa da viagem já foi medida.
+   */
+  readonly pendingMeasurements: readonly PendingMeasurement[]
+  /**
    * ⚠️ `false` quando não há capacidade: aí o desenho divide a carga e **cala sobre o espaço
    * livre**. É a metade da D3 da spec 076 que continua de pé.
    */
@@ -232,6 +240,21 @@ export type ResolvedCargoLayout = {
   readonly slices: readonly CargoLayoutSlice[]
   /** Paradas cujas notas não têm cubagem: ditas à parte, nunca desenhadas como fatia zero. */
   readonly stopsWithoutVolume: readonly { readonly documentCount: number; readonly label: string }[]
+}
+
+/**
+ * Spec 144 (D4): uma linha da lista do que falta medir — um produto sem ficha, numa parada.
+ * `label` e `productCode` vêm da caixa (a descrição e o código do produto); `stopLabel`/`sequence`
+ * são da parada, para o conferente saber **onde** procurar antes de abrir a fila da 085.
+ */
+export type PendingMeasurement = {
+  readonly boxCount: number
+  readonly documentNumber: string | null
+  readonly estimateSource: CargoEstimateSource
+  readonly label: string | null
+  readonly productCode: string | null
+  readonly sequence: number
+  readonly stopLabel: string
 }
 
 /** Uma dúzia é o que o conferente enxerga de relance; mais paradas que isso alargam o baú. */
@@ -548,12 +571,61 @@ export function resolveCargoLayout(input: {
       occupancyKnown && loaded > capacity ? loaded - capacity : 0n,
       VOLUME_SCALE,
     ),
+    pendingMeasurements: collectPendingMeasurements({
+      fallbackBoxVolumeM3: input.fallbackBoxVolumeM3 ?? null,
+      stops: input.stops,
+    }),
     rows,
     slices,
     stopsWithoutVolume: input.stops
       .filter((stop) => stop.volumeM3 === null)
       .map((stop) => ({ documentCount: stop.documentsWithoutVolume, label: stop.label })),
   }
+}
+
+/**
+ * A lista do que falta medir (D4): agrupa as caixas sem ficha por parada, nota e produto — a
+ * mesma nota e produto em duas paradas rendem duas linhas, porque quem mede vai a cada parada.
+ *
+ * ⚠️ `estimateSource` vem carimbado na caixa (`stampEstimatedVolume`); o fallback aqui só cobre
+ * quem monta `CargoLayoutStop` sem passar por ele — a mesma regra de precedência de `toPlacementBoxes`,
+ * sem repetir o cálculo do m³.
+ */
+function collectPendingMeasurements(input: {
+  readonly fallbackBoxVolumeM3: number | null
+  readonly stops: readonly CargoLayoutStop[]
+}): readonly PendingMeasurement[] {
+  const grouped = new Map<string, PendingMeasurement>()
+
+  for (const stop of input.stops) {
+    for (const box of stop.boxes ?? []) {
+      if (box.heightMm !== null || box.lengthMm !== null || box.widthMm !== null) continue
+
+      const documentNumber = box.documentNumber ?? null
+      const productCode = box.productCode ?? null
+      const key = `${stop.sequence}:${documentNumber ?? ''}:${productCode ?? ''}`
+      const current = grouped.get(key)
+
+      if (current === undefined) {
+        grouped.set(key, {
+          boxCount: box.count,
+          documentNumber,
+          estimateSource:
+            box.estimateSource ?? (input.fallbackBoxVolumeM3 !== null ? 'median' : 'none'),
+          label: box.label ?? null,
+          productCode,
+          sequence: stop.sequence,
+          stopLabel: stop.label,
+        })
+      } else {
+        grouped.set(key, { ...current, boxCount: current.boxCount + box.count })
+      }
+    }
+  }
+
+  return [...grouped.values()].sort(
+    (first, second) => second.boxCount - first.boxCount || first.sequence - second.sequence,
+  )
 }
 
 /**

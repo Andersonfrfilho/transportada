@@ -210,3 +210,108 @@ describe('a precedência D1 na caixa que o empacotador desenha', () => {
     expect(box === undefined ? NaN : Math.abs(drawnVolumeM3(box) - 0.036)).toBeLessThanOrEqual(1e-3)
   })
 })
+
+/**
+ * G004 (spec 144, D4): a lista do que falta medir, uma linha por produto sem ficha e por parada —
+ * a mesma nota e produto em paradas diferentes não se somam, porque quem mede vai a cada parada.
+ */
+describe('pendingMeasurements — a lista do que falta medir (spec 144 D4)', () => {
+  test('a mesma nota e produto em paradas diferentes viram linhas separadas, ordenadas por caixas', () => {
+    const stops: CargoLayoutStop[] = [
+      {
+        boxes: [
+          {
+            ...UNMEASURED_BOX,
+            count: 6,
+            documentNumber: '111',
+            estimateSource: 'note',
+            label: 'Caneta',
+            productCode: 'P1',
+          },
+          {
+            ...MEASURED_BOX,
+            count: 4,
+            documentNumber: '333',
+            estimateSource: 'none',
+            label: 'Não aparece — já medida',
+            productCode: 'P3',
+          },
+        ],
+        documentsWithoutVolume: 0,
+        label: 'Barrinha',
+        sequence: 1,
+        volumeM3: '1.000000',
+      },
+      {
+        boxes: [
+          {
+            ...UNMEASURED_BOX,
+            count: 2,
+            documentNumber: '111',
+            estimateSource: 'note',
+            label: 'Caneta',
+            productCode: 'P1',
+          },
+          {
+            ...UNMEASURED_BOX,
+            count: 3,
+            documentNumber: '222',
+            estimateSource: 'median',
+            label: 'Caixa',
+            productCode: 'P2',
+          },
+        ],
+        documentsWithoutVolume: 0,
+        label: 'Campinas',
+        sequence: 2,
+        volumeM3: '1.000000',
+      },
+    ]
+    const layout = resolveCargoLayout({ ...CAPACIDADE, stops })
+
+    expect(layout?.pendingMeasurements).toEqual([
+      {
+        boxCount: 6,
+        documentNumber: '111',
+        estimateSource: 'note',
+        label: 'Caneta',
+        productCode: 'P1',
+        sequence: 1,
+        stopLabel: 'Barrinha',
+      },
+      {
+        boxCount: 3,
+        documentNumber: '222',
+        estimateSource: 'median',
+        label: 'Caixa',
+        productCode: 'P2',
+        sequence: 2,
+        stopLabel: 'Campinas',
+      },
+      {
+        boxCount: 2,
+        documentNumber: '111',
+        estimateSource: 'note',
+        label: 'Caneta',
+        productCode: 'P1',
+        sequence: 2,
+        stopLabel: 'Campinas',
+      },
+    ])
+  })
+
+  test('viagem toda medida devolve lista vazia', () => {
+    const stops: CargoLayoutStop[] = [
+      {
+        boxes: [{ ...MEASURED_BOX, count: 4, label: 'Medida' }],
+        documentsWithoutVolume: 0,
+        label: 'Única',
+        sequence: 1,
+        volumeM3: '1.000000',
+      },
+    ]
+    const layout = resolveCargoLayout({ ...CAPACIDADE, stops })
+
+    expect(layout?.pendingMeasurements).toEqual([])
+  })
+})

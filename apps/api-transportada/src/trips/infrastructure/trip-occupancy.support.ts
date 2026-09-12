@@ -253,9 +253,11 @@ export async function loadTripOccupancy(
 }
 
 /**
- * Spec 144 (D2): carimba nas caixas sem ficha o m³ do resíduo da nota — só quando o resíduo foi a
- * origem da estimativa (`estimateSource: 'note'`). Caixa medida nunca é tocada; sem resíduo
- * (mediana ou ausência) a caixa segue como sempre foi, sem apresentar um número que não veio dela.
+ * Spec 144 (D2/D4): carimba na caixa sem ficha a procedência da estimativa (`estimateSource`) e,
+ * quando o resíduo da nota foi a origem, o m³ que ela devolveu. Caixa medida nunca é tocada; sem
+ * resíduo (mediana ou ausência) a caixa segue sem m³ presumido, mas a procedência é dita mesmo
+ * assim — é o que a lista do que falta medir (D4) usa para dizer "pela nota", "pela mediana" ou
+ * "sem estimativa".
  */
 function stampEstimatedVolume(
   boxesByDocument: ReadonlyMap<string, readonly CargoPlanBox[]>,
@@ -264,17 +266,21 @@ function stampEstimatedVolume(
   return new Map(
     [...boxesByDocument].map(([documentId, boxes]) => {
       const estimate = estimates.get(documentId)
-      if (estimate?.estimateSource !== 'note' || estimate.unmeasuredBoxVolumeM3 === null) {
-        return [documentId, boxes] as const
-      }
-
-      const estimatedVolumeM3 = Number.parseFloat(estimate.unmeasuredBoxVolumeM3)
+      const estimateSource = estimate?.estimateSource ?? 'none'
+      const estimatedVolumeM3 =
+        estimate?.estimateSource === 'note' && estimate.unmeasuredBoxVolumeM3 !== null
+          ? Number.parseFloat(estimate.unmeasuredBoxVolumeM3)
+          : null
 
       return [
         documentId,
         boxes.map((box) =>
           box.heightMm === null && box.lengthMm === null && box.widthMm === null
-            ? { ...box, estimatedVolumeM3 }
+            ? {
+                ...box,
+                estimateSource,
+                ...(estimatedVolumeM3 === null ? {} : { estimatedVolumeM3 }),
+              }
             : box,
         ),
       ] as const

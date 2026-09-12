@@ -3,6 +3,7 @@
  */
 import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
 import type { TripDocumentSeparationStatus, TripStatus } from '../../database/trip.schema.js'
+import type { PendingMeasurement } from '../domain/cargo-layout.policy.js'
 import type { TripAmounts } from './read-trip-revenue-totals.use-case.js'
 import type {
   TripDriverCandidate,
@@ -213,6 +214,8 @@ export type TripCargoLayoutView = {
   /** `false` sem capacidade: divide a carga e cala sobre o espaço livre. */
   readonly occupancyKnown: boolean
   readonly overflowM3: string
+  /** Spec 144 (D4): a lista do que falta medir, ordenada por `boxCount` decrescente. */
+  readonly pendingMeasurements: readonly PendingMeasurement[]
   readonly slices: readonly {
     readonly label: string
     /** `1` é o fundo, e o fundo é da **última** entrega. */
