@@ -58,6 +58,15 @@ Fase 2, logo depois da T006.
       com número já verificado por outro usuário (mesmo 400 genérico)
 - [x] **T007** Política de menu (botão ≤3 com emoji, lista 4–10, paginação >10, teto de 20/24
       caracteres) e validação na publicação do grafo — `domain/whatsapp-menu.policy.ts` — contrato
+- [ ] **T005b** 🧠 Correções da revisão de segurança de 2026-09-11 (`evidence.md` § Revisão de
+      segurança), **antes de qualquer FlowAction de negócio**: service account e contexto de canal
+      recusados pela `MembershipAuthorizationPolicy` e pelo resolve do ator (A1); contrato que trava
+      a política às rotas `/me/*` de uma allowlist por extenso (M2); vínculo vencido libera o número
+      na mesma transação da verificação, com trilha (M1); desvinculação por suspensão com trilha
+      (M3); unicidade e chave do limitador por `phone_key` sem o nono dígito (B3, M4); teto de 5
+      pedidos por 10 min no POST de verificação (B4); resposta de sucesso nomeia a conta (B2);
+      `docs/SECURITY.md` com os tetos por processo, o código na inbox e o usuário desativado no
+      Keycloak (M4, B1, B6) — um contrato vermelho por achado
 - [ ] **T008** Grafo em código + comando de republicação versionada; o menu raiz é filtrado por
       permissão — `infrastructure/whatsapp-flow-graph.seed.ts`, `scripts/` — contrato de
       republicação que sobe versão e não sobrescreve
@@ -157,7 +166,7 @@ concluída apenas após registrar evidência.
 ## Ordem
 
 ```
-T001 ─> T002 ─> T003 ─> T005 ─> T006 ─> T004 ─> T007 ─> T008 ─┬─> T009 ─> T010 ─> T011 ─> T012 ─> T013 ─> T014 ─┐
+T001 ─> T002 ─> T003 ─> T005 ─> T006 ─> T004 ─> T007 ─> T005b ─> T008 ─┬─> T009 ─> T010 ─> T011 ─> T012 ─> T013 ─> T014 ─┐
                                                               └─> T015 ─> T016 ──────────────────────────────────┴─> T017 ─> T018 ─> T019
 ```
 

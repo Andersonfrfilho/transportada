@@ -732,3 +732,29 @@ test/whatsapp-commands.contract.test.ts` → 0 erros.
   ambiente). Nenhum arquivo de carga está neste diff.
 - À parte, porque o `check` para na primeira falha de teste: `bun run build` (raiz, todas as apps) →
   exit 0.
+
+## Revisão de segurança antecipada — commits `053860f2..93fa655b` (2026-09-11)
+
+`security-reviewer` em `opus`, só sobre o que estava commitado (lido por `git show 93fa655b:`), antes
+da Fase 3. **Veredito: LIBERA COM CORREÇÕES ANTES DA FASE 3.** Nível de risco MÉDIO — 0 crítico,
+1 alto, 4 médios, 6 baixos. O desenho central se sustenta: o código de verificação **não** é
+bearer, porque só vale vindo do `from` assinado por HMAC; não há tomada de conta direta, nem
+travessia de tenant sem membership, nem PII nos logs novos.
+
+| id  | severidade | achado                                                                                                                         | onde                                                                                            |
+| --- | ---------- | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| A1  | ALTO       | token de service account vazado vincula um número e age com as permissões do worker por 90 dias; rotacionar o token não revoga | `authorization.service.ts:23`, `resolve-whatsapp-actor.use-case.ts:68-70`                       |
+| M1  | MÉDIO      | vínculo vencido mantém `verified_at` e ocupa o número para sempre — o chip reciclado que a D1 promete cobrir não se vincula    | índice `user_whatsapp_phones_phone_verified_unique`, `verify-whatsapp-phone.use-case.ts:96-100` |
+| M2  | MÉDIO      | `MembershipAuthorizationPolicy` não tem trava global contra uso fora de `/me/*`                                                | `authorization.policy.ts:237-252`                                                               |
+| M3  | MÉDIO      | a desvinculação por suspensão não grava trilha e roda fora da transação                                                        | `change-company-user-status.use-case.ts:89-93`                                                  |
+| M4  | MÉDIO      | tetos do despachante são por processo (N réplicas = 30×N), e a chave não colapsa o nono dígito                                 | `main.ts`, `whatsapp-command-driver.service.ts:326-329`                                         |
+| B1  | BAIXO      | o código de verificação fica em texto no log de mensagens do pacote e na inbox                                                 | `ReceiveWebhookUseCase` (dist 0.1.0, 1206-1217)                                                 |
+| B2  | BAIXO      | U2 declara o número de U1 e pede a U1 que mande o código — atribuição errada e bloqueio de U1                                  | resposta de sucesso sem nome da conta                                                           |
+| B3  | BAIXO      | a unicidade não cobre a equivalência do nono dígito                                                                            | índice por string exata                                                                         |
+| B4  | BAIXO      | pedidos de verificação ilimitados (5 tentativas é por pedido)                                                                  | `POST /me/whatsapp-phone/verification`                                                          |
+| B5  | —          | oráculo: sem achado — recusas indistinguíveis, 201/409 só para o membro autenticado                                            | —                                                                                               |
+| B6  | BAIXO      | contexto sintético com `subject: ''`; usuário desativado direto no Keycloak segue ativo pelo bot até 90 dias                   | `resolve-whatsapp-actor.use-case.ts`                                                            |
+
+**Consequência:** as correções viram a **T005b**, inserida entre a T007 e a T008. A ordem é T007 →
+T005b → T008, e nenhuma FlowAction de negócio (Fases 3 e 4) é registrada antes dela. Hoje o impacto
+de A1 é nulo porque `flowActions: []` em `main.ts`; na Fase 3 viraria emissão fiscal.
