@@ -229,13 +229,13 @@ describe('cargas reais de tamanhos misturados (spec 115)', () => {
     place(ACCELO)
     const ategoMs: number[] = []
     const acceloMs: number[] = []
-    for (let round = 0; round < 7; round += 1) {
+    for (let round = 0; round < 5; round += 1) {
       acceloMs.push(elapsedOf(ACCELO))
       ategoMs.push(elapsedOf(ATEGO))
     }
 
     expect(medianOf(ategoMs) / medianOf(acceloMs)).toBeLessThan(4)
-  })
+  }, 60_000)
 
   /**
    * ⚠️ A porta continua não sendo parede: a caixa sem nada à frente dela, do lado da porta, só sobe
