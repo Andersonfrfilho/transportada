@@ -430,7 +430,10 @@ export function TripDetail({ linkForm, vehicles, workspace }: TripDetailProps) {
         geometry={workspace.routeGeometryQuery.data ?? null}
         stops={trip.stops}
         isCorrecting={workspace.correctAddressMutation.isPending}
+        isGeometryError={workspace.routeGeometryQuery.isError}
+        isGeometryPending={workspace.routeGeometryQuery.isPending}
         onCorrect={(correction) => workspace.correctAddressMutation.mutate(correction)}
+        onRetryGeometry={() => void workspace.routeGeometryQuery.refetch()}
       />
 
       {selection.selectedIds.size > 0 ? (
