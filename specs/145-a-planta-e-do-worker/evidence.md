@@ -93,6 +93,63 @@ exact=19`. O índice parcial é escolhido corretamente pelo planner quando o seq
 
 ## Fase 1 — Pacote de empacotamento (T1, T2)
 
+### T1 🧠 — o empacotador vira `@adatechnology/cargo-placement`
+
+**D2** — o empacotador vai para pacote porque API e worker precisam do mesmo código e "nenhuma app
+importa código-fonte de outra".
+
+#### No repositório de pacotes (`~/Documents/personal/adatechnology-packages`)
+
+- Worktree `../adatechnology-packages-wt/cargo-placement`, branch `feat/cargo-placement` a partir de
+  `origin/main` (`c5934bb`) — o checkout principal estava sujo em `feat/webhook-account-events`.
+- Commit `2767063` `feat(cargo-placement): nasce o pacote com o empacotador do baú` — **sem push**
+  (o CI publica no npm a cada push em `main`).
+- `packages/backend/cargo-placement/`, modelo do `secret-envelope`: tsup esm + dts, `tsconfig`
+  herdando o base, lista explícita de testes, `package.integration.ts` que empacota o tarball e o
+  instala num consumidor temporário.
+- `src/`: `cargo-placement.policy.ts`, `cargo-layout.policy.ts`, `cargo-edge-grid.ts`,
+  `cargo-plan.policy.ts`, `decimal.service.ts` copiados **sem mudança de lógica** (só caminhos de
+  import); `loading-access.constant.ts` só com o vocabulário `LOADING_ACCESS_KINDS`;
+  `cargo-estimate-source.types.ts` com `CargoEstimateSource`; barril `index.ts` com `export *`.
+- Subpath `./fixtures` (`real-mixed-cargo`, `mixed-cargo-bank`) para o worker reaproveitar a carga
+  real nos testes de T9.
+- `test/cargo-placement/`: as 17 suítes movidas + `unloading-simulation.ts`;
+  `note-identity.contract.ts` ficou só com os testes 1–4 (os que dependem do empacotador).
+- Versão `0.0.0` + changeset `minor` → `0.1.0-rc.0` sob o modo `pre` (`rc`) do repositório.
+- Gates lá: `pnpm --filter @adatechnology/cargo-placement run check` limpo; `build` ok;
+  `bun test ./test/cargo-placement.contract.test.ts` → **178 pass, 0 fail** (19 404 expects);
+  `package.integration.ts` → **1 pass**; `format:check` limpo (prettier do repo é printWidth 120 —
+  os arquivos movidos foram reformatados, sem mudança semântica).
+
+#### Na API
+
+- `apps/api-transportada/package.json` ganhou `"@adatechnology/cargo-placement": "link:@adatechnology/cargo-placement"`
+  (`bun link` registrado a partir do pacote + `bun install` na raiz; `bun.lock` gravou o `link:`).
+  É o link local de desenvolvimento — nada publicado.
+- Apagados: `src/trips/domain/{cargo-placement.policy,cargo-layout.policy,cargo-edge-grid,cargo-plan.policy}.ts`,
+  `test/cargo-placement/*` (17 contratos + simulação), `test/fixtures/{real-mixed-cargo,mixed-cargo-bank}.fixture.ts`.
+- Reapontados para o pacote: `drizzle-trip.repository.ts`, `trip.port.ts`, `trip-occupancy.support.ts`,
+  `preview-trip-cargo.use-case.ts`, `cargo-preview.policy.ts` e os 5 contratos em `test/cargo-volume/`.
+- Shims que mantêm o caminho antigo para os 38 importadores do decimal e 11 do acesso de carga:
+  `src/shared/decimal.service.ts` (re-export nomeado dos 15 símbolos), `src/shared/loading-access.constant.ts`
+  (re-exporta `LOADING_ACCESS_KINDS`/`LoadingAccess`, mantém `LOADING_ACCESS_MAX_LENGTH` e
+  `resolveDefaultLoadingAccess`), `cargo-volume.policy.ts` (re-exporta `CargoEstimateSource`).
+- Testes novos (G002), ambos no agregador `test/cargo-volume.contract.test.ts`:
+  - `test/cargo-placement/note-identity-preview.contract.ts` — os testes 5–6 do antigo
+    `note-identity` (a prévia e o detalhe da viagem carimbam a nota), que são da app e não do pacote.
+  - `test/cargo-placement/package-surface.contract.ts` — a superfície que a app promete ver:
+    funções e constantes do pacote, os shims apontando para os mesmos objetos, e a ausência de
+    qualquer cópia do empacotador em `src/trips/domain/`.
+- Gates aqui: `bun run typecheck` (raiz, todas as apps) limpo;
+  `bun test ./test/cargo-volume.contract.test.ts` → **161 pass, 0 fail** (os 178 do empacotador
+  agora rodam no pacote); eslint e prettier limpos nos arquivos tocados.
+
+#### Pendências desta task (pausa obrigatória)
+
+- Publicar o `rc` além do link local só acontece por push em `main` do repositório de pacotes →
+  **aguarda o usuário**.
+- Spec 146 (escora parcial 80 %) agora tem alvo: o pacote, não a app.
+
 ## Fase 2 — Schema e pedido de layout (T3–T6)
 
 ## Fase 3 — Worker (T7–T9)

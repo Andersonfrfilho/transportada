@@ -3,10 +3,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import {
-  resolveBedDimensions,
-  resolveCargoLayout,
-} from '../../src/trips/domain/cargo-layout.policy.js'
+import { resolveBedDimensions, resolveCargoLayout } from '@adatechnology/cargo-placement'
 
 /** Baú de truck medido com fita: 8,900 × 2,500 × 2,400 = 53,400 m³. */
 const BAU = { heightM: '2.400', lengthM: '8.900', source: 'measured' as const, widthM: '2.500' }

@@ -3,11 +3,11 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { resolveCargoLayout } from '../../src/trips/domain/cargo-layout.policy.js'
 import {
   countBoxesToMeasure,
+  resolveCargoLayout,
   resolveCargoPlanLayers,
-} from '../../src/trips/domain/cargo-plan.policy.js'
+} from '@adatechnology/cargo-placement'
 
 /** Baú de truck medido com fita: 8,900 × 2,500 × 2,400. */
 const BAU = { heightM: '2.400', lengthM: '8.900', source: 'measured' as const, widthM: '2.500' }

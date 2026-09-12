@@ -11,7 +11,7 @@ import {
   resolveCargoLayout,
   type CargoLayoutStop,
   type ResolvedCargoLayout,
-} from '../../src/trips/domain/cargo-layout.policy.js'
+} from '@adatechnology/cargo-placement'
 import { stampEstimatedVolume } from '../../src/trips/infrastructure/trip-occupancy.support.js'
 
 const BED = { heightM: '2.200', lengthM: '5.320', source: 'measured' as const, widthM: '2.080' }

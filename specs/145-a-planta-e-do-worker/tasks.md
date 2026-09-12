@@ -24,7 +24,7 @@
 
 > 🤖 Modelo: `opus` (T1) · `sonnet` (T2)
 
-- [ ] T1 🧠 — **Roda no repositório `~/Documents/personal/adatechnology-packages`, não aqui.** Cria
+- [x] T1 🧠 — **Roda no repositório `~/Documents/personal/adatechnology-packages`, não aqui.** Cria
       `@adatechnology/cargo-placement` em `rc`; move `trips/domain/{cargo-placement.policy,
 cargo-layout.policy,cargo-edge-grid,cargo-plan.policy}.ts` + `shared/decimal.service.ts` e as
       suítes `test/cargo-placement/*.contract.ts` para lá; API passa a importar o pacote; testes

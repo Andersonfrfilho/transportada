@@ -2,6 +2,11 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm'
+import type {
+  CargoBedDimensions,
+  CargoPlanBox,
+  MeasuredBoxShape,
+} from '@adatechnology/cargo-placement'
 import type { LoadingAccess } from '../../shared/loading-access.constant.js'
 import type {
   MeasuredCargoItem,
@@ -23,9 +28,6 @@ import {
   medianBoxVolumeM3,
   resolveDocumentCargoEstimate,
 } from '../../nfe-documents/domain/cargo-volume.policy.js'
-import type { CargoBedDimensions } from '../domain/cargo-layout.policy.js'
-import type { CargoPlanBox } from '../domain/cargo-plan.policy.js'
-import type { MeasuredBoxShape } from '../domain/cargo-placement.policy.js'
 import { resolveVehicleCapacity } from '../../fleet/domain/vehicle-capacity.policy.js'
 import type { TripOccupancyView } from '../application/trip.port.js'
 import { resolveTripOccupancy } from '../domain/trip-occupancy.policy.js'

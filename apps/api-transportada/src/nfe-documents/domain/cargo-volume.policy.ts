@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { CargoEstimateSource } from '@adatechnology/cargo-placement'
 import {
   divideHalfUp,
   formatScaledDecimal,
@@ -160,7 +161,7 @@ export type ResolveDocumentCargoEstimateParams = {
 }
 
 /** De onde saiu o tamanho da caixa sem ficha: do resíduo da nota, da mediana, ou de lugar nenhum. */
-export type CargoEstimateSource = 'note' | 'median' | 'none'
+export type { CargoEstimateSource }
 
 /** A procedência da cubagem da nota inteira — a mesma escala que a ocupação da viagem agrega. */
 export type DocumentCargoVolumeSource = 'measured' | 'partial' | CargoVolumeSource

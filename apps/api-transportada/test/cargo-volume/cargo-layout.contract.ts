@@ -3,10 +3,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import {
-  resolveCargoLayout,
-  type CargoLayoutStop,
-} from '../../src/trips/domain/cargo-layout.policy.js'
+import { resolveCargoLayout, type CargoLayoutStop } from '@adatechnology/cargo-placement'
 
 const CAPACIDADE = { capacityM3: '10.000000' }
 const BED = { heightM: '2.200', lengthM: '5.320', source: 'measured' as const, widthM: '2.080' }

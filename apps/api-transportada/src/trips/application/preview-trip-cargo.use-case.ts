@@ -1,11 +1,14 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import {
+  resolveCargoLayout,
+  type CargoBedDimensions,
+  type CargoPlanBox,
+  type MeasuredBoxShape,
+  type ResolvedCargoLayout,
+} from '@adatechnology/cargo-placement'
 import { formatScaledDecimal, parseScaledDecimal } from '../../shared/decimal.service.js'
-import type { CargoBedDimensions } from '../domain/cargo-layout.policy.js'
-import type { CargoPlanBox } from '../domain/cargo-plan.policy.js'
-import { resolveCargoLayout, type ResolvedCargoLayout } from '../domain/cargo-layout.policy.js'
-import type { MeasuredBoxShape } from '../domain/cargo-placement.policy.js'
 import {
   buildCargoPreviewStops,
   type CargoPreviewDocument,

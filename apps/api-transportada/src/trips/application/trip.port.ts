@@ -1,9 +1,9 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { PendingMeasurement } from '@adatechnology/cargo-placement'
 import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
 import type { TripDocumentSeparationStatus, TripStatus } from '../../database/trip.schema.js'
-import type { PendingMeasurement } from '../domain/cargo-layout.policy.js'
 import type { TripAmounts } from './read-trip-revenue-totals.use-case.js'
 import type {
   TripDriverCandidate,

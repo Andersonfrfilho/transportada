@@ -28,6 +28,7 @@
     "typecheck": "bunx tsc --noEmit"
   },
   "dependencies": {
+    "@adatechnology/cargo-placement": "link:@adatechnology/cargo-placement",
     "@adatechnology/document-intake": "0.1.0",
     "@adatechnology/drizzle-provider": "0.1.1",
     "@adatechnology/email-provider": "0.1.0-rc.2",

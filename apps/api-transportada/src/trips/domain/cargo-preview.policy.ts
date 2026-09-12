@@ -1,8 +1,12 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { sumVolumes, type CargoLayoutStop } from './cargo-layout.policy.js'
-import { stampCargoNote, type CargoPlanBox } from './cargo-plan.policy.js'
+import {
+  stampCargoNote,
+  sumVolumes,
+  type CargoLayoutStop,
+  type CargoPlanBox,
+} from '@adatechnology/cargo-placement'
 
 export type CargoPreviewDocument = {
   /** A chave da parada — `buildStopAddressKey`. `null` quando o endereço não normaliza. */
