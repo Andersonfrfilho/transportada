@@ -9,6 +9,7 @@ import type {
   DocumentSelectionRepositoryPort,
   SelectableEmitter,
 } from './document-selection.port.js'
+import type { DocumentSelectionConfirmation } from './confirm-document-selection.use-case.js'
 import type { PreviewDocumentSelection } from './preview-document-selection.use-case.js'
 import { buildEmitterKey, type SelectionState } from '../domain/document-selection.policy.js'
 import {
@@ -21,6 +22,7 @@ const DAY_MS = 86_400_000
 
 export type IssuanceFlowActionDependencies = Readonly<{
   clock: () => Date
+  confirmSelection: DocumentSelectionConfirmation['confirm']
   listIssueDateEmitters: DocumentSelectionRepositoryPort['listIssueDateEmitters']
   listPendingEmitters: DocumentSelectionRepositoryPort['listPendingEmitters']
   listPendingSeries: DocumentSelectionRepositoryPort['listPendingSeries']

@@ -213,20 +213,41 @@ async function sendVolumetry(
   volumetry: Parameters<typeof formatVolumetryHeadline>[0],
 ): Promise<void> {
   const { channel, session } = step.input
-  await channel.sendText(session.whatsappNumber, formatVolumetryHeadline(volumetry))
-  const details = formatVolumetryDetails(volumetry)
-  if (details !== undefined) await channel.sendText(session.whatsappNumber, details)
+  await sendVolumetryMessages({ channel, to: session.whatsappNumber, volumetry })
+}
+
+/** A volumetria em duas mensagens: o resumo, e os bloqueados à parte. A confirmação (T013) reusa. */
+export async function sendVolumetryMessages(input: {
+  readonly channel: ChannelAdapterInterface
+  readonly to: string
+  readonly volumetry: Parameters<typeof formatVolumetryHeadline>[0]
+}): Promise<void> {
+  await input.channel.sendText(input.to, formatVolumetryHeadline(input.volumetry))
+  const details = formatVolumetryDetails(input.volumetry)
+  if (details !== undefined) await input.channel.sendText(input.to, details)
 }
 
 /** O botão de confirmar carrega o id do pedido congelado (D5), nunca o da mensagem. */
-async function askConfirmation(step: StepInput, requestId: string): Promise<StepResult> {
-  await step.input.channel.sendInteractiveList({
+export async function sendConfirmationList(input: {
+  readonly channel: ChannelAdapterInterface
+  readonly requestId: string
+  readonly to: string
+}): Promise<void> {
+  await input.channel.sendInteractiveList({
     body: `Confirma a emissão? A prévia vale por ${ISSUANCE_PREVIEW_TTL_MINUTES} minutos.`,
     buttonLabel: WHATSAPP_LIST_BUTTON_TEXT,
     rows: [
-      { id: `${ISSUANCE_CONFIRM_ANSWER_PREFIX}${requestId}`, title: '✅ Confirmar' },
+      { id: `${ISSUANCE_CONFIRM_ANSWER_PREFIX}${input.requestId}`, title: '✅ Confirmar' },
       { id: ISSUANCE_BACK_ANSWER, title: '🔙 Voltar' },
     ],
+    to: input.to,
+  })
+}
+
+async function askConfirmation(step: StepInput, requestId: string): Promise<StepResult> {
+  await sendConfirmationList({
+    channel: step.input.channel,
+    requestId,
     to: step.input.session.whatsappNumber,
   })
   return reply({

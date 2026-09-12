@@ -5,19 +5,20 @@
  * empresa, classifica pela **porta da listagem** (T010) e marca como bloqueado, já na prévia, o que
  * derrubaria a emissão depois (`preview-nfse-blocks.service.ts`). Acima do teto do lote recusa com
  * o número achado — truncar calado emitiria parte do que o operador pediu.
+ *
+ * A confirmação (T013) recalcula o hash pelas mesmas funções exportadas aqui — classificar, resumir
+ * e congelar —, nunca por um caminho paralelo que pudesse discordar da prévia mostrada.
  */
 import { CTE_BATCH_MAX_DOCUMENTS } from '../../cte-batches/domain/cte-batch-limits.constant.js'
+import type { WhatsAppCommandClassificationEntry } from '../../database/whatsapp-command.schema.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import type {
   DocumentOutputDescription,
   NfeDocumentOutputClassifierPort,
 } from '../../nfe-documents/application/nfe-document.types.js'
 import { resolveDueDate } from '../domain/document-selection.policy.js'
-import {
-  assertIdempotencyKeys,
-  buildCteBatchIdempotencyKey,
-  buildNfseInvoiceIdempotencyKey,
-} from '../domain/issuance-idempotency.policy.js'
+import { buildIssuanceGroups, listIssuanceKeys } from '../domain/issuance-confirmation.policy.js'
+import { assertIdempotencyKeys } from '../domain/issuance-idempotency.policy.js'
 import {
   buildPreviewDigest,
   type PreviewProfileVersion,
@@ -47,7 +48,10 @@ export type PreviewDocumentSelectionDependencies = PreviewNfseDependencies &
     clock: () => Date
     commands: Pick<WhatsAppCommandRepositoryPort, 'createPreview'>
     generateId: () => string
-    selection: Pick<DocumentSelectionRepositoryPort, 'findNfseProfileVersions' | 'resolveSelection'>
+    selection: Pick<
+      DocumentSelectionRepositoryPort,
+      'findCteProfileNames' | 'findNfseProfileVersions' | 'resolveSelection'
+    >
   }>
 
 export type PreviewDocumentSelectionInput = Readonly<{
@@ -77,17 +81,20 @@ export type PreviewDocumentSelection = (
   input: PreviewDocumentSelectionInput,
 ) => Promise<PreviewDocumentSelectionOutcome>
 
-type Conclusion = Readonly<{
+/** O que a prévia congela: vencimento e período já resolvidos, como vão para o pedido. */
+export type FreezeIssuancePreviewInput = Readonly<{
+  context: CompanyContext
   deps: PreviewDocumentSelectionDependencies
+  dueDate: string | undefined
   entries: readonly PreviewEntry[]
-  input: PreviewDocumentSelectionInput
+  period: string | undefined
 }>
 
 export function createPreviewDocumentSelectionUseCase(
   deps: PreviewDocumentSelectionDependencies,
 ): PreviewDocumentSelection {
   return async (input) => {
-    const { companyId, userId } = input.context
+    const { companyId } = input.context
     const selection = await deps.selection.resolveSelection({
       companyId,
       criterion: input.criterion,
@@ -98,17 +105,51 @@ export function createPreviewDocumentSelectionUseCase(
     }
     if (selection.documentIds.length === 0) return { kind: 'empty' }
 
-    const described = await deps.classifier.describeDocumentOutputs({
+    const entries = await classifySelectedDocuments({
       context: input.context,
+      deps,
       documentIds: selection.documentIds,
+      period: input.period,
     })
-    const classified = toEntries(selection.documentIds, described)
-    if (classified.length === 0) return { kind: 'empty' }
-
-    const scope = { companyId, period: input.period, userId }
-    const entries = await applyNfseBlocks({ deps, entries: classified, scope })
+    if (entries.length === 0) return { kind: 'empty' }
     return concludePreview({ deps, entries, input })
   }
+}
+
+/** Classificação da listagem mais os bloqueios que derrubariam a NFS-e depois (D3, D5). */
+export async function classifySelectedDocuments(input: {
+  readonly context: CompanyContext
+  readonly deps: Pick<
+    PreviewDocumentSelectionDependencies,
+    'classifier' | 'findNfseCredentialGap' | 'previewNfseInvoices'
+  >
+  readonly documentIds: readonly string[]
+  readonly period: string | undefined
+}): Promise<readonly PreviewEntry[]> {
+  const { companyId, userId } = input.context
+  const described = await input.deps.classifier.describeDocumentOutputs({
+    context: input.context,
+    documentIds: input.documentIds,
+  })
+  const entries = toEntries(input.documentIds, described)
+  const scope = { companyId, period: input.period, userId }
+  return applyNfseBlocks({ deps: input.deps, entries, scope })
+}
+
+/** O `preview_sha256` sobre o que o usuário vê: notas, vencimento, período e versões dos perfis. */
+export async function digestPreviewEntries(input: {
+  readonly companyId: string
+  readonly deps: Pick<PreviewDocumentSelectionDependencies, 'selection'>
+  readonly dueDate: string | undefined
+  readonly entries: readonly PreviewEntry[]
+  readonly period: string | undefined
+}): Promise<string> {
+  return buildPreviewDigest({
+    dueDate: input.dueDate ?? null,
+    entries: input.entries,
+    period: input.period ?? null,
+    profileVersions: await collectProfileVersions(input.deps, input.companyId, input.entries),
+  })
 }
 
 /** Nota que a porta não devolveu é de outra empresa ou não existe: fica fora, sem erro. */
@@ -135,44 +176,55 @@ function toEntries(
   })
 }
 
-async function concludePreview(input: Conclusion): Promise<PreviewDocumentSelectionOutcome> {
+async function concludePreview(input: {
+  readonly deps: PreviewDocumentSelectionDependencies
+  readonly entries: readonly PreviewEntry[]
+  readonly input: PreviewDocumentSelectionInput
+}): Promise<PreviewDocumentSelectionOutcome> {
   const hasCte = input.entries.some((entry) => entry.classification.output === 'cte')
   const hasNfse = input.entries.some((entry) => entry.classification.output === 'nfse')
-  if (hasCte && input.input.dueDays === undefined) return { kind: 'needs_due_date' }
+  const { dueDays } = input.input
+  if (hasCte && dueDays === undefined) return { kind: 'needs_due_date' }
   if (hasNfse && input.input.period === undefined) return { kind: 'needs_period' }
+  if (!hasCte && !hasNfse) {
+    return { kind: 'nothing_to_issue', volumetry: summarizeIssuanceVolumetry(input.entries) }
+  }
 
-  const volumetry = summarizeIssuanceVolumetry(input.entries)
-  if (!hasCte && !hasNfse) return { kind: 'nothing_to_issue', volumetry }
-  return freezePreview({ ...input, hasCte, hasNfse, volumetry })
+  const now = input.deps.clock()
+  return freezeIssuancePreview({
+    context: input.input.context,
+    deps: input.deps,
+    dueDate: hasCte && dueDays !== undefined ? resolveDueDate({ days: dueDays, now }) : undefined,
+    entries: input.entries,
+    period: hasNfse ? normalizePeriod(input.input.period) : undefined,
+  })
 }
 
-async function freezePreview(
-  input: Conclusion & Readonly<{ hasCte: boolean; hasNfse: boolean; volumetry: IssuanceVolumetry }>,
+/** Congela o pedido com o grupo de cada nota: a confirmação o lê daqui, sem reclassificar. */
+export async function freezeIssuancePreview(
+  input: FreezeIssuancePreviewInput,
 ): Promise<PreviewDocumentSelectionOutcome> {
-  const { context, dueDays } = input.input
-  const now = input.deps.clock()
-  const requestId = input.deps.generateId()
-  const dueDate =
-    input.hasCte && dueDays !== undefined ? resolveDueDate({ days: dueDays, now }) : undefined
-  const period = input.hasNfse ? normalizePeriod(input.input.period) : undefined
-  assertIdempotencyKeys(buildGroupKeys(input.entries, requestId))
-
+  const { context, deps, dueDate, period } = input
+  const now = deps.clock()
+  const requestId = deps.generateId()
   const entries = input.entries.toSorted((left, right) =>
     left.documentId.localeCompare(right.documentId),
   )
-  const previewSha256 = buildPreviewDigest({
-    dueDate: dueDate ?? null,
+  const classification = await freezeClassification(deps, context.companyId, entries)
+  const groups = buildIssuanceGroups({ classification, requestId }) ?? []
+  assertIdempotencyKeys(listIssuanceKeys(groups))
+
+  const previewSha256 = await digestPreviewEntries({
+    companyId: context.companyId,
+    deps,
+    dueDate,
     entries,
-    period: period ?? null,
-    profileVersions: await collectProfileVersions(input.deps, context.companyId, entries),
+    period,
   })
   const expiresAt = new Date(now.getTime() + ISSUANCE_PREVIEW_TTL_MINUTES * MINUTE_MS)
-  const request = await input.deps.commands.createPreview({
+  const request = await deps.commands.createPreview({
     actorUserId: context.userId,
-    classification: entries.map(({ classification, documentId }) => ({
-      classification,
-      documentId,
-    })),
+    classification,
     companyId: context.companyId,
     dueDate,
     expiresAt,
@@ -183,12 +235,35 @@ async function freezePreview(
     selection: entries.map((entry) => entry.documentId),
   })
   if (request === undefined) return { kind: 'no_membership' }
-  return { expiresAt, kind: 'previewed', requestId, volumetry: input.volumetry }
+  const volumetry = summarizeIssuanceVolumetry(entries)
+  return { expiresAt, kind: 'previewed', requestId, volumetry }
+}
+
+async function freezeClassification(
+  deps: PreviewDocumentSelectionDependencies,
+  companyId: string,
+  entries: readonly PreviewEntry[],
+): Promise<readonly WhatsAppCommandClassificationEntry[]> {
+  const cteProfileIds = [
+    ...new Set(
+      entries.flatMap((entry) =>
+        entry.classification.output === 'cte' && entry.profileId !== null ? [entry.profileId] : [],
+      ),
+    ),
+  ]
+  const names = await deps.selection.findCteProfileNames({ companyId, profileIds: cteProfileIds })
+  return entries.map((entry) => ({
+    classification: entry.classification,
+    documentId: entry.documentId,
+    profileId: entry.profileId,
+    profileName: entry.profileId === null ? null : (names.get(entry.profileId) ?? null),
+    takerTaxId: entry.takerTaxId,
+  }))
 }
 
 /** A versão de cada perfil que decidiu alguma nota: o de CT-e que rege, e o de NFS-e para onde mandou. */
 async function collectProfileVersions(
-  deps: PreviewDocumentSelectionDependencies,
+  deps: Pick<PreviewDocumentSelectionDependencies, 'selection'>,
   companyId: string,
   entries: readonly PreviewEntry[],
 ): Promise<readonly PreviewProfileVersion[]> {
@@ -213,23 +288,6 @@ async function collectProfileVersions(
     })
   }
   return [...versions.values()]
-}
-
-/** As chaves que a confirmação (T013) vai usar: um lote por perfil, uma NFS-e por perfil e tomador. */
-function buildGroupKeys(entries: readonly PreviewEntry[], requestId: string): readonly string[] {
-  const keys = new Set<string>()
-  for (const entry of entries) {
-    if (entry.classification.output === 'cte' && entry.profileId !== null) {
-      keys.add(buildCteBatchIdempotencyKey({ profileId: entry.profileId, requestId }))
-    }
-    const [nfseProfileId] = nfseProfileIdOf(entry)
-    if (nfseProfileId !== undefined && entry.takerTaxId !== null) {
-      keys.add(
-        buildNfseInvoiceIdempotencyKey({ nfseProfileId, requestId, takerTaxId: entry.takerTaxId }),
-      )
-    }
-  }
-  return [...keys]
 }
 
 function nfseProfileIdOf(entry: PreviewEntry): readonly string[] {

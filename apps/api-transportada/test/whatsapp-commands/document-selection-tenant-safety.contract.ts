@@ -9,6 +9,7 @@ import { PgDialect } from 'drizzle-orm/pg-core'
 import { describe, expect, test } from 'bun:test'
 
 import {
+  buildCteProfileNameFilters,
   buildEmitterParticipantFilters,
   buildNfseProfileVersionFilters,
   buildPendingDocumentFilters,
@@ -69,6 +70,12 @@ describe('seleção de notas pelo WhatsApp — tenant safety', () => {
   test('as viagens recentes são da empresa', () => {
     const query = toSql(buildRecentTripFilters({ companyId: COMPANY_ID, since: new Date(0) }))
     expect(query.sql).toContain('"trips"."company_id" = $1')
+    expect(query.params[0]).toBe(COMPANY_ID)
+  })
+
+  test('o nome do perfil de CT-e é lido na empresa do contexto', () => {
+    const query = toSql(buildCteProfileNameFilters({ companyId: COMPANY_ID, profileIds: ['p'] }))
+    expect(query.sql).toContain('"cte_emission_profiles"."company_id" = $1')
     expect(query.params[0]).toBe(COMPANY_ID)
   })
 

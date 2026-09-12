@@ -13,6 +13,15 @@ import type {
 
 import { AuthorizationService } from '../../src/identity/application/authorization.service.js'
 import type { CompanyPermission } from '../../src/identity/domain/authorization.policy.js'
+import type {
+  ConfirmDocumentSelectionInput,
+  ConfirmDocumentSelectionOutcome,
+} from '../../src/whatsapp-commands/application/confirm-document-selection.use-case.js'
+import {
+  ISSUANCE_DISPATCHED_MESSAGE,
+  ISSUANCE_FORBIDDEN_MESSAGE,
+  ISSUANCE_SUPERSEDED_MESSAGE,
+} from '../../src/whatsapp-commands/application/issuance-confirmation-reply.service.js'
 import type { PreviewDocumentSelectionInput } from '../../src/whatsapp-commands/application/preview-document-selection.use-case.js'
 import {
   createIssuanceWhatsAppFlowActions,
@@ -64,14 +73,20 @@ function buildChannel(): { readonly channel: ChannelAdapterInterface; readonly s
 }
 
 type Harness = {
+  readonly confirms: ConfirmDocumentSelectionInput[]
   readonly deps: IssuanceFlowActionDependencies
   readonly previews: PreviewDocumentSelectionInput[]
 }
 
 function buildHarness(overrides: Partial<IssuanceFlowActionDependencies> = {}): Harness {
   const previews: PreviewDocumentSelectionInput[] = []
+  const confirms: ConfirmDocumentSelectionInput[] = []
   const deps: IssuanceFlowActionDependencies = {
     clock: () => NOW,
+    confirmSelection: async (input) => {
+      confirms.push(input)
+      return { failures: [], issued: 1, kind: 'dispatched' }
+    },
     listIssueDateEmitters: async () => [{ name: 'Emitente Um', taxId: EMITTER_TAX_ID }],
     listPendingEmitters: async () => [
       { name: 'Emitente Um', taxId: EMITTER_TAX_ID },
@@ -87,7 +102,7 @@ function buildHarness(overrides: Partial<IssuanceFlowActionDependencies> = {}): 
     },
     ...overrides,
   }
-  return { deps, previews }
+  return { confirms, deps, previews }
 }
 
 function buildSession(context: Record<string, unknown>): ConversationSession {
@@ -460,5 +475,118 @@ describe('FlowActions da emissão por seleção (spec 144 T012)', () => {
       kind: ISSUANCE_FLOW_ACTION_KIND.confirmRouter,
     })
     expect(forged.result).toMatchObject({ next: ISSUANCE_FLOW_NODE.confirmEntry })
+  })
+})
+
+describe('✅ Confirmar emite pelo diário (spec 144 T013)', () => {
+  const CONFIRM_CONTEXT = {
+    [KEY.confirmAnswer]: `${ISSUANCE_CONFIRM_ANSWER_PREFIX}${REQUEST_ID}`,
+    [KEY.requestId]: REQUEST_ID,
+  }
+
+  async function confirmWith(outcome: ConfirmDocumentSelectionOutcome) {
+    const harness = buildHarness({ confirmSelection: async () => outcome })
+    return call({
+      context: CONFIRM_CONTEXT,
+      harness,
+      kind: ISSUANCE_FLOW_ACTION_KIND.confirmRouter,
+    })
+  }
+
+  test('chama a confirmação com o id do pedido e o ator, e responde "Enviado"', async () => {
+    const harness = buildHarness()
+    const { result, sent } = await call({
+      context: CONFIRM_CONTEXT,
+      harness,
+      kind: ISSUANCE_FLOW_ACTION_KIND.confirmRouter,
+    })
+    expect(harness.confirms).toHaveLength(1)
+    expect(harness.confirms[0]?.requestId).toBe(REQUEST_ID)
+    expect(harness.confirms[0]?.actor.scope.userId).toBe(USER_ID)
+    expect(sent).toEqual([{ body: ISSUANCE_DISPATCHED_MESSAGE, kind: 'text' }])
+    expect(result).toMatchObject({ next: 'menu' })
+  })
+
+  test('o que falhou na criação vem resumido por grupo e motivo, sem código cru', async () => {
+    const { sent } = await confirmWith({
+      failures: [
+        {
+          documentKind: 'cte_batch',
+          label: 'Perfil B',
+          reason: 'CTE_BATCH_DOCUMENT_ALREADY_LINKED',
+        },
+        { documentKind: 'nfse_invoice', label: 'NFS-e · tomador final 0191', reason: 'X_UNKNOWN' },
+      ],
+      issued: 1,
+      kind: 'dispatched',
+    })
+    expect(sent[0]).toEqual({ body: ISSUANCE_DISPATCHED_MESSAGE, kind: 'text' })
+    expect(sent[1]).toEqual({
+      body: 'Não saiu na criação:\n• Perfil B: Já vinculada a outro CT-e\n• NFS-e · tomador final 0191: Outro motivo — confira no painel',
+      kind: 'text',
+    })
+    expect(JSON.stringify(sent)).not.toContain('CTE_BATCH_')
+  })
+
+  test('sem nada emitido, a resposta não diz "Enviado"', async () => {
+    const { sent } = await confirmWith({
+      failures: [
+        { documentKind: 'cte_batch', label: 'Perfil A', reason: 'IDEMPOTENCY_KEY_REUSED' },
+      ],
+      issued: 0,
+      kind: 'dispatched',
+    })
+    expect(sent[0]).toEqual({ body: 'Nenhum documento saiu.', kind: 'text' })
+  })
+
+  test('recusa por permissão é clara e não nomeia permissão', async () => {
+    const { result, sent } = await confirmWith({ kind: 'forbidden' })
+    expect(sent).toEqual([{ body: ISSUANCE_FORBIDDEN_MESSAGE, kind: 'text' }])
+    expect(JSON.stringify(sent)).not.toMatch(/cte\.|nfse\.|manage|submit|issue/)
+    expect(result).toMatchObject({ next: 'menu' })
+  })
+
+  test('prévia vencida pela base: nova volumetria e novo botão com o id do pedido novo', async () => {
+    const newRequestId = '00000000-0000-4000-8000-000000001599'
+    const { result, sent } = await confirmWith({
+      kind: 'superseded',
+      next: {
+        expiresAt: new Date('2026-09-11T12:15:00.000Z'),
+        kind: 'previewed',
+        requestId: newRequestId,
+        volumetry: {
+          blocked: [{ numbers: ['1200'], reason: 'CTE_BATCH_DOCUMENT_ALREADY_LINKED' }],
+          blockedCount: 1,
+          cte: 1,
+          nfse: 0,
+          noProfile: [],
+          noProfileCount: 0,
+          total: 2,
+        },
+      },
+    })
+    expect(sent[0]).toEqual({ body: ISSUANCE_SUPERSEDED_MESSAGE, kind: 'text' })
+    expect(sent[1]).toEqual({ body: '2 notas · 1 CT-e · 0 NFS-e · 1 bloqueada', kind: 'text' })
+    expect(sent.at(-1)).toMatchObject({
+      kind: 'list',
+      rows: [{ id: `${ISSUANCE_CONFIRM_ANSWER_PREFIX}${newRequestId}` }, { id: 'back' }],
+    })
+    expect(result).toMatchObject({
+      context: { [KEY.requestId]: newRequestId },
+      next: ISSUANCE_FLOW_NODE.confirmEntry,
+    })
+  })
+
+  test('prévia expirada oferece refazer, e o 🔁 cai no Voltar', async () => {
+    const { result, sent } = await confirmWith({ kind: 'expired' })
+    expect(sent).toEqual([
+      { body: 'Prévia expirada.', kind: 'list', rows: [{ id: 'back', title: '🔁 Refazer' }] },
+    ])
+    expect(result).toMatchObject({ next: ISSUANCE_FLOW_NODE.confirmEntry })
+  })
+
+  test('segundo toque num pedido em curso responde com o estado', async () => {
+    const { sent } = await confirmWith({ kind: 'in_progress' })
+    expect(sent[0]).toMatchObject({ body: expect.stringContaining('já está sendo enviado') })
   })
 })

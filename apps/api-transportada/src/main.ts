@@ -147,6 +147,7 @@ import { createDriverWhatsAppFlowActions } from './whatsapp-commands/application
 import { createOperatorWhatsAppFlowActions } from './whatsapp-commands/application/register-operator-trip-flow-actions.js'
 import { createIssuanceWhatsAppFlowActions } from './whatsapp-commands/application/register-issuance-flow-actions.js'
 import { createPreviewDocumentSelectionUseCase } from './whatsapp-commands/application/preview-document-selection.use-case.js'
+import { createConfirmDocumentSelectionUseCase } from './whatsapp-commands/application/confirm-document-selection.use-case.js'
 import { createNfseCredentialGapFinder } from './whatsapp-commands/application/preview-nfse-blocks.service.js'
 import { DrizzleDocumentSelectionRepository } from './whatsapp-commands/infrastructure/drizzle-document-selection.repository.js'
 import { DrizzleWhatsAppCommandRepository } from './whatsapp-commands/infrastructure/drizzle-whatsapp-command.repository.js'
@@ -737,35 +738,63 @@ export function bootstrap(): Bun.Server<undefined> {
    * T016): a classificação passa pelo `mapSummary` da listagem, e a prévia de NFS-e é a do painel.
    */
   const whatsappStorageBucket = resolveStorageBucket(process.env)
-  const whatsappNfeDocuments = new DrizzleNfeDocumentRepository(
-    database.db,
-    createNfeStorageGatewayFromEnvironment({
-      environment: process.env,
-      finalBucket: whatsappStorageBucket,
-      stagingBucket: whatsappStorageBucket,
-    }),
-  )
+  const whatsappStorageGateway = createNfeStorageGatewayFromEnvironment({
+    environment: process.env,
+    finalBucket: whatsappStorageBucket,
+    stagingBucket: whatsappStorageBucket,
+  })
+  const whatsappNfeDocuments = new DrizzleNfeDocumentRepository(database.db, whatsappStorageGateway)
   const whatsappNfseInvoiceRepository = new DrizzleNfseInvoiceRepository(database.db)
   const whatsappNfseInvoices = createNfseInvoiceUseCase({
     now: () => new Date(),
     repository: whatsappNfseInvoiceRepository,
   })
+  /**
+   * Spec 144 T013 — a confirmação emite pelos **mesmos** casos de uso das rotas `POST /cte-batches`,
+   * `POST /cte-batches/:id/issue` e `POST /nfse-service-invoices`, cada um com a sua transação; as
+   * instâncias de rota nascem em `createApplicationRoutes`, depois do hook.
+   */
+  const whatsappFingerprints = createIdempotencyFingerprintService({
+    key: config.cryptography.idempotencyHmacKey,
+  })
+  const whatsappCteBatches = createCteBatchUseCase({
+    fingerprintService: whatsappFingerprints,
+    profiles: new DrizzleCteEmissionProfileCatalogRepository(
+      new DrizzleCteEmissionProfileRepository(database.db),
+    ),
+    unitOfWork: new DrizzleCteBatchRepository(database.db),
+  })
+  const whatsappCteIssuance = createCteIssuanceUseCase({
+    documentDownload: createCteDocumentDownloadGateway({ storage: whatsappStorageGateway }),
+    fingerprintService: whatsappFingerprints,
+    unitOfWork: new DrizzleCteIssuanceRepository(database.db),
+  })
   const whatsappDocumentSelection = new DrizzleDocumentSelectionRepository(database.db)
+  const whatsappPreviewDependencies = {
+    classifier: whatsappNfeDocuments,
+    clock: () => new Date(),
+    commands: new DrizzleWhatsAppCommandRepository(database.db),
+    findNfseCredentialGap: createNfseCredentialGapFinder(whatsappNfseInvoiceRepository),
+    generateId: () => crypto.randomUUID(),
+    previewNfseInvoices: (input: Parameters<typeof whatsappNfseInvoices.preview>[0]) =>
+      whatsappNfseInvoices.preview(input),
+    selection: whatsappDocumentSelection,
+  }
+  const whatsappSelectionConfirmation = createConfirmDocumentSelectionUseCase({
+    ...whatsappPreviewDependencies,
+    authorization: new AuthorizationService(),
+    createCteBatch: (input) => whatsappCteBatches.create(input),
+    createNfseInvoice: (input) => whatsappNfseInvoices.create(input),
+    issueCteBatch: (input) => whatsappCteIssuance.issue(input),
+  })
   const issuanceWhatsAppFlowActions = createIssuanceWhatsAppFlowActions({
     clock: () => new Date(),
+    confirmSelection: (input) => whatsappSelectionConfirmation.confirm(input),
     listIssueDateEmitters: (input) => whatsappDocumentSelection.listIssueDateEmitters(input),
     listPendingEmitters: (input) => whatsappDocumentSelection.listPendingEmitters(input),
     listPendingSeries: (input) => whatsappDocumentSelection.listPendingSeries(input),
     listRecentTrips: (input) => whatsappDocumentSelection.listRecentTrips(input),
-    previewSelection: createPreviewDocumentSelectionUseCase({
-      classifier: whatsappNfeDocuments,
-      clock: () => new Date(),
-      commands: new DrizzleWhatsAppCommandRepository(database.db),
-      findNfseCredentialGap: createNfseCredentialGapFinder(whatsappNfseInvoiceRepository),
-      generateId: () => crypto.randomUUID(),
-      previewNfseInvoices: (input) => whatsappNfseInvoices.preview(input),
-      selection: whatsappDocumentSelection,
-    }),
+    previewSelection: createPreviewDocumentSelectionUseCase(whatsappPreviewDependencies),
   })
   /**
    * Spec 144 T006 — o despachante das mensagens recebidas. O teto por número é um só para a

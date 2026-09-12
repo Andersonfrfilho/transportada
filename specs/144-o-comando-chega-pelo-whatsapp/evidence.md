@@ -1614,3 +1614,191 @@ publica para o painel sobre as mesmas notas. **1 pass · 0 fail · 75 expects** 
     - testes das outras apps → worker 1005 · cron 94 · frontend 3329 · frontend-client 18 ·
       frontend-landing 107, todos 0 fail;
     - `bun run build` → as seis apps constroem.
+
+## T013 — confirmar é emitir o que foi visto (2026-09-11)
+
+O ✅ Confirmar deixou de responder "ainda não está disponível". Agora ele confere as permissões,
+recalcula o hash, reivindica o pedido numa transação curta e emite grupo a grupo pelos casos de uso
+das rotas, **sem transação única**. Cada use-case abre a sua transação, e é o diário que diz de onde
+a retomada continua.
+
+### Arquivos
+
+- Domínio (`whatsapp-commands/domain/`):
+  - `issuance-confirmation.policy.ts`: grupos lidos do pedido congelado, permissões exigidas, nome do
+    lote e rótulo do grupo na resposta;
+  - `issuance-idempotency.policy.ts`: ganhou `buildCteIssueIdempotencyKey` e `buildNfseGroupKey`, e
+    a chave de NFS-e passou a ser montada a partir do `group_key`.
+- Aplicação:
+  - `confirm-document-selection.use-case.ts`: `confirm` e `resume`, este exportado para a T014;
+  - `issuance-journal.service.ts`: o diário de passos;
+  - `issuance-confirmation-reply.service.ts`: o que o bot responde;
+  - `preview-document-selection.use-case.ts`: passou a exportar `classifySelectedDocuments`,
+    `digestPreviewEntries` e `freezeIssuancePreview`, para o recálculo seguir **o mesmo caminho** da
+    prévia;
+  - `issuance-flow-prompt.service.ts`: exporta `sendVolumetryMessages` e `sendConfirmationList`;
+  - `register-issuance-flow-actions.ts`: troca a resposta provisória pela confirmação real.
+- Infraestrutura: `findCteProfileNames`, com `buildCteProfileNameFilters` no contrato de tenant.
+- Schema (só tipo, jsonb, **sem migration**): `WhatsAppCommandClassificationEntry` ganhou
+  `profileId`, `profileName` e `takerTaxId`, todos opcionais.
+- `main.ts`: `createCteBatchUseCase` e `createCteIssuanceUseCase` com instâncias próprias no
+  `bootstrap()`, com as mesmas dependências das rotas. É o mesmo precedente da T012: o hook nasce
+  antes de `createApplicationRoutes`.
+
+### Máquina de estados final
+
+```text
+Pedido
+  previewed  ──toque: pedido do ator, permissões, não vencido, hash confere, claim──>  confirming
+  previewed  ──hash divergiu──>  superseded   (e nasce outro pedido em previewed)
+  previewed  ──expires_at <= now──>  expired
+  confirming ──todos os passos finais──>  dispatched  ──T014──>  settled | settled_partial
+  confirming ──erro que não é de domínio──>  confirming   (fica para o resume)
+
+Passo do diário
+  CT-e   pending ──create──> created ──issue──> issued
+  NFS-e  pending ──create──> issued          (a NFS-e nasce agendada: create é o passo inteiro)
+  qualquer ──ApiError──> failed  (last_error_code; o próximo grupo segue)
+```
+
+Toque em cada estado:
+
+- `confirming` → "Este pedido já está sendo enviado" (**não** retoma);
+- `dispatched`/`settled*` → "Este pedido já foi enviado";
+- `expired` → "Prévia expirada." com 🔁 Refazer;
+- `superseded`, ou pedido de outro usuário → "Esse pedido não vale mais. Refaça a seleção."
+
+### Decisões
+
+1. **O grupo é congelado na prévia, nunca reclassificado na confirmação.** Depois do primeiro lote
+   a nota já está vinculada e a classificação muda, então a retomada reconstruiria os grupos errado.
+   O `profileName` também vai congelado, porque o `name` do lote entra na digital do `create`: se o
+   perfil fosse renomeado entre a queda e a retomada, o replay virava `IDEMPOTENCY_KEY_REUSED`. Pedido
+   anterior à T013, sem o grupo, é tratado como prévia vencida pela base: `superseded` e prévia nova.
+2. **O recálculo é o da prévia**, sobre a `selection` congelada (ids), com `dueDate` e `period`
+   congelados. Nota que chega ao critério depois da prévia não é detectada: o hash cobre o que foi
+   visto, não o critério.
+3. **Permissões, antes de tocar em qualquer coisa:** `cte.manage` **e** `cte.submit` com grupo CT-e,
+   `nfse.issue` com grupo NFS-e, pelo mesmo `authorize` do router. A recusa é "Seu acesso não permite
+   emitir todos os documentos desta prévia", sem nomear permissão. A guarda do ramo continua sendo
+   "qualquer uma das duas".
+4. **O toque num pedido `confirming` não retoma.** Dois processos correriam o mesmo grupo, e dois
+   `create` concorrentes com a mesma chave podem dar `23505` em vez de replay. A retomada é o `resume`,
+   exportado para a T014 chamar nos `confirming` parados.
+5. **A digital do `issue` foi conferida e é estável.** `ISSUE_OPERATION` assina
+   `[companyId, batchId]` (`cte-issuance.use-case.ts:532-535`), e o `batchId` volta igual do replay
+   do `create`. Nada instável entre tentativas, então não foi preciso parar.
+6. **Chaves**, todas no formato da rota:
+   - lote: `whatsapp:${requestId}:cte:${profileId}`;
+   - emissão: `whatsapp:${requestId}:cte-issue:${profileId}`;
+   - NFS-e: `whatsapp:${requestId}:nfse:${nfseProfileId}:${takerTaxId}`.
+
+   O `group_key` é o `profileId` no CT-e e `${nfseProfileId}:${takerTaxId}` na NFS-e. O `correlationId`
+   é o id do pedido. O nome do lote é `WhatsApp ${requestId.slice(0, 8)} · ${profileName}`, cortado em
+   100 caracteres, que é o teto da rota.
+
+7. **Erro de domínio é `ApiError`**, e ele fecha o grupo como `failed` com o código. Qualquer outro
+   erro para a execução e deixa o pedido em `confirming`.
+8. `document_id` do diário: o id do lote no CT-e, o id da nota de serviço na NFS-e.
+9. **A prévia nova do `superseded` reusa o vencimento e o período já respondidos.** Se ela precisar
+   de uma pergunta que a antiga não fez (CT-e sem vencimento, ou NFS-e que antes não havia), o bot
+   manda refazer a seleção em vez de decidir sozinho.
+
+### ⚠️ Achado datado (2026-09-12): o `create` de NFS-e travou dentro da transação
+
+Rodando a integração nova inteira, a retomada **travou em 3 de 5 rodadas**, com timeout de 120 s. O
+`afterAll` também estourou, porque a conexão não fecha. Sozinha, a mesma retomada passou.
+
+Medição com o teste travado, em `pg_stat_activity` do banco descartável:
+
+- `pg_blocking_pids` vazio em todas as sessões: **não é espera de lock**;
+- uma conexão `idle in transaction`, `wait_event = ClientRead`, com a idade subindo de 10 s para
+  **2 min 04 s** na mesma pid;
+- o último comando dela: `select "access_key", "id", "issued_at", "number", "series", "status",
+"total_value" from "nfe_documents" …`.
+
+Esse `select` é o primeiro elemento do `Promise.all([select, loadParties(queryable)])` de
+`findNfseSelectionDocuments` (`nfse-invoice-selection.query.ts:92`). No `create`, o `queryable` é a
+transação aberta pelo próprio caso de uso. O servidor terminou a primeira consulta, e a segunda
+nunca chegou.
+
+**Hipótese, não prova:** consultas concorrentes sobre uma conexão de transação às vezes não
+resolvem. É código anterior à T013, o mesmo caminho do `POST /nfse-service-invoices` do painel, e
+não foi alterado aqui. `cte-batch-selection.query.ts:206` tem o mesmo padrão, com quatro consultas.
+
+- A primeira hipótese, um advisory lock de sessão vazado pela reserva do número fiscal, foi
+  **refutada**: `reserveFiscalNumber` incrementa a sequência pela própria transação, sem advisory
+  lock.
+- A retomada da integração passou a semear **só CT-e**. O ponto dela é `created → issue` sem duplicar,
+  e a NFS-e continua provada no AC5, que passou em todas as rodadas. Com isso, o arquivo passou em
+  **3 de 3 rodadas seguidas** (34 expects cada).
+- A investigação ficou para uma task separada, sugerida nesta sessão: reproduzir, confirmar e só
+  então serializar.
+
+### Vermelho → verde
+
+- Vermelho: `bun test ./test/whatsapp-commands.contract.test.ts` → **0 pass · 1 fail · 1 error**
+  (`confirm-document-selection.use-case.js` inexistente).
+- No caminho:
+  - o contrato da prévia esperava a classificação congelada sem o grupo, e foi atualizado para o
+    formato novo. O nome congelado da nota de NFS-e é o do perfil de CT-e que a rege;
+  - na integração, três problemas eram de dado do cenário, não da confirmação: o CNPJ da
+    transportadora é único na instalação (cada cenário semeia o seu); sem sequência fiscal de CT-e o
+    `issue` recusa com `CTE_ISSUANCE_FISCAL_SEQUENCE_MISSING`; sem item de nota ele recusa com
+    `CTE_PAYLOAD_UNRESOLVED_PREDOMINANT_PRODUCT`. Nos dois últimos o diário fez o certo: marcou o
+    grupo `failed` com o código e seguiu para o próximo.
+- Verde: **323 pass · 0 fail** no entrypoint do módulo. Entram 20 casos da confirmação, 7 das
+  FlowActions e 1 de tenant.
+
+Os casos da confirmação (`confirm-document-selection.contract.ts`, com fakes):
+
+- grupo a grupo: dois lotes (um por perfil) criados e emitidos, uma NFS-e por (perfil, tomador) e o
+  pedido em `dispatched`;
+- toda chave usada casa `WHATSAPP_COMMAND_IDEMPOTENCY_KEY_PATTERN`;
+- permissões: seis combinações faltando (só CT-e, só NFS-e e misto) → `forbidden`, com o pedido
+  ainda `previewed`, diário vazio e nenhum `create`; e o caso positivo de cada lado;
+- hash divergente → `superseded` e prévia nova com o mesmo vencimento e período, sem emitir; nota
+  bloqueada como já vinculada (AC4) → `superseded`;
+- vencida → `expired`;
+- dois toques concorrentes → um `dispatched`, um `in_progress`; dois lotes, uma NFS-e, três passos;
+  o terceiro toque → `already_dispatched`;
+- `ApiError` no 2º grupo → `issued`, `failed` (com o código), `issued`;
+- erro que não é de domínio → o pedido fica `confirming`, com o 1º passo em `created`;
+- retomada após queda entre `created` e `issue`, e após queda entre `create` e anotar → nenhum lote
+  nem emissão duplicados;
+- `resume` de pedido despachado não emite; pedido de outro usuário é `not_found`;
+- `name`/`period` saem só do pedido congelado: o perfil renomeado depois não muda o nome do lote.
+
+### Prova dos AC4, AC5 e da retomada (`test/integration/whatsapp-issuance-confirm.integration.ts`)
+
+Os casos de uso reais de lote, emissão e NFS-e rodam contra Postgres. **Nenhuma chamada fiscal:** o
+`issue` e a NFS-e só gravam tentativa e outbox, e quem fala com a SEFAZ e a prefeitura é o worker.
+
+- **AC4.** Depois da prévia, a nota 1200 entra num lote pelo painel. O toque devolve `superseded`:
+  - o pedido antigo fica `superseded`, sem nenhum lote `whatsapp:%`, nenhuma NFS-e e o diário vazio;
+  - o pedido novo nasce `previewed`, com o mesmo vencimento e período, e a 1200 aparece
+    `blocked · CTE_BATCH_DOCUMENT_ALREADY_LINKED`.
+- **AC5.** Dois `confirm` em `Promise.all` → um `dispatched` e um `in_progress`/`already_dispatched`:
+  - o diário tem `cte_batch issued` e `nfse_invoice issued`, com as chaves exatas;
+  - sai **um** lote `whatsapp:%`, submetido, com o nome `WhatsApp ${id8} · Perfil CT-e T013`;
+  - sai **uma** NFS-e;
+  - são 4 tentativas de emissão, uma por nota;
+  - o terceiro toque → `already_dispatched`, com as mesmas contagens.
+- **Retomada.** A queda simulada antes do `issue` deixa o diário em `created`, com zero tentativas. O
+  `resume` → `dispatched`: um lote só, o mesmo `document_id`, 4 tentativas. Um segundo `resume` →
+  `already_dispatched`, e as tentativas continuam 4.
+
+### Gates (primeiro plano)
+
+- `bun run typecheck` (API) → limpo.
+- `bun run lint` (API) → limpo.
+- `bun --env-file=../../.env.test run test:integration` (API, 53 arquivos, com a nova) → **243 pass ·
+  4 skip · 2 fail**. As duas falhas são as de `cte-archive-gateway.integration.ts` ("Object storage
+  is unavailable"), com o MinIO fora do ar: falha de ambiente já registrada.
+- `make check` → **exit 0**, depois do prettier nos `.md`:
+  - format verde;
+  - API **5440 pass · 0 fail** (167 arquivos);
+  - worker 1005 · cron 94 · frontend 3329 · frontend-client 18 · frontend-landing 107, todos 0 fail;
+  - as seis apps constroem.
+
+  A flaky conhecida de `cargo-volume.contract.test.ts` não disparou nesta rodada.

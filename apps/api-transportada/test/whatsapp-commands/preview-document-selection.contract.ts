@@ -116,6 +116,7 @@ function buildHarness(
       return NFSE_PREVIEW
     },
     selection: {
+      findCteProfileNames: async () => new Map([[CTE_PROFILE_ID, 'Perfil CT-e']]),
       findNfseProfileVersions: async () => new Map([[NFSE_PROFILE_ID, '5']]),
       resolveSelection: async (input) => {
         expect(input.companyId).toBe(COMPANY_ID)
@@ -144,6 +145,7 @@ describe('prévia da seleção (spec 144 T012)', () => {
   test('acima do teto recusa com o número achado, sem truncar e sem classificar', async () => {
     const harness = buildHarness({
       selection: {
+        findCteProfileNames: async () => new Map(),
         findNfseProfileVersions: async () => new Map(),
         resolveSelection: async () => ({ documentIds: [], total: CTE_BATCH_MAX_DOCUMENTS + 1 }),
       },
@@ -263,9 +265,22 @@ describe('prévia da seleção (spec 144 T012)', () => {
     })
     expect(created?.period).toBeUndefined()
     expect(created?.previewSha256).toMatch(/^[0-9a-f]{64}$/)
+    // O grupo de cada nota vai congelado junto (T013): a confirmação monta lote e NFS-e daqui.
     expect(created?.classification).toEqual([
-      { classification: { output: 'cte' }, documentId: CTE_DOC },
-      { classification: { nfseProfileId: NFSE_PROFILE_ID, output: 'nfse' }, documentId: NFSE_DOC },
+      {
+        classification: { output: 'cte' },
+        documentId: CTE_DOC,
+        profileId: CTE_PROFILE_ID,
+        profileName: 'Perfil CT-e',
+        takerTaxId: '11111111000191',
+      },
+      {
+        classification: { nfseProfileId: NFSE_PROFILE_ID, output: 'nfse' },
+        documentId: NFSE_DOC,
+        profileId: CTE_PROFILE_ID,
+        profileName: 'Perfil CT-e',
+        takerTaxId: '22222222000191',
+      },
     ])
   })
 

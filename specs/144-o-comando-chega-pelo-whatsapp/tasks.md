@@ -112,7 +112,7 @@ confirming → dispatched → settled | settled_partial`, mais `expired` e `supe
       `period` + `dueDate` + versão de cada perfil usado; endereço do tomador e credencial da Nota RP
       ausentes são `blocked` **na prévia** — `application/preview-document-selection.use-case.ts` +
       FlowActions — integração do AC3
-- [ ] **T013** 🧠 Confirmação **sem transação única** (cada use-case abre a sua): (1) confere
+- [x] **T013** 🧠 Confirmação **sem transação única** (cada use-case abre a sua): (1) confere
       `cte.manage`, `cte.submit`, `nfse.issue` pela membership; (2) recalcula o hash — divergiu →
       `superseded` e prévia nova; (3) transação curta `update … set status='confirming' where
 status='previewed' and preview_sha256=$hash and expires_at>now() returning` + linhas `pending`

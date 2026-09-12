@@ -31,6 +31,11 @@ export type SelectableTrip = Readonly<{
 export type DocumentSelectionResult = Readonly<{ documentIds: readonly string[]; total: number }>
 
 export type DocumentSelectionRepositoryPort = Readonly<{
+  /** O nome de cada perfil de CT-e, congelado na prévia: é ele que nomeia o lote na confirmação. */
+  findCteProfileNames(input: {
+    readonly companyId: string
+    readonly profileIds: readonly string[]
+  }): Promise<ReadonlyMap<string, string>>
   findNfseProfileVersions(input: {
     readonly companyId: string
     readonly profileIds: readonly string[]

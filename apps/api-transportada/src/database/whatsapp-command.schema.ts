@@ -67,9 +67,17 @@ const DOCUMENT_BEARING_STATUSES = ['created', 'issued'] as const
 
 export type WhatsAppCommandSelection = readonly string[]
 
+/**
+ * `profileId`, `profileName` e `takerTaxId` são o grupo da nota, congelados para a confirmação
+ * (spec 144 T013) montar lote e NFS-e sem reclassificar — depois do primeiro lote a nota já está
+ * vinculada e a classificação muda. Opcionais porque o pedido anterior à T013 não os tem.
+ */
 export type WhatsAppCommandClassificationEntry = Readonly<{
   classification: DocumentOutputClassification
   documentId: string
+  profileId?: string | null
+  profileName?: string | null
+  takerTaxId?: string | null
 }>
 
 /**

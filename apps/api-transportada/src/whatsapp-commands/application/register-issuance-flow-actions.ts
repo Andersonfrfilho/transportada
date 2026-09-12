@@ -19,6 +19,7 @@ import {
   ISSUANCE_OPEN_PERMISSIONS,
 } from '../domain/whatsapp-issuance-flow.constant.js'
 import { acceptIssuanceAnswer } from './issuance-answer.service.js'
+import { replyToConfirmation } from './issuance-confirmation-reply.service.js'
 import {
   clearSelectionContext,
   type IssuanceFlowActionDependencies,
@@ -36,13 +37,6 @@ export type { IssuanceFlowActionDependencies } from './issuance-flow-context.ser
 const ISSUANCE_OPEN_POLICY: WhatsAppFlowActionPolicy = ISSUANCE_OPEN_PERMISSIONS.map(
   (permission) => ({ permission, scope: 'company' as const }),
 )
-
-/**
- * Enquanto a T013 não chega, confirmar diz o que acontece e devolve ao menu: o pedido fica
- * congelado e expira sozinho em 15 minutos, sem emitir nada.
- */
-const CONFIRMATION_NOT_AVAILABLE =
-  'A confirmação pelo WhatsApp ainda não está disponível. Por enquanto, emita pelo painel.'
 
 export function createIssuanceWhatsAppFlowActions(
   deps: IssuanceFlowActionDependencies,
@@ -65,7 +59,7 @@ export function createIssuanceWhatsAppFlowActions(
       policy: ISSUANCE_OPEN_POLICY,
     },
     {
-      handler: confirmRouter,
+      handler: createConfirmRouter(deps),
       kind: ISSUANCE_FLOW_ACTION_KIND.confirmRouter,
       policy: ISSUANCE_OPEN_POLICY,
     },
@@ -106,20 +100,28 @@ function createParamRouter(deps: IssuanceFlowActionDependencies): WhatsAppAuthor
   }
 }
 
-/** Só vale o botão do pedido que **esta** sessão congelou: id de outro pedido não confirma nada. */
-const confirmRouter: WhatsAppAuthorizedActionHandler = async ({ channel, context, session }) => {
-  const answer = readContextString(context, KEY.confirmAnswer)
-  const requestId = readContextString(context, KEY.requestId)
-  if (answer === ISSUANCE_BACK_ANSWER) {
-    return { context: clearSelectionContext(), next: ISSUANCE_FLOW_NODE.criterionMenu }
+/**
+ * Só vale o botão do pedido que **esta** sessão congelou: id de outro pedido não confirma nada. A
+ * confirmação confere de novo as permissões de cada documento (T013), além da guarda do ramo.
+ */
+function createConfirmRouter(
+  deps: IssuanceFlowActionDependencies,
+): WhatsAppAuthorizedActionHandler {
+  return async (input) => {
+    const { channel, context, session } = input
+    const answer = readContextString(context, KEY.confirmAnswer)
+    const requestId = readContextString(context, KEY.requestId)
+    if (answer === ISSUANCE_BACK_ANSWER) {
+      return { context: clearSelectionContext(), next: ISSUANCE_FLOW_NODE.criterionMenu }
+    }
+    if (requestId !== undefined && answer === `${ISSUANCE_CONFIRM_ANSWER_PREFIX}${requestId}`) {
+      const outcome = await deps.confirmSelection({ actor: input.actor, requestId })
+      return replyToConfirmation(input, outcome)
+    }
+    await channel.sendText(
+      session.whatsappNumber,
+      'Toque em ✅ Confirmar ou 🔙 Voltar, na lista acima.',
+    )
+    return { context: { [KEY.confirmAnswer]: undefined }, next: ISSUANCE_FLOW_NODE.confirmEntry }
   }
-  if (requestId !== undefined && answer === `${ISSUANCE_CONFIRM_ANSWER_PREFIX}${requestId}`) {
-    await channel.sendText(session.whatsappNumber, CONFIRMATION_NOT_AVAILABLE)
-    return { context: clearSelectionContext(), next: 'menu' }
-  }
-  await channel.sendText(
-    session.whatsappNumber,
-    'Toque em ✅ Confirmar ou 🔙 Voltar, na lista acima.',
-  )
-  return { context: { [KEY.confirmAnswer]: undefined }, next: ISSUANCE_FLOW_NODE.confirmEntry }
 }

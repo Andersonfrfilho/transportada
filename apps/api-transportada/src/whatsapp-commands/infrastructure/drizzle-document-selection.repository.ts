@@ -25,6 +25,7 @@ import {
 } from 'drizzle-orm'
 
 import { cteBatchItemDocuments, cteBatches } from '../../database/cte-batch.schema.js'
+import { cteEmissionProfiles } from '../../database/cte-emission-profile.schema.js'
 import { fleetVehicles } from '../../database/database.schema.js'
 import { nfeDocuments, nfeParticipants } from '../../database/nfe.schema.js'
 import { nfseEmissionProfiles, nfseServiceInvoiceDocuments } from '../../database/nfse.schema.js'
@@ -139,6 +140,16 @@ export function buildNfseProfileVersionFilters(input: {
   ]
 }
 
+export function buildCteProfileNameFilters(input: {
+  readonly companyId: string
+  readonly profileIds: readonly string[]
+}): readonly SQL[] {
+  return [
+    eq(cteEmissionProfiles.companyId, input.companyId),
+    inArray(cteEmissionProfiles.id, [...input.profileIds]),
+  ]
+}
+
 export class DrizzleDocumentSelectionRepository implements DocumentSelectionRepositoryPort {
   public constructor(private readonly database: Database) {}
 
@@ -226,6 +237,18 @@ export class DrizzleDocumentSelectionRepository implements DocumentSelectionRepo
       .where(and(...buildSelectionCriterionFilters(input)))
       .orderBy(asc(nfeDocuments.issuedAt), asc(nfeDocuments.id))
     return { documentIds: rows.map((row) => row.id), total }
+  }
+
+  public async findCteProfileNames(input: {
+    readonly companyId: string
+    readonly profileIds: readonly string[]
+  }): Promise<ReadonlyMap<string, string>> {
+    if (input.profileIds.length === 0) return new Map()
+    const rows = await this.database
+      .select({ id: cteEmissionProfiles.id, name: cteEmissionProfiles.name })
+      .from(cteEmissionProfiles)
+      .where(and(...buildCteProfileNameFilters(input)))
+    return new Map(rows.map((row) => [row.id, row.name]))
   }
 
   public async findNfseProfileVersions(input: {

@@ -16,12 +16,28 @@ export function buildCteBatchIdempotencyKey(input: {
   return `whatsapp:${input.requestId}:cte:${input.profileId}`
 }
 
+/** O `issue` tem chave própria: a do `create` já é do lote, e as duas digitais são diferentes. */
+export function buildCteIssueIdempotencyKey(input: {
+  readonly profileId: string
+  readonly requestId: string
+}): string {
+  return `whatsapp:${input.requestId}:cte-issue:${input.profileId}`
+}
+
+/** O `group_key` do diário para a NFS-e: uma por perfil NFS-e e tomador. */
+export function buildNfseGroupKey(input: {
+  readonly nfseProfileId: string
+  readonly takerTaxId: string
+}): string {
+  return `${input.nfseProfileId}:${normalizeTaxId(input.takerTaxId)}`
+}
+
 export function buildNfseInvoiceIdempotencyKey(input: {
   readonly nfseProfileId: string
   readonly requestId: string
   readonly takerTaxId: string
 }): string {
-  return `whatsapp:${input.requestId}:nfse:${input.nfseProfileId}:${normalizeTaxId(input.takerTaxId)}`
+  return `whatsapp:${input.requestId}:nfse:${buildNfseGroupKey(input)}`
 }
 
 export class WhatsAppCommandIdempotencyKeyInvalidError extends Error {

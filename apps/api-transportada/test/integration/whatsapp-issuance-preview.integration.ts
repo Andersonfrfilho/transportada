@@ -565,6 +565,10 @@ async function buildScenario(db: Database, companyId: string) {
   })
   const issuanceFlowActions = createIssuanceWhatsAppFlowActions({
     clock: () => new Date(),
+    // A confirmação tem a própria integração (T013); este cenário para no pedido congelado.
+    confirmSelection: async () => {
+      throw new Error('a confirmação não faz parte do AC3')
+    },
     listIssueDateEmitters: (input) => selection.listIssueDateEmitters(input),
     listPendingEmitters: (input) => selection.listPendingEmitters(input),
     listPendingSeries: (input) => selection.listPendingSeries(input),
