@@ -109,7 +109,21 @@ disfarçado.
 
 ### T5 — verde
 
-_(preencher após T5)_
+`toPlacementBoxes` (`cargo-layout.policy.ts`) passou a resolver a forma por caixa, na precedência
+D1: medida usa a própria dimensão; sem ficha com `estimatedVolumeM3` chama `resolveFallbackBox` com
+o m³ da própria caixa (o resíduo da nota); sem ficha e sem `estimatedVolumeM3` cai na caixa da
+mediana da empresa, como antes; sem nenhum dos dois, sem fallback (`notMeasured`). Três casos novos
+em G003 (`cargo-layout.contract.ts`): medida ignora o resíduo e a mediana; sem ficha com resíduo usa
+o resíduo (não a mediana); sem ficha e sem resíduo usa a mediana.
+
+```
+bun run typecheck → sem erros
+bun test ./test/cargo-volume.contract.test.ts
+ 325 pass · 1 fail  (pré-existente: "o Atego de 1417 caixas cabe no orçamento de 50 ms", ~55–200 ms)
+```
+
+T3 (G002) fechou verde nesta rodada — o m³ desenhado na parada sem ficha passou a fechar com o
+resíduo da nota, não mais com a mediana da empresa.
 
 ## 3. G006 — caixas colocadas antes/depois nas viagens reais (T6)
 

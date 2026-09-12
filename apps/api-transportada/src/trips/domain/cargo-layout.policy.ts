@@ -570,10 +570,12 @@ function toPlacementBoxes(
   }>,
 ): readonly PlacementBox[] {
   /**
-   * ⚠️ A caixa presumida é derivada **uma vez**, não por caixa: a proporção e o volume são os
+   * ⚠️ A caixa presumida pela mediana da empresa é derivada **uma vez**: proporção e volume são os
    * mesmos para toda a empresa, e recalcular por linha só gastaria tempo repetindo a mesma conta.
+   * A presumida pelo resíduo da nota (spec 144 D1/D2) já chega com o próprio m³ por caixa — essa
+   * tem forma própria, calculada só para quem carrega o campo.
    */
-  const fallback = resolveFallbackBox({
+  const companyFallback = resolveFallbackBox({
     measured: input.measuredShapes,
     volumeM3: input.fallbackVolumeM3,
   })
@@ -581,6 +583,16 @@ function toPlacementBoxes(
   return input.stops.flatMap((stop) =>
     (stop.boxes ?? []).map((box) => {
       const measured = box.heightMm !== null && box.lengthMm !== null && box.widthMm !== null
+      const estimatedVolumeM3 = box.estimatedVolumeM3 ?? null
+      /**
+       * D1: a caixa medida nunca chega aqui (ela usa a própria dimensão, acima). Entre as duas
+       * presumidas, o resíduo da nota vence a mediana da empresa — é o número mais específico da
+       * caixa, e é o que fecha o m³ da fatia (spec 144 G002/G003).
+       */
+      const fallback =
+        estimatedVolumeM3 === null
+          ? companyFallback
+          : resolveFallbackBox({ measured: input.measuredShapes, volumeM3: estimatedVolumeM3 })
       /** Sem medida e sem fallback, a caixa segue sem dimensão e a planta a nomeia como não medida. */
       const shape = measured ? box : (fallback ?? box)
 

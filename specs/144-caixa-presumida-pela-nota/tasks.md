@@ -23,7 +23,7 @@
 - [x] T4 — `CargoPlanBox.estimatedVolumeM3` e `productCode`; `loadMeasuredItems` seleciona
       `nfeProducts.code`; `loadTripOccupancy` usa a função de T2 e carimba o volume presumido nas
       caixas sem ficha, nos dois caminhos (prévia e detalhe).
-- [ ] T5 — `toPlacementBoxes` com a precedência D1 (G003) + caso em `cargo-layout.contract.ts`;
+- [x] T5 — `toPlacementBoxes` com a precedência D1 (G003) + caso em `cargo-layout.contract.ts`;
       T3 verde.
 - [ ] T6 — G006: rodar os contratos de placement existentes (viagens reais e Atego da fixture) e
       registrar caixas colocadas antes/depois em `evidence.md`.
