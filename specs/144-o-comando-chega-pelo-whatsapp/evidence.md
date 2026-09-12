@@ -2141,3 +2141,35 @@ worktree) quando a task chegou à etapa de verificação visual — `curl` contr
 disputaria a mesma porta fixa e arriscaria derrubar a sessão da outra árvore. Por instrução
 explícita da task ("se não subir no ambiente, registre e siga com os contratos"), a conferência de
 375px/1280px não foi feita — a evidência desta task é só a de testes e build acima.
+
+## Revisão de segurança da Fase 3 — commits `93fa655b..76879561` (2026-09-12)
+
+`security-reviewer` em `opus`, só sobre o que estava commitado (lido por `git show 76879561:`),
+depois da T014 e antes da Fase 5. **Veredito: LIBERA COM CORREÇÕES.** Nível de risco MÉDIO —
+0 crítico, 0 alto, 2 médios, 4 baixos.
+
+**A procuração está bem fechada nos dois pontos que importam.** O token de máquina não escolhe o
+que se fatura: os CT-e saem do diário do pedido, o tomador sai da classificação congelada, e o
+vencimento sai de `request.dueDate` — o corpo da rota é ignorado. A revalidação confere o
+`billing.create` **real** do ator, com grupo e concessão avulsa incluídos: membership ativa sem a
+permissão dá `actor_not_authorized` e nenhuma fatura. Uma prévia não é confirmada por outra pessoa
+(`findOwnRequest`), e confirmar exige **todas** as permissões dos grupos do pedido. Motorista não
+age em viagem que não é dele (`tripDrivers.driverId`). Nenhum log carrega telefone, número de nota,
+documento de tomador ou texto do resumo. A trava da T005b continua íntegra.
+
+| id  | severidade | achado                                                                                                                                                                                                                              | onde                                                                                                             |
+| --- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| M1  | MÉDIO      | `whatsapp.settle` é concedível a pessoa por grupo ou avulsa; quem tem `groups.manage` concede a si mesmo, liquida pedido alheio, lê o resumo e dispara retomada. O mesmo furo já existia em `mdfe.auto-issue`, anterior a esta spec | `authorization.policy.ts:290-303`, `user-administration.schema.ts:99,107,144`, `permissionGroups.constant.ts:20` |
+| M2  | MÉDIO      | o resumo sai mesmo quando o ator perdeu a permissão de faturar (suspenso na empresa A, ativo na B), e o worker envia a número com verificação vencida                                                                               | `settle-whatsapp-command.use-case.ts:390-431`, `drizzle-settlement-candidate.repository.ts:109-118`              |
+| B1  | BAIXO      | a retomada não tem reivindicação atômica no banco; só `job_executions` serializa, e só no worker                                                                                                                                    | `confirm-document-selection.use-case.ts:144-160`                                                                 |
+| B2  | BAIXO      | o `resolveActor` da liquidação não recusa papel de serviço (hoje inexplorável: o ator sempre nasce de pessoa)                                                                                                                       | `main.ts:808`                                                                                                    |
+| B3  | BAIXO      | consultas do worker filtram por `batchItemId` e aplicam a empresa em memória                                                                                                                                                        | `drizzle-settlement-candidate.repository.ts:174-191`                                                             |
+| B4  | BAIXO      | o digest não cobre ambiente fiscal nem certificado; a retomada após 15 min emite pelo perfil atual, e a fatura agrupa pelo tomador congelado                                                                                        | `issuance-preview-digest.policy.ts:40-65`                                                                        |
+
+**Consequência:** M1, M2 e B2 viram a **T014b**, inserida antes da Fase 4 no `tasks.md` e
+executada antes da T018. B1, B3 e B4 vão para o `docs/SECURITY.md` com data, pela T018.
+
+Conferido antes de desenhar a T014b (`git grep` no HEAD): `mdfe.auto-issue` e `whatsapp.settle` são
+concedidos **só** ao papel `automation` (`authorization.policy.ts:230`). Nenhum seed, migration ou
+realm os dá a pessoa, então nenhum papel humano de hoje depende deles. A exposição está só no
+caminho de concessão por grupo ou avulsa.

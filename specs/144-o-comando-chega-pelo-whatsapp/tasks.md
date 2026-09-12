@@ -136,6 +136,13 @@ status='previewed' and preview_sha256=$hash and expires_at>now() returning` + li
       `user_whatsapp_phones`, com a NFS-e como "autorizada, sem fatura" —
       `apps/worker-transportada/src/whatsapp-command-settlement/` + rota na API — integração do AC6
 
+- [ ] **T014b** 🧠 Correções da revisão de segurança da Fase 3 (2026-09-12, `evidence.md` §
+      Revisão de segurança da Fase 3), **antes de a Fase 5 levar o fluxo a usuário real**: permissão
+      de máquina (`mdfe.auto-issue`, `whatsapp.settle`) deixa de ser concedível a pessoa por grupo
+      ou avulsa, e a linha já gravada é ignorada na resolução (M1); o resumo da liquidação não sai
+      para ator sem permissão de faturar, e o worker só envia a número verificado há ≤ 90 dias (M2);
+      o `resolveActor` da liquidação recusa papel de serviço (B2) — um contrato vermelho por achado
+
 ## Fase 4 — Entrega e ocorrência (D7)
 
 > 🤖 Modelo: `sonnet`
