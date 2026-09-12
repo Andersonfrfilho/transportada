@@ -1241,3 +1241,100 @@ Todos entram por entrypoints que já estão na lista explícita do `package.json
 - `make check` → formatação, lint e typecheck verdes. A API teve 5297 pass · 0 fail (23 skip, os
   de integração), o worker 1002, o frontend 3324, e as demais suítes também passaram. A flaky
   `cargo-volume.contract.test.ts` passou desta vez.
+
+## T010 — a nota sabe para que documento vai (2026-09-11)
+
+**Classificação** (`cte-profiles/domain/document-output.policy.ts`): `classifyDocumentOutput` recebe
+o perfil que rege a nota (ou o motivo de não haver um) e os **dois vereditos que a listagem já
+calculava** — `cteBlockReason` e `nfseBlockReason` — e não refaz elegibilidade nenhuma. Forma:
+
+```ts
+type DocumentOutputClassification =
+  | { output: 'cte' }
+  | { output: 'nfse'; nfseProfileId: string }
+  | { output: 'blocked'; reason: string }
+  | { output: 'no_profile'; reason: 'ambiguous' | 'not_cnpj' | 'unmatched' }
+```
+
+`cte` → bloqueio do CT-e ou `cte`; `nfse` → perfil NFS-e não ativo (`CTE_PROFILE_NFSE_PROFILE_NOT_ACTIVE`,
+antes do bloqueio da própria NFS-e) → bloqueio da NFS-e → `nfse`; sem perfil → `no_profile`.
+
+**Motivo de "sem perfil"**: `explainEmissionProfile` em `emission-profile-resolution.policy.ts`
+devolve `{ resolution }` ou `{ reason }`. `findEmissionProfile` virou uma linha que delega a ela e
+continua devolvendo `null` — nenhum consumidor mudou, `resolveMunicipalServicePolicy` incluso.
+Perfil `manual` nunca classifica (cai em `unmatched`).
+
+**Uma fonte para o código**: `CTE_PROFILE_NFSE_PROFILE_NOT_ACTIVE` virou constante em
+`cte-profile.error.ts`, lida pela classe de erro da rota (422) e pela classificação. Nenhum código
+novo com o mesmo nome.
+
+**`CTE_BATCH_DOCUMENT_OUTPUT_NFSE`** em `CTE_BATCH_BLOCK_REASON`, aplicado em dois lugares:
+
+- seleção do lote (`cte-batch-selection.service.ts`), depois de o perfil ser resolvido e antes da
+  regra de frete — vale também para o perfil escolhido à mão;
+- `cteBlockReason` da listagem, **depois** dos motivos que já existiam: o vínculo com NFS-e é o que
+  acende o atalho para a nota de serviço na tela, e não pode ser engolido por "vai para NFS-e".
+
+Com o padrão `cte` nada muda: os contratos anteriores de lote, domínio de CT-e, perfis e listagem
+passaram **sem edição**.
+
+**Listagem**: `loadActiveEmissionProfiles` passou a trazer `output_document`,
+`nfse_emission_profile_id` e o status do perfil NFS-e por `leftJoin` em `(company_id, id)` na
+**mesma** consulta — sem N+1. Isso cobre a lacuna que a T009 deixou: ativar o perfil de CT-e não
+confere o status do perfil NFS-e, e a classificação agora o lê a cada página. Cada linha ganha
+`documentOutput`. Os dois filtros saíram como `buildActiveEmissionProfileFilters` e
+`buildNfseProfileJoin`, cobertos pelo tenant-safety.
+
+**Porta do bot**: `NfeDocumentOutputClassifierPort.classifyDocumentOutputs({ context, documentIds })`,
+implementada pelo mesmo repositório e passando pelo **mesmo** `mapSummary` da página. Nota de outra
+empresa fica fora do mapa, sem erro. A T012 consome esta porta.
+
+**Frontend**: o guard aceita `documentOutput` **ausente** (a API sobe primeiro) e aceita saída
+desconhecida sem recusar a linha — a lição do `VEHICLE_DETAIL_KEYS`. A tabela de Notas ganhou a
+coluna "Documento" (CT-e · NFS-e · Bloqueada — motivo · Sem perfil — motivo), **visível por
+padrão**, porque o módulo não tem colunas escondidas por padrão. Linha sem classificação fica com
+`—`, nunca com "CT-e" por omissão. Os dois motivos novos ganharam rótulo em pt-BR e em inglês. A
+seleção não mudou além do que o `cteBlockReason` já fazia.
+
+**Prova de paridade** (`test/integration/nfe-document-output.integration.ts`, Postgres descartável):
+quatro notas, uma por cenário (`cte`, `nfse` com perfil ativo, `nfse` com perfil inativo, sem
+perfil), mais uma segunda empresa. `list()` e `classifyDocumentOutputs()` devolvem o mesmo
+resultado para cada nota. A nota de NFS-e sai com `cteBlockReason = CTE_BATCH_DOCUMENT_OUTPUT_NFSE`.
+O status inativo chega pelo join, e a nota da outra empresa fica fora do mapa → **1 pass · 0 fail,
+13 expects**.
+
+**Contratos novos**:
+
+- `cte-profiles-domain/document-output.contract.ts`: tabela da classificação, todas as combinações.
+- `cte-profiles-domain/profile-explanation.contract.ts`: os três motivos, o perfil `manual`, e
+  `findEmissionProfile` igual à variante.
+- `cte-batch-application/output-document-selection.contract.ts`: a seleção recusa a saída `nfse` e
+  mantém `cte`.
+- `nfe-documents/document-output-listing.contract.ts`: a rota serializa as quatro saídas.
+- Duas asserções novas em `nfe-schema/document-block-tenant-safety.contract.ts`.
+- Frontend: `nfe-workspace/document-output-column.contract.ts`. Os entrypoints estão todos na lista
+  explícita.
+
+Os contratos nasceram vermelhos: import ausente e seleção aceitando a nota, `56 pass · 2 fail ·
+1 error`.
+
+**Edições em teste existente**, e o motivo de cada uma:
+
+- os fixtures HTTP da API (`nfe-http.types.ts`, `nfe-http-payload.fixture.ts`) ganharam o campo
+  novo do corpo;
+- `view-preferences-serialization.contract.ts` lista a ordem de colunas por extenso e ganhou
+  `documentOutput`;
+- `nfe-workspace.fixture.ts` espelha o tipo exato do item.
+
+**Gates**:
+
+- `bun run typecheck` → limpo nas seis apps.
+- `make check` → exit 0: API 5317 pass · 0 fail, worker 1002, cron 94, frontend 3329,
+  frontend-client 18, landing 107, todos com 0 fail.
+- A flaky `cargo-volume.contract.test.ts` não falhou nesta rodada.
+- Integração com `--env-file=../../.env.test --timeout 120000`: `nfe-document-output` +
+  `tenant-context` + `alphanumeric-cnpj-end-to-end` → 3 pass · 0 fail.
+
+⚠️ **Fora do escopo, visto no caminho**: `CTE_BATCH_DOCUMENT_MUNICIPAL_SERVICE` não tem rótulo em
+`cteEmission.blockReason` nos dois locales. A tela imprime a chave crua quando o portão municipal
+bloqueia. É anterior a esta task.

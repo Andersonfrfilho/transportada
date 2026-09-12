@@ -156,6 +156,10 @@ function resolveDocument({
 
   const profile = params.catalog.find((candidate) => candidate.id === resolution.profileId)
   if (profile === undefined) throw new Error('CTE_BATCH_PROFILE_RESOLUTION_MISMATCH')
+  /** O mesmo recorte do `cteBlockReason` da listagem: sem ele o botão emitiria CT-e de nota de NFS-e. */
+  if (profile.outputDocument === 'nfse') {
+    return { blocked: blockDocument(documentId, CTE_BATCH_BLOCK_REASON.outputNfse) }
+  }
   const inForce = isFreightRuleInForce({
     referenceDate: document.issuedAt,
     validFrom: profile.freightRule.validFrom,

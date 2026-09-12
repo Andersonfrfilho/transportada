@@ -55,6 +55,7 @@ function fullPreferences(overrides: Partial<TableViewPreferences> = {}): TableVi
       'recipientLocation',
       'amount',
       'issuedAt',
+      'documentOutput',
     ],
     columnVisibility: { ...ALL_COLUMNS_VISIBLE, emitterLocation: false, recipientLocation: false },
     filters,
@@ -112,6 +113,7 @@ describe('nfe workspace view preferences serialization contract', () => {
       'emitterLocation',
       'recipient',
       'recipientLocation',
+      'documentOutput',
     ])
   })
 

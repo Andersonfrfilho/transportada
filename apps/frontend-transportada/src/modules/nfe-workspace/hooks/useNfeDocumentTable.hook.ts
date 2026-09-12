@@ -87,6 +87,7 @@ export type ConditionChanges = Partial<
 
 export type ColumnKey =
   | 'amount'
+  | 'documentOutput'
   | 'emitter'
   | 'emitterLocation'
   | 'issuedAt'
@@ -200,6 +201,7 @@ export const DOCUMENT_COLUMN_KEYS: readonly ColumnKey[] = [
   'recipientLocation',
   'amount',
   'status',
+  'documentOutput',
 ]
 
 export const PAGE_SIZE_OPTIONS: readonly number[] = [25, 50, 100, 500, 1000]
@@ -259,6 +261,7 @@ export const SUPERSEDED_NUMBER_SORT: SortState = { column: 'number', direction: 
 
 export const ALL_COLUMNS_VISIBLE: Record<ColumnKey, boolean> = {
   amount: true,
+  documentOutput: true,
   emitter: true,
   emitterLocation: true,
   issuedAt: true,

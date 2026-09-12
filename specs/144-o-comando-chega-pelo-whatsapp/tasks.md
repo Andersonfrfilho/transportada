@@ -87,7 +87,7 @@ nfse_emission_profiles(company_id, id)` **on delete restrict**, e três CHECKs �
 or municipal_service_policy='allow'`); `PUT` recusa apontar para perfil NFS-e não `active`.
       Formulário do perfil: os dois campos, e em `nfse` **esconde** taker, regra de frete, CFOP e
       ICMS (vale o perfil NFS-e) — `make migration-test`, contrato de schema
-- [ ] **T010** 🧠 `classifyDocumentOutput` em `cte-profiles/domain/document-output.policy.ts`,
+- [x] **T010** 🧠 `classifyDocumentOutput` em `cte-profiles/domain/document-output.policy.ts`,
       **derivada dos vereditos que a listagem já calcula** (`cteBlockReason` de `resolveDocumentBlock`,
       `nfseBlockReason` de `resolveNfseDocumentBlock`), nunca refazendo a elegibilidade: `cte` →
       `blocked(cteBlockReason)` ou `cte`; `nfse` → `blocked(nfseBlockReason)` ou `nfse`; sem perfil →

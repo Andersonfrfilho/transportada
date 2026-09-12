@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { DocumentOutputClassification } from '../../cte-profiles/domain/document-output.policy.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import { defineRoute } from '../../http/router.service.js'
 import { invalidRequest } from '../../http/request-parsing.service.js'
@@ -22,6 +23,7 @@ const XML_EXTENSION = '.xml'
 type NfeDocumentSummary = {
   readonly accessKey: string
   readonly cteBlockReason: string | null
+  readonly documentOutput: DocumentOutputClassification
   readonly nfseBlockReason: string | null
   readonly emitterAddress: string | null
   readonly emitterCity: string | null
@@ -236,6 +238,7 @@ function serializeDocument(document: NfeDocumentSummary): object {
   return {
     accessKey: document.accessKey,
     cteBlockReason: document.cteBlockReason,
+    documentOutput: { ...document.documentOutput },
     nfseBlockReason: document.nfseBlockReason,
     emitterAddress: document.emitterAddress,
     emitterCity: document.emitterCity,

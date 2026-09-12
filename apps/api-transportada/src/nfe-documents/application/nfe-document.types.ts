@@ -1,11 +1,14 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import type { DocumentOutputClassification } from '../../cte-profiles/domain/document-output.policy.js'
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 
 export type NfeDocumentSummary = {
   readonly accessKey: string
   readonly cteBlockReason: string | null
+  /** Para qual documento fiscal a nota vai, pelo perfil que a rege (spec 144 D3). */
+  readonly documentOutput: DocumentOutputClassification
   /** Bloqueio da NFS-e, que não conhece peso. Nulo aqui e preenchido acima é o caso da spec 067. */
   readonly nfseBlockReason: string | null
   readonly emitterAddress: string | null
@@ -121,4 +124,15 @@ export type NfeDocumentRepositoryPort = {
     readonly cursor: string | null
     readonly limit: number
   }): Promise<NfeDocumentPage>
+}
+
+/**
+ * A classificação da listagem para notas escolhidas por id — a porta que o bot consome (spec 144
+ * D3). Nota de outra empresa ou inexistente fica fora do mapa, sem erro.
+ */
+export type NfeDocumentOutputClassifierPort = {
+  classifyDocumentOutputs(input: {
+    readonly context: CompanyContext
+    readonly documentIds: readonly string[]
+  }): Promise<ReadonlyMap<string, DocumentOutputClassification>>
 }

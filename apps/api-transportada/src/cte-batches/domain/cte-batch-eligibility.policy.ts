@@ -18,6 +18,8 @@ export const CTE_BATCH_BLOCK_REASON = {
   missingWeight: 'CTE_BATCH_DOCUMENT_MISSING_WEIGHT',
   notAuthorized: 'CTE_BATCH_DOCUMENT_NOT_AUTHORIZED',
   notFound: 'CTE_BATCH_DOCUMENT_NOT_FOUND',
+  /** O perfil que rege a nota manda emitir NFS-e: a tela e a seleção recusam o CT-e (spec 144 D3). */
+  outputNfse: 'CTE_BATCH_DOCUMENT_OUTPUT_NFSE',
   ruleNotInForce: 'CTE_PROFILE_RULE_NOT_IN_FORCE',
   summaryOnly: 'CTE_BATCH_DOCUMENT_SUMMARY_ONLY',
 } as const

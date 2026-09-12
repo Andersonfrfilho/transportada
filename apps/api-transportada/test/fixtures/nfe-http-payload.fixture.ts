@@ -75,6 +75,7 @@ export const REPROCESS_RESPONSE: NfeImportSummary = {
 export const DOCUMENT_SUMMARY: NfeDocumentSummary = {
   accessKey: DOCUMENT_ACCESS_KEY,
   cteBlockReason: null,
+  documentOutput: { output: 'cte' },
   nfseBlockReason: null,
   tripId: null,
   tripStatus: null,
@@ -153,6 +154,7 @@ export function serializeDocumentSummary(document: NfeDocumentSummary): object {
   return {
     accessKey: document.accessKey,
     cteBlockReason: document.cteBlockReason,
+    documentOutput: document.documentOutput,
     nfseBlockReason: document.nfseBlockReason,
     emitterAddress: document.emitterAddress,
     emitterCity: document.emitterCity,

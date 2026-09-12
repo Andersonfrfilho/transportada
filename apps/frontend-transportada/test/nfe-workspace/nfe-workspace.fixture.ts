@@ -78,6 +78,7 @@ export type NfeDistributionStatusContract = Readonly<{
 export type NfeDocumentListItemContract = Readonly<{
   accessKey: string
   cteBlockReason: null | string
+  documentOutput?: Readonly<{ nfseProfileId?: string; output: string; reason?: string }>
   nfseBlockReason: null | string
   emitterAddress: null | string
   emitterCity: null | string

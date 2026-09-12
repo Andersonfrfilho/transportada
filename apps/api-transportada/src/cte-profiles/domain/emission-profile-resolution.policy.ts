@@ -97,15 +97,37 @@ export function resolveEmissionProfile({
  * mostra a base inteira. Ausência aqui significa "nenhum perfil rege esta nota", e quem consome
  * decide o que fazer com isso; hoje, não aplicar portão nenhum.
  */
-export function findEmissionProfile({
-  invoice,
-  profiles,
-}: {
+export function findEmissionProfile(
+  params: FindEmissionProfileParams,
+): EmissionProfileResolution | null {
+  return explainEmissionProfile(params).resolution ?? null
+}
+
+export type FindEmissionProfileParams = {
   readonly invoice: EmissionProfileInvoiceParties
   readonly profiles: readonly EmissionProfileCandidate[]
-}): EmissionProfileResolution | null {
+}
+
+/** Por que nenhum perfil rege a nota: nenhum casa, dois empatam, ou um dos lados não tem CNPJ. */
+export type EmissionProfileNoMatchReason = 'ambiguous' | 'not_cnpj' | 'unmatched'
+
+export type EmissionProfileExplanation =
+  | { readonly reason?: undefined; readonly resolution: EmissionProfileResolution }
+  | { readonly reason: EmissionProfileNoMatchReason; readonly resolution?: undefined }
+
+/**
+ * A escolha de `findEmissionProfile` com o **motivo** da ausência (spec 144 D3). O `null` junta
+ * situações que o operador resolve de jeitos diferentes — cadastrar um perfil, desempatar a
+ * prioridade, ou aceitar que pessoa física não tem perfil —, e a classificação da nota precisa
+ * dizer qual delas é. Perfil `manual` fica fora do casamento: a tela o alcança por escolha
+ * explícita, e a classificação automática nunca.
+ */
+export function explainEmissionProfile({
+  invoice,
+  profiles,
+}: FindEmissionProfileParams): EmissionProfileExplanation {
   if (!CNPJ_PATTERN.test(invoice.senderTaxId) || !CNPJ_PATTERN.test(invoice.recipientTaxId)) {
-    return null
+    return { reason: 'not_cnpj' }
   }
 
   const matches = profiles
@@ -120,14 +142,16 @@ export function findEmissionProfile({
     .toSorted(compareMatches)
 
   const [best, runnerUp] = matches
-  if (best === undefined) return null
-  if (runnerUp !== undefined && compareMatches(best, runnerUp) === 0) return null
+  if (best === undefined) return { reason: 'unmatched' }
+  if (runnerUp !== undefined && compareMatches(best, runnerUp) === 0) return { reason: 'ambiguous' }
 
   return {
-    matchedBy: best.role === 'sender' ? 'sender_tax_id' : 'recipient_tax_id',
-    matchedTaxId: best.matchedTaxId,
-    precision: best.precision,
-    profileId: best.candidate.id,
+    resolution: {
+      matchedBy: best.role === 'sender' ? 'sender_tax_id' : 'recipient_tax_id',
+      matchedTaxId: best.matchedTaxId,
+      precision: best.precision,
+      profileId: best.candidate.id,
+    },
   }
 }
 

@@ -95,11 +95,17 @@ export class CteEmissionProfileOutputDocumentIncoherentError extends ApiError {
   }
 }
 
+/**
+ * Uma fonte só para dois vocabulários: o erro da rota que grava o perfil e o motivo de bloqueio da
+ * classificação da nota (spec 144 D3) dizem a mesma coisa, e duas grafias divergiriam em silêncio.
+ */
+export const CTE_PROFILE_NFSE_PROFILE_NOT_ACTIVE = 'CTE_PROFILE_NFSE_PROFILE_NOT_ACTIVE'
+
 /** Perfil NFS-e de outra empresa responde igual ao inativo: o 404 diria que ele existe em algum lugar. */
 export class CteEmissionProfileNfseProfileNotActiveError extends ApiError {
   public constructor() {
     super({
-      code: 'CTE_PROFILE_NFSE_PROFILE_NOT_ACTIVE',
+      code: CTE_PROFILE_NFSE_PROFILE_NOT_ACTIVE,
       details: [
         { field: 'nfseEmissionProfileId', message: 'must point to an active NFS-e profile' },
       ],

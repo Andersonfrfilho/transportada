@@ -70,9 +70,21 @@ export type NfeDistributionStatus = Readonly<{
   ultNsu: string
 }>
 
+/**
+ * Para qual documento fiscal a nota vai, pelo perfil que a rege (spec 144 D3). Só a forma é
+ * conferida aqui: saída que esta versão não conhece aparece como vazia, nunca derruba a linha.
+ */
+export type DocumentOutput = Readonly<{
+  nfseProfileId?: string
+  output: string
+  reason?: string
+}>
+
 export type NfeDocumentListItem = Readonly<{
   accessKey: string
   cteBlockReason: null | string
+  /** Ausente enquanto a API anterior serve o corpo antigo — a API sobe primeiro. */
+  documentOutput?: DocumentOutput
   nfseBlockReason: null | string
   emitterAddress: null | string
   emitterCity: null | string
@@ -328,11 +340,21 @@ function isNfeImportSummary(value: unknown): value is NfeImportSummary {
   )
 }
 
+function isDocumentOutput(value: unknown): value is DocumentOutput {
+  return (
+    isRecord(value) &&
+    isString(value.output) &&
+    (value.reason === undefined || isString(value.reason)) &&
+    (value.nfseProfileId === undefined || isString(value.nfseProfileId))
+  )
+}
+
 function isNfeDocumentListItem(value: unknown): value is NfeDocumentListItem {
   return (
     isRecord(value) &&
     isString(value.accessKey) &&
     isNullableString(value.cteBlockReason) &&
+    (value.documentOutput === undefined || isDocumentOutput(value.documentOutput)) &&
     isNullableString(value.nfseBlockReason) &&
     isNullableString(value.emitterAddress) &&
     isNullableString(value.emitterCity) &&

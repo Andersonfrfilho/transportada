@@ -8,14 +8,21 @@ import { companyCargoSettings } from '../../database/company-cargo-settings.sche
 import { geocodedAddresses } from '../../database/geocoding.schema.js'
 import { buildStopAddressKey } from '../../trips/domain/stop-address-key.js'
 import { cteBatchItemDocuments, cteBatches } from '../../database/cte-batch.schema.js'
-import { nfseServiceInvoiceDocuments, nfseServiceInvoices } from '../../database/nfse.schema.js'
+import {
+  nfseEmissionProfiles,
+  nfseServiceInvoiceDocuments,
+  nfseServiceInvoices,
+} from '../../database/nfse.schema.js'
 import {
   nfeAddresses,
   nfeDocuments,
   nfeParticipants,
   nfeVolumes,
 } from '../../database/nfe.schema.js'
-import { resolveDocumentBlock } from '../../cte-batches/domain/cte-batch-eligibility.policy.js'
+import {
+  CTE_BATCH_BLOCK_REASON,
+  resolveDocumentBlock,
+} from '../../cte-batches/domain/cte-batch-eligibility.policy.js'
 import {
   cteEmissionProfileMatchers,
   cteEmissionProfiles,
@@ -24,8 +31,19 @@ import type {
   CteEmissionMatchRole,
   CteMunicipalServicePolicy,
 } from '../../database/cte-emission-profile.schema.js'
-import { resolveMunicipalServicePolicy } from '../../cte-profiles/domain/emission-profile-resolution.policy.js'
-import type { EmissionProfileCandidate } from '../../cte-profiles/domain/emission-profile-resolution.policy.js'
+import {
+  explainEmissionProfile,
+  resolveMunicipalServicePolicy,
+} from '../../cte-profiles/domain/emission-profile-resolution.policy.js'
+import type {
+  EmissionProfileCandidate,
+  EmissionProfileNoMatchReason,
+} from '../../cte-profiles/domain/emission-profile-resolution.policy.js'
+import {
+  type DocumentOutputClassification,
+  type DocumentOutputProfile,
+  classifyDocumentOutput,
+} from '../../cte-profiles/domain/document-output.policy.js'
 import { resolveCargoWeight } from '../domain/cargo-weight.policy.js'
 import { resolveNfseDocumentBlock } from '../domain/nfse-document-block.policy.js'
 import { findTripLinks } from '../../cte-batches/infrastructure/cte-batch-selection.query.js'
@@ -43,6 +61,7 @@ import type {
   DownloadNfeDocumentXmlResult,
   NfeDocumentDetail,
   NfeDocumentEligibility,
+  NfeDocumentOutputClassifierPort,
   NfeDocumentPage,
   NfeDocumentRepositoryPort,
   NfeDocumentSummary,
@@ -146,10 +165,18 @@ type ActiveFreightRule = {
   readonly validUntil: Date | null
 }
 
-/** O perfil, reduzido ao que a listagem precisa para decidir o portão de serviço municipal. */
-type MunicipalPolicyProfile = EmissionProfileCandidate & {
-  readonly municipalServicePolicy: CteMunicipalServicePolicy
-}
+/**
+ * O perfil, reduzido ao que a listagem precisa para decidir o portão de serviço municipal e o
+ * documento de saída da nota (spec 144 D3).
+ */
+type MunicipalPolicyProfile = EmissionProfileCandidate &
+  DocumentOutputProfile & {
+    readonly municipalServicePolicy: CteMunicipalServicePolicy
+  }
+
+type GoverningProfile =
+  | { readonly profile: MunicipalPolicyProfile; readonly reason?: undefined }
+  | { readonly profile?: undefined; readonly reason: EmissionProfileNoMatchReason }
 
 type DocumentBlockContext = {
   readonly batchIdByDocumentId: ReadonlyMap<string, string>
@@ -213,6 +240,24 @@ export function buildDocumentNfseLinkFilters({
   ] as const as readonly SQL[]
 }
 
+export function buildActiveEmissionProfileFilters(companyId: string): readonly SQL[] {
+  return [
+    eq(cteEmissionProfiles.companyId, companyId),
+    eq(cteEmissionProfiles.status, 'active'),
+  ] as const as readonly SQL[]
+}
+
+/**
+ * O perfil NFS-e apontado, casado por `(company_id, id)` — o mesmo par da FK composta. Só o `id`
+ * deixaria a consulta atravessar empresa se a FK um dia sumisse; o join repete a garantia.
+ */
+export function buildNfseProfileJoin(): SQL {
+  return and(
+    eq(nfseEmissionProfiles.companyId, cteEmissionProfiles.companyId),
+    eq(nfseEmissionProfiles.id, cteEmissionProfiles.nfseEmissionProfileId),
+  )!
+}
+
 /**
  * O filtro de tenant é o primeiro da lista e não é opcional: a chave de acesso é única por empresa
  * (`nfe_documents_company_id_access_key_unique`), então a chave da nota alheia sai como página
@@ -240,11 +285,46 @@ export function buildDocumentListFilters({
   return filters
 }
 
-export class DrizzleNfeDocumentRepository implements NfeDocumentRepositoryPort {
+export class DrizzleNfeDocumentRepository
+  implements NfeDocumentRepositoryPort, NfeDocumentOutputClassifierPort
+{
   public constructor(
     private readonly database: Database,
     private readonly storage: NfeStorageGateway,
   ) {}
+
+  /**
+   * A classificação que a listagem publica, para um conjunto de notas escolhido por id — a porta do
+   * bot (spec 144 D3). Ela passa pelo **mesmo** `mapSummary` da página, e não por uma conta ao lado:
+   * duas contas discordariam sobre a mesma nota, e o contrato de paridade cobra isso.
+   */
+  public async classifyDocumentOutputs(input: {
+    readonly context: CompanyContext
+    readonly documentIds: readonly string[]
+  }): Promise<ReadonlyMap<string, DocumentOutputClassification>> {
+    const classified = new Map<string, DocumentOutputClassification>()
+    if (input.documentIds.length === 0) return classified
+    const companyId = input.context.companyId
+    const records = await this.database
+      .select()
+      .from(nfeDocuments)
+      .where(
+        and(
+          eq(nfeDocuments.companyId, companyId),
+          inArray(nfeDocuments.id, [...input.documentIds]),
+        ),
+      )
+    const scope: DocumentScope = { companyId, documentIds: records.map((record) => record.id) }
+    const [participantsByDocument, blockContext] = await Promise.all([
+      this.loadParticipants(scope.companyId, scope.documentIds),
+      this.loadBlockContext(scope),
+    ])
+    for (const record of records) {
+      const summary = mapSummary(record, participantsByDocument.get(record.id), blockContext)
+      classified.set(record.id, summary.documentOutput)
+    }
+    return classified
+  }
 
   public async list(input: {
     readonly accessKey: string | null
@@ -449,13 +529,18 @@ export class DrizzleNfeDocumentRepository implements NfeDocumentRepositoryPort {
   /**
    * Os perfis de emissão ativos com os matchers deles, **uma consulta por página** — mesma razão das
    * regras de frete: perfil é configuração, e resolvê-lo por documento faria mil idas ao banco numa
-   * página de mil notas.
+   * página de mil notas. O status do perfil NFS-e apontado vem no **mesmo** SELECT (spec 144 D3):
+   * ativar o perfil de CT-e não confere o NFS-e, e ele pode ter sido desativado depois.
    */
   private async loadActiveEmissionProfiles(
     companyId: string,
   ): Promise<readonly MunicipalPolicyProfile[]> {
     const rows = await this.database
-      .select({ profile: cteEmissionProfiles, matcher: cteEmissionProfileMatchers })
+      .select({
+        profile: cteEmissionProfiles,
+        matcher: cteEmissionProfileMatchers,
+        nfseProfileStatus: nfseEmissionProfiles.status,
+      })
       .from(cteEmissionProfiles)
       .leftJoin(
         cteEmissionProfileMatchers,
@@ -464,17 +549,18 @@ export class DrizzleNfeDocumentRepository implements NfeDocumentRepositoryPort {
           eq(cteEmissionProfileMatchers.profileId, cteEmissionProfiles.id),
         ),
       )
-      .where(
-        and(eq(cteEmissionProfiles.companyId, companyId), eq(cteEmissionProfiles.status, 'active')),
-      )
+      .leftJoin(nfseEmissionProfiles, buildNfseProfileJoin())
+      .where(and(...buildActiveEmissionProfileFilters(companyId)))
 
     const profileById = new Map<string, (typeof rows)[number]['profile']>()
+    const nfseStatusByProfileId = new Map<string, (typeof rows)[number]['nfseProfileStatus']>()
     const matchersByProfileId = new Map<
       string,
       { matchRole: CteEmissionMatchRole; taxId: string }[]
     >()
     for (const row of rows) {
       profileById.set(row.profile.id, row.profile)
+      nfseStatusByProfileId.set(row.profile.id, row.nfseProfileStatus)
       if (row.matcher === null) continue
       const matchers = matchersByProfileId.get(row.profile.id) ?? []
       matchers.push({ matchRole: row.matcher.matchRole, taxId: row.matcher.taxId })
@@ -487,6 +573,9 @@ export class DrizzleNfeDocumentRepository implements NfeDocumentRepositoryPort {
       matchers: matchersByProfileId.get(profile.id) ?? [],
       municipalServicePolicy: profile.municipalServicePolicy,
       name: profile.name,
+      nfseEmissionProfileId: profile.nfseEmissionProfileId,
+      nfseProfileStatus: nfseStatusByProfileId.get(profile.id) ?? null,
+      outputDocument: profile.outputDocument,
       priority: profile.priority,
       status: profile.status,
     }))
@@ -646,6 +735,26 @@ export class DrizzleNfeDocumentRepository implements NfeDocumentRepositoryPort {
   }
 }
 
+/**
+ * O perfil que rege a nota, ou o motivo de não haver um. Participante ausente é `not_cnpj`: sem o
+ * documento de um dos lados não há CNPJ para casar, e é essa a frase que o operador precisa ler.
+ */
+function findGoverningProfile(
+  profiles: readonly MunicipalPolicyProfile[],
+  senderTaxId: string | null,
+  recipientTaxId: string | null,
+): GoverningProfile {
+  if (senderTaxId === null || recipientTaxId === null) return { reason: 'not_cnpj' }
+  const explanation = explainEmissionProfile({
+    invoice: { recipientTaxId, senderTaxId },
+    profiles,
+  })
+  if (explanation.resolution === undefined) return { reason: explanation.reason }
+  const profile = profiles.find((candidate) => candidate.id === explanation.resolution.profileId)
+  if (profile === undefined) throw new Error('NFE_DOCUMENT_PROFILE_RESOLUTION_MISMATCH')
+  return { profile }
+}
+
 function mapSummary(
   document: DocumentRecord,
   participants: DocumentParticipants | undefined,
@@ -698,11 +807,29 @@ function mapSummary(
   })
   const decision = resolveDocumentBlock({ document: eligibilityDocument, ...links })
   const nfseBlockReason = resolveNfseDocumentBlock({ document: eligibilityDocument, ...links })
+  const governing = findGoverningProfile(
+    blockContext.emissionProfiles,
+    emitter.taxId,
+    recipient.taxId,
+  )
+  /**
+   * Os motivos que já existiam vêm antes: o vínculo com NFS-e é o que acende o atalho para a nota de
+   * serviço na tela, e ele não pode ser engolido por "vai para NFS-e".
+   */
+  const cteBlockReason =
+    decision.blocked?.reason ??
+    (governing.profile?.outputDocument === 'nfse' ? CTE_BATCH_BLOCK_REASON.outputNfse : null)
+  const documentOutput = classifyDocumentOutput(
+    governing.profile === undefined
+      ? { cteBlockReason, nfseBlockReason, noProfileReason: governing.reason, profile: null }
+      : { cteBlockReason, nfseBlockReason, profile: governing.profile },
+  )
   const trip = blockContext.tripByDocumentId.get(document.id) ?? null
 
   return {
     accessKey: document.accessKey,
-    cteBlockReason: decision.blocked?.reason ?? null,
+    cteBlockReason,
+    documentOutput,
     nfseBlockReason,
     emitterAddress: emitter.address,
     emitterCity: emitter.city,

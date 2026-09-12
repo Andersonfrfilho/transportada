@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { ScheduledDistributionStatus } from '../../src/companies/application/get-scheduled-distribution-status.use-case'
+import type { DocumentOutputClassification } from '../../src/cte-profiles/domain/document-output.policy'
 import type { CompanyContext } from '../../src/identity/domain/tenant-context'
 import type { TripLocationByAccessKey } from '../../src/trips/application/find-trip-location-by-access-key.use-case'
 import type {
@@ -55,6 +56,7 @@ export type ReprocessImportCall = {
 export type NfeDocumentSummary = {
   readonly accessKey: string
   readonly cteBlockReason: string | null
+  readonly documentOutput: DocumentOutputClassification
   readonly nfseBlockReason: string | null
   readonly emitterAddress: string | null
   readonly emitterCity: string | null
