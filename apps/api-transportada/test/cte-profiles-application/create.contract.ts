@@ -66,6 +66,8 @@ describe('cte emission profiles create', () => {
         afterSnapshot: {
           freightRuleId: fixture.profileOf(PROFILE_ID).freightRuleId,
           matchMode: PROFILE_SETTINGS.matchMode,
+          nfseEmissionProfileId: null,
+          outputDocument: 'cte',
           percentage: FREIGHT_RULE.percentage,
           profileId: PROFILE_ID,
           status: 'draft',

@@ -4,3 +4,4 @@
 import './cte-profiles-application/create.contract.js'
 import './cte-profiles-application/listing.contract.js'
 import './cte-profiles-application/update-and-status.contract.js'
+import './cte-profiles-application/output-document.contract.js'

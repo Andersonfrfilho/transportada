@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
+import { createNfseSettingsClient } from '@/modules/nfse-invoice/shared/nfseSettingsClient.service'
 
 import {
   CTE_PROFILES_ERROR,
@@ -19,9 +20,12 @@ import {
   createCteProfilesClient,
   type CteProfilesClient as Client,
 } from '../shared/cteProfilesClient.service'
+import { toNfseProfileOptions } from '../shared/cteProfilesForm.service'
 import { createCteProfilesViewModel } from '../shared/cteProfilesViewModel.service'
 
 const CTE_PROFILES_QUERY_KEY = 'cte-emission-profiles'
+// Chave própria: a de `nfse-invoice` guarda outro formato, e esta tela nunca a invalida.
+const NFSE_PROFILE_OPTIONS_QUERY_KEY = 'cte-profiles-nfse-profile-options'
 
 export type CteProfilesClient = Client
 
@@ -67,6 +71,14 @@ function getCteProfilesClient(): CteProfilesClient {
   })
 }
 
+function getNfseSettingsClient() {
+  return createNfseSettingsClient({
+    apiUrl: getIdentityEnvironment().apiBaseUrl,
+    fetch: (request, init) => fetch(request, init),
+    getAccessToken: () => getKeycloakAuthProvider().getAccessToken(),
+  })
+}
+
 export function useCteProfiles(
   input: Readonly<{
     companyId?: string
@@ -89,6 +101,12 @@ export function useCteProfiles(
         limit: PROFILE_PAGE_SIZE,
       }),
     queryKey: profilesQueryKey,
+  })
+
+  const nfseProfilesQuery = useQuery({
+    enabled: controller.canManageProfiles,
+    queryFn: async () => toNfseProfileOptions(await getNfseSettingsClient().listProfiles()),
+    queryKey: [NFSE_PROFILE_OPTIONS_QUERY_KEY, input.companyId] as const,
   })
 
   function invalidateProfiles(): Promise<void> {
@@ -123,6 +141,7 @@ export function useCteProfiles(
     controller,
     createProfileMutation,
     deactivateProfileMutation,
+    nfseProfileOptions: nfseProfilesQuery.data ?? [],
     profilesQuery,
     updateProfileMutation,
     viewModel,

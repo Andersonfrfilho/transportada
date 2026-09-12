@@ -10,12 +10,14 @@ import type {
   CteIcmsCst,
   CteModal,
   CteMunicipalServicePolicy,
+  CteOutputDocument,
   CtePickupIndicator,
   CtePredominantProductMode,
   CteReceiverIeIndicator,
   CteServiceType,
   CteTaker,
 } from '../../database/cte-emission-profile.schema.js'
+import type { NfseEmissionProfileStatus } from '../../database/nfse.schema.js'
 
 export type CteEmissionProfileCompanyContext = {
   readonly companyId: string
@@ -60,8 +62,12 @@ export type CteEmissionProfileSettings = {
   readonly matchMode: CteEmissionProfileMatchMode
   readonly modal: CteModal
   readonly name: string
+  /** Perfil NFS-e que rege a nota quando `outputDocument` é `nfse`; nulo em `cte`. */
+  readonly nfseEmissionProfileId: string | null
   readonly observations: string
   readonly operationNature: string
+  /** Spec 144 D3: qual documento fiscal a nota que casa com este perfil gera. */
+  readonly outputDocument: CteOutputDocument
   readonly pickupDetails: string
   readonly pickupIndicator: CtePickupIndicator
   readonly predominantProductMode: CtePredominantProductMode
@@ -70,6 +76,18 @@ export type CteEmissionProfileSettings = {
   readonly receiverIeIndicator: CteReceiverIeIndicator
   readonly serviceType: CteServiceType
   readonly taker: CteTaker
+}
+
+/**
+ * O que chega da rota. Os dois campos da D3 são opcionais porque a API sobe antes da tela: um
+ * cliente antigo não os manda, e aí a edição preserva o que o perfil já tinha em vez de voltar a `cte`.
+ */
+export type CteEmissionProfileSettingsInput = Omit<
+  CteEmissionProfileSettings,
+  'nfseEmissionProfileId' | 'outputDocument'
+> & {
+  readonly nfseEmissionProfileId?: string | null | undefined
+  readonly outputDocument?: CteOutputDocument | undefined
 }
 
 export type CteEmissionProfileDetail = CteEmissionProfileSettings & {
@@ -137,6 +155,11 @@ export type CteEmissionProfileTransactionPort = {
     readonly fingerprint: string
     readonly response: CteEmissionProfileDetail
   } | null>
+  /** Status do perfil NFS-e dentro da empresa; `null` quando ele não existe nela. */
+  findNfseEmissionProfileStatus(input: {
+    readonly companyId: string
+    readonly nfseEmissionProfileId: string
+  }): Promise<NfseEmissionProfileStatus | null>
   findProfile(input: {
     readonly companyId: string
     readonly profileId: string

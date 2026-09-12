@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { describe, expect } from 'bun:test'
 
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
+import { assertCteProfileOutputConstraints } from './cte-profile-output-constraints.assertion.js'
 import { assertFiscalConstraints } from './fiscal-constraints.assertion.js'
 import { assertFleetConstraints } from './fleet-constraints.assertion.js'
 import { assertFreightRegionConstraints } from './freight-region-constraints.assertion.js'
@@ -95,6 +96,12 @@ describe('Drizzle migration integration', () => {
         await assertRntrcRollbackRefusesNinePositions({
           database,
           directories: migrationDirectories,
+        })
+        await assertCteProfileOutputConstraints({
+          connectionString,
+          database,
+          directories: migrationDirectories,
+          fixture: identityFixture,
         })
 
         const postIdentityRollbacks = await Promise.all(

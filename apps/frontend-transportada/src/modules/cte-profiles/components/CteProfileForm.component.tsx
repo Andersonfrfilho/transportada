@@ -12,21 +12,30 @@ import type {
   CteProfileDetail,
   CteProfileVersionInput,
 } from '../shared/cteProfiles.types'
+import { type NfseProfileOption, showsCteFiscalFields } from '../shared/cteProfilesForm.service'
 import styles from '../styles/cteProfiles.module.css'
 import { CteProfileChargeFields } from './CteProfileChargeFields.component'
 import { CteProfileComponentRows } from './CteProfileComponentRows.component'
 import { CteProfileFiscalFields } from './CteProfileFiscalFields.component'
 import { CteProfileIdentityFields } from './CteProfileIdentityFields.component'
 import { CteProfileMatcherFields } from './CteProfileMatcherFields.component'
+import { CteProfileOutputFields } from './CteProfileOutputFields.component'
 
 type CteProfileFormProps = Readonly<{
+  nfseProfiles: readonly NfseProfileOption[]
   onCancel: () => void
   onCreate: (body: CteProfileBody) => Promise<CteProfileDetail>
   onUpdate: (input: CteProfileBody & CteProfileVersionInput) => Promise<CteProfileDetail>
   profile?: CteProfileDetail
 }>
 
-export function CteProfileForm({ onCancel, onCreate, onUpdate, profile }: CteProfileFormProps) {
+export function CteProfileForm({
+  nfseProfiles,
+  onCancel,
+  onCreate,
+  onUpdate,
+  profile,
+}: CteProfileFormProps) {
   const { t } = useTranslation('cteProfiles')
   const { panelRef } = useRevealedPanel<HTMLFormElement>()
   const form = useCteProfileForm({
@@ -44,7 +53,14 @@ export function CteProfileForm({ onCancel, onCreate, onUpdate, profile }: CtePro
     <form className={styles.panel} onSubmit={handleSubmit} ref={panelRef}>
       <h2>{profile === undefined ? t('newProfile') : t('edit')}</h2>
       <CteProfileIdentityFields state={form.state} onChange={form.patch} />
-      <CteProfileChargeFields state={form.state} onChange={form.patch} />
+      <CteProfileOutputFields
+        nfseProfiles={nfseProfiles}
+        state={form.state}
+        onChange={form.patch}
+      />
+      {showsCteFiscalFields(form.state.outputDocument) ? (
+        <CteProfileChargeFields state={form.state} onChange={form.patch} />
+      ) : null}
       <CteProfileComponentRows components={form.state.components} onChange={form.patch} />
       <CteProfileMatcherFields matchers={form.state.matchers} onChange={form.patch} />
       <CteProfileFiscalFields state={form.state} onChange={form.patch} />

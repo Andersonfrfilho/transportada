@@ -12,8 +12,10 @@ import {
   freightRules,
   freightRuleVersions,
   idempotencyRecords,
+  nfseEmissionProfiles,
 } from '../../database/database.schema.js'
 import type { CteEmissionProfileStatus } from '../../database/cte-emission-profile.schema.js'
+import type { NfseEmissionProfileStatus } from '../../database/nfse.schema.js'
 import type {
   CteEmissionProfileAuditRecord,
   CteEmissionProfileComponentInput,
@@ -129,6 +131,23 @@ class DrizzleCteEmissionProfileTransaction implements CteEmissionProfileTransact
       fingerprint: record.fingerprint,
       response: record.response as CteEmissionProfileDetail,
     }
+  }
+
+  public async findNfseEmissionProfileStatus(input: {
+    readonly companyId: string
+    readonly nfseEmissionProfileId: string
+  }): Promise<NfseEmissionProfileStatus | null> {
+    const [record] = await this.transaction
+      .select({ status: nfseEmissionProfiles.status })
+      .from(nfseEmissionProfiles)
+      .where(
+        and(
+          eq(nfseEmissionProfiles.companyId, input.companyId),
+          eq(nfseEmissionProfiles.id, input.nfseEmissionProfileId),
+        ),
+      )
+      .limit(1)
+    return record?.status ?? null
   }
 
   public async findProfile(input: {
@@ -538,8 +557,10 @@ function toProfileColumns(
     matchMode: settings.matchMode,
     modal: settings.modal,
     name: settings.name,
+    nfseEmissionProfileId: settings.nfseEmissionProfileId,
     observations: settings.observations,
     operationNature: settings.operationNature,
+    outputDocument: settings.outputDocument,
     pickupDetails: settings.pickupDetails,
     pickupIndicator: settings.pickupIndicator,
     predominantProductMode: settings.predominantProductMode,

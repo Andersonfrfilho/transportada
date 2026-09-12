@@ -147,5 +147,17 @@
   "municipalServicePolicyOption": {
     "allow": "Aceita no lote de CT-e",
     "block": "Vai para NFS-e — bloqueia no lote"
-  }
+  },
+  "outputLegend": "Documento fiscal",
+  "outputDocument": "Documento de saída",
+  "outputDocumentOption": {
+    "cte": "CT-e",
+    "nfse": "NFS-e"
+  },
+  "nfseEmissionProfile": "Perfil de NFS-e",
+  "nfseEmissionProfilePlaceholder": "Escolha um perfil de NFS-e ativo",
+  "nfseEmissionProfileEmpty": "Nenhum perfil de NFS-e ativo. Ative um na tela de NFS-e.",
+  "nfseOutputHint": "Tomador, regra de frete, CFOP e ICMS valem os do perfil de NFS-e escolhido.",
+  "outputDocumentIncoherent": "Escolha um perfil de NFS-e para emitir NFS-e.",
+  "nfseProfileNotActive": "O perfil de NFS-e escolhido não está ativo."
 }

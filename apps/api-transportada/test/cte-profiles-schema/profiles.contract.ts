@@ -45,11 +45,30 @@ describe('cte emission profile schema', () => {
       'icms_base_reduction_rate',
       'cargo_insurance_declared',
       'municipal_service_policy',
+      'output_document',
+      'nfse_emission_profile_id',
       'version',
       'created_by_user_id',
       'created_at',
       'updated_at',
     ])
+  })
+
+  /** Spec 144 D3: o perfil diz qual documento sai, e em `nfse` vale o perfil NFS-e apontado. */
+  test('declares the output document and ties the NFS-e profile to it', () => {
+    const checks = checkSqlByName(cteEmissionProfiles)
+
+    expect(checks.cte_emission_profiles_output_document_check).toContain("in ('cte', 'nfse')")
+    expect(checks.cte_emission_profiles_nfse_profile_check).toMatch(
+      /\("?[a-z_".]*output_document" = 'nfse'\) = \([a-z_".]*nfse_emission_profile_id" is not null\)/u,
+    )
+    expect(checks.cte_emission_profiles_output_municipal_check).toMatch(
+      /output_document" = 'cte' or [a-z_".]*municipal_service_policy" = 'allow'/u,
+    )
+    expect(columnSqlTypes(cteEmissionProfiles)).toMatchObject({
+      nfse_emission_profile_id: 'uuid',
+      output_document: 'text',
+    })
   })
 
   test('keeps monetary-adjacent rates decimal and never floating point', () => {
@@ -65,8 +84,11 @@ describe('cte emission profile schema', () => {
     })
   })
 
-  test('requires every column — optional fiscal fields carry explicit empty defaults', () => {
-    expect(requiredColumnNames(cteEmissionProfiles)).toEqual(columnNames(cteEmissionProfiles))
+  /** O perfil NFS-e só existe quando o documento de saída é NFS-e — o CHECK amarra as duas metades. */
+  test('requires every column but the NFS-e profile pointer', () => {
+    expect(requiredColumnNames(cteEmissionProfiles)).toEqual(
+      columnNames(cteEmissionProfiles).filter((name) => name !== 'nfse_emission_profile_id'),
+    )
   })
 
   test('scopes name uniqueness to the tenant and exposes the composite tenant key', () => {

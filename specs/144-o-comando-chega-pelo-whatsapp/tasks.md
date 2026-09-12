@@ -79,7 +79,7 @@ Fase 2, logo depois da T006.
 Revisada pelo critic em 2026-09-11: T010 **aprovada com ajustes**, T013 **reprovada** e reescrita
 abaixo (`evidence.md` § Fase 3). Decisão do usuário no mesmo dia: **o bot fatura só CT-e**.
 
-- [ ] **T009** 🧠 Migration em `cte_emission_profiles`: `output_document` (`cte`|`nfse`, padrão `cte`),
+- [x] **T009** 🧠 Migration em `cte_emission_profiles`: `output_document` (`cte`|`nfse`, padrão `cte`),
       `nfse_emission_profile_id` com FK composta `(company_id, nfse_emission_profile_id) →
 nfse_emission_profiles(company_id, id)` **on delete restrict**, e três CHECKs —
       `..._output_document_check`, `..._nfse_profile_check` (`(output_document='nfse') =

@@ -56,6 +56,8 @@ export function createProfileSnapshot(
   return {
     freightRuleId: profile.freightRuleId,
     matchMode: profile.matchMode,
+    nfseEmissionProfileId: profile.nfseEmissionProfileId,
+    outputDocument: profile.outputDocument,
     percentage: profile.freightRule.percentage,
     profileId: profile.id,
     status: profile.status,

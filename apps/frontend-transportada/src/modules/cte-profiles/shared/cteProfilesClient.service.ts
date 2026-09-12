@@ -5,6 +5,7 @@ import {
   CTE_PROFILES_PATH,
   FREIGHT_RULE_KEYS,
   MATCHER_KEYS,
+  OPTIONAL_SETTINGS_KEYS,
   SETTINGS_KEYS,
 } from './cteProfiles.constant'
 import type {
@@ -125,7 +126,7 @@ function cleanBody(input: CteProfileBody): CteProfileBody {
     components: input.components.map((component) => pickKeys(component, COMPONENT_KEYS)),
     freightRule: pickKeys(input.freightRule, FREIGHT_RULE_KEYS),
     matchers: input.matchers.map((matcher) => pickKeys(matcher, MATCHER_KEYS)),
-    settings: pickKeys(input.settings, SETTINGS_KEYS),
+    settings: pickKeys(input.settings, [...SETTINGS_KEYS, ...OPTIONAL_SETTINGS_KEYS]),
   }
 }
 

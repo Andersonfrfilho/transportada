@@ -43,7 +43,15 @@ export const SETTINGS_KEYS = [
   'taker',
 ] as const
 
-export const DETAIL_KEYS = [
+/**
+ * Chaves da spec 144 que a resposta **pode** trazer. Ficam fora de `SETTINGS_KEYS` de propósito: a
+ * API sobe antes da tela e, na janela entre os dois, exigi-las recusaria toda linha e a lista de
+ * perfis renderizaria vazia com 200 na rede — o mesmo defeito de `VEHICLE_DETAIL_KEYS`.
+ */
+export const OPTIONAL_SETTINGS_KEYS = ['nfseEmissionProfileId', 'outputDocument'] as const
+
+/** O que a resposta precisa trazer. */
+export const REQUIRED_DETAIL_KEYS = [
   ...SETTINGS_KEYS,
   'components',
   'createdAt',
@@ -55,6 +63,9 @@ export const DETAIL_KEYS = [
   'updatedAt',
   'version',
 ] as const
+
+/** O que a resposta pode trazer: qualquer chave fora desta lista recusa a linha. */
+export const DETAIL_KEYS = [...REQUIRED_DETAIL_KEYS, ...OPTIONAL_SETTINGS_KEYS] as const
 
 export const FREIGHT_RULE_KEYS = [
   'maximumAmount',

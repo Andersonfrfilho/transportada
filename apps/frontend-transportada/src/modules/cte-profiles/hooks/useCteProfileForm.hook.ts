@@ -32,6 +32,8 @@ const FEEDBACK_BY_ERROR: Readonly<Record<string, string>> = {
   [CTE_PROFILES_ERROR.INVALID_AMOUNT]: 'invalidAmount',
   [CTE_PROFILES_ERROR.INVALID_RATE]: 'invalidRate',
   [VERSION_CONFLICT_ERROR]: 'versionConflict',
+  CTE_PROFILE_NFSE_PROFILE_NOT_ACTIVE: 'nfseProfileNotActive',
+  CTE_PROFILE_OUTPUT_DOCUMENT_INCOHERENT: 'outputDocumentIncoherent',
 }
 
 function resolveFeedbackKey(error: unknown): string {

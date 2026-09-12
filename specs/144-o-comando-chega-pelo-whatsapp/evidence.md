@@ -1142,3 +1142,102 @@ consulta na listagem por um caso raro (nota carregada + parada sem agendamento).
   `bun run build` foi chamado em separado nas seis apps (`api-transportada`, `worker-transportada`,
   `cron-transportada`, `frontend-transportada`, `frontend-client`, `frontend-landing`) → todas
   constroem sem erro.
+
+## T009 — o perfil diz qual documento sai (2026-09-11)
+
+Primeira task da Fase 3. Os números de linha do critic foram conferidos contra o HEAD
+(`2b25c080`) antes de editar: `cte-emission-profile.schema.ts` e `nfse.schema.ts` não tinham se
+deslocado.
+
+### Migration `20260912044229_cte_profile_output_document` (aditiva)
+
+Gerada por `db:generate` e recortada: o SQL gerado trazia de novo o `CREATE TABLE
+whatsapp_flow_graph_versions` e a FK dela (deriva da migration da T008, escrita à mão). O
+`snapshot.json` ficou inteiro.
+
+```sql
+ALTER TABLE "cte_emission_profiles" ADD COLUMN "output_document" text DEFAULT 'cte' NOT NULL;
+ALTER TABLE "cte_emission_profiles" ADD COLUMN "nfse_emission_profile_id" uuid;
+ALTER TABLE "cte_emission_profiles" ADD CONSTRAINT "cte_emission_profiles_company_nfse_profile_fk"
+  FOREIGN KEY ("company_id","nfse_emission_profile_id")
+  REFERENCES "nfse_emission_profiles"("company_id","id") ON DELETE RESTRICT ON UPDATE CASCADE;
+-- CHECKs: ..._output_document_check (in ('cte','nfse')), ..._nfse_profile_check
+-- ((output_document = 'nfse') = (nfse_emission_profile_id is not null)),
+-- ..._output_municipal_check (output_document = 'cte' or municipal_service_policy = 'allow')
+```
+
+A lista do CHECK sai de `CTE_OUTPUT_DOCUMENTS` (`as const`), e a FK tem nome explícito. O
+`rollback.sql` confere a entrada do journal e derruba os três CHECKs, a FK e as duas colunas.
+`cte-emission-profile.schema.ts` passou a importar `nfse.schema.ts`, que já importava o primeiro.
+O ciclo é seguro porque as duas referências vivem no callback da tabela, que o Drizzle avalia tarde.
+
+### A prova no banco (`make migration-test`)
+
+`test/database-migration/cte-profile-output-constraints.assertion.ts`, ligada ao
+`database-migration.integration.ts`, faz o seguinte:
+
+1. Desfaz só esta migration e grava um perfil no esquema antigo, com `municipal_service_policy = 'block'`.
+2. Reaplica a migration. A linha sai com `output_document = 'cte'`, ponteiro nulo e **todas as
+   outras colunas idênticas** (`to_jsonb` antes e depois).
+3. Cobra os três CHECKs.
+4. Cobra a FK composta recusando o perfil NFS-e de **outra empresa** (`23503`) e o `restrict`
+   impedindo apagar o perfil NFS-e apontado.
+
+### API (`cte-profiles/`)
+
+- `outputDocument` e `nfseEmissionProfileId` ficam em `settings` e voltam no detalhe, no
+  serializador da rota e no snapshot do audit log.
+- **Os dois campos são opcionais no corpo, e a ausência preserva o que estava gravado.** A API sobe
+  antes da tela, e um formulário antigo aberto não pode devolver a `cte` um perfil que já emite
+  NFS-e. Os dois andam em par: mandar só o documento solta o ponteiro. Quem resolve isso é
+  `resolveSettings`, no use-case.
+- As combinações proibidas pelos CHECKs são recusadas antes do banco por
+  `domain/output-document.policy.ts`, com **todos os motivos de uma vez**: 400
+  `CTE_PROFILE_OUTPUT_DOCUMENT_INCOHERENT` com `details[]` por campo.
+- Perfil NFS-e que não está `active` recebe 422 `CTE_PROFILE_NFSE_PROFILE_NOT_ACTIVE`, no mesmo
+  padrão de `CTE_PROFILE_NOT_ACTIVATABLE`. **O perfil de outra empresa responde igual ao inativo.**
+  Um 404 ali diria que ele existe em algum lugar. A conferência vale no `POST` e no `PATCH`.
+
+### Frontend (`cte-profiles/`)
+
+- O novo bloco "Documento fiscal" tem dois selects do design system: o documento (CT-e/NFS-e) e,
+  em NFS-e, o perfil NFS-e, com opções só dos ativos.
+- Em NFS-e a tela esconde o bloco de cobrança (regra de frete), o tomador, os CFOPs, o trio de ICMS
+  e a política municipal, e mostra a frase de que valem os do perfil NFS-e. O corpo enviado força
+  `municipalServicePolicy: 'allow'` em NFS-e e ponteiro nulo em CT-e.
+- A lista vem de `createNfseSettingsClient().listProfiles()` (o cliente de `nfse-invoice`), sob uma
+  chave de consulta própria. A chave de lá guarda outro formato, e esta tela não invalida nada de
+  outro módulo.
+- O guard aceita a **ausência** dos dois campos: `OPTIONAL_SETTINGS_KEYS` fica fora das chaves
+  exigidas, e a ausência vira `cte`/`null`.
+- ⚠️ **Defeito achado pelo contrato do cliente:** `cteProfilesClient.service.ts` monta o corpo por
+  `pickKeys(settings, SETTINGS_KEYS)`. Sem acrescentar as chaves opcionais, o formulário escolheria
+  NFS-e e o pedido nunca levaria a escolha, sem erro nenhum.
+
+### Worker e cron
+
+`grep -rl "cte_emission_profiles\|cteEmissionProfiles" apps/worker-transportada/src
+apps/cron-transportada/src` não devolve nada. Nenhuma cópia de schema lê a tabela, então não há o
+que atualizar.
+
+### Contratos
+
+| Arquivo                                                    | O que cobra                                                                    |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| API `cte-profiles-schema/profiles.contract.ts`             | colunas e os três CHECKs                                                       |
+| API `cte-profiles-schema/tenant-safety.contract.ts`        | FK composta com nome                                                           |
+| API `cte-profiles-application/output-document.contract.ts` | combinações, inativo, outra empresa, preservação e round-trip                  |
+| API `cte-profiles-http/output-document.contract.ts`        | 400 com todos os campos e round-trip                                           |
+| frontend `cte-profiles/output-document.contract.ts`        | guard tolerante, corpo coerente, campos escondidos por texto de fonte, locales |
+
+Todos entram por entrypoints que já estão na lista explícita do `package.json`.
+
+### Gates (primeiro plano)
+
+- `bun run typecheck` (raiz) → as seis apps limpas.
+- Contratos de perfil da API (schema, domínio, aplicação, infraestrutura, HTTP, lote, migration) →
+  216 pass · 0 fail.
+- `make migration-test` → 92 pass · 0 fail, com a asserção nova.
+- `make check` → formatação, lint e typecheck verdes. A API teve 5297 pass · 0 fail (23 skip, os
+  de integração), o worker 1002, o frontend 3324, e as demais suítes também passaram. A flaky
+  `cargo-volume.contract.test.ts` passou desta vez.

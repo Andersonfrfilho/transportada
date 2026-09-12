@@ -147,5 +147,17 @@
   "municipalServicePolicyOption": {
     "allow": "Accepted in the CT-e batch",
     "block": "Goes to NFS-e — blocked in the batch"
-  }
+  },
+  "outputLegend": "Tax document",
+  "outputDocument": "Output document",
+  "outputDocumentOption": {
+    "cte": "CT-e",
+    "nfse": "NFS-e"
+  },
+  "nfseEmissionProfile": "NFS-e profile",
+  "nfseEmissionProfilePlaceholder": "Choose an active NFS-e profile",
+  "nfseEmissionProfileEmpty": "No active NFS-e profile. Activate one on the NFS-e screen.",
+  "nfseOutputHint": "Taker, freight rule, CFOP and ICMS come from the chosen NFS-e profile.",
+  "outputDocumentIncoherent": "Choose an NFS-e profile to issue NFS-e.",
+  "nfseProfileNotActive": "The chosen NFS-e profile is not active."
 }
