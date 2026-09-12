@@ -104,6 +104,46 @@ describe('a planta conserva as caixas da viagem', () => {
     ])
   })
 
+  /**
+   * G002: nota sem ficha e sem mediana da empresa, mas com `qVol` no XML, ainda desenha as caixas
+   * presumidas — pelo resíduo da nota (D2), não pela mediana. O m³ desenhado tem de fechar com o
+   * m³ da fatia, dentro da tolerância de milímetro do arredondamento em caixas.
+   */
+  test('nota sem ficha e com qVol desenha as caixas presumidas pelo resíduo, fechando com a fatia', () => {
+    const stops: CargoLayoutStop[] = [
+      WITH_VOLUME,
+      {
+        boxes: [
+          { ...UNMEASURED_BOX, count: 10, estimatedVolumeM3: 0.05, label: 'Presumida pela nota' },
+        ],
+        documentsWithoutVolume: 0,
+        label: 'Descalvado',
+        sequence: 2,
+        volumeM3: '0.500000',
+      },
+    ]
+    const layout = resolveCargoLayout({
+      bedDimensions: BED,
+      capacityM3: CAPACITY_M3,
+      fallbackBoxVolumeM3: 0.036,
+      measuredShapes: [MEASURED_BOX],
+      stops,
+    })
+
+    expect(countDrawn(layout) + countNamed(layout)).toBe(countInput(stops))
+    expect(countNamed(layout)).toBe(0)
+    expect(layout?.placement?.source).toBe('estimated')
+
+    const drawnBoxes = layout?.placement?.layers.flatMap((layer) => layer.boxes) ?? []
+    const stopBoxes = drawnBoxes.filter((box) => box.label === 'Presumida pela nota')
+    const drawnVolumeM3 = stopBoxes.reduce(
+      (total, box) => total + box.heightM * box.widthM * box.depthM,
+      0,
+    )
+
+    expect(Math.abs(drawnVolumeM3 - 0.5)).toBeLessThanOrEqual(10 * 1e-4)
+  })
+
   /** A fatia continua sendo só de quem tem cubagem: a parada sem volume não vira fatia zero. */
   test('a parada sem cubagem continua fora das fatias e listada em stopsWithoutVolume', () => {
     const stops: CargoLayoutStop[] = [

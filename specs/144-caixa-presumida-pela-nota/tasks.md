@@ -18,7 +18,7 @@
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T3 — `cargo-layout-conservation.contract.ts` estendido com a nota sem ficha e com `qVol` (G002,
+- [x] T3 — `cargo-layout-conservation.contract.ts` estendido com a nota sem ficha e com `qVol` (G002,
       inclusive o m³ fechando com a fatia) — vermelho antes de T4/T5.
 - [ ] T4 — `CargoPlanBox.estimatedVolumeM3` e `productCode`; `loadMeasuredItems` seleciona
       `nfeProducts.code`; `loadTripOccupancy` usa a função de T2 e carimba o volume presumido nas

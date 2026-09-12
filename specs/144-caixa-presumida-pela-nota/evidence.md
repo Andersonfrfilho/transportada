@@ -52,6 +52,36 @@ bunx prettier --check → All matched files use Prettier code style!
 
 ## 2. Conservação e m³ fechando com a fatia (T3 → T5)
 
+### T3 — vermelho
+
+Novo teste em `test/cargo-volume/cargo-layout-conservation.contract.ts`: `'nota sem ficha e com
+qVol desenha as caixas presumidas pelo resíduo, fechando com a fatia'` (G002). Caixa da parada sem
+ficha carrega `estimatedVolumeM3: 0.05` (10 caixas, resíduo de 0.500000 m³ no total).
+
+```
+bun run typecheck
+test/cargo-volume/cargo-layout-conservation.contract.ts(117,43): error TS2353: Object literal may
+only specify known properties, and 'estimatedVolumeM3' does not exist in type 'CargoPlanBox'.
+
+bun test ./test/cargo-volume.contract.test.ts
+(fail) a planta conserva as caixas da viagem > nota sem ficha e com qVol desenha as caixas
+presumidas pelo resíduo, fechando com a fatia
+  expect(Math.abs(drawnVolumeM3 - 0.5)).toBeLessThanOrEqual(10 * 1e-4)
+  Expected: <= 0.001
+  Received: 0.14000000000000007
+ 321 pass · 2 fail
+```
+
+Vermelho por dois motivos, como esperado: `CargoPlanBox` ainda não tem `estimatedVolumeM3` (typecheck
+falha) e, em runtime, `toPlacementBoxes` ignora o campo (não existe ainda) e usa a caixa da mediana da
+empresa para todo box sem medida — por isso o m³ desenhado (0.14, 10 × 0.036 do módulo padrão da
+empresa) não fecha com o resíduo da nota (0.5). A segunda falha (`o Atego de 1417 caixas cabe no
+orçamento de 50 ms`) é pré-existente, já registrada na seção 1.
+
+### T5 — verde
+
+_(preencher após T5)_
+
 ## 3. G006 — caixas colocadas antes/depois nas viagens reais (T6)
 
 | viagem | antes | depois |
