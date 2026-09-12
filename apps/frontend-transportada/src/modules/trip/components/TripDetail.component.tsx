@@ -10,10 +10,12 @@ import { toDisplayPersonName } from '@/modules/shared/personName.service'
 import { Select } from '@/components/ui/select'
 import { Skeleton, SkeletonGroup } from '@/components/ui/skeleton'
 
+import { useSlowLoadNotice } from '../hooks/useSlowLoadNotice.hook'
 import { useTripDocumentSelection } from '../hooks/useTripDocumentSelection.hook'
 import type { TripDocumentLinkFormController } from '../hooks/useTripDocumentLinkForm.hook'
 import type { TripWorkspaceController } from '../hooks/useTripWorkspace.hook'
 import { selectPendingCteDocumentIds } from '../shared/cteSelection.service'
+import { DATABASE_UNAVAILABLE_ERROR_CODE, SLOW_LOAD_NOTICE_DELAY_MS } from '../shared/trip.constant'
 import type { TripStatus } from '../shared/trip.types'
 import { resolveFirstTripFeedbackKey } from '../shared/tripFeedback.service'
 import { buildLinkTripDocumentBody } from '../shared/tripForm.service'
@@ -93,13 +95,17 @@ function statusClassName(status: TripStatus): string {
     : `${styles.statusBadge}`
 }
 
+type TripDetailSkeletonProps = Readonly<{
+  label?: string
+}>
+
 // Mesma forma do painel real (cabeçalho + situação, motoristas, tabela de notas) — reaproveitado
 // pelo gate de página e pelo gate interno para não trocar de forma entre os dois esqueletos.
-export function TripDetailSkeleton() {
+export function TripDetailSkeleton({ label }: TripDetailSkeletonProps = {}) {
   const { t } = useTranslation('trip')
 
   return (
-    <SkeletonGroup className={styles.panel} label={t('loading')}>
+    <SkeletonGroup className={styles.panel} label={label ?? t('loading')}>
       <div className={styles.panelHead}>
         <Skeleton variant="text" width="10rem" />
         <Skeleton height="1.4rem" width="5rem" />
@@ -162,6 +168,10 @@ export function TripDetail({ linkForm, vehicles, workspace }: TripDetailProps) {
    * não ter carregado, e `''` é um id que nunca resolve, o que é exatamente o que se quer aqui.
    */
   const routeSuggestion = useRouteSuggestion({ tripId: workspace.trip?.id ?? '' })
+  const isSlowLoad = useSlowLoadNotice({
+    delayMs: SLOW_LOAD_NOTICE_DELAY_MS,
+    isPending: workspace.status === 'loading',
+  })
 
   if (workspace.status === 'forbidden') {
     return (
@@ -170,12 +180,32 @@ export function TripDetail({ linkForm, vehicles, workspace }: TripDetailProps) {
       </p>
     )
   }
-  if (workspace.status === 'loading') return <TripDetailSkeleton />
-  if (workspace.status === 'error' || trip === undefined) {
+  if (workspace.status === 'loading') {
     return (
-      <p className={styles.hint} role="alert">
-        {t('error')}
-      </p>
+      <div className={styles.deck}>
+        <TripDetailSkeleton label={t('detail.loading')} />
+        {isSlowLoad ? (
+          <p aria-live="polite" className={styles.hint}>
+            {t('detail.loadingSlow')}
+          </p>
+        ) : null}
+      </div>
+    )
+  }
+  if (workspace.status === 'error' || trip === undefined) {
+    const isDatabaseUnavailable =
+      workspace.tripQuery.error?.message === DATABASE_UNAVAILABLE_ERROR_CODE
+    return (
+      <div className={styles.deck}>
+        <p className={styles.hint} role="alert">
+          {t('detail.error')}
+          {isDatabaseUnavailable ? ` ${t('detail.errorUnavailable')}` : null}
+        </p>
+        <Button onClick={() => workspace.refetchTrip()} size="sm" type="button" variant="ghost">
+          <Icon name="refresh" />
+          {t('detail.retry')}
+        </Button>
+      </div>
     )
   }
 

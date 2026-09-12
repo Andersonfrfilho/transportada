@@ -32,6 +32,16 @@ export const TRIP_ERROR = {
   RESPONSE_INVALID: 'TRIP_RESPONSE_INVALID',
 } as const
 
+/**
+ * Spec 137: o código que a API devolve quando o banco não respondeu no prazo — não nasce no
+ * cliente da viagem como o resto de `TRIP_ERROR`, mas é o que o detalhe recebe num 503, e é o que
+ * distingue "tente de novo" de uma falha qualquer.
+ */
+export const DATABASE_UNAVAILABLE_ERROR_CODE = 'DATABASE_UNAVAILABLE'
+
+/** Viagem grande leva segundos para montar o mapa de carga — o aviso só aparece depois deste prazo. */
+export const SLOW_LOAD_NOTICE_DELAY_MS = 4000
+
 export const TRIP_PAGE_SIZE = 25
 
 /** Detalhe e lista compartilham o prefixo: invalidar a viagem precisa refazer a tabela também. */
