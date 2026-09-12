@@ -39,9 +39,13 @@ Novo módulo de domínio **`whatsapp-commands/`** na API, em quatro camadas:
 - `infrastructure/`: `drizzle-whatsapp-command.repository.ts`, `whatsapp-flow-graph.seed.ts`.
 - `presentation/`: `whatsapp-phone-verification.routes.ts` (pedir e confirmar código, autenticado).
 
-⚠️ **As `FlowActions` chamam use-case, nunca repositório.** Transição de nota é
-`transition-trip-document.use-case.ts`; ocorrência é `register-driver-occurrence` /
-`register-trip-occurrence`; lote é o use-case do `POST /cte-batches`. É isso que faz o AC7 (PWA e
+⚠️ **As `FlowActions` chamam use-case, nunca repositório, e o use-case é o do canal que já
+existe.** O motorista entrega e devolve por `reportDocumentDelivery`/`reportDocumentReturn` — o que
+o PWA chama —, **não** por `transition-trip-document.use-case.ts`, que é do escritório e é o do
+operador (separar e carregar). Corrigido em 2026-09-12 pela T015, que mediu a rota do PWA antes de
+codificar; a primeira versão deste plano inferia o contrário. Ocorrência é
+`register-driver-occurrence` (motorista) / `register-trip-occurrence` (operador); lote é o use-case
+do `POST /cte-batches`. É isso que faz o AC7 (PWA e
 WhatsApp gravam o mesmo evento) valer por construção.
 
 A classificação D3 mora em `cte-profiles/domain/`, ao lado de `resolveMunicipalServicePolicy`, e é
