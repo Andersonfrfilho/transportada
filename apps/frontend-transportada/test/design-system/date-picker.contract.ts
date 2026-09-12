@@ -103,7 +103,7 @@ describe('design system date picker contract', () => {
     const fields = await Bun.file(
       new URL('../../../../docs/frontend/fields.md', import.meta.url),
     ).text()
-    const claude = await Bun.file(new URL('../../../../CLAUDE.md', import.meta.url)).text()
+    const claude = await Bun.file(new URL('../../CLAUDE.md', import.meta.url)).text()
 
     expect(fields).toContain('components/ui/date-picker')
     expect(fields).toContain('components/ui/date-range-picker')

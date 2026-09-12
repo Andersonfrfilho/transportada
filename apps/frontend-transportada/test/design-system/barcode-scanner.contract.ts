@@ -180,13 +180,13 @@ describe('convenção do leitor de etiqueta', () => {
     expect(component).toContain('aria-label')
   })
 
-  it('a regra está documentada e referenciada na raiz', async () => {
+  it('a regra está documentada e referenciada no CLAUDE.md da app', async () => {
     const doc = await Bun.file(
       new URL('../../../../docs/frontend/barcode-scanner.md', import.meta.url),
     ).text()
     expect(doc).toContain('worker')
     expect(doc).toContain('BarcodeDetector')
-    const claudeMd = await Bun.file(new URL('../../../../CLAUDE.md', import.meta.url)).text()
+    const claudeMd = await Bun.file(new URL('../../CLAUDE.md', import.meta.url)).text()
     expect(claudeMd).toContain('docs/frontend/barcode-scanner.md')
   })
 })

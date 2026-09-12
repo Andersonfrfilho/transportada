@@ -152,7 +152,7 @@ describe('design system icon contract', () => {
   test('states the rule for every future icon', async () => {
     const [rule, projectContext] = await Promise.all([
       readApplicationFile('../../docs/frontend/icons.md'),
-      readApplicationFile('../../CLAUDE.md'),
+      readApplicationFile('CLAUDE.md'),
     ])
 
     expect(rule).toContain('components/ui/icon')

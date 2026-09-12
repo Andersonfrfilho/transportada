@@ -191,7 +191,7 @@ describe('field metrics contract', () => {
   test('states the field metrics rule for every future form', async () => {
     const [rule, projectContext] = await Promise.all([
       readApplicationFile('../../docs/frontend/fields.md'),
-      readApplicationFile('../../CLAUDE.md'),
+      readApplicationFile('CLAUDE.md'),
     ])
 
     expect(rule).toContain('--field-height')

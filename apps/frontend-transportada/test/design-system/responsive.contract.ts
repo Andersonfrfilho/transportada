@@ -138,7 +138,7 @@ describe('responsive contract', () => {
   test('declara a regra dos quatro pontos para toda tela futura', async () => {
     const [rule, projectContext] = await Promise.all([
       readApplicationFile('../../docs/frontend/responsive.md'),
-      readApplicationFile('../../CLAUDE.md'),
+      readApplicationFile('CLAUDE.md'),
     ])
 
     expect(rule).toContain('40rem')

@@ -116,7 +116,7 @@ describe('layout width contract', () => {
   test('states the shared container rule for every future workspace', async () => {
     const [rule, projectContext] = await Promise.all([
       readApplicationFile('../../docs/frontend/layout.md'),
-      readApplicationFile('../../CLAUDE.md'),
+      readApplicationFile('CLAUDE.md'),
     ])
 
     expect(rule).toContain('--layout-width')

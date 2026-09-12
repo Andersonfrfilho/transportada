@@ -150,7 +150,7 @@ describe('design system button contract', () => {
   test('states the rule for every future button', async () => {
     const [rule, projectContext] = await Promise.all([
       readApplicationFile('../../docs/frontend/buttons.md'),
-      readApplicationFile('../../CLAUDE.md'),
+      readApplicationFile('CLAUDE.md'),
     ])
 
     expect(rule).toContain('button:has(svg)')
