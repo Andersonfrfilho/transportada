@@ -1,14 +1,38 @@
 # Spec 145 — Tarefas
 
-| fase | modelo                            |
-| ---- | --------------------------------- |
-| 0    | `sonnet`                          |
-| 1    | `opus` 🧠 (T1) · `sonnet` (T2)    |
-| 2    | `opus` 🧠 (T3) · `sonnet` (T4–T6) |
-| 3    | `sonnet` (T7–T8) · `opus` 🧠 (T9) |
-| 4    | `sonnet`                          |
-| 5    | `sonnet`                          |
-| 6    | `haiku`                           |
+| fase | tasks   | estado   | modelo recomendado | fallback se o recomendado der 429 |
+| ---- | ------- | -------- | ------------------ | --------------------------------- |
+| 0    | T0      | ✅ feita | `sonnet`           | `opus`                            |
+| 1    | T1 🧠   | ✅ feita | `opus`             | `fable`                           |
+| 1    | T2      | ✅ feita | `sonnet`           | `opus`                            |
+| 2    | T3 🧠   | ✅ feita | `opus`             | `fable`                           |
+| 2    | T4–T6b  | ✅ feita | `sonnet`           | `opus`                            |
+| 3    | T7–T8   | pendente | `sonnet`           | `opus`                            |
+| 3    | T9 🧠   | pendente | `opus`             | `fable`                           |
+| 4    | T10–T11 | pendente | `sonnet`           | `opus`                            |
+| 5    | T12–T13 | pendente | `sonnet`           | `opus`                            |
+| 6    | T14     | pendente | `haiku`            | `sonnet` → `opus`                 |
+| —    | revisão | pendente | `opus`             | `fable`                           |
+
+**Troca de modelo sem `/model`:** cada task vai para um subagente com `model=<recomendado>`. A
+sessão que orquestra só lê, delega, verifica e faz o commit. A troca fica no parâmetro da delegação,
+não na sessão.
+
+**Regra de fallback:** se o subagente morrer com `rate_limit`/HTTP 429 ("weekly limit"):
+
+1. Rodar `git status --short` no worktree. Se houver alteração pela metade, entregá-la ao fallback
+   junto com o briefing, sem descartar nada e sem `git stash`.
+2. Redelegar a **mesma** task ao modelo de fallback da tabela, com o mesmo briefing.
+3. Registrar no `evidence.md` da task: "rodou em `<fallback>`: `<recomendado>` sem cota até
+   `<data do reset>`".
+4. Enquanto o recomendado estiver sem cota, as tasks seguintes dele vão direto para o fallback, sem
+   tentar de novo a cada task.
+
+Nunca descer de modelo: task 🧠 não roda em `sonnet`/`haiku`, mesmo com `opus` sem cota. Se
+`opus` e `fable` estiverem sem cota, parar e perguntar.
+
+⚠️ Em 2026-09-12 o `sonnet` está sem cota até **2026-09-14 09:00 (America/Sao_Paulo)**. A T6b já
+rodou em `opus` por isso.
 
 ## Fase 0 — Índices que faltam (`sonnet`)
 
@@ -122,21 +146,37 @@ status='queued' AND input_hash=$hash`; nula → confirma e descarta; hash supera
 ## Prompt de execução
 
 ```text
-/oh-my-claudecode:autopilot Execute a spec specs/145-a-planta-e-do-worker/ (leia spec.md, plan.md e
-tasks.md antes de começar). Trabalhe no worktree ../transportada-wt/cargo-missing-box, branch
-work/cargo-missing-box. Uma task por vez, na ordem do tasks.md, contrato vermelho antes do código em
-toda task que tem contrato.
-Modelos: Fase 0 (T0) → executor model=sonnet · Fase 1 T1 🧠 → opus, RODA NO REPOSITÓRIO
-~/Documents/personal/adatechnology-packages, não neste — pausa e pergunta antes de publicar o
-pacote · Fase 1 T2 → executor model=sonnet · Fase 2 T3 🧠 → opus · Fase 2 T4–T6 → executor
-model=sonnet · Fase 3 T7–T8 → executor model=sonnet · Fase 3 T9 🧠 → opus · Fases 4–5 (T10–T13) →
-executor model=sonnet · Fase 6 (T14) → executor model=haiku · revisão final → code-reviewer
-model=opus.
-Cada task fecha com bun run typecheck + os testes de contrato relevantes daquele app + commit
-isolado (sem push), evidência em specs/145-a-planta-e-do-worker/evidence.md.
-Não mude apoio de 80%, escora, célula de 5 cm, slenderness nem nenhuma outra regra física do
-empacotador (D6/G013). Teste novo entra na lista explícita do package.json do app correspondente.
-Pare e pergunte antes de: push, publicar o pacote além do link local de desenvolvimento, deploy,
+/oh-my-claudecode:autopilot Continue a spec specs/145-a-planta-e-do-worker/ a partir da T7
+(T0–T6b estão feitas e commitadas). Leia spec.md, plan.md, tasks.md e o fim do evidence.md antes
+de começar. Trabalhe só no worktree ../transportada-wt/cargo-missing-box, branch
+work/cargo-missing-box; confira `git status --short --branch` antes de cada task.
+
+Você orquestra, não implementa: cada task vai para um subagente com o modelo da tabela do
+tasks.md. Você lê, delega, verifica o resultado e faz o commit.
+Ordem e modelos: T7 → executor model=sonnet · T8 → executor model=sonnet · T9 🧠 → executor
+model=opus (plano validado antes por architect model=opus) · T10, T11 → executor model=sonnet ·
+T12, T13 → executor model=sonnet (designer model=sonnet se a T13 pedir) · T14 → writer
+model=haiku · revisão final → code-reviewer model=opus.
+Uma task por vez, nunca duas em paralelo: T9 consome o evento da T7, T10 lê o que a T9 grava,
+T12 depende da rota da T11.
+
+Troca por limite de uso: se o subagente morrer com rate_limit / HTTP 429 / "weekly limit", siga a
+"Regra de fallback" do tasks.md: preserve o que ficou na árvore (sem git stash), redelegue a
+mesma task ao fallback (sonnet→opus, haiku→sonnet→opus, opus→fable), registre no evidence.md e
+mantenha o fallback enquanto o recomendado estiver sem cota. Nunca rode task 🧠 em sonnet/haiku.
+Se o fallback também der 429, pare e me avise com o horário do reset.
+
+Cada briefing de subagente leva: a task do tasks.md, os arquivos e padrões que ela cita, as
+decisões D1–D12 que ela toca, e o gate de fechamento. Cada task fecha com: contrato vermelho
+antes do código (registre o fail) → implementação → bunx tsc --noEmit + bunx eslint nos arquivos
+tocados + os testes do app (bun run --cwd apps/<app> test) → evidência em
+specs/145-a-planta-e-do-worker/evidence.md → commit isolado, sem push. Teste novo entra na lista
+explícita do package.json do app. Confira você mesmo o gate antes de marcar [x]; não aceite o
+relatório do subagente sem rodar os testes.
+Não mude apoio de 80%, escora, célula de 5 cm, slenderness nem nenhuma regra física do
+empacotador (D6/G013).
+
+Pare e pergunte antes de: push, deploy, publicar o pacote além do link local de desenvolvimento,
 qualquer migration além das aditivas de D5/D11, qualquer regra de negócio fora de D1–D12, qualquer
-[NEEDS CLARIFICATION].
+[NEEDS CLARIFICATION], e ao fim da revisão final, antes de declarar a spec fechada.
 ```
