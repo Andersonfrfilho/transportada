@@ -24,15 +24,20 @@ export type WhatsAppAuthorizedActionHandler = (
   input: WhatsAppAuthorizedActionInput,
 ) => Promise<FlowActionResult | void>
 
+/** Uma política, ou uma lista em que **qualquer uma** basta (ex.: `cte.submit` ou `nfse.issue`). */
+export type WhatsAppFlowActionPolicy =
+  | CompanyAuthorizationPolicy
+  | readonly CompanyAuthorizationPolicy[]
+
 export type WithAuthorizedActor = (
-  policy: CompanyAuthorizationPolicy,
+  policy: WhatsAppFlowActionPolicy,
   handler: WhatsAppAuthorizedActionHandler,
 ) => FlowActionHandler
 
 export type WhatsAppFlowActionDefinition = {
   readonly handler: WhatsAppAuthorizedActionHandler
   readonly kind: FlowActionKind
-  readonly policy: CompanyAuthorizationPolicy
+  readonly policy: WhatsAppFlowActionPolicy
 }
 
 type CreateWithAuthorizedActorParams = {
@@ -59,13 +64,33 @@ export function createWithAuthorizedActor({
     })
     if (resolved.status === 'denied') throw new WhatsAppCommandDeniedError(resolved.reason)
 
-    try {
-      authorization.authorize(resolved.context, policy)
-    } catch {
-      throw new WhatsAppCommandDeniedError('permission')
-    }
+    const policies: readonly CompanyAuthorizationPolicy[] = isPolicyList(policy) ? policy : [policy]
+    const allowed = policies.some((candidate) =>
+      isAuthorized(authorization, resolved.context, candidate),
+    )
+    if (!allowed) throw new WhatsAppCommandDeniedError('permission')
 
     return handler({ ...input, actor: resolved.context })
+  }
+}
+
+function isPolicyList(
+  policy: WhatsAppFlowActionPolicy,
+): policy is readonly CompanyAuthorizationPolicy[] {
+  return Array.isArray(policy)
+}
+
+/** O mesmo `authorize` do router, uma política por vez: basta uma passar. */
+function isAuthorized(
+  authorization: Pick<AuthorizationService, 'authorize'>,
+  context: AuthenticatedContext<CompanyContext>,
+  policy: CompanyAuthorizationPolicy,
+): boolean {
+  try {
+    authorization.authorize(context, policy)
+    return true
+  } catch {
+    return false
   }
 }
 

@@ -30,6 +30,7 @@ import {
 import type {
   CteEmissionMatchRole,
   CteMunicipalServicePolicy,
+  CteTaker,
 } from '../../database/cte-emission-profile.schema.js'
 import {
   explainEmissionProfile,
@@ -58,6 +59,7 @@ import { resolveDocumentFreight } from '../domain/document-freight.policy.js'
 import { freightRules, freightRuleVersions } from '../../database/freight.schema.js'
 import { ApiError } from '../../shared/api.error.js'
 import type {
+  DocumentOutputDescription,
   DownloadNfeDocumentXmlResult,
   NfeDocumentDetail,
   NfeDocumentEligibility,
@@ -172,6 +174,10 @@ type ActiveFreightRule = {
 type MunicipalPolicyProfile = EmissionProfileCandidate &
   DocumentOutputProfile & {
     readonly municipalServicePolicy: CteMunicipalServicePolicy
+    /** Quem paga o frete: a prévia do bot congela o tomador (spec 144 D5). */
+    readonly taker: CteTaker
+    /** A versão entra no hash da prévia: mudar o perfil entre a prévia e o toque é outra prévia. */
+    readonly version: string
   }
 
 type GoverningProfile =
@@ -302,8 +308,19 @@ export class DrizzleNfeDocumentRepository
     readonly context: CompanyContext
     readonly documentIds: readonly string[]
   }): Promise<ReadonlyMap<string, DocumentOutputClassification>> {
-    const classified = new Map<string, DocumentOutputClassification>()
-    if (input.documentIds.length === 0) return classified
+    const described = await this.describeDocumentOutputs(input)
+    return new Map(
+      [...described].map(([documentId, description]) => [documentId, description.classification]),
+    )
+  }
+
+  /** O que a prévia do bot congela, tirado do mesmo `mapSummary` da página (spec 144 D5). */
+  public async describeDocumentOutputs(input: {
+    readonly context: CompanyContext
+    readonly documentIds: readonly string[]
+  }): Promise<ReadonlyMap<string, DocumentOutputDescription>> {
+    const described = new Map<string, DocumentOutputDescription>()
+    if (input.documentIds.length === 0) return described
     const companyId = input.context.companyId
     const records = await this.database
       .select()
@@ -320,10 +337,26 @@ export class DrizzleNfeDocumentRepository
       this.loadBlockContext(scope),
     ])
     for (const record of records) {
-      const summary = mapSummary(record, participantsByDocument.get(record.id), blockContext)
-      classified.set(record.id, summary.documentOutput)
+      const { governing, summary } = describeDocument(
+        record,
+        participantsByDocument.get(record.id),
+        blockContext,
+      )
+      described.set(record.id, {
+        classification: summary.documentOutput,
+        freightAmount: summary.freightAmount,
+        number: summary.number,
+        profile:
+          governing.profile === undefined
+            ? null
+            : {
+                id: governing.profile.id,
+                takerTaxId: resolveProfileTakerTaxId(governing.profile.taker, summary),
+                version: governing.profile.version,
+              },
+      })
     }
-    return classified
+    return described
   }
 
   public async list(input: {
@@ -578,6 +611,8 @@ export class DrizzleNfeDocumentRepository
       outputDocument: profile.outputDocument,
       priority: profile.priority,
       status: profile.status,
+      taker: profile.taker,
+      version: profile.version.toString(),
     }))
   }
 
@@ -760,6 +795,21 @@ function mapSummary(
   participants: DocumentParticipants | undefined,
   blockContext: DocumentBlockContext,
 ): NfeDocumentSummary {
+  return describeDocument(document, participants, blockContext).summary
+}
+
+/** Tomador `0` é o remetente (o emitente da NF-e), `3` o destinatário; `1`/`2` o CT-e não emite. */
+function resolveProfileTakerTaxId(taker: CteTaker, summary: NfeDocumentSummary): string | null {
+  if (taker === '0') return summary.emitterTaxId
+  if (taker === '3') return summary.recipientTaxId
+  return null
+}
+
+function describeDocument(
+  document: DocumentRecord,
+  participants: DocumentParticipants | undefined,
+  blockContext: DocumentBlockContext,
+): { readonly governing: GoverningProfile; readonly summary: NfeDocumentSummary } {
   const emitter = participants?.emitter ?? EMPTY_PARTICIPANT
   const recipient = participants?.recipient ?? EMPTY_PARTICIPANT
   const nfseInvoice = blockContext.nfseInvoiceByDocumentId.get(document.id) ?? null
@@ -826,7 +876,7 @@ function mapSummary(
   )
   const trip = blockContext.tripByDocumentId.get(document.id) ?? null
 
-  return {
+  const summary: NfeDocumentSummary = {
     accessKey: document.accessKey,
     cteBlockReason,
     documentOutput,
@@ -870,6 +920,7 @@ function mapSummary(
     tripStatus: trip?.tripStatus ?? null,
     variant: 'complete',
   }
+  return { governing, summary }
 }
 
 function composeAddress(

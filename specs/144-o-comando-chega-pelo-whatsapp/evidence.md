@@ -1453,3 +1453,164 @@ pass · 0 fail**:
 - `make check` → exit 0: format, lint, typecheck; API 5331 pass · worker 1005 · cron 94 · frontend
   3329 · frontend-client 18 · frontend-landing 107, todos 0 fail; build verde. A flaky conhecida de
   `cargo-volume.contract.test.ts` não disparou nesta rodada.
+
+## T012 — a prévia que se confirma (2026-09-11)
+
+O ramo "Emitir documentos" deixou de ser "Em breve.": critério → parâmetros um por mensagem →
+volumetria → pedido congelado com o botão ✅ Confirmar carregando o id dele. Nada emite ainda — a
+confirmação é a T013.
+
+### Arquivos
+
+- Domínio (`whatsapp-commands/domain/`): `whatsapp-issuance-flow.constant.ts` (nós, `actionKind`,
+  chaves de `context`, 7·15·30 dias, TTL 15 min); `document-selection.policy.ts` (`nextSelectionStep`,
+  `parseDocumentNumber`, `parseBrazilianDate`, `toIssueDateWindow`, `resolveDueDate`,
+  `buildEmitterKey`, `readSelectionState`); `issuance-preview-digest.policy.ts`
+  (`buildPreviewDigest`); `issuance-volumetry.policy.ts` + `whatsapp-issuance-labels.constant.ts`;
+  `issuance-idempotency.policy.ts` (as chaves `whatsapp:${requestId}:cte:${profileId}` e
+  `…:nfse:${nfseProfileId}:${takerTaxId}`, que a T013 reusa).
+- Aplicação: `preview-document-selection.use-case.ts` + `preview-nfse-blocks.service.ts`;
+  `register-issuance-flow-actions.ts` (start, roteador de parâmetro, roteador de confirmação),
+  `issuance-flow-prompt.service.ts` (o nó que pergunta e renderiza a prévia),
+  `issuance-answer.service.ts` (validação do texto livre pedido), `issuance-flow-context.service.ts`,
+  `document-selection.port.ts`.
+- Infraestrutura: `drizzle-document-selection.repository.ts` (só **escolhe ids**, com os filtros
+  exportados para o contrato de tenant).
+- Grafo: `emitir_documentos` → `issuance_start`; o nó `emitir_documentos_em_breve` saiu. Ramos
+  `minha_viagem` e `viagens_armazem` intocados. O grafo passa `validateFlowGraphForWhatsApp` sem
+  violação, e a integração publica pelo publicador da T008 antes da primeira mensagem.
+- Fora do módulo, três mudanças pequenas:
+  - `nfe-documents`: `describeDocumentOutputs` na porta da T010 (`classifyDocumentOutputs` passou a
+    delegar a ela) e `mapSummary` → `describeDocument`, que devolve também o perfil que rege a nota.
+    O perfil carregado na página ganhou `taker` e `version`, no mesmo SELECT;
+  - `with-authorized-actor.service.ts` aceita uma lista de políticas em que **qualquer uma** basta;
+  - `canonicalStringify` passou a ser exportado de `whatsapp-flow-graph-diff.policy.ts`.
+- `main.ts`: segunda instância de `DrizzleNfeDocumentRepository`, `DrizzleNfseInvoiceRepository` e
+  `createNfseInvoiceUseCase` dentro de `bootstrap()` (o hook nasce antes de `createApplicationRoutes`,
+  mesmo precedente da T016). O repositório de NF-e exige gateway de storage, e ele foi criado igual
+  ao da rota; a classificação não o usa.
+
+### Forma do digest
+
+`sha256(canonicalStringify({ documents, dueDate, period, profiles }))`, em hexadecimal:
+
+- `documents`: uma tupla por nota, ordenada por `documentId` — `[documentId, output,
+reason|null, profileId, nfseProfileId, takerTaxId canônico, freightAmount]`;
+- `profiles`: `[kind, profileId, version]`, ordenado por `kind:profileId` — a versão do perfil de
+  CT-e de toda nota que ele rege, e a do perfil NFS-e das que saem NFS-e;
+- fora do hash: `expires_at`, ids de mensagem e rótulos.
+
+O `freightAmount` é o frete previsto da listagem (`mapSummary`) na nota de CT-e. Na de NFS-e é o
+`calculatedAmount` da prévia de NFS-e do grupo, que é o valor que a nota vai emitir. A versão do
+perfil NFS-e vem de `nfse_emission_profiles.version`, lida na empresa do contexto.
+
+### Decisões
+
+1. **Remetente é o emitente da NF-e.** `nfe_participants` só tem `emitter`, `recipient`, `delivery`
+   e `pickup`, e o remetente do CT-e é `invoice.sender` = emitente (`resolveTakerParty`, tomador
+   `0`). O critério "Remetente" traz **só as notas pendentes** do emitente: sem janela nenhuma, ele
+   traria o histórico inteiro. Faixa, data e viagem trazem todas as notas do critério, e a já
+   vinculada aparece como bloqueada — é o que faz a volumetria bater com a tela.
+2. **O emitente entra no `context` por chave opaca** (`em_` + 16 hex do SHA-256 do documento
+   canônico), que também é o id da linha da lista. O documento é resolvido em memória, relendo a
+   lista; chave forjada não acha ninguém. Produtor rural emite com CPF, e o CPF nunca sai do
+   servidor.
+3. **Bloqueio na prévia sem reescrever regra.** A credencial usa o mesmo `loadNfseCredential` do
+   `create`, e a falta vira `NFSE_CREDENTIAL_MISSING`/`NFSE_FISCAL_SETTINGS_MISSING`, códigos que já
+   existiam. O endereço do tomador sai da mesma `nfseInvoices.preview` do painel
+   (`NFSE_DOCUMENT_MISSING_TAKER_ADDRESS`). Erro de domínio do perfil NFS-e (regra sem versão) marca
+   só as notas daquele perfil.
+4. **O teto conta antes de trazer.** `resolveSelection` faz `count(*)`; acima de
+   `CTE_BATCH_MAX_DOCUMENTS` devolve o número achado e nenhum id, e a classificação nem roda.
+5. **Perguntas condicionais.** O vencimento é perguntado só com CT-e; o período, só com NFS-e. As duas
+   respostas vêm antes do congelamento, porque entram no hash. "Pular" grava `''`, e em branco é
+   omitido no pedido, como na tela.
+6. **A chave de idempotência é validada antes de gravar**, com `WHATSAPP_COMMAND_IDEMPOTENCY_KEY_PATTERN`
+   sobre as chaves de cada grupo que a T013 vai usar.
+7. **Nenhum valor somado na volumetria.** A mensagem só conta notas; não existe soma de frete
+   estimado sem marca.
+8. **A confirmação é provisória até a T013.** O botão do pedido desta sessão responde "A
+   confirmação pelo WhatsApp ainda não está disponível. Por enquanto, emita pelo painel." e volta ao
+   menu. O pedido expira sozinho em 15 minutos, sem emitir nada. Botão de outro pedido é recusado.
+9. **Lista dinâmica sai como lista**, mesmo com ≤3 opções (0.1.0 sem `sendInteractiveButtons`),
+   mesma ressalva da T015/T016.
+
+### ⚠️ Risco datado (2026-09-11): perfil `manual` em produção não foi medido
+
+A medição de perfis com `match_mode='manual'` em produção **não foi feita**, porque o ambiente
+bloqueou o acesso a produção. Perfil manual nunca classifica (D3), então a nota que só ele
+alcançaria aparece na volumetria como `no_profile`/`unmatched`, e o número real dessas notas é
+desconhecido. A mensagem diz o motivo ao operador em linguagem clara, sem código: "Nenhum perfil
+automático casa com a nota (perfil manual só se usa pelo painel)". Quem tiver acesso a produção
+mede antes da T019.
+
+### Vermelho → verde
+
+- Vermelho: `bun test ./test/whatsapp-commands.contract.test.ts` → **0 pass · 1 fail · 1 error**
+  (`preview-document-selection.use-case.js` inexistente).
+- No caminho: o contrato de tenant esperava o prefixo sem os parênteses que o `and()` do Drizzle
+  põe em cada condição, e o critério `sender` contava parâmetros de empresa onde as subconsultas da
+  nota pendente se correlacionam por `"nfe_documents"."company_id"`. O contrato passou a contar as
+  igualdades de `company_id` por subconsulta.
+- Verde: **295 pass · 0 fail** no entrypoint, com os seis contratos novos:
+  - `preview-digest`: estável sob reordenação; muda com o valor, a classificação, o motivo, o
+    tomador, o período, o vencimento e a versão; ignora `expires_at` e máscara de CNPJ;
+  - `document-selection-policy`: passos por critério, número, data, janela em -03:00, vencimento em
+    Brasília, chave opaca;
+  - `issuance-volumetry`: "51 notas · 38 CT-e · 11 NFS-e · 2 bloqueadas", segunda mensagem só com
+    bloqueados, "e mais K", nenhum código cru;
+  - `preview-document-selection`: teto de 1000 sem truncar, vazio, perguntas condicionais, endereço
+    e credencial bloqueando na prévia, erro de perfil NFS-e, congelamento, período no hash, nota de
+    outra empresa fora, nada a emitir, sem membership;
+  - `issuance-flow-actions`: guarda `cte.submit` **ou** `nfse.issue`, chave opaca na lista, série
+    única pulada, validação de número, data e período, prévia com o documento resolvido em memória,
+    botão com o id do pedido, recusa do teto com o número;
+  - `document-selection-tenant-safety`: todo critério começa pela empresa, e toda subconsulta a
+    repete.
+  - `flow-graph` também mudou: o teste do "Em breve." virou "nenhum nó promete o que não existe", mais
+    o apontamento de `emitir_documentos` e os quatro critérios.
+
+### Prova do AC3 (`test/integration/whatsapp-issuance-preview.integration.ts`, Postgres)
+
+Webhook assinado real e Graph API fake. A conversa foi `oi` → 📄 Emitir documentos → 🔢 Faixa de
+número → emitente (única linha, pela chave) → a série única não é perguntada → `1200` → `1250` →
+📅 15 dias → ⏭️ Pular.
+
+A mensagem sai exatamente **"51 notas · 38 CT-e · 11 NFS-e · 2 bloqueadas"**, e a seguinte
+**"Bloqueadas:\n• Sem peso da carga: 1201, 1233"**.
+
+O cenário semeado:
+
+- um emitente com dois perfis:
+  - o de CT-e casa pela **raiz** do emitente;
+  - o de NFS-e casa pelo destinatário B **completo**, e precisão completa vence raiz;
+- credencial da Nota RP ativa e endereço do tomador completo;
+- as notas 1201 e 1233 sem volume;
+- uma segunda empresa com o mesmo emitente e números da mesma faixa.
+
+O pedido fica congelado:
+
+- `previewed`, com hash de 64 hex;
+- vencimento = hoje em Brasília + 15, e período nulo;
+- 51 notas, nenhuma da outra empresa.
+
+A classificação congelada é, **nota por nota**, igual ao `documentOutput` que a listagem de Notas
+publica para o painel sobre as mesmas notas. **1 pass · 0 fail · 75 expects** (1,94 s).
+
+### Gates (primeiro plano)
+
+- `bun run typecheck` (raiz, seis apps) → limpo.
+- `bun run lint` (API) → limpo.
+- `bun run test` (API) → **5412 pass · 23 skip · 0 fail** (167 arquivos).
+- `bun --env-file=../../.env.test run test:integration` (API, 52 arquivos, com a nova) → **240 pass ·
+  4 skip · 2 fail**. As duas falhas são as de `cte-archive-gateway.integration.ts` ("Object storage
+  is unavailable"), com o MinIO fora do ar, falha de ambiente já registrada.
+- `make check`: format, lint e typecheck verdes. O `test` da API parou só na flaky conhecida do
+  orçamento de 50 ms ("o Atego de 1417 caixas", 131,58 ms medidos, 5411 pass · 1 fail).
+  - Isolada, `bun test ./test/cargo-volume.contract.test.ts` deu **303 pass · 0 fail**: é CPU sob
+    carga, não regressão.
+  - Como o `make check` para no primeiro script que falha, o resto foi rodado à parte:
+    - `bun run format:check` → verde;
+    - testes das outras apps → worker 1005 · cron 94 · frontend 3329 · frontend-client 18 ·
+      frontend-landing 107, todos 0 fail;
+    - `bun run build` → as seis apps constroem.

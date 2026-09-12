@@ -11,6 +11,11 @@ import {
   DRIVER_RETURN_REASON_LABELS,
 } from '../domain/whatsapp-driver-flow.constant.js'
 import {
+  ISSUANCE_FLOW_ACTION_KIND,
+  ISSUANCE_FLOW_CONTEXT_KEY,
+  ISSUANCE_FLOW_NODE,
+} from '../domain/whatsapp-issuance-flow.constant.js'
+import {
   OPERATOR_DISPATCH_CONFIRM_ANSWER,
   OPERATOR_FLOW_ACTION_KIND,
   OPERATOR_FLOW_CONTEXT_KEY,
@@ -31,10 +36,8 @@ export const WHATSAPP_ROOT_FLOW_GRAPH_KEY = 'transportada_root'
  *
  * O menu raiz tem sempre as três opções publicadas: quem esconde a que a membership não alcança é o
  * driver (D2, `whatsapp-root-menu.policy.ts`), nunca o grafo — o grafo é o mesmo para toda empresa.
- * O ramo ainda sem ação (emissão fiscal T012/T013) termina num nó terminal explícito: nó sem saída
- * é proibido (`conversation-flow.md §5`), e "Em breve." é honesto sobre o que ainda não existe —
- * melhor do que fingir uma ação que ainda não roda. `minha_viagem` (T015) e `viagens_armazem`
- * (T016) já apontam para os ramos reais do motorista e do operador.
+ * As três opções apontam para ramos reais: a emissão por seleção (T012), o motorista (T015) e o
+ * operador do armazém (T016).
  *
  * A verificação de entrada (T004) não é opção deste menu: ela é pré-passo do despachante, resolvido
  * antes de qualquer grafo (`whatsapp-command-driver.service.ts`).
@@ -43,17 +46,12 @@ export const WHATSAPP_ROOT_FLOW_GRAPH: FlowGraphData = {
   key: WHATSAPP_ROOT_FLOW_GRAPH_KEY,
   label: 'Menu do WhatsApp',
   nodes: {
-    emitir_documentos_em_breve: {
-      directMessage: 'Emitir documentos pelo WhatsApp está chegando. Por enquanto, use o painel.',
-      id: 'emitir_documentos_em_breve',
-      type: 'action',
-    },
     menu: {
       fallbackMessage: 'Toque numa das opções do menu.',
       id: 'menu',
       next: {
         byAnswer: {
-          emitir_documentos: 'emitir_documentos_em_breve',
+          emitir_documentos: ISSUANCE_FLOW_NODE.start,
           minha_viagem: DRIVER_FLOW_NODE.currentTrip,
           viagens_armazem: OPERATOR_FLOW_NODE.listTrips,
         },
@@ -67,11 +65,71 @@ export const WHATSAPP_ROOT_FLOW_GRAPH: FlowGraphData = {
       question: 'Olá! O que você quer fazer?',
       type: 'menu',
     },
+    ...buildIssuanceFlowNodes(),
     ...buildDriverTripFlowNodes(),
     ...buildOperatorTripFlowNodes(),
   },
   startNodeId: 'menu',
   version: 1,
+}
+
+/**
+ * Spec 144 T012 — o ramo "Emitir documentos". Só o menu de critério é estático (quatro opções,
+ * lista); cada parâmetro é perguntado pela FlowAction `prompt`, e a resposta volta pelo mesmo
+ * `entrada_choice` + roteador, um parâmetro por mensagem (D4). A prévia termina num segundo
+ * `entrada_choice`, o do botão de confirmar, que carrega o id do pedido congelado (D5).
+ */
+function buildIssuanceFlowNodes(): FlowGraphData['nodes'] {
+  return {
+    [ISSUANCE_FLOW_NODE.start]: {
+      actionKind: ISSUANCE_FLOW_ACTION_KIND.start,
+      id: ISSUANCE_FLOW_NODE.start,
+      type: 'action',
+    },
+    [ISSUANCE_FLOW_NODE.criterionMenu]: {
+      contextKey: ISSUANCE_FLOW_CONTEXT_KEY.criterion,
+      fallbackMessage: 'Toque num dos critérios da lista.',
+      id: ISSUANCE_FLOW_NODE.criterionMenu,
+      next: ISSUANCE_FLOW_NODE.prompt,
+      options: [
+        ['number_range', '🔢 Faixa de número'],
+        ['trip', '🚚 Viagem'],
+        ['issue_date', '📅 Data de emissão'],
+        ['sender', '🏢 Remetente'],
+      ],
+      question: 'Como você quer escolher as notas?',
+      type: 'menu',
+    },
+    [ISSUANCE_FLOW_NODE.prompt]: {
+      actionKind: ISSUANCE_FLOW_ACTION_KIND.prompt,
+      id: ISSUANCE_FLOW_NODE.prompt,
+      type: 'action',
+    },
+    [ISSUANCE_FLOW_NODE.paramEntry]: {
+      contextKey: ISSUANCE_FLOW_CONTEXT_KEY.answer,
+      id: ISSUANCE_FLOW_NODE.paramEntry,
+      next: ISSUANCE_FLOW_NODE.paramRouter,
+      question: 'Responda à pergunta acima.',
+      type: 'entrada_choice',
+    },
+    [ISSUANCE_FLOW_NODE.paramRouter]: {
+      actionKind: ISSUANCE_FLOW_ACTION_KIND.paramRouter,
+      id: ISSUANCE_FLOW_NODE.paramRouter,
+      type: 'action',
+    },
+    [ISSUANCE_FLOW_NODE.confirmEntry]: {
+      contextKey: ISSUANCE_FLOW_CONTEXT_KEY.confirmAnswer,
+      id: ISSUANCE_FLOW_NODE.confirmEntry,
+      next: ISSUANCE_FLOW_NODE.confirmRouter,
+      question: 'Toque em Confirmar ou Voltar, na lista acima.',
+      type: 'entrada_choice',
+    },
+    [ISSUANCE_FLOW_NODE.confirmRouter]: {
+      actionKind: ISSUANCE_FLOW_ACTION_KIND.confirmRouter,
+      id: ISSUANCE_FLOW_NODE.confirmRouter,
+      type: 'action',
+    },
+  }
 }
 
 /**

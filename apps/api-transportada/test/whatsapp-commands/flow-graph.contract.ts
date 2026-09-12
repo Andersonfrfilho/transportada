@@ -10,6 +10,10 @@ import { validateFlowGraphForWhatsApp } from '../../src/whatsapp-commands/domain
 import { WHATSAPP_MENU_OPTION_ID_PATTERN } from '../../src/whatsapp-commands/domain/whatsapp-menu.constant.js'
 import { WHATSAPP_ROOT_MENU_OPTION_PERMISSIONS } from '../../src/whatsapp-commands/domain/whatsapp-root-menu.policy.js'
 import {
+  ISSUANCE_FLOW_ACTION_KIND,
+  ISSUANCE_FLOW_NODE,
+} from '../../src/whatsapp-commands/domain/whatsapp-issuance-flow.constant.js'
+import {
   WHATSAPP_ROOT_FLOW_GRAPH,
   WHATSAPP_ROOT_FLOW_GRAPH_KEY,
 } from '../../src/whatsapp-commands/infrastructure/whatsapp-flow-graph.constant.js'
@@ -52,20 +56,33 @@ describe('WHATSAPP_ROOT_FLOW_GRAPH', () => {
 
   /**
    * Spec 144 T015/T016: "minha_viagem" e "viagens_armazem" deixaram de ser terminais — os ramos do
-   * motorista e do operador estão implementados. Só a emissão fiscal (T012/T013) continua "Em
-   * breve.".
+   * motorista e do operador estão implementados. A T012 fez o mesmo com "emitir_documentos": não
+   * sobra nenhum ramo "Em breve.".
    */
-  test('todo ramo ainda sem ação termina num nó terminal explícito ("Em breve.")', () => {
+  test('nenhum nó promete o que não existe — o último "Em breve." saiu com a T012', () => {
+    for (const node of Object.values(WHATSAPP_ROOT_FLOW_GRAPH.nodes)) {
+      expect(node.directMessage ?? '').not.toContain('chegando')
+    }
+  })
+
+  test('"emitir_documentos" aponta para a FlowAction que abre a emissão por seleção (T012)', () => {
     const rootNode = WHATSAPP_ROOT_FLOW_GRAPH.nodes[WHATSAPP_ROOT_FLOW_GRAPH.startNodeId]
     const next = rootNode?.next
     if (next === undefined || typeof next === 'string') throw new Error('menu sem next.byAnswer')
 
-    for (const [optionId, targetId] of Object.entries(next.byAnswer)) {
-      if (optionId === 'minha_viagem' || optionId === 'viagens_armazem') continue
-      const target = WHATSAPP_ROOT_FLOW_GRAPH.nodes[targetId]
-      expect(target?.type).toBe('action')
-      expect(target?.directMessage).toContain('chegando')
-    }
+    const target = WHATSAPP_ROOT_FLOW_GRAPH.nodes[next.byAnswer.emitir_documentos ?? '']
+    expect(target?.type).toBe('action')
+    expect(target?.actionKind).toBe(ISSUANCE_FLOW_ACTION_KIND.start)
+  })
+
+  test('o menu de critério da emissão oferece os quatro critérios da D4, em lista', () => {
+    const menu = WHATSAPP_ROOT_FLOW_GRAPH.nodes[ISSUANCE_FLOW_NODE.criterionMenu]
+    expect(menu?.options?.map(([optionId]) => optionId)).toEqual([
+      'number_range',
+      'trip',
+      'issue_date',
+      'sender',
+    ])
   })
 
   test('"minha_viagem" aponta para a FlowAction que consulta a viagem ativa (T015)', () => {

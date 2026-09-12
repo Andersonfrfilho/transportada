@@ -106,7 +106,7 @@ confirming → dispatched → settled | settled_partial`, mais `expired` e `supe
       `status` `pending|created|issued|failed`, `document_id` nulo até existir; unique
       `(request_id, document_kind, group_key)`), FK composta `(company_id, request_id)`, cópia no
       worker só das colunas lidas — contrato de tenant nas duas
-- [ ] **T012** 🧠 Prévia: critérios da D4, volumetria, **vencimento da fatura** em lista (7/15/30
+- [x] **T012** 🧠 Prévia: critérios da D4, volumetria, **vencimento da fatura** em lista (7/15/30
       dias) e `period` da NFS-e com "Pular", congelamento com `preview_sha256` sobre o JSON canônico
       de `[documentId, classificação, profileId, nfseProfileId?, takerTaxId, valor calculado]` +
       `period` + `dueDate` + versão de cada perfil usado; endereço do tomador e credencial da Nota RP

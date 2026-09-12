@@ -145,6 +145,11 @@ import { createRateLimiter } from './http/rate-limiter.service.js'
 import { FlowGraphRepository } from '@adatechnology/meta-whatsapp-module'
 import { createDriverWhatsAppFlowActions } from './whatsapp-commands/application/register-driver-flow-actions.js'
 import { createOperatorWhatsAppFlowActions } from './whatsapp-commands/application/register-operator-trip-flow-actions.js'
+import { createIssuanceWhatsAppFlowActions } from './whatsapp-commands/application/register-issuance-flow-actions.js'
+import { createPreviewDocumentSelectionUseCase } from './whatsapp-commands/application/preview-document-selection.use-case.js'
+import { createNfseCredentialGapFinder } from './whatsapp-commands/application/preview-nfse-blocks.service.js'
+import { DrizzleDocumentSelectionRepository } from './whatsapp-commands/infrastructure/drizzle-document-selection.repository.js'
+import { DrizzleWhatsAppCommandRepository } from './whatsapp-commands/infrastructure/drizzle-whatsapp-command.repository.js'
 import { createResolveWhatsAppActorUseCase } from './whatsapp-commands/application/resolve-whatsapp-actor.use-case.js'
 import { createModuleWhatsAppFlowGraphProvider } from './whatsapp-commands/application/whatsapp-flow-graph.service.js'
 import { WHATSAPP_ROOT_FLOW_GRAPH_KEY } from './whatsapp-commands/infrastructure/whatsapp-flow-graph.constant.js'
@@ -727,6 +732,42 @@ export function bootstrap(): Bun.Server<undefined> {
       }),
   })
   /**
+   * Spec 144 T012 — a prévia da emissão por seleção. Segunda instância das mesmas classes que as
+   * rotas de notas e de NFS-e montam em `createApplicationRoutes` (a mesma ordem de construção da
+   * T016): a classificação passa pelo `mapSummary` da listagem, e a prévia de NFS-e é a do painel.
+   */
+  const whatsappStorageBucket = resolveStorageBucket(process.env)
+  const whatsappNfeDocuments = new DrizzleNfeDocumentRepository(
+    database.db,
+    createNfeStorageGatewayFromEnvironment({
+      environment: process.env,
+      finalBucket: whatsappStorageBucket,
+      stagingBucket: whatsappStorageBucket,
+    }),
+  )
+  const whatsappNfseInvoiceRepository = new DrizzleNfseInvoiceRepository(database.db)
+  const whatsappNfseInvoices = createNfseInvoiceUseCase({
+    now: () => new Date(),
+    repository: whatsappNfseInvoiceRepository,
+  })
+  const whatsappDocumentSelection = new DrizzleDocumentSelectionRepository(database.db)
+  const issuanceWhatsAppFlowActions = createIssuanceWhatsAppFlowActions({
+    clock: () => new Date(),
+    listIssueDateEmitters: (input) => whatsappDocumentSelection.listIssueDateEmitters(input),
+    listPendingEmitters: (input) => whatsappDocumentSelection.listPendingEmitters(input),
+    listPendingSeries: (input) => whatsappDocumentSelection.listPendingSeries(input),
+    listRecentTrips: (input) => whatsappDocumentSelection.listRecentTrips(input),
+    previewSelection: createPreviewDocumentSelectionUseCase({
+      classifier: whatsappNfeDocuments,
+      clock: () => new Date(),
+      commands: new DrizzleWhatsAppCommandRepository(database.db),
+      findNfseCredentialGap: createNfseCredentialGapFinder(whatsappNfseInvoiceRepository),
+      generateId: () => crypto.randomUUID(),
+      previewNfseInvoices: (input) => whatsappNfseInvoices.preview(input),
+      selection: whatsappDocumentSelection,
+    }),
+  })
+  /**
    * Spec 144 T006 — o despachante das mensagens recebidas. O teto por número é um só para a
    * instalação: a instância do módulo é refeita quando o token muda, e o teto não pode zerar junto.
    */
@@ -735,7 +776,11 @@ export function bootstrap(): Bun.Server<undefined> {
     authorization: new AuthorizationService(),
     baseUrl: config.whatsapp.baseUrl,
     clock: () => new Date(),
-    flowActions: [...driverWhatsAppFlowActions, ...operatorWhatsAppFlowActions],
+    flowActions: [
+      ...driverWhatsAppFlowActions,
+      ...operatorWhatsAppFlowActions,
+      ...issuanceWhatsAppFlowActions,
+    ],
     /**
      * Spec 144 T008 — lê a versão publicada (a linha viva do módulo, a que `create`/`save`
      * escrevem), nunca o grafo em código direto: o comando de republicação é o único que decide

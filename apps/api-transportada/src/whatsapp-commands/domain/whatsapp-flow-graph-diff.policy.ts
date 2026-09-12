@@ -59,7 +59,8 @@ function isSameNode(left: FlowNodeData | undefined, right: FlowNodeData | undefi
   return canonicalStringify(left) === canonicalStringify(right)
 }
 
-function canonicalStringify(value: unknown): string {
+/** Também é o JSON canônico do hash da prévia (spec 144 D5): uma ordenação só, num lugar só. */
+export function canonicalStringify(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map((entry) => canonicalStringify(entry)).join(',')}]`
   if (value === null || typeof value !== 'object') return JSON.stringify(value)
 
