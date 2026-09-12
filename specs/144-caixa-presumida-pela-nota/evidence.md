@@ -307,3 +307,56 @@ Verde para os critérios da spec 144: nenhuma falha nova, format/lint/typecheck 
 build limpo. A única linha vermelha (`test/cargo-placement/real-mixed-cargo.contract.ts`, Atego 50 ms)
 é a mesma falha intermitente já documentada como pré-existente em `staging` no topo deste arquivo, e
 não conta contra esta spec.
+
+## 6. Revisão final
+
+Sete achados da revisão final, corrigidos em dois commits isolados:
+
+1. **Blocker** — `apps/api-transportada/src/nfe-documents/domain/cargo-volume.policy.ts`
+   (`sumCargoLines`): a linha medida com `quantity` fracionária e `unitsPerBox` 1 (nota em
+   KG/LT/M) estourava `RangeError: Not an integer` no `BigInt(countMeasuredBoxes(item))`. Extraído
+   `countWholeBoxes(item)` (arredonda para cima) e usado nos dois ramos de `sumCargoLines`; teste
+   novo em `test/cargo-volume/document-box-estimate.contract.ts`.
+2. **Blocker** — `apps/api-transportada/src/trips/domain/cargo-layout.policy.ts`
+   (`collectPendingMeasurements`): `boxCount` saía fracionário (`box.count` cru) e o frontend
+   rejeitava a resposta inteira com `TRIP_RESPONSE_INVALID`. Os dois pontos de agregação passam a
+   usar `Math.ceil(box.count)`; teste novo em `test/cargo-volume/cargo-layout.contract.ts`.
+3. **Major** — `apps/api-transportada/src/trips/domain/cargo-layout.policy.ts` (`toPlacementBoxes`):
+   `resolveFallbackBox` era chamado por caixa presumida pela nota, reordenando as formas medidas da
+   empresa a cada linha. Memoizado por volume com `fallbackByVolume` (`Map<number, FallbackBox |
+null>`) e o helper local `resolveFallbackBoxForVolume`; `resolveFallbackBox`/`resolveShapeRatio`
+   intocados, `bun test ./test/cargo-volume.contract.test.ts` mantém a mesma contagem de passes.
+4. **Minor** — integração estimativa → carimbo → `boxCount`: `stampEstimatedVolume`
+   (`apps/api-transportada/src/trips/infrastructure/trip-occupancy.support.ts`) exportada; novo
+   teste ponta a ponta em `test/cargo-volume/cargo-layout-conservation.contract.ts` parte de itens
+   reais (`quantity: '6.5'` sem ficha + item medido), passa por `resolveDocumentCargoEstimate` e
+   `stampEstimatedVolume`, e confere `Σ pendingMeasurements.boxCount === estimate.unmeasuredBoxCount`.
+5. **Minor** — `apps/frontend-transportada/src/modules/trip/locales/trip.locale.json` e
+   `trip.en.locale.json`: rótulos de `estimateSource` corrigidos para `note` → "Resíduo da nota" /
+   "Note residual" e `median` → "Mediana da empresa" / "Company median", descrevendo a precedência
+   real da D2. Nenhum teste fixava o texto antigo.
+6. **Nit** — `TripPendingMeasurements.component.tsx`: `documentNumber ?? ''` virou `?? '—'`, e a
+   `key` da linha perdeu o `-${index}` redundante — a tupla `sequence:documentNumber:productCode`
+   já é o agrupamento único de `collectPendingMeasurements`.
+7. **Nit** — `test/trip.contract.test.ts`: import de `./trip/pending-measurements.contract` movido
+   para a posição alfabética dentro do bloco local (antes de `proposal-manual-order.contract.js`,
+   depois de `cargo-print.contract.js`), com `.js` para casar com os vizinhos.
+
+### Gates
+
+- `apps/api-transportada`: `bun run typecheck` → verde. `bun test
+./test/cargo-volume.contract.test.ts ./test/trips.contract.test.ts` → **380 pass, 1 fail**
+  (`o Atego de 1417 caixas cabe no orçamento de 50 ms`, pré-existente e intermitente — não
+  mascarado), 19727 `expect()`.
+- `apps/frontend-transportada`: `bun run typecheck` → verde. `bun test ./test/trip.contract.test.ts`
+  → **710 pass, 0 fail**, 17176 `expect()`.
+- Raiz: `bunx prettier --check` nos dez arquivos tocados → verde. `bun run lint` (seis apps) → verde.
+
+### Commits
+
+```
+9895a89a fix(frontend): rótulos da origem da estimativa e polimento da lista do que falta medir (spec 144 revisão)
+89bd12cd fix(trips): quantidade fracionária arredonda para cima antes de virar caixa (spec 144 revisão)
+```
+
+Nada ficou de fora dos sete achados.
