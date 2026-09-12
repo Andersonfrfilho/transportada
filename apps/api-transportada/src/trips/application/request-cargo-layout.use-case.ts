@@ -1,7 +1,11 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { buildCargoLayoutInput, hashCargoLayoutInput } from '../domain/cargo-layout-hash.policy.js'
+import {
+  buildCargoLayoutInput,
+  buildStoredCargoLayoutInput,
+  hashCargoLayoutInput,
+} from '../domain/cargo-layout-hash.policy.js'
 import type { CargoLayoutRequestPort } from './cargo-layout-request.port.js'
 import type {
   RequestCargoLayoutParams,
@@ -18,8 +22,8 @@ export function createRequestCargoLayoutUseCase(dependencies: {
 }): RequestCargoLayoutUseCase {
   return {
     async execute(params: RequestCargoLayoutParams): Promise<RequestCargoLayoutResult> {
-      const input = buildCargoLayoutInput(params)
-      const inputHash = hashCargoLayoutInput(input)
+      const input = buildStoredCargoLayoutInput(params)
+      const inputHash = hashCargoLayoutInput(buildCargoLayoutInput(params))
 
       return dependencies.repository.requestLayout({
         companyId: params.companyId,

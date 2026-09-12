@@ -3,6 +3,8 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import { CARGO_LAYOUT_POLICY_VERSION } from '@adatechnology/cargo-placement'
+
 import { createEagerCargoLayoutRequest } from '../../src/trips/infrastructure/eager-cargo-layout-request.support.js'
 import type { BuildCargoLayoutInputParams } from '../../src/trips/domain/cargo-layout-hash.types.js'
 import type { UpsertCargoLayoutRequestParams } from '../../src/trips/application/cargo-layout-request.types.js'
@@ -110,6 +112,37 @@ describe('eager cargo layout request composition contract (spec 145 D6/D7)', () 
     })
 
     expect(upsertCalls[0]?.correlationId).toBe('trace-1')
+  })
+
+  /** D5: o worker empacota a partir da coluna `input`, sem reler a viagem — o rótulo tem de estar lá. */
+  test('stores the full layout input, labels included, while the hash ignores the labels', async () => {
+    const labelled = buildInput()
+    const withLabels = createHarness({
+      ...labelled,
+      stops: labelled.stops.map((stop) => ({
+        ...stop,
+        clientName: 'Mercado Central',
+        noteNumbers: ['4521'],
+      })),
+    })
+    const withoutLabels = createHarness(buildInput())
+
+    await withLabels.requestCargoLayoutForTrip(FAKE_TRANSACTION, {
+      companyId: COMPANY_ID,
+      tripId: TRIP_ID,
+    })
+    await withoutLabels.requestCargoLayoutForTrip(FAKE_TRANSACTION, {
+      companyId: COMPANY_ID,
+      tripId: TRIP_ID,
+    })
+
+    const stored = withLabels.upsertCalls[0]?.input
+    expect(stored?.stops[0]?.label).toBe('A')
+    expect(stored?.stops[0]?.clientName).toBe('Mercado Central')
+    expect(stored?.stops[0]?.noteNumbers).toEqual(['4521'])
+    expect(stored?.stops[0]?.boxes?.[0]?.documentId).toBe('doc-1')
+    expect(stored?.policyVersion).toBe(CARGO_LAYOUT_POLICY_VERSION)
+    expect(withLabels.upsertCalls[0]?.inputHash).toBe(withoutLabels.upsertCalls[0]?.inputHash)
   })
 
   test('an absent correlationId is generated as a v4 uuid', async () => {

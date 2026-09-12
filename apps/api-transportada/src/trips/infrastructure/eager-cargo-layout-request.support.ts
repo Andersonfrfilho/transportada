@@ -11,7 +11,11 @@
  */
 import { randomUUID } from 'node:crypto'
 
-import { buildCargoLayoutInput, hashCargoLayoutInput } from '../domain/cargo-layout-hash.policy.js'
+import {
+  buildCargoLayoutInput,
+  buildStoredCargoLayoutInput,
+  hashCargoLayoutInput,
+} from '../domain/cargo-layout-hash.policy.js'
 import type { UpsertCargoLayoutRequestResult } from '../application/cargo-layout-request.types.js'
 import { upsertCargoLayoutRequest } from './cargo-layout-request.support.js'
 import { readCargoLayoutInputParams } from './trip-cargo-layout-input.support.js'
@@ -40,8 +44,8 @@ export function createEagerCargoLayoutRequest(dependencies: {
     })
     if (inputParams === null) return null
 
-    const input = buildCargoLayoutInput(inputParams)
-    const inputHash = hashCargoLayoutInput(input)
+    const input = buildStoredCargoLayoutInput(inputParams)
+    const inputHash = hashCargoLayoutInput(buildCargoLayoutInput(inputParams))
 
     return dependencies.upsert(transaction, {
       companyId: params.companyId,

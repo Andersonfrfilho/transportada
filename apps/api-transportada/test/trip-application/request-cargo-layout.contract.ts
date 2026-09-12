@@ -71,6 +71,20 @@ describe('request cargo layout contract (spec 145 D6/D8)', () => {
     expect(repository.calls[0]?.tripId).toBeNull()
   })
 
+  /** D5: a coluna `input` é a entrada de `resolveCargoLayout` — nem mais (o envelope), nem menos (o rótulo). */
+  test('stores the layout input with the stop label and without the request envelope', async () => {
+    const repository = createFakeRepository()
+    const useCase = createRequestCargoLayoutUseCase({ repository })
+
+    await useCase.execute(createBaseParams({}))
+
+    const stored = repository.calls[0]?.input
+    expect(stored?.stops[0]?.label).toBe('Depósito central')
+    expect(stored).not.toHaveProperty('companyId')
+    expect(stored).not.toHaveProperty('correlationId')
+    expect(stored).not.toHaveProperty('tripId')
+  })
+
   test('passes the correlation id through, unchanged', async () => {
     const repository = createFakeRepository()
     const useCase = createRequestCargoLayoutUseCase({ repository })

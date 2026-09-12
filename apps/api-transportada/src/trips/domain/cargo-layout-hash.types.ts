@@ -56,6 +56,23 @@ export type CargoLayoutBedInput = {
   readonly widthM: string
 }
 
+/**
+ * Spec 145 D5: o que a coluna `input` guarda — a entrada inteira de `resolveCargoLayout`, com rótulo,
+ * cliente e número de nota. O hash (D6) descarta a etiqueta; o worker não pode, porque a planta que ele
+ * grava é a mesma que a tela lê, e ele não relê a viagem.
+ */
+export type StoredCargoLayoutInput = {
+  readonly bedDimensions: CargoBedDimensions | null
+  readonly capacityM3: string | null
+  readonly fallbackBoxVolumeM3: number | null
+  readonly loadingAccess: LoadingAccess
+  readonly measuredShapes: readonly MeasuredBoxShape[]
+  readonly payloadRatio: string | null
+  readonly policyVersion: string
+  readonly securesCargo: boolean
+  readonly stops: readonly CargoLayoutStop[]
+}
+
 /** O retrato canônico da D6 — o que entra no hash, e nada que só mude o rótulo. */
 export type CargoLayoutInput = {
   readonly bed: CargoLayoutBedInput | null

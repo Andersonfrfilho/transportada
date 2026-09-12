@@ -4,7 +4,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import { tripCargoLayoutOutbox } from '../../src/database/trip-cargo-layout-outbox.schema.js'
-import type { CargoLayoutInput } from '../../src/trips/domain/cargo-layout-hash.types.js'
+import type { StoredCargoLayoutInput } from '../../src/trips/domain/cargo-layout-hash.types.js'
 import type { UpsertCargoLayoutRequestParams } from '../../src/trips/application/cargo-layout-request.types.js'
 import { upsertCargoLayoutRequest } from '../../src/trips/infrastructure/cargo-layout-request.support.js'
 import type { TripTransaction } from '../../src/trips/infrastructure/trip-queryable.type.js'
@@ -13,8 +13,8 @@ const COMPANY_ID = '00000000-0000-4000-8000-000000000001'
 const LAYOUT_ID = '00000000-0000-4000-8000-0000000000b1'
 const TRIP_ID = '00000000-0000-4000-8000-0000000000a1'
 
-const INPUT: CargoLayoutInput = {
-  bed: null,
+const INPUT: StoredCargoLayoutInput = {
+  bedDimensions: null,
   capacityM3: null,
   fallbackBoxVolumeM3: null,
   loadingAccess: 'rear',

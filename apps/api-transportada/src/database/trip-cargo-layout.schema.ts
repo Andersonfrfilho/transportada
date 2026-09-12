@@ -44,7 +44,7 @@ export const tripCargoLayouts = pgTable(
     inputHash: text('input_hash').notNull(),
     /** D6: constante do pacote empacotador; mudar invalida toda planta guardada, de qualquer empresa. */
     policyVersion: text('policy_version').notNull(),
-    /** O retrato canônico da entrada — o worker empacota a partir daqui, sem reler a viagem. */
+    /** A entrada inteira de `resolveCargoLayout`, rótulo incluso — o worker empacota daqui, sem reler a viagem. */
     input: jsonb().notNull(),
     layout: jsonb(),
     errorCode: text('error_code').notNull().default(''),

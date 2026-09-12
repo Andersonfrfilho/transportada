@@ -20,6 +20,7 @@ import type {
   CargoLayoutBoxInput,
   CargoLayoutInput,
   CargoLayoutStopInput,
+  StoredCargoLayoutInput,
 } from './cargo-layout-hash.types.js'
 
 /** As três dimensões vindas da ficha — ausente qualquer uma, a caixa é presumida (spec 094/144). */
@@ -65,6 +66,26 @@ export function buildCargoLayoutInput(params: BuildCargoLayoutInputParams): Carg
     /** Ausente é ninguém amarrando (spec 100) — supor cinta desenharia pilha que não existe. */
     securesCargo: params.securesCargo ?? false,
     stops: params.stops.map((stop) => buildStopInput(stop)),
+  }
+}
+
+/**
+ * A entrada que o worker empacota (D5), com as mesmas omissões resolvidas que o hash usa — os campos
+ * são escolhidos um a um para o envelope do pedido (`companyId`, `tripId`...) nunca vazar para a coluna.
+ */
+export function buildStoredCargoLayoutInput(
+  params: BuildCargoLayoutInputParams,
+): StoredCargoLayoutInput {
+  return {
+    bedDimensions: params.bedDimensions ?? null,
+    capacityM3: params.capacityM3,
+    fallbackBoxVolumeM3: params.fallbackBoxVolumeM3 ?? null,
+    loadingAccess: params.loadingAccess ?? 'rear',
+    measuredShapes: params.measuredShapes ?? [],
+    payloadRatio: params.payloadRatio ?? null,
+    policyVersion: params.policyVersion ?? CARGO_LAYOUT_POLICY_VERSION,
+    securesCargo: params.securesCargo ?? false,
+    stops: params.stops,
   }
 }
 

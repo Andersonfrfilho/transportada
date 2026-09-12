@@ -57,6 +57,9 @@ trip_id)`); mirror em `apps/worker-transportada/src/database/`. Contrato de sche
       `link-trip-documents-batch.use-case.ts`), `reorder-trip-stops.use-case.ts`,
       `override-delivery-address.use-case.ts`, `reconcile-trip-stops.use-case.ts`. Estende
       `test/trip-stops/` e `test/trip-documents/`.
+- [x] T6b — A coluna `input` guarda a entrada inteira de `resolveCargoLayout` (D5), não o retrato
+      canônico do hash: rótulo, cliente, números de nota e volume por parada iguais aos do
+      `readTripDetail`, para o worker (T9) empacotar sem reler a viagem. O hash (D6) não muda.
 
 ## Fase 3 — O worker calcula (🧠 `opus` em T9)
 

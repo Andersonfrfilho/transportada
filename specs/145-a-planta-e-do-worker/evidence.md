@@ -426,6 +426,42 @@ support.ts` já existir de uma passada anterior desta mesma sessão (interrompid
   de leitura (não de lógica — occupancy/weight/ceiling/stamp continuam vindo dos mesmos suportes) fica
   registrada aqui para quem revisitar.
 
+### T6b — a coluna `input` guarda a entrada inteira · 2026-09-12
+
+Rodou em sessão `opus`: o executor `sonnet` delegado morreu no limite semanal de uso sem deixar
+nada na árvore. Contrato vermelho antes da implementação.
+
+- **O defeito:** T5/T6 gravavam em `trip_cargo_layouts.input` o `CargoLayoutInput` do hash, que
+  descarta rótulo, cliente, números de nota e o `documentNumber` da caixa (D6), e o
+  `readCargoLayoutInputParams` ainda enchia `label: ''`/`volumeM3: null`/`documentsWithoutVolume: 0`.
+  O worker (T9) empacota a partir dessa coluna, sem reler a viagem (D5), então a planta gravada sairia
+  com caixas sem nome e paradas sem etiqueta.
+- `cargo-layout-hash.types.ts`: tipo novo `StoredCargoLayoutInput` (a entrada de `resolveCargoLayout`
+  com as omissões resolvidas, mais `policyVersion`). `cargo-layout-hash.policy.ts`:
+  `buildStoredCargoLayoutInput` escolhe os campos um a um, para o envelope do pedido (`companyId`,
+  `correlationId`, `tripId`) nunca entrar na coluna.
+- `UpsertCargoLayoutRequestParams.input` passa a ser `StoredCargoLayoutInput`. O use case
+  (`request-cargo-layout.use-case.ts`) e o gatilho eager gravam a entrada inteira e hasheiam o retrato
+  canônico, então o hash não muda.
+- `trip-cargo-layout-input.support.ts`: as paradas saem como no `readTripDetail`: rótulo derivado de
+  `listStopAddresses` (com o gravado como reserva), `clientName` do destinatário, `noteNumbers` e
+  `documentNumber` pela mesma coalescência nota/frete, `documentsWithoutVolume` e `volumeM3`
+  (`sumVolumes`). O endereço entra no `Promise.all` que já existia, então é **uma** consulta a mais
+  por gatilho, não uma por parada.
+- Contratos novos (vermelho → verde): `eager-cargo-layout-request.contract.ts` confere que a entrada
+  gravada guarda rótulo, cliente, número de nota e `documentId` da caixa, que `policyVersion` é a
+  constante do pacote, e que o hash **não** muda com o rótulo; `request-cargo-layout.contract.ts`
+  confere que a entrada guarda o rótulo e não carrega `companyId`/`correlationId`/`tripId`.
+- Vermelho: 2 fail / 85 pass em `trip-infrastructure` + `trip-application`, antes do código.
+- Verde: `bun test` de `trip-infrastructure`, `trip-stops`, `trip-documents`, `trip-application`,
+  `test-registry` e `trips`: **193 pass, 0 fail** (191 da T6 + os 2 novos); suíte inteira da API
+  (`bun run --cwd apps/api-transportada test`) **4959 pass, 0 fail**. `bunx tsc --noEmit` limpo,
+  `bunx eslint` limpo nos 10 arquivos, `prettier --write` aplicado.
+- **Não coberto aqui:** nenhum teste contra Postgres prova que `readCargoLayoutInputParams` devolve,
+  para a mesma viagem, as mesmas paradas que o `readTripDetail` passa a `resolveCargoLayout`. As duas
+  montagens são cópias (a decisão da T6 de não refatorar o `readTripDetail` continua valendo). A T10,
+  que compara o hash do detalhe com o guardado, é o lugar natural dessa paridade.
+
 ## Fase 3 — Worker (T7–T9)
 
 ## Fase 4 — Leitura da API (T10, T11)
