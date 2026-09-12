@@ -29,13 +29,32 @@ export function isStopLit(focus: StopFocus, stopSequence: number): boolean {
 /**
  * Spec 119: as paradas **e as notas** acesas. Uma nota acesa acende só as caixas dela, e soma com as
  * paradas acesas. Os dois conjuntos vazios são o baú inteiro aceso, como sempre.
+ *
+ * `hiddenBoxes` apaga caixa a caixa dentro de uma nota ou parada acesa (spec 131 do clique no mapa):
+ * é um recorte por cima do foco, e nunca sobrevive ao foco voltar a "tudo aceso" — do contrário uma
+ * caixa apagada continuaria apagada numa carga que nem foi escolhida.
  */
-export type CargoFocus = Readonly<{ notes: ReadonlySet<string>; stops: StopFocus }>
+export type CargoFocus = Readonly<{
+  hiddenBoxes: ReadonlySet<string>
+  notes: ReadonlySet<string>
+  stops: StopFocus
+}>
 
-export const EMPTY_CARGO_FOCUS: CargoFocus = { notes: new Set<string>(), stops: EMPTY_STOP_FOCUS }
+export const EMPTY_CARGO_FOCUS: CargoFocus = {
+  hiddenBoxes: new Set<string>(),
+  notes: new Set<string>(),
+  stops: EMPTY_STOP_FOCUS,
+}
+
+/** Sem nota nem parada em foco o recorte por caixa perde o sentido — some junto. */
+function resetHiddenBoxesWhenAllLit(focus: CargoFocus): CargoFocus {
+  if (focus.notes.size > 0 || focus.stops.size > 0 || focus.hiddenBoxes.size === 0) return focus
+
+  return { ...focus, hiddenBoxes: new Set<string>() }
+}
 
 export function toggleCargoStopFocus(focus: CargoFocus, stopSequence: number): CargoFocus {
-  return { ...focus, stops: toggleStopFocus(focus.stops, stopSequence) }
+  return resetHiddenBoxesWhenAllLit({ ...focus, stops: toggleStopFocus(focus.stops, stopSequence) })
 }
 
 export function toggleNoteFocus(focus: CargoFocus, documentId: string): CargoFocus {
@@ -43,15 +62,48 @@ export function toggleNoteFocus(focus: CargoFocus, documentId: string): CargoFoc
   if (notes.has(documentId)) notes.delete(documentId)
   else notes.add(documentId)
 
-  return { ...focus, notes }
+  return resetHiddenBoxesWhenAllLit({ ...focus, notes })
 }
 
 export function isBoxLit(
   focus: CargoFocus,
-  box: Readonly<{ documentId?: string | null | undefined; stopSequence: number }>,
+  box: Readonly<{
+    documentId?: string | null | undefined
+    id?: string | undefined
+    stopSequence: number
+  }>,
 ): boolean {
+  if (box.id !== undefined && focus.hiddenBoxes.has(box.id)) return false
   if (focus.notes.size === 0 && focus.stops.size === 0) return true
   if (focus.stops.has(box.stopSequence)) return true
 
   return box.documentId !== null && box.documentId !== undefined && focus.notes.has(box.documentId)
+}
+
+/**
+ * Clicar numa caixa acende a nota (ou a parada, sem nota) inteira dela. Clicar de novo numa caixa já
+ * acesa apaga só ela — a nota continua acesa, é a caixa que sai. Clicar na que estava apagada devolve
+ * só ela ao desenho.
+ */
+export function toggleBoxFocus(
+  focus: CargoFocus,
+  box: Readonly<{ documentId?: string | null | undefined; id: string; stopSequence: number }>,
+): CargoFocus {
+  if (focus.hiddenBoxes.has(box.id)) {
+    const hiddenBoxes = new Set(focus.hiddenBoxes)
+    hiddenBoxes.delete(box.id)
+    return resetHiddenBoxesWhenAllLit({ ...focus, hiddenBoxes })
+  }
+
+  const allLit = focus.notes.size === 0 && focus.stops.size === 0
+  if (!allLit && isBoxLit(focus, box)) {
+    const hiddenBoxes = new Set(focus.hiddenBoxes)
+    hiddenBoxes.add(box.id)
+    return { ...focus, hiddenBoxes }
+  }
+
+  if (box.documentId !== null && box.documentId !== undefined)
+    return toggleNoteFocus(focus, box.documentId)
+
+  return toggleCargoStopFocus(focus, box.stopSequence)
 }

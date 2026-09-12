@@ -149,3 +149,8 @@
 .boxGhost {
   opacity: 0.42;
 }
+
+/** Só marcada quando o desenho recebe `onBoxSelect`: o cursor é a única pista de que a caixa clica. */
+.boxSelectable {
+  cursor: pointer;
+}

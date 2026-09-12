@@ -4,12 +4,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { Icon } from '@/components/ui/icon'
-import {
-  CargoIsometric,
-  CargoLegendSample,
-  CargoNoteSwatch,
-  type IsometricBox,
-} from '@/components/ui/cargo-isometric'
+import { CargoIsometric, CargoLegendSample, CargoNoteSwatch } from '@/components/ui/cargo-isometric'
 
 import {
   applyViewPreset,
@@ -32,6 +27,7 @@ import {
 import {
   EMPTY_CARGO_FOCUS,
   isBoxLit,
+  toggleBoxFocus,
   toggleCargoStopFocus,
   toggleNoteFocus,
 } from '../shared/stopFocus.service'
@@ -48,6 +44,9 @@ import styles from '../styles/trip.module.css'
 
 /** A ficha do veículo, onde as três medidas do baú são preenchidas. */
 const FLEET_HREF = '/fleet'
+
+/** Abaixo disto o ponteiro tremeu, não arrastou — o clique na caixa continua valendo. */
+const BOX_CLICK_DRAG_THRESHOLD_PX = 4
 
 type TripCargoLayersProps = Readonly<{
   layout: TripCargoLayout | null
@@ -86,6 +85,12 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
    */
   const [hasDragged, setHasDragged] = useState(false)
   const dragFrom = useRef<{ x: number; y: number } | null>(null)
+  /**
+   * ⚠️ **Separado de `dragFrom`.** Aquele guarda o último ponto, para o passo seguinte do arrasto —
+   * este guarda o ponto de partida, para medir o deslocamento total e distinguir clique de arrasto.
+   */
+  const pointerDownAt = useRef<{ x: number; y: number } | null>(null)
+  const hasDraggedPastClickThreshold = useRef(false)
   const [focus, setFocus] = useState(EMPTY_CARGO_FOCUS)
 
   const placement = layout?.placement ?? null
@@ -143,10 +148,18 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
     placement.unplaced,
   )
 
-  const boxes: readonly IsometricBox[] = useMemo(
-    () =>
-      placement.layers.flatMap((layer) =>
-        layer.boxes.map((box, position) => ({
+  const { boxRecordsById, boxes } = useMemo(() => {
+    const records = new Map<
+      string,
+      Readonly<{ documentId?: string | null | undefined; id: string; stopSequence: number }>
+    >()
+    const isometricBoxes = placement.layers.flatMap((layer) =>
+      layer.boxes.map((rawBox, position) => {
+        const id = `${String(layer.index)}-${String(position)}`
+        const box = { ...rawBox, id }
+        records.set(id, { documentId: box.documentId, id, stopSequence: box.stopSequence })
+
+        return {
           /**
            * Spec 121: **a caixa é da cor da NOTA.** Caixa sem nota carimbada volta à cor da parada —
            * `documentId` nulo é "não se sabe" (spec 119), e a cor da parada é o que se sabe dela.
@@ -155,20 +168,27 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
           complement: resolveCargoComplement(box),
           depthM: box.depthM,
           heightM: box.heightM,
-          id: `${String(layer.index)}-${String(position)}`,
+          id,
           isEstimated: box.source === 'estimated',
           isGhost: !isBoxLit(focus, box),
           isSplit: box.reasons.includes('splitCargo'),
+          /** Spec 131: rótulo do clique — caixa sem nota carimbada anuncia só a parada. */
+          label:
+            box.documentId === null || box.documentId === undefined
+              ? t('cargoLayers.box.toggleWithoutNote', { stop: box.stopSequence })
+              : t('cargoLayers.box.toggle', { note: box.documentId, stop: box.stopSequence }),
           layer: box.layer,
           stopSequence: box.stopSequence,
           widthM: box.widthM,
           xM: box.xM,
           yM: box.yM,
           zM: box.zM,
-        })),
-      ),
-    [focus, noteColors, placement.layers],
-  )
+        }
+      }),
+    )
+
+    return { boxRecordsById: records, boxes: isometricBoxes }
+  }, [focus, noteColors, placement.layers, t])
 
   /**
    * ⚠️ O contorno é o **baú**, e a altura dele não pode ser a da carga: somar as camadas desenhava o
@@ -213,6 +233,14 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
    *
    * ⚠️ **Na ordem em que se carrega**: quem está no galpão lê de cima para baixo enquanto enche o baú.
    */
+  /** Ignora o clique se o ponteiro arrastou — o gesto já girou ou moveu o desenho. */
+  function handleBoxSelect(boxId: string): void {
+    if (hasDraggedPastClickThreshold.current) return
+    const box = boxRecordsById.get(boxId)
+    if (box === undefined) return
+    setFocus((previous) => toggleBoxFocus(previous, box))
+  }
+
   const stopChips = layout.rows
     .map((row) => ({
       facts: chipFacts.get(row.sequence),
@@ -311,8 +339,11 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
           sliceCutsM={sliceCutsM}
           panY={view.panY}
           zoom={view.zoom}
+          onBoxSelect={handleBoxSelect}
           onPointerDown={(event: PointerEvent<SVGSVGElement>) => {
             dragFrom.current = { x: event.clientX, y: event.clientY }
+            pointerDownAt.current = { x: event.clientX, y: event.clientY }
+            hasDraggedPastClickThreshold.current = false
             event.currentTarget.setPointerCapture(event.pointerId)
           }}
           onPointerMove={(event: PointerEvent<SVGSVGElement>) => {
@@ -323,9 +354,15 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
             )
             dragFrom.current = { x: event.clientX, y: event.clientY }
             setHasDragged(true)
+
+            const start = pointerDownAt.current
+            if (start === null) return
+            const distance = Math.hypot(event.clientX - start.x, event.clientY - start.y)
+            if (distance > BOX_CLICK_DRAG_THRESHOLD_PX) hasDraggedPastClickThreshold.current = true
           }}
           onPointerUp={() => {
             dragFrom.current = null
+            pointerDownAt.current = null
           }}
         />
         {hasDragged ? null : (
@@ -466,6 +503,7 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
         {notesSharingColor === 0 ? null : (
           <li>{t('cargoLayers.legend.reusedColors', { count: notesSharingColor })}</li>
         )}
+        <li>{t('cargoLayers.legend.select')}</li>
       </ul>
 
       <div className={styles.cargoStops}>

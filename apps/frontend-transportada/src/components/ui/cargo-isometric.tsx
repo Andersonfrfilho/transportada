@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { useMemo, type JSX, type PointerEvent } from 'react'
+import { useMemo, type JSX, type KeyboardEvent, type PointerEvent } from 'react'
 
 import { cn } from '@/lib/utils'
 
@@ -33,6 +33,8 @@ export type IsometricBox = Readonly<{
   isSplit: boolean
   /** A camada em que a caixa está, contada do piso. */
   layer: number
+  /** Rótulo acessível do clique — ausente, a caixa não é clicável (spec 131). */
+  label?: string | undefined
   /** A parada a que a caixa pertence — é ela que a fatia separa. */
   stopSequence: number
   widthM: number
@@ -64,6 +66,8 @@ export type CargoIsometricProps = Readonly<{
   focusLayer?: number | undefined
   /** Marca a abertura lateral no contorno — o furgão carrega por ali. */
   hasSideDoor: boolean
+  /** Clicar (ou Enter/Espaço) numa caixa acesa seleciona a nota ou parada dela (spec 131). */
+  onBoxSelect?: ((boxId: string) => void) | undefined
   onPointerDown?: ((event: PointerEvent<SVGSVGElement>) => void) | undefined
   onPointerMove?: ((event: PointerEvent<SVGSVGElement>) => void) | undefined
   onPointerUp?: ((event: PointerEvent<SVGSVGElement>) => void) | undefined
@@ -160,6 +164,7 @@ export function CargoIsometric({
   className,
   focusLayer,
   hasSideDoor,
+  onBoxSelect,
   onPointerDown,
   onPointerMove,
   onPointerUp,
@@ -248,6 +253,7 @@ export function CargoIsometric({
         <IsometricSolid
           dimmed={focusLayer !== undefined && solid.box.layer !== focusLayer}
           key={solid.box.id}
+          onBoxSelect={onBoxSelect}
           solid={solid}
         />
       ))}
@@ -388,17 +394,44 @@ export function projectSolids(
  */
 function IsometricSolid({
   dimmed,
+  onBoxSelect,
   solid,
-}: Readonly<{ dimmed: boolean; solid: ProjectedSolid }>): JSX.Element {
+}: Readonly<{
+  dimmed: boolean
+  onBoxSelect?: ((boxId: string) => void) | undefined
+  solid: ProjectedSolid
+}>): JSX.Element {
   const { box } = solid
   const shades = [styles.faceTop, styles.faceFront, styles.faceSide]
   const complementClass =
     box.complement === 'needsRehandling' ? styles.faceComplementStrong : styles.faceComplement
+  const isSelectable = onBoxSelect !== undefined
+
+  function handleClick(): void {
+    onBoxSelect?.(box.id)
+  }
+
+  function handleKeyDown(event: KeyboardEvent<SVGGElement>): void {
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    onBoxSelect?.(box.id)
+  }
 
   return (
     <g
-      className={cn(styles.box, dimmed && styles.boxDimmed, box.isGhost && styles.boxGhost)}
+      aria-label={isSelectable ? box.label : undefined}
+      aria-pressed={isSelectable ? !box.isGhost : undefined}
+      className={cn(
+        styles.box,
+        dimmed && styles.boxDimmed,
+        box.isGhost && styles.boxGhost,
+        isSelectable && styles.boxSelectable,
+      )}
       data-box-id={box.id}
+      role={isSelectable ? 'button' : undefined}
+      tabIndex={isSelectable ? 0 : undefined}
+      onClick={isSelectable ? handleClick : undefined}
+      onKeyDown={isSelectable ? handleKeyDown : undefined}
     >
       {solid.points.map((points, index) => (
         <FaceGroup

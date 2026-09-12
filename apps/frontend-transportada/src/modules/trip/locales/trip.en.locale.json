@@ -105,6 +105,10 @@
   },
   "cargoLayers": {
     "bedFromReference": "The scale comes from the vehicle type catalogue, not from the fiche: this truck has no bed measurements, and the same type varies by up to double.",
+    "box": {
+      "toggle": "Box from stop {{stop}}, invoice {{note}}",
+      "toggleWithoutNote": "Box from stop {{stop}}"
+    },
     "chip": {
       "counts": "{{boxes}} boxes",
       "deliveryOrder": "{{sequence}} · delivery order",
@@ -137,7 +141,8 @@
       "split": "Red outline: split cargo, on top of the inner region.",
       "complement": "Copper dashed outline: complement box, outside the recommended map.",
       "complementStrong": "Thicker copper line: complement box that also breaks the unloading order.",
-      "reusedColors": "{{count}} invoices reuse another invoice colour: this trip has more invoices than the palette has colours."
+      "reusedColors": "{{count}} invoices reuse another invoice colour: this trip has more invoices than the palette has colours.",
+      "select": "Tap a box to light up its whole invoice; tap a lit box again to switch off just that one."
     },
     "missingBed": "No cargo drawing: this vehicle has no bed length, width and height on its record.",
     "missingBedLink": "Open the vehicle record",
