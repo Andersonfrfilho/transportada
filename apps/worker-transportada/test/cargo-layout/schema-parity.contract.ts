@@ -8,10 +8,19 @@ import { readFile } from 'node:fs/promises'
 import { getTableConfig } from 'drizzle-orm/pg-core'
 
 import { tripCargoLayouts } from '../../src/database/trip-cargo-layout.schema.js'
+import { tripCargoLayoutOutbox } from '../../src/database/trip-cargo-layout-outbox.schema.js'
 
 const WORKER = new URL('../../src/database/trip-cargo-layout.schema.ts', import.meta.url)
 const API = new URL(
   '../../../api-transportada/src/database/trip-cargo-layout.schema.ts',
+  import.meta.url,
+)
+const OUTBOX_WORKER = new URL(
+  '../../src/database/trip-cargo-layout-outbox.schema.ts',
+  import.meta.url,
+)
+const OUTBOX_API = new URL(
+  '../../../api-transportada/src/database/trip-cargo-layout-outbox.schema.ts',
   import.meta.url,
 )
 
@@ -57,6 +66,50 @@ describe('trip cargo layouts mirror parity (spec 145 D5)', () => {
       'duration_ms',
       'computed_at',
       'updated_at',
+    ]) {
+      expect(names).toContain(written)
+    }
+  })
+})
+
+/**
+ * ⚠️ **Cópia por valor.** O worker publica esta fila a partir da própria cópia; uma coluna
+ * renomeada na API e não aqui é `INSERT` que falha em produção com a planta já pronta — e o pedido
+ * nunca sai do outbox.
+ */
+describe('trip cargo layout outbox mirror parity (spec 145 D8)', () => {
+  test('every column the worker declares reads exactly as the API declares it', async () => {
+    const [worker, api] = await Promise.all([
+      readFile(OUTBOX_WORKER, 'utf8'),
+      readFile(OUTBOX_API, 'utf8'),
+    ])
+
+    const workerColumns = extractColumnLines(worker)
+    const apiColumns = new Set(extractColumnLines(api))
+
+    expect(workerColumns.length).toBe(15)
+    for (const line of workerColumns) {
+      expect(apiColumns.has(line)).toBeTrue()
+    }
+    expect(apiColumns.size).toBe(workerColumns.length)
+  })
+
+  test('points at the table the API migrates, with the columns the worker reads', () => {
+    const config = getTableConfig(tripCargoLayoutOutbox)
+    const names = config.columns.map((column) => column.name)
+
+    expect(config.name).toBe('trip_cargo_layout_outbox')
+    for (const written of [
+      'event_id',
+      'company_id',
+      'layout_id',
+      'event_type',
+      'payload',
+      'attempt',
+      'claim_owner',
+      'claim_expires_at',
+      'next_attempt_at',
+      'published_at',
     ]) {
       expect(names).toContain(written)
     }

@@ -69,6 +69,7 @@ export const tripCargoLayouts = pgTable(
     })
       .onDelete('cascade')
       .onUpdate('cascade'),
+    unique('trip_cargo_layouts_company_id_id_unique').on(table.companyId, table.id),
     unique('trip_cargo_layouts_company_input_hash_unique').on(table.companyId, table.inputHash),
     index('trip_cargo_layouts_company_trip_idx').on(table.companyId, table.tripId),
     check(

@@ -67,6 +67,7 @@ describe('trip cargo layouts (spec 145 D5)', () => {
   /** D6: mesma entrada na mesma empresa é a mesma planta — o segundo pedido acha a primeira. */
   test('makes the input hash unique per company', () => {
     expect(uniqueColumnsByName(tripCargoLayouts)).toEqual({
+      trip_cargo_layouts_company_id_id_unique: ['company_id', 'id'],
       trip_cargo_layouts_company_input_hash_unique: ['company_id', 'input_hash'],
     })
   })

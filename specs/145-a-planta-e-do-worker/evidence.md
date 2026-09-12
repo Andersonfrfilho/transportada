@@ -265,6 +265,96 @@ measured`); `documentId` entra porque a própria D6 o lista, mesmo o pacote não
   `bun test ./test/test-registry.contract.test.ts` → **3 pass, 0 fail**; `bunx tsc --noEmit` limpo;
   eslint e prettier limpos nos arquivos tocados.
 
+### T5 — outbox do pedido de plano de carga · 2026-09-12
+
+Rodou em sessão (modelo da sessão é da faixa `sonnet`). Contrato vermelho antes da implementação.
+
+- `apps/api-transportada/src/database/trip-cargo-layout-outbox.schema.ts` (novo): tabela
+  `trip_cargo_layout_outbox` espelhando `aggregateAttachmentOutbox` — `attachment_id` vira `layout_id`.
+  FK simples `company_id → companies.id` (restrict/cascade) e FK composta
+  `(company_id, layout_id) → trip_cargo_layouts(company_id, id)` (restrict/cascade), uniques
+  `(company_id, id)` e `(company_id, event_id)`, índice `(company_id, published_at, next_attempt_at,
+created_at)`, check travando `event_type` em `CARGO_LAYOUT_OUTBOX_EVENT_TYPES =
+['transportada.trip.cargo-layout.requested']`. Exportado no barril `database.schema.ts`.
+- `apps/api-transportada/src/database/trip-cargo-layout.schema.ts` (editado): unique adicional
+  `(company_id, id)` — alvo de conflito da FK composta acima, sem mexer em nenhuma regra de
+  empacotamento.
+- `drizzle/20260912200000_trip_cargo_layout_outbox/migration.sql` + `rollback.sql` (aditiva; rollback
+  manual segue o padrão de `20260901194200_aggregate_attachment_outbox`: derruba a tabela, remove o
+  unique de `trip_cargo_layouts` e o registro do journal, com guarda `RAISE EXCEPTION` se não for
+  exatamente 1 linha). Entrada adicionada à lista explícita de
+  `test/database-migration/static-migration.contract.ts`, logo após `20260912190000_trip_cargo_layouts`.
+- `apps/worker-transportada/src/database/trip-cargo-layout-outbox.schema.ts` (novo): cópia por valor
+  das 15 colunas, sem constraints. `test/cargo-layout/schema-parity.contract.ts` do worker ganhou um
+  segundo `describe` (D8) com o mesmo par de testes do bloco D5 já existente.
+- `apps/api-transportada/src/trips/infrastructure/cargo-layout-request.support.ts` (novo):
+  `upsertCargoLayoutRequest(transaction, params)` — semântica G006. `INSERT ... ON CONFLICT
+(company_id, input_hash) DO UPDATE ... WHERE status = 'failed'` reabre a linha (`attempt: 0,
+error_code: '', layout: null, status: 'queued'`, `trip_id` via `coalesce(excluded.trip_id,
+trip_cargo_layouts.trip_id)`) e, só quando há `RETURNING`, grava o evento no outbox na mesma
+  transação (ADR-0053). Sem `RETURNING` (conflito não bateu na condição — D3: a linha já existe e não
+  está `failed`), busca a linha existente por `(company_id, input_hash)`; se a prévia agora tem
+  `trip_id` e a linha ainda não tinha, atualiza só o `trip_id` — sem reabrir o processamento nem gerar
+  evento novo. Devolve sempre `{ enqueued, layoutId, status }`.
+- `apps/api-transportada/src/trips/application/cargo-layout-request.{types,port}.ts` (novos):
+  `CargoLayoutRequestPort.requestLayout`.
+- `apps/api-transportada/src/trips/infrastructure/drizzle-cargo-layout-request.repository.ts` (novo):
+  `DrizzleCargoLayoutRequestRepository` — abre a transação e delega para o suporte acima.
+- `apps/api-transportada/src/trips/application/request-cargo-layout.{types,use-case}.ts` (novos):
+  `createRequestCargoLayoutUseCase({ repository })` monta o `CargoLayoutInput` (D6, T4),
+  faz o hash e chama a porta — sem `try/catch` (a regra da casa: use case não trata erro).
+  **T6 é quem liga este fluxo em criar viagem / vincular-liberar documento / reordenar parada — fora
+  de escopo aqui.**
+- Contratos novos:
+  - API `test/trip-schema/cargo-layout-outbox.contract.ts` (agregador `trip-schema.contract.test.ts`):
+    PK uuid, timestamps UTC, colunas obrigatórias, `payload` jsonb, o check de `event_type`, os 2
+    uniques, as 2 FKs, o índice.
+  - API `test/trip-application/request-cargo-layout.contract.ts` (agregador
+    `trip-application.contract.test.ts`), porta fake: mesmo hash para a mesma entrada (D6), aceita
+    `tripId: null` (D3 — prévia sem viagem), repassa `correlationId` sem alterar.
+  - API `test/trip-infrastructure/cargo-layout-request.contract.ts` (agregador
+    `trip-infrastructure.contract.test.ts`), transação fake com ramificação por identidade de tabela:
+    sem linha no `RETURNING` não grava outbox; com linha no `RETURNING` grava exatamente um evento com
+    `payload = { inputHash, layoutId }`; caso D3 (sem `RETURNING`, `tripId` chegando pela primeira vez)
+    atualiza a linha existente e não enfileira.
+- Vermelho: um `fail` genuíno pré-existia no schema — o teste "torna o hash de entrada único por
+  empresa" em `test/trip-schema/cargo-layout.contract.ts` esperava só 1 unique em
+  `trip_cargo_layouts` e passou a ver 2 depois do unique novo (`toEqual` batendo errado); corrigido a
+  expectativa do teste, não a tabela. Application e infrastructure: os 6 arquivos de implementação
+  foram movidos para fora da árvore e os testes voltaram a **"Cannot find module"** real, confirmando
+  vermelho genuíno antes de restaurar.
+- Verde:
+  - `bun test ./test/trip-schema.contract.test.ts ./test/trip-application.contract.test.ts
+./test/trip-infrastructure.contract.test.ts ./test/test-registry.contract.test.ts` →
+    **144 pass, 0 fail** (443 `expect()`).
+  - Worker `bun test ./test/cargo-layout-schema.contract.test.ts` → **4 pass, 0 fail** (52 `expect()`).
+  - `bunx tsc --noEmit` limpo nas duas apps; `bunx eslint` limpo nos arquivos tocados;
+    `bunx prettier --write` reformatou 3 arquivos (`cargo-layout-request.port.ts`,
+    `cargo-layout-request.support.ts`, `cargo-layout-request.contract.ts` de infra) — reexecutado
+    `tsc` + as 4 suítes depois, seguiu limpo e em 144 pass.
+- Prova da migration num Postgres descartável (`scratch_t5`, container `transportada-local-postgres-1`,
+  2026-09-12, banco apagado depois): `companies`/`trips`/`trip_cargo_layouts` mínimas (moldadas na
+  migration do T3) e journal do drizzle simulado com `20260912190000_trip_cargo_layouts` já aplicada.
+  - `migration.sql` aplicou limpo: `CREATE TABLE`, o unique novo em `trip_cargo_layouts`, o índice
+    (com aviso de truncamento — ver observação abaixo), as 2 FKs.
+  - Insert válido: evento referenciando empresa e planta existentes.
+  - Rejeitados pelo banco (4/4): `event_type` fora do check; `company_id` inexistente (FK companies);
+    `layout_id` não batendo com `(company_id, id)` de nenhuma planta (FK composta); `(company_id,
+event_id)` duplicado (unique). Confirmado também que um novo `trip_cargo_layouts` com
+    `(company_id, id)` diferente insere normalmente — o unique novo não bloqueia o caso comum.
+  - `rollback.sql`: journal simulado (inserida a entrada `20260912200000_trip_cargo_layout_outbox`
+    antes de rodar, para o guard `RAISE EXCEPTION` ter o que contar) → depois do rollback,
+    `to_regclass('trip_cargo_layout_outbox')` voltou nulo, o unique
+    `trip_cargo_layouts_company_id_id_unique` sumiu de `pg_constraint`, e a linha do journal foi
+    removida (exatamente 1, sem disparar a exceção). `DROP DATABASE scratch_t5` ao final.
+- **Observação (não é desvio):** o nome do índice `trip_cargo_layout_outbox_company_published_next_
+attempt_created_idx` (67 caracteres) veio truncado pelo Postgres no aviso da aplicação — limite de
+  63 caracteres do identificador. Conferido que o índice do precedente
+  `aggregate_attachment_outbox` (70 caracteres) sofre o mesmo truncamento; comportamento já existente
+  na base, não uma regressão desta task.
+- **Decisão registrada:** D8 manda a tabela `trip_cargo_layout_outbox`; o tasks.md só cita migrations
+  D5/D11 — criada como aditiva, em commit isolado e reversível, para revisão do dono.
+
 ## Fase 3 — Worker (T7–T9)
 
 ## Fase 4 — Leitura da API (T10, T11)

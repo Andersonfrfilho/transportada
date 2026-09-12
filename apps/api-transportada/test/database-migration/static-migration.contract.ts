@@ -240,6 +240,7 @@ describe('Drizzle migrations', () => {
       '20260912153407_whatsapp_command_settlement',
       '20260912165331_nfe_company_document_and_measured_indexes',
       '20260912190000_trip_cargo_layouts',
+      '20260912200000_trip_cargo_layout_outbox',
       '20260913032201_whatsapp_command_settlement_retry',
       '20260913120000_contractor_mail',
       '20260913191809_contractor_mail_message_recipient',

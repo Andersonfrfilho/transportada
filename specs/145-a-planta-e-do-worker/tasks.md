@@ -49,7 +49,7 @@ trip_id)`); mirror em `apps/worker-transportada/src/database/`. Contrato de sche
       (`sha256(canonicalJson(...))`, D6). Contrato: estável sob mudança cosmética
       (label/clientName/noteNumbers); muda com reorder, troca de caixa, troca de baú,
       `loadingAccess`, `securesCargo`, `policyVersion` (G005).
-- [ ] T5 — `request-cargo-layout.use-case.ts` + `upsertCargoLayoutRequest` no repositório: upsert
+- [x] T5 — `request-cargo-layout.use-case.ts` + `upsertCargoLayoutRequest` no repositório: upsert
       `queued` + linha na outbox `trip_cargo_layout_outbox` na mesma transação; no-op quando já há
       registro `queued`/`running`/`ready` com o mesmo hash (G006).
 - [ ] T6 — Liga o gatilho eager de T5 aos use cases da D7: `trip.use-case.ts:112 create`,
