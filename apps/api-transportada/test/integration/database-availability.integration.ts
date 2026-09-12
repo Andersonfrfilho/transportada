@@ -64,6 +64,19 @@ describe('database availability against PostgreSQL (spec 137)', () => {
     await expect(provider.healthCheck()).resolves.toEqual({ healthy: true })
   })
 
+  test('a structured value bound to jsonb arrives as JSON, not as [object Object]', async () => {
+    // Regressão de 11/09/2026: sem instrução preparada o Bun manda `String(objeto)` e todo `jsonb`
+    // gravado pela API caía com 22P02 — `route_suggestions.assumptions`, `view_preferences`.
+    const assumptions = { dutyEnabled: false, nested: { list: [1, 2] }, serviceTimeSeconds: 600 }
+
+    // `sql.param` mantém o array como um único parâmetro; interpolado direto ele vira tupla.
+    const rows = await provider.db.execute<{ single: unknown; list: unknown }>(
+      sql`select ${assumptions}::jsonb as single, ${sql.param([assumptions, 'x'])}::jsonb as list`,
+    )
+
+    expect(rows[0]).toEqual({ list: [assumptions, 'x'], single: assumptions })
+  })
+
   test('twenty requests whose client already left never reach the database', async () => {
     // Sinal já abortado quando o caso de uso chega ao banco: a consulta preguiçosa nem nasce, e a
     // única conexão fica livre na hora. (Abortar "logo depois" não é determinístico: a primeira

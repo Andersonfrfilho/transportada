@@ -16,6 +16,7 @@ import {
   POSTGRES_QUERY_CANCELED_SQLSTATE,
   type DatabaseUnavailableReason,
 } from './database-pool.constant'
+import { serializeJsonParameters } from './database-parameter.policy'
 import { DatabaseQueryAbortedError, DatabaseUnavailableError } from './database-unavailable.error'
 
 const HEALTH_CHECK_QUERY = sql`select 1`
@@ -69,19 +70,28 @@ type SqlQuery = Promise<unknown> & {
 /**
  * O drizzle chama o cliente de quatro jeitos — `client(strings, ...params)`, `client.unsafe()`,
  * `.values()` na consulta e `client.begin()`/`savepoint()` com um cliente de transação —, e o
- * prazo tem de valer nos quatro, inclusive dentro da transação.
+ * prazo tem de valer nos quatro, inclusive dentro da transação. Os parâmetros dos dois caminhos
+ * que consultam passam por `serializeJsonParameters`: é o preço do `prepare: false`.
  */
 function guardClient(client: SqlClient, deadlineMs: number): SqlClient {
   return new Proxy(client, {
     apply(target, thisArgument, argumentList) {
-      return guardQuery(Reflect.apply(target, thisArgument, argumentList) as SqlQuery, deadlineMs)
+      const [strings, ...parameters] = argumentList as [unknown, ...unknown[]]
+      const query = Reflect.apply(target, thisArgument, [
+        strings,
+        ...serializeJsonParameters(parameters),
+      ]) as SqlQuery
+      return guardQuery(query, deadlineMs)
     },
     get(target, property) {
       const value: unknown = Reflect.get(target, property, target)
       if (typeof value !== 'function') return value
       if (property === 'unsafe') {
-        return (...argumentList: unknown[]) =>
-          guardQuery(Reflect.apply(value, target, argumentList) as SqlQuery, deadlineMs)
+        return (query: unknown, parameters?: readonly unknown[]) => {
+          const argumentList =
+            parameters === undefined ? [query] : [query, serializeJsonParameters(parameters)]
+          return guardQuery(Reflect.apply(value, target, argumentList) as SqlQuery, deadlineMs)
+        }
       }
       if (property === 'begin' || property === 'savepoint') {
         return (...argumentList: unknown[]) =>
