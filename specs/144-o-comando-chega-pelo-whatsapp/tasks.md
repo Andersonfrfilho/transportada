@@ -66,25 +66,65 @@ Fase 2, logo depois da T006.
 
 > 🤖 Modelo: `opus` 🧠 — regra fiscal e efeito irreversível
 
-- [ ] **T009** 🧠 Migration `output_document` + `nfse_emission_profile_id` em `cte_emission_profiles`
-      com CHECK de coerência e FK composta; formulário do perfil no painel ganha os dois campos —
-      `drizzle/`, `cte-profiles/`, `frontend-transportada/src/modules/cte-profiles/` —
-      `make migration-test`, contrato de schema
-- [ ] **T010** 🧠 `classifyDocumentOutput` (cte · nfse · blocked · no_profile) em
-      `cte-profiles/domain/`, com `municipal_service_policy='block'` vencendo; `documentOutput` na
-      listagem de notas — contrato de classificação + paridade listagem × bot
-- [ ] **T011** 🧠 `whatsapp_command_requests` + `_documents` (migration, schema, repositório, cópia
-      no worker) — contrato de tenant
-- [ ] **T012** 🧠 Prévia: critérios da D4 (faixa por emitente e série, viagem, data, remetente),
-      volumetria, congelamento com `preview_sha256`, expiração de 15 min —
-      `application/preview-document-selection.use-case.ts` + FlowActions — integração do AC3
-- [ ] **T013** 🧠 Confirmação: recalcula e compara hash; cria lotes de CT-e por perfil e NFS-e por
-      (perfil, tomador) pelos use-cases existentes, com a chave de idempotência derivada do pedido;
-      pergunta o `period` com "Pular" — `application/confirm-document-selection.use-case.ts` —
-      integração dos AC4 e AC5
-- [ ] **T014** 🧠 Liquidação no worker: todos os documentos em estado final → uma fatura por tomador
-      só com os autorizados → resumo ao número; timeout de 2h para pendentes —
-      `apps/worker-transportada/src/whatsapp-command-settlement/` — integração do AC6
+Revisada pelo critic em 2026-09-11: T010 **aprovada com ajustes**, T013 **reprovada** e reescrita
+abaixo (`evidence.md` § Fase 3). Decisão do usuário no mesmo dia: **o bot fatura só CT-e**.
+
+- [ ] **T009** 🧠 Migration em `cte_emission_profiles`: `output_document` (`cte`|`nfse`, padrão `cte`),
+      `nfse_emission_profile_id` com FK composta `(company_id, nfse_emission_profile_id) →
+  nfse_emission_profiles(company_id, id)` **on delete restrict**, e três CHECKs —
+      `..._output_document_check`, `..._nfse_profile_check` (`(output_document='nfse') =
+  (nfse_emission_profile_id is not null)`), `..._output_municipal_check` (`output_document='cte'
+  or municipal_service_policy='allow'`); `PUT` recusa apontar para perfil NFS-e não `active`.
+      Formulário do perfil: os dois campos, e em `nfse` **esconde** taker, regra de frete, CFOP e
+      ICMS (vale o perfil NFS-e) — `make migration-test`, contrato de schema
+- [ ] **T010** 🧠 `classifyDocumentOutput` em `cte-profiles/domain/document-output.policy.ts`,
+      **derivada dos vereditos que a listagem já calcula** (`cteBlockReason` de `resolveDocumentBlock`,
+      `nfseBlockReason` de `resolveNfseDocumentBlock`), nunca refazendo a elegibilidade: `cte` →
+      `blocked(cteBlockReason)` ou `cte`; `nfse` → `blocked(nfseBlockReason)` ou `nfse`; sem perfil →
+      `no_profile` com `noProfileReason` (`unmatched` · `ambiguous` · `not_cnpj`) por uma variante
+      de `findEmissionProfile` que devolve o motivo (a atual segue igual). Perfil `manual` nunca
+      classifica. Motivos novos: `CTE_BATCH_DOCUMENT_OUTPUT_NFSE` — **aplicado também na seleção do
+      lote de CT-e e no `cteBlockReason` da listagem**, senão a tela emite CT-e da nota que o perfil
+      manda para NFS-e — e `CTE_PROFILE_NFSE_PROFILE_NOT_ACTIVE` (status do perfil NFS-e no mesmo
+      SELECT da página, sem N+1). `documentOutput` na listagem; o guard do frontend aceita a
+      **ausência** do campo na primeira versão (API sobe primeiro) — contrato de classificação +
+      paridade que roda os dois consumidores sobre as mesmas notas
+- [ ] **T011** 🧠 `whatsapp_command_requests` (+ `due_date`, `period`, `grouping_mode`,
+      `confirmed_at`, `settled_at`, `settlement_outcome`, `last_error_code`; status `previewed →
+  confirming → dispatched → settled | settled_partial`, mais `expired` e `superseded`) e
+      `whatsapp_command_documents` como **diário de passos** (`group_key`, `idempotency_key`,
+      `status` `pending|created|issued|failed`, `document_id` nulo até existir; unique
+      `(request_id, document_kind, group_key)`), FK composta `(company_id, request_id)`, cópia no
+      worker só das colunas lidas — contrato de tenant nas duas
+- [ ] **T012** 🧠 Prévia: critérios da D4, volumetria, **vencimento da fatura** em lista (7/15/30
+      dias) e `period` da NFS-e com "Pular", congelamento com `preview_sha256` sobre o JSON canônico
+      de `[documentId, classificação, profileId, nfseProfileId?, takerTaxId, valor calculado]` +
+      `period` + `dueDate` + versão de cada perfil usado; endereço do tomador e credencial da Nota RP
+      ausentes são `blocked` **na prévia** — `application/preview-document-selection.use-case.ts` +
+      FlowActions — integração do AC3
+- [ ] **T013** 🧠 Confirmação **sem transação única** (cada use-case abre a sua): (1) confere
+      `cte.manage`, `cte.submit`, `nfse.issue` pela membership; (2) recalcula o hash — divergiu →
+      `superseded` e prévia nova; (3) transação curta `update … set status='confirming' where
+  status='previewed' and preview_sha256=$hash and expires_at>now() returning` + linhas `pending`
+      do diário; (4) fora de transação, por grupo: CT-e = `cteBatches.create` (chave
+      `whatsapp:${requestId}:cte:${profileId}`) → `cteIssuance.issue` (chave `…:cte-issue:…`);
+      NFS-e = `nfseInvoices.create` por (perfil NFS-e, tomador) (chave
+      `…:nfse:${nfseProfileId}:${takerTaxId}`); `name`/`period` saem **só** do pedido congelado
+      (a digital de idempotência os inclui); erro de domínio marca o grupo `failed` e segue; (5)
+      tudo final → `dispatched`. Pedido parado em `confirming` é retomado pelo mesmo use-case —
+      `application/confirm-document-selection.use-case.ts` — integração dos AC4 e AC5 + retomada
+- [ ] **T014** 🧠 Liquidação: policy pura de estado final (`whatsapp-command-settlement.policy.ts`:
+      sucesso = `authorized`; falha = `rejected|failed|cancelled|discarded`; pendente = o resto,
+      inclusive `reconciliation_required`), rotina `whatsapp.command.settle` no registro de
+      `job-run.v1` do worker (a cada 5 min; retoma também os `confirming` parados). Todos finais ou 2h
+      vencidas → worker chama `POST /whatsapp-command-requests/:id/settlement` (token de máquina,
+      papel `automation`, permissão nova `whatsapp.settle`, molde de `mdfe-auto-issue`). A API
+      **revalida** a membership de `actor_user_id` (ativa e com a permissão de faturar), fatura **só
+      os CT-e `authorized`, um por tomador** (chave `whatsapp:${requestId}:billing:${takerTaxId}`,
+      `dueDate` do pedido, `context.userId = actor_user_id`), grava no diário e marca
+      `settled`/`settled_partial` com `where status='dispatched'`; resumo ao número de
+      `user_whatsapp_phones`, com a NFS-e como "autorizada, sem fatura" —
+      `apps/worker-transportada/src/whatsapp-command-settlement/` + rota na API — integração do AC6
 
 ## Fase 4 — Entrega e ocorrência (D7)
 
@@ -105,7 +145,9 @@ Fase 2, logo depois da T006.
 - [ ] **T017** Tela "WhatsApp" no perfil do usuário (verificar e desvincular o número) —
       `frontend-transportada/src/modules/identity/` — contratos de design system existentes verdes
 - [ ] **T018** `docs/SECURITY.md` (teto por número, achado do rate limit redatado), CLAUDE.md (seção
-      do módulo), ADR-0063 "O telefone vira credencial só verificado" — docs
+      do módulo), ADR-0063 "O telefone vira credencial só verificado" e ADR-0064 "A fatura sai em nome de quem
+      confirmou" (procuração do worker: token de máquina, `whatsapp.settle`, revalidação da
+      membership — conceito novo no produto) — docs
 - [ ] **T019** Prova de ponta em `evidence.md`: conversa real em staging com os 9 critérios de aceite,
       um por um
 

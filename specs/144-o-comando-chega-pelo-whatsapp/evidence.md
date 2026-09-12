@@ -482,3 +482,50 @@ FlowAction de negócio ainda (T004, T015+); nenhuma mensagem sai para a Meta nos
   migram banco descartável estouraram por CPU; o Postgres estava saudável (42 de 100 conexões,
   consulta em 159 ms). Há 113 bancos `transportada_*` descartáveis acumulados de rodadas antigas,
   que não foram apagados.
+
+## Fase 3 — revisão do critic antes da T009–T014 (2026-09-11)
+
+Duas revisões em `opus`, antes de qualquer código da Fase 3.
+
+**T009/T010 — APROVADO COM AJUSTES.** O desenho de dados se sustenta (o perfil de CT-e já é quem
+escolhe o perfil que rege a nota, e `nfse_emission_profiles` não casa com nota nenhuma), mas a
+paridade prometida pela D3 não se sustentava sem três ajustes, incorporados em `ecba5fe7`:
+
+| achado                                                                  | onde                                                                               | ajuste                                                                                   |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| a tela continuaria aceitando CT-e da nota que o perfil manda para NFS-e | `drizzle-nfe-document.repository.ts:699`, `cte-batch-selection.service.ts:125-142` | motivo `CTE_BATCH_DOCUMENT_OUTPUT_NFSE` na seleção do lote **e** no `cteBlockReason`     |
+| a classificação refaria a elegibilidade                                 | `:699`/`:700`, `nfse-document-block.policy.ts:25-36`                               | `classifyDocumentOutput` deriva dos dois vereditos que a listagem já calcula             |
+| `no_profile` junta quatro situações                                     | `emission-profile-resolution.policy.ts:100-130`                                    | `noProfileReason` (`unmatched`·`ambiguous`·`not_cnpj`); perfil `manual` nunca classifica |
+| perfil NFS-e apontado pode estar inativo                                | `drizzle-nfe-document.repository.ts:454-470`                                       | motivo `CTE_PROFILE_NFSE_PROFILE_NOT_ACTIVE`, status no mesmo SELECT                     |
+| taker e regra de frete do perfil de CT-e viram campos mortos em `nfse`  | `nfse.schema.ts:152-153`                                                           | vale o perfil NFS-e; o formulário esconde os campos                                      |
+
+**T013 — REPROVADO**, com três premissas falsas conferidas no código:
+
+1. **"Na mesma transação do pedido" é inviável**: lote (`drizzle-cte-batch.repository.ts:567-572`),
+   NFS-e (`drizzle-nfse-invoice.repository.ts:188-193`) e emissão (`cte-issuance.use-case.ts`) abrem
+   cada um a própria transação, e nenhum aceita uma externa. → Confirmação por **diário de passos**,
+   estado `confirming` e retomada idempotente.
+2. **Criar lote não emite**: o lote nasce `draft`; quem transmite é `issue`
+   (`cte-issuance.routes.ts:104-120`), que já faz o submit. → Emitir é `create` → `issue`, com duas
+   chaves.
+3. **O faturamento só conhece CT-e** (`billing_invoice_items.cte_document_id not null`,
+   `billing.schema.ts:124`) e exige `dueDate` (`billing.use-case.ts:62,260`), e o worker não tem
+   use-case de billing.
+
+Também incorporados: o hash cobre o que o usuário viu (valor e versão dos perfis, não só ids); o
+estado final é declarado numa policy (`reconciliation_required` é pendente, `cancelled` não fatura);
+`name` e `period` saem só do pedido congelado, porque entram na digital de idempotência.
+
+**Decisão do usuário (2026-09-11), pergunta direta:** "Fatura só os CT-e" — uma fatura por tomador
+só com os CT-e autorizados, vencimento escolhido na prévia (7/15/30 dias), NFS-e no resumo como
+"autorizada, sem fatura", e a fatura sai por **procuração revalidada**: o worker chama uma rota da
+API com token de máquina (papel `automation`, permissão nova `whatsapp.settle`, molde do
+`mdfe-auto-issue`), e a API fatura com `actor_user_id` depois de conferir que a membership ainda
+está ativa e pode faturar. ADR-0064 na T018.
+
+**Commits desta seção:** `ecba5fe7` (spec e plan) e o commit que traz esta seção junto da
+reescrita da Fase 3 no `tasks.md`. ⚠️ A reescrita do `tasks.md` foi feita com a T006 em andamento
+no mesmo worktree, e o pre-commit (lint-staged) do agente da T006 chegou a colá-la no commit dele;
+ele refez o próprio commit local (`0fdc758c`, mesmo tree, só com o `[x]` da T006) e deixou a
+reescrita na árvore para ser commitada aqui. Lição para as próximas tasks: **documento de spec só
+se edita com o worktree parado**.
