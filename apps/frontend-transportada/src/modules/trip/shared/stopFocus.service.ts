@@ -53,16 +53,99 @@ function resetHiddenBoxesWhenAllLit(focus: CargoFocus): CargoFocus {
   return { ...focus, hiddenBoxes: new Set<string>() }
 }
 
-export function toggleCargoStopFocus(focus: CargoFocus, stopSequence: number): CargoFocus {
-  return resetHiddenBoxesWhenAllLit({ ...focus, stops: toggleStopFocus(focus.stops, stopSequence) })
+type ToggleCargoStopFocusParams = Readonly<{
+  /** Toda nota da parada — dissolvida do foco junto com ela, tanto ao ligar quanto ao desligar. */
+  documentIds: readonly string[]
+  sequence: number
+}>
+
+/**
+ * Clicar na parada acende o baú dela inteiro. Se ela já estava acesa **pelas notas** (uma a uma), o
+ * clique também a apaga — do contrário a parada pareceria continuar apagada mesmo com toda nota
+ * acesa.
+ */
+export function toggleCargoStopFocus(
+  focus: CargoFocus,
+  { documentIds, sequence }: ToggleCargoStopFocusParams,
+): CargoFocus {
+  if (focus.stops.has(sequence)) {
+    const stops = new Set(focus.stops)
+    stops.delete(sequence)
+    const notes = new Set(focus.notes)
+    for (const documentId of documentIds) notes.delete(documentId)
+    return resetHiddenBoxesWhenAllLit({ ...focus, notes, stops })
+  }
+
+  const notes = new Set(focus.notes)
+  const isSelectedThroughNotes =
+    documentIds.length > 0 && documentIds.every((documentId) => notes.has(documentId))
+  if (isSelectedThroughNotes) {
+    for (const documentId of documentIds) notes.delete(documentId)
+    return resetHiddenBoxesWhenAllLit({ ...focus, notes })
+  }
+
+  for (const documentId of documentIds) notes.delete(documentId)
+  const stops = new Set(focus.stops)
+  stops.add(sequence)
+  return resetHiddenBoxesWhenAllLit({ ...focus, notes, stops })
 }
 
-export function toggleNoteFocus(focus: CargoFocus, documentId: string): CargoFocus {
+type ToggleNoteFocusParams = Readonly<{
+  documentId: string
+  /** Toda nota da mesma parada, este documentId incluso — só usada quando a parada se dissolve. */
+  siblingDocumentIds: readonly string[]
+  stopSequence: number
+}>
+
+/**
+ * Clicar numa nota de uma parada **selecionada pela parada** (não pelas notas) apaga só ela: a
+ * parada se dissolve em notas, cada irmã fica acesa e esta única fica apagada. Fora desse caso, o
+ * clique liga/desliga a nota como sempre.
+ */
+export function toggleNoteFocus(
+  focus: CargoFocus,
+  { documentId, siblingDocumentIds, stopSequence }: ToggleNoteFocusParams,
+): CargoFocus {
+  if (focus.stops.has(stopSequence)) {
+    const stops = new Set(focus.stops)
+    stops.delete(stopSequence)
+    const notes = new Set(focus.notes)
+    for (const siblingId of siblingDocumentIds) {
+      if (siblingId !== documentId) notes.add(siblingId)
+    }
+    notes.delete(documentId)
+    return resetHiddenBoxesWhenAllLit({ ...focus, notes, stops })
+  }
+
   const notes = new Set(focus.notes)
   if (notes.has(documentId)) notes.delete(documentId)
   else notes.add(documentId)
 
   return resetHiddenBoxesWhenAllLit({ ...focus, notes })
+}
+
+/** Verdadeiro só quando a nota está selecionada — os dois conjuntos vazios (tudo aceso) não contam. */
+export function isNoteLit(
+  focus: CargoFocus,
+  note: Readonly<{ documentId: string; stopSequence: number }>,
+): boolean {
+  return focus.notes.has(note.documentId) || focus.stops.has(note.stopSequence)
+}
+
+/**
+ * A parada está selecionada tanto quando ela mesma está no foco quanto quando toda nota dela está —
+ * o segundo caso é o rastro de dissolver a parada nota a nota e religar todas de volta.
+ */
+export function isStopSelected(
+  focus: CargoFocus,
+  stop: Readonly<{ documentIds: readonly string[]; sequence: number }>,
+): boolean {
+  if (focus.stops.has(stop.sequence)) return true
+
+  return (
+    stop.documentIds.length > 0 &&
+    stop.documentIds.every((documentId) => focus.notes.has(documentId))
+  )
 }
 
 export function isBoxLit(
@@ -103,7 +186,11 @@ export function toggleBoxFocus(
   }
 
   if (box.documentId !== null && box.documentId !== undefined)
-    return toggleNoteFocus(focus, box.documentId)
+    return toggleNoteFocus(focus, {
+      documentId: box.documentId,
+      siblingDocumentIds: [box.documentId],
+      stopSequence: box.stopSequence,
+    })
 
-  return toggleCargoStopFocus(focus, box.stopSequence)
+  return toggleCargoStopFocus(focus, { documentIds: [], sequence: box.stopSequence })
 }

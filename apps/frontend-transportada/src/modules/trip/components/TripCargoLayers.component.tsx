@@ -27,6 +27,8 @@ import {
 import {
   EMPTY_CARGO_FOCUS,
   isBoxLit,
+  isNoteLit,
+  isStopSelected,
   toggleBoxFocus,
   toggleCargoStopFocus,
   toggleNoteFocus,
@@ -514,10 +516,20 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
             <div className={styles.cargoStopGroup} key={sequence}>
               <div className={styles.cargoStopItem}>
                 <button
-                  aria-pressed={focus.stops.has(sequence)}
+                  aria-pressed={isStopSelected(focus, {
+                    documentIds: notesOfStop.map((note) => note.documentId),
+                    sequence,
+                  })}
                   className={styles.cargoStopChip}
                   type="button"
-                  onClick={() => setFocus((previous) => toggleCargoStopFocus(previous, sequence))}
+                  onClick={() =>
+                    setFocus((previous) =>
+                      toggleCargoStopFocus(previous, {
+                        documentIds: notesOfStop.map((note) => note.documentId),
+                        sequence,
+                      }),
+                    )
+                  }
                 >
                   {/*
               ⚠️ **Spec 121: o disco de cor da parada saiu daqui.** Com a carga pintada pela nota, a
@@ -629,11 +641,22 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
                       <li key={note.documentId}>
                         <button
                           aria-label={t('cargoLayers.invoice.toggle', { label: noteLabel })}
-                          aria-pressed={focus.notes.has(note.documentId)}
+                          aria-pressed={isNoteLit(focus, {
+                            documentId: note.documentId,
+                            stopSequence: sequence,
+                          })}
                           className={styles.cargoNoteChip}
                           type="button"
                           onClick={() =>
-                            setFocus((previous) => toggleNoteFocus(previous, note.documentId))
+                            setFocus((previous) =>
+                              toggleNoteFocus(previous, {
+                                documentId: note.documentId,
+                                siblingDocumentIds: notesOfStop.map(
+                                  (sibling) => sibling.documentId,
+                                ),
+                                stopSequence: sequence,
+                              }),
+                            )
                           }
                         >
                           <CargoNoteSwatch color={note.color} />

@@ -287,8 +287,8 @@ describe('trip cargo note colour contract', () => {
       expect(styles).not.toContain('.cargoStopDot {')
       expect(layers).toContain("t('cargoLayers.chip.deliveryOrder', { sequence })")
       expect(layers).toContain('resolveSliceCuts(boxes, arrangement)')
-      expect(layers).toContain('toggleCargoStopFocus(previous, sequence)')
-      expect(layers).toContain('aria-pressed={focus.stops.has(sequence)}')
+      expect(layers).toContain('toggleCargoStopFocus(previous, {')
+      expect(layers).toContain('isStopSelected(focus, {')
     })
 
     /**
@@ -309,19 +309,27 @@ describe('trip cargo note colour contract', () => {
 
     /** Acender uma nota acende só as caixas dela, e soma com as paradas acesas. */
     it('lights only the boxes of the chosen note', () => {
-      const noteFocus = toggleNoteFocus(EMPTY_CARGO_FOCUS, 'a')
+      const noteFocus = toggleNoteFocus(EMPTY_CARGO_FOCUS, {
+        documentId: 'a',
+        siblingDocumentIds: ['a'],
+        stopSequence: 1,
+      })
 
       expect(isBoxLit(EMPTY_CARGO_FOCUS, box(1, 'a'))).toBe(true)
       expect(isBoxLit(noteFocus, box(1, 'a'))).toBe(true)
       expect(isBoxLit(noteFocus, box(1, 'b'))).toBe(false)
       expect(isBoxLit(noteFocus, box(2, null))).toBe(false)
 
-      const withStop = toggleCargoStopFocus(noteFocus, 2)
+      const withStop = toggleCargoStopFocus(noteFocus, { documentIds: [], sequence: 2 })
       expect(isBoxLit(withStop, box(2, null))).toBe(true)
       expect(isBoxLit(withStop, box(1, 'b'))).toBe(false)
 
       /** Apagar a última escolha devolve o baú inteiro. */
-      const cleared = toggleNoteFocus(noteFocus, 'a')
+      const cleared = toggleNoteFocus(noteFocus, {
+        documentId: 'a',
+        siblingDocumentIds: ['a'],
+        stopSequence: 1,
+      })
       expect(isBoxLit(cleared, box(3, 'z'))).toBe(true)
       expect(noteFocus.notes.has('a')).toBe(true)
     })
@@ -332,8 +340,8 @@ describe('trip cargo note colour contract', () => {
         'src/modules/trip/components/TripCargoLayers.component.tsx',
       )
 
-      expect(layers).toContain('aria-pressed={focus.notes.has(note.documentId)}')
-      expect(layers).toContain('toggleNoteFocus(previous, note.documentId)')
+      expect(layers).toContain('isNoteLit(focus, {')
+      expect(layers).toContain('toggleNoteFocus(previous, {')
       expect(layers).toContain('isBoxLit(focus, box)')
       expect(layers).not.toContain('title=')
       for (const locale of [trip, tripEn]) {

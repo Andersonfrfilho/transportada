@@ -6,6 +6,8 @@ import { describe, expect, it } from 'bun:test'
 import {
   EMPTY_CARGO_FOCUS,
   isBoxLit,
+  isNoteLit,
+  isStopSelected,
   toggleBoxFocus,
   toggleCargoStopFocus,
   toggleNoteFocus,
@@ -46,7 +48,11 @@ describe('trip cargo box focus contract', () => {
 
   /** Clicar numa caixa acesa pela nota/parada apaga só ela — a nota continua acesa nas outras. */
   it('hides only the clicked box when its load is already lit', () => {
-    const lit = toggleNoteFocus(EMPTY_CARGO_FOCUS, 'doc-a')
+    const lit = toggleNoteFocus(EMPTY_CARGO_FOCUS, {
+      documentId: 'doc-a',
+      siblingDocumentIds: ['doc-a'],
+      stopSequence: 1,
+    })
     const hidden = toggleBoxFocus(lit, box('0-0', 1, 'doc-a'))
 
     expect(hidden.notes.has('doc-a')).toBe(true)
@@ -56,7 +62,11 @@ describe('trip cargo box focus contract', () => {
 
   /** Clicar de novo na caixa apagada restaura só ela. */
   it('restores a hidden box when clicked again', () => {
-    const lit = toggleNoteFocus(EMPTY_CARGO_FOCUS, 'doc-a')
+    const lit = toggleNoteFocus(EMPTY_CARGO_FOCUS, {
+      documentId: 'doc-a',
+      siblingDocumentIds: ['doc-a'],
+      stopSequence: 1,
+    })
     const hidden = toggleBoxFocus(lit, box('0-0', 1, 'doc-a'))
     const restored = toggleBoxFocus(hidden, box('0-0', 1, 'doc-a'))
 
@@ -66,7 +76,11 @@ describe('trip cargo box focus contract', () => {
 
   /** Caixa de outra carga, com foco já ativo, soma ao foco em vez de apagar. */
   it('adds another load to the focus instead of hiding it', () => {
-    const lit = toggleNoteFocus(EMPTY_CARGO_FOCUS, 'doc-a')
+    const lit = toggleNoteFocus(EMPTY_CARGO_FOCUS, {
+      documentId: 'doc-a',
+      siblingDocumentIds: ['doc-a'],
+      stopSequence: 1,
+    })
     const withSecondNote = toggleBoxFocus(lit, box('1-0', 2, 'doc-b'))
 
     expect(withSecondNote.notes.has('doc-a')).toBe(true)
@@ -79,20 +93,114 @@ describe('trip cargo box focus contract', () => {
    * individualmente apagada junto: um recorte de caixa não sobrevive à carga que o continha.
    */
   it('resets hidden boxes once the focus goes back to everything lit', () => {
-    const lit = toggleNoteFocus(EMPTY_CARGO_FOCUS, 'doc-a')
+    const lit = toggleNoteFocus(EMPTY_CARGO_FOCUS, {
+      documentId: 'doc-a',
+      siblingDocumentIds: ['doc-a'],
+      stopSequence: 1,
+    })
     const hidden = toggleBoxFocus(lit, box('0-0', 1, 'doc-a'))
     expect(hidden.hiddenBoxes.size).toBe(1)
 
-    const cleared = toggleNoteFocus(hidden, 'doc-a')
+    const cleared = toggleNoteFocus(hidden, {
+      documentId: 'doc-a',
+      siblingDocumentIds: ['doc-a'],
+      stopSequence: 1,
+    })
     expect(cleared.hiddenBoxes.size).toBe(0)
     expect(isBoxLit(cleared, box('0-0', 1, 'doc-a'))).toBe(true)
 
-    const litStop = toggleCargoStopFocus(EMPTY_CARGO_FOCUS, 5)
+    const litStop = toggleCargoStopFocus(EMPTY_CARGO_FOCUS, { documentIds: [], sequence: 5 })
     const hiddenStop = toggleBoxFocus(litStop, box('2-0', 5, null))
     expect(hiddenStop.hiddenBoxes.size).toBe(1)
 
-    const clearedStop = toggleCargoStopFocus(hiddenStop, 5)
+    const clearedStop = toggleCargoStopFocus(hiddenStop, { documentIds: [], sequence: 5 })
     expect(clearedStop.hiddenBoxes.size).toBe(0)
+  })
+
+  /**
+   * Clicar na parada acende toda nota dela — o usuário espera que a ficha da entrega mostre as
+   * notas como escolhidas, não só o baú.
+   */
+  it('lights every note of a selected stop', () => {
+    const documentIds = ['doc-a', 'doc-b']
+    const withStop = toggleCargoStopFocus(EMPTY_CARGO_FOCUS, { documentIds, sequence: 1 })
+
+    expect(isNoteLit(withStop, { documentId: 'doc-a', stopSequence: 1 })).toBe(true)
+    expect(isNoteLit(withStop, { documentId: 'doc-b', stopSequence: 1 })).toBe(true)
+    expect(isStopSelected(withStop, { documentIds, sequence: 1 })).toBe(true)
+  })
+
+  /**
+   * Clicar numa nota de uma parada selecionada apaga só ela: a parada se dissolve em notas, as
+   * irmãs continuam acesas e a clicada apaga sozinha.
+   */
+  it('turns off a single note of a selected stop, keeping its siblings lit', () => {
+    const documentIds = ['doc-a', 'doc-b']
+    const withStop = toggleCargoStopFocus(EMPTY_CARGO_FOCUS, { documentIds, sequence: 1 })
+
+    const oneNoteOff = toggleNoteFocus(withStop, {
+      documentId: 'doc-a',
+      siblingDocumentIds: documentIds,
+      stopSequence: 1,
+    })
+
+    expect(isNoteLit(oneNoteOff, { documentId: 'doc-a', stopSequence: 1 })).toBe(false)
+    expect(isNoteLit(oneNoteOff, { documentId: 'doc-b', stopSequence: 1 })).toBe(true)
+    expect(oneNoteOff.stops.has(1)).toBe(false)
+    expect(isStopSelected(oneNoteOff, { documentIds, sequence: 1 })).toBe(false)
+
+    /** Clicar de novo na nota apagada acende tudo de novo, e a parada volta a estar selecionada. */
+    const restored = toggleNoteFocus(oneNoteOff, {
+      documentId: 'doc-a',
+      siblingDocumentIds: documentIds,
+      stopSequence: 1,
+    })
+    expect(isNoteLit(restored, { documentId: 'doc-a', stopSequence: 1 })).toBe(true)
+    expect(isNoteLit(restored, { documentId: 'doc-b', stopSequence: 1 })).toBe(true)
+    expect(isStopSelected(restored, { documentIds, sequence: 1 })).toBe(true)
+  })
+
+  /** Clicar na parada quando ela já está selecionada pelas notas (uma a uma) desliga tudo. */
+  it('turns off a stop selected through all of its notes', () => {
+    const documentIds = ['doc-a', 'doc-b']
+    const withNoteA = toggleNoteFocus(EMPTY_CARGO_FOCUS, {
+      documentId: 'doc-a',
+      siblingDocumentIds: documentIds,
+      stopSequence: 1,
+    })
+    const withBothNotes = toggleNoteFocus(withNoteA, {
+      documentId: 'doc-b',
+      siblingDocumentIds: documentIds,
+      stopSequence: 1,
+    })
+    expect(isStopSelected(withBothNotes, { documentIds, sequence: 1 })).toBe(true)
+
+    const clearedStop = toggleCargoStopFocus(withBothNotes, { documentIds, sequence: 1 })
+    expect(isStopSelected(clearedStop, { documentIds, sequence: 1 })).toBe(false)
+    expect(isNoteLit(clearedStop, { documentId: 'doc-a', stopSequence: 1 })).toBe(false)
+    expect(isNoteLit(clearedStop, { documentId: 'doc-b', stopSequence: 1 })).toBe(false)
+  })
+
+  /** Selecionar a parada remove as notas dela do foco — a parada é quem passa a cobrir a carga. */
+  it('removes the stop notes from the focus when the stop is selected', () => {
+    const documentIds = ['doc-a', 'doc-b']
+    const withNoteA = toggleNoteFocus(EMPTY_CARGO_FOCUS, {
+      documentId: 'doc-a',
+      siblingDocumentIds: documentIds,
+      stopSequence: 1,
+    })
+    expect(withNoteA.notes.has('doc-a')).toBe(true)
+
+    const withStop = toggleCargoStopFocus(withNoteA, { documentIds, sequence: 1 })
+    expect(withStop.stops.has(1)).toBe(true)
+    expect(withStop.notes.has('doc-a')).toBe(false)
+  })
+
+  it('wires the stop and note chips to the accessible selection helpers', () => {
+    const layers = readApplicationFile('src/modules/trip/components/TripCargoLayers.component.tsx')
+
+    expect(layers).toContain('isStopSelected(focus, {')
+    expect(layers).toContain('isNoteLit(focus, {')
   })
 
   it('wires the isometric drawing to the click handler', () => {
