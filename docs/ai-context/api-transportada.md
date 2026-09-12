@@ -561,6 +561,17 @@ meio de mil caixas de refrigerante move a média e não move a mediana. No total
 `estimated` vence `partial`, que vence `measured`, pela mesma razão da 075: quem carrega decide pelo
 pior caso, e a tela é proibida de imprimir o percentual sem a marca.
 
+**A caixa presumida agora tem um segundo degrau antes da mediana** (spec 144). `resolveDocumentCargoEstimate`
+resolve por nota, nesta ordem: medida do conferente → resíduo da própria nota → mediana da empresa →
+`notMeasured`. A conta do resíduo é `resíduo = total − medido`, e cada caixa sem ficha recebe
+`resíduo ÷ restantes`; só cai para a mediana quando a nota não tem `<vol>`/fator ou o medido já
+passou do total. A caixa continua saindo `source: 'estimated'` (D3) — o degrau novo troca o
+**tamanho** da presumida, nunca a regra física do empacotador. A viagem devolve `pendingMeasurements`,
+uma linha por produto sem ficha (produto, nota, parada, quantas caixas), para a fila de medição da
+085 saber por onde começar. E a conservação (D5) fecha exato: quando toda caixa da parada é medida ou
+presumida pela nota, o m³ desenhado bate com o `volumeM3` da fatia. Ver
+`test/cargo-volume/document-box-estimate.contract.ts`.
+
 ⚠️ **O desenho do baú é de volume, e o alerta de peso existe porque volume não conta essa história.**
 `detectWeightConcentration` acusa a parada que carrega mais que a própria fatia — e o piso é **a
 fatia igualitária**, nunca um limite fixo: com duas paradas, meio a meio é a carga mais equilibrada

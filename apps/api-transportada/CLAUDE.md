@@ -129,14 +129,16 @@ casada por `normalizeVehicleCatalogName` para tolerar grafia divergente entre pl
 ## Carga: cubagem, capacidade e cargo placement — ver a referência
 
 **As regras de cubagem/capacidade do veículo e o algoritmo de arrumação de caixas no baú (specs 075,
-085, 088, 093, 099, 113 a 121, 135, ADR-0061/0062) são densas, medidas em viagens reais, e foram a
+085, 088, 093, 099, 113 a 121, 135, 144, ADR-0061/0062) são densas, medidas em viagens reais, e foram a
 maior causa do CLAUDE.md de 184k — não as resuma aqui de novo.** Antes de tocar em
 `fleet/*cargo*`, `*/cargo-placement/*` ou qualquer código de escala/planta do baú, leia a seção
 correspondente em `docs/ai-context/api-transportada.md` (busque pelos números de spec acima).
 Invariantes mais cotadas para não reimplementar por engano:
 
 - A NF-e não traz cubagem — ela é **estimada** a partir de `<vol>` e de ficha de veículo medida; a
-  ocupação **nunca** mostra 100% nem 0% sem marca de estimativa.
+  ocupação **nunca** mostra 100% nem 0% sem marca de estimativa. Quando parte dos produtos da nota já
+  tem ficha, o resíduo (`total − medido`) é dividido entre as caixas sem medida antes de cair na
+  mediana da empresa (spec 144, `resolveDocumentCargoEstimate`).
 - Implemento (carreta) é o que carrega, cavalo mecânico não entra na tabela de frete nem na conta de
   cubagem — `vehicle_type` do implemento é vazio de propósito.
 - Medir uma caixa é `cargo.measure`, permissão própria (não `settings.manage`), e **substitui** a

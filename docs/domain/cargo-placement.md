@@ -33,22 +33,24 @@ isso numa linha fixa, e o painel "Por que o desenho ficou assim" explica o que m
 `resolveCargoLayout` recebe um objeto só. Tudo o que não vem tem um comportamento declarado — nunca
 um palpite silencioso.
 
-| campo                 | o que é                                                               | ausente                                                        |
-| --------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------- |
-| `stops`               | as entregas **na ordem de entrega**, cada uma com as caixas dela      | sem paradas não há desenho                                     |
-| `bedDimensions`       | comprimento × largura × altura do baú, da ficha do veículo            | sem planta em escala: só as fileiras proporcionais da 085      |
-| `capacityM3`          | o m³ do veículo                                                       | sem proporção, e o desenho não sai                             |
-| `loadingAccess`       | por onde o veículo abre: `rear`, `rear_and_side`, `open`              | `rear`, o **mais restritivo**                                  |
-| `fallbackBoxVolumeM3` | o volume típico de uma caixa da empresa, para a presumida ter tamanho | a caixa não medida fica fora do desenho, e **nomeada**         |
-| `measuredShapes`      | as formas medidas com fita, de onde sai a proporção da presumida      | a presumida não tem forma                                      |
-| `payloadRatio`        | quanto do teto de massa a carga ocupa                                 | teto desconhecido: **não equilibra** e não afirma nada de peso |
-| `securesCargo`        | algum motorista da viagem amarra a carga com cinta                    | **não** amarra                                                 |
+| campo                 | o que é                                                                                                                                                               | ausente                                                        |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `stops`               | as entregas **na ordem de entrega**, cada uma com as caixas dela                                                                                                      | sem paradas não há desenho                                     |
+| `bedDimensions`       | comprimento × largura × altura do baú, da ficha do veículo                                                                                                            | sem planta em escala: só as fileiras proporcionais da 085      |
+| `capacityM3`          | o m³ do veículo                                                                                                                                                       | sem proporção, e o desenho não sai                             |
+| `loadingAccess`       | por onde o veículo abre: `rear`, `rear_and_side`, `open`                                                                                                              | `rear`, o **mais restritivo**                                  |
+| `fallbackBoxVolumeM3` | o volume típico de uma caixa da empresa, para a presumida ter tamanho — a caixa sem medida usa primeiro o resíduo da própria nota (spec 144) e só depois esta mediana | a caixa não medida fica fora do desenho, e **nomeada**         |
+| `measuredShapes`      | as formas medidas com fita, de onde sai a proporção da presumida                                                                                                      | a presumida não tem forma                                      |
+| `payloadRatio`        | quanto do teto de massa a carga ocupa                                                                                                                                 | teto desconhecido: **não equilibra** e não afirma nada de peso |
+| `securesCargo`        | algum motorista da viagem amarra a carga com cinta                                                                                                                    | **não** amarra                                                 |
 
 ### A caixa
 
 Cada caixa da entrega tem medidas e três marcas que o empacotador respeita: `isFragile`,
 `isStackable`, `keepUpright`. `source` diz se ela foi **medida** com fita (`measured`) ou **presumida**
 a partir do volume da nota (`estimated`) — e `documentId`/`documentNumber` dizem de que nota ela veio.
+A presumida pode vir do resíduo da própria nota ou da mediana da empresa (spec 144); qual das duas foi
+usada está em `estimateSource` (`'note'` | `'median'` | `'none'`).
 
 ⚠️ **A nota é carona, nunca critério** (spec 119): nenhuma comparação, chave de formato (`shapeKey`)
 ou ordenação do empacotador lê esses dois campos. O mapa recomendado é idêntico com e sem nota. Só o
@@ -341,18 +343,18 @@ varredura.
 
 O motivo não é texto livre: se não está nesta lista, não existe.
 
-| marca             | o que diz                                                         |
-| ----------------- | ----------------------------------------------------------------- |
-| `lastStopFirst`   | a última entrega foi carregada primeiro — é a ordem do baú        |
-| `fragileOnTop`    | caixa frágil, e ela vai por cima                                  |
-| `notStackable`    | nada pode ser empilhado em cima dela                              |
-| `keepUpright`     | ela não deita                                                     |
-| `estimatedBox`    | caixa presumida: a medida saiu do volume da nota, não de uma fita |
-| `axleNotChecked`  | carga por eixo **não** foi conferida                              |
-| `splitCargo`      | não coube na própria fatia e foi para o fundo dela                |
-| `weightBalanced`  | o bloco foi centrado no baú por causa do peso                     |
-| `outOfReach`      | complemento: funda demais para a mão de quem fica de pé no piso   |
-| `needsRehandling` | complemento: fura a ordem de descarga                             |
+| marca             | o que diz                                                                                           |
+| ----------------- | --------------------------------------------------------------------------------------------------- |
+| `lastStopFirst`   | a última entrega foi carregada primeiro — é a ordem do baú                                          |
+| `fragileOnTop`    | caixa frágil, e ela vai por cima                                                                    |
+| `notStackable`    | nada pode ser empilhado em cima dela                                                                |
+| `keepUpright`     | ela não deita                                                                                       |
+| `estimatedBox`    | caixa presumida: a medida saiu do resíduo da própria nota ou da mediana da empresa, não de uma fita |
+| `axleNotChecked`  | carga por eixo **não** foi conferida                                                                |
+| `splitCargo`      | não coube na própria fatia e foi para o fundo dela                                                  |
+| `weightBalanced`  | o bloco foi centrado no baú por causa do peso                                                       |
+| `outOfReach`      | complemento: funda demais para a mão de quem fica de pé no piso                                     |
+| `needsRehandling` | complemento: fura a ordem de descarga                                                               |
 
 ### Caixa que ficou de fora (`UNPLACED_REASONS`)
 
