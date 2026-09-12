@@ -15,6 +15,13 @@ import { describe, expect, test } from 'bun:test'
 import { buildInvitationDeliveryRabbitMqTopology } from '../../src/messaging/invitation-delivery-rabbitmq-topology.js'
 import { invitationDeliveryEnvelopeV1Schema } from '../../src/messaging/invitation-delivery-envelope.schema.js'
 import { handleInvitationDelivery } from '../../src/identity/application/deliver-invitation-code.service.js'
+import { InvitationChannelUnavailableError } from '../../src/identity/infrastructure/invitation-channel.gateway.js'
+import { startInvitationDeliveryConsumer } from '../../src/runtime/invitation-delivery-consumer.service.js'
+import {
+  WhatsAppChannelNotConfiguredError,
+  WhatsAppRecipientInvalidError,
+} from '../../src/whatsapp/infrastructure/whatsapp-code-sender.gateway.js'
+import { createCapturedConsumer } from '../fixtures/captured-consumer.fixture.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000001'
 const USER_ID = '00000000-0000-4000-8000-0000000000aa'
@@ -32,7 +39,9 @@ const MESSAGE = {
   version: 1,
 } as const
 
-function createHarness(overrides: { readonly sendFails?: boolean } = {}) {
+function createHarness(
+  overrides: { readonly sendFails?: boolean; readonly sendError?: Error } = {},
+) {
   const sent: { readonly address: string; readonly body: string; readonly channel: string }[] = []
   const invitationWrites: string[] = []
   const logged: string[] = []
@@ -40,6 +49,7 @@ function createHarness(overrides: { readonly sendFails?: boolean } = {}) {
   const dependencies = {
     channels: {
       async send(input: { address: string; body: string; channel: string }) {
+        if (overrides.sendError !== undefined) throw overrides.sendError
         if (overrides.sendFails === true) throw new Error('SMTP indisponível')
         sent.push(input)
       },
@@ -129,5 +139,48 @@ describe('consumidor entrega pelo canal da empresa', () => {
 
     expect(harness.invitationWrites).not.toContain('invalidate')
     expect(harness.invitationWrites).not.toContain('markDelivered')
+  })
+})
+
+describe('disposição do consumidor quando a entrega falha', () => {
+  async function dispositionFor(sendError: Error) {
+    const harness = createHarness({ sendError })
+    const consumer = createCapturedConsumer()
+    await startInvitationDeliveryConsumer({
+      config: consumer.config,
+      dependencies: harness.dependencies as never,
+      logger: consumer.logger,
+      provider: consumer.provider,
+    })
+    return { disposition: await consumer.deliver(MESSAGE), logged: consumer.logged }
+  }
+
+  test('contato que não é telefone brasileiro vai direto para a dead queue', async () => {
+    const { disposition } = await dispositionFor(new WhatsAppRecipientInvalidError(COMPANY_ID))
+
+    expect(disposition).toEqual({ type: 'dead-letter' })
+  })
+
+  test('falha de transporte continua voltando para retry', async () => {
+    const { disposition } = await dispositionFor(new Error('SMTP indisponível'))
+
+    expect(disposition).toEqual({ type: 'retry' })
+  })
+
+  test('canal sem configuração continua em retry: a configuração pode chegar na janela', async () => {
+    const unavailable = await dispositionFor(new InvitationChannelUnavailableError('whatsapp'))
+    const notConfigured = await dispositionFor(new WhatsAppChannelNotConfiguredError(COMPANY_ID))
+
+    expect(unavailable.disposition).toEqual({ type: 'retry' })
+    expect(notConfigured.disposition).toEqual({ type: 'retry' })
+  })
+
+  test('a recusa permanente não escreve contato nem código em log', async () => {
+    const { logged } = await dispositionFor(new WhatsAppRecipientInvalidError(COMPANY_ID))
+
+    const everything = JSON.stringify(logged)
+    expect(everything).toContain('invitation_delivery_consumer_failed')
+    expect(everything).not.toContain('pessoa@example.test')
+    expect(everything).not.toContain(CODE)
   })
 })
