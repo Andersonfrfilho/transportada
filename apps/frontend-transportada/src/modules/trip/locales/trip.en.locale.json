@@ -437,9 +437,9 @@
       "stop": "Stop"
     },
     "estimateSource": {
-      "median": "Product median",
+      "median": "Company median",
       "none": "No estimate",
-      "note": "Invoice note"
+      "note": "Note residual"
     },
     "goToQueue": "Go to measurement queue",
     "title": "What's left to measure",

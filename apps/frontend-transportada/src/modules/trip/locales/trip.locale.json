@@ -573,9 +573,9 @@
       "stop": "Parada"
     },
     "estimateSource": {
-      "median": "Mediana do produto",
+      "median": "Mediana da empresa",
       "none": "Sem estimativa",
-      "note": "Ficha da nota"
+      "note": "Resíduo da nota"
     },
     "goToQueue": "Ir para a fila de medição",
     "title": "O que falta medir",

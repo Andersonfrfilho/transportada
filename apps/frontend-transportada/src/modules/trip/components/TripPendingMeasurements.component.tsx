@@ -39,16 +39,16 @@ export function TripPendingMeasurements({ measurements }: TripPendingMeasurement
             </tr>
           </thead>
           <tbody>
-            {measurements.map((measurement, index) => (
+            {measurements.map((measurement) => (
               <tr
-                key={`${measurement.sequence}-${measurement.documentNumber ?? ''}-${measurement.productCode ?? ''}-${index}`}
+                key={`${measurement.sequence}-${measurement.documentNumber ?? ''}-${measurement.productCode ?? ''}`}
               >
                 <td>
                   {measurement.label ??
                     measurement.productCode ??
                     t('pendingMeasurement.unknownProduct')}
                 </td>
-                <td>{measurement.documentNumber ?? ''}</td>
+                <td>{measurement.documentNumber ?? '—'}</td>
                 <td>{measurement.stopLabel}</td>
                 <td>{measurement.boxCount}</td>
                 <td>{t(`pendingMeasurement.estimateSource.${measurement.estimateSource}`)}</td>
