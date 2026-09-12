@@ -141,6 +141,18 @@ import { DrizzleNfseCallbackRepository } from './nfse-callbacks/infrastructure/d
 import { createWhatsAppWebhookRoutes } from './whatsapp/presentation/whatsapp-webhook.routes.js'
 import { createMetaWhatsAppModuleResolver } from './whatsapp/application/meta-whatsapp-module.resolver.js'
 import { createDrizzleWebhookNonceStore } from './whatsapp/infrastructure/drizzle-webhook-nonce.store.js'
+import { createRateLimiter } from './http/rate-limiter.service.js'
+import { createResolveWhatsAppActorUseCase } from './whatsapp-commands/application/resolve-whatsapp-actor.use-case.js'
+import { createStaticWhatsAppFlowGraphProvider } from './whatsapp-commands/application/whatsapp-flow-graph.service.js'
+import {
+  WHATSAPP_ROOT_FLOW,
+  WHATSAPP_ROOT_FLOW_KEY,
+} from './whatsapp-commands/domain/whatsapp-root-flow.constant.js'
+import { DrizzleWhatsAppPhoneRepository } from './whatsapp-commands/infrastructure/drizzle-whatsapp-phone.repository.js'
+import {
+  createWhatsAppCommandHookFactory,
+  type WhatsAppCommandHookFactory,
+} from './whatsapp-commands/infrastructure/whatsapp-command-hook.factory.js'
 import { createNfseCallbackRoutes } from './nfse-callbacks/presentation/nfse-callbacks.routes.js'
 import { createBillingUseCase } from './billing/application/billing.use-case'
 import { createInvoiceDocumentUseCase } from './billing/application/invoice-document.use-case'
@@ -604,6 +616,28 @@ export function bootstrap(): Bun.Server<undefined> {
   const tenantContext = new TenantContextService({
     repository: new DrizzleMembershipRepository(database.db),
   })
+  /**
+   * Spec 144 T006 — o despachante das mensagens recebidas. O teto por número é um só para a
+   * instalação: a instância do módulo é refeita quando o token muda, e o teto não pode zerar junto.
+   */
+  const whatsappCommandHook = createWhatsAppCommandHookFactory({
+    apiVersion: config.whatsapp.apiVersion,
+    authorization: new AuthorizationService(),
+    baseUrl: config.whatsapp.baseUrl,
+    clock: () => new Date(),
+    flowActions: [],
+    graphs: createStaticWhatsAppFlowGraphProvider({
+      graphs: [WHATSAPP_ROOT_FLOW],
+      rootFlowKey: WHATSAPP_ROOT_FLOW_KEY,
+    }),
+    logger,
+    rateLimiter: createRateLimiter(),
+    resolveActor: createResolveWhatsAppActorUseCase({
+      memberships: new DrizzleMembershipRepository(database.db),
+      phones: new DrizzleWhatsAppPhoneRepository(database.db),
+      tenantContext,
+    }),
+  })
   // Ausente qualquer um dos dois, a conta do agregado não é montada: `tenancy.mode: 'single'` exige
   // a empresa raiz, e sem segredo não há com o que assinar o access token do módulo (064/T1).
   const userModule =
@@ -615,7 +649,13 @@ export function bootstrap(): Bun.Server<undefined> {
           db: database.db,
         })
   const router = createRouter({
-    anonymousRoutes: createAnonymousRoutes({ config, database: database.db, logger, userModule }),
+    anonymousRoutes: createAnonymousRoutes({
+      config,
+      database: database.db,
+      logger,
+      userModule,
+      whatsappCommandHook,
+    }),
     authentication,
     authorization: new AuthorizationService(),
     companyFiscalEnvironment: new DrizzleCompanyFiscalEnvironmentRepository(database.db),
@@ -740,6 +780,7 @@ type CreateAnonymousRoutesParams = {
   readonly logger: ApiLogger
   /** Ausente, a rota de cadastro de conta de agregado não é publicada — mesma regra do módulo. */
   readonly userModule: UserModule | undefined
+  readonly whatsappCommandHook: WhatsAppCommandHookFactory
 }
 
 /** Sem `companyId` de ambiente a rota de arranque fica morta (ADR-0022) — nenhuma rota anônima existe. */
@@ -756,6 +797,7 @@ function createAnonymousRoutes({
   database,
   logger,
   userModule,
+  whatsappCommandHook,
 }: CreateAnonymousRoutesParams): readonly RegisteredAnonymousRoute[] {
   // O callback de NFS-e não depende da empresa de ambiente: quem diz a empresa é o token opaco.
   /**
@@ -786,6 +828,7 @@ function createAnonymousRoutes({
       apiVersion: config.whatsapp.apiVersion,
       appSecret: config.whatsapp.webhook?.appSecret ?? '',
       baseUrl: config.whatsapp.baseUrl,
+      buildMessageHook: whatsappCommandHook,
       database,
       nonceStore: createDrizzleWebhookNonceStore(database),
       repository: new DrizzleWhatsAppChannelRepository(database),

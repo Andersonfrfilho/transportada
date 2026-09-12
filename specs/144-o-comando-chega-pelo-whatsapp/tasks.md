@@ -45,7 +45,7 @@ Fase 2, logo depois da T006.
 
 > 🤖 Modelo: `sonnet` (T006 é 🧠 — onde mensagem vira execução)
 
-- [ ] **T006** 🧠 `WhatsAppCommandDriver` no hook `onMessageReceived` do resolver por empresa: resolve o
+- [x] **T006** 🧠 `WhatsAppCommandDriver` no hook `onMessageReceived` do resolver por empresa: resolve o
       ator, roda `flows.interpreter`, envia `fallbackMessage`, handoff na segunda recusa, teto de
       30/10 min por número — `application/whatsapp-command-driver.service.ts`,
       `src/whatsapp/application/meta-whatsapp-module.resolver.ts` — integração com Graph API fake
