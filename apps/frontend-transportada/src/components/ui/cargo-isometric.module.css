@@ -96,7 +96,7 @@
   fill: none;
   stroke: var(--color-copper);
   stroke-dasharray: 8 3;
-  stroke-width: 1.6;
+  stroke-width: 1;
 }
 
 /** A caixa que também fura a ordem de descarga: mesmo traço, mais grosso — o aviso mais grave. */
@@ -104,7 +104,7 @@
   fill: none;
   stroke: var(--color-copper);
   stroke-dasharray: 8 3;
-  stroke-width: 2.6;
+  stroke-width: 1.5;
 }
 
 /** A divisa entre as fatias das paradas: onde a carga de uma acaba e a da seguinte começa. */
