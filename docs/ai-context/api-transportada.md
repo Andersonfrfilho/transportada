@@ -1430,3 +1430,72 @@ uma permissão que alguém esqueceu de checar, é um caminho que não existe par
 
 A confirmação do número (a mensagem que chega com o código) é **pré-passo do despachante**, não
 `FlowAction` — ela roda antes de existir ator, então não há como registrá-la como ação autorizada.
+
+## A planta sai do event loop — spec 145 e ADR-0063
+
+**O empacotador é computação pura custosa.** `resolveCargoLayout(...)` com 51 paradas e 993 caixas
+mede **16,9 s de CPU em 18 s de parede**, o suficiente para bloquear o event loop e derrubar rotas
+vizinhas em 503 (incidente medido 2026-09-10, viagem `5715dd82`). Não é possível otimizar dentro
+do `packSlice` sem perder qualidade — a grade de busca é o que o torna exato —, e guardar a planta
+significa o SQL cria `trip_cargo_layouts` com ciclo de vida próprio.
+
+**A decisão é ADR-0063, estendendo ADR-0044 §7:** a planta é calculada no worker, nunca na API
+síncrona. A API enfileira por hash e lê quando pronto. Hash é `sha256(canonicalJson({
+policyVersion, capacityM3, bed{l,w,h,source}, loadingAccess, securesCargo, payloadRatio,
+fallbackBoxVolumeM3, measuredShapes, stops[ordered by sequence]{ sequence, boxes[]{ documentId,
+dims, qty, measured } } }))` — estável sob rótulo/clientName/noteNumbers, muda com reorder/troca
+de caixa/troca de baú/`loadingAccess`/`securesCargo`/`policyVersion`.
+
+**Gatilho eager (D7).** Use cases que tocam parada ou caixa (`trip.use-case.ts:create`,
+`linkDocument`/`releaseDocument`/`linkDocumentsBatch`, `reorder-trip-stops`, `override-delivery-address`,
+`reconcile-trip-stops`) chamam `requestCargoLayoutForTrip(transaction, { companyId, tripId })` como
+último passo, enfileirando `'queued'` na tabela com evento de outbox — transação única, no-op
+idempotente se o registro já existe com mesmo hash e status `queued`/`running`/`ready`.
+
+**Gatilho lazy (D10).** `readTripDetail` recalcula o hash com dado já carregado (é barato — está em
+memória) e compara com guardado. Não bate (mudança de baú, `loadingAccess`, ou `company_cargo_settings`
+novo)? Enfileira em transação curta separada, idempotente por hash, sem que a leitura fique mais lenta.
+A leitura mesmo com `ready` + hash igual devolve a planta guardada.
+
+**Worker (T7–T9).** Consumidor `CargoLayoutConsumer` (prefetch 1) reclama pedidos por hash
+(`UPDATE ... SET status='running' WHERE status='queued' AND input_hash=$hash`); nula ou hash superado
+→ ack sem calcular. Executa `@adatechnology/cargo-placement` em `new Worker()` de thread com orçamento
+de tempo: tentativa N = base × 2^(N−1), padrão 60 s → 120 s → 240 s nos três retries da topologia
+(retry 30 s). Vencido o prazo: caixas ainda não visitadas voltam em `unplaced` com `reason:
+'time_budget'`; na última tentativa, grava `ready` com essas caixas em `unplaced`. Exceção ou thread
+morta vira `failed`. Sem capacidade (D15) vira `failed` com código `CARGO_LAYOUT_UNAVAILABLE`, ack
+(não retry).
+
+**Lease (D14).** O claim também aceita `running` com `updated_at` mais velho que lease ≈ 280 s
+(maior orçamento + 10 s margem + 30 s folga). Worker parado? Linha fica presa, até que o gatilho lazy
+da API a reabre e o próximo claim a reclama. Falha de escrita depois da reivindicação → `release` +
+`retry`.
+
+**Reuso entre prévia e viagem (D3).** Prévia é um pedido sem `trip_id`. Viagem criada com mesmo hash
+reutiliza a planta já calculada, sem novo cálculo — duas entidades (`CargoLayoutInput` do retrato,
+`StoredCargoLayoutInput` guardado) e uma chave (`input_hash`).
+
+**Schema:** tabela `trip_cargo_layouts` com `id uuid`, `company_id` FK, `trip_id` opcional FK
+composta `(company_id, trip_id)`, `status` CHECK em `CARGO_LAYOUT_STATUSES = ['queued','running',
+'ready','failed']` (sem pgEnum), `input_hash`, `policy_version`, `input jsonb` (retrato inteiro com
+rótulo/clientName/noteNumbers para o worker empacotar sem reler), `layout jsonb` opcional, `error_code`,
+`attempt`, `duration_ms`, `computed_at`, `created_at`, `updated_at`. Invariantes no banco: `layout_check`
+(ready ⇔ layout not null), `error_code_check` (failed ⇔ error_code não vazio), `counters_check`
+(attempt ≥ 0). `unique(company_id, input_hash)` (um cálculo por entrada por empresa), índice
+`(company_id, trip_id)` para leitura de D10.
+
+**Armadilhas.** O pacote `@adatechnology/cargo-placement` roda em link local (`:link`); publicação além
+disso é fora desta spec (não é commit aqui). Campo novo na API sem atualizar `StoredCargoLayoutInput`
+do worker vira `failed` no decode Zod (schema estrito da coluna `input`, teste de paridade
+`cargo-layout-schema.contract.ts`). Lease padrão 280 s em construtores dos repositórios — mudança
+exigiria audit de callers. Ausência de teste isolado do worker contra Postgres real para reivindicação
+por lease (testado em contrato de composição com fake, não integração). Revalidação em massa quando
+`policyVersion` muda não existe — cada viagem recalcula sob demanda (lazy).
+
+**Frontend (D4, D12, D13).** `TripCargoLayers.component.tsx` mostra esqueleto do baú + layout anterior
+como fantasma translúcido + selo "reorganizando a carga" enquanto `pending`, anima suavemente para
+novo layout quando chega. Polling `GET /trips/cargo-layouts/:layoutId` enquanto `pending`, teto de 10
+min (soma 60+120+240 s das escalas + 30 s por retry ×2, com folga), depois "não foi possível calcular
+agora". Tipo `cargoLayoutState: { status, computedAt, errorCode, stale, truncated? }` opcional
+(janela de deploy: front novo com API velha), ausência significa `unavailable`. Truncado é derivado na
+leitura (T10) de `unplaced[].reason === 'time_budget'`, sem `truncated: true` gravado.

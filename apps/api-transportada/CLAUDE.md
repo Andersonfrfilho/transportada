@@ -145,6 +145,12 @@ Invariantes mais cotadas para não reimplementar por engano:
   medição anterior — nunca duas verdades para a mesma caixa.
 - A planta do baú é `<svg>` do design system (`scale-plan.tsx`), nunca `<svg>` cru — a escala é a
   única promessa do desenho, e ela precisa ser conferível sem DOM (`buildScalePlanViewBox`).
+- **A planta é calculada no worker** (ADR-0063, spec 145): o empacotador (`@adatechnology/cargo-placement`)
+  roda em `new Worker()` com orçamento de tempo; a tabela `trip_cargo_layouts` guarda o resultado;
+  a API enfileira por hash (eager em use cases que tocam parada/caixa, lazy em `readTripDetail`
+  recalculando), lê quando pronto e nunca empacota na requisição. Sem baú: `unavailable`. Índices
+  novos em `nfe_volumes`, `nfe_products`, `nfe_package_boxes`. Detalhe: docs/ai-context § "A planta
+  sai do event loop", ADR-0063 §1–7.
 
 ## Peso da carga
 

@@ -409,3 +409,25 @@ Dois defeitos passaram por contratos que estavam verdes — e estavam verdes por
 que o código fazia. Um deles (_"a entrega dominante estreita as vizinhas"_) afirmava o defeito com todas
 as letras. O primeiro foi achado pela evidência da spec; o segundo, pela revisão de código. Nenhum dos
 dois teria aparecido escrevendo mais contratos.
+
+---
+
+## Arquitetura: a planta sai do event loop — spec 145 e ADR-0063
+
+O empacotador — a política que decide como as caixas cabem no baú — é **computação pura e cara**.
+Medido na viagem `5715dd82` (51 paradas, 993 caixas): **16,9 s de CPU**, suficiente para bloquear o
+event loop e derrubar rotas vizinhas em 503.
+
+**ADR-0063** estende **ADR-0044 §7** — a otimização não pode ficar na API síncrona. A planta passa a
+ser calculada no worker, enfileirada quando a entrada muda (eager, nos use cases que tocam parada/caixa)
+ou quando alguém lê a viagem com hash divergente (lazy, em `readTripDetail`). Guardada em tabela própria
+com ciclo de vida independente, ciclo `queued → running → ready|failed`, orçamento de tempo em escada
+(60/120/240 s), reivindicação por lease, e reutilização entre prévia e viagem pelo hash de entrada.
+
+**spec 145** (T0–T13) implementa: tabela `trip_cargo_layouts`, índices de cubagem, outbox de pedido,
+relay, consumidor com thread orçada, leitura da planta pela API, e frontend que aguarda com tela de
+"reorganizando a carga". O padrão de idempotência é por reivindicação (claim by hash), como em
+roteirização, não por tabela de processados — a planta é derivada que recalcula se o hash muda.
+
+Quem for mexer no empacotador lê **aqui**, a seção correspondente de `docs/ai-context/api-transportada.md`,
+e **ADR-0063** antes de tocar em código da API ou do worker.

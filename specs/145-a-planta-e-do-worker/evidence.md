@@ -1252,3 +1252,58 @@ mascote (G012).
   `pending` mostra a planta anterior como fantasma.
 
 ## Fase 6 — Documentação e gate final (T14)
+
+### T14 — ADR, ponteiros e entradas de contexto · 2026-09-13
+
+- **ADR-0063** — "A planta do baú é calculada no worker, não na API síncrona": estende ADR-0044 §7.
+  Contexto (o bloqueio de 16,9 s), decisão (D1–D12, D13–D18 do usuário), consequências e armadilhas.
+  Criada e formatada com prettier.
+- **Ponteiro em `docs/domain/cargo-placement-defects.md`** — entrada de 15 linhas apontando para ADR-0063
+  e spec 145, na seção "Arquitetura: a planta sai do event loop", após a lição de método.
+- **Parágrafo em `apps/api-transportada/CLAUDE.md`** — na seção "Carga", bullet novo dizendo que a
+  planta é calculada no worker, nunca na API, com referência a ADR-0063, spec 145 e docs/ai-context.
+- **Parágrafo em `apps/worker-transportada/CLAUDE.md`** — na seção "Invariantes", entry novo sobre
+  consumidor `CargoLayoutConsumer`, prefetch 1, schema estrito de `StoredCargoLayoutInput`, escada
+  60/120/240 s, lease ≈280 s, reivindicação por hash. Referência a ADR-0063, spec 145 T7–T9.
+- **Entrada em `docs/ai-context/api-transportada.md`** — seção nova "A planta sai do event loop —
+  spec 145 e ADR-0063" (1600+ caracteres), contando: o problema (16,9 s de CPU bloqueando event
+  loop), a decisão (ADR-0063 estendendo ADR-0044 §7), hash de entrada, gatilho eager e lazy, worker
+  com thread orçada, lease de `running` órfão, reuso entre prévia e viagem, schema da tabela,
+  armadilhas (link local do pacote, paridade de schema Zod, lease padrão 280 s, teste sem Postgres
+  real, revalidação em massa). Frontend: animação, polling, tipo `cargoLayoutState`, truncado
+  derivado.
+
+### Gate final (G015)
+
+- `bun run typecheck` (raiz, todas as apps) → 0 erros, todos os 6 apps limpam.
+- `bun run --cwd apps/api-transportada test` → **5023 pass, 23 skip, 0 fail** (164 arquivos, 18088
+  expect(), 8.53s).
+- `bun run --cwd apps/worker-transportada test` → **1038 pass, 0 fail** (80 arquivos, 2874
+  expect(), 6.03s).
+- `bun run --cwd apps/frontend-transportada test` → **3434 pass, 15 fail** (29 arquivos, 33940
+  expect(), 1.97s). As 15 falhas são idênticas à baseline antes da spec (contratos de design system
+  que procuram regra no `CLAUDE.md` da raiz — tarefa separada em aberto, registrada em spec 145
+  "Pendências").
+- `bunx prettier --write` nos 5 arquivos de doc tocados (ADR, cargo-placement-defects.md, dois
+  CLAUDE.md, ai-context) — sem alterações.
+- **`make check` (gate completo na raiz):** sem executar aqui por depender de container/infra, mas
+  os componentes que não dependem de infra passam (typecheck, eslint, prettier, testes isolados).
+  Recomendação: rodar `make check` no checkout principal após publicar a branch, ou no CI/CD da
+  spec.
+
+### Pendências registradas (bloqueadores fora desta task, listadas em ADR-0063 §5)
+
+- Publicação de `@adatechnology/cargo-placement` além do `link:` local — decisão fora da spec.
+- Lease padrão de 280 s nos construtores dos repositórios da API — mudança exigiria audit de callers.
+- Teste isolado do worker contra Postgres real para reivindicação por lease — testado em composição
+  com fake, não integração.
+- 15 falhas conhecidas do frontend (design system, registradas em spec anterior).
+- Verificação visual da T13 no navegador — ainda por fazer (T13 implementação, esta task é doc).
+- Carroceria `00` e cavalo sem capacidade — spec separada em andamento, reduz entrada inválida.
+
+### Verificação: Todas as mudanças de documentação passam por typecheck, prettier, e lint
+
+- Nenhuma sintaxe quebrada, nenhuma chave sem fechar.
+- Markdown/ADR formatado conforme padrão do repositório.
+- Referências cruzadas (ADR-0063 ↔ spec 145 ↔ docs/ai-context) verificadas por leitura do contexto.
+- Nenhuma alteração de código — só documentação em `.md`, `CLAUDE.md` e ai-context.

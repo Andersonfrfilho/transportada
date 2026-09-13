@@ -13,7 +13,7 @@
 | 3    | T12a    | ✅ feita | `sonnet`           | `opus`                            |
 | 4    | T10–T11 | ✅ feita | `sonnet`           | `opus`                            |
 | 5    | T12–T13 | ✅ feita | `sonnet`           | `opus`                            |
-| 6    | T14     | pendente | `haiku`            | `sonnet` → `opus`                 |
+| 6    | T14     | ✅ feita | `haiku`            | `sonnet` → `opus`                 |
 | —    | revisão | pendente | `opus`             | `fable`                           |
 
 **Troca de modelo sem `/model`:** cada task vai para um subagente com `model=<recomendado>`. A
@@ -152,7 +152,7 @@ status='queued' AND input_hash=$hash`; nula → confirma e descarta; hash supera
 
 > 🤖 Modelo: `haiku`
 
-- [ ] T14 — ADR "a planta é do worker" (estende ADR-0044 §7); ponteiro em
+- [x] T14 — ADR "a planta é do worker" (estende ADR-0044 §7); ponteiro em
       `docs/domain/cargo-placement-defects.md`; `apps/api-transportada/CLAUDE.md` e
       `apps/worker-transportada/CLAUDE.md` apontando para a spec 145; entrada em
       `docs/ai-context/api-transportada.md` (G014). `evidence.md` fechado, com o gate final
