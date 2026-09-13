@@ -36,14 +36,15 @@
       Suíte do pacote sem falha nova (G3); `exact-edges` e `complement` verdes. Se não zerar sem regra
       protegida, parar e levar ao usuário o que sobra, a regra e o número (D3).
 
-- [ ] T3b 🧠 — D4: fase de reorganização depois da montagem em parede (subir caixas sobre colunas com
+- [ ] T3b 🧠 — D4 + D6: fase de reorganização depois da montagem em parede, dirigida pelos vãos (mapear os
+      espaços livres, os altos primeiro, e escolher para cada um a caixa restante que melhor o preenche; subir caixas sobre colunas com
       altura livre, compactar vãos, reabrir regiões e rearrumar com as caixas de fora), aceitando só trocas
       que diminuem as caixas de fora sem violar D23/D25, apoio de 80%, ordem de descarga e alcance; parar no
       prazo com a melhor arrumação. Medir caixas de fora, tempo e retrabalho nas 6 entradas, com `check.ts`
       e `tall.ts` em zero violações. Separar no relatório as caixas que não cabem pelas regras (`classify.ts`:
       sem assento com 80% de apoio) das que o algoritmo deixou escapar — a meta é zerar as segundas.
 
-- [ ] T3c — D5: passada final no pacote que coloca as caixas restantes onde couberem, inclusive por cima de
+- [ ] T3c — D5 + D6: passada final no pacote, também dirigida pelos vãos, que coloca as caixas restantes onde couberem, inclusive por cima de
       entrega anterior, com apoio de 80% e sem pilha alta isolada. Marca cada uma com um motivo próprio (ex.:
       `overEarlierDelivery`) e com a entrega que ela cobre. Medir caixas de fora e retrabalho por parada.
       No app: marca própria no mapa 3D e lista "caixas por cima" (caixa, nota, entrega coberta, parada em que

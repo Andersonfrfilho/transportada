@@ -84,6 +84,13 @@ para 16 com a D1.
   Medir por parada quantas caixas o conferente passa a mexer. Medido na spec 145: 56 das 162 caixas de fora da
   Atego só achariam lugar por cima de entrega anterior.
 
+- **D6 — Escolher a caixa pelo vão, não o vão pela caixa (proposta do usuário, 2026-09-13).** Hoje o
+  empacotador pega a próxima caixa e procura um assento; se não acha, ela fica de fora, mesmo havendo vão alto
+  livre onde outra caixa restante caberia. Na reorganização (D4) e na passada final (D5), inverter: mapear os
+  espaços vazios que sobraram (vãos máximos, começando pelos altos acima das colunas) e, para cada vão,
+  escolher entre as caixas restantes a que melhor o preenche e cabe nas regras (apoio de 80%, D23/D25, sem
+  pilha alta isolada). Repetir até não haver vão onde caiba alguma caixa restante, ou até o prazo vencer.
+
 ## Fora do escopo
 
 - Mudar apoio de 80%, célula de 5 cm ou `STABLE_STACK_SLENDERNESS` sem decisão explícita do usuário.
