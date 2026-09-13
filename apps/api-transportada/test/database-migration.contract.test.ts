@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import './database-migration/static-migration.contract.js'
+import './database-migration/schema-snapshot.contract.js'
 import './database-migration/migration-readiness.contract.js'
 import './database-migration/pre-deploy.contract.js'
 import './database-migration/database-migration.integration.js'
