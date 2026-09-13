@@ -207,6 +207,8 @@ export type FleetVehicleBody = FleetVehicleCostFields &
     cargoLengthMeters: string
     cargoWidthMeters: string
     color: string
+    /** Spec 147 D3: a carreta padrão do cavalo — a API a recusa fora de `tractor_unit`. */
+    defaultTrailerVehicleId: null | string
     fleetNumber: string
     fuelType: FuelProduct
     /** Spec 095 D3: com a tag, o pedágio usa a automática da praça quando ela é conhecida. */
@@ -233,8 +235,6 @@ export type FleetVehicleDetail = FleetVehicleBody &
     costPerKilometerBreakdown: FleetVehicleCostBreakdown | null
     costsUpdatedAt: null | string
     createdAt: string
-    /** Spec 147 D3: a carreta que este cavalo puxa por padrão — só existe em `tractor_unit`. */
-    defaultTrailerVehicleId: null | string
     fuelPrice: FleetVehicleFuelPrice | null
     id: string
     /** Derivado pela API — prestação + (IPVA + seguro) ÷ 12. */
@@ -493,6 +493,10 @@ export type FleetVehicleFormState = FleetVehicleCostFields &
     cargoLengthMeters: string
     cargoWidthMeters: string
     color: '' | VehicleColor
+    /**
+     * Feature 147 D3: `''` é "ainda não escolhido" — fora do cavalo o valor enviado é sempre `null`.
+     */
+    defaultTrailerVehicleId: string
     fleetNumber: string
     fuelType: FuelProduct
     hasAutomaticTollPayment: boolean

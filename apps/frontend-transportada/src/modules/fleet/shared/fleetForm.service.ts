@@ -69,6 +69,8 @@ export const EMPTY_VEHICLE_FORM: FleetVehicleFormState = {
   cargoLengthMeters: '',
   cargoWidthMeters: '',
   color: '',
+  /** Feature 147 D3: vazio até o operador escolher — fora do cavalo o valor enviado é sempre `null`. */
+  defaultTrailerVehicleId: '',
   fleetNumber: '',
   fuelType: DEFAULT_FUEL_PRODUCT,
   hasAutomaticTollPayment: false,
@@ -187,6 +189,7 @@ export function toVehicleFormState(vehicle: FleetVehicleDetail): FleetVehicleFor
     loadingAccess: vehicle.loadingAccess,
     brand: vehicle.brand,
     color: toVehicleColor(vehicle.color),
+    defaultTrailerVehicleId: vehicle.defaultTrailerVehicleId ?? '',
     fleetNumber: vehicle.fleetNumber,
     fuelType: vehicle.fuelType,
     hasAutomaticTollPayment: vehicle.hasAutomaticTollPayment,
@@ -342,6 +345,8 @@ export function toVehicleBody(state: FleetVehicleFormState): FleetVehicleBody {
     loadingAccess: state.loadingAccess,
     brand: state.brand,
     color: state.color,
+    defaultTrailerVehicleId:
+      state.defaultTrailerVehicleId === '' ? null : state.defaultTrailerVehicleId,
     fleetNumber: state.fleetNumber,
     fuelType: state.fuelType,
     hasAutomaticTollPayment: state.hasAutomaticTollPayment,

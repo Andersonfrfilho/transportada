@@ -69,6 +69,8 @@ export type FleetVehicleBodyContract = FleetVehicleCostFieldsContract &
     cargoLengthMeters: string
     cargoWidthMeters: string
     color: string
+    /** Spec 147 D3: só existe em `tractor_unit` — nos demais tipos é sempre `null`. */
+    defaultTrailerVehicleId: null | string
     fleetNumber: string
     fuelType: FleetVehicleFuelProductContract
     hasAutomaticTollPayment: boolean
@@ -102,7 +104,6 @@ export type FleetVehicleDetailContract = FleetVehicleBodyContract &
     costPerKilometerBreakdown: FleetVehicleCostBreakdownContract | null
     costsUpdatedAt: null | string
     createdAt: string
-    defaultTrailerVehicleId: null | string
     fuelPrice: FleetVehicleFuelPriceContract | null
     id: string
     monthlyFixedCost: null | string
@@ -227,6 +228,7 @@ export const VEHICLE_BODY = {
   cargoLengthMeters: '0.00',
   cargoWidthMeters: '0.00',
   color: 'branca',
+  defaultTrailerVehicleId: null,
   fleetNumber: '101',
   fuelType: 'diesel-s10',
   hasAutomaticTollPayment: false,
@@ -504,6 +506,7 @@ export const VEHICLE_DRAFT_BODY = {
   cargoLengthMeters: '0.00',
   cargoWidthMeters: '0.00',
   color: '',
+  defaultTrailerVehicleId: null,
   fleetNumber: '',
   fuelType: 'diesel-s10',
   hasAutomaticTollPayment: false,

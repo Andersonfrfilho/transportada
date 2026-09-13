@@ -188,6 +188,11 @@
     "previousMonth": "Mês anterior"
   },
   "deactivate": "Desativar",
+  "defaultTrailer": "Carreta padrão",
+  "defaultTrailerHint": "Sugestão para a viagem nova deste cavalo — pode ser trocada depois, na própria viagem.",
+  "defaultTrailerNotATrailer": "O veículo escolhido não é uma carreta ativa desta frota.",
+  "defaultTrailerPlaceholder": "Sem carreta padrão",
+  "defaultTrailerRequiresTractor": "Só o cavalo mecânico tem carreta padrão.",
   "documentPlateTaken": "A placa {{plate}} já está cadastrada nesta frota.",
   "documentPlateTakenAction": "Abrir a ficha existente",
   "documents": {
@@ -684,6 +689,7 @@
   },
   "renavam": "Renavam",
   "role": "Função no conjunto",
+  "roleChangeBlocked": "Esta carreta é padrão de um cavalo ou está numa viagem aberta — solte o vínculo antes de trocar a função.",
   "roleOption": {
     "traction": "Tração",
     "trailer": "Reboque"

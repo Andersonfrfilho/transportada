@@ -185,6 +185,11 @@
     "previousMonth": "Previous month"
   },
   "deactivate": "Deactivate",
+  "defaultTrailer": "Default trailer",
+  "defaultTrailerHint": "Suggestion for this tractor's next trip — it can be changed later, on the trip itself.",
+  "defaultTrailerNotATrailer": "The chosen vehicle is not an active trailer of this fleet.",
+  "defaultTrailerPlaceholder": "No default trailer",
+  "defaultTrailerRequiresTractor": "Only the tractor unit has a default trailer.",
   "documentPlateTaken": "Plate {{plate}} is already registered in this fleet.",
   "documentPlateTakenAction": "Open the existing record",
   "documents": {
@@ -652,6 +657,7 @@
   },
   "renavam": "Renavam",
   "role": "Role in the set",
+  "roleChangeBlocked": "This trailer is a tractor's default or is on an open trip — release the link before changing its role.",
   "roleOption": {
     "traction": "Traction",
     "trailer": "Trailer"

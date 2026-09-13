@@ -1,9 +1,11 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useTranslation } from 'react-i18next'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Select } from '@/components/ui/select'
 import { LOADING_ACCESS_KINDS } from '@/modules/shared/loadingAccess.constant'
 
-import type { FleetVehicleFormState } from '../shared/fleet.types'
+import { useVehicleSelectOptions } from '../hooks/useVehicleSelectOptions.hook'
+import type { FleetVehicleDetail, FleetVehicleFormState } from '../shared/fleet.types'
 import type { VehicleSuggestionOrigin } from '../shared/vehicleSuggestion.service'
 import { VEHICLE_MEASURE_FIELD_SCALE } from '../shared/fleetVehicleMeasure.service'
 import {
@@ -17,6 +19,9 @@ import {
 import styles from '../styles/fleet.module.css'
 import { FleetMeasureField, FleetSelectField } from './FleetField.component'
 
+const TRAILER_ROLE = 'trailer'
+const ACTIVE_STATUS = 'active'
+
 type VehicleOperationFieldsProps = Readonly<{
   documentFields: ReadonlySet<string>
   onChange: (values: Partial<FleetVehicleFormState>) => void
@@ -24,6 +29,8 @@ type VehicleOperationFieldsProps = Readonly<{
   /** Spec 093: os campos que a sugestão preencheu e que o operador ainda não tocou. */
   suggestedFields?: ReadonlySet<string>
   suggestionOrigin?: VehicleSuggestionOrigin | null
+  /** Feature 147 D3: de onde saem as carretas ativas oferecidas ao cavalo — a frota já carregada. */
+  vehicles: readonly FleetVehicleDetail[]
 }>
 
 export function VehicleOperationFields({
@@ -32,8 +39,12 @@ export function VehicleOperationFields({
   state,
   suggestedFields = new Set(),
   suggestionOrigin = null,
+  vehicles,
 }: VehicleOperationFieldsProps) {
   const { t } = useTranslation('fleet')
+  const trailerOptions = useVehicleSelectOptions(
+    vehicles.filter((vehicle) => vehicle.role === TRAILER_ROLE && vehicle.status === ACTIVE_STATUS),
+  )
   /**
    * ⚠️ **A origem viaja junto do número, sempre.** Um valor plausível sem dizer de onde veio é o
    * modo de falha que a ADR-0044 §1 nomeia — e aqui ele viraria o metro que a planta do baú desenha
@@ -72,6 +83,21 @@ export function VehicleOperationFields({
             onChange={(bodyType) => onChange({ bodyType })}
           />
         )}
+        {/* Feature 147 D3: só o cavalo escolhe a carreta padrão — fora dele o campo nem aparece */}
+        {isTractorUnitKind(state) ? (
+          <label>
+            <span>{t('defaultTrailer')}</span>
+            <Select
+              ariaLabel={t('defaultTrailer')}
+              clearable
+              options={trailerOptions}
+              placeholder={t('defaultTrailerPlaceholder')}
+              value={state.defaultTrailerVehicleId}
+              onChange={(defaultTrailerVehicleId) => onChange({ defaultTrailerVehicleId })}
+            />
+            <small className={styles.fieldHint}>{t('defaultTrailerHint')}</small>
+          </label>
+        ) : null}
         {/*
           ⚠️ Campo próprio, e **não** deduzido do tipo nem da carroceria: a mesma Sprinter existe
           com e sem porta lateral. O `bodyType` semeia o valor na migration e para por aí.

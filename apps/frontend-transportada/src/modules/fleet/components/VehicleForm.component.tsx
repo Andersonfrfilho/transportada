@@ -126,6 +126,7 @@ export function VehicleForm({
         state={form.state}
         suggestedFields={form.suggestedFields}
         suggestionOrigin={form.suggestionOrigin}
+        vehicles={vehicles}
         onChange={form.patch}
       />
       <VehicleOwnerFields

@@ -51,3 +51,20 @@ export function isVehicleBodyTypeMissing(
   if (isTractorUnitKind(input)) return false
   return input.bodyType === '' || input.bodyType === NOT_APPLICABLE_BODY_TYPE
 }
+
+/**
+ * Feature 147 D3: a carreta padrão só existe na ficha do cavalo. Sair do cavalo apaga a escolha em
+ * vez de carregá-la escondida para um tipo que não tem o campo — o mesmo molde de
+ * `resolveVehicleBodyTypeForKindChange`, e pelo mesmo motivo: virar cavalo não herda nada de fora.
+ */
+export function resolveVehicleDefaultTrailerForKindChange(
+  input: Readonly<{
+    next: Readonly<Pick<FleetVehicleFormState, 'role' | 'vehicleType'>>
+    previous: Readonly<Pick<FleetVehicleFormState, 'role' | 'vehicleType'>>
+  }>,
+): Partial<FleetVehicleFormState> {
+  const wasTractorUnit = isTractorUnitKind(input.previous)
+  const isTractorUnitNow = isTractorUnitKind(input.next)
+  if (isTractorUnitNow || wasTractorUnit === isTractorUnitNow) return {}
+  return { defaultTrailerVehicleId: '' }
+}

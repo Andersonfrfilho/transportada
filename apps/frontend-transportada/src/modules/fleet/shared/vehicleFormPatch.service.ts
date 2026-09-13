@@ -1,6 +1,9 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { FleetVehicleDetail, FleetVehicleFormState } from './fleet.types'
-import { resolveVehicleBodyTypeForKindChange } from './fleetVehicleBodyType.service'
+import {
+  resolveVehicleBodyTypeForKindChange,
+  resolveVehicleDefaultTrailerForKindChange,
+} from './fleetVehicleBodyType.service'
 import { resolveSecondaryFuelDefaults } from './fuelArrangement.service'
 import { resolveVehicleBrandDefaults } from './vehicleBrandDefaults.service'
 import {
@@ -61,7 +64,18 @@ export function composeVehicleFormPatch(
     next.role === input.previous.role && next.vehicleType === input.previous.vehicleType
       ? {}
       : resolveVehicleBodyTypeForKindChange({ next, previous: input.previous })
-  const resolved = { ...next, ...brandDefaults, ...typeDefaults, ...bodyTypeDefaults }
+  // Mesmo gatilho da carroceria: sair do cavalo apaga a carreta padrão, nunca a carrega escondida
+  const defaultTrailerDefaults =
+    next.role === input.previous.role && next.vehicleType === input.previous.vehicleType
+      ? {}
+      : resolveVehicleDefaultTrailerForKindChange({ next, previous: input.previous })
+  const resolved = {
+    ...next,
+    ...brandDefaults,
+    ...typeDefaults,
+    ...bodyTypeDefaults,
+    ...defaultTrailerDefaults,
+  }
   // O par de combustíveis é corrigido depois dos outros defaults: trocar o primário para o
   // produto do secundário deixaria os dois tanques com o mesmo combustível
   const corrected = { ...resolved, ...resolveSecondaryFuelDefaults(resolved) }
