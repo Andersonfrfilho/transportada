@@ -1500,3 +1500,39 @@ idênticas nos dois:
 
 Fora do CI, o `make smoke` reaproveita o frontend de desenvolvimento que estiver na porta 53000; a
 comparação acima usou build de produção nos dois lados. As 9 falhas viraram uma tarefa separada.
+
+### Montagem automática de roteiro no navegador · 2026-09-13
+
+Viagens → "Montar roteiro pela busca de notas" → 342 notas do filtro, 6 motoristas, 6 veículos →
+"Propor roteiro". O worker deste worktree geocodificou e roteirizou (`route_optimization_handled`), e a
+proposta saiu com 5 viagens e 186 entregas. 125 paradas ficaram acima do teto de peso e 16 com endereço
+impreciso, e nada é criado antes do aceite. Cada caminhão foi aberto na proposta, e cada abertura pediu
+a prévia da planta (D3):
+
+| Caminhão                                  | Paradas | Tela                                            | Prévia / polling            | Banco                                         |
+| ----------------------------------------- | ------- | ----------------------------------------------- | --------------------------- | --------------------------------------------- |
+| Accelo 1016 (RTD5J78), escala do catálogo | 24      | 24% do baú, planta em perspectiva               | —                           | `ready`, 1ª tentativa, 6,2 s, 0 caixa fora    |
+| Daily 35-150 (RTC4H67)                    | 23      | 41% do baú, 98% do peso; 251 + 97 de 372 caixas | 200 em 139 ms, 3 consultas  | `ready`, 1ª, 4,4 s, 24 fora (`bedFull`)       |
+| Fiorino (RTF7L01)                         | 10      | 47% do baú, 99% do peso; 53 + 29 de 94          | 200 em 123 ms, 2 consultas  | `ready`, 1ª, 0,2 s, 12 fora (`bedFull`)       |
+| Sprinter 416 (RTE6K89)                    | 21      | 26% do baú, 98% do peso; 192 + 30 de 248        | 200 em 262 ms, 2 consultas  | `ready`, 1ª, 1,0 s, 26 fora (`bedFull`)       |
+| Atego 2426 (RTA2F45)                      | 84      | 46% do baú, 100% do peso; 753 + 335 de 1465     | 200 em 177 ms, 20 consultas | `ready`, 1ª, **56,4 s**, 377 fora (`bedFull`) |
+
+- Em todos: o selo "Reorganizando a carga…" apareceu e saiu sozinho, pelo polling e sem recarregar a
+  página. Nenhuma falha, nenhuma planta incompleta, nenhuma caixa cortada por `time_budget`, uma única
+  linha de outbox por planta, nenhuma resposta diferente de 200, nenhum erro de console ligado à spec.
+- As caixas que ficaram de fora fecham com a contagem da tela: cada uma aparece na lista "não coube: o
+  baú encheu".
+
+**Observações para o dono do produto, sem regressão da spec:**
+
+- A Atego ficou a 3,6 s do orçamento de 60 s. Uma viagem um pouco maior já entra na escada da D13
+  (120 s e depois 240 s), e o tempo de espera na tela sobe junto.
+- Com a ocupação entre 41% e 47%, caixas ficam de fora por "o baú encheu". A ocupação soma volumes
+  estimados, e o empacotador decide pela geometria: caixa presumida e restrição de empilhamento. As
+  regras físicas do empacotador ficaram inalteradas nesta spec (G013).
+- O cartão da viagem mostra "Tempo 3 h 18 min", e o detalhe mostra "Tempo do roteiro: 12 h 8 min"
+  (estrada mais 20 min por parada). 3 h 18 min + 24 × 20 min dá 11 h 18 min, não 12 h 8 min.
+  Anterior à spec.
+- A imagem "Planta do baú em escala" não aparece mesmo com o baú medido, e o smoke acusa o mesmo nas
+  três larguras antes da spec. O painel mostra só a vista em perspectiva por camada.
+- Todas as viagens aparecem como "conta incompleta" / "parcelas em falta". Anterior à spec.
