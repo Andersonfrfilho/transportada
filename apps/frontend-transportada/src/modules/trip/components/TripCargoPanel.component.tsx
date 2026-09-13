@@ -267,7 +267,7 @@ function TripCargoWeightPanel({ cargoWeight }: { cargoWeight: TripCargoWeight | 
         o campo a preencher e o caminho até ele.
       */}
       <p className={styles.hint}>
-        {t('occupancy.capacityUnknown')} <a href="/fleet">{t('cargoPlan.missingBedLink')}</a>
+        {t('occupancy.capacityUnknown')} <a href="/fleet">{t('cargoLayers.missingBedLink')}</a>
       </p>
     </section>
   )

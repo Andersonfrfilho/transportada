@@ -261,23 +261,6 @@
     "title": "Mapa de carga do baú",
     "withoutVolume": "Sem cubagem, e por isso fora do mapa: {{stops}}."
   },
-  "cargoPlan": {
-    "ariaLabel": "Planta do baú em escala: {{length}} m de comprimento por {{width}} m de largura",
-    "band": "{{label}}: ocupa {{depth}} m de baú, a partir de {{distance}} m da porta.",
-    "bandThroughDoor": "{{label}}: ocupa {{depth}} m de baú e atravessa {{distance}} m para fora da porta.",
-    "door": "Porta",
-    "layers": "Cabem {{perLayer}} caixas por camada, em {{layers}} camadas.",
-    "missingBed": "Sem a medida do baú a tela não promete metro — as fileiras acima são proporção, não posição.",
-    "missingBedField": "Preencha comprimento, largura e altura do baú na ficha do veículo, em Frota.",
-    "missingBedLink": "Abrir a ficha do veículo",
-    "overflow": "A carga passa {{metres}} m da porta — o excedente aparece hachurado, fora do baú.",
-    "reserved": "Cada faixa é o espaço que o volume daquela entrega reserva no baú, não a posição das caixas: a divisão é ao longo do comprimento, do fundo até a porta.",
-    "sideReachable": "Este veículo abre pela lateral: a ordem ajuda a descarregar, mas não obriga.",
-    "title": "Planta do baú, vista de cima",
-    "unmeasuredBoxes": "{{count}} caixa desta viagem ainda não foi medida, e por isso a faixa dela não conta camadas.",
-    "unmeasuredBoxesLink": "Abrir a fila de medição",
-    "unmeasuredBoxes_other": "{{count}} caixas desta viagem ainda não foram medidas, e por isso as faixas delas não contam camadas."
-  },
   "cargoWeight": {
     "estimated": "Peso estimado: o emitente não declarou o peso de nenhum volume desta carga, e o cálculo usa o peso por volume configurado.",
     "label": "Peso da carga",
@@ -616,7 +599,6 @@
     "removeStop": "Tirar {{label}} do roteiro",
     "removedStop": "{{count}} notas voltam para o maço",
     "revenue": "Receita",
-    "routeTitle": "Roteiro proposto",
     "saveOrder": "Salvar alterações",
     "selectAll": "Selecionar todas",
     "selectTrip": "Aceitar a viagem de {{driver}}",
