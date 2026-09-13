@@ -47,6 +47,21 @@ export class TripTrailerNotATrailerError extends ApiError {
   }
 }
 
+/**
+ * T18 (revisão): a carreta não pode ser o próprio veículo tracionado — espelha o CHECK
+ * `trips_trailer_not_vehicle` (`trip.schema.ts`). A apresentação nunca oferece o próprio veículo da
+ * viagem na lista de carretas; este erro é a tradução de quem escrever direto na API.
+ */
+export class TripTrailerNotVehicleItselfError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_TRAILER_NOT_VEHICLE_ITSELF',
+      message: 'The trailer cannot be the trip own traction vehicle',
+      status: 400,
+    })
+  }
+}
+
 /** Feature 147 D3: uma carreta puxa uma viagem por vez — a mesma não entra em duas abertas. */
 export class TripTrailerInUseError extends ApiError {
   public constructor() {

@@ -6,6 +6,7 @@ import { and, desc, eq, lt, ne, or, type SQL } from 'drizzle-orm'
 
 import { fleetVehicles } from '../../database/database.schema.js'
 import { decodeKeysetCursor, encodeKeysetCursor } from '../../shared/keyset-cursor.support.js'
+import { TRACTOR_UNIT_VEHICLE_TYPE } from '../../shared/vehicle-type.constant.js'
 import type {
   ListPendingItemSourceInput,
   PendingItemPage,
@@ -26,20 +27,19 @@ export function buildFleetBodyTypePendingItemFilters(input: {
 }): readonly SQL[] {
   const filters: SQL[] = [
     eq(fleetVehicles.companyId, input.companyId),
-    ne(fleetVehicles.vehicleType, 'tractor_unit'),
+    ne(fleetVehicles.vehicleType, TRACTOR_UNIT_VEHICLE_TYPE),
     eq(fleetVehicles.bodyType, '00'),
     eq(fleetVehicles.status, 'active'),
   ]
   if (input.cursor !== null) {
-    filters.push(
-      or(
-        lt(fleetVehicles.createdAt, input.cursor.createdAt),
-        and(
-          eq(fleetVehicles.createdAt, input.cursor.createdAt),
-          lt(fleetVehicles.id, input.cursor.id),
-        ),
-      )!,
+    const cursorClause = or(
+      lt(fleetVehicles.createdAt, input.cursor.createdAt),
+      and(
+        eq(fleetVehicles.createdAt, input.cursor.createdAt),
+        lt(fleetVehicles.id, input.cursor.id),
+      ),
     )
+    if (cursorClause !== undefined) filters.push(cursorClause)
   }
   return filters
 }

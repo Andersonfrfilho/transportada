@@ -229,6 +229,61 @@ describe('fleet vehicle repository integration', () => {
       expect(await repository.isTrailerInUse({ companyId, vehicleId: freeTrailer.id })).toBe(false)
     })
   })
+
+  /**
+   * T18 (revisão, MENOR 6): os dois CHECKs da carreta padrão (`fleet.schema.ts`) traduzem para 400
+   * de domínio, nunca para o 500 genérico que a violação crua produzia. O caso de uso já barra os
+   * dois antes de chegar ao repositório (`checkVehicleDefaultTrailer`); aqui a escrita é direta,
+   * como defesa contra quem chamar o repositório sem passar por ele.
+   */
+  testWithPostgres(
+    'translates the default trailer CHECK violations into domain errors',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const companyId = crypto.randomUUID()
+        await database.db.insert(companies).values({ id: companyId, status: 'active' })
+        const repository = createRepository(database)
+
+        const tractor = await repository.create({ companyId, vehicle: NO_COSTS_VEHICLE })
+        const trailer = await repository.create({
+          companyId,
+          vehicle: { ...NO_COSTS_VEHICLE, plate: 'RTC4H67', role: 'trailer', vehicleType: '' },
+        })
+
+        // fleet_vehicles_default_trailer_not_self: a carreta padrão não pode ser o próprio veículo.
+        await expect(
+          repository.update({
+            companyId,
+            expectedVersion: tractor.version,
+            status: 'active',
+            vehicle: { ...NO_COSTS_VEHICLE, defaultTrailerVehicleId: tractor.id },
+            vehicleId: tractor.id,
+          }),
+        ).rejects.toMatchObject({
+          code: 'FLEET_VEHICLE_DEFAULT_TRAILER_SELF_REFERENCE',
+          status: 400,
+        })
+
+        // fleet_vehicles_default_trailer_tractor_only: só o cavalo mecânico aponta carreta padrão.
+        await expect(
+          repository.update({
+            companyId,
+            expectedVersion: tractor.version,
+            status: 'active',
+            vehicle: {
+              ...NO_COSTS_VEHICLE,
+              defaultTrailerVehicleId: trailer.id,
+              vehicleType: 'truck',
+            },
+            vehicleId: tractor.id,
+          }),
+        ).rejects.toMatchObject({
+          code: 'FLEET_VEHICLE_DEFAULT_TRAILER_REQUIRES_TRACTOR',
+          status: 400,
+        })
+      })
+    },
+  )
 })
 
 /** Dublê fino sobre o gateway real: conta as resoluções sem trocar o preço que elas devolvem. */

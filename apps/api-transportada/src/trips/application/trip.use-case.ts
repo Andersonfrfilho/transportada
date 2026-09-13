@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { TRACTOR_UNIT_VEHICLE_TYPE } from '../../shared/vehicle-type.constant.js'
 import { assertTripDocumentReference } from '../domain/trip.policy.js'
 import { TRIP_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
 import { checkTripAcceptsTrailer } from '../domain/trip-trailer.policy.js'
@@ -379,8 +380,10 @@ async function freezeRouteGracefully(input: {
 }
 
 /**
- * Feature 147 D3: a carreta padrão é só sugestão — se ela já estiver em viagem aberta, a viagem
- * nasce sem carreta (`null`), nunca com erro: o despacho barra depois com `TRIP_TRAILER_REQUIRED`.
+ * Feature 147 D3: a carreta padrão é só sugestão — se ela já estiver em viagem aberta, não existir
+ * mais nesta empresa, tiver deixado de ser carreta ativa, ou o cavalo não a tiver mais como padrão,
+ * a viagem nasce sem carreta (`null`), nunca com erro: o despacho barra depois com
+ * `TRIP_TRAILER_REQUIRED` (T18, revisão — a leitura antiga confiava cegamente no ponteiro).
  */
 async function resolveDefaultTrailerForCreation(input: {
   readonly companyId: string
@@ -391,7 +394,15 @@ async function resolveDefaultTrailerForCreation(input: {
   }
 }): Promise<string | null> {
   const { defaultTrailerVehicleId } = input.vehicle
-  if (defaultTrailerVehicleId === null || input.vehicle.vehicleType !== 'tractor_unit') return null
+  if (defaultTrailerVehicleId === null || input.vehicle.vehicleType !== TRACTOR_UNIT_VEHICLE_TYPE) {
+    return null
+  }
+
+  const trailer = await input.repository.findVehicle({
+    companyId: input.companyId,
+    vehicleId: defaultTrailerVehicleId,
+  })
+  if (trailer === null || trailer.role !== 'trailer' || trailer.status !== 'active') return null
 
   const inUse = await input.repository.isTrailerInOpenTrip({
     companyId: input.companyId,

@@ -88,6 +88,14 @@ export const TRIP_STATUSES = [
 export type TripStatus = (typeof TRIP_STATUSES)[number]
 
 /**
+ * Feature 147 T18 (revisão): os dois terminais — quem já entregou ou cancelou não regride, e é por
+ * isso que os dois liberam a carreta. Fonte única para o `where` do índice logo abaixo e para as
+ * cópias que existiam em `drizzle-trip.repository.ts` (`TRIP_OPEN_STATUSES_EXCLUSION`) e
+ * `drizzle-fleet-vehicle.repository.ts` (`TRIP_CLOSED_STATUSES`).
+ */
+export const TRIP_TERMINAL_STATUSES: readonly TripStatus[] = ['completed', 'cancelled']
+
+/**
  * ADR-0046 §1: **derivado, e nunca a fonte.** A verdade da prontidão é a consulta ao estado real de
  * `cte_fiscal_documents`, feita a cada leitura; esta coluna existe para filtrar a lista de viagens
  * sem varrer o fiscal inteiro.
@@ -343,7 +351,7 @@ export const trips = pgTable(
     uniqueIndex('trips_company_trailer_open_unique')
       .on(table.companyId, table.trailerVehicleId)
       .where(
-        sql`${table.trailerVehicleId} is not null and ${table.status} not in ('completed', 'cancelled')`,
+        sql`${table.trailerVehicleId} is not null and ${table.status} not in (${raw(inList(TRIP_TERMINAL_STATUSES))})`,
       ),
     check(
       'trips_fiscal_readiness_check',

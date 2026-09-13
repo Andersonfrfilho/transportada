@@ -567,6 +567,52 @@ describe('trip use case contract', () => {
     expect(fixture.createCalls).toEqual([])
   })
 
+  // T18 (revisão): a padrão só vale quando ainda é, de fato, uma carreta ativa livre desta empresa.
+  test('copies the tractor default trailer into the trip when it is a free active trailer', async () => {
+    const fixture = createFixture({ vehicle: { ...VEHICLE, defaultTrailerVehicleId: TRAILER.id } })
+    const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
+
+    await useCase.create({ context: CONTEXT, driverIds: [], vehicleId: VEHICLE_ID })
+
+    expect(fixture.createCalls).toEqual([expect.objectContaining({ trailerVehicleId: TRAILER.id })])
+  })
+
+  test('never copies the default trailer when it is already in an open trip', async () => {
+    const fixture = createFixture({
+      vehicle: { ...VEHICLE, defaultTrailerVehicleId: TRAILER.id },
+      trailerInOpenTrip: true,
+    })
+    const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
+
+    await useCase.create({ context: CONTEXT, driverIds: [], vehicleId: VEHICLE_ID })
+
+    expect(fixture.createCalls).toEqual([expect.objectContaining({ trailerVehicleId: null })])
+  })
+
+  test('never copies the default trailer when it is no longer an active trailer', async () => {
+    const fixture = createFixture({
+      vehicle: { ...VEHICLE, defaultTrailerVehicleId: TRAILER.id },
+      trailerVehicle: { ...TRAILER, status: 'inactive' },
+    })
+    const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
+
+    await useCase.create({ context: CONTEXT, driverIds: [], vehicleId: VEHICLE_ID })
+
+    expect(fixture.createCalls).toEqual([expect.objectContaining({ trailerVehicleId: null })])
+  })
+
+  test('never copies the default trailer when it no longer exists in this company', async () => {
+    const fixture = createFixture({
+      vehicle: { ...VEHICLE, defaultTrailerVehicleId: TRAILER.id },
+      trailerVehicle: null,
+    })
+    const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
+
+    await useCase.create({ context: CONTEXT, driverIds: [], vehicleId: VEHICLE_ID })
+
+    expect(fixture.createCalls).toEqual([expect.objectContaining({ trailerVehicleId: null })])
+  })
+
   test('links a document by nfe document id, xor freight calculation id', async () => {
     const fixture = createFixture()
     const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })

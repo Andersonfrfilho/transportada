@@ -16,6 +16,7 @@ import { createQuickReplyRoutes } from '../src/occurrence-conversation/presentat
 import { createOccurrenceConversationUnassignedRoutes } from '../src/occurrence-conversation/presentation/occurrence-conversation-unassigned.routes'
 import { createPackageBoxMeasurementExportRoutes } from '../src/nfe-documents/presentation/package-box-measurement-export.routes'
 import { createPackageBoxRoutes } from '../src/nfe-documents/presentation/package-box.routes'
+import { createPendingItemsRoutes } from '../src/pending-items/presentation/pending-items.routes'
 import { createTripDocumentReviewRoutes } from '../src/trips/presentation/trip-document-review.routes'
 import {
   createTripFieldOfficeRoutes,
@@ -75,6 +76,7 @@ function reachableRoutes(roles: CompanyContext['roles']): readonly string[] {
     ...createNfeDocumentRoutes(dependencies),
     ...createPackageBoxRoutes(dependencies),
     ...createPackageBoxMeasurementExportRoutes(dependencies),
+    ...createPendingItemsRoutes(dependencies),
     ...createTripDocumentReviewRoutes(dependencies),
     // Spec 156 T8b (revisão do code-reviewer): as rotas do escritório com autoria precisam entrar
     // aqui para a lista exaustiva **provar** a ausência delas — sem elas no array, o separador
@@ -166,6 +168,12 @@ describe('separator role contract', () => {
        * como as conversas; atribuir é `occurrences.resolve`, e ele não alcança.
        */
       'GET /occurrence-conversations/unassigned',
+      /**
+       * T18 (revisão): a página de pendências (spec 147 T14/T15) usa a mesma `fleet.read` de toda
+       * leitura de frota, e o separador a alcança de propósito — placa de veículo sem carroceria é
+       * dado mínimo, e é ele quem monta a viagem em cima do que a frota tem cadastrado.
+       */
+      'GET /pending-items',
       /**
        * Spec 148 T7: a fila das notas que não couberam é lida sob `fleet.read`, como a viagem. O
        * separador a alcança porque é ele quem monta o caminhão e decide para onde a nota vai; ela

@@ -2,14 +2,13 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { FleetVehicleRole, MdfeBodyType } from '../../database/fleet.schema.js'
-import type { VehicleType } from '../../shared/vehicle-type.constant.js'
+import { TRACTOR_UNIT_VEHICLE_TYPE, type VehicleType } from '../../shared/vehicle-type.constant.js'
 import {
   FleetVehicleBodyTypeNotApplicableError,
   FleetVehicleBodyTypeRequiredError,
 } from './fleet.error.js'
 
 const TRACTION_ROLE: FleetVehicleRole = 'traction'
-const TRACTOR_UNIT_VEHICLE_TYPE: VehicleType = 'tractor_unit'
 const NOT_APPLICABLE_BODY_TYPE: MdfeBodyType = '00'
 
 export type VehicleBodyTypeShape = {

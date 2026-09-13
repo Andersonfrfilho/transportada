@@ -670,13 +670,15 @@ async function seedPlannedTrip(
     status: 'active',
     userId,
   })
+  // `truck`, não `tractor_unit`: este arquivo prova o "leva todas" do despacho, não a exigência de
+  // carreta (T18) — um cavalo sem carreta bloquearia o despacho antes do que este teste prova.
   await database.db.insert(fleetVehicles).values({
     companyId,
     id: vehicleId,
     plate: 'ABC1D23',
     role: 'traction',
     state: 'SP',
-    vehicleType: 'tractor_unit',
+    vehicleType: 'truck',
   })
   await database.db.insert(fleetDrivers).values({
     companyId,

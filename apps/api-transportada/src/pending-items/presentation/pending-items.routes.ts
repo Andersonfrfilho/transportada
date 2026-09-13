@@ -12,9 +12,10 @@ import { parsePendingItemListQuery } from './pending-items.schema.js'
 
 /**
  * A infraestrutura de rotas não tem "qualquer membro autenticado" como política — toda rota exige
- * uma `RouteAuthorizationPolicy` (`permission` + `scope`). A filtragem por pendência é da fonte
- * (spec 147 D2), e a rota usa `fleet.read` porque é a única permissão que hoje abre alguma fonte;
- * quem não a tem simplesmente recebe lista vazia da rota mesma forma que receberia da fonte.
+ * uma `RouteAuthorizationPolicy` (`permission` + `scope`), e é ela quem devolve `403` a quem não
+ * tem `fleet.read`, antes de o caso de uso rodar. O filtro por `requiredPermission` dentro de
+ * `createListPendingItemsUseCase` é defesa para quando existir uma segunda fonte com outra
+ * permissão — hoje, com uma fonte só e a mesma permissão da rota, ele nunca descarta nada aqui.
  */
 const PENDING_ITEMS_POLICY = { permission: 'fleet.read', scope: 'company' } as const
 

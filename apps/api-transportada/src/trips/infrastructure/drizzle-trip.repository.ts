@@ -22,9 +22,15 @@ import {
 } from '../domain/trip-document-freight.policy.js'
 import { normalizeFreightRuleFilters } from '../../freight-rules/domain/freight-rule-filters.policy.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
-import { tripDocuments, tripDrivers, tripStops, trips } from '../../database/trip.schema.js'
-import type { TripStatus } from '../../database/trip.schema.js'
 import {
+  TRIP_TERMINAL_STATUSES,
+  tripDocuments,
+  tripDrivers,
+  tripStops,
+  trips,
+} from '../../database/trip.schema.js'
+import {
+  violatedCheckConstraint,
   violatedForeignKeyConstraint,
   violatedUniqueConstraint,
 } from '../../database/postgres-error.support.js'
@@ -45,6 +51,7 @@ import {
   TripNotFoundError,
   TripStateTransitionNotAllowedError,
   TripTrailerInUseError,
+  TripTrailerNotVehicleItselfError,
 } from '../domain/trip.error.js'
 import type {
   TripDriverCandidate,
@@ -135,10 +142,10 @@ const noPendingMeasurementBoxLookup: PendingMeasurementBoxLookupPort = {
   },
 }
 
-/** Espelha o `where` do índice `trips_company_trailer_open_unique` (`trip.schema.ts`). */
-const TRIP_OPEN_STATUSES_EXCLUSION: TripStatus[] = ['completed', 'cancelled']
-
 const TRAILER_OPEN_CONSTRAINT = 'trips_company_trailer_open_unique'
+
+/** T18 (revisão): espelha o CHECK `trips_trailer_not_vehicle` (`trip.schema.ts`). */
+const TRAILER_NOT_VEHICLE_CONSTRAINT = 'trips_trailer_not_vehicle'
 
 export class DrizzleTripRepository implements TripRepositoryPort {
   private readonly requestCargoLayoutForTrip: RequestCargoLayoutForTrip
@@ -418,19 +425,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         hasDriver: input.crew.length > 0,
         hasVehicle: input.vehicleId !== null,
       })
-      const [created] = await transaction
-        .insert(trips)
-        .values({
-          companyId: input.companyId,
-          ...(input.dailyAllowanceDays === undefined
-            ? {}
-            : { dailyAllowanceDays: input.dailyAllowanceDays }),
-          status,
-          trailerVehicleId: input.trailerVehicleId,
-          vehicleId: input.vehicleId,
-        })
-        .returning({ id: trips.id })
-      if (created === undefined) throw new Error('TRIP_CREATE_FAILED')
+      const created = await insertTripWithTrailerFallback(transaction, input, status)
 
       /**
        * Spec 171 RF1: mesmo caminho das demais transições — grava na mesma transação do `INSERT
@@ -595,7 +590,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
           eq(trips.companyId, input.companyId),
           eq(trips.trailerVehicleId, input.vehicleId),
           input.excludingTripId === undefined ? undefined : ne(trips.id, input.excludingTripId),
-          notInArray(trips.status, TRIP_OPEN_STATUSES_EXCLUSION),
+          notInArray(trips.status, [...TRIP_TERMINAL_STATUSES]),
         ),
       )
       .limit(1)
@@ -1638,6 +1633,63 @@ async function readTripTrailer(
   return record ?? null
 }
 
+/**
+ * T18 (revisão): duas viagens criadas ao mesmo tempo para cavalos que compartilham a mesma carreta
+ * padrão disputam `trips_company_trailer_open_unique` — a segunda `INSERT` violava a unicidade e
+ * subia como 500 genérico, nunca uma viagem de verdade. A criação sempre tem de terminar em viagem;
+ * quem perde a corrida nasce sem carreta (o mesmo `null` que `resolveDefaultTrailerForCreation` já
+ * escolhe quando a carreta está livre só na leitura e ocupada na escrita), e o despacho barra depois
+ * com `TRIP_TRAILER_REQUIRED`. A tentativa com carreta roda num `SAVEPOINT` (`transaction.
+ * transaction`) para a violação desfazer só o `INSERT`, nunca a transação inteira.
+ */
+async function insertTripWithTrailerFallback(
+  transaction: TripTransaction,
+  input: CreateTripRecord,
+  status: 'awaiting_crew' | 'draft',
+): Promise<{ readonly id: string }> {
+  if (input.trailerVehicleId === null) {
+    return insertTripRow(transaction, { ...input, status, trailerVehicleId: null })
+  }
+
+  try {
+    return await transaction.transaction((savepoint) =>
+      insertTripRow(savepoint, { ...input, status, trailerVehicleId: input.trailerVehicleId }),
+    )
+  } catch (error) {
+    if (violatedCheckConstraint(error) === TRAILER_NOT_VEHICLE_CONSTRAINT) {
+      throw new TripTrailerNotVehicleItselfError()
+    }
+    if (violatedUniqueConstraint(error) !== TRAILER_OPEN_CONSTRAINT) throw error
+    return insertTripRow(transaction, { ...input, status, trailerVehicleId: null })
+  }
+}
+
+async function insertTripRow(
+  transaction: TripQueryable,
+  input: {
+    readonly companyId: string
+    readonly dailyAllowanceDays?: number
+    readonly status: 'awaiting_crew' | 'draft'
+    readonly trailerVehicleId: string | null
+    readonly vehicleId: string | null
+  },
+): Promise<{ readonly id: string }> {
+  const [created] = await transaction
+    .insert(trips)
+    .values({
+      companyId: input.companyId,
+      ...(input.dailyAllowanceDays === undefined
+        ? {}
+        : { dailyAllowanceDays: input.dailyAllowanceDays }),
+      status: input.status,
+      trailerVehicleId: input.trailerVehicleId,
+      vehicleId: input.vehicleId,
+    })
+    .returning({ id: trips.id })
+  if (created === undefined) throw new Error('TRIP_CREATE_FAILED')
+  return created
+}
+
 /** Feature 147 T10: fecha a corrida entre duas escritas concorrentes com a mesma carreta. */
 async function runTrailerGuarded<TResult>(operation: () => Promise<TResult>): Promise<TResult> {
   try {
@@ -1645,6 +1697,9 @@ async function runTrailerGuarded<TResult>(operation: () => Promise<TResult>): Pr
   } catch (error) {
     if (violatedUniqueConstraint(error) === TRAILER_OPEN_CONSTRAINT) {
       throw new TripTrailerInUseError()
+    }
+    if (violatedCheckConstraint(error) === TRAILER_NOT_VEHICLE_CONSTRAINT) {
+      throw new TripTrailerNotVehicleItselfError()
     }
     throw error
   }

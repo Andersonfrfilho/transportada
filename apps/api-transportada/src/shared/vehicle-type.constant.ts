@@ -29,6 +29,9 @@ export type VehicleType = (typeof VEHICLE_TYPES)[number]
 
 export const VEHICLE_TYPE_MAX_LENGTH = 20
 
+/** O cavalo mecânico — o único tipo que traciona carreta (`fleet.schema.ts`, `trip.schema.ts`). */
+export const TRACTOR_UNIT_VEHICLE_TYPE: VehicleType = 'tractor_unit'
+
 /**
  * `tipoRodado` é lista fechada da SEFAZ, e `06 — Outros` é a saída que ela mesma publica. Todo tipo
  * que a tabela dela não nomeia vai por ali: recusar a emissão seria pior, e inventar `07` faz o

@@ -5,8 +5,11 @@ import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, desc, eq, ilike, lt, ne, notInArray, or, sql } from 'drizzle-orm'
 
 import { fleetVehicles, trips } from '../../database/database.schema.js'
-import type { TripStatus } from '../../database/trip.schema.js'
-import { violatedUniqueConstraint } from '../../database/postgres-error.support.js'
+import { TRIP_TERMINAL_STATUSES } from '../../database/trip.schema.js'
+import {
+  violatedCheckConstraint,
+  violatedUniqueConstraint,
+} from '../../database/postgres-error.support.js'
 import type {
   FleetFuelPricePort,
   FleetVehicle,
@@ -18,7 +21,11 @@ import type {
 import type { FleetVehicleStatus } from '../../database/fleet.schema.js'
 import type { EffectiveFuelPrice } from '../../companies/domain/fuel-price.policy.js'
 import type { FuelProduct } from '../../shared/fuel.constant.js'
-import { FleetVehiclePlateTakenError } from '../domain/fleet.error.js'
+import {
+  FleetVehicleDefaultTrailerRequiresTractorError,
+  FleetVehicleDefaultTrailerSelfReferenceError,
+  FleetVehiclePlateTakenError,
+} from '../domain/fleet.error.js'
 import { hasInformedCosts } from '../domain/vehicle-cost.policy.js'
 import { decodeKeysetCursor, encodeKeysetCursor } from '../../shared/keyset-cursor.support.js'
 import { mapVehicle, toVehicleColumns } from './fleet.mapper.js'
@@ -27,8 +34,9 @@ type Database = ReturnType<typeof createDrizzleProvider>['db']
 
 const PLATE_CONSTRAINT = 'fleet_vehicles_company_id_plate_unique'
 
-/** Espelha o `where` do índice `trips_company_trailer_open_unique` (`trip.schema.ts`). */
-const TRIP_CLOSED_STATUSES: TripStatus[] = ['completed', 'cancelled']
+/** T18 (revisão): traduz os dois CHECKs da carreta padrão (`fleet.schema.ts`) em 400 de domínio. */
+const DEFAULT_TRAILER_TRACTOR_ONLY_CONSTRAINT = 'fleet_vehicles_default_trailer_tractor_only'
+const DEFAULT_TRAILER_NOT_SELF_CONSTRAINT = 'fleet_vehicles_default_trailer_not_self'
 
 type RepositoryDependencies = {
   readonly database: Database
@@ -107,7 +115,7 @@ export class DrizzleFleetVehicleRepository implements FleetVehicleRepositoryPort
         and(
           eq(trips.companyId, input.companyId),
           eq(trips.trailerVehicleId, input.vehicleId),
-          notInArray(trips.status, TRIP_CLOSED_STATUSES),
+          notInArray(trips.status, [...TRIP_TERMINAL_STATUSES]),
         ),
       )
       .limit(1)
@@ -214,6 +222,13 @@ async function runGuarded<TResult>(operation: () => Promise<TResult>): Promise<T
   } catch (error) {
     if (violatedUniqueConstraint(error) === PLATE_CONSTRAINT)
       throw new FleetVehiclePlateTakenError()
+    const violatedCheck = violatedCheckConstraint(error)
+    if (violatedCheck === DEFAULT_TRAILER_TRACTOR_ONLY_CONSTRAINT) {
+      throw new FleetVehicleDefaultTrailerRequiresTractorError()
+    }
+    if (violatedCheck === DEFAULT_TRAILER_NOT_SELF_CONSTRAINT) {
+      throw new FleetVehicleDefaultTrailerSelfReferenceError()
+    }
     throw error
   }
 }

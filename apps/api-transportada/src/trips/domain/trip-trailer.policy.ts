@@ -2,10 +2,8 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { TripStatus } from '../../database/trip.schema.js'
-import type { VehicleType } from '../../shared/vehicle-type.constant.js'
+import { TRACTOR_UNIT_VEHICLE_TYPE, type VehicleType } from '../../shared/vehicle-type.constant.js'
 import { checkTripAcceptsLinkage, type TripTransitionBlock } from './trip-state.policy.js'
-
-const TRACTOR_UNIT_VEHICLE_TYPE: VehicleType = 'tractor_unit'
 
 export type TripTrailerAssignmentOutcome =
   | { readonly outcome: 'allowed' }

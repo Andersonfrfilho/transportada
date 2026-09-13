@@ -519,6 +519,108 @@ describe('trip lifecycle integration (spec 056 T018)', () => {
       expect((truckSnapshot?.snapshot as { trailer: unknown }).trailer).toBeNull()
     })
   })
+
+  /**
+   * T18 (revisão): a leitura de `requiresTrailer` em `readPreconditions` acontece **fora** da
+   * transação de despacho. Entre ela e o `INSERT`/`UPDATE` do `dispatch()` cabe um `setTrailer`
+   * concorrente que solte a carreta — este teste pula direto para `repository.dispatch()`, como se
+   * a checagem de fora já tivesse aprovado com a carreta ainda atrelada, e prova que a própria
+   * escrita reconfere e barra sozinha.
+   */
+  testWithPostgres(
+    're-checks the trailer inside the dispatch transaction, not only before it',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const companyId = crypto.randomUUID()
+        const userId = crypto.randomUUID()
+        const tractorId = crypto.randomUUID()
+        const trailerId = crypto.randomUUID()
+
+        await database.db.insert(companies).values({ id: companyId, status: 'active' })
+        await database.db.insert(identityUsers).values({ id: userId, status: 'active' })
+        await database.db.insert(userCompanyMemberships).values({
+          companyId,
+          id: crypto.randomUUID(),
+          status: 'active',
+          userId,
+        })
+        await database.db.insert(fleetVehicles).values([
+          {
+            companyId,
+            id: tractorId,
+            plate: 'RTJ4D56',
+            role: 'traction',
+            state: 'SP',
+            vehicleType: 'tractor_unit',
+          },
+          {
+            companyId,
+            id: trailerId,
+            plate: 'RTK5E67',
+            role: 'trailer',
+            state: 'SP',
+            vehicleType: '',
+          },
+        ])
+
+        const tripRepository = new DrizzleTripRepository(database.db)
+        const routeRepository = new DrizzleTripRouteRepository(database.db)
+
+        const trip = await tripRepository.create({
+          actorUserId: userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId,
+          crew: [],
+          trailerVehicleId: trailerId,
+          vehicleId: tractorId,
+        })
+        await database.db.insert(tripStops).values({
+          addressKey: `stop-${trip.id}`,
+          companyId,
+          label: 'Parada única',
+          sequence: 1n,
+          tripId: trip.id,
+        })
+        await planTripRoute({
+          actorUserId: userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId,
+          repository: routeRepository,
+          tripId: trip.id,
+        })
+
+        // A carreta some **entre** a leitura de fora (não repetida aqui) e a escrita do despacho —
+        // exatamente a janela que a checagem de fora não cobre.
+        await tripRepository.setTrailer({ companyId, tripId: trip.id, trailerVehicleId: null })
+
+        await expect(
+          routeRepository.dispatch({
+            actorUserId: userId,
+            channel: TRIP_FIELD_CHANNELS.backoffice,
+            companyId,
+            documentsToLoad: [],
+            forced: false,
+            forceReason: null,
+            hasRoute: true,
+            leftBehind: [],
+            onBehalfOfDriverId: null,
+            tripId: trip.id,
+            unloadedDocumentIds: [],
+          }),
+        ).rejects.toMatchObject({ code: 'TRIP_TRAILER_REQUIRED', status: 409 })
+
+        // Nem o status nem o snapshot avançaram — a escrita reconferiu antes de tocar em qualquer coisa.
+        expect(await routeRepository.readTripStatus({ companyId, tripId: trip.id })).toBe(
+          'route_planned',
+        )
+        const snapshots = await database.db
+          .select()
+          .from(tripDispatchSnapshots)
+          .where(eq(tripDispatchSnapshots.tripId, trip.id))
+        expect(snapshots).toHaveLength(0)
+      })
+    },
+  )
 })
 
 /**

@@ -62,6 +62,22 @@ export class FleetVehicleDefaultTrailerRequiresTractorError extends ApiError {
   }
 }
 
+/**
+ * T18 (revisão): a carreta padrão não pode ser o próprio veículo — espelha o CHECK
+ * `fleet_vehicles_default_trailer_not_self` (`fleet.schema.ts`). O caso legítimo (apontar a si
+ * mesmo) nunca chega da apresentação porque o formulário não oferece o próprio veículo na lista;
+ * este erro é a tradução de quem escrever direto na API.
+ */
+export class FleetVehicleDefaultTrailerSelfReferenceError extends ApiError {
+  public constructor() {
+    super({
+      code: 'FLEET_VEHICLE_DEFAULT_TRAILER_SELF_REFERENCE',
+      message: 'A vehicle cannot be its own default trailer',
+      status: 400,
+    })
+  }
+}
+
 /** Feature 147 D3: o apontado existe na empresa, mas não é uma carreta ativa. */
 export class FleetVehicleDefaultTrailerNotATrailerError extends ApiError {
   public constructor() {

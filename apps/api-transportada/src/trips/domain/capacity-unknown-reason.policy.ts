@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { TRACTOR_UNIT_VEHICLE_TYPE } from '../../shared/vehicle-type.constant.js'
 
 export type CapacityUnknownReason = 'bodyTypeMissing' | 'referenceMissing' | 'trailerMissing'
 
@@ -33,11 +34,11 @@ export function resolveCapacityUnknownReason(
   if (params.capacityM3 !== null) return null
 
   const carrier = params.trailer ?? params.traction
-  if (carrier.bodyType === '00' && carrier.vehicleType !== 'tractor_unit') {
+  if (carrier.bodyType === '00' && carrier.vehicleType !== TRACTOR_UNIT_VEHICLE_TYPE) {
     return 'bodyTypeMissing'
   }
 
-  if (params.traction.vehicleType === 'tractor_unit' && params.trailer === null) {
+  if (params.traction.vehicleType === TRACTOR_UNIT_VEHICLE_TYPE && params.trailer === null) {
     return 'trailerMissing'
   }
 

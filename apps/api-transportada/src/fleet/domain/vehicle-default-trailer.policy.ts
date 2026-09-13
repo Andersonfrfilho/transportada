@@ -1,10 +1,8 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { VehicleType } from '../../shared/vehicle-type.constant.js'
+import { TRACTOR_UNIT_VEHICLE_TYPE, type VehicleType } from '../../shared/vehicle-type.constant.js'
 import { FleetVehicleDefaultTrailerRequiresTractorError } from './fleet.error.js'
-
-const TRACTOR_UNIT_VEHICLE_TYPE: VehicleType = 'tractor_unit'
 
 export type VehicleDefaultTrailerShape = {
   readonly defaultTrailerVehicleId: string | null

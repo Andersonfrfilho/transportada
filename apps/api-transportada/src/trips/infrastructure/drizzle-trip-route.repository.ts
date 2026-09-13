@@ -47,6 +47,7 @@ import {
 import {
   TripHasUnloadedDocumentsError,
   TripStateTransitionNotAllowedError,
+  TripTrailerRequiredError,
 } from '../domain/trip.error.js'
 import { readDispatchReadinessDocuments } from './dispatch-readiness.query.js'
 import {
@@ -55,6 +56,7 @@ import {
 } from './drizzle-trip-document-batch.repository.js'
 import { recordTripStatusChange } from './trip-status-event.persistence.js'
 import { clearPlannedRoute } from './trip-planned-route-clear.support.js'
+import { TRACTOR_UNIT_VEHICLE_TYPE } from '../../shared/vehicle-type.constant.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
 
 /** Nota que pode virar `SEM ENDEREÇO`/pendência de rota: viva, mas ainda não chegou a `loaded`. */
@@ -485,7 +487,37 @@ async function readRequiresTrailer(
     )
     .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
     .limit(1)
-  return record?.vehicleType === 'tractor_unit' && record.trailerVehicleId === null
+  return record?.vehicleType === TRACTOR_UNIT_VEHICLE_TYPE && record.trailerVehicleId === null
+}
+
+/**
+ * T18 (revisão): a leitura de `readRequiresTrailer` é feita **fora** da transação de despacho, em
+ * `readPreconditions` — entre ela e o commit desta transação cabe um `setTrailer` concorrente que
+ * solte a carreta. Trava a linha da viagem (`FOR UPDATE`, o mesmo padrão de `setTrailer`) e
+ * reconfere aqui dentro: as duas escritas se serializam, e nenhuma corrida escapa mais.
+ */
+async function assertTrailerStillAttached(
+  transaction: TripTransaction,
+  input: { readonly companyId: string; readonly tripId: string },
+): Promise<void> {
+  const [tripRow] = await transaction
+    .select({ trailerVehicleId: trips.trailerVehicleId, vehicleId: trips.vehicleId })
+    .from(trips)
+    .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+    .for('update')
+    .limit(1)
+  if (tripRow === undefined || tripRow.trailerVehicleId !== null || tripRow.vehicleId === null) {
+    return
+  }
+
+  const [vehicleRow] = await transaction
+    .select({ vehicleType: fleetVehicles.vehicleType })
+    .from(fleetVehicles)
+    .where(
+      and(eq(fleetVehicles.companyId, input.companyId), eq(fleetVehicles.id, tripRow.vehicleId)),
+    )
+    .limit(1)
+  if (vehicleRow?.vehicleType === TRACTOR_UNIT_VEHICLE_TYPE) throw new TripTrailerRequiredError()
 }
 
 /**
@@ -511,6 +543,8 @@ async function dispatch(
   transaction: TripTransaction,
   input: DispatchTripWriteInput,
 ): Promise<DispatchTripWriteResult> {
+  await assertTrailerStillAttached(transaction, input)
+
   if (input.documentsToLoad.length > 0) {
     await loadRemainingDocuments(transaction, input)
   }
