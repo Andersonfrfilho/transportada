@@ -14,6 +14,8 @@
 | 4    | T10–T11 | ✅ feita | `sonnet`           | `opus`                            |
 | 5    | T12–T13 | ✅ feita | `sonnet`           | `opus`                            |
 | 6    | T14     | ✅ feita | `haiku`            | `sonnet` → `opus`                 |
+| 7    | T15     | pendente | `sonnet`           | `opus`                            |
+| 7    | T16     | pendente | `sonnet`           | `opus`                            |
 | —    | revisão | pendente | `opus`             | `fable`                           |
 
 **Troca de modelo sem `/model`:** cada task vai para um subagente com `model=<recomendado>`. A
@@ -157,6 +159,18 @@ status='queued' AND input_hash=$hash`; nula → confirma e descarta; hash supera
       `apps/worker-transportada/CLAUDE.md` apontando para a spec 145; entrada em
       `docs/ai-context/api-transportada.md` (G014). `evidence.md` fechado, com o gate final
       (`bun run typecheck` + testes por app + `make check`, G015) registrado.
+
+## Fase 7 — Depois da revisão final (`sonnet`)
+
+> 🤖 Modelo: `sonnet` (fallback `opus`)
+
+- [ ] T15 — Expurgo diário no `apps/cron-transportada` das linhas de prévia com mais de 24 h (D19):
+      `delete from trip_cargo_layouts where trip_id is null and updated_at < now() - interval '24 hours'`
+      em lotes, por empresa, no padrão dos jobs do cron. A outbox referencia `layout_id`: confira a FK e a
+      ordem da exclusão. Conta apagada no log, sem PII. Contratos e integração.
+- [ ] T16 — Etiqueta de agora na planta servida (D20): detalhe, prévia e polling reescrevem `label`,
+      `clientName`, `noteNumbers` e `documentNumber` do `layout` com a entrada atual, casando parada por
+      `sequence` e caixa por `documentId`. Sem recalcular, sem consulta nova no detalhe. Contratos.
 
 ## Prompt de execução
 

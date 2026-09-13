@@ -57,7 +57,7 @@ text`; `attempt bigint`; `duration_ms bigint`; `computed_at`; `created_at`; `upd
 - **D6 — A chave que versiona.** `input_hash = sha256(canonicalJson({ policyVersion, capacityM3,
 bed{l,w,h,source}, loadingAccess, securesCargo, payloadRatio, fallbackBoxVolumeM3, measuredShapes,
 stops[ordenadas por sequence]{ sequence, boxes[]{ documentId, dims, qty, measured } } }))`.
-  `labels`/`clientName`/`noteNumbers` ficam de fora — não mudam o desenho, só o rótulo. `policyVersion`
+  `labels`/`clientName`/`noteNumbers` ficam de fora — não mudam o desenho, só o rótulo. **Emenda (revisão final, 2026-09-13):** o retrato leva tudo o que o empacotador lê — também `volumeM3` e `documentsWithoutVolume` da parada e, por caixa, `estimatedVolumeM3`, `estimateSource`, `isFragile`, `isStackable`, `keepUpright`, `maxStackCount`; fora fica só etiqueta (`label`, `clientName`, `noteNumbers`, `documentNumber`, `productCode`). `policyVersion`
   é uma constante do pacote; mudá-la invalida todo layout guardado, de qualquer empresa.
 - **D7 — Quem dispara o recálculo: eager e lazy.** Eager: os use cases que mexem nas paradas ou nas
   caixas de uma viagem (`trip.use-case.ts:112 create`; `linkDocument`/`releaseDocument`/
@@ -160,6 +160,16 @@ db:generate`, espelhada em `apps/worker-transportada/src/database/nfe.schema.ts`
   perguntar; quando o pedido é reaberto, a resposta é `pending`. O polling também reabre, pela mesma
   regra. Isso ajusta a D16: "a próxima mudança ou leitura reabre", só que depois da espera. Decisão do
   usuário, 2026-09-13.
+
+- **D19 — A prévia não guarda dado pessoal além de um dia.** Linha de `trip_cargo_layouts` com
+  `trip_id` nulo (prévia que não virou viagem) e `updated_at` com mais de 24 h é apagada pelo
+  `apps/cron-transportada`. O `input` dela carrega o nome do cliente e o endereço das paradas
+  (minimização, LGPD art. 6º). A prévia que virou viagem ganhou o `trip_id` e fica. Decisão do
+  usuário, 2026-09-13.
+- **D20 — A etiqueta servida é a de agora.** O hash ignora a etiqueta (D6), então uma planta `ready`
+  pode ter sido desenhada com o rótulo, o cliente ou o número de nota antigos. Na leitura (detalhe,
+  prévia e polling), a API reescreve as etiquetas do `layout` servido com as da entrada atual, sem
+  recalcular nada. Consequência direta da D6 e da revisão final (M3).
 
 ## Fora do escopo
 
