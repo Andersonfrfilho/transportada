@@ -38,7 +38,7 @@ describe('worker environment contract', () => {
       apiBaseUrl: undefined,
       appBaseUrl: undefined,
       appEnv: 'local',
-      cargoLayoutTimeBudgetMs: 60_000,
+      cargoLayoutTimeBudgetMs: 120_000,
       databaseUrl: validEnvironment.DATABASE_URL,
       fiscalEnvironment: 'production',
       foundationSyntheticConsumerEnabled: false,
@@ -139,7 +139,7 @@ describe('worker environment contract', () => {
   })
 
   /** Spec 145 D9/D13: o primeiro degrau da escada de orçamento da planta; os outros dobram. */
-  test('lê o orçamento da planta de carga, com padrão de 60 s', () => {
+  test('lê o orçamento da planta de carga, com padrão de 120 s', () => {
     expect(
       parseWorkerEnvironment({ ...validEnvironment, CARGO_LAYOUT_TIME_BUDGET_MS: '90000' })
         .cargoLayoutTimeBudgetMs,

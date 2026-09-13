@@ -28,9 +28,9 @@ A API síncrona (`GET /trips/:id`, `POST /trips/cargo-preview`) chamava `resolve
 
 ### Orçamento de tempo — D9/D13
 
-Worker roda o empacotador numa `new Worker()` de thread com prazo. Tentativa N tem orçamento `base × 2^(N−1)`: 60 s, 120 s, 240 s no padrão. Vencido o prazo, as caixas ainda não visitadas voltam em `unplaced` com `reason: 'time_budget'`. Na última tentativa, a planta é gravada `ready` como ficou; nas anteriores, o worker reenfileira para retry com mais tempo.
+Worker roda o empacotador numa `new Worker()` de thread com prazo. Tentativa N tem orçamento `base × 2^(N−1)`: 120 s, 240 s, 480 s no padrão. Vencido o prazo, as caixas ainda não visitadas voltam em `unplaced` com `reason: 'time_budget'`. Na última tentativa, a planta é gravada `ready` como ficou; nas anteriores, o worker reenfileira para retry com mais tempo.
 
-Teto de execução fora da thread: orçamento da maior tentativa (240 s) + 10 s de margem externa + 30 s de folga do lease (todo worker parado mais tempo que isso é assumido morto e sua linha reaberta). Padrão: **280 s** entre tentativas.
+Teto de execução fora da thread: orçamento da maior tentativa (480 s) + 10 s de margem externa + 30 s de folga do lease (todo worker parado mais tempo que isso é assumido morto e sua linha reaberta). Padrão: **520 s** entre tentativas.
 
 ### Recuperação de `running` órfão — D14
 
@@ -50,7 +50,7 @@ O frontend recusa a resposta inteira quando aparece uma chave desconhecida (`TRI
 
 ### Falha espera antes de reabrir — D18
 
-O upsert só reabre uma linha `failed`/`queued`/`running` quando o `updated_at` dela é mais velho que o lease (~280 s). Entrada com erro legítimo (inválida, exceção do empacotador) seria reaberta a cada 3 s pelo polling e recalculada em laço sem teto. Uma entrada editada gera hash novo e é calculada na hora.
+O upsert só reabre uma linha `failed`/`queued`/`running` quando o `updated_at` dela é mais velho que o lease (~520 s). Entrada com erro legítimo (inválida, exceção do empacotador) seria reaberta a cada 3 s pelo polling e recalculada em laço sem teto. Uma entrada editada gera hash novo e é calculada na hora.
 
 ## Consequências
 
@@ -59,7 +59,7 @@ O upsert só reabre uma linha `failed`/`queued`/`running` quando o `updated_at` 
 - **Índices adicionais em `nfe_volumes`/`nfe_products`/`nfe_package_boxes`.** Consulta de cubagem já não passava por FKs sem índice; agora passa mais rápido.
 - **Pacote `@adatechnology/cargo-placement` nasce aqui, consumido por API e worker.** Versão `rc` em desenvolvimento (link local). Publicação em npm além do link é decisão fora desta spec.
 - ⚠️ **Esquema da coluna `input` de `trip_cargo_layouts` deve acompanhar `StoredCargoLayoutInput` da API.** Campo novo na API, sem atualizar o worker, vira `failed` no decode Zod. Mitigação: schema estrito na coluna, teste de paridade.
-- ⚠️ **Lease padrão de 280 s declarado nos construtores dos repositórios da API.** Não há env nova. Mudança exigiria audit de todos os callers.
+- ⚠️ **Lease padrão de 520 s declarado nos construtores dos repositórios da API.** Não há env nova. Mudança exigiria audit de todos os callers.
 - ⚠️ **Teste isolado do worker contra Postgres real para reivindicação por lease não existe.** Testado em `DrizzleCargoLayoutRepository` mas dentro de contrato de composição com fake de transação.
 
 ## Alternativas consideradas

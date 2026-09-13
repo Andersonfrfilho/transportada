@@ -100,7 +100,7 @@ describe('contrato do .env.example', () => {
     )
 
     expect(`CARGO_LAYOUT_TIME_BUDGET_MS=${declaration?.value}`).toBe(
-      'CARGO_LAYOUT_TIME_BUDGET_MS=60000',
+      'CARGO_LAYOUT_TIME_BUDGET_MS=120000',
     )
   })
 

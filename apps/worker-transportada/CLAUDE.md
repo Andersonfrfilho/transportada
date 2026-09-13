@@ -47,7 +47,7 @@ em `docs/ai-context/worker-transportada.md` § "rotinas agendadas".
   rodam na API.
 - **A planta do baú é calculada aqui** (ADR-0063, spec 145) — consumidor `CargoLayoutConsumer`
   reclama pedidos por hash, executa `@adatechnology/cargo-placement` em `new Worker()` com orçamento
-  `CARGO_LAYOUT_TIME_BUDGET_MS` (padrão 60s, escada 60/120/240 em retry), prefetch 1, schema estrito
+  `CARGO_LAYOUT_TIME_BUDGET_MS` (padrão 120s, escada 120/240/480 em retry), prefetch 1, schema estrito
   da coluna `input` que **deve** acompanhar `StoredCargoLayoutInput` da API (campo novo na API sem
   sync vira `failed` no decode Zod). Tabela `trip_cargo_layouts`, outbox `trip_cargo_layout_outbox`,
   reivindicação nula/hash superado → ack; lease em `updated_at` para recuperar `running` órfão. Detalhe:

@@ -7,7 +7,7 @@ export const CARGO_LAYOUT_THREAD_CEILING_MARGIN_MS = 10_000
 
 const CARGO_LAYOUT_LEASE_SLACK_MS = 30_000
 
-/** Spec 145 D13: a tentativa N calcula com `base × 2^(N−1)` — 60 s, 120 s, 240 s no padrão. */
+/** Spec 145 D13: a tentativa N calcula com `base × 2^(N−1)` — 120 s, 240 s, 480 s no padrão. */
 export function resolveCargoLayoutBudgetMs(input: {
   readonly attempt: number
   readonly baseBudgetMs: number

@@ -22,7 +22,7 @@ const JOB = {
   layoutId: '00000000-0000-4000-8000-000000000002',
 } as const
 
-const BASE_BUDGET_MS = 60_000
+const BASE_BUDGET_MS = 120_000
 const MAX_ATTEMPTS = 3
 const STARTED_AT = new Date('2026-09-12T12:00:00.000Z')
 const FINISHED_AT = new Date('2026-09-12T12:00:01.250Z')
@@ -149,11 +149,11 @@ describe('handler da planta de carga (spec 145 D9, D13–D15)', () => {
     expect(ports.released).toBe(0)
   })
 
-  /** D13: a escada dobra o orçamento a cada tentativa — 60 s, 120 s, 240 s. */
+  /** D13: a escada dobra o orçamento a cada tentativa — 120 s, 240 s, 480 s. */
   test.each([
-    [1, 60_000],
-    [2, 120_000],
-    [3, 240_000],
+    [1, 120_000],
+    [2, 240_000],
+    [3, 480_000],
   ])('tentativa %i calcula com orçamento de %i ms', async (attempt, budgetMs) => {
     const ports = buildPorts()
 
@@ -286,9 +286,9 @@ describe('handler da planta de carga (spec 145 D9, D13–D15)', () => {
     expect(ports.released).toBe(0)
   })
 
-  /** D14: o maior orçamento (240 s) + teto externo (10 s) + folga (30 s). */
+  /** D14: o maior orçamento (480 s) + teto externo (10 s) + folga (30 s). */
   test('lease do running órfão é derivado do orçamento base', () => {
-    expect(resolveCargoLayoutLeaseMs({ baseBudgetMs: 60_000, maxAttempts: 3 })).toBe(280_000)
+    expect(resolveCargoLayoutLeaseMs({ baseBudgetMs: 120_000, maxAttempts: 3 })).toBe(520_000)
     expect(resolveCargoLayoutLeaseMs({ baseBudgetMs: 1_000, maxAttempts: 3 })).toBe(44_000)
   })
 })

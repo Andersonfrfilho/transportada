@@ -69,10 +69,10 @@ describe('cargo layout lease parity with the worker (spec 145 D14/D16)', () => {
     expect(Number(maxRetries) + 1).toBe(CARGO_LAYOUT_MAX_ATTEMPTS)
   })
 
-  test('the default budget gives the 280 s lease the worker measured', () => {
+  test('the default budget gives the 520 s lease the worker measured', () => {
     expect(
-      resolveCargoLayoutLeaseMs({ baseBudgetMs: 60_000, maxAttempts: CARGO_LAYOUT_MAX_ATTEMPTS }),
-    ).toBe(280_000)
+      resolveCargoLayoutLeaseMs({ baseBudgetMs: 120_000, maxAttempts: CARGO_LAYOUT_MAX_ATTEMPTS }),
+    ).toBe(520_000)
     expect(
       resolveCargoLayoutLeaseMs({ baseBudgetMs: 1_000, maxAttempts: CARGO_LAYOUT_MAX_ATTEMPTS }),
     ).toBe(44_000)
@@ -80,8 +80,8 @@ describe('cargo layout lease parity with the worker (spec 145 D14/D16)', () => {
 })
 
 describe('cargo layout time budget environment (spec 145 D14)', () => {
-  test('absent, the budget is 60 000 ms, as in the worker', () => {
-    expect(parseEnvironment(API_ENVIRONMENT).cargoLayoutTimeBudgetMs).toBe(60_000)
+  test('absent, the budget is 120 000 ms, as in the worker', () => {
+    expect(parseEnvironment(API_ENVIRONMENT).cargoLayoutTimeBudgetMs).toBe(120_000)
   })
 
   test('a declared budget reaches the configuration', () => {

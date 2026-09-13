@@ -14,9 +14,9 @@ const CARGO_LAYOUT_LEASE_SLACK_MS = 30_000
 /** Topologia `cargo-layout.v1` do worker: `maxRetries: 2` mais a primeira tentativa. */
 export const CARGO_LAYOUT_MAX_ATTEMPTS = 3
 
-export const DEFAULT_CARGO_LAYOUT_TIME_BUDGET_MS = 60_000
+export const DEFAULT_CARGO_LAYOUT_TIME_BUDGET_MS = 120_000
 
-/** Spec 145 D13: a tentativa N calcula com `base × 2^(N−1)` — 60 s, 120 s, 240 s no padrão. */
+/** Spec 145 D13: a tentativa N calcula com `base × 2^(N−1)` — 120 s, 240 s, 480 s no padrão. */
 export function resolveCargoLayoutBudgetMs(input: {
   readonly attempt: number
   readonly baseBudgetMs: number
@@ -39,7 +39,7 @@ export function resolveCargoLayoutLeaseMs(input: {
   )
 }
 
-/** O lease do orçamento padrão (280 s) — o que vale quando `CARGO_LAYOUT_TIME_BUDGET_MS` está ausente. */
+/** O lease do orçamento padrão (520 s) — o que vale quando `CARGO_LAYOUT_TIME_BUDGET_MS` está ausente. */
 export const DEFAULT_CARGO_LAYOUT_LEASE_MS = resolveCargoLayoutLeaseMs({
   baseBudgetMs: DEFAULT_CARGO_LAYOUT_TIME_BUDGET_MS,
   maxAttempts: CARGO_LAYOUT_MAX_ATTEMPTS,
