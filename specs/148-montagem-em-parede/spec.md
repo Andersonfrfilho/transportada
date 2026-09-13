@@ -77,6 +77,10 @@ para 16 com a D1.
   - numa lista: qual caixa, de qual nota, por cima de qual entrega, e em que parada ela precisa ser tirada do
     caminho para descarregar a de baixo.
 
+  - como carga dividida da entrega e da nota a que pertence (reaproveitando a marca de "Divididas" /
+    `splitNotes` que a ordem de carregamento já tem): quantas caixas daquela nota estão fora do lugar normal e
+    onde estão, para o conferente não dar a entrega por encerrada deixando parte da carga no caminhão.
+
   Medir por parada quantas caixas o conferente passa a mexer. Medido na spec 145: 56 das 162 caixas de fora da
   Atego só achariam lugar por cima de entrega anterior.
 

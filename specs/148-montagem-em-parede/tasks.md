@@ -47,7 +47,8 @@
       entrega anterior, com apoio de 80% e sem pilha alta isolada. Marca cada uma com um motivo próprio (ex.:
       `overEarlierDelivery`) e com a entrega que ela cobre. Medir caixas de fora e retrabalho por parada.
       No app: marca própria no mapa 3D e lista "caixas por cima" (caixa, nota, entrega coberta, parada em que
-      sai do caminho), com contrato de tela e textos no locale.
+      sai do caminho). A entrega e a nota com caixa fora do lugar normal aparecem como carga dividida (reaproveitar
+      `splitNotes` / coluna "Divididas"), com quantas caixas e onde. Contrato de tela e textos no locale.
 
 ## Fase 3 — App
 
