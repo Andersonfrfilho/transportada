@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs'
 
 import { describe, expect, test } from 'bun:test'
 
-import type { ResolvedCargoLayout } from '@adatechnology/cargo-placement'
+import { resolveCargoLayout, type ResolvedCargoLayout } from '@adatechnology/cargo-placement'
 
 import {
   previewTripCargo,
@@ -15,15 +15,23 @@ import { createReadCargoLayoutUseCase } from '../../src/trips/application/read-c
 import type { RequestCargoLayoutParams } from '../../src/trips/application/request-cargo-layout.types.js'
 import {
   buildCargoLayoutInput,
+  buildStoredCargoLayoutInput,
   hashCargoLayoutInput,
 } from '../../src/trips/domain/cargo-layout-hash.policy.js'
-import type { StoredCargoLayoutRecord } from '../../src/trips/domain/cargo-layout-state.types.js'
+import type { BuildCargoLayoutInputParams } from '../../src/trips/domain/cargo-layout-hash.types.js'
+import type {
+  StoredCargoLayoutRecord,
+  StoredCargoLayoutRecordWithInput,
+} from '../../src/trips/domain/cargo-layout-state.types.js'
 import { buildCargoPreviewStops } from '../../src/trips/domain/cargo-preview.policy.js'
+import { NEW_INPUT, OLD_INPUT, drawnWith } from '../fixtures/cargo-layout-label.fixture.js'
 
 const COMPANY_ID = 'company-preview'
 const CORRELATION_ID = 'correlation-preview-request'
 const LAYOUT_ID = '00000000-0000-4000-8000-00000000c145'
+const EMPTY_LAYOUT_LISTS = { pendingMeasurements: [], rows: [], slices: [], stopsWithoutVolume: [] }
 const STORED_LAYOUT = {
+  ...EMPTY_LAYOUT_LISTS,
   placement: { layers: [], source: 'measured', unplaced: [] },
   stored: 'by the worker',
 } as unknown as ResolvedCargoLayout
@@ -102,24 +110,27 @@ function storedRow(overrides: Partial<StoredCargoLayoutRecord>): StoredCargoLayo
   }
 }
 
-/** O hash que a prévia tem de procurar: o do mesmo retrato que `resolveCargoLayout` recebia. */
-function expectedHash(context: TripCargoPreviewContext): string {
-  return hashCargoLayoutInput(
-    buildCargoLayoutInput({
-      bedDimensions: context.bedDimensions,
-      capacityM3: context.capacityM3,
-      fallbackBoxVolumeM3: context.fallbackBoxVolumeM3,
-      loadingAccess: context.loadingAccess,
-      measuredShapes: context.measuredShapes,
-      payloadRatio: null,
-      securesCargo: context.securesCargo,
-      stops: buildCargoPreviewStops({
-        boxesByDocument: context.boxesByDocument,
-        documents: context.documents,
-        order: [],
-      }),
+/** A entrada que a prévia monta do contexto: o mesmo retrato que `resolveCargoLayout` recebia. */
+function previewInputOf(context: TripCargoPreviewContext): BuildCargoLayoutInputParams {
+  return {
+    bedDimensions: context.bedDimensions,
+    capacityM3: context.capacityM3,
+    fallbackBoxVolumeM3: context.fallbackBoxVolumeM3,
+    loadingAccess: context.loadingAccess,
+    measuredShapes: context.measuredShapes,
+    payloadRatio: null,
+    securesCargo: context.securesCargo,
+    stops: buildCargoPreviewStops({
+      boxesByDocument: context.boxesByDocument,
+      documents: context.documents,
+      order: [],
     }),
-  )
+  }
+}
+
+/** O hash que a prévia tem de procurar. */
+function expectedHash(context: TripCargoPreviewContext): string {
+  return hashCargoLayoutInput(buildCargoLayoutInput(previewInputOf(context)))
 }
 
 /**
@@ -161,7 +172,7 @@ describe('a prévia pede a planta pelo hash (spec 145 T11)', () => {
     const preview = await run()
 
     expect(harness.hashLookups).toEqual([expectedHash(MEASURED_CONTEXT)])
-    expect(preview.cargoLayout).toBe(STORED_LAYOUT)
+    expect(preview.cargoLayout).toEqual(STORED_LAYOUT)
     expect(preview.layoutId).toBe(LAYOUT_ID)
     expect(preview.state).toEqual({
       computedAt: '2026-09-12T10:00:00.000Z',
@@ -175,6 +186,7 @@ describe('a prévia pede a planta pelo hash (spec 145 T11)', () => {
 
   test('ready cortada pelo orçamento de tempo sai truncated (D13)', async () => {
     const truncatedLayout = {
+      ...EMPTY_LAYOUT_LISTS,
       placement: {
         layers: [],
         source: 'measured',
@@ -187,6 +199,35 @@ describe('a prévia pede a planta pelo hash (spec 145 T11)', () => {
     })
 
     expect((await run()).state.truncated).toBe(true)
+  })
+
+  /** D20 (T16): o hash ignora a etiqueta — a planta pronta pode ter o cliente de antes. */
+  test('cliente renomeado depois do ready: a prévia serve o nome novo', async () => {
+    const currentInput = previewInputOf(MEASURED_CONTEXT)
+    const drawnBefore = resolveCargoLayout({
+      ...currentInput,
+      stops: currentInput.stops.map((stop) => ({
+        ...stop,
+        clientName: 'Cliente Antigo',
+        label: 'Endereço antigo',
+        noteNumbers: ['9'],
+      })),
+    })
+    const { harness, run } = previewWith({
+      context: MEASURED_CONTEXT,
+      stored: storedRow({ layout: drawnBefore, status: 'ready' }),
+    })
+
+    const preview = await run()
+
+    expect(preview.cargoLayout).toEqual(resolveCargoLayout(currentInput))
+    expect(preview.cargoLayout?.rows[0]).toMatchObject({
+      clientName: 'Cliente',
+      label: 'A',
+      noteNumbers: ['10'],
+    })
+    expect(harness.hashLookups).toHaveLength(1)
+    expect(harness.requests).toEqual([])
   })
 
   test('nada guardado: enfileira com tripId null e o correlationId do request, e responde pending', async () => {
@@ -297,7 +338,18 @@ describe('a prévia pede a planta pelo hash (spec 145 T11)', () => {
 })
 
 describe('a tela pergunta de novo pelo layoutId (spec 145 T11)', () => {
-  function readWith(stored: StoredCargoLayoutRecord | undefined) {
+  /** O polling lê a linha com a entrada guardada, que o upsert mantém com a etiqueta de agora (M3). */
+  function polledRow(
+    overrides: Partial<StoredCargoLayoutRecordWithInput>,
+  ): StoredCargoLayoutRecordWithInput {
+    return {
+      ...storedRow(overrides),
+      input: buildStoredCargoLayoutInput(previewInputOf(MEASURED_CONTEXT)),
+      ...overrides,
+    }
+  }
+
+  function readWith(stored: StoredCargoLayoutRecordWithInput | undefined) {
     const lookups: { readonly companyId: string; readonly layoutId: string }[] = []
     const useCase = createReadCargoLayoutUseCase({
       repository: {
@@ -315,7 +367,7 @@ describe('a tela pergunta de novo pelo layoutId (spec 145 T11)', () => {
 
   test('devolve layoutId, state e a planta pronta', async () => {
     const { lookups, useCase } = readWith(
-      storedRow({ computedAt: '2026-09-12T10:00:00.000Z', layout: STORED_LAYOUT, status: 'ready' }),
+      polledRow({ computedAt: '2026-09-12T10:00:00.000Z', layout: STORED_LAYOUT, status: 'ready' }),
     )
 
     const result = await useCase.execute({ companyId: COMPANY_ID, layoutId: LAYOUT_ID })
@@ -335,8 +387,24 @@ describe('a tela pergunta de novo pelo layoutId (spec 145 T11)', () => {
     })
   })
 
+  /** D20 (T16): sem a viagem em memória, a etiqueta de agora é a do `input` da própria linha. */
+  test('cliente renomeado depois do ready: o polling serve o nome novo, pelo input guardado', async () => {
+    const { useCase } = readWith(
+      polledRow({
+        input: buildStoredCargoLayoutInput(NEW_INPUT),
+        layout: drawnWith(OLD_INPUT),
+        status: 'ready',
+      }),
+    )
+
+    const result = await useCase.execute({ companyId: COMPANY_ID, layoutId: LAYOUT_ID })
+
+    expect(result.cargoLayout).toEqual(drawnWith(NEW_INPUT))
+    expect(result.state.status).toBe('ready')
+  })
+
   test('pendente: cargoLayout null e pending', async () => {
-    const { useCase } = readWith(storedRow({ status: 'queued' }))
+    const { useCase } = readWith(polledRow({ status: 'queued' }))
 
     const result = await useCase.execute({ companyId: COMPANY_ID, layoutId: LAYOUT_ID })
 
@@ -348,7 +416,7 @@ describe('a tela pergunta de novo pelo layoutId (spec 145 T11)', () => {
   /** D16/D18: parada ou falha além da espera — a rota reabre depois da leitura. */
   test('failed além da espera: pede para reabrir', async () => {
     const { useCase } = readWith(
-      storedRow({ errorCode: 'CARGO_LAYOUT_FAILED', leaseExpired: true, status: 'failed' }),
+      polledRow({ errorCode: 'CARGO_LAYOUT_FAILED', leaseExpired: true, status: 'failed' }),
     )
 
     const result = await useCase.execute({ companyId: COMPANY_ID, layoutId: LAYOUT_ID })

@@ -5,14 +5,18 @@
  * ele mesmo montou — nunca empacota. No máximo duas consultas fixas (G011): a do hash atual e, se ela
  * não está pronta, a última planta pronta da viagem.
  */
-import { and, eq, sql, type SQL } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 
 import { resolveCargoLayout, type ResolvedCargoLayout } from '@adatechnology/cargo-placement'
 
 import { tripCargoLayouts } from '../../database/trip-cargo-layout.schema.js'
 import { canRequestCargoLayout } from '../domain/cargo-layout-availability.policy.js'
 import { buildCargoLayoutInput, hashCargoLayoutInput } from '../domain/cargo-layout-hash.policy.js'
-import type { BuildCargoLayoutInputParams } from '../domain/cargo-layout-hash.types.js'
+import type {
+  BuildCargoLayoutInputParams,
+  StoredCargoLayoutInput,
+} from '../domain/cargo-layout-hash.types.js'
+import { relabelCargoLayout } from '../domain/cargo-layout-label.policy.js'
 import {
   UNAVAILABLE_CARGO_LAYOUT_STATE,
   resolveCargoLayoutReading,
@@ -20,6 +24,7 @@ import {
 import type {
   ReadyCargoLayoutRow,
   StoredCargoLayoutRecord,
+  StoredCargoLayoutRecordWithInput,
   TripCargoLayoutState,
 } from '../domain/cargo-layout-state.types.js'
 import { buildCargoLayoutLeaseExpiredCondition } from './cargo-layout-request.support.js'
@@ -45,23 +50,25 @@ function toStoredLayout(layout: unknown): ResolvedCargoLayout | null {
   return layout === null ? null : (layout as ResolvedCargoLayout)
 }
 
-async function readStoredRow(
-  queryable: TripQueryable,
-  params: { readonly condition: SQL | undefined; readonly leaseMs: number },
-): Promise<StoredCargoLayoutRecord | undefined> {
-  const [row] = await queryable
-    .select({
-      computedAt: tripCargoLayouts.computedAt,
-      errorCode: tripCargoLayouts.errorCode,
-      id: tripCargoLayouts.id,
-      layout: tripCargoLayouts.layout,
-      leaseExpired: sql<boolean>`${buildCargoLayoutLeaseExpiredCondition(params.leaseMs)}`,
-      status: tripCargoLayouts.status,
-    })
-    .from(tripCargoLayouts)
-    .where(params.condition)
-    .limit(1)
-  if (row === undefined) return undefined
+function storedRowFields(leaseMs: number) {
+  return {
+    computedAt: tripCargoLayouts.computedAt,
+    errorCode: tripCargoLayouts.errorCode,
+    id: tripCargoLayouts.id,
+    layout: tripCargoLayouts.layout,
+    leaseExpired: sql<boolean>`${buildCargoLayoutLeaseExpiredCondition(leaseMs)}`,
+    status: tripCargoLayouts.status,
+  }
+}
+
+function toStoredRecord(row: {
+  readonly computedAt: Date | null
+  readonly errorCode: string
+  readonly id: string
+  readonly layout: unknown
+  readonly leaseExpired: boolean
+  readonly status: StoredCargoLayoutRecord['status']
+}): StoredCargoLayoutRecord {
   return {
     computedAt: row.computedAt?.toISOString() ?? null,
     errorCode: row.errorCode,
@@ -73,31 +80,44 @@ async function readStoredRow(
 }
 
 /** A chave da fila (D3): a mesma entrada, da prévia ou da viagem, cai na mesma linha. */
-export function readCargoLayoutByInputHash(
+export async function readCargoLayoutByInputHash(
   queryable: TripQueryable,
   params: { readonly companyId: string; readonly inputHash: string; readonly leaseMs: number },
 ): Promise<StoredCargoLayoutRecord | undefined> {
-  return readStoredRow(queryable, {
-    condition: and(
-      eq(tripCargoLayouts.companyId, params.companyId),
-      eq(tripCargoLayouts.inputHash, params.inputHash),
-    ),
-    leaseMs: params.leaseMs,
-  })
+  const [row] = await queryable
+    .select(storedRowFields(params.leaseMs))
+    .from(tripCargoLayouts)
+    .where(
+      and(
+        eq(tripCargoLayouts.companyId, params.companyId),
+        eq(tripCargoLayouts.inputHash, params.inputHash),
+      ),
+    )
+    .limit(1)
+  return row === undefined ? undefined : toStoredRecord(row)
 }
 
-/** T11: o id vem da URL — sem a empresa do contexto no filtro, ele abriria planta alheia (BOLA). */
-export function readCargoLayoutById(
+/**
+ * T11: o id vem da URL — sem a empresa do contexto no filtro, ele abriria planta alheia (BOLA).
+ * D20 (T16): o `input` vem no mesmo select, para o polling reetiquetar sem consulta nova.
+ */
+export async function readCargoLayoutById(
   queryable: TripQueryable,
   params: { readonly companyId: string; readonly layoutId: string; readonly leaseMs: number },
-): Promise<StoredCargoLayoutRecord | undefined> {
-  return readStoredRow(queryable, {
-    condition: and(
-      eq(tripCargoLayouts.companyId, params.companyId),
-      eq(tripCargoLayouts.id, params.layoutId),
-    ),
-    leaseMs: params.leaseMs,
-  })
+): Promise<StoredCargoLayoutRecordWithInput | undefined> {
+  const [row] = await queryable
+    .select({ ...storedRowFields(params.leaseMs), input: tripCargoLayouts.input })
+    .from(tripCargoLayouts)
+    .where(
+      and(
+        eq(tripCargoLayouts.companyId, params.companyId),
+        eq(tripCargoLayouts.id, params.layoutId),
+      ),
+    )
+    .limit(1)
+  if (row === undefined) return undefined
+  // `input` só é escrito pelo upsert, com `buildStoredCargoLayoutInput` (D5/M3)
+  return { ...toStoredRecord(row), input: row.input as StoredCargoLayoutInput }
 }
 
 async function readPreviousReady(
@@ -148,7 +168,9 @@ export async function readTripCargoLayout(
   const reading = resolveCargoLayoutReading({ current, previousReady })
 
   return {
-    cargoLayout: reading.cargoLayout,
+    /** D20: a etiqueta é a da entrada que o detalhe acabou de montar — inclusive na planta `stale`. */
+    cargoLayout:
+      reading.cargoLayout === null ? null : relabelCargoLayout(reading.cargoLayout, params.input),
     cargoLayoutState: reading.cargoLayoutState,
     pendingCargoLayoutInput: reading.shouldRequest ? params.input : null,
   }

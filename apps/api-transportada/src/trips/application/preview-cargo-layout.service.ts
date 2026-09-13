@@ -5,6 +5,7 @@ import { resolveCargoLayout } from '@adatechnology/cargo-placement'
 
 import { canRequestCargoLayout } from '../domain/cargo-layout-availability.policy.js'
 import { buildCargoLayoutInput, hashCargoLayoutInput } from '../domain/cargo-layout-hash.policy.js'
+import { relabelCargoLayout } from '../domain/cargo-layout-label.policy.js'
 import {
   UNAVAILABLE_CARGO_LAYOUT_STATE,
   markCargoLayoutRequested,
@@ -56,7 +57,9 @@ export async function resolvePreviewCargoLayout(
   const layoutId = request?.layoutId ?? stored?.id
 
   return {
-    cargoLayout: reading.cargoLayout,
+    /** D20: o hash ignora a etiqueta — a da planta pronta pode ser de antes; a de agora está aqui. */
+    cargoLayout:
+      reading.cargoLayout === null ? null : relabelCargoLayout(reading.cargoLayout, layoutInput),
     ...(layoutId === undefined ? {} : { layoutId }),
     state:
       request?.enqueued === true

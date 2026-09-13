@@ -4,6 +4,7 @@
 import type { ResolvedCargoLayout } from '@adatechnology/cargo-placement'
 
 import type { CargoLayoutStatus } from '../../database/trip-cargo-layout.schema.js'
+import type { StoredCargoLayoutInput } from './cargo-layout-hash.types.js'
 
 /**
  * Spec 145 D10: o que a tela lê sobre a planta. `pending` junta `queued`/`running` e a linha que o
@@ -34,6 +35,14 @@ export type StoredCargoLayoutRow = {
 
 /** A mesma linha com o `id` — o `layoutId` que a prévia devolve e a tela pergunta de novo (T11). */
 export type StoredCargoLayoutRecord = StoredCargoLayoutRow & { readonly id: string }
+
+/**
+ * D20 (T16): o polling não tem a viagem em memória — a etiqueta de agora é a do `input` da própria
+ * linha, que o upsert regrava a cada pedido (revisão final M3). Coluna a mais no mesmo select.
+ */
+export type StoredCargoLayoutRecordWithInput = StoredCargoLayoutRecord & {
+  readonly input: StoredCargoLayoutInput
+}
 
 export type ReadyCargoLayoutRow = {
   readonly computedAt: string | null

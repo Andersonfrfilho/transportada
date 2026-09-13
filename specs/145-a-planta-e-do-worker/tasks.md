@@ -15,7 +15,7 @@
 | 5    | T12–T13 | ✅ feita | `sonnet`           | `opus`                            |
 | 6    | T14     | ✅ feita | `haiku`            | `sonnet` → `opus`                 |
 | 7    | T15     | pendente | `sonnet`           | `opus`                            |
-| 7    | T16     | pendente | `sonnet`           | `opus`                            |
+| 7    | T16     | ✅ feita | `sonnet`           | `opus`                            |
 | —    | revisão | pendente | `opus`             | `fable`                           |
 
 **Troca de modelo sem `/model`:** cada task vai para um subagente com `model=<recomendado>`. A
@@ -173,7 +173,7 @@ status='queued' AND input_hash=$hash`; nula → confirma e descarta; hash supera
     e `isStopRequested()`. Apaga primeiro a outbox das prévias do lote (a FK é `ON DELETE RESTRICT`) e
     depois as prévias, reconferindo `trip_id is null`. Log só com contagens.
   - Cron e frontend: a entrada no `JOB_CATALOG` e o rótulo. A configuração do Railway não muda.
-- [ ] T16 — Etiqueta de agora na planta servida (D20): detalhe, prévia e polling reescrevem `label`,
+- [x] T16 — Etiqueta de agora na planta servida (D20): detalhe, prévia e polling reescrevem `label`,
       `clientName`, `noteNumbers` e `documentNumber` do `layout` com a entrada atual, casando parada por
       `sequence` e caixa por `documentId`. Sem recalcular, sem consulta nova no detalhe. Contratos.
 

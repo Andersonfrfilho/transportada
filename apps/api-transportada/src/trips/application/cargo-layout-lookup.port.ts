@@ -1,7 +1,10 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import type { StoredCargoLayoutRecord } from '../domain/cargo-layout-state.types.js'
+import type {
+  StoredCargoLayoutRecord,
+  StoredCargoLayoutRecordWithInput,
+} from '../domain/cargo-layout-state.types.js'
 import type {
   FindCargoLayoutByIdParams,
   FindCargoLayoutByInputHashParams,
@@ -12,7 +15,7 @@ import type {
  * prévia procura — ou pelo `id` que ela devolveu — o que a tela pergunta de novo. Só leitura.
  */
 export type CargoLayoutLookupPort = {
-  findById(params: FindCargoLayoutByIdParams): Promise<StoredCargoLayoutRecord | undefined>
+  findById(params: FindCargoLayoutByIdParams): Promise<StoredCargoLayoutRecordWithInput | undefined>
   findByInputHash(
     params: FindCargoLayoutByInputHashParams,
   ): Promise<StoredCargoLayoutRecord | undefined>

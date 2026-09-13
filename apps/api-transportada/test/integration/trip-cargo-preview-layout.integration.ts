@@ -3,6 +3,7 @@
  */
 import { SQL } from 'bun'
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { resolveCargoLayout } from '@adatechnology/cargo-placement'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { eq, sql } from 'drizzle-orm'
 
@@ -20,6 +21,7 @@ import {
 } from '../../src/trips/application/preview-trip-cargo.use-case.js'
 import { createReadCargoLayoutUseCase } from '../../src/trips/application/read-cargo-layout.use-case.js'
 import { createRequestCargoLayoutUseCase } from '../../src/trips/application/request-cargo-layout.use-case.js'
+import { buildStoredCargoLayoutInput } from '../../src/trips/domain/cargo-layout-hash.policy.js'
 import type { BuildCargoLayoutInputParams } from '../../src/trips/domain/cargo-layout-hash.types.js'
 import { DEFAULT_CARGO_LAYOUT_LEASE_MS } from '../../src/trips/domain/cargo-layout-lease.policy.js'
 import { DrizzleCargoLayoutLookupRepository } from '../../src/trips/infrastructure/drizzle-cargo-layout-lookup.repository.js'
@@ -34,7 +36,14 @@ const databaseUrl =
 const describeWithPostgres = databaseUrl === undefined ? describe.skip : describe
 
 const CORRELATION_ID = 'correlation-cargo-preview-layout'
-const STORED_LAYOUT = { placement: { layers: [], source: 'measured', unplaced: [] }, stops: [] }
+const STORED_LAYOUT = {
+  pendingMeasurements: [],
+  placement: { layers: [], source: 'measured', unplaced: [] },
+  rows: [],
+  slices: [],
+  stops: [],
+  stopsWithoutVolume: [],
+}
 
 type TestDatabase = ReturnType<typeof createDrizzleProvider>
 type SeededTrip = { readonly companyId: string; readonly tripId: string }
@@ -204,6 +213,61 @@ describeWithPostgres('cargo preview asks for the layout by hash (spec 145 T11)',
       state: readyState as never,
     })
     expect(await outboxOf(seeded.companyId)).toHaveLength(1)
+  })
+
+  /** D20 (T16): o polling não tem a viagem — reetiqueta pelo `input` da própria linha (M3). */
+  test('ready drawn with the labels of before: the polling serves the current ones, from the stored input', async () => {
+    const seeded = await seedTrip(database)
+    const current = await readCargoLayoutInputParams(database.db, seeded)
+    if (current === null) throw new Error('Expected the trip cargo layout input')
+    const requested = await database.db.transaction((transaction) =>
+      createRequestCargoLayoutForTrip({ cargoLayoutLeaseMs: DEFAULT_CARGO_LAYOUT_LEASE_MS })(
+        transaction,
+        seeded,
+      ),
+    )
+    const layoutId = requested?.layoutId as string
+    /** O seed não tem parada: a entrada guardada ganha uma, como o upsert a regrava (M3). */
+    const currentInput: BuildCargoLayoutInputParams = {
+      ...current,
+      stops: [
+        {
+          boxes: [],
+          clientName: 'Cliente Renomeado',
+          documentsWithoutVolume: 0,
+          label: 'Rua Nova, 10',
+          noteNumbers: ['101'],
+          sequence: 1,
+          volumeM3: '0.500000',
+        },
+      ],
+    }
+    const drawnBefore = resolveCargoLayout({
+      ...currentInput,
+      stops: currentInput.stops.map((stop) => ({
+        ...stop,
+        clientName: 'Cliente Antigo',
+        label: 'Endereço antigo',
+        noteNumbers: ['9'],
+      })),
+    })
+    await database.db
+      .update(tripCargoLayouts)
+      .set({
+        computedAt: new Date('2026-09-12T10:00:00.000Z'),
+        input: buildStoredCargoLayoutInput(currentInput),
+        layout: drawnBefore,
+        status: 'ready',
+      })
+      .where(eq(tripCargoLayouts.id, layoutId))
+
+    const polled = await createReadCargoLayoutUseCase({
+      repository: new DrizzleCargoLayoutLookupRepository(database.db),
+    }).execute({ companyId: seeded.companyId, layoutId })
+
+    expect(polled.state.status).toBe('ready')
+    expect(drawnBefore).not.toEqual(resolveCargoLayout(currentInput))
+    expect(polled.cargoLayout).toEqual(resolveCargoLayout(currentInput))
   })
 
   async function failLayout(layoutId: string, options: { readonly old: boolean }) {

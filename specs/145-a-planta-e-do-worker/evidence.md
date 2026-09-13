@@ -1351,3 +1351,30 @@ diff foi revisto à mão: o `sql.raw` interpola só uma constante de status, e t
 - L8: erros genéricos na thread.
 - M2 virou a D19 e a T15.
 - M4: a ordem de publicação da D17 exige dois pushes (`f67d4174` primeiro).
+
+### T16 — a etiqueta servida é a de agora · 2026-09-13
+
+Rodou em `opus`: `sonnet` sem cota até 2026-09-14 09:00.
+
+A planta `ready` pode ter sido desenhada com a etiqueta de antes, porque o hash a ignora (D6). A função
+pura `relabelCargoLayout(layout, { stops })` (`trips/domain/cargo-layout-label.policy.ts`) troca só a
+etiqueta pela entrada atual, sem recalcular:
+
+- `rows[].label/clientName/noteNumbers` e `slices[].label` casam pela `sequence`;
+- `stopsWithoutVolume[].label`, pela posição entre as paradas sem cubagem, com `documentCount` igual;
+- `pendingMeasurements[].stopLabel`, `label` e `documentNumber`, pela `sequence` e pelo `productCode`;
+- `placement.layers[].boxes[].label/documentNumber`, pela `stopSequence` e pelo `documentId`;
+- `placement.unplaced[].label`, pela troca de rótulo da parada vista em `rows`/`slices`.
+
+Posição, dimensão, contagem, `reason` e `splitNotes` ficam intactos, e parada ou caixa sem par fica como
+está. O detalhe reetiqueta com a entrada que já monta, inclusive a planta `stale`, e a prévia com
+`layoutInput`, sem consulta nova. O polling usa o `input` da própria linha, que o upsert mantém atual
+(M3), trazido no mesmo select por id. Sem baú (`unavailable`) nada muda.
+
+- **TDD:** 9 fail / 377 pass → 386 pass / 0 fail (trip-domain, trip-infrastructure, cargo-volume). Os
+  dois casos D20 de integração foram escritos depois da implementação e não têm vermelho registrado.
+- **Gate conferido pelo orquestrador:** `tsc --noEmit` limpo; eslint limpo nos tocados; API 5057 pass /
+  0 fail. Integrações da planta contra o Postgres local, pelo executor: 18/18, com o orçamento de
+  consultas do detalhe inalterado.
+- **Limites registrados:** a caixa fora do baú cujo rótulo é o nome do produto, e a caixa posicionada de
+  uma nota com dois produtos renomeados, continuam com o rótulo antigo. Casar ali seria adivinhar.

@@ -50,7 +50,11 @@ function hashOf(params: BuildCargoLayoutInputParams): string {
 
 function layoutWithUnplaced(reason: string): object {
   return {
+    pendingMeasurements: [],
     placement: { layers: [], source: 'measured', unplaced: [{ count: 1, label: 'Caixa', reason }] },
+    rows: [],
+    slices: [],
+    stopsWithoutVolume: [],
   }
 }
 
@@ -157,6 +161,38 @@ describeWithPostgres('trip detail reads the stored cargo layout (spec 145 T10)',
       truncated: true,
     })
     expect(detail?.pendingCargoLayoutInput).toBeUndefined()
+  })
+
+  /** D20 (T16): o hash ignora a etiqueta — a planta pronta pode ter sido desenhada com a de antes. */
+  test('a ready drawn with the labels of before serves the current ones (D20)', async () => {
+    const seeded = await seedTrip(database, { measured: true })
+    const repository = new DrizzleTripRepository(database.db)
+    const first = await repository.findById(seeded)
+    const current = first?.pendingCargoLayoutInput as BuildCargoLayoutInputParams
+    await requestLazily(database, { detailInput: current, seeded })
+    const drawnBefore = resolveCargoLayout({
+      ...current,
+      stops: current.stops.map((stop) => ({
+        ...stop,
+        clientName: 'Cliente Antigo',
+        label: 'Endereço antigo',
+        noteNumbers: ['9'],
+      })),
+    })
+    await database.db
+      .update(tripCargoLayouts)
+      .set({
+        computedAt: new Date('2026-09-12T10:00:00.000Z'),
+        layout: drawnBefore,
+        status: 'ready',
+      })
+      .where(eq(tripCargoLayouts.companyId, seeded.companyId))
+
+    const detail = await repository.findById(seeded)
+
+    expect(detail?.cargoLayoutState.status).toBe('ready')
+    expect(drawnBefore).not.toEqual(resolveCargoLayout(current))
+    expect(detail?.cargoLayout).toEqual(resolveCargoLayout(current))
   })
 
   test('failed carries its code, keeps the last ready as stale, and asks again only past the wait (D18)', async () => {

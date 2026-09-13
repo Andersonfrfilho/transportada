@@ -8,7 +8,10 @@ import type {
   FindCargoLayoutByInputHashParams,
 } from '../application/read-cargo-layout.types.js'
 import { DEFAULT_CARGO_LAYOUT_LEASE_MS } from '../domain/cargo-layout-lease.policy.js'
-import type { StoredCargoLayoutRecord } from '../domain/cargo-layout-state.types.js'
+import type {
+  StoredCargoLayoutRecord,
+  StoredCargoLayoutRecordWithInput,
+} from '../domain/cargo-layout-state.types.js'
 import {
   readCargoLayoutById,
   readCargoLayoutByInputHash,
@@ -24,7 +27,9 @@ export class DrizzleCargoLayoutLookupRepository implements CargoLayoutLookupPort
     },
   ) {}
 
-  public findById(params: FindCargoLayoutByIdParams): Promise<StoredCargoLayoutRecord | undefined> {
+  public findById(
+    params: FindCargoLayoutByIdParams,
+  ): Promise<StoredCargoLayoutRecordWithInput | undefined> {
     return readCargoLayoutById(this.database, {
       ...params,
       leaseMs: this.options.cargoLayoutLeaseMs,
