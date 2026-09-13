@@ -33,3 +33,22 @@ export class ContractorMailWebhookSecretFormatError extends ApiError {
     })
   }
 }
+
+/**
+ * Spec 143 T008: os dois segredos são opcionais no `PUT` para permitir manter o que já está selado
+ * — mas na **primeira** configuração não existe "o que já está selado" para preservar. Sem os dois
+ * de uma vez, a linha nasceria sem envelope.
+ */
+export class ContractorMailSecretRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CONTRACTOR_MAIL_SECRET_REQUIRED',
+      details: [
+        { field: 'apiKey', message: 'required on the first configuration' },
+        { field: 'webhookSigningSecret', message: 'required on the first configuration' },
+      ],
+      message: 'Contractor mail api key and webhook signing secret are required on first save',
+      status: 422,
+    })
+  }
+}

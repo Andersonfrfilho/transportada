@@ -618,3 +618,131 @@ mora em `node:dns`) e um `error TS2379` (`body: undefined` não cabe em `Request
 `no-unused-vars` no teste do worker (`_raw` desestruturado e descartado) também. Não rodei a
 integração de banco (`bun --env-file=../../.env.test test`): estes gateways não tocam banco, só
 `fetch` e `dns` injetados.
+
+## T008 — 2026-09-13 (aguardando architect)
+
+As três rotas de `/contractor-mail-settings` (`GET`, `PUT`, `GET .../checks`), todas
+`settings.manage`/`company` e `cache-control: no-store`, compostas em `main.ts` pela primeira vez —
+até aqui o módulo só existia como port/repositório/gateways sem consumidor HTTP.
+
+**Arquivos novos:**
+
+- `src/contractor-mail/application/contractor-mail-settings.use-case.ts` — `read`, `save` e
+  `runChecks`. `save` gera o `settingsId` (novo ou reaproveitado) **antes** de selar, porque o AAD do
+  envelope amarra a ele; quando um segredo vem omitido, abre o envelope existente com o mesmo
+  serviço da T006 e preserva só o que faltou. A trilha de auditoria (`contractor-mail.settings.saved`)
+  grava `changedFields` — nomes dos campos, nunca valor — e o `before`/`after` só carrega
+  `id`/`version`. `runChecks` isola cada verificação externa (`Promise.all` com uma função por
+  chamada) e nunca deixa uma falha de rede propagar: vira item `failed` com motivo tipado.
+- `src/contractor-mail/presentation/contractor-mail-settings.schema.ts` — `PUT` `strict()`, com
+  `apiKey`/`webhookSigningSecret` opcionais (mantêm o selado quando ausentes — o formato do `whsec_`
+  é conferido pelo serviço da T006, não duas vezes), e `replyDomain` com regex de no mínimo três
+  rótulos, minúsculo.
+- `src/contractor-mail/presentation/contractor-mail-settings.routes.ts` — serialização por lista
+  fechada de campos (como a Nota RP); sem configuração, `GET` devolve `{ data: null }` com `200`
+  (mesmo padrão da Nota RP, não `404`).
+
+**Arquivos estendidos:**
+
+- `contractor-mail.port.ts`: `upsertSettings` (void) virou `saveSettings` (retorna o registro),
+  agora recebendo `settingsId` e o bloco de auditoria; `findSetupTestStatus` novo, para o RF13 dos
+  três checks de teste (T009/T010 ainda não escrevem nada, então ele devolve `undefined` até lá — o
+  caso de uso lê isso como `pending`, que é o esperado por `tasks.md`).
+- `drizzle-contractor-mail.repository.ts`: `saveSettings` faz upsert + `audit_logs` **na mesma
+  transação** (`this.database.transaction`), com `version` incrementado por SQL
+  (`version + 1`) e `id` explícito no insert (nunca `defaultRandom()`, porque o caso de uso precisa
+  do id antes de selar). `findSetupTestStatus` busca a conversa `setup_test` da empresa e, se
+  existir, agrega o estado das mensagens dela.
+- `contractor-mail.error.ts`: `ContractorMailSecretRequiredError` (422) — a primeira configuração
+  não tem segredo anterior para preservar, então omitir os dois é erro, não "manter o que já
+  estava".
+- `shared/api.constant.ts`: `API_CONTRACTOR_MAIL_SETTINGS_PATH` e `..._CHECKS_PATH`.
+- `main.ts`: composição do módulo dentro de `createApplicationRoutes` (onde `database` já é o
+  drizzle cru) — repositório, os dois gateways da T007, o serviço de segredo da T006 e o caso de uso,
+  registrados perto do `createFuelPriceRoutes`.
+
+**Decisão registrada (para o `architect` conferir):** o `whsec_` de resposta ao P0 pedia
+"a whitelist da Nota RP" para o `GET`; segui a mesma para o corpo sem segredo — `data: null` com
+`200`, nunca `404`.
+
+**Testes:**
+
+- `test/contractor-mail/settings-routes.contract.ts` — permissão (`403` sem `settings.manage` nas
+  três rotas), `no-store`, corpo do `GET` sem segredo (chave a chave), `PUT` com e sem os dois
+  segredos, `replyDomain` com dois rótulos recusado (`400`), corpo desconhecido/sem `senderAddress`
+  recusado, `checks` devolvendo as sete chaves do RF12 na ordem, e a resposta **nunca** contém os
+  valores sintéticos de `apiKey`/`webhookSigningSecret` nem `secretEnvelope`/`ciphertext` em texto
+  cru de nenhuma das três rotas.
+- `test/contractor-mail/settings-use-case.contract.ts` — a primeira configuração exige os dois
+  segredos (`ContractorMailSecretRequiredError`); a auditoria da primeira grava os cinco campos como
+  alterados e nunca carrega o valor do segredo; omitir os dois num `PUT` seguinte preserva o que
+  estava selado (provado abrindo o envelope de volta com a `secretService` real); um
+  `webhookSigningSecret` sem `whsec_` é recusado com o erro da T006 mesmo vindo pelo `save`; sem
+  configuração, os sete checks saem `pending`/`not_configured`; um provedor saudável + MX encontrado
+  - teste totalmente respondido dão os sete `ok`; `ResendProviderUnauthorizedError` falha `api_key`
+    **e** `sender_domain` com o mesmo motivo; uma falha de rede não mapeada ainda responde (nunca
+    rejeita a Promise) como `failed`/`provider_unreachable`; MX ausente é `pending`, MX inalcançável é
+    `failed`; os três `dkimResult` que não são `aligned` falham `test_dkim` cada um com o motivo certo.
+- `test/contractor-mail/no-secret-exposure.contract.ts` — contrato por texto de fonte: varre todo
+  `src/contractor-mail/**/*.ts` e reprova qualquer chamada de `logger`/`log` que mencione `apiKey`,
+  `webhookSigningSecret` ou `secretEnvelope` (nenhuma existe hoje — o teste é guarda contra o futuro);
+  e confere que `contractor-mail-settings.routes.ts` nunca nomeia o envelope selado
+  (`secretEnvelope`/`ciphertext`) — ele só repassa os dois segredos como texto opaco do corpo já
+  validado até o caso de uso, que é quem sela. A garantia sobre os _valores_ reais é o teste
+  funcional de `settings-routes.contract.ts` citado acima.
+- `test/integration/contractor-mail-settings-repository.integration.ts` (novo, registrado em
+  `package.json` → `test:integration`) — banco descartável de verdade: cria + atualiza a
+  configuração e confere que `id`/`webhook_id` não mudam e `version` incrementa, que exatamente duas
+  linhas de `audit_logs` nascem (uma por chamada) sem `ciphertext` no `afterSnapshot`, isolamento
+  entre duas empresas, e `findSetupTestStatus` (undefined antes de qualquer mensagem, depois lendo
+  `hasOutboundSent`/`hasInboundReply`/`dkimResult` de linhas inseridas à mão simulando o que a
+  T009/T010 gravarão).
+- O contrato de tenant da T005 (`test/contractor-mail-schema/tenant-safety.contract.ts`) continua
+  verde sem alteração — `buildContractorMailThreadByReplyTokenFilters` e a documentação de
+  `findSettingsByWebhookId` não mudaram.
+
+**Gates:**
+
+```
+$ bun run typecheck                  # raiz, as seis apps → limpo
+$ bun run --cwd apps/api-transportada test
+ 5608 pass
+ 23 skip
+ 0 fail
+Ran 5631 tests across 170 files.
+
+$ bun --env-file=../../.env.test test ./test/integration/contractor-mail-settings-repository.integration.ts --timeout 120000
+ 3 pass
+ 0 fail
+Ran 3 tests across 1 file.
+
+$ bun run lint                       # raiz → limpo
+$ bunx prettier --check apps/api-transportada/src/contractor-mail apps/api-transportada/test/contractor-mail \
+    apps/api-transportada/test/fixtures/contractor-mail-http.fixture.ts \
+    apps/api-transportada/test/contractor-mail.contract.test.ts \
+    apps/api-transportada/test/integration/contractor-mail-settings-repository.integration.ts \
+    apps/api-transportada/src/main.ts apps/api-transportada/src/shared/api.constant.ts \
+    apps/api-transportada/package.json
+All matched files use Prettier code style!
+```
+
+**Decisões que o `architect` deve olhar:**
+
+1. Como os segredos omitidos são preservados: `save` decripta o envelope existente com a mesma
+   `secretService` da T006 (mesmo AAD, `companyId:settingsId`) só quando algum dos dois campos vem
+   ausente, e mescla; nunca decripta à toa quando os dois vêm preenchidos.
+2. O que vai para a trilha de auditoria: `changedFields` (nomes) e `id`/`version` — nunca o valor de
+   `senderAddress`/`senderName`/`replyDomain` nem, é claro, dos segredos.
+3. O comportamento sem configuração: `GET` devolve `200` com `{ data: null }` (padrão da Nota RP, não
+   `404`); `GET .../checks` devolve as sete chaves `pending`/`not_configured` sem chamar gateway
+   nenhum.
+4. Os motivos tipados dos checks: `provider_unauthorized`/`_unreachable`/`_unexpected_response` do
+   Resend; `sender_domain_not_found`/`_not_verified`; `mx_absent` (pendente) vs `mx_unreachable`
+   (falho); `webhook_never_received`; `test_not_sent`/`test_not_replied` (os três checks de teste
+   ficam presos em pendente enquanto T009/T010 não gravarem nada); e os três motivos de DKIM
+   (`dkim_not_aligned`/`_unverifiable`/`_absent`), todos falhos porque um DKIM que não alinha não
+   decide (RF13).
+5. `saveSettings` faz upsert + auditoria na mesma transação, mas ainda não há `expectedVersion` de
+   concorrência otimista — o `plan.md`/`spec.md` não pediram, e a versão só serve à leitura, não a um
+   `PUT` que compete consigo mesmo (o auditor deve confirmar que isso é aceitável para esta task, ou
+   se P0 precisa de bloqueio de escrita concorrente).

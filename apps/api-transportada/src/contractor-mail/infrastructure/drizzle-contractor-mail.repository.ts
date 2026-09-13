@@ -4,12 +4,18 @@
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import { and, eq, type SQL, sql } from 'drizzle-orm'
 
-import { contractorMailSettings, contractorMailThreads } from '../../database/database.schema.js'
+import {
+  auditLogs,
+  contractorMailMessages,
+  contractorMailSettings,
+  contractorMailThreads,
+} from '../../database/database.schema.js'
 import type {
   ContractorMailRepositoryPort,
   ContractorMailSettingsRecord,
+  ContractorMailSetupTestStatus,
   ContractorMailThreadRecord,
-  UpsertContractorMailSettingsInput,
+  SaveContractorMailSettingsInput,
 } from '../application/contractor-mail.port.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -103,26 +109,105 @@ export class DrizzleContractorMailRepository implements ContractorMailRepository
     return row === undefined ? undefined : { ...row, contractorId: row.contractorId ?? undefined }
   }
 
-  /** Grava o envelope como veio — abrir e selar é da T006. */
-  public async upsertSettings(input: UpsertContractorMailSettingsInput): Promise<void> {
-    await this.database
-      .insert(contractorMailSettings)
-      .values({
-        companyId: input.companyId,
-        replyDomain: input.replyDomain,
-        secretEnvelope: input.secretEnvelope,
-        senderAddress: input.senderAddress,
-        senderName: input.senderName,
+  /**
+   * Spec 143 T008: lê a conversa `setup_test` da empresa (RF13) e, se existir, o estado das
+   * mensagens dela — `undefined` quando ela ainda não existe (T009/T010 não fecharam), o que o
+   * caso de uso lê como "pendente".
+   */
+  public async findSetupTestStatus({
+    companyId,
+  }: {
+    readonly companyId: string
+  }): Promise<ContractorMailSetupTestStatus | undefined> {
+    const [thread] = await this.database
+      .select({ id: contractorMailThreads.id })
+      .from(contractorMailThreads)
+      .where(
+        and(
+          eq(contractorMailThreads.companyId, companyId),
+          eq(contractorMailThreads.subjectType, 'setup_test'),
+        ),
+      )
+      .limit(1)
+    if (thread === undefined) return undefined
+
+    const messages = await this.database
+      .select({
+        deliveryStatus: contractorMailMessages.deliveryStatus,
+        direction: contractorMailMessages.direction,
+        dkimResult: contractorMailMessages.dkimResult,
       })
-      .onConflictDoUpdate({
-        set: {
+      .from(contractorMailMessages)
+      .where(
+        and(
+          eq(contractorMailMessages.companyId, companyId),
+          eq(contractorMailMessages.threadId, thread.id),
+        ),
+      )
+
+    const inboundMessage = messages.find((message) => message.direction === 'inbound')
+    return {
+      dkimResult: inboundMessage?.dkimResult ?? undefined,
+      hasInboundReply: inboundMessage !== undefined,
+      hasOutboundSent: messages.some(
+        (message) => message.direction === 'outbound' && message.deliveryStatus === 'sent',
+      ),
+    }
+  }
+
+  /**
+   * Upsert do envelope selado (abrir/selar é da T006) e a trilha de auditoria, na mesma transação:
+   * a linha e o registro de "o que mudou" nascem ou não nascem juntos. `id` é passado pelo caso de
+   * uso (nunca `defaultRandom()`) porque o AAD do envelope amarra a este id, e ele precisa existir
+   * **antes** da chamada a `secretService.encrypt` — não depois, quando o banco o gerasse sozinho.
+   */
+  public async saveSettings(
+    input: SaveContractorMailSettingsInput,
+  ): Promise<ContractorMailSettingsRecord> {
+    return this.database.transaction(async (transaction) => {
+      await transaction
+        .insert(contractorMailSettings)
+        .values({
+          id: input.settingsId,
+          companyId: input.companyId,
           replyDomain: input.replyDomain,
           secretEnvelope: input.secretEnvelope,
           senderAddress: input.senderAddress,
           senderName: input.senderName,
-          updatedAt: sql`now()`,
-        },
-        target: contractorMailSettings.companyId,
+        })
+        .onConflictDoUpdate({
+          set: {
+            replyDomain: input.replyDomain,
+            secretEnvelope: input.secretEnvelope,
+            senderAddress: input.senderAddress,
+            senderName: input.senderName,
+            updatedAt: sql`now()`,
+            version: sql`${contractorMailSettings.version} + 1`,
+          },
+          target: contractorMailSettings.companyId,
+        })
+
+      await transaction.insert(auditLogs).values({
+        action: input.audit.action,
+        actorUserId: input.audit.actorUserId,
+        afterSnapshot: input.audit.afterSnapshot,
+        beforeSnapshot: input.audit.beforeSnapshot,
+        companyId: input.companyId,
+        correlationId: input.audit.correlationId,
+        entityId: input.audit.entityId,
+        entityType: 'contractor_mail_settings',
       })
+
+      const [row] = await transaction
+        .select(SETTINGS_COLUMNS)
+        .from(contractorMailSettings)
+        .where(eq(contractorMailSettings.companyId, input.companyId))
+        .limit(1)
+      if (row === undefined) {
+        throw new Error('contractor mail settings row vanished inside its own transaction')
+      }
+
+      return { ...row, lastWebhookAt: row.lastWebhookAt ?? undefined }
+    })
   }
 }

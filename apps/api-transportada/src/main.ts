@@ -368,6 +368,12 @@ import {
   DrizzleMunicipalHolidayRepository,
 } from './delivery-clients/infrastructure/drizzle-contractor.repository.js'
 import { createContractorRoutes } from './delivery-clients/presentation/contractor.routes.js'
+import { createContractorMailCredentialSecretService } from './contractor-mail/application/contractor-mail-credential-secret.service.js'
+import { createContractorMailSettingsUseCase } from './contractor-mail/application/contractor-mail-settings.use-case.js'
+import { DrizzleContractorMailRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail.repository.js'
+import { createMxLookupGateway } from './contractor-mail/infrastructure/mx-lookup.gateway.js'
+import { createResendAccountGateway } from './contractor-mail/infrastructure/resend-account.gateway.js'
+import { createContractorMailSettingsRoutes } from './contractor-mail/presentation/contractor-mail-settings.routes.js'
 import { createContractorPortalBindingRoutes } from './contractor-portal/presentation/contractor-portal-binding.routes.js'
 import { createContractorDeliveryRoutes } from './contractor-portal/presentation/contractor-delivery.routes.js'
 import { createReadContractorDeliveryLocationUseCase } from './contractor-portal/application/read-contractor-delivery-location.use-case.js'
@@ -1560,6 +1566,14 @@ function createApplicationRoutes({
   const deliveryProofDocumentSecrets = createDeliveryProofDocumentSecretService({
     envelopeProvider,
   })
+  const contractorMailSettings = createContractorMailSettingsUseCase({
+    mxLookupGateway: createMxLookupGateway(),
+    repository: new DrizzleContractorMailRepository(database),
+    resendAccountGateway: createResendAccountGateway({
+      fetch: (target, init) => fetch(target, init),
+    }),
+    secretService: createContractorMailCredentialSecretService({ envelopeProvider }),
+  })
   const nfseEmissionProfiles = createNfseEmissionProfilesUseCase({
     fingerprintService,
     unitOfWork: nfseProfileRepository,
@@ -1787,6 +1801,11 @@ function createApplicationRoutes({
       adjust: createAdjustFuelPriceUseCase({ fuelPrices: fuelPriceRepository }),
       clear: createClearFuelPriceUseCase({ fuelPrices: fuelPriceRepository }),
       list: createListFuelPricesUseCase({ fuelPrices: fuelPriceRepository }),
+    }),
+    ...createContractorMailSettingsRoutes({
+      read: { execute: (input) => contractorMailSettings.read(input) },
+      runChecks: { execute: (input) => contractorMailSettings.runChecks(input) },
+      save: { execute: (input) => contractorMailSettings.save(input) },
     }),
     ...createTollBoothChargeRoutes({
       adjust: createAdjustTollBoothChargeUseCase({

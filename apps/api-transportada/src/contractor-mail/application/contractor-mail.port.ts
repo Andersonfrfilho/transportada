@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type {
+  ContractorMailDkimResult,
   ContractorMailSettingsStatus,
   ContractorMailThreadStatus,
   ContractorMailThreadSubjectType,
@@ -24,14 +25,6 @@ export type ContractorMailSettingsRecord = {
   readonly webhookId: string
 }
 
-export type UpsertContractorMailSettingsInput = {
-  readonly companyId: string
-  readonly replyDomain: string
-  readonly secretEnvelope: unknown
-  readonly senderAddress: string
-  readonly senderName: string
-}
-
 export type ContractorMailThreadRecord = {
   readonly companyId: string
   readonly contractorId: string | undefined
@@ -41,6 +34,49 @@ export type ContractorMailThreadRecord = {
   readonly status: ContractorMailThreadStatus
   readonly subjectId: string
   readonly subjectType: ContractorMailThreadSubjectType
+}
+
+/**
+ * Spec 143 T008: o que a conversa `setup_test` (RF13) já revela hoje, ainda sem a T009 (que a
+ * cria) nem a T010 (que grava a resposta e o DKIM). Enquanto nenhuma das duas existir, nenhuma
+ * empresa tem conversa `setup_test`, e `findSetupTestStatus` devolve `undefined` — o que o caso de
+ * uso lê como "pendente", exatamente o esperado pelo `tasks.md`.
+ */
+export type ContractorMailSetupTestStatus = {
+  readonly dkimResult: ContractorMailDkimResult | undefined
+  readonly hasInboundReply: boolean
+  readonly hasOutboundSent: boolean
+}
+
+/**
+ * A trilha registra ator, alvo e o resultado — nunca o valor do que mudou. `afterSnapshot` carrega
+ * só os nomes dos campos alterados (`changedFields`), nunca `apiKey`/`webhookSigningSecret` nem o
+ * envelope selado.
+ */
+export type ContractorMailSettingsAuditRecord = {
+  readonly action: string
+  readonly actorUserId: string
+  readonly afterSnapshot: Record<string, unknown>
+  readonly beforeSnapshot: Record<string, unknown> | null
+  readonly companyId: string
+  readonly correlationId: string
+  readonly entityId: string
+}
+
+export type SaveContractorMailSettingsInput = {
+  readonly audit: ContractorMailSettingsAuditRecord
+  readonly companyId: string
+  readonly replyDomain: string
+  readonly secretEnvelope: unknown
+  readonly senderAddress: string
+  readonly senderName: string
+  /**
+   * Gerado pelo caso de uso **antes** da chamada: o AAD do envelope selado
+   * (`transportada:contractor-mail-credential:v1:${companyId}:${settingsId}`) precisa do id antes
+   * de a linha existir, então quem decide o id de uma configuração nova é quem sela o segredo, não
+   * o `defaultRandom()` da coluna.
+   */
+  readonly settingsId: string
 }
 
 export type ContractorMailRepositoryPort = {
@@ -56,11 +92,16 @@ export type ContractorMailRepositoryPort = {
   readonly findSettingsByWebhookId: (input: {
     readonly webhookId: string
   }) => Promise<ContractorMailSettingsRecord | undefined>
+  readonly findSetupTestStatus: (input: {
+    readonly companyId: string
+  }) => Promise<ContractorMailSetupTestStatus | undefined>
   /** plan.md § Segurança e tenant: o hash acha a conversa, e `companyId` confere que é a do webhook. */
   readonly findThreadByReplyTokenHash: (input: {
     readonly companyId: string
     readonly replyTokenHash: string
   }) => Promise<ContractorMailThreadRecord | undefined>
-  /** Grava o envelope como veio — abrir e selar é da T006. */
-  readonly upsertSettings: (input: UpsertContractorMailSettingsInput) => Promise<void>
+  /** Upsert + auditoria na mesma transação — o envelope chega selado, abrir e selar é da T006. */
+  readonly saveSettings: (
+    input: SaveContractorMailSettingsInput,
+  ) => Promise<ContractorMailSettingsRecord>
 }
