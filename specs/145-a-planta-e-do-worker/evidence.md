@@ -1565,3 +1565,26 @@ ninguém amarra.
 - **Efeito no hash:** muda nas viagens com baú fechado cujo motorista não amarra. É esperado, porque
   `securesCargo` entra no hash.
 - **Medido na investigação:** a Atego 2426 cai de 377 para 46 caixas de fora, e a Iveco Daily de 24 para 0.
+
+### D21 no navegador: a proposta refeita com baú fechado segurando a carga · 2026-09-13
+
+Refeita a mesma montagem ("Montar roteiro pela busca de notas", 342 notas, 6 motoristas, 6 veículos),
+depois do commit da T17. O roteirizador propôs 6 viagens com 168 entregas; 139 paradas ficaram acima do
+teto de peso. Cada cartão foi aberto, e as 6 prévias saíram `ready` na 1ª tentativa, todas com
+`securesCargo: true`, porque os 6 veículos são baú fechado (`02`):
+
+| Caminhão                                                                | Paradas    | Caixas        | Caixas de fora     | Cálculo               |
+| ----------------------------------------------------------------------- | ---------- | ------------- | ------------------ | --------------------- |
+| Accelo 1016 (RTD5J78)                                                   | 23         | 465           | 0                  | 1,2 s                 |
+| VW Delivery 9.170 (RTB3G56), Fiorino (RTF7L01) e Sprinter 416 (RTE6K89) | 10, 7 e 17 | 154, 72 e 225 | 0                  | 0,1 s, 0,06 s e 0,3 s |
+| Iveco Daily 35-150 (RTC4H67)                                            | 27         | 444           | **13** (`bedFull`) | 1,1 s                 |
+| Atego 2426 (RTA2F45)                                                    | 64         | 1178          | 0                  | 11,3 s                |
+
+Total de 2538 caixas e 13 de fora, contra 439 de fora nas 5 viagens da proposta anterior, sem a D21. As
+13 da Iveco entram na medição da T18 (layout `6b676625-df65-4d56-a017-45df261ca4eb`).
+
+A investigação da T18 (só leitura), com `securesCargo: true` sobre as entradas antigas, deixou de fora:
+46 de 1465 na Atego de 84 paradas, 6 de 94 na Fiorino e 0 na Sprinter, na Accelo e na Iveco. A causa é o
+relevo serrilhado das entregas do fundo, e não falta de volume. Só baixar o apoio mínimo para 50–60%
+(regra protegida, não recomendada) zera tudo. O caminho seguro em implementação é a arrumação: camadas
+niveladas por entrega, piso reservado para as primeiras entregas e vários arranjos.
