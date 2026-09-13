@@ -200,6 +200,14 @@ db:generate`, espelhada em `apps/worker-transportada/src/database/nfe.schema.ts`
   descarregar. As regras da D23 e o apoio de 80% continuam valendo. O pacote mede o menor alcance que zera.
   Decisão do usuário, 2026-09-13.
 
+- **D25 — O encosto é no sentido da cabeceira, e a vizinha escora com 80% da borda.** O usuário
+  esclareceu a D23: a pilha alta precisa estar encostada no SENTIDO da cabeceira (na parede do fundo ou na
+  pilha vizinha naquela direção) e em uma das laterais, não necessariamente colada na parede da cabeceira.
+  O que barrava 141 das 162 caixas de fora da Atego era a definição de escora da spec 142, em que a vizinha
+  precisa cobrir a borda inteira. Passa a valer a D1 da spec 146, já decidida pelo usuário: a vizinha
+  escora quando cobre 80% da borda. `CARGO_LAYOUT_POLICY_VERSION` sobe para `'3'`. Decisão do usuário,
+  2026-09-13.
+
 ## Fora do escopo
 
 - Regra física do empacotador — apoio de 80%, escora pelo lado, célula de 5 cm,
