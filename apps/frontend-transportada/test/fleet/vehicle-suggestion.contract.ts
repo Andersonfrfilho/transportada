@@ -13,7 +13,9 @@ import { VEHICLE_DETAIL } from './fleet.fixture'
 
 /**
  * O catálogo como a API o serve. O VUC é o piso semeado; o implemento (`vehicleType` vazio) existe
- * para provar que ele **não** é oferecido a quem ainda não escolheu tipo.
+ * para provar que ele **não** é oferecido a quem ainda não escolheu tipo. `toco` ganha duas linhas
+ * de propósito — `02` (baú) e `01` (aberta) — porque a 147 T16b faz a referência casar por
+ * `(vehicleType, bodyType)`, e é a única forma de provar que a carroceria decide qual linha vence.
  */
 const REFERENCES: readonly VehicleReference[] = [
   {
@@ -31,6 +33,30 @@ const REFERENCES: readonly VehicleReference[] = [
     cargoWidthM: '2.460',
     maxPayloadKg: null,
     vehicleType: '',
+  },
+  {
+    bodyType: '02',
+    cargoHeightM: '2.400',
+    cargoLengthM: '7.000',
+    cargoWidthM: '2.500',
+    maxPayloadKg: '8000.000',
+    vehicleType: 'toco',
+  },
+  {
+    bodyType: '01',
+    cargoHeightM: '2.500',
+    cargoLengthM: '7.000',
+    cargoWidthM: '2.500',
+    maxPayloadKg: '8000.000',
+    vehicleType: 'toco',
+  },
+  {
+    bodyType: '04',
+    cargoHeightM: '2.390',
+    cargoLengthM: '5.900',
+    cargoWidthM: '2.350',
+    maxPayloadKg: '25000.000',
+    vehicleType: 'truck',
   },
 ]
 
@@ -54,6 +80,7 @@ const MEASURED_ACCELO = buildVehicle({
 describe('Vehicle suggestion', () => {
   test('fills the bed from the market reference when the fleet has nothing alike', () => {
     const suggestion = resolveVehicleSuggestion({
+      bodyType: '02',
       brand: '',
       model: '',
       references: REFERENCES,
@@ -79,6 +106,7 @@ describe('Vehicle suggestion', () => {
    */
   test('prefers a measured vehicle of the same brand and model, naming its plate', () => {
     const suggestion = resolveVehicleSuggestion({
+      bodyType: '02',
       brand: 'Mercedes-Benz',
       model: 'Accelo 1016',
       references: REFERENCES,
@@ -104,6 +132,7 @@ describe('Vehicle suggestion', () => {
    */
   test('refuses to inherit the bed from the brand alone, falling back to the type', () => {
     const suggestion = resolveVehicleSuggestion({
+      bodyType: '02',
       brand: 'Mercedes-Benz',
       model: 'ATEGO 2426',
       references: REFERENCES,
@@ -127,6 +156,7 @@ describe('Vehicle suggestion', () => {
     })
 
     const suggestion = resolveVehicleSuggestion({
+      bodyType: '02',
       brand: 'MERCEDES-BENZ',
       model: 'ACCELO 1016',
       references: REFERENCES,
@@ -146,6 +176,7 @@ describe('Vehicle suggestion', () => {
     for (const vehicleType of ['car', 'tractor_unit'] as const) {
       expect(
         resolveVehicleSuggestion({
+          bodyType: '02',
           brand: '',
           model: '',
           references: REFERENCES,
@@ -163,6 +194,7 @@ describe('Vehicle suggestion', () => {
   test('never offers the trailer row to a vehicle with no type chosen yet', () => {
     expect(
       resolveVehicleSuggestion({
+        bodyType: '02',
         brand: '',
         model: '',
         references: REFERENCES,
@@ -175,6 +207,7 @@ describe('Vehicle suggestion', () => {
   /** Carga ausente no catálogo vira campo vazio, nunca zero: zero diria que o tipo não carrega. */
   test('leaves the payload blank when the market publishes none', () => {
     const suggestion = resolveVehicleSuggestion({
+      bodyType: '02',
       brand: '',
       model: '',
       references: [{ ...REFERENCES[0]!, maxPayloadKg: null }],
@@ -183,6 +216,104 @@ describe('Vehicle suggestion', () => {
     })
 
     expect(suggestion?.capacityKilograms).toBe('')
+  })
+})
+
+/**
+ * ⚠️ **A referência casa por `(vehicleType, bodyType)`, não só por tipo** (147 T16b). `toco` tem
+ * duas linhas — baú (`02`) e aberta (`01`) — e sem a carroceria na chave a primeira em ordem
+ * venceria sempre, oferecendo baú a quem está montando um toco aberto.
+ */
+describe('a referência casa pela carroceria', () => {
+  test('toco com baú (02) sugere a linha de baú', () => {
+    const suggestion = resolveVehicleSuggestion({
+      bodyType: '02',
+      brand: '',
+      model: '',
+      references: REFERENCES,
+      vehicles: [],
+      vehicleType: 'toco',
+    })
+
+    expect(suggestion).toEqual({
+      capacityKilograms: '8.000,00',
+      cargoHeightMeters: '2,40',
+      cargoLengthMeters: '7,00',
+      cargoWidthMeters: '2,50',
+      loadingAccess: '',
+      origin: { kind: 'reference' },
+    })
+  })
+
+  test('toco com carroceria aberta (01) sugere a linha aberta, não a de baú', () => {
+    const suggestion = resolveVehicleSuggestion({
+      bodyType: '01',
+      brand: '',
+      model: '',
+      references: REFERENCES,
+      vehicles: [],
+      vehicleType: 'toco',
+    })
+
+    expect(suggestion).toEqual({
+      capacityKilograms: '8.000,00',
+      cargoHeightMeters: '2,50',
+      cargoLengthMeters: '7,00',
+      cargoWidthMeters: '2,50',
+      loadingAccess: '',
+      origin: { kind: 'reference' },
+    })
+  })
+
+  /**
+   * Sem carroceria escolhida não há o que sugerir: a 147 D1 tornou a carroceria obrigatória fora
+   * do cavalo, e devolver a primeira linha do tipo seria palpite de carroceria.
+   */
+  test('toco sem carroceria escolhida não recebe sugestão de referência', () => {
+    expect(
+      resolveVehicleSuggestion({
+        bodyType: '',
+        brand: '',
+        model: '',
+        references: REFERENCES,
+        vehicles: [],
+        vehicleType: 'toco',
+      }),
+    ).toBeNull()
+  })
+
+  /** `'00'` é "não aplicável" — só o cavalo o carrega, e ele já não tem sugestão de referência. */
+  test('carroceria "00" também não recebe sugestão de referência', () => {
+    expect(
+      resolveVehicleSuggestion({
+        bodyType: '00',
+        brand: '',
+        model: '',
+        references: REFERENCES,
+        vehicles: [],
+        vehicleType: 'toco',
+      }),
+    ).toBeNull()
+  })
+
+  test('truck com porta-contêiner (04) sugere a linha do contêiner de 20 pés', () => {
+    const suggestion = resolveVehicleSuggestion({
+      bodyType: '04',
+      brand: '',
+      model: '',
+      references: REFERENCES,
+      vehicles: [],
+      vehicleType: 'truck',
+    })
+
+    expect(suggestion).toEqual({
+      capacityKilograms: '25.000,00',
+      cargoHeightMeters: '2,39',
+      cargoLengthMeters: '5,90',
+      cargoWidthMeters: '2,35',
+      loadingAccess: '',
+      origin: { kind: 'reference' },
+    })
   })
 })
 
@@ -273,7 +404,10 @@ describe('Vehicle form patch composition', () => {
   }
 
   test('fills the bed when the operator picks the type', () => {
-    const composed = composeVehicleFormPatch({ ...BASE, values: { vehicleType: 'vuc' } })
+    const composed = composeVehicleFormPatch({
+      ...BASE,
+      values: { bodyType: '02', vehicleType: 'vuc' },
+    })
 
     expect(composed.state.cargoLengthMeters).toBe('3,15')
     expect(composed.origin).toEqual({ kind: 'reference' })
@@ -291,7 +425,10 @@ describe('Vehicle form patch composition', () => {
    * indistinguishable from a measurement.
    */
   test('lets the operator empty a suggested field instead of refilling it', () => {
-    const filled = composeVehicleFormPatch({ ...BASE, values: { vehicleType: 'vuc' } }).state
+    const filled = composeVehicleFormPatch({
+      ...BASE,
+      values: { bodyType: '02', vehicleType: 'vuc' },
+    }).state
 
     const cleared = composeVehicleFormPatch({
       ...BASE,
@@ -312,7 +449,7 @@ describe('Vehicle form patch composition', () => {
   test('never injects a measurement while editing a saved vehicle', () => {
     const composed = composeVehicleFormPatch({
       ...BASE,
-      previous: { ...EMPTY_VEHICLE_FORM, vehicleType: 'vuc' },
+      previous: { ...EMPTY_VEHICLE_FORM, bodyType: '02', vehicleType: 'vuc' },
       suggestionEnabled: false,
       values: { color: 'branca' },
     })
@@ -322,14 +459,54 @@ describe('Vehicle form patch composition', () => {
   })
 
   /** Sem gatilho não há sugestão: digitar a placa não preenche o baú. */
-  test('only suggests when the type, brand or model changes', () => {
+  test('only suggests when the type, body type, brand or model changes', () => {
     const composed = composeVehicleFormPatch({
       ...BASE,
-      previous: { ...EMPTY_VEHICLE_FORM, vehicleType: 'vuc' },
+      previous: { ...EMPTY_VEHICLE_FORM, bodyType: '02', vehicleType: 'vuc' },
       values: { plate: 'RTD5J78' },
     })
 
     expect(composed.suggestedFields).toEqual([])
+  })
+
+  /**
+   * ⚠️ **Trocar a carroceria reavalia a sugestão** — a referência casa por `(vehicleType, bodyType)`
+   * desde a 147 T16b, e `toco` tem uma linha de baú e outra de aberta. Sem `bodyType` no gatilho,
+   * escolher a carroceria depois do tipo nunca chegaria a sugerir nada.
+   */
+  test('trocar a carroceria depois do tipo reavalia a sugestão', () => {
+    const withType = composeVehicleFormPatch({
+      ...BASE,
+      values: { vehicleType: 'toco' },
+    }).state
+    /** Sem carroceria ainda, o toco não recebe sugestão de referência nenhuma. */
+    expect(withType.cargoLengthMeters).toBe('')
+
+    const withBody = composeVehicleFormPatch({
+      ...BASE,
+      previous: withType,
+      values: { bodyType: '01' },
+    })
+
+    expect(withBody.state.cargoHeightMeters).toBe('2,50')
+    expect(withBody.origin).toEqual({ kind: 'reference' })
+  })
+
+  /** O campo já digitado não é sobrescrito quando a carroceria muda a sugestão. */
+  test('trocar a carroceria não sobrescreve campo já digitado', () => {
+    const withType = composeVehicleFormPatch({
+      ...BASE,
+      values: { bodyType: '02', vehicleType: 'toco' },
+    }).state
+    const measured = { ...withType, cargoHeightMeters: '2,99' }
+
+    const withBody = composeVehicleFormPatch({
+      ...BASE,
+      previous: measured,
+      values: { bodyType: '01' },
+    })
+
+    expect(withBody.state.cargoHeightMeters).toBe('2,99')
   })
 })
 
@@ -343,6 +520,7 @@ describe('porta lateral não vem do tipo', () => {
   test('nem van nem utilitário ganham acesso lateral por tipo', () => {
     for (const vehicleType of ['van', 'utility'] as const) {
       const suggestion = resolveVehicleSuggestion({
+        bodyType: '02',
         brand: '',
         model: '',
         references: REFERENCES,
@@ -357,6 +535,7 @@ describe('porta lateral não vem do tipo', () => {
   /** Caminhão também não ganha porta que ele não tem: baú de toco e truck abre atrás. */
   test('não sugere acesso lateral para os pesados', () => {
     const suggestion = resolveVehicleSuggestion({
+      bodyType: '02',
       brand: '',
       model: '',
       references: REFERENCES,
@@ -373,6 +552,7 @@ describe('porta lateral não vem do tipo', () => {
    */
   test('tipo sem referência não devolve sugestão nenhuma', () => {
     const suggestion = resolveVehicleSuggestion({
+      bodyType: '02',
       brand: '',
       model: '',
       references: [],

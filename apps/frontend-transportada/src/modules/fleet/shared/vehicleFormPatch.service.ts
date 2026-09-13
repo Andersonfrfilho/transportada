@@ -15,10 +15,14 @@ import {
 import { resolveVehicleTypeDefaults } from './vehicleTypeAxles.service'
 
 /**
- * Os três campos que **pedem** a sugestão. Fora deles a sugestão não roda, e é isso que permite
- * apagar um campo sugerido: sem gatilho, o campo em branco continua em branco.
+ * Os campos que **pedem** a sugestão. Fora deles a sugestão não roda, e é isso que permite apagar
+ * um campo sugerido: sem gatilho, o campo em branco continua em branco.
+ *
+ * `bodyType` entra na 147 T16b: a referência agora casa por tipo **e** carroceria, e trocar a
+ * carroceria depois de escolher o tipo precisa reavaliar a sugestão — nunca sobrescrever campo já
+ * digitado, que é a regra de `applyVehicleSuggestion` logo abaixo.
  */
-const SUGGESTION_TRIGGERS = ['brand', 'model', 'vehicleType'] as const
+const SUGGESTION_TRIGGERS = ['bodyType', 'brand', 'model', 'vehicleType'] as const
 
 export type ComposedVehicleFormPatch = Readonly<{
   origin: VehicleSuggestionOrigin | null
@@ -92,6 +96,7 @@ export function composeVehicleFormPatch(
   }
 
   const suggestion = resolveVehicleSuggestion({
+    bodyType: corrected.bodyType,
     brand: corrected.brand,
     model: corrected.model,
     references: input.references,
