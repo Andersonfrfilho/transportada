@@ -173,3 +173,90 @@ o id do snapshot de `20260913032201_whatsapp_command_settlement_retry`.
 O commit da T003 (`bed59472` antes do rebase) foi reaplicado como `460ec31c` pelo `git rebase`; o
 `git commit --amend` deste passo, só com arquivos da T003 (o `snapshot.json` regerado), fecha o SHA
 definitivo — ver o relatório da tarefa.
+
+## T004 — 2026-09-13
+
+**Checagem do §13 antes de instalar (`mailauth`, npm):**
+
+- **Manutenção:** última publicação em 2026-09-03 (dez dias antes desta task), mantida por
+  `postalsys` (Andris Reinman, também autor do `nodemailer`, `wildduck` e o resto do ecossistema
+  Postal Systems). Repositório ativo (`postalsys/mailauth`), sem sinal de abandono.
+  `engines.node: ">=22.19.0"` — não usamos Node aqui, o worker roda Bun 1.3.14, e é exatamente essa
+  compatibilidade que este spike prova.
+- **Licença:** MIT.
+- **Tipagem:** `package.json` declara `"types": "index.d.ts"` — tipagem nativa, sem precisar de
+  `@types/mailauth`. ⚠️ Achado durante o spike: o `.d.ts` **está errado** para `dkimSign` — ele
+  declara `signingDomain`/`selector`/`privateKey` como campos obrigatórios no topo de
+  `DKIMSignOptions`, mas a implementação (`lib/dkim/sign.js`) só lê `signatureData` (um array com os
+  mesmos três campos por assinatura); passar só os campos do topo produz `signatures: ''` sem erro
+  nenhum, e a mensagem "assinada" sai sem assinatura de verdade. Isso não afeta produção — só
+  usamos `dkimSign` no teste, para fabricar mensagens sintéticas — e o contorno no teste é passar os
+  dois: os campos do topo (satisfazem o compilador) e `signatureData` (o que a implementação lê de
+  fato). `dkimVerify`, que é o que o gateway de produção chama, tem o `.d.ts` correto: só usamos
+  `resolver` na chamada, e bateu com o comportamento medido em todos os casos.
+- **Sem I/O bloqueante:** a única I/O é o `resolver` de DNS, que é **injetado** — a biblioteca não
+  chama `dns.resolve` direto quando o resolvedor é passado (confirmado em `lib/tools.js:290-293`,
+  `getPublicKey`). O gateway (`dkim-verifier.gateway.ts`) usa isso para nunca tocar rede nos testes,
+  e para impor um prazo (`dnsTimeoutMs`, padrão 5 s) que a biblioteca sozinha não impõe.
+
+**Versão instalada:** `mailauth@5.0.3`, pinada exata (sem `^`) em
+`apps/worker-transportada/package.json`, com o `bun.lock` da raiz atualizado junto
+(`bun add mailauth@5.0.3` de dentro de `apps/worker-transportada`).
+
+**Rodou sob o Bun:** sim, sem ajuste nenhum — nem polyfill, nem `--bun`, nem troca de API. A suíte
+roda com `bun test`, e `dkimSign`/`dkimVerify` funcionam exatamente como o `lib/*.js` da biblioteca
+descreve.
+
+**API usada:** `dkimVerify(rawMessage, { resolver })` de `mailauth`, que devolve
+`{ headerFrom, envelopeFrom, results: DKIMResult[] }`. Cada `DKIMResult` traz `signingDomain` e
+`status: { result, aligned }`, onde:
+
+- `status.result` seguindo o vocabulário do RFC 8601 (`pass`, `fail`, `neutral`, `none`,
+  `temperror`, `permerror`, …);
+- `status.aligned`: **o domínio organizacional se alinhar com o `From`** (alinhamento relaxado,
+  calculado pela própria `mailauth` com `tldts` — `lib/mailauth.js` importa `getAlignment` de
+  `lib/tools.js`), ou `false` caso não alinhe.
+
+`resolveDkimAlignment` (`src/contractor-mail/domain/dkim-alignment.policy.ts`) não reimplementa a
+PSL: só lê o veredito que a `mailauth` já calculou.
+
+**Domínio organizacional:** resolvido inteiramente pela `mailauth` (via `tldts`), nunca por nós.
+Medido com uma assinatura `d=mail.exemplo.com.br` e `From: contratante@exemplo.com.br` — o mesmo
+domínio organizacional —, e `status.aligned` voltou `"mail.exemplo.com.br"` (truthy), confirmando o
+alinhamento relaxado sem qualquer lógica nossa de sufixo público.
+
+**Os cinco casos, medidos em `test/contractor-mail/dkim-verification.contract.ts`:**
+
+| Caso                                                                    | `status.result` medido                                                                                                                                    | Resultado da política                                                                                                                                                |
+| ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Assinada pelo domínio do `From`                                         | `pass`, `aligned` truthy                                                                                                                                  | `aligned`                                                                                                                                                            |
+| Assinada por outro domínio (`d=` diferente)                             | `pass`, `aligned: false`                                                                                                                                  | `not_aligned`                                                                                                                                                        |
+| Corpo adulterado depois de assinar                                      | `neutral`, comentário `"body hash did not verify"`                                                                                                        | `not_aligned` (a `mailauth` não classifica isso como `temperror`; é falha permanente de verificação, não falta de dado — por isso `not_aligned`, não `unverifiable`) |
+| Sem assinatura                                                          | `none`, comentário `"message not signed"`, `results` com uma entrada só                                                                                   | `absent`                                                                                                                                                             |
+| Resolvedor de DNS lança                                                 | `temperror`, comentário `"DNS failure: …"`                                                                                                                | `unverifiable`                                                                                                                                                       |
+| Resolvedor de DNS demora (`dnsTimeoutMs: 20`, resolvedor nunca resolve) | mesmo caminho do lançamento — o gateway rejeita a promessa do resolvedor por `setTimeout`, e a `mailauth` trata a rejeição do resolvedor como `temperror` | `unverifiable`                                                                                                                                                       |
+
+**Revisão do `architect` (opus, obrigatória por ser task 🧠):** achou uma lacuna real antes do
+commit — `resolveDkimAlignment` decidia `unverifiable` só quando **todas** as assinaturas davam
+falha transitória (`every`). Com duas assinaturas (comum: o provedor de saída assina com o próprio
+domínio, e o domínio da contratante assina também), uma vinda de outro domínio com `pass` e a do
+`From` com `temperror` (DNS fora do ar) caía em `not_aligned` — errado, porque a assinatura que
+decidiria o alinhamento é justamente a que não deu para verificar. Corrigido para `some`: uma falha
+transitória entre as assinaturas já basta para "não deu para verificar", nunca "verificado e não
+alinhado". Acrescentado o sétimo teste (`duas assinaturas: uma de outro domínio…`) cobrindo esse
+caso. As outras observações do `architect` (tag `l=`, `From` duplicado, prazo global por mensagem no
+consumidor) são de tasks futuras (T010 em diante) e ficam registradas aqui para não se perderem.
+
+**Gates (depois da correção):**
+
+- `bun test ./test/contractor-mail.contract.test.ts` (worker) — 7 pass, 0 fail.
+- `bun run --cwd apps/worker-transportada test` (suíte inteira) — 1050 pass, 0 fail, 2811 expect()
+  (a suíte cresceu de 1043 para 1050 com os sete casos novos).
+- `bun run typecheck` (raiz, as seis apps) — limpo.
+- `bunx prettier --check` nos quatro arquivos tocados — limpo, depois de `--write` nos dois que
+  vieram com alertas do generator inicial.
+- `bun run lint` (raiz, todas as apps) — limpo.
+
+Regra de parada: **não se aplicou.** A `mailauth` rodou sob o Bun 1.3.14 sem contorno nenhum; a
+única surpresa foi o `.d.ts` incorreto de `dkimSign`, documentada acima, e ela não bloqueia o uso em
+produção porque `dkimSign` só existe do lado do teste.

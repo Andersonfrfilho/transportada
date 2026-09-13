@@ -27,7 +27,7 @@ test`), um commit isolado e a evidência em `evidence.md`. Teste novo entra na l
       `rollback.sql`. Arquivos: `apps/api-transportada/drizzle/`,
       `src/database/contractor-mail.schema.ts` e `database.schema.ts`. Evidência:
       `make migration-test` verde.
-- [ ] **T004** 🧠 Spike da `mailauth` no worker, sob Bun: gerar uma chave de teste, assinar uma
+- [x] **T004** 🧠 Spike da `mailauth` no worker, sob Bun: gerar uma chave de teste, assinar uma
       mensagem sintética e verificar com o resolvedor de DNS injetado (alinhada, desalinhada,
       adulterada, sem assinatura). Checar o §13 (manutenção, tipagem, sem I/O bloqueante). **Se não
       rodar no Bun, pare e pergunte.** Evidência: a suíte passando no `bun test` do worker.
