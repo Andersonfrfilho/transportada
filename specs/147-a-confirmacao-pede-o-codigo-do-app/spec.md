@@ -73,7 +73,9 @@ força bruta a partir do banco. Por isso:
 - a notificação diz **"Há um código de confirmação para você"**, com link para a tela, e **nunca
   traz o código**;
 - a tela do app busca o código por uma rota autenticada, que devolve o valor **selado** (molde da
-  recuperação de senha, AAD `transportada:whatsapp-confirmation:v1:${companyId}:${requestId}`) e o
+  recuperação de senha, AAD `transportada:whatsapp-confirmation:v1:${companyId}:${codeId}` — por
+  código e não por pedido, porque só a emissão tem pedido e o código mora num lugar só para as quatro
+  operações) e o
   mostra uma vez;
 - o Web Push leva só "Há um código de confirmação", e o toque abre a mesma tela.
 
