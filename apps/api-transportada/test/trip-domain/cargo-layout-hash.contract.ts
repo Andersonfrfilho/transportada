@@ -202,7 +202,10 @@ describe('hashCargoLayoutInput', () => {
   })
 
   test('trocar policyVersion muda o hash', () => {
-    const changed: BuildCargoLayoutInputParams = { ...BASE_PARAMS, policyVersion: '2' }
+    const changed: BuildCargoLayoutInputParams = {
+      ...BASE_PARAMS,
+      policyVersion: `${CARGO_LAYOUT_POLICY_VERSION}-next`,
+    }
 
     expect(hashOf(changed)).not.toBe(hashOf(BASE_PARAMS))
   })
@@ -321,12 +324,11 @@ describe('hashCargoLayoutInput — tudo que o empacotador lê', () => {
     expect(hashOf(withoutBoxes('1.200'))).not.toBe(hashOf(withoutBoxes('3.400')))
   })
 
-  /** A forma do retrato mudou sem subir a versão do pacote: todo hash gravado antes deixa de bater. */
-  test('a forma nova do retrato muda o hash sem subir CARGO_LAYOUT_POLICY_VERSION', () => {
+  /** A forma do retrato mudou na revisão: com a mesma versão, todo hash gravado antes deixa de bater. */
+  test('a forma nova do retrato muda o hash mesmo com a versão da política de antes', () => {
     const HASH_BEFORE_REVIEW = '401b320116afa277a3ce2f75437cc55bbd7491558cff924ce9c3a3c6dc2c77d9'
 
-    expect(CARGO_LAYOUT_POLICY_VERSION).toBe('1')
-    expect(hashOf(BASE_PARAMS)).not.toBe(HASH_BEFORE_REVIEW)
+    expect(hashOf({ ...BASE_PARAMS, policyVersion: '1' })).not.toBe(HASH_BEFORE_REVIEW)
   })
 })
 
