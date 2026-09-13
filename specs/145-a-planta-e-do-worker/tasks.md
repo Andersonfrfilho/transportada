@@ -185,6 +185,18 @@ status='queued' AND input_hash=$hash`; nula → confirma e descarta; hash supera
       `clientName`, `noteNumbers` e `documentNumber` do `layout` com a entrada atual, casando parada por
       `sequence` e caixa por `documentId`. Sem recalcular, sem consulta nova no detalhe. Contratos.
 
+## Fase 8 — Nenhuma caixa de fora (`opus`)
+
+> 🤖 Modelo: `opus` (sonnet sem cota até 2026-09-14 09:00)
+
+- [ ] T17 — D21: `securesCargo` verdadeiro para baú fechado (`body_type` `02`) na entrada da planta
+      (detalhe, gatilho eager e prévia, inclusive sem motorista); nos outros tipos, a regra da spec 100.
+- [ ] T18 — D22: medir e zerar as caixas `bedFull` que sobram depois da D21, no empacotador, com o risco
+      físico de cada mudança aprovado pelo usuário antes de aplicar.
+- [ ] T19 — Uma conta só de tempo no cartão e no detalhe da proposta (estrada de ida, volta ao barracão
+      e 20 min por entrega), e "sem pedágio" no lugar de "conta incompleta" quando a única lacuna é o
+      pedágio da sugestão.
+
 ## Prompt de execução
 
 ```text

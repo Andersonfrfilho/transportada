@@ -171,6 +171,17 @@ db:generate`, espelhada em `apps/worker-transportada/src/database/nfe.schema.ts`
   prévia e polling), a API reescreve as etiquetas do `layout` servido com as da entrada atual, sem
   recalcular nada. Consequência direta da D6 e da revisão final (M3).
 
+- **D21 — Baú fechado segura a carga.** Na operação do usuário, caminhão de baú fechado (`body_type`
+  `02`, fechada/baú) não precisa amarrar a carga, porque as paredes a contêm; carroceria aberta ou
+  sider precisa. A planta passa a tratar `securesCargo` como verdadeiro quando o veículo é baú fechado,
+  e só nos outros tipos vale a regra da spec 100 (todo motorista da viagem amarra). Isso vale também
+  para a prévia sem motorista. Medido: a Atego 2426 cai de 377 para 46 caixas de fora e a Iveco Daily,
+  de 24 para 0. Decisão do usuário, 2026-09-13.
+- **D22 — Nenhuma mercadoria de fora do mapa 3D.** O usuário quer zerar as caixas `bedFull` quando a
+  carga cabe fisicamente. Depois da D21, o que sobra (46 na Atego, nas entregas 1–7 e 15: escada da
+  porta e alcance da primeira entrega) é medido e corrigido no empacotador, mostrando o risco físico de
+  cada mudança antes de aplicar. Decisão do usuário, 2026-09-13.
+
 ## Fora do escopo
 
 - Regra física do empacotador — apoio de 80%, escora pelo lado, célula de 5 cm,
