@@ -60,7 +60,7 @@ test`), um commit isolado e a evidência em `evidence.md`. Teste novo entra na l
       `contractor-mail-inbound.v1` até o DKIM: buscar o recebido, gravar o bruto com `sha256`,
       verificar, e tratar `setup_test`. Evidência: contratos da assinatura e da rota, integração do
       trilho com o fake do Resend, e o contrato de que nenhum log leva PII.
-- [ ] **T011** O painel "E-mail com contratantes": entrada em `SETTINGS_PANEL_PLACEMENT` (confirmar
+- [x] **T011** O painel "E-mail com contratantes": entrada em `SETTINGS_PANEL_PLACEMENT` (confirmar
       o módulo onde as contratantes são cadastradas), formulário, URL do webhook e MX com
       `CopyButton`, instruções do painel do Resend, lista de verificação e os dois botões. Locales
       acentuados. Evidência: contrato do registro de abas, contrato do serviço puro da lista de

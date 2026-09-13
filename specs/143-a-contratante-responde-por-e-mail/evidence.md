@@ -1483,3 +1483,108 @@ $ make worker-integration
 
 # Sem mudança de schema nesta correção — make migration-test não foi rerodado.
 ```
+
+## T011 — 2026-09-13
+
+O painel "E-mail com contratantes" (P0), no frontend. Nada de novo na API — só consumo das rotas
+que a T008/T009/T010 já entregaram.
+
+**Onde o painel ficou, e por quê.** O `plan.md` mandava achar "a tela onde as contratantes são
+cadastradas" e confirmar o módulo aqui. É `delivery-clients` — `DeliveryClientWorkspacePage`, o
+único módulo do frontend que fala de `contractors`/clientes de entrega (`grep` por `contractors`
+nos módulos de frontend não achou nada fora dali; o CRUD de `contractor_contacts` da T013 também
+mora dentro de `/contractors/:id`, o que confirma o módulo). Essa tela **não tinha abas** até aqui —
+era uma lista com filtro e um painel de edição embutido, sem `Tabs`. Segui a instrução do prompt
+para esse caso ("se esse módulo não tiver abas... escolha o lugar mais próximo que siga o
+registro"): a tela ganhou `Tabs` pela primeira vez, com duas abas — **Clientes** (o conteúdo que já
+existia, agora dentro de `ClientsListPanel`) e **E-mail com contratantes** (o painel novo). O
+registro `SETTINGS_PANEL_PLACEMENT` ganhou o módulo `delivery-clients` e o painel `contractorMail`,
+apontando para a aba `mail` e a fonte `contractorMailSettings` — no molde exato dos demais painéis
+(a consulta só liga com `canManageSettings && settingsScope.contractorMailSettings`, e a aba some
+sozinha para quem não tem `settings.manage`, porque `tabs` só inclui a aba de e-mail quando a
+permissão está presente).
+
+**Caminho de navegação:** tela "Clientes de entrega" (mesmo lugar de sempre) → aba "E-mail com
+contratantes" (nova, ao lado de "Clientes", visível só com `settings.manage`).
+
+**Arquivos criados:**
+
+- `apps/frontend-transportada/src/modules/delivery-clients/shared/contractorMailSettings.types.ts`
+  — cópia por valor dos tipos que a API devolve (`ContractorMailSettingsSummary`,
+  `ContractorMailCheckItem`, as listas fechadas de chave/status/motivo do RF12).
+- `.../shared/contractorMailSettingsResponse.validation.ts` — `nullableSettingsFromApi`,
+  `settingsFromApi`, `checksFromApi`, `testEmailResultFromApi`, todos por `hasExactKeys`.
+- `.../shared/contractorMailSettingsClient.service.ts` — cliente HTTP do módulo, `fetch` injetado,
+  os quatro caminhos (`GET`/`PUT /contractor-mail-settings`, `GET .../checks`,
+  `POST .../test-email`).
+- `.../shared/contractorMailSettingsForm.service.ts` — serviço puro do formulário: rascunho nunca
+  carrega segredo de volta, submissão omite os campos vazios do corpo, valida `replyDomain` (três
+  rótulos) e o prefixo `whsec_`, e exige os dois segredos só na primeira configuração
+  (`existingVersion === undefined`).
+- `.../shared/contractorMailChecklist.service.ts` — serviço puro da lista de verificação: ordena
+  pela ordem fixa do RF12, mapeia `status` → ícone do design system, mapeia `reason` → chave de
+  locale, e decide quando o botão "Enviar e-mail de teste" aparece (`api_key` em `ok`).
+- `.../hooks/useContractorMailSettings.hook.ts` — duas consultas (configuração, checks) e duas
+  mutações (salvar, enviar teste); salvar e enviar teste invalidam a consulta de checks — não há
+  efeito em `mutationInvalidation.service.ts` que se aplique aqui (não é vínculo entre dois módulos),
+  então a invalidação é local, como o prompt previa para esse caso.
+- `.../components/ContractorMailSettingsPanel.component.tsx` — formulário, o bloco do webhook (URL
+  com `CopyButton`, instrução de criar o webhook `email.received` no Resend e colar o segredo) e a
+  lista de verificação com os dois botões.
+- `.../styles/contractorMailSettings.module.css` — no mesmo desenho de `nfseSettings.module.css`
+  (só `min-width`, tokens de campo e de altura de controle, sem `<svg>`/`<select>`/checkbox cru).
+- `apps/frontend-transportada/test/delivery-clients/contractor-mail-checklist.contract.ts`,
+  `contractor-mail-form.contract.ts`, `contractor-mail-response.contract.ts` — os três contratos
+  pedidos (serviço puro da lista, serviço puro do formulário, validação de resposta).
+
+**Arquivos alterados:**
+
+- `apps/frontend-transportada/src/modules/company-settings/shared/companySettingsTabs.service.ts`
+  — `delivery-clients` em `SETTINGS_PANEL_MODULES`, `contractorMail` em `SETTINGS_PANELS`, a entrada
+  em `SETTINGS_PANEL_PLACEMENT`, `contractorMailSettings` em `SettingsDataSource` e em
+  `resolveSettingsDataScope`.
+- `.../delivery-clients/pages/DeliveryClientWorkspace.page.tsx` — ganhou `Tabs`; o conteúdo antigo
+  virou `ClientsListPanel`, e a aba nova monta `ContractorMailSettingsPanel` com `key` no `id` da
+  configuração (o mesmo motivo do comentário em `NfseInvoiceWorkspace.page.tsx`: sem a chave, o
+  painel monta vazio antes da consulta responder e o operador regrava por cima do que já existia).
+- `.../delivery-clients/locales/deliveryClients.locale.json` e `.en.locale.json` — a seção `tabs` e
+  a seção `contractorMail` inteira, com uma chave por `reason` (as 16 do RF12) e por `checkKey` (as
+  7). Conferido por script que as duas locales têm exatamente o mesmo conjunto de chaves, e que
+  nenhuma palavra da lista de formas sem acento aparece no arquivo pt-BR.
+- `apps/frontend-transportada/test/delivery-clients.contract.test.ts` — os três `import` novos.
+
+**Risco documentado (pedido explicitamente pela task, caso `VEHICLE_DETAIL_KEYS`):**
+`contractorMailSettingsResponse.validation.ts` valida um **objeto único**, não um array de linhas —
+diferente do caso histórico, em que `isVehicle` (`hasOnlyKeys`+`hasEveryKey`) reprovava cada linha
+de uma lista em silêncio, e a tabela renderizava vazia com `200` na rede e nada no console. Aqui
+`hasExactKeys` recusando um campo a mais (por exemplo, um segredo vazando de volta) lança
+`ContractorMailSettingsResponseError`, que o painel mostra como erro explícito — nunca uma tela
+vazia sem motivo. O comentário no arquivo de teste registra isso para quem um dia validar aqui uma
+lista (os contatos da T013, por exemplo): reconsiderar `hasExactKeys` num array antes de copiar o
+padrão sem pensar na consequência.
+
+**`reason` sem tradução:** nenhum. O teste `contractor-mail-checklist.contract.ts` varre as 16
+chaves de `CONTRACTOR_MAIL_CHECK_REASONS` e as 7 de `CONTRACTOR_MAIL_CHECK_KEYS` contra os dois
+pacotes de locale e falha se alguma não for string.
+
+**Gates:**
+
+```
+$ bunx tsc --noEmit                          # frontend-transportada → limpo
+$ bun run typecheck                          # raiz, as seis apps → limpo
+
+$ bun run --cwd apps/frontend-transportada test
+ 3371 pass, 0 fail, 33830 expect() calls
+Ran 3371 tests across 29 files.
+
+$ bun run lint                               # raiz, as seis apps → limpo
+$ bunx prettier --check <arquivos tocados>   # limpo (dois --write intermediários, só formatação)
+
+$ make check
+ format:check, lint, typecheck, test (as seis apps) e build — tudo verde, exit code 0.
+ (aviso de chunk >500kB no build do frontend é do bundle do pdf.worker.min, preexistente e sem
+ relação com esta task.)
+```
+
+Não rodei `make migration-test` nem a integração da API: T011 não toca banco nem rota nova — é
+consumo puro das rotas que já existiam desde a T008/T009.

@@ -18,12 +18,14 @@ export const SETTINGS_PANELS = [
   'occurrenceNotifications',
   'deliveryProof',
   'federalTaxes',
+  'contractorMail',
 ] as const
 
 export type SettingsPanel = (typeof SETTINGS_PANELS)[number]
 
 export const SETTINGS_PANEL_MODULES = [
   'company-settings',
+  'delivery-clients',
   'fleet',
   'nfe-workspace',
   'nfse-invoice',
@@ -37,6 +39,7 @@ export type SettingsDataSource =
   | 'cargoVolumeFactors'
   | 'companyContacts'
   | 'companySettings'
+  | 'contractorMailSettings'
   | 'deliveryProofSettings'
   | 'distributionCursor'
   | 'federalTaxes'
@@ -75,6 +78,13 @@ export const SETTINGS_PANEL_PLACEMENT: Readonly<Record<SettingsPanel, SettingsPa
   cargoVolume: { module: 'nfe-workspace', source: 'cargoVolumeFactors', tab: 'imports' },
   cargoWeight: { module: 'nfe-workspace', source: 'cargoSettings', tab: 'imports' },
   certificates: { module: 'company-settings', source: 'companySettings', tab: 'certificates' },
+  /**
+   * Spec 143 — o painel entra na tela onde as contratantes são cadastradas (`delivery-clients`),
+   * numa aba própria: é onde o administrador já está quando pensa em "como falo com quem eu
+   * transporto para". A tela não tinha abas até aqui — ganhou uma para hospedar isto ao lado da
+   * lista de clientes.
+   */
+  contractorMail: { module: 'delivery-clients', source: 'contractorMailSettings', tab: 'mail' },
   /**
    * Spec 082 (D4, ADR-0057) — o formulário do comprovante se decide **na tela de viagens**: é onde a
    * entrega aparece e onde o operador confere o que o motorista colheu. Configuração perto do efeito.
@@ -156,6 +166,7 @@ export function resolveSettingsDataScope(
     cargoVolumeFactors: sources.has('cargoVolumeFactors'),
     companyContacts: sources.has('companyContacts'),
     companySettings: module === 'company-settings' || sources.has('companySettings'),
+    contractorMailSettings: sources.has('contractorMailSettings'),
     deliveryProofSettings: sources.has('deliveryProofSettings'),
     distributionCursor: sources.has('distributionCursor'),
     federalTaxes: sources.has('federalTaxes'),
