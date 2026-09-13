@@ -102,3 +102,48 @@ test/trip-infrastructure.contract.test.ts test/trip-application.contract.test.ts
   pré-existentes já reportados na T2).
 - `bun run --cwd apps/api-transportada typecheck`: limpo.
 - `bunx prettier --check` e `bunx eslint` nos três arquivos tocados: ok, sem avisos.
+
+## T4 — Publicar `capacityUnknownReason`
+
+- `trip-occupancy.support.ts`: `loadTripOccupancy` chama `resolveCapacityUnknownReason` com
+  `{capacityM3: capacity?.capacityM3 ?? null, traction: {bodyType: vehicle.bodyType, vehicleType:
+vehicle.vehicleType}, trailer: null}` e devolve `capacityUnknownReason` nos quatro pontos de
+  retorno da função. No ramo "veículo não encontrado" (FK quebrada, hoje inalcançável em produção)
+  o motivo fica `null` — não há candidato de tração para nomear.
+- Encadeado até:
+  - `trips/application/trip.port.ts`: `TripDetail.capacityUnknownReason: CapacityUnknownReason |
+null`, ao lado de `occupancy` (não aninhado — a resposta não tem chave `cargo`, e `occupancy` e
+    `cargoWeight` já são irmãos no nível raiz);
+  - `trips/infrastructure/drizzle-trip.repository.ts`: repassado no retorno de `readTripDetail`;
+  - `trips/presentation/trip.routes.ts`: `serializeTripDetail` inclui o campo na resposta de
+    `GET/POST /trips` e `GET /trips/:id`;
+  - `trips/infrastructure/trip-cargo-preview.query.ts` (`TripCargoPreviewContext`) e
+    `trips/application/preview-trip-cargo.use-case.ts` (`TripCargoPreview`): mesma cadeia para a
+    prévia de `POST /trips/cargo-preview`, que serializa o objeto direto (sem `serialize*`
+    dedicado), então o campo já sai no JSON.
+- Vermelho→verde parcial: como a task é fiação através de arquivos já existentes (não um módulo
+  puro novo), o teste guiador foi o de integração (abaixo), escrito e rodado logo após a fiação —
+  sem ele, `withReference.capacityUnknownReason` ficaria `undefined`/ausente do tipo e o teste não
+  compilaria.
+- **Integração contra Postgres** (havia Postgres local em `127.0.0.1:55432`, então rodou de fato):
+  `test/integration/trip-capacity-unknown-reason.integration.ts` (banco descartável, migrations
+  reais). Caso: truck `body_type: '00'` sem ficha → `occupancy: null` e
+  `capacityUnknownReason: 'bodyTypeMissing'`; depois de `UPDATE fleet_vehicles SET body_type =
+'02'` na mesma viagem (sem tocar a viagem) → `capacityUnknownReason: null` e
+  `occupancy.capacitySource: 'reference'` (usa a linha `('truck','02')` de
+  `vehicle_volume_references`, seedada por migration). Adicionado a `test:integration` do
+  `package.json`.
+  - `DATABASE_URL=postgresql://transportada:transportada@localhost:55432/transportada bun test
+./test/integration/trip-capacity-unknown-reason.integration.ts` → **1 pass, 0 fail**.
+  - Regressão dos vizinhos que montam `TripDetail`/ocupação:
+    `./test/integration/trip-repository.integration.ts
+./test/integration/trip-detail-query-count.integration.ts
+./test/integration/mixed-cargo-end-to-end.integration.ts` → **3 pass, 0 fail**.
+- Fixtures ajustadas por causa do campo novo obrigatório em `TripDetail`/`TripCargoPreviewContext`:
+  `test/cargo-volume/cargo-preview.contract.ts`, `test/fixtures/trip-http-payload.fixture.ts`,
+  `test/trip-application/trip-use-case.contract.ts` (todas ganharam `capacityUnknownReason: null`).
+- `bun run --cwd apps/api-transportada typecheck`: limpo.
+- `bun run --cwd apps/api-transportada test`: **5055 pass, 23 skip, 0 fail** (suíte sem Postgres,
+  inalterada em contagem em relação à T3 — a task só adicionou fiação e um teste de integração, que
+  não entra nessa lista).
+- `bunx prettier --check` e `bunx eslint` em todos os arquivos tocados: ok, sem avisos.

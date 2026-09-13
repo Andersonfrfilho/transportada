@@ -177,6 +177,7 @@ describe('a prévia acusa peso concentrado numa parada', () => {
   const CONTEXT = {
     bedDimensions: null,
     boxesByDocument: new Map(),
+    capacityUnknownReason: null,
     capacityM3: '10.000000',
     cargoWeight: null,
     /** Spec 096: sem caixa medida na empresa, a presumida não tem tamanho — e não é inventada. */

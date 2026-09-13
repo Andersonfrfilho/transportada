@@ -37,6 +37,8 @@ import {
   type PackageBoxDimensionsSource,
 } from '../../nfe-documents/domain/package-box-cubage-dimensions.policy.js'
 import type { TripOccupancyView } from '../application/trip.port.js'
+import type { CapacityUnknownReason } from '../domain/capacity-unknown-reason.policy.js'
+import { resolveCapacityUnknownReason } from '../domain/capacity-unknown-reason.policy.js'
 import { resolveTripOccupancy } from '../domain/trip-occupancy.policy.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
@@ -59,6 +61,11 @@ export async function loadTripOccupancy(
   },
 ): Promise<{
   readonly occupancy: TripOccupancyView | null
+  /**
+   * Spec 147 D2/RF4: o motivo de `capacityM3`/`occupancy` estarem nulos, para o painel nomear o
+   * que falta em vez de dizer só "capacidade desconhecida". `null` quando a capacidade é conhecida.
+   */
+  readonly capacityUnknownReason: CapacityUnknownReason | null
   /** Spec 076: o volume por nota, para o layout agrupar por parada sem uma consulta nova. */
   readonly volumeByDocument: ReadonlyMap<string, string | null>
   /**
@@ -116,6 +123,8 @@ export async function loadTripOccupancy(
     return {
       bedDimensions: null,
       boxesByDocument: new Map(),
+      /** Sem veículo não há candidato de tração para nomear o motivo — a viagem está órfã. */
+      capacityUnknownReason: null,
       capacityM3: null,
       fallbackBoxVolumeM3: null,
       measuredShapes: [],
@@ -160,10 +169,20 @@ export async function loadTripOccupancy(
     cargoWidthM: vehicle.cargoWidthM,
     referenceM3,
   })
+  /**
+   * Spec 147 D2/RF4: recalculado a cada retorno porque `capacityM3` é o mesmo que decide se há
+   * ocupação — `null` só quando a capacidade é conhecida (Fase 4 passa a preencher `trailer`).
+   */
+  const capacityUnknownReason = resolveCapacityUnknownReason({
+    capacityM3: capacity === null ? null : capacity.capacityM3,
+    traction: { bodyType: vehicle.bodyType, vehicleType: vehicle.vehicleType },
+    trailer: null,
+  })
   if (capacity === null) {
     return {
       bedDimensions: toBedDimensions(vehicle, reference),
       boxesByDocument: new Map(),
+      capacityUnknownReason,
       capacityM3: null,
       fallbackBoxVolumeM3: null,
       measuredShapes: [],
@@ -249,6 +268,7 @@ export async function loadTripOccupancy(
     return {
       bedDimensions: toBedDimensions(vehicle, reference),
       boxesByDocument,
+      capacityUnknownReason,
       capacityM3: capacity.capacityM3,
       fallbackBoxVolumeM3: toNumber(measured.medianM3),
       measuredShapes: measured.measuredShapes,
@@ -263,6 +283,7 @@ export async function loadTripOccupancy(
   return {
     bedDimensions: toBedDimensions(vehicle, reference),
     boxesByDocument,
+    capacityUnknownReason,
     capacityM3: capacity.capacityM3,
     fallbackBoxVolumeM3: toNumber(measured.medianM3),
     measuredShapes: measured.measuredShapes,

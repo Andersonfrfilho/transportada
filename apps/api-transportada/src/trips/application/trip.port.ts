@@ -4,6 +4,7 @@
 import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
 import type { TripDocumentSeparationStatus, TripStatus } from '../../database/trip.schema.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
+import type { CapacityUnknownReason } from '../domain/capacity-unknown-reason.policy.js'
 import type { TripAmounts } from './read-trip-revenue-totals.use-case.js'
 import type { BuildCargoLayoutInputParams } from '../domain/cargo-layout-hash.types.js'
 import type { TripCargoLayoutState } from '../domain/cargo-layout-state.types.js'
@@ -288,6 +289,8 @@ export type TripDetail = Trip & {
    * parada e nome de cliente.
    */
   readonly pendingCargoLayoutInput?: BuildCargoLayoutInputParams
+  /** Spec 147 D2/RF4: por que `occupancy` está nulo, para o painel nomear o que falta. */
+  readonly capacityUnknownReason: CapacityUnknownReason | null
   readonly documents: readonly TripDocumentDetail[]
   readonly drivers: readonly TripDriverDetail[]
   readonly cargoWeight: TripCargoWeightView | null

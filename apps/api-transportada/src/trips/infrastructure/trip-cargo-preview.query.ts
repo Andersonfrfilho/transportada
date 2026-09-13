@@ -57,6 +57,7 @@ export async function readCargoPreviewContext(
   return {
     bedDimensions: cargo.bedDimensions,
     boxesByDocument: cargo.boxesByDocument,
+    capacityUnknownReason: cargo.capacityUnknownReason,
     capacityM3: cargo.capacityM3,
     enclosedBody,
     fallbackBoxVolumeM3: cargo.fallbackBoxVolumeM3,

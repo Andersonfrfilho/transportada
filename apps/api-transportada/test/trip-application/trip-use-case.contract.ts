@@ -74,6 +74,7 @@ const openTrip = (overrides: Partial<TripDetail> = {}): TripDetail => ({
     status: 'unavailable',
     truncated: false,
   },
+  capacityUnknownReason: null,
   cargoWeight: null,
   documents: [],
   occupancy: null,

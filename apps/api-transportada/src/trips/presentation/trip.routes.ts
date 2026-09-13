@@ -2047,6 +2047,8 @@ function serializeTripDetail(input: {
     cargoLayout: trip.cargoLayout === null ? null : serializeCargoLayoutForDetail(trip.cargoLayout),
     /** Spec 145 D10/D17: chaves exatas — o validador do frontend recusa a resposta com uma a mais. */
     cargoLayoutState: { ...trip.cargoLayoutState },
+    /** Spec 147 D2/RF4: por que `occupancy` está nulo — o painel nomeia o que falta. */
+    capacityUnknownReason: trip.capacityUnknownReason,
     documents: trip.documents.map((document) =>
       serializeTripDocumentDetail({ canReadFinancials: input.canReadFinancials, document }),
     ),

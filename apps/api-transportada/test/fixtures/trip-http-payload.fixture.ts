@@ -192,6 +192,7 @@ export const TRIP_DETAIL: TripDetail = {
     status: 'unavailable',
     truncated: false,
   },
+  capacityUnknownReason: null,
   cargoWeight: null,
   documents: [TRIP_DOCUMENT_DETAIL],
   occupancy: null,

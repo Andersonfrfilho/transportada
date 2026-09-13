@@ -1501,6 +1501,7 @@ async function readTripDetail(
     cargoLayoutState: cargoLayoutReading.cargoLayoutState,
     cargoLayoutId: layoutId,
     ...(pendingCargoLayoutInput === null ? {} : { pendingCargoLayoutInput }),
+    capacityUnknownReason: cargo.capacityUnknownReason,
     cargoWeight: cargoWeightWithCeiling,
     documents,
     drivers: driverRecords.map((row) =>
