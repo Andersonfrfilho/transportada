@@ -145,6 +145,13 @@ db:generate`, espelhada em `apps/worker-transportada/src/database/nfe.schema.ts`
   Passado o teto, a tela mostra "não foi possível calcular agora", com a planta anterior se houver, e
   para de perguntar.
 
+- **D17 — O frontend aceita antes de a API servir.** O frontend recusa a resposta inteira quando
+  aparece uma chave desconhecida (`TRIP_DETAIL_OPTIONAL_KEYS` + `hasKeys` em
+  `tripResponse.validation.ts`), e a tela de detalhe cai mesmo com a API respondendo 200. Por isso a
+  T12a, que só **aceita** `cargoLayoutState` no detalhe e `{ layoutId, state }` na prévia, fica num
+  commit próprio antes da T10. Na publicação são dois pushes: a T12a vai para o ar primeiro, e T10/T11
+  só depois dela. Decisão do usuário, 2026-09-12.
+
 ## Fora do escopo
 
 - Regra física do empacotador — apoio de 80%, escora pelo lado, célula de 5 cm,
