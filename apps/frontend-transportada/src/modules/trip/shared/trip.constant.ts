@@ -115,6 +115,11 @@ export const TRIP_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   TRIP_STOP_SET_MISMATCH: 'stopSetMismatch',
   /** Spec 158 T6: `GET /trips/:id/timeline` com `cursor` malformado. */
   TRIP_TIMELINE_CURSOR_INVALID: 'timelineCursorInvalid',
+  /** Spec 147 D3/RF8: os quatro códigos novos da carreta — RF5/T10/T11. */
+  TRIP_TRAILER_IN_USE: 'trailerInUse',
+  TRIP_TRAILER_NOT_A_TRAILER: 'trailerNotATrailer',
+  TRIP_TRAILER_REQUIRED: 'trailerRequired',
+  TRIP_TRAILER_REQUIRES_TRACTOR: 'trailerRequiresTractor',
   TRIP_VEHICLE_NOT_AVAILABLE: 'vehicleNotAvailable',
   TRIP_VEHICLE_NOT_FOUND: 'vehicleNotFound',
   /** Spec 156 D3: viagem sem motorista não aceita baixa pelo escritório. */

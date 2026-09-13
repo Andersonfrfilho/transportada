@@ -300,6 +300,8 @@
     "pending": "Creating trip…",
     "readOnly": "Your current access does not allow you to create trips.",
     "title": "New trip",
+    "trailerDefault": "The trip starts with this tractor's default trailer: {{plate}}.",
+    "trailerDefaultMissing": "This tractor has no default trailer registered — the trip starts without one.",
     "vehicle": "Vehicle",
     "vehiclePlaceholder": "Select the vehicle",
     "vehicleSearch": "Search by plate, brand or model"
@@ -451,6 +453,10 @@
     "scanTitle": "Note reading",
     "scanUnavailable": "Camera unavailable on this device — type the note key.",
     "title": "Trip detail",
+    "trailer": "Trailer",
+    "trailerHint": "Can be changed until dispatch.",
+    "trailerLockedHint": "The trailer can no longer be changed — the trip has already dispatched.",
+    "trailerPlaceholder": "No trailer attached",
     "vehicle": "Vehicle: {{vehicleId}}"
   },
   "empty": "No trip found",
@@ -547,6 +553,10 @@
     "scannedDocumentNotFound": "No note with this access key in this company.",
     "stateTransitionNotAllowed": "This action is no longer allowed in the trip's current state.",
     "stopSetMismatch": "The stop list no longer matches the trip's current stops — reload the page.",
+    "trailerInUse": "This trailer is already on another open trip.",
+    "trailerNotATrailer": "The chosen vehicle is not an active trailer of this fleet.",
+    "trailerRequired": "The tractor unit does not leave without a trailer.",
+    "trailerRequiresTractor": "A trailer can only be attached to a tractor unit.",
     "vehicleNotAvailable": "Vehicle not available for the trip.",
     "vehicleNotFound": "Vehicle not found.",
     "withoutDriver": "This trip has no driver — assign one before reporting on their behalf.",
@@ -1192,7 +1202,8 @@
     "batchFieldDelivery": "Deliver {{count}} document",
     "batchFieldDelivery_other": "Deliver {{count}} documents",
     "batchFieldDeliveryExcluded": "{{count}} selected invoice does not accept delivery confirmation.",
-    "batchFieldDeliveryExcluded_other": "{{count}} selected invoices do not accept delivery confirmation."
+    "batchFieldDeliveryExcluded_other": "{{count}} selected invoices do not accept delivery confirmation.",
+    "trailerRequired": "The tractor unit does not leave without a trailer."
   },
   "status": {
     "awaiting_crew": "Awaiting crew",

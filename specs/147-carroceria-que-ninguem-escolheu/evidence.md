@@ -918,3 +918,144 @@ no evidence") — a pergunta em si (se cabe editar) fica para quando alguém for
 - `npx prettier --check` nos quatro arquivos tocados → `All matched files use Prettier code style!`.
 
 **Commit:** `feat(trips): 147 T12 — a ocupação do cavalo é a da carreta`.
+
+## T9 (frontend)
+
+**Escopo: só a ficha do veículo (módulo `fleet`), como a task pedia.** A T9 da API já existia
+(`FleetVehicleDetail.defaultTrailerVehicleId`, `FLEET_VEHICLE_DEFAULT_TRAILER_REQUIRES_TRACTOR`,
+`FLEET_VEHICLE_DEFAULT_TRAILER_NOT_A_TRAILER`, `FLEET_VEHICLE_ROLE_CHANGE_BLOCKED` — ver seção
+"T9 — Carreta padrão na ficha do cavalo (só API)" acima); esta parte fecha o formulário.
+
+**`resolveVehicleDefaultTrailerForKindChange` (`fleetVehicleBodyType.service.ts`, novo) é o mesmo
+molde de `resolveVehicleBodyTypeForKindChange`, e mora no mesmo arquivo** por serem as duas faces da
+mesma regra (D3): sair do cavalo apaga a carreta padrão, nunca a carrega escondida para um tipo que
+não tem o campo; virar cavalo não inventa uma. `vehicleFormPatch.service.ts`'s
+`composeVehicleFormPatch` chama as duas funções lado a lado, com o mesmo gatilho (`role`/`vehicleType`
+mudou).
+
+**`VehicleOperationFields.component.tsx` ganhou o select "Carreta padrão"**, visível só quando
+`isTractorUnitKind(state)` — ao lado de onde o `bodyType` desaparece para o cavalo, porque as duas
+mostram/escondem pelo mesmo teste. As opções vêm de `useVehicleSelectOptions` (hook do próprio
+módulo, já reusado cross-module por `trip/`) sobre `vehicles.filter(role === 'trailer' && status ===
+'active')` — **sem endpoint novo**, a mesma frota que `VehicleModelFields` já recebe. `clearable`:
+opção vazia é "sem padrão", como a spec pede. `VehicleForm.component.tsx` passou `vehicles` adiante.
+
+**Campos e mapeamento:** `FleetVehicleFormState.defaultTrailerVehicleId: string` (`''` é "ainda não
+escolhido"); `FleetVehicleBody.defaultTrailerVehicleId: null | string` migrou para o tipo
+compartilhado (`FleetVehicleBody`), e `FleetVehicleDetail` deixou de redeclarar a mesma chave —
+duplicata inofensiva, mas sem razão de existir depois que o campo passou a ser parte do corpo de
+escrita. `VEHICLE_BODY_KEYS` e `VEHICLE_FORM_KEYS` ganharam a chave; `VEHICLE_DETAIL_KEYS` já a tinha
+(T9-API) e não duplica mais. `fleetForm.service.ts`: `EMPTY_VEHICLE_FORM.defaultTrailerVehicleId =
+''`; `toVehicleFormState` lê `vehicle.defaultTrailerVehicleId ?? ''`; `toVehicleBody` escreve `null`
+quando `''`, o uuid quando escolhido — enviado sempre, inclusive fora do cavalo (sempre `null` ali,
+porque o campo nem aparece e a limpeza ao trocar de tipo garante isso).
+
+**Os três códigos de erro novos da API mapeados em `fleet.constant.ts`'s
+`FLEET_FEEDBACK_KEY_BY_ERROR`** (`defaultTrailerRequiresTractor`, `defaultTrailerNotATrailer`,
+`roleChangeBlocked`), com rótulo pt-BR acentuado e inglês em `fleet.locale.json`/`fleet.en.locale.json`
+— mesmo padrão do T7 (`bodyTypeRequired`/`bodyTypeNotApplicable`).
+
+**Testes novos, contrato vermelho antes da implementação:**
+
+- `test/fleet/vehicle-default-trailer-form.contract.ts` (novo): `resolveVehicleDefaultTrailerForKindChange`
+  (limpa saindo do cavalo, não inventa entrando, não faz nada sem mudança de tipo);
+  `EMPTY_VEHICLE_FORM.defaultTrailerVehicleId === ''`; `toVehicleBody` mapeando `''`→`null` e uuid→uuid;
+  `toVehicleFormState` mapeando `null`→`''`; o componente só mostra o campo em `isTractorUnitKind`
+  (texto de fonte); os três códigos de erro têm rótulo nos dois locales.
+- `test/fleet/fleet.fixture.ts`: `FleetVehicleBodyContract` ganhou `defaultTrailerVehicleId: null |
+string` (a chave saiu de `FleetVehicleDetailContract`, que já a tinha — mesma limpeza do tipo de
+  produção); `VEHICLE_BODY` e `VEHICLE_DRAFT_BODY` ganharam `defaultTrailerVehicleId: null`
+  (`AGGREGATE_VEHICLE_BODY`/`FLEX_VEHICLE_BODY`/`INCOMPLETE_TRACTION_VEHICLE_BODY` herdam por spread).
+
+**Gates:**
+
+- `bun run --cwd apps/frontend-transportada typecheck` → limpo.
+- `bun run --cwd apps/frontend-transportada lint` → limpo.
+- `bun run --cwd apps/frontend-transportada test` (suíte inteira) → **3341 pass, 0 fail, 33773
+  expect() calls, 29 arquivos** (eram 3334 antes desta task — 7 testes novos, sem regressão).
+- `bun test apps/frontend-transportada/test/fleet.contract.test.ts` → **538 pass, 0 fail, 6645
+  expect() calls** (isolado).
+- `npx prettier --write` nos arquivos tocados/criados → sem diff além da própria formatação.
+
+**Commit:** `feat(fleet): 147 T9 — a ficha do cavalo escolhe a carreta padrão`.
+
+## T13
+
+**`SetTripTrailerInput` (`trip.types.ts`, novo) e `setTripTrailer` no `tripClient.service.ts`** —
+molde idêntico a `setTripMdfeRequirement`: `PUT /trips/:id/trailer` com `{trailerVehicleId: uuid |
+null}`, resposta `{data: TripDetail}` lida por `adapters.tripDetailFromApi` (já existente, sem
+mudança — `trailer` já era aceito por `isDetail` desde a T10). `useTripWorkspace.hook.ts` ganhou
+`setTripTrailer` no `TripController` (gate `trip.manage`, como todo write de viagem) e
+`setTrailerMutation` — **no mesmo hook de sempre, sem pasta `mutations/`**, como o CLAUDE.md exige —
+com `onSuccess: invalidate` (a mesma invalidação de `tripKey`+`listKey` que `setMdfeRequirementMutation`
+usa, não `invalidateDocumentLink`).
+
+**Avaliado e decidido: nenhuma invalidação de chave da frota.** A task pedia para avaliar se trocar a
+carreta "afeta a frota — a carreta 'em uso' muda a lista de carretas disponíveis". `FleetVehicleDetail`
+não carrega nenhum indicador de "em uso" (nem por design: a T9-API decidiu que uma carreta pode ser
+padrão de vários cavalos, e a exclusividade de verdade só existe por viagem aberta, verificada no
+servidor a cada escrita — T10/T11). A lista de carretas que o select oferece (`useVehicleSelectOptions`
+sobre `role === 'trailer' && status === 'active'`) não muda com o vínculo de viagem nenhuma, então
+invalidar `'fleet-vehicles'` não mudaria nada visível — só custaria uma consulta a mais em toda troca
+de carreta. Registrado aqui como decisão consciente, não esquecimento.
+
+**`TripDetail.component.tsx`**: `isTractorUnit` deriva do `vehicles` já carregado (mesmo padrão de
+`vehicleType` que `TripCargoPanel` já usa), e `trailerOptions` (hook `useVehicleSelectOptions`, **cross-
+module reuso do `fleet/`**, já usado por `trip/` antes desta task) é chamado **antes** dos `return`
+condicionais do componente — junto de `useRouteSuggestion`, pela mesma regra de hooks. O select
+aparece só para o cavalo, com `clearable` (desatrelar é `null`), `disabled={!canManage ||
+!isEditable}` — `isTripEditable` é a mesma função que já trava vincular/desvincular nota, e o backend
+(T10) reusa exatamente `checkTripAcceptsLinkage` para o mesmo portão, então as duas travas nunca
+divergem por desenho. Hint muda entre "pode ser trocada até o despacho" e "não pode mais ser trocada"
+conforme `isEditable`.
+
+**`TripStateActions.component.tsx`** ganhou `requiresTrailer: boolean` (calculado em `TripDetail` como
+`isTractorUnit && (trip.trailer ?? null) === null` — o `?? null` cobre a janela em que `trailer` é
+opcional na resposta, spec 078 D2). O botão "Despachar" fica `disabled` e um aviso
+(`stateActions.trailerRequired`, "O cavalo não sai sem carreta.") aparece **antes** do clique — espelho
+do `409 TRIP_TRAILER_REQUIRED` do backend (T11), no mesmo espírito do aviso de notas não carregadas que
+já existia ao lado.
+
+**`TripQuickCreateDialog.component.tsx`**: só **informa**, nunca deixa escolher — a API já copia a
+carreta padrão do cavalo ao criar a viagem (T10, sem input no corpo de criação). O texto usa
+`selectedVehicle.defaultTrailerVehicleId` (campo que a T9 trouxe para `FleetVehicleDetail`) resolvido
+contra a própria `vehicles` já carregada, sem requisição nova: "nasce com a carreta padrão: {placa}"
+ou "não tem carreta padrão — nasce sem carreta" quando `defaultTrailerVehicleId` é `null` ou aponta
+para um veículo fora da lista.
+
+**`TripCargoPanel`/`resolveCapacityUnknownMessage` (motivo `trailerMissing`, T5) confirmados
+coerentes, sem mudança.** O link já apontava para `buildFleetVehicleRoute(vehicleId)` — a ficha do
+**cavalo**, que desde a T9 tem o campo "Carreta padrão" nela. Nada a corrigir.
+
+**`test/trip/state-gates.contract.ts` confirmado sem mudança**: o select de carreta reusa
+`isTripEditable`, que já está coberto ali; nenhum gate novo foi inventado no frontend (o backend
+também reusa `checkTripAcceptsLinkage`, não criou uma política nova para a carreta).
+
+**Erros novos mapeados em `trip.constant.ts`'s `TRIP_FEEDBACK_KEY_BY_ERROR`**
+(`trailerRequiresTractor`, `trailerNotATrailer`, `trailerInUse`, `trailerRequired`), com rótulo
+pt-BR acentuado e inglês em `trip.locale.json`/`trip.en.locale.json`, mais `detail.trailer*`,
+`stateActions.trailerRequired` e `creation.trailerDefault*`.
+
+**Testes novos, contrato vermelho antes da implementação:**
+
+- `test/trip/trip-trailer.contract.ts` (novo, 7 testes): o cliente HTTP faz `PUT
+/trips/:id/trailer` com `{trailerVehicleId}` (uuid e `null`); a mutação é `trip.manage` como toda
+  escrita de viagem; `setTrailerMutation` mora em `useTripWorkspace.hook.ts` e invalida a viagem;
+  o select do detalhe só aparece para `tractor_unit` e trava por `isTripEditable` (texto de fonte);
+  o botão de despacho desabilita e avisa antes do clique (texto de fonte); o diálogo de criação só
+  informa, nunca chama `setTripTrailer` (texto de fonte, guarda negativa); os quatro códigos de erro
+  têm rótulo nos dois locales.
+
+**Gates:**
+
+- `bun run --cwd apps/frontend-transportada typecheck` → limpo.
+- `bun run --cwd apps/frontend-transportada lint` → limpo.
+- `bun run --cwd apps/frontend-transportada test` (suíte inteira) → **3348 pass, 0 fail, 33809
+  expect() calls, 29 arquivos** (eram 3341 antes desta task — 7 testes novos, sem regressão).
+- `bun test apps/frontend-transportada/test/trip.contract.test.ts` → **715 pass, 0 fail, 17211
+  expect() calls** (isolado).
+- `bun run --cwd apps/frontend-transportada build` → build de produção verde (avisos de chunk >500 kB
+  pré-existentes, não relacionados a esta task).
+- `npx prettier --write` nos arquivos tocados/criados → sem diff além da própria formatação.
+
+**Commit:** `feat(trip): 147 T13 — a viagem de cavalo mostra e troca a carreta`.

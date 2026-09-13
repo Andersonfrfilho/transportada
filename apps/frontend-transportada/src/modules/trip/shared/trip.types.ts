@@ -884,6 +884,9 @@ export type ChangeTripCrewInput = Readonly<{
   vehicleId?: string
 }>
 
+/** Spec 147 D3/RF5: `null` desatrela — o portão de estado é o mesmo de vincular/desvincular nota. */
+export type SetTripTrailerInput = Readonly<{ trailerVehicleId: null | string; tripId: string }>
+
 export type LinkTripDocumentBody = Readonly<{
   freightCalculationId: null | string
   nfeDocumentId: null | string

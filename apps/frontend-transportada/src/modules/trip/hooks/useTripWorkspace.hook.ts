@@ -90,6 +90,7 @@ import type {
   TripDetail,
   TripDocument,
   SetTripMdfeRequirementInput,
+  SetTripTrailerInput,
   TripCteBatchResult,
   TripDocumentActionInput,
   TripMdfeRequirement,
@@ -204,6 +205,7 @@ export type TripController = Readonly<{
   getTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
   readFiscalReadiness: (input: Readonly<{ tripId: string }>) => Promise<TripFiscalReadiness>
   setTripMdfeRequirement: (input: SetTripMdfeRequirementInput) => Promise<TripMdfeRequirement>
+  setTripTrailer: (input: SetTripTrailerInput) => Promise<TripDetail>
   linkTripDocument: (input: LinkTripDocumentInput) => Promise<TripDocument>
   listDeliveryAddressHistory: (
     input: DeliveryAddressHistoryInput,
@@ -300,6 +302,7 @@ export function createTripController(
       canReadTripFleetDetails ? input.client.readFiscalReadiness(query) : forbidden(),
     setTripMdfeRequirement: (body) =>
       canManageMdfe ? input.client.setTripMdfeRequirement(body) : forbidden(),
+    setTripTrailer: (body) => (canManageTrips ? input.client.setTripTrailer(body) : forbidden()),
     linkTripDocument: (body) =>
       canManageTrips ? input.client.linkTripDocument(body) : forbidden(),
     listDeliveryAddressHistory: (query) =>
@@ -923,6 +926,14 @@ export function useTripWorkspace(
     mutationFn: controller.setTripMdfeRequirement,
     onSuccess: invalidate,
   })
+  /**
+   * Spec 147 D3/T13: só a viagem muda — a lista de veículos da frota não guarda "carreta em uso",
+   * então não há chave da frota para invalidar aqui (avaliado, decisão registrada em evidence.md).
+   */
+  const setTrailerMutation = useMutation({
+    mutationFn: controller.setTripTrailer,
+    onSuccess: invalidate,
+  })
   /** Spec 185 revisão: replanejar o roteiro também torna o aviso de `autoDispatch` anterior obsoleto. */
   const planRouteMutation = useMutation({
     mutationFn: controller.planTripRoute,
@@ -976,6 +987,7 @@ export function useTripWorkspace(
     companyId: input.companyId,
     permissions,
     setMdfeRequirementMutation,
+    setTrailerMutation,
     dispatchMutation,
     linkDocumentMutation,
     overrideDeliveryAddressMutation,

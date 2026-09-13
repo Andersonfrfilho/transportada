@@ -161,6 +161,14 @@ export function TripQuickCreateDialog({
    * paradas é a que o operador acabou de montar no mapa acima — a prévia não inventa roteiro.
    */
   const selectedVehicle = vehicles.find((vehicle) => vehicle.id === quickCreate.vehicleId)
+  /**
+   * Spec 147 D3/T13: a criação **não** aceita escolher a carreta — a API a copia sozinha do cavalo
+   * ao criar a viagem (T10). O diálogo só informa qual será, e a troca acontece depois, no detalhe.
+   */
+  const defaultTrailer =
+    selectedVehicle === undefined
+      ? undefined
+      : vehicles.find((vehicle) => vehicle.id === selectedVehicle.defaultTrailerVehicleId)
   const cargoPreview = useTripCargoPreview({
     /** Spec 100: quem amarra a carga muda a altura da pilha, então o desenho depende dele. */
     driverIds: quickCreate.driverIds,
@@ -389,6 +397,15 @@ export function TripQuickCreateDialog({
             vehicleType={selectedVehicle.vehicleType}
           />
         )}
+
+        {/* Spec 147 D3/T13: só informa — a escolha de verdade é feita depois, no detalhe da viagem. */}
+        {selectedVehicle !== undefined && selectedVehicle.vehicleType === 'tractor_unit' ? (
+          <p className={styles.hint}>
+            {defaultTrailer === undefined
+              ? t('creation.trailerDefaultMissing')
+              : t('creation.trailerDefault', { plate: defaultTrailer.plate })}
+          </p>
+        ) : null}
 
         <TripAssemblyMap
           canAdjustTollBooth={permissions.includes(SETTINGS_MANAGE_PERMISSION)}

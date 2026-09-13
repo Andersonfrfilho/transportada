@@ -59,6 +59,8 @@ export type TripHeaderActionsProps = Readonly<{
    */
   onSelectDriverId: (driverId: string) => void
   onStartRoute: () => void
+  /** Spec 147 D3/RF8: cavalo sem carreta — espelha o 409 `TRIP_TRAILER_REQUIRED` antes do clique. */
+  requiresTrailer: boolean
   selectedDriverId: string
   trip: TripDetail
 }>
@@ -95,6 +97,7 @@ export function TripHeaderActions({
   onPlanRoute,
   onSelectDriverId,
   onStartRoute,
+  requiresTrailer,
   selectedDriverId,
   trip,
 }: TripHeaderActionsProps) {
@@ -257,10 +260,20 @@ export function TripHeaderActions({
         </Button>
       ) : null}
       {canDispatch ? (
-        <Button disabled={isDispatchPending} onClick={handleDispatchClick} size="sm" type="button">
+        <Button
+          disabled={isDispatchPending || requiresTrailer}
+          onClick={handleDispatchClick}
+          size="sm"
+          type="button"
+        >
           <Icon name="send" />
           {t('stateActions.dispatch')}
         </Button>
+      ) : null}
+      {canDispatch && requiresTrailer ? (
+        <p className={styles.hint} role="alert">
+          {t('stateActions.trailerRequired')}
+        </p>
       ) : null}
       {/*
        * Spec 180: "iniciar rota" veio de `TripFieldActions` — o painel existia só para ela. O

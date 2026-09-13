@@ -15,6 +15,7 @@ import { useFieldDelivery } from '../hooks/useFieldDelivery.hook'
 import { useSlowLoadNotice } from '../hooks/useSlowLoadNotice.hook'
 import { useFieldDeliveryDocumentsQuery } from '../queries/useFieldDeliveryDocuments.query'
 import { useFieldDeliverySettingsQuery } from '../queries/useFieldDeliverySettings.query'
+import { useVehicleSelectOptions } from '@/modules/fleet/hooks/useVehicleSelectOptions.hook'
 import { useTripDocumentSelection } from '../hooks/useTripDocumentSelection.hook'
 import type { TripDocumentLinkFormController } from '../hooks/useTripDocumentLinkForm.hook'
 import type { TripWorkspaceController } from '../hooks/useTripWorkspace.hook'
@@ -175,6 +176,11 @@ function resolveVehicleIdentityBandProps(
   }
 }
 
+const TRACTOR_UNIT_VEHICLE_TYPE = 'tractor_unit'
+const TRAILER_ROLE = 'trailer'
+const ACTIVE_STATUS = 'active'
+const EMPTY_TRAILER_SELECTION = ''
+
 function statusClassName(status: TripStatus): string {
   return status === 'completed' || status === 'cancelled'
     ? `${styles.statusBadge} ${styles.statusReady}`
@@ -309,6 +315,10 @@ export function TripDetail({
     onAccepted: () => void workspace.invalidateTrip(),
     tripId: workspace.trip?.id ?? '',
   })
+  /** Spec 147 D3/T13: mesma razão do hook acima — chamado antes de qualquer `return` condicional. */
+  const trailerOptions = useVehicleSelectOptions(
+    vehicles.filter((entry) => entry.role === TRAILER_ROLE && entry.status === ACTIVE_STATUS),
+  )
   /** Spec 156 T12: precisa vir antes dos `return` condicionais — hooks não podem ser condicionais. */
   const fieldDelivery = useFieldDelivery({
     attachFieldProof: workspace.controller.attachFieldProof,
@@ -385,6 +395,13 @@ export function TripDetail({
   const canReadFleetDetails = workspace.controller.canReadTripFleetDetails
   const vehicleIdentity = resolveVehicleIdentityBandProps(vehicles, trip.vehicleId, tFleet)
   const isEditable = isTripEditable(trip.status)
+  /**
+   * Spec 147 D3/T13: só o cavalo tem carreta — o tipo vem da frota carregada, porque o corpo do
+   * detalhe traz só `vehicleId`. A viagem editável (mesmo portão de vincular/desvincular nota)
+   * decide se o select ainda aceita troca.
+   */
+  const isTractorUnit =
+    vehicles.find((entry) => entry.id === trip.vehicleId)?.vehicleType === TRACTOR_UNIT_VEHICLE_TYPE
   const canSeparateOrLoad = canSeparateOrLoadDocuments(trip.status)
   const isCompleted = trip.status === 'completed'
   const pendingCteDocuments = selectPendingCteDocuments(trip.documents)
@@ -511,6 +528,7 @@ export function TripDetail({
     workspace.reportStopArrivalMutation.error,
     workspace.reportStopOccurrenceMutation.error,
     workspace.registerFieldOccurrencesMutation.error,
+    workspace.setTrailerMutation.error,
   ])
   /**
    * Spec 185 RF8: a recusa do botão "Despachar" ganha frase própria (parada nomeada, ou "sem
@@ -625,6 +643,14 @@ export function TripDetail({
     )
   }
 
+  function handleSetTrailer(trailerVehicleId: string): void {
+    if (trip === undefined) return
+    workspace.setTrailerMutation.mutate({
+      trailerVehicleId: trailerVehicleId === EMPTY_TRAILER_SELECTION ? null : trailerVehicleId,
+      tripId: trip.id,
+    })
+  }
+
   function handleCloseTrip(): void {
     setIsCloseDialogOpen(true)
   }
@@ -707,6 +733,7 @@ export function TripDetail({
           onStartRoute={() =>
             workspace.startFieldTripMutation.mutate({ ...officeDriverIdInput, tripId: trip.id })
           }
+          requiresTrailer={isTractorUnit && (trip.trailer ?? null) === null}
           selectedDriverId={officeDriverId ?? ''}
           trip={trip}
         />
@@ -790,6 +817,25 @@ export function TripDetail({
             vehicleType={vehicleIdentity.vehicleType}
           />
         )
+      ) : null}
+
+      {/* Spec 147 D3/T13: só o cavalo tem carreta, e ela pode ser trocada até o despacho. */}
+      {isTractorUnit ? (
+        <label>
+          <span>{t('detail.trailer')}</span>
+          <Select
+            ariaLabel={t('detail.trailer')}
+            clearable
+            disabled={!canManage || !isEditable}
+            options={trailerOptions}
+            placeholder={t('detail.trailerPlaceholder')}
+            value={trip.trailer?.id ?? EMPTY_TRAILER_SELECTION}
+            onChange={handleSetTrailer}
+          />
+          <small className={styles.hint}>
+            {isEditable ? t('detail.trailerHint') : t('detail.trailerLockedHint')}
+          </small>
+        </label>
       ) : null}
 
       <fieldset className={styles.driverChecklist}>

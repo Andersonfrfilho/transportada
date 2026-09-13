@@ -72,6 +72,7 @@ import type {
   TripCteBatchResult,
   TripDetail,
   SetTripMdfeRequirementInput,
+  SetTripTrailerInput,
   TripFiscalReadiness,
   TripMdfeRequirement,
   TripDocument,
@@ -301,6 +302,8 @@ export type TripClient = Readonly<{
   getTrip: (input: Readonly<{ tripId: string }>) => Promise<TripDetail>
   readFiscalReadiness: (input: Readonly<{ tripId: string }>) => Promise<TripFiscalReadiness>
   setTripMdfeRequirement: (input: SetTripMdfeRequirementInput) => Promise<TripMdfeRequirement>
+  /** Spec 147 D3/RF5: troca ou solta a carreta — mesmo portão de estado de vincular/desvincular nota. */
+  setTripTrailer: (input: SetTripTrailerInput) => Promise<TripDetail>
   linkTripDocument: (input: LinkTripDocumentInput) => Promise<TripDocument>
   linkTripDocumentsBatch: (
     input: LinkTripDocumentsBatchInput,
@@ -1203,6 +1206,15 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: `${TRIPS_PATH}/${input.tripId}/mdfe-requirement`,
       })
       return adapters.tripMdfeRequirementFromApi(readEnvelopeData(response))
+    },
+    async setTripTrailer(input) {
+      const response = await authorizedRequest({
+        body: JSON.stringify({ trailerVehicleId: input.trailerVehicleId }),
+        dependencies,
+        method: 'PUT',
+        path: `${TRIPS_PATH}/${input.tripId}/trailer`,
+      })
+      return adapters.tripDetailFromApi(readEnvelopeData(response))
     },
     async readFiscalReadiness(input) {
       const response = await authorizedRequest({

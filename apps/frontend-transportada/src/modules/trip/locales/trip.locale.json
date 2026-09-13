@@ -406,6 +406,8 @@
     "pending": "Criando viagem…",
     "readOnly": "Seu acesso atual não permite criar viagens.",
     "title": "Nova viagem",
+    "trailerDefault": "A viagem nasce com a carreta padrão deste cavalo: {{plate}}.",
+    "trailerDefaultMissing": "Este cavalo não tem carreta padrão cadastrada — a viagem nasce sem carreta.",
     "vehicle": "Veículo",
     "vehiclePlaceholder": "Selecione o veículo",
     "vehicleSearch": "Buscar por placa, marca ou modelo"
@@ -563,6 +565,10 @@
     "scanTitle": "Leitura da nota",
     "scanUnavailable": "Câmera indisponível neste aparelho — digite a chave da nota.",
     "title": "Detalhe da viagem",
+    "trailer": "Carreta",
+    "trailerHint": "Pode ser trocada até o despacho.",
+    "trailerLockedHint": "A carreta não pode mais ser trocada — a viagem já foi despachada.",
+    "trailerPlaceholder": "Sem carreta atrelada",
     "vehicle": "Veículo: {{vehicle}}"
   },
   "empty": "Nenhuma viagem encontrada",
@@ -660,6 +666,10 @@
     "scannedDocumentNotFound": "Nenhuma nota com esta chave de acesso nesta empresa.",
     "stateTransitionNotAllowed": "Esta ação não é mais permitida no estado atual da viagem.",
     "stopSetMismatch": "A lista de paradas não corresponde às paradas atuais da viagem — recarregue a página.",
+    "trailerInUse": "Esta carreta já está em outra viagem aberta.",
+    "trailerNotATrailer": "O veículo apontado não é uma carreta ativa desta frota.",
+    "trailerRequired": "O cavalo não sai sem carreta.",
+    "trailerRequiresTractor": "A carreta só pode ser atrelada a um cavalo mecânico.",
     "vehicleNotAvailable": "Veículo indisponível para a viagem.",
     "vehicleNotFound": "Veículo não encontrado.",
     "withoutDriver": "Esta viagem não tem motorista — vincule um antes de dar baixa pelo escritório.",
@@ -1388,7 +1398,8 @@
     "batchFieldDelivery": "Dar baixa em {{count}} nota",
     "batchFieldDelivery_other": "Dar baixa em {{count}} notas",
     "batchFieldDeliveryExcluded": "{{count}} nota marcada não aceita baixa de entrega.",
-    "batchFieldDeliveryExcluded_other": "{{count}} notas marcadas não aceitam baixa de entrega."
+    "batchFieldDeliveryExcluded_other": "{{count}} notas marcadas não aceitam baixa de entrega.",
+    "trailerRequired": "O cavalo não sai sem carreta."
   },
   "status": {
     "awaiting_crew": "Aguardando tripulação",
