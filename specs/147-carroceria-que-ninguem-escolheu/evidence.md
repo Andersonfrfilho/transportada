@@ -195,3 +195,61 @@ null`, ao lado de `occupancy` (não aninhado — a resposta não tem chave `carg
 - `bunx prettier --check` e `bunx eslint` em todos os arquivos tocados: ok, sem avisos (um
   `@typescript-eslint/no-unnecessary-type-assertion` apareceu e foi corrigido removendo o cast
   redundante em `tripCargoPreviewFromApi`, com o import de tipo que ficou órfão removido junto).
+
+## T6 — API recusa `00` em escrita nova
+
+- **Descoberta de convenção, antes de implementar:** o texto da task citava `FLEET_DRIVER_REGION_CITY_REQUIRED`
+  como exemplo de "código de validação Zod", mas essa classe (`freight-regions/domain/freight-region.error.ts`)
+  é lançada de um **use-case/policy** (`driver-coverage.policy.ts`), não de dentro de um `superRefine` de
+  schema. Dentro de `fleet-request.schema.ts` o padrão real, usado em toda `assertVehicleRules` e em
+  `company-contacts.schema.ts`, é `context.addIssue({code: 'custom', message: '<frase>'})`, que
+  `request-parsing.service.ts:parseAgainstSchema` sempre embrulha no código genérico `INVALID_REQUEST`
+  (400) com `details: [{field, message}]` — nunca um código de topo específico.
+  Como o critério de aceite 1 e a D1 pedem literalmente "responde 400 FLEET_VEHICLE_BODY_TYPE_REQUIRED"
+  (um código de topo, não uma frase dentro de `details`), usei o **outro** padrão já existente no
+  repositório: lançar a `ApiError` **diretamente** de dentro do `superRefine` (não via `addIssue`).
+  Confirmado por teste que `zod@4.4.3`'s `safeParse` **não** captura um `throw` comum dentro de
+  `refine`/`superRefine` — o erro atravessa `safeParse` cru — e é exatamente isso que
+  `response.service.ts:42` espera: qualquer `ApiError`, de qualquer camada, vira
+  `{error: {code, message, status}}`. Duas classes novas em `fleet/domain/fleet.error.ts`
+  (`FleetVehicleBodyTypeRequiredError`, `FleetVehicleBodyTypeNotApplicableError`), seguindo o
+  molde de `FleetVehicleNotFoundError` etc. — sem `codes.ts` centralizado neste repo; cada domínio
+  guarda o código como string literal no próprio `*.error.ts`, que é a "centralização por domínio"
+  que este código realmente pratica.
+- **Discriminante da regra:** não usei `vehicleType === 'tractor_unit'` cru, e sim
+  `role === 'traction' && vehicleType === 'tractor_unit'` — assim uma combinação já inválida por
+  outra razão (ex.: `role: 'trailer'` com `vehicleType: 'tractor_unit'`, testada em
+  `vehicles.contract.ts` na doc "refuses a trailer carrying a vehicle type…") não aciona a regra
+  nova por engano e não muda o `code` que aquele teste já verificava (`INVALID_REQUEST`).
+- `src/fleet/presentation/fleet-request.schema.ts`: `assertVehicleBodyType` chamada dentro de
+  `assertVehicleRules` (usada por `createVehicleSchema` **e** `updateVehicleSchema`, então POST e
+  PUT recusam igual).
+- **Candidatura do agregado:** confirmado que `mapDeclaredDataToVehicleInput`
+  (`aggregate-application-driver-mapping.policy.ts:295`, `bodyType: vehicle.bodyType ?? '00'`) grava
+  direto via `drizzle-aggregate-application.repository.ts` — nunca chama `createVehicleSchema` nem
+  `vehicleFieldsSchema`. Comportamento **não** mudou; o veículo da candidatura continua podendo
+  nascer com `00` e cai na página de pendências da Fase 5, como pedido.
+- **Nenhuma migration, nenhum `UPDATE` em `body_type`.**
+- Teste de contrato novo: `test/fleet-http/vehicle-body-type.contract.ts` (importado em
+  `test/fleet-http.contract.test.ts`, que já está na lista explícita do `package.json`, então não
+  precisou editar o `package.json`). Vermelho antes da implementação: com `assertVehicleBodyType`
+  comentada, `bun test ./test/fleet-http.contract.test.ts` falhava as 13 asserções novas do arquivo
+  (as 9 do `test.each` de motorcycle/car/utility/van/vuc/three_quarter/toco/truck/other + trailer +
+  a de `NOT_APPLICABLE` esperando `400` e recebendo `201`). Verde depois de implementar.
+- **Fixtures existentes ajustadas: 2.** `test/fleet-http/vehicles.contract.ts` tinha dois testes
+  que criavam veículo não-cavalo com `CREATE_VEHICLE_BODY` (que nasce `bodyType: '00'`) sem
+  sobrescrever `bodyType`: `'carries the vehicle type through create, update and listing'` (vuc na
+  criação, three_quarter na atualização) e `'accepts the types the SEFAZ list does not name and
+refuses one outside the catalog'` (motorcycle/car). As três chamadas passaram a levar
+  `bodyType: '02'`. Nenhuma outra fixture em `test/` cria veículo não-cavalo com `bodyType: '00'`
+  passando por `createVehicleSchema`/`updateVehicleSchema` — os demais usos de `bodyType: '00'`
+  (`fleet-domain/vehicle-capacity.contract.ts`, `trip-domain/capacity-unknown-reason.contract.ts`,
+  `fleet-infrastructure/vehicle-mapper.contract.ts`, `integration/fleet-vehicle-repository.integration.ts`,
+  `integration/trip-capacity-unknown-reason.integration.ts`) constroem objetos de domínio/linha de
+  banco direto, sem passar pelo schema Zod da rota.
+- `bun run --cwd apps/api-transportada typecheck`: limpo (precisou tirar `as const` do array
+  `NON_TRACTOR_VEHICLE_TYPES` do novo teste — `bun:test`'s `test.each` exige `unknown[]` mutável,
+  e `as const` produz uma tupla `readonly`).
+- `bun run --cwd apps/api-transportada test`: **5067 pass, 23 skip, 0 fail** (suíte inteira, sem
+  regressão — eram 5055 antes da T5; a diferença de 12 é este arquivo de teste novo).
+- `bunx prettier --check` e `bunx eslint` nos arquivos tocados: ok, sem avisos.

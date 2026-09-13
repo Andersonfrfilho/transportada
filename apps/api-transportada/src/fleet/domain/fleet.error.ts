@@ -29,6 +29,28 @@ export class FleetVehiclePlateTakenError extends ApiError {
   }
 }
 
+/** Feature 147 D1: `00` só é ausência real de carroceria no cavalo — todo o resto precisa escolher. */
+export class FleetVehicleBodyTypeRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'FLEET_VEHICLE_BODY_TYPE_REQUIRED',
+      message: 'Vehicle type requires a body type other than 00',
+      status: 400,
+    })
+  }
+}
+
+/** Feature 147 D1: carroceria no cavalo mandaria `tpCar` errado ao MDF-e — quem carrega é a carreta. */
+export class FleetVehicleBodyTypeNotApplicableError extends ApiError {
+  public constructor() {
+    super({
+      code: 'FLEET_VEHICLE_BODY_TYPE_NOT_APPLICABLE',
+      message: 'Tractor unit only accepts body type 00',
+      status: 400,
+    })
+  }
+}
+
 /**
  * Por que o catálogo falhou. Sem isto, um 429 de cota e um provedor fora do ar chegam ao log com a
  * mesma cara, e o operador não sabe se espera ou se abre chamado.
