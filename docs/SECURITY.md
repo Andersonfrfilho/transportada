@@ -5,47 +5,50 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 ## Abertos
 
-### 2026-09-13 — webhook de e-mail recebido sem assinatura, com Basic Auth por empresa
+### 2026-09-13 — webhook de e-mail recebido: anônimo, assinado, e o corpo dele decide dinheiro
 
 **Onde:** `POST /public/inbound-emails/{webhookId}` (`api-transportada`, módulo `contractor-mail`,
 spec 143). É a **terceira** superfície anônima do produto, depois do postback da NFS-e e do lote de
-taxas da ADR-0048.
+taxas da ADR-0048, e a primeira **assinada**.
 
-**O que é:** o Postmark **não assina o webhook de entrada**. A documentação dele diz que não oferece
-verificação HMAC, e isso quebra o §3 do baseline pelo mesmo motivo do postback da NFS-e: não há o
-que validar. Diferente do postback, **aqui o corpo é lido e pode decidir dinheiro**: uma resposta
-`APROVADO` aprova uma taxa (ADR-0063).
+**O que é:** o Resend assina o webhook por Svix (HMAC-SHA256 sobre `svix-id.svix-timestamp.corpo`),
+então o §3 do baseline é cumprido, ao contrário do postback da NFS-e. O risco que sobra é de outra
+natureza: **o que chega por aqui decide dinheiro**, porque uma resposta `APROVADO` aprova uma taxa
+(ADR-0063).
 
 **O que limita o estrago:**
 
-- Basic Auth com senha de 256 bits **por empresa**, guardada só como sha256 e comparada com
-  `timingSafeEqual`, mais a allowlist dos IPs do Postmark.
+- A assinatura é conferida contra o segredo **daquela empresa**, com `timingSafeEqual` e janela de
+  5 minutos, e o `email_id` repetido converge sem gravar de novo.
+- O corpo do webhook não é fonte de nada: remetente, conteúdo e MIME vêm da API do Resend, com a
+  chave.
+- A decisão exige DKIM alinhado ao `From`, **verificado por nós** sobre o MIME bruto. Forjar a
+  resposta de uma contratante exige a chave privada DKIM do domínio dela.
 - O tenant sai do token da conversa e **precisa** coincidir com o do `webhookId`.
-- A decisão exige `DKIM_VALID_AU` no `X-Spam-Tests`. Um corpo forjado sem passar pelo Postmark não
-  traz esse cabeçalho de um servidor de e-mail real, e um forjado dentro do Postmark precisaria da
-  chave DKIM do domínio da contratante.
 - Remetente fora da lista da contratante, ou sem `can_decide`, nunca decide.
 
-**O que falta:** o limitador na borda (o mesmo buraco dos achados abaixo), e reavaliar se o Postmark
-passa a assinar.
+**O que falta:** o limitador na borda (o mesmo buraco dos achados abaixo).
 
 **Origem:** spec 143, T002.
 
-### 2026-09-13 — a rota do webhook de e-mail aceita corpo de 12 MiB
+### 2026-09-13 — a chave do Resend que lê recebidos alcança a caixa inteira da conta
 
-**Onde:** `http/request-handler.service.ts` e o `maxRequestBodySize` do `server.service.ts`
-(`api-transportada`).
+**Onde:** `contractor_mail_settings.secret_envelope` (`api-transportada` e `worker-transportada`).
 
-**O que é:** o Postmark entrega os anexos em base64 **dentro** do JSON. Com o limite de 1 MiB, uma
-resposta com um PDF anexado viraria 413, e o Postmark desistiria depois das retentativas, perdendo
-a resposta da contratante. O `Bun.serve` passa a aceitar 12 MiB, e o limite de 1 MiB das outras
-rotas passa a ser aplicado **por rota**, no `request-handler`. Um defeito nessa checagem abre
-12 MiB para toda rota.
+**O que é:** para buscar o conteúdo e o MIME bruto de uma resposta, o worker usa uma chave de API do
+Resend capaz de ler e-mails recebidos. Essa chave lê **todo** e-mail recebido pela conta, não só os
+das contratantes, e também envia em nome do domínio. Vazada, ela serve para ler a correspondência e
+para mandar e-mail que passa no DKIM da transportadora.
 
-**O que limita o estrago:** um contrato manda 2 MiB para uma rota comum (413) e para o webhook
-(aceito), e o webhook só lê o corpo depois da Basic Auth.
+**O que limita o estrago:** selada em envelope A256GCM com AAD por empresa, no padrão da credencial
+da Nota RP; nunca volta na resposta da API, nunca entra em log, e é aberta só no gateway, uma vez
+por operação.
 
-**Origem:** spec 143, T002 e T004.
+**O que falta:** usar uma chave **só para este fim**, separada da que o `SMTP_URL` já usa, e o
+escopo mínimo que o Resend permitir (a T007 confirma qual é). Rotação fica com o administrador, pela
+própria página.
+
+**Origem:** spec 143, T002.
 
 ### 2026-09-13 — respostas das contratantes guardadas sem prazo de descarte
 

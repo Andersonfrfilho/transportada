@@ -8,14 +8,13 @@ test`), um commit isolado e a evidência em `evidence.md`. Teste novo entra na l
 
 > 🤖 Modelo: `opus`. As duas tasks são 🧠.
 
-- [x] **T001** 🧠 Responder, com a documentação do Postmark, o que o spike perguntava. Feito em
-      2026-09-13: o resultado de DKIM vem em `X-Spam-Tests`, não há HMAC, há Basic Auth, `403`
-      interrompe a retentativa, e o `PUT /server` usa o token do servidor. A captura com e-mail real
-      passou a ser a T012, feita pela própria página. Evidência: `plan.md`, seção "O que a
-      documentação do Postmark responde".
-- [x] **T002** 🧠 Registrar no `docs/SECURITY.md` três achados datados: o webhook sem HMAC, o limite
-      de 12 MiB da rota e a retenção sem prazo. **Pare e peça ao usuário** para aceitar a ADR-0063
-      antes de mudar o estado dela para `aceita`. Evidência: o diff dos dois documentos.
+- [x] **T001** 🧠 Responder, pela documentação, o que o spike perguntava. Feito em 2026-09-13,
+      primeiro para o Postmark e refeito no mesmo dia para o Resend, depois de o usuário dizer que já
+      o usa. O webhook é assinado por Svix; o conteúdo e o MIME bruto vêm pela API; o envio aceita
+      `Idempotency-Key`; o DNS do domínio já envia pelo Resend. Evidência: `plan.md`, seção "O que
+      já está no DNS e na documentação".
+- [x] **T002** 🧠 Registrar os achados no `docs/SECURITY.md` e aceitar a ADR-0063. Emendada no
+      mesmo dia para o Resend. Evidência: o diff dos dois documentos.
 
 ## Fase 1 — A página de configuração (P0)
 
@@ -28,42 +27,46 @@ test`), um commit isolado e a evidência em `evidence.md`. Teste novo entra na l
       `rollback.sql`. Arquivos: `apps/api-transportada/drizzle/`,
       `src/database/contractor-mail.schema.ts` e `database.schema.ts`. Evidência:
       `make migration-test` verde.
-- [ ] **T004** 🧠 Limite de corpo por rota em `http/request-handler.service.ts` (12 MiB só para o
-      webhook) e o `maxRequestBodySize` de `server.service.ts`. Evidência: contrato que manda 2 MiB
-      para uma rota comum (413) e para o webhook (aceito).
+- [ ] **T004** 🧠 Spike da `mailauth` no worker, sob Bun: gerar uma chave de teste, assinar uma
+      mensagem sintética e verificar com o resolvedor de DNS injetado (alinhada, desalinhada,
+      adulterada, sem assinatura). Checar o §13 (manutenção, tipagem, sem I/O bloqueante). **Se não
+      rodar no Bun, pare e pergunte.** Evidência: a suíte passando no `bun test` do worker.
 - [ ] **T005** Contrato de tenant, **vermelho primeiro**:
       `test/contractor-mail-schema/tenant-safety.contract.ts`, cobrindo configuração, contatos,
       conversas e mensagens. Evidência: vermelho antes da T008, verde depois.
-- [ ] **T006** O serviço que sela o token (API) e a cópia dele no worker, com o mesmo AAD; o
-      contrato de paridade compara os dois. Evidência: teste de ida e volta, e a abertura com AAD de
-      outra empresa falhando.
-- [ ] **T007** `postmark-server.gateway.ts` (`GET /server` e `PUT /server`) e
-      `mx-lookup.gateway.ts`, com `fetch` e o resolvedor injetados. Evidência: contratos com fakes
-      (token recusado, timeout, MX ausente, MX errado).
-- [ ] **T008** 🧠 As rotas de `/contractor-mail-settings` (`GET`, `PUT`, `POST webhook`,
-      `GET checks`), todas `settings.manage` e `no-store`, com o token nunca devolvido. O
-      `POST webhook` gera a senha, guarda o hash e aplica no Postmark. Evidência: contratos de rota,
-      mais o contrato por texto de fonte de que o token não aparece em nenhuma serialização nem em
+- [ ] **T006** O serviço que sela `{ apiKey, webhookSigningSecret }` (API) e a cópia dele no
+      worker, com o mesmo AAD; o contrato de paridade compara os dois. Evidência: teste de ida e
+      volta, e a abertura com AAD de outra empresa falhando.
+- [ ] **T007** Os gateways do Resend: na API, `resend-account.gateway.ts` (a chave é aceita e o
+      domínio do remetente está verificado) e `mx-lookup.gateway.ts`; no worker, envio, leitura do
+      e-mail recebido e download do bruto, com o host da `download_url` conferido. Confirmar na
+      documentação o caminho da API de recebidos e o escopo mínimo da chave, e registrar em
+      `plan.md`. Evidência: contratos com fakes (chave recusada, timeout, domínio não verificado,
+      MX ausente, host estranho).
+- [ ] **T008** 🧠 As rotas de `/contractor-mail-settings` (`GET`, `PUT`, `GET checks`), todas
+      `settings.manage` e `no-store`, com os segredos nunca devolvidos. Evidência: contratos de
+      rota, mais o contrato por texto de fonte de que nenhum segredo aparece em serialização nem em
       log.
-- [ ] **T009** O trilho `contractor-mail-outbound.v1` no worker (relay, consumidor e envio pelo
-      Postmark via `fetch`, com `Reply-To`, `In-Reply-To` e `References`) e o
+- [ ] **T009** O trilho `contractor-mail-outbound.v1` no worker (relay, consumidor e envio com
+      `reply_to`, `In-Reply-To`, `References` e `Idempotency-Key`) e o
       `POST /contractor-mail-settings/test-email`, que abre a conversa `setup_test`. Evidência:
       contrato do gateway com o fake e integração com o outbox.
-- [ ] **T010** 🧠 O webhook `POST /public/inbound-emails/:webhookId`: Basic Auth por empresa,
-      allowlist de IP, 401 fail-closed, gravação do bruto no bucket com a linha e o outbox numa só
-      transação, e 200 para token desconhecido sem gravar corpo. O trilho `contractor-mail-inbound.v1`
-      já trata `setup_test`: grava a resposta e se ela trouxe `DKIM_VALID_AU`. Evidência: contratos
-      dos caminhos, mais o contrato de que nenhum log leva PII.
+- [ ] **T010** 🧠 O webhook `POST /public/inbound-emails/:webhookId` (`svix-signature.policy.ts`,
+      janela de 5 min, 401 fail-closed, 204 para evento aceito ou repetido) e o trilho
+      `contractor-mail-inbound.v1` até o DKIM: buscar o recebido, gravar o bruto com `sha256`,
+      verificar, e tratar `setup_test`. Evidência: contratos da assinatura e da rota, integração do
+      trilho com o fake do Resend, e o contrato de que nenhum log leva PII.
 - [ ] **T011** O painel "E-mail com contratantes": entrada em `SETTINGS_PANEL_PLACEMENT` (confirmar
-      o módulo onde as contratantes são cadastradas), formulário, lista de verificação com
-      `CopyButton` para o MX, e os três botões. Locales acentuados. Evidência: contrato do registro de
-      abas, contrato do serviço puro da lista de verificação e `make check`.
-- [ ] **T012** ⛔ **Pare e peça ao usuário:** ele configura o Postmark pela página (conta, DNS e
-      token ficam com ele; o token é digitado na página e ninguém mais o vê) e responde ao e-mail de
-      teste pelo Gmail e pelo Outlook. Com os dois payloads recebidos, anonimizar e gravar em
-      `apps/worker-transportada/test/fixtures/postmark-inbound.fixture.ts`. **Se nenhum trouxer
-      `DKIM_VALID_AU`, pare de novo:** o P2 não decide para esses provedores, e seguir é decisão do
-      usuário. Evidência: a fixture e os itens da lista de verificação marcados `ok`.
+      o módulo onde as contratantes são cadastradas), formulário, URL do webhook e MX com
+      `CopyButton`, instruções do painel do Resend, lista de verificação e os dois botões. Locales
+      acentuados. Evidência: contrato do registro de abas, contrato do serviço puro da lista de
+      verificação e `make check`.
+- [ ] **T012** ⛔ **Pare e peça ao usuário:** ele liga o recebimento em `resposta.` no Resend, cria o
+      MX na Cloudflare, cria o webhook `email.received` com a URL da página, e digita na página a
+      chave e o segredo (ninguém mais os vê). Depois responde ao e-mail de teste pelo Gmail e pelo
+      Outlook. **Se nenhuma resposta vier com DKIM alinhado, pare de novo:** o P2 não decide para
+      esses provedores, e seguir é decisão do usuário. Evidência: os itens da lista de verificação
+      marcados `ok` e o `dkim_result` das duas respostas.
 
 ## Fase 2 — Contatos e envio (P1)
 
@@ -89,8 +92,7 @@ test`), um commit isolado e a evidência em `evidence.md`. Teste novo entra na l
 > 🤖 Modelo: `sonnet` (T020 é 🧠 — validar com `architect` em `opus` antes de fechar)
 
 - [ ] **T019** `inbound-reply.policy.ts` e `auto-reply.policy.ts`, puros e dirigidos por tabela,
-      cobrindo todas as saídas do RF5 e todos os casos do RF8, com os payloads da T012. Evidência: a
-      suíte da política.
+      cobrindo todas as saídas do RF5 e todos os casos do RF8. Evidência: a suíte da política.
 - [ ] **T020** 🧠 A decisão no trilho de entrada: `FOR UPDATE` na taxa, a transição, o evento com
       `decided_by_message_id`, ou `late`. Evidência: integração no worker, incluindo a corrida
       contra o lote (duas decisões, uma vence).
@@ -131,12 +133,12 @@ test`), um commit isolado e a evidência em `evidence.md`. Teste novo entra na l
 /oh-my-claudecode:autopilot Execute a spec specs/143-a-contratante-responde-por-e-mail/ (leia
 spec.md, plan.md, tasks.md e docs/adr/0063-a-resposta-por-e-mail-decide-a-taxa.md antes de começar).
 Uma task por vez, na ordem do tasks.md, no worktree work/spec-143.
-Modelos: Fase 0 → opus · Fases 1–4 → executor model=sonnet · T004, T008, T010, T020 🧠 → validar com
-architect model=opus antes de fechar · Fase 5 → executor model=haiku · revisão final →
-code-reviewer + security-reviewer model=opus.
+Modelos: Fases 1–4 → executor model=sonnet · T004, T008, T010, T020 🧠 → validar com architect
+model=opus antes de fechar · Fase 5 → executor model=haiku · revisão final → code-reviewer +
+security-reviewer model=opus.
 Cada task fecha com typecheck + testes da app + commit isolado, evidência em evidence.md; teste
 novo entra na lista do package.json.
-Pare e pergunte antes de: aceitar a ADR-0063 (T002), T012 (o usuário configura o Postmark pela
-página), deploy, qualquer segredo, migration destrutiva, e se nenhuma resposta de teste trouxer
-DKIM_VALID_AU.
+Pare e pergunte antes de: a T004 se a mailauth não rodar no Bun, a T012 (o usuário configura o
+Resend e o DNS), deploy, qualquer segredo, migration destrutiva, e se nenhuma resposta de teste vier
+com DKIM alinhado.
 ```

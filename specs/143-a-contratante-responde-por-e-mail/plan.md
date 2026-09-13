@@ -16,37 +16,48 @@
   (`register-trip-occurrence.use-case.ts:187`). O P1 reaproveita esse texto como corpo do envio, sem
   um terceiro formato de template.
 
-## O que a documentação do Postmark responde (T001, 2026-09-13)
+## O que já está no DNS e na documentação (2026-09-13)
 
-- **Autenticação do remetente:** vem em `Headers[]` como `X-Spam-Tests`, com as marcas do
-  SpamAssassin (`DKIM_SIGNED`, `DKIM_VALID`, `DKIM_VALID_AU`, `SPF_PASS`…). O portão usa **só**
-  `DKIM_VALID_AU`; os motivos estão na ADR-0063 §3.
-- **Webhook:** não há assinatura HMAC. O Postmark aceita Basic Auth na URL
-  (`https://usuário:senha@host/…`) e publica os IPs de origem em
-  `postmarkapp.com/support/article/800-ips-for-firewalls#webhooks`.
-- **Retentativa:** qualquer resposta diferente de 200 é repetida por cerca de 10 horas (1 min,
-  5 min, 3× 10 min, 15 min, 30 min, 1 h, 2 h, 6 h). **Um `403` interrompe as retentativas.**
-- **Recebimento:** MX do subdomínio apontando para `inbound.postmarkapp.com`, com prioridade 10.
-  O `InboundDomain` e o `InboundHookUrl` se gravam pelo `PUT /server`, com o token do **servidor**.
-- **Endereço com `+`:** o payload traz `MailboxHash`, o trecho depois do `+`, que é o nosso token.
-- **Domínio de envio:** a verificação de DKIM e Return-Path (`/domains/…/verifyDkim`) exige o
-  token da **conta**. Por isso não é automatizada (ADR-0063 §7).
+**DNS de `fernandes-transportadora.com.br`, na Cloudflare:**
+
+- O MX raiz e o SPF raiz são do **Zoho** e **não se tocam**.
+- O Resend **já envia** por este domínio: `resend._domainkey` (DKIM) e o subdomínio `send.` (SPF e
+  MX do Amazon SES, região `sa-east-1`) estão publicados.
+- O DMARC é `p=none`.
+- `resposta.` ainda não tem MX; ele é o único registro novo.
+
+**Resend, pela documentação:**
+
+- O recebimento funciona em qualquer endereço de um domínio com recebimento ligado. O valor do MX
+  aparece no painel, e o domínio deve ser um subdomínio quando a raiz já tem MX.
+- O webhook `email.received` traz **só metadados** (`email_id`, `from`, `to`, `subject`,
+  `message_id`, anexos sem conteúdo). O conteúdo vem da API de e-mails recebidos, que devolve
+  `headers`, `text`, `html` e `raw.download_url` (URL assinada do MIME original, com expiração).
+- O webhook é assinado por Svix: cabeçalhos `svix-id`, `svix-timestamp` e `svix-signature`,
+  HMAC-SHA256 sobre o corpo cru.
+- O envio aceita `reply_to`, `headers` customizados e o cabeçalho `Idempotency-Key` (24 h).
+- Não há resultado de SPF ou DKIM documentado no e-mail recebido. **Por isso o DKIM é verificado por
+  nós**, sobre o MIME bruto (ADR-0063 §3).
 
 ## Arquitetura e arquivos afetados
 
-**API: configuração, dentro do módulo `contractor-mail/`**
+**API: configuração, no módulo novo `contractor-mail/`**
 
-- `application/contractor-mail-credential-secret.service.ts`: sela e abre o token, com o AAD
-  `transportada:contractor-mail-credential:v1:${companyId}:${settingsId}`. Tem **cópia por valor**
-  no worker, como a da Nota RP.
-- `infrastructure/postmark-server.gateway.ts`: `GET /server` e `PUT /server`, com `fetch` injetado,
-  timeout de 5 s e erros tipados (`provider_unauthorized`, `provider_unreachable`).
+- `application/contractor-mail-credential-secret.service.ts`: sela e abre `{ apiKey,
+webhookSigningSecret }`, com o AAD
+  `transportada:contractor-mail-credential:v1:${companyId}:${settingsId}`. Tem **cópia por valor** no
+  worker, como a da Nota RP.
+- `infrastructure/resend-account.gateway.ts`: confere a chave e o estado do domínio do remetente,
+  com `fetch` injetado, timeout de 5 s e erros tipados (`provider_unauthorized`,
+  `provider_unreachable`).
 - `infrastructure/mx-lookup.gateway.ts`: `resolveMx` do `node:dns`, com timeout.
-- `application/contractor-mail-settings.use-case.ts`: salvar, aplicar o webhook, verificar e pedir o
-  e-mail de teste.
+- `domain/svix-signature.policy.ts`: a conferência da assinatura, pura. HMAC-SHA256 com o segredo
+  decodificado do `whsec_…`, comparação por `timingSafeEqual` contra cada `v1,` do cabeçalho, e
+  janela de 5 minutos. **Sem a biblioteca `svix`**: são quinze linhas de `node:crypto`, e a
+  dependência não se paga.
+- `application/contractor-mail-settings.use-case.ts`: salvar, verificar e pedir o e-mail de teste.
 - Rotas, todas `settings.manage` com escopo `company`:
   - `GET /contractor-mail-settings` e `PUT /contractor-mail-settings`;
-  - `POST /contractor-mail-settings/webhook` (aplicar no Postmark);
   - `GET /contractor-mail-settings/checks`;
   - `POST /contractor-mail-settings/test-email`.
 
@@ -54,16 +65,16 @@
 
 - O painel entra em `SETTINGS_PANEL_PLACEMENT` (`companySettingsTabs.service.ts`), na tela onde as
   contratantes são cadastradas, para ficar perto do efeito. O módulo exato se confirma na T011.
-- Formulário com o token digitável que nunca volta preenchido, remetente e subdomínio.
-- Lista de verificação com um item por check do RF12. O registro MX e a URL do webhook (sem a senha)
-  saem com `CopyButton`.
-- Botões "Aplicar no Postmark", "Enviar e-mail de teste" e "Verificar de novo".
+- Formulário com a chave e o segredo digitáveis, que nunca voltam preenchidos, mais remetente, nome
+  do remetente e subdomínio de resposta.
+- A URL do webhook, com `CopyButton`, e a instrução: criar no painel do Resend um webhook com o
+  evento `email.received` apontando para ela, e colar o segredo que o Resend gerar.
+- A lista de verificação, com um item por check do RF12, e os botões "Enviar e-mail de teste" e
+  "Verificar de novo".
 
-**Os módulos do fluxo**
+**API: o fluxo, no mesmo módulo**
 
-**API: módulo novo `contractor-mail/`**
-
-- `domain/reply-token.policy.ts`: gera o token e o hash e monta o endereço `r+<token>@<domínio>`.
+- `domain/reply-token.policy.ts`: gera o token e o hash e monta `<token>@<subdomínio>`.
 - `domain/inbound-reply.policy.ts`: a política pura do RF5. É o coração da spec e **não tem I/O**.
 - `domain/auto-reply.policy.ts`: o RF8.
 - `application/send-occurrence-mail.use-case.ts`: cria a conversa se não existir e enfileira a
@@ -72,26 +83,31 @@
   outbox garante que ou os dois acontecem, ou nenhum).
 - `application/reply-to-thread.use-case.ts`: resposta do operador.
 - `presentation/contractor-mail.routes.ts`: `GET /mail-threads?subjectType=&subjectId=`,
-  `POST /mail-threads/:id/messages`, `POST /trip-stop-occurrences/:id/mail`,
+  `POST /mail-threads/:id/messages`, `POST /trip-stop-occurrences/:id/mail` e
   `POST /delivery-charges/:id/mail-submission`.
 - `presentation/public-inbound-email.routes.ts`: `POST /public/inbound-emails/:webhookId`, com
-  `defineAnonymousRoute`, Basic Auth contra o hash daquela empresa e allowlist de IP.
+  `defineAnonymousRoute` e a assinatura Svix conferida contra o segredo daquela empresa.
 - `infrastructure/drizzle-contractor-mail.repository.ts`.
 - `delivery-clients/`: CRUD de `contractor_contacts`, dentro das rotas de `/contractors/:id`.
 
 **Worker: dois trilhos novos, cada um com main, retry e dead**
 
-- `contractor-mail-outbound.v1`: consome `contractor_mail_outbox` e envia pela API HTTP do Postmark
-  (`POST /email`, cabeçalho `X-Postmark-Server-Token`). O `fetch` é injetado.
-- `contractor-mail-inbound.v1`: baixa o bruto do bucket, roda a política e, se o resultado for
-  `approve` ou `reject`, aplica a transição e grava o evento. Depois enfileira os avisos do RF9.
+- `contractor-mail-outbound.v1`: consome `contractor_mail_outbox` e envia por `POST /emails` do
+  Resend, com `reply_to`, `headers` (`In-Reply-To`, `References`) e `Idempotency-Key` igual ao id da
+  nossa mensagem. O `fetch` é injetado.
+- `contractor-mail-inbound.v1`, em quatro passos:
+  1. busca o e-mail recebido pelo `email_id`;
+  2. baixa o MIME bruto pela `download_url` e grava no bucket com `sha256`;
+  3. verifica o DKIM com a `mailauth` (`d=` alinhado ao domínio do `From`, com alinhamento relaxado
+     pelo domínio organizacional);
+  4. roda a política e, se o resultado for `approve` ou `reject`, aplica a transição, grava o evento
+     e enfileira os avisos do RF9.
 - Cópia por valor no worker: `contractor-mail.schema.ts` e as tabelas de `delivery_charges` que ele
   escreve (a migration continua sendo da API).
 
-**Frontend**
+**Frontend: as telas do fluxo**
 
-- `delivery-clients`: a lista de contatos no formulário da contratante, com o `MultiSelect`/tabela do
-  design system.
+- `delivery-clients`: a lista de contatos no formulário da contratante.
 - `trip`: o painel "Conversa com a contratante" na ocorrência, com o botão "Enviar à contratante".
 - A tela de taxas ganha a ação "Enviar para aprovação por e-mail" e a conversa da taxa.
 - A mensagem que decidiu aparece com a marca "decidiu" e o motivo de rebaixamento traduzido
@@ -100,37 +116,38 @@
 ## Contratos/API/eventos
 
 - Payload de saída na fila: `{ messageId }`. Só referência; o corpo fica no banco.
-- Payload de entrada na fila: `{ inboundEmailId, bucket, objectKey }`.
-- O webhook aceita o JSON do Postmark Inbound e só lê: `MessageID`, `Headers[]`, `From`,
-  `OriginalRecipient`, `StrippedTextReply`, `TextBody` e `Attachments[]` (nome, tipo e tamanho; o
-  conteúdo vai para o bucket). Todo o resto é ignorado. O Zod é `passthrough` só para o bruto que vai
-  ao bucket, e `strict` no que é lido.
-- Resposta do webhook: **200** quando autenticado, inclusive para token de conversa desconhecido,
-  que não é erro de entrega. **401** para credencial errada ou id sem configuração: o Postmark
-  retenta por horas, e isso dá tempo de consertar um erro de configuração. **Nunca `403`**, que
-  interromperia as retentativas e perderia a resposta.
+- Payload de entrada na fila: `{ companyId, providerEmailId }`. O worker busca o resto no Resend.
+- O webhook lê do corpo só `type` (precisa ser `email.received`) e `data.email_id`. Todo o resto é
+  ignorado: os metadados que interessam vêm da API, com a chave, e não do corpo anônimo.
+- Resposta do webhook:
+  - **204** para evento aceito, repetido ou de tipo que não interessa;
+  - **401** para assinatura inválida, timestamp fora da janela, id sem configuração ou `svix-id`
+    já usado com outro corpo.
+
+  O Svix retenta qualquer resposta que não seja 2xx, o que dá tempo de consertar configuração.
 
 ## Dados, migration e rollback
 
 Migration aditiva `20260913120000_contractor_mail`:
 
-- `contractor_mail_settings` (`id`, `company_id` único, `server_token_envelope` jsonb,
-  `sender_address`, `sender_name`, `reply_domain`, `webhook_id` uuid único, `webhook_secret_sha256`
-  bytea nulo até o primeiro "aplicar", `webhook_applied_at`, `status`, `version`, datas).
-
-- `contractor_contacts` (`id` uuid, `company_id`, `contractor_id`, `email` em citext,
-  `receives_occurrences`, `can_decide`, `status` varchar com CHECK, datas). Único em
+- `contractor_mail_settings`: `id`, `company_id` único, `secret_envelope` jsonb (a chave de API e o
+  segredo do webhook), `sender_address`, `sender_name`, `reply_domain`, `webhook_id` uuid único,
+  `last_webhook_at`, `status`, `version`, datas.
+- `contractor_contacts`: `id` uuid, `company_id`, `contractor_id`, `email` em citext,
+  `receives_occurrences`, `can_decide`, `status` varchar com CHECK, datas. Único em
   `(company_id, contractor_id, email)`. FK composta com `company_id`, como em
   `contractor_portal_bindings`.
-- `contractor_mail_threads` (`id`, `company_id`, `contractor_id`, `subject_type` varchar CHECK in
-  `('stop_occurrence','document_occurrence','delivery_charge','setup_test')`, `subject_id`, `reply_token_hash`
-  bytea único, `status` `open|closed`, `created_at`). Único em `(company_id, subject_type,
-subject_id)`: uma conversa por objeto.
+- `contractor_mail_threads`: `id`, `company_id`, `contractor_id` (nulo em `setup_test`),
+  `subject_type` varchar com CHECK em
+  `('stop_occurrence','document_occurrence','delivery_charge','setup_test')`, `subject_id`,
+  `reply_token_hash` bytea único, `status` (`open` ou `closed`) e `created_at`. Único em
+  `(company_id, subject_type, subject_id)`: uma conversa por objeto.
 - `contractor_mail_messages`, append-only: `id`, `company_id`, `thread_id`, `direction`
-  (`inbound|outbound`), `actor_user_id` (nulo quando inbound), `from_address`, `body_text`,
-  `raw_object_id` → `stored_objects`, `raw_sha256`, `provider_message_id`, `rfc_message_id`,
-  `in_reply_to`, `interpretation`, `downgrade_reason`, `delivery_status`
-  (`queued|sent|failed`, só outbound), `created_at`. Único em `(company_id, rfc_message_id)`.
+  (`inbound` ou `outbound`), `actor_user_id` (nulo quando inbound), `from_address`, `body_text`,
+  `raw_object_id` → `stored_objects`, `raw_sha256`, `provider_email_id`, `rfc_message_id`,
+  `in_reply_to`, `dkim_result` (`aligned`, `not_aligned`, `unverifiable` ou `absent`),
+  `interpretation`, `downgrade_reason`, `delivery_status` (`queued`, `sent` ou `failed`, só
+  outbound) e `created_at`. Único em `(company_id, provider_email_id)`.
 - `contractor_mail_outbox` e `contractor_inbound_email_outbox`, no molde de
   `aggregate_attachment_outbox` (sem ator, com payload de referência).
 - `delivery_charge_events.decided_by_message_id` (nulo) e o CHECK de autoria refeito.
@@ -143,76 +160,77 @@ escrito no arquivo.
 
 ## Segurança e tenant
 
-- **O webhook é a terceira superfície anônima.** As guardas:
-  - Basic Auth por empresa: o `webhookId` da URL acha a configuração, e a senha é comparada por
-    `timingSafeEqual` sobre digests SHA-256 contra `webhook_secret_sha256`.
-  - Allowlist dos IPs do Postmark, lida do **primeiro salto confiável** do `X-Forwarded-For` do
-    Railway.
-  - Empresa sem configuração ou sem webhook aplicado responde 401 (fail-closed por empresa).
+- **O webhook é a terceira superfície anônima, e a primeira assinada.** O `webhookId` da URL acha a
+  configuração; a assinatura Svix é conferida contra o segredo daquela empresa. Empresa sem
+  configuração responde 401 (fail-closed por empresa).
+- **Replay:** fora da janela de 5 minutos é recusado, e o mesmo `email_id` converge no único da
+  tabela. Nada é gravado duas vezes.
 - **O tenant sai do token, conferido contra o webhook.** O hash do token acha a conversa, e a
   conversa dá o `company_id`, que **precisa** ser o mesmo da configuração que o `webhookId` achou.
-  Divergência é descarte com contador, nunca gravação. O endereço `To` não serve para escolher
-  empresa.
-- **O token do Postmark nunca sai da API nem do worker:** ele não volta na resposta, não entra em
-  log e é aberto só no gateway, uma vez por operação, como na Nota RP. As chamadas vão para um host
-  fixo (`api.postmarkapp.com`), então não há SSRF por configuração.
+  Divergência é descarte com contador, nunca gravação.
+- **O corpo anônimo não é fonte de nada:** o remetente, o destinatário e o conteúdo vêm da API do
+  Resend com a chave, e a verificação de DKIM é feita sobre o MIME bruto que o Resend guardou. Um
+  webhook forjado com assinatura válida (o que já exige o segredo) só faria o worker buscar um
+  `email_id` que não existe.
+- **Os segredos nunca saem da API nem do worker:** não voltam na resposta, não entram em log e são
+  abertos só no gateway, uma vez por operação, como na Nota RP. As chamadas vão para um host fixo
+  (`api.resend.com`), e a `download_url` só é seguida se o host dela for do Resend. Isso evita SSRF
+  por um e-mail forjado.
 - **O remetente é conferido contra a lista da contratante daquela conversa.** Um contato de outra
   contratante da mesma empresa não decide.
-- O `From` só vale junto com a autenticação: sem DKIM/SPF aprovado, o `From` é texto e nada decide.
-- **Limite de corpo:** o Postmark manda anexo em base64 dentro do JSON. A rota ganha limite próprio
-  de **12 MiB** em `request-handler.service.ts`; as outras seguem em 1 MiB. O `maxRequestBodySize`
-  do `Bun.serve` sobe para 12 MiB, e o limite por rota passa a ser o que protege o resto. É decisão
-  🧠 (T004) e vira achado em `docs/SECURITY.md`.
-- O rate limit continua inexistente. A Basic Auth e a allowlist fazem o papel dele nesta rota, e o
-  spam no endereço de resposta morre na busca do hash, sem gravar corpo.
+- O rate limit continua inexistente. A assinatura faz o papel dele nesta rota: sem o segredo, nada
+  passa da conferência.
 - Retenção: o corpo e o bruto não expiram (são comprovante de decisão financeira), e isso fica
   datado no `docs/SECURITY.md`.
 
 ## Idempotência e concorrência
 
-- **Entrada:** `(company_id, rfc_message_id)` único, então o reenvio do Postmark converge.
+- **Entrada:** `(company_id, provider_email_id)` único, então o reenvio do Svix converge.
 - **Decisão:** o worker aplica a transição com `SELECT … FOR UPDATE` na taxa. Se ela não estiver
   mais `submitted`, a mensagem vira `late`. O lote e o portal usam a mesma política e competem pela
   mesma linha.
-- **Saída:** a mensagem é criada com `delivery_status = queued` antes do outbox. O consumidor manda
-  ao Postmark o `messageId` como chave (o cabeçalho `X-PM-Metadata`) e só marca `sent` com a
-  resposta dele. Um retry depois de um envio bem-sucedido cujo ack se perdeu é o risco residual de
-  e-mail duplicado; ele é aceito porque a contratante receber o mesmo e-mail duas vezes não decide
-  nada.
+- **Saída:** a mensagem é criada com `delivery_status = queued` antes do outbox, e o envio leva
+  `Idempotency-Key` igual ao id dela. O retry depois de um ack perdido **não duplica** o e-mail,
+  dentro das 24 h da chave.
 
 ## Observabilidade
 
 Eventos de log:
 
 - `contractor_mail_sent` / `_failed`
-- `inbound_email_received`
+- `inbound_email_webhook_accepted` / `_rejected` (com o motivo tipado)
 - `inbound_email_token_unknown` (só contador)
+- `inbound_email_dkim_verified` (com `dkimResult`)
 - `inbound_reply_interpreted` (com `interpretation` e `downgradeReason`)
 - `delivery_charge_decided_by_mail`
 
-Nenhum deles leva endereço, assunto ou corpo.
+Nenhum deles leva endereço, assunto, corpo ou segredo.
 
 ## Estratégia de testes
 
 - Unitários da política (RF5, RF8), dirigidos por tabela: caixa, acento, linha vazia antes da
   palavra, `APROVADO` no meio do texto (não decide), `RECUSADO:` sem motivo, assinatura do celular
   depois da palavra.
-- Contrato de tenant nas três tabelas novas (`test/contractor-mail-schema/tenant-safety.contract.ts`).
-- Contrato por texto de fonte: sem PII nos logs e webhook fail-closed.
-- Integração no worker com payloads **reais** do Postmark, capturados pelo e-mail de teste da
-  página (T012) e anonimizados em `test/fixtures/postmark-inbound.fixture.ts`.
-- Gateway do servidor do Postmark e consulta de MX com fakes: token recusado, timeout, MX ausente e
-  MX apontando para outro lugar.
-- E2E do fluxo P2 com o Postmark trocado por um fake HTTP no `docker-compose` (um container de
-  mock, §4 do code-standart).
+- Unitários da assinatura Svix: assinatura válida, inválida, múltiplas assinaturas no cabeçalho,
+  timestamp fora da janela e segredo sem o prefixo `whsec_`.
+- DKIM com mensagens **sintéticas** assinadas por uma chave de teste e resolvedor de DNS injetado:
+  alinhada, desalinhada (`d=` de outro domínio), corpo adulterado e sem assinatura. Um e-mail real
+  anonimizado **não serve de fixture**: anonimizar quebra a assinatura.
+- Contrato de tenant nas quatro tabelas novas (`test/contractor-mail-schema/tenant-safety.contract.ts`).
+- Contrato por texto de fonte: sem PII nem segredo nos logs, e o webhook fail-closed.
+- Gateways do Resend e do MX com fakes: chave recusada, timeout, domínio não verificado, MX ausente e
+  `download_url` de host estranho.
+- E2E do fluxo P2 com o Resend trocado por um fake HTTP no `docker-compose` (um container de mock,
+  §4 do code-standart).
 
 ## Riscos
 
+- **A `mailauth` não rodar no Bun.** O spike T004 decide antes de ela entrar, e a execução para se
+  falhar.
 - **O provedor de e-mail da contratante não assinar com DKIM alinhado.** As respostas dela não
   decidem, e o operador decide citando a mensagem. A página mostra isso no teste, e a conversa
   mostra o motivo do rebaixamento.
-- **Entregabilidade:** o domínio de envio precisa de SPF, DKIM e DMARC configurados no DNS, senão o
-  e-mail cai em spam na contratante e ninguém responde. É configuração no painel, fora do código.
+- **A chave do Resend lê a caixa inteira da conta.** Ela fica selada; achado em `docs/SECURITY.md`.
 - **O cliente de e-mail da contratante reescrever a primeira linha** (Outlook com "Enviado do meu
-  iPhone" antes do texto, por exemplo). O `StrippedTextReply` do Postmark mitiga isso, e a política
-  procura a primeira linha **não vazia**.
+  iPhone" antes do texto, por exemplo). A política procura a primeira linha **não vazia** do texto
+  sem citação.
