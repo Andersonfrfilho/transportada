@@ -325,3 +325,34 @@ refuses one outside the catalog'` (motorcycle/car). As três chamadas passaram a
   regressão nos 3319 pré-existentes — a diferença de 11 é o arquivo de teste novo).
 - `bunx prettier --check` e `bunx eslint` em todos os arquivos tocados: ok, sem avisos (o arquivo
   de teste novo precisou de `prettier --write` para quebrar duas linhas longas).
+
+## T-cat — valores do catálogo aprovados pelo usuário (2026-09-13)
+
+A pesquisa foi feita por dois agentes `opus` de documentação, só com leitura. As respostas foram
+dadas pelo usuário nesta sessão, por pergunta com opções. É esta a aprovação que libera a T16.
+
+| vehicle_type   | body_type | C × L × A (m)             | max_payload_kg | Fonte                                                                                                                                                                                                                             |
+| -------------- | --------- | ------------------------- | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `toco`         | `01`      | 7,000 × 2,500 × **2,500** | 10685,000      | C×L e carga: [SINAPI 89265](https://orcamentor.com/composicao/89265/). Altura: **convenção** (ver abaixo)                                                                                                                         |
+| `''` (carreta) | `04`      | 12,030 × 2,350 × 2,390    | 27600,000      | Contêiner 40' dry, [DSV](https://www.dsv.com/pt-br/nossas-solucoes/modais-de-transportes/transporte-maritimo/dimensoes-do-conteiner-de-transporte/dry-container), conferido na [Guia Log](https://www.guialog.com.br/medidas.htm) |
+| `truck`        | `04`      | 5,900 × 2,350 × 2,390     | 25000,000      | Contêiner 20' dry, mesma fonte                                                                                                                                                                                                    |
+
+**Altura de 2,50 m da carroceria aberta.** É convenção, porque nenhuma norma define altura de carga
+para carroceria sem teto. O comentário da migration tem de dizer isso. O número se apoia em:
+
+- anúncio de mercado: toco aberto de 6,00 × 2,50 m com 38 m³, o que dá cerca de 2,53 m
+  ([Fullex](https://www.fullex.com.br/frota/toco-carroceria/14));
+- teto legal: 4,40 m com carga ([CONTRAN 882/2021](https://www.legisweb.com.br/legislacao/?id=425133)).
+  Com o assoalho a cerca de 1,30 m ([Guia Log](https://www.guialog.com.br/medidas.htm)), a folga é de
+  uns 3,10 m, e os 2,50 m ficam dentro;
+- dois paletes PBR empilhados.
+
+A amarração é exigida pela [CONTRAN 945/2022](https://www.gov.br/transportes/pt-br/assuntos/transito/conteudo-contran/resolucoes/Resolucao9452022.pdf).
+
+**Carga do toco aberto.** O usuário escolheu os 10.685 kg da SINAPI, e não os 6.000 kg do baú.
+
+**Linhas que não entram**, por decisão do usuário ou por falta de fonte:
+
+- granelera `03`, em qualquer tipo;
+- carroceria aberta de truck, 3/4, VUC e carreta, porque não há medida de fabricante publicada;
+- nada com `00`.
