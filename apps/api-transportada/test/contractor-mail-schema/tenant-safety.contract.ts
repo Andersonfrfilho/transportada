@@ -1,6 +1,8 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { readFileSync } from 'node:fs'
+
 import { and } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import { describe, expect, test } from 'bun:test'
@@ -12,8 +14,6 @@ import {
   contractorMailThreads,
 } from '../../src/database/database.schema.js'
 import { foreignKeys, uniqueColumnsByName } from '../fiscal-schema/support.js'
-// T005 nasce vermelho aqui: `drizzle-contractor-mail.repository.ts` (T008) ainda não existe, e o
-// isolamento da busca por token só se prova sobre a query real dele, não sobre o schema sozinho.
 import { buildContractorMailThreadByReplyTokenFilters } from '../../src/contractor-mail/infrastructure/drizzle-contractor-mail.repository.js'
 
 const dialect = new PgDialect()
@@ -124,5 +124,25 @@ describe('contractor mail tenant safety (spec 143, T005)', () => {
     expect(query.sql).toContain('"contractor_mail_threads"."company_id" = $')
     expect(query.sql).toContain('"contractor_mail_threads"."reply_token_hash" = $')
     expect(query.params).toEqual([companyId, replyTokenHash])
+  })
+
+  /**
+   * Exceção declarada, no molde do fleet-schema tenant-safety (tabelas tenant-less "de propósito"):
+   * `findSettingsByWebhookId` é o único método do repositório sem `companyId` de entrada, porque é
+   * ele que descobre a empresa a partir do `webhookId` opaco da URL anônima. Este teste trava o
+   * comentário que justifica isso, para a ausência não virar "esqueceram o companyId" no diff de
+   * alguém que só olhar a assinatura do método.
+   */
+  test('declares findSettingsByWebhookId as the one lookup without companyId, on purpose', () => {
+    const source = readFileSync(
+      new URL(
+        '../../src/contractor-mail/infrastructure/drizzle-contractor-mail.repository.ts',
+        import.meta.url,
+      ),
+      'utf8',
+    )
+
+    expect(source).toContain('Única busca sem `companyId` de entrada')
+    expect(source).toContain('findSettingsByWebhookId')
   })
 })

@@ -31,7 +31,7 @@ test`), um commit isolado e a evidência em `evidence.md`. Teste novo entra na l
       mensagem sintética e verificar com o resolvedor de DNS injetado (alinhada, desalinhada,
       adulterada, sem assinatura). Checar o §13 (manutenção, tipagem, sem I/O bloqueante). **Se não
       rodar no Bun, pare e pergunte.** Evidência: a suíte passando no `bun test` do worker.
-- [ ] **T005** Contrato de tenant, **vermelho primeiro**:
+- [x] **T005** Contrato de tenant, **vermelho primeiro**:
       `test/contractor-mail-schema/tenant-safety.contract.ts`, cobrindo configuração, contatos,
       conversas e mensagens. Evidência: vermelho antes da T008, verde depois.
 - [ ] **T006** O serviço que sela `{ apiKey, webhookSigningSecret }` (API) e a cópia dele no
@@ -47,6 +47,10 @@ test`), um commit isolado e a evidência em `evidence.md`. Teste novo entra na l
       `settings.manage` e `no-store`, com os segredos nunca devolvidos. Evidência: contratos de
       rota, mais o contrato por texto de fonte de que nenhum segredo aparece em serialização nem em
       log.
+      A persistência (`drizzle-contractor-mail.repository.ts`, `contractor-mail.port.ts`) foi
+      antecipada na T005: o `typecheck` da raiz e a suíte da API precisavam ficar verdes antes da
+      T006/T007, e um push vermelho quebraria o CI. Esta task fecha com as rotas, o caso de uso e a
+      ligação de `settings.manage`/`no-store` por cima do repositório que já existe.
 - [ ] **T009** O trilho `contractor-mail-outbound.v1` no worker (relay, consumidor e envio com
       `reply_to`, `In-Reply-To`, `References` e `Idempotency-Key`) e o
       `POST /contractor-mail-settings/test-email`, que abre a conversa `setup_test`. Evidência:

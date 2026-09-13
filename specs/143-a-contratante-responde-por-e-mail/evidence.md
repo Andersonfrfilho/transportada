@@ -341,3 +341,69 @@ Este é o vermelho esperado e correto: a T005 fica `[ ]` no `tasks.md`, e só vi
 T008 criar `drizzle-contractor-mail.repository.ts` com `buildContractorMailThreadByReplyTokenFilters`
 filtrando por `companyId`, fazendo o import resolver e o contrato passar a exercer a asserção de
 verdade.
+
+## T005 — verde — 2026-09-13
+
+**Motivo da antecipação:** com o vermelho do `17c54f15`, `bun run typecheck` na raiz e a suíte da
+API ficam vermelhos até a T008 existir — e a T006/T007 viriam antes dela sem conseguir fechar com
+gates verdes, empurrando um push quebrado para o CI. Decidido antecipar só a parte de persistência
+da T008 (o repositório e a porta), sem rotas, caso de uso nem nada de segredo — isso continua sendo
+da T008, que fecha por cima do que já existe.
+
+Arquivos novos:
+
+- `apps/api-transportada/src/contractor-mail/application/contractor-mail.port.ts` —
+  `ContractorMailRepositoryPort`, com `findSettings`, `findSettingsByWebhookId`,
+  `findThreadByReplyTokenHash` e `upsertSettings`. `secretEnvelope` é tipado `unknown`: quem sela e
+  quem abre o jsonb é a T006, este repositório só transporta.
+- `apps/api-transportada/src/contractor-mail/infrastructure/drizzle-contractor-mail.repository.ts`
+  — `DrizzleContractorMailRepository`, no padrão de `DrizzleCargoSettingsRepository` (upsert por
+  `onConflictDoUpdate` no único de `company_id`) e de `DrizzlePasswordResetRepository` (a busca sem
+  tenant). Exporta `buildContractorMailThreadByReplyTokenFilters`, a função pura que o contrato da
+  T005 importa — `and(eq(company_id), eq(reply_token_hash))`, as duas condições na mesma consulta.
+
+**Exceção declarada:** `findSettingsByWebhookId` é o único método sem `companyId` de entrada, porque
+é ele que **descobre** a empresa a partir do `webhookId` opaco da URL anônima do webhook — a mesma
+forma de `findByCodeHash` em `identity/infrastructure/drizzle-password-reset.repository.ts` ("a
+própria linha encontrada é quem estabelece o tenant"). O comentário de uma linha que justifica isso
+está acima do método, e o contrato passou a travá-lo por texto de fonte (`declares
+findSettingsByWebhookId as the one lookup without companyId, on purpose`), para a ausência de
+`companyId` não virar "esqueceram" no diff de alguém que só olhar a assinatura.
+
+Ajuste no contrato da T005 (sem afrouxar nenhuma asserção existente): o `import` de
+`buildContractorMailThreadByReplyTokenFilters` passou a resolver de verdade, e ganhou o teste acima
+sobre a exceção declarada.
+
+**Saída do verde:**
+
+```
+$ bun test ./test/contractor-mail-schema.contract.test.ts
+ 7 pass
+ 0 fail
+ 15 expect() calls
+Ran 7 tests across 1 file. [240.00ms]
+
+$ bun run typecheck        # raiz, as seis apps
+$ bunx tsc --noEmit        (api-transportada)   → limpo
+$ bunx tsc --noEmit        (worker-transportada) → limpo
+$ bunx tsc --noEmit        (cron-transportada)   → limpo
+$ tsc --noEmit             (frontend-transportada, frontend-client, frontend-landing) → limpo
+
+$ bun run --cwd apps/api-transportada test
+ 5550 pass
+ 23 skip
+ 0 fail
+ 38564 expect() calls
+Ran 5573 tests across 169 files. [25.97s]
+
+$ bun run lint             # raiz, as seis apps → limpo
+```
+
+`bunx prettier --check` nos quatro arquivos tocados (`contractor-mail.port.ts`,
+`drizzle-contractor-mail.repository.ts`, `tenant-safety.contract.ts`,
+`contractor-mail-schema.contract.test.ts`) — limpo.
+
+Não rodei `bun --env-file=../../.env.test test --timeout 120000`: o contrato da T005 continua sendo
+SQL puro sobre `PgDialect().sqlToQuery()`, sem tocar Postgres — o mesmo formato de
+`nfse-schema/invoice-selection-query-tenant-safety.contract.ts`. Teste de integração contra banco de
+verdade fica para a T008, quando existirem rotas e caso de uso para exercitar de ponta a ponta.
