@@ -478,22 +478,105 @@ viagem. Hoje o formulário sugere comprimento, largura, altura e `capacity_kg` a
 cai para a marca quando não acha o modelo: dois modelos da mesma marca não têm o mesmo baú, e ali o
 erro vira metro na planta em vez de porcentagem na ocupação. ⚠️ A sugestão entra **só em campo
 vazio**, por baixo da herança e dos padrões do tipo, e **digitar apaga a marca de origem** — a mesma
-regra do campo vindo de documento. ⚠️ Ela **nunca alimenta a planta por baixo**: a 088 D2 recusou a
-referência como escala, e a medição desta spec confirma o motivo — a van vai de **7,0 a 15,5 m³** na
-mesma sigla. O que a torna aceitável é a origem impressa ao lado do campo e o salvamento: a partir
-dele, é o que a ficha afirma.
+regra do campo vindo de documento. ⚠️ **A ficha sem sugestão recorre à referência (commit `c02325b6`)**:
+quem nasce sem medida e sem catálogo depara com planta em branco ou planta à escala do catálogo,
+marcada como tal (`bedSource: 'reference'`) — é palpite, mas com aviso. O que torna a sugestão
+aceitável é a origem impressa junto do campo e o salvamento: a partir dele, é o que a ficha afirma.
 
 `vehicle_volume_references` ganhou `max_payload_kg` (nulo é ausência de fonte, e o CHECK **recusa
 zero** — o oposto do vocabulário da ficha, onde zero é "ninguém mediu") e as linhas de
 `three_quarter` e `motorcycle`, que não existiam; `three_quarter` é o tipo do `RTD-5J78`, e é por
 isso que ele não achava referência nenhuma. ⚠️ As dimensões das sete linhas antigas **não foram
 tocadas**, embora a pesquisa devolva números maiores: a referência é **piso**, e subi-lo mudaria
-calado a ocupação de todo veículo sem ficha. `car` e `tractor_unit` seguem sem linha — o carro de
-passeio não tem compartimento publicado (porta-malas é outra grandeza) e o cavalo não tem baú
-próprio. ⚠️ Ela é a **terceira** tabela sem `company_id`, e era a única das três cuja ausência não
-estava assertada em `tenant-safety`. Serve por `GET /fleet/vehicle-references` sob `fleet.read` —
-não `settings.manage`: quem cadastra veículo é quem precisa da sugestão. Catálogo fora do ar é ficha
-sem sugestão, nunca ficha travada.
+calado a ocupação de todo veículo sem ficha. `tractor_unit` segue sem linha — o cavalo não tem baú
+próprio, é o implemento que carrega. `car` **ganhou** duas linhas depois (`02`/`05`, 1,000 × 0,900 ×
+0,500 m, 80 kg — o porta-malas em serviço de entrega, não o compartimento de um caminhão). ⚠️ Ela é a
+**terceira** tabela sem `company_id`, e era a única das três cuja ausência não estava assertada em
+`tenant-safety`. Serve por `GET /fleet/vehicle-references` sob `fleet.read` — não `settings.manage`:
+quem cadastra veículo é quem precisa da sugestão. Catálogo fora do ar é ficha sem sugestão, nunca
+ficha travada.
+
+**A carroceria `00` deixou de ser valor neutro, e virou obrigação para quem carrega** (spec 147 D1).
+`00` nasceu como default da coluna e servia para duas coisas ao mesmo tempo: "não aplicável" no
+cavalo mecânico e "não informado" em todo o resto — o mesmo valor escondendo cadastro incompleto
+atrás de cadastro correto. Hoje `checkVehicleBodyType` (`fleet/domain/vehicle-body-type.policy.ts`),
+chamada nos dois parsers de fronteira (`parseCreateVehicleRequest`/`parseUpdateVehicleRequest` em
+`fleet/presentation/fleet.schema.ts`, não dentro do caso de uso — o contrato HTTP roda contra stubs
+que nunca o invocam), recusa `00` em qualquer veículo que não seja `tractor_unit`
+(`FLEET_VEHICLE_BODY_TYPE_REQUIRED`, 400) e recusa **qualquer outro valor** no próprio cavalo
+(`FLEET_VEHICLE_BODY_TYPE_NOT_APPLICABLE`) — carreta incluída, porque ela é `role: 'trailer'`, não
+`tractor_unit`, e cai do lado que exige escolha. ⚠️ **Sem CHECK retroativo**: apertar o CHECK do banco
+recusaria as linhas que já existem, e nenhuma migration faz `UPDATE` em `body_type`. Cadastro antigo
+com `00` num tipo que carrega continua existindo — só passa a aparecer nomeado, na página de
+pendências.
+
+**O nome do que falta é `capacityUnknownReason`, e ele decide o link do painel**
+(`trips/domain/capacity-unknown-reason.policy.ts`, `resolveCapacityUnknownReason`). Três motivos, na
+mesma ordem que `resolveVolumeReferenceKey` decide quem carrega — a carreta quando existe, senão o
+próprio veículo de tração: `bodyTypeMissing` (o carregador tem `00` e não é cavalo — carreta velha
+inclusive), `trailerMissing` (`tractor_unit` sem carreta) e `referenceMissing` (tipo sem linha de
+catálogo, como `other`). `capacityM3` não nulo zera o motivo antes de qualquer outra checagem. A
+prévia de carga (`POST /trips/cargo-preview`, antes de a viagem existir) sempre recebe `trailer:
+null` de propósito — não há `trips.trailer_vehicle_id` para ler ainda.
+
+**O cavalo tem uma carreta, e a ocupação passa a ler a ficha dela** (spec 147 D3/D4).
+`trips.trailer_vehicle_id` e `fleet_vehicles.default_trailer_vehicle_id` (a segunda é só sugestão)
+nasceram na migration à mão `20260913120000_trip_trailer_vehicle` — à mão porque as últimas 35
+migrations do repositório já não têm `snapshot.json` (o `drizzle/meta/` não existe mais aqui), e
+rodar `db:generate` reintroduziria como "novas" migrations já aplicadas. FK composta `(company_id,
+*) → fleet_vehicles(company_id, id)` nos dois campos (nunca `SET NULL`, que anularia `company_id`,
+que é `NOT NULL`), CHECKs contra autorreferência e contra carreta padrão fora de `tractor_unit`, e o
+índice único parcial `trips_company_trailer_open_unique` — a mesma carreta não entra em duas viagens
+com `status not in ('completed','cancelled')`. `PUT /trips/:id/trailer` (`trip.manage` — o separador
+alcança, pelo mesmo raciocínio já registrado acima para o resto da montagem) escreve o vínculo por
+`checkTripAcceptsTrailer` (`trips/domain/trip-trailer.policy.ts`), que reusa
+`checkTripAcceptsLinkage` para o portão de estado (bloqueia depois de `dispatched`) antes de checar
+que só o cavalo aceita carreta; a corrida entre duas escritas é fechada pelo índice único, traduzido
+em `409 TRIP_TRAILER_IN_USE`. Criar a viagem de um cavalo copia a carreta padrão **só como
+sugestão**: se ela já estiver em viagem aberta, a viagem nasce sem carreta, nunca com erro. ⚠️ **O
+cavalo não carrega sozinho**: `checkDispatch` (`trip-state.policy.ts`) recebe `requiresTrailer` e
+barra o despacho com `409 TRIP_TRAILER_REQUIRED` — código de topo dedicado, não
+`STATE_TRANSITION_NOT_ALLOWED` com motivo em `details` — depois do portão de roteiro e antes de
+aplicar a transição. O snapshot de despacho congela `trailer: {vehicleId, plate} | null`; nenhum
+leitor de produção decodifica essa chave hoje, então o campo nasce tipado sem exigir migração de
+leitor nenhum. A ocupação (`trip-occupancy.support.ts`) faz uma quinta consulta **só quando existe
+carreta** e usa `carrier = trailer ?? vehicle` como o único ponto que decide de quem é a ficha —
+`loadingAccess` e `maxPayloadKg` continuam vindo do veículo de tração, porque não é a carreta quem
+tem acesso de carga nem limite de peso do MDF-e.
+
+**O catálogo ganhou `01` e `04`, nunca `00` nem `03`** (spec 147 D5, migration
+`20260913130000_vehicle_reference_open_and_container`). `('toco','01')` — carroceria aberta, 7,000 ×
+2,500 × **2,500** m, 10.685 kg — usa comprimento, largura e carga da SINAPI 89265, e a altura é
+**convenção**, porque não existe norma de altura de carga para caçamba sem teto; o comentário da
+migration documenta os três apoios (anúncio de mercado, folga contra o teto legal do CONTRAN
+882/2021, dois paletes PBR empilhados). `('','04')` e `('truck','04')` são contêiner dry 40' e 20'
+(DSV, conferido na Guia Log) — o cavalo nunca carrega o contêiner, é a carreta (`vehicle_type` vazio)
+quem responde. Granelera (`03`) e carroceria aberta fora do toco ficaram de fora por falta de medida
+de fabricante publicada — decisão do usuário, registrada em `evidence.md`.
+
+⚠️ **A sugestão da ficha (093) passou a casar por `(vehicleType, bodyType)`, nunca só por tipo**
+(spec 147 T16b). Com `('toco','01')` no catálogo, casar só por `vehicleType` faria `fromReference`
+pegar a primeira linha em ordem de `body_type` — todo toco novo teria recebido a carroceria aberta em
+vez do baú. Hoje `resolveVehicleSuggestion`/`fromReference` (`vehicleSuggestion.service.ts`) recebem
+`bodyType`, e sem carroceria escolhida (`''`) ou com `'00'` (só o cavalo) devolvem `null` sem
+consultar o catálogo — a carroceria é obrigatória fora do cavalo (D1), e sem ela qualquer linha seria
+palpite. A precedência de sempre continua intacta: ficha da frota com mesma marca e modelo já medido
+vence a referência, que vence a ausência.
+
+**As pendências ficam num lugar só, e o primeiro tipo é a carroceria que ninguém escolheu** (spec 147
+D2/RF9). `GET /pending-items` (módulo `pending-items/`, sem `domain/` — a consulta já é a regra)
+delega para a primeira fonte (`PendingItemSourcePort`) cuja permissão o chamador tem; sem fonte
+permitida devolve página vazia, nunca `403` — a política de "quem pode ver" mora na fonte, não na
+rota. Hoje só existe `fleet-body-type` (`drizzle-fleet-body-type-pending-item.source.ts`): filtra
+`vehicle_type <> 'tractor_unit'` (alcança a carreta de propósito, sem nomeá-la — o `vehicle_type`
+dela já é vazio), `body_type = '00'` e **`status = 'active'`** — pendência de veículo inativo não é
+trabalho para ninguém corrigir agora, decisão tomada dentro da task, sem linha correspondente na
+spec. ⚠️ A rota exige `fleet.read` na borda, mesma permissão da única fonte de hoje — a infraestrutura
+de rotas não tem o modo "autenticado sem permissão específica" que a spec pedia, e a diferença só vai
+aparecer no dia em que existir uma segunda fonte com outra permissão. `test/separator-role.contract.test.ts`
+não cobre `pending-items` (é módulo novo, fora da lista exaustiva de `trip`/`fleet`/`billing`/…), mas
+o separador tem `fleet.read` e alcança a rota. No frontend, `/pendencias` é aba nova em "Cadastros",
+com esqueleto de carregamento e uma linha por pendência levando à ficha do veículo.
 
 **O peso da carga ganhou teto, e ele sempre esteve no banco** (spec 093). `fleet_vehicles.capacity_kg`
 é o `capKG` que o MDF-e exige e está preenchida em **10 dos 12** veículos; nenhuma tela a lia fora

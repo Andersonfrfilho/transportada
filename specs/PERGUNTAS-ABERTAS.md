@@ -172,3 +172,14 @@ Nacional sai de biblioteca. **Municipal é onde dói** — a cidade fecha e o ro
     produto) compartilham o mesmo GTIN porque o código traz a unidade, não a caixa. Ler o DUN-14 da
     caixa nunca casa com `carton_gtin`. Precisa de spec própria: `carton_gtin` guardando `cUnitGtin`,
     caixa nova coluna `box_gtin` (DUN-14), e adaptar a validação do bipe de duas para três colunas.
+
+### 147 — o cavalo não carrega sozinho
+
+31. _(2026-09-13)_ **`veicReboque` no MDF-e.** A carreta existe agora na viagem (`trips.trailer_vehicle_id`) e
+    na frota (`fleet_vehicles.default_trailer_vehicle_id`). O MDF-e builder continua não a emitindo.
+    Quando a emissão de MDF-e com carreta se torna obrigatória, e por qual rota? **Registrado em
+    `docs/SECURITY.md` como risco fiscal até resolvido.**
+
+32. _(2026-09-13)_ **Medição de baú e caixas pela câmera.** Pedido do usuário em 2026-09-12. A
+    precisão (quantos centímetros importa?), o suporte a WebXR/ARCore no PWA e o Safari do iPhone
+    precisam de estudo. **Vira spec própria com especificação de viabilidade; fora do escopo de 147.**

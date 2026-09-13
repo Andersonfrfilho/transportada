@@ -1208,3 +1208,72 @@ desenho de alerta). `docs/frontend/icons.md` atualizado na lista de navegação.
 - `npx prettier --write` nos arquivos tocados/criados → só formatação, sem diff de conteúdo.
 
 **Commit:** `feat(pending-items): 147 T15 — a página das pendências` (`319b5d22249b67dc53c6c1a44e8cb66e33518b11`).
+
+## T17 — documentação viva
+
+**Retomada de mudanças não commitadas.** Ao abrir a task, `CLAUDE.md`, `docs/ai-context/api-transportada.md`,
+`apps/api-transportada/src/trips/infrastructure/trip-occupancy.support.ts` (só comentário),
+`apps/api-transportada/src/trips/domain/cargo-layout.policy.ts` (só comentário) e
+`specs/PERGUNTAS-ABERTAS.md` já tinham uma primeira passada não commitada, de outra sessão. Conferida
+contra o código e o `evidence.md`: os dois comentários (`trip-occupancy.support.ts:59-63`,
+`cargo-layout.policy.ts:332`) já descrevem corretamente o estado pós-T12 ("ficha da carreta quando
+preenchida, senão referência marcada `bedSource: 'reference'`, commit `c02325b6`") e não precisaram
+de ajuste. O parágrafo "O cavalo não carrega sozinho" do `CLAUDE.md` também batia com o código
+(`trips.trailer_vehicle_id`, `fleet_vehicles.default_trailer_vehicle_id`,
+`trips_company_trailer_open_unique`, `409 TRIP_TRAILER_REQUIRED`) — mantido, só acrescentado. A
+entrada de `docs/ai-context/api-transportada.md` §093 corrigia a 088 D2 pelo commit `c02325b6`, mas
+ficou incompleta: não registrava D1 (carroceria obrigatória), `capacityUnknownReason`, a carreta, o
+catálogo novo (`01`/`04`) nem as pendências — completado nesta task. `specs/PERGUNTAS-ABERTAS.md`
+ganhou as duas entradas (27 e 28) sobre `veicReboque` no MDF-e e a medição por câmera, ambas
+conferidas contra o código: o builder do MDF-e (`mdfe-payload.builder.ts`) de fato não emite
+`veicReboque`, e a medição por câmera é RF fora do escopo da 147 (spec.md, "Fora do escopo").
+
+**Alterações desta task:**
+
+- `docs/ai-context/api-transportada.md` §093: seis parágrafos novos, entre a correção da frase sobre
+  `car`/`tractor_unit` (o catálogo já ganhou duas linhas de `car`, `02`/`05`, na migration
+  `20260910120000_vehicle_reference_every_type` — só `tractor_unit` segue sem linha) e o parágrafo do
+  peso da carga: D1 (`checkVehicleBodyType`, `FLEET_VEHICLE_BODY_TYPE_REQUIRED`/`_NOT_APPLICABLE`,
+  sem CHECK retroativo), `capacityUnknownReason` (as três razões e a ordem de decisão), a carreta
+  (migration `20260913120000_trip_trailer_vehicle` à mão, FK composta, índice único parcial,
+  `PUT /trips/:id/trailer`, `409 TRIP_TRAILER_IN_USE`/`TRIP_TRAILER_REQUIRED`, snapshot de despacho),
+  o catálogo `01`/`04` (migration `20260913130000_vehicle_reference_open_and_container`, fonte de
+  cada linha) e a correção da sugestão (093) para casar por `(vehicleType, bodyType)` (T16b), e as
+  pendências (`GET /pending-items`, módulo `pending-items`, fonte `fleet-body-type`, `fleet.read`,
+  só `status = 'active'`).
+- `CLAUDE.md`: duas frases acrescentadas ao parágrafo já existente — carroceria obrigatória
+  (`400 FLEET_VEHICLE_BODY_TYPE_REQUIRED`) e a página `/pendencias`, apontando para o docs/ai-context
+  para o detalhe.
+- `apps/api-transportada/src/trips/domain/cargo-layout.policy.ts` e
+  `apps/api-transportada/src/trips/infrastructure/trip-occupancy.support.ts`: nenhuma mudança nesta
+  task — conferidos e já corretos (ver acima).
+- `specs/PERGUNTAS-ABERTAS.md`: nenhuma mudança nesta task — as duas entradas já estavam corretas.
+- `specs/147-carroceria-que-ninguem-escolheu/tasks.md`: `[x]` em T1–T17, com T6b, T16b e T-cat
+  anotados como adendos das tasks que os produziram.
+
+**Nomes conferidos contra o código antes de escrever** (para não repetir premissa errada): `checkVehicleBodyType`
+(`fleet/domain/vehicle-body-type.policy.ts`), `resolveCapacityUnknownReason`
+(`trips/domain/capacity-unknown-reason.policy.ts`), `checkTripAcceptsTrailer`
+(`trips/domain/trip-trailer.policy.ts`), os quatro códigos de erro em `trips/domain/trip.error.ts`
+(`TRIP_TRAILER_REQUIRES_TRACTOR`, `TRIP_TRAILER_NOT_A_TRAILER`, `TRIP_TRAILER_IN_USE`,
+`TRIP_TRAILER_REQUIRED`), as três linhas do catálogo em
+`drizzle/20260913130000_vehicle_reference_open_and_container/migration.sql`, e a linha de `car` em
+`drizzle/20260910120000_vehicle_reference_every_type/migration.sql`.
+
+**Gates:**
+
+- `bunx prettier --check` nos seis arquivos tocados (`CLAUDE.md`, `docs/ai-context/api-transportada.md`,
+  `specs/147-carroceria-que-ninguem-escolheu/tasks.md`, `specs/PERGUNTAS-ABERTAS.md`,
+  `apps/api-transportada/src/trips/domain/cargo-layout.policy.ts`,
+  `apps/api-transportada/src/trips/infrastructure/trip-occupancy.support.ts`) → `All matched files
+use Prettier code style!`.
+- `make check` (raiz do worktree, `format:check` + `lint` + `typecheck` + `test` + `build` das seis
+  apps) → verde, exit code 0. Contagens de teste por app: api-transportada **5137 pass/23 skip/0
+  fail** (37350 expect, 164 arquivos); worker-transportada **986 pass/0 fail** (2683 expect, 77
+  arquivos); cron-transportada **94 pass/0 fail** (224 expect, 7 arquivos); frontend-transportada
+  **3362 pass/0 fail** (33834 expect, 30 arquivos); frontend-client **18 pass/0 fail** (39 expect, 2
+  arquivos); frontend-landing **107 pass/0 fail** (356 expect, 4 arquivos). Build das seis apps
+  verde (avisos de chunk >500 kB pré-existentes em `frontend-transportada`, não relacionados a esta
+  task, e o mesmo aviso do `pdf.worker.min` que já existia).
+
+**Commit:** `docs: 147 T17 — a documentação conta a carroceria, a carreta e as pendências`.

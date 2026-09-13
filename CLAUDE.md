@@ -94,6 +94,18 @@ painel estiver desligado (variável ausente), o painel continua servindo `/minha
 (`driver_legacy_served`) até a remoção do módulo `driver-trip` do painel (tasks.md Fase 10 da 189,
 sob aprovação humana).
 
+**O cavalo não carrega sozinho** (spec 147). A viagem com `tractor_unit` (cavalo mecânico) exige uma
+carreta atrelada para despachar (`409 TRIP_TRAILER_REQUIRED`), guardada em `trips.trailer_vehicle_id`.
+A frota oferece uma carreta padrão por cavalo (`fleet_vehicles.default_trailer_vehicle_id`),
+sugestão que a viagem pode trocar; uma mesma carreta não entra em duas viagens abertas
+(`trips_company_trailer_open_unique`). A ocupação e a planta da viagem usam a ficha da carreta quando
+preenchida, senão a referência do catálogo com origem marcada — o cavalo nunca carrega.
+
+Todo veículo que carrega, exceto o cavalo, é obrigado a escolher a carroceria no cadastro
+(`checkVehicleBodyType`, `400 FLEET_VEHICLE_BODY_TYPE_REQUIRED`); cadastro antigo com `00` não é
+reescrito e aparece na página `/pendencias` (`GET /pending-items`, `fleet.read`). Detalhe em
+`docs/ai-context/api-transportada.md` §093.
+
 ## Convenções
 
 Sufixos em uso: `.use-case.ts` · `.service.ts` · `.schema.ts` · `.repository.ts` (sempre prefixo

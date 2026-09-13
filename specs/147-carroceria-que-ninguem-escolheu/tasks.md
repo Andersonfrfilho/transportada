@@ -14,14 +14,14 @@
 
 > 🤖 Modelo: `sonnet`
 
-### T1 — Contrato: `resolveVolumeReferenceKey` é o único construtor da chave
+### T1 — Contrato: `resolveVolumeReferenceKey` é o único construtor da chave ✅
 
 - `test/trip-infrastructure/occupancy-reference-key.contract.ts`, por texto de fonte: falha se
   `trip-occupancy.support.ts` comparar `vehicleVolumeReferences.vehicleType`/`bodyType` com campo do
   veículo sem passar pela função.
 - Entra na lista do `package.json`. O teste vermelho vem antes da mudança.
 
-### T2 — Ligar a ocupação à função
+### T2 — Ligar a ocupação à função ✅
 
 - `trip-occupancy.support.ts:119-124` passa a usar `resolveVolumeReferenceKey({traction: vehicle,
 trailer: null})`. O comportamento não muda.
@@ -31,7 +31,7 @@ trailer: null})`. O comportamento não muda.
 
 > 🤖 Modelo: `sonnet`
 
-### T3 — `resolveCapacityUnknownReason` (domínio puro)
+### T3 — `resolveCapacityUnknownReason` (domínio puro) ✅
 
 - `trips/domain/capacity-unknown-reason.policy.ts`, com contrato em tabela:
   - veículo que não é cavalo, com `00` → `bodyTypeMissing`;
@@ -39,13 +39,13 @@ trailer: null})`. O comportamento não muda.
   - tipo sem linha de catálogo → `referenceMissing`;
   - capacidade conhecida → `null`.
 
-### T4 — Publicar `cargo.capacityUnknownReason`
+### T4 — Publicar `cargo.capacityUnknownReason` ✅
 
 - Na ocupação, no detalhe (`drizzle-trip.repository.ts`) e na prévia (`trip-cargo-preview.query.ts`).
 - Integração contra Postgres: truck `00` sem ficha → `bodyTypeMissing`; depois de trocar para `02`
   → `capacitySource: 'reference'`.
 
-### T5 — Painel nomeia o motivo (frontend)
+### T5 — Painel nomeia o motivo (frontend) ✅
 
 - Guard de validação aceita o campo novo (a API sobe primeiro).
 - `TripCargoPanel` mostra um texto por motivo, com link para a ficha do veículo certo. Chaves em
@@ -56,7 +56,7 @@ trailer: null})`. O comportamento não muda.
 
 > 🤖 Modelo: `sonnet`
 
-### T6 — API recusa `00` em escrita nova
+### T6 — API recusa `00` em escrita nova ✅ (T6b: regra desce ao domínio)
 
 - `superRefine` em `fleet-request.schema.ts`: `bodyType === '00'` só vale com `tractor_unit`.
 - Código `FLEET_VEHICLE_BODY_TYPE_REQUIRED` em `codes.ts`.
@@ -65,7 +65,7 @@ trailer: null})`. O comportamento não muda.
   na página de pendências.
 - Aceite adicional: nenhuma migration e nenhum `UPDATE` em `body_type`.
 
-### T7 — Formulário da frota (frontend)
+### T7 — Formulário da frota (frontend) ✅
 
 - `fleetForm.service.ts`: sem valor inicial fora do cavalo. No cavalo o campo é escondido e o valor
   é `00`.
@@ -78,7 +78,7 @@ trailer: null})`. O comportamento não muda.
 
 > 🤖 Modelo: `sonnet` (T8 é 🧠 — validar o desenho da migration com `architect` model=`opus` antes)
 
-### T8 — Migration `trip_trailer_vehicle` 🧠
+### T8 — Migration `trip_trailer_vehicle` 🧠 ✅
 
 - `trips.trailer_vehicle_id` e `fleet_vehicles.default_trailer_vehicle_id`: anuláveis, FK composta
   com `company_id`.
@@ -87,7 +87,7 @@ trailer: null})`. O comportamento não muda.
 - `rollback.sql` ao lado. Conferir `unique (company_id, id)` em `fleet_vehicles`.
 - Aceite: `make migration-test` verde. **Parar e perguntar** se aparecer qualquer passo destrutivo.
 
-### T9 — Carreta padrão na ficha do cavalo
+### T9 — Carreta padrão na ficha do cavalo ✅
 
 - Zod aceita `defaultTrailerVehicleId` só em `tractor_unit`, e o apontado precisa ser carreta ativa
   da mesma empresa (senão `404`).
@@ -95,7 +95,7 @@ trailer: null})`. O comportamento não muda.
 - Frontend: select de carreta na ficha do cavalo (`@/components/ui/select`), com contrato em
   `test/fleet/`.
 
-### T10 — Domínio e rota `PUT /trips/:id/trailer`
+### T10 — Domínio e rota `PUT /trips/:id/trailer` ✅
 
 - `checkTripAcceptsTrailer`, com contrato em tabela (estado × tipo), mais `TRIP_TRAILER_IN_USE`.
 - Rota sob `trip.manage`, idempotente, com os erros do plan.md.
@@ -104,13 +104,13 @@ trailer: null})`. O comportamento não muda.
 - Criar a viagem de um cavalo copia a carreta padrão.
 - Trocar o veículo da viagem limpa a carreta na mesma transação.
 
-### T11 — Despacho exige carreta
+### T11 — Despacho exige carreta ✅
 
 - `dispatch` de cavalo sem carreta → `409 TRIP_TRAILER_REQUIRED`, com contrato em
   `test/trip-domain/` e integração.
 - O snapshot de despacho congela a placa da carreta.
 
-### T12 — Ocupação lê a carreta
+### T12 — Ocupação lê a carreta ✅
 
 - `leftJoin` da carreta, chave por `resolveVolumeReferenceKey({traction, trailer})`, ficha da
   carreta antes da referência `('', body)`.
@@ -119,7 +119,7 @@ trailer: null})`. O comportamento não muda.
   gatilho lazy D7 precisa cobrir `trailer_vehicle_id`. **Perguntar antes** de editar qualquer
   arquivo da 145.
 
-### T13 — Seletor de carreta na viagem (frontend)
+### T13 — Seletor de carreta na viagem (frontend) ✅
 
 - Detalhe da viagem e diálogo "Nova viagem" quando o veículo é cavalo, com a carreta padrão
   pré-escolhida. Mutação em `useTripWorkspace.hook.ts`.
@@ -130,14 +130,14 @@ trailer: null})`. O comportamento não muda.
 
 > 🤖 Modelo: `sonnet`
 
-### T14 — `GET /pending-items` (API)
+### T14 — `GET /pending-items` (API) ✅
 
 - Módulo `pending-items`: porta por tipo com a permissão que exige, fonte `fleet-body-type`,
   paginação por cursor com teto de 100.
 - Contratos: rota, tenant, e ausência do tipo sem `fleet.read`.
 - Integração: o truck `00` aparece e some depois de salvo com `02`.
 
-### T15 — Página `/pendencias` (frontend)
+### T15 — Página `/pendencias` (frontend) ✅
 
 - Módulo `pending-items`, rota em `main.tsx`, entrada na navegação, esqueleto de carregamento,
   linha com link para a ficha. Locale com acento.
@@ -147,14 +147,14 @@ trailer: null})`. O comportamento não muda.
 
 > 🤖 Modelo: `opus` na T-cat 🧠; `sonnet` na T16
 
-### T-cat — Levantar fontes e propor valores 🧠
+### T-cat — Levantar fontes e propor valores 🧠 ✅
 
 - Uma tabela `(vehicle_type, body_type) → C × L × A, max_payload_kg`, com fonte por linha, altura
   de carga convencionada para a aberta e a escolha entre contêiner de 20 e de 40 pés para o porta
   container.
 - **Parar e pedir aprovação do usuário.** Registrar a aprovação em `evidence.md`.
 
-### T16 — Migration de dados aditiva
+### T16 — Migration de dados aditiva ✅ (T16b: sugestão passa a casar por carroceria)
 
 - `insert … on conflict do nothing`, fonte no comentário, `rollback.sql` com `delete` das chaves
   inseridas.
@@ -164,7 +164,7 @@ trailer: null})`. O comportamento não muda.
 
 > 🤖 Modelo: `haiku`
 
-### T17 — Alinhar texto ao código
+### T17 — Alinhar texto ao código ✅
 
 - `docs/ai-context/api-transportada.md` §075/088/093:
   - 088 D2 superada pelo `c02325b6`;

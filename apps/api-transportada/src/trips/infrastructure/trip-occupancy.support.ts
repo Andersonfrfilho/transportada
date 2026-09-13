@@ -79,11 +79,11 @@ export async function loadTripOccupancy(
    */
   readonly boxesByDocument: ReadonlyMap<string, readonly CargoPlanBox[]>
   /**
-   * ⚠️ Spec 088 D2: a medida do baú vem da **ficha do veículo**, e por isso viaja fora de
-   * `occupancy`. Derivá-la da ocupação jogava a medida fora quando **nenhuma nota tinha cubagem** —
-   * a planta sumia por falta de um dado que não é dela, e o aviso mandava preencher um campo que já
-   * estava preenchido. Ler as colunas do veículo também descarta a referência de mercado por
-   * construção, que é mais forte que filtrar pela origem do m³.
+   * Spec 088 D2: a medida do baú vem da **ficha do veículo** quando preenchida. Sem ficha, usa a
+   * referência do catálogo com origem marcada (`bedSource: 'reference'` — commit `c02325b6`). Viaja
+   * fora de `occupancy` porque a origem importa (ficha vs. referência), e devolvê-la do campo de
+   * ocupação jogava a medida fora quando **nenhuma nota tinha cubagem** — a planta sumia por falta
+   * de um dado que não é dela, e o aviso mandava preencher um campo que já estava preenchido.
    */
   readonly bedDimensions: CargoBedDimensions | null
   readonly capacityM3: string | null
