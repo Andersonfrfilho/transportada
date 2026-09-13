@@ -21,10 +21,6 @@ import {
 import { LICENSE_CATEGORIES } from '../../shared/license-category.constant.js'
 import { PIX_KEY_MAX_LENGTH, PIX_KEY_TYPES } from '../../shared/pix-key-type.constant.js'
 import { FLEET_DRIVER_PROFILES } from '../domain/fleet-driver-profile.constant.js'
-import {
-  FleetVehicleBodyTypeNotApplicableError,
-  FleetVehicleBodyTypeRequiredError,
-} from '../domain/fleet.error.js'
 import { RNTRC_INPUT } from '../../shared/rntrc.service.js'
 import { buildOptionalTaxIdSchema, buildTaxIdSchema } from '../../shared/tax-id.schema.js'
 import { CNPJ_PATTERN, TAX_ID_PATTERN } from '../../shared/tax-id.service.js'
@@ -60,8 +56,6 @@ const POSITIVE_BIGINT = /^[1-9][0-9]{0,18}$/
 const RENAVAM = /^[0-9]{9,11}$/
 const STATE = /^[A-Z]{2}$/
 const TRACTION_ROLE = 'traction'
-const TRACTOR_UNIT_VEHICLE_TYPE = 'tractor_unit'
-const NOT_APPLICABLE_BODY_TYPE = '00'
 const VEHICLE_BRAND_MAX_LENGTH = 60
 const VEHICLE_FLEET_NUMBER_MAX_LENGTH = 20
 const VEHICLE_MODEL_MAX_LENGTH = 120
@@ -365,7 +359,6 @@ function assertVehicleRules(value: FleetVehicleFields, context: z.RefinementCtx)
   if ((value.role === TRACTION_ROLE) !== (value.vehicleType !== '')) {
     context.addIssue({ code: 'custom', message: 'vehicleType belongs to traction vehicles only' })
   }
-  assertVehicleBodyType(value)
   // O grupo <prop> é tudo-ou-nada e proibido quando o veículo é do próprio emitente
   if ((value.ownership === OWN_OWNERSHIP) !== (value.owner === null)) {
     context.addIssue({ code: 'custom', message: 'owner is required unless the vehicle is own' })
@@ -385,21 +378,5 @@ function assertVehicleRules(value: FleetVehicleFields, context: z.RefinementCtx)
       message: 'secondaryAverageConsumption requires a secondaryFuelType',
       path: ['secondaryAverageConsumption'],
     })
-  }
-}
-
-/**
- * Feature 147 D1: `00` só descreve o cavalo, que não carrega — quem carrega escolhe carroceria.
- * Cavalo é `role: 'traction'` com `vehicleType: 'tractor_unit'`; toda carreta (`role: 'trailer'`,
- * `vehicleType: ''`) cai do lado que exige escolha, junto dos demais tipos que tracionam.
- */
-function assertVehicleBodyType(value: FleetVehicleFields): void {
-  const isTractorUnit =
-    value.role === TRACTION_ROLE && value.vehicleType === TRACTOR_UNIT_VEHICLE_TYPE
-  if (value.bodyType === NOT_APPLICABLE_BODY_TYPE && !isTractorUnit) {
-    throw new FleetVehicleBodyTypeRequiredError()
-  }
-  if (value.bodyType !== NOT_APPLICABLE_BODY_TYPE && isTractorUnit) {
-    throw new FleetVehicleBodyTypeNotApplicableError()
   }
 }

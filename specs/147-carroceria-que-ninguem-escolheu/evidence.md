@@ -356,3 +356,46 @@ A amarração é exigida pela [CONTRAN 945/2022](https://www.gov.br/transportes/
 - granelera `03`, em qualquer tipo;
 - carroceria aberta de truck, 3/4, VUC e carreta, porque não há medida de fabricante publicada;
 - nada com `00`.
+
+## T6b — a regra da carroceria desce ao domínio
+
+O commit 4cfd2c90 (T6) pôs a regra "`00` só no cavalo; cavalo só aceita `00`" como `throw` direto
+dentro do `superRefine` de `fleet-request.schema.ts` (`assertVehicleBodyType`). Isso destoa do
+padrão do repositório: regra de domínio com código próprio de erro mora em política pura de
+`domain/`, e é chamada na fronteira — o exemplo citado na task foi `driver-coverage.policy.ts`.
+
+**A investigação corrigiu uma premissa da task.** `assertDriverCoverage` não é chamado por um caso
+de uso — é chamado direto em `parseReplaceDriverRegionsRequest`
+(`freight-regions/presentation/fleet-driver-region.schema.ts:47`), fora de qualquer `superRefine`,
+como uma função pura de fronteira. Chamar `checkVehicleBodyType` dentro do caso de uso (como a task
+pedia) quebraria o contrato HTTP existente: `test/fleet-http/vehicle-body-type.contract.ts` roda
+contra `test/fixtures/fleet-http.fixture.ts`, cujo `createVehicle.execute`/`updateVehicle.execute`
+são **stubs** que só registram a chamada e devolvem sucesso — nunca chegam a invocar o caso de uso
+real. Uma regra que só existisse dentro do caso de uso nunca dispararia nesse teste, e o `400` viraria
+`201`/`200` sem que o teste mudasse de expectativa (o que a task pedia para evitar). Segui então o
+desenho **efetivamente encontrado**: a política mora em `fleet/domain/vehicle-body-type.policy.ts`
+(`checkVehicleBodyType`, parâmetro único tipado `VehicleBodyTypeShape`) e é chamada nos dois parsers
+de fronteira, `parseCreateVehicleRequest` e `parseUpdateVehicleRequest`
+(`fleet/presentation/fleet.schema.ts`), no mesmo ponto onde `assertDriverCoverage` é chamado para
+motorista. `assertVehicleBodyType` saiu do `superRefine` de `fleet-request.schema.ts`, que volta a
+só validar forma (mais a regra `vehicleType`/`ownership`/combustível, que continua ali por não ter
+código de erro próprio).
+
+Comandos e evidência:
+
+- `bun run --cwd apps/api-transportada typecheck`: limpo.
+- `bun run --cwd apps/api-transportada test`: **5080 pass, 23 skip, 0 fail, 5103 testes** (suíte
+  inteira) — inclui as 13 novas asserções de `test/fleet-domain/vehicle-body-type.contract.ts`
+  (9 do `test.each` de tipos que não tracionam + 4 casos individuais), sem tocar em
+  `test/fleet-http/vehicle-body-type.contract.ts` nem em `test/fleet-application/vehicles.contract.ts`
+  (o caso de uso não ganhou a checagem, então não ganhou caso de erro novo).
+- `npx prettier --write` e `npx eslint` nos arquivos tocados e criados: sem avisos.
+
+Arquivos:
+
+- `apps/api-transportada/src/fleet/domain/vehicle-body-type.policy.ts` (novo)
+- `apps/api-transportada/src/fleet/presentation/fleet.schema.ts` (chama a política nos dois parsers)
+- `apps/api-transportada/src/fleet/presentation/fleet-request.schema.ts` (remove `assertVehicleBodyType`
+  e os símbolos que só ela usava)
+- `apps/api-transportada/test/fleet-domain/vehicle-body-type.contract.ts` (novo)
+- `apps/api-transportada/test/fleet-domain.contract.test.ts` (novo import)
