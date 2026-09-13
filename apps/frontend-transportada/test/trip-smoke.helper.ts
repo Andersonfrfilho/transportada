@@ -35,6 +35,25 @@ type DocumentsMode = 'all-authorized' | 'has-pending' | 'measured-bed'
  * Spec 088: o baú medido, com duas paradas e a planta em escala. Só uma delas tem todas as caixas
  * medidas — é o caso real (6 de 663 medidas), e é ele que a tela precisa saber distinguir.
  */
+function measuredBox(
+  input: Readonly<{ label: string; layer: number; stopSequence: number; xM: number; zM: number }>,
+) {
+  return {
+    depthM: 1.2,
+    heightM: 1.1,
+    isFragile: false,
+    label: input.label,
+    layer: input.layer,
+    reasons: [],
+    source: 'measured',
+    stopSequence: input.stopSequence,
+    widthM: 1,
+    xM: input.xM,
+    yM: 0,
+    zM: input.zM,
+  } as const
+}
+
 const MEASURED_CARGO_LAYOUT = {
   bedLengthM: '7.400',
   bedWidthM: '2.470',
@@ -44,10 +63,59 @@ const MEASURED_CARGO_LAYOUT = {
   orderIsBinding: true,
   overflowDepthM: '0.000',
   overflowM3: '0.000000',
+  /**
+   * Spec 095: a planta em escala saiu e o desenho que ficou é o isométrico, que só nasce do arranjo
+   * camada por camada. Sem `placement` o painel volta `null` e o smoke não desenharia nada.
+   */
+  placement: {
+    layers: [
+      {
+        boxes: [
+          measuredBox({ label: 'Campinas', layer: 0, stopSequence: 2, xM: 0, zM: 0 }),
+          measuredBox({ label: 'Barrinha', layer: 0, stopSequence: 1, xM: 3.4, zM: 0 }),
+        ],
+        heightM: 1.1,
+        index: 0,
+      },
+      {
+        boxes: [measuredBox({ label: 'Campinas', layer: 1, stopSequence: 2, xM: 0, zM: 1.1 })],
+        heightM: 1.1,
+        index: 1,
+      },
+    ],
+    source: 'measured',
+    splitNotes: [],
+    unplaced: [],
+  },
+  /**
+   * ⚠️ `clientName` e `noteNumbers` são obrigatórios desde `453e0b1e`: a ficha da parada diz quem
+   * recebe e quais notas, e o detalhe não valida `cargoLayout` — sem eles a tela cai inteira.
+   */
   rows: [
-    { label: 'Campinas', loadOrder: 1, sequence: 2, sideReachable: false },
-    { label: 'Campinas', loadOrder: 1, sequence: 2, sideReachable: false },
-    { label: 'Barrinha', loadOrder: 2, sequence: 1, sideReachable: false },
+    {
+      clientName: 'Cliente Campinas',
+      label: 'Campinas',
+      loadOrder: 1,
+      noteNumbers: ['22'],
+      sequence: 2,
+      sideReachable: false,
+    },
+    {
+      clientName: 'Cliente Campinas',
+      label: 'Campinas',
+      loadOrder: 1,
+      noteNumbers: ['22'],
+      sequence: 2,
+      sideReachable: false,
+    },
+    {
+      clientName: 'Cliente Barrinha',
+      label: 'Barrinha',
+      loadOrder: 2,
+      noteNumbers: ['11'],
+      sequence: 1,
+      sideReachable: false,
+    },
   ],
   slices: [
     {
@@ -531,6 +599,9 @@ export const TOLL_SINGLE_ROUTE_GEOMETRY = {
       {
         chargeCar: '10.9000',
         chargePerAxle: '16.4000',
+        effectiveChargePerAxle: '16.4000',
+        fellBackToManual: false,
+        total: '32.8000',
         latitude: '-21.5000',
         longitude: '-47.7000',
         name: 'Praça Alfa',
@@ -540,6 +611,9 @@ export const TOLL_SINGLE_ROUTE_GEOMETRY = {
       {
         chargeCar: '10.9000',
         chargePerAxle: '16.4000',
+        effectiveChargePerAxle: '16.4000',
+        fellBackToManual: false,
+        total: '32.8000',
         latitude: '-21.9000',
         longitude: '-47.6500',
         name: 'Praça Beta',
@@ -549,6 +623,9 @@ export const TOLL_SINGLE_ROUTE_GEOMETRY = {
       {
         chargeCar: null,
         chargePerAxle: null,
+        effectiveChargePerAxle: null,
+        fellBackToManual: false,
+        total: null,
         latitude: '-22.2000',
         longitude: '-47.5000',
         name: 'Praça Gama',
@@ -559,6 +636,8 @@ export const TOLL_SINGLE_ROUTE_GEOMETRY = {
     boothsFallenBackToManual: 0,
     boothsWithoutCharge: 1,
     chargePerAxle: '32.8000',
+    /** `formatTollMultiplier` da API: o caminhão de rodagem dupla paga 2× a tarifa base (Cat 2). */
+    multiplierLabel: '2',
     paymentMode: 'manual',
     tariffObservedOn: '2026-07-01',
     total: '65.6000',
@@ -586,6 +665,9 @@ const TOLL_MAIN_OPTION = {
       {
         chargeCar: '10.5800',
         chargePerAxle: '10.5800',
+        effectiveChargePerAxle: '10.5800',
+        fellBackToManual: false,
+        total: '21.1600',
         latitude: '-21.5000',
         longitude: '-47.7000',
         name: 'Praça Alfa',
@@ -595,6 +677,9 @@ const TOLL_MAIN_OPTION = {
       {
         chargeCar: '10.5800',
         chargePerAxle: '10.5800',
+        effectiveChargePerAxle: '10.5800',
+        fellBackToManual: false,
+        total: '21.1600',
         latitude: '-21.9000',
         longitude: '-47.6500',
         name: 'Praça Beta',
@@ -604,6 +689,9 @@ const TOLL_MAIN_OPTION = {
       {
         chargeCar: '10.5800',
         chargePerAxle: '10.5800',
+        effectiveChargePerAxle: '10.5800',
+        fellBackToManual: true,
+        total: '21.1600',
         latitude: '-22.2000',
         longitude: '-47.5000',
         name: 'Praça Gama',
@@ -614,6 +702,7 @@ const TOLL_MAIN_OPTION = {
     boothsFallenBackToManual: 1,
     boothsWithoutCharge: 0,
     chargePerAxle: '31.7400',
+    multiplierLabel: '2',
     paymentMode: 'automatic',
     tariffObservedOn: '2026-07-01',
     total: '63.4800',

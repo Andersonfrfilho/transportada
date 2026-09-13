@@ -25,8 +25,23 @@ const ASSUMPTIONS = {
   solverTimeBudgetSeconds: 30,
 } as const
 
-function buildStop(input: Readonly<{ label: string; sequence: number; vehicleId: string | null }>) {
+/**
+ * Os ids de `mockNfeWorkspaceApi({documentCount: 2})`: o expandido da proposta conta as entregas e
+ * monta o mapa pelas notas de cada parada — parada sem nota vira caminhão com "Entregas 0" e sem mapa.
+ */
+const FIRST_DOCUMENT_ID = '4c596f2c-388e-4820-8e49-0fa5916f5000'
+const SECOND_DOCUMENT_ID = '4c596f2c-388e-4820-8e49-0fa5916f5001'
+
+function buildStop(
+  input: Readonly<{
+    label: string
+    nfeDocumentIds: readonly string[]
+    sequence: number
+    vehicleId: string | null
+  }>,
+) {
   return {
+    nfeDocumentIds: input.nfeDocumentIds,
     addressKey: `3543402|1402000${input.sequence}|100`,
     distanceFromPreviousMeters: 2_400,
     durationFromPreviousSeconds: 420,
@@ -77,9 +92,19 @@ const READY = {
   estimatedDurationSeconds: 5_400,
   status: 'ready',
   stops: [
-    buildStop({ label: 'Loja Centro', sequence: 1, vehicleId: FIRST_VEHICLE_ID }),
-    buildStop({ label: 'Loja Norte', sequence: 2, vehicleId: SECOND_VEHICLE_ID }),
-    buildStop({ label: 'Sítio sem número', sequence: 3, vehicleId: null }),
+    buildStop({
+      label: 'Loja Centro',
+      nfeDocumentIds: [FIRST_DOCUMENT_ID],
+      sequence: 1,
+      vehicleId: FIRST_VEHICLE_ID,
+    }),
+    buildStop({
+      label: 'Loja Norte',
+      nfeDocumentIds: [SECOND_DOCUMENT_ID],
+      sequence: 2,
+      vehicleId: SECOND_VEHICLE_ID,
+    }),
+    buildStop({ label: 'Sítio sem número', nfeDocumentIds: [], sequence: 3, vehicleId: null }),
   ],
 } as const
 
@@ -226,7 +251,57 @@ export async function mockMultiVehicleApi(page: Page): Promise<MultiVehicleMockS
  * ⚠️ Sem ela o razão desenha só os totais, e a derivação — que é o ponto da D7 — nunca passa pela
  * CI. É a base que transforma "R$ 1.480,00" em "zona 1.002 (JABOTICABAL) · toco".
  */
+const VEHICLE_VALUATION = {
+  costParcels: [
+    {
+      amount: '1480.00',
+      basis: {
+        of: 'driver',
+        paymentModel: 'route_table',
+        regionCity: 'JABOTICABAL',
+        regionCode: '1.002',
+        vehicleClass: 'toco',
+      },
+      detail: null,
+      gap: null,
+      kind: 'driver',
+      source: 'measured',
+    },
+    {
+      amount: '413.79',
+      basis: {
+        kilometersPerLiter: '2.8000',
+        litres: '65.7857',
+        of: 'fuel',
+        pricePerLiter: '6.2900',
+      },
+      detail: null,
+      gap: null,
+      kind: 'fuel',
+      source: 'estimated',
+    },
+  ],
+  hasGaps: false,
+  marginPercentage: '0.2805',
+  revenueLines: [],
+  revenueSource: 'estimated',
+  totalCost: '1893.79',
+  totalMargin: '1211.97',
+  totalRevenue: '4320.00',
+} as const
+
 export async function registerSuggestionValuationMock(page: Page): Promise<void> {
+  /**
+   * O expandido da proposta é a tela de criar viagem (`cb8ec7f5`): a "Conta prevista" dele sai de
+   * `POST /trips/valuation-preview`, a mesma da criação manual, e não mais da conta da sugestão.
+   */
+  await page.route(/\/trips\/valuation-preview$/, async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await fulfillOptions(route)
+      return
+    }
+    await fulfillJson(route, { data: VEHICLE_VALUATION })
+  })
   await page.route(/\/route-suggestions\/[0-9a-f-]{36}\/valuation$/, async (route) => {
     if (route.request().method() === 'OPTIONS') {
       await fulfillOptions(route)
@@ -250,44 +325,7 @@ export async function registerSuggestionValuationMock(page: Page): Promise<void>
             driverId: AGGREGATE_DRIVER_ID,
             durationSeconds: 22_800,
             stopCount: 1,
-            valuation: {
-              costParcels: [
-                {
-                  amount: '1480.00',
-                  basis: {
-                    of: 'driver',
-                    paymentModel: 'route_table',
-                    regionCity: 'JABOTICABAL',
-                    regionCode: '1.002',
-                    vehicleClass: 'toco',
-                  },
-                  detail: null,
-                  gap: null,
-                  kind: 'driver',
-                  source: 'measured',
-                },
-                {
-                  amount: '413.79',
-                  basis: {
-                    kilometersPerLiter: '2.8000',
-                    litres: '65.7857',
-                    of: 'fuel',
-                    pricePerLiter: '6.2900',
-                  },
-                  detail: null,
-                  gap: null,
-                  kind: 'fuel',
-                  source: 'estimated',
-                },
-              ],
-              hasGaps: false,
-              marginPercentage: '0.2805',
-              revenueLines: [],
-              revenueSource: 'estimated',
-              totalCost: '1893.79',
-              totalMargin: '1211.97',
-              totalRevenue: '4320.00',
-            },
+            valuation: VEHICLE_VALUATION,
             vehicleId: FIRST_VEHICLE_ID,
           },
         ],

@@ -1004,7 +1004,7 @@ test('a montagem de viagem mostra o pedágio calculado, com eixo estimado e sem 
    * e a variante regex do motor de busca do Playwright não os concatenou; a de string, sim.
    */
   await expect(
-    dialog.getByText('Pedágio: R$ 65,60 — 3 praças, R$ 32,80 por eixo × 2 eixos'),
+    dialog.getByText('Pedágio: R$ 65,60 — 3 praças, R$ 32,80 de tarifa base × 2'),
   ).toBeVisible({ timeout: 15000 })
   /** ⚠️ A marca de estimativa nunca fica atrás de segunda condição — mesma trava da ocupação. */
   await expect(dialog.getByText('eixo estimado')).toBeVisible()
@@ -1055,7 +1055,7 @@ test('a montagem de viagem oferece duas rotas, e a sem pedágio calculado não v
 
   /** A rota escolhida por padrão é a principal — com tag, e uma praça caiu para a manual. */
   await expect(
-    dialog.getByText('Pedágio: R$ 63,48 — 3 praças, R$ 31,74 por eixo × 2 eixos'),
+    dialog.getByText('Pedágio: R$ 63,48 — 3 praças, R$ 31,74 de tarifa base × 2'),
   ).toBeVisible({ timeout: 15000 })
   await expect(dialog.getByText('eixo estimado')).toHaveCount(0)
   await expect(dialog.getByText('Base: tag (cobrança automática)')).toBeVisible()
@@ -1549,13 +1549,19 @@ test('a proposta se revisa dentro do diálogo de montar roteiro, viagem por viag
    * leitura —, então o clique aqui **fecha**, e é assim que ele se prova.
    */
   const trigger = dialog.getByRole('button', { name: /ABC1D23/u }).first()
-  await expect(dialog.getByText('Roteiro proposto')).toBeVisible()
+  /**
+   * O dia em ordem é o mapa da montagem desde `6ab28aa3`: a linha do tempo "Roteiro proposto" era
+   * uma segunda listagem da mesma sequência e saiu, ficando a da criação manual.
+   */
+  const assemblyMap = dialog.getByRole('heading', { name: 'Mapa da montagem' })
+  await expect(assemblyMap).toBeVisible()
   await trigger.click()
-  await expect(dialog.getByText('Roteiro proposto')).toHaveCount(0)
+  await expect(assemblyMap).toHaveCount(0)
   await trigger.click()
-  await expect(dialog.getByText('Roteiro proposto')).toBeVisible()
+  await expect(assemblyMap).toBeVisible()
   await expect(dialog.getByText('Conta prevista')).toBeVisible()
-  await expect(dialog.getByText(/zona 1\.002/u)).toBeVisible()
+  /** A derivação agora é a do painel da criação manual, que abre a frase com maiúscula. */
+  await expect(dialog.getByText(/Zona 1\.002 \(JABOTICABAL\) · toco/u)).toBeVisible()
   await expect(dialog.getByText(/2,8000 km\/l|2\.8000 km\/l/u)).toBeVisible()
 
   /**
@@ -1579,14 +1585,13 @@ test('a proposta se revisa dentro do diálogo de montar roteiro, viagem por viag
 })
 
 /**
- * Spec 088: **a planta do baú, conferida nas três larguras.** A escala é a promessa inteira do
- * desenho — e a única forma de mantê-la num celular de 375px é o desenho rolar no próprio
- * contêiner. Comprimi-lo para caber faria a tela mentir em metro para quem está com a fita na mão.
+ * **O desenho da carga, conferido nas três larguras.** A planta em escala da spec 088 saiu com a 095
+ * (`453e0b1e`, "um desenho só"): o isométrico diz onde a caixa vai, e a planta e a fileira diziam a
+ * mesma coisa sem dizer isso. O que continua sendo promessa é o que este teste cobra — o desenho
+ * aparece, a frase do que ele **não** promete está na tela, e a página nunca ganha barra horizontal.
  */
 for (const viewport of CTE_BATCH_VIEWPORTS) {
-  test(`a planta do baú mantém a escala e não estoura a página em ${viewport}`, async ({
-    page,
-  }) => {
+  test(`o desenho da carga aparece e não estoura a página em ${viewport}`, async ({ page }) => {
     await page.setViewportSize(VIEWPORTS[viewport])
     await page.addInitScript(() => sessionStorage.setItem('transportada.workspace', 'trip'))
     const api = await mockTripWorkspaceApi({
@@ -1600,32 +1605,16 @@ for (const viewport of CTE_BATCH_VIEWPORTS) {
     await page.getByRole('button', { name: /^Abrir a viagem/u }).click()
     await expect(page.getByRole('heading', { level: 1, name: 'Detalhe da viagem' })).toBeVisible()
 
-    const plan = page.getByRole('img', { name: /^Planta do baú em escala/u })
-    await expect(plan).toBeVisible()
-    /** Critério 1: a proporção na tela é a razão comprimento/largura da ficha, e não a da janela. */
-    await expect(plan).toHaveAttribute('viewBox', /^0 0 796 303$/u)
-
-    /** Critério 3 e 4: o metro de cada parada sai por extenso, e a do fundo entrega por último. */
+    await expect(page.getByRole('heading', { name: 'Onde cada caixa cabe' })).toBeVisible()
     await expect(
-      page.getByText('Campinas: ocupa 2,60 m de baú, a partir de 4,80 m da porta.'),
+      page.getByRole('img', { name: 'Carga da camada 1, vista em perspectiva' }),
     ).toBeVisible()
-    await expect(
-      page.getByText('Barrinha: ocupa 1,40 m de baú, a partir de 3,40 m da porta.'),
-    ).toBeVisible()
+    await expect(page.getByRole('button', { name: /^Camada 2/u })).toBeVisible()
 
-    /** Critério 5: só a parada com todas as caixas medidas conta camadas. */
-    await expect(page.getByText('Cabem 17 caixas por camada, em 3 camadas.')).toBeVisible()
-    /** R4: a contagem, e o atalho que leva até a fila — frase estática não diz onde ir. */
-    await expect(
-      page.getByText('12 caixas desta viagem ainda não foram medidas', { exact: false }),
-    ).toBeVisible()
-    await expect(page.getByRole('link', { name: 'Abrir a fila de medição' })).toHaveAttribute(
-      'href',
-      '/?tab=boxes',
-    )
-
-    /** G005: a frase que impede a leitura errada está na tela, não só no comentário do código. */
-    await expect(page.getByText(/não a posição das caixas/u)).toBeVisible()
+    /** A frase que impede a leitura errada é fixa, nunca condicional — está na tela, não no código. */
+    await expect(page.getByText(/Ele não é plano de estiva/u)).toBeVisible()
+    /** Baú medido: o aviso de ficha sem medida não aparece. */
+    await expect(page.getByText(/Sem o desenho da carga/u)).toHaveCount(0)
 
     /** O desenho rola no PRÓPRIO contêiner: a página nunca ganha barra horizontal. */
     await assertNoHorizontalOverflow(page)

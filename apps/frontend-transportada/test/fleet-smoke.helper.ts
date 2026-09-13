@@ -16,6 +16,7 @@ const EMPTY_LIST_PATTERNS: readonly RegExp[] = [
   /\/fleet\/drivers(?:\?.*)?$/,
   /\/fleet\/vehicle-catalog\/brands(?:\?.*)?$/,
   /\/fleet\/vehicle-catalog\/models(?:\?.*)?$/,
+  /\/fleet\/vehicle-references(?:\?.*)?$/,
   /\/freight-regions(?:\?.*)?$/,
   /\/aggregate-applications(?:\?.*)?$/,
 ]
