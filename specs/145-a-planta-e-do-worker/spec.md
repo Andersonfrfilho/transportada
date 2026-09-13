@@ -182,6 +182,16 @@ db:generate`, espelhada em `apps/worker-transportada/src/database/nfe.schema.ts`
   porta e alcance da primeira entrega) é medido e corrigido no empacotador, mostrando o risco físico de
   cada mudança antes de aplicar. Decisão do usuário, 2026-09-13.
 
+- **D23 — Pilha alta precisa de encosto, mesmo em baú fechado.** Corrige a D21, que fazia baú fechado
+  virar `securesCargo: true` e liberava pilha alta solta no meio do baú. Regra do usuário: pilha alta
+  (acima de `STABLE_STACK_SLENDERNESS` × a menor base) precisa estar encostada no lado da cabeceira e
+  em pelo menos uma lateral. Serve de encosto a parede do baú ou uma pilha vizinha que suba ao lado
+  dela. O lado da porta não é exigido, e a pilha pode ficar colada na porta para preencher o espaço.
+  A regra fica no empacotador como `enclosedBody: true`, que a API manda quando o veículo é baú fechado
+  (`02`). `securesCargo` volta a ser só a regra da spec 100 (amarração pelos motoristas), e com carga
+  amarrada a esbeltez continua livre. Carroceria aberta sem amarração segue exigindo os quatro lados.
+  Decisão do usuário, 2026-09-13.
+
 ## Fora do escopo
 
 - Regra física do empacotador — apoio de 80%, escora pelo lado, célula de 5 cm,
