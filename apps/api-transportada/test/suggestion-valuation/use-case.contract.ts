@@ -7,7 +7,11 @@ import { readSuggestionValuation } from '../../src/routing/application/read-sugg
 import type { MultiVehicleSuggestionRoad } from '../../src/routing/application/multi-vehicle-suggestion.repository.js'
 import type { SuggestionValuationPort } from '../../src/routing/application/suggestion-valuation.port.js'
 import type { RouteSuggestionStatus } from '../../src/database/route-suggestion.schema.js'
-import type { TripValuationContext } from '../../src/trips/application/read-trip-valuation.use-case.js'
+import {
+  buildValuationFromContext,
+  type TripValuationContext,
+} from '../../src/trips/application/read-trip-valuation.use-case.js'
+import type { TripValuation } from '../../src/trips/domain/trip-valuation.policy.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000901'
 const SUGGESTION_ID = '00000000-0000-4000-8000-000000000902'
@@ -38,13 +42,19 @@ function leg(
 
 function road(input: {
   readonly endPolicy?: string
+  readonly returnDistanceMeters?: null | number
   readonly returnDurationSeconds?: null | number
   readonly stops: MultiVehicleSuggestionRoad['stops']
   readonly vehicleId: string
 }): MultiVehicleSuggestionRoad {
   return {
     endPolicy: input.endPolicy ?? 'last_stop',
-    returnDistanceMeters: input.returnDurationSeconds === undefined ? null : 1_000,
+    returnDistanceMeters:
+      input.returnDistanceMeters === undefined
+        ? input.returnDurationSeconds === undefined
+          ? null
+          : 1_000
+        : input.returnDistanceMeters,
     returnDurationSeconds: input.returnDurationSeconds ?? null,
     stops: input.stops,
     vehicleId: input.vehicleId,
@@ -258,5 +268,89 @@ describe('readSuggestionValuation (spec 101)', () => {
 
     expect(result.vehicles[0]?.durationParts.returnStatus).toBe('unknown')
     expect(result.vehicles[0]?.durationSeconds).toBe(600)
+  })
+})
+
+/**
+ * Decisão do usuário (2026-09-13, segunda parte): a volta ao barracão entra na **distância**, e
+ * por ela no combustível, no R$/km e no lucro — pela conta única (`buildValuationFromContext`),
+ * nunca por uma segunda soma. A viagem de 24 entregas: ida 244 km, volta 70 km; diesel R$ 6,00,
+ * 4 km/l, outros R$ 0,30/km.
+ */
+describe('readSuggestionValuation — a volta no custo (decisão 2026-09-13)', () => {
+  const VALUATION_REPOSITORY = {
+    findApplicableRule: async () => null,
+    readContext: async () => null,
+  }
+  const deliveries = Array.from({ length: 24 }, (_entry, index) => ({
+    ...leg(index === 0 ? 60_000 : 8_000, index === 0 ? 6_880 : 400),
+    serviceTimeSeconds: 1_200,
+  }))
+
+  async function valuate(returnDistanceMeters: null | number) {
+    const { port: base } = port({
+      roads: [
+        road({
+          endPolicy: 'depot',
+          returnDistanceMeters,
+          returnDurationSeconds: returnDistanceMeters === null ? null : 3_720,
+          stops: deliveries,
+          vehicleId: VEHICLE_A,
+        }),
+      ],
+    })
+    const result = await readSuggestionValuation({
+      companyId: COMPANY_ID,
+      repository: {
+        ...base,
+        resolveValuation: async (input) =>
+          buildValuationFromContext({
+            companyId: COMPANY_ID,
+            context: input.context,
+            repository: VALUATION_REPOSITORY,
+          }),
+      },
+      suggestionId: SUGGESTION_ID,
+    })
+    const vehicle = result.vehicles[0]
+    if (vehicle === undefined) throw new Error('veículo ausente')
+    return { report: result.report, vehicle }
+  }
+
+  const fuelOf = (vehicle: { readonly valuation: TripValuation }) =>
+    vehicle.valuation.costParcels.find((parcel) => parcel.kind === 'fuel')?.amount
+
+  it('com a volta gravada, distância, combustível e lucro contam ida + volta', async () => {
+    const { report, vehicle } = await valuate(70_000)
+
+    expect(vehicle.distanceMeters).toBe(314_000)
+    expect(vehicle.distanceParts).toEqual({
+      outboundMeters: 244_000,
+      returnMeters: 70_000,
+      returnStatus: 'included',
+    })
+    /** 314 km ÷ 4 km/l × R$ 6,00 = R$ 471,00. */
+    expect(fuelOf(vehicle)).toBe('471.0000')
+    /** Combustível R$ 471,00 + outros 314 km × R$ 0,30 = R$ 94,20. */
+    expect(vehicle.valuation.totalCost).toBe('565.2000')
+    expect(report.totalDistanceMeters).toBe(314_000)
+  })
+
+  it('o lucro cai exatamente o custo da volta (70 km: R$ 105,00 + R$ 21,00)', async () => {
+    const withReturn = await valuate(70_000)
+    const withoutReturn = await valuate(null)
+
+    expect(withoutReturn.vehicle.valuation.totalMargin).toBe('-439.2000')
+    expect(withReturn.vehicle.valuation.totalMargin).toBe('-565.2000')
+  })
+
+  /** Sugestão antiga: não inventa volta — só a ida, e a volta marcada como desconhecida. */
+  it('sem a volta gravada, a conta usa só a ida e diz que a volta é desconhecida', async () => {
+    const { vehicle } = await valuate(null)
+
+    expect(vehicle.distanceMeters).toBe(244_000)
+    expect(vehicle.distanceParts.returnStatus).toBe('unknown')
+    /** 244 km ÷ 4 km/l × R$ 6,00 = R$ 366,00. */
+    expect(fuelOf(vehicle)).toBe('366.0000')
   })
 })

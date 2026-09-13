@@ -13,7 +13,14 @@ import { readFileSync } from 'node:fs'
 
 import { describe, expect, it } from 'bun:test'
 
-import type { SuggestionDurationParts } from '@/modules/routing/shared/suggestionValuation.service'
+import type {
+  SuggestionDistanceParts,
+  SuggestionDurationParts,
+} from '@/modules/routing/shared/suggestionValuation.service'
+import {
+  describeProposalDistance,
+  describeProposalTripDistance,
+} from '@/modules/trip/shared/proposalTripDistance.service'
 import { describeProposalTripTime } from '@/modules/trip/shared/proposalTripTime.service'
 import trip from '@/modules/trip/locales/trip.locale.json'
 
@@ -131,6 +138,102 @@ describe('a frase do tempo da proposta (decisão 2026-09-13)', () => {
   })
 })
 
+/**
+ * Decisão do usuário (2026-09-13, segunda parte): a volta ao barracão entra também na **distância**
+ * da proposta. O servidor já serve o total (ida + volta); a tela só o descreve, e sem a volta
+ * gravada diz "sem a volta ao barracão" — o mesmo aviso do tempo.
+ */
+describe('a distância da proposta (decisão 2026-09-13)', () => {
+  const distanceParts = (
+    overrides: Partial<SuggestionDistanceParts> = {},
+  ): SuggestionDistanceParts => ({
+    outboundMeters: 244_000,
+    returnMeters: 70_000,
+    returnStatus: 'included',
+    ...overrides,
+  })
+
+  it('o cartão e o detalhe imprimem o total do servidor (ida + volta)', () => {
+    expect(
+      describeProposalDistance({
+        distanceMeters: 314_000,
+        distanceParts: distanceParts(),
+        translate,
+      }),
+    ).toBe('314.0 km')
+  })
+
+  it('sem a volta gravada, o total é só a ida e diz isso', () => {
+    expect(
+      describeProposalDistance({
+        distanceMeters: 244_000,
+        distanceParts: distanceParts({ returnMeters: null, returnStatus: 'unknown' }),
+        translate,
+      }),
+    ).toBe('244.0 km · sem a volta ao barracão')
+  })
+
+  it('sem distância do servidor é ausência — nunca zero', () => {
+    expect(describeProposalDistance({ distanceMeters: null, distanceParts: null, translate })).toBe(
+      null,
+    )
+  })
+
+  it('o mapa diz a composição: ida + volta', () => {
+    expect(
+      describeProposalTripDistance({
+        distanceMeters: 314_000,
+        distanceParts: distanceParts(),
+        isReordered: false,
+        translate,
+      }),
+    ).toBe('Rodagem do roteiro: 314.0 km — ida 244.0 km + volta 70.0 km.')
+  })
+
+  it('o mapa, sem a volta gravada, diz que a rodagem vem sem ela', () => {
+    expect(
+      describeProposalTripDistance({
+        distanceMeters: 244_000,
+        distanceParts: distanceParts({ returnMeters: null, returnStatus: 'unknown' }),
+        isReordered: false,
+        translate,
+      }),
+    ).toBe('Rodagem do roteiro: 244.0 km — só a ida, sem a volta ao barracão.')
+  })
+
+  it('o mapa, sem retorno pela política ou com a API velha, imprime só o total', () => {
+    const plain = 'Rodagem do roteiro: 244.0 km.'
+    expect(
+      describeProposalTripDistance({
+        distanceMeters: 244_000,
+        distanceParts: distanceParts({ returnMeters: null, returnStatus: 'not_planned' }),
+        isReordered: false,
+        translate,
+      }),
+    ).toBe(plain)
+    expect(
+      describeProposalTripDistance({
+        distanceMeters: 244_000,
+        distanceParts: null,
+        isReordered: false,
+        translate,
+      }),
+    ).toBe(plain)
+  })
+
+  /** Ordem trocada à mão: o total do servidor é da ordem do roteirizador — o mapa não o imprime. */
+  it('com a ordem trocada à mão, o mapa não imprime a rodagem do roteirizador', () => {
+    expect(
+      describeProposalTripDistance({
+        distanceMeters: 314_000,
+        distanceParts: distanceParts(),
+        isReordered: true,
+        translate,
+      }),
+    ).toBe(null)
+  })
+})
+
 describe('os três pontos leem o total do servidor', () => {
   const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8')
   const row = read('../../src/modules/trip/components/TripProposalRow.component.tsx')
@@ -154,6 +257,14 @@ describe('os três pontos leem o total do servidor', () => {
     expect(detail).toInclude('durationSeconds: view.durationSeconds')
     expect(detail).toInclude('proposalTimeText={proposalTimeText}')
     expect(map).toInclude('proposalTimeText === undefined')
+  })
+
+  it('cartão, detalhe e mapa descrevem a distância do servidor, com a composição ao lado', () => {
+    expect(view).toInclude('distanceParts: entry?.distanceParts ?? null')
+    expect(row).toInclude('describeProposalDistance({')
+    expect(detail).toInclude('describeProposalDistance({')
+    expect(detail).toInclude('describeProposalTripDistance({')
+    expect(row).not.toInclude('formatDistance(view.distanceMeters)')
   })
 
   /** ⚠️ A frase da proposta não soma nada: nem 20 min por trecho, nem estrada do OSRM. */

@@ -38,9 +38,20 @@ export type SuggestionDurationParts = {
   readonly serviceSeconds: number
 }
 
+export type SuggestionDistanceParts = {
+  /** A estrada de ida: barracão → 1ª entrega → … → última. */
+  readonly outboundMeters: null | number
+  readonly returnMeters: null | number
+  readonly returnStatus: SuggestionReturnStatus
+}
+
 export type SuggestionVehicleTrip = {
-  /** ⚠️ Só a ida: é ela que alimenta o combustível da conta, e a volta não entrou nessa decisão. */
+  /**
+   * Ida + volta ao barracão, quando a política manda voltar e a volta foi gravada (decisão
+   * 2026-09-13). É a distância que alimenta o combustível e o R$/km da conta.
+   */
   readonly distanceMeters: null | number
+  readonly distanceParts: SuggestionDistanceParts
   readonly durationParts: SuggestionDurationParts
   /** O tempo da viagem proposta — o único que o cartão, o detalhe e o mapa imprimem. */
   readonly durationSeconds: null | number
@@ -48,6 +59,7 @@ export type SuggestionVehicleTrip = {
 
 export type SuggestionVehicleValuation = {
   readonly distanceMeters: null | number
+  readonly distanceParts: SuggestionDistanceParts
   readonly documentCount: number
   readonly driverId: null | string
   readonly durationParts: SuggestionDurationParts
@@ -78,8 +90,9 @@ export function isReturnPlanned(endPolicy: string): boolean {
 }
 
 /**
- * **O seam do tempo da proposta** (decisão do usuário, 2026-09-13): estrada de ida + volta ao
- * barracão (quando a política manda voltar) + tempo parado de todas as entregas. É o único número
+ * **O seam do tempo e da distância da proposta** (decisão do usuário, 2026-09-13): estrada de ida +
+ * volta ao barracão (quando a política manda voltar) + tempo parado de todas as entregas; a
+ * distância é ida + volta, e é ela que o combustível, o R$/km e o lucro usam. São os únicos números
  * que o cartão, a faixa do detalhe e a frase do mapa imprimem — uma segunda soma divergiria calada.
  *
  * ⚠️ **A primeira parada não tem perna anterior**, e a parada excluída da otimização também não —
@@ -105,14 +118,20 @@ export function sumVehicleTrip(input: {
   const drivingSeconds = durations.length === 0 ? null : durations.reduce(add, 0)
   const serviceSeconds = stops.reduce((total, stop) => total + (stop.serviceTimeSeconds ?? 0), 0)
   const returnSeconds = input.isReturnPlanned ? (input.returnLeg?.durationSeconds ?? null) : null
-  const returnStatus: SuggestionReturnStatus = !input.isReturnPlanned
-    ? 'not_planned'
-    : returnSeconds === null
-      ? 'unknown'
-      : 'included'
+  const returnStatus = describeReturn({ isReturnPlanned: input.isReturnPlanned, returnSeconds })
+  const outboundMeters = distances.length === 0 ? null : distances.reduce(add, 0)
+  const returnMeters = input.isReturnPlanned ? (input.returnLeg?.distanceMeters ?? null) : null
 
   return {
-    distanceMeters: distances.length === 0 ? null : distances.reduce(add, 0),
+    distanceMeters: outboundMeters === null ? null : outboundMeters + (returnMeters ?? 0),
+    distanceParts: {
+      outboundMeters,
+      returnMeters,
+      returnStatus: describeReturn({
+        isReturnPlanned: input.isReturnPlanned,
+        returnSeconds: returnMeters,
+      }),
+    },
     durationParts: { drivingSeconds, returnSeconds, returnStatus, serviceSeconds },
     durationSeconds:
       drivingSeconds === null ? null : drivingSeconds + (returnSeconds ?? 0) + serviceSeconds,
@@ -165,6 +184,14 @@ export function buildSuggestionValuationReport(input: {
     totalMargin: formatScaledDecimal(totalRevenue - totalCost, MONEY_SCALE),
     totalRevenue: formatScaledDecimal(totalRevenue, MONEY_SCALE),
   }
+}
+
+function describeReturn(input: {
+  readonly isReturnPlanned: boolean
+  readonly returnSeconds: null | number
+}): SuggestionReturnStatus {
+  if (!input.isReturnPlanned) return 'not_planned'
+  return input.returnSeconds === null ? 'unknown' : 'included'
 }
 
 function add(total: number, value: number): number {

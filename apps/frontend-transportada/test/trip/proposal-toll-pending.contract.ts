@@ -80,6 +80,7 @@ function valuationWith(costParcels: readonly TripValuationCostParcel[]): Suggest
     vehicles: [
       {
         distanceMeters: 1000,
+        distanceParts: null,
         documentCount: 1,
         driverId: null,
         durationParts: null,

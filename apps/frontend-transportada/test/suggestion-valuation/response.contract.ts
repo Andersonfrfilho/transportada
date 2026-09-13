@@ -171,6 +171,54 @@ describe('toSuggestionValuation (spec 101)', () => {
     ).toBe(null)
   })
 
+  /**
+   * Decisão 2026-09-13: `distanceParts` (ida e volta ao barracão) é chave nova — mesma regra D17 do
+   * `durationParts`: o bundle aceita a API velha, sem ela, e a nova, com ela.
+   */
+  it('aceita o veículo sem distanceParts (API velha) e marca a composição como ausente', () => {
+    const result = toSuggestionValuation({ data: { report: report(), vehicles: [vehicle()] } })
+
+    expect(result?.vehicles[0]?.distanceParts).toBe(null)
+  })
+
+  it('aceita o veículo com distanceParts (API nova), com a distância total do servidor', () => {
+    const distanceParts = {
+      outboundMeters: 244_000,
+      returnMeters: 70_000,
+      returnStatus: 'included' as const,
+    }
+    const result = toSuggestionValuation({
+      data: {
+        report: report(),
+        vehicles: [vehicle({ distanceMeters: 314_000, distanceParts })],
+      },
+    })
+
+    expect(result?.vehicles[0]?.distanceParts).toEqual(distanceParts)
+    expect(result?.vehicles[0]?.distanceMeters).toBe(314_000)
+  })
+
+  it('recusa distanceParts com chave ou situação de volta desconhecida', () => {
+    const base = { outboundMeters: 1, returnMeters: null, returnStatus: 'unknown' }
+
+    expect(
+      toSuggestionValuation({
+        data: {
+          report: report(),
+          vehicles: [vehicle({ distanceParts: { ...base, tokenDoTenant: 'x' } })],
+        },
+      }),
+    ).toBe(null)
+    expect(
+      toSuggestionValuation({
+        data: {
+          report: report(),
+          vehicles: [vehicle({ distanceParts: { ...base, returnStatus: 'talvez' } })],
+        },
+      }),
+    ).toBe(null)
+  })
+
   /** As chaves são contrato de duas pontas; a lista não pode divergir do que a API serve. */
   it('as listas de chaves cobrem exatamente os campos servidos', () => {
     expect([...SUGGESTION_VALUATION_REPORT_KEYS].toSorted()).toEqual(

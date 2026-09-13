@@ -7,13 +7,13 @@ import { Icon } from '@/components/ui/icon'
 import { Tooltip } from '@/components/ui/tooltip'
 import {
   buildDurationUnitLabels,
-  formatDistance,
   formatDuration,
 } from '@/modules/routing/shared/suggestionValuation.service'
 import { formatAmount, formatWeightKilograms } from '@/modules/shared/decimalAmount.service'
 import { VEHICLE_TYPE_ICONS } from '@/modules/shared/vehicleTypeIcon.service'
 import { formatMargin, isNegative } from '@/modules/trip-financials/shared/financialView.service'
 
+import { describeProposalDistance } from '../shared/proposalTripDistance.service'
 import { stopColorOf } from '../shared/stopColor.service'
 import {
   isOverPayload,
@@ -178,7 +178,11 @@ export function TripProposalRow({
           />
           <Metric
             label={t('proposal.time')}
-            note={formatDistance(view.distanceMeters)}
+            note={describeProposalDistance({
+              distanceMeters: view.distanceMeters,
+              distanceParts: view.distanceParts,
+              translate: (key, values) => (values === undefined ? t(key) : t(key, values)),
+            })}
             value={formatDuration(view.durationSeconds, durationUnits) ?? t('proposal.unknown')}
           />
         </span>

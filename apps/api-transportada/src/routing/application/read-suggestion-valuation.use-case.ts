@@ -56,8 +56,9 @@ export async function readSuggestionValuation(
     const vehicleRoad = roadByVehicle.get(group.vehicleId)
     const stops = vehicleRoad?.stops ?? []
     /**
-     * D1: a distância é a soma das paradas que o solver escolheu — nunca uma rota pedida agora. O
-     * tempo é o do seam único (decisão 2026-09-13): ida + volta + parado.
+     * D1: a distância é a soma das paradas que o solver escolheu — nunca uma rota pedida agora. Tempo
+     * e distância são os do seam único (decisão 2026-09-13): a volta gravada entra nos dois, e a
+     * distância com ela é a que o combustível e o R$/km da conta usam.
      */
     const road = sumVehicleTrip({
       isReturnPlanned: vehicleRoad === undefined ? false : isReturnPlanned(vehicleRoad.endPolicy),
@@ -97,6 +98,7 @@ export async function readSuggestionValuation(
 
     vehicles.push({
       distanceMeters: road.distanceMeters,
+      distanceParts: road.distanceParts,
       documentCount: group.documentIds.length,
       driverId: group.driverId,
       durationParts: road.durationParts,

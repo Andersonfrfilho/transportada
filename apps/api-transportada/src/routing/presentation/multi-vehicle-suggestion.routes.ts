@@ -234,6 +234,8 @@ function serializeValuation(valuation: SuggestionValuation): object {
     },
     vehicles: valuation.vehicles.map((vehicle) => ({
       distanceMeters: vehicle.distanceMeters,
+      /** Decisão 2026-09-13: ida e volta ao lado do total. ⚠️ Chave nova: o bundle sobe antes (D17). */
+      distanceParts: vehicle.distanceParts,
       documentCount: vehicle.documentCount,
       driverId: vehicle.driverId,
       /**

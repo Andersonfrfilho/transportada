@@ -8,7 +8,6 @@ import { VehicleIdentityBand } from '@/modules/fleet/components/VehicleIdentityB
 import type { FleetVehicleDetail } from '@/modules/fleet/shared/fleet.types'
 import {
   buildDurationUnitLabels,
-  formatDistance,
   formatDuration,
 } from '@/modules/routing/shared/suggestionValuation.service'
 import type { SuggestionVehicleValuation } from '@/modules/routing/shared/suggestionValuation.service'
@@ -20,6 +19,10 @@ import { toAssemblyMapNote } from '../shared/assemblyMapNote.service'
 import type { AssemblyMapPoint } from '../shared/assemblyMap.service'
 import { isSameOrder, moveCity, reconcileCityOrder } from '../shared/assemblyOrder.service'
 import { sumStopWeight, type MoveTarget } from '../shared/proposalStopMove.service'
+import {
+  describeProposalDistance,
+  describeProposalTripDistance,
+} from '../shared/proposalTripDistance.service'
 import { describeProposalTripTime } from '../shared/proposalTripTime.service'
 import { buildProposalStopOrder, type ProposalVehicleView } from '../shared/proposalView.service'
 import type { TripCandidateDocument } from '../shared/trip.types'
@@ -121,14 +124,25 @@ export function TripProposalDetail({
    * A frase do mapa é o **mesmo** total do cartão e da faixa acima (decisão 2026-09-13) — o mapa
    * desenha a estrada do OSRM, mas não soma tempo nenhum por conta própria na proposta.
    */
-  const proposalTimeText = describeProposalTripTime({
+  const translate = (key: string, values?: Record<string, number | string>) =>
+    values === undefined ? t(key) : t(key, values)
+  const proposalTripTime = describeProposalTripTime({
     durationParts: view.durationParts,
     durationSeconds: view.durationSeconds,
     isReordered: manualOrder !== null,
     stopCount: view.stopCount,
-    translate: (key, values) => (values === undefined ? t(key) : t(key, values)),
+    translate,
     units: durationUnits,
   })
+  /** A rodagem é a mesma do cartão e da faixa: ida + volta do servidor (decisão 2026-09-13). */
+  const proposalTripDistance = describeProposalTripDistance({
+    distanceMeters: view.distanceMeters,
+    distanceParts: view.distanceParts,
+    isReordered: manualOrder !== null,
+    translate,
+  })
+  const proposalTimeText =
+    proposalTripDistance === null ? proposalTripTime : `${proposalTripTime} ${proposalTripDistance}`
   /**
    * ⚠️ Rascunho de ordem ou de movimento **pausa as três medições** — carga, conta e rota —, e elas
    * seguram o último número medido até alguém salvar. Cada toque ia ao servidor.
@@ -233,7 +247,12 @@ export function TripProposalDetail({
                 },
                 {
                   label: t('proposal.totalDistance'),
-                  value: formatDistance(view.distanceMeters) ?? t('proposal.unknown'),
+                  value:
+                    describeProposalDistance({
+                      distanceMeters: view.distanceMeters,
+                      distanceParts: view.distanceParts,
+                      translate,
+                    }) ?? t('proposal.unknown'),
                 },
               ]
             : []),

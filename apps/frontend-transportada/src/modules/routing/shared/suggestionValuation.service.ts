@@ -27,9 +27,27 @@ export const SUGGESTION_DURATION_PARTS_KEYS = [
   'serviceSeconds',
 ] as const
 
+/** Ida e volta ao barracão que o servidor somou na distância — a tela só as descreve. */
+export type SuggestionDistanceParts = Readonly<{
+  outboundMeters: null | number
+  returnMeters: null | number
+  returnStatus: SuggestionReturnStatus
+}>
+
+export const SUGGESTION_DISTANCE_PARTS_KEYS = [
+  'outboundMeters',
+  'returnMeters',
+  'returnStatus',
+] as const
+
 export type SuggestionVehicleValuation = Readonly<{
-  /** `null` quando nenhuma perna da sugestão é conhecida — ausência, nunca zero. */
+  /**
+   * Ida + volta ao barracão, quando gravada (decisão 2026-09-13) — é a que o combustível usa.
+   * `null` quando nenhuma perna da sugestão é conhecida — ausência, nunca zero.
+   */
   distanceMeters: null | number
+  /** `null` com a API anterior à composição (spec 145 D17) — o total segue valendo sozinho. */
+  distanceParts: null | SuggestionDistanceParts
   documentCount: number
   driverId: null | string
   /** `null` com a API anterior à composição (spec 145 D17) — o total segue valendo sozinho. */
@@ -89,7 +107,10 @@ export const SUGGESTION_VEHICLE_VALUATION_KEYS = [
  * ⚠️ Spec 145 D17: chave **permitida, não obrigatória** — o bundle sobe antes da API que a serve,
  * e precisa aceitar as duas formas no intervalo entre os deploys.
  */
-export const SUGGESTION_VEHICLE_VALUATION_OPTIONAL_KEYS = ['durationParts'] as const
+export const SUGGESTION_VEHICLE_VALUATION_OPTIONAL_KEYS = [
+  'distanceParts',
+  'durationParts',
+] as const
 
 const MINUTES_PER_HOUR = 60
 const MINUTES_PER_DAY = 24 * MINUTES_PER_HOUR

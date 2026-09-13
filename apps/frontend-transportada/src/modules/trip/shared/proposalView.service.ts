@@ -2,6 +2,7 @@
 import { sumScaledAmounts } from '@/modules/shared/decimalAmount.service'
 import type { VehicleType } from '@/modules/shared/vehicleType.constant'
 import type {
+  SuggestionDistanceParts,
   SuggestionDurationParts,
   SuggestionValuation,
 } from '@/modules/routing/shared/suggestionValuation.service'
@@ -26,7 +27,10 @@ export type ProposalDocumentWeight = Readonly<{
 
 export type ProposalVehicleView = Readonly<{
   cities: readonly string[]
+  /** Do servidor: ida + volta ao barracão, quando gravada (decisão 2026-09-13). */
   distanceMeters: null | number
+  /** A composição da distância do servidor; `null` com a API anterior a ela (spec 145 D17). */
+  distanceParts: null | SuggestionDistanceParts
   /** Notas fiscais distintas — uma nota em duas paradas do mesmo caminhão conta uma vez só. */
   documentCount: number
   driverName: null | string
@@ -169,6 +173,7 @@ export function buildProposalVehicleViews(
       /** As cidades **na ordem do roteiro**, sem repetir: elas são o subtítulo da linha. */
       cities: [...new Set(group.stops.map((stop) => stop.label).filter((label) => label !== ''))],
       distanceMeters: entry?.distanceMeters ?? null,
+      distanceParts: entry?.distanceParts ?? null,
       documentCount: group.documentIds.size,
       driverName: resolveDriverName({
         driverIdByVehicleId: input.driverIdByVehicleId,

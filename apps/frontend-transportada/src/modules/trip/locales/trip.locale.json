@@ -105,6 +105,11 @@
     },
     "totalAmount": "Valor das notas: {{amount}}",
     "totalFreight": "Frete previsto: {{amount}}",
+    "proposalDistance": {
+      "total": "Rodagem do roteiro: {{distance}}.",
+      "withoutReturn": "Rodagem do roteiro: {{distance}} — só a ida, sem a volta ao barracão.",
+      "withReturn": "Rodagem do roteiro: {{distance}} — ida {{outbound}} + volta {{return}}."
+    },
     "proposalTime": {
       "deliveries_one": "{{count}} entrega",
       "deliveries_other": "{{count}} entregas",
@@ -660,6 +665,7 @@
     "stopCount_other": "{{count}} paradas",
     "stopsAndNotes": "Paradas e notas",
     "time": "Tempo",
+    "distanceWithoutReturn": "{{distance}} · sem a volta ao barracão",
     "totalDistance": "Rodagem",
     "totalDuration": "Jornada somada",
     "totalExpenses": "Despesas",

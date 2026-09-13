@@ -24,6 +24,7 @@ function stop(overrides: {
 function vehicle(overrides: Partial<SuggestionVehicleValuation> = {}): SuggestionVehicleValuation {
   return {
     distanceMeters: 100_000,
+    distanceParts: { outboundMeters: 100_000, returnMeters: null, returnStatus: 'not_planned' },
     documentCount: 3,
     driverId: null,
     durationParts: {
@@ -140,17 +141,67 @@ describe('sumVehicleTrip — o tempo da viagem proposta', () => {
   })
 
   /**
-   * ⚠️ A distância continua sendo **só a ida**: ela alimenta o combustível da conta, e somar a volta
-   * ali mudaria o custo — decisão que não foi tomada junto com a do tempo.
+   * Decisão do usuário (2026-09-13, segunda parte): a volta ao barracão entra também na
+   * **distância** — e, por ela, no combustível e no lucro. Ida 244 km + volta 70 km = 314 km.
    */
-  it('a volta não entra na distância que alimenta o combustível', () => {
+  it('a volta gravada entra na distância: ida + volta', () => {
     const trip = sumVehicleTrip({
       isReturnPlanned: true,
       returnLeg: { distanceMeters: 70_000, durationSeconds: 3_720 },
       stops: deliveries,
     })
 
-    expect(trip.distanceMeters).toBe(60_000 + 23 * 8_000)
+    expect(trip.distanceMeters).toBe(314_000)
+    expect(trip.distanceParts).toEqual({
+      outboundMeters: 244_000,
+      returnMeters: 70_000,
+      returnStatus: 'included',
+    })
+  })
+
+  /** Sugestão antiga, sem a volta gravada: a distância é só a ida, e a volta sai desconhecida. */
+  it('volta esperada e não gravada não entra na distância, e fica desconhecida', () => {
+    const trip = sumVehicleTrip({
+      isReturnPlanned: true,
+      returnLeg: { distanceMeters: null, durationSeconds: null },
+      stops: deliveries,
+    })
+
+    expect(trip.distanceMeters).toBe(244_000)
+    expect(trip.distanceParts).toEqual({
+      outboundMeters: 244_000,
+      returnMeters: null,
+      returnStatus: 'unknown',
+    })
+  })
+
+  /** `last_stop`: a volta gravada (se houver) não é da viagem — nem distância, nem lacuna. */
+  it('sem retorno pela política a distância é só a ida', () => {
+    const trip = sumVehicleTrip({
+      isReturnPlanned: false,
+      returnLeg: { distanceMeters: 70_000, durationSeconds: 3_720 },
+      stops: deliveries,
+    })
+
+    expect(trip.distanceMeters).toBe(244_000)
+    expect(trip.distanceParts.returnStatus).toBe('not_planned')
+  })
+
+  /** Ida desconhecida continua desconhecida: a volta sozinha não vira distância da viagem. */
+  it('sem ida conhecida a distância é ausência, mesmo com a volta gravada', () => {
+    const trip = sumVehicleTrip({
+      isReturnPlanned: true,
+      returnLeg: { distanceMeters: 70_000, durationSeconds: 3_720 },
+      stops: [
+        {
+          distanceFromPreviousMeters: null,
+          durationFromPreviousSeconds: null,
+          serviceTimeSeconds: 0,
+        },
+      ],
+    })
+
+    expect(trip.distanceMeters).toBe(null)
   })
 
   /**

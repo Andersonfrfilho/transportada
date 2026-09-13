@@ -11,11 +11,13 @@ import { hasExactKeys, hasKeys } from '@/modules/shared/objectKeys.service'
 import { toTripValuation } from '@/modules/trip-financials/shared/tripValuationResponse.validation'
 
 import {
+  SUGGESTION_DISTANCE_PARTS_KEYS,
   SUGGESTION_DURATION_PARTS_KEYS,
   SUGGESTION_RETURN_STATUSES,
   SUGGESTION_VALUATION_REPORT_KEYS,
   SUGGESTION_VEHICLE_VALUATION_KEYS,
   SUGGESTION_VEHICLE_VALUATION_OPTIONAL_KEYS,
+  type SuggestionDistanceParts,
   type SuggestionDurationParts,
   type SuggestionValuation,
   type SuggestionVehicleValuation,
@@ -80,9 +82,12 @@ function toVehicle(raw: unknown): SuggestionVehicleValuation | null {
   /** Ausente é a API anterior (D17); presente e malformada invalida o corpo, como chave estranha. */
   const durationParts = 'durationParts' in raw ? toDurationParts(raw.durationParts) : null
   if (durationParts === undefined) return null
+  const distanceParts = 'distanceParts' in raw ? toDistanceParts(raw.distanceParts) : null
+  if (distanceParts === undefined) return null
 
   return {
     distanceMeters: readNumber(raw.distanceMeters),
+    distanceParts,
     documentCount: readCount(raw.documentCount),
     driverId: typeof raw.driverId === 'string' && raw.driverId !== '' ? raw.driverId : null,
     durationParts,
@@ -90,6 +95,20 @@ function toVehicle(raw: unknown): SuggestionVehicleValuation | null {
     stopCount: readCount(raw.stopCount),
     valuation,
     vehicleId: raw.vehicleId,
+  }
+}
+
+/** `undefined` é forma recusada; `null` explícito da API é composição ausente. */
+function toDistanceParts(raw: unknown): SuggestionDistanceParts | null | undefined {
+  if (raw === null) return null
+  if (!hasExactKeys(raw, [...SUGGESTION_DISTANCE_PARTS_KEYS])) return undefined
+  const returnStatus = SUGGESTION_RETURN_STATUSES.find((status) => status === raw.returnStatus)
+  if (returnStatus === undefined) return undefined
+
+  return {
+    outboundMeters: readNumber(raw.outboundMeters),
+    returnMeters: readNumber(raw.returnMeters),
+    returnStatus,
   }
 }
 
