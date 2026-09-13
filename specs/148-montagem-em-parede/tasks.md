@@ -9,6 +9,7 @@
 | 2    | T3c    | `sonnet`           | `opus`              |
 | 3    | T4     | `sonnet`           | `opus`              |
 | 3    | T5     | `sonnet`           | `opus`              |
+| 3    | T7 🧠  | `opus`             | `fable`             |
 | 4    | T6     | `haiku`            | `sonnet` → `opus`   |
 
 ## Fase 1 — Reproduzir a base
@@ -62,6 +63,14 @@
       as caixas de fora por planta (`trip_cargo_layouts.layout->'placement'->'unplaced'`) e conferir com o
       usuário, no mapa 3D, que nenhuma pilha alta ficou isolada (G4).
 
+- [ ] T7 🧠 — D7: fila de revisão das notas que não couberam. No pacote/app, depois de D1–D6, as notas com
+      caixa sem lugar saem da viagem (marcação, não exclusão; `released_at`) e entram na fila com o motivo do
+      `classify.ts`. Na tela da viagem e da proposta, a fila com as ações "trocar por outra nota" (a nota trocada
+      volta para a fila) e "mover para outro entregador" (outra viagem/caminhão, com validação de carga no
+      destino), sob `trip.manage`. Trilha de auditoria. Contratos de domínio, de rota (permissão e tenant) e de
+      tela antes do código. Desenhar com architect `opus` antes: estado da nota na fila, idempotência das
+      ações, e o que acontece com CT-e/MDF-e já emitidos (bloquear a ação depois do despacho, como hoje).
+
 ## Fase 4 — Documentação
 
 > 🤖 Modelo: `haiku`
@@ -78,7 +87,7 @@ D21–D26 em specs/145-a-planta-e-do-worker/spec.md). Trabalhe no worktree ../tr
 (branch work/cargo-missing-box) e no worktree do pacote ~/Documents/personal/adatechnology-packages-wt/cargo-placement
 (branch feat/cargo-placement). Uma task por vez, na ordem do tasks.md, contrato vermelho antes do código.
 Modelos: T1 → executor model=sonnet · T2 🧠, T3 🧠 e T3b 🧠 → executor model=opus (plano validado antes por architect
-model=opus) · T3c → executor model=sonnet (pacote e tela) · T4, T5 → executor model=sonnet · T6 → writer model=haiku · revisão final → code-reviewer
+model=opus) · T3c → executor model=sonnet (pacote e tela) · T4, T5 → executor model=sonnet · T7 🧠 → executor model=opus (desenho validado antes por architect model=opus) · T6 → writer model=haiku · revisão final → code-reviewer
 model=opus. Se o modelo der 429, siga o fallback da tabela do tasks.md.
 Regras que não se negociam: nenhuma pilha alta isolada (encosto no SENTIDO da cabeceira + ≥ 1 lateral,
 vizinha escora com 80% da borda, porta livre, inclusive no complemento); apoio mínimo de 80%, célula de 5 cm

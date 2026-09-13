@@ -91,6 +91,21 @@ para 16 com a D1.
   escolher entre as caixas restantes a que melhor o preenche e cabe nas regras (apoio de 80%, D23/D25, sem
   pilha alta isolada). Repetir até não haver vão onde caiba alguma caixa restante, ou até o prazo vencer.
 
+- **D7 — O que não coube sai da viagem e vai para revisão (decisão do usuário, 2026-09-13).** Se, depois da
+  montagem em parede (D1), da reorganização (D4), da passada por cima (D5) e da escolha pelo vão (D6), alguma
+  caixa ainda não tem lugar, a **nota inteira** dela sai da viagem (1 nota = 1 caminhão, como CT-e e MDF-e já
+  funcionam; nada de dividir nota entre veículos) e entra numa fila de revisão, com o motivo (qual regra
+  barrou, pelo `classify.ts`). Quem monta a viagem (`trip.manage`, o que inclui o separador) decide uma de
+  duas saídas:
+  - **trocar:** a nota entra no lugar de outra nota do caminhão, e a nota que sai **volta para a mesma fila de
+    revisão**, onde também recebe um destino;
+  - **mover:** a nota vai para outro entregador (outra viagem ou caminhão), passando pela mesma validação de
+    carga do destino.
+
+  Nenhuma nota some em silêncio: ou está no mapa de um caminhão, ou está na fila com nome, nota e motivo. Sair
+  e trocar são marcações rastreáveis (desvincular é marcar, nunca apagar — a mesma regra de `released_at` da
+  viagem), com trilha de auditoria (ator, nota, viagem de origem e de destino).
+
 ## Fora do escopo
 
 - Mudar apoio de 80%, célula de 5 cm ou `STABLE_STACK_SLENDERNESS` sem decisão explícita do usuário.
