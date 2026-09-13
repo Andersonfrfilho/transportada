@@ -164,10 +164,15 @@ status='queued' AND input_hash=$hash`; nula → confirma e descarta; hash supera
 
 > 🤖 Modelo: `sonnet` (fallback `opus`)
 
-- [ ] T15 — Expurgo diário no `apps/cron-transportada` das linhas de prévia com mais de 24 h (D19):
-      `delete from trip_cargo_layouts where trip_id is null and updated_at < now() - interval '24 hours'`
-      em lotes, por empresa, no padrão dos jobs do cron. A outbox referencia `layout_id`: confira a FK e a
-      ordem da exclusão. Conta apagada no log, sem PII. Contratos e integração.
+- [ ] T15 — Expurgo de 24 h da prévia (D19) como rotina do catálogo de jobs, no padrão de
+      `trip.location.purge` (autorizado pelo usuário em 2026-09-13, com migration):
+  - API: migration aditiva que acrescenta `trip.cargo-layout.purge` aos CHECKs `job_schedules_job_check`
+    e `job_executions_job_check`, com rollback escrito, e cria a linha em `job_schedules` a cada
+    86 400 s. Entrada no `job-catalog.constant.ts` e contrato de paridade.
+  - Worker: rotina `trip-cargo-layout-purge`, com lotes de 500 `for update skip locked`, teto de lotes
+    e `isStopRequested()`. Apaga primeiro a outbox das prévias do lote (a FK é `ON DELETE RESTRICT`) e
+    depois as prévias, reconferindo `trip_id is null`. Log só com contagens.
+  - Cron e frontend: a entrada no `JOB_CATALOG` e o rótulo. A configuração do Railway não muda.
 - [ ] T16 — Etiqueta de agora na planta servida (D20): detalhe, prévia e polling reescrevem `label`,
       `clientName`, `noteNumbers` e `documentNumber` do `layout` com a entrada atual, casando parada por
       `sequence` e caixa por `documentId`. Sem recalcular, sem consulta nova no detalhe. Contratos.
