@@ -516,8 +516,13 @@ mesma ordem que `resolveVolumeReferenceKey` decide quem carrega — a carreta qu
 próprio veículo de tração: `bodyTypeMissing` (o carregador tem `00` e não é cavalo — carreta velha
 inclusive), `trailerMissing` (`tractor_unit` sem carreta) e `referenceMissing` (tipo sem linha de
 catálogo, como `other`). `capacityM3` não nulo zera o motivo antes de qualquer outra checagem. A
-prévia de carga (`POST /trips/cargo-preview`, antes de a viagem existir) sempre recebe `trailer:
-null` de propósito — não há `trips.trailer_vehicle_id` para ler ainda.
+prévia de carga (`POST /trips/cargo-preview`, antes de a viagem existir) resolve a carreta **padrão**
+do cavalo pela mesma regra da criação (T18, revisão — livre, ativa, `role: 'trailer'`) em vez de
+sempre assumir `trailer: null`; mostrar "sem carreta" na prévia e "carreta X" um clique depois, na
+viagem já criada, confundia mais do que ajudava. `capacityUnknownReason` (detalhe e prévia) vem
+acompanhado de `capacityUnknownVehicleId` — a carreta em `bodyTypeMissing`, o veículo da viagem nos
+outros dois motivos — para o link do painel apontar à ficha de quem realmente falta preencher, e não
+sempre à do cavalo.
 
 **O cavalo tem uma carreta, e a ocupação passa a ler a ficha dela** (spec 147 D3/D4).
 `trips.trailer_vehicle_id` e `fleet_vehicles.default_trailer_vehicle_id` (a segunda é só sugestão)
@@ -537,12 +542,35 @@ sugestão**: se ela já estiver em viagem aberta, a viagem nasce sem carreta, nu
 cavalo não carrega sozinho**: `checkDispatch` (`trip-state.policy.ts`) recebe `requiresTrailer` e
 barra o despacho com `409 TRIP_TRAILER_REQUIRED` — código de topo dedicado, não
 `STATE_TRANSITION_NOT_ALLOWED` com motivo em `details` — depois do portão de roteiro e antes de
-aplicar a transição. O snapshot de despacho congela `trailer: {vehicleId, plate} | null`; nenhum
-leitor de produção decodifica essa chave hoje, então o campo nasce tipado sem exigir migração de
-leitor nenhum. A ocupação (`trip-occupancy.support.ts`) faz uma quinta consulta **só quando existe
-carreta** e usa `carrier = trailer ?? vehicle` como o único ponto que decide de quem é a ficha —
-`loadingAccess` e `maxPayloadKg` continuam vindo do veículo de tração, porque não é a carreta quem
-tem acesso de carga nem limite de peso do MDF-e.
+aplicar a transição. **A leitura de fora acontece antes da transação de despacho**, e por isso
+`dispatch()` reconfere sozinho, com `SELECT … FOR UPDATE` da viagem (o mesmo padrão de `setTrailer`):
+sem essa segunda checagem, um `setTrailer` concorrente que solte a carreta entre a leitura e a
+escrita despacharia um cavalo sozinho (T18, revisão). O snapshot de despacho congela `trailer:
+{vehicleId, plate} | null`; nenhum leitor de produção decodifica essa chave hoje, então o campo
+nasce tipado sem exigir migração de leitor nenhum. A ocupação (`trip-occupancy.support.ts`) faz uma
+quinta consulta **só quando existe carreta** e usa `carrier = trailer ?? vehicle` como o único ponto
+que decide de quem é a ficha — `loadingAccess` e `maxPayloadKg` também vêm do `carrier` (T18,
+revisão: antes liam sempre o veículo de tração, e uma carreta com capacidade diferente da dele fazia
+o teto de peso e o acesso de carga mentirem).
+
+**T18 (revisão desta spec) corrigiu mais três corridas na criação/edição.** Duas viagens criadas ao
+mesmo tempo para cavalos que compartilham a mesma carreta padrão disputam
+`trips_company_trailer_open_unique` no `INSERT`; a segunda tentativa roda num `SAVEPOINT`
+(`transaction.transaction`), e quem perde a corrida nasce **sem** carreta em vez de 500 genérico —
+`resolveDefaultTrailerForCreation` também passou a exigir que a padrão ainda exista na empresa, seja
+`role: 'trailer'`/`status: 'active'` e não esteja em viagem aberta, antes de copiá-la. Os dois CHECKs
+de autorreferência (`trips_trailer_not_vehicle`, `fleet_vehicles_default_trailer_not_self`) e o de
+tipo (`fleet_vehicles_default_trailer_tractor_only`) agora traduzem para 400 de domínio
+(`TRIP_TRAILER_NOT_VEHICLE_ITSELF`, `FLEET_VEHICLE_DEFAULT_TRAILER_SELF_REFERENCE`,
+`FLEET_VEHICLE_DEFAULT_TRAILER_REQUIRES_TRACTOR`) no ponto de escrita, no mesmo padrão de
+`runTrailerGuarded` para a unicidade — nunca mais um 500 cru por violação de CHECK. `GET
+/pending-items` entrou na lista exaustiva de `test/separator-role.contract.test.ts`: o separador tem
+`fleet.read` e a alcança, decisão registrada ali. ⚠️ **Ordem de deploy: a API sobe antes do
+frontend.** `VEHICLE_DETAIL_KEYS` (frontend) já exigia `defaultTrailerVehicleId` como chave
+**obrigatória** desde a T10 original — não uma correção desta revisão, mas nunca registrado por
+extenso: bundle novo contra API antiga (sem o campo) reproduz o defeito de sempre,
+`hasEveryKey`/`hasOnlyKeys` recusando a linha inteira e a tabela de frota renderizando vazia com 200
+na rede e nada no console (o mesmo caso já descrito acima para os campos de baú).
 
 **O catálogo ganhou `01` e `04`, nunca `00` nem `03`** (spec 147 D5, migration
 `20260913130000_vehicle_reference_open_and_container`). `('toco','01')` — carroceria aberta, 7,000 ×
@@ -552,7 +580,11 @@ migration documenta os três apoios (anúncio de mercado, folga contra o teto le
 882/2021, dois paletes PBR empilhados). `('','04')` e `('truck','04')` são contêiner dry 40' e 20'
 (DSV, conferido na Guia Log) — o cavalo nunca carrega o contêiner, é a carreta (`vehicle_type` vazio)
 quem responde. Granelera (`03`) e carroceria aberta fora do toco ficaram de fora por falta de medida
-de fabricante publicada — decisão do usuário, registrada em `evidence.md`.
+de fabricante publicada — decisão do usuário, registrada em `evidence.md`. ⚠️ **O `rollback.sql`
+apaga as três chaves por valor** (`('toco','01')`, `('','04')`, `('truck','04')`), não por origem —
+se uma instalação tiver inserido linha idêntica à mão antes de aplicar esta migration, o rollback a
+leva junto. Risco baixo (o catálogo é de mercado, sem `company_id`), mas confira antes de rodar
+rollback em ambiente com linhas manuais.
 
 ⚠️ **A sugestão da ficha (093) passou a casar por `(vehicleType, bodyType)`, nunca só por tipo**
 (spec 147 T16b). Com `('toco','01')` no catálogo, casar só por `vehicleType` faria `fromReference`

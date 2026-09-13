@@ -1277,3 +1277,182 @@ use Prettier code style!`.
   task, e o mesmo aviso do `pdf.worker.min` que já existia).
 
 **Commit:** `docs: 147 T17 — a documentação conta a carroceria, a carreta e as pendências`.
+
+## T18 — correções da revisão (opus)
+
+Uma sessão nova, num worktree próprio (`spec-vehicle-body-00`), corrigiu os 15 achados da revisão
+de código (opus) sobre a spec 147. Cada achado tem teste que reproduz o defeito antes da correção
+(vermelho → verde) — a maioria integração real contra Postgres local (`127.0.0.1:55432`), porque os
+achados são de corrida e de tradução de erro de banco, invisíveis a um teste unitário com repositório
+falso.
+
+| #             | Achado                                                                        | Status                                            | Onde                                                                                                                                                     |
+| ------------- | ----------------------------------------------------------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1             | Despacho sem carreta por corrida (leitura fora da transação)                  | **Corrigido**                                     | `assertTrailerStillAttached` em `drizzle-trip-route.repository.ts` (`dispatch()`), `SELECT … FOR UPDATE` da viagem antes de qualquer escrita             |
+| 2             | Criação concorrente com a mesma carreta padrão                                | **Corrigido**                                     | `insertTripWithTrailerFallback` (SAVEPOINT) em `drizzle-trip.repository.ts`                                                                              |
+| 3             | Carreta padrão inativa ou não-carreta ainda copiada                           | **Corrigido**                                     | `resolveDefaultTrailerForCreation` (`trip.use-case.ts`) passa a checar `role`/`status` via `findVehicle`                                                 |
+| 4 (MENOR 6)   | CHECKs novos (23514) sem tradução, 500 genérico                               | **Corrigido**                                     | `violatedCheckConstraint` (`postgres-error.support.ts`) + tradução em `runTrailerGuarded`/`insertTripWithTrailerFallback` (trips) e `runGuarded` (fleet) |
+| 5 (MENOR 8+9) | `TRIP_TERMINAL_STATUSES`/`TRACTOR_UNIT_VEHICLE_TYPE` duplicados               | **Corrigido**                                     | Exportados de `trip.schema.ts`/`vehicle-type.constant.ts`; seis arquivos deixaram de redeclarar                                                          |
+| 6 (MENOR 7)   | `separator-role.contract.test.ts` não cobre `pending-items`                   | **Corrigido**                                     | `createPendingItemsRoutes` entrou na lista; `GET /pending-items` listado                                                                                 |
+| 7 (MENOR 11)  | Comentário de `pending-items.routes.ts` descrevia a política errada           | **Corrigido**                                     | Comentário reescrito — a policy da rota devolve 403 antes do caso de uso, o filtro interno é defesa para fonte futura                                    |
+| 8 (MENOR 15)  | `!` de non-null assertion em `drizzle-fleet-body-type-pending-item.source.ts` | **Corrigido**                                     | `or(...)` guardado por `if` em vez de `!`                                                                                                                |
+| 9 (item 5)    | `maxPayloadKg`/`loadingAccess` sempre do cavalo, nunca da carreta             | **Corrigido**                                     | `trip-occupancy.support.ts` passa a ler do `carrier` (reverte a nota de "fora de escopo" da T12)                                                         |
+| 10 (item 4)   | Link de `bodyTypeMissing` sempre aponta para o cavalo                         | **Corrigido**                                     | `capacityUnknownVehicleId` publicado (detalhe e prévia), opcional; `capacityUnknownMessage.service.ts` o usa com fallback para `vehicleId`               |
+| 11 (MENOR 12) | Prévia de criação sempre assume `trailer: null`                               | **Corrigido**                                     | `resolveDefaultTrailerForPreview` em `trip-cargo-preview.query.ts`, mesma regra do item 3                                                                |
+| 12 (MENOR 10) | "Carregar mais" troca a página em vez de somar                                | **Corrigido**                                     | `usePendingItems.hook.ts` migrado para `useInfiniteQuery`; soma em função pura testada                                                                   |
+| 13 (MENOR 13) | `rollback.sql` do catálogo apaga linha sem checar origem                      | **Registrado** (migração já escrita, não editada) | Nota em `docs/ai-context/api-transportada.md`                                                                                                            |
+| 14 (MENOR 14) | Ordem de deploy API-antes-do-frontend não documentada                         | **Registrado**                                    | Nota em `docs/ai-context/api-transportada.md` (`VEHICLE_DETAIL_KEYS`/`defaultTrailerVehicleId`, situação pré-existente da T10)                           |
+| 15            | Seção "T18 — correções da revisão" no evidence                                | **Este texto**                                    | —                                                                                                                                                        |
+
+**Commit A — `fix(trips): 147 T18 — a carreta não escapa por corrida`** (achados 1–8, 15;
+hash `82f4eb5d`):
+
+- `apps/api-transportada/src/trips/infrastructure/drizzle-trip-route.repository.ts`: nova função
+  `assertTrailerStillAttached`, chamada no início de `dispatch()`, dentro da transação — `SELECT …
+FOR UPDATE` da viagem, e só então junta com `fleetVehicles` para o `vehicleType`. Teste vermelho→
+  verde: `test/integration/trip-lifecycle.integration.ts` — `re-checks the trailer inside the
+dispatch transaction, not only before it` chama `routeRepository.dispatch()` direto, com a carreta
+  removida entre a checagem de fora (não repetida no teste) e a escrita, e prova `409
+TRIP_TRAILER_REQUIRED`, status inalterado e nenhum snapshot gravado.
+- `apps/api-transportada/src/trips/infrastructure/drizzle-trip.repository.ts`: `create()` chama
+  `insertTripWithTrailerFallback`, que tenta o `INSERT` com a carreta dentro de um `SAVEPOINT`
+  (`transaction.transaction`) e, se a tentativa colidir com `trips_company_trailer_open_unique`,
+  refaz sem carreta na transação externa — nunca 500. A mesma função (e `runTrailerGuarded`, usado
+  por `setTrailer`) também traduzem `trips_trailer_not_vehicle` (23514) em
+  `TripTrailerNotVehicleItselfError` (400). Teste vermelho→verde:
+  `test/integration/trip-repository.integration.ts` — `creating two trips at once with the same
+trailer never throws` (duas criações concorrentes via `Promise.all`, exatamente uma fica com a
+  carreta) e `translates the trailer-not-vehicle CHECK violation into a domain error` (create e
+  setTrailer com `trailerVehicleId === vehicleId`).
+- `apps/api-transportada/src/trips/application/trip.use-case.ts`: `resolveDefaultTrailerForCreation`
+  chama `repository.findVehicle` na carreta padrão e só a copia se `role === 'trailer'` e `status ===
+'active'` (além do já existente `isTrailerInOpenTrip`). Teste vermelho→verde:
+  `test/trip-application/trip-use-case.contract.ts` — três testes novos: carreta livre e ativa é
+  copiada; carreta em viagem aberta não é; carreta inativa/renomeada de papel não é; carreta apagada
+  (`findVehicle` devolve `null`) não é.
+- `apps/api-transportada/src/fleet/infrastructure/drizzle-fleet-vehicle.repository.ts`:
+  `fleet_vehicles_default_trailer_tractor_only` e `fleet_vehicles_default_trailer_not_self` (23514)
+  traduzidos em `runGuarded` para `FleetVehicleDefaultTrailerRequiresTractorError`/
+  `FleetVehicleDefaultTrailerSelfReferenceError` (nova classe, `fleet.error.ts`). Teste vermelho→
+  verde: `test/integration/fleet-vehicle-repository.integration.ts` — `translates the default
+trailer CHECK violations into domain errors`, `update()` direto no repositório (contorna o caso de
+  uso, que já barra os dois antes) forçando as duas violações.
+- `TRIP_TERMINAL_STATUSES` (novo, `trip.schema.ts`) substitui `TRIP_OPEN_STATUSES_EXCLUSION`
+  (trips) e `TRIP_CLOSED_STATUSES` (fleet) — usado também no `where` do índice parcial
+  `trips_company_trailer_open_unique` via `raw(inList(...))`, texto idêntico ao anterior
+  (`'completed', 'cancelled'`), sem tocar a migration SQL já aplicada. `TRACTOR_UNIT_VEHICLE_TYPE`
+  (novo, `vehicle-type.constant.ts`) substitui as redeclarações locais em
+  `vehicle-body-type.policy.ts`, `vehicle-default-trailer.policy.ts`, `trip-trailer.policy.ts`,
+  `capacity-unknown-reason.policy.ts`, `trip.use-case.ts` e
+  `drizzle-fleet-body-type-pending-item.source.ts` (que também perdeu o `!` sobre `or(...)`, trocado
+  por um `if` guardando o `push`).
+- `apps/api-transportada/test/separator-role.contract.test.ts`: `createPendingItemsRoutes` entrou na
+  montagem de rotas e `GET /pending-items` na lista alcançável — decisão registrada no comentário: o
+  separador tem `fleet.read` e o dado é mínimo (placa sem carroceria).
+- `apps/api-transportada/src/pending-items/presentation/pending-items.routes.ts`: comentário
+  reescrito — a política da rota (`fleet.read`) já devolve 403 antes de o caso de uso rodar; o filtro
+  por `requiredPermission` dentro dele é defesa para uma segunda fonte futura com outra permissão,
+  hoje sem efeito.
+
+**Gates (Commit A, isolado — B/C/D empilhados via `git stash push` durante a checagem):**
+
+- `bun run --cwd apps/api-transportada typecheck` → limpo.
+- `bun run --cwd apps/api-transportada lint` → limpo.
+- `bun run --cwd apps/api-transportada test` → **5141 pass/23 skip/0 fail** (37354 expect, 164
+  arquivos).
+- `bun test --timeout 30000` nos três arquivos de integração tocados
+  (`trip-repository.integration.ts`, `trip-lifecycle.integration.ts`,
+  `fleet-vehicle-repository.integration.ts`) → **13 pass/0 fail** (112 expect). ⚠️ O timeout padrão
+  de 5s precisou subir para 30s: o Postgres local (`55432`) acumulou **125 bancos descartáveis**
+  órfãos de sessões/worktrees anteriores (nunca limpos por `DROP DATABASE`), e o `CREATE DATABASE`
+  de cada teste ficou lento o bastante para estourar o padrão — falso vermelho generalizado (pegou
+  também testes pré-existentes, não tocados por esta task), confirmado repetindo a mesma bateria com
+  timeout maior. Não é regressão desta correção; registrado aqui para quem topar com o mesmo.
+
+**Commit B — `fix(trips): 147 T18 — o peso e o link são de quem carrega`** (achados 4, 5, 9, 10, 11;
+hash `e9afcf3d`):
+
+- `apps/api-transportada/src/trips/infrastructure/trip-occupancy.support.ts`: a consulta da carreta
+  ganhou `id`, `capacityKg` e `loadingAccess`; `maxPayloadKg`/`loadingAccess` nos três `return` que
+  produzem `TripDetail`/prévia agora vêm de `carrier` (a carreta quando existe, senão o veículo de
+  tração) — antes vinham sempre de `vehicle`. `capacityUnknownVehicleId` computado logo após
+  `capacityUnknownReason`: `carrier.id` em `bodyTypeMissing`, `input.vehicleId` nos outros dois
+  motivos (e sem veículo). Teste vermelho→verde: `test/integration/trip-repository.integration.ts` —
+  `reads maxPayloadKg and loadingAccess from the trailer, not the tractor, when one is attached`
+  (cavalo 10.000 kg/`rear`, carreta 27.000 kg/`open`: sem carreta lê o cavalo, com carreta lê a
+  carreta); `test/integration/trip-capacity-unknown-reason.integration.ts` — três asserts novos nos
+  dois testes existentes: sem carreta o link é o próprio veículo; com carreta e `trailerMissing` o
+  link é o cavalo (não há ficha de carreta a editar); com carreta e `bodyTypeMissing` (carreta com
+  `body_type = '00'`) o link é a carreta, não o cavalo — o caso que a correção existe para resolver.
+- `apps/api-transportada/src/trips/application/trip.port.ts`,
+  `apps/api-transportada/src/trips/presentation/trip.routes.ts`,
+  `apps/api-transportada/src/trips/application/preview-trip-cargo.use-case.ts`,
+  `apps/api-transportada/src/trips/infrastructure/trip-cargo-preview.query.ts`: `TripDetail` e
+  `TripCargoPreview` ganharam `capacityUnknownVehicleId`, servido no detalhe e na prévia.
+- `apps/api-transportada/src/trips/infrastructure/trip-cargo-preview.query.ts`:
+  `resolveDefaultTrailerForPreview` (nova) espelha `resolveDefaultTrailerForCreation` — mesma regra
+  (existe na empresa, `role: 'trailer'`, `status: 'active'`, livre) — e `readCargoPreviewContext`
+  passa `trailerVehicleId` resolvido em vez de sempre `null`.
+- Frontend (`capacityUnknownMessage.service.ts`, `trip.types.ts`, `trip.constant.ts`,
+  `tripResponse.validation.ts`, `TripCargoPanel.component.tsx` e os três lugares que o chamam):
+  `capacityUnknownVehicleId` opcional, threadado até `resolveCapacityUnknownMessage`, que usa
+  `capacityUnknownVehicleId ?? vehicleId` para montar o link. Teste vermelho→verde:
+  `test/trip/capacity-unknown-message.contract.ts` — `carroceria não informada com carreta atrelada
+leva à ficha da carreta, não do cavalo`.
+
+**Gates (Commit B, isolado — A já commitado, C/D restaurados só depois):**
+
+- `bun run --cwd apps/api-transportada typecheck` / `--cwd apps/frontend-transportada typecheck` →
+  limpos.
+- `bun run --cwd apps/api-transportada lint` → limpo; `bun run --cwd apps/api-transportada test` →
+  **5141 pass/23 skip/0 fail** (37354 expect).
+- `bun test --timeout 30000 test/integration/trip-capacity-unknown-reason.integration.ts` → **2
+  pass/0 fail** (13 expect).
+- `bun run --cwd apps/frontend-transportada lint` → limpo;
+  `bun run --cwd apps/frontend-transportada test` → **3367 pass/0 fail** (33839 expect, 30 arquivos);
+  `build` → verde.
+
+**Commit C — `fix(pending-items): 147 T18 — carregar mais soma`** (achado 12; hash `6cd41e83`):
+
+- `apps/frontend-transportada/src/modules/pending-items/hooks/usePendingItems.hook.ts`: trocado
+  `useQuery` (cursor em `useState`, cada página substituindo a anterior) por `useInfiniteQuery`
+  (mesmo padrão de `useTripOccurrenceFeedQuery`), com `items`/`nextCursor` derivados por
+  `flattenPendingItemPages`/`lastPendingItemsCursor` (novas, `pendingItemsClient.service.ts`) — puras,
+  sem depender de `useInfiniteQuery` nem de DOM para testar, seguindo o padrão do resto deste app.
+- ⚠️ **Deslize de staging:** `test/pending-items/pagination.contract.ts` (o teste vermelho→verde
+  deste achado — prova que duas páginas somam e que o cursor de "carregar mais" é o da última, nunca
+  de uma anterior) acabou dentro do Commit B por um `git add` antecipado durante a preparação dos
+  stashes; nada nele muda neste commit, e ele já provava o defeito antes da correção do hook chegar.
+- `test/pending-items.contract.test.ts`: novo `import` do contrato.
+
+**Gates (Commit C, isolado — A e B já commitados):**
+
+- `bun run --cwd apps/frontend-transportada typecheck` → limpo (background, confirmado sem erro).
+- `bun run --cwd apps/frontend-transportada lint` → limpo (eslint ficou lento neste host durante a
+  sessão — >120s em mais de uma tentativa — mas terminou sem achado quando concluiu; confirmado
+  também pela checagem do estado combinado A+B+C+D, que passou limpo antes de qualquer commit).
+- `bun run --cwd apps/frontend-transportada test` → **3367 pass/0 fail** (33839 expect, 30
+  arquivos). ⚠️ Um teste de orçamento de desempenho não relacionado
+  (`design-system/cargo-isometric-full-drawing.contract.ts`, projeção de 6000 caixas < 100 ms)
+  falhou uma vez por 1,16 ms sob carga da máquina e passou limpo ao repetir isolado — falso vermelho
+  de orçamento de tempo, não regressão.
+- `bunx prettier --check` nos arquivos tocados → limpo.
+
+**Commit D — `docs: 147 T18 — o que a revisão mudou`:**
+
+- `docs/ai-context/api-transportada.md`: seis parágrafos ajustados/acrescentados na seção da carreta
+  — a prévia agora considera a carreta padrão (não mais "sempre `trailer: null`"),
+  `capacityUnknownVehicleId` ao lado de `capacityUnknownReason`, a releitura `FOR UPDATE` dentro da
+  transação de despacho, `loadingAccess`/`maxPayloadKg` do `carrier` (não mais "sempre do veículo de
+  tração"), um parágrafo novo resumindo as três corridas/CHECKs do Commit A, a nota sobre o
+  `rollback.sql` do catálogo apagar por valor (achado 13/MENOR 13), e a nota de ordem de deploy
+  API-antes-do-frontend (achado 14/MENOR 14 — `VEHICLE_DETAIL_KEYS`/`defaultTrailerVehicleId`,
+  situação que já existia desde a T10 e nunca tinha sido registrada por extenso).
+- Este arquivo (`evidence.md`): a tabela acima e o detalhe por commit.
+
+**Gates (Commit D):** `bunx prettier --check docs/ai-context/api-transportada.md
+specs/147-carroceria-que-ninguem-escolheu/evidence.md` → limpo. Sem código tocado — sem
+typecheck/lint/test de app.
+
+**Gate final (raiz, `make check` + `make migration-test`, estado combinado A+B+C+D):** ver final
+deste documento.
