@@ -21,7 +21,24 @@ cliente, números de nota e `documentId` foram trocados por marcadores. O empaco
 | `iveco-antiga.json`     | `ce9bd380`       | 23      |
 
 Rode com `enclosedBody: true, securesCargo: false, deliveryReachM: 2` para reproduzir a tabela da spec 148.
-As entradas gravadas podem ter `securesCargo`/`enclosedBody` de quando foram calculadas: sobrescreva.
+As entradas gravadas podem ter `securesCargo`/`enclosedBody` de quando foram calculadas: o `bench_reach.ts`
+sobrescreve os dois (e `deliveryReachM` vem de `REACHES`, padrão `2`).
+
+## Reproduzir a base (T1)
+
+A partir da raiz do worktree do app, com o pacote em `feat/cargo-placement` @ `0925c14`:
+
+```bash
+cd specs/148-montagem-em-parede/harness
+TAG=base bun bench_reach.ts               # uma linha JSON por veículo; dumps em ./dumps (fora do git)
+bun check.ts dumps/base_*_r2_E.json       # apoio ≥ 80%, dentro do baú, sem colisão
+bun tall.ts dumps/base_*_r2_E.json        # pilha alta: cabeceira + ≥ 1 lateral (80% da borda)
+```
+
+O `bench_reach.ts` importa o **fonte** do pacote (`$PKG/src/index.ts`, padrão
+`~/Documents/personal/adatechnology-packages-wt/cargo-placement/packages/backend/cargo-placement`) e o
+`test/cargo-placement/unloading-simulation.ts` dele. `ONLY=atego-84-paradas` roda um veículo só; `OUT` muda
+a pasta dos dumps. `check.ts` e `tall.ts` imprimem `REPROVADO` quando há violação.
 
 ## Scripts
 

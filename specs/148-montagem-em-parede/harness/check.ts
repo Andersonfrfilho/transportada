@@ -1,11 +1,12 @@
 // Para cada dump: apoio (mesma conta de support.ts), fora do baú e colisão entre caixas.
-const S =
-  '/private/tmp/claude-502/-Users-anderson-filho-Documents-personal-transportada/3c7fb230-30a2-43c1-b4ea-e31f9ee9759a/scratchpad'
+const INPUTS = `${import.meta.dir}/inputs`
 const C = 0.005
 const T = 1e-3
+let failedAny = false
 for (const dumpF of process.argv.slice(2)) {
   const { file, boxes } = JSON.parse(await Bun.file(dumpF).text())
-  const bed = JSON.parse(await Bun.file(`${S}/${file}`).text()).input.bedDimensions
+  const raw = JSON.parse(await Bun.file(`${INPUTS}/${file}`).text())
+  const bed = (raw.input ?? raw).bedDimensions
   const L = +bed.lengthM,
     W = +bed.widthM,
     H = +bed.heightM
@@ -59,6 +60,7 @@ for (const dumpF of process.argv.slice(2)) {
       const oz = Math.min(a.zM + a.heightM, b.zM + b.heightM) - Math.max(a.zM, b.zM)
       if (ox > T && oy > T && oz > T) collisions++
     }
+  if (under80 + outside + collisions > 0) failedAny = true
   console.log(
     dumpF.split('/').pop(),
     JSON.stringify({
@@ -70,3 +72,4 @@ for (const dumpF of process.argv.slice(2)) {
     }),
   )
 }
+if (failedAny) console.log('REPROVADO: apoio < 80%, caixa fora do baú ou colisão')

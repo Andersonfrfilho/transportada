@@ -16,7 +16,7 @@
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T1 — No worktree do pacote, em `feat/cargo-placement` @ `0925c14`, rodar o harness (`harness/README.md`)
+- [x] T1 — No worktree do pacote, em `feat/cargo-placement` @ `0925c14`, rodar o harness (`harness/README.md`)
       sobre as 6 entradas de `harness/inputs/` com `enclosedBody: true, securesCargo: false, deliveryReachM: 2`
       e reproduzir a tabela da spec (Atego 162, 27 paradas 11, Sprinter 6, Fiorino 4, Accelo 0, Iveco antiga
       0), com `check.ts` e `tall.ts` em zero violações. Registrar em `evidence.md`.

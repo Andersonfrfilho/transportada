@@ -1,27 +1,30 @@
-const S =
-  '/private/tmp/claude-502/-Users-anderson-filho-Documents-personal-transportada/3c7fb230-30a2-43c1-b4ea-e31f9ee9759a/scratchpad'
+// Entradas em ./inputs, dumps em $OUT (padrão ./dumps, fora do git). PKG: pasta do pacote; importa o fonte (src/).
+const INPUTS = `${import.meta.dir}/inputs`
+const OUT = process.env.OUT ?? `${import.meta.dir}/dumps`
 const PKG =
   process.env.PKG ??
-  '/Users/anderson.filho/Documents/personal/adatechnology-packages-wt/cargo-placement/packages/backend/cargo-placement'
+  `${process.env.HOME}/Documents/personal/adatechnology-packages-wt/cargo-placement/packages/backend/cargo-placement`
 const TAG = process.env.TAG ?? 'reach'
 const ONLY = process.env.ONLY?.split(',')
-const REACHES = (process.env.REACHES ?? '0.6,1.2,2,3,null')
+const REACHES = (process.env.REACHES ?? '2')
   .split(',')
   .map((r) => (r === 'null' ? null : Number(r)))
 const EXTRA = JSON.parse(process.env.EXTRA ?? '{}')
 const cases = [
-  ['fiorino', '43f0218a-a60e-4fc5-a239-dbc4bf1be292.json'],
-  ['sprinter', 'd665c086-7747-44c9-8e9e-480e5a3e4888.json'],
-  ['iveco', 'ce9bd380-e279-4bf2-89ab-016b72cac26f.json'],
-  ['accelo', 'c5be7eaa-e4bf-408d-a7d2-7b182c0b5797.json'],
-  ['p27', '6b676625.json'],
-  ['atego', '768f475f-781f-4451-9f9e-a7d75d9401c1.json'],
+  'fiorino',
+  'sprinter',
+  'iveco-antiga',
+  'accelo',
+  'iveco-27-paradas',
+  'atego-84-paradas',
 ] as const
 const mod = await import(`${PKG}/src/index.ts`)
 const { simulateUnloading } = await import(`${PKG}/test/cargo-placement/unloading-simulation.ts`)
-for (const [name, file] of cases) {
+for (const name of cases) {
   if (ONLY && !ONLY.includes(name)) continue
-  const { input } = JSON.parse(await Bun.file(`${S}/${file}`).text())
+  const file = `${name}.json`
+  const raw = JSON.parse(await Bun.file(`${INPUTS}/${file}`).text())
+  const input = raw.input ?? raw
   const bed = {
     heightM: +input.bedDimensions.heightM,
     lengthM: +input.bedDimensions.lengthM,
@@ -62,7 +65,7 @@ for (const [name, file] of cases) {
       }),
     )
     await Bun.write(
-      `${S}/dumps/${TAG}_${name}_r${reach}_E.json`,
+      `${OUT}/${TAG}_${name}_r${reach}_E.json`,
       JSON.stringify({ file, boxes, unplaced: out.placement.unplaced }),
     )
   }

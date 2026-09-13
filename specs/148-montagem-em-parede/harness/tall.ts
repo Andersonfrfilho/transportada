@@ -6,8 +6,7 @@
 // do lado de fora da face a menos de 3b/√10, tem topo ≥ restraint e começa abaixo do topo da candidata − 1 cm
 // (spec 142: sobe ao lado dela). O lado vale se 80% dos pontos (passo de 5 mm) estão escorados (spec 146 D1);
 // a porta e a borda < 25 cm exigem todos. FRAC=1 audita pela regra antiga (borda inteira).
-const S =
-  '/private/tmp/claude-502/-Users-anderson-filho-Documents-personal-transportada/3c7fb230-30a2-43c1-b4ea-e31f9ee9759a/scratchpad'
+const INPUTS = `${import.meta.dir}/inputs`
 const STEP = 0.005
 const TOL = 1e-3
 const FRAC = Number(process.env.FRAC ?? 0.8)
@@ -16,7 +15,8 @@ let failedAny = false
 for (const dumpF of process.argv.slice(2)) {
   const mode = dumpF.match(/_([SE0-9])\.json$/)?.[1] ?? '0'
   const { file, boxes } = JSON.parse(await Bun.file(dumpF).text()) as { file: string; boxes: B[] }
-  const bed = JSON.parse(await Bun.file(`${S}/${file}`).text()).input.bedDimensions
+  const raw = JSON.parse(await Bun.file(`${INPUTS}/${file}`).text())
+  const bed = (raw.input ?? raw).bedDimensions
   const L = +bed.lengthM,
     W = +bed.widthM
   let tall = 0
