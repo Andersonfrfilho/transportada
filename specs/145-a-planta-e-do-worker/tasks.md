@@ -9,6 +9,7 @@
 | 2    | T4–T6b  | ✅ feita | `sonnet`           | `opus`                            |
 | 3    | T7–T8   | pendente | `sonnet`           | `opus`                            |
 | 3    | T9 🧠   | pendente | `opus`             | `fable`                           |
+| 3    | T9b     | pendente | `sonnet`           | `opus`                            |
 | 4    | T10–T11 | pendente | `sonnet`           | `opus`                            |
 | 5    | T12–T13 | pendente | `sonnet`           | `opus`                            |
 | 6    | T14     | pendente | `haiku`            | `sonnet` → `opus`                 |
@@ -105,6 +106,13 @@ status='queued' AND input_hash=$hash`; nula → confirma e descarta; hash supera
       `test/build-entrypoints.contract.test.ts`) com `CARGO_LAYOUT_TIME_BUDGET_MS`; falha
       transitória → retry e depois `failed`; sucesso grava `ready` (`truncated: true` se o budget
       cortou); consumidor prefetch 1 ligado em `worker/src/main.ts:1155-1190` (G009).
+
+- [ ] T9b — Lado da API das decisões D14–D16 (`apps/api-transportada`):
+  - `upsertCargoLayoutRequest` reabre, além de `failed`, as linhas `queued`/`running` com
+    `updated_at` mais velho que o lease da D14, gravando uma linha nova na outbox;
+  - o gatilho eager e o use case não enfileiram quando `capacityM3` é nulo (D15).
+
+  Contratos em `test/trip-infrastructure/` e `test/trip-application/`. Rodar antes da T10.
 
 ## Fase 4 — API lê o que o worker guardou (`sonnet`)
 

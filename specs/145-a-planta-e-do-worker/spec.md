@@ -116,6 +116,35 @@ db:generate`, espelhada em `apps/worker-transportada/src/database/nfe.schema.ts`
   estado adiante; `TripCargoLayers.component.tsx` ganha os ramos pendente/falho — hoje `null` quer
   dizer "meça o caminhão", o que fica errado enquanto o cálculo está em andamento.
 
+### Decisões do usuário em 2026-09-12 (validação da T9) — prevalecem sobre D9/D10 onde divergem
+
+- **D13 — Tempo esgotado tenta de novo com mais tempo.** O orçamento da tentativa N é
+  `CARGO_LAYOUT_TIME_BUDGET_MS × 2^(N−1)`: 60 s, 120 s e 240 s, nas mesmas três tentativas da
+  topologia. Se sobrar caixa `unplaced` com motivo `time_budget` e não for a última tentativa, o
+  worker devolve a linha para `queued` e manda para o retry. Na terceira, grava `ready` como ficou.
+  **Não há campo `truncated`:** "incompleta" é derivado na leitura (T10), de
+  `unplaced[].reason === 'time_budget'`. Isso substitui o `truncated: true` gravado da D9 e o
+  `truncated` como dado próprio da D10.
+- **D14 — `running` órfão se recupera por lease.** O claim do worker também aceita `running` cujo
+  `updated_at` é mais velho que o lease: orçamento da maior tentativa + 10 s de teto externo + 30 s de
+  folga, derivado da env, sem variável nova. O upsert da API (T9b) reabre essa mesma linha, e com isso
+  o gatilho lazy recupera uma planta presa quando alguém abre a viagem.
+- **D15 — Capacidade desconhecida não enfileira.** Sem capacidade (nem ficha, nem referência do tipo),
+  a API não pede cálculo e o estado é `unavailable`, com a tela igual a hoje. Se um pedido assim chegar
+  ao worker, ele grava `failed` com `CARGO_LAYOUT_UNAVAILABLE` e confirma a mensagem, sem retry.
+  Reduzir esses casos (carroceria `00`, cavalo sem carreta) é uma spec própria.
+- **D16 — Nunca ficar sem resposta.** Todo caminho termina em `ready`, `failed` ou `unavailable`:
+  - worker parado: a outbox segura o pedido até ele voltar;
+  - worker morto no meio do cálculo: D14;
+  - mensagem perdida ou recusada no decode, com a linha em `queued` sem ninguém calculando: o upsert
+    da API também reabre `queued` com `updated_at` mais velho que o lease, e grava uma linha nova na
+    outbox;
+  - esgotadas as tentativas: `failed`, que a próxima mudança ou leitura reabre.
+
+  No frontend (T12), o polling tem teto de 10 minutos, acima da soma da escada da D13 com os retries.
+  Passado o teto, a tela mostra "não foi possível calcular agora", com a planta anterior se houver, e
+  para de perguntar.
+
 ## Fora do escopo
 
 - Regra física do empacotador — apoio de 80%, escora pelo lado, célula de 5 cm,
