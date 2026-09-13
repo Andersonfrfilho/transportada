@@ -208,6 +208,19 @@ db:generate`, espelhada em `apps/worker-transportada/src/database/nfe.schema.ts`
   escora quando cobre 80% da borda. `CARGO_LAYOUT_POLICY_VERSION` sobe para `'3'`. Decisão do usuário,
   2026-09-13.
 
+- **D26 — A carga é montada em parede, a partir do canto.** Ordem de arrumação descrita pelo usuário para
+  o baú fechado:
+  - a primeira pilha vai no canto, encostada na cabeceira (a parede do fundo ou a fileira anterior) e numa
+    parede lateral;
+  - a seguinte encosta na cabeceira e na pilha que acabou de ser montada, que passa a ser a lateral dela, e
+    assim a fileira atravessa a largura do baú;
+  - quando a fileira fecha, ela vira a cabeceira da próxima, que recomeça encostada numa parede lateral.
+
+  Com isso, toda pilha alta nasce com encosto no sentido da cabeceira e numa lateral, e nenhuma fica
+  isolada por construção (D23/D25). É regra de ordem de colocação, não de física. Respeita a ordem de
+  descarga por entrega, o alcance da D24 e a escora de 80% da borda da D25. Se medir melhor que a
+  arrumação atual, vira a ordem preferida no baú fechado. Decisão do usuário, 2026-09-13.
+
 ## Fora do escopo
 
 - Regra física do empacotador — apoio de 80%, escora pelo lado, célula de 5 cm,
