@@ -18,6 +18,7 @@ import { stampCargoNote, sumVolumes, type CargoLayoutStop } from '@adatechnology
 import { fleetDrivers, freightCalculations, nfeDocuments } from '../../database/database.schema.js'
 import { tripDocuments, tripDrivers, tripStops, trips } from '../../database/trip.schema.js'
 import type { BuildCargoLayoutInputParams } from '../domain/cargo-layout-hash.types.js'
+import { CARGO_DELIVERY_REACH_M } from '../domain/cargo-delivery-reach.constant.js'
 import { resolveCargoSecuring } from '../domain/cargo-securing.policy.js'
 import { withPayloadCeiling } from '../domain/trip-cargo-weight.policy.js'
 import { listStopAddresses, type NfeDestinationAddress } from './nfe-destination-address.support.js'
@@ -187,6 +188,7 @@ export async function readCargoLayoutInputParams(
   return {
     bedDimensions: cargo.bedDimensions,
     capacityM3: cargo.capacityM3,
+    deliveryReachM: CARGO_DELIVERY_REACH_M,
     enclosedBody,
     fallbackBoxVolumeM3: cargo.fallbackBoxVolumeM3,
     loadingAccess: cargo.loadingAccess,

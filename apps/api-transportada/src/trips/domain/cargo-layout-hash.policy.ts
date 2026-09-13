@@ -83,6 +83,8 @@ export function buildCargoLayoutInput(params: BuildCargoLayoutInputParams): Carg
         ? null
         : { heightM: bed.heightM, lengthM: bed.lengthM, source: bed.source, widthM: bed.widthM },
     capacityM3: params.capacityM3,
+    /** D24: o alcance muda o que cabe; ausente fica fora do retrato — o hash de antes, o padrão do pacote. */
+    ...(params.deliveryReachM === undefined ? {} : { deliveryReachM: params.deliveryReachM }),
     /** D23: baú fechado muda onde a pilha alta pode ficar — entra no hash; ausente é baú aberto. */
     enclosedBody: params.enclosedBody ?? false,
     fallbackBoxVolumeM3: params.fallbackBoxVolumeM3 ?? null,
@@ -107,6 +109,7 @@ export function buildStoredCargoLayoutInput(
   return {
     bedDimensions: params.bedDimensions ?? null,
     capacityM3: params.capacityM3,
+    ...(params.deliveryReachM === undefined ? {} : { deliveryReachM: params.deliveryReachM }),
     enclosedBody: params.enclosedBody ?? false,
     fallbackBoxVolumeM3: params.fallbackBoxVolumeM3 ?? null,
     loadingAccess: params.loadingAccess ?? 'rear',

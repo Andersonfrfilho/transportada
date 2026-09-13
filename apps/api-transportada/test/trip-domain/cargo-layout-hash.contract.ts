@@ -201,6 +201,37 @@ describe('hashCargoLayoutInput', () => {
     expect(buildStoredCargoLayoutInput(BASE_PARAMS).enclosedBody).toBe(false)
   })
 
+  /** D24: o alcance muda o que cabe — o cache não pode devolver planta de outro alcance. */
+  test('trocar deliveryReachM muda o hash; ausente, 2 e null são três plantas (D24)', () => {
+    const reach2: BuildCargoLayoutInputParams = { ...BASE_PARAMS, deliveryReachM: 2 }
+    const unlimited: BuildCargoLayoutInputParams = { ...BASE_PARAMS, deliveryReachM: null }
+
+    expect(new Set([hashOf(BASE_PARAMS), hashOf(reach2), hashOf(unlimited)]).size).toBe(3)
+    expect(buildCargoLayoutInput(reach2).deliveryReachM).toBe(2)
+    expect(buildCargoLayoutInput(unlimited).deliveryReachM).toBeNull()
+    expect('deliveryReachM' in buildCargoLayoutInput(BASE_PARAMS)).toBe(false)
+  })
+
+  test('com deliveryReachM, trocar a etiqueta não muda o hash (D24)', () => {
+    const reach2: BuildCargoLayoutInputParams = { ...BASE_PARAMS, deliveryReachM: 2 }
+    const relabeled: BuildCargoLayoutInputParams = {
+      ...reach2,
+      stops: reach2.stops.map((stop) => ({ ...stop, clientName: 'Outro', label: 'Outra' })),
+    }
+
+    expect(hashOf(relabeled)).toBe(hashOf(reach2))
+  })
+
+  test('a entrada guardada leva deliveryReachM, e ausente fica ausente (D24)', () => {
+    expect(buildStoredCargoLayoutInput({ ...BASE_PARAMS, deliveryReachM: 2 }).deliveryReachM).toBe(
+      2,
+    )
+    expect(
+      buildStoredCargoLayoutInput({ ...BASE_PARAMS, deliveryReachM: null }).deliveryReachM,
+    ).toBeNull()
+    expect('deliveryReachM' in buildStoredCargoLayoutInput(BASE_PARAMS)).toBe(false)
+  })
+
   test('trocar policyVersion muda o hash', () => {
     const changed: BuildCargoLayoutInputParams = {
       ...BASE_PARAMS,

@@ -67,6 +67,7 @@ import { DEFAULT_CARGO_LAYOUT_LEASE_MS } from '../domain/cargo-layout-lease.poli
 import { loadTripCargoWeight } from './trip-cargo-weight.support.js'
 import { withPayloadCeiling } from '../domain/trip-cargo-weight.policy.js'
 import { resolveCargoSecuring } from '../domain/cargo-securing.policy.js'
+import { CARGO_DELIVERY_REACH_M } from '../domain/cargo-delivery-reach.constant.js'
 import { loadTripOccupancy } from './trip-occupancy.support.js'
 import { buildLayoutStop } from './trip-cargo-layout-input.support.js'
 import { readTripCargoLayout } from './stored-cargo-layout-read.support.js'
@@ -841,6 +842,8 @@ async function readTripDetail(
     /** Spec 088 D2: a medida vem da ficha, e não da ocupação — que é nula sem cubagem nenhuma. */
     bedDimensions: cargo.bedDimensions,
     capacityM3: cargo.capacityM3,
+    /** Spec 145 D24: o mesmo alcance da prévia e do eager — o hash dos três tem de bater. */
+    deliveryReachM: CARGO_DELIVERY_REACH_M,
     enclosedBody,
     /** Spec 094: o detalhe da viagem desenha a mesma planta da prévia — e pela mesma caixa. */
     fallbackBoxVolumeM3: cargo.fallbackBoxVolumeM3,

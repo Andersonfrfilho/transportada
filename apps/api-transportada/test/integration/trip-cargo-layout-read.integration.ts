@@ -103,6 +103,9 @@ describeWithPostgres('trip detail reads the stored cargo layout (spec 145 T10)',
     const detailInput = detail?.pendingCargoLayoutInput as BuildCargoLayoutInputParams
     const eagerInput = eager as BuildCargoLayoutInputParams
     expect(detailInput.stops).toHaveLength(2)
+    /** D24: o detalhe e o eager desenham com o mesmo alcance afrouxado. */
+    expect(detailInput.deliveryReachM).toBe(2)
+    expect(eagerInput.deliveryReachM).toBe(2)
     expect(hashOf(detailInput)).toBe(hashOf(eagerInput))
     expect(buildStoredCargoLayoutInput(detailInput)).toEqual(
       buildStoredCargoLayoutInput(eagerInput),

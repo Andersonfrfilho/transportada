@@ -62,6 +62,19 @@ describe('cálculo da planta em thread (spec 145 D9)', () => {
     expect(call).toMatch(/^resolveCargoLayout\(\{[^}]*\benclosedBody,/)
   })
 
+  /** D24: o alcance decide o que cabe — a thread repassa, e ausente fica ausente (padrão do pacote). */
+  test('a thread repassa deliveryReachM ao empacotador só quando presente', () => {
+    const source = readFileSync(
+      new URL('../../src/cargo-layout/infrastructure/cargo-layout.worker.ts', import.meta.url),
+      'utf8',
+    )
+    const call = source.slice(source.indexOf('resolveCargoLayout({'))
+
+    expect(call).toMatch(
+      /^resolveCargoLayout\(\{[\s\S]*\.\.\.\(deliveryReachM === undefined \? \{\} : \{ deliveryReachM \}\)/,
+    )
+  })
+
   /** O prazo nasce dentro da thread: é o relógio dela que conta, não o da fila. */
   test('prazo vencido devolve as caixas como time_budget, nunca as some', () => {
     let tick = 0

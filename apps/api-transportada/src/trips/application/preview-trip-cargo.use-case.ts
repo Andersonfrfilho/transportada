@@ -8,6 +8,7 @@ import type {
   ResolvedCargoLayout,
 } from '@adatechnology/cargo-placement'
 import { formatScaledDecimal, parseScaledDecimal } from '../../shared/decimal.service.js'
+import { CARGO_DELIVERY_REACH_M } from '../domain/cargo-delivery-reach.constant.js'
 import type { TripCargoLayoutState } from '../domain/cargo-layout-state.types.js'
 import type { CargoLayoutLookupPort } from './cargo-layout-lookup.port.js'
 import { resolvePreviewCargoLayout } from './preview-cargo-layout.service.js'
@@ -120,6 +121,8 @@ export async function previewTripCargo(input: PreviewTripCargoInput): Promise<Tr
       /** Spec 088 D2: só a ficha desenha planta — a referência de mercado erra por 2× no tipo. */
       bedDimensions: context.bedDimensions,
       capacityM3: context.capacityM3,
+      /** Spec 145 D24: o mesmo alcance do detalhe e do eager — senão o hash da prévia não bate. */
+      deliveryReachM: CARGO_DELIVERY_REACH_M,
       enclosedBody: context.enclosedBody,
       /** Spec 094: dá tamanho e forma à caixa presumida — sem isso ela fica fora do desenho. */
       fallbackBoxVolumeM3: context.fallbackBoxVolumeM3,

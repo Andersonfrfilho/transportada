@@ -39,6 +39,25 @@ describe('entrada guardada da planta (spec 145 D5 — o jsonb é fronteira)', ()
     )
   })
 
+  /** D24: o alcance muda o desenho; linha gravada antes dele fica sem o campo e o pacote usa o padrão. */
+  test('aceita deliveryReachM número ou null, e linha sem ele segue sem ele', () => {
+    const input = buildStoredCargoLayoutInput({ stopCount: 1 })
+
+    expect(storedCargoLayoutInputSchema.parse({ ...input, deliveryReachM: 2 }).deliveryReachM).toBe(
+      2,
+    )
+    expect(
+      storedCargoLayoutInputSchema.parse({ ...input, deliveryReachM: null }).deliveryReachM,
+    ).toBeNull()
+    expect('deliveryReachM' in storedCargoLayoutInputSchema.parse(input)).toBe(false)
+    expect(storedCargoLayoutInputSchema.safeParse({ ...input, deliveryReachM: -1 }).success).toBe(
+      false,
+    )
+    expect(storedCargoLayoutInputSchema.safeParse({ ...input, deliveryReachM: '2' }).success).toBe(
+      false,
+    )
+  })
+
   test('recusa campo desconhecido na raiz, na parada e na caixa', () => {
     const input = buildStoredCargoLayoutInput({ stopCount: 1 })
     const [stop] = input.stops

@@ -5,6 +5,7 @@ import type {
   CargoBedDimensions,
   CargoEstimateSource,
   CargoLayoutStop,
+  DeliveryReachM,
   LoadingAccess,
   MeasuredBoxShape,
 } from '@adatechnology/cargo-placement'
@@ -17,6 +18,8 @@ import type {
 export type BuildCargoLayoutInputParams = {
   readonly bedDimensions?: CargoBedDimensions | null
   readonly capacityM3: string | null
+  /** Spec 145 D24: alcance sobre a carga de outra entrega. Ausente é o padrão do pacote; `null`, sem teto. */
+  readonly deliveryReachM?: DeliveryReachM
   /** Spec 145 D23: baú fechado (tpCar `02`). Ausente é baú aberto. */
   readonly enclosedBody?: boolean
   readonly fallbackBoxVolumeM3?: number | null
@@ -79,6 +82,7 @@ export type CargoLayoutBedInput = {
 export type StoredCargoLayoutInput = {
   readonly bedDimensions: CargoBedDimensions | null
   readonly capacityM3: string | null
+  readonly deliveryReachM?: DeliveryReachM
   readonly enclosedBody: boolean
   readonly fallbackBoxVolumeM3: number | null
   readonly loadingAccess: LoadingAccess
@@ -93,6 +97,7 @@ export type StoredCargoLayoutInput = {
 export type CargoLayoutInput = {
   readonly bed: CargoLayoutBedInput | null
   readonly capacityM3: string | null
+  readonly deliveryReachM?: DeliveryReachM
   readonly enclosedBody: boolean
   readonly fallbackBoxVolumeM3: number | null
   readonly loadingAccess: LoadingAccess

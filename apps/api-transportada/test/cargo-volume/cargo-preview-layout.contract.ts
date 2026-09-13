@@ -116,6 +116,7 @@ function previewInputOf(context: TripCargoPreviewContext): BuildCargoLayoutInput
   return {
     bedDimensions: context.bedDimensions,
     capacityM3: context.capacityM3,
+    deliveryReachM: 2,
     enclosedBody: context.enclosedBody,
     fallbackBoxVolumeM3: context.fallbackBoxVolumeM3,
     loadingAccess: context.loadingAccess,
@@ -171,6 +172,16 @@ describe('a prévia pede a planta pelo hash (spec 145 T11)', () => {
     expect(harness.hashLookups).toEqual([expectedHash(enclosedContext)])
     expect(harness.hashLookups).not.toEqual([expectedHash(MEASURED_CONTEXT)])
     expect(harness.requests[0]?.enclosedBody).toBe(true)
+  })
+
+  /** D24: a prévia desenha com o alcance afrouxado — no hash e no pedido do worker. */
+  test('alcance de entrega: o hash e a entrada enfileirada levam deliveryReachM 2', async () => {
+    const { harness, run } = previewWith({ context: MEASURED_CONTEXT })
+
+    await run()
+
+    expect(harness.hashLookups).toEqual([expectedHash(MEASURED_CONTEXT)])
+    expect(harness.requests[0]?.deliveryReachM).toBe(2)
   })
 
   test('planta pronta com o mesmo hash: serve a guardada, ready, sem enfileirar', async () => {
