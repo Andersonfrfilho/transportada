@@ -89,7 +89,7 @@ nosso ao lado do INBOX e sem SDK do Google no bundle. O FCM na web exigiria `con
   notificação"), nunca no carregamento, e grava em `notification.devices` (`platform: 'web'`).
 - Chaves VAPID vêm do ambiente, validadas no boot. A pública é exposta ao frontend e a privada
   **nunca**.
-- **Dependência de envio (decidido pelo usuário em 2026-09-13):** a T006 mede se `web-push` (npm) roda
+- **Dependência de envio (decidido pelo usuário em 2026-09-13):** a T007 mede se `web-push` (npm) roda
   no Bun. Se rodar, entra como dependência. Se não, o protocolo (JWT ES256 + `aes128gcm` do RFC
   8291/8292) é implementado com `crypto` nativo. Qualquer que seja o resultado, ele é registrado em ADR
   **antes** de qualquer código de envio.
