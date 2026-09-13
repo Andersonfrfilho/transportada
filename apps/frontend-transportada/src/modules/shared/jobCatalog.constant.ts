@@ -154,6 +154,16 @@ export const JOB_CATALOG = [
      */
     minimumIntervalSeconds: 3_600,
   },
+  {
+    /**
+     * `deferred` não é falha: provedor fora do ar ou chave ausente adiam o endereço com a chance
+     * paga dele intacta. Cada endereço é uma decisão independente, então não há meia passada.
+     */
+    failureOutcomes: [],
+    job: 'geocoding.refine',
+    /** Uma hora, e aqui o piso é dinheiro (ADR-0062), não cortesia com serviço gratuito. */
+    minimumIntervalSeconds: 3_600,
+  },
 ] as const
 
 export type JobCatalogEntry = (typeof JOB_CATALOG)[number]

@@ -18,10 +18,11 @@ os contract tests substituem RabbitMQ e banco.
 
 **As rotinas agendadas são um registro, e ele é parcial de propósito.** `startJobRunConsumer` recebe
 `routines: JobRoutineRegistry` (`Partial<Record<ScheduledJob, JobRoutine>>`); job sem rotina
-registrada pousa em `job_run_routine_missing` e fecha como `unexpected_error`. Quatro registradas
-hoje: `nfe.distribution.pull`, `nfse.status.pull`, `notification.schedules.run`, `fuel.price.pull` —
-comportamento e invariantes de cada uma: detalhe em `docs/ai-context/worker-transportada.md` §
-"rotinas agendadas".
+registrada pousa em `job_run_routine_missing` e fecha como `unexpected_error`. A lista de quem está
+registrado é o objeto `routines:` de `src/main.ts` — não se conta aqui, porque envelhece; parte
+delas só entra quando a instalação declara a configuração (`geocoding.refine`,
+`identity.document.backfill`, `fuel.price.pull`). Comportamento e invariantes de cada uma: detalhe
+em `docs/ai-context/worker-transportada.md` § "rotinas agendadas".
 
 ## Invariantes que valem antes de editar
 
