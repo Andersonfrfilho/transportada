@@ -101,7 +101,9 @@ describe('rotina whatsapp.command.settle (spec 144 T014)', () => {
   test('pede à fonte os dispatched e os confirming parados antes de quinze minutos', async () => {
     const scenario = createScenario({ candidates: [] })
     await scenario.routine.run(context())
-    expect(scenario.listed).toEqual([{ limit: 200, stuckConfirmingBefore: minutesAgo(15) }])
+    expect(scenario.listed).toEqual([
+      { limit: 200, now: NOW, stuckConfirmingBefore: minutesAgo(15) },
+    ])
   })
 
   test('chama a API só com os pedidos a liquidar ou retomar, cada um na sua empresa', async () => {

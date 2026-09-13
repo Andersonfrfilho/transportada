@@ -19,7 +19,11 @@ import {
   createWithAuthorizedActor,
   registerWhatsAppFlowActions,
 } from '../../src/whatsapp-commands/application/with-authorized-actor.service.js'
-import { WhatsAppCommandDeniedError } from '../../src/whatsapp-commands/domain/whatsapp-command.error.js'
+import { WHATSAPP_COMMAND_FAILURE_REPLY } from '../../src/whatsapp-commands/domain/whatsapp-command.constant.js'
+import {
+  WhatsAppCommandDeniedError,
+  WhatsAppCommandHandoffRequestedError,
+} from '../../src/whatsapp-commands/domain/whatsapp-command.error.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000031'
 const USER_ID = '00000000-0000-4000-8000-000000000032'
@@ -28,6 +32,8 @@ const NOW = new Date('2026-09-11T12:00:00.000Z')
 
 function buildHarness(input: { readonly denied?: boolean } = {}) {
   const lookups: ResolveWhatsAppActorParams[] = []
+  const logs: unknown[] = []
+  const record = (...args: unknown[]): void => void logs.push(args)
   const tenantContext = new TenantContextService({
     repository: {
       findActiveByUserAndCompany: async () => ({
@@ -41,6 +47,7 @@ function buildHarness(input: { readonly denied?: boolean } = {}) {
   const withAuthorizedActor = createWithAuthorizedActor({
     authorization: new AuthorizationService(),
     clock: () => NOW,
+    logger: { error: record, info: record, warn: record },
     resolveActor: async (params) => {
       lookups.push(params)
       if (input.denied === true) return { reason: 'suspended', status: 'denied' }
@@ -54,7 +61,17 @@ function buildHarness(input: { readonly denied?: boolean } = {}) {
     },
   })
 
-  return { lookups, withAuthorizedActor }
+  return { logs, lookups, withAuthorizedActor }
+}
+
+function recordingChannel() {
+  const texts: { readonly body: string; readonly to: string }[] = []
+  const channel = {
+    async sendText(to: string, body: string) {
+      texts.push({ body, to })
+    },
+  } as unknown as ChannelAdapterInterface
+  return { channel, texts }
 }
 
 function buildActionInput(): Parameters<FlowActionHandler>[0] {
@@ -143,6 +160,62 @@ describe('withAuthorizedActor (spec 144 T006)', () => {
     await action(buildActionInput())
 
     expect(lookups).toHaveLength(2)
+  })
+
+  /**
+   * T020 (B4): o erro que nenhuma FlowAction mapeou subia até o despachante, que só logava. A pessoa
+   * ficava sem resposta, parada no nó.
+   */
+  test('FlowAction que lança erro genérico: mensagem neutra, volta ao menu, log só com o nome', async () => {
+    const { logs, withAuthorizedActor } = buildHarness()
+    const recording = recordingChannel()
+    const action = withAuthorizedActor(
+      { permission: 'trip.report', scope: 'company' },
+      async () => {
+        throw new TypeError(`invalid input syntax for type uuid: "entregue" (${PHONE})`)
+      },
+    )
+
+    const result = await action({ ...buildActionInput(), channel: recording.channel })
+
+    expect(result).toEqual({ next: 'menu' })
+    expect(recording.texts).toEqual([{ body: WHATSAPP_COMMAND_FAILURE_REPLY, to: PHONE }])
+    const logged = JSON.stringify(logs)
+    expect(logged).toContain('"errorName":"TypeError"')
+    expect(logged).not.toContain('entregue')
+    expect(logged).not.toContain(PHONE)
+  })
+
+  test('a recusa do ator dentro da FlowAction continua subindo para o despachante', async () => {
+    const { withAuthorizedActor } = buildHarness()
+    const recording = recordingChannel()
+    const action = withAuthorizedActor(
+      { permission: 'trip.report', scope: 'company' },
+      async () => {
+        throw new WhatsAppCommandDeniedError('suspended')
+      },
+    )
+
+    await expect(
+      action({ ...buildActionInput(), channel: recording.channel }),
+    ).rejects.toBeInstanceOf(WhatsAppCommandDeniedError)
+    expect(recording.texts).toEqual([])
+  })
+
+  test('o pedido de uma pessoa (B5) também sobe, em vez de virar a mensagem neutra', async () => {
+    const { withAuthorizedActor } = buildHarness()
+    const recording = recordingChannel()
+    const action = withAuthorizedActor(
+      { permission: 'trip.report', scope: 'company' },
+      async () => {
+        throw new WhatsAppCommandHandoffRequestedError()
+      },
+    )
+
+    await expect(
+      action({ ...buildActionInput(), channel: recording.channel }),
+    ).rejects.toBeInstanceOf(WhatsAppCommandHandoffRequestedError)
+    expect(recording.texts).toEqual([])
   })
 
   test('toda ação registrada passa pelo guarda: chamada direta sem permissão recusa', async () => {

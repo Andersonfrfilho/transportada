@@ -40,10 +40,21 @@ describe('varredura da liquidação: empresa em toda junção (spec 144 T014)', 
 
   test('varre os dispatched e os confirming parados antes do corte', () => {
     const cutoff = new Date('2026-09-12T11:45:00.000Z')
+    const now = new Date('2026-09-12T12:00:00.000Z')
     const { params, sql } = dialect.sqlToQuery(
-      buildCandidateFilters({ stuckConfirmingBefore: cutoff }),
+      buildCandidateFilters({ now, stuckConfirmingBefore: cutoff }),
     )
     expect(sql).toContain('"whatsapp_command_requests"."confirmed_at" < $')
-    expect(params).toEqual(['dispatched', 'confirming', cutoff.toISOString()])
+    expect(params).toEqual(['dispatched', 'confirming', cutoff.toISOString(), now.toISOString()])
+  })
+
+  /** T020 (B2): o pedido que a API pôs em recuo não ocupa lugar no teto até a hora dele. */
+  test('deixa de fora o pedido em recuo até next_settlement_at', () => {
+    const now = new Date('2026-09-12T12:00:00.000Z')
+    const { sql } = dialect.sqlToQuery(
+      buildCandidateFilters({ now, stuckConfirmingBefore: new Date('2026-09-12T11:45:00.000Z') }),
+    )
+    expect(sql).toContain('"whatsapp_command_requests"."next_settlement_at" is null')
+    expect(sql).toContain('"whatsapp_command_requests"."next_settlement_at" <= $')
   })
 })

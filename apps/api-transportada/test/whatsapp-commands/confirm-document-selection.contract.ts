@@ -146,6 +146,7 @@ function buildCommandStore() {
         previewSha256: input.previewSha256,
         selection: input.selection,
         settledAt: undefined,
+        settlementAttempts: 0,
         settlementOutcome: undefined,
         status: 'previewed',
       }

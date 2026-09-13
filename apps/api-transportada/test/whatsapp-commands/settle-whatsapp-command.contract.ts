@@ -30,6 +30,7 @@ import type {
   SettlementCteDocument,
   SettlementNfseInvoice,
 } from '../../src/whatsapp-commands/application/whatsapp-command-settlement.port.js'
+import { WHATSAPP_COMMAND_SETTLEMENT_MAX_ATTEMPTS } from '../../src/whatsapp-commands/domain/whatsapp-command-settlement-retry.policy.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000001401'
 const OTHER_COMPANY_ID = '00000000-0000-4000-8000-000000001409'
@@ -117,12 +118,15 @@ const DEFAULT_NFSE: readonly SettlementNfseInvoice[] = [
 
 type ScenarioOptions = {
   readonly actor?: 'active' | 'no_billing' | 'service' | 'suspended'
-  readonly billingError?: ApiError
+  readonly billingError?: Error
+  readonly billingResponse?: Readonly<Record<string, unknown>>
   readonly confirmedMinutesAgo?: number
   readonly ctes?: readonly SettlementCteDocument[]
   readonly journal?: readonly WhatsAppCommandJournalStep[]
   readonly markSettledResult?: boolean
   readonly nfse?: readonly SettlementNfseInvoice[]
+  readonly resumeResult?: 'dispatched' | 'forbidden'
+  readonly settlementAttempts?: number
   readonly status?: WhatsAppCommandRequest['status']
 }
 
@@ -186,6 +190,7 @@ function createScenario(options: ScenarioOptions = {}) {
     previewSha256: 'a'.repeat(64),
     selection: CLASSIFICATION.map((entry) => entry.documentId),
     settledAt: undefined,
+    settlementAttempts: options.settlementAttempts ?? 0,
     settlementOutcome: undefined,
     status: options.status ?? 'dispatched',
   }
@@ -193,6 +198,8 @@ function createScenario(options: ScenarioOptions = {}) {
   const billed: CreateBillingInvoiceInput[] = []
   const recorded: RecordWhatsAppCommandJournalStepInput[] = []
   const settled: Record<string, unknown>[] = []
+  const deferred: Record<string, unknown>[] = []
+  const abandoned: Record<string, unknown>[] = []
   const resumed: ConfirmDocumentSelectionInput[] = []
   const logs: unknown[] = []
   const resolvedActors: Record<string, string>[] = []
@@ -203,11 +210,38 @@ function createScenario(options: ScenarioOptions = {}) {
       async create(input) {
         billed.push(input)
         if (options.billingError !== undefined) throw options.billingError
-        return { id: `invoice-${input.idempotencyKey.split(':').at(-1) ?? ''}` }
+        return (
+          options.billingResponse ?? {
+            id: `invoice-${input.idempotencyKey.split(':').at(-1) ?? ''}`,
+          }
+        )
       },
     },
     clock: () => NOW,
     commands: {
+      async abandonSettlement(input) {
+        abandoned.push(input)
+        if (state.request.status !== input.fromStatus) return false
+        state.request = {
+          ...state.request,
+          lastErrorCode: input.errorCode,
+          settledAt: input.now,
+          settlementAttempts: input.attempts,
+          settlementOutcome: 'settlement_failed',
+          status: 'settled_partial',
+        }
+        return true
+      },
+      async deferSettlement(input) {
+        deferred.push(input)
+        if (state.request.status !== input.fromStatus) return false
+        state.request = {
+          ...state.request,
+          lastErrorCode: input.errorCode,
+          settlementAttempts: input.attempts,
+        }
+        return true
+      },
       async findById(input) {
         return input.companyId === state.request.companyId && input.id === state.request.id
           ? state.request
@@ -219,7 +253,7 @@ function createScenario(options: ScenarioOptions = {}) {
       async markSettled(input) {
         settled.push(input)
         if (options.markSettledResult === false) return false
-        if (state.request.status !== 'dispatched') return false
+        if (state.request.status !== (input.fromStatus ?? 'dispatched')) return false
         state.request = {
           ...state.request,
           settledAt: input.now,
@@ -260,12 +294,16 @@ function createScenario(options: ScenarioOptions = {}) {
     },
     async resume(input) {
       resumed.push(input)
+      if (options.resumeResult === 'forbidden') return { kind: 'forbidden' }
       return { failures: [], issued: 1, kind: 'dispatched' }
     },
   }
 
   return {
+    abandoned,
     billed,
+    deferred,
+    deps,
     logs,
     recorded,
     resolvedActors,
@@ -378,12 +416,17 @@ describe('liquidação do pedido (spec 144 T014, AC6)', () => {
     expect(outcome.message).toBeUndefined()
   })
 
-  test('retomada com ator de papel de serviço é negada', async () => {
+  test('retomada com ator de papel de serviço é negada e encerra o pedido', async () => {
     const scenario = createScenario({ actor: 'service', status: 'confirming' })
 
     const outcome = await scenario.settle(settleInput)
 
-    expect(outcome).toEqual({ kind: 'resume_denied' })
+    expect(outcome).toEqual({
+      kind: 'settled',
+      message: undefined,
+      settlementOutcome: 'actor_not_authorized',
+      status: 'settled_partial',
+    })
     expect(scenario.resumed).toEqual([])
   })
 
@@ -472,12 +515,6 @@ describe('liquidação do pedido (spec 144 T014, AC6)', () => {
     expect(outcome.message).toContain('não saiu (BILLING_CTE_ALREADY_INVOICED)')
   })
 
-  test('erro que não é de domínio sobe e o pedido continua dispatched', async () => {
-    const broken = createScenario({ billingError: new Error('connection reset') as ApiError })
-    await expect(broken.settle(settleInput)).rejects.toThrow('connection reset')
-    expect(broken.state.request.status).toBe('dispatched')
-  })
-
   test('grupo que falhou na confirmação é final e aparece no resumo', async () => {
     const scenario = createScenario({
       ctes: [],
@@ -541,14 +578,143 @@ describe('retomada dos pedidos confirming parados (spec 144 T014 × T013)', () =
     expect(scenario.resumed).toEqual([])
   })
 
-  test('ator suspenso não é retomado', async () => {
+  /**
+   * T020 (B2): o `resume_denied` deixava o pedido em `confirming` para sempre, e a varredura o
+   * trazia de volta a cada batida, no topo da fila.
+   */
+  test('ator suspenso não é retomado, e o pedido chega a estado final sem resumo', async () => {
     const scenario = createScenario({
       actor: 'suspended',
       confirmedMinutesAgo: 20,
       status: 'confirming',
     })
 
-    expect(await scenario.settle(settleInput)).toEqual({ kind: 'resume_denied' })
+    const outcome = await scenario.settle(settleInput)
+
+    expect(outcome).toEqual({
+      kind: 'settled',
+      message: undefined,
+      settlementOutcome: 'actor_not_authorized',
+      status: 'settled_partial',
+    })
     expect(scenario.resumed).toEqual([])
+    expect(scenario.settled).toEqual([
+      {
+        companyId: COMPANY_ID,
+        fromStatus: 'confirming',
+        id: REQUEST_ID,
+        now: NOW,
+        outcome: 'settled_partial',
+        settlementOutcome: 'actor_not_authorized',
+      },
+    ])
+    expect(scenario.state.request.status).toBe('settled_partial')
+  })
+
+  test('a retomada recusada pela permissão de emitir também encerra o pedido', async () => {
+    const scenario = createScenario({
+      confirmedMinutesAgo: 20,
+      resumeResult: 'forbidden',
+      status: 'confirming',
+    })
+
+    const outcome = await scenario.settle(settleInput)
+
+    expect(outcome).toMatchObject({ kind: 'settled', settlementOutcome: 'actor_not_authorized' })
+    expect(scenario.state.request.status).toBe('settled_partial')
+  })
+})
+
+describe('erro fora do domínio não trava a liquidação (spec 144 T020, B2)', () => {
+  const MAX_ATTEMPTS = WHATSAPP_COMMAND_SETTLEMENT_MAX_ATTEMPTS
+
+  test('grava o código, conta a tentativa e marca o recuo; o pedido segue dispatched', async () => {
+    const scenario = createScenario({ billingError: new Error('connection reset') })
+
+    const outcome = await scenario.settle(settleInput)
+
+    expect(outcome).toEqual({ kind: 'deferred' })
+    expect(scenario.deferred).toEqual([
+      {
+        attempts: 1,
+        companyId: COMPANY_ID,
+        errorCode: 'Error',
+        fromStatus: 'dispatched',
+        id: REQUEST_ID,
+        nextSettlementAt: new Date(NOW.getTime() + 5 * MINUTE_MS),
+        now: NOW,
+      },
+    ])
+    expect(scenario.state.request.status).toBe('dispatched')
+    expect(scenario.abandoned).toEqual([])
+  })
+
+  test('o recuo cresce a cada tentativa', async () => {
+    const scenario = createScenario({
+      billingError: new Error('connection reset'),
+      settlementAttempts: 2,
+    })
+
+    await scenario.settle(settleInput)
+
+    expect(scenario.deferred[0]).toMatchObject({
+      attempts: 3,
+      nextSettlementAt: new Date(NOW.getTime() + 20 * MINUTE_MS),
+    })
+  })
+
+  test('código em caixa alta entra como veio; texto qualquer vira só o nome do erro', async () => {
+    const scenario = createScenario({ billingResponse: {} })
+
+    expect(await scenario.settle(settleInput)).toEqual({ kind: 'deferred' })
+    expect(scenario.deferred[0]).toMatchObject({ errorCode: 'BILLING_INVOICE_ID_MISSING' })
+    expect(JSON.stringify(scenario.logs)).not.toContain('connection reset')
+  })
+
+  test('a retomada que lança também conta tentativa, em vez de deixar o confirming parado', async () => {
+    const scenario = createScenario({ confirmedMinutesAgo: 20, status: 'confirming' })
+    const brokenResume = createSettleWhatsAppCommandUseCase({
+      ...scenario.deps,
+      resume: async () => {
+        throw new Error('WHATSAPP_COMMAND_GROUPS_MISSING')
+      },
+    })
+
+    expect(await brokenResume(settleInput)).toEqual({ kind: 'deferred' })
+    expect(scenario.deferred[0]).toMatchObject({
+      errorCode: 'WHATSAPP_COMMAND_GROUPS_MISSING',
+      fromStatus: 'confirming',
+    })
+  })
+
+  test(`na ${MAX_ATTEMPTS}ª tentativa encerra como settlement_failed, sem nada do pedido na mensagem`, async () => {
+    const scenario = createScenario({
+      billingError: new Error('connection reset'),
+      settlementAttempts: MAX_ATTEMPTS - 1,
+    })
+
+    const outcome = await scenario.settle(settleInput)
+
+    expect(scenario.deferred).toEqual([])
+    expect(scenario.abandoned).toEqual([
+      {
+        actorUserId: ACTOR_ID,
+        attempts: MAX_ATTEMPTS,
+        companyId: COMPANY_ID,
+        correlationId: 'corr-t014',
+        errorCode: 'Error',
+        fromStatus: 'dispatched',
+        id: REQUEST_ID,
+        now: NOW,
+      },
+    ])
+    expect(scenario.state.request.status).toBe('settled_partial')
+    expect(scenario.state.request.settlementOutcome).toBe('settlement_failed')
+    if (outcome.kind !== 'settled') throw new Error(`esperava settled, veio ${outcome.kind}`)
+    expect(outcome.settlementOutcome).toBe('settlement_failed')
+    expect(outcome.message).toContain(REQUEST_ID.slice(0, 8))
+    for (const secret of [TAKER_A, TAKER_B, '1004', 'connection reset']) {
+      expect(outcome.message).not.toContain(secret)
+    }
   })
 })

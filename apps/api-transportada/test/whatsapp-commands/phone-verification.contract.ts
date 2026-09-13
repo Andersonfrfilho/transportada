@@ -28,6 +28,7 @@ import type {
 } from '../../src/whatsapp-commands/application/whatsapp-command-driver.port.js'
 import { createStaticWhatsAppFlowGraphProvider } from '../../src/whatsapp-commands/application/whatsapp-flow-graph.service.js'
 import {
+  WHATSAPP_COMMAND_FAILURE_REPLY,
   WHATSAPP_DENIED_REPLY,
   WHATSAPP_PHONE_VERIFIED_REPLY,
 } from '../../src/whatsapp-commands/domain/whatsapp-command.constant.js'
@@ -399,7 +400,10 @@ describe('desfazer o vínculo (spec 144 T004)', () => {
 })
 
 describe('o despachante confere o código antes do menu (spec 144 T004)', () => {
-  function createDriverScenario(displayNames?: Readonly<Record<string, string>>) {
+  function createDriverScenario(
+    displayNames?: Readonly<Record<string, string>>,
+    options: { readonly failPositionRead?: boolean } = {},
+  ) {
     const verification = createVerificationScenario(
       displayNames === undefined ? {} : { displayNames },
     )
@@ -413,7 +417,10 @@ describe('o despachante confere o código antes do menu (spec 144 T004)', () => 
       value: { context: {}, currentNodeId: null, currentState: 'start', flowKey: null },
     }
     const sessions: WhatsAppCommandSessionPort = {
-      getContext: async () => position.value,
+      getContext: async () => {
+        if (options.failPositionRead === true) throw new Error(`connection lost for ${PHONE}`)
+        return position.value
+      },
       requestHuman: async () => {},
       setFlowPosition: async (_companyId, _number, flowKey, currentNodeId) => {
         position.value = { ...position.value, currentNodeId, flowKey }
@@ -482,6 +489,7 @@ describe('o despachante confere o código antes do menu (spec 144 T004)', () => 
     return {
       ...verification,
       logged,
+      position,
       receive: (body: string, from = PHONE) =>
         driver(
           {
@@ -519,6 +527,32 @@ describe('o despachante confere o código antes do menu (spec 144 T004)', () => 
     const serialized = JSON.stringify(scenario.logged)
     expect(serialized).not.toContain(PHONE)
     expect(serialized).not.toContain(code)
+  })
+
+  /**
+   * T020 (B4): o menu depois da verificação rodava fora do `try` do despachante. Um erro ali só era
+   * logado, e a pessoa ficava com o "✅ Número vinculado" e mais nada.
+   */
+  test('erro depois da verificação responde a mensagem neutra, e o log leva só o nome', async () => {
+    const scenario = createDriverScenario(undefined, { failPositionRead: true })
+    const { code } = await scenario.requestCode({
+      companyId: COMPANY_ID,
+      phone: PHONE,
+      userId: USER_ID,
+    })
+
+    await scenario.receive(code)
+
+    expect(scenario.sent.at(-1)).toEqual({
+      body: WHATSAPP_COMMAND_FAILURE_REPLY,
+      kind: 'text',
+      to: PHONE,
+    })
+    expect(scenario.position.value).toMatchObject({ currentNodeId: null, flowKey: null })
+    const serialized = JSON.stringify(scenario.logged)
+    expect(serialized).toContain('"errorName":"Error"')
+    expect(serialized).not.toContain('connection lost')
+    expect(serialized).not.toContain(PHONE)
   })
 
   test('o nome sai sem marcação, e conta sem ficha recebe a confirmação sem nome', async () => {

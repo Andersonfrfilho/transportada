@@ -26,6 +26,8 @@ describe('whatsapp command schema copy', () => {
       'status',
       'expires_at',
       'confirmed_at',
+      // T020 (B2): a varredura pula o pedido que a API pôs em recuo depois de um erro.
+      'next_settlement_at',
     ])
   })
 

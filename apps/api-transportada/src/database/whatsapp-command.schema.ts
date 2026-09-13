@@ -7,6 +7,7 @@ import {
   date,
   foreignKey,
   index,
+  integer,
   jsonb,
   pgTable,
   text,
@@ -55,13 +56,16 @@ export type WhatsAppCommandDocumentStatus = (typeof WHATSAPP_COMMAND_DOCUMENT_ST
 
 /**
  * Por que o pedido liquidou como liquidou (T014). O status diz só se foi inteiro ou em parte;
- * `completed` é o único código de `settled`, os outros três são de `settled_partial`.
+ * `completed` é o único código de `settled`, os outros são de `settled_partial`.
+ * `settlement_failed` (T020) é a liquidação que lançou erro fora do domínio até esgotar as
+ * tentativas: o pedido encerra em vez de voltar à varredura para sempre.
  */
 export const WHATSAPP_COMMAND_SETTLEMENT_OUTCOMES = [
   'completed',
   'timed_out',
   'actor_not_authorized',
   'billing_failed',
+  'settlement_failed',
 ] as const
 export type WhatsAppCommandSettlementCode = (typeof WHATSAPP_COMMAND_SETTLEMENT_OUTCOMES)[number]
 
@@ -116,6 +120,9 @@ export const whatsAppCommandRequests = pgTable(
     settledAt: timestamp('settled_at', { withTimezone: true }),
     settlementOutcome: text('settlement_outcome').$type<WhatsAppCommandSettlementCode>(),
     lastErrorCode: text('last_error_code'),
+    /** T020: tentativas de liquidação que lançaram erro fora do domínio, e quando voltar a tentar. */
+    settlementAttempts: integer('settlement_attempts').notNull().default(0),
+    nextSettlementAt: timestamp('next_settlement_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -190,6 +197,10 @@ export const whatsAppCommandRequests = pgTable(
     check(
       'whatsapp_command_requests_settlement_outcome_check',
       sql`${table.settlementOutcome} is null or ${table.settlementOutcome} in (${sql.raw(inList(WHATSAPP_COMMAND_SETTLEMENT_OUTCOMES))})`,
+    ),
+    check(
+      'whatsapp_command_requests_settlement_attempts_check',
+      sql`${table.settlementAttempts} >= 0`,
     ),
   ],
 )

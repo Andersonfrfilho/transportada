@@ -1,0 +1,4 @@
+ALTER TABLE "whatsapp_command_requests" ADD COLUMN "settlement_attempts" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE "whatsapp_command_requests" ADD COLUMN "next_settlement_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "whatsapp_command_requests" ADD CONSTRAINT "whatsapp_command_requests_settlement_attempts_check" CHECK ("settlement_attempts" >= 0);--> statement-breakpoint
+ALTER TABLE "whatsapp_command_requests" DROP CONSTRAINT "whatsapp_command_requests_settlement_outcome_check", ADD CONSTRAINT "whatsapp_command_requests_settlement_outcome_check" CHECK ("settlement_outcome" is null or "settlement_outcome" in ('completed', 'timed_out', 'actor_not_authorized', 'billing_failed', 'settlement_failed'));

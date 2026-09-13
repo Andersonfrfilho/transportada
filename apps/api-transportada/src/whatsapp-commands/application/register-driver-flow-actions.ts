@@ -53,11 +53,12 @@ import {
   type DriverFlowStep,
 } from '../domain/whatsapp-driver-flow.constant.js'
 import { WHATSAPP_LIST_BUTTON_TEXT } from '../domain/whatsapp-menu.constant.js'
+import { parseMenuPageNavigation, type WhatsAppMenuOption } from '../domain/whatsapp-menu.policy.js'
+import { sendDynamicChoice } from './whatsapp-dynamic-choice.service.js'
 import {
-  parseMenuPageNavigation,
-  planChoiceMessage,
-  type WhatsAppMenuOption,
-} from '../domain/whatsapp-menu.policy.js'
+  rejectListAnswer,
+  WHATSAPP_LIST_ANSWER_ATTEMPTS_RESET,
+} from './whatsapp-list-answer.service.js'
 import type {
   WhatsAppAuthorizedActionHandler,
   WhatsAppFlowActionDefinition,
@@ -130,44 +131,6 @@ function readPage(context: Record<string, unknown>): number {
 function readStringContext(context: Record<string, unknown>, key: string): string | undefined {
   const value = context[key]
   return typeof value === 'string' ? value : undefined
-}
-
-/**
- * ⚠️ `ChannelAdapterInterface` desta instalação é a 0.1.0 (`meta-whatsapp-message-sender.gateway.ts`
- * já registra isso): sem `sendInteractiveButtons`. Toda lista dinâmica sai como lista — inclusive
- * quando `planChoiceMessage` classificaria como botão — porque é o único formato interativo que o
- * canal desta `FlowAction` sabe enviar.
- */
-async function sendDynamicChoice(input: {
-  readonly body: string
-  readonly channel: ChannelAdapterInterface
-  readonly options: readonly WhatsAppMenuOption[]
-  readonly page: number
-  readonly to: string
-}): Promise<void> {
-  const plan = planChoiceMessage({
-    body: input.body,
-    options: input.options,
-    page: input.page,
-    source: 'dynamic',
-  })
-
-  if (plan.kind === 'buttons') {
-    await input.channel.sendInteractiveList({
-      body: plan.body,
-      buttonLabel: WHATSAPP_LIST_BUTTON_TEXT,
-      rows: [...plan.buttons],
-      to: input.to,
-    })
-    return
-  }
-
-  await input.channel.sendInteractiveList({
-    body: plan.body,
-    buttonLabel: plan.buttonText,
-    rows: [...plan.rows],
-    to: input.to,
-  })
 }
 
 function toStepLabel(step: DriverFlowStep): string {
@@ -243,13 +206,14 @@ export function createDriverWhatsAppFlowActions(
       page: readPage(context),
       to: session.whatsappNumber,
     })
-    return { next: DRIVER_FLOW_NODE.documentEntry }
+    return { context: WHATSAPP_LIST_ANSWER_ATTEMPTS_RESET, next: DRIVER_FLOW_NODE.documentEntry }
   }
 
   const documentRouter: WhatsAppAuthorizedActionHandler = async ({
     actor,
     channel,
     context,
+    node,
     session,
   }) => {
     const answer = readStringContext(context, DRIVER_FLOW_CONTEXT_KEY.documentAnswer)
@@ -264,6 +228,26 @@ export function createDriverWhatsAppFlowActions(
         context: { [DRIVER_FLOW_CONTEXT_KEY.listPage]: page },
         next: DRIVER_FLOW_NODE.listDocuments,
       }
+    }
+
+    // T020 (B5): a resposta é conferida contra as notas da viagem relida, nunca usada crua como id.
+    const tripId = readStringContext(context, DRIVER_FLOW_CONTEXT_KEY.tripId)
+    const trip = tripId === undefined ? undefined : await findTripById({ actor, tripId })
+    if (trip === undefined) {
+      await channel.sendText(session.whatsappNumber, 'Esta viagem não está mais disponível.')
+      return { context: { [DRIVER_FLOW_CONTEXT_KEY.listPage]: undefined }, next: 'menu' }
+    }
+    const offered = trip.stops.some((stop) =>
+      stop.documents.some((document) => document.id === answer),
+    )
+    if (!offered) {
+      return rejectListAnswer({
+        channel,
+        context,
+        entryNode: DRIVER_FLOW_NODE.documentEntry,
+        node,
+        session,
+      })
     }
 
     const documentId = answer
@@ -400,10 +384,19 @@ export function createDriverWhatsAppFlowActions(
       page: readPage(context),
       to: session.whatsappNumber,
     })
-    return { next: DRIVER_FLOW_NODE.occurrenceTypeEntry }
+    return {
+      context: WHATSAPP_LIST_ANSWER_ATTEMPTS_RESET,
+      next: DRIVER_FLOW_NODE.occurrenceTypeEntry,
+    }
   }
 
-  const occurrenceTypeRouter: WhatsAppAuthorizedActionHandler = async ({ context }) => {
+  const occurrenceTypeRouter: WhatsAppAuthorizedActionHandler = async ({
+    actor,
+    channel,
+    context,
+    node,
+    session,
+  }) => {
     const answer = readStringContext(context, DRIVER_FLOW_CONTEXT_KEY.occurrenceTypeAnswer)
     if (answer === undefined) return { next: DRIVER_FLOW_NODE.tripMenu }
 
@@ -413,6 +406,20 @@ export function createDriverWhatsAppFlowActions(
         context: { [DRIVER_FLOW_CONTEXT_KEY.listPage]: page },
         next: DRIVER_FLOW_NODE.listOccurrenceTypes,
       }
+    }
+
+    const catalog = await deps.listOccurrenceTypes({ companyId: actor.scope.companyId })
+    const offered = catalog.some(
+      (type) => type.id === answer && type.active && type.stage === TRIP_OCCURRENCE_STAGE.delivery,
+    )
+    if (!offered) {
+      return rejectListAnswer({
+        channel,
+        context,
+        entryNode: DRIVER_FLOW_NODE.occurrenceTypeEntry,
+        node,
+        session,
+      })
     }
 
     return {

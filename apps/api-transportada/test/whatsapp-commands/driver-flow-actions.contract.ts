@@ -24,13 +24,21 @@ import {
   createDriverWhatsAppFlowActions,
   type DriverFlowActionDependencies,
 } from '../../src/whatsapp-commands/application/register-driver-flow-actions.js'
+import { WHATSAPP_LIST_ANSWER_ATTEMPTS_RESET } from '../../src/whatsapp-commands/application/whatsapp-list-answer.service.js'
 import { createWithAuthorizedActor } from '../../src/whatsapp-commands/application/with-authorized-actor.service.js'
 import {
   DRIVER_FLOW_ACTION_KIND,
   DRIVER_FLOW_CONTEXT_KEY,
   DRIVER_FLOW_NODE,
 } from '../../src/whatsapp-commands/domain/whatsapp-driver-flow.constant.js'
-import { WhatsAppCommandDeniedError } from '../../src/whatsapp-commands/domain/whatsapp-command.error.js'
+import {
+  WHATSAPP_LIST_ANSWER_ATTEMPTS_CONTEXT_KEY,
+  WHATSAPP_LIST_ANSWER_FALLBACK,
+} from '../../src/whatsapp-commands/domain/whatsapp-command.constant.js'
+import {
+  WhatsAppCommandDeniedError,
+  WhatsAppCommandHandoffRequestedError,
+} from '../../src/whatsapp-commands/domain/whatsapp-command.error.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000141'
 const USER_ID = '00000000-0000-4000-8000-000000000142'
@@ -75,7 +83,8 @@ function buildDeps(
   overrides: Partial<DriverFlowActionDependencies> = {},
 ): DriverFlowActionDependencies {
   return {
-    findCurrentTrip: async () => ({ isRegisteredDriver: true, trips: [] }),
+    // T020 (B5): o roteador de nota relê a viagem; o padrão é a viagem do teste, com a nota dentro.
+    findCurrentTrip: async () => buildDriverTrip({}),
     listOccurrenceTypes: async () => [],
     registerOccurrence: async () => ({
       createdAt: NOW.toISOString(),
@@ -219,11 +228,125 @@ async function callAction(input: {
   })
 }
 
+/**
+ * T020 (B5): o `entrada_choice` aceitava texto livre como id. "entregue" digitado virava UUID
+ * inválido no Postgres, e o limite de tentativas da D8 não valia para as listas dinâmicas.
+ */
+describe('resposta de lista conferida contra a lista relida (spec 144 T020, B5)', () => {
+  const DELIVER_CONTEXT = {
+    [DRIVER_FLOW_CONTEXT_KEY.tripId]: TRIP_ID,
+    [DRIVER_FLOW_CONTEXT_KEY.tripMenuChoice]: 'deliver',
+  }
+
+  function deliveryDeps(documents?: readonly { id: string; separationStatus: string }[]) {
+    const delivered: unknown[] = []
+    const deps = buildDeps({
+      findCurrentTrip: async () => buildDriverTrip(documents === undefined ? {} : { documents }),
+      reportDelivery: async (input) => {
+        delivered.push(input)
+        return { alreadySettled: false }
+      },
+    })
+    return { delivered, deps }
+  }
+
+  const rejections: readonly (readonly [string, string])[] = [
+    ['texto livre', 'entregue'],
+    ['id de outra lista', OCCURRENCE_TYPE_ID],
+  ]
+  for (const [label, answer] of rejections) {
+    test(`${label}: fallback, conta a tentativa e não grava nada`, async () => {
+      const { channel, sent } = buildChannel()
+      const { delivered, deps } = deliveryDeps()
+
+      const result = await callAction({
+        channel,
+        context: { ...DELIVER_CONTEXT, [DRIVER_FLOW_CONTEXT_KEY.documentAnswer]: answer },
+        deps,
+        kind: DRIVER_FLOW_ACTION_KIND.documentRouter,
+      })
+
+      expect(delivered).toEqual([])
+      expect(sent).toEqual([{ body: WHATSAPP_LIST_ANSWER_FALLBACK, kind: 'text' }])
+      expect(result).toEqual({
+        context: { [WHATSAPP_LIST_ANSWER_ATTEMPTS_CONTEXT_KEY]: 1 },
+        next: DRIVER_FLOW_NODE.documentEntry,
+      })
+    })
+  }
+
+  test('id de nota que saiu da viagem é recusado como fora da lista', async () => {
+    const { channel, sent } = buildChannel()
+    const { delivered, deps } = deliveryDeps([
+      { id: '00000000-0000-4000-8000-000000000149', separationStatus: 'loaded' },
+    ])
+
+    await callAction({
+      channel,
+      context: { ...DELIVER_CONTEXT, [DRIVER_FLOW_CONTEXT_KEY.documentAnswer]: DOCUMENT_ID },
+      deps,
+      kind: DRIVER_FLOW_ACTION_KIND.documentRouter,
+    })
+
+    expect(delivered).toEqual([])
+    expect(sent).toEqual([{ body: WHATSAPP_LIST_ANSWER_FALLBACK, kind: 'text' }])
+  })
+
+  test('a segunda recusa seguida pede uma pessoa, pelo mesmo mecanismo do despachante', async () => {
+    const { deps } = deliveryDeps()
+
+    await expect(
+      callAction({
+        context: {
+          ...DELIVER_CONTEXT,
+          [DRIVER_FLOW_CONTEXT_KEY.documentAnswer]: 'entregue',
+          [WHATSAPP_LIST_ANSWER_ATTEMPTS_CONTEXT_KEY]: 1,
+        },
+        deps,
+        kind: DRIVER_FLOW_ACTION_KIND.documentRouter,
+      }),
+    ).rejects.toBeInstanceOf(WhatsAppCommandHandoffRequestedError)
+  })
+
+  test('tipo de ocorrência digitado não vira id', async () => {
+    const { channel, sent } = buildChannel()
+
+    const result = await callAction({
+      channel,
+      context: { [DRIVER_FLOW_CONTEXT_KEY.occurrenceTypeAnswer]: 'quebrou a caixa' },
+      deps: buildDeps({ listOccurrenceTypes: async () => [buildOccurrenceType()] }),
+      kind: DRIVER_FLOW_ACTION_KIND.occurrenceTypeRouter,
+    })
+
+    expect(sent).toEqual([{ body: WHATSAPP_LIST_ANSWER_FALLBACK, kind: 'text' }])
+    expect(result).toEqual({
+      context: { [WHATSAPP_LIST_ANSWER_ATTEMPTS_CONTEXT_KEY]: 1 },
+      next: DRIVER_FLOW_NODE.occurrenceTypeEntry,
+    })
+  })
+
+  test('mostrar a lista de novo zera a contagem', async () => {
+    const { deps } = deliveryDeps()
+
+    const result = await callAction({
+      context: { ...DELIVER_CONTEXT, [WHATSAPP_LIST_ANSWER_ATTEMPTS_CONTEXT_KEY]: 1 },
+      deps,
+      kind: DRIVER_FLOW_ACTION_KIND.listDocuments,
+    })
+
+    expect(result).toMatchObject({ next: DRIVER_FLOW_NODE.documentEntry })
+    const context = result?.context ?? {}
+    expect(WHATSAPP_LIST_ANSWER_ATTEMPTS_CONTEXT_KEY in context).toBe(true)
+    expect(context[WHATSAPP_LIST_ANSWER_ATTEMPTS_CONTEXT_KEY]).toBeUndefined()
+  })
+})
+
 describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
   test('toda FlowAction passa pelo guarda de permissão, mesmo chamada direto', async () => {
     const withAuthorizedActor = createWithAuthorizedActor({
       authorization: new AuthorizationService(),
       clock: () => NOW,
+      logger: { error() {}, info() {}, warn() {} },
       resolveActor: async () => ({ reason: 'no_membership', status: 'denied' }),
     })
     const [definition] = createDriverWhatsAppFlowActions(buildDeps())
@@ -291,7 +414,10 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
     expect(message?.kind).toBe('list')
     if (message?.kind !== 'list') throw new Error('esperava lista')
     expect(message.rows).toEqual([{ id: DOCUMENT_ID, title: '1 · Cliente Um' }])
-    expect(result).toEqual({ next: DRIVER_FLOW_NODE.documentEntry })
+    expect(result).toEqual({
+      context: WHATSAPP_LIST_ANSWER_ATTEMPTS_RESET,
+      next: DRIVER_FLOW_NODE.documentEntry,
+    })
     expect(JSON.stringify(result)).not.toContain('Cliente Um')
   })
 
@@ -339,6 +465,7 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
       channel,
       context: {
         [DRIVER_FLOW_CONTEXT_KEY.documentAnswer]: DOCUMENT_ID,
+        [DRIVER_FLOW_CONTEXT_KEY.tripId]: TRIP_ID,
         [DRIVER_FLOW_CONTEXT_KEY.tripMenuChoice]: 'deliver',
       },
       deps: buildDeps({
@@ -373,6 +500,7 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
       channel,
       context: {
         [DRIVER_FLOW_CONTEXT_KEY.documentAnswer]: DOCUMENT_ID,
+        [DRIVER_FLOW_CONTEXT_KEY.tripId]: TRIP_ID,
         [DRIVER_FLOW_CONTEXT_KEY.tripMenuChoice]: 'deliver',
       },
       deps: buildDeps({ reportDelivery: async () => ({ alreadySettled: true }) }),
@@ -388,6 +516,7 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
       channel,
       context: {
         [DRIVER_FLOW_CONTEXT_KEY.documentAnswer]: DOCUMENT_ID,
+        [DRIVER_FLOW_CONTEXT_KEY.tripId]: TRIP_ID,
         [DRIVER_FLOW_CONTEXT_KEY.tripMenuChoice]: 'deliver',
       },
       deps: buildDeps({
@@ -412,6 +541,7 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
       channel,
       context: {
         [DRIVER_FLOW_CONTEXT_KEY.documentAnswer]: DOCUMENT_ID,
+        [DRIVER_FLOW_CONTEXT_KEY.tripId]: TRIP_ID,
         [DRIVER_FLOW_CONTEXT_KEY.tripMenuChoice]: 'deliver',
       },
       deps: buildDeps({
@@ -431,6 +561,7 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
     const result = await callAction({
       context: {
         [DRIVER_FLOW_CONTEXT_KEY.documentAnswer]: DOCUMENT_ID,
+        [DRIVER_FLOW_CONTEXT_KEY.tripId]: TRIP_ID,
         [DRIVER_FLOW_CONTEXT_KEY.tripMenuChoice]: 'return',
       },
       deps: buildDeps(),
@@ -507,14 +638,17 @@ describe('FlowActions do motorista — Minha viagem (spec 144 T015)', () => {
     })
 
     expect(sent[0]?.kind).toBe('list')
-    expect(result).toEqual({ next: DRIVER_FLOW_NODE.occurrenceTypeEntry })
+    expect(result).toEqual({
+      context: WHATSAPP_LIST_ANSWER_ATTEMPTS_RESET,
+      next: DRIVER_FLOW_NODE.occurrenceTypeEntry,
+    })
   })
 
   test('escolhido o tipo, segue para o prompt da observação com botão Pular', async () => {
     const { channel, sent } = buildChannel()
     const routed = await callAction({
       context: { [DRIVER_FLOW_CONTEXT_KEY.occurrenceTypeAnswer]: OCCURRENCE_TYPE_ID },
-      deps: buildDeps(),
+      deps: buildDeps({ listOccurrenceTypes: async () => [buildOccurrenceType()] }),
       kind: DRIVER_FLOW_ACTION_KIND.occurrenceTypeRouter,
     })
     expect(routed).toEqual({

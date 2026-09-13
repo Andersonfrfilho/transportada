@@ -16,6 +16,16 @@ export const WHATSAPP_DENIED_REPLY = 'Este número não está habilitado. Fale c
 
 export const WHATSAPP_HANDOFF_REPLY = '🙋 Vou chamar uma pessoa.'
 
+/**
+ * T020 (B5): resposta de lista dinâmica que não está na lista relida. Separado de
+ * `WHATSAPP_INVALID_ATTEMPTS_CONTEXT_KEY`, que o despachante zera a cada turno antes da FlowAction.
+ */
+export const WHATSAPP_LIST_ANSWER_ATTEMPTS_CONTEXT_KEY = 'whatsappInvalidListAnswers'
+export const WHATSAPP_LIST_ANSWER_FALLBACK = 'Toque numa das opções da lista.'
+
+/** T020 (B4): o erro que nenhuma FlowAction mapeou. Sem detalhe, porque o detalhe é do log. */
+export const WHATSAPP_COMMAND_FAILURE_REPLY = 'Não consegui registrar agora. Tente de novo.'
+
 export const WHATSAPP_PHONE_VERIFIED_REPLY = '✅ Número vinculado.'
 
 export const WHATSAPP_DEFAULT_FALLBACK_REPLY = 'Não entendi. Toque numa das opções.'

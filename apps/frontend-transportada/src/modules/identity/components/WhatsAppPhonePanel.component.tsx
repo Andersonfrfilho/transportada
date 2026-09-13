@@ -29,7 +29,7 @@ export function WhatsAppPhonePanel(): JSX.Element {
   const { t } = useTranslation('identity')
   const [phone, setPhone] = useState('')
   const [isConfirmingUnlink, setIsConfirmingUnlink] = useState(false)
-  const { query, requestMutation, unbindMutation } = useWhatsAppPhone()
+  const { expireCode, query, requestMutation, unbindMutation } = useWhatsAppPhone()
 
   const errorCode =
     requestMutation.error instanceof Error ? requestMutation.error.message : undefined
@@ -43,7 +43,7 @@ export function WhatsAppPhonePanel(): JSX.Element {
   })
 
   const remainingSeconds = useCountdown({
-    onComplete: () => requestMutation.reset(),
+    onComplete: expireCode,
     targetIso: viewModel.kind === 'codeGenerated' ? viewModel.expiresAt : null,
   })
 
@@ -139,6 +139,11 @@ export function WhatsAppPhonePanel(): JSX.Element {
           value={phone}
         />
       </label>
+      {viewModel.kind === 'pending' ? (
+        <p className={styles.feedback} role="status">
+          {t('whatsappPhone.pendingWaiting')}
+        </p>
+      ) : null}
       {viewModel.kind === 'channelMissing' ? (
         <p className={styles.feedback} role="alert">
           {t('whatsappPhone.channelMissing')}

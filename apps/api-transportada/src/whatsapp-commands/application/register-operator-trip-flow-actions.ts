@@ -16,7 +16,6 @@
  * (`operator-trip-actions.policy.ts`), que por sua vez deriva de `checkTripAcceptsDocumentWork` e
  * `checkTripTransition` — nunca uma tabela nova que possa discordar da máquina real.
  */
-import type { ChannelAdapterInterface } from '@adatechnology/meta-whatsapp-contracts'
 
 import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import type { DispatchTripResult } from '../../trips/application/dispatch-trip.use-case.js'
@@ -50,11 +49,12 @@ import {
   OPERATOR_TRANSITION_BLOCK_MESSAGES,
 } from '../domain/whatsapp-operator-flow.constant.js'
 import { WHATSAPP_LIST_BUTTON_TEXT } from '../domain/whatsapp-menu.constant.js'
+import { parseMenuPageNavigation, type WhatsAppMenuOption } from '../domain/whatsapp-menu.policy.js'
+import { sendDynamicChoice } from './whatsapp-dynamic-choice.service.js'
 import {
-  parseMenuPageNavigation,
-  planChoiceMessage,
-  type WhatsAppMenuOption,
-} from '../domain/whatsapp-menu.policy.js'
+  rejectListAnswer,
+  WHATSAPP_LIST_ANSWER_ATTEMPTS_RESET,
+} from './whatsapp-list-answer.service.js'
 import type {
   WhatsAppAuthorizedActionHandler,
   WhatsAppFlowActionDefinition,
@@ -138,42 +138,6 @@ function readStringContext(context: Record<string, unknown>, key: string): strin
 
 function isOperatorAction(value: string | undefined): value is OperatorTripActionId {
   return value === 'separate' || value === 'load' || value === 'dispatch' || value === 'occurrence'
-}
-
-/**
- * ⚠️ `ChannelAdapterInterface` desta instalação é a 0.1.0: sem `sendInteractiveButtons`. Toda lista
- * dinâmica sai como lista — mesma ressalva de `register-driver-flow-actions.ts`.
- */
-async function sendDynamicChoice(input: {
-  readonly body: string
-  readonly channel: ChannelAdapterInterface
-  readonly options: readonly WhatsAppMenuOption[]
-  readonly page: number
-  readonly to: string
-}): Promise<void> {
-  const plan = planChoiceMessage({
-    body: input.body,
-    options: input.options,
-    page: input.page,
-    source: 'dynamic',
-  })
-
-  if (plan.kind === 'buttons') {
-    await input.channel.sendInteractiveList({
-      body: plan.body,
-      buttonLabel: WHATSAPP_LIST_BUTTON_TEXT,
-      rows: [...plan.buttons],
-      to: input.to,
-    })
-    return
-  }
-
-  await input.channel.sendInteractiveList({
-    body: plan.body,
-    buttonLabel: plan.buttonText,
-    rows: [...plan.rows],
-    to: input.to,
-  })
 }
 
 export function createOperatorWhatsAppFlowActions(
@@ -364,7 +328,7 @@ export function createOperatorWhatsAppFlowActions(
       page: readPage(context),
       to: session.whatsappNumber,
     })
-    return { next: OPERATOR_FLOW_NODE.documentEntry }
+    return { context: WHATSAPP_LIST_ANSWER_ATTEMPTS_RESET, next: OPERATOR_FLOW_NODE.documentEntry }
   }
 
   async function applyDocumentTransition(input: {
@@ -397,6 +361,7 @@ export function createOperatorWhatsAppFlowActions(
     actor,
     channel,
     context,
+    node,
     session,
   }) => {
     const answer = readStringContext(context, OPERATOR_FLOW_CONTEXT_KEY.documentAnswer)
@@ -412,6 +377,28 @@ export function createOperatorWhatsAppFlowActions(
         context: { [OPERATOR_FLOW_CONTEXT_KEY.listPage]: page },
         next: OPERATOR_FLOW_NODE.listDocuments,
       }
+    }
+
+    /**
+     * T020 (B5): a resposta é conferida contra as notas **da viagem** relida, não só as da ação —
+     * a nota já separada tocada de novo com a rede ruim tem de convergir em "Já estava registrada".
+     */
+    const currentTrip = await findWarehouseTrip({ companyId: actor.scope.companyId, tripId })
+    if (currentTrip === undefined) {
+      await channel.sendText(session.whatsappNumber, 'Esta viagem não está mais disponível.')
+      return { context: { [OPERATOR_FLOW_CONTEXT_KEY.tripId]: undefined }, next: 'menu' }
+    }
+    const offered =
+      (answer === OPERATOR_BATCH_ALL_ANSWER && step !== 'occurrence') ||
+      currentTrip.documents.some((document) => document.id === answer)
+    if (!offered) {
+      return rejectListAnswer({
+        channel,
+        context,
+        entryNode: OPERATOR_FLOW_NODE.documentEntry,
+        node,
+        session,
+      })
     }
 
     if (step === 'occurrence') {
@@ -532,10 +519,19 @@ export function createOperatorWhatsAppFlowActions(
       page: readPage(context),
       to: session.whatsappNumber,
     })
-    return { next: OPERATOR_FLOW_NODE.occurrenceTypeEntry }
+    return {
+      context: WHATSAPP_LIST_ANSWER_ATTEMPTS_RESET,
+      next: OPERATOR_FLOW_NODE.occurrenceTypeEntry,
+    }
   }
 
-  const occurrenceTypeRouter: WhatsAppAuthorizedActionHandler = async ({ context }) => {
+  const occurrenceTypeRouter: WhatsAppAuthorizedActionHandler = async ({
+    actor,
+    channel,
+    context,
+    node,
+    session,
+  }) => {
     const answer = readStringContext(context, OPERATOR_FLOW_CONTEXT_KEY.occurrenceTypeAnswer)
     if (answer === undefined) return { next: OPERATOR_FLOW_NODE.tripActionMenu }
 
@@ -545,6 +541,20 @@ export function createOperatorWhatsAppFlowActions(
         context: { [OPERATOR_FLOW_CONTEXT_KEY.listPage]: page },
         next: OPERATOR_FLOW_NODE.listOccurrenceTypes,
       }
+    }
+
+    const catalog = await deps.listOccurrenceTypes({ companyId: actor.scope.companyId })
+    const offered = catalog.some(
+      (type) => type.id === answer && type.active && type.stage === 'separation',
+    )
+    if (!offered) {
+      return rejectListAnswer({
+        channel,
+        context,
+        entryNode: OPERATOR_FLOW_NODE.occurrenceTypeEntry,
+        node,
+        session,
+      })
     }
 
     return {

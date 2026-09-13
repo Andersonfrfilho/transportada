@@ -8,7 +8,10 @@
 import { describe, expect, test } from 'bun:test'
 import type { FlowGraphData, FlowNodeData } from '@adatechnology/meta-whatsapp-contracts'
 
-import { WHATSAPP_CHOICE_LIMIT } from '../../src/whatsapp-commands/domain/whatsapp-menu.constant.js'
+import {
+  WHATSAPP_CHOICE_LIMIT,
+  WHATSAPP_MENU_NOTHING_TO_SHOW,
+} from '../../src/whatsapp-commands/domain/whatsapp-menu.constant.js'
 import { WhatsAppMenuPolicyViolationError } from '../../src/whatsapp-commands/domain/whatsapp-menu.error.js'
 import {
   parseMenuPageNavigation,
@@ -157,10 +160,30 @@ describe('planChoiceMessage (spec 144 T007)', () => {
     )
   })
 
-  test('página fora do intervalo lança em vez de devolver lista vazia', () => {
-    expect(() =>
-      planChoiceMessage({ body: 'b', options: options(11), page: 99, source: 'dynamic' }),
-    ).toThrow(WhatsAppMenuPolicyViolationError)
+  /**
+   * T020 (B3): a página fica no `context` e a lista é relida a cada passo. Alguém despachando pelo
+   * painel encolhe a lista entre dois toques, e lançar aqui deixava a conversa muda.
+   */
+  test('lista que encolhe entre dois toques: a página gravada vira a última que existe', () => {
+    const before = planChoiceMessage({
+      body: 'b',
+      options: options(27),
+      page: 4,
+      source: 'dynamic',
+    })
+    expect(before.kind === 'list' && before.page).toBe(4)
+
+    const after = planChoiceMessage({ body: 'b', options: options(12), page: 4, source: 'dynamic' })
+
+    if (after.kind !== 'list') throw new Error(`esperava lista, veio ${after.kind}`)
+    expect(after.page).toBe(2)
+    expect(after.hasMore).toBe(false)
+    expect(after.rows.map((row) => row.id)).toEqual(['__back__:1', 'o9', 'o10', 'o11'])
+  })
+
+  test('lista que zera entre dois toques: plano vazio com a mensagem, sem lançar', () => {
+    const plan = planChoiceMessage({ body: 'b', options: [], page: 3, source: 'dynamic' })
+    expect(plan).toEqual({ body: WHATSAPP_MENU_NOTHING_TO_SHOW, kind: 'empty' })
   })
 
   test('página menor que 1 lança', () => {

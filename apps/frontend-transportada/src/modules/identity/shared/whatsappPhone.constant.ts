@@ -12,3 +12,9 @@ export const WHATSAPP_PHONE_ERROR = {
 
 /** Cópia por valor: só para exibir "válido por 90 dias" — a validade em si é decidida no servidor. */
 export const WHATSAPP_PHONE_VALIDITY_DAYS = 90
+
+/**
+ * Spec 144 T020 (B6): a verificação acontece no WhatsApp, não nesta tela. Enquanto houver código à
+ * espera, o `GET` é relido nesse intervalo — é assim que a tela percebe o número verificado.
+ */
+export const WHATSAPP_PHONE_POLL_INTERVAL_MS = 5_000

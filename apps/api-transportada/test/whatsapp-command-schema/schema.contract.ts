@@ -115,6 +115,8 @@ describe('whatsapp command request schema', () => {
       'settled_at',
       'settlement_outcome',
       'last_error_code',
+      'settlement_attempts',
+      'next_settlement_at',
       'created_at',
       'updated_at',
     ])
@@ -184,6 +186,7 @@ describe('whatsapp command request schema', () => {
       'timed_out',
       'actor_not_authorized',
       'billing_failed',
+      'settlement_failed',
     ])
     const settlementCheck = checkSql(
       whatsAppCommandRequests,
@@ -191,8 +194,15 @@ describe('whatsapp command request schema', () => {
     )
     expect(settlementCheck).toContain('"settlement_outcome" is null')
     expect(settlementCheck).toContain(
-      "'completed', 'timed_out', 'actor_not_authorized', 'billing_failed'",
+      "'completed', 'timed_out', 'actor_not_authorized', 'billing_failed', 'settlement_failed'",
     )
+  })
+
+  /** Spec 144 T020 (B2): a contagem de tentativas nunca é negativa. */
+  test('constrains the settlement attempts to a non-negative count', () => {
+    expect(
+      checkSql(whatsAppCommandRequests, 'whatsapp_command_requests_settlement_attempts_check'),
+    ).toContain('"settlement_attempts" >= 0')
   })
 
   test('indexes the settlement sweep by company and status, and partially for work in flight', () => {

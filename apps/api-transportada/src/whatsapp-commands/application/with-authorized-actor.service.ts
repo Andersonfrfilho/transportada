@@ -10,7 +10,15 @@ import type {
 import type { AuthorizationService } from '../../identity/application/authorization.service.js'
 import type { CompanyAuthorizationPolicy } from '../../identity/domain/authorization.policy.js'
 import type { AuthenticatedContext, CompanyContext } from '../../identity/domain/tenant-context.js'
-import { WhatsAppCommandDeniedError } from '../domain/whatsapp-command.error.js'
+import type { ApiLogger } from '../../shared/api.types.js'
+import {
+  WHATSAPP_COMMAND_FAILURE_REPLY,
+  WHATSAPP_COMMAND_LOG,
+} from '../domain/whatsapp-command.constant.js'
+import {
+  WhatsAppCommandDeniedError,
+  WhatsAppCommandHandoffRequestedError,
+} from '../domain/whatsapp-command.error.js'
 import type {
   ResolveWhatsAppActorParams,
   ResolveWhatsAppActorResult,
@@ -43,8 +51,12 @@ export type WhatsAppFlowActionDefinition = {
 type CreateWithAuthorizedActorParams = {
   readonly authorization: Pick<AuthorizationService, 'authorize'>
   readonly clock: () => Date
+  readonly logger: ApiLogger
   readonly resolveActor: (params: ResolveWhatsAppActorParams) => Promise<ResolveWhatsAppActorResult>
 }
+
+/** O menu do ramo em que a FlowAction está: é para lá que toda FlowAction volta quando não há o que fazer. */
+const BRANCH_MENU_NODE = 'menu'
 
 /**
  * D2: a permissão é conferida **a cada ação**, com o ator resolvido de novo pelo número da sessão.
@@ -54,6 +66,7 @@ type CreateWithAuthorizedActorParams = {
 export function createWithAuthorizedActor({
   authorization,
   clock,
+  logger,
   resolveActor,
 }: CreateWithAuthorizedActorParams): WithAuthorizedActor {
   return (policy, handler) => async (input) => {
@@ -70,8 +83,34 @@ export function createWithAuthorizedActor({
     )
     if (!allowed) throw new WhatsAppCommandDeniedError('permission')
 
-    return handler({ ...input, actor: resolved.context })
+    try {
+      return await handler({ ...input, actor: resolved.context })
+    } catch (error) {
+      if (error instanceof WhatsAppCommandDeniedError) throw error
+      if (error instanceof WhatsAppCommandHandoffRequestedError) throw error
+      return replyUnmappedFailure({ error, input, logger })
+    }
   }
+}
+
+/**
+ * T020 (B4): o erro que a FlowAction não mapeou subia até o despachante, que só logava — a pessoa
+ * ficava sem resposta, parada no nó. Aqui ela recebe a mensagem neutra e volta ao menu do ramo. O
+ * log leva o **nome** do erro: a mensagem do Postgres ecoa o texto que a pessoa digitou.
+ */
+async function replyUnmappedFailure(input: {
+  readonly error: unknown
+  readonly input: Parameters<FlowActionHandler>[0]
+  readonly logger: ApiLogger
+}): Promise<FlowActionResult> {
+  const { session } = input.input
+  input.logger.error(WHATSAPP_COMMAND_LOG.failed, {
+    companyId: session.companyId,
+    errorName: input.error instanceof Error ? input.error.name : typeof input.error,
+    node: input.input.node.id,
+  })
+  await input.input.channel.sendText(session.whatsappNumber, WHATSAPP_COMMAND_FAILURE_REPLY)
+  return { next: BRANCH_MENU_NODE }
 }
 
 function isPolicyList(

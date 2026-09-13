@@ -15,6 +15,8 @@ export const whatsAppCommandRequests = pgTable('whatsapp_command_requests', {
   status: text().notNull(),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+  /** T020 (B2): a API marca o recuo depois de um erro fora do domínio; a varredura o respeita. */
+  nextSettlementAt: timestamp('next_settlement_at', { withTimezone: true }),
 })
 
 export const whatsAppCommandDocuments = pgTable('whatsapp_command_documents', {

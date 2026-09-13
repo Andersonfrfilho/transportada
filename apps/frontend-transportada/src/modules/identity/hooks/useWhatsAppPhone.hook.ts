@@ -7,6 +7,10 @@ import {
   createWhatsAppPhoneClient,
   type WhatsAppPhoneClient,
 } from '../shared/whatsappPhoneClient.service'
+import {
+  buildWhatsAppCodeExpiryHandler,
+  resolveWhatsAppPhoneRefetchInterval,
+} from '../shared/whatsappPhoneViewModel.service'
 
 export const WHATSAPP_PHONE_QUERY_KEY = ['identity', 'whatsapp-phone'] as const
 
@@ -27,13 +31,22 @@ export function useWhatsAppPhone(input: Readonly<{ client?: WhatsAppPhoneClient 
   const client = input.client ?? getWhatsAppPhoneClient()
   const queryClient = useQueryClient()
 
-  const query = useQuery({ queryFn: client.readState, queryKey: WHATSAPP_PHONE_QUERY_KEY })
-
   const requestMutation = useMutation({
     mutationFn: (phone: string) => client.requestVerification({ phone }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: WHATSAPP_PHONE_QUERY_KEY })
     },
+  })
+
+  // T020 (B6): a verificação acontece no WhatsApp; só relendo o `GET` a tela percebe.
+  const query = useQuery({
+    queryFn: client.readState,
+    queryKey: WHATSAPP_PHONE_QUERY_KEY,
+    refetchInterval: (current) =>
+      resolveWhatsAppPhoneRefetchInterval({
+        hasGeneratedCode: requestMutation.data !== undefined,
+        status: current.state.data?.status,
+      }),
   })
 
   const unbindMutation = useMutation({
@@ -44,5 +57,12 @@ export function useWhatsAppPhone(input: Readonly<{ client?: WhatsAppPhoneClient 
     },
   })
 
-  return { query, requestMutation, unbindMutation }
+  const expireCode = buildWhatsAppCodeExpiryHandler({
+    invalidate: () => {
+      void queryClient.invalidateQueries({ queryKey: WHATSAPP_PHONE_QUERY_KEY })
+    },
+    reset: () => requestMutation.reset(),
+  })
+
+  return { expireCode, query, requestMutation, unbindMutation }
 }

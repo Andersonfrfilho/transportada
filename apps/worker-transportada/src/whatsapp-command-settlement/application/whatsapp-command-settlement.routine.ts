@@ -65,6 +65,7 @@ async function runCycle(input: {
   const now = dependencies.now()
   const candidates = await dependencies.candidates.listCandidates({
     limit: WHATSAPP_COMMAND_SETTLEMENT_CANDIDATE_LIMIT,
+    now,
     stuckConfirmingBefore: new Date(now.getTime() - WHATSAPP_COMMAND_STUCK_CONFIRMING_MILLISECONDS),
   })
   const counters: Counters = {

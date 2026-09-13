@@ -40,6 +40,9 @@ export const WHATSAPP_MENU_MORE_ID_PREFIX = '__more__:'
 
 export const WHATSAPP_MENU_BACK_ID_PREFIX = '__back__:'
 
+/** T020 (B3): a lista relida zerou entre dois toques; lista sem linha a Meta recusa inteira. */
+export const WHATSAPP_MENU_NOTHING_TO_SHOW = 'Não há mais nada para mostrar aqui.'
+
 /**
  * Página 1 reserva uma linha para "➡️ Mais"; da página 2 em diante reserva também "⬅️ Voltar".
  * Nenhuma página passa de `WHATSAPP_CHOICE_LIMIT.listRows` linhas, navegação incluída.

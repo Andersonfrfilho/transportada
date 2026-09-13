@@ -10,10 +10,13 @@ import {
   whatsAppCommandDocuments,
   whatsAppCommandRequests,
 } from '../../database/database.schema.js'
+import { auditLogs } from '../../database/fiscal-operation.schema.js'
 import { inList } from '../../database/schema-check.constant.js'
 import type { WhatsAppCommandSettlementCode } from '../../database/whatsapp-command.schema.js'
 import type {
+  AbandonWhatsAppCommandSettlementInput,
   ClaimWhatsAppCommandInput,
+  DeferWhatsAppCommandSettlementInput,
   CreateWhatsAppCommandPreviewInput,
   MarkWhatsAppCommandJournalStepInput,
   RecordWhatsAppCommandJournalStepInput,
@@ -21,7 +24,9 @@ import type {
   WhatsAppCommandRepositoryPort,
   WhatsAppCommandRequest,
   WhatsAppCommandSettlementOutcome,
+  WhatsAppCommandSettlingStatus,
 } from '../application/whatsapp-command.port.js'
+import { WHATSAPP_COMMAND_SETTLEMENT_AUDIT } from '../domain/whatsapp-command-settlement-retry.policy.js'
 
 type WhatsAppCommandDatabase = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -99,6 +104,7 @@ function toRequest(row: RequestRow): WhatsAppCommandRequest {
     previewSha256: row.previewSha256,
     selection: row.selection,
     settledAt: row.settledAt ?? undefined,
+    settlementAttempts: row.settlementAttempts,
     settlementOutcome: row.settlementOutcome ?? undefined,
     status: row.status,
   }
@@ -283,9 +289,10 @@ export class DrizzleWhatsAppCommandRepository implements WhatsAppCommandReposito
       })
   }
 
-  /** `where status = 'dispatched'` torna a repetição da liquidação inofensiva. */
+  /** `where status = <de onde sai>` torna a repetição da liquidação inofensiva. */
   public async markSettled(input: {
     readonly companyId: string
+    readonly fromStatus?: WhatsAppCommandSettlingStatus
     readonly id: string
     readonly now: Date
     readonly outcome: WhatsAppCommandSettlementOutcome
@@ -294,14 +301,74 @@ export class DrizzleWhatsAppCommandRepository implements WhatsAppCommandReposito
     const updated = await this.database
       .update(requests)
       .set({
+        nextSettlementAt: null,
         settledAt: input.now,
         settlementOutcome: input.settlementOutcome,
         status: input.outcome,
         updatedAt: input.now,
       })
-      .where(and(...buildRequestFilters(input), eq(requests.status, 'dispatched')))
+      .where(
+        and(...buildRequestFilters(input), eq(requests.status, input.fromStatus ?? 'dispatched')),
+      )
       .returning({ id: requests.id })
     return updated.length > 0
+  }
+
+  /** A contagem anterior no `where` faz a batida que perdeu a corrida não sobrescrever a outra. */
+  public async deferSettlement(input: DeferWhatsAppCommandSettlementInput): Promise<boolean> {
+    const updated = await this.database
+      .update(requests)
+      .set({
+        lastErrorCode: input.errorCode,
+        nextSettlementAt: input.nextSettlementAt,
+        settlementAttempts: input.attempts,
+        updatedAt: input.now,
+      })
+      .where(
+        and(
+          ...buildRequestFilters(input),
+          eq(requests.status, input.fromStatus),
+          eq(requests.settlementAttempts, input.attempts - 1),
+        ),
+      )
+      .returning({ id: requests.id })
+    return updated.length > 0
+  }
+
+  /** O pedido nunca é apagado: encerra `settled_partial` e a trilha fica na mesma transação. */
+  public async abandonSettlement(input: AbandonWhatsAppCommandSettlementInput): Promise<boolean> {
+    return this.database.transaction(async (transaction) => {
+      const [abandoned] = await transaction
+        .update(requests)
+        .set({
+          lastErrorCode: input.errorCode,
+          nextSettlementAt: null,
+          settledAt: input.now,
+          settlementAttempts: input.attempts,
+          settlementOutcome: 'settlement_failed',
+          status: 'settled_partial',
+          updatedAt: input.now,
+        })
+        .where(and(...buildRequestFilters(input), eq(requests.status, input.fromStatus)))
+        .returning({ id: requests.id })
+      if (abandoned === undefined) return false
+
+      await transaction.insert(auditLogs).values({
+        action: WHATSAPP_COMMAND_SETTLEMENT_AUDIT.abandoned,
+        actorUserId: input.actorUserId,
+        companyId: input.companyId,
+        correlationId: input.correlationId,
+        entityId: input.id,
+        entityType: WHATSAPP_COMMAND_SETTLEMENT_AUDIT.entityType,
+        metadata: { attempts: input.attempts, fromStatus: input.fromStatus },
+        permission: WHATSAPP_COMMAND_SETTLEMENT_AUDIT.permission,
+        reason: input.errorCode,
+        result: 'failed',
+        targetId: input.id,
+        targetType: WHATSAPP_COMMAND_SETTLEMENT_AUDIT.targetType,
+      })
+      return true
+    })
   }
 
   private async transitionFromPreviewed(

@@ -37,6 +37,10 @@ export const renderWhatsAppChoice: WhatsAppChoiceRenderer = async ({
     ...(page === undefined ? {} : { page }),
   })
 
+  if (plan.kind === 'empty') {
+    await sender.sendText({ body: plan.body, to })
+    return
+  }
   if (plan.kind === 'buttons') {
     await sender.sendButtons({ body: plan.body, buttons: plan.buttons, to })
     return

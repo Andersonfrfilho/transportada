@@ -23,6 +23,7 @@ import {
   WHATSAPP_COMMAND_LOG,
   WHATSAPP_COMMAND_RATE_LIMIT,
   WHATSAPP_DEFAULT_FALLBACK_REPLY,
+  WHATSAPP_COMMAND_FAILURE_REPLY,
   WHATSAPP_DENIED_REPLY,
   WHATSAPP_DENIED_REPLY_LIMIT,
   WHATSAPP_HANDOFF_REPLY,
@@ -36,6 +37,7 @@ import { WHATSAPP_PHONE_VERIFICATION_CODE_MESSAGE_PATTERN } from '../domain/what
 import {
   type WhatsAppCommandDenialReason,
   WhatsAppCommandDeniedError,
+  WhatsAppCommandHandoffRequestedError,
 } from '../domain/whatsapp-command.error.js'
 import { toWhatsAppPhoneKey } from '../domain/whatsapp-phone-key.policy.js'
 import { toWhatsAppPhone } from '../domain/whatsapp-phone.policy.js'
@@ -134,23 +136,50 @@ async function dispatch(turn: WhatsAppCommandTurn): Promise<MessageHookOutcome> 
   })
   if (actor.status === 'denied') {
     const code = readVerificationCode(turn.message)
-    if (code !== undefined && deps.verifyPhone !== undefined) {
-      await verifyEntry({ code, turn, verifyPhone: deps.verifyPhone })
+    const { verifyPhone } = deps
+    if (code !== undefined && verifyPhone !== undefined) {
+      await guardConversation(turn, () => verifyEntry({ code, turn, verifyPhone }))
       return HANDLED
     }
     await denyTurn({ reason: actor.reason, turn })
     return HANDLED
   }
 
-  try {
-    await advanceConversation(turn, actor.context.scope.permissions)
-  } catch (error) {
-    /** A FlowAction re-resolveu o ator e recusou: mesma saída neutra, e o fluxo termina. */
-    if (!(error instanceof WhatsAppCommandDeniedError)) throw error
-    await clearWhatsAppFlowPosition({ context: {}, turn })
-    await denyTurn({ reason: error.reason, turn })
-  }
+  await guardConversation(turn, () => advanceConversation(turn, actor.context.scope.permissions))
   return HANDLED
+}
+
+/**
+ * A FlowAction re-resolveu o ator e recusou: mesma saída neutra, e o fluxo termina.
+ *
+ * T020 (B4): qualquer outro erro — inclusive no menu que abre depois de `verifyEntry`, que rodava
+ * fora deste `try` — vira a mensagem neutra e a conversa recomeça do menu. Antes ele subia, o
+ * `catch` de fora só logava, e a pessoa ficava sem resposta, parada no nó.
+ */
+async function guardConversation(
+  turn: WhatsAppCommandTurn,
+  work: () => Promise<void>,
+): Promise<void> {
+  try {
+    await work()
+  } catch (error) {
+    // T020 (B5): a FlowAction recusou duas respostas de lista seguidas — o mesmo handoff da D8.
+    if (error instanceof WhatsAppCommandHandoffRequestedError) {
+      await handOff({ context: {}, turn })
+      return
+    }
+    await clearWhatsAppFlowPosition({ context: {}, turn })
+    if (error instanceof WhatsAppCommandDeniedError) {
+      await denyTurn({ reason: error.reason, turn })
+      return
+    }
+    turn.deps.logger.error(WHATSAPP_COMMAND_LOG.failed, {
+      companyId: turn.session.companyId,
+      errorName: error instanceof Error ? error.name : typeof error,
+      phone: turn.maskedPhone,
+    })
+    await turn.deps.sender.sendText({ body: WHATSAPP_COMMAND_FAILURE_REPLY, to: turn.phone })
+  }
 }
 
 async function advanceConversation(

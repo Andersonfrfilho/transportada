@@ -29,6 +29,7 @@ import { DrizzleCteIssuanceRepository } from '../../src/cte-issuance/infrastruct
 import { DrizzleCteEmissionProfileRepository } from '../../src/cte-profiles/infrastructure/drizzle-cte-emission-profile.repository.js'
 import { runAllDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import {
+  auditLogs,
   billingInvoiceItems,
   billingInvoices,
   companies,
@@ -71,7 +72,14 @@ import type { NfeStorageGateway } from '../../src/storage/infrastructure/nfe-sto
 import { createConfirmDocumentSelectionUseCase } from '../../src/whatsapp-commands/application/confirm-document-selection.use-case.js'
 import { createPreviewDocumentSelectionUseCase } from '../../src/whatsapp-commands/application/preview-document-selection.use-case.js'
 import { createNfseCredentialGapFinder } from '../../src/whatsapp-commands/application/preview-nfse-blocks.service.js'
-import { createSettleWhatsAppCommandUseCase } from '../../src/whatsapp-commands/application/settle-whatsapp-command.use-case.js'
+import {
+  createSettleWhatsAppCommandUseCase,
+  type SettleWhatsAppCommandDependencies,
+} from '../../src/whatsapp-commands/application/settle-whatsapp-command.use-case.js'
+import {
+  WHATSAPP_COMMAND_SETTLEMENT_AUDIT,
+  WHATSAPP_COMMAND_SETTLEMENT_MAX_ATTEMPTS,
+} from '../../src/whatsapp-commands/domain/whatsapp-command-settlement-retry.policy.js'
 import { DrizzleDocumentSelectionRepository } from '../../src/whatsapp-commands/infrastructure/drizzle-document-selection.repository.js'
 import { DrizzleWhatsAppCommandSettlementRepository } from '../../src/whatsapp-commands/infrastructure/drizzle-whatsapp-command-settlement.repository.js'
 import { DrizzleWhatsAppCommandRepository } from '../../src/whatsapp-commands/infrastructure/drizzle-whatsapp-command.repository.js'
@@ -248,6 +256,112 @@ describe('a liquidação fatura em nome de quem confirmou (spec 144 T014, AC6)',
   )
 })
 
+/**
+ * Spec 144 T020 (B2): o pedido que nunca chegava a estado final. O `resume_denied` deixava o
+ * `confirming` para sempre, e o erro fora do domínio subia a cada batida — os dois voltavam no topo
+ * da varredura e, somando o teto, calavam a liquidação de todo o resto.
+ */
+describe('a liquidação não trava (spec 144 T020, B2)', () => {
+  testWithPostgres(
+    'retomada com o ator suspenso leva o confirming parado a settled_partial',
+    async () => {
+      const db = requireDatabase()
+      const numbers = [1400, 1401]
+      const world = await seedCompany(db, numbers)
+      const scenario = buildScenario(db)
+      const requestId = await freezeAndConfirm(scenario, world, numbers)
+      await db
+        .update(whatsAppCommandRequests)
+        .set({ confirmedAt: new Date(Date.now() - 20 * 60_000), status: 'confirming' })
+        .where(eq(whatsAppCommandRequests.id, requestId))
+      await db
+        .update(userCompanyMemberships)
+        .set({ status: 'disabled' })
+        .where(eq(userCompanyMemberships.id, world.membershipId))
+
+      const outcome = await scenario.settle({
+        companyId: world.companyId,
+        correlationId: 'corr-t020-resume-denied',
+        requestId,
+      })
+
+      expect(outcome).toMatchObject({
+        kind: 'settled',
+        settlementOutcome: 'actor_not_authorized',
+        status: 'settled_partial',
+      })
+      const [request] = await db
+        .select()
+        .from(whatsAppCommandRequests)
+        .where(eq(whatsAppCommandRequests.id, requestId))
+      expect([request?.status, request?.settlementOutcome]).toEqual([
+        'settled_partial',
+        'actor_not_authorized',
+      ])
+      expect(request?.settledAt).toBeInstanceOf(Date)
+    },
+    240_000,
+  )
+
+  testWithPostgres(
+    'erro fora do domínio recua a cada tentativa e, esgotado, encerra com trilha',
+    async () => {
+      const db = requireDatabase()
+      const numbers = [1410, 1411]
+      const world = await seedCompany(db, numbers)
+      const brokenBilling = buildScenario(db, {
+        billing: {
+          async create() {
+            throw new Error('connection reset by peer')
+          },
+        },
+      })
+      const requestId = await freezeAndConfirm(brokenBilling, world, numbers)
+      await answerFromSefaz(db, world)
+      const settleInput = { companyId: world.companyId, correlationId: 'corr-t020', requestId }
+
+      for (let attempt = 1; attempt < WHATSAPP_COMMAND_SETTLEMENT_MAX_ATTEMPTS; attempt += 1) {
+        expect(await brokenBilling.settle(settleInput)).toEqual({ kind: 'deferred' })
+      }
+      const [deferred] = await db
+        .select()
+        .from(whatsAppCommandRequests)
+        .where(eq(whatsAppCommandRequests.id, requestId))
+      expect(deferred?.status).toBe('dispatched')
+      expect(deferred?.settlementAttempts).toBe(WHATSAPP_COMMAND_SETTLEMENT_MAX_ATTEMPTS - 1)
+      expect(deferred?.lastErrorCode).toBe('Error')
+      expect(deferred?.nextSettlementAt?.getTime() ?? 0).toBeGreaterThan(Date.now())
+
+      const outcome = await brokenBilling.settle(settleInput)
+
+      expect(outcome).toMatchObject({ kind: 'settled', settlementOutcome: 'settlement_failed' })
+      const [request] = await db
+        .select()
+        .from(whatsAppCommandRequests)
+        .where(eq(whatsAppCommandRequests.id, requestId))
+      expect([request?.status, request?.settlementOutcome, request?.nextSettlementAt]).toEqual([
+        'settled_partial',
+        'settlement_failed',
+        null,
+      ])
+      const trail = await db
+        .select()
+        .from(auditLogs)
+        .where(
+          and(
+            eq(auditLogs.companyId, world.companyId),
+            eq(auditLogs.action, WHATSAPP_COMMAND_SETTLEMENT_AUDIT.abandoned),
+          ),
+        )
+      expect(trail.map((row) => [row.entityId, row.actorUserId, row.result, row.reason])).toEqual([
+        [requestId, world.userId, 'failed', 'Error'],
+      ])
+      expect(JSON.stringify(trail)).not.toContain('connection reset')
+    },
+    240_000,
+  )
+})
+
 type SeededWorld = {
   readonly actor: AuthenticatedContext<CompanyContext>
   readonly companyId: string
@@ -258,7 +372,10 @@ type SeededWorld = {
   readonly userId: string
 }
 
-function buildScenario(db: Database) {
+function buildScenario(
+  db: Database,
+  overrides: { readonly billing?: SettleWhatsAppCommandDependencies['billing'] } = {},
+) {
   const fingerprints = createIdempotencyFingerprintService({ key: new Uint8Array(32).fill(9) })
   const cteBatches = createCteBatchUseCase({
     fingerprintService: fingerprints,
@@ -299,11 +416,13 @@ function buildScenario(db: Database) {
   })
   const settle = createSettleWhatsAppCommandUseCase({
     authorization: new AuthorizationService(),
-    billing: createBillingUseCase({
-      clock: { now: () => new Date().toISOString() },
-      fingerprintService: fingerprints,
-      unitOfWork: new DrizzleBillingRepository(db),
-    }),
+    billing:
+      overrides.billing ??
+      createBillingUseCase({
+        clock: { now: () => new Date().toISOString() },
+        fingerprintService: fingerprints,
+        unitOfWork: new DrizzleBillingRepository(db),
+      }),
     clock: () => new Date(),
     commands,
     documents: new DrizzleWhatsAppCommandSettlementRepository(db),

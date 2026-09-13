@@ -1,12 +1,20 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { describe, expect, test } from 'bun:test'
 
-import { WHATSAPP_PHONE_ERROR } from '../../src/modules/identity/shared/whatsappPhone.constant'
+import {
+  WHATSAPP_PHONE_ERROR,
+  WHATSAPP_PHONE_POLL_INTERVAL_MS,
+} from '../../src/modules/identity/shared/whatsappPhone.constant'
+import type { WhatsAppPhoneState } from '../../src/modules/identity/shared/whatsappPhone.types'
 import {
   toWhatsAppPhoneState,
   toWhatsAppPhoneVerification,
 } from '../../src/modules/identity/shared/whatsappPhone.validation'
-import { resolveWhatsAppPhoneViewModel } from '../../src/modules/identity/shared/whatsappPhoneViewModel.service'
+import {
+  buildWhatsAppCodeExpiryHandler,
+  resolveWhatsAppPhoneRefetchInterval,
+  resolveWhatsAppPhoneViewModel,
+} from '../../src/modules/identity/shared/whatsappPhoneViewModel.service'
 
 const VERIFIED_AT = '2026-09-11T12:00:00.000Z'
 const EXPIRES_AT = '2026-12-10T12:00:00.000Z'
@@ -174,5 +182,88 @@ describe('estados do view-model do painel de WhatsApp (spec 144 T017)', () => {
       state: undefined,
     })
     expect(viewModel).toEqual({ kind: 'loading' })
+  })
+})
+
+const PENDING_STATE: WhatsAppPhoneState = {
+  expiresAt: undefined,
+  pendingRequest: { expiresAt: CODE_EXPIRES_AT },
+  phone: undefined,
+  status: 'pending',
+  verifiedAt: undefined,
+}
+
+const VERIFIED_STATE: WhatsAppPhoneState = {
+  expiresAt: EXPIRES_AT,
+  pendingRequest: undefined,
+  phone: '****1234',
+  status: 'verified',
+  verifiedAt: VERIFIED_AT,
+}
+
+/**
+ * T020 (B6): com o código na tela, a verificação acontece no WhatsApp e ninguém relia o `GET`. O fim
+ * da contagem só fazia `reset()`, e o cache antigo (`pending`) aparecia como "sem vínculo".
+ */
+describe('a tela percebe que o número foi verificado (spec 144 T020, B6)', () => {
+  test('código na tela e o servidor passou de pending a verified: a tela vira vinculado', () => {
+    const before = resolveWhatsAppPhoneViewModel({
+      generatedCode: CODE_RESULT,
+      isChannelMissing: false,
+      isLoading: false,
+      state: PENDING_STATE,
+    })
+    const after = resolveWhatsAppPhoneViewModel({
+      generatedCode: CODE_RESULT,
+      isChannelMissing: false,
+      isLoading: false,
+      state: VERIFIED_STATE,
+    })
+
+    expect(before.kind).toBe('codeGenerated')
+    expect(after).toEqual({
+      expiresAt: EXPIRES_AT,
+      kind: 'linked',
+      phone: '****1234',
+      verifiedAt: VERIFIED_AT,
+    })
+  })
+
+  test('pending sem o código em memória: aguardando a mensagem, sem reexibir código', () => {
+    const viewModel = resolveWhatsAppPhoneViewModel({
+      generatedCode: undefined,
+      isChannelMissing: false,
+      isLoading: false,
+      state: PENDING_STATE,
+    })
+
+    expect(viewModel).toEqual({ expiresAt: CODE_EXPIRES_AT, kind: 'pending' })
+    expect(JSON.stringify(viewModel)).not.toContain(CODE_RESULT.code)
+  })
+
+  test('relê o GET enquanto há código à espera, e para quando o número é verificado', () => {
+    expect(
+      resolveWhatsAppPhoneRefetchInterval({ hasGeneratedCode: false, status: 'pending' }),
+    ).toBe(WHATSAPP_PHONE_POLL_INTERVAL_MS)
+    expect(resolveWhatsAppPhoneRefetchInterval({ hasGeneratedCode: true, status: 'none' })).toBe(
+      WHATSAPP_PHONE_POLL_INTERVAL_MS,
+    )
+    expect(
+      resolveWhatsAppPhoneRefetchInterval({ hasGeneratedCode: true, status: 'verified' }),
+    ).toBe(false)
+    expect(resolveWhatsAppPhoneRefetchInterval({ hasGeneratedCode: false, status: 'none' })).toBe(
+      false,
+    )
+  })
+
+  test('expirar a contagem descarta o código e invalida a consulta', () => {
+    const calls: string[] = []
+
+    buildWhatsAppCodeExpiryHandler({
+      invalidate: () => calls.push('invalidate'),
+      reset: () => calls.push('reset'),
+    })()
+
+    expect(calls).toEqual(['reset', 'invalidate'])
   })
 })

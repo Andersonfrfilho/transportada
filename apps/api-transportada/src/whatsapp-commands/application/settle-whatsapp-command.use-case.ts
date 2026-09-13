@@ -16,7 +16,7 @@ import { SERVICE_COMPANY_ROLES } from '../../database/identity.schema.js'
 import type { WhatsAppCommandSettlementCode } from '../../database/whatsapp-command.schema.js'
 import type { AuthorizationService } from '../../identity/application/authorization.service.js'
 import type { AuthenticatedContext, CompanyContext } from '../../identity/domain/tenant-context.js'
-import { safeLogInfo } from '../../logging/safe-logger.service.js'
+import { safeLogError, safeLogInfo } from '../../logging/safe-logger.service.js'
 import { ApiError } from '../../shared/api.error.js'
 import type { ApiLogger } from '../../shared/api.types.js'
 import { normalizeTaxId } from '../../shared/tax-id.service.js'
@@ -25,6 +25,11 @@ import {
   describeIssuanceGroup,
 } from '../domain/issuance-confirmation.policy.js'
 import { buildBillingInvoiceIdempotencyKey } from '../domain/issuance-idempotency.policy.js'
+import {
+  computeNextSettlementAttemptAt,
+  hasExhaustedSettlementAttempts,
+  toSettlementErrorCode,
+} from '../domain/whatsapp-command-settlement-retry.policy.js'
 import {
   classifyWhatsAppCommandDocument,
   decideWhatsAppCommandSettlement,
@@ -51,11 +56,16 @@ import type {
   WhatsAppCommandRepositoryPort,
   WhatsAppCommandRequest,
   WhatsAppCommandSettlementOutcome,
+  WhatsAppCommandSettlingStatus,
 } from './whatsapp-command.port.js'
 
 const BILLING_CREATE_POLICY = { permission: 'billing.create', scope: 'company' } as const
 const TAKER_MISSING = 'WHATSAPP_COMMAND_TAKER_MISSING'
 const UNKNOWN_GROUP_LABEL = 'Grupo do pedido'
+const REQUEST_PREFIX_LENGTH = 8
+/** Sem documento, nota nem motivo: não se sabe se quem confirmou ainda tem acesso (T014b M2). */
+const SETTLEMENT_FAILED_MESSAGE = (requestId: string): string =>
+  `Não consegui concluir o pedido ${requestId.slice(0, REQUEST_PREFIX_LENGTH)}. Confira os documentos no painel.`
 
 export type SettleWhatsAppCommandDependencies = Readonly<{
   authorization: Pick<AuthorizationService, 'authorize'>
@@ -65,7 +75,12 @@ export type SettleWhatsAppCommandDependencies = Readonly<{
   clock: () => Date
   commands: Pick<
     WhatsAppCommandRepositoryPort,
-    'findById' | 'listJournal' | 'markSettled' | 'recordJournalStep'
+    | 'abandonSettlement'
+    | 'deferSettlement'
+    | 'findById'
+    | 'listJournal'
+    | 'markSettled'
+    | 'recordJournalStep'
   >
   documents: WhatsAppCommandSettlementReaderPort
   logger: ApiLogger
@@ -85,8 +100,9 @@ export type SettleWhatsAppCommandInput = Readonly<{
 
 export type SettleWhatsAppCommandOutcome =
   | Readonly<{ kind: 'already_settled' }>
+  /** T020 (B2): lançou fora do domínio; a varredura só volta a ele depois do recuo. */
+  | Readonly<{ kind: 'deferred' }>
   | Readonly<{ kind: 'not_found' }>
-  | Readonly<{ kind: 'resume_denied' }>
   | Readonly<{ kind: 'resumed'; result: ConfirmDocumentSelectionOutcome['kind'] }>
   | Readonly<{
       kind: 'settled'
@@ -127,11 +143,15 @@ async function settle(
 ): Promise<SettleWhatsAppCommandOutcome> {
   const request = await deps.commands.findById({ companyId: input.companyId, id: input.requestId })
   if (request === undefined) return { kind: 'not_found' }
+  const work = { correlationId: input.correlationId, request }
   switch (request.status) {
     case 'confirming':
-      return resumeStuck(deps, { correlationId: input.correlationId, request })
-    case 'dispatched':
-      return settleDispatched(deps, { correlationId: input.correlationId, request })
+    case 'dispatched': {
+      const settling = { ...work, fromStatus: request.status }
+      return withSettlementRetry(deps, settling, () =>
+        request.status === 'confirming' ? resumeStuck(deps, work) : settleDispatched(deps, work),
+      )
+    }
     case 'settled':
     case 'settled_partial':
       return { kind: 'already_settled' }
@@ -161,17 +181,110 @@ async function resumeStuck(
 
   const actor = await resolveHumanActor(deps, request)
   const metadata = logMetadata(input)
-  if (actor === null) {
-    safeLogInfo({ logger: deps.logger, message: 'whatsapp.command.resume_denied', metadata })
-    return { kind: 'resume_denied' }
-  }
+  if (actor === null) return closeDeniedResume(deps, input)
   const result = await deps.resume({ actor, requestId: request.id })
   safeLogInfo({
     logger: deps.logger,
     message: 'whatsapp.command.resumed',
     metadata: { ...metadata, result: result.kind },
   })
+  if (result.kind === 'forbidden') return closeDeniedResume(deps, input)
   return { kind: 'resumed', result: result.kind }
+}
+
+/**
+ * T020 (B2): ator recusado na retomada é estado final, não espera. Em `confirming` para sempre, o
+ * pedido voltava a cada batida no topo da varredura e, somando o teto, calava a fila inteira. Sem
+ * resumo, pela mesma razão da liquidação (T014b M2).
+ */
+async function closeDeniedResume(
+  deps: Deps,
+  input: { readonly correlationId: string; readonly request: WhatsAppCommandRequest },
+): Promise<SettleWhatsAppCommandOutcome> {
+  const settlementOutcome = 'actor_not_authorized'
+  const status = 'settled_partial'
+  const marked = await deps.commands.markSettled({
+    companyId: input.request.companyId,
+    fromStatus: 'confirming',
+    id: input.request.id,
+    now: deps.clock(),
+    outcome: status,
+    settlementOutcome,
+  })
+  if (!marked) return { kind: 'already_settled' }
+  safeLogInfo({
+    logger: deps.logger,
+    message: 'whatsapp.command.resume_denied',
+    metadata: logMetadata(input),
+  })
+  return { kind: 'settled', message: undefined, settlementOutcome, status }
+}
+
+/**
+ * T020 (B2): erro fora do domínio não sobe para o worker, que o chamaria de novo a cada batida. A
+ * tentativa é contada, o pedido recua e, esgotado o limite, encerra com trilha — nunca é apagado.
+ * É o "retry com limite" que o catch local admite (`code-standart.md` §7).
+ */
+type SettlingWork = Readonly<{
+  correlationId: string
+  fromStatus: WhatsAppCommandSettlingStatus
+  request: WhatsAppCommandRequest
+}>
+
+async function withSettlementRetry(
+  deps: Deps,
+  input: SettlingWork,
+  work: () => Promise<SettleWhatsAppCommandOutcome>,
+): Promise<SettleWhatsAppCommandOutcome> {
+  try {
+    return await work()
+  } catch (error) {
+    return recordSettlementFailure(deps, { ...input, error })
+  }
+}
+
+async function recordSettlementFailure(
+  deps: Deps,
+  input: SettlingWork & Readonly<{ error: unknown }>,
+): Promise<SettleWhatsAppCommandOutcome> {
+  const { fromStatus, request } = input
+  const attempts = request.settlementAttempts + 1
+  const errorCode = toSettlementErrorCode(input.error)
+  const now = deps.clock()
+  const reference = { companyId: request.companyId, id: request.id }
+  safeLogError({
+    logger: deps.logger,
+    message: 'whatsapp.command.settlement_failed',
+    metadata: { ...logMetadata(input), attempts: String(attempts), errorCode },
+  })
+  if (!hasExhaustedSettlementAttempts(attempts)) {
+    const nextSettlementAt = computeNextSettlementAttemptAt({ attempts, now })
+    await deps.commands.deferSettlement({
+      ...reference,
+      attempts,
+      errorCode,
+      fromStatus,
+      nextSettlementAt,
+      now,
+    })
+    return { kind: 'deferred' }
+  }
+  const abandoned = await deps.commands.abandonSettlement({
+    ...reference,
+    actorUserId: request.actorUserId,
+    attempts,
+    correlationId: input.correlationId,
+    errorCode,
+    fromStatus,
+    now,
+  })
+  if (!abandoned) return { kind: 'already_settled' }
+  return {
+    kind: 'settled',
+    message: SETTLEMENT_FAILED_MESSAGE(request.id),
+    settlementOutcome: 'settlement_failed',
+    status: 'settled_partial',
+  }
 }
 
 async function settleDispatched(

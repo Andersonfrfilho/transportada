@@ -116,6 +116,7 @@ describeDatabase('liquidação dos pedidos de WhatsApp (integration)', () => {
     const repository = new DrizzleSettlementCandidateRepository(db)
     const candidates = await repository.listCandidates({
       limit: 1000,
+      now,
       stuckConfirmingBefore: new Date(now.getTime() - 15 * MINUTE_MS),
     })
     const ours = candidates.filter((candidate) => candidate.companyId === companyId)
@@ -133,6 +134,58 @@ describeDatabase('liquidação dos pedidos de WhatsApp (integration)', () => {
     expect(
       await repository.findVerifiedPhone({ userId, verifiedSince: afterVerification }),
     ).toBeUndefined()
+  })
+
+  /**
+   * T020 (B2): 200 pedidos em recuo, mais antigos que tudo, ocupariam o teto inteiro de uma batida
+   * ordenada por `confirmed_at asc`. O 201º, pronto para liquidar, precisa chegar à API mesmo assim.
+   */
+  test('200 pedidos em recuo não impedem o 201º de liquidar', async () => {
+    const stuckCompanyId = crypto.randomUUID()
+    await db.execute(sql`insert into companies (id, status) values (${stuckCompanyId}, 'active')`)
+    await db.execute(sql`
+      insert into user_company_memberships (id, user_id, company_id, status)
+      values (${crypto.randomUUID()}, ${userId}, ${stuckCompanyId}, 'active')
+    `)
+    const membership = await db.execute<{ id: string }>(sql`
+      select id from user_company_memberships
+      where user_id = ${userId} and company_id = ${stuckCompanyId}
+    `)
+    const stuckMembershipId = [...membership][0]?.id ?? ''
+    const later = new Date(now.getTime() + 30 * MINUTE_MS).toISOString()
+    try {
+      await db.execute(sql`
+        insert into whatsapp_command_requests
+          (company_id, actor_user_id, membership_id, kind, selection, classification,
+           preview_sha256, status, expires_at, confirmed_at, settlement_attempts,
+           next_settlement_at)
+        select ${stuckCompanyId}, ${userId}, ${stuckMembershipId}, 'document_issuance',
+          '[]'::jsonb, '[]'::jsonb, ${'c'.repeat(64)}, 'dispatched',
+          ${new Date(now.getTime() + 15 * MINUTE_MS).toISOString()},
+          ${new Date(now.getTime() - 1000 * MINUTE_MS).toISOString()}::timestamptz
+            + (serial * interval '1 second'),
+          1, ${later}
+        from generate_series(1, 200) as serial
+      `)
+      const repository = new DrizzleSettlementCandidateRepository(db)
+
+      const candidates = await repository.listCandidates({
+        limit: 200,
+        now,
+        stuckConfirmingBefore: new Date(now.getTime() - 15 * MINUTE_MS),
+      })
+
+      expect(candidates.some((candidate) => candidate.companyId === stuckCompanyId)).toBe(false)
+      expect(candidates.map((candidate) => candidate.id)).toContain(ids.failedFinal)
+    } finally {
+      await db.execute(
+        sql`delete from whatsapp_command_requests where company_id = ${stuckCompanyId}`,
+      )
+      await db.execute(
+        sql`delete from user_company_memberships where company_id = ${stuckCompanyId}`,
+      )
+      await db.execute(sql`delete from companies where id = ${stuckCompanyId}`)
+    }
   })
 
   test('a rotina chama a API com os pedidos certos e entrega o resumo ao número verificado', async () => {

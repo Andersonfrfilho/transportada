@@ -28,6 +28,7 @@ export type WhatsAppCommandRequest = Readonly<{
   previewSha256: string
   selection: WhatsAppCommandSelection
   settledAt: Date | undefined
+  settlementAttempts: number
   settlementOutcome: WhatsAppCommandSettlementCode | undefined
   status: WhatsAppCommandStatus
 }>
@@ -99,6 +100,33 @@ export type RecordWhatsAppCommandJournalStepInput = Readonly<{
 
 type RequestReference = Readonly<{ companyId: string; id: string }>
 
+/** Os dois estados que a liquidação toca: o `confirming` parado e o `dispatched`. */
+export type WhatsAppCommandSettlingStatus = Extract<
+  WhatsAppCommandStatus,
+  'confirming' | 'dispatched'
+>
+
+/** T020 (B2): a tentativa que lançou erro fora do domínio, gravada por cima da anterior. */
+export type DeferWhatsAppCommandSettlementInput = RequestReference &
+  Readonly<{
+    attempts: number
+    errorCode: string
+    fromStatus: WhatsAppCommandSettlingStatus
+    nextSettlementAt: Date
+    now: Date
+  }>
+
+/** T020 (B2): esgotadas as tentativas, o pedido encerra com trilha em nome de quem confirmou. */
+export type AbandonWhatsAppCommandSettlementInput = RequestReference &
+  Readonly<{
+    actorUserId: string
+    attempts: number
+    correlationId: string
+    errorCode: string
+    fromStatus: WhatsAppCommandSettlingStatus
+    now: Date
+  }>
+
 export type WhatsAppCommandRepositoryPort = Readonly<{
   /** `undefined` quando o ator não tem membership na empresa: não há pedido sem vínculo. */
   createPreview(
@@ -122,12 +150,16 @@ export type WhatsAppCommandRepositoryPort = Readonly<{
   listForSettlement(
     input: Readonly<{ companyId: string; stuckConfirmingBefore: Date }>,
   ): Promise<readonly WhatsAppCommandRequest[]>
+  /** `fromStatus` ausente é `dispatched`; o `confirming` só encerra quando o ator é recusado (T020). */
   markSettled(
     input: RequestReference &
       Readonly<{
+        fromStatus?: WhatsAppCommandSettlingStatus
         now: Date
         outcome: WhatsAppCommandSettlementOutcome
         settlementOutcome: WhatsAppCommandSettlementCode
       }>,
   ): Promise<boolean>
+  deferSettlement(input: DeferWhatsAppCommandSettlementInput): Promise<boolean>
+  abandonSettlement(input: AbandonWhatsAppCommandSettlementInput): Promise<boolean>
 }>

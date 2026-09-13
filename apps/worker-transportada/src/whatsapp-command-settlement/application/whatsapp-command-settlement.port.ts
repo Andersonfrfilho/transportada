@@ -21,8 +21,10 @@ export type SettlementCandidate = Readonly<{
  * pedido volta com a dele: é ela que vai no `x-company-id` da chamada à API.
  */
 export type SettlementCandidateSourcePort = Readonly<{
+  /** `now` deixa de fora o pedido que a API pôs em recuo depois de um erro (T020). */
   listCandidates(input: {
     readonly limit: number
+    readonly now: Date
     readonly stuckConfirmingBefore: Date
   }): Promise<readonly SettlementCandidate[]>
 }>

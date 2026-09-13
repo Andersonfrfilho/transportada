@@ -579,6 +579,7 @@
     "phonePlaceholder": "(11) 98765-4321",
     "generate": "Generate code",
     "generating": "Generating",
+    "pendingWaiting": "Code generated, waiting for your WhatsApp message. If you lost the code, generate a new one.",
     "codeTitle": "Your code",
     "codeInstruction": "Send this code from your own WhatsApp to the number above",
     "copyCompanyNumber": "Copy number",

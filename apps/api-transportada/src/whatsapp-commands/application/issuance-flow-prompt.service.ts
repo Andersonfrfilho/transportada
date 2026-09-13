@@ -33,7 +33,8 @@ import {
   ISSUANCE_PREVIEW_TTL_MINUTES,
 } from '../domain/whatsapp-issuance-flow.constant.js'
 import { WHATSAPP_LIST_BUTTON_TEXT } from '../domain/whatsapp-menu.constant.js'
-import { planChoiceMessage, type WhatsAppMenuOption } from '../domain/whatsapp-menu.policy.js'
+import type { WhatsAppMenuOption } from '../domain/whatsapp-menu.policy.js'
+import { sendDynamicChoice } from './whatsapp-dynamic-choice.service.js'
 import {
   buildSelectionCriterion,
   clearSelectionContext,
@@ -278,13 +279,16 @@ async function choose(
   marker: string = step.step,
 ): Promise<StepResult> {
   const page = step.context[KEY.listPage]
-  await sendDynamicChoice({
+  const shown = await sendDynamicChoice({
     body,
     channel: step.input.channel,
     options,
     page: typeof page === 'number' && page > 0 ? page : 1,
     to: step.input.session.whatsappNumber,
   })
+  // T020 (B3): a lista relida zerou; o texto já saiu, e a conversa volta à escolha do critério.
+  if (!shown)
+    return reply({ context: clearSelectionContext(), next: ISSUANCE_FLOW_NODE.criterionMenu })
   return reply({ context: { [KEY.step]: marker }, next: ISSUANCE_FLOW_NODE.paramEntry })
 }
 
@@ -295,29 +299,4 @@ async function restart(step: StepInput, message: string): Promise<StepResult> {
 
 function reply(result: FlowActionResult): StepResult {
   return { kind: 'reply', result }
-}
-
-/**
- * ⚠️ `ChannelAdapterInterface` desta instalação é a 0.1.0: sem `sendInteractiveButtons`. Toda lista
- * dinâmica sai como lista — mesma ressalva dos ramos do motorista e do operador.
- */
-async function sendDynamicChoice(input: {
-  readonly body: string
-  readonly channel: ChannelAdapterInterface
-  readonly options: readonly WhatsAppMenuOption[]
-  readonly page: number
-  readonly to: string
-}): Promise<void> {
-  const plan = planChoiceMessage({
-    body: input.body,
-    options: input.options,
-    page: input.page,
-    source: 'dynamic',
-  })
-  await input.channel.sendInteractiveList({
-    body: plan.body,
-    buttonLabel: plan.kind === 'buttons' ? WHATSAPP_LIST_BUTTON_TEXT : plan.buttonText,
-    rows: [...(plan.kind === 'buttons' ? plan.buttons : plan.rows)],
-    to: input.to,
-  })
 }

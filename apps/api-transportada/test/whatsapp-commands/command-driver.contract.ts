@@ -29,7 +29,10 @@ import {
   WHATSAPP_DENIED_REPLY,
   WHATSAPP_HANDOFF_REPLY,
 } from '../../src/whatsapp-commands/domain/whatsapp-command.constant.js'
-import { WhatsAppCommandDeniedError } from '../../src/whatsapp-commands/domain/whatsapp-command.error.js'
+import {
+  WhatsAppCommandDeniedError,
+  WhatsAppCommandHandoffRequestedError,
+} from '../../src/whatsapp-commands/domain/whatsapp-command.error.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000021'
 const USER_ID = '00000000-0000-4000-8000-000000000022'
@@ -142,6 +145,9 @@ function createHarness(options: HarnessOptions = {}) {
   interpreter.registerFlowAction('contract.guarded', async () => {
     throw new WhatsAppCommandDeniedError('permission')
   })
+  interpreter.registerFlowAction('contract.handoff', async () => {
+    throw new WhatsAppCommandHandoffRequestedError()
+  })
 
   const record = (message: string, meta?: unknown): void => {
     logged.push({ message, ...(meta === undefined ? {} : { meta }) })
@@ -222,6 +228,39 @@ describe('o despachante do WhatsApp (spec 144 T006)', () => {
     ])
     expect(harness.position.value).toMatchObject({ currentNodeId: 'menu', flowKey: FLOW_KEY })
     expect(harness.actorLookups).toEqual([{ companyId: COMPANY_ID, fromPhone: PHONE }])
+  })
+
+  /**
+   * T020 (B5): a FlowAction que recusou duas respostas de lista seguidas não chama a pessoa sozinha —
+   * o despachante chama, pelo mesmo `handOff` da resposta fora do menu.
+   */
+  test('FlowAction que pede uma pessoa: handoff, resposta de handoff e posição limpa', async () => {
+    const graph: FlowGraphData = {
+      ...GRAPH,
+      nodes: {
+        ...GRAPH.nodes,
+        handoff: { actionKind: 'contract.handoff', id: 'handoff', type: 'action' },
+        menu: {
+          fallbackMessage: 'Escolha uma das opções.',
+          id: 'menu',
+          next: { byAnswer: { a: 'done_a', h: 'handoff' }, default: 'menu' },
+          options: [
+            ['a', '🅰️ Opção A'],
+            ['h', '🙋 Pessoa'],
+          ],
+          question: 'O que você quer fazer?',
+          type: 'menu',
+        },
+      },
+    }
+    const harness = createHarness({ graph })
+    await harness.onMessageReceived(text('oi'), buildSession())
+
+    await harness.onMessageReceived(button('h'), buildSession())
+
+    expect(harness.handoffs).toEqual([PHONE])
+    expect(harness.sent.at(-1)).toEqual({ body: WHATSAPP_HANDOFF_REPLY, kind: 'text', to: PHONE })
+    expect(harness.position.value).toMatchObject({ currentNodeId: null, flowKey: null })
   })
 
   test('resposta válida avança; nó terminal manda a mensagem dele e limpa a posição', async () => {

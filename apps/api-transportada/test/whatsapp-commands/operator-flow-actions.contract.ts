@@ -22,6 +22,7 @@ import {
   createOperatorWhatsAppFlowActions,
   type OperatorFlowActionDependencies,
 } from '../../src/whatsapp-commands/application/register-operator-trip-flow-actions.js'
+import { WHATSAPP_LIST_ANSWER_ATTEMPTS_RESET } from '../../src/whatsapp-commands/application/whatsapp-list-answer.service.js'
 import { createWithAuthorizedActor } from '../../src/whatsapp-commands/application/with-authorized-actor.service.js'
 import {
   OPERATOR_DISPATCH_CONFIRM_ANSWER,
@@ -29,7 +30,14 @@ import {
   OPERATOR_FLOW_CONTEXT_KEY,
   OPERATOR_FLOW_NODE,
 } from '../../src/whatsapp-commands/domain/whatsapp-operator-flow.constant.js'
-import { WhatsAppCommandDeniedError } from '../../src/whatsapp-commands/domain/whatsapp-command.error.js'
+import {
+  WHATSAPP_LIST_ANSWER_ATTEMPTS_CONTEXT_KEY,
+  WHATSAPP_LIST_ANSWER_FALLBACK,
+} from '../../src/whatsapp-commands/domain/whatsapp-command.constant.js'
+import {
+  WhatsAppCommandDeniedError,
+  WhatsAppCommandHandoffRequestedError,
+} from '../../src/whatsapp-commands/domain/whatsapp-command.error.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000161'
 const USER_ID = '00000000-0000-4000-8000-000000000162'
@@ -193,6 +201,114 @@ async function callAction(input: {
   })
 }
 
+/**
+ * T020 (B5): o `entrada_choice` aceitava texto livre como id de nota ou de tipo de ocorrência. A
+ * lista relida é a das notas **da viagem**, não só as da ação: a nota já separada que o operador toca
+ * de novo com a rede ruim continua convergindo em "Já estava registrada".
+ */
+describe('resposta de lista conferida contra a lista relida (spec 144 T020, B5)', () => {
+  const SEPARATE_CONTEXT = {
+    [OPERATOR_FLOW_CONTEXT_KEY.actionChoice]: 'separate',
+    [OPERATOR_FLOW_CONTEXT_KEY.tripId]: TRIP_ID,
+  }
+
+  function separationDeps(trip: WarehouseTrip = buildTrip()) {
+    const separated: unknown[] = []
+    const deps = buildDeps({
+      listWarehouseTrips: async () => [trip],
+      separateDocument: async (input) => {
+        separated.push(input)
+        return { document: { id: DOCUMENT_ID } as never, tripStatus: 'separating' }
+      },
+    })
+    return { deps, separated }
+  }
+
+  const rejections: readonly (readonly [string, string])[] = [
+    ['texto livre', 'separei tudo'],
+    ['id de outra lista', OCCURRENCE_TYPE_ID],
+  ]
+  for (const [label, answer] of rejections) {
+    test(`${label}: fallback, conta a tentativa e não grava nada`, async () => {
+      const { channel, sent } = buildChannel()
+      const { deps, separated } = separationDeps()
+
+      const result = await callAction({
+        channel,
+        context: { ...SEPARATE_CONTEXT, [OPERATOR_FLOW_CONTEXT_KEY.documentAnswer]: answer },
+        deps,
+        kind: OPERATOR_FLOW_ACTION_KIND.documentRouter,
+      })
+
+      expect(separated).toEqual([])
+      expect(sent).toEqual([{ body: WHATSAPP_LIST_ANSWER_FALLBACK, kind: 'text' }])
+      expect(result).toEqual({
+        context: { [WHATSAPP_LIST_ANSWER_ATTEMPTS_CONTEXT_KEY]: 1 },
+        next: OPERATOR_FLOW_NODE.documentEntry,
+      })
+    })
+  }
+
+  test('id de nota que saiu da viagem é recusado como fora da lista', async () => {
+    const { channel, sent } = buildChannel()
+    const { deps, separated } = separationDeps(
+      buildTrip({
+        documents: [
+          {
+            id: '00000000-0000-4000-8000-000000000169',
+            number: '2',
+            recipientName: 'Outro',
+            separationStatus: 'pending',
+          },
+        ],
+      }),
+    )
+
+    await callAction({
+      channel,
+      context: { ...SEPARATE_CONTEXT, [OPERATOR_FLOW_CONTEXT_KEY.documentAnswer]: DOCUMENT_ID },
+      deps,
+      kind: OPERATOR_FLOW_ACTION_KIND.documentRouter,
+    })
+
+    expect(separated).toEqual([])
+    expect(sent).toEqual([{ body: WHATSAPP_LIST_ANSWER_FALLBACK, kind: 'text' }])
+  })
+
+  test('a segunda recusa seguida pede uma pessoa, pelo mesmo mecanismo do despachante', async () => {
+    const { deps } = separationDeps()
+
+    await expect(
+      callAction({
+        context: {
+          ...SEPARATE_CONTEXT,
+          [OPERATOR_FLOW_CONTEXT_KEY.documentAnswer]: 'separei tudo',
+          [WHATSAPP_LIST_ANSWER_ATTEMPTS_CONTEXT_KEY]: 1,
+        },
+        deps,
+        kind: OPERATOR_FLOW_ACTION_KIND.documentRouter,
+      }),
+    ).rejects.toBeInstanceOf(WhatsAppCommandHandoffRequestedError)
+  })
+
+  test('tipo de ocorrência digitado não vira id', async () => {
+    const { channel, sent } = buildChannel()
+
+    const result = await callAction({
+      channel,
+      context: { [OPERATOR_FLOW_CONTEXT_KEY.occurrenceTypeAnswer]: 'caixa amassada' },
+      deps: buildDeps({ listOccurrenceTypes: async () => [buildOccurrenceType()] }),
+      kind: OPERATOR_FLOW_ACTION_KIND.occurrenceTypeRouter,
+    })
+
+    expect(sent).toEqual([{ body: WHATSAPP_LIST_ANSWER_FALLBACK, kind: 'text' }])
+    expect(result).toEqual({
+      context: { [WHATSAPP_LIST_ANSWER_ATTEMPTS_CONTEXT_KEY]: 1 },
+      next: OPERATOR_FLOW_NODE.occurrenceTypeEntry,
+    })
+  })
+})
+
 describe('resolveOperatorTripActions — tabela estado → ações (espelha state-gates.contract.ts)', () => {
   test('barracão sem pendência oferece separar, carregar, ocorrência e despachar', () => {
     expect(
@@ -248,6 +364,7 @@ describe('FlowActions do operador — Viagens do armazém (spec 144 T016)', () =
     const withAuthorizedActor = createWithAuthorizedActor({
       authorization: new AuthorizationService(),
       clock: () => NOW,
+      logger: { error() {}, info() {}, warn() {} },
       resolveActor: async () => ({ reason: 'no_membership', status: 'denied' }),
     })
     const [definition] = createOperatorWhatsAppFlowActions(buildDeps())
@@ -557,7 +674,10 @@ describe('FlowActions do operador — Viagens do armazém (spec 144 T016)', () =
     })
 
     expect(sent[0]?.kind).toBe('list')
-    expect(result).toEqual({ next: OPERATOR_FLOW_NODE.occurrenceTypeEntry })
+    expect(result).toEqual({
+      context: WHATSAPP_LIST_ANSWER_ATTEMPTS_RESET,
+      next: OPERATOR_FLOW_NODE.occurrenceTypeEntry,
+    })
   })
 
   test('catálogo de ocorrência vazio avisa e volta ao menu de ações', async () => {

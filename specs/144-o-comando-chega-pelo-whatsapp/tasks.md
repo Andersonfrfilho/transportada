@@ -142,6 +142,7 @@ status='previewed' and preview_sha256=$hash and expires_at>now() returning` + li
       ou avulsa, e a linha já gravada é ignorada na resolução (M1); o resumo da liquidação não sai
       para ator sem permissão de faturar, e o worker só envia a número verificado há ≤ 90 dias (M2);
       o `resolveActor` da liquidação recusa papel de serviço (B2) — um contrato vermelho por achado
+- [x] **T020** 🧠 Correções da revisão final de código (2026-09-13): B2–B6 — a conversa não fica muda e a liquidação não trava; B1 fica para a spec da segunda confirmação
 
 ## Fase 4 — Entrega e ocorrência (D7)
 

@@ -2428,3 +2428,187 @@ mais para escrever aqui.
 - B1, B3, B4 (docs/SECURITY.md, 2026-09-12) — a task pediu para registrá-los, não corrigi-los.
 - O rate limit global continua sem dono: é o mesmo achado de sempre, citado de novo porque a
   superfície cresceu (webhook aciona negócio, não só grava inbox).
+
+## T020 — o que a revisão final reprovou (2026-09-13)
+
+Os seis achados ALTOS da revisão final (`git diff 053860f2..795cb137`, veredito REPROVADO). Nenhum
+tinha contrato. B2 a B6 estão corrigidos aqui, cada um com o contrato vermelho antes da correção. O
+B1 ficou fora por decisão do usuário.
+
+### B1 — fora desta task, e onde ele vai entrar
+
+A regra de `billing.create` da liquidação **não foi tocada**: `revalidateActor`, `BILLING_CREATE_POLICY`
+e `resolveSettlementCode` estão como a T014b os deixou. A correção depende da segunda confirmação
+por código gerado pelo app (sino + Web Push, configurável), que vira spec própria. O ponto de
+entrada é `settleDispatched` em `settle-whatsapp-command.use-case.ts`, na linha
+`const canBill = await revalidateActor(deps, request)`, antes de `billAuthorizedCtes`. O B2 envolveu
+o `settleDispatched` inteiro numa guarda de erro e não mudou nada dentro dele.
+
+### B2 — pedido que nunca chegava a estado final
+
+**Vermelho.** Contrato `settle-whatsapp-command.contract.ts`: **8 fail · 6 pass**. Os três testes
+que fixavam o defeito (`resume_denied` e "erro que não é de domínio sobe") passaram a exigir estado
+final, e seis testes novos cobrem recuo, contagem, código e encerramento. Worker
+`tenant-safety.contract.ts`: **2 fail**. Worker integração `200 pedidos em recuo não impedem o 201º
+de liquidar`: **1 fail · 2 pass**. Esses dois vermelhos do worker foram registrados revertendo por
+um instante o filtro, porque eu tinha editado o filtro antes de escrever o contrato.
+
+**Correção.**
+
+- Ator recusado na retomada, tanto `resolveHumanActor → null` quanto a retomada `forbidden`, agora
+  vai por `closeDeniedResume`: `markSettled` sai de `confirming`, com o novo `fromStatus` na porta,
+  para `settled_partial`/`actor_not_authorized`, sem resumo, como na T014b M2. O desfecho
+  `resume_denied` saiu da união.
+- Erro fora do domínio passa por `withSettlementRetry`, que é o catch local de "retry com limite"
+  que `code-standart.md` §7 admite. Ele grava `last_error_code`, a contagem nova
+  `settlement_attempts` e `next_settlement_at` com recuo que dobra: 5, 10, 20 e 40 min, pela
+  `whatsapp-command-settlement-retry.policy.ts`, fora do corpo compartilhado com o worker.
+  - Na 5ª tentativa (`WHATSAPP_COMMAND_SETTLEMENT_MAX_ATTEMPTS`), `abandonSettlement` encerra como
+    `settled_partial`/`settlement_failed`. A trilha vai para `audit_logs` na mesma transação, em nome
+    de quem confirmou (ADR-0064), com o código em `reason`.
+  - O resumo dessa saída é uma frase fixa, com só o prefixo do pedido: não se sabe se o ator ainda
+    tem acesso.
+  - O pedido nunca é apagado.
+- O código salvo é o `code` do `ApiError` ou uma mensagem que já tem forma de código
+  (`BILLING_INVOICE_ID_MISSING`). Qualquer outro texto vira só o `error.name`, porque a mensagem do
+  driver pode ecoar dado.
+- Migration aditiva `20260913032201_whatsapp_command_settlement_retry`, gerada pelo `drizzle-kit`:
+  - duas colunas;
+  - o CHECK `settlement_attempts >= 0`;
+  - o CHECK de `settlement_outcome` ampliado no mesmo `DROP … ADD`.
+
+  O `rollback.sql` devolve `settlement_failed → billing_failed` antes de restaurar o CHECK antigo, e
+  confere o hash e o `ROW_COUNT`.
+
+- Worker: a cópia do schema ganhou `next_settlement_at`, e `buildCandidateFilters` passou a exigir
+  `next_settlement_at is null or <= now`. O pedido em recuo não ocupa lugar no teto de 200.
+
+**Verde.** Contrato **381 pass · 0 fail** na suíte `whatsapp-commands`, no momento. Worker contrato
+**25 pass**, integração **3 pass**. API integração `whatsapp-command-settlement.integration.ts`
+com dois cenários novos contra Postgres:
+
+- `confirming` parado com ator suspenso → `settled_partial`;
+- quatro `deferred` com recuo gravado, a 5ª encerra `settlement_failed` e deixa uma linha em
+  `audit_logs` sem o texto do erro.
+
+⚠️ Essa integração foi escrita **depois** do verde do contrato: o vermelho do B2 está no contrato e
+na integração do worker, não nela.
+
+### B3 — página fora do intervalo lançava e a conversa ficava muda
+
+**Vermelho.** `whatsapp-menu-policy.contract.ts`, com "lista que encolhe entre dois toques" e "lista
+que zera": **2 fail**. O teste antigo "página fora do intervalo lança" era o defeito fixado e foi
+substituído.
+
+**Correção.**
+
+- `planChoiceMessage` limita a página à última que existe (`countDynamicListPages`), e lista
+  dinâmica vazia devolve o plano novo `empty` com `WHATSAPP_MENU_NOTHING_TO_SHOW`.
+- As três cópias de `sendDynamicChoice` viraram `whatsapp-dynamic-choice.service.ts`. É a exceção
+  Q1 que o pedido admitia: a correção teria de entrar nas três. O serviço devolve `false` no plano
+  vazio, depois de mandar o texto.
+- O `choose` da emissão volta ao menu de critério, e o renderizador do grafo trata o `empty` com
+  `sendText`.
+- Operador e motorista já testavam a lista vazia antes de chamar e continuam iguais.
+
+**Verde.** O contrato novo `dynamic-choice.contract.ts`, registrado no entrypoint, cobre a lista que
+encolheu (mostra a última página) e a que zerou (texto, nenhuma lista, `false`).
+
+### B4 — erro não mapeado virava silêncio
+
+**Vermelho.** **2 fail · 1 pass**:
+
+- `authorized-actor.contract.ts`: FlowAction lança `TypeError` com o texto digitado.
+- `phone-verification.contract.ts`: a leitura da posição lança depois do `verifyEntry`.
+
+O terceiro teste, "a recusa do ator continua subindo", já passava e ficou como guarda.
+
+**Correção.**
+
+- `withAuthorizedActor` passou a receber `logger`. Todo erro que não seja `WhatsAppCommandDeniedError`
+  nem o handoff do B5 vira `WHATSAPP_COMMAND_FAILURE_REPLY` ("Não consegui registrar agora. Tente de
+  novo."), com `{ next: 'menu' }`, o menu do ramo. O log leva só `errorName` e o id do nó.
+- No despachante, `guardConversation` envolve **os dois** caminhos: o `advanceConversation` e o
+  `verifyEntry`, que antes rodava fora do `try`. Qualquer erro que chegue ali limpa a posição e
+  manda a mesma mensagem neutra.
+- Os três arranjos de teste que criavam `createWithAuthorizedActor` sem logger ganharam um silencioso.
+
+**Verde.** Suíte `whatsapp-commands` **387 pass · 0 fail** no momento.
+
+### B5 — texto digitado virava id sem conferência
+
+**Vermelho.** **13 fail**, somando os contratos do motorista, do operador, do despachante e do
+`withAuthorizedActor`. Cobrem texto livre, id de outra lista, id de nota que saiu da viagem, a
+segunda recusa, tipo de ocorrência digitado, o reset ao mostrar a lista e o handoff vindo de
+FlowAction.
+
+**Correção.** `whatsapp-list-answer.service.ts`:
+
+- `rejectListAnswer` manda o `fallbackMessage` do nó, ou `WHATSAPP_LIST_ANSWER_FALLBACK`, conta a
+  tentativa numa chave própria (`whatsappInvalidListAnswers`) e volta ao `entrada_choice`.
+- A contagem é separada de `WHATSAPP_INVALID_ATTEMPTS_CONTEXT_KEY` porque o despachante zera essa a
+  cada turno, antes da FlowAction.
+- Na segunda recusa seguida, lança `WhatsAppCommandHandoffRequestedError`. O `withAuthorizedActor` o
+  deixa passar, e `guardConversation` chama o **mesmo `handOff`** da T006.
+- As ações de lista zeram a contagem ao mostrar a lista.
+
+A lista relida:
+
+- **Motorista, nota:** as notas da viagem relida por `findTripById`.
+- **Operador, nota:** as notas **da viagem** relida, mais "Todas as pendentes" em separar/carregar.
+  Não se restringe aos candidatos da ação: o teste "repetir a mesma separação é idempotente" toca
+  de novo uma nota já `separated`, que é o caso da rede ruim, e ela tem de convergir.
+- **Tipo de ocorrência:** o catálogo ativo relido, pelo `stage` de cada ramo.
+
+Os roteadores de viagem e de ação do operador já validavam e ficaram como estavam.
+
+**Verde.** **400 pass · 0 fail**. Oito asserções antigas mudaram de propósito:
+
+- três ações de lista, que agora devolvem o reset;
+- cinco testes do roteador de nota do motorista, porque o `buildDeps` padrão passou a ter a viagem de
+  teste e o contexto ganhou `tripId`.
+
+### B6 — a tela não percebia que o número foi verificado
+
+**Vermelho.** `test/identity/whatsapp-phone.contract.ts`: **1 fail**. O arquivo não carregou, por
+export ausente (`buildWhatsAppCodeExpiryHandler`). É vermelho de módulo, registrado assim.
+
+**Correção.**
+
+- **View-model:** `verified` agora vence o código em memória, porque código só se gera sem vínculo.
+  `pending` sem código vira o estado novo `pending` (`pendingWaiting`, pt-BR e en), sem o código.
+- **`resolveWhatsAppPhoneRefetchInterval`:** relê o `GET` a cada `WHATSAPP_PHONE_POLL_INTERVAL_MS`
+  (5 s) enquanto houver `pending` ou código na tela, e para em `verified`.
+- **`buildWhatsAppCodeExpiryHandler`:** o fim da contagem faz `reset()` **e** invalida a consulta.
+- **Hook e painel:** o hook usa as duas funções e expõe `expireCode`. O painel mostra o aviso de
+  espera junto do formulário, para quem perdeu o código gerar outro.
+
+**Verde.** `bun test ./test/identity.contract.test.ts` → **202 pass · 0 fail**.
+
+### Gates
+
+- `bun run typecheck` (raiz) → limpo.
+- `bun run lint` → limpo. A primeira rodada acusou `ChannelAdapterInterface` sem uso no operador,
+  sobra da extração do Q1, e o import saiu.
+- `bun run test` → API **5529 pass · 0 fail** (5552 ao todo), worker **1031 · 0**, cron **94 · 0**,
+  frontend **3346 · 0**, frontend-client **18 · 0**, frontend-landing **107 · 0**. As duas falhas
+  de ambiente conhecidas (orçamento de 50 ms do `cargo-volume`, `cte-archive-gateway` com o MinIO
+  fora) não dispararam nesta rodada.
+- `bun run build` → verde nas três apps de frontend e nos bundles do backend.
+- Integrações tocadas, `bun --env-file=../../.env.test test --timeout 120000` a partir de
+  `apps/api-transportada` (liquidação, repositório, despachante, verificação, motorista, operador,
+  prévia e confirmação) → **25 pass · 0 fail**.
+- Worker integração da liquidação, em banco provisionado pelo script do Makefile e migrado →
+  **3 pass · 0 fail**.
+- `make migration-test` → **92 pass · 0 fail**.
+- `make check` → ⚠️ para no `format:check` por causa de **um arquivo que não é desta task**:
+  `.fnlen.tmp.ts`, que já estava como não rastreado no worktree antes de eu começar. Não o
+  formatei, apaguei nem adicionei. Os passos seguintes da mesma cadeia
+  (`lint && typecheck && test && build`) rodaram à parte e passaram. `bunx prettier --check` em
+  todos os arquivos tocados → limpo.
+
+### Fora desta task
+
+B7 a B14 e Q1 a Q9 da revisão continuam como a T018 os registrou, **exceto o Q1**. A extração de
+`sendDynamicChoice` saiu com o B3 e passou a ser o seam da lista vazia. O B5 não precisou reescrever
+os dois arquivos grandes: a validação entrou em quatro roteadores, e o resto é o serviço novo.

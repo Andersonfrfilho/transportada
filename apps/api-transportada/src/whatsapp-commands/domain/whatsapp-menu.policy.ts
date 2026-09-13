@@ -11,6 +11,7 @@ import {
   WHATSAPP_MENU_FIRST_PAGE_SIZE,
   WHATSAPP_MENU_MORE_ID_PREFIX,
   WHATSAPP_MENU_MORE_LABEL,
+  WHATSAPP_MENU_NOTHING_TO_SHOW,
   WHATSAPP_MENU_OPTION_ID_PATTERN,
   WHATSAPP_MENU_OTHER_PAGE_SIZE,
 } from './whatsapp-menu.constant.js'
@@ -50,7 +51,16 @@ export type WhatsAppListChoicePlan = {
   readonly rows: readonly WhatsAppMenuOption[]
 }
 
-export type WhatsAppChoicePlan = WhatsAppButtonChoicePlan | WhatsAppListChoicePlan
+/** T020 (B3): a lista dinâmica relida veio vazia; quem envia manda o texto e volta um menu. */
+export type WhatsAppEmptyChoicePlan = {
+  readonly body: string
+  readonly kind: 'empty'
+}
+
+export type WhatsAppChoicePlan =
+  | WhatsAppButtonChoicePlan
+  | WhatsAppEmptyChoicePlan
+  | WhatsAppListChoicePlan
 
 const graphemeSegmenter = new Intl.Segmenter('pt-BR', { granularity: 'grapheme' })
 
@@ -117,6 +127,9 @@ function capTitle(
  */
 export function planChoiceMessage(input: WhatsAppChoicePlanInput): WhatsAppChoicePlan {
   const { body, options, source } = input
+  if (source === 'dynamic' && options.length === 0) {
+    return { body: WHATSAPP_MENU_NOTHING_TO_SHOW, kind: 'empty' }
+  }
 
   if (options.length <= WHATSAPP_CHOICE_LIMIT.buttons) {
     return {
@@ -148,19 +161,26 @@ export function planChoiceMessage(input: WhatsAppChoicePlanInput): WhatsAppChoic
   return planDynamicListPage({ body, options, page: input.page ?? 1 })
 }
 
+/** Só chamada acima do teto de linhas: a primeira página leva 9, as seguintes 8 cada. */
+function countDynamicListPages(optionCount: number): number {
+  const beyondFirst = Math.max(0, optionCount - WHATSAPP_MENU_FIRST_PAGE_SIZE)
+  return 1 + Math.ceil(beyondFirst / WHATSAPP_MENU_OTHER_PAGE_SIZE)
+}
+
 function planDynamicListPage(input: {
   readonly body: string
   readonly options: readonly WhatsAppMenuOption[]
   readonly page: number
 }): WhatsAppListChoicePlan {
-  const { body, options, page } = input
-  if (page < 1) throw new WhatsAppMenuPolicyViolationError({ rule: 'invalid_page' })
+  const { body, options } = input
+  if (input.page < 1) throw new WhatsAppMenuPolicyViolationError({ rule: 'invalid_page' })
 
+  // T020 (B3): a página gravada no `context` pode apontar além de uma lista que encolheu.
+  const page = Math.min(input.page, countDynamicListPages(options.length))
   const offset =
     page === 1 ? 0 : WHATSAPP_MENU_FIRST_PAGE_SIZE + (page - 2) * WHATSAPP_MENU_OTHER_PAGE_SIZE
   const size = page === 1 ? WHATSAPP_MENU_FIRST_PAGE_SIZE : WHATSAPP_MENU_OTHER_PAGE_SIZE
   const slice = options.slice(offset, offset + size)
-  if (slice.length === 0) throw new WhatsAppMenuPolicyViolationError({ rule: 'page_out_of_range' })
 
   const hasMore = offset + slice.length < options.length
   const rows: WhatsAppMenuOption[] = []

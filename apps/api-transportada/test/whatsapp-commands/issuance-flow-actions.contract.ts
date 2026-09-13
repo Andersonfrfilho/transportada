@@ -178,6 +178,7 @@ describe('guarda do ramo "Emitir documentos" — cte.submit OU nfse.issue', () =
     const withAuthorizedActor = createWithAuthorizedActor({
       authorization: new AuthorizationService(),
       clock: () => NOW,
+      logger: { error() {}, info() {}, warn() {} },
       resolveActor: async () => ({ context: buildActor(permissions), status: 'authorized' }),
     })
     return createIssuanceWhatsAppFlowActions(buildHarness().deps).map((definition) =>

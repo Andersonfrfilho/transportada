@@ -7,7 +7,20 @@
  * linha de outra.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, asc, desc, eq, gte, inArray, isNotNull, lt, or, type SQL } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  or,
+  type SQL,
+} from 'drizzle-orm'
 
 import {
   cteBatchItems,
@@ -36,10 +49,20 @@ const requests = whatsAppCommandRequests
 const documents = whatsAppCommandDocuments
 const NO_ATTEMPT_STATUS = 'pending'
 
-export function buildCandidateFilters(input: { readonly stuckConfirmingBefore: Date }): SQL {
-  return or(
-    eq(requests.status, 'dispatched'),
-    and(eq(requests.status, 'confirming'), lt(requests.confirmedAt, input.stuckConfirmingBefore)),
+/**
+ * T020 (B2): o pedido em recuo fica fora até a hora dele. Sem isso, os que lançam erro voltavam a
+ * cada batida no topo da fila (`confirmed_at asc`) e, somando o teto, calavam o resto.
+ */
+export function buildCandidateFilters(input: {
+  readonly now: Date
+  readonly stuckConfirmingBefore: Date
+}): SQL {
+  return and(
+    or(
+      eq(requests.status, 'dispatched'),
+      and(eq(requests.status, 'confirming'), lt(requests.confirmedAt, input.stuckConfirmingBefore)),
+    ),
+    or(isNull(requests.nextSettlementAt), lte(requests.nextSettlementAt, input.now)),
   ) as SQL
 }
 
@@ -79,6 +102,7 @@ export class DrizzleSettlementCandidateRepository
 
   async listCandidates(input: {
     readonly limit: number
+    readonly now: Date
     readonly stuckConfirmingBefore: Date
   }): Promise<readonly SettlementCandidate[]> {
     const rows = await this.#database
