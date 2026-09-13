@@ -260,3 +260,84 @@ consumidor) são de tasks futuras (T010 em diante) e ficam registradas aqui para
 Regra de parada: **não se aplicou.** A `mailauth` rodou sob o Bun 1.3.14 sem contorno nenhum; a
 única surpresa foi o `.d.ts` incorreto de `dkimSign`, documentada acima, e ela não bloqueia o uso em
 produção porque `dkimSign` só existe do lado do teste.
+
+## T005 — vermelho — 2026-09-13
+
+**Padrão encontrado, e seguido:** o repositório já tem precedente consistente e repetido de
+"contrato antes da implementação, vermelho pelo motivo certo" atravessando várias specs
+(`specs/013-fleet-and-mdfe/evidence.md`, `specs/032-nota-de-servico-municipal/evidence.md`,
+`specs/050-o-cep-vem-de-casa/evidence.md`): o contrato novo — schema **e** query pura — entra no
+`package.json` já na lista explícita, importa um módulo de produção que ainda não existe
+(`drizzle-*.repository.ts`), o arquivo inteiro falha ao carregar com `Cannot find module ...`, e
+essa falha isolada (a suíte inteira da app continua verde fora dela) é o que se registra como
+evidência do vermelho. A tarefa só fecha (`tasks.md`) quando o módulo nasce e o contrato passa a
+importar de verdade — aqui isso é a T008. Segui esse padrão à risca, sem inventar um mecanismo novo
+(sem `test.todo`, sem excluir da lista do `package.json`): é exatamente a forma que a T013 do
+`plan.md` já previa ("teste de aceite/contrato antes da implementação").
+
+Arquivos:
+
+- `apps/api-transportada/test/contractor-mail-schema/tenant-safety.contract.ts` — cobre as quatro
+  tabelas do plan.md (`contractor_mail_settings`, `contractor_contacts`, `contractor_mail_threads`,
+  `contractor_mail_messages`): FK de `company_id` para `companies` (restrict/cascade) em cada uma,
+  as FKs compostas `(company_id, contractor_id)`/`(company_id, thread_id)` que impedem apontar para
+  o contratante ou a conversa de outra empresa, e a asserção deliberada de que
+  `reply_token_hash` é único **global** (não por empresa) — documentando por que essa unicidade
+  sozinha não prova isolamento nenhum. O último teste é o caso da spec: importa
+  `buildContractorMailThreadByReplyTokenFilters` de
+  `apps/api-transportada/src/contractor-mail/infrastructure/drizzle-contractor-mail.repository.ts`
+  (T008, ainda não existe) e, quando existir, vai exigir que a consulta pelo hash do token leve
+  `company_id` na mesma condição — um token de conversa de outra empresa não pode achar nada.
+- `apps/api-transportada/test/contractor-mail-schema.contract.test.ts` — entrypoint fino, no padrão
+  dos demais `test/<area>.contract.test.ts`.
+- `apps/api-transportada/package.json` — a entrada `./test/contractor-mail-schema.contract.test.ts`
+  entrou na lista literal do script `test` (senão o arquivo não roda, como o `CLAUDE.md` avisa).
+
+Saída do vermelho, isolada:
+
+```
+$ bun test ./test/contractor-mail-schema.contract.test.ts
+
+test/contractor-mail-schema.contract.test.ts:
+
+# Unhandled error between tests
+-------------------------------
+error: Cannot find module '../../src/contractor-mail/infrastructure/drizzle-contractor-mail.repository.js' from
+'.../apps/api-transportada/test/contractor-mail-schema/tenant-safety.contract.ts'
+-------------------------------
+
+ 0 pass
+ 1 fail
+ 1 error
+Ran 1 test across 1 file. [42.00ms]
+```
+
+Saída do vermelho, suíte inteira da API (mostrando que só o contrato novo está vermelho):
+
+```
+$ bun run --cwd apps/api-transportada test
+ 5543 pass
+ 23 skip
+ 1 fail
+ 1 error
+ 38549 expect() calls
+Ran 5567 tests across 169 files. [22.16s]
+error: script "test" exited with code 1
+```
+
+`bun run typecheck` (raiz) para na mesma causa, pelo mesmo motivo — o `import` type-only também não
+acha o módulo:
+
+```
+$ bun run typecheck
+test/contractor-mail-schema/tenant-safety.contract.ts(17,62): error TS2307: Cannot find module
+'../../src/contractor-mail/infrastructure/drizzle-contractor-mail.repository.js' or its
+corresponding type declarations.
+```
+
+`bunx prettier --check` nos três arquivos tocados (os dois contratos e o `package.json`) — limpo.
+
+Este é o vermelho esperado e correto: a T005 fica `[ ]` no `tasks.md`, e só vira `[x]` quando a
+T008 criar `drizzle-contractor-mail.repository.ts` com `buildContractorMailThreadByReplyTokenFilters`
+filtrando por `companyId`, fazendo o import resolver e o contrato passar a exercer a asserção de
+verdade.
