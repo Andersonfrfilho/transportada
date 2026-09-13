@@ -34,6 +34,12 @@ Schemas em `src/database/*.schema.ts`, agregados em `database.schema.ts`. Migrat
 em `drizzle/`. `bun run db:generate --name x` · `db:check` · `db:migrate` · `db:seed:local`. O
 startup **não** roda migrations; rollback é manual, ao lado da migration.
 
+**Migration à mão é permitida, sem snapshot não** (13/09/2026). Toda pasta nova de `drizzle/` leva
+`snapshot.json` do schema TS; `db:generate` diffa contra o último, e dez migrations à mão sem ele
+fizeram o gerado recriar tabelas já aplicadas. O `db:check` **não** pega isso — quem pega é
+`test/database-migration/schema-snapshot.contract.ts`. Receita e histórico: docs/ai-context §
+"Migration à mão é permitida".
+
 **O banco falha rápido, e diz por quê** (spec 137, incidente 11/09/2026): `database-client.service.ts`
 monta o Bun SQL com pool e prazos explícitos (`DATABASE_POOL_MAX`, `DATABASE_CONNECT_TIMEOUT_SECONDS`,
 `DATABASE_QUERY_TIMEOUT_MS` abaixo do `REQUEST_TIMEOUT_SECONDS`); consulta que passa do prazo vira

@@ -1273,6 +1273,29 @@ gravaria uma extração de campos todos nulos como se fosse leitura feita.
 versionadas em `drizzle/`. `bun run db:generate --name x` · `db:check` · `db:migrate` · `db:seed:local`.
 O startup **não** roda migrations; rollback é manual, ao lado da migration.
 
+**Migration à mão é permitida, sem snapshot não.** O `drizzle-kit generate` não lê o banco nem os
+`migration.sql`: ele diffa o schema TS contra o `snapshot.json` mais recente da pasta. Medido em
+2026-09-13: das 173 pastas, as 35 a partir de `20260902140000_cargo_volume_factors` tinham só
+`migration.sql` + `rollback.sql`, escritas à mão. As 25 anteriores a `20260907182129_toll_booths`
+não faziam mal, porque o snapshot dela saiu do schema e as absorveu. As **dez posteriores** faziam: o
+`db:generate` recriava 32 statements já aplicados (`company_toll_booth_charges`,
+`fleet_vehicle_axles`, `trips.planned_toll`, `fleet_drivers.secures_cargo`…). E o `db:check`
+respondia "Everything's fine", porque só confere os snapshots entre si.
+
+A correção pôs o snapshot gerado do schema TS dentro da pasta de
+`20260910120000_vehicle_reference_every_type`, encadeado no de `toll_booths`, sem `migration.sql`
+novo. O migrator do drizzle-orm só lê `migration.sql`, então o banco não percebe a mudança. Um
+`db:generate` logo depois responde `no_changes`.
+
+A receita para migration à mão: escreva `migration.sql` + `rollback.sql` numa pasta nova, com o
+schema TS já atualizado. Depois rode `bun run db:generate --name tmp`, mova o `snapshot.json` gerado
+para a sua pasta e apague a pasta `tmp`. Se o `migration.sql` gerado não sair equivalente ao seu, é
+o schema TS que está diferente do SQL: conserte antes de mover o snapshot. Quem cobra isso é
+`test/database-migration/schema-snapshot.contract.ts`: toda pasta a partir de `20260910120000` tem
+snapshot, o último encadeia no anterior, e `generateMigration(último snapshot, schema TS)` é vazio.
+⚠️ O contrato compara o TS com o snapshot, **não** com o banco: SQL à mão que diverge do schema TS
+continua passando. Quem pega isso é o `make migration-test`, e só para o que ele cobre.
+
 **O banco falha rápido, e diz por quê** (spec 137). A API não usa mais `createDrizzleProvider`
 direto: `src/database/database-client.service.ts` monta o Bun SQL com pool e prazos explícitos
 (`DATABASE_POOL_MAX` 10, `DATABASE_CONNECT_TIMEOUT_SECONDS` 5, `DATABASE_QUERY_TIMEOUT_MS` 8000 —
