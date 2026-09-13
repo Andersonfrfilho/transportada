@@ -1059,3 +1059,10 @@ pt-BR acentuado e inglês em `trip.locale.json`/`trip.en.locale.json`, mais `det
 - `npx prettier --write` nos arquivos tocados/criados → sem diff além da própria formatação.
 
 **Commit:** `feat(trip): 147 T13 — a viagem de cavalo mostra e troca a carreta`.
+
+## T16 — catálogo 01/04 (migration à mão)
+
+- Pasta `drizzle/20260913130000_vehicle_reference_open_and_container/`, à mão como as 35 anteriores (ver T8). `INSERT … ON CONFLICT DO NOTHING` de três linhas aprovadas na T-cat: `('toco','01')` 7,000×2,500×2,500 m / 10.685 kg (SINAPI 89265; altura por convenção, dita no comentário), `('','04')` contêiner 40' dry 12,030×2,350×2,390 / 27.600 kg, `('truck','04')` contêiner 20' dry 5,900×2,350×2,390 / 25.000 kg (DSV, conferido na Guia Log). Rollback apaga só as três chaves e a entrada do journal.
+- Registrada em `static-migration.contract.ts`. Não há teste de conteúdo do catálogo (só forma, em `test/fleet-schema/vehicle-volume-references.contract.ts`).
+- Gates: `db:check` ok; `make migration-test` 91 pass/0 fail; typecheck limpo; api test 5128 pass/23 skip/0 fail, 37328 expect() calls.
+- ⚠️ Efeito colateral encontrado: a sugestão de ficha (spec 093, `vehicleSuggestion.service.ts`) casa o catálogo só por `vehicleType` e pega a primeira linha em ordem de `body_type`; com `('toco','01')`, todo toco novo passaria a receber a sugestão da carroceria aberta em vez do baú. Corrigido na T16b.
