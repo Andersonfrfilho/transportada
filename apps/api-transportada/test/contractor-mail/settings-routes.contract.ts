@@ -13,6 +13,7 @@ import {
   getRequest,
   jsonRequest,
 } from '../fixtures/contractor-mail-http.fixture'
+import { ContractorMailSettingsVersionConflictError } from '../../src/contractor-mail/domain/contractor-mail.error'
 
 const SETTINGS_BODY = {
   apiKey: API_KEY,
@@ -40,6 +41,7 @@ describe('contractor mail settings routes contract (spec 143, T008)', () => {
       'senderAddress',
       'senderName',
       'status',
+      'version',
       'webhookId',
       'webhookSecretConfigured',
     ])
@@ -127,6 +129,41 @@ describe('contractor mail settings routes contract (spec 143, T008)', () => {
       apiKey: undefined,
       webhookSigningSecret: undefined,
     })
+  })
+
+  /**
+   * Revisão do `architect`: o `PUT` repassa `expectedVersion` até o caso de uso — é ele quem decide
+   * se é criação (ausente) ou atualização otimista (presente), nunca a rota.
+   */
+  test('passes expectedVersion through to the use case, and omits it when absent', async () => {
+    const fixture = await createContractorMailHttpFixture()
+
+    await fixture.handle(
+      jsonRequest({
+        body: { ...SETTINGS_BODY, expectedVersion: '3' },
+        method: 'PUT',
+        path: '/contractor-mail-settings',
+      }),
+    )
+    await fixture.handle(
+      jsonRequest({ body: SETTINGS_BODY, method: 'PUT', path: '/contractor-mail-settings' }),
+    )
+
+    expect(fixture.saveCalls[0]).toMatchObject({ expectedVersion: '3' })
+    expect(fixture.saveCalls[1]).toMatchObject({ expectedVersion: undefined })
+  })
+
+  /** Uma corrida perdida (spec 143, revisão da T008) responde 409, nunca 500 nem 200 silencioso. */
+  test('maps a lost version race to 409', async () => {
+    const fixture = await createContractorMailHttpFixture({
+      saveError: new ContractorMailSettingsVersionConflictError(),
+    })
+
+    const response = await fixture.handle(
+      jsonRequest({ body: SETTINGS_BODY, method: 'PUT', path: '/contractor-mail-settings' }),
+    )
+
+    expect(response.status).toBe(409)
   })
 
   test('rejects a reply domain with fewer than three labels', async () => {

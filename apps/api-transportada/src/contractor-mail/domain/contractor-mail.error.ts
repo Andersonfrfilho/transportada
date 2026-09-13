@@ -52,3 +52,19 @@ export class ContractorMailSecretRequiredError extends ApiError {
     })
   }
 }
+
+/**
+ * Revisão do `architect` (T008): cobre as duas corridas do `PUT`. Sem `expectedVersion`, a linha já
+ * existir é conflito (alguém venceu a criação antes); com `expectedVersion`, a versão não bater —
+ * inclusive porque a linha não existe mais — é conflito. Nos dois casos o cliente perdeu a corrida
+ * e precisa reler (`GET`) antes de tentar de novo; nenhum envelope selado chega a ser gravado.
+ */
+export class ContractorMailSettingsVersionConflictError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CONTRACTOR_MAIL_SETTINGS_VERSION_CONFLICT',
+      message: 'Contractor mail settings version conflict',
+      status: 409,
+    })
+  }
+}

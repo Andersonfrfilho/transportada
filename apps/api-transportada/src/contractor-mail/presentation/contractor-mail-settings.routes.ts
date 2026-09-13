@@ -20,6 +20,7 @@ const NO_STORE_HEADERS = { 'cache-control': 'no-store', 'content-type': JSON_CON
 type SaveInput = {
   readonly apiKey: string | undefined
   readonly correlationId: string
+  readonly expectedVersion: string | undefined
   readonly replyDomain: string
   readonly senderAddress: string
   readonly senderName: string
@@ -69,6 +70,7 @@ export function createContractorMailSettingsRoutes(
         return {
           apiKey: body.apiKey,
           correlationId,
+          expectedVersion: body.expectedVersion,
           replyDomain: body.replyDomain,
           senderAddress: body.senderAddress,
           senderName: body.senderName,
@@ -104,6 +106,7 @@ function serializeSettings(settings: ContractorMailSettingsSummary): Record<stri
     senderAddress: settings.senderAddress,
     senderName: settings.senderName,
     status: settings.status,
+    version: settings.version,
     webhookId: settings.webhookId,
     webhookSecretConfigured: settings.webhookSecretConfigured,
   }

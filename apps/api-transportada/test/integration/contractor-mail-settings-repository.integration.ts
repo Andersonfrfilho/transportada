@@ -2,15 +2,24 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
  * Spec 143 T008: a metade transacional do repositório (upsert + auditoria, na mesma transação) só
- * se prova contra um Postgres de verdade — um fake em memória não confere que `onConflictDoUpdate`
- * preserva `id`/`webhook_id` e incrementa `version`, nem que a linha de `audit_logs` nasce (ou não
+ * se prova contra um Postgres de verdade — um fake em memória não confere que a corrida de
+ * criação/atualização de fato serializa no banco, nem que a linha de `audit_logs` nasce (ou não
  * nasce) junto com a de `contractor_mail_settings`.
+ *
+ * Revisão do `architect`: dois `PUT` concorrentes não podem mais os dois "vencer" com um
+ * `onConflictDoUpdate` cego — o perdedor gravava o corpo dele por cima da linha do vencedor,
+ * inclusive o envelope selado com o `settingsId` **dele**, que nunca mais abria (o `id` da linha
+ * continuava sendo o do vencedor). Os dois testes de corrida abaixo prendem exatamente isso: o
+ * perdedor recebe `409` e nada dele é persistido, e o vencedor abre com o próprio segredo.
  */
 import { SQL } from 'bun'
 import { describe, expect, test } from 'bun:test'
 import { createDrizzleProvider } from '@adatechnology/drizzle-provider'
+import { createSecretEnvelopeProvider, type SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
 import { eq } from 'drizzle-orm'
 
+import { createContractorMailCredentialSecretService } from '../../src/contractor-mail/application/contractor-mail-credential-secret.service.js'
+import { ContractorMailSettingsVersionConflictError } from '../../src/contractor-mail/domain/contractor-mail.error.js'
 import { DrizzleContractorMailRepository } from '../../src/contractor-mail/infrastructure/drizzle-contractor-mail.repository.js'
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import {
@@ -39,6 +48,13 @@ const SECRET_ENVELOPE_V1 = {
 }
 const SECRET_ENVELOPE_V2 = { ...SECRET_ENVELOPE_V1, ciphertext: 'c2Vjb25kLXZlcnNpb24' }
 
+const secretService = createContractorMailCredentialSecretService({
+  envelopeProvider: createSecretEnvelopeProvider({
+    activeKeyId: 'test-v1',
+    keys: { 'test-v1': Uint8Array.from({ length: 32 }, (_value, index) => index + 1) },
+  }),
+})
+
 describe('contractor mail settings repository integration (spec 143, T008)', () => {
   testWithPostgres(
     'creates the row and its audit together, then updates in place without changing id or webhook id',
@@ -59,6 +75,7 @@ describe('contractor mail settings repository integration (spec 143, T008)', () 
             entityId: settingsId,
           },
           companyId,
+          expectedVersion: undefined,
           replyDomain: 'resposta.fernandes-transportadora.com.br',
           secretEnvelope: SECRET_ENVELOPE_V1,
           senderAddress: 'ocorrencias@fernandes-transportadora.com.br',
@@ -81,6 +98,7 @@ describe('contractor mail settings repository integration (spec 143, T008)', () 
             entityId: settingsId,
           },
           companyId,
+          expectedVersion: created.version.toString(),
           replyDomain: created.replyDomain,
           secretEnvelope: SECRET_ENVELOPE_V2,
           senderAddress: created.senderAddress,
@@ -102,6 +120,9 @@ describe('contractor mail settings repository integration (spec 143, T008)', () 
         expect(new Set(audits.map((row) => row.entityId))).toEqual(new Set([settingsId]))
         for (const audit of audits) {
           expect(JSON.stringify(audit.afterSnapshot)).not.toContain('ciphertext')
+          expect(audit.permission).toBe('settings.manage')
+          expect(audit.targetType).toBe('contractor_mail_settings')
+          expect(audit.targetId).toBe(settingsId)
         }
 
         const found = await repository.findSettings({ companyId })
@@ -110,6 +131,159 @@ describe('contractor mail settings repository integration (spec 143, T008)', () 
           webhookId: created.webhookId,
         })
         expect(foundByWebhookId).toEqual(updated)
+      })
+    },
+    30_000,
+  )
+
+  /**
+   * A corrida do item 1 da revisão: duas requisições acreditam, ao mesmo tempo, que são a
+   * **primeira** configuração da empresa (`expectedVersion` ausente nas duas). Só uma pode vencer —
+   * a outra tem de ser `409`, e nunca uma segunda linha, nem a dela sobrepondo a da vencedora.
+   */
+  testWithPostgres(
+    'two concurrent first-time creations: the loser gets a version conflict, and the winner opens with its own secret',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const { companyId, userId } = await seedTenant(database)
+        const repository = new DrizzleContractorMailRepository(database.db)
+        const settingsIdA = crypto.randomUUID()
+        const settingsIdB = crypto.randomUUID()
+        const envelopeA = await secretService.encrypt({
+          apiKey: 're_first_racer',
+          companyId,
+          settingsId: settingsIdA,
+          webhookSigningSecret: 'whsec_first_racer',
+        })
+        const envelopeB = await secretService.encrypt({
+          apiKey: 're_second_racer',
+          companyId,
+          settingsId: settingsIdB,
+          webhookSigningSecret: 'whsec_second_racer',
+        })
+
+        const outcomes = await Promise.allSettled([
+          repository.saveSettings(
+            buildCreateInput({ companyId, envelope: envelopeA, settingsId: settingsIdA, userId }),
+          ),
+          repository.saveSettings(
+            buildCreateInput({ companyId, envelope: envelopeB, settingsId: settingsIdB, userId }),
+          ),
+        ])
+
+        const fulfilled = outcomes.filter(
+          (
+            outcome,
+          ): outcome is PromiseFulfilledResult<
+            Awaited<ReturnType<typeof repository.saveSettings>>
+          > => outcome.status === 'fulfilled',
+        )
+        const rejected = outcomes.filter(
+          (outcome): outcome is PromiseRejectedResult => outcome.status === 'rejected',
+        )
+        expect(fulfilled).toHaveLength(1)
+        expect(rejected).toHaveLength(1)
+        expect(rejected[0]?.reason).toBeInstanceOf(ContractorMailSettingsVersionConflictError)
+
+        const winner = fulfilled[0]?.value
+        if (winner === undefined) throw new Error('no winner was returned')
+        const winnerIsFirst = winner.id === settingsIdA
+        const winnerSecret = await secretService.decrypt({
+          companyId,
+          envelope: winner.secretEnvelope as SecretEnvelopeV1,
+          settingsId: winner.id,
+        })
+        expect(winnerSecret).toEqual(
+          winnerIsFirst
+            ? { apiKey: 're_first_racer', webhookSigningSecret: 'whsec_first_racer' }
+            : { apiKey: 're_second_racer', webhookSigningSecret: 'whsec_second_racer' },
+        )
+
+        // A escrita perdedora nunca chega à auditoria — a transação inteira dela é desfeita.
+        const audits = await database.db
+          .select()
+          .from(auditLogs)
+          .where(eq(auditLogs.companyId, companyId))
+        expect(audits).toHaveLength(1)
+        expect(audits[0]?.entityId).toBe(winner.id)
+
+        const persisted = await repository.findSettings({ companyId })
+        expect(persisted).toEqual(winner)
+      })
+    },
+    30_000,
+  )
+
+  /**
+   * A metade "atualização" do item 2 da revisão: uma versão velha nunca pode vencer, e o segredo já
+   * selado da versão atual sobrevive intacto — a escrita rejeitada não grava nada.
+   */
+  testWithPostgres(
+    'an update with a stale expectedVersion is rejected, and the current secret survives untouched',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const { companyId, userId } = await seedTenant(database)
+        const repository = new DrizzleContractorMailRepository(database.db)
+        const settingsId = crypto.randomUUID()
+        const originalEnvelope = await secretService.encrypt({
+          apiKey: 're_original',
+          companyId,
+          settingsId,
+          webhookSigningSecret: 'whsec_original',
+        })
+
+        const created = await repository.saveSettings(
+          buildCreateInput({ companyId, envelope: originalEnvelope, settingsId, userId }),
+        )
+        expect(created.version).toBe(1n)
+
+        const staleEnvelope = await secretService.encrypt({
+          apiKey: 're_stale_writer',
+          companyId,
+          settingsId,
+          webhookSigningSecret: 'whsec_stale_writer',
+        })
+
+        await expect(
+          repository.saveSettings({
+            audit: {
+              action: 'contractor-mail.settings.saved',
+              actorUserId: userId,
+              afterSnapshot: { changedFields: ['senderName'] },
+              beforeSnapshot: { id: settingsId, version: '0' },
+              companyId,
+              correlationId: 'contractor-mail-integration-stale',
+              entityId: settingsId,
+            },
+            companyId,
+            expectedVersion: '0',
+            replyDomain: created.replyDomain,
+            secretEnvelope: staleEnvelope,
+            senderAddress: created.senderAddress,
+            senderName: 'A stale writer should never land',
+            settingsId,
+          }),
+        ).rejects.toBeInstanceOf(ContractorMailSettingsVersionConflictError)
+
+        const current = await repository.findSettings({ companyId })
+        expect(current?.version).toBe(1n)
+        expect(current?.senderName).toBe('Fernandes Transportadora')
+        if (current === undefined) throw new Error('settings vanished')
+        const stillOriginal = await secretService.decrypt({
+          companyId,
+          envelope: current.secretEnvelope as SecretEnvelopeV1,
+          settingsId,
+        })
+        expect(stillOriginal).toEqual({
+          apiKey: 're_original',
+          webhookSigningSecret: 'whsec_original',
+        })
+
+        const audits = await database.db
+          .select()
+          .from(auditLogs)
+          .where(eq(auditLogs.companyId, companyId))
+        expect(audits).toHaveLength(1)
       })
     },
     30_000,
@@ -124,7 +298,12 @@ describe('contractor mail settings repository integration (spec 143, T008)', () 
         const repository = new DrizzleContractorMailRepository(database.db)
 
         await repository.saveSettings(
-          buildSaveInput({ companyId: first.companyId, userId: first.userId }),
+          buildCreateInput({
+            companyId: first.companyId,
+            envelope: SECRET_ENVELOPE_V1,
+            settingsId: crypto.randomUUID(),
+            userId: first.userId,
+          }),
         )
 
         expect(await repository.findSettings({ companyId: second.companyId })).toBeUndefined()
@@ -184,8 +363,12 @@ describe('contractor mail settings repository integration (spec 143, T008)', () 
   )
 })
 
-function buildSaveInput(input: { readonly companyId: string; readonly userId: string }) {
-  const settingsId = crypto.randomUUID()
+function buildCreateInput(input: {
+  readonly companyId: string
+  readonly envelope: unknown
+  readonly settingsId: string
+  readonly userId: string
+}) {
   return {
     audit: {
       action: 'contractor-mail.settings.saved',
@@ -194,14 +377,15 @@ function buildSaveInput(input: { readonly companyId: string; readonly userId: st
       beforeSnapshot: null,
       companyId: input.companyId,
       correlationId: crypto.randomUUID(),
-      entityId: settingsId,
+      entityId: input.settingsId,
     },
     companyId: input.companyId,
+    expectedVersion: undefined,
     replyDomain: 'resposta.fernandes-transportadora.com.br',
-    secretEnvelope: SECRET_ENVELOPE_V1,
+    secretEnvelope: input.envelope,
     senderAddress: 'ocorrencias@fernandes-transportadora.com.br',
     senderName: 'Fernandes Transportadora',
-    settingsId,
+    settingsId: input.settingsId,
   }
 }
 

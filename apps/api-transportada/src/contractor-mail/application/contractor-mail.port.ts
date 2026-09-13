@@ -66,6 +66,13 @@ export type ContractorMailSettingsAuditRecord = {
 export type SaveContractorMailSettingsInput = {
   readonly audit: ContractorMailSettingsAuditRecord
   readonly companyId: string
+  /**
+   * Revisão do `architect` (T008): ausente é "eu acho que ainda não existe" — o repositório insere
+   * e recusa se a linha já existir (`409`). Presente é "eu acho que a versão é esta" — o repositório
+   * faz `UPDATE ... WHERE version = expectedVersion` e recusa se não bater (`409`). As duas formas
+   * nunca gravam o envelope selado por cima de uma linha que não é a que ele pensa que é.
+   */
+  readonly expectedVersion: string | undefined
   readonly replyDomain: string
   readonly secretEnvelope: unknown
   readonly senderAddress: string

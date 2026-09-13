@@ -2,13 +2,19 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
  * Spec 143 T008: "nenhum arquivo em `src/contractor-mail/**` serializa ou loga `apiKey`,
- * `webhookSigningSecret` ou `secretEnvelope`." Duas garantias por texto de fonte, cada uma no seu
- * nível: nenhuma chamada de `logger`/`log` do módulo inteiro recebe um destes identificadores; e a
- * camada HTTP (`contractor-mail-settings.routes.ts`) nunca precisa nomear o **envelope selado** —
- * ela só repassa `apiKey`/`webhookSigningSecret` como texto opaco do corpo validado até o caso de
- * uso, que é quem sela. A garantia de que a resposta real nunca carrega os *valores* dos segredos
- * está no contrato funcional em `settings-routes.contract.ts` (`response.text()` sem o segredo
- * sintético, e a lista fechada de chaves do JSON).
+ * `webhookSigningSecret` ou `secretEnvelope`." Revisão do `architect`: a versão anterior deste
+ * arquivo só reprovava um `logger`/`log` que **já** mencionasse um destes identificadores no mesmo
+ * arquivo — um `console.log(secretEnvelope)` solto, sem nenhuma outra chamada de log por perto,
+ * passava batido, porque o `if (!LOG_CALL_PATTERN.test(source)) return` saía cedo demais. A
+ * invariante certa é mais forte e incondicional: **nenhuma chamada de `logger`/`log`/`console`
+ * existe** em `src/contractor-mail/**`, ponto — Router e Exception Filter globais já logam o que
+ * precisa ser logado (§7 do baseline), então o módulo não tem motivo nenhum para chamar log
+ * nenhum. Quem quiser logar algo aqui um dia vai ter de vir revisar este teste primeiro, o que é a
+ * intenção. A camada HTTP (`contractor-mail-settings.routes.ts`) nunca precisa nomear o **envelope
+ * selado** — ela só repassa `apiKey`/`webhookSigningSecret` como texto opaco do corpo validado até
+ * o caso de uso, que é quem sela. A garantia de que a resposta real nunca carrega os *valores* dos
+ * segredos está no contrato funcional em `settings-routes.contract.ts` (`response.text()` sem o
+ * segredo sintético, e a lista fechada de chaves do JSON).
  */
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -16,8 +22,8 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'bun:test'
 
 const CONTRACTOR_MAIL_SOURCE_ROOT = new URL('../../src/contractor-mail/', import.meta.url).pathname
-const FORBIDDEN_LOG_IDENTIFIERS = ['apiKey', 'webhookSigningSecret', 'secretEnvelope'] as const
-const LOG_CALL_PATTERN = /\b(?:logger|log)\s*(?:\?\.)?\.\s*(?:debug|info|warn|error)\s*\(/u
+const LOG_CALL_PATTERN =
+  /\b(?:logger|log|console)\s*(?:\?\.)?\.\s*(?:debug|info|warn|error|log)\s*\(/u
 const ROUTES_FILE = 'presentation/contractor-mail-settings.routes.ts'
 const ENVELOPE_IDENTIFIERS = ['secretEnvelope', 'ciphertext'] as const
 
@@ -36,14 +42,15 @@ describe('contractor mail secrets never reach logs or the settings routes (spec 
     expect(sourceFiles).toContain('application/contractor-mail-credential-secret.service.ts')
   })
 
+  /**
+   * Incondicional, não "se houver chamada de log, ela não pode conter X": o Router e o Exception
+   * Filter globais já são quem loga (nunca este módulo), então zero chamadas é a invariante — não
+   * "zero chamadas com segredo dentro".
+   */
   for (const file of sourceFiles) {
-    it(`src/contractor-mail/${file} never logs a secret field`, () => {
+    it(`src/contractor-mail/${file} never calls logger, log or console`, () => {
       const source = readFileSync(join(CONTRACTOR_MAIL_SOURCE_ROOT, file), 'utf8')
-      if (!LOG_CALL_PATTERN.test(source)) return
-
-      for (const identifier of FORBIDDEN_LOG_IDENTIFIERS) {
-        expect(source).not.toContain(identifier)
-      }
+      expect(LOG_CALL_PATTERN.test(source)).toBe(false)
     })
   }
 

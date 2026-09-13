@@ -4,7 +4,10 @@
 import type { SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
 
 import type { ContractorMailSettingsStatus } from '../../database/contractor-mail.schema.js'
-import { ContractorMailSecretRequiredError } from '../domain/contractor-mail.error.js'
+import {
+  ContractorMailCredentialUnavailableError,
+  ContractorMailSecretRequiredError,
+} from '../domain/contractor-mail.error.js'
 import type {
   ContractorMailCredentialSecret,
   ContractorMailCredentialSecretService,
@@ -45,6 +48,7 @@ export type ContractorMailCheckStatus = (typeof CONTRACTOR_MAIL_CHECK_STATUSES)[
 export const CONTRACTOR_MAIL_CHECK_REASONS = [
   'not_configured',
   'ok',
+  'credential_unavailable',
   'provider_unauthorized',
   'provider_unreachable',
   'provider_unexpected_response',
@@ -79,6 +83,7 @@ export type ContractorMailSettingsSummary = {
   readonly senderAddress: string
   readonly senderName: string
   readonly status: ContractorMailSettingsStatus
+  readonly version: string
   readonly webhookId: string
   readonly webhookSecretConfigured: boolean
 }
@@ -103,6 +108,12 @@ export type SaveContractorMailSettingsUseCaseInput = {
   readonly apiKey: string | undefined
   readonly context: ContractorMailSettingsActorContext
   readonly correlationId: string
+  /**
+   * Revisão do `architect` (T008): ausente é a primeira configuração ("eu acho que não existe
+   * ainda"); presente é a atualização otimista ("eu acho que a versão é esta"). Repassado como veio
+   * até o repositório — é lá que a corrida de fato se decide, com uma consulta atômica.
+   */
+  readonly expectedVersion: string | undefined
   readonly replyDomain: string
   readonly senderAddress: string
   readonly senderName: string
@@ -158,21 +169,35 @@ export function createContractorMailSettingsUseCase(dependencies: {
       ]
     },
 
+    /**
+     * Revisão do `architect` (T008): `expectedVersion` decide a intenção, não a leitura anterior de
+     * `existing` — essa leitura é só um palpite (informa o merge de segredo e o `changedFields`),
+     * porque entre ela e a escrita outra requisição pode ter vencido. Quem decide de verdade se a
+     * escrita acontece é `repository.saveSettings`, com uma consulta atômica: `INSERT ... ON
+     * CONFLICT DO NOTHING` quando `expectedVersion` está ausente (a intenção é criar), `UPDATE ...
+     * WHERE version = expectedVersion` quando está presente. As duas devolvem `undefined` quando
+     * perdem a corrida, e o repositório vira isso em `ContractorMailSettingsVersionConflictError`
+     * (`409`) — sem gravar nenhum envelope selado com o id errado.
+     */
     async save({
       apiKey,
       context,
       correlationId,
+      expectedVersion,
       replyDomain,
       senderAddress,
       senderName,
       webhookSigningSecret,
     }) {
       const existing = await repository.findSettings({ companyId: context.companyId })
-      const settingsId = existing?.id ?? crypto.randomUUID()
+      const isCreateIntent = expectedVersion === undefined
+      const settingsId = isCreateIntent
+        ? crypto.randomUUID()
+        : (existing?.id ?? crypto.randomUUID())
 
       const secret = await resolveSecret({
         apiKey,
-        existing,
+        existing: isCreateIntent ? undefined : existing,
         secretService,
         settingsId,
         webhookSigningSecret,
@@ -207,6 +232,7 @@ export function createContractorMailSettingsUseCase(dependencies: {
           entityId: settingsId,
         },
         companyId: context.companyId,
+        expectedVersion,
         replyDomain,
         secretEnvelope,
         senderAddress,
@@ -219,6 +245,14 @@ export function createContractorMailSettingsUseCase(dependencies: {
   }
 }
 
+/**
+ * `existing` chega `undefined` sempre que a intenção é criar (`expectedVersion` ausente) — mesmo
+ * que uma leitura anterior tenha achado uma linha, porque essa leitura não é mais confiável na hora
+ * de decidir *segredo*: criar exige os dois de uma vez, nunca "preservar" algo que a intenção
+ * declarada diz que não existe. Quando existe de verdade, o `INSERT ... ON CONFLICT DO NOTHING` do
+ * repositório recusa a escrita de qualquer forma (`409`), e o segredo aqui resolvido nunca chega a
+ * ser persistido.
+ */
 async function resolveSecret(input: {
   readonly apiKey: string | undefined
   readonly existing: ContractorMailSettingsRecord | undefined
@@ -234,7 +268,7 @@ async function resolveSecret(input: {
   const previous = await input.secretService.decrypt({
     companyId: input.existing.companyId,
     envelope: input.existing.secretEnvelope as SecretEnvelopeV1,
-    settingsId: input.settingsId,
+    settingsId: input.existing.id,
   })
   return {
     apiKey: input.apiKey ?? previous.apiKey,
@@ -272,11 +306,19 @@ function toSummary(record: ContractorMailSettingsRecord): ContractorMailSettings
     senderAddress: record.senderAddress,
     senderName: record.senderName,
     status: record.status,
+    version: record.version.toString(),
     webhookId: record.webhookId,
     webhookSecretConfigured: true,
   }
 }
 
+/**
+ * Revisão do `architect` (T008): a falha de abrir o **nosso** cofre (chave do keyring girada ou
+ * removida, envelope adulterado) é motivo diferente de o **Resend** recusar — misturar os dois sob
+ * `provider_unreachable` mandava o administrador reconferir a chave de API quando o problema era o
+ * keyring local. Por isso os dois `try` são separados: o de decriptar nunca chega a chamar o
+ * gateway.
+ */
 async function checkProvider(input: {
   readonly resendAccountGateway: ResendAccountGateway
   readonly secretService: ContractorMailCredentialSecretService
@@ -285,12 +327,25 @@ async function checkProvider(input: {
   readonly apiKey: ContractorMailCheckItem
   readonly senderDomain: ContractorMailCheckItem
 }> {
+  let secret: ContractorMailCredentialSecret
   try {
-    const secret = await input.secretService.decrypt({
+    secret = await input.secretService.decrypt({
       companyId: input.settings.companyId,
       envelope: input.settings.secretEnvelope as SecretEnvelopeV1,
       settingsId: input.settings.id,
     })
+  } catch (error) {
+    const reason: ContractorMailCheckReason =
+      error instanceof ContractorMailCredentialUnavailableError
+        ? 'credential_unavailable'
+        : 'provider_unreachable'
+    return {
+      apiKey: { key: 'api_key', reason, status: 'failed' },
+      senderDomain: { key: 'sender_domain', reason, status: 'failed' },
+    }
+  }
+
+  try {
     const result = await input.resendAccountGateway.checkApiKeyAndSenderDomain({
       apiKey: secret.apiKey,
       senderDomain: senderDomainOf(input.settings.senderAddress),

@@ -34,6 +34,7 @@ export const SETTINGS_SUMMARY: ContractorMailSettingsSummary = {
   senderAddress: 'ocorrencias@fernandes-transportadora.com.br',
   senderName: 'Fernandes Transportadora',
   status: 'pending',
+  version: '1',
   webhookId: '00000000-0000-4000-8000-0000000000b2',
   webhookSecretConfigured: true,
 }
@@ -73,6 +74,7 @@ type RouteDependencies = {
 type CreateFixtureParams = {
   readonly checks?: readonly ContractorMailCheckItem[]
   readonly permissions?: CompanyContext['permissions']
+  readonly saveError?: Error
   readonly settings?: ContractorMailSettingsSummary | null
 }
 
@@ -102,6 +104,7 @@ export async function createContractorMailHttpFixture(params: CreateFixtureParam
     save: {
       async execute(input) {
         saveCalls.push(structuredClone(input))
+        if (params.saveError !== undefined) throw params.saveError
         return SETTINGS_SUMMARY
       },
     },

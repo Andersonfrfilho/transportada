@@ -9,6 +9,7 @@ const MAX_SECRET_LENGTH = 500
 const MAX_SENDER_NAME_LENGTH = 200
 const MAX_SENDER_ADDRESS_LENGTH = 320
 const MAX_REPLY_DOMAIN_LENGTH = 253
+const POSITIVE_BIGINT = /^[1-9][0-9]{0,18}$/
 
 /**
  * `resposta.<domínio>` precisa ser subdomínio — o MX raiz é de outro serviço de e-mail (plan.md, "O
@@ -20,11 +21,17 @@ const REPLY_DOMAIN_PATTERN = new RegExp(`^${HOSTNAME_LABEL}(?:\\.${HOSTNAME_LABE
 /**
  * `apiKey`/`webhookSigningSecret` são opcionais de propósito: omiti-los mantém o segredo já selado
  * (T006 abre e sela de novo). O formato do `whsec_` é conferido pelo serviço de segredo, não aqui —
- * duas validações do mesmo prefixo divergiriam um dia.
+ * duas validações do mesmo prefixo divergiriam um dia. `.trim()` primeiro: um espaço colado ao
+ * copiar do painel do Resend não pode virar "segredo diferente" nem furar o `.min(1)`.
+ *
+ * `expectedVersion` (revisão do `architect`, T008) ausente é "eu acho que não existe ainda"; a
+ * primeira configuração não tem versão para citar. Presente é a atualização otimista — o mesmo
+ * formato de `POSITIVE_BIGINT` usado em `nfse-profiles.schema.ts`.
  */
 const saveContractorMailSettingsSchema = z
   .object({
-    apiKey: z.string().min(1).max(MAX_SECRET_LENGTH).optional(),
+    apiKey: z.string().trim().min(1).max(MAX_SECRET_LENGTH).optional(),
+    expectedVersion: z.string().regex(POSITIVE_BIGINT).optional(),
     replyDomain: z
       .string()
       .trim()
@@ -35,7 +42,7 @@ const saveContractorMailSettingsSchema = z
       }),
     senderAddress: z.string().trim().email().max(MAX_SENDER_ADDRESS_LENGTH),
     senderName: z.string().trim().min(1).max(MAX_SENDER_NAME_LENGTH),
-    webhookSigningSecret: z.string().min(1).max(MAX_SECRET_LENGTH).optional(),
+    webhookSigningSecret: z.string().trim().min(1).max(MAX_SECRET_LENGTH).optional(),
   })
   .strict()
 

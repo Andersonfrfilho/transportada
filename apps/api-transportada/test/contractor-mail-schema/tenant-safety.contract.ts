@@ -14,7 +14,11 @@ import {
   contractorMailThreads,
 } from '../../src/database/database.schema.js'
 import { foreignKeys, uniqueColumnsByName } from '../fiscal-schema/support.js'
-import { buildContractorMailThreadByReplyTokenFilters } from '../../src/contractor-mail/infrastructure/drizzle-contractor-mail.repository.js'
+import {
+  buildContractorMailSetupTestMessageFilters,
+  buildContractorMailSetupTestThreadFilters,
+  buildContractorMailThreadByReplyTokenFilters,
+} from '../../src/contractor-mail/infrastructure/drizzle-contractor-mail.repository.js'
 
 const dialect = new PgDialect()
 
@@ -124,6 +128,31 @@ describe('contractor mail tenant safety (spec 143, T005)', () => {
     expect(query.sql).toContain('"contractor_mail_threads"."company_id" = $')
     expect(query.sql).toContain('"contractor_mail_threads"."reply_token_hash" = $')
     expect(query.params).toEqual([companyId, replyTokenHash])
+  })
+
+  /**
+   * Revisão do `architect` (T008): `findSetupTestStatus` faz duas consultas — a conversa
+   * `setup_test` da empresa, e as mensagens dela — e as duas levam `company_id` na mesma condição
+   * do resto do filtro, nunca como conferência à parte. Sem isso, o RF12 leria o estado do e-mail
+   * de teste de **outra** empresa.
+   */
+  test('the setup_test status lookup filters both the thread and its messages by company id', () => {
+    const companyId = '00000000-0000-4000-8000-000000000902'
+    const threadId = '00000000-0000-4000-8000-000000000903'
+
+    const threadQuery = dialect.sqlToQuery(
+      and(...buildContractorMailSetupTestThreadFilters({ companyId }))!,
+    )
+    expect(threadQuery.sql).toContain('"contractor_mail_threads"."company_id" = $')
+    expect(threadQuery.sql).toContain('"contractor_mail_threads"."subject_type" = $')
+    expect(threadQuery.params).toEqual([companyId, 'setup_test'])
+
+    const messageQuery = dialect.sqlToQuery(
+      and(...buildContractorMailSetupTestMessageFilters({ companyId, threadId }))!,
+    )
+    expect(messageQuery.sql).toContain('"contractor_mail_messages"."company_id" = $')
+    expect(messageQuery.sql).toContain('"contractor_mail_messages"."thread_id" = $')
+    expect(messageQuery.params).toEqual([companyId, threadId])
   })
 
   /**

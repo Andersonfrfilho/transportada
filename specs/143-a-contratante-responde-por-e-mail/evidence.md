@@ -619,7 +619,7 @@ mora em `node:dns`) e um `error TS2379` (`body: undefined` não cabe em `Request
 integração de banco (`bun --env-file=../../.env.test test`): estes gateways não tocam banco, só
 `fetch` e `dns` injetados.
 
-## T008 — 2026-09-13 (aguardando architect)
+## T008 — 2026-09-13
 
 As três rotas de `/contractor-mail-settings` (`GET`, `PUT`, `GET .../checks`), todas
 `settings.manage`/`company` e `cache-control: no-store`, compostas em `main.ts` pela primeira vez —
@@ -746,3 +746,105 @@ All matched files use Prettier code style!
    concorrência otimista — o `plan.md`/`spec.md` não pediram, e a versão só serve à leitura, não a um
    `PUT` que compete consigo mesmo (o auditor deve confirmar que isso é aceitável para esta task, ou
    se P0 precisa de bloqueio de escrita concorrente).
+
+### Revisão do architect — 2026-09-13
+
+**Veredito: APROVADO COM RESSALVAS.** Cinco correções obrigatórias, cinco opcionais e um achado de
+segurança de escopo maior que a task. Todas aplicadas neste commit.
+
+**Obrigatórias:**
+
+1. **Corrida da primeira configuração.** O achado do item 5 acima ("ainda não há `expectedVersion`")
+   era o sintoma de um problema mais sério do que "falta bloqueio otimista": com o `onConflictDoUpdate`
+   antigo, dois `PUT` concorrentes na primeira configuração cada um gerava um `settingsId` e selava
+   o segredo com um AAD diferente; o perdedor da corrida do banco tinha o corpo dele — **inclusive o
+   envelope selado com o próprio id, que não é o da linha** — gravado por cima da linha do vencedor.
+   O resultado persistido nunca mais abria: `secret_envelope`/AAD apontava para um `settingsId` que
+   não existe em lugar nenhum.
+2. **Concorrência otimista.** Resolvida junto com o item 1: `SaveContractorMailSettingsUseCaseInput`
+   e `SaveContractorMailSettingsInput` ganharam `expectedVersion: string | undefined`. O `PUT` aceita
+   o campo no corpo (`POSITIVE_BIGINT`, mesmo padrão do `nfse-profiles.schema.ts`); `GET` já devolvia
+   (e continua devolvendo) `version` na resposta. No repositório, `saveSettings` bifurca:
+   `expectedVersion` ausente vira `INSERT ... ON CONFLICT (company_id) DO NOTHING RETURNING *`
+   (nunca sobrescreve uma linha existente); presente vira
+   `UPDATE ... WHERE company_id = $1 AND version = $2 RETURNING *`. As duas devolvem `undefined`
+   quando perdem a corrida, e o repositório levanta `ContractorMailSettingsVersionConflictError`
+   (`CONTRACTOR_MAIL_SETTINGS_VERSION_CONFLICT`, novo em `contractor-mail.error.ts`, `409`) —
+   **sem** tocar em `audit_logs`: perder a corrida não é evento auditável. Defesa extra dentro da
+   transação: `row.id !== input.settingsId` também vira o mesmo `409` (o `RETURNING` do
+   `ON CONFLICT DO NOTHING` já garante isso por construção, mas a conferência fica explícita, como
+   pedido). Dois testes de integração contra Postgres real provam a corrida:
+   `test/integration/contractor-mail-settings-repository.integration.ts` — "two concurrent
+   first-time creations" (duas criações simultâneas via `Promise.allSettled`, uma `409`, a outra
+   abre com o próprio segredo, só uma linha de auditoria) e "an update with a stale expectedVersion"
+   (versão velha rejeitada, o segredo atual sobrevive intacto). Os dois passam com
+   `bun --env-file=../../.env.test test --timeout 120000`.
+3. **Auditoria.** `saveSettings` agora grava `permission: 'settings.manage'`,
+   `targetType: 'contractor_mail_settings'` e `targetId: input.audit.entityId`, no molde de
+   `drizzle-cte-emission-profile.repository.ts:66-68`. Coberto pelo teste de integração (os três
+   campos conferidos em cada linha de `audit_logs`).
+4. **O contrato de "nenhum segredo" passava por vácuo.**
+   `test/contractor-mail/no-secret-exposure.contract.ts` tinha
+   `if (!LOG_CALL_PATTERN.test(source)) return` antes de checar os identificadores — um
+   `console.log(secretEnvelope)` solto, sem nenhuma outra chamada de log por perto, não acionava
+   checagem nenhuma. Reescrito: `LOG_CALL_PATTERN` agora inclui `console` (com o método `log`), e a
+   asserção é **incondicional** — `expect(LOG_CALL_PATTERN.test(source)).toBe(false)` para todo
+   arquivo do módulo, sempre, nunca "se houver chamada, ela não pode conter X". A checagem de que
+   `contractor-mail-settings.routes.ts` nunca nomeia o envelope selado (`secretEnvelope`/`ciphertext`)
+   continua.
+5. **Tenant-safety.** Acrescentada `test/contractor-mail-schema/tenant-safety.contract.ts` →
+   "the setup_test status lookup filters both the thread and its messages by company id", no molde
+   do teste da linha 116 original: confere por geração de SQL que `findSetupTestStatus` filtra tanto
+   a busca da conversa quanto a das mensagens por `company_id`. Isso exigiu exportar dois filtros
+   novos do repositório — `buildContractorMailSetupTestThreadFilters` e
+   `buildContractorMailSetupTestMessageFilters` —, no mesmo molde de
+   `buildContractorMailThreadByReplyTokenFilters`.
+
+**Opcionais, todas aplicadas:**
+
+- `apiKey`/`webhookSigningSecret` ganharam `.trim()` antes do `.min(1)` no schema do `PUT`.
+- Teste de `PUT` com um segredo só ("sending only the api key preserves the previously sealed
+  webhook secret") em `settings-use-case.contract.ts`.
+- Teste do `PUT` parcial quando o envelope não abre: uma chave de keyring diferente da que selou o
+  envelope existente faz `save` rejeitar com `ContractorMailCredentialUnavailableError` (não um
+  `ContractorMailSecretRequiredError` nem um 500 sem explicação), e nada é gravado
+  (`savedSettingsCalls` fica vazio); reenviar os dois segredos na sequência recupera a configuração.
+- Motivo próprio `credential_unavailable` em `checkProvider`: o cofre não abrir (chave do keyring
+  removida/girada, envelope adulterado) agora é distinguido de o **Resend** recusar — os dois
+  `try/catch` de `checkProvider` foram separados, e o gateway nunca é chamado quando o segredo nem
+  sai do envelope (`expect(gatewayCalls).toBe(0)` no teste "a vault that cannot decrypt...").
+- Conferido: `sender_domain_not_found`/`sender_domain_not_verified` de `ResendAccountCheckReason`
+  (T007) são literalmente os mesmos dois valores de `ContractorMailCheckReason` — o `tsc --noEmit`
+  já provava isso por tipagem estrutural antes desta revisão; nenhuma mudança de código foi
+  necessária, só a conferência.
+
+**Achado de segurança registrado, fora do escopo desta task:** `docs/SECURITY.md` ganhou o achado
+datado "`audit_logs` não guarda IP" — o §10 do baseline pede IP na trilha de ação sensível, e
+`audit_logs` só tem ator/alvo/timestamp; o IP só se recupera cruzando `correlationId` com o log de
+acesso. Vale para o produto inteiro, não só para `contractor_mail_settings`; registrado porque foi
+a revisão da T008 que o notou.
+
+**Gates depois da revisão:**
+
+```
+$ bun run typecheck                  # raiz, as seis apps → limpo
+$ bun run --cwd apps/api-transportada test
+ 5616 pass
+ 23 skip
+ 0 fail
+Ran 5639 tests across 170 files.
+
+$ bun --env-file=../../.env.test test ./test/integration/contractor-mail-settings-repository.integration.ts --timeout 120000
+ 5 pass
+ 0 fail
+Ran 5 tests across 1 file.
+
+$ bun run lint                       # raiz → limpo
+$ bunx prettier --check apps/api-transportada/src/contractor-mail apps/api-transportada/test/contractor-mail \
+    apps/api-transportada/test/contractor-mail-schema \
+    apps/api-transportada/test/fixtures/contractor-mail-http.fixture.ts \
+    apps/api-transportada/test/integration/contractor-mail-settings-repository.integration.ts \
+    apps/api-transportada/test/contractor-mail.contract.test.ts \
+    apps/api-transportada/src/main.ts docs/SECURITY.md
+All matched files use Prettier code style!
+```

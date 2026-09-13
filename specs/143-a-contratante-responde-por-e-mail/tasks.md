@@ -43,7 +43,7 @@ test`), um commit isolado e a evidência em `evidence.md`. Teste novo entra na l
       documentação o caminho da API de recebidos e o escopo mínimo da chave, e registrar em
       `plan.md`. Evidência: contratos com fakes (chave recusada, timeout, domínio não verificado,
       MX ausente, host estranho).
-- [ ] **T008** 🧠 As rotas de `/contractor-mail-settings` (`GET`, `PUT`, `GET checks`), todas
+- [x] **T008** 🧠 As rotas de `/contractor-mail-settings` (`GET`, `PUT`, `GET checks`), todas
       `settings.manage` e `no-store`, com os segredos nunca devolvidos. Evidência: contratos de
       rota, mais o contrato por texto de fonte de que nenhum segredo aparece em serialização nem em
       log.

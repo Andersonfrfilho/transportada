@@ -5,6 +5,29 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 ## Abertos
 
+### 2026-09-13 — `audit_logs` não guarda IP
+
+**Onde:** `audit_logs` (todo o produto, não só `contractor-mail`) — sem coluna de endereço de
+origem.
+
+**O que é:** o §10 do baseline (`security.md`) pede que ação sensível grave "ator, alvo, IP e
+timestamp". A trilha grava os três primeiros e o quarto, mas nunca o IP de quem fez a chamada — nem
+aqui, nem em nenhuma outra tabela de auditoria do repositório. O IP só se recupera **cruzando** o
+`correlationId` da linha de auditoria com o log de acesso da requisição (que carrega
+`resolveClientIp`, via `http/client-ip.service.ts`), e isso exige acesso aos dois sistemas ao mesmo
+tempo — não é uma consulta, é uma investigação.
+
+**O que limita o estrago:** o cruzamento é possível hoje — `correlationId` está em toda linha de
+`audit_logs` e em todo log de requisição, então nada foi perdido, só não fica pronto numa coluna só.
+
+**O que falta:** decidir, por escrito, se vale a pena desnormalizar o IP para dentro de
+`audit_logs` (replicando o que `resolveClientIp` já resolve por requisição) ou se o cruzamento por
+`correlationId` é aceitável como política permanente do produto. Achado válido para o produto
+inteiro, não só para `contractor_mail_settings` — registrado aqui porque foi a revisão da T008
+(spec 143) que o notou, ao conferir a auditoria de `saveSettings`.
+
+**Origem:** spec 143, revisão da T008.
+
 ### 2026-09-13 — webhook de e-mail recebido: anônimo, assinado, e o corpo dele decide dinheiro
 
 **Onde:** `POST /public/inbound-emails/{webhookId}` (`api-transportada`, módulo `contractor-mail`,

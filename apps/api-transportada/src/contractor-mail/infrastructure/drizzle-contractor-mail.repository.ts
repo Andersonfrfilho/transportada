@@ -17,8 +17,24 @@ import type {
   ContractorMailThreadRecord,
   SaveContractorMailSettingsInput,
 } from '../application/contractor-mail.port.js'
+import { ContractorMailSettingsVersionConflictError } from '../domain/contractor-mail.error.js'
+import type { ContractorMailSettingsStatus } from '../../database/contractor-mail.schema.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
+type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
+
+type SettingsRow = {
+  readonly companyId: string
+  readonly id: string
+  readonly lastWebhookAt: Date | null
+  readonly replyDomain: string
+  readonly secretEnvelope: unknown
+  readonly senderAddress: string
+  readonly senderName: string
+  readonly status: ContractorMailSettingsStatus
+  readonly version: bigint
+  readonly webhookId: string
+}
 
 const SETTINGS_COLUMNS = {
   companyId: contractorMailSettings.companyId,
@@ -57,6 +73,26 @@ export const buildContractorMailThreadByReplyTokenFilters = (input: {
 }): readonly SQL[] => [
   eq(contractorMailThreads.companyId, input.companyId),
   eq(contractorMailThreads.replyTokenHash, input.replyTokenHash),
+]
+
+/**
+ * `findSetupTestStatus` acha a conversa `setup_test` da empresa — `company_id` na mesma condição
+ * do `subject_type`, nunca um filtro à parte, pela mesma razão do filtro acima.
+ */
+export const buildContractorMailSetupTestThreadFilters = (input: {
+  readonly companyId: string
+}): readonly SQL[] => [
+  eq(contractorMailThreads.companyId, input.companyId),
+  eq(contractorMailThreads.subjectType, 'setup_test'),
+]
+
+/** As mensagens da conversa achada acima, sempre pela dupla `company_id` + `thread_id`. */
+export const buildContractorMailSetupTestMessageFilters = (input: {
+  readonly companyId: string
+  readonly threadId: string
+}): readonly SQL[] => [
+  eq(contractorMailMessages.companyId, input.companyId),
+  eq(contractorMailMessages.threadId, input.threadId),
 ]
 
 export class DrizzleContractorMailRepository implements ContractorMailRepositoryPort {
@@ -122,12 +158,7 @@ export class DrizzleContractorMailRepository implements ContractorMailRepository
     const [thread] = await this.database
       .select({ id: contractorMailThreads.id })
       .from(contractorMailThreads)
-      .where(
-        and(
-          eq(contractorMailThreads.companyId, companyId),
-          eq(contractorMailThreads.subjectType, 'setup_test'),
-        ),
-      )
+      .where(and(...buildContractorMailSetupTestThreadFilters({ companyId })))
       .limit(1)
     if (thread === undefined) return undefined
 
@@ -138,12 +169,7 @@ export class DrizzleContractorMailRepository implements ContractorMailRepository
         dkimResult: contractorMailMessages.dkimResult,
       })
       .from(contractorMailMessages)
-      .where(
-        and(
-          eq(contractorMailMessages.companyId, companyId),
-          eq(contractorMailMessages.threadId, thread.id),
-        ),
-      )
+      .where(and(...buildContractorMailSetupTestMessageFilters({ companyId, threadId: thread.id })))
 
     const inboundMessage = messages.find((message) => message.direction === 'inbound')
     return {
@@ -156,36 +182,36 @@ export class DrizzleContractorMailRepository implements ContractorMailRepository
   }
 
   /**
-   * Upsert do envelope selado (abrir/selar é da T006) e a trilha de auditoria, na mesma transação:
-   * a linha e o registro de "o que mudou" nascem ou não nascem juntos. `id` é passado pelo caso de
-   * uso (nunca `defaultRandom()`) porque o AAD do envelope amarra a este id, e ele precisa existir
-   * **antes** da chamada a `secretService.encrypt` — não depois, quando o banco o gerasse sozinho.
+   * Revisão do `architect` (T008): a criação e a atualização não podem mais ser o mesmo
+   * `onConflictDoUpdate`. Duas criações concorrentes selam o segredo com AADs diferentes (cada uma
+   * amarrada ao `settingsId` que gerou), e um `upsert` cego gravava o corpo do perdedor — inclusive
+   * o envelope dele, selado com um id que **não é** o da linha — por cima da linha do vencedor. O
+   * envelope resultante nunca mais abre: o AAD guardado na `secret_envelope` e o `id` da linha
+   * divergem para sempre.
+   *
+   * A saída é tratar os dois casos como operações diferentes, cada uma atômica dentro da
+   * transação: `expectedVersion` ausente é "eu acho que não existe ainda" (`INSERT ... ON CONFLICT
+   * DO NOTHING`, que só devolve a linha quando o insert de fato aconteceu — nunca grava o envelope
+   * do perdedor); `expectedVersion` presente é "eu acho que a versão é esta"
+   * (`UPDATE ... WHERE version = expected`, controle de concorrência otimista). As duas convergem
+   * em "nenhuma linha voltou" → `ContractorMailSettingsVersionConflictError` (409), sem tocar em
+   * `audit_logs` — perder a corrida não é evento auditável, é só "tente de novo".
    */
   public async saveSettings(
     input: SaveContractorMailSettingsInput,
   ): Promise<ContractorMailSettingsRecord> {
     return this.database.transaction(async (transaction) => {
-      await transaction
-        .insert(contractorMailSettings)
-        .values({
-          id: input.settingsId,
-          companyId: input.companyId,
-          replyDomain: input.replyDomain,
-          secretEnvelope: input.secretEnvelope,
-          senderAddress: input.senderAddress,
-          senderName: input.senderName,
-        })
-        .onConflictDoUpdate({
-          set: {
-            replyDomain: input.replyDomain,
-            secretEnvelope: input.secretEnvelope,
-            senderAddress: input.senderAddress,
-            senderName: input.senderName,
-            updatedAt: sql`now()`,
-            version: sql`${contractorMailSettings.version} + 1`,
-          },
-          target: contractorMailSettings.companyId,
-        })
+      const row =
+        input.expectedVersion === undefined
+          ? await insertNewSettings(transaction, input)
+          : await updateExistingSettings(transaction, input)
+      if (row === undefined) throw new ContractorMailSettingsVersionConflictError()
+      // Defesa em profundidade: o `RETURNING` do `ON CONFLICT DO NOTHING` só devolve a linha que
+      // este `INSERT` de fato criou, mas o `id` explícito nos `values()` é quem garante isso — não
+      // um efeito colateral do driver. Confirma aqui, dentro da mesma transação, antes de auditar.
+      if (row.id !== input.settingsId) {
+        throw new ContractorMailSettingsVersionConflictError()
+      }
 
       await transaction.insert(auditLogs).values({
         action: input.audit.action,
@@ -196,18 +222,55 @@ export class DrizzleContractorMailRepository implements ContractorMailRepository
         correlationId: input.audit.correlationId,
         entityId: input.audit.entityId,
         entityType: 'contractor_mail_settings',
+        permission: 'settings.manage',
+        targetId: input.audit.entityId,
+        targetType: 'contractor_mail_settings',
       })
-
-      const [row] = await transaction
-        .select(SETTINGS_COLUMNS)
-        .from(contractorMailSettings)
-        .where(eq(contractorMailSettings.companyId, input.companyId))
-        .limit(1)
-      if (row === undefined) {
-        throw new Error('contractor mail settings row vanished inside its own transaction')
-      }
 
       return { ...row, lastWebhookAt: row.lastWebhookAt ?? undefined }
     })
   }
+}
+
+async function insertNewSettings(
+  transaction: Transaction,
+  input: SaveContractorMailSettingsInput,
+): Promise<SettingsRow | undefined> {
+  const [row] = await transaction
+    .insert(contractorMailSettings)
+    .values({
+      id: input.settingsId,
+      companyId: input.companyId,
+      replyDomain: input.replyDomain,
+      secretEnvelope: input.secretEnvelope,
+      senderAddress: input.senderAddress,
+      senderName: input.senderName,
+    })
+    .onConflictDoNothing({ target: contractorMailSettings.companyId })
+    .returning(SETTINGS_COLUMNS)
+  return row
+}
+
+async function updateExistingSettings(
+  transaction: Transaction,
+  input: SaveContractorMailSettingsInput,
+): Promise<SettingsRow | undefined> {
+  const [row] = await transaction
+    .update(contractorMailSettings)
+    .set({
+      replyDomain: input.replyDomain,
+      secretEnvelope: input.secretEnvelope,
+      senderAddress: input.senderAddress,
+      senderName: input.senderName,
+      updatedAt: sql`now()`,
+      version: sql`${contractorMailSettings.version} + 1`,
+    })
+    .where(
+      and(
+        eq(contractorMailSettings.companyId, input.companyId),
+        eq(contractorMailSettings.version, BigInt(input.expectedVersion ?? '0')),
+      ),
+    )
+    .returning(SETTINGS_COLUMNS)
+  return row
 }
