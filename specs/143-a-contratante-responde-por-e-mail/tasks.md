@@ -37,7 +37,7 @@ test`), um commit isolado e a evidência em `evidence.md`. Teste novo entra na l
 - [x] **T006** O serviço que sela `{ apiKey, webhookSigningSecret }` (API) e a cópia dele no
       worker, com o mesmo AAD; o contrato de paridade compara os dois. Evidência: teste de ida e
       volta, e a abertura com AAD de outra empresa falhando.
-- [ ] **T007** Os gateways do Resend: na API, `resend-account.gateway.ts` (a chave é aceita e o
+- [x] **T007** Os gateways do Resend: na API, `resend-account.gateway.ts` (a chave é aceita e o
       domínio do remetente está verificado) e `mx-lookup.gateway.ts`; no worker, envio, leitura do
       e-mail recebido e download do bruto, com o host da `download_url` conferido. Confirmar na
       documentação o caminho da API de recebidos e o escopo mínimo da chave, e registrar em

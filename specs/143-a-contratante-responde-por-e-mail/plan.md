@@ -39,6 +39,37 @@
 - Não há resultado de SPF ou DKIM documentado no e-mail recebido. **Por isso o DKIM é verificado por
   nós**, sobre o MIME bruto (ADR-0063 §3).
 
+**Resend, confirmado na documentação oficial para a T007 (2026-09-13):**
+
+- **Recuperar um e-mail recebido é `GET /emails/receiving/{id}`**, não `/emails/{id}` — fonte:
+  https://resend.com/docs/api-reference/emails/retrieve-received-email. Os campos que o trilho de
+  entrada usa: `from` (string), `to` (array de strings), `subject`, `text` (nulo quando o e-mail não
+  tem texto puro), `headers` (objeto), `message_id` e `raw.download_url` +
+  `raw.expires_at` (a URL assinada do MIME original e sua expiração). O corpo real traz mais campos
+  (`html`, `bcc`, `cc`, `attachments`…) que o schema Zod do gateway não declara, de propósito — só o
+  que o trilho de entrada consome.
+- **O host de `raw.download_url` é a CloudFront**, descrito pela documentação como uma "Signed
+  CloudFront URL to download the raw email file" — sem fixar o subdomínio exato. A allowlist contra
+  SSRF (`resend-download-allowlist.constant.ts`, worker) aceita o sufixo genérico `.cloudfront.net`
+  e fica isolada numa constante comentada `// confirmar com payload real na T012`, porque é o
+  primeiro lugar a ajustar se o payload real da T012 mostrar um host diferente.
+- **O escopo mínimo da chave é `full_access`, não `sending_access`.** A documentação de criação de
+  chave (https://resend.com/docs/api-reference/api-keys/create-api-key) diz que `sending_access`
+  "só pode enviar e-mails" — listar domínios (`GET /domains`, usado por
+  `resend-account.gateway.ts` para conferir o domínio do remetente) e ler e-mails recebidos ficam
+  fora disso. Uma chave de envio usada nesses dois gateways responde 401/403 como se fosse errada, o
+  que é o comportamento certo para o RF12: ela **é** insuficiente para a configuração completa.
+- **O domínio verificado sai de `GET /domains`** (lista, com paginação por `data[]`; fonte:
+  https://resend.com/docs/api-reference/domains/list-domains), cada entrada com `name` e `status`.
+  A documentação mostra o valor `not_started` no exemplo e não enumera a lista fechada de estados
+  nas páginas consultadas — por isso `resend-account.gateway.ts` só assume o significado de
+  `status === 'verified'` (documentado como o estado de sucesso em
+  https://resend.com/docs/api-reference/domains/get-domain) e trata qualquer outro valor como "não
+  verificado ainda", sem tentar enumerar os intermediários.
+- **`POST /emails`** aceita `reply_to` (string ou array), `headers` (objeto) e o cabeçalho de
+  requisição `Idempotency-Key` (até 256 caracteres, expira em 24 h) — fonte:
+  https://resend.com/docs/api-reference/emails/send-email. Confirma o que o `plan.md` já registrava.
+
 ## Arquitetura e arquivos afetados
 
 **API: configuração, no módulo novo `contractor-mail/`**

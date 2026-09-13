@@ -517,3 +517,104 @@ conteúdo idêntico, só quebra de linha)
 Não rodei `bun --env-file=../../.env.test test --timeout 120000`: este serviço não toca banco, é
 função pura sobre o `SecretEnvelopeProvider` injetado — não há integração para exercitar aqui. A
 gravação/leitura do jsonb `secretEnvelope` continua sendo da T008.
+
+## T007 — 2026-09-13
+
+**Parte 1, confirmado na documentação oficial do Resend (WebFetch, ver as fontes registradas em
+`plan.md` § "O que já está no DNS e na documentação"):**
+
+- `GET /emails/receiving/{id}` é o caminho exato de "retrieve received email" — não
+  `/emails/{id}`. Campos usados: `from`, `to` (array), `subject`, `text` (nulo), `headers`,
+  `message_id`, `raw.download_url` e `raw.expires_at`. Fonte:
+  https://resend.com/docs/api-reference/emails/retrieve-received-email.
+- O host de `raw.download_url` é descrito como "Signed CloudFront URL", sem subdomínio fixo. A
+  allowlist ficou provisória: `.cloudfront.net`, isolada em
+  `resend-download-allowlist.constant.ts` (worker), com o comentário
+  `// confirmar com payload real na T012`.
+- Escopo mínimo: `full_access`. `sending_access` "só pode enviar e-mails"
+  (https://resend.com/docs/api-reference/api-keys/create-api-key) — não alcança `GET /domains` nem
+  a leitura de recebidos. Uma chave de envio usada em `resend-account.gateway.ts` responde
+  401/403, e isso é o comportamento certo para o RF12.
+- O domínio verificado sai de `GET /domains` (https://resend.com/docs/api-reference/domains/list-domains),
+  cada entrada com `name` e `status`; `status === 'verified'` é o único valor que
+  `resend-account.gateway.ts` assume como sucesso — a documentação consultada não enumerou a lista
+  fechada de estados, então qualquer outro valor vira "ainda não verificado", sem inventar um
+  vocabulário de estados intermediários.
+- `POST /emails` aceita `reply_to`, `headers` e o cabeçalho `Idempotency-Key` (24 h) — confirma o
+  que o `plan.md` já registrava
+  (https://resend.com/docs/api-reference/emails/send-email).
+
+Nenhuma divergência com o `plan.md` apareceu — a implementação seguiu direto para o código.
+
+**Parte 2, arquivos criados:**
+
+- `apps/api-transportada/src/contractor-mail/infrastructure/resend-account.gateway.ts`
+- `apps/api-transportada/src/contractor-mail/infrastructure/mx-lookup.gateway.ts`
+- `apps/api-transportada/src/contractor-mail/domain/resend-provider.error.ts`
+- `apps/worker-transportada/src/contractor-mail/infrastructure/resend-mail.gateway.ts`
+- `apps/worker-transportada/src/contractor-mail/domain/resend-provider.error.ts`
+- `apps/worker-transportada/src/contractor-mail/domain/resend-download-allowlist.constant.ts`
+
+`checkApiKeyAndSenderDomain` nunca devolve `apiKeyAccepted: false`: uma chave recusada (401/403)
+lança `ResendProviderUnauthorizedError` antes de qualquer resultado existir — o campo continua no
+retorno porque o RF12 o lista como item da lista de verificação, e o `reason` é quem diferencia
+`sender_domain_not_found` de `sender_domain_not_verified`. `downloadRawEmail` nunca segue
+redirecionamento nenhum (`redirect: 'manual'`, qualquer 3xx é recusado), mesmo que o `Location`
+aponte para outro host da própria allowlist — é mais estrito do que o mínimo pedido, e evita ter que
+inspecionar o cabeçalho `location` do lado de cá.
+
+**Parte 3, arquivos de teste criados e registrados nos entrypoints
+(`contractor-mail.contract.test.ts` de cada app) e nas listas de `package.json`:**
+
+- `apps/api-transportada/test/contractor-mail/resend-account-gateway.contract.ts` — chave recusada
+  (401 e 403), domínio verificado, domínio não verificado (`pending`), domínio não encontrado,
+  casamento por nome sem diferenciar caixa, timeout/falha de rede, corpo fora do schema, corpo que
+  não é JSON, e status 5xx que não é 401/403.
+- `apps/api-transportada/test/contractor-mail/mx-lookup-gateway.contract.ts` — MX encontrado, MX
+  ausente (`[]`), `ENOTFOUND`/`ENODATA` como ausência, qualquer outra falha do resolvedor e timeout
+  do resolvedor como `unreachable`.
+- `apps/worker-transportada/test/contractor-mail/resend-mail-gateway.contract.ts` — envio monta o
+  corpo certo (`reply_to`, `headers`, `Idempotency-Key`), envio com falha de rede,
+  `fetchReceivedEmail` válido e falhando quando falta um campo obrigatório (`raw`),
+  `downloadRawEmail` aceito quando o host está na allowlist, recusado fora da allowlist (sem tocar a
+  rede), recusado em `http:`, recusado em qualquer redirecionamento (mesmo para outro host
+  CloudFront), abortado acima do teto de 25 MiB, e recusado por timeout.
+
+**Gates, executados na raiz do worktree:**
+
+```
+$ bun run typecheck
+$ tsc --noEmit                       # api-transportada, worker-transportada, cron-transportada
+$ tsc --noEmit                       # frontend-transportada, frontend-client, frontend-landing
+# limpo nas seis apps
+
+$ bun run --cwd apps/api-transportada test
+ 5574 pass
+ 23 skip
+ 0 fail
+ 38631 expect() calls
+Ran 5597 tests across 170 files. [21.40s]
+
+$ bun run --cwd apps/worker-transportada test
+ 1068 pass
+ 0 fail
+ 2853 expect() calls
+Ran 1068 tests across 81 files. [6.06s]
+
+$ bun run lint                       # raiz, as seis apps → limpo
+
+$ bunx prettier --check apps/api-transportada/src/contractor-mail \
+    apps/api-transportada/test/contractor-mail \
+    apps/worker-transportada/src/contractor-mail \
+    apps/worker-transportada/test/contractor-mail \
+    apps/api-transportada/test/contractor-mail.contract.test.ts \
+    apps/worker-transportada/test/contractor-mail.contract.test.ts
+All matched files use Prettier code style!
+```
+
+Um `error TS2305` inicial (`MxRecord` importado de `node:dns/promises`, que não o exporta — o tipo
+mora em `node:dns`) e um `error TS2379` (`body: undefined` não cabe em `RequestInit` sob
+`exactOptionalPropertyTypes`, corrigido para `body: null`) foram corrigidos antes deste gate; um
+`no-unused-vars` no teste do worker (`_raw` desestruturado e descartado) também. Não rodei a
+integração de banco (`bun --env-file=../../.env.test test`): estes gateways não tocam banco, só
+`fetch` e `dns` injetados.
