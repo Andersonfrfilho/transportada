@@ -102,6 +102,8 @@ export const API_FLEET_VEHICLE_CATALOG_MODELS_PATH = '/fleet/vehicle-catalog/mod
  * `/fleet` como o catálogo FIPE ao lado — quem cadastra veículo já tem `fleet.read`.
  */
 export const API_FLEET_VEHICLE_REFERENCES_PATH = '/fleet/vehicle-references'
+/** Spec 147 D2/RF9: o que o cadastro ainda deve. Genérica — hoje só a carroceria de `fleet.read`. */
+export const API_PENDING_ITEMS_PATH = '/pending-items'
 /** Não é rota de frota: os três formulários com campo de CEP — motorista, empresa e MDF-e — a usam. */
 export const API_POSTAL_CODES_PATH = '/postal-codes'
 export const API_ADDRESS_REPORT_PATH = '/address-report'
