@@ -94,7 +94,7 @@ trip_id)`); mirror em `apps/worker-transportada/src/database/`. Contrato de sche
       topologia principal/retry 30 s ×2/morta no padrão de
       `messaging/route-optimization-topology.ts`. Testes novos entram na lista explícita de
       `apps/worker-transportada/package.json` (G008).
-- [ ] T8 — Relay dedicado espelhando
+- [x] T8 — Relay dedicado espelhando
       `aggregate-attachment/application/aggregate-attachment-outbox-relay.service.ts` sobre
       `outbox/application/outbox-relay-loop.service.ts`; repositório da outbox nova (G008).
 - [ ] T9 🧠 — Handler: reivindicação atômica por hash (`UPDATE ... SET status='running' WHERE

@@ -222,6 +222,7 @@ describe('NF-e worker runtime contract', () => {
       'provider.close:transportada.runtime.contract.aggregate-attachment.v1.main.queue',
       'provider.close:transportada.runtime.contract.contractor-mail-outbound.v1.main.queue',
       'provider.close:transportada.runtime.contract.contractor-mail-inbound.v1.main.queue',
+      'provider.close:transportada.runtime.contract.cargo-layout.v1.main.queue',
       'provider.close:transportada.runtime.contract.job-run.v1.main.queue',
       'provider.close:transportada.runtime.contract.notification.v1.main.queue',
       'database.close',

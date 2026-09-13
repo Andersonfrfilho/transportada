@@ -502,6 +502,54 @@ occurredAt, companyId, correlationId, payload`; `payload` é `strictObject({ inp
   para o envelope não acoplar ao algoritmo do hash. Relay (T8), handler/consumidor (T9) e a ligação em
   `main.ts` ficam fora desta task.
 
+### T8 — relay da outbox do pedido de planta · 2026-09-12
+
+Rodou em `opus`: `sonnet` sem cota até 2026-09-14 09:00. Contrato vermelho antes da implementação.
+
+- `apps/worker-transportada/src/cargo-layout/infrastructure/drizzle-cargo-layout-outbox.repository.ts`
+  (novo): `DrizzleCargoLayoutOutboxRepository` no molde de
+  `drizzle-aggregate-attachment-outbox.repository.ts` — `claimDueEntries` (`FOR UPDATE SKIP LOCKED`,
+  não publicadas, `next_attempt_at` vencido, sem dono ou lease expirado, ordem `created_at, id`,
+  `LIMIT`) e `markPublished` filtrado por `(company_id, event_id, claim_owner)` e
+  `published_at IS NULL`. `layoutId` vem da coluna tipada; do `payload jsonb` só sai o `inputHash`.
+  Linha com `event_type` diferente de `CARGO_LAYOUT_EVENT_TYPE.REQUESTED`, sem `inputHash` ou com
+  `payload.layoutId` divergente da coluna é recusada (`Unsupported cargo layout outbox record`).
+- `apps/worker-transportada/src/cargo-layout/application/cargo-layout-outbox-relay.service.ts` (novo):
+  `CargoLayoutOutboxRelayService.relayDueEntries` espelhando o relay do anexo — confere o dono da
+  reivindicação, publica o envelope v1 montado só com `{ inputHash, layoutId }` no payload, marca
+  publicado **depois** do publish; falha de publish passa por `retryPolicy.classify` (relança) e a
+  linha fica não publicada, para o próximo ciclo depois do lease.
+- `apps/worker-transportada/src/cargo-layout/application/cargo-layout-outbox-publisher.service.ts`
+  (novo): publica no provider da topologia da T7 com `messageId = eventId`, `correlationId` e `type`.
+- `apps/worker-transportada/src/main.ts`: `buildCargoLayoutTopology` declarado junto das demais; um
+  `cargoLayoutPublisher` (a factory do provider declara a topologia `cargo-layout.v1`) e um
+  `OutboxRelayLoop` (`cargo_layout_outbox_relay_failed`, 1 s, lease 30 s, lote 25 — os mesmos números
+  do relay do anexo). O loop entra nos `closeables`, o publisher no grupo de fechamento **e** no
+  `catch` de boot, conforme o aviso do próprio `main.ts`.
+- Contratos:
+  - `test/cargo-layout/outbox-relay.contract.ts` (novo, importado por
+    `test/cargo-layout-messaging.contract.test.ts`, que já está na lista explícita do `package.json`):
+    envelope satisfaz `cargoLayoutEnvelopeV1Schema` com `type`/`version` certos; payload exatamente
+    `{ inputHash, layoutId }` e envelope só com as 7 chaves mesmo com a entrada reivindicada
+    contaminada por rótulo/cliente (PII); `companyId` de cada envelope é o da própria linha;
+    reivindica → publica → marca em ordem, sem marcar antes do publish resolver; respeita o lote;
+    falha de publish não marca; um dono por lease até expirar; linha de outro dono é pulada.
+  - `test/nfe-runtime.contract.test.ts`: a lista de fechamento ganha
+    `provider.close:…cargo-layout.v1.main.queue` — trilho novo entra nela junto com o publisher.
+- Vermelho: `bun test ./test/cargo-layout-messaging.contract.test.ts` → **0 pass, 1 fail, 1 error**
+  (`Cannot find module '../../src/cargo-layout/application/cargo-layout-outbox-relay.service.js'`);
+  `bun test ./test/nfe-runtime.contract.test.ts` → **2 pass, 1 fail** (lista de fechamento sem o
+  publisher novo). Ambos antes de qualquer código de produção.
+- Verde: as duas suítes → **24 pass, 0 fail** (49 `expect()`); suíte inteira do worker
+  (`bun run test`) → **999 pass, 0 fail** (2765 `expect()`, 79 arquivos, inclui
+  `build-entrypoints.contract.test.ts`). `bunx tsc --noEmit` limpo; `bunx prettier --write` e
+  `bunx eslint` nos 7 arquivos tocados: todos `unchanged`, eslint limpo.
+- **Decisões registradas:** o relay **não** valida com `cargoLayoutEnvelopeV1Schema` antes de
+  publicar, porque o relay de referência (anexo) não valida — o envelope é montado de campos tipados
+  e o contrato prova a conformidade; quem valida é o consumidor (T9). Espelho do schema da outbox e a
+  paridade com a API já existiam (T3/T5, `schema-parity.contract.ts`), sem mudança. Nenhuma variável
+  de ambiente nova. Consumidor/handler fica para a T9.
+
 ## Fase 4 — Leitura da API (T10, T11)
 
 ## Fase 5 — Frontend (T12, T13)

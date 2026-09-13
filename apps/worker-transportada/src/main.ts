@@ -113,6 +113,10 @@ import { buildAggregateAttachmentRabbitMqTopology } from './messaging/aggregate-
 import { AggregateAttachmentOutboxPublisherService } from './aggregate-attachment/application/aggregate-attachment-outbox-publisher.service.js'
 import { AggregateAttachmentOutboxRelayService } from './aggregate-attachment/application/aggregate-attachment-outbox-relay.service.js'
 import { DrizzleAggregateAttachmentOutboxRepository } from './aggregate-attachment/infrastructure/drizzle-aggregate-attachment-outbox.repository.js'
+import { buildCargoLayoutTopology } from './messaging/cargo-layout-topology.js'
+import { CargoLayoutOutboxPublisherService } from './cargo-layout/application/cargo-layout-outbox-publisher.service.js'
+import { CargoLayoutOutboxRelayService } from './cargo-layout/application/cargo-layout-outbox-relay.service.js'
+import { DrizzleCargoLayoutOutboxRepository } from './cargo-layout/infrastructure/drizzle-cargo-layout-outbox.repository.js'
 import { createDrizzleAggregateAttachmentWriteBackRepository } from './aggregate-attachment/infrastructure/drizzle-aggregate-attachment-write-back.repository.js'
 import { createStorageAttachmentReaderGateway } from './aggregate-attachment/infrastructure/storage-attachment-reader.gateway.js'
 import { createTesseractOcrClient } from '@adatechnology/document-intake'
@@ -543,6 +547,7 @@ export async function startWorkerRuntime(
   const contractorMailInboundTopology = buildContractorMailInboundRabbitMqTopology({
     queuePrefix: config.queuePrefix,
   })
+  const cargoLayoutTopology = buildCargoLayoutTopology({ queuePrefix: config.queuePrefix })
   const invitationDeliveryTopology = buildInvitationDeliveryRabbitMqTopology({
     queuePrefix: config.queuePrefix,
   })
@@ -583,6 +588,8 @@ export async function startWorkerRuntime(
   let contractorMailInboundConsumer: RuntimeConsumer | undefined
   let contractorMailInboundPublisher: RabbitMqProvider | undefined
   let contractorMailInboundRelayLoop: OutboxRelayLoop | undefined
+  let cargoLayoutPublisher: RabbitMqProvider | undefined
+  let cargoLayoutRelayLoop: OutboxRelayLoop | undefined
   let invitationDeliveryConsumer: RuntimeConsumer | undefined
   let invitationDeliveryPublisher: RabbitMqProvider | undefined
   let invitationDeliveryRelayLoop: OutboxRelayLoop | undefined
@@ -633,6 +640,10 @@ export async function startWorkerRuntime(
     contractorMailInboundPublisher = await rabbitProviderFactory({
       connection: config.rabbitMqUrl,
       topology: contractorMailInboundTopology,
+    })
+    cargoLayoutPublisher = await rabbitProviderFactory({
+      connection: config.rabbitMqUrl,
+      topology: cargoLayoutTopology,
     })
     invitationDeliveryPublisher = await rabbitProviderFactory({
       connection: config.rabbitMqUrl,
@@ -1480,6 +1491,29 @@ export async function startWorkerRuntime(
       }),
     })
     contractorMailInboundRelayLoop.start()
+    cargoLayoutRelayLoop = new OutboxRelayLoop({
+      claimOwner: `${config.queuePrefix}.cargo-layout.relay.${crypto.randomUUID()}`,
+      failureMessage: 'cargo_layout_outbox_relay_failed',
+      intervalMs: 1_000,
+      leaseMs: 30_000,
+      limit: 25,
+      logger,
+      relay: new CargoLayoutOutboxRelayService({
+        clock: { now: () => new Date() },
+        publisher: new CargoLayoutOutboxPublisherService(cargoLayoutPublisher),
+        repository: new DrizzleCargoLayoutOutboxRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
+        retryPolicy: {
+          classify(error: unknown): never {
+            throw error instanceof Error
+              ? error
+              : new Error('cargo layout outbox relay publish failed')
+          },
+        },
+      }),
+    })
+    cargoLayoutRelayLoop.start()
     invitationDeliveryRelayLoop = new OutboxRelayLoop({
       claimOwner: `${config.queuePrefix}.invitation-delivery.relay.${crypto.randomUUID()}`,
       failureMessage: 'invitation_delivery_outbox_relay_failed',
@@ -1540,6 +1574,7 @@ export async function startWorkerRuntime(
         aggregateAttachmentRelayLoop,
         contractorMailOutboundRelayLoop,
         contractorMailInboundRelayLoop,
+        cargoLayoutRelayLoop,
         invitationDeliveryRelayLoop,
         passwordResetDeliveryRelayLoop,
         storageGateway,
@@ -1592,6 +1627,7 @@ export async function startWorkerRuntime(
         aggregateAttachmentPublisher,
         contractorMailOutboundPublisher,
         contractorMailInboundPublisher,
+        cargoLayoutPublisher,
         jobRunProvider,
         notificationProvider,
       ]),
@@ -1630,6 +1666,7 @@ export async function startWorkerRuntime(
     await mdfeRelayLoop?.close().catch(() => undefined)
     await nfseRelayLoop?.close().catch(() => undefined)
     await aggregateAttachmentRelayLoop?.close().catch(() => undefined)
+    await cargoLayoutRelayLoop?.close().catch(() => undefined)
     await healthServer?.stop().catch(() => undefined)
     await storageGateway.close().catch(() => undefined)
     await distributionPublisher?.close().catch(() => undefined)
@@ -1642,6 +1679,7 @@ export async function startWorkerRuntime(
     await aggregateAttachmentPublisher?.close().catch(() => undefined)
     await contractorMailOutboundPublisher?.close().catch(() => undefined)
     await contractorMailInboundPublisher?.close().catch(() => undefined)
+    await cargoLayoutPublisher?.close().catch(() => undefined)
     await routeOptimizationProvider?.close().catch(() => undefined)
     await notificationProvider?.close().catch(() => undefined)
     await jobRunProvider?.close().catch(() => undefined)
