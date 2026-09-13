@@ -59,7 +59,12 @@ import {
   cteAuthorizedExpression,
 } from './trip.query.js'
 import { listDeliveryContacts } from './delivery-proof-read.support.js'
-import { requestCargoLayoutForTrip } from './eager-cargo-layout-request.support.js'
+import {
+  createRequestCargoLayoutForTrip,
+  type RequestCargoLayoutForTrip,
+} from './eager-cargo-layout-request.support.js'
+import type { CargoLayoutLeaseOptions } from '../application/cargo-layout-request.types.js'
+import { DEFAULT_CARGO_LAYOUT_LEASE_MS } from '../domain/cargo-layout-lease.policy.js'
 import { loadTripCargoWeight } from './trip-cargo-weight.support.js'
 import { withPayloadCeiling } from '../domain/trip-cargo-weight.policy.js'
 import { loadTripOccupancy } from './trip-occupancy.support.js'
@@ -78,7 +83,14 @@ const MISSING_REFERENCE_CONSTRAINTS = new Set([
 ])
 
 export class DrizzleTripRepository implements TripRepositoryPort {
-  public constructor(private readonly database: TripDatabase) {}
+  private readonly requestCargoLayoutForTrip: RequestCargoLayoutForTrip
+
+  public constructor(
+    private readonly database: TripDatabase,
+    options: CargoLayoutLeaseOptions = { cargoLayoutLeaseMs: DEFAULT_CARGO_LAYOUT_LEASE_MS },
+  ) {
+    this.requestCargoLayoutForTrip = createRequestCargoLayoutForTrip(options)
+  }
 
   public async close(input: {
     readonly companyId: string
@@ -124,7 +136,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
 
       // D7: a viagem nasce sem parada, e mesmo assim pede o cálculo — o gatilho lazy (T10/T11)
       // reconcilia depois se algo mudar antes do worker desenhar a planta.
-      await requestCargoLayoutForTrip(transaction, {
+      await this.requestCargoLayoutForTrip(transaction, {
         companyId: input.companyId,
         tripId: created.id,
       })
@@ -233,7 +245,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         linked = mapTripDocument(withStop ?? record)
       }
 
-      await requestCargoLayoutForTrip(transaction, {
+      await this.requestCargoLayoutForTrip(transaction, {
         companyId: input.companyId,
         tripId: input.tripId,
       })
@@ -330,7 +342,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         .filter((id) => !insertedIds.has(id))
         .map((nfeDocumentId) => ({ nfeDocumentId, reason: 'already_linked' as const }))
 
-      await requestCargoLayoutForTrip(transaction, {
+      await this.requestCargoLayoutForTrip(transaction, {
         companyId: input.companyId,
         tripId: input.tripId,
       })
@@ -502,7 +514,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         })
       }
 
-      await requestCargoLayoutForTrip(transaction, {
+      await this.requestCargoLayoutForTrip(transaction, {
         companyId: input.companyId,
         tripId: input.tripId,
       })

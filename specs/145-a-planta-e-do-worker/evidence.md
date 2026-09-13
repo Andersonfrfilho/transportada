@@ -635,6 +635,76 @@ null`): sem baú nem capacidade sai uma planta com `placement: null` e `occupanc
   só chama `resolveCargoLayout`. Não coberto aqui: teste contra Postgres real da reivindicação por
   lease (a cláusula é provada pelo SQL gerado).
 
+### T9b — a API reabre o que parou e não pede o impossível · 2026-09-12
+
+Rodou em `opus`: `sonnet` sem cota até 2026-09-14 09:00. Contratos vermelhos antes da implementação.
+Lado da API das decisões D14–D16 (e D10 para o baú ausente).
+
+- **Reabrir parados (D14/D16):** `upsertCargoLayoutRequest` (`cargo-layout-request.support.ts`)
+  troca o `where status='failed'` do `onConflictDoUpdate` por `status = 'failed' or (status in
+('queued', 'running') and updated_at < now() - ($lease * interval '1 millisecond'))` — a mesma
+  cláusula de tempo do claim do worker. Reabrir continua voltando a linha para `queued`, `attempt 0`,
+  `layout null`, e grava a linha nova na outbox pelo mesmo caminho de antes. `ready` e
+  `queued`/`running` recentes seguem no-op (G006). O lease chega por parâmetro:
+  `UpsertCargoLayoutRequestParams = CargoLayoutRequestParams & { leaseMs }`. O port
+  (`CargoLayoutRequestPort`) recebe `CargoLayoutRequestParams`, sem lease, porque o lease é da
+  infraestrutura. `DrizzleCargoLayoutRequestRepository` o recebe no construtor.
+- **Lease igual ao do worker:** `src/trips/domain/cargo-layout-lease.policy.ts` (novo) é cópia por
+  valor de `cargo-layout-budget.policy.ts` (mesmas constantes, mesmos corpos de função), com
+  `CARGO_LAYOUT_MAX_ATTEMPTS = 3` (`maxRetries: 2` da topologia `cargo-layout.v1` + 1) e
+  `DEFAULT_CARGO_LAYOUT_LEASE_MS` (280 000). `main.ts` deriva `cargoLayoutLeaseMs` de
+  `config.cargoLayoutTimeBudgetMs` e o injeta em `DrizzleTripRepository`,
+  `DrizzleTripRouteRepository` e `DrizzleDeliveryAddressOverrideRepository`, que agora montam o
+  gatilho eager por `createRequestCargoLayoutForTrip({ cargoLayoutLeaseMs })`. O singleton do módulo
+  saiu.
+- **Não enfileirar sem planta possível (D15 + D10):** `src/trips/domain/cargo-layout-availability.policy.ts`
+  (novo) define `canRequestCargoLayout`, que é falso com `capacityM3 === null` ou `bedDimensions`
+  nulo/ausente. O gatilho eager devolve `null` sem chamar o upsert. O use case devolve
+  `{ enqueued: false, layoutId: null, status: 'unavailable' }` (`CargoLayoutUnavailableResult`,
+  em união com `RequestCargoLayoutResult`) sem tocar no repositório. T10/T11 leem isso como
+  `cargoLayoutState.status = 'unavailable'`. Com isso, o achado da T9 (o pacote devolve `placement:
+null` sem baú, e isso seria gravado `ready`) fica fechado do lado da API.
+- **Env (antecipa parte da T11):** `CARGO_LAYOUT_TIME_BUDGET_MS` no schema da API, com o mesmo
+  formato do worker (`z.coerce.number().int().min(1_000).max(600_000).default(60_000)`), exposto
+  como `ApiEnvironment.cargoLayoutTimeBudgetMs` e declarado no `.env.example` da raiz
+  (`CARGO_LAYOUT_TIME_BUDGET_MS=60000`, lido pelas duas apps). Fixtures de `auth-me` e `server`
+  (integração) ganharam o campo.
+- Regra física, schema de tabela, CHECK e migration: nenhuma mudança.
+- Contratos:
+  - `test/trip-infrastructure/cargo-layout-request.contract.ts` (+4): SQL da reabertura por
+    `PgDialect` (sem `ready`, lease como parâmetro `$1`), lease injetado chega ao SQL, reabertura
+    volta a `queued`/`attempt 0`/`layout null`, `running` recente é no-op sem outbox.
+  - `test/trip-infrastructure/eager-cargo-layout-request.contract.ts` (+4): sem capacidade, baú
+    `null` e baú ausente devolvem `null` sem upsert; com os dois, o upsert recebe o lease injetado.
+  - `test/trip-application/request-cargo-layout.contract.ts` (+4): sem capacidade, baú `null` e
+    baú ausente devolvem `unavailable` sem chamar o repositório; com os dois, pede.
+  - `test/trip-infrastructure/cargo-layout-lease.contract.ts` (novo, 10, importado pelo entrypoint
+    `trip-infrastructure.contract.test.ts`, que já está na lista explícita): paridade lendo os
+    fontes do worker com `readFile` (as 2 constantes `CARGO_LAYOUT_*_MS` e os 2 corpos de função
+    idênticos; `maxRetries + 1 === CARGO_LAYOUT_MAX_ATTEMPTS`), lease de 280 000/44 000, env ausente
+    60 000, `90000` lido, `abc`/`0`/`999`/`600001`/`1.5` recusados.
+  - `test/config/env-example.contract.ts` (+1): `CARGO_LAYOUT_TIME_BUDGET_MS=60000` declarado.
+- Vermelho (antes de qualquer código de produção): `cargo-layout-request` + `eager` isolados →
+  **11 pass, 6 fail**. `trip-infrastructure.contract.test.ts` → **0 pass, 1 fail** (`Cannot find
+module …/cargo-layout-lease.policy.js`). `trip-application.contract.test.ts` → **65 pass,
+  3 fail**. `env-example.contract.test.ts` → **3 pass, 1 fail**.
+- Verde: `trip-infrastructure` → **41 pass, 0 fail** (78 `expect()`); `trip-application` →
+  **68 pass, 0 fail** (144 `expect()`); `env-example` → **4 pass, 0 fail** (117 `expect()`). Suíte
+  inteira da API (`bun run test`) → **4982 pass, 0 fail** (17 963 `expect()`, 5005 testes em 164
+  arquivos). `bunx tsc --noEmit` limpo. `bunx prettier --write` e `bunx eslint` nos 23 arquivos
+  tocados da API: limpos. O prettier não tem parser para `.env.example`.
+- **Decisão de implementação registrada:** os construtores dos três repositórios de viagem e de
+  `DrizzleCargoLayoutRequestRepository` têm `options` com padrão `DEFAULT_CARGO_LAYOUT_LEASE_MS`,
+  que é o lease do orçamento padrão do env. Assim as 13 construções em testes de integração não
+  mudam. O `main.ts` sempre passa o lease derivado da env. Quem construir um desses repositórios
+  num composition root novo e esquecer o parâmetro fica com 280 s, divergindo do worker só se o
+  ambiente mudar o orçamento.
+- Não coberto aqui: reabertura contra Postgres real (a cláusula é provada pelo SQL gerado, como na
+  T9). `DrizzleCargoLayoutRequestRepository` e o use case ainda não são montados no `main.ts`: é a
+  T10/T11 que os liga.
+
+- **Gate conferido pelo orquestrador:** `bunx tsc --noEmit` e `bunx eslint` limpos; suíte inteira da API 4981 pass, 1 fail — `test/deploy/keycloak-realm.contract.ts` › "callback declarado que falta no client é acrescentado" (script de deploy em diretório temporário, sem relação com a T9b e sem mudança desde 2026-09-02). Isolado, passou 12/12 em duas rodadas seguidas: intermitente, registrado aqui em vez de ignorado.
+
 ## Fase 4 — Leitura da API (T10, T11)
 
 ## Fase 5 — Frontend (T12, T13)

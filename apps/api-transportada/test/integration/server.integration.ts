@@ -66,6 +66,7 @@ const server = startApiServer({
     driverAddressLookupUrl: undefined,
     appEnv: 'test',
     bootstrapToken: undefined,
+    cargoLayoutTimeBudgetMs: 60_000,
     companyId: undefined,
     cryptography: CRYPTOGRAPHIC_CONFIGURATION,
     databaseUrl,

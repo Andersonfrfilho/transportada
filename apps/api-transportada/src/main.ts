@@ -282,6 +282,10 @@ import { DrizzleTripValuationQuery } from './trips/infrastructure/trip-valuation
 import { DrizzleTripFinancialResultRepository } from './trips/infrastructure/drizzle-trip-financial-result.repository.js'
 import { DrizzleFinancialSummaryQuery } from './trips/infrastructure/financial-summary.query.js'
 import { buildFinancialSummary } from './trips/domain/financial-summary.policy.js'
+import {
+  CARGO_LAYOUT_MAX_ATTEMPTS,
+  resolveCargoLayoutLeaseMs,
+} from './trips/domain/cargo-layout-lease.policy.js'
 import { createFinancialSummaryRoutes } from './trips/presentation/financial-summary.routes.js'
 import { DrizzleTripCostRepository } from './trips/infrastructure/drizzle-trip-cost.repository.js'
 import { freezeTripFinancialResult } from './trips/application/freeze-trip-financial-result.use-case.js'
@@ -941,6 +945,7 @@ export function bootstrap(): Bun.Server<undefined> {
       ...createApplicationRoutes({
         apiPublicUrl: config.apiPublicUrl,
         automaticManifestNotifier,
+        cargoLayoutTimeBudgetMs: config.cargoLayoutTimeBudgetMs,
         database: database.db,
         notifications,
         envelopeKeyRing: config.cryptography.envelopeKeyRing,
@@ -1240,6 +1245,8 @@ type CreateApplicationRoutesParams = {
   readonly apiPublicUrl: string | undefined
   /** Ausente é instalação sem notificação: a emissão automática recusa igual, e só não avisa. */
   readonly automaticManifestNotifier: AutomaticManifestNotifierPort | undefined
+  /** Spec 145 D14: a API reabre planta parada pelo mesmo lease que o worker deriva deste número. */
+  readonly cargoLayoutTimeBudgetMs: number
   readonly database: CompanySettingsDatabase
   /** O módulo de notificação, para o envio de teste do editor de template sair pelo caminho real. */
   readonly notifications: NotificationModule
@@ -1267,6 +1274,7 @@ type CreateApplicationRoutesParams = {
 function createApplicationRoutes({
   apiPublicUrl,
   automaticManifestNotifier,
+  cargoLayoutTimeBudgetMs,
   database,
   googleMapsApiKey,
   messaging,
@@ -1383,12 +1391,21 @@ function createApplicationRoutes({
   })
   const mdfeManifestRepository = new DrizzleMdfeManifestRepository(database)
   const mdfeIssuanceRepository = new DrizzleMdfeIssuanceRepository(database)
-  const tripRepository = new DrizzleTripRepository(database)
+  const cargoLayoutLeaseOptions = {
+    cargoLayoutLeaseMs: resolveCargoLayoutLeaseMs({
+      baseBudgetMs: cargoLayoutTimeBudgetMs,
+      maxAttempts: CARGO_LAYOUT_MAX_ATTEMPTS,
+    }),
+  }
+  const tripRepository = new DrizzleTripRepository(database, cargoLayoutLeaseOptions)
   const tripDocumentRepository = new DrizzleTripDocumentRepository(database)
   const tripDocumentBatchRepository = new DrizzleTripDocumentBatchRepository(database)
-  const tripRouteRepository = new DrizzleTripRouteRepository(database)
+  const tripRouteRepository = new DrizzleTripRouteRepository(database, cargoLayoutLeaseOptions)
   const tripStopLookupRepository = new DrizzleTripStopLookupRepository(database)
-  const deliveryAddressOverrideRepository = new DrizzleDeliveryAddressOverrideRepository(database)
+  const deliveryAddressOverrideRepository = new DrizzleDeliveryAddressOverrideRepository(
+    database,
+    cargoLayoutLeaseOptions,
+  )
   const currentDriverTripRepository = new DrizzleCurrentDriverTripRepository(database)
   const tripFiscalReadinessQuery = new DrizzleTripFiscalReadinessQuery(database)
   const tripValuationQuery = new DrizzleTripValuationQuery(database)

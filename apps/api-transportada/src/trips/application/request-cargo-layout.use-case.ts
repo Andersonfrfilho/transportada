@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
+import { canRequestCargoLayout } from '../domain/cargo-layout-availability.policy.js'
 import {
   buildCargoLayoutInput,
   buildStoredCargoLayoutInput,
@@ -8,10 +9,17 @@ import {
 } from '../domain/cargo-layout-hash.policy.js'
 import type { CargoLayoutRequestPort } from './cargo-layout-request.port.js'
 import type {
+  CargoLayoutUnavailableResult,
   RequestCargoLayoutParams,
   RequestCargoLayoutResult,
   RequestCargoLayoutUseCase,
 } from './request-cargo-layout.types.js'
+
+const CARGO_LAYOUT_UNAVAILABLE_RESULT: CargoLayoutUnavailableResult = {
+  enqueued: false,
+  layoutId: null,
+  status: 'unavailable',
+}
 
 /**
  * Spec 145 D6/D8: monta o retrato canônico, resume no hash e delega o upsert-e-outbox ao
@@ -22,6 +30,8 @@ export function createRequestCargoLayoutUseCase(dependencies: {
 }): RequestCargoLayoutUseCase {
   return {
     async execute(params: RequestCargoLayoutParams): Promise<RequestCargoLayoutResult> {
+      if (!canRequestCargoLayout(params)) return CARGO_LAYOUT_UNAVAILABLE_RESULT
+
       const input = buildStoredCargoLayoutInput(params)
       const inputHash = hashCargoLayoutInput(buildCargoLayoutInput(params))
 

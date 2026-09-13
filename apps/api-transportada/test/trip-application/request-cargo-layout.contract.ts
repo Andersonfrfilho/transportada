@@ -7,7 +7,7 @@ import type { CargoLayoutStop } from '@adatechnology/cargo-placement'
 
 import { createRequestCargoLayoutUseCase } from '../../src/trips/application/request-cargo-layout.use-case.js'
 import type { CargoLayoutRequestPort } from '../../src/trips/application/cargo-layout-request.port.js'
-import type { UpsertCargoLayoutRequestParams } from '../../src/trips/application/cargo-layout-request.types.js'
+import type { CargoLayoutRequestParams } from '../../src/trips/application/cargo-layout-request.types.js'
 import type { RequestCargoLayoutParams } from '../../src/trips/application/request-cargo-layout.types.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000001'
@@ -22,12 +22,15 @@ const STOP: CargoLayoutStop = {
   volumeM3: null,
 }
 
+const BED = { heightM: '2', lengthM: '6', source: 'measured', widthM: '2.4' } as const
+
 function createBaseParams(overrides: {
   readonly correlationId?: string
   readonly tripId?: string | null
 }): RequestCargoLayoutParams {
   return {
-    capacityM3: null,
+    bedDimensions: BED,
+    capacityM3: '28.8',
     companyId: COMPANY_ID,
     correlationId: overrides.correlationId ?? CORRELATION_ID,
     stops: [STOP],
@@ -36,9 +39,9 @@ function createBaseParams(overrides: {
 }
 
 function createFakeRepository(): CargoLayoutRequestPort & {
-  readonly calls: UpsertCargoLayoutRequestParams[]
+  readonly calls: CargoLayoutRequestParams[]
 } {
-  const calls: UpsertCargoLayoutRequestParams[] = []
+  const calls: CargoLayoutRequestParams[] = []
   return {
     calls,
     async requestLayout(params) {
@@ -92,5 +95,50 @@ describe('request cargo layout contract (spec 145 D6/D8)', () => {
     await useCase.execute(createBaseParams({ correlationId: 'trace-42' }))
 
     expect(repository.calls[0]?.correlationId).toBe('trace-42')
+  })
+
+  /** D15: capacidade desconhecida não pede cálculo — responde `unavailable` sem tocar no repositório. */
+  test('an unknown capacity answers unavailable without requesting a layout', async () => {
+    const repository = createFakeRepository()
+    const useCase = createRequestCargoLayoutUseCase({ repository })
+
+    const result = await useCase.execute({ ...createBaseParams({}), capacityM3: null })
+
+    expect(result).toEqual({ enqueued: false, layoutId: null, status: 'unavailable' })
+    expect(repository.calls).toHaveLength(0)
+  })
+
+  /** D10: sem baú medido o pacote devolveria `placement: null`, que seria gravado `ready`. */
+  test.each([
+    ['null', null],
+    ['absent', undefined],
+  ])('a %s bed answers unavailable without requesting a layout', async (_name, bedDimensions) => {
+    const repository = createFakeRepository()
+    const useCase = createRequestCargoLayoutUseCase({ repository })
+    const base = createBaseParams({})
+    const withoutBed: RequestCargoLayoutParams = {
+      capacityM3: base.capacityM3,
+      companyId: base.companyId,
+      correlationId: base.correlationId,
+      stops: base.stops,
+      tripId: base.tripId,
+    }
+
+    const result = await useCase.execute(
+      bedDimensions === null ? { ...withoutBed, bedDimensions: null } : withoutBed,
+    )
+
+    expect(result).toEqual({ enqueued: false, layoutId: null, status: 'unavailable' })
+    expect(repository.calls).toHaveLength(0)
+  })
+
+  test('capacity and bed known: the layout is requested', async () => {
+    const repository = createFakeRepository()
+    const useCase = createRequestCargoLayoutUseCase({ repository })
+
+    const result = await useCase.execute(createBaseParams({}))
+
+    expect(result).toEqual({ enqueued: true, layoutId: 'layout-1', status: 'queued' })
+    expect(repository.calls).toHaveLength(1)
   })
 })

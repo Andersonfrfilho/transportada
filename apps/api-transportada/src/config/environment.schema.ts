@@ -114,6 +114,9 @@ const environmentSchema = z.object({
   // Marca e modelo da FIPE mudam em escala de mês, daí o padrão de trinta dias. Zero desliga o
   // cache — é a saída para depurar contra o provedor de verdade, e não contra a memória do processo.
   FLEET_VEHICLE_CATALOG_CACHE_HOURS: z.coerce.number().int().min(0).max(8_760).default(720),
+  // Spec 145 D14: mesmo formato e limites do worker — o lease que a API usa para reabrir planta parada
+  // é derivado deste número e precisa ser o mesmo do worker.
+  CARGO_LAYOUT_TIME_BUDGET_MS: z.coerce.number().int().min(1_000).max(600_000).default(60_000),
   // Sem token: a BrasilAPI que espelha a tabela FIPE é pública.
   FLEET_VEHICLE_CATALOG_URL: z
     .string()
@@ -271,6 +274,7 @@ export function parseEnvironment(environment: Record<string, string | undefined>
   return {
     appEnv: parsed.APP_ENV,
     bootstrapToken: parsed.BOOTSTRAP_TOKEN,
+    cargoLayoutTimeBudgetMs: parsed.CARGO_LAYOUT_TIME_BUDGET_MS,
     companyId: parsed.PROVISION_COMPANY_ID,
     cryptography,
     databaseUrl: parsed.DATABASE_URL,

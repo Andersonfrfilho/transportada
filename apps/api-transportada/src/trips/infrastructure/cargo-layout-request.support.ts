@@ -4,10 +4,11 @@
  * Spec 145 D8 (G006): o upsert que decide entre nascer, reabrir ou não fazer nada — e é a mesma
  * transação que grava o outbox, nunca uma escrita solta depois.
  *
- * ⚠️ Reabrir só vale para `failed`: `queued`/`running`/`ready` já têm um pedido em curso ou pronto,
- * e enfileirar de novo duplicaria o trabalho do worker sem trazer nada de volta.
+ * ⚠️ Reabre `failed` e, pela D14/D16, `queued`/`running` com `updated_at` mais velho que o lease do
+ * worker — mensagem perdida ou worker morto no meio. `ready` e o pedido recente ficam no-op: enfileirar
+ * de novo duplicaria o trabalho do worker sem trazer nada de volta.
  */
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, sql, type SQL } from 'drizzle-orm'
 
 import {
   CARGO_LAYOUT_OUTBOX_EVENT_TYPES,
@@ -21,6 +22,10 @@ import type {
 import type { TripTransaction } from './trip-queryable.type.js'
 
 const [CARGO_LAYOUT_REQUESTED_EVENT_TYPE] = CARGO_LAYOUT_OUTBOX_EVENT_TYPES
+
+function buildCargoLayoutReopenCondition(leaseMs: number): SQL {
+  return sql`${tripCargoLayouts.status} = 'failed' or (${tripCargoLayouts.status} in ('queued', 'running') and ${tripCargoLayouts.updatedAt} < now() - (${leaseMs} * interval '1 millisecond'))`
+}
 
 async function handleNoOpRequest(
   transaction: TripTransaction,
@@ -79,7 +84,7 @@ export async function upsertCargoLayoutRequest(
         updatedAt: sql`now()`,
       },
       target: [tripCargoLayouts.companyId, tripCargoLayouts.inputHash],
-      where: sql`${tripCargoLayouts.status} = 'failed'`,
+      where: buildCargoLayoutReopenCondition(params.leaseMs),
     })
     .returning({ id: tripCargoLayouts.id, status: tripCargoLayouts.status })
 

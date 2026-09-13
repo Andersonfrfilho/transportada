@@ -21,6 +21,8 @@ export type ApiEnvironment = {
   readonly appEnv: string
   /** Token do primeiro acesso (ADR-0022); ausente é rota morta, nunca rota aberta. */
   readonly bootstrapToken: string | undefined
+  /** Spec 145 D14: orçamento da 1ª tentativa da planta; a API deriva dele o lease do worker. */
+  readonly cargoLayoutTimeBudgetMs: number
   /** Empresa do ambiente (ADR-0021); ausente mantém a rota de arranque morta (ADR-0022). */
   readonly companyId: string | undefined
   readonly cryptography: CryptographicConfiguration

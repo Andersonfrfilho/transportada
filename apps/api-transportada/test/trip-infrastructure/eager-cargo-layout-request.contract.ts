@@ -14,11 +14,14 @@ const COMPANY_ID = '11111111-1111-4111-8111-111111111111'
 const TRIP_ID = '22222222-2222-4222-8222-222222222222'
 const FAKE_TRANSACTION = {} as TripTransaction
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const LEASE_MS = 280_000
+const BED = { heightM: '2', lengthM: '6', source: 'measured', widthM: '2.4' } as const
 
 function buildInput(
   overrides: Partial<BuildCargoLayoutInputParams> = {},
 ): BuildCargoLayoutInputParams {
   return {
+    bedDimensions: BED,
     capacityM3: '10',
     loadingAccess: 'rear',
     securesCargo: false,
@@ -50,6 +53,7 @@ function createHarness(input: BuildCargoLayoutInputParams | null): {
 } {
   const upsertCalls: UpsertCargoLayoutRequestParams[] = []
   const requestCargoLayoutForTrip = createEagerCargoLayoutRequest({
+    leaseMs: LEASE_MS,
     readInput: async () => input,
     upsert: async (_transaction, params) => {
       upsertCalls.push(params)
@@ -143,6 +147,55 @@ describe('eager cargo layout request composition contract (spec 145 D6/D7)', () 
     expect(stored?.stops[0]?.boxes?.[0]?.documentId).toBe('doc-1')
     expect(stored?.policyVersion).toBe(CARGO_LAYOUT_POLICY_VERSION)
     expect(withLabels.upsertCalls[0]?.inputHash).toBe(withoutLabels.upsertCalls[0]?.inputHash)
+  })
+
+  /** D15: sem capacidade não há planta possível — nada entra na fila, e o estado é `unavailable`. */
+  test('an unknown capacity answers null and never calls the upsert', async () => {
+    const { requestCargoLayoutForTrip, upsertCalls } = createHarness(
+      buildInput({ capacityM3: null }),
+    )
+
+    const result = await requestCargoLayoutForTrip(FAKE_TRANSACTION, {
+      companyId: COMPANY_ID,
+      tripId: TRIP_ID,
+    })
+
+    expect(result).toBeNull()
+    expect(upsertCalls).toHaveLength(0)
+  })
+
+  /** D10: sem baú medido o pacote nem entra em cena — e ele devolveria `placement: null` como `ready`. */
+  test.each([
+    ['null', null],
+    ['absent', undefined],
+  ])('a %s bed answers null and never calls the upsert', async (_name, bedDimensions) => {
+    const base = buildInput()
+    const withoutBed: BuildCargoLayoutInputParams = {
+      capacityM3: base.capacityM3,
+      loadingAccess: 'rear',
+      securesCargo: false,
+      stops: base.stops,
+    }
+    const { requestCargoLayoutForTrip, upsertCalls } = createHarness(
+      bedDimensions === null ? { ...withoutBed, bedDimensions: null } : withoutBed,
+    )
+
+    const result = await requestCargoLayoutForTrip(FAKE_TRANSACTION, {
+      companyId: COMPANY_ID,
+      tripId: TRIP_ID,
+    })
+
+    expect(result).toBeNull()
+    expect(upsertCalls).toHaveLength(0)
+  })
+
+  test('capacity and bed known: the upsert is called with the injected lease', async () => {
+    const { requestCargoLayoutForTrip, upsertCalls } = createHarness(buildInput())
+
+    await requestCargoLayoutForTrip(FAKE_TRANSACTION, { companyId: COMPANY_ID, tripId: TRIP_ID })
+
+    expect(upsertCalls).toHaveLength(1)
+    expect(upsertCalls[0]?.leaseMs).toBe(LEASE_MS)
   })
 
   test('an absent correlationId is generated as a v4 uuid', async () => {

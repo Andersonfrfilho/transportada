@@ -20,7 +20,12 @@ import { chooseNfeDestinationRow } from '../domain/nfe-destination-choice.policy
 import type { StopAddressComponents } from '../domain/stop-address-key.js'
 import { TripDocumentNotFoundError } from '../domain/trip.error.js'
 import { createTripStopReconciliationPort } from './drizzle-trip-stop-reconciliation.support.js'
-import { requestCargoLayoutForTrip } from './eager-cargo-layout-request.support.js'
+import {
+  createRequestCargoLayoutForTrip,
+  type RequestCargoLayoutForTrip,
+} from './eager-cargo-layout-request.support.js'
+import type { CargoLayoutLeaseOptions } from '../application/cargo-layout-request.types.js'
+import { DEFAULT_CARGO_LAYOUT_LEASE_MS } from '../domain/cargo-layout-lease.policy.js'
 import { resolveNfeDocumentId } from './nfe-destination-address.support.js'
 import type { TripDatabase, TripTransaction } from './trip-queryable.type.js'
 
@@ -52,7 +57,14 @@ function mapOverride(record: OverrideRecord): DeliveryAddressOverrideRecord {
 export class DrizzleDeliveryAddressOverrideRepository
   implements OverrideDeliveryAddressPort, ListDeliveryAddressHistoryPort
 {
-  public constructor(private readonly database: TripDatabase) {}
+  private readonly requestCargoLayoutForTrip: RequestCargoLayoutForTrip
+
+  public constructor(
+    private readonly database: TripDatabase,
+    options: CargoLayoutLeaseOptions = { cargoLayoutLeaseMs: DEFAULT_CARGO_LAYOUT_LEASE_MS },
+  ) {
+    this.requestCargoLayoutForTrip = createRequestCargoLayoutForTrip(options)
+  }
 
   public async readPreconditions(input: {
     readonly companyId: string
@@ -202,7 +214,7 @@ export class DrizzleDeliveryAddressOverrideRepository
         .returning()
       if (created === undefined) throw new Error('DELIVERY_ADDRESS_OVERRIDE_FAILED')
 
-      await requestCargoLayoutForTrip(transaction, {
+      await this.requestCargoLayoutForTrip(transaction, {
         companyId: input.companyId,
         tripId: input.tripId,
       })

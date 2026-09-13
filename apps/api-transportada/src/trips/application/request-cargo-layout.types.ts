@@ -10,7 +10,14 @@ export type RequestCargoLayoutParams = BuildCargoLayoutInputParams & {
   readonly tripId: string | null
 }
 
-export type RequestCargoLayoutResult = UpsertCargoLayoutRequestResult
+/** Spec 145 D15/D10: sem capacidade ou sem baú nada é enfileirado — T10/T11 leem `unavailable`. */
+export type CargoLayoutUnavailableResult = {
+  readonly enqueued: false
+  readonly layoutId: null
+  readonly status: 'unavailable'
+}
+
+export type RequestCargoLayoutResult = UpsertCargoLayoutRequestResult | CargoLayoutUnavailableResult
 
 export type RequestCargoLayoutUseCase = {
   execute(params: RequestCargoLayoutParams): Promise<RequestCargoLayoutResult>

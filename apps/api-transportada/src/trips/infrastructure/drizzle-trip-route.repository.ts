@@ -27,7 +27,12 @@ import type {
   ReorderTripStopsPort,
   ReorderTripStopsPreconditions,
 } from '../application/reorder-trip-stops.use-case.js'
-import { requestCargoLayoutForTrip } from './eager-cargo-layout-request.support.js'
+import {
+  createRequestCargoLayoutForTrip,
+  type RequestCargoLayoutForTrip,
+} from './eager-cargo-layout-request.support.js'
+import type { CargoLayoutLeaseOptions } from '../application/cargo-layout-request.types.js'
+import { DEFAULT_CARGO_LAYOUT_LEASE_MS } from '../domain/cargo-layout-lease.policy.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
 
 /** Nota que pode virar `SEM ENDEREÇO`/pendência de rota: viva, mas ainda não chegou a `loaded`. */
@@ -45,7 +50,14 @@ const SEQUENCE_PARKING_OFFSET = 1_000_000
 export class DrizzleTripRouteRepository
   implements PlanTripRoutePort, DispatchTripPort, CancelTripPort, ReorderTripStopsPort
 {
-  public constructor(private readonly database: TripDatabase) {}
+  private readonly requestCargoLayoutForTrip: RequestCargoLayoutForTrip
+
+  public constructor(
+    private readonly database: TripDatabase,
+    options: CargoLayoutLeaseOptions = { cargoLayoutLeaseMs: DEFAULT_CARGO_LAYOUT_LEASE_MS },
+  ) {
+    this.requestCargoLayoutForTrip = createRequestCargoLayoutForTrip(options)
+  }
 
   public async readRouteState(input: {
     readonly companyId: string
@@ -229,7 +241,7 @@ export class DrizzleTripRouteRepository
           .where(and(eq(tripStops.companyId, input.companyId), eq(tripStops.id, stopId)))
       }
 
-      await requestCargoLayoutForTrip(transaction, {
+      await this.requestCargoLayoutForTrip(transaction, {
         companyId: input.companyId,
         tripId: input.tripId,
       })

@@ -3,6 +3,9 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import type { SQL } from 'drizzle-orm'
+import { PgDialect } from 'drizzle-orm/pg-core'
+
 import { tripCargoLayoutOutbox } from '../../src/database/trip-cargo-layout-outbox.schema.js'
 import type { StoredCargoLayoutInput } from '../../src/trips/domain/cargo-layout-hash.types.js'
 import type { UpsertCargoLayoutRequestParams } from '../../src/trips/application/cargo-layout-request.types.js'
@@ -30,20 +33,25 @@ const BASE_PARAMS: UpsertCargoLayoutRequestParams = {
   correlationId: 'trace-1',
   input: INPUT,
   inputHash: 'hash-1',
+  leaseMs: 280_000,
   policyVersion: 'cargo-placement-v1',
   tripId: TRIP_ID,
 }
+
+type ConflictConfig = { readonly set: Record<string, unknown>; readonly where: SQL }
 
 function createTransaction(options: {
   readonly existingRow?: { id: string; status: string; tripId: string | null }
   readonly returning: readonly { id: string; status: string }[]
 }): {
+  readonly conflicts: ConflictConfig[]
   readonly layoutUpdates: unknown[]
   readonly outboxInserts: unknown[]
   readonly transaction: TripTransaction
 } {
   const outboxInserts: unknown[] = []
   const layoutUpdates: unknown[] = []
+  const conflicts: ConflictConfig[] = []
 
   const transaction = {
     insert: (table: unknown) => {
@@ -57,9 +65,10 @@ function createTransaction(options: {
       }
       return {
         values: () => ({
-          onConflictDoUpdate: () => ({
-            returning: () => Promise.resolve(options.returning),
-          }),
+          onConflictDoUpdate: (config: ConflictConfig) => {
+            conflicts.push(config)
+            return { returning: () => Promise.resolve(options.returning) }
+          },
         }),
       }
     },
@@ -79,8 +88,10 @@ function createTransaction(options: {
     }),
   } as unknown as TripTransaction
 
-  return { layoutUpdates, outboxInserts, transaction }
+  return { conflicts, layoutUpdates, outboxInserts, transaction }
 }
+
+const dialect = new PgDialect()
 
 describe('cargo layout request upsert-and-outbox contract (spec 145 D8/G006)', () => {
   test('does nothing new when the upsert returns no row, but still answers the caller', async () => {
@@ -126,5 +137,64 @@ describe('cargo layout request upsert-and-outbox contract (spec 145 D8/G006)', (
     expect(result.enqueued).toBeFalse()
     expect(layoutUpdates).toHaveLength(1)
     expect(layoutUpdates[0]).toMatchObject({ tripId: TRIP_ID })
+  })
+
+  /**
+   * D14/D16: `failed` reabre sempre; `queued`/`running` só quando o `updated_at` passou do lease —
+   * worker morto no meio ou mensagem perdida. `ready` e o pedido recente ficam fora (G006).
+   */
+  test('reopens failed rows, and queued or running rows older than the lease', async () => {
+    const { conflicts, transaction } = createTransaction({
+      returning: [{ id: LAYOUT_ID, status: 'queued' }],
+    })
+
+    await upsertCargoLayoutRequest(transaction, BASE_PARAMS)
+
+    const where = conflicts[0]?.where
+    expect(where).toBeDefined()
+    const query = dialect.sqlToQuery(where as SQL)
+    expect(query.sql).toBe(
+      `"trip_cargo_layouts"."status" = 'failed' or ("trip_cargo_layouts"."status" in ('queued', 'running') and "trip_cargo_layouts"."updated_at" < now() - ($1 * interval '1 millisecond'))`,
+    )
+    expect(query.params).toEqual([280_000])
+    expect(query.sql).not.toContain('ready')
+  })
+
+  test('the lease in the reopen condition is the one the caller injected', async () => {
+    const { conflicts, transaction } = createTransaction({
+      returning: [{ id: LAYOUT_ID, status: 'queued' }],
+    })
+
+    await upsertCargoLayoutRequest(transaction, { ...BASE_PARAMS, leaseMs: 44_000 })
+
+    expect(dialect.sqlToQuery(conflicts[0]?.where as SQL).params).toContain(44_000)
+  })
+
+  test('a reopened row goes back to queued, from the first attempt, without the old plan', async () => {
+    const { conflicts, transaction } = createTransaction({
+      returning: [{ id: LAYOUT_ID, status: 'queued' }],
+    })
+
+    await upsertCargoLayoutRequest(transaction, BASE_PARAMS)
+
+    expect(conflicts[0]?.set).toMatchObject({
+      attempt: 0,
+      errorCode: '',
+      layout: null,
+      status: 'queued',
+    })
+  })
+
+  /** Linha `running` recente (ou `ready`) não volta do upsert: no-op, sem outbox. */
+  test('a recent running row answers without enqueuing', async () => {
+    const { outboxInserts, transaction } = createTransaction({
+      existingRow: { id: LAYOUT_ID, status: 'running', tripId: TRIP_ID },
+      returning: [],
+    })
+
+    const result = await upsertCargoLayoutRequest(transaction, BASE_PARAMS)
+
+    expect(result).toEqual({ enqueued: false, layoutId: LAYOUT_ID, status: 'running' })
+    expect(outboxInserts).toHaveLength(0)
   })
 })

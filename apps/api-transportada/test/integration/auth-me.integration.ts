@@ -84,6 +84,7 @@ describe('GET /auth/me PostgreSQL isolation', () => {
             driverAddressLookupUrl: undefined,
             appEnv: 'test',
             bootstrapToken: undefined,
+            cargoLayoutTimeBudgetMs: 60_000,
             companyId: undefined,
             cryptography: CRYPTOGRAPHIC_CONFIGURATION,
             databaseUrl: disposableUrl.toString(),
