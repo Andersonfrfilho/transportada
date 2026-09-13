@@ -1,0 +1,20 @@
+{
+  "eyebrow": "Registry",
+  "title": "Pending items",
+  "intro": "What the registry still owes, in one place.",
+  "boundary": {
+    "forbidden": "Your profile does not have permission to see pending items."
+  },
+  "status": {
+    "loading": "Loading pending items",
+    "error": "Failed to load pending items"
+  },
+  "empty": "No pending items.",
+  "items": {
+    "vehicleBodyTypeMissing": "Vehicle {{plate}} has no body type set"
+  },
+  "actions": {
+    "openVehicle": "Open record",
+    "loadMore": "Load more"
+  }
+}

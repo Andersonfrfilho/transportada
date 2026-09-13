@@ -97,6 +97,7 @@ type WorkspaceNavigationItem = Readonly<{
     | 'nfse-invoice'
     | 'notification'
     | 'operations'
+    | 'pendencias'
     | 'trip'
     | 'trip-occurrences'
     | 'access-profiles'
@@ -125,6 +126,7 @@ const WORKSPACE_NAVIGATION_ITEMS: readonly WorkspaceNavigationItem[] = [
   { href: '/papeis', key: 'access-profiles', label: 'Papéis e grupos' },
   { href: '/cte-profiles', key: 'cte-profiles', label: 'Perfis CT-e' },
   { href: '/fleet', key: 'fleet', label: 'Frota' },
+  { href: '/pendencias', key: 'pendencias', label: 'Pendências' },
   { href: '/clientes', key: 'delivery-clients', label: 'Clientes' },
   { href: '/repasses', key: 'extra-charges', label: 'Repasses' },
   { href: '/ressarcimentos', key: 'reimbursements', label: 'Ressarcimentos' },
@@ -166,7 +168,7 @@ const NAVIGATION_GROUPS: readonly NavigationGroup[] = [
     key: 'registries',
     label: 'Cadastros',
     items: WORKSPACE_NAVIGATION_ITEMS.filter(({ key }) =>
-      ['fleet', 'delivery-clients', 'cte-profiles'].includes(key),
+      ['fleet', 'pendencias', 'delivery-clients', 'cte-profiles'].includes(key),
     ),
   },
   /**
@@ -236,6 +238,7 @@ function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
   if (window.location.pathname === '/ressarcimentos') return 'reimbursements'
   if (window.location.pathname === '/resultados') return 'trip-financials'
   if (window.location.pathname === '/fleet') return 'fleet'
+  if (window.location.pathname === '/pendencias') return 'pendencias'
   if (window.location.pathname === '/mdfe-manifests') return 'mdfe-manifest'
   if (window.location.pathname === '/nfse-invoices') return 'nfse-invoice'
   if (window.location.pathname.startsWith('/notificacoes')) return 'notification'
@@ -263,6 +266,7 @@ function resolveCurrentWorkspace(): WorkspaceNavigationItem['key'] {
     storedWorkspace === 'nfse-invoice' ||
     storedWorkspace === 'notification' ||
     storedWorkspace === 'operations' ||
+    storedWorkspace === 'pendencias' ||
     storedWorkspace === 'trip-occurrences' ||
     storedWorkspace === 'freight' ||
     storedWorkspace === 'trip' ||
@@ -361,6 +365,10 @@ const OperationsDashboardPage = lazy(async () => ({
   default: (await import('@/modules/operations/pages/OperationsDashboard.page'))
     .OperationsDashboardPage,
 }))
+const PendingItemsWorkspacePage = lazy(async () => ({
+  default: (await import('@/modules/pending-items/pages/PendingItemsWorkspace.page'))
+    .PendingItemsWorkspacePage,
+}))
 const TripDetailPage = lazy(async () => ({
   default: (await import('@/modules/trip/pages/TripDetail.page')).TripDetailPage,
 }))
@@ -428,6 +436,8 @@ function resolvePage(
     }
     case 'operations':
       return <OperationsDashboardPage />
+    case 'pendencias':
+      return <PendingItemsWorkspacePage />
     case 'trip-occurrences': {
       const occurrenceId = parseTripOccurrenceRoute(input.path)
       return occurrenceId === null ? (
