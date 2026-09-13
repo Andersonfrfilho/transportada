@@ -407,3 +407,113 @@ Não rodei `bun --env-file=../../.env.test test --timeout 120000`: o contrato da
 SQL puro sobre `PgDialect().sqlToQuery()`, sem tocar Postgres — o mesmo formato de
 `nfse-schema/invoice-selection-query-tenant-safety.contract.ts`. Teste de integração contra banco de
 verdade fica para a T008, quando existirem rotas e caso de uso para exercitar de ponta a ponta.
+
+## T006 — 2026-09-13
+
+Serviço que sela `{ apiKey, webhookSigningSecret }` na API, no mesmo desenho da credencial da Nota
+RP (`nfse-profiles/application/nfse-credential-secret.service.ts`), e a cópia que só abre no worker.
+
+Arquivos novos:
+
+- `apps/api-transportada/src/contractor-mail/domain/contractor-mail.error.ts` —
+  `ContractorMailCredentialUnavailableError` (500, uma resposta só para chave errada, envelope
+  adulterado e AAD de outro tenant — diferenciar contaria a um atacante o que tentar depois) e
+  `ContractorMailWebhookSecretFormatError` (422, o segredo do webhook sem o prefixo `whsec_` do
+  Svix, recusado **ao selar**, antes de qualquer criptografia).
+- `apps/api-transportada/src/contractor-mail/application/contractor-mail-credential-secret.service.ts`
+  — `createContractorMailCredentialSecretService`, com `encrypt`/`decrypt`. AAD:
+  `transportada:contractor-mail-credential:v1:${companyId}:${settingsId}`. `secretSchema` (Zod,
+  `.strict()`) valida os dois campos como string não vazia, até 500 caracteres, com
+  `webhookSigningSecret` obrigado a começar com `whsec_` — conferido tanto ao abrir (evita que um
+  envelope adulterado devolva um formato impossível sem ninguém notar) quanto, via checagem
+  dedicada, ao selar. O plaintext é zerado no `finally`, como na Nota RP.
+- `apps/worker-transportada/src/contractor-mail/application/contractor-mail-credential-secret.service.ts`
+  — cópia por valor, só com `decrypt` (o worker nunca sela, igual à cópia da Nota RP em
+  `nfse-issuance/application/nfse-credential-secret.service.ts`). Mesmo AAD, mesmo `secretSchema`,
+  comentário de topo avisando que o AAD precisa ser idêntico. `envelope` chega como `unknown` (o
+  jsonb cru do banco) e é validado pelo `envelopeSchema` antes do `provider.decrypt`.
+
+Testes novos:
+
+- `apps/api-transportada/test/contractor-mail/credential-secret.contract.ts` — ida e volta com
+  provedor real; AAD canônico e DTO estrito capturados com um provedor fake, plaintext zerado;
+  falha fechada (mesma `ContractorMailCredentialUnavailableError`, sem detalhe) em: AAD de outra
+  empresa, `settingsId` trocado, ciphertext adulterado, plaintext com campo fora da allowlist,
+  envelope de saída com campo fora da allowlist; `webhookSigningSecret` sem `whsec_` recusado ao
+  selar sem tocar o provedor (`CONTRACTOR_MAIL_WEBHOOK_SECRET_FORMAT_INVALID`, 422); o mesmo formato
+  inválido vindo de um envelope aberto (simulando adulteração) cai na falha fechada genérica. Todo
+  teste de falha confere que nem a chave, nem o segredo, nem os UUIDs aparecem na serialização do
+  erro nem no `stack`.
+- `apps/worker-transportada/test/contractor-mail/credential-secret.contract.ts` — não importa o
+  código da API (as apps não importam código uma da outra): recria o que a API produziria ao selar
+  — mesmo AAD, mesmo JSON — com `createSecretEnvelopeProvider` puro, e prova que o worker abre esse
+  envelope "vindo da API". Falha fechada em AAD de outra empresa, `settingsId` trocado e ciphertext
+  adulterado; confere que o erro capturado não carrega os valores dos segredos.
+- `apps/worker-transportada/test/contractor-mail/credential-secret-parity.contract.ts` — o contrato
+  de paridade pedido pela task, no molde de `test/whatsapp-code/aad-parity.contract.ts` (comparação
+  textual, não diff de arquivo inteiro — a API expõe `encrypt`+`decrypt` e o worker só `decrypt`, uma
+  assimetria que um diff de corpo inteiro, como o de `physical-destination-parity.contract.ts`, não
+  acomodaria). Confere, nas duas fontes: o template literal do AAD, a constante do prefixo `whsec_`,
+  o limite de 500 caracteres e a forma do campo do `secretSchema`; e que o arquivo do worker declara
+  `decrypt` e nunca `encrypt`.
+
+Registro nos entrypoints e no `package.json`:
+
+- `apps/api-transportada/test/contractor-mail.contract.test.ts` (novo) importa
+  `./contractor-mail/credential-secret.contract.js`; adicionado ao `"test"` do `package.json` logo
+  depois de `contractor-mail-schema.contract.test.ts`.
+- `apps/worker-transportada/test/contractor-mail.contract.test.ts` (já existia, da T004) ganhou os
+  imports de `./contractor-mail/credential-secret-parity.contract.js` e
+  `./contractor-mail/credential-secret.contract.js`, ao lado do `dkim-verification.contract.js`
+  existente. Já estava no `"test"` do `package.json` do worker.
+
+**Desvio do padrão da Nota RP:** a Nota RP não tem contrato de paridade entre as duas cópias (o AAD
+delas é conferido só implicitamente, pelo teste de ida e volta de cada lado). Como a task pediu
+explicitamente um contrato de paridade, e nenhum existia para copiar entre `nfse-credential-secret`
+de cada app, usei o molde de `whatsapp-code/aad-parity.contract.ts` (comparação textual de
+fragmentos, não diff do arquivo inteiro) em vez de `physical-destination-parity.contract.ts`, porque
+lá as duas cópias têm exatamente a mesma forma (uma função pura) e aqui a API sela e o worker só
+abre — formas diferentes de propósito (§ "o padrão da Nota RP no worker também só abre").
+
+A validação de `whsec_` **ao selar** não existe na Nota RP (lá `encryptSecret` não valida o
+conteúdo, só o formato do envelope de saída); foi acrescentada aqui porque a task pediu
+explicitamente a recusa nesse ponto, com um erro de domínio próprio (422) em vez de colapsar no
+mesmo "indisponível" genérico do decrypt — um segredo colado sem o prefixo é erro de quem está
+configurando, não falha do cofre, e por isso merece resposta distinta.
+
+**Saída do verde:**
+
+```
+$ bun run typecheck        # raiz, as seis apps → limpo
+
+$ bun run --cwd apps/api-transportada test
+ 5557 pass
+ 23 skip
+ 0 fail
+ 38610 expect() calls
+Ran 5580 tests across 170 files. [62.22s]
+
+$ bun run --cwd apps/worker-transportada test
+ 1058 pass
+ 0 fail
+ 2831 expect() calls
+Ran 1058 tests across 81 files. [11.83s]
+
+$ bun run lint             # raiz, as seis apps → limpo
+
+$ bunx prettier --check apps/api-transportada/src/contractor-mail/domain/contractor-mail.error.ts \
+    apps/api-transportada/src/contractor-mail/application/contractor-mail-credential-secret.service.ts \
+    apps/worker-transportada/src/contractor-mail/application/contractor-mail-credential-secret.service.ts \
+    apps/api-transportada/test/contractor-mail/credential-secret.contract.ts \
+    apps/api-transportada/test/contractor-mail.contract.test.ts \
+    apps/worker-transportada/test/contractor-mail/credential-secret.contract.ts \
+    apps/worker-transportada/test/contractor-mail/credential-secret-parity.contract.ts \
+    apps/worker-transportada/test/contractor-mail.contract.test.ts \
+    apps/api-transportada/package.json
+All matched files use Prettier code style!   (dois arquivos de teste precisaram de --write antes;
+conteúdo idêntico, só quebra de linha)
+```
+
+Não rodei `bun --env-file=../../.env.test test --timeout 120000`: este serviço não toca banco, é
+função pura sobre o `SecretEnvelopeProvider` injetado — não há integração para exercitar aqui. A
+gravação/leitura do jsonb `secretEnvelope` continua sendo da T008.

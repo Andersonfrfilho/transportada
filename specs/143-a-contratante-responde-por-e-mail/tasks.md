@@ -34,7 +34,7 @@ test`), um commit isolado e a evidência em `evidence.md`. Teste novo entra na l
 - [x] **T005** Contrato de tenant, **vermelho primeiro**:
       `test/contractor-mail-schema/tenant-safety.contract.ts`, cobrindo configuração, contatos,
       conversas e mensagens. Evidência: vermelho antes da T008, verde depois.
-- [ ] **T006** O serviço que sela `{ apiKey, webhookSigningSecret }` (API) e a cópia dele no
+- [x] **T006** O serviço que sela `{ apiKey, webhookSigningSecret }` (API) e a cópia dele no
       worker, com o mesmo AAD; o contrato de paridade compara os dois. Evidência: teste de ida e
       volta, e a abertura com AAD de outra empresa falhando.
 - [ ] **T007** Os gateways do Resend: na API, `resend-account.gateway.ts` (a chave é aceita e o
