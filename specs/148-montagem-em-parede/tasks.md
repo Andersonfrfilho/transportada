@@ -6,6 +6,7 @@
 | 2    | T2 🧠  | `opus`             | `fable`             |
 | 2    | T3 🧠  | `opus`             | `fable`             |
 | 2    | T3b 🧠 | `opus`             | `fable`             |
+| 2    | T3c    | `sonnet`           | `opus`              |
 | 3    | T4     | `sonnet`           | `opus`              |
 | 3    | T5     | `sonnet`           | `opus`              |
 | 4    | T6     | `haiku`            | `sonnet` → `opus`   |
@@ -42,6 +43,12 @@
       e `tall.ts` em zero violações. Separar no relatório as caixas que não cabem pelas regras (`classify.ts`:
       sem assento com 80% de apoio) das que o algoritmo deixou escapar — a meta é zerar as segundas.
 
+- [ ] T3c — D5: passada final no pacote que coloca as caixas restantes onde couberem, inclusive por cima de
+      entrega anterior, com apoio de 80% e sem pilha alta isolada. Marca cada uma com um motivo próprio (ex.:
+      `overEarlierDelivery`) e com a entrega que ela cobre. Medir caixas de fora e retrabalho por parada.
+      No app: marca própria no mapa 3D e lista "caixas por cima" (caixa, nota, entrega coberta, parada em que
+      sai do caminho), com contrato de tela e textos no locale.
+
 ## Fase 3 — App
 
 > 🤖 Modelo: `sonnet`
@@ -69,7 +76,7 @@ D21–D26 em specs/145-a-planta-e-do-worker/spec.md). Trabalhe no worktree ../tr
 (branch work/cargo-missing-box) e no worktree do pacote ~/Documents/personal/adatechnology-packages-wt/cargo-placement
 (branch feat/cargo-placement). Uma task por vez, na ordem do tasks.md, contrato vermelho antes do código.
 Modelos: T1 → executor model=sonnet · T2 🧠, T3 🧠 e T3b 🧠 → executor model=opus (plano validado antes por architect
-model=opus) · T4, T5 → executor model=sonnet · T6 → writer model=haiku · revisão final → code-reviewer
+model=opus) · T3c → executor model=sonnet (pacote e tela) · T4, T5 → executor model=sonnet · T6 → writer model=haiku · revisão final → code-reviewer
 model=opus. Se o modelo der 429, siga o fallback da tabela do tasks.md.
 Regras que não se negociam: nenhuma pilha alta isolada (encosto no SENTIDO da cabeceira + ≥ 1 lateral,
 vizinha escora com 80% da borda, porta livre, inclusive no complemento); apoio mínimo de 80%, célula de 5 cm

@@ -68,6 +68,18 @@ para 16 com a D1.
   fase respeita o prazo (`deadline`) e fica com a melhor arrumação encontrada quando ele vence. É preciso
   medir o retrabalho: quantas caixas o conferente passa a mexer para descarregar.
 
+- **D5 — Por cima, até acabar o espaço, e marcado (proposta do usuário, 2026-09-13).** Depois da montagem em
+  parede (D1) e da reorganização (D4), uma última passada coloca as caixas que ainda sobraram em qualquer
+  lugar onde caibam, inclusive por cima da carga de uma entrega que desce antes, até não ter mais espaço. Só
+  essa passada fura a ordem de descarga; a física continua valendo: apoio de 80% e nenhuma pilha alta isolada
+  (D23/D25). Cada caixa colocada assim é marcada e aparece:
+  - no mapa 3D, com uma marca própria, diferente do tracejado de cobre do complemento;
+  - numa lista: qual caixa, de qual nota, por cima de qual entrega, e em que parada ela precisa ser tirada do
+    caminho para descarregar a de baixo.
+
+  Medir por parada quantas caixas o conferente passa a mexer. Medido na spec 145: 56 das 162 caixas de fora da
+  Atego só achariam lugar por cima de entrega anterior.
+
 ## Fora do escopo
 
 - Mudar apoio de 80%, célula de 5 cm ou `STABLE_STACK_SLENDERNESS` sem decisão explícita do usuário.
