@@ -1,13 +1,14 @@
 # Spec 148 — Tarefas
 
-| fase | tasks | modelo recomendado | fallback se der 429 |
-| ---- | ----- | ------------------ | ------------------- |
-| 1    | T1    | `sonnet`           | `opus`              |
-| 2    | T2 🧠 | `opus`             | `fable`             |
-| 2    | T3 🧠 | `opus`             | `fable`             |
-| 3    | T4    | `sonnet`           | `opus`              |
-| 3    | T5    | `sonnet`           | `opus`              |
-| 4    | T6    | `haiku`            | `sonnet` → `opus`   |
+| fase | tasks  | modelo recomendado | fallback se der 429 |
+| ---- | ------ | ------------------ | ------------------- |
+| 1    | T1     | `sonnet`           | `opus`              |
+| 2    | T2 🧠  | `opus`             | `fable`             |
+| 2    | T3 🧠  | `opus`             | `fable`             |
+| 2    | T3b 🧠 | `opus`             | `fable`             |
+| 3    | T4     | `sonnet`           | `opus`              |
+| 3    | T5     | `sonnet`           | `opus`              |
+| 4    | T6     | `haiku`            | `sonnet` → `opus`   |
 
 ## Fase 1 — Reproduzir a base
 
@@ -33,6 +34,13 @@
       `classify.ts` no que sobrar, e adotar como padrão do baú fechado o que medir melhor sem violação (D2).
       Suíte do pacote sem falha nova (G3); `exact-edges` e `complement` verdes. Se não zerar sem regra
       protegida, parar e levar ao usuário o que sobra, a regra e o número (D3).
+
+- [ ] T3b 🧠 — D4: fase de reorganização depois da montagem em parede (subir caixas sobre colunas com
+      altura livre, compactar vãos, reabrir regiões e rearrumar com as caixas de fora), aceitando só trocas
+      que diminuem as caixas de fora sem violar D23/D25, apoio de 80%, ordem de descarga e alcance; parar no
+      prazo com a melhor arrumação. Medir caixas de fora, tempo e retrabalho nas 6 entradas, com `check.ts`
+      e `tall.ts` em zero violações. Separar no relatório as caixas que não cabem pelas regras (`classify.ts`:
+      sem assento com 80% de apoio) das que o algoritmo deixou escapar — a meta é zerar as segundas.
 
 ## Fase 3 — App
 
@@ -60,7 +68,7 @@ harness/README.md antes de começar; leia também a memória "caixa-de-fora-e-a-
 D21–D26 em specs/145-a-planta-e-do-worker/spec.md). Trabalhe no worktree ../transportada-wt/cargo-missing-box
 (branch work/cargo-missing-box) e no worktree do pacote ~/Documents/personal/adatechnology-packages-wt/cargo-placement
 (branch feat/cargo-placement). Uma task por vez, na ordem do tasks.md, contrato vermelho antes do código.
-Modelos: T1 → executor model=sonnet · T2 🧠 e T3 🧠 → executor model=opus (plano validado antes por architect
+Modelos: T1 → executor model=sonnet · T2 🧠, T3 🧠 e T3b 🧠 → executor model=opus (plano validado antes por architect
 model=opus) · T4, T5 → executor model=sonnet · T6 → writer model=haiku · revisão final → code-reviewer
 model=opus. Se o modelo der 429, siga o fallback da tabela do tasks.md.
 Regras que não se negociam: nenhuma pilha alta isolada (encosto no SENTIDO da cabeceira + ≥ 1 lateral,

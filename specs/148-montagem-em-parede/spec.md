@@ -55,10 +55,18 @@ para 16 com a D1.
 - **D2 — A montagem em parede é a arrumação padrão do baú fechado** se, e só se, medir menos caixas de fora
   que a arrumação atual nas 6 entradas acima, sem violação. Fora do baú fechado nada muda, e nenhum baú pode
   desenhar menos caixas do que antes (os contratos `exact-edges` e `complement` do pacote protegem isso).
-- **D3 — Meta:** zero caixa `bedFull` nas 6 entradas medidas quando a carga cabe fisicamente, com os
+- **D3 — Meta:** nenhuma caixa que cabe fica de fora. Zero caixa `bedFull` nas 6 entradas medidas quando a carga cabe fisicamente, com os
   verificadores em zero violação e o cálculo da Atego dentro de 120 s (`CARGO_LAYOUT_TIME_BUDGET_MS`). Se a
   meta não fechar sem mexer numa regra protegida, a spec para no melhor resultado seguro e o que sobra vai ao
   usuário com a regra que barra cada caixa e o número.
+
+- **D4 — Reorganizar depois de encher (proposta do usuário, 2026-09-13).** Depois da montagem em parede,
+  uma fase de melhoria: subir caixas para cima das colunas que ainda têm altura livre, compactar os vãos
+  entre pilhas e reabrir regiões do baú para rearrumá-las junto com as caixas que ficaram de fora (busca
+  local do tipo destruir e reconstruir). Uma troca só é aceita se deixar menos caixas de fora e continuar
+  valendo tudo: apoio de 80%, nenhuma pilha alta isolada (D23/D25), ordem de descarga e alcance de 2 m. A
+  fase respeita o prazo (`deadline`) e fica com a melhor arrumação encontrada quando ele vence. É preciso
+  medir o retrabalho: quantas caixas o conferente passa a mexer para descarregar.
 
 ## Fora do escopo
 
