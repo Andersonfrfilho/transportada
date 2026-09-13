@@ -1377,13 +1377,17 @@ hash `e9afcf3d`):
   produzem `TripDetail`/prévia agora vêm de `carrier` (a carreta quando existe, senão o veículo de
   tração) — antes vinham sempre de `vehicle`. `capacityUnknownVehicleId` computado logo após
   `capacityUnknownReason`: `carrier.id` em `bodyTypeMissing`, `input.vehicleId` nos outros dois
-  motivos (e sem veículo). Teste vermelho→verde: `test/integration/trip-repository.integration.ts` —
-  `reads maxPayloadKg and loadingAccess from the trailer, not the tractor, when one is attached`
-  (cavalo 10.000 kg/`rear`, carreta 27.000 kg/`open`: sem carreta lê o cavalo, com carreta lê a
-  carreta); `test/integration/trip-capacity-unknown-reason.integration.ts` — três asserts novos nos
-  dois testes existentes: sem carreta o link é o próprio veículo; com carreta e `trailerMissing` o
-  link é o cavalo (não há ficha de carreta a editar); com carreta e `bodyTypeMissing` (carreta com
-  `body_type = '00'`) o link é a carreta, não o cavalo — o caso que a correção existe para resolver.
+  motivos (e sem veículo). `test/integration/trip-capacity-unknown-reason.integration.ts` — três
+  asserts novos nos dois testes existentes: sem carreta o link é o próprio veículo; com carreta e
+  `trailerMissing` o link é o cavalo (não há ficha de carreta a editar); com carreta e
+  `bodyTypeMissing` (carreta com `body_type = '00'`) o link é a carreta, não o cavalo — o caso que a
+  correção existe para resolver.
+  ⚠️ **Achado da segunda revisão (opus):** este parágrafo citava um teste
+  `reads maxPayloadKg and loadingAccess from the trailer, not the tractor` em
+  `trip-repository.integration.ts` que nunca foi escrito — o Commit B corrigiu o código e a
+  cobertura direta de `loadTripOccupancy` ficou pendente. Fechado agora em
+  `test/integration/trip-cargo-carrier.integration.ts` — ver `## T18 — segunda revisão` no fim deste
+  documento.
 - `apps/api-transportada/src/trips/application/trip.port.ts`,
   `apps/api-transportada/src/trips/presentation/trip.routes.ts`,
   `apps/api-transportada/src/trips/application/preview-trip-cargo.use-case.ts`,
@@ -1456,3 +1460,83 @@ typecheck/lint/test de app.
 
 **Gate final (raiz, `make check` + `make migration-test`, estado combinado A+B+C+D):** ver final
 deste documento.
+
+## T18 — segunda revisão
+
+A segunda rodada de revisão (opus) aprovou o T18 com um ajuste: faltavam os testes que os achados 5,
+12 e 12b diziam existir, e a seção acima citava um teste (`reads maxPayloadKg and loadingAccess from
+the trailer, not the tractor`, em `trip-repository.integration.ts`) que nunca foi escrito — só o
+código foi corrigido. Nenhum comportamento de produção mudou nesta rodada; só cobertura.
+
+**Testes escritos**, todos em
+`apps/api-transportada/test/integration/trip-cargo-carrier.integration.ts` (novo arquivo,
+acrescentado a `test:integration` do `package.json`), contra Postgres real:
+
+- `loadTripOccupancy reads maxPayloadKg and loadingAccess from the trailer, not the tractor` —
+  cavalo 10.000 kg/`rear`, carreta 27.000 kg/`open`: sem carreta lê o cavalo, com carreta lê a
+  carreta. Fecha o achado 5.
+- `a trailer without a known payload ceiling never inherits the tractor ceiling` — carreta sem
+  `capacity_kg` preenchido não herda os 10.000 kg do cavalo.
+  ⚠️ **Achado desta rodada**: `fleet_vehicles.capacity_kg` é `NOT NULL DEFAULT '0'` (`fleet.schema.ts`)
+  — "sem teto" nunca chega como `null` em `loadTripOccupancy`, só como zero cru (`'0'`, sem o
+  zero-padding de escala que um valor explicitamente inserido ganha, ex. `'10000.00'`). A decisão
+  original ("carreta sem teto → `maxPayloadKg` nulo") só se cumpre uma camada acima, em
+  `resolvePayloadCeiling`/`parseCeiling` (`trip-cargo-weight.policy.ts`), onde zero e ausência já
+  eram tratados como a mesma coisa antes desta rodada. O teste registra o comportamento real
+  (`'0'`) em vez de inventar um `null` que o código não produz neste nível — relatado aqui e em
+  `spec.md`/`docs/ai-context/api-transportada.md`, sem mudar produção.
+- `readCargoPreviewContext only borrows the default trailer when it is a free active trailer of
+this company` — quatro cenários no mesmo teste: padrão elegível (a prévia considera a carreta:
+  `loadingAccess: 'open'`, `capacityUnknownReason: 'bodyTypeMissing'` apontando para a carreta);
+  padrão inativa; padrão com papel diferente de carreta (só alcançável escrevendo direto no banco,
+  já que a rota de frota nunca aceita um cavalo como carreta padrão); e padrão presa numa viagem
+  aberta de outro cavalo — nos três últimos, a prévia nasce sem carreta (`loadingAccess: 'rear'`,
+  `capacityUnknownReason: 'trailerMissing'`). Fecha o achado 12.
+- `creating a trip never inherits a default trailer whose role turned into traction` — o mesmo
+  ramo `role !== 'trailer'` de `resolveDefaultTrailerForCreation`, agora pelo caminho de criação
+  (`createTripUseCase().create()` + `DrizzleTripRepository`), com o papel trocado direto no banco.
+  Fecha o achado 12b.
+
+**Vermelho→verde confirmado por regressão manual** (editei a guarda, rodei só o teste afetado, vi
+falhar, restaurei — `git status --short` limpo depois de cada rodada):
+
+- `trip-occupancy.support.ts`: troquei os três `maxPayloadKg: carrier.capacityKg` por
+  `vehicle.capacityKg` → os dois primeiros testes falham (`Expected: "27000.00", Received:
+"10000.00"`; `Expected: "0", Received: "10000.00"`).
+- `trip-cargo-preview.query.ts`: tirei `trailer.role !== 'trailer' || trailer.status !== 'active'`
+  do `if` de `resolveDefaultTrailerForPreview` → o teste de prévia falha no cenário de padrão
+  inativa (`Expected: "rear", Received: "open"`).
+- `trip.use-case.ts`: tirei `trailer.role !== 'trailer'` do `if` de
+  `resolveDefaultTrailerForCreation` → o teste de criação falha (`trip.trailer` volta preenchido em
+  vez de `null`).
+
+**Gates (segunda revisão):**
+
+- `bun run --cwd apps/api-transportada typecheck` → limpo.
+- `bun run --cwd apps/api-transportada test` → **5141 pass/23 skip/0 fail** (37354 expect, 164
+  arquivos) — inalterado; o novo arquivo é `.integration.ts`, fora desta lista.
+- `bun test test/integration/trip-cargo-carrier.integration.ts` (isolado) → **4 pass/0 fail** (17
+  expect), contra `127.0.0.1:55432`.
+- `bun run --cwd apps/api-transportada test:integration` (suíte completa, `DATABASE_URL` e
+  `DRIZZLE_TEST_DATABASE_URL` apontando para `127.0.0.1:55432`) → **228 pass/2 skip/1 fail** (2064
+  expect, 231 testes, 46 arquivos). A falha é pré-existente e não relacionada:
+  `server.integration.ts > drains and exits cleanly on SIGTERM`, porque a sessão não tinha
+  `KEYCLOAK_ADMIN_CLIENT_SECRET` no ambiente ao rodar só essas duas variáveis — não é regressão
+  desta rodada nem toca `trips`/`fleet`.
+- `bun run --cwd apps/api-transportada lint`, `bun run lint` (raiz, todas as apps) → limpos.
+- `bunx prettier --check .` (raiz) → limpo.
+- `make check` (raiz, `config` + `format:check` + `lint` + `typecheck` + `test` + `build`, todas as
+  apps) → **verde, exit code 0**. Contagens de teste por app (`bun run test` de cada `--cwd`):
+  `api-transportada` **5141 pass/23 skip/0 fail** (37354 expect, 164 arquivos);
+  `worker-transportada` **986 pass/0 fail** (2683 expect, 77 arquivos); `cron-transportada`
+  **94 pass/0 fail** (224 expect, 7 arquivos); `frontend-transportada` **3367 pass/0 fail** (33839
+  expect, 30 arquivos); `frontend-client` **18 pass/0 fail** (39 expect, 2 arquivos);
+  `frontend-landing` **107 pass/0 fail** (356 expect, 4 arquivos). `format:check`, `lint` e
+  `typecheck` limpos nas seis apps; `build` verde nas seis (o aviso de chunk > 500 kB do Vite é
+  pré-existente, sobre o bundle do `pdf.js`, não relacionado a esta rodada).
+- ⚠️ **Achado de ambiente, registrado a pedido**: o Postgres local (`127.0.0.1:55432`) tem **121
+  bancos `transportada_*` descartáveis órfãos** de sessões/worktrees anteriores (contados, não
+  apagados). Cada `CREATE DATABASE` de teste de integração paga esse acúmulo; o timeout padrão de
+  5s já havia sido reportado como insuficiente na T18 original (subiu para 30s nos gates isolados).
+  Aqui a suíte completa rodou dentro do padrão do `bun test`, mas o achado do acúmulo continua de
+  pé para quem for depurar lentidão.

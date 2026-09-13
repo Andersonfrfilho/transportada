@@ -256,6 +256,20 @@ do veículo, e a linha some depois que a ficha é salva.
   conhecida.
 - MDF-e de toco com `00`: continua emitindo `tpCar 00`. É risco fiscal registrado, não resolvido
   aqui.
+- Carreta sem `capacity_kg` preenchido: a coluna é `NOT NULL DEFAULT '0'` — "sem teto" chega a
+  `loadTripOccupancy` como zero cru, nunca como `null`; o teto **não herda** o do cavalo, e é só na
+  borda de exibição (`resolvePayloadCeiling`/`parseCeiling`) que zero e ausência viram a mesma coisa.
+
+## Testes (segunda revisão, T18)
+
+Cobertura acrescentada em `apps/api-transportada/test/integration/trip-cargo-carrier.integration.ts`,
+contra Postgres real (roda com `DRIZZLE_TEST_DATABASE_URL` ou `--env-file ../../.env.test`):
+`loadTripOccupancy` lê `maxPayloadKg`/`loadingAccess` da carreta quando ela existe, nunca do cavalo
+(achado 5 da revisão); a carreta sem teto conhecido não herda o do cavalo (o valor é o zero cru da
+coluna, não `null`, neste nível); `readCargoPreviewContext` só usa a carreta padrão quando ela é
+ativa, tem papel de carreta, e não está numa viagem aberta (achado 12); e a criação de viagem nunca
+herda uma carreta padrão cujo papel virou tração — estado só alcançável escrevendo direto no banco,
+já que a rota de frota nunca aceita um cavalo como carreta padrão (achado 12b).
 
 ## Critérios de aceite
 

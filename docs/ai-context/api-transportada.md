@@ -551,7 +551,10 @@ nasce tipado sem exigir migração de leitor nenhum. A ocupação (`trip-occupan
 quinta consulta **só quando existe carreta** e usa `carrier = trailer ?? vehicle` como o único ponto
 que decide de quem é a ficha — `loadingAccess` e `maxPayloadKg` também vêm do `carrier` (T18,
 revisão: antes liam sempre o veículo de tração, e uma carreta com capacidade diferente da dele fazia
-o teto de peso e o acesso de carga mentirem).
+o teto de peso e o acesso de carga mentirem). ⚠️ `fleet_vehicles.capacity_kg` é `NOT NULL DEFAULT
+'0'`: uma carreta sem teto conhecido devolve o zero cru da coluna neste nível (nunca `null`, e nunca
+o teto do cavalo) — só na borda de exibição (`resolvePayloadCeiling`, `trip-cargo-weight.policy.ts`)
+zero e ausência viram a mesma coisa.
 
 **T18 (revisão desta spec) corrigiu mais três corridas na criação/edição.** Duas viagens criadas ao
 mesmo tempo para cavalos que compartilham a mesma carreta padrão disputam
