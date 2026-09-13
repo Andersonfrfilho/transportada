@@ -61,6 +61,64 @@ describe('a viagem publica o motivo da capacidade desconhecida (spec 147 T4)', (
       })
     },
   )
+
+  // Feature 147 D3/T12: sem carreta o cavalo cai em `trailerMissing`; com uma carreta `02` sem
+  // ficha, a ocupação usa a referência do implemento (`'', '02'`), nunca a do cavalo.
+  testWithPostgres(
+    'tractor unit without a trailer is trailerMissing; a body-02 trailer without a ficha is reference',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const companyId = crypto.randomUUID()
+        const tractorId = crypto.randomUUID()
+        const trailerId = crypto.randomUUID()
+        const tripId = crypto.randomUUID()
+
+        await database.db.insert(companies).values({ id: companyId, status: 'active' })
+        await database.db.insert(fleetVehicles).values([
+          {
+            bodyType: '00',
+            companyId,
+            id: tractorId,
+            plate: 'RTF7L90',
+            role: 'traction',
+            state: 'SP',
+            vehicleType: 'tractor_unit',
+          },
+          {
+            bodyType: '02',
+            companyId,
+            id: trailerId,
+            plate: 'RTG8M01',
+            role: 'trailer',
+            state: 'SP',
+            vehicleType: '',
+          },
+        ])
+        await database.db
+          .insert(trips)
+          .values({ companyId, id: tripId, status: 'draft', vehicleId: tractorId })
+
+        const repository = new DrizzleTripRepository(database.db)
+
+        const withoutTrailer = await repository.findById({ companyId, tripId })
+        expect(withoutTrailer?.occupancy).toBeNull()
+        expect(withoutTrailer?.capacityUnknownReason).toBe('trailerMissing')
+
+        await repository.setTrailer({ companyId, tripId, trailerVehicleId: trailerId })
+
+        const withTrailer = await repository.findById({ companyId, tripId })
+        expect(withTrailer?.capacityUnknownReason).toBeNull()
+        expect(withTrailer?.occupancy?.capacitySource).toBe('reference')
+        // A chave é a do implemento (`'', '02'`), nunca a do cavalo (`tractor_unit`/`00`), que não
+        // acharia linha nenhuma no catálogo — as medidas batem com a referência seedada do implemento.
+        expect(withTrailer?.occupancy?.capacityDimensions).toEqual({
+          heightM: '2.700',
+          lengthM: '14.270',
+          widthM: '2.460',
+        })
+      })
+    },
+  )
 })
 
 type TestDatabase = ReturnType<typeof createDrizzleProvider>

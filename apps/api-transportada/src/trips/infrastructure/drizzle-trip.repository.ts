@@ -1462,6 +1462,7 @@ async function readTripDetail(
   const cargo = await loadTripOccupancy(queryable, {
     companyId: input.companyId,
     nfeDocumentIds,
+    trailerVehicleId: record.trailerVehicleId,
     vehicleId: record.vehicleId,
   })
   const cargoWeight = await loadTripCargoWeight(queryable, {

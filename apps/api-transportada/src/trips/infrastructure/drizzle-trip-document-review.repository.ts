@@ -147,7 +147,7 @@ export class DrizzleTripDocumentReviewRepository implements TripDocumentReviewPo
   public async listSwapSuggestions(params: SwapSuggestionsParams): Promise<SwapSuggestionsResult> {
     const review = await requireReviewRecord(this.database, params)
     const [trip] = await this.database
-      .select({ vehicleId: trips.vehicleId })
+      .select({ trailerVehicleId: trips.trailerVehicleId, vehicleId: trips.vehicleId })
       .from(trips)
       .where(and(eq(trips.companyId, params.companyId), eq(trips.id, review.sourceTripId)))
       .limit(1)
@@ -187,6 +187,7 @@ export class DrizzleTripDocumentReviewRepository implements TripDocumentReviewPo
         : loadTripOccupancy(this.database, {
             companyId: params.companyId,
             nfeDocumentIds,
+            trailerVehicleId: trip.trailerVehicleId,
             vehicleId: trip.vehicleId,
           }),
     ])

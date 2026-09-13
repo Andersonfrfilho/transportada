@@ -31,7 +31,12 @@ export async function readCargoPreviewContext(
   },
 ): Promise<TripCargoPreviewContext> {
   const [cargo, cargoWeight, addresses, numbers, driversSecureCargo] = await Promise.all([
-    loadTripOccupancy(queryable, input),
+    /**
+     * Feature 147 D3: a prévia acontece **antes** de a viagem existir — não há
+     * `trips.trailer_vehicle_id` a ler ainda. `null` aqui é o mesmo comportamento de antes desta
+     * feature; a carreta padrão do veículo (sugestão de P3) é preocupação da tela, não desta conta.
+     */
+    loadTripOccupancy(queryable, { ...input, trailerVehicleId: null }),
     loadTripCargoWeight(queryable, {
       companyId: input.companyId,
       nfeDocumentIds: input.nfeDocumentIds,

@@ -127,7 +127,7 @@ export async function readCargoLayoutInputParams(
   params: { readonly companyId: string; readonly tripId: string },
 ): Promise<BuildCargoLayoutInputParams | null> {
   const [record] = await queryable
-    .select({ vehicleId: trips.vehicleId })
+    .select({ trailerVehicleId: trips.trailerVehicleId, vehicleId: trips.vehicleId })
     .from(trips)
     .where(and(eq(trips.companyId, params.companyId), eq(trips.id, params.tripId)))
     .limit(1)
@@ -168,6 +168,7 @@ export async function readCargoLayoutInputParams(
     loadTripOccupancy(queryable, {
       companyId: params.companyId,
       nfeDocumentIds,
+      trailerVehicleId: record.trailerVehicleId,
       vehicleId: record.vehicleId,
     }),
     loadTripCargoWeight(queryable, { companyId: params.companyId, nfeDocumentIds }).then(

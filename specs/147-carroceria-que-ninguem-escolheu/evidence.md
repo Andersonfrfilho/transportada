@@ -840,3 +840,81 @@ tractor unit without a trailer'` — cavalo sem carreta → 409 `TRIP_TRAILER_RE
 code style!`.
 
 **Commit:** `feat(trips): 147 T11 — o cavalo não sai sem carreta`.
+
+## T12 — Ocupação lê a carreta
+
+**`loadTripOccupancy` ganhou `trailerVehicleId: string | null` como parâmetro, e uma quarta consulta
+condicional** (`trip-occupancy.support.ts`): só executa quando `trailerVehicleId !== null` (a
+maioria das viagens não tem carreta — T0), lendo as mesmas colunas físicas do veículo de tração
+(`bodyType`, `capacityM3`, `cargoHeightM/LengthM/WidthM`, `vehicleType`) da carreta, sempre com
+`company_id` no `where`. Sem N+1: continua uma consulta ao veículo, uma à referência, uma aos
+fatores, uma aos volumes — mais essa quinta, só quando existe carreta, exatamente como o RNF pedia.
+
+**`carrier = trailer ?? vehicle` é o único ponto onde a "ficha de quem carrega" é decidida**, e
+todo o resto da função que antes lia `vehicle` para capacidade/dimensões passou a ler `carrier`:
+`resolveVehicleCapacity` (medidas → `capacity_m3` → referência), `toBedDimensions` (as duas
+chamadas, no ramo sem ocupação e no de sucesso) e `resolveDimensions` (a origem `measured` do
+`capacityDimensions`). `loadingAccess` e `maxPayloadKg` **continuam vindo do veículo de tração** —
+nenhum dos dois foi mencionado no RF5/plan.md como devendo migrar para a carreta, e mexer neles
+seria escopo que a task não pediu.
+
+**`resolveVolumeReferenceKey` e `resolveCapacityUnknownReason` já aceitavam `trailer` desde a T1/T3
+— só faltava alguém preencher o parâmetro com dado de verdade**, exatamente como os comentários dos
+dois arquivos já anunciavam ("Fase 4 passa a preencher `trailer`"). Nenhuma mudança de assinatura
+foi necessária nessas duas funções.
+
+**As duas chamadoras de `loadTripOccupancy` foram ajustadas de formas diferentes, por motivos
+diferentes:**
+
+- `drizzle-trip.repository.ts`'s `readTripDetail` já tinha `record.trailerVehicleId` em mãos (a
+  T10 já lê essa coluna da mesma linha de `trips` para montar `trailer: {id, plate, bodyType}`) —
+  só passou o valor adiante, sem consulta nova.
+- `trip-cargo-preview.query.ts`'s `readCargoPreviewContext` passa `trailerVehicleId: null` sempre,
+  **de propósito**: a prévia (`POST /trips/cargo-preview`) acontece **antes** de a viagem existir —
+  não há `trips.trailer_vehicle_id` para ler. Mostrar a sugestão da carreta padrão do veículo ali
+  seria antecipar a P3 (seletor de carreta na tela "Nova viagem", frontend, fora do escopo desta
+  task de API) — registrado aqui como decisão consciente, não esquecimento.
+
+**Dependência da spec 145 (branch `work/cargo-missing-box`): reportada aqui, arquivo nenhum da 145
+foi tocado**, como a task exigia. `trip-cargo-layout-input.support.ts` daquela branch lê hoje só
+`trips.vehicleId` para decidir se o gatilho lazy da D7 precisa invalidar a planta congelada; com a
+carreta podendo mudar (`PUT /trips/:id/trailer`, T10) sem que `vehicleId` mude, esse leitor **não
+percebe** a troca — a planta ficaria com a escala da carreta antiga. Quem mexer na 145 depois desta
+spec precisa estender aquele leitor para também observar `trips.trailerVehicleId`. Não perguntei ao
+usuário sobre isso nesta task porque a instrução foi explícita ("não edite nada da 145... só relate
+no evidence") — a pergunta em si (se cabe editar) fica para quando alguém for de fato tocar a 145.
+
+**Testes novos, contrato vermelho antes da implementação:**
+
+- `test/integration/trip-capacity-unknown-reason.integration.ts` (estendido, novo
+  `testWithPostgres`): cavalo (`tractor_unit`) sem carreta → `occupancy: null` e
+  `capacityUnknownReason: 'trailerMissing'`; depois de `repository.setTrailer` com uma carreta
+  `body_type: '02'` sem ficha própria → `capacityUnknownReason: null`,
+  `occupancy.capacitySource: 'reference'`, e `occupancy.capacityDimensions` batendo com a linha
+  `('', '02')` do catálogo (14,270 × 2,460 × 2,700 m, seedada desde a migration
+  `20260902150000_vehicle_volume_references`) — nunca com uma referência de `tractor_unit`, que não
+  existe no catálogo (093 P4). Rodou de fato contra Postgres local.
+- Regressão: todos os testes de integração que já exercitavam `loadTripOccupancy` indiretamente
+  (`trip-repository.integration.ts`, `trip-detail-query-count.integration.ts`,
+  `mixed-cargo-end-to-end.integration.ts`, `trip-lifecycle.integration.ts`,
+  `delivery-charge-end-to-end.integration.ts`, `me-trip.integration.ts`) continuam verdes sem
+  ajuste — nenhum deles tinha carreta antes desta task, e `trailerVehicleId: null` reproduz
+  exatamente o comportamento anterior (a quarta consulta nem roda).
+
+**Gates:**
+
+- `bun run --cwd apps/api-transportada typecheck` → limpo.
+- `bun run --cwd apps/api-transportada lint` → limpo.
+- `bun run --cwd apps/api-transportada test` → **5128 pass, 23 skip, 0 fail, 5151 testes** (suíte
+  sem Postgres; contagem idêntica à da T11 — T12 não acrescentou teste de unidade novo, só
+  integração, que fica fora dessa lista).
+- `DATABASE_URL=postgresql://transportada:transportada@localhost:55432/transportada bun test
+./test/integration/trip-capacity-unknown-reason.integration.ts` → **2 pass, 0 fail, 9 expect()
+  calls** (o teste pré-existente da T4 + o novo desta task, ambos verdes).
+- Regressão: `DATABASE_URL=... bun test ./test/integration/trip-repository.integration.ts
+./test/integration/mixed-cargo-end-to-end.integration.ts ./test/integration/trip-detail-query-count.integration.ts
+./test/integration/trip-lifecycle.integration.ts ./test/integration/delivery-charge-end-to-end.integration.ts
+./test/integration/me-trip.integration.ts` → **14 pass, 0 fail, 195 expect() calls**.
+- `npx prettier --check` nos quatro arquivos tocados → `All matched files use Prettier code style!`.
+
+**Commit:** `feat(trips): 147 T12 — a ocupação do cavalo é a da carreta`.
