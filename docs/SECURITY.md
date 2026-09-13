@@ -5,6 +5,64 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 ## Abertos
 
+### 2026-09-13 — webhook de e-mail recebido sem assinatura, com Basic Auth por empresa
+
+**Onde:** `POST /public/inbound-emails/{webhookId}` (`api-transportada`, módulo `contractor-mail`,
+spec 143). É a **terceira** superfície anônima do produto, depois do postback da NFS-e e do lote de
+taxas da ADR-0048.
+
+**O que é:** o Postmark **não assina o webhook de entrada**. A documentação dele diz que não oferece
+verificação HMAC, e isso quebra o §3 do baseline pelo mesmo motivo do postback da NFS-e: não há o
+que validar. Diferente do postback, **aqui o corpo é lido e pode decidir dinheiro**: uma resposta
+`APROVADO` aprova uma taxa (ADR-0063).
+
+**O que limita o estrago:**
+
+- Basic Auth com senha de 256 bits **por empresa**, guardada só como sha256 e comparada com
+  `timingSafeEqual`, mais a allowlist dos IPs do Postmark.
+- O tenant sai do token da conversa e **precisa** coincidir com o do `webhookId`.
+- A decisão exige `DKIM_VALID_AU` no `X-Spam-Tests`. Um corpo forjado sem passar pelo Postmark não
+  traz esse cabeçalho de um servidor de e-mail real, e um forjado dentro do Postmark precisaria da
+  chave DKIM do domínio da contratante.
+- Remetente fora da lista da contratante, ou sem `can_decide`, nunca decide.
+
+**O que falta:** o limitador na borda (o mesmo buraco dos achados abaixo), e reavaliar se o Postmark
+passa a assinar.
+
+**Origem:** spec 143, T002.
+
+### 2026-09-13 — a rota do webhook de e-mail aceita corpo de 12 MiB
+
+**Onde:** `http/request-handler.service.ts` e o `maxRequestBodySize` do `server.service.ts`
+(`api-transportada`).
+
+**O que é:** o Postmark entrega os anexos em base64 **dentro** do JSON. Com o limite de 1 MiB, uma
+resposta com um PDF anexado viraria 413, e o Postmark desistiria depois das retentativas, perdendo
+a resposta da contratante. O `Bun.serve` passa a aceitar 12 MiB, e o limite de 1 MiB das outras
+rotas passa a ser aplicado **por rota**, no `request-handler`. Um defeito nessa checagem abre
+12 MiB para toda rota.
+
+**O que limita o estrago:** um contrato manda 2 MiB para uma rota comum (413) e para o webhook
+(aceito), e o webhook só lê o corpo depois da Basic Auth.
+
+**Origem:** spec 143, T002 e T004.
+
+### 2026-09-13 — respostas das contratantes guardadas sem prazo de descarte
+
+**Onde:** `contractor_mail_messages.body_text` e o original bruto no bucket privado (`raw_object_id`).
+
+**O que é:** a resposta de uma contratante é dado pessoal (nome, e-mail e o que ela escreve), e fica
+guardada **sem expirar**, porque é o comprovante de uma decisão financeira: é ela que prova "o
+cliente aprovou". O mesmo raciocínio do rascunho da spec 070.
+
+**O que limita o estrago:** o corpo nunca entra em log (há contrato por texto de fonte), o bucket é
+privado, e as mensagens são filtradas por `company_id`.
+
+**O que falta:** decidir a retenção. Uma saída possível é descartar o corpo das mensagens que **não**
+decidiram nada depois de um prazo e manter só as que decidiram.
+
+**Origem:** spec 143, T002.
+
 ### 2026-09-12 — a liquidação por procuração: quatro baixos que a revisão da Fase 3 liberou com ressalva
 
 **Onde:** `api-transportada`/`worker-transportada`, `whatsapp-commands`/`whatsapp-command-settlement`
