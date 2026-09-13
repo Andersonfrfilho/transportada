@@ -4,7 +4,11 @@
 import type { TripStatus } from '../../database/trip.schema.js'
 import type { ResolveDispatchReadinessResult } from '../domain/dispatch-readiness.policy.js'
 import type { TripFieldChannel } from '../domain/trip-field-channel.constant.js'
-import { TRIP_ACTION, checkTripTransition } from '../domain/trip-state.policy.js'
+import {
+  TRIP_ACTION,
+  TRIP_TRANSITION_BLOCK,
+  checkTripTransition,
+} from '../domain/trip-state.policy.js'
 import {
   TripDispatchForceReasonRequiredError,
   TripDispatchLoadRemainingWithForceError,
@@ -12,6 +16,7 @@ import {
   TripHasUnscheduledStopsError,
   TripNotFoundError,
   TripStateTransitionNotAllowedError,
+  TripTrailerRequiredError,
 } from '../domain/trip.error.js'
 
 export type DispatchTripPreconditions = {
@@ -20,6 +25,8 @@ export type DispatchTripPreconditions = {
   readonly isCargoClosed: ResolveDispatchReadinessResult['isCargoClosed']
   readonly leftBehind: ResolveDispatchReadinessResult['leftBehind']
   readonly toLoad: ResolveDispatchReadinessResult['toLoad']
+  /** Feature 147 D3/Q1b: `tractor_unit` sem carreta atrelada — o cavalo não carrega sozinho. */
+  readonly requiresTrailer: boolean
   readonly tripStatus: TripStatus
   /**
    * Ids de nota viva (não devolvida, não liberada) que nunca chegaram a `loaded` — os de `toLoad`.
@@ -106,10 +113,14 @@ export async function dispatchTrip(input: DispatchTripInput): Promise<DispatchTr
   const transition = checkTripTransition({
     action: TRIP_ACTION.dispatch,
     hasRoute: state.hasRoute,
+    requiresTrailer: state.requiresTrailer,
     tripStatus: state.tripStatus,
   })
 
   if (transition.outcome === 'blocked') {
+    if (transition.reason === TRIP_TRANSITION_BLOCK.tripTrailerRequired) {
+      throw new TripTrailerRequiredError()
+    }
     throw new TripStateTransitionNotAllowedError(transition.reason)
   }
   if (transition.outcome === 'unchanged') return { tripStatus: state.tripStatus }

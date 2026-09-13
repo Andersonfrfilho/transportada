@@ -110,6 +110,7 @@ describe('o dispatch pelo motorista (ADR-0058)', () => {
           isCargoClosed: true,
           leftBehind: [],
           toLoad: [],
+          requiresTrailer: false,
           tripStatus,
           unloadedDocumentIds: [],
           unscheduledStopIds: [],

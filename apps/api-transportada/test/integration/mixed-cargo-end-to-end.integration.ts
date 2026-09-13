@@ -99,7 +99,7 @@ describe('a carga mista, do barracão ao manifesto (spec 065 T018)', () => {
     async () => {
       await withDisposableDatabase(async (database) => {
         const world = await seedWarehouse(database)
-        const { companyId, driverId, membershipId, userId, vehicleId } = world
+        const { companyId, driverId, membershipId, trailerId, userId, vehicleId } = world
 
         const tripRepository = new DrizzleTripRepository(database.db)
         const routeRepository = new DrizzleTripRouteRepository(database.db)
@@ -160,6 +160,9 @@ describe('a carga mista, do barracão ao manifesto (spec 065 T018)', () => {
             })
           }
         }
+        // Feature 147 D3/Q1b: o cavalo não sai sem carreta atrelada.
+        await tripRepository.setTrailer({ companyId, tripId: trip.id, trailerVehicleId: trailerId })
+
         const dispatched = await dispatchTrip({
           actorUserId: userId,
           channel: TRIP_FIELD_CHANNELS.backoffice,
@@ -294,6 +297,7 @@ type World = {
   readonly interstateNfeDocumentIds: readonly string[]
   readonly membershipId: string
   readonly nfeDocumentIds: readonly string[]
+  readonly trailerId: string
   readonly userId: string
   readonly vehicleId: string
 }
@@ -304,6 +308,7 @@ async function seedWarehouse(database: TestDatabase): Promise<World> {
   const membershipId = crypto.randomUUID()
   const driverId = crypto.randomUUID()
   const vehicleId = crypto.randomUUID()
+  const trailerId = crypto.randomUUID()
   const importId = crypto.randomUUID()
   const batchId = crypto.randomUUID()
 
@@ -335,14 +340,17 @@ async function seedWarehouse(database: TestDatabase): Promise<World> {
     taxRegime: '1',
     tradeName: 'Transportada',
   })
-  await database.db.insert(fleetVehicles).values({
-    companyId,
-    id: vehicleId,
-    plate: 'GCQ8E47',
-    role: 'traction',
-    state: 'SP',
-    vehicleType: 'tractor_unit',
-  })
+  await database.db.insert(fleetVehicles).values([
+    {
+      companyId,
+      id: vehicleId,
+      plate: 'GCQ8E47',
+      role: 'traction',
+      state: 'SP',
+      vehicleType: 'tractor_unit',
+    },
+    { companyId, id: trailerId, plate: 'RTD5J78', role: 'trailer', state: 'SP', vehicleType: '' },
+  ])
   // O motorista é ligado ao **vínculo**, que é como a tela dele resolve quem ele é.
   await database.db.insert(fleetDrivers).values({
     companyId,
@@ -473,6 +481,7 @@ async function seedWarehouse(database: TestDatabase): Promise<World> {
     interstateNfeDocumentIds,
     membershipId,
     nfeDocumentIds,
+    trailerId,
     userId,
     vehicleId,
   }

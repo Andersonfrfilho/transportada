@@ -751,3 +751,92 @@ prova o isolamento de verdade: `repository.findVehicle` para a carreta de outra 
 Prettier code style!`.
 
 **Commit:** `feat(trips): 147 T10 — a viagem escolhe a carreta`.
+
+## T11 — Despacho exige carreta
+
+**A regra mora em `checkTripTransition`/`checkDispatch` (`trip-state.policy.ts`), como o plan.md
+pedia — não num check separado no caso de uso.** `CheckTripTransitionParams` ganhou
+`requiresTrailer?: boolean` (opcional, e só lido por `checkDispatch` — as outras ações continuam
+ignorando o campo, comportamento idêntico ao de antes da feature). Ordem dos portões dentro de
+`checkDispatch`, na mesma linha do comentário de `checkTripDocumentTransition` ("a ordem destes
+portões é decisão, não acaso"): cancelado/completo → já despachado (`unchanged`) → sem roteiro
+(`TRIP_HAS_NO_ROUTE`) → **então** sem carreta (`TRIP_TRAILER_REQUIRED`) → aplicado. O roteiro vem
+antes porque sem parada nenhuma a carreta nem chegaria a importar — provado no contrato "the route
+gate comes before the trailer gate".
+
+**`TRIP_TRANSITION_BLOCK.tripTrailerRequired` é um `TripTransitionBlock` como os demais**, e por
+isso `TRIP_TRANSITION_BLOCK_MESSAGES` (`trip.error.ts`, tipado `Record<TripTransitionBlock,
+string>`) precisou de uma entrada para ele — mesmo essa mensagem **nunca chegando ao cliente**: o
+comentário no próprio arquivo documenta que `dispatchTrip` intercepta esse motivo específico
+**antes** de embrulhá-lo no genérico `TripStateTransitionNotAllowedError`, e lança
+`TripTrailerRequiredError` (409 `TRIP_TRAILER_REQUIRED`) — código de topo dedicado, como a task
+pedia, não `STATE_TRANSITION_NOT_ALLOWED` com o motivo em `details`.
+
+**`DispatchTripPreconditions.requiresTrailer`** (novo campo, obrigatório — ao contrário do opcional
+no domínio, aqui é sempre calculado): `drizzle-trip-route.repository.ts`'s `readRequiresTrailer`
+(nova função) faz um `innerJoin` de `trips` com `fleetVehicles` pela mesma empresa, e devolve
+`vehicleType === 'tractor_unit' && trailerVehicleId === null`. Consulta a mais só dentro de
+`readPreconditions` (que já faz duas outras consultas próprias) — não em `readRouteState`, que é
+compartilhada com o fluxo de planejar rota e não devia aprender uma regra que só o despacho usa.
+
+**O snapshot de despacho ganha `trailer: {vehicleId, plate} | null`, lido na mesma transação.**
+`buildRouteSnapshot` agora lê `trips.trailerVehicleId` primeiro (mesma transação de sempre) e, só
+quando não é `null`, busca `plate` em `fleet_vehicles` (`readTrailerSnapshot`, nova função) — mesmo
+padrão de "uma consulta a mais só quando existe" que `readTripTrailer` já usa na T10. Confirmado
+por `grep` que **nenhum leitor de produção** decodifica o jsonb `tripDispatchSnapshots.snapshot`
+hoje — os quatro arquivos que importam `tripDispatchSnapshots`
+(`automatic-manifest-notifier.gateway.ts`, `drizzle-trip-location.repository.ts`,
+`occurrence-notifier.gateway.ts`, `stop-occurrence-notifier.gateway.ts`) só leem as colunas de
+metadado (`actorUserId`, `dispatchedAt`), nunca a coluna `snapshot` em si. Por isso "todo leitor
+trata `trailer` ausente como `null`" não exigiu nenhuma mudança de código agora — só o tipo
+`RouteSnapshot.trailer: RouteSnapshotTrailer | null`, documentado como o contrato futuro; o
+primeiro leitor real dessa chave já a encontra tipada como nulável.
+
+**Fixtures de integração ajustadas: quatro arquivos tinham cavalo (`tractor_unit`) despachando sem
+carreta.** `test/integration/trip-lifecycle.integration.ts`,
+`test/integration/delivery-charge-end-to-end.integration.ts`,
+`test/integration/mixed-cargo-end-to-end.integration.ts` e `test/integration/me-trip.integration.ts`
+ganharam um veículo `role: 'trailer'` a mais e uma chamada a `tripRepository.setTrailer` (ou o
+campo `trailerVehicleId` direto no `insert` que já fazia à mão, em `me-trip.integration.ts`) antes
+do primeiro `dispatchTrip` que esperava sucesso — **um cuidado**: em
+`delivery-charge-end-to-end.integration.ts`, a carreta precisou entrar **antes** do primeiro
+`dispatchTrip` (o que testa `TRIP_HAS_UNSCHEDULED_STOPS`), senão o portão da carreta dispararia
+primeiro e mudaria o código do erro esperado por aquele teste — a ordem dos portões descrita acima
+(roteiro → carreta → …) não inclui o agendamento do cliente, que é checado depois, no caso de uso.
+
+**Testes novos, contrato vermelho antes da implementação:**
+
+- `test/trip-domain/trip-state.contract.ts` (estendido): `describe('dispatch requires a trailer on
+a tractor unit')` — bloqueia com `requiresTrailer: true`; o portão do roteiro vem primeiro; despacha
+  normalmente com `requiresTrailer: false`; as demais ações ignoram o campo (comparado par a par,
+  com e sem `requiresTrailer: true`); viagem já despachada continua `unchanged` independente da
+  carreta. A grade de 90 células pré-existente (`action × tripStatus × hasRoute`) não foi tocada —
+  ela nunca passa `requiresTrailer`, então cai no `undefined` que preserva o comportamento antigo.
+- `test/trips/plan-and-dispatch.contract.ts` (estendido): `createDispatchFakePort` ganhou o
+  parâmetro `requiresTrailer` (default `false`, preservando os testes existentes) e um teste novo,
+  `'refuses to dispatch a tractor unit without a trailer'`, checando `TripTrailerRequiredError`
+  (status 409).
+- `test/integration/trip-lifecycle.integration.ts` (novo `testWithPostgres`): `'gates dispatch on a
+tractor unit without a trailer'` — cavalo sem carreta → 409 `TRIP_TRAILER_REQUIRED`; atrela a
+  carreta → despacha; truck (não-cavalo) despacha sem nunca precisar de carreta, e o snapshot dele
+  trai `trailer: null`. Rodou de fato contra Postgres local.
+
+**Gates:**
+
+- `bun run --cwd apps/api-transportada typecheck` → limpo.
+- `bun run --cwd apps/api-transportada lint` → limpo.
+- `bun run --cwd apps/api-transportada test` → **5128 pass, 23 skip, 0 fail, 5151 testes** (suíte
+  sem Postgres; eram 5122 antes da T11 — a diferença de 6 é os testes novos de domínio e de
+  aplicação desta task).
+- `DATABASE_URL=postgresql://transportada:transportada@localhost:55432/transportada bun test
+./test/integration/trip-lifecycle.integration.ts ./test/integration/delivery-charge-end-to-end.integration.ts
+./test/integration/mixed-cargo-end-to-end.integration.ts ./test/integration/me-trip.integration.ts
+./test/integration/trip-repository.integration.ts ./test/integration/fleet-vehicle-repository.integration.ts
+./test/integration/trip-capacity-unknown-reason.integration.ts
+./test/integration/trip-detail-query-count.integration.ts` → **19 pass, 0 fail, 212 expect() calls**
+  (rodou de fato; cobre os quatro arquivos ajustados mais o teste novo do portão da carreta, sem
+  regressão nos vizinhos que também mexem em viagem/veículo).
+- `npx prettier --check` em todos os arquivos tocados desta task → `All matched files use Prettier
+code style!`.
+
+**Commit:** `feat(trips): 147 T11 — o cavalo não sai sem carreta`.

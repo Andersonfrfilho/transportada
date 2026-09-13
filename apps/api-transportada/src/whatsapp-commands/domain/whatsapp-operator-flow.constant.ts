@@ -116,6 +116,7 @@ export const OPERATOR_TRANSITION_BLOCK_MESSAGES: Readonly<Record<TripTransitionB
   TRIP_HAS_NO_ROUTE: 'A viagem não tem roteiro planejado.',
   TRIP_NOT_DISPATCHED: 'A viagem ainda não foi despachada.',
   TRIP_ROUTE_NOT_PLANNED: 'O roteiro da viagem ainda não foi planejado.',
+  TRIP_TRAILER_REQUIRED: 'O cavalo precisa de uma carreta atrelada antes de sair.',
 } as const
 
 /**

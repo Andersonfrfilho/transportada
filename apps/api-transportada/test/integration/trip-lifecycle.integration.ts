@@ -77,14 +77,25 @@ describe('trip lifecycle integration (spec 056 T018)', () => {
           status: 'active',
           userId,
         })
-        await database.db.insert(fleetVehicles).values({
-          companyId,
-          id: vehicleId,
-          plate: 'ABC1D23',
-          role: 'traction',
-          state: 'SP',
-          vehicleType: 'tractor_unit',
-        })
+        const trailerId = crypto.randomUUID()
+        await database.db.insert(fleetVehicles).values([
+          {
+            companyId,
+            id: vehicleId,
+            plate: 'ABC1D23',
+            role: 'traction',
+            state: 'SP',
+            vehicleType: 'tractor_unit',
+          },
+          {
+            companyId,
+            id: trailerId,
+            plate: 'XYZ9A88',
+            role: 'trailer',
+            state: 'SP',
+            vehicleType: '',
+          },
+        ])
         await database.db.insert(fleetDrivers).values({
           companyId,
           id: driverId,
@@ -233,6 +244,9 @@ describe('trip lifecycle integration (spec 056 T018)', () => {
           .from(tripStops)
           .where(eq(tripStops.tripId, trip.id))
 
+        // Feature 147 D3/Q1b: o cavalo não sai sem carreta atrelada.
+        await tripRepository.setTrailer({ companyId, tripId: trip.id, trailerVehicleId: trailerId })
+
         const dispatched = await dispatchTrip({
           actorUserId: userId,
           channel: TRIP_FIELD_CHANNELS.backoffice,
@@ -329,9 +343,14 @@ describe('trip lifecycle integration (spec 056 T018)', () => {
           .from(tripDispatchSnapshots)
           .where(eq(tripDispatchSnapshots.tripId, trip.id))
         expect(snapshot).toBeDefined()
-        const stops = (snapshot?.snapshot as { stops: readonly { documentIds: string[] }[] }).stops
-        expect(stops).toHaveLength(2)
-        expect(stops.map((stop) => stop.documentIds.length).sort()).toEqual([1, 2])
+        const frozen = snapshot?.snapshot as {
+          stops: readonly { documentIds: string[] }[]
+          trailer: { plate: string; vehicleId: string } | null
+        }
+        expect(frozen.stops).toHaveLength(2)
+        expect(frozen.stops.map((stop) => stop.documentIds.length).sort()).toEqual([1, 2])
+        // Feature 147 D3/T11: a placa da carreta congela junto com o roteiro.
+        expect(frozen.trailer).toEqual({ plate: 'XYZ9A88', vehicleId: trailerId })
 
         // O vínculo está selado: nem uma nota nova entra, nem uma existente sai.
         const newDocumentId = await seedNfeDocumentWithRecipient(database, {
@@ -364,6 +383,142 @@ describe('trip lifecycle integration (spec 056 T018)', () => {
     },
     30_000,
   )
+
+  // Feature 147 D3/Q1b/T11: o cavalo não sai sem carreta; o truck nunca precisou de uma.
+  testWithPostgres('gates dispatch on a tractor unit without a trailer', async () => {
+    await withDisposableDatabase(async (database) => {
+      const companyId = crypto.randomUUID()
+      const userId = crypto.randomUUID()
+      const tractorId = crypto.randomUUID()
+      const trailerId = crypto.randomUUID()
+      const truckId = crypto.randomUUID()
+
+      await database.db.insert(companies).values({ id: companyId, status: 'active' })
+      await database.db.insert(identityUsers).values({ id: userId, status: 'active' })
+      await database.db.insert(userCompanyMemberships).values({
+        companyId,
+        id: crypto.randomUUID(),
+        status: 'active',
+        userId,
+      })
+      await database.db.insert(fleetVehicles).values([
+        {
+          companyId,
+          id: tractorId,
+          plate: 'RTF7L90',
+          role: 'traction',
+          state: 'SP',
+          vehicleType: 'tractor_unit',
+        },
+        {
+          companyId,
+          id: trailerId,
+          plate: 'RTG8M01',
+          role: 'trailer',
+          state: 'SP',
+          vehicleType: '',
+        },
+        {
+          companyId,
+          id: truckId,
+          plate: 'RTH9N12',
+          role: 'traction',
+          state: 'SP',
+          vehicleType: 'truck',
+        },
+      ])
+
+      const tripRepository = new DrizzleTripRepository(database.db)
+      const routeRepository = new DrizzleTripRouteRepository(database.db)
+
+      const tractorTrip = await tripRepository.create({
+        actorUserId: userId,
+        channel: TRIP_FIELD_CHANNELS.backoffice,
+        companyId,
+        crew: [],
+        trailerVehicleId: null,
+        vehicleId: tractorId,
+      })
+      // Sem nota nesta prova — só uma parada bastando para `hasRoute: true` (o roteiro está fora
+      // do que este teste investiga; a carreta é o único portão sob prova aqui).
+      await database.db.insert(tripStops).values({
+        addressKey: `stop-${tractorTrip.id}`,
+        companyId,
+        label: 'Parada única',
+        sequence: 1n,
+        tripId: tractorTrip.id,
+      })
+      await planTripRoute({
+        actorUserId: userId,
+        channel: TRIP_FIELD_CHANNELS.backoffice,
+        companyId,
+        repository: routeRepository,
+        tripId: tractorTrip.id,
+      })
+
+      await expect(
+        dispatchTrip({
+          actorUserId: userId,
+          channel: TRIP_FIELD_CHANNELS.backoffice,
+          companyId,
+          repository: routeRepository,
+          tripId: tractorTrip.id,
+        }),
+      ).rejects.toMatchObject({ code: 'TRIP_TRAILER_REQUIRED', status: 409 })
+
+      await tripRepository.setTrailer({
+        companyId,
+        tripId: tractorTrip.id,
+        trailerVehicleId: trailerId,
+      })
+      const tractorDispatched = await dispatchTrip({
+        actorUserId: userId,
+        channel: TRIP_FIELD_CHANNELS.backoffice,
+        companyId,
+        repository: routeRepository,
+        tripId: tractorTrip.id,
+      })
+      expect(tractorDispatched.tripStatus).toBe('dispatched')
+
+      // O truck nunca precisou de carreta — o snapshot dele traz `trailer: null`.
+      const truckTrip = await tripRepository.create({
+        actorUserId: userId,
+        channel: TRIP_FIELD_CHANNELS.backoffice,
+        companyId,
+        crew: [],
+        trailerVehicleId: null,
+        vehicleId: truckId,
+      })
+      await database.db.insert(tripStops).values({
+        addressKey: `stop-${truckTrip.id}`,
+        companyId,
+        label: 'Parada única',
+        sequence: 1n,
+        tripId: truckTrip.id,
+      })
+      await planTripRoute({
+        actorUserId: userId,
+        channel: TRIP_FIELD_CHANNELS.backoffice,
+        companyId,
+        repository: routeRepository,
+        tripId: truckTrip.id,
+      })
+      const truckDispatched = await dispatchTrip({
+        actorUserId: userId,
+        channel: TRIP_FIELD_CHANNELS.backoffice,
+        companyId,
+        repository: routeRepository,
+        tripId: truckTrip.id,
+      })
+      expect(truckDispatched.tripStatus).toBe('dispatched')
+
+      const [truckSnapshot] = await database.db
+        .select()
+        .from(tripDispatchSnapshots)
+        .where(eq(tripDispatchSnapshots.tripId, truckTrip.id))
+      expect((truckSnapshot?.snapshot as { trailer: unknown }).trailer).toBeNull()
+    })
+  })
 })
 
 /**

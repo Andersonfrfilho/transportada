@@ -13,6 +13,7 @@ import {
   type TripDocumentSeparationStatus,
   type TripStatus,
 } from '../../database/trip.schema.js'
+import { fleetVehicles } from '../../database/database.schema.js'
 import type {
   DispatchTripPort,
   DispatchTripPreconditions,
@@ -173,6 +174,7 @@ export class DrizzleTripRouteRepository
       isCargoClosed: readiness.isCargoClosed,
       leftBehind: readiness.leftBehind,
       toLoad: readiness.toLoad,
+      requiresTrailer: await readRequiresTrailer(this.database, input),
       tripStatus: route.tripStatus,
       unloadedDocumentIds: readiness.toLoad.map((document) => document.tripDocumentId),
       unscheduledStopIds: await listUnscheduledStops(this.database, scope),
@@ -467,6 +469,23 @@ async function readRouteState(
     hasRoute: hasAnyStop && unassignedLiveDocument === undefined,
     tripStatus: tripRecord.status,
   }
+}
+
+/** Feature 147 D3/T11: só o cavalo (`tractor_unit`) sem carreta atrelada trava o despacho. */
+async function readRequiresTrailer(
+  queryable: TripQueryable,
+  input: { readonly companyId: string; readonly tripId: string },
+): Promise<boolean> {
+  const [record] = await queryable
+    .select({ trailerVehicleId: trips.trailerVehicleId, vehicleType: fleetVehicles.vehicleType })
+    .from(trips)
+    .innerJoin(
+      fleetVehicles,
+      and(eq(fleetVehicles.companyId, trips.companyId), eq(fleetVehicles.id, trips.vehicleId)),
+    )
+    .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+    .limit(1)
+  return record?.vehicleType === 'tractor_unit' && record.trailerVehicleId === null
 }
 
 /**
@@ -866,12 +885,31 @@ type RouteSnapshotStop = {
   readonly sequence: number
 }
 
-type RouteSnapshot = { readonly stops: readonly RouteSnapshotStop[] }
+/** Feature 147 D3/T11: `null` na viagem sem carreta — e nos snapshots de antes desta feature. */
+type RouteSnapshotTrailer = { readonly plate: string; readonly vehicleId: string }
+
+type RouteSnapshot = {
+  readonly stops: readonly RouteSnapshotStop[]
+  readonly trailer: RouteSnapshotTrailer | null
+}
 
 async function buildRouteSnapshot(
   transaction: TripTransaction,
   input: { readonly companyId: string; readonly tripId: string },
 ): Promise<RouteSnapshot> {
+  const [tripRow] = await transaction
+    .select({ trailerVehicleId: trips.trailerVehicleId })
+    .from(trips)
+    .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+    .limit(1)
+  const trailer =
+    tripRow?.trailerVehicleId === undefined || tripRow.trailerVehicleId === null
+      ? null
+      : await readTrailerSnapshot(transaction, {
+          companyId: input.companyId,
+          trailerVehicleId: tripRow.trailerVehicleId,
+        })
+
   const stopRows = await transaction
     .select({ id: tripStops.id, label: tripStops.label, sequence: tripStops.sequence })
     .from(tripStops)
@@ -905,5 +943,23 @@ async function buildRouteSnapshot(
       label: stop.label,
       sequence: Number(stop.sequence),
     })),
+    trailer,
   }
+}
+
+async function readTrailerSnapshot(
+  transaction: TripTransaction,
+  input: { readonly companyId: string; readonly trailerVehicleId: string },
+): Promise<RouteSnapshotTrailer | null> {
+  const [record] = await transaction
+    .select({ plate: fleetVehicles.plate })
+    .from(fleetVehicles)
+    .where(
+      and(
+        eq(fleetVehicles.companyId, input.companyId),
+        eq(fleetVehicles.id, input.trailerVehicleId),
+      ),
+    )
+    .limit(1)
+  return record === undefined ? null : { plate: record.plate, vehicleId: input.trailerVehicleId }
 }

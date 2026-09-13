@@ -145,6 +145,7 @@ describe('guarda de origem nos escritores de trips.status (spec 158 T13, defeito
                     isCargoClosed: true,
                     leftBehind: [],
                     toLoad: [],
+                    requiresTrailer: false,
                     tripStatus: 'route_planned',
                     unloadedDocumentIds: [],
                     unscheduledStopIds: [],

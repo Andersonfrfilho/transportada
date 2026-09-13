@@ -1652,6 +1652,7 @@ async function seedDispatchedTrip(
   const membershipId = crypto.randomUUID()
   const driverId = crypto.randomUUID()
   const vehicleId = crypto.randomUUID()
+  const trailerId = crypto.randomUUID()
   const tripId = crypto.randomUUID()
   const stopIds = [crypto.randomUUID(), crypto.randomUUID()]
 
@@ -1660,14 +1661,17 @@ async function seedDispatchedTrip(
   await database.db
     .insert(userCompanyMemberships)
     .values({ companyId, id: membershipId, status: 'active', userId })
-  await database.db.insert(fleetVehicles).values({
-    companyId,
-    id: vehicleId,
-    plate: 'GCQ8E47',
-    role: 'traction',
-    state: 'SP',
-    vehicleType: 'tractor_unit',
-  })
+  await database.db.insert(fleetVehicles).values([
+    {
+      companyId,
+      id: vehicleId,
+      plate: 'GCQ8E47',
+      role: 'traction',
+      state: 'SP',
+      vehicleType: 'tractor_unit',
+    },
+    { companyId, id: trailerId, plate: 'RTE6K89', role: 'trailer', state: 'SP', vehicleType: '' },
+  ])
   await database.db.insert(fleetDrivers).values({
     companyId,
     id: driverId,
@@ -1675,9 +1679,14 @@ async function seedDispatchedTrip(
     name: 'Motorista de Campo',
     taxId: '11111111111',
   })
-  await database.db
-    .insert(trips)
-    .values({ companyId, id: tripId, status: options.status ?? 'dispatched', vehicleId })
+  // Feature 147 D3/Q1b: o cavalo não sai sem carreta atrelada.
+  await database.db.insert(trips).values({
+    companyId,
+    id: tripId,
+    status: options.status ?? 'dispatched',
+    trailerVehicleId: trailerId,
+    vehicleId,
+  })
   await database.db.insert(tripDrivers).values({
     companyId,
     driverId,

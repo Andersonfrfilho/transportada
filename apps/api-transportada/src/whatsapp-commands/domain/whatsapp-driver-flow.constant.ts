@@ -88,4 +88,5 @@ export const DRIVER_TRANSITION_BLOCK_MESSAGES: Readonly<Record<TripTransitionBlo
   TRIP_NOT_DISPATCHED:
     'A viagem ainda não foi despachada — entregar e devolver só depois da saída.',
   TRIP_ROUTE_NOT_PLANNED: 'O roteiro da viagem ainda não foi planejado.',
+  TRIP_TRAILER_REQUIRED: 'O cavalo precisa de uma carreta atrelada antes de sair.',
 }

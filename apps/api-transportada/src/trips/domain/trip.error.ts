@@ -58,6 +58,17 @@ export class TripTrailerInUseError extends ApiError {
   }
 }
 
+/** Feature 147 D3/Q1b: "ele não pode carregar apenas com o cavalo" — o despacho barra sem carreta. */
+export class TripTrailerRequiredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_TRAILER_REQUIRED',
+      message: 'A tractor unit does not dispatch without a trailer.',
+      status: 409,
+    })
+  }
+}
+
 export class TripDriverNotFoundError extends ApiError {
   public constructor() {
     super({
@@ -259,6 +270,11 @@ const TRIP_TRANSITION_BLOCK_MESSAGES: Readonly<Record<TripTransitionBlock, strin
   TRIP_HAS_NO_ROUTE: 'The trip has no planned route.',
   TRIP_NOT_DISPATCHED: 'Delivering and returning happen on the road, after the trip is dispatched.',
   TRIP_ROUTE_NOT_PLANNED: 'The route must be planned before the warehouse separates the cargo.',
+  /**
+   * Nunca chega ao cliente sob este código: `dispatchTrip` intercepta este motivo específico e
+   * lança `TripTrailerRequiredError` — a mensagem existe só para satisfazer o `Record` exaustivo.
+   */
+  TRIP_TRAILER_REQUIRED: 'A tractor unit does not dispatch without a trailer.',
 }
 
 /**
