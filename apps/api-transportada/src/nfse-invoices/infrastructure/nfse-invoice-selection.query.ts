@@ -89,21 +89,20 @@ export async function findNfseSelectionDocuments(
 ): Promise<readonly NfseSelectionDocument[]> {
   if (query.documentIds.length === 0) return []
 
-  const [records, parties] = await Promise.all([
-    queryable
-      .select({
-        accessKey: nfeDocuments.accessKey,
-        id: nfeDocuments.id,
-        issuedAt: nfeDocuments.issuedAt,
-        number: nfeDocuments.number,
-        series: nfeDocuments.series,
-        status: nfeDocuments.status,
-        totalValue: nfeDocuments.totalValue,
-      })
-      .from(nfeDocuments)
-      .where(and(...buildNfseSelectionDocumentFilters(query))),
-    loadParties(queryable, query),
-  ])
+  // Em série: o `queryable` pode ser transação, e consulta concorrente nela pode nunca voltar.
+  const records = await queryable
+    .select({
+      accessKey: nfeDocuments.accessKey,
+      id: nfeDocuments.id,
+      issuedAt: nfeDocuments.issuedAt,
+      number: nfeDocuments.number,
+      series: nfeDocuments.series,
+      status: nfeDocuments.status,
+      totalValue: nfeDocuments.totalValue,
+    })
+    .from(nfeDocuments)
+    .where(and(...buildNfseSelectionDocumentFilters(query)))
+  const parties = await loadParties(queryable, query)
 
   return records.map((record) => {
     const { recipient, sender } = parties.get(record.id) ?? EMPTY_PARTIES

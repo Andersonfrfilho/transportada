@@ -428,28 +428,29 @@ class DrizzleCteEmissionProfileTransaction implements CteEmissionProfileTransact
     const companyId = records[0]?.companyId ?? ''
     const profileIds = records.map((record) => record.id)
 
-    const [matchers, components, freightRuleVersionRows] = await Promise.all([
-      this.transaction
-        .select()
-        .from(cteEmissionProfileMatchers)
-        .where(
-          and(
-            eq(cteEmissionProfileMatchers.companyId, companyId),
-            inArray(cteEmissionProfileMatchers.profileId, profileIds),
-          ),
+    // Em série: o `this.transaction` pode ser transação, e consulta concorrente nela pode nunca voltar.
+    const matchers = await this.transaction
+      .select()
+      .from(cteEmissionProfileMatchers)
+      .where(
+        and(
+          eq(cteEmissionProfileMatchers.companyId, companyId),
+          inArray(cteEmissionProfileMatchers.profileId, profileIds),
         ),
-      this.transaction
-        .select()
-        .from(cteEmissionProfileComponents)
-        .where(
-          and(
-            eq(cteEmissionProfileComponents.companyId, companyId),
-            inArray(cteEmissionProfileComponents.profileId, profileIds),
-          ),
-        )
-        .orderBy(cteEmissionProfileComponents.ordinal),
+      )
+    const components = await this.transaction
+      .select()
+      .from(cteEmissionProfileComponents)
+      .where(
+        and(
+          eq(cteEmissionProfileComponents.companyId, companyId),
+          inArray(cteEmissionProfileComponents.profileId, profileIds),
+        ),
+      )
+      .orderBy(cteEmissionProfileComponents.ordinal)
+    const freightRuleVersionRows =
       freightRuleOverride === undefined
-        ? this.transaction
+        ? await this.transaction
             .select({ version: freightRuleVersions })
             .from(freightRuleVersions)
             .innerJoin(
@@ -469,8 +470,7 @@ class DrizzleCteEmissionProfileTransaction implements CteEmissionProfileTransact
                 ),
               ),
             )
-        : [],
-    ])
+        : []
 
     const freightRuleByRuleId = new Map(
       freightRuleVersionRows.map((row) => [row.version.freightRuleId, mapFreightRule(row.version)]),

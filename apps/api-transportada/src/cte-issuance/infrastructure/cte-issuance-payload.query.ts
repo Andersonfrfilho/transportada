@@ -149,11 +149,10 @@ export async function findCteIssuancePayloadSource(
   const snapshot = readSnapshot(item.calculationSnapshot)
   if (snapshot === null) return null
 
-  const [emitter, profile, invoices] = await Promise.all([
-    loadEmitter(queryable, query.companyId),
-    loadProfile(queryable, query.companyId, snapshot.profileId),
-    loadInvoices(queryable, query),
-  ])
+  // Em série: o `queryable` pode ser transação, e consulta concorrente nela pode nunca voltar.
+  const emitter = await loadEmitter(queryable, query.companyId)
+  const profile = await loadProfile(queryable, query.companyId, snapshot.profileId)
+  const invoices = await loadInvoices(queryable, query)
   if (emitter === null || profile === null || invoices.length === 0) return null
 
   return { charge: snapshot.charge, emitter, invoices, profile }
@@ -279,12 +278,11 @@ async function loadInvoices(
   if (documents.length === 0) return []
 
   const documentIds = documents.map((document) => document.id)
-  const [parties, products, volumes, defaultWeightPerVolume] = await Promise.all([
-    loadParties(queryable, query.companyId, documentIds),
-    loadProducts(queryable, query.companyId, documentIds),
-    loadVolumes(queryable, query.companyId, documentIds),
-    loadDefaultVolumeWeight(queryable, query.companyId),
-  ])
+  // Em série: o `queryable` pode ser transação, e consulta concorrente nela pode nunca voltar.
+  const parties = await loadParties(queryable, query.companyId, documentIds)
+  const products = await loadProducts(queryable, query.companyId, documentIds)
+  const volumes = await loadVolumes(queryable, query.companyId, documentIds)
+  const defaultWeightPerVolume = await loadDefaultVolumeWeight(queryable, query.companyId)
 
   return documents.flatMap((document) => {
     const documentParties = parties.get(document.id)

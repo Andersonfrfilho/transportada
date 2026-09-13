@@ -38,12 +38,11 @@ export async function findMdfeIssuancePayloadSource(
   const head = await loadManifestAndVehicle(queryable, query)
   if (head === null) return null
 
-  const [documents, drivers, loadingCities, emitter] = await Promise.all([
-    loadDocuments(queryable, query),
-    loadDrivers(queryable, query),
-    loadLoadingCities(queryable, query),
-    loadEmitter(queryable, query.companyId),
-  ])
+  // Em série: o `queryable` pode ser transação, e consulta concorrente nela pode nunca voltar.
+  const documents = await loadDocuments(queryable, query)
+  const drivers = await loadDrivers(queryable, query)
+  const loadingCities = await loadLoadingCities(queryable, query)
+  const emitter = await loadEmitter(queryable, query.companyId)
   if (emitter === null) return null
 
   return {

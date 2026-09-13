@@ -203,26 +203,23 @@ export async function findSelectionDocuments(
   { companyId, documentIds }: CteBatchPreviewQuery,
 ): Promise<readonly CteBatchPreviewDocument[]> {
   if (documentIds.length === 0) return []
-  const [records, parties, volumeTotals, defaultWeightPerVolume] = await Promise.all([
-    queryable
-      .select({
-        accessKey: nfeDocuments.accessKey,
-        companyId: nfeDocuments.companyId,
-        id: nfeDocuments.id,
-        issuedAt: nfeDocuments.issuedAt,
-        number: nfeDocuments.number,
-        series: nfeDocuments.series,
-        status: nfeDocuments.status,
-        totalValue: nfeDocuments.totalValue,
-      })
-      .from(nfeDocuments)
-      .where(
-        and(eq(nfeDocuments.companyId, companyId), inArray(nfeDocuments.id, [...documentIds])),
-      ),
-    loadParties(queryable, companyId, documentIds),
-    loadVolumeTotals(queryable, companyId, documentIds),
-    loadDefaultVolumeWeight(queryable, companyId),
-  ])
+  // Em série: o `queryable` pode ser transação, e consulta concorrente nela pode nunca voltar.
+  const records = await queryable
+    .select({
+      accessKey: nfeDocuments.accessKey,
+      companyId: nfeDocuments.companyId,
+      id: nfeDocuments.id,
+      issuedAt: nfeDocuments.issuedAt,
+      number: nfeDocuments.number,
+      series: nfeDocuments.series,
+      status: nfeDocuments.status,
+      totalValue: nfeDocuments.totalValue,
+    })
+    .from(nfeDocuments)
+    .where(and(eq(nfeDocuments.companyId, companyId), inArray(nfeDocuments.id, [...documentIds])))
+  const parties = await loadParties(queryable, companyId, documentIds)
+  const volumeTotals = await loadVolumeTotals(queryable, companyId, documentIds)
+  const defaultWeightPerVolume = await loadDefaultVolumeWeight(queryable, companyId)
 
   return records.map((record) => {
     const { recipient, sender } = parties.get(record.id) ?? EMPTY_PARTIES

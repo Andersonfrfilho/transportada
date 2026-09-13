@@ -36,27 +36,26 @@ export async function loadTripCargoWeight(
 }> {
   if (input.nfeDocumentIds.length === 0) return { view: null, weightByDocument: new Map() }
 
-  const [volumes, [settings]] = await Promise.all([
-    queryable
-      .select({
-        documentId: nfeVolumes.documentId,
-        grossWeight: sql<string>`sum(${nfeVolumes.grossWeight})`,
-        quantity: sql<string>`sum(${nfeVolumes.quantity})`,
-      })
-      .from(nfeVolumes)
-      .where(
-        and(
-          eq(nfeVolumes.companyId, input.companyId),
-          inArray(nfeVolumes.documentId, [...input.nfeDocumentIds]),
-        ),
-      )
-      .groupBy(nfeVolumes.documentId),
-    queryable
-      .select({ defaultVolumeWeight: companyCargoSettings.defaultVolumeWeight })
-      .from(companyCargoSettings)
-      .where(eq(companyCargoSettings.companyId, input.companyId))
-      .limit(1),
-  ])
+  // Em série: o `queryable` pode ser transação, e consulta concorrente nela pode nunca voltar.
+  const volumes = await queryable
+    .select({
+      documentId: nfeVolumes.documentId,
+      grossWeight: sql<string>`sum(${nfeVolumes.grossWeight})`,
+      quantity: sql<string>`sum(${nfeVolumes.quantity})`,
+    })
+    .from(nfeVolumes)
+    .where(
+      and(
+        eq(nfeVolumes.companyId, input.companyId),
+        inArray(nfeVolumes.documentId, [...input.nfeDocumentIds]),
+      ),
+    )
+    .groupBy(nfeVolumes.documentId)
+  const [settings] = await queryable
+    .select({ defaultVolumeWeight: companyCargoSettings.defaultVolumeWeight })
+    .from(companyCargoSettings)
+    .where(eq(companyCargoSettings.companyId, input.companyId))
+    .limit(1)
 
   const defaultWeightPerVolume = settings?.defaultVolumeWeight ?? null
   const byDocument = new Map(volumes.map((row) => [row.documentId, row]))

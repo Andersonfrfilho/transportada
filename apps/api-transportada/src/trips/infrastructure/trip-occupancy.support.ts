@@ -346,67 +346,66 @@ async function loadMeasuredItems(
     end
   `
 
-  const [rows, measuredBoxes] = await Promise.all([
-    queryable
-      .select({
-        boxHeightMm: nfePackageBoxes.heightMm,
-        boxLengthMm: nfePackageBoxes.lengthMm,
-        boxVolumeM3: boxVolume,
-        boxWidthMm: nfePackageBoxes.widthMm,
-        documentId: nfeProducts.documentId,
-        /** Spec 094: as restrições que decidem onde a caixa pode ir. Nulo é "não informado". */
-        isFragile: nfePackageBoxes.isFragile,
-        isStackable: nfePackageBoxes.isStackable,
-        keepUpright: nfePackageBoxes.keepUpright,
-        /** O nome que a planta imprime, e que a linha do excedente usa para nomear o que não coube. */
-        label: nfeProducts.description,
-        maxStackCount: nfePackageBoxes.maxStackCount,
-        quantity: nfeProducts.quantity,
-        unitsPerBox: nfePackageBoxes.unitsPerBox,
-      })
-      .from(nfeProducts)
-      .innerJoin(
-        nfeDocuments,
-        and(
-          eq(nfeDocuments.id, nfeProducts.documentId),
-          eq(nfeDocuments.companyId, nfeProducts.companyId),
-        ),
-      )
-      .innerJoin(
-        nfeParticipants,
-        and(
-          eq(nfeParticipants.documentId, nfeDocuments.id),
-          eq(nfeParticipants.companyId, nfeDocuments.companyId),
-          eq(nfeParticipants.role, 'emitter'),
-        ),
-      )
-      .leftJoin(
-        nfePackageBoxes,
-        and(
-          eq(nfePackageBoxes.companyId, nfeProducts.companyId),
-          eq(nfePackageBoxes.emitterTaxId, nfeParticipants.taxId),
-          eq(nfePackageBoxes.productCode, nfeProducts.code),
-          eq(nfePackageBoxes.commercialUnit, nfeProducts.commercialUnit),
-        ),
-      )
-      .where(
-        and(
-          eq(nfeProducts.companyId, input.companyId),
-          inArray(nfeProducts.documentId, [...input.nfeDocumentIds]),
-        ),
+  // Em série: o `queryable` pode ser transação, e consulta concorrente nela pode nunca voltar.
+  const rows = await queryable
+    .select({
+      boxHeightMm: nfePackageBoxes.heightMm,
+      boxLengthMm: nfePackageBoxes.lengthMm,
+      boxVolumeM3: boxVolume,
+      boxWidthMm: nfePackageBoxes.widthMm,
+      documentId: nfeProducts.documentId,
+      /** Spec 094: as restrições que decidem onde a caixa pode ir. Nulo é "não informado". */
+      isFragile: nfePackageBoxes.isFragile,
+      isStackable: nfePackageBoxes.isStackable,
+      keepUpright: nfePackageBoxes.keepUpright,
+      /** O nome que a planta imprime, e que a linha do excedente usa para nomear o que não coube. */
+      label: nfeProducts.description,
+      maxStackCount: nfePackageBoxes.maxStackCount,
+      quantity: nfeProducts.quantity,
+      unitsPerBox: nfePackageBoxes.unitsPerBox,
+    })
+    .from(nfeProducts)
+    .innerJoin(
+      nfeDocuments,
+      and(
+        eq(nfeDocuments.id, nfeProducts.documentId),
+        eq(nfeDocuments.companyId, nfeProducts.companyId),
       ),
-    queryable
-      .select({
-        boxVolumeM3: boxVolume,
-        heightMm: nfePackageBoxes.heightMm,
-        lengthMm: nfePackageBoxes.lengthMm,
-        widthMm: nfePackageBoxes.widthMm,
-      })
-      .from(nfePackageBoxes)
-      .where(
-        and(eq(nfePackageBoxes.companyId, input.companyId), isNotNull(nfePackageBoxes.measuredAt)),
+    )
+    .innerJoin(
+      nfeParticipants,
+      and(
+        eq(nfeParticipants.documentId, nfeDocuments.id),
+        eq(nfeParticipants.companyId, nfeDocuments.companyId),
+        eq(nfeParticipants.role, 'emitter'),
       ),
-  ])
+    )
+    .leftJoin(
+      nfePackageBoxes,
+      and(
+        eq(nfePackageBoxes.companyId, nfeProducts.companyId),
+        eq(nfePackageBoxes.emitterTaxId, nfeParticipants.taxId),
+        eq(nfePackageBoxes.productCode, nfeProducts.code),
+        eq(nfePackageBoxes.commercialUnit, nfeProducts.commercialUnit),
+      ),
+    )
+    .where(
+      and(
+        eq(nfeProducts.companyId, input.companyId),
+        inArray(nfeProducts.documentId, [...input.nfeDocumentIds]),
+      ),
+    )
+  const measuredBoxes = await queryable
+    .select({
+      boxVolumeM3: boxVolume,
+      heightMm: nfePackageBoxes.heightMm,
+      lengthMm: nfePackageBoxes.lengthMm,
+      widthMm: nfePackageBoxes.widthMm,
+    })
+    .from(nfePackageBoxes)
+    .where(
+      and(eq(nfePackageBoxes.companyId, input.companyId), isNotNull(nfePackageBoxes.measuredAt)),
+    )
 
   const itemsByDocument = new Map<string, MeasuredCargoItem[]>()
   const boxesByDocument = new Map<string, CargoPlanBox[]>()

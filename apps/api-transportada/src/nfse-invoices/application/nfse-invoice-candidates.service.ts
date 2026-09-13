@@ -51,11 +51,10 @@ export async function resolveNfseCandidates({
   reader,
 }: ResolveNfseCandidatesParams): Promise<NfseCandidateResolution> {
   const query = { companyId, documentIds }
-  const [cteBatchLinks, documents, nfseLinks] = await Promise.all([
-    reader.findActiveCteBatchLinks(query),
-    reader.findSelectionDocuments(query),
-    reader.findActiveInvoiceLinks(query),
-  ])
+  // Em série: no `create` o `reader` é a transação, e consulta concorrente nela pode nunca voltar.
+  const cteBatchLinks = await reader.findActiveCteBatchLinks(query)
+  const documents = await reader.findSelectionDocuments(query)
+  const nfseLinks = await reader.findActiveInvoiceLinks(query)
   const params = {
     cteBatchLinks: toLinkMap(cteBatchLinks),
     documentIds,

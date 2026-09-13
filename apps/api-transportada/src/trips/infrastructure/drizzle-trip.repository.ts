@@ -725,16 +725,16 @@ async function readTripDetail(
   const nfeDocumentIds = documents.flatMap((document) =>
     document.nfeDocumentId === null ? [] : [document.nfeDocumentId],
   )
-  const [cargo, cargoWeight] = await Promise.all([
-    loadTripOccupancy(queryable, {
-      companyId: input.companyId,
-      nfeDocumentIds,
-      vehicleId: record.vehicleId,
-    }),
-    loadTripCargoWeight(queryable, { companyId: input.companyId, nfeDocumentIds }).then(
-      (weight) => weight.view,
-    ),
-  ])
+  // Em série: o `queryable` pode ser transação, e consulta concorrente nela pode nunca voltar.
+  const cargo = await loadTripOccupancy(queryable, {
+    companyId: input.companyId,
+    nfeDocumentIds,
+    vehicleId: record.vehicleId,
+  })
+  const cargoWeight = await loadTripCargoWeight(queryable, {
+    companyId: input.companyId,
+    nfeDocumentIds,
+  }).then((weight) => weight.view)
   /** Spec 093: o teto sai do mesmo veículo que a ocupação já leu — sem segunda consulta. */
   const cargoWeightWithCeiling = withPayloadCeiling({
     maxPayloadKg: cargo.maxPayloadKg,
