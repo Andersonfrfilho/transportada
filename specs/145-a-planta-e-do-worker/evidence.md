@@ -1436,3 +1436,20 @@ exhausted, executionId, correlationId }`;
     catálogo de jobs.
 - **Anteriores a esta task, fora do escopo:** o catálogo do frontend não tem `geocoding.refine`, e o
   `apps/worker-transportada/CLAUDE.md` diz "Quatro registradas hoje". Os dois viraram uma tarefa separada.
+
+### Conferência visual da T13 no navegador · 2026-09-13
+
+Stack local deste worktree: API e frontend daqui; o worker no ar era o do checkout principal, sem o
+consumidor da T9, então a planta ficou em cálculo de propósito. Viagem `11b0bfe5`: `route_planned`,
+3 notas, baú medido (Fiorino, 1,70 × 1,45 × 1,30 m), nenhuma planta calculada antes.
+
+- **Selo e acessibilidade:** o detalhe mostra, em "Onde cada caixa cabe", o selo "Reorganizando a
+  carga…" (`role="status"`, `aria-live="polite"`) e o baú vazio desenhado em escala, com a porta de carga
+  destacada. Não há fantasma, porque a viagem nunca teve planta pronta.
+- **Pedido no banco:** a primeira leitura criou a linha em `queued`, com uma entrada na outbox (gatilho
+  lazy, D7).
+- **Console:** nenhum erro ligado à spec; o 404 é a foto de perfil do usuário local.
+- **Polling não observado:** o painel do navegador estava oculto (`visibilityState: hidden`), e o React
+  Query pausa o refetch por intervalo em aba oculta, que é o comportamento padrão e desejável. O polling
+  de 3 s segue coberto pelos 34 contratos da T12.
+- **Sem cobertura visual:** fantasma e animação de troca exigiriam o worker deste worktree no ar.
