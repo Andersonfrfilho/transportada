@@ -31,10 +31,6 @@ const BASE_TRIP = {
 
 type DocumentsMode = 'all-authorized' | 'has-pending' | 'measured-bed'
 
-/**
- * Spec 088: o baú medido, com duas paradas e a planta em escala. Só uma delas tem todas as caixas
- * medidas — é o caso real (6 de 663 medidas), e é ele que a tela precisa saber distinguir.
- */
 function measuredBox(
   input: Readonly<{ label: string; layer: number; stopSequence: number; xM: number; zM: number }>,
 ) {
@@ -54,10 +50,29 @@ function measuredBox(
   } as const
 }
 
+/**
+ * O baú medido, com duas paradas. Só uma delas tem todas as caixas medidas — é o caso real (6 de 663
+ * medidas), e é ele que a tela precisa saber distinguir. A planta em escala da 088 saiu em
+ * `453e0b1e`: o que desenha a carga hoje é o `placement`, na vista em perspectiva por camada.
+ */
 const MEASURED_CARGO_LAYOUT = {
+  bedHeightM: '2.300',
   bedLengthM: '7.400',
+  bedSource: 'measured',
   bedWidthM: '2.470',
   freeDepthM: '3.400',
+  loadingAccess: 'rear',
+  pendingMeasurements: [
+    {
+      boxCount: 12,
+      documentNumber: '4521',
+      estimateSource: 'median',
+      label: 'Caixa de azulejo',
+      productCode: 'AZ-30',
+      sequence: 2,
+      stopLabel: 'Campinas',
+    },
+  ],
   freeRows: 5,
   occupancyKnown: true,
   orderIsBinding: true,
@@ -154,7 +169,7 @@ const MEASURED_OCCUPANCY = {
   /**
    * ⚠️ `estimated` e não `partial`: o `TripDetailContract` deste smoke restata as origens e ficou
    * na lista de antes da 085 G006. Não é o que esta spec veio consertar, e a origem não muda o que
-   * o teste abaixo mede — a planta e a escala.
+   * o teste abaixo mede — a carga desenhada e a página que não estoura.
    */
   source: 'estimated',
 } as const

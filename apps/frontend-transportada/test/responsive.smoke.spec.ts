@@ -1605,6 +1605,12 @@ for (const viewport of CTE_BATCH_VIEWPORTS) {
     await page.getByRole('button', { name: /^Abrir a viagem/u }).click()
     await expect(page.getByRole('heading', { level: 1, name: 'Detalhe da viagem' })).toBeVisible()
 
+    /** A ocupação e a medida do baú, com o número que o desenho ilustra. */
+    await expect(page.getByRole('heading', { level: 3, name: 'Carga da viagem' })).toBeVisible()
+    await expect(page.getByText('57% do baú')).toBeVisible()
+    await expect(page.getByText('Baú de 7,40 × 2,47 × 2,30 m = 42,04 m³.')).toBeVisible()
+
+
     await expect(page.getByRole('heading', { name: 'Onde cada caixa cabe' })).toBeVisible()
     await expect(
       page.getByRole('img', { name: 'Carga da camada 1, vista em perspectiva' }),
@@ -1616,7 +1622,11 @@ for (const viewport of CTE_BATCH_VIEWPORTS) {
     /** Baú medido: o aviso de ficha sem medida não aparece. */
     await expect(page.getByText(/Sem o desenho da carga/u)).toHaveCount(0)
 
-    /** O desenho rola no PRÓPRIO contêiner: a página nunca ganha barra horizontal. */
+    /** O que falta medir, com o atalho para a fila — frase estática não diz onde ir. */
+    await expect(page.getByRole('heading', { level: 3, name: 'O que falta medir' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Ir para a fila de medição' })).toBeVisible()
+
+    /** Nem o desenho nem a tabela do que falta medir dão barra horizontal à página. */
     await assertNoHorizontalOverflow(page)
     expect(api.failures()).toEqual([])
     await auditAuthenticationStorage(page)

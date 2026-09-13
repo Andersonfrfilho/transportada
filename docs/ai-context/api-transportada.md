@@ -716,7 +716,9 @@ produziu, com o número ao lado, e o que foi tentado e recusado. ⚠️ Mexer no
 segundo é refazer uma das correções que já custaram duas rodadas — inclusive a lição de método:
 contrato sintético confirma a implementação, só rodar com números confere a premissa.
 
-**A fileira virou metro, e a escala sai da ficha — de mais lugar nenhum** (spec 088). A fileira da
+**A fileira virou metro, e a escala sai da ficha — de mais lugar nenhum** (spec 088; o desenho
+descrito aqui foi substituído pela vista em perspectiva por camada em `453e0b1e` — a regra da escala
+pela ficha continua valendo para o `placement`). A fileira da
 085 é proporção: ela não diz se a carga da terceira parada ocupa meio metro ou dois metros e meio de
 baú. `resolveCargoLayout` passou a devolver `depthM` e `distanceFromDoorM` por faixa, mais
 `bedLengthM`/`bedWidthM`/`freeDepthM`/`overflowDepthM`, e a tela desenha a **planta do baú vista de
@@ -730,8 +732,10 @@ alguém digitou, e aí a faixa herdaria um denominador que não é deste baú.
 `occupancy.capacityDimensions` chega preenchida também no degrau `reference`, porque a ocupação
 aceita o palpite de mercado como piso de m³ (ADR da 075). A planta recusa: a dispersão dentro de um
 tipo chega a 2× — um VUC existe de 13 e de 26 m³ —, e ali o erro deixa de ser porcentagem e vira
-**metro** na tela de quem vai conferir com fita. Sem as três medidas não há planta: a tela mantém as
-fileiras proporcionais da 085 e nomeia os três campos, com atalho para a ficha.
+**metro** na tela de quem vai conferir com fita. Sem as três medidas não há planta: a tela mantinha as
+fileiras proporcionais da 085 e nomeava os três campos, com atalho para a ficha. (Substituído em
+`453e0b1e`: planta e fileiras saíram; hoje sem as três medidas não há desenho nenhum, só o aviso
+`cargoLayers.missingBed` com o atalho.)
 
 ⚠️ **A ficha nunca tinha pedido as três medidas.** As colunas existem desde a 075 e
 `resolveVehicleCapacity` já as preferia — medido em 2026-09-06: **0 de 12** veículos preenchidos, e
@@ -805,13 +809,15 @@ fiscaliza veículo até 50 t **só pelo PBT** — que é toda esta frota. A tole
 Art. 50 **nunca** entra na conta mostrada a quem carrega (§3º), e o Art. 49 §3º não admite tolerância
 alguma na fiscalização pelo peso **declarado em CT-e ou MDF-e**.
 
-⚠️ O `<svg>` da planta mora em `src/components/ui/scale-plan.tsx`, não no módulo: `<svg>` cru é
-proibido fora do design system, e ele entrou em `DATA_GEOMETRY_PATHS` ao lado de `vector-map` e
-`barcode` — a geometria sai das medidas em tempo de execução. `buildScalePlanViewBox` é função pura
-porque a razão do `viewBox` **é** a promessa de escala, e é a única parte conferível sem DOM. No
-celular a planta rola no **próprio contêiner**: comprimi-la para caber destruiria a escala, que é a
-única coisa que o desenho promete. Distância negativa da porta é legítima — é a carga que atravessou
-a porta, e sai hachurada fora do contorno.
+⚠️ **Substituído em `453e0b1e` (2026-09-07).** A planta vista de cima (`src/components/ui/scale-plan.tsx`,
+`buildScalePlanViewBox`) e a fileira proporcional da 085 **saíram da tela**: o desenho da carga hoje é
+a **vista em perspectiva por camada** (`TripCargoLayers.component.tsx` sobre
+`src/components/ui/cargo-isometric.tsx`, `role="img"` "Carga da camada N, vista em perspectiva"),
+alimentada por `cargoLayout.placement`. Sem as três medidas do baú não há desenho, e a tela diz isso
+com atalho para a ficha (`cargoLayers.missingBed`). O `scale-plan.tsx` e as chaves `cargoPlan.*` do
+locale ficaram no repositório sem consumidor na tela. Registro histórico da 088: o `<svg>` morava no
+design system por ser geometria de tempo de execução, a razão do `viewBox` era a promessa de escala,
+e no celular o desenho rolava no próprio contêiner.
 
 **Cada tela é um `import()` próprio, e isso não é otimização — é o que faz a aplicação compilar.**
 As 22 telas de workspace de `src/main.tsx` são `lazy(async () => ({ default: (await import(...)).X }))`,

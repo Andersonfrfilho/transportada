@@ -36,7 +36,7 @@ um palpite silencioso.
 | campo                 | o que é                                                                                                                                                               | ausente                                                        |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
 | `stops`               | as entregas **na ordem de entrega**, cada uma com as caixas dela                                                                                                      | sem paradas não há desenho                                     |
-| `bedDimensions`       | comprimento × largura × altura do baú, da ficha do veículo                                                                                                            | sem planta em escala: só as fileiras proporcionais da 085      |
+| `bedDimensions`       | comprimento × largura × altura do baú, da ficha do veículo                                                                                                            | sem desenho: a tela avisa e aponta a ficha (`453e0b1e`)        |
 | `capacityM3`          | o m³ do veículo                                                                                                                                                       | sem proporção, e o desenho não sai                             |
 | `loadingAccess`       | por onde o veículo abre: `rear`, `rear_and_side`, `open`                                                                                                              | `rear`, o **mais restritivo**                                  |
 | `fallbackBoxVolumeM3` | o volume típico de uma caixa da empresa, para a presumida ter tamanho — a caixa sem medida usa primeiro o resíduo da própria nota (spec 144) e só depois esta mediana | a caixa não medida fica fora do desenho, e **nomeada**         |
@@ -60,7 +60,9 @@ complemento (§ 7) procura ficar perto da própria nota, e só a tela usa a nota
 
 Vem da ficha do veículo, e quando a ficha não tem as três medidas vem da **referência do tipo**, com
 a origem colada no desenho: a tela é obrigada a dizer que a escala é de catálogo. Sem nenhuma das
-duas não há planta em escala — sobram as fileiras proporcionais, que não prometem metro nenhum.
+duas não há desenho: a vista em perspectiva por camada não sai, e a tela diz que faltam as medidas,
+com atalho para a ficha. (A planta em escala da 088 e as fileiras proporcionais da 085, que eram o
+recurso desse caso, saíram da tela em `453e0b1e`.)
 
 ---
 
