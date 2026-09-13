@@ -53,3 +53,16 @@ from fleet_vehicles group by 1,2,3 order by 1,2,3;
 - **Q4:** sim, com fonte citada. Os valores dependem de aprovação na T-cat.
 - **Q5:** commit `c02325b6`.
 - `grep -c 'NEEDS CLARIFICATION' spec.md` = 0 depois da edição.
+
+## T1 — Contrato: `resolveVolumeReferenceKey` é o único construtor da chave
+
+- Arquivo novo: `apps/api-transportada/test/trip-infrastructure/occupancy-reference-key.contract.ts`,
+  por texto de fonte contra `trip-occupancy.support.ts`.
+- Anexado ao entrypoint existente `test/trip-infrastructure.contract.test.ts` (já listado no
+  `package.json` da app) — sem entrypoint novo.
+- Comando: `bun test test/trip-infrastructure.contract.test.ts` (de dentro de
+  `apps/api-transportada`).
+- Resultado (vermelho esperado, antes da T2): 14 pass, 4 fail — as 4 falhas são os testes novos
+  desta task; os 14 pré-existentes (document-link, route-geometry-\*) seguem verdes.
+- `bun run --cwd apps/api-transportada typecheck`: limpo.
+- `bunx prettier --check` nos dois arquivos alterados: ok.
