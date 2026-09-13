@@ -128,3 +128,53 @@ sem encosto no melhor assento). Com a D25 cairia para 91; ela depende da D9.
   oscilava.
 - `CARGO_LAYOUT_POLICY_VERSION` '2' → '3' (a mesma entrada no baú fechado muda de desenho). `dist/` não
   recompilado (é da T4).
+
+## T3 — D25 só no baú fechado · 2026-09-13 · ⚠️ bloqueada no gate
+
+Decisão do usuário: a vizinha escora com 80% da borda **só com `enclosedBody`** (D9 reescrita). Por cima do
+`401a05d`, na árvore do pacote, **sem commit**: os trechos da D25 da wip (`MIN_BRACED_EDGE_FRACTION = 0.8`,
+`sideHolds` por fração, `brace.enclosed`), `createSupportMap` exportado para o contrato e
+`CARGO_LAYOUT_POLICY_VERSION` '3' → '4'. Typecheck limpo.
+
+- **Contrato vermelho antes:** `brace-edge-fraction.contract.ts` (da wip, sem mudança), no entrypoint. No
+  `401a05d` (só com o `export`): 6 pass / **1 fail**, o caso "vizinha cobrindo 80% da borda — escorada".
+  Com a D25: 7 / 7.
+- **Harness (`TAG=t3`, sozinho):** Atego **91**, Iveco 27 0, Sprinter 0, Fiorino 0, Accelo 0, Iveco
+  antiga 0; Atego em **89,7 s**; retrabalho / fora do alcance na Atego 43 / 23 (nos outros, 0 / 0).
+  `check.ts` e `tall.ts` (80%) com zero violação nas 6.
+- **`classify.ts`, Atego (91):** 86 pilha alta (D23), 3 sem assento com 80% de apoio, 2 só sobre entrega
+  anterior.
+- **Suíte:** 218 testes, **6 `(fail)`**, todos do `enclosed-body` › "nenhuma pilha alta sem cabeceira ou sem
+  lateral" (Daily, Sprinter, Accelo e os três mistos). O juiz desse contrato exige a **borda inteira**; a
+  D25 aceita 80%. Numa cópia com o juiz a 80% só no baú fechado (fora da porta e da borda < 25 cm, como
+  `tall.ts`), o arquivo passa 15 / 15: as 6 falhas são exatamente pilhas escoradas entre 80% e 100% da
+  borda. `complement`, `exact-edges` e `brace-rises-alongside` estão verdes.
+- **Bloqueio:** o `enclosed-body` só fica verde mudando a expectativa do juiz (borda inteira → 80% no baú
+  fechado), e isso foi vedado. **Nada commitado no pacote**; a diferença fica na árvore do pacote
+  aguardando decisão.
+- **"Accelo misto" (5 s):** medido de novo, sozinho, com a D25: 3,5 s e 3,7 s (junit). Com a máquina
+  carregada, na suíte, 4,2 s. O timeout não foi alterado.
+
+## Medição extra — fração da borda da D25 em 15% e 50% (só medição, sem commit)
+
+Cópias do fonte no scratchpad, com `MIN_BRACED_EDGE_FRACTION` trocado; a árvore do pacote não foi
+sobrescrita. Mesmas regras em tudo o mais.
+
+| Fração | Atego | Iveco 27 | Sprinter | Fiorino | Accelo | Iveco antiga | Atego (tempo) | Retrabalho / fora do alcance (Atego) | check |
+| ------ | ----- | -------- | -------- | ------- | ------ | ------------ | ------------- | ------------------------------------ | ----- |
+| 80%    | 91    | 0        | 0        | 0       | 0      | 0            | 89,7 s        | 43 / 23                              | 0     |
+| 50%    | 48    | 0        | 0        | 0       | 0      | 0            | 78,8 s        | 18 / 1                               | 0     |
+| 15%    | 21    | 0        | 0        | 0       | 0      | 0            | 65,2 s        | 10 / 2                               | 0     |
+
+Pilhas altas escoradas por menos de 80% da borda (`tall.ts` com `FRAC=0.8` sobre as plantas de cada
+fração; com `FRAC` igual à fração usada, zero violação em todas):
+
+| Fração | Atego     | Iveco 27 | Sprinter | Fiorino | Accelo   | Iveco antiga |
+| ------ | --------- | -------- | -------- | ------- | -------- | ------------ |
+| 50%    | 142 / 918 | 16 / 313 | 19 / 140 | 2 / 52  | 25 / 354 | 20 / 227     |
+| 15%    | 231 / 956 | 36 / 302 | 25 / 145 | 2 / 52  | 25 / 364 | 37 / 230     |
+
+- A 15%, a menor cobertura encontrada fica **entre 15% e 20%** da borda: com `FRAC=0.20` já aparecem
+  violações (Atego 19, Iveco 27 6, Iveco antiga 13, Sprinter 5, Accelo 3); com `0.15`, nenhuma.
+- `classify.ts` na Atego: a 15%, as 21 são pilha alta (D23); a 50%, 45 pilha alta + 3 sem assento com 80%
+  de apoio.

@@ -115,10 +115,10 @@ para 16 com a D1.
   Medido na T2 (`evidence.md`): mesma parede 138 caixas de fora na Atego, zigue-zague 142; as demais
   empatam em 0. **Adotada: sempre a mesma parede.**
 
-- **D9 — A D25 vale em todo veículo (decisão do usuário, 2026-09-13).** A vizinha escora com 80% da borda
-  também fora do baú fechado, mesmo sabendo que isso custou 1 caixa numa Daily. Se derrubar `exact-edges`
-  ou `complement`, os contratos não mudam: a implementação para e o caso vai ao usuário com o contrato, a
-  caixa e o número. ⚠️ **Bloqueada na T2**: medido, derruba os dois (ver `evidence.md` § T2, "D9").
+- **D9 — D25 só no baú fechado (decisão do usuário 2026-09-13, substitui a anterior).** A vizinha escora
+  com 80% da borda só com `enclosedBody`; fora do baú fechado os quatro lados seguem exigindo a borda
+  inteira e o desenho não muda. A versão anterior (D25 em todo veículo) derrubava `complement` (Daily, 1
+  caixa `P2`) e `exact-edges` (RTC-4H67, 480 < 481) — ver `evidence.md` § T2.
 
 ## Fora do escopo
 
