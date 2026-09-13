@@ -7,7 +7,8 @@
  *
  * ⚠️ Rótulo, cliente e números de nota saem **iguais** aos do detalhe: o hash os ignora (D6), mas a
  * planta que o worker grava é a que a tela desenha — uma etiqueta vazia aqui seria uma caixa sem nome
- * lá. Quem mudar a montagem das paradas em `readTripDetail` muda aqui junto.
+ * lá. `buildLayoutStop` é a **única** montagem da parada: o `readTripDetail` também a usa (T10), e é
+ * isso que faz o hash do detalhe bater com o do gatilho eager.
  */
 import { and, asc, eq, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
@@ -38,7 +39,7 @@ type StopRecord = {
   readonly sequence: bigint
 }
 
-function buildLayoutStop(params: {
+export function buildLayoutStop(params: {
   readonly addresses: ReadonlyMap<string, NfeDestinationAddress>
   readonly cargo: TripOccupancy
   readonly documents: readonly StopDocument[]

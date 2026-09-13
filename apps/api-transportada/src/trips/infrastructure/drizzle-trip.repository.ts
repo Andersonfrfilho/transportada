@@ -4,7 +4,6 @@
 import { and, asc, desc, eq, inArray, notInArray, isNull, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 
-import { resolveCargoLayout, stampCargoNote, sumVolumes } from '@adatechnology/cargo-placement'
 import {
   fleetDrivers,
   fleetVehicles,
@@ -68,6 +67,9 @@ import { DEFAULT_CARGO_LAYOUT_LEASE_MS } from '../domain/cargo-layout-lease.poli
 import { loadTripCargoWeight } from './trip-cargo-weight.support.js'
 import { withPayloadCeiling } from '../domain/trip-cargo-weight.policy.js'
 import { loadTripOccupancy } from './trip-occupancy.support.js'
+import { buildLayoutStop } from './trip-cargo-layout-input.support.js'
+import { readTripCargoLayout } from './stored-cargo-layout-read.support.js'
+import type { BuildCargoLayoutInputParams } from '../domain/cargo-layout-hash.types.js'
 import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
 import type { TripDatabase, TripQueryable, TripTransaction } from './trip-queryable.type.js'
 
@@ -84,12 +86,14 @@ const MISSING_REFERENCE_CONSTRAINTS = new Set([
 
 export class DrizzleTripRepository implements TripRepositoryPort {
   private readonly requestCargoLayoutForTrip: RequestCargoLayoutForTrip
+  private readonly cargoLayoutLeaseMs: number
 
   public constructor(
     private readonly database: TripDatabase,
     options: CargoLayoutLeaseOptions = { cargoLayoutLeaseMs: DEFAULT_CARGO_LAYOUT_LEASE_MS },
   ) {
     this.requestCargoLayoutForTrip = createRequestCargoLayoutForTrip(options)
+    this.cargoLayoutLeaseMs = options.cargoLayoutLeaseMs
   }
 
   public async close(input: {
@@ -103,7 +107,10 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
         .returning({ id: trips.id })
       if (closed === undefined) return null
-      return readTripDetail(transaction, input)
+      return readTripDetail(transaction, {
+        ...input,
+        cargoLayoutLeaseMs: this.cargoLayoutLeaseMs,
+      })
     })
   }
 
@@ -129,6 +136,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
       }
 
       const detail = await readTripDetail(transaction, {
+        cargoLayoutLeaseMs: this.cargoLayoutLeaseMs,
         companyId: input.companyId,
         tripId: created.id,
       })
@@ -161,7 +169,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
     readonly companyId: string
     readonly tripId: string
   }): Promise<TripDetail | null> {
-    return readTripDetail(this.database, input)
+    return readTripDetail(this.database, { ...input, cargoLayoutLeaseMs: this.cargoLayoutLeaseMs })
   }
 
   public async findDocumentById(input: {
@@ -629,7 +637,11 @@ const nfeDocumentsViaFreight = alias(nfeDocuments, 'nfe_documents_via_freight')
 
 async function readTripDetail(
   queryable: TripQueryable,
-  input: { readonly companyId: string; readonly tripId: string },
+  input: {
+    readonly cargoLayoutLeaseMs: number
+    readonly companyId: string
+    readonly tripId: string
+  },
 ): Promise<TripDetail | null> {
   const [record] = await queryable
     .select()
@@ -805,19 +817,21 @@ async function readTripDetail(
     return stored
   }
 
-  const stops = stopRecords.map((row) => ({
-    /** Quem recebe: o nome que a nota dá a ele, e é ele que está na etiqueta que o separador confere. */
-    clientName: addressOf(row.stop.id)?.recipientName ?? '',
-    documents: documentsByStopId.get(row.stop.id) ?? [],
-    label: labelOf(row.stop.id, row.stop.label),
-    sequence: Number(row.stop.sequence),
-  }))
+  /** A mesma montagem da parada que o gatilho eager usa — é ela que faz os dois hashes baterem. */
+  const layoutStops = stopRecords.map((row) =>
+    buildLayoutStop({
+      addresses: stopAddresses,
+      cargo,
+      documents: documentsByStopId.get(row.stop.id) ?? [],
+      stop: row.stop,
+    }),
+  )
 
   /**
-   * Spec 076: a fatia do baú por parada, montada do que já veio — nenhuma consulta a mais. Parada
-   * cujas notas não têm cubagem entra em `stopsWithoutVolume`, nunca como fatia zero.
+   * Spec 145 D10 (T10): a entrada que o gatilho eager hasheia, montada do que já veio — nenhuma
+   * consulta a mais —, e a planta lida de `trip_cargo_layouts` por esse hash. O detalhe não empacota.
    */
-  const layout = resolveCargoLayout({
+  const cargoLayoutInput: BuildCargoLayoutInputParams = {
     /** Spec 088 D2: a medida vem da ficha, e não da ocupação — que é nula sem cubagem nenhuma. */
     bedDimensions: cargo.bedDimensions,
     capacityM3: cargo.capacityM3,
@@ -829,48 +843,24 @@ async function readTripDetail(
     payloadRatio: cargoWeightWithCeiling?.payloadRatio ?? null,
     /**
      * Spec 100: a **mesma** regra da prévia (`everyDriverSecuresCargo`): todo motorista da viagem
-     * amarra, e ficha apagada é ninguém amarrando. Sem isto a prévia empilhava até o teto e o detalhe
-     * da viagem gravada, supondo cinta nenhuma, devolvia as mesmas caixas como `bedFull`.
+     * amarra, e ficha apagada é ninguém amarrando.
      */
     securesCargo:
       driverRecords.length > 0 && driverRecords.every((row) => row.driverSecuresCargo === true),
-    stops: stops.map((stop) => {
-      const volumes = stop.documents.map((document) =>
-        document.nfeDocumentId === null
-          ? null
-          : (cargo.volumeByDocument.get(document.nfeDocumentId) ?? null),
-      )
-      const known = volumes.filter((volume): volume is string => volume !== null)
-      return {
-        /** Spec 088 G003: as caixas viajam com a parada que o agrupamento por endereço formou. */
-        boxes: stop.documents.flatMap((document) =>
-          document.nfeDocumentId === null
-            ? []
-            : /** Spec 119: a caixa leva a nota — é por ela que a tela dá um tom por nota. */
-              stampCargoNote({
-                boxes: cargo.boxesByDocument.get(document.nfeDocumentId) ?? [],
-                documentId: document.nfeDocumentId,
-                documentNumber: document.nfeNumber ?? null,
-              }),
-        ),
-        clientName: stop.clientName,
-        documentsWithoutVolume: volumes.length - known.length,
-        label: stop.label,
-        /** É por este número que a nota é procurada — "Parada 3" não identifica nada. */
-        noteNumbers: stop.documents.flatMap((document) =>
-          document.nfeNumber === null || document.nfeNumber === undefined
-            ? []
-            : [document.nfeNumber],
-        ),
-        sequence: stop.sequence,
-        volumeM3: known.length === 0 ? null : sumVolumes(known),
-      }
-    }),
+    stops: layoutStops,
+  }
+  const { pendingCargoLayoutInput, ...cargoLayoutReading } = await readTripCargoLayout(queryable, {
+    companyId: input.companyId,
+    input: cargoLayoutInput,
+    leaseMs: input.cargoLayoutLeaseMs,
+    tripId: input.tripId,
   })
 
   return {
     ...mapTrip(record),
-    cargoLayout: layout,
+    cargoLayout: cargoLayoutReading.cargoLayout,
+    cargoLayoutState: cargoLayoutReading.cargoLayoutState,
+    ...(pendingCargoLayoutInput === null ? {} : { pendingCargoLayoutInput }),
     cargoWeight: cargoWeightWithCeiling,
     documents,
     drivers: driverRecords.map((row) =>

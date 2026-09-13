@@ -757,6 +757,154 @@ Só **aceita** as chaves novas, sem leitor na tela (polling, esqueleto e selo fi
 
 ## Fase 4 — Leitura da API (T10, T11)
 
+### T10 — o detalhe lê a planta que o worker guardou · 2026-09-12
+
+Rodou em `opus`: `sonnet` sem cota até 2026-09-14 09:00. Contratos vermelhos antes da implementação.
+Segue D5–D7, D10 e D13–D17. Nenhuma regra física, migration ou coluna nova.
+
+- **`readTripDetail` não empacota mais.** Ele monta a entrada com o dado que já carregou, calcula o
+  hash (D6) e lê `trip_cargo_layouts` por `(company_id, input_hash)`. `resolveCargoLayout`,
+  `stampCargoNote` e `sumVolumes` saíram do repositório. O único `resolveCargoLayout` que resta na API é
+  o da prévia (T11).
+  - `src/trips/infrastructure/stored-cargo-layout-read.support.ts` (novo): `readTripCargoLayout`.
+    Quando `canRequestCargoLayout` é falso, devolve `unavailable` sem hash e sem ler a tabela. Nos
+    outros casos faz no máximo duas consultas: a do hash atual e, se ela não está `ready`, a última
+    `ready` da viagem (`computed_at desc nulls last`).
+  - `src/trips/domain/cargo-layout-state.policy.ts` + `.types.ts` (novos): `resolveCargoLayoutReading`
+    é puro. Regras:
+    - `ready` com o hash igual → aquela planta, `stale: false`;
+    - senão, a última `ready` da viagem, `stale: true`;
+    - senão, `null`;
+    - `pending` = linha `queued`/`running`, ou nenhuma linha ainda;
+    - `failed` traz o `errorCode` da linha;
+    - `errorCode` `''` sai `null`;
+    - `truncated` sai de `placement.unplaced[].reason === 'time_budget'` na planta servida (D13).
+    - `shouldRequest` vale para: sem linha, `failed`, ou `queued`/`running` com lease vencido.
+- **Paridade de hash:** `buildLayoutStop` foi exportado de `trip-cargo-layout-input.support.ts` e o
+  detalhe passou a usá-lo, o que acabou com a cópia. O `stops` intermediário do detalhe foi removido.
+  `labelOf`/`addressOf` continuam só na resposta, com os comentários ⚠️ sobre o rótulo intactos.
+- **Lease numa cláusula só:** `buildCargoLayoutLeaseExpiredCondition` saiu de
+  `cargo-layout-request.support.ts`. O upsert (T9b) e a leitura usam a mesma. O SQL da reabertura
+  saiu idêntico, e os contratos da T9b continuam verdes.
+- **Lazy (D7/D16):** `TripDetail` ganhou `cargoLayoutState` e `pendingCargoLayoutInput?`, que só está
+  presente quando `shouldRequest` é verdadeiro e **nunca é serializado**, porque carrega rótulo e
+  cliente.
+  - A rota `GET /trips/:id` passou a receber `correlationId` pelo `parse`, no padrão das outras rotas.
+    Depois da leitura, ela chama `requestCargoLayout.execute` com o id real.
+  - `main.ts` monta `createRequestCargoLayoutUseCase` sobre `DrizzleCargoLayoutRequestRepository`
+    (transação própria) com o mesmo `cargoLayoutLeaseOptions`.
+  - Em `unavailable` nada é pedido.
+  - O serializador ganhou `cargoLayoutState` com as cinco chaves.
+- **Contratos:**
+  - `test/trip-domain/cargo-layout-state.contract.ts` (novo, 11 testes, no entrypoint
+    `trip-domain.contract.test.ts`, que já está listado): cobre os casos abaixo.
+    - os estados `ready`, `stale`, `pending` (sem linha, `queued`/`running`), `failed`, `unavailable`
+      e lease vencido;
+    - `''` sai `null`, e `truncated` é derivado (fresca, stale e `placement: null`);
+    - **paridade com o frontend por leitura de fonte**: as chaves de `cargoLayoutState` são exatamente
+      `TRIP_CARGO_LAYOUT_STATE_KEYS`, e os status são exatamente `CARGO_LAYOUT_STATUSES` do front.
+  - `test/trip-http/detail.contract.ts` (+3): o lazy pede depois da leitura com `CORRELATION_ID`,
+    `companyId` do contexto e `tripId`; a resposta serve `cargoLayoutState` e nunca
+    `pendingCargoLayoutInput`; sem entrada pendente (inclusive `unavailable`) nada é pedido.
+  - `test/trip-schema/tenant-safety.contract.ts`: `trip_cargo_layouts` entrou em `TRIP_TABLES`.
+  - `test/integration/trip-cargo-layout-read.integration.ts` (novo, 8 testes contra Postgres real,
+    adicionado a `test:integration` no `package.json`):
+    - **mesmo hash e mesma entrada gravada inteira** (rótulo, cliente, notas) entre detalhe e eager
+      para a mesma viagem;
+    - `pending` sem linha, e o lazy enfileira uma vez, com `correlationId` na outbox;
+    - `ready` fresco com `truncated` derivado;
+    - `failed` com código e planta antiga `stale`;
+    - a `ready` mais nova é a servida;
+    - `queued` com lease vencido é pedido de novo, e o upsert reabre. Isso prova, contra Postgres, a
+      cláusula da T9b, que antes só tinha prova por SQL gerado;
+    - planta de **outra empresa** com o mesmo hash não é lida;
+    - sem capacidade nem baú → `unavailable`, sem linha criada.
+  - Fixtures: `TRIP_DETAIL` (`trip-http-payload.fixture.ts`) e `openTrip`
+    (`trip-use-case.contract.ts`) ganharam `cargoLayoutState` `unavailable`. A fixture HTTP ganhou a
+    dependência `requestCargoLayout` e `getTripResult`.
+- **Vermelho** (antes de qualquer código de produção):
+  - `trip-domain.contract.test.ts` → **0 pass, 1 fail** (`Cannot find module
+…/cargo-layout-state.policy.js`);
+  - `trip-http.contract.test.ts` → **46 pass, 3 fail**;
+  - as duas integrações → **1 pass, 9 fail**;
+  - `trip-schema` e `trip-application` ficaram verdes: só receberam a guarda e a fixture.
+- **Verde:**
+  - `bunx tsc --noEmit` limpo;
+  - `bunx prettier --write` e `bunx eslint` nos 20 arquivos tocados: limpos;
+  - `trip-cargo-layout-read` + `trip-detail-query-count` (Postgres local 55432) → **10 pass, 0 fail**;
+  - suíte inteira da API (`bun run test`) → **4996 pass, 0 fail** (18 005 `expect()`, 5019 testes em
+    164 arquivos);
+  - o intermitente conhecido (`keycloak-realm`) não apareceu.
+- **Orçamento de consultas (G011).** Medido com o proxy de `select` de
+  `trip-detail-query-count.integration.ts`, viagem de 1 parada e de 40 paradas:
+
+  | veículo                             | antes (HEAD `f67d4174`) | depois | leituras de `trip_cargo_layouts` |
+  | ----------------------------------- | ----------------------- | ------ | -------------------------------- |
+  | sem capacidade/baú (`tractor_unit`) | 6 = 6                   | 6 = 6  | 0 (`unavailable`)                |
+  | baú medido                          | 7 = 7                   | 9 = 9  | 2, fixas                         |
+
+  O teste ganhou o caso com baú medido. Ele conta também quantos `select` vão a `trip_cargo_layouts`
+  e exige igualdade entre 1 e 40 paradas, com a leitura da planta entre 1 e 2. O pedido lazy fica fora
+  do orçamento, porque é transação própria disparada pela rota.
+
+- **Contratos existentes ajustados, com o porquê:**
+  - `stop-label-refresh` localiza pela primeira ocorrência de `stops: stopRecords.map(` e passou a
+    achar a montagem da planta. As paradas da planta viraram `layoutStops` no código de produção, e o
+    contrato não mudou.
+  - `note-identity-preview` (spec 119) procurava o carimbo no repositório. O carimbo mora em
+    `buildLayoutStop`, e o contrato agora exige o carimbo lá **e** o uso de `buildLayoutStop({` no
+    repositório.
+- **Pré-existente, não é da T10:** `test/integration/trip-repository.integration.ts` estoura os 30 s.
+  Rodado contra o HEAD `f67d4174`, numa worktree destacada e já removida, estoura igual.
+- A prévia e `GET /trips/cargo-layouts/:layoutId` (T11) não foram tocadas.
+
+#### Ajustes do orquestrador na T10 · 2026-09-12
+
+Dois pontos da primeira entrega foram corrigidos antes do commit. O primeiro saiu de uma releitura da
+D10 feita pelo orquestrador.
+
+- **Sem baú, a planta leve continua saindo na hora (D10).** "Saindo direto" é a planta de hoje, e não
+  `cargoLayout: null`.
+  - **Conferido no pacote** (`cargo-placement.policy.ts`/`cargo-plan.policy.ts`), com baú nulo:
+    - `placeCargo` devolve `null` na primeira linha (`if (input.bed === null) return null`);
+    - `resolveStopArrangement` devolve `{ depth, noBed }` na hora;
+    - `resolveCargoPlanLayers` devolve `null`.
+
+    Nenhum `packUntilItFits`/`packSlice` roda, então o caminho é barato.
+
+  - Na API, capacidade nula implica baú nulo: baú medido gera capacidade medida, e baú de referência
+    gera `referenceM3` com as mesmas medidas (`trip-occupancy.support.ts` + `resolveVehicleCapacity`).
+  - Em `unavailable`, `readTripCargoLayout` chama `resolveCargoLayout({ ...input, bedDimensions: null
+})` de forma síncrona. O `null` forçado não muda nenhum caso alcançável e garante que o empacotador
+    nunca rode dentro da requisição.
+  - O estado continua `unavailable`, sem ler a tabela e sem enfileirar.
+
+- **Pedido lazy que falha não derruba a leitura (D7).** `requestCargoLayoutAfterRead`
+  (`trip.routes.ts`) captura o erro do upsert. É fallback gracioso, o único `catch` local que a regra
+  permite.
+  - Loga `warn` `trip.cargo_layout.request_failed` com `{ correlationId, errorCode, tripId }`, e nada
+    mais. `errorCode` é o `code` do erro (ex.: `DATABASE_UNAVAILABLE`) ou o `name` dele.
+  - Responde 200 com a leitura e o estado que ela calculou.
+  - A rota ganhou a dependência `logger: ApiLogger`, ligada no `main.ts`.
+- **Contratos:**
+  - `test/trip-http/detail.contract.ts` (+1): o upsert lança `DATABASE_UNAVAILABLE` → resposta 200 com
+    o detalhe e o `failed` da leitura, um `warn` com exatamente as três chaves, e rótulo/cliente da
+    entrada pendente fora do log. A fixture HTTP ganhou `logger` (grava os avisos) e
+    `requestCargoLayoutError`.
+  - `test/integration/trip-cargo-layout-read.integration.ts`: o caso sem baú agora exige a mesma planta
+    que `resolveCargoLayout` dá sobre a entrada eager da viagem, que é a planta que o detalhe servia
+    antes (a paridade de entrada está provada no primeiro teste). Exige também `placement: null`,
+    `pendingMeasurements` presente, `unavailable` e nenhuma linha em `trip_cargo_layouts`.
+- **Vermelho** (antes do código): `trip-http.contract.test.ts` → **49 pass, 1 fail**; integração da
+  leitura → **7 pass, 1 fail**.
+- **Verde:**
+  - `bunx tsc --noEmit` limpo;
+  - `prettier --write` e `eslint` nos 6 arquivos tocados: limpos;
+  - integrações `trip-cargo-layout-read` + `trip-detail-query-count` → **10 pass, 0 fail**;
+  - suíte inteira da API → **4997 pass, 0 fail** (18 010 `expect()`, 5020 testes em 164 arquivos).
+- **Orçamento de consultas:** sem mudança. `resolveCargoLayout` é puro. Sem baú continua 6 = 6
+  selects, com 0 leituras da tabela; com baú medido, 9 = 9, com 2 leituras fixas.
+
 ## Fase 5 — Frontend (T12, T13)
 
 ## Fase 6 — Documentação e gate final (T14)

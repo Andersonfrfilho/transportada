@@ -23,8 +23,13 @@ import type { TripTransaction } from './trip-queryable.type.js'
 
 const [CARGO_LAYOUT_REQUESTED_EVENT_TYPE] = CARGO_LAYOUT_OUTBOX_EVENT_TYPES
 
+/** D14: a mesma cláusula de tempo do claim do worker — a leitura do detalhe (T10) decide por ela. */
+export function buildCargoLayoutLeaseExpiredCondition(leaseMs: number): SQL {
+  return sql`${tripCargoLayouts.updatedAt} < now() - (${leaseMs} * interval '1 millisecond')`
+}
+
 function buildCargoLayoutReopenCondition(leaseMs: number): SQL {
-  return sql`${tripCargoLayouts.status} = 'failed' or (${tripCargoLayouts.status} in ('queued', 'running') and ${tripCargoLayouts.updatedAt} < now() - (${leaseMs} * interval '1 millisecond'))`
+  return sql`${tripCargoLayouts.status} = 'failed' or (${tripCargoLayouts.status} in ('queued', 'running') and ${buildCargoLayoutLeaseExpiredCondition(leaseMs)})`
 }
 
 async function handleNoOpRequest(

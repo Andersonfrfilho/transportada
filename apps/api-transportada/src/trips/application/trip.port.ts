@@ -5,6 +5,8 @@ import type { PendingMeasurement } from '@adatechnology/cargo-placement'
 import type { PhysicalDestinationOrigin } from '../../nfe-documents/domain/physical-destination.policy.js'
 import type { TripDocumentSeparationStatus, TripStatus } from '../../database/trip.schema.js'
 import type { TripAmounts } from './read-trip-revenue-totals.use-case.js'
+import type { BuildCargoLayoutInputParams } from '../domain/cargo-layout-hash.types.js'
+import type { TripCargoLayoutState } from '../domain/cargo-layout-state.types.js'
 import type {
   TripDriverCandidate,
   TripDriverLine,
@@ -232,6 +234,14 @@ export type TripCargoLayoutView = {
 
 export type TripDetail = Trip & {
   readonly cargoLayout: TripCargoLayoutView | null
+  /** Spec 145 D10: de onde veio a planta servida — pronta, antiga (`stale`), pendente ou impossível. */
+  readonly cargoLayoutState: TripCargoLayoutState
+  /**
+   * Spec 145 D7 (lazy): presente só quando a planta do hash atual falta, falhou ou parou além do
+   * lease — a rota pede o cálculo com ela depois da leitura. ⚠️ Nunca serializado: carrega rótulo de
+   * parada e nome de cliente.
+   */
+  readonly pendingCargoLayoutInput?: BuildCargoLayoutInputParams
   readonly documents: readonly TripDocumentDetail[]
   readonly drivers: readonly TripDriverDetail[]
   readonly cargoWeight: TripCargoWeightView | null

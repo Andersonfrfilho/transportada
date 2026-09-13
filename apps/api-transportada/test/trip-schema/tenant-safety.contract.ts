@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs'
 
 import {
   mdfeManifests,
+  tripCargoLayouts,
   tripDeliveryProofs,
   tripDocumentEvents,
   tripDocuments,
@@ -30,6 +31,8 @@ const TRIP_TABLES = [
    */
   { name: 'trip_stop_events', table: tripStopEvents },
   { name: 'trip_delivery_proofs', table: tripDeliveryProofs },
+  /** Spec 145 T10: o detalhe da viagem passa a ler a planta daqui — rótulo de parada é dado de cliente. */
+  { name: 'trip_cargo_layouts', table: tripCargoLayouts },
 ] as const
 
 describe('trip tenant safety', () => {

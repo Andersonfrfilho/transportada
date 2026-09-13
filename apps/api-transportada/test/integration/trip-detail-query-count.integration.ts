@@ -17,6 +17,7 @@ import {
   nfeDocuments,
   nfeImports,
   storedObjects,
+  tripCargoLayouts,
   userCompanyMemberships,
 } from '../../src/database/database.schema.js'
 import { tripDocuments, tripDrivers, tripStops, trips } from '../../src/database/trip.schema.js'
@@ -106,6 +107,76 @@ describe('trip detail read has no N+1 across stops (spec 056 T014)', () => {
         // A prova de "sem N+1": a viagem com 40x mais paradas e 200x mais notas faz exatamente o
         // mesmo número de `select`s que a viagem com 1 parada e 1 nota.
         expect(largeSelectCount).toBe(smallSelectCount)
+      })
+    },
+    30_000,
+  )
+
+  /**
+   * Spec 145 G011: com baú medido o detalhe lê a planta guardada em `trip_cargo_layouts` — no máximo
+   * duas leituras (a do hash atual e a última pronta da viagem), fixas, nunca uma por parada. O
+   * pedido lazy não entra aqui: é transação própria, disparada pela rota depois da leitura.
+   */
+  testWithPostgres(
+    'reads the stored layout in fixed selects, the same for 1 stop as for 40 stops',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const companyId = crypto.randomUUID()
+        const userId = crypto.randomUUID()
+        const vehicleId = crypto.randomUUID()
+
+        await database.db.insert(companies).values({ id: companyId, status: 'active' })
+        await database.db.insert(identityUsers).values({ id: userId, status: 'active' })
+        await database.db.insert(userCompanyMemberships).values({
+          companyId,
+          id: crypto.randomUUID(),
+          status: 'active',
+          userId,
+        })
+        await database.db.insert(fleetVehicles).values({
+          capacityM3: '48.000',
+          cargoHeightM: '2.500',
+          cargoLengthM: '8.000',
+          cargoWidthM: '2.400',
+          companyId,
+          id: vehicleId,
+          plate: 'ABC1D24',
+          role: 'traction',
+          state: 'SP',
+          vehicleType: 'three_quarter',
+        })
+
+        const freightRule = await seedFreightRuleVersion(database, { companyId, userId })
+        const nfeDocumentId = await seedNfeDocument(database, { companyId, userId })
+        const tripOf = (stopCount: number, documentsPerStop: number) =>
+          seedTripWithStops(database, {
+            companyId,
+            documentsPerStop,
+            freightRule,
+            nfeDocumentId,
+            stopCount,
+            userId,
+            vehicleId,
+          })
+        const smallTripId = await tripOf(1, 1)
+        const largeTripId = await tripOf(STOP_COUNT, DOCUMENTS_PER_STOP)
+
+        const { database: counted, layoutSelectCount, selectCount } = countingDatabase(database.db)
+        const repository = new DrizzleTripRepository(counted)
+
+        const smallDetail = await repository.findById({ companyId, tripId: smallTripId })
+        const smallSelectCount = selectCount()
+        const smallLayoutSelectCount = layoutSelectCount()
+
+        await repository.findById({ companyId, tripId: largeTripId })
+        const largeSelectCount = selectCount() - smallSelectCount
+        const largeLayoutSelectCount = layoutSelectCount() - smallLayoutSelectCount
+
+        expect(smallDetail?.cargoLayoutState.status).toBe('pending')
+        expect(largeSelectCount).toBe(smallSelectCount)
+        expect(largeLayoutSelectCount).toBe(smallLayoutSelectCount)
+        expect(smallLayoutSelectCount).toBeGreaterThan(0)
+        expect(smallLayoutSelectCount).toBeLessThanOrEqual(2)
       })
     },
     30_000,
@@ -290,18 +361,33 @@ async function seedTripWithStops(
  */
 function countingDatabase(db: TestDatabase['db']): {
   readonly database: TestDatabase['db']
+  readonly layoutSelectCount: () => number
   readonly selectCount: () => number
 } {
   let count = 0
+  let layoutCount = 0
   const database = new Proxy(db, {
     get(target, property, receiver) {
-      if (property === 'select') {
-        count += 1
-      }
-      return Reflect.get(target, property, receiver)
+      if (property !== 'select') return Reflect.get(target, property, receiver)
+      count += 1
+      const select = Reflect.get(target, property, receiver) as (...args: unknown[]) => object
+      return (...args: unknown[]) =>
+        new Proxy(select.apply(receiver, args), {
+          get(builder, key, builderReceiver) {
+            const value = Reflect.get(builder, key, builderReceiver) as unknown
+            if (key !== 'from' || typeof value !== 'function') return value
+            return (table: unknown, ...rest: unknown[]) => {
+              if (table === tripCargoLayouts) layoutCount += 1
+              return (value as (...parameters: unknown[]) => unknown).apply(builder, [
+                table,
+                ...rest,
+              ])
+            }
+          },
+        })
     },
   })
-  return { database, selectCount: () => count }
+  return { database, layoutSelectCount: () => layoutCount, selectCount: () => count }
 }
 
 async function withDisposableDatabase(

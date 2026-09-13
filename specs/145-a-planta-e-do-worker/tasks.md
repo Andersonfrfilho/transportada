@@ -125,7 +125,7 @@ status='queued' AND input_hash=$hash`; nula → confirma e descarta; hash supera
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T10 — `readTripDetail` devolve layout `ready` com hash igual; senão o último `ready` com
+- [x] T10 — `readTripDetail` devolve layout `ready` com hash igual; senão o último `ready` com
       `stale: true`; `cargoLayoutState` na resposta (`trip.routes.ts:1275`); dispara o gatilho lazy
       (recalcula hash, enfileira em transação curta separada se não bater); `bedDimensions === null`
       continua sem chamar o pacote. `test/trip-detail-query-count.integration.ts` confirma

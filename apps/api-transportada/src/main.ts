@@ -193,6 +193,8 @@ import { createDrizzleTollBoothRepository } from './toll-booths/infrastructure/d
 import { listTripStopCoordinates } from './trips/infrastructure/trip-stop-coordinates.support.js'
 import { createDeliveryProofDownloadGateway } from './trips/infrastructure/delivery-proof-download.gateway.js'
 import { readTripDocumentProducts } from './trips/application/read-trip-document-products.use-case.js'
+import { createRequestCargoLayoutUseCase } from './trips/application/request-cargo-layout.use-case.js'
+import { DrizzleCargoLayoutRequestRepository } from './trips/infrastructure/drizzle-cargo-layout-request.repository.js'
 import { registerDriverOccurrence } from './trips/application/register-driver-occurrence.use-case.js'
 import { registerTripOccurrence } from './trips/application/register-trip-occurrence.use-case.js'
 import { saveOccurrenceTypeWithTemplate } from './trips/application/save-occurrence-type.use-case.js'
@@ -1398,6 +1400,10 @@ function createApplicationRoutes({
     }),
   }
   const tripRepository = new DrizzleTripRepository(database, cargoLayoutLeaseOptions)
+  /** Spec 145 D7 (lazy): transação própria, fora da leitura do detalhe, com o mesmo lease do worker. */
+  const requestCargoLayout = createRequestCargoLayoutUseCase({
+    repository: new DrizzleCargoLayoutRequestRepository(database, cargoLayoutLeaseOptions),
+  })
   const tripDocumentRepository = new DrizzleTripDocumentRepository(database)
   const tripDocumentBatchRepository = new DrizzleTripDocumentBatchRepository(database)
   const tripRouteRepository = new DrizzleTripRouteRepository(database, cargoLayoutLeaseOptions)
@@ -2472,6 +2478,8 @@ function createApplicationRoutes({
         },
       },
       getTrip: { execute: (input) => trips.get(input) },
+      logger,
+      requestCargoLayout,
       listSchedules: { execute: (input) => tripStopSchedules.list(input) },
       readFinancialResult: {
         execute: (input) =>

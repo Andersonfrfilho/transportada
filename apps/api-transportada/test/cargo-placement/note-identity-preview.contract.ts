@@ -46,13 +46,21 @@ describe('cargo placement note identity contract (spec 119)', () => {
     ])
   })
 
-  /** O detalhe da viagem carimba pela mesma chave, na mesma volta que agrupa as caixas da parada. */
+  /**
+   * O detalhe da viagem carimba pela mesma chave, na mesma volta que agrupa as caixas da parada.
+   * Spec 145 T10: a volta é `buildLayoutStop`, a mesma do gatilho eager — o detalhe a usa, não copia.
+   */
   test('stamps the note in the trip detail too', () => {
-    const source = readFileSync(
+    const support = readFileSync(
+      new URL('../../src/trips/infrastructure/trip-cargo-layout-input.support.ts', import.meta.url),
+      'utf8',
+    )
+    const repository = readFileSync(
       new URL('../../src/trips/infrastructure/drizzle-trip.repository.ts', import.meta.url),
       'utf8',
     )
 
-    expect(source).toContain('documentId: document.nfeDocumentId')
+    expect(support).toContain('documentId: document.nfeDocumentId')
+    expect(repository).toContain('buildLayoutStop({')
   })
 })

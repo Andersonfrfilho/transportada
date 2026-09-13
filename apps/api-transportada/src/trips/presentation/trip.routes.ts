@@ -31,6 +31,13 @@ import type {
 } from '../../delivery-clients/application/trip-stop-schedule.use-case.js'
 import { parseTripStopScheduleRequest } from '../../delivery-clients/presentation/trip-stop-schedule.schema.js'
 import type { TripFinancialResult } from '../application/trip-financial-result.port.js'
+import type {
+  RequestCargoLayoutParams,
+  RequestCargoLayoutUseCase,
+} from '../application/request-cargo-layout.types.js'
+import type { ApiLogger } from '../../shared/api.types.js'
+
+const CARGO_LAYOUT_REQUEST_FAILED_MESSAGE = 'trip.cargo_layout.request_failed'
 import { parseTripCostRequest, parseTripFinancialReason } from './trip-financial.schema.js'
 import type {
   CloseTripInput,
@@ -333,6 +340,9 @@ type Dependencies = {
   }
   readonly dispatchTrip: { execute(input: TenantInput<DispatchInput>): Promise<DispatchTripResult> }
   readonly getTrip: { execute(input: TenantInput<GetTripInput>): Promise<TripDetail> }
+  /** Spec 145 D7: o pedido lazy da planta, disparado pelo detalhe depois da leitura. */
+  readonly requestCargoLayout: RequestCargoLayoutUseCase
+  readonly logger: ApiLogger
   readonly issueManifestAutomatically: {
     execute(input: {
       readonly companyId: string
@@ -710,13 +720,29 @@ export function createTripRoutes(
       pathname: TRIP_CARGO_PREVIEW_PATH,
       policy: TRIP_MANAGE_POLICY,
     }),
-    defineRoute<Omit<GetTripInput, 'context'>>({
+    defineRoute<Omit<GetTripInput, 'context'> & { readonly correlationId: string }>({
       async handle({ context, input }): Promise<Response> {
-        const trip = await dependencies.getTrip.execute({ context: context.scope, ...input })
+        const trip = await dependencies.getTrip.execute({
+          context: context.scope,
+          tripId: input.tripId,
+        })
+        if (trip.pendingCargoLayoutInput !== undefined) {
+          await requestCargoLayoutAfterRead({
+            correlationId: input.correlationId,
+            dependencies,
+            request: {
+              ...trip.pendingCargoLayoutInput,
+              companyId: context.scope.companyId,
+              correlationId: input.correlationId,
+              tripId: trip.id,
+            },
+          })
+        }
         return jsonResponse({ body: { data: serializeTripDetail(trip) }, status: 200 })
       },
       method: 'GET',
-      parse: ({ pathParameters }) => ({
+      parse: ({ correlationId, pathParameters }) => ({
+        correlationId,
         tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
       }),
       pathname: TRIP_DETAIL_PATH,
@@ -1239,6 +1265,32 @@ export function createTripRoutes(
   }
 }
 
+/**
+ * Spec 145 D7 (lazy): pedir o cálculo é escrita própria, na transação curta do caso de uso, e não é
+ * parte da resposta. Falhou? A leitura que já deu certo responde assim mesmo — fallback gracioso — e
+ * o aviso leva só referências: nunca rótulo de parada nem nome de cliente.
+ */
+async function requestCargoLayoutAfterRead(params: {
+  readonly correlationId: string
+  readonly dependencies: Pick<Dependencies, 'logger' | 'requestCargoLayout'>
+  readonly request: RequestCargoLayoutParams
+}): Promise<void> {
+  try {
+    await params.dependencies.requestCargoLayout.execute(params.request)
+  } catch (error) {
+    params.dependencies.logger.warn(CARGO_LAYOUT_REQUEST_FAILED_MESSAGE, {
+      correlationId: params.correlationId,
+      errorCode: describeErrorCode(error),
+      tripId: params.request.tripId,
+    })
+  }
+}
+
+function describeErrorCode(error: unknown): string {
+  if (!(error instanceof Error)) return 'unknown'
+  return 'code' in error && typeof error.code === 'string' ? error.code : error.name
+}
+
 function jsonResponse(input: { readonly body: object; readonly status: number }): Response {
   return new Response(JSON.stringify(input.body), {
     headers: { 'cache-control': 'no-store', 'content-type': JSON_CONTENT_TYPE },
@@ -1273,6 +1325,8 @@ function serializeTripDetail(trip: TripDetail): object {
     ...serializeTrip(trip),
     /** Spec 076: `null` quando a capacidade não é conhecida — escala honesta ou nada. */
     cargoLayout: trip.cargoLayout === null ? null : { ...trip.cargoLayout },
+    /** Spec 145 D10/D17: chaves exatas — o validador do frontend recusa a resposta com uma a mais. */
+    cargoLayoutState: { ...trip.cargoLayoutState },
     documents: trip.documents.map(serializeTripDocumentDetail),
     drivers: trip.drivers.map((driver) => ({
       driverEmail: driver.driverEmail,
