@@ -1536,3 +1536,32 @@ a prévia da planta (D3):
 - A imagem "Planta do baú em escala" não aparece mesmo com o baú medido, e o smoke acusa o mesmo nas
   três larguras antes da spec. O painel mostra só a vista em perspectiva por camada.
 - Todas as viagens aparecem como "conta incompleta" / "parcelas em falta". Anterior à spec.
+
+### T17 — baú fechado segura a carga · 2026-09-13
+
+D21 (decisão do usuário, 2026-09-13): em baú fechado (`tpCar` `02`) a carga não precisa de amarração. Nos
+demais tipos vale a regra da spec 100: todo motorista da viagem amarra, e nenhum motorista significa que
+ninguém amarra.
+
+- **Implementação:** a função pura `resolveSecuresCargo({ bodyType, driversSecureCargo })`, em
+  `src/trips/domain/cargo-securing.policy.ts`, é usada pelos três pontos que montam `securesCargo`: o
+  detalhe (`readTripDetail`), o gatilho eager (`readCargoLayoutInputParams`) e a prévia
+  (`readCargoPreviewContext`). O `bodyType` vem de `loadTripOccupancy`, na consulta ao veículo que já
+  existia, sem consulta nova.
+- **Limite:** a carroceria considerada é a do veículo de tração da viagem. Quando o implemento entrar no
+  modelo, ela precisa vir de quem carrega (`resolveVolumeReferenceKey`).
+- **Vermelho:** o contrato de domínio falhou por módulo inexistente (0/1); a integração
+  `trip-cargo-layout-read` falhou no caso `02` com motorista que não amarra (esperado `true`, recebido
+  `false`; 10 pass / 1 fail).
+- **Verde:** `trip-domain.contract.test.ts` 175/0. As integrações `trip-cargo-layout-read`,
+  `trip-detail-query-count` e `trip-cargo-preview-layout` contra o Postgres local deram 20/0: a paridade de
+  hash entre detalhe e eager se mantém para `02` (true) e `05` (false), e o orçamento de consultas do
+  detalhe não mudou.
+- **Gate conferido pelo orquestrador:** eslint limpo nos 8 arquivos; `tsc --noEmit` exit 0; as suítes
+  trip-domain, trip-infrastructure, trip-documents, trip-application, cargo-volume e trip-http deram
+  550/0.
+- **Suíte inteira da API, pelo executor:** 5071/1. A falha é o intermitente conhecido do realm Keycloak,
+  que passa isolado (146/0).
+- **Efeito no hash:** muda nas viagens com baú fechado cujo motorista não amarra. É esperado, porque
+  `securesCargo` entra no hash.
+- **Medido na investigação:** a Atego 2426 cai de 377 para 46 caixas de fora, e a Iveco Daily de 24 para 0.

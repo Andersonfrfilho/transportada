@@ -82,6 +82,8 @@ export async function loadTripOccupancy(
   readonly maxPayloadKg: string | null
   /** Spec 085: por onde a carga entra — o layout decide com ela se a ordem e obrigacao. */
   readonly loadingAccess: LoadingAccess
+  /** Spec 145 D21: a carroceria do mesmo veículo — baú fechado segura a carga sem cinta. */
+  readonly bodyType: string | null
 }> {
   const [vehicle] = await queryable
     .select({
@@ -105,6 +107,7 @@ export async function loadTripOccupancy(
       capacityM3: null,
       fallbackBoxVolumeM3: null,
       measuredShapes: [],
+      bodyType: null,
       /** Veiculo desconhecido assume o mais restritivo, como a ausencia de acesso declarado. */
       loadingAccess: 'rear',
       maxPayloadKg: null,
@@ -148,6 +151,7 @@ export async function loadTripOccupancy(
       capacityM3: null,
       fallbackBoxVolumeM3: null,
       measuredShapes: [],
+      bodyType: vehicle.bodyType,
       loadingAccess: vehicle.loadingAccess,
       maxPayloadKg: vehicle.capacityKg,
       occupancy: null,
@@ -228,6 +232,7 @@ export async function loadTripOccupancy(
       capacityM3: capacity.capacityM3,
       fallbackBoxVolumeM3: toNumber(measured.medianM3),
       measuredShapes: measured.measuredShapes,
+      bodyType: vehicle.bodyType,
       loadingAccess: vehicle.loadingAccess,
       maxPayloadKg: vehicle.capacityKg,
       occupancy: null,
@@ -241,6 +246,7 @@ export async function loadTripOccupancy(
     capacityM3: capacity.capacityM3,
     fallbackBoxVolumeM3: toNumber(measured.medianM3),
     measuredShapes: measured.measuredShapes,
+    bodyType: vehicle.bodyType,
     loadingAccess: vehicle.loadingAccess,
     /** Spec 093: o `capKG` do MDF-e, que a montagem passou a ler como teto de peso da viagem. */
     maxPayloadKg: vehicle.capacityKg,

@@ -109,6 +109,29 @@ describeWithPostgres('trip detail reads the stored cargo layout (spec 145 T10)',
     )
   })
 
+  /** D21 (T17): baú fechado segura a carga sem cinta; sider depende do motorista — nos dois lados. */
+  test.each([
+    { bodyType: '02', expected: true },
+    { bodyType: '05', expected: false },
+  ] as const)(
+    'body $bodyType with a driver who does not tie down: securesCargo $expected, same hash (D21)',
+    async ({ bodyType, expected }) => {
+      const seeded = await seedTrip(database, {
+        bodyType,
+        driverSecuresCargo: false,
+        measured: true,
+      })
+      const detail = await new DrizzleTripRepository(database.db).findById(seeded)
+      const eager = await readCargoLayoutInputParams(database.db, seeded)
+
+      const detailInput = detail?.pendingCargoLayoutInput as BuildCargoLayoutInputParams
+      const eagerInput = eager as BuildCargoLayoutInputParams
+      expect(detailInput.securesCargo).toBe(expected)
+      expect(eagerInput.securesCargo).toBe(expected)
+      expect(hashOf(detailInput)).toBe(hashOf(eagerInput))
+    },
+  )
+
   test('nothing stored yet: pending, no layout, and the lazy request queues it once', async () => {
     const seeded = await seedTrip(database, { measured: true })
     const repository = new DrizzleTripRepository(database.db)
@@ -364,7 +387,11 @@ async function insertReadyLayout(
 
 async function seedTrip(
   database: TestDatabase,
-  params: { readonly measured: boolean },
+  params: {
+    readonly bodyType?: '02' | '05'
+    readonly driverSecuresCargo?: boolean
+    readonly measured: boolean
+  },
 ): Promise<SeededTrip> {
   const companyId = crypto.randomUUID()
   const userId = crypto.randomUUID()
@@ -383,6 +410,7 @@ async function seedTrip(
     plate: 'ABC1D23',
     role: 'traction',
     state: 'SP',
+    ...(params.bodyType === undefined ? {} : { bodyType: params.bodyType }),
     ...(params.measured
       ? {
           capacityM3: '48.000',
@@ -398,7 +426,7 @@ async function seedTrip(
     companyId,
     id: driverId,
     name: 'Motorista de teste',
-    securesCargo: true,
+    securesCargo: params.driverSecuresCargo ?? true,
     taxId: '12345678909',
   })
   await database.db.insert(tripDrivers).values({

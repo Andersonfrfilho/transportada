@@ -189,7 +189,7 @@ status='queued' AND input_hash=$hash`; nula → confirma e descarta; hash supera
 
 > 🤖 Modelo: `opus` (sonnet sem cota até 2026-09-14 09:00)
 
-- [ ] T17 — D21: `securesCargo` verdadeiro para baú fechado (`body_type` `02`) na entrada da planta
+- [x] T17 — D21: `securesCargo` verdadeiro para baú fechado (`body_type` `02`) na entrada da planta
       (detalhe, gatilho eager e prévia, inclusive sem motorista); nos outros tipos, a regra da spec 100.
 - [ ] T18 — D22: medir e zerar as caixas `bedFull` que sobram depois da D21, no empacotador, com o risco
       físico de cada mudança aprovado pelo usuário antes de aplicar.

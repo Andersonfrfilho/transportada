@@ -5,6 +5,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 
 import { fleetDrivers } from '../../database/fleet.schema.js'
 import type { TripCargoPreviewContext } from '../application/preview-trip-cargo.use-case.js'
+import { resolveSecuresCargo } from '../domain/cargo-securing.policy.js'
 import { buildStopAddressKey } from '../domain/stop-address-key.js'
 import { listDocumentNumbers, listStopAddresses } from './nfe-destination-address.support.js'
 import { withPayloadCeiling } from '../domain/trip-cargo-weight.policy.js'
@@ -29,7 +30,7 @@ export async function readCargoPreviewContext(
     readonly vehicleId: string
   },
 ): Promise<TripCargoPreviewContext> {
-  const [cargo, cargoWeight, addresses, numbers, securesCargo] = await Promise.all([
+  const [cargo, cargoWeight, addresses, numbers, driversSecureCargo] = await Promise.all([
     loadTripOccupancy(queryable, input),
     loadTripCargoWeight(queryable, {
       companyId: input.companyId,
@@ -43,11 +44,12 @@ export async function readCargoPreviewContext(
       companyId: input.companyId,
       nfeDocumentIds: input.nfeDocumentIds,
     }),
-    everyDriverSecuresCargo(queryable, {
+    readDriversSecureCargo(queryable, {
       companyId: input.companyId,
       driverIds: input.driverIds,
     }),
   ])
+  const securesCargo = resolveSecuresCargo({ bodyType: cargo.bodyType, driversSecureCargo })
 
   return {
     bedDimensions: cargo.bedDimensions,
@@ -80,20 +82,17 @@ export async function readCargoPreviewContext(
 }
 
 /**
- * Se **todos** os motoristas escolhidos amarram a carga.
- *
- * ⚠️ **O pior caso manda**, como no peso e na cubagem: basta um não amarrar para a planta desenhar a
- * pilha limitada. E lista vazia é `false` — no diálogo de montagem o desenho aparece antes de o
- * motorista ser escolhido, e ausência nunca vira permissão.
+ * Se cada motorista escolhido amarra a carga, na ordem de `driverIds`. Ficha que não existe na
+ * empresa entra como `false` — ausência nunca vira permissão; quem decide é `resolveSecuresCargo`.
  */
-async function everyDriverSecuresCargo(
+async function readDriversSecureCargo(
   queryable: TripQueryable,
   input: { readonly companyId: string; readonly driverIds: readonly string[] },
-): Promise<boolean> {
-  if (input.driverIds.length === 0) return false
+): Promise<readonly boolean[]> {
+  if (input.driverIds.length === 0) return []
 
   const rows = await queryable
-    .select({ securesCargo: fleetDrivers.securesCargo })
+    .select({ id: fleetDrivers.id, securesCargo: fleetDrivers.securesCargo })
     .from(fleetDrivers)
     .where(
       and(
@@ -101,6 +100,7 @@ async function everyDriverSecuresCargo(
         inArray(fleetDrivers.id, [...input.driverIds]),
       ),
     )
+  const securesCargoById = new Map(rows.map((row) => [row.id, row.securesCargo]))
 
-  return rows.length === input.driverIds.length && rows.every((row) => row.securesCargo)
+  return input.driverIds.map((driverId) => securesCargoById.get(driverId) === true)
 }
