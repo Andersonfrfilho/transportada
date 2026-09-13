@@ -120,6 +120,13 @@ const DISTRIBUTION_STATUS = {
 
 const EMISSION_PROFILE_ID = '00000000-0000-4000-8000-000000000905'
 
+/**
+ * A tela de perfis de CT-e lista os perfis NFS-e para o select do documento de saída (spec 144
+ * T009). Nenhum smoke daqui escolhe NFS-e, então a página vazia basta — sem ela a busca escapa para
+ * a API real e vira `requestfailed` em `failures()`.
+ */
+const NFSE_EMISSION_PROFILE_PAGE = { data: [], page: { nextCursor: null } } as const
+
 const EMISSION_PROFILE_PAGE = {
   data: [
     {
@@ -368,6 +375,9 @@ async function registerNfeMocks(
   })
   await input.page.route(/\/cte-emission-profiles(?:\?.*)?$/, async (route) => {
     await fulfillJson(route, EMISSION_PROFILE_PAGE)
+  })
+  await input.page.route(/\/nfse-emission-profiles(?:\?.*)?$/, async (route) => {
+    await fulfillJson(route, NFSE_EMISSION_PROFILE_PAGE)
   })
   await input.page.route(/\/cte-batches\/preview$/, async (route) => {
     if (route.request().method() === 'OPTIONS') {
