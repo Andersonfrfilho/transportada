@@ -30,13 +30,18 @@ app ──GET /me/whatsapp-confirmation-codes/current──> abre o selado, most
 
 Todas aditivas, com rollback ao lado:
 
-1. `company_whatsapp_confirmation_settings`: `company_id` (PK e FK), `code_mode` (CHECK) e timestamps.
-   Sem linha significa o padrão da D1.
-2. `whatsapp_command_requests`: `awaiting_code` entra no CHECK de status (troca de CHECK). Colunas
+1. `company_whatsapp_confirmation_settings`: chave `(company_id, channel, operation)`, a coluna
+   `requires_code` e timestamps. `channel` e `operation` têm CHECK vindo das constantes de canais e de
+   `WHATSAPP_CONFIRMATION_OPERATIONS`. Linha ausente segue o padrão do canal, que mora numa constante
+   (no WhatsApp, as quatro operações exigem código).
+2. `whatsapp_confirmation_codes`: empresa, ator, sessão, operação, referência opaca da operação,
+   `code_hash`, `code_sealed`, `expires_at`, `attempt_count` (CHECK de teto) e `consumed_at`, com o
+   código vivo único por (empresa, ator, sessão).
+3. `whatsapp_command_requests`: `awaiting_code` entra no CHECK de status (troca de CHECK). Colunas
    novas: `confirmation_code_hash`, `confirmation_code_sealed`, `confirmation_code_expires_at` e
    `confirmation_code_attempts`, com CHECK de teto. O índice parcial de pedidos em andamento continua
    sem `awaiting_code`.
-3. `notification.devices`: nada muda na tabela. O driver `web` passa a ser escrito por nós.
+4. `notification.devices`: nada muda na tabela. O driver `web` passa a ser escrito por nós.
 
 ## Contratos/API
 
@@ -60,7 +65,9 @@ Todas aditivas, com rollback ao lado:
 
 ## Estratégia de testes
 
-1. Contrato da parada: `never` mantém a T013 intacta, e `always` para em `awaiting_code`.
+1. Contrato da parada, por operação: operação desligada executa exatamente como na 144 (a T013 da 144
+   intacta), e operação ligada para em `awaiting_code` (emissão) ou no código ligado à sessão (as
+   outras três). Linha ausente segue o padrão do canal: no WhatsApp, as quatro ligadas.
 2. Contrato do código: certo, errado cinco vezes, vencido, de outro pedido, de outra pessoa e repetido.
 3. Contrato de não exposição: o texto da notificação e o log não contêm o código.
 4. Integração: o fluxo inteiro com o Graph API fake, o sino real e o Web Push fake.
