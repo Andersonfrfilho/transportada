@@ -8,12 +8,19 @@ import {
   CHECKS_RESULT,
   READ_ONLY_CONTEXT,
   SETTINGS_SUMMARY,
+  TEST_EMAIL_RESULT,
+  TEST_EMAIL_THREAD_ID,
   WEBHOOK_SIGNING_SECRET,
   createContractorMailHttpFixture,
   getRequest,
   jsonRequest,
+  postRequest,
 } from '../fixtures/contractor-mail-http.fixture'
-import { ContractorMailSettingsVersionConflictError } from '../../src/contractor-mail/domain/contractor-mail.error'
+import {
+  ContractorMailNotConfiguredError,
+  ContractorMailSettingsVersionConflictError,
+  ContractorMailTestRecipientUnavailableError,
+} from '../../src/contractor-mail/domain/contractor-mail.error'
 
 const SETTINGS_BODY = {
   apiKey: API_KEY,
@@ -66,6 +73,7 @@ describe('contractor mail settings routes contract (spec 143, T008)', () => {
         jsonRequest({ body: SETTINGS_BODY, method: 'PUT', path: '/contractor-mail-settings' }),
       ),
       await fixture.handle(getRequest('/contractor-mail-settings/checks')),
+      await fixture.handle(postRequest('/contractor-mail-settings/test-email')),
     ]
 
     for (const response of responses) {
@@ -86,6 +94,7 @@ describe('contractor mail settings routes contract (spec 143, T008)', () => {
         jsonRequest({ body: SETTINGS_BODY, method: 'PUT', path: '/contractor-mail-settings' }),
       ),
       await fixture.handle(getRequest('/contractor-mail-settings/checks')),
+      await fixture.handle(postRequest('/contractor-mail-settings/test-email')),
     ]
 
     for (const response of responses) {
@@ -225,7 +234,7 @@ describe('contractor mail settings routes contract (spec 143, T008)', () => {
     ])
   })
 
-  test('denies all three routes without settings.manage', async () => {
+  test('denies all four routes without settings.manage', async () => {
     const fixture = await createContractorMailHttpFixture({
       permissions: READ_ONLY_CONTEXT.permissions,
     })
@@ -235,10 +244,57 @@ describe('contractor mail settings routes contract (spec 143, T008)', () => {
       jsonRequest({ body: SETTINGS_BODY, method: 'PUT', path: '/contractor-mail-settings' }),
     )
     const checks = await fixture.handle(getRequest('/contractor-mail-settings/checks'))
+    const testEmail = await fixture.handle(postRequest('/contractor-mail-settings/test-email'))
 
-    expect([read.status, save.status, checks.status]).toEqual([403, 403, 403])
+    expect([read.status, save.status, checks.status, testEmail.status]).toEqual([
+      403, 403, 403, 403,
+    ])
     expect(fixture.readCalls).toHaveLength(0)
     expect(fixture.saveCalls).toHaveLength(0)
     expect(fixture.runChecksCalls).toHaveLength(0)
+    expect(fixture.sendTestEmailCalls).toHaveLength(0)
+  })
+
+  /** Spec 143 T009: 202 com o threadId, e o corpo não devolve mais nada além disso. */
+  test('sends the test email and answers 202 with the threadId', async () => {
+    const fixture = await createContractorMailHttpFixture()
+
+    const response = await fixture.handle(postRequest('/contractor-mail-settings/test-email'))
+    const body = (await response.json()) as { readonly data: Record<string, unknown> }
+
+    expect(response.status).toBe(202)
+    expect(body).toEqual({ data: TEST_EMAIL_RESULT })
+    expect(Object.keys(body.data)).toEqual(['threadId'])
+    expect(body.data.threadId).toBe(TEST_EMAIL_THREAD_ID)
+  })
+
+  test('the test email route never reads a recipient from the request body', async () => {
+    const fixture = await createContractorMailHttpFixture()
+
+    await fixture.handle(postRequest('/contractor-mail-settings/test-email'))
+
+    expect(fixture.sendTestEmailCalls[0]).not.toHaveProperty('toAddress')
+    expect(fixture.sendTestEmailCalls[0]).not.toHaveProperty('recipientEmail')
+    expect(fixture.sendTestEmailCalls[0]).toMatchObject({ correlationId: expect.any(String) })
+  })
+
+  test('maps missing configuration to 409 on the test email route', async () => {
+    const fixture = await createContractorMailHttpFixture({
+      sendTestEmailError: new ContractorMailNotConfiguredError(),
+    })
+
+    const response = await fixture.handle(postRequest('/contractor-mail-settings/test-email'))
+
+    expect(response.status).toBe(409)
+  })
+
+  test('maps a recipient without an email on file to 422 on the test email route', async () => {
+    const fixture = await createContractorMailHttpFixture({
+      sendTestEmailError: new ContractorMailTestRecipientUnavailableError(),
+    })
+
+    const response = await fixture.handle(postRequest('/contractor-mail-settings/test-email'))
+
+    expect(response.status).toBe(422)
   })
 })

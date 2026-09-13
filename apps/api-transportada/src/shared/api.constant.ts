@@ -51,6 +51,7 @@ export const API_CONTRACTORS_PATH = '/contractors'
 /** Spec 143 (ADR-0063): a chave do Resend, o segredo do webhook e o remetente, por empresa. */
 export const API_CONTRACTOR_MAIL_SETTINGS_PATH = '/contractor-mail-settings'
 export const API_CONTRACTOR_MAIL_SETTINGS_CHECKS_PATH = '/contractor-mail-settings/checks'
+export const API_CONTRACTOR_MAIL_TEST_EMAIL_PATH = '/contractor-mail-settings/test-email'
 export const API_MUNICIPAL_HOLIDAYS_PATH = '/municipal-holidays'
 export const API_DELIVERY_CHARGES_PATH = '/delivery-charges'
 export const API_EXTRA_CHARGE_BATCHES_PATH = '/extra-charge-batches'

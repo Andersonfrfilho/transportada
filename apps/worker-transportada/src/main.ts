@@ -121,6 +121,15 @@ import { createDocumentExtractionGateway } from './aggregate-attachment/infrastr
 import { createThreadedAttachmentExtractionGateway } from './aggregate-attachment/infrastructure/threaded-extraction.gateway.js'
 import { startAggregateAttachmentConsumer } from './runtime/aggregate-attachment-consumer.service.js'
 import type { ExtractAttachmentFieldsDependencies } from './aggregate-attachment/application/extract-attachment-fields.use-case.js'
+import { buildContractorMailOutboundRabbitMqTopology } from './messaging/contractor-mail-outbound-rabbitmq-topology.js'
+import { ContractorMailOutboundOutboxPublisherService } from './contractor-mail/application/contractor-mail-outbound-outbox-publisher.service.js'
+import { ContractorMailOutboundOutboxRelayService } from './contractor-mail/application/contractor-mail-outbound-outbox-relay.service.js'
+import { DrizzleContractorMailOutboundOutboxRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail-outbound-outbox.repository.js'
+import { createDrizzleContractorMailOutboundWorkerRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail-outbound-worker.repository.js'
+import { createContractorMailCredentialSecretService } from './contractor-mail/application/contractor-mail-credential-secret.service.js'
+import { createResendMailGateway } from './contractor-mail/infrastructure/resend-mail.gateway.js'
+import { startContractorMailOutboundConsumer } from './runtime/contractor-mail-outbound-consumer.service.js'
+import type { SendContractorMailOutboundMessageDependencies } from './contractor-mail/application/send-contractor-mail-outbound-message.use-case.js'
 import { buildNfseIssuanceRabbitMqTopology } from './messaging/nfse-rabbitmq-topology.js'
 import type { NfseProcessingEnvelopeV1 } from './messaging/nfse-processing-envelope.schema.js'
 import { createNfseCredentialSecretService } from './nfse-issuance/application/nfse-credential-secret.service.js'
@@ -371,6 +380,12 @@ type WorkerRuntimeDependencies = {
     readonly logger: WorkerLogger
     readonly provider: RabbitMqProvider
   }) => Promise<RuntimeConsumer | undefined>
+  readonly startContractorMailOutboundConsumer?: (input: {
+    readonly config: ReturnType<typeof parseWorkerEnvironment>
+    readonly dependencies: SendContractorMailOutboundMessageDependencies
+    readonly logger: WorkerLogger
+    readonly provider: RabbitMqProvider
+  }) => Promise<RuntimeConsumer | undefined>
   readonly startInvitationDeliveryConsumer?: (input: {
     readonly config: ReturnType<typeof parseWorkerEnvironment>
     readonly dependencies: InvitationDeliveryDependencies
@@ -434,6 +449,8 @@ export async function startWorkerRuntime(
   const nfseIssuanceStarter = dependencies.startNfseIssuanceConsumer ?? startNfseIssuanceConsumer
   const aggregateAttachmentStarter =
     dependencies.startAggregateAttachmentConsumer ?? startAggregateAttachmentConsumer
+  const contractorMailOutboundStarter =
+    dependencies.startContractorMailOutboundConsumer ?? startContractorMailOutboundConsumer
   const invitationDeliveryStarter =
     dependencies.startInvitationDeliveryConsumer ?? startInvitationDeliveryConsumer
   const passwordResetDeliveryStarter =
@@ -501,6 +518,9 @@ export async function startWorkerRuntime(
   const aggregateAttachmentTopology = buildAggregateAttachmentRabbitMqTopology({
     queuePrefix: config.queuePrefix,
   })
+  const contractorMailOutboundTopology = buildContractorMailOutboundRabbitMqTopology({
+    queuePrefix: config.queuePrefix,
+  })
   const invitationDeliveryTopology = buildInvitationDeliveryRabbitMqTopology({
     queuePrefix: config.queuePrefix,
   })
@@ -535,6 +555,9 @@ export async function startWorkerRuntime(
   let aggregateAttachmentConsumer: RuntimeConsumer | undefined
   let aggregateAttachmentPublisher: RabbitMqProvider | undefined
   let aggregateAttachmentRelayLoop: OutboxRelayLoop | undefined
+  let contractorMailOutboundConsumer: RuntimeConsumer | undefined
+  let contractorMailOutboundPublisher: RabbitMqProvider | undefined
+  let contractorMailOutboundRelayLoop: OutboxRelayLoop | undefined
   let invitationDeliveryConsumer: RuntimeConsumer | undefined
   let invitationDeliveryPublisher: RabbitMqProvider | undefined
   let invitationDeliveryRelayLoop: OutboxRelayLoop | undefined
@@ -577,6 +600,10 @@ export async function startWorkerRuntime(
     aggregateAttachmentPublisher = await rabbitProviderFactory({
       connection: config.rabbitMqUrl,
       topology: aggregateAttachmentTopology,
+    })
+    contractorMailOutboundPublisher = await rabbitProviderFactory({
+      connection: config.rabbitMqUrl,
+      topology: contractorMailOutboundTopology,
     })
     invitationDeliveryPublisher = await rabbitProviderFactory({
       connection: config.rabbitMqUrl,
@@ -895,6 +922,20 @@ export async function startWorkerRuntime(
       },
       logger,
       provider: aggregateAttachmentPublisher,
+    })
+    contractorMailOutboundConsumer = await contractorMailOutboundStarter({
+      config,
+      dependencies: {
+        mailGateway: createResendMailGateway({ fetch: (target, init) => fetch(target, init) }),
+        repository: createDrizzleContractorMailOutboundWorkerRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
+        secretService: createContractorMailCredentialSecretService({
+          envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
+        }),
+      },
+      logger,
+      provider: contractorMailOutboundPublisher,
     })
     invitationDeliveryConsumer = await invitationDeliveryStarter({
       config,
@@ -1344,6 +1385,31 @@ export async function startWorkerRuntime(
       }),
     })
     aggregateAttachmentRelayLoop.start()
+    contractorMailOutboundRelayLoop = new OutboxRelayLoop({
+      claimOwner: `${config.queuePrefix}.contractor-mail-outbound.relay.${crypto.randomUUID()}`,
+      failureMessage: 'contractor_mail_outbound_outbox_relay_failed',
+      intervalMs: 1_000,
+      leaseMs: 30_000,
+      limit: 25,
+      logger,
+      relay: new ContractorMailOutboundOutboxRelayService({
+        clock: { now: () => new Date() },
+        publisher: new ContractorMailOutboundOutboxPublisherService(
+          contractorMailOutboundPublisher,
+        ),
+        repository: new DrizzleContractorMailOutboundOutboxRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
+        retryPolicy: {
+          classify(error: unknown): never {
+            throw error instanceof Error
+              ? error
+              : new Error('contractor mail outbound outbox relay publish failed')
+          },
+        },
+      }),
+    })
+    contractorMailOutboundRelayLoop.start()
     invitationDeliveryRelayLoop = new OutboxRelayLoop({
       claimOwner: `${config.queuePrefix}.invitation-delivery.relay.${crypto.randomUUID()}`,
       failureMessage: 'invitation_delivery_outbox_relay_failed',
@@ -1402,6 +1468,7 @@ export async function startWorkerRuntime(
         mdfeRelayLoop,
         nfseRelayLoop,
         aggregateAttachmentRelayLoop,
+        contractorMailOutboundRelayLoop,
         invitationDeliveryRelayLoop,
         passwordResetDeliveryRelayLoop,
         storageGateway,
@@ -1425,6 +1492,7 @@ export async function startWorkerRuntime(
         invitationDeliveryConsumer,
         passwordResetDeliveryConsumer,
         aggregateAttachmentConsumer,
+        contractorMailOutboundConsumer,
         jobRunConsumer,
         notificationConsumer,
         routeOptimizationConsumer,
@@ -1450,6 +1518,7 @@ export async function startWorkerRuntime(
          * nada visível até alguém pedir para o processo sair.
          */
         aggregateAttachmentPublisher,
+        contractorMailOutboundPublisher,
         jobRunProvider,
         notificationProvider,
       ]),
@@ -1473,6 +1542,8 @@ export async function startWorkerRuntime(
     await cteIssuanceConsumer?.cancel().catch(() => undefined)
     await mdfeIssuanceConsumer?.cancel().catch(() => undefined)
     await nfseIssuanceConsumer?.cancel().catch(() => undefined)
+    await contractorMailOutboundConsumer?.cancel().catch(() => undefined)
+    await contractorMailOutboundRelayLoop?.close().catch(() => undefined)
     await routeOptimizationConsumer?.cancel().catch(() => undefined)
     await invitationDeliveryConsumer?.cancel().catch(() => undefined)
     await invitationDeliveryRelayLoop?.close().catch(() => undefined)
@@ -1494,6 +1565,7 @@ export async function startWorkerRuntime(
     await invitationDeliveryPublisher?.close().catch(() => undefined)
     await passwordResetDeliveryPublisher?.close().catch(() => undefined)
     await aggregateAttachmentPublisher?.close().catch(() => undefined)
+    await contractorMailOutboundPublisher?.close().catch(() => undefined)
     await routeOptimizationProvider?.close().catch(() => undefined)
     await notificationProvider?.close().catch(() => undefined)
     await jobRunProvider?.close().catch(() => undefined)

@@ -14,6 +14,7 @@ import type {
   ContractorMailCheckItem,
   ContractorMailSettingsSummary,
 } from '../../src/contractor-mail/application/contractor-mail-settings.use-case'
+import type { SendContractorMailTestEmailResult } from '../../src/contractor-mail/application/send-contractor-mail-test-email.use-case'
 
 type RegisteredRoute = ReturnType<typeof defineRoute>
 
@@ -37,6 +38,12 @@ export const SETTINGS_SUMMARY: ContractorMailSettingsSummary = {
   version: '1',
   webhookId: '00000000-0000-4000-8000-0000000000b2',
   webhookSecretConfigured: true,
+}
+
+export const TEST_EMAIL_THREAD_ID = '00000000-0000-4000-8000-0000000000c1'
+
+export const TEST_EMAIL_RESULT: SendContractorMailTestEmailResult = {
+  threadId: TEST_EMAIL_THREAD_ID,
 }
 
 export const CHECKS_RESULT: readonly ContractorMailCheckItem[] = [
@@ -69,12 +76,17 @@ type RouteDependencies = {
   readonly save: {
     execute(input: ExecuteCall): Promise<ContractorMailSettingsSummary>
   }
+  readonly sendTestEmail: {
+    execute(input: ExecuteCall): Promise<SendContractorMailTestEmailResult>
+  }
 }
 
 type CreateFixtureParams = {
   readonly checks?: readonly ContractorMailCheckItem[]
   readonly permissions?: CompanyContext['permissions']
   readonly saveError?: Error
+  readonly sendTestEmailError?: Error
+  readonly sendTestEmailResult?: SendContractorMailTestEmailResult
   readonly settings?: ContractorMailSettingsSummary | null
 }
 
@@ -83,10 +95,12 @@ export async function createContractorMailHttpFixture(params: CreateFixtureParam
   readonly readCalls: ExecuteCall[]
   readonly runChecksCalls: ExecuteCall[]
   readonly saveCalls: ExecuteCall[]
+  readonly sendTestEmailCalls: ExecuteCall[]
 }> {
   const readCalls: ExecuteCall[] = []
   const runChecksCalls: ExecuteCall[] = []
   const saveCalls: ExecuteCall[] = []
+  const sendTestEmailCalls: ExecuteCall[] = []
 
   const routes = await loadRoutes({
     read: {
@@ -108,6 +122,13 @@ export async function createContractorMailHttpFixture(params: CreateFixtureParam
         return SETTINGS_SUMMARY
       },
     },
+    sendTestEmail: {
+      async execute(input) {
+        sendTestEmailCalls.push(structuredClone(input))
+        if (params.sendTestEmailError !== undefined) throw params.sendTestEmailError
+        return params.sendTestEmailResult ?? TEST_EMAIL_RESULT
+      },
+    },
   })
 
   const router = createTestRouter({
@@ -127,6 +148,7 @@ export async function createContractorMailHttpFixture(params: CreateFixtureParam
     readCalls,
     runChecksCalls,
     saveCalls,
+    sendTestEmailCalls,
   }
 }
 
@@ -215,5 +237,15 @@ export function jsonRequest(input: {
 export function getRequest(path: string): Request {
   return new Request(`http://localhost${path}`, {
     headers: { authorization: 'Bearer contractor-mail-contract' },
+  })
+}
+
+export function postRequest(path: string): Request {
+  return new Request(`http://localhost${path}`, {
+    headers: {
+      authorization: 'Bearer contractor-mail-contract',
+      'idempotency-key': 'contractor-mail-contract-key-0002',
+    },
+    method: 'POST',
   })
 }

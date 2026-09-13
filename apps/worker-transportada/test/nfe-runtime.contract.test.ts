@@ -146,6 +146,11 @@ describe('NF-e worker runtime contract', () => {
             calls.push('aggregateAttachment.cancel')
           },
         }),
+        startContractorMailOutboundConsumer: async () => ({
+          cancel: async () => {
+            calls.push('contractorMailOutbound.cancel')
+          },
+        }),
         startJobRunConsumer: async () => ({
           cancel: async () => {
             calls.push('jobRun.cancel')
@@ -191,6 +196,7 @@ describe('NF-e worker runtime contract', () => {
       'invitationDelivery.cancel',
       'passwordResetDelivery.cancel',
       'aggregateAttachment.cancel',
+      'contractorMailOutbound.cancel',
       'jobRun.cancel',
       'storage.close',
       'provider.close:transportada.runtime.contract.synthetic.v1.main.queue',
@@ -208,6 +214,7 @@ describe('NF-e worker runtime contract', () => {
        * a única que enumera o que fecha; trilho novo entra nela junto com o `cancel` dele.
        */
       'provider.close:transportada.runtime.contract.aggregate-attachment.v1.main.queue',
+      'provider.close:transportada.runtime.contract.contractor-mail-outbound.v1.main.queue',
       'provider.close:transportada.runtime.contract.job-run.v1.main.queue',
       'provider.close:transportada.runtime.contract.notification.v1.main.queue',
       'database.close',
@@ -270,6 +277,7 @@ describe('NF-e worker runtime contract', () => {
         startInvitationDeliveryConsumer: async () => undefined,
         startPasswordResetDeliveryConsumer: async () => undefined,
         startAggregateAttachmentConsumer: async () => undefined,
+        startContractorMailOutboundConsumer: async () => undefined,
         startJobRunConsumer: async () => undefined,
         startFoundationSyntheticConsumer: async () => undefined,
         startHealthServer() {

@@ -370,6 +370,8 @@ import {
 import { createContractorRoutes } from './delivery-clients/presentation/contractor.routes.js'
 import { createContractorMailCredentialSecretService } from './contractor-mail/application/contractor-mail-credential-secret.service.js'
 import { createContractorMailSettingsUseCase } from './contractor-mail/application/contractor-mail-settings.use-case.js'
+import { createSendContractorMailTestEmailUseCase } from './contractor-mail/application/send-contractor-mail-test-email.use-case.js'
+import { createActorEmailRepository } from './contractor-mail/infrastructure/actor-email.repository.js'
 import { DrizzleContractorMailRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail.repository.js'
 import { createMxLookupGateway } from './contractor-mail/infrastructure/mx-lookup.gateway.js'
 import { createResendAccountGateway } from './contractor-mail/infrastructure/resend-account.gateway.js'
@@ -1566,13 +1568,18 @@ function createApplicationRoutes({
   const deliveryProofDocumentSecrets = createDeliveryProofDocumentSecretService({
     envelopeProvider,
   })
+  const contractorMailRepository = new DrizzleContractorMailRepository(database)
   const contractorMailSettings = createContractorMailSettingsUseCase({
     mxLookupGateway: createMxLookupGateway(),
-    repository: new DrizzleContractorMailRepository(database),
+    repository: contractorMailRepository,
     resendAccountGateway: createResendAccountGateway({
       fetch: (target, init) => fetch(target, init),
     }),
     secretService: createContractorMailCredentialSecretService({ envelopeProvider }),
+  })
+  const sendContractorMailTestEmail = createSendContractorMailTestEmailUseCase({
+    actorEmailResolver: createActorEmailRepository({ database }),
+    repository: contractorMailRepository,
   })
   const nfseEmissionProfiles = createNfseEmissionProfilesUseCase({
     fingerprintService,
@@ -1806,6 +1813,7 @@ function createApplicationRoutes({
       read: { execute: (input) => contractorMailSettings.read(input) },
       runChecks: { execute: (input) => contractorMailSettings.runChecks(input) },
       save: { execute: (input) => contractorMailSettings.save(input) },
+      sendTestEmail: { execute: (input) => sendContractorMailTestEmail.execute(input) },
     }),
     ...createTollBoothChargeRoutes({
       adjust: createAdjustTollBoothChargeUseCase({

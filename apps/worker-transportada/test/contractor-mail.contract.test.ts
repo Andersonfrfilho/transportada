@@ -4,4 +4,8 @@
 import './contractor-mail/credential-secret-parity.contract.js'
 import './contractor-mail/credential-secret.contract.js'
 import './contractor-mail/dkim-verification.contract.js'
+import './contractor-mail/outbound-consumer.contract.js'
+import './contractor-mail/outbound-envelope.contract.js'
+import './contractor-mail/outbound-message.contract.js'
+import './contractor-mail/outbound-relay.contract.js'
 import './contractor-mail/resend-mail-gateway.contract.js'

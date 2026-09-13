@@ -7,6 +7,7 @@ import { and, eq, type SQL, sql } from 'drizzle-orm'
 import {
   auditLogs,
   contractorMailMessages,
+  contractorMailOutbox,
   contractorMailSettings,
   contractorMailThreads,
 } from '../../database/database.schema.js'
@@ -15,6 +16,8 @@ import type {
   ContractorMailSettingsRecord,
   ContractorMailSetupTestStatus,
   ContractorMailThreadRecord,
+  OpenContractorMailTestEmailThreadInput,
+  OpenContractorMailTestEmailThreadResult,
   SaveContractorMailSettingsInput,
 } from '../application/contractor-mail.port.js'
 import { ContractorMailSettingsVersionConflictError } from '../domain/contractor-mail.error.js'
@@ -179,6 +182,71 @@ export class DrizzleContractorMailRepository implements ContractorMailRepository
         (message) => message.direction === 'outbound' && message.deliveryStatus === 'sent',
       ),
     }
+  }
+
+  /**
+   * Spec 143 T009: cria (ou reaproveita, girando o token) a conversa `setup_test`, a mensagem de
+   * saída `queued` e o evento em `contractor_mail_outbox`, tudo na mesma transação — ou os três
+   * nascem juntos, ou nenhum.
+   *
+   * `subjectId` do `setup_test` é o próprio `companyId`: não há um segundo objeto de negócio para
+   * apontar, e fixar o valor é o que faz o `unique(company_id, subject_type, subject_id)` garantir
+   * "uma conversa de teste por empresa" de graça, sem uma segunda consulta antes do upsert.
+   *
+   * O token é **girado a cada chamada** (`onConflictDoUpdate` troca `reply_token_hash`), nunca
+   * reaproveitado: só o hash sobrevive no banco (RF2), então um clique novo em "Enviar e-mail de
+   * teste" é a única ocasião em que o texto plano existe de novo — e é ele que monta o `Reply-To`
+   * deste envio. Reaproveitar o hash antigo sem o texto plano correspondente deixaria o Reply-To do
+   * e-mail sem token nenhum para responder.
+   */
+  public async openTestEmailThread(
+    input: OpenContractorMailTestEmailThreadInput,
+  ): Promise<OpenContractorMailTestEmailThreadResult> {
+    return this.database.transaction(async (transaction) => {
+      const [thread] = await transaction
+        .insert(contractorMailThreads)
+        .values({
+          companyId: input.companyId,
+          contractorId: null,
+          replyTokenHash: input.replyTokenHash,
+          subjectId: input.companyId,
+          subjectType: 'setup_test',
+        })
+        .onConflictDoUpdate({
+          set: { replyTokenHash: input.replyTokenHash },
+          target: [
+            contractorMailThreads.companyId,
+            contractorMailThreads.subjectType,
+            contractorMailThreads.subjectId,
+          ],
+        })
+        .returning({ id: contractorMailThreads.id })
+      if (thread === undefined) throw new Error('contractor mail setup_test thread was not saved')
+
+      const [message] = await transaction
+        .insert(contractorMailMessages)
+        .values({
+          actorUserId: input.actorUserId,
+          bodyText: input.bodyText,
+          companyId: input.companyId,
+          deliveryStatus: 'queued',
+          direction: 'outbound',
+          fromAddress: input.fromAddress,
+          threadId: thread.id,
+        })
+        .returning({ id: contractorMailMessages.id })
+      if (message === undefined) throw new Error('contractor mail test message was not saved')
+
+      await transaction.insert(contractorMailOutbox).values({
+        companyId: input.companyId,
+        correlationId: input.correlationId,
+        eventType: 'message.send.requested',
+        messageId: message.id,
+        payload: { replyToAddress: input.replyToAddress, toAddress: input.toAddress },
+      })
+
+      return { threadId: thread.id }
+    })
   }
 
   /**

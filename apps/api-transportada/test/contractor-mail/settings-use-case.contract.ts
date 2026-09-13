@@ -541,6 +541,9 @@ function createHarness(input: {
     async findThreadByReplyTokenHash() {
       return undefined
     },
+    async openTestEmailThread() {
+      throw new Error('not used by this contract (spec 143, T009)')
+    },
     async saveSettings(saveInput) {
       savedSettingsCalls.push(saveInput)
       const versionMatches =

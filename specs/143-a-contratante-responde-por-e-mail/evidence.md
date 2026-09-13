@@ -848,3 +848,156 @@ $ bunx prettier --check apps/api-transportada/src/contractor-mail apps/api-trans
     apps/api-transportada/src/main.ts docs/SECURITY.md
 All matched files use Prettier code style!
 ```
+
+## T009 — 2026-09-13
+
+O trilho `contractor-mail-outbound.v1` no worker e o `POST /contractor-mail-settings/test-email` na
+API. Molde: `aggregate-attachment.v1` (relay em `application/`, repositório de outbox em
+`infrastructure/`, envelope Zod versionado em `messaging/`, consumidor em `runtime/`).
+
+**API — `POST /contractor-mail-settings/test-email` (`settings.manage`/`company`, `202`):**
+
+- `src/contractor-mail/domain/reply-token.policy.ts` (novo, só o que a T009 precisa — a T014
+  completa): `generateReplyToken()` gera 128 bits em base32 minúsculo sem padding (RFC 4648, quinze
+  linhas de `node:crypto`, sem biblioteca), `hashReplyToken()` usa o mesmo `Bun.CryptoHasher('sha256')`
+  de `invitation.policy.ts`, e `buildReplyAddress()` monta `<token>@<replyDomain>`.
+- `src/contractor-mail/infrastructure/actor-email.repository.ts` (novo): lê `identity_user_profiles.email`
+  pelo `userId`, sempre juntando `user_company_memberships` ativo daquela empresa — o mesmo molde de
+  `notification/infrastructure/identity-recipient.resolver.ts` — para o mesmo `userId` noutra empresa
+  não vazar o e-mail daqui.
+- `src/contractor-mail/application/send-contractor-mail-test-email.use-case.ts` (novo): lê a
+  configuração (`ContractorMailNotConfiguredError`, 409, se ausente), resolve o e-mail do ator
+  (`ContractorMailTestRecipientUnavailableError`, 422, se ausente), gera o token e o `replyToAddress`,
+  e chama `repository.openTestEmailThread`. `buildContractorMailTestEmailBody` é a função pura do
+  corpo — texto simples, só o `senderName` configurado como referência à empresa (Objetivo item 3).
+- `contractor-mail.port.ts`/`drizzle-contractor-mail.repository.ts`: `openTestEmailThread` faz, numa
+  transação só: `INSERT ... ON CONFLICT (company_id, subject_type, subject_id) DO UPDATE SET
+reply_token_hash = ...` na conversa `setup_test` (subject_id = o próprio `companyId` — não há um
+  segundo objeto para apontar, e fixar o valor faz o unique existente garantir "uma conversa de teste
+  por empresa" sem consulta extra); insere a mensagem `outbound`/`queued`; insere o evento em
+  `contractor_mail_outbox`.
+- Rota nova em `contractor-mail-settings.routes.ts`, `no-store`, `202` com `{ data: { threadId } }`;
+  `jsonResponse` ganhou parâmetro `status` (as três rotas antigas viraram `jsonResponse({ body: ... })`).
+
+**Decisão que desvia do `plan.md`, registrada conforme pedido — o destinatário e o Reply-To
+viajam no `payload` do evento, não só `{ messageId }`:** `contractor_mail_messages` (T003) não tem
+coluna de destinatário, e o token em claro nunca é persistido (RF2 — só o hash). Para as mensagens do
+P1 (T015) o destinatário sairá de `contractor_contacts` via `thread.contractorId`; o e-mail de teste
+(`setup_test`, sem contratante) não tem esse caminho, e o endereço só existe no instante da
+requisição HTTP. A saída: `contractor_mail_outbox.payload` (jsonb, já existente) grava
+`{ toAddress, replyToAddress }`, e o envelope Zod do worker os declara — o `messageId` continua
+sendo a chave para tudo que é "corpo" de verdade (o texto vem do banco, pelo `messageId`). Um
+clique novo em "Enviar e-mail de teste" **gira** o token (o `ON CONFLICT DO UPDATE` troca o hash):
+reaproveitar o hash antigo sem o texto plano correspondente deixaria o Reply-To do envio atual sem
+token nenhum para responder — só o clique atual conhece o texto plano.
+
+**Worker — trilho `contractor-mail-outbound.v1`:**
+
+- `src/database/contractor-mail.schema.ts` (novo, cópia por valor, como as outras catorze): só as
+  colunas que este trilho lê e escreve — `contractor_mail_outbox` inteira, e de `contractor_mail_settings`/
+  `contractor_mail_threads`/`contractor_mail_messages` apenas o necessário para montar e marcar o envio.
+- `src/messaging/contractor-mail-outbound-envelope.schema.ts` e
+  `contractor-mail-outbound-rabbitmq-topology.ts` (novos): fila
+  `${QUEUE_PREFIX}.contractor-mail-outbound.v1.{main,retry,dead}.{exchange,queue}`, retry com 5s de
+  atraso e três tentativas — mesmo molde do anexo do agregado.
+- `src/contractor-mail/infrastructure/drizzle-contractor-mail-outbound-outbox.repository.ts` (novo):
+  `claimDueEntries`/`markPublished` com `FOR UPDATE SKIP LOCKED`, cópia estrutural de
+  `DrizzleAggregateAttachmentOutboxRepository`.
+- `application/contractor-mail-outbound-outbox-{relay,publisher}.service.ts` (novos): mesmo par de
+  classes do anexo do agregado, publicando `{ messageId, toAddress, replyToAddress }`.
+- `infrastructure/drizzle-contractor-mail-outbound-worker.repository.ts` (novo): as quatro leituras
+  do Objetivo item 5 (`findMessageById`, `findThreadById`, `findSettingsByCompanyId`,
+  `findLastInboundReferenceHeaders` — a última mensagem `inbound` da conversa, para `In-Reply-To`/
+  `References` do RF7) e as duas escritas (`markMessageSent`, `markMessageFailed`), toda leitura e
+  escrita filtrando `company_id` na mesma condição.
+- `domain/contractor-mail-subject.constant.ts` (novo): `resolveContractorMailSubject` — o assunto é
+  fixo por `subject_type` da conversa (a tabela não guarda assunto). Só `setup_test` existe até aqui;
+  o P1 (T015) acrescenta os outros e o mapa cresce com ele. Tipo desconhecido lança
+  (`ContractorMailUnknownThreadSubjectTypeError`) em vez de mandar um assunto genérico — nenhuma
+  mensagem deveria existir com um `subject_type` sem assunto registrado antes da T015 escrevê-lo.
+- `application/send-contractor-mail-outbound-message.use-case.ts` (novo): carrega mensagem → conversa
+  → configuração, abre a credencial (T006), monta `In-Reply-To`/`References` quando há mensagem
+  `inbound` anterior, e chama `sendEmail` (T007) com `from` de `settings.senderName`/`senderAddress`,
+  `reply_to` do payload, `Idempotency-Key = messageId`. **`ResendProviderUnauthorizedError` é o único
+  erro tratado como permanente** — marca `failed` e devolve sem relançar; qualquer outro erro
+  (`ResendProviderUnreachableError`, `ResendProviderUnexpectedResponseError`, falha do cofre) propaga
+  para o consumidor decidir o retry, sem tocar `delivery_status` (continua `queued`).
+- `runtime/contractor-mail-outbound-consumer.service.ts` (novo): `ack` em `sent` e em `failed`
+  permanente (o caso de uso já persistiu o resultado — reentregar não mudaria nada), `retry` em
+  qualquer exceção. Loga `contractor_mail_sent`/`_failed` com `companyId`, `eventId`, `messageId`,
+  `threadId` e o `reason` quando falho — nunca endereço, assunto ou corpo (contrato
+  "never logs the recipient address, the subject or the body").
+- `main.ts`: topologia, publisher, `OutboxRelayLoop` (1s de polling, 30s de lease, como o do anexo) e
+  consumidor registrados ao lado do trilho de anexo — em `WorkerRuntimeDependencies`, na lista de
+  `consumers`, no grupo fechável de `provider` e nos dois blocos de desligamento (o de erro no boot e
+  o de shutdown normal). `test/nfe-runtime.contract.test.ts` e `test/shutdown-signals.contract.test.ts`
+  precisaram do override `startContractorMailOutboundConsumer` e das linhas novas na ordem esperada de
+  `cancel`/`provider.close` — o mesmo comentário que a linha do anexo do agregado já carrega sobre
+  publisher esquecido do grupo de fechamento.
+
+**Testes:**
+
+- API: `test/contractor-mail/reply-token-policy.contract.ts` (token, hash, endereço),
+  `test/contractor-mail/send-test-email-use-case.contract.ts` (sem configuração → 409, sem e-mail do
+  ator → 422, destinatário do contexto nunca do corpo, corpo do e-mail, hash de 64 hex, endereço no
+  domínio de resposta), extensões em `test/contractor-mail/settings-routes.contract.ts` (a rota nova
+  nos três loops existentes — sem segredo, `no-store`, `403` sem permissão — mais `202`+`threadId`,
+  409 e 422 mapeados). `test/integration/contractor-mail-test-email-thread.integration.ts` (novo,
+  Postgres de verdade): a conversa/mensagem/evento nascem juntos; um segundo clique reaproveita o
+  `threadId`, gira o hash e enfileira mensagem nova; isolamento por empresa.
+- Worker: `test/contractor-mail/outbound-envelope.contract.ts` (schema Zod: aceita, recusa corpo no
+  payload, recusa campo desconhecido), `outbound-message.contract.ts` (o caso de uso: corpo do
+  `sendEmail` exato, `In-Reply-To`/`References` quando há histórico, erro permanente vira `failed`
+  sem relançar, erro transitório propaga), `outbound-relay.contract.ts` (publica e marca, corrida de
+  claim perdida não publica nem marca, falha de publish nunca marca), `outbound-consumer.contract.ts`
+  (`ack` em sucesso e em falha permanente, `retry` em falha transitória, nenhum log leva endereço/
+  assunto/corpo). `test/contractor-mail-outbound-outbox.integration.test.ts` (novo, `DATABASE_URL`
+  direto, molde de `cte-issuance-write-back.integration.test.ts`): reivindica e marca publicada uma
+  linha real, e uma segunda reivindicação não rouba a linha já arrendada por outro dono.
+- Os overrides de consumidor em `test/nfe-runtime.contract.test.ts`/`shutdown-signals.contract.test.ts`
+  foram estendidos (não são testes da spec 143, mas quebravam sem o override do consumidor novo).
+
+**Gates:**
+
+```
+$ bun run typecheck                        # raiz, as seis apps → limpo
+$ bun run lint                             # raiz, as seis apps → limpo
+$ bunx prettier --write <arquivos tocados> # sem mudança de lógica, só formatação
+
+$ bun run --cwd apps/api-transportada test
+ 5633 pass, 23 skip, 0 fail — 5656 testes em 170 arquivos
+
+$ bun --env-file=../../.env.test test \
+    ./test/integration/contractor-mail-test-email-thread.integration.ts \
+    ./test/integration/contractor-mail-settings-repository.integration.ts --timeout 120000
+ 8 pass, 0 fail
+
+$ bun run --cwd apps/worker-transportada test
+ 1083 pass, 0 fail — 1083 testes em 81 arquivos
+
+$ make worker-integration
+ 74 pass, 2 fail (não relacionados: "invitation-delivery-channel" — timeout de 5s por concorrência de
+ host, e "osrm-routing-matrix" — geometria do serviço OSRM local diverge do fixture, os dois já
+ preexistentes e independentes desta task). O par de testes de
+ contractor-mail-outbound-outbox.integration.test.ts passou nas duas execuções.
+```
+
+**Filas criadas:** `${QUEUE_PREFIX}.contractor-mail-outbound.v1.main.{exchange,queue}`,
+`...v1.retry.{exchange,queue}` (atraso de 5s, três tentativas) e `...v1.dead.{exchange,queue}`.
+
+**Erro permanente × transitório:** só `ResendProviderUnauthorizedError` (a chave foi recusada) é
+permanente — o caso de uso grava `delivery_status = 'failed'` e devolve `{ outcome: 'failed', reason:
+'provider_unauthorized' }` sem relançar, e o consumidor faz `ack` (reentregar não mudaria o resultado).
+Qualquer outro erro (`ResendProviderUnreachableError`, `ResendProviderUnexpectedResponseError`, falha
+ao abrir o cofre, exceção inesperada) propaga: o consumidor devolve `retry`, a mensagem segue
+`queued`, e o broker reencaminha com o backoff da topologia (5s, até três vezes, depois `dead`).
+
+**Desvios do molde (`aggregate-attachment.v1`), todos registrados acima com a razão:**
+
+1. O payload de saída carrega `{ messageId, toAddress, replyToAddress }`, não só `{ messageId }` —
+   decisão forçada pela ausência de coluna de destinatário em `contractor_mail_messages` (T003).
+2. O token de resposta é girado a cada "Enviar e-mail de teste", nunca reaproveitado — consequência
+   de RF2 (só o hash é persistido) cruzada com a necessidade de montar o Reply-To a cada envio.
+3. O assunto do e-mail é uma constante por `subject_type` (`contractor-mail-subject.constant.ts`),
+   porque a tabela de mensagens não tem coluna de assunto — molde novo, não presente no anexo do
+   agregado (que não envia e-mail).

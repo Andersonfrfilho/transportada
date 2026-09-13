@@ -6,12 +6,14 @@ import type { CompanyContext } from '../../identity/domain/tenant-context.js'
 import {
   API_CONTRACTOR_MAIL_SETTINGS_CHECKS_PATH,
   API_CONTRACTOR_MAIL_SETTINGS_PATH,
+  API_CONTRACTOR_MAIL_TEST_EMAIL_PATH,
   JSON_CONTENT_TYPE,
 } from '../../shared/api.constant.js'
 import type {
   ContractorMailCheckItem,
   ContractorMailSettingsSummary,
 } from '../application/contractor-mail-settings.use-case.js'
+import type { SendContractorMailTestEmailResult } from '../application/send-contractor-mail-test-email.use-case.js'
 import { parseSaveContractorMailSettingsRequest } from './contractor-mail-settings.schema.js'
 
 const SETTINGS_MANAGE_POLICY = { permission: 'settings.manage', scope: 'company' } as const
@@ -25,6 +27,10 @@ type SaveInput = {
   readonly senderAddress: string
   readonly senderName: string
   readonly webhookSigningSecret: string | undefined
+}
+
+type SendTestEmailInput = {
+  readonly correlationId: string
 }
 
 type Dependencies = {
@@ -43,6 +49,11 @@ type Dependencies = {
       input: SaveInput & { readonly context: CompanyContext },
     ): Promise<ContractorMailSettingsSummary>
   }
+  readonly sendTestEmail: {
+    execute(
+      input: SendTestEmailInput & { readonly context: CompanyContext },
+    ): Promise<SendContractorMailTestEmailResult>
+  }
 }
 
 export function createContractorMailSettingsRoutes(
@@ -52,7 +63,9 @@ export function createContractorMailSettingsRoutes(
     defineRoute<undefined>({
       async handle({ context }): Promise<Response> {
         const settings = await dependencies.read.execute({ context: context.scope })
-        return jsonResponse({ data: settings === null ? null : serializeSettings(settings) })
+        return jsonResponse({
+          body: { data: settings === null ? null : serializeSettings(settings) },
+        })
       },
       method: 'GET',
       parse: () => undefined,
@@ -62,7 +75,7 @@ export function createContractorMailSettingsRoutes(
     defineRoute<SaveInput>({
       async handle({ context, input }): Promise<Response> {
         const settings = await dependencies.save.execute({ context: context.scope, ...input })
-        return jsonResponse({ data: serializeSettings(settings) })
+        return jsonResponse({ body: { data: serializeSettings(settings) } })
       },
       method: 'PUT',
       async parse({ correlationId, request }) {
@@ -83,11 +96,24 @@ export function createContractorMailSettingsRoutes(
     defineRoute<undefined>({
       async handle({ context }): Promise<Response> {
         const checks = await dependencies.runChecks.execute({ context: context.scope })
-        return jsonResponse({ data: checks })
+        return jsonResponse({ body: { data: checks } })
       },
       method: 'GET',
       parse: () => undefined,
       pathname: API_CONTRACTOR_MAIL_SETTINGS_CHECKS_PATH,
+      policy: SETTINGS_MANAGE_POLICY,
+    }),
+    defineRoute<SendTestEmailInput>({
+      async handle({ context, input }): Promise<Response> {
+        const result = await dependencies.sendTestEmail.execute({
+          context: context.scope,
+          ...input,
+        })
+        return jsonResponse({ body: { data: result }, status: 202 })
+      },
+      method: 'POST',
+      parse: ({ correlationId }) => ({ correlationId }),
+      pathname: API_CONTRACTOR_MAIL_TEST_EMAIL_PATH,
       policy: SETTINGS_MANAGE_POLICY,
     }),
   ]
@@ -112,6 +138,9 @@ function serializeSettings(settings: ContractorMailSettingsSummary): Record<stri
   }
 }
 
-function jsonResponse(body: unknown): Response {
-  return new Response(JSON.stringify(body), { headers: NO_STORE_HEADERS, status: 200 })
+function jsonResponse(input: { readonly body: unknown; readonly status?: number }): Response {
+  return new Response(JSON.stringify(input.body), {
+    headers: NO_STORE_HEADERS,
+    status: input.status ?? 200,
+  })
 }

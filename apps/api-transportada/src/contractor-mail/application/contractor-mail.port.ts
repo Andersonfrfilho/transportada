@@ -86,7 +86,32 @@ export type SaveContractorMailSettingsInput = {
   readonly settingsId: string
 }
 
+/**
+ * Spec 143 T009: a mesma transação cria (ou reaproveita, girando o token) a conversa `setup_test`,
+ * a mensagem de saída `queued` e o evento em `contractor_mail_outbox`. `replyTokenHash` chega já
+ * calculado (RF2 — o repositório nunca gera token); `toAddress`/`replyToAddress` só existem no
+ * `payload` jsonb do evento de saída, porque `contractor_mail_messages` não guarda destinatário
+ * (plan.md § T009, decisão registrada em `evidence.md`).
+ */
+export type OpenContractorMailTestEmailThreadInput = {
+  readonly actorUserId: string
+  readonly bodyText: string
+  readonly companyId: string
+  readonly correlationId: string
+  readonly fromAddress: string
+  readonly replyToAddress: string
+  readonly replyTokenHash: string
+  readonly toAddress: string
+}
+
+export type OpenContractorMailTestEmailThreadResult = {
+  readonly threadId: string
+}
+
 export type ContractorMailRepositoryPort = {
+  readonly openTestEmailThread: (
+    input: OpenContractorMailTestEmailThreadInput,
+  ) => Promise<OpenContractorMailTestEmailThreadResult>
   readonly findSettings: (input: {
     readonly companyId: string
   }) => Promise<ContractorMailSettingsRecord | undefined>

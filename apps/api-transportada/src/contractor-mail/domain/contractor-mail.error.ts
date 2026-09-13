@@ -68,3 +68,31 @@ export class ContractorMailSettingsVersionConflictError extends ApiError {
     })
   }
 }
+
+/**
+ * Spec 143 T009: o botão "Enviar e-mail de teste" exige a configuração já salva — sem ela não há
+ * remetente, domínio de resposta nem credencial para enviar nada.
+ */
+export class ContractorMailNotConfiguredError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CONTRACTOR_MAIL_NOT_CONFIGURED',
+      message: 'Contractor mail is not configured for this company',
+      status: 409,
+    })
+  }
+}
+
+/**
+ * O destinatário do e-mail de teste é o e-mail do próprio administrador autenticado (RF13), nunca o
+ * corpo da requisição. Sem um e-mail cadastrado no perfil dele, não há para onde mandar o teste.
+ */
+export class ContractorMailTestRecipientUnavailableError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CONTRACTOR_MAIL_TEST_RECIPIENT_UNAVAILABLE',
+      message: 'The authenticated user has no email address to receive the test message',
+      status: 422,
+    })
+  }
+}

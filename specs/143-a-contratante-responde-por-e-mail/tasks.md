@@ -51,7 +51,7 @@ test`), um commit isolado e a evidência em `evidence.md`. Teste novo entra na l
       antecipada na T005: o `typecheck` da raiz e a suíte da API precisavam ficar verdes antes da
       T006/T007, e um push vermelho quebraria o CI. Esta task fecha com as rotas, o caso de uso e a
       ligação de `settings.manage`/`no-store` por cima do repositório que já existe.
-- [ ] **T009** O trilho `contractor-mail-outbound.v1` no worker (relay, consumidor e envio com
+- [x] **T009** O trilho `contractor-mail-outbound.v1` no worker (relay, consumidor e envio com
       `reply_to`, `In-Reply-To`, `References` e `Idempotency-Key`) e o
       `POST /contractor-mail-settings/test-email`, que abre a conversa `setup_test`. Evidência:
       contrato do gateway com o fake e integração com o outbox.
