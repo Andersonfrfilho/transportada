@@ -181,6 +181,9 @@ export const routeSuggestionVehicles = pgTable('route_suggestion_vehicles', {
   /** ADR-0055: o motorista do par. O solver não o lê — a coluna existe aqui para a cópia não mentir. */
   driverId: uuid('driver_id'),
   position: bigint({ mode: 'bigint' }).notNull(),
+  /** A volta da última entrega ao fim da rota, gravada aqui (decisão 2026-09-13). Nula sem retorno. */
+  returnDistanceMeters: bigint('return_distance_meters', { mode: 'number' }),
+  returnDurationSeconds: bigint('return_duration_seconds', { mode: 'number' }),
 })
 
 export const routeSuggestionDocuments = pgTable('route_suggestion_documents', {

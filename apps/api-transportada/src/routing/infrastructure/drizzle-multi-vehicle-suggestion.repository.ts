@@ -18,6 +18,7 @@ import { tripDocuments } from '../../database/trip.schema.js'
 import type {
   MultiVehicleSuggestionGroup,
   MultiVehicleSuggestionRepository,
+  MultiVehicleSuggestionRoad,
 } from '../application/multi-vehicle-suggestion.repository.js'
 import { MultiVehicleSuggestionWriteFailedError } from '../domain/routing.error.js'
 import { createDrizzleRouteSuggestionRepository } from './drizzle-route-suggestion.repository.js'
@@ -179,31 +180,65 @@ export function createDrizzleMultiVehicleSuggestionRepository(
      * notas da parada.
      */
     async readVehicleRoads({ companyId, suggestionId }) {
+      /**
+       * A volta vem da linha do veículo e a política das premissas da sugestão — as duas junções
+       * são 1:1 com a parada (única por sugestão × veículo), e não multiplicam a soma das pernas.
+       */
       const rows = await database
         .select({
           distanceFromPreviousMeters: routeSuggestionStops.distanceFromPreviousMeters,
           durationFromPreviousSeconds: routeSuggestionStops.durationFromPreviousSeconds,
+          endPolicy: sql<null | string>`${routeSuggestions.assumptions}->>'endPolicy'`,
+          returnDistanceMeters: routeSuggestionVehicles.returnDistanceMeters,
+          returnDurationSeconds: routeSuggestionVehicles.returnDurationSeconds,
+          serviceTimeSeconds: routeSuggestionStops.serviceTimeSeconds,
           vehicleId: routeSuggestionStops.vehicleId,
         })
         .from(routeSuggestionStops)
+        .innerJoin(
+          routeSuggestions,
+          and(
+            eq(routeSuggestions.companyId, routeSuggestionStops.companyId),
+            eq(routeSuggestions.id, routeSuggestionStops.suggestionId),
+          ),
+        )
+        .leftJoin(
+          routeSuggestionVehicles,
+          and(
+            eq(routeSuggestionVehicles.companyId, routeSuggestionStops.companyId),
+            eq(routeSuggestionVehicles.suggestionId, routeSuggestionStops.suggestionId),
+            eq(routeSuggestionVehicles.vehicleId, routeSuggestionStops.vehicleId),
+          ),
+        )
         .where(buildSuggestionVehicleRoadWhere({ companyId, suggestionId }))
         .orderBy(routeSuggestionStops.sequence)
 
       const byVehicle = new Map<
         string,
-        { distanceFromPreviousMeters: number | null; durationFromPreviousSeconds: number | null }[]
+        { road: MultiVehicleSuggestionRoad; stops: MultiVehicleSuggestionRoad['stops'][number][] }
       >()
       for (const row of rows) {
         if (row.vehicleId === null) continue
-        const stops = byVehicle.get(row.vehicleId) ?? []
-        stops.push({
+        const entry = byVehicle.get(row.vehicleId) ?? {
+          road: {
+            /** Premissa sem política é a sugestão anterior à ADR-0044 §5: o padrão era o barracão. */
+            endPolicy: row.endPolicy ?? 'depot',
+            returnDistanceMeters: row.returnDistanceMeters,
+            returnDurationSeconds: row.returnDurationSeconds,
+            stops: [],
+            vehicleId: row.vehicleId,
+          },
+          stops: [],
+        }
+        entry.stops.push({
           distanceFromPreviousMeters: row.distanceFromPreviousMeters,
           durationFromPreviousSeconds: row.durationFromPreviousSeconds,
+          serviceTimeSeconds: row.serviceTimeSeconds,
         })
-        byVehicle.set(row.vehicleId, stops)
+        byVehicle.set(row.vehicleId, entry)
       }
 
-      return [...byVehicle].map(([vehicleId, stops]) => ({ stops, vehicleId }))
+      return [...byVehicle.values()].map(({ road, stops }) => ({ ...road, stops }))
     },
 
     async readGroups({ companyId, suggestionId }) {

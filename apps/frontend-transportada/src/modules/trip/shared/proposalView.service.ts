@@ -1,7 +1,10 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { sumScaledAmounts } from '@/modules/shared/decimalAmount.service'
 import type { VehicleType } from '@/modules/shared/vehicleType.constant'
-import type { SuggestionValuation } from '@/modules/routing/shared/suggestionValuation.service'
+import type {
+  SuggestionDurationParts,
+  SuggestionValuation,
+} from '@/modules/routing/shared/suggestionValuation.service'
 import type { TripValuation } from '@/modules/trip-financials/shared/tripValuation.service'
 import { ADVISORY_GAPS } from '@/modules/trip-financials/shared/valuationLedger.service'
 
@@ -27,6 +30,9 @@ export type ProposalVehicleView = Readonly<{
   /** Notas fiscais distintas — uma nota em duas paradas do mesmo caminhão conta uma vez só. */
   documentCount: number
   driverName: null | string
+  /** A composição do tempo do servidor; `null` com a API anterior a ela (spec 145 D17). */
+  durationParts: null | SuggestionDurationParts
+  /** A viagem inteira, do servidor: estrada de ida + volta + parado (decisão 2026-09-13). */
   durationSeconds: null | number
   /** Falta parcela que um cadastro resolve (motorista, consumo, combustível, regra, região). */
   hasGaps: boolean
@@ -170,6 +176,7 @@ export function buildProposalVehicleViews(
         fallbackDriverId: entry?.driverId ?? null,
         vehicleId,
       }),
+      durationParts: entry?.durationParts ?? null,
       durationSeconds: entry?.durationSeconds ?? null,
       ...describeProposalGaps(entry?.valuation ?? null),
       marginPercentage: entry?.valuation.marginPercentage ?? null,

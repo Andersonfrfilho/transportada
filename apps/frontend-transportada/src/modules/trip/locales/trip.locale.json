@@ -105,6 +105,17 @@
     },
     "totalAmount": "Valor das notas: {{amount}}",
     "totalFreight": "Frete previsto: {{amount}}",
+    "proposalTime": {
+      "deliveries_one": "{{count}} entrega",
+      "deliveries_other": "{{count}} entregas",
+      "deliveriesEach": "{{deliveries}} × {{each}}",
+      "noReturn": "Tempo do roteiro: {{duration}} — estrada {{driving}} + {{service}} paradas ({{deliveries}}).",
+      "reordered": "Ordem alterada: o tempo do roteiro é o da ordem do roteirizador, e só volta a ser medido na viagem criada.",
+      "total": "Tempo do roteiro: {{duration}}.",
+      "unmeasured": "Tempo do roteiro: não medido nesta proposta — recalcule para medir.",
+      "withoutReturn": "Tempo do roteiro: {{duration}} — estrada {{driving}} + {{service}} paradas ({{deliveries}}), sem a volta ao barracão.",
+      "withReturn": "Tempo do roteiro: {{duration}} — estrada {{driving}} + volta {{return}} + {{service}} paradas ({{deliveries}})."
+    },
     "totalTime": "Tempo do roteiro: {{duration}} — estrada medida pelo roteirizador, mais 20 min parados por entrega.",
     "totalWeight": "Peso total: {{weight}} kg",
     "trace": {

@@ -28,13 +28,19 @@ export type MultiVehicleSuggestionGroup = Readonly<{
 }>
 
 /**
- * Spec 101: as pernas de um veículo, na ordem das paradas. É o que `sumVehicleRoad` soma para dar
+ * Spec 101: as pernas de um veículo, na ordem das paradas. É o que `sumVehicleTrip` soma para dar
  * distância e duração da viagem proposta — sem tocar no roteirizador (D1).
  */
 export type MultiVehicleSuggestionRoad = Readonly<{
+  /** A política de fim gravada nas premissas da sugestão — é ela que diz se a volta era esperada. */
+  endPolicy: string
+  /** A volta gravada pelo worker; nula na sugestão anterior à coluna e na política sem retorno. */
+  returnDistanceMeters: number | null
+  returnDurationSeconds: number | null
   stops: readonly Readonly<{
     distanceFromPreviousMeters: number | null
     durationFromPreviousSeconds: number | null
+    serviceTimeSeconds: number | null
   }>[]
   vehicleId: string
 }>

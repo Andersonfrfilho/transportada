@@ -297,6 +297,38 @@ export function createDrizzleRouteOptimizationRepository(
           }
         }
 
+        /**
+         * A volta de cada veículo (decisão 2026-09-13). Zerada antes, para um recálculo com a política
+         * trocada para `last_stop` não herdar a volta do cálculo anterior. Sugestão de viagem única
+         * não tem linha em `route_suggestion_vehicles`, e as duas escritas alcançam zero linhas.
+         */
+        await transaction
+          .update(routeSuggestionVehicles)
+          .set({ returnDistanceMeters: null, returnDurationSeconds: null })
+          .where(
+            and(
+              eq(routeSuggestionVehicles.companyId, job.companyId),
+              eq(routeSuggestionVehicles.suggestionId, job.suggestionId),
+            ),
+          )
+        await Promise.all(
+          outcome.returnLegs.map((leg) =>
+            transaction
+              .update(routeSuggestionVehicles)
+              .set({
+                returnDistanceMeters: leg.distanceMeters,
+                returnDurationSeconds: leg.durationSeconds,
+              })
+              .where(
+                and(
+                  eq(routeSuggestionVehicles.companyId, job.companyId),
+                  eq(routeSuggestionVehicles.suggestionId, job.suggestionId),
+                  eq(routeSuggestionVehicles.vehicleId, leg.vehicleId),
+                ),
+              ),
+          ),
+        )
+
         await transaction
           .update(routeSuggestions)
           .set({

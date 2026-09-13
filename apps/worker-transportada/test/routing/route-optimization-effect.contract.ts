@@ -238,4 +238,39 @@ describe('route optimization effect (ADR-0044 §7)', () => {
       context.departureEpochSeconds + 11 * 3_600,
     )
   })
+
+  /**
+   * Decisão do usuário (2026-09-13): o tempo da proposta soma a volta ao barracão. O solver já a
+   * somava no custo (`readReturnLeg`), mas ela morria aqui — só a perna "desde a anterior" era
+   * gravada. A volta sai da **mesma matriz** que o solver usou, da última entrega ao fim.
+   */
+  test('grava a volta ao fim, da mesma matriz, quando a política manda voltar', async () => {
+    const context = buildContext({ end: DEPOT })
+
+    const outcome = await runRouteOptimization({ context, ports: buildPorts() })
+
+    /** Pontos: 0 depósito, 1..3 paradas, 4 o fim. A matriz sintética mede (4 − i) × 60 s. */
+    const indexByStopId = new Map([
+      ['a', 1],
+      ['b', 2],
+      ['c', 3],
+    ])
+    const last = outcome.orderedStops.at(-1)
+    const lastIndex = indexByStopId.get(last?.stopId ?? '') ?? 0
+
+    expect(outcome.returnLegs).toEqual([
+      {
+        distanceMeters: (4 - lastIndex) * 1_000,
+        durationSeconds: (4 - lastIndex) * 60,
+        vehicleId: 'vehicle-1',
+      },
+    ])
+  })
+
+  /** `last_stop`: o motorista fecha o dia onde está, e não existe volta a gravar. */
+  test('sem política de retorno não grava volta nenhuma', async () => {
+    const outcome = await runRouteOptimization({ context: buildContext(), ports: buildPorts() })
+
+    expect(outcome.returnLegs).toEqual([])
+  })
 })

@@ -5,7 +5,8 @@ import { describe, expect, it } from 'bun:test'
 
 import {
   buildSuggestionValuationReport,
-  sumVehicleRoad,
+  isReturnPlanned,
+  sumVehicleTrip,
   type SuggestionVehicleValuation,
 } from '../../src/routing/domain/suggestion-valuation.policy.js'
 
@@ -25,6 +26,12 @@ function vehicle(overrides: Partial<SuggestionVehicleValuation> = {}): Suggestio
     distanceMeters: 100_000,
     documentCount: 3,
     driverId: null,
+    durationParts: {
+      drivingSeconds: 3_600,
+      returnSeconds: null,
+      returnStatus: 'not_planned',
+      serviceSeconds: 0,
+    },
     durationSeconds: 3_600,
     stopCount: 2,
     valuation: {
@@ -42,28 +49,39 @@ function vehicle(overrides: Partial<SuggestionVehicleValuation> = {}): Suggestio
   }
 }
 
-describe('sumVehicleRoad', () => {
+/** A estrada de ida, sem volta e sem parada — o que as pernas sozinhas dizem. */
+function roadOnly(stops: readonly ReturnType<typeof stop>[]) {
+  return sumVehicleTrip({
+    isReturnPlanned: false,
+    returnLeg: null,
+    stops: stops.map((entry) => ({ ...entry, serviceTimeSeconds: 0 })),
+  })
+}
+
+describe('sumVehicleTrip — a estrada de ida', () => {
   /**
    * A primeira parada de um veículo não tem perna anterior, e a parada excluída da otimização
    * também não. `null` ali é o normal, não falta de dado.
    */
   it('a perna ausente da primeira parada não impede a soma', () => {
-    const road = sumVehicleRoad([
+    const trip = roadOnly([
       stop({ distanceFromPreviousMeters: null, durationFromPreviousSeconds: null }),
       stop({ distanceFromPreviousMeters: 12_000, durationFromPreviousSeconds: 900 }),
     ])
 
-    expect(road).toEqual({ distanceMeters: 12_000, durationSeconds: 900 })
+    expect(trip.distanceMeters).toBe(12_000)
+    expect(trip.durationParts.drivingSeconds).toBe(900)
   })
 
   it('soma as pernas de todas as paradas do veículo', () => {
-    const road = sumVehicleRoad([
+    const trip = roadOnly([
       stop({ distanceFromPreviousMeters: null, durationFromPreviousSeconds: null }),
       stop({ distanceFromPreviousMeters: 10_000, durationFromPreviousSeconds: 600 }),
       stop({ distanceFromPreviousMeters: 5_000, durationFromPreviousSeconds: 300 }),
     ])
 
-    expect(road).toEqual({ distanceMeters: 15_000, durationSeconds: 900 })
+    expect(trip.distanceMeters).toBe(15_000)
+    expect(trip.durationSeconds).toBe(900)
   })
 
   /**
@@ -72,15 +90,121 @@ describe('sumVehicleRoad', () => {
    * proíbe.
    */
   it('sem nenhuma perna conhecida a distância é ausência, não zero', () => {
-    const road = sumVehicleRoad([
+    const trip = roadOnly([
       stop({ distanceFromPreviousMeters: null, durationFromPreviousSeconds: null }),
     ])
 
-    expect(road).toEqual({ distanceMeters: null, durationSeconds: null })
+    expect(trip.distanceMeters).toBe(null)
+    expect(trip.durationSeconds).toBe(null)
   })
 
   it('parada nenhuma é ausência', () => {
-    expect(sumVehicleRoad([])).toEqual({ distanceMeters: null, durationSeconds: null })
+    const trip = roadOnly([])
+
+    expect(trip.distanceMeters).toBe(null)
+    expect(trip.durationSeconds).toBe(null)
+  })
+})
+
+/**
+ * Decisão do usuário (2026-09-13): **uma conta só de tempo.** O cartão, a faixa do detalhe e a
+ * frase do mapa mostram o mesmo número = estrada de ida + volta ao barracão (quando a política
+ * manda voltar) + tempo parado de **todas** as entregas, inclusive a primeira.
+ *
+ * O cenário é a viagem de 24 entregas medida: 4 h 28 min de estrada (16 080 s), 20 min parados em
+ * cada entrega (24 × 1 200 s = 8 h) e 1 h 2 min de volta (3 720 s).
+ */
+describe('sumVehicleTrip — o tempo da viagem proposta', () => {
+  const TWENTY_MINUTES = 1_200
+  const deliveries = Array.from({ length: 24 }, (_entry, index) => ({
+    distanceFromPreviousMeters: index === 0 ? 60_000 : 8_000,
+    durationFromPreviousSeconds: index === 0 ? 6_880 : 400,
+    serviceTimeSeconds: TWENTY_MINUTES,
+  }))
+
+  it('24 entregas × 20 min são 8 h paradas, somadas à estrada e à volta', () => {
+    const trip = sumVehicleTrip({
+      isReturnPlanned: true,
+      returnLeg: { distanceMeters: 70_000, durationSeconds: 3_720 },
+      stops: deliveries,
+    })
+
+    expect(trip.durationParts).toEqual({
+      drivingSeconds: 16_080,
+      returnSeconds: 3_720,
+      returnStatus: 'included',
+      serviceSeconds: 28_800,
+    })
+    /** 16 080 + 3 720 + 28 800 = 48 600 s = 13 h 30 min. */
+    expect(trip.durationSeconds).toBe(48_600)
+  })
+
+  /**
+   * ⚠️ A distância continua sendo **só a ida**: ela alimenta o combustível da conta, e somar a volta
+   * ali mudaria o custo — decisão que não foi tomada junto com a do tempo.
+   */
+  it('a volta não entra na distância que alimenta o combustível', () => {
+    const trip = sumVehicleTrip({
+      isReturnPlanned: true,
+      returnLeg: { distanceMeters: 70_000, durationSeconds: 3_720 },
+      stops: deliveries,
+    })
+
+    expect(trip.distanceMeters).toBe(60_000 + 23 * 8_000)
+  })
+
+  /**
+   * ⚠️ Sugestão anterior à coluna da volta: a política mandava voltar e ninguém gravou a perna. O
+   * total **não inventa** volta — e diz que ela é desconhecida, para a tela poder dizer isso.
+   */
+  it('volta esperada e não gravada fica desconhecida, nunca zero calado', () => {
+    const trip = sumVehicleTrip({
+      isReturnPlanned: true,
+      returnLeg: { distanceMeters: null, durationSeconds: null },
+      stops: deliveries,
+    })
+
+    expect(trip.durationParts.returnStatus).toBe('unknown')
+    expect(trip.durationParts.returnSeconds).toBe(null)
+    expect(trip.durationSeconds).toBe(16_080 + 28_800)
+  })
+
+  it('sem retorno pela política a volta não existe, e não é lacuna', () => {
+    const trip = sumVehicleTrip({
+      isReturnPlanned: false,
+      returnLeg: null,
+      stops: deliveries,
+    })
+
+    expect(trip.durationParts.returnStatus).toBe('not_planned')
+    expect(trip.durationSeconds).toBe(44_880)
+  })
+
+  /** Parada sem tempo parado gravado não para: nulo aqui é ausência de serviço, somada como zero. */
+  it('parada sem tempo parado gravado não soma parada', () => {
+    const trip = sumVehicleTrip({
+      isReturnPlanned: false,
+      returnLeg: null,
+      stops: [
+        {
+          distanceFromPreviousMeters: 1_000,
+          durationFromPreviousSeconds: 60,
+          serviceTimeSeconds: null,
+        },
+      ],
+    })
+
+    expect(trip.durationParts.serviceSeconds).toBe(0)
+    expect(trip.durationSeconds).toBe(60)
+  })
+})
+
+describe('isReturnPlanned', () => {
+  /** ADR-0044 §5: `last_stop` fecha o dia onde está; barracão e endereço próprio pedem a volta. */
+  it('só a política last_stop dispensa a volta', () => {
+    expect(isReturnPlanned('depot')).toBe(true)
+    expect(isReturnPlanned('address')).toBe(true)
+    expect(isReturnPlanned('last_stop')).toBe(false)
   })
 })
 

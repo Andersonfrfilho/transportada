@@ -97,8 +97,20 @@ export type RouteOptimizationOutcome = Readonly<{
   estimatedDistanceMeters: number
   estimatedDurationSeconds: number
   orderedStops: readonly OptimizedStop[]
+  /**
+   * A volta da última entrega de cada veículo ao fim da rota, da mesma matriz do solver. Vazia
+   * quando a política não manda voltar (`last_stop`) — o solver também não a soma nesse caso.
+   */
+  returnLegs: readonly OptimizedReturnLeg[]
   solverMetrics: Readonly<{ generations: number }>
   truncated: boolean
+}>
+
+export type OptimizedReturnLeg = Readonly<{
+  /** `null` quando o par é inalcançável na matriz — ausência, nunca zero. */
+  distanceMeters: number | null
+  durationSeconds: number | null
+  vehicleId: string
 }>
 
 export type OptimizedStop = Readonly<{
@@ -160,6 +172,7 @@ export async function runRouteOptimization(input: {
       plannedDepartureAt: toDepartureDate(context),
       estimatedDurationSeconds: 0,
       orderedStops: excluded.map((stop, offset) => toExcludedStop({ offset, stop })),
+      returnLegs: [],
       solverMetrics: { generations: 0 },
       truncated: false,
     }
@@ -250,9 +263,43 @@ export async function runRouteOptimization(input: {
         }),
       ),
     ],
+    returnLegs: toReturnLegs({
+      distancesMeters: matrix.distancesMeters,
+      durationsSeconds: matrix.durationsSeconds,
+      endIndex: problem.endIndex,
+      solution,
+    }),
     solverMetrics: { generations: solution.generations },
     truncated: solution.truncated,
   }
+}
+
+/**
+ * A perna última entrega → fim de cada veículo, lida da **mesma matriz** que o solver usou para
+ * somá-la no custo (`readReturnLeg`). Sem ela gravada, o tempo da proposta não tinha como contar a
+ * volta ao barracão (decisão do usuário, 2026-09-13).
+ */
+function toReturnLegs(input: {
+  readonly distancesMeters: readonly (readonly (number | null)[])[]
+  readonly durationsSeconds: readonly (readonly (number | null)[])[]
+  readonly endIndex: number | null
+  readonly solution: RouteSolution
+}): readonly OptimizedReturnLeg[] {
+  const { endIndex } = input
+  if (endIndex === null) return []
+
+  return input.solution.assignments.flatMap((assignment) => {
+    const lastIndex = assignment.stopIndexes.at(-1)
+    if (lastIndex === undefined) return []
+
+    return [
+      {
+        distanceMeters: readLeg(input.distancesMeters, lastIndex, endIndex),
+        durationSeconds: readLeg(input.durationsSeconds, lastIndex, endIndex),
+        vehicleId: assignment.vehicleId,
+      },
+    ]
+  })
 }
 
 function countAssigned(solution: RouteSolution): number {

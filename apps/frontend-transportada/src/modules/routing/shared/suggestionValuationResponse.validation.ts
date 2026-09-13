@@ -7,12 +7,16 @@
  * forma, servida pela mesma função da API (`buildValuationFromContext`), e uma segunda validação
  * divergiria calada no dia em que a conta ganhasse um campo.
  */
-import { hasExactKeys } from '@/modules/shared/objectKeys.service'
+import { hasExactKeys, hasKeys } from '@/modules/shared/objectKeys.service'
 import { toTripValuation } from '@/modules/trip-financials/shared/tripValuationResponse.validation'
 
 import {
+  SUGGESTION_DURATION_PARTS_KEYS,
+  SUGGESTION_RETURN_STATUSES,
   SUGGESTION_VALUATION_REPORT_KEYS,
   SUGGESTION_VEHICLE_VALUATION_KEYS,
+  SUGGESTION_VEHICLE_VALUATION_OPTIONAL_KEYS,
+  type SuggestionDurationParts,
   type SuggestionValuation,
   type SuggestionVehicleValuation,
 } from './suggestionValuation.service'
@@ -56,21 +60,51 @@ export function toSuggestionValuation(envelope: unknown): SuggestionValuation | 
 }
 
 function toVehicle(raw: unknown): SuggestionVehicleValuation | null {
-  if (!hasExactKeys(raw, [...SUGGESTION_VEHICLE_VALUATION_KEYS])) return null
+  if (
+    !hasKeys(raw, {
+      allowed: [
+        ...SUGGESTION_VEHICLE_VALUATION_KEYS,
+        ...SUGGESTION_VEHICLE_VALUATION_OPTIONAL_KEYS,
+      ],
+      required: [...SUGGESTION_VEHICLE_VALUATION_KEYS],
+    })
+  ) {
+    return null
+  }
   if (typeof raw.vehicleId !== 'string' || raw.vehicleId === '') return null
 
   /** A conta vem **crua**, sem envelope: `toTripValuation` aceita as duas formas. */
   const valuation = toTripValuation(raw.valuation)
   if (valuation === null) return null
 
+  /** Ausente é a API anterior (D17); presente e malformada invalida o corpo, como chave estranha. */
+  const durationParts = 'durationParts' in raw ? toDurationParts(raw.durationParts) : null
+  if (durationParts === undefined) return null
+
   return {
     distanceMeters: readNumber(raw.distanceMeters),
     documentCount: readCount(raw.documentCount),
     driverId: typeof raw.driverId === 'string' && raw.driverId !== '' ? raw.driverId : null,
+    durationParts,
     durationSeconds: readNumber(raw.durationSeconds),
     stopCount: readCount(raw.stopCount),
     valuation,
     vehicleId: raw.vehicleId,
+  }
+}
+
+/** `undefined` é forma recusada; `null` explícito da API é composição ausente. */
+function toDurationParts(raw: unknown): SuggestionDurationParts | null | undefined {
+  if (raw === null) return null
+  if (!hasExactKeys(raw, [...SUGGESTION_DURATION_PARTS_KEYS])) return undefined
+  const returnStatus = SUGGESTION_RETURN_STATUSES.find((status) => status === raw.returnStatus)
+  if (returnStatus === undefined) return undefined
+
+  return {
+    drivingSeconds: readNumber(raw.drivingSeconds),
+    returnSeconds: readNumber(raw.returnSeconds),
+    returnStatus,
+    serviceSeconds: readCount(raw.serviceSeconds),
   }
 }
 

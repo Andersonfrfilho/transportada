@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'bun:test'
 
 import { readSuggestionValuation } from '../../src/routing/application/read-suggestion-valuation.use-case.js'
+import type { MultiVehicleSuggestionRoad } from '../../src/routing/application/multi-vehicle-suggestion.repository.js'
 import type { SuggestionValuationPort } from '../../src/routing/application/suggestion-valuation.port.js'
 import type { RouteSuggestionStatus } from '../../src/database/route-suggestion.schema.js'
 import type { TripValuationContext } from '../../src/trips/application/read-trip-valuation.use-case.js'
@@ -27,6 +28,29 @@ function context(overrides: Partial<TripValuationContext> = {}): TripValuationCo
 
 type Recorded = { readonly distanceMeters: null | number; readonly vehicleId: string }
 
+/** A perna de uma parada, sem tempo parado — o formato dos casos de distância. */
+function leg(
+  distanceFromPreviousMeters: null | number,
+  durationFromPreviousSeconds: null | number,
+) {
+  return { distanceFromPreviousMeters, durationFromPreviousSeconds, serviceTimeSeconds: 0 }
+}
+
+function road(input: {
+  readonly endPolicy?: string
+  readonly returnDurationSeconds?: null | number
+  readonly stops: MultiVehicleSuggestionRoad['stops']
+  readonly vehicleId: string
+}): MultiVehicleSuggestionRoad {
+  return {
+    endPolicy: input.endPolicy ?? 'last_stop',
+    returnDistanceMeters: input.returnDurationSeconds === undefined ? null : 1_000,
+    returnDurationSeconds: input.returnDurationSeconds ?? null,
+    stops: input.stops,
+    vehicleId: input.vehicleId,
+  }
+}
+
 function port(
   overrides: {
     readonly groups?: readonly {
@@ -37,13 +61,7 @@ function port(
       orderedAddressKeys: readonly string[]
       vehicleId: string
     }[]
-    readonly roads?: readonly {
-      stops: readonly {
-        distanceFromPreviousMeters: null | number
-        durationFromPreviousSeconds: null | number
-      }[]
-      vehicleId: string
-    }[]
+    readonly roads?: readonly MultiVehicleSuggestionRoad[]
     readonly status?: RouteSuggestionStatus
   } = {},
 ) {
@@ -67,13 +85,7 @@ function port(
     readSuggestionStatus: async () => overrides.status ?? 'ready',
     readVehicleRoads: async () =>
       overrides.roads ?? [
-        {
-          stops: [
-            { distanceFromPreviousMeters: null, durationFromPreviousSeconds: null },
-            { distanceFromPreviousMeters: 50_000, durationFromPreviousSeconds: 1_800 },
-          ],
-          vehicleId: VEHICLE_A,
-        },
+        road({ stops: [leg(null, null), leg(50_000, 1_800)], vehicleId: VEHICLE_A }),
       ],
     resolveValuation: async (input) => {
       contexts.push({ distanceMeters: input.context.distanceMeters, vehicleId: 'resolved' })
@@ -134,14 +146,8 @@ describe('readSuggestionValuation (spec 101)', () => {
         },
       ],
       roads: [
-        {
-          stops: [{ distanceFromPreviousMeters: 10_000, durationFromPreviousSeconds: 600 }],
-          vehicleId: VEHICLE_A,
-        },
-        {
-          stops: [{ distanceFromPreviousMeters: 20_000, durationFromPreviousSeconds: 1_200 }],
-          vehicleId: VEHICLE_B,
-        },
+        road({ stops: [leg(10_000, 600)], vehicleId: VEHICLE_A }),
+        road({ stops: [leg(20_000, 1_200)], vehicleId: VEHICLE_B }),
       ],
     })
 
@@ -189,12 +195,7 @@ describe('readSuggestionValuation (spec 101)', () => {
    */
   it('veículo sem perna conhecida contamina o conjunto', async () => {
     const { port: repository } = port({
-      roads: [
-        {
-          stops: [{ distanceFromPreviousMeters: null, durationFromPreviousSeconds: null }],
-          vehicleId: VEHICLE_A,
-        },
-      ],
+      roads: [road({ stops: [leg(null, null)], vehicleId: VEHICLE_A })],
     })
 
     const result = await readSuggestionValuation({
@@ -205,5 +206,57 @@ describe('readSuggestionValuation (spec 101)', () => {
 
     expect(result.vehicles[0]?.distanceMeters).toBe(null)
     expect(result.report.hasGaps).toBe(true)
+  })
+
+  /**
+   * Decisão do usuário (2026-09-13): o tempo servido é a viagem inteira — ida + volta + parado —, e
+   * é o mesmo número que o cartão, o detalhe e o mapa imprimem. 24 entregas × 20 min = 8 h.
+   */
+  it('o tempo do veículo é ida + volta + parado de todas as entregas', async () => {
+    const deliveries = Array.from({ length: 24 }, (_entry, index) => ({
+      ...leg(index === 0 ? 60_000 : 8_000, index === 0 ? 6_880 : 400),
+      serviceTimeSeconds: 1_200,
+    }))
+    const { port: repository } = port({
+      roads: [
+        road({
+          endPolicy: 'depot',
+          returnDurationSeconds: 3_720,
+          stops: deliveries,
+          vehicleId: VEHICLE_A,
+        }),
+      ],
+    })
+
+    const result = await readSuggestionValuation({
+      companyId: COMPANY_ID,
+      repository,
+      suggestionId: SUGGESTION_ID,
+    })
+
+    expect(result.vehicles[0]?.durationSeconds).toBe(48_600)
+    expect(result.vehicles[0]?.durationParts).toEqual({
+      drivingSeconds: 16_080,
+      returnSeconds: 3_720,
+      returnStatus: 'included',
+      serviceSeconds: 28_800,
+    })
+    expect(result.report.totalDurationSeconds).toBe(48_600)
+  })
+
+  /** Sugestão antiga: a política mandava voltar e a perna não foi gravada — a volta é desconhecida. */
+  it('volta esperada sem perna gravada sai marcada como desconhecida', async () => {
+    const { port: repository } = port({
+      roads: [road({ endPolicy: 'depot', stops: [leg(10_000, 600)], vehicleId: VEHICLE_A })],
+    })
+
+    const result = await readSuggestionValuation({
+      companyId: COMPANY_ID,
+      repository,
+      suggestionId: SUGGESTION_ID,
+    })
+
+    expect(result.vehicles[0]?.durationParts.returnStatus).toBe('unknown')
+    expect(result.vehicles[0]?.durationSeconds).toBe(600)
   })
 })

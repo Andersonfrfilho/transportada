@@ -91,7 +91,16 @@ describe('pedágio na sugestão (spec 101 D2)', () => {
       readSuggestionStatus: async () => 'ready',
       readVehicleRoads: async () => [
         {
-          stops: [{ distanceFromPreviousMeters: 10_000, durationFromPreviousSeconds: 600 }],
+          endPolicy: 'last_stop',
+          returnDistanceMeters: null,
+          returnDurationSeconds: null,
+          stops: [
+            {
+              distanceFromPreviousMeters: 10_000,
+              durationFromPreviousSeconds: 600,
+              serviceTimeSeconds: 0,
+            },
+          ],
           vehicleId: VEHICLE_A,
         },
       ],

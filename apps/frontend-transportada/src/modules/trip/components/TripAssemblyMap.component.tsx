@@ -106,6 +106,12 @@ type TripAssemblyMapProps = Readonly<{
   resolveMoveTargets?: ((point: AssemblyMapPoint) => readonly SelectOption[]) | undefined
   onStopMove?: ((noteIds: readonly string[], vehicleId: string) => void) | undefined
   order: AssemblyCityOrder
+  /**
+   * A frase "Tempo do roteiro" já pronta, quando quem hospeda o mapa tem o total do servidor — a
+   * proposta (decisão 2026-09-13). Presente, o mapa a imprime e **não** soma tempo nenhum; ausente
+   * (montagem manual, sem proposta), segue a conta da estrada medida aqui.
+   */
+  proposalTimeText?: string | undefined
   selected: readonly AssemblyMapNote[]
   /**
    * A receita por nota, vinda da avaliação prevista da viagem. Ela **não** é recalculada aqui: quem
@@ -159,6 +165,7 @@ export function TripAssemblyMap({
   onStopRemove,
   onStopUndoRemove,
   order,
+  proposalTimeText,
   removedNoteIds,
   resolveMoveTargets,
   revenueLines,
@@ -529,12 +536,19 @@ export function TripAssemblyMap({
         */
         <p className={styles.hint}>{t('assemblyMap.withoutBasemap')}</p>
       )}
-      {legs.length === 0 ? null : (
+      {proposalTimeText === undefined ? (
+        legs.length === 0 ? null : (
+          <p className={`${styles.hint} ${styles.assemblyTotalTime}`}>
+            <Icon name="clock" />
+            {t('assemblyMap.totalTime', {
+              duration: formatDuration(totalAssemblyMinutes(legs, depotLegs)),
+            })}
+          </p>
+        )
+      ) : (
         <p className={`${styles.hint} ${styles.assemblyTotalTime}`}>
           <Icon name="clock" />
-          {t('assemblyMap.totalTime', {
-            duration: formatDuration(totalAssemblyMinutes(legs, depotLegs)),
-          })}
+          {proposalTimeText}
         </p>
       )}
       {/*

@@ -22,6 +22,7 @@ const OUTCOME: RouteOptimizationOutcome = {
   plannedDepartureAt: new Date('2026-09-10T11:00:00.000Z'),
   estimatedDurationSeconds: 5_400,
   orderedStops: [],
+  returnLegs: [],
   solverMetrics: { generations: 12 },
   truncated: false,
 }

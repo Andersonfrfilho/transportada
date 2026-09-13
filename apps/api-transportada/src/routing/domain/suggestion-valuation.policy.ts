@@ -17,10 +17,32 @@ const ERROR_CODE_PREFIX = 'SUGGESTION_VALUATION'
 export type SuggestionStopRoad = {
   readonly distanceFromPreviousMeters: null | number
   readonly durationFromPreviousSeconds: null | number
+  /** O tempo parado gravado pelo worker. Nulo é parada sem serviço registrado, somada como zero. */
+  readonly serviceTimeSeconds: null | number
 }
 
-export type SuggestionVehicleRoad = {
+export type SuggestionReturnLeg = {
   readonly distanceMeters: null | number
+  readonly durationSeconds: null | number
+}
+
+/** A volta existe e foi medida, não existe pela política, ou era esperada e ninguém a gravou. */
+export type SuggestionReturnStatus = 'included' | 'not_planned' | 'unknown'
+
+export type SuggestionDurationParts = {
+  /** A estrada de ida: barracão → 1ª entrega → … → última. */
+  readonly drivingSeconds: null | number
+  readonly returnSeconds: null | number
+  readonly returnStatus: SuggestionReturnStatus
+  /** O tempo parado de **todas** as entregas, inclusive a primeira. */
+  readonly serviceSeconds: number
+}
+
+export type SuggestionVehicleTrip = {
+  /** ⚠️ Só a ida: é ela que alimenta o combustível da conta, e a volta não entrou nessa decisão. */
+  readonly distanceMeters: null | number
+  readonly durationParts: SuggestionDurationParts
+  /** O tempo da viagem proposta — o único que o cartão, o detalhe e o mapa imprimem. */
   readonly durationSeconds: null | number
 }
 
@@ -28,6 +50,7 @@ export type SuggestionVehicleValuation = {
   readonly distanceMeters: null | number
   readonly documentCount: number
   readonly driverId: null | string
+  readonly durationParts: SuggestionDurationParts
   readonly durationSeconds: null | number
   readonly stopCount: number
   readonly valuation: TripValuation
@@ -49,25 +72,50 @@ export type SuggestionValuationReport = {
   readonly totalRevenue: string
 }
 
+/** ADR-0044 §5: `last_stop` fecha o dia onde está; barracão e endereço próprio pedem a volta. */
+export function isReturnPlanned(endPolicy: string): boolean {
+  return endPolicy !== 'last_stop'
+}
+
 /**
- * A estrada de um veículo: a soma das pernas das paradas dele.
+ * **O seam do tempo da proposta** (decisão do usuário, 2026-09-13): estrada de ida + volta ao
+ * barracão (quando a política manda voltar) + tempo parado de todas as entregas. É o único número
+ * que o cartão, a faixa do detalhe e a frase do mapa imprimem — uma segunda soma divergiria calada.
  *
  * ⚠️ **A primeira parada não tem perna anterior**, e a parada excluída da otimização também não —
- * `null` ali é o normal. Mas veículo em que **nenhuma** perna é conhecida tem distância
- * *desconhecida*, não zero: zero desceria o combustível a nada e a margem apareceria melhor do que
+ * `null` ali é o normal. Mas veículo em que **nenhuma** perna é conhecida tem distância e tempo
+ * *desconhecidos*, não zero: zero desceria o combustível a nada e a margem apareceria melhor do que
  * é, que é o modo de falha que a ADR-0049 §2 proíbe.
+ *
+ * ⚠️ Volta esperada e não gravada (sugestão anterior à coluna) **não é inventada**: fica fora da
+ * soma e sai como `unknown`, para a tela dizer "sem a volta ao barracão".
  */
-export function sumVehicleRoad(stops: readonly SuggestionStopRoad[]): SuggestionVehicleRoad {
+export function sumVehicleTrip(input: {
+  readonly isReturnPlanned: boolean
+  readonly returnLeg: null | SuggestionReturnLeg
+  readonly stops: readonly SuggestionStopRoad[]
+}): SuggestionVehicleTrip {
+  const { stops } = input
   const distances = stops.flatMap((stop) =>
     stop.distanceFromPreviousMeters === null ? [] : [stop.distanceFromPreviousMeters],
   )
   const durations = stops.flatMap((stop) =>
     stop.durationFromPreviousSeconds === null ? [] : [stop.durationFromPreviousSeconds],
   )
+  const drivingSeconds = durations.length === 0 ? null : durations.reduce(add, 0)
+  const serviceSeconds = stops.reduce((total, stop) => total + (stop.serviceTimeSeconds ?? 0), 0)
+  const returnSeconds = input.isReturnPlanned ? (input.returnLeg?.durationSeconds ?? null) : null
+  const returnStatus: SuggestionReturnStatus = !input.isReturnPlanned
+    ? 'not_planned'
+    : returnSeconds === null
+      ? 'unknown'
+      : 'included'
 
   return {
     distanceMeters: distances.length === 0 ? null : distances.reduce(add, 0),
-    durationSeconds: durations.length === 0 ? null : durations.reduce(add, 0),
+    durationParts: { drivingSeconds, returnSeconds, returnStatus, serviceSeconds },
+    durationSeconds:
+      drivingSeconds === null ? null : drivingSeconds + (returnSeconds ?? 0) + serviceSeconds,
   }
 }
 

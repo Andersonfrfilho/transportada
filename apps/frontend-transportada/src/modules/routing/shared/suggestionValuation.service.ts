@@ -8,11 +8,33 @@
  */
 import type { TripValuation } from '@/modules/trip-financials/shared/tripValuation.service'
 
+/** A volta existe e foi medida, não existe pela política, ou era esperada e ninguém a gravou. */
+export const SUGGESTION_RETURN_STATUSES = ['included', 'not_planned', 'unknown'] as const
+export type SuggestionReturnStatus = (typeof SUGGESTION_RETURN_STATUSES)[number]
+
+/** A composição do tempo que o servidor somou — a tela só a descreve, nunca a refaz. */
+export type SuggestionDurationParts = Readonly<{
+  drivingSeconds: null | number
+  returnSeconds: null | number
+  returnStatus: SuggestionReturnStatus
+  serviceSeconds: number
+}>
+
+export const SUGGESTION_DURATION_PARTS_KEYS = [
+  'drivingSeconds',
+  'returnSeconds',
+  'returnStatus',
+  'serviceSeconds',
+] as const
+
 export type SuggestionVehicleValuation = Readonly<{
   /** `null` quando nenhuma perna da sugestão é conhecida — ausência, nunca zero. */
   distanceMeters: null | number
   documentCount: number
   driverId: null | string
+  /** `null` com a API anterior à composição (spec 145 D17) — o total segue valendo sozinho. */
+  durationParts: null | SuggestionDurationParts
+  /** A viagem inteira: estrada de ida + volta + tempo parado (decisão 2026-09-13). */
   durationSeconds: null | number
   stopCount: number
   valuation: TripValuation
@@ -62,6 +84,12 @@ export const SUGGESTION_VEHICLE_VALUATION_KEYS = [
   'valuation',
   'vehicleId',
 ] as const
+
+/**
+ * ⚠️ Spec 145 D17: chave **permitida, não obrigatória** — o bundle sobe antes da API que a serve,
+ * e precisa aceitar as duas formas no intervalo entre os deploys.
+ */
+export const SUGGESTION_VEHICLE_VALUATION_OPTIONAL_KEYS = ['durationParts'] as const
 
 const MINUTES_PER_HOUR = 60
 const MINUTES_PER_DAY = 24 * MINUTES_PER_HOUR

@@ -236,6 +236,11 @@ function serializeValuation(valuation: SuggestionValuation): object {
       distanceMeters: vehicle.distanceMeters,
       documentCount: vehicle.documentCount,
       driverId: vehicle.driverId,
+      /**
+       * Decisão 2026-09-13: a composição do tempo (estrada, volta, parado) ao lado do total. ⚠️ Chave
+       * nova: o bundle que a aceita sobe **antes** desta API (spec 145 D17).
+       */
+      durationParts: vehicle.durationParts,
       durationSeconds: vehicle.durationSeconds,
       stopCount: vehicle.stopCount,
       valuation: vehicle.valuation,

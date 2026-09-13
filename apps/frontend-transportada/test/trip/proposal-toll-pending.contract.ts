@@ -82,6 +82,7 @@ function valuationWith(costParcels: readonly TripValuationCostParcel[]): Suggest
         distanceMeters: 1000,
         documentCount: 1,
         driverId: null,
+        durationParts: null,
         durationSeconds: 60,
         stopCount: 1,
         valuation,

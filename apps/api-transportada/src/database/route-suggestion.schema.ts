@@ -370,6 +370,13 @@ export const routeSuggestionVehicles = pgTable(
      */
     driverId: uuid('driver_id'),
     position: bigint({ mode: 'bigint' }).notNull(),
+    /**
+     * A volta da última entrega ao fim da rota, da mesma matriz do solver (decisão 2026-09-13).
+     * **Nula é legítima**: sugestão anterior à coluna (a API a declara desconhecida), política
+     * `last_stop` (não há volta) ou par inalcançável.
+     */
+    returnDistanceMeters: bigint('return_distance_meters', { mode: 'number' }),
+    returnDurationSeconds: bigint('return_duration_seconds', { mode: 'number' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -409,6 +416,10 @@ export const routeSuggestionVehicles = pgTable(
       table.position,
     ),
     check('route_suggestion_vehicles_position_check', sql`${table.position} >= 0`),
+    check(
+      'route_suggestion_vehicles_return_leg_check',
+      sql`(${table.returnDistanceMeters} is null or ${table.returnDistanceMeters} >= 0) and (${table.returnDurationSeconds} is null or ${table.returnDurationSeconds} >= 0)`,
+    ),
   ],
 )
 

@@ -118,6 +118,59 @@ describe('toSuggestionValuation (spec 101)', () => {
     expect(toSuggestionValuation({ data: { report: report() } })).toBe(null)
   })
 
+  /**
+   * ⚠️ Spec 145 D17: **o frontend aceita antes de a API servir.** `durationParts` (a composição do
+   * tempo: estrada, volta, parado) é chave nova — o bundle sobe primeiro e precisa aceitar a API
+   * velha, sem ela, e a nova, com ela.
+   */
+  it('aceita o veículo sem durationParts (API velha) e marca a composição como ausente', () => {
+    const result = toSuggestionValuation({ data: { report: report(), vehicles: [vehicle()] } })
+
+    expect(result?.vehicles[0]?.durationParts).toBe(null)
+  })
+
+  it('aceita o veículo com durationParts (API nova)', () => {
+    const durationParts = {
+      drivingSeconds: 16_080,
+      returnSeconds: null,
+      returnStatus: 'unknown' as const,
+      serviceSeconds: 28_800,
+    }
+    const result = toSuggestionValuation({
+      data: { report: report(), vehicles: [vehicle({ durationParts, durationSeconds: 44_880 })] },
+    })
+
+    expect(result?.vehicles[0]?.durationParts).toEqual(durationParts)
+    expect(result?.vehicles[0]?.durationSeconds).toBe(44_880)
+  })
+
+  /** A proteção continua inteira dentro da chave nova: forma desconhecida é recusada. */
+  it('recusa durationParts com chave ou situação de volta desconhecida', () => {
+    const base = {
+      drivingSeconds: 1,
+      returnSeconds: null,
+      returnStatus: 'included',
+      serviceSeconds: 0,
+    }
+
+    expect(
+      toSuggestionValuation({
+        data: {
+          report: report(),
+          vehicles: [vehicle({ durationParts: { ...base, tokenDoTenant: 'x' } })],
+        },
+      }),
+    ).toBe(null)
+    expect(
+      toSuggestionValuation({
+        data: {
+          report: report(),
+          vehicles: [vehicle({ durationParts: { ...base, returnStatus: 'talvez' } })],
+        },
+      }),
+    ).toBe(null)
+  })
+
   /** As chaves são contrato de duas pontas; a lista não pode divergir do que a API serve. */
   it('as listas de chaves cobrem exatamente os campos servidos', () => {
     expect([...SUGGESTION_VALUATION_REPORT_KEYS].toSorted()).toEqual(

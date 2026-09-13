@@ -12,7 +12,8 @@ import {
 } from '../domain/routing.error.js'
 import {
   buildSuggestionValuationReport,
-  sumVehicleRoad,
+  isReturnPlanned,
+  sumVehicleTrip,
   type SuggestionValuationReport,
   type SuggestionVehicleValuation,
 } from '../domain/suggestion-valuation.policy.js'
@@ -48,13 +49,27 @@ export async function readSuggestionValuation(
     repository.readVehicleRoads({ companyId, suggestionId }),
   ])
 
-  const roadByVehicle = new Map(roads.map((road) => [road.vehicleId, road.stops]))
+  const roadByVehicle = new Map(roads.map((road) => [road.vehicleId, road]))
 
   const vehicles: SuggestionVehicleValuation[] = []
   for (const group of groups) {
-    const stops = roadByVehicle.get(group.vehicleId) ?? []
-    /** D1: a distância é a soma das paradas que o solver escolheu — nunca uma rota pedida agora. */
-    const road = sumVehicleRoad(stops)
+    const vehicleRoad = roadByVehicle.get(group.vehicleId)
+    const stops = vehicleRoad?.stops ?? []
+    /**
+     * D1: a distância é a soma das paradas que o solver escolheu — nunca uma rota pedida agora. O
+     * tempo é o do seam único (decisão 2026-09-13): ida + volta + parado.
+     */
+    const road = sumVehicleTrip({
+      isReturnPlanned: vehicleRoad === undefined ? false : isReturnPlanned(vehicleRoad.endPolicy),
+      returnLeg:
+        vehicleRoad === undefined
+          ? null
+          : {
+              distanceMeters: vehicleRoad.returnDistanceMeters,
+              durationSeconds: vehicleRoad.returnDurationSeconds,
+            },
+      stops,
+    })
 
     const context = await repository.readPreviewContext({
       companyId,
@@ -84,6 +99,7 @@ export async function readSuggestionValuation(
       distanceMeters: road.distanceMeters,
       documentCount: group.documentIds.length,
       driverId: group.driverId,
+      durationParts: road.durationParts,
       durationSeconds: road.durationSeconds,
       stopCount: stops.length,
       valuation,

@@ -20,6 +20,7 @@ import { toAssemblyMapNote } from '../shared/assemblyMapNote.service'
 import type { AssemblyMapPoint } from '../shared/assemblyMap.service'
 import { isSameOrder, moveCity, reconcileCityOrder } from '../shared/assemblyOrder.service'
 import { sumStopWeight, type MoveTarget } from '../shared/proposalStopMove.service'
+import { describeProposalTripTime } from '../shared/proposalTripTime.service'
 import { buildProposalStopOrder, type ProposalVehicleView } from '../shared/proposalView.service'
 import type { TripCandidateDocument } from '../shared/trip.types'
 import { TripAssemblyMap } from './TripAssemblyMap.component'
@@ -116,6 +117,18 @@ export function TripProposalDetail({
    * seguem a ordem salva até "Salvar ordem", e o mapa desenha o rascunho sem remedir a rota.
    */
   const displayOrder = draftOrder ?? stopOrder
+  /**
+   * A frase do mapa é o **mesmo** total do cartão e da faixa acima (decisão 2026-09-13) — o mapa
+   * desenha a estrada do OSRM, mas não soma tempo nenhum por conta própria na proposta.
+   */
+  const proposalTimeText = describeProposalTripTime({
+    durationParts: view.durationParts,
+    durationSeconds: view.durationSeconds,
+    isReordered: manualOrder !== null,
+    stopCount: view.stopCount,
+    translate: (key, values) => (values === undefined ? t(key) : t(key, values)),
+    units: durationUnits,
+  })
   /**
    * ⚠️ Rascunho de ordem ou de movimento **pausa as três medições** — carga, conta e rota —, e elas
    * seguram o último número medido até alguém salvar. Cada toque ia ao servidor.
@@ -261,6 +274,7 @@ export function TripProposalDetail({
           onStopRemove={onRemoveStop}
           onStopUndoRemove={onUndoRemoveStop}
           order={displayOrder}
+          proposalTimeText={proposalTimeText}
           /** Spec 110 D6: a parada marcada fica **riscada com "Desfazer"**, nunca some. */
           removedNoteIds={pendingRemovals}
           resolveMoveTargets={resolveStopMoveOptions}
