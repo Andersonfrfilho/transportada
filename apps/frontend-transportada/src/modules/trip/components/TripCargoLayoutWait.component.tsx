@@ -6,6 +6,11 @@ import { Icon } from '@/components/ui/icon'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 
+import { useCargoLayoutElapsed } from '../hooks/useCargoLayoutElapsed.hook'
+import {
+  formatCargoLayoutElapsed,
+  isCargoLayoutWaitLong,
+} from '../shared/cargoLayoutElapsed.service'
 import type { CargoLayoutView } from '../shared/cargoLayoutPolling.service'
 import { flattenPlacedBoxes } from '../shared/cargoLayoutTransition.service'
 import { noteColorOf, resolveNoteColors } from '../shared/noteColor.service'
@@ -34,6 +39,8 @@ export function TripCargoLayoutWait({ bedDimensions, view }: TripCargoLayoutWait
   const ghost = resolveGhostLayout(view.layout)
   const isPending = view.phase === 'pending'
   const isStale = ghost !== null && (view.stale || !isPending)
+  const elapsedMs = useCargoLayoutElapsed({ since: isPending ? view.pendingSince : undefined })
+  const isLong = elapsedMs !== undefined && isCargoLayoutWaitLong(elapsedMs)
 
   return (
     <section aria-labelledby="trip-cargo-layers-title" className={styles.panel}>
@@ -41,14 +48,20 @@ export function TripCargoLayoutWait({ bedDimensions, view }: TripCargoLayoutWait
         {t('cargoLayers.title')}
       </h3>
       {/* O selo diz em texto o que o giro do ícone sugere: nada fica só na cor ou no movimento. */}
-      <p
-        aria-live="polite"
-        className={isPending ? styles.cargoWaitBadge : styles.warning}
-        role="status"
-      >
-        <Icon aria-hidden name={isPending ? 'spinner' : 'alert'} />
-        {isPending ? t('cargoLayers.wait.reorganizing') : t('cargoLayers.wait.failed')}
-      </p>
+      <div className={styles.cargoWaitStatus}>
+        <div aria-live="polite" className={styles.cargoWaitStatus} role="status">
+          <p className={isPending ? styles.cargoWaitBadge : styles.warning}>
+            <Icon aria-hidden name={isPending ? 'spinner' : 'alert'} />
+            {isPending ? t('cargoLayers.wait.reorganizing') : t('cargoLayers.wait.failed')}
+          </p>
+          {isLong ? <p className={styles.hint}>{t('cargoLayers.wait.slow')}</p> : null}
+        </div>
+        {elapsedMs === undefined ? null : (
+          <p aria-live="off" className={styles.cargoWaitElapsed}>
+            {t('cargoLayers.wait.elapsed', { elapsed: formatCargoLayoutElapsed(elapsedMs) })}
+          </p>
+        )}
+      </div>
       {isStale ? <p className={styles.hint}>{t('cargoLayers.wait.stale')}</p> : null}
       <TripCargoWaitDrawing
         bed={resolveWaitBed(ghost, bedDimensions)}

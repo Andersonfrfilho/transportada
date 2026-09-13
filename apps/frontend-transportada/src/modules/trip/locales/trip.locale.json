@@ -258,6 +258,8 @@
     "zoomOut": "Afastar",
     "wait": {
       "reorganizing": "Reorganizando a carga…",
+      "elapsed": "Calculando há {{elapsed}}",
+      "slow": "Viagens grandes levam alguns minutos. A planta aparece aqui sozinha.",
       "stale": "Planta desatualizada: é a última que foi calculada.",
       "failed": "Não foi possível calcular a planta agora.",
       "truncated": "Planta incompleta — algumas caixas ficaram de fora por tempo.",

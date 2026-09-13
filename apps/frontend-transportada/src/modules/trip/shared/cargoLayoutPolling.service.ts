@@ -21,6 +21,8 @@ export type CargoLayoutPhase = CargoLayoutStatus | 'timedOut'
 export type CargoLayoutView = Readonly<{
   errorCode: null | string
   layout: TripCargoLayout | null
+  /** Começo do episódio de `pending` — o mesmo relógio do teto; o selo mede a espera por ele. */
+  pendingSince?: number
   phase: CargoLayoutPhase
   stale: boolean
   truncated: boolean
@@ -70,10 +72,14 @@ export function resolveCargoLayoutView(
   const isTimedOut =
     input.state.status === 'pending' &&
     hasTimedOut({ episode: input.episode, now: input.now, status: input.state.status })
+  const phase = isTimedOut ? 'timedOut' : input.state.status
   return {
     errorCode: input.state.errorCode,
     layout: input.layout,
-    phase: isTimedOut ? 'timedOut' : input.state.status,
+    ...(phase === 'pending' && input.episode !== undefined
+      ? { pendingSince: input.episode.since }
+      : {}),
+    phase,
     stale: input.state.stale,
     truncated: input.state.truncated,
   }

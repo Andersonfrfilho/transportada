@@ -100,8 +100,8 @@ describe('o intervalo da planta (spec 145 T12)', () => {
     ).toBe(false)
   })
 
-  it('para no teto de 10 min desde o começo do pending', () => {
-    expect(CARGO_LAYOUT_POLL_CEILING_MS).toBe(600_000)
+  it('para no teto de 18 min desde o começo do pending', () => {
+    expect(CARGO_LAYOUT_POLL_CEILING_MS).toBe(1_080_000)
     const episode = { key: 'trip-1', since: START }
     expect(
       resolveCargoLayoutRefetchInterval({
@@ -190,7 +190,14 @@ describe('o modelo de estado para a tela (spec 145 T12 → T13)', () => {
         now: START + 3_000,
         state: state('pending', { stale: true, truncated: true }),
       }),
-    ).toEqual({ errorCode: null, layout, phase: 'pending', stale: true, truncated: true })
+    ).toEqual({
+      errorCode: null,
+      layout,
+      pendingSince: START,
+      phase: 'pending',
+      stale: true,
+      truncated: true,
+    })
     expect(
       resolveCargoLayoutView({
         episode: undefined,

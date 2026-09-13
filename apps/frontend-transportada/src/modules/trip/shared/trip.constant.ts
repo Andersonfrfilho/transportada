@@ -293,8 +293,11 @@ export const TRIP_ON_THE_ROAD_REFETCH_MS = 30_000
 /** Spec 145 D10: enquanto a planta está `pending`, a tela pergunta de novo a cada 3 s. */
 export const CARGO_LAYOUT_REFETCH_MS = 3_000
 
-/** Spec 145 D16: acima da escada da D13 (60 + 120 + 240 s) com os retries; passado, para. */
-export const CARGO_LAYOUT_POLL_CEILING_MS = 600_000
+/** Spec 145 D16: acima da escada da D13 (120 + 240 + 480 s) + 2 retries de 30 s ≈ 15,5 min; passado, para. */
+export const CARGO_LAYOUT_POLL_CEILING_MS = 1_080_000
+
+/** Passada essa espera, o selo avisa que viagem grande leva minutos — antes disso seria alarme à toa. */
+export const CARGO_LAYOUT_SLOW_NOTICE_MS = 120_000
 
 /** As duas fases em que o motorista está reportando. Fora delas não há o que atualizar sozinho. */
 export function isTripOnTheRoad(status: string | undefined): boolean {
