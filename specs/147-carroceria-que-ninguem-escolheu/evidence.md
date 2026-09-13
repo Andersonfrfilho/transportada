@@ -66,3 +66,19 @@ from fleet_vehicles group by 1,2,3 order by 1,2,3;
   desta task; os 14 pré-existentes (document-link, route-geometry-\*) seguem verdes.
 - `bun run --cwd apps/api-transportada typecheck`: limpo.
 - `bunx prettier --check` nos dois arquivos alterados: ok.
+
+## T2 — Ligar a ocupação à função
+
+- `trip-occupancy.support.ts:112-127`: a chave da consulta de `vehicleVolumeReferences` passa a
+  vir de `resolveVolumeReferenceKey({ traction: { bodyType: vehicle.bodyType, role: 'traction',
+vehicleType: vehicle.vehicleType }, trailer: null })`. Comportamento idêntico (sem carreta, a
+  função devolve a chave do próprio veículo — D4).
+- `bun run --cwd apps/api-transportada typecheck`: limpo.
+- `bun test test/trip-infrastructure.contract.test.ts` (de dentro de `apps/api-transportada`): 18
+  pass, 0 fail — T1 (as 4 asserções novas) agora verde.
+- `bun test test/cargo-volume.contract.test.ts test/fleet-domain.contract.test.ts
+test/trip-infrastructure.contract.test.ts test/trip-application.contract.test.ts`: 475 pass, 0
+  fail.
+- Suíte completa: `bun run --cwd apps/api-transportada test`: **5047 pass, 23 skip, 0 fail** — rodou
+  inteira, sem depender de Postgres.
+- `bunx prettier --check` e `bunx eslint --max-warnings=0` no arquivo alterado: ok.

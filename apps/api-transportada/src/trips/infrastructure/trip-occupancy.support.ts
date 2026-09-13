@@ -28,7 +28,10 @@ import {
   medianBoxVolumeM3,
   resolveDocumentCargoEstimate,
 } from '../../nfe-documents/domain/cargo-volume.policy.js'
-import { resolveVehicleCapacity } from '../../fleet/domain/vehicle-capacity.policy.js'
+import {
+  resolveVehicleCapacity,
+  resolveVolumeReferenceKey,
+} from '../../fleet/domain/vehicle-capacity.policy.js'
 import {
   resolveBoxDimensionsForCubage,
   type PackageBoxDimensionsSource,
@@ -125,6 +128,10 @@ export async function loadTripOccupancy(
     }
   }
 
+  const referenceKey = resolveVolumeReferenceKey({
+    traction: { bodyType: vehicle.bodyType, role: 'traction', vehicleType: vehicle.vehicleType },
+    trailer: null,
+  })
   const [reference] = await queryable
     .select({
       cargoHeightM: vehicleVolumeReferences.cargoHeightM,
@@ -134,8 +141,8 @@ export async function loadTripOccupancy(
     .from(vehicleVolumeReferences)
     .where(
       and(
-        eq(vehicleVolumeReferences.vehicleType, vehicle.vehicleType),
-        eq(vehicleVolumeReferences.bodyType, vehicle.bodyType),
+        eq(vehicleVolumeReferences.vehicleType, referenceKey.vehicleType),
+        eq(vehicleVolumeReferences.bodyType, referenceKey.bodyType),
       ),
     )
     .limit(1)
