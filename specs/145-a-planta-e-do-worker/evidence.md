@@ -1588,3 +1588,39 @@ A investigação da T18 (só leitura), com `securesCargo: true` sobre as entrada
 relevo serrilhado das entregas do fundo, e não falta de volume. Só baixar o apoio mínimo para 50–60%
 (regra protegida, não recomendada) zera tudo. O caminho seguro em implementação é a arrumação: camadas
 niveladas por entrega, piso reservado para as primeiras entregas e vários arranjos.
+
+## Encerramento · 2026-09-13
+
+A spec 145 cumpriu o que se propôs: o empacotamento saiu do caminho da requisição. Detalhe, prévia e proposta
+leem a planta que o worker calcula, e o event loop da API não trava mais com viagens grandes. No caminho, o
+usuário decidiu D13–D26, todas registradas na spec.
+
+O que continua em aberto passou para a **spec 148 (montagem em parede)**: zerar as caixas `bedFull` no mapa
+3D sem nenhuma pilha alta isolada. Estado na passagem, com baú fechado, alcance de 2 m e o pacote em
+`feat/cargo-placement` @ `0925c14` (D23, camadas niveladas, `deliveryReachM`):
+
+| Viagem           | Caixas de fora |
+| ---------------- | -------------- |
+| Atego 84 paradas | 162            |
+| Iveco 27 paradas | 11             |
+| Sprinter         | 6              |
+| Fiorino          | 4              |
+| Accelo           | 0              |
+| Iveco antiga     | 0              |
+
+Antes das decisões D21–D24, eram 439 nas 5 viagens da proposta.
+
+A escora de 80% da borda (D25) e uma primeira montagem em parede (D26) ficaram, sem medição completa, na
+branch `wip/cargo-wall-building` do pacote (commit `591c13c`). O `dist/` do pacote foi recompilado a partir de
+`0925c14`, para o app rodar o código commitado. O harness de medição e as 6 entradas reais, anonimizadas,
+estão em `specs/148-montagem-em-parede/harness/`.
+
+Fora da 145, com tarefa própria:
+
+- distância da viagem criada (a proposta conta a volta; a viagem criada não tem distância);
+- carroceria `00` sem capacidade;
+- os 6 cenários de smoke anteriores à spec;
+- os 15 contratos de design system;
+- o catálogo de jobs do frontend.
+
+Push em dois passos (D17): primeiro `f67d4174` (o frontend que aceita as chaves novas), depois o restante.
