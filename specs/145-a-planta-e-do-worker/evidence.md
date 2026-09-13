@@ -1468,3 +1468,35 @@ o worker deste worktree subiu pelo mesmo comando do `make dev`: `.env` carregado
   camadas e a planta desenhada. Não aparece falha, planta incompleta nem marca de desatualizada.
 - **Sem cobertura visual:** a animação de troca não foi observada, porque o painel estava oculto e a
   página foi recarregada, não atualizada por polling.
+
+### Teste local completo · 2026-09-13
+
+| Etapa                                                                                     | Resultado                                   |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------- |
+| `make check`: formatação, lint e typecheck (6 apps)                                       | limpos                                      |
+| Testes da raiz                                                                            | 18 pass / 0 fail                            |
+| Testes da API                                                                             | 5057 pass / 23 skip / 0 fail                |
+| Testes do worker                                                                          | 1046 pass / 0 fail                          |
+| Testes do cron                                                                            | 94 pass / 0 fail                            |
+| Testes do frontend                                                                        | 3434 pass / 15 fail                         |
+| `make migration-test`                                                                     | 91 pass / 0 fail                            |
+| `bun run build` (rodado à parte, porque o `make check` para no primeiro script que falha) | exit 0, com `cargo-layout.worker.js` gerado |
+| `make smoke`                                                                              | 42 pass / 9 fail                            |
+
+As 15 falhas do frontend foram conferidas pelo nome: são os contratos de design system da baseline.
+
+**As 9 falhas do smoke são todas anteriores à spec.** Os mesmos cenários rodaram no commit anterior à
+T12a (primeiro commit da spec no frontend) e no HEAD, cada um com build novo e porta própria
+(`PLAYWRIGHT_REUSE_EXISTING_FRONTEND_SERVER=false`, portas 53030 e 53040). O resultado foi 9 falhas
+idênticas nos dois:
+
+- **montagem de viagem com pedágio (2 cenários):** o texto do pedágio não aparece no diálogo;
+- **CRLV e anexo do agregado (3 cenários):** chamada sem mock para `/fleet/vehicle-references`, que
+  aparece em `api.failures()`;
+- **proposta no diálogo de montar roteiro (1 cenário):** o teste ainda procura "Entregas", texto que o
+  commit `8e849738` trocou;
+- **planta do baú em escala em mobile, tablet e desktop (3 cenários):** a imagem
+  "Planta do baú em escala" não aparece.
+
+Fora do CI, o `make smoke` reaproveita o frontend de desenvolvimento que estiver na porta 53000; a
+comparação acima usou build de produção nos dois lados. As 9 falhas viraram uma tarefa separada.
