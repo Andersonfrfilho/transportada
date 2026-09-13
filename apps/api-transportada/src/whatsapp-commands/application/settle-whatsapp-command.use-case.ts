@@ -412,11 +412,11 @@ async function billAuthorizedCtes(
   // A prévia não congela CT-e sem vencimento: pedido com CT-e e sem data não existe.
   if (dueDate === undefined) throw new Error('WHATSAPP_COMMAND_DUE_DATE_MISSING')
   const ordered = [...groups].toSorted(([left], [right]) => left.localeCompare(right))
-  const results = await Promise.all(
-    ordered.map(([takerTaxId, cteDocumentIds]) =>
-      billTaker(deps, { ...input, cteDocumentIds, dueDate, takerTaxId }),
-    ),
-  )
+  // Em série de propósito: o faturamento já se serializa pela trava consultiva da empresa, e em paralelo cada fatura segurava uma conexão esperando a trava — no pool pequeno do CI isso travou o AC6 até o timeout.
+  const results: Awaited<ReturnType<typeof billTaker>>[] = []
+  for (const [takerTaxId, cteDocumentIds] of ordered) {
+    results.push(await billTaker(deps, { ...input, cteDocumentIds, dueDate, takerTaxId }))
+  }
   return {
     failures: [...missing, ...results.flatMap((result) => ('code' in result ? [result] : []))],
     invoices: results.flatMap((result) => ('count' in result ? [result] : [])),
