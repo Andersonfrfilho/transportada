@@ -159,7 +159,7 @@ describeWithPostgres('trip detail reads the stored cargo layout (spec 145 T10)',
     expect(detail?.pendingCargoLayoutInput).toBeUndefined()
   })
 
-  test('failed carries its code, keeps the last ready as stale, and asks again', async () => {
+  test('failed carries its code, keeps the last ready as stale, and asks again only past the wait (D18)', async () => {
     const seeded = await seedTrip(database, { measured: true })
     const repository = new DrizzleTripRepository(database.db)
     const first = await repository.findById(seeded)
@@ -185,7 +185,15 @@ describeWithPostgres('trip detail reads the stored cargo layout (spec 145 T10)',
       status: 'failed',
       truncated: false,
     })
-    expect(detail?.pendingCargoLayoutInput).toBeDefined()
+    expect(detail?.pendingCargoLayoutInput).toBeUndefined()
+
+    await database.db
+      .update(tripCargoLayouts)
+      .set({ updatedAt: sql`now() - interval '1 hour'` })
+      .where(eq(tripCargoLayouts.status, 'failed'))
+    const pastTheWait = await repository.findById(seeded)
+    expect(pastTheWait?.cargoLayoutState.status).toBe('failed')
+    expect(pastTheWait?.pendingCargoLayoutInput).toBeDefined()
   })
 
   test('the newest ready of the trip is the stale one served', async () => {

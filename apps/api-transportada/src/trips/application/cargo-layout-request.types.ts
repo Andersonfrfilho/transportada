@@ -18,6 +18,19 @@ export type UpsertCargoLayoutRequestParams = CargoLayoutRequestParams & {
   readonly leaseMs: number
 }
 
+/** T11: a pergunta de novo reabre a própria linha — o `companyId` do contexto sempre no filtro. */
+export type ReopenStoredCargoLayoutParams = {
+  readonly companyId: string
+  readonly correlationId: string
+  readonly layoutId: string
+}
+
+export type ReopenCargoLayoutUseCase = {
+  execute(
+    params: ReopenStoredCargoLayoutParams,
+  ): Promise<UpsertCargoLayoutRequestResult | undefined>
+}
+
 export type CargoLayoutLeaseOptions = {
   readonly cargoLayoutLeaseMs: number
 }

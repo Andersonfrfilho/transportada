@@ -64,6 +64,17 @@ export class TripNotFoundError extends ApiError {
   }
 }
 
+/** Spec 145 T11: planta de outra empresa responde igual à inexistente — nunca confirma que existe. */
+export class TripCargoLayoutNotFoundError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_CARGO_LAYOUT_NOT_FOUND',
+      message: 'The cargo layout is not registered in this company.',
+      status: 404,
+    })
+  }
+}
+
 /** ADR-0023: encerrar é terminal — repetir o encerramento é idempotente, mas nenhum outro comando muda uma viagem fechada. */
 export class TripClosedError extends ApiError {
   public constructor() {

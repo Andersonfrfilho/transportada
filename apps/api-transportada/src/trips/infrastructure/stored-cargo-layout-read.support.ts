@@ -5,7 +5,7 @@
  * ele mesmo montou — nunca empacota. No máximo duas consultas fixas (G011): a do hash atual e, se ela
  * não está pronta, a última planta pronta da viagem.
  */
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, sql, type SQL } from 'drizzle-orm'
 
 import { resolveCargoLayout, type ResolvedCargoLayout } from '@adatechnology/cargo-placement'
 
@@ -19,7 +19,7 @@ import {
 } from '../domain/cargo-layout-state.policy.js'
 import type {
   ReadyCargoLayoutRow,
-  StoredCargoLayoutRow,
+  StoredCargoLayoutRecord,
   TripCargoLayoutState,
 } from '../domain/cargo-layout-state.types.js'
 import { buildCargoLayoutLeaseExpiredCondition } from './cargo-layout-request.support.js'
@@ -44,34 +44,59 @@ function toStoredLayout(layout: unknown): ResolvedCargoLayout | null {
   return layout === null ? null : (layout as ResolvedCargoLayout)
 }
 
-async function readCurrentRow(
+async function readStoredRow(
   queryable: TripQueryable,
-  params: { readonly companyId: string; readonly inputHash: string; readonly leaseMs: number },
-): Promise<StoredCargoLayoutRow | undefined> {
+  params: { readonly condition: SQL | undefined; readonly leaseMs: number },
+): Promise<StoredCargoLayoutRecord | undefined> {
   const [row] = await queryable
     .select({
       computedAt: tripCargoLayouts.computedAt,
       errorCode: tripCargoLayouts.errorCode,
+      id: tripCargoLayouts.id,
       layout: tripCargoLayouts.layout,
       leaseExpired: sql<boolean>`${buildCargoLayoutLeaseExpiredCondition(params.leaseMs)}`,
       status: tripCargoLayouts.status,
     })
     .from(tripCargoLayouts)
-    .where(
-      and(
-        eq(tripCargoLayouts.companyId, params.companyId),
-        eq(tripCargoLayouts.inputHash, params.inputHash),
-      ),
-    )
+    .where(params.condition)
     .limit(1)
   if (row === undefined) return undefined
   return {
     computedAt: row.computedAt?.toISOString() ?? null,
     errorCode: row.errorCode,
+    id: row.id,
     layout: toStoredLayout(row.layout),
     leaseExpired: row.leaseExpired,
     status: row.status,
   }
+}
+
+/** A chave da fila (D3): a mesma entrada, da prévia ou da viagem, cai na mesma linha. */
+export function readCargoLayoutByInputHash(
+  queryable: TripQueryable,
+  params: { readonly companyId: string; readonly inputHash: string; readonly leaseMs: number },
+): Promise<StoredCargoLayoutRecord | undefined> {
+  return readStoredRow(queryable, {
+    condition: and(
+      eq(tripCargoLayouts.companyId, params.companyId),
+      eq(tripCargoLayouts.inputHash, params.inputHash),
+    ),
+    leaseMs: params.leaseMs,
+  })
+}
+
+/** T11: o id vem da URL — sem a empresa do contexto no filtro, ele abriria planta alheia (BOLA). */
+export function readCargoLayoutById(
+  queryable: TripQueryable,
+  params: { readonly companyId: string; readonly layoutId: string; readonly leaseMs: number },
+): Promise<StoredCargoLayoutRecord | undefined> {
+  return readStoredRow(queryable, {
+    condition: and(
+      eq(tripCargoLayouts.companyId, params.companyId),
+      eq(tripCargoLayouts.id, params.layoutId),
+    ),
+    leaseMs: params.leaseMs,
+  })
 }
 
 async function readPreviousReady(
@@ -114,7 +139,7 @@ export async function readTripCargoLayout(
   }
 
   const inputHash = hashCargoLayoutInput(buildCargoLayoutInput(params.input))
-  const current = await readCurrentRow(queryable, { ...params, inputHash })
+  const current = await readCargoLayoutByInputHash(queryable, { ...params, inputHash })
   const previousReady =
     current?.status === 'ready' ? undefined : await readPreviousReady(queryable, params)
   const reading = resolveCargoLayoutReading({ current, previousReady })

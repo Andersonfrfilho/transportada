@@ -152,6 +152,27 @@ describe('paradas da prévia de carga (spec 085 G002)', () => {
  * Spec 085 G006: o desenho é de **volume**, e volume não conta a história do peso — mil caixas de
  * papel higiênico e cem de bebida enchem o mesmo baú com pesos que não se parecem.
  */
+/**
+ * Spec 145 T11: estes casos não têm baú (`bedDimensions: null`), então a prévia sai `unavailable` e
+ * nunca toca a tabela nem a fila — qualquer chamada aqui é defeito.
+ */
+const UNUSED_LAYOUT_DEPENDENCIES = {
+  correlationId: 'correlation-preview',
+  layouts: {
+    findById: async () => {
+      throw new Error('Unexpected cargo layout lookup')
+    },
+    findByInputHash: async () => {
+      throw new Error('Unexpected cargo layout lookup')
+    },
+  },
+  requestCargoLayout: {
+    execute: async () => {
+      throw new Error('Unexpected cargo layout request')
+    },
+  },
+}
+
 describe('a prévia acusa peso concentrado numa parada', () => {
   const CONTEXT = {
     bedDimensions: null,
@@ -169,6 +190,7 @@ describe('a prévia acusa peso concentrado numa parada', () => {
 
   test('devolve a parada que domina o peso, pela chave da parada', async () => {
     const preview = await previewTripCargo({
+      ...UNUSED_LAYOUT_DEPENDENCIES,
       companyId: 'company',
       driverIds: [],
       nfeDocumentIds: ['a', 'b'],
@@ -208,6 +230,7 @@ describe('a prévia acusa peso concentrado numa parada', () => {
 
   test('carga equilibrada não acusa nada', async () => {
     const preview = await previewTripCargo({
+      ...UNUSED_LAYOUT_DEPENDENCIES,
       companyId: 'company',
       driverIds: [],
       nfeDocumentIds: ['a', 'b'],
@@ -248,6 +271,7 @@ describe('a prévia acusa peso concentrado numa parada', () => {
 describe('a prévia carimba a nota nas caixas pendentes de medição (spec 144 D4)', () => {
   test('pendingMeasurements sai com o documentNumber da nota', async () => {
     const preview = await previewTripCargo({
+      ...UNUSED_LAYOUT_DEPENDENCIES,
       companyId: 'company',
       driverIds: [],
       nfeDocumentIds: ['a'],

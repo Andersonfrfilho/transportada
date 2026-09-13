@@ -51,6 +51,9 @@ type RouteDependencies = {
   readonly separateTripDocument: { execute(input: ExecuteCall): Promise<TransitionResult> }
   readonly readValuation: { execute(input: ExecuteCall): Promise<unknown> }
   readonly requestCargoLayout: { execute(input: ExecuteCall): Promise<unknown> }
+  readonly previewCargo: { execute(input: ExecuteCall): Promise<unknown> }
+  readonly readCargoLayout: { execute(input: ExecuteCall): Promise<unknown> }
+  readonly reopenCargoLayout: { execute(input: ExecuteCall): Promise<unknown> }
   readonly setMdfeRequirement: { execute(input: ExecuteCall): Promise<unknown> }
   readonly logger: {
     error(message: string, metadata?: Record<string, unknown>): void
@@ -72,6 +75,12 @@ type CreateFixtureParams = {
   readonly getTripError?: Error
   readonly getTripResult?: object
   readonly requestCargoLayoutError?: Error
+  readonly previewCargoResult?: unknown
+  readonly readCargoLayoutError?: Error
+  readonly readCargoLayoutResult?: unknown
+  readonly reopenCargoLayoutError?: Error
+  readonly reopenCargoLayoutResult?: unknown
+  readonly requestCargoLayoutResult?: unknown
   readonly linkTripDocumentError?: Error
   readonly listDeliveryAddressHistoryError?: Error
   readonly listDeliveryAddressHistoryResult?: unknown
@@ -126,6 +135,9 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   readonly separateTripDocumentCalls: ExecuteCall[]
   readonly readValuationCalls: ExecuteCall[]
   readonly requestCargoLayoutCalls: ExecuteCall[]
+  readonly previewCargoCalls: ExecuteCall[]
+  readonly readCargoLayoutCalls: ExecuteCall[]
+  readonly reopenCargoLayoutCalls: ExecuteCall[]
   readonly warnings: ExecuteCall[]
   readonly setMdfeRequirementCalls: ExecuteCall[]
 }> {
@@ -146,6 +158,9 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   const planTripRouteCalls: ExecuteCall[] = []
   const readValuationCalls: ExecuteCall[] = []
   const requestCargoLayoutCalls: ExecuteCall[] = []
+  const previewCargoCalls: ExecuteCall[] = []
+  const readCargoLayoutCalls: ExecuteCall[] = []
+  const reopenCargoLayoutCalls: ExecuteCall[] = []
   const warnings: ExecuteCall[] = []
   const setMdfeRequirementCalls: ExecuteCall[] = []
   const releaseTripDocumentCalls: ExecuteCall[] = []
@@ -309,11 +324,39 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
       async execute(input) {
         requestCargoLayoutCalls.push(structuredClone(input))
         if (params.requestCargoLayoutError) throw params.requestCargoLayoutError
-        return {
-          enqueued: true,
-          layoutId: '00000000-0000-4000-8000-000000000c01',
-          status: 'queued',
-        }
+        return (
+          params.requestCargoLayoutResult ?? {
+            enqueued: true,
+            layoutId: '00000000-0000-4000-8000-000000000c01',
+            status: 'queued',
+          }
+        )
+      },
+    },
+    previewCargo: {
+      async execute(input) {
+        previewCargoCalls.push(structuredClone(input))
+        return params.previewCargoResult ?? {}
+      },
+    },
+    readCargoLayout: {
+      async execute(input) {
+        readCargoLayoutCalls.push(structuredClone(input))
+        if (params.readCargoLayoutError) throw params.readCargoLayoutError
+        return params.readCargoLayoutResult ?? {}
+      },
+    },
+    reopenCargoLayout: {
+      async execute(input) {
+        reopenCargoLayoutCalls.push(structuredClone(input))
+        if (params.reopenCargoLayoutError) throw params.reopenCargoLayoutError
+        return (
+          params.reopenCargoLayoutResult ?? {
+            enqueued: true,
+            layoutId: '00000000-0000-4000-8000-000000000c01',
+            status: 'queued',
+          }
+        )
       },
     },
     setMdfeRequirement: {
@@ -398,6 +441,9 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
     releaseTripDocumentCalls,
     reorderStopsCalls,
     requestCargoLayoutCalls,
+    previewCargoCalls,
+    readCargoLayoutCalls,
+    reopenCargoLayoutCalls,
     warnings,
     setMdfeRequirementCalls,
     returnTripDocumentCalls,

@@ -1,14 +1,17 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import {
-  resolveCargoLayout,
-  type CargoBedDimensions,
-  type CargoPlanBox,
-  type MeasuredBoxShape,
-  type ResolvedCargoLayout,
+import type {
+  CargoBedDimensions,
+  CargoPlanBox,
+  MeasuredBoxShape,
+  ResolvedCargoLayout,
 } from '@adatechnology/cargo-placement'
 import { formatScaledDecimal, parseScaledDecimal } from '../../shared/decimal.service.js'
+import type { TripCargoLayoutState } from '../domain/cargo-layout-state.types.js'
+import type { CargoLayoutLookupPort } from './cargo-layout-lookup.port.js'
+import { resolvePreviewCargoLayout } from './preview-cargo-layout.service.js'
+import type { RequestCargoLayoutUseCase } from './request-cargo-layout.types.js'
 import {
   buildCargoPreviewStops,
   type CargoPreviewDocument,
@@ -24,9 +27,13 @@ import type { TripCargoWeightView, TripOccupancyView } from './trip.port.js'
 const WEIGHT_SCALE = 4n
 
 export type TripCargoPreview = {
+  /** Spec 145 T11: `null` enquanto o worker calcula — a prévia não tem viagem com planta anterior. */
   readonly cargoLayout: ResolvedCargoLayout | null
   readonly cargoWeight: TripCargoWeightView | null
+  /** A linha em `trip_cargo_layouts` que a tela pergunta de novo; ausente em `unavailable`. */
+  readonly layoutId?: string
   readonly occupancy: TripOccupancyView | null
+  readonly state: TripCargoLayoutState
   /**
    * Spec 085 G006: a parada que domina o peso, quando alguma domina. O desenho do baú é de volume,
    * e volume não conta esta história — quem carrega precisa das duas.
@@ -68,6 +75,10 @@ export type TripCargoPreviewPort = {
 
 export type PreviewTripCargoInput = {
   readonly companyId: string
+  /** O da requisição: é ele que a outbox leva ao worker quando a prévia pede a planta. */
+  readonly correlationId: string
+  readonly layouts: CargoLayoutLookupPort
+  readonly requestCargoLayout: RequestCargoLayoutUseCase
   /**
    * ⚠️ Vazio é o caso comum no diálogo de montagem: o desenho aparece antes de o motorista ser
    * escolhido. Ausência é **não amarra**, o limite conservador — e a planta se redesenha quando ele
@@ -100,8 +111,10 @@ export async function previewTripCargo(input: PreviewTripCargoInput): Promise<Tr
     vehicleId: input.vehicleId,
   })
 
-  return {
-    cargoLayout: resolveCargoLayout({
+  const layout = await resolvePreviewCargoLayout({
+    companyId: input.companyId,
+    correlationId: input.correlationId,
+    layoutInput: {
       /** Spec 088 D2: só a ficha desenha planta — a referência de mercado erra por 2× no tipo. */
       bedDimensions: context.bedDimensions,
       capacityM3: context.capacityM3,
@@ -118,7 +131,13 @@ export async function previewTripCargo(input: PreviewTripCargoInput): Promise<Tr
         documents: context.documents,
         order: input.stopOrder,
       }),
-    }),
+    },
+    layouts: input.layouts,
+    requestCargoLayout: input.requestCargoLayout,
+  })
+
+  return {
+    ...layout,
     cargoWeight: context.cargoWeight,
     occupancy: context.occupancy,
     weightConcentration: detectWeightConcentration({ stops: sumWeightByStop(context.documents) }),

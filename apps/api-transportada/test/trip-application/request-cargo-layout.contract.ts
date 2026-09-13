@@ -44,6 +44,9 @@ function createFakeRepository(): CargoLayoutRequestPort & {
   const calls: CargoLayoutRequestParams[] = []
   return {
     calls,
+    async reopenStoredLayout() {
+      throw new Error('The request use case never reopens a stored row')
+    },
     async requestLayout(params) {
       calls.push(params)
       return { enqueued: true, layoutId: 'layout-1', status: 'queued' }

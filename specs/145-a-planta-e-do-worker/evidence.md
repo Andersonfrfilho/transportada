@@ -905,6 +905,196 @@ D10 feita pelo orquestrador.
 - **Orçamento de consultas:** sem mudança. `resolveCargoLayout` é puro. Sem baú continua 6 = 6
   selects, com 0 leituras da tabela; com baú medido, 9 = 9, com 2 leituras fixas.
 
+### T11 — a prévia pede a planta, e a tela pergunta de novo · 2026-09-12
+
+Rodou em `opus`: `sonnet` sem cota até 2026-09-14 09:00. Contratos vermelhos antes da implementação.
+Segue D3, D6, D7, D10 e D13–D17. Nenhuma regra física, migration ou coluna nova.
+
+- **A prévia não empacota mais na requisição.** `previewTripCargo` monta a mesma entrada de antes e
+  delega a `resolvePreviewCargoLayout` (`src/trips/application/preview-cargo-layout.service.ts`,
+  novo). Com isso o último `resolveCargoLayout` com baú saiu da API: a outra metade do bloqueio do
+  event loop (a proposta de 82 paradas e 1431 caixas) fechou.
+  - Sem capacidade ou sem baú (D15): a planta leve sai na hora, com `resolveCargoLayout({
+...layoutInput, bedDimensions: null })`, igual à T10. O estado é `unavailable`, sem `layoutId`
+    (chave ausente, que o front aceita), e nada é lido nem enfileirado.
+  - Nos outros casos: hash (D6) → leitura de `trip_cargo_layouts` por `(company_id, input_hash)`
+    → `resolveCargoLayoutReading` da T10, sem planta anterior (a prévia não tem viagem, D3):
+    - `ready` → a planta guardada, com `truncated` derivado de `time_budget` (D13);
+    - sem linha, `failed` ou `queued`/`running` além do lease → pede de novo com
+      `createRequestCargoLayoutUseCase`, `tripId: null` e o `correlationId` da requisição;
+    - pendente → `cargoLayout: null` + `pending`;
+    - `failed` → serve o `errorCode` da linha e reabre pelo upsert, como o detalhe faz. Na próxima
+      pergunta a tela vê `pending`.
+    - `layoutId` = o que o upsert devolveu ou o id da linha lida (é a mesma linha, pela chave única).
+  - A rota `POST /trips/cargo-preview` passou a receber `correlationId` pelo `parse`, no padrão da
+    `GET /trips/:id`. Falha do upsert **propaga** (503 etc.): aqui não há leitura já feita para
+    salvar, ao contrário do lazy da T10, e o use case não faz `try/catch`.
+- **Rota de polling:** `GET /trips/cargo-layouts/:layoutId` → `{ data: { layoutId, state,
+cargoLayout } }`, no mesmo envelope `{ data }` das outras rotas de viagem.
+  - `createReadCargoLayoutUseCase` (novo) busca por `(company_id do contexto, id)` e deriva o
+    estado com a mesma `resolveCargoLayoutReading`. É só leitura: quem pede é a prévia.
+  - Ausente, ou de outra empresa → `TripCargoLayoutNotFoundError` (404
+    `TRIP_CARGO_LAYOUT_NOT_FOUND`), nunca 403 nem 200.
+  - `pathParameterFormat: 'raw'` + `parseUuidPathIdentifier` (Zod) → 400 `INVALID_REQUEST`. O
+    `canonicalUuid` padrão responderia 404 a id malformado antes de a rota existir, o que misturaria
+    erro do cliente com ausência; é o mesmo motivo documentado no router para convites.
+  - **Permissão:** `TRIP_MANAGE_POLICY`, espelhando a prévia. O separador alcança a prévia (decisão
+    escrita da spec 085), então alcança o polling. `test/separator-role.contract.test.ts` reprovou a
+    rota nova, como devia, e ela entrou na lista com a decisão escrita ao lado.
+- **Leitura compartilhada:** `stored-cargo-layout-read.support.ts` ganhou
+  `readCargoLayoutByInputHash`/`readCargoLayoutById` sobre um leitor único, que agora também devolve o
+  `id` (`StoredCargoLayoutRecord`). O detalhe da T10 usa o primeiro, sem consulta a mais.
+  `DrizzleCargoLayoutLookupRepository` (novo) implementa `CargoLayoutLookupPort` com o lease injetado,
+  e o `main.ts` o monta com o mesmo `cargoLayoutLeaseOptions`.
+- **Documentação da rota:** a API não tem OpenAPI nem catálogo de rotas; procurei em `src/`, `docs/`
+  e `test/`. A rota está documentada na constante do caminho (`trip.routes.ts`, junto das outras de
+  viagem), na lista por extenso do `separator-role` e aqui.
+- **Env:** `CARGO_LAYOUT_TIME_BUDGET_MS` já está no schema da API e no `.env.example` da raiz desde a
+  T9b. Conferido, e sem mudança nesta task. `env-example.contract.test.ts` segue verde na suíte.
+- **Contratos:**
+  - `test/cargo-volume/cargo-preview-layout.contract.ts` (novo, 11 testes, no entrypoint
+    `cargo-volume.contract.test.ts`, que já está listado). A prévia cobre: `unavailable` (planta
+    leve, sem `layoutId`, sem ler nem enfileirar); `ready` pelo hash (o hash procurado é o de
+    `buildCargoLayoutInput` sobre a mesma entrada); `truncated` derivado; `pending` enfileirando com
+    `tripId: null` e o `correlationId`; `running` recente sem enfileirar; lease vencido pedindo de
+    novo; `failed` com código e reabertura. Há ainda a **guarda do empacotador por leitura de
+    fonte**: o use case não tem `resolveCargoLayout(`, e o serviço tem exatamente um, com
+    `bedDimensions: null`. O polling cobre: forma exata com `ready`, `pending` e 404 de ausente.
+  - `test/trip-http/cargo-layout.contract.ts` (novo, 5 testes, no entrypoint
+    `trip-http.contract.test.ts`, já listado): a prévia repassa o `correlationId` da requisição; o
+    polling responde 200 com as chaves exatas (`cargoLayout`/`layoutId`/`state` e as cinco de
+    `state`) e busca pela empresa do contexto; 404 de outra empresa; 400 em uuid inválido sem
+    consultar; 403 com só `fleet.read`. A fixture HTTP ganhou `previewCargo` e `readCargoLayout`.
+  - `test/cargo-volume/cargo-preview.contract.ts`: os três casos antigos (sem baú) ganharam
+    dependências que **lançam** se forem chamadas. Assim eles provam também que `unavailable` não
+    toca tabela nem fila.
+  - `test/integration/trip-cargo-preview-layout.integration.ts` (novo, 4 testes contra Postgres,
+    adicionado a `test:integration`):
+    - **D3:** a prévia enfileira uma vez com `tripId null` e o `correlationId`; a segunda prévia
+      igual não enfileira; o gatilho eager real da viagem (`createRequestCargoLayoutForTrip`) com a
+      mesma entrada devolve `enqueued: false`, com o mesmo `layoutId`; a linha ganha o `tripId`, e a
+      outbox continua com 1 linha;
+    - `ready` servido pela prévia e pelo polling, sem enfileirar;
+    - `failed` servido com código, e a linha reaberta para `queued`, com a outbox em 2;
+    - **polling de outra empresa → 404** `TRIP_CARGO_LAYOUT_NOT_FOUND` (tenant negativo contra o
+      banco).
+- **Vermelho** (antes de qualquer código de produção):
+  - `cargo-volume.contract.test.ts` → **0 pass, 1 fail** (`Cannot find module
+…/read-cargo-layout.use-case.js`);
+  - `trip-http.contract.test.ts` → **0 pass, 1 fail** (`TripCargoLayoutNotFoundError` inexistente);
+  - `separator-role.contract.test.ts` → **5 pass, 1 fail** (a lista sem a rota nova);
+  - integração nova → **0 pass, 1 fail** (módulo ausente).
+- **Verde:**
+  - `bunx tsc --noEmit` limpo;
+  - `bunx prettier --write` e `bunx eslint` nos 20 `.ts` tocados: limpos;
+  - os três entrypoints → **233 pass, 0 fail** (509 `expect()`);
+  - integrações `trip-cargo-preview-layout` + `trip-cargo-layout-read` + `trip-detail-query-count`
+    (Postgres local 55432) → **14 pass, 0 fail**;
+  - suíte inteira da API (`bun run test`) → **5013 pass, 0 fail** (18 066 `expect()`, 5036 testes em
+    164 arquivos). O intermitente `keycloak-realm` não apareceu.
+- **Correções durante o verde, sem mudar comportamento:** a lista do separador é ordenada, e `:`
+  vem antes de `c`, então a rota nova ficou depois de `GET /trips/:id/stops`. O contrato HTTP da
+  prévia mandava `nfeDocumentIds: []`, que o schema recusa com `min(1)`.
+- **Para o orquestrador / T12:** a prévia responde `failed` na mesma resposta em que reabre o pedido
+  (espelha a T10). Se o front parar de perguntar ao ver `failed`, não verá o resultado da nova
+  tentativa. O polling em si nunca reabre nada (GET idempotente): um pedido da prévia parado além do
+  lease só é reaberto na próxima `POST /trips/cargo-preview`, ou pela viagem. _(Superado pelos
+  ajustes abaixo.)_
+
+#### Ajustes do orquestrador na T11 · 2026-09-13
+
+Os dois ajustes vieram da D16 ("nunca ficar sem resposta") e das pendências acima. Antes de
+implementar, parei e relatei um laço de custo sem teto, e o usuário aprovou a espera no servidor: é a
+**D18** (registrada na spec pelo orquestrador).
+
+- **O laço (lido no worker):** `cargo-layout-handler.service.ts:62-110` grava `failed` **na hora,
+  sem retry**, em três casos: entrada fora do schema, exceção do empacotador (os dois com
+  `CARGO_LAYOUT_FAILED`) e planta nula (`CARGO_LAYOUT_UNAVAILABLE`). Se leitura e polling reabrissem
+  `failed` sempre, a planta nunca terminaria:
+  - o polling de 3 s reabre, o worker falha igual, e o polling reabre de novo;
+  - no detalhe, servir `pending` depois de reabrir faz o refetch da T12 entrar no mesmo ciclo;
+  - o teto de 10 min da D16 vale só no cliente.
+
+  Decidir pelo `errorCode` não resolve: `CARGO_LAYOUT_FAILED` também é a falha **transitória** de
+  escrita na última tentativa (linha 79), que ficaria presa para sempre.
+
+- **D18, no upsert (G006):** a condição de reabrir virou `status in ('failed', 'queued', 'running')
+and updated_at < now() - lease`, com o mesmo `leaseMs` injetado (280 s no orçamento padrão). É
+  uma cláusula só para todos os gatilhos: eager, lazy, prévia e polling.
+  - `failed` recente é no-op e serve `failed` com o código; a espera limita a um ciclo por lease por
+    linha, qualquer que seja o cliente.
+  - Entrada editada gera hash novo e linha nova, e é calculada na hora.
+  - `resolveCargoLayoutReading` acompanha: `shouldRequest` de `failed` agora é `leaseExpired`, o que
+    evita a transação no-op a cada leitura.
+  - **Confirmado:** antes da D18, `failed` sempre reabria, então a prévia nunca servia `failed`.
+    Agora ela serve `failed` dentro da espera.
+- **Ajuste 1 — reabriu, a resposta é `pending`:** `markCargoLayoutRequested` (política pura) devolve
+  o estado com `status: 'pending'` e `errorCode: null`. `computedAt`, `stale` e `truncated` continuam
+  os da leitura, e a planta `stale` segue servida como fantasma.
+  - Na **prévia**, vale quando o upsert devolve `enqueued: true`.
+  - No **detalhe**, `requestCargoLayoutAfterRead` passou a devolver `enqueued`, e a rota serializa o
+    estado marcado. Lazy que falha (catch→warn da T10) ou que não reabre mantém o estado da leitura.
+  - Nenhuma consulta nova: vale o resultado do upsert.
+- **Ajuste 2 — o polling reabre o que parou:** `readCargoLayout` devolve `shouldRequest`, que a rota
+  lê e nunca serializa. A resposta segue com exatamente `cargoLayout`, `layoutId` e `state`.
+  - Quando `shouldRequest` é verdadeiro, a rota chama `reopenCargoLayout`
+    (`createReopenCargoLayoutUseCase` →
+    `DrizzleCargoLayoutRequestRepository.reopenStoredLayout` → `reopenStoredCargoLayoutRequest`).
+  - Numa transação, `reopenStoredCargoLayoutRequest` lê `input`/`input_hash`/`policy_version`/`trip_id`
+    da própria linha, filtrando por `(company_id do contexto, id)`, e chama o **mesmo**
+    `upsertCargoLayoutRequest` com o `correlationId` da requisição. A viagem não é relida e o hash
+    não é recalculado.
+  - Enfileirou → `pending`. Upsert que lança → catch→warn `trip.cargo_layout.request_failed` com
+    `{ correlationId, errorCode, layoutId }`, e responde 200 com a leitura.
+  - O aviso leva `layoutId` no lugar do `tripId` do detalhe: o polling não lê a viagem, e a linha da
+    prévia nem tem viagem. As chaves continuam só referências opacas.
+- **Contratos (vermelho → verde):**
+  - `test/trip-infrastructure/cargo-layout-request.contract.ts`: SQL novo da reabertura, e `failed`
+    recente sem outbox (novo).
+  - `test/trip-domain/cargo-layout-state.contract.ts`: `failed` recente espera; `failed` além da
+    espera pede; `markCargoLayoutRequested` (os dois últimos são novos).
+  - `test/cargo-volume/cargo-preview-layout.contract.ts`: `failed` recente serve o código sem pedir;
+    `failed` além da espera reabre e responde `pending`; o polling devolve `shouldRequest`, e `failed`
+    velho pede.
+  - `test/trip-http/detail.contract.ts`: lazy que enfileirou responde `pending` sem código (novo). O
+    caso "serve o estado" ganhou `requestCargoLayoutResult` com `enqueued: false`, e o lazy que falha
+    continua servindo a leitura.
+  - `test/trip-http/cargo-layout.contract.ts` (+4):
+    - linha além da espera reabre com `companyId`, `correlationId` e `layoutId`, e responde `pending`;
+    - linha recente não chama o upsert;
+    - upsert que não reabriu mantém a leitura;
+    - upsert que lança → 200, a leitura, e o aviso com as três chaves.
+
+    A fixture ganhou `reopenCargoLayout` e `requestCargoLayoutResult`.
+
+  - `test/integration/trip-cargo-preview-layout.integration.ts`:
+    - `failed` recente é servido sem outbox nova;
+    - `failed` além da espera reabre, com `pending` e a outbox em 2;
+    - **o polling reabre pela linha guardada**: recente é no-op; outra empresa → `undefined`, sem
+      outbox; além da espera enfileira com `correlation-polling`, e `input`/`input_hash` ficam
+      idênticos.
+  - `test/integration/trip-cargo-layout-read.integration.ts`: `failed` recente não pede; depois de
+    envelhecer `updated_at` além do lease, pede.
+  - `test/trip-application/request-cargo-layout.contract.ts`: o fake do port ganhou
+    `reopenStoredLayout`, que lança se for chamado.
+
+- **Vermelho:**
+  - `trip-infrastructure` → **41 pass, 1 fail**;
+  - `trip-domain` → **0 pass, 1 fail** (`markCargoLayoutRequested` inexistente);
+  - `cargo-volume` → **169 pass, 5 fail**;
+  - `trip-http` → **56 pass, 4 fail**;
+  - integrações da planta → **9 pass, 5 fail**.
+- **Verde:**
+  - os seis entrypoints tocados (+ `trip-application` e `separator-role`) → **486 pass, 0 fail**
+    (1511 `expect()`);
+  - integrações `trip-cargo-preview-layout` + `trip-cargo-layout-read` + `trip-detail-query-count`
+    (Postgres local) → **16 pass, 0 fail**;
+  - suíte inteira da API → **5023 pass, 0 fail** (18 088 `expect()`, 5046 testes em 164 arquivos);
+  - `bunx tsc --noEmit`, `prettier --write` e `eslint` nos tocados: limpos.
+- **Para a T12:** `failed` agora é resposta estável dentro da espera. O front pode parar de perguntar
+  ao ver `failed` e mostrar "não foi possível calcular agora" (D16). Numa próxima abertura depois do
+  lease, a leitura reabre sozinha.
+
 ## Fase 5 — Frontend (T12, T13)
 
 ## Fase 6 — Documentação e gate final (T14)

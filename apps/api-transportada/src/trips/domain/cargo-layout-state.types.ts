@@ -32,6 +32,9 @@ export type StoredCargoLayoutRow = {
   readonly status: CargoLayoutStatus
 }
 
+/** A mesma linha com o `id` — o `layoutId` que a prévia devolve e a tela pergunta de novo (T11). */
+export type StoredCargoLayoutRecord = StoredCargoLayoutRow & { readonly id: string }
+
 export type ReadyCargoLayoutRow = {
   readonly computedAt: string | null
   readonly layout: ResolvedCargoLayout

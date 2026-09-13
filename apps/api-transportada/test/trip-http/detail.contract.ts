@@ -150,6 +150,11 @@ describe('GET /trips/:id', () => {
         cargoLayoutState,
         pendingCargoLayoutInput: { capacityM3: '48.000', stops: [] },
       },
+      requestCargoLayoutResult: {
+        enqueued: false,
+        layoutId: '00000000-0000-4000-8000-000000000c01',
+        status: 'failed',
+      },
     })
 
     const response = await fixture.handle(jsonRequest({ method: 'GET', path: tripDetailPath() }))
@@ -157,6 +162,38 @@ describe('GET /trips/:id', () => {
 
     expect(data.cargoLayoutState).toEqual(cargoLayoutState)
     expect(Object.keys(data)).not.toContain('pendingCargoLayoutInput')
+  })
+
+  /**
+   * Orquestrador na T11 (D16/D18): o lazy que **enfileirou** muda o que a resposta diz — o pedido novo
+   * está pendente, e o código da falha antiga não vale mais. A planta `stale` continua servida.
+   */
+  test('a lazy request that enqueued answers pending, without the old error code', async () => {
+    const fixture = await createTripHttpFixture({
+      getTripResult: {
+        ...TRIP_DETAIL,
+        cargoLayoutState: {
+          computedAt: '2026-09-12T10:00:00.000Z',
+          errorCode: 'CARGO_LAYOUT_FAILED',
+          stale: true,
+          status: 'failed',
+          truncated: false,
+        },
+        pendingCargoLayoutInput: { capacityM3: '48.000', stops: [] },
+      },
+    })
+
+    const response = await fixture.handle(jsonRequest({ method: 'GET', path: tripDetailPath() }))
+    const data = (await responseData(response)) as Record<string, unknown>
+
+    expect(fixture.requestCargoLayoutCalls).toHaveLength(1)
+    expect(data.cargoLayoutState).toEqual({
+      computedAt: '2026-09-12T10:00:00.000Z',
+      errorCode: null,
+      stale: true,
+      status: 'pending',
+      truncated: false,
+    })
   })
 
   test('does not ask when the read needs nothing, unavailable included', async () => {

@@ -169,6 +169,13 @@ describe('separator role contract', () => {
        */
       'GET /trips/:id/schedules',
       'GET /trips/:id/stops',
+      /**
+       * Spec 145 T11: a pergunta de novo pela planta que a prévia de carga pediu. Espelha a
+       * permissão da prévia (`trip.manage`), e o separador a alcança pela mesma razão que alcança a
+       * prévia (spec 085, abaixo): sem ela, a planta que ele pediu nunca chegaria à tela dele. Ela
+       * devolve só a planta e o estado do cálculo — nada de receita, custo ou ficha de pessoa.
+       */
+      'GET /trips/cargo-layouts/:layoutId',
       'PATCH /trips/:id/stops/order',
       /**
        * A mesma linha da estrada da rota irmã, para pontos que **ainda não são viagem**: é o mapa

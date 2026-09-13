@@ -10,6 +10,7 @@ import type { ResolvedCargoLayout } from '@adatechnology/cargo-placement'
 import {
   CARGO_LAYOUT_READ_STATUSES,
   UNAVAILABLE_CARGO_LAYOUT_STATE,
+  markCargoLayoutRequested,
   resolveCargoLayoutReading,
 } from '../../src/trips/domain/cargo-layout-state.policy.js'
 import type { StoredCargoLayoutRow } from '../../src/trips/domain/cargo-layout-state.types.js'
@@ -126,7 +127,8 @@ describe('stored cargo layout reading (spec 145 D10/D13/D16, T10)', () => {
     }
   })
 
-  test('failed carries its stable code, keeps the last ready as stale, and asks again', () => {
+  /** D18: dentro da espera, `failed` é a resposta — pedir de novo repetiria a mesma falha. */
+  test('failed carries its stable code, keeps the last ready as stale, and waits', () => {
     const reading = resolveCargoLayoutReading({
       current: row({ errorCode: 'CARGO_LAYOUT_FAILED', leaseExpired: false, status: 'failed' }),
       previousReady: PREVIOUS_READY,
@@ -140,7 +142,36 @@ describe('stored cargo layout reading (spec 145 D10/D13/D16, T10)', () => {
       status: 'failed',
       truncated: false,
     })
+    expect(reading.shouldRequest).toBe(false)
+  })
+
+  test('failed past the wait asks again (D16/D18)', () => {
+    const reading = resolveCargoLayoutReading({
+      current: row({ errorCode: 'CARGO_LAYOUT_FAILED', leaseExpired: true, status: 'failed' }),
+      previousReady: undefined,
+    })
+
+    expect(reading.cargoLayoutState.status).toBe('failed')
     expect(reading.shouldRequest).toBe(true)
+  })
+
+  /** Reabriu: o estado servido é o do pedido novo, sem o código da falha antiga. */
+  test('a request that enqueued turns the served state pending, keeping the stale layout', () => {
+    const failed = {
+      computedAt: OLD_COMPUTED_AT,
+      errorCode: 'CARGO_LAYOUT_FAILED',
+      stale: true,
+      status: 'failed',
+      truncated: true,
+    } as const
+
+    expect(markCargoLayoutRequested(failed)).toEqual({
+      computedAt: OLD_COMPUTED_AT,
+      errorCode: null,
+      stale: true,
+      status: 'pending',
+      truncated: true,
+    })
   })
 
   test("the column default '' is served as null, never as an empty code", () => {

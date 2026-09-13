@@ -4,9 +4,9 @@
  * Spec 145 D8 (G006): o upsert que decide entre nascer, reabrir ou não fazer nada — e é a mesma
  * transação que grava o outbox, nunca uma escrita solta depois.
  *
- * ⚠️ Reabre `failed` e, pela D14/D16, `queued`/`running` com `updated_at` mais velho que o lease do
- * worker — mensagem perdida ou worker morto no meio. `ready` e o pedido recente ficam no-op: enfileirar
- * de novo duplicaria o trabalho do worker sem trazer nada de volta.
+ * ⚠️ Reabre `failed`, `queued` e `running` só com `updated_at` mais velho que o lease do worker
+ * (D14/D16/D18) — mensagem perdida, worker morto no meio, ou a espera depois de uma falha. `ready` e o
+ * pedido recente ficam no-op: enfileirar de novo duplicaria o trabalho do worker sem trazer nada.
  */
 import { and, eq, sql, type SQL } from 'drizzle-orm'
 
@@ -16,9 +16,11 @@ import {
 } from '../../database/trip-cargo-layout-outbox.schema.js'
 import { tripCargoLayouts } from '../../database/trip-cargo-layout.schema.js'
 import type {
+  ReopenStoredCargoLayoutParams,
   UpsertCargoLayoutRequestParams,
   UpsertCargoLayoutRequestResult,
 } from '../application/cargo-layout-request.types.js'
+import type { StoredCargoLayoutInput } from '../domain/cargo-layout-hash.types.js'
 import type { TripTransaction } from './trip-queryable.type.js'
 
 const [CARGO_LAYOUT_REQUESTED_EVENT_TYPE] = CARGO_LAYOUT_OUTBOX_EVENT_TYPES
@@ -28,8 +30,9 @@ export function buildCargoLayoutLeaseExpiredCondition(leaseMs: number): SQL {
   return sql`${tripCargoLayouts.updatedAt} < now() - (${leaseMs} * interval '1 millisecond')`
 }
 
+/** D18: `failed` também espera o lease — reabrir falha recente a cada leitura não teria teto. */
 function buildCargoLayoutReopenCondition(leaseMs: number): SQL {
-  return sql`${tripCargoLayouts.status} = 'failed' or (${tripCargoLayouts.status} in ('queued', 'running') and ${buildCargoLayoutLeaseExpiredCondition(leaseMs)})`
+  return sql`${tripCargoLayouts.status} in ('failed', 'queued', 'running') and ${buildCargoLayoutLeaseExpiredCondition(leaseMs)}`
 }
 
 async function handleNoOpRequest(
@@ -64,6 +67,44 @@ async function handleNoOpRequest(
   }
 
   return { enqueued: false, layoutId: existing.id, status: existing.status }
+}
+
+/**
+ * Spec 145 T11 (D16/D18): o polling reabre pela própria linha — entrada, hash, versão e viagem que ela
+ * guarda —, sem reler a viagem nem recalcular o hash. O mesmo upsert decide se reabre. `undefined` é
+ * linha ausente nesta empresa.
+ */
+export async function reopenStoredCargoLayoutRequest(
+  transaction: TripTransaction,
+  params: ReopenStoredCargoLayoutParams & { readonly leaseMs: number },
+): Promise<UpsertCargoLayoutRequestResult | undefined> {
+  const [stored] = await transaction
+    .select({
+      input: tripCargoLayouts.input,
+      inputHash: tripCargoLayouts.inputHash,
+      policyVersion: tripCargoLayouts.policyVersion,
+      tripId: tripCargoLayouts.tripId,
+    })
+    .from(tripCargoLayouts)
+    .where(
+      and(
+        eq(tripCargoLayouts.companyId, params.companyId),
+        eq(tripCargoLayouts.id, params.layoutId),
+      ),
+    )
+    .limit(1)
+  if (stored === undefined) return undefined
+
+  return upsertCargoLayoutRequest(transaction, {
+    companyId: params.companyId,
+    correlationId: params.correlationId,
+    // `input` só é escrito por este módulo, com `buildStoredCargoLayoutInput` (T6b)
+    input: stored.input as StoredCargoLayoutInput,
+    inputHash: stored.inputHash,
+    leaseMs: params.leaseMs,
+    policyVersion: stored.policyVersion,
+    tripId: stored.tripId,
+  })
 }
 
 export async function upsertCargoLayoutRequest(

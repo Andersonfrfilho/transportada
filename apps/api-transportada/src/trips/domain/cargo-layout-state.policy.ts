@@ -38,12 +38,19 @@ function resolveReadStatus(current: StoredCargoLayoutRow | undefined): CargoLayo
   return 'pending'
 }
 
-/** D7/D16: sem linha, falha ou pedido parado além do lease — os mesmos casos que o upsert reabre. */
+/**
+ * D7/D16/D18: sem linha, ou `failed`/`queued`/`running` além do lease — os mesmos casos que o upsert
+ * reabre. `failed` recente é a resposta: pedir de novo repetiria a mesma falha, sem teto.
+ */
 function shouldRequestCargoLayout(current: StoredCargoLayoutRow | undefined): boolean {
   if (current === undefined) return true
-  if (current.status === 'failed') return true
   if (current.status === 'ready') return false
   return current.leaseExpired
+}
+
+/** O pedido que enfileirou manda no que se serve: pendente, sem o código da falha antiga. */
+export function markCargoLayoutRequested(state: TripCargoLayoutState): TripCargoLayoutState {
+  return { ...state, errorCode: null, status: 'pending' }
 }
 
 function freshLayoutOf(current: StoredCargoLayoutRow | undefined): ReadyCargoLayoutRow | undefined {

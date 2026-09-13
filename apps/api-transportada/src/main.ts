@@ -195,6 +195,9 @@ import { createDeliveryProofDownloadGateway } from './trips/infrastructure/deliv
 import { readTripDocumentProducts } from './trips/application/read-trip-document-products.use-case.js'
 import { createRequestCargoLayoutUseCase } from './trips/application/request-cargo-layout.use-case.js'
 import { DrizzleCargoLayoutRequestRepository } from './trips/infrastructure/drizzle-cargo-layout-request.repository.js'
+import { createReadCargoLayoutUseCase } from './trips/application/read-cargo-layout.use-case.js'
+import { createReopenCargoLayoutUseCase } from './trips/application/reopen-cargo-layout.use-case.js'
+import { DrizzleCargoLayoutLookupRepository } from './trips/infrastructure/drizzle-cargo-layout-lookup.repository.js'
 import { registerDriverOccurrence } from './trips/application/register-driver-occurrence.use-case.js'
 import { registerTripOccurrence } from './trips/application/register-trip-occurrence.use-case.js'
 import { saveOccurrenceTypeWithTemplate } from './trips/application/save-occurrence-type.use-case.js'
@@ -1401,9 +1404,18 @@ function createApplicationRoutes({
   }
   const tripRepository = new DrizzleTripRepository(database, cargoLayoutLeaseOptions)
   /** Spec 145 D7 (lazy): transação própria, fora da leitura do detalhe, com o mesmo lease do worker. */
+  const cargoLayoutRequestRepository = new DrizzleCargoLayoutRequestRepository(
+    database,
+    cargoLayoutLeaseOptions,
+  )
   const requestCargoLayout = createRequestCargoLayoutUseCase({
-    repository: new DrizzleCargoLayoutRequestRepository(database, cargoLayoutLeaseOptions),
+    repository: cargoLayoutRequestRepository,
   })
+  /** Spec 145 T11: a prévia lê a planta pelo hash, e a tela pergunta de novo pelo id. */
+  const cargoLayoutLookup = new DrizzleCargoLayoutLookupRepository(
+    database,
+    cargoLayoutLeaseOptions,
+  )
   const tripDocumentRepository = new DrizzleTripDocumentRepository(database)
   const tripDocumentBatchRepository = new DrizzleTripDocumentBatchRepository(database)
   const tripRouteRepository = new DrizzleTripRouteRepository(database, cargoLayoutLeaseOptions)
@@ -2480,6 +2492,10 @@ function createApplicationRoutes({
       getTrip: { execute: (input) => trips.get(input) },
       logger,
       requestCargoLayout,
+      readCargoLayout: createReadCargoLayoutUseCase({ repository: cargoLayoutLookup }),
+      reopenCargoLayout: createReopenCargoLayoutUseCase({
+        repository: cargoLayoutRequestRepository,
+      }),
       listSchedules: { execute: (input) => tripStopSchedules.list(input) },
       readFinancialResult: {
         execute: (input) =>
@@ -2560,6 +2576,8 @@ function createApplicationRoutes({
         execute: (input) =>
           previewTripCargo({
             ...input,
+            layouts: cargoLayoutLookup,
+            requestCargoLayout,
             repository: {
               readCargoPreviewContext: (query) => readCargoPreviewContext(database, query),
             },

@@ -11,7 +11,7 @@
 | 3    | T9 🧠   | ✅ feita | `opus`             | `fable`                           |
 | 3    | T9b     | ✅ feita | `sonnet`           | `opus`                            |
 | 3    | T12a    | ✅ feita | `sonnet`           | `opus`                            |
-| 4    | T10–T11 | pendente | `sonnet`           | `opus`                            |
+| 4    | T10–T11 | ✅ feita | `sonnet`           | `opus`                            |
 | 5    | T12–T13 | pendente | `sonnet`           | `opus`                            |
 | 6    | T14     | pendente | `haiku`            | `sonnet` → `opus`                 |
 | —    | revisão | pendente | `opus`             | `fable`                           |
@@ -130,7 +130,7 @@ status='queued' AND input_hash=$hash`; nula → confirma e descarta; hash supera
       (recalcula hash, enfileira em transação curta separada se não bater); `bedDimensions === null`
       continua sem chamar o pacote. `test/trip-detail-query-count.integration.ts` confirma
       orçamento de consultas inalterado (G010, G011).
-- [ ] T11 — Prévia devolve `{ layoutId, state }` por hash; rota nova `GET
+- [x] T11 — Prévia devolve `{ layoutId, state }` por hash; rota nova `GET
 /trips/cargo-layouts/:layoutId` para polling; `CARGO_LAYOUT_TIME_BUDGET_MS` no schema de
       ambiente e em `.env.example` (`test/env-example.contract.test.ts`) (G010).
 

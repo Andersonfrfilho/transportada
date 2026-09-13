@@ -66,6 +66,12 @@ import type { CreateTripCteBatchResult } from '../application/create-trip-cte-ba
 import type { TripMdfeRequirement } from '../application/set-trip-mdfe-requirement.use-case.js'
 import type { TripValuation } from '../domain/trip-valuation.policy.js'
 import type { TripCargoPreview } from '../application/preview-trip-cargo.use-case.js'
+import type { ReadCargoLayoutUseCase } from '../application/read-cargo-layout.types.js'
+import type {
+  ReopenCargoLayoutUseCase,
+  ReopenStoredCargoLayoutParams,
+} from '../application/cargo-layout-request.types.js'
+import { markCargoLayoutRequested } from '../domain/cargo-layout-state.policy.js'
 import type { TripFiscalReadinessSnapshot } from '../application/read-trip-fiscal-readiness.use-case.js'
 import type { PlanTripRouteResult } from '../application/plan-trip-route.use-case.js'
 import type { ReorderTripStopsResult } from '../application/reorder-trip-stops.use-case.js'
@@ -172,6 +178,13 @@ const TRIP_VALUATION_PATH = `${API_TRIPS_PATH}/:id/valuation`
 const TRIP_VALUATION_PREVIEW_PATH = `${API_TRIPS_PATH}/valuation-preview`
 /** Fora da árvore `/trips/:id`: a prévia responde **antes** de a viagem existir. */
 const TRIP_CARGO_PREVIEW_PATH = `${API_TRIPS_PATH}/cargo-preview`
+/**
+ * Spec 145 D10 (T11): a tela pergunta de novo pela planta que a prévia pediu, pelo `layoutId` que ela
+ * devolveu, a cada 3 s enquanto `pending`. Resposta: `{ data: { layoutId, state, cargoLayout } }`,
+ * com `state` nas cinco chaves de `cargoLayoutState`. Planta de outra empresa → 404, id malformado →
+ * 400. Fora da árvore `/trips/:id` pela mesma razão da prévia: pode não haver viagem.
+ */
+const TRIP_CARGO_LAYOUT_PATH = `${API_TRIPS_PATH}/cargo-layouts/:layoutId`
 /**
  * Spec 061 D4: **dinheiro tem permissão própria.** O resultado congelado é `trip.financials`, de
  * `company-admin` e `finance` — quem monta viagem já tem a avaliação prevista para decidir carga, e
@@ -342,6 +355,10 @@ type Dependencies = {
   readonly getTrip: { execute(input: TenantInput<GetTripInput>): Promise<TripDetail> }
   /** Spec 145 D7: o pedido lazy da planta, disparado pelo detalhe depois da leitura. */
   readonly requestCargoLayout: RequestCargoLayoutUseCase
+  /** Spec 145 T11: a pergunta de novo pela planta da prévia. */
+  readonly readCargoLayout: ReadCargoLayoutUseCase
+  /** D16/D18: o polling reabre o pedido parado ou falho além da espera. */
+  readonly reopenCargoLayout: ReopenCargoLayoutUseCase
   readonly logger: ApiLogger
   readonly issueManifestAutomatically: {
     execute(input: {
@@ -376,6 +393,7 @@ type Dependencies = {
   readonly previewCargo: {
     execute(input: {
       readonly companyId: string
+      readonly correlationId: string
       readonly driverIds: readonly string[]
       readonly nfeDocumentIds: readonly string[]
       readonly stopOrder: readonly string[]
@@ -702,6 +720,7 @@ export function createTripRoutes(
      * viagem precisa saber se cabe, e o separador monta sem enxergar receita nem custo.
      */
     defineRoute<{
+      readonly correlationId: string
       readonly nfeDocumentIds: readonly string[]
       readonly stopOrder: readonly string[]
       readonly vehicleId: string
@@ -716,8 +735,54 @@ export function createTripRoutes(
         return jsonResponse({ body: { data: preview }, status: 200 })
       },
       method: 'POST',
-      parse: ({ request }) => parsePreviewTripCargoRequest(request),
+      parse: async ({ correlationId, request }) => ({
+        ...(await parsePreviewTripCargoRequest(request)),
+        correlationId,
+      }),
       pathname: TRIP_CARGO_PREVIEW_PATH,
+      policy: TRIP_MANAGE_POLICY,
+    }),
+    /**
+     * ⚠️ Mesma política da prévia (`trip.manage`): quem pediu a planta é quem pergunta por ela.
+     * `raw` porque id malformado é erro do cliente (400), e planta de outra empresa é 404 — o
+     * `canonicalUuid` padrão responderia 404 aos dois.
+     */
+    defineRoute<{ readonly correlationId: string; readonly layoutId: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const reading = await dependencies.readCargoLayout.execute({
+          companyId: context.scope.companyId,
+          layoutId: input.layoutId,
+        })
+        /** D16/D18: parada ou falha além da espera reabre aqui, depois da leitura, com a própria linha. */
+        const enqueued =
+          reading.shouldRequest &&
+          (await reopenCargoLayoutAfterRead({
+            dependencies,
+            request: {
+              companyId: context.scope.companyId,
+              correlationId: input.correlationId,
+              layoutId: reading.layoutId,
+            },
+          }))
+
+        return jsonResponse({
+          body: {
+            data: {
+              cargoLayout: reading.cargoLayout,
+              layoutId: reading.layoutId,
+              state: enqueued ? markCargoLayoutRequested(reading.state) : reading.state,
+            },
+          },
+          status: 200,
+        })
+      },
+      method: 'GET',
+      parse: ({ correlationId, pathParameters }) => ({
+        correlationId,
+        layoutId: parseUuidPathIdentifier(pathParameters.layoutId ?? ''),
+      }),
+      pathParameterFormat: 'raw',
+      pathname: TRIP_CARGO_LAYOUT_PATH,
       policy: TRIP_MANAGE_POLICY,
     }),
     defineRoute<Omit<GetTripInput, 'context'> & { readonly correlationId: string }>({
@@ -726,8 +791,9 @@ export function createTripRoutes(
           context: context.scope,
           tripId: input.tripId,
         })
-        if (trip.pendingCargoLayoutInput !== undefined) {
-          await requestCargoLayoutAfterRead({
+        const enqueued =
+          trip.pendingCargoLayoutInput !== undefined &&
+          (await requestCargoLayoutAfterRead({
             correlationId: input.correlationId,
             dependencies,
             request: {
@@ -736,9 +802,12 @@ export function createTripRoutes(
               correlationId: input.correlationId,
               tripId: trip.id,
             },
-          })
-        }
-        return jsonResponse({ body: { data: serializeTripDetail(trip) }, status: 200 })
+          }))
+        /** Enfileirou: o que se serve é o pedido novo (pendente); falhou, o estado da leitura. */
+        const served = enqueued
+          ? { ...trip, cargoLayoutState: markCargoLayoutRequested(trip.cargoLayoutState) }
+          : trip
+        return jsonResponse({ body: { data: serializeTripDetail(served) }, status: 200 })
       },
       method: 'GET',
       parse: ({ correlationId, pathParameters }) => ({
@@ -1274,15 +1343,37 @@ async function requestCargoLayoutAfterRead(params: {
   readonly correlationId: string
   readonly dependencies: Pick<Dependencies, 'logger' | 'requestCargoLayout'>
   readonly request: RequestCargoLayoutParams
-}): Promise<void> {
+}): Promise<boolean> {
   try {
-    await params.dependencies.requestCargoLayout.execute(params.request)
+    return (await params.dependencies.requestCargoLayout.execute(params.request)).enqueued
   } catch (error) {
     params.dependencies.logger.warn(CARGO_LAYOUT_REQUEST_FAILED_MESSAGE, {
       correlationId: params.correlationId,
       errorCode: describeErrorCode(error),
       tripId: params.request.tripId,
     })
+    return false
+  }
+}
+
+/**
+ * Spec 145 T11 (D16/D18): o polling reabre pela linha guardada. Mesmo fallback gracioso do detalhe —
+ * falhou, a leitura responde — e o aviso leva só referências opacas.
+ */
+async function reopenCargoLayoutAfterRead(params: {
+  readonly dependencies: Pick<Dependencies, 'logger' | 'reopenCargoLayout'>
+  readonly request: ReopenStoredCargoLayoutParams
+}): Promise<boolean> {
+  try {
+    const result = await params.dependencies.reopenCargoLayout.execute(params.request)
+    return result?.enqueued ?? false
+  } catch (error) {
+    params.dependencies.logger.warn(CARGO_LAYOUT_REQUEST_FAILED_MESSAGE, {
+      correlationId: params.request.correlationId,
+      errorCode: describeErrorCode(error),
+      layoutId: params.request.layoutId,
+    })
+    return false
   }
 }
 

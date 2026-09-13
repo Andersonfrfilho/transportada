@@ -140,10 +140,11 @@ describe('cargo layout request upsert-and-outbox contract (spec 145 D8/G006)', (
   })
 
   /**
-   * D14/D16: `failed` reabre sempre; `queued`/`running` só quando o `updated_at` passou do lease —
-   * worker morto no meio ou mensagem perdida. `ready` e o pedido recente ficam fora (G006).
+   * D14/D16/D18: `failed`, `queued` e `running` só reabrem quando o `updated_at` passou do lease —
+   * worker morto no meio, mensagem perdida, ou a espera depois de uma falha. `failed` recente é
+   * no-op: reabri-lo a cada leitura repetiria uma falha determinística sem teto. `ready` fica fora.
    */
-  test('reopens failed rows, and queued or running rows older than the lease', async () => {
+  test('reopens failed, queued or running rows only past the lease', async () => {
     const { conflicts, transaction } = createTransaction({
       returning: [{ id: LAYOUT_ID, status: 'queued' }],
     })
@@ -154,7 +155,7 @@ describe('cargo layout request upsert-and-outbox contract (spec 145 D8/G006)', (
     expect(where).toBeDefined()
     const query = dialect.sqlToQuery(where as SQL)
     expect(query.sql).toBe(
-      `"trip_cargo_layouts"."status" = 'failed' or ("trip_cargo_layouts"."status" in ('queued', 'running') and "trip_cargo_layouts"."updated_at" < now() - ($1 * interval '1 millisecond'))`,
+      `"trip_cargo_layouts"."status" in ('failed', 'queued', 'running') and "trip_cargo_layouts"."updated_at" < now() - ($1 * interval '1 millisecond')`,
     )
     expect(query.params).toEqual([280_000])
     expect(query.sql).not.toContain('ready')
@@ -183,6 +184,19 @@ describe('cargo layout request upsert-and-outbox contract (spec 145 D8/G006)', (
       layout: null,
       status: 'queued',
     })
+  })
+
+  /** D18: `failed` recente não volta do upsert — responde a falha, sem outbox. */
+  test('a recent failed row answers without enqueuing', async () => {
+    const { outboxInserts, transaction } = createTransaction({
+      existingRow: { id: LAYOUT_ID, status: 'failed', tripId: TRIP_ID },
+      returning: [],
+    })
+
+    const result = await upsertCargoLayoutRequest(transaction, BASE_PARAMS)
+
+    expect(result).toEqual({ enqueued: false, layoutId: LAYOUT_ID, status: 'failed' })
+    expect(outboxInserts).toHaveLength(0)
   })
 
   /** Linha `running` recente (ou `ready`) não volta do upsert: no-op, sem outbox. */
