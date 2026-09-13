@@ -3,13 +3,17 @@ import { useTranslation } from 'react-i18next'
 import { Checkbox } from '@/components/ui/checkbox'
 import { LOADING_ACCESS_KINDS } from '@/modules/shared/loadingAccess.constant'
 
-import { MDFE_BODY_TYPE, type FleetVehicleFormState } from '../shared/fleet.types'
+import type { FleetVehicleFormState } from '../shared/fleet.types'
 import type { VehicleSuggestionOrigin } from '../shared/vehicleSuggestion.service'
 import { VEHICLE_MEASURE_FIELD_SCALE } from '../shared/fleetVehicleMeasure.service'
 import {
   deriveCapacityCubicMeters,
   hasCargoDimensions,
 } from '../shared/vehicleCargoDimensions.service'
+import {
+  isTractorUnitKind,
+  VEHICLE_BODY_TYPE_OPTIONS,
+} from '../shared/fleetVehicleBodyType.service'
 import styles from '../styles/fleet.module.css'
 import { FleetMeasureField, FleetSelectField } from './FleetField.component'
 
@@ -56,14 +60,18 @@ export function VehicleOperationFields({
     <fieldset className={styles.fieldGroup}>
       <legend>{t('vehicleOperationLegend')}</legend>
       <div className={styles.fieldGrid}>
-        <FleetSelectField
-          fromDocument={documentFields.has('bodyType')}
-          label={t('bodyType')}
-          optionLabelKey="bodyTypeOption"
-          options={MDFE_BODY_TYPE}
-          value={state.bodyType}
-          onChange={(bodyType) => onChange({ bodyType })}
-        />
+        {/* Feature 147 D1: cavalo mecânico não escolhe — o valor é sempre '00', forçado à troca de tipo */}
+        {isTractorUnitKind(state) ? null : (
+          <FleetSelectField
+            fromDocument={documentFields.has('bodyType')}
+            label={t('bodyType')}
+            optionLabelKey="bodyTypeOption"
+            options={VEHICLE_BODY_TYPE_OPTIONS}
+            placeholder={t('bodyTypeUnset')}
+            value={state.bodyType}
+            onChange={(bodyType) => onChange({ bodyType })}
+          />
+        )}
         {/*
           ⚠️ Campo próprio, e **não** deduzido do tipo nem da carroceria: a mesma Sprinter existe
           com e sem porta lateral. O `bodyType` semeia o valor na migration e para por aí.

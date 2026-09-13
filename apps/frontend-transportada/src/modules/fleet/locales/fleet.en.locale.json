@@ -84,6 +84,7 @@
   },
   "axleCount": "Axle count",
   "bodyType": "Body type",
+  "bodyTypeNotApplicable": "A tractor unit only accepts body type \"00 — Not applicable\".",
   "bodyTypeOption": {
     "00": "00 — Not applicable",
     "01": "01 — Open",
@@ -92,6 +93,8 @@
     "04": "04 — Container carrier",
     "05": "05 — Sider"
   },
+  "bodyTypeRequired": "Choose the body type before saving.",
+  "bodyTypeUnset": "Select the body type",
   "brand": "Brand",
   "brandCatalogUnavailableHint": "Brand catalog is unavailable right now. Type the brand as printed on the CRLV.",
   "brandCatalogVehicleTypeHint": "Pick the vehicle type in the identification block to load the brands.",

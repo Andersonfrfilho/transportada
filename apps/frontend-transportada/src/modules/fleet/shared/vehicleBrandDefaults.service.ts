@@ -11,6 +11,10 @@ import type { FleetVehicleDetail, FleetVehicleFormState } from './fleet.types'
  *
  * O catálogo FIPE que a API consulta devolve só marca e modelo: tara, capacidade e eixos não
  * existem lá. Quem sabe o peso de um bitrem desta frota é a própria frota.
+ *
+ * Feature 147 D1: `bodyType` saiu daqui. O baú do segundo Volvo da frota não é o do primeiro —
+ * herdar carroceria por marca inventaria baú —, e o `00` que este arquivo antes propagava é
+ * justamente o valor que a spec proíbe fora do cavalo.
  */
 export const VEHICLE_BRAND_DEFAULT_FIELDS = [
   'acquisitionAmount',
@@ -18,7 +22,6 @@ export const VEHICLE_BRAND_DEFAULT_FIELDS = [
   'annualVehicleTaxAmount',
   'averageConsumption',
   'axleCount',
-  'bodyType',
   'capacityCubicMeters',
   'capacityKilograms',
   'fuelType',
@@ -35,7 +38,6 @@ export const VEHICLE_BRAND_DEFAULT_BLANK: Readonly<Record<VehicleBrandDefaultFie
   annualVehicleTaxAmount: '',
   averageConsumption: '',
   axleCount: '0',
-  bodyType: '00',
   capacityCubicMeters: '',
   capacityKilograms: '',
   fuelType: DEFAULT_FUEL_PRODUCT,

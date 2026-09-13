@@ -34,6 +34,7 @@ import type {
   FleetVehicleCatalogSource,
   FleetVehicleDetail,
   FleetVehicleFormState,
+  MdfeBodyType,
 } from './fleet.types'
 import { toVehicleCostBody, toVehicleCostFormState } from './fleetVehicleCost.service'
 import { toVehicleMeasureBody, toVehicleMeasureFormState } from './fleetVehicleMeasure.service'
@@ -59,7 +60,8 @@ export const EMPTY_VEHICLE_FORM: FleetVehicleFormState = {
   annualVehicleTaxAmount: '',
   averageConsumption: '',
   axleCount: '0',
-  bodyType: '00',
+  /** Feature 147 D1: só o cavalo aceita `00`, e ele nasce com `vehicleType` vazio (não é cavalo ainda). */
+  bodyType: '',
   brand: '',
   capacityCubicMeters: '',
   capacityKilograms: '',
@@ -335,7 +337,8 @@ export function toVehicleBody(state: FleetVehicleFormState): FleetVehicleBody {
   const isOwn = state.ownership === OWN_OWNERSHIP
   return {
     axleCount: Number(normalizeUnsignedInteger(state.axleCount)),
-    bodyType: state.bodyType,
+    // `useVehicleForm.submit` já recusou o envio com bodyType vazio (isVehicleBodyTypeMissing)
+    bodyType: state.bodyType as MdfeBodyType,
     loadingAccess: state.loadingAccess,
     brand: state.brand,
     color: state.color,

@@ -20,6 +20,7 @@ import type {
 } from '../shared/fleet.types'
 import { resolveFleetFeedbackKey } from '../shared/fleetFeedback.service'
 import { createVehicleDraft, toVehicleBody, toVehicleFormState } from '../shared/fleetForm.service'
+import { isVehicleBodyTypeMissing } from '../shared/fleetVehicleBodyType.service'
 import { composeVehicleFormPatch } from '../shared/vehicleFormPatch.service'
 import type { VehicleReference, VehicleSuggestionOrigin } from '../shared/vehicleSuggestion.service'
 import {
@@ -29,6 +30,7 @@ import {
   type VehicleOwnerDriverChoice,
 } from '../shared/vehicleOwner.service'
 
+const BODY_TYPE_MISSING_FEEDBACK_KEY = 'bodyTypeRequired'
 const OWNER_INCOMPLETE_FEEDBACK_KEY = 'ownerIncompleteFeedback'
 const VEHICLE_DRAFT_STORAGE_KEY = 'transportada.fleet.vehicle-draft'
 
@@ -195,6 +197,10 @@ export function useVehicleForm(input: UseVehicleFormInput): VehicleFormControlle
   }
 
   async function submit(): Promise<void> {
+    if (isVehicleBodyTypeMissing(state)) {
+      setFeedbackKey(BODY_TYPE_MISSING_FEEDBACK_KEY)
+      return
+    }
     if (listIncompleteVehicleOwnerFields(state).length > 0) {
       setFeedbackKey(OWNER_INCOMPLETE_FEEDBACK_KEY)
       return

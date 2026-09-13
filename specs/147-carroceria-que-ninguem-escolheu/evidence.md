@@ -253,3 +253,75 @@ refuses one outside the catalog'` (motorcycle/car). As três chamadas passaram a
 - `bun run --cwd apps/api-transportada test`: **5067 pass, 23 skip, 0 fail** (suíte inteira, sem
   regressão — eram 5055 antes da T5; a diferença de 12 é este arquivo de teste novo).
 - `bunx prettier --check` e `bunx eslint` nos arquivos tocados: ok, sem avisos.
+
+## T7 — Formulário da frota (frontend)
+
+- **Serviço puro novo:** `apps/frontend-transportada/src/modules/fleet/shared/fleetVehicleBodyType.service.ts`.
+  `isTractorUnitKind({role, vehicleType})` decide cavalo por `role === 'traction' && vehicleType ===
+'tractor_unit'` — não pelo `vehicleType` cru — porque `vehicles.contract.ts` já tinha um teste
+  (`'refuses a trailer carrying a vehicle type and a traction without one'`) que monta
+  `role: 'trailer'` com `vehicleType: 'tractor_unit'` de propósito (para provar a regra "tipo só em
+  quem traciona"); usar o discriminante certo faz esse resíduo inválido não contar como cavalo.
+  `resolveVehicleBodyTypeForKindChange({previous, next})` é a regra do RF2: virar cavalo força
+  `'00'`, sair do cavalo limpa para `''` (nunca herda o `00`), sem mudar nada quando o "tipo" (papel
+  - `vehicleType`) não mudou — ficha antiga com `00` num tipo que carrega não é reescrita só porque
+    o operador mexeu em outro campo (D2). `isVehicleBodyTypeMissing({bodyType, role, vehicleType})`
+    bloqueia o envio: `''` (nunca escolhido) e `'00'` (ficha antiga intocada) contam igual fora do
+    cavalo. `VEHICLE_BODY_TYPE_OPTIONS` é `MDFE_BODY_TYPE` sem o `'00'` — a opção não é "não
+    escolhida ainda", é "não existe" fora do cavalo.
+- **`vehicleFormPatch.service.ts`:** `composeVehicleFormPatch` ganhou a camada `bodyTypeDefaults`,
+  guardada por `next.role === input.previous.role && next.vehicleType === input.previous.vehicleType`
+  (só recomputa quando o papel ou o tipo mudam nesta chamada de `patch`), aplicada por último no
+  `resolved` — vence qualquer coisa que a herança de marca ou o default do tipo tenham posto ali
+  (nenhuma das duas mexe em `bodyType` agora, então não há conflito na prática).
+- **`fleetForm.service.ts`:** `EMPTY_VEHICLE_FORM.bodyType` passou de `'00'` para `''` (RF2: sem
+  valor inicial fora do cavalo — e o rascunho nasce com `vehicleType: ''`, que não é cavalo).
+  `toVehicleBody` faz `state.bodyType as MdfeBodyType` com o comentário de que `submit()` já
+  recusou o envio com `bodyType` vazio antes de chegar aqui — `FleetVehicleBody.bodyType` continua
+  `MdfeBodyType` estrito (o corpo que **de fato** sobe à API nunca é vazio); é
+  `FleetVehicleFormState.bodyType` que virou `'' | MdfeBodyType` (mesma forma que `color` e
+  `vehicleType` já usavam no formulário).
+- **`vehicleBrandDefaults.service.ts`:** `bodyType` saiu de `VEHICLE_BRAND_DEFAULT_FIELDS` e de
+  `VEHICLE_BRAND_DEFAULT_BLANK` — o segundo Volvo da frota não herda a carroceria do primeiro.
+- **`VehicleOperationFields.component.tsx`:** o campo de carroceria só renderiza quando
+  `!isTractorUnitKind(state)`; quando renderiza, usa `VEHICLE_BODY_TYPE_OPTIONS` (sem `'00'`) e
+  `placeholder={t('bodyTypeUnset')}` no lugar do `value` cru — mesmo padrão do campo de UF
+  (`vehicleStateUnset`), sem precisar de `clearable`.
+- **Bloqueio antes do 400:** não existe um arquivo `*.validation.ts` para o formulário de veículo
+  neste módulo — os dois arquivos com esse sufixo (`fleetGuards.validation.ts`,
+  `fleetResponse.validation.ts`) validam a **resposta da API**, não o envio. O padrão real do
+  módulo para bloquear o `submit()` antes da chamada é uma função pura chamada inline no hook (como
+  `listIncompleteVehicleOwnerFields` já fazia para o grupo do proprietário) — segui o mesmo molde:
+  `useVehicleForm.hook.ts`'s `submit()` chama `isVehicleBodyTypeMissing(state)` **antes** do
+  cheque do proprietário e devolve o feedback `bodyTypeRequired` sem chamar a API.
+- **Mapa de erro por código:** `fleet.constant.ts`'s `FLEET_FEEDBACK_KEY_BY_ERROR` ganhou
+  `FLEET_VEHICLE_BODY_TYPE_REQUIRED → 'bodyTypeRequired'` e
+  `FLEET_VEHICLE_BODY_TYPE_NOT_APPLICABLE → 'bodyTypeNotApplicable'` — a mesma chave
+  `bodyTypeRequired` cobre o bloqueio no cliente e o 400 que a API devolveria se ele escapasse.
+  Chaves novas em `fleet.locale.json` **e** `fleet.en.locale.json` (acentuadas em pt-BR, cobertas
+  por `test/shared/locale-accents.contract.ts`, que já roda na suíte geral): `bodyTypeRequired`,
+  `bodyTypeNotApplicable`, `bodyTypeUnset`.
+- **Fixture ajustada: 1.** `test/fleet/fleet.fixture.ts`'s `VEHICLE_DRAFT_BODY` (o que
+  `toVehicleBody(createVehicleDraft())` devolve) tinha `bodyType: '00'` — virou `''`, porque o
+  rascunho vazio não é mais cavalo por padrão. O tipo local `FleetVehicleBodyContract` (cópia por
+  valor do contrato de corpo, só de teste) ganhou `''` na união de `bodyType` pelo mesmo motivo que
+  já tinha `''` em `vehicleType`: representa o que a conversão devolve **sem** o guard de
+  `submit()`, não o que chega à API.
+- Vermelho→verde: `test/fleet/vehicle-body-type.contract.ts` (11 casos: discriminante do cavalo,
+  opções sem `'00'`, força/limpa na troca de tipo, no-op sem troca, bloqueio de envio, formulário
+  nasce vazio, marca não herda `bodyType`, campo some do componente, hook bloqueia antes do 400,
+  mapa de erro + locale) escrito e importado em `test/fleet.contract.test.ts` (já na lista
+  explícita do `package.json`) antes de `fleetVehicleBodyType.service.ts` existir —
+  `bun test test/fleet.contract.test.ts` falhava com `Cannot find module
+'.../fleetVehicleBodyType.service'`; depois de criar o arquivo e fiar tudo, dois testes
+  **pré-existentes** quebraram por causa da mudança de default (`presentation-boundaries.contract.ts`
+  esperava `bodyType: '00'` no rascunho vazio) e da minha própria asserção contra o comentário do
+  código-fonte (corrigida para checar o array/objeto exportado, não o texto cru) — ambos corrigidos,
+  depois verde.
+- `bun run --cwd apps/frontend-transportada typecheck`: limpo (precisou alargar
+  `FleetVehicleFormState.bodyType` para `'' | MdfeBodyType`, com o cast documentado em
+  `toVehicleBody`, e alargar o tipo de teste `FleetVehicleBodyContract.bodyType` do mesmo jeito).
+- `bun run --cwd apps/frontend-transportada test`: **3330 pass, 0 fail** (suíte inteira, sem
+  regressão nos 3319 pré-existentes — a diferença de 11 é o arquivo de teste novo).
+- `bunx prettier --check` e `bunx eslint` em todos os arquivos tocados: ok, sem avisos (o arquivo
+  de teste novo precisou de `prettier --write` para quebrar duas linhas longas).

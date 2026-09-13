@@ -104,6 +104,8 @@ export const FLEET_FEEDBACK_KEY_BY_ERROR: Readonly<Record<string, string>> = {
   FLEET_DRIVER_VERSION_CONFLICT: 'versionConflict',
   FLEET_FORBIDDEN: 'readOnly',
   FLEET_INVALID_DRAFT: 'invalidDraft',
+  FLEET_VEHICLE_BODY_TYPE_NOT_APPLICABLE: 'bodyTypeNotApplicable',
+  FLEET_VEHICLE_BODY_TYPE_REQUIRED: 'bodyTypeRequired',
   FLEET_VEHICLE_NOT_FOUND: 'vehicleNotFound',
   FLEET_VEHICLE_PLATE_TAKEN: 'plateTaken',
   FLEET_VEHICLE_VERSION_CONFLICT: 'versionConflict',

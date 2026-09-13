@@ -54,7 +54,11 @@ export type FleetVehicleFuelPriceContract = Readonly<{
 export type FleetVehicleBodyContract = FleetVehicleCostFieldsContract &
   Readonly<{
     axleCount: number
-    bodyType: '00' | '01' | '02' | '03' | '04' | '05'
+    /**
+     * Feature 147 D1: `toVehicleBody` sobre um rascunho incompleto ainda devolve `''` — quem barra
+     * o envio de verdade é `isVehicleBodyTypeMissing`, em `submit()`, não o tipo desta conversão.
+     */
+    bodyType: '' | '00' | '01' | '02' | '03' | '04' | '05'
     /** Spec 085: o contrato restata a lista, como faz com o `bodyType` — cópia por valor. */
     loadingAccess: 'open' | 'rear' | 'rear_and_side'
     brand: string
@@ -487,7 +491,8 @@ export const EMPTY_DRIVER_PAGE = {
 export const VEHICLE_DRAFT_BODY = {
   ...VEHICLE_COST_DRAFT,
   axleCount: 0,
-  bodyType: '00',
+  // Feature 147 D1: o rascunho nasce sem carroceria — só o cavalo (vehicleType escolhido) tem '00'
+  bodyType: '',
   loadingAccess: 'rear',
   brand: '',
   capacityCubicMeters: '0.00',

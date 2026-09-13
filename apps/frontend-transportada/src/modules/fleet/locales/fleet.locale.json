@@ -87,6 +87,7 @@
   },
   "axleCount": "Quantidade de eixos",
   "bodyType": "Tipo de carroceria",
+  "bodyTypeNotApplicable": "Cavalo mecânico só aceita a carroceria \"00 — Não aplicável\".",
   "bodyTypeOption": {
     "00": "00 — Não aplicável",
     "01": "01 — Aberta",
@@ -95,6 +96,8 @@
     "04": "04 — Porta container",
     "05": "05 — Sider"
   },
+  "bodyTypeRequired": "Escolha a carroceria antes de salvar.",
+  "bodyTypeUnset": "Selecione a carroceria",
   "brand": "Marca",
   "brandCatalogUnavailableHint": "Catálogo de marcas indisponível agora. Digite a marca como está no CRLV.",
   "brandCatalogVehicleTypeHint": "Escolha o tipo do veículo na identificação para carregar as marcas.",

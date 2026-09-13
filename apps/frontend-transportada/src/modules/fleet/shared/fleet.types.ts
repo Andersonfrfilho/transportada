@@ -480,7 +480,8 @@ export type FleetDriverPage = Readonly<{
 export type FleetVehicleFormState = FleetVehicleCostFields &
   Readonly<{
     axleCount: string
-    bodyType: MdfeBodyType
+    /** Feature 147 D1: vazio até o operador escolher — só o cavalo nasce com '00' já preenchido. */
+    bodyType: '' | MdfeBodyType
     /** Spec 085: por onde a carga entra e sai — campo da ficha, nunca deduzido do tipo. */
     loadingAccess: LoadingAccess
     brand: string

@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import type { FleetVehicleDetail, FleetVehicleFormState } from './fleet.types'
+import { resolveVehicleBodyTypeForKindChange } from './fleetVehicleBodyType.service'
 import { resolveSecondaryFuelDefaults } from './fuelArrangement.service'
 import { resolveVehicleBrandDefaults } from './vehicleBrandDefaults.service'
 import {
@@ -55,7 +56,12 @@ export function composeVehicleFormPatch(
   // O tipo vem depois porque o eixo dele é certo, e o da frota é o que ela repetiu até agora
   const typeDefaults =
     next.vehicleType === input.previous.vehicleType ? {} : resolveVehicleTypeDefaults(next)
-  const resolved = { ...next, ...brandDefaults, ...typeDefaults }
+  // Virar ou sair do cavalo decide a carroceria por conta própria — nunca herda o `00` de outro tipo
+  const bodyTypeDefaults =
+    next.role === input.previous.role && next.vehicleType === input.previous.vehicleType
+      ? {}
+      : resolveVehicleBodyTypeForKindChange({ next, previous: input.previous })
+  const resolved = { ...next, ...brandDefaults, ...typeDefaults, ...bodyTypeDefaults }
   // O par de combustíveis é corrigido depois dos outros defaults: trocar o primário para o
   // produto do secundário deixaria os dois tanques com o mesmo combustível
   const corrected = { ...resolved, ...resolveSecondaryFuelDefaults(resolved) }
