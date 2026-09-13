@@ -26,6 +26,8 @@ type TripCargoPanelProps = {
   cargoWeight: TripCargoWeight | null
   /** Spec 147 D2/RF4: por que a ocupação não sabe a capacidade — `null` quando ela sabe. */
   capacityUnknownReason?: CapacityUnknownReason | null
+  /** T18 (revisão, item 10): o veículo cuja ficha resolve o motivo — a carreta, ou o `vehicleId`. */
+  capacityUnknownVehicleId?: string | null
   layout: TripCargoLayout | null
   /** Spec 145 T13: o estado da planta calculada pelo worker. Ausente ou `null`, a tela de hoje. */
   layoutView?: CargoLayoutView | null | undefined
@@ -85,6 +87,7 @@ function formatVolume(value: string): string {
 export function TripCargoPanel({
   cargoWeight,
   capacityUnknownReason = null,
+  capacityUnknownVehicleId = null,
   layout,
   layoutView,
   occupancy,
@@ -95,7 +98,12 @@ export function TripCargoPanel({
   weightConcentration = null,
 }: TripCargoPanelProps) {
   const { t } = useTranslation('trip')
-  const weightPanelProps = { capacityUnknownReason, cargoWeight, vehicleId }
+  const weightPanelProps = {
+    capacityUnknownReason,
+    capacityUnknownVehicleId,
+    cargoWeight,
+    vehicleId,
+  }
   if (occupancy === null) return <TripCargoWeightPanel {...weightPanelProps} />
 
   const percent = Math.round(Number.parseFloat(occupancy.occupancyRatio) * PERCENT_SCALE)
@@ -274,10 +282,12 @@ function TripCargoWeightNotes({ cargoWeight }: { cargoWeight: TripCargoWeight | 
  */
 function TripCargoWeightPanel({
   capacityUnknownReason,
+  capacityUnknownVehicleId,
   cargoWeight,
   vehicleId,
 }: {
   capacityUnknownReason: CapacityUnknownReason | null
+  capacityUnknownVehicleId: string | null
   cargoWeight: TripCargoWeight | null
   vehicleId: string
 }) {
@@ -302,6 +312,7 @@ function TripCargoWeightPanel({
       */}
       <TripCapacityUnknownHint
         capacityUnknownReason={capacityUnknownReason}
+        capacityUnknownVehicleId={capacityUnknownVehicleId}
         vehicleId={vehicleId}
       />
     </section>
@@ -315,9 +326,11 @@ function TripCargoWeightPanel({
  */
 function TripCapacityUnknownHint({
   capacityUnknownReason,
+  capacityUnknownVehicleId,
   vehicleId,
 }: {
   capacityUnknownReason: CapacityUnknownReason | null
+  capacityUnknownVehicleId: string | null
   vehicleId: string
 }) {
   const { t } = useTranslation('trip')
@@ -329,7 +342,11 @@ function TripCapacityUnknownHint({
     )
   }
 
-  const message = resolveCapacityUnknownMessage({ reason: capacityUnknownReason, vehicleId })
+  const message = resolveCapacityUnknownMessage({
+    capacityUnknownVehicleId,
+    reason: capacityUnknownReason,
+    vehicleId,
+  })
   return (
     <p className={styles.hint}>
       {t(message.textKey)}{' '}

@@ -336,6 +336,7 @@ export function TripProposalDetail({
         <TripCargoPanel
           cargoWeight={cargoWeight}
           capacityUnknownReason={cargo.preview?.capacityUnknownReason ?? null}
+          capacityUnknownVehicleId={cargo.preview?.capacityUnknownVehicleId ?? null}
           layout={cargo.preview?.cargoLayout ?? null}
           layoutView={cargo.cargoLayoutView}
           occupancy={occupancy}

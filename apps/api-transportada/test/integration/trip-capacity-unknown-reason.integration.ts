@@ -49,6 +49,8 @@ describe('a viagem publica o motivo da capacidade desconhecida (spec 147 T4)', (
         const withMissingBody = await repository.findById({ companyId, tripId })
         expect(withMissingBody?.occupancy).toBeNull()
         expect(withMissingBody?.capacityUnknownReason).toBe('bodyTypeMissing')
+        // T18 (revisão, item 10): sem carreta, quem carrega é o próprio veículo da viagem.
+        expect(withMissingBody?.capacityUnknownVehicleId).toBe(vehicleId)
 
         await database.db
           .update(fleetVehicles)
@@ -103,6 +105,9 @@ describe('a viagem publica o motivo da capacidade desconhecida (spec 147 T4)', (
         const withoutTrailer = await repository.findById({ companyId, tripId })
         expect(withoutTrailer?.occupancy).toBeNull()
         expect(withoutTrailer?.capacityUnknownReason).toBe('trailerMissing')
+        // T18 (revisão, item 10): `trailerMissing` não tem ficha de carreta para editar — o link
+        // volta para o veículo da viagem, o cavalo.
+        expect(withoutTrailer?.capacityUnknownVehicleId).toBe(tractorId)
 
         await repository.setTrailer({ companyId, tripId, trailerVehicleId: trailerId })
 
@@ -116,6 +121,17 @@ describe('a viagem publica o motivo da capacidade desconhecida (spec 147 T4)', (
           lengthM: '14.270',
           widthM: '2.460',
         })
+
+        // T18 (revisão, item 10): com a carreta atrelada e SEM carroceria cadastrada nela, o motivo
+        // é `bodyTypeMissing` e o link tem de levar à ficha da carreta — não à do cavalo, que já tem
+        // `body_type = '00'` porque é o cavalo. Antes desta correção não havia como distinguir.
+        await database.db
+          .update(fleetVehicles)
+          .set({ bodyType: '00' })
+          .where(eq(fleetVehicles.id, trailerId))
+        const withBarebonesTrailer = await repository.findById({ companyId, tripId })
+        expect(withBarebonesTrailer?.capacityUnknownReason).toBe('bodyTypeMissing')
+        expect(withBarebonesTrailer?.capacityUnknownVehicleId).toBe(trailerId)
       })
     },
   )

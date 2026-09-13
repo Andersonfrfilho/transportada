@@ -164,6 +164,8 @@ export type TripDetailContract = TripContract &
     }> | null
     /** Spec 147 D2/RF4: por que `occupancy` está nulo — `null` quando a capacidade é conhecida. */
     capacityUnknownReason: 'bodyTypeMissing' | 'referenceMissing' | 'trailerMissing' | null
+    /** T18 (revisão, item 10): o veículo cuja ficha resolve `capacityUnknownReason`. */
+    capacityUnknownVehicleId: string | null
     /** Spec 147 D3/RF5: a carreta atrelada; `null` quando o cavalo não tem uma. */
     trailer: Readonly<{ bodyType: string; id: string; plate: string }> | null
     stops: readonly TripStopDetailContract[]
@@ -221,6 +223,7 @@ export const TRIP_DETAIL = {
   closedAt: null,
   closedByName: null,
   capacityUnknownReason: null,
+  capacityUnknownVehicleId: null,
   documents: [TRIP_DOCUMENT_DETAIL],
   drivers: [
     {

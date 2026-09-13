@@ -81,6 +81,7 @@ const openTrip = (overrides: Partial<TripDetail> = {}): TripDetail => ({
     truncated: false,
   },
   capacityUnknownReason: null,
+  capacityUnknownVehicleId: null,
   cargoWeight: null,
   documents: [],
   occupancy: null,

@@ -2090,6 +2090,8 @@ function serializeTripDetail(input: {
     cargoLayoutState: { ...trip.cargoLayoutState },
     /** Spec 147 D2/RF4: por que `occupancy` está nulo — o painel nomeia o que falta. */
     capacityUnknownReason: trip.capacityUnknownReason,
+    /** T18 (revisão, item 10): o veículo cuja ficha resolve `capacityUnknownReason`. */
+    capacityUnknownVehicleId: trip.capacityUnknownVehicleId,
     documents: trip.documents.map((document) =>
       serializeTripDocumentDetail({ canReadFinancials: input.canReadFinancials, document }),
     ),

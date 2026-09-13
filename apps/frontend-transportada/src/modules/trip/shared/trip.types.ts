@@ -691,6 +691,12 @@ export type TripCargoPreview = Readonly<{
   cargoLayout: TripCargoLayout | null
   /** Spec 147 D2/RF4: por que `occupancy` está nulo — o painel nomeia o que falta. */
   capacityUnknownReason: CapacityUnknownReason | null
+  /**
+   * T18 (revisão, item 10): o veículo cuja ficha resolve `capacityUnknownReason` — a carreta em
+   * `bodyTypeMissing`, o veículo da viagem nos demais motivos. Opcional porque a API pode subir
+   * antes do frontend; ausente, o link cai de volta no `vehicleId` da viagem/prévia.
+   */
+  capacityUnknownVehicleId?: string | null
   cargoWeight: TripCargoWeight | null
   layoutId?: string
   occupancy: TripOccupancy | null
@@ -731,6 +737,8 @@ export type TripDetail = Trip &
     cargoLayoutId?: null | string
     /** Spec 147 D2/RF4: por que `occupancy` está nulo — o painel nomeia o que falta. */
     capacityUnknownReason: CapacityUnknownReason | null
+    /** T18 (revisão, item 10): o veículo cuja ficha resolve `capacityUnknownReason`. Opcional. */
+    capacityUnknownVehicleId?: string | null
     cargoWeight: TripCargoWeight | null
     occupancy: TripOccupancy | null
     /** Spec 147 D3/RF5: `null` quando o cavalo não tem carreta atrelada. */

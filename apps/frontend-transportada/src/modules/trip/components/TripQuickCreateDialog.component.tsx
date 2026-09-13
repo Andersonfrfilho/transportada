@@ -436,6 +436,7 @@ export function TripQuickCreateDialog({
           <TripCargoPanel
             cargoWeight={cargoPreview.preview.cargoWeight}
             capacityUnknownReason={cargoPreview.preview.capacityUnknownReason}
+            capacityUnknownVehicleId={cargoPreview.preview.capacityUnknownVehicleId ?? null}
             layout={cargoPreview.preview.cargoLayout}
             layoutView={cargoPreview.cargoLayoutView}
             occupancy={cargoPreview.preview.occupancy}

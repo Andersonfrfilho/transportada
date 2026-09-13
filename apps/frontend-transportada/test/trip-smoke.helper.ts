@@ -471,6 +471,7 @@ function tripDetail(mode: DocumentsMode): TripDetailContract {
     closedAt: null,
     closedByName: null,
     capacityUnknownReason: null,
+    capacityUnknownVehicleId: null,
     documents,
     /** Spec 107 D3: os dois andam em par — hora sem carimbo é previsão sem idade. */
     estimatedArrivalFrozenAt: null,

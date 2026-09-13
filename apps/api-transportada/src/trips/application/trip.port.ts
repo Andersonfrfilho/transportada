@@ -299,6 +299,12 @@ export type TripDetail = Trip & {
   readonly pendingCargoLayoutInput?: BuildCargoLayoutInputParams
   /** Spec 147 D2/RF4: por que `occupancy` está nulo, para o painel nomear o que falta. */
   readonly capacityUnknownReason: CapacityUnknownReason | null
+  /**
+   * T18 (revisão, item 10): o veículo cuja ficha resolve `capacityUnknownReason` — a carreta em
+   * `bodyTypeMissing`, o veículo da viagem nos demais motivos. Campo opcional na leitura do
+   * frontend de propósito: instalação que subir a API antes do frontend não pode esvaziar a tela.
+   */
+  readonly capacityUnknownVehicleId: string | null
   readonly documents: readonly TripDocumentDetail[]
   readonly drivers: readonly TripDriverDetail[]
   readonly cargoWeight: TripCargoWeightView | null

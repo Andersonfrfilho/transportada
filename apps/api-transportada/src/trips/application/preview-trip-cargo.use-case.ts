@@ -33,6 +33,8 @@ export type TripCargoPreview = {
   readonly cargoLayout: ResolvedCargoLayout | null
   /** Spec 147 D2/RF4: por que `occupancy` está nulo — o painel nomeia o que falta. */
   readonly capacityUnknownReason: CapacityUnknownReason | null
+  /** T18 (revisão, item 10): o veículo cuja ficha resolve `capacityUnknownReason`. */
+  readonly capacityUnknownVehicleId: string | null
   readonly cargoWeight: TripCargoWeightView | null
   /** A linha em `trip_cargo_layouts` que a tela pergunta de novo; ausente em `unavailable`. */
   readonly layoutId?: string
@@ -69,6 +71,8 @@ export type TripCargoPreviewContext = {
   readonly occupancy: TripOccupancyView | null
   /** Spec 147 D2/RF4: por que `occupancy` está nulo — o painel nomeia o que falta. */
   readonly capacityUnknownReason: CapacityUnknownReason | null
+  /** T18 (revisão, item 10): o veículo cuja ficha resolve `capacityUnknownReason`. */
+  readonly capacityUnknownVehicleId: string | null
 }
 
 export type TripCargoPreviewPort = {
@@ -150,6 +154,7 @@ export async function previewTripCargo(input: PreviewTripCargoInput): Promise<Tr
   return {
     ...layout,
     capacityUnknownReason: context.capacityUnknownReason,
+    capacityUnknownVehicleId: context.capacityUnknownVehicleId,
     cargoWeight: context.cargoWeight,
     occupancy: context.occupancy,
     weightConcentration: detectWeightConcentration({ stops: sumWeightByStop(context.documents) }),

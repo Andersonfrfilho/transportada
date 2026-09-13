@@ -42,6 +42,7 @@ const MEASURED_CONTEXT: TripCargoPreviewContext = {
   boxesByDocument: new Map(),
   capacityM3: '48.000',
   capacityUnknownReason: null,
+  capacityUnknownVehicleId: null,
   cargoWeight: null,
   documents: [
     {

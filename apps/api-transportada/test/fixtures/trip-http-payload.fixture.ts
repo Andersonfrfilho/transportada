@@ -193,6 +193,7 @@ export const TRIP_DETAIL: TripDetail = {
     truncated: false,
   },
   capacityUnknownReason: null,
+  capacityUnknownVehicleId: null,
   cargoWeight: null,
   documents: [TRIP_DOCUMENT_DETAIL],
   occupancy: null,

@@ -323,6 +323,8 @@ export const TRIP_DETAIL_OPTIONAL_KEYS = [
   'cargoLayoutId',
   /** Spec 147 D2/RF4: campo novo, nasce opcional como todo campo novo (spec 078 D2). */
   'capacityUnknownReason',
+  /** T18 (revisão, item 10): campo novo, mesma regra do opcional acima. */
+  'capacityUnknownVehicleId',
   'cargoWeight',
   'occupancy',
   /** Spec 147 D3/RF5: a carreta atrelada — campo novo, mesma regra do opcional acima. */

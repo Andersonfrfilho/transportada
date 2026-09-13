@@ -433,6 +433,9 @@ function isDetail(value: unknown): value is TripDetail {
     (value.capacityUnknownReason === undefined ||
       value.capacityUnknownReason === null ||
       isOneOf(value.capacityUnknownReason, CAPACITY_UNKNOWN_REASONS)) &&
+    (value.capacityUnknownVehicleId === undefined ||
+      value.capacityUnknownVehicleId === null ||
+      isString(value.capacityUnknownVehicleId)) &&
     (value.trailer === undefined || value.trailer === null || isTrailer(value.trailer)) &&
     isEveryItem(value.stops, isStopDetail)
   )
@@ -844,6 +847,7 @@ export function createTripResponseAdapters() {
       if (!isRecord(input)) throw invalid()
       const {
         capacityUnknownReason,
+        capacityUnknownVehicleId,
         cargoLayout,
         cargoWeight,
         layoutId,
@@ -863,16 +867,29 @@ export function createTripResponseAdapters() {
         capacityUnknownReason === null ||
         capacityUnknownReason === undefined ||
         isOneOf(capacityUnknownReason, CAPACITY_UNKNOWN_REASONS)
+      /** T18 (revisão, item 10): opcional, nasce ausente enquanto a API não a servir. */
+      const capacityUnknownVehicleIdOk =
+        capacityUnknownVehicleId === null ||
+        capacityUnknownVehicleId === undefined ||
+        isString(capacityUnknownVehicleId)
       const concentrationOk =
         weightConcentration === null ||
         weightConcentration === undefined ||
         isWeightConcentration(weightConcentration)
-      if (!layoutOk || !weightOk || !occupancyOk || !capacityUnknownReasonOk || !concentrationOk) {
+      if (
+        !layoutOk ||
+        !weightOk ||
+        !occupancyOk ||
+        !capacityUnknownReasonOk ||
+        !capacityUnknownVehicleIdOk ||
+        !concentrationOk
+      ) {
         throw invalid()
       }
       return {
         cargoLayout: (cargoLayout ?? null) as TripCargoLayout | null,
         capacityUnknownReason: capacityUnknownReason ?? null,
+        capacityUnknownVehicleId: capacityUnknownVehicleId ?? null,
         cargoWeight: (cargoWeight ?? null) as TripCargoWeight | null,
         occupancy: (occupancy ?? null) as TripOccupancy | null,
         weightConcentration: weightConcentration ?? null,
