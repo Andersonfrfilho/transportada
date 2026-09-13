@@ -1061,6 +1061,12 @@ export const companyOccurrenceTypes = pgTable(
      * novo. Nula é o legado (ou tipo sem e-mail).
      */
     emailTemplateKey: varchar('email_template_key', { length: 120 }),
+    /**
+     * Spec 143 (P4): liga o envio automático à contratante quando a ocorrência é registrada, sem
+     * clique do operador — pela mesma porta do P1 (`send-occurrence-mail.use-case.ts`). Padrão
+     * `false`: nenhuma instalação passa a mandar e-mail sozinha ao aplicar esta migration.
+     */
+    emailsContractor: boolean('emails_contractor').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

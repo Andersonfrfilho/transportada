@@ -21,7 +21,7 @@ test`), um commit isolado e a evidência em `evidence.md`. Teste novo entra na l
 > 🤖 Modelo: `sonnet` (T004, T008 e T010 são 🧠 — validar com `architect` em `opus` antes de
 > fechar)
 
-- [ ] **T003** Migration `20260913120000_contractor_mail`: todas as tabelas do `plan.md`
+- [x] **T003** Migration `20260913120000_contractor_mail`: todas as tabelas do `plan.md`
       (configuração, contatos, conversas, mensagens e os dois outboxes), a coluna em
       `delivery_charge_events` com o CHECK refeito, `emails_contractor` e o seed dos contatos, mais
       `rollback.sql`. Arquivos: `apps/api-transportada/drizzle/`,

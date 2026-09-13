@@ -144,6 +144,14 @@ import {
   routeSuggestions,
 } from './route-suggestion.schema.js'
 import { contractorPortalBindings, tripLocationPings } from './client-portal.schema.js'
+import {
+  contractorContacts,
+  contractorInboundEmailOutbox,
+  contractorMailMessages,
+  contractorMailOutbox,
+  contractorMailSettings,
+  contractorMailThreads,
+} from './contractor-mail.schema.js'
 import { whatsappChannels } from './whatsapp-channel.schema.js'
 import {
   userWhatsAppPhones,
@@ -212,6 +220,7 @@ export * from './address-comparison.schema.js'
 export * from './delivery-client.schema.js'
 export * from './trip-financial.schema.js'
 export * from './client-portal.schema.js'
+export * from './contractor-mail.schema.js'
 export * from './whatsapp-channel.schema.js'
 export * from './user-whatsapp-phone.schema.js'
 export * from './whatsapp-flow-graph-version.schema.js'
@@ -339,6 +348,12 @@ export const databaseSchema = {
   routeSuggestions,
   storedObjects,
   companyTaxSettings,
+  contractorContacts,
+  contractorInboundEmailOutbox,
+  contractorMailMessages,
+  contractorMailOutbox,
+  contractorMailSettings,
+  contractorMailThreads,
   contractorPortalBindings,
   tripCostEntries,
   tripDispatchSnapshots,
