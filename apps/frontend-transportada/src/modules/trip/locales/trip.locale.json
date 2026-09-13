@@ -721,6 +721,9 @@
   "occupancy": {
     "capacityReference": "A capacidade é referência do tipo de veículo, não medida deste baú. Preencha as dimensões na ficha para o número ficar exato.",
     "capacityUnknown": "Este veículo não tem capacidade cadastrada, e o tipo dele não tem referência de mercado — por isso não há ocupação nem planta do baú. Preencha comprimento, largura e altura do baú na ficha do veículo, em Frota.",
+    "capacityUnknownBodyType": "Este veículo está com carroceria não informada, e por isso não há ocupação nem planta do baú.",
+    "capacityUnknownReference": "O tipo deste veículo ainda não tem referência de capacidade no catálogo — não há ocupação nem planta do baú.",
+    "capacityUnknownTrailer": "Este cavalo está sem carreta informada, e por isso não há ocupação nem planta do baú.",
     "dimensions": "Baú de {{length}} × {{width}} × {{height}} m = {{volume}} m³.",
     "estimated": "Valor estimado: a nota fiscal não traz medida da carga, e o cálculo usa o fator de cubagem por volume configurado.",
     "label": "Ocupação do baú",

@@ -433,6 +433,12 @@ export type TripCargoWeight = Readonly<{
   source: 'declared' | 'estimated'
 }>
 
+/**
+ * Spec 147 D2/RF4: por que `occupancy`/`capacityM3` estão nulos — nunca "capacidade desconhecida"
+ * sem dizer o que falta. `null` quando a capacidade é conhecida.
+ */
+export type CapacityUnknownReason = 'bodyTypeMissing' | 'referenceMissing' | 'trailerMissing'
+
 export type TripOccupancy = Readonly<{
   /** As medidas de onde o m³ saiu; `null` no degrau em que alguém digitou o volume. */
   capacityDimensions: Readonly<{ heightM: string; lengthM: string; widthM: string }> | null
@@ -683,6 +689,8 @@ export type TripCargoLayoutState = Readonly<{
  */
 export type TripCargoPreview = Readonly<{
   cargoLayout: TripCargoLayout | null
+  /** Spec 147 D2/RF4: por que `occupancy` está nulo — o painel nomeia o que falta. */
+  capacityUnknownReason: CapacityUnknownReason | null
   cargoWeight: TripCargoWeight | null
   layoutId?: string
   occupancy: TripOccupancy | null
@@ -714,6 +722,8 @@ export type TripDetail = Trip &
     cargoLayoutState?: TripCargoLayoutState
     /** Spec 148 T7: a planta pronta do hash atual; `null` enquanto ela não está pronta. */
     cargoLayoutId?: null | string
+    /** Spec 147 D2/RF4: por que `occupancy` está nulo — o painel nomeia o que falta. */
+    capacityUnknownReason: CapacityUnknownReason | null
     cargoWeight: TripCargoWeight | null
     occupancy: TripOccupancy | null
     stops: readonly TripStopDetail[]

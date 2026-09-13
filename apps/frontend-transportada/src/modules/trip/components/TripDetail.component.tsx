@@ -922,6 +922,7 @@ export function TripDetail({
       */}
       <TripCargoPanel
         cargoWeight={trip.cargoWeight ?? null}
+        capacityUnknownReason={trip.capacityUnknownReason ?? null}
         layout={trip.cargoLayout}
         layoutView={workspace.cargoLayoutView}
         occupancy={trip.occupancy}

@@ -335,6 +335,7 @@ export function TripProposalDetail({
       {occupancy === null && cargoWeight === null ? null : (
         <TripCargoPanel
           cargoWeight={cargoWeight}
+          capacityUnknownReason={cargo.preview?.capacityUnknownReason ?? null}
           layout={cargo.preview?.cargoLayout ?? null}
           layoutView={cargo.cargoLayoutView}
           occupancy={occupancy}
@@ -354,6 +355,7 @@ export function TripProposalDetail({
               unplaced={unplaced}
             />
           }
+          vehicleId={view.vehicleId}
           vehicleType={view.vehicleType}
           weightConcentration={cargo.preview?.weightConcentration ?? null}
         />

@@ -316,6 +316,8 @@ export const TRIP_DETAIL_OPTIONAL_KEYS = [
   'cargoLayoutState',
   /** Spec 148 T7: a planta do hash atual — é por ela que o botão tira as notas que não couberam. */
   'cargoLayoutId',
+  /** Spec 147 D2/RF4: campo novo, nasce opcional como todo campo novo (spec 078 D2). */
+  'capacityUnknownReason',
   'cargoWeight',
   'occupancy',
 ] as const
@@ -336,6 +338,16 @@ export const TRIP_CARGO_LAYOUTS_PATH = `${TRIPS_PATH}/cargo-layouts`
 /** Spec 148 T7: a fila de revisão das notas que não couberam — fora da árvore `/trips/:id`. */
 export const TRIP_DOCUMENT_REVIEWS_PATH = '/trip-document-reviews'
 export const TRIP_REVIEW_QUERY_KEY = 'trip-document-reviews'
+
+/**
+ * ⚠️ Cópia por valor da API: fonte
+ * `api-transportada/src/trips/domain/capacity-unknown-reason.policy.ts`.
+ */
+export const CAPACITY_UNKNOWN_REASONS = [
+  'bodyTypeMissing',
+  'referenceMissing',
+  'trailerMissing',
+] as const
 
 /**
  * Spec 079: o peso da carga. **Sem razão de ocupação** — a ficha do veículo não guarda capacidade

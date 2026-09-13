@@ -418,10 +418,12 @@ export function TripQuickCreateDialog({
         {cargoPreview.preview === null ? null : (
           <TripCargoPanel
             cargoWeight={cargoPreview.preview.cargoWeight}
+            capacityUnknownReason={cargoPreview.preview.capacityUnknownReason}
             layout={cargoPreview.preview.cargoLayout}
             layoutView={cargoPreview.cargoLayoutView}
             occupancy={cargoPreview.preview.occupancy}
             weightConcentration={cargoPreview.preview.weightConcentration}
+            vehicleId={quickCreate.vehicleId}
             vehicleType={
               vehicles.find((vehicle) => vehicle.id === quickCreate.vehicleId)?.vehicleType ?? ''
             }

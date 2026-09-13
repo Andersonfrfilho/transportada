@@ -147,3 +147,51 @@ null`, ao lado de `occupancy` (não aninhado — a resposta não tem chave `carg
   inalterada em contagem em relação à T3 — a task só adicionou fiação e um teste de integração, que
   não entra nessa lista).
 - `bunx prettier --check` e `bunx eslint` em todos os arquivos tocados: ok, sem avisos.
+
+## T5 — Painel nomeia o motivo (frontend)
+
+- **Serviço puro** `apps/frontend-transportada/src/modules/trip/shared/capacityUnknownMessage.service.ts`:
+  `resolveCapacityUnknownMessage({reason, vehicleId})` decide `{textKey, linkHref, linkLabelKey}`.
+  `bodyTypeMissing`/`trailerMissing` levam à ficha do veículo por `buildFleetVehicleRoute` (deep
+  link **já existente** em `fleet/shared/fleetRoute.service.ts` — não precisou de rota nova, e
+  `linkLabelKey` reusa `cargoPlan.missingBedLink`, já existente). Hoje a viagem só conhece o
+  veículo de tração (Fase 4 ainda não existe), então o link de `trailerMissing` aponta para a
+  ficha do cavalo — é a única ficha que existe para editar. `referenceMissing` não tem link:
+  o catálogo é quem falta, e não há campo na ficha que resolva.
+- Vermelho→verde: `test/trip/capacity-unknown-message.contract.ts` (3 casos, um por motivo)
+  escrito e importado em `test/trip.contract.test.ts` antes do serviço existir —
+  `bun test test/trip.contract.test.ts` falhou com `Cannot find module
+'.../capacityUnknownMessage.service'`; depois de criar o arquivo, verde.
+- **Guard**: `trip.constant.ts` ganhou `CAPACITY_UNKNOWN_REASONS` (cópia por valor da API) e
+  `'capacityUnknownReason'` em `TRIP_DETAIL_OPTIONAL_KEYS` (campo novo nasce opcional — spec 078
+  D2 — porque a API sobe primeiro). `tripResponse.validation.ts`: `isDetail` tolera o campo
+  ausente/`null`/um dos três valores; `tripCargoPreviewFromApi` (que não usa `hasKeys`, extrai
+  campo a campo) ganhou a mesma validação e o campo no retorno.
+- **`TripCargoPanel.component.tsx`**: prop nova `capacityUnknownReason` e prop nova obrigatória
+  `vehicleId` (as três telas que montam o painel já tinham o id à mão). Quando `occupancy` é
+  `null`, `TripCargoWeightPanel` (agora com `capacityUnknownReason`/`vehicleId`) delega a
+  `TripCapacityUnknownHint`, que chama o serviço puro e imprime `t(message.textKey)` + o link
+  quando existe; sem motivo (API antiga, janela entre os dois deploys) cai na mensagem genérica de
+  sempre, inline, sem quebrar o painel.
+  - ⚠️ `if (occupancy === null) return <TripCargoWeightPanel {...weightPanelProps} />` continua
+    numa linha só (objeto de props montado na linha de cima) — `test/trip/occupancy.contract.ts`
+    cobra por texto de fonte que a linha seja exatamente `if (occupancy === null) return`, e
+    passar as três props separadas ali quebrava a linha em várias e reprovava esse contrato
+    (achado durante a task, corrigido).
+- Chaves novas em `trip.locale.json` (acentuadas, cobertas por
+  `test/shared/locale-accents.contract.ts`, que já roda na suíte geral):
+  `occupancy.capacityUnknownBodyType`, `occupancy.capacityUnknownTrailer`,
+  `occupancy.capacityUnknownReference`. `trip.en.locale.json` não tem seção `occupancy` — nada
+  para atualizar lá (relatado, não ignorado silenciosamente).
+- Callers atualizados para passar `vehicleId`/`capacityUnknownReason`: `TripDetail.component.tsx`
+  (`trip.vehicleId`/`trip.capacityUnknownReason`), `TripProposalDetail.component.tsx`
+  (`view.vehicleId`/`cargo.preview?.capacityUnknownReason`), `TripQuickCreateDialog.component.tsx`
+  (`quickCreate.vehicleId`/`cargoPreview.preview.capacityUnknownReason`).
+- Fixtures/tipos de teste ajustados pelo campo novo obrigatório no contrato TS local:
+  `test/trip/trip.fixture.ts` (`TripDetailContract` e `TRIP_DETAIL`), `test/trip-smoke.helper.ts`.
+- `bun run --cwd apps/frontend-transportada typecheck`: limpo.
+- `bun run --cwd apps/frontend-transportada test`: **3319 pass, 0 fail** (suíte inteira do
+  frontend, sem regressão nos 3316 pré-existentes).
+- `bunx prettier --check` e `bunx eslint` em todos os arquivos tocados: ok, sem avisos (um
+  `@typescript-eslint/no-unnecessary-type-assertion` apareceu e foi corrigido removendo o cast
+  redundante em `tripCargoPreviewFromApi`, com o import de tipo que ficou órfão removido junto).

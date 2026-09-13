@@ -162,6 +162,8 @@ export type TripDetailContract = TripContract &
       occupancyRatio: string
       source: 'declared' | 'estimated'
     }> | null
+    /** Spec 147 D2/RF4: por que `occupancy` está nulo — `null` quando a capacidade é conhecida. */
+    capacityUnknownReason: 'bodyTypeMissing' | 'referenceMissing' | 'trailerMissing' | null
     stops: readonly TripStopDetailContract[]
   }>
 
@@ -216,6 +218,7 @@ export const TRIP_DETAIL = {
   closeReason: null,
   closedAt: null,
   closedByName: null,
+  capacityUnknownReason: null,
   documents: [TRIP_DOCUMENT_DETAIL],
   drivers: [
     {

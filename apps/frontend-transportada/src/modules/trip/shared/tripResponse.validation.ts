@@ -45,6 +45,7 @@ import {
 import {
   BATCH_STATUS_RESULT_KEYS,
   BATCH_STATUS_RESULT_OPTIONAL_KEYS,
+  CAPACITY_UNKNOWN_REASONS,
   DELIVERY_ADDRESS_OVERRIDE_KEYS,
   STOP_ADDRESS_COMPONENTS_KEYS,
   TRANSITION_RESULT_KEYS,
@@ -427,6 +428,9 @@ function isDetail(value: unknown): value is TripDetail {
       isCargoWeight(value.cargoWeight)) &&
     (value.occupancy === undefined || value.occupancy === null || isOccupancy(value.occupancy)) &&
     (value.cargoLayoutState === undefined || isCargoLayoutState(value.cargoLayoutState)) &&
+    (value.capacityUnknownReason === undefined ||
+      value.capacityUnknownReason === null ||
+      isOneOf(value.capacityUnknownReason, CAPACITY_UNKNOWN_REASONS)) &&
     isEveryItem(value.stops, isStopDetail)
   )
 }
@@ -829,7 +833,15 @@ export function createTripResponseAdapters() {
      */
     tripCargoPreviewFromApi(input: unknown): TripCargoPreview {
       if (!isRecord(input)) throw invalid()
-      const { cargoLayout, cargoWeight, layoutId, occupancy, state, weightConcentration } = input
+      const {
+        capacityUnknownReason,
+        cargoLayout,
+        cargoWeight,
+        layoutId,
+        occupancy,
+        state,
+        weightConcentration,
+      } = input
       /** ⚠️ Spec 145 D17: a prévia não confere chaves, então só a forma de `layoutId`/`state` reprova. */
       if (layoutId !== undefined && !isString(layoutId)) throw invalid()
       if (state !== undefined && !isCargoLayoutState(state)) throw invalid()
@@ -838,13 +850,20 @@ export function createTripResponseAdapters() {
       const weightOk =
         cargoWeight === null || cargoWeight === undefined || isCargoWeight(cargoWeight)
       const occupancyOk = occupancy === null || occupancy === undefined || isOccupancy(occupancy)
+      const capacityUnknownReasonOk =
+        capacityUnknownReason === null ||
+        capacityUnknownReason === undefined ||
+        isOneOf(capacityUnknownReason, CAPACITY_UNKNOWN_REASONS)
       const concentrationOk =
         weightConcentration === null ||
         weightConcentration === undefined ||
         isWeightConcentration(weightConcentration)
-      if (!layoutOk || !weightOk || !occupancyOk || !concentrationOk) throw invalid()
+      if (!layoutOk || !weightOk || !occupancyOk || !capacityUnknownReasonOk || !concentrationOk) {
+        throw invalid()
+      }
       return {
         cargoLayout: (cargoLayout ?? null) as TripCargoLayout | null,
+        capacityUnknownReason: capacityUnknownReason ?? null,
         cargoWeight: (cargoWeight ?? null) as TripCargoWeight | null,
         occupancy: (occupancy ?? null) as TripOccupancy | null,
         weightConcentration: weightConcentration ?? null,
