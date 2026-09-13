@@ -1,13 +1,14 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery } from '@tanstack/react-query'
 
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
 
 import {
   createPendingItemsClient,
-  type PendingItem,
+  flattenPendingItemPages,
+  lastPendingItemsCursor,
+  type PendingItemPage,
   type PendingItemsClient as Client,
 } from '../shared/pendingItemsClient.service'
 
@@ -43,24 +44,30 @@ export function usePendingItems(
   }>,
 ) {
   const client = input.client ?? getPendingItemsClient()
-  const [cursor, setCursor] = useState<string | null>(null)
   const permissions = input.companyId === undefined ? [] : input.permissions
   const controller = createPendingItemsController({ permissions })
 
-  const pageQuery = useQuery({
+  /**
+   * T18 (revisão, MENOR 10): "carregar mais" tem de **acumular**, não trocar de página — era um
+   * `useQuery` reexecutado com o cursor novo, e cada clique substituía a lista inteira pela página
+   * seguinte em vez de somar a ela. `useInfiniteQuery` é o mesmo padrão de
+   * `useTripOccurrenceFeedQuery` (`trip/queries/tripOccurrenceFeed.query.ts`).
+   */
+  const pageQuery = useInfiniteQuery({
     enabled: controller.canReadPendingItems,
-    queryFn: () => client.listPendingItems({ cursor, limit: PENDING_ITEMS_PAGE_SIZE }),
-    queryKey: [PENDING_ITEMS_QUERY_KEY, input.companyId, cursor],
+    getNextPageParam: (lastPage: PendingItemPage) => lastPage.nextCursor,
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam }) =>
+      client.listPendingItems({ cursor: pageParam, limit: PENDING_ITEMS_PAGE_SIZE }),
+    queryKey: [PENDING_ITEMS_QUERY_KEY, input.companyId],
   })
 
-  const items: readonly PendingItem[] = pageQuery.data?.items ?? []
-  const nextCursor = pageQuery.data?.nextCursor ?? null
+  const items = flattenPendingItemPages(pageQuery.data?.pages ?? [])
+  const nextCursor = lastPendingItemsCursor(pageQuery.data?.pages ?? [])
 
   return {
     controller,
-    cursor,
-    goToFirstPage: () => setCursor(null),
-    goToNextPage: () => setCursor(nextCursor),
+    goToNextPage: () => void pageQuery.fetchNextPage(),
     items,
     nextCursor,
     pageQuery,

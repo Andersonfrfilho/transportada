@@ -64,6 +64,20 @@ async function authorizedGet(
   }
 }
 
+/**
+ * T18 (revisão, MENOR 10): "carregar mais" acumula, nunca troca de página — extraída como função
+ * pura para o contrato provar a soma sem montar `useInfiniteQuery` nem o DOM (este app não testa
+ * tela, só serviço puro e texto de fonte).
+ */
+export function flattenPendingItemPages(pages: readonly PendingItemPage[]): readonly PendingItem[] {
+  return pages.flatMap((page) => page.items)
+}
+
+/** O cursor de "carregar mais" é sempre o da **última** página lida, nunca o das anteriores. */
+export function lastPendingItemsCursor(pages: readonly PendingItemPage[]): null | string {
+  return pages.at(-1)?.nextCursor ?? null
+}
+
 export function createPendingItemsClient(dependencies: ClientDependencies): PendingItemsClient {
   const adapters = createPendingItemPageAdapter()
   return {
