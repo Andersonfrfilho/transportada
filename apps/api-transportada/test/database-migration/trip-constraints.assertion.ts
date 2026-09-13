@@ -449,6 +449,14 @@ export async function assertTripConstraints(
   })
 
   await assertStopEnRouteConstraints({ companyId, database, tripId, vehicleId })
+
+  await assertTrailerVehicleConstraints({
+    companyId,
+    database,
+    otherCompanyId,
+    trailerId: fleet.trailerId,
+    vehicleId,
+  })
 }
 
 /**
@@ -561,6 +569,69 @@ async function assertStopEnRouteConstraints(input: {
     where id in (${openStopId}, ${secondOpenStopId}, ${arrivedStopId}, ${settledStopId}, ${otherTripStopId})
   `
   await database`delete from trips where id = ${secondTripId}`
+}
+
+/**
+ * Spec 147 D3/T8: a carreta que o cavalo puxa nesta viagem. `restrict`/`cascade` cruzando empresa,
+ * carreta que não é o próprio veículo tracionado, e uma carreta não entra em duas viagens abertas
+ * ao mesmo tempo — só os dois estados terminais (`completed`, `cancelled`) a liberam.
+ */
+async function assertTrailerVehicleConstraints(input: {
+  readonly companyId: string
+  readonly database: SQL
+  readonly otherCompanyId: string
+  readonly trailerId: string
+  readonly vehicleId: string
+}): Promise<void> {
+  const { companyId, database, otherCompanyId, trailerId, vehicleId } = input
+  const otherCompanyVehicleId = crypto.randomUUID()
+
+  await database`
+    insert into fleet_vehicles (id, company_id, plate, role, vehicle_type, state)
+    values (${otherCompanyVehicleId}, ${otherCompanyId}, 'TRP1A11', 'traction', 'tractor_unit', 'SP')
+  `
+
+  await expectQueryToFail(
+    database`
+      insert into trips (company_id, vehicle_id, trailer_vehicle_id)
+      values (${companyId}, ${vehicleId}, ${otherCompanyVehicleId})
+    `,
+    '23503',
+    'trips_company_trailer_vehicle_fk',
+  )
+
+  await expectQueryToFail(
+    database`
+      insert into trips (company_id, vehicle_id, trailer_vehicle_id)
+      values (${companyId}, ${vehicleId}, ${vehicleId})
+    `,
+    '23514',
+    'trips_trailer_not_vehicle',
+  )
+
+  const trailerTripId = crypto.randomUUID()
+  await database`
+    insert into trips (id, company_id, vehicle_id, trailer_vehicle_id)
+    values (${trailerTripId}, ${companyId}, ${vehicleId}, ${trailerId})
+  `
+  await expectQueryToFail(
+    database`
+      insert into trips (company_id, vehicle_id, trailer_vehicle_id)
+      values (${companyId}, ${vehicleId}, ${trailerId})
+    `,
+    '23505',
+    'trips_company_trailer_open_unique',
+  )
+
+  // Completed é um dos dois terminais que liberam a carreta.
+  await database`update trips set status = 'completed' where id = ${trailerTripId}`
+  const secondTrailerTripId = crypto.randomUUID()
+  await database`
+    insert into trips (id, company_id, vehicle_id, trailer_vehicle_id)
+    values (${secondTrailerTripId}, ${companyId}, ${vehicleId}, ${trailerId})
+  `
+
+  await database`delete from trips where id in (${trailerTripId}, ${secondTrailerTripId})`
 }
 
 /**

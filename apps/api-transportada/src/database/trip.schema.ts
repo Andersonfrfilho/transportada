@@ -278,6 +278,12 @@ export const trips = pgTable(
      */
     plannedJourneySeconds: bigint('planned_journey_seconds', { mode: 'number' }),
     plannedJourneyIncludesReturn: boolean('planned_journey_includes_return'),
+    /**
+     * Spec 147 D3: a carreta que o cavalo puxa. `null` é o normal para todo veículo que não é
+     * `tractor_unit` — o cavalo não carrega sozinho, mas viagem sem carreta pode ser montada e
+     * planejada, só não despacha (`TRIP_TRAILER_REQUIRED`, T11).
+     */
+    trailerVehicleId: uuid('trailer_vehicle_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -309,10 +315,36 @@ export const trips = pgTable(
       sql`(${table.closedAt} is null) = (${table.closedByUserId} is null)
         and (${table.closeReason} is null or ${table.closedAt} is not null)`,
     ),
+    /**
+     * Spec 147 T8: `restrict`/`cascade`, nunca `SET NULL` — numa FK composta ele anularia também
+     * `company_id`, que é NOT NULL.
+     */
+    foreignKey({
+      columns: [table.companyId, table.trailerVehicleId],
+      foreignColumns: [fleetVehicles.companyId, fleetVehicles.id],
+      name: 'trips_company_trailer_vehicle_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('cascade'),
     unique('trips_company_id_id_unique').on(table.companyId, table.id),
     index('trips_company_status_created_at_idx').on(table.companyId, table.status, table.createdAt),
     index('trips_company_vehicle_idx').on(table.companyId, table.vehicleId),
     check('trips_status_check', sql`${table.status} in (${raw(inList(TRIP_STATUSES))})`),
+    /** A carreta não pode ser o próprio veículo tracionado. */
+    check(
+      'trips_trailer_not_vehicle',
+      sql`${table.trailerVehicleId} is null or ${table.trailerVehicleId} <> ${table.vehicleId}`,
+    ),
+    /**
+     * Spec 147 T8: uma carreta não entra em duas viagens abertas ao mesmo tempo. São nove estados
+     * (`trip-state.policy.ts`); os dois terminais (`completed`, `cancelled`) não regridem, e são os
+     * únicos de fora — quem já entregou ou cancelou libera a carreta.
+     */
+    uniqueIndex('trips_company_trailer_open_unique')
+      .on(table.companyId, table.trailerVehicleId)
+      .where(
+        sql`${table.trailerVehicleId} is not null and ${table.status} not in ('completed', 'cancelled')`,
+      ),
     check(
       'trips_fiscal_readiness_check',
       sql`${table.fiscalReadinessState} in (${raw(inList(TRIP_FISCAL_READINESS_STATES))})`,

@@ -34,6 +34,7 @@ const RECORD: VehicleRecord = {
   companyId: '00000000-0000-4000-8000-000000000901',
   costsUpdatedAt: null,
   createdAt: TIMESTAMP,
+  defaultTrailerVehicleId: null,
   fleetNumber: '',
   fuelType: 'diesel-s10',
   hasAutomaticTollPayment: false,

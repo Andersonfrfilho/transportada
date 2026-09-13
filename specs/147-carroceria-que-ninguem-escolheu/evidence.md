@@ -399,3 +399,96 @@ Arquivos:
   e os símbolos que só ela usava)
 - `apps/api-transportada/test/fleet-domain/vehicle-body-type.contract.ts` (novo)
 - `apps/api-transportada/test/fleet-domain.contract.test.ts` (novo import)
+
+## T8 — migration trip_trailer_vehicle (à mão)
+
+**Por que à mão, e não `db:generate`.** As 35 migrations mais recentes do repositório (de
+`20260902140000_cargo_volume_factors` a `20260910120000_vehicle_reference_every_type`) são
+`migration.sql` + `rollback.sql` escritos à mão, sem `snapshot.json` — o próprio `drizzle/meta/`
+não existe mais neste repositório. Confirmado lendo o migrator de fato usado
+(`node_modules/.../drizzle-orm/migrator.js`, `readMigrationFiles`): ele lê os subdiretórios de
+`drizzle/` direto (sem `_journal.json`), ordena por nome e extrai a data das 14 primeiras posições
+do nome da pasta — é por isso que o precedente de nomear a pasta `YYYYMMDDHHMMSS_descricao` funciona
+sem journal nenhum. Rodar `db:generate` hoje diffaria contra um snapshot desatualizado e
+reintroduziria como "novas" cerca de dez migrations já aplicadas — o mesmo risco que o plan.md já
+sinalizava. Segui o precedente das 35: SQL de mão, no formato de `20260907190000_cargo_placement_properties`
+e `20260910120000_vehicle_reference_every_type` (tabulação, `ADD COLUMN IF NOT EXISTS`, `ADD
+CONSTRAINT` nomeado igual ao Drizzle, `DROP ... IF EXISTS` no rollback na ordem inversa, bloco `DO $$`
+apagando a própria linha do journal e conferindo `ROW_COUNT = 1`).
+
+**Statements da migration** (`drizzle/20260913120000_trip_trailer_vehicle/migration.sql`), só ADD —
+nenhum DROP/UPDATE/ALTER TYPE, nada em `body_type`:
+
+1. `ALTER TABLE fleet_vehicles ADD COLUMN IF NOT EXISTS default_trailer_vehicle_id uuid` — nula.
+2. `ALTER TABLE trips ADD COLUMN IF NOT EXISTS trailer_vehicle_id uuid` — nula.
+3. `ALTER TABLE fleet_vehicles ADD CONSTRAINT fleet_vehicles_company_default_trailer_fk FOREIGN KEY
+(company_id, default_trailer_vehicle_id) REFERENCES fleet_vehicles (company_id, id) ON DELETE
+RESTRICT ON UPDATE CASCADE` — auto-referente, pela mesma `fleet_vehicles_company_id_id_unique`.
+4. `ALTER TABLE trips ADD CONSTRAINT trips_company_trailer_vehicle_fk FOREIGN KEY (company_id,
+trailer_vehicle_id) REFERENCES fleet_vehicles (company_id, id) ON DELETE RESTRICT ON UPDATE
+CASCADE`.
+5. `ALTER TABLE fleet_vehicles ADD CONSTRAINT fleet_vehicles_default_trailer_tractor_only CHECK
+(default_trailer_vehicle_id IS NULL OR vehicle_type = 'tractor_unit')`.
+6. `ALTER TABLE fleet_vehicles ADD CONSTRAINT fleet_vehicles_default_trailer_not_self CHECK
+(default_trailer_vehicle_id IS NULL OR default_trailer_vehicle_id <> id)`.
+7. `ALTER TABLE trips ADD CONSTRAINT trips_trailer_not_vehicle CHECK (trailer_vehicle_id IS NULL OR
+trailer_vehicle_id <> vehicle_id)`.
+8. `CREATE UNIQUE INDEX IF NOT EXISTS trips_company_trailer_open_unique ON trips (company_id,
+trailer_vehicle_id) WHERE trailer_vehicle_id IS NOT NULL AND status NOT IN ('completed',
+'cancelled')`.
+
+Os oito statements reproduzem, byte a byte no vocabulário SQL, as definições já escritas no schema
+Drizzle (`trip.schema.ts`, `fleet.schema.ts`) — nenhuma foi inventada na migration.
+
+**Rollback** (`rollback.sql`): bloco `DO $$` apagando a linha do journal (`RAISE EXCEPTION` se não for
+exatamente uma), depois `DROP INDEX IF EXISTS`, os quatro `DROP CONSTRAINT IF EXISTS` (CHECKs antes
+das FKs, ordem inversa da criação) e os dois `DROP COLUMN IF EXISTS` — devolve o esquema, nunca os
+valores: cavalo com carreta padrão e viagem com carreta vinculada perdem o vínculo, sem forma de
+redescobri-lo.
+
+**`db:check`**: `Everything's fine 🐶🔥` — schema Drizzle e o SQL à mão continuam batendo.
+
+**Asserções de migration** (`test/database-migration/`):
+
+- `fleet-constraints.assertion.ts` — `assertDefaultTrailerConstraints` (novo), chamado do fim de
+  `assertFleetConstraints`: FK cruzando empresa (`fleet_vehicles_company_default_trailer_fk`, 23503),
+  `fleet_vehicles_default_trailer_not_self` (23514, veículo apontando pra si mesmo) e
+  `fleet_vehicles_default_trailer_tractor_only` (23514, tentando declarar carreta padrão no
+  implemento `trailerId`, que não é `tractor_unit`) — termina com uma atribuição válida
+  (`vehicleId → trailerId`) e reset para `null`.
+- `trip-constraints.assertion.ts` — `assertTrailerVehicleConstraints` (novo), chamado do fim de
+  `assertTripConstraints`: FK cruzando empresa (`trips_company_trailer_vehicle_fk`, 23503),
+  `trips_trailer_not_vehicle` (23514, carreta = próprio `vehicle_id`), e
+  `trips_company_trailer_open_unique` (23505 na segunda viagem aberta com a mesma carreta; depois de
+  marcar a primeira como `completed`, a terceira viagem com a mesma carreta entra sem erro).
+- `static-migration.contract.ts` — acrescentada a entrada `20260913120000_trip_trailer_vehicle` na
+  lista exaustiva de diretórios de migration que o contrato confere.
+- `test/fleet-schema/vehicles.contract.ts` — `default_trailer_vehicle_id` entrou na lista exaustiva
+  de colunas de `fleet_vehicles` e foi excluída de `requiredColumnNames` (nula por padrão).
+- `test/fleet-infrastructure/vehicle-mapper.contract.ts` — fixture `RECORD` ganhou
+  `defaultTrailerVehicleId: null` (o tipo inferido do schema passou a exigir o campo).
+
+**Worker**: nenhuma cópia das colunas em `apps/worker-transportada/src/database/routing.schema.ts`
+— por decisão da task (T8 só schema+migration da API; a cópia do worker, se vier a existir, é de
+outra task). `bun run --cwd apps/worker-transportada typecheck` continua limpo porque o worker não
+lê essas colunas.
+
+**Gates:**
+
+- `bun run --cwd apps/api-transportada db:check` → `Everything's fine 🐶🔥`.
+- `bun run --cwd apps/api-transportada typecheck` → limpo.
+- `bun run --cwd apps/api-transportada lint` → limpo (após remover o parâmetro `companyId` não usado
+  em `assertDefaultTrailerConstraints`).
+- `bunx prettier --check` nos seis arquivos tocados/criados → `All matched files use Prettier code
+style!`.
+- `bun run --cwd apps/api-transportada test` → **5080 pass, 23 skip, 0 fail, 37152 expect() calls,
+  163 arquivos** (suíte sem Postgres — os testes de migration ficam `skip` sem
+  `DRIZZLE_TEST_DATABASE_URL`).
+- `make migration-test` (raiz do worktree, Postgres descartável via `postgres-up`) → **91 pass, 0
+  fail, 1119 expect() calls, 8 arquivos** — inclui `database-migration.contract.test.ts`, que aplica
+  a pasta `drizzle/` inteira (agora com a migration nova), roda as novas asserções de carreta,
+  desfaz todos os rollbacks pós-identidade em cadeia, reaplica tudo do zero e desfaz de novo até a
+  migration de identidade. Nenhuma falha de infraestrutura; nada destrutivo revelado.
+- `bun run --cwd apps/worker-transportada typecheck` → limpo.
+
+**Commit:** `feat(database): 147 T8 — a carreta ganha coluna na viagem e na frota`.
