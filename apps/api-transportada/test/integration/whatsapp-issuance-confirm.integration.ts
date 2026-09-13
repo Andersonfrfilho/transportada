@@ -231,10 +231,9 @@ describe('confirmar é emitir o que foi visto (spec 144 T013, AC4 e AC5)', () =>
     'retomada — queda entre created e issue não duplica lote nem emissão',
     async () => {
       const db = requireDatabase()
-      // Só CT-e: a retomada prova `created → issue`. Com NFS-e no mesmo pedido, o `create` dela
-      // travou em 3 de 5 rodadas do arquivo inteiro — conexão `idle in transaction` presa no
-      // `Promise.all` de `findNfseSelectionDocuments`, código anterior à T013 (evidence.md § T013).
-      const world = await seedCompany(db, { withNfse: false })
+      // Com NFS-e no mesmo pedido: a queda antes do primeiro `issue` deixa o lote `created` e a
+      // NFS-e `pending`, e a retomada emite as duas.
+      const world = await seedCompany(db)
       let crashes = 1
       const scenario = buildScenario(db, {
         beforeIssue: () => {
@@ -249,11 +248,12 @@ describe('confirmar é emitir o que foi visto (spec 144 T013, AC4 e AC5)', () =>
         scenario.confirmation.confirm({ actor: world.actor, requestId }),
       ).rejects.toThrow('connection terminated')
       const stuck = await readJournal(db, world.companyId, requestId)
-      expect(stuck.map((step) => step.status)).toEqual(['created'])
+      expect(stuck.map((step) => step.status)).toEqual(['created', 'pending'])
       expect(await countRows(db, cteIssuanceAttempts, world.companyId)).toBe(0)
 
       const outcome = await scenario.confirmation.resume({ actor: world.actor, requestId })
-      expect(outcome).toEqual({ failures: [], issued: 1, kind: 'dispatched' })
+      expect(outcome).toEqual({ failures: [], issued: 2, kind: 'dispatched' })
+      expect(await countRows(db, nfseServiceInvoices, world.companyId)).toBe(1)
       expect(await countWhatsAppBatches(db, world.companyId)).toBe(1)
       expect(await countRows(db, cteIssuanceAttempts, world.companyId)).toBe(CTE_NUMBERS.length)
       const [resumedBatch] = await readJournal(db, world.companyId, requestId)

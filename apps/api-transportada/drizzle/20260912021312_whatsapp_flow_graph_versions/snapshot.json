@@ -1,8 +1,8 @@
 {
   "dialect": "postgres",
-  "id": "e0b910d2-6b6d-49ec-8640-4398010a03bb",
+  "id": "1f8e1779-1c3a-48a9-b0ed-9dbae6f06fe9",
   "prevIds": [
-    "1f8e1779-1c3a-48a9-b0ed-9dbae6f06fe9"
+    "a2e38551-5452-42e4-ab78-9eae1fe0420e"
   ],
   "version": "8",
   "ddl": [
@@ -6668,32 +6668,6 @@
       "generated": null,
       "identity": null,
       "name": "municipal_service_policy",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "cte_emission_profiles"
-    },
-    {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": "'cte'",
-      "generated": null,
-      "identity": null,
-      "name": "output_document",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "cte_emission_profiles"
-    },
-    {
-      "type": "uuid",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "nfse_emission_profile_id",
       "entityType": "columns",
       "schema": "public",
       "table": "cte_emission_profiles"
@@ -31414,25 +31388,6 @@
     {
       "nameExplicit": true,
       "columns": [
-        "company_id",
-        "nfse_emission_profile_id"
-      ],
-      "schemaTo": "public",
-      "tableTo": "nfse_emission_profiles",
-      "columnsTo": [
-        "company_id",
-        "id"
-      ],
-      "onUpdate": "CASCADE",
-      "onDelete": "RESTRICT",
-      "name": "cte_emission_profiles_company_nfse_profile_fk",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "cte_emission_profiles"
-    },
-    {
-      "nameExplicit": true,
-      "columns": [
         "company_id"
       ],
       "schemaTo": "public",
@@ -41181,27 +41136,6 @@
     {
       "value": "\"municipal_service_policy\" in ('allow', 'block')",
       "name": "cte_emission_profiles_municipal_service_policy_check",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "cte_emission_profiles"
-    },
-    {
-      "value": "\"output_document\" in ('cte', 'nfse')",
-      "name": "cte_emission_profiles_output_document_check",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "cte_emission_profiles"
-    },
-    {
-      "value": "(\"output_document\" = 'nfse') = (\"nfse_emission_profile_id\" is not null)",
-      "name": "cte_emission_profiles_nfse_profile_check",
-      "entityType": "checks",
-      "schema": "public",
-      "table": "cte_emission_profiles"
-    },
-    {
-      "value": "\"output_document\" = 'cte' or \"municipal_service_policy\" = 'allow'",
-      "name": "cte_emission_profiles_output_municipal_check",
       "entityType": "checks",
       "schema": "public",
       "table": "cte_emission_profiles"

@@ -2612,3 +2612,64 @@ export ausente (`buildWhatsAppCodeExpiryHandler`). É vermelho de módulo, regis
 B7 a B14 e Q1 a Q9 da revisão continuam como a T018 os registrou, **exceto o Q1**. A extração de
 `sendDynamicChoice` saiu com o B3 e passou a ser o seam da lista vazia. O B5 não precisou reescrever
 os dois arquivos grandes: a validação entrou em quatro roteadores, e o resto é o serviço novo.
+
+## Integração ao staging (2026-09-13)
+
+`git rebase origin/staging` dos 34 commits da 144 sobre os 12 de staging (`37436e4a`..`cf68f627`).
+Regra seguida: o comportamento de cada commit de staging fica igual; quem se adapta é a 144.
+
+### Conflitos e resoluções
+
+- **`apps/api-transportada/package.json`**, em 14 paradas (T002 a T018). Resolução por script,
+  sempre a soma: a linha de HEAD mais as entradas que o commit aplicado acrescenta ao pai dele.
+  Conferido a cada parada que nenhuma entrada de staging nem do commit sumiu. No fim, zero entradas
+  perdidas dos dois lados nas três apps (API, worker, frontend). As nove duplicatas da lista da API já
+  existiam em `origin/staging`. O `0fdc758c` original colava duas entradas sem espaço
+  (`whatsapp-command-driver.integration.ts./test/...`); a soma as separou, e o `93fa655b` já as
+  separava de qualquer forma.
+- **`apps/worker-transportada/src/whatsapp/domain/whatsapp-phone.policy.ts`**: sem conflito. O
+  `7cbaea77` trouxe byte a byte a política da T002, então o merge virou adição idêntica. A única
+  diferença contra staging é o `export` de `WHATSAPP_PHONE_PATTERN`, que já vinha da T003. O
+  remetente do convite (`whatsapp-code-sender.gateway.ts`) e o contrato dele estão intocados, e a
+  cópia continua idêntica à da API (`cmp` limpo).
+- **`CLAUDE.md`**: a divisão do `37436e4a` foi mantida. Na raiz ficou só a nota de integração com
+  `--env-file` (8 linhas), na seção Comandos, que a raiz manteve. A seção da T018 foi para o fim
+  de `docs/ai-context/api-transportada.md`, logo depois de "O banco falha rápido", no mesmo lugar
+  onde ela estava no arquivo único. `apps/api-transportada/CLAUDE.md` ganhou `whatsapp-commands`
+  na lista de módulos e um resumo curto que aponta para `docs/ai-context §`, no estilo do arquivo.
+- **`drizzle-cte-emission-profile.repository.ts`**: sem conflito. Contra staging a 144 só acrescenta
+  `findNfseEmissionProfileStatus` e os dois campos; o `hydrate` em série do `dd3515c6` segue
+  igual.
+- **Migrations**: nenhuma pasta renomeada. As sete já têm timestamp posterior à ponta de staging
+  (`20260910120000_vehicle_reference_every_type`), e o SQL e o `rollback.sql` de cada uma não
+  mudaram. O problema estava na cadeia: a 144 encadeava em `83e86932` (toll_booths), por fora da
+  ponta `219f375a`, e `whatsapp_flow_graph_versions` não tinha snapshot. Os sete `snapshot.json`
+  foram regenerados com `generateDrizzleJson` sobre o schema TS **do commit de cada migration**,
+  encadeados a partir de `219f375a`. O diff de cada passo bate com o SQL da migration e não traz
+  nada das migrations de staging.
+
+### Ajustes de integração (commit próprio)
+
+- Os sete `snapshot.json`, como acima.
+- `frontend-transportada/src/modules/shared/jobCatalog.constant.ts` ganhou
+  `whatsapp.command.settle`. O `cf68f627` fez o contrato do frontend ler o catálogo da API, e a
+  entrada da T014 existia só na API, então o contrato reprovava. É a adição que a regra de
+  staging exige, e o comportamento dele fica o mesmo.
+- A retomada de `whatsapp-issuance-confirm.integration.ts` voltou a semear NFS-e, com as
+  asserções que o `dd3515c6` mediu (`['created', 'pending']`, `issued: 2`) e mais a contagem de uma
+  NFS-e. O contorno da T013 saiu. Três rodadas, 3 pass · 0 fail em todas.
+
+### Gates
+
+- `bun install --frozen-lockfile` → sem mudanças.
+- `bun run typecheck` → limpo nas seis apps.
+- `make check` → rc 0. Format e lint ok; API **5543 pass · 0 fail** (5566 testes), worker
+  **1043 · 0**, cron **94 · 0**, frontend **3346 · 0**, frontend-client **18 · 0**,
+  frontend-landing **107 · 0**, raiz **18 · 0**; build verde. Os orçamentos relativos passaram, e o
+  `cte-archive-gateway` não disparou.
+- `make migration-test` → **95 pass · 0 fail**.
+- `test/database-migration.contract.test.ts` (cadeia de snapshots incluída) → **55 pass · 0 fail**.
+- Integrações da API da 144 (os 12 `whatsapp-*` e `nfe-document-output`), com
+  `bun --env-file=../../.env.test test --timeout 120000` → **43 pass · 0 fail**.
+- Worker, `test/whatsapp-command-settlement.integration.test.ts`, no banco provisionado e migrado
+  como no `make worker-integration`, sem `make up` → **3 pass · 0 fail**.
