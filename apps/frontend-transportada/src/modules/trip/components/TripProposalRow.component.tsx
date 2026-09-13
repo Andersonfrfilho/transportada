@@ -156,7 +156,13 @@ export function TripProposalRow({
           {/* Despesas em vermelho, lucro em verde: os dois se distinguem antes do rótulo. */}
           <Metric
             label={t('proposal.expenses')}
-            note={view.hasGaps ? t('proposal.missingParcels') : null}
+            note={
+              view.hasGaps
+                ? t('proposal.missingParcels')
+                : view.isTollPending
+                  ? t('proposal.withoutToll')
+                  : null
+            }
             tone={view.totalCost === null ? undefined : styles.proposalExpenses}
             value={money(view.totalCost, t)}
           />

@@ -150,6 +150,16 @@ export const ADVISORY_GAPS: readonly ValuationGap[] = [
   VALUATION_GAPS.driverRouteTieHighestRate,
 ]
 
+/**
+ * **Lacuna de etapa:** o valor ainda não existe nesta etapa, e nenhum cadastro o faz existir — o
+ * pedágio da sugestão só é calculado depois da viagem criada. A tela da proposta a nomeia com rótulo
+ * próprio em vez de "conta incompleta", que mandaria o operador cadastrar algo que não há.
+ *
+ * ⚠️ **Não é aviso**: o total subestima o custo, e por isso `hasGaps` continua verdadeiro. Cópia por
+ * valor no frontend (`proposalView.service.ts`), conferida por contrato.
+ */
+export const STAGE_GAPS: readonly ValuationGap[] = [VALUATION_GAPS.tollNotAvailableInSuggestion]
+
 export function isAdvisoryGap(gap: null | ValuationGap): boolean {
   return gap !== null && ADVISORY_GAPS.includes(gap)
 }

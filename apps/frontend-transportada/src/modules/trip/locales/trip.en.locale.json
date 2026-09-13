@@ -485,6 +485,7 @@
     "incomplete": "incomplete account",
     "margin": "Profit",
     "missingParcels": "missing parcels",
+    "withoutToll": "without toll",
     "moreCities": "{{count}} more",
     "moveTargetLabel": "{{vehicle}} — would carry {{load}} kg of {{ceiling}} kg",
     "nothingCreated": "Nothing has been created yet — no trip, no note link",

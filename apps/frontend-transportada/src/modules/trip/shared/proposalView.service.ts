@@ -2,6 +2,8 @@
 import { sumScaledAmounts } from '@/modules/shared/decimalAmount.service'
 import type { VehicleType } from '@/modules/shared/vehicleType.constant'
 import type { SuggestionValuation } from '@/modules/routing/shared/suggestionValuation.service'
+import type { TripValuation } from '@/modules/trip-financials/shared/tripValuation.service'
+import { ADVISORY_GAPS } from '@/modules/trip-financials/shared/valuationLedger.service'
 
 import { resolveStopKey } from './assemblyOrder.service'
 import type { StopAddressComponents } from './stopAddressKey.service'
@@ -26,7 +28,13 @@ export type ProposalVehicleView = Readonly<{
   documentCount: number
   driverName: null | string
   durationSeconds: null | number
+  /** Falta parcela que um cadastro resolve (motorista, consumo, combustível, regra, região). */
   hasGaps: boolean
+  /**
+   * A única falta é o pedágio, que a sugestão não calcula. O custo segue sem ele — a tela diz
+   * "sem pedágio", não "conta incompleta".
+   */
+  isTollPending: boolean
   plate: null | string
   /** Endereços distintos do roteiro — notas do mesmo endereço são uma parada só (ADR-0043 §3). */
   stopCount: number
@@ -163,7 +171,7 @@ export function buildProposalVehicleViews(
         vehicleId,
       }),
       durationSeconds: entry?.durationSeconds ?? null,
-      hasGaps: entry?.valuation.hasGaps ?? false,
+      ...describeProposalGaps(entry?.valuation ?? null),
       marginPercentage: entry?.valuation.marginPercentage ?? null,
       maxPayloadKilograms,
       payloadRatio: resolvePayloadRatio({ maxPayloadKilograms, weightKilograms }),
@@ -180,6 +188,38 @@ export function buildProposalVehicleViews(
       weightKilograms,
     }
   })
+}
+
+/**
+ * Lacuna de etapa — cópia por valor de `STAGE_GAPS` da API, conferida por
+ * `test/trip/proposal-toll-pending.contract.ts`. Só existe na etapa seguinte; cadastro nenhum a
+ * resolve na proposta.
+ */
+export const STAGE_GAPS: readonly string[] = ['TOLL_NOT_AVAILABLE_IN_SUGGESTION']
+
+function hasActionableGap(valuation: TripValuation): boolean {
+  return (
+    valuation.revenueLines.some((line) => line.gap !== null) ||
+    valuation.costParcels.some(
+      (parcel) =>
+        parcel.gap !== null &&
+        !ADVISORY_GAPS.includes(parcel.gap) &&
+        !STAGE_GAPS.includes(parcel.gap),
+    )
+  )
+}
+
+/**
+ * ⚠️ `valuation.hasGaps` continua verdadeiro sem o pedágio — o total subestima. O que muda é só o
+ * rótulo: "conta incompleta" é para o que o operador pode cadastrar.
+ */
+function describeProposalGaps(
+  valuation: null | TripValuation,
+): Readonly<{ hasGaps: boolean; isTollPending: boolean }> {
+  if (valuation === null || !valuation.hasGaps) return { hasGaps: false, isTollPending: false }
+  const isActionable = hasActionableGap(valuation)
+
+  return { hasGaps: isActionable, isTollPending: !isActionable }
 }
 
 /**
