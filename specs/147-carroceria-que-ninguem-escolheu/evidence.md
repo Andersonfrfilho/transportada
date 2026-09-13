@@ -1077,3 +1077,134 @@ pt-BR acentuado e inglês em `trip.locale.json`/`trip.en.locale.json`, mais `det
 - Nada em `docs/ai-context` ou em contrato afirmava "a sugestão casa só por `vehicleType`" em texto — a única afirmação estava no comentário de `fromReference` citado acima, reescrito nesta task. Ajuste de documentação/spec sobre a mudança de comportamento fica para a T17.
 
 **Commit:** `fix(fleet): 147 T16b — a sugestão do catálogo casa pela carroceria`.
+
+## T14 — `GET /pending-items` (API)
+
+Módulo novo `apps/api-transportada/src/pending-items/`, quatro camadas mínimas (sem `domain/` — a
+consulta é a própria regra, expressa como filtro SQL, e não há política pura a isolar):
+
+- `application/pending-item-source.port.ts`: `PendingItemSourcePort` (`kind`, `requiredPermission`,
+  `list`) e os tipos `PendingItem`/`PendingItemPage`. Hoje um `PendingItemKind` só,
+  `vehicleBodyTypeMissing`.
+- `application/list-pending-items.use-case.ts`: filtra as fontes pela permissão do chamador
+  (`context.permissions`) e delega para a primeira que sobra. Sem fonte permitida, devolve
+  `{items: [], nextCursor: null}` — nunca `403` no caso de uso, que é a página genérica de D2.
+- `infrastructure/drizzle-fleet-body-type-pending-item.source.ts`: `buildFleetBodyTypePendingItemFilters`
+  (exportada para o teste de tenant-safety, no molde de `buildDocumentListFilters` do nfe-documents) +
+  `createFleetBodyTypePendingItemSource`. Filtro: `company_id = ctx`, `vehicle_type <> 'tractor_unit'`
+  (alcança a carreta, que tem `vehicle_type = ''`, sem precisar nomeá-la), `body_type = '00'`,
+  `status = 'active'`. **Decisão tomada nesta task, sem linha correspondente na spec:** só veículo
+  `active` — pendência de veículo inativo não é trabalho para ninguém corrigir agora. `label` é a
+  placa crua (RF9 já frisa: não é PII, e o texto "Veículo {placa} sem carroceria informada" é
+  responsabilidade do frontend/T15).
+- `presentation/pending-items.{routes,schema}.ts`: `GET /pending-items`, paginação por cursor via
+  `readPaging`/`readListQuery` (`src/http/request-parsing.service.ts`) — o teto de 100 e a validação
+  de cursor opaco já vêm de lá, sem reimplementar.
+
+**Decisão registrada (pedida no prompt como ponto de checagem):** a spec e o plan.md dizem que a
+rota deve aceitar "qualquer membro autenticado da empresa" porque a filtragem é por fonte, não por
+rota. A infraestrutura de rotas (`router.service.ts`/`defineRoute`) **não tem** essa política — toda
+`RouterRoute` exige uma `RouteAuthorizationPolicy` (`{permission, scope}`), sem opção de "autenticado
+sem permissão específica". Segui a instrução de usar `fleet.read` (a mesma permissão da única fonte
+hoje) e relatar: na prática, hoje isso é equivalente ao desenho pretendido — quem não tem
+`fleet.read` recebe `403` na borda em vez da lista vazia que o caso de uso já sabe devolver. A
+diferença só aparece no dia em que existir uma segunda fonte com outra permissão: aí quem tem essa
+segunda permissão mas não `fleet.read` ficaria bloqueado na rota antes de chegar à fonte que
+enxergaria. Registrado também em comentário no código (`pending-items.routes.ts`).
+
+`test/separator-role.contract.test.ts` **não foi tocado**: ele é uma lista exaustiva só das rotas de
+`trip`/`fleet`/`billing`/`cte-issuance`/`nfe-documents`, não de todo o app — `pending-items` é módulo
+novo fora dessa lista. Registrado por escrito aqui, como pedido: o `separator` tem `fleet.read`, então
+alcança `GET /pending-items` e vê a pendência de carroceria.
+
+**Contratos** (`test/pending-items.contract.test.ts`, importando três suítes):
+
+- `test/pending-items/domain.contract.ts`: o caso de uso serve a fonte permitida; devolve página
+  vazia sem chamar fonte nenhuma quando falta a permissão; com duas fontes de permissões diferentes,
+  chama só a que o chamador tem.
+- `test/pending-items/tenant-safety.contract.ts`: `buildFleetBodyTypePendingItemFilters` sempre inclui
+  `company_id = $` (com e sem cursor) e os três filtros de negócio (`vehicle_type <>`, `body_type =`,
+  `status =`), via `PgDialect().sqlToQuery`, no padrão de `document-block-tenant-safety.contract.ts`.
+- `test/pending-items/route.contract.ts`: 200 com o envelope `{data, page: {nextCursor}}`; `limit=101`
+  → `400` (herdado de `readPaging`, sem reimplementação); sem `fleet.read` → `403` na rota (a decisão
+  acima, testada).
+- Integração `test/integration/pending-items.integration.ts` (Postgres descartável, molde de
+  `trip-capacity-unknown-reason.integration.ts`): truck `00` aparece; some depois de salvo com `02`;
+  cavalo `00` nunca aparece (é `tractor_unit`); veículo de outra empresa nunca aparece; sem
+  `fleet.read` a lista vem vazia.
+
+**Gates:**
+
+- `bun run --cwd apps/api-transportada typecheck` → limpo.
+- `bun run --cwd apps/api-transportada lint` → limpo.
+- `bun run --cwd apps/api-transportada test` → **5137 pass, 23 skip, 0 fail, 37350 expect() calls,
+  164 arquivos** (eram 5128 pass/23 skip/37328 expect antes — 9 testes novos, sem regressão).
+- `bun test ./test/integration/pending-items.integration.ts` (contra Postgres em `127.0.0.1:65432`,
+  `.env.test`) → **1 pass, 0 fail, 3 expect() calls**.
+- `bun run --cwd apps/api-transportada build` → verde.
+- `npx prettier --write` nos arquivos tocados/criados → sem diff de conteúdo, só formatação do
+  pre-commit hook.
+
+**Commit:** `feat(pending-items): 147 T14 — o que o cadastro ainda deve` (`aeef3506adebb76f9a59b046b7d68d14f989cc46`).
+
+## T15 — página `/pendencias` (frontend)
+
+Módulo `apps/frontend-transportada/src/modules/pending-items/`:
+
+- `shared/pendingItemsClient.service.ts`: fetch injetado, `GET /pending-items?cursor&limit`,
+  `no-store`, `Authorization: Bearer`, erro tipado (`PENDING_ITEMS_REQUEST_FAILED`/
+  `_RESPONSE_INVALID`) no molde de `operationsClient.service.ts`.
+- `shared/pendingItemsResponse.validation.ts`: type guard manual (sem zod, por convenção do repo),
+  recusa chave extra/desconhecida e `kind` fora do catálogo — mesmo padrão de
+  `operationsResponse.validation.ts`.
+- `hooks/usePendingItems.hook.ts`: `createPendingItemsController` (gate por `fleet.read`) +
+  `usePendingItems` com `useQuery` chaveada por `[chave, companyId, cursor]`, cursor único em estado
+  (substitui a página, no molde de `useDeliveryClients.hook.ts` — "carregar mais" é ir para a próxima
+  página, não acumular).
+- `pages/PendingItemsWorkspace.page.tsx`: esqueleto (`Skeleton`/`SkeletonGroup`) no carregamento,
+  estado vazio (`t('empty')`), uma linha por pendência com `t('items.<kind>', {plate: label})` e link
+  simples `<a href={buildFleetVehicleRoute(item.entityId)}>` — mesmo padrão de link cru usado em
+  `TripCargoPanel.component.tsx` (a navegação manual do shell reconhece o pathname `/fleet` no
+  próximo carregamento).
+- `styles/pendingItems.module.css`: `.shell { width: var(--layout-width) }`, só tokens (`--space-*`,
+  `--color-*`), sem `rem`/hex literal.
+- `locales/pendingItems.{locale,en.locale}.json`, registrados em `src/modules/shared/i18n/i18n.service.ts`
+  sob a chave `pendingItems` (import + duas entradas, `en` e `pt-BR`, em ordem alfabética como as
+  demais).
+
+**Fiação em `main.tsx`:** chave `'pendencias'` no union de `WorkspaceNavigationItem`, entrada
+`{href: '/pendencias', key: 'pendencias', label: 'Pendências'}` no grupo `registries` ("Cadastros",
+ao lado de frota e clientes), branch em `resolveCurrentWorkspace` e no `storedWorkspace` recordado em
+sessão, `import()` próprio via `lazy` (a regra do comentário acima — cada tela é um bundle, para não
+estourar o teto de precache do PWA) e `case 'pendencias'` em `resolvePage`.
+
+**Ícone novo:** `workspace-pendencias` em `IconName`/`ICON_PATHS` (`src/components/ui/icon.tsx`) —
+reusa o traçado do triângulo de `alert`, comentado (pendência é aviso; reusar evita um segundo
+desenho de alerta). `docs/frontend/icons.md` atualizado na lista de navegação.
+
+**Contratos** (`test/pending-items.contract.test.ts`, serviço puro, sem DOM):
+
+- `test/pending-items/client.contract.ts`: GET autenticado/no-store com `cursor`/`limit` na query
+  (e omissão quando ausentes); falha de rede/HTTP e corpo não-JSON viram os dois erros tipados;
+  validação aceita página bem formada e recusa campo extra, `kind` desconhecido e envelope de página
+  ausente.
+- `test/pending-items/controller.contract.ts`: `canReadPendingItems` só com `fleet.read`.
+- Os contratos do design system (`skeleton`, `icon`, `locale-accents`, `layout-width`, `responsive`)
+  seguem verdes com o módulo novo, cobertos pela suíte cheia — nenhum precisou de ajuste porque a
+  página segue os padrões existentes (nenhum `<svg>` cru, nenhum `<p>{t('...loading...')}</p>`
+  sozinho, acento em "Pendência(s)").
+
+**Gates:**
+
+- `bun run --cwd apps/frontend-transportada typecheck` → limpo.
+- `bun run --cwd apps/frontend-transportada lint` → limpo (ajustes de `require-await`/`await-thenable`
+  nos mocks de `fetch` do contrato, seguindo o padrão já usado em `fuel-prices.contract.ts`: `fetch`
+  não-`async` retornando `Promise.resolve(...)`, e `expect(...).rejects.toThrow(...)` sem `await` —
+  confirmado que o assert falha de verdade se o código do erro for trocado).
+- `bun run --cwd apps/frontend-transportada test` → **3362 pass, 0 fail, 33834 expect() calls, 30
+  arquivos** (eram 3355 antes — 7 testes novos, sem regressão).
+- `bun run --cwd apps/frontend-transportada build` → verde (avisos de chunk >500 kB pré-existentes,
+  não relacionados a esta task; `PendingItemsWorkspace.page` saiu como chunk próprio de 4,10 kB).
+- `npx prettier --write` nos arquivos tocados/criados → só formatação, sem diff de conteúdo.
+
+**Commit:** `feat(pending-items): 147 T15 — a página das pendências` (`319b5d22249b67dc53c6c1a44e8cb66e33518b11`).
