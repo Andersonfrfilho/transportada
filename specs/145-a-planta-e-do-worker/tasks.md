@@ -117,6 +117,14 @@ status='queued' AND input_hash=$hash`; nula → confirma e descarta; hash supera
 
   Contratos em `test/trip-infrastructure/` e `test/trip-application/`. Rodar antes da T10.
 
+  > ⚠️ **Dependência da spec 147 (branch `work/spec-vehicle-body-00`, 2026-09-13).** A viagem de
+  > cavalo passou a ter carreta (`trips.trailer_vehicle_id`, escrita por `PUT /trips/:id/trailer`),
+  > e a ocupação lê capacidade, baú e teto de peso **de quem carrega** (`trailer ?? traction`). O
+  > leitor `trip-cargo-layout-input.support.ts` desta branch lê só `trips.vehicleId`: trocar a
+  > carreta muda `capacityM3`/`bed` sem o hash da D6 perceber. O gatilho lazy D7 precisa passar pelo
+  > mesmo seam de ocupação (com a carreta), ou `PUT /trips/:id/trailer` entra na lista eager. Isso
+  > também reduz os casos da D15: cavalo com carreta deixa de ter `capacityM3` nulo.
+
 - [x] T12a — Frontend (`apps/frontend-transportada`) só **aceita** as chaves novas, sem usá-las (D17):
       `cargoLayoutState` opcional no detalhe (tipo em `trip.types.ts`, `TRIP_DETAIL_OPTIONAL_KEYS`,
       validação em `tripResponse.validation.ts`) e `{ layoutId, state }` opcionais na resposta da prévia
