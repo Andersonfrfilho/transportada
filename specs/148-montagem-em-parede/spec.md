@@ -84,6 +84,9 @@ para 16 com a D1.
   Medir por parada quantas caixas o conferente passa a mexer. Medido na spec 145: 56 das 162 caixas de fora da
   Atego só achariam lugar por cima de entrega anterior.
 
+  ⚠️ Esclarecimento (2026-09-13): "por cima de qualquer entrega anterior quando faltar espaço" é a D5 e é da
+  T3c. A T2 não implementa nada dela.
+
 - **D6 — Escolher a caixa pelo vão, não o vão pela caixa (proposta do usuário, 2026-09-13).** Hoje o
   empacotador pega a próxima caixa e procura um assento; se não acha, ela fica de fora, mesmo havendo vão alto
   livre onde outra caixa restante caberia. Na reorganização (D4) e na passada final (D5), inverter: mapear os
@@ -105,6 +108,17 @@ para 16 com a D1.
   Nenhuma nota some em silêncio: ou está no mapa de um caminhão, ou está na fila com nome, nota e motivo. Sair
   e trocar são marcações rastreáveis (desvincular é marcar, nunca apagar — a mesma regra de `released_at` da
   viagem), com trilha de auditoria (ator, nota, viagem de origem e de destino).
+
+- **D8 — Início da fileira: medir as duas e ficar com a melhor (decisão do usuário, 2026-09-13).** A
+  primeira pilha de cada fileira pode começar sempre na mesma parede lateral ou alternar as paredes
+  (zigue-zague). As duas são medidas nas 6 entradas; fica a que deixar menos caixas de fora sem violação.
+  Medido na T2 (`evidence.md`): mesma parede 138 caixas de fora na Atego, zigue-zague 142; as demais
+  empatam em 0. **Adotada: sempre a mesma parede.**
+
+- **D9 — A D25 vale em todo veículo (decisão do usuário, 2026-09-13).** A vizinha escora com 80% da borda
+  também fora do baú fechado, mesmo sabendo que isso custou 1 caixa numa Daily. Se derrubar `exact-edges`
+  ou `complement`, os contratos não mudam: a implementação para e o caso vai ao usuário com o contrato, a
+  caixa e o número. ⚠️ **Bloqueada na T2**: medido, derruba os dois (ver `evidence.md` § T2, "D9").
 
 ## Fora do escopo
 

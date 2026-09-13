@@ -25,7 +25,7 @@
 
 > 🤖 Modelo: `opus`
 
-- [ ] T2 🧠 — Desenhar e implementar a montagem em parede (D1) no pacote, como ordem de colocação do baú
+- [x] T2 🧠 — Desenhar e implementar a montagem em parede (D1) no pacote, como ordem de colocação do baú
       fechado: canto → fileira pela largura → próxima fileira encostada na anterior, cada pilha subindo até o
       teto dentro da D23/D25. Partir de `feat/cargo-placement`; a branch `wip/cargo-wall-building` tem uma
       primeira versão (`wallBuilding`) e a D25 para consulta, não para herdar sem medir. Contrato vermelho
