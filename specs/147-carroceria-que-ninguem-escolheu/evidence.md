@@ -82,3 +82,23 @@ test/trip-infrastructure.contract.test.ts test/trip-application.contract.test.ts
 - Suíte completa: `bun run --cwd apps/api-transportada test`: **5047 pass, 23 skip, 0 fail** — rodou
   inteira, sem depender de Postgres.
 - `bunx prettier --check` e `bunx eslint --max-warnings=0` no arquivo alterado: ok.
+
+## T3 — `resolveCapacityUnknownReason` (domínio puro)
+
+- Criado `test/trip-domain/capacity-unknown-reason.contract.ts` (tabela com 8 casos) e importado em
+  `test/trip-domain.contract.test.ts`, **antes** de o módulo existir.
+- Vermelho: `bun run --cwd apps/api-transportada test test/trip-domain.contract.test.ts` →
+  `error: Cannot find module '../../src/trips/domain/capacity-unknown-reason.policy.js'`, com
+  `2 fail` na suíte inteira (só os dois testes que dependem do módulo novo).
+- Implementado `apps/api-transportada/src/trips/domain/capacity-unknown-reason.policy.ts`:
+  `resolveCapacityUnknownReason({capacityM3, traction, trailer})`. O "carregador" é o mesmo que
+  `resolveVolumeReferenceKey` usa (`trailer ?? traction`); `capacityM3 !== null` já resolvido pelo
+  chamador (a ficha vence, mesmo com `body_type: '00'`); carregador com `'00'` e que não é
+  `tractor_unit` → `bodyTypeMissing` (cobre também carreta antiga com `'00'`); `tractor_unit` sem
+  carreta → `trailerMissing`; senão → `referenceMissing`. `trailer` já existe como parâmetro
+  opcional/nulo para a Fase 4.
+- Verde: `bun run --cwd apps/api-transportada test test/trip-domain.contract.test.ts` →
+  **5055 pass, 23 skip, 0 fail** (8 casos novos de `resolveCapacityUnknownReason`, mais os 5047
+  pré-existentes já reportados na T2).
+- `bun run --cwd apps/api-transportada typecheck`: limpo.
+- `bunx prettier --check` e `bunx eslint` nos três arquivos tocados: ok, sem avisos.
