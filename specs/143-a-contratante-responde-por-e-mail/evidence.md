@@ -1141,7 +1141,7 @@ funcionalmente que um envelope selado com os três campos por um lado abre com o
 intactos do outro (round-trip real, via `@adatechnology/secret-envelope`), o que o teste de
 texto-fonte sozinho não garantiria (ele prova "a mesma forma", não "o mesmo comportamento").
 
-## T010 — 2026-09-13 (aguardando architect)
+## T010 — 2026-09-13
 
 O webhook `POST /public/inbound-emails/:webhookId` (RF11) e o trilho `contractor-mail-inbound.v1`
 no worker, até o DKIM (RF4). Molde: o postback de NFS-e (rota anônima) e o trilho
@@ -1351,3 +1351,135 @@ $ make worker-integration
    os dois não vazios e a Resend pode entregar um e-mail sem texto puro (só HTML) ou sem assunto. Um
    comentário no código já aponta a T019 como quem deveria extrair o texto de um HTML quando não há
    `text` — hoje isso não existe, então HTML-only grava o texto de referência, não o HTML.
+
+### Revisão do architect — 2026-09-13
+
+**Veredito: APROVADO COM RESSALVAS.** Cinco correções obrigatórias e as opcionais aplicadas neste
+commit.
+
+**Obrigatórias:**
+
+1. **Regenerar o `replyTokenSecret` deixava conversas órfãs.** No `catch` de `resolveSecret`
+   (`contractor-mail-settings.use-case.ts`), quando o envelope anterior não abre mais e o `PUT` traz
+   os dois segredos completos, um `replyTokenSecret` novo é gerado — mas `deriveReplyToken` é
+   determinístico pelo segredo, e `contractor_mail_threads.reply_token_hash` continuava com o hash
+   **antigo**: toda conversa existente da empresa ficava impossível de achar pelo `Reply-To` dali em
+   diante. `resolveSecret` passou a devolver `replyTokenSecretRegenerated`, e `save()` repassa
+   `{ replyTokenSecret }` para o repositório só quando ele é `true` (nunca na primeira configuração,
+   onde não existe conversa nenhuma ainda). `saveSettings` recalcula, na **mesma transação** do
+   envelope, o hash de toda conversa da empresa (`regenerateThreadReplyTokenHashes`: lê os
+   `threadId`, deriva o token novo para cada um com `deriveReplyToken`, grava o hash com
+   `hashReplyToken`) e insere uma segunda linha de auditoria, `reply_token_secret_regenerated`, com
+   `permission: 'settings.manage'`, `targetType: 'contractor_mail_settings'` e
+   `targetId: settingsId`. Prova de integração contra Postgres real (nova):
+   `test/integration/contractor-mail-settings-repository.integration.ts` → "regenerating the
+   replyTokenSecret rehashes every existing thread, and the Reply-To derived after it finds the
+   conversation" — cria uma conversa com o hash do segredo antigo, regenera, confere que o hash
+   mudou (e não é mais igual ao antigo), que `findThreadByReplyTokenHash` acha a conversa pelo hash
+   do token **novo**, e que a auditoria nasceu com os três campos certos.
+2. **`inReplyTo` gravava o valor errado.** Em
+   `drizzle-contractor-mail-inbound-worker.repository.ts`, a coluna `in_reply_to` recebia
+   `input.rfcMessageId` — o `Message-Id` do **próprio** e-mail recebido, não a referência à mensagem
+   anterior da conversa (o cabeçalho `In-Reply-To` de verdade). `RecordContractorMailInboundMessageInput`
+   ganhou um campo `inReplyTo` próprio; o caso de uso (`record-contractor-mail-inbound-message.use-case.ts`)
+   agora lê `received.headers['in-reply-to']` (busca por nome sem diferenciar caixa — os cabeçalhos
+   de e-mail não distinguem, e o Resend não garante uma grafia única), remove `<`/`>` e usa
+   `undefined` quando o cabeçalho não existe — nunca o `message_id` do próprio e-mail. Testado nos
+   dois casos: cabeçalho presente (grava o valor normalizado, distinto de `rfcMessageId`) e ausente
+   (`inReplyTo` sai `undefined`, `rfcMessageId` continua sendo o `message_id` próprio).
+3. **Extração de token frágil.** `recipient-reply-token.policy.ts` foi reescrita:
+   `extractReplyTokenCandidates` agora olha `to` **e** `cc` (o schema do gateway do Resend ganhou o
+   campo `cc`, opcional), devolve **todos** os candidatos cujo domínio bate com o `replyDomain`
+   (comparado sem diferenciar caixa) e cujo local-part, em minúsculo, casa com
+   `^[a-z2-7]{26}$` — o formato exato de um token de 128 bits em base32 sem padding — descartando
+   `+sufixo` (alias) e qualquer lixo que caia no domínio certo por acidente. O repositório do worker
+   trocou `findThreadByReplyTokenHash` (um hash) por `findThreadsByReplyTokenHashes` (uma lista,
+   `company_id = ? and reply_token_hash in (...)`, exportado como
+   `buildContractorMailInboundThreadCandidateFilters` para o contrato de tenant). O caso de uso
+   dedupe as conversas encontradas por id: zero é `token_unknown`, mais de uma é `multiple_matches`
+   (reason novo, os dois só contador, nunca gravam corpo). Testes: caixa alta, dois endereços do
+   domínio (os dois candidatos voltam), token só no `cc`, `token+x@` (descartado pelo formato),
+   domínio parecido (`resposta.outro.com`, descartado), duas conversas batendo ao mesmo tempo
+   (`multiple_matches`). Contrato de tenant novo,
+   `test/contractor-mail/inbound-worker-repository-tenant-safety.contract.ts` (worker, no molde do
+   da T005/API): prova por geração de SQL que `company_id` e `reply_token_hash in (...)` entram na
+   mesma condição.
+4. **RF11 e código divergentes.** O `spec.md` dizia "o mesmo `svix-id` não é aceito duas vezes", e o
+   código nunca guardou `svix-id` nenhum — a idempotência sempre foi por `email_id`
+   (`unique(company_id, provider_email_id)` em `contractor_inbound_email_outbox`). Reescrito para
+   dizer o que o código faz: "o mesmo `email_id` converge por empresa", com a justificativa de que um
+   replay assinado repete o corpo e, portanto, o `email_id` — guardar o `svix-id` à parte não
+   acrescentaria nada além do que a janela de 5 minutos já limita. `docs/SECURITY.md` atualizado no
+   mesmo sentido.
+5. **Rate limit e rejeição barata primeiro.** `svix-signature.policy.ts` foi dividida em
+   `checkSvixHeadersAndWindow` (presença/formato dos cabeçalhos `svix-*` e a janela de 5 minutos, sem
+   segredo nenhum) e `verifySvixSignatureHmac` (a metade cara: decodificar o segredo e computar o
+   HMAC); `verifySvixSignature` continua existindo, compondo as duas, para quem quer o veredito
+   completo numa chamada (os testes de política). `process-inbound-email-webhook.use-case.ts` passou
+   a chamar `checkSvixHeadersAndWindow` **antes** de `lookupSettings`, e só chama
+   `verifySvixSignatureHmac` depois de abrir o segredo — os 401 continuam idênticos para quem chama
+   de fora. `public-inbound-email.routes.ts` ganhou `rateLimit: { maxRequests: 120, windowMs: 5 *
+60_000 }`, no molde de `public-cnpj-info.routes.ts`. Testes: timestamp fora da janela e
+   cabeçalhos `svix-*` ausentes não tocam o repositório (`findSettingsByWebhookId` nunca chamado);
+   429 depois de 120 requisições da mesma origem (`x-forwarded-for`), com `retry-after`.
+
+**Opcionais, todas aplicadas:**
+
+- `settings === undefined` em `record-contractor-mail-inbound-message.use-case.ts` virou
+  `ContractorMailInboundSettingsMissingError` (novo, `contractor-mail-inbound.error.ts`), permanente
+  no consumidor (`ack` + contador `settings_missing`) — reentregar não faz a configuração aparecer.
+- Teste de rota com logger capturando as chamadas: nenhuma leva o `webhookId`, os cabeçalhos
+  `svix-*` ou o corpo (`test/contractor-mail/inbound-webhook-routes.contract.ts`, "never logs the
+  webhookId, the svix headers or the body").
+- Registrado abaixo (não repetido aqui): o envelope da T006 sem `replyTokenSecret`, as colunas
+  `NOT NULL` sem default da migration `20260913191809`, e o custo do descarte por token
+  desconhecido.
+
+**Registros pedidos pela revisão:**
+
+- **Um envelope da T006 sem `replyTokenSecret`** (selado antes da correção pós-entrega da T009, que
+  acrescentou o terceiro campo) não abre mais — `secretSchema.parse` é `.strict()` e falha por campo
+  ausente, e `decryptSecret` converte qualquer erro em
+  `ContractorMailCredentialUnavailableError`. A única recuperação é reenviar **os dois** segredos no
+  `PUT` (nunca um só): com os dois presentes, `resolveSecret` cai no mesmo `catch` que trata keyring
+  girado, gera um `replyTokenSecret` novo e (com a correção 1 acima) recalcula o hash de toda
+  conversa já existente. Um envio parcial (um segredo só) continua propagando o erro do envelope,
+  porque não há como reconstituir o que falta sem os dois.
+- **As colunas `NOT NULL` sem default da migration `20260913191809`** (`contractor_mail_messages.subject`/
+  `to_addresses`) só são seguras porque a tabela nunca teve linha nenhuma fora desta branch — a
+  feature ainda não foi lançada. Uma instalação com dado real em `contractor_mail_messages` sem
+  essas colunas exigiria backfill antes da migration, não a migration direta que está no repositório.
+- **O descarte por token desconhecido custa uma chamada à API do Resend.** O token só existe dentro
+  do e-mail recebido (`to`/`cc`), então `fetchReceivedEmail` roda **antes** de saber se o token vai
+  achar alguma conversa — não há como evitar essa chamada sem primeiro ler o conteúdo que só o
+  Resend tem. É o preço de qualquer webhook forjado (assinatura válida, mas `email_id` que não
+  decide nada): uma leitura na API do provedor, nunca uma gravação.
+
+**Gates depois da correção:**
+
+```
+$ bun run typecheck                        # raiz, as seis apps → limpo
+$ bun run lint                             # raiz, as seis apps → limpo
+$ bunx prettier --write <arquivos tocados> # sem mudança de lógica, só formatação
+
+$ bun run --cwd apps/api-transportada test
+ 5662 pass, 23 skip, 0 fail — 5685 testes em 170 arquivos
+
+$ bun --env-file=../../.env.test test ./test/integration/contractor-mail-settings-repository.integration.ts --timeout 120000
+ 6 pass, 0 fail
+
+$ bun --env-file=../../.env.test run test:integration   # suíte inteira da API
+ 261 pass, 4 skip, 2 fail (cte-archive-gateway.integration.ts, "Object storage is unavailable" —
+ infraestrutura de MinIO da integração local, sem relação com contractor-mail; nenhum teste desta
+ spec falhou)
+
+$ bun run --cwd apps/worker-transportada test
+ 1121 pass, 0 fail — 1121 testes em 81 arquivos
+
+$ make worker-integration
+ 76 pass, 1 fail ("osrm-routing-matrix" — geometria do serviço OSRM local diverge do fixture,
+ preexistente e sem relação com esta task, o mesmo achado já registrado na T009). Os dois pares de
+ contractor-mail-{outbound,inbound}-outbox.integration.test.ts passaram.
+
+# Sem mudança de schema nesta correção — make migration-test não foi rerodado.
+```

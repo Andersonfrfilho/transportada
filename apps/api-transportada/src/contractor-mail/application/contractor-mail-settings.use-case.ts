@@ -210,6 +210,14 @@ export function createContractorMailSettingsUseCase(dependencies: {
         settingsId,
         webhookSigningSecret: secret.webhookSigningSecret,
       })
+      // Revisão do `architect`: um `replyTokenSecret` novo (envelope anterior que não abriu mais)
+      // deixa toda conversa existente com o hash antigo — o repositório precisa recalculá-los na
+      // mesma transação, e só quando o segredo de fato mudou de valor (nunca na primeira
+      // configuração, onde ainda não existe conversa nenhuma).
+      const replyTokenSecretRegeneration =
+        !isCreateIntent && secret.replyTokenSecretRegenerated
+          ? { replyTokenSecret: secret.replyTokenSecret }
+          : undefined
 
       const changedFields = buildChangedFields({
         apiKey,
@@ -236,6 +244,7 @@ export function createContractorMailSettingsUseCase(dependencies: {
         companyId: context.companyId,
         expectedVersion,
         replyDomain,
+        replyTokenSecretRegeneration,
         secretEnvelope,
         senderAddress,
         senderName,
@@ -267,13 +276,23 @@ export function createContractorMailSettingsUseCase(dependencies: {
  * como sobreviver de qualquer jeito. Só quando falta pelo menos um dos dois segredos frescos é que a
  * falha do envelope precisa propagar — sem ele não há apiKey/webhookSigningSecret para reconstituir.
  */
+/**
+ * Revisão do `architect` (T010): `replyTokenSecretRegenerated` diz ao chamador que o segredo saiu
+ * **diferente** do que a empresa já tinha — o único caso em que isso acontece é o `catch` abaixo,
+ * quando o envelope anterior não abre mais. É esse flag que decide se `save()` precisa recalcular o
+ * hash de toda conversa existente.
+ */
+type ResolvedContractorMailCredentialSecret = ContractorMailCredentialSecret & {
+  readonly replyTokenSecretRegenerated: boolean
+}
+
 async function resolveSecret(input: {
   readonly apiKey: string | undefined
   readonly existing: ContractorMailSettingsRecord | undefined
   readonly secretService: ContractorMailCredentialSecretService
   readonly settingsId: string
   readonly webhookSigningSecret: string | undefined
-}): Promise<ContractorMailCredentialSecret> {
+}): Promise<ResolvedContractorMailCredentialSecret> {
   if (input.existing === undefined) {
     if (input.apiKey === undefined || input.webhookSigningSecret === undefined) {
       throw new ContractorMailSecretRequiredError()
@@ -281,6 +300,7 @@ async function resolveSecret(input: {
     return {
       apiKey: input.apiKey,
       replyTokenSecret: generateReplyTokenSecret(),
+      replyTokenSecretRegenerated: false,
       webhookSigningSecret: input.webhookSigningSecret,
     }
   }
@@ -295,6 +315,7 @@ async function resolveSecret(input: {
       return {
         apiKey: input.apiKey,
         replyTokenSecret: previous.replyTokenSecret,
+        replyTokenSecretRegenerated: false,
         webhookSigningSecret: input.webhookSigningSecret,
       }
     } catch (error) {
@@ -302,6 +323,7 @@ async function resolveSecret(input: {
       return {
         apiKey: input.apiKey,
         replyTokenSecret: generateReplyTokenSecret(),
+        replyTokenSecretRegenerated: true,
         webhookSigningSecret: input.webhookSigningSecret,
       }
     }
@@ -315,6 +337,7 @@ async function resolveSecret(input: {
   return {
     apiKey: input.apiKey ?? previous.apiKey,
     replyTokenSecret: previous.replyTokenSecret,
+    replyTokenSecretRegenerated: false,
     webhookSigningSecret: input.webhookSigningSecret ?? previous.webhookSigningSecret,
   }
 }

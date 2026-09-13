@@ -17,20 +17,22 @@ import {
   ResendDownloadTooLargeError,
   ResendProviderUnauthorizedError,
 } from '../contractor-mail/domain/resend-provider.error.js'
+import { ContractorMailInboundSettingsMissingError } from '../contractor-mail/domain/contractor-mail-inbound.error.js'
 import { safeLogError, safeLogInfo } from '../logging/safe-logger.service.js'
 import type { WorkerEnvironment, WorkerLogger } from '../shared/worker.types.js'
 
 /**
- * Falhas **permanentes** (RF do Objetivo item 5): a chave foi recusada, ou a `download_url` não é
- * do Resend — reentregar não muda o resultado. Tudo o mais (rede, bucket, DNS do DKIM lento) é
- * transitório e vai para o retry da topologia.
+ * Falhas **permanentes** (RF do Objetivo item 5): a chave foi recusada, a `download_url` não é do
+ * Resend, ou a empresa não tem configuração — reentregar não muda nenhum dos três. Tudo o mais
+ * (rede, bucket, DNS do DKIM lento) é transitório e vai para o retry da topologia.
  */
 function isPermanentFailure(error: unknown): boolean {
   return (
     error instanceof ResendProviderUnauthorizedError ||
     error instanceof ResendDownloadHostNotAllowedError ||
     error instanceof ResendDownloadRedirectBlockedError ||
-    error instanceof ResendDownloadTooLargeError
+    error instanceof ResendDownloadTooLargeError ||
+    error instanceof ContractorMailInboundSettingsMissingError
   )
 }
 
@@ -39,6 +41,7 @@ function describePermanentFailure(error: unknown): string {
   if (error instanceof ResendDownloadHostNotAllowedError) return 'download_host_not_allowed'
   if (error instanceof ResendDownloadRedirectBlockedError) return 'download_redirect_blocked'
   if (error instanceof ResendDownloadTooLargeError) return 'download_too_large'
+  if (error instanceof ContractorMailInboundSettingsMissingError) return 'settings_missing'
   return 'unknown'
 }
 
@@ -65,7 +68,7 @@ export async function startContractorMailInboundConsumer(params: {
           safeLogInfo({
             logger: params.logger,
             message: 'inbound_email_token_unknown',
-            metadata: baseMetadata,
+            metadata: { ...baseMetadata, reason: result.reason },
           })
           return { type: 'ack' }
         }

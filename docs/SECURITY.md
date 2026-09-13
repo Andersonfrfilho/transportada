@@ -42,17 +42,26 @@ natureza: **o que chega por aqui decide dinheiro**, porque uma resposta `APROVAD
 **O que limita o estrago:**
 
 - A assinatura é conferida contra o segredo **daquela empresa**, com `timingSafeEqual` e janela de
-  5 minutos, e o `email_id` repetido converge sem gravar de novo.
+  5 minutos, e o `email_id` repetido converge sem gravar de novo (por empresa —
+  `unique(company_id, provider_email_id)`; o `svix-id` não é guardado, porque um replay assinado
+  repete o corpo e, portanto, o `email_id` — ver a correção pós-revisão da T010 no RF11 do
+  `spec.md`).
 - O corpo do webhook não é fonte de nada: remetente, conteúdo e MIME vêm da API do Resend, com a
   chave.
 - A decisão exige DKIM alinhado ao `From`, **verificado por nós** sobre o MIME bruto. Forjar a
   resposta de uma contratante exige a chave privada DKIM do domínio dela.
 - O tenant sai do token da conversa e **precisa** coincidir com o do `webhookId`.
 - Remetente fora da lista da contratante, ou sem `can_decide`, nunca decide.
+- Correção pós-revisão da T010 (2026-09-13): a rota **tem** limitador agora
+  (`public-inbound-email.routes.ts`, no molde de `public-cnpj-info.routes.ts`), e a ordem de
+  checagem dentro do caso de uso barateia a rejeição — cabeçalhos `svix-*` ausentes/malformados e
+  timestamp fora da janela nunca chegam a consultar o banco (`lookupSettings`) nem a abrir o
+  segredo, então um `POST` em rajada sem assinatura de verdade nem toca o repositório.
 
-**O que falta:** o limitador na borda (o mesmo buraco dos achados abaixo).
+**O que falta:** nada específico desta rota — ela deixou de ser o "buraco" citado antes. Os demais
+achados abaixo (recuperação de senha, definição de senha por admin) continuam sem limitador.
 
-**Origem:** spec 143, T002.
+**Origem:** spec 143, T002. Atualizado na revisão da T010.
 
 ### 2026-09-13 — a chave do Resend que lê recebidos alcança a caixa inteira da conta
 

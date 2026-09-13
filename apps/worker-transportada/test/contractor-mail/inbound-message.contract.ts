@@ -11,6 +11,7 @@ import {
   type RecordContractorMailInboundMessageDependencies,
 } from '../../src/contractor-mail/application/record-contractor-mail-inbound-message.use-case.js'
 import { createDkimVerifierGateway } from '../../src/contractor-mail/infrastructure/dkim-verifier.gateway.js'
+import { ContractorMailInboundSettingsMissingError } from '../../src/contractor-mail/domain/contractor-mail-inbound.error.js'
 import {
   ResendDownloadHostNotAllowedError,
   ResendProviderUnauthorizedError,
@@ -30,7 +31,9 @@ const OTHER_COMPANY_ID = crypto.randomUUID()
 const THREAD_ID = crypto.randomUUID()
 const SETTINGS_ID = crypto.randomUUID()
 const REPLY_DOMAIN = 'resposta.fernandes-transportadora.com.br'
-const REPLY_TOKEN = 'abc123replytoken'
+/** 26 caracteres, só `[a-z2-7]` — o formato real de um token derivado (128 bits em base32). */
+const REPLY_TOKEN = 'replytoken234567abcdefghij'
+const OTHER_REPLY_TOKEN = 'anothertoken234567abcdefgh'
 const PROVIDER_EMAIL_ID = 'evt_inbound_0001'
 const SELECTOR = 'teste'
 
@@ -121,11 +124,13 @@ function buildRepository(input: {
     async findSettingsByCompanyId({ companyId }) {
       return companyId === COMPANY_ID ? SETTINGS : undefined
     },
-    async findThreadByReplyTokenHash({ companyId, replyTokenHash }) {
-      const match = threads.find(
-        (thread) => thread.companyId === companyId && thread.replyTokenHash === replyTokenHash,
-      )
-      return match === undefined ? undefined : { id: match.id }
+    async findThreadsByReplyTokenHashes({ companyId, replyTokenHashes }) {
+      return threads
+        .filter(
+          (thread) =>
+            thread.companyId === companyId && replyTokenHashes.includes(thread.replyTokenHash),
+        )
+        .map((thread) => ({ id: thread.id }))
     },
     async recordInboundMessage(recordInput) {
       input.recordCalls.push(recordInput)
@@ -134,7 +139,7 @@ function buildRepository(input: {
   }
 }
 
-describe('record contractor mail inbound message (spec 143, T010)', () => {
+describe('record contractor mail inbound message (spec 143, T010 — revisão do architect)', () => {
   test('records the message with the DKIM result when the token matches a known thread', async () => {
     const { privateKey, publicKey } = generateTestKeyPair()
     const fromDomain = 'contratante.com.br'
@@ -162,7 +167,7 @@ describe('record contractor mail inbound message (spec 143, T010)', () => {
         downloadRawEmail: async () => rawBytes,
         fetchReceivedEmail: async () => ({
           from: `financeiro@${fromDomain}`,
-          headers: {},
+          headers: { 'In-Reply-To': '<previous@example.com.br>' },
           message_id: '<abc@contratante.com.br>',
           raw: { download_url: 'https://cdn.resend.com/raw/1', expires_at: '2099-01-01T00:00:00Z' },
           subject: 'APROVADO',
@@ -202,7 +207,9 @@ describe('record contractor mail inbound message (spec 143, T010)', () => {
       companyId: COMPANY_ID,
       dkimResult: 'aligned',
       fromAddress: `financeiro@${fromDomain}`,
+      inReplyTo: 'previous@example.com.br',
       providerEmailId: PROVIDER_EMAIL_ID,
+      rfcMessageId: '<abc@contratante.com.br>',
       subject: 'APROVADO',
       threadId: THREAD_ID,
       toAddresses: [`${REPLY_TOKEN}@${REPLY_DOMAIN}`],
@@ -211,6 +218,56 @@ describe('record contractor mail inbound message (spec 143, T010)', () => {
     expect(recordCalls[0]?.raw.sizeBytes).toBe(rawBytes.byteLength)
     expect(storedBodies).toHaveLength(1)
     expect(Buffer.from(storedBodies[0] ?? new Uint8Array())).toEqual(rawBytes)
+  })
+
+  /** Sem `In-Reply-To` no e-mail recebido: `inReplyTo` sai `undefined`, não o `message_id` próprio. */
+  test('records inReplyTo as undefined when the header is absent, never the message own id', async () => {
+    const recordCalls: RecordContractorMailInboundMessageInput[] = []
+    const dependencies: Deps = {
+      dkimVerifier: {
+        async verify() {
+          return 'absent'
+        },
+      },
+      mailGateway: {
+        downloadRawEmail: async () => Buffer.from('conteudo'),
+        fetchReceivedEmail: async () => ({
+          from: 'financeiro@contratante.com.br',
+          headers: {},
+          message_id: '<own-message-id@contratante.com.br>',
+          raw: { download_url: 'https://cdn.resend.com/raw/9', expires_at: '2099-01-01T00:00:00Z' },
+          subject: 'APROVADO',
+          text: 'APROVADO',
+          to: [`${REPLY_TOKEN}@${REPLY_DOMAIN}`],
+        }),
+        sendEmail: async () => {
+          throw new Error('not used by this contract')
+        },
+      },
+      repository: buildRepository({ recordCalls }),
+      secretService: {
+        async decrypt() {
+          return {
+            apiKey: 're_test_key',
+            replyTokenSecret: 'a'.repeat(64),
+            webhookSigningSecret: 'whsec_test',
+          }
+        },
+      },
+      storage: {
+        async storeObject() {
+          return undefined
+        },
+      },
+      storageBucket: 'transportada-private',
+      storageProvider: 'minio',
+    }
+
+    await recordContractorMailInboundMessage(buildEnvelope(), dependencies)
+
+    expect(recordCalls).toHaveLength(1)
+    expect(recordCalls[0]?.inReplyTo).toBeUndefined()
+    expect(recordCalls[0]?.rfcMessageId).toBe('<own-message-id@contratante.com.br>')
   })
 
   test('discards without recording when the token is unknown', async () => {
@@ -234,7 +291,7 @@ describe('record contractor mail inbound message (spec 143, T010)', () => {
           raw: { download_url: 'https://cdn.resend.com/raw/2', expires_at: '2099-01-01T00:00:00Z' },
           subject: 'APROVADO',
           text: 'APROVADO',
-          to: [`unknown-token@${REPLY_DOMAIN}`],
+          to: [`unknowntoken234567abcdefgh@${REPLY_DOMAIN}`],
         }),
         sendEmail: async () => {
           throw new Error('not used by this contract')
@@ -328,6 +385,69 @@ describe('record contractor mail inbound message (spec 143, T010)', () => {
     expect(recordCalls).toEqual([])
   })
 
+  /** Revisão do `architect`: dois candidatos batem em duas conversas distintas — descarta, com contador. */
+  test('discards with a distinct reason when more than one conversation matches', async () => {
+    const recordCalls: RecordContractorMailInboundMessageInput[] = []
+    const otherThreadId = crypto.randomUUID()
+    const dependencies: Deps = {
+      dkimVerifier: {
+        async verify() {
+          throw new Error('should not verify DKIM when ambiguous')
+        },
+      },
+      mailGateway: {
+        downloadRawEmail: async () => {
+          throw new Error('should not download when ambiguous')
+        },
+        fetchReceivedEmail: async () => ({
+          from: 'financeiro@contratante.com.br',
+          headers: {},
+          message_id: '<x@contratante.com.br>',
+          raw: { download_url: 'https://cdn.resend.com/raw/4', expires_at: '2099-01-01T00:00:00Z' },
+          subject: 'APROVADO',
+          text: 'APROVADO',
+          to: [`${REPLY_TOKEN}@${REPLY_DOMAIN}`],
+          cc: [`${OTHER_REPLY_TOKEN}@${REPLY_DOMAIN}`],
+        }),
+        sendEmail: async () => {
+          throw new Error('not used by this contract')
+        },
+      },
+      repository: buildRepository({
+        recordCalls,
+        threads: [
+          { companyId: COMPANY_ID, id: THREAD_ID, replyTokenHash: hashReplyToken(REPLY_TOKEN) },
+          {
+            companyId: COMPANY_ID,
+            id: otherThreadId,
+            replyTokenHash: hashReplyToken(OTHER_REPLY_TOKEN),
+          },
+        ],
+      }),
+      secretService: {
+        async decrypt() {
+          return {
+            apiKey: 're_test_key',
+            replyTokenSecret: 'a'.repeat(64),
+            webhookSigningSecret: 'whsec_test',
+          }
+        },
+      },
+      storage: {
+        async storeObject() {
+          return undefined
+        },
+      },
+      storageBucket: 'transportada-private',
+      storageProvider: 'minio',
+    }
+
+    const result = await recordContractorMailInboundMessage(buildEnvelope(), dependencies)
+
+    expect(result).toEqual({ outcome: 'discarded', reason: 'multiple_matches' })
+    expect(recordCalls).toEqual([])
+  })
+
   test('converges without touching any gateway when the message was already recorded', async () => {
     const recordCalls: RecordContractorMailInboundMessageInput[] = []
     let fetchCalled = false
@@ -369,6 +489,46 @@ describe('record contractor mail inbound message (spec 143, T010)', () => {
     expect(result).toEqual({ outcome: 'already_recorded' })
     expect(fetchCalled).toBe(false)
     expect(recordCalls).toEqual([])
+  })
+
+  /** Revisão do `architect`: permanente — reentregar não faz a configuração aparecer. */
+  test('throws a typed permanent error when the company has no contractor mail settings', async () => {
+    const dependencies: Deps = {
+      dkimVerifier: {
+        async verify() {
+          throw new Error('should not run')
+        },
+      },
+      mailGateway: {
+        downloadRawEmail: async () => Buffer.alloc(0),
+        fetchReceivedEmail: async () => {
+          throw new Error('should not fetch without settings')
+        },
+        sendEmail: async () => {
+          throw new Error('not used by this contract')
+        },
+      },
+      repository: buildRepository({ recordCalls: [] }),
+      secretService: {
+        async decrypt() {
+          throw new Error('should not open the vault')
+        },
+      },
+      storage: {
+        async storeObject() {
+          throw new Error('should not store')
+        },
+      },
+      storageBucket: 'transportada-private',
+      storageProvider: 'minio',
+    }
+
+    await expect(
+      recordContractorMailInboundMessage(
+        { ...buildEnvelope(), companyId: crypto.randomUUID() },
+        dependencies,
+      ),
+    ).rejects.toBeInstanceOf(ContractorMailInboundSettingsMissingError)
   })
 
   test('propagates a permanent provider error (unauthorized key) for the consumer to classify', async () => {

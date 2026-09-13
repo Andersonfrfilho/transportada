@@ -55,7 +55,7 @@ test`), um commit isolado e a evidência em `evidence.md`. Teste novo entra na l
       `reply_to`, `In-Reply-To`, `References` e `Idempotency-Key`) e o
       `POST /contractor-mail-settings/test-email`, que abre a conversa `setup_test`. Evidência:
       contrato do gateway com o fake e integração com o outbox.
-- [ ] **T010** 🧠 O webhook `POST /public/inbound-emails/:webhookId` (`svix-signature.policy.ts`,
+- [x] **T010** 🧠 O webhook `POST /public/inbound-emails/:webhookId` (`svix-signature.policy.ts`,
       janela de 5 min, 401 fail-closed, 204 para evento aceito ou repetido) e o trilho
       `contractor-mail-inbound.v1` até o DKIM: buscar o recebido, gravar o bruto com `sha256`,
       verificar, e tratar `setup_test`. Evidência: contratos da assinatura e da rota, integração do

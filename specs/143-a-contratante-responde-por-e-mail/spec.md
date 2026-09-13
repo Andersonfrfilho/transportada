@@ -114,7 +114,12 @@ companyId + ":" + threadId))`, truncado em 128 bits. É determinístico por conv
   pós-entrega da T009).
 - **RF11** O webhook é `POST /public/inbound-emails/<webhookId>`. A assinatura Svix é conferida
   sobre o corpo cru (`svix-id.svix-timestamp.corpo`, HMAC-SHA256 com o segredo da empresa), com
-  janela de 5 minutos, e o mesmo `svix-id` não é aceito duas vezes.
+  janela de 5 minutos. Correção pós-revisão da T010 (2026-09-13): a idempotência **não** guarda o
+  `svix-id` — o mesmo `email_id` converge **por empresa**
+  (`unique(company_id, provider_email_id)` em `contractor_inbound_email_outbox`). Um replay assinado
+  do mesmo webhook repete o corpo e, portanto, o `email_id`; guardar o `svix-id` à parte não
+  acrescentaria nada além do que a janela de 5 minutos já limita, e criaria uma segunda tabela de
+  estado só para isso.
 - **RF12** A verificação (`GET …/checks`) consulta o Resend com a chave (a chave é aceita e o
   domínio do remetente está verificado), o MX do subdomínio de resposta (DNS resolvido pela API) e
   o banco (último webhook recebido, último teste enviado e recebido). Cada item volta como `ok`,

@@ -14,11 +14,15 @@ import type { ProcessInboundEmailWebhookUseCase } from '../../src/contractor-mai
 
 const WEBHOOK_PATH = '/public/inbound-emails/00000000-0000-4000-8000-0000000000e1'
 
+type LogCall = { readonly message: string; readonly metadata: unknown }
+
 function buildHandler(outcome: 'accepted' | 'ignored' | 'unauthorized'): {
   readonly calls: unknown[]
   readonly handle: (request: Request) => Promise<Response>
+  readonly logCalls: LogCall[]
 } {
   const calls: unknown[] = []
+  const logCalls: LogCall[] = []
   const processInboundEmailWebhook: ProcessInboundEmailWebhookUseCase = {
     async execute(input) {
       calls.push(input)
@@ -59,12 +63,16 @@ function buildHandler(outcome: 'accepted' | 'ignored' | 'unauthorized'): {
   const handleRequest = createRequestHandler({
     createCorrelationId: () => 'inbound-webhook-correlation',
     frontendOrigins: ['http://localhost:53000'],
-    logger: { error() {}, info() {}, warn() {} },
+    logger: {
+      error: (message: string, metadata?: unknown) => logCalls.push({ message, metadata }),
+      info: (message: string, metadata?: unknown) => logCalls.push({ message, metadata }),
+      warn: (message: string, metadata?: unknown) => logCalls.push({ message, metadata }),
+    },
     requestTimeoutSeconds: 10,
     router,
   })
 
-  return { calls, handle: (request) => handleRequest(request, { timeout() {} }) }
+  return { calls, handle: (request) => handleRequest(request, { timeout() {} }), logCalls }
 }
 
 function webhookRequest(input: {
@@ -123,5 +131,40 @@ describe('POST /public/inbound-emails/:webhookId (spec 143, T010)', () => {
     const { handle } = buildHandler('accepted')
     const response = await handle(webhookRequest({ body: '{"type":"email.received"}' }))
     expect(response.status).toBe(204)
+  })
+
+  /** Revisão do `architect`: a rota ganhou teto — 120 por 5 minutos, por IP. */
+  test('responds 429 once the rate limit is exceeded', async () => {
+    const { handle } = buildHandler('accepted')
+    const headers = { 'x-forwarded-for': '203.0.113.10' }
+
+    for (let attempt = 0; attempt < 120; attempt += 1) {
+      const response = await handle(webhookRequest({ body: '{"type":"email.received"}', headers }))
+      expect(response.status).toBe(204)
+    }
+
+    const throttled = await handle(webhookRequest({ body: '{"type":"email.received"}', headers }))
+    expect(throttled.status).toBe(429)
+    expect(throttled.headers.get('retry-after')).not.toBeNull()
+  })
+
+  /**
+   * Revisão do `architect` (opcional): nenhum log leva o `webhookId`, os cabeçalhos `svix-*` ou o
+   * corpo — nem no caminho de sucesso, nem no de 401.
+   */
+  test('never logs the webhookId, the svix headers or the body', async () => {
+    const { handle, logCalls } = buildHandler('unauthorized')
+
+    await handle(
+      webhookRequest({
+        body: '{"type":"email.received","data":{"email_id":"segredo-do-corpo"}}',
+      }),
+    )
+
+    const serialized = JSON.stringify(logCalls)
+    expect(serialized).not.toContain('00000000-0000-4000-8000-0000000000e1')
+    expect(serialized).not.toContain('msg_route_contract')
+    expect(serialized).not.toContain('does-not-matter-the-fake-use-case-decides')
+    expect(serialized).not.toContain('segredo-do-corpo')
   })
 })

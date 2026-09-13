@@ -25,6 +25,7 @@ import type {
   SaveContractorMailSettingsInput,
 } from '../application/contractor-mail.port.js'
 import { ContractorMailSettingsVersionConflictError } from '../domain/contractor-mail.error.js'
+import { deriveReplyToken, hashReplyToken } from '../domain/reply-token.policy.js'
 import type { ContractorMailSettingsStatus } from '../../database/contractor-mail.schema.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
@@ -362,8 +363,62 @@ export class DrizzleContractorMailRepository implements ContractorMailRepository
         targetType: 'contractor_mail_settings',
       })
 
+      if (input.replyTokenSecretRegeneration !== undefined) {
+        await regenerateThreadReplyTokenHashes(transaction, {
+          companyId: input.companyId,
+          replyTokenSecret: input.replyTokenSecretRegeneration.replyTokenSecret,
+        })
+
+        await transaction.insert(auditLogs).values({
+          action: 'reply_token_secret_regenerated',
+          actorUserId: input.audit.actorUserId,
+          afterSnapshot: { settingsId: input.settingsId },
+          beforeSnapshot: null,
+          companyId: input.companyId,
+          correlationId: input.audit.correlationId,
+          entityId: input.settingsId,
+          entityType: 'contractor_mail_settings',
+          permission: 'settings.manage',
+          targetId: input.settingsId,
+          targetType: 'contractor_mail_settings',
+        })
+      }
+
       return { ...row, lastWebhookAt: row.lastWebhookAt ?? undefined }
     })
+  }
+}
+
+/**
+ * Revisão do `architect` (T010): o `replyTokenSecret` novo deixa `deriveReplyToken` produzir um
+ * token diferente para toda conversa da empresa — o hash gravado precisa acompanhar, na mesma
+ * transação do envelope, ou a conversa fica órfã (o `Reply-To` que o worker monta dali em diante
+ * nunca mais bate com o hash antigo). Sequencial, não `Promise.all`: é uma transação, uma conexão só.
+ */
+async function regenerateThreadReplyTokenHashes(
+  transaction: Transaction,
+  input: { readonly companyId: string; readonly replyTokenSecret: string },
+): Promise<void> {
+  const threads = await transaction
+    .select({ id: contractorMailThreads.id })
+    .from(contractorMailThreads)
+    .where(eq(contractorMailThreads.companyId, input.companyId))
+
+  for (const thread of threads) {
+    const token = deriveReplyToken({
+      companyId: input.companyId,
+      replyTokenSecret: input.replyTokenSecret,
+      threadId: thread.id,
+    })
+    await transaction
+      .update(contractorMailThreads)
+      .set({ replyTokenHash: hashReplyToken(token) })
+      .where(
+        and(
+          eq(contractorMailThreads.companyId, input.companyId),
+          eq(contractorMailThreads.id, thread.id),
+        ),
+      )
   }
 }
 

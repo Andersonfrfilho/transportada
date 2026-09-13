@@ -12,6 +12,15 @@ import { ContractorMailInboundWebhookUnauthorizedError } from '../domain/contrac
 import type { ProcessInboundEmailWebhookUseCase } from '../application/process-inbound-email-webhook.use-case.js'
 
 const NO_CONTENT_STATUS = 204
+const ONE_MINUTE_MS = 60_000
+/**
+ * Revisão do `architect`: a rota não tinha teto nenhum. O Resend costuma mandar um webhook por
+ * e-mail recebido, e uma empresa concentra várias respostas de contratantes numa janela curta — o
+ * teto é generoso o bastante para não confundir tráfego normal com abuso, e barato de sustentar: a
+ * checagem cara (banco + HMAC) já nem roda antes disso, porque a assinatura é conferida em duas
+ * etapas (ver `process-inbound-email-webhook.use-case.ts`).
+ */
+const INBOUND_EMAIL_WEBHOOK_RATE_LIMIT = { maxRequests: 120, windowMs: 5 * ONE_MINUTE_MS } as const
 
 type InboundEmailWebhookInput = {
   readonly rawBody: string
@@ -62,6 +71,7 @@ export function createPublicInboundEmailRoutes(
       pathname: API_PUBLIC_INBOUND_EMAILS_PATH,
       // O webhookId é opaco por construção (uuid comparado por igualdade), não decodificado.
       pathParameterFormat: 'opaque',
+      rateLimit: INBOUND_EMAIL_WEBHOOK_RATE_LIMIT,
     }),
   ]
 }

@@ -17,7 +17,8 @@ import type { WorkerLogger } from '../../src/shared/worker.types.js'
 const COMPANY_ID = crypto.randomUUID()
 const THREAD_ID = crypto.randomUUID()
 const REPLY_DOMAIN = 'resposta.example.com.br'
-const REPLY_TOKEN = 'consumertoken'
+/** 26 caracteres, só `[a-z2-7]` — o formato real de um token derivado (128 bits em base32). */
+const REPLY_TOKEN = 'consumertoken234567abcdefg'
 const PROVIDER_EMAIL_ID = 'evt_consumer_0001'
 
 function buildEnvelope(): ContractorMailInboundEnvelopeV1 {
@@ -122,8 +123,8 @@ function buildDependenciesStub(overrides?: {
           secretEnvelope: {},
         }
       },
-      async findThreadByReplyTokenHash() {
-        return { id: THREAD_ID }
+      async findThreadsByReplyTokenHashes() {
+        return [{ id: THREAD_ID }]
       },
       async recordInboundMessage() {
         return { id: crypto.randomUUID() }
@@ -178,7 +179,7 @@ describe('contractor mail inbound consumer (spec 143, T010)', () => {
     expect(calls).toEqual([
       {
         message: 'inbound_email_token_unknown',
-        metadata: { companyId: COMPANY_ID, eventId: expect.any(String) },
+        metadata: { companyId: COMPANY_ID, eventId: expect.any(String), reason: 'token_unknown' },
       },
     ])
   })
@@ -239,6 +240,37 @@ describe('contractor mail inbound consumer (spec 143, T010)', () => {
           companyId: COMPANY_ID,
           eventId: expect.any(String),
           reason: 'download_host_not_allowed',
+        },
+      },
+    ])
+  })
+
+  /** Configuração ausente é permanente (revisão do `architect`): reentregar não faz ela aparecer. */
+  test('acks when the company has no contractor mail settings', async () => {
+    const { calls, logger } = buildLogger()
+    const handler = await captureHandler({
+      dependencies: {
+        ...buildDependenciesStub(),
+        repository: {
+          ...buildDependenciesStub().repository,
+          async findSettingsByCompanyId() {
+            return undefined
+          },
+        },
+      },
+      logger,
+    })
+
+    const disposition = await handler({ payload: buildEnvelope() })
+
+    expect(disposition).toEqual({ type: 'ack' })
+    expect(calls).toEqual([
+      {
+        message: 'inbound_email_webhook_rejected',
+        metadata: {
+          companyId: COMPANY_ID,
+          eventId: expect.any(String),
+          reason: 'settings_missing',
         },
       },
     ])

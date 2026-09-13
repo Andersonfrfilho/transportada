@@ -9,7 +9,10 @@
 import type { SecretEnvelopeV1 } from '@adatechnology/secret-envelope'
 import { z } from 'zod'
 
-import { verifySvixSignature } from '../domain/svix-signature.policy.js'
+import {
+  checkSvixHeadersAndWindow,
+  verifySvixSignatureHmac,
+} from '../domain/svix-signature.policy.js'
 import type {
   ContractorMailRepositoryPort,
   ContractorMailSettingsRecord,
@@ -49,6 +52,17 @@ export function createProcessInboundEmailWebhookUseCase(dependencies: {
 
   return {
     async execute(input) {
+      // Revisão do `architect`: rejeição barata primeiro — presença/formato dos cabeçalhos `svix-*`
+      // e a janela de 5 minutos não pedem banco nem segredo nenhum. Um `POST` em rajada sem
+      // assinatura de verdade (ou com timestamp velho repetido) nunca chega a `lookupSettings`.
+      const precondition = checkSvixHeadersAndWindow({
+        now: now(),
+        svixId: input.svixId,
+        svixSignature: input.svixSignature,
+        svixTimestamp: input.svixTimestamp,
+      })
+      if (!precondition.verified) return { outcome: 'unauthorized' }
+
       const configuration = await lookupSettings(dependencies.repository, input.webhookId)
       if (configuration === undefined) return { outcome: 'unauthorized' }
 
@@ -58,8 +72,7 @@ export function createProcessInboundEmailWebhookUseCase(dependencies: {
       })
       if (secret === undefined) return { outcome: 'unauthorized' }
 
-      const verification = verifySvixSignature({
-        now: now(),
+      const verification = verifySvixSignatureHmac({
         rawBody: input.rawBody,
         svixId: input.svixId,
         svixSignature: input.svixSignature,

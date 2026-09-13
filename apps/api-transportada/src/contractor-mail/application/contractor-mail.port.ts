@@ -74,6 +74,17 @@ export type SaveContractorMailSettingsInput = {
    */
   readonly expectedVersion: string | undefined
   readonly replyDomain: string
+  /**
+   * Revisão do `architect` (T010): quando o segredo antigo não abre mais e o `PUT` traz os dois
+   * segredos completos, `resolveSecret` gera um `replyTokenSecret` **novo** — mas o hash gravado em
+   * `contractor_mail_threads.reply_token_hash` de cada conversa da empresa ainda é o **antigo**
+   * (`deriveReplyToken` é determinístico pelo segredo, então trocar o segredo sem recalcular o hash
+   * deixa toda conversa existente órfã: o `Reply-To` que o worker vai montar dali em diante nunca
+   * mais acha a conversa dela). Presente, o repositório recalcula o hash de **todas** as conversas
+   * da empresa com o segredo novo, na mesma transação do envelope, e grava a auditoria
+   * `reply_token_secret_regenerated`.
+   */
+  readonly replyTokenSecretRegeneration: { readonly replyTokenSecret: string } | undefined
   readonly secretEnvelope: unknown
   readonly senderAddress: string
   readonly senderName: string

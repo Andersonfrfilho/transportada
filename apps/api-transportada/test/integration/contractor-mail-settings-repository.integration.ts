@@ -20,6 +20,10 @@ import { eq } from 'drizzle-orm'
 
 import { createContractorMailCredentialSecretService } from '../../src/contractor-mail/application/contractor-mail-credential-secret.service.js'
 import { ContractorMailSettingsVersionConflictError } from '../../src/contractor-mail/domain/contractor-mail.error.js'
+import {
+  deriveReplyToken,
+  hashReplyToken,
+} from '../../src/contractor-mail/domain/reply-token.policy.js'
 import { DrizzleContractorMailRepository } from '../../src/contractor-mail/infrastructure/drizzle-contractor-mail.repository.js'
 import { runDatabaseMigrations } from '../../src/database/database-migration.service.js'
 import {
@@ -77,6 +81,7 @@ describe('contractor mail settings repository integration (spec 143, T008)', () 
           companyId,
           expectedVersion: undefined,
           replyDomain: 'resposta.fernandes-transportadora.com.br',
+          replyTokenSecretRegeneration: undefined,
           secretEnvelope: SECRET_ENVELOPE_V1,
           senderAddress: 'ocorrencias@fernandes-transportadora.com.br',
           senderName: 'Fernandes Transportadora',
@@ -100,6 +105,7 @@ describe('contractor mail settings repository integration (spec 143, T008)', () 
           companyId,
           expectedVersion: created.version.toString(),
           replyDomain: created.replyDomain,
+          replyTokenSecretRegeneration: undefined,
           secretEnvelope: SECRET_ENVELOPE_V2,
           senderAddress: created.senderAddress,
           senderName: 'Fernandes Transportes Ltda',
@@ -270,6 +276,7 @@ describe('contractor mail settings repository integration (spec 143, T008)', () 
             companyId,
             expectedVersion: '0',
             replyDomain: created.replyDomain,
+            replyTokenSecretRegeneration: undefined,
             secretEnvelope: staleEnvelope,
             senderAddress: created.senderAddress,
             senderName: 'A stale writer should never land',
@@ -378,6 +385,115 @@ describe('contractor mail settings repository integration (spec 143, T008)', () 
     },
     30_000,
   )
+
+  /**
+   * Correção obrigatória da revisão do `architect`: um `replyTokenSecret` regenerado (envelope
+   * anterior que não abre mais) precisa levar junto o hash de **toda** conversa existente da
+   * empresa, na mesma transação — senão a conversa fica órfã, porque `deriveReplyToken` é
+   * determinístico pelo segredo, e o worker vai montar o `Reply-To` com o segredo novo dali em
+   * diante.
+   */
+  testWithPostgres(
+    'regenerating the replyTokenSecret rehashes every existing thread, and the Reply-To derived after it finds the conversation',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const { companyId, userId } = await seedTenant(database)
+        const repository = new DrizzleContractorMailRepository(database.db)
+        const settingsId = crypto.randomUUID()
+        const originalReplyTokenSecret = 'f'.repeat(64)
+        const originalEnvelope = await secretService.encrypt({
+          apiKey: 're_original',
+          companyId,
+          replyTokenSecret: originalReplyTokenSecret,
+          settingsId,
+          webhookSigningSecret: 'whsec_original',
+        })
+
+        await repository.saveSettings(
+          buildCreateInput({ companyId, envelope: originalEnvelope, settingsId, userId }),
+        )
+
+        const threadId = crypto.randomUUID()
+        const originalToken = deriveReplyToken({
+          companyId,
+          replyTokenSecret: originalReplyTokenSecret,
+          threadId,
+        })
+        await database.db.insert(contractorMailThreads).values({
+          companyId,
+          contractorId: null,
+          id: threadId,
+          replyTokenHash: hashReplyToken(originalToken),
+          subjectId: crypto.randomUUID(),
+          subjectType: 'setup_test',
+        })
+
+        // Simula o envelope anterior deixando de abrir: `resolveSecret` teria gerado este segredo
+        // novo, e selado o envelope com ele — este teste prova só a metade do repositório.
+        const newReplyTokenSecret = 'g'.repeat(64)
+        const newEnvelope = await secretService.encrypt({
+          apiKey: 're_regenerated',
+          companyId,
+          replyTokenSecret: newReplyTokenSecret,
+          settingsId,
+          webhookSigningSecret: 'whsec_regenerated',
+        })
+
+        await repository.saveSettings({
+          audit: {
+            action: 'contractor-mail.settings.saved',
+            actorUserId: userId,
+            afterSnapshot: { changedFields: ['apiKey', 'webhookSigningSecret'] },
+            beforeSnapshot: { id: settingsId, version: '1' },
+            companyId,
+            correlationId: 'contractor-mail-integration-regeneration',
+            entityId: settingsId,
+          },
+          companyId,
+          expectedVersion: '1',
+          replyDomain: 'resposta.fernandes-transportadora.com.br',
+          replyTokenSecretRegeneration: { replyTokenSecret: newReplyTokenSecret },
+          secretEnvelope: newEnvelope,
+          senderAddress: 'ocorrencias@fernandes-transportadora.com.br',
+          senderName: 'Fernandes Transportadora',
+          settingsId,
+        })
+
+        const [thread] = await database.db
+          .select({ replyTokenHash: contractorMailThreads.replyTokenHash })
+          .from(contractorMailThreads)
+          .where(eq(contractorMailThreads.id, threadId))
+        const expectedNewToken = deriveReplyToken({
+          companyId,
+          replyTokenSecret: newReplyTokenSecret,
+          threadId,
+        })
+        expect(thread?.replyTokenHash).toBe(hashReplyToken(expectedNewToken))
+        expect(thread?.replyTokenHash).not.toBe(hashReplyToken(originalToken))
+
+        // "O Reply-To derivado depois da regeneração acha a conversa": a mesma consulta que o
+        // trilho de entrada usa (hash + companyId) acha a conversa com o token novo.
+        const foundThread = await repository.findThreadByReplyTokenHash({
+          companyId,
+          replyTokenHash: hashReplyToken(expectedNewToken),
+        })
+        expect(foundThread?.id).toBe(threadId)
+
+        const regenerationAudit = await database.db
+          .select()
+          .from(auditLogs)
+          .where(eq(auditLogs.action, 'reply_token_secret_regenerated'))
+        expect(regenerationAudit).toHaveLength(1)
+        expect(regenerationAudit[0]).toMatchObject({
+          companyId,
+          permission: 'settings.manage',
+          targetId: settingsId,
+          targetType: 'contractor_mail_settings',
+        })
+      })
+    },
+    30_000,
+  )
 })
 
 function buildCreateInput(input: {
@@ -399,6 +515,7 @@ function buildCreateInput(input: {
     companyId: input.companyId,
     expectedVersion: undefined,
     replyDomain: 'resposta.fernandes-transportadora.com.br',
+    replyTokenSecretRegeneration: undefined,
     secretEnvelope: input.envelope,
     senderAddress: 'ocorrencias@fernandes-transportadora.com.br',
     senderName: 'Fernandes Transportadora',

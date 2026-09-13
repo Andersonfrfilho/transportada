@@ -35,10 +35,12 @@ const sentEmailSchema = z.object({ id: z.string().min(1) })
 /**
  * Campos confirmados em
  * https://resend.com/docs/api-reference/emails/retrieve-received-email (`GET
- * /emails/receiving/{id}`). O corpo real traz mais campos (html, bcc, cc, attachments…) que não
- * interessam aqui — o schema só declara o que o trilho de entrada usa.
+ * /emails/receiving/{id}`). O corpo real traz mais campos (html, bcc, attachments…) que não
+ * interessam aqui — o schema só declara o que o trilho de entrada usa. `cc` entrou na revisão da
+ * T010: o token de resposta pode chegar em cópia ("responder a todos"), não só no `to`.
  */
 const receivedEmailSchema = z.object({
+  cc: z.array(z.string().min(1)).optional(),
   from: z.string().min(1),
   headers: z.record(z.string(), z.string()),
   message_id: z.string().min(1),

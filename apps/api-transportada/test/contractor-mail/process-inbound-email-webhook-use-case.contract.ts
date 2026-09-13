@@ -219,4 +219,70 @@ describe('process inbound email webhook use case (spec 143, T010)', () => {
 
     expect(result).toEqual({ outcome: 'unauthorized' })
   })
+
+  /**
+   * Revisão do `architect`: rejeição barata primeiro — presença/formato dos cabeçalhos `svix-*` e a
+   * janela de 5 minutos não pedem banco nem segredo. Um timestamp fora da janela é `unauthorized`
+   * sem `lookupSettings` alcançar o repositório.
+   */
+  test('rejects a timestamp outside the five minute window without consulting the repository', async () => {
+    const body = JSON.stringify({ data: { email_id: 'evt_old' }, type: 'email.received' })
+    const oldTimestamp = String(Math.floor(NOW.getTime() / 1000) - 6 * 60)
+    const { repository } = buildRepository({ settings: SETTINGS })
+    const findSettingsCalls: string[] = []
+    const trackedRepository: ContractorMailRepositoryPort = {
+      ...repository,
+      async findSettingsByWebhookId(input) {
+        findSettingsCalls.push(input.webhookId)
+        return repository.findSettingsByWebhookId(input)
+      },
+    }
+    const useCase = createProcessInboundEmailWebhookUseCase({
+      now: () => NOW,
+      repository: trackedRepository,
+      secretService,
+    })
+
+    const result = await useCase.execute({
+      correlationId: 'correlation-6',
+      rawBody: body,
+      svixId: SVIX_ID,
+      svixSignature: 'v1,ignoredbecausetherejectionhappensbeforethehmaccheck=',
+      svixTimestamp: oldTimestamp,
+      webhookId: WEBHOOK_ID,
+    })
+
+    expect(result).toEqual({ outcome: 'unauthorized' })
+    expect(findSettingsCalls).toEqual([])
+  })
+
+  test('rejects missing svix-* headers without consulting the repository', async () => {
+    const body = JSON.stringify({ data: { email_id: 'evt_missing' }, type: 'email.received' })
+    const { repository } = buildRepository({ settings: SETTINGS })
+    const findSettingsCalls: string[] = []
+    const trackedRepository: ContractorMailRepositoryPort = {
+      ...repository,
+      async findSettingsByWebhookId(input) {
+        findSettingsCalls.push(input.webhookId)
+        return repository.findSettingsByWebhookId(input)
+      },
+    }
+    const useCase = createProcessInboundEmailWebhookUseCase({
+      now: () => NOW,
+      repository: trackedRepository,
+      secretService,
+    })
+
+    const result = await useCase.execute({
+      correlationId: 'correlation-7',
+      rawBody: body,
+      svixId: '',
+      svixSignature: '',
+      svixTimestamp: '',
+      webhookId: WEBHOOK_ID,
+    })
+
+    expect(result).toEqual({ outcome: 'unauthorized' })
+    expect(findSettingsCalls).toEqual([])
+  })
 })

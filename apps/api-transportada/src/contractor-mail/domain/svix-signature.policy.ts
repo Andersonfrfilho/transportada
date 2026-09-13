@@ -38,11 +38,17 @@ export type VerifySvixSignatureResult =
   | { readonly reason: SvixSignatureVerificationFailure; readonly verified: false }
 
 /**
- * A checagem do timestamp vem **antes** do HMAC (RF11): rejeitar por janela é mais barato que
- * computar HMAC para um corpo já fora do prazo, e evita que o próprio custo de CPU do HMAC vire
- * vetor de negação de serviço sobre um timestamp velho replicado sem parar.
+ * Revisão do `architect` (T010): separada de `verifySvixSignature` para a rota rejeitar barato
+ * **antes** de consultar o banco — presença/formato dos cabeçalhos e a janela de 5 minutos não
+ * precisam do segredo da empresa, então não há por que pagar `lookupSettings` + abrir o envelope
+ * para um `POST` sem `svix-*` de verdade ou com timestamp velho repetido.
  */
-export function verifySvixSignature(input: VerifySvixSignatureInput): VerifySvixSignatureResult {
+export function checkSvixHeadersAndWindow(input: {
+  readonly now?: Date
+  readonly svixId: string
+  readonly svixSignature: string
+  readonly svixTimestamp: string
+}): VerifySvixSignatureResult {
   if (input.svixId === '' || input.svixSignature === '' || input.svixTimestamp === '') {
     return { reason: SVIX_SIGNATURE_VERIFICATION_FAILURE.MISSING_HEADERS, verified: false }
   }
@@ -56,6 +62,20 @@ export function verifySvixSignature(input: VerifySvixSignatureInput): VerifySvix
     return { reason: SVIX_SIGNATURE_VERIFICATION_FAILURE.TIMESTAMP_OUT_OF_WINDOW, verified: false }
   }
 
+  return { verified: true }
+}
+
+/**
+ * Revisão do `architect`: a metade cara — decodificar o segredo e computar o HMAC — só roda depois
+ * de `checkSvixHeadersAndWindow` aprovar. Não repete a checagem de cabeçalho/janela.
+ */
+export function verifySvixSignatureHmac(input: {
+  readonly rawBody: string
+  readonly svixId: string
+  readonly svixSignature: string
+  readonly svixTimestamp: string
+  readonly webhookSigningSecret: string
+}): VerifySvixSignatureResult {
   if (!input.webhookSigningSecret.startsWith(WEBHOOK_SIGNING_SECRET_PREFIX)) {
     return { reason: SVIX_SIGNATURE_VERIFICATION_FAILURE.MALFORMED_SECRET, verified: false }
   }
@@ -82,4 +102,17 @@ export function verifySvixSignature(input: VerifySvixSignatureInput): VerifySvix
     return { reason: SVIX_SIGNATURE_VERIFICATION_FAILURE.SIGNATURE_MISMATCH, verified: false }
   }
   return { verified: true }
+}
+
+/**
+ * A checagem do timestamp vem **antes** do HMAC (RF11): rejeitar por janela é mais barato que
+ * computar HMAC para um corpo já fora do prazo, e evita que o próprio custo de CPU do HMAC vire
+ * vetor de negação de serviço sobre um timestamp velho replicado sem parar. Mantida para quem quer
+ * o veredito completo numa chamada só (os testes de política); a rota, depois da revisão do
+ * `architect`, chama as duas metades em separado — ver `process-inbound-email-webhook.use-case.ts`.
+ */
+export function verifySvixSignature(input: VerifySvixSignatureInput): VerifySvixSignatureResult {
+  const precondition = checkSvixHeadersAndWindow(input)
+  if (!precondition.verified) return precondition
+  return verifySvixSignatureHmac(input)
 }
