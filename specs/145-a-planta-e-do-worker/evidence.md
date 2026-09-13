@@ -1453,3 +1453,18 @@ consumidor da T9, então a planta ficou em cálculo de propósito. Viagem `11b0b
   Query pausa o refetch por intervalo em aba oculta, que é o comportamento padrão e desejável. O polling
   de 3 s segue coberto pelos 34 contratos da T12.
 - **Sem cobertura visual:** fantasma e animação de troca exigiriam o worker deste worktree no ar.
+
+### Conferência ponta a ponta com o worker deste worktree · 2026-09-13
+
+O worker do checkout principal não tinha o consumidor da T9. O painel de preview não lê o `.env`, então
+o worker deste worktree subiu pelo mesmo comando do `make dev`: `.env` carregado no ambiente e
+`QUEUE_PREFIX="${PROJECT_NAME}_${APP_ENV}"`.
+
+- **Banco:** a planta da viagem `11b0bfe5` foi de `queued` para `ready` na primeira tentativa, em 56 ms
+  (`attempt 1`, sem `error_code`).
+- **Outbox:** havia 4 entradas publicadas, geradas pelas leituras lazy anteriores (L1). O log mostra 4
+  `cargo_layout_handled`: uma calculou a planta e as outras três foram descartadas pela reivindicação.
+- **Tela:** o selo sumiu, e "Onde cada caixa cabe" mostra "27 de 27 caixas no mapa recomendado", com as
+  camadas e a planta desenhada. Não aparece falha, planta incompleta nem marca de desatualizada.
+- **Sem cobertura visual:** a animação de troca não foi observada, porque o painel estava oculto e a
+  página foi recarregada, não atualizada por polling.
