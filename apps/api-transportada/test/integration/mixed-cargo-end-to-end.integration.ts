@@ -113,6 +113,7 @@ describe('a carga mista, do barracão ao manifesto (spec 065 T018)', () => {
           actorUserId: userId,
           channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId,
+          trailerVehicleId: null,
           crew: [
             {
               driverId,

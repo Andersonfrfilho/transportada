@@ -142,6 +142,7 @@ export async function seedRaceTrip(
         role: 'driver',
       },
     ],
+    trailerVehicleId: null,
     vehicleId,
   })
 

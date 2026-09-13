@@ -25,9 +25,14 @@ import {
   nfeImports,
   storedObjects,
   tripDocuments,
+  trips,
   userCompanyMemberships,
 } from '../../src/database/database.schema.js'
 import { TRIP_FIELD_CHANNELS } from '../../src/trips/domain/trip-field-channel.constant.js'
+import {
+  TripStateTransitionNotAllowedError,
+  TripTrailerInUseError,
+} from '../../src/trips/domain/trip.error.js'
 import { DrizzleTripRepository } from '../../src/trips/infrastructure/drizzle-trip.repository.js'
 import type { TripDatabase } from '../../src/trips/infrastructure/trip-queryable.type.js'
 
@@ -122,6 +127,7 @@ describe('trip repository integration', () => {
           actorUserId: userId,
           channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId,
+          trailerVehicleId: null,
           crew: [
             {
               driverId: driverOneId,
@@ -178,6 +184,7 @@ describe('trip repository integration', () => {
           channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId,
           crew: [],
+          trailerVehicleId: null,
           vehicleId,
         })
         expect(secondTrip.status).toBe('awaiting_crew')
@@ -190,9 +197,11 @@ describe('trip repository integration', () => {
         expect(await repository.findById({ companyId, tripId: crypto.randomUUID() })).toBeNull()
 
         expect(await repository.findVehicle({ companyId, vehicleId })).toEqual({
+          defaultTrailerVehicleId: null,
           id: vehicleId,
           role: 'traction',
           status: 'active',
+          vehicleType: 'tractor_unit',
         })
         expect(await repository.findVehicle({ companyId: otherCompanyId, vehicleId })).toBeNull()
 
@@ -583,6 +592,131 @@ describe('trip repository integration', () => {
 
       const read = await repository.findById({ companyId, tripId: created.id })
       expect(read?.drivers.map((driver) => driver.role)).toEqual(['driver', 'helper', 'helper'])
+    })
+  })
+
+  // Feature 147 T10: a carreta atrelada — tenant, idempotência, uma por viagem aberta, e o portão de estado.
+  testWithPostgres('links, unlinks and isolates the trip trailer', async () => {
+    await withDisposableDatabase(async (database) => {
+      const companyId = crypto.randomUUID()
+      const otherCompanyId = crypto.randomUUID()
+      const userId = crypto.randomUUID()
+      const tractorId = crypto.randomUUID()
+      const trailerId = crypto.randomUUID()
+      const secondTractorId = crypto.randomUUID()
+      const otherCompanyTrailerId = crypto.randomUUID()
+
+      await database.db.insert(companies).values([
+        { id: companyId, status: 'active' },
+        { id: otherCompanyId, status: 'active' },
+      ])
+      await database.db.insert(identityUsers).values({ id: userId, status: 'active' })
+      await database.db.insert(fleetVehicles).values([
+        {
+          companyId,
+          id: tractorId,
+          plate: 'RTA2F45',
+          role: 'traction',
+          state: 'SP',
+          vehicleType: 'tractor_unit',
+        },
+        {
+          companyId,
+          id: secondTractorId,
+          plate: 'RTF7L90',
+          role: 'traction',
+          state: 'SP',
+          vehicleType: 'tractor_unit',
+        },
+        {
+          companyId,
+          id: trailerId,
+          plate: 'RTC4H67',
+          role: 'trailer',
+          state: 'SP',
+          vehicleType: '',
+        },
+        {
+          companyId: otherCompanyId,
+          id: otherCompanyTrailerId,
+          plate: 'RTD5J78',
+          role: 'trailer',
+          state: 'SP',
+          vehicleType: '',
+        },
+      ])
+
+      const repository = new DrizzleTripRepository(database.db)
+      const trip = await repository.create({
+        actorUserId: userId,
+        channel: TRIP_FIELD_CHANNELS.backoffice,
+        companyId,
+        crew: [],
+        trailerVehicleId: null,
+        vehicleId: tractorId,
+      })
+
+      // Tenant: a carreta de outra empresa não existe para esta consulta.
+      expect(
+        await repository.findVehicle({ companyId, vehicleId: otherCompanyTrailerId }),
+      ).toBeNull()
+
+      const linked = await repository.setTrailer({
+        companyId,
+        tripId: trip.id,
+        trailerVehicleId: trailerId,
+      })
+      expect(linked?.trailer).toEqual({ bodyType: '00', id: trailerId, plate: 'RTC4H67' })
+
+      // Idempotente: repetir o mesmo valor não falha e a leitura continua batendo.
+      const repeated = await repository.setTrailer({
+        companyId,
+        tripId: trip.id,
+        trailerVehicleId: trailerId,
+      })
+      expect(repeated?.trailer?.id).toBe(trailerId)
+
+      // Uma carreta por viagem aberta: a segunda viagem não pode usar a mesma.
+      const secondTrip = await repository.create({
+        actorUserId: userId,
+        channel: TRIP_FIELD_CHANNELS.backoffice,
+        companyId,
+        crew: [],
+        trailerVehicleId: null,
+        vehicleId: secondTractorId,
+      })
+      expect(await repository.isTrailerInOpenTrip({ companyId, vehicleId: trailerId })).toBe(true)
+      expect(
+        repository.setTrailer({ companyId, tripId: secondTrip.id, trailerVehicleId: trailerId }),
+      ).rejects.toBeInstanceOf(TripTrailerInUseError)
+
+      // Liberar a primeira viagem libera a carreta para a segunda.
+      await database.db.update(trips).set({ status: 'completed' }).where(eq(trips.id, trip.id))
+      expect(await repository.isTrailerInOpenTrip({ companyId, vehicleId: trailerId })).toBe(false)
+      const movedToSecond = await repository.setTrailer({
+        companyId,
+        tripId: secondTrip.id,
+        trailerVehicleId: trailerId,
+      })
+      expect(movedToSecond?.trailer?.id).toBe(trailerId)
+
+      // O portão de estado é re-conferido dentro da transação de escrita, não só na leitura de fora.
+      await database.db
+        .update(trips)
+        .set({ status: 'dispatched' })
+        .where(eq(trips.id, secondTrip.id))
+      expect(
+        repository.setTrailer({ companyId, tripId: secondTrip.id, trailerVehicleId: null }),
+      ).rejects.toBeInstanceOf(TripStateTransitionNotAllowedError)
+
+      // Desatrelar: `null` some da viagem, sem apagar o veículo.
+      await database.db.update(trips).set({ status: 'draft' }).where(eq(trips.id, secondTrip.id))
+      const unlinked = await repository.setTrailer({
+        companyId,
+        tripId: secondTrip.id,
+        trailerVehicleId: null,
+      })
+      expect(unlinked?.trailer).toBeNull()
     })
   })
 })

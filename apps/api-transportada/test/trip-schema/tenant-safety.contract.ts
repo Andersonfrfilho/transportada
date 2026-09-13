@@ -152,6 +152,18 @@ describe('trip tenant safety', () => {
     })
   })
 
+  // Feature 147 T10: a carreta atrelada não pode ser a de outra empresa.
+  test('makes the trailer pointer unable to reach another tenant vehicle', () => {
+    expect(foreignKeys(trips)).toContainEqual({
+      columns: ['company_id', 'trailer_vehicle_id'],
+      foreignColumns: ['company_id', 'id'],
+      foreignTable: 'fleet_vehicles',
+      name: 'trips_company_trailer_vehicle_fk',
+      onDelete: 'restrict',
+      onUpdate: 'cascade',
+    })
+  })
+
   test('deletes the trip children with the trip and never across tenants', () => {
     for (const { name, table } of [
       { name: 'trip_drivers', table: tripDrivers },

@@ -39,7 +39,13 @@ const CONTEXT = { companyId: COMPANY_ID, userId: USER_ID }
 const CORRELATION_ID = 'correlation-close-trip'
 const IP_ADDRESS = '203.0.113.10'
 
-const VEHICLE: TripVehicleCandidate = { id: VEHICLE_ID, role: 'traction', status: 'active' }
+const VEHICLE: TripVehicleCandidate = {
+  defaultTrailerVehicleId: null,
+  id: VEHICLE_ID,
+  role: 'traction',
+  status: 'active',
+  vehicleType: 'tractor_unit',
+}
 
 const DRIVERS: readonly TripDriverCandidate[] = [
   {
@@ -78,6 +84,7 @@ const openTrip = (overrides: Partial<TripDetail> = {}): TripDetail => ({
   cargoWeight: null,
   documents: [],
   occupancy: null,
+  trailer: null,
   drivers: [],
   id: TRIP_ID,
   requiresMdfe: null,
@@ -130,7 +137,10 @@ type FixtureParams = {
   readonly linkError?: Error
   readonly listResult?: TripPage
   readonly releaseResult?: TripDocument | null
+  readonly setTrailerResult?: TripDetail | null
   readonly stored?: TripDetail | null
+  readonly trailerInOpenTrip?: boolean
+  readonly trailerVehicle?: TripVehicleCandidate | null
   readonly vehicle?: TripVehicleCandidate | null
 }
 
@@ -141,6 +151,9 @@ function createFixture(params: FixtureParams = {}) {
   const listCalls: object[] = []
   const releaseCalls: object[] = []
   const updateCrewCalls: object[] = []
+  const findVehicleCalls: object[] = []
+  const isTrailerInOpenTripCalls: object[] = []
+  const setTrailerCalls: object[] = []
 
   const repository: TripRepositoryPort = {
     async close(input) {
@@ -173,8 +186,16 @@ function createFixture(params: FixtureParams = {}) {
     async findLiveTripIdForDocuments() {
       return null
     },
-    async findVehicle() {
-      return params.vehicle === undefined ? VEHICLE : params.vehicle
+    async findVehicle(input) {
+      findVehicleCalls.push(input)
+      if (input.vehicleId === VEHICLE_ID) {
+        return params.vehicle === undefined ? VEHICLE : params.vehicle
+      }
+      return params.trailerVehicle === undefined ? TRAILER : params.trailerVehicle
+    },
+    async isTrailerInOpenTrip(input) {
+      isTrailerInOpenTripCalls.push(input)
+      return params.trailerInOpenTrip ?? false
     },
     async linkDocument(input) {
       linkCalls.push(input)
@@ -209,17 +230,42 @@ function createFixture(params: FixtureParams = {}) {
             vehicleId: input.vehicleId,
           }
     },
+    async setTrailer(input) {
+      setTrailerCalls.push(input)
+      if (params.setTrailerResult !== undefined) return params.setTrailerResult
+      const trip = params.stored === undefined ? openTrip() : params.stored
+      return trip === null
+        ? null
+        : {
+            ...trip,
+            trailer:
+              input.trailerVehicleId === null
+                ? null
+                : { bodyType: '02', id: input.trailerVehicleId, plate: 'XYZ9A88' },
+          }
+    },
   }
 
   return {
     closeCalls,
     createCalls,
+    findVehicleCalls,
+    isTrailerInOpenTripCalls,
     linkCalls,
     listCalls,
     releaseCalls,
     repository,
     updateCrewCalls,
+    setTrailerCalls,
   }
+}
+
+const TRAILER: TripVehicleCandidate = {
+  defaultTrailerVehicleId: null,
+  id: '44444444-4444-4444-8444-444444444447',
+  role: 'trailer',
+  status: 'active',
+  vehicleType: '',
 }
 
 describe('trip use case contract', () => {
@@ -269,6 +315,7 @@ describe('trip use case contract', () => {
           position: driver.position,
           role: driver.role,
         })),
+        trailerVehicleId: null,
         vehicleId: VEHICLE_ID,
       },
     ])
@@ -977,6 +1024,126 @@ describe('trip document link/release route recalculation (D6)', () => {
     })
 
     expect(released.releasedAt).not.toBeNull()
+  })
+})
+
+// Feature 147 T10: montar a viagem inclui escolher a carreta que o cavalo puxa.
+describe('setTrailer', () => {
+  const TRAILER_ID = '44444444-4444-4444-8444-444444444447'
+
+  test('links an active trailer of the company to a tractor unit trip', async () => {
+    const fixture = createFixture()
+    const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
+
+    const trip = await useCase.setTrailer({
+      context: CONTEXT,
+      trailerVehicleId: TRAILER_ID,
+      tripId: TRIP_ID,
+    })
+
+    expect(trip.trailer).toEqual({ bodyType: '02', id: TRAILER_ID, plate: 'XYZ9A88' })
+    expect(fixture.setTrailerCalls).toEqual([
+      { companyId: COMPANY_ID, tripId: TRIP_ID, trailerVehicleId: TRAILER_ID },
+    ])
+  })
+
+  test('is idempotent: repeating the same value never writes', async () => {
+    const fixture = createFixture({ stored: openTrip({ trailer: null }) })
+    const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
+
+    const trip = await useCase.setTrailer({
+      context: CONTEXT,
+      trailerVehicleId: null,
+      tripId: TRIP_ID,
+    })
+
+    expect(trip.trailer).toBeNull()
+    expect(fixture.setTrailerCalls).toEqual([])
+  })
+
+  test('refuses a trailer for a trip whose vehicle is not a tractor unit', async () => {
+    const fixture = createFixture({
+      vehicle: {
+        defaultTrailerVehicleId: null,
+        id: VEHICLE_ID,
+        role: 'traction',
+        status: 'active',
+        vehicleType: 'truck',
+      },
+    })
+    const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
+
+    const error = await useCase
+      .setTrailer({ context: CONTEXT, trailerVehicleId: TRAILER_ID, tripId: TRIP_ID })
+      .catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(ApiError)
+    expect((error as ApiError).status).toBe(400)
+    expect((error as ApiError).code).toBe('TRIP_TRAILER_REQUIRES_TRACTOR')
+    expect(fixture.setTrailerCalls).toEqual([])
+  })
+
+  test('answers 404 when the pointed vehicle does not exist in this company', async () => {
+    const fixture = createFixture({ trailerVehicle: null })
+    const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
+
+    const error = await useCase
+      .setTrailer({ context: CONTEXT, trailerVehicleId: TRAILER_ID, tripId: TRIP_ID })
+      .catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(ApiError)
+    expect((error as ApiError).status).toBe(404)
+    expect(fixture.setTrailerCalls).toEqual([])
+  })
+
+  test('refuses a pointed vehicle that is not an active trailer', async () => {
+    const fixture = createFixture({
+      trailerVehicle: {
+        defaultTrailerVehicleId: null,
+        id: TRAILER_ID,
+        role: 'trailer',
+        status: 'inactive',
+        vehicleType: '',
+      },
+    })
+    const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
+
+    const error = await useCase
+      .setTrailer({ context: CONTEXT, trailerVehicleId: TRAILER_ID, tripId: TRIP_ID })
+      .catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(ApiError)
+    expect((error as ApiError).status).toBe(400)
+    expect((error as ApiError).code).toBe('TRIP_TRAILER_NOT_A_TRAILER')
+    expect(fixture.setTrailerCalls).toEqual([])
+  })
+
+  test('refuses a trailer already linked to another open trip', async () => {
+    const fixture = createFixture({ trailerInOpenTrip: true })
+    const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
+
+    const error = await useCase
+      .setTrailer({ context: CONTEXT, trailerVehicleId: TRAILER_ID, tripId: TRIP_ID })
+      .catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(ApiError)
+    expect((error as ApiError).status).toBe(409)
+    expect((error as ApiError).code).toBe('TRIP_TRAILER_IN_USE')
+    expect(fixture.setTrailerCalls).toEqual([])
+  })
+
+  test('refuses to change the trailer after the trip was dispatched', async () => {
+    const fixture = createFixture({ stored: openTrip({ status: 'dispatched', trailer: null }) })
+    const useCase = createTripUseCase({ locations: purgeSpy(), repository: fixture.repository })
+
+    const error = await useCase
+      .setTrailer({ context: CONTEXT, trailerVehicleId: TRAILER_ID, tripId: TRIP_ID })
+      .catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(ApiError)
+    expect((error as ApiError).status).toBe(409)
+    expect((error as ApiError).code).toBe('STATE_TRANSITION_NOT_ALLOWED')
+    expect(fixture.setTrailerCalls).toEqual([])
   })
 })
 

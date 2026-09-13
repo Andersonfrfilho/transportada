@@ -487,6 +487,7 @@ function tripDetail(mode: DocumentsMode): TripDetailContract {
       ? { cargoLayout: MEASURED_CARGO_LAYOUT, occupancy: MEASURED_OCCUPANCY }
       : { cargoLayout: null, occupancy: null }),
     cargoWeight: null,
+    trailer: null,
     // ADR-0043 §3: a viagem tem paradas. Vazia é estado legítimo — nota ainda não reconciliada.
     stops:
       mode === 'stop-card-states'

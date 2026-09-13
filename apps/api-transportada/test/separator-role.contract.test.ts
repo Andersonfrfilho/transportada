@@ -356,6 +356,12 @@ describe('separator role contract', () => {
       'PUT /nfe-package-boxes/:id',
       // Spec 163 (P1): a medida da unidade é a mesma cargo.measure de quem mede a caixa.
       'PUT /nfe-package-boxes/:id/unit',
+      /**
+       * ⚠️ **Decisão escrita (spec 147 D3):** o separador alcança `PUT /trips/:id/trailer`. Montar a
+       * viagem inclui escolher a carreta que o cavalo puxa, a mesma tarefa de vincular nota e
+       * planejar rota — por isso a rota mora sob `trip.manage`, e não sob `fleet.manage`.
+       */
+      'PUT /trips/:id/trailer',
     ])
   })
 

@@ -3,6 +3,7 @@
  */
 import { assertTripDocumentReference } from '../domain/trip.policy.js'
 import { TRIP_FIELD_CHANNELS } from '../domain/trip-field-channel.constant.js'
+import { checkTripAcceptsTrailer } from '../domain/trip-trailer.policy.js'
 import {
   TRIP_ACTION,
   checkTripAcceptsLinkage,
@@ -15,6 +16,10 @@ import {
   TripDocumentNotFoundError,
   TripNotFoundError,
   TripStateTransitionNotAllowedError,
+  TripTrailerInUseError,
+  TripTrailerNotATrailerError,
+  TripTrailerRequiresTractorError,
+  TripVehicleNotFoundError,
 } from '../domain/trip.error.js'
 import {
   freezeTripRouteGracefully,
@@ -88,6 +93,12 @@ export type UpdateTripCrewInput = {
   readonly vehicleId: string | undefined
 }
 
+export type SetTripTrailerInput = {
+  readonly context: TripCompanyContext
+  readonly trailerVehicleId: string | null
+  readonly tripId: string
+}
+
 export type TripUseCase = {
   close(input: CloseTripInput): Promise<TripDetail>
   create(input: CreateTripInput): Promise<TripDetail>
@@ -96,6 +107,7 @@ export type TripUseCase = {
   list(input: ListTripsInput): Promise<TripPage>
   releaseDocument(input: ReleaseTripDocumentInput): Promise<TripDocument>
   updateCrew(input: UpdateTripCrewInput): Promise<TripDetail>
+  setTrailer(input: SetTripTrailerInput): Promise<TripDetail>
 }
 
 export function createTripUseCase(dependencies: {
@@ -180,12 +192,21 @@ export function createTripUseCase(dependencies: {
         ...(helperIds === undefined ? {} : { helperIds }),
         repository,
       })
+      /**
+       * Feature 147 T10: a carreta padrão só se aplica quando a viagem já nasce com veículo — sem
+       * ele não há cavalo para consultar `defaultTrailerVehicleId`.
+       */
+      const trailerVehicleId =
+        vehicle === null
+          ? null
+          : await resolveDefaultTrailerForCreation({ companyId, repository, vehicle })
       return repository.create({
         actorUserId: context.userId,
         channel: TRIP_FIELD_CHANNELS.backoffice,
         companyId,
         crew,
         ...(dailyAllowanceDays === undefined ? {} : { dailyAllowanceDays }),
+        trailerVehicleId,
         vehicleId: vehicle === null ? null : vehicle.id,
       })
     },
@@ -297,6 +318,44 @@ export function createTripUseCase(dependencies: {
       if (updated === null) throw new TripNotFoundError()
       return updated
     },
+
+    async setTrailer({ context, tripId, trailerVehicleId }) {
+      const companyId = context.companyId
+      const trip = await findTripOrThrow({ companyId, repository, tripId })
+
+      const traction =
+        trip.vehicleId === null
+          ? null
+          : await repository.findVehicle({ companyId, vehicleId: trip.vehicleId })
+      const outcome = checkTripAcceptsTrailer({
+        currentTrailerVehicleId: trip.trailer?.id ?? null,
+        nextTrailerVehicleId: trailerVehicleId,
+        tractionVehicleType: traction?.vehicleType ?? '',
+        tripStatus: trip.status,
+      })
+      if (outcome.outcome === 'unchanged') return trip
+      if (outcome.outcome === 'blocked')
+        throw new TripStateTransitionNotAllowedError(outcome.reason)
+      if (outcome.outcome === 'requiresTractor') throw new TripTrailerRequiresTractorError()
+
+      if (trailerVehicleId !== null) {
+        const trailer = await repository.findVehicle({ companyId, vehicleId: trailerVehicleId })
+        if (trailer === null) throw new TripVehicleNotFoundError()
+        if (trailer.role !== 'trailer' || trailer.status !== 'active') {
+          throw new TripTrailerNotATrailerError()
+        }
+        const inUse = await repository.isTrailerInOpenTrip({
+          companyId,
+          excludingTripId: tripId,
+          vehicleId: trailerVehicleId,
+        })
+        if (inUse) throw new TripTrailerInUseError()
+      }
+
+      const updated = await repository.setTrailer({ companyId, tripId, trailerVehicleId })
+      if (updated === null) throw new TripNotFoundError()
+      return updated
+    },
   }
 }
 
@@ -317,6 +376,28 @@ async function freezeRouteGracefully(input: {
     ...(input.logger === undefined ? {} : { logger: input.logger }),
     tripId: input.tripId,
   })
+}
+
+/**
+ * Feature 147 D3: a carreta padrão é só sugestão — se ela já estiver em viagem aberta, a viagem
+ * nasce sem carreta (`null`), nunca com erro: o despacho barra depois com `TRIP_TRAILER_REQUIRED`.
+ */
+async function resolveDefaultTrailerForCreation(input: {
+  readonly companyId: string
+  readonly repository: TripRepositoryPort
+  readonly vehicle: {
+    readonly defaultTrailerVehicleId: string | null
+    readonly vehicleType: string
+  }
+}): Promise<string | null> {
+  const { defaultTrailerVehicleId } = input.vehicle
+  if (defaultTrailerVehicleId === null || input.vehicle.vehicleType !== 'tractor_unit') return null
+
+  const inUse = await input.repository.isTrailerInOpenTrip({
+    companyId: input.companyId,
+    vehicleId: defaultTrailerVehicleId,
+  })
+  return inUse ? null : defaultTrailerVehicleId
 }
 
 async function findTripOrThrow(input: {

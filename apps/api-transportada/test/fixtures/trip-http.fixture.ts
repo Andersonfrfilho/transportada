@@ -70,6 +70,7 @@ type RouteDependencies = {
     info(message: string, metadata?: Record<string, unknown>): void
     warn(message: string, metadata?: Record<string, unknown>): void
   }
+  readonly setTripTrailer: { execute(input: ExecuteCall): Promise<typeof TRIP_DETAIL> }
 }
 
 type CreateFixtureParams = {
@@ -116,6 +117,7 @@ type CreateFixtureParams = {
   readonly releaseTripDocumentError?: Error
   readonly reorderStopsError?: Error
   readonly separateTripDocumentError?: Error
+  readonly setTripTrailerError?: Error
 }
 
 export const COMPANY_CONTEXT: CompanyContext = {
@@ -201,6 +203,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   readonly reopenCargoLayoutCalls: ExecuteCall[]
   readonly warnings: ExecuteCall[]
   readonly setMdfeRequirementCalls: ExecuteCall[]
+  readonly setTripTrailerCalls: ExecuteCall[]
 }> {
   const batchStatusCalls: ExecuteCall[] = []
   const cancelTripCalls: ExecuteCall[] = []
@@ -227,6 +230,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
   const reopenCargoLayoutCalls: ExecuteCall[] = []
   const warnings: ExecuteCall[] = []
   const setMdfeRequirementCalls: ExecuteCall[] = []
+  const setTripTrailerCalls: ExecuteCall[] = []
   const releaseTripDocumentCalls: ExecuteCall[] = []
   const reorderStopsCalls: ExecuteCall[] = []
   const separateTripDocumentCalls: ExecuteCall[] = []
@@ -500,6 +504,20 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
         return transitionResult()
       },
     },
+    setTripTrailer: {
+      async execute(input) {
+        setTripTrailerCalls.push(structuredClone(input))
+        if (params.setTripTrailerError) throw params.setTripTrailerError
+        const trailerVehicleId = (input as { trailerVehicleId: string | null }).trailerVehicleId
+        return {
+          ...TRIP_DETAIL,
+          trailer:
+            trailerVehicleId === null
+              ? null
+              : { bodyType: '02', id: trailerVehicleId, plate: 'XYZ9A88' },
+        }
+      },
+    },
   })
 
   const router = createTestRouter({
@@ -543,6 +561,7 @@ export async function createTripHttpFixture(params: CreateFixtureParams = {}): P
     reopenCargoLayoutCalls,
     warnings,
     setMdfeRequirementCalls,
+    setTripTrailerCalls,
     separateTripDocumentCalls,
   }
 }

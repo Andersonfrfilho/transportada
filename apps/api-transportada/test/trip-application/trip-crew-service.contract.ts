@@ -10,7 +10,13 @@ import type { TripVehicleCandidate } from '../../src/trips/domain/trip.policy.js
 
 const COMPANY_ID = '11111111-1111-4111-8111-111111111111'
 const VEHICLE_ID = '44444444-4444-4444-8444-444444444441'
-const VEHICLE: TripVehicleCandidate = { id: VEHICLE_ID, role: 'traction', status: 'active' }
+const VEHICLE: TripVehicleCandidate = {
+  defaultTrailerVehicleId: null,
+  id: VEHICLE_ID,
+  role: 'traction',
+  status: 'active',
+  vehicleType: 'tractor_unit',
+}
 
 function repositoryFindingVehicle(vehicle: TripVehicleCandidate | null): TripRepositoryPort {
   return {

@@ -303,3 +303,8 @@ export const closeTripSchema = z
   .strict()
 
 export type CloseTripBody = z.infer<typeof closeTripSchema>
+
+/** Feature 147 T10: `null` desatrela a carreta — a viagem continua existindo sem uma. */
+export const setTripTrailerSchema = z.object({ trailerVehicleId: z.uuid().nullable() }).strict()
+
+export type SetTripTrailerBody = z.infer<typeof setTripTrailerSchema>

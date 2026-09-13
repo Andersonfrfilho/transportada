@@ -58,6 +58,7 @@ function previewContextOf(input: BuildCargoLayoutInputParams): TripCargoPreviewC
     bedDimensions: input.bedDimensions ?? null,
     boxesByDocument: new Map(),
     capacityM3: input.capacityM3,
+    capacityUnknownReason: null,
     cargoWeight:
       input.payloadRatio === null || input.payloadRatio === undefined
         ? null

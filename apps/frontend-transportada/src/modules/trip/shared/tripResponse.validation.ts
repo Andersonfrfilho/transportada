@@ -89,6 +89,7 @@ import {
   TRIP_TIMELINE_DOCUMENT_REFERENCE_KEYS,
   TRIP_TIMELINE_OCCURRENCE_REFERENCE_KEYS,
   TRIP_TIMELINE_OCCURRENCE_REFERENCE_OPTIONAL_KEYS,
+  TRIP_TRAILER_KEYS,
 } from './trip.constant'
 import {
   SCANNED_NFE_STATUS,
@@ -129,6 +130,7 @@ import type {
   TripPage,
   TripStatus,
   TripStopDetail,
+  TripTrailer,
   TransitionTripDocumentResult,
 } from './trip.types'
 import {
@@ -431,6 +433,7 @@ function isDetail(value: unknown): value is TripDetail {
     (value.capacityUnknownReason === undefined ||
       value.capacityUnknownReason === null ||
       isOneOf(value.capacityUnknownReason, CAPACITY_UNKNOWN_REASONS)) &&
+    (value.trailer === undefined || value.trailer === null || isTrailer(value.trailer)) &&
     isEveryItem(value.stops, isStopDetail)
   )
 }
@@ -445,6 +448,12 @@ function isCargoLayoutState(value: unknown): value is TripCargoLayoutState {
     isOneOf(value.status, CARGO_LAYOUT_STATUSES) &&
     typeof value.truncated === 'boolean'
   )
+}
+
+/** Spec 147 D3/RF5: só o mínimo para identificar a carreta — não a ficha inteira do veículo. */
+function isTrailer(value: unknown): value is TripTrailer {
+  if (!hasExactKeys(value, TRIP_TRAILER_KEYS)) return false
+  return isString(value.bodyType) && isString(value.id) && isString(value.plate)
 }
 
 function isStopAddressComponents(value: unknown): value is StopAddressComponents {

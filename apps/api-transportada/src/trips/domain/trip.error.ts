@@ -25,6 +25,39 @@ export class TripVehicleNotAvailableError extends ApiError {
   }
 }
 
+/** Feature 147 D3: a carreta só existe no cavalo — nos demais veículos o campo não se aplica. */
+export class TripTrailerRequiresTractorError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_TRAILER_REQUIRES_TRACTOR',
+      message: 'Only a trip on a tractor unit can have a trailer.',
+      status: 400,
+    })
+  }
+}
+
+/** Feature 147 D3: o apontado existe na empresa, mas não é uma carreta ativa. */
+export class TripTrailerNotATrailerError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_TRAILER_NOT_A_TRAILER',
+      message: 'The trailer must be an active trailer of this company.',
+      status: 400,
+    })
+  }
+}
+
+/** Feature 147 D3: uma carreta puxa uma viagem por vez — a mesma não entra em duas abertas. */
+export class TripTrailerInUseError extends ApiError {
+  public constructor() {
+    super({
+      code: 'TRIP_TRAILER_IN_USE',
+      message: 'This trailer is already linked to another open trip.',
+      status: 409,
+    })
+  }
+}
+
 export class TripDriverNotFoundError extends ApiError {
   public constructor() {
     super({

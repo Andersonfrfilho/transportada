@@ -7,6 +7,7 @@ import type {
   FleetVehicleStatus,
 } from '../../database/fleet.schema.js'
 import type { TripCrewRole } from '../../shared/trip-crew-role.constant.js'
+import type { VehicleType } from '../../shared/vehicle-type.constant.js'
 import {
   TripCrewHelperNotEligibleError,
   TripCrewHelperWithoutDriverError,
@@ -20,8 +21,12 @@ import {
 
 export type TripVehicleCandidate = {
   readonly id: string
+  /** Feature 147 T10: a carreta padrão do cavalo, copiada na criação da viagem quando livre. */
+  readonly defaultTrailerVehicleId: string | null
   readonly role: FleetVehicleRole
   readonly status: FleetVehicleStatus
+  /** Feature 147 T10: só o `tractor_unit` aceita carreta atrelada. */
+  readonly vehicleType: VehicleType | ''
 }
 
 export type TripDriverCandidate = {

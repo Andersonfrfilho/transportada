@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { and, asc, desc, eq, inArray, notInArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, ne, notInArray, isNull, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 
 import {
@@ -23,6 +23,7 @@ import {
 import { normalizeFreightRuleFilters } from '../../freight-rules/domain/freight-rule-filters.policy.js'
 import { ACTIVE_MEMBERSHIP_STATUS } from '../../nfe-documents/domain/active-membership-status.constant.js'
 import { tripDocuments, tripDrivers, tripStops, trips } from '../../database/trip.schema.js'
+import type { TripStatus } from '../../database/trip.schema.js'
 import {
   violatedForeignKeyConstraint,
   violatedUniqueConstraint,
@@ -36,12 +37,14 @@ import type {
   TripFilters,
   TripPage,
   TripRepositoryPort,
+  TripTrailerView,
 } from '../application/trip.port.js'
 import {
   TripDocumentAlreadyLinkedError,
   TripDocumentNotFoundError,
   TripNotFoundError,
   TripStateTransitionNotAllowedError,
+  TripTrailerInUseError,
 } from '../domain/trip.error.js'
 import type {
   TripDriverCandidate,
@@ -131,6 +134,11 @@ const noPendingMeasurementBoxLookup: PendingMeasurementBoxLookupPort = {
     return new Map()
   },
 }
+
+/** Espelha o `where` do índice `trips_company_trailer_open_unique` (`trip.schema.ts`). */
+const TRIP_OPEN_STATUSES_EXCLUSION: TripStatus[] = ['completed', 'cancelled']
+
+const TRAILER_OPEN_CONSTRAINT = 'trips_company_trailer_open_unique'
 
 export class DrizzleTripRepository implements TripRepositoryPort {
   private readonly requestCargoLayoutForTrip: RequestCargoLayoutForTrip
@@ -418,6 +426,7 @@ export class DrizzleTripRepository implements TripRepositoryPort {
             ? {}
             : { dailyAllowanceDays: input.dailyAllowanceDays }),
           status,
+          trailerVehicleId: input.trailerVehicleId,
           vehicleId: input.vehicleId,
         })
         .returning({ id: trips.id })
@@ -557,13 +566,76 @@ export class DrizzleTripRepository implements TripRepositoryPort {
     readonly vehicleId: string
   }): Promise<TripVehicleCandidate | null> {
     const [record] = await this.database
-      .select({ id: fleetVehicles.id, role: fleetVehicles.role, status: fleetVehicles.status })
+      .select({
+        defaultTrailerVehicleId: fleetVehicles.defaultTrailerVehicleId,
+        id: fleetVehicles.id,
+        role: fleetVehicles.role,
+        status: fleetVehicles.status,
+        vehicleType: fleetVehicles.vehicleType,
+      })
       .from(fleetVehicles)
       .where(
         and(eq(fleetVehicles.companyId, input.companyId), eq(fleetVehicles.id, input.vehicleId)),
       )
       .limit(1)
     return record ?? null
+  }
+
+  /** Feature 147 T10: mesmo recorte do índice `trips_company_trailer_open_unique`, sem a viagem em edição. */
+  public async isTrailerInOpenTrip(input: {
+    readonly companyId: string
+    readonly excludingTripId?: string
+    readonly vehicleId: string
+  }): Promise<boolean> {
+    const [record] = await this.database
+      .select({ id: trips.id })
+      .from(trips)
+      .where(
+        and(
+          eq(trips.companyId, input.companyId),
+          eq(trips.trailerVehicleId, input.vehicleId),
+          input.excludingTripId === undefined ? undefined : ne(trips.id, input.excludingTripId),
+          notInArray(trips.status, TRIP_OPEN_STATUSES_EXCLUSION),
+        ),
+      )
+      .limit(1)
+    return record !== undefined
+  }
+
+  /**
+   * Feature 147 T10: re-checa o portão de estado dentro da transação, como `linkDocument` — a
+   * leitura do use-case não tem lock e pode ter ficado velha entre a checagem e esta escrita.
+   */
+  public async setTrailer(input: {
+    readonly companyId: string
+    readonly trailerVehicleId: string | null
+    readonly tripId: string
+  }): Promise<TripDetail | null> {
+    return this.database.transaction(async (transaction) => {
+      const [tripRow] = await transaction
+        .select({ status: trips.status })
+        .from(trips)
+        .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+        .for('update')
+        .limit(1)
+      if (tripRow === undefined) return null
+      const blockReason = checkTripAcceptsLinkage(tripRow.status)
+      if (blockReason !== null) throw new TripStateTransitionNotAllowedError(blockReason)
+
+      await runTrailerGuarded(async () => {
+        await transaction
+          .update(trips)
+          .set({ trailerVehicleId: input.trailerVehicleId, updatedAt: sql`now()` })
+          .where(and(eq(trips.companyId, input.companyId), eq(trips.id, input.tripId)))
+      })
+
+      return readTripDetail(transaction, {
+        cargoLayoutLeaseMs: this.cargoLayoutLeaseMs,
+        packageBoxLookup: this.packageBoxLookup,
+        companyId: input.companyId,
+        tripId: input.tripId,
+      })
+    })
   }
 
   public async linkDocument(input: {
@@ -1396,6 +1468,10 @@ async function readTripDetail(
     companyId: input.companyId,
     nfeDocumentIds,
   }).then((weight) => weight.view)
+  const trailer = await readTripTrailer(queryable, {
+    companyId: input.companyId,
+    trailerVehicleId: record.trailerVehicleId,
+  })
   /** Spec 093: o teto sai do mesmo veículo que a ocupação já leu — sem segunda consulta. */
   const cargoWeightWithCeiling = withPayloadCeiling({
     maxPayloadKg: cargo.maxPayloadKg,
@@ -1512,6 +1588,7 @@ async function readTripDetail(
       }),
     ),
     occupancy: cargo.occupancy,
+    trailer,
     stops: stopRecords.map((row) => ({
       ...mapTripStop(row.stop),
       documents: documentsByStopId.get(row.stop.id) ?? [],
@@ -1530,6 +1607,45 @@ async function readTripDetail(
         (document) => document.openOccurrenceCase,
       ),
     })),
+  }
+}
+
+/**
+ * Feature 147 D3/RF5: uma consulta a mais só quando a viagem tem carreta — a maioria não tem, e o
+ * caso comum continua com o mesmo custo de antes desta feature.
+ */
+async function readTripTrailer(
+  queryable: TripQueryable,
+  input: { readonly companyId: string; readonly trailerVehicleId: string | null },
+): Promise<TripTrailerView | null> {
+  if (input.trailerVehicleId === null) return null
+
+  const [record] = await queryable
+    .select({
+      bodyType: fleetVehicles.bodyType,
+      id: fleetVehicles.id,
+      plate: fleetVehicles.plate,
+    })
+    .from(fleetVehicles)
+    .where(
+      and(
+        eq(fleetVehicles.companyId, input.companyId),
+        eq(fleetVehicles.id, input.trailerVehicleId),
+      ),
+    )
+    .limit(1)
+  return record ?? null
+}
+
+/** Feature 147 T10: fecha a corrida entre duas escritas concorrentes com a mesma carreta. */
+async function runTrailerGuarded<TResult>(operation: () => Promise<TResult>): Promise<TResult> {
+  try {
+    return await operation()
+  } catch (error) {
+    if (violatedUniqueConstraint(error) === TRAILER_OPEN_CONSTRAINT) {
+      throw new TripTrailerInUseError()
+    }
+    throw error
   }
 }
 

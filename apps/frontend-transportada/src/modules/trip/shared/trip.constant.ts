@@ -320,6 +320,8 @@ export const TRIP_DETAIL_OPTIONAL_KEYS = [
   'capacityUnknownReason',
   'cargoWeight',
   'occupancy',
+  /** Spec 147 D3/RF5: a carreta atrelada — campo novo, mesma regra do opcional acima. */
+  'trailer',
 ] as const
 
 export const TRIP_CARGO_LAYOUT_STATE_KEYS = [
@@ -338,6 +340,9 @@ export const TRIP_CARGO_LAYOUTS_PATH = `${TRIPS_PATH}/cargo-layouts`
 /** Spec 148 T7: a fila de revisão das notas que não couberam — fora da árvore `/trips/:id`. */
 export const TRIP_DOCUMENT_REVIEWS_PATH = '/trip-document-reviews'
 export const TRIP_REVIEW_QUERY_KEY = 'trip-document-reviews'
+
+/** Spec 147 D3/RF5: cópia por valor de `api-transportada/src/trips/application/trip.port.ts`. */
+export const TRIP_TRAILER_KEYS = ['bodyType', 'id', 'plate'] as const
 
 /**
  * ⚠️ Cópia por valor da API: fonte

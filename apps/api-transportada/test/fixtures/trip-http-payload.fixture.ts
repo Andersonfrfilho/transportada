@@ -196,6 +196,7 @@ export const TRIP_DETAIL: TripDetail = {
   cargoWeight: null,
   documents: [TRIP_DOCUMENT_DETAIL],
   occupancy: null,
+  trailer: null,
   drivers: [
     {
       driverEmail: 'motorista.um@empresa.test',

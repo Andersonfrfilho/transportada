@@ -120,6 +120,7 @@ describe('trip lifecycle integration (spec 056 T018)', () => {
           actorUserId: userId,
           channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId,
+          trailerVehicleId: null,
           crew: [
             {
               driverId,
@@ -390,6 +391,7 @@ describe('close e cancel gravam trip_status_events (spec 158 T3)', () => {
               role: 'driver',
             },
           ],
+          trailerVehicleId: null,
           vehicleId,
         })
 
@@ -461,6 +463,7 @@ describe('close e cancel gravam trip_status_events (spec 158 T3)', () => {
             role: 'driver',
           },
         ],
+        trailerVehicleId: null,
         vehicleId,
       })
 
@@ -545,6 +548,7 @@ describe('batch-status grava channel backoffice (spec 158 T4)', () => {
               role: 'driver',
             },
           ],
+          trailerVehicleId: null,
           vehicleId,
         })
         const linkedA = await tripRepository.linkDocument({

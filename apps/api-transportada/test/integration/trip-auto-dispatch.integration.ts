@@ -591,6 +591,7 @@ async function seedPlannedTrip(
         role: 'driver',
       },
     ],
+    trailerVehicleId: null,
     vehicleId,
   })
 

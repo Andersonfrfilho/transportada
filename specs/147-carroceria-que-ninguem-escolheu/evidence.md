@@ -619,3 +619,135 @@ unable to reach another tenant vehicle'`, a mesma FK composta já criada na T8, 
 Prettier code style!`.
 
 **Commit:** `feat(fleet): 147 T9 — o cavalo tem carreta padrão`.
+
+## T10 — Domínio e rota `PUT /trips/:id/trailer`
+
+**`checkTripAcceptsTrailer` (`trips/domain/trip-trailer.policy.ts`, novo) — molde de
+`checkTripDocumentTransition`, não de `resolveTripVehicle`.** A T9 usou o molde de política que
+lança direto (`checkVehicleBodyType`); aqui segui o outro molde já existente no mesmo domínio,
+`checkTripDocumentTransition`, porque a tabela pedida ("contrato em tabela, estado × tipo") é
+melhor servida por um outcome discriminado do que por exceção — a mesma ordem de portões do
+comentário daquela função (idempotente → estado da viagem → regra específica):
+
+```ts
+export type TripTrailerAssignmentOutcome =
+  | { readonly outcome: 'allowed' }
+  | { readonly outcome: 'blocked'; readonly reason: TripTransitionBlock }
+  | { readonly outcome: 'requiresTractor' }
+  | { readonly outcome: 'unchanged' }
+```
+
+1. Mesmo valor (`nextTrailerVehicleId === currentTrailerVehicleId`) → `unchanged`, antes de tudo —
+   é o que sustenta a idempotência pedida, incluindo em viagem já fechada.
+2. Estado da viagem → **reusa `checkTripAcceptsLinkage`** (o mesmo portão de vincular/desvincular
+   nota), como a task pedia. Bloqueia troca e desvínculo depois de `dispatched`.
+3. Só então a regra específica: `nextTrailerVehicleId !== null && tractionVehicleType !==
+'tractor_unit'` → `requiresTractor`. **Desatrelar (`null`) nunca exige cavalo** — só o portão de
+   estado se aplica, porque um truck jamais teve carreta para começar (a regra de criação já
+   impede isso) e um cavalo que virou truck no meio do caminho não deveria travar ao só limpar o
+   campo.
+
+A existência/role/status ativo do apontado (404/400) fica fora daqui — exige `SELECT`, como na T9 —
+e mora no caso de uso.
+
+**Erros novos em `trips/domain/trip.error.ts`:** `TripTrailerRequiresTractorError` (400
+`TRIP_TRAILER_REQUIRES_TRACTOR`), `TripTrailerNotATrailerError` (400 `TRIP_TRAILER_NOT_A_TRAILER`),
+`TripTrailerInUseError` (409 `TRIP_TRAILER_IN_USE`). Carreta inexistente/de outra empresa reusa
+`TripVehicleNotFoundError` (404), como a task sugeria ("ou equivalente existente").
+
+**`trip.use-case.ts`'s `setTrailer`** — busca a viagem (`findTripOrThrow`), o veículo tracionado
+(`repository.findVehicle`, que ganhou `vehicleType`/`defaultTrailerVehicleId` na leitura), chama
+`checkTripAcceptsTrailer` e trata os quatro desfechos; quando `nextTrailerVehicleId !== null` busca
+o veículo apontado pelo **mesmo** `findVehicle` (ele já filtra por `company_id` — reuso integral,
+sem método novo de existência) e confere `role === 'trailer' && status === 'active'`; faz a
+checagem prévia de uso (`isTrailerInOpenTrip`, novo método) antes de escrever; por fim chama
+`repository.setTrailer`, que **re-confere o portão de estado dentro da transação** com `for
+('update')`, no mesmo desenho de `linkDocument` — a leitura do use-case não tem lock e pode estar
+velha entre a checagem e a escrita.
+
+**Criar a viagem de um cavalo copia a carreta padrão** — `resolveDefaultTrailerForCreation`
+(`trip.use-case.ts`): só copia se `vehicleType === 'tractor_unit'` e `defaultTrailerVehicleId !==
+null`; se a padrão já estiver em viagem aberta (`isTrailerInOpenTrip` sem `excludingTripId` — a
+viagem ainda não tem id), a viagem nasce com `trailerVehicleId: null`, **nunca com erro** — a
+padrão é só sugestão (T8 adendo, item 7). `CreateTripRecord.trailerVehicleId` é campo obrigatório
+agora (não opcional), e `TripVehicleCandidate` ganhou `vehicleType`/`defaultTrailerVehicleId` para
+o use-case decidir sem consulta extra.
+
+**Trocar o veículo da viagem: confirmado N/A, com contrato de texto de fonte.** `grep` em
+`drizzle-trip.repository.ts` confirma que o único `.update(trips)` fora de `setTrailer` é
+`close()` (`status: 'completed'`) — não existe caminho de escrita para `vehicleId`. Registrado
+aqui como a task pedia; **não** criei o contrato de texto de fonte "falha se `set({ vehicleId`
+aparecer sobre `trips` sem limpar `trailerVehicleId`" porque não há hoje nenhuma ocorrência de
+`set({ vehicleId` no arquivo para ancorar um guard negativo sem alvo — fica como pendência para
+quem criar essa rota, anotada aqui e não esquecida.
+
+**`isTrailerInUse` (fleet, T9) e `isTrailerInOpenTrip` (trips, T10) são funções irmãs, não a
+mesma.** A de fleet responde "esta carreta está pendurada em algo" (default de outro cavalo OU
+viagem aberta) para bloquear a troca de `role`; a de trips responde só "está em viagem aberta,
+excluindo esta" (ou, na criação, sem exclusão) para decidir se um `PUT /trips/:id/trailer` pode
+escrever. Reaproveitar uma pela outra acoplaria os dois módulos por um método com semântica
+diferente em cada lado — mantive duas consultas curtas, cada uma no módulo dono da tabela que
+decide.
+
+**`readTripTrailer` (novo, `drizzle-trip.repository.ts`)** — uma consulta a mais **só quando a
+viagem tem carreta** (`if (trailerVehicleId === null) return null`, sem ida ao banco): lê
+`{bodyType, id, plate}` de `fleet_vehicles` pela mesma `company_id`. A maioria das viagens não tem
+carreta hoje (frota local não tem nenhuma — T0), então o custo extra é zero no caso comum.
+
+**Rota `PUT /trips/:id/trailer`** (`trip.routes.ts`, `TRIP_MANAGE_POLICY`, molde idêntico ao de
+`PUT /trips/:id/mdfe-requirement`): corpo `{trailerVehicleId: uuid | null}`
+(`setTripTrailerSchema`, `trip-request.schema.ts`), devolve `200 {data: TripDetail}`. Wired em
+`main.ts` como `setTripTrailer: { execute: (input) => trips.setTrailer(input) }`.
+
+**`test/separator-role.contract.test.ts`: rota nova entra por decisão escrita**, como a task
+exigia — o separador tem `trip.manage`, e montar a viagem inclui escolher a carreta (mesmo
+raciocínio já registrado no CLAUDE.md para o resto da montagem). A posição exata no array espelha
+a ordem real de declaração das rotas em `createTripRoutes` (a última posição, depois de `POST
+/trips/cargo-preview`), não uma ordem alfabética — confirmado rodando o teste vermelho primeiro e
+copiando a posição real.
+
+**Tenant:** `test/trip-schema/tenant-safety.contract.ts` ganhou a asserção da FK composta
+`trips_company_trailer_vehicle_fk` (já existia desde a T8; faltava o teste dela). Integração nova
+prova o isolamento de verdade: `repository.findVehicle` para a carreta de outra empresa devolve
+`null` (não `403`, como a spec pede).
+
+**Frontend — só o guard, nada de tela:**
+
+- `trip.types.ts` ganhou `TripTrailer` e `TripDetail.trailer: TripTrailer | null`.
+- `trip.constant.ts`: `trailer` entrou em `TRIP_DETAIL_OPTIONAL_KEYS` (ao contrário do campo da T9
+  no módulo fleet, aqui usei o padrão opcional de verdade — `trip.constant.ts` já tinha o mecanismo
+  pronto de `hasKeys({allowed, required})`, ao contrário de `fleet.constant.ts`, que usa
+  `hasOnlyKeys`+`hasEveryKey` sem noção de opcional — e o próprio comentário do arquivo, spec 078
+  D2, documenta exatamente esta situação: campo novo nasce opcional até a API estar garantidamente
+  no ar). Nova constante `TRIP_TRAILER_KEYS = ['bodyType', 'id', 'plate']`.
+- `tripResponse.validation.ts`: `isDetail` ganhou a cláusula opcional de `trailer`, e a função nova
+  `isTrailer` (`hasExactKeys` + três `isString`).
+- Fixtures: `test/trip/trip.fixture.ts` (`TripDetailContract` + `TRIP_DETAIL`),
+  `test/trip-smoke.helper.ts` (`tripDetail()`, anotado com o mesmo aviso da spec 075 sobre o tipo
+  escrito à mão não se enumerar sozinho).
+- Contratos novos: `test/trip/occupancy-optional.contract.ts` ganhou um `describe` irmão do de
+  `occupancy` (D2) cobrindo ausência/presença/forma errada de `trailer` — reusei o arquivo
+  existente por ser exatamente o mesmo padrão (spec 078 D2), em vez de duplicar a infraestrutura de
+  teste num arquivo novo.
+
+**Gates:**
+
+- `bun run --cwd apps/api-transportada typecheck` → limpo.
+- `bun run --cwd apps/api-transportada lint` → limpo.
+- `bun run --cwd apps/api-transportada test` → **5122 pass, 23 skip, 0 fail, 5145 testes** (suíte
+  sem Postgres; eram 5102 antes da T10 — a diferença de 20 é os testes novos desta task).
+- `DATABASE_URL=... bun test ./test/integration/trip-repository.integration.ts` → **2 pass, 0
+  fail, 55 expect() calls** (o teste pré-existente do arquivo + o novo de T10, ambos rodaram contra
+  Postgres local de verdade — create com/sem carreta, tenant, idempotência, `TripTrailerInUseError`
+  por índice único, `TripStateTransitionNotAllowedError` pelo re-check transacional, desvínculo).
+- `DATABASE_URL=... bun test ./test/integration/delivery-charge-end-to-end.integration.ts
+./test/integration/mixed-cargo-end-to-end.integration.ts
+./test/integration/trip-lifecycle.integration.ts` → **3 pass, 0 fail** (as três fixtures ganharam
+  `trailerVehicleId: null` na criação; sem regressão).
+- `bun run --cwd apps/frontend-transportada typecheck` → limpo.
+- `bun run --cwd apps/frontend-transportada test` (suíte inteira) → **3334 pass, 0 fail, 33736
+  expect() calls, 29 arquivos** (sem regressão; eram 3331 antes da T10).
+- `npx prettier --check` em todos os arquivos tocados/criados desta task → `All matched files use
+Prettier code style!`.
+
+**Commit:** `feat(trips): 147 T10 — a viagem escolhe a carreta`.

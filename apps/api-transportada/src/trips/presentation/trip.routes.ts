@@ -141,6 +141,7 @@ import {
   parseRouteGeometryRequest,
   parseOverrideDeliveryAddressRequest,
   parseSetTripMdfeRequirementRequest,
+  parseSetTripTrailerRequest,
   parseReorderTripStopsRequest,
   parseTransitionTripDocumentRequest,
   parseTripList,
@@ -311,6 +312,8 @@ const TRIP_STOPS_PATH = `${API_TRIPS_PATH}/:id/stops`
 /** Spec 059 D1: a prontidão é **consulta**, e por isso ela é uma rota de leitura, não uma coluna. */
 const TRIP_FISCAL_READINESS_PATH = `${API_TRIPS_PATH}/:id/fiscal-readiness`
 const TRIP_MDFE_REQUIREMENT_PATH = `${API_TRIPS_PATH}/:id/mdfe-requirement`
+/** Feature 147 D3/T10: a carreta que o cavalo puxa — trocável até o despacho. */
+const TRIP_TRAILER_PATH = `${API_TRIPS_PATH}/:id/trailer`
 const TRIP_VALUATION_PATH = `${API_TRIPS_PATH}/:id/valuation`
 /**
  * Fora da árvore `/trips/:id` de propósito: a viagem **ainda não existe**. É a avaliação que decide
@@ -559,6 +562,11 @@ type Dependencies = {
       readonly requiresMdfe: boolean | null
       readonly tripId: string
     }): Promise<TripMdfeRequirement>
+  }
+  readonly setTripTrailer: {
+    execute(
+      input: TenantInput<{ readonly trailerVehicleId: string | null; readonly tripId: string }>,
+    ): Promise<TripDetail>
   }
   readonly readFiscalReadiness: {
     execute(input: {
@@ -1056,6 +1064,39 @@ export function createTripRoutes(
       pathname: TRIP_MDFE_REQUIREMENT_PATH,
       // Dispensar manifesto é decisão fiscal, com multa do outro lado — não é separação de carga.
       policy: MDFE_MANAGE_POLICY,
+    }),
+    /**
+     * Feature 147 D3/T10: montar a viagem inclui escolher a carreta — por isso `trip.manage`, a
+     * mesma permissão do resto da montagem, e não `fleet.manage`.
+     */
+    defineRoute<{ readonly trailerVehicleId: string | null; readonly tripId: string }>({
+      async handle({ context, input }): Promise<Response> {
+        const trip = await dependencies.setTripTrailer.execute({
+          context: context.scope,
+          trailerVehicleId: input.trailerVehicleId,
+          tripId: input.tripId,
+        })
+        return jsonResponse({
+          body: {
+            data: serializeTripDetail({
+              canReadDriverContact: context.scope.permissions.has(TRIP_READ_POLICY.permission),
+              canReadFinancials: context.scope.permissions.has(TRIP_FINANCIALS_POLICY.permission),
+              trip,
+            }),
+          },
+          status: 200,
+        })
+      },
+      method: 'PUT',
+      async parse({ pathParameters, request }) {
+        const body = await parseSetTripTrailerRequest(request)
+        return {
+          trailerVehicleId: body.trailerVehicleId,
+          tripId: parseUuidPathIdentifier(pathParameters.id ?? ''),
+        }
+      },
+      pathname: TRIP_TRAILER_PATH,
+      policy: TRIP_MANAGE_POLICY,
     }),
     defineRoute<{ readonly tripId: string }>({
       async handle({ context, input }): Promise<Response> {
@@ -2064,6 +2105,8 @@ function serializeTripDetail(input: {
     /** Spec 075: `null` quando a capacidade não é conhecida — a tela não inventa 100%. */
     cargoWeight: trip.cargoWeight === null ? null : { ...trip.cargoWeight },
     occupancy: trip.occupancy === null ? null : { ...trip.occupancy },
+    /** Spec 147 D3/RF5: `null` quando o cavalo não tem carreta atrelada. */
+    trailer: trip.trailer === null ? null : { ...trip.trailer },
     stops: trip.stops.map((stop) =>
       serializeTripStopDetail({ canReadFinancials: input.canReadFinancials, stop }),
     ),

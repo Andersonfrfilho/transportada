@@ -297,6 +297,7 @@ describe('a prévia carimba a nota nas caixas pendentes de medição (spec 144 D
             ],
           ]),
           capacityM3: '10.000000',
+          capacityUnknownReason: null,
           cargoWeight: null,
           fallbackBoxVolumeM3: null,
           loadingAccess: 'rear' as const,

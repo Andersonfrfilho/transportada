@@ -3634,6 +3634,7 @@ function createApplicationRoutes({
       closeTrip: { execute: (input) => trips.close(input) },
       createTrip: { execute: (input) => trips.create(input) },
       updateTripCrew: { execute: (input) => trips.updateCrew(input) },
+      setTripTrailer: { execute: (input) => trips.setTrailer(input) },
       createTripMdfeManifest: { execute: (input) => createTripMdfeManifest.execute(input) },
       listOccurrenceTypes: {
         execute: (input) => listOccurrenceTypes(database, { companyId: input.context.companyId }),

@@ -109,6 +109,7 @@ describe('do cliente com hora ao relatório aprovado (spec 060 T016)', () => {
           actorUserId: world.userId,
           channel: TRIP_FIELD_CHANNELS.backoffice,
           companyId,
+          trailerVehicleId: null,
           crew: [
             {
               driverId: world.driverId,

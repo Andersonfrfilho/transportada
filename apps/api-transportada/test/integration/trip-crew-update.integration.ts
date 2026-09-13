@@ -373,6 +373,7 @@ describe('troca de motorista/veículo de uma viagem, contra Postgres', () => {
               role: 'driver',
             },
           ],
+          trailerVehicleId: null,
           vehicleId: fleet.firstVehicleId,
         })
         expect(created.status).toBe('draft')
@@ -440,6 +441,7 @@ describe('troca de motorista/veículo de uma viagem, contra Postgres', () => {
               role: 'driver',
             },
           ],
+          trailerVehicleId: null,
           vehicleId: fleet.firstVehicleId,
         })
         /**

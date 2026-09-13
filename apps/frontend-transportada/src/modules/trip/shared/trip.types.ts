@@ -705,6 +705,13 @@ export type TripCargoLayoutPoll = Readonly<{
   state: TripCargoLayoutState
 }>
 
+/** Spec 147 D3/RF5: o mínimo para identificar a carreta atrelada — não é a ficha do veículo. */
+export type TripTrailer = Readonly<{
+  bodyType: string
+  id: string
+  plate: string
+}>
+
 export type TripDetail = Trip &
   Readonly<{
     /**
@@ -726,6 +733,8 @@ export type TripDetail = Trip &
     capacityUnknownReason: CapacityUnknownReason | null
     cargoWeight: TripCargoWeight | null
     occupancy: TripOccupancy | null
+    /** Spec 147 D3/RF5: `null` quando o cavalo não tem carreta atrelada. */
+    trailer: TripTrailer | null
     stops: readonly TripStopDetail[]
   }>
 

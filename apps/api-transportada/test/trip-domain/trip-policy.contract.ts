@@ -30,7 +30,13 @@ const activeDriver = (overrides: Partial<TripDriverCandidate> = {}): TripDriverC
 
 describe('trip vehicle policy', () => {
   test('accepts an active traction vehicle', () => {
-    const vehicle = { id: 'vehicle-1', role: 'traction', status: 'active' } as const
+    const vehicle = {
+      defaultTrailerVehicleId: null,
+      id: 'vehicle-1',
+      role: 'traction',
+      status: 'active',
+      vehicleType: 'tractor_unit',
+    } as const
 
     expect(resolveTripVehicle({ vehicle })).toEqual(vehicle)
   })
@@ -40,13 +46,25 @@ describe('trip vehicle policy', () => {
   })
 
   test('rejects a trailer even when active', () => {
-    const vehicle = { id: 'vehicle-1', role: 'trailer', status: 'active' } as const
+    const vehicle = {
+      defaultTrailerVehicleId: null,
+      id: 'vehicle-1',
+      role: 'trailer',
+      status: 'active',
+      vehicleType: '',
+    } as const
 
     expect(() => resolveTripVehicle({ vehicle })).toThrow(TripVehicleNotAvailableError)
   })
 
   test('rejects a traction vehicle that is not active', () => {
-    const vehicle = { id: 'vehicle-1', role: 'traction', status: 'inactive' } as const
+    const vehicle = {
+      defaultTrailerVehicleId: null,
+      id: 'vehicle-1',
+      role: 'traction',
+      status: 'inactive',
+      vehicleType: 'tractor_unit',
+    } as const
 
     expect(() => resolveTripVehicle({ vehicle })).toThrow(TripVehicleNotAvailableError)
   })
