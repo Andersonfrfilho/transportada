@@ -185,6 +185,7 @@ describe('a prévia acusa peso concentrado numa parada', () => {
     measuredShapes: [],
     occupancy: null,
     /** Spec 100: ninguém amarra por padrão — a pilha fica limitada por esbeltez. */
+    enclosedBody: false,
     securesCargo: false,
   }
 
@@ -299,6 +300,7 @@ describe('a prévia carimba a nota nas caixas pendentes de medição (spec 144 D
           fallbackBoxVolumeM3: null,
           loadingAccess: 'rear' as const,
           measuredShapes: [],
+          enclosedBody: false,
           occupancy: null,
           securesCargo: false,
           documents: [

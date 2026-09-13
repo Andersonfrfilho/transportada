@@ -12,6 +12,7 @@ import { CARGO_LAYOUT_POLICY_VERSION } from '@adatechnology/cargo-placement'
 
 import {
   buildCargoLayoutInput,
+  buildStoredCargoLayoutInput,
   hashCargoLayoutInput,
 } from '../../src/trips/domain/cargo-layout-hash.policy.js'
 import type { BuildCargoLayoutInputParams } from '../../src/trips/domain/cargo-layout-hash.types.js'
@@ -176,6 +177,28 @@ describe('hashCargoLayoutInput', () => {
     const changed: BuildCargoLayoutInputParams = { ...BASE_PARAMS, securesCargo: false }
 
     expect(hashOf(changed)).not.toBe(hashOf(BASE_PARAMS))
+  })
+
+  test('trocar enclosedBody muda o hash (D23)', () => {
+    const enclosed: BuildCargoLayoutInputParams = { ...BASE_PARAMS, enclosedBody: true }
+    const open: BuildCargoLayoutInputParams = { ...BASE_PARAMS, enclosedBody: false }
+
+    expect(hashOf(enclosed)).not.toBe(hashOf(open))
+    expect(buildCargoLayoutInput(enclosed).enclosedBody).toBe(true)
+  })
+
+  test('enclosedBody ausente é baú aberto — o mesmo hash de false (D23)', () => {
+    const open: BuildCargoLayoutInputParams = { ...BASE_PARAMS, enclosedBody: false }
+
+    expect(buildCargoLayoutInput(BASE_PARAMS).enclosedBody).toBe(false)
+    expect(hashOf(BASE_PARAMS)).toBe(hashOf(open))
+  })
+
+  test('a entrada guardada leva enclosedBody resolvido (D23)', () => {
+    expect(buildStoredCargoLayoutInput({ ...BASE_PARAMS, enclosedBody: true }).enclosedBody).toBe(
+      true,
+    )
+    expect(buildStoredCargoLayoutInput(BASE_PARAMS).enclosedBody).toBe(false)
   })
 
   test('trocar policyVersion muda o hash', () => {

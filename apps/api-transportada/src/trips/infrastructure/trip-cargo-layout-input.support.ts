@@ -18,7 +18,7 @@ import { stampCargoNote, sumVolumes, type CargoLayoutStop } from '@adatechnology
 import { fleetDrivers, freightCalculations, nfeDocuments } from '../../database/database.schema.js'
 import { tripDocuments, tripDrivers, tripStops, trips } from '../../database/trip.schema.js'
 import type { BuildCargoLayoutInputParams } from '../domain/cargo-layout-hash.types.js'
-import { resolveSecuresCargo } from '../domain/cargo-securing.policy.js'
+import { resolveCargoSecuring } from '../domain/cargo-securing.policy.js'
 import { withPayloadCeiling } from '../domain/trip-cargo-weight.policy.js'
 import { listStopAddresses, type NfeDestinationAddress } from './nfe-destination-address.support.js'
 import { loadTripCargoWeight } from './trip-cargo-weight.support.js'
@@ -179,17 +179,20 @@ export async function readCargoLayoutInputParams(
     view: cargoWeight,
   })
 
+  const { enclosedBody, securesCargo } = resolveCargoSecuring({
+    bodyType: cargo.bodyType,
+    driversSecureCargo: driverRecords.map((row) => row.driverSecuresCargo === true),
+  })
+
   return {
     bedDimensions: cargo.bedDimensions,
     capacityM3: cargo.capacityM3,
+    enclosedBody,
     fallbackBoxVolumeM3: cargo.fallbackBoxVolumeM3,
     loadingAccess: cargo.loadingAccess,
     measuredShapes: cargo.measuredShapes,
     payloadRatio: cargoWeightWithCeiling?.payloadRatio ?? null,
-    securesCargo: resolveSecuresCargo({
-      bodyType: cargo.bodyType,
-      driversSecureCargo: driverRecords.map((row) => row.driverSecuresCargo === true),
-    }),
+    securesCargo,
     stops: stopRecords.map((stop) =>
       buildLayoutStop({
         addresses,

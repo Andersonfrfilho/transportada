@@ -62,6 +62,7 @@ function previewContextOf(input: BuildCargoLayoutInputParams): TripCargoPreviewC
         ? null
         : ({ payloadRatio: input.payloadRatio } as TripCargoPreviewContext['cargoWeight']),
     documents: [],
+    enclosedBody: input.enclosedBody ?? false,
     fallbackBoxVolumeM3: input.fallbackBoxVolumeM3 ?? null,
     loadingAccess: input.loadingAccess ?? 'rear',
     measuredShapes: input.measuredShapes ?? [],

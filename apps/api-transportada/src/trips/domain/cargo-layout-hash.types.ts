@@ -17,6 +17,8 @@ import type {
 export type BuildCargoLayoutInputParams = {
   readonly bedDimensions?: CargoBedDimensions | null
   readonly capacityM3: string | null
+  /** Spec 145 D23: baú fechado (tpCar `02`). Ausente é baú aberto. */
+  readonly enclosedBody?: boolean
   readonly fallbackBoxVolumeM3?: number | null
   readonly loadingAccess?: LoadingAccess
   readonly measuredShapes?: readonly MeasuredBoxShape[]
@@ -77,6 +79,7 @@ export type CargoLayoutBedInput = {
 export type StoredCargoLayoutInput = {
   readonly bedDimensions: CargoBedDimensions | null
   readonly capacityM3: string | null
+  readonly enclosedBody: boolean
   readonly fallbackBoxVolumeM3: number | null
   readonly loadingAccess: LoadingAccess
   readonly measuredShapes: readonly MeasuredBoxShape[]
@@ -90,6 +93,7 @@ export type StoredCargoLayoutInput = {
 export type CargoLayoutInput = {
   readonly bed: CargoLayoutBedInput | null
   readonly capacityM3: string | null
+  readonly enclosedBody: boolean
   readonly fallbackBoxVolumeM3: number | null
   readonly loadingAccess: LoadingAccess
   readonly measuredShapes: readonly MeasuredBoxShape[]

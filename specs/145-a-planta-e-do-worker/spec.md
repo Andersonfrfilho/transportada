@@ -192,6 +192,14 @@ db:generate`, espelhada em `apps/worker-transportada/src/database/nfe.schema.ts`
   amarrada a esbeltez continua livre. Carroceria aberta sem amarração segue exigindo os quatro lados.
   Decisão do usuário, 2026-09-13.
 
+- **D24 — O alcance da porta afrouxa para caber tudo.** Com a D23, as primeiras entregas não acham
+  chão: as últimas cobrem o piso inteiro, e o alcance de 0,6 m (`DELIVERY_REACH_M`) impede subir na carga
+  das entregas seguintes. Medido depois das heurísticas de camadas niveladas, com baú fechado: 186 de 1465
+  caixas de fora na Atego de 84 paradas, 17 de 444 na Iveco de 27 paradas, 7 na Fiorino e 5 na Sprinter.
+  O usuário escolheu afrouxar o alcance e aceita que o conferente mexa em carga de outra entrega para
+  descarregar. As regras da D23 e o apoio de 80% continuam valendo. O pacote mede o menor alcance que zera.
+  Decisão do usuário, 2026-09-13.
+
 ## Fora do escopo
 
 - Regra física do empacotador — apoio de 80%, escora pelo lado, célula de 5 cm,

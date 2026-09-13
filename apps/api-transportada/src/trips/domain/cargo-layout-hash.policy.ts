@@ -83,6 +83,8 @@ export function buildCargoLayoutInput(params: BuildCargoLayoutInputParams): Carg
         ? null
         : { heightM: bed.heightM, lengthM: bed.lengthM, source: bed.source, widthM: bed.widthM },
     capacityM3: params.capacityM3,
+    /** D23: baú fechado muda onde a pilha alta pode ficar — entra no hash; ausente é baú aberto. */
+    enclosedBody: params.enclosedBody ?? false,
     fallbackBoxVolumeM3: params.fallbackBoxVolumeM3 ?? null,
     /** Ausente assume `rear`, o mais restritivo — a mesma omissão de `resolveCargoLayout`. */
     loadingAccess: params.loadingAccess ?? 'rear',
@@ -105,6 +107,7 @@ export function buildStoredCargoLayoutInput(
   return {
     bedDimensions: params.bedDimensions ?? null,
     capacityM3: params.capacityM3,
+    enclosedBody: params.enclosedBody ?? false,
     fallbackBoxVolumeM3: params.fallbackBoxVolumeM3 ?? null,
     loadingAccess: params.loadingAccess ?? 'rear',
     /** A mesma ordem do hash: hash igual precisa significar entrada igual para o empacotador. */

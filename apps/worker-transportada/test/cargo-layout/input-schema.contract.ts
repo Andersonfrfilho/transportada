@@ -23,6 +23,22 @@ describe('entrada guardada da planta (spec 145 D5 — o jsonb é fronteira)', ()
     expect([outputIsStored, storedIsOutput]).toHaveLength(2)
   })
 
+  /** D23: baú fechado é campo novo; linha gravada antes dele não pode virar `failed` no decode. */
+  test('aceita enclosedBody, e linha antiga sem ele entra como baú aberto', () => {
+    const input = buildStoredCargoLayoutInput({ stopCount: 1 })
+    const legacyRow = Object.fromEntries(
+      Object.entries(input).filter(([key]) => key !== 'enclosedBody'),
+    )
+
+    expect(storedCargoLayoutInputSchema.parse({ ...input, enclosedBody: true }).enclosedBody).toBe(
+      true,
+    )
+    expect(storedCargoLayoutInputSchema.parse(legacyRow).enclosedBody).toBe(false)
+    expect(storedCargoLayoutInputSchema.safeParse({ ...input, enclosedBody: 'yes' }).success).toBe(
+      false,
+    )
+  })
+
   test('recusa campo desconhecido na raiz, na parada e na caixa', () => {
     const input = buildStoredCargoLayoutInput({ stopCount: 1 })
     const [stop] = input.stops

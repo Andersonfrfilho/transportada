@@ -38,6 +38,7 @@ export function buildStoredCargoLayoutInput(input: {
   return {
     bedDimensions: { heightM: '1.80', lengthM: '4.20', source: 'measured', widthM: '2.10' },
     capacityM3: '15.876',
+    enclosedBody: false,
     fallbackBoxVolumeM3: null,
     loadingAccess: 'rear',
     measuredShapes: [],

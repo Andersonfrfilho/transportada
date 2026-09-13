@@ -58,6 +58,8 @@ export type TripCargoPreviewContext = {
    * para a planta desenhar a pilha limitada — quem carrega decide pelo que pode dar errado.
    */
   readonly securesCargo: boolean
+  /** Spec 145 D23: baú fechado (tpCar `02`) — a pilha alta precisa de encosto, não de cinta. */
+  readonly enclosedBody: boolean
   readonly cargoWeight: TripCargoWeightView | null
   readonly documents: readonly CargoPreviewDocument[]
   readonly occupancy: TripOccupancyView | null
@@ -118,6 +120,7 @@ export async function previewTripCargo(input: PreviewTripCargoInput): Promise<Tr
       /** Spec 088 D2: só a ficha desenha planta — a referência de mercado erra por 2× no tipo. */
       bedDimensions: context.bedDimensions,
       capacityM3: context.capacityM3,
+      enclosedBody: context.enclosedBody,
       /** Spec 094: dá tamanho e forma à caixa presumida — sem isso ela fica fora do desenho. */
       fallbackBoxVolumeM3: context.fallbackBoxVolumeM3,
       loadingAccess: context.loadingAccess,

@@ -52,6 +52,7 @@ const MEASURED_CONTEXT: TripCargoPreviewContext = {
       weightKilograms: null,
     },
   ],
+  enclosedBody: false,
   fallbackBoxVolumeM3: 0.05,
   loadingAccess: 'rear',
   measuredShapes: [],
@@ -115,6 +116,7 @@ function previewInputOf(context: TripCargoPreviewContext): BuildCargoLayoutInput
   return {
     bedDimensions: context.bedDimensions,
     capacityM3: context.capacityM3,
+    enclosedBody: context.enclosedBody,
     fallbackBoxVolumeM3: context.fallbackBoxVolumeM3,
     loadingAccess: context.loadingAccess,
     measuredShapes: context.measuredShapes,
@@ -157,6 +159,18 @@ describe('a prévia pede a planta pelo hash (spec 145 T11)', () => {
     expect(preview.cargoLayout?.placement).toBeNull()
     expect(harness.hashLookups).toEqual([])
     expect(harness.requests).toEqual([])
+  })
+
+  /** D23: baú fechado muda o desenho — a prévia leva `enclosedBody` ao hash e ao pedido do worker. */
+  test('baú fechado: o hash e a entrada enfileirada levam enclosedBody', async () => {
+    const enclosedContext: TripCargoPreviewContext = { ...MEASURED_CONTEXT, enclosedBody: true }
+    const { harness, run } = previewWith({ context: enclosedContext })
+
+    await run()
+
+    expect(harness.hashLookups).toEqual([expectedHash(enclosedContext)])
+    expect(harness.hashLookups).not.toEqual([expectedHash(MEASURED_CONTEXT)])
+    expect(harness.requests[0]?.enclosedBody).toBe(true)
   })
 
   test('planta pronta com o mesmo hash: serve a guardada, ready, sem enfileirar', async () => {

@@ -109,13 +109,13 @@ describeWithPostgres('trip detail reads the stored cargo layout (spec 145 T10)',
     )
   })
 
-  /** D21 (T17): baú fechado segura a carga sem cinta; sider depende do motorista — nos dois lados. */
+  /** D23 (corrige a D21): baú fechado não amarra — vira `enclosedBody`; nos dois lados, mesmo hash. */
   test.each([
-    { bodyType: '02', expected: true },
-    { bodyType: '05', expected: false },
+    { bodyType: '02', enclosed: true },
+    { bodyType: '05', enclosed: false },
   ] as const)(
-    'body $bodyType with a driver who does not tie down: securesCargo $expected, same hash (D21)',
-    async ({ bodyType, expected }) => {
+    'body $bodyType with a driver who does not tie down: enclosedBody $enclosed, securesCargo false, same hash (D23)',
+    async ({ bodyType, enclosed }) => {
       const seeded = await seedTrip(database, {
         bodyType,
         driverSecuresCargo: false,
@@ -126,8 +126,10 @@ describeWithPostgres('trip detail reads the stored cargo layout (spec 145 T10)',
 
       const detailInput = detail?.pendingCargoLayoutInput as BuildCargoLayoutInputParams
       const eagerInput = eager as BuildCargoLayoutInputParams
-      expect(detailInput.securesCargo).toBe(expected)
-      expect(eagerInput.securesCargo).toBe(expected)
+      expect(detailInput.securesCargo).toBe(false)
+      expect(eagerInput.securesCargo).toBe(false)
+      expect(detailInput.enclosedBody).toBe(enclosed)
+      expect(eagerInput.enclosedBody).toBe(enclosed)
       expect(hashOf(detailInput)).toBe(hashOf(eagerInput))
     },
   )

@@ -197,9 +197,12 @@ status='queued' AND input_hash=$hash`; nula → confirma e descarta; hash supera
       e 20 min por entrega), e "sem pedágio" no lugar de "conta incompleta" quando a única lacuna é o
       pedágio da sugestão.
 
-- [ ] T20 — D23: `enclosedBody` no empacotador (encosto na cabeceira e em ≥ 1 lateral para pilha
+- [x] T20 — D23: `enclosedBody` no empacotador (encosto na cabeceira e em ≥ 1 lateral para pilha
       alta, porta livre) e na entrada da planta (API e schema do worker); `securesCargo` volta a ser só a
       regra dos motoristas. Medir de novo as caixas de fora.
+
+- [ ] T21 — D24: afrouxar o alcance (`DELIVERY_REACH_M`) no empacotador até zerar as caixas de fora,
+      sem pilha alta isolada e com apoio ≥ 80%; contratos da D23 e da D24 no pacote; medir de novo.
 
 ## Prompt de execução
 

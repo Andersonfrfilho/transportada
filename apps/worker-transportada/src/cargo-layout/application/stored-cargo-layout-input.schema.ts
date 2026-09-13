@@ -14,6 +14,7 @@ type ResolveCargoLayoutInput = Parameters<typeof resolveCargoLayout>[0]
 export type StoredCargoLayoutInput = Readonly<{
   bedDimensions: NonNullable<ResolveCargoLayoutInput['bedDimensions']> | null
   capacityM3: ResolveCargoLayoutInput['capacityM3']
+  enclosedBody: boolean
   fallbackBoxVolumeM3: NonNullable<ResolveCargoLayoutInput['fallbackBoxVolumeM3']> | null
   loadingAccess: NonNullable<ResolveCargoLayoutInput['loadingAccess']>
   measuredShapes: NonNullable<ResolveCargoLayoutInput['measuredShapes']>
@@ -75,6 +76,8 @@ export const storedCargoLayoutInputSchema = z
   .strictObject({
     bedDimensions: cargoBedDimensionsSchema.nullable(),
     capacityM3: z.string().nullable(),
+    /** Spec 145 D23: linha gravada antes do campo não o tem — é baú aberto, não entrada quebrada. */
+    enclosedBody: z.boolean().default(false),
     fallbackBoxVolumeM3: z.number().nullable(),
     loadingAccess: z.enum(LOADING_ACCESS_KINDS),
     measuredShapes: z.array(measuredBoxShapeSchema).readonly(),

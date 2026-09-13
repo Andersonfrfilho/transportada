@@ -5,7 +5,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 
 import { fleetDrivers } from '../../database/fleet.schema.js'
 import type { TripCargoPreviewContext } from '../application/preview-trip-cargo.use-case.js'
-import { resolveSecuresCargo } from '../domain/cargo-securing.policy.js'
+import { resolveCargoSecuring } from '../domain/cargo-securing.policy.js'
 import { buildStopAddressKey } from '../domain/stop-address-key.js'
 import { listDocumentNumbers, listStopAddresses } from './nfe-destination-address.support.js'
 import { withPayloadCeiling } from '../domain/trip-cargo-weight.policy.js'
@@ -49,12 +49,16 @@ export async function readCargoPreviewContext(
       driverIds: input.driverIds,
     }),
   ])
-  const securesCargo = resolveSecuresCargo({ bodyType: cargo.bodyType, driversSecureCargo })
+  const { enclosedBody, securesCargo } = resolveCargoSecuring({
+    bodyType: cargo.bodyType,
+    driversSecureCargo,
+  })
 
   return {
     bedDimensions: cargo.bedDimensions,
     boxesByDocument: cargo.boxesByDocument,
     capacityM3: cargo.capacityM3,
+    enclosedBody,
     fallbackBoxVolumeM3: cargo.fallbackBoxVolumeM3,
     measuredShapes: cargo.measuredShapes,
     loadingAccess: cargo.loadingAccess,
@@ -83,7 +87,7 @@ export async function readCargoPreviewContext(
 
 /**
  * Se cada motorista escolhido amarra a carga, na ordem de `driverIds`. Ficha que não existe na
- * empresa entra como `false` — ausência nunca vira permissão; quem decide é `resolveSecuresCargo`.
+ * empresa entra como `false` — ausência nunca vira permissão; quem decide é `resolveCargoSecuring`.
  */
 async function readDriversSecureCargo(
   queryable: TripQueryable,

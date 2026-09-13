@@ -27,6 +27,7 @@ export function computeCargoLayout(
   const {
     bedDimensions,
     capacityM3,
+    enclosedBody,
     fallbackBoxVolumeM3,
     loadingAccess,
     measuredShapes,
@@ -39,6 +40,7 @@ export function computeCargoLayout(
     bedDimensions,
     capacityM3,
     deadline: now() + params.budgetMs,
+    enclosedBody,
     fallbackBoxVolumeM3,
     loadingAccess,
     measuredShapes,

@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import { describe, expect, test } from 'bun:test'
+import { readFileSync } from 'node:fs'
 
 import { CargoLayoutTimeoutError } from '../../src/cargo-layout/application/cargo-layout-timeout.error.js'
 import { computeCargoLayout } from '../../src/cargo-layout/infrastructure/cargo-layout.worker.js'
@@ -48,6 +49,17 @@ describe('cálculo da planta em thread (spec 145 D9)', () => {
     await expect(gateway.compute({ budgetMs: 0, input })).rejects.toBeInstanceOf(
       CargoLayoutTimeoutError,
     )
+  })
+
+  /** D23: o baú fechado decide o encosto da pilha alta — a thread não pode descartá-lo. */
+  test('a thread repassa enclosedBody ao empacotador', () => {
+    const source = readFileSync(
+      new URL('../../src/cargo-layout/infrastructure/cargo-layout.worker.ts', import.meta.url),
+      'utf8',
+    )
+    const call = source.slice(source.indexOf('resolveCargoLayout({'))
+
+    expect(call).toMatch(/^resolveCargoLayout\(\{[^}]*\benclosedBody,/)
   })
 
   /** O prazo nasce dentro da thread: é o relógio dela que conta, não o da fila. */

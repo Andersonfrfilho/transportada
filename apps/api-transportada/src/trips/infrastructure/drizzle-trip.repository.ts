@@ -66,7 +66,7 @@ import type { CargoLayoutLeaseOptions } from '../application/cargo-layout-reques
 import { DEFAULT_CARGO_LAYOUT_LEASE_MS } from '../domain/cargo-layout-lease.policy.js'
 import { loadTripCargoWeight } from './trip-cargo-weight.support.js'
 import { withPayloadCeiling } from '../domain/trip-cargo-weight.policy.js'
-import { resolveSecuresCargo } from '../domain/cargo-securing.policy.js'
+import { resolveCargoSecuring } from '../domain/cargo-securing.policy.js'
 import { loadTripOccupancy } from './trip-occupancy.support.js'
 import { buildLayoutStop } from './trip-cargo-layout-input.support.js'
 import { readTripCargoLayout } from './stored-cargo-layout-read.support.js'
@@ -832,21 +832,23 @@ async function readTripDetail(
    * Spec 145 D10 (T10): a entrada que o gatilho eager hasheia, montada do que já veio — nenhuma
    * consulta a mais —, e a planta lida de `trip_cargo_layouts` por esse hash. O detalhe não empacota.
    */
+  /** Spec 145 D23: a **mesma** regra da prévia e do eager; ficha apagada é ninguém amarrando. */
+  const { enclosedBody, securesCargo } = resolveCargoSecuring({
+    bodyType: cargo.bodyType,
+    driversSecureCargo: driverRecords.map((row) => row.driverSecuresCargo === true),
+  })
   const cargoLayoutInput: BuildCargoLayoutInputParams = {
     /** Spec 088 D2: a medida vem da ficha, e não da ocupação — que é nula sem cubagem nenhuma. */
     bedDimensions: cargo.bedDimensions,
     capacityM3: cargo.capacityM3,
+    enclosedBody,
     /** Spec 094: o detalhe da viagem desenha a mesma planta da prévia — e pela mesma caixa. */
     fallbackBoxVolumeM3: cargo.fallbackBoxVolumeM3,
     loadingAccess: cargo.loadingAccess,
     measuredShapes: cargo.measuredShapes,
     /** Spec 098: o teto de massa já resolvido acima — a planta e o painel leem o mesmo número. */
     payloadRatio: cargoWeightWithCeiling?.payloadRatio ?? null,
-    /** Spec 145 D21: a **mesma** regra da prévia e do eager; ficha apagada é ninguém amarrando. */
-    securesCargo: resolveSecuresCargo({
-      bodyType: cargo.bodyType,
-      driversSecureCargo: driverRecords.map((row) => row.driverSecuresCargo === true),
-    }),
+    securesCargo,
     stops: layoutStops,
   }
   const { pendingCargoLayoutInput, ...cargoLayoutReading } = await readTripCargoLayout(queryable, {

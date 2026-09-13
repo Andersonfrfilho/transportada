@@ -19,6 +19,7 @@ const TRIP_ID = '00000000-0000-4000-8000-0000000000a1'
 const INPUT: StoredCargoLayoutInput = {
   bedDimensions: null,
   capacityM3: null,
+  enclosedBody: false,
   fallbackBoxVolumeM3: null,
   loadingAccess: 'rear',
   measuredShapes: [],
