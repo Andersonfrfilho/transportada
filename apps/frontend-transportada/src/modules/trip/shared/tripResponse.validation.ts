@@ -6,6 +6,7 @@ import type {
   TripDocumentProduct,
   TripOccurrence,
   TripCargoLayout,
+  TripCargoLayoutState,
   TripCargoPreview,
   TripCargoWeight,
   TripOccupancy,
@@ -51,6 +52,7 @@ import {
   TRIP_STATUS_RESULT_KEYS,
   TRIP_STOP_KEYS,
   TRIP_STOP_OPTIONAL_KEYS,
+  TRIP_CARGO_LAYOUT_STATE_KEYS,
 } from './trip.constant'
 import {
   SCANNED_NFE_STATUS,
@@ -60,6 +62,7 @@ import {
   TRIP_DESTINATION_ORIGINS,
   TRIP_DOCUMENT_SEPARATION_STATUS,
   TRIP_STATUS,
+  CARGO_LAYOUT_STATUSES,
 } from './trip.types'
 import type {
   BatchStatusResult,
@@ -324,7 +327,20 @@ function isDetail(value: unknown): value is TripDetail {
       value.cargoWeight === null ||
       isCargoWeight(value.cargoWeight)) &&
     (value.occupancy === undefined || value.occupancy === null || isOccupancy(value.occupancy)) &&
+    (value.cargoLayoutState === undefined || isCargoLayoutState(value.cargoLayoutState)) &&
     isEveryItem(value.stops, isStopDetail)
+  )
+}
+
+/** Spec 145 D10: chave exata e status fechado — estado estranho reprova, não vira "pendente". */
+function isCargoLayoutState(value: unknown): value is TripCargoLayoutState {
+  if (!hasExactKeys(value, TRIP_CARGO_LAYOUT_STATE_KEYS)) return false
+  return (
+    isNullableString(value.computedAt) &&
+    isNullableString(value.errorCode) &&
+    typeof value.stale === 'boolean' &&
+    isOneOf(value.status, CARGO_LAYOUT_STATUSES) &&
+    typeof value.truncated === 'boolean'
   )
 }
 
@@ -643,7 +659,10 @@ export function createTripResponseAdapters() {
      */
     tripCargoPreviewFromApi(input: unknown): TripCargoPreview {
       if (!isRecord(input)) throw invalid()
-      const { cargoLayout, cargoWeight, occupancy, weightConcentration } = input
+      const { cargoLayout, cargoWeight, layoutId, occupancy, state, weightConcentration } = input
+      /** ⚠️ Spec 145 D17: a prévia não confere chaves, então só a forma de `layoutId`/`state` reprova. */
+      if (layoutId !== undefined && !isString(layoutId)) throw invalid()
+      if (state !== undefined && !isCargoLayoutState(state)) throw invalid()
       const layoutOk =
         cargoLayout === null || cargoLayout === undefined || isCargoLayout(cargoLayout)
       const weightOk =
@@ -659,6 +678,8 @@ export function createTripResponseAdapters() {
         cargoWeight: (cargoWeight ?? null) as TripCargoWeight | null,
         occupancy: (occupancy ?? null) as TripOccupancy | null,
         weightConcentration: weightConcentration ?? null,
+        ...(layoutId === undefined ? {} : { layoutId }),
+        ...(state === undefined ? {} : { state }),
       }
     },
     routeGeometryFromApi(input: unknown): RouteGeometry {

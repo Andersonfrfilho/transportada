@@ -10,7 +10,7 @@
 | 3    | T7–T8   | ✅ feita | `sonnet`           | `opus`                            |
 | 3    | T9 🧠   | ✅ feita | `opus`             | `fable`                           |
 | 3    | T9b     | ✅ feita | `sonnet`           | `opus`                            |
-| 3    | T12a    | pendente | `sonnet`           | `opus`                            |
+| 3    | T12a    | ✅ feita | `sonnet`           | `opus`                            |
 | 4    | T10–T11 | pendente | `sonnet`           | `opus`                            |
 | 5    | T12–T13 | pendente | `sonnet`           | `opus`                            |
 | 6    | T14     | pendente | `haiku`            | `sonnet` → `opus`                 |
@@ -115,7 +115,7 @@ status='queued' AND input_hash=$hash`; nula → confirma e descarta; hash supera
 
   Contratos em `test/trip-infrastructure/` e `test/trip-application/`. Rodar antes da T10.
 
-- [ ] T12a — Frontend (`apps/frontend-transportada`) só **aceita** as chaves novas, sem usá-las (D17):
+- [x] T12a — Frontend (`apps/frontend-transportada`) só **aceita** as chaves novas, sem usá-las (D17):
       `cargoLayoutState` opcional no detalhe (tipo em `trip.types.ts`, `TRIP_DETAIL_OPTIONAL_KEYS`,
       validação em `tripResponse.validation.ts`) e `{ layoutId, state }` opcionais na resposta da prévia
       de carga. Ausente e presente são aceitos; forma inválida é recusada. Commit próprio, antes da T10,

@@ -426,10 +426,30 @@ export type TripCargoLayout = Readonly<{
  */
 export type TripWeightConcentration = Readonly<{ label: string; share: number; stopId: string }>
 
+/** Spec 145 D10: o estado da planta que o worker calcula. `truncated` é derivado na leitura (D13). */
+export const CARGO_LAYOUT_STATUSES = ['failed', 'pending', 'ready', 'unavailable'] as const
+
+export type CargoLayoutStatus = (typeof CARGO_LAYOUT_STATUSES)[number]
+
+export type TripCargoLayoutState = Readonly<{
+  computedAt: null | string
+  /** A coluna é `text not null default ''`: sem erro pode chegar `''`, não só `null`. */
+  errorCode: null | string
+  stale: boolean
+  status: CargoLayoutStatus
+  truncated: boolean
+}>
+
+/**
+ * ⚠️ Spec 145 D17: `layoutId` e `state` são opcionais porque o bundle vai ao ar antes da API que os
+ * serve (T11). Ausente é API anterior; ainda não há tela que os leia (T12/T13).
+ */
 export type TripCargoPreview = Readonly<{
   cargoLayout: TripCargoLayout | null
   cargoWeight: TripCargoWeight | null
+  layoutId?: string
   occupancy: TripOccupancy | null
+  state?: TripCargoLayoutState
   weightConcentration: TripWeightConcentration | null
 }>
 
@@ -438,6 +458,8 @@ export type TripDetail = Trip &
     documents: readonly TripDocumentDetail[]
     drivers: readonly TripDriverLine[]
     cargoLayout: TripCargoLayout | null
+    /** Spec 145 D17: opcional até a T10 servir a chave; ainda sem leitor na tela. */
+    cargoLayoutState?: TripCargoLayoutState
     cargoWeight: TripCargoWeight | null
     occupancy: TripOccupancy | null
     stops: readonly TripStopDetail[]

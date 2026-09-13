@@ -705,6 +705,56 @@ module …/cargo-layout-lease.policy.js`). `trip-application.contract.test.ts` �
 
 - **Gate conferido pelo orquestrador:** `bunx tsc --noEmit` e `bunx eslint` limpos; suíte inteira da API 4981 pass, 1 fail — `test/deploy/keycloak-realm.contract.ts` › "callback declarado que falta no client é acrescentado" (script de deploy em diretório temporário, sem relação com a T9b e sem mudança desde 2026-09-02). Isolado, passou 12/12 em duas rodadas seguidas: intermitente, registrado aqui em vez de ignorado.
 
+### T12a — o frontend aceita antes de a API servir · 2026-09-12
+
+Rodou em `opus`: `sonnet` sem cota até 2026-09-14 09:00. Contratos vermelhos antes da implementação.
+Só **aceita** as chaves novas, sem leitor na tela (polling, esqueleto e selo ficam para T12/T13).
+
+- **D17 — ordem de publicação:** este commit vai para o ar **antes** da T10/T11, em push próprio.
+  Bundle novo com API antiga: chave ausente, aceita. API nova com bundle antigo: `hasKeys` recusa a
+  resposta inteira, e a tela de detalhe cai com a API respondendo 200. Por isso a ordem não se inverte.
+- **Detalhe:** `cargoLayoutState` entrou em `TRIP_DETAIL_OPTIONAL_KEYS` (`trip.constant.ts`), com
+  `TRIP_CARGO_LAYOUT_STATE_KEYS` (`computedAt`, `errorCode`, `stale`, `status`, `truncated`).
+  `isCargoLayoutState` (`tripResponse.validation.ts`) confere chave exata por `hasExactKeys`,
+  `status` em `CARGO_LAYOUT_STATUSES` (`ready`/`pending`/`failed`/`unavailable`), `computedAt` e
+  `errorCode` como `string | null` (o `''` da coluna `text not null default ''` passa como string,
+  sem conversão) e os dois booleanos. `isDetail` aceita ausente e reprova `null` ou forma errada.
+- **Tipos (D12):** `trip.types.ts` ganhou `CARGO_LAYOUT_STATUSES`, `CargoLayoutStatus` e
+  `TripCargoLayoutState`. `TripDetail.cargoLayoutState?` e `TripCargoPreview.layoutId?`/`state?`
+  são opcionais. `truncated` segue na forma da D10 como booleano servido, derivado na leitura pela
+  T10 (D13). Nenhum componente mudou: sendo opcionais, o `tsc` não pediu propagação.
+- **Prévia:** `tripCargoPreviewFromApi` **não confere chaves** (desestrutura e ignora o resto), então
+  a prévia nunca recusaria `{ layoutId, state }`. Hoje ela só os descartaria. Agora `layoutId` que
+  não é string ou `state` com forma errada reprovam, e os válidos são propagados. Ausentes não são
+  inventados (`'layoutId' in preview === false`).
+- **Fixture:** `TRIP_DETAIL` (`test/trip/trip.fixture.ts`) ganhou `cargoLayoutState` `ready`, e
+  `TripDetailContract` ganhou a chave opcional. Isso é exigido pelo contrato da spec 076 "cobre
+  exatamente o que o guard aceita".
+- Contratos: `test/trip/cargo-layout-state-accepted.contract.ts` (novo, 27 testes). Ele é importado
+  pelo entrypoint `test/trip.contract.test.ts`, que já está na lista explícita do `package.json`, e
+  cobre:
+  - no detalhe: sem a chave; cada um dos 4 status; `errorCode` `''` e com código, `computedAt`
+    nulo; 8 formas inválidas (status desconhecido, campo a mais, campo faltando, `stale`/`truncated`
+    não booleanos, `computedAt`/`errorCode` numéricos, não objeto); `null` recusado;
+  - na prévia: sem as chaves; propaga as válidas; não inventa as ausentes; as mesmas 8 formas
+    inválidas; `layoutId` numérico.
+- Vermelho (antes de qualquer código de produção): `bun test ./test/trip.contract.test.ts` →
+  **742 pass, 23 fail**. Foram 15 falhas dos contratos novos e 8 dos existentes, que já liam a
+  fixture com a chave nova: cliente ×2, spec 078 D2 ×2, fixture da 076, `amounts` e contato do
+  motorista ×2.
+- Verde: `trip.contract.test.ts` → **765 pass, 0 fail** (17 303 `expect()`). `bunx tsc --noEmit`
+  limpo. `bunx prettier --write` e `bunx eslint` nos 6 arquivos tocados: limpos. `bun run build`
+  passou.
+- Suíte inteira (`bun run test`) → **3370 pass, 15 fail** (3385 testes em 29 arquivos). As 15 falhas
+  são contratos de design system e de convenção (`button`, `checkbox`, `count-badge`,
+  `date-picker`, `field-metrics`, `filter-pills`, `floating-layer`, `icon`, `layout-width`,
+  `revealed-panel`, `responsive`, `select`, `skeleton`, leitor de etiqueta e tabela do CT-e) que leem
+  `../../CLAUDE.md` e esperam links como `docs/frontend/checkboxes.md`. O commit `37436e4a`
+  (divide CLAUDE.md por app) tirou esse texto da raiz. Nenhum arquivo da T12a é doc, e o
+  `CLAUDE.md` está fora do escopo desta task: fica registrado como pendência do orquestrador.
+
+- **Gate conferido pelo orquestrador:** `tsc`, `eslint` e `bun run build` limpos; suíte inteira do frontend 3370 pass, **15 fail**. As 15 são contratos de design system e de convenção que procuram a regra no `CLAUDE.md` da raiz, de onde o commit `37436e4a` (divisão do CLAUDE.md por app) a tirou; nenhuma toca em viagem nem nos arquivos da T12a. A correção fica fora da spec 145, numa tarefa separada.
+
 ## Fase 4 — Leitura da API (T10, T11)
 
 ## Fase 5 — Frontend (T12, T13)

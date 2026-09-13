@@ -106,6 +106,14 @@ export type TripDetailContract = TripContract &
       }>[]
       stopsWithoutVolume: readonly Readonly<{ documentCount: number; label: string }>[]
     }> | null
+    /** Spec 145 D10: o estado da planta calculada pelo worker; ausente na API anterior à T10. */
+    cargoLayoutState?: Readonly<{
+      computedAt: null | string
+      errorCode: null | string
+      stale: boolean
+      status: 'failed' | 'pending' | 'ready' | 'unavailable'
+      truncated: boolean
+    }>
     /** Spec 079: o peso da carga com a origem; `null` quando nenhuma nota tem peso. */
     cargoWeight: Readonly<{
       documentsWithoutWeight: number
@@ -183,6 +191,13 @@ export const TRIP_DETAIL = {
     },
   ],
   cargoLayout: null,
+  cargoLayoutState: {
+    computedAt: '2026-09-12T12:00:00.000Z',
+    errorCode: null,
+    stale: false,
+    status: 'ready',
+    truncated: false,
+  },
   cargoWeight: null,
   /** Spec 107 D3: os dois andam em par — hora sem carimbo é previsão sem idade. */
   estimatedArrivalFrozenAt: null,

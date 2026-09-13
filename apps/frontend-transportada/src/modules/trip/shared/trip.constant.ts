@@ -184,8 +184,18 @@ export const TRIP_REVENUE_SOURCES = ['measured', 'estimated', 'missing', 'period
 export const TRIP_DETAIL_OPTIONAL_KEYS = [
   ...TRIP_OPTIONAL_KEYS,
   'cargoLayout',
+  /** Spec 145 D17: aceito antes de a API servir (T10), para o detalhe não cair na janela de deploy. */
+  'cargoLayoutState',
   'cargoWeight',
   'occupancy',
+] as const
+
+export const TRIP_CARGO_LAYOUT_STATE_KEYS = [
+  'computedAt',
+  'errorCode',
+  'stale',
+  'status',
+  'truncated',
 ] as const
 
 /**
