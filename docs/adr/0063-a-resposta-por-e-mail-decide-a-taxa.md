@@ -37,8 +37,10 @@ exatamente a trilha "fulano disse" que a 0048 quis evitar, e ela já existe; só
      pareça a uma pessoa.
    - **Remetente na lista da contratante**, marcado como quem pode decidir. Estar na lista não
      basta: quem só acompanha a operação recebe o e-mail e não decide.
-   - **Autenticação do domínio aprovada** (DKIM alinhado ou SPF), segundo o resultado que o provedor
-     anexa. Sem esse resultado, **nada decide por e-mail** (fail-closed), e a resposta vira mensagem.
+   - **DKIM válido e alinhado ao domínio do `From`**: a marca `DKIM_VALID_AU` do `X-Spam-Tests`
+     que o Postmark anexa. **`SPF_PASS` sozinho não serve**, porque o SPF confere o remetente do
+     envelope, não o `From`, e qualquer domínio com SPF próprio passaria forjando o `From` da
+     contratante. Sem a marca, **nada decide por e-mail** (fail-closed), e a resposta vira mensagem.
    - **Token da conversa válido, e a taxa ainda `submitted`.** Resposta que chega depois de a taxa
      ser decidida vira mensagem marcada "chegou depois da decisão".
 4. **Texto livre nunca decide, nem com a ajuda do operador.** Quando a resposta é ambígua, quem
@@ -49,12 +51,22 @@ exatamente a trilha "fulano disse" que a 0048 quis evitar, e ela já existe; só
    "fulano disse" em "está aqui o e-mail dela, com a assinatura do domínio".
 6. **Provedor: Postmark**, nos dois sentidos, pela API HTTP. O Railway não recebe e-mail, e nos
    planos Free, Trial e Hobby bloqueia SMTP de saída. Enviar por HTTP tira a dependência do plano.
+7. **A configuração é uma página do produto, não variável de ambiente.** Cada instalação usa o
+   subdomínio da própria transportadora (ADR-0021), e quem configura é o administrador dela. O
+   token do servidor do Postmark fica selado por empresa, no mesmo padrão da credencial da Nota RP:
+   envelope A256GCM, o `ENCRYPTION_KEYRING_JSON` que já existe, e a API nunca o devolve.
+   - **A página aplica a configuração de entrada sozinha.** Com o token do servidor, o
+     `PUT /server` do Postmark grava o `InboundDomain` e o `InboundHookUrl`, e a senha do webhook
+     é gerada e enviada sem que ninguém precise vê-la.
+   - **O token da conta do Postmark não é guardado.** Ele é o único capaz de verificar o DKIM do
+     domínio de envio, e alcança a conta inteira. Esse passo fica como instrução na tela.
 
 ## Consequências
 
 - Surge a **terceira superfície anônima** do produto (depois do postback da NFS-e e do lote da
-  0048). O webhook do Postmark **não assina a requisição**: a guarda é Basic Auth na URL, comparada
-  com `timingSafeEqual`, mais a lista de IPs do provedor. Isso vira achado datado em
+  0048). O webhook do Postmark **não assina a requisição** (a documentação diz que ele não oferece
+  assinatura HMAC). A guarda é Basic Auth na URL, com senha por empresa comparada por
+  `timingSafeEqual`, mais a lista de IPs do provedor. Isso vira achado datado em
   `docs/SECURITY.md`.
 - O corpo da mensagem da contratante é dado pessoal em repouso, sem prazo de descarte (pelo mesmo
   motivo do rascunho da 070: é comprovante). Nunca entra em log.

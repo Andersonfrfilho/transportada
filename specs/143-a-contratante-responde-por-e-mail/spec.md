@@ -23,6 +23,25 @@ status e no histórico.
 
 ## Histórias priorizadas
 
+### P0 — O administrador configura o e-mail por uma página
+
+**Given** um administrador com `settings.manage`, **When** ele abre "E-mail com contratantes" e
+informa o token do servidor do Postmark, o remetente e o subdomínio de resposta, **Then** a página
+confere o token e mostra uma lista de verificação:
+
+- o token é válido;
+- o MX do subdomínio aponta para `inbound.postmarkapp.com`;
+- o webhook está aplicado no Postmark;
+- o e-mail de teste foi entregue;
+- a resposta ao teste chegou;
+- a resposta veio com DKIM alinhado.
+
+Cada item pendente mostra o que fazer, com o valor a copiar.
+
+**And** o botão "Aplicar no Postmark" gera a senha do webhook e grava `InboundDomain` e
+`InboundHookUrl` no servidor dele, sem que ninguém veja a senha. **And** o botão "Enviar e-mail de
+teste" manda uma mensagem ao próprio administrador, e a resposta dele fecha os dois últimos itens.
+
 ### P1 — O operador envia a ocorrência e recebe a resposta na conversa
 
 **Given** uma ocorrência de nota cuja contratante tem contatos cadastrados, **When** o operador
@@ -75,6 +94,19 @@ bulk|auto_reply|junk`) vira `ignored_auto_reply`. Ela nunca decide, e o sistema 
 - **RF9** A decisão avisa pela inbox (`notification.v1`) o motorista da viagem (`trip_drivers` →
   membership) e o despachante (último `trip_dispatch_snapshots`), com `dedupeKey` derivada da
   mensagem.
+- **RF10** A configuração é por empresa (`contractor_mail_settings`: token selado, remetente, nome
+  do remetente, subdomínio de resposta, id opaco do webhook e hash da senha do webhook). O token
+  **nunca** volta na resposta, só `serverTokenConfigured`, e toda resposta leva
+  `cache-control: no-store`.
+- **RF11** "Aplicar no Postmark" gera uma senha nova de 256 bits, guarda **só o hash** e grava pelo
+  `PUT /server` do Postmark o `InboundHookUrl` (`https://<id>:<senha>@<api>/public/inbound-emails/<id>`)
+  e o `InboundDomain`. Aplicar de novo gira a senha, e a anterior deixa de abrir.
+- **RF12** A verificação (`GET …/checks`) consulta o `GET /server` do Postmark e o MX do subdomínio
+  (resolução de DNS feita pela API), e lê do banco o último teste enviado e recebido. Cada item volta
+  como `ok`, `pending` ou `failed`, com um motivo tipado, e nenhuma falha de rede derruba a página.
+- **RF13** O e-mail de teste abre uma conversa `setup_test`, que nunca decide nada. A resposta a ele
+  registra se trouxe `DKIM_VALID_AU`, e é esse registro que diz ao administrador se a decisão por
+  e-mail vai funcionar com o provedor de e-mail dele.
 
 ## Requisitos não funcionais
 
@@ -92,8 +124,12 @@ bulk|auto_reply|junk`) vira `ignored_auto_reply`. Ela nunca decide, e o sistema 
   corpo (não há a quem atribuí-lo). Fica só um contador.
 - **Postmark reenvia o mesmo e-mail:** a idempotência é o `Message-ID` recebido, único por empresa.
 - **E-mail com anexos grandes:** ver `plan.md`, sobre o limite de corpo da rota.
-- **O resultado de DKIM/SPF não vem no payload:** tudo vira `authentication_unknown` e nada
-  decide. O P2 fica desligado sem quebrar o P1.
+- **A resposta chega sem `X-Spam-Tests`, ou sem `DKIM_VALID_AU`:** vira
+  `authentication_unknown` ou `authentication_failed` e não decide. O P1 continua valendo.
+- **A empresa não configurou o e-mail:** os botões de envio não aparecem, e o webhook responde 401
+  para o id dela. O restante do produto não muda.
+- **O token do Postmark foi revogado:** o envio falha como `provider_unauthorized`, a mensagem fica
+  `failed` na conversa, e a verificação da página acusa o token.
 - **A taxa volta a `recorded`:** hoje não existe essa transição, então o caso não acontece.
 
 ## Critérios de aceite
@@ -105,13 +141,15 @@ bulk|auto_reply|junk`) vira `ignored_auto_reply`. Ela nunca decide, e o sistema 
   token de outra empresa não acha nada.
 - Contrato por texto de fonte: nenhuma chamada de log em `inbound-email/**` recebe `from`, `subject`
   ou `body`.
-- A rota pública não sobe sem as credenciais (fail-closed), com teste.
+- O webhook responde 401 para um id sem configuração, ou para uma senha errada (fail-closed por
+  empresa), com teste.
+- A página é o único caminho de configuração: nenhuma variável de ambiente nova de Postmark.
 
 ## Dúvidas
 
-Nenhuma bloqueante. Dois pontos dependem do spike T001 e têm saída definida nos dois sentidos:
+Nenhuma bloqueante. A T001 foi respondida pela documentação do Postmark em 2026-09-13 (ver
+`plan.md`, "O que a documentação do Postmark responde"). Um ponto só se confirma com e-mail real, e
+a própria página faz essa confirmação (RF13):
 
-- Se o Postmark entrega o resultado de DKIM/SPF: sem ele, o P2 fica desligado (fail-closed) e o P1
-  vai adiante.
-- Se o `Message-ID` de saída é nosso ou do Postmark: muda só o que é gravado para montar o
-  `In-Reply-To`, não o desenho.
+- A marca `DKIM_VALID_AU` aparece nas respostas vindas do Gmail e do Outlook das contratantes. Se
+  não aparecer, o P2 não decide nada para aquele provedor, e a página diz isso.
