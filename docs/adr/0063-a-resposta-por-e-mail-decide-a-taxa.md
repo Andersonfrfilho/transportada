@@ -1,7 +1,7 @@
 # ADR-0063 — A contratante conversa por e-mail, e a resposta dela decide a taxa
 
 - **Data:** 2026-09-13
-- **Estado:** proposta
+- **Estado:** aceita (2026-09-13)
 - **Contexto:** **revoga uma linha** da tabela de alternativas descartadas da **ADR-0048** —
   _"Relatório por e-mail e alguém marca aprovado"_. Mantém tudo o mais da 0048: o lote com token
   anônimo, a máquina de estados de `delivery_charges` e o portal da **ADR-0050** continuam existindo.

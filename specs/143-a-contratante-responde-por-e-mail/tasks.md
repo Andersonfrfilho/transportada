@@ -13,7 +13,7 @@ test`), um commit isolado e a evidência em `evidence.md`. Teste novo entra na l
       interrompe a retentativa, e o `PUT /server` usa o token do servidor. A captura com e-mail real
       passou a ser a T012, feita pela própria página. Evidência: `plan.md`, seção "O que a
       documentação do Postmark responde".
-- [ ] **T002** 🧠 Registrar no `docs/SECURITY.md` três achados datados: o webhook sem HMAC, o limite
+- [x] **T002** 🧠 Registrar no `docs/SECURITY.md` três achados datados: o webhook sem HMAC, o limite
       de 12 MiB da rota e a retenção sem prazo. **Pare e peça ao usuário** para aceitar a ADR-0063
       antes de mudar o estado dela para `aceita`. Evidência: o diff dos dois documentos.
 

@@ -16,3 +16,10 @@ Respondida pela documentação oficial do Postmark, sem conta:
 
 Consequências registradas: o portão usa `DKIM_VALID_AU` (ADR-0063 §3), a configuração vira página
 (ADR-0063 §7, P0), e a captura com e-mail real passou a ser a T012.
+
+## T002 — 2026-09-13
+
+- `docs/SECURITY.md`: três achados abertos com data (webhook de entrada sem HMAC, corpo de 12 MiB
+  na rota do webhook, respostas guardadas sem prazo de descarte) — commit `41fda8dc`.
+- ADR-0063 aceita pelo usuário em 2026-09-13, depois da explicação do DNS: raiz no Zoho, DNS na
+  Cloudflare, respostas pelo subdomínio `resposta.` para não tocar no MX raiz.
