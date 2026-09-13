@@ -1140,3 +1140,214 @@ dois — mesmo molde que já provava paridade do AAD e do prefixo `whsec_`. Sepa
 funcionalmente que um envelope selado com os três campos por um lado abre com os três campos
 intactos do outro (round-trip real, via `@adatechnology/secret-envelope`), o que o teste de
 texto-fonte sozinho não garantiria (ele prova "a mesma forma", não "o mesmo comportamento").
+
+## T010 — 2026-09-13 (aguardando architect)
+
+O webhook `POST /public/inbound-emails/:webhookId` (RF11) e o trilho `contractor-mail-inbound.v1`
+no worker, até o DKIM (RF4). Molde: o postback de NFS-e (rota anônima) e o trilho
+`contractor-mail-outbound.v1` da T009 (topologia, relay, consumidor).
+
+**API — arquivos novos:**
+
+- `src/contractor-mail/domain/svix-signature.policy.ts`: `verifySvixSignature`, pura. Conteúdo
+  assinado `${svix-id}.${svix-timestamp}.${rawBody}`, segredo em base64 depois do `whsec_`,
+  HMAC-SHA256, `timingSafeEqual` contra cada candidato `v1,<base64>` do cabeçalho (aceita se algum
+  bater), janela de 5 minutos conferida **antes** do HMAC. Sem a biblioteca `svix`.
+- `src/contractor-mail/application/process-inbound-email-webhook.use-case.ts`: acha a configuração
+  pelo `webhookId` (401 se não existir), abre o segredo do webhook (401 se o envelope não abrir —
+  fail-closed, no mesmo pé de configuração ausente), confere a assinatura (401 se inválida ou fora
+  da janela). Só **depois** disso o corpo é parseado (Zod, só `type` e `data.email_id`): tipo
+  diferente de `email.received` ou corpo malformado viram `ignored` (204, sem gravar); o evento
+  aceito chama `repository.recordInboundWebhookEvent` e devolve `accepted` (204).
+- `src/contractor-mail/presentation/public-inbound-email.routes.ts`: `defineAnonymousRoute`, no
+  molde de `nfse-callbacks.routes.ts`. `parse` só lê o `webhookId` (`pathParameterFormat: 'opaque'`)
+  e o corpo cru via `request.text()` — nenhum JSON.parse aqui, porque o corpo precisa chegar intacto
+  ao HMAC. `handle` chama o caso de uso e traduz `unauthorized` para
+  `ContractorMailInboundWebhookUnauthorizedError` (401); `accepted`/`ignored` viram 204 invariável.
+- `src/contractor-mail/domain/contractor-mail.error.ts`: `ContractorMailInboundWebhookUnauthorizedError`
+  (401) — a mesma resposta para `webhookId` desconhecido, segredo que não abre e assinatura inválida,
+  de propósito (RF11: não distinguir os motivos para quem não tem o segredo).
+
+**API — arquivos estendidos:**
+
+- `contractor-mail.port.ts`/`drizzle-contractor-mail.repository.ts`: `recordInboundWebhookEvent`
+  grava `last_webhook_at` e insere `{ providerEmailId }` em `contractor_inbound_email_outbox`, na
+  mesma transação. `ON CONFLICT DO NOTHING` no único novo `(company_id, provider_email_id)` — o
+  Svix retentando o mesmo `email_id` converge, sem gravar duas vezes; a rota responde 204 nos dois
+  casos.
+- `src/database/contractor-mail.schema.ts`: o único `contractor_inbound_email_outbox_company_provider_email_unique`
+  em `(company_id, provider_email_id)` — RF11/idempotência.
+- `src/database/storage.schema.ts`: `STORAGE_OBJECT_PURPOSES` ganha `'contractor_mail_raw'` (o MIME
+  bruto do e-mail recebido, ADR-0063 §5).
+- `src/shared/api.constant.ts`: `API_PUBLIC_INBOUND_EMAILS_PATH = '/public/inbound-emails/:webhookId'`.
+- `src/main.ts`: a rota entra em `createAnonymousRoutes` (não em `createApplicationRoutes`, onde o
+  resto do módulo mora) — ela não depende de `config.companyId`, só do `webhookId` opaco da URL, e
+  por isso existe nos dois ramos do retorno da função, ao lado de `nfseCallbackRoutes`. O repositório
+  e o serviço de segredo são instanciados ali dentro (a função só recebe o `database` cru), no mesmo
+  padrão do canal do WhatsApp logo acima.
+
+**Migration aditiva** `20260913200255_contractor_mail_inbound_webhook`: o único de
+`contractor_inbound_email_outbox` e o `stored_objects_purpose_check` refeito com o valor novo.
+`rollback.sql` derruba os dois; seguro a qualquer momento (nenhuma linha com o purpose novo existe em
+produção — a feature não foi lançada). Registrada em `test/database-migration/static-migration.contract.ts`.
+
+**Worker — trilho `contractor-mail-inbound.v1`:**
+
+- `src/database/contractor-mail.schema.ts` (cópia por valor): `contractorMailThreads` volta a
+  existir aqui — o trilho de entrada precisa achar a conversa pelo `reply_token_hash` — só com
+  `id`/`companyId`/`replyTokenHash`. `contractorMailMessages` ganha `fromAddress`, `rawObjectId`,
+  `rawSha256`, `inReplyTo`, `dkimResult`, `interpretation`. `contractorInboundEmailOutbox` é a cópia
+  da tabela que a API escreve.
+- `src/database/nfe.schema.ts`: `StorageObjectPurpose` ganha `'contractor_mail_raw'` (cópia do tipo,
+  TS-only — o CHECK é só na API).
+- `src/messaging/contractor-mail-inbound-envelope.schema.ts` e
+  `contractor-mail-inbound-rabbitmq-topology.ts`: fila
+  `${QUEUE_PREFIX}.contractor-mail-inbound.v1.{main,retry,dead}.{exchange,queue}`, retry 5s/3
+  tentativas, payload `{ providerEmailId }` — referência, exatamente como o plan.md pede.
+- `src/contractor-mail/domain/recipient-reply-token.policy.ts`: `extractReplyToken`, pura — acha,
+  entre os `to` do e-mail recebido, o endereço cujo domínio bate com o `replyDomain` da configuração
+  (comparação de domínio sem diferenciar caixa, aceita `Nome <endereço>` e `endereço` puro) e devolve
+  o local-part (o token).
+- `src/contractor-mail/domain/reply-token.policy.ts`: ganhou `hashReplyToken` (cópia da função da
+  API) — o trilho de saída (T009) nunca precisou hashear nada; o de entrada precisa, para achar a
+  conversa pelo mesmo hash que a API gravou.
+- `src/contractor-mail/infrastructure/dkim-verifier.gateway.ts`: `resolveDkimDnsRecord`, o
+  resolvedor de DNS de verdade (`node:dns/promises#resolveTxt`) para produção — só `TXT`, que é tudo
+  que o DKIM consulta; qualquer outro tipo de registro vira erro (e portanto `unverifiable`, como
+  qualquer outra falha do resolvedor). Os testes continuam injetando o próprio resolvedor (T004).
+- `src/contractor-mail/infrastructure/drizzle-contractor-mail-inbound-outbox.repository.ts`,
+  `application/contractor-mail-inbound-outbox-{relay,publisher}.service.ts`: cópia estrutural do
+  trilho de saída (T009), sobre `contractor_inbound_email_outbox`.
+- `src/contractor-mail/infrastructure/drizzle-contractor-mail-inbound-worker.repository.ts`:
+  `findSettingsByCompanyId`, `findThreadByReplyTokenHash` (RF do plan.md § Segurança e tenant: hash
+  **e** `companyId` na mesma condição — nunca um filtro à parte), `findMessageByProviderEmailId`
+  (idempotência: reentrega não baixa nem grava de novo) e `recordInboundMessage`, que numa
+  transação só insere (ou reaproveita, via `ON CONFLICT DO NOTHING` + `SELECT` de corrida, no molde
+  de `upsertStoredObject` do MDF-e) a linha em `stored_objects` e depois a mensagem, com
+  `ON CONFLICT DO NOTHING` no único `(company_id, provider_email_id)` — igual corrida, mesma saída.
+- `src/contractor-mail/application/record-contractor-mail-inbound-message.use-case.ts`:
+  `recordContractorMailInboundMessage`, os seis passos do Objetivo:
+  1. idempotência: se `providerEmailId` já virou mensagem, devolve `already_recorded` sem tocar
+     gateway nenhum;
+  2. abre a credencial (segredo selado da configuração da empresa);
+  3. `fetchReceivedEmail`;
+  4. `extractReplyToken` + `hashReplyToken` + `findThreadByReplyTokenHash` — token que não casa com
+     `replyDomain`, ou hash que não acha conversa **daquela empresa**, descarta com
+     `{ outcome: 'discarded', reason: 'token_unknown' }`, **antes** de qualquer download;
+  5. `downloadRawEmail`, `sha256`, grava no bucket privado (a chave não leva dado pessoal — só
+     `companyId` e o `providerEmailId` opaco: `tenants/<companyId>/contractor-mail/<providerEmailId>/raw.eml`);
+  6. verifica o DKIM e grava a mensagem `inbound`, com `interpretation` sempre `null` — a decisão
+     (RF5/RF6) é da T019/T020, fora do escopo desta task.
+
+  `bodyText`/`subject` vazios (e-mail sem texto puro, ou sem assunto) caem num texto de referência
+  fixo (`'(sem corpo em texto simples)'`/`'(sem assunto)'`), porque o CHECK do banco exige os dois
+  não vazios — sem isso, um e-mail só-HTML travaria a gravação inteira.
+
+- `src/runtime/contractor-mail-inbound-consumer.service.ts`: `ack` em `recorded`, `already_recorded`
+  e `discarded` (reentregar não mudaria nada); `ack` também em falha **permanente**
+  (`ResendProviderUnauthorizedError`, `ResendDownloadHostNotAllowedError`,
+  `ResendDownloadRedirectBlockedError`, `ResendDownloadTooLargeError`) — todas estruturais, retentar
+  não conserta; `retry` em qualquer outro erro (rede, bucket, DNS do DKIM lento). Loga
+  `inbound_email_dkim_verified` (com `dkimResult`/`threadId`, quando gravou),
+  `inbound_email_token_unknown` (só contador) e `inbound_email_webhook_rejected` (com o motivo
+  tipado, nas falhas permanentes e transitórias) — nunca endereço, assunto, corpo ou token.
+- `src/main.ts`: topologia, publisher, `OutboxRelayLoop` e consumidor registrados ao lado do trilho
+  de saída — import, tipo de dependência injetável, starter default, `let` de consumidor/publisher/
+  relay, criação do provider, criação do consumidor (com `dkimVerifier`, `mailGateway`, `repository`,
+  `secretService`, `storage: storageGateway`, `storageBucket`, `storageProvider: 'minio'`), relay
+  loop, e as três listas de fechamento (`closeables`, `consumers`, o grupo de publishers) — mais o
+  bloco de `catch` do boot, que fecha tudo manualmente se algo falhar no meio. `test/nfe-runtime.contract.test.ts`
+  e `test/shutdown-signals.contract.test.ts` precisaram do override `startContractorMailInboundConsumer`
+  e da linha nova na ordem esperada de `cancel`/`provider.close`, no mesmo padrão que a T009 já
+  registrou para o trilho de saída.
+
+**Testes:**
+
+- API: `test/contractor-mail/svix-signature-policy.contract.ts` (assinatura válida gerada com
+  `node:crypto`, inválida, várias assinaturas no cabeçalho com uma batendo, timestamp velho e
+  futuro, segredo sem `whsec_`, corpo adulterado, cabeçalho ausente).
+  `test/contractor-mail/process-inbound-email-webhook-use-case.contract.ts` (aceito grava a
+  referência, tipo ignorado não grava nada, `webhookId` desconhecido e assinatura ruim são
+  `unauthorized` sem tocar o repositório, envelope que não abre é `unauthorized`).
+  `test/contractor-mail/inbound-webhook-routes.contract.ts` (204 para aceito e ignorado, 401 com o
+  código certo para não autorizado, nunca autentica nem resolve tenant — rota de verdade, via
+  `createRouter`/`createRequestHandler`). Estendido `test/nfe-schema/storage.contract.ts` (o CHECK
+  novo) e `test/database-migration/static-migration.contract.ts` (a migration na lista).
+- Worker: `test/contractor-mail/recipient-reply-token-policy.contract.ts` (local-part extraído,
+  formato `Nome <endereço>`, vários destinatários, domínio sem diferenciar caixa, nenhum casa,
+  lista vazia). `test/contractor-mail/inbound-message.contract.ts` — o caso de uso ponta a ponta,
+  incluindo **uma mensagem sintética assinada de verdade** (chave RSA de teste, `mailauth`, molde de
+  `dkim-verification.contract.ts` da T004) passando pelo `createDkimVerifierGateway` real: grava com
+  `dkimResult: 'aligned'`, o `sha256` gravado bate com o dos bytes baixados, e o corpo entregue ao
+  `storage.storeObject` é bit a bit o mesmo MIME. Mais: token desconhecido descarta sem baixar nada;
+  token de conversa de **outra empresa** descarta igual (a consulta já é `(companyId, hash)` juntos);
+  mensagem já gravada converge sem tocar gateway nenhum (nem abre o cofre); erro permanente
+  (chave recusada, host fora da allowlist) e transitório (rede) propagam para o consumidor decidir.
+  `test/contractor-mail/inbound-envelope.contract.ts` (schema Zod: aceita, recusa payload com campo
+  além de `providerEmailId`). `test/contractor-mail/inbound-relay.contract.ts` (publica e marca,
+  corrida de claim perdida não publica nem marca, falha de publish nunca marca).
+  `test/contractor-mail/inbound-consumer.contract.ts` (`ack` em gravado/descartado/permanente,
+  `retry` em transitório, nenhum log leva endereço/assunto/corpo/token).
+  `test/contractor-mail-inbound-outbox.integration.test.ts` (novo, `DATABASE_URL` direto, molde do
+  par da T009): reivindica e marca publicada uma linha real, e uma segunda reivindicação não rouba a
+  linha já arrendada por outro dono. Os overrides de consumidor em
+  `test/nfe-runtime.contract.test.ts`/`shutdown-signals.contract.test.ts` foram estendidos (não são
+  testes da spec 143, mas quebravam sem o override do consumidor novo).
+
+**Gates:**
+
+```
+$ bun run typecheck                        # raiz, as seis apps → limpo
+$ bun run lint                             # raiz, as seis apps → limpo
+$ bunx prettier --check <arquivos tocados> # limpo (um --write intermediário, só formatação)
+
+$ bun run --cwd apps/api-transportada test
+ 5658 pass, 23 skip, 0 fail — 5681 testes em 170 arquivos
+
+$ bun --env-file=../../.env.test test \
+    ./test/integration/contractor-mail-settings-repository.integration.ts \
+    ./test/integration/contractor-mail-test-email-thread.integration.ts --timeout 120000
+ 10 pass, 0 fail
+
+$ bun run --cwd apps/worker-transportada test
+ 1112 pass, 0 fail — 1112 testes em 81 arquivos
+
+$ make migration-test
+ 95 pass, 0 fail (a migration nova aplica e reverte limpa)
+
+$ make worker-integration
+ 76 pass, 1 fail ("osrm-routing-matrix" — geometria do serviço OSRM local diverge do fixture,
+ preexistente e sem relação com esta task, o mesmo achado já registrado na T009). O par de
+ contractor-mail-inbound-outbox.integration.test.ts passou nas duas execuções.
+```
+
+**Decisões para o `architect` avaliar:**
+
+1. **A ordem das checagens no webhook.** `webhookId` desconhecido → segredo que não abre (envelope
+   corrompido/keyring girado) → assinatura inválida/fora da janela — todas as três dão 401 idêntico,
+   e o corpo só é parseado depois de a assinatura passar. Um envelope que não abre foi tratado como
+   `unauthorized` (não um 500), por simetria com "configuração ausente" — fail-closed, sem distinguir
+   o motivo para quem não tem o segredo.
+2. **A convergência do repetido é por outbox, não só pela mensagem final.** O único novo
+   `(company_id, provider_email_id)` em `contractor_inbound_email_outbox` faz o Svix retentando
+   convergir **antes** de publicar na fila de novo — evita reprocessar (buscar no Resend, baixar,
+   verificar DKIM) um evento que já foi aceito, mesmo que o worker ainda não tenha processado a
+   primeira cópia.
+3. **O descarte por token desconhecido não distingue "token nunca existiu" de "token é de outra
+   empresa".** A consulta sempre exige `(companyId, replyTokenHash)` juntos, então as duas causas
+   colapsam no mesmo resultado (`undefined`) e no mesmo log (`inbound_email_token_unknown`, só
+   contador) — nenhuma delas grava corpo. Registrado como decisão porque uma consulta extra
+   (achar o hash em qualquer empresa) daria um log mais específico, ao custo de mais uma leitura por
+   evento descartado — e por definição, descarte é o caminho não confiável (webhook forjado, e-mail
+   de assinante que não é contato).
+4. **A chave do objeto no bucket é `tenants/<companyId>/contractor-mail/<providerEmailId>/raw.eml`.**
+   Nenhum dado pessoal (RF4) — só o id opaco do Resend, que já é único por empresa
+   (`contractor_mail_messages_company_provider_email_unique`), então a chave também não colide.
+5. **Erro permanente × transitório no trilho de entrada.** Quatro erros são permanentes (`ack`, com
+   contador): a chave foi recusada, e as três variantes de "a `download_url` não é confiável"
+   (host fora da allowlist, redirecionamento, corpo grande demais) — todas estruturais, e retentar
+   não muda o resultado. Tudo o mais (rede, bucket, DNS do DKIM sob timeout) é transitório.
+6. **`bodyText`/`subject` vazios caem num texto de referência fixo**, porque o CHECK do banco exige
+   os dois não vazios e a Resend pode entregar um e-mail sem texto puro (só HTML) ou sem assunto. Um
+   comentário no código já aponta a T019 como quem deveria extrair o texto de um HTML quando não há
+   `text` — hoje isso não existe, então HTML-only grava o texto de referência, não o HTML.

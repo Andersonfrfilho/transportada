@@ -96,3 +96,18 @@ export class ContractorMailTestRecipientUnavailableError extends ApiError {
     })
   }
 }
+
+/**
+ * Spec 143 T010 (RF11): `webhookId` desconhecido, empresa sem configuração, ou assinatura Svix
+ * inválida/fora da janela — as três recebem a mesma resposta fail-closed, para não distinguir "id
+ * não existe" de "assinatura errada" a quem não tem o segredo.
+ */
+export class ContractorMailInboundWebhookUnauthorizedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'CONTRACTOR_MAIL_INBOUND_WEBHOOK_UNAUTHORIZED',
+      message: 'Contractor mail inbound webhook signature could not be verified',
+      status: 401,
+    })
+  }
+}

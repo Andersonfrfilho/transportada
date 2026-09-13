@@ -1,0 +1,222 @@
+/**
+ * Copyright (c) 2026 Ada Technology. MIT License.
+ */
+import { createHmac } from 'node:crypto'
+
+import { describe, expect, test } from 'bun:test'
+
+import { createProcessInboundEmailWebhookUseCase } from '../../src/contractor-mail/application/process-inbound-email-webhook.use-case.js'
+import type {
+  ContractorMailRepositoryPort,
+  ContractorMailSettingsRecord,
+  RecordContractorMailInboundWebhookEventInput,
+} from '../../src/contractor-mail/application/contractor-mail.port.js'
+import type { ContractorMailCredentialSecretService } from '../../src/contractor-mail/application/contractor-mail-credential-secret.service.js'
+
+const NOW = new Date('2026-09-13T12:00:00.000Z')
+const SECRET_KEY = Buffer.from('use-case-webhook-secret-key-0000000', 'utf8')
+const WEBHOOK_SIGNING_SECRET = `whsec_${SECRET_KEY.toString('base64')}`
+const WEBHOOK_ID = '00000000-0000-4000-8000-0000000000d1'
+const COMPANY_ID = '00000000-0000-4000-8000-0000000000d2'
+const SETTINGS_ID = '00000000-0000-4000-8000-0000000000d3'
+const SVIX_ID = 'msg_process_webhook_use_case'
+const SVIX_TIMESTAMP = String(Math.floor(NOW.getTime() / 1000))
+
+const SETTINGS: ContractorMailSettingsRecord = {
+  companyId: COMPANY_ID,
+  id: SETTINGS_ID,
+  lastWebhookAt: undefined,
+  replyDomain: 'resposta.example.com.br',
+  secretEnvelope: { synthetic: true },
+  senderAddress: 'ocorrencias@example.com.br',
+  senderName: 'Example',
+  status: 'active',
+  version: 1n,
+  webhookId: WEBHOOK_ID,
+}
+
+function sign(body: string): string {
+  const signature = createHmac('sha256', SECRET_KEY)
+    .update(`${SVIX_ID}.${SVIX_TIMESTAMP}.${body}`)
+    .digest('base64')
+  return `v1,${signature}`
+}
+
+function buildRepository(input: { readonly settings?: ContractorMailSettingsRecord | undefined }): {
+  readonly recordedEvents: RecordContractorMailInboundWebhookEventInput[]
+  readonly repository: ContractorMailRepositoryPort
+} {
+  const recordedEvents: RecordContractorMailInboundWebhookEventInput[] = []
+  const settings = input.settings === undefined ? undefined : input.settings
+
+  const repository: ContractorMailRepositoryPort = {
+    async findSettings() {
+      return settings
+    },
+    async findSettingsByWebhookId({ webhookId }) {
+      return settings !== undefined && settings.webhookId === webhookId ? settings : undefined
+    },
+    async findSetupTestStatus() {
+      return undefined
+    },
+    async findThreadByReplyTokenHash() {
+      return undefined
+    },
+    async recordInboundWebhookEvent(event) {
+      recordedEvents.push(event)
+    },
+    async recordTestEmailMessage() {
+      throw new Error('not used by this contract')
+    },
+    async reserveSetupTestThread() {
+      throw new Error('not used by this contract')
+    },
+    async saveSettings() {
+      throw new Error('not used by this contract')
+    },
+  }
+  return { recordedEvents, repository }
+}
+
+const secretService: ContractorMailCredentialSecretService = {
+  async decrypt() {
+    return {
+      apiKey: 'synthetic-api-key',
+      replyTokenSecret: 'a'.repeat(64),
+      webhookSigningSecret: WEBHOOK_SIGNING_SECRET,
+    }
+  },
+  async encrypt() {
+    throw new Error('not used by this contract')
+  },
+}
+
+describe('process inbound email webhook use case (spec 143, T010)', () => {
+  test('accepts a valid signature for a known event, and records the reference', async () => {
+    const body = JSON.stringify({ data: { email_id: 'evt_accepted' }, type: 'email.received' })
+    const { recordedEvents, repository } = buildRepository({ settings: SETTINGS })
+    const useCase = createProcessInboundEmailWebhookUseCase({
+      now: () => NOW,
+      repository,
+      secretService,
+    })
+
+    const result = await useCase.execute({
+      correlationId: 'correlation-1',
+      rawBody: body,
+      svixId: SVIX_ID,
+      svixSignature: sign(body),
+      svixTimestamp: SVIX_TIMESTAMP,
+      webhookId: WEBHOOK_ID,
+    })
+
+    expect(result).toEqual({ outcome: 'accepted' })
+    expect(recordedEvents).toEqual([
+      {
+        companyId: COMPANY_ID,
+        correlationId: 'correlation-1',
+        occurredAt: NOW,
+        providerEmailId: 'evt_accepted',
+      },
+    ])
+  })
+
+  test('ignores a well-signed event of a type nobody cares about, without recording anything', async () => {
+    const body = JSON.stringify({ data: { email_id: 'evt_ignored' }, type: 'email.bounced' })
+    const { recordedEvents, repository } = buildRepository({ settings: SETTINGS })
+    const useCase = createProcessInboundEmailWebhookUseCase({
+      now: () => NOW,
+      repository,
+      secretService,
+    })
+
+    const result = await useCase.execute({
+      correlationId: 'correlation-2',
+      rawBody: body,
+      svixId: SVIX_ID,
+      svixSignature: sign(body),
+      svixTimestamp: SVIX_TIMESTAMP,
+      webhookId: WEBHOOK_ID,
+    })
+
+    expect(result).toEqual({ outcome: 'ignored' })
+    expect(recordedEvents).toEqual([])
+  })
+
+  test('is unauthorized for an unknown webhookId', async () => {
+    const body = JSON.stringify({ data: { email_id: 'evt_x' }, type: 'email.received' })
+    const { repository } = buildRepository({ settings: undefined })
+    const useCase = createProcessInboundEmailWebhookUseCase({
+      now: () => NOW,
+      repository,
+      secretService,
+    })
+
+    const result = await useCase.execute({
+      correlationId: 'correlation-3',
+      rawBody: body,
+      svixId: SVIX_ID,
+      svixSignature: sign(body),
+      svixTimestamp: SVIX_TIMESTAMP,
+      webhookId: 'this-webhook-does-not-exist',
+    })
+
+    expect(result).toEqual({ outcome: 'unauthorized' })
+  })
+
+  test('is unauthorized for a bad signature, and never touches the repository write path', async () => {
+    const body = JSON.stringify({ data: { email_id: 'evt_y' }, type: 'email.received' })
+    const { recordedEvents, repository } = buildRepository({ settings: SETTINGS })
+    const useCase = createProcessInboundEmailWebhookUseCase({
+      now: () => NOW,
+      repository,
+      secretService,
+    })
+
+    const result = await useCase.execute({
+      correlationId: 'correlation-4',
+      rawBody: body,
+      svixId: SVIX_ID,
+      svixSignature: 'v1,bm90LXRoZS1yaWdodC1zaWduYXR1cmU=',
+      svixTimestamp: SVIX_TIMESTAMP,
+      webhookId: WEBHOOK_ID,
+    })
+
+    expect(result).toEqual({ outcome: 'unauthorized' })
+    expect(recordedEvents).toEqual([])
+  })
+
+  /**
+   * plan.md § Segurança e tenant: o envelope não abrir (chave do keyring girada, dado corrompido) é
+   * fail-closed, no mesmo pé de configuração ausente — nunca um 500 que revela mais do que "não deu
+   * para confiar nesta assinatura".
+   */
+  test('is unauthorized when the sealed secret cannot be opened', async () => {
+    const body = JSON.stringify({ data: { email_id: 'evt_z' }, type: 'email.received' })
+    const { repository } = buildRepository({ settings: SETTINGS })
+    const brokenSecretService: ContractorMailCredentialSecretService = {
+      async decrypt() {
+        throw new Error('vault unavailable')
+      },
+      async encrypt() {
+        throw new Error('not used by this contract')
+      },
+    }
+    const useCase = createProcessInboundEmailWebhookUseCase({
+      now: () => NOW,
+      repository,
+      secretService: brokenSecretService,
+    })
+
+    const result = await useCase.execute({
+      correlationId: 'correlation-5',
+      rawBody: body,
+      svixId: SVIX_ID,
+      svixSignature: sign(body),
+      svixTimestamp: SVIX_TIMESTAMP,
+      webhookId: WEBHOOK_ID,
+    })
+
+    expect(result).toEqual({ outcome: 'unauthorized' })
+  })
+})

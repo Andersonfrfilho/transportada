@@ -1,0 +1,2 @@
+ALTER TABLE "contractor_inbound_email_outbox" ADD CONSTRAINT "contractor_inbound_email_outbox_company_provider_email_unique" UNIQUE("company_id","provider_email_id");--> statement-breakpoint
+ALTER TABLE "stored_objects" DROP CONSTRAINT "stored_objects_purpose_check", ADD CONSTRAINT "stored_objects_purpose_check" CHECK ("purpose" in ('import_source', 'nfe_document', 'nfe_event', 'billing_document', 'cte_document', 'mdfe_document', 'nfse_document', 'aggregate_document', 'delivery_proof', 'aggregate_application_attachment', 'contractor_mail_raw'));

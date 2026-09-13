@@ -6,6 +6,7 @@ import { and, eq, type SQL, sql } from 'drizzle-orm'
 
 import {
   auditLogs,
+  contractorInboundEmailOutbox,
   contractorMailMessages,
   contractorMailOutbox,
   contractorMailSettings,
@@ -16,6 +17,7 @@ import type {
   ContractorMailSettingsRecord,
   ContractorMailSetupTestStatus,
   ContractorMailThreadRecord,
+  RecordContractorMailInboundWebhookEventInput,
   RecordContractorMailTestEmailInput,
   RecordContractorMailTestEmailResult,
   ReserveContractorMailSetupTestThreadInput,
@@ -184,6 +186,38 @@ export class DrizzleContractorMailRepository implements ContractorMailRepository
         (message) => message.direction === 'outbound' && message.deliveryStatus === 'sent',
       ),
     }
+  }
+
+  /**
+   * Spec 143 T010 (RF11): `last_webhook_at` e o evento de referência, na mesma transação.
+   * `ON CONFLICT DO NOTHING` no único `(company_id, provider_email_id)` faz o Svix retentando o
+   * mesmo `email_id` convergir sem gravar duas vezes — a rota responde 204 nos dois casos.
+   */
+  public async recordInboundWebhookEvent(
+    input: RecordContractorMailInboundWebhookEventInput,
+  ): Promise<void> {
+    await this.database.transaction(async (transaction) => {
+      await transaction
+        .update(contractorMailSettings)
+        .set({ lastWebhookAt: input.occurredAt })
+        .where(eq(contractorMailSettings.companyId, input.companyId))
+
+      await transaction
+        .insert(contractorInboundEmailOutbox)
+        .values({
+          companyId: input.companyId,
+          correlationId: input.correlationId,
+          eventType: 'email.received',
+          payload: { providerEmailId: input.providerEmailId },
+          providerEmailId: input.providerEmailId,
+        })
+        .onConflictDoNothing({
+          target: [
+            contractorInboundEmailOutbox.companyId,
+            contractorInboundEmailOutbox.providerEmailId,
+          ],
+        })
+    })
   }
 
   /**

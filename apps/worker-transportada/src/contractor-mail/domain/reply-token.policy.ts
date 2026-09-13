@@ -35,6 +35,14 @@ export function buildReplyAddress(input: {
   return `${input.token}@${input.replyDomain}`
 }
 
+/**
+ * T010: o trilho de entrada extrai o token do local-part do destinatário e precisa do mesmo hash
+ * que a API grava em `contractor_mail_threads.reply_token_hash`, para achar a conversa.
+ */
+export function hashReplyToken(token: string): string {
+  return new Bun.CryptoHasher('sha256').update(token).digest('hex').toLowerCase()
+}
+
 function encodeBase32Lowercase(buffer: Uint8Array): string {
   let bitBuffer = 0
   let bitCount = 0

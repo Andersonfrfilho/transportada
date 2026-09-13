@@ -477,6 +477,16 @@ export const contractorInboundEmailOutbox = pgTable(
       table.companyId,
       table.eventId,
     ),
+    /**
+     * T010 (RF11/plan.md § Idempotência): o Svix retenta qualquer resposta que não seja 2xx, e o
+     * mesmo `email_id` pode chegar mais de uma vez mesmo depois de aceito. Este único converge o
+     * evento — `ON CONFLICT DO NOTHING` na gravação — sem depender só da unicidade da mensagem
+     * final, que só existe depois de o worker processar o evento.
+     */
+    unique('contractor_inbound_email_outbox_company_provider_email_unique').on(
+      table.companyId,
+      table.providerEmailId,
+    ),
     index('contractor_inbound_email_outbox_company_published_next_attempt_created_idx').on(
       table.companyId,
       table.publishedAt,

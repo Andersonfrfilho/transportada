@@ -370,12 +370,14 @@ import {
 import { createContractorRoutes } from './delivery-clients/presentation/contractor.routes.js'
 import { createContractorMailCredentialSecretService } from './contractor-mail/application/contractor-mail-credential-secret.service.js'
 import { createContractorMailSettingsUseCase } from './contractor-mail/application/contractor-mail-settings.use-case.js'
+import { createProcessInboundEmailWebhookUseCase } from './contractor-mail/application/process-inbound-email-webhook.use-case.js'
 import { createSendContractorMailTestEmailUseCase } from './contractor-mail/application/send-contractor-mail-test-email.use-case.js'
 import { createActorEmailRepository } from './contractor-mail/infrastructure/actor-email.repository.js'
 import { DrizzleContractorMailRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail.repository.js'
 import { createMxLookupGateway } from './contractor-mail/infrastructure/mx-lookup.gateway.js'
 import { createResendAccountGateway } from './contractor-mail/infrastructure/resend-account.gateway.js'
 import { createContractorMailSettingsRoutes } from './contractor-mail/presentation/contractor-mail-settings.routes.js'
+import { createPublicInboundEmailRoutes } from './contractor-mail/presentation/public-inbound-email.routes.js'
 import { createContractorPortalBindingRoutes } from './contractor-portal/presentation/contractor-portal-binding.routes.js'
 import { createContractorDeliveryRoutes } from './contractor-portal/presentation/contractor-delivery.routes.js'
 import { createReadContractorDeliveryLocationUseCase } from './contractor-portal/application/read-contractor-delivery-location.use-case.js'
@@ -1042,6 +1044,19 @@ function createAnonymousRoutes({
     }),
   })
   /**
+   * Spec 143 T010 (ADR-0063 §7): a terceira superfície anônima, e a primeira assinada. Ela não
+   * depende de `config.companyId` — quem diz a empresa é o `webhookId` opaco da URL, achado por
+   * `findSettingsByWebhookId` — e por isso existe sempre, como o postback de NFS-e ao lado.
+   */
+  const contractorMailInboundWebhookRoutes = createPublicInboundEmailRoutes({
+    processInboundEmailWebhook: createProcessInboundEmailWebhookUseCase({
+      repository: new DrizzleContractorMailRepository(database),
+      secretService: createContractorMailCredentialSecretService({
+        envelopeProvider: createSecretEnvelopeProvider(config.cryptography.envelopeKeyRing),
+      }),
+    }),
+  })
+  /**
    * Spec 062 T006 — o webhook da Meta. Um endereço só para a instalação: a empresa é descoberta pelo
    * `phone_number_id` do corpo **já assinado**, e sem os dois segredos do app a rota não é
    * registrada.
@@ -1142,6 +1157,7 @@ function createAnonymousRoutes({
   if (config.companyId === undefined) {
     return [
       ...nfseCallbackRoutes,
+      ...contractorMailInboundWebhookRoutes,
       ...whatsappWebhookRoutes,
       ...publicExtraChargeBatchRoutes,
       /**
@@ -1163,6 +1179,7 @@ function createAnonymousRoutes({
   return [
     ...loginHintRoutes,
     ...nfseCallbackRoutes,
+    ...contractorMailInboundWebhookRoutes,
     ...whatsappWebhookRoutes,
     ...publicExtraChargeBatchRoutes,
     ...landingPublicRoutes,

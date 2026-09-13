@@ -9,6 +9,8 @@
  * em `status.result`/`status.aligned` — este gateway só chama `dkimVerify` e repassa o resultado
  * para `resolveDkimAlignment`, que é onde a decisão de negócio mora.
  */
+import { resolveTxt } from 'node:dns/promises'
+
 import { dkimVerify } from 'mailauth'
 
 import { resolveDkimAlignment, type DkimAlignmentResult } from '../domain/dkim-alignment.policy.js'
@@ -16,6 +18,16 @@ import { resolveDkimAlignment, type DkimAlignmentResult } from '../domain/dkim-a
 const DEFAULT_DNS_TIMEOUT_MS = 5_000
 
 export type DkimDnsResolver = (name: string, recordType: string) => Promise<string[][] | string[]>
+
+/**
+ * Spec 143 T010: o resolvedor de verdade, para produção — só `TXT`, que é tudo que o DKIM
+ * consulta. Qualquer outro tipo de registro pedido pela `mailauth` é sinal de algo inesperado, e
+ * vira falha transitória (`unverifiable`) como qualquer outro erro do resolvedor.
+ */
+export const resolveDkimDnsRecord: DkimDnsResolver = async (name, recordType) => {
+  if (recordType !== 'TXT') throw new Error(`unsupported DNS record type: ${recordType}`)
+  return resolveTxt(name)
+}
 
 export type VerifyDkimAlignmentPort = {
   verify(rawMessage: Buffer): Promise<DkimAlignmentResult>

@@ -550,6 +550,9 @@ function createHarness(input: {
     async findThreadByReplyTokenHash() {
       return undefined
     },
+    async recordInboundWebhookEvent() {
+      throw new Error('not used by this contract (spec 143, T010)')
+    },
     async recordTestEmailMessage() {
       throw new Error('not used by this contract (spec 143, T009)')
     },

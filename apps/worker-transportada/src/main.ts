@@ -122,14 +122,25 @@ import { createThreadedAttachmentExtractionGateway } from './aggregate-attachmen
 import { startAggregateAttachmentConsumer } from './runtime/aggregate-attachment-consumer.service.js'
 import type { ExtractAttachmentFieldsDependencies } from './aggregate-attachment/application/extract-attachment-fields.use-case.js'
 import { buildContractorMailOutboundRabbitMqTopology } from './messaging/contractor-mail-outbound-rabbitmq-topology.js'
+import { buildContractorMailInboundRabbitMqTopology } from './messaging/contractor-mail-inbound-rabbitmq-topology.js'
 import { ContractorMailOutboundOutboxPublisherService } from './contractor-mail/application/contractor-mail-outbound-outbox-publisher.service.js'
 import { ContractorMailOutboundOutboxRelayService } from './contractor-mail/application/contractor-mail-outbound-outbox-relay.service.js'
+import { ContractorMailInboundOutboxPublisherService } from './contractor-mail/application/contractor-mail-inbound-outbox-publisher.service.js'
+import { ContractorMailInboundOutboxRelayService } from './contractor-mail/application/contractor-mail-inbound-outbox-relay.service.js'
 import { DrizzleContractorMailOutboundOutboxRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail-outbound-outbox.repository.js'
+import { DrizzleContractorMailInboundOutboxRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail-inbound-outbox.repository.js'
 import { createDrizzleContractorMailOutboundWorkerRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail-outbound-worker.repository.js'
+import { createDrizzleContractorMailInboundWorkerRepository } from './contractor-mail/infrastructure/drizzle-contractor-mail-inbound-worker.repository.js'
 import { createContractorMailCredentialSecretService } from './contractor-mail/application/contractor-mail-credential-secret.service.js'
 import { createResendMailGateway } from './contractor-mail/infrastructure/resend-mail.gateway.js'
+import {
+  createDkimVerifierGateway,
+  resolveDkimDnsRecord,
+} from './contractor-mail/infrastructure/dkim-verifier.gateway.js'
 import { startContractorMailOutboundConsumer } from './runtime/contractor-mail-outbound-consumer.service.js'
+import { startContractorMailInboundConsumer } from './runtime/contractor-mail-inbound-consumer.service.js'
 import type { SendContractorMailOutboundMessageDependencies } from './contractor-mail/application/send-contractor-mail-outbound-message.use-case.js'
+import type { RecordContractorMailInboundMessageDependencies } from './contractor-mail/application/record-contractor-mail-inbound-message.use-case.js'
 import { buildNfseIssuanceRabbitMqTopology } from './messaging/nfse-rabbitmq-topology.js'
 import type { NfseProcessingEnvelopeV1 } from './messaging/nfse-processing-envelope.schema.js'
 import { createNfseCredentialSecretService } from './nfse-issuance/application/nfse-credential-secret.service.js'
@@ -386,6 +397,12 @@ type WorkerRuntimeDependencies = {
     readonly logger: WorkerLogger
     readonly provider: RabbitMqProvider
   }) => Promise<RuntimeConsumer | undefined>
+  readonly startContractorMailInboundConsumer?: (input: {
+    readonly config: ReturnType<typeof parseWorkerEnvironment>
+    readonly dependencies: RecordContractorMailInboundMessageDependencies
+    readonly logger: WorkerLogger
+    readonly provider: RabbitMqProvider
+  }) => Promise<RuntimeConsumer | undefined>
   readonly startInvitationDeliveryConsumer?: (input: {
     readonly config: ReturnType<typeof parseWorkerEnvironment>
     readonly dependencies: InvitationDeliveryDependencies
@@ -451,6 +468,8 @@ export async function startWorkerRuntime(
     dependencies.startAggregateAttachmentConsumer ?? startAggregateAttachmentConsumer
   const contractorMailOutboundStarter =
     dependencies.startContractorMailOutboundConsumer ?? startContractorMailOutboundConsumer
+  const contractorMailInboundStarter =
+    dependencies.startContractorMailInboundConsumer ?? startContractorMailInboundConsumer
   const invitationDeliveryStarter =
     dependencies.startInvitationDeliveryConsumer ?? startInvitationDeliveryConsumer
   const passwordResetDeliveryStarter =
@@ -521,6 +540,9 @@ export async function startWorkerRuntime(
   const contractorMailOutboundTopology = buildContractorMailOutboundRabbitMqTopology({
     queuePrefix: config.queuePrefix,
   })
+  const contractorMailInboundTopology = buildContractorMailInboundRabbitMqTopology({
+    queuePrefix: config.queuePrefix,
+  })
   const invitationDeliveryTopology = buildInvitationDeliveryRabbitMqTopology({
     queuePrefix: config.queuePrefix,
   })
@@ -558,6 +580,9 @@ export async function startWorkerRuntime(
   let contractorMailOutboundConsumer: RuntimeConsumer | undefined
   let contractorMailOutboundPublisher: RabbitMqProvider | undefined
   let contractorMailOutboundRelayLoop: OutboxRelayLoop | undefined
+  let contractorMailInboundConsumer: RuntimeConsumer | undefined
+  let contractorMailInboundPublisher: RabbitMqProvider | undefined
+  let contractorMailInboundRelayLoop: OutboxRelayLoop | undefined
   let invitationDeliveryConsumer: RuntimeConsumer | undefined
   let invitationDeliveryPublisher: RabbitMqProvider | undefined
   let invitationDeliveryRelayLoop: OutboxRelayLoop | undefined
@@ -604,6 +629,10 @@ export async function startWorkerRuntime(
     contractorMailOutboundPublisher = await rabbitProviderFactory({
       connection: config.rabbitMqUrl,
       topology: contractorMailOutboundTopology,
+    })
+    contractorMailInboundPublisher = await rabbitProviderFactory({
+      connection: config.rabbitMqUrl,
+      topology: contractorMailInboundTopology,
     })
     invitationDeliveryPublisher = await rabbitProviderFactory({
       connection: config.rabbitMqUrl,
@@ -936,6 +965,24 @@ export async function startWorkerRuntime(
       },
       logger,
       provider: contractorMailOutboundPublisher,
+    })
+    contractorMailInboundConsumer = await contractorMailInboundStarter({
+      config,
+      dependencies: {
+        dkimVerifier: createDkimVerifierGateway({ resolveDns: resolveDkimDnsRecord }),
+        mailGateway: createResendMailGateway({ fetch: (target, init) => fetch(target, init) }),
+        repository: createDrizzleContractorMailInboundWorkerRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
+        secretService: createContractorMailCredentialSecretService({
+          envelopeProvider: createSecretEnvelopeProvider(cryptography.envelopeKeyRing),
+        }),
+        storage: storageGateway,
+        storageBucket,
+        storageProvider: 'minio',
+      },
+      logger,
+      provider: contractorMailInboundPublisher,
     })
     invitationDeliveryConsumer = await invitationDeliveryStarter({
       config,
@@ -1410,6 +1457,29 @@ export async function startWorkerRuntime(
       }),
     })
     contractorMailOutboundRelayLoop.start()
+    contractorMailInboundRelayLoop = new OutboxRelayLoop({
+      claimOwner: `${config.queuePrefix}.contractor-mail-inbound.relay.${crypto.randomUUID()}`,
+      failureMessage: 'contractor_mail_inbound_outbox_relay_failed',
+      intervalMs: 1_000,
+      leaseMs: 30_000,
+      limit: 25,
+      logger,
+      relay: new ContractorMailInboundOutboxRelayService({
+        clock: { now: () => new Date() },
+        publisher: new ContractorMailInboundOutboxPublisherService(contractorMailInboundPublisher),
+        repository: new DrizzleContractorMailInboundOutboxRepository(
+          database.db as ReturnType<typeof createDrizzleProvider>['db'],
+        ),
+        retryPolicy: {
+          classify(error: unknown): never {
+            throw error instanceof Error
+              ? error
+              : new Error('contractor mail inbound outbox relay publish failed')
+          },
+        },
+      }),
+    })
+    contractorMailInboundRelayLoop.start()
     invitationDeliveryRelayLoop = new OutboxRelayLoop({
       claimOwner: `${config.queuePrefix}.invitation-delivery.relay.${crypto.randomUUID()}`,
       failureMessage: 'invitation_delivery_outbox_relay_failed',
@@ -1469,6 +1539,7 @@ export async function startWorkerRuntime(
         nfseRelayLoop,
         aggregateAttachmentRelayLoop,
         contractorMailOutboundRelayLoop,
+        contractorMailInboundRelayLoop,
         invitationDeliveryRelayLoop,
         passwordResetDeliveryRelayLoop,
         storageGateway,
@@ -1493,6 +1564,7 @@ export async function startWorkerRuntime(
         passwordResetDeliveryConsumer,
         aggregateAttachmentConsumer,
         contractorMailOutboundConsumer,
+        contractorMailInboundConsumer,
         jobRunConsumer,
         notificationConsumer,
         routeOptimizationConsumer,
@@ -1519,6 +1591,7 @@ export async function startWorkerRuntime(
          */
         aggregateAttachmentPublisher,
         contractorMailOutboundPublisher,
+        contractorMailInboundPublisher,
         jobRunProvider,
         notificationProvider,
       ]),
@@ -1544,6 +1617,8 @@ export async function startWorkerRuntime(
     await nfseIssuanceConsumer?.cancel().catch(() => undefined)
     await contractorMailOutboundConsumer?.cancel().catch(() => undefined)
     await contractorMailOutboundRelayLoop?.close().catch(() => undefined)
+    await contractorMailInboundConsumer?.cancel().catch(() => undefined)
+    await contractorMailInboundRelayLoop?.close().catch(() => undefined)
     await routeOptimizationConsumer?.cancel().catch(() => undefined)
     await invitationDeliveryConsumer?.cancel().catch(() => undefined)
     await invitationDeliveryRelayLoop?.close().catch(() => undefined)
@@ -1566,6 +1641,7 @@ export async function startWorkerRuntime(
     await passwordResetDeliveryPublisher?.close().catch(() => undefined)
     await aggregateAttachmentPublisher?.close().catch(() => undefined)
     await contractorMailOutboundPublisher?.close().catch(() => undefined)
+    await contractorMailInboundPublisher?.close().catch(() => undefined)
     await routeOptimizationProvider?.close().catch(() => undefined)
     await notificationProvider?.close().catch(() => undefined)
     await jobRunProvider?.close().catch(() => undefined)

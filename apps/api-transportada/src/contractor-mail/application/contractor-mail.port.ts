@@ -126,7 +126,28 @@ export type RecordContractorMailTestEmailResult = {
   readonly threadId: string
 }
 
+/**
+ * Spec 143 T010 (RF11): o webhook aceito grava `last_webhook_at` e insere o evento de referência
+ * em `contractor_inbound_email_outbox`, na mesma transação. O payload carrega só `providerEmailId`
+ * — o corpo, o remetente e o assunto são buscados pelo worker na API do Resend, com a chave; o
+ * corpo anônimo do webhook nunca é fonte de nada (plan.md § Segurança e tenant).
+ */
+export type RecordContractorMailInboundWebhookEventInput = {
+  readonly companyId: string
+  readonly correlationId: string
+  readonly occurredAt: Date
+  readonly providerEmailId: string
+}
+
 export type ContractorMailRepositoryPort = {
+  /**
+   * `ON CONFLICT DO NOTHING` no único `(company_id, provider_email_id)`: o Svix retenta qualquer
+   * resposta que não seja 2xx, e o mesmo `email_id` repetido converge sem gravar duas vezes — a
+   * rota sempre responde 204 de qualquer forma, aceito ou repetido.
+   */
+  readonly recordInboundWebhookEvent: (
+    input: RecordContractorMailInboundWebhookEventInput,
+  ) => Promise<void>
   readonly recordTestEmailMessage: (
     input: RecordContractorMailTestEmailInput,
   ) => Promise<RecordContractorMailTestEmailResult>

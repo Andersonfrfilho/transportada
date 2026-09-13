@@ -52,6 +52,11 @@ export const API_CONTRACTORS_PATH = '/contractors'
 export const API_CONTRACTOR_MAIL_SETTINGS_PATH = '/contractor-mail-settings'
 export const API_CONTRACTOR_MAIL_SETTINGS_CHECKS_PATH = '/contractor-mail-settings/checks'
 export const API_CONTRACTOR_MAIL_TEST_EMAIL_PATH = '/contractor-mail-settings/test-email'
+/**
+ * Spec 143 T010 (RF11): a terceira superfície anônima, e a primeira assinada — o `webhookId` opaco
+ * acha a configuração da empresa, e a assinatura Svix é conferida contra o segredo dela.
+ */
+export const API_PUBLIC_INBOUND_EMAILS_PATH = '/public/inbound-emails/:webhookId'
 export const API_MUNICIPAL_HOLIDAYS_PATH = '/municipal-holidays'
 export const API_DELIVERY_CHARGES_PATH = '/delivery-charges'
 export const API_EXTRA_CHARGE_BATCHES_PATH = '/extra-charge-batches'
