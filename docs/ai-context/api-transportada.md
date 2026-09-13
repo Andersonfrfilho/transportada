@@ -1315,3 +1315,107 @@ conexão**, embora a documentação diga que é: medido, ele recusou uma consult
 `shared/request-scope.service.ts`, aberto pelo `request-handler`), e **consulta disparada fora desse
 escopo não é cancelada pelo aborto**. Contratos em `test/database-availability.contract.test.ts` e
 `test/integration/database-availability.integration.ts`.
+
+**O WhatsApp vira canal de comando** (spec 144, `whatsapp-commands`, ADR-0063/ADR-0064). Até aqui o
+WhatsApp só recebia e mostrava mensagem na inbox (spec 062); agora uma mensagem recebida executa
+ação de negócio — separar nota, despachar viagem, registrar entrega ou ocorrência, emitir CT-e/NFS-e
+por seleção e faturar. O módulo é `whatsapp-commands`, nas quatro camadas de sempre.
+
+**O despachante entra no hook `onMessageReceived`, e os hooks são por instância do módulo, não por
+instalação.** `@adatechnology/meta-whatsapp-module` é construído **uma vez por empresa** — cada
+empresa tem seu próprio canal, token e número —, e `hooks.onMessageReceived` é lido a cada mensagem
+por essa instância. `createWhatsAppCommandHookFactory` separa o que é da **instalação** (o ator
+autorizado, o grafo, o limitador, o log, `withAuthorizedActor`, montados uma vez) do que é da
+**empresa** (canal, interpretador, sessões, o `WhatsAppMessageProvider` dos botões — recriado sempre
+que o token muda). O resolver por empresa passa um objeto `hooks` vazio a `createMetaWhatsAppModule`
+e o preenche depois, porque o despachante precisa do `channel`/`flows.interpreter`/
+`conversations.repository` **da própria instância** — sem `buildMessageHook` o módulo se comporta
+como na spec 062.
+
+**A instalação fica na `0.1.0` dos três pacotes, por dívida do pacote, não por falta de recurso.**
+A `0.2.x`/`0.3.0` do `meta-whatsapp-module` passou a publicar as próprias migrations no formato
+antigo "por journal" (`meta/_journal.json`), e o `drizzle-orm` `1.0.0-rc.4` já instalado **recusa** o
+formato de propósito (`"You must upgrade drizzle-kit and run drizzle-kit up"`) — comando de projeto,
+que não roda sobre `node_modules` de uma dependência. Medido com `make migration-test` real: 4 dos
+91 testes de migration falham em toda versão da linha 0.2.x/0.3.x testada (`npm pack` de
+0.2.0-rc.22, 0.2.0 e 0.3.0), voltando a 91/0 com a `0.1.0`. ⚠️ A dívida não bloqueia nada desta
+spec: a `0.1.0` já expõe `FlowInterpreter`, `registerFlowAction`, `MetaWhatsAppHooks.onMessageReceived`
+e `sendInteractiveList`/`sendInteractiveButtons` (provider), que é tudo que o módulo usa. Corrigir o
+formato de migration é changeset em `adatechnology-packages`, fora deste repositório.
+
+**O interpretador da `0.1.0` não valida a resposta nem envia mensagem — o driver faz as duas
+coisas.** `FlowInterpreter.run` trata qualquer texto de nó de escolha como o id de uma opção e cai no
+`byAnswer.default`, então texto livre avançaria sem essa guarda — `isOfferedOption`
+(`domain/whatsapp-answer.policy.ts`) é quem recusa resposta fora do menu antes de chamar o
+interpretador. A mensagem de encerramento também não sai do pacote: é o `directMessage` do último nó
+de `visited`, montado e enviado pelo próprio despachante (`whatsapp-flow-step.service.ts`).
+
+**A `0.1.0` não tem `actionParams`, e os botões só saem pelo provider.** Sem parâmetro de ação no
+grafo, tudo que uma `FlowAction` precisa vem de `context` (jsonb persistido, nunca PII — ver
+abaixo) ou é resolvido de novo a cada chamada. `ChannelAdapterInterface` da `0.1.0` não tem
+`sendInteractiveButtons`, então todo botão (o menu raiz, listas curtas) sai por
+`WhatsAppMessageProvider` direto, não pelo adaptador do canal — e lista **dinâmica** (a de uma
+`FlowAction`, como notas ou viagens) sai sempre como **lista**, nunca como botão, mesmo com ≤3
+opções, porque a porta do despachante só sabe montar lista para dado dinâmico.
+
+**Toda `FlowAction` de negócio passa por `withAuthorizedActor`, que re-resolve o ator a cada
+chamada.** Ele confere `session.companyId` + `session.whatsappNumber` contra o mesmo
+`AuthorizationService` do HTTP — nunca confia em quem a sessão dizia ser há dois passos. Recusa vira
+`WhatsAppCommandDeniedError`, que o despachante converte na mesma resposta neutra de D1, com posição
+limpa. `registerWhatsAppFlowActions` é o **único** caminho de registro: nenhuma ação de negócio entra
+no interpretador sem passar por essa guarda.
+
+**Nada de ator, permissão ou PII entra no `context` da sessão.** `context` é jsonb persistido, e só
+guarda posição no grafo, contador de tentativas e chaves **opacas** (`em_` + hex do SHA-256 do
+documento, ids de viagem/nota/motivo) — nunca nome, telefone, CPF ou título de lista. O padrão para
+lista dinâmica é "roteador": o nó de ação busca os dados e manda a mensagem **ele mesmo**, direto por
+`channel.sendInteractiveList`, e só o `id` da linha tocada (um identificador opaco) volta como
+resposta capturada — o título "número · destinatário" nunca toca o banco de sessão. Log do
+despachante carrega `companyId` e telefone só por `maskPhone`, nunca corpo de mensagem nem razão de
+negócio.
+
+**O grafo vive em código, e a republicação é versionada com histórico próprio, append-only.**
+`whatsapp-commands/infrastructure/whatsapp-flow-graph.constant.ts` (`WHATSAPP_ROOT_FLOW_GRAPH`,
+chave `transportada_root`) é a fonte — mas **o despachante lê a versão publicada no banco**, nunca a
+constante direto: editar o arquivo não muda o que o usuário recebe até alguém rodar
+`scripts/whatsapp-flow-publish.ts --company <id>` (sem `--confirm` só imprime diff e validação, no
+molde de `scripts/address-comparison-batch.ts`). A republicação grava a versão anterior em
+`whatsapp_flow_graph_versions` (trigger `BEFORE UPDATE OR DELETE`, mesmo padrão de `audit_logs`) na
+**mesma transação** do `save` — `create` **não** grava histórico, porque grafo novo não tem "versão
+atual" para guardar. O diff entre versões é sobre `canonicalStringify` (chaves ordenadas
+recursivamente), nunca `JSON.stringify` cru: o `jsonb` do Postgres não promete a mesma ordem de
+chave de quem inseriu, e comparar sem canonicalizar acusava mudança onde não havia. O menu raiz é
+filtrado por permissão (D2) em `domain/whatsapp-root-menu.policy.ts` — opção sem nenhuma das
+permissões que ela exige some do menu, e o ator é resolvido de novo depois de qualquer verificação de
+telefone, porque só assim a permissão está disponível para filtrar o primeiro menu depois de
+vincular o número.
+
+**`MembershipAuthorizationPolicy` é conceito novo do router: "qualquer membership ativa", sem
+permissão do catálogo.** `route.policy?: { membership: 'active'; permission?: never; scope:
+'company' }` — o `permission?: never` existe só para os contratos que leem `route.policy?.permission`
+de listas de rota (`me-routes`, `aggregate-attachment-review`) seguirem compilando sem edição. Ela
+serve rota que devolve dado do **próprio** usuário (hoje só `/me/whatsapp-phone*`), onde nenhuma
+permissão do catálogo cobre todos os papéis que precisam chegar lá — motorista só tem
+`trip.read`/`trip.report`, contratante só `deliveries.track`/`charges.decide`. A membership ativa já
+é exigida pelo `tenant-context` antes da política ser lida; aqui só se recusa o **escopo de
+plataforma**. `assertMembershipRoutesUnderMe` (`router.service.ts`) é a trava: toda rota passa por
+`createRouter`, e qualquer rota com essa política fora do prefixo `/me/` **derruba o boot** — não é
+uma permissão que alguém esqueceu de checar, é um caminho que não existe para nascer fora dali.
+
+**Rotas do módulo**, todas com `cache-control: no-store`:
+
+- `GET /me/whatsapp-phone` — estado do vínculo (`none|pending|verified|expired`), número mascarado,
+  pedido pendente **sem** o código (`MembershipAuthorizationPolicy`).
+- `POST /me/whatsapp-phone/verification` — abre pedido de verificação, autenticado; responde **201**
+  `{code, companyNumber, expiresAt}`; canal ausente, desativado ou sem número → **409
+  `WHATSAPP_CHANNEL_NUMBER_MISSING`**, sem abrir pedido; rate limit de 5 pedidos por 10 min
+  (`MembershipAuthorizationPolicy`).
+- `DELETE /me/whatsapp-phone` — desvincula o próprio número, 204 idempotente
+  (`MembershipAuthorizationPolicy`).
+- `DELETE /company-users/:id/whatsapp-phone` — administrador desvincula o número de outra pessoa da
+  empresa (`users.manage`).
+- `POST /whatsapp-command-requests/:id/settlement` — a procuração da liquidação (ADR-0064): token de
+  máquina, papel `automation`, permissão `whatsapp.settle`.
+
+A confirmação do número (a mensagem que chega com o código) é **pré-passo do despachante**, não
+`FlowAction` — ela roda antes de existir ator, então não há como registrá-la como ação autorizada.

@@ -365,37 +365,51 @@ function createWhatsAppPhonesFake(options: { readonly failUnbind?: boolean } = {
 }
 
 describe('sincronização com o Keycloak — remoção de vínculo', () => {
-  test('remover o último vínculo desabilita o usuário no provedor', async () => {
+  test('remover o último vínculo desabilita o usuário no provedor e desfaz o número de WhatsApp', async () => {
     const gateway = createIdentityGatewayFake()
     const repository = createCompanyUserRepositoryFake()
+    const whatsappPhones = createWhatsAppPhonesFake()
+    const actorUserId = '00000000-0000-4000-8000-0000000000aa'
 
     await createRemoveCompanyUserMembershipUseCase({
       identityGateway: gateway,
       repository,
+      whatsappPhones,
     }).execute({
-      context: { companyId: COMPANY_ID, userId: '00000000-0000-4000-8000-0000000000aa' },
+      context: { companyId: COMPANY_ID, userId: actorUserId },
+      correlationId: CORRELATION_ID,
       userId: TARGET_USER_ID,
     })
 
     expect(gateway.setEnabledCalls).toEqual([{ enabled: false, userId: KEYCLOAK_SUBJECT }])
     expect(repository.removeMembershipCalls).toHaveLength(1)
+    expect(whatsappPhones.unbindCalls).toEqual([
+      {
+        audit: { actorUserId, companyId: COMPANY_ID, correlationId: CORRELATION_ID },
+        userId: TARGET_USER_ID,
+      },
+    ])
   })
 
-  test('remover um vínculo entre vários não desabilita o usuário no provedor', async () => {
+  test('remover um vínculo entre vários não desabilita o usuário no provedor nem desfaz o número', async () => {
     const gateway = createIdentityGatewayFake()
     const repository = createCompanyUserRepositoryFake({
       activeMembershipCompanyIds: [COMPANY_ID, ANOTHER_COMPANY_ID],
     })
+    const whatsappPhones = createWhatsAppPhonesFake()
 
     await createRemoveCompanyUserMembershipUseCase({
       identityGateway: gateway,
       repository,
+      whatsappPhones,
     }).execute({
       context: { companyId: COMPANY_ID, userId: '00000000-0000-4000-8000-0000000000aa' },
+      correlationId: CORRELATION_ID,
       userId: TARGET_USER_ID,
     })
 
     expect(gateway.setEnabledCalls).toEqual([])
     expect(repository.removeMembershipCalls).toHaveLength(1)
+    expect(whatsappPhones.unbindCalls).toEqual([])
   })
 })

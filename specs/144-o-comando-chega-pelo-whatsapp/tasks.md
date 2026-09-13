@@ -165,7 +165,7 @@ status='previewed' and preview_sha256=$hash and expires_at>now() returning` + li
       de onde ler o estado. Depois, a tela "WhatsApp" no perfil do usuário (verificar e desvincular o
       número) —
       `frontend-transportada/src/modules/identity/` — contratos de design system existentes verdes
-- [ ] **T018** `docs/SECURITY.md` (teto por número, achado do rate limit redatado), CLAUDE.md (seção
+- [x] **T018** `docs/SECURITY.md` (teto por número, achado do rate limit redatado), CLAUDE.md (seção
       do módulo), ADR-0063 "O telefone vira credencial só verificado" e ADR-0064 "A fatura sai em nome de quem
       confirmou" (procuração do worker: token de máquina, `whatsapp.settle`, revalidação da
       membership — conceito novo no produto) — docs

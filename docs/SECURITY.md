@@ -5,6 +5,86 @@ some — muda para "Fechado" com a data e o que passou a valer.
 
 ## Abertos
 
+### 2026-09-12 — a liquidação por procuração: quatro baixos que a revisão da Fase 3 liberou com ressalva
+
+**Onde:** `api-transportada`/`worker-transportada`, `whatsapp-commands`/`whatsapp-command-settlement`
+(spec 144, ADR-0064). `security-reviewer` revisou `93fa655b..76879561` em 2026-09-12: **LIBERA COM
+CORREÇÕES**, 0 crítico, 0 alto, 2 médios (M1 e M2, fechados pela T014b — `795cb137`) e 4 baixos. Os
+quatro baixos ficam aqui, como a task pediu.
+
+- **B1 — a retomada de pedidos em `confirming` não tem reivindicação atômica no banco.** Só a linha
+  de `job_executions` serializa, e isso vale **só** para o worker: uma chamada paralela pela rota
+  `POST /whatsapp-command-requests/:id/settlement` não tem a mesma trava. Duas chamadas concorrentes
+  sobre o mesmo pedido parado se apoiam só nas chaves de idempotência da emissão
+  (`confirm-document-selection.use-case.ts:144-160`) para não duplicar lote ou nota — o que já limita
+  o estrago, mas não é reivindicação exclusiva por construção.
+- **B3 — as consultas do worker filtram por `batchItemId` e aplicam a empresa depois, em memória.**
+  `drizzle-settlement-candidate.repository.ts:174-191` lê `cte_issuance_attempts`/
+  `cte_fiscal_documents` sem `company_id` na cláusula SQL, e confere o tenant no código depois de ler.
+  O resultado está certo — provado por contrato de tenant —, mas não é filtro por construção como o
+  resto do repositório.
+- **B4 — o digest da prévia não cobre o ambiente fiscal nem o certificado.** Uma retomada depois de
+  15 minutos (`issuance-preview-digest.policy.ts:40-65`) emite pelo **perfil atual**, enquanto a
+  fatura agrupa pelo **tomador congelado** na prévia — se o perfil de emissão mudar de certificado ou
+  de ambiente fiscal entre a confirmação e a retomada, a emissão segue o novo perfil e a fatura pode
+  discordar de qual documento ela está cobrando.
+- **B2 — fechado pela T014b.** O `resolveActor` da liquidação aceitava papel de serviço como "quem
+  confirmou"; hoje `resolveHumanActor` recusa `SERVICE_COMPANY_ROLES` nos dois caminhos (revalidação
+  e retomada). Ver "Fechados" abaixo.
+
+**Mitigação em vigor:** a procuração revalida `billing.create` do ator antes de faturar (ADR-0064); a
+digital de idempotência de cada passo (lote, emissão, nota, fatura) impede duplicar mesmo sob corrida;
+nenhum dos quatro é explorável hoje sem já ter passado pela confirmação de um pedido real.
+
+**Desfecho pendente:** reivindicação atômica da rota de liquidação (B1); filtro de tenant por
+construção no repositório de candidatos do worker (B3); o digest cobrir versão do perfil de emissão,
+não só dos perfis de CT-e/NFS-e (B4).
+
+**Registrado também (spec 144 T014b):** `mdfe.auto-issue` era **concedível a pessoa** por grupo ou
+concessão avulsa antes desta spec — o mesmo furo que a revisão achou em `whatsapp.settle` (M1) já
+existia nele, e não tinha sido notado porque nenhum papel humano dependia dele. A T014b fechou os
+dois juntos: `SERVICE_ONLY_PERMISSIONS` em `authorization.policy.ts` tira as duas permissões de
+`isGrantablePermission`, e `resolveCompanyPermissions` ignora qualquer linha gravada com elas.
+
+### 2026-09-11 — o webhook público do WhatsApp passa a disparar ação de negócio
+
+**Onde:** `api-transportada`, `whatsapp-commands` (spec 144, Fases 2–4: FlowActions do motorista, do
+operador e da emissão por seleção).
+
+**O que é:** até a spec 062 o webhook do WhatsApp só gravava mensagem na inbox. A partir desta spec
+uma mensagem recebida pode **separar nota, despachar viagem, registrar entrega, emitir CT-e/NFS-e e
+faturar** — o mesmo webhook público (`X-Hub-Signature-256`, ADR-0051) agora aciona efeito real, sem
+nenhum humano abrir o painel.
+
+- **Teto por número: 30 mensagens em 10 minutos, limitador em memória por processo.** Com N réplicas
+  da API o teto real é `30 × N`, e um `restart` zera o contador — o mesmo M4 já registrado abaixo (a
+  chave hoje é `phone_key`, sem o nono dígito, então as duas grafias da Meta não dobram o teto dentro
+  de um processo, mas entre processos o problema é o mesmo dos outros limitadores desta API).
+- **Resposta neutra.** As quatro recusas de `resolveWhatsAppActor` (D1/ADR-0063) e as de verificação de
+  telefone chegam à conversa como a mesma frase, no máximo uma vez a cada 24 h por número — quem não
+  é dono do número não aprende nada por tentativa.
+- **O achado de rate limit global continua aberto.** Esta API não tem limitador de infraestrutura em
+  lugar nenhum (rotas de senha, CEP, candidatura de agregado, e agora o webhook que aciona negócio) —
+  não é um problema novo desta spec, é o mesmo de sempre com uma superfície de acionamento maior:
+  antes o pior caso de um webhook sem teto era inflar a inbox; hoje é inflar `cte_batches` e
+  `nfse_service_invoices`.
+- **`toMetaRecipient` ainda envia sem o `55`.** Achado da Fase 1 (validação do architect, 2026-09-11):
+  `worker-transportada/src/whatsapp/infrastructure/whatsapp-code-sender.gateway.ts:100-102` só tira
+  dígitos não numéricos do telefone (`phone.replaceAll(/[^0-9]/gu, '')`), sem passar por
+  `toWhatsAppPhone` (a canonicalização da spec 144 que garante o prefixo `55`). Conferido em
+  2026-09-13 contra o HEAD desta branch: **ainda não corrigido**. O convite por WhatsApp da spec 062
+  T005 continua saindo sem código de país quando o contato foi digitado sem ele.
+
+**Mitigação em vigor:** toda FlowAction de negócio passa por `withAuthorizedActor`, que re-resolve o
+ator a cada chamada e confere a permissão real da membership (nunca confia no que a sessão gravou);
+nada de ator, PII ou permissão entra no `context` persistido da sessão; o menu raiz é filtrado por
+permissão antes de ser oferecido (`whatsapp-root-menu.policy.ts`); o despachante nunca deixa erro de
+infraestrutura ou de domínio propagar ao webhook (`whatsapp.command.failed`, sempre `handled`) — um
+500 ali desativaria o webhook de todas as empresas na Meta.
+
+**Desfecho pendente:** limitador com estado compartilhado, a mesma decisão já pendente para as rotas
+anônimas de senha e do portal do contratante; corrigir `toMetaRecipient` para usar `toWhatsAppPhone`.
+
 ### 2026-09-11 — o bot do WhatsApp: tetos por processo, código na inbox e o Keycloak desativado
 
 **Onde:** `api-transportada`, `whatsapp-commands` (spec 144, revisão de segurança antecipada; as
@@ -618,6 +698,19 @@ substitui o conjunto inteiro de atributos.
 cego se o Keycloak passar a ser acessado por mais gente do que hoje.
 
 ## Fechados
+
+### 2026-09-12 — o ator da liquidação por procuração podia ser conta de serviço (B2)
+
+**Onde:** `api-transportada`, `whatsapp-command-settlement` (spec 144, T014b, `795cb137`).
+
+A revisão de segurança da Fase 3 (2026-09-12) achou que `resolveActor` da rota
+`POST /whatsapp-command-requests/:id/settlement` aceitava um ator de papel `automation` como "quem
+confirmou" — hoje inexplorável, porque o ator sempre nasce de pessoa, mas a defesa não estava
+escrita. **Corrigido:** `resolveHumanActor` embrulha `deps.resolveActor` nos dois caminhos (revalidação
+e retomada) e recusa qualquer membership de `SERVICE_COMPANY_ROLES`, a mesma marca que
+`resolve-whatsapp-actor.use-case.ts` já usava na entrada da conversa. Papel de serviço agora dá
+`actor_not_authorized` sem faturar e sem resumo, e a retomada devolve `resume_denied` sem chamar
+`resume`. Prova em `settle-whatsapp-command.contract.ts`.
 
 ### 2026-09-07 — CPF real em fixture versionada
 

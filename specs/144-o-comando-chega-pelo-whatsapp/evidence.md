@@ -2313,3 +2313,118 @@ passando `tenantContext.resolveCompanyForUser`.
     frontend-landing **107**, todos com 0 fail;
   - as seis apps constroem.
   - A flaky de `cargo-volume` não disparou.
+
+## T018 — o que ficou escrito (2026-09-11)
+
+Documentação viva (code-standart §14), sobre o que está **commitado nesta branch**
+(`git log --oneline origin/staging..HEAD`, 31 commits à frente, T001 até T014b) e conferido no
+código, não suposto. `git fetch` + `git ls-tree origin/staging docs/adr/` confirmaram 0063 e 0064
+livres (o `origin/staging` tem até 0062, com duas ADRs de número duplicado — `0057` e `0062` — que
+não são desta task).
+
+### ADRs
+
+- `docs/adr/0063-o-telefone-vira-credencial-so-verificado.md` — contexto (`login_identifiers` é
+  projeção reconstruída por `rebuildLoginIdentifiers`, delete+insert a cada edição de perfil, medido
+  em `drizzle-company-user.repository.ts:120-163`), decisão (tabela própria, verificação de entrada
+  com o `from` casado, unicidade global, 90 dias, só o administrador desfaz antes do prazo, quatro
+  recusas → uma resposta), as duas alternativas rejeitadas com o porquê, consequências.
+- `docs/adr/0064-a-fatura-sai-em-nome-de-quem-confirmou.md` — a condição da task ("só escreva se a
+  T014 estiver commitada") está cumprida: `76879561` e a `T014b` (`795cb137`, correções de segurança)
+  estão no `git log` desta branch. Contexto (faturamento é só CT-e, worker detecta e API fatura),
+  decisão (procuração revalidada — token de máquina, `whatsapp.settle`, `resolveHumanActor` recusa
+  papel de serviço), três alternativas rejeitadas, consequências e os três baixos abertos (B1/B3/B4)
+  citados como pendência para o `docs/SECURITY.md`.
+
+### `CLAUDE.md`
+
+- `whatsapp-commands` entrou na lista de módulos de `api-transportada`.
+- Seção nova, entre o fim de `api-transportada` (banco) e `## worker-transportada`: o despachante no
+  hook `onMessageReceived` (hooks por instância, não por instalação), a dívida do pacote (0.2.x/0.3.0
+  publicam migration por journal, que o `drizzle-orm` recusa — a instalação fica na 0.1.0), o que o
+  interpretador da 0.1.0 não faz (validar resposta, enviar mensagem — o driver faz as duas), a
+  ausência de `actionParams` e de `sendInteractiveButtons` (lista dinâmica sempre sai como lista),
+  `withAuthorizedActor` re-resolvendo o ator a cada chamada, o que nunca entra no `context` da sessão
+  (ator, permissão, PII), o grafo em código com republicação versionada e histórico append-only
+  (`create` não grava histórico; `save` sim, na mesma transação), `MembershipAuthorizationPolicy`
+  (onde vive, por que existe, a trava `assertMembershipRoutesUnderMe`), a lista completa das cinco
+  rotas do módulo (incluindo `GET /me/whatsapp-phone`, medida faltando na T017, e
+  `POST /whatsapp-command-requests/:id/settlement` da T014) e a confirmação como pré-passo do
+  despachante, não `FlowAction`.
+- Seção "Comandos": nota sobre a integração da API pular em silêncio sem `--env-file=../../.env.test`
+  a partir de `apps/api-transportada` — o mesmo defeito de forma da spec 092 ("pular não é passar"),
+  medido: sem a flag, os 13+ casos de `test/integration/*.integration.ts` pulam em vez de falhar.
+
+### `docs/SECURITY.md`
+
+- Entrada nova, **2026-09-11**: "o webhook público do WhatsApp passa a disparar ação de negócio" —
+  teto de 30/10 min em memória por processo (não sobrevive a múltiplas réplicas), resposta neutra,
+  o achado de rate limit global continua aberto (é o mesmo de sempre, com superfície maior agora que
+  o webhook aciona negócio, não só grava inbox), e o defeito de `toMetaRecipient`
+  (`worker-transportada/.../whatsapp-code-sender.gateway.ts:100-102`) sem o `55` — **conferido em
+  2026-09-13 contra o HEAD desta branch: ainda não corrigido**, o convite por WhatsApp da spec 062
+  T005 continua saindo sem código de país.
+- Entrada nova, **2026-09-12**: "a liquidação por procuração: quatro baixos que a revisão da Fase 3
+  liberou com ressalva" — B1 (retomada sem reivindicação atômica na rota, só o worker serializa por
+  `job_executions`), B3 (o repositório de candidatos do worker filtra `batchItemId` e aplica a
+  empresa em memória, não por construção), B4 (o digest não cobre ambiente fiscal nem certificado; a
+  retomada após 15 min pode emitir por um perfil diferente do congelado, enquanto a fatura agrupa
+  pelo tomador congelado), e o registro pedido pela task: `mdfe.auto-issue` era **concedível a
+  pessoa** por grupo ou avulsa antes desta spec — o mesmo furo que a revisão achou em
+  `whatsapp.settle` (M1) —, e a T014b fechou os dois juntos com `SERVICE_ONLY_PERMISSIONS`.
+- Seção "Fechados": B2 (o `resolveActor` da liquidação aceitava papel de serviço como "quem
+  confirmou") — fechado pela T014b, com o contrato que prova.
+
+### Vínculo órfão — fechado nesta task, não só registrado
+
+Conferido no código (`remove-company-user-membership.use-case.ts`): suspender a última membership
+ativa já desfazia o vínculo de WhatsApp desde a T005b (M3), mas **remover** a membership não —
+deixava número verificado apontando para uma conta sem vínculo nenhum na instalação. O caso de uso
+de remoção já calculava `activeMembershipCompanyIds` e já chamava `shouldDisableIdentity` para
+decidir se desabilita no Keycloak; a correção foi **uma chamada** a mais dentro do mesmo `if`, no
+mesmo molde estrutural que a suspensão já usa (`whatsappPhones.unbindWithAudit`, dependência
+estrutural para `identity` não depender de `whatsapp-commands`). O vínculo cai **antes** de
+desabilitar no provedor, pela mesma razão já documentada na suspensão: falha em qualquer passo
+seguinte deixa o usuário sem número, nunca removido com o número calado.
+
+Isso não exigiu mudança de comportamento em `identity` além dessa chamada — a mesma dependência
+(`unbindWithAudit`), o mesmo fake de teste (`createWhatsAppPhonesFake`, já existente no arquivo de
+contrato da suspensão) e a mesma trilha. `RemoveCompanyUserMembershipInput` ganhou `correlationId`
+(a rota já tinha acesso a ele via `parse`), e `main.ts` passou a injetar
+`new DrizzleWhatsAppPhoneRepository(database)` também no use-case de remoção.
+
+Arquivos: `apps/api-transportada/src/identity/application/remove-company-user-membership.use-case.ts`,
+`apps/api-transportada/src/identity/presentation/user-administration.routes.ts`, `apps/api-transportada/src/main.ts`,
+`apps/api-transportada/test/user-administration-application/keycloak-sync.contract.ts` (os dois
+testes de remoção passaram a afirmar `unbindCalls`).
+
+### `mdfe.auto-issue` era concedível a pessoa antes desta spec
+
+Registrado no `docs/SECURITY.md` (entrada de 2026-09-12) e aqui: o furo de M1 não era exclusivo de
+`whatsapp.settle` — `mdfe.auto-issue` (spec 065, ADR-0047) sempre pôde ser concedido por grupo ou
+avulso, e ninguém tinha notado porque nenhum papel humano dependia dele. A T014b fechou os dois na
+mesma correção (`SERVICE_ONLY_PERMISSIONS`), então esta task só documenta o achado — não há código a
+mais para escrever aqui.
+
+### Gates
+
+- `bun run typecheck` (raiz, seis apps) → limpo.
+- `bun run lint` (API) → limpo.
+- `bun test ./test/user-administration-application.contract.test.ts` → **87 pass · 0 fail** (180
+  expects).
+- `bun run test` (API, 167 arquivos) → **5504 pass · 23 skip · 0 fail**, 38432 expects — nenhuma
+  regressão pela mudança de `remove-company-user-membership.use-case.ts`. A flaky conhecida de
+  `cargo-volume.contract.test.ts` não disparou nesta rodada.
+- `bunx prettier --write` em todo arquivo `.md` tocado (`CLAUDE.md`, `docs/SECURITY.md`, os dois
+  ADRs, `tasks.md`, `evidence.md`).
+- Migration: **nenhuma** nesta task — T018 é documentação e uma correção de código já coberta pelo
+  schema/repositório existentes, sem coluna, tabela nem CHECK novo.
+
+### Fora do escopo desta task, registrado e não corrigido
+
+- `toMetaRecipient` sem o `55` (docs/SECURITY.md, 2026-09-11) — é da spec 062 T005, achado pela
+  Fase 1 desta spec; corrigi-lo trocaria comportamento de envio fora do escopo de "documentação
+  viva".
+- B1, B3, B4 (docs/SECURITY.md, 2026-09-12) — a task pediu para registrá-los, não corrigi-los.
+- O rate limit global continua sem dono: é o mesmo achado de sempre, citado de novo porque a
+  superfície cresceu (webhook aciona negócio, não só grava inbox).

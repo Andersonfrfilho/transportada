@@ -54,6 +54,14 @@ bun run --cwd apps/<app> test   # testes de uma app só
 
 Não há target isolado de lint/typecheck — use `bun run lint` / `bun run typecheck` na raiz.
 
+⚠️ **A integração da API só roda com `.env.test` explícito, e sem ele pula em silêncio.** O `.env` é
+link simbólico na raiz (`make worktree`), e o Bun não o lê a partir de `apps/api-transportada` — sem
+a flag, os testes de `test/integration/*.integration.ts` **pulam** em vez de falhar, então rodar
+`bun run --cwd apps/api-transportada test` sozinho parece verde sem ter exercitado banco nenhum. O
+comando certo é `bun --env-file=../../.env.test test --timeout 120000`, de dentro de
+`apps/api-transportada`. Mesmo defeito de forma que a spec 092 registrou para outro alvo ("pular não
+é passar").
+
 Portas (bind em 127.0.0.1): postgres 55432 · rabbitmq 55672/55673 · minio 59000/59001 ·
 mailpit 51025/58025 · keycloak 58080 · frontend 53000 · api 53001 · worker 53002.
 

@@ -16,7 +16,8 @@ Módulos: `addresses`, `billing`, `companies`, `contractor-portal`, `cte-batches
 `cte-profiles`, `fleet`, `freight`, `freight-calculations`, `freight-regions`, `freight-rules`,
 `identity`, `mdfe-manifests`, `nfe-documents`, `nfe-imports`, `nfse-callbacks`, `nfse-invoices`,
 `nfse-profiles`, `notification`, `operations`, `routing`, `storage`, `trips`, `view-preferences`,
-`health`. Transversais: `config`, `database`, `http`, `logging`, `observability`, `server`, `shared`.
+`whatsapp-commands`, `health`. Transversais: `config`, `database`, `http`, `logging`,
+`observability`, `server`, `shared`.
 
 Fluxo de request: `src/main.ts` (composition root) → `server/server.service.ts` (`Bun.serve`, limite
 2 MiB) → `http/request-handler.service.ts` (correlation-id, 1 MiB → 413, CORS) →
@@ -210,3 +211,27 @@ na hora) — aceitar a leitura do cliente como prova deixaria um atacante escolh
 Pré-cadastro começa pelos **documentos**, antes de "Dados pessoais" (spec 071). Detalhe completo do
 parser e da divisão PDF/OCR: veja o núcleo de `worker-transportada` e docs/ai-context §
 "O anexo da candidatura".
+
+## WhatsApp como canal de comando (whatsapp-commands)
+
+Uma mensagem recebida executa ação de negócio — separar, despachar, entregar, registrar ocorrência,
+emitir CT-e/NFS-e por seleção e faturar (spec 144, ADR-0063/ADR-0064). O despachante entra no hook
+`onMessageReceived` de `@adatechnology/meta-whatsapp-module`, construído **uma vez por empresa**;
+`createWhatsAppCommandHookFactory` separa o que é da instalação do que é da empresa. A instalação
+fica na `0.1.0` dos pacotes por dívida de formato de migration do pacote, não por falta de recurso.
+
+- **Toda `FlowAction` de negócio passa por `withAuthorizedActor`**, que re-resolve o ator a cada
+  chamada contra o mesmo `AuthorizationService` do HTTP; `registerWhatsAppFlowActions` é o único
+  caminho de registro.
+- **Nada de ator, permissão ou PII no `context` da sessão** — só posição, contador e chaves opacas.
+- **O grafo vive em código e o despachante lê a versão publicada no banco**:
+  `scripts/whatsapp-flow-publish.ts --company <id>` (sem `--confirm` só imprime diff), com histórico
+  append-only em `whatsapp_flow_graph_versions`.
+- **`MembershipAuthorizationPolicy`** ("qualquer membership ativa") só existe sob `/me/` —
+  `assertMembershipRoutesUnderMe` derruba o boot fora dali.
+- Rotas (`cache-control: no-store`): `GET`/`DELETE /me/whatsapp-phone`,
+  `POST /me/whatsapp-phone/verification` (201, 409 `WHATSAPP_CHANNEL_NUMBER_MISSING`),
+  `DELETE /company-users/:id/whatsapp-phone` (`users.manage`) e
+  `POST /whatsapp-command-requests/:id/settlement` (máquina, `whatsapp.settle`).
+
+Detalhe completo: docs/ai-context § "O WhatsApp vira canal de comando".

@@ -497,7 +497,8 @@ export function createUserAdministrationRoutes(
         return new Response(null, { status: 204 })
       },
       method: 'DELETE',
-      parse: ({ pathParameters }) => ({
+      parse: ({ correlationId, pathParameters }) => ({
+        correlationId,
         userId: parseUuidPathIdentifier(pathParameters.id ?? ''),
       }),
       pathname: USER_PATH,

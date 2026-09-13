@@ -1741,6 +1741,7 @@ function createApplicationRoutes({
   const removeCompanyUserMembership = createRemoveCompanyUserMembershipUseCase({
     identityGateway: identityAccessGateway,
     repository: companyUserRepository,
+    whatsappPhones: new DrizzleWhatsAppPhoneRepository(database),
   })
   const updateCompanyUserProfile = createUpdateCompanyUserProfileUseCase({
     identityGateway: identityAccessGateway,
