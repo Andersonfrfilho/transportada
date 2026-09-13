@@ -198,6 +198,11 @@ export const TRIP_CARGO_LAYOUT_STATE_KEYS = [
   'truncated',
 ] as const
 
+/** Spec 145 T11: a resposta de `GET /trips/cargo-layouts/:layoutId`, chave por chave. */
+export const TRIP_CARGO_LAYOUT_POLL_KEYS = ['cargoLayout', 'layoutId', 'state'] as const
+
+export const TRIP_CARGO_LAYOUTS_PATH = `${TRIPS_PATH}/cargo-layouts`
+
 /**
  * Spec 079: o peso da carga. **Sem razão de ocupação** — a ficha do veículo não guarda capacidade
  * em massa, e um teto inventado para produzir porcentagem faria alguém parar de carregar, ou
@@ -284,6 +289,12 @@ export const BATCH_STATUS_RESULT_KEYS = ['items', 'tripStatus'] as const
  * rua. Meio minuto é o que separa "acompanhar" de "ficar batendo no servidor".
  */
 export const TRIP_ON_THE_ROAD_REFETCH_MS = 30_000
+
+/** Spec 145 D10: enquanto a planta está `pending`, a tela pergunta de novo a cada 3 s. */
+export const CARGO_LAYOUT_REFETCH_MS = 3_000
+
+/** Spec 145 D16: acima da escada da D13 (60 + 120 + 240 s) com os retries; passado, para. */
+export const CARGO_LAYOUT_POLL_CEILING_MS = 600_000
 
 /** As duas fases em que o motorista está reportando. Fora delas não há o que atualizar sozinho. */
 export function isTripOnTheRoad(status: string | undefined): boolean {

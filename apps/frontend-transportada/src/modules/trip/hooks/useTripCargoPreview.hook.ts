@@ -1,6 +1,17 @@
 /* Copyright (c) 2026 Ada Technology. MIT License. */
 import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 
+import { useTripCargoLayoutQuery } from '../queries/useTripCargoLayout.query'
+import {
+  type CargoLayoutPendingEpisode,
+  type CargoLayoutView,
+  mergeCargoPreviewPoll,
+  resolveCargoLayoutRefetchInterval,
+  resolveCargoLayoutView,
+  resolveCargoPreviewPollLayoutId,
+  trackCargoLayoutPendingEpisode,
+} from '../shared/cargoLayoutPolling.service'
 import type { TripCargoPreview } from '../shared/trip.types'
 import { getTripClient } from './useTripWorkspace.hook'
 
@@ -9,6 +20,8 @@ const TRIP_MANAGE_PERMISSION = 'trip.manage'
 
 export type TripCargoPreviewController = Readonly<{
   canRead: boolean
+  /** Spec 145 T12: `null` com API anterior à T11 — a tela segue a de hoje. */
+  cargoLayoutView: CargoLayoutView | null
   isLoading: boolean
   preview: TripCargoPreview | null
 }>
@@ -48,6 +61,8 @@ export function useTripCargoPreview(
   const orderKey = input.stopOrder.join('>')
   const driverKey = [...input.driverIds].sort().join(',')
 
+  const [episode, setEpisode] = useState<CargoLayoutPendingEpisode | undefined>(undefined)
+
   const query = useQuery({
     /** Sem nota ou sem veículo a API recusaria: a pergunta só existe com os dois. */
     enabled:
@@ -66,5 +81,41 @@ export function useTripCargoPreview(
     queryKey: [TRIP_CARGO_PREVIEW_QUERY_KEY, documentKey, orderKey, input.vehicleId, driverKey],
   })
 
-  return { canRead, isLoading: query.isLoading, preview: query.data ?? null }
+  /**
+   * Spec 145 T12: prévia `pending` pergunta pelo `layoutId` a cada 3 s, até o teto. Nova entrada é
+   * novo POST, novo id e nova consulta; a resposta da anterior só entra se o id bater.
+   */
+  const pollLayoutId = resolveCargoPreviewPollLayoutId(query.data ?? null) ?? ''
+  const pollQuery = useTripCargoLayoutQuery({
+    enabled: canRead,
+    layoutId: pollLayoutId,
+    refetchInterval: (poll) => {
+      const status = poll.state.data?.state.status
+      const now = poll.state.dataUpdatedAt
+      const current = trackCargoLayoutPendingEpisode({
+        key: pollLayoutId,
+        now,
+        previous: episode,
+        status,
+      })
+      return resolveCargoLayoutRefetchInterval({ episode: current, now, status })
+    },
+  })
+  const preview = mergeCargoPreviewPoll({ poll: pollQuery.data, preview: query.data ?? null })
+  const now = Math.max(query.dataUpdatedAt, pollQuery.dataUpdatedAt)
+  const nextEpisode = trackCargoLayoutPendingEpisode({
+    key: preview?.layoutId ?? '',
+    now,
+    previous: episode,
+    status: preview?.state?.status,
+  })
+  if (nextEpisode !== episode) setEpisode(nextEpisode)
+  const cargoLayoutView = resolveCargoLayoutView({
+    episode: nextEpisode,
+    layout: preview?.cargoLayout ?? null,
+    now,
+    state: preview?.state,
+  })
+
+  return { canRead, cargoLayoutView, isLoading: query.isLoading, preview }
 }

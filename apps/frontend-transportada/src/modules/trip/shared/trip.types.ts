@@ -453,6 +453,13 @@ export type TripCargoPreview = Readonly<{
   weightConcentration: TripWeightConcentration | null
 }>
 
+/** Spec 145 T11: a resposta do polling da planta pelo `layoutId`. */
+export type TripCargoLayoutPoll = Readonly<{
+  cargoLayout: TripCargoLayout | null
+  layoutId: string
+  state: TripCargoLayoutState
+}>
+
 export type TripDetail = Trip &
   Readonly<{
     documents: readonly TripDocumentDetail[]

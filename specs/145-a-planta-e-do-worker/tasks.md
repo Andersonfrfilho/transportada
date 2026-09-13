@@ -138,7 +138,7 @@ status='queued' AND input_hash=$hash`; nula → confirma e descarta; hash supera
 
 > 🤖 Modelo: `sonnet`
 
-- [ ] T12 — `cargoLayoutState` opcional em `trip.types.ts` (~306, ~430) e em
+- [x] T12 — `cargoLayoutState` opcional em `trip.types.ts` (~306, ~430) e em
       `tripResponse.validation.ts` (~745, chave ausente = API antiga); intervalo de polling contra
       `GET /trips/cargo-layouts/:layoutId` enquanto `pending`, no padrão de
       `useTripWorkspace.hook.ts:233 resolveTripRefetchInterval`/`:306`.

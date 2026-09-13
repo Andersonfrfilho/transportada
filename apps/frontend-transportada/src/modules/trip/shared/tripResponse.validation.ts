@@ -6,6 +6,7 @@ import type {
   TripDocumentProduct,
   TripOccurrence,
   TripCargoLayout,
+  TripCargoLayoutPoll,
   TripCargoLayoutState,
   TripCargoPreview,
   TripCargoWeight,
@@ -53,6 +54,7 @@ import {
   TRIP_STOP_KEYS,
   TRIP_STOP_OPTIONAL_KEYS,
   TRIP_CARGO_LAYOUT_STATE_KEYS,
+  TRIP_CARGO_LAYOUT_POLL_KEYS,
 } from './trip.constant'
 import {
   SCANNED_NFE_STATUS,
@@ -681,6 +683,14 @@ export function createTripResponseAdapters() {
         ...(layoutId === undefined ? {} : { layoutId }),
         ...(state === undefined ? {} : { state }),
       }
+    },
+    /** Spec 145 T11: chave exata, `state` e planta pelos mesmos validadores da prévia. */
+    tripCargoLayoutPollFromApi(input: unknown): TripCargoLayoutPoll {
+      if (!hasExactKeys(input, TRIP_CARGO_LAYOUT_POLL_KEYS)) throw invalid()
+      const { cargoLayout, layoutId, state } = input
+      if (!isString(layoutId) || !isCargoLayoutState(state)) throw invalid()
+      if (cargoLayout !== null && !isCargoLayout(cargoLayout)) throw invalid()
+      return { cargoLayout: cargoLayout as TripCargoLayout | null, layoutId, state }
     },
     routeGeometryFromApi(input: unknown): RouteGeometry {
       if (!isRecord(input) || !isOneOf(input.source, ROUTE_GEOMETRY_SOURCES)) {

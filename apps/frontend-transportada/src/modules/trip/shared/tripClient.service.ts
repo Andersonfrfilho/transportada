@@ -5,6 +5,7 @@ import {
   SCAN_LOOKUP_LIMIT,
   TRIP_ERROR,
   TRIPS_PATH,
+  TRIP_CARGO_LAYOUTS_PATH,
 } from './trip.constant'
 import {
   acceptedMultiVehicleSuggestionFromApi,
@@ -49,6 +50,7 @@ import type {
   TripListInput,
   TripPage,
   TripCargoPreview,
+  TripCargoLayoutPoll,
 } from './trip.types'
 import type { DeliveryProof } from './deliveryProof.service'
 import {
@@ -124,6 +126,10 @@ export type TripClient = Readonly<{
       vehicleId: string
     }>,
   ) => Promise<TripCargoPreview>
+  /** Spec 145 T11: pergunta de novo pela planta enquanto ela está `pending`. */
+  readCargoLayout: (
+    input: Readonly<{ layoutId: string; signal?: AbortSignal }>,
+  ) => Promise<TripCargoLayoutPoll>
   readPointsRouteGeometry: (
     input: Readonly<{
       points: readonly Readonly<{ latitude: number; longitude: number }>[]
@@ -543,6 +549,15 @@ export function createTripClient(dependencies: ClientDependencies): TripClient {
         path: `${TRIPS_PATH}/cargo-preview`,
       })
       return adapters.tripCargoPreviewFromApi(readEnvelopeData(response))
+    },
+    async readCargoLayout(input) {
+      const response = await authorizedRequest({
+        dependencies,
+        method: 'GET',
+        path: `${TRIP_CARGO_LAYOUTS_PATH}/${encodeURIComponent(input.layoutId)}`,
+        ...(input.signal === undefined ? {} : { signal: input.signal }),
+      })
+      return adapters.tripCargoLayoutPollFromApi(readEnvelopeData(response))
     },
     async readPointsRouteGeometry(input) {
       const response = await authorizedRequest({

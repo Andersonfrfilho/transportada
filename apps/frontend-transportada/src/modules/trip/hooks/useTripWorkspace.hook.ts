@@ -11,6 +11,11 @@ import type {
   TripOccurrence,
 } from '../shared/trip.types'
 import { resolveTripRefetchInterval } from '../shared/tripPolling.service'
+import {
+  type CargoLayoutPendingEpisode,
+  resolveCargoLayoutView,
+  trackCargoLayoutPendingEpisode,
+} from '../shared/cargoLayoutPolling.service'
 
 import { getIdentityEnvironment } from '@/modules/identity/shared/identityEnvironment.config'
 import { getKeycloakAuthProvider } from '@/modules/identity/shared/KeycloakAuthProvider.provider'
@@ -217,6 +222,12 @@ export function useTripWorkspace(
   /** Qual nota está com o comprovante aberto — `null` fecha a consulta e não busca nada. */
   const [openProofDocumentId, setOpenProofDocumentId] = useState<null | string>(null)
 
+  /** Spec 145 D16: quando começou o `pending` atual da planta — o teto de 10 min conta daqui. */
+  const [cargoLayoutEpisode, setCargoLayoutEpisode] = useState<
+    CargoLayoutPendingEpisode | undefined
+  >(undefined)
+  const cargoLayoutKey = input.tripId ?? ''
+
   const tripQuery = useQuery({
     enabled: controller.canReadTrips && input.tripId !== undefined && input.tripId !== '',
     queryFn: () => controller.getTrip({ tripId: input.tripId ?? '' }),
@@ -230,11 +241,37 @@ export function useTripWorkspace(
      * Spec 079: **duas condições, não uma.** A regra da 057 olhava só o estado da viagem, e uma
      * viagem despachada com tudo entregue seguia batendo no servidor para sempre.
      */
-    refetchInterval: (query) =>
-      resolveTripRefetchInterval({
+    /** Spec 145 T12: a planta `pending` também faz perguntar, a cada 3 s e até o teto. */
+    refetchInterval: (query) => {
+      const cargoStatus = query.state.data?.cargoLayoutState?.status
+      const now = query.state.dataUpdatedAt
+      const episode = trackCargoLayoutPendingEpisode({
+        key: cargoLayoutKey,
+        now,
+        previous: cargoLayoutEpisode,
+        status: cargoStatus,
+      })
+      return resolveTripRefetchInterval({
+        cargoLayout: { episode, now, status: cargoStatus },
         documents: query.state.data?.documents ?? [],
         status: query.state.data?.status,
-      }),
+      })
+    },
+  })
+
+  const nextCargoLayoutEpisode = trackCargoLayoutPendingEpisode({
+    key: cargoLayoutKey,
+    now: tripQuery.dataUpdatedAt,
+    previous: cargoLayoutEpisode,
+    status: tripQuery.data?.cargoLayoutState?.status,
+  })
+  if (nextCargoLayoutEpisode !== cargoLayoutEpisode) setCargoLayoutEpisode(nextCargoLayoutEpisode)
+  /** ⚠️ O relógio é o `dataUpdatedAt` da consulta: é ele que avança a cada resposta. */
+  const cargoLayoutView = resolveCargoLayoutView({
+    episode: nextCargoLayoutEpisode,
+    layout: tripQuery.data?.cargoLayout ?? null,
+    now: tripQuery.dataUpdatedAt,
+    state: tripQuery.data?.cargoLayoutState,
   })
 
   /**
@@ -403,6 +440,7 @@ export function useTripWorkspace(
   return {
     batchStatusMutation,
     cancelMutation,
+    cargoLayoutView,
     closeMutation,
     controller,
     createCteBatchMutation,

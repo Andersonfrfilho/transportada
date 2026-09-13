@@ -1097,4 +1097,74 @@ and updated_at < now() - lease`, com o mesmo `leaseMs` injetado (280 s no orçam
 
 ## Fase 5 — Frontend (T12, T13)
 
+### T12 — a tela pergunta enquanto a planta é calculada · 2026-09-13
+
+Rodou em `opus`: `sonnet` sem cota até 2026-09-14 09:00. Contratos vermelhos antes da implementação.
+Segue D3, D4 (só o estado; a parte visual é da T13), D10, D12, D16 e D18. Sem mudança na API.
+
+- **Funções puras, relógio injetado** (`src/modules/trip/shared/cargoLayoutPolling.service.ts`, novo):
+  - `trackCargoLayoutPendingEpisode({ key, now, previous, status })` marca o começo do `pending`
+    atual. A chave é o `tripId` no detalhe e o `layoutId` na prévia. Sair de `pending` zera o
+    episódio, e outra chave abre um novo: o teto da D16 conta **por episódio**.
+  - `resolveCargoLayoutRefetchInterval` devolve `CARGO_LAYOUT_REFETCH_MS` (3 s) só em `pending`
+    abaixo de `CARGO_LAYOUT_POLL_CEILING_MS` (10 min). Em `ready`, `failed` (estável dentro da
+    espera, D18), `unavailable`, chave ausente ou teto vencido, devolve `false`.
+  - `resolveCargoLayoutView` monta o modelo da T13 (abaixo). `resolveCargoPreviewPollLayoutId` e
+    `mergeCargoPreviewPoll` cuidam da prévia.
+- **Detalhe:** `resolveTripRefetchInterval` (`tripPolling.service.ts`) foi **estendida**, sem
+  mecanismo paralelo. O parâmetro `cargoLayout` é opcional e o resultado é o menor dos dois
+  intervalos: na rua com planta `pending` vale 3 s, e com a planta pronta volta aos 30 s de hoje.
+  `useTripWorkspace.hook.ts` guarda o episódio num `useState` ajustado no render. O relógio é o
+  `dataUpdatedAt` da consulta, que avança a cada resposta. O hook passa a expor `cargoLayoutView`.
+- **Prévia:**
+  - `readCargoLayout` (`tripClient.service.ts`) faz `GET ${TRIP_CARGO_LAYOUTS_PATH}/:layoutId` e
+    desembrulha `{ data }`.
+  - `tripCargoLayoutPollFromApi` (`tripResponse.validation.ts`) exige a chave exata
+    (`TRIP_CARGO_LAYOUT_POLL_KEYS`) e **reusa** `isCargoLayoutState` e `isCargoLayout`, os mesmos
+    validadores da prévia.
+  - `useTripCargoLayoutQuery` (`queries/useTripCargoLayout.query.ts`, novo) usa a chave
+    `['trip-cargo-layout', layoutId]`.
+  - `useTripCargoPreview.hook.ts` liga o polling quando a prévia vem `pending` com `layoutId`. Uma
+    prévia nova traz outro id e outra consulta. O `mergeCargoPreviewPoll` só aplica a resposta cujo
+    `layoutId` bate com o da prévia atual, e a de uma prévia anterior chegando atrasada é descartada.
+  - `TripQuickCreateDialog` e `TripProposalDetail` não mudaram: leem `preview.cargoLayout`, que já
+    chega mesclado quando o polling termina.
+- **Modelo exposto para a T13** (`CargoLayoutView | null`, em `useTripWorkspace().cargoLayoutView` e
+  `useTripCargoPreview().cargoLayoutView`):
+  `{ phase: 'ready'|'pending'|'failed'|'unavailable'|'timedOut', layout, stale, truncated, errorCode }`.
+  - `null` quer dizer chave ausente (API antiga), e a tela segue a de hoje.
+  - `layout` é a planta servida: em `pending` com `stale: true` ela é a anterior, que vira o fantasma
+    da D4. Em `timedOut` a planta anterior também continua ali.
+  - `truncated` e `stale` vêm da API, sem recálculo.
+- **Contratos:** `test/trip/cargo-layout-polling.contract.ts` (novo, 34 testes, importado pelo
+  entrypoint `test/trip.contract.test.ts`, que já está na lista do `package.json`). Cobre:
+  - 3 s só em `pending`, e nunca em `ready`/`failed`/`unavailable`/chave ausente;
+  - teto de 10 min (`-1 ms` pergunta; no teto, para e vira `timedOut` com a planta anterior);
+  - o episódio zera ao sair de `pending`, e chave nova abre episódio novo;
+  - no detalhe: galpão + `pending` → 3 s; na rua → o menor; planta pronta → os 30 s de hoje;
+    chave ausente → igual a hoje;
+  - na prévia: `pending` pede polling pelo `layoutId`, a resposta do mesmo id substitui planta e
+    estado, e a **resposta atrasada de outro id não sobrescreve** a prévia nova;
+  - resposta da rota nova: aceita `pending` sem planta e `ready` com planta; recusa chave a mais,
+    chave faltando, `layoutId` não string, `state` com status desconhecido ou chave a mais, planta
+    estranha e não objeto;
+  - o cliente faz GET no caminho certo, desembrulha `{ data }` e recusa chave a mais;
+  - a fiação nos dois hooks, por leitura de fonte.
+- **Vermelho** (antes de qualquer código de produção): `bun test ./test/trip.contract.test.ts` →
+  **0 pass, 1 fail** (`Cannot find module …/cargoLayoutPolling.service`).
+- **Verde:**
+  - `trip.contract.test.ts` → **799 pass, 0 fail**;
+  - `bunx tsc --noEmit -p .` → 0 erros;
+  - `bunx prettier --write` e `bunx eslint` nos 11 arquivos tocados: limpos;
+  - `bun run build` passou (PWA gerado).
+- **Suíte inteira** (`bun run test`) → **3404 pass, 15 fail** (3419 testes em 29 arquivos). São as
+  mesmas 15 da baseline da T12a: contratos de design system e de convenção que procuram a regra no
+  `CLAUDE.md` da raiz, de onde o commit `37436e4a` a tirou. Nenhuma é nova, e 3370 + 34 = 3404.
+- **Para a T13 / orquestrador:**
+  - na prévia, o POST `pending` vem com `cargoLayout: null`, então **não há planta anterior servida**
+    para o fantasma. Se a T13 quiser o fantasma também na prévia, ela precisa guardar a última planta
+    exibida; isso não foi decidido aqui;
+  - a primeira pergunta pelo `layoutId` sai logo depois do POST (é a busca inicial da consulta), e as
+    seguintes a cada 3 s.
+
 ## Fase 6 — Documentação e gate final (T14)
