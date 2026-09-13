@@ -171,7 +171,14 @@ status='previewed' and preview_sha256=$hash and expires_at>now() returning` + li
       confirmou" (procuração do worker: token de máquina, `whatsapp.settle`, revalidação da
       membership — conceito novo no produto) — docs
 - [ ] **T019** Prova de ponta em `evidence.md`: conversa real em staging com os 9 critérios de aceite,
-      um por um
+      um por um. **Executada pelo usuário** (decisão de 2026-09-12), pelo roteiro
+      [`t019-roteiro.md`](t019-roteiro.md), que inclui a conferência visual que a T017 não pôde fazer.
+      Nada é publicado por esta spec.
+
+⚠️ **B1 da revisão final foi para a spec 147.** A liquidação exige `billing.create` sempre, e a
+confirmação nunca exigiu. O usuário decidiu (2026-09-13) resolver isso com uma segunda confirmação
+por código gerado pelo app, configurável por operação e entregue pelo sino e por Web Push. Isso é
+`specs/147-a-confirmacao-pede-o-codigo-do-app/`, que depende desta spec estar em staging.
 
 `[P]` significa que a tarefa pode executar em paralelo sem editar os mesmos arquivos. Marque como
 concluída apenas após registrar evidência.
