@@ -2673,3 +2673,66 @@ Regra seguida: o comportamento de cada commit de staging fica igual; quem se ada
   `bun --env-file=../../.env.test test --timeout 120000` → **43 pass · 0 fail**.
 - Worker, `test/whatsapp-command-settlement.integration.test.ts`, no banco provisionado e migrado
   como no `make worker-integration`, sem `make up` → **3 pass · 0 fail**.
+
+## O travamento intermitente das integrações (2026-09-13)
+
+`whatsapp-issuance-preview.integration.ts` (AC3) e `whatsapp-command-settlement.integration.ts`
+(AC6) travavam de forma intermitente no `gate / integration` do Deploy, até o timeout e sem erro.
+Aconteceu nos dois commits `3d0fd781` e `081a2bce`, e localmente passavam sempre.
+
+### Reprodução
+
+Laço de rodadas isoladas (`bun --env-file=../../.env.test test --timeout 240000`), sob carga de CPU
+de dez processos `yes`, com um vigia que captura o `pg_stat_activity` (só leitura) de toda rodada que
+passa de 30 s:
+
+- prévia, 1º laço: 16 passes; as rodadas 14 e 18 travaram (120 s + `afterEach` estourado, como no CI);
+- prévia, 2º laço (em paralelo com a liquidação): 7 passes; a rodada 8 travou;
+- liquidação: 17 rodadas, 17 passes. Ela tem o mesmo padrão de seed com 39 notas, e o travamento
+  dela não apareceu na janela medida.
+
+### As duas capturas
+
+Em dois bancos descartáveis diferentes (`transportada_144_t012_2dffd5de…` e
+`transportada_144_t012_0f5aa845…`) o quadro foi o mesmo:
+
+- exatamente **10** conexões, o pool padrão de `new SQL(url)` que o `createDrizzleProvider` abre;
+- todas `state = idle`, **fora de transação** (`xact_start` nulo), `wait_event = ClientRead`, paradas
+  havia minutos. O servidor já tinha respondido e quem parou foi o JS;
+- a última consulta de cada uma é um insert do seed: nove `insert into "nfe_volumes"` e um
+  `insert into "nfe_addresses"`. Nenhuma tabela do WhatsApp chegou a ser tocada.
+
+### Causa
+
+O `seedCompany` dos testes semeava as notas num `Promise.all`: 51 na prévia e 39 no AC6, cada uma com
+cinco inserts em série. Isso dá bem mais de dez consultas concorrentes disputando um pool de dez, e
+sob carga o Bun SQL (Bun 1.3.14, drizzle-orm 1.0.0-rc.4) às vezes não devolve as respostas. É uma
+variante do defeito do `dd3515c6`, só que no pool e sem transação. Como lá, a reprodução mínima fora
+do teste não travou: `select` cru sobre o mesmo pool, 250 concorrentes × 400 rodadas e 8 × 2.000
+rodadas, zero travamentos.
+
+O `081a2bce` (liquidação faturando um tomador por vez) não era a causa. Ele fica porque continua
+correto.
+
+### Revisão dos `Promise.all` de produção
+
+Os `Promise.all` de `src/whatsapp-commands` têm largura de 2 a 5: candidatos de telefone, grupos por
+perfil NFS-e, incremento de tentativas, as duas leituras do snapshot e da liquidação. Nenhum roda
+dentro de transação, e nenhum passa do tamanho do pool. Não há código de produção a serializar por
+esta causa.
+
+### Correção
+
+Os três seeds da 144 que semeiam dezenas de notas passaram a inserir em série (`for…of`, com um
+comentário de uma linha dizendo por quê): `whatsapp-issuance-preview`, `whatsapp-command-settlement`
+e `whatsapp-issuance-confirm`. Os `Promise.all` de `whatsapp-command-repository` (8),
+`whatsapp-channel` (10) e o par de confirmações de `whatsapp-issuance-confirm` testam corrida de
+propósito e ficaram como estão.
+
+### Prova
+
+Mesma carga (dez `yes`, os dois laços em paralelo), em primeiro plano:
+
+- prévia: **20 pass · 0 fail**, 10–21 s por rodada, nenhuma captura;
+- liquidação: **20 pass · 0 fail**, 12–22 s por rodada, nenhuma captura;
+- `whatsapp-issuance-confirm.integration.ts`: 3 pass · 0 fail.

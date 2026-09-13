@@ -406,9 +406,11 @@ async function seedCompany(
   const profiles = await seedProfiles(db, { companyId, userId })
 
   const numbers = input.withNfse === false ? CTE_NUMBERS : [...CTE_NUMBERS, ...NFSE_NUMBERS]
-  const documentIds = await Promise.all(
-    numbers.map((number) => seedDocument(db, { companyId, importId, number, userId, xmlObjectId })),
-  )
+  const documentIds: string[] = []
+  // Em série: dezenas de inserts concorrentes no pool de 10 do Bun SQL podem nunca voltar (variante do dd3515c6).
+  for (const number of numbers) {
+    documentIds.push(await seedDocument(db, { companyId, importId, number, userId, xmlObjectId }))
+  }
   return {
     actor: {
       identity: {

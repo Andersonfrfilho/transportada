@@ -298,9 +298,11 @@ async function seedCompany(
   const numbers = input.withProfiles
     ? Array.from({ length: LAST_NUMBER - FIRST_NUMBER + 1 }, (_, index) => FIRST_NUMBER + index)
     : [FIRST_NUMBER, 1220]
-  const documentIds = await Promise.all(
-    numbers.map((number) => seedDocument(db, { companyId, importId, number, userId, xmlObjectId })),
-  )
+  const documentIds: string[] = []
+  // Em série: dezenas de inserts concorrentes no pool de 10 do Bun SQL podem nunca voltar (variante do dd3515c6).
+  for (const number of numbers) {
+    documentIds.push(await seedDocument(db, { companyId, importId, number, userId, xmlObjectId }))
+  }
 
   return {
     companyId,
