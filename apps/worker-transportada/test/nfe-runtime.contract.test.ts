@@ -156,6 +156,11 @@ describe('NF-e worker runtime contract', () => {
             calls.push('contractorMailInbound.cancel')
           },
         }),
+        startCargoLayoutConsumer: async () => ({
+          cancel: async () => {
+            calls.push('cargoLayout.cancel')
+          },
+        }),
         startJobRunConsumer: async () => ({
           cancel: async () => {
             calls.push('jobRun.cancel')
@@ -203,6 +208,7 @@ describe('NF-e worker runtime contract', () => {
       'aggregateAttachment.cancel',
       'contractorMailOutbound.cancel',
       'contractorMailInbound.cancel',
+      'cargoLayout.cancel',
       'jobRun.cancel',
       'storage.close',
       'provider.close:transportada.runtime.contract.synthetic.v1.main.queue',
@@ -287,6 +293,7 @@ describe('NF-e worker runtime contract', () => {
         startAggregateAttachmentConsumer: async () => undefined,
         startContractorMailOutboundConsumer: async () => undefined,
         startContractorMailInboundConsumer: async () => undefined,
+        startCargoLayoutConsumer: async () => undefined,
         startJobRunConsumer: async () => undefined,
         startFoundationSyntheticConsumer: async () => undefined,
         startHealthServer() {

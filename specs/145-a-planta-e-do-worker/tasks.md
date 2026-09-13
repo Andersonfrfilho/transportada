@@ -7,8 +7,8 @@
 | 1    | T2      | ✅ feita | `sonnet`           | `opus`                            |
 | 2    | T3 🧠   | ✅ feita | `opus`             | `fable`                           |
 | 2    | T4–T6b  | ✅ feita | `sonnet`           | `opus`                            |
-| 3    | T7–T8   | pendente | `sonnet`           | `opus`                            |
-| 3    | T9 🧠   | pendente | `opus`             | `fable`                           |
+| 3    | T7–T8   | ✅ feita | `sonnet`           | `opus`                            |
+| 3    | T9 🧠   | ✅ feita | `opus`             | `fable`                           |
 | 3    | T9b     | pendente | `sonnet`           | `opus`                            |
 | 4    | T10–T11 | pendente | `sonnet`           | `opus`                            |
 | 5    | T12–T13 | pendente | `sonnet`           | `opus`                            |
@@ -98,7 +98,7 @@ trip_id)`); mirror em `apps/worker-transportada/src/database/`. Contrato de sche
 - [x] T8 — Relay dedicado espelhando
       `aggregate-attachment/application/aggregate-attachment-outbox-relay.service.ts` sobre
       `outbox/application/outbox-relay-loop.service.ts`; repositório da outbox nova (G008).
-- [ ] T9 🧠 — Handler: reivindicação atômica por hash (`UPDATE ... SET status='running' WHERE
+- [x] T9 🧠 — Handler: reivindicação atômica por hash (`UPDATE ... SET status='running' WHERE
 status='queued' AND input_hash=$hash`; nula → confirma e descarta; hash superado → confirma e
       descarta); execução em `new Worker()` de thread (padrão
       `aggregate-attachment/infrastructure/threaded-extraction.gateway.ts` +

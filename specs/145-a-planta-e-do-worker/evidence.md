@@ -550,6 +550,91 @@ Rodou em `opus`: `sonnet` sem cota até 2026-09-14 09:00. Contrato vermelho ante
   paridade com a API já existiam (T3/T5, `schema-parity.contract.ts`), sem mudança. Nenhuma variável
   de ambiente nova. Consumidor/handler fica para a T9.
 
+### T9 🧠 — o worker calcula a planta · 2026-09-12
+
+Rodou em `opus`, validado antes por architect `opus`. Contratos vermelhos antes da implementação.
+Segue as decisões do usuário D13–D15 (2026-09-12), que substituem o `truncated: true` da D9.
+
+- `apps/worker-transportada/src/cargo-layout/application/` (novos):
+  - `cargo-layout-handler.service.ts`: `handleCargoLayout({ attempt, baseBudgetMs, job, maxAttempts,
+ports })` → `'ack' | 'retry'`, no molde de `route-optimization-handler.service.ts`, portas
+    `claim/compute/complete/fail/release/now`. Reivindicação nula → `ack` sem calcular. Entrada
+    inválida → `failed` `CARGO_LAYOUT_FAILED`, `ack`. Teto externo da thread → `release` + `retry`
+    numa tentativa não final, `failed` `CARGO_LAYOUT_TIME_BUDGET_EXCEEDED` na última. Exceção ou
+    thread morta → `failed` `CARGO_LAYOUT_FAILED`, `ack`. `null` do pacote → `failed`
+    `CARGO_LAYOUT_UNAVAILABLE`, `ack` (**D15**). Caixa `unplaced` com motivo `time_budget` numa tentativa
+    não final → `release` + `retry`; na última grava `ready` como está, sem marca nenhuma (**D13** —
+    "incompleta" é derivada na leitura, T10). Falha de escrita depois da reivindicação → `release` +
+    `retry`, e `failed` `CARGO_LAYOUT_FAILED` na última.
+  - `cargo-layout-budget.policy.ts`: orçamento da tentativa N = `base × 2^(N−1)` (60/120/240 s no
+    padrão, **D13**); lease = maior degrau + teto externo 10 s + folga 30 s = 280 s no padrão, derivado
+    de `CARGO_LAYOUT_TIME_BUDGET_MS` sem env nova (**D14**).
+  - `cargo-layout-error.constant.ts` (`CARGO_LAYOUT_ERROR`), `cargo-layout-timeout.error.ts`
+    (`CargoLayoutTimeoutError`, o único erro que vale novo degrau).
+  - `stored-cargo-layout-input.schema.ts`: `StoredCargoLayoutInput` escrito a partir de
+    `Parameters<typeof resolveCargoLayout>[0]` + `policyVersion`, e o Zod `strictObject` (com
+    `exactOptional`/`readonly`) com `satisfies z.ZodType<StoredCargoLayoutInput>`. O jsonb lido é
+    fronteira: campo desconhecido é recusado.
+- `apps/worker-transportada/src/cargo-layout/infrastructure/` (novos):
+  - `drizzle-cargo-layout.repository.ts`: `claim` = `UPDATE … SET status='running',
+attempt=attempt+1, updated_at=now() WHERE company_id AND id AND input_hash AND (status='queued' OR
+(status='running' AND updated_at < now() - lease)) RETURNING attempt, input`; `complete`/`fail`/
+    `release` só sobre `running` da mesma empresa, id e hash. `fail` grava `layout: null` (o CHECK da API
+    proíbe planta fora de `ready`).
+  - `threaded-cargo-layout.gateway.ts` (cópia do padrão de `threaded-extraction.gateway.ts`) +
+    `cargo-layout.worker.ts`: o prazo (`deadline = now() + budgetMs`) nasce **dentro** da thread; teto
+    externo = orçamento + 10 s, termina a thread; em falha só atravessa `error.name` (a entrada tem PII).
+- `apps/worker-transportada/src/runtime/cargo-layout-consumer.service.ts` (novo): decodifica com
+  `cargoLayoutEnvelopeV1Schema`, `CARGO_LAYOUT_PREFETCH = 1`, `attempt = retryCount + 1`, log só com
+  `layoutId`/`attempt`/`disposition` (e `reason` = nome do erro na falha do handler, que devolve a
+  mensagem).
+- Editados: `package.json` (dependência `"@adatechnology/cargo-placement":
+"link:@adatechnology/cargo-placement"`, igual à API; `cargo-layout.worker.ts` no `build`; o
+  entrypoint novo na lista explícita de testes); `bun.lock` (**uma linha só**, a dependência nova no
+  workspace do worker — `bun install` sem mudar outra dependência); `src/config/environment.schema.ts`
+  e `src/shared/worker.types.ts` (`CARGO_LAYOUT_TIME_BUDGET_MS`, int 1 000–600 000, padrão 60 000 →
+  `cargoLayoutTimeBudgetMs`); `src/main.ts` (starter injetável `startCargoLayoutConsumer`, como o do
+  anexo; `maxAttempts = maxRetries + 1 = 3`; consome na conexão do `cargoLayoutPublisher` da T8, que já
+  está no grupo de fechamento e no `catch` de boot — nenhum provider novo; consumidor drenado depois
+  do anexo). Sem `.env.example` no worker, nem contrato que o cubra — nada a editar ali.
+- Contratos (entrypoint `test/cargo-layout-handler.contract.test.ts`, na lista explícita):
+  - `test/cargo-layout/handler.contract.ts` (16): todos os ramos acima, a escada 60000/120000/240000
+    passada ao `compute` por tentativa e o lease 280 000/44 000.
+  - `test/cargo-layout/input-schema.contract.ts` (3): entrada da API aceita após JSON; campo a mais na
+    raiz, na parada e na caixa recusado; forma quebrada recusada.
+  - `test/cargo-layout/consumer.contract.ts` (6): decode, envelope inválido recusado, prefetch 1,
+    `retryCount` → degrau, log sem PII, falha do handler → `retry`.
+  - `test/cargo-layout/gateway.contract.ts` (4): **`new Worker()` real** com a Daily de
+    `@adatechnology/cargo-placement/fixtures` (3 paradas) devolvendo planta que sobrevive a
+    `JSON.parse(JSON.stringify())`; teto externo → `CargoLayoutTimeoutError`; prazo vencido → caixas
+    `time_budget`, nunca somem.
+  - `test/cargo-layout/repository.contract.ts` (4): SQL da reivindicação (`queued` ou `running` com
+    lease vencido, por empresa/id/hash) e das escritas por `PgDialect`.
+  - `test/environment.contract.test.ts`: padrão 60 000, `90000` lido, `abc`/`0`/`999`/`600001`/`1.5`
+    recusados. `test/nfe-runtime.contract.test.ts` e `test/shutdown-signals.contract.test.ts`: o starter
+    novo injetado, e `cargoLayout.cancel` na ordem de drenagem. `build-entrypoints.contract.test.ts`
+    passa a exigir o `cargo-layout.worker.ts` (varredura por `*.worker.ts`).
+- Vermelho (antes de qualquer código de produção): `cargo-layout-handler.contract.test.ts` → **0 pass,
+  1 fail** (`Cannot find module …/stored-cargo-layout-input.schema.js`); `environment` → **21 pass,
+  7 fail**; `nfe-runtime` → **2 pass, 1 fail** (drenagem sem `cargoLayout.cancel`).
+- Verde: `cargo-layout-handler.contract.test.ts` → **33 pass, 0 fail** (93 `expect()`); as cinco
+  suítes afetadas → **67 pass, 0 fail** (137 `expect()`); suíte inteira do worker
+  (`bun run test`) → **1038 pass, 0 fail** (2874 `expect()`, 80 arquivos). `bunx tsc --noEmit` limpo;
+  `bunx prettier --write` e `bunx eslint` nos 22 arquivos tocados: limpos. `bun run build` empacota
+  `cargo-layout/infrastructure/cargo-layout.worker.js`.
+- **Achado registrado (para T9b/T10):** o `.d.ts` do pacote declara `resolveCargoLayout(...) |
+null`, mas a versão instalada **nunca devolve `null`** (`dist/index.js`, corpo inteiro sem `return
+null`): sem baú nem capacidade sai uma planta com `placement: null` e `occupancyKnown: false`. O ramo
+  da D15 fica, coberto pelo contrato do handler, e o teste de thread fixa o comportamento real. Hoje,
+  então, planta sem capacidade vira `ready` com `placement: null` — que o CHECK aceita. Quem decide se
+  isso deve ser `CARGO_LAYOUT_UNAVAILABLE` (e se a API deixa de enfileirar) é a T9b.
+- **Risco registrado:** o `strictObject` recusa qualquer chave que a API passe a gravar em `input`
+  sem o worker conhecer — a planta vira `failed` `CARGO_LAYOUT_FAILED` em vez de calcular sobre um
+  retrato parcial. Mudou `StoredCargoLayoutInput` na API? atualize a cópia aqui.
+- Regra física do empacotador (apoio 80%, escora, célula 5 cm, slenderness) intocada (G013): o worker
+  só chama `resolveCargoLayout`. Não coberto aqui: teste contra Postgres real da reivindicação por
+  lease (a cláusula é provada pelo SQL gerado).
+
 ## Fase 4 — Leitura da API (T10, T11)
 
 ## Fase 5 — Frontend (T12, T13)

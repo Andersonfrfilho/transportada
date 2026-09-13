@@ -114,6 +114,10 @@ import { AggregateAttachmentOutboxPublisherService } from './aggregate-attachmen
 import { AggregateAttachmentOutboxRelayService } from './aggregate-attachment/application/aggregate-attachment-outbox-relay.service.js'
 import { DrizzleAggregateAttachmentOutboxRepository } from './aggregate-attachment/infrastructure/drizzle-aggregate-attachment-outbox.repository.js'
 import { buildCargoLayoutTopology } from './messaging/cargo-layout-topology.js'
+import { resolveCargoLayoutLeaseMs } from './cargo-layout/application/cargo-layout-budget.policy.js'
+import { createDrizzleCargoLayoutRepository } from './cargo-layout/infrastructure/drizzle-cargo-layout.repository.js'
+import { createThreadedCargoLayoutGateway } from './cargo-layout/infrastructure/threaded-cargo-layout.gateway.js'
+import { startCargoLayoutConsumer } from './runtime/cargo-layout-consumer.service.js'
 import { CargoLayoutOutboxPublisherService } from './cargo-layout/application/cargo-layout-outbox-publisher.service.js'
 import { CargoLayoutOutboxRelayService } from './cargo-layout/application/cargo-layout-outbox-relay.service.js'
 import { DrizzleCargoLayoutOutboxRepository } from './cargo-layout/infrastructure/drizzle-cargo-layout-outbox.repository.js'
@@ -407,6 +411,9 @@ type WorkerRuntimeDependencies = {
     readonly logger: WorkerLogger
     readonly provider: RabbitMqProvider
   }) => Promise<RuntimeConsumer | undefined>
+  readonly startCargoLayoutConsumer?: (
+    input: Parameters<typeof startCargoLayoutConsumer>[0],
+  ) => Promise<RuntimeConsumer | undefined>
   readonly startInvitationDeliveryConsumer?: (input: {
     readonly config: ReturnType<typeof parseWorkerEnvironment>
     readonly dependencies: InvitationDeliveryDependencies
@@ -474,6 +481,7 @@ export async function startWorkerRuntime(
     dependencies.startContractorMailOutboundConsumer ?? startContractorMailOutboundConsumer
   const contractorMailInboundStarter =
     dependencies.startContractorMailInboundConsumer ?? startContractorMailInboundConsumer
+  const cargoLayoutStarter = dependencies.startCargoLayoutConsumer ?? startCargoLayoutConsumer
   const invitationDeliveryStarter =
     dependencies.startInvitationDeliveryConsumer ?? startInvitationDeliveryConsumer
   const passwordResetDeliveryStarter =
@@ -590,6 +598,7 @@ export async function startWorkerRuntime(
   let contractorMailInboundRelayLoop: OutboxRelayLoop | undefined
   let cargoLayoutPublisher: RabbitMqProvider | undefined
   let cargoLayoutRelayLoop: OutboxRelayLoop | undefined
+  let cargoLayoutConsumer: RuntimeConsumer | undefined
   let invitationDeliveryConsumer: RuntimeConsumer | undefined
   let invitationDeliveryPublisher: RabbitMqProvider | undefined
   let invitationDeliveryRelayLoop: OutboxRelayLoop | undefined
@@ -994,6 +1003,28 @@ export async function startWorkerRuntime(
       },
       logger,
       provider: contractorMailInboundPublisher,
+    })
+    /**
+     * Spec 145 D9: consome na mesma conexão do publisher do relay, como o anexo — ela já declara a
+     * topologia `cargo-layout.v1` e já está no grupo de fechamento e no `catch` de boot.
+     */
+    const cargoLayoutMaxAttempts = (cargoLayoutTopology.retry?.maxRetries ?? 0) + 1
+    cargoLayoutConsumer = await cargoLayoutStarter({
+      baseBudgetMs: config.cargoLayoutTimeBudgetMs,
+      logger,
+      maxAttempts: cargoLayoutMaxAttempts,
+      ports: {
+        ...createDrizzleCargoLayoutRepository({
+          database: database.db as ReturnType<typeof createDrizzleProvider>['db'],
+          leaseMs: resolveCargoLayoutLeaseMs({
+            baseBudgetMs: config.cargoLayoutTimeBudgetMs,
+            maxAttempts: cargoLayoutMaxAttempts,
+          }),
+        }),
+        ...createThreadedCargoLayoutGateway(),
+        now: () => new Date(),
+      },
+      provider: cargoLayoutPublisher,
     })
     invitationDeliveryConsumer = await invitationDeliveryStarter({
       config,
@@ -1600,6 +1631,7 @@ export async function startWorkerRuntime(
         aggregateAttachmentConsumer,
         contractorMailOutboundConsumer,
         contractorMailInboundConsumer,
+        cargoLayoutConsumer,
         jobRunConsumer,
         notificationConsumer,
         routeOptimizationConsumer,

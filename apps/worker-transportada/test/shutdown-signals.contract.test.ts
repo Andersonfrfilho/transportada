@@ -108,6 +108,7 @@ const noopRuntimeDependencies = {
   startContractorMailInboundConsumer: async () => ({
     cancel: async (): Promise<void> => undefined,
   }),
+  startCargoLayoutConsumer: async () => ({ cancel: async (): Promise<void> => undefined }),
   startJobRunConsumer: async () => ({ cancel: async (): Promise<void> => undefined }),
 }
 
