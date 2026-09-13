@@ -152,6 +152,15 @@ db:generate`, espelhada em `apps/worker-transportada/src/database/nfe.schema.ts`
   commit próprio antes da T10. Na publicação são dois pushes: a T12a vai para o ar primeiro, e T10/T11
   só depois dela. Decisão do usuário, 2026-09-12.
 
+- **D18 — Falha espera antes de reabrir.** O upsert só reabre uma linha `failed`, `queued` ou `running`
+  quando o `updated_at` dela é mais velho que o lease da D14, cerca de 280 s. Sem essa espera, uma
+  falha definitiva (entrada inválida, exceção do empacotador) seria reaberta a cada 3 s pelo polling e
+  pelo gatilho lazy, e o empacotador rodaria em laço sem teto no servidor. Uma entrada editada gera hash
+  novo e é calculada na hora. Dentro da espera, a resposta é `failed` com o código e a tela para de
+  perguntar; quando o pedido é reaberto, a resposta é `pending`. O polling também reabre, pela mesma
+  regra. Isso ajusta a D16: "a próxima mudança ou leitura reabre", só que depois da espera. Decisão do
+  usuário, 2026-09-13.
+
 ## Fora do escopo
 
 - Regra física do empacotador — apoio de 80%, escora pelo lado, célula de 5 cm,
