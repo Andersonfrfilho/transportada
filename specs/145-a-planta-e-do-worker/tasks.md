@@ -14,7 +14,7 @@
 | 4    | T10–T11 | ✅ feita | `sonnet`           | `opus`                            |
 | 5    | T12–T13 | ✅ feita | `sonnet`           | `opus`                            |
 | 6    | T14     | ✅ feita | `haiku`            | `sonnet` → `opus`                 |
-| 7    | T15     | pendente | `sonnet`           | `opus`                            |
+| 7    | T15     | ✅ feita | `sonnet`           | `opus`                            |
 | 7    | T16     | ✅ feita | `sonnet`           | `opus`                            |
 | —    | revisão | pendente | `opus`             | `fable`                           |
 
@@ -164,7 +164,7 @@ status='queued' AND input_hash=$hash`; nula → confirma e descarta; hash supera
 
 > 🤖 Modelo: `sonnet` (fallback `opus`)
 
-- [ ] T15 — Expurgo de 24 h da prévia (D19) como rotina do catálogo de jobs, no padrão de
+- [x] T15 — Expurgo de 24 h da prévia (D19) como rotina do catálogo de jobs, no padrão de
       `trip.location.purge` (autorizado pelo usuário em 2026-09-13, com migration):
   - API: migration aditiva que acrescenta `trip.cargo-layout.purge` aos CHECKs `job_schedules_job_check`
     e `job_executions_job_check`, com rollback escrito, e cria a linha em `job_schedules` a cada

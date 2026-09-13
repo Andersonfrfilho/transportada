@@ -89,6 +89,12 @@ const CATALOG = [
     job: 'whatsapp.command.settle',
     minimumIntervalSeconds: 300,
   },
+  {
+    /** Spec 145 D19: a prévia só toca o próprio banco — o imprevisto já tem nome no invólucro. */
+    failureOutcomes: [],
+    job: 'trip.cargo-layout.purge',
+    minimumIntervalSeconds: 86_400,
+  },
 ] as const
 
 describe('worker job catalog', () => {

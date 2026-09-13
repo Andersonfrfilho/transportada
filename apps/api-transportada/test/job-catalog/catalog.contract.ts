@@ -97,6 +97,12 @@ const CATALOG = [
     job: 'whatsapp.command.settle',
     minimumIntervalSeconds: 300,
   },
+  {
+    /** Spec 145 D19: a prévia só toca o próprio banco — o imprevisto já tem nome no invólucro. */
+    failureOutcomes: [],
+    job: 'trip.cargo-layout.purge',
+    minimumIntervalSeconds: 86_400,
+  },
 ] as const
 
 /**
@@ -112,6 +118,7 @@ const SEED_MIGRATIONS = [
   '20260902003000_geocoding_backfill_hourly',
   '20260905130000_geocoded_address_paid_refinement',
   '20260912153407_whatsapp_command_settlement',
+  '20260913120000_trip_cargo_layout_purge_job',
 ] as const
 
 describe('job catalog', () => {
@@ -243,7 +250,8 @@ async function readSeededIntervals(): Promise<Record<string, number>> {
     const sql = await Bun.file(
       join(migrationsDirectory.pathname, migration, 'migration.sql'),
     ).text()
-    const inserted = /\('([a-z.]+)',\s*(\d+),/g
+    // Hífen entra no nome com `trip.cargo-layout.purge`: sem ele a linha semeada passaria calada
+    const inserted = /\('([a-z.-]+)',\s*(\d+),/g
     for (const match of sql.matchAll(inserted)) {
       const [, job, intervalSeconds] = match
       if (job === undefined || intervalSeconds === undefined) continue
@@ -258,7 +266,7 @@ async function readSeededIntervals(): Promise<Record<string, number>> {
      * Ler só o `INSERT` faria esta guarda comparar o piso novo com o valor **antigo** e reprovar uma
      * base que na prática está certa — a migration de correção roda logo depois da de criação.
      */
-    const updated = /SET\s+"interval_seconds"\s*=\s*(\d+)[\s\S]*?WHERE\s+"job"\s*=\s*'([a-z.]+)'/g
+    const updated = /SET\s+"interval_seconds"\s*=\s*(\d+)[\s\S]*?WHERE\s+"job"\s*=\s*'([a-z.-]+)'/g
     for (const match of sql.matchAll(updated)) {
       const [, intervalSeconds, job] = match
       if (job === undefined || intervalSeconds === undefined) continue

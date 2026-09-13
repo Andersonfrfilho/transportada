@@ -1378,3 +1378,61 @@ está. O detalhe reetiqueta com a entrada que já monta, inclusive a planta `sta
   consultas do detalhe inalterado.
 - **Limites registrados:** a caixa fora do baú cujo rótulo é o nome do produto, e a caixa posicionada de
   uma nota com dois produtos renomeados, continuam com o rótulo antigo. Casar ali seria adivinhar.
+
+### T15 — a prévia some em 24 h · 2026-09-13
+
+Rodou em `opus`: `sonnet` sem cota até 2026-09-14 09:00. Escopo ampliado e autorizado pelo usuário, com a
+migration: o cron só publica a batida, quem executa é o worker, e o nome da rotina é travado por CHECK.
+
+- **Rotina:** `trip.cargo-layout.purge` (D19), no molde de `trip.location.purge`.
+- **API:** migration aditiva `20260913120000_trip_cargo_layout_purge_job`, escrita à mão (sem
+  journal/snapshot, como na T0), no molde de `20260905130000_geocoded_address_paid_refinement`.
+  - Amplia `job_executions_job_check` e `job_schedules_job_check` e semeia `job_schedules` com
+    86 400 s.
+  - O `rollback.sql` apaga as execuções e o relógio da rotina, restaura os CHECKs e remove a própria
+    linha do journal, com checagem de `ROW_COUNT`.
+- **Catálogo:** a rotina entrou no `JOB_CATALOG` das quatro apps, com os contratos de paridade. O contrato
+  de catálogo da API passou a aceitar hífen no nome.
+- **Worker** (`src/trip-cargo-layout-purge/`):
+  - cada lote é uma transação: seleciona até 500 prévias com `trip_id is null` e `updated_at` anterior a
+    agora − 24 h, com `for update skip locked`;
+  - apaga primeiro a outbox delas (FK `ON DELETE RESTRICT`) e depois as prévias, reconferindo
+    `trip_id is null`;
+  - para em lote vazio, no teto de 200 lotes ou em `isStopRequested()`;
+  - o log `trip_cargo_layout_purge_cycle_finished` leva só `{ batches, deleted, deletedOutbox,
+exhausted, executionId, correlationId }`;
+  - o corte de 24 h é calculado do relógio injetado, para ser testável, como na rotina de referência.
+- **Frontend:** a rotina não ganhou rótulo, porque o painel de operações mostra o nome cru de toda rotina.
+- **Configuração do Railway:** não mudou, porque a batida de 5 min passa a publicar a rotina uma vez por
+  dia.
+- **Vermelho:**
+
+  | App      | Vermelho                         |
+  | -------- | -------------------------------- |
+  | worker   | 3 fail + 1 erro (módulo ausente) |
+  | api      | 6 fail                           |
+  | cron     | 2 fail                           |
+  | frontend | 2 fail                           |
+
+- **Verde nas suítes tocadas:**
+
+  | App                                | Verde   |
+  | ---------------------------------- | ------- |
+  | worker                             | 12/12   |
+  | api                                | 64/64   |
+  | cron                               | 6/6     |
+  | frontend                           | 215/215 |
+  | integração contra o Postgres local | 2/2     |
+
+  A integração apaga a prévia de 25 h e a outbox dela, mantém a de 1 h e a planta de viagem de 25 h, e o
+  segundo ciclo não apaga nada.
+
+- **`make migration-test`:** 91 pass, com migration, rollback e reaplicação. A migration também foi
+  aplicada no Postgres local.
+- **Gate conferido pelo orquestrador:**
+  - `bun run typecheck` limpo e eslint limpo nas quatro apps;
+  - api 5057 pass / 0 fail, worker 1046 / 0, cron 94 / 0;
+  - frontend 3434 pass / 15 fail. As 15 foram conferidas pelo nome: as mesmas da baseline, nenhuma no
+    catálogo de jobs.
+- **Anteriores a esta task, fora do escopo:** o catálogo do frontend não tem `geocoding.refine`, e o
+  `apps/worker-transportada/CLAUDE.md` diz "Quatro registradas hoje". Os dois viraram uma tarefa separada.
