@@ -103,9 +103,9 @@ bodyType} | null`.
 - Q4: migration de dados só se houver linha nova com fonte. Aditiva (`insert … on conflict do
 nothing`), com rollback por `delete` das chaves inseridas.
 - **Nenhum `UPDATE` em `fleet_vehicles.body_type`** (critério 7).
-- Cópias do schema no worker: `trips` não é copiada hoje em `worker-transportada/src/database/`,
-  mas `routing.schema.ts` copia `trip_documents`. Conferir se alguma cópia de `trips` passa a
-  precisar da coluna. Pela leitura atual, não.
+- Cópias do schema no worker: `worker-transportada/src/database/routing.schema.ts:152-169` copia
+  `trips` e `fleet_vehicles` **parcialmente**, só com as colunas que o solver lê. As colunas novas
+  **não** entram lá: o worker não lê carreta. O cron não copia nenhuma das duas.
 
 ## Segurança e tenant
 
@@ -199,3 +199,43 @@ Log `info` `trip_occupancy_capacity_unknown`, com `tripId`, `reason` e `vehicleT
 - **Câmera:** fora da 147, vira spec própria.
 - **Produção (T0):** 6 veículos `02` com referência, nenhum `00`, nenhuma carreta, zero viagens em
   60 dias. Não há dado de produção para migrar nem a proteger no índice novo.
+
+## Validação da T8 pelo architect (opus, 2026-09-13): aprovada com ajustes
+
+Estes ajustes são obrigatórios na T8 a T12:
+
+1. **A FK composta usa `fleet_vehicles_company_id_id_unique`** (`fleet.schema.ts:239`), que já
+   existe. O padrão é o de `trip.schema.ts:145-151`: `onDelete('restrict')` e `onUpdate('cascade')`.
+   **Nunca `SET NULL`**: numa FK composta ele anularia também o `company_id`, que é NOT NULL.
+2. **Gerar a migration por `bun run db:generate --name trip_trailer_vehicle`**, porque o `db:check`
+   confere o `snapshot.json`. Os nomes dos constraints são explícitos. O índice parcial segue
+   `mdfe.schema.ts:222-226`.
+3. **O filtro de viagem aberta** é `status not in ('completed','cancelled')`. São nove estados
+   (inclui `on_delivery_route`), e os terminais não regridem (`trip-state.policy.ts:353`).
+4. **CHECKs a mais:**
+   - `fleet_vehicles_default_trailer_tractor_only`: `default_trailer_vehicle_id is null or
+vehicle_type = 'tractor_unit'`;
+   - `fleet_vehicles_default_trailer_not_self`: a carreta padrão não pode ser o próprio veículo;
+   - `trips_trailer_not_vehicle`: a carreta da viagem não pode ser o veículo da viagem.
+5. **`rollback.sql`** usa `if exists` em tudo, porque o teste roda os rollbacks em cadeia. Uma
+   asserção de constraints cobre a FK que cruza empresa e o índice.
+6. **O PUT de veículo regrava a ficha inteira** (`drizzle-fleet-vehicle.repository.ts:131`):
+   - `default_trailer_vehicle_id` entra em `toVehicleColumns`;
+   - o Zod recusa a carreta padrão fora do cavalo, em vez de deixar o CHECK estourar como 500;
+   - o Zod também recusa trocar para `traction` o `role` de uma carreta que está como padrão de
+     algum cavalo ou numa viagem aberta.
+7. **A carreta padrão já pode estar ocupada quando a viagem é criada.** Nesse caso a viagem nasce
+   **sem carreta**, porque a padrão é só sugestão (D3), e o despacho barra depois com
+   `TRIP_TRAILER_REQUIRED`.
+8. **Erros do banco viram resposta de domínio**, e é isso que fecha a corrida:
+   - `23505` no índice da carreta → `409 TRIP_TRAILER_IN_USE`;
+   - `23514` nos CHECKs novos → `400`.
+9. **Trocar o veículo da viagem:** não existe caminho de escrita hoje (`drizzle-trip.repository.ts:99-101`
+   só insere). Na T10 isso fica registrado como N/A, com um contrato que obriga quem criar essa rota a
+   limpar a carreta.
+10. **Snapshot do despacho** (`drizzle-trip-route.repository.ts:429-467`): ganha `trailer: {vehicleId,
+plate} | null`, lido na mesma transação. Os snapshots antigos ficam como estão, e todo leitor do
+    jsonb trata `trailer` ausente como `null`.
+11. **Spec 145:** trocar a carreta tem de invalidar a planta. O leitor `trip-cargo-layout-input.support.ts`
+    daquela branch lê só `trips.vehicleId`. A nota vai para a 145 depois de perguntar ao usuário,
+    como manda a T12.
