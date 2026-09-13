@@ -23,6 +23,7 @@ import type {
   TripCargoLayoutState,
 } from '../domain/cargo-layout-state.types.js'
 import { buildCargoLayoutLeaseExpiredCondition } from './cargo-layout-request.support.js'
+import { CARGO_LAYOUT_STATUS } from './cargo-layout-status.constant.js'
 import type { TripQueryable } from './trip-queryable.type.js'
 
 export type TripCargoLayoutReading = {
@@ -110,7 +111,7 @@ async function readPreviousReady(
       and(
         eq(tripCargoLayouts.companyId, params.companyId),
         eq(tripCargoLayouts.tripId, params.tripId),
-        eq(tripCargoLayouts.status, 'ready'),
+        eq(tripCargoLayouts.status, CARGO_LAYOUT_STATUS.ready),
       ),
     )
     .orderBy(sql`${tripCargoLayouts.computedAt} desc nulls last`)
@@ -141,7 +142,9 @@ export async function readTripCargoLayout(
   const inputHash = hashCargoLayoutInput(buildCargoLayoutInput(params.input))
   const current = await readCargoLayoutByInputHash(queryable, { ...params, inputHash })
   const previousReady =
-    current?.status === 'ready' ? undefined : await readPreviousReady(queryable, params)
+    current?.status === CARGO_LAYOUT_STATUS.ready
+      ? undefined
+      : await readPreviousReady(queryable, params)
   const reading = resolveCargoLayoutReading({ current, previousReady })
 
   return {

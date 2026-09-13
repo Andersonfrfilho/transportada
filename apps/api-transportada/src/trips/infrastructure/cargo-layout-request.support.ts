@@ -9,11 +9,13 @@
  * pedido recente ficam no-op: enfileirar de novo duplicaria o trabalho do worker sem trazer nada.
  */
 import { and, eq, sql, type SQL } from 'drizzle-orm'
+import type { PgUpdateSetSource } from 'drizzle-orm/pg-core'
 
 import {
   CARGO_LAYOUT_OUTBOX_EVENT_TYPES,
   tripCargoLayoutOutbox,
 } from '../../database/trip-cargo-layout-outbox.schema.js'
+import { inList } from '../../database/schema-check.constant.js'
 import { tripCargoLayouts } from '../../database/trip-cargo-layout.schema.js'
 import type {
   ReopenStoredCargoLayoutParams,
@@ -21,6 +23,10 @@ import type {
   UpsertCargoLayoutRequestResult,
 } from '../application/cargo-layout-request.types.js'
 import type { StoredCargoLayoutInput } from '../domain/cargo-layout-hash.types.js'
+import {
+  CARGO_LAYOUT_REOPENABLE_STATUSES,
+  CARGO_LAYOUT_STATUS,
+} from './cargo-layout-status.constant.js'
 import type { TripTransaction } from './trip-queryable.type.js'
 
 const [CARGO_LAYOUT_REQUESTED_EVENT_TYPE] = CARGO_LAYOUT_OUTBOX_EVENT_TYPES
@@ -32,7 +38,23 @@ export function buildCargoLayoutLeaseExpiredCondition(leaseMs: number): SQL {
 
 /** D18: `failed` também espera o lease — reabrir falha recente a cada leitura não teria teto. */
 function buildCargoLayoutReopenCondition(leaseMs: number): SQL {
-  return sql`${tripCargoLayouts.status} in ('failed', 'queued', 'running') and ${buildCargoLayoutLeaseExpiredCondition(leaseMs)}`
+  return sql`${tripCargoLayouts.status} in (${sql.raw(inList(CARGO_LAYOUT_REOPENABLE_STATUSES))}) and ${buildCargoLayoutLeaseExpiredCondition(leaseMs)}`
+}
+
+/**
+ * Revisão final (M3): o hash ignora etiqueta, então a mesma chave pode chegar com rótulo novo. A linha
+ * na fila passa a empacotar o rótulo de agora. `updated_at` só muda quando a viagem é aprendida — ele é
+ * o relógio do lease (D14/D18), e empurrá-lo a cada pedido adiaria a recuperação de um `running` órfão.
+ */
+function buildNoOpUpdate(
+  params: UpsertCargoLayoutRequestParams,
+  existingTripId: string | null,
+): PgUpdateSetSource<typeof tripCargoLayouts> {
+  /** D3: a prévia virou viagem real — o pedido antigo aprende o `tripId`, sem reabrir nem enfileirar. */
+  if (params.tripId !== null && existingTripId === null) {
+    return { input: params.input, tripId: params.tripId, updatedAt: sql`now()` }
+  }
+  return { input: params.input }
 }
 
 async function handleNoOpRequest(
@@ -58,13 +80,12 @@ async function handleNoOpRequest(
     throw new Error('Expected an existing trip cargo layout row after a no-op conflict')
   }
 
-  /** D3: a prévia virou viagem real — o pedido antigo aprende o `tripId`, sem reabrir nem enfileirar. */
-  if (params.tripId !== null && existing.tripId === null) {
-    await transaction
-      .update(tripCargoLayouts)
-      .set({ tripId: params.tripId, updatedAt: sql`now()` })
-      .where(eq(tripCargoLayouts.id, existing.id))
-  }
+  await transaction
+    .update(tripCargoLayouts)
+    .set(buildNoOpUpdate(params, existing.tripId))
+    .where(
+      and(eq(tripCargoLayouts.companyId, params.companyId), eq(tripCargoLayouts.id, existing.id)),
+    )
 
   return { enqueued: false, layoutId: existing.id, status: existing.status }
 }
@@ -124,8 +145,10 @@ export async function upsertCargoLayoutRequest(
       set: {
         attempt: 0,
         errorCode: '',
+        /** M3: reabrir empacota a entrada de agora — com o mesmo hash, só a etiqueta pode ter mudado. */
+        input: sql`excluded.input`,
         layout: null,
-        status: 'queued',
+        status: CARGO_LAYOUT_STATUS.queued,
         tripId: sql`coalesce(excluded.trip_id, ${tripCargoLayouts.tripId})`,
         updatedAt: sql`now()`,
       },

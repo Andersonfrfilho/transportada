@@ -3,8 +3,14 @@
  */
 import type { ResolvedCargoLayout } from '@adatechnology/cargo-placement'
 
+import { safeLogWarn } from '../../logging/safe-logger.service.js'
+import type { WorkerLogger } from '../../shared/worker.types.js'
 import { resolveCargoLayoutBudgetMs } from './cargo-layout-budget.policy.js'
-import { CARGO_LAYOUT_ERROR, type CargoLayoutErrorCode } from './cargo-layout-error.constant.js'
+import {
+  CARGO_LAYOUT_ERROR,
+  TIME_BUDGET_UNPLACED_REASON,
+  type CargoLayoutErrorCode,
+} from './cargo-layout-error.constant.js'
 import { CargoLayoutTimeoutError } from './cargo-layout-timeout.error.js'
 import {
   storedCargoLayoutInputSchema,
@@ -50,6 +56,7 @@ type HandleCargoLayoutParams = Readonly<{
   attempt: number
   baseBudgetMs: number
   job: CargoLayoutJob
+  logger: WorkerLogger
   maxAttempts: number
   ports: CargoLayoutHandlerPorts
 }>
@@ -73,7 +80,16 @@ export async function handleCargoLayout(
   const isFinalAttempt = params.attempt >= params.maxAttempts
   try {
     return await settleCargoLayout({ claim, isFinalAttempt, params })
-  } catch {
+  } catch (cause) {
+    // Só o nome da causa e o id opaco: a mensagem pode carregar rótulo de parada (PII, `security.md` §1)
+    safeLogWarn({
+      logger: params.logger,
+      message: 'cargo_layout_settle_failed',
+      metadata: {
+        layoutId: params.job.layoutId,
+        reason: cause instanceof Error ? cause.name : 'unknown',
+      },
+    })
     // Falha de escrita depois da reivindicação: a planta não pode ficar `running` até o lease vencer
     if (!isFinalAttempt) return releaseCargoLayout(params)
     return failCargoLayout({ errorCode: CARGO_LAYOUT_ERROR.failed, params })
@@ -135,7 +151,9 @@ async function computeOutcome(input: {
 }
 
 function hasTimeBudgetShortfall(layout: ResolvedCargoLayout): boolean {
-  return layout.placement?.unplaced.some((box) => box.reason === 'time_budget') ?? false
+  return (
+    layout.placement?.unplaced.some((box) => box.reason === TIME_BUDGET_UNPLACED_REASON) ?? false
+  )
 }
 
 async function releaseCargoLayout(

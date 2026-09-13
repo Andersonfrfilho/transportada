@@ -43,6 +43,7 @@ export async function startCargoLayoutConsumer(params: {
           attempt,
           baseBudgetMs: params.baseBudgetMs,
           job: payload,
+          logger: params.logger,
           maxAttempts: params.maxAttempts,
           ports: params.ports,
         })

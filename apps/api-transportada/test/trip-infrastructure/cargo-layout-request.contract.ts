@@ -48,9 +48,11 @@ function createTransaction(options: {
   readonly layoutUpdates: unknown[]
   readonly outboxInserts: unknown[]
   readonly transaction: TripTransaction
+  readonly updateConditions: SQL[]
 } {
   const outboxInserts: unknown[] = []
   const layoutUpdates: unknown[] = []
+  const updateConditions: SQL[] = []
   const conflicts: ConflictConfig[] = []
 
   const transaction = {
@@ -83,12 +85,17 @@ function createTransaction(options: {
     update: () => ({
       set: (payload: unknown) => {
         layoutUpdates.push(payload)
-        return { where: () => Promise.resolve() }
+        return {
+          where: (condition: SQL) => {
+            updateConditions.push(condition)
+            return Promise.resolve()
+          },
+        }
       },
     }),
   } as unknown as TripTransaction
 
-  return { conflicts, layoutUpdates, outboxInserts, transaction }
+  return { conflicts, layoutUpdates, outboxInserts, transaction, updateConditions }
 }
 
 const dialect = new PgDialect()
@@ -197,6 +204,58 @@ describe('cargo layout request upsert-and-outbox contract (spec 145 D8/G006)', (
 
     expect(result).toEqual({ enqueued: false, layoutId: LAYOUT_ID, status: 'failed' })
     expect(outboxInserts).toHaveLength(0)
+  })
+
+  /**
+   * Revisão final (M3): o hash ignora etiqueta, então reabrir com o mesmo hash pode trazer rótulo novo —
+   * a linha reaberta precisa empacotar a entrada de agora, não a guardada.
+   */
+  test('a reopened row rewrites the stored input with the one just requested', async () => {
+    const { conflicts, transaction } = createTransaction({
+      returning: [{ id: LAYOUT_ID, status: 'queued' }],
+    })
+
+    await upsertCargoLayoutRequest(transaction, BASE_PARAMS)
+
+    const input = conflicts[0]?.set['input']
+    expect(input).toBeDefined()
+    expect(dialect.sqlToQuery(input as SQL).sql).toBe('excluded.input')
+  })
+
+  /**
+   * M3, caminho no-op: a linha na fila ainda não reivindicada passa a empacotar a etiqueta nova. Sem
+   * mexer em status nem em `updated_at` — `updated_at` é o relógio do lease (D14/D18).
+   */
+  test('the no-op path refreshes only the stored input, without touching status or the lease', async () => {
+    const renamed: StoredCargoLayoutInput = {
+      ...INPUT,
+      stops: [{ documentsWithoutVolume: 0, label: 'Rótulo novo', sequence: 1, volumeM3: null }],
+    }
+    const { layoutUpdates, outboxInserts, transaction } = createTransaction({
+      existingRow: { id: LAYOUT_ID, status: 'queued', tripId: TRIP_ID },
+      returning: [],
+    })
+
+    await upsertCargoLayoutRequest(transaction, { ...BASE_PARAMS, input: renamed })
+
+    expect(outboxInserts).toHaveLength(0)
+    expect(layoutUpdates).toEqual([{ input: renamed }])
+  })
+
+  /** L5: o `update` do caminho no-op filtra pela empresa, não só pelo id. */
+  test('the no-op update is scoped to the company', async () => {
+    const { transaction, updateConditions } = createTransaction({
+      existingRow: { id: LAYOUT_ID, status: 'ready', tripId: null },
+      returning: [],
+    })
+
+    await upsertCargoLayoutRequest(transaction, BASE_PARAMS)
+
+    expect(updateConditions).toHaveLength(1)
+    const query = dialect.sqlToQuery(updateConditions[0] as SQL)
+    expect(query.sql).toContain('"trip_cargo_layouts"."company_id" = ')
+    expect(query.params).toContain(COMPANY_ID)
+    expect(query.params).toContain(LAYOUT_ID)
   })
 
   /** Linha `running` recente (ou `ready`) não volta do upsert: no-op, sem outbox. */

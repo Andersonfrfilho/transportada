@@ -6,12 +6,17 @@
  * (`drizzle-trip.repository.ts` e `preview-trip-cargo.use-case.ts`); `hashCargoLayoutInput` resume esse
  * retrato num hexadecimal.
  *
- * ⚠️ `label`/`clientName`/`noteNumbers` nunca entram: são a etiqueta, não o desenho — mudar o nome do
- * cliente não pode invalidar um layout que já custou o orçamento de tempo do worker para calcular.
+ * ⚠️ `label`/`clientName`/`noteNumbers`/`documentNumber`/`productCode` nunca entram: são a etiqueta,
+ * não o desenho — mudar o nome do cliente não pode invalidar um layout que já custou o orçamento de
+ * tempo do worker para calcular. Todo o resto que o empacotador lê entra.
  */
 import { createHash } from 'node:crypto'
 
-import type { CargoLayoutStop, CargoPlanBox } from '@adatechnology/cargo-placement'
+import type {
+  CargoLayoutStop,
+  CargoPlanBox,
+  MeasuredBoxShape,
+} from '@adatechnology/cargo-placement'
 import { CARGO_LAYOUT_POLICY_VERSION } from '@adatechnology/cargo-placement'
 
 import { canonicalJson } from '../../shared/canonical-json.service.js'
@@ -32,6 +37,12 @@ function buildBoxInput(box: CargoPlanBox): CargoLayoutBoxInput {
   return {
     dims: { heightMm: box.heightMm, lengthMm: box.lengthMm, widthMm: box.widthMm },
     documentId: box.documentId ?? null,
+    estimatedVolumeM3: box.estimatedVolumeM3 ?? null,
+    estimateSource: box.estimateSource ?? null,
+    isFragile: box.isFragile ?? null,
+    isStackable: box.isStackable ?? null,
+    keepUpright: box.keepUpright ?? null,
+    maxStackCount: box.maxStackCount ?? null,
     measured: isMeasuredBox(box),
     quantity: box.count,
   }
@@ -40,8 +51,23 @@ function buildBoxInput(box: CargoPlanBox): CargoLayoutBoxInput {
 function buildStopInput(stop: CargoLayoutStop): CargoLayoutStopInput {
   return {
     boxes: (stop.boxes ?? []).map((box) => buildBoxInput(box)),
+    documentsWithoutVolume: stop.documentsWithoutVolume,
     sequence: stop.sequence,
+    volumeM3: stop.volumeM3,
   }
+}
+
+function compareMeasuredShapes(left: MeasuredBoxShape, right: MeasuredBoxShape): number {
+  return (
+    left.lengthMm - right.lengthMm || left.widthMm - right.widthMm || left.heightMm - right.heightMm
+  )
+}
+
+/** `measuredShapes` é conjunto: a ordem em que o banco devolve as fichas não pode mudar o hash. */
+function sortMeasuredShapes(
+  shapes: readonly MeasuredBoxShape[] | undefined,
+): readonly MeasuredBoxShape[] {
+  return [...(shapes ?? [])].sort(compareMeasuredShapes)
 }
 
 /**
@@ -60,7 +86,7 @@ export function buildCargoLayoutInput(params: BuildCargoLayoutInputParams): Carg
     fallbackBoxVolumeM3: params.fallbackBoxVolumeM3 ?? null,
     /** Ausente assume `rear`, o mais restritivo — a mesma omissão de `resolveCargoLayout`. */
     loadingAccess: params.loadingAccess ?? 'rear',
-    measuredShapes: params.measuredShapes ?? [],
+    measuredShapes: sortMeasuredShapes(params.measuredShapes),
     payloadRatio: params.payloadRatio ?? null,
     policyVersion: params.policyVersion ?? CARGO_LAYOUT_POLICY_VERSION,
     /** Ausente é ninguém amarrando (spec 100) — supor cinta desenharia pilha que não existe. */
@@ -81,7 +107,8 @@ export function buildStoredCargoLayoutInput(
     capacityM3: params.capacityM3,
     fallbackBoxVolumeM3: params.fallbackBoxVolumeM3 ?? null,
     loadingAccess: params.loadingAccess ?? 'rear',
-    measuredShapes: params.measuredShapes ?? [],
+    /** A mesma ordem do hash: hash igual precisa significar entrada igual para o empacotador. */
+    measuredShapes: sortMeasuredShapes(params.measuredShapes),
     payloadRatio: params.payloadRatio ?? null,
     policyVersion: params.policyVersion ?? CARGO_LAYOUT_POLICY_VERSION,
     securesCargo: params.securesCargo ?? false,

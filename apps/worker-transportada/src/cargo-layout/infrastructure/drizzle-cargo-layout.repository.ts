@@ -9,6 +9,7 @@ import type {
   CargoLayoutHandlerPorts,
   CargoLayoutJob,
 } from '../application/cargo-layout-handler.service.js'
+import { CARGO_LAYOUT_STATUS } from './cargo-layout-status.constant.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
@@ -31,9 +32,9 @@ export function buildCargoLayoutClaimCondition(input: {
     eq(tripCargoLayouts.id, input.job.layoutId),
     eq(tripCargoLayouts.inputHash, input.job.inputHash),
     or(
-      eq(tripCargoLayouts.status, 'queued'),
+      eq(tripCargoLayouts.status, CARGO_LAYOUT_STATUS.queued),
       and(
-        eq(tripCargoLayouts.status, 'running'),
+        eq(tripCargoLayouts.status, CARGO_LAYOUT_STATUS.running),
         lt(tripCargoLayouts.updatedAt, sql`now() - (${input.leaseMs} * interval '1 millisecond')`),
       ),
     ),
@@ -46,7 +47,7 @@ function buildRunningCondition(job: CargoLayoutJob): SQL | undefined {
     eq(tripCargoLayouts.companyId, job.companyId),
     eq(tripCargoLayouts.id, job.layoutId),
     eq(tripCargoLayouts.inputHash, job.inputHash),
-    eq(tripCargoLayouts.status, 'running'),
+    eq(tripCargoLayouts.status, CARGO_LAYOUT_STATUS.running),
   )
 }
 
@@ -62,7 +63,7 @@ export function createDrizzleCargoLayoutRepository(input: {
         .update(tripCargoLayouts)
         .set({
           attempt: sql`${tripCargoLayouts.attempt} + 1`,
-          status: 'running',
+          status: CARGO_LAYOUT_STATUS.running,
           updatedAt: sql`now()`,
         })
         .where(buildCargoLayoutClaimCondition({ job, leaseMs }))
@@ -79,7 +80,7 @@ export function createDrizzleCargoLayoutRepository(input: {
           durationMs,
           errorCode: '',
           layout,
-          status: 'ready',
+          status: CARGO_LAYOUT_STATUS.ready,
           updatedAt: sql`now()`,
         })
         .where(buildRunningCondition(job))
@@ -89,14 +90,14 @@ export function createDrizzleCargoLayoutRepository(input: {
     async fail({ errorCode, job }) {
       await database
         .update(tripCargoLayouts)
-        .set({ errorCode, layout: null, status: 'failed', updatedAt: sql`now()` })
+        .set({ errorCode, layout: null, status: CARGO_LAYOUT_STATUS.failed, updatedAt: sql`now()` })
         .where(buildRunningCondition(job))
     },
 
     async release(job) {
       await database
         .update(tripCargoLayouts)
-        .set({ status: 'queued', updatedAt: sql`now()` })
+        .set({ status: CARGO_LAYOUT_STATUS.queued, updatedAt: sql`now()` })
         .where(buildRunningCondition(job))
     },
   }

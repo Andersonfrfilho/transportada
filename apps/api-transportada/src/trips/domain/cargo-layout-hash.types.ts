@@ -3,6 +3,7 @@
  */
 import type {
   CargoBedDimensions,
+  CargoEstimateSource,
   CargoLayoutStop,
   LoadingAccess,
   MeasuredBoxShape,
@@ -34,19 +35,31 @@ export type CargoLayoutBoxDimensionsInput = {
 
 /**
  * Spec 145 D6: `label`/`documentNumber`/`productCode` ficam de fora — identificam a caixa para
- * quem lê, nunca mudam onde ela é desenhada.
+ * quem lê, nunca mudam onde ela é desenhada. Todo o resto que o empacotador lê entra, com ausente
+ * virando `null` para ausente e nulo darem o mesmo hash.
  */
 export type CargoLayoutBoxInput = {
   readonly dims: CargoLayoutBoxDimensionsInput
   readonly documentId: string | null
+  /** Spec 144: o tamanho presumido da caixa sem ficha, e de onde ele saiu. */
+  readonly estimatedVolumeM3: number | null
+  readonly estimateSource: CargoEstimateSource | null
+  /** Spec 094: as restrições que decidem onde a caixa pode ir. */
+  readonly isFragile: boolean | null
+  readonly isStackable: boolean | null
+  readonly keepUpright: boolean | null
+  readonly maxStackCount: number | null
   /** `true` quando as três dimensões vieram da ficha — a mesma distinção de `PlacementBox.source`. */
   readonly measured: boolean
   readonly quantity: number
 }
 
+/** `clientName`/`label`/`noteNumbers` ficam de fora; a faixa da parada (`volumeM3`) entra. */
 export type CargoLayoutStopInput = {
   readonly boxes: readonly CargoLayoutBoxInput[]
+  readonly documentsWithoutVolume: number
   readonly sequence: number
+  readonly volumeM3: string | null
 }
 
 export type CargoLayoutBedInput = {

@@ -1307,3 +1307,47 @@ mascote (G012).
 - Markdown/ADR formatado conforme padrão do repositório.
 - Referências cruzadas (ADR-0063 ↔ spec 145 ↔ docs/ai-context) verificadas por leitura do contexto.
 - Nenhuma alteração de código — só documentação em `.md`, `CLAUDE.md` e ai-context.
+
+## Revisão final (code-reviewer `opus`) · 2026-09-13
+
+Veredito inicial **REPROVA** por um achado ALTO, corrigido abaixo. Médios e baixos que eram só correção
+também entraram; o restante ficou registrado.
+
+**Correções da revisão final.**
+
+- **A1:** o retrato canônico do hash (D6) passou a levar tudo o que o empacotador lê. Da parada:
+  `volumeM3` e `documentsWithoutVolume`. Da caixa: `estimatedVolumeM3`, `estimateSource`, `isFragile`,
+  `isStackable`, `keepUpright` e `maxStackCount`, com o campo ausente normalizado para `null`. Ficam de
+  fora só as etiquetas: `label`, `clientName`, `noteNumbers`, `documentNumber` e `productCode`.
+  `CARGO_LAYOUT_POLICY_VERSION` continua `"1"`; como a forma do retrato mudou, todos os hashes mudam
+  sozinhos, e um contrato fixa o hash anterior e prova a diferença.
+- **M1:** `measuredShapes` é ordenado no retrato e na coluna `input`, e as consultas de produtos e caixas
+  ganharam `orderBy` estável, sem mudar o orçamento de consultas do detalhe.
+- **M3:** o upsert que reabre regrava `input = excluded.input`. O caminho no-op atualiza só o `input`,
+  sem mexer em status nem em `updated_at` (o relógio do lease). Pendência que virou a T16: a planta
+  `ready` com o mesmo hash continua servindo o rótulo antigo, porque a tela lê o `layout` gravado pelo
+  worker.
+- **L5:** a escrita do no-op filtra `company_id` e `id`.
+- **L6:** a falha de gravação no worker registra `warn` `cargo_layout_settle_failed` com `layoutId` e
+  `reason = cause.name`, sem a mensagem da exceção.
+- **L7:** os status viraram `CARGO_LAYOUT_STATUS` num `*.constant.ts` por app, e `'time_budget'` virou
+  `TIME_BUDGET_UNPLACED_REASON`, preso ao tipo `UnplacedReason` do pacote.
+
+**TDD:** hash e upsert, 20 fail / 182 pass → 202 pass / 0 fail. Handler do worker, 1 fail / 33 pass →
+34 pass.
+
+**Gate conferido pelo orquestrador:** `bun run typecheck` (6 apps) limpo; eslint limpo na API e no
+worker; API 5047 pass / 0 fail; worker 1039 pass / 0 fail. Integrações da planta contra o Postgres
+local, pelo executor: 16/16. O classificador de segurança esteve indisponível durante essa rodada, e o
+diff foi revisto à mão: o `sql.raw` interpola só uma constante de status, e toda escrita filtra
+`company_id`.
+
+**Registrados, sem correção:**
+
+- L1: mensagem duplicada quando a fila demora mais que o lease; a duplicata cai no claim.
+- L2: a escada recomeça em 60 s se a API reabrir no meio.
+- L3: a reentrega antes do lease é confirmada sem calcular (é o comportamento da D14).
+- L4: uma linha envenenada trava o lote do relay (padrão herdado dos outros relays).
+- L8: erros genéricos na thread.
+- M2 virou a D19 e a T15.
+- M4: a ordem de publicação da D17 exige dois pushes (`f67d4174` primeiro).

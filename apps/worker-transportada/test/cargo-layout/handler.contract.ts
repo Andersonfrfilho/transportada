@@ -12,6 +12,7 @@ import {
 } from '../../src/cargo-layout/application/cargo-layout-handler.service.js'
 import { resolveCargoLayoutLeaseMs } from '../../src/cargo-layout/application/cargo-layout-budget.policy.js'
 import { CargoLayoutTimeoutError } from '../../src/cargo-layout/application/cargo-layout-timeout.error.js'
+import type { WorkerLogger } from '../../src/shared/worker.types.js'
 import { buildStoredCargoLayoutInput } from '../fixtures/cargo-layout-input.fixture.js'
 
 const JOB = {
@@ -102,11 +103,26 @@ function buildPorts(overrides: Partial<CargoLayoutHandlerPorts> = {}): Recording
   return ports as unknown as RecordingPorts
 }
 
-function run(ports: CargoLayoutHandlerPorts, attempt = 1) {
+type LogEntry = { readonly message: string; readonly metadata?: Record<string, unknown> }
+
+function buildLogger(): WorkerLogger & { readonly warnings: LogEntry[] } {
+  const warnings: LogEntry[] = []
+  return {
+    error() {},
+    info() {},
+    warn(message, metadata) {
+      warnings.push(metadata === undefined ? { message } : { message, metadata })
+    },
+    warnings,
+  }
+}
+
+function run(ports: CargoLayoutHandlerPorts, attempt = 1, logger: WorkerLogger = buildLogger()) {
   return handleCargoLayout({
     attempt,
     baseBudgetMs: BASE_BUDGET_MS,
     job: JOB,
+    logger,
     maxAttempts: MAX_ATTEMPTS,
     ports,
   })
@@ -226,6 +242,25 @@ describe('handler da planta de carga (spec 145 D9, D13–D15)', () => {
     expect(await run(ports, 1)).toBe('retry')
     expect(ports.released).toBe(1)
     expect(ports.failed).toEqual([])
+  })
+
+  /** Revisão final (L6): a causa não some — só o nome dela e o id opaco, nunca a mensagem (PII). */
+  test('falha ao gravar registra warn com o nome da causa e o layoutId', async () => {
+    const logger = buildLogger()
+    const ports = buildPorts({
+      complete: async () => {
+        throw new TypeError('connection terminated for Cliente 1')
+      },
+    })
+
+    await run(ports, 1, logger)
+
+    expect(logger.warnings).toEqual([
+      {
+        message: 'cargo_layout_settle_failed',
+        metadata: { layoutId: JOB.layoutId, reason: 'TypeError' },
+      },
+    ])
   })
 
   test('falha transitória do banco na última tentativa grava FAILED', async () => {

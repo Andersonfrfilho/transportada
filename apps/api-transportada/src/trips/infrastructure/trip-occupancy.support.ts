@@ -445,6 +445,8 @@ async function loadMeasuredItems(
         inArray(nfeProducts.documentId, [...input.nfeDocumentIds]),
       ),
     )
+    // A ordem das caixas entra no hash da planta (spec 145 D6): sem ela o hash oscila à toa
+    .orderBy(nfeProducts.documentId, nfeProducts.ordinal, nfeProducts.id)
   const measuredBoxes = await queryable
     .select({
       boxVolumeM3: boxVolume,
@@ -456,6 +458,7 @@ async function loadMeasuredItems(
     .where(
       and(eq(nfePackageBoxes.companyId, input.companyId), isNotNull(nfePackageBoxes.measuredAt)),
     )
+    .orderBy(nfePackageBoxes.id)
 
   const itemsByDocument = new Map<string, MeasuredCargoItem[]>()
   const boxesByDocument = new Map<string, CargoPlanBox[]>()

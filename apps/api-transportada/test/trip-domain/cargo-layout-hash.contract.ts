@@ -8,6 +8,8 @@
  */
 import { describe, expect, test } from 'bun:test'
 
+import { CARGO_LAYOUT_POLICY_VERSION } from '@adatechnology/cargo-placement'
+
 import {
   buildCargoLayoutInput,
   hashCargoLayoutInput,
@@ -212,5 +214,110 @@ describe('hashCargoLayoutInput', () => {
     }
 
     expect(hashOf(measured)).not.toBe(hashOf(estimated))
+  })
+})
+
+type StopPatch = Partial<BuildCargoLayoutInputParams['stops'][number]>
+type BoxPatch = Record<string, unknown>
+
+function withFirstStop(patch: StopPatch): BuildCargoLayoutInputParams {
+  return {
+    ...BASE_PARAMS,
+    stops: BASE_PARAMS.stops.map((stop, index) => (index === 0 ? { ...stop, ...patch } : stop)),
+  }
+}
+
+function withFirstBox(patch: BoxPatch): BuildCargoLayoutInputParams {
+  const [firstStop] = BASE_PARAMS.stops
+  const boxes = (firstStop?.boxes ?? []).map((box) => ({ ...box, ...patch }))
+  return withFirstStop({ boxes } as StopPatch)
+}
+
+/**
+ * Revisão final da spec 145 (A1): o empacotador também lê a faixa da parada (`volumeM3`,
+ * `documentsWithoutVolume`), a caixa presumida (`estimatedVolumeM3`, `estimateSource`, spec 144) e as
+ * restrições da spec 094. Cada um muda o desenho — logo muda o hash.
+ */
+describe('hashCargoLayoutInput — tudo que o empacotador lê', () => {
+  test.each<[string, StopPatch]>([
+    ['volumeM3 da parada', { volumeM3: '9.999' }],
+    ['documentsWithoutVolume da parada', { documentsWithoutVolume: 3 }],
+  ])('mudar %s muda o hash', (_field, patch) => {
+    expect(hashOf(withFirstStop(patch))).not.toBe(hashOf(BASE_PARAMS))
+  })
+
+  test.each<[string, BoxPatch]>([
+    ['estimatedVolumeM3', { estimatedVolumeM3: 0.2 }],
+    ['estimateSource', { estimateSource: 'median' }],
+    ['isFragile', { isFragile: true }],
+    ['isStackable', { isStackable: false }],
+    ['keepUpright', { keepUpright: true }],
+    ['maxStackCount', { maxStackCount: 2 }],
+  ])('mudar %s da caixa muda o hash', (_field, patch) => {
+    expect(hashOf(withFirstBox(patch))).not.toBe(hashOf(BASE_PARAMS))
+  })
+
+  test.each<[string, BoxPatch, BoxPatch]>([
+    ['isFragile', { isFragile: true }, { isFragile: false }],
+    ['isStackable', { isStackable: true }, { isStackable: false }],
+    ['keepUpright', { keepUpright: true }, { keepUpright: false }],
+    ['maxStackCount', { maxStackCount: 2 }, { maxStackCount: 3 }],
+    ['estimatedVolumeM3', { estimatedVolumeM3: 0.1 }, { estimatedVolumeM3: 0.2 }],
+    ['estimateSource', { estimateSource: 'median' }, { estimateSource: 'note' }],
+  ])('dois valores de %s dão hashes diferentes', (_field, first, second) => {
+    expect(hashOf(withFirstBox(first))).not.toBe(hashOf(withFirstBox(second)))
+  })
+
+  test('campo ausente e campo nulo dão o mesmo hash', () => {
+    const explicitNulls = withFirstBox({
+      estimatedVolumeM3: null,
+      estimateSource: null,
+      isFragile: null,
+      isStackable: null,
+      keepUpright: null,
+      maxStackCount: null,
+    })
+
+    expect(hashOf(explicitNulls)).toBe(hashOf(BASE_PARAMS))
+  })
+
+  test.each<[string, BoxPatch]>([
+    ['label', { label: 'Outro produto' }],
+    ['documentNumber', { documentNumber: '5555' }],
+    ['productCode', { productCode: 'SKU-9' }],
+  ])('mudar %s da caixa (etiqueta) não muda o hash', (_field, patch) => {
+    expect(hashOf(withFirstBox(patch))).toBe(hashOf(BASE_PARAMS))
+  })
+
+  test('duas viagens com paradas sem caixa e volumeM3 diferentes têm hashes diferentes', () => {
+    const withoutBoxes = (volumeM3: string): BuildCargoLayoutInputParams => ({
+      ...BASE_PARAMS,
+      stops: [{ documentsWithoutVolume: 0, label: 'Parada', sequence: 1, volumeM3 }],
+    })
+
+    expect(hashOf(withoutBoxes('1.200'))).not.toBe(hashOf(withoutBoxes('3.400')))
+  })
+
+  /** A forma do retrato mudou sem subir a versão do pacote: todo hash gravado antes deixa de bater. */
+  test('a forma nova do retrato muda o hash sem subir CARGO_LAYOUT_POLICY_VERSION', () => {
+    const HASH_BEFORE_REVIEW = '401b320116afa277a3ce2f75437cc55bbd7491558cff924ce9c3a3c6dc2c77d9'
+
+    expect(CARGO_LAYOUT_POLICY_VERSION).toBe('1')
+    expect(hashOf(BASE_PARAMS)).not.toBe(HASH_BEFORE_REVIEW)
+  })
+})
+
+/** Revisão final (M1): `measuredShapes` é conjunto — a ordem em que o banco devolve não é entrada. */
+describe('hashCargoLayoutInput — ordem estável', () => {
+  test('measuredShapes em outra ordem dão o mesmo hash', () => {
+    const shapes = [
+      { heightMm: 300, lengthMm: 400, widthMm: 300 },
+      { heightMm: 200, lengthMm: 500, widthMm: 250 },
+      { heightMm: 200, lengthMm: 500, widthMm: 100 },
+    ]
+
+    expect(hashOf({ ...BASE_PARAMS, measuredShapes: [...shapes].reverse() })).toBe(
+      hashOf({ ...BASE_PARAMS, measuredShapes: shapes }),
+    )
   })
 })
