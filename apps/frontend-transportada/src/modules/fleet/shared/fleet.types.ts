@@ -233,6 +233,8 @@ export type FleetVehicleDetail = FleetVehicleBody &
     costPerKilometerBreakdown: FleetVehicleCostBreakdown | null
     costsUpdatedAt: null | string
     createdAt: string
+    /** Spec 147 D3: a carreta que este cavalo puxa por padrão — só existe em `tractor_unit`. */
+    defaultTrailerVehicleId: null | string
     fuelPrice: FleetVehicleFuelPrice | null
     id: string
     /** Derivado pela API — prestação + (IPVA + seguro) ÷ 12. */

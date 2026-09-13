@@ -39,6 +39,7 @@ export const CREATE_VEHICLE_BODY = {
   cargoWidthMeters: '0.00',
   capacityKilograms: '27000.00',
   color: '',
+  defaultTrailerVehicleId: null,
   fleetNumber: '',
   fuelType: 'diesel-s10',
   hasAutomaticTollPayment: false,

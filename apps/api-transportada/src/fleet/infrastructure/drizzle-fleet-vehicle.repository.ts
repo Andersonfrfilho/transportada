@@ -2,9 +2,10 @@
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
 import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
-import { and, desc, eq, ilike, lt, ne, or, sql } from 'drizzle-orm'
+import { and, desc, eq, ilike, lt, ne, notInArray, or, sql } from 'drizzle-orm'
 
-import { fleetVehicles } from '../../database/database.schema.js'
+import { fleetVehicles, trips } from '../../database/database.schema.js'
+import type { TripStatus } from '../../database/trip.schema.js'
 import { violatedUniqueConstraint } from '../../database/postgres-error.support.js'
 import type {
   FleetFuelPricePort,
@@ -25,6 +26,9 @@ import { mapVehicle, toVehicleColumns } from './fleet.mapper.js'
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
 const PLATE_CONSTRAINT = 'fleet_vehicles_company_id_plate_unique'
+
+/** Espelha o `where` do índice `trips_company_trailer_open_unique` (`trip.schema.ts`). */
+const TRIP_CLOSED_STATUSES: TripStatus[] = ['completed', 'cancelled']
 
 type RepositoryDependencies = {
   readonly database: Database
@@ -73,6 +77,41 @@ export class DrizzleFleetVehicleRepository implements FleetVehicleRepositoryPort
       .limit(1)
     if (record === undefined) return null
     return mapVehicle({ fuelPrices: await this.resolvePrices(input.companyId), record })
+  }
+
+  /**
+   * Spec 147 T9: uma carreta que é padrão de algum cavalo, ou que puxa uma viagem aberta, não pode
+   * virar tração. As duas linhas são de tabelas diferentes — cavalo (`fleet_vehicles`) e viagem
+   * (`trips`) — por isso duas consultas, e não um `leftJoin`.
+   */
+  public async isTrailerInUse(input: {
+    readonly companyId: string
+    readonly vehicleId: string
+  }): Promise<boolean> {
+    const [defaultOfSomeTractor] = await this.database
+      .select({ id: fleetVehicles.id })
+      .from(fleetVehicles)
+      .where(
+        and(
+          eq(fleetVehicles.companyId, input.companyId),
+          eq(fleetVehicles.defaultTrailerVehicleId, input.vehicleId),
+        ),
+      )
+      .limit(1)
+    if (defaultOfSomeTractor !== undefined) return true
+
+    const [openTrip] = await this.database
+      .select({ id: trips.id })
+      .from(trips)
+      .where(
+        and(
+          eq(trips.companyId, input.companyId),
+          eq(trips.trailerVehicleId, input.vehicleId),
+          notInArray(trips.status, TRIP_CLOSED_STATUSES),
+        ),
+      )
+      .limit(1)
+    return openTrip !== undefined
   }
 
   public async list(input: {

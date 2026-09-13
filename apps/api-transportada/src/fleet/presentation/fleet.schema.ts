@@ -19,6 +19,7 @@ import {
 import type { FleetDriverFilters, FleetVehicleFilters } from '../application/fleet.port.js'
 import type { FleetDriverProfile } from '../domain/fleet-driver-profile.constant.js'
 import { checkVehicleBodyType } from '../domain/vehicle-body-type.policy.js'
+import { checkVehicleDefaultTrailer } from '../domain/vehicle-default-trailer.policy.js'
 import {
   createDriverSchema,
   createVehicleSchema,
@@ -56,12 +57,14 @@ export type UpdateDriverBody = FleetDriverFields & {
 export async function parseCreateVehicleRequest(request: Request): Promise<FleetVehicleFields> {
   const vehicle = await parseBody(createVehicleSchema, request)
   checkVehicleBodyType(vehicle)
+  checkVehicleDefaultTrailer(vehicle)
   return vehicle
 }
 
 export async function parseUpdateVehicleRequest(request: Request): Promise<UpdateVehicleBody> {
   const vehicle = await parseBody(updateVehicleSchema, request)
   checkVehicleBodyType(vehicle)
+  checkVehicleDefaultTrailer(vehicle)
   return vehicle
 }
 

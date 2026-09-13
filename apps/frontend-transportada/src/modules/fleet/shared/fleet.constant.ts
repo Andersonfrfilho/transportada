@@ -227,6 +227,8 @@ export const VEHICLE_DETAIL_KEYS = [
   'costPerKilometerBreakdown',
   'costsUpdatedAt',
   'createdAt',
+  /** Spec 147 D3: só existe em `tractor_unit` — nos demais tipos a API devolve `null`. */
+  'defaultTrailerVehicleId',
   'fuelPrice',
   'id',
   'monthlyFixedCost',

@@ -102,6 +102,7 @@ export type FleetVehicleDetailContract = FleetVehicleBodyContract &
     costPerKilometerBreakdown: FleetVehicleCostBreakdownContract | null
     costsUpdatedAt: null | string
     createdAt: string
+    defaultTrailerVehicleId: null | string
     fuelPrice: FleetVehicleFuelPriceContract | null
     id: string
     monthlyFixedCost: null | string
@@ -376,6 +377,7 @@ export const VEHICLE_DETAIL = {
   ...VEHICLE_DERIVED_COSTS,
   costsUpdatedAt: VEHICLE_COSTS_UPDATED_AT,
   createdAt: '2026-07-28T12:00:00.000Z',
+  defaultTrailerVehicleId: null,
   id: VEHICLE_ID,
   monthlyFixedCost: VEHICLE_MONTHLY_FIXED_COST,
   status: 'active',
@@ -446,6 +448,7 @@ export const DRIVER_OWNED_VEHICLE = {
   ...VEHICLE_DERIVED_COSTS,
   costsUpdatedAt: VEHICLE_COSTS_UPDATED_AT,
   createdAt: '2026-07-28T12:00:00.000Z',
+  defaultTrailerVehicleId: null,
   id: DRIVER_OWNED_VEHICLE_ID,
   monthlyFixedCost: VEHICLE_MONTHLY_FIXED_COST,
   status: 'active',
@@ -530,6 +533,7 @@ export const INCOMPLETE_TRACTION_VEHICLE_DETAIL = {
   ...VEHICLE_DERIVED_COSTS,
   costsUpdatedAt: VEHICLE_COSTS_UPDATED_AT,
   createdAt: '2026-07-28T12:00:00.000Z',
+  defaultTrailerVehicleId: null,
   id: INCOMPLETE_TRACTION_VEHICLE_ID,
   monthlyFixedCost: VEHICLE_MONTHLY_FIXED_COST,
   status: 'active',

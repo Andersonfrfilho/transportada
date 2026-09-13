@@ -492,3 +492,130 @@ style!`.
 - `bun run --cwd apps/worker-transportada typecheck` → limpo.
 
 **Commit:** `feat(database): 147 T8 — a carreta ganha coluna na viagem e na frota`.
+
+## T9 — Carreta padrão na ficha do cavalo (só API)
+
+**Desenho seguido: pura no domínio (só forma), assíncrona no caso de uso (o que depende de outra
+linha).** `checkVehicleDefaultTrailer` (`fleet/domain/vehicle-default-trailer.policy.ts`, novo) é
+função pura, mesmo molde de `checkVehicleBodyType`/`checkVehicleDefaultTrailer` — só sabe recusar
+`defaultTrailerVehicleId !== null` fora de `tractor_unit`, com `FleetVehicleDefaultTrailerRequiresTractorError`
+(400 `FLEET_VEHICLE_DEFAULT_TRAILER_REQUIRES_TRACTOR`). Ela é chamada em `parseCreateVehicleRequest`/
+`parseUpdateVehicleRequest` (`fleet/presentation/fleet.schema.ts`), no mesmo ponto de
+`checkVehicleBodyType`, seguindo o precedente do T6b (regra pura na fronteira, não dentro do
+`superRefine` do Zod).
+
+As duas regras que **dependem de outra linha** ficam em `fleet-vehicles.use-case.ts`
+(`assertDefaultTrailer`/`assertRoleChangeAllowed`), porque `parseCreateVehicleRequest` não tem acesso
+ao banco:
+
+- **O apontado existe/é carreta ativa da empresa** — `assertDefaultTrailer` chama
+  `repository.findById({companyId, vehicleId: defaultTrailerVehicleId})` (método que já existia, já
+  filtra por `company_id`): ausente → `FleetVehicleNotFoundError` (404, reuso do código existente,
+  como a task pedia com "ou equivalente existente"); presente mas `role !== 'trailer'` ou
+  `status !== 'active'` → `FleetVehicleDefaultTrailerNotATrailerError` (400
+  `FLEET_VEHICLE_DEFAULT_TRAILER_NOT_A_TRAILER`, classe nova).
+- **Trocar o `role` de uma carreta para `traction` quando ela é padrão de algum cavalo, ou está numa
+  viagem aberta** — `assertRoleChangeAllowed`: só age quando `input.vehicle.role === 'traction'` e o
+  veículo gravado (`repository.findById({companyId, vehicleId})`) tem `role === 'trailer'`; nesse
+  caso chama o método novo do repositório `isTrailerInUse` e lança `FleetVehicleRoleChangeBlockedError`
+  (409 `FLEET_VEHICLE_ROLE_CHANGE_BLOCKED`) se `true`.
+
+**`isTrailerInUse` (`DrizzleFleetVehicleRepository`, método novo do `FleetVehicleRepositoryPort`)
+faz duas consultas, não um `leftJoin`, porque são tabelas diferentes:** uma em `fleet_vehicles`
+(`default_trailer_vehicle_id = :vehicleId`, mesma empresa) e uma em `trips`
+(`trailer_vehicle_id = :vehicleId`, `status not in ('completed','cancelled')`, mesma empresa) — o
+mesmo recorte do índice `trips_company_trailer_open_unique` (T8), espelhado na constante
+`TRIP_CLOSED_STATUSES`. A segunda consulta é a primeira vez que o módulo `fleet` lê a tabela `trips`
+diretamente — sem precedente dentro de `fleet/`, mas simétrico ao que `trips/infrastructure/
+trip-occupancy.support.ts` já faz ao ler `fleet_vehicles` (cross-module read na camada de
+infraestrutura, não pela porta do outro módulo). Reportado aqui por transparência, não é um bloqueio:
+não há caso de uso de despacho nem regra fiscal envolvida, só uma leitura de existência.
+
+**Tradução de violação do banco (23514/23505): não foi necessária.** As duas regras (apontado existe
+e é carreta ativa; role-change bloqueado) são conferidas **antes** da escrita, no caso de uso — o
+caminho que chegaria ao `INSERT`/`UPDATE` com dado inválido já foi barrado. `checkVehicleDefaultTrailer`
+cobre a única regra puramente estrutural (`tractor_unit`) que também é CHECK
+(`fleet_vehicles_default_trailer_tractor_only`) — redundante de propósito (a mesma defesa em
+profundidade de `checkVehicleBodyType`/`FLEET_VEHICLE_BODY_TYPE_REQUIRED`). Não há CHECK para "é
+carreta ativa" nem para "não está em uso" (exigem SELECT), então não há violação 23514 possível para
+essas duas na escrita normal — só correria numa corrida entre duas requisições, e a task não pediu
+tratar essa corrida na T9 (ao contrário da T10, onde o índice `trips_company_trailer_open_unique`
+fecha a corrida por design).
+
+**Campos e mapeamento:** `FleetVehicleInput.defaultTrailerVehicleId: string | null` (`fleet.port.ts`);
+`fleet-request.schema.ts`'s `vehicleFieldsSchema` ganhou `defaultTrailerVehicleId: z.uuid().nullable()`;
+`fleet.mapper.ts`'s `mapVehicle`/`toVehicleColumns` leem/escrevem a coluna já existente (T8); `fleet.routes.ts`'s
+`serializeVehicle` publica o campo na resposta de POST/PUT/GET.
+
+**Frontend — só o guard, nada de tela, como pedido:**
+
+- `fleet.types.ts`'s `FleetVehicleDetail` ganhou `defaultTrailerVehicleId: null | string`.
+- `fleet.constant.ts`'s `VEHICLE_DETAIL_KEYS` ganhou a chave (campo **obrigatório**, não opcional —
+  ao contrário do padrão de `trip.constant.ts`'s `TRIP_DETAIL_OPTIONAL_KEYS`/spec 078 D2, que existe
+  para tolerar uma API mais velha que o frontend numa janela de deploy separada; aqui a API e este
+  guard sobem no mesmo commit/deploy, então não há tal janela a proteger). `VEHICLE_BODY_KEYS`
+  **não** foi tocada — ela é compartilhada com `VEHICLE_FORM_KEYS` (o lado de escrita/tela), e a
+  task pediu "nada de tela".
+- `fleetResponse.validation.ts`'s `isVehicle` ganhou `isNullableString(value.defaultTrailerVehicleId)`.
+- Fixtures (`test/fleet/fleet.fixture.ts`): `FleetVehicleDetailContract` e os seis literais
+  `satisfies` desse tipo (`VEHICLE_DETAIL`, `NO_COSTS_VEHICLE_DETAIL` — herda por spread —,
+  `FLEX_VEHICLE_DETAIL` — idem —, `DRIVER_OWNED_VEHICLE`, `INCOMPLETE_TRACTION_VEHICLE_DETAIL`)
+  ganharam o campo; os dois últimos não espalham de `VEHICLE_DETAIL`, então precisaram do campo
+  explícito.
+- Contrato novo: `test/fleet/vehicle-default-trailer.contract.ts` (aceita `null`/uuid, recusa tipo
+  errado, recusa ausência da chave — já que ela é obrigatória).
+
+**Testes novos, contrato vermelho antes da implementação em cada um:**
+
+- `test/fleet-domain/vehicle-default-trailer.contract.ts` (novo, API): tabela — 10 tipos não-cavalo
+  recusam, `tractor_unit` aceita, `null` sempre aceita. Vermelho: `Cannot find module
+'.../vehicle-default-trailer.policy'` antes do arquivo existir.
+- `test/fleet-http/vehicle-default-trailer.contract.ts` (novo, API): só a regra pura de fronteira —
+  o fixture HTTP usa stubs que não chamam o caso de uso real (confirmado lendo
+  `test/fixtures/fleet-http.fixture.ts`, mesma limitação já registrada em `vehicle-body-type.contract.ts`
+  da T6), então as regras assíncronas (existência/role/status, role-change) não são alcançáveis por
+  aqui — cobertas em `test/fleet-application/vehicles.contract.ts` abaixo.
+- `test/fleet-application/vehicles.contract.ts` (estendido): dois `describe` novos —
+  `'default trailer'` (aceita carreta ativa da empresa; 404 quando `findById` devolve `null`; 400
+  `NOT_A_TRAILER` quando existe mas `status: 'inactive'`) e `'role change away from trailer'` (409
+  quando `isTrailerInUse` devolve `true`; sucesso quando `false`; **não** chama `isTrailerInUse`
+  quando o `role` de entrada não é `'traction'` — provado usando a mesma stub com `trailerInUse: true`
+  e conferindo que a chamada de `update` ainda teve sucesso).
+- `test/fleet-schema/tenant-safety.contract.ts` (estendido): `'makes a default trailer pointer
+unable to reach another tenant vehicle'`, a mesma FK composta já criada na T8, agora coberta aqui
+  como a task pedia ("contrato de tenant").
+- `test/integration/fleet-vehicle-repository.integration.ts` (estendido, contra Postgres real):
+  `'reports a trailer in use by a default pointer or an open trip'` — cria duas carretas, aponta uma
+  como padrão de um terceiro veículo (→ `true`), vincula a outra a uma viagem `draft` inserida
+  direto na tabela `trips` (→ `true`), cancela a viagem (→ `false` de novo). Cobre as duas fontes de
+  uso na mesma consulta dupla.
+- `test/fixtures/fleet-application.fixture.ts`: `createVehicleRepositoryStub` ganhou `isTrailerInUse`
+  (parâmetro `trailerInUse?: boolean`, default `false`).
+- Fixtures ajustadas pelo campo novo obrigatório em `FleetVehicleInput` (schema `.strict()`/tipo
+  exato): `test/fixtures/fleet-http-payload.fixture.ts`'s `CREATE_VEHICLE_BODY` (as demais —
+  `CREATE_TRAILER_BODY`, `UPDATE_VEHICLE_BODY`, `VEHICLE` — herdam por spread),
+  `test/fleet-domain/vehicle-measure.contract.ts`'s `VEHICLE_BODY`,
+  `test/integration/fleet-vehicle-repository.integration.ts`'s `NO_COSTS_VEHICLE`,
+  `src/database/local-trip-seed.constant.ts`'s seis entradas de `LOCAL_TRIP_SEED_VEHICLES`. Nenhuma
+  migration, nenhum `UPDATE` em `body_type` ou em qualquer coluna existente — só literais de teste e
+  seed ganhando `defaultTrailerVehicleId: null`.
+
+**Gates:**
+
+- `bun run --cwd apps/api-transportada typecheck` → limpo.
+- `bun run --cwd apps/api-transportada lint` → limpo.
+- `bun run --cwd apps/api-transportada test` → **5102 pass, 23 skip, 0 fail, 5125 testes** (suíte
+  sem Postgres; eram 5080 antes da T9 — a diferença de 22 é os testes novos desta task).
+- `DATABASE_URL=postgresql://transportada:transportada@localhost:55432/transportada bun test
+./test/integration/fleet-vehicle-repository.integration.ts` → **5 pass, 0 fail, 17 expect() calls**
+  (Postgres local disponível; rodou de fato, incluindo o teste novo de `isTrailerInUse`).
+- `bun run --cwd apps/frontend-transportada typecheck` → limpo.
+- `bun run --cwd apps/frontend-transportada lint` (`eslint .`) → limpo (um `@typescript-eslint/unbound-method`
+  corrigido trocando métodos do tipo `FleetAdaptersModule` local por propriedades de função, mesmo
+  molde já usado em `vehicle-cost-fields.contract.ts`).
+- `bun run --cwd apps/frontend-transportada test` (suíte inteira) → **3331 pass, 0 fail, 33731
+  expect() calls, 29 arquivos** (sem regressão).
+- `npx prettier --check` em todos os arquivos tocados/criados desta task → `All matched files use
+Prettier code style!`.
+
+**Commit:** `feat(fleet): 147 T9 — o cavalo tem carreta padrão`.

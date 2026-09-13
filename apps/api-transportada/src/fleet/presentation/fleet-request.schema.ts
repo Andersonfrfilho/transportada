@@ -138,6 +138,8 @@ const vehicleFieldsSchema = z.object({
   cargoLengthMeters: buildCargoDimensionSchema('cargoLengthMeters'),
   cargoWidthMeters: buildCargoDimensionSchema('cargoWidthMeters'),
   color: z.literal('').or(z.enum(VEHICLE_COLORS)),
+  /** Feature 147 D3: só o cavalo escolhe; o apontado existir/ser carreta ativa é do caso de uso. */
+  defaultTrailerVehicleId: z.uuid().nullable(),
   fleetNumber: z.string().trim().max(VEHICLE_FLEET_NUMBER_MAX_LENGTH),
   fuelType: z.enum(FUEL_PRODUCTS_TUPLE),
   /** Spec 095 D3: default `false` — sem marcar, o pedágio segue sempre pela tarifa manual. */

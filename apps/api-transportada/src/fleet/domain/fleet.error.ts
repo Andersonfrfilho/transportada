@@ -51,6 +51,42 @@ export class FleetVehicleBodyTypeNotApplicableError extends ApiError {
   }
 }
 
+/** Feature 147 D3: a carreta padrão só existe no cavalo — nos outros tipos o campo não se aplica. */
+export class FleetVehicleDefaultTrailerRequiresTractorError extends ApiError {
+  public constructor() {
+    super({
+      code: 'FLEET_VEHICLE_DEFAULT_TRAILER_REQUIRES_TRACTOR',
+      message: 'Only a tractor unit can have a default trailer',
+      status: 400,
+    })
+  }
+}
+
+/** Feature 147 D3: o apontado existe na empresa, mas não é uma carreta ativa. */
+export class FleetVehicleDefaultTrailerNotATrailerError extends ApiError {
+  public constructor() {
+    super({
+      code: 'FLEET_VEHICLE_DEFAULT_TRAILER_NOT_A_TRAILER',
+      message: 'Default trailer must be an active trailer of this company',
+      status: 400,
+    })
+  }
+}
+
+/**
+ * Feature 147 D3: uma carreta que é padrão de algum cavalo, ou que puxa uma viagem aberta, não
+ * pode virar tração — o vínculo ficaria pendurado num veículo que deixou de ser carreta.
+ */
+export class FleetVehicleRoleChangeBlockedError extends ApiError {
+  public constructor() {
+    super({
+      code: 'FLEET_VEHICLE_ROLE_CHANGE_BLOCKED',
+      message: 'Trailer is a default trailer or is linked to an open trip',
+      status: 409,
+    })
+  }
+}
+
 /**
  * Por que o catálogo falhou. Sem isto, um 429 de cota e um provedor fora do ar chegam ao log com a
  * mesma cara, e o operador não sabe se espera ou se abre chamado.
