@@ -1167,4 +1167,88 @@ Segue D3, D4 (só o estado; a parte visual é da T13), D10, D12, D16 e D18. Sem 
   - a primeira pergunta pelo `layoutId` sai logo depois do POST (é a busca inicial da consulta), e as
     seguintes a cada 3 s.
 
+### T13 — a tela durante a espera · 2026-09-13
+
+Rodou em `opus`: `sonnet` sem cota até 2026-09-14 09:00. Contratos vermelhos antes da implementação.
+Segue D4, D12, D13, D16 e D18. Sem mudança na API. Nenhum primitivo novo: a espera é composta com
+`CargoIsometric`, `Skeleton` e `Icon` do design system, sem `<svg>` cru, sem estilo inline e sem
+mascote (G012).
+
+- **Despacho** (`TripCargoLayers.component.tsx`): o `export function TripCargoLayers` virou um
+  despachante fino. `pending`, `failed` e `timedOut` (`WAITING_PHASES`) vão para
+  `TripCargoLayoutWait`. `ready`, `unavailable` e `view === null` (API antiga) vão para o corpo de
+  sempre, renomeado para `TripCargoPlan` e sem mudança de comportamento. O hook da transição fica no
+  despachante, montado nas duas fases, porque é ele que lembra o fantasma.
+- **Espera** (`TripCargoLayoutWait.component.tsx`, novo):
+  - `pending`: selo "Reorganizando a carga…" (`<p role="status" aria-live="polite">` com ícone
+    `spinner` **e** texto). O esqueleto é o baú em `CargoIsometric` sem caixas, no mesmo sistema de
+    escala da planta, pulsando (`.cargoWireframe`). Com planta anterior, ela vem desenhada translúcida
+    por cima (`.cargoGhost`), acompanhada da marca "Planta desatualizada". A medida do esqueleto sem
+    fantasma sai de `occupancy.capacityDimensions`, e sem medida nenhuma o que aparece é o `Skeleton`
+    do design system.
+  - `failed`/`timedOut`: "Não foi possível calcular a planta agora.", com a planta anterior (se
+    houver) esmaecida e marcada como desatualizada. **Sem botão de tentar de novo** (D18: a próxima
+    leitura depois da espera reabre sozinha).
+- **Animação** (`shared/cargoLayoutTransition.service.ts` puro + `hooks/useCargoLayoutTransition.hook.ts`):
+  - **Identidade:** a planta não traz id de caixa. A chave de casamento é nota (ou `stop-N` sem nota)
+    - medida ordenada (a caixa girada continua sendo ela) + ordinal entre as iguais.
+  - O hook guarda a planta da espera como fantasma. Quando chega `ready`, planeja: quem continua
+    **desliza** (posição interpolada por `requestAnimationFrame`, 600 ms, `easeInOutCubic`), quem é
+    novo **surge esmaecendo** e quem saiu **some esmaecendo**. As duas classes novas do
+    `cargo-isometric` (`appearance?: 'entering'|'leaving'`, opcional) fazem o esmaecer em CSS.
+  - Só o desenho anima: fatias, fichas, contagens e folha impressa leem a planta nova de verdade.
+  - **`prefers-reduced-motion`:** o hook não anima (troca direta) e o CSS zera as três animações
+    (entrada/saída das caixas e pulso do esqueleto).
+  - **Teto:** `CARGO_LAYOUT_TRANSITION_MAX_BOXES = 800`. Acima dele a troca é direta, porque cada
+    quadro reprojeta a carga inteira. Decisão de desempenho desta task.
+- **Incompleta (D13):** em `ready` com `truncated`, aparece o aviso discreto "Planta incompleta —
+  algumas caixas ficaram de fora por tempo." (`role="status"`, `aria-live="polite"`). O motivo
+  `time_budget` já tinha rótulo legível nos dois locales, e a lista de `unplaced` o mostra.
+- **Prévia (decisão derivada da D4, registrada aqui):** o fantasma da prévia é **a última planta
+  pronta que a tela exibiu**, guardada em memória no `useTripCargoPreview` pela sessão da tela (não
+  persiste ao desmontar). `rememberShownCargoLayout` guarda, e `withRememberedCargoLayout` a entrega
+  em `pending`/`failed`/`timedOut` sem planta servida, com `stale: true`. Sem planta anterior, a tela
+  mostra só esqueleto e selo. `ready`, `unavailable` e `null` passam intactos.
+- **Fiação:** `TripCargoPanel` ganhou `layoutView` (opcional) e repassa `view` +
+  `bedDimensions`; `TripDetail` passa `workspace.cargoLayoutView`; `TripQuickCreateDialog`,
+  `cargoPreview.cargoLayoutView`; e `TripProposalDetail`, `cargo.cargoLayoutView`.
+- **Textos:** `cargoLayers.wait.{reorganizing, stale, failed, truncated, ghostLabel, skeletonLabel}`
+  nos dois locales (pt-BR acentuado).
+- **Efeito colateral aceito:** entrar em espera desmonta o `TripCargoPlan`, então giro, zoom e foco
+  da vista voltam ao padrão quando a planta nova chega. O despacho existe também para não chamar
+  hooks condicionalmente quando a fase muda.
+- **Contratos:** `test/trip/cargo-layout-wait.contract.ts` (novo, 30 testes, importado por
+  `test/trip.contract.test.ts`, que já está na lista do `package.json`). Cobre:
+  - selo, esqueleto, fantasma e "desatualizada" em `pending`;
+  - despacho das três fases;
+  - mensagem de falha sem botão nem `refetch`/`retry`, e sem mascote;
+  - aviso de incompleta e rótulo de `time_budget`;
+  - `unavailable`/`null` fora da espera, com "meça o caminhão";
+  - nenhum `<svg>` cru nem estilo inline, e chaves nos dois locales;
+  - a fiação nas três telas e no hook da prévia;
+  - as funções de lembrança da prévia (6 casos);
+  - casamento de caixas, plano (desliza/entra/sai), quadro interpolado, lista intacta sem quadro e
+    suavização;
+  - `prefers-reduced-motion` e o teto desligando a animação;
+  - o hook com `matchMedia`/`requestAnimationFrame`/`cancelAnimationFrame`, e o CSS com a mesma
+    duração do hook e as guardas de reduced-motion.
+- **Vermelho** (antes de qualquer código de produção): `bun test ./test/trip.contract.test.ts` →
+  **0 pass, 1 fail** (`Cannot find module …/cargoLayoutTransition.service`). Com só o serviço puro no
+  lugar → **810 pass, 3 fail**. O `describe` de fonte nem carregou, porque o componente da espera não
+  existia. Uma das 3 falhas era erro do próprio teste (ordinal da caixa girada), corrigido no teste.
+- **Verde:**
+  - `trip.contract.test.ts` → **829 pass, 0 fail**;
+  - `bunx tsc --noEmit -p .` → 0 erros;
+  - `bunx prettier --write` e `bunx eslint` nos 18 arquivos tocados: limpos;
+  - `bun run build` → exit 0.
+- **Suíte inteira** (`bun run test`) → **3434 pass, 15 fail** (3449 testes em 29 arquivos). A lista
+  das 15 é **idêntica** (`diff` vazio) à da baseline tirada antes da task: os contratos de design
+  system que procuram a regra no `CLAUDE.md` da raiz. 3404 + 30 = 3434.
+- **Verificação visual (orquestrador):** detalhe de uma viagem com baú medido, em que
+  `GET /trips/:id` responda `cargoLayoutState.status = 'pending'`. Com `stale: true` e
+  `cargoLayout` presente, aparecem fantasma + selo; sem planta, só esqueleto + selo. Depois
+  `ready`: deslize. `failed`: mensagem + fantasma esmaecido. `truncated: true` em `ready`: o aviso.
+  Na criação rápida / proposta, trocar a seleção de notas depois de uma planta pronta; o POST
+  `pending` mostra a planta anterior como fantasma.
+
 ## Fase 6 — Documentação e gate final (T14)

@@ -79,6 +79,27 @@ export function resolveCargoLayoutView(
   }
 }
 
+/**
+ * Prévia (T13, derivada da D4): a última planta pronta que a tela exibiu, guardada em memória pela
+ * sessão da tela. O POST `pending` da prévia vem sem planta, e sem isto não haveria fantasma.
+ */
+export function rememberShownCargoLayout(
+  input: Readonly<{ previous: TripCargoLayout | null; view: CargoLayoutView | null }>,
+): TripCargoLayout | null {
+  if (input.view?.phase !== 'ready' || input.view.layout === null) return input.previous
+  return input.view.layout
+}
+
+/** Espera sem planta servida recebe a lembrada, marcada desatualizada. `ready`/`unavailable` intactos. */
+export function withRememberedCargoLayout(
+  input: Readonly<{ remembered: TripCargoLayout | null; view: CargoLayoutView | null }>,
+): CargoLayoutView | null {
+  const { remembered, view } = input
+  if (view === null || view.layout !== null || remembered === null) return view
+  if (view.phase === 'ready' || view.phase === 'unavailable') return view
+  return { ...view, layout: remembered, stale: true }
+}
+
 export function resolveCargoPreviewPollLayoutId(
   preview: TripCargoPreview | null,
 ): string | undefined {

@@ -363,6 +363,7 @@ export function TripQuickCreateDialog({
           <TripCargoPanel
             cargoWeight={cargoPreview.preview.cargoWeight}
             layout={cargoPreview.preview.cargoLayout}
+            layoutView={cargoPreview.cargoLayoutView}
             occupancy={cargoPreview.preview.occupancy}
             weightConcentration={cargoPreview.preview.weightConcentration}
             vehicleType={

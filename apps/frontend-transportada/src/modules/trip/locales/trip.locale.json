@@ -255,7 +255,15 @@
       "top": "De cima"
     },
     "zoomIn": "Aproximar",
-    "zoomOut": "Afastar"
+    "zoomOut": "Afastar",
+    "wait": {
+      "reorganizing": "Reorganizando a carga…",
+      "stale": "Planta desatualizada: é a última que foi calculada.",
+      "failed": "Não foi possível calcular a planta agora.",
+      "truncated": "Planta incompleta — algumas caixas ficaram de fora por tempo.",
+      "ghostLabel": "Planta anterior da carga, desatualizada",
+      "skeletonLabel": "Esqueleto do baú enquanto a planta é calculada"
+    }
   },
   "cargoLayout": {
     "bottom": "fundo (última parada)",

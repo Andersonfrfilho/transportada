@@ -274,6 +274,7 @@ export function TripProposalDetail({
         <TripCargoPanel
           cargoWeight={cargoWeight}
           layout={cargo.preview?.cargoLayout ?? null}
+          layoutView={cargo.cargoLayoutView}
           occupancy={occupancy}
           onLoadingMove={handleLoadingMove}
           vehicleType={view.vehicleType}

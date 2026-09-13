@@ -12,7 +12,7 @@
 | 3    | T9b     | ✅ feita | `sonnet`           | `opus`                            |
 | 3    | T12a    | ✅ feita | `sonnet`           | `opus`                            |
 | 4    | T10–T11 | ✅ feita | `sonnet`           | `opus`                            |
-| 5    | T12–T13 | pendente | `sonnet`           | `opus`                            |
+| 5    | T12–T13 | ✅ feita | `sonnet`           | `opus`                            |
 | 6    | T14     | pendente | `haiku`            | `sonnet` → `opus`                 |
 | —    | revisão | pendente | `opus`             | `fable`                           |
 
@@ -142,7 +142,7 @@ status='queued' AND input_hash=$hash`; nula → confirma e descarta; hash supera
       `tripResponse.validation.ts` (~745, chave ausente = API antiga); intervalo de polling contra
       `GET /trips/cargo-layouts/:layoutId` enquanto `pending`, no padrão de
       `useTripWorkspace.hook.ts:233 resolveTripRefetchInterval`/`:306`.
-- [ ] T13 — `TripCargoLayers.component.tsx`: esqueleto do baú + fantasma translúcido do layout
+- [x] T13 — `TripCargoLayers.component.tsx`: esqueleto do baú + fantasma translúcido do layout
       anterior + selo "reorganizando a carga" enquanto pendente; animação suave de reposicionamento
       quando o layout novo chega (sai esmaecendo, muda deslizando, entra esmaecendo); padrão de
       loading das specs anteriores (`7ef269ad`, `66700e6a`, `8ffcb91a`) e `shadcn/ui`, sem mascote

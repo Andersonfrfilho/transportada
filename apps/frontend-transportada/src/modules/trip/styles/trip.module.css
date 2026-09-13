@@ -2822,3 +2822,45 @@
   color: color-mix(in srgb, var(--color-slate) 90%, white 10%);
   text-decoration: line-through;
 }
+
+/** Spec 145 T13 (D4): o selo de "reorganizando a carga", com texto — nunca só a cor. */
+.cargoWaitBadge {
+  align-items: center;
+  align-self: flex-start;
+  background: color-mix(in srgb, var(--color-copper) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-copper) 45%, transparent);
+  border-radius: 999px;
+  color: var(--color-copper);
+  display: inline-flex;
+  font-size: 0.8rem;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+}
+
+/** A planta anterior, translúcida: está ali para dar lugar ao olho, não para ser carregada. */
+.cargoGhost {
+  opacity: 0.45;
+}
+
+/** O baú pulsa devagar enquanto a planta nova é calculada — o mesmo respiro do esqueleto. */
+.cargoWireframe {
+  animation: cargo-wireframe-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes cargo-wireframe-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.6;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cargoWireframe {
+    animation: none;
+  }
+}

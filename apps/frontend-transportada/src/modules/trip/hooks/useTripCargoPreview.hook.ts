@@ -7,12 +7,14 @@ import {
   type CargoLayoutPendingEpisode,
   type CargoLayoutView,
   mergeCargoPreviewPoll,
+  rememberShownCargoLayout,
   resolveCargoLayoutRefetchInterval,
   resolveCargoLayoutView,
   resolveCargoPreviewPollLayoutId,
   trackCargoLayoutPendingEpisode,
+  withRememberedCargoLayout,
 } from '../shared/cargoLayoutPolling.service'
-import type { TripCargoPreview } from '../shared/trip.types'
+import type { TripCargoLayout, TripCargoPreview } from '../shared/trip.types'
 import { getTripClient } from './useTripWorkspace.hook'
 
 const TRIP_CARGO_PREVIEW_QUERY_KEY = 'trip-cargo-preview'
@@ -62,6 +64,8 @@ export function useTripCargoPreview(
   const driverKey = [...input.driverIds].sort().join(',')
 
   const [episode, setEpisode] = useState<CargoLayoutPendingEpisode | undefined>(undefined)
+  /** Spec 145 T13: a última planta pronta exibida, que vira fantasma enquanto a nova calcula. */
+  const [shownLayout, setShownLayout] = useState<TripCargoLayout | null>(null)
 
   const query = useQuery({
     /** Sem nota ou sem veículo a API recusaria: a pergunta só existe com os dois. */
@@ -110,11 +114,17 @@ export function useTripCargoPreview(
     status: preview?.state?.status,
   })
   if (nextEpisode !== episode) setEpisode(nextEpisode)
-  const cargoLayoutView = resolveCargoLayoutView({
+  const servedView = resolveCargoLayoutView({
     episode: nextEpisode,
     layout: preview?.cargoLayout ?? null,
     now,
     state: preview?.state,
+  })
+  const nextShownLayout = rememberShownCargoLayout({ previous: shownLayout, view: servedView })
+  if (nextShownLayout !== shownLayout) setShownLayout(nextShownLayout)
+  const cargoLayoutView = withRememberedCargoLayout({
+    remembered: nextShownLayout,
+    view: servedView,
   })
 
   return { canRead, cargoLayoutView, isLoading: query.isLoading, preview }

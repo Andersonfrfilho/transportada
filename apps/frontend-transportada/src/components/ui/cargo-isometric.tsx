@@ -17,6 +17,11 @@ export type IsometricBoxComplement = 'needsRehandling' | 'outOfReach' | null
 
 /** Uma caixa no espaço do baú, em metros: `xM` do fundo, `yM` da parede, `zM` do piso. */
 export type IsometricBox = Readonly<{
+  /**
+   * Spec 145 T13: a caixa que surge ou some quando a planta nova chega. Ausente, a caixa só está lá.
+   * O esmaecer é CSS, e para sob `prefers-reduced-motion`.
+   */
+  appearance?: 'entering' | 'leaving' | undefined
   color: string
   complement: IsometricBoxComplement
   depthM: number
@@ -426,6 +431,8 @@ function IsometricSolid({
         dimmed && styles.boxDimmed,
         box.isGhost && styles.boxGhost,
         isSelectable && styles.boxSelectable,
+        box.appearance === 'entering' && styles.boxEntering,
+        box.appearance === 'leaving' && styles.boxLeaving,
       )}
       data-box-id={box.id}
       role={isSelectable ? 'button' : undefined}

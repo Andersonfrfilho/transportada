@@ -421,6 +421,7 @@ export function TripDetail({ linkForm, vehicles, workspace }: TripDetailProps) {
       <TripCargoPanel
         cargoWeight={trip.cargoWeight ?? null}
         layout={trip.cargoLayout}
+        layoutView={workspace.cargoLayoutView}
         occupancy={trip.occupancy}
         vehicleType={vehicles.find((entry) => entry.id === trip.vehicleId)?.vehicleType ?? ''}
       />

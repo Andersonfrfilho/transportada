@@ -10,6 +10,7 @@ import { TripCargoLayers } from './TripCargoLayers.component'
 import { TripPendingMeasurements } from './TripPendingMeasurements.component'
 import type { VehicleType } from '@/modules/shared/vehicleType.constant'
 
+import type { CargoLayoutView } from '../shared/cargoLayoutPolling.service'
 import type {
   TripCargoLayout,
   TripCargoWeight,
@@ -21,6 +22,8 @@ import styles from '../styles/trip.module.css'
 type TripCargoPanelProps = {
   cargoWeight: TripCargoWeight | null
   layout: TripCargoLayout | null
+  /** Spec 145 T13: o estado da planta calculada pelo worker. Ausente ou `null`, a tela de hoje. */
+  layoutView?: CargoLayoutView | null | undefined
   occupancy: TripOccupancy | null
   /** Setas de ordem de carregamento nas fichas. Ausente, o painel é só leitura (viagem criada). */
   onLoadingMove?: ((stopSequence: number, direction: -1 | 1) => void) | undefined
@@ -73,6 +76,7 @@ function formatVolume(value: string): string {
 export function TripCargoPanel({
   cargoWeight,
   layout,
+  layoutView,
   occupancy,
   onLoadingMove,
   vehicleType = '',
@@ -168,7 +172,12 @@ export function TripCargoPanel({
         conviveram enquanto o 3D não existia; com ele, as três diziam a mesma coisa em três
         linguagens, e a fileira e a planta eram as duas que **não** dizem onde a caixa vai.
       */}
-      <TripCargoLayers layout={layout} onLoadingMove={onLoadingMove} />
+      <TripCargoLayers
+        bedDimensions={occupancy.capacityDimensions}
+        layout={layout}
+        onLoadingMove={onLoadingMove}
+        view={layoutView ?? null}
+      />
     </section>
   )
 }

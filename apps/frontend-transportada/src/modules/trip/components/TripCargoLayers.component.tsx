@@ -41,8 +41,19 @@ import {
   resolveSplitPieces,
 } from '../shared/noteColor.service'
 import { buildCargoStopLabels, formatCargoStopLabel } from '../shared/cargoStopLabel.service'
-import type { TripCargoLayout } from '../shared/trip.types'
+import { useCargoLayoutTransition } from '../hooks/useCargoLayoutTransition.hook'
+import type { CargoLayoutPhase, CargoLayoutView } from '../shared/cargoLayoutPolling.service'
+import {
+  applyCargoLayoutTransition,
+  type CargoLayoutTransitionFrame,
+  listCargoBoxMatchKeys,
+} from '../shared/cargoLayoutTransition.service'
+import type { TripCargoLayout, TripOccupancy } from '../shared/trip.types'
 import styles from '../styles/trip.module.css'
+import { TripCargoLayoutWait } from './TripCargoLayoutWait.component'
+
+/** Spec 145 T13: as fases em que a planta está sendo (ou não pôde ser) calculada pelo worker. */
+const WAITING_PHASES: ReadonlySet<CargoLayoutPhase> = new Set(['pending', 'failed', 'timedOut'])
 
 /** A ficha do veículo, onde as três medidas do baú são preenchidas. */
 const FLEET_HREF = '/fleet'
@@ -51,13 +62,49 @@ const FLEET_HREF = '/fleet'
 const BOX_CLICK_DRAG_THRESHOLD_PX = 4
 
 type TripCargoLayersProps = Readonly<{
+  /** Spec 145 T13: a medida do baú para o esqueleto quando ainda não há planta nenhuma. */
+  bedDimensions?: TripOccupancy['capacityDimensions'] | undefined
   layout: TripCargoLayout | null
   /**
    * Muda a parada de posição na **ordem de carregamento** (`-1` carrega antes, `1` depois). Ausente,
    * a ficha é só leitura — é o caso da viagem já criada.
    */
   onLoadingMove?: ((stopSequence: number, direction: -1 | 1) => void) | undefined
+  /** Spec 145 T12/T13: `null` é API anterior à planta do worker — a tela segue a de hoje. */
+  view?: CargoLayoutView | null | undefined
 }>
+
+type TripCargoPlanProps = Readonly<{
+  layout: TripCargoLayout | null
+  onLoadingMove?: ((stopSequence: number, direction: -1 | 1) => void) | undefined
+  transition: CargoLayoutTransitionFrame | null
+  truncated: boolean
+}>
+
+/**
+ * Spec 145 T13: a espera (`pending`/`failed`/`timedOut`) tem tela própria; `ready`, `unavailable` e a
+ * API antiga desenham a planta como sempre. O hook da transição fica aqui, montado nas duas: é ele
+ * que lembra o fantasma da espera quando a planta nova chega.
+ */
+export function TripCargoLayers({
+  bedDimensions = null,
+  layout,
+  onLoadingMove,
+  view = null,
+}: TripCargoLayersProps) {
+  const transition = useCargoLayoutTransition({ layout: view?.layout ?? null, phase: view?.phase })
+  if (view !== null && WAITING_PHASES.has(view.phase)) {
+    return <TripCargoLayoutWait bedDimensions={bedDimensions} view={view} />
+  }
+  return (
+    <TripCargoPlan
+      layout={layout}
+      onLoadingMove={onLoadingMove}
+      transition={transition}
+      truncated={view?.truncated === true}
+    />
+  )
+}
 
 /**
  * Spec 094: **onde cada caixa cabe**, camada por camada.
@@ -71,7 +118,7 @@ type TripCargoLayersProps = Readonly<{
  * celular de quem está no galpão — e o carregamento é feito uma camada por vez, que é a razão de o
  * desenho ser assim.
  */
-export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps) {
+function TripCargoPlan({ layout, onLoadingMove, transition, truncated }: TripCargoPlanProps) {
   const { t } = useTranslation('trip')
   const [index, setIndex] = useState(0)
   /**
@@ -196,6 +243,41 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
   }, [focus, noteColors, placement.layers, t])
 
   /**
+   * Spec 145 T13 (D4): só o **desenho** anima. Lista, fatias, fichas e folha impressa leem `boxes`,
+   * a planta nova de verdade — a caixa que está saindo nunca entra numa contagem.
+   */
+  const matchKeys = useMemo(
+    () => listCargoBoxMatchKeys(placement.layers.flatMap((layer) => layer.boxes)),
+    [placement.layers],
+  )
+  const drawnBoxes = useMemo(
+    () =>
+      applyCargoLayoutTransition({
+        boxes,
+        frame: transition,
+        keys: matchKeys,
+        toLeaving: (box, key) => ({
+          color: stopColorOf(box.stopSequence),
+          complement: null,
+          depthM: box.depthM,
+          heightM: box.heightM,
+          id: `leaving-${key}`,
+          isEstimated: box.source === 'estimated',
+          isGhost: false,
+          isSplit: false,
+          label: box.label,
+          layer: box.layer,
+          stopSequence: box.stopSequence,
+          widthM: box.widthM,
+          xM: box.xM,
+          yM: box.yM,
+          zM: box.zM,
+        }),
+      }),
+    [boxes, matchKeys, transition],
+  )
+
+  /**
    * ⚠️ O contorno é o **baú**, e a altura dele não pode ser a da carga: somar as camadas desenhava o
    * baú sempre cheio até o teto, e a folga de altura — a informação que decide se cabe mais uma
    * camada — nunca aparecia. Sem a medida da ficha, o desenho usa a carga e não promete folga.
@@ -262,6 +344,16 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
 
       {/* ⚠️ A linha que diz o que a planta NÃO promete. Fixa, nunca condicional. */}
       <p className={styles.hint}>{t('cargoLayers.promise')}</p>
+
+      {/*
+        Spec 145 D13: a última tentativa esgotou o tempo e a planta ficou como estava. O aviso é
+        discreto — as caixas de fora já aparecem na lista abaixo, com o motivo.
+      */}
+      {truncated ? (
+        <p aria-live="polite" className={styles.hint} role="status">
+          {t('cargoLayers.wait.truncated')}
+        </p>
+      ) : null}
 
       {/*
         Spec 120: quanto do pedido está no mapa recomendado e quanto está no complemento — a mesma
@@ -335,7 +427,7 @@ export function TripCargoLayers({ layout, onLoadingMove }: TripCargoLayersProps)
           bedHeightM={drawnHeightM}
           bedLengthM={Number.parseFloat(layout.bedLengthM)}
           bedWidthM={Number.parseFloat(layout.bedWidthM)}
-          boxes={boxes}
+          boxes={drawnBoxes}
           className={styles.cargoCanvas}
           {...(hasChosenLayer ? { focusLayer: current.index } : {})}
           hasSideDoor={layout.loadingAccess !== 'rear'}

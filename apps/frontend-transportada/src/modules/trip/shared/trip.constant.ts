@@ -300,3 +300,9 @@ export const CARGO_LAYOUT_POLL_CEILING_MS = 600_000
 export function isTripOnTheRoad(status: string | undefined): boolean {
   return status === 'dispatched' || status === 'in_transit'
 }
+
+/** Spec 145 T13 (D4): quanto dura o deslize da planta anterior para a nova — o CSS usa o mesmo. */
+export const CARGO_LAYOUT_TRANSITION_MS = 600
+
+/** Spec 145 T13: acima disto a planta nova entra sem deslize — cada quadro reprojeta a carga inteira. */
+export const CARGO_LAYOUT_TRANSITION_MAX_BOXES = 800

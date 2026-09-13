@@ -154,3 +154,34 @@
 .boxSelectable {
   cursor: pointer;
 }
+
+/**
+ * Spec 145 T13 (D4): a caixa nova surge esmaecendo e a que saiu some esmaecendo. `backwards` na
+ * entrada devolve a opacidade à cascata ao fim — a caixa apagada pelo foco continua apagada.
+ */
+.boxEntering {
+  animation: cargo-box-enter 600ms ease-out backwards;
+}
+
+.boxLeaving {
+  animation: cargo-box-leave 600ms ease-in forwards;
+}
+
+@keyframes cargo-box-enter {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes cargo-box-leave {
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boxEntering,
+  .boxLeaving {
+    animation: none;
+  }
+}
