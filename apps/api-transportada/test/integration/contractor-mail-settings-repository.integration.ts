@@ -152,12 +152,14 @@ describe('contractor mail settings repository integration (spec 143, T008)', () 
         const envelopeA = await secretService.encrypt({
           apiKey: 're_first_racer',
           companyId,
+          replyTokenSecret: 'a'.repeat(64),
           settingsId: settingsIdA,
           webhookSigningSecret: 'whsec_first_racer',
         })
         const envelopeB = await secretService.encrypt({
           apiKey: 're_second_racer',
           companyId,
+          replyTokenSecret: 'b'.repeat(64),
           settingsId: settingsIdB,
           webhookSigningSecret: 'whsec_second_racer',
         })
@@ -195,8 +197,16 @@ describe('contractor mail settings repository integration (spec 143, T008)', () 
         })
         expect(winnerSecret).toEqual(
           winnerIsFirst
-            ? { apiKey: 're_first_racer', webhookSigningSecret: 'whsec_first_racer' }
-            : { apiKey: 're_second_racer', webhookSigningSecret: 'whsec_second_racer' },
+            ? {
+                apiKey: 're_first_racer',
+                replyTokenSecret: 'a'.repeat(64),
+                webhookSigningSecret: 'whsec_first_racer',
+              }
+            : {
+                apiKey: 're_second_racer',
+                replyTokenSecret: 'b'.repeat(64),
+                webhookSigningSecret: 'whsec_second_racer',
+              },
         )
 
         // A escrita perdedora nunca chega à auditoria — a transação inteira dela é desfeita.
@@ -228,6 +238,7 @@ describe('contractor mail settings repository integration (spec 143, T008)', () 
         const originalEnvelope = await secretService.encrypt({
           apiKey: 're_original',
           companyId,
+          replyTokenSecret: 'c'.repeat(64),
           settingsId,
           webhookSigningSecret: 'whsec_original',
         })
@@ -240,6 +251,7 @@ describe('contractor mail settings repository integration (spec 143, T008)', () 
         const staleEnvelope = await secretService.encrypt({
           apiKey: 're_stale_writer',
           companyId,
+          replyTokenSecret: 'e'.repeat(64),
           settingsId,
           webhookSigningSecret: 'whsec_stale_writer',
         })
@@ -276,6 +288,7 @@ describe('contractor mail settings repository integration (spec 143, T008)', () 
         })
         expect(stillOriginal).toEqual({
           apiKey: 're_original',
+          replyTokenSecret: 'c'.repeat(64),
           webhookSigningSecret: 'whsec_original',
         })
 
@@ -340,7 +353,9 @@ describe('contractor mail settings repository integration (spec 143, T008)', () 
             deliveryStatus: 'sent',
             direction: 'outbound',
             fromAddress: 'ocorrencias@fernandes-transportadora.com.br',
+            subject: 'Teste de configuração de e-mail com contratantes',
             threadId: thread.id,
+            toAddresses: ['admin@fernandes-transportadora.com.br'],
           },
           {
             bodyText: 'Recebi o teste.',
@@ -348,7 +363,9 @@ describe('contractor mail settings repository integration (spec 143, T008)', () 
             dkimResult: 'aligned',
             direction: 'inbound',
             fromAddress: 'admin@fernandes-transportadora.com.br',
+            subject: 'Re: Teste de configuração de e-mail com contratantes',
             threadId: thread.id,
+            toAddresses: ['abc123@resposta.fernandes-transportadora.com.br'],
           },
         ])
 

@@ -1001,3 +1001,142 @@ ao abrir o cofre, exceção inesperada) propaga: o consumidor devolve `retry`, a
 3. O assunto do e-mail é uma constante por `subject_type` (`contractor-mail-subject.constant.ts`),
    porque a tabela de mensagens não tem coluna de assunto — molde novo, não presente no anexo do
    agregado (que não envia e-mail).
+
+⚠️ **Os três desvios acima foram corrigidos no mesmo dia — ver a subseção seguinte.** Ficam registrados
+porque foi o que o `code-reviewer`/coordenador encontrou na primeira entrega, e a decisão errada (e o
+porquê dela ter parecido razoável na hora) é parte do que a correção documenta.
+
+## T009 — Correção pós-entrega — 2026-09-13
+
+O `code-reviewer` (coordenador) apontou dois problemas de segurança na primeira entrega, com a causa
+raiz correta: **o RF2 (só o hash do token) e o RF7 (mesmo Reply-To em toda a conversa) puxavam em
+direções opostas**, e a saída escolhida na hora — token sorteado a cada envio, endereço e token em
+claro no `payload` da fila — violava o §6 do baseline (job carrega referência, nunca dado) para
+resolver essa tensão do lado errado.
+
+**(a) O payload da fila carregava `toAddress`/`replyToAddress`.** Dado pessoal (endereço) e um
+segredo com poder de decisão (o token de resposta, em claro) trafegando pelo RabbitMQ — inclusive a
+fila `dead`, sem prazo de expiração.
+
+**(b) Um token girado a cada envio impedia o RF7.** O operador respondendo numa conversa já iniciada
+precisa do **mesmo** `Reply-To` que o primeiro e-mail usou; girar o token a cada clique quebra isso
+na primeira reentrega.
+
+### A correção, em ordem
+
+1. **O token virou derivado.** `reply-token.policy.ts` (API e cópia no worker) ganhou
+   `deriveReplyToken({ replyTokenSecret, companyId, threadId })` — `HMAC-SHA256` truncado a 128 bits,
+   determinístico. `generateReplyToken()` (aleatório) saiu; `hashReplyToken`/`buildReplyAddress`
+   continuam (a API também ganhou `generateReplyTokenSecret()`, 32 bytes aleatórios em hex).
+2. **O envelope da T006 ganhou o terceiro campo.** `ContractorMailCredentialSecret` agora é
+   `{ apiKey, replyTokenSecret, webhookSigningSecret }` nas duas apps (`secretSchema` com
+   `replyTokenSecret: z.string().regex(/^[0-9a-f]{64}$/)`); `test/contractor-mail/credential-secret-parity.contract.ts`
+   (worker) passou a exigir o `REPLY_TOKEN_SECRET_PATTERN` literal dos dois lados.
+   `resolveSecret` (`contractor-mail-settings.use-case.ts`) gera o segredo só na primeira
+   configuração (`existing === undefined`) e o preserva em toda atualização — **exceto** quando os
+   dois segredos vêm completos no `PUT` e o envelope anterior não abre mais (keyring girado/perdido):
+   aí ele **gera um novo**, porque o envelope inteiro já estava ilegível (não só o
+   `replyTokenSecret`) e travar a configuração para sempre seria pior que invalidar o `Reply-To` de
+   conversas que ninguém mais consegue decidir de qualquer jeito. Nenhum envelope foi gravado em
+   produção — a migração de dado não se aplica, e isso não foi contornado com um "aceita envelope
+   antigo sem o campo".
+3. **A conversa `setup_test` passou a se reservar antes de o token existir.** Como o token depende do
+   `threadId` definitivo, `openTestEmailThread` virou dois métodos no repositório:
+   `reserveSetupTestThread` (candidato + `ON CONFLICT DO NOTHING`, e se perder a corrida, uma
+   `SELECT` na mesma transação devolve o `threadId` de quem venceu) e `recordTestEmailMessage`
+   (mensagem `queued` + evento no outbox, no `threadId` confirmado). O caso de uso
+   (`send-contractor-mail-test-email.use-case.ts`) deriva o token candidato só para calcular o hash
+   da reserva — se perder a corrida, não precisa recalcular nada: a conversa vencedora já tem o hash
+   dela, determinístico pelo próprio `threadId` dela.
+4. **Migration aditiva nova**, sem tocar a da T003:
+   `apps/api-transportada/drizzle/20260913191809_contractor_mail_message_recipient/` —
+   `contractor_mail_messages` ganha `subject text not null` e `to_addresses text[] not null`, com
+   `CHECK (length(btrim(subject)) > 0)` e `CHECK (array_length(to_addresses, 1) > 0)`. Gerada com
+   `bun run db:generate --name contractor_mail_message_recipient` (schema TS editado antes, snapshot
+   e `migration.sql` saíram dela); `rollback.sql` escrito à mão, no molde do da T003. Registrada em
+   `test/database-migration/static-migration.contract.ts`. Cópia por valor no worker
+   (`src/database/contractor-mail.schema.ts`) — e a cópia de `contractor_mail_threads` **saiu**
+   inteira de lá: o consumidor de saída não precisa mais da conversa para nada (nem assunto, nem
+   token), só da mensagem e da configuração.
+5. **O payload da fila voltou a ser só `{ messageId }`.** `contractor-mail-outbound-envelope.schema.ts`
+   perdeu `toAddress`/`replyToAddress`; o outbox (`contractor_mail_outbox.payload`) grava `{}` — o
+   `messageId` já é coluna tipada própria, então não sobra nada para o jsonb carregar.
+   `send-contractor-mail-outbound-message.use-case.ts` (worker) carrega a mensagem (`bodyText`,
+   `subject`, `toAddresses`, `threadId`) e a configuração (`senderName`, `senderAddress`,
+   `replyDomain`, o envelope), deriva o token e monta o `Reply-To` ali mesmo — nunca lê token nem
+   endereço de lugar nenhum além dessas duas leituras. `contractor-mail-subject.constant.ts` (worker)
+   foi apagado: o assunto vem da própria mensagem agora.
+6. `to_addresses` é array (RF1 admite mais de um contato), mas o gateway do Resend (T007) recebe um
+   `to` singular; o envio de hoje (`setup_test`) sempre grava um endereço só, então o caso de uso usa
+   `toAddresses[0]`. Enviar para vários é escopo do P1 (T015), que aí estende o gateway — registrado
+   como decisão, não como pendência escondida.
+
+**Testes reescritos/novos:**
+
+- API: `reply-token-policy.contract.ts` (derivação estável por segredo+empresa+conversa, diferente
+  por empresa, diferente por conversa, diferente por segredo; hash; endereço), `credential-secret.contract.ts`
+  (o terceiro campo em todo lugar que constrói/le o envelope), `send-test-email-use-case.contract.ts`
+  (reescrito: reserva com hash do candidato, gravação no `threadId` confirmado mesmo quando difere do
+  candidato — a prova de que perder a corrida não quebra nada), `settings-use-case.contract.ts`
+  (fixtures com `replyTokenSecret`; nenhum teste de comportamento mudou, exceto o de recuperação de
+  keyring perdido, que passou a esperar sucesso de novo). `test/integration/contractor-mail-test-email-thread.integration.ts`
+  reescrito para `reserveSetupTestThread`/`recordTestEmailMessage` contra Postgres real, incluindo a
+  reserva isolada por empresa e o "segunda reserva devolve o threadId da primeira, hash intocado".
+- Worker: `contractor-mail-credential-secret.service.ts` e o teste dele com o terceiro campo;
+  `credential-secret-parity.contract.ts` estendido; `outbound-envelope.contract.ts` reescrito com um
+  teste dedicado — **"rejects any payload field besides messageId — the referência-only contract"** —
+  que falha se `toAddress`, `replyToAddress`, `subject` ou `bodyText` voltarem ao payload;
+  `outbound-message.contract.ts` reescrito (sem thread, com `subject`/`toAddresses` da mensagem,
+  mais o teste de que duas mensagens da mesma conversa saem com o **mesmo** Reply-To, e uma
+  conversa diferente sai com um Reply-To diferente); `outbound-consumer.contract.ts` e
+  `outbound-relay.contract.ts` ajustados ao payload menor.
+  `contractor-mail-outbound-outbox.integration.test.ts` ajustado (sem `toAddress`/`replyToAddress`
+  no payload esperado, seed com `subject`/`to_addresses` na mensagem).
+
+**Gates depois da correção:**
+
+```
+$ bun run typecheck                        # raiz, as seis apps → limpo
+$ bun run lint                             # raiz, as seis apps → limpo
+$ bunx prettier --write <arquivos tocados> # sem mudança de lógica, só formatação
+
+$ bun run --cwd apps/api-transportada test
+ 5638 pass, 23 skip, 0 fail — 5661 testes em 170 arquivos
+
+$ bun --env-file=../../.env.test test \
+    ./test/integration/contractor-mail-test-email-thread.integration.ts \
+    ./test/integration/contractor-mail-settings-repository.integration.ts --timeout 120000
+ 10 pass, 0 fail (a primeira tentativa rodando os dois arquivos junto com outra suíte pesada teve um
+ timeout de 30s isolado num teste — o mesmo padrão de concorrência de host que o CLAUDE.md já
+ documenta para `database-migration.integration.ts`; reexecutado sozinho e depois junto de novo, os
+ 10 testes passam limpos)
+
+$ bun run --cwd apps/worker-transportada test
+ 1086 pass, 0 fail — 1086 testes em 81 arquivos
+
+$ make migration-test
+ 95 pass, 0 fail (a migration nova aplica e reverte limpa)
+
+$ make worker-integration
+ 74 pass, 1 fail ("osrm-routing-matrix" — geometria do serviço OSRM local diverge do fixture,
+ preexistente e sem relação com esta correção). Antes desta rodada, a base de dados persistente
+ `transportada_worker_integration` (reaproveitada entre execuções pelo script de provisionamento)
+ tinha linhas de `contractor_mail_messages` de sessões anteriores desta mesma task, sem
+ `subject`/`to_addresses` — a migration nova falhou nela com "column contains null values". Isso não
+ é o caso "envelope existe em produção sem o campo novo": são linhas de teste local, na base
+ reaproveitada de integração, não em produção nem em staging. Removida
+ (`drop database transportada_worker_integration`) para a base ser recriada do zero pela próxima
+ execução do script — o comando certo para quem topar com o mesmo sintoma depois de rodar esta task
+ mais de uma vez localmente.
+```
+
+**Paridade do envelope com três campos — como foi provada:** `test/contractor-mail/credential-secret-parity.contract.ts`
+(worker) lê o texto-fonte dos dois arquivos (`api-transportada/.../contractor-mail-credential-secret.service.ts`
+e a cópia do worker) e falha se `REPLY_TOKEN_SECRET_PATTERN_LITERAL`
+(`'const REPLY_TOKEN_SECRET_PATTERN = /^[0-9a-f]{64}$/'`) ou a linha do campo no `secretSchema`
+(`'replyTokenSecret: z.string().regex(REPLY_TOKEN_SECRET_PATTERN)'`) não aparecerem em algum dos
+dois — mesmo molde que já provava paridade do AAD e do prefixo `whsec_`. Separadamente,
+`credential-secret.contract.ts` (API) e `credential-secret.contract.ts` (worker) provam
+funcionalmente que um envelope selado com os três campos por um lado abre com os três campos
+intactos do outro (round-trip real, via `@adatechnology/secret-envelope`), o que o teste de
+texto-fonte sozinho não garantiria (ele prova "a mesma forma", não "o mesmo comportamento").

@@ -87,31 +87,52 @@ export type SaveContractorMailSettingsInput = {
 }
 
 /**
- * Spec 143 T009: a mesma transação cria (ou reaproveita, girando o token) a conversa `setup_test`,
- * a mensagem de saída `queued` e o evento em `contractor_mail_outbox`. `replyTokenHash` chega já
- * calculado (RF2 — o repositório nunca gera token); `toAddress`/`replyToAddress` só existem no
- * `payload` jsonb do evento de saída, porque `contractor_mail_messages` não guarda destinatário
- * (plan.md § T009, decisão registrada em `evidence.md`).
+ * Correção pós-entrega da T009 (spec 143). O token é **derivado** de `(replyTokenSecret, companyId,
+ * threadId)` — determinístico —, então a conversa `setup_test` precisa existir (com um `threadId`
+ * definitivo) antes de o token poder ser calculado. `reserveSetupTestThread` resolve exatamente essa
+ * corrida: recebe um `candidateThreadId`/`candidateReplyTokenHash` já calculados pelo caso de uso
+ * (que só ele tem o segredo para gerar), tenta criar a linha com esse id e, se perder a corrida
+ * contra outra chamada concorrente, devolve o `threadId` de quem venceu — nunca os dois. O caso de
+ * uso então deriva o token de novo para o `threadId` **confirmado** (barato: é HMAC, não é I/O), o
+ * que também é o caminho normal de reaproveitar uma conversa já existente.
  */
-export type OpenContractorMailTestEmailThreadInput = {
+export type ReserveContractorMailSetupTestThreadInput = {
+  readonly candidateReplyTokenHash: string
+  readonly candidateThreadId: string
+  readonly companyId: string
+}
+
+export type ReserveContractorMailSetupTestThreadResult = {
+  readonly threadId: string
+}
+
+/**
+ * Grava a mensagem de saída `queued` (com o assunto e os destinatários já resolvidos) e o evento em
+ * `contractor_mail_outbox` — o payload da fila volta a ser só `{ messageId }` (§6 do baseline de
+ * segurança: referência, nunca dado), então nada aqui precisa viajar fora do banco.
+ */
+export type RecordContractorMailTestEmailInput = {
   readonly actorUserId: string
   readonly bodyText: string
   readonly companyId: string
   readonly correlationId: string
   readonly fromAddress: string
-  readonly replyToAddress: string
-  readonly replyTokenHash: string
-  readonly toAddress: string
+  readonly subject: string
+  readonly threadId: string
+  readonly toAddresses: readonly string[]
 }
 
-export type OpenContractorMailTestEmailThreadResult = {
+export type RecordContractorMailTestEmailResult = {
   readonly threadId: string
 }
 
 export type ContractorMailRepositoryPort = {
-  readonly openTestEmailThread: (
-    input: OpenContractorMailTestEmailThreadInput,
-  ) => Promise<OpenContractorMailTestEmailThreadResult>
+  readonly recordTestEmailMessage: (
+    input: RecordContractorMailTestEmailInput,
+  ) => Promise<RecordContractorMailTestEmailResult>
+  readonly reserveSetupTestThread: (
+    input: ReserveContractorMailSetupTestThreadInput,
+  ) => Promise<ReserveContractorMailSetupTestThreadResult>
   readonly findSettings: (input: {
     readonly companyId: string
   }) => Promise<ContractorMailSettingsRecord | undefined>

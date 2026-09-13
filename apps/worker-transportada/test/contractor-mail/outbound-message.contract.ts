@@ -16,7 +16,6 @@ import type { ContractorMailOutboundEnvelopeV1 } from '../../src/messaging/contr
 import type {
   ContractorMailOutboundMessageRecord,
   ContractorMailOutboundSettingsRecord,
-  ContractorMailOutboundThreadRecord,
   ContractorMailReferenceHeaders,
 } from '../../src/contractor-mail/infrastructure/drizzle-contractor-mail-outbound-worker.repository.js'
 
@@ -24,16 +23,18 @@ const COMPANY_ID = crypto.randomUUID()
 const MESSAGE_ID = crypto.randomUUID()
 const THREAD_ID = crypto.randomUUID()
 const SETTINGS_ID = crypto.randomUUID()
+const REPLY_TOKEN_SECRET = 'a'.repeat(64)
 
 const MESSAGE: ContractorMailOutboundMessageRecord = {
   bodyText: 'Este é um e-mail de teste.',
+  subject: 'Teste de configuração de e-mail com contratantes',
   threadId: THREAD_ID,
+  toAddresses: ['admin@fernandes-transportadora.com.br'],
 }
-
-const THREAD: ContractorMailOutboundThreadRecord = { subjectType: 'setup_test' }
 
 const SETTINGS: ContractorMailOutboundSettingsRecord = {
   id: SETTINGS_ID,
+  replyDomain: 'resposta.fernandes-transportadora.com.br',
   secretEnvelope: { algorithm: 'A256GCM', ciphertext: 'x', keyId: 'k', nonce: 'n', version: 1 },
   senderAddress: 'ocorrencias@fernandes-transportadora.com.br',
   senderName: 'Fernandes Transportadora',
@@ -45,19 +46,17 @@ function buildEnvelope(): ContractorMailOutboundEnvelopeV1 {
     correlationId: 'contractor-mail-outbound-message-0001',
     eventId: crypto.randomUUID(),
     occurredAt: new Date(0).toISOString(),
-    payload: {
-      messageId: MESSAGE_ID,
-      replyToAddress: 'abcdefghijklmnopqrstuvwxyz@resposta.fernandes-transportadora.com.br',
-      toAddress: 'admin@fernandes-transportadora.com.br',
-    },
+    payload: { messageId: MESSAGE_ID },
     type: CONTRACTOR_MAIL_OUTBOUND_EVENT_TYPE.MESSAGE_SEND_REQUESTED,
     version: 1,
   }
 }
 
 function buildDependencies(input: {
+  readonly message?: ContractorMailOutboundMessageRecord
   readonly referenceHeaders?: ContractorMailReferenceHeaders
   readonly sendEmail: SendContractorMailOutboundMessageDependencies['mailGateway']['sendEmail']
+  readonly settings?: ContractorMailOutboundSettingsRecord
 }): {
   readonly dependencies: SendContractorMailOutboundMessageDependencies
   readonly failedCalls: { readonly companyId: string; readonly messageId: string }[]
@@ -69,6 +68,8 @@ function buildDependencies(input: {
 } {
   const sentCalls: { companyId: string; messageId: string; providerEmailId: string }[] = []
   const failedCalls: { companyId: string; messageId: string }[] = []
+  const message = input.message ?? MESSAGE
+  const settings = input.settings ?? SETTINGS
 
   const dependencies: SendContractorMailOutboundMessageDependencies = {
     mailGateway: {
@@ -83,13 +84,10 @@ function buildDependencies(input: {
         return input.referenceHeaders
       },
       async findMessageById({ companyId, messageId }) {
-        return companyId === COMPANY_ID && messageId === MESSAGE_ID ? MESSAGE : undefined
+        return companyId === COMPANY_ID && messageId === MESSAGE_ID ? message : undefined
       },
       async findSettingsByCompanyId({ companyId }) {
-        return companyId === COMPANY_ID ? SETTINGS : undefined
-      },
-      async findThreadById({ companyId, threadId }) {
-        return companyId === COMPANY_ID && threadId === THREAD_ID ? THREAD : undefined
+        return companyId === COMPANY_ID ? settings : undefined
       },
       async markMessageFailed(callInput) {
         failedCalls.push(callInput)
@@ -100,7 +98,11 @@ function buildDependencies(input: {
     },
     secretService: {
       async decrypt() {
-        return { apiKey: 're_test_key', webhookSigningSecret: 'whsec_test' }
+        return {
+          apiKey: 're_test_key',
+          replyTokenSecret: REPLY_TOKEN_SECRET,
+          webhookSigningSecret: 'whsec_test',
+        }
       },
     },
   }
@@ -108,8 +110,8 @@ function buildDependencies(input: {
   return { dependencies, failedCalls, sentCalls }
 }
 
-describe('send contractor mail outbound message (spec 143, T009, Objetivo 5)', () => {
-  test('sends the mail with the sender from settings, the reply-to and the Idempotency-Key equal to the messageId', async () => {
+describe('send contractor mail outbound message (spec 143, T009 — correção pós-entrega)', () => {
+  test('sends the mail with the sender from settings, the derived reply-to and the Idempotency-Key equal to the messageId', async () => {
     const requests: Parameters<
       SendContractorMailOutboundMessageDependencies['mailGateway']['sendEmail']
     >[0][] = []
@@ -123,21 +125,89 @@ describe('send contractor mail outbound message (spec 143, T009, Objetivo 5)', (
     const result = await sendContractorMailOutboundMessage(buildEnvelope(), dependencies)
 
     expect(result).toEqual({ outcome: 'sent', threadId: THREAD_ID })
-    expect(requests).toEqual([
-      {
-        apiKey: 're_test_key',
-        from: 'Fernandes Transportadora <ocorrencias@fernandes-transportadora.com.br>',
-        headers: {},
-        idempotencyKey: MESSAGE_ID,
-        replyTo: 'abcdefghijklmnopqrstuvwxyz@resposta.fernandes-transportadora.com.br',
-        subject: 'Teste de configuração de e-mail com contratantes',
-        text: 'Este é um e-mail de teste.',
-        to: 'admin@fernandes-transportadora.com.br',
-      },
-    ])
+    expect(requests).toHaveLength(1)
+    expect(requests[0]).toMatchObject({
+      apiKey: 're_test_key',
+      from: 'Fernandes Transportadora <ocorrencias@fernandes-transportadora.com.br>',
+      headers: {},
+      idempotencyKey: MESSAGE_ID,
+      subject: 'Teste de configuração de e-mail com contratantes',
+      text: 'Este é um e-mail de teste.',
+      to: 'admin@fernandes-transportadora.com.br',
+    })
+    expect(requests[0]?.replyTo.endsWith(`@${SETTINGS.replyDomain}`)).toBe(true)
     expect(sentCalls).toEqual([
       { companyId: COMPANY_ID, messageId: MESSAGE_ID, providerEmailId: 'resend-email-id-1' },
     ])
+  })
+
+  /** RF7: a mesma conversa produz sempre o mesmo Reply-To — nunca lido do banco nem da fila. */
+  test('derives the exact same reply-to for two sends of the same conversation', async () => {
+    const requests: Parameters<
+      SendContractorMailOutboundMessageDependencies['mailGateway']['sendEmail']
+    >[0][] = []
+    const { dependencies } = buildDependencies({
+      sendEmail: async (request) => {
+        requests.push(request)
+        return { id: 'resend-email-id' }
+      },
+    })
+
+    await sendContractorMailOutboundMessage(buildEnvelope(), dependencies)
+    await sendContractorMailOutboundMessage(buildEnvelope(), dependencies)
+
+    expect(requests).toHaveLength(2)
+    expect(requests[0]?.replyTo).toBe(requests[1]?.replyTo)
+  })
+
+  test('derives a different reply-to for a different conversation (thread) of the same company', async () => {
+    const requests: Parameters<
+      SendContractorMailOutboundMessageDependencies['mailGateway']['sendEmail']
+    >[0][] = []
+    const otherThreadId = crypto.randomUUID()
+    const { dependencies } = buildDependencies({
+      message: { ...MESSAGE, threadId: otherThreadId },
+      sendEmail: async (request) => {
+        requests.push(request)
+        return { id: 'resend-email-id' }
+      },
+    })
+
+    await sendContractorMailOutboundMessage(buildEnvelope(), dependencies)
+
+    const { dependencies: firstDependencies } = buildDependencies({
+      sendEmail: async (request) => {
+        requests.push(request)
+        return { id: 'resend-email-id' }
+      },
+    })
+    await sendContractorMailOutboundMessage(buildEnvelope(), firstDependencies)
+
+    expect(requests[0]?.replyTo).not.toBe(requests[1]?.replyTo)
+  })
+
+  test('sends to the first (and only) recorded recipient, and uses the subject from the message row', async () => {
+    const requests: Parameters<
+      SendContractorMailOutboundMessageDependencies['mailGateway']['sendEmail']
+    >[0][] = []
+    const { dependencies } = buildDependencies({
+      message: {
+        ...MESSAGE,
+        subject: 'Assunto gravado na mensagem',
+        toAddresses: ['destinatario@example.com'],
+      },
+      sendEmail: async (request) => {
+        requests.push(request)
+        return { id: 'resend-email-id' }
+      },
+    })
+
+    await sendContractorMailOutboundMessage(buildEnvelope(), dependencies)
+
+    expect(requests[0]).toMatchObject({
+      subject: 'Assunto gravado na mensagem',
+      to: 'destinatario@example.com',
+    })
   })
 
   /** RF7: resposta (e aqui, qualquer envio numa conversa com histórico) carrega In-Reply-To/References. */

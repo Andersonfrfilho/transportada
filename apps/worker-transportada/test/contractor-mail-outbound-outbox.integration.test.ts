@@ -26,15 +26,11 @@ describeDatabase('contractor mail outbound outbox repository (integration)', () 
     readonly companyId: string
     readonly eventId: string
     readonly messageId: string
-    readonly replyToAddress: string
-    readonly toAddress: string
   }> {
     const companyId = crypto.randomUUID()
     const threadId = crypto.randomUUID()
     const messageId = crypto.randomUUID()
     const eventId = crypto.randomUUID()
-    const replyToAddress = `${crypto.randomUUID()}@resposta.example.com.br`
-    const toAddress = 'admin@example.com.br'
 
     await database.insert(companies).values({ id: companyId, status: 'active' })
     const replyTokenHash = crypto.randomUUID().replaceAll('-', '').padEnd(64, '0')
@@ -45,8 +41,10 @@ describeDatabase('contractor mail outbound outbox repository (integration)', () 
     )
     await database.execute(
       sql`insert into contractor_mail_messages
-            (id, company_id, thread_id, direction, from_address, body_text, delivery_status)
+            (id, company_id, thread_id, direction, from_address, subject, to_addresses, body_text,
+             delivery_status)
           values (${messageId}, ${companyId}, ${threadId}, 'outbound', 'ocorrencias@example.com.br',
+                  'Teste de configuração de e-mail com contratantes', array['admin@example.com.br'],
                   'Este é um e-mail de teste.', 'queued')`,
     )
     await database.insert(contractorMailOutbox).values({
@@ -55,10 +53,10 @@ describeDatabase('contractor mail outbound outbox repository (integration)', () 
       eventType: 'message.send.requested',
       messageId,
       correlationId: 'contractor-mail-outbound-outbox-integration',
-      payload: { replyToAddress, toAddress },
+      payload: {},
     })
 
-    return { companyId, eventId, messageId, replyToAddress, toAddress }
+    return { companyId, eventId, messageId }
   }
 
   it('claims a due unpublished row, then marks it published so it is not claimed again', async () => {
@@ -80,8 +78,6 @@ describeDatabase('contractor mail outbound outbox repository (integration)', () 
       eventId: seeded.eventId,
       messageId: seeded.messageId,
       occurredAt: expect.any(String),
-      replyToAddress: seeded.replyToAddress,
-      toAddress: seeded.toAddress,
     })
 
     await repository.markPublished({

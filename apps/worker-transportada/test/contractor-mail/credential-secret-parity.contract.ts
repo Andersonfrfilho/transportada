@@ -25,8 +25,11 @@ const AAD_TEMPLATE =
   'transportada:contractor-mail-credential:v1:${input.companyId}:${input.settingsId}'
 const WEBHOOK_SECRET_PREFIX_LITERAL = "const WEBHOOK_SIGNING_SECRET_PREFIX = 'whsec_'"
 const MAX_LENGTH_LITERAL = 'const MAX_SECRET_LENGTH = 500'
+/** Correção pós-entrega da T009: o terceiro campo do envelope, o segredo que deriva o token. */
+const REPLY_TOKEN_SECRET_PATTERN_LITERAL = 'const REPLY_TOKEN_SECRET_PATTERN = /^[0-9a-f]{64}$/'
 const SECRET_SCHEMA_FIELDS = [
   'apiKey: z.string().min(1).max(MAX_SECRET_LENGTH)',
+  'replyTokenSecret: z.string().regex(REPLY_TOKEN_SECRET_PATTERN)',
   '.startsWith(WEBHOOK_SIGNING_SECRET_PREFIX)',
 ]
 
@@ -52,6 +55,7 @@ describe('a paridade da credencial de e-mail com contratantes (spec 143 T006)', 
     for (const source of [apiSource, workerSource]) {
       expect(source).toContain(WEBHOOK_SECRET_PREFIX_LITERAL)
       expect(source).toContain(MAX_LENGTH_LITERAL)
+      expect(source).toContain(REPLY_TOKEN_SECRET_PATTERN_LITERAL)
       for (const fragment of SECRET_SCHEMA_FIELDS) {
         expect(source).toContain(fragment)
       }

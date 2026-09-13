@@ -1,9 +1,10 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  *
- * Spec 143 T009: a mesma transação cria (ou reaproveita) a conversa `setup_test`, a mensagem
- * `queued` e o evento em `contractor_mail_outbox` — só um Postgres de verdade confere que os três
- * nascem juntos e que um segundo clique gira o token sem duplicar a conversa.
+ * Correção pós-entrega da T009 (spec 143): `reserveSetupTestThread` (a corrida de criação da
+ * conversa) e `recordTestEmailMessage` (mensagem `queued` + evento no outbox) só se provam contra
+ * um Postgres de verdade — `ON CONFLICT DO NOTHING` + `SELECT` de desempate na mesma transação, e o
+ * `unique(company_id, subject_type, subject_id)` que os dois se apoiam.
  */
 import { SQL } from 'bun'
 import { describe, expect, test } from 'bun:test'
@@ -29,44 +30,132 @@ const testWithPostgres = databaseUrl === undefined ? test.skip : test
 
 type TestDatabase = ReturnType<typeof createDrizzleProvider>
 
-describe('contractor mail test email thread integration (spec 143, T009)', () => {
+describe('contractor mail test email thread integration (spec 143, T009 — correção pós-entrega)', () => {
   testWithPostgres(
-    'creates the setup_test thread, the queued message and the outbox event together',
+    'reserves the setup_test thread with the candidate id and hash when none exists yet',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const { companyId } = await seedTenant(database)
+        const repository = new DrizzleContractorMailRepository(database.db)
+        const candidateThreadId = crypto.randomUUID()
+        const candidateReplyTokenHash = 'a'.repeat(64)
+
+        const result = await repository.reserveSetupTestThread({
+          candidateReplyTokenHash,
+          candidateThreadId,
+          companyId,
+        })
+
+        expect(result.threadId).toBe(candidateThreadId)
+        const [thread] = await database.db
+          .select()
+          .from(contractorMailThreads)
+          .where(eq(contractorMailThreads.id, candidateThreadId))
+        expect(thread?.companyId).toBe(companyId)
+        expect(thread?.contractorId).toBeNull()
+        expect(thread?.subjectType).toBe('setup_test')
+        expect(thread?.subjectId).toBe(companyId)
+        expect(thread?.replyTokenHash).toBe(candidateReplyTokenHash)
+      })
+    },
+    30_000,
+  )
+
+  /** RF7: a segunda tentativa nunca sobrepõe a conversa existente — devolve o threadId dela. */
+  testWithPostgres(
+    'a second reservation for the same company returns the existing threadId, hash untouched',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const { companyId } = await seedTenant(database)
+        const repository = new DrizzleContractorMailRepository(database.db)
+
+        const first = await repository.reserveSetupTestThread({
+          candidateReplyTokenHash: 'b'.repeat(64),
+          candidateThreadId: crypto.randomUUID(),
+          companyId,
+        })
+        const second = await repository.reserveSetupTestThread({
+          candidateReplyTokenHash: 'c'.repeat(64),
+          candidateThreadId: crypto.randomUUID(),
+          companyId,
+        })
+
+        expect(second.threadId).toBe(first.threadId)
+        const [thread] = await database.db
+          .select({ replyTokenHash: contractorMailThreads.replyTokenHash })
+          .from(contractorMailThreads)
+          .where(eq(contractorMailThreads.id, first.threadId))
+        expect(thread?.replyTokenHash).toBe('b'.repeat(64))
+
+        const threadCount = await database.db
+          .select({ id: contractorMailThreads.id })
+          .from(contractorMailThreads)
+          .where(eq(contractorMailThreads.companyId, companyId))
+        expect(threadCount).toHaveLength(1)
+      })
+    },
+    30_000,
+  )
+
+  testWithPostgres(
+    'keeps the setup_test thread reservation isolated per company',
+    async () => {
+      await withDisposableDatabase(async (database) => {
+        const first = await seedTenant(database)
+        const second = await seedTenant(database)
+        const repository = new DrizzleContractorMailRepository(database.db)
+
+        await repository.reserveSetupTestThread({
+          candidateReplyTokenHash: 'd'.repeat(64),
+          candidateThreadId: crypto.randomUUID(),
+          companyId: first.companyId,
+        })
+
+        const secondThreads = await database.db
+          .select()
+          .from(contractorMailThreads)
+          .where(eq(contractorMailThreads.companyId, second.companyId))
+        expect(secondThreads).toHaveLength(0)
+      })
+    },
+    30_000,
+  )
+
+  testWithPostgres(
+    'records the message and the outbox event together, with a payload carrying only the reference',
     async () => {
       await withDisposableDatabase(async (database) => {
         const { companyId, userId } = await seedTenant(database)
         const repository = new DrizzleContractorMailRepository(database.db)
+        const { threadId } = await repository.reserveSetupTestThread({
+          candidateReplyTokenHash: 'e'.repeat(64),
+          candidateThreadId: crypto.randomUUID(),
+          companyId,
+        })
 
-        const result = await repository.openTestEmailThread({
+        const result = await repository.recordTestEmailMessage({
           actorUserId: userId,
           bodyText: 'Este é um e-mail de teste.',
           companyId,
           correlationId: 'contractor-mail-test-email-0001',
           fromAddress: 'ocorrencias@fernandes-transportadora.com.br',
-          replyToAddress: 'abcdefghijklmnopqrstuvwxyz@resposta.fernandes-transportadora.com.br',
-          replyTokenHash: 'a'.repeat(64),
-          toAddress: 'admin@fernandes-transportadora.com.br',
+          subject: 'Teste de configuração de e-mail com contratantes',
+          threadId,
+          toAddresses: ['admin@fernandes-transportadora.com.br'],
         })
 
-        const [thread] = await database.db
-          .select()
-          .from(contractorMailThreads)
-          .where(eq(contractorMailThreads.id, result.threadId))
-        expect(thread?.companyId).toBe(companyId)
-        expect(thread?.contractorId).toBeNull()
-        expect(thread?.subjectType).toBe('setup_test')
-        expect(thread?.subjectId).toBe(companyId)
-        expect(thread?.replyTokenHash).toBe('a'.repeat(64))
+        expect(result.threadId).toBe(threadId)
 
         const messages = await database.db
           .select()
           .from(contractorMailMessages)
-          .where(eq(contractorMailMessages.threadId, result.threadId))
+          .where(eq(contractorMailMessages.threadId, threadId))
         expect(messages).toHaveLength(1)
         expect(messages[0]?.direction).toBe('outbound')
         expect(messages[0]?.deliveryStatus).toBe('queued')
         expect(messages[0]?.actorUserId).toBe(userId)
-        expect(messages[0]?.fromAddress).toBe('ocorrencias@fernandes-transportadora.com.br')
+        expect(messages[0]?.subject).toBe('Teste de configuração de e-mail com contratantes')
+        expect(messages[0]?.toAddresses).toEqual(['admin@fernandes-transportadora.com.br'])
 
         const outboxRows = await database.db
           .select()
@@ -75,56 +164,49 @@ describe('contractor mail test email thread integration (spec 143, T009)', () =>
         expect(outboxRows).toHaveLength(1)
         expect(outboxRows[0]?.messageId).toBe(messages[0]?.id)
         expect(outboxRows[0]?.eventType).toBe('message.send.requested')
-        expect(outboxRows[0]?.payload).toEqual({
-          replyToAddress: 'abcdefghijklmnopqrstuvwxyz@resposta.fernandes-transportadora.com.br',
-          toAddress: 'admin@fernandes-transportadora.com.br',
-        })
+        expect(outboxRows[0]?.payload).toEqual({})
       })
     },
     30_000,
   )
 
   testWithPostgres(
-    'a second test email reuses the same thread, rotates the token and queues a new message',
+    'a second test email on the same thread queues a new message, one outbox row per message',
     async () => {
       await withDisposableDatabase(async (database) => {
         const { companyId, userId } = await seedTenant(database)
         const repository = new DrizzleContractorMailRepository(database.db)
+        const { threadId } = await repository.reserveSetupTestThread({
+          candidateReplyTokenHash: 'f'.repeat(64),
+          candidateThreadId: crypto.randomUUID(),
+          companyId,
+        })
 
-        const first = await repository.openTestEmailThread({
+        await repository.recordTestEmailMessage({
           actorUserId: userId,
           bodyText: 'Primeiro teste.',
           companyId,
           correlationId: 'contractor-mail-test-email-0002',
           fromAddress: 'ocorrencias@fernandes-transportadora.com.br',
-          replyToAddress: 'first-token@resposta.fernandes-transportadora.com.br',
-          replyTokenHash: 'b'.repeat(64),
-          toAddress: 'admin@fernandes-transportadora.com.br',
+          subject: 'Teste de configuração de e-mail com contratantes',
+          threadId,
+          toAddresses: ['admin@fernandes-transportadora.com.br'],
         })
-
-        const second = await repository.openTestEmailThread({
+        await repository.recordTestEmailMessage({
           actorUserId: userId,
           bodyText: 'Segundo teste.',
           companyId,
           correlationId: 'contractor-mail-test-email-0003',
           fromAddress: 'ocorrencias@fernandes-transportadora.com.br',
-          replyToAddress: 'second-token@resposta.fernandes-transportadora.com.br',
-          replyTokenHash: 'c'.repeat(64),
-          toAddress: 'admin@fernandes-transportadora.com.br',
+          subject: 'Teste de configuração de e-mail com contratantes',
+          threadId,
+          toAddresses: ['admin@fernandes-transportadora.com.br'],
         })
-
-        expect(second.threadId).toBe(first.threadId)
-
-        const [thread] = await database.db
-          .select()
-          .from(contractorMailThreads)
-          .where(eq(contractorMailThreads.id, first.threadId))
-        expect(thread?.replyTokenHash).toBe('c'.repeat(64))
 
         const messages = await database.db
           .select()
           .from(contractorMailMessages)
-          .where(eq(contractorMailMessages.threadId, first.threadId))
+          .where(eq(contractorMailMessages.threadId, threadId))
         expect(messages).toHaveLength(2)
 
         const outboxRows = await database.db
@@ -132,35 +214,6 @@ describe('contractor mail test email thread integration (spec 143, T009)', () =>
           .from(contractorMailOutbox)
           .where(eq(contractorMailOutbox.companyId, companyId))
         expect(outboxRows).toHaveLength(2)
-      })
-    },
-    30_000,
-  )
-
-  testWithPostgres(
-    'keeps the setup_test thread isolated per company',
-    async () => {
-      await withDisposableDatabase(async (database) => {
-        const first = await seedTenant(database)
-        const second = await seedTenant(database)
-        const repository = new DrizzleContractorMailRepository(database.db)
-
-        await repository.openTestEmailThread({
-          actorUserId: first.userId,
-          bodyText: 'Teste da primeira empresa.',
-          companyId: first.companyId,
-          correlationId: 'contractor-mail-test-email-tenant-a',
-          fromAddress: 'ocorrencias@fernandes-transportadora.com.br',
-          replyToAddress: 'token-a@resposta.fernandes-transportadora.com.br',
-          replyTokenHash: 'd'.repeat(64),
-          toAddress: 'admin-a@fernandes-transportadora.com.br',
-        })
-
-        const secondThreads = await database.db
-          .select()
-          .from(contractorMailThreads)
-          .where(eq(contractorMailThreads.companyId, second.companyId))
-        expect(secondThreads).toHaveLength(0)
       })
     },
     30_000,

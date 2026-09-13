@@ -9,6 +9,7 @@ import { ResendProviderUnauthorizedError } from '../../src/contractor-mail/domai
 import { CONTRACTOR_MAIL_OUTBOUND_EVENT_TYPE } from '../../src/messaging/contractor-mail-outbound-envelope.schema.js'
 import type { ContractorMailOutboundEnvelopeV1 } from '../../src/messaging/contractor-mail-outbound-envelope.schema.js'
 import type { SendContractorMailOutboundMessageDependencies } from '../../src/contractor-mail/application/send-contractor-mail-outbound-message.use-case.js'
+import type { WorkerLogger } from '../../src/shared/worker.types.js'
 
 const COMPANY_ID = crypto.randomUUID()
 const MESSAGE_ID = crypto.randomUUID()
@@ -20,11 +21,7 @@ function buildEnvelope(): ContractorMailOutboundEnvelopeV1 {
     correlationId: 'contractor-mail-outbound-consumer-0001',
     eventId: crypto.randomUUID(),
     occurredAt: new Date(0).toISOString(),
-    payload: {
-      messageId: MESSAGE_ID,
-      replyToAddress: 'token@resposta.example.com.br',
-      toAddress: 'admin@example.com.br',
-    },
+    payload: { messageId: MESSAGE_ID },
     type: CONTRACTOR_MAIL_OUTBOUND_EVENT_TYPE.MESSAGE_SEND_REQUESTED,
     version: 1,
   }
@@ -32,10 +29,7 @@ function buildEnvelope(): ContractorMailOutboundEnvelopeV1 {
 
 type LogCall = { readonly message: string; readonly metadata: Record<string, unknown> | undefined }
 
-function buildLogger(): {
-  readonly calls: LogCall[]
-  readonly logger: import('../../src/shared/worker.types.js').WorkerLogger
-} {
+function buildLogger(): { readonly calls: LogCall[]; readonly logger: WorkerLogger } {
   const calls: LogCall[] = []
   return {
     calls,
@@ -53,7 +47,7 @@ function buildLogger(): {
 
 async function captureHandler(input: {
   readonly dependencies: SendContractorMailOutboundMessageDependencies
-  readonly logger: import('../../src/shared/worker.types.js').WorkerLogger
+  readonly logger: WorkerLogger
 }) {
   let handler:
     | ((params: {
@@ -99,25 +93,28 @@ function buildDependenciesStub(
         return undefined
       },
       async findMessageById() {
-        return { bodyText: 'corpo', threadId: THREAD_ID }
+        return {
+          bodyText: 'corpo',
+          subject: 'Teste de configuração de e-mail com contratantes',
+          threadId: THREAD_ID,
+          toAddresses: ['admin@example.com.br'],
+        }
       },
       async findSettingsByCompanyId() {
         return {
           id: crypto.randomUUID(),
+          replyDomain: 'resposta.example.com.br',
           secretEnvelope: {},
           senderAddress: 'ocorrencias@example.com.br',
           senderName: 'Remetente',
         }
-      },
-      async findThreadById() {
-        return { subjectType: 'setup_test' }
       },
       async markMessageFailed() {},
       async markMessageSent() {},
     },
     secretService: {
       async decrypt() {
-        return { apiKey: 'x', webhookSigningSecret: 'whsec_x' }
+        return { apiKey: 'x', replyTokenSecret: 'a'.repeat(64), webhookSigningSecret: 'whsec_x' }
       },
     },
   }
@@ -201,6 +198,6 @@ describe('contractor mail outbound consumer (spec 143, T009)', () => {
     const serialized = JSON.stringify(calls)
     expect(serialized).not.toContain('admin@example.com.br')
     expect(serialized).not.toContain('corpo')
-    expect(serialized).not.toContain('token@resposta.example.com.br')
+    expect(serialized).not.toContain('Teste de configuração')
   })
 })

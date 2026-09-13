@@ -1,29 +1,43 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { randomBytes } from 'node:crypto'
+import { createHmac, randomBytes } from 'node:crypto'
 
 /**
- * Spec 143 T009 (RF2). Só o que a T009 precisa: gerar o token, o hash e o endereço de resposta. A
- * T014 completa este arquivo com o que faltar para a decisão por e-mail (P2).
+ * Correção pós-entrega da T009 (spec 143). RF2 manda guardar só o **hash** do token de resposta —
+ * mas RF7 exige o **mesmo** `Reply-To` em toda a conversa, e um hash não se reverte. Um token
+ * aleatório teria de ser persistido em claro para ser reaproveitado, o que o RF2 proíbe.
  *
- * 128 bits em base32 minúsculo (RFC 4648, sem padding): o local-part de um e-mail não distingue
- * caixa na prática, e maiúsculas exigiriam o operador digitar exatamente como veio ao citar o
- * endereço à mão. O banco guarda só o hash — `hashReplyToken` usa o mesmo `Bun.CryptoHasher` que
- * `invitation.policy.ts` já usa para o convite, em hex minúsculo, batendo com o CHECK
- * `contractor_mail_threads_reply_token_hash_check` (`^[0-9a-f]{64}$`).
+ * A saída é **derivar** o token, sempre igual para a mesma conversa: `HMAC-SHA256(replyTokenSecret,
+ * "transportada:contractor-mail-reply:v1:" + companyId + ":" + threadId)`, truncado a 128 bits. O
+ * `replyTokenSecret` é selado no envelope da T006 (terceiro campo), nunca no banco em claro — e o
+ * hash do token derivado continua sendo o que `contractor_mail_threads.reply_token_hash` guarda,
+ * gravado uma vez, quando a conversa nasce.
  */
+const REPLY_TOKEN_SECRET_BYTES = 32
 const REPLY_TOKEN_BYTES = 16
 const BASE32_ALPHABET = 'abcdefghijklmnopqrstuvwxyz234567'
+const REPLY_TOKEN_AAD_PREFIX = 'transportada:contractor-mail-reply:v1'
 
-export type GeneratedReplyToken = {
-  readonly token: string
-  readonly tokenHash: string
+/** 32 bytes aleatórios em hex minúsculo, gerados no servidor no primeiro `PUT` de configuração. */
+export function generateReplyTokenSecret(): string {
+  return randomBytes(REPLY_TOKEN_SECRET_BYTES).toString('hex')
 }
 
-export function generateReplyToken(): GeneratedReplyToken {
-  const token = encodeBase32Lowercase(randomBytes(REPLY_TOKEN_BYTES))
-  return { token, tokenHash: hashReplyToken(token) }
+/**
+ * Determinístico: a mesma tripla `(replyTokenSecret, companyId, threadId)` sempre produz o mesmo
+ * token — é isso que faz o RF7 funcionar sem persistir o token em claro em lugar nenhum.
+ */
+export function deriveReplyToken(input: {
+  readonly companyId: string
+  readonly replyTokenSecret: string
+  readonly threadId: string
+}): string {
+  const digest = createHmac('sha256', Buffer.from(input.replyTokenSecret, 'hex'))
+    .update(`${REPLY_TOKEN_AAD_PREFIX}:${input.companyId}:${input.threadId}`)
+    .digest()
+
+  return encodeBase32Lowercase(digest.subarray(0, REPLY_TOKEN_BYTES))
 }
 
 export function hashReplyToken(token: string): string {
@@ -37,7 +51,7 @@ export function buildReplyAddress(input: {
   return `${input.token}@${input.replyDomain}`
 }
 
-function encodeBase32Lowercase(buffer: Buffer): string {
+function encodeBase32Lowercase(buffer: Uint8Array): string {
   let bitBuffer = 0
   let bitCount = 0
   let output = ''

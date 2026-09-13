@@ -8,14 +8,14 @@ export const CONTRACTOR_MAIL_OUTBOUND_EVENT_TYPE = {
 } as const
 
 /**
- * Spec 143 T009. `plan.md` § "Contratos/API/eventos" descreve o payload de saída como só
- * `{ messageId }` — referência, com o corpo no banco. **Desvio registrado em `evidence.md`:** o
- * `payload` carrega também `toAddress` e `replyToAddress`, porque `contractor_mail_messages` (T003)
- * não tem coluna de destinatário nem guarda o token em claro (RF2 — só o hash). Para as mensagens do
- * P1 (T015) o destinatário sai de `contractor_contacts` via `thread.contractorId`; para o e-mail de
- * teste (`setup_test`, sem contratante) o endereço só existe no instante da requisição HTTP, e
- * viaja aqui porque não há onde mais persisti-lo. Nenhum dos dois é "corpo": o texto da mensagem
- * continua vindo só do banco, pelo `messageId`.
+ * Correção pós-entrega da T009 (spec 143). O `plan.md` § "Contratos/API/eventos" sempre pediu só
+ * `{ messageId }` — referência, com o corpo no banco (§6 do baseline de segurança: job carrega
+ * referência, nunca dado). A primeira versão desta task desviou disso (endereço e token em claro no
+ * payload) para contornar uma lacuna real do schema — `contractor_mail_messages` não tinha
+ * destinatário nem assunto —, mas isso pôs dado pessoal e o token de resposta na fila e na fila
+ * `dead`. A correção fecha a lacuna do lado certo: `subject`/`to_addresses` viraram colunas da
+ * mensagem, e o `Reply-To` passou a ser **derivado** pelo worker a partir da configuração
+ * (`reply-token.policy.ts`) — nada disso precisa mais atravessar o broker.
  */
 export const contractorMailOutboundEnvelopeV1Schema = z.strictObject({
   eventId: z.uuid(),
@@ -26,8 +26,6 @@ export const contractorMailOutboundEnvelopeV1Schema = z.strictObject({
   correlationId: z.string().trim().min(1).max(128),
   payload: z.strictObject({
     messageId: z.uuid(),
-    replyToAddress: z.string().trim().min(1),
-    toAddress: z.string().trim().min(1),
   }),
 })
 

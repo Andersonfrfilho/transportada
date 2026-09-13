@@ -17,6 +17,7 @@ const SETTINGS_ID = '00000000-0000-4000-8000-0000000000c3'
 const OTHER_SETTINGS_ID = '00000000-0000-4000-8000-0000000000c4'
 const API_KEY = 're_synthetic_resend_api_key'
 const WEBHOOK_SIGNING_SECRET = 'whsec_synthetic_svix_secret'
+const REPLY_TOKEN_SECRET = 'a'.repeat(64)
 const CANONICAL_AAD = `transportada:contractor-mail-credential:v1:${COMPANY_ID}:${SETTINGS_ID}`
 
 const TEXT_ENCODER = new TextEncoder()
@@ -42,8 +43,16 @@ describe('contractor mail credential secret envelope contract (spec 143 T006)', 
 
     expect(new TextDecoder().decode(captured?.additionalAuthenticatedData)).toBe(CANONICAL_AAD)
     const decoded = JSON.parse(new TextDecoder().decode(captured?.plaintext)) as unknown
-    expect(decoded).toEqual({ apiKey: API_KEY, webhookSigningSecret: WEBHOOK_SIGNING_SECRET })
-    expect(Object.keys(decoded as object).sort()).toEqual(['apiKey', 'webhookSigningSecret'])
+    expect(decoded).toEqual({
+      apiKey: API_KEY,
+      replyTokenSecret: REPLY_TOKEN_SECRET,
+      webhookSigningSecret: WEBHOOK_SIGNING_SECRET,
+    })
+    expect(Object.keys(decoded as object).sort()).toEqual([
+      'apiKey',
+      'replyTokenSecret',
+      'webhookSigningSecret',
+    ])
     expect(plaintextReference && [...plaintextReference]).toEqual(
       new Array(plaintextReference?.byteLength ?? 0).fill(0),
     )
@@ -61,7 +70,11 @@ describe('contractor mail credential secret envelope contract (spec 143 T006)', 
       settingsId: SETTINGS_ID,
     })
 
-    expect(secret).toEqual({ apiKey: API_KEY, webhookSigningSecret: WEBHOOK_SIGNING_SECRET })
+    expect(secret).toEqual({
+      apiKey: API_KEY,
+      replyTokenSecret: REPLY_TOKEN_SECRET,
+      webhookSigningSecret: WEBHOOK_SIGNING_SECRET,
+    })
     expect(Object.keys(envelope).sort()).toEqual([
       'algorithm',
       'ciphertext',
@@ -105,6 +118,7 @@ describe('contractor mail credential secret envelope contract (spec 143 T006)', 
           plaintextReference = TEXT_ENCODER.encode(
             JSON.stringify({
               apiKey: API_KEY,
+              replyTokenSecret: REPLY_TOKEN_SECRET,
               resendAccountId: 'smuggled',
               webhookSigningSecret: WEBHOOK_SIGNING_SECRET,
             }),
@@ -181,7 +195,11 @@ describe('contractor mail credential secret envelope contract (spec 143 T006)', 
       envelopeProvider: {
         async decrypt() {
           return TEXT_ENCODER.encode(
-            JSON.stringify({ apiKey: API_KEY, webhookSigningSecret: 'sk_not_svix_format' }),
+            JSON.stringify({
+              apiKey: API_KEY,
+              replyTokenSecret: REPLY_TOKEN_SECRET,
+              webhookSigningSecret: 'sk_not_svix_format',
+            }),
           )
         },
         async encrypt() {
@@ -206,6 +224,7 @@ function secretInput() {
   return {
     apiKey: API_KEY,
     companyId: COMPANY_ID,
+    replyTokenSecret: REPLY_TOKEN_SECRET,
     settingsId: SETTINGS_ID,
     webhookSigningSecret: WEBHOOK_SIGNING_SECRET,
   }
@@ -241,7 +260,13 @@ function expectSafeUnavailable(error: unknown): void {
   })
   expect(error).not.toHaveProperty('cause')
   const serialized = `${JSON.stringify(error)}${(error as Error).stack ?? ''}`
-  for (const sensitive of [API_KEY, WEBHOOK_SIGNING_SECRET, COMPANY_ID, SETTINGS_ID]) {
+  for (const sensitive of [
+    API_KEY,
+    WEBHOOK_SIGNING_SECRET,
+    REPLY_TOKEN_SECRET,
+    COMPANY_ID,
+    SETTINGS_ID,
+  ]) {
     expect(serialized).not.toContain(sensitive)
   }
 }

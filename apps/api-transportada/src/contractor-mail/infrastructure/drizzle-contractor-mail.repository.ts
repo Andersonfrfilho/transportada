@@ -16,8 +16,10 @@ import type {
   ContractorMailSettingsRecord,
   ContractorMailSetupTestStatus,
   ContractorMailThreadRecord,
-  OpenContractorMailTestEmailThreadInput,
-  OpenContractorMailTestEmailThreadResult,
+  RecordContractorMailTestEmailInput,
+  RecordContractorMailTestEmailResult,
+  ReserveContractorMailSetupTestThreadInput,
+  ReserveContractorMailSetupTestThreadResult,
   SaveContractorMailSettingsInput,
 } from '../application/contractor-mail.port.js'
 import { ContractorMailSettingsVersionConflictError } from '../domain/contractor-mail.error.js'
@@ -185,35 +187,36 @@ export class DrizzleContractorMailRepository implements ContractorMailRepository
   }
 
   /**
-   * Spec 143 T009: cria (ou reaproveita, girando o token) a conversa `setup_test`, a mensagem de
-   * saída `queued` e o evento em `contractor_mail_outbox`, tudo na mesma transação — ou os três
-   * nascem juntos, ou nenhum.
+   * Correção pós-entrega da T009 (spec 143). O token de resposta agora é **derivado**
+   * (`reply-token.policy.ts#deriveReplyToken`), determinístico por `(replyTokenSecret, companyId,
+   * threadId)` — então o caso de uso precisa de um `threadId` **definitivo** antes de poder calcular
+   * o token que vai no `Reply-To` do e-mail. `subjectId` do `setup_test` é o próprio `companyId`
+   * (não há um segundo objeto de negócio para apontar), o que faz o
+   * `unique(company_id, subject_type, subject_id)` garantir "uma conversa de teste por empresa" — e
+   * é esse unique que decide a corrida abaixo.
    *
-   * `subjectId` do `setup_test` é o próprio `companyId`: não há um segundo objeto de negócio para
-   * apontar, e fixar o valor é o que faz o `unique(company_id, subject_type, subject_id)` garantir
-   * "uma conversa de teste por empresa" de graça, sem uma segunda consulta antes do upsert.
-   *
-   * O token é **girado a cada chamada** (`onConflictDoUpdate` troca `reply_token_hash`), nunca
-   * reaproveitado: só o hash sobrevive no banco (RF2), então um clique novo em "Enviar e-mail de
-   * teste" é a única ocasião em que o texto plano existe de novo — e é ele que monta o `Reply-To`
-   * deste envio. Reaproveitar o hash antigo sem o texto plano correspondente deixaria o Reply-To do
-   * e-mail sem token nenhum para responder.
+   * `candidateThreadId`/`candidateReplyTokenHash` chegam calculados pelo caso de uso, que é quem tem
+   * o segredo. `ON CONFLICT DO NOTHING` tenta criar com esse candidato; se perder (outra chamada
+   * concorrente já criou a conversa), a `SELECT` seguinte, **na mesma transação**, devolve o
+   * `threadId` de quem venceu — nunca grava o hash do perdedor por cima do vencedor. O caso de uso
+   * recebe o `threadId` confirmado e, se for diferente do candidato, deriva o token de novo para ele
+   * (HMAC puro, sem I/O) — o mesmo caminho que reaproveitar uma conversa já existente.
    */
-  public async openTestEmailThread(
-    input: OpenContractorMailTestEmailThreadInput,
-  ): Promise<OpenContractorMailTestEmailThreadResult> {
+  public async reserveSetupTestThread(
+    input: ReserveContractorMailSetupTestThreadInput,
+  ): Promise<ReserveContractorMailSetupTestThreadResult> {
     return this.database.transaction(async (transaction) => {
-      const [thread] = await transaction
+      const [inserted] = await transaction
         .insert(contractorMailThreads)
         .values({
           companyId: input.companyId,
           contractorId: null,
-          replyTokenHash: input.replyTokenHash,
+          id: input.candidateThreadId,
+          replyTokenHash: input.candidateReplyTokenHash,
           subjectId: input.companyId,
           subjectType: 'setup_test',
         })
-        .onConflictDoUpdate({
-          set: { replyTokenHash: input.replyTokenHash },
+        .onConflictDoNothing({
           target: [
             contractorMailThreads.companyId,
             contractorMailThreads.subjectType,
@@ -221,8 +224,36 @@ export class DrizzleContractorMailRepository implements ContractorMailRepository
           ],
         })
         .returning({ id: contractorMailThreads.id })
-      if (thread === undefined) throw new Error('contractor mail setup_test thread was not saved')
+      if (inserted !== undefined) return { threadId: inserted.id }
 
+      const [existing] = await transaction
+        .select({ id: contractorMailThreads.id })
+        .from(contractorMailThreads)
+        .where(
+          and(
+            eq(contractorMailThreads.companyId, input.companyId),
+            eq(contractorMailThreads.subjectType, 'setup_test'),
+          ),
+        )
+        .limit(1)
+      if (existing === undefined) {
+        throw new Error(
+          'contractor mail setup_test thread reservation lost the race without a winner',
+        )
+      }
+      return { threadId: existing.id }
+    })
+  }
+
+  /**
+   * Correção pós-entrega da T009: a mensagem de saída `queued` e o evento em
+   * `contractor_mail_outbox`, na mesma transação — o payload da fila voltou a ser só `{ messageId }`
+   * (§6 do baseline de segurança: referência, nunca dado), então nada além do id precisa viajar.
+   */
+  public async recordTestEmailMessage(
+    input: RecordContractorMailTestEmailInput,
+  ): Promise<RecordContractorMailTestEmailResult> {
+    return this.database.transaction(async (transaction) => {
       const [message] = await transaction
         .insert(contractorMailMessages)
         .values({
@@ -232,7 +263,9 @@ export class DrizzleContractorMailRepository implements ContractorMailRepository
           deliveryStatus: 'queued',
           direction: 'outbound',
           fromAddress: input.fromAddress,
-          threadId: thread.id,
+          subject: input.subject,
+          threadId: input.threadId,
+          toAddresses: [...input.toAddresses],
         })
         .returning({ id: contractorMailMessages.id })
       if (message === undefined) throw new Error('contractor mail test message was not saved')
@@ -242,10 +275,10 @@ export class DrizzleContractorMailRepository implements ContractorMailRepository
         correlationId: input.correlationId,
         eventType: 'message.send.requested',
         messageId: message.id,
-        payload: { replyToAddress: input.replyToAddress, toAddress: input.toAddress },
+        payload: {},
       })
 
-      return { threadId: thread.id }
+      return { threadId: input.threadId }
     })
   }
 

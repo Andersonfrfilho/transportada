@@ -1,7 +1,7 @@
 /**
  * Copyright (c) 2026 Ada Technology. MIT License.
  */
-import { resolveContractorMailSubject } from '../domain/contractor-mail-subject.constant.js'
+import { buildReplyAddress, deriveReplyToken } from '../domain/reply-token.policy.js'
 import { ResendProviderUnauthorizedError } from '../domain/resend-provider.error.js'
 import type { ContractorMailCredentialSecretService } from './contractor-mail-credential-secret.service.js'
 import type { ContractorMailOutboundWorkerRepository } from '../infrastructure/drizzle-contractor-mail-outbound-worker.repository.js'
@@ -21,30 +21,34 @@ export type SendContractorMailOutboundMessageResult = {
 }
 
 /**
- * Objetivo item 5 (spec 143 T009). Erro permanente (`ResendProviderUnauthorizedError` — a chave foi
- * recusada, e tentar de novo com a mesma chave nunca funciona) vira `failed` e o retorno é `failed`,
- * sem relançar — o consumidor faz `ack`. Qualquer outro erro (rede fora do ar, resposta fora do
- * schema, cofre que não abre) é relançado: transitório, entra no retry do broker com backoff (plan.md
- * § "Idempotência e concorrência" — a mesma `Idempotency-Key` no reenvio não duplica o e-mail).
+ * Correção pós-entrega da T009 (spec 143). A fila carrega só `{ messageId }` — endereço, assunto e
+ * `Reply-To` **não viajam mais** por ela nem pelo `payload` do outbox (§6 do baseline de segurança:
+ * job carrega referência, não dado). Tudo o que este caso de uso precisa vem de duas leituras:
+ *
+ * - a mensagem (`bodyText`, `subject`, `toAddresses`, `threadId`) — gravados quando ela nasceu;
+ * - a configuração (`senderName`, `senderAddress`, `replyDomain`, o envelope selado) — de onde sai
+ *   `replyTokenSecret`, para **derivar** o mesmo `Reply-To` que a conversa sempre teve
+ *   (`deriveReplyToken`, determinístico por `companyId` + `threadId`; RF7).
+ *
+ * `to_addresses` é array (RF1 admite mais de um contato), mas o envio de hoje (`setup_test`, T009)
+ * sempre grava um único endereço — o gateway (T007) ainda recebe um `to` singular, então usa-se o
+ * primeiro. Enviar para vários de uma vez é escopo do P1 (T015), que aí sim estende o gateway.
  */
 export async function sendContractorMailOutboundMessage(
   envelope: ContractorMailOutboundEnvelopeV1,
   dependencies: SendContractorMailOutboundMessageDependencies,
 ): Promise<SendContractorMailOutboundMessageResult> {
   const { companyId } = envelope
-  const { messageId, replyToAddress, toAddress } = envelope.payload
+  const { messageId } = envelope.payload
 
   const message = await dependencies.repository.findMessageById({ companyId, messageId })
   if (message === undefined) {
     throw new Error(`contractor mail message ${messageId} was not found for company ${companyId}`)
   }
 
-  const thread = await dependencies.repository.findThreadById({
-    companyId,
-    threadId: message.threadId,
-  })
-  if (thread === undefined) {
-    throw new Error(`contractor mail thread ${message.threadId} was not found`)
+  const recipient = message.toAddresses[0]
+  if (recipient === undefined) {
+    throw new Error(`contractor mail message ${messageId} has no recipient address`)
   }
 
   const settings = await dependencies.repository.findSettingsByCompanyId({ companyId })
@@ -57,6 +61,13 @@ export async function sendContractorMailOutboundMessage(
     envelope: settings.secretEnvelope,
     settingsId: settings.id,
   })
+
+  const token = deriveReplyToken({
+    companyId,
+    replyTokenSecret: secret.replyTokenSecret,
+    threadId: message.threadId,
+  })
+  const replyToAddress = buildReplyAddress({ replyDomain: settings.replyDomain, token })
 
   const referenceHeaders = await dependencies.repository.findLastInboundReferenceHeaders({
     companyId,
@@ -74,9 +85,9 @@ export async function sendContractorMailOutboundMessage(
       headers,
       idempotencyKey: messageId,
       replyTo: replyToAddress,
-      subject: resolveContractorMailSubject(thread.subjectType),
+      subject: message.subject,
       text: message.bodyText,
-      to: toAddress,
+      to: recipient,
     })
 
     await dependencies.repository.markMessageSent({

@@ -10,6 +10,11 @@ type Database = ReturnType<typeof createDrizzleProvider>['db']
 
 const MESSAGE_SEND_REQUESTED_EVENT = 'message.send.requested'
 
+/**
+ * Correção pós-entrega da T009 (spec 143): o payload jsonb voltou a não carregar nada além do que a
+ * própria linha do outbox já tem (`messageId`, coluna tipada) — `toAddress`/`replyToAddress` saíram
+ * daqui, porque a fila deixou de precisar deles (§6 do baseline de segurança).
+ */
 export type ContractorMailOutboundOutboxClaimedEntry = {
   readonly claimOwner: string
   readonly companyId: string
@@ -17,17 +22,6 @@ export type ContractorMailOutboundOutboxClaimedEntry = {
   readonly eventId: string
   readonly messageId: string
   readonly occurredAt: string
-  readonly replyToAddress: string
-  readonly toAddress: string
-}
-
-function parsePayload(value: unknown): { replyToAddress: string; toAddress: string } | null {
-  if (typeof value !== 'object' || value === null) return null
-  const candidate = value as Record<string, unknown>
-  const { replyToAddress, toAddress } = candidate
-  if (typeof replyToAddress !== 'string' || replyToAddress === '') return null
-  if (typeof toAddress !== 'string' || toAddress === '') return null
-  return { replyToAddress, toAddress }
 }
 
 /**
@@ -57,7 +51,6 @@ export class DrizzleContractorMailOutboundOutboxRepository {
           eventType: contractorMailOutbox.eventType,
           messageId: contractorMailOutbox.messageId,
           occurredAt: contractorMailOutbox.createdAt,
-          payload: contractorMailOutbox.payload,
         })
         .from(contractorMailOutbox)
         .where(
@@ -86,8 +79,7 @@ export class DrizzleContractorMailOutboundOutboxRepository {
         .where(inOutboxRows(rows))
 
       return rows.map((row) => {
-        const payload = parsePayload(row.payload)
-        if (row.eventType !== MESSAGE_SEND_REQUESTED_EVENT || payload === null) {
+        if (row.eventType !== MESSAGE_SEND_REQUESTED_EVENT) {
           throw new Error('Unsupported contractor mail outbound outbox record')
         }
 
@@ -98,8 +90,6 @@ export class DrizzleContractorMailOutboundOutboxRepository {
           eventId: row.eventId,
           messageId: row.messageId,
           occurredAt: row.occurredAt.toISOString(),
-          replyToAddress: payload.replyToAddress,
-          toAddress: payload.toAddress,
         }
       })
     })

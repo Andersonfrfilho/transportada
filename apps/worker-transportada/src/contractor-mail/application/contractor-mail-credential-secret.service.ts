@@ -32,9 +32,13 @@ const envelopeSchema = z
   })
   .strict()
 
+/** 32 bytes aleatórios, gerados no servidor (nunca pelo cliente), em hex minúsculo. */
+const REPLY_TOKEN_SECRET_PATTERN = /^[0-9a-f]{64}$/
+
 const secretSchema = z
   .object({
     apiKey: z.string().min(1).max(MAX_SECRET_LENGTH),
+    replyTokenSecret: z.string().regex(REPLY_TOKEN_SECRET_PATTERN),
     webhookSigningSecret: z
       .string()
       .min(1)
@@ -43,8 +47,14 @@ const secretSchema = z
   })
   .strict()
 
+/**
+ * Correção pós-entrega da T009 (spec 143): terceiro campo do envelope, cópia por valor da API — o
+ * segredo que deriva o token de resposta por conversa (`reply-token.policy.ts`, molde igual dos dois
+ * lados, `test/contractor-mail/credential-secret-parity.contract.ts` guarda os três campos).
+ */
 export type ContractorMailCredentialSecret = {
   readonly apiKey: string
+  readonly replyTokenSecret: string
   readonly webhookSigningSecret: string
 }
 
@@ -92,5 +102,9 @@ function createAdditionalAuthenticatedData(input: ContractorMailCredentialScope)
 
 function parseSecret(plaintext: Uint8Array): ContractorMailCredentialSecret {
   const parsed = secretSchema.parse(JSON.parse(TEXT_DECODER.decode(plaintext)) as unknown)
-  return { apiKey: parsed.apiKey, webhookSigningSecret: parsed.webhookSigningSecret }
+  return {
+    apiKey: parsed.apiKey,
+    replyTokenSecret: parsed.replyTokenSecret,
+    webhookSigningSecret: parsed.webhookSigningSecret,
+  }
 }

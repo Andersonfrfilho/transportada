@@ -266,6 +266,20 @@ export const contractorMailMessages = pgTable(
     direction: text().$type<ContractorMailMessageDirection>().notNull(),
     actorUserId: uuid('actor_user_id'),
     fromAddress: text('from_address').notNull(),
+    /**
+     * Correção pós-entrega da T009 (spec 143): o `subject_type` da conversa não basta mais para
+     * derivar o assunto no worker — cada mensagem grava o dela, porque a fila deixou de carregar
+     * qualquer coisa além de `messageId` (§6 do baseline de segurança: job carrega referência, não
+     * dado). Vale para `inbound` também: a T010 grava ali o assunto que a contratante enviou.
+     */
+    subject: text().notNull(),
+    /**
+     * O destinatário também deixou de viajar na fila — mesma razão do `subject`. Array porque uma
+     * mensagem pode ir para mais de um contato da contratante (RF1: vários com
+     * `receives_occurrences`); `inbound` grava aqui os endereços aos quais a contratante respondeu
+     * (o(s) endereço(s) `To` do e-mail recebido).
+     */
+    toAddresses: text('to_addresses').array().notNull(),
     bodyText: text('body_text').notNull(),
     rawObjectId: uuid('raw_object_id'),
     rawSha256: text('raw_sha256'),
@@ -356,6 +370,11 @@ export const contractorMailMessages = pgTable(
     check(
       'contractor_mail_messages_from_address_check',
       sql`length(btrim(${table.fromAddress})) > 0`,
+    ),
+    check('contractor_mail_messages_subject_check', sql`length(btrim(${table.subject})) > 0`),
+    check(
+      'contractor_mail_messages_to_addresses_check',
+      sql`array_length(${table.toAddresses}, 1) > 0`,
     ),
   ],
 )

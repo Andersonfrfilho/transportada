@@ -18,14 +18,12 @@ function buildEntry(overrides?: Partial<ContractorMailOutboundOutboxClaimedEntry
     eventId: crypto.randomUUID(),
     messageId: crypto.randomUUID(),
     occurredAt: NOW.toISOString(),
-    replyToAddress: 'token@resposta.example.com.br',
-    toAddress: 'admin@example.com.br',
     ...overrides,
   } satisfies ContractorMailOutboundOutboxClaimedEntry
 }
 
-describe('contractor mail outbound outbox relay (spec 143, T009)', () => {
-  test('publishes each claimed entry with the reference-only envelope, then marks it published', async () => {
+describe('contractor mail outbound outbox relay (spec 143, T009 — correção pós-entrega)', () => {
+  test('publishes each claimed entry with a payload carrying only messageId, then marks it published', async () => {
     const entry = buildEntry()
     const published: ContractorMailOutboundEnvelopeV1[] = []
     const markedPublished: { companyId: string; eventId: string }[] = []
@@ -65,15 +63,12 @@ describe('contractor mail outbound outbox relay (spec 143, T009)', () => {
         correlationId: entry.correlationId,
         eventId: entry.eventId,
         occurredAt: entry.occurredAt,
-        payload: {
-          messageId: entry.messageId,
-          replyToAddress: entry.replyToAddress,
-          toAddress: entry.toAddress,
-        },
+        payload: { messageId: entry.messageId },
         type: CONTRACTOR_MAIL_OUTBOUND_EVENT_TYPE.MESSAGE_SEND_REQUESTED,
         version: 1,
       },
     ])
+    expect(Object.keys(published[0]?.payload ?? {})).toEqual(['messageId'])
     expect(markedPublished).toEqual([{ companyId: entry.companyId, eventId: entry.eventId }])
   })
 

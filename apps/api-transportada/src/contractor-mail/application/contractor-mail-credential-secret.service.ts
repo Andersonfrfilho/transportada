@@ -26,9 +26,13 @@ const envelopeSchema = z
   })
   .strict()
 
+/** 32 bytes aleatórios, gerados no servidor (nunca pelo cliente), em hex minúsculo. */
+const REPLY_TOKEN_SECRET_PATTERN = /^[0-9a-f]{64}$/
+
 const secretSchema = z
   .object({
     apiKey: z.string().min(1).max(MAX_SECRET_LENGTH),
+    replyTokenSecret: z.string().regex(REPLY_TOKEN_SECRET_PATTERN),
     webhookSigningSecret: z
       .string()
       .min(1)
@@ -37,8 +41,17 @@ const secretSchema = z
   })
   .strict()
 
+/**
+ * Correção pós-entrega da T009 (spec 143): terceiro segredo do envelope. O RF2 manda guardar só o
+ * hash do token de resposta — mas o RF7 exige o **mesmo** `Reply-To` em toda a conversa, e um hash
+ * não se reverte. A saída é um segredo de derivação por empresa: o token vira
+ * `HMAC-SHA256(replyTokenSecret, "transportada:contractor-mail-reply:v1:" + companyId + ":" +
+ * threadId)`, truncado a 128 bits — estável para a mesma conversa, e nunca reconstituível sem o
+ * segredo selado. `reply-token.policy.ts` é quem deriva; este serviço só guarda o material.
+ */
 export type ContractorMailCredentialSecret = {
   readonly apiKey: string
+  readonly replyTokenSecret: string
   readonly webhookSigningSecret: string
 }
 
@@ -127,11 +140,19 @@ function createAdditionalAuthenticatedData(input: ContractorMailCredentialScope)
 
 function encodeSecret(input: ContractorMailCredentialSecret): Uint8Array {
   return TEXT_ENCODER.encode(
-    JSON.stringify({ apiKey: input.apiKey, webhookSigningSecret: input.webhookSigningSecret }),
+    JSON.stringify({
+      apiKey: input.apiKey,
+      replyTokenSecret: input.replyTokenSecret,
+      webhookSigningSecret: input.webhookSigningSecret,
+    }),
   )
 }
 
 function parseSecret(plaintext: Uint8Array): ContractorMailCredentialSecret {
   const parsed = secretSchema.parse(JSON.parse(TEXT_DECODER.decode(plaintext)) as unknown)
-  return { apiKey: parsed.apiKey, webhookSigningSecret: parsed.webhookSigningSecret }
+  return {
+    apiKey: parsed.apiKey,
+    replyTokenSecret: parsed.replyTokenSecret,
+    webhookSigningSecret: parsed.webhookSigningSecret,
+  }
 }

@@ -80,7 +80,12 @@ ocorrência é registrada, **Then** o e-mail sai sem clique, pela mesma porta do
 - **RF2** Toda conversa tem um token opaco de 128 bits, em base32 minúsculo (o local-part do e-mail
   não distingue caixa na prática). O endereço de resposta é `<token>@<subdomínio de resposta>`, sem
   depender de `+`, porque o Resend recebe em qualquer endereço do domínio. O banco guarda só o
-  **hash** do token.
+  **hash** do token — e o token em si é **derivado**, nunca sorteado e guardado à parte:
+  `token = base32lower(HMAC-SHA256(replyTokenSecret, "transportada:contractor-mail-reply:v1:" +
+companyId + ":" + threadId))`, truncado em 128 bits. É determinístico por conversa de propósito —
+  ver o RF7, que é quem exige isso. Correção pós-entrega da T009 (2026-09-13): a primeira versão
+  gerava o token à toa e o descartava depois de gravar o hash, o que tornava RF7 impossível de
+  cumprir numa segunda mensagem da mesma conversa.
 - **RF3** A contratante é a do **emitente** da nota, pelo mesmo `findChargeParties` que a taxa já
   usa. Um segundo critério faria a conversa e a taxa apontarem para contratantes diferentes.
 - **RF4** O MIME bruto de todo e-mail recebido é baixado da API do Resend e gravado no bucket
@@ -100,10 +105,13 @@ ocorrência é registrada, **Then** o e-mail sai sem clique, pela mesma porta do
 - **RF9** A decisão avisa pela inbox (`notification.v1`) o motorista da viagem (`trip_drivers` →
   membership) e o despachante (último `trip_dispatch_snapshots`), com `dedupeKey` derivada da
   mensagem.
-- **RF10** A configuração é por empresa (`contractor_mail_settings`: a chave de API e o segredo do
-  webhook selados num envelope só, o remetente, o nome do remetente, o subdomínio de resposta e o id
-  opaco do webhook). Os segredos **nunca** voltam na resposta, só `apiKeyConfigured` e
-  `webhookSecretConfigured`, e toda resposta leva `cache-control: no-store`.
+- **RF10** A configuração é por empresa (`contractor_mail_settings`: a chave de API, o segredo do
+  webhook e o `replyTokenSecret` (RF2) selados num envelope só — três campos, não dois —, o
+  remetente, o nome do remetente, o subdomínio de resposta e o id opaco do webhook). Os segredos
+  **nunca** voltam na resposta, só `apiKeyConfigured` e `webhookSecretConfigured`, e toda resposta
+  leva `cache-control: no-store`. O `replyTokenSecret` **nunca** é aceito do cliente: nasce no
+  servidor, na primeira configuração, e sobrevive a toda atualização depois disso (correção
+  pós-entrega da T009).
 - **RF11** O webhook é `POST /public/inbound-emails/<webhookId>`. A assinatura Svix é conferida
   sobre o corpo cru (`svix-id.svix-timestamp.corpo`, HMAC-SHA256 com o segredo da empresa), com
   janela de 5 minutos, e o mesmo `svix-id` não é aceito duas vezes.

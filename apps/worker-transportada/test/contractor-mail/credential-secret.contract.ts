@@ -12,6 +12,7 @@ const SETTINGS_ID = '00000000-0000-4000-8000-0000000000d3'
 const OTHER_SETTINGS_ID = '00000000-0000-4000-8000-0000000000d4'
 const API_KEY = 're_synthetic_resend_api_key'
 const WEBHOOK_SIGNING_SECRET = 'whsec_synthetic_svix_secret'
+const REPLY_TOKEN_SECRET = 'b'.repeat(64)
 
 const TEXT_ENCODER = new TextEncoder()
 
@@ -22,7 +23,11 @@ describe('the worker opens the contractor mail credential sealed by the API (spe
     })
     const envelope = await encryptLikeTheApiWould({
       companyId: COMPANY_ID,
-      secret: { apiKey: API_KEY, webhookSigningSecret: WEBHOOK_SIGNING_SECRET },
+      secret: {
+        apiKey: API_KEY,
+        replyTokenSecret: REPLY_TOKEN_SECRET,
+        webhookSigningSecret: WEBHOOK_SIGNING_SECRET,
+      },
       settingsId: SETTINGS_ID,
     })
 
@@ -32,7 +37,11 @@ describe('the worker opens the contractor mail credential sealed by the API (spe
       settingsId: SETTINGS_ID,
     })
 
-    expect(secret).toEqual({ apiKey: API_KEY, webhookSigningSecret: WEBHOOK_SIGNING_SECRET })
+    expect(secret).toEqual({
+      apiKey: API_KEY,
+      replyTokenSecret: REPLY_TOKEN_SECRET,
+      webhookSigningSecret: WEBHOOK_SIGNING_SECRET,
+    })
   })
 
   test('fails closed on a cross-tenant AAD and on a different settingsId', async () => {
@@ -41,7 +50,11 @@ describe('the worker opens the contractor mail credential sealed by the API (spe
     })
     const envelope = await encryptLikeTheApiWould({
       companyId: COMPANY_ID,
-      secret: { apiKey: API_KEY, webhookSigningSecret: WEBHOOK_SIGNING_SECRET },
+      secret: {
+        apiKey: API_KEY,
+        replyTokenSecret: REPLY_TOKEN_SECRET,
+        webhookSigningSecret: WEBHOOK_SIGNING_SECRET,
+      },
       settingsId: SETTINGS_ID,
     })
 
@@ -59,7 +72,11 @@ describe('the worker opens the contractor mail credential sealed by the API (spe
     })
     const envelope = await encryptLikeTheApiWould({
       companyId: COMPANY_ID,
-      secret: { apiKey: API_KEY, webhookSigningSecret: WEBHOOK_SIGNING_SECRET },
+      secret: {
+        apiKey: API_KEY,
+        replyTokenSecret: REPLY_TOKEN_SECRET,
+        webhookSigningSecret: WEBHOOK_SIGNING_SECRET,
+      },
       settingsId: SETTINGS_ID,
     })
 
@@ -78,7 +95,11 @@ describe('the worker opens the contractor mail credential sealed by the API (spe
     })
     const envelope = await encryptLikeTheApiWould({
       companyId: COMPANY_ID,
-      secret: { apiKey: API_KEY, webhookSigningSecret: WEBHOOK_SIGNING_SECRET },
+      secret: {
+        apiKey: API_KEY,
+        replyTokenSecret: REPLY_TOKEN_SECRET,
+        webhookSigningSecret: WEBHOOK_SIGNING_SECRET,
+      },
       settingsId: SETTINGS_ID,
     })
 
@@ -90,7 +111,7 @@ describe('the worker opens the contractor mail credential sealed by the API (spe
     }
 
     const serialized = `${JSON.stringify(caught)}${(caught as Error | undefined)?.stack ?? ''}`
-    for (const sensitive of [API_KEY, WEBHOOK_SIGNING_SECRET]) {
+    for (const sensitive of [API_KEY, WEBHOOK_SIGNING_SECRET, REPLY_TOKEN_SECRET]) {
       expect(serialized).not.toContain(sensitive)
     }
   })
@@ -110,7 +131,11 @@ function realProvider() {
  */
 async function encryptLikeTheApiWould(input: {
   readonly companyId: string
-  readonly secret: { readonly apiKey: string; readonly webhookSigningSecret: string }
+  readonly secret: {
+    readonly apiKey: string
+    readonly replyTokenSecret: string
+    readonly webhookSigningSecret: string
+  }
   readonly settingsId: string
 }): Promise<SecretEnvelopeV1> {
   const provider = realProvider()

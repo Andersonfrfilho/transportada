@@ -1569,17 +1569,21 @@ function createApplicationRoutes({
     envelopeProvider,
   })
   const contractorMailRepository = new DrizzleContractorMailRepository(database)
+  const contractorMailCredentialSecretService = createContractorMailCredentialSecretService({
+    envelopeProvider,
+  })
   const contractorMailSettings = createContractorMailSettingsUseCase({
     mxLookupGateway: createMxLookupGateway(),
     repository: contractorMailRepository,
     resendAccountGateway: createResendAccountGateway({
       fetch: (target, init) => fetch(target, init),
     }),
-    secretService: createContractorMailCredentialSecretService({ envelopeProvider }),
+    secretService: contractorMailCredentialSecretService,
   })
   const sendContractorMailTestEmail = createSendContractorMailTestEmailUseCase({
     actorEmailResolver: createActorEmailRepository({ database }),
     repository: contractorMailRepository,
+    secretService: contractorMailCredentialSecretService,
   })
   const nfseEmissionProfiles = createNfseEmissionProfilesUseCase({
     fingerprintService,

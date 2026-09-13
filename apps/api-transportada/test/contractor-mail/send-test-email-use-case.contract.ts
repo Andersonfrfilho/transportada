@@ -6,7 +6,8 @@ import { describe, expect, test } from 'bun:test'
 import type {
   ContractorMailRepositoryPort,
   ContractorMailSettingsRecord,
-  OpenContractorMailTestEmailThreadInput,
+  RecordContractorMailTestEmailInput,
+  ReserveContractorMailSetupTestThreadInput,
 } from '../../src/contractor-mail/application/contractor-mail.port'
 import {
   buildContractorMailTestEmailBody,
@@ -16,6 +17,7 @@ import {
   ContractorMailNotConfiguredError,
   ContractorMailTestRecipientUnavailableError,
 } from '../../src/contractor-mail/domain/contractor-mail.error'
+import type { ContractorMailCredentialSecretService } from '../../src/contractor-mail/application/contractor-mail-credential-secret.service'
 import type { ActorEmailResolver } from '../../src/contractor-mail/infrastructure/actor-email.repository'
 
 const HEX_SHA256_PATTERN = /^[0-9a-f]{64}$/
@@ -34,27 +36,49 @@ const SETTINGS: ContractorMailSettingsRecord = {
 }
 
 const CONTEXT = { companyId: SETTINGS.companyId, userId: '00000000-0000-4000-8000-0000000000e4' }
+const REPLY_TOKEN_SECRET = 'c'.repeat(64)
+const EXISTING_THREAD_ID = '00000000-0000-4000-8000-0000000000e6'
+
+function createSecretService(): ContractorMailCredentialSecretService {
+  return {
+    async decrypt() {
+      return {
+        apiKey: 're_synthetic',
+        replyTokenSecret: REPLY_TOKEN_SECRET,
+        webhookSigningSecret: 'whsec_synthetic',
+      }
+    },
+    async encrypt() {
+      throw new Error('encrypt should not be called by this use case')
+    },
+  }
+}
 
 function createHarness(input: {
-  readonly openError?: Error
+  readonly existingThreadId?: string
   readonly recipientEmail: string | undefined
   readonly settings: ContractorMailSettingsRecord | undefined
 }): {
-  readonly openCalls: OpenContractorMailTestEmailThreadInput[]
+  readonly reserveCalls: ReserveContractorMailSetupTestThreadInput[]
+  readonly recordCalls: RecordContractorMailTestEmailInput[]
   readonly resolverCalls: readonly { readonly companyId: string; readonly userId: string }[]
   readonly useCase: ReturnType<typeof createSendContractorMailTestEmailUseCase>
 } {
-  const openCalls: OpenContractorMailTestEmailThreadInput[] = []
+  const reserveCalls: ReserveContractorMailSetupTestThreadInput[] = []
+  const recordCalls: RecordContractorMailTestEmailInput[] = []
   const resolverCalls: { readonly companyId: string; readonly userId: string }[] = []
 
   const repository = {
     async findSettings() {
       return input.settings
     },
-    async openTestEmailThread(openInput: OpenContractorMailTestEmailThreadInput) {
-      openCalls.push(openInput)
-      if (input.openError !== undefined) throw input.openError
-      return { threadId: '00000000-0000-4000-8000-0000000000e5' }
+    async recordTestEmailMessage(recordInput: RecordContractorMailTestEmailInput) {
+      recordCalls.push(recordInput)
+      return { threadId: recordInput.threadId }
+    },
+    async reserveSetupTestThread(reserveInput: ReserveContractorMailSetupTestThreadInput) {
+      reserveCalls.push(reserveInput)
+      return { threadId: input.existingThreadId ?? reserveInput.candidateThreadId }
     },
   } as unknown as ContractorMailRepositoryPort
 
@@ -66,20 +90,26 @@ function createHarness(input: {
   }
 
   return {
-    openCalls,
+    reserveCalls,
+    recordCalls,
     resolverCalls,
-    useCase: createSendContractorMailTestEmailUseCase({ actorEmailResolver, repository }),
+    useCase: createSendContractorMailTestEmailUseCase({
+      actorEmailResolver,
+      repository,
+      secretService: createSecretService(),
+    }),
   }
 }
 
-describe('send contractor mail test email use case (spec 143, T009, P0/RF13)', () => {
+describe('send contractor mail test email use case (spec 143, T009 — correção pós-entrega, P0/RF13/RF7)', () => {
   test('refuses to send when the company has no configuration', async () => {
     const harness = createHarness({ recipientEmail: undefined, settings: undefined })
 
     await expect(
       harness.useCase.execute({ context: CONTEXT, correlationId: 'contract-c1' }),
     ).rejects.toBeInstanceOf(ContractorMailNotConfiguredError)
-    expect(harness.openCalls).toHaveLength(0)
+    expect(harness.reserveCalls).toHaveLength(0)
+    expect(harness.recordCalls).toHaveLength(0)
   })
 
   /** RF13/Objetivo item 1: o destinatário vem do contexto autenticado, nunca do corpo. */
@@ -91,7 +121,7 @@ describe('send contractor mail test email use case (spec 143, T009, P0/RF13)', (
     expect(harness.resolverCalls).toEqual([
       { companyId: CONTEXT.companyId, userId: CONTEXT.userId },
     ])
-    expect(harness.openCalls[0]?.toAddress).toBe('admin@example.com')
+    expect(harness.recordCalls[0]?.toAddresses).toEqual(['admin@example.com'])
   })
 
   test('refuses to send when the actor has no email on file', async () => {
@@ -100,28 +130,50 @@ describe('send contractor mail test email use case (spec 143, T009, P0/RF13)', (
     await expect(
       harness.useCase.execute({ context: CONTEXT, correlationId: 'contract-c3' }),
     ).rejects.toBeInstanceOf(ContractorMailTestRecipientUnavailableError)
-    expect(harness.openCalls).toHaveLength(0)
+    expect(harness.reserveCalls).toHaveLength(0)
   })
 
-  test('opens the thread with the sender address, a hashed token and a reply address on the reply domain', async () => {
+  test('reserves the setup_test thread with a hashed candidate token before recording the message', async () => {
     const harness = createHarness({ settings: SETTINGS, recipientEmail: 'admin@example.com' })
 
     const result = await harness.useCase.execute({ context: CONTEXT, correlationId: 'contract-c4' })
 
-    expect(result).toEqual({ threadId: '00000000-0000-4000-8000-0000000000e5' })
-    const call = harness.openCalls[0]
+    expect(harness.reserveCalls).toHaveLength(1)
+    expect(harness.reserveCalls[0]?.companyId).toBe(CONTEXT.companyId)
+    expect(harness.reserveCalls[0]?.candidateThreadId).toMatch(/^[0-9a-f-]{36}$/)
+    expect(harness.reserveCalls[0]?.candidateReplyTokenHash).toMatch(HEX_SHA256_PATTERN)
+
+    const call = harness.recordCalls[0]
     expect(call).toMatchObject({
       actorUserId: CONTEXT.userId,
       companyId: CONTEXT.companyId,
       correlationId: 'contract-c4',
       fromAddress: SETTINGS.senderAddress,
-      toAddress: 'admin@example.com',
+      threadId: harness.reserveCalls[0]?.candidateThreadId,
+      toAddresses: ['admin@example.com'],
     })
-    expect(call?.replyTokenHash).toMatch(HEX_SHA256_PATTERN)
-    expect(call?.replyToAddress.endsWith(`@${SETTINGS.replyDomain}`)).toBe(true)
+    expect(call?.subject.length).toBeGreaterThan(0)
     expect(call?.bodyText).toBe(
       buildContractorMailTestEmailBody({ senderName: SETTINGS.senderName }),
     )
+    const candidateThreadId = harness.reserveCalls[0]?.candidateThreadId
+    if (candidateThreadId === undefined) throw new Error('reserve was never called')
+    expect(result).toEqual({ threadId: candidateThreadId })
+  })
+
+  /** RF7 via reserva: se a conversa já existir, a mensagem é gravada no threadId confirmado, não no candidato. */
+  test('records the message against the confirmed threadId, even when it differs from the candidate', async () => {
+    const harness = createHarness({
+      existingThreadId: EXISTING_THREAD_ID,
+      recipientEmail: 'admin@example.com',
+      settings: SETTINGS,
+    })
+
+    const result = await harness.useCase.execute({ context: CONTEXT, correlationId: 'contract-c5' })
+
+    expect(result).toEqual({ threadId: EXISTING_THREAD_ID })
+    expect(harness.recordCalls[0]?.threadId).toBe(EXISTING_THREAD_ID)
+    expect(harness.recordCalls[0]?.threadId).not.toBe(harness.reserveCalls[0]?.candidateThreadId)
   })
 
   test('never puts a secret in the message body', () => {

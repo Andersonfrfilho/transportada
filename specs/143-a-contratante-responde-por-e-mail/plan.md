@@ -105,7 +105,11 @@ webhookSigningSecret }`, com o AAD
 
 **API: o fluxo, no mesmo módulo**
 
-- `domain/reply-token.policy.ts`: gera o token e o hash e monta `<token>@<subdomínio>`.
+- `domain/reply-token.policy.ts`: **deriva** o token (`deriveReplyToken`, HMAC-SHA256 de
+  `replyTokenSecret` sobre `companyId:threadId`, truncado a 128 bits — não sorteia mais à toa), o
+  hash e monta `<token>@<subdomínio>`. Correção pós-entrega da T009 (2026-09-13): a versão original
+  gerava um token aleatório por chamada, o que impedia o RF7 (mesmo `Reply-To` em toda a conversa) —
+  ver "Segurança e tenant" e "Worker" abaixo.
 - `domain/inbound-reply.policy.ts`: a política pura do RF5. É o coração da spec e **não tem I/O**.
 - `domain/auto-reply.policy.ts`: o RF8.
 - `application/send-occurrence-mail.use-case.ts`: cria a conversa se não existir e enfileira a
@@ -125,7 +129,12 @@ webhookSigningSecret }`, com o AAD
 
 - `contractor-mail-outbound.v1`: consome `contractor_mail_outbox` e envia por `POST /emails` do
   Resend, com `reply_to`, `headers` (`In-Reply-To`, `References`) e `Idempotency-Key` igual ao id da
-  nossa mensagem. O `fetch` é injetado.
+  nossa mensagem. O `fetch` é injetado. **Correção pós-entrega da T009:** o `Reply-To` não vem mais
+  no payload da fila — o consumidor abre a configuração (que carrega o `replyTokenSecret` selado),
+  deriva o mesmo token da conversa (`reply-token.policy.ts`, cópia por valor) e monta o endereço ele
+  mesmo. `subject` e o(s) destinatário(s) também deixaram de viajar pela fila: agora são colunas da
+  própria mensagem (`contractor_mail_messages.subject`/`to_addresses`, migration aditiva à parte da
+  T003), porque a fila só pode carregar `{ messageId }` — ver "Segurança e tenant".
 - `contractor-mail-inbound.v1`, em quatro passos:
   1. busca o e-mail recebido pelo `email_id`;
   2. baixa o MIME bruto pela `download_url` e grava no bucket com `sha256`;
@@ -146,7 +155,11 @@ webhookSigningSecret }`, com o AAD
 
 ## Contratos/API/eventos
 
-- Payload de saída na fila: `{ messageId }`. Só referência; o corpo fica no banco.
+- Payload de saída na fila: `{ messageId }`. Só referência; o corpo, o assunto, o(s) destinatário(s)
+  e o `Reply-To` ficam todos no banco (a mensagem grava assunto e destinatários; o `Reply-To` é
+  derivado pelo worker a partir da configuração — nunca persistido em claro em lugar nenhum). Uma
+  primeira versão desta task (T009, 2026-09-13) tinha desviado disso — endereço e token em claro no
+  payload —, corrigido no mesmo dia: ver "Segurança e tenant".
 - Payload de entrada na fila: `{ companyId, providerEmailId }`. O worker busca o resto no Resend.
 - O webhook lê do corpo só `type` (precisa ser `email.received`) e `data.email_id`. Todo o resto é
   ignorado: os metadados que interessam vêm da API, com a chave, e não do corpo anônimo.
@@ -161,9 +174,10 @@ webhookSigningSecret }`, com o AAD
 
 Migration aditiva `20260913120000_contractor_mail`:
 
-- `contractor_mail_settings`: `id`, `company_id` único, `secret_envelope` jsonb (a chave de API e o
-  segredo do webhook), `sender_address`, `sender_name`, `reply_domain`, `webhook_id` uuid único,
-  `last_webhook_at`, `status`, `version`, datas.
+- `contractor_mail_settings`: `id`, `company_id` único, `secret_envelope` jsonb (a chave de API, o
+  segredo do webhook **e o `replyTokenSecret`** — três campos, desde a correção pós-entrega da T009),
+  `sender_address`, `sender_name`, `reply_domain`, `webhook_id` uuid único, `last_webhook_at`,
+  `status`, `version`, datas.
 - `contractor_contacts`: `id` uuid, `company_id`, `contractor_id`, `email` em citext,
   `receives_occurrences`, `can_decide`, `status` varchar com CHECK, datas. Único em
   `(company_id, contractor_id, email)`. FK composta com `company_id`, como em
@@ -174,11 +188,14 @@ Migration aditiva `20260913120000_contractor_mail`:
   `reply_token_hash` bytea único, `status` (`open` ou `closed`) e `created_at`. Único em
   `(company_id, subject_type, subject_id)`: uma conversa por objeto.
 - `contractor_mail_messages`, append-only: `id`, `company_id`, `thread_id`, `direction`
-  (`inbound` ou `outbound`), `actor_user_id` (nulo quando inbound), `from_address`, `body_text`,
-  `raw_object_id` → `stored_objects`, `raw_sha256`, `provider_email_id`, `rfc_message_id`,
-  `in_reply_to`, `dkim_result` (`aligned`, `not_aligned`, `unverifiable` ou `absent`),
-  `interpretation`, `downgrade_reason`, `delivery_status` (`queued`, `sent` ou `failed`, só
-  outbound) e `created_at`. Único em `(company_id, provider_email_id)`.
+  (`inbound` ou `outbound`), `actor_user_id` (nulo quando inbound), `from_address`, `subject`,
+  `to_addresses` (`text[]`, não vazio), `body_text`, `raw_object_id` → `stored_objects`,
+  `raw_sha256`, `provider_email_id`, `rfc_message_id`, `in_reply_to`, `dkim_result` (`aligned`,
+  `not_aligned`, `unverifiable` ou `absent`), `interpretation`, `downgrade_reason`,
+  `delivery_status` (`queued`, `sent` ou `failed`, só outbound) e `created_at`. Único em
+  `(company_id, provider_email_id)`. `subject`/`to_addresses` são aditivos da correção pós-entrega
+  da T009 (migration própria, `20260913191809_contractor_mail_message_recipient`) — a fila deixou de
+  carregar essas informações (§6 do baseline de segurança), então quem cria a mensagem grava as duas.
 - `contractor_mail_outbox` e `contractor_inbound_email_outbox`, no molde de
   `aggregate_attachment_outbox` (sem ator, com payload de referência).
 - `delivery_charge_events.decided_by_message_id` (nulo) e o CHECK de autoria refeito.
@@ -190,6 +207,25 @@ seguro **só antes** de existir decisão por e-mail; depois dela, a coluna carre
 escrito no arquivo.
 
 ## Segurança e tenant
+
+**Correção pós-entrega da T009 (2026-09-13): o RF2 e o RF7 puxavam em direções opostas, e a primeira
+versão desta task resolveu isso do lado errado.** RF2 manda guardar só o **hash** do token de
+resposta; RF7 exige o **mesmo** `Reply-To` em toda mensagem de uma conversa. Um token sorteado a
+cada envio e só hasheado não pode ser reconstituído — a única saída dentro dessa restrição era fazer
+o token viajar em claro pela fila para o worker montar o `Reply-To`, e foi o que a primeira versão
+fez: `contractor_mail_outbox.payload` carregava `{ toAddress, replyToAddress }`, e o token de
+resposta ia para o RabbitMQ (inclusive a fila `dead`, sem expiração) em claro. Isso viola o §6 do
+baseline de segurança (job carrega referência, nunca dado) duas vezes: dado pessoal (endereço) e um
+segredo com poder de decisão (o token) na mesma mensagem.
+
+A correção resolve a tensão do lado do RF2: o token deixou de ser sorteado e passou a ser
+**derivado** — `HMAC-SHA256(replyTokenSecret, "transportada:contractor-mail-reply:v1:" + companyId +
+":" + threadId)`, truncado a 128 bits. Determinístico por conversa, então o worker o recalcula a
+cada envio a partir só da configuração (que já abre para autenticar no Resend) — nunca precisa lê-lo
+do banco (só o hash mora lá) nem da fila. O `replyTokenSecret` é o terceiro campo do envelope
+selado da T006 (`{ apiKey, webhookSigningSecret, replyTokenSecret }`), gerado no servidor na primeira
+configuração e nunca aceito do cliente. `subject`/`to_addresses` saíram do payload pela mesma razão
+(§6) e viraram colunas da mensagem (migration própria, acima).
 
 - **O webhook é a terceira superfície anônima, e a primeira assinada.** O `webhookId` da URL acha a
   configuração; a assinatura Svix é conferida contra o segredo daquela empresa. Empresa sem

@@ -7,22 +7,24 @@ import type { createDrizzleProvider } from '@adatechnology/drizzle-provider'
 import {
   contractorMailMessages,
   contractorMailSettings,
-  contractorMailThreads,
 } from '../../database/contractor-mail.schema.js'
 
 type Database = ReturnType<typeof createDrizzleProvider>['db']
 
+/**
+ * Correção pós-entrega da T009 (spec 143): `subject`/`toAddresses` chegam pela própria mensagem —
+ * a fila deixou de carregar qualquer coisa além do `messageId` (§6 do baseline de segurança).
+ */
 export type ContractorMailOutboundMessageRecord = {
   readonly bodyText: string
+  readonly subject: string
   readonly threadId: string
-}
-
-export type ContractorMailOutboundThreadRecord = {
-  readonly subjectType: string
+  readonly toAddresses: readonly string[]
 }
 
 export type ContractorMailOutboundSettingsRecord = {
   readonly id: string
+  readonly replyDomain: string
   readonly secretEnvelope: unknown
   readonly senderAddress: string
   readonly senderName: string
@@ -33,10 +35,9 @@ export type ContractorMailReferenceHeaders = {
 }
 
 /**
- * Objetivo item 5 (T009): o consumidor "carrega a mensagem, a conversa e a configuração" — as três
- * leituras seguintes — e depois grava o resultado do envio. Toda leitura e escrita filtra por
- * `company_id` na mesma condição, nunca como conferência depois (o mesmo molde do repositório da
- * API).
+ * O consumidor carrega a mensagem e a configuração — não mais a conversa (correção pós-entrega da
+ * T009: nem o assunto nem o token de resposta dependem dela agora). Toda leitura e escrita filtra
+ * por `company_id` na mesma condição, nunca como conferência depois.
  */
 export type ContractorMailOutboundWorkerRepository = {
   findLastInboundReferenceHeaders(input: {
@@ -50,10 +51,6 @@ export type ContractorMailOutboundWorkerRepository = {
   findSettingsByCompanyId(input: {
     readonly companyId: string
   }): Promise<ContractorMailOutboundSettingsRecord | undefined>
-  findThreadById(input: {
-    readonly companyId: string
-    readonly threadId: string
-  }): Promise<ContractorMailOutboundThreadRecord | undefined>
   markMessageFailed(input: {
     readonly companyId: string
     readonly messageId: string
@@ -73,7 +70,9 @@ export function createDrizzleContractorMailOutboundWorkerRepository(
       const [row] = await database
         .select({
           bodyText: contractorMailMessages.bodyText,
+          subject: contractorMailMessages.subject,
           threadId: contractorMailMessages.threadId,
+          toAddresses: contractorMailMessages.toAddresses,
         })
         .from(contractorMailMessages)
         .where(
@@ -86,24 +85,11 @@ export function createDrizzleContractorMailOutboundWorkerRepository(
       return row
     },
 
-    async findThreadById({ companyId, threadId }) {
-      const [row] = await database
-        .select({ subjectType: contractorMailThreads.subjectType })
-        .from(contractorMailThreads)
-        .where(
-          and(
-            eq(contractorMailThreads.companyId, companyId),
-            eq(contractorMailThreads.id, threadId),
-          ),
-        )
-        .limit(1)
-      return row
-    },
-
     async findSettingsByCompanyId({ companyId }) {
       const [row] = await database
         .select({
           id: contractorMailSettings.id,
+          replyDomain: contractorMailSettings.replyDomain,
           secretEnvelope: contractorMailSettings.secretEnvelope,
           senderAddress: contractorMailSettings.senderAddress,
           senderName: contractorMailSettings.senderName,

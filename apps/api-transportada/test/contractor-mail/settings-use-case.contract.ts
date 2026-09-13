@@ -37,6 +37,7 @@ const API_KEY = 're_synthetic_resend_api_key'
 const OTHER_API_KEY = 're_synthetic_resend_api_key_two'
 const WEBHOOK_SIGNING_SECRET = 'whsec_synthetic_svix_secret'
 const OTHER_WEBHOOK_SIGNING_SECRET = 'whsec_synthetic_svix_secret_two'
+const REPLY_TOKEN_SECRET = 'd'.repeat(64)
 const REPLY_DOMAIN = 'resposta.fernandes-transportadora.com.br'
 const SENDER_ADDRESS = 'ocorrencias@fernandes-transportadora.com.br'
 const SENDER_NAME = 'Fernandes Transportadora'
@@ -53,6 +54,7 @@ const DEFAULT_SECRET_SERVICE = createContractorMailCredentialSecretService({
 const DEFAULT_ENVELOPE = await DEFAULT_SECRET_SERVICE.encrypt({
   apiKey: API_KEY,
   companyId: COMPANY_ID,
+  replyTokenSecret: REPLY_TOKEN_SECRET,
   settingsId: DEFAULT_SETTINGS_ID,
   webhookSigningSecret: WEBHOOK_SIGNING_SECRET,
 })
@@ -118,6 +120,7 @@ describe('contractor mail settings use case (spec 143, T008)', () => {
     const existingEnvelope = await secretService.encrypt({
       apiKey: API_KEY,
       companyId: COMPANY_ID,
+      replyTokenSecret: REPLY_TOKEN_SECRET,
       settingsId,
       webhookSigningSecret: WEBHOOK_SIGNING_SECRET,
     })
@@ -142,7 +145,11 @@ describe('contractor mail settings use case (spec 143, T008)', () => {
       envelope: call.secretEnvelope as Parameters<typeof secretService.decrypt>[0]['envelope'],
       settingsId,
     })
-    expect(preserved).toEqual({ apiKey: API_KEY, webhookSigningSecret: WEBHOOK_SIGNING_SECRET })
+    expect(preserved).toEqual({
+      apiKey: API_KEY,
+      replyTokenSecret: REPLY_TOKEN_SECRET,
+      webhookSigningSecret: WEBHOOK_SIGNING_SECRET,
+    })
     expect(call.audit.afterSnapshot).toMatchObject({ changedFields: ['replyDomain'] })
   })
 
@@ -155,6 +162,7 @@ describe('contractor mail settings use case (spec 143, T008)', () => {
     const existingEnvelope = await secretService.encrypt({
       apiKey: API_KEY,
       companyId: COMPANY_ID,
+      replyTokenSecret: REPLY_TOKEN_SECRET,
       settingsId,
       webhookSigningSecret: WEBHOOK_SIGNING_SECRET,
     })
@@ -180,6 +188,7 @@ describe('contractor mail settings use case (spec 143, T008)', () => {
     })
     expect(merged).toEqual({
       apiKey: OTHER_API_KEY,
+      replyTokenSecret: REPLY_TOKEN_SECRET,
       webhookSigningSecret: WEBHOOK_SIGNING_SECRET,
     })
     expect(call.audit.afterSnapshot).toMatchObject({ changedFields: ['apiKey'] })
@@ -541,7 +550,10 @@ function createHarness(input: {
     async findThreadByReplyTokenHash() {
       return undefined
     },
-    async openTestEmailThread() {
+    async recordTestEmailMessage() {
+      throw new Error('not used by this contract (spec 143, T009)')
+    },
+    async reserveSetupTestThread() {
       throw new Error('not used by this contract (spec 143, T009)')
     },
     async saveSettings(saveInput) {

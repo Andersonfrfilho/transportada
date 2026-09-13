@@ -16,17 +16,20 @@ export const contractorMailSettings = pgTable('contractor_mail_settings', {
   replyDomain: text('reply_domain').notNull(),
 })
 
-export const contractorMailThreads = pgTable('contractor_mail_threads', {
-  id: uuid().defaultRandom().primaryKey(),
-  companyId: uuid('company_id').notNull(),
-  subjectType: text('subject_type').notNull(),
-})
-
+/**
+ * Correção pós-entrega da T009: o consumidor não precisa mais desta tabela — o assunto vem gravado
+ * na própria mensagem (`subject`), e o token de resposta é derivado de `(replyTokenSecret,
+ * companyId, threadId)`, sem precisar ler `subject_type` nem nenhuma outra coluna da conversa.
+ * `contractor_mail_threads` fica fora desta cópia por isso; se um trilho futuro precisar dela de
+ * novo, é acrescentar aqui.
+ */
 export const contractorMailMessages = pgTable('contractor_mail_messages', {
   id: uuid().defaultRandom().primaryKey(),
   companyId: uuid('company_id').notNull(),
   threadId: uuid('thread_id').notNull(),
   direction: text().notNull(),
+  subject: text().notNull(),
+  toAddresses: text('to_addresses').array().notNull(),
   bodyText: text('body_text').notNull(),
   rfcMessageId: text('rfc_message_id'),
   providerEmailId: text('provider_email_id'),

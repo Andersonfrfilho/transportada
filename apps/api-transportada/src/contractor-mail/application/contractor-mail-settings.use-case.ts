@@ -8,6 +8,7 @@ import {
   ContractorMailCredentialUnavailableError,
   ContractorMailSecretRequiredError,
 } from '../domain/contractor-mail.error.js'
+import { generateReplyTokenSecret } from '../domain/reply-token.policy.js'
 import type {
   ContractorMailCredentialSecret,
   ContractorMailCredentialSecretService,
@@ -205,6 +206,7 @@ export function createContractorMailSettingsUseCase(dependencies: {
       const secretEnvelope = await secretService.encrypt({
         apiKey: secret.apiKey,
         companyId: context.companyId,
+        replyTokenSecret: secret.replyTokenSecret,
         settingsId,
         webhookSigningSecret: secret.webhookSigningSecret,
       })
@@ -252,6 +254,18 @@ export function createContractorMailSettingsUseCase(dependencies: {
  * declarada diz que não existe. Quando existe de verdade, o `INSERT ... ON CONFLICT DO NOTHING` do
  * repositório recusa a escrita de qualquer forma (`409`), e o segredo aqui resolvido nunca chega a
  * ser persistido.
+ *
+ * Correção pós-entrega da T009: `replyTokenSecret` nunca vem do cliente — nasce aqui, uma vez, na
+ * primeira configuração (`existing === undefined`), e sobrevive a toda atualização depois disso.
+ * Ele só existe dentro do envelope selado, então preservá-lo exige abrir o envelope anterior — o que
+ * a atualização com os dois segredos completos costumava pular (o atalho antigo). Continua pulando
+ * quando dá certo (o `try` abaixo), mas se o envelope anterior não abrir mais (chave do keyring
+ * girada ou removida) e os dois segredos vierem completos no `PUT`, a saída é **gerar um
+ * `replyTokenSecret` novo** em vez de travar a configuração para sempre: o envelope inteiro já
+ * estava ilegível — todo segredo dentro dele, não só este — então "resend os dois segredos" já era
+ * a única forma de recuperação possível, e o RF7 de conversas anteriores a essa perda não tinha
+ * como sobreviver de qualquer jeito. Só quando falta pelo menos um dos dois segredos frescos é que a
+ * falha do envelope precisa propagar — sem ele não há apiKey/webhookSigningSecret para reconstituir.
  */
 async function resolveSecret(input: {
   readonly apiKey: string | undefined
@@ -260,10 +274,38 @@ async function resolveSecret(input: {
   readonly settingsId: string
   readonly webhookSigningSecret: string | undefined
 }): Promise<ContractorMailCredentialSecret> {
-  if (input.apiKey !== undefined && input.webhookSigningSecret !== undefined) {
-    return { apiKey: input.apiKey, webhookSigningSecret: input.webhookSigningSecret }
+  if (input.existing === undefined) {
+    if (input.apiKey === undefined || input.webhookSigningSecret === undefined) {
+      throw new ContractorMailSecretRequiredError()
+    }
+    return {
+      apiKey: input.apiKey,
+      replyTokenSecret: generateReplyTokenSecret(),
+      webhookSigningSecret: input.webhookSigningSecret,
+    }
   }
-  if (input.existing === undefined) throw new ContractorMailSecretRequiredError()
+
+  if (input.apiKey !== undefined && input.webhookSigningSecret !== undefined) {
+    try {
+      const previous = await input.secretService.decrypt({
+        companyId: input.existing.companyId,
+        envelope: input.existing.secretEnvelope as SecretEnvelopeV1,
+        settingsId: input.existing.id,
+      })
+      return {
+        apiKey: input.apiKey,
+        replyTokenSecret: previous.replyTokenSecret,
+        webhookSigningSecret: input.webhookSigningSecret,
+      }
+    } catch (error) {
+      if (!(error instanceof ContractorMailCredentialUnavailableError)) throw error
+      return {
+        apiKey: input.apiKey,
+        replyTokenSecret: generateReplyTokenSecret(),
+        webhookSigningSecret: input.webhookSigningSecret,
+      }
+    }
+  }
 
   const previous = await input.secretService.decrypt({
     companyId: input.existing.companyId,
@@ -272,6 +314,7 @@ async function resolveSecret(input: {
   })
   return {
     apiKey: input.apiKey ?? previous.apiKey,
+    replyTokenSecret: previous.replyTokenSecret,
     webhookSigningSecret: input.webhookSigningSecret ?? previous.webhookSigningSecret,
   }
 }

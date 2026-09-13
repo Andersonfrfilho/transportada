@@ -77,11 +77,7 @@ export class ContractorMailOutboundOutboxRelayService {
             correlationId: entry.correlationId,
             eventId: entry.eventId,
             occurredAt: entry.occurredAt,
-            payload: {
-              messageId: entry.messageId,
-              replyToAddress: entry.replyToAddress,
-              toAddress: entry.toAddress,
-            },
+            payload: { messageId: entry.messageId },
             type: CONTRACTOR_MAIL_OUTBOUND_EVENT_TYPE.MESSAGE_SEND_REQUESTED,
             version: 1,
           },
