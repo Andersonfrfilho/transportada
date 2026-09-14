@@ -23,7 +23,7 @@
 <#macro content>
     <footer class="colophon">
         <p>
-            <img class="colophon-mark" src="${url.resourcesPath}/img/ada-technology.png" alt="" />
+            <img class="colophon-mark" src="${url.resourcesPath}/img/ada-technology.png?v=${resourcesVersion}" alt="" />
             <span>
                 ${msg("transportadaColophon", .now?string('yyyy'))}
                 <a href="${copyrightHolderUrl}" target="_blank" rel="noreferrer">${msg("transportadaColophonHolder")}</a>

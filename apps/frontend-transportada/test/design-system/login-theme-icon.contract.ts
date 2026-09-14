@@ -54,9 +54,11 @@ describe('login theme tab identity contract', () => {
   test('links the icon and names the product in the tab title', async () => {
     const template = await repositoryFile(THEME_TEMPLATE).text()
 
-    expect(template).toContain('rel="icon" href="${url.resourcesPath}/img/icon.svg"')
     expect(template).toContain(
-      'rel="apple-touch-icon" href="${url.resourcesPath}/img/icon-192.png"',
+      'rel="icon" href="${url.resourcesPath}/img/icon.svg?v=${resourcesVersion}"',
+    )
+    expect(template).toContain(
+      'rel="apple-touch-icon" href="${url.resourcesPath}/img/icon-192.png?v=${resourcesVersion}"',
     )
     // Realm sem `displayName` resolvido não pode produzir "Entrar em " no título
     expect(template).toContain(`realm.displayName!'TransportAdA'`)

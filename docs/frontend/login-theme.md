@@ -264,6 +264,42 @@ As telas que **não** bifurcamos (recuperação pelo Keycloak, erro, OTP, termos
 nosso CSS mas com as classes dele — estilizadas pela metade. Upgrade não muda isso em nenhuma
 direção.
 
+## Toda mudança do tema invalida o cache do navegador
+
+O Keycloak serve os recursos do tema em `/resources/<versão-do-servidor>/login/transportada/...`
+com `Cache-Control: max-age=2592000` — **30 dias**. A `<versão-do-servidor>` só muda quando muda o
+Keycloak, não quando muda o tema. Medido em 14/09/2026: depois do deploy do tema novo em staging, o
+navegador que já tinha aberto o login seguiu com o `login.css` antigo, e a faixa de ambiente apareceu
+sem estilo até um recarregamento forçado.
+
+O mecanismo tem três pontas:
+
+- **`theme.properties` declara `resourcesVersion=dev`.** É o padrão seguro: sem carimbo, a URL
+  continua válida.
+- **O `deploy/keycloak/Dockerfile` carimba o hash do conteúdo no build da imagem.** No estágio
+  `build`, depois de copiar o tema, ele calcula
+  `find . -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum | cut -c1-12` — caminho
+  e bytes de todo arquivo de `deploy/keycloak/theme/`, em ordem fixa — e troca a linha por `sed`. O
+  build reprova se a linha não foi trocada. O runtime recebe o tema já carimbado pelo
+  `COPY --from=build /opt/keycloak/`; um segundo `COPY` cru do tema desfaria o carimbo.
+- **O `template.ftl` põe `?v=${resourcesVersion}` em todo recurso nosso**: ícones, `color-theme.js`,
+  os laços de `styles=` e `scripts=` e a marca da Ada no `footer.ftl`. A variável é `<#global>`, e
+  não `<#assign>`: o `footer.ftl` é importado como namespace e não enxergaria o `assign`. O
+  `js/authChecker.js` fica sem `?v=` porque é do `base`, e a URL dele já muda com o servidor.
+
+Hash de conteúdo, e não data, número à mão ou commit: data e commit mudam a URL sem mudança no tema,
+e número à mão depende de alguém lembrar. Com o hash, mudou um byte, mudou a URL; não mudou nada, o
+cache continua valendo.
+
+No dev local o `compose.yaml` monta o tema direto no container, sem passar pelo `Dockerfile`, então
+a URL sai com `?v=dev`. Não faz falta: o `start-dev` serve os recursos com `Cache-Control: no-cache`
+(medido na sonda de 14/09/2026).
+
+Conferido em container de sonda com a imagem do `Dockerfile`: a tela de login saiu com
+`login.css?v=db2ef1159c10`, e com um byte a mais no `login.css` a imagem reconstruída saiu com
+outro hash. Contrato em
+`apps/frontend-transportada/test/design-system/login-theme-cache-busting.contract.ts`.
+
 ## Verificando uma mudança
 
 O Keycloak guarda o tema em cache mesmo em `start-dev`: depois de editar qualquer arquivo,

@@ -25,26 +25,32 @@
     <#-- ⚠️ Comparação direta, e não `?seq_contains`: o FreeMarker do Keycloak não aceita o método
          sobre sequência literal, e a condição saía sempre falsa — o ícone de produção em todo
          ambiente, que é exatamente o defeito. Medido em container de sonda. -->
+    <#-- O Keycloak serve os recursos por 30 dias sob a versão do **servidor**, que não muda com o
+         tema: sem o `?v=` o navegador segue com o CSS antigo depois do deploy. O build da imagem
+         carimba o hash do conteúdo do tema. `dev` só vale no compose, que monta o tema direto e
+         roda `start-dev`, com cache de tema desligado. `global` porque o `footer.ftl` é outro
+         namespace. -->
+    <#global resourcesVersion = properties.resourcesVersion!"dev" />
     <#assign appEnvironment = properties.appEnvironment!"" />
     <#assign workInProgress = (appEnvironment == "local" || appEnvironment == "staging") />
     <#if workInProgress>
-    <link rel="icon" href="${url.resourcesPath}/img/icon-work-in-progress.svg" type="image/svg+xml" />
+    <link rel="icon" href="${url.resourcesPath}/img/icon-work-in-progress.svg?v=${resourcesVersion}" type="image/svg+xml" />
     <#else>
-    <link rel="icon" href="${url.resourcesPath}/img/icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="${url.resourcesPath}/img/icon.svg?v=${resourcesVersion}" type="image/svg+xml" />
     </#if>
-    <link rel="apple-touch-icon" href="${url.resourcesPath}/img/icon-192.png" />
+    <link rel="apple-touch-icon" href="${url.resourcesPath}/img/icon-192.png?v=${resourcesVersion}" />
     <#-- ⚠️ Sem `defer` e **antes** da folha de estilo: o `data-theme` tem de existir no `<html>`
          na primeira pintura, senão a tela pisca no tema errado antes de corrigir. É por isso que
          ele não entra no `scripts=` do `theme.properties`, que carrega tudo com `defer`. -->
-    <script src="${url.resourcesPath}/js/color-theme.js"></script>
+    <script src="${url.resourcesPath}/js/color-theme.js?v=${resourcesVersion}"></script>
     <#if properties.styles?has_content>
         <#list properties.styles?split(' ') as style>
-            <link href="${url.resourcesPath}/${style}" rel="stylesheet" />
+            <link href="${url.resourcesPath}/${style}?v=${resourcesVersion}" rel="stylesheet" />
         </#list>
     </#if>
     <#if properties.scripts?has_content>
         <#list properties.scripts?split(' ') as script>
-            <script src="${url.resourcesPath}/${script}" type="text/javascript" defer></script>
+            <script src="${url.resourcesPath}/${script}?v=${resourcesVersion}" type="text/javascript" defer></script>
         </#list>
     </#if>
     <#if scripts??>
