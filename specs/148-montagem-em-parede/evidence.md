@@ -458,6 +458,27 @@ Worker do worktree reiniciado com o `dist/` novo (os dois antigos, 80360 e 89824
 
 Commits: `e7ed7870` (contratos da API e do worker) · `9bcec7ad` (tela).
 
+## T5 — Proposta refeita no navegador (2026-09-14)
+
+"Montar roteiro pela busca de notas" → 342 notas, 6 motoristas, 6 veículos → "Propor roteiro": 5 de 5 viagens,
+186 entregas (125 paradas acima do teto de peso ficam para a próxima viagem; 16 com endereço impreciso). Cada
+caminhão aberto; plantas contadas em `trip_cargo_layouts` (todas `policy_version` 6, `attempt` 1, `ready`):
+
+| Caminhão     | Paradas | Caixas desenhadas | De fora (`bedFull`)                       | Tempo   |
+| ------------ | ------- | ----------------- | ----------------------------------------- | ------- |
+| Accelo 1016  | 24      | 500               | **0**                                     | 1,8 s   |
+| Iveco Daily  | 23      | 372               | **0**                                     | 0,7 s   |
+| Fiorino      | 10      | 94                | **0**                                     | 0,05 s  |
+| Sprinter 416 | 21      | 248               | **0**                                     | 0,3 s   |
+| Atego 2426   | 84      | 1386              | **79** (20 notas, todas com `documentId`) | 120,0 s |
+
+Atego: 6 caixas por cima de entrega anterior (`overEarlierDelivery` + `coversStops`); 161 notas divididas somadas
+nas 5 plantas. As 79 batem com o harness da T3b e vão para a fila de revisão (T7, decisão do usuário).
+
+Observação: com o painel do navegador escondido (`document.visibilityState = hidden`), o TanStack Query suspende o
+`refetchInterval` — a prévia da Atego ficou em "Calculando" com a planta já `ready` no banco. Não é defeito: volta a
+perguntar quando a aba fica visível. G4 (nenhuma pilha alta isolada no mapa 3D) aguarda a conferência do usuário.
+
 ## T7 — Fila de revisão das notas que não couberam · 2026-09-14
 
 Modelo: `opus` (o `sonnet` estava sem cota). Desenho: `t7-design.md` (D10–D13).
