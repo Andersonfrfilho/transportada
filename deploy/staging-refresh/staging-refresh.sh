@@ -36,6 +36,8 @@ readonly REQUIRED_VARIABLES=(
 )
 
 readonly REALM_PAGE_SIZE=100
+# O nome que o `deploy/backup/backup.sh` grava na linha do Keycloak do manifesto.
+readonly KEYCLOAK_DATABASE_NAME=keycloak
 REBIND_SQL_PATH="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/rebind-identities.sql"
 readonly REBIND_SQL_PATH
 
@@ -123,13 +125,15 @@ download_production_cycle() {
     exit 1
   fi
 
-  # **Só o banco da aplicação atravessa.** O do Keycloak fica onde está: o realm de staging tem os
+  # **Só o banco da aplicação é restaurado.** O do Keycloak fica onde está: o realm de staging tem os
   # próprios `redirect_uri`, client secret e usuários, todos apontando para o domínio de staging.
   # Restaurar o Keycloak de produção por cima trocaria isso pelos de produção e derrubaria o login
-  # de staging inteiro — massa de nota não vale o ambiente.
-  local line
+  # de staging inteiro — massa de nota não vale o ambiente. O dump dele desce só para ser **lido**
+  # por `extract_production_realm_users`.
+  local line keycloak_line
   line="$(grep -F "\"database\":\"${APPLICATION_DATABASE_NAME}\"" "$cycle" || true)"
-  if [ -z "$line" ]; then
+  keycloak_line="$(grep -F "\"database\":\"${KEYCLOAK_DATABASE_NAME}\"" "$cycle" || true)"
+  if [ -z "$line" ] || [ -z "$keycloak_line" ]; then
     log error staging_refresh_application_line_missing ",\"stamp\":\"${stamp}\""
     exit 1
   fi
@@ -139,7 +143,74 @@ download_production_cycle() {
   CYCLE_SHA256="$(printf '%s' "$line" | sed 's/.*"sha256":"\([^"]*\)".*/\1/')"
   DUMP_PATH="${WORK_DIRECTORY}/$(basename "$CYCLE_OBJECT")"
   backup_object "$CYCLE_OBJECT" "$DUMP_PATH"
+
+  local keycloak_object
+  keycloak_object="$(printf '%s' "$keycloak_line" | sed 's/.*"object":"\([^"]*\)".*/\1/')"
+  KEYCLOAK_SHA256="$(printf '%s' "$keycloak_line" | sed 's/.*"sha256":"\([^"]*\)".*/\1/')"
+  KEYCLOAK_DUMP_PATH="${WORK_DIRECTORY}/$(basename "$keycloak_object")"
+  backup_object "$keycloak_object" "$KEYCLOAK_DUMP_PATH"
   log info staging_refresh_cycle_downloaded ",\"stamp\":\"${stamp}\",\"database\":\"${APPLICATION_DATABASE_NAME}\""
+}
+
+# Confere o `sha256` do manifesto e decifra ao lado, sem a extensão `.enc`. Devolve o caminho claro.
+decrypt_verified_dump() {
+  local encrypted="$1" digest="$2" plain="${1%.enc}"
+  echo "${digest}  $(basename "$encrypted")" >"${encrypted}.sha256"
+  (cd "$(dirname "$encrypted")" && sha256sum -c "$(basename "$encrypted").sha256" >/dev/null)
+  openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 \
+    -pass env:BACKUP_ENCRYPTION_KEY -in "$encrypted" -out "$plain"
+  printf '%s' "$plain"
+}
+
+# Lê o bloco `COPY <tabela> (...) FROM stdin` que o `pg_restore -f -` escreve e devolve, em TSV, só
+# as colunas pedidas, na ordem pedida. A posição sai do cabeçalho do COPY, não de uma lista fixa:
+# versão nova do Keycloak acrescenta coluna. `\N` (nulo) vira vazio.
+copy_columns() {
+  local table="$1"
+  shift
+  awk -v table="$table" -v wanted="$*" '
+    BEGIN { count = split(wanted, names, " ") }
+    !inside && $0 ~ ("^COPY ([^ ]+\\.)?" table " \\(") {
+      header = $0
+      sub(/^[^(]*\(/, "", header)
+      sub(/\).*$/, "", header)
+      total = split(header, columns, ", ")
+      for (i = 1; i <= total; i++) position[columns[i]] = i
+      inside = 1
+      next
+    }
+    inside && $0 == "\\." { inside = 0; next }
+    inside {
+      split($0, fields, "\t")
+      row = ""
+      for (i = 1; i <= count; i++) {
+        value = fields[position[names[i]]]
+        if (value == "\\N") value = ""
+        row = row (i > 1 ? "\t" : "") value
+      }
+      print row
+    }'
+}
+
+# Os usuários do Keycloak de produção, para o religamento casar o realm de staging pelo username de
+# produção — o subject de lá já está em `external_identities`. O dump **não é restaurado em lugar
+# nenhum**: o `pg_restore -f -` só transcreve os dados de duas tabelas, e nenhuma conexão é aberta.
+#
+# Os dois TSV (`id, username, email, realm_id` e `id, name` do realm) são dado pessoal: moram no
+# diretório de trabalho, que o `cleanup` apaga, e nunca são impressos. Qual realm é o de produção o
+# SQL decide, pelo sufixo `/realms/<nome>` do issuer gravado em `external_identities`.
+#
+# Roda antes do restore: dump do Keycloak corrompido para o ciclo antes de staging ser tocado.
+extract_production_realm_users() {
+  local plain
+  plain="$(decrypt_verified_dump "$KEYCLOAK_DUMP_PATH" "$KEYCLOAK_SHA256")"
+  rm -f "$KEYCLOAK_DUMP_PATH"
+  pg_restore --data-only --table=realm -f - "$plain" \
+    | copy_columns realm id name >"${WORK_DIRECTORY}/production-realms.tsv"
+  pg_restore --data-only --table=user_entity -f - "$plain" \
+    | copy_columns user_entity id username email realm_id >"${WORK_DIRECTORY}/production-users.tsv"
+  rm -f "$plain"
+  log info staging_refresh_production_realm_read ",\"productionUsers\":$(wc -l <"${WORK_DIRECTORY}/production-users.tsv" | tr -d ' ')"
 }
 
 # Os schemas que o dump cria. A lista sai do **dump**, não de uma lista escrita aqui: os pacotes
@@ -165,12 +236,8 @@ list_dump_schemas() {
 # entra, nem se um dump estranho o listar. `drop database` continua fora: o Railway não entrega
 # conexão de manutenção, e ele exigiria desconectar a app de staging antes.
 restore_over_staging() {
-  echo "${CYCLE_SHA256}  $(basename "$DUMP_PATH")" >"${DUMP_PATH}.sha256"
-  (cd "$(dirname "$DUMP_PATH")" && sha256sum -c "$(basename "$DUMP_PATH").sha256" >/dev/null)
-
-  local plain="${DUMP_PATH%.enc}" dump_schemas schemas
-  openssl enc -d -aes-256-cbc -pbkdf2 -iter 100000 \
-    -pass env:BACKUP_ENCRYPTION_KEY -in "$DUMP_PATH" -out "$plain"
+  local plain dump_schemas schemas
+  plain="$(decrypt_verified_dump "$DUMP_PATH" "$CYCLE_SHA256")"
 
   # Duas listas, de propósito: a do dump decide se o `public` precisa ser recriado aqui; a do drop é
   # ela mais o `public`. Uma lista só para as duas coisas deixou staging sem `public` no primeiro
@@ -273,13 +340,69 @@ SQL
   fi
   fetch_realm_users "$token" "$users"
 
-  local counts realm_users skipped by_username by_email by_service ambiguous unmatched
-  counts="$(psql "$STAGING_DATABASE_URL" --tuples-only --no-align --quiet --field-separator ' ' \
-    --set ON_ERROR_STOP=1 --set issuer="$KEYCLOAK_ISSUER" \
+  # O `cd` é o que deixa o SQL achar os TSV de produção por nome fixo: o `\copy` do psql não
+  # interpola variável, e o caminho do diretório de trabalho só existe em tempo de execução.
+  local counts realm_users skipped by_production by_username by_email by_service ambiguous unmatched
+  counts="$(cd "$WORK_DIRECTORY" && psql "$STAGING_DATABASE_URL" --tuples-only --no-align --quiet \
+    --field-separator ' ' --set ON_ERROR_STOP=1 --set issuer="$KEYCLOAK_ISSUER" \
     --file "$REBIND_SQL_PATH" <"$users")"
-  rm -f "$users"
-  read -r realm_users skipped by_username by_email by_service ambiguous unmatched <<<"$counts"
-  log info staging_refresh_identities_rebound ",\"realmUsers\":${realm_users},\"serviceAccountsSkipped\":${skipped},\"linkedByUsername\":${by_username},\"linkedByEmail\":${by_email},\"linkedServiceAccounts\":${by_service},\"ambiguous\":${ambiguous},\"unmatched\":${unmatched}"
+  rm -f "$users" "${WORK_DIRECTORY}/production-users.tsv" "${WORK_DIRECTORY}/production-realms.tsv"
+  read -r realm_users skipped by_production by_username by_email by_service ambiguous unmatched <<<"$counts"
+  log info staging_refresh_identities_rebound ",\"realmUsers\":${realm_users},\"serviceAccountsSkipped\":${skipped},\"linkedByProductionIdentity\":${by_production},\"linkedByUsername\":${by_username},\"linkedByEmail\":${by_email},\"linkedServiceAccounts\":${by_service},\"ambiguous\":${ambiguous},\"unmatched\":${unmatched}"
+}
+
+# Mesmo desenho do `keycloak_admin_get`, com o token por `--config` de um descritor (o stdin fica
+# para o corpo). O `printf` é builtin: o token não vira argv de processo nenhum.
+keycloak_admin_put() {
+  local token="$1" path="$2" issuer="${KEYCLOAK_ISSUER%/}"
+  curl --config <(printf 'header = "Authorization: Bearer %s"\n' "$token") \
+    --silent --show-error --fail --max-time 60 --output /dev/null \
+    --request PUT --header 'Content-Type: application/json' --data-binary @- \
+    "${issuer%%/realms/*}/admin/realms/${issuer##*/realms/}/${path}"
+}
+
+# O token de staging traz `company_id` do atributo do usuário no Keycloak de staging, e a API recusa
+# (403) quando ele não é a empresa do vínculo ativo — que, depois do restore, é a de produção. Aqui
+# cada usuário religado com **exatamente um** vínculo ativo passa a apontar para essa empresa; zero ou
+# mais de um fica como está, porque escolher entre duas empresas não é decisão deste script.
+#
+# GET e depois PUT da representação inteira: o PUT de `attributes` substitui o mapa todo, e mandar só
+# o `company_id` apagaria os outros atributos do usuário.
+align_staging_companies() {
+  local token pairs="${WORK_DIRECTORY}/company-alignment.tsv"
+  psql "$STAGING_DATABASE_URL" --tuples-only --no-align --quiet --field-separator $'\t' \
+    --set ON_ERROR_STOP=1 --set issuer="$KEYCLOAK_ISSUER" >"$pairs" <<'SQL'
+select e.subject, count(m.id), coalesce(min(m.company_id::text), '')
+from external_identities e
+left join user_company_memberships m on m.user_id = e.user_id and m.status = 'active'
+where e.issuer = :'issuer'
+group by e.subject;
+SQL
+
+  token="$(keycloak_admin_token)"
+  if [ -z "$token" ]; then
+    log error staging_refresh_keycloak_token_missing ''
+    return 1
+  fi
+
+  local aligned=0 already_right=0 skipped=0 account memberships company representation
+  while IFS=$'\t' read -r account memberships company; do
+    if [ "$memberships" -ne 1 ]; then
+      skipped=$((skipped + 1))
+      continue
+    fi
+    representation="$(keycloak_admin_get "$token" "users/${account}")"
+    if jq -e --arg company "$company" '(.attributes.company_id // []) == [$company]' \
+      <<<"$representation" >/dev/null; then
+      already_right=$((already_right + 1))
+      continue
+    fi
+    jq --arg company "$company" '.attributes = ((.attributes // {}) + {company_id: [$company]})' \
+      <<<"$representation" | keycloak_admin_put "$token" "users/${account}"
+    aligned=$((aligned + 1))
+  done <"$pairs"
+  rm -f "$pairs"
+  log info staging_refresh_companies_aligned ",\"companyAligned\":${aligned},\"companyAlreadyRight\":${already_right},\"companySkipped\":${skipped}"
 }
 
 # "As notas, sem emissão alguma": o dump traz a base inteira, e o que **não** pode atravessar sai
@@ -378,12 +501,32 @@ main() {
 
   CURRENT_STEP=download_cycle
   download_production_cycle
+  CURRENT_STEP=extract_production_realm
+  extract_production_realm_users
   CURRENT_STEP=restore
   restore_over_staging
   CURRENT_STEP=rebind_identities
   rebind_staging_identities
   CURRENT_STEP=strip_emission
   strip_emission_data
+
+  # Depois da limpeza, de propósito: o certificado e a emissão de produção já saíram quando o Admin
+  # API do Keycloak é chamado. E a falha vira aviso, porque sem o redeploy seguinte a API de staging
+  # fica atrás do schema. O subshell com `set -e` é o que faz a primeira falha parar o acerto — num
+  # `if` ou `||` o bash desligaria o `-e` dentro da função e ela seguiria em frente. O trap de ERR sai
+  # durante o subshell: com `-E` ele dispararia no status dele e escreveria `staging_refresh_failed`.
+  CURRENT_STEP=align_companies
+  local alignment_status=0
+  set +e
+  trap - ERR
+  (set -e; align_staging_companies)
+  alignment_status=$?
+  trap on_error ERR
+  set -e
+  if [ "$alignment_status" -ne 0 ]; then
+    log warn staging_refresh_company_alignment_failed ",\"status\":${alignment_status}"
+  fi
+
   CURRENT_STEP=redeploy
   redeploy_staging_api
 

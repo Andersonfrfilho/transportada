@@ -228,6 +228,117 @@ describe('contrato do serviço staging-refresh', () => {
     expect(script).not.toContain('set -x')
   })
 
+  /**
+   * O refresh de 14/09/2026 casou zero de três: o perfil da cópia não tinha o username nem o e-mail
+   * do realm de staging. O que liga as duas pontas com certeza é o username do Keycloak de produção,
+   * cujo subject já está em `external_identities`. O dump dele atravessa só para ser **lido** — o
+   * realm de staging tem redirect, secret e usuários próprios, e restaurá-lo derrubaria o login.
+   */
+  test('o dump do Keycloak de produção é só lido, nunca restaurado', async () => {
+    const script = await readScript()
+    const download = functionBody(script, 'download_production_cycle')
+    const extract = functionBody(script, 'extract_production_realm_users')
+
+    expect(download).toContain('"database\\":\\"${KEYCLOAK_DATABASE_NAME}\\"')
+    expect(extract).toContain('decrypt_verified_dump')
+    expect(extract).toContain('pg_restore --data-only --table=user_entity -f -')
+    expect(extract).toContain('pg_restore --data-only --table=realm -f -')
+    expect(extract).not.toContain('--dbname')
+    expect(extract).not.toContain('psql')
+    expect(script.split('pg_restore --dbname').length).toBe(2)
+    expect(functionBody(script, 'decrypt_verified_dump')).toContain('sha256sum -c')
+  })
+
+  test('os usuários de produção ficam no diretório de trabalho e o SQL os lê de lá', async () => {
+    const script = await readScript()
+    const extract = functionBody(script, 'extract_production_realm_users')
+    const rebind = functionBody(script, 'rebind_staging_identities')
+    const sql = await Bun.file(REBIND_SQL_PATH).text()
+
+    expect(extract).toContain('${WORK_DIRECTORY}/production-users.tsv')
+    expect(extract).toContain('${WORK_DIRECTORY}/production-realms.tsv')
+    expect(extract).toMatch(/rm -f "\$plain"/)
+    expect(rebind).toContain('cd "$WORK_DIRECTORY"')
+    expect(sql).toContain("\\copy production_users from 'production-users.tsv'")
+    expect(sql).toContain("\\copy production_realms from 'production-realms.tsv'")
+  })
+
+  test('o SQL casa pela identidade de produção antes do username e do e-mail do perfil', async () => {
+    const sql = await Bun.file(REBIND_SQL_PATH).text()
+
+    expect(sql).toContain('by_production as (')
+    expect(sql).toMatch(/join external_identities e on e\.subject = pu\.subject/)
+    expect(sql).toContain("e.issuer <> :'issuer'")
+    expect(sql).toContain("substring(e.issuer from '/realms/([^/]+)/?$') = pr.name")
+    expect(positionOf(sql, 'by_production as (')).toBeLessThan(positionOf(sql, 'by_username as ('))
+    expect(
+      sql.slice(positionOf(sql, 'by_username as ('), positionOf(sql, 'by_email as (')),
+    ).toContain('from by_production')
+    expect(functionBody(await readScript(), 'rebind_staging_identities')).toContain(
+      'linkedByProductionIdentity',
+    )
+  })
+
+  /**
+   * O token de staging carrega `company_id` do atributo do usuário no Keycloak de staging, e o
+   * vínculo ativo da cópia é com a empresa de produção: login religado, API respondendo 403.
+   */
+  test('a empresa do Keycloak de staging é acertada depois da limpeza e antes do redeploy', async () => {
+    const main = functionBody(await readScript(), 'main')
+
+    const order = [
+      'download_production_cycle',
+      'extract_production_realm_users',
+      'restore_over_staging',
+      'rebind_staging_identities',
+      'strip_emission_data',
+      'align_staging_companies',
+      'redeploy_staging_api',
+    ]
+    for (let index = 1; index < order.length; index += 1) {
+      expect(positionOf(main, order[index - 1] ?? '')).toBeLessThan(
+        positionOf(main, order[index] ?? ''),
+      )
+    }
+  })
+
+  /** A limpeza já aconteceu; o redeploy ainda não. Falha no acerto não pode levar o redeploy junto. */
+  test('falha no acerto da empresa vira aviso, não derruba o ciclo', async () => {
+    const main = functionBody(await readScript(), 'main')
+
+    expect(main).toContain('(set -e; align_staging_companies)')
+    expect(positionOf(main, 'trap - ERR')).toBeLessThan(positionOf(main, '(set -e; align_'))
+    expect(positionOf(main, '(set -e; align_')).toBeLessThan(positionOf(main, 'trap on_error ERR'))
+    expect(main).toContain('staging_refresh_company_alignment_failed')
+  })
+
+  test('o acerto só mexe em quem tem exatamente um vínculo ativo, e preserva os atributos', async () => {
+    const align = functionBody(await readScript(), 'align_staging_companies')
+
+    expect(align).toContain("m.status = 'active'")
+    expect(align).toContain("where e.issuer = :'issuer'")
+    expect(align).toContain('keycloak_admin_get "$token" "users/')
+    expect(align).toContain('.attributes = ((.attributes // {}) + {company_id: [$company]})')
+    expect(align).toContain('keycloak_admin_put "$token" "users/')
+    expect(positionOf(align, 'keycloak_admin_get')).toBeLessThan(
+      positionOf(align, 'keycloak_admin_put'),
+    )
+    for (const counter of ['companyAligned', 'companyAlreadyRight', 'companySkipped']) {
+      expect(align).toContain(counter)
+    }
+  })
+
+  test('o PUT do Admin API leva o token por --config e o corpo por stdin, nunca por argv', async () => {
+    const put = functionBody(await readScript(), 'keycloak_admin_put')
+
+    expect(put).toContain('--config <(printf')
+    expect(put).toContain('Authorization: Bearer')
+    expect(put).toContain('--request PUT')
+    expect(put).toContain('--data-binary @-')
+    expect(put).not.toMatch(/--header "Authorization/)
+    expect(put).toContain('/admin/realms/')
+  })
+
   test('a imagem traz o jq e o SQL do religamento', async () => {
     const dockerfile = await Bun.file(DOCKERFILE_PATH).text()
 
