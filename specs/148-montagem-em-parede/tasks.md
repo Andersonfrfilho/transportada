@@ -45,7 +45,7 @@
       e `tall.ts` em zero violações. Separar no relatório as caixas que não cabem pelas regras (`classify.ts`:
       sem assento com 80% de apoio) das que o algoritmo deixou escapar — a meta é zerar as segundas.
 
-- [ ] T3c — D5 + D6: passada final no pacote, também dirigida pelos vãos, que coloca as caixas restantes onde couberem, inclusive por cima de
+- [x] T3c (parte do pacote; tela, locale e lista "caixas por cima" pendentes) — D5 + D6: passada final no pacote, também dirigida pelos vãos, que coloca as caixas restantes onde couberem, inclusive por cima de
       entrega anterior, com apoio de 80% e sem pilha alta isolada. Marca cada uma com um motivo próprio (ex.:
       `overEarlierDelivery`) e com a entrega que ela cobre. Medir caixas de fora e retrabalho por parada.
       No app: marca própria no mapa 3D e lista "caixas por cima" (caixa, nota, entrega coberta, parada em que

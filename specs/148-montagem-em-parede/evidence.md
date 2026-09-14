@@ -257,3 +257,71 @@ Accelo (0,76 m / 1,73 m) e Iveco antiga (0,94 m / 1,51 m) medidos só na parede.
   nenhuma caixa.
 - **O que sobra não é degrau**: 33 das 36 recusas buscadas são cobertura parcial (42–55%) da face de trás,
   no topo da carga, com o baú cheio até a porta. Nenhuma regra foi mexida; a T3b segue aberta.
+
+## T3c — passada final por cima, marcada, e `unplaced` por nota · 2026-09-13 · parte do pacote
+
+Pacote `feat/cargo-placement` @ **`2e3aa67`** (passada final + `unplaced` por nota) e **`863bdf5`** (a passada
+fura também a sombra), pai `2121e2b`, sem push. Tela, locale e a lista "caixas por cima" no app ficam
+**pendentes** (fora desta rodada). Modelo: `opus`.
+
+### O que entrou
+
+- **D5/D6, `placeOverEarlierDeliveries`**: roda só no baú fechado com complemento, uma vez, sobre a tentativa
+  que venceu. As caixas que nem a varredura nem o complemento colocaram, da maior para a menor, tentam todos
+  os vãos em todas as orientações que `keepUpright` permite; fica o assento **mais alto**. Pode ficar por cima
+  de qualquer entrega anterior e atrás de carga de entrega posterior (a sombra da spec 115 é ordem de
+  descarga — a D5 deixa só esta passada furá-la). Sai com `needsRehandling`, e com `overEarlierDelivery` +
+  `coversStops` quando cobre entrega anterior. A nota aparece dividida por `splitNotes`, que já conta pedaços
+  pelo desenho. Continuam valendo 80% de apoio, D23/D25 a 80% no baú fechado, a porta sem escora, nada sobre
+  caixa frágil ou não empilhável e o alcance de 2 m, medido de onde o conferente fica quando a primeira
+  entrega coberta desce.
+- **T7, `unplaced` por nota**: cada linha leva o `documentId` quando a caixa tem nota; sem nota, a linha é a
+  do formato antigo (`count`, `label`, `reason`), e a soma por rótulo não muda.
+- `PLACEMENT_REASONS` ganhou `overEarlierDelivery`: é a única expectativa alterada, no contrato do vocabulário
+  fechado (`placement.contract.ts`). `CARGO_LAYOUT_POLICY_VERSION` '4' → '5'.
+
+### Contratos vermelhos antes
+
+- `over-earlier-delivery.contract.ts`: vermelho sem a função (`placeOverEarlierDeliveries` não existia); o caso
+  "atrás de entrega posterior" vermelho antes de tirar a sombra da passada (1 fail). Depois: 5 / 5 — por cima
+  da entrega 1 com `coversStops: [1]`; deitada quando `keepUpright` não proíbe; recusada com `keepUpright`;
+  recusada sobre caixa frágil; atrás da entrega 3 com `needsRehandling` e sem `overEarlierDelivery`.
+- `unplaced-by-note.contract.ts`: vermelho (as linhas sem `documentId`), depois 2 / 2.
+
+### Gates
+
+`bunx tsc --noEmit` sem erro; `bun test ./test/cargo-placement.contract.test.ts` sozinho: **225 pass, 0
+`(fail)`**.
+
+### Medição (harness da spec 148)
+
+| Veículo      | De fora (T3 → T3c) | Por cima de entrega anterior | Atrás de entrega posterior | Retrabalho | Fora do alcance | Tempo  | check / tall |
+| ------------ | ------------------ | ---------------------------- | -------------------------- | ---------- | --------------- | ------ | ------------ |
+| Atego        | 91 → **82**        | 5                            | 4                          | 43 → 52    | 23              | 86,2 s | 0 / 0        |
+| Iveco 27     | 0 → 0              | 0                            | 0                          | 0          | 0               | 0,6 s  | 0 / 0        |
+| Sprinter     | 0 → 0              | 0                            | 0                          | 0          | 0               | 0,2 s  | 0 / 0        |
+| Fiorino      | 0 → 0              | 0                            | 0                          | 0          | 0               | 0,03 s | 0 / 0        |
+| Accelo       | 0 → 0              | 0                            | 0                          | 0          | 0               | 1,6 s  | 0 / 0        |
+| Iveco antiga | 0 → 0              | 0                            | 0                          | 0          | 0               | 0,5 s  | 0 / 0        |
+
+- Caixas que o conferente tira do caminho, por parada (Atego): **parada 3: 4, parada 7: 1**.
+- `unplaced` da Atego: 22 linhas, todas com `documentId`.
+- Nos outros cinco a passada não roda (nada sobra), e o desenho não muda.
+
+### O que sobra na Atego (82) e por quê
+
+Sonda com as regras do próprio pacote (`createSupportMap` real sobre a planta final, em todas as orientações
+permitidas, com a sombra liberada como na passada):
+
+| Regra que barra o melhor assento                                    | Caixas |
+| ------------------------------------------------------------------- | ------ |
+| alcance de 2 m (o conferente não chega nela na hora em que ela sai) | 66     |
+| pilha alta sem lateral (escora de 24–74% da borda)                  | 10     |
+| pilha alta sem cabeceira (escora de 20% da borda)                   | 3      |
+| assento aceito no relevo final, que a busca gulosa não retentou     | 3      |
+
+- `classify.ts` (rótulo antigo, que não separa os lados): 79 "pilha alta" + 3 sem assento com 80% de apoio.
+- **A Atego não zera sem mexer em regra**: 66 das 82 dependem do alcance de 2 m (D24) e 13 da D23/D25. Nada
+  foi afrouxado.
+- Proposta, sem regra nova: repetir a passada sobre as recusadas enquanto alguma caixa entrar, porque um assento
+  pode nascer quando outra caixa entra ao lado. Recupera no máximo as 3 da última linha.
