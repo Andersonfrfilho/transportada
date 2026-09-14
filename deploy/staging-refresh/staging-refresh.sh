@@ -40,6 +40,8 @@ readonly REALM_PAGE_SIZE=100
 readonly KEYCLOAK_DATABASE_NAME=keycloak
 REBIND_SQL_PATH="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/rebind-identities.sql"
 readonly REBIND_SQL_PATH
+NEUTRALIZE_SQL_PATH="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/neutralize-external.sql"
+readonly NEUTRALIZE_SQL_PATH
 
 CURRENT_STEP=boot
 WORK_DIRECTORY=''
@@ -457,6 +459,34 @@ SQL
   log info staging_refresh_emission_stripped ",\"notes\":${notes}"
 }
 
+# Staging nunca alcança produção nem terceiros reais (regra de 14/09/2026). A cópia traz o ambiente
+# fiscal `production`, as credenciais por empresa (Nota RP, Meta, Resend), os tokens de push e os
+# envios pendentes; o SQL em `neutralize-external.sql` neutraliza tudo numa transação só. O arquivo é
+# separado para poder ser aplicado sozinho num staging já copiado. O log leva só contagens do que
+# **sobrou** — zero em todas é o estado esperado.
+neutralize_external_reach() {
+  psql "$STAGING_DATABASE_URL" --quiet --set ON_ERROR_STOP=1 --file "$NEUTRALIZE_SQL_PATH"
+  local production credentials pending
+  read -r production credentials pending <<<"$(psql "$STAGING_DATABASE_URL" --tuples-only \
+    --no-align --quiet --field-separator ' ' --set ON_ERROR_STOP=1 <<'SQL'
+select
+  (select count(*) from company_fiscal_profiles where environment <> 'homologation'),
+  (select count(*) from nfse_provider_credentials) + (select count(*) from whatsapp_channels)
+    + (select count(*) from contractor_mail_settings)
+    + (select count(*) from digital_certificates where secret_envelope is not null)
+    + (select count(*) from notification.devices),
+  (select count(*) from processing_outbox where published_at is null)
+    + (select count(*) from invitation_delivery_outbox where published_at is null)
+    + (select count(*) from password_reset_delivery_outbox where published_at is null)
+    + (select count(*) from contractor_mail_outbox where published_at is null)
+    + (select count(*) from contractor_inbound_email_outbox where published_at is null)
+    + (select count(*) from aggregate_attachment_outbox where published_at is null)
+    + (select count(*) from notification.notifications where status in ('pending', 'scheduled'));
+SQL
+  )"
+  log info staging_refresh_external_neutralized ",\"productionFiscalProfiles\":${production},\"externalCredentials\":${credentials},\"pendingDeliveries\":${pending}"
+}
+
 # Staging quase sempre está **à frente** de produção — é onde a branch publica primeiro. O dump
 # acabou de puxar o schema para trás, e a app de staging, que espera o schema novo, quebraria em
 # toda rota que usa coluna que ainda não existe.
@@ -509,6 +539,8 @@ main() {
   rebind_staging_identities
   CURRENT_STEP=strip_emission
   strip_emission_data
+  CURRENT_STEP=neutralize_external
+  neutralize_external_reach
 
   # Depois da limpeza, de propósito: o certificado e a emissão de produção já saíram quando o Admin
   # API do Keycloak é chamado. E a falha vira aviso, porque sem o redeploy seguinte a API de staging

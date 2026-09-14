@@ -10,9 +10,9 @@ FROM postgres:18-alpine@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148
 RUN apk add --no-cache bash ca-certificates curl jq openssl
 
 # O script acha o SQL do religamento no próprio diretório: os dois viajam juntos.
-COPY deploy/staging-refresh/staging-refresh.sh deploy/staging-refresh/rebind-identities.sql /usr/local/lib/staging-refresh/
+COPY deploy/staging-refresh/staging-refresh.sh deploy/staging-refresh/rebind-identities.sql deploy/staging-refresh/neutralize-external.sql /usr/local/lib/staging-refresh/
 RUN chmod 0555 /usr/local/lib/staging-refresh/staging-refresh.sh \
-  && chmod 0444 /usr/local/lib/staging-refresh/rebind-identities.sql
+  && chmod 0444 /usr/local/lib/staging-refresh/rebind-identities.sql /usr/local/lib/staging-refresh/neutralize-external.sql
 
 USER postgres
 ENTRYPOINT ["/usr/local/lib/staging-refresh/staging-refresh.sh"]

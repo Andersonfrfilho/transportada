@@ -7,7 +7,22 @@ const REPOSITORY_ROOT = new URL('../../../../', import.meta.url)
 const REFRESH_DIRECTORY = new URL('deploy/staging-refresh/', REPOSITORY_ROOT)
 const SCRIPT_PATH = new URL('staging-refresh.sh', REFRESH_DIRECTORY)
 const REBIND_SQL_PATH = new URL('rebind-identities.sql', REFRESH_DIRECTORY)
+const NEUTRALIZE_SQL_PATH = new URL('neutralize-external.sql', REFRESH_DIRECTORY)
 const DOCKERFILE_PATH = new URL('Dockerfile', REFRESH_DIRECTORY)
+
+/** Toda outbox cujo relay publica para fora do banco: e-mail, convite, senha, NF-e, OCR. */
+const EXTERNAL_OUTBOX_TABLES = [
+  'processing_outbox',
+  'invitation_delivery_outbox',
+  'password_reset_delivery_outbox',
+  'contractor_mail_outbox',
+  'contractor_inbound_email_outbox',
+  'aggregate_attachment_outbox',
+]
+
+async function readNeutralizeSql(): Promise<string> {
+  return Bun.file(NEUTRALIZE_SQL_PATH).text()
+}
 const RAILWAY_CODE_PATH = new URL('.railway/railway.ts', REPOSITORY_ROOT)
 
 const KEYCLOAK_VARIABLES = [
@@ -174,6 +189,91 @@ describe('contrato do serviço staging-refresh', () => {
 
     expect(strip).toMatch(
       /update digital_certificates set status = 'retired', secret_envelope = null where secret_envelope is not null;/,
+    )
+  })
+
+  /**
+   * O refresh de 14/09/2026 deixou staging com o selo "Produção": `company_fiscal_profiles.environment`
+   * veio da cópia, e é ele que decide para que SEFAZ o CT-e, o MDF-e e a distribuição de NF-e vão.
+   */
+  test('o ambiente fiscal de toda empresa volta para homologação', async () => {
+    const sql = await readNeutralizeSql()
+
+    expect(sql).toMatch(
+      /update company_fiscal_profiles\s+set environment = 'homologation'[^;]*where environment <> 'homologation';/,
+    )
+  })
+
+  /**
+   * Credencial externa por empresa é o que faz staging falar com canal real. As três tabelas têm
+   * `secret_envelope not null`, então anular não passa no schema: a linha sai. O certificado é a
+   * exceção — o perfil fiscal o referencia, e o CHECK exige `retired` junto do envelope nulo.
+   */
+  test('as credenciais externas por empresa saem, e o certificado se aposenta', async () => {
+    const sql = await readNeutralizeSql()
+
+    for (const table of [
+      'nfse_provider_credentials',
+      'whatsapp_channels',
+      'contractor_mail_settings',
+    ]) {
+      expect(sql).toContain(`delete from ${table};`)
+    }
+    expect(sql).toContain(
+      "update digital_certificates set status = 'retired', secret_envelope = null where secret_envelope is not null;",
+    )
+    expect(sql).toContain('update notification.deliveries set device_id = null')
+    expect(sql).toContain('delete from notification.devices;')
+  })
+
+  /**
+   * Evento pendente de produção é envio pronto para sair: o relay de staging o publicaria na
+   * primeira batida. Marcar publicado não esbarra em FK nem em CHECK, e mantém a trilha.
+   */
+  test('outbox pendente, notificação agendada e pedido de WhatsApp em aberto são descartados', async () => {
+    const sql = await readNeutralizeSql()
+
+    for (const table of EXTERNAL_OUTBOX_TABLES) {
+      expect(sql).toMatch(
+        new RegExp(
+          `update ${table}\\s+set published_at = now\\(\\), claim_owner = null, claim_expires_at = null\\s+where published_at is null;`,
+        ),
+      )
+    }
+    expect(sql).toMatch(
+      /delete from notification\.notifications where status in \('pending', 'scheduled'\);/,
+    )
+    expect(sql).toMatch(/delete from notification\.deliveries where status = 'queued';/)
+    expect(sql).toMatch(
+      /update whatsapp_command_requests\s+set status = 'expired'[^;]*where status in \('previewed', 'confirming', 'dispatched'\);/,
+    )
+  })
+
+  test('a neutralização é uma transação só, depois da limpeza e antes do acerto da empresa', async () => {
+    const script = await readScript()
+    const sql = await readNeutralizeSql()
+    const main = functionBody(script, 'main')
+    const neutralize = functionBody(script, 'neutralize_external_reach')
+
+    expect(
+      sql
+        .trimStart()
+        .split('\n')
+        .find((line) => !line.startsWith('--')),
+    ).toBe('begin;')
+    expect(sql.trimEnd().endsWith('commit;')).toBe(true)
+    expect(positionOf(main, 'strip_emission_data')).toBeLessThan(
+      positionOf(main, 'neutralize_external_reach'),
+    )
+    expect(positionOf(main, 'neutralize_external_reach')).toBeLessThan(
+      positionOf(main, 'align_staging_companies'),
+    )
+    expect(main).toContain('CURRENT_STEP=neutralize_external')
+    expect(neutralize).toContain('--set ON_ERROR_STOP=1')
+    expect(neutralize).toContain('--file "$NEUTRALIZE_SQL_PATH"')
+    expect(neutralize).toContain('staging_refresh_external_neutralized')
+    expect(await Bun.file(DOCKERFILE_PATH).text()).toContain(
+      'deploy/staging-refresh/neutralize-external.sql',
     )
   })
 
