@@ -324,7 +324,7 @@ truncate table
 
 -- A linha fica, o material de assinatura não: `company_fiscal_profiles` referencia o certificado, e
 -- apagar a linha levaria o perfil junto no cascade.
-update digital_certificates set secret_envelope = null where secret_envelope is not null;
+update digital_certificates set status = 'retired', secret_envelope = null where secret_envelope is not null;
 
 commit;
 SQL

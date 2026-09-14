@@ -164,6 +164,19 @@ describe('contrato do serviço staging-refresh', () => {
     )
   })
 
+  /**
+   * `digital_certificates_envelope_status_check` só aceita envelope nulo em certificado `retired`.
+   * O refresh de 14/09/2026 anulou o envelope deixando `active`, o CHECK recusou, a transação da
+   * limpeza desfez tudo — e staging ficou com a emissão e o certificado de produção.
+   */
+  test('a limpeza aposenta o certificado junto com o envelope', async () => {
+    const strip = functionBody(await readScript(), 'strip_emission_data')
+
+    expect(strip).toMatch(
+      /update digital_certificates set status = 'retired', secret_envelope = null where secret_envelope is not null;/,
+    )
+  })
+
   test('o SQL casa por username e por e-mail, só quando cai em um usuário, e grava no issuer de staging', async () => {
     const sql = await Bun.file(REBIND_SQL_PATH).text()
 
