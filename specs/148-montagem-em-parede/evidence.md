@@ -325,3 +325,78 @@ permitidas, com a sombra liberada como na passada):
   foi afrouxado.
 - Proposta, sem regra nova: repetir a passada sobre as recusadas enquanto alguma caixa entrar, porque um assento
   pode nascer quando outra caixa entra ao lado. Recupera no máximo as 3 da última linha.
+
+## T3b — reorganização (D4), passada final em rodadas e prazo · 2026-09-13 · ⚠️ não fechou
+
+Pacote `feat/cargo-placement` @ **`ae1e74c`** (pai `863bdf5`), sem push. Decisões do usuário: as caixas atrás
+de carga de entrega posterior ficam aceitas e marcadas (`863bdf5` mantido); o alcance de 2 m não se afrouxa.
+Modelo: `opus`.
+
+### O que entrou
+
+- **D4, `reorganizeForLeftovers`** (só no baú fechado, depois da passada final): para cada caixa de fora,
+  tenta tirar do lugar até 12 caixas de entrega posterior, descobertas e em cuja pegada ela cabe, das mais
+  perto da porta para dentro. Cada tentativa refaz o mapa de apoio sem a caixa tardia, assenta a caixa de fora
+  pelas regras da passada final e manda a tardia para o assento mais fundo, fora do piso, que as regras dela
+  aceitam: pilha de pé, sem pousar em entrega anterior nem em caixa frágil, sem carga posterior mais alta na
+  frente, sem ficar na frente de entrega anterior acima da base dela, e ao alcance na parada dela. Depois
+  confere de novo as pilhas altas vizinhas do lugar deixado e o alcance das caixas das paradas até a da caixa
+  de fora. Só aceita a troca que tira uma caixa de fora; respeita o prazo.
+- **D6, rodadas**: a passada final repete as recusadas enquanto alguma entrar.
+- **Prazo nas passadas finais**: a decisão do arranjo empacota a profundidade sem prazo (a spec 145 exige que
+  o arranjo não dependa do prazo) e o desenho reusa esse pacote, de modo que a passada final e a reorganização
+  rodavam sem prazo (medido: Atego em 132 s com prazo de 120 s). Agora elas recebem `finishingDeadline`, que a
+  varredura não lê, e o pacote guardado só é reusado por quem tem o mesmo prazo. O arranjo e o mapa
+  recomendado não mudam (contrato).
+- `CARGO_LAYOUT_POLICY_VERSION` '5' → '6'.
+
+### Contratos vermelhos antes
+
+- `reorganize-leftovers.contract.ts`: vermelho (a função não existia); depois 2 / 2 — a tardia sobe para o
+  vão do fundo e a caixa de fora entra no lugar dela; sem baú fechado nada muda.
+- `over-earlier-delivery.contract.ts`, rodadas: vermelho (a caixa larga ficava de fora); depois 6 / 6.
+- `layout-deadline.contract.ts`: com prazo vencido, a caixa por cima ainda aparecia (1); depois 3 / 3 —
+  nenhuma por cima, e o arranjo e o mapa recomendado iguais aos da chamada sem prazo.
+
+### Gates
+
+`bunx tsc --noEmit` sem erro; `bun test ./test/cargo-placement.contract.test.ts` sozinho: **231 pass, 0
+`(fail)`**.
+
+### Medição (harness da spec 148, prazo de 120 s como na produção)
+
+| Veículo      | De fora (T3c → T3b) | Movidas pela reorganização | Por cima | Retrabalho | Tempo       | check / tall |
+| ------------ | ------------------- | -------------------------- | -------- | ---------- | ----------- | ------------ |
+| Atego        | 82 → **79**         | 0                          | 6        | 52 → 55    | **120,0 s** | 0 / 0        |
+| Iveco 27     | 0 → 0               | 0                          | 0        | 0          | 0,6 s       | 0 / 0        |
+| Sprinter     | 0 → 0               | 0                          | 0        | 0          | 0,2 s       | 0 / 0        |
+| Fiorino      | 0 → 0               | 0                          | 0        | 0          | 0,03 s      | 0 / 0        |
+| Accelo       | 0 → 0               | 0                          | 0        | 0          | 1,6 s       | 0 / 0        |
+| Iveco antiga | 0 → 0               | 0                          | 0        | 0          | 0,5 s       | 0 / 0        |
+
+- As 3 caixas a menos vêm das rodadas da passada final.
+- Caixas que o conferente tira do caminho (por cima de entrega anterior), por parada: 3: 4, 7: 1, 11: 1.
+- Retrabalho por parada da caixa (`needsRehandling`), Atego: 1: 2 · 3: 6 · 4: 1 · 7: 16 · 8: 2 · 9: 4 ·
+  10: 9 · 11: 8 · 12: 2 · 15: 2 · 16: 3.
+- `unplaced` da Atego: 20 linhas, todas com `documentId`.
+
+### Por que a reorganização não troca na Atego
+
+Instrumentada, com prazo folgado (360 s): 17 caixas de fora chegaram a ter candidatas, 153 trocas tentadas.
+**146** falharam porque, mesmo com a caixa tardia fora, a caixa de fora continua sem assento válido; 7 porque a
+tardia não achou assento no fundo; nenhuma por vizinha solta ou alcance quebrado. É geometria: o alcance de uma
+caixa das primeiras paradas é medido de onde o conferente fica quando essa parada desce, na frente da carga
+que ainda está no baú. Pela ordem de descarga, a faixa ao alcance das paradas 1–16 é ocupada por elas mesmas,
+junto da porta, e as entregas tardias ficam atrás. O lugar que uma tardia libera fica atrás dessa carga e
+continua a mais de 2 m da mão. A troca não alcança essas caixas sem mexer no alcance.
+
+### O que sobra na Atego (79), pelas regras do pacote
+
+| Regra que barra o melhor assento                            | Caixas |
+| ----------------------------------------------------------- | ------ |
+| alcance de 2 m (D24)                                        | 66     |
+| pilha alta sem lateral (D23/D25, escora de 24–74% da borda) | 10     |
+| pilha alta sem cabeceira (D23/D25, escora de 20% da borda)  | 3      |
+
+A meta (zero caixa de fora) **não fecha sem mexer em regra**: 66 dependem do alcance de 2 m e 13 da D23/D25.
+Nada foi afrouxado; a T3b segue aberta.
