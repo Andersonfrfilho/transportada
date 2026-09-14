@@ -90,6 +90,13 @@ export type AcceptMultiVehicleSuggestionInput = ReadMultiVehicleSuggestionInput 
       vehicleId: string
     }>[]
     vehicleIds?: readonly string[]
+    /** Spec 148 T7: o rastro da auditoria de quem soltou; só vem com `releaseUnplacedFromLayoutIds`. */
+    correlationId?: string
+    /**
+     * Spec 148 T7 (D10): as plantas da prévia de onde soltar as notas que não couberam — cada uma
+     * casa com o caminhão cujas notas ela desenhou. Ausente é o aceite de sempre.
+     */
+    releaseUnplacedFromLayoutIds?: readonly string[]
   }>
 
 export type MultiVehicleSuggestionUseCase = Readonly<{

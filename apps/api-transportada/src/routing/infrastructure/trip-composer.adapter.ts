@@ -48,10 +48,19 @@ export type TripComposerDependencies = Readonly<{
     readonly stopIds: readonly string[]
     readonly tripId: string
   }) => Promise<unknown>
+  /** Spec 148 T7: a fila de revisão, vista de fora — ler a planta da prévia, vincular e soltar. */
+  readReleasePlan?: TripComposer['readReleasePlan']
+  linkAndRelease?: TripComposer['linkAndRelease']
 }>
 
 export function createTripComposer(dependencies: TripComposerDependencies): TripComposer {
   return {
+    ...(dependencies.readReleasePlan === undefined
+      ? {}
+      : { readReleasePlan: dependencies.readReleasePlan }),
+    ...(dependencies.linkAndRelease === undefined
+      ? {}
+      : { linkAndRelease: dependencies.linkAndRelease }),
     async createTrip({ context, driverId, vehicleId }) {
       /**
        * ADR-0055: a viagem nasce **com** o motorista que o humano pareou no diálogo. O solver

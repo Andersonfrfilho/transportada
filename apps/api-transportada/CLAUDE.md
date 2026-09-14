@@ -94,6 +94,18 @@ não volta ao pool. ⚠️ Toda consulta que decide "nota disponível" filtra po
 status da viagem — `findTripLinks` não filtrava isso e 324 vínculos liberados ficaram invisíveis para
 a montagem de roteiro (medido 2026-09-08); o padrão correto é `buildActiveTripLinkFilters`.
 
+**A nota que não coube vai para a fila de revisão, por botão** (spec 148 T7):
+`trip_document_reviews` (`pending → moved | swapped_in | relinked`, sem ENUM), rotas em
+`trip-document-review.routes.ts` — `POST /trips/:id/cargo-layouts/:layoutId/release-unplaced`,
+`GET /trip-document-reviews`, `…/:id/swap-suggestions`, `…/move-preview`, `…/move`, `…/swap`.
+Soltar marca `released_at`; `time_budget` e `notMeasured` nunca soltam (D11); planta com hash velho
+é 409; a trava é só o despacho (`checkTripAcceptsLinkage`), CT-e não trava (D13). Mover/trocar
+aplicam **a mesma mudança** na prévia (transação desfeita) e na ação — é isso que faz o hash bater.
+⚠️ Todo vínculo novo (`linkDocument`, lote, aceite) fecha a entrada pendente como `relinked` (D12,
+`closePendingReviewsOnLink`). O aceite da proposta leva `releaseUnplacedFromLayoutIds` (vincula e
+solta na mesma transação). ⚠️ Teste contra Postgres usa `createDatabaseProvider` (`prepare: false`):
+com `createDrizzleProvider` cru a transação da prévia parava ociosa para sempre (spec 137).
+
 **A nota tem dois endereços de destino, só um diz onde o caminhão para** (spec 073):
 `<enderDest>` é cadastro do cliente, `<entrega>` é onde a carga é deixada. Precedência **desvio
 manual → `<entrega>` → `<enderDest>`**, decidida por `resolvePhysicalDestination`

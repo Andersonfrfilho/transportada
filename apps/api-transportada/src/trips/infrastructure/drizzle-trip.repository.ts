@@ -40,6 +40,7 @@ import {
   reconcileStopOnUnlink,
 } from '../application/reconcile-trip-stops.use-case.js'
 import { createTripStopReconciliationPort } from './drizzle-trip-stop-reconciliation.support.js'
+import { closePendingReviewsOnLink } from './trip-document-review-relink.support.js'
 import {
   resolveNfeDestinationAddress,
   resolveNfeDocumentId,
@@ -255,6 +256,11 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         linked = mapTripDocument(withStop ?? record)
       }
 
+      /** Spec 148 D12: a nota que estava na fila de revisão entrou numa viagem — a entrada fecha. */
+      await closePendingReviewsOnLink(transaction, {
+        companyId: input.companyId,
+        tripId: input.tripId,
+      })
       await this.requestCargoLayoutForTrip(transaction, {
         companyId: input.companyId,
         tripId: input.tripId,
@@ -352,6 +358,12 @@ export class DrizzleTripRepository implements TripRepositoryPort {
         .filter((id) => !insertedIds.has(id))
         .map((nfeDocumentId) => ({ nfeDocumentId, reason: 'already_linked' as const }))
 
+      if (created.length > 0) {
+        await closePendingReviewsOnLink(transaction, {
+          companyId: input.companyId,
+          tripId: input.tripId,
+        })
+      }
       await this.requestCargoLayoutForTrip(transaction, {
         companyId: input.companyId,
         tripId: input.tripId,
@@ -549,7 +561,7 @@ const NO_DESTINATION: LinkedDocumentDestination = { destinationOrigin: null, sto
  * A origem (spec 073 CA10) é devolvida **junto e em separado**: no segundo caso ela é conhecida e o
  * `stopId` não, e é essa nota que mais precisa da procedência impressa na tela.
  */
-async function reconcileLinkedDocumentStop(
+export async function reconcileLinkedDocumentStop(
   transaction: TripTransaction,
   input: {
     readonly companyId: string
@@ -581,7 +593,7 @@ async function reconcileLinkedDocumentStop(
  * O `RETURNING` do `UPDATE` que libera a nota já reflete `stop_id = null` — a T010 aprendeu isso do
  * jeito caro. A parada de origem precisa ser lida numa consulta separada, antes de reconciliar.
  */
-async function readDocumentStopIdBeforeRelease(
+export async function readDocumentStopIdBeforeRelease(
   transaction: TripTransaction,
   input: { readonly companyId: string; readonly documentId: string },
 ): Promise<string | null> {

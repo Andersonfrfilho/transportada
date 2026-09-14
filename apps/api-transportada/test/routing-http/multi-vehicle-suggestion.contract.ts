@@ -129,6 +129,38 @@ describe('as rotas da sugestão multi-veículo (spec 058 P2)', () => {
     })
   })
 
+  /** Spec 148 T7: as plantas da prévia de onde soltar as notas que não couberam, com o rastro do pedido. */
+  test('o aceite leva as plantas de onde soltar as notas que não couberam', async () => {
+    const fixture = await createMultiVehicleHttpFixture()
+    const layoutId = '00000000-0000-4000-8000-00000000c0de'
+
+    const response = await fixture.handle(
+      jsonRequest({
+        body: { releaseUnplacedFromLayoutIds: [layoutId] },
+        method: 'POST',
+        path: `${SUGGESTION_PATH}/accept`,
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(fixture.acceptCalls[0]).toMatchObject({
+      releaseUnplacedFromLayoutIds: [layoutId],
+      suggestionId: SUGGESTION_ID,
+    })
+    expect(typeof (fixture.acceptCalls[0] as { correlationId?: unknown }).correlationId).toBe(
+      'string',
+    )
+
+    const empty = await fixture.handle(
+      jsonRequest({
+        body: { releaseUnplacedFromLayoutIds: [] },
+        method: 'POST',
+        path: `${SUGGESTION_PATH}/accept`,
+      }),
+    )
+    expect(empty.status).toBe(400)
+  })
+
   test('recusa ordem malformada antes de chegar ao caso de uso', async () => {
     const fixture = await createMultiVehicleHttpFixture()
     const malformed = [

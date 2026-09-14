@@ -25,6 +25,11 @@ import type {
 import type { RouteOptimizationQueue } from './route-suggestion.use-case.js'
 import type { RouteSuggestionAssumptions } from './route-suggestion.port.js'
 import type { RouteSuggestionRepository } from './route-suggestion.repository.js'
+import type { TripDocumentReviewReason } from '../../database/trip-document-review.schema.js'
+import {
+  resolveAcceptReleasePlans,
+  type AcceptReleaseEntry,
+} from './accept-release-plan.service.js'
 
 /**
  * O que o aceite usa para transformar a proposta em viagem. São os casos de uso da 056 vistos de
@@ -69,6 +74,26 @@ export type TripComposer = Readonly<{
     readonly orderedAddressKeys: readonly string[]
     readonly tripId: string
   }) => Promise<void>
+  /** Spec 148 T7: a planta da prévia — as notas que ela desenhou e as que deixou de fora. */
+  readReleasePlan?: (input: {
+    readonly context: MultiVehicleScope
+    readonly layoutId: string
+  }) => Promise<{
+    readonly documentIds: readonly string[]
+    readonly released: readonly {
+      readonly documentId: string
+      readonly reason: TripDocumentReviewReason
+    }[]
+  }>
+  /** Spec 148 T7: vincula e solta na mesma transação; `false` é a nota viva em outra viagem. */
+  linkAndRelease?: (input: {
+    readonly context: MultiVehicleScope
+    readonly correlationId: string
+    readonly layoutId: string
+    readonly nfeDocumentId: string
+    readonly reason: TripDocumentReviewReason
+    readonly tripId: string
+  }) => Promise<boolean>
 }>
 
 export type MultiVehicleSuggestionDependencies = Readonly<{
@@ -115,7 +140,14 @@ export function createMultiVehicleSuggestionUseCase(
   }
 
   return {
-    async accept({ context, stopOrderByVehicle, suggestionId, vehicleIds }) {
+    async accept({
+      context,
+      correlationId,
+      releaseUnplacedFromLayoutIds,
+      stopOrderByVehicle,
+      suggestionId,
+      vehicleIds,
+    }) {
       const found = await readReady({ companyId: context.companyId, suggestionId })
       const proposed = await dependencies.multiVehicle.readGroups({
         companyId: context.companyId,
@@ -128,6 +160,33 @@ export function createMultiVehicleSuggestionUseCase(
        * proposta boa — o operador perderia as quatro viagens por causa de um id errado.
        */
       const groups = resolveAcceptedGroups({ proposed, stopOrderByVehicle, vehicleIds })
+      const releasePlans = await resolveAcceptReleasePlans({
+        context,
+        groups,
+        layoutIds: releaseUnplacedFromLayoutIds ?? [],
+        trips: dependencies.trips,
+      })
+      const linkOrRelease = async (input: {
+        readonly nfeDocumentId: string
+        readonly release: AcceptReleaseEntry | undefined
+        readonly tripId: string
+      }): Promise<{ readonly linked: boolean; readonly released: boolean }> => {
+        if (input.release === undefined) {
+          const linked = await dependencies.trips.linkDocument({ context, ...input })
+          return { linked, released: false }
+        }
+        const linkAndRelease = dependencies.trips.linkAndRelease
+        if (linkAndRelease === undefined) throw new Error('TRIP_COMPOSER_WITHOUT_LINK_AND_RELEASE')
+        const released = await linkAndRelease({
+          context,
+          correlationId: correlationId ?? crypto.randomUUID(),
+          layoutId: input.release.layoutId,
+          nfeDocumentId: input.nfeDocumentId,
+          reason: input.release.reason,
+          tripId: input.tripId,
+        })
+        return { linked: false, released }
+      }
 
       /**
        * Spec 107 D2: **a sugestão é reivindicada antes de qualquer viagem nascer.**
@@ -169,9 +228,15 @@ export function createMultiVehicleSuggestionUseCase(
 
           let linkedCount = 0
           for (const nfeDocumentId of group.documentIds) {
-            const linked = await dependencies.trips.linkDocument({ context, nfeDocumentId, tripId })
-            if (linked) linkedCount += 1
-            else skippedDocuments.push({ nfeDocumentId, reason: 'already_linked' })
+            const outcome = await linkOrRelease({
+              nfeDocumentId,
+              release: releasePlans.get(group.vehicleId)?.get(nfeDocumentId),
+              tripId,
+            })
+            if (outcome.linked) linkedCount += 1
+            else if (!outcome.released) {
+              skippedDocuments.push({ nfeDocumentId, reason: 'already_linked' })
+            }
           }
 
           if (group.orderedAddressKeys.length > 0) {

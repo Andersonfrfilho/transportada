@@ -292,6 +292,8 @@ import {
   resolveCargoLayoutLeaseMs,
 } from './trips/domain/cargo-layout-lease.policy.js'
 import { createFinancialSummaryRoutes } from './trips/presentation/financial-summary.routes.js'
+import { createTripDocumentReviewRoutes } from './trips/presentation/trip-document-review.routes.js'
+import { DrizzleTripDocumentReviewRepository } from './trips/infrastructure/drizzle-trip-document-review.repository.js'
 import { DrizzleTripCostRepository } from './trips/infrastructure/drizzle-trip-cost.repository.js'
 import { freezeTripFinancialResult } from './trips/application/freeze-trip-financial-result.use-case.js'
 import { DrizzleApplicableFreightRuleQuery } from './freight/infrastructure/drizzle-freight.repository'
@@ -1403,6 +1405,10 @@ function createApplicationRoutes({
     }),
   }
   const tripRepository = new DrizzleTripRepository(database, cargoLayoutLeaseOptions)
+  const tripDocumentReviewRepository = new DrizzleTripDocumentReviewRepository(
+    database,
+    cargoLayoutLeaseOptions,
+  )
   /** Spec 145 D7 (lazy): transação própria, fora da leitura do detalhe, com o mesmo lease do worker. */
   const cargoLayoutRequestRepository = new DrizzleCargoLayoutRequestRepository(
     database,
@@ -1957,6 +1963,22 @@ function createApplicationRoutes({
                 (await listTripStops({ ...input, repository: tripStopLookupRepository })).stops,
               planRoute: (input) => tripLifecycle.planRoute.execute(input),
               reorder: (input) => tripLifecycle.reorderStops.execute(input),
+              /** Spec 148 T7: o aceite que vincula e solta as notas que não couberam na prévia. */
+              readReleasePlan: (input) =>
+                tripDocumentReviewRepository.readReleasePlan({
+                  companyId: input.context.companyId,
+                  layoutId: input.layoutId,
+                }),
+              linkAndRelease: (input) =>
+                tripDocumentReviewRepository.linkAndReleaseForReview({
+                  companyId: input.context.companyId,
+                  correlationId: input.correlationId,
+                  layoutId: input.layoutId,
+                  nfeDocumentId: input.nfeDocumentId,
+                  reason: input.reason,
+                  tripId: input.tripId,
+                  userId: input.context.userId,
+                }),
               /** Spec 107 D3: o ETA da sugestão vira o ETA da viagem, com o carimbo do momento. */
               writeEstimatedArrivals: (input) =>
                 tripRouteRepository.writeEstimatedArrivals({
@@ -2059,6 +2081,8 @@ function createApplicationRoutes({
         },
       },
     }),
+    /** Spec 148 T7: a fila de revisão das notas que não couberam. */
+    ...createTripDocumentReviewRoutes({ reviews: tripDocumentReviewRepository }),
     ...createExtraChargeBatchRoutes({
       closeBatch: { execute: (input) => extraChargeBatches.close(input) },
       decideBatch: { execute: (input) => extraChargeBatches.decide(input) },

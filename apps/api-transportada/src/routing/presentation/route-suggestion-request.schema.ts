@@ -118,5 +118,11 @@ export const acceptMultiVehicleSuggestionSchema = z
       )
       .optional(),
     vehicleIds: z.array(z.uuid()).min(1).max(MAX_VEHICLES_PER_SUGGESTION).optional(),
+    /** Spec 148 T7: as plantas da prévia de onde soltar as notas que não couberam. */
+    releaseUnplacedFromLayoutIds: z
+      .array(z.uuid())
+      .min(1)
+      .max(MAX_VEHICLES_PER_SUGGESTION)
+      .optional(),
   })
   .strict()

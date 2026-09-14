@@ -104,6 +104,8 @@ export function createMultiVehicleSuggestionRoutes(dependencies: Dependencies) {
       policy: TRIP_READ_POLICY,
     }),
     defineRoute<{
+      readonly correlationId?: string
+      readonly releaseUnplacedFromLayoutIds?: readonly string[]
       readonly stopOrderByVehicle?: readonly Readonly<{
         orderedAddressKeys: readonly string[]
         vehicleId: string
@@ -115,6 +117,14 @@ export function createMultiVehicleSuggestionRoutes(dependencies: Dependencies) {
         const accepted = await dependencies.multiVehicleSuggestions.accept({
           context: context.scope,
           suggestionId: input.suggestionId,
+          ...(input.releaseUnplacedFromLayoutIds === undefined
+            ? {}
+            : {
+                releaseUnplacedFromLayoutIds: input.releaseUnplacedFromLayoutIds,
+                ...(input.correlationId === undefined
+                  ? {}
+                  : { correlationId: input.correlationId }),
+              }),
           ...(input.stopOrderByVehicle === undefined
             ? {}
             : { stopOrderByVehicle: input.stopOrderByVehicle }),
@@ -128,11 +138,14 @@ export function createMultiVehicleSuggestionRoutes(dependencies: Dependencies) {
        * Spec 110 D5a: corpo **opcional**. Sem `content-type` o aceite é o de sempre — a proposta
        * inteira —, e é isso que mantém o cliente anterior a esta spec funcionando sem mudar nada.
        */
-      async parse({ pathParameters, request }) {
+      async parse({ correlationId, pathParameters, request }) {
         const body = await parseOptionalBody(acceptMultiVehicleSuggestionSchema, request)
 
         return {
           suggestionId: parseUuidPathIdentifier(pathParameters.suggestionId ?? ''),
+          ...(body.releaseUnplacedFromLayoutIds === undefined
+            ? {}
+            : { correlationId, releaseUnplacedFromLayoutIds: body.releaseUnplacedFromLayoutIds }),
           ...(body.stopOrderByVehicle === undefined
             ? {}
             : { stopOrderByVehicle: body.stopOrderByVehicle }),

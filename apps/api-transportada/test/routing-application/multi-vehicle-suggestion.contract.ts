@@ -28,6 +28,7 @@ import {
   RouteSuggestionNotDecidableError,
   RouteSuggestionNotFoundError,
 } from '../../src/routing/domain/routing.error.js'
+import { TripCargoLayoutOutdatedError } from '../../src/trips/domain/trip-document-review.error.js'
 
 const COMPANY_ID = '00000000-0000-4000-8000-000000000001'
 const USER_ID = '00000000-0000-4000-8000-000000000002'
@@ -95,6 +96,14 @@ function buildFixture(
     /** Spec 107 D2: simula a reivindicação perdida para outro pedido concorrente. */
     readonly claimFails?: boolean
     readonly groups?: readonly MultiVehicleSuggestionGroup[]
+    /** Spec 148 T7: a planta da prévia por id — as notas que ela desenhou e as que deixou de fora. */
+    readonly releasePlans?: ReadonlyMap<
+      string,
+      {
+        readonly documentIds: readonly string[]
+        readonly released: readonly { readonly documentId: string; readonly reason: 'bedFull' }[]
+      }
+    >
     readonly vehicleRoads?: readonly MultiVehicleSuggestionRoad[]
     readonly stored?: RouteSuggestionRecord | null
     readonly unavailableDocuments?: readonly string[]
@@ -109,6 +118,7 @@ function buildFixture(
     link: [],
     plan: [],
     publish: [],
+    release: [],
     reorder: [],
     trip: [],
   }
@@ -163,6 +173,15 @@ function buildFixture(
     },
     async reorderStops(record) {
       calls.reorder?.push(record)
+    },
+    async readReleasePlan(record) {
+      const plan = input.releasePlans?.get(record.layoutId)
+      if (plan === undefined) throw new Error('unknown layout')
+      return plan
+    },
+    async linkAndRelease(record) {
+      calls.release?.push(record)
+      return true
     },
   }
 
@@ -429,6 +448,72 @@ describe('a sugestão multi-veículo (spec 058 P2)', () => {
         suggestionId: SUGGESTION_ID,
       },
     ])
+  })
+
+  describe('spec 148 T7: o aceite que vincula e solta', () => {
+    const LAYOUT_ID = '00000000-0000-4000-8000-000000000040'
+    const GROUP = {
+      documentIds: [FIRST_DOCUMENT, SECOND_DOCUMENT],
+      documentIdsByAddressKey: new Map(),
+      driverId: null,
+      estimatedArrivalByAddressKey: new Map(),
+      orderedAddressKeys: ['chave-1'],
+      vehicleId: FIRST_VEHICLE,
+    }
+
+    test('a nota que não coube na planta da prévia nasce na viagem já solta, na fila', async () => {
+      const fixture = buildFixture({
+        groups: [GROUP],
+        releasePlans: new Map([
+          [
+            LAYOUT_ID,
+            {
+              documentIds: [SECOND_DOCUMENT, FIRST_DOCUMENT],
+              released: [{ documentId: SECOND_DOCUMENT, reason: 'bedFull' }],
+            },
+          ],
+        ]),
+      })
+
+      const accepted = await fixture.useCase.accept({
+        context: CONTEXT,
+        correlationId: 'correlation-accept',
+        releaseUnplacedFromLayoutIds: [LAYOUT_ID],
+        suggestionId: SUGGESTION_ID,
+      })
+
+      expect(fixture.calls.link).toEqual([
+        { context: CONTEXT, nfeDocumentId: FIRST_DOCUMENT, tripId: 'trip-1' },
+      ])
+      expect(fixture.calls.release).toEqual([
+        {
+          context: CONTEXT,
+          correlationId: 'correlation-accept',
+          layoutId: LAYOUT_ID,
+          nfeDocumentId: SECOND_DOCUMENT,
+          reason: 'bedFull',
+          tripId: 'trip-1',
+        },
+      ])
+      expect(accepted.trips[0]?.documentCount).toBe(1)
+    })
+
+    /** A planta de outra carga decidiria sobre notas que não são deste caminhão: recusa antes de consumir. */
+    test('planta que não é de nenhum caminhão da proposta é 409, sem consumir a sugestão', async () => {
+      const fixture = buildFixture({
+        groups: [GROUP],
+        releasePlans: new Map([[LAYOUT_ID, { documentIds: [FIRST_DOCUMENT], released: [] }]]),
+      })
+
+      await expect(
+        fixture.useCase.accept({
+          context: CONTEXT,
+          releaseUnplacedFromLayoutIds: [LAYOUT_ID],
+          suggestionId: SUGGESTION_ID,
+        }),
+      ).rejects.toBeInstanceOf(TripCargoLayoutOutdatedError)
+      expect(fixture.calls.decide).toEqual([])
+    })
   })
 
   /**
