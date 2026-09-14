@@ -756,6 +756,17 @@ produção **não** atravessa: staging mantém os próprios usuários e realm, e
 não passa a valer lá. A guarda do primeiro passo recusa qualquer alvo cujo host seja o de produção,
 antes de baixar qualquer coisa.
 
+**Atualização de 2026-09-14 — as identidades são religadas ao realm de staging.** O restore traz
+`external_identities` com o issuer e os subjects de produção, e com eles todo login de staging
+respondia 401. O passo `rebind_identities` casa cada usuário do realm de staging com a pessoa do
+sistema pelo username (e, na falta dele, pelo e-mail do perfil), e grava o vínculo no issuer de
+staging. Consequência declarada: **quem tem conta no realm de staging passa a entrar como a pessoa
+de produção com o mesmo username ou e-mail**, com as memberships dela. O casamento ambíguo (um
+e-mail em mais de um perfil) fica de fora, `service-account-*` fica de fora, e o log registra só
+contagens. O passo recusa rodar se o issuer configurado já estiver nos dados restaurados — é o sinal
+de que a variável aponta para o Keycloak de produção. O serviço passa a guardar o client secret de
+admin do realm de staging.
+
 **O que falta:** tratar staging com o mesmo controle de acesso de produção, que é o preço da
 decisão — quem entra em staging passa a ver PII real. Concretamente: revisar quem tem credencial do
 banco e do bucket de staging, e definir retenção (hoje o refresh sobrescreve, mas nada expira).

@@ -5,11 +5,14 @@
 FROM postgres:18-alpine@sha256:9a8afca54e7861fd90fab5fdf4c42477a6b1cb7d293595148e674e0a3181de15
 
 # `curl` fala S3 por SigV4 nativo — evita arrastar Python e a AWS CLI para dentro de uma imagem que
-# roda uma vez por semana. Mesma escolha do backup.
-RUN apk add --no-cache bash ca-certificates curl openssl
+# roda uma vez por semana. Mesma escolha do backup. `jq` lê a resposta do Admin API do Keycloak no
+# religamento das identidades — JSON com `sed` quebra no primeiro e-mail com aspas.
+RUN apk add --no-cache bash ca-certificates curl jq openssl
 
-COPY deploy/staging-refresh/staging-refresh.sh /usr/local/bin/staging-refresh.sh
-RUN chmod 0555 /usr/local/bin/staging-refresh.sh
+# O script acha o SQL do religamento no próprio diretório: os dois viajam juntos.
+COPY deploy/staging-refresh/staging-refresh.sh deploy/staging-refresh/rebind-identities.sql /usr/local/lib/staging-refresh/
+RUN chmod 0555 /usr/local/lib/staging-refresh/staging-refresh.sh \
+  && chmod 0444 /usr/local/lib/staging-refresh/rebind-identities.sql
 
 USER postgres
-ENTRYPOINT ["/usr/local/bin/staging-refresh.sh"]
+ENTRYPOINT ["/usr/local/lib/staging-refresh/staging-refresh.sh"]

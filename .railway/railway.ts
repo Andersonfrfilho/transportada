@@ -500,6 +500,10 @@ export default defineRailway((ctx) => {
       FISCAL_SOURCE_S3_BUCKET: preserve(),
       FISCAL_SOURCE_S3_ENDPOINT: preserve(),
       FISCAL_SOURCE_S3_REGION: preserve(),
+      // Os do Keycloak **de staging** — os mesmos da API de staging —, para religar as identidades.
+      KEYCLOAK_ADMIN_CLIENT_ID: preserve(),
+      KEYCLOAK_ADMIN_CLIENT_SECRET: preserve(),
+      KEYCLOAK_ISSUER: preserve(),
       PRODUCTION_DATABASE_HOST: preserve(),
       SOURCE_BACKUP_ENVIRONMENT: preserve(),
       STAGING_API_SERVICE_ID: preserve(),
